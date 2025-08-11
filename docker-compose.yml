@@ -14,7 +14,7 @@ services:
 
   server:
     image: node:20
-    working_dir: /workspace/apps/server
+    working_dir: /workspace
     env_file:
       - .env
     environment:
@@ -23,29 +23,31 @@ services:
       LIVEKIT_URL: ${LIVEKIT_URL}
       LIVEKIT_API_KEY: ${LIVEKIT_API_KEY}
       LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET}
-    command: sh -c "npm ci || npm i && npm run dev"
+    command: sh -c "cd apps/server && npm i && npx prisma generate && npx prisma db push && npx ts-node-dev --respawn --transpile-only src/index.ts"
     ports:
       - "2567:2567"
     depends_on:
       - db
     volumes:
       - ./:/workspace
+      - /workspace/node_modules
 
   web:
     image: node:20
-    working_dir: /workspace/apps/web
+    working_dir: /workspace
     env_file:
       - .env
     environment:
       VITE_API_BASE: ${VITE_API_BASE}
       VITE_LIVEKIT_URL: ${VITE_LIVEKIT_URL}
-    command: sh -c "npm ci || npm i && npm run dev"
+    command: sh -c "npm i && npm run dev:web"
     ports:
       - "5173:5173"
     depends_on:
       - server
     volumes:
       - ./:/workspace
+      - /workspace/node_modules
 
   livekit:
     image: livekit/livekit-server:latest

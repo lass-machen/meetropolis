@@ -1,0 +1,27 @@
+import { AccessToken } from 'livekit-server-sdk';
+import type { AccessTokenOptions } from 'livekit-server-sdk';
+
+export function createLivekitToken(params: {
+  roomName: string;
+  identity: string;
+  name?: string;
+  canPublish?: boolean;
+  canPublishData?: boolean;
+  canSubscribe?: boolean;
+}) {
+  const apiKey = process.env.LIVEKIT_API_KEY!;
+  const apiSecret = process.env.LIVEKIT_API_SECRET!;
+  const opts: AccessTokenOptions = ({} as AccessTokenOptions);
+  (opts as any).identity = params.identity;
+  if (typeof params.name === 'string') (opts as any).name = params.name;
+  const at = new AccessToken(apiKey, apiSecret, opts);
+  at.addGrant({
+    room: params.roomName,
+    roomJoin: true,
+    canPublish: params.canPublish ?? true,
+    canPublishData: params.canPublishData ?? true,
+    canSubscribe: params.canSubscribe ?? true,
+  });
+  return at.toJwt();
+}
+

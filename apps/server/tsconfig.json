@@ -5,7 +5,9 @@
     "rootDir": "src",
     "types": ["node"],
     "lib": ["ES2021"],
-    "moduleResolution": "Bundler"
+    "moduleResolution": "Bundler",
+    "exactOptionalPropertyTypes": false,
+    "skipLibCheck": true
   },
   "include": ["src"]
 }

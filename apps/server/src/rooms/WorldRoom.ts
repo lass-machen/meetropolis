@@ -1,5 +1,6 @@
-import { Room, Client } from 'colyseus';
-import { Schema, type } from '@colyseus/schema';
+import type { Client } from 'colyseus';
+import { Room } from 'colyseus';
+import { Schema, type, MapSchema } from '@colyseus/schema';
 
 class Player extends Schema {
   @type('string') id: string = '';
@@ -12,11 +13,8 @@ class WorldState extends Schema {
   @type({ map: Player }) players = new MapSchema<Player>();
 }
 
-// MapSchema must be imported from @colyseus/schema
-import { MapSchema } from '@colyseus/schema';
-
 export class WorldRoom extends Room<WorldState> {
-  onCreate() {
+  override onCreate() {
     this.setState(new WorldState());
     this.onMessage('move', (client, data: { x: number; y: number; direction: string }) => {
       const player = this.state.players.get(client.sessionId);
@@ -27,13 +25,13 @@ export class WorldRoom extends Room<WorldState> {
     });
   }
 
-  onJoin(client: Client) {
+  override onJoin(client: Client) {
     const player = new Player();
     player.id = client.sessionId;
     this.state.players.set(client.sessionId, player);
   }
 
-  onLeave(client: Client) {
+  override onLeave(client: Client) {
     this.state.players.delete(client.sessionId);
   }
 }
