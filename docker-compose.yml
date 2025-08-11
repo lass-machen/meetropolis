@@ -1,0 +1,61 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: meetropolis
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+
+  server:
+    image: node:20
+    working_dir: /workspace/apps/server
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      PORT: 2567
+      LIVEKIT_URL: ${LIVEKIT_URL}
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET}
+    command: sh -c "npm ci || npm i && npm run dev"
+    ports:
+      - "2567:2567"
+    depends_on:
+      - db
+    volumes:
+      - ./:/workspace
+
+  web:
+    image: node:20
+    working_dir: /workspace/apps/web
+    env_file:
+      - .env
+    environment:
+      VITE_API_BASE: ${VITE_API_BASE}
+      VITE_LIVEKIT_URL: ${VITE_LIVEKIT_URL}
+    command: sh -c "npm ci || npm i && npm run dev"
+    ports:
+      - "5173:5173"
+    depends_on:
+      - server
+    volumes:
+      - ./:/workspace
+
+  livekit:
+    image: livekit/livekit-server:latest
+    command: ["--dev", "--bind", ":7880"]
+    environment:
+      LK_API_KEY: ${LIVEKIT_API_KEY:-devkey}
+      LK_API_SECRET: ${LIVEKIT_API_SECRET:-secret}
+    ports:
+      - "7880:7880"
+
+volumes:
+  db_data:
+
