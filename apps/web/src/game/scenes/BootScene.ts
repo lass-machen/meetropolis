@@ -6,11 +6,11 @@ export class BootScene extends Phaser.Scene {
   }
 
   preload() {
-    // Tileset-Bilder direkt laden
-    this.load.image('office_tiles', '/assets/tilesets/office_tiles.png');
+    // Tileset-Bilder laden
+    this.load.image('office_tiles_raw', '/assets/tilesets/office_tiles.png');
     this.load.image('furniture_tiles', '/assets/tilesets/furniture_tiles.png');
     this.load.image('decor_tiles', '/assets/tilesets/decor_tiles.png');
-    // Collision Tiles: falls kein Bild existiert, generieren wir ein Platzhalter-Canvas
+    // Canvas-Fallback für Kollisionstiles, damit der Tileset-Key existiert
     if (!this.textures.exists('collision_tiles')) {
       const ctex = this.textures.createCanvas('collision_tiles', 16, 16);
       if (ctex) {
@@ -32,6 +32,21 @@ export class BootScene extends Phaser.Scene {
   }
 
   create() {
+    // Erzeuge gepaddete office_tiles (192x48), wie in Tiled definiert
+    const src = this.textures.get('office_tiles_raw')?.getSourceImage() as HTMLImageElement | undefined;
+    if (src) {
+      const targetW = 192; // 12 cols * 16px
+      const targetH = 48;  // 3 rows * 16px
+      const ctex = this.textures.createCanvas('office_tiles', targetW, targetH);
+      if (ctex) {
+        const ctx = ctex.getContext();
+        if (ctx) {
+          ctx.clearRect(0, 0, targetW, targetH);
+          ctx.drawImage(src, 0, 0);
+        }
+        ctex.refresh();
+      }
+    }
     this.scene.start('Main');
   }
 }

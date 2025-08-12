@@ -6,7 +6,6 @@ export class MainScene extends Phaser.Scene implements SceneApi {
   private remotes: Map<string, Phaser.GameObjects.Sprite> = new Map();
   private desiredPos: { x: number; y: number } | null = null;
   private zoneG?: Phaser.GameObjects.Graphics;
-  private baseGrid?: Phaser.GameObjects.Graphics;
   constructor() {
     super('Main');
   }
@@ -14,45 +13,50 @@ export class MainScene extends Phaser.Scene implements SceneApi {
   create() {
     const map = this.make.tilemap({ key: 'office' });
 
-    // Dezent: Grid-Hintergrund als Platzhalter
-    const g = this.add.graphics();
-    g.fillStyle(0x1f1f1f, 1);
-    g.fillRect(0, 0, map.widthInPixels, map.heightInPixels);
-    g.lineStyle(1, 0x2a2a2a, 1);
-    for (let x = 0; x <= map.widthInPixels; x += 16) g.lineBetween(x, 0, x, map.heightInPixels);
-    for (let y = 0; y <= map.heightInPixels; y += 16) g.lineBetween(0, y, map.widthInPixels, y);
-    g.setDepth(-10);
-    this.baseGrid = g;
-
     // Binde Tilesets
     const office = map.addTilesetImage('office_tiles', 'office_tiles', 16, 16, 0, 0);
+    const furniture = map.addTilesetImage('furniture_tiles', 'furniture_tiles', 16, 16, 0, 0);
+    const decor = map.addTilesetImage('decor_tiles', 'decor_tiles', 16, 16, 0, 0);
     const collision = map.addTilesetImage('collision_tiles', 'collision_tiles', 16, 16, 0, 0);
 
     if (!office) {
       console.warn('Tileset office_tiles nicht gefunden. Verfügbare Texturen:', this.textures.getTextureKeys());
     }
 
-    // Tile-Layer erstellen
-    const ground = office ? map.createLayer('Ground', [office], 0, 0) : undefined;
-    const walls = office ? map.createLayer('Walls', [office], 0, 0) : undefined;
+    // Tile-Layer erstellen (verwende verfügbare Tilesets)
+    const available = [office, furniture, decor].filter(Boolean) as Phaser.Tilemaps.Tileset[];
+    const ground = available.length ? map.createLayer('Ground', available, 0, 0) : undefined;
+    const walls = available.length ? map.createLayer('Walls', available, 0, 0) : undefined;
     if (!ground) console.warn('Layer Ground konnte nicht erstellt werden.');
     if (!walls) console.warn('Layer Walls konnte nicht erstellt werden.');
 
     ground?.setDepth(0);
     walls?.setDepth(5);
 
+    // Collision-Layer einlesen und statische Physik-Körper erzeugen
     const collisionTilesets: Phaser.Tilemaps.Tileset[] = [];
     if (collision) collisionTilesets.push(collision);
     const collisionLayer = collisionTilesets.length > 0 ? map.createLayer('Collision', collisionTilesets, 0, 0) : undefined as any;
+    let staticColliders: Phaser.Physics.Arcade.StaticGroup | undefined;
     if (collisionLayer) {
       try {
-        const data = (collisionLayer as any)?.layer?.data;
+        const data = (collisionLayer as any)?.layer?.data as Phaser.Tilemaps.Tile[][] | undefined;
         if (Array.isArray(data) && data.length > 0 && Array.isArray(data[0]) && data[0].length > 0) {
-          collisionLayer.forEachTile((tile: Phaser.Tilemaps.Tile) => {
-            if (tile && tile.index !== -1) {
-              tile.setCollision(true, true, true, true);
+          staticColliders = this.physics.add.staticGroup();
+          for (let row = 0; row < data.length; row++) {
+            const rowArr = data[row];
+            if (!Array.isArray(rowArr)) continue;
+            for (let col = 0; col < rowArr.length; col++) {
+              const tile = rowArr[col];
+              if (tile && tile.index !== -1) {
+                const x = col * map.tileWidth + map.tileWidth / 2;
+                const y = row * map.tileHeight + map.tileHeight / 2;
+                const body = this.add.rectangle(x, y, map.tileWidth, map.tileHeight, 0x000000, 0);
+                this.physics.add.existing(body, true); // static body
+                staticColliders.add(body);
+              }
             }
-          });
+          }
           collisionLayer.setVisible(false);
         } else {
           console.warn('Collision layer has no tile data; skipping collision setup');
@@ -72,7 +76,7 @@ export class MainScene extends Phaser.Scene implements SceneApi {
     this.hero = this.physics.add.sprite(80, 120, 'hero_walk_down', 0);
     this.hero.setCollideWorldBounds(true);
     this.hero.setDepth(10);
-    if (collisionLayer) this.physics.add.collider(this.hero, collisionLayer);
+    if (staticColliders) this.physics.add.collider(this.hero, staticColliders);
 
     this.anims.create({ key: 'walk_down', frames: this.anims.generateFrameNumbers('hero_walk_down', { start: 0, end: 3 }), frameRate: 8, repeat: -1 });
     this.anims.create({ key: 'walk_up', frames: this.anims.generateFrameNumbers('hero_walk_up', { start: 0, end: 3 }), frameRate: 8, repeat: -1 });
