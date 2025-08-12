@@ -11,13 +11,36 @@ datasource db {
 // This is read by `prisma db seed` via package.json in the server workspace.
 
 model User {
+  id              String         @id @default(cuid())
+  email           String         @unique
+  name            String?
+  imageUrl        String?
+  passwordHash    String?
+  emailVerifiedAt DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  presences       Presence[]
+  passwordResets  PasswordReset[]
+}
+
+model Invite {
   id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
-  imageUrl  String?
+  code      String   @unique
+  email     String?
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  presences Presence[]
+  createdBy String?
+  usedAt    DateTime?
+  usedById  String?
+}
+
+model PasswordReset {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  usedAt    DateTime?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
 }
 
 model Map {

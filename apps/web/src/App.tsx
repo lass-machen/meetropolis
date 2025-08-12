@@ -7,6 +7,36 @@ import { BubbleManager } from './game/bubbleManager';
 import { FollowManager } from './game/followManager';
 import { ZoneManager } from './game/zoneManager';
 
+// Simple Inline-Icons
+function MicIcon(props: { on?: boolean }) {
+  const color = props.on ? '#10b981' : '#e5e7eb';
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M12 14a4 4 0 0 0 4-4V6a4 4 0 1 0-8 0v4a4 4 0 0 0 4 4Z" stroke={color} strokeWidth="1.8" />
+      <path d="M19 10a7 7 0 1 1-14 0" stroke={color} strokeWidth="1.8" strokeLinecap="round" />
+      <path d="M12 17v4" stroke={color} strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+function CamIcon(props: { on?: boolean }) {
+  const color = props.on ? '#10b981' : '#e5e7eb';
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="3" y="7" width="12" height="10" rx="2" stroke={color} strokeWidth="1.8" />
+      <path d="M21 8v8l-5-3.2V11.2L21 8Z" fill={color} />
+    </svg>
+  );
+}
+function ScreenIcon(props: { on?: boolean }) {
+  const color = props.on ? '#10b981' : '#e5e7eb';
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="3" y="4" width="18" height="12" rx="2" stroke={color} strokeWidth="1.8" />
+      <rect x="8" y="18" width="8" height="2" rx="1" fill={color} />
+    </svg>
+  );
+}
+
 export function App() {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const colyseusRef = useRef<any>(null);
@@ -19,8 +49,56 @@ export function App() {
   const [hud, setHud] = React.useState<{ zone?: string; follow?: string | null; avRoom?: string | null }>({});
   const [devices, setDevices] = React.useState<{ mics: { id: string; label: string }[]; cams: { id: string; label: string }[] }>({ mics: [], cams: [] });
   const [avState, setAvState] = React.useState<{ mic: boolean; cam: boolean; share: boolean }>({ mic: false, cam: false, share: false });
+  const [uiParticipants, setUiParticipants] = React.useState<{ sid: string; identity: string; hasVideo: boolean; isSpeaking: boolean }[]>([]);
+
+  // Auth state
+  const [authChecked, setAuthChecked] = React.useState(false);
+  const [me, setMe] = React.useState<{ id: string; email: string; name?: string } | null>(null);
+  // view/state werden in AuthScreen verwaltet
+
+  const apiBase = import.meta.env.VITE_API_BASE as string;
+
+  async function fetchMe() {
+    try {
+      const res = await fetch(`${apiBase}/auth/me`, { credentials: 'include' });
+      if (!res.ok) {
+        setMe(null);
+      } else {
+        const u = await res.json();
+        setMe(u);
+      }
+    } catch {
+      setMe(null);
+    } finally {
+      setAuthChecked(true);
+    }
+  }
 
   useEffect(() => {
+    fetchMe();
+  }, []);
+
+  const buildParticipantList = React.useCallback(() => {
+    const room: any = avRef.current?.room as any;
+    if (!room) return;
+    const activeSet = new Set<string>((room.activeSpeakers || []).map((p: any) => p.sid));
+    const list: { sid: string; identity: string; hasVideo: boolean; isSpeaking: boolean }[] = [];
+    const pushP = (p: any) => {
+      const publications = Array.from(p.trackPublications.values());
+      const hasV = publications.some((pub: any) => {
+        const src = pub.source || pub.track?.source;
+        return src === 'camera' && !!pub.track;
+      });
+      const identity = p.identity || 'User';
+      list.push({ sid: p.sid, identity, hasVideo: hasV, isSpeaking: activeSet.has(p.sid) });
+    };
+    pushP(room.localParticipant);
+    for (const rp of Array.from(room.participants.values())) pushP(rp);
+    setUiParticipants(list);
+  }, []);
+
+  useEffect(() => {
+    if (!authChecked || !me) return;
     if (!containerRef.current) return;
     const game = createPhaserGame(containerRef.current);
 
@@ -29,28 +107,23 @@ export function App() {
       const room = await joinWorld(import.meta.env.VITE_API_BASE);
       colyseusRef.current = room;
       localPosRef.current.id = room.sessionId;
-      // Lokale Bewegung → Server
       gameBridge.onLocalMove = (p) => {
         localPosRef.current.x = p.x;
         localPosRef.current.y = p.y;
-        // Zonen prüfen
         zoneRef.current?.update({ x: p.x, y: p.y });
-        // Follow-Update
         if (followRef.current) {
           const f = followRef.current.update(
             { x: p.x, y: p.y },
             remotesRef.current
           );
           if (f.following) {
-            // Szene Richtung Ziel bewegen lassen
             gameBridge.setDesiredPosition({ x: f.x, y: f.y });
           } else {
             gameBridge.setDesiredPosition(null);
           }
         }
-        room.send('move', p);
+        colyseusRef.current?.send?.('move', p);
       };
-      // Remote-Players spiegeln
       room.onStateChange((state: any) => {
         const players: Record<string, { x: number; y: number; direction: any }> = {};
         state.players?.forEach?.((value: any, key: string) => {
@@ -62,7 +135,6 @@ export function App() {
             .filter(([id]) => id !== localPosRef.current.id)
             .map(([id, p]) => [id, { x: p.x, y: p.y }])
         );
-        // Bubble recompute
         if (bubbleRef.current) {
           const remoteEntries = Object.entries(remotesRef.current) as [string, { x: number; y: number }][];
           const others = remoteEntries.map(([id, p]) => ({ id, x: p.x, y: p.y }));
@@ -72,28 +144,21 @@ export function App() {
       });
     })();
 
-    // LiveKit Basis (Haupt-Raum) erst nach User-Geste verbinden (Autoplay-Policy)
-    const identity = `${Math.random().toString(36).slice(2)}`;
+    // LiveKit nach User-Geste verbinden
+    const identity = me.id;
     const connectLivekit = async () => {
       try {
-        avRef.current = new AVManager({
-          baseUrl: import.meta.env.VITE_API_BASE,
-          identity,
-          useVideo: import.meta.env.VITE_FEATURE_VOICE_ONLY !== 'true',
-        });
-        // AV in Manager injizieren
+        avRef.current = new AVManager({ baseUrl: apiBase, identity, useVideo: import.meta.env.VITE_FEATURE_VOICE_ONLY !== 'true' });
         bubbleRef.current?.setAV(avRef.current);
         zoneRef.current?.setAV(avRef.current);
-        // In Lobby wechseln
         await avRef.current.switchTo('lobby');
-        // Geräte listen
         const list = await avRef.current.listDevices();
         setDevices({
           mics: list.microphones.map(d => ({ id: d.deviceId, label: d.label })),
           cams: list.cameras.map(d => ({ id: d.deviceId, label: d.label })),
         });
+        buildParticipantList();
       } catch (e) {
-        // eslint-disable-next-line no-console
         console.warn('LiveKit connect failed', e);
       }
     };
@@ -105,12 +170,10 @@ export function App() {
     window.addEventListener('pointerdown', firstInteract);
     window.addEventListener('keydown', firstInteract);
 
-    // Bubble & Zonen Manager verdrahten (Stub: keine echten Zonen eingetragen)
     bubbleRef.current = new BubbleManager(64, null);
     followRef.current = new FollowManager(96);
     zoneRef.current = new ZoneManager([], null);
 
-    // HUD updater
     const hudTimer = setInterval(() => {
       const z = zoneRef.current?.getCurrent?.();
       const next: { zone?: string; follow?: string | null; avRoom?: string | null } = {
@@ -120,28 +183,16 @@ export function App() {
       if (typeof z === 'string') next.zone = z;
       setHud(next);
 
-      // AV-Indikator aus realem Track-Status ableiten
-      const room = avRef.current?.room;
+      const room: any = avRef.current?.room as any;
       if (room) {
         const pubs = Array.from(room.localParticipant.trackPublications.values());
-        const hasMic = pubs.some(pub => {
-          const src = (pub as any).source || (pub.track as any)?.source;
-          return src === 'microphone';
-        });
-        const hasCam = pubs.some(pub => {
-          const src = (pub as any).source || (pub.track as any)?.source;
-          return src === 'camera';
-        });
-        const hasShare = pubs.some(pub => {
-          const src = (pub as any).source || (pub.track as any)?.source;
-          return src === 'screen_share' || src === 'screen_share_audio';
-        });
-        setAvState(s => {
-          if (s.mic === hasMic && s.cam === hasCam && s.share === hasShare) return s;
-          return { ...s, mic: hasMic, cam: hasCam, share: hasShare };
-        });
+        const hasMic = pubs.some((pub: any) => (pub.source || pub.track?.source) === 'microphone');
+        const hasCam = pubs.some((pub: any) => (pub.source || pub.track?.source) === 'camera');
+        const hasShare = pubs.some((pub: any) => ['screen_share','screen_share_audio'].includes(pub.source || pub.track?.source));
+        setAvState(s => (s.mic === hasMic && s.cam === hasCam && s.share === hasShare) ? s : { ...s, mic: hasMic, cam: hasCam, share: hasShare });
+        buildParticipantList();
       }
-    }, 300);
+    }, 250);
 
     return () => {
       destroyPhaserGame(game);
@@ -150,50 +201,211 @@ export function App() {
       window.removeEventListener('keydown', firstInteract);
       clearInterval(hudTimer);
     };
-  }, []);
+  }, [authChecked, me, apiBase, buildParticipantList]);
+
+  if (!authChecked) {
+    return <div style={{display:'grid',placeItems:'center',height:'100vh',color:'#fff'}}>Lade…</div>;
+  }
+  if (!me) {
+    return <AuthScreen baseUrl={apiBase} onDone={async () => { await fetchMe(); }} />;
+  }
 
   return (
-    <div style={{ width: '100vw', height: '100vh', background: '#1b1b1b', position: 'relative' }}>
+    <div style={{ width: '100vw', height: '100vh', background: '#0f1115', position: 'relative' }}>
+      {/* Teilnehmer-Karten Top-Bar */}
+      <div style={{ position: 'absolute', top: 10, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 10, zIndex: 20 }}>
+        {uiParticipants.map(p => (
+          <ParticipantCard key={p.sid} part={p} roomGetter={() => avRef.current?.room} />
+        ))}
+      </div>
+
       <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
-      <div style={{ position: 'absolute', top: 12, left: 12, background: 'rgba(0,0,0,0.6)', color: '#fff', padding: 8, borderRadius: 6, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 12 }}>
+
+      {/* HUD (links oben klein) */}
+      <div style={{ position: 'absolute', top: 12, left: 12, background: 'rgba(0,0,0,0.45)', color: '#fff', padding: 8, borderRadius: 8, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 12, backdropFilter: 'blur(6px)', border: '1px solid rgba(255,255,255,0.08)' }}>
         <div>Zone: {hud.zone ?? '-'}</div>
         <div>AV: {hud.avRoom ?? 'lobby'}</div>
         <div>Following: {hud.follow ?? 'no'}</div>
       </div>
-      {/* Bottom Menu Bar */}
-      <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, display: 'flex', alignItems: 'center', gap: 12, padding: 10, background: 'rgba(0,0,0,0.7)', color: '#fff' }}>
-        <button onClick={async () => {
+
+      {/* Bottom Control Bar */}
+      <div style={{ position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: 'rgba(17,17,20,0.75)', color: '#fff', borderRadius: 14, border: '1px solid rgba(255,255,255,0.08)', boxShadow: '0 8px 24px rgba(0,0,0,0.35)', backdropFilter: 'blur(8px)' }}>
+        <button style={btnStyle(avState.mic)} onClick={async () => {
           const enabled = !avState.mic;
           await avRef.current?.setMicrophoneEnabled(enabled);
           setAvState(s => ({ ...s, mic: enabled }));
-        }}>{avState.mic ? 'Mic aus' : 'Mic an'}</button>
-        <select disabled={!devices.mics.length} onChange={async (e) => {
+        }}>
+          <MicIcon on={avState.mic} />
+          <span style={btnLabelStyle}>Mic {avState.mic ? 'aus' : 'an'}</span>
+        </button>
+
+        <select style={selectStyle} disabled={!devices.mics.length} onChange={async (e) => {
           await avRef.current?.useMicrophoneDevice(e.target.value);
         }} defaultValue="">
           <option value="" disabled>Mic wählen…</option>
           {devices.mics.map(d => <option key={d.id} value={d.id}>{d.label}</option>)}
         </select>
 
-        <button onClick={async () => {
+        <div style={{ width: 1, height: 24, background: 'rgba(255,255,255,0.08)' }} />
+
+        <button style={btnStyle(avState.cam)} onClick={async () => {
           const enabled = !avState.cam;
           await avRef.current?.setCameraEnabled(enabled);
           setAvState(s => ({ ...s, cam: enabled }));
-        }}>{avState.cam ? 'Kamera aus' : 'Kamera an'}</button>
-        <select disabled={!devices.cams.length} onChange={async (e) => {
+        }}>
+          <CamIcon on={avState.cam} />
+          <span style={btnLabelStyle}>{avState.cam ? 'Kamera aus' : 'Kamera an'}</span>
+        </button>
+
+        <select style={selectStyle} disabled={!devices.cams.length} onChange={async (e) => {
           await avRef.current?.useCameraDevice(e.target.value);
         }} defaultValue="">
           <option value="" disabled>Kamera wählen…</option>
           {devices.cams.map(d => <option key={d.id} value={d.id}>{d.label}</option>)}
         </select>
 
-        <button onClick={async () => {
+        <div style={{ width: 1, height: 24, background: 'rgba(255,255,255,0.08)' }} />
+
+        <button style={btnStyle(avState.share)} onClick={async () => {
           if (!avState.share) {
             await avRef.current?.startScreenshare();
           } else {
             await avRef.current?.stopScreenshare();
           }
           setAvState(s => ({ ...s, share: !s.share }));
-        }}>{avState.share ? 'Screenshare stoppen' : 'Screenshare starten'}</button>
+        }}>
+          <ScreenIcon on={avState.share} />
+          <span style={btnLabelStyle}>{avState.share ? 'Screenshare stoppen' : 'Screenshare starten'}</span>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// Styles
+const btnStyle = (active: boolean): React.CSSProperties => ({
+  display: 'flex', alignItems: 'center', gap: 8,
+  padding: '8px 12px', borderRadius: 10,
+  background: active ? 'rgba(16,185,129,0.12)' : 'rgba(255,255,255,0.06)',
+  border: `1px solid ${active ? 'rgba(16,185,129,0.35)' : 'rgba(255,255,255,0.08)'}`,
+  color: '#fff', cursor: 'pointer',
+  outline: 'none',
+});
+const btnLabelStyle: React.CSSProperties = { fontSize: 12, letterSpacing: 0.2 }; 
+const selectStyle: React.CSSProperties = {
+  background: 'rgba(255,255,255,0.06)',
+  border: '1px solid rgba(255,255,255,0.08)',
+  color: '#fff',
+  borderRadius: 8,
+  padding: '6px 8px',
+  fontSize: 12,
+};
+
+// Teilnehmer-Card-Komponente
+function ParticipantCard(props: { part: { sid: string; identity: string; hasVideo: boolean; isSpeaking: boolean }, roomGetter: () => any | undefined }) {
+  const videoRef = React.useRef<HTMLVideoElement | null>(null);
+  const { part, roomGetter } = props;
+
+  useEffect(() => {
+    const room: any = roomGetter();
+    const el = videoRef.current;
+    if (!room || !el) return;
+    const isLocal = room.localParticipant?.sid === part.sid;
+    const p: any = isLocal ? room.localParticipant : room.participants.get(part.sid);
+    if (!p) return;
+    const pubs: any[] = Array.from(p.trackPublications.values());
+    const camPub = pubs.find(pub => (pub.source || pub.track?.source) === 'camera');
+    const track = camPub?.track;
+    let cleanup: (() => void) | undefined;
+    if (track && part.hasVideo) {
+      try {
+        track.attach(el);
+        cleanup = () => { try { track.detach(el); } catch {} };
+      } catch {}
+    }
+    return () => { cleanup?.(); };
+  }, [part.sid, part.hasVideo, roomGetter]);
+
+  const borderColor = part.isSpeaking ? '#22d3ee' : 'rgba(255,255,255,0.12)';
+  const glow = part.isSpeaking ? '0 0 0 2px rgba(34,211,238,0.35), 0 6px 18px rgba(34,211,238,0.25)' : '0 6px 18px rgba(0,0,0,0.35)';
+
+  return (
+    <div style={{ width: 140, height: 92, position: 'relative', borderRadius: 10, overflow: 'hidden', background: 'rgba(255,255,255,0.06)', border: `1px solid ${borderColor}`, boxShadow: glow }}>
+      <video ref={videoRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover', display: part.hasVideo ? 'block' : 'none' }} />
+      {!part.hasVideo && (
+        <div style={{ width: '100%', height: '100%', display: 'grid', placeItems: 'center', color: '#e5e7eb', fontWeight: 600, fontSize: 14 }}>
+          {part.identity}
+        </div>
+      )}
+      <div style={{ position: 'absolute', bottom: 4, left: 6, right: 6, fontSize: 11, color: '#f3f4f6', textShadow: '0 1px 2px rgba(0,0,0,0.6)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        {part.identity}
+      </div>
+    </div>
+  );
+}
+
+function AuthScreen(props: { baseUrl: string; onDone: () => void }) {
+  const { baseUrl, onDone } = props;
+  const [view, setView] = React.useState<'login'|'register'|'forgot'|'reset'>('login');
+  const [email, setEmail] = React.useState('');
+  const [password, setPassword] = React.useState('');
+  const [name, setName] = React.useState('');
+  const [invite, setInvite] = React.useState('');
+  const [token, setToken] = React.useState('');
+  const [msg, setMsg] = React.useState<string | null>(null);
+
+  async function post(path: string, body: any) {
+    const res = await fetch(`${baseUrl}${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(body) });
+    if (!res.ok) throw new Error((await res.json())?.error || 'Fehler');
+    return await res.json().catch(() => ({}));
+  }
+
+  const commonStyle: React.CSSProperties = { display: 'grid', gap: 10, width: 320, padding: 16, background: 'rgba(17,17,20,0.8)', color: '#fff', borderRadius: 12, border: '1px solid rgba(255,255,255,0.08)' };
+
+  return (
+    <div style={{ width: '100vw', height: '100vh', background: '#0f1115', display: 'grid', placeItems: 'center' }}>
+      <div style={commonStyle}>
+        {view === 'login' && (
+          <>
+            <h3 style={{ margin: 0 }}>Login</h3>
+            <input placeholder="E-Mail" value={email} onChange={e=>setEmail(e.target.value)} />
+            <input placeholder="Passwort" type="password" value={password} onChange={e=>setPassword(e.target.value)} />
+            <button onClick={async()=>{ try{ await post('/auth/login',{email,password}); onDone(); } catch(e:any){ setMsg(e.message); } }}>Einloggen</button>
+            <div style={{ display:'flex', justifyContent:'space-between' }}>
+              <a style={{ cursor:'pointer' }} onClick={()=>setView('forgot')}>Passwort vergessen?</a>
+              <a style={{ cursor:'pointer' }} onClick={()=>setView('register')}>Einladung einlösen</a>
+            </div>
+          </>
+        )}
+        {view === 'register' && (
+          <>
+            <h3 style={{ margin: 0 }}>Registrieren (Einladung nötig)</h3>
+            <input placeholder="Einladungscode" value={invite} onChange={e=>setInvite(e.target.value)} />
+            <input placeholder="Name (optional)" value={name} onChange={e=>setName(e.target.value)} />
+            <input placeholder="E-Mail" value={email} onChange={e=>setEmail(e.target.value)} />
+            <input placeholder="Passwort" type="password" value={password} onChange={e=>setPassword(e.target.value)} />
+            <button onClick={async()=>{ try{ await post('/auth/register',{code:invite,name,email,password}); onDone(); } catch(e:any){ setMsg(e.message); } }}>Registrieren</button>
+            <a style={{ cursor:'pointer' }} onClick={()=>setView('login')}>Zurück zum Login</a>
+          </>
+        )}
+        {view === 'forgot' && (
+          <>
+            <h3 style={{ margin: 0 }}>Passwort vergessen</h3>
+            <input placeholder="E-Mail" value={email} onChange={e=>setEmail(e.target.value)} />
+            <button onClick={async()=>{ try{ const r=await post('/auth/forgot',{email}); setMsg(`Reset-Token (Debug): ${r.token||'per Mail'}`); setView('reset'); } catch(e:any){ setMsg(e.message); } }}>Zurücksetzen anfordern</button>
+            <a style={{ cursor:'pointer' }} onClick={()=>setView('login')}>Zurück zum Login</a>
+          </>
+        )}
+        {view === 'reset' && (
+          <>
+            <h3 style={{ margin: 0 }}>Passwort zurücksetzen</h3>
+            <input placeholder="Reset-Token" value={token} onChange={e=>setToken(e.target.value)} />
+            <input placeholder="Neues Passwort" type="password" value={password} onChange={e=>setPassword(e.target.value)} />
+            <button onClick={async()=>{ try{ await post('/auth/reset',{token,password}); setView('login'); setMsg('Passwort aktualisiert'); } catch(e:any){ setMsg(e.message); } }}>Passwort speichern</button>
+            <a style={{ cursor:'pointer' }} onClick={()=>setView('login')}>Zurück zum Login</a>
+          </>
+        )}
+        {msg && <div style={{ color:'#fca5a5' }}>{msg}</div>}
       </div>
     </div>
   );

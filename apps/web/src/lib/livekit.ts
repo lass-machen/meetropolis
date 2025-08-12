@@ -1,4 +1,4 @@
-import { createLocalTracks, createLocalScreenTracks, Room } from 'livekit-client';
+import { createLocalScreenTracks, Room } from 'livekit-client';
 
 function normalizeLivekitUrl(input: string | undefined): string {
   const fallback = (typeof window !== 'undefined' && window.location.protocol === 'https:') ? 'wss://localhost:7880' : 'ws://localhost:7880';
@@ -20,7 +20,7 @@ export async function joinLivekitRoom(params: {
   const res = await fetch(`${params.baseUrl}/livekit/token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ roomName: params.roomName, identity: params.identity })
+    body: JSON.stringify({ roomName: params.roomName, identity: params.identity, name: params.identity })
   });
   const token = (await res.text()).trim();
   const room = new Room();

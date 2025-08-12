@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
@@ -29,6 +30,31 @@ async function main() {
     } else {
       await prisma.zone.create({ data: { name: z.name, polygon: z.polygon as any, roomId: room.id, mapId: map.id } });
     }
+  }
+
+  // Seed Root Admin (env-configurable)
+  const adminEmail = process.env.SEED_ADMIN_EMAIL || 'admin@meetropolis.local';
+  const adminPass = process.env.SEED_ADMIN_PASSWORD || 'admin123';
+  const adminName = process.env.SEED_ADMIN_NAME || 'Root Admin';
+
+  let admin = await prisma.user.findUnique({ where: { email: adminEmail } });
+  if (!admin) {
+    const hash = await bcrypt.hash(adminPass, 10);
+    admin = await prisma.user.create({ data: { email: adminEmail, name: adminName, passwordHash: hash, emailVerifiedAt: new Date() } });
+    // eslint-disable-next-line no-console
+    console.log('Seeded admin user:', adminEmail);
+  } else {
+    // eslint-disable-next-line no-console
+    console.log('Admin user exists:', adminEmail);
+  }
+
+  // Create a default invite (for onboarding teammates)
+  const existingInvite = await prisma.invite.findFirst({ where: { email: adminEmail } });
+  if (!existingInvite) {
+    const code = Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 10);
+    await prisma.invite.create({ data: { code, email: adminEmail, createdBy: admin.id } });
+    // eslint-disable-next-line no-console
+    console.log('Seeded invite for admin email (can be shared to teammates):', code);
   }
 }
 

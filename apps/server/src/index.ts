@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 // Use CJS require for Colyseus to avoid ESM interop issues
@@ -11,7 +12,8 @@ import { WorldRoom } from './rooms/WorldRoom.js';
 import { registerApi } from './api.js';
 
 const app = express();
-app.use(cors());
+app.use(cors({ origin: true, credentials: true }));
+app.use(cookieParser());
 app.use(express.json());
 
 app.get('/', (_req, res) => res.send('ok'));
