@@ -26,8 +26,7 @@ export async function joinLivekitRoom(params: {
   const room = new Room();
   const serverUrl = normalizeLivekitUrl(import.meta.env.VITE_LIVEKIT_URL);
   await room.connect(serverUrl, token);
-  const tracks = await createLocalTracks({ audio: true, video: params.useVideo });
-  for (const t of tracks) await room.localParticipant.publishTrack(t);
+  // WICHTIG: keine lokalen Audio/Video-Tracks automatisch erstellen/publizieren.
   return room;
 }
 

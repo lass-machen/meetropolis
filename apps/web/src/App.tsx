@@ -17,6 +17,8 @@ export function App() {
   const localPosRef = useRef<{ id: string; x: number; y: number }>({ id: '', x: 0, y: 0 });
   const remotesRef = useRef<Record<string, { x: number; y: number }>>({});
   const [hud, setHud] = React.useState<{ zone?: string; follow?: string | null; avRoom?: string | null }>({});
+  const [devices, setDevices] = React.useState<{ mics: { id: string; label: string }[]; cams: { id: string; label: string }[] }>({ mics: [], cams: [] });
+  const [avState, setAvState] = React.useState<{ mic: boolean; cam: boolean; share: boolean }>({ mic: false, cam: false, share: false });
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -84,6 +86,12 @@ export function App() {
         zoneRef.current?.setAV(avRef.current);
         // In Lobby wechseln
         await avRef.current.switchTo('lobby');
+        // Geräte listen
+        const list = await avRef.current.listDevices();
+        setDevices({
+          mics: list.microphones.map(d => ({ id: d.deviceId, label: d.label })),
+          cams: list.cameras.map(d => ({ id: d.deviceId, label: d.label })),
+        });
       } catch (e) {
         // eslint-disable-next-line no-console
         console.warn('LiveKit connect failed', e);
@@ -102,50 +110,6 @@ export function App() {
     followRef.current = new FollowManager(96);
     zoneRef.current = new ZoneManager([], null);
 
-    // Zonen laden
-    (async () => {
-      try {
-        const res = await fetch(`${import.meta.env.VITE_API_BASE}/zones`);
-        const zones = await res.json();
-        if (Array.isArray(zones) && zones.length > 0) {
-          const polys = zones.map((z: any) => ({ name: z.name, points: z.polygon?.points ?? z.polygon ?? [] }));
-          zoneRef.current = new ZoneManager(polys, avRef.current);
-          // draw overlay
-          gameBridge.setZoneOverlay(polys);
-        } else {
-          // Fallback statische Zonen
-          const fallback = [
-            { name: 'meeting-a', points: [{ x: 120, y: 120 }, { x: 200, y: 120 }, { x: 200, y: 180 }, { x: 120, y: 180 }] },
-            { name: 'meeting-b', points: [{ x: 240, y: 80 }, { x: 300, y: 80 }, { x: 300, y: 140 }, { x: 240, y: 140 }] },
-          ];
-          zoneRef.current = new ZoneManager(fallback, avRef.current);
-          gameBridge.setZoneOverlay(fallback);
-        }
-      } catch {
-        // ignore; keep empty zones
-      }
-    })();
-
-    // Follow Toggle (Taste F): auf nächsten Spieler gehen/abbrechen
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key.toLowerCase() === 'f') {
-        const ids = Object.keys(remotesRef.current);
-        if (followRef.current && ids.length > 0) {
-          if (followRef.current['targetId']) {
-            followRef.current.stop();
-            gameBridge.setDesiredPosition(null);
-          } else {
-            // Nächsten Spieler als Ziel wählen
-            const nearest = ids
-              .map(id => ({ id, dx: remotesRef.current[id].x - localPosRef.current.x, dy: remotesRef.current[id].y - localPosRef.current.y }))
-              .sort((a, b) => (a.dx * a.dx + a.dy * a.dy) - (b.dx * b.dx + b.dy * b.dy))[0]?.id;
-            if (nearest) followRef.current.startFollowing(nearest);
-          }
-        }
-      }
-    };
-    window.addEventListener('keydown', onKey);
-
     // HUD updater
     const hudTimer = setInterval(() => {
       const z = zoneRef.current?.getCurrent?.();
@@ -155,14 +119,34 @@ export function App() {
       };
       if (typeof z === 'string') next.zone = z;
       setHud(next);
+
+      // AV-Indikator aus realem Track-Status ableiten
+      const room = avRef.current?.room;
+      if (room) {
+        const pubs = Array.from(room.localParticipant.trackPublications.values());
+        const hasMic = pubs.some(pub => {
+          const src = (pub as any).source || (pub.track as any)?.source;
+          return src === 'microphone';
+        });
+        const hasCam = pubs.some(pub => {
+          const src = (pub as any).source || (pub.track as any)?.source;
+          return src === 'camera';
+        });
+        const hasShare = pubs.some(pub => {
+          const src = (pub as any).source || (pub.track as any)?.source;
+          return src === 'screen_share' || src === 'screen_share_audio';
+        });
+        setAvState(s => {
+          if (s.mic === hasMic && s.cam === hasCam && s.share === hasShare) return s;
+          return { ...s, mic: hasMic, cam: hasCam, share: hasShare };
+        });
+      }
     }, 300);
 
     return () => {
       destroyPhaserGame(game);
       colyseusRef.current?.leave?.();
       avRef.current?.leave?.();
-      window.removeEventListener('keydown', onKey);
-      window.removeEventListener('pointerdown', firstInteract);
       window.removeEventListener('keydown', firstInteract);
       clearInterval(hudTimer);
     };
@@ -175,23 +159,41 @@ export function App() {
         <div>Zone: {hud.zone ?? '-'}</div>
         <div>AV: {hud.avRoom ?? 'lobby'}</div>
         <div>Following: {hud.follow ?? 'no'}</div>
-        <div style={{ marginTop: 6, display: 'flex', gap: 8 }}>
-          <button onClick={() => {
-            const ids = Object.keys(remotesRef.current);
-            if (!followRef.current) return;
-            if (followRef.current.getTarget?.()) {
-              followRef.current.stop();
-              gameBridge.setDesiredPosition(null);
-            } else if (ids.length > 0) {
-              const nearest = ids
-                .map(id => ({ id, dx: remotesRef.current[id].x - localPosRef.current.x, dy: remotesRef.current[id].y - localPosRef.current.y }))
-                .sort((a, b) => (a.dx * a.dx + a.dy * a.dy) - (b.dx * b.dx + b.dy * b.dy))[0]?.id;
-              if (nearest) followRef.current.startFollowing(nearest);
-            }
-          }}>Toggle Follow (F)</button>
-          <button onClick={() => avRef.current?.startScreenshare()}>Start Screenshare</button>
-          <button onClick={() => avRef.current?.stopScreenshare()}>Stop Screenshare</button>
-        </div>
+      </div>
+      {/* Bottom Menu Bar */}
+      <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, display: 'flex', alignItems: 'center', gap: 12, padding: 10, background: 'rgba(0,0,0,0.7)', color: '#fff' }}>
+        <button onClick={async () => {
+          const enabled = !avState.mic;
+          await avRef.current?.setMicrophoneEnabled(enabled);
+          setAvState(s => ({ ...s, mic: enabled }));
+        }}>{avState.mic ? 'Mic aus' : 'Mic an'}</button>
+        <select disabled={!devices.mics.length} onChange={async (e) => {
+          await avRef.current?.useMicrophoneDevice(e.target.value);
+        }} defaultValue="">
+          <option value="" disabled>Mic wählen…</option>
+          {devices.mics.map(d => <option key={d.id} value={d.id}>{d.label}</option>)}
+        </select>
+
+        <button onClick={async () => {
+          const enabled = !avState.cam;
+          await avRef.current?.setCameraEnabled(enabled);
+          setAvState(s => ({ ...s, cam: enabled }));
+        }}>{avState.cam ? 'Kamera aus' : 'Kamera an'}</button>
+        <select disabled={!devices.cams.length} onChange={async (e) => {
+          await avRef.current?.useCameraDevice(e.target.value);
+        }} defaultValue="">
+          <option value="" disabled>Kamera wählen…</option>
+          {devices.cams.map(d => <option key={d.id} value={d.id}>{d.label}</option>)}
+        </select>
+
+        <button onClick={async () => {
+          if (!avState.share) {
+            await avRef.current?.startScreenshare();
+          } else {
+            await avRef.current?.stopScreenshare();
+          }
+          setAvState(s => ({ ...s, share: !s.share }));
+        }}>{avState.share ? 'Screenshare stoppen' : 'Screenshare starten'}</button>
       </div>
     </div>
   );

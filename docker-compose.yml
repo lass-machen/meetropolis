@@ -55,6 +55,13 @@ services:
     environment:
       LK_API_KEY: ${LIVEKIT_API_KEY:-devkey}
       LK_API_SECRET: ${LIVEKIT_API_SECRET:-secret}
+      LK_NODE_IP: ${LK_NODE_IP:-127.0.0.1}
+      # Wichtig für Docker Desktop (macOS): korrekte IP an Clients signalisieren
+      LK_NAT_1_TO_1_IPS: ${LK_NAT_1_TO_1_IPS:-127.0.0.1}
+      LK_RTC_USE_EXTERNAL_IP: ${LK_RTC_USE_EXTERNAL_IP:-true}
+      # Optionale Explizitsetzung der RTC-Ports (gemappt unten)
+      LK_RTC_TCP_PORT: ${LK_RTC_TCP_PORT:-7881}
+      LK_RTC_UDP_PORT: ${LK_RTC_UDP_PORT:-7882}
     ports:
       - "7880:7880"
       - "7881:7881/tcp"
