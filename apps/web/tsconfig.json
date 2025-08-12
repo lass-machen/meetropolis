@@ -5,7 +5,9 @@
     "baseUrl": ".",
     "paths": {
       "@meetropolis/shared/*": ["../../packages/shared/src/*"]
-    }
+    },
+    "types": ["react", "react-dom", "vite/client"],
+    "noEmit": true
   },
   "include": ["src", "vite.config.ts"]
 }

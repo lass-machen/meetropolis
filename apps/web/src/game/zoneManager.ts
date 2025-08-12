@@ -5,7 +5,7 @@ export type Polygon = { name: string; capacity?: number; points: { x: number; y:
 export class ZoneManager {
   private av: AVManager | null;
   private readonly zones: Polygon[];
-  private current?: string;
+  private current: string | undefined;
 
   constructor(zones: Polygon[], av: AVManager | null) {
     this.zones = zones;
@@ -29,6 +29,15 @@ export class ZoneManager {
 
   getCurrent() {
     return this.current;
+  }
+
+  getZones() {
+    return this.zones;
+  }
+
+  getCurrentPolygon(): Polygon | undefined {
+    if (!this.current) return undefined;
+    return this.zones.find(z => z.name === this.current);
   }
 }
 

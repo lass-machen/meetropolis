@@ -1,5 +1,15 @@
 import { createLocalTracks, createLocalScreenTracks, Room } from 'livekit-client';
 
+function normalizeLivekitUrl(input: string | undefined): string {
+  const fallback = (typeof window !== 'undefined' && window.location.protocol === 'https:') ? 'wss://localhost:7880' : 'ws://localhost:7880';
+  if (!input) return fallback;
+  const u = input.trim();
+  if (u.startsWith('ws://') || u.startsWith('wss://')) return u;
+  if (u.startsWith('http://')) return 'ws://' + u.slice('http://'.length);
+  if (u.startsWith('https://')) return 'wss://' + u.slice('https://'.length);
+  return u; // assume caller provided correct host without protocol
+}
+
 export async function joinLivekitRoom(params: {
   baseUrl: string;
   tokenEndpoint: string;
@@ -14,7 +24,8 @@ export async function joinLivekitRoom(params: {
   });
   const token = (await res.text()).trim();
   const room = new Room();
-  await room.connect(import.meta.env.VITE_LIVEKIT_URL, token);
+  const serverUrl = normalizeLivekitUrl(import.meta.env.VITE_LIVEKIT_URL);
+  await room.connect(serverUrl, token);
   const tracks = await createLocalTracks({ audio: true, video: params.useVideo });
   for (const t of tracks) await room.localParticipant.publishTrack(t);
   return room;

@@ -2,7 +2,7 @@ import { Room } from 'livekit-client';
 import { joinLivekitRoom } from '../lib/livekit';
 
 export class AVManager {
-  private current?: Room;
+  private current: Room | undefined;
   private currentName: string | null = null;
   private readonly baseUrl: string;
   private readonly identity: string;
@@ -35,11 +35,11 @@ export class AVManager {
     this.currentName = null;
   }
 
-  get activeRoom() {
+  get activeRoom(): string | null {
     return this.currentName;
   }
 
-  get room() {
+  get room(): Room | undefined {
     return this.current;
   }
 

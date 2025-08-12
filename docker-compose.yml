@@ -57,6 +57,8 @@ services:
       LK_API_SECRET: ${LIVEKIT_API_SECRET:-secret}
     ports:
       - "7880:7880"
+      - "7881:7881/tcp"
+      - "7882:7882/udp"
 
 volumes:
   db_data:

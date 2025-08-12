@@ -7,8 +7,8 @@ const require = createRequire(import.meta.url);
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const Colyseus = require('colyseus');
 import { createServer } from 'http';
-import { WorldRoom } from './rooms/WorldRoom';
-import { registerApi } from './api';
+import { WorldRoom } from './rooms/WorldRoom.js';
+import { registerApi } from './api.js';
 
 const app = express();
 app.use(cors());

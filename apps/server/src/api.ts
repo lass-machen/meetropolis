@@ -1,6 +1,6 @@
 import type express from 'express';
 import { PrismaClient } from '@prisma/client';
-import { createLivekitToken } from './livekit';
+import { createLivekitToken } from './livekit.js';
 
 const prisma = new PrismaClient();
 

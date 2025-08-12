@@ -2,7 +2,6 @@ import React, { useEffect, useRef } from 'react';
 import { createPhaserGame, destroyPhaserGame } from './game/phaserGame';
 import { gameBridge } from './game/bridge';
 import { joinWorld } from './lib/colyseus';
-import { joinLivekitRoom } from './lib/livekit';
 import { AVManager } from './av/avManager';
 import { BubbleManager } from './game/bubbleManager';
 import { FollowManager } from './game/followManager';
@@ -11,7 +10,6 @@ import { ZoneManager } from './game/zoneManager';
 export function App() {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const colyseusRef = useRef<any>(null);
-  const livekitRef = useRef<any>(null);
   const avRef = useRef<AVManager | null>(null);
   const bubbleRef = useRef<BubbleManager | null>(null);
   const zoneRef = useRef<ZoneManager | null>(null);
@@ -56,12 +54,16 @@ export function App() {
         state.players?.forEach?.((value: any, key: string) => {
           players[key] = { x: value.x, y: value.y, direction: value.direction };
         });
+        const playerEntries = Object.entries(players) as [string, { x: number; y: number; direction: any }][];
         remotesRef.current = Object.fromEntries(
-          Object.entries(players).filter(([id]) => id !== localPosRef.current.id).map(([id, p]) => [id, { x: p.x, y: p.y }])
+          playerEntries
+            .filter(([id]) => id !== localPosRef.current.id)
+            .map(([id, p]) => [id, { x: p.x, y: p.y }])
         );
         // Bubble recompute
         if (bubbleRef.current) {
-          const others = Object.entries(remotesRef.current).map(([id, p]) => ({ id, x: p.x, y: p.y }));
+          const remoteEntries = Object.entries(remotesRef.current) as [string, { x: number; y: number }][];
+          const others = remoteEntries.map(([id, p]) => ({ id, x: p.x, y: p.y }));
           bubbleRef.current.update(localPosRef.current, others);
         }
         gameBridge.syncRemotePlayers(players);
@@ -77,13 +79,11 @@ export function App() {
           identity,
           useVideo: import.meta.env.VITE_FEATURE_VOICE_ONLY !== 'true',
         });
-        livekitRef.current = await joinLivekitRoom({
-          baseUrl: import.meta.env.VITE_API_BASE,
-          tokenEndpoint: '/livekit/token',
-          roomName: 'lobby',
-          identity,
-          useVideo: import.meta.env.VITE_FEATURE_VOICE_ONLY !== 'true'
-        });
+        // AV in Manager injizieren
+        bubbleRef.current?.setAV(avRef.current);
+        zoneRef.current?.setAV(avRef.current);
+        // In Lobby wechseln
+        await avRef.current.switchTo('lobby');
       } catch (e) {
         // eslint-disable-next-line no-console
         console.warn('LiveKit connect failed', e);
@@ -98,9 +98,9 @@ export function App() {
     window.addEventListener('keydown', firstInteract);
 
     // Bubble & Zonen Manager verdrahten (Stub: keine echten Zonen eingetragen)
-    bubbleRef.current = new BubbleManager(64, avRef.current!);
+    bubbleRef.current = new BubbleManager(64, null);
     followRef.current = new FollowManager(96);
-    zoneRef.current = new ZoneManager([], avRef.current!);
+    zoneRef.current = new ZoneManager([], null);
 
     // Zonen laden
     (async () => {
@@ -109,7 +109,7 @@ export function App() {
         const zones = await res.json();
         if (Array.isArray(zones) && zones.length > 0) {
           const polys = zones.map((z: any) => ({ name: z.name, points: z.polygon?.points ?? z.polygon ?? [] }));
-          zoneRef.current = new ZoneManager(polys, avRef.current!);
+          zoneRef.current = new ZoneManager(polys, avRef.current);
           // draw overlay
           gameBridge.setZoneOverlay(polys);
         } else {
@@ -118,7 +118,7 @@ export function App() {
             { name: 'meeting-a', points: [{ x: 120, y: 120 }, { x: 200, y: 120 }, { x: 200, y: 180 }, { x: 120, y: 180 }] },
             { name: 'meeting-b', points: [{ x: 240, y: 80 }, { x: 300, y: 80 }, { x: 300, y: 140 }, { x: 240, y: 140 }] },
           ];
-          zoneRef.current = new ZoneManager(fallback, avRef.current!);
+          zoneRef.current = new ZoneManager(fallback, avRef.current);
           gameBridge.setZoneOverlay(fallback);
         }
       } catch {
@@ -148,17 +148,19 @@ export function App() {
 
     // HUD updater
     const hudTimer = setInterval(() => {
-      setHud({
-        zone: zoneRef.current?.getCurrent?.(),
+      const z = zoneRef.current?.getCurrent?.();
+      const next: { zone?: string; follow?: string | null; avRoom?: string | null } = {
         follow: followRef.current?.getTarget?.() ?? null,
         avRoom: avRef.current?.activeRoom ?? null,
-      });
+      };
+      if (typeof z === 'string') next.zone = z;
+      setHud(next);
     }, 300);
 
     return () => {
       destroyPhaserGame(game);
       colyseusRef.current?.leave?.();
-      livekitRef.current?.disconnect?.();
+      avRef.current?.leave?.();
       window.removeEventListener('keydown', onKey);
       window.removeEventListener('pointerdown', firstInteract);
       window.removeEventListener('keydown', firstInteract);
