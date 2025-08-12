@@ -5,10 +5,10 @@
     "rootDir": "src",
     "types": ["node"],
     "lib": ["ES2021"],
-    "moduleResolution": "Bundler",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
     "exactOptionalPropertyTypes": false,
     "skipLibCheck": true
   },
   "include": ["src"]
 }
-

@@ -7,6 +7,9 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// Prisma seed configuration (uses TS seed file)
+// This is read by `prisma db seed` via package.json in the server workspace.
+
 model User {
   id        String   @id @default(cuid())
   email     String   @unique
@@ -63,4 +66,3 @@ model Presence {
   updatedAt  DateTime @updatedAt
   createdAt  DateTime @default(now())
 }
-

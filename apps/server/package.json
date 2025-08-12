@@ -4,16 +4,17 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "predev": "prisma generate && prisma db push",
-    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
+    "predev": "prisma generate && prisma db push && prisma db seed",
+    "dev": "tsx watch src/index.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
     "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev --name init"
+    "prisma:migrate": "prisma migrate dev --name init",
+    "prisma:seed": "prisma db seed"
   },
   "dependencies": {
     "@colyseus/schema": "^2.0.29",
-    "colyseus": "^0.14.40",
+    "colyseus": "^0.15.15",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
@@ -29,6 +30,8 @@
     "@types/debug": "^4.1.12",
     "tsx": "^4.16.2",
     "typescript": "^5.5.4"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
   }
 }
-

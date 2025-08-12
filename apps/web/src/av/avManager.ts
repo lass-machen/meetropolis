@@ -38,5 +38,36 @@ export class AVManager {
   get activeRoom() {
     return this.currentName;
   }
-}
 
+  get room() {
+    return this.current;
+  }
+
+  async startScreenshare() {
+    if (!this.current) return;
+    try {
+      const { createLocalScreenTracks } = await import('livekit-client');
+      const tracks = await createLocalScreenTracks({});
+      for (const t of tracks) await this.current.localParticipant.publishTrack(t);
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn('screenshare failed', e);
+    }
+  }
+
+  async stopScreenshare() {
+    if (!this.current) return;
+    try {
+      const pubs = Array.from(this.current.localParticipant.trackPublications.values());
+      for (const pub of pubs) {
+        const src = (pub as any).source || (pub.track as any)?.source;
+        if (src && (src === 'screen_share' || src === 'screen_share_audio')) {
+          try { await this.current.localParticipant.unpublishTrack(pub.track!); } catch {}
+        }
+      }
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn('stop screenshare failed', e);
+    }
+  }
+}

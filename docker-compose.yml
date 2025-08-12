@@ -23,7 +23,7 @@ services:
       LIVEKIT_URL: ${LIVEKIT_URL}
       LIVEKIT_API_KEY: ${LIVEKIT_API_KEY}
       LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET}
-    command: sh -c "cd apps/server && npm i && npx prisma generate && npx prisma db push && npx ts-node-dev --respawn --transpile-only src/index.ts"
+    command: sh -c "cd apps/server && npm ci && npx prisma generate && npx prisma db push && npx prisma db seed && npx tsx src/index.ts"
     ports:
       - "2567:2567"
     depends_on:
@@ -40,7 +40,7 @@ services:
     environment:
       VITE_API_BASE: ${VITE_API_BASE}
       VITE_LIVEKIT_URL: ${VITE_LIVEKIT_URL}
-    command: sh -c "npm i && npm run dev:web"
+    command: sh -c "npm ci && npm run dev:web"
     ports:
       - "5173:5173"
     depends_on:
@@ -51,7 +51,7 @@ services:
 
   livekit:
     image: livekit/livekit-server:latest
-    command: ["--dev", "--bind", ":7880"]
+    command: ["--dev", "--bind", "0.0.0.0"]
     environment:
       LK_API_KEY: ${LIVEKIT_API_KEY:-devkey}
       LK_API_SECRET: ${LIVEKIT_API_SECRET:-secret}
@@ -60,4 +60,3 @@ services:
 
 volumes:
   db_data:
-

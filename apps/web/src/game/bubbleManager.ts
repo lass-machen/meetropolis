@@ -4,12 +4,12 @@ export type PlayerPos = { id: string; x: number; y: number };
 
 export class BubbleManager {
   private readonly radius: number;
-  private readonly av: AVManager;
+  private av: AVManager | null;
   private readonly roomPrefix = 'bubble';
   private joinedId: string | null = null;
   private timer?: any;
 
-  constructor(radius: number, av: AVManager) {
+  constructor(radius: number, av: AVManager | null) {
     this.radius = radius;
     this.av = av;
   }
@@ -29,16 +29,19 @@ export class BubbleManager {
     if (inRange.length === 0) {
       // verlasse Bubble-Raum, ggf. zurück in lobby
       if (this.joinedId) {
-        this.av.switchTo('lobby');
+        this.av?.switchTo('lobby');
         this.joinedId = null;
       }
       return;
     }
     const roomName = `${this.roomPrefix}:${key}`;
     if (this.joinedId !== roomName) {
-      this.av.switchTo(roomName);
+      this.av?.switchTo(roomName);
       this.joinedId = roomName;
     }
   }
-}
 
+  setAV(av: AVManager | null) {
+    this.av = av;
+  }
+}

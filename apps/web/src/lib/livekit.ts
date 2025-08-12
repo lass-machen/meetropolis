@@ -12,7 +12,7 @@ export async function joinLivekitRoom(params: {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ roomName: params.roomName, identity: params.identity })
   });
-  const { token } = await res.json();
+  const token = (await res.text()).trim();
   const room = new Room();
   await room.connect(import.meta.env.VITE_LIVEKIT_URL, token);
   const tracks = await createLocalTracks({ audio: true, video: params.useVideo });
@@ -24,4 +24,3 @@ export async function startScreenshare(room: Room) {
   const tracks = await createLocalScreenTracks({});
   for (const t of tracks) await room.localParticipant.publishTrack(t);
 }
-

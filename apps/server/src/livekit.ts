@@ -1,7 +1,7 @@
 import { AccessToken } from 'livekit-server-sdk';
 import type { AccessTokenOptions } from 'livekit-server-sdk';
 
-export function createLivekitToken(params: {
+export async function createLivekitToken(params: {
   roomName: string;
   identity: string;
   name?: string;
@@ -22,6 +22,6 @@ export function createLivekitToken(params: {
     canPublishData: params.canPublishData ?? true,
     canSubscribe: params.canSubscribe ?? true,
   });
-  return at.toJwt();
+  const jwt = await at.toJwt();
+  return jwt;
 }
-

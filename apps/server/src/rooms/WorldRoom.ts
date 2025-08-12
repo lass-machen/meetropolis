@@ -1,5 +1,5 @@
 import type { Client } from 'colyseus';
-import { Room } from 'colyseus';
+import Colyseus from 'colyseus';
 import { Schema, type, MapSchema } from '@colyseus/schema';
 
 class Player extends Schema {
@@ -13,7 +13,7 @@ class WorldState extends Schema {
   @type({ map: Player }) players = new MapSchema<Player>();
 }
 
-export class WorldRoom extends Room<WorldState> {
+export class WorldRoom extends Colyseus.Room<WorldState> {
   override onCreate() {
     this.setState(new WorldState());
     this.onMessage('move', (client, data: { x: number; y: number; direction: string }) => {
@@ -35,4 +35,3 @@ export class WorldRoom extends Room<WorldState> {
     this.state.players.delete(client.sessionId);
   }
 }
-

@@ -20,8 +20,11 @@ export function registerApi(app: express.Express) {
   app.post('/livekit/token', async (req, res) => {
     const { roomName, identity, name, canPublish, canSubscribe } = req.body ?? {};
     if (!roomName || !identity) return res.status(400).json({ error: 'roomName and identity required' });
-    const token = createLivekitToken({ roomName, identity, name, canPublish, canPublishData: true, canSubscribe });
-    res.json({ token });
+    const token = await createLivekitToken({ roomName, identity, name, canPublish, canPublishData: true, canSubscribe });
+    // debug: token length
+    // eslint-disable-next-line no-console
+    console.log('LiveKit token generated', typeof token, token.length);
+    // Return raw string token for simpler client handling
+    res.type('text/plain').send(token);
   });
 }
-
