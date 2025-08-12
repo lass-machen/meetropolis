@@ -49,12 +49,13 @@ export function App() {
   const [hud, setHud] = React.useState<{ zone?: string; follow?: string | null; avRoom?: string | null }>({});
   const [devices, setDevices] = React.useState<{ mics: { id: string; label: string }[]; cams: { id: string; label: string }[] }>({ mics: [], cams: [] });
   const [avState, setAvState] = React.useState<{ mic: boolean; cam: boolean; share: boolean }>({ mic: false, cam: false, share: false });
-  const [uiParticipants, setUiParticipants] = React.useState<{ sid: string; identity: string; hasVideo: boolean; isSpeaking: boolean }[]>([]);
-
+  const [uiParticipants, setUiParticipants] = React.useState<{ sid: string; identity: string; hasVideo: boolean; hasMic: boolean; isSpeaking: boolean }[]>([]);
   // Auth state
   const [authChecked, setAuthChecked] = React.useState(false);
   const [me, setMe] = React.useState<{ id: string; email: string; name?: string } | null>(null);
   // view/state werden in AuthScreen verwaltet
+  // Grid Overlay expand/collapse
+  const [gridExpanded, setGridExpanded] = React.useState(false);
 
   const apiBase = import.meta.env.VITE_API_BASE as string;
 
@@ -80,20 +81,19 @@ export function App() {
 
   const buildParticipantList = React.useCallback(() => {
     const room: any = avRef.current?.room as any;
-    if (!room) return;
+    if (!room || !room.localParticipant || !room.participants) return;
     const activeSet = new Set<string>((room.activeSpeakers || []).map((p: any) => p.sid));
-    const list: { sid: string; identity: string; hasVideo: boolean; isSpeaking: boolean }[] = [];
+    const list: { sid: string; identity: string; hasVideo: boolean; hasMic: boolean; isSpeaking: boolean }[] = [];
     const pushP = (p: any) => {
-      const publications = Array.from(p.trackPublications.values());
-      const hasV = publications.some((pub: any) => {
-        const src = pub.source || pub.track?.source;
-        return src === 'camera' && !!pub.track;
-      });
+      if (!p || !p.trackPublications) return;
+      const publications = Array.from((p.trackPublications?.values?.() || []) as any);
+      const hasV = publications.some((pub: any) => (pub?.source || pub?.track?.source) === 'camera' && !!pub?.track);
+      const hasMic = publications.some((pub: any) => (pub?.source || pub?.track?.source) === 'microphone' && !!pub?.track);
       const identity = p.identity || 'User';
-      list.push({ sid: p.sid, identity, hasVideo: hasV, isSpeaking: activeSet.has(p.sid) });
+      list.push({ sid: p.sid, identity, hasVideo: hasV, hasMic, isSpeaking: activeSet.has(p.sid) });
     };
     pushP(room.localParticipant);
-    for (const rp of Array.from(room.participants.values())) pushP(rp);
+    for (const rp of Array.from(room.participants.values?.() || [])) pushP(rp);
     setUiParticipants(list);
   }, []);
 
@@ -157,7 +157,8 @@ export function App() {
           mics: list.microphones.map(d => ({ id: d.deviceId, label: d.label })),
           cams: list.cameras.map(d => ({ id: d.deviceId, label: d.label })),
         });
-        buildParticipantList();
+        // erst listen, dann sicher bauen
+        setTimeout(buildParticipantList, 50);
       } catch (e) {
         console.warn('LiveKit connect failed', e);
       }
@@ -184,8 +185,8 @@ export function App() {
       setHud(next);
 
       const room: any = avRef.current?.room as any;
-      if (room) {
-        const pubs = Array.from(room.localParticipant.trackPublications.values());
+      if (room && room.localParticipant && room.localParticipant.trackPublications) {
+        const pubs = Array.from(room.localParticipant.trackPublications?.values?.() || []);
         const hasMic = pubs.some((pub: any) => (pub.source || pub.track?.source) === 'microphone');
         const hasCam = pubs.some((pub: any) => (pub.source || pub.track?.source) === 'camera');
         const hasShare = pubs.some((pub: any) => ['screen_share','screen_share_audio'].includes(pub.source || pub.track?.source));
@@ -210,15 +211,25 @@ export function App() {
     return <AuthScreen baseUrl={apiBase} onDone={async () => { await fetchMe(); }} />;
   }
 
+  const participantsToRender = uiParticipants.length > 0
+    ? uiParticipants
+    : [{ sid: 'local', identity: me.name || me.email, hasVideo: false, hasMic: false, isSpeaking: false }];
+
   return (
     <div style={{ width: '100vw', height: '100vh', background: '#0f1115', position: 'relative' }}>
-      {/* Teilnehmer-Karten Top-Bar */}
-      <div style={{ position: 'absolute', top: 10, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 10, zIndex: 20 }}>
-        {uiParticipants.map(p => (
-          <ParticipantCard key={p.sid} part={p} roomGetter={() => avRef.current?.room} />
-        ))}
+      {/* Participants Grid Overlay */}
+      <div style={{ position: 'absolute', top: gridExpanded ? 0 : 10, left: '50%', transform: 'translateX(-50%)', zIndex: 20, width: gridExpanded ? '96vw' : '90vw', maxWidth: gridExpanded ? undefined : 1200 }}>
+        <div style={{ position: 'relative', background: gridExpanded ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.45)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 14, padding: 12, backdropFilter: 'blur(6px)' }}>
+          <button onClick={() => setGridExpanded(e => !e)} style={{ position: 'absolute', top: 10, right: 10, padding: '6px 10px', fontSize: 12, borderRadius: 8, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.06)', color: '#fff', cursor: 'pointer' }}>
+            {gridExpanded ? 'Verkleinern' : 'Vergrößern'}
+          </button>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+            {participantsToRender.map(p => (
+              <ParticipantCard key={p.sid} part={p} roomGetter={() => avRef.current?.room} />
+            ))}
+          </div>
+        </div>
       </div>
-
       <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
 
       {/* HUD (links oben klein) */}
@@ -301,43 +312,68 @@ const selectStyle: React.CSSProperties = {
   fontSize: 12,
 };
 
-// Teilnehmer-Card-Komponente
-function ParticipantCard(props: { part: { sid: string; identity: string; hasVideo: boolean; isSpeaking: boolean }, roomGetter: () => any | undefined }) {
+// Teilnehmer-Card-Komponente (verschönert)
+function ParticipantCard(props: { part: { sid: string; identity: string; hasVideo: boolean; hasMic: boolean; isSpeaking: boolean }, roomGetter: () => any | undefined }) {
   const videoRef = React.useRef<HTMLVideoElement | null>(null);
   const { part, roomGetter } = props;
+  const [isVideoRendering, setIsVideoRendering] = React.useState(false);
 
   useEffect(() => {
     const room: any = roomGetter();
     const el = videoRef.current;
-    if (!room || !el) return;
+    if (!room || !el || !room.localParticipant) return;
     const isLocal = room.localParticipant?.sid === part.sid;
-    const p: any = isLocal ? room.localParticipant : room.participants.get(part.sid);
-    if (!p) return;
-    const pubs: any[] = Array.from(p.trackPublications.values());
-    const camPub = pubs.find(pub => (pub.source || pub.track?.source) === 'camera');
+    const p: any = isLocal ? room.localParticipant : room.participants?.get?.(part.sid);
+    if (!p || !p.trackPublications) return;
+    const pubs: any[] = Array.from(p.trackPublications?.values?.() || []);
+    const camPub = pubs.find(pub => (pub?.source || pub?.track?.source) === 'camera');
     const track = camPub?.track;
     let cleanup: (() => void) | undefined;
-    if (track && part.hasVideo) {
+
+    const onLoaded = () => {
+      try {
+        // Wenn Frames gerendert werden, sollte readyState > 2 sein
+        if (el.readyState >= 2) setIsVideoRendering(true);
+      } catch {}
+    };
+    const onPlaying = () => setIsVideoRendering(true);
+    const onEmptied = () => setIsVideoRendering(false);
+    el.addEventListener('loadeddata', onLoaded);
+    el.addEventListener('playing', onPlaying);
+    el.addEventListener('emptied', onEmptied);
+
+    if (track) {
       try {
         track.attach(el);
         cleanup = () => { try { track.detach(el); } catch {} };
       } catch {}
     }
-    return () => { cleanup?.(); };
+    return () => {
+      el.removeEventListener('loadeddata', onLoaded);
+      el.removeEventListener('playing', onPlaying);
+      el.removeEventListener('emptied', onEmptied);
+      cleanup?.();
+    };
   }, [part.sid, part.hasVideo, roomGetter]);
 
   const borderColor = part.isSpeaking ? '#22d3ee' : 'rgba(255,255,255,0.12)';
-  const glow = part.isSpeaking ? '0 0 0 2px rgba(34,211,238,0.35), 0 6px 18px rgba(34,211,238,0.25)' : '0 6px 18px rgba(0,0,0,0.35)';
+  const glow = part.isSpeaking ? '0 0 0 2px rgba(34,211,238,0.35), 0 10px 24px rgba(34,211,238,0.25)' : '0 10px 24px rgba(0,0,0,0.35)';
+  const gradient = 'linear-gradient(145deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02))';
 
   return (
-    <div style={{ width: 140, height: 92, position: 'relative', borderRadius: 10, overflow: 'hidden', background: 'rgba(255,255,255,0.06)', border: `1px solid ${borderColor}`, boxShadow: glow }}>
-      <video ref={videoRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover', display: part.hasVideo ? 'block' : 'none' }} />
-      {!part.hasVideo && (
-        <div style={{ width: '100%', height: '100%', display: 'grid', placeItems: 'center', color: '#e5e7eb', fontWeight: 600, fontSize: 14 }}>
+    <div style={{ width: '100%', aspectRatio: '16 / 9', position: 'relative', borderRadius: 12, overflow: 'hidden', background: gradient, border: `1px solid ${borderColor}`, boxShadow: glow }}>
+      <video ref={videoRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover', background: 'rgba(0,0,0,0.3)' }} />
+      {!(part.hasVideo || isVideoRendering) && (
+        <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', color: '#e5e7eb', fontWeight: 600, fontSize: 16 }}>
           {part.identity}
         </div>
       )}
-      <div style={{ position: 'absolute', bottom: 4, left: 6, right: 6, fontSize: 11, color: '#f3f4f6', textShadow: '0 1px 2px rgba(0,0,0,0.6)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+      {/* Badges */}
+      <div style={{ position: 'absolute', top: 8, left: 8, display: 'flex', gap: 6 }}>
+        <div title={part.hasMic ? 'Mikro an' : 'Mikro aus'} style={{ padding: '2px 6px', fontSize: 11, borderRadius: 999, background: part.hasMic ? 'rgba(16,185,129,0.25)' : 'rgba(244,63,94,0.25)', border: `1px solid ${part.hasMic ? 'rgba(16,185,129,0.5)' : 'rgba(244,63,94,0.5)'}`, color: '#fff' }}>Mic</div>
+        <div title={part.hasVideo ? 'Kamera an' : 'Kamera aus'} style={{ padding: '2px 6px', fontSize: 11, borderRadius: 999, background: part.hasVideo ? 'rgba(16,185,129,0.25)' : 'rgba(244,63,94,0.25)', border: `1px solid ${part.hasVideo ? 'rgba(16,185,129,0.5)' : 'rgba(244,63,94,0.5)'}`, color: '#fff' }}>Cam</div>
+      </div>
+      <div style={{ position: 'absolute', bottom: 8, left: 10, right: 10, fontSize: 13, color: '#f3f4f6', textShadow: '0 1px 2px rgba(0,0,0,0.6)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
         {part.identity}
       </div>
     </div>
