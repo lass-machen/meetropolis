@@ -381,7 +381,7 @@ export class MainScene extends Phaser.Scene implements SceneApi {
       const data = await res.json();
       if (!this.mapRef) return;
       const storedW = this.mapRef.width;
-      const storedH = this.mapRef.height;
+      // storedH wird nicht verwendet, width/height werden aus mapRef entnommen
       const width = this.mapRef.width;
       const height = this.mapRef.height;
       const applyArr = (arr: number[] | null | undefined, layer?: Phaser.Tilemaps.TilemapLayer) => {

@@ -22,8 +22,12 @@ export async function joinLivekitRoom(params: {
   const res = await fetch(`${params.baseUrl}/livekit/token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
     body: JSON.stringify({ roomName: params.roomName, identity: params.identity, name: params.identity })
   });
+  if (!res.ok) {
+    throw new Error('LiveKit Token konnte nicht geholt werden');
+  }
   const token = (await res.text()).trim();
   const room = new Room();
   const serverUrl = normalizeLivekitUrl(import.meta.env.VITE_LIVEKIT_URL);

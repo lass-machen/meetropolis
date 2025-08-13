@@ -1,3 +1,6 @@
+const DEBUG = (import.meta as any).env?.VITE_DEBUG_LOGS === 'true';
+const SIMPLE = (import.meta as any).env?.VITE_AV_SIMPLE === 'true';
+const ALLOW_RECONNECT = (import.meta as any).env?.VITE_AV_RECONNECT !== 'false';
 import { Room } from 'livekit-client';
 import { joinLivekitRoom } from '../lib/livekit';
 
@@ -12,6 +15,9 @@ export class AVManager {
   private readonly baseUrl: string;
   private readonly identity: string;
   private readonly useVideo: boolean;
+  private isConnecting = false;
+  private connectSeq = 0;
+  private isDisconnecting = false;
   private preferredMic?: string;
   private preferredCam?: string;
   private pendingMic = false;
@@ -31,28 +37,47 @@ export class AVManager {
 
   async switchTo(roomName: string) {
     if (this.currentName === roomName) return;
-    // Für Single-Room-Ansatz verbinden wir nur einmal zur Map-Lobby (z.B. 'world')
-    await this.leave();
     const name = roomName || 'world';
-    this.current = await joinLivekitRoom({
-      baseUrl: this.baseUrl,
-      tokenEndpoint: '/livekit/token',
-      roomName: name,
-      identity: this.identity,
-      useVideo: this.useVideo,
-    });
-    this.currentName = name;
-    this.reconnectAttempts = 0;
-    this.wireRoomEvents();
-    // Aktiviere ggf. gewünschte Tracks nach Connect
+    const seq = ++this.connectSeq;
+    if (!SIMPLE && this.isConnecting) return; // Debounce parallele Verbindungsversuche
+    this.isConnecting = true;
     try {
-      if (this.pendingMic) await this.setMicrophoneEnabled(true);
-      if (this.pendingCam) await this.setCameraEnabled(true);
-    } catch {}
+      await this.leave();
+      if (seq !== this.connectSeq) return; // verworfen
+      const room = await joinLivekitRoom({
+        baseUrl: this.baseUrl,
+        tokenEndpoint: '/livekit/token',
+        roomName: name,
+        identity: this.identity,
+        useVideo: this.useVideo,
+      });
+      if (seq !== this.connectSeq) { try { await room.disconnect(); } catch {} return; }
+      this.current = room;
+      this.currentName = name;
+      this.reconnectAttempts = 0;
+      this.wireRoomEvents();
+      if (!SIMPLE) {
+        await this.waitForConnected(room).catch(()=>{});
+      }
+    } finally {
+      this.isConnecting = false;
+    }
+    // Tracks aktivieren
+    if (SIMPLE) {
+      try { if (this.pendingMic) await this.setMicrophoneEnabled(true); } catch {}
+      try { if (this.pendingCam) await this.setCameraEnabled(true); } catch {}
+    } else {
+      setTimeout(async () => {
+        if (!this.current) return;
+        try { if (this.pendingMic) await this.setMicrophoneEnabled(true); } catch {}
+        try { if (this.pendingCam) await this.setCameraEnabled(true); } catch {}
+      }, 250);
+    }
   }
 
   async leave() {
     if (this.current) {
+      this.isDisconnecting = true;
       try { await this.current.disconnect(); } catch {}
     }
     try { if (this.reconnectTimer) clearTimeout(this.reconnectTimer); } catch {}
@@ -60,6 +85,7 @@ export class AVManager {
     this.reconnectAttempts = 0;
     this.current = undefined;
     this.currentName = null;
+    setTimeout(() => { this.isDisconnecting = false; }, 50);
   }
 
   get activeRoom(): string | null {
@@ -93,6 +119,7 @@ export class AVManager {
 
   private scheduleReconnect() {
     if (!this.currentName) return;
+    if (this.isConnecting) return;
     const attempt = ++this.reconnectAttempts;
     const delay = Math.min(30000, 1000 * Math.pow(2, attempt - 1) + Math.random() * 500);
     try { if (this.reconnectTimer) clearTimeout(this.reconnectTimer); } catch {}
@@ -115,13 +142,13 @@ export class AVManager {
           room.off?.(RoomEvent.Reconnected, () => {});
           room.off?.(RoomEvent.Disconnected, () => {});
           room.on?.(RoomEvent.Reconnected, () => { this.reconnectAttempts = 0; });
-          room.on?.(RoomEvent.Disconnected, () => { this.scheduleReconnect(); });
+          room.on?.(RoomEvent.Disconnected, () => { if (ALLOW_RECONNECT && !this.isDisconnecting) this.scheduleReconnect(); });
         } else {
           const r: any = room as any;
           r.off?.('reconnected', () => {});
           r.off?.('disconnected', () => {});
           r.on?.('reconnected', () => { this.reconnectAttempts = 0; });
-          r.on?.('disconnected', () => { this.scheduleReconnect(); });
+          r.on?.('disconnected', () => { if (ALLOW_RECONNECT && !this.isDisconnecting) this.scheduleReconnect(); });
         }
       } catch {
         // Fallback: wenn Event-Konstanten fehlen, zumindest einmal versuchen
@@ -130,9 +157,36 @@ export class AVManager {
     })();
   }
 
+  private async waitForConnected(room: Room, timeoutMs: number = 5000): Promise<void> {
+    const anyRoom: any = room as any;
+    const isConnectedNow = () => {
+      const state = anyRoom.connectionState || anyRoom.state;
+      return state === 'connected' || state === 2; // enum fallback
+    };
+    if (isConnectedNow()) return;
+    await new Promise<void>((resolve) => {
+      let done = false;
+      const finish = () => { if (!done) { done = true; try { clearTimeout(timer); } catch {}; resolve(); } };
+      let off: any = null;
+      (async () => {
+        try {
+          const mod = await import('livekit-client');
+          const RoomEvent = (mod as any).RoomEvent;
+          const handler = () => { if (isConnectedNow()) { try { anyRoom.off?.(RoomEvent?.ConnectionStateChanged || 'connectionStateChanged', handler); } catch {}; finish(); } };
+          anyRoom.on?.(RoomEvent?.ConnectionStateChanged || 'connectionStateChanged', handler);
+          off = () => anyRoom.off?.(RoomEvent?.ConnectionStateChanged || 'connectionStateChanged', handler);
+        } catch {
+          finish();
+        }
+      })();
+      const timer = setTimeout(() => { try { off?.(); } catch {}; finish(); }, timeoutMs);
+    });
+  }
+
   async startScreenshare() {
     if (!this.current) return;
     try {
+      await this.waitForConnected(this.current).catch(()=>{});
       const { createLocalScreenTracks } = await import('livekit-client');
       const tracks = await createLocalScreenTracks({});
       for (const t of tracks) await this.current.localParticipant.publishTrack(t);
@@ -181,11 +235,12 @@ export class AVManager {
     try {
       const pubs = Array.from(this.current.localParticipant.trackPublications.values());
       const micPubs = pubs.filter(pub => {
-        const src = (pub as any).source || (pub.track as any)?.source;
-        return src === 'microphone';
+        const src = (pub as any).source ?? (pub.track as any)?.source;
+        const kind = (pub as any).kind ?? (pub.track as any)?.kind;
+        return src === 'microphone' || src === 0 || kind === 'audio';
       });
       if (enabled) {
-        if (micPubs.length > 0) return; // already enabled
+        if (micPubs.some(p => !!(p as any).track)) return; // already enabled
         const { createLocalTracks } = await import('livekit-client');
         const tracks = await createLocalTracks({ audio: this.preferredMic ? { deviceId: this.preferredMic } : true });
         for (const t of tracks) {
@@ -215,20 +270,20 @@ export class AVManager {
     try {
       const pubs = Array.from(this.current.localParticipant.trackPublications.values());
       const camPubs = pubs.filter(pub => {
-        const src = (pub as any).source || (pub.track as any)?.source;
-        return src === 'camera';
+        const src = (pub as any).source ?? (pub.track as any)?.source;
+        const kind = (pub as any).kind ?? (pub.track as any)?.kind;
+        return src === 'camera' || src === 1 || kind === 'video';
       });
       if (enabled) {
-        if (camPubs.length > 0) return; // already enabled
+        if (camPubs.some(p => !!(p as any).track)) return; // already enabled
         const { createLocalTracks } = await import('livekit-client');
         const tracks = await createLocalTracks({ video: this.preferredCam ? { deviceId: this.preferredCam } : true });
-        // Debug
-        try { console.log('[AV] createLocalTracks(video) ->', tracks.map(t => ({ kind: (t as any).kind, id: (t as any)?.mediaStreamTrack?.id }))); } catch {}
+        if (DEBUG) { try { console.log('[AV] createLocalTracks(video) ->', tracks.map(t => ({ kind: (t as any).kind, id: (t as any)?.mediaStreamTrack?.id }))); } catch {} }
         for (const t of tracks) {
           if ((t as any).kind === 'video') {
             try {
               await this.current.localParticipant.publishTrack(t);
-              try { console.log('[AV] published local video track'); } catch {}
+              if (DEBUG) { try { console.log('[AV] published local video track'); } catch {} }
             } catch (e) {
               // eslint-disable-next-line no-console
               console.warn('[AV] publish video failed', e);

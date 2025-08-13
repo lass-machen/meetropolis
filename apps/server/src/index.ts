@@ -2,6 +2,9 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
+import helmet from 'helmet';
+import compression from 'compression';
+import rateLimit from 'express-rate-limit';
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 // Use CJS require for Colyseus to avoid ESM interop issues
@@ -12,10 +15,44 @@ import { WorldRoom } from './rooms/WorldRoom.js';
 import { registerApi } from './api.js';
 
 const app = express();
-app.use(cors({ origin: true, credentials: true }));
+const isProd = process.env.NODE_ENV === 'production';
+const allowedOrigins = (process.env.CORS_ORIGIN || '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter((s) => s.length > 0);
+
+app.set('trust proxy', process.env.TRUST_PROXY === 'true' || isProd);
+
+app.use(helmet({ contentSecurityPolicy: false }));
+app.use(compression());
+
+if (allowedOrigins.length > 0) {
+  app.use(
+    cors({
+      origin: (origin, callback) => {
+        if (!origin) return callback(null, true);
+        return callback(null, allowedOrigins.includes(origin));
+      },
+      credentials: true,
+    })
+  );
+} else {
+  // Dev fallback: reflect origin
+  app.use(cors({ origin: true, credentials: true }));
+}
+
 app.use(cookieParser());
 app.use(express.json({ limit: '4mb' }));
-app.use(express.json());
+app.use(express.urlencoded({ extended: true, limit: '4mb' }));
+
+// Basic rate-limiting for sensitive endpoints
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use(['/auth', '/livekit/token'], authLimiter);
 
 app.get('/', (_req, res) => res.send('ok'));
 

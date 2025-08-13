@@ -1,8 +1,11 @@
-version: "3.9"
-
 services:
   db:
     image: postgres:15
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
@@ -14,7 +17,7 @@ services:
 
   server:
     image: node:20
-    working_dir: /workspace
+    working_dir: /workspace/apps/server
     env_file:
       - .env
     environment:
@@ -23,9 +26,16 @@ services:
       LIVEKIT_URL: ${LIVEKIT_URL}
       LIVEKIT_API_KEY: ${LIVEKIT_API_KEY}
       LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET}
-    command: sh -c "cd apps/server && npm ci && npx prisma generate && npx prisma db push && npx prisma db seed && npx tsx src/index.ts"
+      NODE_ENV: production
+      TRUST_PROXY: "true"
+    command: sh -c "npm ci --include=dev && npx prisma generate && npx prisma db push && npx prisma db seed && npx tsx src/index.ts"
     ports:
       - "2567:2567"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     depends_on:
       - db
     volumes:
@@ -34,15 +44,20 @@ services:
 
   web:
     image: node:20
-    working_dir: /workspace
+    working_dir: /workspace/apps/web
     env_file:
       - .env
     environment:
       VITE_API_BASE: ${VITE_API_BASE}
       VITE_LIVEKIT_URL: ${VITE_LIVEKIT_URL}
-    command: sh -c "npm ci && npm run dev:web"
+    command: sh -c "npm ci && npm run build && npm run preview"
     ports:
       - "5173:5173"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     depends_on:
       - server
     volumes:
@@ -66,6 +81,11 @@ services:
       - "7880:7880"
       - "7881:7881/tcp"
       - "7882:7882/udp"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
   db_data:

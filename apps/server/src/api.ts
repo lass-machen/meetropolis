@@ -4,16 +4,32 @@ import { createLivekitToken } from './livekit.js';
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import { z } from 'zod';
 
 const prisma = new PrismaClient();
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret';
+const JWT_SECRET = (() => {
+  const fromEnv = process.env.JWT_SECRET;
+  if (fromEnv && fromEnv.length > 0) return fromEnv;
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('[SECURITY] JWT_SECRET fehlt in Produktion');
+  }
+  // Development: ephemeres Secret, nur für lokale Sessions
+  const devSecret = crypto.randomBytes(32).toString('hex');
+  // eslint-disable-next-line no-console
+  console.warn('[SECURITY] JWT_SECRET fehlt – verwende ephemeres DEV-Secret.');
+  return devSecret;
+})();
 const COOKIE_NAME = 'auth_token';
 
 function setAuthCookie(res: express.Response, token: string) {
+  const forceSecure = process.env.COOKIE_SECURE === 'true';
+  const isProd = process.env.NODE_ENV === 'production';
+  const secure = forceSecure || false;
+  const sameSite = secure ? 'none' : 'lax';
   res.cookie(COOKIE_NAME, token, {
     httpOnly: true,
-    sameSite: 'lax',
-    secure: false,
+    sameSite: sameSite as any,
+    secure,
     path: '/',
     maxAge: 1000 * 60 * 60 * 24 * 30,
   });
@@ -35,16 +51,21 @@ export function registerApi(app: express.Express) {
 
   // Auth Endpoints
   app.post('/auth/invite', async (req, res) => {
-    const email = req.body?.email?.toString()?.trim();
-    if (!email) return res.status(400).json({ error: 'email required' });
+    const auth = requireAuth(req);
+    if (!auth) return res.status(401).json({ error: 'unauthorized' });
+    const schema = z.object({ email: z.string().email() });
+    const parse = schema.safeParse(req.body || {});
+    if (!parse.success) return res.status(400).json({ error: 'email required' });
     const code = crypto.randomBytes(12).toString('hex');
-    const inv = await prisma.invite.create({ data: { code, email } });
+    const inv = await prisma.invite.create({ data: { code, email: parse.data.email, createdBy: auth.userId } });
     res.json({ code: inv.code });
   });
 
   app.post('/auth/register', async (req, res) => {
-    const { code, name, email, password } = req.body ?? {};
-    if (!code || !email || !password) return res.status(400).json({ error: 'code, email, password required' });
+    const schema = z.object({ code: z.string().min(4), name: z.string().min(1).optional(), email: z.string().email(), password: z.string().min(8) });
+    const parse = schema.safeParse(req.body || {});
+    if (!parse.success) return res.status(400).json({ error: 'code, email, password required' });
+    const { code, name, email, password } = parse.data;
     const invite = await prisma.invite.findUnique({ where: { code } });
     if (!invite || invite.usedAt) return res.status(400).json({ error: 'invalid or used invite' });
     const hash = await bcrypt.hash(password, 10);
@@ -56,8 +77,10 @@ export function registerApi(app: express.Express) {
   });
 
   app.post('/auth/login', async (req, res) => {
-    const { email, password } = req.body ?? {};
-    if (!email || !password) return res.status(400).json({ error: 'email and password required' });
+    const schema = z.object({ email: z.string().email(), password: z.string().min(8) });
+    const parse = schema.safeParse(req.body || {});
+    if (!parse.success) return res.status(400).json({ error: 'email and password required' });
+    const { email, password } = parse.data;
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user || !user.passwordHash) return res.status(401).json({ error: 'invalid credentials' });
     const ok = await bcrypt.compare(password, user.passwordHash);
@@ -81,8 +104,10 @@ export function registerApi(app: express.Express) {
   });
 
   app.post('/auth/forgot', async (req, res) => {
-    const email = req.body?.email?.toString()?.trim();
-    if (!email) return res.status(400).json({ error: 'email required' });
+    const schema = z.object({ email: z.string().email() });
+    const parse = schema.safeParse(req.body || {});
+    if (!parse.success) return res.status(400).json({ error: 'email required' });
+    const email = parse.data.email;
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) return res.json({ ok: true });
     const token = crypto.randomBytes(24).toString('hex');
@@ -93,8 +118,10 @@ export function registerApi(app: express.Express) {
   });
 
   app.post('/auth/reset', async (req, res) => {
-    const { token, password } = req.body ?? {};
-    if (!token || !password) return res.status(400).json({ error: 'token and password required' });
+    const schema = z.object({ token: z.string().min(8), password: z.string().min(8) });
+    const parse = schema.safeParse(req.body || {});
+    if (!parse.success) return res.status(400).json({ error: 'token and password required' });
+    const { token, password } = parse.data;
     const pr = await prisma.passwordReset.findUnique({ where: { token } });
     if (!pr || pr.usedAt || pr.expiresAt < new Date()) return res.status(400).json({ error: 'invalid token' });
     const hash = await bcrypt.hash(password, 10);
@@ -107,8 +134,10 @@ export function registerApi(app: express.Express) {
   app.post('/auth/change', async (req, res) => {
     const auth = requireAuth(req);
     if (!auth) return res.status(401).json({ error: 'unauthorized' });
-    const { currentPassword, newPassword } = req.body ?? {};
-    if (!currentPassword || !newPassword) return res.status(400).json({ error: 'currentPassword and newPassword required' });
+    const schema = z.object({ currentPassword: z.string().min(8), newPassword: z.string().min(8) });
+    const parse = schema.safeParse(req.body || {});
+    if (!parse.success) return res.status(400).json({ error: 'currentPassword and newPassword required' });
+    const { currentPassword, newPassword } = parse.data;
     const user = await prisma.user.findUnique({ where: { id: auth.userId } });
     if (!user || !user.passwordHash) return res.status(400).json({ error: 'no password set' });
     const ok = await bcrypt.compare(currentPassword, user.passwordHash);
@@ -132,8 +161,10 @@ export function registerApi(app: express.Express) {
     const auth = requireAuth(req);
     if (!auth) return res.status(401).json({ error: 'unauthorized' });
     const id = req.params.id;
-    const { email, name } = (req.body ?? {}) as { email?: string; name?: string };
-    if (!email && !name) return res.status(400).json({ error: 'nothing to update' });
+    const schema = z.object({ email: z.string().email().optional(), name: z.string().min(1).optional() });
+    const parse = schema.safeParse(req.body || {});
+    if (!parse.success || (!parse.data.email && !parse.data.name)) return res.status(400).json({ error: 'nothing to update' });
+    const { email, name } = parse.data;
     try {
       const user = await prisma.user.update({ where: { id }, data: { email: email ?? undefined, name: name ?? undefined } });
       res.json({ id: user.id, email: user.email, name: user.name });
@@ -168,7 +199,8 @@ export function registerApi(app: express.Express) {
 
   // Editor: Save/Load Map State (authenticated)
   app.get('/maps/:name/editor-state', async (req, res) => {
-    // Hinweis: Für lokale Entwicklung ohne Auth geöffnet. In Produktion absichern!
+    const auth = requireAuth(req);
+    if (!auth) return res.status(401).json({ error: 'unauthorized' });
     const name = req.params.name;
     let map = await prisma.map.findUnique({ where: { name } });
     if (!map) {
@@ -186,9 +218,19 @@ export function registerApi(app: express.Express) {
   });
 
   app.put('/maps/:name/editor-state', async (req, res) => {
-    // Hinweis: Für lokale Entwicklung ohne Auth geöffnet. In Produktion absichern!
+    const auth = requireAuth(req);
+    if (!auth) return res.status(401).json({ error: 'unauthorized' });
     const name = req.params.name;
-    const { editorGround, collision, tilesets, assets, zones } = req.body ?? {};
+    const editorSchema = z.object({
+      editorGround: z.array(z.number()).nullable().optional(),
+      collision: z.array(z.number()).nullable().optional(),
+      tilesets: z.array(z.any()).optional(),
+      assets: z.array(z.any()).optional(),
+      zones: z.array(z.any()).optional(),
+    });
+    const parse = editorSchema.safeParse(req.body || {});
+    if (!parse.success) return res.status(400).json({ error: 'invalid editor payload' });
+    const { editorGround, collision, tilesets, assets, zones } = parse.data;
     const found = await prisma.map.findUnique({ where: { name }, include: { rooms: true } });
     const map = found ?? await prisma.map.create({ data: { name, meta: {} } });
     // Update meta blobs
@@ -246,10 +288,13 @@ export function registerApi(app: express.Express) {
   });
 
   app.post('/livekit/token', async (req, res) => {
-    const { roomName, identity, name, canPublish, canSubscribe } = req.body ?? {};
-    if (!roomName || !identity) return res.status(400).json({ error: 'roomName and identity required' });
+    const auth = requireAuth(req);
+    if (!auth) return res.status(401).json({ error: 'unauthorized' });
+    const schema = z.object({ roomName: z.string().min(1), identity: z.string().min(1), name: z.string().optional(), canPublish: z.boolean().optional(), canSubscribe: z.boolean().optional() });
+    const parse = schema.safeParse(req.body || {});
+    if (!parse.success) return res.status(400).json({ error: 'roomName and identity required' });
+    const { roomName, identity, name, canPublish, canSubscribe } = parse.data;
     const token = await createLivekitToken({ roomName, identity, name, canPublish, canPublishData: true, canSubscribe });
-    console.log('LiveKit token generated', typeof token, token.length);
     res.type('text/plain').send(token);
   });
 }

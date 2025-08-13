@@ -10,6 +10,8 @@ import { FollowManager } from './game/followManager';
 import { ZoneManager } from './game/zoneManager';
 import { VolumeManager } from './game/volumeManager';
 
+const DEBUG = (import.meta as any).env?.VITE_DEBUG_LOGS === 'true';
+
 // Simple Inline-Icons
 function MicIcon(props: { on?: boolean }) {
   const color = props.on ? '#10b981' : '#e5e7eb';
@@ -165,6 +167,8 @@ export function App() {
       }
       try { localStorage.setItem('meetropolis.tilesets', JSON.stringify(tilesets)); } catch {}
       setEditor(s => ({ ...s, tilesets, tilePaint: { ...(s.tilePaint as any), tilesetKey: s.tilePaint?.tilesetKey || 'office_tiles' } }));
+      // Bereits vorhandene Editor-Layer sofort anwenden (falls vorhanden)
+      try { gameBridge.reloadEditorLayers(); } catch {}
       // Server-state laden (best-effort) – bei 404 Map anlegen und lokalen Stand hochladen
       (async () => {
         try {
@@ -223,7 +227,7 @@ export function App() {
   }, [page]);
 
   const buildParticipantList = React.useCallback(() => {
-    try { console.log('[UI] buildParticipantList()'); } catch {}
+    if (DEBUG) { try { console.log('[UI] buildParticipantList()'); } catch {} }
     const room: any = avRef.current?.room as any;
     if (!room || !room.localParticipant) return;
     const activeSet = new Set<string>((room.activeSpeakers || []).map((p: any) => p.sid));
@@ -231,7 +235,7 @@ export function App() {
     const pushP = (p: any) => {
       if (!p || !p.trackPublications) return;
       const publications = Array.from((p.trackPublications?.values?.() || []) as any);
-      try { console.log('[UI] participant pubs', p.identity, publications.map((pub:any)=>({src: pub?.source||pub?.track?.source, kind: pub?.kind||pub?.track?.kind, hasTrack: !!pub?.track}))); } catch {}
+      if (DEBUG) { try { console.log('[UI] participant pubs', p.identity, publications.map((pub:any)=>({src: pub?.source||pub?.track?.source, kind: pub?.kind||pub?.track?.kind, hasTrack: !!pub?.track}))); } catch {} }
       const isVideoPub = (pub: any) => {
         const source = (pub?.source ?? pub?.track?.source);
         return (!!pub?.track && (source === 'camera' || source === 1));
@@ -1043,14 +1047,14 @@ function ParticipantCard(props: { part: { sid: string; identity: string; hasVide
         const src = (publication?.source || t?.source || t?.mediaStreamTrack?.kind) as string | undefined;
         const isDesired = part.media === 'screen' ? (src === 'screen_share') : (src === 'camera');
         if (participant?.sid === baseSid && isDesired && el) {
-          try { console.log('[UI] onTrackSubscribed attach', part.identity, { src, kind: t?.kind }); el.muted = isLocalNow; t.attach(el); setIsVideoRendering(false); } catch {}
+          try { if (DEBUG) console.log('[UI] onTrackSubscribed attach', part.identity, { src, kind: t?.kind }); el.muted = isLocalNow; t.attach(el); setIsVideoRendering(false); } catch {}
         }
       } catch {}
     };
     const onTrackUnsubscribed = (t: any, _publication: any, participant: any) => {
       try {
         if (participant?.sid?.startsWith?.(baseSid) && el) {
-          try { console.log('[UI] onTrackUnsubscribed detach', part.identity); t.detach(el); } catch {}
+          try { if (DEBUG) console.log('[UI] onTrackUnsubscribed detach', part.identity); t.detach(el); } catch {}
         }
       } catch {}
     };
@@ -1059,7 +1063,7 @@ function ParticipantCard(props: { part: { sid: string; identity: string; hasVide
         const src = (publication?.source || publication?.track?.source) as string | undefined;
         const isDesired = part.media === 'screen' ? (src === 'screen_share') : (src === 'camera');
         if (participant?.sid === baseSid && isDesired && publication?.track && el) {
-          try { console.log('[UI] onTrackPublished attach', part.identity); publication.track.attach(el); setIsVideoRendering(false); } catch {}
+          try { if (DEBUG) console.log('[UI] onTrackPublished attach', part.identity); publication.track.attach(el); setIsVideoRendering(false); } catch {}
         }
       } catch {}
     };
