@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { ThemeProvider, AppShell, ThemeToggleButton } from './ui/theme';
-import { Button, Card, Input, Toolbar, Modal } from './ui/components';
+import { Button, Card, Input, Toolbar, Modal, TilesetPreview } from './ui/components';
 import { createPhaserGame, destroyPhaserGame } from './game/phaserGame';
 import { gameBridge } from './game/bridge';
 import { joinWorld } from './lib/colyseus';
@@ -96,7 +96,8 @@ export function App() {
     pendingAsset?: { key: string; dataUrl: string } | null;
     tilePaint?: { tilesetKey: string; tileIndex: number; tileWidth: number; tileHeight: number; margin?: number; spacing?: number } | null;
     drag?: { startTileX: number; startTileY: number; endTileX: number; endTileY: number } | null;
-  }>({ active: false, tool: 'zone', tempPoints: [], name: '', zones: [], assets: [], pendingAsset: null, tilePaint: { tilesetKey: 'office_tiles', tileIndex: 1, tileWidth: 16, tileHeight: 16 }, drag: null });
+    tilesets?: { key: string; dataUrl: string; tileWidth: number; tileHeight: number; margin?: number; spacing?: number }[];
+  }>({ active: false, tool: 'zone', tempPoints: [], name: '', zones: [], assets: [], pendingAsset: null, tilePaint: { tilesetKey: 'office_tiles', tileIndex: 1, tileWidth: 16, tileHeight: 16 }, drag: null, tilesets: [] });
 
   const apiBase = (import.meta.env.VITE_API_BASE as string | undefined) ||
     (typeof window !== 'undefined'
@@ -142,6 +143,18 @@ export function App() {
         setEditor(s => ({ ...s, assets }));
         gameBridge.setEditorAssets(assets);
       }
+      const rawTs = localStorage.getItem('meetropolis.tilesets');
+      const defaultTs = [
+        { key: 'office_tiles', dataUrl: '/assets/tilesets/office_tiles.png', tileWidth: 16, tileHeight: 16 },
+        { key: 'furniture_tiles', dataUrl: '/assets/tilesets/furniture_tiles.png', tileWidth: 16, tileHeight: 16 },
+        { key: 'decor_tiles', dataUrl: '/assets/tilesets/decor_tiles.png', tileWidth: 16, tileHeight: 16 },
+      ];
+      let tilesets = defaultTs;
+      if (rawTs) {
+        try { const parsed = JSON.parse(rawTs) || []; tilesets = [...defaultTs, ...parsed.filter((t:any)=>!defaultTs.find(d=>d.key===t.key))]; } catch {}
+      }
+      try { localStorage.setItem('meetropolis.tilesets', JSON.stringify(tilesets)); } catch {}
+      setEditor(s => ({ ...s, tilesets, tilePaint: { ...(s.tilePaint as any), tilesetKey: s.tilePaint?.tilesetKey || 'office_tiles' } }));
     } catch {}
   }, []);
 
@@ -274,9 +287,12 @@ export function App() {
       window.removeEventListener('keydown', firstInteract);
       connectLivekit();
     };
+    // LiveKit-Handler optional, aber niemals doppelt registrieren
     if (!editor.active) {
-      window.addEventListener('pointerdown', firstInteract);
-      window.addEventListener('keydown', firstInteract);
+      window.removeEventListener('pointerdown', firstInteract);
+      window.removeEventListener('keydown', firstInteract);
+      window.addEventListener('pointerdown', firstInteract, { once: true } as any);
+      window.addEventListener('keydown', firstInteract, { once: true } as any);
     }
 
     bubbleRef.current = new BubbleManager(64, null);
@@ -374,6 +390,7 @@ export function App() {
     }, 250);
 
     return () => {
+      try { gameBridge.setSceneApi?.(null); } catch {}
       destroyPhaserGame(game);
       colyseusRef.current?.leave?.();
       try { avRef.current?.leave?.(); } catch {}
@@ -674,9 +691,31 @@ export function App() {
                   if (!source) return;
                   const k = p.tilesetKey || `ts-${Date.now()}`;
                   gameBridge.registerTileset({ key: k, dataUrl: source, tileWidth: p.tileWidth || 16, tileHeight: p.tileHeight || 16, margin: p.margin || 0, spacing: p.spacing || 0 });
+                  // In die lokale Tileset-Bibliothek aufnehmen
+                  setEditor(s => {
+                    const next = { key: k, dataUrl: source, tileWidth: p.tileWidth || 16, tileHeight: p.tileHeight || 16, margin: p.margin || 0, spacing: p.spacing || 0 };
+                    const tilesets = [...(s.tilesets||[])];
+                    if (!tilesets.find(t => t.key === k)) tilesets.push(next);
+                    try { localStorage.setItem('meetropolis.tilesets', JSON.stringify(tilesets)); } catch {}
+                    return { ...s, tilesets, tilePaint: { ...(s.tilePaint as any), tilesetKey: k } };
+                  });
                 }} style={{ padding: 8, borderRadius: 8, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.06)', color: '#fff' }}>Tileset aus Upload registrieren</button>
               </div>
-              <div style={{ fontSize: 12, color: '#9ca3af' }}>Ziehen mit der Maus, um eine Rechteck-Auswahl zu malen. Tileset/Index wählbar.</div>
+              {/* Visuelle Kachel-Palette */}
+              {(() => {
+                const p = editor.tilePaint;
+                if (!p) return null;
+                const lib = (editor.tilesets||[]).find(t => t.key === p.tilesetKey);
+                if (!lib) return null;
+                return (
+                  <TilesetPreview
+                    tileset={lib}
+                    selectedIndex={p.tileIndex}
+                    onSelect={(index: number) => setEditor(s => ({ ...s, tilePaint: { ...(s.tilePaint as any), tileIndex: index } }))}
+                  />
+                );
+              })()}
+              <div style={{ fontSize: 12, color: '#9ca3af' }}>Ziehen mit der Maus, um eine Rechteck-Auswahl zu malen. Wähle die Kachel per Klick in der Vorschau.</div>
             </div>
             <div style={{ display: 'grid', gap: 6 }}>
               <div style={{ fontWeight: 600 }}>Zonen</div>

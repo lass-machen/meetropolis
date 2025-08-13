@@ -177,6 +177,14 @@ export class MainScene extends Phaser.Scene implements SceneApi {
 
     // Nach dem Aufbau: gespeicherte Editor-Layer laden (best-effort)
     setTimeout(() => this.loadEditorLayers(), 0);
+
+    // Bridge aufräumen, wenn Szene herunterfährt
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      try { gameBridge.setSceneApi(null); } catch {}
+    });
+    this.events.once(Phaser.Scenes.Events.DESTROY, () => {
+      try { gameBridge.setSceneApi(null); } catch {}
+    });
   }
 
   syncRemotePlayers(players: Record<string, { x: number; y: number; direction: 'up'|'down'|'left'|'right' }>) {
@@ -220,6 +228,8 @@ export class MainScene extends Phaser.Scene implements SceneApi {
   }
 
   setEditorAssets(assets: { id: string; key: string; dataUrl: string; x: number; y: number }[]) {
+    // Wenn Spiel bereits zerstört -> nichts tun
+    if (!this.game || !(this.game as any).renderer) return;
     // Entferne nicht verwendete Sprites
     const keep = new Set(assets.map(a => a.id));
     for (const [id, sprite] of this.editorSprites) {
@@ -361,7 +371,7 @@ export class MainScene extends Phaser.Scene implements SceneApi {
   }
 
   registerTileset(ts: { key: string; dataUrl: string; tileWidth: number; tileHeight: number; margin?: number; spacing?: number }) {
-    if (!this.mapRef) return;
+    if (!this.mapRef || !this.game || !(this.game as any).renderer) return;
     // Textur registrieren
     if (!this.textures.exists(ts.key)) {
       this.textures.addBase64(ts.key, ts.dataUrl);
