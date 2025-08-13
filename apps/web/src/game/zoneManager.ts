@@ -16,10 +16,10 @@ export class ZoneManager {
     const inside = this.zones.find(z => pointInPolygon(pos, z.points));
     if (inside && inside.name !== this.current) {
       this.current = inside.name;
-      this.av?.switchTo(`zone:${inside.name}`);
+      // Single-Room: kein Raumwechsel mehr
     } else if (!inside && this.current) {
       this.current = undefined;
-      this.av?.switchTo('lobby');
+      // Single-Room: kein Raumwechsel mehr
     }
   }
 

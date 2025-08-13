@@ -26,19 +26,8 @@ export class BubbleManager {
       return dx * dx + dy * dy <= this.radius * this.radius;
     }).map(o => o.id).sort();
     const key = [local.id, ...inRange].join('-');
-    if (inRange.length === 0) {
-      // verlasse Bubble-Raum, ggf. zurück in lobby
-      if (this.joinedId) {
-        this.av?.switchTo('lobby');
-        this.joinedId = null;
-      }
-      return;
-    }
-    const roomName = `${this.roomPrefix}:${key}`;
-    if (this.joinedId !== roomName) {
-      this.av?.switchTo(roomName);
-      this.joinedId = roomName;
-    }
+    // Single-Room: Bubble wird nur noch als Mitglieder-Set im App-State geführt
+    // Diese Klasse behält vorerst nur die Nähe-Logik (optional nutzbar), steuert aber keinen Raum mehr.
   }
 
   setAV(av: AVManager | null) {

@@ -178,7 +178,15 @@ export class MainScene extends Phaser.Scene implements SceneApi {
     gameBridge.setSceneApi(this);
 
     // Nach dem Aufbau: gespeicherte Editor-Layer laden (best-effort)
-    setTimeout(() => this.loadEditorLayers(), 0);
+    setTimeout(() => {
+      this.loadEditorLayers();
+      // Fallback: Server-State laden und anwenden, falls localStorage leer ist
+      try {
+        const raw = localStorage.getItem('meetropolis.editorLayers');
+        const hasLocal = !!raw && (() => { try { const d = JSON.parse(raw||'{}'); return Array.isArray(d?.editorGround) || Array.isArray(d?.collision); } catch { return false; } })();
+        if (!hasLocal) this.fetchAndApplyServerLayers();
+      } catch { this.fetchAndApplyServerLayers(); }
+    }, 0);
 
     // Bridge aufräumen, wenn Szene herunterfährt
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
@@ -363,6 +371,33 @@ export class MainScene extends Phaser.Scene implements SceneApi {
     // externe Bridge-API ruft diese Methode, um LocalStorage-Layer erneut zu laden
     try { this.loadEditorLayers(); } catch {}
     try { this.updateCollisionOverlay(); } catch {}
+  }
+
+  private async fetchAndApplyServerLayers() {
+    try {
+      const base = (window as any).VITE_API_BASE || import.meta.env.VITE_API_BASE || `${window.location.protocol}//${window.location.hostname}:2567`;
+      const res = await fetch(`${base}/maps/office/editor-state`, { credentials: 'include' });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (!this.mapRef) return;
+      const storedW = this.mapRef.width;
+      const storedH = this.mapRef.height;
+      const width = this.mapRef.width;
+      const height = this.mapRef.height;
+      const applyArr = (arr: number[] | null | undefined, layer?: Phaser.Tilemaps.TilemapLayer) => {
+        if (!arr || !layer) return;
+        for (let y = 0; y < height; y++) {
+          for (let x = 0; x < width; x++) {
+            const idx = arr[y * storedW + x];
+            if (typeof idx === 'number' && idx >= 0) layer.putTileAt(idx, x, y);
+          }
+        }
+      };
+      applyArr(data?.editorGround, this.editorGround);
+      applyArr(data?.collision, this.collisionLayer);
+      if (data?.collision) this.rebuildStaticColliders();
+      try { this.updateCollisionOverlay(); } catch {}
+    } catch {}
   }
 
   private rebuildStaticColliders() {

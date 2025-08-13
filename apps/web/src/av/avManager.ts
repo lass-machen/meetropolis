@@ -31,15 +31,17 @@ export class AVManager {
 
   async switchTo(roomName: string) {
     if (this.currentName === roomName) return;
+    // Für Single-Room-Ansatz verbinden wir nur einmal zur Map-Lobby (z.B. 'world')
     await this.leave();
+    const name = roomName || 'world';
     this.current = await joinLivekitRoom({
       baseUrl: this.baseUrl,
       tokenEndpoint: '/livekit/token',
-      roomName,
+      roomName: name,
       identity: this.identity,
       useVideo: this.useVideo,
     });
-    this.currentName = roomName;
+    this.currentName = name;
     this.reconnectAttempts = 0;
     this.wireRoomEvents();
     // Aktiviere ggf. gewünschte Tracks nach Connect
@@ -66,6 +68,27 @@ export class AVManager {
 
   get room(): Room | undefined {
     return this.current;
+  }
+
+  setParticipantVolume(sid: string, volume: number) {
+    const room = this.current;
+    if (!room) return;
+    try {
+      const participants = (room as any).remoteParticipants || (room as any).participants;
+      const p = participants?.get?.(sid);
+      if (!p) return;
+      const pubs: any[] = Array.from((p.trackPublications?.values?.() || []) as any);
+      for (const pub of pubs) {
+        const track: any = (pub as any).track;
+        if (!track) continue;
+        // LiveKit RemoteAudioTrack hat setVolume in v2
+        if (typeof track.setVolume === 'function') {
+          try { track.setVolume(Math.max(0, Math.min(1, volume))); } catch {}
+        } else if ((track as any).mediaStreamTrack) {
+          try { (track as any).mediaStreamTrack.volume = Math.max(0, Math.min(1, volume)); } catch {}
+        }
+      }
+    } catch {}
   }
 
   private scheduleReconnect() {

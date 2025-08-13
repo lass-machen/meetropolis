@@ -8,6 +8,7 @@ import { AVManager } from './av/avManager';
 import { BubbleManager } from './game/bubbleManager';
 import { FollowManager } from './game/followManager';
 import { ZoneManager } from './game/zoneManager';
+import { VolumeManager } from './game/volumeManager';
 
 // Simple Inline-Icons
 function MicIcon(props: { on?: boolean }) {
@@ -70,6 +71,8 @@ export function App() {
   const bubbleRef = useRef<BubbleManager | null>(null);
   const zoneRef = useRef<ZoneManager | null>(null);
   const followRef = useRef<import('./game/followManager').FollowManager | null>(null);
+  const volumeRef = useRef<VolumeManager | null>(null);
+  const bubbleMembersRef = useRef<Set<string>>(new Set());
   const localPosRef = useRef<{ id: string; x: number; y: number }>({ id: '', x: 0, y: 0 });
   const remotesRef = useRef<Record<string, { x: number; y: number }>>({});
   const [hud, setHud] = React.useState<{ zone?: string; follow?: string | null; avRoom?: string | null }>({});
@@ -171,7 +174,11 @@ export function App() {
             if (data?.tilesets) try { localStorage.setItem('meetropolis.tilesets', JSON.stringify(data.tilesets)); } catch {}
             if (data?.assets) try { localStorage.setItem('meetropolis.assets', JSON.stringify(data.assets)); } catch {}
             if (data?.zones) try { localStorage.setItem('meetropolis.zones', JSON.stringify(data.zones.map((z:any)=>({ name: z.name, points: z.polygon })))); } catch {}
-            if (data?.editorGround || data?.collision) try { localStorage.setItem('meetropolis.editorLayers', JSON.stringify({ editorGround: data.editorGround, collision: data.collision, w: undefined, h: undefined })); } catch {}
+            if (Array.isArray(data?.editorGround) || Array.isArray(data?.collision)) {
+              try { localStorage.setItem('meetropolis.editorLayers', JSON.stringify({ editorGround: data.editorGround, collision: data.collision, w: undefined, h: undefined })); } catch {}
+              // Nach erfolgreichem Laden: direkt in Szene anwenden
+              try { gameBridge.reloadEditorLayers(); } catch {}
+            }
           } else if (res.status === 404) {
             // Map auf dem Server erzeugen mit lokalem Stand
             const tilesets = JSON.parse(localStorage.getItem('meetropolis.tilesets') || '[]');
@@ -184,6 +191,7 @@ export function App() {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ editorGround: layers.editorGround ?? null, collision: layers.collision ?? null, tilesets, assets, zones })
             }).catch(()=>{});
+            try { gameBridge.reloadEditorLayers(); } catch {}
           }
         } catch {}
       })();
@@ -342,7 +350,7 @@ export function App() {
         avRef.current = new AVManager({ baseUrl: apiBase, identity, useVideo: import.meta.env.VITE_FEATURE_VOICE_ONLY !== 'true' });
         bubbleRef.current?.setAV(avRef.current);
         zoneRef.current?.setAV(avRef.current);
-        await avRef.current.switchTo('lobby');
+        await avRef.current.switchTo('world');
         const list = await avRef.current.listDevices();
         const micOptions = list.microphones.map(d => ({ id: d.deviceId, label: d.label }));
         const camOptions = list.cameras.map(d => ({ id: d.deviceId, label: d.label }));
@@ -386,6 +394,39 @@ export function App() {
     bubbleRef.current = new BubbleManager(64, null);
     followRef.current = new FollowManager(96);
     zoneRef.current = new ZoneManager([], null);
+    // Seed Zonen sofort, auch wenn der Editor bisher nie geöffnet war
+    try { zoneRef.current.setZones(editor.zones as any); } catch {}
+    // Stelle sicher, dass ZoneManager initial eine Position bekommt, auch bevor Colyseus onLocalMove feuert
+    gameBridge.onLocalMove = (p) => {
+      localPosRef.current.x = p.x;
+      localPosRef.current.y = p.y;
+      zoneRef.current?.update({ x: p.x, y: p.y });
+      if (followRef.current) {
+        const f = followRef.current.update(
+          { x: p.x, y: p.y },
+          remotesRef.current
+        );
+        if (f.following) {
+          gameBridge.setDesiredPosition({ x: f.x, y: f.y });
+        } else {
+          gameBridge.setDesiredPosition(null);
+        }
+      }
+      colyseusRef.current?.send?.('move', p);
+    };
+    volumeRef.current = new VolumeManager(
+      { setParticipantVolume: (sid, vol) => avRef.current?.setParticipantVolume(sid, vol) },
+      {
+        getLocal: () => localPosRef.current.id ? { id: localPosRef.current.id, x: localPosRef.current.x, y: localPosRef.current.y } : null,
+        getRemotes: () => remotesRef.current,
+        getZones: () => zoneRef.current?.getZones?.() || [],
+        getFollowTarget: () => followRef.current?.getTarget?.() || null,
+        getBubbleMembers: () => bubbleMembersRef.current,
+      },
+      { nearRadius: 96, farRadius: 384, outsideBubbleAttenuation: 0.15 }
+    );
+    // Direkt nach Szenenstart versuchen, lokal gespeicherte Editor-Layer zu laden
+    setTimeout(() => { try { gameBridge.reloadEditorLayers(); } catch {} }, 0);
     // Editor-Click-Handler
     gameBridge.onPointerDown = ({ x, y }) => {
       setEditor(prev => {
@@ -486,6 +527,8 @@ export function App() {
         setAvState(s => (s.mic === hasMic && s.cam === hasCam && s.share === hasShare) ? s : { ...s, mic: hasMic, cam: hasCam, share: hasShare });
         buildParticipantList();
       }
+      // Lautstärke-Mix aktualisieren
+      volumeRef.current?.update();
     }, 250);
 
     return () => {
@@ -524,11 +567,12 @@ export function App() {
 
   // Wenn Editor-Zonen sich ändern, ins Game-Overlay + ZoneManager schieben
   useEffect(() => {
-    // Zonen nur im Edit-Modus anzeigen
+    // Zone-Overlay nur im Edit-Modus anzeigen
     const zonesToShow = editor.active ? editor.zones : [];
     gameBridge.setZoneOverlay(zonesToShow);
-    zoneRef.current?.setZones?.(zonesToShow as any);
-    // Editor-Assets nur im Edit-Modus anzeigen
+    // Aber: ZoneManager soll immer mit den echten Zonen arbeiten
+    zoneRef.current?.setZones?.(editor.zones as any);
+    // Assets nur im Edit-Modus anzeigen
     const assetsToShow = editor.active ? editor.assets : [];
     gameBridge.setEditorAssets(assetsToShow);
   }, [editor.active, editor.zones]);
@@ -595,7 +639,23 @@ export function App() {
               </div>
             );
           })()}
-          <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
+          <div
+            ref={containerRef}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              // TODO: Echte Selektion per Klick-Target; aktuell einfacher Toggle mit erstem Remote
+              const localId = localPosRef.current.id;
+              const selected = Object.keys(remotesRef.current)[0];
+              if (!selected) return;
+              const set = bubbleMembersRef.current;
+              if (set.has(localId) && set.has(selected)) {
+                set.delete(localId); set.delete(selected);
+              } else {
+                set.add(localId); set.add(selected);
+              }
+            }}
+            style={{ width: '100%', height: '100%' }}
+          />
 
           {/* HUD (links oben klein) */}
           <div style={{ position: 'absolute', top: 12, left: 12, background: 'rgba(0,0,0,0.45)', color: '#fff', padding: 8, borderRadius: 8, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 12, backdropFilter: 'blur(6px)', border: '1px solid rgba(255,255,255,0.08)' }}>
@@ -737,6 +797,8 @@ export function App() {
                 try { localStorage.setItem('meetropolis.zones', JSON.stringify(zones)); } catch {}
                 gameBridge.setZoneOverlay(zones);
                 zoneRef.current?.setZones?.(zones as any);
+                // Server speichern (best-effort)
+                (async ()=>{ try { await fetch(`${apiBase}/maps/office/editor-state`, { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ zones }) }); } catch {} })();
                 return { ...s, zones, tempPoints: [], name };
               })} style={{ flex: 1, padding: 8, borderRadius: 8, border: '1px solid rgba(16,185,129,0.35)', background: 'rgba(16,185,129,0.18)', color: '#fff' }}>Zone speichern</button>
             </div>

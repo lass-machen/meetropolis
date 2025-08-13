@@ -1,7 +1,9 @@
 import { createLocalScreenTracks, Room } from 'livekit-client';
 
 function normalizeLivekitUrl(input: string | undefined): string {
-  const fallback = (typeof window !== 'undefined' && window.location.protocol === 'https:') ? 'wss://localhost:7880' : 'ws://localhost:7880';
+  const host = (typeof window !== 'undefined') ? window.location.hostname : 'localhost';
+  const scheme = (typeof window !== 'undefined' && window.location.protocol === 'https:') ? 'wss' : 'ws';
+  const fallback = `${scheme}://${host}:7880`;
   if (!input) return fallback;
   const u = input.trim();
   if (u.startsWith('ws://') || u.startsWith('wss://')) return u;

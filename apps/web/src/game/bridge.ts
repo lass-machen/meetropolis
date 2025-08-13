@@ -62,6 +62,7 @@ export const gameBridge: Bridge = {
     cachedAssets = Array.isArray(assets) ? assets : [];
     sceneApi?.setEditorAssets(assets);
   },
+  // Optional: dedizierter Weg um Bubble-Mitglieder zu cachen (UI steuert dieses Set)
   onPointerDownTile: () => {},
   onPointerMoveTile: () => {},
   onPointerUpTile: () => {},

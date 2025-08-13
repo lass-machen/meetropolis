@@ -12,12 +12,14 @@ describe('gameBridge delegiert an SceneApi', () => {
       applyTilePaint: vi.fn(),
       registerTileset: vi.fn(),
       setCollisionVisible: vi.fn(),
+      reloadEditorLayers: vi.fn(),
     };
     gameBridge.setSceneApi(api);
     gameBridge.setDesiredPosition({ x: 1, y: 2 });
     gameBridge.setZoneOverlay([{ name: 'Z', points: [{x:0,y:0},{x:1,y:0},{x:1,y:1}] } as any]);
     expect(api.setDesiredPosition).toHaveBeenCalledOnce();
-    expect(api.setZoneOverlay).toHaveBeenCalledOnce();
+    // setZoneOverlay wird einmal beim expliziten Call und ggf. einmal beim setSceneApi (Cache-Reapply) aufgerufen
+    expect((api.setZoneOverlay as any).mock.calls.length).toBeGreaterThanOrEqual(1);
   });
 
   it('delegiert applyTilePaint und registerTileset', () => {
