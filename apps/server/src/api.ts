@@ -103,6 +103,58 @@ export function registerApi(app: express.Express) {
     res.json({ ok: true });
   });
 
+  // Change password (authenticated)
+  app.post('/auth/change', async (req, res) => {
+    const auth = requireAuth(req);
+    if (!auth) return res.status(401).json({ error: 'unauthorized' });
+    const { currentPassword, newPassword } = req.body ?? {};
+    if (!currentPassword || !newPassword) return res.status(400).json({ error: 'currentPassword and newPassword required' });
+    const user = await prisma.user.findUnique({ where: { id: auth.userId } });
+    if (!user || !user.passwordHash) return res.status(400).json({ error: 'no password set' });
+    const ok = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!ok) return res.status(401).json({ error: 'invalid current password' });
+    const hash = await bcrypt.hash(newPassword, 10);
+    await prisma.user.update({ where: { id: user.id }, data: { passwordHash: hash } });
+    res.json({ ok: true });
+  });
+
+  // Basic User Management (requires authentication)
+  app.get('/users', async (req, res) => {
+    const auth = requireAuth(req);
+    if (!auth) return res.status(401).json({ error: 'unauthorized' });
+    const users = await prisma.user.findMany({
+      select: { id: true, email: true, name: true, createdAt: true, updatedAt: true }
+    });
+    res.json(users);
+  });
+
+  app.patch('/users/:id', async (req, res) => {
+    const auth = requireAuth(req);
+    if (!auth) return res.status(401).json({ error: 'unauthorized' });
+    const id = req.params.id;
+    const { email, name } = (req.body ?? {}) as { email?: string; name?: string };
+    if (!email && !name) return res.status(400).json({ error: 'nothing to update' });
+    try {
+      const user = await prisma.user.update({ where: { id }, data: { email: email ?? undefined, name: name ?? undefined } });
+      res.json({ id: user.id, email: user.email, name: user.name });
+    } catch (e: any) {
+      if (e?.code === 'P2002') return res.status(400).json({ error: 'email already in use' });
+      res.status(400).json({ error: 'update failed' });
+    }
+  });
+
+  app.delete('/users/:id', async (req, res) => {
+    const auth = requireAuth(req);
+    if (!auth) return res.status(401).json({ error: 'unauthorized' });
+    const id = req.params.id;
+    try {
+      await prisma.user.delete({ where: { id } });
+      res.json({ ok: true });
+    } catch {
+      res.status(400).json({ error: 'delete failed' });
+    }
+  });
+
   // Existing endpoints
   app.get('/maps', async (_req, res) => {
     const maps = await prisma.map.findMany({ include: { zones: true, rooms: true } });
@@ -112,6 +164,44 @@ export function registerApi(app: express.Express) {
   app.get('/zones', async (_req, res) => {
     const zones = await prisma.zone.findMany();
     res.json(zones);
+  });
+
+  // Profile update (authenticated)
+  app.patch('/me', async (req, res) => {
+    const auth = requireAuth(req);
+    if (!auth) return res.status(401).json({ error: 'unauthorized' });
+    const { name, email } = (req.body ?? {}) as { name?: string; email?: string };
+    if (!name && !email) return res.status(400).json({ error: 'nothing to update' });
+    try {
+      const u = await prisma.user.update({ where: { id: auth.userId }, data: { name: name ?? undefined, email: email ?? undefined } });
+      res.json({ id: u.id, email: u.email, name: u.name });
+    } catch (e: any) {
+      if (e?.code === 'P2002') return res.status(400).json({ error: 'email already in use' });
+      res.status(400).json({ error: 'update failed' });
+    }
+  });
+
+  // Invitations management (authenticated)
+  app.get('/invites', async (req, res) => {
+    const auth = requireAuth(req);
+    if (!auth) return res.status(401).json({ error: 'unauthorized' });
+    const list = await prisma.invite.findMany({ orderBy: { createdAt: 'desc' } });
+    res.json(list);
+  });
+
+  app.delete('/invites/:code', async (req, res) => {
+    const auth = requireAuth(req);
+    if (!auth) return res.status(401).json({ error: 'unauthorized' });
+    const code = req.params.code;
+    try {
+      const inv = await prisma.invite.findUnique({ where: { code } });
+      if (!inv) return res.status(404).json({ error: 'not found' });
+      if (inv.usedAt) return res.status(400).json({ error: 'already used' });
+      await prisma.invite.delete({ where: { code } });
+      res.json({ ok: true });
+    } catch {
+      res.status(400).json({ error: 'delete failed' });
+    }
   });
 
   app.post('/livekit/token', async (req, res) => {

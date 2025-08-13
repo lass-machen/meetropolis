@@ -6,9 +6,9 @@
     "paths": {
       "@meetropolis/shared/*": ["../../packages/shared/src/*"]
     },
-    "types": ["react", "react-dom", "vite/client"],
+    "types": ["react", "react-dom", "vite/client", "vitest/globals"],
     "noEmit": true
   },
-  "include": ["src", "vite.config.ts"]
+  "include": ["src", "vite.config.ts", "vitest.config.ts", "src/**/*.test.ts", "src/**/*.test.tsx"]
 }
 
