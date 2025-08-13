@@ -13,6 +13,8 @@ export class MainScene extends Phaser.Scene implements SceneApi {
   private collisionLayer?: Phaser.Tilemaps.TilemapLayer;
   private staticColliders?: Phaser.Physics.Arcade.StaticGroup;
   private dynamicTilesets: Map<string, Phaser.Tilemaps.Tileset> = new Map();
+  private collisionOverlay?: Phaser.GameObjects.Graphics;
+  private collisionVisible = false;
   constructor() {
     super('Main');
   }
@@ -180,9 +182,11 @@ export class MainScene extends Phaser.Scene implements SceneApi {
 
     // Bridge aufräumen, wenn Szene herunterfährt
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      try { this.saveEditorLayers(); } catch {}
       try { gameBridge.setSceneApi(null); } catch {}
     });
     this.events.once(Phaser.Scenes.Events.DESTROY, () => {
+      try { this.saveEditorLayers(); } catch {}
       try { gameBridge.setSceneApi(null); } catch {}
     });
   }
@@ -283,6 +287,7 @@ export class MainScene extends Phaser.Scene implements SceneApi {
     // Collision-Physik neu aufbauen
     if (targetLayer === this.collisionLayer) {
       this.rebuildStaticColliders();
+      this.updateCollisionOverlay();
     }
     // Persistenz speichern
     this.saveEditorLayers();
@@ -311,6 +316,18 @@ export class MainScene extends Phaser.Scene implements SceneApi {
         h: height,
       };
       localStorage.setItem('meetropolis.editorLayers', JSON.stringify(data));
+      // Server speichern (best-effort)
+      let base = (window as any).VITE_API_BASE || import.meta.env.VITE_API_BASE as any;
+      if (!base && typeof window !== 'undefined') {
+        base = `${window.location.protocol}//${window.location.hostname}:2567`;
+      }
+      if (!base) base = 'http://localhost:2567';
+      fetch(`${base}/maps/office/editor-state`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ editorGround: data.editorGround, collision: data.collision })
+      }).catch(()=>{});
     } catch {}
   }
 
@@ -320,13 +337,16 @@ export class MainScene extends Phaser.Scene implements SceneApi {
       const raw = localStorage.getItem('meetropolis.editorLayers');
       if (!raw) return;
       const data = JSON.parse(raw);
-      const width = Math.min(this.mapRef.width, data?.w || 0);
-      const height = Math.min(this.mapRef.height, data?.h || 0);
+      const storedW = (typeof data?.w === 'number' && data.w > 0) ? data.w : this.mapRef.width;
+      const storedH = (typeof data?.h === 'number' && data.h > 0) ? data.h : this.mapRef.height;
+      const width = Math.min(this.mapRef.width, storedW);
+      const height = Math.min(this.mapRef.height, storedH);
       const applyArr = (arr: number[] | null | undefined, layer?: Phaser.Tilemaps.TilemapLayer) => {
         if (!arr || !layer) return;
         for (let y = 0; y < height; y++) {
           for (let x = 0; x < width; x++) {
-            const idx = arr[y * (data?.w || width) + x];
+            const stride = storedW;
+            const idx = arr[y * stride + x];
             if (typeof idx === 'number' && idx >= 0) {
               layer.putTileAt(idx, x, y);
             }
@@ -337,6 +357,12 @@ export class MainScene extends Phaser.Scene implements SceneApi {
       applyArr(data?.collision, this.collisionLayer);
       if (data?.collision) this.rebuildStaticColliders();
     } catch {}
+  }
+
+  reloadEditorLayers() {
+    // externe Bridge-API ruft diese Methode, um LocalStorage-Layer erneut zu laden
+    try { this.loadEditorLayers(); } catch {}
+    try { this.updateCollisionOverlay(); } catch {}
   }
 
   private rebuildStaticColliders() {
@@ -392,5 +418,38 @@ export class MainScene extends Phaser.Scene implements SceneApi {
         // Solange der Index zum verwendeten Tileset passt, rendert es korrekt, da alle Tilesets im Map-Context bekannt sind.
       }
     }
+  }
+
+  setCollisionVisible(visible: boolean) {
+    this.collisionVisible = !!visible;
+    this.updateCollisionOverlay();
+  }
+
+  private updateCollisionOverlay() {
+    if (!this.mapRef) return;
+    this.collisionOverlay?.destroy();
+    if (!this.collisionVisible || !this.collisionLayer) return;
+    const g = this.add.graphics();
+    g.fillStyle(0xff4757, 0.18);
+    g.lineStyle(1, 0xff4757, 0.8);
+    const layer: any = this.collisionLayer;
+    const data = (layer as any)?.layer?.data as Phaser.Tilemaps.Tile[][] | undefined;
+    if (data) {
+      for (let y = 0; y < data.length; y++) {
+        const row = data[y];
+        if (!row) continue;
+        for (let x = 0; x < row.length; x++) {
+          const t = row[x];
+          if (t && t.index !== -1) {
+            const px = x * this.mapRef.tileWidth;
+            const py = y * this.mapRef.tileHeight;
+            g.fillRect(px, py, this.mapRef.tileWidth, this.mapRef.tileHeight);
+            g.strokeRect(px, py, this.mapRef.tileWidth, this.mapRef.tileHeight);
+          }
+        }
+      }
+    }
+    g.setDepth(8);
+    this.collisionOverlay = g;
   }
 }

@@ -14,6 +14,8 @@ type Bridge = {
   setSelectionRect: (rect: { x: number; y: number; w: number; h: number } | null) => void;
   applyTilePaint: (edit: { layer: 'EditorGround' | 'Collision'; tilesetKey: string; tileIndex: number; rect: { startX: number; startY: number; endX: number; endY: number } }) => void;
   registerTileset: (ts: { key: string; dataUrl: string; tileWidth: number; tileHeight: number; margin?: number; spacing?: number }) => void;
+  setCollisionVisible: (visible: boolean) => void;
+  reloadEditorLayers: () => void;
 };
 
 export type SceneApi = {
@@ -24,15 +26,27 @@ export type SceneApi = {
   setSelectionRect: (rect: { x: number; y: number; w: number; h: number } | null) => void;
   applyTilePaint: (edit: { layer: 'EditorGround' | 'Collision'; tilesetKey: string; tileIndex: number; rect: { startX: number; startY: number; endX: number; endY: number } }) => void;
   registerTileset: (ts: { key: string; dataUrl: string; tileWidth: number; tileHeight: number; margin?: number; spacing?: number }) => void;
+  setCollisionVisible: (visible: boolean) => void;
+  reloadEditorLayers: () => void;
 };
 
 let sceneApi: SceneApi | null = null;
+let cachedZones: { name: string; points: { x: number; y: number }[] }[] = [];
+let cachedAssets: { id: string; key: string; dataUrl: string; x: number; y: number }[] = [];
+let cachedCollisionVisible = false;
 
 export const gameBridge: Bridge = {
   onLocalMove: () => {},
   onPointerDown: () => {},
   setSceneApi: (api) => {
     sceneApi = api;
+    // Wenn Szene frisch gebunden wird, zuletzt bekannte Overlays/Assets anwenden
+    if (sceneApi) {
+      try { sceneApi.setZoneOverlay(cachedZones); } catch {}
+      try { sceneApi.setEditorAssets(cachedAssets); } catch {}
+      try { sceneApi.setCollisionVisible(cachedCollisionVisible); } catch {}
+      try { sceneApi.reloadEditorLayers(); } catch {}
+    }
   },
   syncRemotePlayers: (players) => {
     sceneApi?.syncRemotePlayers(players);
@@ -41,9 +55,11 @@ export const gameBridge: Bridge = {
     sceneApi?.setDesiredPosition(pos);
   },
   setZoneOverlay: (polys) => {
+    cachedZones = Array.isArray(polys) ? polys : [];
     sceneApi?.setZoneOverlay(polys);
   },
   setEditorAssets: (assets) => {
+    cachedAssets = Array.isArray(assets) ? assets : [];
     sceneApi?.setEditorAssets(assets);
   },
   onPointerDownTile: () => {},
@@ -57,5 +73,12 @@ export const gameBridge: Bridge = {
   },
   registerTileset: (ts) => {
     sceneApi?.registerTileset(ts);
+  },
+  setCollisionVisible: (visible) => {
+    cachedCollisionVisible = !!visible;
+    sceneApi?.setCollisionVisible(visible);
+  },
+  reloadEditorLayers: () => {
+    sceneApi?.reloadEditorLayers();
   }
 };

@@ -64,6 +64,8 @@ function CollapseIcon() {
 export function App() {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const colyseusRef = useRef<any>(null);
+  const colyseusReconnectAttemptsRef = useRef(0);
+  const colyseusReconnectTimerRef = useRef<any>(null);
   const avRef = useRef<AVManager | null>(null);
   const bubbleRef = useRef<BubbleManager | null>(null);
   const zoneRef = useRef<ZoneManager | null>(null);
@@ -73,6 +75,8 @@ export function App() {
   const [hud, setHud] = React.useState<{ zone?: string; follow?: string | null; avRoom?: string | null }>({});
   const [devices, setDevices] = React.useState<{ mics: { id: string; label: string }[]; cams: { id: string; label: string }[] }>({ mics: [], cams: [] });
   const [avState, setAvState] = React.useState<{ mic: boolean; cam: boolean; share: boolean }>({ mic: false, cam: false, share: false });
+  const [selectedMicId, setSelectedMicId] = React.useState<string | ''>('');
+  const [selectedCamId, setSelectedCamId] = React.useState<string | ''>('');
   const [uiParticipants, setUiParticipants] = React.useState<{ sid: string; identity: string; hasVideo: boolean; hasMic: boolean; isSpeaking: boolean; media: 'camera' | 'screen' }[]>([]);
   // Auth state
   const [authChecked, setAuthChecked] = React.useState(false);
@@ -85,10 +89,12 @@ export function App() {
   // Simple view routing
   const [page, setPage] = React.useState<'world' | 'users' | 'profile'>('world');
   const [menuOpen, setMenuOpen] = React.useState(false);
+  const editorActiveRef = React.useRef(false);
+  const connectLivekitRef = React.useRef<null | (() => Promise<void>)>(null);
   // Map Editor State
   const [editor, setEditor] = React.useState<{ 
     active: boolean;
-    tool: 'zone' | 'zoneRect' | 'asset' | 'select' | 'paint' | 'collision';
+    tool: 'zone' | 'asset' | 'select' | 'paint' | 'collision' | 'erase';
     tempPoints: { x: number; y: number }[];
     name: string;
     zones: { name: string; points: { x: number; y: number }[] }[];
@@ -98,6 +104,7 @@ export function App() {
     drag?: { startTileX: number; startTileY: number; endTileX: number; endTileY: number } | null;
     tilesets?: { key: string; dataUrl: string; tileWidth: number; tileHeight: number; margin?: number; spacing?: number }[];
   }>({ active: false, tool: 'zone', tempPoints: [], name: '', zones: [], assets: [], pendingAsset: null, tilePaint: { tilesetKey: 'office_tiles', tileIndex: 1, tileWidth: 16, tileHeight: 16 }, drag: null, tilesets: [] });
+  React.useEffect(() => { editorActiveRef.current = editor.active; }, [editor.active]);
 
   const apiBase = (import.meta.env.VITE_API_BASE as string | undefined) ||
     (typeof window !== 'undefined'
@@ -155,8 +162,48 @@ export function App() {
       }
       try { localStorage.setItem('meetropolis.tilesets', JSON.stringify(tilesets)); } catch {}
       setEditor(s => ({ ...s, tilesets, tilePaint: { ...(s.tilePaint as any), tilesetKey: s.tilePaint?.tilesetKey || 'office_tiles' } }));
+      // Server-state laden (best-effort) – bei 404 Map anlegen und lokalen Stand hochladen
+      (async () => {
+        try {
+          const res = await fetch(`${apiBase}/maps/office/editor-state`, { credentials: 'include' });
+          if (res.ok) {
+            const data = await res.json();
+            if (data?.tilesets) try { localStorage.setItem('meetropolis.tilesets', JSON.stringify(data.tilesets)); } catch {}
+            if (data?.assets) try { localStorage.setItem('meetropolis.assets', JSON.stringify(data.assets)); } catch {}
+            if (data?.zones) try { localStorage.setItem('meetropolis.zones', JSON.stringify(data.zones.map((z:any)=>({ name: z.name, points: z.polygon })))); } catch {}
+            if (data?.editorGround || data?.collision) try { localStorage.setItem('meetropolis.editorLayers', JSON.stringify({ editorGround: data.editorGround, collision: data.collision, w: undefined, h: undefined })); } catch {}
+          } else if (res.status === 404) {
+            // Map auf dem Server erzeugen mit lokalem Stand
+            const tilesets = JSON.parse(localStorage.getItem('meetropolis.tilesets') || '[]');
+            const assets = JSON.parse(localStorage.getItem('meetropolis.assets') || '[]');
+            const zones = JSON.parse(localStorage.getItem('meetropolis.zones') || '[]');
+            const layers = JSON.parse(localStorage.getItem('meetropolis.editorLayers') || '{}');
+            await fetch(`${apiBase}/maps/office/editor-state`, {
+              method: 'PUT',
+              credentials: 'include',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ editorGround: layers.editorGround ?? null, collision: layers.collision ?? null, tilesets, assets, zones })
+            }).catch(()=>{});
+          }
+        } catch {}
+      })();
     } catch {}
   }, []);
+
+  async function saveAllToServer() {
+    try {
+      const tilesets = JSON.parse(localStorage.getItem('meetropolis.tilesets') || '[]');
+      const assets = JSON.parse(localStorage.getItem('meetropolis.assets') || '[]');
+      const zones = editor.zones;
+      const layers = JSON.parse(localStorage.getItem('meetropolis.editorLayers') || '{}');
+      await fetch(`${apiBase}/maps/office/editor-state`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ editorGround: layers.editorGround ?? null, collision: layers.collision ?? null, tilesets, assets, zones })
+      });
+    } catch {}
+  }
 
   // Wenn zur User-Seite gewechselt wird, Game/AV pausieren
   useEffect(() => {
@@ -199,6 +246,10 @@ export function App() {
       if (hasV) {
         list.push({ sid: p.sid, identity, hasVideo: true, hasMic, isSpeaking: activeSet.has(p.sid), media: 'camera' });
       }
+      // Audio-only Karte (kein Video, aber Mic aktiv)
+      if (!hasV && hasMic) {
+        list.push({ sid: p.sid, identity, hasVideo: false, hasMic: true, isSpeaking: activeSet.has(p.sid), media: 'camera' });
+      }
       // Screenshare als eigene Karte
       if (hasScreen) {
         list.push({ sid: p.sid + ':screen', identity: `${identity} – Bildschirm`, hasVideo: true, hasMic: false, isSpeaking: false, media: 'screen' });
@@ -216,63 +267,99 @@ export function App() {
     if (!containerRef.current) return;
     const game = createPhaserGame(containerRef.current);
 
-    // Colyseus World
-    (async () => {
-      const room = await joinWorld(apiBase);
-      colyseusRef.current = room;
-      localPosRef.current.id = room.sessionId;
-      gameBridge.onLocalMove = (p) => {
-        localPosRef.current.x = p.x;
-        localPosRef.current.y = p.y;
-        zoneRef.current?.update({ x: p.x, y: p.y });
-        if (followRef.current) {
-          const f = followRef.current.update(
-            { x: p.x, y: p.y },
-            remotesRef.current
-          );
-          if (f.following) {
-            gameBridge.setDesiredPosition({ x: f.x, y: f.y });
-          } else {
-            gameBridge.setDesiredPosition(null);
+    // Colyseus World mit Auto-Reconnect
+    let disposed = false;
+    const scheduleColyseusReconnect = () => {
+      if (disposed) return;
+      const attempt = ++colyseusReconnectAttemptsRef.current;
+      const delay = Math.min(30000, 1000 * Math.pow(2, attempt - 1) + Math.random() * 500);
+      try { if (colyseusReconnectTimerRef.current) clearTimeout(colyseusReconnectTimerRef.current); } catch {}
+      colyseusReconnectTimerRef.current = setTimeout(() => {
+        colyseusReconnectTimerRef.current = null;
+        void connectColyseus();
+      }, delay);
+    };
+    const connectColyseus = async () => {
+      try {
+        const room = await joinWorld(apiBase);
+        if (disposed) { try { room.leave(); } catch {} return; }
+        colyseusRef.current = room;
+        colyseusReconnectAttemptsRef.current = 0;
+        localPosRef.current.id = room.sessionId;
+        gameBridge.onLocalMove = (p) => {
+          localPosRef.current.x = p.x;
+          localPosRef.current.y = p.y;
+          zoneRef.current?.update({ x: p.x, y: p.y });
+          if (followRef.current) {
+            const f = followRef.current.update(
+              { x: p.x, y: p.y },
+              remotesRef.current
+            );
+            if (f.following) {
+              gameBridge.setDesiredPosition({ x: f.x, y: f.y });
+            } else {
+              gameBridge.setDesiredPosition(null);
+            }
           }
-        }
-        colyseusRef.current?.send?.('move', p);
-      };
-      room.onStateChange((state: any) => {
-        const players: Record<string, { x: number; y: number; direction: any }> = {};
-        state.players?.forEach?.((value: any, key: string) => {
-          players[key] = { x: value.x, y: value.y, direction: value.direction };
+          colyseusRef.current?.send?.('move', p);
+        };
+        room.onStateChange((state: any) => {
+          const players: Record<string, { x: number; y: number; direction: any }> = {};
+          state.players?.forEach?.((value: any, key: string) => {
+            players[key] = { x: value.x, y: value.y, direction: value.direction };
+          });
+          const playerEntries = Object.entries(players) as [string, { x: number; y: number; direction: any }][];
+          remotesRef.current = Object.fromEntries(
+            playerEntries
+              .filter(([id]) => id !== localPosRef.current.id)
+              .map(([id, p]) => [id, { x: p.x, y: p.y }])
+          );
+          if (bubbleRef.current) {
+            const remoteEntries = Object.entries(remotesRef.current) as [string, { x: number; y: number }][];
+            const others = remoteEntries.map(([id, p]) => ({ id, x: p.x, y: p.y }));
+            bubbleRef.current.update(localPosRef.current, others);
+          }
+          gameBridge.syncRemotePlayers(players);
         });
-        const playerEntries = Object.entries(players) as [string, { x: number; y: number; direction: any }][];
-        remotesRef.current = Object.fromEntries(
-          playerEntries
-            .filter(([id]) => id !== localPosRef.current.id)
-            .map(([id, p]) => [id, { x: p.x, y: p.y }])
-        );
-        if (bubbleRef.current) {
-          const remoteEntries = Object.entries(remotesRef.current) as [string, { x: number; y: number }][];
-          const others = remoteEntries.map(([id, p]) => ({ id, x: p.x, y: p.y }));
-          bubbleRef.current.update(localPosRef.current, others);
-        }
-        gameBridge.syncRemotePlayers(players);
-      });
-    })();
+        room.onError?.((_code: any, _message: any) => {
+          scheduleColyseusReconnect();
+        });
+        room.onLeave?.((_code: any) => {
+          scheduleColyseusReconnect();
+        });
+      } catch {
+        scheduleColyseusReconnect();
+      }
+    };
+    void connectColyseus();
 
     // LiveKit nach User-Geste verbinden
     const identity = me.id;
     const connectLivekit = async () => {
       // Im Editor-Modus nie LiveKit initialisieren (verhindert Blocking/Errors)
-      if (editor.active) return;
+      if (editorActiveRef.current) return;
       try {
         avRef.current = new AVManager({ baseUrl: apiBase, identity, useVideo: import.meta.env.VITE_FEATURE_VOICE_ONLY !== 'true' });
         bubbleRef.current?.setAV(avRef.current);
         zoneRef.current?.setAV(avRef.current);
         await avRef.current.switchTo('lobby');
         const list = await avRef.current.listDevices();
-        setDevices({
-          mics: list.microphones.map(d => ({ id: d.deviceId, label: d.label })),
-          cams: list.cameras.map(d => ({ id: d.deviceId, label: d.label })),
-        });
+        const micOptions = list.microphones.map(d => ({ id: d.deviceId, label: d.label }));
+        const camOptions = list.cameras.map(d => ({ id: d.deviceId, label: d.label }));
+        setDevices({ mics: micOptions, cams: camOptions });
+        // System-Standard (deviceId === 'default') wählen, sonst erstes Gerät
+        const defaultMic = micOptions.find(d => d.id === 'default')?.id || micOptions[0]?.id || '';
+        const defaultCam = camOptions.find(d => d.id === 'default')?.id || camOptions[0]?.id || '';
+        if (defaultMic) {
+          setSelectedMicId(defaultMic);
+          try { await avRef.current.useMicrophoneDevice(defaultMic); } catch {}
+        }
+        if (defaultCam) {
+          setSelectedCamId(defaultCam);
+          try { await avRef.current.useCameraDevice(defaultCam); } catch {}
+        }
+        // Mikrofon automatisch aktivieren
+        try { await avRef.current.setMicrophoneEnabled(true); setAvState(s => ({ ...s, mic: true })); } catch {}
         // erst listen, dann sicher bauen
         setTimeout(buildParticipantList, 50);
       } catch (e) {
@@ -282,13 +369,14 @@ export function App() {
         try { zoneRef.current?.setAV(null as any); } catch {}
       }
     };
+    connectLivekitRef.current = connectLivekit;
     const firstInteract = () => {
       window.removeEventListener('pointerdown', firstInteract);
       window.removeEventListener('keydown', firstInteract);
       connectLivekit();
     };
     // LiveKit-Handler optional, aber niemals doppelt registrieren
-    if (!editor.active) {
+    if (!editorActiveRef.current) {
       window.removeEventListener('pointerdown', firstInteract);
       window.removeEventListener('keydown', firstInteract);
       window.addEventListener('pointerdown', firstInteract, { once: true } as any);
@@ -302,13 +390,6 @@ export function App() {
     gameBridge.onPointerDown = ({ x, y }) => {
       setEditor(prev => {
         if (!prev.active) return prev;
-        if (prev.tool === 'zone') {
-          const nextPts = [...prev.tempPoints, { x, y }];
-          // Vorschau aktualisieren
-          const preview = prev.name ? [{ name: prev.name || 'zone', points: nextPts }] : [{ name: 'zone', points: nextPts }];
-          gameBridge.setZoneOverlay([...prev.zones, ...preview]);
-          return { ...prev, tempPoints: nextPts };
-        }
         if (prev.tool === 'asset' && prev.pendingAsset) {
           const id = `${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
           const asset = { id, key: prev.pendingAsset.key + ':' + id, dataUrl: prev.pendingAsset.dataUrl, x, y };
@@ -344,12 +425,30 @@ export function App() {
         const drag = { ...s.drag, endTileX: tileX, endTileY: tileY };
         const rect = { startX: drag.startTileX, startY: drag.startTileY, endX: drag.endTileX, endY: drag.endTileY };
         gameBridge.setSelectionRect(null);
-        if (s.tool === 'paint' && s.tilePaint) {
-          gameBridge.applyTilePaint({ layer: 'EditorGround', tilesetKey: s.tilePaint.tilesetKey, tileIndex: s.tilePaint.tileIndex, rect });
+        const isErase = s.tool === 'erase';
+        if ((s.tool === 'paint' || isErase) && s.tilePaint) {
+          const index = isErase ? -1 : s.tilePaint.tileIndex;
+          gameBridge.applyTilePaint({ layer: 'EditorGround', tilesetKey: s.tilePaint.tilesetKey, tileIndex: index, rect });
         }
-        if (s.tool === 'collision') {
+        if (s.tool === 'collision' || isErase) {
           // Kollisionen als solide (Tile-Index 1) markieren; konkrete Indexe hängen vom Tileset ab
-          gameBridge.applyTilePaint({ layer: 'Collision', tilesetKey: 'collision_tiles', tileIndex: 1, rect });
+          const index = isErase ? -1 : 1;
+          gameBridge.applyTilePaint({ layer: 'Collision', tilesetKey: 'collision_tiles', tileIndex: index, rect });
+        }
+        if (s.tool === 'zone') {
+          const x0 = Math.min(rect.startX, rect.endX) * 16;
+          const y0 = Math.min(rect.startY, rect.endY) * 16;
+          const x1 = (Math.max(rect.startX, rect.endX) + 1) * 16;
+          const y1 = (Math.max(rect.startY, rect.endY) + 1) * 16;
+          const name = (s.name || `Zone ${s.zones.length+1}`).trim();
+          const poly = { name, points: [ {x:x0,y:y0}, {x:x1,y:y0}, {x:x1,y:y1}, {x:x0,y:y1} ] };
+          const zones = [...s.zones, poly];
+          try { localStorage.setItem('meetropolis.zones', JSON.stringify(zones)); } catch {}
+          gameBridge.setZoneOverlay(zones);
+          zoneRef.current?.setZones?.(zones as any);
+          // Server speichern (best-effort)
+          (async ()=>{ try { await fetch(`${apiBase}/maps/office/editor-state`, { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ zones }) }); } catch {} })();
+          return { ...s, zones, drag: null };
         }
         return { ...s, drag: null };
       });
@@ -390,30 +489,62 @@ export function App() {
     }, 250);
 
     return () => {
+      disposed = true;
       try { gameBridge.setSceneApi?.(null); } catch {}
       destroyPhaserGame(game);
       colyseusRef.current?.leave?.();
       try { avRef.current?.leave?.(); } catch {}
-      if (!editor.active) {
+      if (!editorActiveRef.current) {
         window.removeEventListener('keydown', firstInteract);
         window.removeEventListener('pointerdown', firstInteract);
       }
+      try { if (colyseusReconnectTimerRef.current) clearTimeout(colyseusReconnectTimerRef.current); } catch {}
       clearInterval(hudTimer);
     };
-  }, [authChecked, me, apiBase, buildParticipantList, page, editor.active]);
+  }, [authChecked, me, apiBase, buildParticipantList, page]);
+
+  // Wenn aus dem Editor herausgegangen wird, LiveKit-Connect bei erster Interaktion erneut anbieten
+  useEffect(() => {
+    if (page !== 'world') return;
+    if (!authChecked || !me) return;
+    if (!connectLivekitRef.current) return;
+    if (editorActiveRef.current) return; // nur wenn Editor aus
+    const firstInteract = () => {
+      window.removeEventListener('pointerdown', firstInteract);
+      window.removeEventListener('keydown', firstInteract);
+      try { connectLivekitRef.current?.(); } catch {}
+    };
+    window.addEventListener('pointerdown', firstInteract, { once: true } as any);
+    window.addEventListener('keydown', firstInteract, { once: true } as any);
+    return () => {
+      window.removeEventListener('pointerdown', firstInteract);
+      window.removeEventListener('keydown', firstInteract);
+    };
+  }, [editor.active, page, authChecked, me]);
 
   // Wenn Editor-Zonen sich ändern, ins Game-Overlay + ZoneManager schieben
   useEffect(() => {
-    if (!editor.active) return;
-    gameBridge.setZoneOverlay(editor.zones);
-    zoneRef.current?.setZones?.(editor.zones as any);
-    gameBridge.setEditorAssets(editor.assets);
+    // Zonen nur im Edit-Modus anzeigen
+    const zonesToShow = editor.active ? editor.zones : [];
+    gameBridge.setZoneOverlay(zonesToShow);
+    zoneRef.current?.setZones?.(zonesToShow as any);
+    // Editor-Assets nur im Edit-Modus anzeigen
+    const assetsToShow = editor.active ? editor.assets : [];
+    gameBridge.setEditorAssets(assetsToShow);
   }, [editor.active, editor.zones]);
 
   useEffect(() => {
-    if (!editor.active) return;
-    gameBridge.setEditorAssets(editor.assets);
+    // Nur im Edit-Modus Assets rendern
+    const assetsToShow = editor.active ? editor.assets : [];
+    gameBridge.setEditorAssets(assetsToShow);
   }, [editor.active, editor.assets]);
+
+  // Verlasse Edit-Modus: Kollision-Overlay aus
+  useEffect(() => {
+    if (!editor.active) {
+      try { gameBridge.setCollisionVisible(false); } catch {}
+    }
+  }, [editor.active]);
 
   if (!authChecked) {
     return (
@@ -432,7 +563,7 @@ export function App() {
 
   const participantsToRender = uiParticipants.length > 0
     ? uiParticipants
-    : [{ sid: (avRef.current?.room?.localParticipant?.sid ?? 'local'), identity: me.name || me.email, hasVideo: false, hasMic: false, isSpeaking: false, media: 'camera' as const }];
+    : [{ sid: (avRef.current?.room?.localParticipant?.sid ?? 'local'), identity: me.name || me.email, hasVideo: false, hasMic: avState.mic, isSpeaking: false, media: 'camera' as const }];
 
   return (
     <ThemeProvider>
@@ -502,9 +633,11 @@ export function App() {
               <span style={btnLabelStyle}>Mic {avState.mic ? 'aus' : 'an'}</span>
             </button>
 
-            <select style={selectStyle} disabled={!devices.mics.length} onChange={async (e) => {
-              await avRef.current?.useMicrophoneDevice(e.target.value);
-            }} defaultValue="">
+            <select style={selectStyle} disabled={!devices.mics.length} value={selectedMicId} onChange={async (e) => {
+              const id = e.target.value;
+              setSelectedMicId(id);
+              await avRef.current?.useMicrophoneDevice(id);
+            }}>
               <option value="" disabled>Mic wählen…</option>
               {devices.mics.map(d => <option key={d.id} value={d.id}>{d.label}</option>)}
             </select>
@@ -520,9 +653,11 @@ export function App() {
               <span style={btnLabelStyle}>{avState.cam ? 'Kamera aus' : 'Kamera an'}</span>
             </button>
 
-            <select style={selectStyle} disabled={!devices.cams.length} onChange={async (e) => {
-              await avRef.current?.useCameraDevice(e.target.value);
-            }} defaultValue="">
+            <select style={selectStyle} disabled={!devices.cams.length} value={selectedCamId} onChange={async (e) => {
+              const id = e.target.value;
+              setSelectedCamId(id);
+              await avRef.current?.useCameraDevice(id);
+            }}>
               <option value="" disabled>Kamera wählen…</option>
               {devices.cams.map(d => <option key={d.id} value={d.id}>{d.label}</option>)}
             </select>
@@ -565,7 +700,7 @@ export function App() {
             <button onClick={() => { setPage('users'); setMenuOpen(false); }} style={{ textAlign: 'left', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--glass)', color: 'var(--fg)', cursor: 'pointer' }}>Benutzer verwalten</button>
             {/* <button onClick={() => { setPage('profile'); setMenuOpen(false); }} style={{ textAlign: 'left', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--glass)', color: 'var(--fg)', cursor: 'pointer' }}>Mein Profil</button> */}
             <button onClick={() => { setPage('world'); setMenuOpen(false); }} style={{ textAlign: 'left', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--glass)', color: 'var(--fg)', cursor: 'pointer' }}>Zurück zur Welt</button>
-            <button onClick={() => { setEditor(s => ({ ...s, active: !s.active })); setMenuOpen(false); gameBridge.setZoneOverlay(editor.zones); }} style={{ textAlign: 'left', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: editor.active ? 'rgba(16,185,129,0.18)' : 'var(--glass)', color: 'var(--fg)', cursor: 'pointer' }}>{editor.active ? 'Editor beenden' : 'Map-Editor öffnen'}</button>
+            <button onClick={async () => { if (editor.active) { await saveAllToServer().catch(()=>{}); } setEditor(s => ({ ...s, active: !s.active })); setMenuOpen(false); gameBridge.setZoneOverlay(editor.zones); }} style={{ textAlign: 'left', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: editor.active ? 'rgba(16,185,129,0.18)' : 'var(--glass)', color: 'var(--fg)', cursor: 'pointer' }}>{editor.active ? 'Editor beenden' : 'Map-Editor öffnen'}</button>
             <button onClick={async () => { try { await fetch(`${apiBase}/auth/logout`, { method: 'POST', credentials: 'include' }); } finally { setMe(null); setMenuOpen(false); setPage('world'); } }} style={{ textAlign: 'left', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--glass)', color: 'var(--fg)', cursor: 'pointer' }}>Logout</button>
           </div>
         )}
@@ -577,16 +712,20 @@ export function App() {
           <div style={{ background: 'rgba(17,17,20,0.9)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12, padding: 10, color: '#fff', display: 'grid', gap: 8 }}>
             <div style={{ fontWeight: 700 }}>Map-Editor</div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              <button onClick={() => setEditor(s => ({ ...s, tool: 'zone' }))} style={{ flex: 1, padding: 8, borderRadius: 8, border: '1px solid rgba(255,255,255,0.12)', background: editor.tool==='zone'?'rgba(255,255,255,0.14)':'rgba(255,255,255,0.06)', color: '#fff' }}>Zone (Punkte)</button>
-              <button onClick={() => setEditor(s => ({ ...s, tool: 'zoneRect' }))} style={{ flex: 1, padding: 8, borderRadius: 8, border: '1px solid rgba(255,255,255,0.12)', background: editor.tool==='zoneRect'?'rgba(255,255,255,0.14)':'rgba(255,255,255,0.06)', color: '#fff' }}>Zone (Rechteck)</button>
+              <button onClick={() => setEditor(s => ({ ...s, tool: 'zone' }))} style={{ flex: 1, padding: 8, borderRadius: 8, border: '1px solid rgba(255,255,255,0.12)', background: editor.tool==='zone'?'rgba(255,255,255,0.14)':'rgba(255,255,255,0.06)', color: '#fff' }}>Zone</button>
               <button onClick={() => setEditor(s => ({ ...s, tool: 'asset' }))} style={{ flex: 1, padding: 8, borderRadius: 8, border: '1px solid rgba(255,255,255,0.12)', background: editor.tool==='asset'?'rgba(255,255,255,0.14)':'rgba(255,255,255,0.06)', color: '#fff' }}>Asset</button>
               <button onClick={() => setEditor(s => ({ ...s, tool: 'select' }))} style={{ flex: 1, padding: 8, borderRadius: 8, border: '1px solid rgba(255,255,255,0.12)', background: editor.tool==='select'?'rgba(255,255,255,0.14)':'rgba(255,255,255,0.06)', color: '#fff' }}>Select</button>
               <button onClick={() => setEditor(s => ({ ...s, tool: 'paint' }))} style={{ flex: 1, padding: 8, borderRadius: 8, border: '1px solid rgba(255,255,255,0.12)', background: editor.tool==='paint'?'rgba(255,255,255,0.14)':'rgba(255,255,255,0.06)', color: '#fff' }}>Boden malen</button>
-              <button onClick={() => setEditor(s => ({ ...s, tool: 'collision' }))} style={{ flex: 1, padding: 8, borderRadius: 8, border: '1px solid rgba(255,255,255,0.12)', background: editor.tool==='collision'?'rgba(255,255,255,0.14)':'rgba(255,255,255,0.06)', color: '#fff' }}>Kollision</button>
+              <button onClick={() => { setEditor(s => ({ ...s, tool: 'collision' })); gameBridge.setCollisionVisible(true); }} style={{ flex: 1, padding: 8, borderRadius: 8, border: '1px solid rgba(255,255,255,0.12)', background: editor.tool==='collision'?'rgba(255,255,255,0.14)':'rgba(255,255,255,0.06)', color: '#fff' }}>Kollision</button>
             </div>
             <div style={{ display: 'grid', gap: 6 }}>
               <label style={{ fontSize: 12, color: '#e5e7eb' }}>Zonenname</label>
               <input value={editor.name} onChange={(e)=>setEditor(s=>({ ...s, name: e.target.value }))} placeholder="z.B. Meeting A" style={{ padding: 8, borderRadius: 8, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.06)', color: '#fff' }} />
+            </div>
+            {/* Kollision Overlay Toggle */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <input id="toggle-collision" type="checkbox" defaultChecked={true} onChange={(e)=>gameBridge.setCollisionVisible(e.target.checked)} />
+              <label htmlFor="toggle-collision" style={{ fontSize: 12, color: '#e5e7eb' }}>Kollision anzeigen</label>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
               <button onClick={() => setEditor(s => { const next = { ...s, tempPoints: [] }; gameBridge.setZoneOverlay([...next.zones]); return next; })} style={{ flex: 1, padding: 8, borderRadius: 8, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.06)', color: '#fff' }}>Punkte zurücksetzen</button>
@@ -781,7 +920,7 @@ function ParticipantCard(props: { part: { sid: string; identity: string; hasVide
   useEffect(() => {
     const room: any = roomGetter();
     const el = videoRef.current;
-    if (!room || !el || !room.localParticipant) return;
+    if (!room || !room.localParticipant || !el) return;
     try { console.log('[UI] ParticipantCard mount for', part.identity, 'sid=', part.sid); } catch {}
     const baseSid = (part.sid || '').split(':')[0];
     const isLocalNow = room.localParticipant?.sid === baseSid;
@@ -810,7 +949,7 @@ function ParticipantCard(props: { part: { sid: string; identity: string; hasVide
     el.addEventListener('playing', onPlaying);
     el.addEventListener('emptied', onEmptied);
 
-    if (track) {
+    if (track && el) {
       try {
         try { console.log('[UI] attach initial track for', part.identity); } catch {}
         track.attach(el);
@@ -889,9 +1028,10 @@ function ParticipantCard(props: { part: { sid: string; identity: string; hasVide
       } catch {}
     })();
     return () => {
-      el.removeEventListener('loadeddata', onLoaded);
-      el.removeEventListener('playing', onPlaying);
-      el.removeEventListener('emptied', onEmptied);
+      const node = videoRef.current;
+      try { node?.removeEventListener('loadeddata', onLoaded); } catch {}
+      try { node?.removeEventListener('playing', onPlaying); } catch {}
+      try { node?.removeEventListener('emptied', onEmptied); } catch {}
       cleanup?.();
       try { clearInterval(pollTimer); } catch {}
       try {

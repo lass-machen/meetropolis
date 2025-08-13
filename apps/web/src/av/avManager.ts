@@ -16,6 +16,8 @@ export class AVManager {
   private preferredCam?: string;
   private pendingMic = false;
   private pendingCam = false;
+  private reconnectAttempts = 0;
+  private reconnectTimer: any = null;
 
   constructor(opts: { baseUrl: string; identity: string; useVideo: boolean }) {
     this.baseUrl = opts.baseUrl;
@@ -38,6 +40,8 @@ export class AVManager {
       useVideo: this.useVideo,
     });
     this.currentName = roomName;
+    this.reconnectAttempts = 0;
+    this.wireRoomEvents();
     // Aktiviere ggf. gewünschte Tracks nach Connect
     try {
       if (this.pendingMic) await this.setMicrophoneEnabled(true);
@@ -49,6 +53,9 @@ export class AVManager {
     if (this.current) {
       try { await this.current.disconnect(); } catch {}
     }
+    try { if (this.reconnectTimer) clearTimeout(this.reconnectTimer); } catch {}
+    this.reconnectTimer = null;
+    this.reconnectAttempts = 0;
     this.current = undefined;
     this.currentName = null;
   }
@@ -59,6 +66,45 @@ export class AVManager {
 
   get room(): Room | undefined {
     return this.current;
+  }
+
+  private scheduleReconnect() {
+    if (!this.currentName) return;
+    const attempt = ++this.reconnectAttempts;
+    const delay = Math.min(30000, 1000 * Math.pow(2, attempt - 1) + Math.random() * 500);
+    try { if (this.reconnectTimer) clearTimeout(this.reconnectTimer); } catch {}
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      // Versuche in denselben Raum zurückzukehren
+      const name = this.currentName!;
+      void this.switchTo(name).catch(() => this.scheduleReconnect());
+    }, delay);
+  }
+
+  private wireRoomEvents() {
+    const room = this.current;
+    if (!room) return;
+    (async () => {
+      try {
+        const mod = await import('livekit-client');
+        const RoomEvent = (mod as any).RoomEvent;
+        if (RoomEvent) {
+          room.off?.(RoomEvent.Reconnected, () => {});
+          room.off?.(RoomEvent.Disconnected, () => {});
+          room.on?.(RoomEvent.Reconnected, () => { this.reconnectAttempts = 0; });
+          room.on?.(RoomEvent.Disconnected, () => { this.scheduleReconnect(); });
+        } else {
+          const r: any = room as any;
+          r.off?.('reconnected', () => {});
+          r.off?.('disconnected', () => {});
+          r.on?.('reconnected', () => { this.reconnectAttempts = 0; });
+          r.on?.('disconnected', () => { this.scheduleReconnect(); });
+        }
+      } catch {
+        // Fallback: wenn Event-Konstanten fehlen, zumindest einmal versuchen
+        this.scheduleReconnect();
+      }
+    })();
   }
 
   async startScreenshare() {
@@ -184,6 +230,13 @@ export class AVManager {
   async useMicrophoneDevice(deviceId: string) {
     this.preferredMic = deviceId;
     if (!this.current) return;
+    // Nur wechseln, wenn Mic aktuell aktiv ist; sonst nur merken
+    const pubs = Array.from(this.current.localParticipant.trackPublications.values());
+    const micPubs = pubs.filter(pub => {
+      const src = (pub as any).source || (pub.track as any)?.source;
+      return src === 'microphone';
+    });
+    if (micPubs.length === 0) return; // Mic ist derzeit aus – nur Präferenz setzen
     await this.setMicrophoneEnabled(false);
     await this.setMicrophoneEnabled(true);
   }
@@ -191,6 +244,13 @@ export class AVManager {
   async useCameraDevice(deviceId: string) {
     this.preferredCam = deviceId;
     if (!this.current) return;
+    // Nur wechseln, wenn Kamera aktuell aktiv ist; sonst nur Präferenz setzen
+    const pubs = Array.from(this.current.localParticipant.trackPublications.values());
+    const camPubs = pubs.filter(pub => {
+      const src = (pub as any).source || (pub.track as any)?.source;
+      return src === 'camera';
+    });
+    if (camPubs.length === 0) return; // Kamera ist derzeit aus – nur Präferenz setzen
     await this.setCameraEnabled(false);
     await this.setCameraEnabled(true);
   }

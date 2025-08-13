@@ -14,6 +14,7 @@ import { registerApi } from './api.js';
 const app = express();
 app.use(cors({ origin: true, credentials: true }));
 app.use(cookieParser());
+app.use(express.json({ limit: '4mb' }));
 app.use(express.json());
 
 app.get('/', (_req, res) => res.send('ok'));

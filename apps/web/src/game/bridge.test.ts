@@ -11,6 +11,7 @@ describe('gameBridge delegiert an SceneApi', () => {
       setSelectionRect: vi.fn(),
       applyTilePaint: vi.fn(),
       registerTileset: vi.fn(),
+      setCollisionVisible: vi.fn(),
     };
     gameBridge.setSceneApi(api);
     gameBridge.setDesiredPosition({ x: 1, y: 2 });
@@ -28,6 +29,7 @@ describe('gameBridge delegiert an SceneApi', () => {
       setSelectionRect: vi.fn(),
       applyTilePaint: vi.fn(),
       registerTileset: vi.fn(),
+      setCollisionVisible: vi.fn(),
     };
     gameBridge.setSceneApi(api);
     gameBridge.applyTilePaint({ layer: 'EditorGround', tilesetKey: 't', tileIndex: 1, rect: { startX: 0, startY: 0, endX: 1, endY: 1 } });

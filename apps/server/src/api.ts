@@ -166,6 +166,47 @@ export function registerApi(app: express.Express) {
     res.json(zones);
   });
 
+  // Editor: Save/Load Map State (authenticated)
+  app.get('/maps/:name/editor-state', async (req, res) => {
+    // Hinweis: Für lokale Entwicklung ohne Auth geöffnet. In Produktion absichern!
+    const name = req.params.name;
+    let map = await prisma.map.findUnique({ where: { name } });
+    if (!map) {
+      map = await prisma.map.create({ data: { name, meta: {} } });
+    }
+    // meta speichert editor bezogene daten
+    const meta = (map.meta as any) || {};
+    res.json({
+      editorGround: meta.editorGround ?? null,
+      collision: meta.collision ?? null,
+      tilesets: meta.tilesets ?? [],
+      assets: meta.assets ?? [],
+      zones: await prisma.zone.findMany({ where: { mapId: map.id }, select: { id: true, name: true, capacity: true, polygon: true } }),
+    });
+  });
+
+  app.put('/maps/:name/editor-state', async (req, res) => {
+    // Hinweis: Für lokale Entwicklung ohne Auth geöffnet. In Produktion absichern!
+    const name = req.params.name;
+    const { editorGround, collision, tilesets, assets, zones } = req.body ?? {};
+    const found = await prisma.map.findUnique({ where: { name }, include: { rooms: true } });
+    const map = found ?? await prisma.map.create({ data: { name, meta: {} } });
+    // Update meta blobs
+    await prisma.map.update({ where: { id: map.id }, data: { meta: { editorGround: editorGround ?? null, collision: collision ?? null, tilesets: tilesets ?? [], assets: assets ?? [] } as any } });
+    // Upsert zones (simple strategy: replace all zones for map)
+    if (Array.isArray(zones)) {
+      await prisma.zone.deleteMany({ where: { mapId: map.id } });
+      for (const z of zones) {
+        const name = (z?.name || 'Zone').toString();
+        const capacity = typeof z?.capacity === 'number' ? z.capacity : null;
+        const polygon = z?.points ? z.points : z?.polygon;
+        if (!Array.isArray(polygon)) continue;
+        await prisma.zone.create({ data: { name, capacity: capacity ?? undefined, polygon, mapId: map.id, roomId: (map as any).rooms?.[0]?.id } as any });
+      }
+    }
+    res.json({ ok: true });
+  });
+
   // Profile update (authenticated)
   app.patch('/me', async (req, res) => {
     const auth = requireAuth(req);
