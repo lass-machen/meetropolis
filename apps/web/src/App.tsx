@@ -49,7 +49,7 @@ export function App() {
   const [hud, setHud] = React.useState<{ zone?: string; follow?: string | null; avRoom?: string | null }>({});
   const [devices, setDevices] = React.useState<{ mics: { id: string; label: string }[]; cams: { id: string; label: string }[] }>({ mics: [], cams: [] });
   const [avState, setAvState] = React.useState<{ mic: boolean; cam: boolean; share: boolean }>({ mic: false, cam: false, share: false });
-  const [uiParticipants, setUiParticipants] = React.useState<{ sid: string; identity: string; hasVideo: boolean; hasMic: boolean; isSpeaking: boolean }[]>([]);
+  const [uiParticipants, setUiParticipants] = React.useState<{ sid: string; identity: string; hasVideo: boolean; hasMic: boolean; isSpeaking: boolean; media: 'camera' | 'screen' }[]>([]);
   // Auth state
   const [authChecked, setAuthChecked] = React.useState(false);
   const [me, setMe] = React.useState<{ id: string; email: string; name?: string } | null>(null);
@@ -58,6 +58,9 @@ export function App() {
   const [gridExpanded, setGridExpanded] = React.useState(false);
 
   const apiBase = import.meta.env.VITE_API_BASE as string;
+
+  // Room getter stabil hält die gleiche Referenz für Child-Komponenten
+  const getRoom = React.useCallback(() => avRef.current?.room, []);
 
   async function fetchMe() {
     try {
@@ -80,20 +83,45 @@ export function App() {
   }, []);
 
   const buildParticipantList = React.useCallback(() => {
+    try { console.log('[UI] buildParticipantList()'); } catch {}
     const room: any = avRef.current?.room as any;
-    if (!room || !room.localParticipant || !room.participants) return;
+    if (!room || !room.localParticipant) return;
     const activeSet = new Set<string>((room.activeSpeakers || []).map((p: any) => p.sid));
-    const list: { sid: string; identity: string; hasVideo: boolean; hasMic: boolean; isSpeaking: boolean }[] = [];
+    const list: { sid: string; identity: string; hasVideo: boolean; hasMic: boolean; isSpeaking: boolean; media: 'camera' | 'screen' }[] = [];
     const pushP = (p: any) => {
       if (!p || !p.trackPublications) return;
       const publications = Array.from((p.trackPublications?.values?.() || []) as any);
-      const hasV = publications.some((pub: any) => (pub?.source || pub?.track?.source) === 'camera' && !!pub?.track);
-      const hasMic = publications.some((pub: any) => (pub?.source || pub?.track?.source) === 'microphone' && !!pub?.track);
+      try { console.log('[UI] participant pubs', p.identity, publications.map((pub:any)=>({src: pub?.source||pub?.track?.source, kind: pub?.kind||pub?.track?.kind, hasTrack: !!pub?.track}))); } catch {}
+      const isVideoPub = (pub: any) => {
+        const source = (pub?.source ?? pub?.track?.source);
+        return (!!pub?.track && (source === 'camera' || source === 1));
+      };
+      const isMicPub = (pub: any) => {
+        const source = (pub?.source ?? pub?.track?.source);
+        const kind = pub?.kind ?? pub?.track?.kind;
+        return (!!pub?.track && (kind === 'audio' || source === 'microphone' || source === 0));
+      };
+      const isScreenPub = (pub: any) => {
+        const source = (pub?.source ?? pub?.track?.source);
+        const kind = pub?.kind ?? pub?.track?.kind;
+        return (!!pub?.track && kind === 'video' && (source === 'screen_share' || source === 2));
+      };
+      const hasV = publications.some(isVideoPub);
+      const hasMic = publications.some(isMicPub);
+      const hasScreen = publications.some(isScreenPub);
       const identity = p.identity || 'User';
-      list.push({ sid: p.sid, identity, hasVideo: hasV, hasMic, isSpeaking: activeSet.has(p.sid) });
+      // Kamera-Karte
+      if (hasV) {
+        list.push({ sid: p.sid, identity, hasVideo: true, hasMic, isSpeaking: activeSet.has(p.sid), media: 'camera' });
+      }
+      // Screenshare als eigene Karte
+      if (hasScreen) {
+        list.push({ sid: p.sid + ':screen', identity: `${identity} – Bildschirm`, hasVideo: true, hasMic: false, isSpeaking: false, media: 'screen' });
+      }
     };
     pushP(room.localParticipant);
-    for (const rp of Array.from(room.participants.values?.() || [])) pushP(rp);
+    const remotes = Array.from((room.remoteParticipants?.values?.() || room.participants?.values?.() || []) as any);
+    for (const rp of remotes) pushP(rp);
     setUiParticipants(list);
   }, []);
 
@@ -187,9 +215,23 @@ export function App() {
       const room: any = avRef.current?.room as any;
       if (room && room.localParticipant && room.localParticipant.trackPublications) {
         const pubs = Array.from(room.localParticipant.trackPublications?.values?.() || []);
-        const hasMic = pubs.some((pub: any) => (pub.source || pub.track?.source) === 'microphone');
-        const hasCam = pubs.some((pub: any) => (pub.source || pub.track?.source) === 'camera');
-        const hasShare = pubs.some((pub: any) => ['screen_share','screen_share_audio'].includes(pub.source || pub.track?.source));
+        const isVideoPub = (pub: any) => {
+          const source = (pub?.source ?? pub?.track?.source);
+          const kind = pub?.kind ?? pub?.track?.kind;
+          return (!!pub?.track && (kind === 'video' || source === 'camera' || source === 1));
+        };
+        const isMicPub = (pub: any) => {
+          const source = (pub?.source ?? pub?.track?.source);
+          const kind = pub?.kind ?? pub?.track?.kind;
+          return (!!pub?.track && (kind === 'audio' || source === 'microphone' || source === 0));
+        };
+        const isSharePub = (pub: any) => {
+          const source = (pub?.source ?? pub?.track?.source);
+          return (!!pub?.track && (source === 'screen_share' || source === 'screen_share_audio' || source === 2));
+        };
+        const hasMic = pubs.some(isMicPub);
+        const hasCam = pubs.some(isVideoPub);
+        const hasShare = pubs.some(isSharePub);
         setAvState(s => (s.mic === hasMic && s.cam === hasCam && s.share === hasShare) ? s : { ...s, mic: hasMic, cam: hasCam, share: hasShare });
         buildParticipantList();
       }
@@ -213,19 +255,19 @@ export function App() {
 
   const participantsToRender = uiParticipants.length > 0
     ? uiParticipants
-    : [{ sid: 'local', identity: me.name || me.email, hasVideo: false, hasMic: false, isSpeaking: false }];
+    : [{ sid: (avRef.current?.room?.localParticipant?.sid ?? 'local'), identity: me.name || me.email, hasVideo: false, hasMic: false, isSpeaking: false, media: 'camera' as const }];
 
   return (
     <div style={{ width: '100vw', height: '100vh', background: '#0f1115', position: 'relative' }}>
       {/* Participants Grid Overlay */}
-      <div style={{ position: 'absolute', top: gridExpanded ? 0 : 10, left: '50%', transform: 'translateX(-50%)', zIndex: 20, width: gridExpanded ? '96vw' : '90vw', maxWidth: gridExpanded ? undefined : 1200 }}>
-        <div style={{ position: 'relative', background: gridExpanded ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.45)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 14, padding: 12, backdropFilter: 'blur(6px)' }}>
-          <button onClick={() => setGridExpanded(e => !e)} style={{ position: 'absolute', top: 10, right: 10, padding: '6px 10px', fontSize: 12, borderRadius: 8, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.06)', color: '#fff', cursor: 'pointer' }}>
+      <div style={{ position: 'absolute', top: gridExpanded ? 0 : 10, left: gridExpanded ? 0 : '50%', transform: gridExpanded ? undefined : 'translateX(-50%)', zIndex: 20, width: gridExpanded ? '100vw' : '90vw', height: gridExpanded ? '100vh' : 'auto', maxWidth: gridExpanded ? undefined : 1200 }}>
+        <div style={{ position: 'relative', height: gridExpanded ? '100%' : 'auto', background: gridExpanded ? 'rgba(0,0,0,0.7)' : 'rgba(0,0,0,0.45)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 14, padding: 12, backdropFilter: 'blur(6px)' }}>
+          <button onClick={() => setGridExpanded(e => !e)} style={{ position: 'absolute', top: 10, right: 10, padding: '6px 10px', fontSize: 12, borderRadius: 8, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.06)', color: '#fff', cursor: 'pointer', zIndex: 2 }}>
             {gridExpanded ? 'Verkleinern' : 'Vergrößern'}
           </button>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+          <div style={{ position: 'relative', display: 'grid', gridTemplateColumns: gridExpanded ? 'repeat(auto-fit, minmax(480px, 1fr))' : 'repeat(auto-fit, minmax(260px, 1fr))', gap: gridExpanded ? 18 : 12, justifyItems: 'center', alignContent: 'start', height: gridExpanded ? '100%' : 'auto', overflow: 'auto', paddingTop: gridExpanded ? 28 : 0 }}>
             {participantsToRender.map(p => (
-              <ParticipantCard key={p.sid} part={p} roomGetter={() => avRef.current?.room} />
+              <ParticipantCard key={p.sid} part={p} roomGetter={getRoom} compact={!gridExpanded} />
             ))}
           </div>
         </div>
@@ -313,22 +355,31 @@ const selectStyle: React.CSSProperties = {
 };
 
 // Teilnehmer-Card-Komponente (verschönert)
-function ParticipantCard(props: { part: { sid: string; identity: string; hasVideo: boolean; hasMic: boolean; isSpeaking: boolean }, roomGetter: () => any | undefined }) {
+function ParticipantCard(props: { part: { sid: string; identity: string; hasVideo: boolean; hasMic: boolean; isSpeaking: boolean; media: 'camera'|'screen' }, roomGetter: () => any | undefined, compact?: boolean }) {
   const videoRef = React.useRef<HTMLVideoElement | null>(null);
-  const { part, roomGetter } = props;
+  const { part, roomGetter, compact } = props;
   const [isVideoRendering, setIsVideoRendering] = React.useState(false);
+  const [isLocal, setIsLocal] = React.useState(false);
 
   useEffect(() => {
     const room: any = roomGetter();
     const el = videoRef.current;
     if (!room || !el || !room.localParticipant) return;
-    const isLocal = room.localParticipant?.sid === part.sid;
-    const p: any = isLocal ? room.localParticipant : room.participants?.get?.(part.sid);
+    try { console.log('[UI] ParticipantCard mount for', part.identity, 'sid=', part.sid); } catch {}
+    const baseSid = (part.sid || '').split(':')[0];
+    const isLocalNow = room.localParticipant?.sid === baseSid;
+    setIsLocal(isLocalNow);
+    const p: any = isLocalNow ? room.localParticipant : (room.participants?.get?.(baseSid) || room.remoteParticipants?.get?.(baseSid));
     if (!p || !p.trackPublications) return;
     const pubs: any[] = Array.from(p.trackPublications?.values?.() || []);
-    const camPub = pubs.find(pub => (pub?.source || pub?.track?.source) === 'camera');
-    const track = camPub?.track;
+    const wantedPub = pubs.find(pub => {
+      const src = (pub?.source || pub?.track?.source);
+      if (part.media === 'screen') return src === 'screen_share';
+      return src === 'camera';
+    });
+    const track = wantedPub?.track;
     let cleanup: (() => void) | undefined;
+    let pollTimer: any;
 
     const onLoaded = () => {
       try {
@@ -344,37 +395,143 @@ function ParticipantCard(props: { part: { sid: string; identity: string; hasVide
 
     if (track) {
       try {
+        try { console.log('[UI] attach initial track for', part.identity); } catch {}
         track.attach(el);
         cleanup = () => { try { track.detach(el); } catch {} };
       } catch {}
     }
+
+    // Aggressiver Fallback: pollt kurzzeitig und versucht zu attachen, wenn Track verzögert verfügbar wird
+    const tryAttach = () => {
+      try {
+        const pubsNow: any[] = Array.from(p.trackPublications?.values?.() || []);
+        const cam = pubsNow.find(pub => {
+          const src = (pub?.source || pub?.track?.source);
+          if (part.media === 'screen') return src === 'screen_share';
+          return src === 'camera';
+        });
+        const t = cam?.track;
+        if (t && el) {
+          try { console.log('[UI] poll attach for', part.identity); t.attach(el); setIsVideoRendering(false); clearInterval(pollTimer); } catch {}
+        }
+      } catch {}
+    };
+    pollTimer = setInterval(tryAttach, 400);
+    setTimeout(() => { try { clearInterval(pollTimer); } catch {} }, 6000);
+
+    // Fallback: auf spätere Publishes/Subscribes reagieren und (re-)attachen
+    const onTrackSubscribed = (t: any, publication: any, participant: any) => {
+      try {
+        const src = (publication?.source || t?.source || t?.mediaStreamTrack?.kind) as string | undefined;
+        const isDesired = part.media === 'screen' ? (src === 'screen_share') : (src === 'camera');
+        if (participant?.sid === baseSid && isDesired && el) {
+          try { console.log('[UI] onTrackSubscribed attach', part.identity, { src, kind: t?.kind }); el.muted = isLocalNow; t.attach(el); setIsVideoRendering(false); } catch {}
+        }
+      } catch {}
+    };
+    const onTrackUnsubscribed = (t: any, _publication: any, participant: any) => {
+      try {
+        if (participant?.sid?.startsWith?.(baseSid) && el) {
+          try { console.log('[UI] onTrackUnsubscribed detach', part.identity); t.detach(el); } catch {}
+        }
+      } catch {}
+    };
+    const onTrackPublished = (publication: any, participant: any) => {
+      try {
+        const src = (publication?.source || publication?.track?.source) as string | undefined;
+        const isDesired = part.media === 'screen' ? (src === 'screen_share') : (src === 'camera');
+        if (participant?.sid === baseSid && isDesired && publication?.track && el) {
+          try { console.log('[UI] onTrackPublished attach', part.identity); publication.track.attach(el); setIsVideoRendering(false); } catch {}
+        }
+      } catch {}
+    };
+    // Event-Wiring über RoomEvent (LiveKit v2)
+    (async () => {
+      try {
+        const mod = await import('livekit-client');
+        const RoomEvent = (mod as any).RoomEvent;
+        if (RoomEvent) {
+          room.on?.(RoomEvent.TrackSubscribed, onTrackSubscribed);
+          room.on?.(RoomEvent.TrackUnsubscribed, onTrackUnsubscribed);
+          room.on?.(RoomEvent.TrackPublished, onTrackPublished);
+          room.on?.(RoomEvent.LocalTrackPublished, (publication: any) => {
+            try {
+              const src = (publication?.source || publication?.track?.source) as string | undefined;
+              if (isLocalNow && src === 'camera' && publication?.track && el) {
+                try { el.muted = true; publication.track.attach(el); setIsVideoRendering(false); } catch {}
+              }
+            } catch {}
+          });
+        } else {
+          // Fallback auf String-Events (ältere Clients)
+          room.on?.('trackSubscribed', onTrackSubscribed);
+          room.on?.('trackUnsubscribed', onTrackUnsubscribed);
+          room.on?.('trackPublished', onTrackPublished);
+          room.on?.('localTrackPublished', () => { try { if (isLocalNow && el) setTimeout(()=>setIsVideoRendering(false),0); } catch {} });
+        }
+      } catch {}
+    })();
     return () => {
       el.removeEventListener('loadeddata', onLoaded);
       el.removeEventListener('playing', onPlaying);
       el.removeEventListener('emptied', onEmptied);
       cleanup?.();
+      try { clearInterval(pollTimer); } catch {}
+      try {
+        const offAll = async () => {
+          try {
+            const mod = await import('livekit-client');
+            const RoomEvent = (mod as any).RoomEvent;
+            if (RoomEvent) {
+              room.off?.(RoomEvent.TrackSubscribed, onTrackSubscribed);
+              room.off?.(RoomEvent.TrackUnsubscribed, onTrackUnsubscribed);
+              room.off?.(RoomEvent.TrackPublished, onTrackPublished);
+              room.off?.(RoomEvent.LocalTrackPublished, () => {});
+            } else {
+              room.off?.('trackSubscribed', onTrackSubscribed);
+              room.off?.('trackUnsubscribed', onTrackUnsubscribed);
+              room.off?.('trackPublished', onTrackPublished);
+              room.off?.('localTrackPublished', () => {});
+            }
+          } catch {}
+        };
+        offAll();
+      } catch {}
     };
   }, [part.sid, part.hasVideo, roomGetter]);
 
-  const borderColor = part.isSpeaking ? '#22d3ee' : 'rgba(255,255,255,0.12)';
-  const glow = part.isSpeaking ? '0 0 0 2px rgba(34,211,238,0.35), 0 10px 24px rgba(34,211,238,0.25)' : '0 10px 24px rgba(0,0,0,0.35)';
-  const gradient = 'linear-gradient(145deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02))';
+  const borderColor = part.isSpeaking ? '#22d3ee' : 'rgba(255,255,255,0.10)';
+  const glow = part.isSpeaking ? '0 0 0 2px rgba(34,211,238,0.35), 0 12px 30px rgba(34,211,238,0.25)' : '0 12px 30px rgba(0,0,0,0.35)';
+  const bg = 'rgba(17,17,20,0.75)';
+  const headerBg = 'rgba(17,17,20,0.6)';
+  const badgeOn = 'rgba(16,185,129,0.25)';
+  const badgeOff = 'rgba(244,63,94,0.25)';
+  const borderOn = 'rgba(16,185,129,0.5)';
+  const borderOff = 'rgba(244,63,94,0.5)';
+
+  // Größenlogik: compact nimmt max ~1/6 der Höhe ein, mit fixem Seitenverhältnis
+  const aspect = '1 / 1';
+  const targetSize = compact ? '16vh' : '36vh';
+  const minW = compact ? 260 : 420;
 
   return (
-    <div style={{ width: '100%', aspectRatio: '16 / 9', position: 'relative', borderRadius: 12, overflow: 'hidden', background: gradient, border: `1px solid ${borderColor}`, boxShadow: glow }}>
-      <video ref={videoRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover', background: 'rgba(0,0,0,0.3)' }} />
+    <div style={{ width: `min(${targetSize}, 100%)`, minWidth: minW, maxHeight: targetSize, aspectRatio: aspect, position: 'relative', borderRadius: 14, overflow: 'hidden', background: bg, border: `1px solid ${borderColor}`, boxShadow: glow }}>
+      <video ref={videoRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover', background: 'rgba(0,0,0,0.35)', transform: (isLocal && part.media==='camera') ? 'scaleX(-1)' : undefined }} />
       {!(part.hasVideo || isVideoRendering) && (
-        <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', color: '#e5e7eb', fontWeight: 600, fontSize: 16 }}>
+        <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', color: '#e5e7eb', fontWeight: 600, fontSize: 14 }}>
           {part.identity}
         </div>
       )}
-      {/* Badges */}
-      <div style={{ position: 'absolute', top: 8, left: 8, display: 'flex', gap: 6 }}>
-        <div title={part.hasMic ? 'Mikro an' : 'Mikro aus'} style={{ padding: '2px 6px', fontSize: 11, borderRadius: 999, background: part.hasMic ? 'rgba(16,185,129,0.25)' : 'rgba(244,63,94,0.25)', border: `1px solid ${part.hasMic ? 'rgba(16,185,129,0.5)' : 'rgba(244,63,94,0.5)'}`, color: '#fff' }}>Mic</div>
-        <div title={part.hasVideo ? 'Kamera an' : 'Kamera aus'} style={{ padding: '2px 6px', fontSize: 11, borderRadius: 999, background: part.hasVideo ? 'rgba(16,185,129,0.25)' : 'rgba(244,63,94,0.25)', border: `1px solid ${part.hasVideo ? 'rgba(16,185,129,0.5)' : 'rgba(244,63,94,0.5)'}`, color: '#fff' }}>Cam</div>
+      <div style={{ position: 'absolute', top: 6, left: 6, display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', background: headerBg, borderRadius: 10, border: '1px solid rgba(255,255,255,0.08)' }}>
+        <div style={{ fontSize: 12, color: '#e5e7eb', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{part.identity}</div>
       </div>
-      <div style={{ position: 'absolute', bottom: 8, left: 10, right: 10, fontSize: 13, color: '#f3f4f6', textShadow: '0 1px 2px rgba(0,0,0,0.6)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-        {part.identity}
+      <div style={{ position: 'absolute', top: 6, right: 6, display: 'flex', gap: 8 }}>
+        <div title={part.hasMic ? 'Mikro an' : 'Mikro aus'} style={{ display: 'grid', placeItems: 'center', width: 28, height: 28, borderRadius: 999, background: part.hasMic ? badgeOn : badgeOff, border: `1px solid ${part.hasMic ? borderOn : borderOff}` }}>
+          <MicIcon on={part.hasMic} />
+        </div>
+        <div title={part.hasVideo ? 'Kamera an' : 'Kamera aus'} style={{ display: 'grid', placeItems: 'center', width: 28, height: 28, borderRadius: 999, background: (part.hasVideo || isVideoRendering) ? badgeOn : badgeOff, border: `1px solid ${(part.hasVideo || isVideoRendering) ? borderOn : borderOff}` }}>
+          <CamIcon on={(part.hasVideo || isVideoRendering)} />
+        </div>
       </div>
     </div>
   );

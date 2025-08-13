@@ -153,8 +153,18 @@ export class AVManager {
         if (camPubs.length > 0) return; // already enabled
         const { createLocalTracks } = await import('livekit-client');
         const tracks = await createLocalTracks({ video: this.preferredCam ? { deviceId: this.preferredCam } : true });
+        // Debug
+        try { console.log('[AV] createLocalTracks(video) ->', tracks.map(t => ({ kind: (t as any).kind, id: (t as any)?.mediaStreamTrack?.id }))); } catch {}
         for (const t of tracks) {
-          if ((t as any).kind === 'video') await this.current.localParticipant.publishTrack(t);
+          if ((t as any).kind === 'video') {
+            try {
+              await this.current.localParticipant.publishTrack(t);
+              try { console.log('[AV] published local video track'); } catch {}
+            } catch (e) {
+              // eslint-disable-next-line no-console
+              console.warn('[AV] publish video failed', e);
+            }
+          }
         }
       } else {
         for (const pub of camPubs) {
