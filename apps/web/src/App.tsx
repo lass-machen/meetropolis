@@ -139,6 +139,11 @@ export function App() {
             y: u.lastPosition.y,
             direction: u.lastPosition.direction
           };
+          // Make position available to Phaser scene
+          (window as any).initialPlayerPosition = { 
+            x: u.lastPosition.x, 
+            y: u.lastPosition.y 
+          };
           console.log('[Position] Restored last position:', u.lastPosition);
         }
       }

@@ -117,7 +117,10 @@ export class MainScene extends Phaser.Scene implements SceneApi {
     cam.setZoom(3);
 
     this.physics.world.setBounds(0, 0, map.widthInPixels, map.heightInPixels);
-    this.hero = this.physics.add.sprite(80, 120, 'hero_walk_down', 0);
+    // Get initial position from global window object (set by App.tsx after DB load)
+    const initialPos = (window as any).initialPlayerPosition || { x: 80, y: 120 };
+    console.log('[MainScene] Creating hero at position:', initialPos);
+    this.hero = this.physics.add.sprite(initialPos.x, initialPos.y, 'hero_walk_down', 0);
     this.hero.setCollideWorldBounds(true);
     this.hero.setDepth(10);
     if (staticColliders) this.physics.add.collider(this.hero, staticColliders);
