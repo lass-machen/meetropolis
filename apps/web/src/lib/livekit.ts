@@ -49,7 +49,10 @@ export async function joinLivekitRoom(params: {
     console.log('[LiveKit] Track subscribed:', {
       kind: track.kind,
       source: track.source,
-      participant: participant.identity
+      participant: participant.identity,
+      participantSid: participant.sid,
+      publicationSource: publication.source,
+      isScreenShare: track.source === 'screen_share'
     });
   });
   
@@ -61,17 +64,36 @@ export async function joinLivekitRoom(params: {
     });
   });
   
+  room.on('activeSpeakersChanged', (speakers) => {
+    console.log('[LiveKit] Active speakers changed:', speakers.map(s => s.identity));
+  });
+  
+  room.on('trackPublished', (publication, participant) => {
+    console.log('[LiveKit] Track published:', {
+      source: publication.source,
+      kind: publication.kind,
+      participant: participant.identity,
+      participantSid: participant.sid,
+      isLocal: participant === room.localParticipant,
+      isScreenShare: publication.source === 'screen_share',
+      track: !!publication.track
+    });
+  });
+  
+  room.on('localTrackPublished', (publication, participant) => {
+    console.log('[LiveKit] LOCAL Track published:', {
+      source: publication.source,
+      kind: publication.kind,
+      participant: participant.identity,
+      isScreenShare: publication.source === 'screen_share'
+    });
+  });
+  
   await room.connect(serverUrl, token, {
     autoSubscribe: true,
     publishDefaults: {
       simulcast: false,
       videoCodec: 'vp8'
-    },
-    rtcConfig: {
-      iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' }
-      ]
     }
   });
   // WICHTIG: keine lokalen Audio/Video-Tracks automatisch erstellen/publizieren.

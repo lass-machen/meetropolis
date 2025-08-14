@@ -96,6 +96,7 @@ export function App() {
   const [menuOpen, setMenuOpen] = React.useState(false);
   const editorActiveRef = React.useRef(false);
   const connectLivekitRef = React.useRef<null | (() => Promise<void>)>(null);
+  const isConnectingRef = React.useRef(false);
   // Map Editor State
   const [editor, setEditor] = React.useState<{ 
     active: boolean;
@@ -256,7 +257,11 @@ export function App() {
       const isScreenPub = (pub: any) => {
         const source = (pub?.source ?? pub?.track?.source);
         const kind = pub?.kind ?? pub?.track?.kind;
-        return (!!pub?.track && kind === 'video' && (source === 'screen_share' || source === 2));
+        const isScreen = (!!pub?.track && kind === 'video' && (source === 'screen_share' || source === 2));
+        if (source === 'screen_share' || source === 2) {
+          console.log('[UI] Screen track detected:', { identity: p.identity, source, kind, hasTrack: !!pub?.track, isScreen });
+        }
+        return isScreen;
       };
       const hasV = publications.some(isVideoPub);
       const hasMic = publications.some(isMicPub);
@@ -272,6 +277,7 @@ export function App() {
       }
       // Screenshare als eigene Karte
       if (hasScreen) {
+        console.log('[UI] Adding screenshare card for', identity);
         list.push({ sid: p.sid + ':screen', identity: `${identity} – Bildschirm`, hasVideo: true, hasMic: false, isSpeaking: false, media: 'screen' });
       }
     };
@@ -326,7 +332,11 @@ export function App() {
               gameBridge.setDesiredPosition(null);
             }
           }
-          colyseusRef.current?.send?.('move', p);
+          try {
+            colyseusRef.current?.send?.('move', p);
+          } catch (e) {
+            // Ignore WebSocket errors during shutdown
+          }
         };
         room.onStateChange((state: any) => {
           const players: Record<string, { x: number; y: number; direction: any }> = {};
@@ -366,6 +376,10 @@ export function App() {
     const connectLivekit = async () => {
       // Im Editor-Modus nie LiveKit initialisieren (verhindert Blocking/Errors)
       if (editorActiveRef.current) return;
+      if (isConnectingRef.current) return; // Verhindere doppelte Verbindung
+      if (avRef.current?.room) return; // Bereits verbunden
+      
+      isConnectingRef.current = true;
       try {
         avRef.current = new AVManager({ baseUrl: apiBase, identity, useVideo: import.meta.env.VITE_FEATURE_VOICE_ONLY !== 'true' });
         bubbleRef.current?.setAV(avRef.current);
@@ -416,13 +430,31 @@ export function App() {
                   console.log('[LiveKit] ParticipantDisconnected event - rebuilding list');
                   setTimeout(buildParticipantList, 100);
                 });
-                room.on(RoomEvent.TrackPublished, () => {
-                  console.log('[LiveKit] TrackPublished event - rebuilding list');
+                room.on(RoomEvent.TrackPublished, (publication: any, participant: any) => {
+                  console.log('[LiveKit] TrackPublished event - rebuilding list', {
+                    source: publication?.source,
+                    participant: participant?.identity,
+                    isScreenShare: publication?.source === 'screen_share'
+                  });
                   setTimeout(buildParticipantList, 100);
                 });
                 room.on(RoomEvent.TrackUnpublished, () => {
                   console.log('[LiveKit] TrackUnpublished event - rebuilding list');
                   setTimeout(buildParticipantList, 100);
+                });
+                room.on(RoomEvent.TrackSubscribed, (track: any, publication: any, participant: any) => {
+                  console.log('[LiveKit] TrackSubscribed in App - rebuilding list', {
+                    source: publication?.source || track?.source,
+                    participant: participant?.identity,
+                    isScreenShare: (publication?.source || track?.source) === 'screen_share'
+                  });
+                  if ((publication?.source || track?.source) === 'screen_share') {
+                    setTimeout(buildParticipantList, 200);
+                  }
+                });
+                room.on(RoomEvent.ActiveSpeakersChanged, () => {
+                  console.log('[LiveKit] ActiveSpeakersChanged event - rebuilding list');
+                  buildParticipantList();
                 });
               }
             } catch {}
@@ -437,21 +469,12 @@ export function App() {
         // Editor weiterhin bedienbar halten
         try { bubbleRef.current?.setAV(null as any); } catch {}
         try { zoneRef.current?.setAV(null as any); } catch {}
+        isConnectingRef.current = false; // Reset flag on error
+      } finally {
+        isConnectingRef.current = false; // Reset flag when done
       }
     };
     connectLivekitRef.current = connectLivekit;
-    const firstInteract = () => {
-      window.removeEventListener('pointerdown', firstInteract);
-      window.removeEventListener('keydown', firstInteract);
-      connectLivekit();
-    };
-    // LiveKit-Handler optional, aber niemals doppelt registrieren
-    if (!editorActiveRef.current) {
-      window.removeEventListener('pointerdown', firstInteract);
-      window.removeEventListener('keydown', firstInteract);
-      window.addEventListener('pointerdown', firstInteract, { once: true } as any);
-      window.addEventListener('keydown', firstInteract, { once: true } as any);
-    }
 
     bubbleRef.current = new BubbleManager(64, null);
     followRef.current = new FollowManager(96);
@@ -599,10 +622,6 @@ export function App() {
       destroyPhaserGame(game);
       colyseusRef.current?.leave?.();
       try { avRef.current?.leave?.(); } catch {}
-      if (!editorActiveRef.current) {
-        window.removeEventListener('keydown', firstInteract);
-        window.removeEventListener('pointerdown', firstInteract);
-      }
       try { if (colyseusReconnectTimerRef.current) clearTimeout(colyseusReconnectTimerRef.current); } catch {}
       clearInterval(hudTimer);
     };
@@ -887,12 +906,17 @@ export function App() {
             <div style={{ width: 1, height: 24, background: 'rgba(255,255,255,0.08)' }} />
 
             <button style={btnStyle(avState.share)} onClick={async () => {
-              if (!avState.share) {
-                await avRef.current?.startScreenshare();
-              } else {
-                await avRef.current?.stopScreenshare();
+              try {
+                if (!avState.share) {
+                  await avRef.current?.startScreenshare();
+                  setAvState(s => ({ ...s, share: true }));
+                } else {
+                  await avRef.current?.stopScreenshare();
+                  setAvState(s => ({ ...s, share: false }));
+                }
+              } catch (e) {
+                console.error('[UI] Screenshare toggle failed:', e);
               }
-              setAvState(s => ({ ...s, share: !s.share }));
             }}>
               <ScreenIcon on={avState.share} />
               <span style={btnLabelStyle}>{avState.share ? 'Screenshare stoppen' : 'Screenshare starten'}</span>
@@ -1145,7 +1169,7 @@ function ParticipantCard(props: { part: { sid: string; identity: string; hasVide
     const room: any = roomGetter();
     const el = videoRef.current;
     if (!room || !room.localParticipant || !el) return;
-    console.log('[UI] ParticipantCard mount for', part.identity, 'sid=', part.sid);
+    console.log('[UI] ParticipantCard mount for', part.identity, 'sid=', part.sid, 'media=', part.media);
     let baseSid = (part.sid || '').split(':')[0];
     const isLocalNow = room.localParticipant?.sid === baseSid;
     setIsLocal(isLocalNow);
@@ -1157,12 +1181,32 @@ function ParticipantCard(props: { part: { sid: string; identity: string; hasVide
       const allParticipants = Array.from(room.remoteParticipants?.values() || []);
       console.log('[UI] Participant not found by SID, trying identity match. Available:', allParticipants.map((p: any) => ({ sid: p.sid, identity: p.identity })));
       
-      p = allParticipants.find((participant: any) => participant.identity === part.identity);
+      // For screenshare, remove the " – Bildschirm" suffix to find the base participant
+      const searchIdentity = part.media === 'screen' && part.identity.endsWith(' – Bildschirm') 
+        ? part.identity.slice(0, -14) // Remove " – Bildschirm"
+        : part.identity;
+      
+      p = allParticipants.find((participant: any) => participant.identity === searchIdentity);
       if (p) {
-        console.log('[UI] Found participant by identity match:', { identity: part.identity, actualSid: p.sid });
+        console.log('[UI] Found participant by identity match:', { searchIdentity, actualSid: p.sid });
         // Update baseSid for event matching
         baseSid = p.sid;
+      } else if (part.media === 'screen') {
+        // For screenshare, also try finding by identity directly (without suffix)
+        p = allParticipants.find((participant: any) => 
+          part.identity.startsWith(participant.identity + ' –')
+        );
+        if (p) {
+          console.log('[UI] Found participant by identity prefix match:', { identity: part.identity, actualSid: p.sid });
+          baseSid = p.sid;
+        }
       }
+    }
+    
+    // For screenshare of remote participants, ensure we wait for the track
+    if (!p && part.media === 'screen' && !isLocalNow) {
+      console.log('[UI] Screenshare participant not found yet, will retry via polling');
+      // The tryAttach polling will handle this case
     }
     
     if (!p || !p.trackPublications) {
@@ -1177,11 +1221,22 @@ function ParticipantCard(props: { part: { sid: string; identity: string; hasVide
     })));
     const wantedPub = pubs.find(pub => {
       const src = (pub?.source || pub?.track?.source);
-      if (part.media === 'screen') return src === 'screen_share';
-      return src === 'camera';
+      const isScreenShare = src === 'screen_share';
+      const isCamera = src === 'camera';
+      if (part.media === 'screen') {
+        if (isScreenShare) console.log('[UI] Found screenshare track!', { source: src, hasTrack: !!pub?.track });
+        return isScreenShare;
+      }
+      return isCamera;
     });
     const track = wantedPub?.track;
-    console.log('[UI] Wanted track for', part.identity, ':', { found: !!track, source: wantedPub?.source || wantedPub?.track?.source });
+    console.log('[UI] Wanted track for', part.identity, part.media, ':', { 
+      found: !!track, 
+      source: wantedPub?.source || wantedPub?.track?.source,
+      trackId: track?.mediaStreamTrack?.id,
+      isSubscribed: wantedPub?.subscribed,
+      trackState: track?.mediaStreamTrack?.readyState
+    });
     let cleanup: (() => void) | undefined;
     let pollTimer: any;
 
@@ -1199,28 +1254,66 @@ function ParticipantCard(props: { part: { sid: string; identity: string; hasVide
 
     if (track && el) {
       try {
-        console.log('[UI] attach initial track for', part.identity, 'track:', track);
+        console.log('[UI] Attaching', part.media, 'track for', part.identity, {
+          trackKind: track.kind,
+          trackSource: track.source,
+          trackId: track.mediaStreamTrack?.id,
+          isLocal: isLocalNow
+        });
+        el.muted = isLocalNow; // Mute local video
         track.attach(el);
         cleanup = () => { try { track.detach(el); } catch {} };
         // Check if video is actually playing
         setTimeout(() => {
           if (el.videoWidth > 0 && el.videoHeight > 0) {
-            console.log('[UI] Video playing for', part.identity, el.videoWidth + 'x' + el.videoHeight);
+            console.log('[UI]', part.media, 'video playing for', part.identity, el.videoWidth + 'x' + el.videoHeight);
           } else {
-            console.log('[UI] Video NOT playing for', part.identity);
+            console.log('[UI]', part.media, 'video NOT playing for', part.identity, {
+              readyState: el.readyState,
+              srcObject: !!el.srcObject,
+              videoWidth: el.videoWidth,
+              videoHeight: el.videoHeight
+            });
           }
         }, 500);
       } catch (e) {
-        console.error('[UI] Failed to attach track:', e);
+        console.error('[UI] Failed to attach', part.media, 'track:', e);
       }
     } else {
-      console.log('[UI] No track or element for', part.identity, 'track:', !!track, 'el:', !!el);
+      console.log('[UI] No track or element for', part.identity, part.media, 'track:', !!track, 'el:', !!el);
     }
 
     // Aggressiver Fallback: pollt kurzzeitig und versucht zu attachen, wenn Track verzögert verfügbar wird
     const tryAttach = () => {
       try {
-        const pubsNow: any[] = Array.from(p.trackPublications?.values?.() || []);
+        // For screenshare, also try to find participant again if not found initially
+        let currentP = p;
+        if (!currentP && part.media === 'screen' && !isLocalNow) {
+          const allParticipants = Array.from(room.remoteParticipants?.values() || []);
+          const searchIdentity = part.identity.endsWith(' – Bildschirm') 
+            ? part.identity.slice(0, -14) 
+            : part.identity;
+          currentP = allParticipants.find((participant: any) => 
+            participant.identity === searchIdentity ||
+            part.identity.startsWith(participant.identity + ' –')
+          );
+          if (currentP && currentP !== p) {
+            console.log('[UI] Found participant in tryAttach:', { identity: currentP.identity, sid: currentP.sid });
+            p = currentP;
+            baseSid = currentP.sid;
+          }
+        }
+        
+        if (!currentP) return;
+        
+        const pubsNow: any[] = Array.from(currentP.trackPublications?.values?.() || []);
+        if (part.media === 'screen' && pubsNow.length > 0) {
+          console.log('[UI] tryAttach - checking publications for screenshare:', pubsNow.map(pub => ({
+            source: pub?.source || pub?.track?.source,
+            hasTrack: !!pub?.track,
+            isSubscribed: pub?.subscribed
+          })));
+        }
         const cam = pubsNow.find(pub => {
           const src = (pub?.source || pub?.track?.source);
           if (part.media === 'screen') return src === 'screen_share';
@@ -1229,14 +1322,15 @@ function ParticipantCard(props: { part: { sid: string; identity: string; hasVide
         const t = cam?.track;
         if (t && el && !el.srcObject) {
           try { 
-            console.log('[UI] poll attach for', part.identity, 'track:', t);
+            console.log('[UI] poll attach', part.media, 'for', part.identity);
+            el.muted = isLocalNow;
             t.attach(el); 
             setIsVideoRendering(false); 
             clearInterval(pollTimer);
             // Check video status after attach
             setTimeout(() => {
               if (el.videoWidth > 0 && el.videoHeight > 0) {
-                console.log('[UI] Video playing after poll attach for', part.identity);
+                console.log('[UI]', part.media, 'video playing after poll attach for', part.identity);
               }
             }, 500);
           } catch (e) {
@@ -1253,9 +1347,18 @@ function ParticipantCard(props: { part: { sid: string; identity: string; hasVide
       try {
         const src = (publication?.source || t?.source || t?.mediaStreamTrack?.kind) as string | undefined;
         const isDesired = part.media === 'screen' ? (src === 'screen_share') : (src === 'camera');
+        console.log('[UI] onTrackSubscribed event:', {
+          participantSid: participant?.sid,
+          baseSid,
+          source: src,
+          isDesired,
+          partMedia: part.media,
+          trackKind: t?.kind,
+          identity: participant?.identity
+        });
         if (participant?.sid === baseSid && isDesired && el) {
           try { 
-            console.log('[UI] onTrackSubscribed attach', part.identity, { src, kind: t?.kind });
+            console.log('[UI] onTrackSubscribed ATTACHING', part.media, 'for', part.identity);
             el.muted = isLocalNow; 
             t.attach(el); 
             setIsVideoRendering(false);

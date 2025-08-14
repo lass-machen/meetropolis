@@ -206,10 +206,22 @@ export class AVManager {
   async startScreenshare() {
     if (!this.current) return;
     try {
+      console.log('[AV] Starting screenshare...');
       await this.waitForConnected(this.current).catch(()=>{});
       const { createLocalScreenTracks } = await import('livekit-client');
       const tracks = await createLocalScreenTracks({});
-      for (const t of tracks) await this.current.localParticipant.publishTrack(t);
+      console.log('[AV] Created screenshare tracks:', tracks.map(t => ({
+        kind: (t as any).kind,
+        source: (t as any).source,
+        id: (t as any).mediaStreamTrack?.id
+      })));
+      for (const t of tracks) {
+        await this.current.localParticipant.publishTrack(t);
+        console.log('[AV] Published screenshare track:', {
+          kind: (t as any).kind,
+          source: (t as any).source
+        });
+      }
     } catch (e) {
       // eslint-disable-next-line no-console
       console.warn('screenshare failed', e);
