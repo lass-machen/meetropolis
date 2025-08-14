@@ -131,6 +131,16 @@ export function App() {
       } else {
         const u = await res.json();
         setMe(u);
+        // Store last position if available
+        if (u.lastPosition) {
+          localPosRef.current = { 
+            id: u.id, 
+            x: u.lastPosition.x, 
+            y: u.lastPosition.y,
+            direction: u.lastPosition.direction
+          };
+          console.log('[Position] Restored last position:', u.lastPosition);
+        }
       }
     } catch {
       setMe(null);
@@ -223,6 +233,8 @@ export function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ editorGround: layers.editorGround ?? null, collision: layers.collision ?? null, tilesets, assets, zones })
       });
+      // Notify other users to reload from server
+      colyseusRef.current?.send?.('editor_update', { type: 'reload_all' });
     } catch {}
   }
 
@@ -406,14 +418,25 @@ export function App() {
     };
     const connectColyseus = async () => {
       try {
-        const room = await joinWorld(apiBase, me.id, me.name || me.email || me.id);
+        const room = await joinWorld(
+          apiBase, 
+          me.id, 
+          me.name || me.email || me.id,
+          localPosRef.current && (localPosRef.current.x !== undefined && localPosRef.current.y !== undefined) ? localPosRef.current : undefined
+        );
         if (disposed) { try { room.leave(); } catch {} return; }
         colyseusRef.current = room;
         colyseusReconnectAttemptsRef.current = 0;
-        // Get LiveKit identity for local position tracking
+        // Store LiveKit identity for cross-referencing, but keep Colyseus session ID for positioning
         const localLivekitIdentity = avRef.current?.room?.localParticipant?.identity || me.id;
-        localPosRef.current.id = localLivekitIdentity;
-        console.log('[Colyseus] Local player ID set to LiveKit identity:', localLivekitIdentity);
+        const colyseusSessionId = room.sessionId;
+        console.log('[Colyseus] Session ID:', colyseusSessionId, 'LiveKit Identity:', localLivekitIdentity);
+        
+        // Map between Colyseus session ID and LiveKit identity for volume control
+        colyseusToLivekitMap.current[colyseusSessionId] = localLivekitIdentity;
+        
+        // Keep the session ID for position tracking consistency
+        localPosRef.current.id = colyseusSessionId;
         
         // Debug: Check immediate state
         console.log('[Colyseus] Room state immediately after join:', {
@@ -444,6 +467,8 @@ export function App() {
         gameBridge.onLocalMove = (p) => {
           localPosRef.current.x = p.x;
           localPosRef.current.y = p.y;
+          // Store last direction for position saving
+          (gameBridge as any).lastDirection = p.direction;
           zoneRef.current?.update({ x: p.x, y: p.y });
           if (followRef.current) {
             const f = followRef.current.update(
@@ -643,6 +668,21 @@ export function App() {
             }])
           );
           gameBridge.syncRemotePlayers(players);
+        });
+        
+        // Listen for editor updates from other users
+        room.onMessage('editor_update', (data: any) => {
+          console.log('[Colyseus] Received editor update from another user');
+          // Apply the update to the local scene
+          if (data.type === 'tile_paint') {
+            gameBridge.applyTilePaint(data.edit);
+          } else if (data.type === 'reload_all') {
+            // Another user saved to server, reload from server
+            try {
+              const scene = (window as any).currentPhaserScene;
+              scene?.fetchAndApplyServerLayers?.();
+            } catch {}
+          }
         });
       } catch {
         scheduleColyseusReconnect();
@@ -930,12 +970,18 @@ export function App() {
         const isErase = s.tool === 'erase';
         if ((s.tool === 'paint' || isErase) && s.tilePaint) {
           const index = isErase ? -1 : s.tilePaint.tileIndex;
-          gameBridge.applyTilePaint({ layer: 'EditorGround', tilesetKey: s.tilePaint.tilesetKey, tileIndex: index, rect });
+          const edit = { layer: 'EditorGround' as const, tilesetKey: s.tilePaint.tilesetKey, tileIndex: index, rect };
+          gameBridge.applyTilePaint(edit);
+          // Broadcast to other users
+          colyseusRef.current?.send?.('editor_update', { type: 'tile_paint', edit });
         }
         if (s.tool === 'collision' || isErase) {
           // Kollisionen als solide (Tile-Index 1) markieren; konkrete Indexe hängen vom Tileset ab
           const index = isErase ? -1 : 1;
-          gameBridge.applyTilePaint({ layer: 'Collision', tilesetKey: 'collision_tiles', tileIndex: index, rect });
+          const edit = { layer: 'Collision' as const, tilesetKey: 'collision_tiles', tileIndex: index, rect };
+          gameBridge.applyTilePaint(edit);
+          // Broadcast to other users
+          colyseusRef.current?.send?.('editor_update', { type: 'tile_paint', edit });
         }
         if (s.tool === 'zone') {
           const x0 = Math.min(rect.startX, rect.endX) * 16;
@@ -970,6 +1016,37 @@ export function App() {
       });
     };
 
+    // Save position periodically
+    let lastSavedPosition = { x: 0, y: 0, direction: 'down' };
+    const savePositionTimer = setInterval(async () => {
+      // Only save if position changed significantly
+      const currentPos = localPosRef.current;
+      const currentDirection = (gameBridge as any).lastDirection || 'down';
+      
+      if (currentPos.x && currentPos.y && (
+        Math.abs(currentPos.x - lastSavedPosition.x) > 10 ||
+        Math.abs(currentPos.y - lastSavedPosition.y) > 10 ||
+        currentDirection !== lastSavedPosition.direction
+      )) {
+        lastSavedPosition = { x: currentPos.x, y: currentPos.y, direction: currentDirection };
+        try {
+          await fetch(`${apiBase}/auth/position`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              x: Math.round(currentPos.x), 
+              y: Math.round(currentPos.y), 
+              direction: currentDirection 
+            })
+          });
+          console.log('[Position] Saved position:', lastSavedPosition);
+        } catch (e) {
+          console.error('[Position] Failed to save position:', e);
+        }
+      }
+    }, 5000); // Save every 5 seconds
+    
     const hudTimer = setInterval(() => {
       const z = zoneRef.current?.getCurrent?.();
       const next: { zone?: string; follow?: string | null; avRoom?: string | null } = {
@@ -1014,6 +1091,7 @@ export function App() {
       try { avRef.current?.leave?.(); } catch {}
       try { if (colyseusReconnectTimerRef.current) clearTimeout(colyseusReconnectTimerRef.current); } catch {}
       clearInterval(hudTimer);
+      clearInterval(savePositionTimer);
     };
   }, [authChecked, me, apiBase, buildParticipantList, page]);
 
@@ -1336,7 +1414,30 @@ export function App() {
             <button onClick={() => { setPage('users'); setMenuOpen(false); }} style={{ textAlign: 'left', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--glass)', color: 'var(--fg)', cursor: 'pointer' }}>Benutzer verwalten</button>
             {/* <button onClick={() => { setPage('profile'); setMenuOpen(false); }} style={{ textAlign: 'left', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--glass)', color: 'var(--fg)', cursor: 'pointer' }}>Mein Profil</button> */}
             <button onClick={() => { setPage('world'); setMenuOpen(false); }} style={{ textAlign: 'left', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--glass)', color: 'var(--fg)', cursor: 'pointer' }}>Zurück zur Welt</button>
-            <button onClick={async () => { if (editor.active) { await saveAllToServer().catch(()=>{}); } setEditor(s => ({ ...s, active: !s.active })); setMenuOpen(false); gameBridge.setZoneOverlay(editor.zones); }} style={{ textAlign: 'left', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: editor.active ? 'rgba(16,185,129,0.18)' : 'var(--glass)', color: 'var(--fg)', cursor: 'pointer' }}>{editor.active ? 'Editor beenden' : 'Map-Editor öffnen'}</button>
+            <button onClick={async () => { 
+              console.log('[Editor] Button clicked, current state:', editor.active);
+              if (editor.active) { 
+                await saveAllToServer().catch(()=>{}); 
+              } 
+              setEditor(s => ({ ...s, active: !s.active })); 
+              setMenuOpen(false); 
+              // Update UI based on new editor state after state change
+              setTimeout(() => {
+                const newEditorState = !editor.active;
+                if (newEditorState) {
+                  // Enabling editor - show zones
+                  gameBridge.setZoneOverlay(editor.zones);
+                  // If collision tool was active, show collision overlay
+                  if (editor.tool === 'collision') {
+                    gameBridge.setCollisionVisible(true);
+                  }
+                } else {
+                  // Disabling editor - hide zones and collision overlay
+                  gameBridge.setZoneOverlay([]);
+                  gameBridge.setCollisionVisible(false);
+                }
+              }, 0);
+            }} style={{ textAlign: 'left', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: editor.active ? 'rgba(16,185,129,0.18)' : 'var(--glass)', color: 'var(--fg)', cursor: 'pointer' }}>{editor.active ? 'Editor beenden' : 'Map-Editor öffnen'}</button>
             <button onClick={async () => { try { await fetch(`${apiBase}/auth/logout`, { method: 'POST', credentials: 'include' }); } finally { setMe(null); setMenuOpen(false); setPage('world'); } }} style={{ textAlign: 'left', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--glass)', color: 'var(--fg)', cursor: 'pointer' }}>Logout</button>
           </div>
         )}

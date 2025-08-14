@@ -98,9 +98,72 @@ export function registerApi(app: express.Express) {
   app.get('/auth/me', async (req, res) => {
     const auth = requireAuth(req);
     if (!auth) return res.status(401).json({ error: 'unauthorized' });
-    const user = await prisma.user.findUnique({ where: { id: auth.userId } });
+    const user = await prisma.user.findUnique({ 
+      where: { id: auth.userId },
+      include: {
+        presences: {
+          orderBy: { updatedAt: 'desc' },
+          take: 1
+        }
+      }
+    });
     if (!user) return res.status(401).json({ error: 'unauthorized' });
-    res.json({ id: user.id, email: user.email, name: user.name });
+    const lastPosition = user.presences[0];
+    res.json({ 
+      id: user.id, 
+      email: user.email, 
+      name: user.name,
+      lastPosition: lastPosition ? { x: lastPosition.x, y: lastPosition.y, direction: lastPosition.direction } : null
+    });
+  });
+
+  // Save user position
+  app.post('/auth/position', async (req, res) => {
+    const auth = requireAuth(req);
+    if (!auth) return res.status(401).json({ error: 'unauthorized' });
+    const schema = z.object({ 
+      x: z.number(), 
+      y: z.number(), 
+      direction: z.enum(['up', 'down', 'left', 'right']),
+      roomId: z.string().optional()
+    });
+    const parse = schema.safeParse(req.body || {});
+    if (!parse.success) return res.status(400).json({ error: 'invalid position data' });
+    
+    const { x, y, direction, roomId = 'world' } = parse.data;
+    
+    // Get or create the default room
+    let room = await prisma.room.findFirst({ where: { name: roomId } });
+    if (!room) {
+      // Create default map and room if not exists
+      let map = await prisma.map.findFirst({ where: { name: 'office' } });
+      if (!map) {
+        map = await prisma.map.create({ data: { name: 'office', meta: {} } });
+      }
+      room = await prisma.room.create({ data: { name: roomId, mapId: map.id } });
+    }
+    
+    // Update or create presence
+    // First try to find existing presence
+    const existingPresence = await prisma.presence.findFirst({
+      where: {
+        userId: auth.userId,
+        roomId: room.id
+      }
+    });
+    
+    if (existingPresence) {
+      await prisma.presence.update({
+        where: { id: existingPresence.id },
+        data: { x, y, direction }
+      });
+    } else {
+      await prisma.presence.create({
+        data: { userId: auth.userId, roomId: room.id, x, y, direction }
+      });
+    }
+    
+    res.json({ ok: true });
   });
 
   app.post('/auth/forgot', async (req, res) => {

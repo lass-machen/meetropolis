@@ -272,16 +272,19 @@ export class MainScene extends Phaser.Scene implements SceneApi {
     });
     
     gameBridge.setSceneApi(this);
+    // Make scene globally accessible for editor updates
+    (window as any).currentPhaserScene = this;
 
-    // Nach dem Aufbau: gespeicherte Editor-Layer laden (best-effort)
+    // Nach dem Aufbau: IMMER vom Server laden für konsistenten State
     setTimeout(() => {
-      this.loadEditorLayers();
-      // Fallback: Server-State laden und anwenden, falls localStorage leer ist
-      try {
-        const raw = localStorage.getItem('meetropolis.editorLayers');
-        const hasLocal = !!raw && (() => { try { const d = JSON.parse(raw||'{}'); return Array.isArray(d?.editorGround) || Array.isArray(d?.collision); } catch { return false; } })();
-        if (!hasLocal) this.fetchAndApplyServerLayers();
-      } catch { this.fetchAndApplyServerLayers(); }
+      // Always load from server first to ensure consistency
+      this.fetchAndApplyServerLayers().then(() => {
+        console.log('[MainScene] Loaded map state from server');
+      }).catch(() => {
+        console.log('[MainScene] Failed to load from server, trying localStorage');
+        // Fallback to localStorage if server fails
+        this.loadEditorLayers();
+      });
     }, 0);
 
     // Bridge aufräumen, wenn Szene herunterfährt
@@ -550,14 +553,30 @@ export class MainScene extends Phaser.Scene implements SceneApi {
       }
       if (!base) base = 'http://localhost:2567';
       // Only save to server if data is not too large (< 100KB)
-      const jsonStr = JSON.stringify({ editorGround: data.editorGround, collision: data.collision });
+      const serverPayload = { editorGround: data.editorGround, collision: data.collision };
+      const jsonStr = JSON.stringify(serverPayload);
+      console.log('[Editor] Saving to server:', {
+        hasEditorGround: !!data.editorGround,
+        hasCollision: !!data.collision,
+        editorGroundLength: data.editorGround?.length,
+        collisionLength: data.collision?.length,
+        totalSize: jsonStr.length
+      });
       if (jsonStr.length < 100000) {
         fetch(`${base}/maps/office/editor-state`, {
           method: 'PUT',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
           body: jsonStr
-        }).catch((e)=>{ console.warn('[Editor] Failed to save to server:', e); });
+        }).then(res => {
+          if (res.ok) {
+            console.log('[Editor] Successfully saved to server');
+          } else {
+            console.warn('[Editor] Server save failed:', res.status, res.statusText);
+          }
+        }).catch((e)=>{ 
+          console.warn('[Editor] Failed to save to server:', e); 
+        });
       } else {
         console.warn('[Editor] Editor data too large to save to server:', jsonStr.length, 'bytes');
       }
@@ -598,31 +617,54 @@ export class MainScene extends Phaser.Scene implements SceneApi {
     try { this.updateCollisionOverlay(); } catch {}
   }
 
-  private async fetchAndApplyServerLayers() {
+  async fetchAndApplyServerLayers() {
     try {
       const base = (window as any).VITE_API_BASE || import.meta.env.VITE_API_BASE || `${window.location.protocol}//${window.location.hostname}:2567`;
+      console.log('[Editor] Fetching server layers from:', `${base}/maps/office/editor-state`);
       const res = await fetch(`${base}/maps/office/editor-state`, { credentials: 'include' });
-      if (!res.ok) return;
+      if (!res.ok) {
+        console.warn('[Editor] Server fetch failed:', res.status, res.statusText);
+        return;
+      }
       const data = await res.json();
+      console.log('[Editor] Received server data:', {
+        hasEditorGround: !!data?.editorGround,
+        hasCollision: !!data?.collision,
+        editorGroundLength: data?.editorGround?.length,
+        collisionLength: data?.collision?.length
+      });
+      
       if (!this.mapRef) return;
       const storedW = this.mapRef.width;
-      // storedH wird nicht verwendet, width/height werden aus mapRef entnommen
       const width = this.mapRef.width;
       const height = this.mapRef.height;
-      const applyArr = (arr: number[] | null | undefined, layer?: Phaser.Tilemaps.TilemapLayer) => {
-        if (!arr || !layer) return;
+      
+      const applyArr = (arr: number[] | null | undefined, layer?: Phaser.Tilemaps.TilemapLayer, layerName?: string) => {
+        if (!arr || !layer) {
+          console.log(`[Editor] Skipping ${layerName}: arr=${!!arr}, layer=${!!layer}`);
+          return;
+        }
+        console.log(`[Editor] Applying ${layerName}: ${arr.length} tiles to ${width}x${height} layer`);
+        let appliedCount = 0;
         for (let y = 0; y < height; y++) {
           for (let x = 0; x < width; x++) {
             const idx = arr[y * storedW + x];
-            if (typeof idx === 'number' && idx >= 0) layer.putTileAt(idx, x, y);
+            if (typeof idx === 'number' && idx >= 0) {
+              layer.putTileAt(idx, x, y);
+              appliedCount++;
+            }
           }
         }
+        console.log(`[Editor] Applied ${appliedCount} tiles to ${layerName}`);
       };
-      applyArr(data?.editorGround, this.editorGround);
-      applyArr(data?.collision, this.collisionLayer);
+      
+      applyArr(data?.editorGround, this.editorGround, 'editorGround');
+      applyArr(data?.collision, this.collisionLayer, 'collision');
       if (data?.collision) this.rebuildStaticColliders();
       try { this.updateCollisionOverlay(); } catch {}
-    } catch {}
+    } catch (e) {
+      console.warn('[Editor] Failed to fetch/apply server layers:', e);
+    }
   }
 
   private rebuildStaticColliders() {

@@ -88,4 +88,6 @@ model Presence {
   direction  String
   updatedAt  DateTime @updatedAt
   createdAt  DateTime @default(now())
+  
+  @@index([userId, roomId])
 }

@@ -37,14 +37,22 @@ export class WorldRoom extends Colyseus.Room<WorldState> {
         direction: data.direction
       }, { except: client });
     });
+    
+    // Handle editor updates
+    this.onMessage('editor_update', (client, data: any) => {
+      console.log('[WorldRoom] Editor update from:', client.sessionId, 'type:', data.type);
+      // Broadcast editor update to all other clients
+      this.broadcast('editor_update', data, { except: client });
+    });
   }
 
   override onJoin(client: Client, options?: any) {
     const player = new Player();
     player.id = client.sessionId;
-    player.x = Math.floor(Math.random() * 200) + 100; // Random initial position
-    player.y = Math.floor(Math.random() * 200) + 100;
-    player.direction = 'down';
+    // Use provided position or random initial position
+    player.x = options?.x ?? Math.floor(Math.random() * 200) + 100;
+    player.y = options?.y ?? Math.floor(Math.random() * 200) + 100;
+    player.direction = options?.direction || 'down';
     player.identity = options?.identity || client.sessionId; // Use provided identity or fallback
     player.name = options?.name || options?.identity || client.sessionId; // Use provided name or fallback
     this.state.players.set(client.sessionId, player);
