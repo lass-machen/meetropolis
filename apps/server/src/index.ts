@@ -26,20 +26,12 @@ app.set('trust proxy', process.env.TRUST_PROXY === 'true' || isProd);
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(compression());
 
-if (allowedOrigins.length > 0) {
-  app.use(
-    cors({
-      origin: (origin, callback) => {
-        if (!origin) return callback(null, true);
-        return callback(null, allowedOrigins.includes(origin));
-      },
-      credentials: true,
-    })
-  );
-} else {
-  // Dev fallback: reflect origin
-  app.use(cors({ origin: true, credentials: true }));
-}
+app.use(
+  cors({
+    origin: allowedOrigins.length > 0 ? allowedOrigins : true,
+    credentials: true,
+  })
+);
 
 app.use(cookieParser());
 app.use(express.json({ limit: '4mb' }));
