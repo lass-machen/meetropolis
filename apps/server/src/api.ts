@@ -296,8 +296,20 @@ export function registerApi(app: express.Express) {
     const { editorGround, collision, tilesets, assets, zones } = parse.data;
     const found = await prisma.map.findUnique({ where: { name }, include: { rooms: true } });
     const map = found ?? await prisma.map.create({ data: { name, meta: {} } });
-    // Update meta blobs
-    await prisma.map.update({ where: { id: map.id }, data: { meta: { editorGround: editorGround ?? null, collision: collision ?? null, tilesets: tilesets ?? [], assets: assets ?? [] } as any } });
+    // Update meta blobs - merge with existing data to preserve previous edits
+    const currentMeta = (map.meta as any) || {};
+    await prisma.map.update({ 
+      where: { id: map.id }, 
+      data: { 
+        meta: { 
+          ...currentMeta,
+          editorGround: editorGround ?? currentMeta.editorGround ?? null, 
+          collision: collision ?? currentMeta.collision ?? null, 
+          tilesets: tilesets ?? currentMeta.tilesets ?? [], 
+          assets: assets ?? currentMeta.assets ?? [] 
+        } as any 
+      } 
+    });
     // Upsert zones (simple strategy: replace all zones for map)
     if (Array.isArray(zones)) {
       await prisma.zone.deleteMany({ where: { mapId: map.id } });
