@@ -550,7 +550,7 @@ export class MainScene extends Phaser.Scene implements SceneApi {
             arr[y * width + x] = tileIndex;
             if (tileIndex !== -1) tileCount++;
           } catch (e) {
-            console.warn(`[Editor] getTileAt(${x}, ${y}) failed for ${layerName}:`, e);
+            // Silently handle corrupt tiles - common with collision layer
             arr[y * width + x] = -1; // Default empty
           }
         }
