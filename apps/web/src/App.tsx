@@ -117,8 +117,8 @@ export function App() {
 
   const apiBase = (import.meta.env.VITE_API_BASE as string | undefined) ||
     (typeof window !== 'undefined'
-      ? `${window.location.protocol}//${window.location.hostname}:2567`
-      : 'http://localhost:2567');
+      ? `${window.location.protocol}//${window.location.hostname}:2568`
+      : 'http://localhost:2568');
 
   // Room getter stabil hält die gleiche Referenz für Child-Komponenten
   const getRoom = React.useCallback(() => avRef.current?.room, []);

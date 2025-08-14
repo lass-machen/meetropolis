@@ -549,9 +549,9 @@ export class MainScene extends Phaser.Scene implements SceneApi {
       // Server speichern (best-effort)
       let base = (window as any).VITE_API_BASE || import.meta.env.VITE_API_BASE as any;
       if (!base && typeof window !== 'undefined') {
-        base = `${window.location.protocol}//${window.location.hostname}:2567`;
+        base = `${window.location.protocol}//${window.location.hostname}:2568`;
       }
-      if (!base) base = 'http://localhost:2567';
+      if (!base) base = 'http://localhost:2568';
       // Only save to server if data is not too large (< 100KB)
       const serverPayload = { editorGround: data.editorGround, collision: data.collision };
       const jsonStr = JSON.stringify(serverPayload);
@@ -619,7 +619,7 @@ export class MainScene extends Phaser.Scene implements SceneApi {
 
   async fetchAndApplyServerLayers() {
     try {
-      const base = (window as any).VITE_API_BASE || import.meta.env.VITE_API_BASE || `${window.location.protocol}//${window.location.hostname}:2567`;
+      const base = (window as any).VITE_API_BASE || import.meta.env.VITE_API_BASE || `${window.location.protocol}//${window.location.hostname}:2568`;
       console.log('[Editor] Fetching server layers from:', `${base}/maps/office/editor-state`);
       const res = await fetch(`${base}/maps/office/editor-state`, { credentials: 'include' });
       if (!res.ok) {
