@@ -527,24 +527,38 @@ export class MainScene extends Phaser.Scene implements SceneApi {
     if (!this.mapRef) return;
     const width = this.mapRef.width;
     const height = this.mapRef.height;
-    const dumpLayer = (layer?: Phaser.Tilemaps.TilemapLayer) => {
-      if (!layer) return null;
+    const dumpLayer = (layer?: Phaser.Tilemaps.TilemapLayer, layerName?: string) => {
+      if (!layer) {
+        console.log(`[Editor] Dump ${layerName}: layer is null/undefined`);
+        return null;
+      }
       const arr: number[] = new Array(width * height).fill(-1);
+      let tileCount = 0;
       for (let y = 0; y < height; y++) {
         for (let x = 0; x < width; x++) {
           const tile = layer.getTileAt(x, y);
-          arr[y * width + x] = tile ? tile.index : -1;
+          const tileIndex = tile ? tile.index : -1;
+          arr[y * width + x] = tileIndex;
+          if (tileIndex !== -1) tileCount++;
         }
       }
-      return arr;
+      console.log(`[Editor] Dump ${layerName}: found ${tileCount} tiles in ${width}x${height} layer`);
+      return tileCount > 0 ? arr : null;
     };
     try {
       const data = {
-        editorGround: dumpLayer(this.editorGround),
-        collision: dumpLayer(this.collisionLayer),
+        editorGround: dumpLayer(this.editorGround, 'editorGround'),
+        collision: dumpLayer(this.collisionLayer, 'collision'),
         w: width,
         h: height,
       };
+      console.log('[Editor] Complete layer dump:', {
+        hasEditorGround: !!this.editorGround,
+        hasCollisionLayer: !!this.collisionLayer,
+        editorGroundTiles: data.editorGround?.length || 0,
+        collisionTiles: data.collision?.length || 0,
+        mapSize: `${width}x${height}`
+      });
       localStorage.setItem('meetropolis.editorLayers', JSON.stringify(data));
       // Server speichern (best-effort)
       let base = (window as any).VITE_API_BASE || import.meta.env.VITE_API_BASE as any;
@@ -641,11 +655,19 @@ export class MainScene extends Phaser.Scene implements SceneApi {
       
       const applyArr = (arr: number[] | null | undefined, layer?: Phaser.Tilemaps.TilemapLayer, layerName?: string) => {
         if (!arr || !layer) {
-          console.log(`[Editor] Skipping ${layerName}: arr=${!!arr}, layer=${!!layer}`);
+          console.log(`[Editor] Skipping ${layerName}: arr=${!!arr} (${arr?.length || 0} items), layer=${!!layer}`);
           return;
         }
-        console.log(`[Editor] Applying ${layerName}: ${arr.length} tiles to ${width}x${height} layer`);
+        console.log(`[Editor] Applying ${layerName}: ${arr.length} tiles to ${width}x${height} layer (stored: ${storedW}x${height})`);
         let appliedCount = 0;
+        let validTileCount = 0;
+        
+        // Count valid tiles first
+        for (const idx of arr) {
+          if (typeof idx === 'number' && idx >= 0) validTileCount++;
+        }
+        console.log(`[Editor] Found ${validTileCount} valid tiles in ${layerName} data`);
+        
         for (let y = 0; y < height; y++) {
           for (let x = 0; x < width; x++) {
             const idx = arr[y * storedW + x];

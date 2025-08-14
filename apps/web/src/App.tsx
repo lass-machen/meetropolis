@@ -418,11 +418,13 @@ export function App() {
     };
     const connectColyseus = async () => {
       try {
+        const positionToUse = localPosRef.current && (localPosRef.current.x !== undefined && localPosRef.current.y !== undefined) ? localPosRef.current : undefined;
+        console.log('[Position] Joining world with position:', positionToUse);
         const room = await joinWorld(
           apiBase, 
           me.id, 
           me.name || me.email || me.id,
-          localPosRef.current && (localPosRef.current.x !== undefined && localPosRef.current.y !== undefined) ? localPosRef.current : undefined
+          positionToUse
         );
         if (disposed) { try { room.leave(); } catch {} return; }
         colyseusRef.current = room;
