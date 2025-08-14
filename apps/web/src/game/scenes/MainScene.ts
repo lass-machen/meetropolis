@@ -528,7 +528,11 @@ export class MainScene extends Phaser.Scene implements SceneApi {
   }
 
   private saveEditorLayers() {
-    if (!this.mapRef) return;
+    console.log('[Editor] saveEditorLayers() called');
+    if (!this.mapRef) {
+      console.log('[Editor] No mapRef, aborting save');
+      return;
+    }
     const width = this.mapRef.width;
     const height = this.mapRef.height;
     const dumpLayer = (layer?: Phaser.Tilemaps.TilemapLayer, layerName?: string) => {
@@ -599,7 +603,9 @@ export class MainScene extends Phaser.Scene implements SceneApi {
       } else {
         console.warn('[Editor] Editor data too large to save to server:', jsonStr.length, 'bytes');
       }
-    } catch {}
+    } catch (error) {
+      console.error('[Editor] saveEditorLayers failed:', error);
+    }
   }
 
   private loadEditorLayers() {
