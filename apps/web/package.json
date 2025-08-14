@@ -12,6 +12,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "@colyseus/schema": "^2.0.29",
     "colyseus.js": "^0.15.15",
     "livekit-client": "^2.3.7",
     "phaser": "^3.90.0",
@@ -20,12 +21,12 @@
     "zustand": "^5.0.7"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.4.8",
+    "@testing-library/react": "^16.0.0",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.1",
     "@vitest/coverage-v8": "^1.6.0",
-    "@testing-library/react": "^16.0.0",
-    "@testing-library/jest-dom": "^6.4.8",
     "jsdom": "^25.0.1",
     "typescript": "^5.5.4",
     "vite": "^5.4.1",

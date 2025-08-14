@@ -317,6 +317,34 @@ export function App() {
         colyseusRef.current = room;
         colyseusReconnectAttemptsRef.current = 0;
         localPosRef.current.id = room.sessionId;
+        console.log('[Colyseus] Local player ID set to:', room.sessionId);
+        
+        // Debug: Check immediate state
+        console.log('[Colyseus] Room state immediately after join:', {
+          state: room.state,
+          hasPlayers: !!room.state?.players,
+          playersType: room.state?.players?.constructor?.name
+        });
+        
+        // Try to access players directly
+        if (room.state && room.state.players) {
+          console.log('[Colyseus] Trying to access players directly...');
+          try {
+            // Method 1: forEach
+            if (typeof room.state.players.forEach === 'function') {
+              console.log('[Colyseus] Using forEach method');
+              room.state.players.forEach((player: any, id: string) => {
+                console.log('[Colyseus] Found player via forEach:', id, player);
+              });
+            }
+            // Method 2: Direct access
+            console.log('[Colyseus] Players object:', room.state.players);
+            console.log('[Colyseus] Players keys:', Object.keys(room.state.players));
+            console.log('[Colyseus] Players entries:', Object.entries(room.state.players));
+          } catch (e) {
+            console.error('[Colyseus] Error accessing players:', e);
+          }
+        }
         gameBridge.onLocalMove = (p) => {
           localPosRef.current.x = p.x;
           localPosRef.current.y = p.y;
@@ -338,11 +366,49 @@ export function App() {
             // Ignore WebSocket errors during shutdown
           }
         };
-        room.onStateChange((state: any) => {
-          const players: Record<string, { x: number; y: number; direction: any }> = {};
-          state.players?.forEach?.((value: any, key: string) => {
-            players[key] = { x: value.x, y: value.y, direction: value.direction };
+        // Add manual state check first
+        console.log('[Colyseus] Initial room.state:', room.state);
+        if (room.state && room.state.players) {
+          console.log('[Colyseus] Initial players check:');
+          room.state.players.forEach((player: any, id: string) => {
+            console.log('[Colyseus] - Initial player', id, ':', player);
           });
+        }
+        
+        room.onStateChange((state: any) => {
+          console.log('[Colyseus] State change received:', {
+            hasState: !!state,
+            hasPlayers: !!state?.players,
+            playersType: state?.players?.constructor?.name,
+            playersSize: state?.players?.size || 0
+          });
+          
+          const players: Record<string, { x: number; y: number; direction: any }> = {};
+          
+          // Try different ways to iterate over the players
+          if (state.players) {
+            // Check if it's a MapSchema
+            if (typeof state.players.forEach === 'function') {
+              state.players.forEach((value: any, key: string) => {
+                console.log('[Colyseus] Player found via forEach:', key, value);
+                players[key] = { x: value.x, y: value.y, direction: value.direction };
+              });
+            } 
+            // Try entries() method if available
+            else if (typeof state.players.entries === 'function') {
+              for (const [key, value] of state.players.entries()) {
+                console.log('[Colyseus] Player found via entries:', key, value);
+                players[key] = { x: value.x, y: value.y, direction: value.direction };
+              }
+            }
+            // Try direct iteration
+            else if (state.players[Symbol.iterator]) {
+              for (const [key, value] of state.players) {
+                console.log('[Colyseus] Player found via iterator:', key, value);
+                players[key] = { x: value.x, y: value.y, direction: value.direction };
+              }
+            }
+          }
           
           const playerEntries = Object.entries(players) as [string, { x: number; y: number; direction: any }][];
           remotesRef.current = Object.fromEntries(
@@ -357,13 +423,73 @@ export function App() {
             const others = remoteEntries.map(([id, p]) => ({ id, x: p.x, y: p.y }));
             bubbleRef.current.update(localPosRef.current, others);
           }
-          gameBridge.syncRemotePlayers(players);
+          // Filter out local player before syncing to scene
+          const filteredPlayers = Object.fromEntries(
+            Object.entries(players).filter(([id]) => id !== localPosRef.current.id)
+          );
+          console.log('[Game] Syncing remote players:', {
+            localId: localPosRef.current.id,
+            allPlayers: Object.keys(players),
+            filteredPlayers: Object.keys(filteredPlayers)
+          });
+          gameBridge.syncRemotePlayers(filteredPlayers);
         });
         room.onError?.((_code: any, _message: any) => {
           scheduleColyseusReconnect();
         });
         room.onLeave?.((_code: any) => {
           scheduleColyseusReconnect();
+        });
+        
+        // Listen for full state message
+        room.onMessage('full_state', (data: any) => {
+          console.log('[Colyseus] Received full_state:', data);
+          if (data.players) {
+            const players: Record<string, { x: number; y: number; direction: any }> = {};
+            data.players.forEach((p: any) => {
+              if (p.id !== localPosRef.current.id) {
+                players[p.id] = { x: p.x, y: p.y, direction: p.direction };
+              }
+            });
+            console.log('[Colyseus] Manual sync remote players:', players);
+            gameBridge.syncRemotePlayers(players);
+          }
+        });
+        
+        // Listen for new player joined
+        room.onMessage('player_joined', (data: any) => {
+          console.log('[Colyseus] New player joined:', data);
+          if (data.id !== localPosRef.current.id) {
+            remotesRef.current[data.id] = { x: data.x, y: data.y };
+            const players = Object.fromEntries(
+              Object.entries(remotesRef.current).map(([id, p]) => [id, { ...p, direction: data.direction || 'down' }])
+            );
+            gameBridge.syncRemotePlayers(players);
+          }
+        });
+        
+        // Listen for player movement
+        room.onMessage('player_moved', (data: any) => {
+          if (data.id !== localPosRef.current.id) {
+            remotesRef.current[data.id] = { x: data.x, y: data.y };
+            const players = Object.fromEntries(
+              Object.entries(remotesRef.current).map(([id, p]) => [
+                id, 
+                id === data.id ? { x: data.x, y: data.y, direction: data.direction } : { ...p, direction: 'down' }
+              ])
+            );
+            gameBridge.syncRemotePlayers(players);
+          }
+        });
+        
+        // Listen for player left
+        room.onMessage('player_left', (data: any) => {
+          console.log('[Colyseus] Player left:', data.id);
+          delete remotesRef.current[data.id];
+          const players = Object.fromEntries(
+            Object.entries(remotesRef.current).map(([id, p]) => [id, { ...p, direction: 'down' }])
+          );
+          gameBridge.syncRemotePlayers(players);
         });
       } catch {
         scheduleColyseusReconnect();

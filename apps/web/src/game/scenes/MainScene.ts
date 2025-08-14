@@ -122,6 +122,10 @@ export class MainScene extends Phaser.Scene implements SceneApi {
 
     const cursors = this.input.keyboard!.createCursorKeys();
     this.cameras.main.startFollow(this.hero, true, 0.1, 0.1);
+    
+    // Track current direction
+    let currentDirection: 'up' | 'down' | 'left' | 'right' = 'down';
+    
     this.events.on(Phaser.Scenes.Events.UPDATE, () => {
       const speed = 80;
       const body = this.hero.body;
@@ -137,18 +141,41 @@ export class MainScene extends Phaser.Scene implements SceneApi {
           const nx = dx / Math.max(Math.hypot(dx, dy), 1e-6);
           const ny = dy / Math.max(Math.hypot(dx, dy), 1e-6);
           body.setVelocity(nx * speed, ny * speed);
-          if (Math.abs(nx) > Math.abs(ny)) this.hero.play(nx > 0 ? 'walk_right' : 'walk_left', true);
-          else this.hero.play(ny > 0 ? 'walk_down' : 'walk_up', true);
+          if (Math.abs(nx) > Math.abs(ny)) {
+            currentDirection = nx > 0 ? 'right' : 'left';
+            this.hero.play(nx > 0 ? 'walk_right' : 'walk_left', true);
+          } else {
+            currentDirection = ny > 0 ? 'down' : 'up';
+            this.hero.play(ny > 0 ? 'walk_down' : 'walk_up', true);
+          }
         }
       } else {
-        if (cursors.left?.isDown) { body.setVelocityX(-speed); this.hero.play('walk_left', true); }
-        else if (cursors.right?.isDown) { body.setVelocityX(speed); this.hero.play('walk_right', true); }
-        else if (cursors.up?.isDown) { body.setVelocityY(-speed); this.hero.play('walk_up', true); }
-        else if (cursors.down?.isDown) { body.setVelocityY(speed); this.hero.play('walk_down', true); }
-        else { this.hero.anims.stop(); }
+        if (cursors.left?.isDown) { 
+          body.setVelocityX(-speed); 
+          this.hero.play('walk_left', true); 
+          currentDirection = 'left';
+        }
+        else if (cursors.right?.isDown) { 
+          body.setVelocityX(speed); 
+          this.hero.play('walk_right', true); 
+          currentDirection = 'right';
+        }
+        else if (cursors.up?.isDown) { 
+          body.setVelocityY(-speed); 
+          this.hero.play('walk_up', true); 
+          currentDirection = 'up';
+        }
+        else if (cursors.down?.isDown) { 
+          body.setVelocityY(speed); 
+          this.hero.play('walk_down', true); 
+          currentDirection = 'down';
+        }
+        else { 
+          this.hero.anims.stop(); 
+        }
       }
 
-      gameBridge.onLocalMove({ x: this.hero.x, y: this.hero.y, direction: 'down' });
+      gameBridge.onLocalMove({ x: this.hero.x, y: this.hero.y, direction: currentDirection });
     });
 
     // Tile-basierte Eingabe für Editor
@@ -199,14 +226,90 @@ export class MainScene extends Phaser.Scene implements SceneApi {
     });
   }
 
-  syncRemotePlayers(players: Record<string, { x: number; y: number; direction: 'up'|'down'|'left'|'right' }>) {
+  syncRemotePlayers(players: Record<string, { x: number; y: number; direction: 'up'|'down'|'left'|'right'; prevX?: number; prevY?: number }>) {
+    console.log('[MainScene] syncRemotePlayers called with:', Object.keys(players).length, 'players');
     for (const [id, p] of Object.entries(players)) {
       let s = this.remotes.get(id);
       if (!s) {
+        console.log('[MainScene] Creating new sprite for player:', id, 'at', p.x, p.y);
         s = this.add.sprite(p.x, p.y, 'hero_walk_down', 0);
+        s.setDepth(10); // Same depth as local hero
+        // Store previous position and direction for movement detection
+        (s as any).prevX = p.x;
+        (s as any).prevY = p.y;
+        (s as any).prevDirection = p.direction;
+        (s as any).lastMoveTime = Date.now();
         this.remotes.set(id, s);
       }
+      
+      // Check if player is moving
+      const prevX = (s as any).prevX || p.x;
+      const prevY = (s as any).prevY || p.y;
+      const prevDirection = (s as any).prevDirection || p.direction;
+      const deltaX = p.x - prevX;
+      const deltaY = p.y - prevY;
+      const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+      const isMoving = distance > 0.5; // Threshold for movement detection
+      const directionChanged = prevDirection !== p.direction;
+      
+      console.log(`[MainScene] Player ${id} movement:`, {
+        distance,
+        isMoving,
+        direction: p.direction,
+        directionChanged
+      });
+      
+      // Update position
       s.setPosition(p.x, p.y);
+      (s as any).prevX = p.x;
+      (s as any).prevY = p.y;
+      (s as any).prevDirection = p.direction;
+      
+      // Always play animation based on direction
+      const animationMap: Record<string, string> = {
+        'up': 'walk_up',
+        'down': 'walk_down',
+        'left': 'walk_left',
+        'right': 'walk_right'
+      };
+      
+      const animKey = animationMap[p.direction] || 'walk_down';
+      
+      if (isMoving) {
+        (s as any).lastMoveTime = Date.now();
+        // Always play the animation for movement
+        s.play(animKey, true);
+      } else {
+        // Check if we recently stopped moving (within 100ms)
+        const timeSinceLastMove = Date.now() - ((s as any).lastMoveTime || 0);
+        if (timeSinceLastMove < 100) {
+          // Keep playing animation briefly after stopping
+          if (!s.anims.isPlaying || s.anims.currentAnim?.key !== animKey) {
+            s.play(animKey, true);
+          }
+        } else {
+          // Stop animation and show standing frame
+          s.anims.stop();
+          const textureMap: Record<string, string> = {
+            'up': 'hero_walk_up',
+            'down': 'hero_walk_down',
+            'left': 'hero_walk_left',
+            'right': 'hero_walk_right'
+          };
+          s.setTexture(textureMap[p.direction] || 'hero_walk_down', 0);
+        }
+      }
+      
+      // If direction changed while standing, update texture
+      if (directionChanged && !isMoving) {
+        const textureMap: Record<string, string> = {
+          'up': 'hero_walk_up',
+          'down': 'hero_walk_down',
+          'left': 'hero_walk_left',
+          'right': 'hero_walk_right'
+        };
+        s.setTexture(textureMap[p.direction] || 'hero_walk_down', 0);
+      }
     }
     for (const id of Array.from(this.remotes.keys())) {
       if (!players[id]) {
