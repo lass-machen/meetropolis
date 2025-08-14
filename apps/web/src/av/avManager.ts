@@ -64,13 +64,33 @@ export class AVManager {
     }
     // Tracks aktivieren
     if (SIMPLE) {
-      try { if (this.pendingMic) await this.setMicrophoneEnabled(true); } catch {}
-      try { if (this.pendingCam) await this.setCameraEnabled(true); } catch {}
+      try { 
+        if (this.pendingMic) {
+          await this.setMicrophoneEnabled(true);
+          this.pendingMic = false;
+        }
+      } catch {}
+      try { 
+        if (this.pendingCam) {
+          await this.setCameraEnabled(true);
+          this.pendingCam = false;
+        }
+      } catch {}
     } else {
       setTimeout(async () => {
         if (!this.current) return;
-        try { if (this.pendingMic) await this.setMicrophoneEnabled(true); } catch {}
-        try { if (this.pendingCam) await this.setCameraEnabled(true); } catch {}
+        try { 
+          if (this.pendingMic) {
+            await this.setMicrophoneEnabled(true);
+            this.pendingMic = false;
+          }
+        } catch {}
+        try { 
+          if (this.pendingCam) {
+            await this.setCameraEnabled(true);
+            this.pendingCam = false;
+          }
+        } catch {}
       }, 250);
     }
   }
@@ -232,12 +252,13 @@ export class AVManager {
       if (enabled) await this.ensurePermissions(true, false);
       return;
     }
+    this.pendingMic = false; // Clear pending flag when we have a room
     try {
       const pubs = Array.from(this.current.localParticipant.trackPublications.values());
       const micPubs = pubs.filter(pub => {
         const src = (pub as any).source ?? (pub.track as any)?.source;
         const kind = (pub as any).kind ?? (pub.track as any)?.kind;
-        return src === 'microphone' || src === 0 || kind === 'audio';
+        return src === 'microphone' || src === 0 || src === 2 || kind === 'audio';
       });
       if (enabled) {
         if (micPubs.some(p => !!(p as any).track)) return; // already enabled
@@ -267,15 +288,21 @@ export class AVManager {
       if (enabled) await this.ensurePermissions(false, true);
       return;
     }
+    this.pendingCam = false; // Clear pending flag when we have a room
     try {
       const pubs = Array.from(this.current.localParticipant.trackPublications.values());
       const camPubs = pubs.filter(pub => {
         const src = (pub as any).source ?? (pub.track as any)?.source;
         const kind = (pub as any).kind ?? (pub.track as any)?.kind;
-        return src === 'camera' || src === 1 || kind === 'video';
+        if (DEBUG) { try { console.log('[AV] Checking pub:', { src, kind, hasTrack: !!(pub as any).track }); } catch {} }
+        return src === 'camera' || src === 1 || (kind === 'video' && src !== 'screen_share');
       });
       if (enabled) {
-        if (camPubs.some(p => !!(p as any).track)) return; // already enabled
+        if (DEBUG) { try { console.log('[AV] Enabling camera, existing pubs:', camPubs.length); } catch {} }
+        if (camPubs.some(p => !!(p as any).track)) {
+          if (DEBUG) { try { console.log('[AV] Camera already enabled, skipping'); } catch {} }
+          return; // already enabled
+        }
         const { createLocalTracks } = await import('livekit-client');
         const tracks = await createLocalTracks({ video: this.preferredCam ? { deviceId: this.preferredCam } : true });
         if (DEBUG) { try { console.log('[AV] createLocalTracks(video) ->', tracks.map(t => ({ kind: (t as any).kind, id: (t as any)?.mediaStreamTrack?.id }))); } catch {} }
@@ -287,6 +314,7 @@ export class AVManager {
             } catch (e) {
               // eslint-disable-next-line no-console
               console.warn('[AV] publish video failed', e);
+              throw e; // Re-throw to handle in UI
             }
           }
         }

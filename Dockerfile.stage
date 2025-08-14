@@ -1,0 +1,37 @@
+FROM node:20
+
+WORKDIR /workspace
+
+# Copy package files
+COPY package.json package-lock.json* ./
+COPY apps/server/package.json ./apps/server/
+COPY apps/web/package.json ./apps/web/
+
+# Install all dependencies
+RUN npm install
+
+# Copy prisma schema for generation
+COPY apps/server/prisma ./apps/server/prisma
+
+# Generate Prisma client
+WORKDIR /workspace/apps/server
+RUN npx prisma generate
+
+WORKDIR /workspace
+
+# Create entrypoint script
+RUN echo '#!/bin/sh\n\
+set -e\n\
+\n\
+# Run database migrations and seed\n\
+if [ "$RUN_MIGRATIONS" = "true" ]; then\n\
+  echo "Running database migrations..."\n\
+  cd /workspace/apps/server\n\
+  npx prisma db push\n\
+  npx prisma db seed || echo "Seed already exists or failed"\n\
+fi\n\
+\n\
+# Execute the passed command\n\
+exec "$@"' > /entrypoint.sh && chmod +x /entrypoint.sh
+
+ENTRYPOINT ["/entrypoint.sh"]

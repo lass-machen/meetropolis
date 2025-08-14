@@ -11,7 +11,11 @@ export default defineConfig({
   },
   server: {
     port: 5173,
-    host: true
+    host: true,
+    hmr: {
+      host: process.env.VITE_HMR_HOST || 'localhost',
+      protocol: process.env.VITE_HMR_PROTOCOL || 'ws'
+    }
   }
 });
 

@@ -227,9 +227,17 @@ export function App() {
   }, [page]);
 
   const buildParticipantList = React.useCallback(() => {
-    if (DEBUG) { try { console.log('[UI] buildParticipantList()'); } catch {} }
     const room: any = avRef.current?.room as any;
-    if (!room || !room.localParticipant) return;
+    if (!room || !room.localParticipant) {
+      console.log('[UI] buildParticipantList - no room or localParticipant');
+      return;
+    }
+    const remoteParticipants = Array.from(room.remoteParticipants?.values() || []);
+    console.log('[UI] buildParticipantList - participants:', {
+      local: room.localParticipant?.identity,
+      remotes: remoteParticipants.map((p: any) => ({ identity: p.identity, sid: p.sid }))
+    });
+    
     const activeSet = new Set<string>((room.activeSpeakers || []).map((p: any) => p.sid));
     const list: { sid: string; identity: string; hasVideo: boolean; hasMic: boolean; isSpeaking: boolean; media: 'camera' | 'screen' }[] = [];
     const pushP = (p: any) => {
@@ -269,7 +277,12 @@ export function App() {
     };
     pushP(room.localParticipant);
     const remotes = Array.from((room.remoteParticipants?.values?.() || room.participants?.values?.() || []) as any);
-    for (const rp of remotes) pushP(rp);
+    console.log('[UI] Processing remote participants:', remotes.length);
+    for (const rp of remotes) {
+      console.log('[UI] Processing remote participant:', { sid: rp.sid, identity: rp.identity, hasPubs: !!rp.trackPublications });
+      pushP(rp);
+    }
+    console.log('[UI] Final participant list:', list);
     setUiParticipants(list);
   }, []);
 
@@ -320,12 +333,15 @@ export function App() {
           state.players?.forEach?.((value: any, key: string) => {
             players[key] = { x: value.x, y: value.y, direction: value.direction };
           });
+          
           const playerEntries = Object.entries(players) as [string, { x: number; y: number; direction: any }][];
           remotesRef.current = Object.fromEntries(
             playerEntries
               .filter(([id]) => id !== localPosRef.current.id)
               .map(([id, p]) => [id, { x: p.x, y: p.y }])
           );
+          
+          
           if (bubbleRef.current) {
             const remoteEntries = Object.entries(remotesRef.current) as [string, { x: number; y: number }][];
             const others = remoteEntries.map(([id, p]) => ({ id, x: p.x, y: p.y }));
@@ -369,6 +385,48 @@ export function App() {
         if (defaultCam) {
           setSelectedCamId(defaultCam);
           try { await avRef.current.useCameraDevice(defaultCam); } catch {}
+        }
+        // Warte bis die Verbindung stabil ist
+        const room = avRef.current.room;
+        if (room) {
+          await new Promise<void>((resolve) => {
+            const checkConnection = () => {
+              if ((room as any).state === 'connected' || (room as any).connectionState === 'connected') {
+                resolve();
+              } else {
+                setTimeout(checkConnection, 100);
+              }
+            };
+            checkConnection();
+          });
+        }
+        // Add event handlers for participant changes
+        if (room) {
+          // Import LiveKit event constants
+          (async () => {
+            try {
+              const mod = await import('livekit-client');
+              const RoomEvent = (mod as any).RoomEvent;
+              if (RoomEvent) {
+                room.on(RoomEvent.ParticipantConnected, () => {
+                  console.log('[LiveKit] ParticipantConnected event - rebuilding list');
+                  setTimeout(buildParticipantList, 100);
+                });
+                room.on(RoomEvent.ParticipantDisconnected, () => {
+                  console.log('[LiveKit] ParticipantDisconnected event - rebuilding list');
+                  setTimeout(buildParticipantList, 100);
+                });
+                room.on(RoomEvent.TrackPublished, () => {
+                  console.log('[LiveKit] TrackPublished event - rebuilding list');
+                  setTimeout(buildParticipantList, 100);
+                });
+                room.on(RoomEvent.TrackUnpublished, () => {
+                  console.log('[LiveKit] TrackUnpublished event - rebuilding list');
+                  setTimeout(buildParticipantList, 100);
+                });
+              }
+            } catch {}
+          })();
         }
         // Mikrofon automatisch aktivieren
         try { await avRef.current.setMicrophoneEnabled(true); setAvState(s => ({ ...s, mic: true })); } catch {}
@@ -529,7 +587,7 @@ export function App() {
         const hasCam = pubs.some(isVideoPub);
         const hasShare = pubs.some(isSharePub);
         setAvState(s => (s.mic === hasMic && s.cam === hasCam && s.share === hasShare) ? s : { ...s, mic: hasMic, cam: hasCam, share: hasShare });
-        buildParticipantList();
+        // Don't call buildParticipantList in the HUD timer - it's called by LiveKit events
       }
       // Lautstärke-Mix aktualisieren
       volumeRef.current?.update();
@@ -549,6 +607,100 @@ export function App() {
       clearInterval(hudTimer);
     };
   }, [authChecked, me, apiBase, buildParticipantList, page]);
+
+
+  // Global Audio Track Manager - handles all remote participants' audio
+  useEffect(() => {
+    const room = avRef.current?.room as any;
+    if (!room) return;
+
+    const audioElements = new Map<string, HTMLAudioElement>();
+    
+    const attachAudioTrack = (track: any, participantId: string) => {
+      try {
+        const audio = new Audio();
+        audio.autoplay = true;
+        audio.playsInline = true;
+        audio.volume = 1.0;
+        // Important: Add audio element to DOM for autoplay to work
+        audio.style.display = 'none';
+        document.body.appendChild(audio);
+        track.attach(audio);
+        audioElements.set(participantId, audio);
+        if (DEBUG) console.log('[Audio] Attached audio track for', participantId);
+      } catch (e) {
+        console.error('[Audio] Failed to attach audio track:', e);
+      }
+    };
+
+    const detachAudioTrack = (participantId: string) => {
+      const audio = audioElements.get(participantId);
+      if (audio) {
+        audio.pause();
+        audio.srcObject = null;
+        // Remove from DOM
+        if (audio.parentNode) {
+          audio.parentNode.removeChild(audio);
+        }
+        audioElements.delete(participantId);
+        if (DEBUG) console.log('[Audio] Detached audio track for', participantId);
+      }
+    };
+
+    const handleTrackSubscribed = (track: any, publication: any, participant: any) => {
+      if (track.kind === 'audio' && participant.sid !== room.localParticipant?.sid) {
+        attachAudioTrack(track, participant.sid);
+      }
+    };
+
+    const handleTrackUnsubscribed = (track: any, publication: any, participant: any) => {
+      if (track.kind === 'audio') {
+        detachAudioTrack(participant.sid);
+      }
+    };
+
+    // Initial setup for existing participants
+    const participants = Array.from(room.remoteParticipants?.values() || room.participants?.values() || []);
+    console.log('[Audio] Initial participants:', participants.map((p: any) => ({ sid: p.sid, identity: p.identity })));
+    
+    participants.forEach((participant: any) => {
+      if (participant.sid === room.localParticipant?.sid) return;
+      
+      const audioTracks = Array.from(participant.trackPublications.values())
+        .filter((pub: any) => pub.kind === 'audio' && pub.track)
+        .map((pub: any) => pub.track);
+      
+      console.log('[Audio] Audio tracks for', participant.identity, ':', audioTracks.length);
+      
+      audioTracks.forEach((track: any) => {
+        attachAudioTrack(track, participant.sid);
+      });
+    });
+
+    // Subscribe to events
+    (async () => {
+      try {
+        const mod = await import('livekit-client');
+        const RoomEvent = (mod as any).RoomEvent;
+        if (RoomEvent) {
+          room.on(RoomEvent.TrackSubscribed, handleTrackSubscribed);
+          room.on(RoomEvent.TrackUnsubscribed, handleTrackUnsubscribed);
+        }
+      } catch {}
+    })();
+
+    return () => {
+      // Cleanup all audio elements
+      audioElements.forEach((audio) => {
+        audio.pause();
+        audio.srcObject = null;
+        if (audio.parentNode) {
+          audio.parentNode.removeChild(audio);
+        }
+      });
+      audioElements.clear();
+    };
+  }, [avRef.current?.room]); // Re-run when room changes
 
   // Wenn aus dem Editor herausgegangen wird, LiveKit-Connect bei erster Interaktion erneut anbieten
   useEffect(() => {
@@ -710,8 +862,14 @@ export function App() {
 
             <button style={btnStyle(avState.cam)} onClick={async () => {
               const enabled = !avState.cam;
-              await avRef.current?.setCameraEnabled(enabled);
-              setAvState(s => ({ ...s, cam: enabled }));
+              try {
+                await avRef.current?.setCameraEnabled(enabled);
+                setAvState(s => ({ ...s, cam: enabled }));
+              } catch (e) {
+                console.error('[Camera Toggle] Failed:', e);
+                // Revert state on error
+                setAvState(s => ({ ...s, cam: !enabled }));
+              }
             }}>
               <CamIcon on={avState.cam} />
               <span style={btnLabelStyle}>{avState.cam ? 'Kamera aus' : 'Kamera an'}</span>
@@ -987,19 +1145,43 @@ function ParticipantCard(props: { part: { sid: string; identity: string; hasVide
     const room: any = roomGetter();
     const el = videoRef.current;
     if (!room || !room.localParticipant || !el) return;
-    try { console.log('[UI] ParticipantCard mount for', part.identity, 'sid=', part.sid); } catch {}
-    const baseSid = (part.sid || '').split(':')[0];
+    console.log('[UI] ParticipantCard mount for', part.identity, 'sid=', part.sid);
+    let baseSid = (part.sid || '').split(':')[0];
     const isLocalNow = room.localParticipant?.sid === baseSid;
     setIsLocal(isLocalNow);
-    const p: any = isLocalNow ? room.localParticipant : (room.participants?.get?.(baseSid) || room.remoteParticipants?.get?.(baseSid));
-    if (!p || !p.trackPublications) return;
+    console.log('[UI] Looking for participant:', { baseSid, isLocal: isLocalNow, localSid: room.localParticipant?.sid });
+    let p: any = isLocalNow ? room.localParticipant : (room.participants?.get?.(baseSid) || room.remoteParticipants?.get?.(baseSid));
+    
+    // If not found by SID, try to match by identity
+    if (!p && !isLocalNow) {
+      const allParticipants = Array.from(room.remoteParticipants?.values() || []);
+      console.log('[UI] Participant not found by SID, trying identity match. Available:', allParticipants.map((p: any) => ({ sid: p.sid, identity: p.identity })));
+      
+      p = allParticipants.find((participant: any) => participant.identity === part.identity);
+      if (p) {
+        console.log('[UI] Found participant by identity match:', { identity: part.identity, actualSid: p.sid });
+        // Update baseSid for event matching
+        baseSid = p.sid;
+      }
+    }
+    
+    if (!p || !p.trackPublications) {
+      console.log('[UI] Participant not found or no publications:', { found: !!p, hasPubs: !!p?.trackPublications });
+      return;
+    }
     const pubs: any[] = Array.from(p.trackPublications?.values?.() || []);
+    console.log('[UI] Track publications for', part.identity, ':', pubs.map(pub => ({
+      source: pub?.source || pub?.track?.source,
+      kind: pub?.kind || pub?.track?.kind,
+      hasTrack: !!pub?.track
+    })));
     const wantedPub = pubs.find(pub => {
       const src = (pub?.source || pub?.track?.source);
       if (part.media === 'screen') return src === 'screen_share';
       return src === 'camera';
     });
     const track = wantedPub?.track;
+    console.log('[UI] Wanted track for', part.identity, ':', { found: !!track, source: wantedPub?.source || wantedPub?.track?.source });
     let cleanup: (() => void) | undefined;
     let pollTimer: any;
 
@@ -1017,10 +1199,22 @@ function ParticipantCard(props: { part: { sid: string; identity: string; hasVide
 
     if (track && el) {
       try {
-        try { console.log('[UI] attach initial track for', part.identity); } catch {}
+        console.log('[UI] attach initial track for', part.identity, 'track:', track);
         track.attach(el);
         cleanup = () => { try { track.detach(el); } catch {} };
-      } catch {}
+        // Check if video is actually playing
+        setTimeout(() => {
+          if (el.videoWidth > 0 && el.videoHeight > 0) {
+            console.log('[UI] Video playing for', part.identity, el.videoWidth + 'x' + el.videoHeight);
+          } else {
+            console.log('[UI] Video NOT playing for', part.identity);
+          }
+        }, 500);
+      } catch (e) {
+        console.error('[UI] Failed to attach track:', e);
+      }
+    } else {
+      console.log('[UI] No track or element for', part.identity, 'track:', !!track, 'el:', !!el);
     }
 
     // Aggressiver Fallback: pollt kurzzeitig und versucht zu attachen, wenn Track verzögert verfügbar wird
@@ -1033,8 +1227,21 @@ function ParticipantCard(props: { part: { sid: string; identity: string; hasVide
           return src === 'camera';
         });
         const t = cam?.track;
-        if (t && el) {
-          try { console.log('[UI] poll attach for', part.identity); t.attach(el); setIsVideoRendering(false); clearInterval(pollTimer); } catch {}
+        if (t && el && !el.srcObject) {
+          try { 
+            console.log('[UI] poll attach for', part.identity, 'track:', t);
+            t.attach(el); 
+            setIsVideoRendering(false); 
+            clearInterval(pollTimer);
+            // Check video status after attach
+            setTimeout(() => {
+              if (el.videoWidth > 0 && el.videoHeight > 0) {
+                console.log('[UI] Video playing after poll attach for', part.identity);
+              }
+            }, 500);
+          } catch (e) {
+            console.error('[UI] Poll attach failed:', e);
+          }
         }
       } catch {}
     };
@@ -1047,7 +1254,23 @@ function ParticipantCard(props: { part: { sid: string; identity: string; hasVide
         const src = (publication?.source || t?.source || t?.mediaStreamTrack?.kind) as string | undefined;
         const isDesired = part.media === 'screen' ? (src === 'screen_share') : (src === 'camera');
         if (participant?.sid === baseSid && isDesired && el) {
-          try { if (DEBUG) console.log('[UI] onTrackSubscribed attach', part.identity, { src, kind: t?.kind }); el.muted = isLocalNow; t.attach(el); setIsVideoRendering(false); } catch {}
+          try { 
+            console.log('[UI] onTrackSubscribed attach', part.identity, { src, kind: t?.kind });
+            el.muted = isLocalNow; 
+            t.attach(el); 
+            setIsVideoRendering(false);
+            setTimeout(() => {
+              if (el.videoWidth > 0 && el.videoHeight > 0) {
+                console.log('[UI] Video playing after TrackSubscribed for', part.identity);
+              } else {
+                console.log('[UI] Video NOT playing after TrackSubscribed for', part.identity);
+              }
+            }, 500);
+          } catch (e) {
+            console.error('[UI] TrackSubscribed attach failed:', e);
+          }
+        } else {
+          console.log('[UI] TrackSubscribed not matching', { participant: participant?.sid, baseSid, isDesired, hasEl: !!el });
         }
       } catch {}
     };

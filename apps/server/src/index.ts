@@ -51,6 +51,7 @@ const authLimiter = rateLimit({
   max: 100,
   standardHeaders: true,
   legacyHeaders: false,
+  trustProxy: true, // Explicitly set to avoid validation error
 });
 app.use(['/auth', '/livekit/token'], authLimiter);
 
@@ -70,6 +71,11 @@ httpServer.on('error', (err) => {
 const gameServer = new Colyseus.Server({ server: httpServer as any });
 
 gameServer.define('world', WorldRoom as any);
+
+// Monitor can be enabled by installing @colyseus/monitor
+
+// Make gameServer available globally for debugging
+(global as any).gameServer = gameServer;
 
 httpServer.listen(port, '0.0.0.0', () => {
   // eslint-disable-next-line no-console

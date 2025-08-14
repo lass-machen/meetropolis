@@ -1,0 +1,152 @@
+# Stage Configuration with Traefik
+# Standalone configuration for stage environment
+
+networks:
+  traefik:
+    external: true
+    name: ${TRAEFIK_NETWORK:-traefik}
+  meetropolis-net:
+    driver: bridge
+
+volumes:
+  db_data:
+
+services:
+  db:
+    image: postgres:15
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: meetropolis
+    ports:
+      - "127.0.0.1:5435:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    networks:
+      - meetropolis-net
+
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile.stage
+    working_dir: /workspace/apps/server
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      PORT: 2567
+      LIVEKIT_URL: ${LIVEKIT_URL}
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET}
+      NODE_ENV: production
+      TRUST_PROXY: "true"
+      # App reads CORS_ORIGIN (comma-separated); keep it env-driven
+      CORS_ORIGIN: ${CORS_ORIGIN}
+      FRONTEND_URL: https://${WEB_HOST}
+      RUN_MIGRATIONS: "true"
+    command: npm run dev
+    ports:
+      - "127.0.0.1:2568:2567"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    depends_on:
+      - db
+    volumes:
+      - ./apps:/workspace/apps
+      - ./package.json:/workspace/package.json:ro
+      - ./tsconfig.base.json:/workspace/tsconfig.base.json:ro
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.meetropolis-api.rule=Host(`${API_HOST}`)"
+      - "traefik.http.routers.meetropolis-api.entrypoints=${TRAEFIK_ENTRYPOINT:-websecure}"
+      - "traefik.http.routers.meetropolis-api.tls.certresolver=${TRAEFIK_CERT_RESOLVER:-le}"
+      - "traefik.http.services.meetropolis-api.loadbalancer.server.port=2567"
+      - "traefik.docker.network=${TRAEFIK_NETWORK:-traefik}"
+      # Enable WebSocket support for Colyseus
+      - "traefik.http.middlewares.meetropolis-api-headers.headers.customrequestheaders.X-Forwarded-Proto=https"
+      - "traefik.http.middlewares.meetropolis-api-headers.headers.customrequestheaders.Connection=upgrade"
+      - "traefik.http.middlewares.meetropolis-api-headers.headers.customrequestheaders.Upgrade=websocket"
+      - "traefik.http.routers.meetropolis-api.middlewares=meetropolis-api-headers"
+    networks:
+      - traefik
+      - meetropolis-net
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.stage
+    working_dir: /workspace/apps/web
+    env_file:
+      - .env
+    environment:
+      VITE_API_BASE: ${VITE_API_BASE}
+      VITE_LIVEKIT_URL: ${VITE_LIVEKIT_URL}
+      VITE_HMR_HOST: ${WEB_HOST}
+      VITE_HMR_PROTOCOL: ${VITE_HMR_PROTOCOL:-wss}
+      VITE_DEBUG_LOGS: "true"
+      VITE_AV_SIMPLE: "false"
+      RUN_MIGRATIONS: "false"
+    command: npm run dev
+    ports:
+      - "127.0.0.1:5174:5173"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    depends_on:
+      - server
+    volumes:
+      - ./apps:/workspace/apps
+      - ./package.json:/workspace/package.json:ro
+      - ./tsconfig.base.json:/workspace/tsconfig.base.json:ro
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.meetropolis.rule=Host(`${WEB_HOST}`)"
+      - "traefik.http.routers.meetropolis.entrypoints=${TRAEFIK_ENTRYPOINT:-websecure}"
+      - "traefik.http.routers.meetropolis.tls.certresolver=${TRAEFIK_CERT_RESOLVER:-le}"
+      - "traefik.http.services.meetropolis.loadbalancer.server.port=5173"
+      - "traefik.docker.network=${TRAEFIK_NETWORK:-traefik}"
+    networks:
+      - traefik
+      - meetropolis-net
+
+  livekit:
+    image: livekit/livekit-server:latest
+    command: ["--dev", "--bind", "0.0.0.0"]
+    environment:
+      LK_API_KEY: ${LIVEKIT_API_KEY:-devkey}
+      LK_API_SECRET: ${LIVEKIT_API_SECRET:-secret}
+      LK_NODE_IP: ${LK_NODE_IP:-127.0.0.1}
+      LK_NAT_1_TO_1_IPS: ${EXTERNAL_IP}
+      LK_RTC_USE_EXTERNAL_IP: "true"
+      LK_RTC_TCP_PORT: ${LK_RTC_TCP_PORT:-7881}
+      LK_RTC_UDP_PORT: ${LK_RTC_UDP_PORT:-7882}
+      LK_WEBHOOK_URL: ${LK_WEBHOOK_URL}
+    ports:
+      - "127.0.0.1:7890:7880"
+      - "0.0.0.0:7881:7881/tcp"
+      - "0.0.0.0:7882:7882/udp"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.meetropolis-livekit.rule=Host(`${LIVEKIT_HOST}`)"
+      - "traefik.http.routers.meetropolis-livekit.entrypoints=${TRAEFIK_ENTRYPOINT:-websecure}"
+      - "traefik.http.routers.meetropolis-livekit.tls.certresolver=${TRAEFIK_CERT_RESOLVER:-le}"
+      - "traefik.http.services.meetropolis-livekit.loadbalancer.server.port=7880"
+      - "traefik.docker.network=${TRAEFIK_NETWORK:-traefik}"
+    networks:
+      - traefik
+      - meetropolis-net

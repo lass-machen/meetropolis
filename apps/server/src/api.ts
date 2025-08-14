@@ -297,4 +297,30 @@ export function registerApi(app: express.Express) {
     const token = await createLivekitToken({ roomName, identity, name, canPublish, canPublishData: true, canSubscribe });
     res.type('text/plain').send(token);
   });
+
+  // Debug endpoint for Colyseus rooms
+  app.get('/debug/rooms', async (_req, res) => {
+    const gameServer = (global as any).gameServer;
+    if (!gameServer) return res.json({ error: 'Game server not initialized' });
+    
+    const rooms = [];
+    try {
+      // Colyseus 0.14/0.15 compatibility
+      const allRooms = gameServer.rooms || [];
+      allRooms.forEach((room: any) => {
+        rooms.push({
+          roomId: room.roomId,
+          roomName: room.roomName || 'world',
+          clients: room.clients ? room.clients.size || room.clients.length : 0,
+          locked: room.locked || false,
+          maxClients: room.maxClients || 0,
+          metadata: room.metadata || {}
+        });
+      });
+    } catch (e: any) {
+      return res.json({ error: 'Failed to get rooms', details: e.message });
+    }
+    
+    res.json({ rooms, total: rooms.length });
+  });
 }
