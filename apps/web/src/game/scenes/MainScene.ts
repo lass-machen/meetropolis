@@ -10,6 +10,7 @@ export class MainScene extends Phaser.Scene implements SceneApi {
   private selectionG?: Phaser.GameObjects.Graphics;
   private mapRef?: Phaser.Tilemaps.Tilemap;
   private editorGround?: Phaser.Tilemaps.TilemapLayer;
+  private wallsLayer?: Phaser.Tilemaps.TilemapLayer;
   private collisionLayer?: Phaser.Tilemaps.TilemapLayer;
   private staticColliders?: Phaser.Physics.Arcade.StaticGroup;
   private dynamicTilesets: Map<string, Phaser.Tilemaps.Tileset> = new Map();
@@ -110,6 +111,28 @@ export class MainScene extends Phaser.Scene implements SceneApi {
     } else {
       editorGround.setDepth(1);
       this.editorGround = editorGround as any;
+    }
+
+    // Editor-Walls Layer (zusätzliche Wände, die wir bemalen können)
+    let editorWalls: Phaser.Tilemaps.TilemapLayer | undefined;
+    if (available.length) {
+      try {
+        const hasLayer = (map.layers || []).some((l: any) => l?.name === 'EditorWalls');
+        if (hasLayer) editorWalls = map.createLayer('EditorWalls', available, 0, 0) as any;
+      } catch (e) {
+        try { console.warn('Invalid Tilemap Layer ID: EditorWalls'); } catch {}
+      }
+    }
+    if (!editorWalls) {
+      try {
+        const tmp = map.createBlankLayer('EditorWalls', available[0], 0, 0, map.width, map.height, map.tileWidth, map.tileHeight);
+        this.wallsLayer = tmp as any;
+      } catch {
+        // Fallback ignorieren
+      }
+    } else {
+      editorWalls.setDepth(6); // Higher than regular walls
+      this.wallsLayer = editorWalls as any;
     }
 
     const cam = this.cameras.main;
@@ -504,9 +527,9 @@ export class MainScene extends Phaser.Scene implements SceneApi {
     this.selectionG = g;
   }
 
-  applyTilePaint(edit: { layer: 'EditorGround' | 'Collision'; tilesetKey: string; tileIndex: number; rect: { startX: number; startY: number; endX: number; endY: number } }) {
+  applyTilePaint(edit: { layer: 'EditorGround' | 'EditorWalls' | 'Collision'; tilesetKey: string; tileIndex: number; rect: { startX: number; startY: number; endX: number; endY: number } }) {
     if (!this.mapRef) return;
-    const targetLayer = edit.layer === 'Collision' ? this.collisionLayer : this.editorGround;
+    const targetLayer = edit.layer === 'Collision' ? this.collisionLayer : edit.layer === 'EditorWalls' ? this.wallsLayer : this.editorGround;
     if (!targetLayer) return;
     const x0 = Math.min(edit.rect.startX, edit.rect.endX);
     const y0 = Math.min(edit.rect.startY, edit.rect.endY);
@@ -561,17 +584,21 @@ export class MainScene extends Phaser.Scene implements SceneApi {
     try {
       const data = {
         editorGround: dumpLayer(this.editorGround, 'editorGround'),
+        editorWalls: dumpLayer(this.wallsLayer, 'editorWalls'),
         collision: dumpLayer(this.collisionLayer, 'collision'),
         w: width,
         h: height,
       };
       console.log('[Editor] Complete layer dump:', {
         hasEditorGround: !!this.editorGround,
+        hasEditorWalls: !!this.wallsLayer,
         hasCollisionLayer: !!this.collisionLayer,
         editorGroundTiles: data.editorGround?.length || 0,
+        editorWallsTiles: data.editorWalls?.length || 0,
         collisionTiles: data.collision?.length || 0,
         mapSize: `${width}x${height}`,
         editorGroundResult: data.editorGround ? 'has data' : 'null',
+        editorWallsResult: data.editorWalls ? 'has data' : 'null',
         collisionResult: data.collision ? 'has data' : 'null'
       });
       localStorage.setItem('meetropolis.editorLayers', JSON.stringify(data));
@@ -582,12 +609,14 @@ export class MainScene extends Phaser.Scene implements SceneApi {
       }
       if (!base) base = 'http://localhost:2568';
       // Only save to server if data is not too large (< 100KB)
-      const serverPayload = { editorGround: data.editorGround, collision: data.collision };
+      const serverPayload = { editorGround: data.editorGround, editorWalls: data.editorWalls, collision: data.collision };
       const jsonStr = JSON.stringify(serverPayload);
       console.log('[Editor] Saving to server:', {
         hasEditorGround: !!data.editorGround,
+        hasEditorWalls: !!data.editorWalls,
         hasCollision: !!data.collision,
         editorGroundLength: data.editorGround?.length,
+        editorWallsLength: data.editorWalls?.length,
         collisionLength: data.collision?.length,
         totalSize: jsonStr.length
       });
@@ -638,6 +667,7 @@ export class MainScene extends Phaser.Scene implements SceneApi {
         }
       };
       applyArr(data?.editorGround, this.editorGround);
+      applyArr(data?.editorWalls, this.wallsLayer);
       applyArr(data?.collision, this.collisionLayer);
       if (data?.collision) this.rebuildStaticColliders();
     } catch {}
@@ -661,8 +691,10 @@ export class MainScene extends Phaser.Scene implements SceneApi {
       const data = await res.json();
       console.log('[Editor] Received server data:', {
         hasEditorGround: !!data?.editorGround,
+        hasEditorWalls: !!data?.editorWalls,
         hasCollision: !!data?.collision,
         editorGroundLength: data?.editorGround?.length,
+        editorWallsLength: data?.editorWalls?.length,
         collisionLength: data?.collision?.length
       });
       
@@ -699,6 +731,7 @@ export class MainScene extends Phaser.Scene implements SceneApi {
       };
       
       applyArr(data?.editorGround, this.editorGround, 'editorGround');
+      applyArr(data?.editorWalls, this.wallsLayer, 'editorWalls');
       applyArr(data?.collision, this.collisionLayer, 'collision');
       if (data?.collision) this.rebuildStaticColliders();
       try { this.updateCollisionOverlay(); } catch {}

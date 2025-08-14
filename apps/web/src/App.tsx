@@ -103,7 +103,8 @@ export function App() {
   // Map Editor State
   const [editor, setEditor] = React.useState<{ 
     active: boolean;
-    tool: 'zone' | 'asset' | 'select' | 'paint' | 'collision' | 'erase';
+    tool: 'zone' | 'asset' | 'select' | 'floor' | 'walls' | 'collision' | 'erase';
+    category: 'terrain' | 'structures' | 'objects' | 'zones';
     tempPoints: { x: number; y: number }[];
     name: string;
     zones: { name: string; points: { x: number; y: number }[] }[];
@@ -112,7 +113,7 @@ export function App() {
     tilePaint?: { tilesetKey: string; tileIndex: number; tileWidth: number; tileHeight: number; margin?: number; spacing?: number } | null;
     drag?: { startTileX: number; startTileY: number; endTileX: number; endTileY: number } | null;
     tilesets?: { key: string; dataUrl: string; tileWidth: number; tileHeight: number; margin?: number; spacing?: number }[];
-  }>({ active: false, tool: 'zone', tempPoints: [], name: '', zones: [], assets: [], pendingAsset: null, tilePaint: { tilesetKey: 'office_tiles', tileIndex: 1, tileWidth: 16, tileHeight: 16 }, drag: null, tilesets: [] });
+  }>({ active: false, tool: 'zone', category: 'zones', tempPoints: [], name: '', zones: [], assets: [], pendingAsset: null, tilePaint: { tilesetKey: 'office_tiles', tileIndex: 1, tileWidth: 16, tileHeight: 16 }, drag: null, tilesets: [] });
   React.useEffect(() => { editorActiveRef.current = editor.active; }, [editor.active]);
 
   const apiBase = (import.meta.env.VITE_API_BASE as string | undefined) ||
@@ -975,9 +976,10 @@ export function App() {
         const rect = { startX: drag.startTileX, startY: drag.startTileY, endX: drag.endTileX, endY: drag.endTileY };
         gameBridge.setSelectionRect(null);
         const isErase = s.tool === 'erase';
-        if ((s.tool === 'paint' || isErase) && s.tilePaint) {
+        if ((s.tool === 'floor' || s.tool === 'walls' || isErase) && s.tilePaint) {
           const index = isErase ? -1 : s.tilePaint.tileIndex;
-          const edit = { layer: 'EditorGround' as const, tilesetKey: s.tilePaint.tilesetKey, tileIndex: index, rect };
+          const layer = s.tool === 'walls' ? 'EditorWalls' : 'EditorGround';
+          const edit = { layer: layer as 'EditorGround' | 'EditorWalls', tilesetKey: s.tilePaint.tilesetKey, tileIndex: index, rect };
           gameBridge.applyTilePaint(edit);
           // Broadcast to other users
           colyseusRef.current?.send?.('editor_update', { type: 'tile_paint', edit });
@@ -1452,53 +1454,174 @@ export function App() {
 
       {/* Editor Panel */}
       {editor.active && (
-        <div style={{ position: 'absolute', top: 64, right: 12, zIndex: 35, width: 320 }}>
-          <div style={{ background: 'rgba(17,17,20,0.9)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12, padding: 10, color: '#fff', display: 'grid', gap: 8 }}>
-            <div style={{ fontWeight: 700 }}>Map-Editor</div>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              <button onClick={() => setEditor(s => ({ ...s, tool: 'zone' }))} style={{ flex: 1, padding: 8, borderRadius: 8, border: '1px solid rgba(255,255,255,0.12)', background: editor.tool==='zone'?'rgba(255,255,255,0.14)':'rgba(255,255,255,0.06)', color: '#fff' }}>Zone</button>
-              <button onClick={() => setEditor(s => ({ ...s, tool: 'asset' }))} style={{ flex: 1, padding: 8, borderRadius: 8, border: '1px solid rgba(255,255,255,0.12)', background: editor.tool==='asset'?'rgba(255,255,255,0.14)':'rgba(255,255,255,0.06)', color: '#fff' }}>Asset</button>
-              <button onClick={() => setEditor(s => ({ ...s, tool: 'select' }))} style={{ flex: 1, padding: 8, borderRadius: 8, border: '1px solid rgba(255,255,255,0.12)', background: editor.tool==='select'?'rgba(255,255,255,0.14)':'rgba(255,255,255,0.06)', color: '#fff' }}>Select</button>
-              <button onClick={() => setEditor(s => ({ ...s, tool: 'paint' }))} style={{ flex: 1, padding: 8, borderRadius: 8, border: '1px solid rgba(255,255,255,0.12)', background: editor.tool==='paint'?'rgba(255,255,255,0.14)':'rgba(255,255,255,0.06)', color: '#fff' }}>Boden malen</button>
-              <button onClick={() => { setEditor(s => ({ ...s, tool: 'collision' })); gameBridge.setCollisionVisible(true); }} style={{ flex: 1, padding: 8, borderRadius: 8, border: '1px solid rgba(255,255,255,0.12)', background: editor.tool==='collision'?'rgba(255,255,255,0.14)':'rgba(255,255,255,0.06)', color: '#fff' }}>Kollision</button>
+        <div style={{ position: 'absolute', top: 64, right: 12, zIndex: 35, width: 360 }}>
+          <div style={{ background: 'rgba(17,17,20,0.95)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12, padding: 0, color: '#fff', overflow: 'hidden' }}>
+            {/* Header */}
+            <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.02)' }}>
+              <div style={{ fontWeight: 700, fontSize: 16 }}>Map-Editor</div>
             </div>
-            <div style={{ display: 'grid', gap: 6 }}>
-              <label style={{ fontSize: 12, color: '#e5e7eb' }}>Zonenname</label>
-              <input value={editor.name} onChange={(e)=>setEditor(s=>({ ...s, name: e.target.value }))} placeholder="z.B. Meeting A" style={{ padding: 8, borderRadius: 8, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.06)', color: '#fff' }} />
+            
+            {/* Category Tabs */}
+            <div style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.08)', background: 'rgba(0,0,0,0.2)' }}>
+              <button onClick={() => setEditor(s => ({ ...s, category: 'terrain', tool: 'floor' }))} style={{ flex: 1, padding: '10px 12px', border: 'none', borderBottom: editor.category==='terrain'?'2px solid #3b82f6':'2px solid transparent', background: 'transparent', color: editor.category==='terrain'?'#3b82f6':'#9ca3af', fontSize: 14, fontWeight: 500, cursor: 'pointer' }}>Terrain</button>
+              <button onClick={() => setEditor(s => ({ ...s, category: 'structures', tool: 'walls' }))} style={{ flex: 1, padding: '10px 12px', border: 'none', borderBottom: editor.category==='structures'?'2px solid #3b82f6':'2px solid transparent', background: 'transparent', color: editor.category==='structures'?'#3b82f6':'#9ca3af', fontSize: 14, fontWeight: 500, cursor: 'pointer' }}>Strukturen</button>
+              <button onClick={() => setEditor(s => ({ ...s, category: 'objects', tool: 'asset' }))} style={{ flex: 1, padding: '10px 12px', border: 'none', borderBottom: editor.category==='objects'?'2px solid #3b82f6':'2px solid transparent', background: 'transparent', color: editor.category==='objects'?'#3b82f6':'#9ca3af', fontSize: 14, fontWeight: 500, cursor: 'pointer' }}>Objekte</button>
+              <button onClick={() => setEditor(s => ({ ...s, category: 'zones', tool: 'zone' }))} style={{ flex: 1, padding: '10px 12px', border: 'none', borderBottom: editor.category==='zones'?'2px solid #3b82f6':'2px solid transparent', background: 'transparent', color: editor.category==='zones'?'#3b82f6':'#9ca3af', fontSize: 14, fontWeight: 500, cursor: 'pointer' }}>Zonen</button>
             </div>
-            {/* Kollision Overlay Toggle */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <input id="toggle-collision" type="checkbox" defaultChecked={true} onChange={(e)=>gameBridge.setCollisionVisible(e.target.checked)} />
-              <label htmlFor="toggle-collision" style={{ fontSize: 12, color: '#e5e7eb' }}>Kollision anzeigen</label>
-            </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={() => setEditor(s => { const next = { ...s, tempPoints: [] }; gameBridge.setZoneOverlay([...next.zones]); return next; })} style={{ flex: 1, padding: 8, borderRadius: 8, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.06)', color: '#fff' }}>Punkte zurücksetzen</button>
-              <button onClick={() => {
-                if (confirm('Wirklich alle Zonen löschen?')) {
-                  setEditor(s => {
-                    const newState = { ...s, zones: [], tempPoints: [] };
-                    try { localStorage.setItem('meetropolis.zones', JSON.stringify([])); } catch {}
-                    gameBridge.setZoneOverlay([]);
-                    zoneRef.current?.setZones?.([]);
-                    // Server speichern
-                    (async ()=>{ 
-                      try { 
-                        const body = JSON.stringify({ zones: [] });
-                        if (body.length < 100000) {
-                          await fetch(`${apiBase}/maps/office/editor-state`, { 
-                            method: 'PUT', 
-                            credentials: 'include', 
-                            headers: { 'Content-Type': 'application/json' }, 
-                            body 
-                          });
-                        }
-                      } catch {} 
-                    })();
-                    return newState;
-                  });
-                }
-              }} style={{ flex: 1, padding: 8, borderRadius: 8, border: '1px solid rgba(255,87,87,0.35)', background: 'rgba(255,87,87,0.18)', color: '#fff' }}>Alle Zonen löschen</button>
-              <button onClick={() => setEditor(s => {
+            
+            {/* Content */}
+            <div style={{ padding: 16, display: 'grid', gap: 12 }}>
+              {/* Common Tools */}
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button onClick={() => setEditor(s => ({ ...s, tool: 'select' }))} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.12)', background: editor.tool==='select'?'rgba(59,130,246,0.2)':'rgba(255,255,255,0.05)', color: editor.tool==='select'?'#60a5fa':'#e5e7eb', fontSize: 13 }}>Auswählen</button>
+                <button onClick={() => setEditor(s => ({ ...s, tool: 'erase' }))} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.12)', background: editor.tool==='erase'?'rgba(239,68,68,0.2)':'rgba(255,255,255,0.05)', color: editor.tool==='erase'?'#f87171':'#e5e7eb', fontSize: 13 }}>Löschen</button>
+              </div>
+              
+              {/* Category-specific content */}
+              {editor.category === 'terrain' && (
+                <>
+                  <div style={{ display: 'grid', gap: 8 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: '#e5e7eb' }}>Terrain-Werkzeuge</div>
+                    <div style={{ display: 'grid', grid: 'auto / 1fr 1fr', gap: 6 }}>
+                      <button onClick={() => setEditor(s => ({ ...s, tool: 'floor' }))} style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.12)', background: editor.tool==='floor'?'rgba(34,197,94,0.2)':'rgba(255,255,255,0.05)', color: editor.tool==='floor'?'#4ade80':'#e5e7eb', fontSize: 13 }}>🏠 Boden</button>
+                      <button onClick={() => { setEditor(s => ({ ...s, tool: 'collision' })); gameBridge.setCollisionVisible(true); }} style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.12)', background: editor.tool==='collision'?'rgba(239,68,68,0.2)':'rgba(255,255,255,0.05)', color: editor.tool==='collision'?'#f87171':'#e5e7eb', fontSize: 13 }}>🚫 Kollision</button>
+                    </div>
+                  </div>
+                  
+                  {/* Collision Overlay Toggle */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'rgba(255,255,255,0.03)', borderRadius: 8 }}>
+                    <input id="toggle-collision" type="checkbox" defaultChecked={true} onChange={(e)=>gameBridge.setCollisionVisible(e.target.checked)} />
+                    <label htmlFor="toggle-collision" style={{ fontSize: 12, color: '#9ca3af' }}>Kollisionsebene anzeigen</label>
+                  </div>
+                  
+                  {/* Terrain/Floor Tile Selection */}
+                  {editor.tool === 'floor' && (
+                    <div style={{ display: 'grid', gap: 8 }}>
+                      <div style={{ fontSize: 13, fontWeight: 500, color: '#9ca3af' }}>Bodentextur auswählen</div>
+                      {editor.tilePaint && editor.tilesets && editor.tilesets.length > 0 && (
+                        <div style={{ maxHeight: 200, overflow: 'auto', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, padding: 8 }}>
+                          {editor.tilesets.filter(ts => ts.key.includes('floor') || ts.key.includes('ground') || ts.key === 'office_tiles').map(lib => (
+                            <div key={lib.key} style={{ marginBottom: 8 }}>
+                              <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 4 }}>{lib.key}</div>
+                              <TilesetPreview
+                                tileset={lib}
+                                selectedIndex={editor.tilePaint?.tilesetKey === lib.key ? editor.tilePaint.tileIndex : -1}
+                                onSelect={(index: number) => setEditor(s => ({ ...s, tilePaint: { ...s.tilePaint!, tilesetKey: lib.key, tileIndex: index } }))}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <div style={{ fontSize: 11, color: '#6b7280' }}>Ziehe mit der Maus um Boden zu malen</div>
+                    </div>
+                  )}
+                </>
+              )}
+              
+              {/* Structures Category */}
+              {editor.category === 'structures' && (
+                <>
+                  <div style={{ display: 'grid', gap: 8 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: '#e5e7eb' }}>Struktur-Werkzeuge</div>
+                    <div style={{ display: 'grid', grid: 'auto / 1fr 1fr', gap: 6 }}>
+                      <button onClick={() => setEditor(s => ({ ...s, tool: 'walls' }))} style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.12)', background: editor.tool==='walls'?'rgba(168,85,247,0.2)':'rgba(255,255,255,0.05)', color: editor.tool==='walls'?'#c084fc':'#e5e7eb', fontSize: 13 }}>🧫 Wände</button>
+                      <button onClick={() => setEditor(s => ({ ...s, tool: 'floor' }))} style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.12)', background: editor.tool==='floor'?'rgba(34,197,94,0.2)':'rgba(255,255,255,0.05)', color: editor.tool==='floor'?'#4ade80':'#e5e7eb', fontSize: 13 }}>🎪 Decken</button>
+                    </div>
+                  </div>
+                  
+                  {/* Wall Tile Selection */}
+                  {editor.tool === 'walls' && (
+                    <div style={{ display: 'grid', gap: 8 }}>
+                      <div style={{ fontSize: 13, fontWeight: 500, color: '#9ca3af' }}>Wandtextur auswählen</div>
+                      {editor.tilePaint && editor.tilesets && editor.tilesets.length > 0 && (
+                        <div style={{ maxHeight: 200, overflow: 'auto', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, padding: 8 }}>
+                          {editor.tilesets.filter(ts => ts.key.includes('wall') || ts.key.includes('brick') || ts.key === 'office_tiles').map(lib => (
+                            <div key={lib.key} style={{ marginBottom: 8 }}>
+                              <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 4 }}>{lib.key}</div>
+                              <TilesetPreview
+                                tileset={lib}
+                                selectedIndex={editor.tilePaint?.tilesetKey === lib.key ? editor.tilePaint.tileIndex : -1}
+                                onSelect={(index: number) => setEditor(s => ({ ...s, tilePaint: { ...s.tilePaint!, tilesetKey: lib.key, tileIndex: index } }))}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <div style={{ fontSize: 11, color: '#6b7280' }}>Ziehe mit der Maus um Wände zu malen</div>
+                    </div>
+                  )}
+                </>
+              )}
+              
+              {/* Objects Category */}
+              {editor.category === 'objects' && (
+                <>
+                  <div style={{ display: 'grid', gap: 8 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: '#e5e7eb' }}>Asset-Verwaltung</div>
+                    {/* Asset Upload */}
+                    <div style={{ display: 'grid', gap: 6 }}>
+                      <label style={{ fontSize: 12, color: '#9ca3af' }}>Neues Asset hochladen</label>
+                      <input type="file" accept="image/*" onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        const buf = await file.arrayBuffer();
+                        const base64 = await new Promise<string>((resolve) => {
+                          const reader = new FileReader();
+                          reader.onload = () => resolve(reader.result as string);
+                          reader.readAsDataURL(new Blob([buf], { type: file.type || 'image/png' }));
+                        });
+                        const key = `upload-${Date.now()}`;
+                        setEditor(s => ({ ...s, tool: 'asset', pendingAsset: { key, dataUrl: base64 } }));
+                      }} style={{ padding: 8, borderRadius: 6, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.05)', color: '#fff', fontSize: 12 }} />
+                      
+                      {editor.pendingAsset && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: 8, background: 'rgba(59,130,246,0.1)', borderRadius: 6 }}>
+                          <img src={editor.pendingAsset.dataUrl} alt="preview" style={{ width: 36, height: 36, objectFit: 'contain', borderRadius: 4 }} />
+                          <div style={{ fontSize: 12, color: '#60a5fa' }}>Klicke in die Karte um zu platzieren</div>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Asset List */}
+                    {editor.assets.length > 0 && (
+                      <div style={{ display: 'grid', gap: 6 }}>
+                        <div style={{ fontSize: 13, fontWeight: 500, color: '#9ca3af' }}>Platzierte Assets</div>
+                        <div style={{ maxHeight: 160, overflow: 'auto', display: 'grid', gap: 4 }}>
+                          {editor.assets.map((a) => (
+                            <div key={a.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 8px', background: 'rgba(255,255,255,0.03)', borderRadius: 6 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <img src={a.dataUrl} alt="asset" style={{ width: 24, height: 24, objectFit: 'contain', borderRadius: 4 }} />
+                                <div style={{ fontSize: 11, color: '#6b7280' }}>x:{Math.round(a.x)} y:{Math.round(a.y)}</div>
+                              </div>
+                              <button title="Löschen" onClick={() => setEditor(s => {
+                                const assets = s.assets.filter(x => x.id !== a.id);
+                                try { localStorage.setItem('meetropolis.assets', JSON.stringify(assets)); } catch {}
+                                gameBridge.setEditorAssets(assets);
+                                return { ...s, assets };
+                              })} style={{ padding: 4, borderRadius: 4, border: '1px solid rgba(239,68,68,0.3)', background: 'rgba(239,68,68,0.1)', color: '#f87171', fontSize: 10 }}>✕</button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+              
+              {/* Zones Category */}
+              {editor.category === 'zones' && (
+                <>
+                  <div style={{ display: 'grid', gap: 8 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: '#e5e7eb' }}>Zonen-Verwaltung</div>
+                    
+                    <div style={{ display: 'grid', gap: 6 }}>
+                      <label style={{ fontSize: 12, color: '#9ca3af' }}>Zonenname</label>
+                      <input value={editor.name} onChange={(e)=>setEditor(s=>({ ...s, name: e.target.value }))} placeholder="z.B. Meeting Room A" style={{ padding: 8, borderRadius: 6, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.05)', color: '#fff', fontSize: 13 }} />
+                    </div>
+                    
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button onClick={() => setEditor(s => { const next = { ...s, tempPoints: [] }; gameBridge.setZoneOverlay([...next.zones]); return next; })} style={{ flex: 1, padding: '6px 12px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.05)', color: '#e5e7eb', fontSize: 12 }}>Punkte zurücksetzen</button>
+                      <button onClick={() => setEditor(s => {
                 if (s.tempPoints.length < 3) return s;
                 const name = (s.name || `Zone ${s.zones.length+1}`).trim();
                 const poly = { name, points: s.tempPoints };
@@ -1523,149 +1646,110 @@ export function App() {
             } catch {} 
           })();
                 return { ...s, zones, tempPoints: [], name };
-              })} style={{ flex: 1, padding: 8, borderRadius: 8, border: '1px solid rgba(16,185,129,0.35)', background: 'rgba(16,185,129,0.18)', color: '#fff' }}>Zone speichern</button>
-            </div>
-            <div style={{ fontSize: 12, color: '#9ca3af' }}>Klicke in die Karte, um Punkte zu setzen (Zone), oder platziere hochgeladene Assets (Asset).</div>
-            {/* Asset Upload */}
-            <div style={{ display: 'grid', gap: 6 }}>
-              <label style={{ fontSize: 12, color: '#e5e7eb' }}>Asset hochladen</label>
-              <input type="file" accept="image/*" onChange={async (e) => {
-                const file = e.target.files?.[0];
-                if (!file) return;
-                const buf = await file.arrayBuffer();
-                const base64 = await new Promise<string>((resolve) => {
-                  const reader = new FileReader();
-                  reader.onload = () => resolve(reader.result as string);
-                  reader.readAsDataURL(new Blob([buf], { type: file.type || 'image/png' }));
-                });
-                const key = `upload-${Date.now()}`;
-                setEditor(s => ({ ...s, tool: 'asset', pendingAsset: { key, dataUrl: base64 }, tilePaint: s.tilePaint ? { ...s.tilePaint, tilesetKey: s.tilePaint.tilesetKey || key } : { tilesetKey: key, tileIndex: 1, tileWidth: 16, tileHeight: 16 } }));
-              }} style={{ padding: 8, borderRadius: 8, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.06)', color: '#fff' }} />
-              {editor.pendingAsset && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <div style={{ fontSize: 12, color: '#9ca3af' }}>Klicke in die Karte, um das Asset zu platzieren…</div>
-                  <img src={editor.pendingAsset.dataUrl} alt="preview" style={{ width: 36, height: 36, objectFit: 'contain', borderRadius: 6, border: '1px solid rgba(255,255,255,0.12)' }} />
-                </div>
-              )}
-              {editor.assets.length > 0 && (
-                <div style={{ display: 'grid', gap: 6 }}>
-                  <div style={{ fontWeight: 600 }}>Assets</div>
-                  <div style={{ maxHeight: 160, overflow: 'auto', display: 'grid', gap: 6 }}>
-                    {editor.assets.map((a) => (
-                      <div key={a.id} className="glass-surface" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 8, borderRadius: 8 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <img src={a.dataUrl} alt="asset" style={{ width: 36, height: 36, objectFit: 'contain', borderRadius: 6, border: '1px solid rgba(255,255,255,0.12)' }} />
-                          <div style={{ fontSize: 11, color: '#9ca3af' }}>x:{Math.round(a.x)} y:{Math.round(a.y)}</div>
+              })} style={{ flex: 1, padding: '6px 12px', borderRadius: 6, border: '1px solid rgba(16,185,129,0.35)', background: 'rgba(16,185,129,0.18)', color: '#86efac', fontSize: 12 }}>Zone speichern</button>
+                    </div>
+                    
+                    <div style={{ fontSize: 11, color: '#6b7280' }}>Klicke in die Karte um Zonenpunkte zu setzen (min. 3)</div>
+                    
+                    {/* Zone List */}
+                    {editor.zones.length > 0 && (
+                      <div style={{ display: 'grid', gap: 6 }}>
+                        <div style={{ fontSize: 13, fontWeight: 500, color: '#9ca3af' }}>Erstellte Zonen</div>
+                        <div style={{ maxHeight: 160, overflow: 'auto', display: 'grid', gap: 4 }}>
+                          {editor.zones.map((z, idx) => (
+                            <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 8px', background: 'rgba(255,255,255,0.03)', borderRadius: 6 }}>
+                              <div>
+                                <div style={{ fontSize: 12, color: '#e5e7eb' }}>{z.name}</div>
+                                <div style={{ fontSize: 10, color: '#6b7280' }}>{z.points.length} Punkte</div>
+                              </div>
+                              <button title="Löschen" onClick={() => setEditor(s => {
+                                const zones = s.zones.filter((_, i) => i !== idx);
+                                try { localStorage.setItem('meetropolis.zones', JSON.stringify(zones)); } catch {}
+                                gameBridge.setZoneOverlay(zones);
+                                zoneRef.current?.setZones?.(zones as any);
+                                return { ...s, zones };
+                              })} style={{ padding: 4, borderRadius: 4, border: '1px solid rgba(239,68,68,0.3)', background: 'rgba(239,68,68,0.1)', color: '#f87171', fontSize: 10 }}>✕</button>
+                            </div>
+                          ))}
                         </div>
-                        <div style={{ display: 'flex', gap: 6 }}>
-                          <button title="Anzeigen" onClick={() => gameBridge.setEditorAssets([a])} style={{ padding: 6, borderRadius: 8, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.06)', color: '#fff' }}>👁</button>
-                          <button title="Löschen" onClick={() => setEditor(s => {
-                            const assets = s.assets.filter(x => x.id !== a.id);
-                            try { localStorage.setItem('meetropolis.assets', JSON.stringify(assets)); } catch {}
-                            gameBridge.setEditorAssets(assets);
-                            return { ...s, assets };
-                          })} style={{ padding: 6, borderRadius: 8, border: '1px solid rgba(244,63,94,0.45)', background: 'rgba(244,63,94,0.22)', color: '#fff' }}>✕</button>
-                        </div>
+                        <button onClick={() => {
+                          if (confirm('Wirklich alle Zonen löschen?')) {
+                            setEditor(s => {
+                              const newState = { ...s, zones: [], tempPoints: [] };
+                              try { localStorage.setItem('meetropolis.zones', JSON.stringify([])); } catch {}
+                              gameBridge.setZoneOverlay([]);
+                              zoneRef.current?.setZones?.([]);
+                              return newState;
+                            });
+                          }
+                        }} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid rgba(239,68,68,0.3)', background: 'rgba(239,68,68,0.1)', color: '#f87171', fontSize: 12 }}>Alle Zonen löschen</button>
                       </div>
-                    ))}
+                    )}
                   </div>
-                </div>
+                </>
               )}
-            </div>
-
-            {/* Boden malen: einfache Tileset-Auswahl + Index */}
-            <div style={{ display: 'grid', gap: 6 }}>
-              <div style={{ fontWeight: 600 }}>Boden / Tiles</div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                <input placeholder="Tileset-Key (z.B. floors_tiles)" value={editor.tilePaint?.tilesetKey || ''} onChange={(e)=>{
-                  const tilesetKey = e.target.value || 'office_tiles';
-                  setEditor(s => ({ ...s, tilePaint: { ...(s.tilePaint || { tileIndex: 1, tileWidth: 16, tileHeight: 16 }), tilesetKey } }));
-                }} style={{ padding: 8, borderRadius: 8, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.06)', color: '#fff' }} />
-                <input type="number" min={0} max={4096} value={editor.tilePaint?.tileIndex ?? 1} onChange={(e)=>{
-                  const tileIndex = Math.max(0, Math.min(4096, parseInt(e.target.value||'0',10)));
-                  setEditor(s => ({ ...s, tilePaint: { ...(s.tilePaint || { tilesetKey: 'office_tiles', tileWidth: 16, tileHeight: 16 }), tileIndex } }));
-                }} style={{ padding: 8, borderRadius: 8, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.06)', color: '#fff' }} />
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
-                <input type="number" min={8} max={64} value={editor.tilePaint?.tileWidth ?? 16} onChange={(e)=>{
-                  const tileWidth = Math.max(4, Math.min(256, parseInt(e.target.value||'16',10)));
-                  setEditor(s => ({ ...s, tilePaint: { ...(s.tilePaint || { tilesetKey: 'office_tiles', tileIndex: 1, tileHeight: 16 }), tileWidth } }));
-                }} style={{ padding: 8, borderRadius: 8, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.06)', color: '#fff' }} />
-                <input type="number" min={8} max={64} value={editor.tilePaint?.tileHeight ?? 16} onChange={(e)=>{
-                  const tileHeight = Math.max(4, Math.min(256, parseInt(e.target.value||'16',10)));
-                  setEditor(s => ({ ...s, tilePaint: { ...(s.tilePaint || { tilesetKey: 'office_tiles', tileIndex: 1, tileWidth: 16 }), tileHeight } }));
-                }} style={{ padding: 8, borderRadius: 8, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.06)', color: '#fff' }} />
-                <input type="number" min={0} max={16} placeholder="margin" value={editor.tilePaint?.margin ?? 0} onChange={(e)=>{
-                  const margin = Math.max(0, Math.min(64, parseInt(e.target.value||'0',10)));
-                  setEditor(s => ({ ...s, tilePaint: { ...(s.tilePaint || { tilesetKey: 'office_tiles', tileIndex: 1, tileWidth: 16, tileHeight: 16 }), margin } }));
-                }} style={{ padding: 8, borderRadius: 8, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.06)', color: '#fff' }} />
-                <input type="number" min={0} max={16} placeholder="spacing" value={editor.tilePaint?.spacing ?? 0} onChange={(e)=>{
-                  const spacing = Math.max(0, Math.min(64, parseInt(e.target.value||'0',10)));
-                  setEditor(s => ({ ...s, tilePaint: { ...(s.tilePaint || { tilesetKey: 'office_tiles', tileIndex: 1, tileWidth: 16, tileHeight: 16 }), spacing } }));
-                }} style={{ padding: 8, borderRadius: 8, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.06)', color: '#fff' }} />
-              </div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button onClick={() => {
-                  const p = editor.tilePaint;
-                  if (!p) return;
-                  // Tileset anhand eines zuvor hochgeladenen Bildes aus der Asset-Pipeline registrieren
-                  // Falls du statt Upload eine URL hast, könntest du ebenfalls dataUrl setzen.
-                  // Hier verwenden wir pendingAsset, falls gesetzt, sonst ignorieren wir.
-                  const source = editor.pendingAsset?.dataUrl;
-                  if (!source) return;
-                  const k = p.tilesetKey || `ts-${Date.now()}`;
-                  gameBridge.registerTileset({ key: k, dataUrl: source, tileWidth: p.tileWidth || 16, tileHeight: p.tileHeight || 16, margin: p.margin || 0, spacing: p.spacing || 0 });
-                  // In die lokale Tileset-Bibliothek aufnehmen
-                  setEditor(s => {
-                    const next = { key: k, dataUrl: source, tileWidth: p.tileWidth || 16, tileHeight: p.tileHeight || 16, margin: p.margin || 0, spacing: p.spacing || 0 };
-                    const tilesets = [...(s.tilesets||[])];
-                    if (!tilesets.find(t => t.key === k)) tilesets.push(next);
-                    try { localStorage.setItem('meetropolis.tilesets', JSON.stringify(tilesets)); } catch {}
-                    return { ...s, tilesets, tilePaint: { ...(s.tilePaint as any), tilesetKey: k } };
-                  });
-                }} style={{ padding: 8, borderRadius: 8, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.06)', color: '#fff' }}>Tileset aus Upload registrieren</button>
-              </div>
-              {/* Visuelle Kachel-Palette */}
-              {(() => {
-                const p = editor.tilePaint;
-                if (!p) return null;
-                const lib = (editor.tilesets||[]).find(t => t.key === p.tilesetKey);
-                if (!lib) return null;
-                return (
-                  <TilesetPreview
-                    tileset={lib}
-                    selectedIndex={p.tileIndex}
-                    onSelect={(index: number) => setEditor(s => ({ ...s, tilePaint: { ...(s.tilePaint as any), tileIndex: index } }))}
-                  />
-                );
-              })()}
-              <div style={{ fontSize: 12, color: '#9ca3af' }}>Ziehen mit der Maus, um eine Rechteck-Auswahl zu malen. Wähle die Kachel per Klick in der Vorschau.</div>
-            </div>
-            <div style={{ display: 'grid', gap: 6 }}>
-              <div style={{ fontWeight: 600 }}>Zonen</div>
-              <div style={{ maxHeight: 160, overflow: 'auto', display: 'grid', gap: 6 }}>
-                {editor.zones.map((z, idx) => (
-                  <div key={idx} className="glass-surface" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 8, borderRadius: 8 }}>
-                    <div style={{ display: 'grid' }}>
-                      <div>{z.name}</div>
-                      <div style={{ fontSize: 11, color: '#9ca3af' }}>{z.points.length} Punkte</div>
-                    </div>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      <button title="Anzeigen" onClick={() => gameBridge.setZoneOverlay([z])} style={{ padding: 6, borderRadius: 8, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.06)', color: '#fff' }}>👁</button>
-                      <button title="Löschen" onClick={() => setEditor(s => {
-                        const zones = s.zones.filter((_, i) => i !== idx);
-                        try { localStorage.setItem('meetropolis.zones', JSON.stringify(zones)); } catch {}
-                        gameBridge.setZoneOverlay(zones);
-                        zoneRef.current?.setZones?.(zones as any);
-                        return { ...s, zones };
-                      })} style={{ padding: 6, borderRadius: 8, border: '1px solid rgba(244,63,94,0.45)', background: 'rgba(244,63,94,0.22)', color: '#fff' }}>✕</button>
+              
+              {/* Upload/Tileset Management Section */}
+              <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 12, marginTop: 12 }}>
+                <details>
+                  <summary style={{ cursor: 'pointer', fontSize: 13, color: '#9ca3af', marginBottom: 8 }}>Tileset-Verwaltung</summary>
+                  <div style={{ display: 'grid', gap: 8, marginTop: 8 }}>
+                    <input type="file" accept="image/*" onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const buf = await file.arrayBuffer();
+                      const base64 = await new Promise<string>((resolve) => {
+                        const reader = new FileReader();
+                        reader.onload = () => resolve(reader.result as string);
+                        reader.readAsDataURL(new Blob([buf], { type: file.type || 'image/png' }));
+                      });
+                      const key = `tileset-${Date.now()}`;
+                      // Register tileset
+                      gameBridge.registerTileset({ 
+                        key, 
+                        dataUrl: base64, 
+                        tileWidth: editor.tilePaint?.tileWidth || 16, 
+                        tileHeight: editor.tilePaint?.tileHeight || 16, 
+                        margin: editor.tilePaint?.margin || 0, 
+                        spacing: editor.tilePaint?.spacing || 0 
+                      });
+                      // Add to local tileset library
+                      setEditor(s => {
+                        const next = { 
+                          key, 
+                          dataUrl: base64, 
+                          tileWidth: s.tilePaint?.tileWidth || 16, 
+                          tileHeight: s.tilePaint?.tileHeight || 16, 
+                          margin: s.tilePaint?.margin || 0, 
+                          spacing: s.tilePaint?.spacing || 0 
+                        };
+                        const tilesets = [...(s.tilesets||[])];
+                        if (!tilesets.find(t => t.key === key)) tilesets.push(next);
+                        try { localStorage.setItem('meetropolis.tilesets', JSON.stringify(tilesets)); } catch {}
+                        return { ...s, tilesets };
+                      });
+                    }} style={{ padding: '6px 8px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.05)', color: '#fff', fontSize: 12 }} />
+                    
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
+                      <input type="number" min={8} max={64} placeholder="Breite" value={editor.tilePaint?.tileWidth ?? 16} onChange={(e)=>{
+                        const tileWidth = Math.max(4, Math.min(256, parseInt(e.target.value||'16',10)));
+                        setEditor(s => ({ ...s, tilePaint: { ...(s.tilePaint || { tilesetKey: 'office_tiles', tileIndex: 1, tileHeight: 16 }), tileWidth } }));
+                      }} style={{ padding: '4px 6px', borderRadius: 4, border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.03)', color: '#fff', fontSize: 11 }} />
+                      <input type="number" min={8} max={64} placeholder="Höhe" value={editor.tilePaint?.tileHeight ?? 16} onChange={(e)=>{
+                        const tileHeight = Math.max(4, Math.min(256, parseInt(e.target.value||'16',10)));
+                        setEditor(s => ({ ...s, tilePaint: { ...(s.tilePaint || { tilesetKey: 'office_tiles', tileIndex: 1, tileWidth: 16 }), tileHeight } }));
+                      }} style={{ padding: '4px 6px', borderRadius: 4, border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.03)', color: '#fff', fontSize: 11 }} />
+                      <input type="number" min={0} max={16} placeholder="Rand" value={editor.tilePaint?.margin ?? 0} onChange={(e)=>{
+                        const margin = Math.max(0, Math.min(64, parseInt(e.target.value||'0',10)));
+                        setEditor(s => ({ ...s, tilePaint: { ...(s.tilePaint || { tilesetKey: 'office_tiles', tileIndex: 1, tileWidth: 16, tileHeight: 16 }), margin } }));
+                      }} style={{ padding: '4px 6px', borderRadius: 4, border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.03)', color: '#fff', fontSize: 11 }} />
+                      <input type="number" min={0} max={16} placeholder="Abstand" value={editor.tilePaint?.spacing ?? 0} onChange={(e)=>{
+                        const spacing = Math.max(0, Math.min(64, parseInt(e.target.value||'0',10)));
+                        setEditor(s => ({ ...s, tilePaint: { ...(s.tilePaint || { tilesetKey: 'office_tiles', tileIndex: 1, tileWidth: 16, tileHeight: 16 }), spacing } }));
+                      }} style={{ padding: '4px 6px', borderRadius: 4, border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.03)', color: '#fff', fontSize: 11 }} />
                     </div>
                   </div>
-                ))}
-              </div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button onClick={() => { try { localStorage.removeItem('meetropolis.zones'); } catch {}; setEditor(s => ({ ...s, zones: [] })); gameBridge.setZoneOverlay([]); zoneRef.current?.setZones?.([] as any); }} style={{ flex: 1, padding: 8, borderRadius: 8, border: '1px solid rgba(244,63,94,0.45)', background: 'rgba(244,63,94,0.22)', color: '#fff' }}>Alle löschen</button>
-                <button onClick={() => { try { const raw = localStorage.getItem('meetropolis.zones'); if (raw) { const parsed = JSON.parse(raw)||[]; setEditor(s=>({ ...s, zones: parsed })); gameBridge.setZoneOverlay(parsed); zoneRef.current?.setZones?.(parsed as any); } } catch {} }} style={{ padding: 8, borderRadius: 8, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.06)', color: '#fff' }}>Lokal laden</button>
+                </details>
               </div>
             </div>
           </div>
