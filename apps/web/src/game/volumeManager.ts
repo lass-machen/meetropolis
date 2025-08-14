@@ -44,6 +44,9 @@ export function computePairVolume(
   // Bubble-Regel dominiert über Zonen und Distanz
   const localInBubble = bubbleMembers.has(local.id);
   const remoteInBubble = bubbleMembers.has(remote.id);
+  
+  // Volume computation debug removed - too verbose
+  
   if (localInBubble && remoteInBubble) return 1;
   if (localInBubble && !remoteInBubble) return rules.outsideBubbleAttenuation;
   if (!localInBubble && remoteInBubble) return rules.outsideBubbleAttenuation;
@@ -86,6 +89,14 @@ export class VolumeManager {
     const zones = this.providers.getZones();
     const followTarget = this.providers.getFollowTarget();
     const bubbleMembers = this.providers.getBubbleMembers();
+    
+    // Debug logging (commented out for production)
+    // if (bubbleMembers.size > 0) {
+    //   console.log('[VolumeManager] Update with bubble members:', Array.from(bubbleMembers));
+    //   console.log('[VolumeManager] Local:', local.id);
+    //   console.log('[VolumeManager] Remotes:', Object.keys(remotes));
+    // }
+    
     for (const [sid, pos] of Object.entries(remotes)) {
       const vol = computePairVolume(local, { id: sid, x: pos.x, y: pos.y }, zones, followTarget, bubbleMembers, this.rules);
       this.av.setParticipantVolume(sid, vol);

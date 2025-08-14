@@ -77,6 +77,9 @@ export function App() {
   const bubbleMembersRef = useRef<Set<string>>(new Set());
   const localPosRef = useRef<{ id: string; x: number; y: number }>({ id: '', x: 0, y: 0 });
   const remotesRef = useRef<Record<string, { x: number; y: number }>>({});
+  const colyseusToLivekitMap = useRef<Record<string, string>>({});
+  const identityToNameMap = useRef<Record<string, string>>({});
+  const livekitSidToColyseusMap = useRef<Record<string, string>>({});
   const [hud, setHud] = React.useState<{ zone?: string; follow?: string | null; avRoom?: string | null }>({});
   const [devices, setDevices] = React.useState<{ mics: { id: string; label: string }[]; cams: { id: string; label: string }[] }>({ mics: [], cams: [] });
   const [avState, setAvState] = React.useState<{ mic: boolean; cam: boolean; share: boolean }>({ mic: false, cam: false, share: false });
@@ -190,12 +193,17 @@ export function App() {
             const assets = JSON.parse(localStorage.getItem('meetropolis.assets') || '[]');
             const zones = JSON.parse(localStorage.getItem('meetropolis.zones') || '[]');
             const layers = JSON.parse(localStorage.getItem('meetropolis.editorLayers') || '{}');
-            await fetch(`${apiBase}/maps/office/editor-state`, {
-              method: 'PUT',
-              credentials: 'include',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ editorGround: layers.editorGround ?? null, collision: layers.collision ?? null, tilesets, assets, zones })
-            }).catch(()=>{});
+            const body = JSON.stringify({ editorGround: layers.editorGround ?? null, collision: layers.collision ?? null, tilesets, assets, zones });
+            if (body.length < 100000) {
+              await fetch(`${apiBase}/maps/office/editor-state`, {
+                method: 'PUT',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body
+              }).catch(()=>{});
+            } else {
+              console.warn('[Editor] Initial state too large to save:', body.length, 'bytes');
+            }
             try { gameBridge.reloadEditorLayers(); } catch {}
           }
         } catch {}
@@ -227,23 +235,41 @@ export function App() {
     }
   }, [page]);
 
+  // Helper function to get display name for a LiveKit identity
+  const getDisplayName = (identity: string): string => {
+    // Check if we have a stored name mapping
+    if (identityToNameMap.current[identity]) {
+      return identityToNameMap.current[identity];
+    }
+    
+    // Check if this is the local user
+    if (identity === me?.id || identity === me?.email) {
+      return me?.name || me?.email || identity;
+    }
+    
+    // If identity looks like a LiveKit ID, shorten it
+    if (identity.length > 20 && /^[a-zA-Z0-9]+$/.test(identity)) {
+      return `User ${identity.substring(0, 6)}`;
+    }
+    
+    return identity;
+  };
+
   const buildParticipantList = React.useCallback(() => {
     const room: any = avRef.current?.room as any;
     if (!room || !room.localParticipant) {
-      console.log('[UI] buildParticipantList - no room or localParticipant');
+      // buildParticipantList - no room or localParticipant
       return;
     }
     const remoteParticipants = Array.from(room.remoteParticipants?.values() || []);
-    console.log('[UI] buildParticipantList - participants:', {
-      local: room.localParticipant?.identity,
-      remotes: remoteParticipants.map((p: any) => ({ identity: p.identity, sid: p.sid }))
-    });
+    // buildParticipantList - participants
     
     const activeSet = new Set<string>((room.activeSpeakers || []).map((p: any) => p.sid));
     const list: { sid: string; identity: string; hasVideo: boolean; hasMic: boolean; isSpeaking: boolean; media: 'camera' | 'screen' }[] = [];
     const pushP = (p: any) => {
       if (!p || !p.trackPublications) return;
-      const publications = Array.from((p.trackPublications?.values?.() || []) as any);
+      try {
+        const publications = Array.from((p.trackPublications?.values?.() || []) as any);
       if (DEBUG) { try { console.log('[UI] participant pubs', p.identity, publications.map((pub:any)=>({src: pub?.source||pub?.track?.source, kind: pub?.kind||pub?.track?.kind, hasTrack: !!pub?.track}))); } catch {} }
       const isVideoPub = (pub: any) => {
         const source = (pub?.source ?? pub?.track?.source);
@@ -266,7 +292,28 @@ export function App() {
       const hasV = publications.some(isVideoPub);
       const hasMic = publications.some(isMicPub);
       const hasScreen = publications.some(isScreenPub);
-      const identity = p.identity || 'User';
+      // Get display name from identity - if it's a LiveKit ID, try to get the actual name
+      let displayName = p.identity || 'User';
+      
+      // Check if participant has a name property
+      if (p && p.name && p.name !== p.identity) {
+        displayName = p.name;
+        // Store the mapping
+        identityToNameMap.current[p.identity] = p.name;
+      } else if (p && p.sid === room.localParticipant?.sid) {
+        // Check if this is the local participant
+        displayName = me?.name || me?.email || displayName;
+      } else {
+        // For remote participants, check if we have a name mapping
+        // If identity looks like a LiveKit ID (long alphanumeric), keep it for now
+        // In a real app, you'd have a server-side mapping of identities to names
+        if (displayName.length > 20 && /^[a-zA-Z0-9]+$/.test(displayName)) {
+          // This looks like a LiveKit ID, use a shortened version
+          displayName = `User ${displayName.substring(0, 6)}`;
+        }
+      }
+      
+      const identity = displayName;
       // Kamera-Karte
       if (hasV) {
         list.push({ sid: p.sid, identity, hasVideo: true, hasMic, isSpeaking: activeSet.has(p.sid), media: 'camera' });
@@ -280,17 +327,64 @@ export function App() {
         console.log('[UI] Adding screenshare card for', identity);
         list.push({ sid: p.sid + ':screen', identity: `${identity} – Bildschirm`, hasVideo: true, hasMic: false, isSpeaking: false, media: 'screen' });
       }
+      } catch (e) {
+        console.error('[UI] Error processing participant:', p?.identity || 'unknown', e);
+      }
     };
     pushP(room.localParticipant);
     const remotes = Array.from((room.remoteParticipants?.values?.() || room.participants?.values?.() || []) as any);
-    console.log('[UI] Processing remote participants:', remotes.length);
+    // Processing remote participants
     for (const rp of remotes) {
-      console.log('[UI] Processing remote participant:', { sid: rp.sid, identity: rp.identity, hasPubs: !!rp.trackPublications });
+      // Processing remote participant
       pushP(rp);
     }
-    console.log('[UI] Final participant list:', list);
+    // Final participant list
     setUiParticipants(list);
-  }, []);
+    
+    // Update speaking states in the game
+    // Use the activeSpeakers from LiveKit directly
+    const speakingIds = new Set<string>();
+    const activeSpeakers = room.activeSpeakers || [];
+    
+    if (activeSpeakers.length > 0) {
+      console.log('[Speaking] Active speakers from LiveKit:', activeSpeakers.map((s: any) => ({
+        sid: s.sid,
+        identity: s.identity,
+        isLocal: s.sid === room.localParticipant?.sid
+      })));
+      console.log('[Speaking] Current colyseusToLivekitMap:', colyseusToLivekitMap.current);
+    }
+    
+    activeSpeakers.forEach((speaker: any) => {
+      // Check if it's the local participant
+      if (speaker.sid === room.localParticipant?.sid) {
+        speakingIds.add('local');
+      } else {
+        // For remote participants, we need to find their Colyseus ID
+        // The speaker has an identity field which should match what we stored
+        // Find ALL matching Colyseus IDs (there might be multiple due to reconnects)
+        const matchingColyseusIds = Object.entries(colyseusToLivekitMap.current)
+          .filter(([_, livekitIdentity]) => livekitIdentity === speaker.identity)
+          .map(([colyseusId]) => colyseusId);
+        
+        if (matchingColyseusIds.length > 0) {
+          console.log('[Speaking] Found Colyseus IDs for speaker', speaker.identity, ':', matchingColyseusIds);
+          // Check which one is currently active in remotesRef
+          const activeColyseusId = matchingColyseusIds.find(id => id in remotesRef.current);
+          if (activeColyseusId) {
+            console.log('[Speaking] Using active Colyseus ID:', activeColyseusId);
+            speakingIds.add(activeColyseusId);
+          } else {
+            console.log('[Speaking] No active Colyseus ID found in remotesRef. Available remotes:', Object.keys(remotesRef.current));
+          }
+        } else {
+          console.log('[Speaking] Could not find Colyseus ID for speaker:', speaker.identity);
+        }
+      }
+    });
+    
+    gameBridge.updateSpeakingStates(speakingIds);
+  }, [me]);
 
   useEffect(() => {
     if (page !== 'world') return;
@@ -312,12 +406,14 @@ export function App() {
     };
     const connectColyseus = async () => {
       try {
-        const room = await joinWorld(apiBase);
+        const room = await joinWorld(apiBase, me.id, me.name || me.email || me.id);
         if (disposed) { try { room.leave(); } catch {} return; }
         colyseusRef.current = room;
         colyseusReconnectAttemptsRef.current = 0;
-        localPosRef.current.id = room.sessionId;
-        console.log('[Colyseus] Local player ID set to:', room.sessionId);
+        // Get LiveKit identity for local position tracking
+        const localLivekitIdentity = avRef.current?.room?.localParticipant?.identity || me.id;
+        localPosRef.current.id = localLivekitIdentity;
+        console.log('[Colyseus] Local player ID set to LiveKit identity:', localLivekitIdentity);
         
         // Debug: Check immediate state
         console.log('[Colyseus] Room state immediately after join:', {
@@ -392,6 +488,10 @@ export function App() {
               state.players.forEach((value: any, key: string) => {
                 console.log('[Colyseus] Player found via forEach:', key, value);
                 players[key] = { x: value.x, y: value.y, direction: value.direction };
+                // Store name mapping if available
+                if (value.identity && value.name) {
+                  identityToNameMap.current[value.identity] = value.name;
+                }
               });
             } 
             // Try entries() method if available
@@ -399,6 +499,10 @@ export function App() {
               for (const [key, value] of state.players.entries()) {
                 console.log('[Colyseus] Player found via entries:', key, value);
                 players[key] = { x: value.x, y: value.y, direction: value.direction };
+                // Store name mapping if available
+                if (value.identity && value.name) {
+                  identityToNameMap.current[value.identity] = value.name;
+                }
               }
             }
             // Try direct iteration
@@ -406,6 +510,10 @@ export function App() {
               for (const [key, value] of state.players) {
                 console.log('[Colyseus] Player found via iterator:', key, value);
                 players[key] = { x: value.x, y: value.y, direction: value.direction };
+                // Store name mapping if available
+                if (value.identity && value.name) {
+                  identityToNameMap.current[value.identity] = value.name;
+                }
               }
             }
           }
@@ -423,9 +531,15 @@ export function App() {
             const others = remoteEntries.map(([id, p]) => ({ id, x: p.x, y: p.y }));
             bubbleRef.current.update(localPosRef.current, others);
           }
-          // Filter out local player before syncing to scene
+          // Filter out local player before syncing to scene and add names
           const filteredPlayers = Object.fromEntries(
-            Object.entries(players).filter(([id]) => id !== localPosRef.current.id)
+            Object.entries(players)
+              .filter(([id]) => id !== localPosRef.current.id)
+              .map(([id, p]) => {
+                const livekitIdentity = colyseusToLivekitMap.current[id] || id;
+                const name = identityToNameMap.current[livekitIdentity] || getDisplayName(livekitIdentity);
+                return [id, { ...p, name }];
+              })
           );
           console.log('[Game] Syncing remote players:', {
             localId: localPosRef.current.id,
@@ -445,13 +559,27 @@ export function App() {
         room.onMessage('full_state', (data: any) => {
           console.log('[Colyseus] Received full_state:', data);
           if (data.players) {
-            const players: Record<string, { x: number; y: number; direction: any }> = {};
+            const players: Record<string, { x: number; y: number; direction: any; name?: string }> = {};
             data.players.forEach((p: any) => {
               if (p.id !== localPosRef.current.id) {
-                players[p.id] = { x: p.x, y: p.y, direction: p.direction };
+                // Store identity mapping
+                if (p.identity) {
+                  colyseusToLivekitMap.current[p.id] = p.identity;
+                  // Store name mapping if provided
+                  if (p.name) {
+                    identityToNameMap.current[p.identity] = p.name;
+                  }
+                }
+                players[p.id] = { 
+                  x: p.x, 
+                  y: p.y, 
+                  direction: p.direction,
+                  name: p.name || getDisplayName(p.identity || p.id)
+                };
               }
             });
             console.log('[Colyseus] Manual sync remote players:', players);
+            console.log('[Colyseus] Identity mapping:', colyseusToLivekitMap.current);
             gameBridge.syncRemotePlayers(players);
           }
         });
@@ -461,8 +589,20 @@ export function App() {
           console.log('[Colyseus] New player joined:', data);
           if (data.id !== localPosRef.current.id) {
             remotesRef.current[data.id] = { x: data.x, y: data.y };
+            // Store identity mapping
+            if (data.identity) {
+              colyseusToLivekitMap.current[data.id] = data.identity;
+              // Store name mapping if provided
+              if (data.name) {
+                identityToNameMap.current[data.identity] = data.name;
+              }
+            }
             const players = Object.fromEntries(
-              Object.entries(remotesRef.current).map(([id, p]) => [id, { ...p, direction: data.direction || 'down' }])
+              Object.entries(remotesRef.current).map(([id, p]) => [id, { 
+                ...p, 
+                direction: data.direction || 'down',
+                name: getDisplayName(colyseusToLivekitMap.current[id] || data.identity || id)
+              }])
             );
             gameBridge.syncRemotePlayers(players);
           }
@@ -475,7 +615,16 @@ export function App() {
             const players = Object.fromEntries(
               Object.entries(remotesRef.current).map(([id, p]) => [
                 id, 
-                id === data.id ? { x: data.x, y: data.y, direction: data.direction } : { ...p, direction: 'down' }
+                id === data.id ? { 
+                  x: data.x, 
+                  y: data.y, 
+                  direction: data.direction,
+                  name: getDisplayName(colyseusToLivekitMap.current[id] || id)
+                } : { 
+                  ...p, 
+                  direction: 'down',
+                  name: getDisplayName(colyseusToLivekitMap.current[id] || id)
+                }
               ])
             );
             gameBridge.syncRemotePlayers(players);
@@ -487,7 +636,11 @@ export function App() {
           console.log('[Colyseus] Player left:', data.id);
           delete remotesRef.current[data.id];
           const players = Object.fromEntries(
-            Object.entries(remotesRef.current).map(([id, p]) => [id, { ...p, direction: 'down' }])
+            Object.entries(remotesRef.current).map(([id, p]) => [id, { 
+              ...p, 
+              direction: 'down',
+              name: getDisplayName(colyseusToLivekitMap.current[id] || id)
+            }])
           );
           gameBridge.syncRemotePlayers(players);
         });
@@ -499,6 +652,7 @@ export function App() {
 
     // LiveKit nach User-Geste verbinden
     const identity = me.id;
+    const displayName = me.name || me.email || me.id;
     const connectLivekit = async () => {
       // Im Editor-Modus nie LiveKit initialisieren (verhindert Blocking/Errors)
       if (editorActiveRef.current) return;
@@ -507,7 +661,12 @@ export function App() {
       
       isConnectingRef.current = true;
       try {
-        avRef.current = new AVManager({ baseUrl: apiBase, identity, useVideo: import.meta.env.VITE_FEATURE_VOICE_ONLY !== 'true' });
+        avRef.current = new AVManager({ 
+          baseUrl: apiBase, 
+          identity, 
+          displayName,
+          useVideo: import.meta.env.VITE_FEATURE_VOICE_ONLY !== 'true' 
+        });
         bubbleRef.current?.setAV(avRef.current);
         zoneRef.current?.setAV(avRef.current);
         await avRef.current.switchTo('world');
@@ -626,18 +785,55 @@ export function App() {
       colyseusRef.current?.send?.('move', p);
     };
     volumeRef.current = new VolumeManager(
-      { setParticipantVolume: (sid, vol) => avRef.current?.setParticipantVolume(sid, vol) },
+      { 
+        setParticipantVolume: (identity, vol) => {
+          // Map identity to LiveKit SID
+          const room = avRef.current?.room as any;
+          if (!room) return;
+          
+          // Find participant by identity
+          const participants = Array.from(room.remoteParticipants?.values() || []);
+          const participant = participants.find((p: any) => p.identity === identity);
+          
+          // Debug logging (commented out for production)
+          // if (bubbleMembersRef.current.size > 0) {
+          //   console.log('[Volume] Setting volume for', identity, 'to', vol, 
+          //     'participant found:', !!participant);
+          // }
+          
+          if (participant) {
+            avRef.current?.setParticipantVolume(participant.sid, vol);
+          }
+        }
+      },
       {
         getLocal: () => localPosRef.current.id ? { id: localPosRef.current.id, x: localPosRef.current.x, y: localPosRef.current.y } : null,
-        getRemotes: () => remotesRef.current,
+        getRemotes: () => {
+          // Convert Colyseus session IDs to LiveKit identities for volume calculation
+          const remotePositions: Record<string, { x: number; y: number }> = {};
+          for (const [colyseusId, pos] of Object.entries(remotesRef.current)) {
+            const livekitIdentity = colyseusToLivekitMap.current[colyseusId];
+            if (livekitIdentity) {
+              remotePositions[livekitIdentity] = pos;
+            }
+          }
+          return remotePositions;
+        },
         getZones: () => zoneRef.current?.getZones?.() || [],
         getFollowTarget: () => followRef.current?.getTarget?.() || null,
         getBubbleMembers: () => bubbleMembersRef.current,
       },
-      { nearRadius: 96, farRadius: 384, outsideBubbleAttenuation: 0.15 }
+      { nearRadius: 96, farRadius: 384, outsideBubbleAttenuation: 0.2 }
     );
     // Direkt nach Szenenstart versuchen, lokal gespeicherte Editor-Layer zu laden
-    setTimeout(() => { try { gameBridge.reloadEditorLayers(); } catch {} }, 0);
+    setTimeout(() => { 
+      try { gameBridge.reloadEditorLayers(); } catch {}
+      // Set hero name with a small delay to ensure scene is ready
+      const heroName = me.name || me.email || 'You';
+      setTimeout(() => {
+        try { gameBridge.setHeroName(heroName); } catch {}
+      }, 100);
+    }, 0);
     // Editor-Click-Handler
     gameBridge.onPointerDown = ({ x, y }) => {
       setEditor(prev => {
@@ -653,13 +849,66 @@ export function App() {
         return prev;
       });
     };
+    
+    gameBridge.onRightClick = ({ x, y }) => {
+      if (editorActiveRef.current) return;
+      
+      // Get the clicked player ID from the bridge (this is a Colyseus session ID)
+      const clickedColyseusId = (gameBridge as any).lastRightClickedPlayer;
+      if (!clickedColyseusId) return;
+      
+      // Get the actual user identity from our mapping
+      const clickedIdentity = colyseusToLivekitMap.current[clickedColyseusId];
+      if (!clickedIdentity) {
+        console.log('[Bubble] No identity mapping found for:', clickedColyseusId);
+        return;
+      }
+      
+      // Get local LiveKit identity from the room
+      const room = avRef.current?.room as any;
+      const localLivekitIdentity = room?.localParticipant?.identity;
+      if (!localLivekitIdentity) {
+        console.log('[Bubble] No local LiveKit identity found');
+        return;
+      }
+      
+      const set = bubbleMembersRef.current;
+      
+      // Toggle bubble membership using LiveKit identities
+      if (set.has(localLivekitIdentity) && set.has(clickedIdentity)) {
+        // Both in bubble - remove both
+        set.clear();
+        console.log('[Bubble] Cleared bubble');
+      } else {
+        // Create new bubble with both players
+        set.clear();
+        set.add(localLivekitIdentity);
+        set.add(clickedIdentity);
+        console.log('[Bubble] Created bubble with identities:', localLivekitIdentity, 'and', clickedIdentity);
+      }
+      
+      // Update volume immediately
+      volumeRef.current?.update();
+      
+      // Update visual bubble indicators (still using Colyseus IDs for display)
+      const visualSet = new Set<string>();
+      if (set.has(localLivekitIdentity)) {
+        visualSet.add('__local__'); // Special marker for local player
+      }
+      if (set.has(clickedIdentity)) {
+        visualSet.add(clickedColyseusId); // Use Colyseus ID for visual indicator
+      }
+      gameBridge.setBubbleMembers(visualSet);
+    };
     // Tile-basierte Selektion/Malen
     gameBridge.onPointerDownTile = ({ tileX, tileY }) => {
+      if (!editorActiveRef.current) return; // Only handle in editor mode
       setEditor(s => ({ ...s, drag: { startTileX: tileX, startTileY: tileY, endTileX: tileX, endTileY: tileY } }));
       const tw = 16, th = 16;
       gameBridge.setSelectionRect({ x: tileX * tw, y: tileY * th, w: tw, h: th });
     };
     gameBridge.onPointerMoveTile = ({ tileX, tileY }) => {
+      if (!editorActiveRef.current) return; // Only handle in editor mode
       setEditor(s => {
         if (!s.drag) return s;
         const drag = { ...s.drag, endTileX: tileX, endTileY: tileY };
@@ -672,6 +921,7 @@ export function App() {
       });
     };
     gameBridge.onPointerUpTile = ({ tileX, tileY }) => {
+      if (!editorActiveRef.current) return; // Only handle in editor mode
       setEditor(s => {
         if (!s.drag) return s;
         const drag = { ...s.drag, endTileX: tileX, endTileY: tileY };
@@ -699,7 +949,21 @@ export function App() {
           gameBridge.setZoneOverlay(zones);
           zoneRef.current?.setZones?.(zones as any);
           // Server speichern (best-effort)
-          (async ()=>{ try { await fetch(`${apiBase}/maps/office/editor-state`, { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ zones }) }); } catch {} })();
+          (async ()=>{ 
+            try { 
+              const body = JSON.stringify({ zones });
+              if (body.length < 100000) {
+                await fetch(`${apiBase}/maps/office/editor-state`, { 
+                  method: 'PUT', 
+                  credentials: 'include', 
+                  headers: { 'Content-Type': 'application/json' }, 
+                  body 
+                });
+              } else {
+                console.warn('[Editor] Zones data too large to save:', body.length, 'bytes');
+              }
+            } catch {} 
+          })();
           return { ...s, zones, drag: null };
         }
         return { ...s, drag: null };
@@ -1101,6 +1365,31 @@ export function App() {
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
               <button onClick={() => setEditor(s => { const next = { ...s, tempPoints: [] }; gameBridge.setZoneOverlay([...next.zones]); return next; })} style={{ flex: 1, padding: 8, borderRadius: 8, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.06)', color: '#fff' }}>Punkte zurücksetzen</button>
+              <button onClick={() => {
+                if (confirm('Wirklich alle Zonen löschen?')) {
+                  setEditor(s => {
+                    const newState = { ...s, zones: [], tempPoints: [] };
+                    try { localStorage.setItem('meetropolis.zones', JSON.stringify([])); } catch {}
+                    gameBridge.setZoneOverlay([]);
+                    zoneRef.current?.setZones?.([]);
+                    // Server speichern
+                    (async ()=>{ 
+                      try { 
+                        const body = JSON.stringify({ zones: [] });
+                        if (body.length < 100000) {
+                          await fetch(`${apiBase}/maps/office/editor-state`, { 
+                            method: 'PUT', 
+                            credentials: 'include', 
+                            headers: { 'Content-Type': 'application/json' }, 
+                            body 
+                          });
+                        }
+                      } catch {} 
+                    })();
+                    return newState;
+                  });
+                }
+              }} style={{ flex: 1, padding: 8, borderRadius: 8, border: '1px solid rgba(255,87,87,0.35)', background: 'rgba(255,87,87,0.18)', color: '#fff' }}>Alle Zonen löschen</button>
               <button onClick={() => setEditor(s => {
                 if (s.tempPoints.length < 3) return s;
                 const name = (s.name || `Zone ${s.zones.length+1}`).trim();
@@ -1110,7 +1399,21 @@ export function App() {
                 gameBridge.setZoneOverlay(zones);
                 zoneRef.current?.setZones?.(zones as any);
                 // Server speichern (best-effort)
-                (async ()=>{ try { await fetch(`${apiBase}/maps/office/editor-state`, { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ zones }) }); } catch {} })();
+                (async ()=>{ 
+            try { 
+              const body = JSON.stringify({ zones });
+              if (body.length < 100000) {
+                await fetch(`${apiBase}/maps/office/editor-state`, { 
+                  method: 'PUT', 
+                  credentials: 'include', 
+                  headers: { 'Content-Type': 'application/json' }, 
+                  body 
+                });
+              } else {
+                console.warn('[Editor] Zones data too large to save:', body.length, 'bytes');
+              }
+            } catch {} 
+          })();
                 return { ...s, zones, tempPoints: [], name };
               })} style={{ flex: 1, padding: 8, borderRadius: 8, border: '1px solid rgba(16,185,129,0.35)', background: 'rgba(16,185,129,0.18)', color: '#fff' }}>Zone speichern</button>
             </div>
@@ -1736,7 +2039,7 @@ function UserManagement(props: { baseUrl: string; onBack: () => void }) {
           setError(null);
           try {
             // Einladung erzeugen
-            const res = await fetch(`${baseUrl}/auth/invite`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ email: newEmail }) });
+            const res = await fetch(`${baseUrl}/auth/invite`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ email: newEmail, name: newName || undefined }) });
             if (!res.ok) throw new Error((await res.json())?.error || 'Fehler beim Einladen');
             const data = await res.json();
             setInviteCode(data.code || null);

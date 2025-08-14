@@ -7,6 +7,8 @@ class Player extends Schema {
   @type('number') x: number = 0;
   @type('number') y: number = 0;
   @type('string') direction: string = 'down';
+  @type('string') identity: string = ''; // User's actual identity for LiveKit
+  @type('string') name: string = ''; // User's display name
 }
 
 class WorldState extends Schema {
@@ -37,19 +39,21 @@ export class WorldRoom extends Colyseus.Room<WorldState> {
     });
   }
 
-  override onJoin(client: Client) {
+  override onJoin(client: Client, options?: any) {
     const player = new Player();
     player.id = client.sessionId;
     player.x = Math.floor(Math.random() * 200) + 100; // Random initial position
     player.y = Math.floor(Math.random() * 200) + 100;
     player.direction = 'down';
+    player.identity = options?.identity || client.sessionId; // Use provided identity or fallback
+    player.name = options?.name || options?.identity || client.sessionId; // Use provided name or fallback
     this.state.players.set(client.sessionId, player);
-    console.log('[WorldRoom] Player joined:', client.sessionId, 'at', player.x, player.y);
+    console.log('[WorldRoom] Player joined:', client.sessionId, 'identity:', player.identity, 'name:', player.name, 'at', player.x, player.y);
     console.log('[WorldRoom] Current players:', this.state.players.size);
     
     // Debug: Log all players
     this.state.players.forEach((p, id) => {
-      console.log('[WorldRoom] - Player', id, 'at', p.x, p.y);
+      console.log('[WorldRoom] - Player', id, 'identity:', p.identity, 'at', p.x, p.y);
     });
     
     // Send full state to the new client
@@ -58,7 +62,9 @@ export class WorldRoom extends Colyseus.Room<WorldState> {
         id,
         x: p.x,
         y: p.y,
-        direction: p.direction
+        direction: p.direction,
+        identity: p.identity,
+        name: p.name
       }))
     });
     
@@ -67,7 +73,9 @@ export class WorldRoom extends Colyseus.Room<WorldState> {
       id: client.sessionId,
       x: player.x,
       y: player.y,
-      direction: player.direction
+      direction: player.direction,
+      identity: player.identity,
+      name: player.name
     }, { except: client });
   }
 

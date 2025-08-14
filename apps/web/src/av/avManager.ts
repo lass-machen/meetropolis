@@ -14,6 +14,7 @@ export class AVManager {
   private currentName: string | null = null;
   private readonly baseUrl: string;
   private readonly identity: string;
+  private readonly displayName: string;
   private readonly useVideo: boolean;
   private isConnecting = false;
   private connectSeq = 0;
@@ -25,9 +26,10 @@ export class AVManager {
   private reconnectAttempts = 0;
   private reconnectTimer: any = null;
 
-  constructor(opts: { baseUrl: string; identity: string; useVideo: boolean }) {
+  constructor(opts: { baseUrl: string; identity: string; displayName?: string; useVideo: boolean }) {
     this.baseUrl = opts.baseUrl;
     this.identity = opts.identity;
+    this.displayName = opts.displayName || opts.identity;
     this.useVideo = opts.useVideo;
   }
 
@@ -49,6 +51,7 @@ export class AVManager {
         tokenEndpoint: '/livekit/token',
         roomName: name,
         identity: this.identity,
+        displayName: this.displayName,
         useVideo: this.useVideo,
       });
       if (seq !== this.connectSeq) { try { await room.disconnect(); } catch {} return; }

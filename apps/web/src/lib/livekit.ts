@@ -17,14 +17,15 @@ export async function joinLivekitRoom(params: {
   tokenEndpoint: string;
   roomName: string;
   identity: string;
+  displayName?: string;
   useVideo: boolean;
 }) {
-  console.log('[LiveKit] Requesting token for:', { roomName: params.roomName, identity: params.identity });
+  console.log('[LiveKit] Requesting token for:', { roomName: params.roomName, identity: params.identity, name: params.displayName || params.identity });
   const res = await fetch(`${params.baseUrl}/livekit/token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
-    body: JSON.stringify({ roomName: params.roomName, identity: params.identity, name: params.identity })
+    body: JSON.stringify({ roomName: params.roomName, identity: params.identity, name: params.displayName || params.identity })
   });
   if (!res.ok) {
     throw new Error('LiveKit Token konnte nicht geholt werden');

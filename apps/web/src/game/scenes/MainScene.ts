@@ -15,6 +15,13 @@ export class MainScene extends Phaser.Scene implements SceneApi {
   private dynamicTilesets: Map<string, Phaser.Tilemaps.Tileset> = new Map();
   private collisionOverlay?: Phaser.GameObjects.Graphics;
   private collisionVisible = false;
+  private hoveredSprite: Phaser.GameObjects.Sprite | null = null;
+  private hoverOutline?: Phaser.GameObjects.Graphics;
+  private bubbleOutlines: Map<string, Phaser.GameObjects.Graphics> = new Map();
+  private nameLabels: Map<string, Phaser.GameObjects.Container> = new Map();
+  private heroNameLabel?: Phaser.GameObjects.Container;
+  private speakingPlayers: Set<string> = new Set();
+  private nameUpdateTimer?: Phaser.Time.TimerEvent;
   constructor() {
     super('Main');
   }
@@ -114,6 +121,10 @@ export class MainScene extends Phaser.Scene implements SceneApi {
     this.hero.setCollideWorldBounds(true);
     this.hero.setDepth(10);
     if (staticColliders) this.physics.add.collider(this.hero, staticColliders);
+    
+    // Create name label for hero (will be set later when we get the actual name)
+    this.heroNameLabel = this.createNameLabel('Loading...', 'local');
+    this.updateNameLabel(this.heroNameLabel, this.hero.x, this.hero.y);
 
     this.anims.create({ key: 'walk_down', frames: this.anims.generateFrameNumbers('hero_walk_down', { start: 0, end: 3 }), frameRate: 8, repeat: -1 });
     this.anims.create({ key: 'walk_up', frames: this.anims.generateFrameNumbers('hero_walk_up', { start: 0, end: 3 }), frameRate: 8, repeat: -1 });
@@ -176,6 +187,11 @@ export class MainScene extends Phaser.Scene implements SceneApi {
       }
 
       gameBridge.onLocalMove({ x: this.hero.x, y: this.hero.y, direction: currentDirection });
+      
+      // Update hero name label position
+      if (this.heroNameLabel) {
+        this.updateNameLabel(this.heroNameLabel, this.hero.x, this.hero.y);
+      }
     });
 
     // Tile-basierte Eingabe für Editor
@@ -188,6 +204,23 @@ export class MainScene extends Phaser.Scene implements SceneApi {
     };
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
       const worldPoint = pointer.positionToCamera(this.cameras.main) as Phaser.Math.Vector2;
+      
+      if (pointer.rightButtonDown()) {
+        // Handle right click on remote sprites
+        for (const [id, sprite] of this.remotes) {
+          const bounds = sprite.getBounds();
+          if (bounds.contains(worldPoint.x, worldPoint.y)) {
+            console.log('[MainScene] Right clicked on player:', id);
+            gameBridge.onRightClick({ x: worldPoint.x, y: worldPoint.y });
+            
+            // Store the clicked player ID for bubble logic
+            (gameBridge as any).lastRightClickedPlayer = id;
+            break;
+          }
+        }
+        return;
+      }
+      
       gameBridge.onPointerDown({ x: worldPoint.x, y: worldPoint.y });
       const { tileX, tileY } = toTile(pointer);
       gameBridge.onPointerDownTile({ tileX, tileY });
@@ -202,6 +235,42 @@ export class MainScene extends Phaser.Scene implements SceneApi {
       this.setSelectionRect(null);
     });
 
+    // Create hover outline graphics
+    this.hoverOutline = this.add.graphics();
+    this.hoverOutline.setDepth(11); // Above sprites
+    
+    // Set up pointer move event for hover detection
+    this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
+      const worldPoint = pointer.positionToCamera(this.cameras.main) as Phaser.Math.Vector2;
+      
+      // Check if hovering over any remote sprite
+      let foundHover = false;
+      for (const [id, sprite] of this.remotes) {
+        const bounds = sprite.getBounds();
+        if (bounds.contains(worldPoint.x, worldPoint.y)) {
+          if (this.hoveredSprite !== sprite) {
+            this.hoveredSprite = sprite;
+            this.updateHoverOutline();
+          }
+          foundHover = true;
+          break;
+        }
+      }
+      
+      if (!foundHover && this.hoveredSprite) {
+        this.hoveredSprite = null;
+        this.updateHoverOutline();
+      }
+    });
+    
+    // Removed duplicate handler - combined with main pointerdown below
+    
+    // Disable context menu on canvas
+    this.game.canvas.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      return false;
+    });
+    
     gameBridge.setSceneApi(this);
 
     // Nach dem Aufbau: gespeicherte Editor-Layer laden (best-effort)
@@ -226,12 +295,11 @@ export class MainScene extends Phaser.Scene implements SceneApi {
     });
   }
 
-  syncRemotePlayers(players: Record<string, { x: number; y: number; direction: 'up'|'down'|'left'|'right'; prevX?: number; prevY?: number }>) {
-    console.log('[MainScene] syncRemotePlayers called with:', Object.keys(players).length, 'players');
+  syncRemotePlayers(players: Record<string, { x: number; y: number; direction: 'up'|'down'|'left'|'right'; prevX?: number; prevY?: number; name?: string }>) {
     for (const [id, p] of Object.entries(players)) {
       let s = this.remotes.get(id);
       if (!s) {
-        console.log('[MainScene] Creating new sprite for player:', id, 'at', p.x, p.y);
+        // Creating new sprite for player
         s = this.add.sprite(p.x, p.y, 'hero_walk_down', 0);
         s.setDepth(10); // Same depth as local hero
         // Store previous position and direction for movement detection
@@ -240,6 +308,12 @@ export class MainScene extends Phaser.Scene implements SceneApi {
         (s as any).prevDirection = p.direction;
         (s as any).lastMoveTime = Date.now();
         this.remotes.set(id, s);
+        
+        // Create name label for remote player
+        const name = p.name || `User ${id.substring(0, 6)}`;
+        const nameLabel = this.createNameLabel(name, id);
+        this.nameLabels.set(id, nameLabel);
+        this.updateNameLabel(nameLabel, p.x, p.y);
       }
       
       // Check if player is moving
@@ -252,18 +326,19 @@ export class MainScene extends Phaser.Scene implements SceneApi {
       const isMoving = distance > 0.5; // Threshold for movement detection
       const directionChanged = prevDirection !== p.direction;
       
-      console.log(`[MainScene] Player ${id} movement:`, {
-        distance,
-        isMoving,
-        direction: p.direction,
-        directionChanged
-      });
+      // Debug logging removed - too verbose
       
       // Update position
       s.setPosition(p.x, p.y);
       (s as any).prevX = p.x;
       (s as any).prevY = p.y;
       (s as any).prevDirection = p.direction;
+      
+      // Update name label position
+      const nameLabel = this.nameLabels.get(id);
+      if (nameLabel) {
+        this.updateNameLabel(nameLabel, p.x, p.y);
+      }
       
       // Always play animation based on direction
       const animationMap: Record<string, string> = {
@@ -315,12 +390,53 @@ export class MainScene extends Phaser.Scene implements SceneApi {
       if (!players[id]) {
         this.remotes.get(id)?.destroy();
         this.remotes.delete(id);
+        
+        // Remove name label
+        const nameLabel = this.nameLabels.get(id);
+        if (nameLabel) {
+          nameLabel.destroy();
+          this.nameLabels.delete(id);
+        }
       }
     }
   }
 
   setDesiredPosition(pos: { x: number; y: number } | null) {
     this.desiredPos = pos;
+  }
+  
+  private updateHoverOutline() {
+    if (!this.hoverOutline) return;
+    
+    this.hoverOutline.clear();
+    
+    if (this.hoveredSprite) {
+      const bounds = this.hoveredSprite.getBounds();
+      
+      // Draw outline
+      this.hoverOutline.lineStyle(2, 0x00ff00, 1);
+      this.hoverOutline.strokeRect(
+        bounds.x - 2,
+        bounds.y - 2,
+        bounds.width + 4,
+        bounds.height + 4
+      );
+      
+      // Add a subtle glow effect
+      this.hoverOutline.lineStyle(4, 0x00ff00, 0.3);
+      this.hoverOutline.strokeRect(
+        bounds.x - 4,
+        bounds.y - 4,
+        bounds.width + 8,
+        bounds.height + 8
+      );
+      
+      // Change cursor
+      this.input.setDefaultCursor('pointer');
+    } else {
+      // Reset cursor
+      this.input.setDefaultCursor('default');
+    }
   }
 
   setZoneOverlay(polys: { name: string; points: { x: number; y: number }[] }[]) {
@@ -433,12 +549,18 @@ export class MainScene extends Phaser.Scene implements SceneApi {
         base = `${window.location.protocol}//${window.location.hostname}:2567`;
       }
       if (!base) base = 'http://localhost:2567';
-      fetch(`${base}/maps/office/editor-state`, {
-        method: 'PUT',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ editorGround: data.editorGround, collision: data.collision })
-      }).catch(()=>{});
+      // Only save to server if data is not too large (< 100KB)
+      const jsonStr = JSON.stringify({ editorGround: data.editorGround, collision: data.collision });
+      if (jsonStr.length < 100000) {
+        fetch(`${base}/maps/office/editor-state`, {
+          method: 'PUT',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: jsonStr
+        }).catch((e)=>{ console.warn('[Editor] Failed to save to server:', e); });
+      } else {
+        console.warn('[Editor] Editor data too large to save to server:', jsonStr.length, 'bytes');
+      }
     } catch {}
   }
 
@@ -589,5 +711,174 @@ export class MainScene extends Phaser.Scene implements SceneApi {
     }
     g.setDepth(8);
     this.collisionOverlay = g;
+  }
+  
+  setBubbleMembers(members: Set<string>) {
+    // setBubbleMembers called
+    
+    // Clear existing bubble outlines
+    for (const outline of this.bubbleOutlines.values()) {
+      outline.destroy();
+    }
+    this.bubbleOutlines.clear();
+    
+    // We don't have access to local player ID here, but we can check if any remote is in bubble
+    // The local player bubble effect should be handled differently
+    
+    // Create bubble outlines for remote members
+    for (const id of members) {
+      const sprite = this.remotes.get(id);
+      if (sprite) {
+        const g = this.add.graphics();
+        g.setDepth(9);
+        this.bubbleOutlines.set(id, g);
+        // Start animation update
+        const updateFunc = () => {
+          if (this.bubbleOutlines.has(id)) {
+            this.updateBubbleOutline(id, sprite);
+          }
+        };
+        this.time.addEvent({
+          delay: 50,
+          callback: updateFunc,
+          loop: true
+        });
+      }
+    }
+    
+    // Also check if local hero should have bubble (we'll pass a special marker)
+    if (members.has('__local__')) {
+      const g = this.add.graphics();
+      g.setDepth(9);
+      this.bubbleOutlines.set('local', g);
+      const updateFunc = () => {
+        if (this.bubbleOutlines.has('local')) {
+          this.updateBubbleOutline('local', this.hero);
+        }
+      };
+      this.time.addEvent({
+        delay: 50,
+        callback: updateFunc,
+        loop: true
+      });
+    }
+  }
+  
+  private updateBubbleOutline(id: string, sprite: Phaser.GameObjects.Sprite) {
+    const g = this.bubbleOutlines.get(id);
+    if (!g) return;
+    
+    g.clear();
+    
+    // Draw bubble effect
+    const x = sprite.x;
+    const y = sprite.y;
+    
+    // Pulsing circle effect
+    const time = this.time.now / 1000;
+    const pulse = Math.sin(time * 3) * 0.1 + 0.9;
+    
+    g.lineStyle(3, 0x00d9ff, 0.8);
+    g.strokeCircle(x, y - 5, 20 * pulse);
+    
+    g.lineStyle(2, 0x00d9ff, 0.4);
+    g.strokeCircle(x, y - 5, 25 * pulse);
+    
+    // Add inner glow
+    g.fillStyle(0x00d9ff, 0.1);
+    g.fillCircle(x, y - 5, 20 * pulse);
+  }
+  
+  private createNameLabel(name: string, playerId?: string): Phaser.GameObjects.Container {
+    const container = this.add.container(0, 0);
+    
+    // Background for name
+    const bg = this.add.graphics();
+    const padding = 3;
+    const textStyle = { 
+      fontSize: '9px', 
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+      color: '#ffffff',
+      fontStyle: 'normal',
+      fontWeight: '500'
+    };
+    const text = this.add.text(0, 0, name, textStyle);
+    text.setOrigin(0.5, 0.5);
+    
+    const width = text.width + padding * 2;
+    const height = 14; // Fixed height for consistency
+    
+    // Store references for animation
+    (container as any).bg = bg;
+    (container as any).text = text;
+    (container as any).playerId = playerId;
+    (container as any).width = width;
+    (container as any).height = height;
+    
+    // Initial draw
+    this.drawNameLabel(container, false);
+    
+    container.add(bg);
+    container.add(text);
+    container.setDepth(12); // Above sprites
+    
+    return container;
+  }
+  
+  private drawNameLabel(container: Phaser.GameObjects.Container, isSpeaking: boolean) {
+    const bg = (container as any).bg as Phaser.GameObjects.Graphics;
+    const width = (container as any).width;
+    const height = (container as any).height;
+    
+    bg.clear();
+    
+    if (isSpeaking) {
+      // Speaking state - cyan border with glow
+      bg.fillStyle(0x111114, 0.85); // Darker background
+      bg.fillRoundedRect(-width / 2, -height / 2, width, height, height / 2);
+      
+      // Cyan border
+      bg.lineStyle(1, 0x22d3ee, 1);
+      bg.strokeRoundedRect(-width / 2, -height / 2, width, height, height / 2);
+      
+      // Add glow effect using multiple strokes
+      bg.lineStyle(2, 0x22d3ee, 0.3);
+      bg.strokeRoundedRect(-width / 2, -height / 2, width, height, height / 2);
+      bg.lineStyle(3, 0x22d3ee, 0.15);
+      bg.strokeRoundedRect(-width / 2, -height / 2, width, height, height / 2);
+    } else {
+      // Normal state
+      bg.fillStyle(0x111114, 0.75); // Dark background matching UI
+      bg.fillRoundedRect(-width / 2, -height / 2, width, height, height / 2);
+      bg.lineStyle(1, 0xffffff, 0.1); // Subtle border
+      bg.strokeRoundedRect(-width / 2, -height / 2, width, height, height / 2);
+    }
+  }
+  
+  private updateNameLabel(container: Phaser.GameObjects.Container, x: number, y: number) {
+    container.setPosition(x, y - 24); // Position above sprite head
+  }
+  
+  setHeroName(name: string) {
+    if (this.heroNameLabel) {
+      this.heroNameLabel.destroy();
+    }
+    this.heroNameLabel = this.createNameLabel(name, 'local');
+    this.updateNameLabel(this.heroNameLabel, this.hero.x, this.hero.y);
+  }
+  
+  updateSpeakingStates(speakingIds: Set<string>) {
+    // Update all name labels with speaking state
+    this.nameLabels.forEach((label, id) => {
+      const isSpeaking = speakingIds.has(id);
+      this.drawNameLabel(label, isSpeaking);
+    });
+    
+    // Update hero label if local player is speaking
+    if (this.heroNameLabel && speakingIds.has('local')) {
+      this.drawNameLabel(this.heroNameLabel, true);
+    } else if (this.heroNameLabel) {
+      this.drawNameLabel(this.heroNameLabel, false);
+    }
   }
 }

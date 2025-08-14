@@ -1,6 +1,6 @@
 import { Client, Room } from 'colyseus.js';
 
-export async function joinWorld(serverUrl: string) {
+export async function joinWorld(serverUrl: string, identity?: string, name?: string) {
   // Properly handle both http and https URLs
   let wsUrl = serverUrl;
   if (serverUrl.startsWith('https://')) {
@@ -13,7 +13,7 @@ export async function joinWorld(serverUrl: string) {
   
   try {
     const client = new Client(wsUrl);
-    const room = await client.joinOrCreate('world');
+    const room = await client.joinOrCreate('world', { identity, name });
     console.log('[Colyseus] Successfully joined room:', room.sessionId);
     
     // Wait for initial state sync
