@@ -523,6 +523,7 @@ export class MainScene extends Phaser.Scene implements SceneApi {
       this.updateCollisionOverlay();
     }
     // Persistenz speichern
+    console.log('[Editor] Tile paint completed, saving layers...');
     this.saveEditorLayers();
   }
 
@@ -585,11 +586,12 @@ export class MainScene extends Phaser.Scene implements SceneApi {
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
           body: jsonStr
-        }).then(res => {
+        }).then(async (res) => {
           if (res.ok) {
             console.log('[Editor] Successfully saved to server');
           } else {
-            console.warn('[Editor] Server save failed:', res.status, res.statusText);
+            const errorText = await res.text().catch(() => 'Unknown error');
+            console.warn('[Editor] Server save failed:', res.status, res.statusText, errorText);
           }
         }).catch((e)=>{ 
           console.warn('[Editor] Failed to save to server:', e); 
