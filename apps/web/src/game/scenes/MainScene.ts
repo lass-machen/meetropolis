@@ -544,10 +544,15 @@ export class MainScene extends Phaser.Scene implements SceneApi {
       let tileCount = 0;
       for (let y = 0; y < height; y++) {
         for (let x = 0; x < width; x++) {
-          const tile = layer.getTileAt(x, y);
-          const tileIndex = tile ? tile.index : -1;
-          arr[y * width + x] = tileIndex;
-          if (tileIndex !== -1) tileCount++;
+          try {
+            const tile = layer.getTileAt(x, y);
+            const tileIndex = tile ? tile.index : -1;
+            arr[y * width + x] = tileIndex;
+            if (tileIndex !== -1) tileCount++;
+          } catch (e) {
+            console.warn(`[Editor] getTileAt(${x}, ${y}) failed for ${layerName}:`, e);
+            arr[y * width + x] = -1; // Default empty
+          }
         }
       }
       console.log(`[Editor] Dump ${layerName}: found ${tileCount} tiles in ${width}x${height} layer`);
@@ -565,7 +570,9 @@ export class MainScene extends Phaser.Scene implements SceneApi {
         hasCollisionLayer: !!this.collisionLayer,
         editorGroundTiles: data.editorGround?.length || 0,
         collisionTiles: data.collision?.length || 0,
-        mapSize: `${width}x${height}`
+        mapSize: `${width}x${height}`,
+        editorGroundResult: data.editorGround ? 'has data' : 'null',
+        collisionResult: data.collision ? 'has data' : 'null'
       });
       localStorage.setItem('meetropolis.editorLayers', JSON.stringify(data));
       // Server speichern (best-effort)
