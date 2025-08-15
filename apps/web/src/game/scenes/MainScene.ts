@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { gameBridge, type SceneApi } from '../bridge';
+import { editorLog, editorError } from '../../lib/editorLog';
 
 export class MainScene extends Phaser.Scene implements SceneApi {
   private hero!: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
@@ -58,13 +59,25 @@ export class MainScene extends Phaser.Scene implements SceneApi {
     try {
       collisionLayer = map.createLayer('Collision', available, 0, 0);
     } catch (e) {
-      console.log('[MainScene] No Collision layer in map, creating blank layer');
+      editorLog('Init', 'No Collision layer in map, creating blank layer');
       // Create blank collision layer if it doesn't exist
       if (available.length > 0) {
         collisionLayer = map.createBlankLayer('Collision', available, 0, 0, map.width, map.height, map.tileWidth, map.tileHeight);
+        editorLog('Init', `Created blank collision layer: ${map.width}x${map.height}`);
       }
     }
     this.collisionLayer = collisionLayer as any;
+    
+    // Debug: Check collision layer dimensions
+    if (collisionLayer) {
+      const layerData = (collisionLayer as any).layer;
+      editorLog('Init', 'Collision layer created', {
+        mapSize: `${map.width}x${map.height}`,
+        layerSize: layerData ? `${layerData.width}x${layerData.height}` : 'no layer data',
+        dataSize: layerData?.data ? `${layerData.data.length}x${layerData.data[0]?.length || 0}` : 'no data'
+      });
+    }
+    
     let staticColliders: Phaser.Physics.Arcade.StaticGroup | undefined;
     if (collisionLayer) {
       collisionLayer.setDepth(10);
@@ -90,13 +103,13 @@ export class MainScene extends Phaser.Scene implements SceneApi {
           // Collision layer visibility will be managed by editor state
           this.staticColliders = staticColliders;
         } else {
-          console.warn('Collision layer has no tile data; skipping collision setup');
+          editorLog('Init', 'Collision layer has no tile data; skipping collision setup');
         }
       } catch (e) {
-        console.warn('Failed to configure collision layer', e);
+        editorError('Init', 'Failed to configure collision layer', e);
       }
     } else {
-      console.warn('No collision layer created');
+      editorLog('Init', 'No collision layer created');
     }
 
     // Register collision tileset in dynamicTilesets
@@ -642,7 +655,7 @@ export class MainScene extends Phaser.Scene implements SceneApi {
         (targetLayer as any).layer.tilesets = allTilesets;
       }
       
-      console.log(`[Editor] Updated collision layer with ${allTilesets.length} tilesets before paint`);
+      editorLog('Paint', `Updated collision layer with ${allTilesets.length} tilesets`);
     }
     
     // Get the specific tileset
@@ -685,32 +698,32 @@ export class MainScene extends Phaser.Scene implements SceneApi {
         } else if (tileset) {
           // Calculate the global tile index for this tileset
           const globalIndex = tileset.firstgid + edit.tileIndex;
-          console.log(`[Editor] Putting tile at ${tx},${ty}: tileset=${edit.tilesetKey}, tileIndex=${edit.tileIndex}, firstgid=${tileset.firstgid}, globalIndex=${globalIndex}`);
+          // Putting tile
           
           // Debug layer information
           const layerData = (targetLayer as any).layer;
-          console.log('[Editor] Layer info:', {
-            layerName: layerData?.name,
-            layerTilesets: layerData?.tilemapLayer?.tileset || layerData?.tileset,
-            layerTilesetsArray: layerData?.tilemapLayer?.tilesets || layerData?.tilesets,
-            hasData: !!layerData?.data,
-            dataSize: layerData?.data ? `${layerData.data.length}x${layerData.data[0]?.length || 0}` : 'no data',
-            layerObj: targetLayer,
-            tilesets: (targetLayer as any).tileset
-          });
+          if (edit.layer === 'Collision') {
+            editorLog('Paint', `Collision layer state`, {
+              layerName: layerData?.name,
+              hasData: !!layerData?.data,
+              dataSize: layerData?.data ? `${layerData.data.length}x${layerData.data[0]?.length || 0}` : 'no data',
+              tilesetsAssigned: !!(targetLayer as any).tileset || !!(targetLayer as any).layer?.tilesets
+            });
+          }
           
           try {
             targetLayer.putTileAt(globalIndex, tx, ty);
           } catch (error) {
-            console.error('[Editor] Failed to put tile:', error);
-            console.log('[Editor] Debug info:', {
-              layer: targetLayer,
-              layerTilesets: (targetLayer as any).tileset,
-              layerTilesetsArray: (targetLayer as any).tilesets,
-              tilesetFirstgid: tileset?.firstgid,
-              globalIndex,
-              coords: { tx, ty }
-            });
+            if (edit.layer === 'Collision') {
+              editorError('Paint', 'Failed to put collision tile', {
+                error: error.message,
+                tilesetKey: edit.tilesetKey,
+                tileIndex: edit.tileIndex,
+                globalIndex,
+                coords: { tx, ty },
+                hasLayerTilesets: !!(targetLayer as any).tileset || !!(targetLayer as any).layer?.tilesets
+              });
+            }
           }
         }
       }
@@ -721,7 +734,7 @@ export class MainScene extends Phaser.Scene implements SceneApi {
       this.updateCollisionOverlay();
     }
     // Persistenz speichern
-    console.log('[Editor] Tile paint completed, saving layers...');
+    // Save layers after painting
     this.saveEditorLayers();
   }
 
@@ -899,16 +912,10 @@ export class MainScene extends Phaser.Scene implements SceneApi {
         return;
       }
       const data = await res.json();
-      console.log('[Editor] Received server data:', {
-        hasEditorGround: !!data?.editorGround,
-        hasEditorWalls: !!data?.editorWalls,
-        hasCollision: !!data?.collision,
-        editorGroundLength: data?.editorGround?.length,
-        editorWallsLength: data?.editorWalls?.length,
-        collisionLength: data?.collision?.length,
-        collisionTileCount: data?.collision?.filter((t: number) => t !== -1).length || 0,
-        collisionSample: data?.collision?.slice(0, 20).filter((t: number) => t !== -1)
-      });
+      if (data?.collision) {
+        const collisionTiles = data.collision.filter((t: number) => t !== -1).length;
+        editorLog('Load', `Received from server: ${collisionTiles} collision tiles`);
+      }
       
       if (!this.mapRef) return;
       const storedW = this.mapRef.width;
@@ -920,14 +927,19 @@ export class MainScene extends Phaser.Scene implements SceneApi {
           console.log(`[Editor] Skipping ${layerName}: arr=${!!arr} (${arr?.length || 0} items), layer=${!!layer}`);
           return;
         }
-        console.log(`[Editor] Applying ${layerName}: ${arr.length} tiles to ${width}x${height} layer (stored: ${storedW}x${height})`);
-        
-        // CRITICAL: Ensure collision layer has all tilesets before applying tiles
-        if (layerName === 'collision' && layer) {
+        if (layerName === 'collision') {
+          editorLog('Load', `Applying collision: ${arr.length} tiles to ${width}x${height} layer`);
+          
+          // CRITICAL: Ensure collision layer has all tilesets before applying tiles
           const allTilesets = Array.from(this.dynamicTilesets.values());
           allTilesets.push(...this.mapRef.tilesets.filter(ts => !this.dynamicTilesets.has(ts.name)));
           (layer as any).setTilesets(allTilesets);
-          console.log(`[Editor] Set ${allTilesets.length} tilesets to collision layer before applying tiles`);
+          
+          // Check layer dimensions
+          const layerData = (layer as any).layer;
+          if (layerData?.data) {
+            editorLog('Load', `Collision layer actual size: ${layerData.data.length}x${layerData.data[0]?.length || 0}`);
+          }
         }
         let appliedCount = 0;
         let validTileCount = 0;
@@ -936,18 +948,29 @@ export class MainScene extends Phaser.Scene implements SceneApi {
         for (const idx of arr) {
           if (typeof idx === 'number' && idx >= 0) validTileCount++;
         }
-        console.log(`[Editor] Found ${validTileCount} valid tiles in ${layerName} data`);
+        if (layerName === 'collision') {
+          editorLog('Load', `Found ${validTileCount} valid collision tiles`);
+        }
         
         for (let y = 0; y < height; y++) {
           for (let x = 0; x < width; x++) {
             const idx = arr[y * storedW + x];
             if (typeof idx === 'number' && idx >= 0) {
-              layer.putTileAt(idx, x, y);
-              appliedCount++;
+              try {
+                layer.putTileAt(idx, x, y);
+                appliedCount++;
+              } catch (e) {
+                if (layerName === 'collision' && appliedCount === 0) {
+                  editorError('Load', `First collision tile failed at ${x},${y} with index ${idx}`, e);
+                }
+              }
             }
           }
         }
-        console.log(`[Editor] Applied ${appliedCount} tiles to ${layerName}`);
+        
+        if (layerName === 'collision') {
+          editorLog('Load', `Applied ${appliedCount} collision tiles`);
+        }
       };
       
       applyArr(data?.editorGround, this.editorGround, 'editorGround');
@@ -956,7 +979,7 @@ export class MainScene extends Phaser.Scene implements SceneApi {
       if (data?.collision) this.rebuildStaticColliders();
       try { this.updateCollisionOverlay(); } catch {}
     } catch (e) {
-      console.warn('[Editor] Failed to fetch/apply server layers:', e);
+      editorError('Load', 'Failed to fetch/apply server layers', e);
     }
   }
 

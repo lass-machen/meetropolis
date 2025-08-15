@@ -9,7 +9,7 @@ export async function joinWorld(serverUrl: string, identity?: string, name?: str
     wsUrl = serverUrl.replace('http://', 'ws://');
   }
   
-  console.log('[Colyseus] Connecting to:', wsUrl);
+  // console.log('[Colyseus] Connecting to:', wsUrl);
   
   try {
     const client = new Client(wsUrl);
@@ -20,16 +20,16 @@ export async function joinWorld(serverUrl: string, identity?: string, name?: str
       y: position?.y,
       direction: position?.direction
     });
-    console.log('[Colyseus] Successfully joined room:', room.sessionId);
+    // console.log('[Colyseus] Successfully joined room:', room.sessionId);
     
     // Wait for initial state sync
     await new Promise<void>((resolve) => {
       const checkState = () => {
         if (room.state && room.state.players) {
-          console.log('[Colyseus] State is ready, players:', room.state.players.size);
+          // console.log('[Colyseus] State is ready, players:', room.state.players.size);
           resolve();
         } else {
-          console.log('[Colyseus] Waiting for state...');
+          // console.log('[Colyseus] Waiting for state...');
           setTimeout(checkState, 100);
         }
       };
@@ -37,31 +37,31 @@ export async function joinWorld(serverUrl: string, identity?: string, name?: str
       setTimeout(checkState, 0);
     });
     
-    console.log('[Colyseus] Room state after sync:', room.state);
+    // console.log('[Colyseus] Room state after sync:', room.state);
     
     // Debug: Listen for all state changes
     room.state.listen('players', (change: any) => {
-      console.log('[Colyseus] Players collection changed:', change);
+      // console.log('[Colyseus] Players collection changed:', change);
       
       // Log all changes
       if (room.state.players) {
-        console.log('[Colyseus] Current players after change:');
+        // console.log('[Colyseus] Current players after change:');
         room.state.players.forEach((player: any, id: string) => {
-          console.log('[Colyseus] - Player', id, ':', player);
+          // console.log('[Colyseus] - Player', id, ':', player);
         });
       }
     });
     
     // Debug: Log initial state
     setTimeout(() => {
-      console.log('[Colyseus] Initial state after 1s:', {
+      // console.log('[Colyseus] Initial state after 1s:', {
         hasState: !!room.state,
         hasPlayers: !!room.state?.players,
         playersSize: room.state?.players?.size || 0
       });
       if (room.state?.players) {
         room.state.players.forEach((player: any, id: string) => {
-          console.log('[Colyseus] Initial player:', id, player);
+          // console.log('[Colyseus] Initial player:', id, player);
         });
       }
     }, 1000);

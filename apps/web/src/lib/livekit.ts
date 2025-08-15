@@ -20,7 +20,7 @@ export async function joinLivekitRoom(params: {
   displayName?: string;
   useVideo: boolean;
 }) {
-  console.log('[LiveKit] Requesting token for:', { roomName: params.roomName, identity: params.identity, name: params.displayName || params.identity });
+  // console.log('[LiveKit] Requesting token for:', { roomName: params.roomName, identity: params.identity, name: params.displayName || params.identity });
   const res = await fetch(`${params.baseUrl}/livekit/token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -33,21 +33,21 @@ export async function joinLivekitRoom(params: {
   const token = (await res.text()).trim();
   const room = new Room();
   const serverUrl = normalizeLivekitUrl(import.meta.env.VITE_LIVEKIT_URL);
-  console.log('[LiveKit] Connecting to server:', serverUrl);
+  // console.log('[LiveKit] Connecting to server:', serverUrl);
   
   // Add connection event listeners
   room.on('connected', () => {
-    console.log('[LiveKit] Connected to room:', room.name);
-    console.log('[LiveKit] Local participant:', room.localParticipant?.identity);
-    console.log('[LiveKit] Remote participants:', room.participants ? Array.from(room.participants.keys()) : []);
+    // console.log('[LiveKit] Connected to room:', room.name);
+    // console.log('[LiveKit] Local participant:', room.localParticipant?.identity);
+    // console.log('[LiveKit] Remote participants:', room.participants ? Array.from(room.participants.keys()) : []);
   });
   
   room.on('participantConnected', (participant) => {
-    console.log('[LiveKit] Participant connected:', participant.identity);
+    // console.log('[LiveKit] Participant connected:', participant.identity);
   });
   
   room.on('trackSubscribed', (track, publication, participant) => {
-    console.log('[LiveKit] Track subscribed:', {
+    // console.log('[LiveKit] Track subscribed:', {
       kind: track.kind,
       source: track.source,
       participant: participant.identity,
@@ -58,7 +58,7 @@ export async function joinLivekitRoom(params: {
   });
   
   room.on('trackUnsubscribed', (track, publication, participant) => {
-    console.log('[LiveKit] Track unsubscribed:', {
+    // console.log('[LiveKit] Track unsubscribed:', {
       kind: track.kind,
       source: track.source,
       participant: participant.identity
@@ -66,11 +66,11 @@ export async function joinLivekitRoom(params: {
   });
   
   room.on('activeSpeakersChanged', (speakers) => {
-    console.log('[LiveKit] Active speakers changed:', speakers.map(s => s.identity));
+    // console.log('[LiveKit] Active speakers changed:', speakers.map(s => s.identity));
   });
   
   room.on('trackPublished', (publication, participant) => {
-    console.log('[LiveKit] Track published:', {
+    // console.log('[LiveKit] Track published:', {
       source: publication.source,
       kind: publication.kind,
       participant: participant.identity,
@@ -82,7 +82,7 @@ export async function joinLivekitRoom(params: {
   });
   
   room.on('localTrackPublished', (publication, participant) => {
-    console.log('[LiveKit] LOCAL Track published:', {
+    // console.log('[LiveKit] LOCAL Track published:', {
       source: publication.source,
       kind: publication.kind,
       participant: participant.identity,
