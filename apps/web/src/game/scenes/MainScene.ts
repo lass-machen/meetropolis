@@ -629,6 +629,14 @@ export class MainScene extends Phaser.Scene implements SceneApi {
     const targetLayer = edit.layer === 'Collision' ? this.collisionLayer : edit.layer === 'EditorWalls' ? this.wallsLayer : this.editorGround;
     if (!targetLayer) return;
     
+    // CRITICAL FIX: Ensure collision layer has all tilesets before painting
+    if (edit.layer === 'Collision' && targetLayer) {
+      const allTilesets = Array.from(this.dynamicTilesets.values());
+      allTilesets.push(...this.mapRef.tilesets.filter(ts => !this.dynamicTilesets.has(ts.name)));
+      (targetLayer as any).setTilesets(allTilesets);
+      console.log(`[Editor] Updated collision layer with ${allTilesets.length} tilesets before paint`);
+    }
+    
     // Get the specific tileset
     let tileset = this.dynamicTilesets.get(edit.tilesetKey) || this.mapRef.tilesets.find(ts => ts.name === edit.tilesetKey);
     
