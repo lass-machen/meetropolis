@@ -58,6 +58,42 @@ export class MainScene extends Phaser.Scene implements SceneApi {
     let collisionLayer: Phaser.Tilemaps.TilemapLayer | undefined;
     try {
       collisionLayer = map.createLayer('Collision', available, 0, 0);
+      
+      // Fix: Check if collision layer has wrong data dimensions
+      const layerData = (collisionLayer as any)?.layer;
+      if (layerData && layerData.data) {
+        const expectedRows = map.height;
+        const actualRows = layerData.data.length;
+        
+        if (actualRows < expectedRows) {
+          editorLog('Init', `Collision layer has wrong dimensions: ${actualRows} rows instead of ${expectedRows}, fixing...`);
+          
+          // Extend the data array to have the correct number of rows
+          while (layerData.data.length < expectedRows) {
+            // Create a new row filled with empty tiles
+            const newRow = new Array(map.width);
+            for (let x = 0; x < map.width; x++) {
+              // Create empty tile
+              newRow[x] = new Phaser.Tilemaps.Tile(
+                layerData,
+                -1, // index -1 means empty
+                x,
+                layerData.data.length,
+                map.tileWidth,
+                map.tileHeight,
+                map.tileWidth,
+                map.tileHeight
+              );
+            }
+            layerData.data.push(newRow);
+          }
+          
+          // Update layer dimensions
+          layerData.height = expectedRows;
+          
+          editorLog('Init', `Fixed collision layer dimensions to ${layerData.data.length}x${layerData.data[0]?.length || 0}`);
+        }
+      }
     } catch (e) {
       editorLog('Init', 'No Collision layer in map, creating blank layer');
       // Create blank collision layer if it doesn't exist
