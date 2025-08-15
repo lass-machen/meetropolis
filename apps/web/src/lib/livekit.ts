@@ -48,21 +48,21 @@ export async function joinLivekitRoom(params: {
   
   room.on('trackSubscribed', (track, publication, participant) => {
     // console.log('[LiveKit] Track subscribed:', {
-      kind: track.kind,
-      source: track.source,
-      participant: participant.identity,
-      participantSid: participant.sid,
-      publicationSource: publication.source,
-      isScreenShare: track.source === 'screen_share'
-    });
+    //   kind: track.kind,
+    //   source: track.source,
+    //   participant: participant.identity,
+    //   participantSid: participant.sid,
+    //   publicationSource: publication.source,
+    //   isScreenShare: track.source === 'screen_share'
+    // });
   });
   
   room.on('trackUnsubscribed', (track, publication, participant) => {
     // console.log('[LiveKit] Track unsubscribed:', {
-      kind: track.kind,
-      source: track.source,
-      participant: participant.identity
-    });
+    //   kind: track.kind,
+    //   source: track.source,
+    //   participant: participant.identity
+    // });
   });
   
   room.on('activeSpeakersChanged', (speakers) => {
@@ -71,23 +71,23 @@ export async function joinLivekitRoom(params: {
   
   room.on('trackPublished', (publication, participant) => {
     // console.log('[LiveKit] Track published:', {
-      source: publication.source,
-      kind: publication.kind,
-      participant: participant.identity,
-      participantSid: participant.sid,
-      isLocal: participant === room.localParticipant,
-      isScreenShare: publication.source === 'screen_share',
-      track: !!publication.track
-    });
+    //   source: publication.source,
+    //   kind: publication.kind,
+    //   participant: participant.identity,
+    //   participantSid: participant.sid,
+    //   isLocal: participant === room.localParticipant,
+    //   isScreenShare: publication.source === 'screen_share',
+    //   track: !!publication.track
+    // });
   });
   
   room.on('localTrackPublished', (publication, participant) => {
     // console.log('[LiveKit] LOCAL Track published:', {
-      source: publication.source,
-      kind: publication.kind,
-      participant: participant.identity,
-      isScreenShare: publication.source === 'screen_share'
-    });
+    //   source: publication.source,
+    //   kind: publication.kind,
+    //   participant: participant.identity,
+    //   isScreenShare: publication.source === 'screen_share'
+    // });
   });
   
   await room.connect(serverUrl, token, {
