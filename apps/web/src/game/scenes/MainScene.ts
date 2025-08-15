@@ -67,7 +67,8 @@ export class MainScene extends Phaser.Scene implements SceneApi {
     this.collisionLayer = collisionLayer as any;
     let staticColliders: Phaser.Physics.Arcade.StaticGroup | undefined;
     if (collisionLayer) {
-      collisionLayer.setDepth(10); // Make collision layer visible above others
+      collisionLayer.setDepth(10);
+      collisionLayer.setVisible(false); // Hide the actual collision layer - we use overlay for visualization
       try {
         const data = (collisionLayer as any)?.layer?.data as Phaser.Tilemaps.Tile[][] | undefined;
         if (Array.isArray(data) && data.length > 0 && Array.isArray(data[0]) && data[0].length > 0) {
@@ -364,8 +365,8 @@ export class MainScene extends Phaser.Scene implements SceneApi {
         if (savedVisibility !== null) {
           this.setCollisionVisible(savedVisibility === 'true');
         } else {
-          // Default: show collision when editor is active
-          this.setCollisionVisible(true);
+          // Default: hide collision overlay
+          this.setCollisionVisible(false);
         }
       }).catch(() => {
         console.log('[MainScene] Failed to load from server, trying localStorage');
@@ -377,8 +378,8 @@ export class MainScene extends Phaser.Scene implements SceneApi {
         if (savedVisibility !== null) {
           this.setCollisionVisible(savedVisibility === 'true');
         } else {
-          // Default: show collision when editor is active
-          this.setCollisionVisible(true);
+          // Default: hide collision overlay
+          this.setCollisionVisible(false);
         }
       });
     }, 0);
