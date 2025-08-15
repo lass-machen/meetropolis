@@ -54,9 +54,7 @@ export class MainScene extends Phaser.Scene implements SceneApi {
     walls?.setDepth(5);
 
     // Collision-Layer einlesen und statische Physik-Körper erzeugen
-    const collisionTilesets: Phaser.Tilemaps.Tileset[] = [];
-    if (collision) collisionTilesets.push(collision);
-    const collisionLayer = collisionTilesets.length > 0 ? map.createLayer('Collision', collisionTilesets, 0, 0) : undefined as any;
+    const collisionLayer = available.length > 0 ? map.createLayer('Collision', available, 0, 0) : undefined as any;
     this.collisionLayer = collisionLayer as any;
     let staticColliders: Phaser.Physics.Arcade.StaticGroup | undefined;
     if (collisionLayer) {
@@ -94,11 +92,6 @@ export class MainScene extends Phaser.Scene implements SceneApi {
     if (collision) {
       this.dynamicTilesets.set('collision_tiles', collision);
       console.log('[MainScene] Registered collision tileset with firstgid:', collision.firstgid);
-    }
-
-    // Ensure collision layer can use all tilesets
-    if (this.collisionLayer && available.length > 0) {
-      (this.collisionLayer as any).setTilesets(available);
     }
 
     // Editor-Layer (zusätzlicher Boden, den wir bemalen können)
