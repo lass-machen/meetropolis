@@ -45,7 +45,16 @@ export function computePairVolume(
   const localInBubble = bubbleMembers.has(local.id);
   const remoteInBubble = bubbleMembers.has(remote.id);
   
-  // Volume computation debug removed - too verbose
+  // Debug logging for bubble calculation
+  if (bubbleMembers.size > 0) {
+    console.log('[Volume] Bubble calculation:', {
+      localId: local.id,
+      remoteId: remote.id,
+      localInBubble,
+      remoteInBubble,
+      bubbleMembers: Array.from(bubbleMembers)
+    });
+  }
   
   if (localInBubble && remoteInBubble) return 1;
   if (localInBubble && !remoteInBubble) return rules.outsideBubbleAttenuation;
@@ -70,6 +79,7 @@ export class VolumeManager {
   private av: VolumeAV;
   private providers: Providers;
   private rules: VolumeRules;
+  private lastVolumes: Record<string, number> = {};
 
   constructor(av: VolumeAV, providers: Providers, rules?: Partial<VolumeRules>) {
     this.av = av;
@@ -82,9 +92,9 @@ export class VolumeManager {
     } as VolumeRules;
   }
 
-  update() {
+  update(): Record<string, number> {
     const local = this.providers.getLocal();
-    if (!local) return;
+    if (!local) return this.lastVolumes;
     const remotes = this.providers.getRemotes();
     const zones = this.providers.getZones();
     const followTarget = this.providers.getFollowTarget();
@@ -97,10 +107,20 @@ export class VolumeManager {
     //   console.log('[VolumeManager] Remotes:', Object.keys(remotes));
     // }
     
+    const volumes: Record<string, number> = {};
+    
     for (const [sid, pos] of Object.entries(remotes)) {
       const vol = computePairVolume(local, { id: sid, x: pos.x, y: pos.y }, zones, followTarget, bubbleMembers, this.rules);
       this.av.setParticipantVolume(sid, vol);
+      volumes[sid] = vol;
     }
+    
+    this.lastVolumes = volumes;
+    return volumes;
+  }
+  
+  getLastVolumes(): Record<string, number> {
+    return this.lastVolumes;
   }
 }
 

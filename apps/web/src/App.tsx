@@ -85,7 +85,8 @@ export function App() {
   const [avState, setAvState] = React.useState<{ mic: boolean; cam: boolean; share: boolean }>({ mic: false, cam: false, share: false });
   const [selectedMicId, setSelectedMicId] = React.useState<string | ''>('');
   const [selectedCamId, setSelectedCamId] = React.useState<string | ''>('');
-  const [uiParticipants, setUiParticipants] = React.useState<{ sid: string; identity: string; hasVideo: boolean; hasMic: boolean; isSpeaking: boolean; media: 'camera' | 'screen' }[]>([]);
+  const [uiParticipants, setUiParticipants] = React.useState<{ sid: string; identity: string; hasVideo: boolean; hasMic: boolean; isSpeaking: boolean; media: 'camera' | 'screen'; volume?: number }[]>([]);
+  const participantVolumesRef = useRef<Record<string, number>>({});
   // Auth state
   const [authChecked, setAuthChecked] = React.useState(false);
   const [me, setMe] = React.useState<{ id: string; email: string; name?: string } | null>(null);
@@ -300,7 +301,7 @@ export function App() {
     // buildParticipantList - participants
     
     const activeSet = new Set<string>((room.activeSpeakers || []).map((p: any) => p.sid));
-    const list: { sid: string; identity: string; hasVideo: boolean; hasMic: boolean; isSpeaking: boolean; media: 'camera' | 'screen' }[] = [];
+    const list: { sid: string; identity: string; hasVideo: boolean; hasMic: boolean; isSpeaking: boolean; media: 'camera' | 'screen'; volume?: number }[] = [];
     const pushP = (p: any) => {
       if (!p || !p.trackPublications) return;
       try {
@@ -349,18 +350,22 @@ export function App() {
       }
       
       const identity = displayName;
+      
+      // Get volume for this participant
+      const volume = participantVolumesRef.current[p.identity] ?? 1;
+      
       // Kamera-Karte
       if (hasV) {
-        list.push({ sid: p.sid, identity, hasVideo: true, hasMic, isSpeaking: activeSet.has(p.sid), media: 'camera' });
+        list.push({ sid: p.sid, identity, hasVideo: true, hasMic, isSpeaking: activeSet.has(p.sid), media: 'camera', volume });
       }
       // Audio-only Karte (kein Video, aber Mic aktiv)
       if (!hasV && hasMic) {
-        list.push({ sid: p.sid, identity, hasVideo: false, hasMic: true, isSpeaking: activeSet.has(p.sid), media: 'camera' });
+        list.push({ sid: p.sid, identity, hasVideo: false, hasMic: true, isSpeaking: activeSet.has(p.sid), media: 'camera', volume });
       }
       // Screenshare als eigene Karte
       if (hasScreen) {
         console.log('[UI] Adding screenshare card for', identity);
-        list.push({ sid: p.sid + ':screen', identity: `${identity} – Bildschirm`, hasVideo: true, hasMic: false, isSpeaking: false, media: 'screen' });
+        list.push({ sid: p.sid + ':screen', identity: `${identity} – Bildschirm`, hasVideo: true, hasMic: false, isSpeaking: false, media: 'screen', volume });
       }
       } catch (e) {
         console.error('[UI] Error processing participant:', p?.identity || 'unknown', e);
@@ -872,7 +877,11 @@ export function App() {
         }
       },
       {
-        getLocal: () => localPosRef.current.id ? { id: localPosRef.current.id, x: localPosRef.current.x, y: localPosRef.current.y } : null,
+        getLocal: () => {
+          // Use LiveKit identity for volume calculations
+          const localLivekitIdentity = avRef.current?.room?.localParticipant?.identity || me.id;
+          return localPosRef.current.id ? { id: localLivekitIdentity, x: localPosRef.current.x, y: localPosRef.current.y } : null;
+        },
         getRemotes: () => {
           // Convert Colyseus session IDs to LiveKit identities for volume calculation
           const remotePositions: Record<string, { x: number; y: number }> = {};
@@ -1199,7 +1208,10 @@ export function App() {
         // Don't call buildParticipantList in the HUD timer - it's called by LiveKit events
       }
       // Lautstärke-Mix aktualisieren
-      volumeRef.current?.update();
+      const volumes = volumeRef.current?.update();
+      if (volumes) {
+        participantVolumesRef.current = volumes;
+      }
     }, 250);
 
     return () => {
@@ -2037,7 +2049,7 @@ const selectStyle: React.CSSProperties = {
 };
 
 // Teilnehmer-Card-Komponente (verschönert)
-function ParticipantCard(props: { part: { sid: string; identity: string; hasVideo: boolean; hasMic: boolean; isSpeaking: boolean; media: 'camera'|'screen' }, roomGetter: () => any | undefined, compact?: boolean, full?: boolean, zoom?: number }) {
+function ParticipantCard(props: { part: { sid: string; identity: string; hasVideo: boolean; hasMic: boolean; isSpeaking: boolean; media: 'camera'|'screen'; volume?: number }, roomGetter: () => any | undefined, compact?: boolean, full?: boolean, zoom?: number }) {
   const videoRef = React.useRef<HTMLVideoElement | null>(null);
   const { part, roomGetter, compact, full, zoom = 1 } = props;
   const [isVideoRendering, setIsVideoRendering] = React.useState(false);
@@ -2327,10 +2339,14 @@ function ParticipantCard(props: { part: { sid: string; identity: string; hasVide
     };
   }, [part.sid, part.hasVideo, roomGetter]);
 
+  // Calculate opacity based on volume
+  const volume = part.volume ?? 1;
+  const opacity = isLocal ? 1 : (0.4 + (volume * 0.6)); // Min 40%, max 100% opacity
+  
   const borderColor = part.isSpeaking ? '#22d3ee' : 'rgba(255,255,255,0.10)';
   const glow = part.isSpeaking ? '0 0 0 2px rgba(34,211,238,0.35), 0 12px 30px rgba(34,211,238,0.25)' : '0 12px 30px rgba(0,0,0,0.35)';
-  const bg = 'rgba(17,17,20,0.75)';
-  const headerBg = 'rgba(17,17,20,0.6)';
+  const bg = `rgba(17,17,20,${0.75 * opacity})`;
+  const headerBg = `rgba(17,17,20,${0.6 * opacity})`;
   const badgeOn = 'rgba(16,185,129,0.25)';
   const badgeOff = 'rgba(244,63,94,0.25)';
   const borderOn = 'rgba(16,185,129,0.5)';
@@ -2350,7 +2366,9 @@ function ParticipantCard(props: { part: { sid: string; identity: string; hasVide
       minWidth: minW as any,
       maxHeight: full ? 'calc(100vh - 64px)' : (targetSize as any),
       aspectRatio: aspect as any,
-      position: 'relative', borderRadius: 14, overflow: 'hidden', background: bg, border: `1px solid ${borderColor}`, boxShadow: glow
+      position: 'relative', borderRadius: 14, overflow: 'hidden', background: bg, border: `1px solid ${borderColor}`, boxShadow: glow,
+      opacity: opacity,
+      transition: 'opacity 0.3s ease-in-out'
     }}>
       <video ref={videoRef} autoPlay playsInline muted style={{ width: '100%', height: full ? 'auto' : '100%', maxHeight: full ? 'calc(100vh - 64px)' : undefined, objectFit: isScreen ? 'contain' : (full ? 'contain' : 'cover'), background: 'rgba(0,0,0,0.35)', transform: (isLocal && part.media==='camera') ? `scaleX(-1) scale(${zoom})` : `scale(${zoom})`, transformOrigin: 'center center' }} />
       {!(part.hasVideo || isVideoRendering) && (
