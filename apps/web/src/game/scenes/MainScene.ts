@@ -67,6 +67,7 @@ export class MainScene extends Phaser.Scene implements SceneApi {
     this.collisionLayer = collisionLayer as any;
     let staticColliders: Phaser.Physics.Arcade.StaticGroup | undefined;
     if (collisionLayer) {
+      collisionLayer.setDepth(10); // Make collision layer visible above others
       try {
         const data = (collisionLayer as any)?.layer?.data as Phaser.Tilemaps.Tile[][] | undefined;
         if (Array.isArray(data) && data.length > 0 && Array.isArray(data[0]) && data[0].length > 0) {
@@ -85,7 +86,7 @@ export class MainScene extends Phaser.Scene implements SceneApi {
               }
             }
           }
-          collisionLayer.setVisible(false);
+          // Collision layer visibility will be managed by editor state
           this.staticColliders = staticColliders;
         } else {
           console.warn('Collision layer has no tile data; skipping collision setup');
@@ -101,6 +102,13 @@ export class MainScene extends Phaser.Scene implements SceneApi {
     if (collision) {
       this.dynamicTilesets.set('collision_tiles', collision);
       console.log('[MainScene] Registered collision tileset with firstgid:', collision.firstgid);
+      
+      // IMPORTANT: Set all tilesets to collision layer immediately
+      if (this.collisionLayer) {
+        const allTilesets = [office, furniture, decor, collision].filter(Boolean) as Phaser.Tilemaps.Tileset[];
+        (this.collisionLayer as any).setTilesets(allTilesets);
+        console.log('[MainScene] Set all tilesets to collision layer:', allTilesets.map(ts => ts?.name));
+      }
     }
 
     // Editor-Layer (zusätzlicher Boden, den wir bemalen können)
@@ -350,10 +358,28 @@ export class MainScene extends Phaser.Scene implements SceneApi {
       // Always load from server first to ensure consistency
       this.fetchAndApplyServerLayers().then(() => {
         console.log('[MainScene] Loaded map state from server');
+        
+        // Restore collision visibility from localStorage
+        const savedVisibility = localStorage.getItem('meetropolis.collisionVisible');
+        if (savedVisibility !== null) {
+          this.setCollisionVisible(savedVisibility === 'true');
+        } else {
+          // Default: show collision when editor is active
+          this.setCollisionVisible(true);
+        }
       }).catch(() => {
         console.log('[MainScene] Failed to load from server, trying localStorage');
         // Fallback to localStorage if server fails
         this.loadEditorLayers();
+        
+        // Restore collision visibility from localStorage
+        const savedVisibility = localStorage.getItem('meetropolis.collisionVisible');
+        if (savedVisibility !== null) {
+          this.setCollisionVisible(savedVisibility === 'true');
+        } else {
+          // Default: show collision when editor is active
+          this.setCollisionVisible(true);
+        }
       });
     }, 0);
 
@@ -853,6 +879,14 @@ export class MainScene extends Phaser.Scene implements SceneApi {
           return;
         }
         console.log(`[Editor] Applying ${layerName}: ${arr.length} tiles to ${width}x${height} layer (stored: ${storedW}x${height})`);
+        
+        // CRITICAL: Ensure collision layer has all tilesets before applying tiles
+        if (layerName === 'collision' && layer) {
+          const allTilesets = Array.from(this.dynamicTilesets.values());
+          allTilesets.push(...this.mapRef.tilesets.filter(ts => !this.dynamicTilesets.has(ts.name)));
+          (layer as any).setTilesets(allTilesets);
+          console.log(`[Editor] Set ${allTilesets.length} tilesets to collision layer before applying tiles`);
+        }
         let appliedCount = 0;
         let validTileCount = 0;
         
@@ -983,6 +1017,10 @@ export class MainScene extends Phaser.Scene implements SceneApi {
   setCollisionVisible(visible: boolean) {
     this.collisionVisible = !!visible;
     this.updateCollisionOverlay();
+    // Store visibility state
+    try {
+      localStorage.setItem('meetropolis.collisionVisible', visible.toString());
+    } catch {}
   }
 
   private updateCollisionOverlay() {
