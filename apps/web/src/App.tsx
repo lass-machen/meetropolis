@@ -890,6 +890,13 @@ export function App() {
       setEditor(prev => {
         if (!prev.active) return prev;
         
+        // Grid snapping - align to 16x16 grid
+        // Since sprites are centered, we need to offset by half a tile
+        const GRID_SIZE = 16;
+        const HALF_GRID = GRID_SIZE / 2;
+        const snappedX = Math.floor(x / GRID_SIZE) * GRID_SIZE + HALF_GRID;
+        const snappedY = Math.floor(y / GRID_SIZE) * GRID_SIZE + HALF_GRID;
+        
         // Handle object deletion
         if (prev.tool === 'erase' && prev.category === 'objects') {
           // Find object at position
@@ -933,7 +940,7 @@ export function App() {
                 
                 const tileDataUrl = canvas.toDataURL();
                 const id = `${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
-                const asset = { id, key: `${tileset.key}:${tileIndex}:${id}`, dataUrl: tileDataUrl, x, y };
+                const asset = { id, key: `${tileset.key}:${tileIndex}:${id}`, dataUrl: tileDataUrl, x: snappedX, y: snappedY };
                 
                 setEditor(s => {
                   const assets = [...s.assets, asset];
@@ -951,7 +958,7 @@ export function App() {
         // Handle legacy asset placement
         if (prev.tool === 'asset' && prev.pendingAsset) {
           const id = `${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
-          const asset = { id, key: prev.pendingAsset.key + ':' + id, dataUrl: prev.pendingAsset.dataUrl, x, y };
+          const asset = { id, key: prev.pendingAsset.key + ':' + id, dataUrl: prev.pendingAsset.dataUrl, x: snappedX, y: snappedY };
           const assets = [...prev.assets, asset];
           try { localStorage.setItem('meetropolis.assets', JSON.stringify(assets)); } catch {}
           gameBridge.setEditorAssets(assets);
@@ -1014,7 +1021,10 @@ export function App() {
     // Tile-basierte Selektion/Malen
     gameBridge.onPointerDownTile = ({ tileX, tileY }) => {
       if (!editorActiveRef.current) return; // Only handle in editor mode
-      setEditor(s => ({ ...s, drag: { startTileX: tileX, startTileY: tileY, endTileX: tileX, endTileY: tileY } }));
+      setEditor(s => {
+        console.log('[Editor] Pointer down tile:', { tileX, tileY, tool: s.tool, tilePaint: s.tilePaint, active: s.active });
+        return { ...s, drag: { startTileX: tileX, startTileY: tileY, endTileX: tileX, endTileY: tileY } };
+      });
       const tw = 16, th = 16;
       gameBridge.setSelectionRect({ x: tileX * tw, y: tileY * th, w: tw, h: th });
     };
@@ -1034,15 +1044,20 @@ export function App() {
     gameBridge.onPointerUpTile = ({ tileX, tileY }) => {
       if (!editorActiveRef.current) return; // Only handle in editor mode
       setEditor(s => {
-        if (!s.drag) return s;
+        if (!s.drag) {
+          console.log('[Editor] No drag state on pointer up');
+          return s;
+        }
         const drag = { ...s.drag, endTileX: tileX, endTileY: tileY };
         const rect = { startX: drag.startTileX, startY: drag.startTileY, endX: drag.endTileX, endY: drag.endTileY };
         gameBridge.setSelectionRect(null);
         const isErase = s.tool === 'erase';
+        console.log('[Editor] Pointer up tile:', { tool: s.tool, tilePaint: s.tilePaint, isErase, rect });
         if ((s.tool === 'floor' || s.tool === 'walls' || isErase) && s.tilePaint) {
           const index = isErase ? -1 : s.tilePaint.tileIndex;
           const layer = s.tool === 'walls' ? 'EditorWalls' : 'EditorGround';
           const edit = { layer: layer as 'EditorGround' | 'EditorWalls', tilesetKey: s.tilePaint.tilesetKey, tileIndex: index, rect };
+          console.log('[Editor] Applying tile paint:', edit);
           gameBridge.applyTilePaint(edit);
           // Broadcast to other users
           colyseusRef.current?.send?.('editor_update', { type: 'tile_paint', edit });
@@ -1589,7 +1604,7 @@ export function App() {
                               <TilesetPreview
                                 tileset={lib}
                                 selectedIndex={editor.tilePaint?.tilesetKey === lib.key ? editor.tilePaint.tileIndex : -1}
-                                onSelect={(index: number) => setEditor(s => ({ ...s, tilePaint: { ...s.tilePaint!, tilesetKey: lib.key, tileIndex: index } }))}
+                                onSelect={(index: number) => setEditor(s => ({ ...s, tilePaint: { tilesetKey: lib.key, tileIndex: index, tileWidth: lib.tileWidth, tileHeight: lib.tileHeight, margin: lib.margin, spacing: lib.spacing } }))}
                               />
                             </div>
                           ))}
@@ -1624,7 +1639,7 @@ export function App() {
                               <TilesetPreview
                                 tileset={lib}
                                 selectedIndex={editor.tilePaint?.tilesetKey === lib.key ? editor.tilePaint.tileIndex : -1}
-                                onSelect={(index: number) => setEditor(s => ({ ...s, tilePaint: { ...s.tilePaint!, tilesetKey: lib.key, tileIndex: index } }))}
+                                onSelect={(index: number) => setEditor(s => ({ ...s, tilePaint: { tilesetKey: lib.key, tileIndex: index, tileWidth: lib.tileWidth, tileHeight: lib.tileHeight, margin: lib.margin, spacing: lib.spacing } }))}
                               />
                             </div>
                           ))}
@@ -1658,7 +1673,7 @@ export function App() {
                               <TilesetPreview
                                 tileset={lib}
                                 selectedIndex={editor.tilePaint?.tilesetKey === lib.key ? editor.tilePaint.tileIndex : -1}
-                                onSelect={(index: number) => setEditor(s => ({ ...s, tilePaint: { ...lib, tilesetKey: lib.key, tileIndex: index } }))}
+                                onSelect={(index: number) => setEditor(s => ({ ...s, tilePaint: { tilesetKey: lib.key, tileIndex: index, tileWidth: lib.tileWidth, tileHeight: lib.tileHeight, margin: lib.margin, spacing: lib.spacing } }))}
                               />
                             </div>
                           ))}
@@ -1959,6 +1974,25 @@ export function App() {
                 
                 <div style={{ fontSize: 11, color: '#6b7280', marginTop: 8 }}>
                   Passe die Werte an, bis die Tiles korrekt getrennt sind. Typische Werte: 16x16, 32x32 oder 64x64 Pixel pro Tile.
+                </div>
+                
+                <div style={{ display: 'grid', gap: 8, marginTop: 12 }}>
+                  <label style={{ fontSize: 12, color: '#9ca3af' }}>Kategorie</label>
+                  <select 
+                    value={editor.uploadDialog.category || 'terrain'} 
+                    onChange={(e) => setEditor(s => ({ 
+                      ...s, 
+                      uploadDialog: s.uploadDialog ? { ...s.uploadDialog, category: e.target.value as 'terrain' | 'structures' | 'objects' } : null 
+                    }))}
+                    style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.05)', color: '#fff', fontSize: 13 }}
+                  >
+                    <option value="terrain">Terrain (Böden)</option>
+                    <option value="structures">Strukturen (Wände)</option>
+                    <option value="objects">Objekte (Möbel)</option>
+                  </select>
+                  <div style={{ fontSize: 11, color: '#6b7280' }}>
+                    Wähle die passende Kategorie für dieses Tileset.
+                  </div>
                 </div>
               </div>
             </div>
@@ -2846,85 +2880,11 @@ function AuthScreen(props: { baseUrl: string; onDone: () => void }) {
             {msg}
           </div>
         )}
-        </div>
-      </Card>
+          </div>
+        </Card>
+      </div>
     </div>
   );
 }
 
-/*
-function ProfilePage(props: { baseUrl: string; me: { id: string; email: string; name?: string } | null; onBack: () => void; onUpdated: (u: { id: string; email: string; name?: string }) => void }) {
-  const { baseUrl, me, onBack, onUpdated } = props;
-  const [email, setEmail] = React.useState(me?.email || '');
-  const [name, setName] = React.useState(me?.name || '');
-  const [currentPassword, setCurrentPassword] = React.useState('');
-  const [newPassword, setNewPassword] = React.useState('');
-  const [msg, setMsg] = React.useState<string | null>(null);
-
-  async function saveProfile() {
-    setMsg(null);
-    try {
-      const res = await fetch(`${baseUrl}/me`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ email, name }) });
-      if (!res.ok) throw new Error((await res.json())?.error || 'Update fehlgeschlagen');
-      const u = await res.json();
-      onUpdated(u);
-      setMsg('Profil aktualisiert');
-    } catch (e: any) {
-      setMsg(e.message || 'Fehler');
-    }
-  }
-
-  async function changePassword() {
-    setMsg(null);
-    try {
-      const res = await fetch(`${baseUrl}/auth/change`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ currentPassword, newPassword }) });
-      if (!res.ok) throw new Error((await res.json())?.error || 'Passwortwechsel fehlgeschlagen');
-      setCurrentPassword('');
-      setNewPassword('');
-      setMsg('Passwort aktualisiert');
-    } catch (e: any) {
-      setMsg(e.message || 'Fehler');
-    }
-  }
-
-  return (
-    <div style={{ maxWidth: 720, margin: '0 auto', display: 'grid', gap: 16 }}>
-      <Toolbar left={<Button onClick={onBack}>Zurück</Button>} />
-
-      <Card title="Profil">
-        <div style={{ display: 'grid', gap: 12 }}>
-          <div>
-            <div style={{ fontSize: 12, color: 'var(--fg-subtle)', marginBottom: 6 }}>E-Mail</div>
-            <Input value={email} onChange={e => setEmail(e.target.value)} />
-          </div>
-          <div>
-            <div style={{ fontSize: 12, color: 'var(--fg-subtle)', marginBottom: 6 }}>Name</div>
-            <Input value={name} onChange={e => setName(e.target.value)} />
-          </div>
-          <div style={{ display:'flex', justifyContent:'flex-end' }}>
-            <Button variant="primary" onClick={saveProfile}>Speichern</Button>
-          </div>
-        </div>
-      </Card>
-
-      <Card title="Passwort ändern">
-        <div style={{ display: 'grid', gap: 12 }}>
-          <div>
-            <div style={{ fontSize: 12, color: 'var(--fg-subtle)', marginBottom: 6 }}>Aktuelles Passwort</div>
-            <Input type="password" value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} />
-          </div>
-          <div>
-            <div style={{ fontSize: 12, color: 'var(--fg-subtle)', marginBottom: 6 }}>Neues Passwort</div>
-            <Input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} />
-          </div>
-          <div style={{ display:'flex', justifyContent:'flex-end' }}>
-            <Button variant="primary" onClick={changePassword}>Passwort aktualisieren</Button>
-          </div>
-        </div>
-      </Card>
-
-      {msg && <div className="glass-surface" style={{ padding: 10, borderRadius: 12 }}>{msg}</div>}
-    </div>
-  );
-}
-*/
+export default App;
