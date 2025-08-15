@@ -1537,11 +1537,13 @@ export function App() {
                 if (newEditorState) {
                   // Enabling editor - show zones and collisions
                   gameBridge.setZoneOverlay(editor.zones);
-                  gameBridge.setCollisionVisible(true); // Always show collisions in editor
+                  // Restore collision visibility preference
+                  const savedVisibility = localStorage.getItem('meetropolis.collisionVisible');
+                  gameBridge.setCollisionVisible(savedVisibility === 'true' || savedVisibility === null);
                 } else {
-                  // Disabling editor - hide zones and collision overlay
+                  // Disabling editor - hide zones only, keep collision visibility preference
                   gameBridge.setZoneOverlay([]);
-                  gameBridge.setCollisionVisible(false);
+                  // Don't change collision visibility - user preference should persist
                 }
                 // Assets are always visible - they are part of the map
               }, 0);
@@ -1589,7 +1591,7 @@ export function App() {
                   
                   {/* Collision Overlay Toggle */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'rgba(255,255,255,0.03)', borderRadius: 8 }}>
-                    <input id="toggle-collision" type="checkbox" defaultChecked={true} onChange={(e)=>gameBridge.setCollisionVisible(e.target.checked)} />
+                    <input id="toggle-collision" type="checkbox" defaultChecked={localStorage.getItem('meetropolis.collisionVisible') !== 'false'} onChange={(e)=>gameBridge.setCollisionVisible(e.target.checked)} />
                     <label htmlFor="toggle-collision" style={{ fontSize: 12, color: '#9ca3af' }}>Kollisionsebene anzeigen</label>
                   </div>
                   

@@ -756,6 +756,16 @@ export class MainScene extends Phaser.Scene implements SceneApi {
       }
       
       console.log(`[Editor] Dump ${layerName}: found ${tileCount} tiles in ${width}x${height} layer`);
+      
+      // Special debugging for collision layer
+      if (layerName === 'collision' && tileCount > 0) {
+        console.log(`[Editor] Collision layer dump details:`, {
+          firstTileIndex: arr.find(idx => idx !== -1),
+          uniqueTileIndices: [...new Set(arr.filter(idx => idx !== -1))],
+          sampleTiles: arr.slice(0, 100).filter(idx => idx !== -1)
+        });
+      }
+      
       return tileCount > 0 ? arr : null;
     };
     try {
@@ -798,6 +808,12 @@ export class MainScene extends Phaser.Scene implements SceneApi {
         totalSize: jsonStr.length
       });
       if (jsonStr.length < 100000) {
+        console.log('[Editor] Sending to server:', {
+          url: `${base}/maps/office/editor-state`,
+          hasCollisionData: !!serverPayload.collision,
+          collisionTileCount: serverPayload.collision?.filter((t: number) => t !== -1).length || 0,
+          payloadSize: jsonStr.length
+        });
         fetch(`${base}/maps/office/editor-state`, {
           method: 'PUT',
           credentials: 'include',
@@ -873,7 +889,9 @@ export class MainScene extends Phaser.Scene implements SceneApi {
         hasCollision: !!data?.collision,
         editorGroundLength: data?.editorGround?.length,
         editorWallsLength: data?.editorWalls?.length,
-        collisionLength: data?.collision?.length
+        collisionLength: data?.collision?.length,
+        collisionTileCount: data?.collision?.filter((t: number) => t !== -1).length || 0,
+        collisionSample: data?.collision?.slice(0, 20).filter((t: number) => t !== -1)
       });
       
       if (!this.mapRef) return;
