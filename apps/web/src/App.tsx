@@ -113,6 +113,7 @@ export function App() {
     tilePaint?: { tilesetKey: string; tileIndex: number; tileWidth: number; tileHeight: number; margin?: number; spacing?: number } | null;
     drag?: { startTileX: number; startTileY: number; endTileX: number; endTileY: number } | null;
     tilesets?: { key: string; dataUrl: string; tileWidth: number; tileHeight: number; margin?: number; spacing?: number }[];
+    uploadDialog?: { open: boolean; dataUrl: string; fileName: string; tileWidth: number; tileHeight: number; margin: number; spacing: number } | null;
   }>({ active: false, tool: 'zone', category: 'zones', tempPoints: [], name: '', zones: [], assets: [], pendingAsset: null, tilePaint: { tilesetKey: 'office_tiles', tileIndex: 1, tileWidth: 16, tileHeight: 16 }, drag: null, tilesets: [] });
   React.useEffect(() => { editorActiveRef.current = editor.active; }, [editor.active]);
 
@@ -1725,60 +1726,160 @@ export function App() {
                         reader.onload = () => resolve(reader.result as string);
                         reader.readAsDataURL(new Blob([buf], { type: file.type || 'image/png' }));
                       });
-                      const key = `tileset-${Date.now()}`;
-                      // Register tileset
-                      gameBridge.registerTileset({ 
-                        key, 
-                        dataUrl: base64, 
-                        tileWidth: editor.tilePaint?.tileWidth || 16, 
-                        tileHeight: editor.tilePaint?.tileHeight || 16, 
-                        margin: editor.tilePaint?.margin || 0, 
-                        spacing: editor.tilePaint?.spacing || 0 
-                      });
-                      // Add to local tileset library
-                      setEditor(s => {
-                        const next = { 
-                          key, 
-                          dataUrl: base64, 
-                          tileWidth: s.tilePaint?.tileWidth || 16, 
-                          tileHeight: s.tilePaint?.tileHeight || 16, 
-                          margin: s.tilePaint?.margin || 0, 
-                          spacing: s.tilePaint?.spacing || 0 
-                        };
-                        const tilesets = [...(s.tilesets||[])];
-                        if (!tilesets.find(t => t.key === key)) tilesets.push(next);
-                        try { localStorage.setItem('meetropolis.tilesets', JSON.stringify(tilesets)); } catch {}
-                        return { ...s, tilesets };
-                      });
+                      
+                      // Open dialog for tile configuration
+                      setEditor(s => ({ 
+                        ...s, 
+                        uploadDialog: {
+                          open: true,
+                          dataUrl: base64,
+                          fileName: file.name,
+                          tileWidth: 16,
+                          tileHeight: 16,
+                          margin: 0,
+                          spacing: 0
+                        }
+                      }));
                     }} />
                       </label>
                     </div>
                     
-                    <div style={{ fontSize: 12, color: '#9ca3af', marginBottom: 4 }}>Tile-Größe (in Pixeln)</div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
-                      <input type="number" min={8} max={64} placeholder="Breite" value={editor.tilePaint?.tileWidth ?? 16} onChange={(e)=>{
-                        const tileWidth = Math.max(4, Math.min(256, parseInt(e.target.value||'16',10)));
-                        setEditor(s => ({ ...s, tilePaint: { ...(s.tilePaint || { tilesetKey: 'office_tiles', tileIndex: 1, tileHeight: 16 }), tileWidth } }));
-                      }} style={{ padding: '4px 6px', borderRadius: 4, border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.03)', color: '#fff', fontSize: 11 }} />
-                      <input type="number" min={8} max={64} placeholder="Höhe" value={editor.tilePaint?.tileHeight ?? 16} onChange={(e)=>{
-                        const tileHeight = Math.max(4, Math.min(256, parseInt(e.target.value||'16',10)));
-                        setEditor(s => ({ ...s, tilePaint: { ...(s.tilePaint || { tilesetKey: 'office_tiles', tileIndex: 1, tileWidth: 16 }), tileHeight } }));
-                      }} style={{ padding: '4px 6px', borderRadius: 4, border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.03)', color: '#fff', fontSize: 11 }} />
-                      <input type="number" min={0} max={16} placeholder="Rand" value={editor.tilePaint?.margin ?? 0} onChange={(e)=>{
-                        const margin = Math.max(0, Math.min(64, parseInt(e.target.value||'0',10)));
-                        setEditor(s => ({ ...s, tilePaint: { ...(s.tilePaint || { tilesetKey: 'office_tiles', tileIndex: 1, tileWidth: 16, tileHeight: 16 }), margin } }));
-                      }} style={{ padding: '4px 6px', borderRadius: 4, border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.03)', color: '#fff', fontSize: 11 }} />
-                      <input type="number" min={0} max={16} placeholder="Abstand" value={editor.tilePaint?.spacing ?? 0} onChange={(e)=>{
-                        const spacing = Math.max(0, Math.min(64, parseInt(e.target.value||'0',10)));
-                        setEditor(s => ({ ...s, tilePaint: { ...(s.tilePaint || { tilesetKey: 'office_tiles', tileIndex: 1, tileWidth: 16, tileHeight: 16 }), spacing } }));
-                      }} style={{ padding: '4px 6px', borderRadius: 4, border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.03)', color: '#fff', fontSize: 11 }} />
-                    </div>
                   </div>
                 </div>
               )}
             </div>
           </div>
         </div>
+      )}
+      
+      {/* Tileset Upload Dialog */}
+      {editor.uploadDialog?.open && (
+        <Modal
+          open={true}
+          title={`Tileset konfigurieren: ${editor.uploadDialog.fileName}`}
+          onClose={() => setEditor(s => ({ ...s, uploadDialog: null }))}
+          maxWidth={800}
+          footer={
+            <>
+              <Button variant="ghost" onClick={() => setEditor(s => ({ ...s, uploadDialog: null }))}>Abbrechen</Button>
+              <Button variant="primary" onClick={() => {
+                if (!editor.uploadDialog) return;
+                const key = `tileset-${Date.now()}`;
+                const tileset = {
+                  key,
+                  dataUrl: editor.uploadDialog.dataUrl,
+                  tileWidth: editor.uploadDialog.tileWidth,
+                  tileHeight: editor.uploadDialog.tileHeight,
+                  margin: editor.uploadDialog.margin,
+                  spacing: editor.uploadDialog.spacing
+                };
+                
+                // Register tileset
+                gameBridge.registerTileset(tileset);
+                
+                // Add to local tileset library
+                setEditor(s => {
+                  const tilesets = [...(s.tilesets || [])];
+                  if (!tilesets.find(t => t.key === key)) tilesets.push(tileset);
+                  try { localStorage.setItem('meetropolis.tilesets', JSON.stringify(tilesets)); } catch {}
+                  return { ...s, tilesets, uploadDialog: null, tilePaint: { ...tileset, tilesetKey: key, tileIndex: 0 } };
+                });
+              }}>Tileset hinzufügen</Button>
+            </>
+          }
+        >
+          <div style={{ display: 'grid', gap: 16 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 16 }}>
+              {/* Preview */}
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: '#e5e7eb', marginBottom: 8 }}>Vorschau</div>
+                <div style={{ 
+                  maxHeight: 400, 
+                  overflow: 'auto', 
+                  border: '1px solid rgba(255,255,255,0.12)', 
+                  borderRadius: 8,
+                  background: 'rgba(0,0,0,0.3)',
+                  padding: 16
+                }}>
+                  <TilesetPreview
+                    tileset={editor.uploadDialog}
+                    selectedIndex={-1}
+                    onSelect={() => {}}
+                  />
+                </div>
+              </div>
+              
+              {/* Settings */}
+              <div style={{ display: 'grid', gap: 12 }}>
+                <div style={{ fontSize: 14, fontWeight: 600, color: '#e5e7eb' }}>Tile-Einstellungen</div>
+                
+                <div style={{ display: 'grid', gap: 8 }}>
+                  <label style={{ fontSize: 12, color: '#9ca3af' }}>Tile-Breite (px)</label>
+                  <input 
+                    type="number" 
+                    min={8} 
+                    max={256} 
+                    value={editor.uploadDialog.tileWidth} 
+                    onChange={(e) => setEditor(s => ({ 
+                      ...s, 
+                      uploadDialog: s.uploadDialog ? { ...s.uploadDialog, tileWidth: parseInt(e.target.value) || 16 } : null 
+                    }))}
+                    style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.05)', color: '#fff', fontSize: 13 }}
+                  />
+                </div>
+                
+                <div style={{ display: 'grid', gap: 8 }}>
+                  <label style={{ fontSize: 12, color: '#9ca3af' }}>Tile-Höhe (px)</label>
+                  <input 
+                    type="number" 
+                    min={8} 
+                    max={256} 
+                    value={editor.uploadDialog.tileHeight} 
+                    onChange={(e) => setEditor(s => ({ 
+                      ...s, 
+                      uploadDialog: s.uploadDialog ? { ...s.uploadDialog, tileHeight: parseInt(e.target.value) || 16 } : null 
+                    }))}
+                    style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.05)', color: '#fff', fontSize: 13 }}
+                  />
+                </div>
+                
+                <div style={{ display: 'grid', gap: 8 }}>
+                  <label style={{ fontSize: 12, color: '#9ca3af' }}>Rand (px)</label>
+                  <input 
+                    type="number" 
+                    min={0} 
+                    max={64} 
+                    value={editor.uploadDialog.margin} 
+                    onChange={(e) => setEditor(s => ({ 
+                      ...s, 
+                      uploadDialog: s.uploadDialog ? { ...s.uploadDialog, margin: parseInt(e.target.value) || 0 } : null 
+                    }))}
+                    style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.05)', color: '#fff', fontSize: 13 }}
+                  />
+                </div>
+                
+                <div style={{ display: 'grid', gap: 8 }}>
+                  <label style={{ fontSize: 12, color: '#9ca3af' }}>Abstand zwischen Tiles (px)</label>
+                  <input 
+                    type="number" 
+                    min={0} 
+                    max={64} 
+                    value={editor.uploadDialog.spacing} 
+                    onChange={(e) => setEditor(s => ({ 
+                      ...s, 
+                      uploadDialog: s.uploadDialog ? { ...s.uploadDialog, spacing: parseInt(e.target.value) || 0 } : null 
+                    }))}
+                    style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.05)', color: '#fff', fontSize: 13 }}
+                  />
+                </div>
+                
+                <div style={{ fontSize: 11, color: '#6b7280', marginTop: 8 }}>
+                  Passe die Werte an, bis die Tiles korrekt getrennt sind. Typische Werte: 16x16, 32x32 oder 64x64 Pixel pro Tile.
+                </div>
+              </div>
+            </div>
+          </div>
+        </Modal>
       )}
     </div>
     </ThemeProvider>
