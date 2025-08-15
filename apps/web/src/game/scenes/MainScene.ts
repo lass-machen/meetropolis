@@ -634,7 +634,14 @@ export class MainScene extends Phaser.Scene implements SceneApi {
     if (edit.layer === 'Collision' && targetLayer) {
       const allTilesets = Array.from(this.dynamicTilesets.values());
       allTilesets.push(...this.mapRef.tilesets.filter(ts => !this.dynamicTilesets.has(ts.name)));
-      (targetLayer as any).setTilesets(allTilesets);
+      
+      // Direct assignment to ensure tilesets are available
+      (targetLayer as any).tileset = allTilesets;
+      if ((targetLayer as any).layer) {
+        (targetLayer as any).layer.tileset = allTilesets;
+        (targetLayer as any).layer.tilesets = allTilesets;
+      }
+      
       console.log(`[Editor] Updated collision layer with ${allTilesets.length} tilesets before paint`);
     }
     
@@ -687,15 +694,23 @@ export class MainScene extends Phaser.Scene implements SceneApi {
             layerTilesets: layerData?.tilemapLayer?.tileset || layerData?.tileset,
             layerTilesetsArray: layerData?.tilemapLayer?.tilesets || layerData?.tilesets,
             hasData: !!layerData?.data,
-            dataSize: layerData?.data ? `${layerData.data.length}x${layerData.data[0]?.length || 0}` : 'no data'
+            dataSize: layerData?.data ? `${layerData.data.length}x${layerData.data[0]?.length || 0}` : 'no data',
+            layerObj: targetLayer,
+            tilesets: (targetLayer as any).tileset
           });
           
           try {
             targetLayer.putTileAt(globalIndex, tx, ty);
           } catch (error) {
             console.error('[Editor] Failed to put tile:', error);
-            console.log('[Editor] Layer tilesets:', (targetLayer as any).layer?.tilesets);
-            console.log('[Editor] Tileset details:', tileset);
+            console.log('[Editor] Debug info:', {
+              layer: targetLayer,
+              layerTilesets: (targetLayer as any).tileset,
+              layerTilesetsArray: (targetLayer as any).tilesets,
+              tilesetFirstgid: tileset?.firstgid,
+              globalIndex,
+              coords: { tx, ty }
+            });
           }
         }
       }
