@@ -70,11 +70,14 @@ services:
       - "traefik.http.routers.meetropolis-api.tls.certresolver=${TRAEFIK_CERT_RESOLVER:-le}"
       - "traefik.http.services.meetropolis-api.loadbalancer.server.port=2567"
       - "traefik.docker.network=${TRAEFIK_NETWORK:-traefik}"
-      # Enable WebSocket support for Colyseus
-      - "traefik.http.middlewares.meetropolis-api-headers.headers.customrequestheaders.X-Forwarded-Proto=https"
-      - "traefik.http.middlewares.meetropolis-api-headers.headers.customrequestheaders.Connection=upgrade"
-      - "traefik.http.middlewares.meetropolis-api-headers.headers.customrequestheaders.Upgrade=websocket"
-      - "traefik.http.routers.meetropolis-api.middlewares=meetropolis-api-headers"
+      # Add CORS headers
+      - "traefik.http.middlewares.meetropolis-api-cors.headers.accesscontrolallowmethods=GET,OPTIONS,PUT,POST,DELETE"
+      - "traefik.http.middlewares.meetropolis-api-cors.headers.accesscontrolallowheaders=Origin,X-Requested-With,Content-Type,Accept,Authorization"
+      - "traefik.http.middlewares.meetropolis-api-cors.headers.accesscontrolallowcredentials=true"
+      - "traefik.http.middlewares.meetropolis-api-cors.headers.accesscontrolalloworiginlist=https://meetropolis.s7.lmwow.de"
+      - "traefik.http.middlewares.meetropolis-api-cors.headers.accesscontrolmaxage=100"
+      - "traefik.http.middlewares.meetropolis-api-cors.headers.addvaryheader=true"
+      - "traefik.http.routers.meetropolis-api.middlewares=meetropolis-api-cors"
     networks:
       - traefik
       - meetropolis-net
