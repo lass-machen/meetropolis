@@ -176,6 +176,13 @@ export function App() {
         setEditor(s => ({ ...s, assets }));
         gameBridge.setEditorAssets(assets);
       }
+      
+      // Load layers from server on startup
+      try {
+        gameBridge.fetchAndApplyServerLayers();
+      } catch (e) {
+        console.warn('[Editor] Failed to fetch server layers on startup:', e);
+      }
       const rawTs = localStorage.getItem('meetropolis.tilesets');
       const defaultTs = [
         { key: 'office_tiles', dataUrl: '/assets/tilesets/office_tiles.png', tileWidth: 16, tileHeight: 16, category: 'terrain' },
@@ -1322,16 +1329,12 @@ export function App() {
     gameBridge.setZoneOverlay(zonesToShow);
     // Aber: ZoneManager soll immer mit den echten Zonen arbeiten
     zoneRef.current?.setZones?.(editor.zones as any);
-    // Assets nur im Edit-Modus anzeigen
-    const assetsToShow = editor.active ? editor.assets : [];
-    gameBridge.setEditorAssets(assetsToShow);
   }, [editor.active, editor.zones]);
 
   useEffect(() => {
-    // Nur im Edit-Modus Assets rendern
-    const assetsToShow = editor.active ? editor.assets : [];
-    gameBridge.setEditorAssets(assetsToShow);
-  }, [editor.active, editor.assets]);
+    // Assets immer anzeigen - sie sind Teil der Map!
+    gameBridge.setEditorAssets(editor.assets);
+  }, [editor.assets]);
 
   // Verlasse Edit-Modus: Kollision-Overlay aus
   useEffect(() => {
@@ -1532,16 +1535,15 @@ export function App() {
               setTimeout(() => {
                 const newEditorState = !editor.active;
                 if (newEditorState) {
-                  // Enabling editor - show zones, collisions and assets
+                  // Enabling editor - show zones and collisions
                   gameBridge.setZoneOverlay(editor.zones);
                   gameBridge.setCollisionVisible(true); // Always show collisions in editor
-                  gameBridge.setEditorAssets(editor.assets);
                 } else {
-                  // Disabling editor - hide zones, collision overlay and assets
+                  // Disabling editor - hide zones and collision overlay
                   gameBridge.setZoneOverlay([]);
                   gameBridge.setCollisionVisible(false);
-                  gameBridge.setEditorAssets([]);
                 }
+                // Assets are always visible - they are part of the map
               }, 0);
             }} style={{ textAlign: 'left', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: editor.active ? 'rgba(16,185,129,0.18)' : 'var(--glass)', color: 'var(--fg)', cursor: 'pointer' }}>{editor.active ? 'Editor beenden' : 'Map-Editor öffnen'}</button>
             <button onClick={async () => { try { await fetch(`${apiBase}/auth/logout`, { method: 'POST', credentials: 'include' }); } finally { setMe(null); setMenuOpen(false); setPage('world'); } }} style={{ textAlign: 'left', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--glass)', color: 'var(--fg)', cursor: 'pointer' }}>Logout</button>

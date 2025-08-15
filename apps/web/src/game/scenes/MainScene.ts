@@ -688,8 +688,21 @@ export class MainScene extends Phaser.Scene implements SceneApi {
         console.log(`[Editor] Dump ${layerName}: layer is null/undefined`);
         return null;
       }
+      
+      // Debug layer info
+      const layerData = (layer as any).layer;
+      console.log(`[Editor] Dump ${layerName} - layer info:`, {
+        hasLayer: !!layerData,
+        hasData: !!layerData?.data,
+        dataLength: layerData?.data?.length,
+        firstRowLength: layerData?.data?.[0]?.length,
+        tilesets: layerData?.tilemapLayer?.tilesets?.length || 0
+      });
+      
       const arr: number[] = new Array(width * height).fill(-1);
       let tileCount = 0;
+      let errorCount = 0;
+      
       for (let y = 0; y < height; y++) {
         for (let x = 0; x < width; x++) {
           try {
@@ -698,11 +711,16 @@ export class MainScene extends Phaser.Scene implements SceneApi {
             arr[y * width + x] = tileIndex;
             if (tileIndex !== -1) tileCount++;
           } catch (e) {
-            // Silently handle corrupt tiles - common with collision layer
+            errorCount++;
             arr[y * width + x] = -1; // Default empty
           }
         }
       }
+      
+      if (errorCount > 0) {
+        console.log(`[Editor] Dump ${layerName}: ${errorCount} errors while reading tiles`);
+      }
+      
       console.log(`[Editor] Dump ${layerName}: found ${tileCount} tiles in ${width}x${height} layer`);
       return tileCount > 0 ? arr : null;
     };
