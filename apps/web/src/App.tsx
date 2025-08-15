@@ -890,6 +890,23 @@ export function App() {
       setEditor(prev => {
         if (!prev.active) return prev;
         
+        // Handle object deletion
+        if (prev.tool === 'erase' && prev.category === 'objects') {
+          // Find object at position
+          const clickRadius = 16; // Tolerance for clicking
+          const clickedAsset = prev.assets.find(a => 
+            Math.abs(a.x - x) < clickRadius && Math.abs(a.y - y) < clickRadius
+          );
+          
+          if (clickedAsset) {
+            const assets = prev.assets.filter(a => a.id !== clickedAsset.id);
+            try { localStorage.setItem('meetropolis.assets', JSON.stringify(assets)); } catch {}
+            gameBridge.setEditorAssets(assets);
+            return { ...prev, assets };
+          }
+          return prev;
+        }
+        
         // Handle object placement from tileset
         if (prev.tool === 'asset' && prev.tilePaint && prev.category === 'objects') {
           const tileset = prev.tilesets?.find(ts => ts.key === prev.tilePaint?.tilesetKey);

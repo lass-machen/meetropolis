@@ -513,16 +513,19 @@ export class MainScene extends Phaser.Scene implements SceneApi {
     }
     // Stelle sicher, dass Texturen existieren und Sprites positioniert sind
     for (const a of assets) {
-      if (!this.textures.exists(a.key)) {
-        this.textures.addBase64(a.key, a.dataUrl);
+      // Use asset ID as texture key to avoid conflicts
+      const textureKey = `asset_${a.id}`;
+      if (!this.textures.exists(textureKey)) {
+        this.textures.addBase64(textureKey, a.dataUrl);
       }
       let img = this.editorSprites.get(a.id);
       if (!img) {
-        img = this.add.image(a.x, a.y, a.key);
+        img = this.add.image(a.x, a.y, textureKey);
         img.setDepth(6);
+        img.setInteractive();
         this.editorSprites.set(a.id, img);
       } else {
-        img.setTexture(a.key);
+        img.setTexture(textureKey);
         img.setPosition(a.x, a.y);
       }
     }
