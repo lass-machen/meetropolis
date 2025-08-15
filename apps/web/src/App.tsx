@@ -187,6 +187,8 @@ export function App() {
       }
       try { localStorage.setItem('meetropolis.tilesets', JSON.stringify(tilesets)); } catch {}
       setEditor(s => ({ ...s, tilesets, tilePaint: { ...(s.tilePaint as any), tilesetKey: s.tilePaint?.tilesetKey || 'office_tiles' } }));
+      // Tilesets zur späteren Registrierung speichern
+      (window as any).pendingTilesets = tilesets;
       // Bereits vorhandene Editor-Layer sofort anwenden (falls vorhanden)
       try { gameBridge.reloadEditorLayers(); } catch {}
       // Server-state laden (best-effort) – bei 404 Map anlegen und lokalen Stand hochladen
@@ -1500,7 +1502,7 @@ export function App() {
                       <div style={{ fontSize: 13, fontWeight: 500, color: '#9ca3af' }}>Bodentextur auswählen</div>
                       {editor.tilePaint && editor.tilesets && editor.tilesets.length > 0 && (
                         <div style={{ maxHeight: 200, overflow: 'auto', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, padding: 8 }}>
-                          {editor.tilesets.filter(ts => ts.key.includes('floor') || ts.key.includes('ground') || ts.key === 'office_tiles').map(lib => (
+                          {editor.tilesets.map(lib => (
                             <div key={lib.key} style={{ marginBottom: 8 }}>
                               <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 4 }}>{lib.key}</div>
                               <TilesetPreview
@@ -1535,7 +1537,7 @@ export function App() {
                       <div style={{ fontSize: 13, fontWeight: 500, color: '#9ca3af' }}>Wandtextur auswählen</div>
                       {editor.tilePaint && editor.tilesets && editor.tilesets.length > 0 && (
                         <div style={{ maxHeight: 200, overflow: 'auto', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, padding: 8 }}>
-                          {editor.tilesets.filter(ts => ts.key.includes('wall') || ts.key.includes('brick') || ts.key === 'office_tiles').map(lib => (
+                          {editor.tilesets.map(lib => (
                             <div key={lib.key} style={{ marginBottom: 8 }}>
                               <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 4 }}>{lib.key}</div>
                               <TilesetPreview
@@ -1689,12 +1691,32 @@ export function App() {
                 </>
               )}
               
-              {/* Upload/Tileset Management Section */}
-              <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 12, marginTop: 12 }}>
-                <details>
-                  <summary style={{ cursor: 'pointer', fontSize: 13, color: '#9ca3af', marginBottom: 8 }}>Tileset-Verwaltung</summary>
-                  <div style={{ display: 'grid', gap: 8, marginTop: 8 }}>
-                    <input type="file" accept="image/*" onChange={async (e) => {
+              {/* Upload/Tileset Management Section - Show for terrain and structures */}
+              {(editor.category === 'terrain' || editor.category === 'structures') && (
+                <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 12, marginTop: 12 }}>
+                  <div style={{ display: 'grid', gap: 8 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: '#e5e7eb' }}>Tileset hochladen</div>
+                    <div style={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: 8,
+                      padding: '8px 12px',
+                      borderRadius: 8,
+                      border: '1px solid rgba(59,130,246,0.3)',
+                      background: 'rgba(59,130,246,0.1)',
+                      cursor: 'pointer'
+                    }}>
+                      <label style={{ 
+                        cursor: 'pointer', 
+                        flex: 1,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        color: '#93bbfe'
+                      }}>
+                        <span style={{ fontSize: 16 }}>📁</span>
+                        <span style={{ fontSize: 13 }}>Tileset-Bild auswählen...</span>
+                        <input type="file" accept="image/*" style={{ display: 'none' }} onChange={async (e) => {
                       const file = e.target.files?.[0];
                       if (!file) return;
                       const buf = await file.arrayBuffer();
@@ -1728,8 +1750,11 @@ export function App() {
                         try { localStorage.setItem('meetropolis.tilesets', JSON.stringify(tilesets)); } catch {}
                         return { ...s, tilesets };
                       });
-                    }} style={{ padding: '6px 8px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.05)', color: '#fff', fontSize: 12 }} />
+                    }} />
+                      </label>
+                    </div>
                     
+                    <div style={{ fontSize: 12, color: '#9ca3af', marginBottom: 4 }}>Tile-Größe (in Pixeln)</div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
                       <input type="number" min={8} max={64} placeholder="Breite" value={editor.tilePaint?.tileWidth ?? 16} onChange={(e)=>{
                         const tileWidth = Math.max(4, Math.min(256, parseInt(e.target.value||'16',10)));
@@ -1749,8 +1774,8 @@ export function App() {
                       }} style={{ padding: '4px 6px', borderRadius: 4, border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.03)', color: '#fff', fontSize: 11 }} />
                     </div>
                   </div>
-                </details>
-              </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

@@ -26,12 +26,28 @@ app.set('trust proxy', process.env.TRUST_PROXY === 'true' || isProd);
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(compression());
 
-app.use(
-  cors({
-    origin: allowedOrigins.length > 0 ? allowedOrigins : true,
-    credentials: true,
-  })
-);
+// CORS middleware with explicit OPTIONS handling
+app.use((req, res, next) => {
+  const origin = req.headers.origin as string;
+  
+  if (allowedOrigins.length > 0) {
+    if (origin && allowedOrigins.includes(origin)) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+    }
+  } else {
+    res.setHeader('Access-Control-Allow-Origin', origin || '*');
+  }
+  
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  
+  if (req.method === 'OPTIONS') {
+    res.sendStatus(200);
+  } else {
+    next();
+  }
+});
 
 app.use(cookieParser());
 app.use(express.json({ limit: '4mb' }));

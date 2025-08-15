@@ -300,6 +300,19 @@ export class MainScene extends Phaser.Scene implements SceneApi {
     gameBridge.setSceneApi(this);
     // Make scene globally accessible for editor updates
     (window as any).currentPhaserScene = this;
+    
+    // Register pending tilesets
+    const pendingTilesets = (window as any).pendingTilesets;
+    if (pendingTilesets && Array.isArray(pendingTilesets)) {
+      console.log('[Editor] Registering', pendingTilesets.length, 'pending tilesets');
+      pendingTilesets.forEach((ts: any) => {
+        if (ts.dataUrl && ts.dataUrl.startsWith('data:')) {
+          // Only register user-uploaded tilesets (data URLs)
+          this.registerTileset(ts);
+        }
+      });
+      (window as any).pendingTilesets = null;
+    }
 
     // Nach dem Aufbau: IMMER vom Server laden für konsistenten State
     setTimeout(() => {
@@ -775,22 +788,32 @@ export class MainScene extends Phaser.Scene implements SceneApi {
     if (!this.mapRef || !this.game || !(this.game as any).renderer) return;
     // Textur registrieren
     if (!this.textures.exists(ts.key)) {
+      // addBase64 returns a promise when the texture is loaded
+      this.textures.once('addtexture', (key: string) => {
+        if (key === ts.key) {
+          // Tileset zur Map hinzufügen nachdem die Textur geladen wurde
+          const tileset = this.mapRef.addTilesetImage(ts.key, ts.key, ts.tileWidth, ts.tileHeight, ts.margin ?? 0, ts.spacing ?? 0);
+          if (tileset) {
+            this.dynamicTilesets.set(ts.key, tileset);
+            console.log('[Editor] Successfully registered tileset:', ts.key);
+            // Stelle sicher, dass Editor-Layer dieses Tileset nutzen kann
+            if (!this.editorGround && this.mapRef) {
+              try {
+                const tmp = this.mapRef.createBlankLayer('EditorGround', tileset, 0, 0, this.mapRef.width, this.mapRef.height, this.mapRef.tileWidth, this.mapRef.tileHeight);
+                this.editorGround = tmp as any;
+                if (this.editorGround) this.editorGround.setDepth(1);
+              } catch {}
+            }
+          }
+        }
+      });
       this.textures.addBase64(ts.key, ts.dataUrl);
-    }
-    // Tileset zur Map hinzufügen
-    const tileset = this.mapRef.addTilesetImage(ts.key, ts.key, ts.tileWidth, ts.tileHeight, ts.margin ?? 0, ts.spacing ?? 0);
-    if (tileset) {
-      this.dynamicTilesets.set(ts.key, tileset);
-      // Stelle sicher, dass Editor-Layer dieses Tileset nutzen kann
-      if (!this.editorGround && this.mapRef) {
-        try {
-          const tmp = this.mapRef.createBlankLayer('EditorGround', tileset, 0, 0, this.mapRef.width, this.mapRef.height, this.mapRef.tileWidth, this.mapRef.tileHeight);
-          this.editorGround = tmp as any;
-          if (this.editorGround) this.editorGround.setDepth(1);
-        } catch {}
-      } else {
-        // Phaser erlaubt kein dynamisches Umschalten der Tileset-Liste am Layer direkt, aber Tiles sind indexbasiert.
-        // Solange der Index zum verwendeten Tileset passt, rendert es korrekt, da alle Tilesets im Map-Context bekannt sind.
+    } else {
+      // Textur existiert bereits
+      const tileset = this.mapRef.addTilesetImage(ts.key, ts.key, ts.tileWidth, ts.tileHeight, ts.margin ?? 0, ts.spacing ?? 0);
+      if (tileset) {
+        this.dynamicTilesets.set(ts.key, tileset);
+        console.log('[Editor] Reused existing tileset:', ts.key);
       }
     }
   }
