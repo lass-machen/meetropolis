@@ -10,7 +10,6 @@ import { FollowManager } from './game/followManager';
 import { ZoneManager } from './game/zoneManager';
 import { VolumeManager } from './game/volumeManager';
 
-const DEBUG = (import.meta as any).env?.VITE_DEBUG_LOGS === 'true';
 
 // Simple Inline-Icons
 function MicIcon(props: { on?: boolean }) {
@@ -817,12 +816,6 @@ export function App() {
           // Find participant by identity
           const participants = Array.from(room.remoteParticipants?.values() || []);
           const participant = participants.find((p: any) => p.identity === identity);
-          
-          // Debug logging (commented out for production)
-          // if (bubbleMembersRef.current.size > 0) {
-          //     'participant found:', !!participant);
-          // }
-          
           if (participant) {
             avRef.current?.setParticipantVolume(participant.sid, vol);
           }
@@ -1355,7 +1348,7 @@ export function App() {
             ref={containerRef}
             onContextMenu={(e) => {
               e.preventDefault();
-              // TODO: Echte Selektion per Klick-Target; aktuell einfacher Toggle mit erstem Remote
+              // Simple toggle with first remote player for bubble demo
               const localId = localPosRef.current.id;
               const selected = Object.keys(remotesRef.current)[0];
               if (!selected) return;
@@ -1479,7 +1472,6 @@ export function App() {
         {menuOpen && (
           <div style={{ position: 'absolute', top: 44, right: 0, background: 'var(--glass)', color: 'var(--fg)', border: '1px solid var(--border)', borderRadius: 12, padding: 8, display: 'grid', gap: 6, minWidth: 220, boxShadow: 'var(--shadow)', backdropFilter: 'blur(6px)' }}>
             <button onClick={() => { setPage('users'); setMenuOpen(false); }} style={{ textAlign: 'left', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--glass)', color: 'var(--fg)', cursor: 'pointer' }}>Benutzer verwalten</button>
-            {/* <button onClick={() => { setPage('profile'); setMenuOpen(false); }} style={{ textAlign: 'left', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--glass)', color: 'var(--fg)', cursor: 'pointer' }}>Mein Profil</button> */}
             <button onClick={() => { setPage('world'); setMenuOpen(false); }} style={{ textAlign: 'left', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--glass)', color: 'var(--fg)', cursor: 'pointer' }}>Zurück zur Welt</button>
             <button onClick={async () => { 
               if (editor.active) { 

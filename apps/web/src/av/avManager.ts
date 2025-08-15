@@ -1,4 +1,3 @@
-const DEBUG = (import.meta as any).env?.VITE_DEBUG_LOGS === 'true';
 const SIMPLE = (import.meta as any).env?.VITE_AV_SIMPLE === 'true';
 const ALLOW_RECONNECT = (import.meta as any).env?.VITE_AV_RECONNECT !== 'false';
 import { Room } from 'livekit-client';
