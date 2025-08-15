@@ -1054,7 +1054,8 @@ export class MainScene extends Phaser.Scene implements SceneApi {
       applyArr(data?.editorWalls, this.wallsLayer, 'editorWalls');
       applyArr(data?.collision, this.collisionLayer, 'collision');
       if (data?.collision) this.rebuildStaticColliders();
-      try { this.updateCollisionOverlay(); } catch {}
+      // Don't update collision overlay here - let the editor state determine visibility
+      // The updateCollisionOverlay will be called when setCollisionVisible is called from App.tsx
     } catch (e) {
       editorError('Load', 'Failed to fetch/apply server layers', e);
     }
@@ -1157,6 +1158,7 @@ export class MainScene extends Phaser.Scene implements SceneApi {
   }
 
   setCollisionVisible(visible: boolean) {
+    editorLog('Visibility', `Setting collision visibility to ${visible}`);
     this.collisionVisible = !!visible;
     this.updateCollisionOverlay();
     // Store visibility state
@@ -1168,13 +1170,17 @@ export class MainScene extends Phaser.Scene implements SceneApi {
   private updateCollisionOverlay() {
     if (!this.mapRef) return;
     this.collisionOverlay?.destroy();
-    if (!this.collisionVisible || !this.collisionLayer) return;
+    if (!this.collisionVisible || !this.collisionLayer) {
+      editorLog('Visibility', `Not showing collision overlay: visible=${this.collisionVisible}, hasLayer=${!!this.collisionLayer}`);
+      return;
+    }
     const g = this.add.graphics();
     g.fillStyle(0xff4757, 0.18);
     g.lineStyle(1, 0xff4757, 0.8);
     const layer: any = this.collisionLayer;
     const data = (layer as any)?.layer?.data as Phaser.Tilemaps.Tile[][] | undefined;
     if (data) {
+      let tileCount = 0;
       for (let y = 0; y < data.length; y++) {
         const row = data[y];
         if (!row) continue;
@@ -1185,9 +1191,11 @@ export class MainScene extends Phaser.Scene implements SceneApi {
             const py = y * this.mapRef.tileHeight;
             g.fillRect(px, py, this.mapRef.tileWidth, this.mapRef.tileHeight);
             g.strokeRect(px, py, this.mapRef.tileWidth, this.mapRef.tileHeight);
+            tileCount++;
           }
         }
       }
+      editorLog('Visibility', `Collision overlay created with ${tileCount} collision tiles`);
     }
     g.setDepth(8);
     this.collisionOverlay = g;
