@@ -365,8 +365,8 @@ export class MainScene extends Phaser.Scene implements SceneApi {
         if (savedVisibility !== null) {
           this.setCollisionVisible(savedVisibility === 'true');
         } else {
-          // Default: hide collision overlay
-          this.setCollisionVisible(false);
+          // Default: show collision overlay in editor
+          this.setCollisionVisible(true);
         }
       }).catch(() => {
         console.log('[MainScene] Failed to load from server, trying localStorage');
@@ -378,8 +378,8 @@ export class MainScene extends Phaser.Scene implements SceneApi {
         if (savedVisibility !== null) {
           this.setCollisionVisible(savedVisibility === 'true');
         } else {
-          // Default: hide collision overlay
-          this.setCollisionVisible(false);
+          // Default: show collision overlay in editor
+          this.setCollisionVisible(true);
         }
       });
     }, 0);

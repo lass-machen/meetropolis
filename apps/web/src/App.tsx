@@ -1336,8 +1336,17 @@ export function App() {
     gameBridge.setEditorAssets(editor.assets);
   }, [editor.assets]);
 
-  // Collision-Overlay wird über den Checkbox-Toggle gesteuert, nicht über editor.active
-  // Die Sichtbarkeit bleibt bestehen, unabhängig vom Editor-Modus
+  // Collision-Overlay nur im Edit-Modus anzeigen (wie Zonen)
+  useEffect(() => {
+    // Kollisionen nur anzeigen wenn Editor aktiv UND Checkbox aktiviert ist
+    if (editor.active) {
+      const savedVisibility = localStorage.getItem('meetropolis.collisionVisible');
+      gameBridge.setCollisionVisible(savedVisibility !== 'false');
+    } else {
+      // Editor nicht aktiv = keine Kollisionen anzeigen
+      gameBridge.setCollisionVisible(false);
+    }
+  }, [editor.active]);
 
   if (!authChecked) {
     return (
@@ -1531,15 +1540,13 @@ export function App() {
               setTimeout(() => {
                 const newEditorState = !editor.active;
                 if (newEditorState) {
-                  // Enabling editor - show zones and collisions
+                  // Enabling editor - show zones
                   gameBridge.setZoneOverlay(editor.zones);
-                  // Restore collision visibility preference
-                  const savedVisibility = localStorage.getItem('meetropolis.collisionVisible');
-                  gameBridge.setCollisionVisible(savedVisibility === 'true' || savedVisibility === null);
+                  // Collision visibility will be handled by useEffect
                 } else {
-                  // Disabling editor - hide zones only, keep collision visibility preference
+                  // Disabling editor - hide zones
                   gameBridge.setZoneOverlay([]);
-                  // Don't change collision visibility - user preference should persist
+                  // Collision visibility will be handled by useEffect
                 }
                 // Assets are always visible - they are part of the map
               }, 0);
@@ -1587,7 +1594,7 @@ export function App() {
                   
                   {/* Collision Overlay Toggle */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'rgba(255,255,255,0.03)', borderRadius: 8 }}>
-                    <input id="toggle-collision" type="checkbox" defaultChecked={localStorage.getItem('meetropolis.collisionVisible') === 'true'} onChange={(e)=>gameBridge.setCollisionVisible(e.target.checked)} />
+                    <input id="toggle-collision" type="checkbox" defaultChecked={localStorage.getItem('meetropolis.collisionVisible') !== 'false'} onChange={(e)=>{localStorage.setItem('meetropolis.collisionVisible', e.target.checked.toString()); gameBridge.setCollisionVisible(e.target.checked);}} />
                     <label htmlFor="toggle-collision" style={{ fontSize: 12, color: '#9ca3af' }}>Kollisionsebene anzeigen</label>
                   </div>
                   
