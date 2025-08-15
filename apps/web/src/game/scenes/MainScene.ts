@@ -54,7 +54,16 @@ export class MainScene extends Phaser.Scene implements SceneApi {
     walls?.setDepth(5);
 
     // Collision-Layer einlesen und statische Physik-Körper erzeugen
-    const collisionLayer = available.length > 0 ? map.createLayer('Collision', available, 0, 0) : undefined as any;
+    let collisionLayer: Phaser.Tilemaps.TilemapLayer | undefined;
+    try {
+      collisionLayer = map.createLayer('Collision', available, 0, 0);
+    } catch (e) {
+      console.log('[MainScene] No Collision layer in map, creating blank layer');
+      // Create blank collision layer if it doesn't exist
+      if (available.length > 0) {
+        collisionLayer = map.createBlankLayer('Collision', available, 0, 0, map.width, map.height, map.tileWidth, map.tileHeight);
+      }
+    }
     this.collisionLayer = collisionLayer as any;
     let staticColliders: Phaser.Physics.Arcade.StaticGroup | undefined;
     if (collisionLayer) {
@@ -635,7 +644,24 @@ export class MainScene extends Phaser.Scene implements SceneApi {
           // Calculate the global tile index for this tileset
           const globalIndex = tileset.firstgid + edit.tileIndex;
           console.log(`[Editor] Putting tile at ${tx},${ty}: tileset=${edit.tilesetKey}, tileIndex=${edit.tileIndex}, firstgid=${tileset.firstgid}, globalIndex=${globalIndex}`);
-          targetLayer.putTileAt(globalIndex, tx, ty);
+          
+          // Debug layer information
+          const layerData = (targetLayer as any).layer;
+          console.log('[Editor] Layer info:', {
+            layerName: layerData?.name,
+            layerTilesets: layerData?.tilemapLayer?.tileset || layerData?.tileset,
+            layerTilesetsArray: layerData?.tilemapLayer?.tilesets || layerData?.tilesets,
+            hasData: !!layerData?.data,
+            dataSize: layerData?.data ? `${layerData.data.length}x${layerData.data[0]?.length || 0}` : 'no data'
+          });
+          
+          try {
+            targetLayer.putTileAt(globalIndex, tx, ty);
+          } catch (error) {
+            console.error('[Editor] Failed to put tile:', error);
+            console.log('[Editor] Layer tilesets:', (targetLayer as any).layer?.tilesets);
+            console.log('[Editor] Tileset details:', tileset);
+          }
         }
       }
     }

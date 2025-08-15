@@ -10,8 +10,7 @@ export class BootScene extends Phaser.Scene {
     this.load.image('office_tiles_raw', '/assets/tilesets/office_tiles.png');
     this.load.image('furniture_tiles', '/assets/tilesets/furniture_tiles.png');
     this.load.image('decor_tiles', '/assets/tilesets/decor_tiles.png');
-    // Load collision tiles image or create fallback
-    this.load.image('collision_tiles', '/assets/tilesets/collision_tiles.png');
+    // Collision tiles are created as canvas in create() method
 
     this.load.tilemapTiledJSON('office', '/maps/office.json');
     // Charakter-Sprites laden
@@ -38,22 +37,20 @@ export class BootScene extends Phaser.Scene {
       }
     }
     
-    // Create collision tiles fallback if not loaded
-    if (!this.textures.exists('collision_tiles') || this.textures.get('collision_tiles').key === '__MISSING') {
-      const ctex = this.textures.createCanvas('collision_tiles', 256, 48); // 16x3 tiles
-      if (ctex) {
-        const ctx = ctex.getContext();
-        if (ctx) {
-          ctx.fillStyle = 'rgba(255,0,0,0.5)';
-          // Draw a 3x3 grid of collision tiles
-          for (let y = 0; y < 3; y++) {
-            for (let x = 0; x < 16; x++) {
-              ctx.fillRect(x * 16 + 1, y * 16 + 1, 14, 14);
-            }
+    // Always create collision tiles as canvas
+    const ctex = this.textures.createCanvas('collision_tiles', 256, 48); // 16x3 tiles
+    if (ctex) {
+      const ctx = ctex.getContext();
+      if (ctx) {
+        ctx.fillStyle = 'rgba(255,0,0,0.5)';
+        // Draw a 3x3 grid of collision tiles
+        for (let y = 0; y < 3; y++) {
+          for (let x = 0; x < 16; x++) {
+            ctx.fillRect(x * 16 + 1, y * 16 + 1, 14, 14);
           }
         }
-        ctex.refresh();
       }
+      ctex.refresh();
     }
     
     this.scene.start('Main');
