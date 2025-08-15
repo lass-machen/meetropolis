@@ -92,6 +92,14 @@ export class MainScene extends Phaser.Scene implements SceneApi {
           layerData.height = expectedRows;
           
           editorLog('Init', `Fixed collision layer dimensions to ${layerData.data.length}x${layerData.data[0]?.length || 0}`);
+          
+          // Verify the fix worked
+          const testY = 30; // Test a row that should exist now
+          if (layerData.data[testY]) {
+            editorLog('Init', `Verification: Row ${testY} exists with ${layerData.data[testY].length} tiles`);
+          } else {
+            editorError('Init', `Verification failed: Row ${testY} still doesn't exist!`);
+          }
         }
       }
     } catch (e) {
@@ -409,27 +417,15 @@ export class MainScene extends Phaser.Scene implements SceneApi {
       this.fetchAndApplyServerLayers().then(() => {
         console.log('[MainScene] Loaded map state from server');
         
-        // Restore collision visibility from localStorage
-        const savedVisibility = localStorage.getItem('meetropolis.collisionVisible');
-        if (savedVisibility !== null) {
-          this.setCollisionVisible(savedVisibility === 'true');
-        } else {
-          // Default: show collision overlay in editor
-          this.setCollisionVisible(true);
-        }
+        // Don't restore collision visibility here - let App.tsx handle it based on editor state
+        // The collision visibility will be set by the useEffect in App.tsx when editor state changes
       }).catch(() => {
         console.log('[MainScene] Failed to load from server, trying localStorage');
         // Fallback to localStorage if server fails
         this.loadEditorLayers();
         
-        // Restore collision visibility from localStorage
-        const savedVisibility = localStorage.getItem('meetropolis.collisionVisible');
-        if (savedVisibility !== null) {
-          this.setCollisionVisible(savedVisibility === 'true');
-        } else {
-          // Default: show collision overlay in editor
-          this.setCollisionVisible(true);
-        }
+        // Don't restore collision visibility here - let App.tsx handle it based on editor state
+        // The collision visibility will be set by the useEffect in App.tsx when editor state changes
       });
     }, 0);
 
@@ -748,16 +744,34 @@ export class MainScene extends Phaser.Scene implements SceneApi {
           }
           
           try {
+            // Additional debug for collision layer
+            if (edit.layer === 'Collision') {
+              const layerData = (targetLayer as any).layer;
+              if (layerData?.data) {
+                editorLog('Paint', `Attempting putTileAt`, {
+                  tx, ty,
+                  globalIndex,
+                  dataRows: layerData.data.length,
+                  rowExists: !!layerData.data[ty],
+                  rowLength: layerData.data[ty]?.length || 0
+                });
+              }
+            }
+            
             targetLayer.putTileAt(globalIndex, tx, ty);
           } catch (error) {
             if (edit.layer === 'Collision') {
+              const layerData = (targetLayer as any).layer;
               editorError('Paint', 'Failed to put collision tile', {
                 error: error.message,
                 tilesetKey: edit.tilesetKey,
                 tileIndex: edit.tileIndex,
                 globalIndex,
                 coords: { tx, ty },
-                hasLayerTilesets: !!(targetLayer as any).tileset || !!(targetLayer as any).layer?.tilesets
+                hasLayerTilesets: !!(targetLayer as any).tileset || !!(targetLayer as any).layer?.tilesets,
+                dataRows: layerData?.data?.length || 0,
+                rowExists: !!(layerData?.data?.[ty]),
+                actualError: error.stack
               });
             }
           }
@@ -971,10 +985,37 @@ export class MainScene extends Phaser.Scene implements SceneApi {
           allTilesets.push(...this.mapRef.tilesets.filter(ts => !this.dynamicTilesets.has(ts.name)));
           (layer as any).setTilesets(allTilesets);
           
-          // Check layer dimensions
+          // Check layer dimensions and fix if needed
           const layerData = (layer as any).layer;
           if (layerData?.data) {
             editorLog('Load', `Collision layer actual size: ${layerData.data.length}x${layerData.data[0]?.length || 0}`);
+            
+            // Fix data array if it's too small (same fix as in create)
+            const expectedRows = this.mapRef.height;
+            const actualRows = layerData.data.length;
+            
+            if (actualRows < expectedRows) {
+              editorLog('Load', `Fixing collision layer dimensions again: ${actualRows} rows -> ${expectedRows} rows`);
+              
+              while (layerData.data.length < expectedRows) {
+                const newRow = new Array(this.mapRef.width);
+                for (let x = 0; x < this.mapRef.width; x++) {
+                  newRow[x] = new Phaser.Tilemaps.Tile(
+                    layerData,
+                    -1,
+                    x,
+                    layerData.data.length,
+                    this.mapRef.tileWidth,
+                    this.mapRef.tileHeight,
+                    this.mapRef.tileWidth,
+                    this.mapRef.tileHeight
+                  );
+                }
+                layerData.data.push(newRow);
+              }
+              layerData.height = expectedRows;
+              editorLog('Load', `Fixed collision layer to ${layerData.data.length}x${layerData.data[0]?.length || 0}`);
+            }
           }
         }
         let appliedCount = 0;
