@@ -112,8 +112,8 @@ export function App() {
     pendingAsset?: { key: string; dataUrl: string } | null;
     tilePaint?: { tilesetKey: string; tileIndex: number; tileWidth: number; tileHeight: number; margin?: number; spacing?: number } | null;
     drag?: { startTileX: number; startTileY: number; endTileX: number; endTileY: number } | null;
-    tilesets?: { key: string; dataUrl: string; tileWidth: number; tileHeight: number; margin?: number; spacing?: number }[];
-    uploadDialog?: { open: boolean; dataUrl: string; fileName: string; tileWidth: number; tileHeight: number; margin: number; spacing: number } | null;
+    tilesets?: { key: string; dataUrl: string; tileWidth: number; tileHeight: number; margin?: number; spacing?: number; category?: string }[];
+    uploadDialog?: { open: boolean; dataUrl: string; fileName: string; tileWidth: number; tileHeight: number; margin: number; spacing: number; category?: string } | null;
   }>({ active: false, tool: 'zone', category: 'zones', tempPoints: [], name: '', zones: [], assets: [], pendingAsset: null, tilePaint: { tilesetKey: 'office_tiles', tileIndex: 1, tileWidth: 16, tileHeight: 16 }, drag: null, tilesets: [] });
   React.useEffect(() => { editorActiveRef.current = editor.active; }, [editor.active]);
 
@@ -178,9 +178,9 @@ export function App() {
       }
       const rawTs = localStorage.getItem('meetropolis.tilesets');
       const defaultTs = [
-        { key: 'office_tiles', dataUrl: '/assets/tilesets/office_tiles.png', tileWidth: 16, tileHeight: 16 },
-        { key: 'furniture_tiles', dataUrl: '/assets/tilesets/furniture_tiles.png', tileWidth: 16, tileHeight: 16 },
-        { key: 'decor_tiles', dataUrl: '/assets/tilesets/decor_tiles.png', tileWidth: 16, tileHeight: 16 },
+        { key: 'office_tiles', dataUrl: '/assets/tilesets/office_tiles.png', tileWidth: 16, tileHeight: 16, category: 'terrain' },
+        { key: 'furniture_tiles', dataUrl: '/assets/tilesets/furniture_tiles.png', tileWidth: 16, tileHeight: 16, category: 'objects' },
+        { key: 'decor_tiles', dataUrl: '/assets/tilesets/decor_tiles.png', tileWidth: 16, tileHeight: 16, category: 'objects' },
       ];
       let tilesets = defaultTs;
       if (rawTs) {
@@ -889,6 +889,49 @@ export function App() {
     gameBridge.onPointerDown = ({ x, y }) => {
       setEditor(prev => {
         if (!prev.active) return prev;
+        
+        // Handle object placement from tileset
+        if (prev.tool === 'asset' && prev.tilePaint && prev.category === 'objects') {
+          const tileset = prev.tilesets?.find(ts => ts.key === prev.tilePaint?.tilesetKey);
+          if (tileset) {
+            // Create a canvas to extract the specific tile
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              canvas.width = tileset.tileWidth;
+              canvas.height = tileset.tileHeight;
+              
+              const img = new Image();
+              img.onload = () => {
+                const margin = tileset.margin || 0;
+                const spacing = tileset.spacing || 0;
+                const cols = Math.floor((img.width - margin + spacing) / (tileset.tileWidth + spacing));
+                const tileIndex = prev.tilePaint?.tileIndex || 0;
+                const tx = tileIndex % cols;
+                const ty = Math.floor(tileIndex / cols);
+                const sx = margin + tx * (tileset.tileWidth + spacing);
+                const sy = margin + ty * (tileset.tileHeight + spacing);
+                
+                ctx.drawImage(img, sx, sy, tileset.tileWidth, tileset.tileHeight, 0, 0, tileset.tileWidth, tileset.tileHeight);
+                
+                const tileDataUrl = canvas.toDataURL();
+                const id = `${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
+                const asset = { id, key: `${tileset.key}:${tileIndex}:${id}`, dataUrl: tileDataUrl, x, y };
+                
+                setEditor(s => {
+                  const assets = [...s.assets, asset];
+                  try { localStorage.setItem('meetropolis.assets', JSON.stringify(assets)); } catch {}
+                  gameBridge.setEditorAssets(assets);
+                  return { ...s, assets };
+                });
+              };
+              img.src = tileset.dataUrl;
+            }
+          }
+          return prev;
+        }
+        
+        // Handle legacy asset placement
         if (prev.tool === 'asset' && prev.pendingAsset) {
           const id = `${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
           const asset = { id, key: prev.pendingAsset.key + ':' + id, dataUrl: prev.pendingAsset.dataUrl, x, y };
@@ -1503,7 +1546,7 @@ export function App() {
                       <div style={{ fontSize: 13, fontWeight: 500, color: '#9ca3af' }}>Bodentextur auswählen</div>
                       {editor.tilePaint && editor.tilesets && editor.tilesets.length > 0 && (
                         <div style={{ maxHeight: 200, overflow: 'auto', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, padding: 8 }}>
-                          {editor.tilesets.map(lib => (
+                          {editor.tilesets.filter(ts => !ts.category || ts.category === 'terrain').map(lib => (
                             <div key={lib.key} style={{ marginBottom: 8 }}>
                               <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 4 }}>{lib.key}</div>
                               <TilesetPreview
@@ -1538,7 +1581,7 @@ export function App() {
                       <div style={{ fontSize: 13, fontWeight: 500, color: '#9ca3af' }}>Wandtextur auswählen</div>
                       {editor.tilePaint && editor.tilesets && editor.tilesets.length > 0 && (
                         <div style={{ maxHeight: 200, overflow: 'auto', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, padding: 8 }}>
-                          {editor.tilesets.map(lib => (
+                          {editor.tilesets.filter(ts => !ts.category || ts.category === 'structures').map(lib => (
                             <div key={lib.key} style={{ marginBottom: 8 }}>
                               <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 4 }}>{lib.key}</div>
                               <TilesetPreview
@@ -1560,30 +1603,32 @@ export function App() {
               {editor.category === 'objects' && (
                 <>
                   <div style={{ display: 'grid', gap: 8 }}>
-                    <div style={{ fontSize: 14, fontWeight: 600, color: '#e5e7eb' }}>Asset-Verwaltung</div>
-                    {/* Asset Upload */}
-                    <div style={{ display: 'grid', gap: 6 }}>
-                      <label style={{ fontSize: 12, color: '#9ca3af' }}>Neues Asset hochladen</label>
-                      <input type="file" accept="image/*" onChange={async (e) => {
-                        const file = e.target.files?.[0];
-                        if (!file) return;
-                        const buf = await file.arrayBuffer();
-                        const base64 = await new Promise<string>((resolve) => {
-                          const reader = new FileReader();
-                          reader.onload = () => resolve(reader.result as string);
-                          reader.readAsDataURL(new Blob([buf], { type: file.type || 'image/png' }));
-                        });
-                        const key = `upload-${Date.now()}`;
-                        setEditor(s => ({ ...s, tool: 'asset', pendingAsset: { key, dataUrl: base64 } }));
-                      }} style={{ padding: 8, borderRadius: 6, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.05)', color: '#fff', fontSize: 12 }} />
-                      
-                      {editor.pendingAsset && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: 8, background: 'rgba(59,130,246,0.1)', borderRadius: 6 }}>
-                          <img src={editor.pendingAsset.dataUrl} alt="preview" style={{ width: 36, height: 36, objectFit: 'contain', borderRadius: 4 }} />
-                          <div style={{ fontSize: 12, color: '#60a5fa' }}>Klicke in die Karte um zu platzieren</div>
-                        </div>
-                      )}
+                    <div style={{ fontSize: 14, fontWeight: 600, color: '#e5e7eb' }}>Objekt-Werkzeuge</div>
+                    
+                    <div style={{ display: 'grid', grid: 'auto / 1fr 1fr', gap: 6 }}>
+                      <button onClick={() => setEditor(s => ({ ...s, tool: 'asset' }))} style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.12)', background: editor.tool==='asset'?'rgba(147,51,234,0.2)':'rgba(255,255,255,0.05)', color: editor.tool==='asset'?'#a78bfa':'#e5e7eb', fontSize: 13 }}>🪑 Objekte</button>
+                      <button onClick={() => setEditor(s => ({ ...s, tool: 'erase' }))} style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.12)', background: editor.tool==='erase'?'rgba(239,68,68,0.2)':'rgba(255,255,255,0.05)', color: editor.tool==='erase'?'#f87171':'#e5e7eb', fontSize: 13 }}>🗑️ Löschen</button>
                     </div>
+                    
+                    {/* Object Tile Selection */}
+                    {editor.tool === 'asset' && editor.tilesets && editor.tilesets.filter(ts => ts.category === 'objects').length > 0 && (
+                      <div style={{ display: 'grid', gap: 8 }}>
+                        <div style={{ fontSize: 13, fontWeight: 500, color: '#9ca3af' }}>Objekt auswählen</div>
+                        <div style={{ maxHeight: 300, overflow: 'auto', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, padding: 8 }}>
+                          {editor.tilesets.filter(ts => ts.category === 'objects').map(lib => (
+                            <div key={lib.key} style={{ marginBottom: 8 }}>
+                              <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 4 }}>{lib.key}</div>
+                              <TilesetPreview
+                                tileset={lib}
+                                selectedIndex={editor.tilePaint?.tilesetKey === lib.key ? editor.tilePaint.tileIndex : -1}
+                                onSelect={(index: number) => setEditor(s => ({ ...s, tilePaint: { ...lib, tilesetKey: lib.key, tileIndex: index } }))}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                        <div style={{ fontSize: 11, color: '#6b7280' }}>Klicke in die Karte um Objekte zu platzieren</div>
+                      </div>
+                    )}
                     
                     {/* Asset List */}
                     {editor.assets.length > 0 && (
@@ -1692,8 +1737,8 @@ export function App() {
                 </>
               )}
               
-              {/* Upload/Tileset Management Section - Show for terrain and structures */}
-              {(editor.category === 'terrain' || editor.category === 'structures') && (
+              {/* Upload/Tileset Management Section - Show for terrain, structures and objects */}
+              {(editor.category === 'terrain' || editor.category === 'structures' || editor.category === 'objects') && (
                 <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 12, marginTop: 12 }}>
                   <div style={{ display: 'grid', gap: 8 }}>
                     <div style={{ fontSize: 14, fontWeight: 600, color: '#e5e7eb' }}>Tileset hochladen</div>
@@ -1734,10 +1779,11 @@ export function App() {
                           open: true,
                           dataUrl: base64,
                           fileName: file.name,
-                          tileWidth: 16,
-                          tileHeight: 16,
+                          tileWidth: file.name.toLowerCase().includes('little') ? 32 : 16,
+                          tileHeight: file.name.toLowerCase().includes('little') ? 32 : 16,
                           margin: 0,
-                          spacing: 0
+                          spacing: 0,
+                          category: s.category
                         }
                       }));
                     }} />
@@ -1771,7 +1817,8 @@ export function App() {
                   tileWidth: editor.uploadDialog.tileWidth,
                   tileHeight: editor.uploadDialog.tileHeight,
                   margin: editor.uploadDialog.margin,
-                  spacing: editor.uploadDialog.spacing
+                  spacing: editor.uploadDialog.spacing,
+                  category: editor.uploadDialog.category
                 };
                 
                 // Register tileset
