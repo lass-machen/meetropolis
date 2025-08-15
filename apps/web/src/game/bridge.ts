@@ -17,6 +17,7 @@ type Bridge = {
   registerTileset: (ts: { key: string; dataUrl: string; tileWidth: number; tileHeight: number; margin?: number; spacing?: number }) => void;
   setCollisionVisible: (visible: boolean) => void;
   reloadEditorLayers: () => void;
+  fetchAndApplyServerLayers: () => void;
   setBubbleMembers: (members: Set<string>) => void;
   setHeroName: (name: string) => void;
   updateSpeakingStates: (speakingIds: Set<string>) => void;
@@ -32,6 +33,7 @@ export type SceneApi = {
   registerTileset: (ts: { key: string; dataUrl: string; tileWidth: number; tileHeight: number; margin?: number; spacing?: number }) => void;
   setCollisionVisible: (visible: boolean) => void;
   reloadEditorLayers: () => void;
+  fetchAndApplyServerLayers?: () => void;
   setBubbleMembers: (members: Set<string>) => void;
   setHeroName?: (name: string) => void;
   updateSpeakingStates?: (speakingIds: Set<string>) => void;
@@ -94,6 +96,9 @@ export const gameBridge: Bridge = {
   },
   reloadEditorLayers: () => {
     sceneApi?.reloadEditorLayers();
+  },
+  fetchAndApplyServerLayers: () => {
+    sceneApi?.fetchAndApplyServerLayers?.();
   },
   setBubbleMembers: (members) => {
     sceneApi?.setBubbleMembers(members);

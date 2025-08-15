@@ -822,6 +822,7 @@ export class MainScene extends Phaser.Scene implements SceneApi {
     try { this.updateCollisionOverlay(); } catch {}
   }
 
+
   async fetchAndApplyServerLayers() {
     try {
       const base = (window as any).VITE_API_BASE || import.meta.env.VITE_API_BASE || `${window.location.protocol}//${window.location.hostname}:2568`;
@@ -937,6 +938,9 @@ export class MainScene extends Phaser.Scene implements SceneApi {
             if (this.wallsLayer) {
               this.wallsLayer.setTilesets(allTilesets);
             }
+            if (this.collisionLayer) {
+              (this.collisionLayer as any).setTilesets(allTilesets);
+            }
           } else {
             console.error('[Editor] Failed to add tileset image:', ts.key);
           }
@@ -968,6 +972,9 @@ export class MainScene extends Phaser.Scene implements SceneApi {
         }
         if (this.wallsLayer) {
           this.wallsLayer.setTilesets(allTilesets);
+        }
+        if (this.collisionLayer) {
+          (this.collisionLayer as any).setTilesets(allTilesets);
         }
       }
     }
