@@ -1532,16 +1532,15 @@ export function App() {
               setTimeout(() => {
                 const newEditorState = !editor.active;
                 if (newEditorState) {
-                  // Enabling editor - show zones
+                  // Enabling editor - show zones, collisions and assets
                   gameBridge.setZoneOverlay(editor.zones);
-                  // If collision tool was active, show collision overlay
-                  if (editor.tool === 'collision') {
-                    gameBridge.setCollisionVisible(true);
-                  }
+                  gameBridge.setCollisionVisible(true); // Always show collisions in editor
+                  gameBridge.setEditorAssets(editor.assets);
                 } else {
-                  // Disabling editor - hide zones and collision overlay
+                  // Disabling editor - hide zones, collision overlay and assets
                   gameBridge.setZoneOverlay([]);
                   gameBridge.setCollisionVisible(false);
+                  gameBridge.setEditorAssets([]);
                 }
               }, 0);
             }} style={{ textAlign: 'left', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: editor.active ? 'rgba(16,185,129,0.18)' : 'var(--glass)', color: 'var(--fg)', cursor: 'pointer' }}>{editor.active ? 'Editor beenden' : 'Map-Editor öffnen'}</button>
@@ -1582,7 +1581,7 @@ export function App() {
                     <div style={{ fontSize: 14, fontWeight: 600, color: '#e5e7eb' }}>Terrain-Werkzeuge</div>
                     <div style={{ display: 'grid', grid: 'auto / 1fr 1fr', gap: 6 }}>
                       <button onClick={() => setEditor(s => ({ ...s, tool: 'floor' }))} style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.12)', background: editor.tool==='floor'?'rgba(34,197,94,0.2)':'rgba(255,255,255,0.05)', color: editor.tool==='floor'?'#4ade80':'#e5e7eb', fontSize: 13 }}>🏠 Boden</button>
-                      <button onClick={() => { setEditor(s => ({ ...s, tool: 'collision' })); gameBridge.setCollisionVisible(true); }} style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.12)', background: editor.tool==='collision'?'rgba(239,68,68,0.2)':'rgba(255,255,255,0.05)', color: editor.tool==='collision'?'#f87171':'#e5e7eb', fontSize: 13 }}>🚫 Kollision</button>
+                      <button onClick={() => setEditor(s => ({ ...s, tool: 'collision' }))} style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.12)', background: editor.tool==='collision'?'rgba(239,68,68,0.2)':'rgba(255,255,255,0.05)', color: editor.tool==='collision'?'#f87171':'#e5e7eb', fontSize: 13 }}>🚫 Kollision</button>
                     </div>
                   </div>
                   
