@@ -209,25 +209,14 @@ export class AVManager {
   async startScreenshare() {
     if (!this.current) return;
     try {
-      console.log('[AV] Starting screenshare...');
       await this.waitForConnected(this.current).catch(()=>{});
       const { createLocalScreenTracks } = await import('livekit-client');
       const tracks = await createLocalScreenTracks({});
-      console.log('[AV] Created screenshare tracks:', tracks.map(t => ({
-        kind: (t as any).kind,
-        source: (t as any).source,
-        id: (t as any).mediaStreamTrack?.id
-      })));
       for (const t of tracks) {
         await this.current.localParticipant.publishTrack(t);
-        console.log('[AV] Published screenshare track:', {
-          kind: (t as any).kind,
-          source: (t as any).source
-        });
       }
     } catch (e) {
-      // eslint-disable-next-line no-console
-      console.warn('screenshare failed', e);
+      // Screenshare failed silently
     }
   }
 
@@ -242,8 +231,7 @@ export class AVManager {
         }
       }
     } catch (e) {
-      // eslint-disable-next-line no-console
-      console.warn('stop screenshare failed', e);
+      // Stop screenshare failed silently
     }
   }
 
@@ -255,8 +243,6 @@ export class AVManager {
       }
       return true;
     } catch (e) {
-      // eslint-disable-next-line no-console
-      console.warn('permission request failed', e);
       return false;
     }
   }
@@ -292,8 +278,7 @@ export class AVManager {
         const ok = await this.ensurePermissions(true, false);
         if (ok && enabled) return this.setMicrophoneEnabled(true);
       }
-      // eslint-disable-next-line no-console
-      console.warn('setMicrophoneEnabled failed', e);
+      // setMicrophoneEnabled failed silently
     }
   }
 
@@ -309,26 +294,19 @@ export class AVManager {
       const camPubs = pubs.filter(pub => {
         const src = (pub as any).source ?? (pub.track as any)?.source;
         const kind = (pub as any).kind ?? (pub.track as any)?.kind;
-        if (DEBUG) { try { console.log('[AV] Checking pub:', { src, kind, hasTrack: !!(pub as any).track }); } catch {} }
         return src === 'camera' || src === 1 || (kind === 'video' && src !== 'screen_share');
       });
       if (enabled) {
-        if (DEBUG) { try { console.log('[AV] Enabling camera, existing pubs:', camPubs.length); } catch {} }
         if (camPubs.some(p => !!(p as any).track)) {
-          if (DEBUG) { try { console.log('[AV] Camera already enabled, skipping'); } catch {} }
           return; // already enabled
         }
         const { createLocalTracks } = await import('livekit-client');
         const tracks = await createLocalTracks({ video: this.preferredCam ? { deviceId: this.preferredCam } : true });
-        if (DEBUG) { try { console.log('[AV] createLocalTracks(video) ->', tracks.map(t => ({ kind: (t as any).kind, id: (t as any)?.mediaStreamTrack?.id }))); } catch {} }
         for (const t of tracks) {
           if ((t as any).kind === 'video') {
             try {
               await this.current.localParticipant.publishTrack(t);
-              if (DEBUG) { try { console.log('[AV] published local video track'); } catch {} }
             } catch (e) {
-              // eslint-disable-next-line no-console
-              console.warn('[AV] publish video failed', e);
               throw e; // Re-throw to handle in UI
             }
           }
@@ -343,8 +321,7 @@ export class AVManager {
         const ok = await this.ensurePermissions(false, true);
         if (ok && enabled) return this.setCameraEnabled(true);
       }
-      // eslint-disable-next-line no-console
-      console.warn('setCameraEnabled failed', e);
+      // setCameraEnabled failed silently
     }
   }
 

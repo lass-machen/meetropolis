@@ -121,7 +121,6 @@ export function App() {
   // Separate state for collision visibility to match zone behavior
   const [collisionVisible, setCollisionVisible] = React.useState(() => {
     const saved = localStorage.getItem('meetropolis.collisionVisible');
-    console.log('[Editor] Initial collision visibility from localStorage:', saved);
     return saved !== 'false';
   });
 
@@ -154,7 +153,6 @@ export function App() {
             x: u.lastPosition.x, 
             y: u.lastPosition.y 
           };
-          console.log('[Position] Restored last position:', u.lastPosition);
         }
       }
     } catch {
@@ -189,7 +187,6 @@ export function App() {
       try {
         gameBridge.fetchAndApplyServerLayers();
       } catch (e) {
-        console.warn('[Editor] Failed to fetch server layers on startup:', e);
       }
       const rawTs = localStorage.getItem('meetropolis.tilesets');
       const defaultTs = [
@@ -236,7 +233,6 @@ export function App() {
                 body
               }).catch(()=>{});
             } else {
-              console.warn('[Editor] Initial state too large to save:', body.length, 'bytes');
             }
             try { gameBridge.reloadEditorLayers(); } catch {}
           }
@@ -306,7 +302,6 @@ export function App() {
       if (!p || !p.trackPublications) return;
       try {
         const publications = Array.from((p.trackPublications?.values?.() || []) as any);
-      if (DEBUG) { try { console.log('[UI] participant pubs', p.identity, publications.map((pub:any)=>({src: pub?.source||pub?.track?.source, kind: pub?.kind||pub?.track?.kind, hasTrack: !!pub?.track}))); } catch {} }
       const isVideoPub = (pub: any) => {
         const source = (pub?.source ?? pub?.track?.source);
         return (!!pub?.track && (source === 'camera' || source === 1));
@@ -320,9 +315,6 @@ export function App() {
         const source = (pub?.source ?? pub?.track?.source);
         const kind = pub?.kind ?? pub?.track?.kind;
         const isScreen = (!!pub?.track && kind === 'video' && (source === 'screen_share' || source === 2));
-        if (source === 'screen_share' || source === 2) {
-          console.log('[UI] Screen track detected:', { identity: p.identity, source, kind, hasTrack: !!pub?.track, isScreen });
-        }
         return isScreen;
       };
       const hasV = publications.some(isVideoPub);
@@ -364,11 +356,9 @@ export function App() {
       }
       // Screenshare als eigene Karte
       if (hasScreen) {
-        console.log('[UI] Adding screenshare card for', identity);
         list.push({ sid: p.sid + ':screen', identity: `${identity} – Bildschirm`, hasVideo: true, hasMic: false, isSpeaking: false, media: 'screen', volume });
       }
       } catch (e) {
-        console.error('[UI] Error processing participant:', p?.identity || 'unknown', e);
       }
     };
     pushP(room.localParticipant);
@@ -387,12 +377,10 @@ export function App() {
     const activeSpeakers = room.activeSpeakers || [];
     
     if (activeSpeakers.length > 0) {
-      console.log('[Speaking] Active speakers from LiveKit:', activeSpeakers.map((s: any) => ({
         sid: s.sid,
         identity: s.identity,
         isLocal: s.sid === room.localParticipant?.sid
       })));
-      console.log('[Speaking] Current colyseusToLivekitMap:', colyseusToLivekitMap.current);
     }
     
     activeSpeakers.forEach((speaker: any) => {
@@ -408,17 +396,13 @@ export function App() {
           .map(([colyseusId]) => colyseusId);
         
         if (matchingColyseusIds.length > 0) {
-          console.log('[Speaking] Found Colyseus IDs for speaker', speaker.identity, ':', matchingColyseusIds);
           // Check which one is currently active in remotesRef
           const activeColyseusId = matchingColyseusIds.find(id => id in remotesRef.current);
           if (activeColyseusId) {
-            console.log('[Speaking] Using active Colyseus ID:', activeColyseusId);
             speakingIds.add(activeColyseusId);
           } else {
-            console.log('[Speaking] No active Colyseus ID found in remotesRef. Available remotes:', Object.keys(remotesRef.current));
           }
         } else {
-          console.log('[Speaking] Could not find Colyseus ID for speaker:', speaker.identity);
         }
       }
     });
@@ -447,7 +431,6 @@ export function App() {
     const connectColyseus = async () => {
       try {
         const positionToUse = localPosRef.current && (localPosRef.current.x !== undefined && localPosRef.current.y !== undefined) ? localPosRef.current : undefined;
-        console.log('[Position] Joining world with position:', positionToUse);
         const room = await joinWorld(
           apiBase, 
           me.id, 
@@ -460,7 +443,6 @@ export function App() {
         // Store LiveKit identity for cross-referencing, but keep Colyseus session ID for positioning
         const localLivekitIdentity = avRef.current?.room?.localParticipant?.identity || me.id;
         const colyseusSessionId = room.sessionId;
-        console.log('[Colyseus] Session ID:', colyseusSessionId, 'LiveKit Identity:', localLivekitIdentity);
         
         // Map between Colyseus session ID and LiveKit identity for volume control
         colyseusToLivekitMap.current[colyseusSessionId] = localLivekitIdentity;
@@ -469,7 +451,6 @@ export function App() {
         localPosRef.current.id = colyseusSessionId;
         
         // Debug: Check immediate state
-        console.log('[Colyseus] Room state immediately after join:', {
           state: room.state,
           hasPlayers: !!room.state?.players,
           playersType: room.state?.players?.constructor?.name
@@ -477,21 +458,14 @@ export function App() {
         
         // Try to access players directly
         if (room.state && room.state.players) {
-          console.log('[Colyseus] Trying to access players directly...');
           try {
             // Method 1: forEach
             if (typeof room.state.players.forEach === 'function') {
-              console.log('[Colyseus] Using forEach method');
               room.state.players.forEach((player: any, id: string) => {
-                console.log('[Colyseus] Found player via forEach:', id, player);
               });
             }
             // Method 2: Direct access
-            console.log('[Colyseus] Players object:', room.state.players);
-            console.log('[Colyseus] Players keys:', Object.keys(room.state.players));
-            console.log('[Colyseus] Players entries:', Object.entries(room.state.players));
           } catch (e) {
-            console.error('[Colyseus] Error accessing players:', e);
           }
         }
         gameBridge.onLocalMove = (p) => {
@@ -518,16 +492,12 @@ export function App() {
           }
         };
         // Add manual state check first
-        console.log('[Colyseus] Initial room.state:', room.state);
         if (room.state && room.state.players) {
-          console.log('[Colyseus] Initial players check:');
           room.state.players.forEach((player: any, id: string) => {
-            console.log('[Colyseus] - Initial player', id, ':', player);
           });
         }
         
         room.onStateChange((state: any) => {
-          console.log('[Colyseus] State change received:', {
             hasState: !!state,
             hasPlayers: !!state?.players,
             playersType: state?.players?.constructor?.name,
@@ -541,7 +511,6 @@ export function App() {
             // Check if it's a MapSchema
             if (typeof state.players.forEach === 'function') {
               state.players.forEach((value: any, key: string) => {
-                console.log('[Colyseus] Player found via forEach:', key, value);
                 players[key] = { x: value.x, y: value.y, direction: value.direction };
                 // Store name mapping if available
                 if (value.identity && value.name) {
@@ -552,7 +521,6 @@ export function App() {
             // Try entries() method if available
             else if (typeof state.players.entries === 'function') {
               for (const [key, value] of state.players.entries()) {
-                console.log('[Colyseus] Player found via entries:', key, value);
                 players[key] = { x: value.x, y: value.y, direction: value.direction };
                 // Store name mapping if available
                 if (value.identity && value.name) {
@@ -563,7 +531,6 @@ export function App() {
             // Try direct iteration
             else if (state.players[Symbol.iterator]) {
               for (const [key, value] of state.players) {
-                console.log('[Colyseus] Player found via iterator:', key, value);
                 players[key] = { x: value.x, y: value.y, direction: value.direction };
                 // Store name mapping if available
                 if (value.identity && value.name) {
@@ -596,7 +563,6 @@ export function App() {
                 return [id, { ...p, name }];
               })
           );
-          console.log('[Game] Syncing remote players:', {
             localId: localPosRef.current.id,
             allPlayers: Object.keys(players),
             filteredPlayers: Object.keys(filteredPlayers)
@@ -612,7 +578,6 @@ export function App() {
         
         // Listen for full state message
         room.onMessage('full_state', (data: any) => {
-          console.log('[Colyseus] Received full_state:', data);
           if (data.players) {
             const players: Record<string, { x: number; y: number; direction: any; name?: string }> = {};
             data.players.forEach((p: any) => {
@@ -633,15 +598,12 @@ export function App() {
                 };
               }
             });
-            console.log('[Colyseus] Manual sync remote players:', players);
-            console.log('[Colyseus] Identity mapping:', colyseusToLivekitMap.current);
             gameBridge.syncRemotePlayers(players);
           }
         });
         
         // Listen for new player joined
         room.onMessage('player_joined', (data: any) => {
-          console.log('[Colyseus] New player joined:', data);
           if (data.id !== localPosRef.current.id) {
             remotesRef.current[data.id] = { x: data.x, y: data.y };
             // Store identity mapping
@@ -688,7 +650,6 @@ export function App() {
         
         // Listen for player left
         room.onMessage('player_left', (data: any) => {
-          console.log('[Colyseus] Player left:', data.id);
           delete remotesRef.current[data.id];
           const players = Object.fromEntries(
             Object.entries(remotesRef.current).map(([id, p]) => [id, { 
@@ -702,7 +663,6 @@ export function App() {
         
         // Listen for editor updates from other users
         room.onMessage('editor_update', (data: any) => {
-          console.log('[Colyseus] Received editor update from another user');
           // Apply the update to the local scene
           if (data.type === 'tile_paint') {
             gameBridge.applyTilePaint(data.edit);
@@ -778,15 +738,12 @@ export function App() {
               const RoomEvent = (mod as any).RoomEvent;
               if (RoomEvent) {
                 room.on(RoomEvent.ParticipantConnected, () => {
-                  console.log('[LiveKit] ParticipantConnected event - rebuilding list');
                   setTimeout(buildParticipantList, 100);
                 });
                 room.on(RoomEvent.ParticipantDisconnected, () => {
-                  console.log('[LiveKit] ParticipantDisconnected event - rebuilding list');
                   setTimeout(buildParticipantList, 100);
                 });
                 room.on(RoomEvent.TrackPublished, (publication: any, participant: any) => {
-                  console.log('[LiveKit] TrackPublished event - rebuilding list', {
                     source: publication?.source,
                     participant: participant?.identity,
                     isScreenShare: publication?.source === 'screen_share'
@@ -794,11 +751,9 @@ export function App() {
                   setTimeout(buildParticipantList, 100);
                 });
                 room.on(RoomEvent.TrackUnpublished, () => {
-                  console.log('[LiveKit] TrackUnpublished event - rebuilding list');
                   setTimeout(buildParticipantList, 100);
                 });
                 room.on(RoomEvent.TrackSubscribed, (track: any, publication: any, participant: any) => {
-                  console.log('[LiveKit] TrackSubscribed in App - rebuilding list', {
                     source: publication?.source || track?.source,
                     participant: participant?.identity,
                     isScreenShare: (publication?.source || track?.source) === 'screen_share'
@@ -808,7 +763,6 @@ export function App() {
                   }
                 });
                 room.on(RoomEvent.ActiveSpeakersChanged, () => {
-                  console.log('[LiveKit] ActiveSpeakersChanged event - rebuilding list');
                   buildParticipantList();
                 });
               }
@@ -820,7 +774,6 @@ export function App() {
         // erst listen, dann sicher bauen
         setTimeout(buildParticipantList, 50);
       } catch (e) {
-        console.warn('LiveKit connect failed', e);
         // Editor weiterhin bedienbar halten
         try { bubbleRef.current?.setAV(null as any); } catch {}
         try { zoneRef.current?.setAV(null as any); } catch {}
@@ -867,7 +820,6 @@ export function App() {
           
           // Debug logging (commented out for production)
           // if (bubbleMembersRef.current.size > 0) {
-          //   console.log('[Volume] Setting volume for', identity, 'to', vol, 
           //     'participant found:', !!participant);
           // }
           
@@ -1001,7 +953,6 @@ export function App() {
       // Get the actual user identity from our mapping
       const clickedIdentity = colyseusToLivekitMap.current[clickedColyseusId];
       if (!clickedIdentity) {
-        console.log('[Bubble] No identity mapping found for:', clickedColyseusId);
         return;
       }
       
@@ -1009,7 +960,6 @@ export function App() {
       const room = avRef.current?.room as any;
       const localLivekitIdentity = room?.localParticipant?.identity;
       if (!localLivekitIdentity) {
-        console.log('[Bubble] No local LiveKit identity found');
         return;
       }
       
@@ -1019,13 +969,11 @@ export function App() {
       if (set.has(localLivekitIdentity) && set.has(clickedIdentity)) {
         // Both in bubble - remove both
         set.clear();
-        console.log('[Bubble] Cleared bubble');
       } else {
         // Create new bubble with both players
         set.clear();
         set.add(localLivekitIdentity);
         set.add(clickedIdentity);
-        console.log('[Bubble] Created bubble with identities:', localLivekitIdentity, 'and', clickedIdentity);
       }
       
       // Update volume immediately
@@ -1045,7 +993,6 @@ export function App() {
     gameBridge.onPointerDownTile = ({ tileX, tileY }) => {
       if (!editorActiveRef.current) return; // Only handle in editor mode
       setEditor(s => {
-        console.log('[Editor] Pointer down tile:', { tileX, tileY, tool: s.tool, tilePaint: s.tilePaint, active: s.active });
         return { ...s, drag: { startTileX: tileX, startTileY: tileY, endTileX: tileX, endTileY: tileY } };
       });
       const tw = 16, th = 16;
@@ -1068,19 +1015,16 @@ export function App() {
       if (!editorActiveRef.current) return; // Only handle in editor mode
       setEditor(s => {
         if (!s.drag) {
-          console.log('[Editor] No drag state on pointer up');
           return s;
         }
         const drag = { ...s.drag, endTileX: tileX, endTileY: tileY };
         const rect = { startX: drag.startTileX, startY: drag.startTileY, endX: drag.endTileX, endY: drag.endTileY };
         gameBridge.setSelectionRect(null);
         const isErase = s.tool === 'erase';
-        console.log('[Editor] Pointer up tile:', { tool: s.tool, tilePaint: s.tilePaint, isErase, rect });
         if ((s.tool === 'floor' || s.tool === 'walls' || isErase) && s.tilePaint) {
           const index = isErase ? -1 : s.tilePaint.tileIndex;
           const layer = s.tool === 'walls' ? 'EditorWalls' : 'EditorGround';
           const edit = { layer: layer as 'EditorGround' | 'EditorWalls', tilesetKey: s.tilePaint.tilesetKey, tileIndex: index, rect };
-          console.log('[Editor] Applying tile paint:', edit);
           gameBridge.applyTilePaint(edit);
           // Broadcast to other users
           colyseusRef.current?.send?.('editor_update', { type: 'tile_paint', edit });
@@ -1116,7 +1060,6 @@ export function App() {
                   body 
                 });
               } else {
-                console.warn('[Editor] Zones data too large to save:', body.length, 'bytes');
               }
             } catch {} 
           })();
@@ -1151,9 +1094,7 @@ export function App() {
               direction: currentDirection 
             })
           });
-          console.log('[Position] Saved position:', lastSavedPosition);
         } catch (e) {
-          console.error('[Position] Failed to save position:', e);
         }
       }
     };
@@ -1247,9 +1188,7 @@ export function App() {
         document.body.appendChild(audio);
         track.attach(audio);
         audioElements.set(participantId, audio);
-        if (DEBUG) console.log('[Audio] Attached audio track for', participantId);
       } catch (e) {
-        console.error('[Audio] Failed to attach audio track:', e);
       }
     };
 
@@ -1263,7 +1202,6 @@ export function App() {
           audio.parentNode.removeChild(audio);
         }
         audioElements.delete(participantId);
-        if (DEBUG) console.log('[Audio] Detached audio track for', participantId);
       }
     };
 
@@ -1281,7 +1219,6 @@ export function App() {
 
     // Initial setup for existing participants
     const participants = Array.from(room.remoteParticipants?.values() || room.participants?.values() || []);
-    console.log('[Audio] Initial participants:', participants.map((p: any) => ({ sid: p.sid, identity: p.identity })));
     
     participants.forEach((participant: any) => {
       if (participant.sid === room.localParticipant?.sid) return;
@@ -1290,7 +1227,6 @@ export function App() {
         .filter((pub: any) => pub.kind === 'audio' && pub.track)
         .map((pub: any) => pub.track);
       
-      console.log('[Audio] Audio tracks for', participant.identity, ':', audioTracks.length);
       
       audioTracks.forEach((track: any) => {
         attachAudioTrack(track, participant.sid);
@@ -1358,7 +1294,6 @@ export function App() {
   // Collision-Overlay nur im Edit-Modus anzeigen (wie Zonen)
   useEffect(() => {
     // Kollisionen nur anzeigen wenn Editor aktiv UND Checkbox aktiviert ist
-    console.log('[Editor] Collision visibility useEffect:', { editorActive: editor.active, collisionVisible });
     if (editor.active && collisionVisible) {
       gameBridge.setCollisionVisible(true);
     } else {
@@ -1487,7 +1422,6 @@ export function App() {
                 await avRef.current?.setCameraEnabled(enabled);
                 setAvState(s => ({ ...s, cam: enabled }));
               } catch (e) {
-                console.error('[Camera Toggle] Failed:', e);
                 // Revert state on error
                 setAvState(s => ({ ...s, cam: !enabled }));
               }
@@ -1517,7 +1451,6 @@ export function App() {
                   setAvState(s => ({ ...s, share: false }));
                 }
               } catch (e) {
-                console.error('[UI] Screenshare toggle failed:', e);
               }
             }}>
               <ScreenIcon on={avState.share} />
@@ -1549,7 +1482,6 @@ export function App() {
             {/* <button onClick={() => { setPage('profile'); setMenuOpen(false); }} style={{ textAlign: 'left', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--glass)', color: 'var(--fg)', cursor: 'pointer' }}>Mein Profil</button> */}
             <button onClick={() => { setPage('world'); setMenuOpen(false); }} style={{ textAlign: 'left', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--glass)', color: 'var(--fg)', cursor: 'pointer' }}>Zurück zur Welt</button>
             <button onClick={async () => { 
-              console.log('[Editor] Button clicked, current state:', editor.active);
               if (editor.active) { 
                 await saveAllToServer().catch(()=>{}); 
               } 
@@ -1613,7 +1545,6 @@ export function App() {
                   
                   {/* Collision Overlay Toggle */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'rgba(255,255,255,0.03)', borderRadius: 8 }}>
-                    <input id="toggle-collision" type="checkbox" checked={collisionVisible} onChange={(e)=>{console.log('[Editor] Collision checkbox changed:', e.target.checked); setCollisionVisible(e.target.checked); localStorage.setItem('meetropolis.collisionVisible', e.target.checked.toString());}} />
                     <label htmlFor="toggle-collision" style={{ fontSize: 12, color: '#9ca3af' }}>Kollisionsebene anzeigen</label>
                   </div>
                   
@@ -1766,7 +1697,6 @@ export function App() {
                   body 
                 });
               } else {
-                console.warn('[Editor] Zones data too large to save:', body.length, 'bytes');
               }
             } catch {} 
           })();
@@ -2059,17 +1989,14 @@ function ParticipantCard(props: { part: { sid: string; identity: string; hasVide
     const room: any = roomGetter();
     const el = videoRef.current;
     if (!room || !room.localParticipant || !el) return;
-    console.log('[UI] ParticipantCard mount for', part.identity, 'sid=', part.sid, 'media=', part.media);
     let baseSid = (part.sid || '').split(':')[0];
     const isLocalNow = room.localParticipant?.sid === baseSid;
     setIsLocal(isLocalNow);
-    console.log('[UI] Looking for participant:', { baseSid, isLocal: isLocalNow, localSid: room.localParticipant?.sid });
     let p: any = isLocalNow ? room.localParticipant : (room.participants?.get?.(baseSid) || room.remoteParticipants?.get?.(baseSid));
     
     // If not found by SID, try to match by identity
     if (!p && !isLocalNow) {
       const allParticipants = Array.from(room.remoteParticipants?.values() || []);
-      console.log('[UI] Participant not found by SID, trying identity match. Available:', allParticipants.map((p: any) => ({ sid: p.sid, identity: p.identity })));
       
       // For screenshare, remove the " – Bildschirm" suffix to find the base participant
       const searchIdentity = part.media === 'screen' && part.identity.endsWith(' – Bildschirm') 
@@ -2078,7 +2005,6 @@ function ParticipantCard(props: { part: { sid: string; identity: string; hasVide
       
       p = allParticipants.find((participant: any) => participant.identity === searchIdentity);
       if (p) {
-        console.log('[UI] Found participant by identity match:', { searchIdentity, actualSid: p.sid });
         // Update baseSid for event matching
         baseSid = p.sid;
       } else if (part.media === 'screen') {
@@ -2087,7 +2013,6 @@ function ParticipantCard(props: { part: { sid: string; identity: string; hasVide
           part.identity.startsWith(participant.identity + ' –')
         );
         if (p) {
-          console.log('[UI] Found participant by identity prefix match:', { identity: part.identity, actualSid: p.sid });
           baseSid = p.sid;
         }
       }
@@ -2095,16 +2020,13 @@ function ParticipantCard(props: { part: { sid: string; identity: string; hasVide
     
     // For screenshare of remote participants, ensure we wait for the track
     if (!p && part.media === 'screen' && !isLocalNow) {
-      console.log('[UI] Screenshare participant not found yet, will retry via polling');
       // The tryAttach polling will handle this case
     }
     
     if (!p || !p.trackPublications) {
-      console.log('[UI] Participant not found or no publications:', { found: !!p, hasPubs: !!p?.trackPublications });
       return;
     }
     const pubs: any[] = Array.from(p.trackPublications?.values?.() || []);
-    console.log('[UI] Track publications for', part.identity, ':', pubs.map(pub => ({
       source: pub?.source || pub?.track?.source,
       kind: pub?.kind || pub?.track?.kind,
       hasTrack: !!pub?.track
@@ -2114,13 +2036,11 @@ function ParticipantCard(props: { part: { sid: string; identity: string; hasVide
       const isScreenShare = src === 'screen_share';
       const isCamera = src === 'camera';
       if (part.media === 'screen') {
-        if (isScreenShare) console.log('[UI] Found screenshare track!', { source: src, hasTrack: !!pub?.track });
         return isScreenShare;
       }
       return isCamera;
     });
     const track = wantedPub?.track;
-    console.log('[UI] Wanted track for', part.identity, part.media, ':', { 
       found: !!track, 
       source: wantedPub?.source || wantedPub?.track?.source,
       trackId: track?.mediaStreamTrack?.id,
@@ -2144,7 +2064,6 @@ function ParticipantCard(props: { part: { sid: string; identity: string; hasVide
 
     if (track && el) {
       try {
-        console.log('[UI] Attaching', part.media, 'track for', part.identity, {
           trackKind: track.kind,
           trackSource: track.source,
           trackId: track.mediaStreamTrack?.id,
@@ -2156,9 +2075,7 @@ function ParticipantCard(props: { part: { sid: string; identity: string; hasVide
         // Check if video is actually playing
         setTimeout(() => {
           if (el.videoWidth > 0 && el.videoHeight > 0) {
-            console.log('[UI]', part.media, 'video playing for', part.identity, el.videoWidth + 'x' + el.videoHeight);
           } else {
-            console.log('[UI]', part.media, 'video NOT playing for', part.identity, {
               readyState: el.readyState,
               srcObject: !!el.srcObject,
               videoWidth: el.videoWidth,
@@ -2167,10 +2084,8 @@ function ParticipantCard(props: { part: { sid: string; identity: string; hasVide
           }
         }, 500);
       } catch (e) {
-        console.error('[UI] Failed to attach', part.media, 'track:', e);
       }
     } else {
-      console.log('[UI] No track or element for', part.identity, part.media, 'track:', !!track, 'el:', !!el);
     }
 
     // Aggressiver Fallback: pollt kurzzeitig und versucht zu attachen, wenn Track verzögert verfügbar wird
@@ -2188,7 +2103,6 @@ function ParticipantCard(props: { part: { sid: string; identity: string; hasVide
             part.identity.startsWith(participant.identity + ' –')
           );
           if (currentP && currentP !== p) {
-            console.log('[UI] Found participant in tryAttach:', { identity: currentP.identity, sid: currentP.sid });
             p = currentP;
             baseSid = currentP.sid;
           }
@@ -2198,7 +2112,6 @@ function ParticipantCard(props: { part: { sid: string; identity: string; hasVide
         
         const pubsNow: any[] = Array.from(currentP.trackPublications?.values?.() || []);
         if (part.media === 'screen' && pubsNow.length > 0) {
-          console.log('[UI] tryAttach - checking publications for screenshare:', pubsNow.map(pub => ({
             source: pub?.source || pub?.track?.source,
             hasTrack: !!pub?.track,
             isSubscribed: pub?.subscribed
@@ -2212,7 +2125,6 @@ function ParticipantCard(props: { part: { sid: string; identity: string; hasVide
         const t = cam?.track;
         if (t && el && !el.srcObject) {
           try { 
-            console.log('[UI] poll attach', part.media, 'for', part.identity);
             el.muted = isLocalNow;
             t.attach(el); 
             setIsVideoRendering(false); 
@@ -2220,11 +2132,9 @@ function ParticipantCard(props: { part: { sid: string; identity: string; hasVide
             // Check video status after attach
             setTimeout(() => {
               if (el.videoWidth > 0 && el.videoHeight > 0) {
-                console.log('[UI]', part.media, 'video playing after poll attach for', part.identity);
               }
             }, 500);
           } catch (e) {
-            console.error('[UI] Poll attach failed:', e);
           }
         }
       } catch {}
@@ -2237,7 +2147,6 @@ function ParticipantCard(props: { part: { sid: string; identity: string; hasVide
       try {
         const src = (publication?.source || t?.source || t?.mediaStreamTrack?.kind) as string | undefined;
         const isDesired = part.media === 'screen' ? (src === 'screen_share') : (src === 'camera');
-        console.log('[UI] onTrackSubscribed event:', {
           participantSid: participant?.sid,
           baseSid,
           source: src,
@@ -2248,29 +2157,23 @@ function ParticipantCard(props: { part: { sid: string; identity: string; hasVide
         });
         if (participant?.sid === baseSid && isDesired && el) {
           try { 
-            console.log('[UI] onTrackSubscribed ATTACHING', part.media, 'for', part.identity);
             el.muted = isLocalNow; 
             t.attach(el); 
             setIsVideoRendering(false);
             setTimeout(() => {
               if (el.videoWidth > 0 && el.videoHeight > 0) {
-                console.log('[UI] Video playing after TrackSubscribed for', part.identity);
               } else {
-                console.log('[UI] Video NOT playing after TrackSubscribed for', part.identity);
               }
             }, 500);
           } catch (e) {
-            console.error('[UI] TrackSubscribed attach failed:', e);
           }
         } else {
-          console.log('[UI] TrackSubscribed not matching', { participant: participant?.sid, baseSid, isDesired, hasEl: !!el });
         }
       } catch {}
     };
     const onTrackUnsubscribed = (t: any, _publication: any, participant: any) => {
       try {
         if (participant?.sid?.startsWith?.(baseSid) && el) {
-          try { if (DEBUG) console.log('[UI] onTrackUnsubscribed detach', part.identity); t.detach(el); } catch {}
         }
       } catch {}
     };
@@ -2279,7 +2182,6 @@ function ParticipantCard(props: { part: { sid: string; identity: string; hasVide
         const src = (publication?.source || publication?.track?.source) as string | undefined;
         const isDesired = part.media === 'screen' ? (src === 'screen_share') : (src === 'camera');
         if (participant?.sid === baseSid && isDesired && publication?.track && el) {
-          try { if (DEBUG) console.log('[UI] onTrackPublished attach', part.identity); publication.track.attach(el); setIsVideoRendering(false); } catch {}
         }
       } catch {}
     };

@@ -45,16 +45,6 @@ export function computePairVolume(
   const localInBubble = bubbleMembers.has(local.id);
   const remoteInBubble = bubbleMembers.has(remote.id);
   
-  // Debug logging for bubble calculation
-  if (bubbleMembers.size > 0) {
-    console.log('[Volume] Bubble calculation:', {
-      localId: local.id,
-      remoteId: remote.id,
-      localInBubble,
-      remoteInBubble,
-      bubbleMembers: Array.from(bubbleMembers)
-    });
-  }
   
   if (localInBubble && remoteInBubble) return 1;
   if (localInBubble && !remoteInBubble) return rules.outsideBubbleAttenuation;
@@ -100,12 +90,6 @@ export class VolumeManager {
     const followTarget = this.providers.getFollowTarget();
     const bubbleMembers = this.providers.getBubbleMembers();
     
-    // Debug logging (commented out for production)
-    // if (bubbleMembers.size > 0) {
-    //   console.log('[VolumeManager] Update with bubble members:', Array.from(bubbleMembers));
-    //   console.log('[VolumeManager] Local:', local.id);
-    //   console.log('[VolumeManager] Remotes:', Object.keys(remotes));
-    // }
     
     const volumes: Record<string, number> = {};
     
