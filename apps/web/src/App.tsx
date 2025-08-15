@@ -1088,10 +1088,11 @@ export function App() {
       });
     };
 
-    // Save position periodically
+    // Save position when player stops moving
     let lastSavedPosition = { x: 0, y: 0, direction: 'down' };
-    const savePositionTimer = setInterval(async () => {
-      // Only save if position changed significantly
+    let moveTimeoutRef: NodeJS.Timeout | null = null;
+    
+    const savePosition = async () => {
       const currentPos = localPosRef.current;
       const currentDirection = (gameBridge as any).lastDirection || 'down';
       
@@ -1117,7 +1118,24 @@ export function App() {
           console.error('[Position] Failed to save position:', e);
         }
       }
-    }, 5000); // Save every 5 seconds
+    };
+    
+    // Override onLocalMove to save position after movement stops
+    const originalOnLocalMove = gameBridge.onLocalMove;
+    gameBridge.onLocalMove = (p) => {
+      originalOnLocalMove(p);
+      
+      // Clear existing timeout
+      if (moveTimeoutRef) {
+        clearTimeout(moveTimeoutRef);
+      }
+      
+      // Set new timeout to save position 1 second after movement stops
+      moveTimeoutRef = setTimeout(() => {
+        savePosition();
+        moveTimeoutRef = null;
+      }, 1000);
+    };
     
     const hudTimer = setInterval(() => {
       const z = zoneRef.current?.getCurrent?.();
@@ -1163,7 +1181,9 @@ export function App() {
       try { avRef.current?.leave?.(); } catch {}
       try { if (colyseusReconnectTimerRef.current) clearTimeout(colyseusReconnectTimerRef.current); } catch {}
       clearInterval(hudTimer);
-      clearInterval(savePositionTimer);
+      if (moveTimeoutRef) {
+        clearTimeout(moveTimeoutRef);
+      }
     };
   }, [authChecked, me, apiBase, buildParticipantList, page]);
 
@@ -2366,51 +2386,197 @@ function UserManagement(props: { baseUrl: string; onBack: () => void }) {
   React.useEffect(() => { load(); }, []);
 
   return (
-    <div style={{ maxWidth: 1040, margin: '0 auto', display: 'grid', gap: 16 }}>
+    <div style={{ maxWidth: 1040, margin: '0 auto', display: 'grid', gap: 20, padding: '20px' }}>
       <Toolbar
         left={<>
-          <Button onClick={onBack}>Zurück</Button>
-          <div style={{ padding: '6px 10px', borderRadius: '999px', background: 'var(--glass)', border: '1px solid var(--border)', fontSize: 12, color: 'var(--fg-subtle)' }}>Admin</div>
+          <Button onClick={onBack} style={{ 
+            background: 'rgba(255,255,255,0.05)', 
+            border: '1px solid rgba(255,255,255,0.12)',
+            padding: '8px 16px',
+            borderRadius: 8
+          }}>
+            ← Zurück
+          </Button>
+          <div style={{ 
+            padding: '6px 12px', 
+            borderRadius: 20, 
+            background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)', 
+            fontSize: 12, 
+            color: '#fff',
+            fontWeight: 600
+          }}>
+            Admin
+          </div>
         </>}
         right={<>
-          <Button variant="primary" onClick={() => { setInviteCode(null); setNewEmail(''); setNewName(''); setCreateOpen(true); }}>Neuer Benutzer</Button>
+          <Button 
+            variant="primary" 
+            onClick={() => { setInviteCode(null); setNewEmail(''); setNewName(''); setCreateOpen(true); }}
+            style={{
+              background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+              border: 'none',
+              padding: '10px 20px',
+              borderRadius: 8,
+              fontWeight: 600
+            }}
+          >
+            + Neuer Benutzer
+          </Button>
         </>}
+        style={{ 
+          background: 'transparent',
+          border: 'none',
+          padding: 0
+        }}
       />
 
-      {error && <Card><div style={{ color: '#fca5a5' }}>{error}</div></Card>}
+      {error && (
+        <Card style={{ 
+          background: 'rgba(239,68,68,0.1)', 
+          border: '1px solid rgba(239,68,68,0.3)'
+        }}>
+          <div style={{ color: '#fca5a5' }}>{error}</div>
+        </Card>
+      )}
       {loading ? (
-        <Card><div>Lade…</div></Card>
+        <Card style={{ 
+          background: 'rgba(255,255,255,0.04)',
+          border: '1px solid rgba(255,255,255,0.08)',
+          textAlign: 'center',
+          padding: 40
+        }}>
+          <div style={{ color: 'rgba(255,255,255,0.6)' }}>Lade Benutzerdaten...</div>
+        </Card>
       ) : (
-        <Card>
-          <div style={{ display: 'grid', gap: 12 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 180px', gap: 8, padding: 8, borderRadius: 10, fontWeight: 700, color: 'var(--fg-subtle)' }}>
+        <Card style={{ 
+          background: 'rgba(255,255,255,0.04)',
+          border: '1px solid rgba(255,255,255,0.08)',
+          padding: 0,
+          overflow: 'hidden'
+        }}>
+          <div style={{ display: 'grid', gap: 0 }}>
+            <div style={{ 
+              display: 'grid', 
+              gridTemplateColumns: 'minmax(150px, 1fr) minmax(150px, 1fr) minmax(160px, 180px)', 
+              gap: 16, 
+              padding: '16px 24px', 
+              background: 'rgba(255,255,255,0.03)',
+              borderBottom: '1px solid rgba(255,255,255,0.08)',
+              fontWeight: 600, 
+              color: 'rgba(255,255,255,0.7)',
+              fontSize: 13,
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em'
+            }}>
               <div>E-Mail</div>
               <div>Name</div>
               <div>Aktionen</div>
             </div>
             {users.map(u => (
-              <div key={u.id} className="glass-surface" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 180px', gap: 10, padding: 12, borderRadius: 12 }}>
+              <div key={u.id} style={{ 
+                display: 'grid', 
+                gridTemplateColumns: 'minmax(150px, 1fr) minmax(150px, 1fr) minmax(160px, 180px)', 
+                gap: 16, 
+                padding: '16px 24px',
+                borderBottom: '1px solid rgba(255,255,255,0.06)',
+                transition: 'background 0.2s',
+                background: edit?.id === u.id ? 'rgba(59,130,246,0.1)' : 'transparent'
+              }}>
                 {edit?.id === u.id ? (
                   <>
-                    <Input value={edit.email} onChange={e => setEdit({ ...(edit as any), email: e.target.value })} />
-                    <Input value={edit.name ?? ''} onChange={e => setEdit({ ...(edit as any), name: e.target.value })} />
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      <Button variant="primary" onClick={() => save(edit!)}>Speichern</Button>
-                      <Button onClick={() => setEdit(null)}>Abbrechen</Button>
+                    <Input 
+                      value={edit.email} 
+                      onChange={e => setEdit({ ...(edit as any), email: e.target.value })}
+                      style={{
+                        background: 'rgba(255,255,255,0.05)',
+                        border: '1px solid rgba(255,255,255,0.12)',
+                        padding: '8px 12px',
+                        fontSize: 14
+                      }}
+                    />
+                    <Input 
+                      value={edit.name ?? ''} 
+                      onChange={e => setEdit({ ...(edit as any), name: e.target.value })}
+                      style={{
+                        background: 'rgba(255,255,255,0.05)',
+                        border: '1px solid rgba(255,255,255,0.12)',
+                        padding: '8px 12px',
+                        fontSize: 14
+                      }}
+                    />
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <Button 
+                        variant="primary" 
+                        onClick={() => save(edit!)}
+                        style={{
+                          background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                          border: 'none',
+                          padding: '6px 16px',
+                          borderRadius: 6,
+                          fontSize: 13
+                        }}
+                      >
+                        ✓
+                      </Button>
+                      <Button 
+                        onClick={() => setEdit(null)}
+                        style={{
+                          background: 'rgba(255,255,255,0.05)',
+                          border: '1px solid rgba(255,255,255,0.12)',
+                          padding: '6px 16px',
+                          borderRadius: 6,
+                          fontSize: 13
+                        }}
+                      >
+                        ✕
+                      </Button>
                     </div>
                   </>
                 ) : (
                   <>
-                    <div style={{ display: 'flex', alignItems: 'center' }}>{u.email}</div>
-                    <div style={{ display: 'flex', alignItems: 'center' }}>{u.name ?? '—'}</div>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      <Button onClick={() => setEdit({ id: u.id, email: u.email, name: u.name ?? '' })}>Bearbeiten</Button>
-                      <Button variant="danger" onClick={() => remove(u.id)}>Löschen</Button>
+                    <div style={{ display: 'flex', alignItems: 'center', color: '#fff', fontSize: 14 }}>{u.email}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', color: u.name ? '#fff' : 'rgba(255,255,255,0.4)', fontSize: 14 }}>{u.name ?? '—'}</div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <Button 
+                        onClick={() => setEdit({ id: u.id, email: u.email, name: u.name ?? '' })}
+                        style={{
+                          background: 'rgba(255,255,255,0.05)',
+                          border: '1px solid rgba(255,255,255,0.12)',
+                          padding: '6px 16px',
+                          borderRadius: 6,
+                          fontSize: 13
+                        }}
+                      >
+                        Bearbeiten
+                      </Button>
+                      <Button 
+                        variant="danger" 
+                        onClick={() => remove(u.id)}
+                        style={{
+                          background: 'rgba(239,68,68,0.1)',
+                          border: '1px solid rgba(239,68,68,0.3)',
+                          color: '#f87171',
+                          padding: '6px 16px',
+                          borderRadius: 6,
+                          fontSize: 13
+                        }}
+                      >
+                        Löschen
+                      </Button>
                     </div>
                   </>
                 )}
               </div>
             ))}
+            {users.length === 0 && (
+              <div style={{ 
+                padding: 40, 
+                textAlign: 'center', 
+                color: 'rgba(255,255,255,0.4)' 
+              }}>
+                Keine Benutzer vorhanden
+              </div>
+            )}
           </div>
         </Card>
       )}
@@ -2461,37 +2627,193 @@ function AuthScreen(props: { baseUrl: string; onDone: () => void }) {
     return await res.json().catch(() => ({}));
   }
 
-  const commonStyle: React.CSSProperties = { display: 'grid', gap: 12, width: 360 };
+  const commonStyle: React.CSSProperties = { display: 'grid', gap: 16, width: '100%' };
 
   return (
-    <div style={{ width: '100vw', height: '100vh', display: 'grid', placeItems: 'center' }}>
-      <Card>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-          <div style={{ fontWeight: 800, fontSize: 18, background: 'var(--gradient)', WebkitBackgroundClip: 'text', color: 'transparent' as any }}>Welcome to Meetropolis</div>
-          <ThemeToggleButton />
+    <div style={{ 
+      width: '100vw', 
+      height: '100vh', 
+      display: 'grid', 
+      placeItems: 'center',
+      background: 'linear-gradient(135deg, rgba(17,17,20,0.98) 0%, rgba(30,30,35,0.98) 100%)',
+      position: 'relative',
+      overflow: 'hidden'
+    }}>
+      {/* Animated background pattern */}
+      <div style={{
+        position: 'absolute',
+        inset: 0,
+        background: 'radial-gradient(circle at 20% 50%, rgba(59,130,246,0.08) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(147,51,234,0.08) 0%, transparent 50%), radial-gradient(circle at 40% 20%, rgba(16,185,129,0.08) 0%, transparent 50%)',
+      }} />
+      
+      <div style={{ 
+        position: 'relative',
+        width: '100%',
+        maxWidth: 440,
+        padding: '0 20px'
+      }}>
+        {/* Logo and Title */}
+        <div style={{ textAlign: 'center', marginBottom: 32 }}>
+          <div style={{ 
+            fontSize: 48, 
+            fontWeight: 900, 
+            background: 'linear-gradient(135deg, #60a5fa 0%, #a78bfa 50%, #34d399 100%)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent' as any,
+            marginBottom: 8,
+            letterSpacing: '-0.02em'
+          }}>
+            Meetropolis
+          </div>
+          <div style={{ fontSize: 16, color: 'rgba(255,255,255,0.6)' }}>Dein virtueller Arbeitsplatz</div>
         </div>
-        <div style={commonStyle}>
+        
+        <Card style={{ 
+          background: 'rgba(255,255,255,0.04)',
+          backdropFilter: 'blur(20px)',
+          border: '1px solid rgba(255,255,255,0.08)',
+          padding: 32,
+          borderRadius: 16,
+          boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+          position: 'relative'
+        }}>
+          <div style={{ position: 'absolute', top: 16, right: 16 }}>
+            <ThemeToggleButton />
+          </div>
+          <div style={commonStyle}>
         {view === 'login' && (
           <>
-            <h3 style={{ margin: 0 }}>Login</h3>
-            <Input placeholder="E-Mail" value={email} onChange={e=>setEmail(e.target.value)} />
-            <Input placeholder="Passwort" type="password" value={password} onChange={e=>setPassword(e.target.value)} />
-            <Button variant="primary" onClick={async()=>{ try{ await post('/auth/login',{email,password}); onDone(); } catch(e:any){ setMsg(e.message); } }}>Einloggen</Button>
-            <div style={{ display:'flex', justifyContent:'space-between' }}>
-              <a style={{ cursor:'pointer' }} onClick={()=>setView('forgot')}>Passwort vergessen?</a>
-              <a style={{ cursor:'pointer' }} onClick={()=>setView('register')}>Einladung einlösen</a>
+            <h2 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: '#fff' }}>Willkommen zurück</h2>
+            <div style={{ display: 'grid', gap: 12 }}>
+              <div>
+                <label style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', display: 'block', marginBottom: 6 }}>E-Mail</label>
+                <Input 
+                  placeholder="name@beispiel.de" 
+                  value={email} 
+                  onChange={e=>setEmail(e.target.value)}
+                  style={{ 
+                    background: 'rgba(255,255,255,0.05)',
+                    border: '1px solid rgba(255,255,255,0.12)',
+                    padding: '12px 16px',
+                    fontSize: 14
+                  }}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', display: 'block', marginBottom: 6 }}>Passwort</label>
+                <Input 
+                  placeholder="••••••••" 
+                  type="password" 
+                  value={password} 
+                  onChange={e=>setPassword(e.target.value)}
+                  style={{ 
+                    background: 'rgba(255,255,255,0.05)',
+                    border: '1px solid rgba(255,255,255,0.12)',
+                    padding: '12px 16px',
+                    fontSize: 14
+                  }}
+                />
+              </div>
+            </div>
+            <Button 
+              variant="primary" 
+              onClick={async()=>{ try{ await post('/auth/login',{email,password}); onDone(); } catch(e:any){ setMsg(e.message); } }}
+              style={{ 
+                width: '100%', 
+                padding: '12px 24px',
+                fontSize: 15,
+                fontWeight: 600,
+                background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)',
+                border: 'none',
+                borderRadius: 8
+              }}
+            >
+              Einloggen
+            </Button>
+            <div style={{ display:'flex', justifyContent:'space-between', fontSize: 13 }}>
+              <a style={{ cursor:'pointer', color: '#60a5fa', textDecoration: 'none' }} onClick={()=>setView('forgot')}>Passwort vergessen?</a>
+              <a style={{ cursor:'pointer', color: '#60a5fa', textDecoration: 'none' }} onClick={()=>setView('register')}>Einladung einlösen</a>
             </div>
           </>
         )}
         {view === 'register' && (
           <>
-            <h3 style={{ margin: 0 }}>Registrieren (Einladung nötig)</h3>
-            <Input placeholder="Einladungscode" value={invite} onChange={e=>setInvite(e.target.value)} />
-            <Input placeholder="Name (optional)" value={name} onChange={e=>setName(e.target.value)} />
-            <Input placeholder="E-Mail" value={email} onChange={e=>setEmail(e.target.value)} />
-            <Input placeholder="Passwort" type="password" value={password} onChange={e=>setPassword(e.target.value)} />
-            <Button variant="primary" onClick={async()=>{ try{ await post('/auth/register',{code:invite,name,email,password}); onDone(); } catch(e:any){ setMsg(e.message); } }}>Registrieren</Button>
-            <a style={{ cursor:'pointer' }} onClick={()=>setView('login')}>Zurück zum Login</a>
+            <h2 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: '#fff' }}>Registrierung</h2>
+            <div style={{ display: 'grid', gap: 12 }}>
+              <div>
+                <label style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', display: 'block', marginBottom: 6 }}>Einladungscode</label>
+                <Input 
+                  placeholder="Code eingeben" 
+                  value={invite} 
+                  onChange={e=>setInvite(e.target.value)}
+                  style={{ 
+                    background: 'rgba(255,255,255,0.05)',
+                    border: '1px solid rgba(255,255,255,0.12)',
+                    padding: '12px 16px',
+                    fontSize: 14
+                  }}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', display: 'block', marginBottom: 6 }}>Name (optional)</label>
+                <Input 
+                  placeholder="Max Mustermann" 
+                  value={name} 
+                  onChange={e=>setName(e.target.value)}
+                  style={{ 
+                    background: 'rgba(255,255,255,0.05)',
+                    border: '1px solid rgba(255,255,255,0.12)',
+                    padding: '12px 16px',
+                    fontSize: 14
+                  }}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', display: 'block', marginBottom: 6 }}>E-Mail</label>
+                <Input 
+                  placeholder="name@beispiel.de" 
+                  value={email} 
+                  onChange={e=>setEmail(e.target.value)}
+                  style={{ 
+                    background: 'rgba(255,255,255,0.05)',
+                    border: '1px solid rgba(255,255,255,0.12)',
+                    padding: '12px 16px',
+                    fontSize: 14
+                  }}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', display: 'block', marginBottom: 6 }}>Passwort</label>
+                <Input 
+                  placeholder="••••••••" 
+                  type="password" 
+                  value={password} 
+                  onChange={e=>setPassword(e.target.value)}
+                  style={{ 
+                    background: 'rgba(255,255,255,0.05)',
+                    border: '1px solid rgba(255,255,255,0.12)',
+                    padding: '12px 16px',
+                    fontSize: 14
+                  }}
+                />
+              </div>
+            </div>
+            <Button 
+              variant="primary" 
+              onClick={async()=>{ try{ await post('/auth/register',{code:invite,name,email,password}); onDone(); } catch(e:any){ setMsg(e.message); } }}
+              style={{ 
+                width: '100%', 
+                padding: '12px 24px',
+                fontSize: 15,
+                fontWeight: 600,
+                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                border: 'none',
+                borderRadius: 8
+              }}
+            >
+              Registrieren
+            </Button>
+            <a style={{ cursor:'pointer', color: '#60a5fa', textDecoration: 'none', fontSize: 13, textAlign: 'center' }} onClick={()=>setView('login')}>Zurück zum Login</a>
           </>
         )}
         {view === 'forgot' && (
@@ -2511,7 +2833,19 @@ function AuthScreen(props: { baseUrl: string; onDone: () => void }) {
             <a style={{ cursor:'pointer' }} onClick={()=>setView('login')}>Zurück zum Login</a>
           </>
         )}
-        {msg && <div style={{ color:'#fca5a5' }}>{msg}</div>}
+        {msg && (
+          <div style={{ 
+            padding: '12px 16px', 
+            borderRadius: 8, 
+            background: 'rgba(239,68,68,0.1)', 
+            border: '1px solid rgba(239,68,68,0.3)',
+            color: '#fca5a5',
+            fontSize: 14,
+            marginTop: 8
+          }}>
+            {msg}
+          </div>
+        )}
         </div>
       </Card>
     </div>
