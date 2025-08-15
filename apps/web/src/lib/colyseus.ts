@@ -55,10 +55,10 @@ export async function joinWorld(serverUrl: string, identity?: string, name?: str
     // Debug: Log initial state
     setTimeout(() => {
       // console.log('[Colyseus] Initial state after 1s:', {
-        hasState: !!room.state,
-        hasPlayers: !!room.state?.players,
-        playersSize: room.state?.players?.size || 0
-      });
+      //   hasState: !!room.state,
+      //   hasPlayers: !!room.state?.players,
+      //   playersSize: room.state?.players?.size || 0
+      // });
       if (room.state?.players) {
         room.state.players.forEach((player: any, id: string) => {
           // console.log('[Colyseus] Initial player:', id, player);
