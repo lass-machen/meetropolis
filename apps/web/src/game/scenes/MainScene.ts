@@ -210,7 +210,7 @@ export class MainScene extends Phaser.Scene implements SceneApi {
     
     // Ensure walls layer can use all tilesets
     if (this.wallsLayer && available.length > 0) {
-      this.wallsLayer.setTilesets(available);
+      (this.wallsLayer as any).tileset = available;
     }
 
     const cam = this.cameras.main;
@@ -746,7 +746,7 @@ export class MainScene extends Phaser.Scene implements SceneApi {
     }
     const width = this.mapRef.width;
     const height = this.mapRef.height;
-    const dumpLayer = (layer?: Phaser.Tilemaps.TilemapLayer, layerName?: string) => {
+    const dumpLayer = (layer?: Phaser.Tilemaps.TilemapLayer, _layerName?: string) => {
       if (!layer) {
         return null;
       }
@@ -810,9 +810,9 @@ export class MainScene extends Phaser.Scene implements SceneApi {
         }).then(async (res) => {
           if (res.ok) {
           } else {
-            const errorText = await res.text().catch(() => 'Unknown error');
+            await res.text().catch(() => 'Unknown error');
           }
-        }).catch((e)=>{ 
+        }).catch(()=>{ 
         });
       } else {
       }
@@ -834,7 +834,7 @@ export class MainScene extends Phaser.Scene implements SceneApi {
         if (!arr || !layer) return;
         for (let y = 0; y < height; y++) {
           for (let x = 0; x < width; x++) {
-            const stride = storedW;
+            const stride = storedW!
             const idx = arr[y * stride + x];
             if (typeof idx === 'number' && idx >= 0) {
               layer.putTileAt(idx, x, y);
@@ -874,7 +874,7 @@ export class MainScene extends Phaser.Scene implements SceneApi {
       const width = this.mapRef.width;
       const height = this.mapRef.height;
       
-      const applyArr = (arr: number[] | null | undefined, layer?: Phaser.Tilemaps.TilemapLayer, layerName?: string) => {
+      const applyArr = (arr: number[] | null | undefined, layer?: Phaser.Tilemaps.TilemapLayer, _layerName?: string) => {
         if (!arr || !layer) {
           return;
         }
@@ -883,7 +883,7 @@ export class MainScene extends Phaser.Scene implements SceneApi {
           
           // CRITICAL: Ensure collision layer has all tilesets before applying tiles
           const allTilesets = Array.from(this.dynamicTilesets.values());
-          allTilesets.push(...this.mapRef.tilesets.filter(ts => !this.dynamicTilesets.has(ts.name)));
+          allTilesets.push(...this.mapRef!.tilesets.filter(ts => !this.dynamicTilesets.has(ts.name)));
           (layer as any).setTilesets(allTilesets);
           
           // Check layer dimensions and fix if needed
@@ -892,24 +892,24 @@ export class MainScene extends Phaser.Scene implements SceneApi {
             editorLog('Load', `Collision layer actual size: ${layerData.data.length}x${layerData.data[0]?.length || 0}`);
             
             // Fix data array if it's too small (same fix as in create)
-            const expectedRows = this.mapRef.height;
+            const expectedRows = this.mapRef!.height;
             const actualRows = layerData.data.length;
             
             if (actualRows < expectedRows) {
               editorLog('Load', `Fixing collision layer dimensions again: ${actualRows} rows -> ${expectedRows} rows`);
               
               while (layerData.data.length < expectedRows) {
-                const newRow = new Array(this.mapRef.width);
-                for (let x = 0; x < this.mapRef.width; x++) {
+                const newRow = new Array(this.mapRef!.width);
+                for (let x = 0; x < this.mapRef!.width; x++) {
                   newRow[x] = new Phaser.Tilemaps.Tile(
                     layerData,
                     -1,
                     x,
                     layerData.data.length,
-                    this.mapRef.tileWidth,
-                    this.mapRef.tileHeight,
-                    this.mapRef.tileWidth,
-                    this.mapRef.tileHeight
+                    this.mapRef!.tileWidth,
+                    this.mapRef!.tileHeight,
+                    this.mapRef!.tileWidth,
+                    this.mapRef!.tileHeight
                   );
                 }
                 layerData.data.push(newRow);
@@ -1007,13 +1007,13 @@ export class MainScene extends Phaser.Scene implements SceneApi {
             
             // Update all editor layers to include the new tileset
             const allTilesets = Array.from(this.dynamicTilesets.values());
-            allTilesets.push(...this.mapRef.tilesets.filter(ts => !this.dynamicTilesets.has(ts.name)));
+            allTilesets.push(...this.mapRef!.tilesets.filter(ts => !this.dynamicTilesets.has(ts.name)));
             
             if (this.editorGround) {
-              this.editorGround.setTilesets(allTilesets);
+              (this.editorGround as any).tileset = allTilesets;
             }
             if (this.wallsLayer) {
-              this.wallsLayer.setTilesets(allTilesets);
+              (this.wallsLayer as any).tileset = allTilesets;
             }
             if (this.collisionLayer) {
               (this.collisionLayer as any).setTilesets(allTilesets);
@@ -1024,7 +1024,7 @@ export class MainScene extends Phaser.Scene implements SceneApi {
           // Create layer if it doesn't exist
           if (!this.editorGround && this.mapRef) {
             try {
-              const tmp = this.mapRef.createBlankLayer('EditorGround', tileset, 0, 0, this.mapRef.width, this.mapRef.height, this.mapRef.tileWidth, this.mapRef.tileHeight);
+              const tmp = this.mapRef.createBlankLayer('EditorGround', tileset!, 0, 0, this.mapRef.width, this.mapRef.height, this.mapRef.tileWidth, this.mapRef.tileHeight);
               this.editorGround = tmp as any;
               if (this.editorGround) this.editorGround.setDepth(1);
             } catch {}
@@ -1043,10 +1043,10 @@ export class MainScene extends Phaser.Scene implements SceneApi {
         allTilesets.push(...this.mapRef.tilesets.filter(ts => !this.dynamicTilesets.has(ts.name)));
         
         if (this.editorGround) {
-          this.editorGround.setTilesets(allTilesets);
+          (this.editorGround as any).tileset = allTilesets;
         }
         if (this.wallsLayer) {
-          this.wallsLayer.setTilesets(allTilesets);
+          (this.wallsLayer as any).tileset = allTilesets;
         }
         if (this.collisionLayer) {
           (this.collisionLayer as any).setTilesets(allTilesets);
