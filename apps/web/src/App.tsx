@@ -375,12 +375,7 @@ export function App() {
     const speakingIds = new Set<string>();
     const activeSpeakers = room.activeSpeakers || [];
     
-    if (activeSpeakers.length > 0) {
-        sid: s.sid,
-        identity: s.identity,
-        isLocal: s.sid === room.localParticipant?.sid
-      })));
-    }
+    // Process active speakers
     
     activeSpeakers.forEach((speaker: any) => {
       // Check if it's the local participant
@@ -449,11 +444,7 @@ export function App() {
         // Keep the session ID for position tracking consistency
         localPosRef.current.id = colyseusSessionId;
         
-        // Debug: Check immediate state
-          state: room.state,
-          hasPlayers: !!room.state?.players,
-          playersType: room.state?.players?.constructor?.name
-        });
+        // State is initialized and ready for player tracking
         
         // Try to access players directly
         if (room.state && room.state.players) {
@@ -497,11 +488,6 @@ export function App() {
         }
         
         room.onStateChange((state: any) => {
-            hasState: !!state,
-            hasPlayers: !!state?.players,
-            playersType: state?.players?.constructor?.name,
-            playersSize: state?.players?.size || 0
-          });
           
           const players: Record<string, { x: number; y: number; direction: any }> = {};
           
@@ -562,10 +548,6 @@ export function App() {
                 return [id, { ...p, name }];
               })
           );
-            localId: localPosRef.current.id,
-            allPlayers: Object.keys(players),
-            filteredPlayers: Object.keys(filteredPlayers)
-          });
           gameBridge.syncRemotePlayers(filteredPlayers);
         });
         room.onError?.((_code: any, _message: any) => {
@@ -743,20 +725,12 @@ export function App() {
                   setTimeout(buildParticipantList, 100);
                 });
                 room.on(RoomEvent.TrackPublished, (publication: any, participant: any) => {
-                    source: publication?.source,
-                    participant: participant?.identity,
-                    isScreenShare: publication?.source === 'screen_share'
-                  });
                   setTimeout(buildParticipantList, 100);
                 });
                 room.on(RoomEvent.TrackUnpublished, () => {
                   setTimeout(buildParticipantList, 100);
                 });
                 room.on(RoomEvent.TrackSubscribed, (track: any, publication: any, participant: any) => {
-                    source: publication?.source || track?.source,
-                    participant: participant?.identity,
-                    isScreenShare: (publication?.source || track?.source) === 'screen_share'
-                  });
                   if ((publication?.source || track?.source) === 'screen_share') {
                     setTimeout(buildParticipantList, 200);
                   }
@@ -2019,10 +1993,6 @@ function ParticipantCard(props: { part: { sid: string; identity: string; hasVide
       return;
     }
     const pubs: any[] = Array.from(p.trackPublications?.values?.() || []);
-      source: pub?.source || pub?.track?.source,
-      kind: pub?.kind || pub?.track?.kind,
-      hasTrack: !!pub?.track
-    })));
     const wantedPub = pubs.find(pub => {
       const src = (pub?.source || pub?.track?.source);
       const isScreenShare = src === 'screen_share';
@@ -2033,12 +2003,6 @@ function ParticipantCard(props: { part: { sid: string; identity: string; hasVide
       return isCamera;
     });
     const track = wantedPub?.track;
-      found: !!track, 
-      source: wantedPub?.source || wantedPub?.track?.source,
-      trackId: track?.mediaStreamTrack?.id,
-      isSubscribed: wantedPub?.subscribed,
-      trackState: track?.mediaStreamTrack?.readyState
-    });
     let cleanup: (() => void) | undefined;
     let pollTimer: any;
 
@@ -2056,11 +2020,6 @@ function ParticipantCard(props: { part: { sid: string; identity: string; hasVide
 
     if (track && el) {
       try {
-          trackKind: track.kind,
-          trackSource: track.source,
-          trackId: track.mediaStreamTrack?.id,
-          isLocal: isLocalNow
-        });
         el.muted = isLocalNow; // Mute local video
         track.attach(el);
         cleanup = () => { try { track.detach(el); } catch {} };
@@ -2068,11 +2027,7 @@ function ParticipantCard(props: { part: { sid: string; identity: string; hasVide
         setTimeout(() => {
           if (el.videoWidth > 0 && el.videoHeight > 0) {
           } else {
-              readyState: el.readyState,
-              srcObject: !!el.srcObject,
-              videoWidth: el.videoWidth,
-              videoHeight: el.videoHeight
-            });
+            // Video not ready yet
           }
         }, 500);
       } catch (e) {
@@ -2104,10 +2059,7 @@ function ParticipantCard(props: { part: { sid: string; identity: string; hasVide
         
         const pubsNow: any[] = Array.from(currentP.trackPublications?.values?.() || []);
         if (part.media === 'screen' && pubsNow.length > 0) {
-            source: pub?.source || pub?.track?.source,
-            hasTrack: !!pub?.track,
-            isSubscribed: pub?.subscribed
-          })));
+          // Screen share publications found
         }
         const cam = pubsNow.find(pub => {
           const src = (pub?.source || pub?.track?.source);
@@ -2139,14 +2091,6 @@ function ParticipantCard(props: { part: { sid: string; identity: string; hasVide
       try {
         const src = (publication?.source || t?.source || t?.mediaStreamTrack?.kind) as string | undefined;
         const isDesired = part.media === 'screen' ? (src === 'screen_share') : (src === 'camera');
-          participantSid: participant?.sid,
-          baseSid,
-          source: src,
-          isDesired,
-          partMedia: part.media,
-          trackKind: t?.kind,
-          identity: participant?.identity
-        });
         if (participant?.sid === baseSid && isDesired && el) {
           try { 
             el.muted = isLocalNow; 

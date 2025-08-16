@@ -85,7 +85,7 @@ export function isScreenPublication(pub: TrackPublication): boolean {
 }
 
 // Type guard for checking if participant has tracks
-export function hasTrackPublications(participant: LiveKitParticipant): participant is LiveKitParticipant & {
+export function hasTrackPublications(participant: any): participant is any & {
   trackPublications: Map<string, TrackPublication>;
 } {
   return participant.trackPublications !== undefined && participant.trackPublications.size > 0;

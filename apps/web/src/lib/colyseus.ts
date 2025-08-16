@@ -22,7 +22,7 @@ export async function joinWorld(serverUrl: string, identity?: string, name?: str
     // Wait for initial state sync
     await new Promise<void>((resolve) => {
       const checkState = () => {
-        if (room.state && room.state.players) {
+        if (room.state && (room.state as any).players) {
           resolve();
         } else {
           setTimeout(checkState, 100);

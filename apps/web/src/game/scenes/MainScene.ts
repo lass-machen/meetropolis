@@ -114,11 +114,7 @@ export class MainScene extends Phaser.Scene implements SceneApi {
     // Debug: Check collision layer dimensions
     if (collisionLayer) {
       const layerData = (collisionLayer as any).layer;
-      editorLog('Init', 'Collision layer created', {
-        mapSize: `${map.width}x${map.height}`,
-        layerSize: layerData ? `${layerData.width}x${layerData.height}` : 'no layer data',
-        dataSize: layerData?.data ? `${layerData.data.length}x${layerData.data[0]?.length || 0}` : 'no data'
-      });
+      editorLog('Init', 'Collision layer created');
     }
     
     let staticColliders: Phaser.Physics.Arcade.StaticGroup | undefined;
@@ -351,7 +347,7 @@ export class MainScene extends Phaser.Scene implements SceneApi {
       
       // Check if hovering over any remote sprite
       let foundHover = false;
-      for (const [id, sprite] of this.remotes) {
+      for (const [_id, sprite] of this.remotes) {
         const bounds = sprite.getBounds();
         if (bounds.contains(worldPoint.x, worldPoint.y)) {
           if (this.hoveredSprite !== sprite) {
@@ -712,12 +708,7 @@ export class MainScene extends Phaser.Scene implements SceneApi {
           // Debug layer information
           const layerData = (targetLayer as any).layer;
           if (edit.layer === 'Collision') {
-            editorLog('Paint', `Collision layer state`, {
-              layerName: layerData?.name,
-              hasData: !!layerData?.data,
-              dataSize: layerData?.data ? `${layerData.data.length}x${layerData.data[0]?.length || 0}` : 'no data',
-              tilesetsAssigned: !!(targetLayer as any).tileset || !!(targetLayer as any).layer?.tilesets
-            });
+            editorLog('Paint', 'Collision layer state');
           }
           
           try {
@@ -725,13 +716,7 @@ export class MainScene extends Phaser.Scene implements SceneApi {
             if (edit.layer === 'Collision') {
               const layerData = (targetLayer as any).layer;
               if (layerData?.data) {
-                editorLog('Paint', `Attempting putTileAt`, {
-                  tx, ty,
-                  globalIndex,
-                  dataRows: layerData.data.length,
-                  rowExists: !!layerData.data[ty],
-                  rowLength: layerData.data[ty]?.length || 0
-                });
+                editorLog('Paint', 'Attempting putTileAt');
               }
             }
             
@@ -739,17 +724,7 @@ export class MainScene extends Phaser.Scene implements SceneApi {
           } catch (error) {
             if (edit.layer === 'Collision') {
               const layerData = (targetLayer as any).layer;
-              editorError('Paint', 'Failed to put collision tile', {
-                error: error.message,
-                tilesetKey: edit.tilesetKey,
-                tileIndex: edit.tileIndex,
-                globalIndex,
-                coords: { tx, ty },
-                hasLayerTilesets: !!(targetLayer as any).tileset || !!(targetLayer as any).layer?.tilesets,
-                dataRows: layerData?.data?.length || 0,
-                rowExists: !!(layerData?.data?.[ty]),
-                actualError: error.stack
-              });
+              editorError('Paint', 'Failed to put collision tile', error);
             }
           }
         }
@@ -778,12 +753,6 @@ export class MainScene extends Phaser.Scene implements SceneApi {
       
       // Debug layer info
       const layerData = (layer as any).layer;
-        hasLayer: !!layerData,
-        hasData: !!layerData?.data,
-        dataLength: layerData?.data?.length,
-        firstRowLength: layerData?.data?.[0]?.length,
-        tilesets: layerData?.tilemapLayer?.tilesets?.length || 0
-      });
       
       const arr: number[] = new Array(width * height).fill(-1);
       let tileCount = 0;
@@ -807,13 +776,7 @@ export class MainScene extends Phaser.Scene implements SceneApi {
       }
       
       
-      // Special debugging for collision layer
-      if (layerName === 'collision' && tileCount > 0) {
-          firstTileIndex: arr.find(idx => idx !== -1),
-          uniqueTileIndices: [...new Set(arr.filter(idx => idx !== -1))],
-          sampleTiles: arr.slice(0, 100).filter(idx => idx !== -1)
-        });
-      }
+      // Special debugging for collision layer removed
       
       return tileCount > 0 ? arr : null;
     };
@@ -825,17 +788,7 @@ export class MainScene extends Phaser.Scene implements SceneApi {
         w: width,
         h: height,
       };
-        hasEditorGround: !!this.editorGround,
-        hasEditorWalls: !!this.wallsLayer,
-        hasCollisionLayer: !!this.collisionLayer,
-        editorGroundTiles: data.editorGround?.length || 0,
-        editorWallsTiles: data.editorWalls?.length || 0,
-        collisionTiles: data.collision?.length || 0,
-        mapSize: `${width}x${height}`,
-        editorGroundResult: data.editorGround ? 'has data' : 'null',
-        editorWallsResult: data.editorWalls ? 'has data' : 'null',
-        collisionResult: data.collision ? 'has data' : 'null'
-      });
+      // Editor layers saved
       localStorage.setItem('meetropolis.editorLayers', JSON.stringify(data));
       // Server speichern (best-effort)
       let base = (window as any).VITE_API_BASE || import.meta.env.VITE_API_BASE as any;
@@ -846,20 +799,9 @@ export class MainScene extends Phaser.Scene implements SceneApi {
       // Only save to server if data is not too large (< 100KB)
       const serverPayload = { editorGround: data.editorGround, editorWalls: data.editorWalls, collision: data.collision };
       const jsonStr = JSON.stringify(serverPayload);
-        hasEditorGround: !!data.editorGround,
-        hasEditorWalls: !!data.editorWalls,
-        hasCollision: !!data.collision,
-        editorGroundLength: data.editorGround?.length,
-        editorWallsLength: data.editorWalls?.length,
-        collisionLength: data.collision?.length,
-        totalSize: jsonStr.length
-      });
+      // Server payload ready
       if (jsonStr.length < 100000) {
-          url: `${base}/maps/office/editor-state`,
-          hasCollisionData: !!serverPayload.collision,
-          collisionTileCount: serverPayload.collision?.filter((t: number) => t !== -1).length || 0,
-          payloadSize: jsonStr.length
-        });
+        // Saving to server
         fetch(`${base}/maps/office/editor-state`, {
           method: 'PUT',
           credentials: 'include',

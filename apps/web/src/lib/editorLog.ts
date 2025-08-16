@@ -1,9 +1,9 @@
 // Editor-specific logging utility
 
-export function editorLog(category: string, message: string, data?: any) {
+export function editorLog(_category: string, _message: string, _data?: any) {
   // Logging disabled for production
 }
 
-export function editorError(category: string, message: string, error: any) {
+export function editorError(_category: string, _message: string, _error: any) {
   // Error logging disabled for production
 }

@@ -1,4 +1,4 @@
-import { Room, Client } from 'colyseus.js';
+import type { Room } from 'colyseus.js';
 import { Schema, MapSchema } from '@colyseus/schema';
 
 // Player Schema for Colyseus state
