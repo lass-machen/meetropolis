@@ -1,5 +1,6 @@
 import type { Client } from 'colyseus';
 import Colyseus from 'colyseus';
+import { logger } from '../logger.js';
 import { Schema, type, MapSchema } from '@colyseus/schema';
 
 class Player extends Schema {
@@ -18,11 +19,11 @@ class WorldState extends Schema {
 export class WorldRoom extends Colyseus.Room<WorldState> {
   override onCreate() {
     this.setState(new WorldState());
-    console.log('[WorldRoom] Room created with initial state');
+    logger.info('[WorldRoom] Room created with initial state');
     this.onMessage('move', (client, data: { x: number; y: number; direction: string }) => {
       const player = this.state.players.get(client.sessionId);
       if (!player) {
-        console.log('[WorldRoom] Move from unknown player:', client.sessionId);
+        logger.warn('[WorldRoom] Move from unknown player:', client.sessionId);
         return;
       }
       player.x = data.x;
@@ -40,7 +41,7 @@ export class WorldRoom extends Colyseus.Room<WorldState> {
     
     // Handle editor updates
     this.onMessage('editor_update', (client, data: any) => {
-      console.log('[WorldRoom] Editor update from:', client.sessionId, 'type:', data.type);
+      logger.debug('[WorldRoom] Editor update from:', client.sessionId, 'type:', data.type);
       // Broadcast editor update to all other clients
       this.broadcast('editor_update', data, { except: client });
     });
@@ -56,12 +57,12 @@ export class WorldRoom extends Colyseus.Room<WorldState> {
     player.identity = options?.identity || client.sessionId; // Use provided identity or fallback
     player.name = options?.name || options?.identity || client.sessionId; // Use provided name or fallback
     this.state.players.set(client.sessionId, player);
-    console.log('[WorldRoom] Player joined:', client.sessionId, 'identity:', player.identity, 'name:', player.name, 'at', player.x, player.y);
-    console.log('[WorldRoom] Current players:', this.state.players.size);
+    logger.info('[WorldRoom] Player joined:', client.sessionId, 'identity:', player.identity, 'name:', player.name, 'at', player.x, player.y);
+    logger.debug('[WorldRoom] Current players:', this.state.players.size);
     
     // Debug: Log all players
     this.state.players.forEach((p, id) => {
-      console.log('[WorldRoom] - Player', id, 'identity:', p.identity, 'at', p.x, p.y);
+      logger.debug('[WorldRoom] - Player', id, 'identity:', p.identity, 'at', p.x, p.y);
     });
     
     // Send full state to the new client
@@ -89,7 +90,7 @@ export class WorldRoom extends Colyseus.Room<WorldState> {
 
   override onLeave(client: Client) {
     this.state.players.delete(client.sessionId);
-    console.log('[WorldRoom] Player left:', client.sessionId);
+    logger.info('[WorldRoom] Player left:', client.sessionId);
     
     // Broadcast player left to all other clients
     this.broadcast('player_left', {

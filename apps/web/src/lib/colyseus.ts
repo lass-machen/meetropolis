@@ -1,4 +1,5 @@
 import { Client, Room } from 'colyseus.js';
+import { logger } from './logger';
 
 export async function joinWorld(serverUrl: string, identity?: string, name?: string, position?: { x: number; y: number; direction?: string }) {
   // Properly handle both http and https URLs
@@ -68,7 +69,7 @@ export async function joinWorld(serverUrl: string, identity?: string, name?: str
     
     return room as Room<any>;
   } catch (error) {
-    console.error('[Colyseus] Failed to join room:', error);
+    logger.error('[Colyseus] Failed to join room:', error);
     throw error;
   }
 }

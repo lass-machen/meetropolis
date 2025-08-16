@@ -45,16 +45,7 @@ export function computePairVolume(
   const localInBubble = bubbleMembers.has(local.id);
   const remoteInBubble = bubbleMembers.has(remote.id);
   
-  // Debug logging for bubble calculation
-  if (bubbleMembers.size > 0) {
-    console.log('[Volume] Bubble calculation:', {
-      localId: local.id,
-      remoteId: remote.id,
-      localInBubble,
-      remoteInBubble,
-      bubbleMembers: Array.from(bubbleMembers)
-    });
-  }
+  // Debug logging removed in production; can be re-enabled when needed
   
   if (localInBubble && remoteInBubble) return 1;
   if (localInBubble && !remoteInBubble) return rules.outsideBubbleAttenuation;

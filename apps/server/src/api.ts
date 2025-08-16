@@ -5,6 +5,7 @@ import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
+import { logger } from './logger.js';
 
 const prisma = new PrismaClient();
 const JWT_SECRET = (() => {
@@ -15,15 +16,13 @@ const JWT_SECRET = (() => {
   }
   // Development: ephemeres Secret, nur für lokale Sessions
   const devSecret = crypto.randomBytes(32).toString('hex');
-  // eslint-disable-next-line no-console
-  console.warn('[SECURITY] JWT_SECRET fehlt – verwende ephemeres DEV-Secret.');
+  logger.warn('[SECURITY] JWT_SECRET fehlt – verwende ephemeres DEV-Secret.');
   return devSecret;
 })();
 const COOKIE_NAME = 'auth_token';
 
 function setAuthCookie(res: express.Response, token: string) {
   const forceSecure = process.env.COOKIE_SECURE === 'true';
-  const isProd = process.env.NODE_ENV === 'production';
   const secure = forceSecure || false;
   const sameSite = secure ? 'none' : 'lax';
   res.cookie(COOKIE_NAME, token, {
@@ -378,7 +377,7 @@ export function registerApi(app: express.Express) {
     const gameServer = (global as any).gameServer;
     if (!gameServer) return res.json({ error: 'Game server not initialized' });
     
-    const rooms = [];
+    const rooms: any[] = [];
     try {
       // Colyseus 0.14/0.15 compatibility
       const allRooms = gameServer.rooms || [];

@@ -1,18 +1,15 @@
 // Editor-specific logging utility
-const EDITOR_DEBUG = true;
+import { logger } from './logger';
+const EDITOR_DEBUG = (import.meta as any).env?.VITE_EDITOR_DEBUG === 'true' || false;
 
 export function editorLog(category: string, message: string, data?: any) {
   if (!EDITOR_DEBUG) return;
   
-  const timestamp = new Date().toISOString().slice(11, 23);
-  if (data !== undefined) {
-    console.log(`[${timestamp}] [Editor:${category}] ${message}`, data);
-  } else {
-    console.log(`[${timestamp}] [Editor:${category}] ${message}`);
-  }
+  const prefix = `[Editor:${category}] ${message}`;
+  if (data !== undefined) logger.debug(prefix, data);
+  else logger.debug(prefix);
 }
 
 export function editorError(category: string, message: string, error: any) {
-  const timestamp = new Date().toISOString().slice(11, 23);
-  console.error(`[${timestamp}] [Editor:${category}] ${message}`, error);
+  logger.error(`[Editor:${category}] ${message}`, error);
 }

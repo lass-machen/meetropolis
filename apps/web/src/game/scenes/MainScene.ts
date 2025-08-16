@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { gameBridge, type SceneApi } from '../bridge';
 import { editorLog, editorError } from '../../lib/editorLog';
+import { logger } from '../../lib/logger';
 
 export class MainScene extends Phaser.Scene implements SceneApi {
   private hero!: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
@@ -40,16 +41,14 @@ export class MainScene extends Phaser.Scene implements SceneApi {
     const decor = map.addTilesetImage('decor_tiles', 'decor_tiles', 16, 16, 0, 0);
     const collision = map.addTilesetImage('collision_tiles', 'collision_tiles', 16, 16, 0, 0);
 
-    if (!office) {
-      console.warn('Tileset office_tiles nicht gefunden. Verfügbare Texturen:', this.textures.getTextureKeys());
-    }
+    if (!office) logger.warn('Tileset office_tiles nicht gefunden. Verfügbare Texturen:', this.textures.getTextureKeys());
 
     // Tile-Layer erstellen (verwende verfügbare Tilesets)
     const available = [office, furniture, decor, collision].filter(Boolean) as Phaser.Tilemaps.Tileset[];
     const ground = available.length ? map.createLayer('Ground', available, 0, 0) : undefined;
     const walls = available.length ? map.createLayer('Walls', available, 0, 0) : undefined;
-    if (!ground) console.warn('Layer Ground konnte nicht erstellt werden.');
-    if (!walls) console.warn('Layer Walls konnte nicht erstellt werden.');
+    if (!ground) logger.warn('Layer Ground konnte nicht erstellt werden.');
+    if (!walls) logger.warn('Layer Walls konnte nicht erstellt werden.');
 
     ground?.setDepth(0);
     walls?.setDepth(5);
@@ -159,13 +158,13 @@ export class MainScene extends Phaser.Scene implements SceneApi {
     // Register collision tileset in dynamicTilesets
     if (collision) {
       this.dynamicTilesets.set('collision_tiles', collision);
-      console.log('[MainScene] Registered collision tileset with firstgid:', collision.firstgid);
+      logger.debug('[MainScene] Registered collision tileset with firstgid:', collision.firstgid);
       
       // IMPORTANT: Set all tilesets to collision layer immediately
       if (this.collisionLayer) {
         const allTilesets = [office, furniture, decor, collision].filter(Boolean) as Phaser.Tilemaps.Tileset[];
         (this.collisionLayer as any).setTilesets(allTilesets);
-        console.log('[MainScene] Set all tilesets to collision layer:', allTilesets.map(ts => ts?.name));
+        logger.debug('[MainScene] Set all tilesets to collision layer:', allTilesets.map(ts => ts?.name));
       }
     }
 
@@ -176,8 +175,8 @@ export class MainScene extends Phaser.Scene implements SceneApi {
         const hasLayer = (map.layers || []).some((l: any) => l?.name === 'EditorGround');
         if (hasLayer) editorGround = map.createLayer('EditorGround', available, 0, 0) as any;
       } catch (e) {
-        try { console.warn('Invalid Tilemap Layer ID: EditorGround'); } catch {}
-        try { console.warn('Valid tilelayer names:', (map.layers || []).map((l:any)=>l.name)); } catch {}
+        try { logger.warn('Invalid Tilemap Layer ID: EditorGround'); } catch {}
+        try { logger.warn('Valid tilelayer names:', (map.layers || []).map((l:any)=>l.name)); } catch {}
       }
     }
     if (!editorGround) {
@@ -201,7 +200,7 @@ export class MainScene extends Phaser.Scene implements SceneApi {
         const hasLayer = (map.layers || []).some((l: any) => l?.name === 'EditorWalls');
         if (hasLayer) editorWalls = map.createLayer('EditorWalls', available, 0, 0) as any;
       } catch (e) {
-        try { console.warn('Invalid Tilemap Layer ID: EditorWalls'); } catch {}
+        try { logger.warn('Invalid Tilemap Layer ID: EditorWalls'); } catch {}
       }
     }
     if (!editorWalls) {
@@ -228,7 +227,7 @@ export class MainScene extends Phaser.Scene implements SceneApi {
     this.physics.world.setBounds(0, 0, map.widthInPixels, map.heightInPixels);
     // Get initial position from global window object (set by App.tsx after DB load)
     const initialPos = (window as any).initialPlayerPosition || { x: 80, y: 120 };
-    console.log('[MainScene] Creating hero at position:', initialPos);
+    logger.debug('[MainScene] Creating hero at position:', initialPos);
     this.hero = this.physics.add.sprite(initialPos.x, initialPos.y, 'hero_walk_down', 0);
     this.hero.setCollideWorldBounds(true);
     this.hero.setDepth(10);
@@ -322,7 +321,7 @@ export class MainScene extends Phaser.Scene implements SceneApi {
         for (const [id, sprite] of this.remotes) {
           const bounds = sprite.getBounds();
           if (bounds.contains(worldPoint.x, worldPoint.y)) {
-            console.log('[MainScene] Right clicked on player:', id);
+            logger.debug('[MainScene] Right clicked on player:', id);
             gameBridge.onRightClick({ x: worldPoint.x, y: worldPoint.y });
             
             // Store the clicked player ID for bubble logic
@@ -390,7 +389,7 @@ export class MainScene extends Phaser.Scene implements SceneApi {
     // Register pending tilesets
     const pendingTilesets = (window as any).pendingTilesets;
     if (pendingTilesets && Array.isArray(pendingTilesets)) {
-      console.log('[Editor] Found', pendingTilesets.length, 'pending tilesets:', pendingTilesets.map(ts => ({ 
+      logger.debug('[Editor] Found', pendingTilesets.length, 'pending tilesets:', pendingTilesets.map(ts => ({ 
         key: ts.key, 
         category: ts.category,
         isDataUrl: ts.dataUrl?.startsWith('data:')
@@ -401,9 +400,9 @@ export class MainScene extends Phaser.Scene implements SceneApi {
       
       // Register all tilesets after a short delay to ensure the map is ready
       setTimeout(() => {
-        console.log('[Editor] Starting tileset registration...');
+        logger.debug('[Editor] Starting tileset registration...');
         this.pendingTilesetRegistrations?.forEach((ts: any) => {
-          console.log('[Editor] Registering tileset:', ts.key, 'category:', ts.category, 'dataUrl length:', ts.dataUrl?.length || 0);
+          logger.debug('[Editor] Registering tileset:', ts.key, 'category:', ts.category, 'dataUrl length:', ts.dataUrl?.length || 0);
           this.registerTileset(ts);
         });
       }, 100);
@@ -415,12 +414,12 @@ export class MainScene extends Phaser.Scene implements SceneApi {
     setTimeout(() => {
       // Always load from server first to ensure consistency
       this.fetchAndApplyServerLayers().then(() => {
-        console.log('[MainScene] Loaded map state from server');
+        logger.info('[MainScene] Loaded map state from server');
         
         // Don't restore collision visibility here - let App.tsx handle it based on editor state
         // The collision visibility will be set by the useEffect in App.tsx when editor state changes
       }).catch(() => {
-        console.log('[MainScene] Failed to load from server, trying localStorage');
+        logger.warn('[MainScene] Failed to load from server, trying localStorage');
         // Fallback to localStorage if server fails
         this.loadEditorLayers();
         
@@ -695,25 +694,25 @@ export class MainScene extends Phaser.Scene implements SceneApi {
     
     // If tileset not found, try to find it in pending registrations and retry
     if (!tileset && edit.tileIndex >= 0) {
-      console.warn('[Editor] Tileset not found:', edit.tilesetKey);
-      console.log('[Editor] Available dynamic tilesets:', Array.from(this.dynamicTilesets.entries()).map(([k, v]) => ({ key: k, firstgid: v.firstgid })));
-      console.log('[Editor] Available map tilesets:', this.mapRef.tilesets.map(ts => ({ name: ts.name, firstgid: ts.firstgid })));
+      logger.warn('[Editor] Tileset not found:', edit.tilesetKey);
+      logger.debug('[Editor] Available dynamic tilesets:', Array.from(this.dynamicTilesets.entries()).map(([k, v]) => ({ key: k, firstgid: v.firstgid })));
+      logger.debug('[Editor] Available map tilesets:', this.mapRef.tilesets.map(ts => ({ name: ts.name, firstgid: ts.firstgid })));
       
       // Check if it's a pending tileset that needs registration
       const pending = this.pendingTilesetRegistrations?.find(ts => ts.key === edit.tilesetKey);
       if (pending) {
-        console.log('[Editor] Found pending tileset, re-registering:', pending.key);
+        logger.debug('[Editor] Found pending tileset, re-registering:', pending.key);
         this.registerTileset(pending);
         
         // Retry after a short delay
         setTimeout(() => {
-          console.log('[Editor] Retrying tile paint after tileset registration...');
+          logger.debug('[Editor] Retrying tile paint after tileset registration...');
           this.applyTilePaint(edit);
         }, 200);
         return;
       }
       
-      console.error('[Editor] Tileset not in pending list either. Cannot paint.');
+      logger.error('[Editor] Tileset not in pending list either. Cannot paint.');
       return;
     }
     
@@ -789,22 +788,22 @@ export class MainScene extends Phaser.Scene implements SceneApi {
   }
 
   private saveEditorLayers() {
-    console.log('[Editor] saveEditorLayers() called');
+    logger.debug('[Editor] saveEditorLayers() called');
     if (!this.mapRef) {
-      console.log('[Editor] No mapRef, aborting save');
+      logger.debug('[Editor] No mapRef, aborting save');
       return;
     }
     const width = this.mapRef.width;
     const height = this.mapRef.height;
     const dumpLayer = (layer?: Phaser.Tilemaps.TilemapLayer, layerName?: string) => {
       if (!layer) {
-        console.log(`[Editor] Dump ${layerName}: layer is null/undefined`);
+        logger.debug(`[Editor] Dump ${layerName}: layer is null/undefined`);
         return null;
       }
       
       // Debug layer info
       const layerData = (layer as any).layer;
-      console.log(`[Editor] Dump ${layerName} - layer info:`, {
+      logger.debug(`[Editor] Dump ${layerName} - layer info:`, {
         hasLayer: !!layerData,
         hasData: !!layerData?.data,
         dataLength: layerData?.data?.length,
@@ -831,14 +830,14 @@ export class MainScene extends Phaser.Scene implements SceneApi {
       }
       
       if (errorCount > 0) {
-        console.log(`[Editor] Dump ${layerName}: ${errorCount} errors while reading tiles`);
+        logger.debug(`[Editor] Dump ${layerName}: ${errorCount} errors while reading tiles`);
       }
       
-      console.log(`[Editor] Dump ${layerName}: found ${tileCount} tiles in ${width}x${height} layer`);
+      logger.debug(`[Editor] Dump ${layerName}: found ${tileCount} tiles in ${width}x${height} layer`);
       
       // Special debugging for collision layer
       if (layerName === 'collision' && tileCount > 0) {
-        console.log(`[Editor] Collision layer dump details:`, {
+        logger.debug(`[Editor] Collision layer dump details:`, {
           firstTileIndex: arr.find(idx => idx !== -1),
           uniqueTileIndices: [...new Set(arr.filter(idx => idx !== -1))],
           sampleTiles: arr.slice(0, 100).filter(idx => idx !== -1)
@@ -855,7 +854,7 @@ export class MainScene extends Phaser.Scene implements SceneApi {
         w: width,
         h: height,
       };
-      console.log('[Editor] Complete layer dump:', {
+      logger.debug('[Editor] Complete layer dump:', {
         hasEditorGround: !!this.editorGround,
         hasEditorWalls: !!this.wallsLayer,
         hasCollisionLayer: !!this.collisionLayer,
@@ -877,7 +876,7 @@ export class MainScene extends Phaser.Scene implements SceneApi {
       // Only save to server if data is not too large (< 100KB)
       const serverPayload = { editorGround: data.editorGround, editorWalls: data.editorWalls, collision: data.collision };
       const jsonStr = JSON.stringify(serverPayload);
-      console.log('[Editor] Saving to server:', {
+      logger.debug('[Editor] Saving to server:', {
         hasEditorGround: !!data.editorGround,
         hasEditorWalls: !!data.editorWalls,
         hasCollision: !!data.collision,
@@ -887,7 +886,7 @@ export class MainScene extends Phaser.Scene implements SceneApi {
         totalSize: jsonStr.length
       });
       if (jsonStr.length < 100000) {
-        console.log('[Editor] Sending to server:', {
+        logger.debug('[Editor] Sending to server:', {
           url: `${base}/maps/office/editor-state`,
           hasCollisionData: !!serverPayload.collision,
           collisionTileCount: serverPayload.collision?.filter((t: number) => t !== -1).length || 0,
@@ -900,19 +899,19 @@ export class MainScene extends Phaser.Scene implements SceneApi {
           body: jsonStr
         }).then(async (res) => {
           if (res.ok) {
-            console.log('[Editor] Successfully saved to server');
+            logger.info('[Editor] Successfully saved to server');
           } else {
             const errorText = await res.text().catch(() => 'Unknown error');
-            console.warn('[Editor] Server save failed:', res.status, res.statusText, errorText);
+            logger.warn('[Editor] Server save failed:', res.status, res.statusText, errorText);
           }
         }).catch((e)=>{ 
-          console.warn('[Editor] Failed to save to server:', e); 
+          logger.warn('[Editor] Failed to save to server:', e); 
         });
       } else {
-        console.warn('[Editor] Editor data too large to save to server:', jsonStr.length, 'bytes');
+        logger.warn('[Editor] Editor data too large to save to server:', jsonStr.length, 'bytes');
       }
     } catch (error) {
-      console.error('[Editor] saveEditorLayers failed:', error);
+      logger.error('[Editor] saveEditorLayers failed:', error);
     }
   }
 
@@ -955,10 +954,10 @@ export class MainScene extends Phaser.Scene implements SceneApi {
   async fetchAndApplyServerLayers() {
     try {
       const base = (window as any).VITE_API_BASE || import.meta.env.VITE_API_BASE || `${window.location.protocol}//${window.location.hostname}:2568`;
-      console.log('[Editor] Fetching server layers from:', `${base}/maps/office/editor-state`);
+      logger.debug('[Editor] Fetching server layers from:', `${base}/maps/office/editor-state`);
       const res = await fetch(`${base}/maps/office/editor-state`, { credentials: 'include' });
       if (!res.ok) {
-        console.warn('[Editor] Server fetch failed:', res.status, res.statusText);
+        logger.warn('[Editor] Server fetch failed:', res.status, res.statusText);
         return;
       }
       const data = await res.json();
@@ -974,7 +973,7 @@ export class MainScene extends Phaser.Scene implements SceneApi {
       
       const applyArr = (arr: number[] | null | undefined, layer?: Phaser.Tilemaps.TilemapLayer, layerName?: string) => {
         if (!arr || !layer) {
-          console.log(`[Editor] Skipping ${layerName}: arr=${!!arr} (${arr?.length || 0} items), layer=${!!layer}`);
+          logger.debug(`[Editor] Skipping ${layerName}: arr=${!!arr} (${arr?.length || 0} items), layer=${!!layer}`);
           return;
         }
         if (layerName === 'collision') {
@@ -1103,7 +1102,7 @@ export class MainScene extends Phaser.Scene implements SceneApi {
           const tileset = this.mapRef.addTilesetImage(ts.key, ts.key, ts.tileWidth, ts.tileHeight, ts.margin ?? 0, ts.spacing ?? 0);
           if (tileset) {
             this.dynamicTilesets.set(ts.key, tileset);
-            console.log('[Editor] Successfully registered tileset:', ts.key, 'firstgid:', tileset.firstgid, 'category:', ts.category || 'unknown');
+            logger.info('[Editor] Successfully registered tileset:', ts.key, 'firstgid:', tileset.firstgid, 'category:', ts.category || 'unknown');
             
             // Update all editor layers to include the new tileset
             const allTilesets = Array.from(this.dynamicTilesets.values());
@@ -1119,7 +1118,7 @@ export class MainScene extends Phaser.Scene implements SceneApi {
               (this.collisionLayer as any).setTilesets(allTilesets);
             }
           } else {
-            console.error('[Editor] Failed to add tileset image:', ts.key);
+            logger.error('[Editor] Failed to add tileset image:', ts.key);
           }
           
           // Create layer if it doesn't exist
@@ -1138,7 +1137,7 @@ export class MainScene extends Phaser.Scene implements SceneApi {
       const tileset = this.mapRef.addTilesetImage(ts.key, ts.key, ts.tileWidth, ts.tileHeight, ts.margin ?? 0, ts.spacing ?? 0);
       if (tileset) {
         this.dynamicTilesets.set(ts.key, tileset);
-        console.log('[Editor] Reused existing tileset:', ts.key, 'firstgid:', tileset.firstgid);
+        logger.debug('[Editor] Reused existing tileset:', ts.key, 'firstgid:', tileset.firstgid);
         
         // Update all editor layers to include the tileset
         const allTilesets = Array.from(this.dynamicTilesets.values());

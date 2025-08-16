@@ -1,6 +1,5 @@
 import 'dotenv/config';
 import express from 'express';
-import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import compression from 'compression';
@@ -13,6 +12,7 @@ const Colyseus = require('colyseus');
 import { createServer } from 'http';
 import { WorldRoom } from './rooms/WorldRoom.js';
 import { registerApi } from './api.js';
+import { logger } from './logger.js';
 
 const app = express();
 const isProd = process.env.NODE_ENV === 'production';
@@ -59,7 +59,6 @@ const authLimiter = rateLimit({
   max: 100,
   standardHeaders: true,
   legacyHeaders: false,
-  trustProxy: true, // Explicitly set to avoid validation error
 });
 app.use(['/auth', '/livekit/token'], authLimiter);
 
@@ -70,8 +69,7 @@ registerApi(app);
 const port = Number(process.env.PORT ?? 2567);
 const httpServer = createServer(app);
 httpServer.on('error', (err) => {
-  // eslint-disable-next-line no-console
-  console.error('HTTP server error', err);
+  logger.error('HTTP server error', err);
 });
 
 // Attach to existing HTTP server; compatible with Colyseus 0.14/0.15
@@ -86,6 +84,5 @@ gameServer.define('world', WorldRoom as any);
 (global as any).gameServer = gameServer;
 
 httpServer.listen(port, '0.0.0.0', () => {
-  // eslint-disable-next-line no-console
-  console.log(`Server listening on :${port}`);
+  logger.info(`Server listening on :${port}`);
 });

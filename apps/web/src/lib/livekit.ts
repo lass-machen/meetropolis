@@ -1,4 +1,5 @@
 import { createLocalScreenTracks, Room } from 'livekit-client';
+import { logger } from './logger';
 
 function normalizeLivekitUrl(input: string | undefined): string {
   const host = (typeof window !== 'undefined') ? window.location.hostname : 'localhost';

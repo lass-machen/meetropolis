@@ -11,6 +11,7 @@ import { ZoneManager } from './game/zoneManager';
 import { VolumeManager } from './game/volumeManager';
 
 const DEBUG = (import.meta as any).env?.VITE_DEBUG_LOGS === 'true';
+import { logger } from './lib/logger';
 
 // Simple Inline-Icons
 function MicIcon(props: { on?: boolean }) {
@@ -121,7 +122,7 @@ export function App() {
   // Separate state for collision visibility to match zone behavior
   const [collisionVisible, setCollisionVisible] = React.useState(() => {
     const saved = localStorage.getItem('meetropolis.collisionVisible');
-    console.log('[Editor] Initial collision visibility from localStorage:', saved);
+    if (DEBUG) logger.debug('[Editor] Initial collision visibility from localStorage:', saved);
     return saved !== 'false';
   });
 
@@ -154,7 +155,7 @@ export function App() {
             x: u.lastPosition.x, 
             y: u.lastPosition.y 
           };
-          console.log('[Position] Restored last position:', u.lastPosition);
+          if (DEBUG) logger.debug('[Position] Restored last position:', u.lastPosition);
         }
       }
     } catch {
@@ -189,7 +190,7 @@ export function App() {
       try {
         gameBridge.fetchAndApplyServerLayers();
       } catch (e) {
-        console.warn('[Editor] Failed to fetch server layers on startup:', e);
+        logger.warn('[Editor] Failed to fetch server layers on startup:', e);
       }
       const rawTs = localStorage.getItem('meetropolis.tilesets');
       const defaultTs = [
