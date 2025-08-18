@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { ThemeProvider, AppShell, ThemeToggleButton } from './ui/theme';
+import { Overlay } from './ui/Overlay';
 import { Button, Card, Input, Toolbar, Modal } from './ui/components';
 import { TilesetUploadDialog } from './ui/editor/TilesetUploadDialog';
 import { EditorPanel } from './ui/editor/EditorPanel';
@@ -119,7 +120,8 @@ export function App() {
   const [selectedSid, setSelectedSid] = React.useState<string | null>(null);
   const [overlayZoom, setOverlayZoom] = React.useState(1);
   // Simple view routing
-  const [page, setPage] = React.useState<'world' | 'users' | 'profile'>('world');
+  const [page, setPage] = React.useState<'world' | 'profile'>('world');
+  const [userModalOpen, setUserModalOpen] = React.useState(false);
   const [menuOpen, setMenuOpen] = React.useState(false);
   const editorActiveRef = React.useRef(false);
   const connectLivekitRef = React.useRef<null | (() => Promise<void>)>(null);
@@ -1637,15 +1639,9 @@ export function App() {
         </>
       )}
 
-      {page === 'users' && (
-        <div onClick={()=>setPage('world')} style={{ position: 'fixed', inset: 0, background:'rgba(0,0,0,0.55)', backdropFilter:'blur(2px)', zIndex: 50, display: 'grid', placeItems: 'center', padding: 16 }}>
-          <div onClick={(e)=>e.stopPropagation()} style={{ width: 'min(1100px, 96vw)', maxHeight: '90vh', overflow: 'auto', background: 'rgba(17,17,20,0.98)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12, boxShadow: '0 22px 64px rgba(0,0,0,0.5)' }}>
-            <AppShell title="Benutzerverwaltung" right={<div style={{ display:'flex', gap:8 }}><ThemeToggleButton /><button onClick={()=>setMenuOpen(v=>!v)} title="Einstellungen" style={{ width: 36, height: 36, display: 'grid', placeItems: 'center', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--glass)', cursor: 'pointer' }}><GearIcon /></button></div>}>
-              <UserManagement baseUrl={apiBase} onBack={() => setPage('world')} />
-            </AppShell>
-          </div>
-        </div>
-      )}
+      <Overlay open={userModalOpen} onClose={()=>setUserModalOpen(false)} title="Benutzerverwaltung" right={<div style={{ display:'flex', gap:8 }}><ThemeToggleButton /></div>}>
+        <UserManagement baseUrl={apiBase} onBack={() => setUserModalOpen(false)} />
+      </Overlay>
 
       {/* Profil-Seite ist (noch) nicht implementiert; Stub entfernt */}
 
@@ -1657,7 +1653,7 @@ export function App() {
         </button>
         {menuOpen && (
           <div style={{ position: 'absolute', top: 44, right: 0, background: 'var(--glass)', color: 'var(--fg)', border: '1px solid var(--border)', borderRadius: 12, padding: 8, display: 'grid', gap: 6, minWidth: 260, boxShadow: 'var(--shadow)', backdropFilter: 'blur(6px)' }}>
-            <button onClick={() => { setPage('users'); setMenuOpen(false); }} style={{ textAlign: 'left', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--glass)', color: 'var(--fg)', cursor: 'pointer' }}>Benutzer verwalten</button>
+            <button onClick={() => { setUserModalOpen(true); setMenuOpen(false); }} style={{ textAlign: 'left', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--glass)', color: 'var(--fg)', cursor: 'pointer' }}>Benutzer verwalten</button>
             <button onClick={() => { setPage('world'); setMenuOpen(false); }} style={{ textAlign: 'left', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--glass)', color: 'var(--fg)', cursor: 'pointer' }}>Zurück zur Welt</button>
             <button onClick={() => { setApiModalOpen(true); setMenuOpen(false); }} style={{ textAlign: 'left', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--glass)', color: 'var(--fg)', cursor: 'pointer' }}>API-Tokens & Doku</button>
             <button onClick={async () => { 
@@ -1687,14 +1683,8 @@ export function App() {
       </div>
 
       {/* API Token Modal */}
-      {apiModalOpen && (
-        <div style={{ position: 'absolute', inset: 0, zIndex: 50, display: 'grid', placeItems: 'center', background: 'rgba(0,0,0,0.5)' }} onClick={()=>setApiModalOpen(false)}>
-          <div onClick={e=>e.stopPropagation()} style={{ width: 680, maxWidth: '90vw', background: 'rgba(17,17,20,0.98)', color: '#fff', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12, padding: 16, boxShadow: '0 12px 32px rgba(0,0,0,0.45)' }}>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom: 12 }}>
-              <div style={{ fontSize: 18, fontWeight: 700 }}>API-Zugriff</div>
-              <button onClick={()=>setApiModalOpen(false)} style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(0,0,0,0.5)', color:'#fff' }}>×</button>
-            </div>
-            <div style={{ display:'grid', gap: 10 }}>
+      <Overlay open={apiModalOpen} onClose={()=>setApiModalOpen(false)} title="API-Zugriff" right={<></>}>
+        <div style={{ display:'grid', gap: 10 }}>
               <div style={{ fontSize: 13, color: '#e5e7eb' }}>Mit persönlichen Tokens kannst du dein Mikro, Kamera, Screenshare und den Nicht-stören-Modus remote steuern – solange du online bist.</div>
               <div style={{ display:'flex', gap: 12, alignItems:'center' }}>
                 <input value={newTokenName} onChange={e=>setNewTokenName(e.target.value)} placeholder="Token-Name (optional)" style={{ flex:1, padding:'8px 10px', borderRadius:8, border:'1px solid rgba(255,255,255,0.12)', background:'rgba(0,0,0,0.35)', color:'#fff' }} />
@@ -1753,10 +1743,8 @@ export function App() {
                 <div style={{ fontWeight:600, margin:'10px 0 6px' }}>Beispiel</div>
                 <code style={{ display:'block', padding:'8px 10px', borderRadius:8, border:'1px solid rgba(255,255,255,0.12)', background:'rgba(0,0,0,0.35)', whiteSpace:'pre-wrap' }}>{`curl -X POST "${apiBase}/controls" \\n- H "Authorization: Bearer YOUR_TOKEN" \\\n- H "Content-Type: application/json" \\\n- d '{ "mic": false, "dnd": true }'`}</code>
               </div>
-            </div>
-          </div>
         </div>
-      )}
+      </Overlay>
 
       {/* Editor Panel */}
       {editor.active && (
