@@ -38,24 +38,32 @@ export function computePairVolume(
   bubbleMembers: Set<string>,
   rules: VolumeRules
 ): number {
-  // Follow hat höchste Priorität
+  // Follow hat höchste Priorität (darf Zonenregeln außer Kraft setzen)
   if (followTarget && followTarget === remote.id) return 1;
 
-  // Bubble-Regel dominiert über Zonen und Distanz
+  // Zuerst Zonen-Berechtigung bestimmen (Schallschutz zwischen Zonen)
+  const localZone = zones.find(z => pointInPolygon(local, z.points));
+  const remoteZone = zones.find(z => pointInPolygon(remote, z.points));
+
+  // Wenn einer in einer Zone ist und der andere nicht: stumm
+  if ((localZone && !remoteZone) || (!localZone && remoteZone)) return 0;
+  // Wenn beide in Zonen, aber in unterschiedlichen: stumm
+  if (localZone && remoteZone && localZone.name !== remoteZone.name) return 0;
+
+  // Ab hier sind die beiden grundsätzlich hörbar:
+  // - beide in derselben Zone, oder
+  // - beide außerhalb aller Zonen
+
+  // Bubble-Logik: Mini-Gesprächszone innerhalb der grundsätzlich hörbaren Menge
   const localInBubble = bubbleMembers.has(local.id);
   const remoteInBubble = bubbleMembers.has(remote.id);
-  
-  
   if (localInBubble && remoteInBubble) return 1;
-  if (localInBubble && !remoteInBubble) return rules.outsideBubbleAttenuation;
-  if (!localInBubble && remoteInBubble) return rules.outsideBubbleAttenuation;
+  if (localInBubble !== remoteInBubble) return rules.outsideBubbleAttenuation;
 
-  // Danach: gleiche Zone -> volle Lautstärke
-  const localInAny = zones.find(z => pointInPolygon(local, z.points));
-  const remoteInAny = zones.find(z => pointInPolygon(remote, z.points));
-  if (localInAny && remoteInAny && localInAny.name === remoteInAny.name) return 1;
+  // Wenn in derselben Zone und keine Bubble-Sonderfälle: volle Lautstärke (distanzunabhängig)
+  if (localZone && remoteZone && localZone.name === remoteZone.name) return 1;
 
-  // Distanzbasierte Abschwächung
+  // Andernfalls: beide außerhalb von Zonen → Distanzbasierte Abschwächung
   const dx = remote.x - local.x;
   const dy = remote.y - local.y;
   const d = Math.hypot(dx, dy);

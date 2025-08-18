@@ -23,9 +23,8 @@ export class MainScene extends Phaser.Scene implements SceneApi {
   private bubbleOutlines: Map<string, Phaser.GameObjects.Graphics> = new Map();
   private nameLabels: Map<string, Phaser.GameObjects.Container> = new Map();
   private heroNameLabel?: Phaser.GameObjects.Container;
-  private speakingPlayers: Set<string> = new Set();
-  private nameUpdateTimer?: Phaser.Time.TimerEvent;
   private pendingTilesetRegistrations?: any[];
+  private doNotDisturb = false;
   constructor() {
     super('Main');
   }
@@ -56,7 +55,8 @@ export class MainScene extends Phaser.Scene implements SceneApi {
     // Collision-Layer einlesen und statische Physik-Körper erzeugen
     let collisionLayer: Phaser.Tilemaps.TilemapLayer | undefined;
     try {
-      collisionLayer = map.createLayer('Collision', available, 0, 0);
+      const created = map.createLayer('Collision', available, 0, 0);
+      collisionLayer = created ?? undefined;
       
       // Fix: Check if collision layer has wrong data dimensions
       const layerData = (collisionLayer as any)?.layer;
@@ -97,7 +97,7 @@ export class MainScene extends Phaser.Scene implements SceneApi {
           if (layerData.data[testY]) {
             editorLog('Init', `Verification: Row ${testY} exists with ${layerData.data[testY].length} tiles`);
           } else {
-            editorError('Init', `Verification failed: Row ${testY} still doesn't exist!`);
+            editorError('Init', `Verification failed: Row ${testY} still doesn't exist!`, null);
           }
         }
       }
@@ -105,15 +105,21 @@ export class MainScene extends Phaser.Scene implements SceneApi {
       editorLog('Init', 'No Collision layer in map, creating blank layer');
       // Create blank collision layer if it doesn't exist
       if (available.length > 0) {
-        collisionLayer = map.createBlankLayer('Collision', available, 0, 0, map.width, map.height, map.tileWidth, map.tileHeight);
+        // Use the first available tileset for blank layer creation
+        const firstTs = available[0]!;
+        collisionLayer = map.createBlankLayer('Collision', firstTs, 0, 0, map.width, map.height, map.tileWidth, map.tileHeight) as any;
         editorLog('Init', `Created blank collision layer: ${map.width}x${map.height}`);
       }
     }
-    this.collisionLayer = collisionLayer as any;
+    if (collisionLayer) {
+      this.collisionLayer = collisionLayer;
+    } else {
+      // With exactOptionalPropertyTypes, assign by deleting the property instead of setting undefined
+      delete (this as any).collisionLayer;
+    }
     
     // Debug: Check collision layer dimensions
     if (collisionLayer) {
-      const layerData = (collisionLayer as any).layer;
       editorLog('Init', 'Collision layer created');
     }
     
@@ -426,6 +432,7 @@ export class MainScene extends Phaser.Scene implements SceneApi {
         // Creating new sprite for player
         s = this.add.sprite(p.x, p.y, 'hero_walk_down', 0);
         s.setDepth(10); // Same depth as local hero
+        if (this.doNotDisturb) s.setVisible(false);
         // Store previous position and direction for movement detection
         (s as any).prevX = p.x;
         (s as any).prevY = p.y;
@@ -438,6 +445,7 @@ export class MainScene extends Phaser.Scene implements SceneApi {
         const nameLabel = this.createNameLabel(name, id);
         this.nameLabels.set(id, nameLabel);
         this.updateNameLabel(nameLabel, p.x, p.y);
+        if (this.doNotDisturb) nameLabel.setVisible(false);
       }
       
       // Check if player is moving
@@ -462,6 +470,7 @@ export class MainScene extends Phaser.Scene implements SceneApi {
       const nameLabel = this.nameLabels.get(id);
       if (nameLabel) {
         this.updateNameLabel(nameLabel, p.x, p.y);
+        if (this.doNotDisturb) nameLabel.setVisible(false);
       }
       
       // Always play animation based on direction
@@ -523,6 +532,22 @@ export class MainScene extends Phaser.Scene implements SceneApi {
         }
       }
     }
+  }
+
+  setDoNotDisturb(enabled: boolean) {
+    this.doNotDisturb = !!enabled;
+    // Local hero transparency
+    if (this.hero) this.hero.setAlpha(this.doNotDisturb ? 0.35 : 1);
+    if (this.heroNameLabel) this.heroNameLabel.setAlpha(this.doNotDisturb ? 0.6 : 1);
+    // Hide/show remote sprites and name labels
+    this.remotes.forEach((sprite) => {
+      sprite.setVisible(!this.doNotDisturb);
+    });
+    this.nameLabels.forEach((label) => {
+      label.setVisible(!this.doNotDisturb);
+    });
+    // Hide bubble outlines as well
+    this.bubbleOutlines.forEach((g) => g.setVisible(!this.doNotDisturb));
   }
 
   setDesiredPosition(pos: { x: number; y: number } | null) {
@@ -706,7 +731,6 @@ export class MainScene extends Phaser.Scene implements SceneApi {
           // Putting tile
           
           // Debug layer information
-          const layerData = (targetLayer as any).layer;
           if (edit.layer === 'Collision') {
             editorLog('Paint', 'Collision layer state');
           }
@@ -714,8 +738,8 @@ export class MainScene extends Phaser.Scene implements SceneApi {
           try {
             // Additional debug for collision layer
             if (edit.layer === 'Collision') {
-              const layerData = (targetLayer as any).layer;
-              if (layerData?.data) {
+              const layerLayer = (targetLayer as any).layer;
+              if (layerLayer?.data) {
                 editorLog('Paint', 'Attempting putTileAt');
               }
             }
@@ -723,7 +747,6 @@ export class MainScene extends Phaser.Scene implements SceneApi {
             targetLayer.putTileAt(globalIndex, tx, ty);
           } catch (error) {
             if (edit.layer === 'Collision') {
-              const layerData = (targetLayer as any).layer;
               editorError('Paint', 'Failed to put collision tile', error);
             }
           }
@@ -751,8 +774,7 @@ export class MainScene extends Phaser.Scene implements SceneApi {
         return null;
       }
       
-      // Debug layer info
-      const layerData = (layer as any).layer;
+      // Debug layer info removed
       
       const arr: number[] = new Array(width * height).fill(-1);
       let tileCount = 0;
@@ -830,21 +852,54 @@ export class MainScene extends Phaser.Scene implements SceneApi {
       const storedH = (typeof data?.h === 'number' && data.h > 0) ? data.h : this.mapRef.height;
       const width = Math.min(this.mapRef.width, storedW);
       const height = Math.min(this.mapRef.height, storedH);
-      const applyArr = (arr: number[] | null | undefined, layer?: Phaser.Tilemaps.TilemapLayer) => {
+      const applyArr = (arr: number[] | null | undefined, layer?: Phaser.Tilemaps.TilemapLayer, layerName?: 'editorGround' | 'editorWalls' | 'collision') => {
         if (!arr || !layer) return;
+        // Ensure tilesets and layer dimensions for collision layer
+        if (layerName === 'collision' && this.mapRef) {
+          // Ensure collision layer knows about all tilesets
+          const allTilesets = Array.from(this.dynamicTilesets.values());
+          allTilesets.push(...this.mapRef.tilesets.filter(ts => !this.dynamicTilesets.has(ts.name)));
+          (layer as any).setTilesets?.(allTilesets);
+
+          // Fix data dimensions if needed
+          const layerData = (layer as any).layer;
+          if (layerData?.data) {
+            const expectedRows = this.mapRef.height;
+            while (layerData.data.length < expectedRows) {
+              const newRow = new Array(this.mapRef.width);
+              for (let x = 0; x < this.mapRef.width; x++) {
+                newRow[x] = new Phaser.Tilemaps.Tile(
+                  layerData,
+                  -1,
+                  x,
+                  layerData.data.length,
+                  this.mapRef.tileWidth,
+                  this.mapRef.tileHeight,
+                  this.mapRef.tileWidth,
+                  this.mapRef.tileHeight
+                );
+              }
+              layerData.data.push(newRow);
+            }
+            layerData.height = expectedRows;
+          }
+        }
+
         for (let y = 0; y < height; y++) {
           for (let x = 0; x < width; x++) {
-            const stride = storedW!
+            const stride = storedW!;
             const idx = arr[y * stride + x];
             if (typeof idx === 'number' && idx >= 0) {
-              layer.putTileAt(idx, x, y);
+              try {
+                layer.putTileAt(idx, x, y);
+              } catch {}
             }
           }
         }
       };
-      applyArr(data?.editorGround, this.editorGround);
-      applyArr(data?.editorWalls, this.wallsLayer);
-      applyArr(data?.collision, this.collisionLayer);
+      applyArr(data?.editorGround, this.editorGround, 'editorGround');
+      applyArr(data?.editorWalls, this.wallsLayer, 'editorWalls');
+      applyArr(data?.collision, this.collisionLayer, 'collision');
       if (data?.collision) this.rebuildStaticColliders();
     } catch {}
   }
@@ -874,7 +929,7 @@ export class MainScene extends Phaser.Scene implements SceneApi {
       const width = this.mapRef.width;
       const height = this.mapRef.height;
       
-      const applyArr = (arr: number[] | null | undefined, layer?: Phaser.Tilemaps.TilemapLayer, _layerName?: string) => {
+      const applyArr = (arr: number[] | null | undefined, layer?: Phaser.Tilemaps.TilemapLayer, layerName?: 'editorGround' | 'editorWalls' | 'collision') => {
         if (!arr || !layer) {
           return;
         }
@@ -955,8 +1010,8 @@ export class MainScene extends Phaser.Scene implements SceneApi {
       applyArr(data?.editorWalls, this.wallsLayer, 'editorWalls');
       applyArr(data?.collision, this.collisionLayer, 'collision');
       if (data?.collision) this.rebuildStaticColliders();
-      // Don't update collision overlay here - let the editor state determine visibility
-      // The updateCollisionOverlay will be called when setCollisionVisible is called from App.tsx
+      // Ensure overlay reflects the latest data if visibility is on
+      if (this.collisionVisible) this.updateCollisionOverlay();
     } catch (e) {
       editorError('Load', 'Failed to fetch/apply server layers', e);
     }
@@ -1001,13 +1056,14 @@ export class MainScene extends Phaser.Scene implements SceneApi {
       this.textures.once('addtexture', (key: string) => {
         if (key === ts.key) {
           // Tileset zur Map hinzufügen nachdem die Textur geladen wurde
-          const tileset = this.mapRef.addTilesetImage(ts.key, ts.key, ts.tileWidth, ts.tileHeight, ts.margin ?? 0, ts.spacing ?? 0);
+          const tileset = this.mapRef ? this.mapRef.addTilesetImage(ts.key, ts.key, ts.tileWidth, ts.tileHeight, ts.margin ?? 0, ts.spacing ?? 0) : undefined;
           if (tileset) {
             this.dynamicTilesets.set(ts.key, tileset);
             
             // Update all editor layers to include the new tileset
             const allTilesets = Array.from(this.dynamicTilesets.values());
-            allTilesets.push(...this.mapRef!.tilesets.filter(ts => !this.dynamicTilesets.has(ts.name)));
+            const extra = this.mapRef ? this.mapRef.tilesets.filter(ts => !this.dynamicTilesets.has(ts.name)) : [] as Phaser.Tilemaps.Tileset[];
+            allTilesets.push(...extra);
             
             if (this.editorGround) {
               (this.editorGround as any).tileset = allTilesets;
@@ -1022,9 +1078,9 @@ export class MainScene extends Phaser.Scene implements SceneApi {
           }
           
           // Create layer if it doesn't exist
-          if (!this.editorGround && this.mapRef) {
+          if (!this.editorGround && this.mapRef && tileset) {
             try {
-              const tmp = this.mapRef.createBlankLayer('EditorGround', tileset!, 0, 0, this.mapRef.width, this.mapRef.height, this.mapRef.tileWidth, this.mapRef.tileHeight);
+              const tmp = this.mapRef.createBlankLayer('EditorGround', tileset, 0, 0, this.mapRef.width, this.mapRef.height, this.mapRef.tileWidth, this.mapRef.tileHeight);
               this.editorGround = tmp as any;
               if (this.editorGround) this.editorGround.setDepth(1);
             } catch {}

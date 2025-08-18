@@ -1,6 +1,9 @@
 import React, { useEffect, useRef } from 'react';
 import { ThemeProvider, AppShell, ThemeToggleButton } from './ui/theme';
-import { Button, Card, Input, Toolbar, Modal, TilesetPreview } from './ui/components';
+import { Button, Card, Input, Toolbar, Modal } from './ui/components';
+import { TilesetUploadDialog } from './ui/editor/TilesetUploadDialog';
+import { EditorPanel } from './ui/editor/EditorPanel';
+import { useEditor } from './hooks/useEditor';
 import { createPhaserGame, destroyPhaserGame } from './game/phaserGame';
 import { gameBridge } from './game/bridge';
 import { joinWorld } from './lib/colyseus';
@@ -9,6 +12,8 @@ import { BubbleManager } from './game/bubbleManager';
 import { FollowManager } from './game/followManager';
 import { ZoneManager } from './game/zoneManager';
 import { VolumeManager } from './game/volumeManager';
+import { getDisplayName as getDisplayNameLib } from './lib/displayName';
+// (removed duplicate incorrect import)
 
 
 // Simple Inline-Icons
@@ -74,21 +79,29 @@ export function App() {
   const followRef = useRef<import('./game/followManager').FollowManager | null>(null);
   const volumeRef = useRef<VolumeManager | null>(null);
   const bubbleMembersRef = useRef<Set<string>>(new Set());
+  const rightClickTimerRef = useRef<any>(null);
+  const lastRightClickRef = useRef<{ colyseusId: string; livekitIdentity: string; time: number } | null>(null);
   const localPosRef = useRef<{ id: string; x: number; y: number }>({ id: '', x: 0, y: 0 });
   const remotesRef = useRef<Record<string, { x: number; y: number }>>({});
   const colyseusToLivekitMap = useRef<Record<string, string>>({});
   const identityToNameMap = useRef<Record<string, string>>({});
-  const livekitSidToColyseusMap = useRef<Record<string, string>>({});
+  // const livekitSidToColyseusMap = useRef<Record<string, string>>({});
   const [hud, setHud] = React.useState<{ zone?: string; follow?: string | null; avRoom?: string | null }>({});
   const [devices, setDevices] = React.useState<{ mics: { id: string; label: string }[]; cams: { id: string; label: string }[] }>({ mics: [], cams: [] });
-  const [avState, setAvState] = React.useState<{ mic: boolean; cam: boolean; share: boolean }>({ mic: false, cam: false, share: false });
+  const [avState, setAvState] = React.useState<{ mic: boolean; cam: boolean; share: boolean; dnd: boolean }>({ mic: false, cam: false, share: false, dnd: false });
   const [selectedMicId, setSelectedMicId] = React.useState<string | ''>('');
   const [selectedCamId, setSelectedCamId] = React.useState<string | ''>('');
   const [uiParticipants, setUiParticipants] = React.useState<{ sid: string; identity: string; hasVideo: boolean; hasMic: boolean; isSpeaking: boolean; media: 'camera' | 'screen'; volume?: number }[]>([]);
   const participantVolumesRef = useRef<Record<string, number>>({});
+  const dndRef = useRef<boolean>(false);
   // Auth state
   const [authChecked, setAuthChecked] = React.useState(false);
   const [me, setMe] = React.useState<{ id: string; email: string; name?: string } | null>(null);
+  // API Tokens & Settings
+  const [apiModalOpen, setApiModalOpen] = React.useState(false);
+  const [apiTokens, setApiTokens] = React.useState<{ id: string; name?: string | null; createdAt: string; lastUsedAt?: string | null }[]>([]);
+  const [newTokenName, setNewTokenName] = React.useState('');
+  const [freshToken, setFreshToken] = React.useState<string | null>(null);
   // view/state werden in AuthScreen verwaltet
   // Grid Overlay expand/collapse + selection
   const [gridExpanded, setGridExpanded] = React.useState(false);
@@ -99,29 +112,24 @@ export function App() {
   const [menuOpen, setMenuOpen] = React.useState(false);
   const editorActiveRef = React.useRef(false);
   const connectLivekitRef = React.useRef<null | (() => Promise<void>)>(null);
+
+  // Laden der Tokenliste beim Öffnen des Modals
+  useEffect(() => {
+    if (!apiModalOpen) return;
+    (async () => {
+      try {
+        setFreshToken(null);
+        const res = await fetch(`${apiBase}/api-tokens`, { credentials: 'include' });
+        if (res.ok) setApiTokens(await res.json());
+      } catch {}
+    })();
+  }, [apiModalOpen, apiBase]);
   const isConnectingRef = React.useRef(false);
-  // Map Editor State
-  const [editor, setEditor] = React.useState<{ 
-    active: boolean;
-    tool: 'zone' | 'asset' | 'select' | 'floor' | 'walls' | 'collision' | 'erase';
-    category: 'terrain' | 'structures' | 'objects' | 'zones';
-    tempPoints: { x: number; y: number }[];
-    name: string;
-    zones: { name: string; points: { x: number; y: number }[] }[];
-    assets: { id: string; key: string; dataUrl: string; x: number; y: number }[];
-    pendingAsset?: { key: string; dataUrl: string } | null;
-    tilePaint?: { tilesetKey: string; tileIndex: number; tileWidth: number; tileHeight: number; margin?: number; spacing?: number } | null;
-    drag?: { startTileX: number; startTileY: number; endTileX: number; endTileY: number } | null;
-    tilesets?: { key: string; dataUrl: string; tileWidth: number; tileHeight: number; margin?: number; spacing?: number; category?: string }[];
-    uploadDialog?: { open: boolean; dataUrl: string; fileName: string; tileWidth: number; tileHeight: number; margin: number; spacing: number; category?: string } | null;
-  }>({ active: false, tool: 'zone', category: 'zones', tempPoints: [], name: '', zones: [], assets: [], pendingAsset: null, tilePaint: { tilesetKey: 'office_tiles', tileIndex: 1, tileWidth: 16, tileHeight: 16 }, drag: null, tilesets: [] });
+  // Map Editor State (moved to hook)
+  const [editor, setEditor] = useEditor();
   React.useEffect(() => { editorActiveRef.current = editor.active; }, [editor.active]);
   
-  // Separate state for collision visibility to match zone behavior
-  const [collisionVisible, setCollisionVisible] = React.useState(() => {
-    const saved = localStorage.getItem('meetropolis.collisionVisible');
-    return saved !== 'false';
-  });
+  // Collision-Overlay: Sichtbarkeit steuert ausschließlich der Edit-Mode
 
   const apiBase = (import.meta.env.VITE_API_BASE as string | undefined) ||
     (typeof window !== 'undefined'
@@ -141,12 +149,7 @@ export function App() {
         setMe(u);
         // Store last position if available
         if (u.lastPosition) {
-          localPosRef.current = { 
-            id: u.id, 
-            x: u.lastPosition.x, 
-            y: u.lastPosition.y,
-            direction: u.lastPosition.direction
-          };
+          localPosRef.current = { id: u.id, x: u.lastPosition.x, y: u.lastPosition.y };
           // Make position available to Phaser scene
           (window as any).initialPlayerPosition = { 
             x: u.lastPosition.x, 
@@ -266,25 +269,8 @@ export function App() {
     }
   }, [page]);
 
-  // Helper function to get display name for a LiveKit identity
-  const getDisplayName = (identity: string): string => {
-    // Check if we have a stored name mapping
-    if (identityToNameMap.current[identity]) {
-      return identityToNameMap.current[identity];
-    }
-    
-    // Check if this is the local user
-    if (identity === me?.id || identity === me?.email) {
-      return me?.name || me?.email || identity;
-    }
-    
-    // If identity looks like a LiveKit ID, shorten it
-    if (identity.length > 20 && /^[a-zA-Z0-9]+$/.test(identity)) {
-      return `User ${identity.substring(0, 6)}`;
-    }
-    
-    return identity;
-  };
+  // Helper function to get display name for a LiveKit identity (moved to lib)
+  const getDisplayName = (identity: string): string => getDisplayNameLib(identity, identityToNameMap.current, me);
 
   const buildParticipantList = React.useCallback(() => {
     const room: any = avRef.current?.room as any;
@@ -292,7 +278,6 @@ export function App() {
       // buildParticipantList - no room or localParticipant
       return;
     }
-    const remoteParticipants = Array.from(room.remoteParticipants?.values() || []);
     // buildParticipantList - participants
     
     const activeSet = new Set<string>((room.activeSpeakers || []).map((p: any) => p.sid));
@@ -451,8 +436,8 @@ export function App() {
           try {
             // Method 1: forEach
             if (typeof room.state.players.forEach === 'function') {
-              room.state.players.forEach((player: any, id: string) => {
-              });
+              // noop
+              room.state.players.forEach(() => {});
             }
             // Method 2: Direct access
           } catch (e) {
@@ -483,8 +468,7 @@ export function App() {
         };
         // Add manual state check first
         if (room.state && room.state.players) {
-          room.state.players.forEach((player: any, id: string) => {
-          });
+          room.state.players.forEach(() => {});
         }
         
         room.onStateChange((state: any) => {
@@ -613,16 +597,18 @@ export function App() {
             const players = Object.fromEntries(
               Object.entries(remotesRef.current).map(([id, p]) => [
                 id, 
-                id === data.id ? { 
+                id === data.id
+                  ? {
                   x: data.x, 
                   y: data.y, 
-                  direction: data.direction,
-                  name: getDisplayName(colyseusToLivekitMap.current[id] || id)
-                } : { 
-                  ...p, 
-                  direction: 'down',
-                  name: getDisplayName(colyseusToLivekitMap.current[id] || id)
-                }
+                      direction: (data.direction === 'up' || data.direction === 'down' || data.direction === 'left' || data.direction === 'right') ? data.direction : 'down',
+                      name: getDisplayName(colyseusToLivekitMap.current[id] || id),
+                    }
+                  : {
+                      ...p,
+                      direction: 'down' as const,
+                      name: getDisplayName(colyseusToLivekitMap.current[id] || id),
+                    },
               ])
             );
             gameBridge.syncRemotePlayers(players);
@@ -633,11 +619,14 @@ export function App() {
         room.onMessage('player_left', (data: any) => {
           delete remotesRef.current[data.id];
           const players = Object.fromEntries(
-            Object.entries(remotesRef.current).map(([id, p]) => [id, { 
+            Object.entries(remotesRef.current).map(([id, p]) => [
+              id,
+              {
               ...p, 
-              direction: 'down',
-              name: getDisplayName(colyseusToLivekitMap.current[id] || id)
-            }])
+                direction: 'down' as const,
+                name: getDisplayName(colyseusToLivekitMap.current[id] || id),
+              },
+            ])
           );
           gameBridge.syncRemotePlayers(players);
         });
@@ -654,6 +643,38 @@ export function App() {
               scene?.fetchAndApplyServerLayers?.();
             } catch {}
           }
+        });
+        // Remote control commands from server (API-driven)
+        room.onMessage('remote_control', async (payload: { mic?: boolean; cam?: boolean; share?: boolean; dnd?: boolean }) => {
+          try {
+            if (typeof payload.dnd === 'boolean') {
+              const next = payload.dnd;
+              try { gameBridge.setDoNotDisturb(next); } catch {}
+              if (next) {
+                try { await avRef.current?.setMicrophoneEnabled(false); } catch {}
+                try { await avRef.current?.setCameraEnabled(false); } catch {}
+                try { await avRef.current?.stopScreenshare(); } catch {}
+              }
+              setAvState(s => ({ ...s, dnd: next, mic: next ? false : s.mic, cam: next ? false : s.cam, share: next ? false : s.share }));
+            }
+            if (typeof payload.mic === 'boolean' && !dndRef.current) {
+              const enabled = payload.mic;
+              try { await avRef.current?.setMicrophoneEnabled(enabled); } catch {}
+              setAvState(s => ({ ...s, mic: enabled }));
+            }
+            if (typeof payload.cam === 'boolean' && !dndRef.current) {
+              const enabled = payload.cam;
+              try { await avRef.current?.setCameraEnabled(enabled); } catch {}
+              setAvState(s => ({ ...s, cam: enabled }));
+            }
+            if (typeof payload.share === 'boolean' && !dndRef.current) {
+              if (payload.share && !avState.share) {
+                try { await avRef.current?.startScreenshare(); setAvState(s => ({ ...s, share: true })); } catch {}
+              } else if (!payload.share && avState.share) {
+                try { await avRef.current?.stopScreenshare(); setAvState(s => ({ ...s, share: false })); } catch {}
+              }
+            }
+          } catch {}
         });
       } catch {
         scheduleColyseusReconnect();
@@ -724,14 +745,14 @@ export function App() {
                 room.on(RoomEvent.ParticipantDisconnected, () => {
                   setTimeout(buildParticipantList, 100);
                 });
-                room.on(RoomEvent.TrackPublished, (publication: any, participant: any) => {
+                room.on(RoomEvent.TrackPublished, (_publication: any, _participant: any) => {
                   setTimeout(buildParticipantList, 100);
                 });
                 room.on(RoomEvent.TrackUnpublished, () => {
                   setTimeout(buildParticipantList, 100);
                 });
-                room.on(RoomEvent.TrackSubscribed, (track: any, publication: any, participant: any) => {
-                  if ((publication?.source || track?.source) === 'screen_share') {
+                room.on(RoomEvent.TrackSubscribed, (track: any, _publication: any, _participant: any) => {
+                  if (((_publication as any)?.source || (track as any)?.source) === 'screen_share') {
                     setTimeout(buildParticipantList, 200);
                   }
                 });
@@ -788,10 +809,10 @@ export function App() {
           if (!room) return;
           
           // Find participant by identity
-          const participants = Array.from(room.remoteParticipants?.values() || []);
-          const participant = participants.find((p: any) => p.identity === identity);
-          if (participant) {
-            avRef.current?.setParticipantVolume(participant.sid, vol);
+          const participants = Array.from((room as any).remoteParticipants?.values() || []);
+          const participant: any = participants.find((p: any) => p.identity === identity);
+          if (participant && participant.sid) {
+            avRef.current?.setParticipantVolume(participant.sid as string, vol);
           }
         }
       },
@@ -802,6 +823,7 @@ export function App() {
           return localPosRef.current.id ? { id: localLivekitIdentity, x: localPosRef.current.x, y: localPosRef.current.y } : null;
         },
         getRemotes: () => {
+          if (dndRef.current) return {};
           // Convert Colyseus session IDs to LiveKit identities for volume calculation
           const remotePositions: Record<string, { x: number; y: number }> = {};
           for (const [colyseusId, pos] of Object.entries(remotesRef.current)) {
@@ -910,7 +932,7 @@ export function App() {
       });
     };
     
-    gameBridge.onRightClick = ({ x, y }) => {
+    gameBridge.onRightClick = () => {
       if (editorActiveRef.current) return;
       
       // Get the clicked player ID from the bridge (this is a Colyseus session ID)
@@ -930,31 +952,55 @@ export function App() {
         return;
       }
       
-      const set = bubbleMembersRef.current;
+      // Implement 1x right-click = Follow toggle, 2x right-click = Bubble toggle
+      const now = Date.now();
+      const last = lastRightClickRef.current;
+      const doubleClickThresholdMs = 350;
       
-      // Toggle bubble membership using LiveKit identities
-      if (set.has(localLivekitIdentity) && set.has(clickedIdentity)) {
-        // Both in bubble - remove both
+      // Helper: apply bubble set and visuals
+      const applyBubbleFor = (targetIdentity: string | null, targetColyseusId: string | null) => {
+        const set = bubbleMembersRef.current;
         set.clear();
-      } else {
-        // Create new bubble with both players
-        set.clear();
-        set.add(localLivekitIdentity);
-        set.add(clickedIdentity);
+        if (targetIdentity) {
+          set.add(localLivekitIdentity);
+          set.add(targetIdentity);
+        }
+        volumeRef.current?.update();
+        const visualSet = new Set<string>();
+        if (set.has(localLivekitIdentity)) visualSet.add('__local__');
+        if (targetIdentity && targetColyseusId && set.has(targetIdentity)) visualSet.add(targetColyseusId);
+        gameBridge.setBubbleMembers(visualSet);
+      };
+
+      // Detect double click on same target
+      if (last && last.colyseusId === clickedColyseusId && (now - last.time) < doubleClickThresholdMs) {
+        // Double right-click → toggle bubble with this target
+        lastRightClickRef.current = null;
+        if (bubbleMembersRef.current.has(localLivekitIdentity) && bubbleMembersRef.current.has(clickedIdentity)) {
+          applyBubbleFor(null, null); // remove bubble
+        } else {
+          applyBubbleFor(clickedIdentity, clickedColyseusId); // create bubble
+        }
+        // Stop following when entering bubble to avoid conflicting motion
+        followRef.current?.stop?.();
+        return;
       }
       
-      // Update volume immediately
-      volumeRef.current?.update();
-      
-      // Update visual bubble indicators (still using Colyseus IDs for display)
-      const visualSet = new Set<string>();
-      if (set.has(localLivekitIdentity)) {
-        visualSet.add('__local__'); // Special marker for local player
-      }
-      if (set.has(clickedIdentity)) {
-        visualSet.add(clickedColyseusId); // Use Colyseus ID for visual indicator
-      }
-      gameBridge.setBubbleMembers(visualSet);
+      // Single click: set a timer to decide if it's single or double
+      lastRightClickRef.current = { colyseusId: clickedColyseusId, livekitIdentity: clickedIdentity, time: now };
+      if (rightClickTimerRef.current) clearTimeout(rightClickTimerRef.current);
+      rightClickTimerRef.current = setTimeout(() => {
+        const pending = lastRightClickRef.current;
+        lastRightClickRef.current = null;
+        if (!pending) return; // handled as double-click
+        // Single right-click → toggle follow on this target
+        if (followRef.current?.getTarget?.() === pending.colyseusId) {
+          followRef.current.stop();
+          gameBridge.setDesiredPosition(null);
+        } else {
+          followRef.current?.startFollowing?.(pending.colyseusId);
+        }
+      }, doubleClickThresholdMs);
     };
     // Tile-basierte Selektion/Malen
     gameBridge.onPointerDownTile = ({ tileX, tileY }) => {
@@ -1148,7 +1194,7 @@ export function App() {
       try {
         const audio = new Audio();
         audio.autoplay = true;
-        audio.playsInline = true;
+        (audio as any).playsInline = true;
         audio.volume = 1.0;
         // Important: Add audio element to DOM for autoplay to work
         audio.style.display = 'none';
@@ -1172,20 +1218,20 @@ export function App() {
       }
     };
 
-    const handleTrackSubscribed = (track: any, publication: any, participant: any) => {
+    const handleTrackSubscribed = (track: any, _publication: any, participant: any) => {
       if (track.kind === 'audio' && participant.sid !== room.localParticipant?.sid) {
         attachAudioTrack(track, participant.sid);
       }
     };
 
-    const handleTrackUnsubscribed = (track: any, publication: any, participant: any) => {
+    const handleTrackUnsubscribed = (track: any, _publication: any, participant: any) => {
       if (track.kind === 'audio') {
         detachAudioTrack(participant.sid);
       }
     };
 
     // Initial setup for existing participants
-    const participants = Array.from(room.remoteParticipants?.values() || room.participants?.values() || []);
+    const participants = Array.from((room as any).remoteParticipants?.values?.() || (room as any).participants?.values?.() || []);
     
     participants.forEach((participant: any) => {
       if (participant.sid === room.localParticipant?.sid) return;
@@ -1238,9 +1284,27 @@ export function App() {
     };
     window.addEventListener('pointerdown', firstInteract, { once: true } as any);
     window.addEventListener('keydown', firstInteract, { once: true } as any);
+    // DND Shortcut: Ctrl/Cmd + Shift + D
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'D' || e.key === 'd')) {
+        e.preventDefault();
+        const next = !dndRef.current;
+        try { gameBridge.setDoNotDisturb(next); } catch {}
+        if (next) {
+          try { avRef.current?.setMicrophoneEnabled(false); } catch {}
+          try { avRef.current?.setCameraEnabled(false); } catch {}
+          try { avRef.current?.stopScreenshare(); } catch {}
+        }
+        dndRef.current = next;
+        setAvState(s => ({ ...s, dnd: next, mic: next ? false : s.mic, cam: next ? false : s.cam, share: next ? false : s.share }));
+        try { volumeRef.current?.update(); } catch {}
+      }
+    };
+    window.addEventListener('keydown', onKey);
     return () => {
       window.removeEventListener('pointerdown', firstInteract);
       window.removeEventListener('keydown', firstInteract);
+      window.removeEventListener('keydown', onKey);
     };
   }, [editor.active, page, authChecked, me]);
 
@@ -1258,16 +1322,10 @@ export function App() {
     gameBridge.setEditorAssets(editor.assets);
   }, [editor.assets]);
 
-  // Collision-Overlay nur im Edit-Modus anzeigen (wie Zonen)
+  // Collision-Overlay immer im Edit-Modus anzeigen (User-Erwartung)
   useEffect(() => {
-    // Kollisionen nur anzeigen wenn Editor aktiv UND Checkbox aktiviert ist
-    if (editor.active && collisionVisible) {
-      gameBridge.setCollisionVisible(true);
-    } else {
-      // Editor nicht aktiv oder Checkbox nicht aktiviert = keine Kollisionen anzeigen  
-      gameBridge.setCollisionVisible(false);
-    }
-  }, [editor.active, collisionVisible]);
+    gameBridge.setCollisionVisible(!!editor.active);
+  }, [editor.active]);
 
   if (!authChecked) {
     return (
@@ -1363,7 +1421,7 @@ export function App() {
 
           {/* Bottom Control Bar */}
           <div style={{ position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: 'rgba(17,17,20,0.75)', color: '#fff', borderRadius: 14, border: '1px solid rgba(255,255,255,0.08)', boxShadow: '0 8px 24px rgba(0,0,0,0.35)', backdropFilter: 'blur(8px)' }}>
-            <button style={btnStyle(avState.mic)} onClick={async () => {
+            <button style={btnStyle(avState.mic)} disabled={avState.dnd} onClick={async () => {
               const enabled = !avState.mic;
               await avRef.current?.setMicrophoneEnabled(enabled);
               setAvState(s => ({ ...s, mic: enabled }));
@@ -1372,7 +1430,7 @@ export function App() {
               <span style={btnLabelStyle}>Mic {avState.mic ? 'aus' : 'an'}</span>
             </button>
 
-            <select style={selectStyle} disabled={!devices.mics.length} value={selectedMicId} onChange={async (e) => {
+            <select style={selectStyle} disabled={!devices.mics.length || avState.dnd} value={selectedMicId} onChange={async (e) => {
               const id = e.target.value;
               setSelectedMicId(id);
               await avRef.current?.useMicrophoneDevice(id);
@@ -1383,7 +1441,7 @@ export function App() {
 
             <div style={{ width: 1, height: 24, background: 'rgba(255,255,255,0.08)' }} />
 
-            <button style={btnStyle(avState.cam)} onClick={async () => {
+            <button style={btnStyle(avState.cam)} disabled={avState.dnd} onClick={async () => {
               const enabled = !avState.cam;
               try {
                 await avRef.current?.setCameraEnabled(enabled);
@@ -1397,7 +1455,7 @@ export function App() {
               <span style={btnLabelStyle}>{avState.cam ? 'Kamera aus' : 'Kamera an'}</span>
             </button>
 
-            <select style={selectStyle} disabled={!devices.cams.length} value={selectedCamId} onChange={async (e) => {
+            <select style={selectStyle} disabled={!devices.cams.length || avState.dnd} value={selectedCamId} onChange={async (e) => {
               const id = e.target.value;
               setSelectedCamId(id);
               await avRef.current?.useCameraDevice(id);
@@ -1408,7 +1466,7 @@ export function App() {
 
             <div style={{ width: 1, height: 24, background: 'rgba(255,255,255,0.08)' }} />
 
-            <button style={btnStyle(avState.share)} onClick={async () => {
+            <button style={btnStyle(avState.share)} disabled={avState.dnd} onClick={async () => {
               try {
                 if (!avState.share) {
                   await avRef.current?.startScreenshare();
@@ -1422,6 +1480,46 @@ export function App() {
             }}>
               <ScreenIcon on={avState.share} />
               <span style={btnLabelStyle}>{avState.share ? 'Screenshare stoppen' : 'Screenshare starten'}</span>
+            </button>
+
+            <div style={{ width: 1, height: 24, background: 'rgba(255,255,255,0.08)' }} />
+
+            <button
+              title={avState.dnd ? 'Bitte nicht stören: an' : 'Bitte nicht stören: aus'}
+              style={btnStyle(avState.dnd)}
+              onClick={async () => {
+                const next = !avState.dnd;
+                try { gameBridge.setDoNotDisturb(next); } catch {}
+                if (next) {
+                  try { await avRef.current?.setMicrophoneEnabled(false); } catch {}
+                  try { await avRef.current?.setCameraEnabled(false); } catch {}
+                  try { await avRef.current?.stopScreenshare(); } catch {}
+                  // Alle Remote-Teilnehmer stumm schalten
+                  try {
+                    const room: any = avRef.current?.room as any;
+                    if (room?.remoteParticipants) {
+                      const participants: any[] = Array.from((room.remoteParticipants as any).values());
+                      for (const p of participants) {
+                        const sid = (p as any)?.sid;
+                        if (sid) {
+                          try { avRef.current?.setParticipantVolume(sid, 0); } catch {}
+                        }
+                      }
+                    }
+                  } catch {}
+                }
+                dndRef.current = next;
+                setAvState(s => ({ ...s, dnd: next, mic: next ? false : s.mic, cam: next ? false : s.cam, share: next ? false : s.share }));
+                try { volumeRef.current?.update(); } catch {}
+              }}
+            >
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <circle cx="12" cy="12" r="9" stroke={avState.dnd ? '#10b981' : '#e5e7eb'} strokeWidth="1.8" />
+                  <path d="M7 12h10" stroke={avState.dnd ? '#10b981' : '#e5e7eb'} strokeWidth="1.8" strokeLinecap="round" />
+                </svg>
+                <span style={btnLabelStyle}>Nicht stören</span>
+              </span>
             </button>
           </div>
         </>
@@ -1444,9 +1542,10 @@ export function App() {
           <GearIcon />
         </button>
         {menuOpen && (
-          <div style={{ position: 'absolute', top: 44, right: 0, background: 'var(--glass)', color: 'var(--fg)', border: '1px solid var(--border)', borderRadius: 12, padding: 8, display: 'grid', gap: 6, minWidth: 220, boxShadow: 'var(--shadow)', backdropFilter: 'blur(6px)' }}>
+          <div style={{ position: 'absolute', top: 44, right: 0, background: 'var(--glass)', color: 'var(--fg)', border: '1px solid var(--border)', borderRadius: 12, padding: 8, display: 'grid', gap: 6, minWidth: 260, boxShadow: 'var(--shadow)', backdropFilter: 'blur(6px)' }}>
             <button onClick={() => { setPage('users'); setMenuOpen(false); }} style={{ textAlign: 'left', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--glass)', color: 'var(--fg)', cursor: 'pointer' }}>Benutzer verwalten</button>
             <button onClick={() => { setPage('world'); setMenuOpen(false); }} style={{ textAlign: 'left', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--glass)', color: 'var(--fg)', cursor: 'pointer' }}>Zurück zur Welt</button>
+            <button onClick={() => { setApiModalOpen(true); setMenuOpen(false); }} style={{ textAlign: 'left', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--glass)', color: 'var(--fg)', cursor: 'pointer' }}>API-Tokens & Doku</button>
             <button onClick={async () => { 
               if (editor.active) { 
                 await saveAllToServer().catch(()=>{}); 
@@ -1473,6 +1572,78 @@ export function App() {
         )}
       </div>
 
+      {/* API Token Modal */}
+      {apiModalOpen && (
+        <div style={{ position: 'absolute', inset: 0, zIndex: 50, display: 'grid', placeItems: 'center', background: 'rgba(0,0,0,0.5)' }} onClick={()=>setApiModalOpen(false)}>
+          <div onClick={e=>e.stopPropagation()} style={{ width: 680, maxWidth: '90vw', background: 'rgba(17,17,20,0.98)', color: '#fff', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12, padding: 16, boxShadow: '0 12px 32px rgba(0,0,0,0.45)' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom: 12 }}>
+              <div style={{ fontSize: 18, fontWeight: 700 }}>API-Zugriff</div>
+              <button onClick={()=>setApiModalOpen(false)} style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(0,0,0,0.5)', color:'#fff' }}>×</button>
+            </div>
+            <div style={{ display:'grid', gap: 10 }}>
+              <div style={{ fontSize: 13, color: '#e5e7eb' }}>Mit persönlichen Tokens kannst du dein Mikro, Kamera, Screenshare und den Nicht-stören-Modus remote steuern – solange du online bist.</div>
+              <div style={{ display:'flex', gap: 12, alignItems:'center' }}>
+                <input value={newTokenName} onChange={e=>setNewTokenName(e.target.value)} placeholder="Token-Name (optional)" style={{ flex:1, padding:'8px 10px', borderRadius:8, border:'1px solid rgba(255,255,255,0.12)', background:'rgba(0,0,0,0.35)', color:'#fff' }} />
+                <button onClick={async()=>{
+                  try {
+                    const res = await fetch(`${apiBase}/api-tokens`, { method:'POST', headers:{ 'Content-Type':'application/json' }, credentials:'include', body: JSON.stringify({ name: newTokenName || undefined }) });
+                    if (!res.ok) throw new Error('Token konnte nicht erstellt werden');
+                    const data = await res.json();
+                    setFreshToken(data.token);
+                    setNewTokenName('');
+                    // refresh list
+                    const list = await fetch(`${apiBase}/api-tokens`, { credentials:'include' }).then(r=>r.json());
+                    setApiTokens(list);
+                  } catch (e:any) {
+                    alert(e.message || 'Fehler beim Erstellen');
+                  }
+                }} style={{ padding:'8px 10px', borderRadius:8, border:'1px solid rgba(255,255,255,0.12)', background:'rgba(16,185,129,0.2)', color:'#10b981' }}>Neuen Token erstellen</button>
+              </div>
+              {freshToken && (
+                <div style={{ padding:10, borderRadius:8, border:'1px solid rgba(16,185,129,0.35)', background:'rgba(16,185,129,0.12)', color:'#d1fae5' }}>
+                  <div style={{ fontWeight:600, marginBottom:6 }}>Dein neuer Token (zeige ihn nur einmal an):</div>
+                  <code style={{ userSelect:'all' }}>{freshToken}</code>
+                </div>
+              )}
+              <div style={{ fontWeight:600, marginTop: 4 }}>Deine Tokens</div>
+              <div style={{ display:'grid', gap:6 }}>
+                {(apiTokens||[]).map(t => (
+                  <div key={t.id} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', border:'1px solid rgba(255,255,255,0.12)', borderRadius:8, padding:'8px 10px' }}>
+                    <div>
+                      <div style={{ fontWeight:600 }}>{t.name || 'Token'}</div>
+                      <div style={{ fontSize:12, opacity:0.75 }}>Erstellt: {new Date(t.createdAt).toLocaleString()} {t.lastUsedAt ? `· Zuletzt genutzt: ${new Date(t.lastUsedAt).toLocaleString()}` : ''}</div>
+                    </div>
+                    <button onClick={async()=>{ try{ await fetch(`${apiBase}/api-tokens/${t.id}`, { method:'DELETE', credentials:'include' }); setApiTokens(await fetch(`${apiBase}/api-tokens`, { credentials:'include' }).then(r=>r.json())); } catch(e:any){ alert(e.message||'Fehler beim Löschen'); } }} style={{ padding:'6px 8px', borderRadius:6, border:'1px solid rgba(255,255,255,0.12)', background:'rgba(239,68,68,0.15)', color:'#fca5a5' }}>Löschen</button>
+                  </div>
+                ))}
+                {!apiTokens?.length && <div style={{ fontSize:13, opacity:0.7 }}>Noch keine Tokens erstellt.</div>}
+              </div>
+              <div style={{ fontWeight:600 }}>API-Dokumentation</div>
+              <div>
+                <div style={{ fontWeight:600, marginBottom:6 }}>Base URL</div>
+                <code style={{ display:'block', padding:'8px 10px', borderRadius:8, border:'1px solid rgba(255,255,255,0.12)', background:'rgba(0,0,0,0.35)' }}>{apiBase}</code>
+              </div>
+              <div>
+                <div style={{ fontWeight:600, margin:'10px 0 6px' }}>Authentifizierung</div>
+                <div style={{ fontSize:13, opacity:0.85 }}>Setze den HTTP Header Authorization: Bearer YOUR_TOKEN</div>
+              </div>
+              <div>
+                <div style={{ fontWeight:600, margin:'10px 0 6px' }}>Steuer-Endpunkt</div>
+                <code style={{ display:'block', padding:'8px 10px', borderRadius:8, border:'1px solid rgba(255,255,255,0.12)', background:'rgba(0,0,0,0.35)' }}>POST /controls</code>
+                <div style={{ fontSize:13, opacity:0.85, marginTop:6 }}>Body (JSON, mindestens ein Feld):</div>
+                <code style={{ display:'block', padding:'8px 10px', borderRadius:8, border:'1px solid rgba(255,255,255,0.12)', background:'rgba(0,0,0,0.35)' }}>{`{ "mic": true|false, "cam": true|false, "share": true|false, "dnd": true|false }`}</code>
+                <div style={{ fontSize:13, opacity:0.85, marginTop:6 }}>Antwort: <code>{"{ \"ok\": true, \"delivered\": n }"}</code></div>
+                <div style={{ fontSize:13, opacity:0.85, marginTop:6 }}>Hinweise: DND schaltet Mic/Kamera/Share automatisch aus. Steuerung funktioniert nur, wenn du online bist.</div>
+              </div>
+              <div>
+                <div style={{ fontWeight:600, margin:'10px 0 6px' }}>Beispiel</div>
+                <code style={{ display:'block', padding:'8px 10px', borderRadius:8, border:'1px solid rgba(255,255,255,0.12)', background:'rgba(0,0,0,0.35)', whiteSpace:'pre-wrap' }}>{`curl -X POST "${apiBase}/controls" \\n- H "Authorization: Bearer YOUR_TOKEN" \\\n- H "Content-Type: application/json" \\\n- d '{ "mic": false, "dnd": true }'`}</code>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Editor Panel */}
       {editor.active && (
         <div style={{ position: 'absolute', top: 64, right: 12, zIndex: 35, width: 360 }}>
@@ -1491,251 +1662,10 @@ export function App() {
             </div>
             
             {/* Content */}
-            <div style={{ padding: 16, display: 'grid', gap: 12 }}>
-              {/* Common Tools */}
-              <div style={{ display: 'flex', gap: 6 }}>
-                <button onClick={() => setEditor(s => ({ ...s, tool: 'select' }))} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.12)', background: editor.tool==='select'?'rgba(59,130,246,0.2)':'rgba(255,255,255,0.05)', color: editor.tool==='select'?'#60a5fa':'#e5e7eb', fontSize: 13 }}>Auswählen</button>
-                <button onClick={() => setEditor(s => ({ ...s, tool: 'erase' }))} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.12)', background: editor.tool==='erase'?'rgba(239,68,68,0.2)':'rgba(255,255,255,0.05)', color: editor.tool==='erase'?'#f87171':'#e5e7eb', fontSize: 13 }}>Löschen</button>
-              </div>
-              
-              {/* Category-specific content */}
-              {editor.category === 'terrain' && (
-                <>
-                  <div style={{ display: 'grid', gap: 8 }}>
-                    <div style={{ fontSize: 14, fontWeight: 600, color: '#e5e7eb' }}>Terrain-Werkzeuge</div>
-                    <div style={{ display: 'grid', grid: 'auto / 1fr 1fr', gap: 6 }}>
-                      <button onClick={() => setEditor(s => ({ ...s, tool: 'floor' }))} style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.12)', background: editor.tool==='floor'?'rgba(34,197,94,0.2)':'rgba(255,255,255,0.05)', color: editor.tool==='floor'?'#4ade80':'#e5e7eb', fontSize: 13 }}>🏠 Boden</button>
-                      <button onClick={() => setEditor(s => ({ ...s, tool: 'collision' }))} style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.12)', background: editor.tool==='collision'?'rgba(239,68,68,0.2)':'rgba(255,255,255,0.05)', color: editor.tool==='collision'?'#f87171':'#e5e7eb', fontSize: 13 }}>🚫 Kollision</button>
-                    </div>
-                  </div>
-                  
-                  {/* Collision Overlay Toggle */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'rgba(255,255,255,0.03)', borderRadius: 8 }}>
-                    <label htmlFor="toggle-collision" style={{ fontSize: 12, color: '#9ca3af' }}>Kollisionsebene anzeigen</label>
-                  </div>
-                  
-                  {/* Terrain/Floor Tile Selection */}
-                  {editor.tool === 'floor' && (
-                    <div style={{ display: 'grid', gap: 8 }}>
-                      <div style={{ fontSize: 13, fontWeight: 500, color: '#9ca3af' }}>Bodentextur auswählen</div>
-                      {editor.tilePaint && editor.tilesets && editor.tilesets.length > 0 && (
-                        <div style={{ maxHeight: 200, overflow: 'auto', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, padding: 8 }}>
-                          {editor.tilesets.filter(ts => !ts.category || ts.category === 'terrain').map(lib => (
-                            <div key={lib.key} style={{ marginBottom: 8 }}>
-                              <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 4 }}>{lib.key}</div>
-                              <TilesetPreview
-                                tileset={lib}
-                                selectedIndex={editor.tilePaint?.tilesetKey === lib.key ? editor.tilePaint.tileIndex : -1}
-                                onSelect={(index: number) => setEditor(s => ({ ...s, tilePaint: { tilesetKey: lib.key, tileIndex: index, tileWidth: lib.tileWidth, tileHeight: lib.tileHeight, margin: lib.margin, spacing: lib.spacing } }))}
-                              />
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                      <div style={{ fontSize: 11, color: '#6b7280' }}>Ziehe mit der Maus um Boden zu malen</div>
-                    </div>
-                  )}
-                </>
-              )}
-              
-              {/* Structures Category */}
-              {editor.category === 'structures' && (
-                <>
-                  <div style={{ display: 'grid', gap: 8 }}>
-                    <div style={{ fontSize: 14, fontWeight: 600, color: '#e5e7eb' }}>Struktur-Werkzeuge</div>
-                    <div style={{ display: 'grid', grid: 'auto / 1fr 1fr', gap: 6 }}>
-                      <button onClick={() => setEditor(s => ({ ...s, tool: 'walls' }))} style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.12)', background: editor.tool==='walls'?'rgba(168,85,247,0.2)':'rgba(255,255,255,0.05)', color: editor.tool==='walls'?'#c084fc':'#e5e7eb', fontSize: 13 }}>🧫 Wände</button>
-                      <button onClick={() => setEditor(s => ({ ...s, tool: 'floor' }))} style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.12)', background: editor.tool==='floor'?'rgba(34,197,94,0.2)':'rgba(255,255,255,0.05)', color: editor.tool==='floor'?'#4ade80':'#e5e7eb', fontSize: 13 }}>🎪 Decken</button>
-                    </div>
-                  </div>
-                  
-                  {/* Wall Tile Selection */}
-                  {editor.tool === 'walls' && (
-                    <div style={{ display: 'grid', gap: 8 }}>
-                      <div style={{ fontSize: 13, fontWeight: 500, color: '#9ca3af' }}>Wandtextur auswählen</div>
-                      {editor.tilePaint && editor.tilesets && editor.tilesets.length > 0 && (
-                        <div style={{ maxHeight: 200, overflow: 'auto', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, padding: 8 }}>
-                          {editor.tilesets.filter(ts => !ts.category || ts.category === 'structures').map(lib => (
-                            <div key={lib.key} style={{ marginBottom: 8 }}>
-                              <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 4 }}>{lib.key}</div>
-                              <TilesetPreview
-                                tileset={lib}
-                                selectedIndex={editor.tilePaint?.tilesetKey === lib.key ? editor.tilePaint.tileIndex : -1}
-                                onSelect={(index: number) => setEditor(s => ({ ...s, tilePaint: { tilesetKey: lib.key, tileIndex: index, tileWidth: lib.tileWidth, tileHeight: lib.tileHeight, margin: lib.margin, spacing: lib.spacing } }))}
-                              />
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                      <div style={{ fontSize: 11, color: '#6b7280' }}>Ziehe mit der Maus um Wände zu malen</div>
-                    </div>
-                  )}
-                </>
-              )}
-              
-              {/* Objects Category */}
-              {editor.category === 'objects' && (
-                <>
-                  <div style={{ display: 'grid', gap: 8 }}>
-                    <div style={{ fontSize: 14, fontWeight: 600, color: '#e5e7eb' }}>Objekt-Werkzeuge</div>
-                    
-                    <div style={{ display: 'grid', grid: 'auto / 1fr 1fr', gap: 6 }}>
-                      <button onClick={() => setEditor(s => ({ ...s, tool: 'asset' }))} style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.12)', background: editor.tool==='asset'?'rgba(147,51,234,0.2)':'rgba(255,255,255,0.05)', color: editor.tool==='asset'?'#a78bfa':'#e5e7eb', fontSize: 13 }}>🪑 Objekte</button>
-                      <button onClick={() => setEditor(s => ({ ...s, tool: 'erase' }))} style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.12)', background: editor.tool==='erase'?'rgba(239,68,68,0.2)':'rgba(255,255,255,0.05)', color: editor.tool==='erase'?'#f87171':'#e5e7eb', fontSize: 13 }}>🗑️ Löschen</button>
-                    </div>
-                    
-                    {/* Object Tile Selection */}
-                    {editor.tool === 'asset' && editor.tilesets && editor.tilesets.filter(ts => ts.category === 'objects').length > 0 && (
-                      <div style={{ display: 'grid', gap: 8 }}>
-                        <div style={{ fontSize: 13, fontWeight: 500, color: '#9ca3af' }}>Objekt auswählen</div>
-                        <div style={{ maxHeight: 300, overflow: 'auto', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, padding: 8 }}>
-                          {editor.tilesets.filter(ts => ts.category === 'objects').map(lib => (
-                            <div key={lib.key} style={{ marginBottom: 8 }}>
-                              <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 4 }}>{lib.key}</div>
-                              <TilesetPreview
-                                tileset={lib}
-                                selectedIndex={editor.tilePaint?.tilesetKey === lib.key ? editor.tilePaint.tileIndex : -1}
-                                onSelect={(index: number) => setEditor(s => ({ ...s, tilePaint: { tilesetKey: lib.key, tileIndex: index, tileWidth: lib.tileWidth, tileHeight: lib.tileHeight, margin: lib.margin, spacing: lib.spacing } }))}
-                              />
-                            </div>
-                          ))}
-                        </div>
-                        <div style={{ fontSize: 11, color: '#6b7280' }}>Klicke in die Karte um Objekte zu platzieren</div>
-                      </div>
-                    )}
-                    
-                    {/* Asset List */}
-                    {editor.assets.length > 0 && (
-                      <div style={{ display: 'grid', gap: 6 }}>
-                        <div style={{ fontSize: 13, fontWeight: 500, color: '#9ca3af' }}>Platzierte Assets</div>
-                        <div style={{ maxHeight: 160, overflow: 'auto', display: 'grid', gap: 4 }}>
-                          {editor.assets.map((a) => (
-                            <div key={a.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 8px', background: 'rgba(255,255,255,0.03)', borderRadius: 6 }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                <img src={a.dataUrl} alt="asset" style={{ width: 24, height: 24, objectFit: 'contain', borderRadius: 4 }} />
-                                <div style={{ fontSize: 11, color: '#6b7280' }}>x:{Math.round(a.x)} y:{Math.round(a.y)}</div>
-                              </div>
-                              <button title="Löschen" onClick={() => setEditor(s => {
-                                const assets = s.assets.filter(x => x.id !== a.id);
-                                try { localStorage.setItem('meetropolis.assets', JSON.stringify(assets)); } catch {}
-                                gameBridge.setEditorAssets(assets);
-                                return { ...s, assets };
-                              })} style={{ padding: 4, borderRadius: 4, border: '1px solid rgba(239,68,68,0.3)', background: 'rgba(239,68,68,0.1)', color: '#f87171', fontSize: 10 }}>✕</button>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </>
-              )}
-              
-              {/* Zones Category */}
-              {editor.category === 'zones' && (
-                <>
-                  <div style={{ display: 'grid', gap: 8 }}>
-                    <div style={{ fontSize: 14, fontWeight: 600, color: '#e5e7eb' }}>Zonen-Verwaltung</div>
-                    
-                    <div style={{ display: 'grid', gap: 6 }}>
-                      <label style={{ fontSize: 12, color: '#9ca3af' }}>Zonenname</label>
-                      <input value={editor.name} onChange={(e)=>setEditor(s=>({ ...s, name: e.target.value }))} placeholder="z.B. Meeting Room A" style={{ padding: 8, borderRadius: 6, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.05)', color: '#fff', fontSize: 13 }} />
-                    </div>
-                    
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      <button onClick={() => setEditor(s => { const next = { ...s, tempPoints: [] }; gameBridge.setZoneOverlay([...next.zones]); return next; })} style={{ flex: 1, padding: '6px 12px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.05)', color: '#e5e7eb', fontSize: 12 }}>Punkte zurücksetzen</button>
-                      <button onClick={() => setEditor(s => {
-                if (s.tempPoints.length < 3) return s;
-                const name = (s.name || `Zone ${s.zones.length+1}`).trim();
-                const poly = { name, points: s.tempPoints };
-                const zones = [...s.zones, poly];
-                try { localStorage.setItem('meetropolis.zones', JSON.stringify(zones)); } catch {}
-                gameBridge.setZoneOverlay(zones);
-                zoneRef.current?.setZones?.(zones as any);
-                // Server speichern (best-effort)
-                (async ()=>{ 
-            try { 
-              const body = JSON.stringify({ zones });
-              if (body.length < 100000) {
-                await fetch(`${apiBase}/maps/office/editor-state`, { 
-                  method: 'PUT', 
-                  credentials: 'include', 
-                  headers: { 'Content-Type': 'application/json' }, 
-                  body 
-                });
-              } else {
-              }
-            } catch {} 
-          })();
-                return { ...s, zones, tempPoints: [], name };
-              })} style={{ flex: 1, padding: '6px 12px', borderRadius: 6, border: '1px solid rgba(16,185,129,0.35)', background: 'rgba(16,185,129,0.18)', color: '#86efac', fontSize: 12 }}>Zone speichern</button>
-                    </div>
-                    
-                    <div style={{ fontSize: 11, color: '#6b7280' }}>Klicke in die Karte um Zonenpunkte zu setzen (min. 3)</div>
-                    
-                    {/* Zone List */}
-                    {editor.zones.length > 0 && (
-                      <div style={{ display: 'grid', gap: 6 }}>
-                        <div style={{ fontSize: 13, fontWeight: 500, color: '#9ca3af' }}>Erstellte Zonen</div>
-                        <div style={{ maxHeight: 160, overflow: 'auto', display: 'grid', gap: 4 }}>
-                          {editor.zones.map((z, idx) => (
-                            <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 8px', background: 'rgba(255,255,255,0.03)', borderRadius: 6 }}>
-                              <div>
-                                <div style={{ fontSize: 12, color: '#e5e7eb' }}>{z.name}</div>
-                                <div style={{ fontSize: 10, color: '#6b7280' }}>{z.points.length} Punkte</div>
-                              </div>
-                              <button title="Löschen" onClick={() => setEditor(s => {
-                                const zones = s.zones.filter((_, i) => i !== idx);
-                                try { localStorage.setItem('meetropolis.zones', JSON.stringify(zones)); } catch {}
-                                gameBridge.setZoneOverlay(zones);
-                                zoneRef.current?.setZones?.(zones as any);
-                                return { ...s, zones };
-                              })} style={{ padding: 4, borderRadius: 4, border: '1px solid rgba(239,68,68,0.3)', background: 'rgba(239,68,68,0.1)', color: '#f87171', fontSize: 10 }}>✕</button>
-                            </div>
-                          ))}
-                        </div>
-                        <button onClick={() => {
-                          if (confirm('Wirklich alle Zonen löschen?')) {
-                            setEditor(s => {
-                              const newState = { ...s, zones: [], tempPoints: [] };
-                              try { localStorage.setItem('meetropolis.zones', JSON.stringify([])); } catch {}
-                              gameBridge.setZoneOverlay([]);
-                              zoneRef.current?.setZones?.([]);
-                              return newState;
-                            });
-                          }
-                        }} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid rgba(239,68,68,0.3)', background: 'rgba(239,68,68,0.1)', color: '#f87171', fontSize: 12 }}>Alle Zonen löschen</button>
-                      </div>
-                    )}
-                  </div>
-                </>
-              )}
-              
-              {/* Upload/Tileset Management Section - Show for terrain, structures and objects */}
-              {(editor.category === 'terrain' || editor.category === 'structures' || editor.category === 'objects') && (
-                <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 12, marginTop: 12 }}>
-                  <div style={{ display: 'grid', gap: 8 }}>
-                    <div style={{ fontSize: 14, fontWeight: 600, color: '#e5e7eb' }}>Tileset hochladen</div>
-                    <div style={{ 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      gap: 8,
-                      padding: '8px 12px',
-                      borderRadius: 8,
-                      border: '1px solid rgba(59,130,246,0.3)',
-                      background: 'rgba(59,130,246,0.1)',
-                      cursor: 'pointer'
-                    }}>
-                      <label style={{ 
-                        cursor: 'pointer', 
-                        flex: 1,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 8,
-                        color: '#93bbfe'
-                      }}>
-                        <span style={{ fontSize: 16 }}>📁</span>
-                        <span style={{ fontSize: 13 }}>Tileset-Bild auswählen...</span>
-                        <input type="file" accept="image/*" style={{ display: 'none' }} onChange={async (e) => {
+            <EditorPanel
+              editor={editor}
+              setEditor={setEditor}
+              onOpenUpload={async (e) => {
                       const file = e.target.files?.[0];
                       if (!file) return;
                       const buf = await file.arrayBuffer();
@@ -1744,8 +1674,6 @@ export function App() {
                         reader.onload = () => resolve(reader.result as string);
                         reader.readAsDataURL(new Blob([buf], { type: file.type || 'image/png' }));
                       });
-                      
-                      // Open dialog for tile configuration
                       setEditor(s => ({ 
                         ...s, 
                         uploadDialog: {
@@ -1759,166 +1687,29 @@ export function App() {
                           category: s.category
                         }
                       }));
-                    }} />
-                      </label>
-                    </div>
-                    
-                  </div>
-                </div>
-              )}
-            </div>
+              }}
+            />
           </div>
         </div>
       )}
       
       {/* Tileset Upload Dialog */}
       {editor.uploadDialog?.open && (
-        <Modal
-          open={true}
-          title={`Tileset konfigurieren: ${editor.uploadDialog.fileName}`}
-          onClose={() => setEditor(s => ({ ...s, uploadDialog: null }))}
-          maxWidth={800}
-          footer={
-            <>
-              <Button variant="ghost" onClick={() => setEditor(s => ({ ...s, uploadDialog: null }))}>Abbrechen</Button>
-              <Button variant="primary" onClick={() => {
-                if (!editor.uploadDialog) return;
-                const key = `tileset-${Date.now()}`;
-                const tileset = {
-                  key,
-                  dataUrl: editor.uploadDialog.dataUrl,
-                  tileWidth: editor.uploadDialog.tileWidth,
-                  tileHeight: editor.uploadDialog.tileHeight,
-                  margin: editor.uploadDialog.margin,
-                  spacing: editor.uploadDialog.spacing,
-                  category: editor.uploadDialog.category
-                };
-                
-                // Register tileset
+        <TilesetUploadDialog
+          open
+          dialog={editor.uploadDialog as any}
+          onCancel={() => setEditor(s => ({ ...s, uploadDialog: null }))}
+          setDialog={(next) => setEditor(s => ({ ...s, uploadDialog: next }))}
+          onConfirm={(tileset) => {
                 gameBridge.registerTileset(tileset);
-                
-                // Add to local tileset library
                 setEditor(s => {
                   const tilesets = [...(s.tilesets || [])];
-                  if (!tilesets.find(t => t.key === key)) tilesets.push(tileset);
+              if (!tilesets.find(t => t.key === tileset.key)) tilesets.push(tileset);
                   try { localStorage.setItem('meetropolis.tilesets', JSON.stringify(tilesets)); } catch {}
-                  return { ...s, tilesets, uploadDialog: null, tilePaint: { ...tileset, tilesetKey: key, tileIndex: 0 } };
-                });
-              }}>Tileset hinzufügen</Button>
-            </>
-          }
-        >
-          <div style={{ display: 'grid', gap: 16 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 16 }}>
-              {/* Preview */}
-              <div>
-                <div style={{ fontSize: 14, fontWeight: 600, color: '#e5e7eb', marginBottom: 8 }}>Vorschau</div>
-                <div style={{ 
-                  maxHeight: 400, 
-                  overflow: 'auto', 
-                  border: '1px solid rgba(255,255,255,0.12)', 
-                  borderRadius: 8,
-                  background: 'rgba(0,0,0,0.3)',
-                  padding: 16
-                }}>
-                  <TilesetPreview
-                    tileset={editor.uploadDialog}
-                    selectedIndex={-1}
-                    onSelect={() => {}}
-                  />
-                </div>
-              </div>
-              
-              {/* Settings */}
-              <div style={{ display: 'grid', gap: 12 }}>
-                <div style={{ fontSize: 14, fontWeight: 600, color: '#e5e7eb' }}>Tile-Einstellungen</div>
-                
-                <div style={{ display: 'grid', gap: 8 }}>
-                  <label style={{ fontSize: 12, color: '#9ca3af' }}>Tile-Breite (px)</label>
-                  <input 
-                    type="number" 
-                    min={8} 
-                    max={256} 
-                    value={editor.uploadDialog.tileWidth} 
-                    onChange={(e) => setEditor(s => ({ 
-                      ...s, 
-                      uploadDialog: s.uploadDialog ? { ...s.uploadDialog, tileWidth: parseInt(e.target.value) || 16 } : null 
-                    }))}
-                    style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.05)', color: '#fff', fontSize: 13 }}
-                  />
-                </div>
-                
-                <div style={{ display: 'grid', gap: 8 }}>
-                  <label style={{ fontSize: 12, color: '#9ca3af' }}>Tile-Höhe (px)</label>
-                  <input 
-                    type="number" 
-                    min={8} 
-                    max={256} 
-                    value={editor.uploadDialog.tileHeight} 
-                    onChange={(e) => setEditor(s => ({ 
-                      ...s, 
-                      uploadDialog: s.uploadDialog ? { ...s.uploadDialog, tileHeight: parseInt(e.target.value) || 16 } : null 
-                    }))}
-                    style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.05)', color: '#fff', fontSize: 13 }}
-                  />
-                </div>
-                
-                <div style={{ display: 'grid', gap: 8 }}>
-                  <label style={{ fontSize: 12, color: '#9ca3af' }}>Rand (px)</label>
-                  <input 
-                    type="number" 
-                    min={0} 
-                    max={64} 
-                    value={editor.uploadDialog.margin} 
-                    onChange={(e) => setEditor(s => ({ 
-                      ...s, 
-                      uploadDialog: s.uploadDialog ? { ...s.uploadDialog, margin: parseInt(e.target.value) || 0 } : null 
-                    }))}
-                    style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.05)', color: '#fff', fontSize: 13 }}
-                  />
-                </div>
-                
-                <div style={{ display: 'grid', gap: 8 }}>
-                  <label style={{ fontSize: 12, color: '#9ca3af' }}>Abstand zwischen Tiles (px)</label>
-                  <input 
-                    type="number" 
-                    min={0} 
-                    max={64} 
-                    value={editor.uploadDialog.spacing} 
-                    onChange={(e) => setEditor(s => ({ 
-                      ...s, 
-                      uploadDialog: s.uploadDialog ? { ...s.uploadDialog, spacing: parseInt(e.target.value) || 0 } : null 
-                    }))}
-                    style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.05)', color: '#fff', fontSize: 13 }}
-                  />
-                </div>
-                
-                <div style={{ fontSize: 11, color: '#6b7280', marginTop: 8 }}>
-                  Passe die Werte an, bis die Tiles korrekt getrennt sind. Typische Werte: 16x16, 32x32 oder 64x64 Pixel pro Tile.
-                </div>
-                
-                <div style={{ display: 'grid', gap: 8, marginTop: 12 }}>
-                  <label style={{ fontSize: 12, color: '#9ca3af' }}>Kategorie</label>
-                  <select 
-                    value={editor.uploadDialog.category || 'terrain'} 
-                    onChange={(e) => setEditor(s => ({ 
-                      ...s, 
-                      uploadDialog: s.uploadDialog ? { ...s.uploadDialog, category: e.target.value as 'terrain' | 'structures' | 'objects' } : null 
-                    }))}
-                    style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.05)', color: '#fff', fontSize: 13 }}
-                  >
-                    <option value="terrain">Terrain (Böden)</option>
-                    <option value="structures">Strukturen (Wände)</option>
-                    <option value="objects">Objekte (Möbel)</option>
-                  </select>
-                  <div style={{ fontSize: 11, color: '#6b7280' }}>
-                    Wähle die passende Kategorie für dieses Tileset.
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </Modal>
+              return { ...s, tilesets, uploadDialog: null, tilePaint: { ...tileset, tilesetKey: tileset.key, tileIndex: 0 } } as any;
+            });
+          }}
+        />
       )}
     </div>
     </ThemeProvider>
@@ -2020,7 +1811,7 @@ function ParticipantCard(props: { part: { sid: string; identity: string; hasVide
 
     if (track && el) {
       try {
-        el.muted = isLocalNow; // Mute local video
+        el.muted = true; // Immer stumm schalten, damit Autoplay zuverlässig funktioniert
         track.attach(el);
         cleanup = () => { try { track.detach(el); } catch {} };
         // Check if video is actually playing
@@ -2061,16 +1852,16 @@ function ParticipantCard(props: { part: { sid: string; identity: string; hasVide
         if (part.media === 'screen' && pubsNow.length > 0) {
           // Screen share publications found
         }
-        const cam = pubsNow.find(pub => {
+        const cam = pubsNow.find((pub: any) => {
           const src = (pub?.source || pub?.track?.source);
           if (part.media === 'screen') return src === 'screen_share';
           return src === 'camera';
         });
-        const t = cam?.track;
-        if (t && el && !el.srcObject) {
+        const trackObj = (cam as any)?.track;
+        if (trackObj && el && !el.srcObject) {
           try { 
-            el.muted = isLocalNow;
-            t.attach(el); 
+            el.muted = true; // Immer stumm schalten
+            trackObj.attach(el); 
             setIsVideoRendering(false); 
             clearInterval(pollTimer);
             // Check video status after attach
@@ -2087,13 +1878,13 @@ function ParticipantCard(props: { part: { sid: string; identity: string; hasVide
     setTimeout(() => { try { clearInterval(pollTimer); } catch {} }, 6000);
 
     // Fallback: auf spätere Publishes/Subscribes reagieren und (re-)attachen
-    const onTrackSubscribed = (t: any, publication: any, participant: any) => {
+    const onTrackSubscribed = (t: any, _publication: any, participant: any) => {
       try {
-        const src = (publication?.source || t?.source || t?.mediaStreamTrack?.kind) as string | undefined;
+        const src = (t?.source || t?.mediaStreamTrack?.kind) as string | undefined;
         const isDesired = part.media === 'screen' ? (src === 'screen_share') : (src === 'camera');
         if (participant?.sid === baseSid && isDesired && el) {
           try { 
-            el.muted = isLocalNow; 
+            el.muted = true; // Immer stumm schalten
             t.attach(el); 
             setIsVideoRendering(false);
             setTimeout(() => {
@@ -2107,17 +1898,17 @@ function ParticipantCard(props: { part: { sid: string; identity: string; hasVide
         }
       } catch {}
     };
-    const onTrackUnsubscribed = (t: any, _publication: any, participant: any) => {
+    const onTrackUnsubscribed = (_t: any, _publication: any, participant: any) => {
       try {
         if (participant?.sid?.startsWith?.(baseSid) && el) {
         }
       } catch {}
     };
-    const onTrackPublished = (publication: any, participant: any) => {
+    const onTrackPublished = (t: any, _publication: any, participant: any) => {
       try {
-        const src = (publication?.source || publication?.track?.source) as string | undefined;
+        const src = (_publication?.source || t?.source || t?.mediaStreamTrack?.kind) as string | undefined;
         const isDesired = part.media === 'screen' ? (src === 'screen_share') : (src === 'camera');
-        if (participant?.sid === baseSid && isDesired && publication?.track && el) {
+        if (participant?.sid === baseSid && isDesired && _publication?.track && el) {
         }
       } catch {}
     };
@@ -2562,7 +2353,7 @@ function AuthScreen(props: { baseUrl: string; onDone: () => void }) {
             fontWeight: 900, 
             background: 'linear-gradient(135deg, #60a5fa 0%, #a78bfa 50%, #34d399 100%)',
             WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent' as any,
+            WebkitTextFillColor: 'transparent as any',
             marginBottom: 8,
             letterSpacing: '-0.02em'
           }}>

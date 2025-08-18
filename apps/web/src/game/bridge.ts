@@ -21,6 +21,7 @@ type Bridge = {
   setBubbleMembers: (members: Set<string>) => void;
   setHeroName: (name: string) => void;
   updateSpeakingStates: (speakingIds: Set<string>) => void;
+  setDoNotDisturb: (enabled: boolean) => void;
 };
 
 export type SceneApi = {
@@ -37,6 +38,7 @@ export type SceneApi = {
   setBubbleMembers: (members: Set<string>) => void;
   setHeroName?: (name: string) => void;
   updateSpeakingStates?: (speakingIds: Set<string>) => void;
+  setDoNotDisturb?: (enabled: boolean) => void;
 };
 
 let sceneApi: SceneApi | null = null;
@@ -44,6 +46,7 @@ let cachedZones: { name: string; points: { x: number; y: number }[] }[] = [];
 let cachedAssets: { id: string; key: string; dataUrl: string; x: number; y: number }[] = [];
 let cachedCollisionVisible = false;
 let cachedHeroName: string | null = null;
+let cachedDoNotDisturb = false;
 
 export const gameBridge: Bridge = {
   onLocalMove: () => {},
@@ -60,6 +63,9 @@ export const gameBridge: Bridge = {
       // Set cached hero name if available
       if (cachedHeroName && sceneApi.setHeroName) {
         try { sceneApi.setHeroName(cachedHeroName); } catch {}
+      }
+      if (typeof sceneApi.setDoNotDisturb === 'function') {
+        try { sceneApi.setDoNotDisturb(cachedDoNotDisturb); } catch {}
       }
     }
   },
@@ -109,5 +115,9 @@ export const gameBridge: Bridge = {
   },
   updateSpeakingStates: (speakingIds) => {
     sceneApi?.updateSpeakingStates?.(speakingIds);
+  },
+  setDoNotDisturb: (enabled) => {
+    cachedDoNotDisturb = !!enabled;
+    sceneApi?.setDoNotDisturb?.(enabled);
   }
 };

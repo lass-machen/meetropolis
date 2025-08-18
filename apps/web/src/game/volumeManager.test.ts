@@ -50,8 +50,9 @@ describe('computePairVolume', () => {
 
   it('bubble members hear full volume', () => {
     const v = computePairVolume(
-      { id: 'me', x: 10, y: 10 },
-      { id: 'u2', x: 1000, y: 1000 },
+      // Beide außerhalb von Zonen
+      { id: 'me', x: 250, y: 250 },
+      { id: 'u2', x: 260, y: 260 },
       zones,
       null,
       new Set(['me', 'u2']),

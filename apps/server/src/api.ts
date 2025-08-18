@@ -20,6 +20,16 @@ const JWT_SECRET = (() => {
   return devSecret;
 })();
 const COOKIE_NAME = 'auth_token';
+const API_TOKEN_PEPPER = (() => {
+  const fromEnv = process.env.API_TOKEN_PEPPER;
+  if (fromEnv && fromEnv.length > 0) return fromEnv;
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('[SECURITY] API_TOKEN_PEPPER fehlt in Produktion');
+  }
+  const devPepper = crypto.randomBytes(32).toString('hex');
+  logger.warn('[SECURITY] API_TOKEN_PEPPER fehlt – verwende ephemeres DEV-Pepper. Tokens verlieren Gültigkeit bei Neustart.');
+  return devPepper;
+})();
 
 function setAuthCookie(res: express.Response, token: string) {
   const forceSecure = process.env.COOKIE_SECURE === 'true';
@@ -43,6 +53,21 @@ function requireAuth(req: express.Request): { userId: string } | null {
   } catch {
     return null;
   }
+}
+
+async function requireApiToken(req: express.Request): Promise<{ userId: string } | null> {
+  const authz = req.headers['authorization']?.toString();
+  if (!authz || !authz.startsWith('Bearer ')) return null;
+  const token = authz.slice('Bearer '.length).trim();
+  if (!token || token.split('.').length === 3) {
+    // Sieht nach JWT aus → nicht als API-Token behandeln
+    return null;
+  }
+  const hash = crypto.createHash('sha256').update(API_TOKEN_PEPPER + token).digest('hex');
+  const found = await prisma.apiToken.findUnique({ where: { hash } });
+  if (!found) return null;
+  await prisma.apiToken.update({ where: { hash }, data: { lastUsedAt: new Date() } });
+  return { userId: found.userId };
 }
 
 export function registerApi(app: express.Express) {
@@ -370,6 +395,87 @@ export function registerApi(app: express.Express) {
     const { roomName, identity, name, canPublish, canSubscribe } = parse.data;
     const token = await createLivekitToken({ roomName, identity, name, canPublish, canPublishData: true, canSubscribe });
     res.type('text/plain').send(token);
+  });
+
+  // API Tokens management (session-authenticated)
+  app.get('/api-tokens', async (req, res) => {
+    const auth = requireAuth(req);
+    if (!auth) return res.status(401).json({ error: 'unauthorized' });
+    const list = await prisma.apiToken.findMany({ where: { userId: auth.userId }, orderBy: { createdAt: 'desc' } });
+    res.json(list.map(t => ({ id: t.id, name: t.name, createdAt: t.createdAt, lastUsedAt: t.lastUsedAt })));
+  });
+
+  app.post('/api-tokens', async (req, res) => {
+    const auth = requireAuth(req);
+    if (!auth) return res.status(401).json({ error: 'unauthorized' });
+    const schema = z.object({ name: z.string().min(1).max(100).optional() });
+    const parse = schema.safeParse(req.body || {});
+    if (!parse.success) return res.status(400).json({ error: 'invalid payload' });
+    const raw = crypto.randomBytes(32).toString('hex');
+    const hash = crypto.createHash('sha256').update(API_TOKEN_PEPPER + raw).digest('hex');
+    const rec = await prisma.apiToken.create({ data: { userId: auth.userId, name: parse.data.name, hash } });
+    res.json({ id: rec.id, token: raw, name: rec.name, createdAt: rec.createdAt });
+  });
+
+  app.delete('/api-tokens/:id', async (req, res) => {
+    const auth = requireAuth(req);
+    if (!auth) return res.status(401).json({ error: 'unauthorized' });
+    const id = req.params.id;
+    try {
+      const tok = await prisma.apiToken.findUnique({ where: { id } });
+      if (!tok || tok.userId !== auth.userId) return res.status(404).json({ error: 'not found' });
+      await prisma.apiToken.delete({ where: { id } });
+      res.json({ ok: true });
+    } catch {
+      res.status(400).json({ error: 'delete failed' });
+    }
+  });
+
+  // Remote controls (session or API token)
+  app.post('/controls', async (req, res) => {
+    const sessionAuth = requireAuth(req);
+    const tokenAuth = await requireApiToken(req);
+    const auth = sessionAuth || tokenAuth;
+    if (!auth) return res.status(401).json({ error: 'unauthorized' });
+
+    const schema = z.object({
+      mic: z.boolean().optional(),
+      cam: z.boolean().optional(),
+      share: z.boolean().optional(),
+      dnd: z.boolean().optional(),
+    }).refine(v => (v.mic !== undefined || v.cam !== undefined || v.share !== undefined || v.dnd !== undefined), { message: 'at least one field required' });
+    const parse = schema.safeParse(req.body || {});
+    if (!parse.success) return res.status(400).json({ error: 'invalid payload' });
+
+    const gameServer = (global as any).gameServer;
+    if (!gameServer) return res.status(500).json({ error: 'game server not available' });
+
+    // Find connected client(s) of this user
+    const payload = parse.data;
+    let delivered = 0;
+    const rooms = gameServer.rooms || [];
+    for (const room of rooms) {
+      try {
+        if (!room || !room.state || !room.state.players) continue;
+        const matches: string[] = [];
+        room.state.players.forEach((p: any, sid: string) => {
+          if (p && (p.identity === auth.userId || p.name === auth.userId)) matches.push(sid);
+        });
+        if (matches.length === 0) continue;
+        // Map session IDs to client instances
+        const clients = Array.from(room.clients?.values?.() || room.clients || []);
+        for (const sid of matches) {
+          const client = clients.find((c: any) => c.sessionId === sid);
+          if (client) {
+            client.send('remote_control', payload);
+            delivered++;
+          }
+        }
+      } catch {}
+    }
+
+    if (delivered === 0) return res.status(409).json({ error: 'user not online' });
+    res.json({ ok: true, delivered });
   });
 
   // Debug endpoint for Colyseus rooms
