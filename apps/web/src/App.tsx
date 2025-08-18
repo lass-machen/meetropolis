@@ -472,6 +472,114 @@ export function App() {
         // Keep the session ID for position tracking consistency
         localPosRef.current.id = colyseusSessionId;
         
+        // Register message handlers immediately (before game loads)
+        room.onMessage('full_state', (data: any) => {
+          if (!gameBridge?.syncRemotePlayers) return; // Skip if game not loaded
+          if (data.players) {
+            const players: Record<string, { x: number; y: number; direction: any; name?: string }> = {};
+            data.players.forEach((p: any) => {
+              if (p.id !== localPosRef.current.id) {
+                // Store identity mapping
+                if (p.identity) {
+                  colyseusToLivekitMap.current[p.id] = p.identity;
+                  // Store name mapping if provided
+                  if (p.name) {
+                    identityToNameMap.current[p.identity] = p.name;
+                  }
+                }
+                players[p.id] = { 
+                  x: p.x, 
+                  y: p.y, 
+                  direction: p.direction,
+                  name: p.name || getDisplayName(p.identity || p.id)
+                };
+              }
+            });
+            gameBridge.syncRemotePlayers(players);
+          }
+        });
+        
+        room.onMessage('player_joined', (data: any) => {
+          if (data.id !== localPosRef.current.id) {
+            remotesRef.current[data.id] = { x: data.x, y: data.y };
+            // Store identity mapping
+            if (data.identity) {
+              colyseusToLivekitMap.current[data.id] = data.identity;
+              // Store name mapping if provided  
+              if (data.name) {
+                identityToNameMap.current[data.identity] = data.name;
+              }
+            }
+            if (gameBridge?.addRemotePlayer) {
+              gameBridge.addRemotePlayer(data.id, { 
+                x: data.x, 
+                y: data.y, 
+                direction: data.direction, 
+                name: data.name || getDisplayName(data.identity || data.id) 
+              });
+            }
+          }
+        });
+        
+        room.onMessage('player_moved', (data: any) => {
+          if (data.id !== localPosRef.current.id) {
+            remotesRef.current[data.id] = { x: data.x, y: data.y };
+            if (gameBridge?.updateRemotePlayer) {
+              gameBridge.updateRemotePlayer(data.id, { 
+                x: data.x, 
+                y: data.y, 
+                direction: data.direction 
+              });
+            }
+          }
+        });
+        
+        room.onMessage('player_left', (data: any) => {
+          delete remotesRef.current[data.id];
+          // Clean up identity mapping
+          delete colyseusToLivekitMap.current[data.id];
+          if (gameBridge?.removeRemotePlayer) {
+            gameBridge.removeRemotePlayer(data.id);
+          }
+        });
+        
+        room.onMessage('player_dnd', (data: { id: string; dnd: boolean }) => {
+          if (gameBridge?.updateRemotePlayerDnd) {
+            gameBridge.updateRemotePlayerDnd(data.id, data.dnd);
+          }
+        });
+        
+        room.onMessage('editor_update', (data: any) => {
+          if (gameBridge?.handleEditorUpdate) {
+            gameBridge.handleEditorUpdate(data);
+          }
+        });
+        
+        room.onMessage('remote_control', async (payload: { mic?: boolean; cam?: boolean; share?: boolean; dnd?: boolean }) => {
+          const lkRoom = avRef.current?.room;
+          if (payload.mic !== undefined) {
+            if (lkRoom?.localParticipant?.isMicrophoneEnabled !== payload.mic) {
+              await lkRoom?.localParticipant?.setMicrophoneEnabled(payload.mic);
+            }
+          }
+          if (payload.cam !== undefined) {
+            if (lkRoom?.localParticipant?.isCameraEnabled !== payload.cam) {
+              await lkRoom?.localParticipant?.setCameraEnabled(payload.cam);
+            }
+          }
+          if (payload.share !== undefined) {
+            if (lkRoom?.localParticipant?.isScreenShareEnabled !== payload.share) {
+              await lkRoom?.localParticipant?.setScreenShareEnabled(payload.share);
+            }
+          }
+          if (payload.dnd !== undefined) {
+            setDndStatus(payload.dnd);
+            if (colyseusRef.current) {
+              colyseusRef.current.send('dnd_status', { dnd: payload.dnd });
+            }
+          }
+        });
+        
         // State is initialized and ready for player tracking
         
         // Try to access players directly
@@ -584,116 +692,8 @@ export function App() {
           scheduleColyseusReconnect();
         });
         
-        // Listen for full state message
-        room.onMessage('full_state', (data: any) => {
-          if (data.players) {
-            const players: Record<string, { x: number; y: number; direction: any; name?: string }> = {};
-            data.players.forEach((p: any) => {
-              if (p.id !== localPosRef.current.id) {
-                // Store identity mapping
-                if (p.identity) {
-                  colyseusToLivekitMap.current[p.id] = p.identity;
-                  // Store name mapping if provided
-                  if (p.name) {
-                    identityToNameMap.current[p.identity] = p.name;
-                  }
-                }
-                players[p.id] = { 
-                  x: p.x, 
-                  y: p.y, 
-                  direction: p.direction,
-                  name: p.name || getDisplayName(p.identity || p.id)
-                };
-              }
-            });
-            gameBridge.syncRemotePlayers(players);
-          }
-        });
-        
-        // Listen for new player joined
-        room.onMessage('player_joined', (data: any) => {
-          if (data.id !== localPosRef.current.id) {
-            remotesRef.current[data.id] = { x: data.x, y: data.y };
-            // Store identity mapping
-            if (data.identity) {
-              colyseusToLivekitMap.current[data.id] = data.identity;
-              // Store name mapping if provided
-              if (data.name) {
-                identityToNameMap.current[data.identity] = data.name;
-              }
-            }
-            const players = Object.fromEntries(
-              Object.entries(remotesRef.current).map(([id, p]) => [id, { 
-                ...p, 
-                direction: data.direction || 'down',
-                name: getDisplayName(colyseusToLivekitMap.current[id] || data.identity || id)
-              }])
-            );
-            gameBridge.syncRemotePlayers(players);
-          }
-        });
-        
-        // Listen for player movement
-        room.onMessage('player_moved', (data: any) => {
-          if (data.id !== localPosRef.current.id) {
-            remotesRef.current[data.id] = { x: data.x, y: data.y };
-            const players = Object.fromEntries(
-              Object.entries(remotesRef.current).map(([id, p]) => [
-                id, 
-                id === data.id
-                  ? {
-                  x: data.x, 
-                  y: data.y, 
-                      direction: (data.direction === 'up' || data.direction === 'down' || data.direction === 'left' || data.direction === 'right') ? data.direction : 'down',
-                      name: getDisplayName(colyseusToLivekitMap.current[id] || id),
-                    }
-                  : {
-                      ...p,
-                      direction: 'down' as const,
-                      name: getDisplayName(colyseusToLivekitMap.current[id] || id),
-                    },
-              ])
-            );
-            gameBridge.syncRemotePlayers(players);
-          }
-        });
-        
-        // Listen for player left
-        room.onMessage('player_left', (data: any) => {
-          delete remotesRef.current[data.id];
-          const players = Object.fromEntries(
-            Object.entries(remotesRef.current).map(([id, p]) => [
-              id,
-              {
-              ...p, 
-                direction: 'down' as const,
-                name: getDisplayName(colyseusToLivekitMap.current[id] || id),
-              },
-            ])
-          );
-          gameBridge.syncRemotePlayers(players);
-        });
-        
-        // Listen for DND status changes
-        room.onMessage('player_dnd', (data: { id: string; dnd: boolean }) => {
-          // Update DND state for the player
-          if (data.id !== localPosRef.current.id) {
-            const players = Object.fromEntries(
-              Object.entries(remotesRef.current).map(([id, p]) => [
-                id,
-                {
-                  ...p,
-                  direction: 'down' as const,
-                  name: getDisplayName(colyseusToLivekitMap.current[id] || id),
-                  dnd: id === data.id ? data.dnd : undefined,
-                },
-              ])
-            );
-            gameBridge.syncRemotePlayers(players);
-          }
-        });
-        
-        // Listen for editor updates from other users
+        // Editor update handler registration moved up
+        // Note: editor_update is still handled here for game bridge
         room.onMessage('editor_update', (data: any) => {
           // Apply the update to the local scene
           if (data.type === 'tile_paint') {
@@ -1277,7 +1277,15 @@ export function App() {
         // Important: Add audio element to DOM for autoplay to work
         audio.style.display = 'none';
         document.body.appendChild(audio);
-        track.attach(audio);
+        
+        // Try to attach and play, but handle autoplay policy gracefully
+        track.attach(audio).catch((err: any) => {
+          console.warn('Audio autoplay blocked, will retry on user interaction', err);
+          // Store for retry on user interaction
+          (window as any).pendingAudioTracks = (window as any).pendingAudioTracks || [];
+          (window as any).pendingAudioTracks.push({ track, audio, participantId });
+        });
+        
         audioElements.set(participantId, audio);
       } catch (e) {
       }
@@ -1355,17 +1363,24 @@ export function App() {
     if (!authChecked || !me) return;
     if (!connectLivekitRef.current) return;
     if (editorActiveRef.current) return; // nur wenn Editor aus
-    // Auto-connect after a short delay instead of waiting for interaction
-    const autoConnectTimer = setTimeout(() => {
-      try { connectLivekitRef.current?.(); } catch {}
-    }, 500);
-    
-    // Also allow manual connect on first interaction as fallback
+    // Wait for user interaction before connecting (browser autoplay policy)
     const firstInteract = () => {
-      clearTimeout(autoConnectTimer);
-      window.removeEventListener('pointerdown', firstInteract);
-      window.removeEventListener('keydown', firstInteract);
-      try { connectLivekitRef.current?.(); } catch {}
+      if (!avRef.current?.room && connectLivekitRef.current && !isConnectingRef.current) {
+        try { connectLivekitRef.current?.(); } catch {}
+      }
+      
+      // Retry any pending audio tracks after user interaction
+      const pendingTracks = (window as any).pendingAudioTracks;
+      if (pendingTracks && pendingTracks.length > 0) {
+        pendingTracks.forEach(({ track, audio }: any) => {
+          try {
+            track.attach(audio);
+          } catch (e) {
+            console.warn('Failed to attach audio track after interaction', e);
+          }
+        });
+        (window as any).pendingAudioTracks = [];
+      }
     };
     window.addEventListener('pointerdown', firstInteract, { once: true } as any);
     window.addEventListener('keydown', firstInteract, { once: true } as any);

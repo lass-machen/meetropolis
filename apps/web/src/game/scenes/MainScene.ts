@@ -38,6 +38,20 @@ export class MainScene extends Phaser.Scene implements SceneApi {
     const furniture = map.addTilesetImage('furniture_tiles', 'furniture_tiles', 16, 16, 0, 0);
     const decor = map.addTilesetImage('decor_tiles', 'decor_tiles', 16, 16, 0, 0);
     const collision = map.addTilesetImage('collision_tiles', 'collision_tiles', 16, 16, 0, 0);
+    
+    // Try to add any missing tilesets referenced in the map data
+    try {
+      const mapData = (map as any).data;
+      if (mapData && mapData.tilesets) {
+        mapData.tilesets.forEach((ts: any) => {
+          if (ts && ts.name && !map.tilesets.find(t => t.name === ts.name)) {
+            try {
+              map.addTilesetImage(ts.name, ts.name, ts.tilewidth || 16, ts.tileheight || 16, ts.margin || 0, ts.spacing || 0);
+            } catch {}
+          }
+        });
+      }
+    } catch {}
 
     if (!office) {
       // Tileset office_tiles not found
@@ -1090,9 +1104,15 @@ export class MainScene extends Phaser.Scene implements SceneApi {
               editorLog('Tileset', `Using existing tileset ${existingTileset.name} for ${ts.key}`);
             } else {
               // Create new tileset
-              tileset = this.mapRef.addTilesetImage(ts.key, ts.key, ts.tileWidth, ts.tileHeight, ts.margin ?? 0, ts.spacing ?? 0);
-              if (tileset) {
-                this.dynamicTilesets.set(ts.key, tileset);
+              try {
+                tileset = this.mapRef.addTilesetImage(ts.key, ts.key, ts.tileWidth, ts.tileHeight, ts.margin ?? 0, ts.spacing ?? 0);
+                if (tileset) {
+                  this.dynamicTilesets.set(ts.key, tileset);
+                  editorLog('Tileset', `Successfully added tileset ${ts.key}`);
+                }
+              } catch (err) {
+                editorLog('Tileset', `Failed to create tileset ${ts.key}:`, err);
+                // Don't throw - just log and continue
               }
             }
             
