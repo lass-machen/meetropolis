@@ -113,6 +113,12 @@ export function App() {
   const editorActiveRef = React.useRef(false);
   const connectLivekitRef = React.useRef<null | (() => Promise<void>)>(null);
 
+  // Define apiBase before using it
+  const apiBase = (import.meta.env.VITE_API_BASE as string | undefined) ||
+    (typeof window !== 'undefined'
+      ? `${window.location.protocol}//${window.location.hostname}:2568`
+      : 'http://localhost:2568');
+
   // Laden der Tokenliste beim Öffnen des Modals
   useEffect(() => {
     if (!apiModalOpen) return;
@@ -130,11 +136,6 @@ export function App() {
   React.useEffect(() => { editorActiveRef.current = editor.active; }, [editor.active]);
   
   // Collision-Overlay: Sichtbarkeit steuert ausschließlich der Edit-Mode
-
-  const apiBase = (import.meta.env.VITE_API_BASE as string | undefined) ||
-    (typeof window !== 'undefined'
-      ? `${window.location.protocol}//${window.location.hostname}:2568`
-      : 'http://localhost:2568');
 
   // Room getter stabil hält die gleiche Referenz für Child-Komponenten
   const getRoom = React.useCallback(() => avRef.current?.room, []);
