@@ -59,6 +59,13 @@ const authLimiter = rateLimit({
   max: 100,
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: (req) => {
+    // Use X-Forwarded-For when behind proxy
+    if (app.get('trust proxy')) {
+      return req.headers['x-forwarded-for'] as string || req.ip || 'anonymous';
+    }
+    return req.ip || 'anonymous';
+  },
 });
 app.use(['/auth', '/livekit/token'], authLimiter);
 

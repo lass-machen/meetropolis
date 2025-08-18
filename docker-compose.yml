@@ -31,6 +31,13 @@ services:
     command: sh -c "npm ci --include=dev && npx prisma generate && npx prisma db push && npx prisma db seed && npx tsx src/index.ts"
     ports:
       - "2567:2567"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.meetropolis-api.rule=Host(`api.meetropolis.s7.lmwow.de`)"
+      - "traefik.http.routers.meetropolis-api.entrypoints=websecure"
+      - "traefik.http.routers.meetropolis-api.tls.certresolver=le"
+      - "traefik.http.services.meetropolis-api.loadbalancer.server.port=2567"
+      - "traefik.docker.network=traefik"
     logging:
       driver: "json-file"
       options:
@@ -38,6 +45,9 @@ services:
         max-file: "3"
     depends_on:
       - db
+    networks:
+      - default
+      - traefik
     volumes:
       - ./:/workspace
       - /workspace/node_modules
@@ -50,9 +60,18 @@ services:
     environment:
       VITE_API_BASE: ${VITE_API_BASE}
       VITE_LIVEKIT_URL: ${VITE_LIVEKIT_URL}
-    command: sh -c "npm ci && npm run build && npm run preview"
+      VITE_HMR_HOST: meetropolis.s7.lmwow.de
+      VITE_HMR_PROTOCOL: wss
+    command: sh -c "npm ci && npm run dev"
     ports:
       - "5173:5173"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.meetropolis.rule=Host(`meetropolis.s7.lmwow.de`)"
+      - "traefik.http.routers.meetropolis.entrypoints=websecure"
+      - "traefik.http.routers.meetropolis.tls.certresolver=le"
+      - "traefik.http.services.meetropolis.loadbalancer.server.port=5173"
+      - "traefik.docker.network=traefik"
     logging:
       driver: "json-file"
       options:
@@ -60,6 +79,9 @@ services:
         max-file: "3"
     depends_on:
       - server
+    networks:
+      - default
+      - traefik
     volumes:
       - ./:/workspace
       - /workspace/node_modules
@@ -81,11 +103,25 @@ services:
       - "7880:7880"
       - "7881:7881/tcp"
       - "7882:7882/udp"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.meetropolis-livekit.rule=Host(`livekit.meetropolis.s7.lmwow.de`)"
+      - "traefik.http.routers.meetropolis-livekit.entrypoints=websecure"
+      - "traefik.http.routers.meetropolis-livekit.tls.certresolver=le"
+      - "traefik.http.services.meetropolis-livekit.loadbalancer.server.port=7880"
+      - "traefik.docker.network=traefik"
     logging:
       driver: "json-file"
       options:
         max-size: "10m"
         max-file: "3"
+    networks:
+      - default
+      - traefik
 
 volumes:
   db_data:
+
+networks:
+  traefik:
+    external: true
