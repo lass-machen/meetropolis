@@ -1404,7 +1404,6 @@ export function App() {
     };
     window.addEventListener('keydown', onKey);
     return () => {
-      clearTimeout(autoConnectTimer);
       window.removeEventListener('pointerdown', firstInteract);
       window.removeEventListener('keydown', firstInteract);
       window.removeEventListener('keydown', onKey);
