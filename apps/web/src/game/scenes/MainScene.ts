@@ -466,8 +466,18 @@ export class MainScene extends Phaser.Scene implements SceneApi {
       (s as any).prevY = p.y;
       (s as any).prevDirection = p.direction;
       
-      // Update name label position
+      // Get name label first
       const nameLabel = this.nameLabels.get(id);
+      
+      // Update transparency if player has DND
+      if (p.dnd !== undefined) {
+        s.setAlpha(p.dnd ? 0.35 : 1);
+        if (nameLabel) {
+          nameLabel.setAlpha(p.dnd ? 0.6 : 1);
+        }
+      }
+      
+      // Update name label position
       if (nameLabel) {
         this.updateNameLabel(nameLabel, p.x, p.y);
         if (this.doNotDisturb) nameLabel.setVisible(false);
@@ -1050,63 +1060,97 @@ export class MainScene extends Phaser.Scene implements SceneApi {
 
   registerTileset(ts: { key: string; dataUrl: string; tileWidth: number; tileHeight: number; margin?: number; spacing?: number }) {
     if (!this.mapRef || !this.game || !(this.game as any).renderer) return;
+    
+    // Check if tileset already exists in map
+    const existingTileset = this.mapRef.tilesets.find(t => t.name === ts.key);
+    if (existingTileset) {
+      this.dynamicTilesets.set(ts.key, existingTileset);
+      return;
+    }
+    
     // Textur registrieren
     if (!this.textures.exists(ts.key)) {
       // addBase64 returns a promise when the texture is loaded
       this.textures.once('addtexture', (key: string) => {
-        if (key === ts.key) {
+        if (key === ts.key && this.mapRef) {
+          let tileset: Phaser.Tilemaps.Tileset | null = null;
           // Tileset zur Map hinzufügen nachdem die Textur geladen wurde
-          const tileset = this.mapRef ? this.mapRef.addTilesetImage(ts.key, ts.key, ts.tileWidth, ts.tileHeight, ts.margin ?? 0, ts.spacing ?? 0) : undefined;
-          if (tileset) {
-            this.dynamicTilesets.set(ts.key, tileset);
+          try {
+            // Check if a tileset with similar name already exists
+            const existingTileset = this.mapRef.tilesets.find(t => 
+              t.name === ts.key || 
+              t.name.includes('Tileset') || 
+              t.image?.key === ts.key
+            );
             
-            // Update all editor layers to include the new tileset
-            const allTilesets = Array.from(this.dynamicTilesets.values());
-            const extra = this.mapRef ? this.mapRef.tilesets.filter(ts => !this.dynamicTilesets.has(ts.name)) : [] as Phaser.Tilemaps.Tileset[];
-            allTilesets.push(...extra);
+            if (existingTileset) {
+              // Use existing tileset
+              tileset = existingTileset;
+              this.dynamicTilesets.set(ts.key, tileset);
+              editorLog('Tileset', `Using existing tileset ${existingTileset.name} for ${ts.key}`);
+            } else {
+              // Create new tileset
+              tileset = this.mapRef.addTilesetImage(ts.key, ts.key, ts.tileWidth, ts.tileHeight, ts.margin ?? 0, ts.spacing ?? 0);
+              if (tileset) {
+                this.dynamicTilesets.set(ts.key, tileset);
+              }
+            }
             
-            if (this.editorGround) {
-              (this.editorGround as any).tileset = allTilesets;
+            if (tileset) {
+              // Update all editor layers to include the new tileset
+              const allTilesets = Array.from(this.dynamicTilesets.values());
+              const extra = this.mapRef ? this.mapRef.tilesets.filter(ts => !this.dynamicTilesets.has(ts.name)) : [] as Phaser.Tilemaps.Tileset[];
+              allTilesets.push(...extra);
+              
+              if (this.editorGround) {
+                (this.editorGround as any).tileset = allTilesets;
+              }
+              if (this.wallsLayer) {
+                (this.wallsLayer as any).tileset = allTilesets;
+              }
+              if (this.collisionLayer) {
+                (this.collisionLayer as any).setTilesets(allTilesets);
+              }
+              
+              // Create layer if it doesn't exist
+              if (!this.editorGround && this.mapRef) {
+                try {
+                  const tmp = this.mapRef.createBlankLayer('EditorGround', tileset, 0, 0, this.mapRef.width, this.mapRef.height, this.mapRef.tileWidth, this.mapRef.tileHeight);
+                  this.editorGround = tmp as any;
+                  if (this.editorGround) this.editorGround.setDepth(1);
+                } catch {}
+              }
             }
-            if (this.wallsLayer) {
-              (this.wallsLayer as any).tileset = allTilesets;
-            }
-            if (this.collisionLayer) {
-              (this.collisionLayer as any).setTilesets(allTilesets);
-            }
-          } else {
-          }
-          
-          // Create layer if it doesn't exist
-          if (!this.editorGround && this.mapRef && tileset) {
-            try {
-              const tmp = this.mapRef.createBlankLayer('EditorGround', tileset, 0, 0, this.mapRef.width, this.mapRef.height, this.mapRef.tileWidth, this.mapRef.tileHeight);
-              this.editorGround = tmp as any;
-              if (this.editorGround) this.editorGround.setDepth(1);
-            } catch {}
+          } catch (error) {
+            editorLog('Tileset', `Failed to add tileset ${ts.key}:`, error);
+            return;
           }
         }
       });
       this.textures.addBase64(ts.key, ts.dataUrl);
     } else {
       // Textur existiert bereits
-      const tileset = this.mapRef.addTilesetImage(ts.key, ts.key, ts.tileWidth, ts.tileHeight, ts.margin ?? 0, ts.spacing ?? 0);
-      if (tileset) {
-        this.dynamicTilesets.set(ts.key, tileset);
-        
-        // Update all editor layers to include the tileset
-        const allTilesets = Array.from(this.dynamicTilesets.values());
-        allTilesets.push(...this.mapRef.tilesets.filter(ts => !this.dynamicTilesets.has(ts.name)));
-        
-        if (this.editorGround) {
-          (this.editorGround as any).tileset = allTilesets;
+      try {
+        const tileset = this.mapRef.addTilesetImage(ts.key, ts.key, ts.tileWidth, ts.tileHeight, ts.margin ?? 0, ts.spacing ?? 0);
+        if (tileset) {
+          this.dynamicTilesets.set(ts.key, tileset);
+          
+          // Update all editor layers to include the tileset
+          const allTilesets = Array.from(this.dynamicTilesets.values());
+          allTilesets.push(...this.mapRef.tilesets.filter(ts => !this.dynamicTilesets.has(ts.name)));
+          
+          if (this.editorGround) {
+            (this.editorGround as any).tileset = allTilesets;
+          }
+          if (this.wallsLayer) {
+            (this.wallsLayer as any).tileset = allTilesets;
+          }
+          if (this.collisionLayer) {
+            (this.collisionLayer as any).setTilesets(allTilesets);
+          }
         }
-        if (this.wallsLayer) {
-          (this.wallsLayer as any).tileset = allTilesets;
-        }
-        if (this.collisionLayer) {
-          (this.collisionLayer as any).setTilesets(allTilesets);
-        }
+      } catch (error) {
+        editorLog('Tileset', `Failed to add existing tileset ${ts.key}:`, error);
       }
     }
   }

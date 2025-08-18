@@ -453,12 +453,30 @@ export function registerApi(app: express.Express) {
     // Find connected client(s) of this user
     const payload = parse.data;
     let delivered = 0;
-    const rooms = gameServer.rooms || [];
-    for (const room of rooms) {
+    // Try different ways to access rooms
+    let roomArray: any[] = [];
+    
+    // First try our global active rooms
+    const activeWorldRooms = (global as any).activeWorldRooms;
+    if (activeWorldRooms && activeWorldRooms.size > 0) {
+      roomArray = Array.from(activeWorldRooms);
+    } else if (gameServer.matchMaker) {
+      // Colyseus 0.14+ uses matchMaker
+      const allRooms = await gameServer.matchMaker.query({}) || [];
+      roomArray = allRooms;
+    } else if (gameServer.rooms) {
+      const rooms = gameServer.rooms;
+      roomArray = rooms instanceof Map ? Array.from(rooms.values()) : Array.from(rooms);
+    }
+    
+    const debug = { authUserId: auth.userId, foundPlayers: [] as any[], roomCount: roomArray.length };
+    
+    for (const room of roomArray) {
       try {
         if (!room || !room.state || !room.state.players) continue;
         const matches: string[] = [];
         room.state.players.forEach((p: any, sid: string) => {
+          debug.foundPlayers.push({ sid, identity: p.identity, name: p.name });
           if (p && (p.identity === auth.userId || p.name === auth.userId)) matches.push(sid);
         });
         if (matches.length === 0) continue;
@@ -474,7 +492,10 @@ export function registerApi(app: express.Express) {
       } catch {}
     }
 
-    if (delivered === 0) return res.status(409).json({ error: 'user not online' });
+    if (delivered === 0) {
+      logger.debug('[Controls] No user online:', debug);
+      return res.status(409).json({ error: 'user not online', debug });
+    }
     res.json({ ok: true, delivered });
   });
 
@@ -485,16 +506,44 @@ export function registerApi(app: express.Express) {
     
     const rooms: any[] = [];
     try {
-      // Colyseus 0.14/0.15 compatibility
-      const allRooms = gameServer.rooms || [];
-      allRooms.forEach((room: any) => {
+      // Colyseus 0.14/0.15 compatibility - try different ways to access rooms
+      let roomArray: any[] = [];
+      
+      // First try our global active rooms
+      const activeWorldRooms = (global as any).activeWorldRooms;
+      if (activeWorldRooms && activeWorldRooms.size > 0) {
+        roomArray = Array.from(activeWorldRooms);
+      } else if (gameServer.matchMaker) {
+        // Get all rooms from matchMaker
+        const allRooms = await gameServer.matchMaker.query({}) || [];
+        roomArray = allRooms;
+      } else if (gameServer.rooms) {
+        const rooms = gameServer.rooms;
+        roomArray = rooms instanceof Map ? Array.from(rooms.values()) : Array.from(rooms);
+      }
+      
+      roomArray.forEach((room: any) => {
+        const players: any[] = [];
+        if (room.state && room.state.players) {
+          room.state.players.forEach((p: any, sid: string) => {
+            players.push({
+              sessionId: sid,
+              identity: p.identity,
+              name: p.name,
+              x: p.x,
+              y: p.y,
+              dnd: p.dnd
+            });
+          });
+        }
         rooms.push({
           roomId: room.roomId,
           roomName: room.roomName || 'world',
           clients: room.clients ? room.clients.size || room.clients.length : 0,
           locked: room.locked || false,
           maxClients: room.maxClients || 0,
-          metadata: room.metadata || {}
+          metadata: room.metadata || {},
+          players
         });
       });
     } catch (e: any) {

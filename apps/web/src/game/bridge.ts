@@ -3,7 +3,7 @@ export type Direction = 'up' | 'down' | 'left' | 'right';
 type Bridge = {
   onLocalMove: (p: { x: number; y: number; direction: Direction }) => void;
   setSceneApi: (api: SceneApi | null) => void;
-  syncRemotePlayers: (players: Record<string, { x: number; y: number; direction: Direction; name?: string }>) => void;
+  syncRemotePlayers: (players: Record<string, { x: number; y: number; direction: Direction; name?: string; dnd?: boolean }>) => void;
   setDesiredPosition: (pos: { x: number; y: number } | null) => void;
   setZoneOverlay: (polys: { name: string; points: { x: number; y: number }[] }[]) => void;
   onPointerDown: (p: { x: number; y: number }) => void;
@@ -25,7 +25,7 @@ type Bridge = {
 };
 
 export type SceneApi = {
-  syncRemotePlayers: (players: Record<string, { x: number; y: number; direction: Direction; name?: string }>) => void;
+  syncRemotePlayers: (players: Record<string, { x: number; y: number; direction: Direction; name?: string; dnd?: boolean }>) => void;
   setDesiredPosition: (pos: { x: number; y: number } | null) => void;
   setZoneOverlay: (polys: { name: string; points: { x: number; y: number }[] }[]) => void;
   setEditorAssets: (assets: { id: string; key: string; dataUrl: string; x: number; y: number }[]) => void;

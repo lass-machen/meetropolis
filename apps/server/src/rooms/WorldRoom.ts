@@ -10,16 +10,24 @@ class Player extends Schema {
   @type('string') direction: string = 'down';
   @type('string') identity: string = ''; // User's actual identity for LiveKit
   @type('string') name: string = ''; // User's display name
+  @type('boolean') dnd: boolean = false; // Do Not Disturb status
 }
 
 class WorldState extends Schema {
   @type({ map: Player }) players = new MapSchema<Player>();
 }
 
+// Store all active rooms globally for API access
+const activeRooms = new Set<WorldRoom>();
+
 export class WorldRoom extends Colyseus.Room<WorldState> {
   override onCreate() {
     this.setState(new WorldState());
     logger.info('[WorldRoom] Room created with initial state');
+    activeRooms.add(this);
+    
+    // Make rooms accessible globally
+    (global as any).activeWorldRooms = activeRooms;
     this.onMessage('move', (client, data: { x: number; y: number; direction: string }) => {
       const player = this.state.players.get(client.sessionId);
       if (!player) {
@@ -44,6 +52,30 @@ export class WorldRoom extends Colyseus.Room<WorldState> {
       logger.debug('[WorldRoom] Editor update from:', client.sessionId, 'type:', data.type);
       // Broadcast editor update to all other clients
       this.broadcast('editor_update', data, { except: client });
+    });
+    
+    // Handle DND status updates
+    this.onMessage('dnd_status', (client, data: { dnd: boolean }) => {
+      const player = this.state.players.get(client.sessionId);
+      if (!player) {
+        logger.warn('[WorldRoom] DND status from unknown player:', client.sessionId);
+        return;
+      }
+      player.dnd = data.dnd;
+      logger.info('[WorldRoom] Player', client.sessionId, 'DND status:', data.dnd);
+      
+      // Broadcast DND status to all other clients
+      this.broadcast('player_dnd', {
+        id: client.sessionId,
+        dnd: data.dnd
+      }, { except: client });
+    });
+    
+    // Handle remote control messages from API
+    this.onMessage('remote_control', (client, data: any) => {
+      logger.info('[WorldRoom] Remote control received for:', client.sessionId, 'data:', data);
+      // Forward to the specific client
+      client.send('remote_control', data);
     });
   }
 
@@ -73,7 +105,8 @@ export class WorldRoom extends Colyseus.Room<WorldState> {
         y: p.y,
         direction: p.direction,
         identity: p.identity,
-        name: p.name
+        name: p.name,
+        dnd: p.dnd
       }))
     });
     
@@ -84,7 +117,8 @@ export class WorldRoom extends Colyseus.Room<WorldState> {
       y: player.y,
       direction: player.direction,
       identity: player.identity,
-      name: player.name
+      name: player.name,
+      dnd: player.dnd
     }, { except: client });
   }
 
@@ -96,5 +130,10 @@ export class WorldRoom extends Colyseus.Room<WorldState> {
     this.broadcast('player_left', {
       id: client.sessionId
     });
+  }
+  
+  override onDispose() {
+    activeRooms.delete(this);
+    logger.info('[WorldRoom] Room disposed');
   }
 }

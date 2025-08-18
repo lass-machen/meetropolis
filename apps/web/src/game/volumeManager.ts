@@ -41,7 +41,6 @@ export function computePairVolume(
 ): number {
   // Follow hat höchste Priorität (darf Zonenregeln außer Kraft setzen)
   if (followTarget && followTarget === remote.id) {
-    console.log(`[VolumeManager] Follow target ${remote.id}: volume = 1`);
     return 1;
   }
 
@@ -62,11 +61,9 @@ export function computePairVolume(
   const localInBubble = bubbleMembers.has(local.id);
   const remoteInBubble = bubbleMembers.has(remote.id);
   if (localInBubble && remoteInBubble) {
-    console.log(`[VolumeManager] Bubble: ${local.id} and ${remote.id} both in bubble: volume = 1`);
     return 1;
   }
   if (localInBubble !== remoteInBubble) {
-    console.log(`[VolumeManager] Bubble: Only one in bubble (${localInBubble ? local.id : remote.id}): volume = ${rules.outsideBubbleAttenuation}`);
     return rules.outsideBubbleAttenuation;
   }
 
@@ -107,7 +104,6 @@ export class VolumeManager {
     // If local user has DND, set all volumes to 0
     const localDnd = this.providers.getLocalDnd?.() || false;
     if (localDnd) {
-      console.log(`[VolumeManager] DND active - muting all participants`);
       const remotes = this.providers.getRemotes();
       for (const sid of Object.keys(remotes)) {
         this.av.setParticipantVolume(sid, 0);

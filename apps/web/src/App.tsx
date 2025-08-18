@@ -523,7 +523,7 @@ export function App() {
             // Check if it's a MapSchema
             if (typeof state.players.forEach === 'function') {
               state.players.forEach((value: any, key: string) => {
-                players[key] = { x: value.x, y: value.y, direction: value.direction };
+                players[key] = { x: value.x, y: value.y, direction: value.direction, dnd: value.dnd };
                 // Store name mapping if available
                 if (value.identity && value.name) {
                   identityToNameMap.current[value.identity] = value.name;
@@ -674,6 +674,25 @@ export function App() {
           gameBridge.syncRemotePlayers(players);
         });
         
+        // Listen for DND status changes
+        room.onMessage('player_dnd', (data: { id: string; dnd: boolean }) => {
+          // Update DND state for the player
+          if (data.id !== localPosRef.current.id) {
+            const players = Object.fromEntries(
+              Object.entries(remotesRef.current).map(([id, p]) => [
+                id,
+                {
+                  ...p,
+                  direction: 'down' as const,
+                  name: getDisplayName(colyseusToLivekitMap.current[id] || id),
+                  dnd: id === data.id ? data.dnd : undefined,
+                },
+              ])
+            );
+            gameBridge.syncRemotePlayers(players);
+          }
+        });
+        
         // Listen for editor updates from other users
         room.onMessage('editor_update', (data: any) => {
           // Apply the update to the local scene
@@ -699,6 +718,9 @@ export function App() {
                 try { await avRef.current?.stopScreenshare(); } catch {}
               }
               setAvState(s => ({ ...s, dnd: next, mic: next ? false : s.mic, cam: next ? false : s.cam, share: next ? false : s.share }));
+              dndRef.current = next;
+              // Send DND status to server
+              try { colyseusRef.current?.send?.('dnd_status', { dnd: next }); } catch {}
             }
             if (typeof payload.mic === 'boolean' && !dndRef.current) {
               const enabled = payload.mic;
@@ -842,6 +864,8 @@ export function App() {
         lastZone = currentZoneName;
         // Rebuild participant list when zone changes
         setTimeout(buildParticipantList, 50);
+        // Force volume update when zone changes
+        setTimeout(() => volumeRef.current?.update(), 100);
       }
       
       if (followRef.current) {
@@ -1172,6 +1196,10 @@ export function App() {
       }, 1000);
     };
     
+    // Track zone for participant list updates
+    let participantListLastZone: string | null = null;
+    let lastParticipantUpdate = 0;
+    
     const hudTimer = setInterval(() => {
       const z = zoneRef.current?.getCurrent?.();
       const next: { zone?: string; follow?: string | null; avRoom?: string | null } = {
@@ -1180,6 +1208,13 @@ export function App() {
       };
       if (typeof z === 'string') next.zone = z;
       setHud(next);
+      
+      // Check if zone changed for participant list
+      if (z !== participantListLastZone || Date.now() - lastParticipantUpdate > 2000) {
+        participantListLastZone = z;
+        lastParticipantUpdate = Date.now();
+        setTimeout(buildParticipantList, 0);
+      }
 
       const room: any = avRef.current?.room as any;
       if (room && room.localParticipant && room.localParticipant.trackPublications) {
@@ -1320,7 +1355,14 @@ export function App() {
     if (!authChecked || !me) return;
     if (!connectLivekitRef.current) return;
     if (editorActiveRef.current) return; // nur wenn Editor aus
+    // Auto-connect after a short delay instead of waiting for interaction
+    const autoConnectTimer = setTimeout(() => {
+      try { connectLivekitRef.current?.(); } catch {}
+    }, 500);
+    
+    // Also allow manual connect on first interaction as fallback
     const firstInteract = () => {
+      clearTimeout(autoConnectTimer);
       window.removeEventListener('pointerdown', firstInteract);
       window.removeEventListener('keydown', firstInteract);
       try { connectLivekitRef.current?.(); } catch {}
@@ -1340,11 +1382,14 @@ export function App() {
         }
         dndRef.current = next;
         setAvState(s => ({ ...s, dnd: next, mic: next ? false : s.mic, cam: next ? false : s.cam, share: next ? false : s.share }));
+        // Send DND status to server
+        try { colyseusRef.current?.send?.('dnd_status', { dnd: next }); } catch {}
         try { volumeRef.current?.update(); } catch {}
       }
     };
     window.addEventListener('keydown', onKey);
     return () => {
+      clearTimeout(autoConnectTimer);
       window.removeEventListener('pointerdown', firstInteract);
       window.removeEventListener('keydown', firstInteract);
       window.removeEventListener('keydown', onKey);
@@ -1553,6 +1598,8 @@ export function App() {
                 }
                 dndRef.current = next;
                 setAvState(s => ({ ...s, dnd: next, mic: next ? false : s.mic, cam: next ? false : s.cam, share: next ? false : s.share }));
+                // Send DND status to server
+                try { colyseusRef.current?.send?.('dnd_status', { dnd: next }); } catch {}
                 try { volumeRef.current?.update(); } catch {}
               }}
             >
