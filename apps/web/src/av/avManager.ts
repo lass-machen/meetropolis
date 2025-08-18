@@ -118,12 +118,12 @@ export class AVManager {
     return this.current;
   }
 
-  setParticipantVolume(sid: string, volume: number) {
+  setParticipantVolume(identity: string, volume: number) {
     const room = this.current;
     if (!room) return;
     try {
-      const participants = (room as any).remoteParticipants || (room as any).participants;
-      const p = participants?.get?.(sid);
+      const participants = Array.from((room as any).remoteParticipants?.values() || []);
+      const p = participants.find((participant: any) => participant.identity === identity);
       if (!p) return;
       const pubs: any[] = Array.from((p.trackPublications?.values?.() || []) as any);
       for (const pub of pubs) {

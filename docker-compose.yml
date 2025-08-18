@@ -28,6 +28,9 @@ services:
       LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET}
       NODE_ENV: production
       TRUST_PROXY: "true"
+      API_TOKEN_PEPPER: ${API_TOKEN_PEPPER}
+      JWT_SECRET: ${JWT_SECRET}
+      CORS_ORIGIN: ${CORS_ORIGIN}
     command: sh -c "npm ci --include=dev && npx prisma generate && npx prisma db push && npx prisma db seed && npx tsx src/index.ts"
     ports:
       - "2567:2567"

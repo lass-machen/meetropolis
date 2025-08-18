@@ -305,6 +305,11 @@ export function App() {
       const hasV = publications.some(isVideoPub);
       const hasMic = publications.some(isMicPub);
       const hasScreen = publications.some(isScreenPub);
+      
+      // Debug logging for video tracks
+      if (hasV || hasScreen) {
+        console.log(`[BuildParticipantList] ${p.identity} has video: ${hasV}, screen: ${hasScreen}`);
+      }
       // Get display name from identity - if it's a LiveKit ID, try to get the actual name
       let displayName = p.identity || 'User';
       
@@ -804,36 +809,23 @@ export function App() {
     };
     volumeRef.current = new VolumeManager(
       { 
-        setParticipantVolume: (identity, vol) => {
-          // Map identity to LiveKit SID
-          const room = avRef.current?.room as any;
-          if (!room) return;
-          
-          // Find participant by identity
-          const participants = Array.from((room as any).remoteParticipants?.values() || []);
-          const participant: any = participants.find((p: any) => p.identity === identity);
-          if (participant && participant.sid) {
-            avRef.current?.setParticipantVolume(participant.sid as string, vol);
+        setParticipantVolume: (colyseusId, vol) => {
+          // Map Colyseus ID to LiveKit identity
+          const livekitIdentity = colyseusToLivekitMap.current[colyseusId];
+          if (livekitIdentity && avRef.current) {
+            avRef.current.setParticipantVolume(livekitIdentity, vol);
           }
         }
       },
       {
         getLocal: () => {
-          // Use LiveKit identity for volume calculations
-          const localLivekitIdentity = avRef.current?.room?.localParticipant?.identity || me.id;
-          return localPosRef.current.id ? { id: localLivekitIdentity, x: localPosRef.current.x, y: localPosRef.current.y } : null;
+          // Return Colyseus ID for volume calculations
+          return localPosRef.current.id ? { id: localPosRef.current.id, x: localPosRef.current.x, y: localPosRef.current.y } : null;
         },
         getRemotes: () => {
           if (dndRef.current) return {};
-          // Convert Colyseus session IDs to LiveKit identities for volume calculation
-          const remotePositions: Record<string, { x: number; y: number }> = {};
-          for (const [colyseusId, pos] of Object.entries(remotesRef.current)) {
-            const livekitIdentity = colyseusToLivekitMap.current[colyseusId];
-            if (livekitIdentity) {
-              remotePositions[livekitIdentity] = pos;
-            }
-          }
-          return remotePositions;
+          // Return Colyseus IDs directly - the volume manager will map them
+          return remotesRef.current;
         },
         getZones: () => zoneRef.current?.getZones?.() || [],
         getFollowTarget: () => followRef.current?.getTarget?.() || null,
@@ -962,14 +954,14 @@ export function App() {
       const applyBubbleFor = (targetIdentity: string | null, targetColyseusId: string | null) => {
         const set = bubbleMembersRef.current;
         set.clear();
-        if (targetIdentity) {
-          set.add(localLivekitIdentity);
-          set.add(targetIdentity);
+        if (targetColyseusId && localPosRef.current.id) {
+          set.add(localPosRef.current.id); // Use Colyseus ID
+          set.add(targetColyseusId);       // Use Colyseus ID
         }
         volumeRef.current?.update();
         const visualSet = new Set<string>();
-        if (set.has(localLivekitIdentity)) visualSet.add('__local__');
-        if (targetIdentity && targetColyseusId && set.has(targetIdentity)) visualSet.add(targetColyseusId);
+        if (localPosRef.current.id && set.has(localPosRef.current.id)) visualSet.add('__local__');
+        if (targetColyseusId && set.has(targetColyseusId)) visualSet.add(targetColyseusId);
         gameBridge.setBubbleMembers(visualSet);
       };
 
@@ -977,7 +969,7 @@ export function App() {
       if (last && last.colyseusId === clickedColyseusId && (now - last.time) < doubleClickThresholdMs) {
         // Double right-click → toggle bubble with this target
         lastRightClickRef.current = null;
-        if (bubbleMembersRef.current.has(localLivekitIdentity) && bubbleMembersRef.current.has(clickedIdentity)) {
+        if (localPosRef.current.id && bubbleMembersRef.current.has(localPosRef.current.id) && bubbleMembersRef.current.has(clickedColyseusId)) {
           applyBubbleFor(null, null); // remove bubble
         } else {
           applyBubbleFor(clickedIdentity, clickedColyseusId); // create bubble
@@ -1812,19 +1804,23 @@ function ParticipantCard(props: { part: { sid: string; identity: string; hasVide
 
     if (track && el) {
       try {
+        console.log(`[ParticipantCard] Attaching ${part.media} track for ${part.identity}`);
         el.muted = true; // Immer stumm schalten, damit Autoplay zuverlässig funktioniert
         track.attach(el);
         cleanup = () => { try { track.detach(el); } catch {} };
         // Check if video is actually playing
         setTimeout(() => {
           if (el.videoWidth > 0 && el.videoHeight > 0) {
+            console.log(`[ParticipantCard] Video playing for ${part.identity}: ${el.videoWidth}x${el.videoHeight}`);
           } else {
-            // Video not ready yet
+            console.log(`[ParticipantCard] Video not ready for ${part.identity}`);
           }
         }, 500);
       } catch (e) {
+        console.error(`[ParticipantCard] Error attaching video for ${part.identity}:`, e);
       }
     } else {
+      console.log(`[ParticipantCard] No track found for ${part.identity}, media: ${part.media}`);
     }
 
     // Aggressiver Fallback: pollt kurzzeitig und versucht zu attachen, wenn Track verzögert verfügbar wird
