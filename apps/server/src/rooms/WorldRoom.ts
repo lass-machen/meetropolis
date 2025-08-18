@@ -97,18 +97,22 @@ export class WorldRoom extends Colyseus.Room<WorldState> {
       logger.debug('[WorldRoom] - Player', id, 'identity:', p.identity, 'at', p.x, p.y);
     });
     
-    // Send full state to the new client
-    client.send('full_state', {
-      players: Array.from(this.state.players.entries()).map(([id, p]) => ({
-        id,
-        x: p.x,
-        y: p.y,
-        direction: p.direction,
-        identity: p.identity,
-        name: p.name,
-        dnd: p.dnd
-      }))
-    });
+    // Send full state to the new client (delay slightly so client can register handlers)
+    setTimeout(() => {
+      try {
+        client.send('full_state', {
+          players: Array.from(this.state.players.entries()).map(([id, p]) => ({
+            id,
+            x: p.x,
+            y: p.y,
+            direction: p.direction,
+            identity: p.identity,
+            name: p.name,
+            dnd: p.dnd
+          }))
+        });
+      } catch {}
+    }, 25);
     
     // Broadcast new player to all other clients
     this.broadcast('player_joined', {

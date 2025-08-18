@@ -58,7 +58,14 @@ export class MainScene extends Phaser.Scene implements SceneApi {
     }
 
     // Tile-Layer erstellen (verwende verfügbare Tilesets)
-    const available = [office, furniture, decor, collision].filter(Boolean) as Phaser.Tilemaps.Tileset[];
+    // Ensure unique tileset names to avoid Phaser confusion when same file uploaded multiple times
+    const uniq = new Map<string, Phaser.Tilemaps.Tileset>();
+    [office, furniture, decor, collision].filter(Boolean).forEach(ts => {
+      if (!uniq.has((ts as any).name)) uniq.set((ts as any).name, ts!);
+    });
+    const available = Array.from(uniq.values());
+    // Beim Erzeugen von Layern können fehlende Tileset-Namen zu Phaser-Warnungen führen.
+    // Wir bauen die Layer trotzdem aus der Menge der aktuell verfügbaren Tilesets.
     const ground = available.length ? map.createLayer('Ground', available, 0, 0) : undefined;
     const walls = available.length ? map.createLayer('Walls', available, 0, 0) : undefined;
     // Layers are created conditionally based on available tilesets
@@ -1084,34 +1091,43 @@ export class MainScene extends Phaser.Scene implements SceneApi {
     
     // Textur registrieren
     if (!this.textures.exists(ts.key)) {
+      // Wenn Key schon existiert, generiere einen stabilen, kollisionsfreien Key
+      let key = ts.key;
+      while (this.textures.exists(key)) {
+        key = `${ts.key}-${Date.now()}`;
+      }
+      const safeKey = key;
       // addBase64 returns a promise when the texture is loaded
       this.textures.once('addtexture', (key: string) => {
-        if (key === ts.key && this.mapRef) {
+        if (key === safeKey && this.mapRef) {
           let tileset: Phaser.Tilemaps.Tileset | null = null;
           // Tileset zur Map hinzufügen nachdem die Textur geladen wurde
           try {
             // Check if a tileset with similar name already exists
             const existingTileset = this.mapRef.tilesets.find(t => 
-              t.name === ts.key || 
+              t.name === safeKey || 
               t.name.includes('Tileset') || 
-              t.image?.key === ts.key
+              (t as any).image?.key === safeKey
             );
             
             if (existingTileset) {
               // Use existing tileset
               tileset = existingTileset;
-              this.dynamicTilesets.set(ts.key, tileset);
-              editorLog('Tileset', `Using existing tileset ${existingTileset.name} for ${ts.key}`);
+              this.dynamicTilesets.set(safeKey, tileset);
+              // Map original intended key to this tileset as well, so editor references still work
+              try { this.dynamicTilesets.set(ts.key, tileset); } catch {}
+              editorLog('Tileset', `Using existing tileset ${existingTileset.name} for ${safeKey}`);
             } else {
               // Create new tileset
               try {
-                tileset = this.mapRef.addTilesetImage(ts.key, ts.key, ts.tileWidth, ts.tileHeight, ts.margin ?? 0, ts.spacing ?? 0);
+                tileset = this.mapRef.addTilesetImage(safeKey, safeKey, ts.tileWidth, ts.tileHeight, ts.margin ?? 0, ts.spacing ?? 0);
                 if (tileset) {
-                  this.dynamicTilesets.set(ts.key, tileset);
-                  editorLog('Tileset', `Successfully added tileset ${ts.key}`);
+                  this.dynamicTilesets.set(safeKey, tileset);
+                  try { this.dynamicTilesets.set(ts.key, tileset); } catch {}
+                  editorLog('Tileset', `Successfully added tileset ${safeKey}`);
                 }
               } catch (err) {
-                editorLog('Tileset', `Failed to create tileset ${ts.key}:`, err);
+                editorLog('Tileset', `Failed to create tileset ${safeKey}:`, err);
                 // Don't throw - just log and continue
               }
             }
@@ -1142,12 +1158,12 @@ export class MainScene extends Phaser.Scene implements SceneApi {
               }
             }
           } catch (error) {
-            editorLog('Tileset', `Failed to add tileset ${ts.key}:`, error);
+            editorLog('Tileset', `Failed to add tileset ${safeKey}:`, error);
             return;
           }
         }
       });
-      this.textures.addBase64(ts.key, ts.dataUrl);
+      this.textures.addBase64(safeKey, ts.dataUrl);
     } else {
       // Textur existiert bereits
       try {

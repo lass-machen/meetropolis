@@ -37,8 +37,14 @@ export async function joinLivekitRoom(params: {
   await room.connect(serverUrl, token, {
     autoSubscribe: true,
     video: params.useVideo,
-    audio: true
-  });
+    audio: true,
+    // Prefer higher initial bitrate for better quality
+    // LiveKit will adapt but this helps screen/media clarity
+    // @ts-ignore optional in SDK
+    maxAudioBitrate: 64000,
+    // @ts-ignore optional in SDK
+    maxVideoBitrate: 2500000
+  } as any);
   // WICHTIG: keine lokalen Audio/Video-Tracks automatisch erstellen/publizieren.
   return room;
 }

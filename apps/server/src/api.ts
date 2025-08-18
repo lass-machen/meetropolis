@@ -92,8 +92,18 @@ export function registerApi(app: express.Express) {
     const { code, name, email, password } = parse.data;
     const invite = await prisma.invite.findUnique({ where: { code } });
     if (!invite || invite.usedAt) return res.status(400).json({ error: 'invalid or used invite' });
+    // Enforce invite email if present
+    if (invite.email && invite.email.toLowerCase() !== email.toLowerCase()) {
+      return res.status(400).json({ error: 'invite does not match email' });
+    }
     const hash = await bcrypt.hash(password, 10);
-    const user = await prisma.user.create({ data: { email, name, passwordHash: hash, emailVerifiedAt: new Date() } });
+    let user;
+    try {
+      user = await prisma.user.create({ data: { email, name, passwordHash: hash, emailVerifiedAt: new Date() } });
+    } catch (e: any) {
+      if (e?.code === 'P2002') return res.status(400).json({ error: 'email already in use' });
+      return res.status(400).json({ error: 'registration failed' });
+    }
     await prisma.invite.update({ where: { code }, data: { usedAt: new Date(), usedById: user.id } });
     const token = jwt.sign({ sub: user.id }, JWT_SECRET, { expiresIn: '30d' });
     setAuthCookie(res, token);
@@ -266,10 +276,19 @@ export function registerApi(app: express.Express) {
     if (!auth) return res.status(401).json({ error: 'unauthorized' });
     const id = req.params.id;
     try {
+      if (id === auth.userId) return res.status(400).json({ error: 'cannot delete self' });
+      const exists = await prisma.user.findUnique({ where: { id } });
+      if (!exists) return res.status(404).json({ error: 'not found' });
+      // Best-effort clean up to avoid constraint violations
+      try { await prisma.presence.deleteMany({ where: { userId: id } }); } catch {}
+      try { await prisma.passwordReset.deleteMany({ where: { userId: id } }); } catch {}
+      try { await prisma.apiToken.deleteMany({ where: { userId: id } }); } catch {}
+      try { await prisma.invite.updateMany({ where: { usedById: id }, data: { usedById: null } }); } catch {}
       await prisma.user.delete({ where: { id } });
-      res.json({ ok: true });
-    } catch {
-      res.status(400).json({ error: 'delete failed' });
+      return res.json({ ok: true });
+    } catch (e) {
+      logger.error('[Users] delete failed', e);
+      return res.status(400).json({ error: 'delete failed' });
     }
   });
 
@@ -320,6 +339,17 @@ export function registerApi(app: express.Express) {
     const { editorGround, collision, tilesets, assets, zones } = parse.data;
     const found = await prisma.map.findUnique({ where: { name }, include: { rooms: true } });
     const map = found ?? await prisma.map.create({ data: { name, meta: {} } });
+    // Ensure there is at least one room for this map (for zone assignment)
+    let roomForZones = await prisma.room.findFirst({ where: { mapId: map.id }, orderBy: { createdAt: 'asc' } });
+    if (!roomForZones) {
+      const lobbyId = `${map.id}:lobby`;
+      try {
+        roomForZones = await prisma.room.create({ data: { id: lobbyId, name: 'lobby', mapId: map.id } });
+      } catch {
+        // Fallback: try to find again without assuming custom id
+        roomForZones = await prisma.room.findFirst({ where: { mapId: map.id } });
+      }
+    }
     // Update meta blobs - merge with existing data to preserve previous edits
     const currentMeta = (map.meta as any) || {};
     await prisma.map.update({ 
@@ -342,7 +372,7 @@ export function registerApi(app: express.Express) {
         const capacity = typeof z?.capacity === 'number' ? z.capacity : null;
         const polygon = z?.points ? z.points : z?.polygon;
         if (!Array.isArray(polygon)) continue;
-        await prisma.zone.create({ data: { name, capacity: capacity ?? undefined, polygon, mapId: map.id, roomId: (map as any).rooms?.[0]?.id } as any });
+        await prisma.zone.create({ data: { name, capacity: capacity ?? undefined, polygon, mapId: map.id, roomId: roomForZones?.id as string } as any });
       }
     }
     res.json({ ok: true });
@@ -393,8 +423,26 @@ export function registerApi(app: express.Express) {
     const parse = schema.safeParse(req.body || {});
     if (!parse.success) return res.status(400).json({ error: 'roomName and identity required' });
     const { roomName, identity, name, canPublish, canSubscribe } = parse.data;
-    const token = await createLivekitToken({ roomName, identity, name, canPublish, canPublishData: true, canSubscribe });
-    res.type('text/plain').send(token);
+    try {
+      if (!process.env.LIVEKIT_API_KEY || !process.env.LIVEKIT_API_SECRET) {
+        return res.status(500).json({ error: 'livekit not configured' });
+      }
+      const token = await createLivekitToken({ roomName, identity, name, canPublish, canPublishData: true, canSubscribe });
+      res.type('text/plain').send(token);
+    } catch (e: any) {
+      logger.error('[LiveKit] Failed to create token:', e?.message || e);
+      res.status(500).json({ error: 'failed to create token' });
+    }
+  });
+
+  // Single user lookup (authenticated)
+  app.get('/users/:id', async (req, res) => {
+    const auth = requireAuth(req);
+    if (!auth) return res.status(401).json({ error: 'unauthorized' });
+    const id = req.params.id;
+    const user = await prisma.user.findUnique({ where: { id }, select: { id: true, email: true, name: true, createdAt: true, updatedAt: true } });
+    if (!user) return res.status(404).json({ error: 'not found' });
+    res.json(user);
   });
 
   // API Tokens management (session-authenticated)

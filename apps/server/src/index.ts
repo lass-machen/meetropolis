@@ -38,8 +38,13 @@ app.use((req, res, next) => {
     res.setHeader('Access-Control-Allow-Origin', origin || '*');
   }
   
+  // Always vary by Origin for proper CDN/proxy caching
+  res.setHeader('Vary', 'Origin');
+  // Credentials are needed for cookie-based auth
+  // If no Origin is provided, some browsers may reject '*' with credentials.
+  // We only set '*' when there's no origin and rely on proxies to strip credentials in that case.
   res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
   
   if (req.method === 'OPTIONS') {

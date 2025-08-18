@@ -272,14 +272,8 @@ export function App() {
     } catch {}
   }
 
-  // Wenn zur User-Seite gewechselt wird, Game/AV pausieren
-  useEffect(() => {
-    if (page === 'users') {
-      // pausiert Rendering/AV wenn User-Management geöffnet wird
-      try { colyseusRef.current?.leave?.(); } catch {}
-      try { avRef.current?.leave?.(); } catch {}
-    }
-  }, [page]);
+  // Nutzerverwaltung als Overlay: Spiel/AV laufen weiter
+  // (keine Pause mehr beim Wechsel auf 'users')
 
   // Helper function to get display name for a LiveKit identity (moved to lib)
   const getDisplayName = (identity: string): string => getDisplayNameLib(identity, identityToNameMap.current, me);
@@ -329,24 +323,23 @@ export function App() {
       
       try {
         const publications = Array.from((p.trackPublications?.values?.() || []) as any);
-      const isVideoPub = (pub: any) => {
-        const source = (pub?.source ?? pub?.track?.source);
-        return (!!pub?.track && (source === 'camera' || source === 1));
-      };
-      const isMicPub = (pub: any) => {
-        const source = (pub?.source ?? pub?.track?.source);
-        const kind = pub?.kind ?? pub?.track?.kind;
-        return (!!pub?.track && (kind === 'audio' || source === 'microphone' || source === 0));
-      };
-      const isScreenPub = (pub: any) => {
-        const source = (pub?.source ?? pub?.track?.source);
-        const kind = pub?.kind ?? pub?.track?.kind;
-        const isScreen = (!!pub?.track && kind === 'video' && (source === 'screen_share' || source === 2));
-        return isScreen;
-      };
-      const hasV = publications.some(isVideoPub);
-      const hasMic = publications.some(isMicPub);
-      const hasScreen = publications.some(isScreenPub);
+        const isVideoPub = (pub: any) => {
+          const source = (pub?.source ?? pub?.track?.source);
+          // Kamera an nur wenn Camera-Quelle; Screenshare ausklammern
+          return (!!pub?.track && (source === 'camera' || source === 1));
+        };
+        const isMicPub = (pub: any) => {
+          const source = (pub?.source ?? pub?.track?.source);
+          const kind = pub?.kind ?? pub?.track?.kind;
+          return (!!pub?.track && (kind === 'audio' || source === 'microphone' || source === 0));
+        };
+        const isScreenPub = (pub: any) => {
+          const source = (pub?.source ?? pub?.track?.source);
+          return (!!pub?.track && (source === 'screen_share' || source === 2));
+        };
+        const hasV = publications.some(isVideoPub);
+        const hasMic = publications.some(isMicPub);
+        const hasScreen = publications.some(isScreenPub);
       // Get display name from identity - if it's a LiveKit ID, try to get the actual name
       let displayName = p.identity || 'User';
       
@@ -373,14 +366,9 @@ export function App() {
       // Get volume for this participant
       const volume = participantVolumesRef.current[p.identity] ?? 1;
       
-      // Kamera-Karte
-      if (hasV) {
-        list.push({ sid: p.sid, identity, hasVideo: true, hasMic, isSpeaking: activeSet.has(p.sid), media: 'camera', volume });
-      }
-      // Audio-only Karte (kein Video, aber Mic aktiv)
-      if (!hasV && hasMic) {
-        list.push({ sid: p.sid, identity, hasVideo: false, hasMic: true, isSpeaking: activeSet.has(p.sid), media: 'camera', volume });
-      }
+      // Kamera-/Audio-Karte: immer anzeigen, wenn der Teilnehmer online ist.
+      // hasVideo steuert nur die Videoanzeige, nicht die Sichtbarkeit der Karte.
+      list.push({ sid: p.sid, identity, hasVideo: !!hasV, hasMic: !!hasMic, isSpeaking: activeSet.has(p.sid), media: 'camera', volume });
       // Screenshare als eigene Karte
       if (hasScreen) {
         list.push({ sid: p.sid + ':screen', identity: `${identity} – Bildschirm`, hasVideo: true, hasMic: false, isSpeaking: false, media: 'screen', volume });
@@ -473,6 +461,7 @@ export function App() {
         localPosRef.current.id = colyseusSessionId;
         
         // Register message handlers immediately (before game loads)
+        // Ensure handlers exist before server sends full_state/player events
         room.onMessage('full_state', (data: any) => {
           if (!gameBridge?.syncRemotePlayers) return; // Skip if game not loaded
           if (data.players) {
@@ -1152,31 +1141,37 @@ export function App() {
     // Save position when player stops moving
     let lastSavedPosition = { x: 0, y: 0, direction: 'down' };
     let moveTimeoutRef: NodeJS.Timeout | null = null;
-    
-    const savePosition = async () => {
+
+    const savePosition = async (opts?: { immediate?: boolean }) => {
       const currentPos = localPosRef.current;
       const currentDirection = (gameBridge as any).lastDirection || 'down';
-      
-      if (currentPos.x && currentPos.y && (
+      const hasMoved = currentPos.x && currentPos.y && (
         Math.abs(currentPos.x - lastSavedPosition.x) > 10 ||
         Math.abs(currentPos.y - lastSavedPosition.y) > 10 ||
         currentDirection !== lastSavedPosition.direction
-      )) {
-        lastSavedPosition = { x: currentPos.x, y: currentPos.y, direction: currentDirection };
-        try {
+      );
+      if (!hasMoved && !opts?.immediate) return;
+      lastSavedPosition = { x: currentPos.x || lastSavedPosition.x, y: currentPos.y || lastSavedPosition.y, direction: currentDirection };
+      const payload = JSON.stringify({ 
+        x: Math.round(lastSavedPosition.x), 
+        y: Math.round(lastSavedPosition.y), 
+        direction: lastSavedPosition.direction 
+      });
+      try {
+        if (opts?.immediate && 'sendBeacon' in navigator) {
+          const blob = new Blob([payload], { type: 'application/json' });
+          (navigator as any).sendBeacon?.(`${apiBase}/auth/position`, blob);
+        } else {
           await fetch(`${apiBase}/auth/position`, {
             method: 'POST',
             credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-              x: Math.round(currentPos.x), 
-              y: Math.round(currentPos.y), 
-              direction: currentDirection 
-            })
+            // keepalive erlaubt Senden bei pagehide/unload
+            keepalive: !!opts?.immediate,
+            body: payload
           });
-        } catch (e) {
         }
-      }
+      } catch {}
     };
     
     // Override onLocalMove to save position after movement stops
@@ -1191,10 +1186,20 @@ export function App() {
       
       // Set new timeout to save position 1 second after movement stops
       moveTimeoutRef = setTimeout(() => {
-        savePosition();
+        void savePosition();
         moveTimeoutRef = null;
       }, 1000);
     };
+
+    // Save position on visibility change/unload to increase reliability
+    const onVisibility = () => {
+      if (document.hidden) void savePosition({ immediate: true });
+    };
+    const onBeforeUnload = () => { void savePosition({ immediate: true }); };
+    const onPageHide = () => { void savePosition({ immediate: true }); };
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('beforeunload', onBeforeUnload);
+    window.addEventListener('pagehide', onPageHide);
     
     // Track zone for participant list updates
     let participantListLastZone: string | null = null;
@@ -1221,8 +1226,8 @@ export function App() {
         const pubs = Array.from(room.localParticipant.trackPublications?.values?.() || []);
         const isVideoPub = (pub: any) => {
           const source = (pub?.source ?? pub?.track?.source);
-          const kind = pub?.kind ?? pub?.track?.kind;
-          return (!!pub?.track && (kind === 'video' || source === 'camera' || source === 1));
+          // Kamera zählt nur, wenn Quelle 'camera' ist (Screenshare nicht)
+          return (!!pub?.track && (source === 'camera' || source === 1));
         };
         const isMicPub = (pub: any) => {
           const source = (pub?.source ?? pub?.track?.source);
@@ -1257,6 +1262,9 @@ export function App() {
       if (moveTimeoutRef) {
         clearTimeout(moveTimeoutRef);
       }
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('beforeunload', onBeforeUnload);
+      window.removeEventListener('pagehide', onPageHide);
     };
   }, [authChecked, me, apiBase, buildParticipantList, page]);
 
@@ -1630,10 +1638,12 @@ export function App() {
       )}
 
       {page === 'users' && (
-        <div style={{ position: 'absolute', inset: 0, padding: 16 }}>
-          <AppShell title="Benutzerverwaltung" right={<div style={{ display:'flex', gap:8 }}><ThemeToggleButton /><button onClick={()=>setMenuOpen(v=>!v)} title="Einstellungen" style={{ width: 36, height: 36, display: 'grid', placeItems: 'center', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--glass)', cursor: 'pointer' }}><GearIcon /></button></div>}>
-            <UserManagement baseUrl={apiBase} onBack={() => setPage('world')} />
-          </AppShell>
+        <div onClick={()=>setPage('world')} style={{ position: 'fixed', inset: 0, background:'rgba(0,0,0,0.55)', backdropFilter:'blur(2px)', zIndex: 50, display: 'grid', placeItems: 'center', padding: 16 }}>
+          <div onClick={(e)=>e.stopPropagation()} style={{ width: 'min(1100px, 96vw)', maxHeight: '90vh', overflow: 'auto', background: 'rgba(17,17,20,0.98)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12, boxShadow: '0 22px 64px rgba(0,0,0,0.5)' }}>
+            <AppShell title="Benutzerverwaltung" right={<div style={{ display:'flex', gap:8 }}><ThemeToggleButton /><button onClick={()=>setMenuOpen(v=>!v)} title="Einstellungen" style={{ width: 36, height: 36, display: 'grid', placeItems: 'center', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--glass)', cursor: 'pointer' }}><GearIcon /></button></div>}>
+              <UserManagement baseUrl={apiBase} onBack={() => setPage('world')} />
+            </AppShell>
+          </div>
         </div>
       )}
 
@@ -1909,7 +1919,9 @@ function ParticipantCard(props: { part: { sid: string; identity: string; hasVide
       }
       return isCamera;
     });
-    const track = wantedPub?.track;
+    const track = (part.media === 'screen'
+      ? pubs.find(pub => (pub?.source || pub?.track?.source) === 'screen_share')?.track
+      : pubs.find(pub => (pub?.source || pub?.track?.source) === 'camera')?.track);
     let cleanup: (() => void) | undefined;
     let pollTimer: any;
 
@@ -2050,7 +2062,9 @@ function ParticipantCard(props: { part: { sid: string; identity: string; hasVide
           room.on?.(RoomEvent.LocalTrackPublished, (publication: any) => {
             try {
               const src = (publication?.source || publication?.track?.source) as string | undefined;
-              if (isLocalNow && src === 'camera' && publication?.track && el) {
+              const wantCamera = (part.media === 'camera' && src === 'camera');
+              const wantScreen = (part.media === 'screen' && src === 'screen_share');
+              if (isLocalNow && (wantCamera || wantScreen) && publication?.track && el) {
                 try { el.muted = true; publication.track.attach(el); setIsVideoRendering(false); } catch {}
               }
             } catch {}
@@ -2204,6 +2218,11 @@ function UserManagement(props: { baseUrl: string; onBack: () => void }) {
   }
 
   React.useEffect(() => { load(); }, []);
+  // Expose loader for external refresh (invite modal)
+  React.useEffect(() => {
+    (document as any).__userManagementLoad = load;
+    return () => { delete (document as any).__userManagementLoad; };
+  }, []);
 
   return (
     <div style={{ maxWidth: 1040, margin: '0 auto', display: 'grid', gap: 20, padding: '20px' }}>
@@ -2411,6 +2430,8 @@ function UserManagement(props: { baseUrl: string; onBack: () => void }) {
             if (!res.ok) throw new Error((await res.json())?.error || 'Fehler beim Einladen');
             const data = await res.json();
             setInviteCode(data.code || null);
+            // Liste neu laden, damit eingeladener User angezeigt wird
+            try { await (document as any).__userManagementLoad?.(); } catch {}
             // offen lassen, damit Code kopiert werden kann
           } catch (e: any) {
             setError(e.message || 'Fehler');

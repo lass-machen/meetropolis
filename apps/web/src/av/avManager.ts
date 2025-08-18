@@ -210,10 +210,42 @@ export class AVManager {
     try {
       await this.waitForConnected(this.current).catch(()=>{});
       const { createLocalScreenTracks } = await import('livekit-client');
-      const tracks = await createLocalScreenTracks({});
+      // Request higher quality screen share: high fps & bitrate
+      const tracks = await createLocalScreenTracks({
+        video: {
+          frameRate: 30,
+          resolution: { width: 1920, height: 1080 },
+          // LiveKit SDK maps to constraints/encodings internally
+          // encoder is adapted server-side; client can still hint high quality
+        } as any,
+        audio: true
+      } as any);
+      // If camera video is on, disable it while screensharing to free upload bandwidth
+      try { await this.setCameraEnabled(false); } catch {}
       for (const t of tracks) {
         await this.current.localParticipant.publishTrack(t);
       }
+      // Try to set preferred encodings for quality where supported
+      try {
+        const pubs = Array.from(this.current.localParticipant.trackPublications.values());
+        for (const pub of pubs) {
+          const src = (pub as any).source || (pub.track as any)?.source;
+          if (src === 'screen_share' && (pub as any).setVideoLayers) {
+            try { (pub as any).setVideoLayers?.([{ width: 1920, height: 1080, bitrate: 2500_000 }]); } catch {}
+          }
+          if (src === 'screen_share') {
+            try {
+              const track: any = (pub as any).track;
+              const mst: MediaStreamTrack | undefined = track?.mediaStreamTrack;
+              if (mst && 'contentHint' in mst) {
+                try { (mst as any).contentHint = 'detail'; } catch {}
+              }
+              // Some SDKs expose setContentHint
+              try { track?.setContentHint?.('detail'); } catch {}
+            } catch {}
+          }
+        }
+      } catch {}
     } catch (e) {
       // Screenshare failed silently
     }
@@ -263,7 +295,7 @@ export class AVManager {
       if (enabled) {
         if (micPubs.some(p => !!(p as any).track)) return; // already enabled
         const { createLocalTracks } = await import('livekit-client');
-        const tracks = await createLocalTracks({ audio: this.preferredMic ? { deviceId: this.preferredMic } : true });
+        const tracks = await createLocalTracks({ audio: this.preferredMic ? { deviceId: this.preferredMic, noiseSuppression: true, echoCancellation: true, autoGainControl: true } : { noiseSuppression: true, echoCancellation: true, autoGainControl: true } });
         for (const t of tracks) {
           if ((t as any).kind === 'audio') await this.current.localParticipant.publishTrack(t);
         }
@@ -300,7 +332,7 @@ export class AVManager {
           return; // already enabled
         }
         const { createLocalTracks } = await import('livekit-client');
-        const tracks = await createLocalTracks({ video: this.preferredCam ? { deviceId: this.preferredCam } : true });
+        const tracks = await createLocalTracks({ video: this.preferredCam ? { deviceId: this.preferredCam, facingMode: 'user' } : { facingMode: 'user' } });
         for (const t of tracks) {
           if ((t as any).kind === 'video') {
             try {
