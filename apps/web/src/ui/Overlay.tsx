@@ -15,10 +15,10 @@ export function Overlay(props: OverlayProps) {
   if (!open) return null;
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background:'rgba(0,0,0,0.78)', backdropFilter:'blur(3px)', zIndex: 50, display: 'grid', placeItems: 'center', padding: 16 }}>
-      <div onClick={(e)=>e.stopPropagation()} style={{ width: `min(${typeof maxWidth === 'number' ? maxWidth + 'px' : maxWidth}, 96vw)`, maxHeight, overflow: 'auto', background: 'rgba(17,17,20,0.98)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12, boxShadow: '0 22px 64px rgba(0,0,0,0.5)' }}>
+      <div onClick={(e)=>e.stopPropagation()} style={{ width: `min(${typeof maxWidth === 'number' ? maxWidth + 'px' : maxWidth}, 96vw)`, maxHeight, overflow: 'auto', background: 'var(--modal-bg)', color: 'var(--fg)', border: '1px solid var(--border)', borderRadius: 12, boxShadow: '0 22px 64px rgba(0,0,0,0.5)' }}>
         {(title || right !== undefined) && (
-          <div style={{ position: 'sticky', top: 0, zIndex: 2, display:'flex', alignItems:'center', justifyContent:'space-between', gap:8, padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.08)', background: 'rgba(17,17,20,0.98)' }}>
-            <div style={{ fontWeight: 700, color: '#fff' }}>{title}</div>
+          <div style={{ position: 'sticky', top: 0, zIndex: 2, display:'flex', alignItems:'center', justifyContent:'space-between', gap:8, padding: '12px 16px', borderBottom: '1px solid var(--border)', background: 'var(--modal-bg)', color: 'var(--modal-fg)' }}>
+            <div style={{ fontWeight: 700 }}>{title}</div>
             <div style={{ display: 'flex', alignItems:'center', gap: 8 }}>
               {right}
               <button onClick={onClose} title="Schließen" style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(0,0,0,0.5)', color:'#fff', cursor:'pointer' }}>×</button>

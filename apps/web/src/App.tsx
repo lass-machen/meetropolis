@@ -1473,8 +1473,8 @@ export function App() {
             const containerMax = Math.min(window.innerWidth * 0.96, cols * minCard + (cols - 1) * gap + 24 + buttonSpace);
             return (
               <div style={{ position: 'absolute', top: gridExpanded ? 0 : 10, left: '50%', transform: 'translateX(-50%)', zIndex: 20, width: containerMax }}>
-                <div style={{ position: 'relative', background: gridExpanded ? 'rgba(0,0,0,0.7)' : 'rgba(0,0,0,0.45)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 14, padding: 12, paddingRight: 12 + buttonSpace, backdropFilter: 'blur(6px)' }}>
-                  <button onClick={() => setGridExpanded(e => !e)} title={gridExpanded ? 'Verkleinern' : 'Vergrößern'} style={{ position: 'absolute', top: 10, right: 10, padding: 6, width: 28, height: 28, display: 'grid', placeItems: 'center', borderRadius: 8, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.06)', color: '#fff', cursor: 'pointer', zIndex: 2 }}>
+                <div style={{ position: 'relative', background: 'var(--panel-bg)', color: 'var(--fg)', border: '1px solid var(--border)', borderRadius: 14, padding: 12, paddingRight: 12 + buttonSpace, boxShadow: 'var(--shadow)' }}>
+                  <button onClick={() => setGridExpanded(e => !e)} title={gridExpanded ? 'Verkleinern' : 'Vergrößern'} style={{ position: 'absolute', top: 10, right: 10, padding: 6, width: 28, height: 28, display: 'grid', placeItems: 'center', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--glass)', color: 'var(--fg)', cursor: 'pointer', zIndex: 2 }}>
                     {gridExpanded ? <CollapseIcon /> : <ExpandIcon />}
                   </button>
                   <div style={{ position: 'relative', display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: gap, justifyItems: 'center', alignContent: 'start' }}>
@@ -1507,7 +1507,7 @@ export function App() {
           />
 
           {/* HUD (links oben klein) */}
-          <div style={{ position: 'absolute', top: 12, left: 12, background: 'rgba(0,0,0,0.45)', color: '#fff', padding: 8, borderRadius: 8, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 12, backdropFilter: 'blur(6px)', border: '1px solid rgba(255,255,255,0.08)' }}>
+          <div style={{ position: 'absolute', top: 12, left: 12, background: 'var(--glass)', color: 'var(--fg)', padding: 8, borderRadius: 8, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 12, backdropFilter: 'blur(6px)', border: '1px solid var(--border)' }}>
             <div>Zone: {hud.zone ?? '-'}</div>
             <div>AV: {hud.avRoom ?? 'lobby'}</div>
             <div>Following: {hud.follow ?? 'no'}</div>
@@ -1532,7 +1532,7 @@ export function App() {
           })()}
 
           {/* Bottom Control Bar */}
-          <div style={{ position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: 'rgba(17,17,20,0.75)', color: '#fff', borderRadius: 14, border: '1px solid rgba(255,255,255,0.08)', boxShadow: '0 8px 24px rgba(0,0,0,0.35)', backdropFilter: 'blur(8px)' }}>
+          <div style={{ position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: 'var(--bar-bg)', color: 'var(--bar-fg)', borderRadius: 14, border: '1px solid var(--border)', boxShadow: 'var(--shadow)' }}>
             <button style={btnStyle(avState.mic)} disabled={avState.dnd} onClick={async () => {
               const enabled = !avState.mic;
               await avRef.current?.setMicrophoneEnabled(enabled);
@@ -1551,7 +1551,7 @@ export function App() {
               {devices.mics.map(d => <option key={d.id} value={d.id}>{d.label}</option>)}
             </select>
 
-            <div style={{ width: 1, height: 24, background: 'rgba(255,255,255,0.08)' }} />
+            <div style={{ width: 1, height: 24, background: 'var(--bar-divider)' }} />
 
             <button style={btnStyle(avState.cam)} disabled={avState.dnd} onClick={async () => {
               const enabled = !avState.cam;
@@ -1652,7 +1652,7 @@ export function App() {
           <GearIcon />
         </button>
         {menuOpen && (
-          <div style={{ position: 'absolute', top: 44, right: 0, background: 'var(--glass)', color: 'var(--fg)', border: '1px solid var(--border)', borderRadius: 12, padding: 8, display: 'grid', gap: 6, minWidth: 260, boxShadow: 'var(--shadow)', backdropFilter: 'blur(6px)' }}>
+          <div style={{ position: 'absolute', top: 44, right: 0, background: 'rgba(17,17,20,0.96)', color: '#fff', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12, padding: 8, display: 'grid', gap: 6, minWidth: 260, boxShadow: '0 16px 40px rgba(0,0,0,0.45)', backdropFilter: 'blur(6px)' }}>
             <button onClick={() => { setUserModalOpen(true); setMenuOpen(false); }} style={{ textAlign: 'left', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--glass)', color: 'var(--fg)', cursor: 'pointer' }}>Benutzer verwalten</button>
             <button onClick={() => { setPage('world'); setMenuOpen(false); }} style={{ textAlign: 'left', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--glass)', color: 'var(--fg)', cursor: 'pointer' }}>Zurück zur Welt</button>
             <button onClick={() => { setApiModalOpen(true); setMenuOpen(false); }} style={{ textAlign: 'left', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--glass)', color: 'var(--fg)', cursor: 'pointer' }}>API-Tokens & Doku</button>
@@ -2100,9 +2100,9 @@ function ParticipantCard(props: { part: { sid: string; identity: string; hasVide
   const volume = part.volume ?? 1;
   const opacity = isLocal ? 1 : (0.4 + (volume * 0.6)); // Min 40%, max 100% opacity
   
-  const borderColor = part.isSpeaking ? '#22d3ee' : 'rgba(255,255,255,0.10)';
-  const glow = part.isSpeaking ? '0 0 0 2px rgba(34,211,238,0.35), 0 12px 30px rgba(34,211,238,0.25)' : '0 12px 30px rgba(0,0,0,0.35)';
-  const bg = `rgba(17,17,20,${0.75 * opacity})`;
+  const borderColor = part.isSpeaking ? '#22d3ee' : 'var(--border)';
+  const glow = part.isSpeaking ? '0 0 0 2px rgba(34,211,238,0.35), var(--shadow)' : 'var(--shadow)';
+  const bg = `var(--glass)`;
   const headerBg = `rgba(17,17,20,${0.6 * opacity})`;
   const badgeOn = 'rgba(16,185,129,0.25)';
   const badgeOff = 'rgba(244,63,94,0.25)';
@@ -2127,14 +2127,14 @@ function ParticipantCard(props: { part: { sid: string; identity: string; hasVide
       opacity: opacity,
       transition: 'opacity 0.3s ease-in-out'
     }}>
-      <video ref={videoRef} autoPlay playsInline muted style={{ width: '100%', height: full ? 'auto' : '100%', maxHeight: full ? 'calc(100vh - 64px)' : undefined, objectFit: isScreen ? 'contain' : (full ? 'contain' : 'cover'), background: 'rgba(0,0,0,0.35)', transform: (isLocal && part.media==='camera') ? `scaleX(-1) scale(${zoom})` : `scale(${zoom})`, transformOrigin: 'center center' }} />
+      <video ref={videoRef} autoPlay playsInline muted style={{ width: '100%', height: full ? 'auto' : '100%', maxHeight: full ? 'calc(100vh - 64px)' : undefined, objectFit: isScreen ? 'contain' : (full ? 'contain' : 'cover'), background: 'transparent', transform: (isLocal && part.media==='camera') ? `scaleX(-1) scale(${zoom})` : `scale(${zoom})`, transformOrigin: 'center center' }} />
       {!(part.hasVideo || isVideoRendering) && (
         <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', color: '#e5e7eb', fontWeight: 600, fontSize: 14 }}>
           {part.identity}
         </div>
       )}
       <div style={{ position: 'absolute', top: 6, left: 6, display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', background: headerBg, borderRadius: 10, border: '1px solid rgba(255,255,255,0.08)' }}>
-        <div style={{ fontSize: 12, color: '#e5e7eb', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{part.identity}</div>
+        <div style={{ fontSize: 12, color: 'var(--fg)', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{part.identity}</div>
       </div>
       <div style={{ position: 'absolute', top: 6, right: 6, display: 'flex', gap: 8 }}>
         <div title={part.hasMic ? 'Mikro an' : 'Mikro aus'} style={{ display: 'grid', placeItems: 'center', width: 28, height: 28, borderRadius: 999, background: part.hasMic ? badgeOn : badgeOff, border: `1px solid ${part.hasMic ? borderOn : borderOff}` }}>

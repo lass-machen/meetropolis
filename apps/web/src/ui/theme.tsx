@@ -48,9 +48,19 @@ function getCssVariables(mode: ThemeMode): string {
   const fg = isLight ? '#0f1115' : '#e5e7eb';
   const subtle = isLight ? '#6b7280' : '#9ca3af';
   const border = isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.08)';
-  const glass = isLight ? 'rgba(255,255,255,0.88)' : 'rgba(255,255,255,0.06)';
-  const glassHover = isLight ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.1)';
-  const shadow = isLight ? '0 10px 24px rgba(0,0,0,0.10)' : '0 12px 30px rgba(0,0,0,0.35)';
+  // Darkmode zurück auf bisherigen Look (dunkel, dezentes Glas)
+  const glass = isLight ? 'rgba(255,255,255,0.92)' : 'rgba(255,255,255,0.06)';
+  const glassHover = isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.10)';
+  const shadow = isLight ? '0 12px 30px rgba(0,0,0,0.14)' : '0 12px 30px rgba(0,0,0,0.35)';
+  const modalBg = isLight ? 'rgba(17,17,20,0.98)' : 'rgba(17,17,20,0.98)';
+  const modalFg = isLight ? '#e5e7eb' : '#e5e7eb';
+  const panelBg = isLight ? 'rgba(17,17,20,0.92)' : 'rgba(17,17,20,0.92)';
+  const panelFg = isLight ? '#e5e7eb' : fg;
+  const chipBg = isLight ? 'rgba(17,17,20,0.70)' : 'rgba(17,17,20,0.70)';
+  const barBg = isLight ? 'rgba(17,17,20,0.92)' : 'rgba(17,17,20,0.85)';
+  const barFg = '#e5e7eb';
+  const barChipBg = isLight ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.06)';
+  const barDivider = isLight ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.12)';
   const focus = isLight ? 'rgba(69,13,179,0.45)' : 'rgba(243,168,20,0.45)';
 
   return `
@@ -65,6 +75,15 @@ function getCssVariables(mode: ThemeMode): string {
       --glass-hover: ${glassHover};
       --shadow: ${shadow};
       --focus: ${focus};
+      --modal-bg: ${modalBg};
+      --modal-fg: ${modalFg};
+      --panel-bg: ${panelBg};
+      --panel-fg: ${panelFg};
+      --chip-bg: ${chipBg};
+      --bar-bg: ${barBg};
+      --bar-fg: ${barFg};
+      --bar-chip-bg: ${barChipBg};
+      --bar-divider: ${barDivider};
       --radius: 14px;
       --radius-sm: 10px;
       --radius-xs: 8px;
