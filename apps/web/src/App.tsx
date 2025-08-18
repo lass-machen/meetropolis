@@ -1748,20 +1748,34 @@ function ParticipantCard(props: { part: { sid: string; identity: string; hasVide
     if (!p && !isLocalNow) {
       const allParticipants = Array.from(room.remoteParticipants?.values() || []);
       
+      console.log(`[ParticipantCard] Looking for participant "${part.identity}", available participants:`, 
+        allParticipants.map((p: any) => ({ sid: p.sid, identity: p.identity, name: p.name })));
+      
       // For screenshare, remove the " – Bildschirm" suffix to find the base participant
       const searchIdentity = part.media === 'screen' && part.identity.endsWith(' – Bildschirm') 
         ? part.identity.slice(0, -14) // Remove " – Bildschirm"
         : part.identity;
       
-      p = allParticipants.find((participant: any) => participant.identity === searchIdentity);
+      // First try to find by display name
+      p = allParticipants.find((participant: any) => {
+        const pName = participant.name || participant.identity;
+        return pName === searchIdentity;
+      });
+      
+      if (!p) {
+        // Try to find by identity (LiveKit ID)
+        p = allParticipants.find((participant: any) => participant.identity === searchIdentity);
+      }
+      
       if (p) {
         // Update baseSid for event matching
         baseSid = p.sid;
       } else if (part.media === 'screen') {
-        // For screenshare, also try finding by identity directly (without suffix)
-        p = allParticipants.find((participant: any) => 
-          part.identity.startsWith(participant.identity + ' –')
-        );
+        // For screenshare, also try finding by name with suffix
+        p = allParticipants.find((participant: any) => {
+          const pName = participant.name || participant.identity;
+          return part.identity.startsWith(pName + ' –');
+        });
         if (p) {
           baseSid = p.sid;
         }
@@ -1833,10 +1847,19 @@ function ParticipantCard(props: { part: { sid: string; identity: string; hasVide
           const searchIdentity = part.identity.endsWith(' – Bildschirm') 
             ? part.identity.slice(0, -14) 
             : part.identity;
-          currentP = allParticipants.find((participant: any) => 
-            participant.identity === searchIdentity ||
-            part.identity.startsWith(participant.identity + ' –')
-          );
+          // Try to find by display name first
+          currentP = allParticipants.find((participant: any) => {
+            const pName = participant.name || participant.identity;
+            return pName === searchIdentity || part.identity.startsWith(pName + ' –');
+          });
+          
+          if (!currentP) {
+            // Try by identity
+            currentP = allParticipants.find((participant: any) => 
+              participant.identity === searchIdentity ||
+              part.identity.startsWith(participant.identity + ' –')
+            );
+          }
           if (currentP && currentP !== p) {
             p = currentP;
             baseSid = currentP.sid;
