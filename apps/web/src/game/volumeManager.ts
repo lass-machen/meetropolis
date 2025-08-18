@@ -17,6 +17,7 @@ export type Providers = {
   getZones: () => Polygon[];
   getFollowTarget: () => string | null;
   getBubbleMembers: () => Set<string>;
+  getLocalDnd?: () => boolean;
 };
 
 function pointInPolygon(p: Point, poly: Point[]): boolean {
@@ -39,7 +40,10 @@ export function computePairVolume(
   rules: VolumeRules
 ): number {
   // Follow hat höchste Priorität (darf Zonenregeln außer Kraft setzen)
-  if (followTarget && followTarget === remote.id) return 1;
+  if (followTarget && followTarget === remote.id) {
+    console.log(`[VolumeManager] Follow target ${remote.id}: volume = 1`);
+    return 1;
+  }
 
   // Zuerst Zonen-Berechtigung bestimmen (Schallschutz zwischen Zonen)
   const localZone = zones.find(z => pointInPolygon(local, z.points));
@@ -57,8 +61,14 @@ export function computePairVolume(
   // Bubble-Logik: Mini-Gesprächszone innerhalb der grundsätzlich hörbaren Menge
   const localInBubble = bubbleMembers.has(local.id);
   const remoteInBubble = bubbleMembers.has(remote.id);
-  if (localInBubble && remoteInBubble) return 1;
-  if (localInBubble !== remoteInBubble) return rules.outsideBubbleAttenuation;
+  if (localInBubble && remoteInBubble) {
+    console.log(`[VolumeManager] Bubble: ${local.id} and ${remote.id} both in bubble: volume = 1`);
+    return 1;
+  }
+  if (localInBubble !== remoteInBubble) {
+    console.log(`[VolumeManager] Bubble: Only one in bubble (${localInBubble ? local.id : remote.id}): volume = ${rules.outsideBubbleAttenuation}`);
+    return rules.outsideBubbleAttenuation;
+  }
 
   // Wenn in derselben Zone und keine Bubble-Sonderfälle: volle Lautstärke (distanzunabhängig)
   if (localZone && remoteZone && localZone.name === remoteZone.name) return 1;
@@ -93,6 +103,19 @@ export class VolumeManager {
   update(): Record<string, number> {
     const local = this.providers.getLocal();
     if (!local) return this.lastVolumes;
+    
+    // If local user has DND, set all volumes to 0
+    const localDnd = this.providers.getLocalDnd?.() || false;
+    if (localDnd) {
+      console.log(`[VolumeManager] DND active - muting all participants`);
+      const remotes = this.providers.getRemotes();
+      for (const sid of Object.keys(remotes)) {
+        this.av.setParticipantVolume(sid, 0);
+      }
+      this.lastVolumes = {};
+      return {};
+    }
+    
     const remotes = this.providers.getRemotes();
     const zones = this.providers.getZones();
     const followTarget = this.providers.getFollowTarget();

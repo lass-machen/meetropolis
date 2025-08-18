@@ -873,13 +873,13 @@ export function App() {
           return localPosRef.current.id ? { id: localPosRef.current.id, x: localPosRef.current.x, y: localPosRef.current.y } : null;
         },
         getRemotes: () => {
-          if (dndRef.current) return {};
-          // Return Colyseus IDs directly - the volume manager will map them
+          // Always return all remotes - DND is handled in VolumeManager
           return remotesRef.current;
         },
         getZones: () => zoneRef.current?.getZones?.() || [],
         getFollowTarget: () => followRef.current?.getTarget?.() || null,
         getBubbleMembers: () => bubbleMembersRef.current,
+        getLocalDnd: () => dndRef.current,
       },
       { nearRadius: 96, farRadius: 384, outsideBubbleAttenuation: 0.2 }
     );
