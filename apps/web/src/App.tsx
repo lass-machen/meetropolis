@@ -297,8 +297,6 @@ export function App() {
     const localPos = { x: localPosRef.current.x, y: localPosRef.current.y };
     const localZone = zones.find(z => pointInPolygon(localPos, z.points));
     
-    console.log(`[BuildParticipantList] Local user in zone: "${localZone?.name || 'none'}"`);
-    
     const activeSet = new Set<string>((room.activeSpeakers || []).map((p: any) => p.sid));
     const list: { sid: string; identity: string; hasVideo: boolean; hasMic: boolean; isSpeaking: boolean; media: 'camera' | 'screen'; volume?: number }[] = [];
     const pushP = (p: any, isLocal: boolean = false) => {
@@ -325,7 +323,6 @@ export function App() {
         // Skip if zones don't match (one in zone, other not, or different zones)
         if ((localZone && !remoteZone) || (!localZone && remoteZone) || 
             (localZone && remoteZone && localZone.name !== remoteZone.name)) {
-          console.log(`[BuildParticipantList] Skipping ${p.identity} - different zone`);
           return;
         }
       }
@@ -842,7 +839,6 @@ export function App() {
       const currentZoneName = currentZone?.name || null;
       
       if (currentZoneName !== lastZone) {
-        console.log(`[Zone Change] Moved from "${lastZone || 'none'}" to "${currentZoneName || 'none'}"`);
         lastZone = currentZoneName;
         // Rebuild participant list when zone changes
         setTimeout(buildParticipantList, 50);
