@@ -15,6 +15,17 @@ import { VolumeManager } from './game/volumeManager';
 import { getDisplayName as getDisplayNameLib } from './lib/displayName';
 // (removed duplicate incorrect import)
 
+// Helper function for point in polygon check
+function pointInPolygon(p: { x: number; y: number }, poly: { x: number; y: number }[]): boolean {
+  let c = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const pi = poly[i], pj = poly[j];
+    if (((pi.y > p.y) !== (pj.y > p.y)) && (p.x < (pj.x - pi.x) * (p.y - pi.y) / (pj.y - pi.y + 1e-9) + pi.x)) {
+      c = !c;
+    }
+  }
+  return c;
+}
 
 // Simple Inline-Icons
 function MicIcon(props: { on?: boolean }) {
@@ -281,10 +292,44 @@ export function App() {
     }
     // buildParticipantList - participants
     
+    // Get current local zone
+    const zones = zoneRef.current?.getZones?.() || [];
+    const localPos = { x: localPosRef.current.x, y: localPosRef.current.y };
+    const localZone = zones.find(z => pointInPolygon(localPos, z.points));
+    
+    console.log(`[BuildParticipantList] Local user in zone: "${localZone?.name || 'none'}"`);
+    
     const activeSet = new Set<string>((room.activeSpeakers || []).map((p: any) => p.sid));
     const list: { sid: string; identity: string; hasVideo: boolean; hasMic: boolean; isSpeaking: boolean; media: 'camera' | 'screen'; volume?: number }[] = [];
-    const pushP = (p: any) => {
+    const pushP = (p: any, isLocal: boolean = false) => {
       if (!p || !p.trackPublications) return;
+      
+      // Get participant position for zone check
+      let participantPos: { x: number; y: number } | null = null;
+      if (isLocal) {
+        participantPos = localPos;
+      } else {
+        // Find remote participant position by their identity
+        const colyseusId = Object.keys(colyseusToLivekitMap.current).find(
+          key => colyseusToLivekitMap.current[key] === p.identity
+        );
+        if (colyseusId && remotesRef.current[colyseusId]) {
+          participantPos = remotesRef.current[colyseusId];
+        }
+      }
+      
+      // Check if participant is in the same zone as local user
+      if (!isLocal && participantPos) {
+        const remoteZone = zones.find(z => pointInPolygon(participantPos!, z.points));
+        
+        // Skip if zones don't match (one in zone, other not, or different zones)
+        if ((localZone && !remoteZone) || (!localZone && remoteZone) || 
+            (localZone && remoteZone && localZone.name !== remoteZone.name)) {
+          console.log(`[BuildParticipantList] Skipping ${p.identity} - different zone`);
+          return;
+        }
+      }
+      
       try {
         const publications = Array.from((p.trackPublications?.values?.() || []) as any);
       const isVideoPub = (pub: any) => {
@@ -305,11 +350,6 @@ export function App() {
       const hasV = publications.some(isVideoPub);
       const hasMic = publications.some(isMicPub);
       const hasScreen = publications.some(isScreenPub);
-      
-      // Debug logging for video tracks
-      if (hasV || hasScreen) {
-        console.log(`[BuildParticipantList] ${p.identity} has video: ${hasV}, screen: ${hasScreen}`);
-      }
       // Get display name from identity - if it's a LiveKit ID, try to get the actual name
       let displayName = p.identity || 'User';
       
@@ -351,12 +391,12 @@ export function App() {
       } catch (e) {
       }
     };
-    pushP(room.localParticipant);
+    pushP(room.localParticipant, true); // true = isLocal
     const remotes = Array.from((room.remoteParticipants?.values?.() || room.participants?.values?.() || []) as any);
     // Processing remote participants
     for (const rp of remotes) {
       // Processing remote participant
-      pushP(rp);
+      pushP(rp, false); // false = not local
     }
     // Final participant list
     setUiParticipants(list);
@@ -790,10 +830,24 @@ export function App() {
     // Seed Zonen sofort, auch wenn der Editor bisher nie geöffnet war
     try { zoneRef.current.setZones(editor.zones as any); } catch {}
     // Stelle sicher, dass ZoneManager initial eine Position bekommt, auch bevor Colyseus onLocalMove feuert
+    let lastZone: string | null = null;
     gameBridge.onLocalMove = (p) => {
       localPosRef.current.x = p.x;
       localPosRef.current.y = p.y;
       zoneRef.current?.update({ x: p.x, y: p.y });
+      
+      // Check if zone changed
+      const zones = zoneRef.current?.getZones?.() || [];
+      const currentZone = zones.find(z => pointInPolygon({ x: p.x, y: p.y }, z.points));
+      const currentZoneName = currentZone?.name || null;
+      
+      if (currentZoneName !== lastZone) {
+        console.log(`[Zone Change] Moved from "${lastZone || 'none'}" to "${currentZoneName || 'none'}"`);
+        lastZone = currentZoneName;
+        // Rebuild participant list when zone changes
+        setTimeout(buildParticipantList, 50);
+      }
+      
       if (followRef.current) {
         const f = followRef.current.update(
           { x: p.x, y: p.y },
@@ -1748,8 +1802,6 @@ function ParticipantCard(props: { part: { sid: string; identity: string; hasVide
     if (!p && !isLocalNow) {
       const allParticipants = Array.from(room.remoteParticipants?.values() || []);
       
-      console.log(`[ParticipantCard] Looking for participant "${part.identity}", available participants:`, 
-        allParticipants.map((p: any) => ({ sid: p.sid, identity: p.identity, name: p.name })));
       
       // For screenshare, remove the " – Bildschirm" suffix to find the base participant
       const searchIdentity = part.media === 'screen' && part.identity.endsWith(' – Bildschirm') 
@@ -1818,23 +1870,20 @@ function ParticipantCard(props: { part: { sid: string; identity: string; hasVide
 
     if (track && el) {
       try {
-        console.log(`[ParticipantCard] Attaching ${part.media} track for ${part.identity}`);
         el.muted = true; // Immer stumm schalten, damit Autoplay zuverlässig funktioniert
         track.attach(el);
         cleanup = () => { try { track.detach(el); } catch {} };
         // Check if video is actually playing
         setTimeout(() => {
           if (el.videoWidth > 0 && el.videoHeight > 0) {
-            console.log(`[ParticipantCard] Video playing for ${part.identity}: ${el.videoWidth}x${el.videoHeight}`);
           } else {
-            console.log(`[ParticipantCard] Video not ready for ${part.identity}`);
+            // Video not ready yet
           }
         }, 500);
       } catch (e) {
-        console.error(`[ParticipantCard] Error attaching video for ${part.identity}:`, e);
       }
     } else {
-      console.log(`[ParticipantCard] No track found for ${part.identity}, media: ${part.media}`);
+      // No track found yet
     }
 
     // Aggressiver Fallback: pollt kurzzeitig und versucht zu attachen, wenn Track verzögert verfügbar wird

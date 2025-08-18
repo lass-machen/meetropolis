@@ -45,6 +45,11 @@ export function computePairVolume(
   const localZone = zones.find(z => pointInPolygon(local, z.points));
   const remoteZone = zones.find(z => pointInPolygon(remote, z.points));
 
+  // Debug logging
+  if (localZone || remoteZone) {
+    console.log(`[VolumeManager] Zone check - Local: ${local.id} in zone "${localZone?.name || 'none'}", Remote: ${remote.id} in zone "${remoteZone?.name || 'none'}"`);
+  }
+
   // Wenn einer in einer Zone ist und der andere nicht: stumm
   if ((localZone && !remoteZone) || (!localZone && remoteZone)) return 0;
   // Wenn beide in Zonen, aber in unterschiedlichen: stumm
