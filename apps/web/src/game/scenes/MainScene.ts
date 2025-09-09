@@ -23,6 +23,7 @@ export class MainScene extends Phaser.Scene implements SceneApi {
   private bubbleOutlines: Map<string, Phaser.GameObjects.Graphics> = new Map();
   private nameLabels: Map<string, Phaser.GameObjects.Container> = new Map();
   private heroNameLabel?: Phaser.GameObjects.Container;
+  private movementLocked = false;
   private pendingTilesetRegistrations?: any[];
   private doNotDisturb = false;
   constructor() {
@@ -271,6 +272,7 @@ export class MainScene extends Phaser.Scene implements SceneApi {
       const speed = 80;
       const body = this.hero.body;
       body.setVelocity(0);
+      // Programmgesteuerte Zielbewegung hat Vorrang und ist auch bei movementLocked erlaubt
       if (this.desiredPos) {
         const dx = this.desiredPos.x - this.hero.x;
         const dy = this.desiredPos.y - this.hero.y;
@@ -290,7 +292,7 @@ export class MainScene extends Phaser.Scene implements SceneApi {
             this.hero.play(ny > 0 ? 'walk_down' : 'walk_up', true);
           }
         }
-      } else {
+      } else if (!this.movementLocked) {
         if (cursors.left?.isDown) { 
           body.setVelocityX(-speed); 
           this.hero.play('walk_left', true); 
@@ -314,6 +316,10 @@ export class MainScene extends Phaser.Scene implements SceneApi {
         else { 
           this.hero.anims.stop(); 
         }
+      } else {
+        // Locked und keine Zielbewegung: stoppen
+        body.setVelocity(0, 0);
+        this.hero.anims.stop();
       }
 
       gameBridge.onLocalMove({ x: this.hero.x, y: this.hero.y, direction: currentDirection });
@@ -336,32 +342,50 @@ export class MainScene extends Phaser.Scene implements SceneApi {
       const worldPoint = pointer.positionToCamera(this.cameras.main) as Phaser.Math.Vector2;
       
       if (pointer.rightButtonDown()) {
+        // Prevent browser context menu
+        try { (pointer.event as any)?.preventDefault?.(); } catch {}
         // Handle right click on remote sprites
         for (const [id, sprite] of this.remotes) {
           const bounds = sprite.getBounds();
           if (bounds.contains(worldPoint.x, worldPoint.y)) {
-            gameBridge.onRightClick({ x: worldPoint.x, y: worldPoint.y });
-            
-            // Store the clicked player ID for bubble logic
-            (gameBridge as any).lastRightClickedPlayer = id;
+            const evt = (pointer.event as any) as MouseEvent | undefined;
+            const sx = evt?.clientX ?? pointer.x;
+            const sy = evt?.clientY ?? pointer.y;
+            gameBridge.onRightClick({ x: sx, y: sy, playerId: id });
             break;
           }
         }
         return;
       }
       
-      gameBridge.onPointerDown({ x: worldPoint.x, y: worldPoint.y });
-      const { tileX, tileY } = toTile(pointer);
-      gameBridge.onPointerDownTile({ tileX, tileY });
+      if (!this.movementLocked) {
+        gameBridge.onPointerDown({ x: worldPoint.x, y: worldPoint.y });
+        const { tileX, tileY } = toTile(pointer);
+        gameBridge.onPointerDownTile({ tileX, tileY });
+      }
     });
     this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
       const { tileX, tileY } = toTile(pointer);
-      gameBridge.onPointerMoveTile({ tileX, tileY });
+      if (!this.movementLocked) gameBridge.onPointerMoveTile({ tileX, tileY });
     });
     this.input.on('pointerup', (pointer: Phaser.Input.Pointer) => {
       const { tileX, tileY } = toTile(pointer);
-      gameBridge.onPointerUpTile({ tileX, tileY });
+      if (!this.movementLocked) gameBridge.onPointerUpTile({ tileX, tileY });
       this.setSelectionRect(null);
+    });
+
+    // Global pointer up/down to suppress OS/browser context menu
+    this.input.on(Phaser.Input.Events.POINTER_DOWN, (p: Phaser.Input.Pointer, currentlyOver: any) => {
+      if (p.rightButtonDown()) {
+        try { (p.event as any)?.preventDefault?.(); } catch {}
+        try { (p.event as any)?.stopPropagation?.(); } catch {}
+      }
+    });
+    this.input.on(Phaser.Input.Events.POINTER_UP, (p: Phaser.Input.Pointer) => {
+      if (p.rightButtonReleased()) {
+        try { (p.event as any)?.preventDefault?.(); } catch {}
+        try { (p.event as any)?.stopPropagation?.(); } catch {}
+      }
     });
 
     // Create hover outline graphics
@@ -394,7 +418,8 @@ export class MainScene extends Phaser.Scene implements SceneApi {
     
     // Removed duplicate handler - combined with main pointerdown below
     
-    // Disable context menu on canvas
+    // Disable browser context menu on canvas and via Phaser input
+    try { this.input.mouse?.disableContextMenu?.(); } catch {}
     this.game.canvas.addEventListener('contextmenu', (e) => {
       e.preventDefault();
       return false;
@@ -583,8 +608,73 @@ export class MainScene extends Phaser.Scene implements SceneApi {
 
   setDesiredPosition(pos: { x: number; y: number } | null) {
     this.desiredPos = pos;
+    try { console.debug('[Scene] desiredPos set to', pos); } catch {}
   }
   
+  setMovementLocked(locked: boolean) {
+    this.movementLocked = !!locked;
+    if (locked) {
+      // Stop any ongoing desired movement immediately
+      this.desiredPos = null;
+      try { this.hero?.body?.setVelocity?.(0, 0); } catch {}
+      try { this.hero?.anims?.stop?.(); } catch {}
+    }
+    try { console.debug('[Scene] movementLocked =', this.movementLocked); } catch {}
+  }
+
+  private isWalkable(x: number, y: number): boolean {
+    // Check world bounds
+    const map = this.mapRef;
+    if (!map) return false;
+    if (x < 0 || y < 0 || x >= map.widthInPixels || y >= map.heightInPixels) return false;
+    // Check collision layer tile at position
+    const tl = this.collisionLayer;
+    if (!tl) return true; // If no collision layer, assume walkable
+    const tileX = Math.floor(x / map.tileWidth);
+    const tileY = Math.floor(y / map.tileHeight);
+    try {
+      const tile = tl.getTileAt(tileX, tileY);
+      if (tile && tile.index !== -1) return false;
+    } catch {}
+    // Avoid overlapping other players (simple radius check)
+    const radius = Math.max(map.tileWidth, map.tileHeight) * 0.6;
+    for (const sprite of this.remotes.values()) {
+      const dx = sprite.x - x;
+      const dy = sprite.y - y;
+      if (dx * dx + dy * dy < radius * radius) return false;
+    }
+    // Also avoid overlapping hero itself (not needed for placement, but safe)
+    return true;
+  }
+
+  findFreeSpotNear(targetId: string, options?: { radius?: number; step?: number }): { x: number; y: number } | null {
+    const target = this.remotes.get(targetId);
+    if (!target) return null;
+    const map = this.mapRef;
+    if (!map) return { x: target.x, y: target.y };
+    const baseRadius = options?.radius ?? Math.max(map.tileWidth, map.tileHeight);
+    const step = options?.step ?? Math.min(map.tileWidth, map.tileHeight);
+    const maxRings = 8;
+    for (let ring = 1; ring <= maxRings; ring++) {
+      const r = baseRadius * ring;
+      for (let angle = 0; angle < 360; angle += 30) {
+        const rad = angle * Math.PI / 180;
+        // Snap to tile centers to avoid half-tile overlaps
+        const tx = Math.round((target.x + Math.cos(rad) * r) / map.tileWidth) * map.tileWidth + map.tileWidth / 2;
+        const ty = Math.round((target.y + Math.sin(rad) * r) / map.tileHeight) * map.tileHeight + map.tileHeight / 2;
+        if (this.isWalkable(tx, ty)) return { x: tx, y: ty };
+      }
+      // Cardinal checks with smaller step
+      const dirs = [ [r,0], [-r,0], [0,r], [0,-r] ];
+      for (const [dx, dy] of dirs) {
+        const tx = Math.round((target.x + dx) / map.tileWidth) * map.tileWidth + map.tileWidth / 2;
+        const ty = Math.round((target.y + dy) / map.tileHeight) * map.tileHeight + map.tileHeight / 2;
+        if (this.isWalkable(tx, ty)) return { x: tx, y: ty };
+      }
+    }
+    return { x: target.x, y: target.y };
+  }
+
   private updateHoverOutline() {
     if (!this.hoverOutline) return;
     
@@ -1304,20 +1394,15 @@ export class MainScene extends Phaser.Scene implements SceneApi {
     // Draw bubble effect
     const x = sprite.x;
     const y = sprite.y;
+    const radius = 20;
+    const color = 0x00ffff;
+    const alpha = 0.25;
     
-    // Pulsing circle effect
-    const time = this.time.now / 1000;
-    const pulse = Math.sin(time * 3) * 0.1 + 0.9;
+    g.lineStyle(2, color, 0.9);
+    g.strokeCircle(x, y, radius);
     
-    g.lineStyle(3, 0x00d9ff, 0.8);
-    g.strokeCircle(x, y - 5, 20 * pulse);
-    
-    g.lineStyle(2, 0x00d9ff, 0.4);
-    g.strokeCircle(x, y - 5, 25 * pulse);
-    
-    // Add inner glow
-    g.fillStyle(0x00d9ff, 0.1);
-    g.fillCircle(x, y - 5, 20 * pulse);
+    g.fillStyle(color, alpha);
+    g.fillCircle(x, y, radius);
   }
   
   private createNameLabel(name: string, playerId?: string): Phaser.GameObjects.Container {

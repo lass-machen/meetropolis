@@ -125,6 +125,14 @@ export function App() {
   const [menuOpen, setMenuOpen] = React.useState(false);
   const editorActiveRef = React.useRef(false);
   const connectLivekitRef = React.useRef<null | (() => Promise<void>)>(null);
+  // Bubble UI state
+  const [bubbleUi, setBubbleUi] = React.useState<{ active: boolean; members: string[] }>({ active: false, members: [] });
+  // Pending bubble navigation until arrival near target
+  const bubblePendingRef = React.useRef<{ targetId: string; dest?: { x: number; y: number } } | null>(null);
+  // Kontextmenü State
+  const [contextMenu, setContextMenu] = React.useState<{ open: boolean; x: number; y: number; playerId: string | null }>({ open: false, x: 0, y: 0, playerId: null });
+  // Expose bubble start from effect to JSX
+  const bubbleStartRef = React.useRef<null | ((id: string) => void)>(null);
 
   // Define apiBase before using it
   const apiBase = (import.meta.env.VITE_API_BASE as string | undefined) ||
@@ -768,10 +776,15 @@ export function App() {
               { x: p.x, y: p.y },
               remotesRef.current
             );
-            if (f.following) {
+            // WICHTIG: keine Überschreibung der Zielbewegung, wenn Bubble-Navigation aussteht
+            if (!bubblePendingRef.current) {
+              if (f.following) {
+                gameBridge.setDesiredPosition({ x: f.x, y: f.y });
+              } else {
+                gameBridge.setDesiredPosition(null);
+              }
+            } else if (f.following) {
               gameBridge.setDesiredPosition({ x: f.x, y: f.y });
-            } else {
-              gameBridge.setDesiredPosition(null);
             }
           }
           try {
@@ -912,10 +925,25 @@ export function App() {
           const incoming = new Set<string>(Array.isArray(payload?.members) ? payload.members : []);
           bubbleMembersRef.current = incoming;
           const visual = new Set<string>();
+          const amInBubble = !!(localPosRef.current.id && incoming.has(localPosRef.current.id));
+          if (amInBubble) {
+            try { gameBridge.setMovementLocked(true); } catch {}
+          } else {
+            try { gameBridge.setMovementLocked(false); } catch {}
+          }
           if (localPosRef.current.id && incoming.has(localPosRef.current.id)) visual.add('__local__');
           for (const id of incoming) { if (id !== localPosRef.current.id) visual.add(id); }
           try { gameBridge.setBubbleMembers(visual); } catch {}
           applyVolumesToUi();
+          // Update banner UI
+          const names: string[] = [];
+          for (const id of incoming) {
+            if (id === localPosRef.current.id) continue;
+            const identity = colyseusToLivekitMap.current[id] || id;
+            const name = identityToNameMap.current[identity] || getDisplayName(identity);
+            names.push(name);
+          }
+          setBubbleUi({ active: amInBubble && incoming.size > 1, members: names });
         });
       } catch {
         scheduleColyseusReconnect();
@@ -1065,10 +1093,15 @@ export function App() {
           { x: p.x, y: p.y },
           remotesRef.current
         );
-        if (f.following) {
+        // WICHTIG: keine Überschreibung der Zielbewegung, wenn Bubble-Navigation aussteht
+        if (!bubblePendingRef.current) {
+          if (f.following) {
+            gameBridge.setDesiredPosition({ x: f.x, y: f.y });
+          } else {
+            gameBridge.setDesiredPosition(null);
+          }
+        } else if (f.following) {
           gameBridge.setDesiredPosition({ x: f.x, y: f.y });
-        } else {
-          gameBridge.setDesiredPosition(null);
         }
       }
       colyseusRef.current?.send?.('move', p);
@@ -1191,78 +1224,68 @@ export function App() {
       });
     };
     
-    gameBridge.onRightClick = () => {
-      if (editorActiveRef.current) return;
-      
-      // Get the clicked player ID from the bridge (this is a Colyseus session ID)
-      const clickedColyseusId = (gameBridge as any).lastRightClickedPlayer;
-      if (!clickedColyseusId) return;
-      
-      // Get the actual user identity from our mapping
-      const clickedIdentity = colyseusToLivekitMap.current[clickedColyseusId];
-      if (!clickedIdentity) {
-        return;
-      }
-      
-      // Get local LiveKit identity from the room
-      const room = avRef.current?.room as any;
-      const localLivekitIdentity = room?.localParticipant?.identity;
-      if (!localLivekitIdentity) {
-        return;
-      }
-      
-      // Implement 1x right-click = Follow toggle, 2x right-click = Bubble toggle
-      const now = Date.now();
-      const last = lastRightClickRef.current;
-      const doubleClickThresholdMs = 350;
-      
-      // Helper: apply bubble set and visuals
-      const applyBubbleFor = (targetIdentity: string | null, targetColyseusId: string | null) => {
-        const set = bubbleMembersRef.current;
-        set.clear();
-        if (targetColyseusId && localPosRef.current.id) {
-          set.add(localPosRef.current.id); // Use Colyseus ID
-          set.add(targetColyseusId);       // Use Colyseus ID
-        }
-        // Volumes berechnen und direkt in UI spiegeln
-        applyVolumesToUi();
-        const visualSet = new Set<string>();
-        if (localPosRef.current.id && set.has(localPosRef.current.id)) visualSet.add('__local__');
-        if (targetColyseusId && set.has(targetColyseusId)) visualSet.add(targetColyseusId);
-        gameBridge.setBubbleMembers(visualSet);
-        // Bubble an Server broadcasten, damit alle Clients dämpfen
-        try { colyseusRef.current?.send?.('bubble_update', { members: Array.from(set) }); } catch {}
-      };
+    const activateBubbleNow = (targetId: string) => {
+      // Set members
+      bubbleMembersRef.current.clear();
+      if (localPosRef.current.id) bubbleMembersRef.current.add(localPosRef.current.id);
+      bubbleMembersRef.current.add(targetId);
+      try { gameBridge.setMovementLocked(true); } catch {}
+      // Visuals
+      const visual = new Set<string>();
+      if (localPosRef.current.id) visual.add('__local__');
+      visual.add(targetId);
+      try { gameBridge.setBubbleMembers(visual); } catch {}
+      // Broadcast
+      try { colyseusRef.current?.send?.('bubble_update', { members: Array.from(bubbleMembersRef.current) }); } catch {}
+      // UI names
+      const names: string[] = [];
+      const identity = colyseusToLivekitMap.current[targetId] || targetId;
+      const name = identityToNameMap.current[identity] || getDisplayName(identity);
+      names.push(name);
+      setBubbleUi({ active: true, members: names });
+      applyVolumesToUi();
+      bubblePendingRef.current = null;
+    };
 
-      // Detect double click on same target
-      if (last && last.colyseusId === clickedColyseusId && (now - last.time) < doubleClickThresholdMs) {
-        // Double right-click → toggle bubble with this target
-        lastRightClickRef.current = null;
-        if (localPosRef.current.id && bubbleMembersRef.current.has(localPosRef.current.id) && bubbleMembersRef.current.has(clickedColyseusId)) {
-          applyBubbleFor(null, null); // remove bubble
-        } else {
-          applyBubbleFor(clickedIdentity, clickedColyseusId); // create bubble
+    const startBubbleTo = (targetColyseusId: string) => {
+      try { console.debug('[Bubble] startBubbleTo', targetColyseusId); } catch {}
+      // Wenn schon nah genug am Ziel, direkt aktivieren
+      const targetPos = remotesRef.current[targetColyseusId];
+      if (targetPos) {
+        const dx0 = (localPosRef.current.x || 0) - targetPos.x;
+        const dy0 = (localPosRef.current.y || 0) - targetPos.y;
+        if (dx0*dx0 + dy0*dy0 < 20*20) {
+          try { console.debug('[Bubble] already near target, activating'); } catch {}
+          activateBubbleNow(targetColyseusId);
+          return;
         }
-        // Stop following when entering bubble to avoid conflicting motion
-        followRef.current?.stop?.();
-        return;
       }
-      
-      // Single click: set a timer to decide if it's single or double
-      lastRightClickRef.current = { colyseusId: clickedColyseusId, livekitIdentity: clickedIdentity, time: now };
-      if (rightClickTimerRef.current) clearTimeout(rightClickTimerRef.current);
-      rightClickTimerRef.current = setTimeout(() => {
-        const pending = lastRightClickRef.current;
-        lastRightClickRef.current = null;
-        if (!pending) return; // handled as double-click
-        // Single right-click → toggle follow on this target
-        if (followRef.current?.getTarget?.() === pending.colyseusId) {
-          followRef.current.stop();
-          gameBridge.setDesiredPosition(null);
-        } else {
-          followRef.current?.startFollowing?.(pending.colyseusId);
+      // Während der Navigation: keine Sperre aktivieren
+      try { gameBridge.setMovementLocked(false); } catch {}
+      bubblePendingRef.current = { targetId: targetColyseusId };
+      // Follow immer starten, damit kontinuierliche Interpolation greift
+      try { console.debug('[Bubble] start following', targetColyseusId); } catch {}
+      followRef.current?.startFollowing?.(targetColyseusId);
+      // Optional: freien Spot als initialen Hint setzen
+      try {
+        const free = gameBridge.findFreeSpotNear(targetColyseusId, { radius: 16, step: 16 });
+        if (free) {
+          try { console.debug('[Bubble] hint desiredPos (free spot)', free); } catch {}
+          gameBridge.setDesiredPosition({ x: free.x, y: free.y });
+        } else if (targetPos) {
+          try { console.debug('[Bubble] hint desiredPos (target pos)', targetPos); } catch {}
+          gameBridge.setDesiredPosition({ x: targetPos.x, y: targetPos.y });
         }
-      }, doubleClickThresholdMs);
+      } catch {}
+    };
+    bubbleStartRef.current = startBubbleTo;
+
+    gameBridge.onRightClick = ({ x, y, playerId }) => {
+      if (editorActiveRef.current) return;
+      if (!playerId) return;
+      try { console.debug('[UI] context menu for', playerId, 'at', x, y); } catch {}
+      // Öffne Kontextmenü-UI
+      setContextMenu({ open: true, x, y, playerId });
     };
     // Tile-basierte Selektion/Malen
     gameBridge.onPointerDownTile = ({ tileX, tileY }) => {
@@ -1446,6 +1469,30 @@ export function App() {
       };
       if (typeof z === 'string') next.zone = z;
       setHud(next);
+      
+      // Pending bubble navigation handling: check arrival
+      if (bubblePendingRef.current && localPosRef.current) {
+        const { dest, targetId } = bubblePendingRef.current;
+        const targetPos = remotesRef.current[targetId];
+        // Consider arrived if near dest OR near the (possibly moving) target
+        let arrived = false;
+        if (dest) {
+          const dx = (localPosRef.current.x || 0) - dest.x;
+          const dy = (localPosRef.current.y || 0) - dest.y;
+          arrived = (dx*dx + dy*dy) < 12*12;
+        }
+        if (!arrived && targetPos) {
+          const dx = (localPosRef.current.x || 0) - targetPos.x;
+          const dy = (localPosRef.current.y || 0) - targetPos.y;
+          arrived = (dx*dx + dy*dy) < 20*20;
+        }
+        if (arrived) {
+          // Stop follow and desired motion, then activate bubble
+          try { followRef.current?.stop?.(); } catch {}
+          try { gameBridge.setDesiredPosition(null); } catch {}
+          activateBubbleNow(targetId);
+        }
+      }
       
       // Check if zone changed for participant list
       if (z !== participantListLastZone || Date.now() - lastParticipantUpdate > 2000) {
@@ -1692,6 +1739,59 @@ export function App() {
   useEffect(() => {
     gameBridge.setCollisionVisible(!!editor.active);
   }, [editor.active]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setContextMenu({ open: false, x: 0, y: 0, playerId: null });
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  useEffect(() => {
+    // Unterdrücke Browser/OS-Kontextmenü innerhalb des Spiel-Containers
+    const container = containerRef.current;
+    if (!container) return;
+    const stopContext = (e: MouseEvent) => {
+      try {
+        if (container.contains(e.target as Node)) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+      } catch {}
+    };
+    container.addEventListener('contextmenu', stopContext as any, { capture: true } as any);
+    // Fallback: global für Canvas
+    const globalStop = (e: MouseEvent) => {
+      try {
+        const t = e.target as HTMLElement | null;
+        if (t && (t.tagName === 'CANVAS' || container.contains(t))) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+      } catch {}
+    };
+    window.addEventListener('contextmenu', globalStop as any, { capture: true } as any);
+    return () => {
+      try { container.removeEventListener('contextmenu', stopContext as any, { capture: true } as any); } catch {}
+      try { window.removeEventListener('contextmenu', globalStop as any, { capture: true } as any); } catch {}
+    };
+  }, [containerRef.current]);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      try { e.preventDefault(); } catch {}
+      try { e.stopPropagation(); } catch {}
+    };
+    window.addEventListener('contextmenu', handler as any, { capture: true } as any);
+    document.addEventListener('contextmenu', handler as any, { capture: true } as any);
+    return () => {
+      try { window.removeEventListener('contextmenu', handler as any, { capture: true } as any); } catch {}
+      try { document.removeEventListener('contextmenu', handler as any, { capture: true } as any); } catch {}
+    };
+  }, []);
 
   if (!authChecked) {
     return (
@@ -2066,6 +2166,50 @@ export function App() {
             });
           }}
         />
+      )}
+
+      {/* Bubble Banner */}
+      {bubbleUi.active && (
+        <div style={{ position: 'absolute', bottom: 140, left: '50%', transform: 'translateX(-50%)', zIndex: 40 }}>
+          <div style={{ display:'flex', alignItems:'center', gap: 12, background:'rgba(17,17,20,0.9)', border:'1px solid rgba(255,255,255,0.12)', borderRadius: 12, padding: '10px 14px', color:'#fff', boxShadow:'0 12px 32px rgba(0,0,0,0.5)' }}>
+            <span style={{ fontWeight:600 }}>In Bubble mit:</span>
+            <span>{bubbleUi.members.join(', ')}</span>
+            <button onClick={() => {
+              // Leave bubble immediately
+              const set = bubbleMembersRef.current;
+              set.clear();
+              try { gameBridge.setBubbleMembers(new Set()); } catch {}
+              try { gameBridge.setMovementLocked(false); } catch {}
+              try { colyseusRef.current?.send?.('bubble_update', { members: [] }); } catch {}
+              setBubbleUi({ active: false, members: [] });
+              setTimeout(() => applyVolumesToUi(), 0);
+            }} style={{ marginLeft: 8, padding:'6px 10px', borderRadius:8, border:'1px solid rgba(244,63,94,0.4)', background:'rgba(244,63,94,0.18)', color:'#fff', cursor:'pointer' }}>Bubble verlassen</button>
+          </div>
+        </div>
+      )}
+
+      {/* Kontextmenü */}
+      {contextMenu.open && contextMenu.playerId && (
+        <div onClick={() => setContextMenu({ open: false, x: 0, y: 0, playerId: null })} style={{ position: 'absolute', inset: 0, zIndex: 60 }}>
+          <div onClick={(e)=>e.stopPropagation()} style={{ position: 'absolute', left: Math.min(Math.max(8, contextMenu.x), window.innerWidth - 196), top: Math.min(Math.max(8, contextMenu.y), window.innerHeight - 96), background:'rgba(17,17,20,0.98)', color:'#fff', border:'1px solid rgba(255,255,255,0.12)', borderRadius: 8, boxShadow:'0 12px 40px rgba(0,0,0,0.5)' }}>
+            <button onClick={() => {
+              setContextMenu({ open: false, x: 0, y: 0, playerId: null });
+              const id = contextMenu.playerId!;
+              // Toggle follow
+              if (followRef.current?.getTarget?.() === id) {
+                followRef.current.stop();
+                gameBridge.setDesiredPosition(null);
+              } else {
+                followRef.current?.startFollowing?.(id);
+              }
+            }} style={{ display:'block', padding:'8px 12px', background:'transparent', color:'#fff', border:'none', borderBottom:'1px solid rgba(255,255,255,0.08)', width: 180, textAlign:'left', cursor:'pointer' }}>Folgen</button>
+            <button onClick={() => {
+              setContextMenu({ open: false, x: 0, y: 0, playerId: null });
+              const id = contextMenu.playerId!;
+              bubbleStartRef.current?.(id);
+            }} style={{ display:'block', padding:'8px 12px', background:'transparent', color:'#fff', border:'none', width: 180, textAlign:'left', cursor:'pointer' }}>Bubble starten</button>
+          </div>
+        </div>
       )}
     </div>
     </ThemeProvider>

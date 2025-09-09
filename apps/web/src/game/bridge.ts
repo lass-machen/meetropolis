@@ -11,7 +11,7 @@ type Bridge = {
   setDesiredPosition: (pos: { x: number; y: number } | null) => void;
   setZoneOverlay: (polys: { name: string; points: { x: number; y: number }[] }[]) => void;
   onPointerDown: (p: { x: number; y: number }) => void;
-  onRightClick: (p: { x: number; y: number }) => void;
+  onRightClick: (p: { x: number; y: number; playerId?: string }) => void;
   setEditorAssets: (assets: { id: string; key: string; dataUrl: string; x: number; y: number }[]) => void;
   onPointerDownTile: (p: { tileX: number; tileY: number }) => void;
   onPointerMoveTile: (p: { tileX: number; tileY: number }) => void;
@@ -26,6 +26,9 @@ type Bridge = {
   setHeroName: (name: string) => void;
   updateSpeakingStates: (speakingIds: Set<string>) => void;
   setDoNotDisturb: (enabled: boolean) => void;
+  // New: lock movement and find free spot near a sprite
+  setMovementLocked: (locked: boolean) => void;
+  findFreeSpotNear: (targetId: string, options?: { radius?: number; step?: number }) => { x: number; y: number } | null;
   handleEditorUpdate?: (data: any) => void;
 };
 
@@ -35,7 +38,7 @@ export type SceneApi = {
   setZoneOverlay: (polys: { name: string; points: { x: number; y: number }[] }[]) => void;
   setEditorAssets: (assets: { id: string; key: string; dataUrl: string; x: number; y: number }[]) => void;
   setSelectionRect: (rect: { x: number; y: number; w: number; h: number } | null) => void;
-  applyTilePaint: (edit: { layer: 'EditorGround' | 'EditorWalls' | 'Collision'; tilesetKey: string; tileIndex: number; rect: { startX: number; startY: number; endX: number; endY: number } }) => void;
+  applyTilePaint: (edit: { layer: 'EditorGround' | 'EditorWalls' | 'Collision'; tilesetKey: string; tileIndex: number; rect: { startX: number; startY: number; endX: number } }) => void;
   registerTileset: (ts: { key: string; dataUrl: string; tileWidth: number; tileHeight: number; margin?: number; spacing?: number }) => void;
   setCollisionVisible: (visible: boolean) => void;
   reloadEditorLayers: () => void;
@@ -44,6 +47,9 @@ export type SceneApi = {
   setHeroName?: (name: string) => void;
   updateSpeakingStates?: (speakingIds: Set<string>) => void;
   setDoNotDisturb?: (enabled: boolean) => void;
+  // New hooks
+  setMovementLocked?: (locked: boolean) => void;
+  findFreeSpotNear?: (targetId: string, options?: { radius?: number; step?: number }) => { x: number; y: number } | null;
 };
 
 let sceneApi: SceneApi | null = null;
@@ -120,6 +126,7 @@ export const gameBridge: Bridge = {
     }
   },
   setDesiredPosition: (pos) => {
+    try { console.debug('[Bridge] setDesiredPosition called', pos); } catch {}
     sceneApi?.setDesiredPosition(pos);
   },
   setZoneOverlay: (polys) => {
@@ -166,6 +173,12 @@ export const gameBridge: Bridge = {
   setDoNotDisturb: (enabled) => {
     cachedDoNotDisturb = !!enabled;
     sceneApi?.setDoNotDisturb?.(enabled);
+  },
+  setMovementLocked: (locked) => {
+    sceneApi?.setMovementLocked?.(locked);
+  },
+  findFreeSpotNear: (targetId, options) => {
+    return sceneApi?.findFreeSpotNear?.(targetId, options) ?? null;
   },
   handleEditorUpdate: (data: any) => {
     try {
