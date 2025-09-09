@@ -51,6 +51,37 @@ export function EditorPanel(props: {
             <label style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>Zonenname</label>
             <input value={editor.name} onChange={(e)=>setEditor(s=>({ ...s, name: e.target.value }))} placeholder="z.B. Meeting Room A" style={{ padding: 8, borderRadius: 6, border: '1px solid var(--border)', background: 'var(--glass)', color: 'var(--fg)', fontSize: 13 }} />
           </div>
+          <div style={{ marginTop: 10, display: 'grid', gap: 8 }}>
+            <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>Vorhandene Zonen</div>
+            {editor.zones.length === 0 && (
+              <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>Noch keine Zonen. Ziehe auf der Karte einen Bereich, um eine Zone zu erstellen.</div>
+            )}
+            {editor.zones.map((z, idx) => (
+              <div key={idx} style={{ display: 'grid', gap: 6, padding: 8, borderRadius: 8, border: '1px solid var(--border)', background: editor.editingZoneIndex===idx? 'rgba(59,130,246,0.08)' : 'var(--glass)' }}>
+                <div style={{ display: 'grid', gap: 4 }}>
+                  <label style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>Name</label>
+                  <input
+                    value={z.name}
+                    onChange={(e)=>setEditor(s=>{
+                      const zones = s.zones.slice();
+                      zones[idx] = { ...zones[idx], name: e.target.value };
+                      return { ...s, zones };
+                    })}
+                    style={{ padding: 6, borderRadius: 6, border: '1px solid var(--border)', background: 'var(--glass)', color: 'var(--fg)', fontSize: 12 }}
+                  />
+                </div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button onClick={()=>setEditor(s=>({ ...s, editingZoneIndex: idx, tool: 'zone', category: 'zones', name: s.zones[idx]?.name || '' }))} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--glass)', color: 'var(--fg)', fontSize: 12 }}>Neu ziehen</button>
+                  <button onClick={()=>setEditor(s=>{
+                    const zones = s.zones.filter((_,i)=>i!==idx);
+                    // Wenn gerade bearbeitet wird und diese Zone entfernt wird, Bearbeitung zurücksetzen
+                    const editing = (s.editingZoneIndex ?? null) === idx ? null : s.editingZoneIndex;
+                    return { ...s, zones, editingZoneIndex: editing };
+                  })} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'rgba(239,68,68,0.12)', color: 'var(--fg)', fontSize: 12 }}>Löschen</button>
+                </div>
+              </div>
+            ))}
+          </div>
         </>
       )}
 

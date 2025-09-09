@@ -26,8 +26,8 @@ export class ZoneManager {
   setZones(zones: Polygon[]) {
     this.zones = zones;
     if (this.current && !this.zones.find(z => z.name === this.current)) {
+      // Single-Room: keine Raumwechsel – nur State zurücksetzen
       this.current = undefined;
-      this.av?.switchTo('lobby');
     }
   }
 

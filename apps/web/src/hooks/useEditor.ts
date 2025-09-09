@@ -10,6 +10,7 @@ export type EditorState = {
   tempPoints: { x: number; y: number }[];
   name: string;
   zones: { name: string; points: { x: number; y: number }[] }[];
+  editingZoneIndex?: number | null;
   assets: { id: string; key: string; dataUrl: string; x: number; y: number }[];
   pendingAsset?: { key: string; dataUrl: string } | null;
   tilePaint?: { tilesetKey: string; tileIndex: number; tileWidth: number; tileHeight: number; margin?: number; spacing?: number } | null;
@@ -26,6 +27,7 @@ export function useEditor(): [EditorState, React.Dispatch<React.SetStateAction<E
     tempPoints: [],
     name: '',
     zones: [],
+    editingZoneIndex: null,
     assets: [],
     pendingAsset: null,
     tilePaint: { tilesetKey: 'office_tiles', tileIndex: 1, tileWidth: 16, tileHeight: 16 },

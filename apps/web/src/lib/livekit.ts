@@ -38,18 +38,40 @@ export async function joinLivekitRoom(params: {
     autoSubscribe: true,
     video: params.useVideo,
     audio: true,
-    // Prefer higher initial bitrate for better quality
-    // LiveKit will adapt but this helps screen/media clarity
+    // Adaptive Stream testweise aus, um Abo-Probleme einzugrenzen
+    // @ts-ignore: SDK akzeptiert boolean oder Settings-Objekt
+    adaptiveStream: false,
+    // Nutzt Simulcast effizienter (deaktiviert ungenutzte Layer)
+    // @ts-ignore
+    dynacast: true,
+    // Publishing-Defaults (werden vom SDK teils ignoriert, dienen als Hint)
+    // @ts-ignore
+    publishDefaults: {
+      // Kamera moderat, Screenshare hoch
+      // @ts-ignore
+      videoEncoding: { maxBitrate: 1_200_000, maxFramerate: 30 },
+      // @ts-ignore
+      screenShareEncoding: { maxBitrate: 2_500_000, maxFramerate: 30 },
+      // @ts-ignore
+      simulcast: true,
+    },
+    // Zusätzliche Bitraten-Hints (falls von Version unterstützt)
     // @ts-ignore optional in SDK
-    maxAudioBitrate: 64000,
+    maxAudioBitrate: 64_000,
     // @ts-ignore optional in SDK
-    maxVideoBitrate: 2500000
+    maxVideoBitrate: 2_500_000
   } as any);
   // WICHTIG: keine lokalen Audio/Video-Tracks automatisch erstellen/publizieren.
   return room;
 }
 
 export async function startScreenshare(room: Room) {
-  const tracks = await createLocalScreenTracks({});
+  const tracks = await createLocalScreenTracks({
+    video: {
+      frameRate: 30,
+      resolution: { width: 1920, height: 1080 },
+    } as any,
+    audio: true,
+  } as any);
   for (const t of tracks) await room.localParticipant.publishTrack(t);
 }

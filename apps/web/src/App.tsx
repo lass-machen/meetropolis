@@ -283,7 +283,31 @@ export function App() {
   const buildParticipantList = React.useCallback(() => {
     const room: any = avRef.current?.room as any;
     if (!room || !room.localParticipant) {
-      // buildParticipantList - no room or localParticipant
+      // Fallback: Kein LiveKit-Raum – baue Karten aus Colyseus-Remotes + Local (mit Zonenfilter)
+      const list: { sid: string; identity: string; hasVideo: boolean; hasMic: boolean; isSpeaking: boolean; media: 'camera' | 'screen'; volume?: number }[] = [];
+      try {
+        // Local
+        const localIdentity = me?.name || me?.email || me?.id || 'You';
+        list.push({ sid: 'local', identity: localIdentity, hasVideo: false, hasMic: false, isSpeaking: false, media: 'camera', volume: 1 });
+        const zones = zoneRef.current?.getZones?.() || [];
+        const localPos = { x: localPosRef.current.x, y: localPosRef.current.y };
+        const localZone = zones.find(z => pointInPolygon(localPos, z.points));
+        // Remotes (aus Colyseus)
+        for (const [colyseusId, pos] of Object.entries(remotesRef.current || {})) {
+          // Zonenfilter
+          try {
+            const remoteZone = zones.find(z => pointInPolygon(pos as any, z.points));
+            if ((localZone && !remoteZone) || (!localZone && remoteZone) || (localZone && remoteZone && localZone.name !== remoteZone.name)) {
+              continue;
+            }
+          } catch {}
+          const livekitIdentity = colyseusToLivekitMap.current[colyseusId] || colyseusId;
+          const name = identityToNameMap.current[livekitIdentity] || getDisplayName(livekitIdentity);
+          // Verwende Colyseus-ID als Pseudo-SID, damit Keys stabil sind
+          list.push({ sid: `col:${colyseusId}`, identity: name, hasVideo: false, hasMic: false, isSpeaking: false, media: 'camera', volume: 1 });
+        }
+      } catch {}
+      setUiParticipants(list);
       return;
     }
     // buildParticipantList - participants
@@ -296,7 +320,7 @@ export function App() {
     const activeSet = new Set<string>((room.activeSpeakers || []).map((p: any) => p.sid));
     const list: { sid: string; identity: string; hasVideo: boolean; hasMic: boolean; isSpeaking: boolean; media: 'camera' | 'screen'; volume?: number }[] = [];
     const pushP = (p: any, isLocal: boolean = false) => {
-      if (!p || !p.trackPublications) return;
+      if (!p) return;
       
       // Get participant position for zone check
       let participantPos: { x: number; y: number } | null = null;
@@ -312,19 +336,51 @@ export function App() {
         }
       }
       
-      // Check if participant is in the same zone as local user
-      if (!isLocal && participantPos) {
+      // Zonenfilter: Nur Teilnehmer in gleicher Zone anzeigen. Falls Position unbekannt → konservativ ausblenden.
+      if (!isLocal) {
+        if (!participantPos) {
+          try {
+            const publications = Array.from((p.trackPublications?.values?.() || []) as any);
+            for (const pub of publications) {
+              const source = (pub?.source || pub?.track?.source);
+              const kind = pub?.kind ?? pub?.track?.kind;
+              if (source === 'camera' || source === 'screen_share' || kind === 'audio') {
+                try { pub?.setSubscribed?.(false); } catch {}
+              }
+            }
+          } catch {}
+          return;
+        }
         const remoteZone = zones.find(z => pointInPolygon(participantPos!, z.points));
-        
-        // Skip if zones don't match (one in zone, other not, or different zones)
-        if ((localZone && !remoteZone) || (!localZone && remoteZone) || 
-            (localZone && remoteZone && localZone.name !== remoteZone.name)) {
+        if ((localZone && !remoteZone) || (!localZone && remoteZone) || (localZone && remoteZone && localZone.name !== remoteZone.name)) {
+          try {
+            const publications = Array.from((p.trackPublications?.values?.() || []) as any);
+            for (const pub of publications) {
+              const source = (pub?.source || pub?.track?.source);
+              const kind = pub?.kind ?? pub?.track?.kind;
+              if (source === 'camera' || source === 'screen_share' || kind === 'audio') {
+                try { pub?.setSubscribed?.(false); } catch {}
+              }
+            }
+          } catch {}
           return;
         }
       }
       
       try {
         const publications = Array.from((p.trackPublications?.values?.() || []) as any);
+        // Erzwinge Subscribe f fcr Remote-Kamera/Screenshare
+        if (!isLocal) {
+          try {
+            for (const pub of publications) {
+              const source = (pub?.source || pub?.track?.source);
+              if (source === 'camera' || source === 'screen_share') {
+                try { pub?.setSubscribed?.(true); } catch {}
+                try { pub?.setVideoQuality?.('high'); } catch {}
+              }
+            }
+          } catch {}
+        }
         const isVideoPub = (pub: any) => {
           const source = (pub?.source ?? pub?.track?.source);
           // Kamera an nur wenn Camera-Quelle; Screenshare ausklammern
@@ -337,32 +393,23 @@ export function App() {
         };
         const isScreenPub = (pub: any) => {
           const source = (pub?.source ?? pub?.track?.source);
-          return (!!pub?.track && (source === 'screen_share' || source === 2));
+          // Kartenanzeige auch ohne bereits abonnierten Track, sobald screen_share publiziert wurde
+          return (source === 'screen_share' || source === 2);
         };
         const hasV = publications.some(isVideoPub);
         const hasMic = publications.some(isMicPub);
         const hasScreen = publications.some(isScreenPub);
-      // Get display name from identity - if it's a LiveKit ID, try to get the actual name
-      let displayName = p.identity || 'User';
-      
-      // Check if participant has a name property
-      if (p && p.name && p.name !== p.identity) {
-        displayName = p.name;
-        // Store the mapping
-        identityToNameMap.current[p.identity] = p.name;
-      } else if (p && p.sid === room.localParticipant?.sid) {
-        // Check if this is the local participant
+      // DisplayName: zuerst Mapping, dann p.name, dann fallback
+      let displayName = identityToNameMap.current[p.identity] || p.name || p.identity || 'User';
+      if (p && p.sid === room.localParticipant?.sid) {
         displayName = me?.name || me?.email || displayName;
-      } else {
-        // For remote participants, check if we have a name mapping
-        // If identity looks like a LiveKit ID (long alphanumeric), keep it for now
-        // In a real app, you'd have a server-side mapping of identities to names
+      }
+      // Fallback-Kürzung nur wenn immer noch wie rohe ID wirkt
+      if (!identityToNameMap.current[p.identity] && !p.name) {
         if (displayName.length > 20 && /^[a-zA-Z0-9]+$/.test(displayName)) {
-          // This looks like a LiveKit ID, use a shortened version
           displayName = `User ${displayName.substring(0, 6)}`;
         }
       }
-      
       const identity = displayName;
       
       // Get volume for this participant
@@ -371,7 +418,7 @@ export function App() {
       // Kamera-/Audio-Karte: immer anzeigen, wenn der Teilnehmer online ist.
       // hasVideo steuert nur die Videoanzeige, nicht die Sichtbarkeit der Karte.
       list.push({ sid: p.sid, identity, hasVideo: !!hasV, hasMic: !!hasMic, isSpeaking: activeSet.has(p.sid), media: 'camera', volume });
-      // Screenshare als eigene Karte
+      // Screenshare als eigene Karte (auch wenn Track noch nicht abonniert ist)
       if (hasScreen) {
         list.push({ sid: p.sid + ':screen', identity: `${identity} – Bildschirm`, hasVideo: true, hasMic: false, isSpeaking: false, media: 'screen', volume });
       }
@@ -382,11 +429,35 @@ export function App() {
     const remotes = Array.from((room.remoteParticipants?.values?.() || room.participants?.values?.() || []) as any);
     // Processing remote participants
     for (const rp of remotes) {
-      // Processing remote participant
-      pushP(rp, false); // false = not local
+      pushP(rp, false);
     }
+    // Merge in Colyseus remotes to avoid gaps when LiveKit has delays (mit Zonenfilter)
+    try {
+      const presentIdentities = new Set<string>(list.map(p => p.identity));
+      for (const [colyseusId, _pos] of Object.entries(remotesRef.current || {})) {
+        const livekitIdentity = colyseusToLivekitMap.current[colyseusId] || colyseusId;
+        const name = identityToNameMap.current[livekitIdentity] || getDisplayName(livekitIdentity);
+        // Zonenfilter anhand Position
+        try {
+          const zones = zoneRef.current?.getZones?.() || [];
+          const localPos = { x: localPosRef.current.x, y: localPosRef.current.y };
+          const localZone = zones.find(z => pointInPolygon(localPos, z.points));
+          const pos = remotesRef.current[colyseusId];
+          const remoteZone = pos ? zones.find(z => pointInPolygon(pos, z.points)) : null;
+          if ((localZone && !remoteZone) || (!localZone && remoteZone) || (localZone && remoteZone && localZone.name !== remoteZone.name)) {
+            continue;
+          }
+        } catch {}
+        if (!presentIdentities.has(name) && !presentIdentities.has(livekitIdentity)) {
+          list.push({ sid: `col:${colyseusId}`, identity: name, hasVideo: false, hasMic: false, isSpeaking: false, media: 'camera', volume: 1 });
+          presentIdentities.add(name);
+        }
+      }
+    } catch {}
     // Final participant list
     setUiParticipants(list);
+    // Trigger early rebuild shortly after to account for late position sync (ensures zone filter applies when remotesRef fills)
+    try { setTimeout(() => { if (!disposed) buildParticipantList(); }, 150); } catch {}
     
     // Update speaking states in the game
     // Use the activeSpeakers from LiveKit directly
@@ -421,6 +492,12 @@ export function App() {
     
     gameBridge.updateSpeakingStates(speakingIds);
   }, [me]);
+
+  useEffect(() => {
+    // Suppression-Flag für Zonen-Broadcast (verhindert Echo bei eingehenden Updates)
+  }, []);
+
+  const suppressZoneBroadcastRef = React.useRef(false);
 
   useEffect(() => {
     if (page !== 'world') return;
@@ -482,11 +559,20 @@ export function App() {
                   x: p.x, 
                   y: p.y, 
                   direction: p.direction,
-                  name: p.name || getDisplayName(p.identity || p.id)
-                };
+                  name: p.name || getDisplayName(p.identity || p.id),
+                  dnd: p.dnd
+                } as any;
               }
             });
             gameBridge.syncRemotePlayers(players);
+            // Update remote positions cache for distance/zone calculations
+            try {
+              remotesRef.current = Object.fromEntries(
+                Object.entries(players).map(([id, p]) => [id, { x: p.x, y: p.y }])
+              );
+            } catch {}
+            // Trigger participant grid build for the new joiner
+            try { setTimeout(buildParticipantList, 0); } catch {}
           }
         });
         
@@ -506,9 +592,19 @@ export function App() {
                 x: data.x, 
                 y: data.y, 
                 direction: data.direction, 
-                name: data.name || getDisplayName(data.identity || data.id) 
+                name: data.name || getDisplayName(data.identity || data.id),
+                dnd: data.dnd
               });
             }
+            // Update participant grid (zone/nearby)
+            try { setTimeout(buildParticipantList, 50); } catch {}
+            // Re-broadcast current zones so new joiner gets them live (even if server save failed)
+            try {
+              const currZones = (editor?.zones || []);
+              if (Array.isArray(currZones) && currZones.length > 0) {
+                colyseusRef.current?.send?.('editor_update', { type: 'zone', polys: currZones });
+              }
+            } catch {}
           }
         });
         
@@ -522,6 +618,8 @@ export function App() {
                 direction: data.direction 
               });
             }
+            // Movement may change zone membership
+            try { setTimeout(buildParticipantList, 50); } catch {}
           }
         });
         
@@ -532,15 +630,47 @@ export function App() {
           if (gameBridge?.removeRemotePlayer) {
             gameBridge.removeRemotePlayer(data.id);
           }
+          // Rebuild participants after roster change
+          try { setTimeout(buildParticipantList, 50); } catch {}
         });
         
         room.onMessage('player_dnd', (data: { id: string; dnd: boolean }) => {
           if (gameBridge?.updateRemotePlayerDnd) {
             gameBridge.updateRemotePlayerDnd(data.id, data.dnd);
           }
+          // DND affects visibility/opacity in UI cards
+          try { setTimeout(buildParticipantList, 50); } catch {}
         });
         
         room.onMessage('editor_update', (data: any) => {
+          // Zonen-Update oder Tiles direkt anwenden, ohne Neuladen zu benötigen
+          try {
+            if (data?.type === 'zone' && Array.isArray(data.polys)) {
+              // Update lokale Anzeige und Manager
+              suppressZoneBroadcastRef.current = true;
+              setEditor(s => ({ ...s, zones: data.polys }));
+              try { localStorage.setItem('meetropolis.zones', JSON.stringify(data.polys)); } catch {}
+              gameBridge.setZoneOverlay(data.polys);
+              zoneRef.current?.setZones?.(data.polys as any);
+              // Teilnehmerliste neu bauen (Zonenfilter)
+              try { setTimeout(buildParticipantList, 0); } catch {}
+              // Nach kurzem Delay Broadcast wieder zulassen
+              setTimeout(() => { suppressZoneBroadcastRef.current = false; }, 50);
+              return;
+            }
+            if (data?.type === 'tile_paint' && data.edit) {
+              gameBridge.applyTilePaint(data.edit);
+              return;
+            }
+            if (data?.type === 'layers' || data?.type === 'all') {
+              gameBridge.fetchAndApplyServerLayers?.();
+              return;
+            }
+            if (data?.type === 'asset' && Array.isArray(data.assets)) {
+              gameBridge.setEditorAssets(data.assets);
+              return;
+            }
+          } catch {}
           if (gameBridge?.handleEditorUpdate) {
             gameBridge.handleEditorUpdate(data);
           }
@@ -559,9 +689,15 @@ export function App() {
             }
           }
           if (payload.share !== undefined) {
-            if (lkRoom?.localParticipant?.isScreenShareEnabled !== payload.share) {
-              await lkRoom?.localParticipant?.setScreenShareEnabled(payload.share);
-            }
+            try {
+              if (payload.share && !avRef.current?.room?.localParticipant?.isScreenShareEnabled) {
+                const ok = await avRef.current?.startScreenshare();
+                if (ok) setAvState(s => ({ ...s, share: true }));
+              } else if (!payload.share && avRef.current?.room?.localParticipant?.isScreenShareEnabled) {
+                await avRef.current?.stopScreenshare();
+                setAvState(s => ({ ...s, share: false }));
+              }
+            } catch {}
           }
           if (payload.dnd !== undefined) {
             setDndStatus(payload.dnd);
@@ -675,6 +811,8 @@ export function App() {
               })
           );
           gameBridge.syncRemotePlayers(filteredPlayers);
+          // Ensure participant grid reflects latest positions/zones
+          try { setTimeout(buildParticipantList, 0); } catch {}
         });
         room.onError?.((_code: any, _message: any) => {
           scheduleColyseusReconnect();
@@ -725,7 +863,7 @@ export function App() {
             }
             if (typeof payload.share === 'boolean' && !dndRef.current) {
               if (payload.share && !avState.share) {
-                try { await avRef.current?.startScreenshare(); setAvState(s => ({ ...s, share: true })); } catch {}
+                try { const ok = await avRef.current?.startScreenshare(); if (ok) setAvState(s => ({ ...s, share: true })); } catch {}
               } else if (!payload.share && avState.share) {
                 try { await avRef.current?.stopScreenshare(); setAvState(s => ({ ...s, share: false })); } catch {}
               }
@@ -802,6 +940,14 @@ export function App() {
                   setTimeout(buildParticipantList, 100);
                 });
                 room.on(RoomEvent.TrackPublished, (_publication: any, _participant: any) => {
+                  try {
+                    const source = (_publication?.source || _publication?.track?.source);
+                    const isRemote = _participant?.sid !== room.localParticipant?.sid;
+                    if (isRemote && (source === 'screen_share' || source === 'camera')) {
+                      try { _publication?.setSubscribed?.(true); } catch {}
+                      try { _publication?.setVideoQuality?.('high'); } catch {}
+                    }
+                  } catch {}
                   setTimeout(buildParticipantList, 100);
                 });
                 room.on(RoomEvent.TrackUnpublished, () => {
@@ -819,8 +965,8 @@ export function App() {
             } catch {}
           })();
         }
-        // Mikrofon automatisch aktivieren
-        try { await avRef.current.setMicrophoneEnabled(true); setAvState(s => ({ ...s, mic: true })); } catch {}
+        // Mikrofon-Zustand beibehalten: nicht automatisch aktivieren
+        // Der sichtbare Zustand wird über LiveKit-Events/buildParticipantList synchronisiert
         // erst listen, dann sicher bauen
         setTimeout(buildParticipantList, 50);
       } catch (e) {
@@ -833,6 +979,14 @@ export function App() {
       }
     };
     connectLivekitRef.current = connectLivekit;
+    // Auto-Connect LiveKit (ohne User-Geste) – publiziert keine Tracks automatisch
+    setTimeout(() => {
+      try {
+        if (!editorActiveRef.current && connectLivekitRef.current && !avRef.current?.room && !isConnectingRef.current) {
+          connectLivekitRef.current();
+        }
+      } catch {}
+    }, 300);
 
     bubbleRef.current = new BubbleManager(64, null);
     followRef.current = new FollowManager(96);
@@ -1108,17 +1262,44 @@ export function App() {
           // Broadcast to other users
           colyseusRef.current?.send?.('editor_update', { type: 'tile_paint', edit });
         }
-        if (s.tool === 'zone') {
+        if (s.tool === 'zone' || (s.category === 'zones' && s.tool === 'select')) {
           const x0 = Math.min(rect.startX, rect.endX) * 16;
           const y0 = Math.min(rect.startY, rect.endY) * 16;
           const x1 = (Math.max(rect.startX, rect.endX) + 1) * 16;
           const y1 = (Math.max(rect.startY, rect.endY) + 1) * 16;
           const name = (s.name || `Zone ${s.zones.length+1}`).trim();
           const poly = { name, points: [ {x:x0,y:y0}, {x:x1,y:y0}, {x:x1,y:y1}, {x:x0,y:y1} ] };
-          const zones = [...s.zones, poly];
+          // No-overlap rule: reject if rectangle overlaps any existing zone (except the one being edited)
+          const rectsOverlap = (a: {x0:number;y0:number;x1:number;y1:number}, b: {x0:number;y0:number;x1:number;y1:number}) => {
+            return !(a.x1 <= b.x0 || a.x0 >= b.x1 || a.y1 <= b.y0 || a.y0 >= b.y1);
+          };
+          const newRect = { x0, y0, x1, y1 };
+          const hasOverlap = s.zones.some((z, idx) => {
+            const editingIdx = s.editingZoneIndex ?? null;
+            if (editingIdx !== null && idx === editingIdx) return false;
+            if (!z.points || z.points.length < 4) return false;
+            const zx0 = Math.min(z.points[0].x, z.points[3].x);
+            const zy0 = Math.min(z.points[0].y, z.points[1].y);
+            const zx1 = Math.max(z.points[1].x, z.points[2].x);
+            const zy1 = Math.max(z.points[2].y, z.points[3].y);
+            return rectsOverlap(newRect, { x0: zx0, y0: zy0, x1: zx1, y1: zy1 });
+          });
+          if (hasOverlap) {
+            try { console.warn('[Editor] Zone-Overlap verhindert'); } catch {}
+            return { ...s, drag: null };
+          }
+          const editingIdx = s.editingZoneIndex ?? null;
+          const zones = Array.isArray(s.zones) ? s.zones.slice() : [];
+          if (editingIdx !== null && editingIdx >= 0 && editingIdx < zones.length) {
+            zones[editingIdx] = poly;
+          } else {
+            zones.push(poly);
+          }
           try { localStorage.setItem('meetropolis.zones', JSON.stringify(zones)); } catch {}
           gameBridge.setZoneOverlay(zones);
           zoneRef.current?.setZones?.(zones as any);
+          // Broadcast to other clients
+          try { colyseusRef.current?.send?.('editor_update', { type: 'zone', polys: zones }); } catch {}
           // Server speichern (best-effort)
           (async ()=>{ 
             try { 
@@ -1134,7 +1315,7 @@ export function App() {
               }
             } catch {} 
           })();
-          return { ...s, zones, drag: null };
+          return { ...s, zones, drag: null, editingZoneIndex: null };
         }
         return { ...s, drag: null };
       });
@@ -1427,6 +1608,29 @@ export function App() {
     gameBridge.setZoneOverlay(zonesToShow);
     // Aber: ZoneManager soll immer mit den echten Zonen arbeiten
     zoneRef.current?.setZones?.(editor.zones as any);
+    // Persistenz & Server (debounced best-effort)
+    try { localStorage.setItem('meetropolis.zones', JSON.stringify(editor.zones || [])); } catch {}
+    // Broadcast sofort, damit andere Clients live updaten (Server-Save bleibt debounced)
+    if (!suppressZoneBroadcastRef.current) {
+      try { colyseusRef.current?.send?.('editor_update', { type: 'zone', polys: editor.zones || [] }); } catch {}
+    }
+    const controller = new AbortController();
+    const save = async () => {
+      try {
+        const body = JSON.stringify({ zones: editor.zones || [] });
+        if (body.length < 100000) {
+          await fetch(`${apiBase}/maps/office/editor-state`, {
+            method: 'PUT',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body,
+            signal: controller.signal
+          });
+        }
+      } catch {}
+    };
+    const t = setTimeout(save, 300);
+    return () => { clearTimeout(t); controller.abort(); };
   }, [editor.active, editor.zones]);
 
   useEffect(() => {
@@ -1581,8 +1785,8 @@ export function App() {
             <button style={btnStyle(avState.share)} disabled={avState.dnd} onClick={async () => {
               try {
                 if (!avState.share) {
-                  await avRef.current?.startScreenshare();
-                  setAvState(s => ({ ...s, share: true }));
+                  const ok = await avRef.current?.startScreenshare();
+                  if (ok) setAvState(s => ({ ...s, share: true }));
                 } else {
                   await avRef.current?.stopScreenshare();
                   setAvState(s => ({ ...s, share: false }));
@@ -2020,6 +2224,10 @@ function ParticipantCard(props: { part: { sid: string; identity: string; hasVide
             }, 500);
           } catch (e) {
           }
+        } else if (participant?.sid === baseSid) {
+          // Sicherstellen, dass wir die gewünschte Quelle abonnieren (screen oder camera)
+          try { _publication?.setSubscribed?.(true); } catch {}
+          try { _publication?.setVideoQuality?.('high'); } catch {}
         } else {
         }
       } catch {}

@@ -4,6 +4,10 @@ type Bridge = {
   onLocalMove: (p: { x: number; y: number; direction: Direction }) => void;
   setSceneApi: (api: SceneApi | null) => void;
   syncRemotePlayers: (players: Record<string, { x: number; y: number; direction: Direction; name?: string; dnd?: boolean }>) => void;
+  addRemotePlayer: (id: string, p: { x: number; y: number; direction: Direction; name?: string; dnd?: boolean }) => void;
+  updateRemotePlayer: (id: string, p: Partial<{ x: number; y: number; direction: Direction; name?: string; dnd?: boolean }>) => void;
+  removeRemotePlayer: (id: string) => void;
+  updateRemotePlayerDnd: (id: string, dnd: boolean) => void;
   setDesiredPosition: (pos: { x: number; y: number } | null) => void;
   setZoneOverlay: (polys: { name: string; points: { x: number; y: number }[] }[]) => void;
   onPointerDown: (p: { x: number; y: number }) => void;
@@ -22,6 +26,7 @@ type Bridge = {
   setHeroName: (name: string) => void;
   updateSpeakingStates: (speakingIds: Set<string>) => void;
   setDoNotDisturb: (enabled: boolean) => void;
+  handleEditorUpdate?: (data: any) => void;
 };
 
 export type SceneApi = {
@@ -47,6 +52,7 @@ let cachedAssets: { id: string; key: string; dataUrl: string; x: number; y: numb
 let cachedCollisionVisible = false;
 let cachedHeroName: string | null = null;
 let cachedDoNotDisturb = false;
+let remotePlayersCache: Record<string, { x: number; y: number; direction: Direction; name?: string; dnd?: boolean }> = {};
 
 export const gameBridge: Bridge = {
   onLocalMove: () => {},
@@ -67,10 +73,51 @@ export const gameBridge: Bridge = {
       if (typeof sceneApi.setDoNotDisturb === 'function') {
         try { sceneApi.setDoNotDisturb(cachedDoNotDisturb); } catch {}
       }
+      // WICHTIG: Bereits bekannte Remote-Spieler sofort rendern
+      try { sceneApi.syncRemotePlayers(remotePlayersCache); } catch {}
     }
   },
   syncRemotePlayers: (players) => {
-    sceneApi?.syncRemotePlayers(players);
+    // Ersetze den gesamten Cache mit der neuen Quelle der Wahrheit
+    remotePlayersCache = { ...players };
+    sceneApi?.syncRemotePlayers(remotePlayersCache);
+  },
+  addRemotePlayer: (id, p) => {
+    remotePlayersCache[id] = { x: p.x, y: p.y, direction: p.direction, name: p.name, dnd: p.dnd };
+    sceneApi?.syncRemotePlayers(remotePlayersCache);
+  },
+  updateRemotePlayer: (id, p) => {
+    if (!remotePlayersCache[id]) {
+      // Wenn Spieler nicht existiert, lege ihn nur an, wenn genug Daten vorhanden sind
+      if (p.x !== undefined && p.y !== undefined && p.direction) {
+        remotePlayersCache[id] = { x: p.x, y: p.y, direction: p.direction as Direction, name: p.name, dnd: p.dnd };
+      } else {
+        return;
+      }
+    } else {
+      const curr = remotePlayersCache[id];
+      remotePlayersCache[id] = {
+        x: p.x !== undefined ? p.x : curr.x,
+        y: p.y !== undefined ? p.y : curr.y,
+        direction: (p.direction as Direction) || curr.direction,
+        name: p.name !== undefined ? p.name : curr.name,
+        dnd: p.dnd !== undefined ? p.dnd : curr.dnd
+      };
+    }
+    sceneApi?.syncRemotePlayers(remotePlayersCache);
+  },
+  removeRemotePlayer: (id) => {
+    if (remotePlayersCache[id]) {
+      const { [id]: _removed, ...rest } = remotePlayersCache;
+      remotePlayersCache = rest;
+      sceneApi?.syncRemotePlayers(remotePlayersCache);
+    }
+  },
+  updateRemotePlayerDnd: (id, dnd) => {
+    if (remotePlayersCache[id]) {
+      remotePlayersCache[id] = { ...remotePlayersCache[id], dnd };
+      sceneApi?.syncRemotePlayers(remotePlayersCache);
+    }
   },
   setDesiredPosition: (pos) => {
     sceneApi?.setDesiredPosition(pos);
@@ -119,5 +166,27 @@ export const gameBridge: Bridge = {
   setDoNotDisturb: (enabled) => {
     cachedDoNotDisturb = !!enabled;
     sceneApi?.setDoNotDisturb?.(enabled);
+  },
+  handleEditorUpdate: (data: any) => {
+    try {
+      if (!data) return;
+      if (data.type === 'tile_paint' && data.edit) {
+        sceneApi?.applyTilePaint?.(data.edit);
+        return;
+      }
+      if (data.type === 'layers' || data.type === 'all') {
+        // Lade Server-Layer neu
+        sceneApi?.fetchAndApplyServerLayers?.();
+        return;
+      }
+      if (data.type === 'asset' && Array.isArray(data.assets)) {
+        sceneApi?.setEditorAssets?.(data.assets);
+        return;
+      }
+      if (data.type === 'zone' && Array.isArray(data.polys)) {
+        sceneApi?.setZoneOverlay?.(data.polys);
+        return;
+      }
+    } catch {}
   }
 };

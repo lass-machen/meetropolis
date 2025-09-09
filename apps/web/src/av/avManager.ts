@@ -1,6 +1,6 @@
 const SIMPLE = (import.meta as any).env?.VITE_AV_SIMPLE === 'true';
 const ALLOW_RECONNECT = (import.meta as any).env?.VITE_AV_RECONNECT !== 'false';
-import { Room } from 'livekit-client';
+import { Room, createLocalScreenTracks } from 'livekit-client';
 import { joinLivekitRoom } from '../lib/livekit';
 
 export type AVDevices = {
@@ -205,27 +205,32 @@ export class AVManager {
     });
   }
 
-  async startScreenshare() {
-    if (!this.current) return;
+  async startScreenshare(): Promise<boolean> {
+    if (!this.current) return false;
     try {
-      await this.waitForConnected(this.current).catch(()=>{});
-      const { createLocalScreenTracks } = await import('livekit-client');
-      // Request higher quality screen share: high fps & bitrate
+      // WICHTIG: getDisplayMedia muss direkt aus der User-Geste aufgerufen werden.
+      // Daher zuerst Tracks holen (öffnet den Picker), dann erst auf Verbindung warten/publizieren.
       const tracks = await createLocalScreenTracks({
-        video: {
-          frameRate: 30,
-          resolution: { width: 1920, height: 1080 },
-          // LiveKit SDK maps to constraints/encodings internally
-          // encoder is adapted server-side; client can still hint high quality
-        } as any,
-        audio: true
+        video: { frameRate: 30, resolution: { width: 1920, height: 1080 } } as any,
+        audio: true,
       } as any);
-      // If camera video is on, disable it while screensharing to free upload bandwidth
+      try {
+        // Nach der Auswahl Verbindung sicherstellen
+        await this.waitForConnected(this.current).catch(()=>{});
+      } catch {}
+      // Kamera deaktivieren, um Bandbreite zu sparen
       try { await this.setCameraEnabled(false); } catch {}
       for (const t of tracks) {
         await this.current.localParticipant.publishTrack(t);
+        try {
+          const mst: any = (t as any)?.mediaStreamTrack;
+          if (mst && 'contentHint' in mst) {
+            try { mst.contentHint = 'detail'; } catch {}
+          }
+          (t as any)?.setContentHint?.('detail');
+        } catch {}
       }
-      // Try to set preferred encodings for quality where supported
+      // Nach Publish: bevorzugte Layer/Bitrate setzen (falls unterstützt)
       try {
         const pubs = Array.from(this.current.localParticipant.trackPublications.values());
         for (const pub of pubs) {
@@ -233,21 +238,12 @@ export class AVManager {
           if (src === 'screen_share' && (pub as any).setVideoLayers) {
             try { (pub as any).setVideoLayers?.([{ width: 1920, height: 1080, bitrate: 2500_000 }]); } catch {}
           }
-          if (src === 'screen_share') {
-            try {
-              const track: any = (pub as any).track;
-              const mst: MediaStreamTrack | undefined = track?.mediaStreamTrack;
-              if (mst && 'contentHint' in mst) {
-                try { (mst as any).contentHint = 'detail'; } catch {}
-              }
-              // Some SDKs expose setContentHint
-              try { track?.setContentHint?.('detail'); } catch {}
-            } catch {}
-          }
         }
       } catch {}
-    } catch (e) {
-      // Screenshare failed silently
+      return true;
+    } catch (e: any) {
+      // Bei Abbruch/Verweigerung keinen Fehler werfen, sondern false zurück
+      return false;
     }
   }
 

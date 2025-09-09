@@ -620,8 +620,12 @@ export class MainScene extends Phaser.Scene implements SceneApi {
   }
 
   setZoneOverlay(polys: { name: string; points: { x: number; y: number }[] }[]) {
-    this.zoneG?.destroy();
-    const g = this.add.graphics();
+    if (!this.zoneG || !this.zoneG.scene) {
+      this.zoneG = this.add.graphics();
+      this.zoneG.setDepth(7);
+    }
+    const g = this.zoneG;
+    g.clear();
     g.lineStyle(2, 0x00ff99, 1);
     g.fillStyle(0x00ff99, 0.18);
     for (const poly of polys) {
@@ -634,8 +638,6 @@ export class MainScene extends Phaser.Scene implements SceneApi {
       g.fillPath();
       g.strokePath();
     }
-    g.setDepth(4);
-    this.zoneG = g;
   }
 
   setEditorAssets(assets: { id: string; key: string; dataUrl: string; x: number; y: number }[]) {
@@ -694,15 +696,22 @@ export class MainScene extends Phaser.Scene implements SceneApi {
   }
 
   setSelectionRect(rect: { x: number; y: number; w: number; h: number } | null) {
-    this.selectionG?.destroy();
-    if (!rect) return;
-    const g = this.add.graphics();
+    if (!rect) {
+      if (this.selectionG) {
+        this.selectionG.clear();
+      }
+      return;
+    }
+    if (!this.selectionG || !this.selectionG.scene) {
+      this.selectionG = this.add.graphics();
+      this.selectionG.setDepth(7);
+    }
+    const g = this.selectionG;
+    g.clear();
     g.lineStyle(1, 0x22d3ee, 1);
     g.fillStyle(0x22d3ee, 0.12);
     g.fillRect(rect.x, rect.y, rect.w, rect.h);
     g.strokeRect(rect.x, rect.y, rect.w, rect.h);
-    g.setDepth(7);
-    this.selectionG = g;
   }
 
   applyTilePaint(edit: { layer: 'EditorGround' | 'EditorWalls' | 'Collision'; tilesetKey: string; tileIndex: number; rect: { startX: number; startY: number; endX: number; endY: number } }) {
