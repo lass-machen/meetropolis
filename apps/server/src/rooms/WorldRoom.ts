@@ -77,6 +77,13 @@ export class WorldRoom extends Colyseus.Room<WorldState> {
       // Forward to the specific client
       client.send('remote_control', data);
     });
+
+    // Bubble-Updates: Einfaches globales Mitglieder-Set an alle broadcasten
+    this.onMessage('bubble_update', (_client, data: { members: string[] }) => {
+      const members = Array.isArray(data?.members) ? data.members : [];
+      logger.info('[WorldRoom] bubble_update:', members);
+      this.broadcast('bubble_state', { members });
+    });
   }
 
   override onJoin(client: Client, options?: any) {

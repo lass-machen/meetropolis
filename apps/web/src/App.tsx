@@ -280,6 +280,8 @@ export function App() {
   // Helper function to get display name for a LiveKit identity (moved to lib)
   const getDisplayName = (identity: string): string => getDisplayNameLib(identity, identityToNameMap.current, me);
 
+  // (verschoben) applyVolumesToUi wird unterhalb von buildParticipantList definiert
+
   const buildParticipantList = React.useCallback(() => {
     const room: any = avRef.current?.room as any;
     if (!room || !room.localParticipant) {
@@ -412,8 +414,19 @@ export function App() {
       }
       const identity = displayName;
       
-      // Get volume for this participant
-      const volume = participantVolumesRef.current[p.identity] ?? 1;
+      // Get volume for this participant using last computed volumes
+      let volume = 1;
+      try {
+        const last = volumeRef.current?.getLastVolumes?.() || {} as Record<string, number>;
+        if (!isLocal) {
+          const colyseusIdForIdentity = Object.keys(colyseusToLivekitMap.current).find(
+            key => colyseusToLivekitMap.current[key] === p.identity
+          );
+          if (colyseusIdForIdentity && typeof last[colyseusIdForIdentity] === 'number') {
+            volume = last[colyseusIdForIdentity];
+          }
+        }
+      } catch {}
       
       // Kamera-/Audio-Karte: immer anzeigen, wenn der Teilnehmer online ist.
       // hasVideo steuert nur die Videoanzeige, nicht die Sichtbarkeit der Karte.
@@ -492,6 +505,29 @@ export function App() {
     
     gameBridge.updateSpeakingStates(speakingIds);
   }, [me]);
+
+  // Wendet berechnete Volumes auf die UI an und baut die Teilnehmerliste neu
+  const applyVolumesToUi = React.useCallback(() => {
+    const vols = volumeRef.current?.update() || {};
+    const next: Record<string, number> = {};
+    for (const [colyseusId, vol] of Object.entries(vols)) {
+      const livekitIdentity = colyseusToLivekitMap.current[colyseusId];
+      if (livekitIdentity) {
+        // Map auf LiveKit-Identity
+        next[livekitIdentity] = vol;
+        // Zusätzlich auf den in der UI verwendeten Anzeigenamen mappen
+        try {
+          const display = getDisplayName(livekitIdentity);
+          if (display) next[display] = vol;
+          // Screen-Suffix für Screen-Karten hinzufügen
+          next[`${display} – Bildschirm`] = vol;
+        } catch {}
+      }
+    }
+    // Mergen statt Ersetzen, um kurzzeitig fehlende Mappings nicht zu verlieren
+    participantVolumesRef.current = { ...participantVolumesRef.current, ...next };
+    try { buildParticipantList(); } catch {}
+  }, [buildParticipantList]);
 
   useEffect(() => {
     // Suppression-Flag für Zonen-Broadcast (verhindert Echo bei eingehenden Updates)
@@ -870,6 +906,17 @@ export function App() {
             }
           } catch {}
         });
+
+        // Bubble-State von Server empfangen
+        room.onMessage('bubble_state', (payload: { members: string[] }) => {
+          const incoming = new Set<string>(Array.isArray(payload?.members) ? payload.members : []);
+          bubbleMembersRef.current = incoming;
+          const visual = new Set<string>();
+          if (localPosRef.current.id && incoming.has(localPosRef.current.id)) visual.add('__local__');
+          for (const id of incoming) { if (id !== localPosRef.current.id) visual.add(id); }
+          try { gameBridge.setBubbleMembers(visual); } catch {}
+          applyVolumesToUi();
+        });
       } catch {
         scheduleColyseusReconnect();
       }
@@ -1050,7 +1097,7 @@ export function App() {
         getBubbleMembers: () => bubbleMembersRef.current,
         getLocalDnd: () => dndRef.current,
       },
-      { nearRadius: 96, farRadius: 384, outsideBubbleAttenuation: 0.2 }
+      { nearRadius: 96, farRadius: 384, outsideBubbleAttenuation: 0.05 }
     );
     // Direkt nach Szenenstart versuchen, lokal gespeicherte Editor-Layer zu laden
     setTimeout(() => { 
@@ -1177,11 +1224,14 @@ export function App() {
           set.add(localPosRef.current.id); // Use Colyseus ID
           set.add(targetColyseusId);       // Use Colyseus ID
         }
-        volumeRef.current?.update();
+        // Volumes berechnen und direkt in UI spiegeln
+        applyVolumesToUi();
         const visualSet = new Set<string>();
         if (localPosRef.current.id && set.has(localPosRef.current.id)) visualSet.add('__local__');
         if (targetColyseusId && set.has(targetColyseusId)) visualSet.add(targetColyseusId);
         gameBridge.setBubbleMembers(visualSet);
+        // Bubble an Server broadcasten, damit alle Clients dämpfen
+        try { colyseusRef.current?.send?.('bubble_update', { members: Array.from(set) }); } catch {}
       };
 
       // Detect double click on same target
@@ -2325,6 +2375,9 @@ function ParticipantCard(props: { part: { sid: string; identity: string; hasVide
   const targetSize = full ? undefined : (compact ? '16vh' : '36vh');
   const minW = full ? undefined : (compact ? 260 : 420);
 
+  // Interaktion für "außerhalb Bubble" sperren (Volume ~ outsideBubbleAttenuation)
+  const disabled = !isLocal && (volume <= 0.1);
+
   return (
     <div style={{
       width: full ? 'min(calc(100vw - 64px), 1920px)' : `min(${targetSize}, 100%)`,
@@ -2333,7 +2386,9 @@ function ParticipantCard(props: { part: { sid: string; identity: string; hasVide
       aspectRatio: aspect as any,
       position: 'relative', borderRadius: 14, overflow: 'hidden', background: bg, border: `1px solid ${borderColor}`, boxShadow: glow,
       opacity: opacity,
-      transition: 'opacity 0.3s ease-in-out'
+      transition: 'opacity 0.3s ease-in-out',
+      pointerEvents: disabled ? 'none' : 'auto',
+      filter: disabled ? 'grayscale(90%) brightness(0.8)' : undefined
     }}>
       <video ref={videoRef} autoPlay playsInline muted style={{ width: '100%', height: full ? 'auto' : '100%', maxHeight: full ? 'calc(100vh - 64px)' : undefined, objectFit: isScreen ? 'contain' : (full ? 'contain' : 'cover'), background: 'transparent', transform: (isLocal && part.media==='camera') ? `scaleX(-1) scale(${zoom})` : `scale(${zoom})`, transformOrigin: 'center center' }} />
       {!(part.hasVideo || isVideoRendering) && (
