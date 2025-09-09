@@ -1841,8 +1841,8 @@ export function App() {
     <div style={{ width: '100vw', height: '100vh', position: 'relative' }}>
       {page === 'world' && (
         <>
-          {/* Participants Grid Overlay */}
-          {(() => {
+          {/* Participants Grid Overlay (hidden in editor mode) */}
+          {!editor.active && (() => {
             const minCard = gridExpanded ? 480 : 260;
             const gap = gridExpanded ? 18 : 12;
             const count = participantsToRender.length || 1;
@@ -1890,8 +1890,8 @@ export function App() {
             <div>AV: {hud.avRoom ?? 'lobby'}</div>
             <div>Following: {hud.follow ?? 'no'}</div>
           </div>
-          {/* Single Card Fullscreen Overlay */}
-          {selectedSid && (() => {
+          {/* Single Card Fullscreen Overlay (hidden in editor mode) */}
+          {!editor.active && selectedSid && (() => {
             const pick = participantsToRender.find(p => p.sid === selectedSid);
             if (!pick) return null;
             return (
@@ -1909,7 +1909,8 @@ export function App() {
             );
           })()}
 
-          {/* Bottom Control Bar */}
+          {/* Bottom Control Bar (hidden in editor mode) */}
+          {!editor.active && (
           <div style={{ position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: 'var(--bar-bg)', color: 'var(--bar-fg)', borderRadius: 14, border: '1px solid var(--border)', boxShadow: 'var(--shadow)' }}>
             <button style={btnStyle(avState.mic)} disabled={avState.dnd} onClick={async () => {
               const enabled = !avState.mic;
@@ -2021,6 +2022,7 @@ export function App() {
               </button>
             )}
           </div>
+          )}
         </>
       )}
 
