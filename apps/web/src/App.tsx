@@ -3,6 +3,7 @@ import { FAIcon } from './ui/FAIcon';
 import { ThemeProvider, AppShell, ThemeToggleButton } from './ui/theme';
 import { Overlay } from './ui/Overlay';
 import { Button, Card, Input, Toolbar, Modal } from './ui/components';
+import { AVBar } from './ui/av';
 import { TilesetUploadDialog } from './ui/editor/TilesetUploadDialog';
 import { EditorPanel } from './ui/editor/EditorPanel';
 import { useEditor } from './hooks/useEditor';
@@ -1911,117 +1912,78 @@ export function App() {
 
           {/* Bottom Control Bar (hidden in editor mode) */}
           {!editor.active && (
-          <div style={{ position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: 'var(--bar-bg)', color: 'var(--bar-fg)', borderRadius: 14, border: '1px solid var(--border)', boxShadow: 'var(--shadow)' }}>
-            <button style={btnStyle(avState.mic)} disabled={avState.dnd} onClick={async () => {
-              const enabled = !avState.mic;
-              await avRef.current?.setMicrophoneEnabled(enabled);
-              setAvState(s => ({ ...s, mic: enabled }));
-            }}>
-              <MicIcon on={avState.mic} />
-              <span style={btnLabelStyle}>Mic {avState.mic ? 'aus' : 'an'}</span>
-            </button>
-
-            <select style={selectStyle} disabled={!devices.mics.length || avState.dnd} value={selectedMicId} onChange={async (e) => {
-              const id = e.target.value;
-              setSelectedMicId(id);
-              await avRef.current?.useMicrophoneDevice(id);
-            }}>
-              <option value="" disabled>Mic wählen…</option>
-              {devices.mics.map(d => <option key={d.id} value={d.id}>{d.label}</option>)}
-            </select>
-
-            <div style={{ width: 1, height: 24, background: 'var(--bar-divider)' }} />
-
-            <button style={btnStyle(avState.cam)} disabled={avState.dnd} onClick={async () => {
-              const enabled = !avState.cam;
-              try {
-                await avRef.current?.setCameraEnabled(enabled);
-                setAvState(s => ({ ...s, cam: enabled }));
-              } catch (e) {
-                // Revert state on error
-                setAvState(s => ({ ...s, cam: !enabled }));
-              }
-            }}>
-              <CamIcon on={avState.cam} />
-              <span style={btnLabelStyle}>{avState.cam ? 'Kamera aus' : 'Kamera an'}</span>
-            </button>
-
-            <select style={selectStyle} disabled={!devices.cams.length || avState.dnd} value={selectedCamId} onChange={async (e) => {
-              const id = e.target.value;
-              setSelectedCamId(id);
-              await avRef.current?.useCameraDevice(id);
-            }}>
-              <option value="" disabled>Kamera wählen…</option>
-              {devices.cams.map(d => <option key={d.id} value={d.id}>{d.label}</option>)}
-            </select>
-
-            <div style={{ width: 1, height: 24, background: 'rgba(255,255,255,0.08)' }} />
-
-            <button style={btnStyle(avState.share)} disabled={avState.dnd} onClick={async () => {
-              try {
-                if (!avState.share) {
-                  const ok = await avRef.current?.startScreenshare();
-                  if (ok) setAvState(s => ({ ...s, share: true }));
-                } else {
-                  await avRef.current?.stopScreenshare();
-                  setAvState(s => ({ ...s, share: false }));
-                }
-              } catch (e) {
-              }
-            }}>
-              <ScreenIcon on={avState.share} />
-              <span style={btnLabelStyle}>{avState.share ? 'Screenshare stoppen' : 'Screenshare starten'}</span>
-            </button>
-
-            <div style={{ width: 1, height: 24, background: 'rgba(255,255,255,0.08)' }} />
-
-            <button
-              title={avState.dnd ? 'Bitte nicht stören: an' : 'Bitte nicht stören: aus'}
-              style={btnStyle(avState.dnd)}
-              onClick={async () => {
-                const next = !avState.dnd;
-                try { gameBridge.setDoNotDisturb(next); } catch {}
-                if (next) {
-                  try { await avRef.current?.setMicrophoneEnabled(false); } catch {}
-                  try { await avRef.current?.setCameraEnabled(false); } catch {}
-                  try { await avRef.current?.stopScreenshare(); } catch {}
-                  // Alle Remote-Teilnehmer stumm schalten
+            <div style={{ position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-50%)', zIndex: 30 }}>
+              <AVBar
+                size="md"
+                micOn={avState.mic}
+                camOn={avState.cam}
+                shareOn={avState.share}
+                dndOn={avState.dnd}
+                devices={devices}
+                selectedMicId={selectedMicId}
+                selectedCamId={selectedCamId}
+                onToggleMic={async () => {
+                  const enabled = !avState.mic;
+                  await avRef.current?.setMicrophoneEnabled(enabled);
+                  setAvState(s => ({ ...s, mic: enabled }));
+                }}
+                onSelectMic={async (id: string) => {
+                  setSelectedMicId(id);
+                  await avRef.current?.useMicrophoneDevice(id);
+                }}
+                onToggleCam={async () => {
+                  const enabled = !avState.cam;
                   try {
-                    const room: any = avRef.current?.room as any;
-                    if (room?.remoteParticipants) {
-                      const participants: any[] = Array.from((room.remoteParticipants as any).values());
-                      for (const p of participants) {
-                        const sid = (p as any)?.sid;
-                        if (sid) {
-                          try { avRef.current?.setParticipantVolume(sid, 0); } catch {}
+                    await avRef.current?.setCameraEnabled(enabled);
+                    setAvState(s => ({ ...s, cam: enabled }));
+                  } catch (e) {
+                    setAvState(s => ({ ...s, cam: !enabled }));
+                  }
+                }}
+                onSelectCam={async (id: string) => {
+                  setSelectedCamId(id);
+                  await avRef.current?.useCameraDevice(id);
+                }}
+                onToggleShare={async () => {
+                  try {
+                    if (!avState.share) {
+                      const ok = await avRef.current?.startScreenshare();
+                      if (ok) setAvState(s => ({ ...s, share: true }));
+                    } else {
+                      await avRef.current?.stopScreenshare();
+                      setAvState(s => ({ ...s, share: false }));
+                    }
+                  } catch (e) {}
+                }}
+                onToggleDnd={async () => {
+                  const next = !avState.dnd;
+                  try { gameBridge.setDoNotDisturb(next); } catch {}
+                  if (next) {
+                    try { await avRef.current?.setMicrophoneEnabled(false); } catch {}
+                    try { await avRef.current?.setCameraEnabled(false); } catch {}
+                    try { await avRef.current?.stopScreenshare(); } catch {}
+                    try {
+                      const room: any = avRef.current?.room as any;
+                      if (room?.remoteParticipants) {
+                        const participants: any[] = Array.from((room.remoteParticipants as any).values());
+                        for (const p of participants) {
+                          const sid = (p as any)?.sid;
+                          if (sid) {
+                            try { avRef.current?.setParticipantVolume(sid, 0); } catch {}
+                          }
                         }
                       }
-                    }
-                  } catch {}
-                }
-                dndRef.current = next;
-                setAvState(s => ({ ...s, dnd: next, mic: next ? false : s.mic, cam: next ? false : s.cam, share: next ? false : s.share }));
-                // Send DND status to server
-                try { colyseusRef.current?.send?.('dnd_status', { dnd: next }); } catch {}
-                try { volumeRef.current?.update(); } catch {}
-              }}
-            >
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <circle cx="12" cy="12" r="9" stroke={avState.dnd ? '#10b981' : '#e5e7eb'} strokeWidth="1.8" />
-                  <path d="M7 12h10" stroke={avState.dnd ? '#10b981' : '#e5e7eb'} strokeWidth="1.8" strokeLinecap="round" />
-                </svg>
-                <span style={btnLabelStyle}>Nicht stören</span>
-              </span>
-            </button>
-
-            {/* Recenter inline at right end of AV bar */}
-            {cameraManual && (
-              <button onClick={() => { try { gameBridge.recenterCamera(); } catch {} }} style={{ ...btnStyle(false), marginLeft: 12 }}>
-                <FAIcon name="location-crosshairs" variant="solid" ariaLabel="Zentrieren" style={{ marginRight: 6 }} />
-              </button>
-            )}
-          </div>
+                    } catch {}
+                  }
+                  dndRef.current = next;
+                  setAvState(s => ({ ...s, dnd: next, mic: next ? false : s.mic, cam: next ? false : s.cam, share: next ? false : s.share }));
+                  try { colyseusRef.current?.send?.('dnd_status', { dnd: next }); } catch {}
+                  try { volumeRef.current?.update(); } catch {}
+                }}
+                cameraManual={cameraManual}
+                onRecenter={() => { try { gameBridge.recenterCamera(); } catch {} }}
+              />
+            </div>
           )}
         </>
       )}
