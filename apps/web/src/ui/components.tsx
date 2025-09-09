@@ -14,7 +14,7 @@ export function Card(props: { title?: string; actions?: React.ReactNode; childre
   );
 }
 
-export function Button(props: { children: React.ReactNode; onClick?: () => void; variant?: 'primary' | 'ghost' | 'danger'; disabled?: boolean; title?: string; style?: React.CSSProperties }) {
+export function Button(props: { children: React.ReactNode; onClick?: () => void; variant?: 'primary' | 'ghost' | 'danger'; disabled?: boolean; title?: string; style?: React.CSSProperties; leftIcon?: React.ReactNode; rightIcon?: React.ReactNode }) {
   const { variant = 'ghost' } = props;
   const base: React.CSSProperties = {
     padding: '10px 12px',
@@ -42,7 +42,11 @@ export function Button(props: { children: React.ReactNode; onClick?: () => void;
   };
   return (
     <button title={props.title} onClick={props.onClick} disabled={props.disabled} style={{ ...base, ...styles[variant], ...props.style }}>
-      {props.children}
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+        {props.leftIcon}
+        {props.children}
+        {props.rightIcon}
+      </span>
     </button>
   );
 }

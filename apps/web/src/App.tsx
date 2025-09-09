@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from 'react';
+import { FAIcon } from './ui/FAIcon';
 import { ThemeProvider, AppShell, ThemeToggleButton } from './ui/theme';
 import { Overlay } from './ui/Overlay';
 import { Button, Card, Input, Toolbar, Modal } from './ui/components';
@@ -106,6 +107,12 @@ export function App() {
   const [uiParticipants, setUiParticipants] = React.useState<{ sid: string; identity: string; hasVideo: boolean; hasMic: boolean; isSpeaking: boolean; media: 'camera' | 'screen'; volume?: number }[]>([]);
   const participantVolumesRef = useRef<Record<string, number>>({});
   const dndRef = useRef<boolean>(false);
+  const [cameraManual, setCameraManual] = React.useState(false);
+  React.useEffect(() => {
+    const handler = (active: boolean) => setCameraManual(!!active);
+    try { (gameBridge as any).onCameraManualChange = handler; } catch {}
+    return () => { try { (gameBridge as any).onCameraManualChange = () => {}; } catch {} };
+  }, []);
   // Auth state
   const [authChecked, setAuthChecked] = React.useState(false);
   const [me, setMe] = React.useState<{ id: string; email: string; name?: string } | null>(null);
@@ -133,6 +140,14 @@ export function App() {
   const [contextMenu, setContextMenu] = React.useState<{ open: boolean; x: number; y: number; playerId: string | null }>({ open: false, x: 0, y: 0, playerId: null });
   // Expose bubble start from effect to JSX
   const bubbleStartRef = React.useRef<null | ((id: string) => void)>(null);
+  const disposedRef = React.useRef(false);
+
+  useEffect(() => {
+    disposedRef.current = false;
+    return () => {
+      disposedRef.current = true;
+    };
+  }, []);
 
   // Define apiBase before using it
   const apiBase = (import.meta.env.VITE_API_BASE as string | undefined) ||
@@ -478,7 +493,7 @@ export function App() {
     // Final participant list
     setUiParticipants(list);
     // Trigger early rebuild shortly after to account for late position sync (ensures zone filter applies when remotesRef fills)
-    try { setTimeout(() => { if (!disposed) buildParticipantList(); }, 150); } catch {}
+    try { setTimeout(() => { if (!disposedRef.current) buildParticipantList(); }, 150); } catch {}
     
     // Update speaking states in the game
     // Use the activeSpeakers from LiveKit directly
@@ -1793,6 +1808,15 @@ export function App() {
     };
   }, []);
 
+  React.useEffect(() => {
+    // Subscribe to camera manual change from scene
+    const handler = (active: boolean) => setCameraManual(!!active);
+    try { (gameBridge as any).onCameraManualChange = handler; } catch {}
+    return () => {
+      try { (gameBridge as any).onCameraManualChange = () => {}; } catch {}
+    };
+  }, []);
+
   if (!authChecked) {
     return (
       <ThemeProvider>
@@ -1989,6 +2013,13 @@ export function App() {
                 <span style={btnLabelStyle}>Nicht stören</span>
               </span>
             </button>
+
+            {/* Recenter inline at right end of AV bar */}
+            {cameraManual && (
+              <button onClick={() => { try { gameBridge.recenterCamera(); } catch {} }} style={{ ...btnStyle(false), marginLeft: 12 }}>
+                <FAIcon name="location-crosshairs" variant="solid" ariaLabel="Zentrieren" style={{ marginRight: 6 }} />
+              </button>
+            )}
           </div>
         </>
       )}
@@ -2211,6 +2242,7 @@ export function App() {
           </div>
         </div>
       )}
+      {/* Recenter Button wird nun in der AV-Leiste rechts angezeigt */}
     </div>
     </ThemeProvider>
   );
@@ -2557,10 +2589,7 @@ function ParticipantCard(props: { part: { sid: string; identity: string; hasVide
 
 function GearIcon() {
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" stroke="#e5e7eb" strokeWidth="1.8"/>
-      <path d="M4 12c0-.5.04-.98.12-1.45l-1.9-1.1 2-3.46 1.9 1.1c.72-.6 1.54-1.07 2.43-1.37V3h4v2.72c.89.3 1.7.77 2.43 1.37l1.9-1.1 2 3.46-1.9 1.1c.08.47.12.95.12 1.45s-.04.98-.12 1.45l1.9 1.1-2 3.46-1.9-1.1c-.72.6-1.54 1.07-2.43 1.37V21h-4v-2.72c-.89-.3-1.7-.77-2.43-1.37l-1.9 1.1-2-3.46 1.9-1.1A8.8 8.8 0 0 1 4 12Z" stroke="#e5e7eb" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
-    </svg>
+    <FAIcon name="gear" variant="solid" ariaLabel="Einstellungen" className="btn-text-color" />
   );
 }
 

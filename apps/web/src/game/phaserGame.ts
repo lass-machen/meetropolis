@@ -5,10 +5,13 @@ import { MainScene } from './scenes/MainScene';
 export function createPhaserGame(parent: HTMLElement) {
   const config: Phaser.Types.Core.GameConfig = {
     type: Phaser.AUTO,
-    width: parent.clientWidth,
-    height: parent.clientHeight,
     parent,
     pixelArt: true,
+    scale: {
+      mode: Phaser.Scale.RESIZE,
+      autoCenter: Phaser.Scale.CENTER_BOTH,
+      parent
+    },
     scene: [BootScene, MainScene],
     physics: {
       default: 'arcade',

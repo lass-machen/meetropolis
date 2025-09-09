@@ -29,6 +29,11 @@ type Bridge = {
   // New: lock movement and find free spot near a sprite
   setMovementLocked: (locked: boolean) => void;
   findFreeSpotNear: (targetId: string, options?: { radius?: number; step?: number }) => { x: number; y: number } | null;
+  // Camera helpers for UI
+  recenterCamera: () => void;
+  onCameraManualChange?: (active: boolean) => void;
+  // Editor mode: disable normal interactions in scene
+  setEditorMode: (enabled: boolean) => void;
   handleEditorUpdate?: (data: any) => void;
 };
 
@@ -50,6 +55,8 @@ export type SceneApi = {
   // New hooks
   setMovementLocked?: (locked: boolean) => void;
   findFreeSpotNear?: (targetId: string, options?: { radius?: number; step?: number }) => { x: number; y: number } | null;
+  recenterCamera?: () => void;
+  setEditorMode?: (enabled: boolean) => void;
 };
 
 let sceneApi: SceneApi | null = null;
@@ -64,13 +71,24 @@ export const gameBridge: Bridge = {
   onLocalMove: () => {},
   onPointerDown: () => {},
   onRightClick: () => {},
+  onCameraManualChange: () => {},
   setSceneApi: (api) => {
     sceneApi = api;
     // Wenn Szene frisch gebunden wird, zuletzt bekannte Overlays/Assets anwenden
     if (sceneApi) {
+      // 1) Zonen aus LocalStorage lesen (falls vorhanden) und anwenden
+      try {
+        const raw = typeof window !== 'undefined' ? localStorage.getItem('meetropolis.zones') : null;
+        const stored = raw ? JSON.parse(raw) : null;
+        if (Array.isArray(stored)) {
+          cachedZones = stored;
+        }
+      } catch {}
       try { sceneApi.setZoneOverlay(cachedZones); } catch {}
       try { sceneApi.setEditorAssets(cachedAssets); } catch {}
       try { sceneApi.setCollisionVisible(cachedCollisionVisible); } catch {}
+      // 2) Best-Effort: Serverzustand laden (nur falls die Szene es unterstützt)
+      try { sceneApi.fetchAndApplyServerLayers?.(); } catch {}
       try { sceneApi.reloadEditorLayers(); } catch {}
       // Set cached hero name if available
       if (cachedHeroName && sceneApi.setHeroName) {
@@ -82,6 +100,12 @@ export const gameBridge: Bridge = {
       // WICHTIG: Bereits bekannte Remote-Spieler sofort rendern
       try { sceneApi.syncRemotePlayers(remotePlayersCache); } catch {}
     }
+  },
+  recenterCamera: () => {
+    sceneApi?.recenterCamera?.();
+  },
+  setEditorMode: (enabled) => {
+    sceneApi?.setEditorMode?.(!!enabled);
   },
   syncRemotePlayers: (players) => {
     // Ersetze den gesamten Cache mit der neuen Quelle der Wahrheit

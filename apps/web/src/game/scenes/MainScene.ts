@@ -26,6 +26,13 @@ export class MainScene extends Phaser.Scene implements SceneApi {
   private movementLocked = false;
   private pendingTilesetRegistrations?: any[];
   private doNotDisturb = false;
+  // Camera & interaction additions
+  private manualCameraActive = false;
+  private recenterUi?: Phaser.GameObjects.Container;
+  private panState: { isPanning: boolean; lastX: number; lastY: number } = { isPanning: false, lastX: 0, lastY: 0 };
+  private spaceKey?: Phaser.Input.Keyboard.Key;
+  private leftDragCandidate: { active: boolean; startX: number; startY: number } | null = null;
+  private editorMode = false;
   constructor() {
     super('Main');
   }
@@ -244,6 +251,8 @@ export class MainScene extends Phaser.Scene implements SceneApi {
     const cam = this.cameras.main;
     cam.setBackgroundColor('#202020');
     cam.setZoom(3);
+    // Ensure camera respects world size and starts centered nicely
+    cam.setBounds(0, 0, map.widthInPixels, map.heightInPixels);
 
     this.physics.world.setBounds(0, 0, map.widthInPixels, map.heightInPixels);
     // Get initial position from global window object (set by App.tsx after DB load)
@@ -263,7 +272,118 @@ export class MainScene extends Phaser.Scene implements SceneApi {
     this.anims.create({ key: 'walk_right', frames: this.anims.generateFrameNumbers('hero_walk_right', { start: 0, end: 3 }), frameRate: 8, repeat: -1 });
 
     const cursors = this.input.keyboard!.createCursorKeys();
+    this.spaceKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
     this.cameras.main.startFollow(this.hero, true, 0.1, 0.1);
+    this.manualCameraActive = false;
+    this.ensureRecenterUi();
+    this.updateRecenterUiVisibility();
+
+    // Allow typing into HTML inputs (do not capture SPACE in Phaser when an input is focused)
+    const isEditableTarget = (t: EventTarget | null) => {
+      const el = t as HTMLElement | null;
+      if (!el) return false;
+      const tag = el.tagName?.toLowerCase?.();
+      if (tag === 'input' || tag === 'textarea') return true;
+      if ((el as any).isContentEditable) return true;
+      return false;
+    };
+    const keyBlocker = (ev: KeyboardEvent) => {
+      if (isEditableTarget(ev.target)) {
+        // Stop bubbling to Phaser keyboard plugin, but keep default browser behavior
+        ev.stopPropagation();
+      }
+    };
+    window.addEventListener('keydown', keyBlocker, true);
+    window.addEventListener('keyup', keyBlocker, true);
+
+    // Zoom via mouse wheel (trackpad supported)
+    this.input.on('wheel', (pointer: any, _over: any, _dx: number, dy: number) => {
+      if (this.editorMode) return; // disable zoom in editor mode
+      const camera = this.cameras.main;
+      // Zoom factor per wheel step
+      const zoomDelta = -dy * 0.001;
+      const prevZoom = camera.zoom;
+      let nextZoom = Phaser.Math.Clamp(prevZoom + zoomDelta, 1, 5);
+      if (Math.abs(nextZoom - prevZoom) < 1e-3) return;
+
+      // Keep pointer world position stable while zooming
+      const worldBefore = (pointer as Phaser.Input.Pointer).positionToCamera(camera) as Phaser.Math.Vector2;
+      camera.setZoom(nextZoom);
+      const worldAfter = (pointer as Phaser.Input.Pointer).positionToCamera(camera) as Phaser.Math.Vector2;
+      camera.scrollX += worldBefore.x - worldAfter.x;
+      camera.scrollY += worldBefore.y - worldAfter.y;
+
+      // Switching to manual camera if we zoomed away from default follow
+      camera.stopFollow();
+      this.manualCameraActive = true;
+      this.updateRecenterUiVisibility();
+    });
+
+    // Drag-pan with left mouse, middle mouse, or Space + left drag
+    this.input.on(Phaser.Input.Events.POINTER_DOWN, (p: Phaser.Input.Pointer) => {
+      if (this.editorMode) return; // disable drag-pan in editor mode
+      const isLeft = p.leftButtonDown();
+      const isMiddle = p.middleButtonDown();
+      const allowPan = isMiddle || isLeft || !!this.spaceKey?.isDown;
+      if (allowPan) {
+        // Mark left drag candidate to avoid triggering movement click later
+        if (isLeft) {
+          this.leftDragCandidate = { active: true, startX: p.x, startY: p.y };
+        }
+        this.panState.isPanning = true;
+        this.panState.lastX = p.x;
+        this.panState.lastY = p.y;
+        this.cameras.main.stopFollow();
+        this.manualCameraActive = true;
+        this.updateRecenterUiVisibility();
+        try { (p.event as any)?.preventDefault?.(); } catch {}
+        try { (p.event as any)?.stopPropagation?.(); } catch {}
+      }
+    });
+    this.input.on(Phaser.Input.Events.POINTER_MOVE, (p: Phaser.Input.Pointer) => {
+      if (this.editorMode) return; // ignore pan while in editor mode
+      if (!this.panState.isPanning) return;
+      const camera = this.cameras.main;
+      const dx = p.x - this.panState.lastX;
+      const dy = p.y - this.panState.lastY;
+      this.panState.lastX = p.x;
+      this.panState.lastY = p.y;
+      camera.scrollX -= dx / camera.zoom;
+      camera.scrollY -= dy / camera.zoom;
+      // If we moved enough, keep left drag marked
+      if (this.leftDragCandidate && this.leftDragCandidate.active) {
+        const mdx = Math.abs(p.x - this.leftDragCandidate.startX);
+        const mdy = Math.abs(p.y - this.leftDragCandidate.startY);
+        if (mdx + mdy > 3) {
+          // Prevent click actions later
+          try { (p.event as any)?.preventDefault?.(); } catch {}
+          try { (p.event as any)?.stopPropagation?.(); } catch {}
+        }
+      }
+    });
+    const stopPan = (p?: Phaser.Input.Pointer) => {
+      if (this.editorMode) return; // no-op in editor mode
+      this.panState.isPanning = false;
+      // If we had a left-drag candidate, cancel map click if movement happened
+      if (this.leftDragCandidate && this.leftDragCandidate.active && p) {
+        const mdx = Math.abs(p.x - this.leftDragCandidate.startX);
+        const mdy = Math.abs(p.y - this.leftDragCandidate.startY);
+        if (mdx + mdy > 3) {
+          try { (p.event as any)?.preventDefault?.(); } catch {}
+          try { (p.event as any)?.stopPropagation?.(); } catch {}
+        }
+      }
+      this.leftDragCandidate = null;
+    };
+    this.input.on(Phaser.Input.Events.POINTER_UP, stopPan);
+    this.input.on(Phaser.Input.Events.POINTER_UP_OUTSIDE, stopPan as any);
+
+    // On resize, keep camera bounds correct
+    this.scale.on('resize', () => {
+      const c = this.cameras.main;
+      c.setBounds(0, 0, map.widthInPixels, map.heightInPixels);
+      this.updateRecenterUiVisibility();
+    });
     
     // Track current direction
     let currentDirection: 'up' | 'down' | 'left' | 'right' = 'down';
@@ -328,6 +448,8 @@ export class MainScene extends Phaser.Scene implements SceneApi {
       if (this.heroNameLabel) {
         this.updateNameLabel(this.heroNameLabel, this.hero.x, this.hero.y);
       }
+      // Update recenter visibility depending on camera vs hero position
+      this.updateRecenterUiVisibility();
     });
 
     // Tile-basierte Eingabe für Editor
@@ -340,6 +462,8 @@ export class MainScene extends Phaser.Scene implements SceneApi {
     };
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
       const worldPoint = pointer.positionToCamera(this.cameras.main) as Phaser.Math.Vector2;
+      // If we are about to pan (left/middle/space), skip movement logic
+      const isPanStart = !this.editorMode && (pointer.leftButtonDown() || pointer.middleButtonDown() || !!this.spaceKey?.isDown);
       
       if (pointer.rightButtonDown()) {
         // Prevent browser context menu
@@ -358,7 +482,7 @@ export class MainScene extends Phaser.Scene implements SceneApi {
         return;
       }
       
-      if (!this.movementLocked) {
+      if (!isPanStart && !this.movementLocked) {
         gameBridge.onPointerDown({ x: worldPoint.x, y: worldPoint.y });
         const { tileX, tileY } = toTile(pointer);
         gameBridge.onPointerDownTile({ tileX, tileY });
@@ -366,11 +490,11 @@ export class MainScene extends Phaser.Scene implements SceneApi {
     });
     this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
       const { tileX, tileY } = toTile(pointer);
-      if (!this.movementLocked) gameBridge.onPointerMoveTile({ tileX, tileY });
+      if (!this.panState.isPanning) gameBridge.onPointerMoveTile({ tileX, tileY });
     });
     this.input.on('pointerup', (pointer: Phaser.Input.Pointer) => {
       const { tileX, tileY } = toTile(pointer);
-      if (!this.movementLocked) gameBridge.onPointerUpTile({ tileX, tileY });
+      if (!this.panState.isPanning) gameBridge.onPointerUpTile({ tileX, tileY });
       this.setSelectionRect(null);
     });
 
@@ -469,6 +593,92 @@ export class MainScene extends Phaser.Scene implements SceneApi {
       try { this.saveEditorLayers(); } catch {}
       try { gameBridge.setSceneApi(null); } catch {}
     });
+  }
+
+  private ensureRecenterUi() {
+    if (this.recenterUi && this.recenterUi.scene) return;
+    const container = this.add.container(0, 0);
+    container.setDepth(1000);
+    container.setScrollFactor(0);
+
+    // Background
+    const bg = this.add.rectangle(0, 0, 120, 28, 0x111114, 0.9);
+    bg.setStrokeStyle(1, 0xffffff, 0.12);
+    bg.setOrigin(0, 0);
+    bg.setScrollFactor(0);
+
+    // Label
+    const label = this.add.text(10, 6, 'Zentrieren', {
+      fontSize: '13px',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+      color: '#ffffff'
+    });
+    label.setScrollFactor(0);
+
+    container.add(bg);
+    container.add(label);
+    container.setPosition(12, 12);
+
+    container.setSize(120, 28);
+    container.setInteractive(new Phaser.Geom.Rectangle(0, 0, 120, 28), Phaser.Geom.Rectangle.Contains);
+    container.on(Phaser.Input.Events.POINTER_DOWN, () => {
+      this.cameras.main.startFollow(this.hero, true, 0.1, 0.1);
+      this.manualCameraActive = false;
+      this.updateRecenterUiVisibility();
+    });
+
+    this.recenterUi = container;
+    this.recenterUi.setVisible(false);
+  }
+
+  private updateRecenterUiVisibility() {
+    if (!this.recenterUi) return;
+    const cam = this.cameras.main;
+    // If camera is following hero, hide
+    const isFollowing = (cam as any).follow === this.hero;
+    if (!this.manualCameraActive && isFollowing) {
+      this.recenterUi.setVisible(false);
+      try { gameBridge.onCameraManualChange?.(false); } catch {}
+      return;
+    }
+    // If hero is near camera center, hide; otherwise show
+    const centerX = cam.worldView.centerX;
+    const centerY = cam.worldView.centerY;
+    const dx = Math.abs(this.hero.x - centerX);
+    const dy = Math.abs(this.hero.y - centerY);
+    const tolerance = 8; // pixels
+    const shouldShow = this.manualCameraActive || dx > tolerance || dy > tolerance;
+    this.recenterUi.setVisible(shouldShow);
+    try { gameBridge.onCameraManualChange?.(shouldShow); } catch {}
+  }
+
+  recenterCamera() {
+    this.cameras.main.startFollow(this.hero, true, 0.1, 0.1);
+    this.manualCameraActive = false;
+    this.updateRecenterUiVisibility();
+  }
+
+  setEditorMode(enabled: boolean) {
+    this.editorMode = !!enabled;
+    if (this.editorMode) {
+      // Stop follow to avoid accidental jumps; lock movement via gameBridge consumer
+      try { this.cameras.main.stopFollow(); } catch {}
+      this.manualCameraActive = true;
+      this.updateRecenterUiVisibility();
+      // Hide name labels and outlines while editing
+      try { if (this.heroNameLabel) this.heroNameLabel.setVisible(false); } catch {}
+      try { this.nameLabels.forEach(lbl => lbl.setVisible(false)); } catch {}
+      try { this.bubbleOutlines.forEach(g => g.setVisible(false)); } catch {}
+    } else {
+      // Restore follow to hero when leaving editor mode
+      try { this.cameras.main.startFollow(this.hero, true, 0.1, 0.1); } catch {}
+      this.manualCameraActive = false;
+      this.updateRecenterUiVisibility();
+      // Restore labels respecting DND state
+      try { if (this.heroNameLabel) this.heroNameLabel.setVisible(!this.doNotDisturb); } catch {}
+      try { this.nameLabels.forEach(lbl => lbl.setVisible(!this.doNotDisturb)); } catch {}
+      try { this.bubbleOutlines.forEach(g => g.setVisible(!this.doNotDisturb)); } catch {}
+    }
   }
 
   syncRemotePlayers(players: Record<string, { x: number; y: number; direction: 'up'|'down'|'left'|'right'; prevX?: number; prevY?: number; name?: string }>) {
@@ -1053,6 +1263,14 @@ export class MainScene extends Phaser.Scene implements SceneApi {
         const collisionTiles = data.collision.filter((t: number) => t !== -1).length;
         editorLog('Load', `Received from server: ${collisionTiles} collision tiles`);
       }
+      // Zones vom Server anwenden (Overlay + LocalStorage spiegeln)
+      try {
+        const zones = Array.isArray(data?.zones) ? data.zones.map((z: any) => ({ name: z.name, points: z.polygon || z.points || [] })) : [];
+        if (zones.length > 0) {
+          try { localStorage.setItem('meetropolis.zones', JSON.stringify(zones)); } catch {}
+          try { this.setZoneOverlay(zones); } catch {}
+        }
+      } catch {}
       
       if (!this.mapRef) return;
       const storedW = this.mapRef.width;

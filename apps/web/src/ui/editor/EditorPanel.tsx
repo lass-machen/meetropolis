@@ -1,6 +1,7 @@
 import React from 'react';
 import { TilesetPreview, Button } from '../../ui/components';
 import type { EditorState, EditorCategory, EditorTool } from '../../hooks/useEditor';
+import { gameBridge } from '../../game/bridge';
 
 export function EditorPanel(props: {
   editor: EditorState;
@@ -8,6 +9,11 @@ export function EditorPanel(props: {
   onOpenUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
 }) {
   const { editor, setEditor } = props;
+  React.useEffect(() => {
+    // Activate editor mode for scene interactions
+    try { gameBridge.setEditorMode(true); } catch {}
+    return () => { try { gameBridge.setEditorMode(false); } catch {} };
+  }, []);
   return (
     <div style={{ padding: 16, display: 'grid', gap: 12 }}>
       <div style={{ display: 'flex', gap: 6 }}>
@@ -76,6 +82,22 @@ export function EditorPanel(props: {
                     const zones = s.zones.filter((_,i)=>i!==idx);
                     // Wenn gerade bearbeitet wird und diese Zone entfernt wird, Bearbeitung zurücksetzen
                     const editing = (s.editingZoneIndex ?? null) === idx ? null : s.editingZoneIndex;
+                    // Persistiere nach LocalStorage
+                    try { localStorage.setItem('meetropolis.zones', JSON.stringify(zones)); } catch {}
+                    // Szene-Overlay aktualisieren, falls verfügbar
+                    try { (window as any).currentPhaserScene?.setZoneOverlay?.(zones); } catch {}
+                    // Best-effort Server speichern
+                    (async ()=>{
+                      try {
+                        const base = (window as any).VITE_API_BASE || (import.meta as any).env?.VITE_API_BASE || `${window.location.protocol}//${window.location.hostname}:2568`;
+                        const body = JSON.stringify({ zones });
+                        if (body.length < 100000) {
+                          await fetch(`${base}/maps/office/editor-state`, {
+                            method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body
+                          });
+                        }
+                      } catch {}
+                    })();
                     return { ...s, zones, editingZoneIndex: editing };
                   })} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'rgba(239,68,68,0.12)', color: 'var(--fg)', fontSize: 12 }}>Löschen</button>
                 </div>

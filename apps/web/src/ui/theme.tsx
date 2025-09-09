@@ -100,6 +100,8 @@ function getCssVariables(mode: ThemeMode): string {
     .brand-border {
       border-image: linear-gradient(135deg, ${brandPrimary}, ${brandAccent}) 1;
     }
+
+    .btn-text-color { color:var(--fg); }
   `;
 }
 
