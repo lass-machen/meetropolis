@@ -19,6 +19,7 @@
   --bar-chip-bg: rgba(255,255,255,0.06);
   --bar-divider: rgba(255,255,255,0.12);
   --focus: rgba(243,168,20,0.45);
+  --uc-glass: rgba(255, 255, 255, 0.1);
   --radius: 14px;
   --radius-sm: 10px;
   --radius-xs: 8px;
@@ -47,6 +48,7 @@
     --bar-chip-bg: rgba(255,255,255,0.08);
     --bar-divider: rgba(255,255,255,0.18);
     --focus: rgba(69,13,179,0.45);
+    --uc-glass: rgba(255, 255, 255, .2);
   }
 }
 
@@ -76,6 +78,7 @@
   --radius-xs: 8px;
   --gradient: linear-gradient(135deg, #450db3 0%, #f3a814 100%);
   --btn-text-shadow: 0 1px 1px rgba(0,0,0,.3);
+  --uc-glass: rgba(255, 255, 255, 0.1);
 }
 
 :root[data-theme="light"] {
@@ -96,6 +99,7 @@
   --bar-chip-bg: rgba(255,255,255,0.08);
   --bar-divider: rgba(255,255,255,0.18);
   --focus: rgba(69,13,179,0.45);
+  --uc-glass: rgba(255, 255, 255, .2);
 }
 
 /* Base layout glue */
@@ -211,3 +215,170 @@ body {
 .bg-container .bg-button .bg-button-content {
   text-shadow: var(--btn-text-shadow);
 }
+
+/* ===================== */
+/* UserCard: Variables   */
+/* ===================== */
+.uc-container {
+  --uc-padding: 12px;
+  --uc-gap: 12px;
+  --uc-border: var(--border);
+  --uc-bg: var(--bar-bg);
+  /* --uc-glass: rgba(255, 255, 255, 0.1); */
+  --uc-shadow: var(--shadow);
+  --uc-name-bg: color-mix(in oklab, var(--bg) 60%, transparent);
+  --uc-badge-on: color-mix(in oklab, #10b981 25%, transparent);
+  --uc-badge-off: color-mix(in oklab, #f43f5e 25%, transparent);
+  --uc-badge-border-on: color-mix(in oklab, #10b981 50%, transparent);
+  --uc-badge-border-off: color-mix(in oklab, #f43f5e 50%, transparent);
+}
+
+.uc-container {
+  position: absolute;
+  top: var(--uc-top, 10px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  width: var(--uc-width, auto);
+  background: var(--uc-bg);
+  backdrop-filter: blur(16px);
+  color: var(--fg);
+  border: 1px solid var(--uc-border);
+  border-radius: 14px;
+  padding: var(--uc-padding);
+  padding-right: calc(var(--uc-padding) + 44px);
+  box-shadow: var(--uc-shadow);
+}
+
+.uc-container.uc-expanded { --uc-top: 0; --uc-gap: 18px; }
+.uc-container.uc-collapsed { --uc-top: 10px; --uc-gap: 12px; }
+
+.uc-expand-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  padding: 6px;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-btn-bg, var(--glass));
+  color: var(--fg);
+  cursor: pointer;
+  z-index: 2;
+}
+
+.uc-grid {
+  position: relative;
+  display: grid;
+  gap: var(--uc-gap);
+  justify-items: center;
+  align-content: start;
+}
+
+.uc-card {
+  position: relative;
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--glass);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  transition: opacity 0.3s ease-in-out, box-shadow 0.2s ease;
+  opacity: var(--uc-opacity, 1);
+}
+
+.uc-card.uc-speaking {
+  border-color: #22d3ee;
+  box-shadow: 0 0 0 2px rgba(34,211,238,0.35), var(--shadow);
+}
+
+.uc-video {
+  width: 100%;
+  height: 100%;
+  object-fit: var(--uc-video-fit, cover);
+  background: transparent;
+  transform-origin: center center;
+  transform: var(--uc-video-transform, none) scale(var(--uc-video-zoom, 1));
+}
+.uc-video.uc-video-mirror { --uc-video-transform: scaleX(-1); }
+
+/* UserCard: size variants */
+.uc-card.uc-size-default {
+  width: min(36vh, 100%);
+  min-width: 420px;
+  max-height: 36vh;
+  height: auto;
+}
+
+.uc-card.uc-size-compact {
+  width: 100%;
+  min-width: 260px;
+  height: auto;
+}
+
+.uc-card.uc-size-full {
+  width: min(calc(100vw - 64px), 1920px);
+  max-height: calc(100vh - 64px);
+  height: auto;
+}
+
+/* UserCard: aspect variants */
+.uc-card.uc-aspect-169 { aspect-ratio: 16 / 9; }
+.uc-card.uc-aspect-square { aspect-ratio: 1 / 1; }
+.uc-card.uc-aspect-auto { aspect-ratio: initial; }
+
+/* UserCard: disabled state */
+.uc-card.uc-disabled {
+  pointer-events: none;
+  filter: grayscale(90%) brightness(0.8);
+}
+
+.uc-fallback-name {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--fg);
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.uc-name-badge {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  background: var(--uc-name-bg);
+  border-radius: 10px;
+  border: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
+}
+.uc-name-text { font-size: 12px; color: var(--fg); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.uc-right-badges {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: flex;
+  gap: 8px;
+}
+
+/* Collapsed variant: parent and video adjustments */
+.uc-card.uc-collapsed {
+  aspect-ratio: initial;
+  height: 100%;
+  width: 100%;
+}
+.uc-card.uc-collapsed .uc-video {
+  --uc-video-fit: cover;
+}
+
+/* When the container is collapsed, stretch items in the grid */
+.uc-container.uc-collapsed .uc-grid {
+  justify-items: stretch;
+}
+

@@ -5,6 +5,7 @@ import { Overlay } from './ui/Overlay';
 import { Button, Card, Input, Toolbar, Modal } from './ui/components';
 import { AVBar } from './ui/av';
 import { TilesetUploadDialog } from './ui/editor/TilesetUploadDialog';
+import { UserCardContainer } from './ui/user';
 import { EditorPanel } from './ui/editor/EditorPanel';
 import { useEditor } from './hooks/useEditor';
 import { createPhaserGame, destroyPhaserGame } from './game/phaserGame';
@@ -30,35 +31,7 @@ function pointInPolygon(p: { x: number; y: number }, poly: { x: number; y: numbe
   return c;
 }
 
-// Simple Inline-Icons
-function MicIcon(props: { on?: boolean }) {
-  const color = props.on ? '#10b981' : '#e5e7eb';
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M12 14a4 4 0 0 0 4-4V6a4 4 0 1 0-8 0v4a4 4 0 0 0 4 4Z" stroke={color} strokeWidth="1.8" />
-      <path d="M19 10a7 7 0 1 1-14 0" stroke={color} strokeWidth="1.8" strokeLinecap="round" />
-      <path d="M12 17v4" stroke={color} strokeWidth="1.8" strokeLinecap="round" />
-    </svg>
-  );
-}
-function CamIcon(props: { on?: boolean }) {
-  const color = props.on ? '#10b981' : '#e5e7eb';
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <rect x="3" y="7" width="12" height="10" rx="2" stroke={color} strokeWidth="1.8" />
-      <path d="M21 8v8l-5-3.2V11.2L21 8Z" fill={color} />
-    </svg>
-  );
-}
-function ScreenIcon(props: { on?: boolean }) {
-  const color = props.on ? '#10b981' : '#e5e7eb';
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <rect x="3" y="4" width="18" height="12" rx="2" stroke={color} strokeWidth="1.8" />
-      <rect x="8" y="18" width="8" height="2" rx="1" fill={color} />
-    </svg>
-  );
-}
+// (lokale Inline-Icons entfernt; Nutzung erfolgt über FAIcon)
 
 // Small UI Icons
 function ExpandIcon() {
@@ -1848,23 +1821,21 @@ export function App() {
             const gap = gridExpanded ? 18 : 12;
             const count = participantsToRender.length || 1;
             const cols = Math.max(1, Math.min(count, gridExpanded ? 3 : 4));
-            const buttonSpace = 44; // Platz für den Expand/Collapse-Button rechts
-            const containerMax = Math.min(window.innerWidth * 0.96, cols * minCard + (cols - 1) * gap + 24 + buttonSpace);
+            
             return (
-              <div style={{ position: 'absolute', top: gridExpanded ? 0 : 10, left: '50%', transform: 'translateX(-50%)', zIndex: 20, width: containerMax }}>
-                <div style={{ position: 'relative', background: 'var(--panel-bg)', color: 'var(--fg)', border: '1px solid var(--border)', borderRadius: 14, padding: 12, paddingRight: 12 + buttonSpace, boxShadow: 'var(--shadow)' }}>
-                  <button onClick={() => setGridExpanded(e => !e)} title={gridExpanded ? 'Verkleinern' : 'Vergrößern'} style={{ position: 'absolute', top: 10, right: 10, padding: 6, width: 28, height: 28, display: 'grid', placeItems: 'center', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--glass)', color: 'var(--fg)', cursor: 'pointer', zIndex: 2 }}>
-                    {gridExpanded ? <CollapseIcon /> : <ExpandIcon />}
-                  </button>
-                  <div style={{ position: 'relative', display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: gap, justifyItems: 'center', alignContent: 'start' }}>
-                    {participantsToRender.map(p => (
-                      <div key={p.sid} onClick={() => setSelectedSid(s => s === p.sid ? null : p.sid)} style={{ cursor: 'pointer', transition: 'transform 180ms ease' }}>
-                        <ParticipantCard part={p} roomGetter={getRoom} compact={!gridExpanded} />
-                      </div>
-                    ))}
+              <UserCardContainer
+                expanded={gridExpanded}
+                columns={cols}
+                gap={gap}
+                onToggleExpand={() => setGridExpanded(e => !e)}
+                expandButton={gridExpanded ? <FAIcon size="sm" name="down-left-and-up-right-to-center" variant="solid" ariaLabel="Verkleinern" /> : <FAIcon size="sm" name="up-right-and-down-left-from-center" variant="solid" ariaLabel="Vergrößern" />}
+              >
+                {participantsToRender.map(p => (
+                  <div key={p.sid} onClick={() => setSelectedSid(s => s === p.sid ? null : p.sid)} style={{ cursor: 'pointer', transition: 'transform 180ms ease' }}>
+                    <ParticipantCard part={p} roomGetter={getRoom} compact={!gridExpanded} />
                   </div>
-                </div>
-              </div>
+                ))}
+              </UserCardContainer>
             );
           })()}
           <div
@@ -2511,8 +2482,8 @@ function ParticipantCard(props: { part: { sid: string; identity: string; hasVide
   // - Kamera: in der kleinen Ansicht quadratisch, groß etwas höher
   // - Screenshare: soll nicht abgeschnitten werden -> 16:9 in klein, 16:9 in groß
   const isScreen = part.media === 'screen';
-  const aspect = full ? undefined : (isScreen ? '16 / 9' : '1 / 1');
-  const targetSize = full ? undefined : (compact ? '16vh' : '36vh');
+  const aspect = full ? undefined : (isScreen ? '16 / 9' : '16 / 9');
+  const targetSize = full ? undefined : (compact ? '100%' : '36vh');
   const minW = full ? undefined : (compact ? 260 : 420);
 
   // Interaktion für "außerhalb Bubble" sperren (Volume ~ outsideBubbleAttenuation)
@@ -2524,27 +2495,28 @@ function ParticipantCard(props: { part: { sid: string; identity: string; hasVide
       minWidth: minW as any,
       maxHeight: full ? 'calc(100vh - 64px)' : (targetSize as any),
       aspectRatio: aspect as any,
-      position: 'relative', borderRadius: 14, overflow: 'hidden', background: bg, border: `1px solid ${borderColor}`, boxShadow: glow,
+      position: 'relative', borderRadius: 14, overflow: 'hidden', background: 'var(--uc-glass)', border: `1px solid ${borderColor}`, boxShadow: glow,
       opacity: opacity,
       transition: 'opacity 0.3s ease-in-out',
       pointerEvents: disabled ? 'none' : 'auto',
-      filter: disabled ? 'grayscale(90%) brightness(0.8)' : undefined
+      filter: disabled ? 'grayscale(90%) brightness(0.8)' : undefined,
+      height: full ? 'auto' : 'min(140px, 30vh)'
     }}>
       <video ref={videoRef} autoPlay playsInline muted style={{ width: '100%', height: full ? 'auto' : '100%', maxHeight: full ? 'calc(100vh - 64px)' : undefined, objectFit: isScreen ? 'contain' : (full ? 'contain' : 'cover'), background: 'transparent', transform: (isLocal && part.media==='camera') ? `scaleX(-1) scale(${zoom})` : `scale(${zoom})`, transformOrigin: 'center center' }} />
       {!(part.hasVideo || isVideoRendering) && (
-        <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', color: '#e5e7eb', fontWeight: 600, fontSize: 14 }}>
+        <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', color: 'var(--fg)', fontWeight: 600, fontSize: 14 }}>
           {part.identity}
         </div>
       )}
-      <div style={{ position: 'absolute', top: 6, left: 6, display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', background: headerBg, borderRadius: 10, border: '1px solid rgba(255,255,255,0.08)' }}>
+      <div style={{ position: 'absolute', top: 6, left: 6, display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', background: 'var(--bg-btn-bg, var(--glass))', borderRadius: 10, border: '1px solid rgba(255,255,255,0.08)' }}>
         <div style={{ fontSize: 12, color: 'var(--fg)', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{part.identity}</div>
       </div>
       <div style={{ position: 'absolute', top: 6, right: 6, display: 'flex', gap: 8 }}>
-        <div title={part.hasMic ? 'Mikro an' : 'Mikro aus'} style={{ display: 'grid', placeItems: 'center', width: 28, height: 28, borderRadius: 999, background: part.hasMic ? badgeOn : badgeOff, border: `1px solid ${part.hasMic ? borderOn : borderOff}` }}>
-          <MicIcon on={part.hasMic} />
+        <div title={part.hasMic ? 'Mikro an' : 'Mikro aus'} style={{ display:   'grid', placeItems: 'center', width: 28, height: 28, borderRadius: 999, background: part.hasMic ? badgeOn : badgeOff, border: `1px solid ${part.hasMic ? borderOn : borderOff}` }}>
+          <FAIcon size="sm" name={part.hasMic ? 'microphone' : 'microphone-slash'} variant="solid" ariaLabel={part.hasMic ? 'Mikro an' : 'Mikro aus'} />
         </div>
         <div title={part.hasVideo ? 'Kamera an' : 'Kamera aus'} style={{ display: 'grid', placeItems: 'center', width: 28, height: 28, borderRadius: 999, background: (part.hasVideo || isVideoRendering) ? badgeOn : badgeOff, border: `1px solid ${(part.hasVideo || isVideoRendering) ? borderOn : borderOff}` }}>
-          <CamIcon on={(part.hasVideo || isVideoRendering)} />
+          <FAIcon size="sm" name={(part.hasVideo || isVideoRendering) ? 'video' : 'video-slash'} variant="solid" ariaLabel={(part.hasVideo || isVideoRendering) ? 'Kamera an' : 'Kamera aus'} />
         </div>
       </div>
     </div>

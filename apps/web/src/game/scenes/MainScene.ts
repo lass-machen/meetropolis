@@ -1,8 +1,8 @@
 import Phaser from 'phaser';
-import { gameBridge, type SceneApi } from '../bridge';
+import { gameBridge } from '../bridge';
 import { editorLog, editorError } from '../../lib/editorLog';
 
-export class MainScene extends Phaser.Scene implements SceneApi {
+export class MainScene extends Phaser.Scene {
   private hero!: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
   private remotes: Map<string, Phaser.GameObjects.Sprite> = new Map();
   private desiredPos: { x: number; y: number } | null = null;
@@ -33,6 +33,9 @@ export class MainScene extends Phaser.Scene implements SceneApi {
   private spaceKey?: Phaser.Input.Keyboard.Key;
   private leftDragCandidate: { active: boolean; startX: number; startY: number } | null = null;
   private editorMode = false;
+  // Zweite Kamera nur für Labels/UI (kein Zoom)
+  private labelCamera?: Phaser.Cameras.Scene2D.Camera;
+  private labelLayer?: Phaser.GameObjects.Layer;
   constructor() {
     super('Main');
   }
@@ -254,6 +257,29 @@ export class MainScene extends Phaser.Scene implements SceneApi {
     // Ensure camera respects world size and starts centered nicely
     cam.setBounds(0, 0, map.widthInPixels, map.heightInPixels);
 
+    // Label-Layer und zweite Kamera einrichten
+    this.labelLayer = this.add.layer();
+    this.labelLayer.setDepth(10000);
+    // Hauptkamera ignoriert Label-Layer (damit er nicht zoomt/scrollt)
+    cam.ignore(this.labelLayer);
+    // Zweite Kamera, die nur den Label-Layer rendert, ohne Zoom
+    const labelCam = this.cameras.add(0, 0, this.scale.width, this.scale.height);
+    labelCam.setZoom(1);
+    labelCam.setScroll(0, 0);
+    labelCam.setRoundPixels(true);
+    this.labelCamera = labelCam;
+    // Diese Kamera soll nur den Label-Layer sehen: alles andere ignorieren
+    const refreshLabelCamIgnore = () => {
+      if (!this.labelCamera || !this.labelLayer) return;
+      const labelMembers = new Set(this.labelLayer.list as Phaser.GameObjects.GameObject[]);
+      labelMembers.add(this.labelLayer as unknown as Phaser.GameObjects.GameObject);
+      const toIgnore = this.children.list.filter(o => !labelMembers.has(o as Phaser.GameObjects.GameObject));
+      this.labelCamera.ignore(toIgnore as any);
+    };
+    // initial und fortlaufend (für dynamisch erstellte Objekte)
+    refreshLabelCamIgnore();
+    this.events.on(Phaser.Scenes.Events.POST_UPDATE, refreshLabelCamIgnore);
+
     this.physics.world.setBounds(0, 0, map.widthInPixels, map.heightInPixels);
     // Get initial position from global window object (set by App.tsx after DB load)
     const initialPos = (window as any).initialPlayerPosition || { x: 80, y: 120 };
@@ -301,7 +327,7 @@ export class MainScene extends Phaser.Scene implements SceneApi {
       if (this.editorMode) return; // disable zoom in editor mode
       const camera = this.cameras.main;
       // Zoom factor per wheel step
-      const zoomDelta = -dy * 0.001;
+      const zoomDelta = -dy * 0.002;
       const prevZoom = camera.zoom;
       let nextZoom = Phaser.Math.Clamp(prevZoom + zoomDelta, 1, 5);
       if (Math.abs(nextZoom - prevZoom) < 1e-3) return;
@@ -383,6 +409,10 @@ export class MainScene extends Phaser.Scene implements SceneApi {
       const c = this.cameras.main;
       c.setBounds(0, 0, map.widthInPixels, map.heightInPixels);
       this.updateRecenterUiVisibility();
+      // Label-Kamera an neue Größe anpassen
+      if (this.labelCamera) {
+        this.labelCamera.setSize(this.scale.width, this.scale.height);
+      }
     });
     
     // Track current direction
@@ -499,7 +529,7 @@ export class MainScene extends Phaser.Scene implements SceneApi {
     });
 
     // Global pointer up/down to suppress OS/browser context menu
-    this.input.on(Phaser.Input.Events.POINTER_DOWN, (p: Phaser.Input.Pointer, currentlyOver: any) => {
+    this.input.on(Phaser.Input.Events.POINTER_DOWN, (p: Phaser.Input.Pointer) => {
       if (p.rightButtonDown()) {
         try { (p.event as any)?.preventDefault?.(); } catch {}
         try { (p.event as any)?.stopPropagation?.(); } catch {}
@@ -726,10 +756,10 @@ export class MainScene extends Phaser.Scene implements SceneApi {
       const nameLabel = this.nameLabels.get(id);
       
       // Update transparency if player has DND
-      if (p.dnd !== undefined) {
-        s.setAlpha(p.dnd ? 0.35 : 1);
+      if ((p as any).dnd !== undefined) {
+        s.setAlpha((p as any).dnd ? 0.35 : 1);
         if (nameLabel) {
-          nameLabel.setAlpha(p.dnd ? 0.6 : 1);
+          nameLabel.setAlpha((p as any).dnd ? 0.6 : 1);
         }
       }
       
@@ -863,7 +893,6 @@ export class MainScene extends Phaser.Scene implements SceneApi {
     const map = this.mapRef;
     if (!map) return { x: target.x, y: target.y };
     const baseRadius = options?.radius ?? Math.max(map.tileWidth, map.tileHeight);
-    const step = options?.step ?? Math.min(map.tileWidth, map.tileHeight);
     const maxRings = 8;
     for (let ring = 1; ring <= maxRings; ring++) {
       const r = baseRadius * ring;
@@ -1628,19 +1657,22 @@ export class MainScene extends Phaser.Scene implements SceneApi {
     
     // Background for name
     const bg = this.add.graphics();
-    const padding = 3;
+    const paddingX = 10;
+    const paddingY = 6;
     const textStyle = { 
-      fontSize: '9px', 
+      fontSize: '16px', 
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
       color: '#ffffff',
       fontStyle: 'normal',
       fontWeight: '500'
     };
     const text = this.add.text(0, 0, name, textStyle);
+    try { text.setResolution((window as any).devicePixelRatio || 2); } catch {}
+    try { (text as any).setPadding?.(0, 0, 0, 1); } catch {}
     text.setOrigin(0.5, 0.5);
     
-    const width = text.width + padding * 2;
-    const height = 14; // Fixed height for consistency
+    const width = text.width + paddingX * 2;
+    const height = text.height + paddingY * 2;
     
     // Store references for animation
     (container as any).bg = bg;
@@ -1648,6 +1680,8 @@ export class MainScene extends Phaser.Scene implements SceneApi {
     (container as any).playerId = playerId;
     (container as any).width = width;
     (container as any).height = height;
+    (container as any).paddingX = paddingX;
+    (container as any).paddingY = paddingY;
     
     // Initial draw
     this.drawNameLabel(container, false);
@@ -1655,6 +1689,7 @@ export class MainScene extends Phaser.Scene implements SceneApi {
     container.add(bg);
     container.add(text);
     container.setDepth(12); // Above sprites
+    try { this.labelLayer?.add(container); } catch {}
     
     return container;
   }
@@ -1668,29 +1703,45 @@ export class MainScene extends Phaser.Scene implements SceneApi {
     
     if (isSpeaking) {
       // Speaking state - cyan border with glow
+      const w = Math.round(width);
+      const h = Math.round(height);
+      const rx = -Math.floor(w / 2);
+      const ry = -Math.floor(h / 2);
       bg.fillStyle(0x111114, 0.85); // Darker background
-      bg.fillRoundedRect(-width / 2, -height / 2, width, height, height / 2);
+      bg.fillRoundedRect(rx, ry, w, h, Math.floor(h / 2));
       
       // Cyan border
       bg.lineStyle(1, 0x22d3ee, 1);
-      bg.strokeRoundedRect(-width / 2, -height / 2, width, height, height / 2);
+      bg.strokeRoundedRect(rx, ry, w, h, Math.floor(h / 2));
       
       // Add glow effect using multiple strokes
       bg.lineStyle(2, 0x22d3ee, 0.3);
-      bg.strokeRoundedRect(-width / 2, -height / 2, width, height, height / 2);
+      bg.strokeRoundedRect(rx, ry, w, h, Math.floor(h / 2));
       bg.lineStyle(3, 0x22d3ee, 0.15);
-      bg.strokeRoundedRect(-width / 2, -height / 2, width, height, height / 2);
+      bg.strokeRoundedRect(rx, ry, w, h, Math.floor(h / 2));
     } else {
       // Normal state
+      const w = Math.round(width);
+      const h = Math.round(height);
+      const rx = -Math.floor(w / 2);
+      const ry = -Math.floor(h / 2);
       bg.fillStyle(0x111114, 0.75); // Dark background matching UI
-      bg.fillRoundedRect(-width / 2, -height / 2, width, height, height / 2);
+      bg.fillRoundedRect(rx, ry, w, h, Math.floor(h / 2));
       bg.lineStyle(1, 0xffffff, 0.1); // Subtle border
-      bg.strokeRoundedRect(-width / 2, -height / 2, width, height, height / 2);
+      bg.strokeRoundedRect(rx, ry, w, h, Math.floor(h / 2));
     }
   }
   
   private updateNameLabel(container: Phaser.GameObjects.Container, x: number, y: number) {
-    container.setPosition(x, y - 24); // Position above sprite head
+    const cam = this.cameras.main;
+    const view = cam.worldView;
+    const screenX = (x - view.x) * cam.zoom;
+    const screenY = (y - view.y) * cam.zoom;
+    // Vertikaler Abstand relativ zur Zoomstufe: Avatar-Höhe ~24px in Weltkoordinaten
+    const avatarWorldHeight = 24;
+    const baseGap = 6; // zusätzlicher Abstand zum Kopf
+    const offsetY = (avatarWorldHeight / 2 + baseGap) * cam.zoom;
+    container.setPosition(Math.round(screenX), Math.round(screenY - offsetY));
   }
   
   setHeroName(name: string) {
