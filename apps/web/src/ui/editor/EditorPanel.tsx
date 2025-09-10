@@ -72,6 +72,17 @@ export function EditorPanel(props: {
           <div style={{ display: 'grid', gap: 6 }}>
             <label style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>Zonenname</label>
             <input value={editor.name} onChange={(e)=>setEditor(s=>({ ...s, name: e.target.value }))} placeholder="z.B. Meeting Room A" style={{ padding: 8, borderRadius: 6, border: '1px solid var(--border)', background: 'var(--glass)', color: 'var(--fg)', fontSize: 13 }} />
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button onClick={()=>{
+                // Starte neuen Zonen-Zeichenvorgang
+                setEditor(s=>({ ...s, tool: 'zone', category: 'zones', editingZoneIndex: null }));
+                try { (window as any).currentPhaserScene?.setSelectionRect?.(null); } catch {}
+              }} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid var(--border)', background: editor.tool==='zone'?'rgba(59,130,246,0.18)':'var(--glass)', color: 'var(--fg)', fontSize: 13 }}>Neu ziehen</button>
+              <button onClick={()=>{
+                setEditor(s=>({ ...s, tool: 'select', editingZoneIndex: null }));
+                try { (window as any).currentPhaserScene?.setSelectionRect?.(null); } catch {}
+              }} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--glass)', color: 'var(--fg)', fontSize: 13 }}>Abbrechen</button>
+            </div>
           </div>
           <div style={{ marginTop: 10, display: 'grid', gap: 8 }}>
             <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>Vorhandene Zonen</div>
@@ -108,6 +119,61 @@ export function EditorPanel(props: {
                 </div>
               </div>
             ))}
+          </div>
+        </>
+      )}
+
+      {(editor.category === 'structures' || editor.category === 'objects') && (
+        <>
+          <div style={{ display: 'grid', gap: 8 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg)' }}>Pack-Items</div>
+            {(!editor.packItems || editor.packItems.length === 0) && (
+              <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>Keine Asset-Packs installiert oder keine Items in dieser Kategorie.</div>
+            )}
+            {editor.packItems && editor.packItems.length > 0 && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(64px, 1fr))', gap: 8, maxHeight: 260, overflow: 'auto', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--glass)', padding: 8 }}>
+                {editor.packItems.filter(it => it.category === editor.category).map(it => {
+                  const selected = !!editor.pendingAsset && editor.pendingAsset.itemId === it.itemId && editor.pendingAsset.packUuid === it.packUuid;
+                  return (
+                    <button key={`${it.packUuid}:${it.itemId}`}
+                      onClick={() => {
+                        setEditor(s => ({
+                          ...s,
+                          tool: 'asset',
+                          pendingAsset: {
+                            key: it.key,
+                            dataUrl: it.dataUrl,
+                            packUuid: it.packUuid,
+                            itemId: it.itemId,
+                            category: it.category,
+                            collide: it.collide,
+                            width: it.width,
+                            height: it.height,
+                          }
+                        }));
+                        // Setze Ghost einmalig beim Auswählen
+                        try { (window as any).currentPhaserScene?.setAssetPreview?.({ dataUrl: it.dataUrl, width: it.width, height: it.height }); } catch {}
+                      }}
+                      title={it.key}
+                      style={{
+                        padding: 4,
+                        borderRadius: 8,
+                        border: `1px solid ${selected ? 'rgba(59,130,246,0.8)' : 'var(--border)'}`,
+                        background: selected ? 'rgba(59,130,246,0.12)' : 'var(--glass)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        height: 64,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <img src={it.dataUrl} alt={it.key} style={{ maxWidth: '100%', maxHeight: '100%', imageRendering: 'pixelated' as any }} />
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            <div style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>Klicke ein Item und platziere es durch Klick auf eine Kachel.</div>
           </div>
         </>
       )}

@@ -37,6 +37,8 @@ export class MainScene extends Phaser.Scene {
   // Zweite Kamera nur für Labels/UI (kein Zoom)
   private labelCamera?: Phaser.Cameras.Scene2D.Camera;
   private labelLayer?: Phaser.GameObjects.Layer;
+  private ghostSprite?: Phaser.GameObjects.Image;
+  private ghostTextureKey?: string;
   constructor() {
     super('Main');
   }
@@ -515,9 +517,13 @@ export class MainScene extends Phaser.Scene {
         return;
       }
       
+      // If asset preview is active, suppress non-asset editor interactions
+      const assetPreviewActive = !!(this as any).ghostSprite;
       // Allow editor interactions even when movement is locked
       if (!isPanStart && (this.editorMode || !this.movementLocked)) {
-        gameBridge.onPointerDown({ x: worldPoint.x, y: worldPoint.y });
+        if (!assetPreviewActive) {
+          gameBridge.onPointerDown({ x: worldPoint.x, y: worldPoint.y });
+        }
         const { tileX, tileY } = toTile(pointer);
         gameBridge.onPointerDownTile({ tileX, tileY });
       }
@@ -525,6 +531,15 @@ export class MainScene extends Phaser.Scene {
     this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
       const { tileX, tileY } = toTile(pointer);
       if (!this.panState.isPanning) gameBridge.onPointerMoveTile({ tileX, tileY });
+      // Move ghost preview sprite with cursor (snap to tile center)
+      if (this.ghostSprite && this.mapRef) {
+        const x = tileX * this.mapRef.tileWidth + this.mapRef.tileWidth / 2;
+        const y = tileY * this.mapRef.tileHeight + this.mapRef.tileHeight / 2;
+        // Set only when actually changed to avoid overdraw/flicker
+        if (Math.abs(this.ghostSprite.x - x) > 0.01 || Math.abs(this.ghostSprite.y - y) > 0.01) {
+          this.ghostSprite.setPosition(x, y);
+        }
+      }
     });
     this.input.on('pointerup', (pointer: Phaser.Input.Pointer) => {
       const { tileX, tileY } = toTile(pointer);
@@ -1036,12 +1051,12 @@ export class MainScene extends Phaser.Scene {
         if (!this.textures.exists(textureKey) && !this.pendingTextures.has(textureKey)) {
           // Texture doesn't exist and not pending, add it and create sprite when ready
           this.pendingTextures.add(textureKey);
-          
+
           this.textures.once('addtexture', (key: string) => {
             if (key === textureKey) {
               // Remove from pending
               this.pendingTextures.delete(textureKey);
-              
+
               // Create sprite once texture is loaded
               const newImg = this.add.image(a.x, a.y, textureKey);
               newImg.setDepth(6);
@@ -1049,9 +1064,18 @@ export class MainScene extends Phaser.Scene {
               this.editorSprites.set(a.id, newImg);
             }
           });
-          
-          // Add texture (this is async)
-          this.textures.addBase64(textureKey, a.dataUrl);
+
+          // Load texture depending on data source
+          const isDataUrl = typeof a.dataUrl === 'string' && a.dataUrl.startsWith('data:');
+          if (isDataUrl) {
+            this.textures.addBase64(textureKey, a.dataUrl);
+          } else {
+            try {
+              this.load.image(textureKey, a.dataUrl);
+              // Start the loader if needed; Phaser will auto-start when queueing at runtime
+              this.load.start();
+            } catch {}
+          }
         } else if (this.textures.exists(textureKey)) {
           // Texture exists, create sprite immediately
           img = this.add.image(a.x, a.y, textureKey);
@@ -1065,6 +1089,59 @@ export class MainScene extends Phaser.Scene {
         img.setPosition(a.x, a.y);
       }
     }
+  }
+
+  setAssetPreview(preview: { dataUrl: string; width?: number; height?: number } | null) {
+    try {
+      if (!preview) {
+        if (this.ghostSprite) {
+          this.ghostSprite.destroy();
+          delete (this as any).ghostSprite;
+        }
+        // Optional: Textur aufräumen
+        if (this.ghostTextureKey && this.textures.exists(this.ghostTextureKey)) {
+          try { this.textures.remove(this.ghostTextureKey); } catch {}
+        }
+        this.ghostTextureKey = undefined;
+        return;
+      }
+      const nextUrl = preview.dataUrl;
+      const newKey = `ghost_${Date.now()}_${Math.floor(Math.random()*1000000)}`;
+      const prevKey = this.ghostTextureKey;
+
+      const place = () => {
+        if (!this.ghostSprite) {
+          const img = this.add.image(0, 0, newKey);
+          img.setAlpha(0.6);
+          img.setDepth(6.5);
+          this.ghostSprite = img;
+        } else {
+          this.ghostSprite.setTexture(newKey);
+        }
+        try { this.ghostSprite.setVisible(true); } catch {}
+        // Setzen der Position auf Tilezentrum in Sicht
+        if (this.mapRef) {
+          const cx = Math.round((this.cameras.main.worldView.centerX) / this.mapRef.tileWidth) * this.mapRef.tileWidth + this.mapRef.tileWidth / 2;
+          const cy = Math.round((this.cameras.main.worldView.centerY) / this.mapRef.tileHeight) * this.mapRef.tileHeight + this.mapRef.tileHeight / 2;
+          this.ghostSprite.setPosition(cx, cy);
+        }
+        // Nach dem Wechsel alte Textur aufräumen
+        if (prevKey && prevKey !== newKey && this.textures.exists(prevKey)) {
+          try { this.textures.remove(prevKey); } catch {}
+        }
+        this.ghostTextureKey = newKey;
+      };
+
+      if (this.textures.exists(newKey)) {
+        place();
+      } else {
+        // Ghost während des Ladens ausblenden, um „null glTexture“ zu vermeiden
+        try { this.ghostSprite?.setVisible(false); } catch {}
+        this.textures.once('addtexture', (k: string) => { if (k === newKey) place(); });
+        if (nextUrl.startsWith('data:')) this.textures.addBase64(newKey, nextUrl);
+        else { this.load.image(newKey, nextUrl); this.load.start(); }
+      }
+    } catch {}
   }
 
   setSelectionRect(rect: { x: number; y: number; w: number; h: number } | null) {
@@ -1450,6 +1527,13 @@ export class MainScene extends Phaser.Scene {
       if (data?.collision) this.rebuildStaticColliders();
       // Ensure overlay reflects the latest data if visibility is on
       if (this.collisionVisible) this.updateCollisionOverlay();
+
+      // Apply persisted editor assets from server state if present
+      try {
+        if (Array.isArray((data as any)?.assets)) {
+          this.setEditorAssets((data as any).assets);
+        }
+      } catch {}
     } catch (e) {
       editorError('Load', 'Failed to fetch/apply server layers', e);
     }

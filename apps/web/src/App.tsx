@@ -196,6 +196,56 @@ export function App() {
         gameBridge.setEditorAssets(assets);
       }
       
+      // Asset-Packs laden
+      try {
+        (async () => {
+          const res = await fetch(`${apiBase}/asset-packs`, { credentials: 'include' });
+          if (res.ok) {
+            const packs = await res.json();
+            // Terrain-Tilesets aus Packs einfügen
+            const packTilesets: any[] = [];
+            const packItems: any[] = [];
+            for (const p of packs || []) {
+              const uuid = p.uuid;
+              // Terrain → Tilesets registrieren
+              for (const t of (p.terrain || [])) {
+                packTilesets.push({
+                  key: `${uuid}:${t.key}`,
+                  dataUrl: t.dataURL,
+                  tileWidth: t.tileWidth,
+                  tileHeight: t.tileHeight,
+                  margin: t.margin ?? 0,
+                  spacing: t.spacing ?? 0,
+                  category: 'terrain'
+                });
+              }
+              // Structures & Objects → auswählbare Items
+              for (const s of (p.structures || [])) {
+                packItems.push({ packUuid: uuid, itemId: s.id, key: s.key, category: 'structures', dataUrl: s.dataURL, width: s.width, height: s.height, collide: !!s.collide });
+              }
+              for (const o of (p.objects || [])) {
+                packItems.push({ packUuid: uuid, itemId: o.id, key: o.key, category: 'objects', dataUrl: o.dataURL, width: o.width, height: o.height, collide: !!o.collide });
+              }
+            }
+            if (packTilesets.length > 0) {
+              // Merge mit existierenden Tilesets (keine Duplikate per key)
+              setEditor(s => {
+                const existing = s.tilesets || [];
+                const merged = [...existing];
+                for (const ts of packTilesets) {
+                  if (!merged.find(m => m.key === ts.key)) merged.push(ts);
+                }
+                try { localStorage.setItem('meetropolis.tilesets', JSON.stringify(merged)); } catch {}
+                // Phaser-Registrierung beim Szenenstart über pendingTilesets
+                (window as any).pendingTilesets = merged;
+                return { ...s, tilesets: merged };
+              });
+            }
+            setEditor(s => ({ ...s, packItems }));
+          }
+        })();
+      } catch {}
+
       // Load layers from server on startup
       try {
         gameBridge.fetchAndApplyServerLayers();
@@ -255,6 +305,11 @@ export function App() {
               // Nach erfolgreichem Laden: direkt in Szene anwenden
               try { gameBridge.reloadEditorLayers(); } catch {}
             }
+            if (Array.isArray(data?.assets)) {
+              // Editor-Assets in UI/Scene anwenden
+              setEditor(s => ({ ...s, assets: data.assets }));
+              try { gameBridge.setEditorAssets(data.assets); } catch {}
+            }
           } else if (res.status === 404) {
             // Map auf dem Server erzeugen mit lokalem Stand
             const tilesets = JSON.parse(localStorage.getItem('meetropolis.tilesets') || '[]');
@@ -286,6 +341,233 @@ export function App() {
     } catch {}
   }, []);
 
+  // Reset von Auswahl beim Kategorienwechsel
+  React.useEffect(() => {
+    setEditor(s => {
+      // Beim Wechsel der Kategorie: pendingAsset entfernen, Ghost-Vorschau entfernen
+      try { (window as any).currentPhaserScene?.setAssetPreview?.(null); } catch {}
+      // Standard: Keine aktive Aktion nach Tab-Wechsel
+      return { ...s, pendingAsset: null, tool: 'select' };
+    });
+  }, [editor.category]);
+
+  // Tool-Wechsel: Asset-Ghost deaktivieren, wenn nicht 'asset'
+  React.useEffect(() => {
+    if (editor.tool !== 'asset') {
+      try { (window as any).currentPhaserScene?.setAssetPreview?.(null); } catch {}
+    }
+  }, [editor.tool]);
+
+  // Grid-basiertes Platzieren von Pack-Items
+  React.useEffect(() => {
+    const tileSize = 16; // Map tile size (office)
+
+    const placeAsset = (tileX: number, tileY: number) => {
+      const p = editor.pendingAsset;
+      if (!p) return;
+      const x = tileX * tileSize + tileSize / 2;
+      const y = tileY * tileSize + tileSize / 2;
+      const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const next: { id: string; key: string; dataUrl: string; x: number; y: number; packUuid?: string; itemId?: string; category?: 'structures' | 'objects'; collide?: boolean; width?: number; height?: number } = { id, key: p.key, dataUrl: p.dataUrl, x, y };
+      if (p.packUuid) next.packUuid = p.packUuid;
+      if (p.itemId) next.itemId = p.itemId;
+      if (p.category) next.category = p.category;
+      if (p.collide) next.collide = true;
+      if (typeof p.width === 'number') next.width = p.width;
+      if (typeof p.height === 'number') next.height = p.height;
+      setEditor(s => {
+        const assets = [...s.assets, next];
+        try { localStorage.setItem('meetropolis.assets', JSON.stringify(assets)); } catch {}
+        try { gameBridge.setEditorAssets(assets); } catch {}
+        if (next.collide === true) {
+          const wTiles = Math.max(1, Math.round(((next.width ?? tileSize) / tileSize)));
+          const hTiles = Math.max(1, Math.round(((next.height ?? tileSize) / tileSize)));
+          const startX = tileX - Math.floor(wTiles / 2);
+          const startY = tileY - Math.floor(hTiles / 2);
+          const endX = startX + wTiles - 1;
+          const endY = startY + hTiles - 1;
+          try { gameBridge.applyTilePaint({ layer: 'Collision', tilesetKey: 'collision_tiles', tileIndex: 0, rect: { startX, startY, endX, endY } }); } catch {}
+        }
+        return { ...s, assets };
+      });
+    };
+
+    const beginDrag = (tileX: number, tileY: number) => {
+      setEditor(s => ({ ...s, drag: { startTileX: tileX, startTileY: tileY, endTileX: tileX, endTileY: tileY } }));
+      // Initiales Ghost-Rect
+      try {
+        const x0 = tileX * tileSize;
+        const y0 = tileY * tileSize;
+        gameBridge.setSelectionRect({ x: x0, y: y0, w: tileSize, h: tileSize });
+      } catch {}
+    };
+    const updateDrag = (tileX: number, tileY: number) => {
+      setEditor(s => {
+        if (!s.drag) return s;
+        const next = { ...s.drag, endTileX: tileX, endTileY: tileY };
+        try {
+          const x0 = Math.min(next.startTileX, next.endTileX) * tileSize;
+          const y0 = Math.min(next.startTileY, next.endTileY) * tileSize;
+          const x1 = (Math.max(next.startTileX, next.endTileX) + 1) * tileSize;
+          const y1 = (Math.max(next.startTileY, next.endTileY) + 1) * tileSize;
+          gameBridge.setSelectionRect({ x: x0, y: y0, w: x1 - x0, h: y1 - y0 });
+        } catch {}
+        return { ...s, drag: next };
+      });
+    };
+    const endDragPaint = (layer: 'EditorGround' | 'Collision', tilesetKey: string, tileIndex: number) => {
+      setEditor(s => {
+        const d = s.drag;
+        if (!d) return s;
+        const rect = { startX: Math.min(d.startTileX, d.endTileX), startY: Math.min(d.startTileY, d.endTileY), endX: Math.max(d.startTileX, d.endTileX), endY: Math.max(d.startTileY, d.endTileY) };
+        try { gameBridge.applyTilePaint({ layer, tilesetKey, tileIndex, rect }); } catch {}
+        try { gameBridge.setSelectionRect(null); } catch {}
+        return { ...s, drag: null };
+      });
+    };
+    const endDragZone = () => {
+      setEditor(s => {
+        const d = s.drag;
+        if (!d) return s;
+        const x0 = Math.min(d.startTileX, d.endTileX) * tileSize;
+        const y0 = Math.min(d.startTileY, d.endTileY) * tileSize;
+        const x1 = (Math.max(d.startTileX, d.endTileX) + 1) * tileSize;
+        const y1 = (Math.max(d.startTileY, d.endTileY) + 1) * tileSize;
+        const poly = [ { x: x0, y: y0 }, { x: x1, y: y0 }, { x: x1, y: y1 }, { x: x0, y: y1 } ];
+        const zones = s.zones.slice();
+        zones.push({ name: s.name || 'Zone', points: poly } as any);
+        try { localStorage.setItem('meetropolis.zones', JSON.stringify(zones)); } catch {}
+        try { gameBridge.setZoneOverlay(zones as any); } catch {}
+        try { gameBridge.setSelectionRect(null); } catch {}
+        return { ...s, zones, drag: null, editingZoneIndex: null, tool: 'select' };
+      });
+    };
+
+    const handleDown = ({ tileX, tileY }: { tileX: number; tileY: number }) => {
+      if (!editor.active) return;
+      if (editor.tool === 'asset' && editor.pendingAsset) {
+        placeAsset(tileX, tileY);
+        return;
+      }
+      if (editor.tool === 'floor' && editor.tilePaint && editor.tilePaint.tileIndex >= 0) {
+        beginDrag(tileX, tileY);
+        return;
+      }
+      if (editor.tool === 'collision' && editor.tilePaint && editor.tilePaint.tileIndex >= 0) {
+        beginDrag(tileX, tileY);
+        return;
+      }
+      if (editor.tool === 'erase' && editor.category === 'terrain') {
+        beginDrag(tileX, tileY);
+        return;
+      }
+      if (editor.tool === 'erase' && (editor.category === 'objects' || editor.category === 'structures')) {
+        const x = tileX * tileSize + tileSize / 2;
+        const y = tileY * tileSize + tileSize / 2;
+        setEditor(s => {
+          const radius = tileSize / 2;
+          const idx = [...s.assets].reverse().findIndex(a => Math.abs(a.x - x) <= radius && Math.abs(a.y - y) <= radius);
+          if (idx === -1) return s;
+          const realIdx = s.assets.length - 1 - idx;
+          const assets = s.assets.slice();
+          assets.splice(realIdx, 1);
+          try { localStorage.setItem('meetropolis.assets', JSON.stringify(assets)); } catch {}
+          try { gameBridge.setEditorAssets(assets); } catch {}
+          return { ...s, assets };
+        });
+        return;
+      }
+      if (editor.tool === 'zone') {
+        beginDrag(tileX, tileY);
+        return;
+      }
+    };
+    const handleMove = ({ tileX, tileY }: { tileX: number; tileY: number }) => {
+      if (!editor.active) return;
+      if (editor.tool === 'asset' && editor.pendingAsset) {
+        // Vorschau nicht bei jeder Bewegung neu setzen (verursacht Flackern);
+        // die Szene aktualisiert die Ghost-Position selbst in pointermove.
+        return;
+      }
+      // Terrain/Zonen Ghost (1x1) und Drag-Update
+      if (editor.tool === 'floor' || editor.tool === 'collision') {
+        if (editor.drag) {
+          updateDrag(tileX, tileY);
+        } else if (editor.tilePaint && editor.tilePaint.tileIndex >= 0) {
+          const x0 = tileX * tileSize;
+          const y0 = tileY * tileSize;
+          try { gameBridge.setSelectionRect({ x: x0, y: y0, w: tileSize, h: tileSize }); } catch {}
+        }
+        return;
+      }
+      if (editor.tool === 'erase' && editor.category === 'terrain') {
+        if (editor.drag) updateDrag(tileX, tileY);
+        else {
+          const x0 = tileX * tileSize;
+          const y0 = tileY * tileSize;
+          try { gameBridge.setSelectionRect({ x: x0, y: y0, w: tileSize, h: tileSize }); } catch {}
+        }
+        return;
+      }
+      if (editor.tool === 'zone') {
+        if (editor.drag) {
+          updateDrag(tileX, tileY);
+        } else {
+          const x0 = tileX * tileSize;
+          const y0 = tileY * tileSize;
+          try { gameBridge.setSelectionRect({ x: x0, y: y0, w: tileSize, h: tileSize }); } catch {}
+        }
+        return;
+      }
+      // Default: keine Vorschau
+      try { gameBridge.setSelectionRect(null); } catch {}
+    };
+    const handleUp = ({ tileX, tileY }: { tileX: number; tileY: number }) => {
+      if (!editor.active) return;
+      if (editor.tool === 'floor' && editor.tilePaint && editor.tilePaint.tileIndex >= 0) {
+        if (!editor.drag) return;
+        endDragPaint('EditorGround', editor.tilePaint.tilesetKey, editor.tilePaint.tileIndex);
+        return;
+      }
+      if (editor.tool === 'collision' && editor.tilePaint && editor.tilePaint.tileIndex >= 0) {
+        if (!editor.drag) return;
+        endDragPaint('Collision', editor.tilePaint.tilesetKey, editor.tilePaint.tileIndex);
+        return;
+      }
+      if (editor.tool === 'erase' && editor.category === 'terrain') {
+        if (!editor.drag) return;
+        // Erase sowohl Boden als auch Kollision im gewählten Bereich
+        setEditor(s => {
+          const d = s.drag!;
+          const rect = { startX: Math.min(d.startTileX, d.endTileX), startY: Math.min(d.startTileY, d.endTileY), endX: Math.max(d.startTileX, d.endTileX), endY: Math.max(d.startTileY, d.endTileY) };
+          try { gameBridge.applyTilePaint({ layer: 'EditorGround', tilesetKey: s.tilePaint?.tilesetKey || 'office_tiles', tileIndex: -1, rect }); } catch {}
+          try { gameBridge.applyTilePaint({ layer: 'Collision', tilesetKey: 'collision_tiles', tileIndex: -1, rect }); } catch {}
+          try { gameBridge.setSelectionRect(null); } catch {}
+          return { ...s, drag: null };
+        });
+        return;
+      }
+      if (editor.tool === 'zone') {
+        if (!editor.drag) return;
+        endDragZone();
+        return;
+      }
+    };
+    const noop = () => {};
+    try {
+      (gameBridge as any).onPointerDownTile = handleDown;
+      (gameBridge as any).onPointerMoveTile = handleMove;
+      (gameBridge as any).onPointerUpTile = handleUp;
+    } catch {}
+    return () => {
+      try {
+        (gameBridge as any).onPointerDownTile = noop;
+        (gameBridge as any).onPointerMoveTile = noop;
+        (gameBridge as any).onPointerUpTile = noop;
+      } catch {}
+    };
+  }, [editor.active, editor.tool, editor.pendingAsset, editor.tilePaint, editor.drag, editor.name, editor.editingZoneIndex]);
+
   async function saveAllToServer() {
     try {
       const tilesets = JSON.parse(localStorage.getItem('meetropolis.tilesets') || '[]');
@@ -297,7 +579,7 @@ export function App() {
         method: 'PUT',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ editorGround: layers.editorGround ?? null, collision: layers.collision ?? null, tilesets, assets, zones, backgroundColor })
+        body: JSON.stringify({ editorGround: layers.editorGround ?? null, editorWalls: layers.editorWalls ?? null, collision: layers.collision ?? null, tilesets, assets, zones, backgroundColor })
       });
       // Notify other users to reload from server
       colyseusRef.current?.send?.('editor_update', { type: 'reload_all' });

@@ -11,8 +11,9 @@ export type EditorState = {
   name: string;
   zones: { name: string; points: { x: number; y: number }[] }[];
   editingZoneIndex?: number | null;
-  assets: { id: string; key: string; dataUrl: string; x: number; y: number }[];
-  pendingAsset?: { key: string; dataUrl: string } | null;
+  assets: { id: string; key: string; dataUrl: string; x: number; y: number; packUuid?: string; itemId?: string; category?: 'structures' | 'objects'; collide?: boolean; width?: number; height?: number }[];
+  pendingAsset?: { key: string; dataUrl: string; packUuid?: string; itemId?: string; category?: 'structures' | 'objects'; collide?: boolean; width?: number; height?: number } | null;
+  packItems?: { packUuid: string; itemId: string; key: string; category: 'structures' | 'objects'; dataUrl: string; width: number; height: number; collide: boolean }[];
   tilePaint?: { tilesetKey: string; tileIndex: number; tileWidth: number; tileHeight: number; margin?: number; spacing?: number } | null;
   drag?: { startTileX: number; startTileY: number; endTileX: number; endTileY: number } | null;
   tilesets?: { key: string; dataUrl: string; tileWidth: number; tileHeight: number; margin?: number; spacing?: number; category?: string }[];
@@ -31,7 +32,8 @@ export function useEditor(): [EditorState, React.Dispatch<React.SetStateAction<E
     editingZoneIndex: null,
     assets: [],
     pendingAsset: null,
-    tilePaint: { tilesetKey: 'office_tiles', tileIndex: 1, tileWidth: 16, tileHeight: 16 },
+    packItems: [],
+    tilePaint: { tilesetKey: 'office_tiles', tileIndex: -1, tileWidth: 16, tileHeight: 16 },
     drag: null,
     tilesets: [],
     backgroundColor: (typeof window !== 'undefined' && localStorage.getItem('meetropolis.backgroundColor')) || '#202020',

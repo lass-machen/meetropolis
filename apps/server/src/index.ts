@@ -77,7 +77,14 @@ const authLimiter = rateLimit({
     return req.ip || 'anonymous';
   },
 });
-app.use(['/auth', '/livekit/token'], authLimiter);
+// Apply strict limiter only to sensitive auth write endpoints
+app.use([
+  '/auth/login',
+  '/auth/register',
+  '/auth/forgot',
+  '/auth/reset',
+  '/livekit/token',
+], authLimiter);
 
 app.get('/', (_req, res) => res.send('ok'));
 

@@ -26,6 +26,8 @@ type Bridge = {
   setHeroName: (name: string) => void;
   updateSpeakingStates: (speakingIds: Set<string>) => void;
   setDoNotDisturb: (enabled: boolean) => void;
+  // Asset-Preview im Editor (Ghost-Sprite unter Cursor)
+  setAssetPreview: (preview: { dataUrl: string; width?: number; height?: number } | null) => void;
   // New: lock movement and find free spot near a sprite
   setMovementLocked: (locked: boolean) => void;
   findFreeSpotNear: (targetId: string, options?: { radius?: number; step?: number }) => { x: number; y: number } | null;
@@ -54,6 +56,7 @@ export type SceneApi = {
   setHeroName?: (name: string) => void;
   updateSpeakingStates?: (speakingIds: Set<string>) => void;
   setDoNotDisturb?: (enabled: boolean) => void;
+  setAssetPreview?: (preview: { dataUrl: string; width?: number; height?: number } | null) => void;
   // New hooks
   setMovementLocked?: (locked: boolean) => void;
   findFreeSpotNear?: (targetId: string, options?: { radius?: number; step?: number }) => { x: number; y: number } | null;
@@ -203,6 +206,9 @@ export const gameBridge: Bridge = {
   setDoNotDisturb: (enabled) => {
     cachedDoNotDisturb = !!enabled;
     sceneApi?.setDoNotDisturb?.(enabled);
+  },
+  setAssetPreview: (preview) => {
+    sceneApi?.setAssetPreview?.(preview);
   },
   setMovementLocked: (locked) => {
     sceneApi?.setMovementLocked?.(locked);

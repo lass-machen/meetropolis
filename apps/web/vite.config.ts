@@ -16,7 +16,17 @@ export default defineConfig({
       host: process.env.VITE_HMR_HOST || 'localhost',
       protocol: process.env.VITE_HMR_PROTOCOL || 'ws'
     },
-    allowedHosts: ['meetropolis.s4.lmwow.de', 'localhost', 'razor-crest.local']
+    allowedHosts: ['meetropolis.s4.lmwow.de', 'localhost', 'razor-crest.local'],
+    proxy: {
+      // Nur /packs proxien, damit statische Web-Assets (z. B. /maps/office.json) unangetastet bleiben
+      '/packs': {
+        // Hinweis: Im Browser nutzen wir VITE_API_BASE (localhost),
+        // aber der Proxy läuft im Container. Dafür VITE_PROXY_TARGET (z. B. http://server:2567) verwenden.
+        target: process.env.VITE_PROXY_TARGET || process.env.VITE_API_BASE || 'http://localhost:2567',
+        changeOrigin: true,
+        secure: false,
+      }
+    }
   }
 });
 
