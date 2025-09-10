@@ -1,0 +1,119 @@
+# Development Configuration für lokale Entwicklung
+# Optimiert für lokale Entwicklung ohne Traefik
+
+networks:
+  meetropolis-dev:
+    driver: bridge
+
+volumes:
+  db_data_dev:
+
+services:
+  db:
+    image: postgres:15
+    container_name: meetropolis-db-dev
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: meetropolis
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data_dev:/var/lib/postgresql/data
+    networks:
+      - meetropolis-dev
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  server:
+    image: node:20
+    container_name: meetropolis-server-dev
+    working_dir: /workspace/apps/server
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/meetropolis
+      PORT: 2567
+      LIVEKIT_URL: http://livekit:7880
+      LIVEKIT_API_KEY: devkey
+      LIVEKIT_API_SECRET: secret
+      NODE_ENV: development
+      TRUST_PROXY: "false"
+      CORS_ORIGIN: http://localhost:5174,http://localhost:5173
+      # Stabilisiere Tokens in Dev: gleicher Pepper/Secret über Neustarts
+      API_TOKEN_PEPPER: dev-pepper-change-me
+      JWT_SECRET: dev-jwt-secret-change-me
+    command: sh -c "cd /workspace && npm install && npm -w @meetropolis/server run dev"
+    ports:
+      - "2567:2567"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - meetropolis-dev
+    volumes:
+      - ./:/workspace
+      - /workspace/node_modules
+
+  web:
+    image: node:20
+    container_name: meetropolis-web-dev
+    working_dir: /workspace/apps/web
+    environment:
+      VITE_API_BASE: http://localhost:2567
+      VITE_LIVEKIT_URL: ws://localhost:7880
+      VITE_HMR_HOST: localhost
+      VITE_HMR_PROTOCOL: ws
+      VITE_DEBUG_LOGS: "true"
+      # Proxy-Ziel im Container: spreche den Server-Dienst direkt an
+      VITE_PROXY_TARGET: http://server:2567
+    command: sh -c "cd /workspace && npm install && npm -w @meetropolis/web run dev -- --host 0.0.0.0"
+    ports:
+      - "5174:5173"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    depends_on:
+      - server
+    networks:
+      - meetropolis-dev
+    volumes:
+      - ./:/workspace
+      - /workspace/node_modules
+
+  livekit:
+    image: livekit/livekit-server:latest
+    container_name: meetropolis-livekit-dev
+    command: ["--dev", "--bind", "0.0.0.0"]
+    environment:
+      LK_API_KEY: devkey
+      LK_API_SECRET: secret
+      LK_NODE_IP: 0.0.0.0
+      LK_NAT_1_TO_1_IPS: 127.0.0.1
+      LK_RTC_USE_EXTERNAL_IP: "true"
+      LK_RTC_TCP_PORT: 7881
+      LK_RTC_UDP_PORT: 7882
+    ports:
+      - "7880:7880"
+      - "7881:7881/tcp"
+      - "7882:7882/udp"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - meetropolis-dev
