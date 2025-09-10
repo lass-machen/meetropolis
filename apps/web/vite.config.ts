@@ -16,7 +16,7 @@ export default defineConfig({
       host: process.env.VITE_HMR_HOST || 'localhost',
       protocol: process.env.VITE_HMR_PROTOCOL || 'ws'
     },
-    allowedHosts: ['meetropolis.s7.lmwow.de', 'localhost', 'razor-crest.local']
+    allowedHosts: ['meetropolis.s4.lmwow.de', 'localhost', 'razor-crest.local']
   }
 });
 
