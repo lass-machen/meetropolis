@@ -10,6 +10,11 @@ const require = createRequire(import.meta.url);
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const Colyseus = require('colyseus');
 import { createServer } from 'http';
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 import { WorldRoom } from './rooms/WorldRoom.js';
 import { registerApi } from './api.js';
 import { logger } from './logger.js';
@@ -75,6 +80,13 @@ const authLimiter = rateLimit({
 app.use(['/auth', '/livekit/token'], authLimiter);
 
 app.get('/', (_req, res) => res.send('ok'));
+
+// Static serving for Asset Packs
+const packsDir = process.env.ASSET_PACKS_DIR || path.resolve(__dirname, '../../public/packs');
+try {
+  fs.mkdirSync(packsDir, { recursive: true });
+} catch {}
+app.use('/packs', express.static(packsDir, { maxAge: '365d', immutable: true }));
 
 registerApi(app);
 

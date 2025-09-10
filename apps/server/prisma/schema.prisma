@@ -102,3 +102,17 @@ model Presence {
   
   @@index([userId, roomId])
 }
+
+model AssetPack {
+  id          Int      @id @default(autoincrement())
+  uuid        String   @unique
+  name        String
+  description String
+  author      String
+  version     String
+  terrain     Json
+  structures  Json
+  objects     Json
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
