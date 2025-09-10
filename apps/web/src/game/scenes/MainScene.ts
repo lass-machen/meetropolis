@@ -705,6 +705,14 @@ export class MainScene extends Phaser.Scene {
       try { if (this.heroNameLabel) this.heroNameLabel.setVisible(false); } catch {}
       try { this.nameLabels.forEach(lbl => lbl.setVisible(false)); } catch {}
       try { this.bubbleOutlines.forEach(g => g.setVisible(false)); } catch {}
+      // Beim Aktivieren des Editors: Zonen-Overlay aus LocalStorage laden und anzeigen
+      try {
+        const raw = typeof window !== 'undefined' ? localStorage.getItem('meetropolis.zones') : null;
+        const stored = raw ? JSON.parse(raw) : null;
+        if (Array.isArray(stored)) {
+          this.setZoneOverlay(stored);
+        }
+      } catch {}
     } else {
       // Unlock movement when leaving editor mode
       this.setMovementLocked(false);
@@ -716,6 +724,8 @@ export class MainScene extends Phaser.Scene {
       try { if (this.heroNameLabel) this.heroNameLabel.setVisible(true); } catch {}
       try { this.nameLabels.forEach(lbl => lbl.setVisible(true)); } catch {}
       try { this.bubbleOutlines.forEach(g => g.setVisible(true)); } catch {}
+      // Beim Verlassen des Editors: Zonen-Overlay ausblenden
+      try { if (this.zoneG) { this.zoneG.clear(); this.zoneG.setVisible(false); } } catch {}
     }
   }
 
@@ -953,24 +963,52 @@ export class MainScene extends Phaser.Scene {
     }
   }
 
-  setZoneOverlay(polys: { name: string; points: { x: number; y: number }[] }[]) {
-    if (!this.zoneG || !this.zoneG.scene) {
-      this.zoneG = this.add.graphics();
-      this.zoneG.setDepth(7);
-    }
-    const g = this.zoneG;
-    g.clear();
-    g.lineStyle(2, 0x00ff99, 1);
-    g.fillStyle(0x00ff99, 0.18);
-    for (const poly of polys) {
-      if (!poly.points?.length) continue;
-      const pts = poly.points;
-      g.beginPath();
-      g.moveTo(pts[0].x, pts[0].y);
-      for (let i = 1; i < pts.length; i++) g.lineTo(pts[i].x, pts[i].y);
-      g.closePath();
-      g.fillPath();
-      g.strokePath();
+  setZoneOverlay(polys: { name: string; points: any[] }[]) {
+    try {
+      // Zonen nur im Editor anzeigen
+      if (!this.editorMode) {
+        if (this.zoneG) { this.zoneG.clear(); this.zoneG.setVisible(false); }
+        return;
+      }
+      if (!this.zoneG || !this.zoneG.scene) {
+        this.zoneG = this.add.graphics();
+        this.zoneG.setDepth(7);
+      }
+      const g = this.zoneG;
+      g.setVisible(true);
+      g.clear();
+      g.lineStyle(2, 0x00ff99, 1);
+      g.fillStyle(0x00ff99, 0.18);
+
+      const toPoint = (v: any): { x: number; y: number } | null => {
+        if (!v) return null;
+        // accept {x,y}
+        if (typeof v.x === 'number' && typeof v.y === 'number') return { x: v.x, y: v.y };
+        // accept [x,y]
+        if (Array.isArray(v) && v.length >= 2 && typeof v[0] === 'number' && typeof v[1] === 'number') return { x: v[0], y: v[1] };
+        // accept strings
+        const px = (v as any).x, py = (v as any).y;
+        if ((typeof px === 'string' || typeof px === 'number') && (typeof py === 'string' || typeof py === 'number')) {
+          const nx = Number(px);
+          const ny = Number(py);
+          if (!Number.isNaN(nx) && !Number.isNaN(ny)) return { x: nx, y: ny };
+        }
+        return null;
+      };
+
+      for (const poly of Array.isArray(polys) ? polys : []) {
+        const raw = Array.isArray(poly?.points) ? poly.points : [];
+        const pts = raw.map(toPoint).filter((p: any) => p && typeof p.x === 'number' && typeof p.y === 'number') as { x: number; y: number }[];
+        if (!pts || pts.length < 3) continue;
+        g.beginPath();
+        g.moveTo(pts[0].x, pts[0].y);
+        for (let i = 1; i < pts.length; i++) g.lineTo(pts[i].x, pts[i].y);
+        g.closePath();
+        g.fillPath();
+        g.strokePath();
+      }
+    } catch {
+      // Ensure overlay drawing never breaks the scene
     }
   }
 
@@ -1189,11 +1227,11 @@ export class MainScene extends Phaser.Scene {
       // Server speichern (best-effort)
       let base = (window as any).VITE_API_BASE || import.meta.env.VITE_API_BASE as any;
       if (!base && typeof window !== 'undefined') {
-        base = `${window.location.protocol}//${window.location.hostname}:2568`;
+        base = `${window.location.protocol}//${window.location.hostname}:2567`;
       }
-      if (!base) base = 'http://localhost:2568';
+      if (!base) base = 'http://localhost:2567';
       // Only save to server if data is not too large (< 100KB)
-      const serverPayload = { editorGround: data.editorGround, editorWalls: data.editorWalls, collision: data.collision };
+      const serverPayload: any = { editorGround: data.editorGround, editorWalls: data.editorWalls, collision: data.collision };
       const jsonStr = JSON.stringify(serverPayload);
       // Server payload ready
       if (jsonStr.length < 100000) {
@@ -1287,7 +1325,7 @@ export class MainScene extends Phaser.Scene {
 
   async fetchAndApplyServerLayers() {
     try {
-      const base = (window as any).VITE_API_BASE || import.meta.env.VITE_API_BASE || `${window.location.protocol}//${window.location.hostname}:2568`;
+      const base = (window as any).VITE_API_BASE || import.meta.env.VITE_API_BASE || `${window.location.protocol}//${window.location.hostname}:2567`;
       const res = await fetch(`${base}/maps/office/editor-state`, { credentials: 'include' });
       if (!res.ok) {
         return;
@@ -1307,7 +1345,17 @@ export class MainScene extends Phaser.Scene {
       }
       // Zones vom Server anwenden (Overlay + LocalStorage spiegeln)
       try {
-        const zones = Array.isArray(data?.zones) ? data.zones.map((z: any) => ({ name: z.name, points: z.polygon || z.points || [] })) : [];
+        const zones = Array.isArray(data?.zones) ? data.zones.map((z: any) => {
+          const anyZ = z || {};
+          const pts = Array.isArray(anyZ.points)
+            ? anyZ.points
+            : Array.isArray(anyZ.polygon)
+              ? anyZ.polygon
+              : (anyZ.polygon && Array.isArray(anyZ.polygon.points))
+                ? anyZ.polygon.points
+                : [];
+          return { name: anyZ.name, points: pts };
+        }) : [];
         if (zones.length > 0) {
           try { localStorage.setItem('meetropolis.zones', JSON.stringify(zones)); } catch {}
           try { this.setZoneOverlay(zones); } catch {}

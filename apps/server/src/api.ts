@@ -335,10 +335,11 @@ export function registerApi(app: express.Express) {
       assets: z.array(z.any()).optional(),
       zones: z.array(z.any()).optional(),
       backgroundColor: z.string().regex(/^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/).optional(),
+      replaceZones: z.boolean().optional(),
     });
     const parse = editorSchema.safeParse(req.body || {});
     if (!parse.success) return res.status(400).json({ error: 'invalid editor payload' });
-    const { editorGround, collision, tilesets, assets, zones, backgroundColor } = parse.data;
+    const { editorGround, collision, tilesets, assets, zones, backgroundColor, replaceZones } = parse.data;
     const found = await prisma.map.findUnique({ where: { name }, include: { rooms: true } });
     const map = found ?? await prisma.map.create({ data: { name, meta: {} } });
     // Ensure there is at least one room for this map (for zone assignment)
@@ -369,13 +370,32 @@ export function registerApi(app: express.Express) {
     });
     // Upsert zones (simple strategy: replace all zones for map)
     if (Array.isArray(zones)) {
-      await prisma.zone.deleteMany({ where: { mapId: map.id } });
+      // Normalize all incoming polygons and keep only non-empty ones
+      const prepared = [] as Array<{ name: string; capacity: number | null; polygon: any[] }>;
       for (const z of zones) {
         const name = (z?.name || 'Zone').toString();
-        const capacity = typeof z?.capacity === 'number' ? z.capacity : null;
-        const polygon = z?.points ? z.points : z?.polygon;
-        if (!Array.isArray(polygon)) continue;
-        await prisma.zone.create({ data: { name, capacity: capacity ?? undefined, polygon, mapId: map.id, roomId: roomForZones?.id as string } as any });
+        const capacity = typeof (z as any)?.capacity === 'number' ? (z as any).capacity : null;
+        let polygon: any = undefined;
+        try {
+          const anyZ: any = z as any;
+          if (Array.isArray(anyZ?.points)) {
+            polygon = anyZ.points;
+          } else if (Array.isArray(anyZ?.polygon)) {
+            polygon = anyZ.polygon;
+          } else if (anyZ?.polygon && Array.isArray(anyZ.polygon.points)) {
+            polygon = anyZ.polygon.points;
+          }
+        } catch {}
+        if (Array.isArray(polygon) && polygon.length > 0) {
+          prepared.push({ name, capacity, polygon });
+        }
+      }
+      // Only mutate DB if there is at least one valid polygon OR explicit replaceZones=true
+      if (prepared.length > 0 || replaceZones === true) {
+        await prisma.zone.deleteMany({ where: { mapId: map.id } });
+        for (const z of prepared) {
+          await prisma.zone.create({ data: { name: z.name, capacity: z.capacity ?? undefined, polygon: z.polygon, mapId: map.id, roomId: roomForZones?.id as string } as any });
+        }
       }
     }
     res.json({ ok: true });

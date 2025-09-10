@@ -7,6 +7,7 @@ export function EditorPanel(props: {
   editor: EditorState;
   setEditor: React.Dispatch<React.SetStateAction<EditorState>>;
   onOpenUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onSave?: () => void;
 }) {
   const { editor, setEditor } = props;
   React.useEffect(() => {
@@ -26,14 +27,7 @@ export function EditorPanel(props: {
             setEditor(s => ({ ...s, backgroundColor: color }));
             try { localStorage.setItem('meetropolis.backgroundColor', color); } catch {}
             try { gameBridge.setBackgroundColor(color); } catch {}
-            // Server sofort aktualisieren (best-effort)
-            (async ()=>{
-              try {
-                const base = (window as any).VITE_API_BASE || (import.meta as any).env?.VITE_API_BASE || `${window.location.protocol}//${window.location.hostname}:2568`;
-                const body = JSON.stringify({ backgroundColor: color });
-                await fetch(`${base}/maps/office/editor-state`, { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body });
-              } catch {}
-            })();
+            // Keine Autospeicherung – Speichern-Button verwenden
           }}
           style={{ width: 48, height: 28, padding: 0, border: '1px solid var(--border)', borderRadius: 6, background: 'transparent' }}
         />
@@ -108,18 +102,7 @@ export function EditorPanel(props: {
                     try { localStorage.setItem('meetropolis.zones', JSON.stringify(zones)); } catch {}
                     // Szene-Overlay aktualisieren, falls verfügbar
                     try { (window as any).currentPhaserScene?.setZoneOverlay?.(zones); } catch {}
-                    // Best-effort Server speichern
-                    (async ()=>{
-                      try {
-                        const base = (window as any).VITE_API_BASE || (import.meta as any).env?.VITE_API_BASE || `${window.location.protocol}//${window.location.hostname}:2568`;
-                        const body = JSON.stringify({ zones });
-                        if (body.length < 100000) {
-                          await fetch(`${base}/maps/office/editor-state`, {
-                            method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body
-                          });
-                        }
-                      } catch {}
-                    })();
+                    // Keine Autospeicherung – Speichern-Button verwenden
                     return { ...s, zones, editingZoneIndex: editing };
                   })} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'rgba(239,68,68,0.12)', color: 'var(--fg)', fontSize: 12 }}>Löschen</button>
                 </div>
@@ -128,6 +111,13 @@ export function EditorPanel(props: {
           </div>
         </>
       )}
+
+      {/* Footer mit Speichern-Button */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+        <button onClick={() => props.onSave?.()} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'rgba(59,130,246,0.18)', color: 'var(--fg)', fontSize: 13, fontWeight: 600 }}>
+          Speichern
+        </button>
+      </div>
 
       {(editor.category === 'terrain' || editor.category === 'structures' || editor.category === 'objects') && (
         <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12, marginTop: 12 }}>

@@ -1,5 +1,5 @@
 export type Point = { x: number; y: number };
-export type Polygon = { name: string; points: Point[] };
+export type Polygon = { name: string; points: Array<Point | [number, number]> };
 
 export type VolumeRules = {
   nearRadius: number; // Distanz, bis zu der volle Lautstärke gilt
@@ -20,10 +20,23 @@ export type Providers = {
   getLocalDnd?: () => boolean;
 };
 
-function pointInPolygon(p: Point, poly: Point[]): boolean {
+function pointInPolygon(p: Point, poly: Array<Point | [number, number]>): boolean {
+  const pts: Point[] = [];
+  for (const v of Array.isArray(poly) ? poly : []) {
+    if (!v) continue;
+    if (Array.isArray(v) && v.length >= 2 && typeof v[0] === 'number' && typeof v[1] === 'number') {
+      pts.push({ x: v[0], y: v[1] });
+    } else if (typeof (v as any).x === 'number' && typeof (v as any).y === 'number') {
+      pts.push({ x: (v as any).x, y: (v as any).y });
+    } else {
+      const nx = Number((v as any).x);
+      const ny = Number((v as any).y);
+      if (!Number.isNaN(nx) && !Number.isNaN(ny)) pts.push({ x: nx, y: ny });
+    }
+  }
   let c = false;
-  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
-    const pi = poly[i], pj = poly[j];
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const pi = pts[i], pj = pts[j];
     if (((pi.y > p.y) !== (pj.y > p.y)) && (p.x < (pj.x - pi.x) * (p.y - pi.y) / (pj.y - pi.y + 1e-9) + pi.x)) {
       c = !c;
     }

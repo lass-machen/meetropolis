@@ -1,6 +1,6 @@
 import { AVManager } from '../av/avManager';
 
-export type Polygon = { name: string; capacity?: number; points: { x: number; y: number }[] };
+export type Polygon = { name: string; capacity?: number; points: Array<{ x: number; y: number } | [number, number]> };
 
 export class ZoneManager {
   private av: AVManager | null;
@@ -13,7 +13,7 @@ export class ZoneManager {
   }
 
   update(pos: { x: number; y: number }) {
-    const inside = this.zones.find(z => pointInPolygon(pos, z.points));
+    const inside = this.zones.find(z => pointInPolygon(pos, normalizePoints(z.points)));
     if (inside && inside.name !== this.current) {
       this.current = inside.name;
       // Single-Room: kein Raumwechsel mehr
@@ -40,13 +40,35 @@ export class ZoneManager {
   }
 
   getZones() {
-    return this.zones;
+    // Return zones with normalized points for consumers
+    return this.zones.map(z => ({ ...z, points: normalizePoints(z.points) as any }));
   }
 
   getCurrentPolygon(): Polygon | undefined {
     if (!this.current) return undefined;
     return this.zones.find(z => z.name === this.current);
   }
+}
+
+function normalizePoints(points: Array<{ x: number; y: number } | [number, number]>): { x: number; y: number }[] {
+  const out: { x: number; y: number }[] = [];
+  for (const v of Array.isArray(points) ? points : []) {
+    if (!v) continue;
+    if (Array.isArray(v) && v.length >= 2 && typeof v[0] === 'number' && typeof v[1] === 'number') {
+      out.push({ x: v[0], y: v[1] });
+      continue;
+    }
+    const anyV = v as any;
+    if (typeof anyV.x === 'number' && typeof anyV.y === 'number') {
+      out.push({ x: anyV.x, y: anyV.y });
+      continue;
+    }
+    // Try number-like strings
+    const nx = Number(anyV.x);
+    const ny = Number(anyV.y);
+    if (!Number.isNaN(nx) && !Number.isNaN(ny)) out.push({ x: nx, y: ny });
+  }
+  return out;
 }
 
 function pointInPolygon(p: { x: number; y: number }, poly: { x: number; y: number }[]): boolean {

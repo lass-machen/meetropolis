@@ -221,11 +221,30 @@ export function App() {
       (async () => {
         try {
           const res = await fetch(`${apiBase}/maps/office/editor-state`, { credentials: 'include' });
+          console.log("SPEICHERN! 224");
           if (res.ok) {
             const data = await res.json();
             if (data?.tilesets) try { localStorage.setItem('meetropolis.tilesets', JSON.stringify(data.tilesets)); } catch {}
             if (data?.assets) try { localStorage.setItem('meetropolis.assets', JSON.stringify(data.assets)); } catch {}
-            if (data?.zones) try { localStorage.setItem('meetropolis.zones', JSON.stringify(data.zones.map((z:any)=>({ name: z.name, points: z.polygon })))); } catch {}
+            if (data?.zones) try {
+              const zones = Array.isArray(data.zones) ? data.zones.map((z:any)=>{
+                const anyZ = z || {};
+                const pts = Array.isArray(anyZ.points)
+                  ? anyZ.points
+                  : Array.isArray(anyZ.polygon)
+                    ? anyZ.polygon
+                    : (anyZ.polygon && Array.isArray(anyZ.polygon.points))
+                      ? anyZ.polygon.points
+                      : [];
+                return { name: anyZ.name, points: pts };
+              }) : [];
+              // Nur übernehmen/speichern, wenn es mindestens eine gültige Zone gibt
+              if (zones.some(z => Array.isArray(z.points) && z.points.length > 0)) {
+                localStorage.setItem('meetropolis.zones', JSON.stringify(zones));
+                setEditor(s => ({ ...s, zones }));
+                try { gameBridge.setZoneOverlay(zones); } catch {}
+              }
+            } catch {}
             if (typeof data?.backgroundColor === 'string') {
               try { localStorage.setItem('meetropolis.backgroundColor', data.backgroundColor); } catch {}
               setEditor(s => ({ ...s, backgroundColor: data.backgroundColor }));
@@ -243,7 +262,14 @@ export function App() {
             const zones = JSON.parse(localStorage.getItem('meetropolis.zones') || '[]');
             const layers = JSON.parse(localStorage.getItem('meetropolis.editorLayers') || '{}');
             const backgroundColor = localStorage.getItem('meetropolis.backgroundColor') || '#202020';
-            const body = JSON.stringify({ editorGround: layers.editorGround ?? null, collision: layers.collision ?? null, tilesets, assets, zones, backgroundColor });
+            // Server ist Source of Truth: Zonen nur mitsenden, wenn vorhanden
+            const payload: any = { editorGround: layers.editorGround ?? null, collision: layers.collision ?? null, tilesets, assets, backgroundColor };
+            if (Array.isArray(zones) && zones.some((z:any)=> Array.isArray(z?.points) && z.points.length > 0)) {
+              payload.zones = zones;
+              payload.replaceZones = true;
+            }
+            console.log("SPEICHERN! 264", payload);
+            const body = JSON.stringify(payload);
             if (body.length < 100000) {
               await fetch(`${apiBase}/maps/office/editor-state`, {
                 method: 'PUT',
@@ -295,7 +321,7 @@ export function App() {
         // Local
         const localIdentity = me?.name || me?.email || me?.id || 'You';
         list.push({ sid: 'local', identity: localIdentity, hasVideo: false, hasMic: false, isSpeaking: false, media: 'camera', volume: 1 });
-        const zones = zoneRef.current?.getZones?.() || [];
+        const zones = (zoneRef.current?.getZones?.() || []).map(z => ({ ...z, points: (Array.isArray(z.points) ? z.points : []).map((p:any)=> Array.isArray(p) ? { x: p[0], y: p[1] } : p).filter((p:any)=> p && typeof p.x === 'number' && typeof p.y === 'number') }));
         const localPos = { x: localPosRef.current.x, y: localPosRef.current.y };
         const localZone = zones.find(z => pointInPolygon(localPos, z.points));
         // Remotes (aus Colyseus)
@@ -319,7 +345,7 @@ export function App() {
     // buildParticipantList - participants
     
     // Get current local zone
-    const zones = zoneRef.current?.getZones?.() || [];
+    const zones = (zoneRef.current?.getZones?.() || []).map(z => ({ ...z, points: (Array.isArray(z.points) ? z.points : []).map((p:any)=> Array.isArray(p) ? { x: p[0], y: p[1] } : p).filter((p:any)=> p && typeof p.x === 'number' && typeof p.y === 'number') }));
     const localPos = { x: localPosRef.current.x, y: localPosRef.current.y };
     const localZone = zones.find(z => pointInPolygon(localPos, z.points));
     
@@ -456,7 +482,7 @@ export function App() {
         const name = identityToNameMap.current[livekitIdentity] || getDisplayName(livekitIdentity);
         // Zonenfilter anhand Position
         try {
-          const zones = zoneRef.current?.getZones?.() || [];
+          const zones = (zoneRef.current?.getZones?.() || []).map(z => ({ ...z, points: (Array.isArray(z.points) ? z.points : []).map((p:any)=> Array.isArray(p) ? { x: p[0], y: p[1] } : p).filter((p:any)=> p && typeof p.x === 'number' && typeof p.y === 'number') }));
           const localPos = { x: localPosRef.current.x, y: localPosRef.current.y };
           const localZone = zones.find(z => pointInPolygon(localPos, z.points));
           const pos = remotesRef.current[colyseusId];
@@ -1369,11 +1395,17 @@ export function App() {
           zoneRef.current?.setZones?.(zones as any);
           // Broadcast to other clients
           try { colyseusRef.current?.send?.('editor_update', { type: 'zone', polys: zones }); } catch {}
-          // Server speichern (best-effort)
+          // Server speichern (best-effort) – nur wenn Zonen vorhanden
           (async ()=>{ 
             try { 
-              const body = JSON.stringify({ zones });
-              if (body.length < 100000) {
+              const payload: any = {};
+              if (Array.isArray(zones) && zones.some(z => Array.isArray((z as any)?.points) && (z as any).points.length > 0)) {
+                payload.zones = zones;
+                payload.replaceZones = true;
+              }
+              const body = JSON.stringify(payload);
+              console.log("SPEICHERN!");
+              if (body.length < 100000 && Object.keys(payload).length > 0) {
                 await fetch(`${apiBase}/maps/office/editor-state`, { 
                   method: 'PUT', 
                   credentials: 'include', 
@@ -1695,36 +1727,15 @@ export function App() {
     };
   }, [editor.active, page, authChecked, me]);
 
-  // Wenn Editor-Zonen sich ändern, ins Game-Overlay + ZoneManager schieben
+  // Wenn Editor-Zonen sich ändern, ins Game-Overlay + ZoneManager schieben (ohne Autosave)
   useEffect(() => {
-    // Zone-Overlay nur im Edit-Modus anzeigen
     const zonesToShow = editor.active ? editor.zones : [];
     gameBridge.setZoneOverlay(zonesToShow);
-    // Aber: ZoneManager soll immer mit den echten Zonen arbeiten
     zoneRef.current?.setZones?.(editor.zones as any);
-    // Persistenz & Server (debounced best-effort)
     try { localStorage.setItem('meetropolis.zones', JSON.stringify(editor.zones || [])); } catch {}
-    // Broadcast sofort, damit andere Clients live updaten (Server-Save bleibt debounced)
     if (!suppressZoneBroadcastRef.current) {
       try { colyseusRef.current?.send?.('editor_update', { type: 'zone', polys: editor.zones || [] }); } catch {}
     }
-    const controller = new AbortController();
-    const save = async () => {
-      try {
-        const body = JSON.stringify({ zones: editor.zones || [] });
-        if (body.length < 100000) {
-          await fetch(`${apiBase}/maps/office/editor-state`, {
-            method: 'PUT',
-            credentials: 'include',
-            headers: { 'Content-Type': 'application/json' },
-            body,
-            signal: controller.signal
-          });
-        }
-      } catch {}
-    };
-    const t = setTimeout(save, 300);
-    return () => { clearTimeout(t); controller.abort(); };
   }, [editor.active, editor.zones]);
 
   useEffect(() => {
@@ -2086,6 +2097,28 @@ export function App() {
                           category: s.category
                         }
                       }));
+              }}
+              onSave={async () => {
+                try {
+                  console.log("SPEICHERN! 2099");
+                  const tilesets = JSON.parse(localStorage.getItem('meetropolis.tilesets') || '[]');
+                  const assets = JSON.parse(localStorage.getItem('meetropolis.assets') || '[]');
+                  const zones = editor.zones;
+                  const layers = JSON.parse(localStorage.getItem('meetropolis.editorLayers') || '{}');
+                  const backgroundColor = localStorage.getItem('meetropolis.backgroundColor') || '#202020';
+                  const payload: any = { editorGround: layers.editorGround ?? null, collision: layers.collision ?? null, tilesets, assets, backgroundColor };
+                  if (Array.isArray(zones) && zones.some((z:any) => Array.isArray(z?.points) && z.points.length > 0)) {
+                    payload.zones = zones;
+                    payload.replaceZones = true;
+                  }
+                  await fetch(`${apiBase}/maps/office/editor-state`, {
+                    method: 'PUT',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                  });
+                  try { colyseusRef.current?.send?.('editor_update', { type: 'reload_all' }); } catch {}
+                } catch {}
               }}
             />
           </div>
