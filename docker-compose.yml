@@ -36,7 +36,7 @@ services:
       - "2567:2567"
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.meetropolis-api.rule=Host(`api.meetropolis.s7.lmwow.de`)"
+      - "traefik.http.routers.meetropolis-api.rule=Host(`api.meetropolis.s4.lmwow.de`)"
       - "traefik.http.routers.meetropolis-api.entrypoints=websecure"
       - "traefik.http.routers.meetropolis-api.tls.certresolver=le"
       - "traefik.http.services.meetropolis-api.loadbalancer.server.port=2567"
@@ -63,14 +63,14 @@ services:
     environment:
       VITE_API_BASE: ${VITE_API_BASE}
       VITE_LIVEKIT_URL: ${VITE_LIVEKIT_URL}
-      VITE_HMR_HOST: meetropolis.s7.lmwow.de
+      VITE_HMR_HOST: meetropolis.s4.lmwow.de
       VITE_HMR_PROTOCOL: wss
     command: sh -c "npm ci && npm run dev"
     ports:
       - "5173:5173"
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.meetropolis.rule=Host(`meetropolis.s7.lmwow.de`)"
+      - "traefik.http.routers.meetropolis.rule=Host(`meetropolis.s4.lmwow.de`)"
       - "traefik.http.routers.meetropolis.entrypoints=websecure"
       - "traefik.http.routers.meetropolis.tls.certresolver=le"
       - "traefik.http.services.meetropolis.loadbalancer.server.port=5173"
@@ -108,7 +108,7 @@ services:
       - "7882:7882/udp"
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.meetropolis-livekit.rule=Host(`livekit.meetropolis.s7.lmwow.de`)"
+      - "traefik.http.routers.meetropolis-livekit.rule=Host(`livekit.meetropolis.s4.lmwow.de`)"
       - "traefik.http.routers.meetropolis-livekit.entrypoints=websecure"
       - "traefik.http.routers.meetropolis-livekit.tls.certresolver=le"
       - "traefik.http.services.meetropolis-livekit.loadbalancer.server.port=7880"
