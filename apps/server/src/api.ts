@@ -320,6 +320,7 @@ export function registerApi(app: express.Express) {
       tilesets: meta.tilesets ?? [],
       assets: meta.assets ?? [],
       zones: await prisma.zone.findMany({ where: { mapId: map.id }, select: { id: true, name: true, capacity: true, polygon: true } }),
+      backgroundColor: typeof meta.backgroundColor === 'string' ? meta.backgroundColor : null,
     });
   });
 
@@ -333,10 +334,11 @@ export function registerApi(app: express.Express) {
       tilesets: z.array(z.any()).optional(),
       assets: z.array(z.any()).optional(),
       zones: z.array(z.any()).optional(),
+      backgroundColor: z.string().regex(/^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/).optional(),
     });
     const parse = editorSchema.safeParse(req.body || {});
     if (!parse.success) return res.status(400).json({ error: 'invalid editor payload' });
-    const { editorGround, collision, tilesets, assets, zones } = parse.data;
+    const { editorGround, collision, tilesets, assets, zones, backgroundColor } = parse.data;
     const found = await prisma.map.findUnique({ where: { name }, include: { rooms: true } });
     const map = found ?? await prisma.map.create({ data: { name, meta: {} } });
     // Ensure there is at least one room for this map (for zone assignment)
@@ -360,7 +362,8 @@ export function registerApi(app: express.Express) {
           editorGround: editorGround ?? currentMeta.editorGround ?? null, 
           collision: collision ?? currentMeta.collision ?? null, 
           tilesets: tilesets ?? currentMeta.tilesets ?? [], 
-          assets: assets ?? currentMeta.assets ?? [] 
+          assets: assets ?? currentMeta.assets ?? [],
+          backgroundColor: backgroundColor ?? currentMeta.backgroundColor ?? undefined,
         } as any 
       } 
     });

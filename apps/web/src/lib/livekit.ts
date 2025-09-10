@@ -38,9 +38,9 @@ export async function joinLivekitRoom(params: {
     autoSubscribe: true,
     video: params.useVideo,
     audio: true,
-    // Adaptive Stream testweise aus, um Abo-Probleme einzugrenzen
+    // Adaptive Stream aktivieren: LiveKit liefert nur sicht-/benötigte Layer
     // @ts-ignore: SDK akzeptiert boolean oder Settings-Objekt
-    adaptiveStream: false,
+    adaptiveStream: true,
     // Nutzt Simulcast effizienter (deaktiviert ungenutzte Layer)
     // @ts-ignore
     dynacast: true,
@@ -59,7 +59,7 @@ export async function joinLivekitRoom(params: {
     // @ts-ignore optional in SDK
     maxAudioBitrate: 64_000,
     // @ts-ignore optional in SDK
-    maxVideoBitrate: 2_500_000
+    maxVideoBitrate: 2_000_000
   } as any);
   // WICHTIG: keine lokalen Audio/Video-Tracks automatisch erstellen/publizieren.
   return room;

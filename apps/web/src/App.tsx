@@ -226,6 +226,11 @@ export function App() {
             if (data?.tilesets) try { localStorage.setItem('meetropolis.tilesets', JSON.stringify(data.tilesets)); } catch {}
             if (data?.assets) try { localStorage.setItem('meetropolis.assets', JSON.stringify(data.assets)); } catch {}
             if (data?.zones) try { localStorage.setItem('meetropolis.zones', JSON.stringify(data.zones.map((z:any)=>({ name: z.name, points: z.polygon })))); } catch {}
+            if (typeof data?.backgroundColor === 'string') {
+              try { localStorage.setItem('meetropolis.backgroundColor', data.backgroundColor); } catch {}
+              setEditor(s => ({ ...s, backgroundColor: data.backgroundColor }));
+              try { gameBridge.setBackgroundColor(data.backgroundColor); } catch {}
+            }
             if (Array.isArray(data?.editorGround) || Array.isArray(data?.collision)) {
               try { localStorage.setItem('meetropolis.editorLayers', JSON.stringify({ editorGround: data.editorGround, collision: data.collision, w: undefined, h: undefined })); } catch {}
               // Nach erfolgreichem Laden: direkt in Szene anwenden
@@ -237,7 +242,8 @@ export function App() {
             const assets = JSON.parse(localStorage.getItem('meetropolis.assets') || '[]');
             const zones = JSON.parse(localStorage.getItem('meetropolis.zones') || '[]');
             const layers = JSON.parse(localStorage.getItem('meetropolis.editorLayers') || '{}');
-            const body = JSON.stringify({ editorGround: layers.editorGround ?? null, collision: layers.collision ?? null, tilesets, assets, zones });
+            const backgroundColor = localStorage.getItem('meetropolis.backgroundColor') || '#202020';
+            const body = JSON.stringify({ editorGround: layers.editorGround ?? null, collision: layers.collision ?? null, tilesets, assets, zones, backgroundColor });
             if (body.length < 100000) {
               await fetch(`${apiBase}/maps/office/editor-state`, {
                 method: 'PUT',
@@ -260,11 +266,12 @@ export function App() {
       const assets = JSON.parse(localStorage.getItem('meetropolis.assets') || '[]');
       const zones = editor.zones;
       const layers = JSON.parse(localStorage.getItem('meetropolis.editorLayers') || '{}');
+      const backgroundColor = localStorage.getItem('meetropolis.backgroundColor') || '#202020';
       await fetch(`${apiBase}/maps/office/editor-state`, {
         method: 'PUT',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ editorGround: layers.editorGround ?? null, collision: layers.collision ?? null, tilesets, assets, zones })
+        body: JSON.stringify({ editorGround: layers.editorGround ?? null, collision: layers.collision ?? null, tilesets, assets, zones, backgroundColor })
       });
       // Notify other users to reload from server
       colyseusRef.current?.send?.('editor_update', { type: 'reload_all' });
@@ -1667,6 +1674,7 @@ export function App() {
         e.preventDefault();
         const next = !dndRef.current;
         try { gameBridge.setDoNotDisturb(next); } catch {}
+        try { gameBridge.setMovementLocked(next); } catch {}
         if (next) {
           try { avRef.current?.setMicrophoneEnabled(false); } catch {}
           try { avRef.current?.setCameraEnabled(false); } catch {}
@@ -1740,46 +1748,9 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    // Unterdrücke Browser/OS-Kontextmenü innerhalb des Spiel-Containers
-    const container = containerRef.current;
-    if (!container) return;
-    const stopContext = (e: MouseEvent) => {
-      try {
-        if (container.contains(e.target as Node)) {
-          e.preventDefault();
-          e.stopPropagation();
-        }
-      } catch {}
-    };
-    container.addEventListener('contextmenu', stopContext as any, { capture: true } as any);
-    // Fallback: global für Canvas
-    const globalStop = (e: MouseEvent) => {
-      try {
-        const t = e.target as HTMLElement | null;
-        if (t && (t.tagName === 'CANVAS' || container.contains(t))) {
-          e.preventDefault();
-          e.stopPropagation();
-        }
-      } catch {}
-    };
-    window.addEventListener('contextmenu', globalStop as any, { capture: true } as any);
-    return () => {
-      try { container.removeEventListener('contextmenu', stopContext as any, { capture: true } as any); } catch {}
-      try { window.removeEventListener('contextmenu', globalStop as any, { capture: true } as any); } catch {}
-    };
-  }, [containerRef.current]);
-
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      try { e.preventDefault(); } catch {}
-      try { e.stopPropagation(); } catch {}
-    };
-    window.addEventListener('contextmenu', handler as any, { capture: true } as any);
-    document.addEventListener('contextmenu', handler as any, { capture: true } as any);
-    return () => {
-      try { window.removeEventListener('contextmenu', handler as any, { capture: true } as any); } catch {}
-      try { document.removeEventListener('contextmenu', handler as any, { capture: true } as any); } catch {}
-    };
+    // Kein globales Blockieren des Kontextmenüs mehr.
+    // Das Unterdrücken des Kontextmenüs wird ausschließlich in der Phaser-Scene
+    // für das Canvas selbst gehandhabt (siehe MainScene).
   }, []);
 
   React.useEffect(() => {
@@ -1815,8 +1786,8 @@ export function App() {
     <div style={{ width: '100vw', height: '100vh', position: 'relative' }}>
       {page === 'world' && (
         <>
-          {/* Participants Grid Overlay (hidden in editor mode) */}
-          {!editor.active && (() => {
+          {/* Participants Grid Overlay (hidden in editor mode; hidden in DND) */}
+          {!editor.active && !avState.dnd && (() => {
             const minCard = gridExpanded ? 480 : 260;
             const gap = gridExpanded ? 18 : 12;
             const count = participantsToRender.length || 1;
@@ -1840,21 +1811,26 @@ export function App() {
           })()}
           <div
             ref={containerRef}
-            onContextMenu={(e) => {
-              e.preventDefault();
-              // Simple toggle with first remote player for bubble demo
-              const localId = localPosRef.current.id;
-              const selected = Object.keys(remotesRef.current)[0];
-              if (!selected) return;
-              const set = bubbleMembersRef.current;
-              if (set.has(localId) && set.has(selected)) {
-                set.delete(localId); set.delete(selected);
-              } else {
-                set.add(localId); set.add(selected);
-              }
-            }}
-            style={{ width: '100%', height: '100%' }}
-          />
+            style={{ width: '100%', height: '100%', position: 'relative' }}
+          >
+            {avState.dnd && (
+              <div
+                onClick={(e)=>{ e.stopPropagation(); }}
+                onMouseDown={(e)=>{ e.stopPropagation(); e.preventDefault(); }}
+                onMouseUp={(e)=>{ e.stopPropagation(); e.preventDefault(); }}
+                onPointerDown={(e)=>{ e.stopPropagation(); e.preventDefault(); }}
+                onPointerUp={(e)=>{ e.stopPropagation(); e.preventDefault(); }}
+                onWheel={(e)=>{ e.stopPropagation(); e.preventDefault(); }}
+                style={{
+                  position: 'absolute', inset: 0,
+                  background: 'rgba(0,0,0,0.55)',
+                  backdropFilter: 'blur(2px) grayscale(0.2)',
+                  zIndex: 20,
+                  cursor: 'not-allowed'
+                }}
+              />
+            )}
+          </div>
 
           {/* HUD (links oben klein) */}
           <div style={{ position: 'absolute', top: 12, left: 12, background: 'var(--glass)', color: 'var(--fg)', padding: 8, borderRadius: 8, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 12, backdropFilter: 'blur(6px)', border: '1px solid var(--border)' }}>
@@ -1862,8 +1838,8 @@ export function App() {
             <div>AV: {hud.avRoom ?? 'lobby'}</div>
             <div>Following: {hud.follow ?? 'no'}</div>
           </div>
-          {/* Single Card Fullscreen Overlay (hidden in editor mode) */}
-          {!editor.active && selectedSid && (() => {
+          {/* Single Card Fullscreen Overlay (hidden in editor mode; hidden in DND) */}
+          {!editor.active && !avState.dnd && selectedSid && (() => {
             const pick = participantsToRender.find(p => p.sid === selectedSid);
             if (!pick) return null;
             return (
@@ -1929,6 +1905,7 @@ export function App() {
                 onToggleDnd={async () => {
                   const next = !avState.dnd;
                   try { gameBridge.setDoNotDisturb(next); } catch {}
+                  try { gameBridge.setMovementLocked(next); } catch {}
                   if (next) {
                     try { await avRef.current?.setMicrophoneEnabled(false); } catch {}
                     try { await avRef.current?.setCameraEnabled(false); } catch {}

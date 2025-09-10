@@ -35,6 +35,8 @@ type Bridge = {
   // Editor mode: disable normal interactions in scene
   setEditorMode: (enabled: boolean) => void;
   handleEditorUpdate?: (data: any) => void;
+  // Background color
+  setBackgroundColor: (hex: string) => void;
 };
 
 export type SceneApi = {
@@ -57,6 +59,7 @@ export type SceneApi = {
   findFreeSpotNear?: (targetId: string, options?: { radius?: number; step?: number }) => { x: number; y: number } | null;
   recenterCamera?: () => void;
   setEditorMode?: (enabled: boolean) => void;
+  setBackgroundColor?: (hex: string) => void;
 };
 
 let sceneApi: SceneApi | null = null;
@@ -66,6 +69,7 @@ let cachedCollisionVisible = false;
 let cachedHeroName: string | null = null;
 let cachedDoNotDisturb = false;
 let remotePlayersCache: Record<string, { x: number; y: number; direction: Direction; name?: string; dnd?: boolean }> = {};
+let cachedBackgroundColor: string = (typeof window !== 'undefined' && localStorage.getItem('meetropolis.backgroundColor')) || '#202020';
 
 export const gameBridge: Bridge = {
   onLocalMove: () => {},
@@ -99,6 +103,8 @@ export const gameBridge: Bridge = {
       }
       // WICHTIG: Bereits bekannte Remote-Spieler sofort rendern
       try { sceneApi.syncRemotePlayers(remotePlayersCache); } catch {}
+      // Apply cached background color
+      try { sceneApi.setBackgroundColor?.(cachedBackgroundColor); } catch {}
     }
   },
   recenterCamera: () => {
@@ -225,5 +231,10 @@ export const gameBridge: Bridge = {
         return;
       }
     } catch {}
+  },
+  setBackgroundColor: (hex: string) => {
+    try { localStorage.setItem('meetropolis.backgroundColor', hex); } catch {}
+    cachedBackgroundColor = hex;
+    sceneApi?.setBackgroundColor?.(hex);
   }
 };
