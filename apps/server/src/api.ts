@@ -529,10 +529,10 @@ export function registerApi(app: express.Express) {
         });
         if (matches.length === 0) continue;
         // Map session IDs to client instances
-        const clients = Array.from(room.clients?.values?.() || room.clients || []);
+        const clients: any[] = Array.from((room as any).clients?.values?.() || (room as any).clients || []);
         for (const sid of matches) {
-          const client = clients.find((c: any) => c.sessionId === sid);
-          if (client) {
+          const client: any = clients.find((c: any) => c.sessionId === sid);
+          if (client && typeof client.send === 'function') {
             client.send('remote_control', payload);
             delivered++;
           }
