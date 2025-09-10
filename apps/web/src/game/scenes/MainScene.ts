@@ -33,6 +33,7 @@ export class MainScene extends Phaser.Scene {
   private spaceKey?: Phaser.Input.Keyboard.Key;
   private leftDragCandidate: { active: boolean; startX: number; startY: number } | null = null;
   private editorMode = false;
+  private spaceHeld = false;
   // Zweite Kamera nur für Labels/UI (kein Zoom)
   private labelCamera?: Phaser.Cameras.Scene2D.Camera;
   private labelLayer?: Phaser.GameObjects.Layer;
@@ -314,6 +315,10 @@ export class MainScene extends Phaser.Scene {
       return false;
     };
     const keyBlocker = (ev: KeyboardEvent) => {
+      // Track SPACE state regardless of focus, so space+drag pan works while typing
+      if (ev.code === 'Space') {
+        this.spaceHeld = ev.type === 'keydown';
+      }
       if (isEditableTarget(ev.target)) {
         // Stop bubbling to Phaser keyboard plugin, but keep default browser behavior
         ev.stopPropagation();
@@ -321,10 +326,10 @@ export class MainScene extends Phaser.Scene {
     };
     window.addEventListener('keydown', keyBlocker, true);
     window.addEventListener('keyup', keyBlocker, true);
+    window.addEventListener('blur', () => { this.spaceHeld = false; }, true);
 
     // Zoom via mouse wheel (trackpad supported)
     this.input.on('wheel', (pointer: any, _over: any, _dx: number, dy: number) => {
-      if (this.editorMode) return; // disable zoom in editor mode
       const camera = this.cameras.main;
       // Zoom factor per wheel step
       const zoomDelta = -dy * 0.002;
@@ -345,12 +350,12 @@ export class MainScene extends Phaser.Scene {
       this.updateRecenterUiVisibility();
     });
 
-    // Drag-pan with left mouse, middle mouse, or Space + left drag
+    // Drag-pan with middle mouse, or Space + left drag
     this.input.on(Phaser.Input.Events.POINTER_DOWN, (p: Phaser.Input.Pointer) => {
-      if (this.editorMode) return; // disable drag-pan in editor mode
       const isLeft = p.leftButtonDown();
       const isMiddle = p.middleButtonDown();
-      const allowPan = isMiddle || isLeft || !!this.spaceKey?.isDown;
+      const spaceDown = this.spaceHeld || !!this.spaceKey?.isDown;
+      const allowPan = isMiddle || (spaceDown && isLeft);
       if (allowPan) {
         // Mark left drag candidate to avoid triggering movement click later
         if (isLeft) {
@@ -367,7 +372,6 @@ export class MainScene extends Phaser.Scene {
       }
     });
     this.input.on(Phaser.Input.Events.POINTER_MOVE, (p: Phaser.Input.Pointer) => {
-      if (this.editorMode) return; // ignore pan while in editor mode
       if (!this.panState.isPanning) return;
       const camera = this.cameras.main;
       const dx = p.x - this.panState.lastX;
@@ -388,7 +392,6 @@ export class MainScene extends Phaser.Scene {
       }
     });
     const stopPan = (p?: Phaser.Input.Pointer) => {
-      if (this.editorMode) return; // no-op in editor mode
       this.panState.isPanning = false;
       // If we had a left-drag candidate, cancel map click if movement happened
       if (this.leftDragCandidate && this.leftDragCandidate.active && p) {
@@ -492,8 +495,8 @@ export class MainScene extends Phaser.Scene {
     };
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
       const worldPoint = pointer.positionToCamera(this.cameras.main) as Phaser.Math.Vector2;
-      // If we are about to pan (left/middle/space), skip movement logic
-      const isPanStart = !this.editorMode && (pointer.leftButtonDown() || pointer.middleButtonDown() || !!this.spaceKey?.isDown);
+      // If we are about to pan (middle OR space+left), skip movement logic
+      const isPanStart = (pointer.middleButtonDown() || ((this.spaceHeld || !!this.spaceKey?.isDown) && pointer.leftButtonDown()));
       
       if (pointer.rightButtonDown()) {
         // Prevent browser context menu
@@ -512,7 +515,8 @@ export class MainScene extends Phaser.Scene {
         return;
       }
       
-      if (!isPanStart && !this.movementLocked) {
+      // Allow editor interactions even when movement is locked
+      if (!isPanStart && (this.editorMode || !this.movementLocked)) {
         gameBridge.onPointerDown({ x: worldPoint.x, y: worldPoint.y });
         const { tileX, tileY } = toTile(pointer);
         gameBridge.onPointerDownTile({ tileX, tileY });
@@ -691,6 +695,8 @@ export class MainScene extends Phaser.Scene {
   setEditorMode(enabled: boolean) {
     this.editorMode = !!enabled;
     if (this.editorMode) {
+      // Lock movement while editing
+      this.setMovementLocked(true);
       // Stop follow to avoid accidental jumps; lock movement via gameBridge consumer
       try { this.cameras.main.stopFollow(); } catch {}
       this.manualCameraActive = true;
@@ -700,14 +706,16 @@ export class MainScene extends Phaser.Scene {
       try { this.nameLabels.forEach(lbl => lbl.setVisible(false)); } catch {}
       try { this.bubbleOutlines.forEach(g => g.setVisible(false)); } catch {}
     } else {
+      // Unlock movement when leaving editor mode
+      this.setMovementLocked(false);
       // Restore follow to hero when leaving editor mode
       try { this.cameras.main.startFollow(this.hero, true, 0.1, 0.1); } catch {}
       this.manualCameraActive = false;
       this.updateRecenterUiVisibility();
       // Restore labels respecting DND state
-      try { if (this.heroNameLabel) this.heroNameLabel.setVisible(!this.doNotDisturb); } catch {}
-      try { this.nameLabels.forEach(lbl => lbl.setVisible(!this.doNotDisturb)); } catch {}
-      try { this.bubbleOutlines.forEach(g => g.setVisible(!this.doNotDisturb)); } catch {}
+      try { if (this.heroNameLabel) this.heroNameLabel.setVisible(true); } catch {}
+      try { this.nameLabels.forEach(lbl => lbl.setVisible(true)); } catch {}
+      try { this.bubbleOutlines.forEach(g => g.setVisible(true)); } catch {}
     }
   }
 
@@ -718,7 +726,6 @@ export class MainScene extends Phaser.Scene {
         // Creating new sprite for player
         s = this.add.sprite(p.x, p.y, 'hero_walk_down', 0);
         s.setDepth(10); // Same depth as local hero
-        if (this.doNotDisturb) s.setVisible(false);
         // Store previous position and direction for movement detection
         (s as any).prevX = p.x;
         (s as any).prevY = p.y;
@@ -731,7 +738,6 @@ export class MainScene extends Phaser.Scene {
         const nameLabel = this.createNameLabel(name, id);
         this.nameLabels.set(id, nameLabel);
         this.updateNameLabel(nameLabel, p.x, p.y);
-        if (this.doNotDisturb) nameLabel.setVisible(false);
       }
       
       // Check if player is moving
@@ -766,7 +772,6 @@ export class MainScene extends Phaser.Scene {
       // Update name label position
       if (nameLabel) {
         this.updateNameLabel(nameLabel, p.x, p.y);
-        if (this.doNotDisturb) nameLabel.setVisible(false);
       }
       
       // Always play animation based on direction
@@ -835,15 +840,15 @@ export class MainScene extends Phaser.Scene {
     // Local hero transparency
     if (this.hero) this.hero.setAlpha(this.doNotDisturb ? 0.35 : 1);
     if (this.heroNameLabel) this.heroNameLabel.setAlpha(this.doNotDisturb ? 0.6 : 1);
-    // Hide/show remote sprites and name labels
+    // Do not hide remote sprites or labels in DND anymore. Keep them visible.
     this.remotes.forEach((sprite) => {
-      sprite.setVisible(!this.doNotDisturb);
+      sprite.setVisible(true);
     });
     this.nameLabels.forEach((label) => {
-      label.setVisible(!this.doNotDisturb);
+      label.setVisible(true);
     });
-    // Hide bubble outlines as well
-    this.bubbleOutlines.forEach((g) => g.setVisible(!this.doNotDisturb));
+    // Keep bubble outlines visible as well
+    this.bubbleOutlines.forEach((g) => g.setVisible(true));
   }
 
   setDesiredPosition(pos: { x: number; y: number } | null) {
@@ -1288,6 +1293,14 @@ export class MainScene extends Phaser.Scene {
         return;
       }
       const data = await res.json();
+      // Apply background color from server if present
+      try {
+        const bg = typeof data?.backgroundColor === 'string' ? data.backgroundColor : null;
+        if (bg) {
+          this.cameras.main.setBackgroundColor(bg);
+          try { localStorage.setItem('meetropolis.backgroundColor', bg); } catch {}
+        }
+      } catch {}
       if (data?.collision) {
         const collisionTiles = data.collision.filter((t: number) => t !== -1).length;
         editorLog('Load', `Received from server: ${collisionTiles} collision tiles`);
@@ -1765,5 +1778,9 @@ export class MainScene extends Phaser.Scene {
     } else if (this.heroNameLabel) {
       this.drawNameLabel(this.heroNameLabel, false);
     }
+  }
+
+  setBackgroundColor(hex: string) {
+    try { this.cameras.main.setBackgroundColor(hex); } catch {}
   }
 }

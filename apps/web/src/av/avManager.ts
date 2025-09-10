@@ -24,6 +24,13 @@ export class AVManager {
   private pendingCam = false;
   private reconnectAttempts = 0;
   private reconnectTimer: any = null;
+  // Audio-Unlock State
+  private audioUnlocked = false;
+  private audioUnlockHandlersAttached = false;
+  private removeAudioUnlockHandlers: (() => void) | null = null;
+  // Local camera quality adaptation
+  private camQuality: 'low' | 'med' | 'high' = 'high';
+  private qualityCooldownUntil = 0;
 
   constructor(opts: { baseUrl: string; identity: string; displayName?: string; useVideo: boolean }) {
     this.baseUrl = opts.baseUrl;
@@ -58,6 +65,8 @@ export class AVManager {
       this.currentName = name;
       this.reconnectAttempts = 0;
       this.wireRoomEvents();
+      // Versuche Audio-Wiedergabe sofort freizuschalten; falls blockiert, per User-Interaktion
+      void this.ensureAudioPlaybackUnlocked();
       if (!SIMPLE) {
         await this.waitForConnected(room).catch(()=>{});
       }
@@ -160,23 +169,211 @@ export class AVManager {
       try {
         const mod = await import('livekit-client');
         const RoomEvent = (mod as any).RoomEvent;
+        const ParticipantEvent = (mod as any).ParticipantEvent;
         if (RoomEvent) {
           room.off?.(RoomEvent.Reconnected, () => {});
           room.off?.(RoomEvent.Disconnected, () => {});
           room.on?.(RoomEvent.Reconnected, () => { this.reconnectAttempts = 0; });
           room.on?.(RoomEvent.Disconnected, () => { if (ALLOW_RECONNECT && !this.isDisconnecting) this.scheduleReconnect(); });
+          // Auf neue/aktualisierte Tracks reagieren (Remote-Video-Qualität standardmäßig drosseln)
+          try {
+            room.off?.(RoomEvent.TrackPublished, (() => {}) as any);
+            room.off?.(RoomEvent.TrackSubscribed, (() => {}) as any);
+            room.on?.(RoomEvent.TrackPublished, () => { try { this.applyDefaultRemoteQuality(); } catch {} });
+            room.on?.(RoomEvent.TrackSubscribed, () => { try { this.applyDefaultRemoteQuality(); } catch {} });
+          } catch {}
+          // Verbindungsgüte beobachten → Kameraqualität dynamisch anpassen
+          try {
+            room.off?.(RoomEvent.ConnectionQualityChanged, (() => {}) as any);
+            room.on?.(RoomEvent.ConnectionQualityChanged, (participant: any, quality: any) => {
+              try { this.onConnectionQualityChanged(participant, quality); } catch {}
+            });
+          } catch {}
+          // Audio-Playback-Status beobachten (falls von SDK unterstützt)
+          try {
+            room.off?.(RoomEvent.AudioPlaybackStatusChanged, (() => {}) as any);
+            room.on?.(RoomEvent.AudioPlaybackStatusChanged, () => {
+              const anyRoom: any = room as any;
+              const can = !!(anyRoom.canPlaybackAudio ?? false);
+              if (can) {
+                this.audioUnlocked = true;
+                try { this.removeAudioUnlockHandlers?.(); } catch {}
+                this.removeAudioUnlockHandlers = null;
+              }
+            });
+          } catch {}
         } else {
           const r: any = room as any;
           r.off?.('reconnected', () => {});
           r.off?.('disconnected', () => {});
           r.on?.('reconnected', () => { this.reconnectAttempts = 0; });
           r.on?.('disconnected', () => { if (ALLOW_RECONNECT && !this.isDisconnecting) this.scheduleReconnect(); });
+          // Fallback: Track-Events
+          try {
+            r.off?.('trackPublished', () => {});
+            r.off?.('trackSubscribed', () => {});
+            r.on?.('trackPublished', () => { try { this.applyDefaultRemoteQuality(); } catch {} });
+            r.on?.('trackSubscribed', () => { try { this.applyDefaultRemoteQuality(); } catch {} });
+          } catch {}
+          // Fallback: Verbindungsgüte
+          try {
+            r.off?.('connectionQualityChanged', () => {});
+            r.on?.('connectionQualityChanged', (participant: any, quality: any) => {
+              try { this.onConnectionQualityChanged(participant, quality); } catch {}
+            });
+          } catch {}
+          // Fallback-Eventnamen für ältere SDKs
+          try {
+            r.off?.('audioPlaybackStatusChanged', () => {});
+            r.on?.('audioPlaybackStatusChanged', () => {
+              const can = !!(r.canPlaybackAudio ?? false);
+              if (can) {
+                this.audioUnlocked = true;
+                try { this.removeAudioUnlockHandlers?.(); } catch {}
+                this.removeAudioUnlockHandlers = null;
+              }
+            });
+          } catch {}
         }
       } catch {
         // Fallback: wenn Event-Konstanten fehlen, zumindest einmal versuchen
         this.scheduleReconnect();
       }
     })();
+  }
+
+  private onConnectionQualityChanged(participant: any, quality: any) {
+    const room = this.current as any;
+    if (!room) return;
+    const isLocal = !!participant?.isLocal || participant?.sid === room?.localParticipant?.sid;
+    if (!isLocal) return;
+    const now = Date.now();
+    if (now < this.qualityCooldownUntil) return;
+    // Normalize quality to string
+    const q = typeof quality === 'string' ? quality : (quality?.toString?.().toLowerCase?.() || String(quality));
+    let desired: 'low' | 'med' | 'high' = this.camQuality;
+    if (q.includes('poor') || q.includes('lost') || q.includes('bad') || q.includes('0')) desired = 'low';
+    else if (q.includes('good') || q.includes('2')) desired = 'med';
+    else if (q.includes('excellent') || q.includes('3')) desired = 'high';
+    else desired = 'med';
+    if (desired === this.camQuality) return;
+    this.qualityCooldownUntil = now + 8000; // 8s Cooldown gegen Flapping
+    void this.republishCameraProfile(desired).catch(() => {});
+  }
+
+  private async republishCameraProfile(profile: 'low' | 'med' | 'high'): Promise<void> {
+    const room = this.current;
+    if (!room) return;
+    try {
+      const pubs = Array.from(room.localParticipant.trackPublications.values());
+      const camPubs = pubs.filter(pub => {
+        const src = (pub as any).source ?? (pub.track as any)?.source;
+        const kind = (pub as any).kind ?? (pub.track as any)?.kind;
+        return src === 'camera' || src === 1 || (kind === 'video' && src !== 'screen_share');
+      });
+      // Kamera derzeit nicht aktiv → nichts zu tun
+      if (!camPubs.some(p => !!(p as any).track)) { this.camQuality = profile; return; }
+      // Unpublish aktuelle Kamera
+      for (const pub of camPubs) {
+        try { await room.localParticipant.unpublishTrack(pub.track!); } catch {}
+      }
+      // Neue Kamera-Constraints je Profil
+      const presets: Record<'low'|'med'|'high', { width: number; height: number; frameRate: number; bitrate: number }>
+        = {
+          low: { width: 320, height: 180, frameRate: 15, bitrate: 220_000 },
+          med: { width: 640, height: 360, frameRate: 24, bitrate: 550_000 },
+          high:{ width: 960, height: 540, frameRate: 30, bitrate: 1_200_000 }
+        };
+      const c = presets[profile];
+      const { createLocalTracks } = await import('livekit-client');
+      const videoConstraints: any = {
+        facingMode: 'user',
+        width: { ideal: c.width },
+        height: { ideal: c.height },
+        frameRate: { ideal: c.frameRate }
+      };
+      if (this.preferredCam) (videoConstraints as any).deviceId = this.preferredCam;
+      const tracks = await createLocalTracks({ video: videoConstraints } as any);
+      for (const t of tracks) {
+        if ((t as any).kind === 'video') {
+          try {
+            try {
+              const mst: any = (t as any)?.mediaStreamTrack;
+              if (mst && 'contentHint' in mst) { try { mst.contentHint = 'motion'; } catch {} }
+            } catch {}
+            await room.localParticipant.publishTrack(t as any, {
+              // @ts-ignore publish options
+              videoEncoding: { maxBitrate: c.bitrate, maxFramerate: c.frameRate },
+              // Behalte Simulcast; Dynacast entscheidet aktive Layer
+              // @ts-ignore
+              simulcast: true
+            } as any);
+          } catch {}
+        }
+      }
+      this.camQuality = profile;
+    } catch {
+      // Ignorieren – kein harter Fehler im UI
+    }
+  }
+
+  private async applyDefaultRemoteQuality(): Promise<void> {
+    const room: any = this.current as any;
+    if (!room) return;
+    try {
+      const mod = await import('livekit-client');
+      const VideoQuality = (mod as any).VideoQuality || { Low: 0, Medium: 1, High: 2 };
+      const participants: any[] = Array.from((room.remoteParticipants?.values?.() || []) as any);
+      for (const p of participants) {
+        const pubs: any[] = Array.from((p.trackPublications?.values?.() || []) as any);
+        for (const pub of pubs) {
+          const kind = (pub as any).kind ?? (pub.track as any)?.kind;
+          const src = (pub as any).source ?? (pub.track as any)?.source;
+          if (kind === 'video' && src !== 'screen_share') {
+            try { (pub as any).setVideoQuality?.(VideoQuality.Medium ?? 1); } catch {}
+            try { (pub as any).setPreferredVideoQuality?.(VideoQuality.Medium ?? 1); } catch {}
+          }
+        }
+      }
+    } catch {}
+  }
+
+  private attachAudioUnlockHandlers() {
+    if (this.audioUnlockHandlersAttached) return;
+    this.audioUnlockHandlersAttached = true;
+    const handler = async () => {
+      try { await (this.current as any)?.startAudio?.(); } catch {}
+      const anyRoom: any = this.current as any;
+      const can = !!(anyRoom?.canPlaybackAudio ?? false);
+      if (can) cleanup();
+    };
+    const opts: AddEventListenerOptions | boolean = true;
+    const events: (keyof WindowEventMap)[] = ['pointerdown', 'click', 'keydown', 'touchstart'];
+    events.forEach(ev => window.addEventListener(ev, handler as any, opts));
+    const cleanup = () => {
+      events.forEach(ev => window.removeEventListener(ev, handler as any, true));
+      this.audioUnlockHandlersAttached = false;
+      this.audioUnlocked = true;
+    };
+    this.removeAudioUnlockHandlers = cleanup;
+  }
+
+  private async ensureAudioPlaybackUnlocked(): Promise<void> {
+    const roomAny: any = this.current as any;
+    if (!roomAny) return;
+    // Versuch 1: sofort starten (falls bereits durch Nutzerinteraktion möglich)
+    try {
+      await roomAny.startAudio?.();
+      const can = !!(roomAny.canPlaybackAudio ?? false);
+      if (can) {
+        this.audioUnlocked = true;
+        return;
+      }
+    } catch {
+      // Ignorieren – wir hängen Listener an
+    }
+    // Versuch 2: auf erste User-Geste warten
+    this.attachAudioUnlockHandlers();
   }
 
   private async waitForConnected(room: Room, timeoutMs: number = 5000): Promise<void> {

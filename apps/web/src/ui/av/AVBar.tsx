@@ -34,7 +34,7 @@ export function AVBar(props: {
 
   return (
     <ButtonGroup size={size} className={className} style={style}>
-      <Button active={micOn} onClick={onToggleMic} icon={micOn ? 'microphone' : 'microphone-slash'} iconPosition="only"></Button>
+      <Button disabled={dndOn} active={micOn} onClick={onToggleMic} icon={micOn ? 'microphone' : 'microphone-slash'} iconPosition="only"></Button>
       <select
         className="bg-select"
         disabled={!devices.mics.length || dndOn}
@@ -55,7 +55,7 @@ export function AVBar(props: {
 
       <Separator variant="vertical" />
 
-      <Button active={camOn} onClick={onToggleCam} icon={camOn ? 'video' : 'video-slash'} iconPosition="only" />
+      <Button disabled={dndOn} active={camOn} onClick={onToggleCam} icon={camOn ? 'video' : 'video-slash'} iconPosition="only" />
       <select
         className="bg-select"
         disabled={!devices.cams.length || dndOn}
@@ -76,7 +76,7 @@ export function AVBar(props: {
 
       <Separator variant="vertical" />
 
-      <Button active={shareOn} onClick={onToggleShare} iconPosition="left">
+      <Button disabled={dndOn} active={shareOn} onClick={onToggleShare} iconPosition="left">
         <FAIcon name="screencast" variant="solid" />
         <span>{shareOn ? 'Screenshare stoppen' : 'Screenshare starten'}</span>
       </Button>
@@ -85,7 +85,7 @@ export function AVBar(props: {
 
       <Button active={dndOn} onClick={onToggleDnd} icon="bell-slash" iconPosition="only" title={dndOn ? 'Bitte nicht stören: an' : 'Bitte nicht stören: aus'} />
       {cameraManual && (
-        <Button onClick={onRecenter} icon="location-crosshairs" iconPosition="only" title="Zentrieren" />
+        <Button disabled={dndOn} onClick={onRecenter} icon="location-crosshairs" iconPosition="only" title="Zentrieren" />
       )}
     </ButtonGroup>
   );

@@ -16,6 +16,28 @@ export function EditorPanel(props: {
   }, []);
   return (
     <div style={{ padding: 16, display: 'grid', gap: 12 }}>
+      <div style={{ display: 'grid', gap: 6 }}>
+        <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>Hintergrundfarbe</div>
+        <input
+          type="color"
+          value={editor.backgroundColor}
+          onChange={(e)=> {
+            const color = e.target.value;
+            setEditor(s => ({ ...s, backgroundColor: color }));
+            try { localStorage.setItem('meetropolis.backgroundColor', color); } catch {}
+            try { gameBridge.setBackgroundColor(color); } catch {}
+            // Server sofort aktualisieren (best-effort)
+            (async ()=>{
+              try {
+                const base = (window as any).VITE_API_BASE || (import.meta as any).env?.VITE_API_BASE || `${window.location.protocol}//${window.location.hostname}:2568`;
+                const body = JSON.stringify({ backgroundColor: color });
+                await fetch(`${base}/maps/office/editor-state`, { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body });
+              } catch {}
+            })();
+          }}
+          style={{ width: 48, height: 28, padding: 0, border: '1px solid var(--border)', borderRadius: 6, background: 'transparent' }}
+        />
+      </div>
       <div style={{ display: 'flex', gap: 6 }}>
         <button onClick={() => setEditor(s => ({ ...s, tool: 'select' }))} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid var(--border)', background: editor.tool==='select'?'rgba(59,130,246,0.18)':'var(--glass)', color: 'var(--fg)', fontSize: 13 }}>Auswählen</button>
         <button onClick={() => setEditor(s => ({ ...s, tool: 'erase' }))} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid var(--border)', background: editor.tool==='erase'?'rgba(239,68,68,0.18)':'var(--glass)', color: 'var(--fg)', fontSize: 13 }}>Löschen</button>
