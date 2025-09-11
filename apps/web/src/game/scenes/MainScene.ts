@@ -39,6 +39,8 @@ export class MainScene extends Phaser.Scene {
   private labelLayer?: Phaser.GameObjects.Layer;
   private ghostSprite?: Phaser.GameObjects.Image;
   private ghostTextureKey?: string;
+  private terrainTilesetSources: Map<string, string> = new Map();
+  private editorCurrentTool: 'terrain' | 'collision' | 'erase' | 'select' = 'select';
   constructor() {
     super('Main');
   }
@@ -320,6 +322,7 @@ export class MainScene extends Phaser.Scene {
       // Track SPACE state regardless of focus, so space+drag pan works while typing
       if (ev.code === 'Space') {
         this.spaceHeld = ev.type === 'keydown';
+        this.updateCursor();
       }
       if (isEditableTarget(ev.target)) {
         // Stop bubbling to Phaser keyboard plugin, but keep default browser behavior
@@ -328,7 +331,7 @@ export class MainScene extends Phaser.Scene {
     };
     window.addEventListener('keydown', keyBlocker, true);
     window.addEventListener('keyup', keyBlocker, true);
-    window.addEventListener('blur', () => { this.spaceHeld = false; }, true);
+    window.addEventListener('blur', () => { this.spaceHeld = false; this.updateCursor(); }, true);
 
     // Zoom via mouse wheel (trackpad supported)
     this.input.on('wheel', (pointer: any, _over: any, _dx: number, dy: number) => {
@@ -356,7 +359,7 @@ export class MainScene extends Phaser.Scene {
     this.input.on(Phaser.Input.Events.POINTER_DOWN, (p: Phaser.Input.Pointer) => {
       const isLeft = p.leftButtonDown();
       const isMiddle = p.middleButtonDown();
-      const spaceDown = this.spaceHeld || !!this.spaceKey?.isDown;
+      const spaceDown = this.spaceHeld; // rely only on tracked state
       const allowPan = isMiddle || (spaceDown && isLeft);
       if (allowPan) {
         // Mark left drag candidate to avoid triggering movement click later
@@ -371,6 +374,7 @@ export class MainScene extends Phaser.Scene {
         this.updateRecenterUiVisibility();
         try { (p.event as any)?.preventDefault?.(); } catch {}
         try { (p.event as any)?.stopPropagation?.(); } catch {}
+        this.updateCursor();
       }
     });
     this.input.on(Phaser.Input.Events.POINTER_MOVE, (p: Phaser.Input.Pointer) => {
@@ -405,6 +409,7 @@ export class MainScene extends Phaser.Scene {
         }
       }
       this.leftDragCandidate = null;
+      this.updateCursor();
     };
     this.input.on(Phaser.Input.Events.POINTER_UP, stopPan);
     this.input.on(Phaser.Input.Events.POINTER_UP_OUTSIDE, stopPan as any);
@@ -519,18 +524,27 @@ export class MainScene extends Phaser.Scene {
       
       // If asset preview is active, suppress non-asset editor interactions
       const assetPreviewActive = !!(this as any).ghostSprite;
-      // Allow editor interactions even when movement is locked
-      if (!isPanStart && (this.editorMode || !this.movementLocked)) {
+      // Editor-Interaktionen nur im Editor-Modus (sonst keine Auswahlrechtecke)
+      if (!isPanStart && this.editorMode) {
         if (!assetPreviewActive) {
           gameBridge.onPointerDown({ x: worldPoint.x, y: worldPoint.y });
         }
         const { tileX, tileY } = toTile(pointer);
         gameBridge.onPointerDownTile({ tileX, tileY });
+        // Szene-eigene Drag-Auswahl starten
+        try {
+          (this as any)._dragStartTile = { x: tileX, y: tileY };
+          if (this.mapRef) {
+            const x = tileX * this.mapRef.tileWidth;
+            const y = tileY * this.mapRef.tileHeight;
+            this.setSelectionRect({ x, y, w: this.mapRef.tileWidth, h: this.mapRef.tileHeight });
+          }
+        } catch {}
       }
     });
     this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
       const { tileX, tileY } = toTile(pointer);
-      if (!this.panState.isPanning) gameBridge.onPointerMoveTile({ tileX, tileY });
+      if (this.editorMode && !this.panState.isPanning) gameBridge.onPointerMoveTile({ tileX, tileY });
       // Move ghost preview sprite with cursor (snap to tile center)
       if (this.ghostSprite && this.mapRef) {
         const x = tileX * this.mapRef.tileWidth + this.mapRef.tileWidth / 2;
@@ -540,11 +554,37 @@ export class MainScene extends Phaser.Scene {
           this.ghostSprite.setPosition(x, y);
         }
       }
+      // Szene-eigene Drag-Auswahl zeichnen
+      try {
+        const ds = (this as any)._dragStartTile as { x: number; y: number } | undefined;
+        if (this.editorMode && ds && pointer.leftButtonDown() && !this.panState.isPanning && this.mapRef) {
+          const sx = Math.min(ds.x, tileX) * this.mapRef.tileWidth;
+          const sy = Math.min(ds.y, tileY) * this.mapRef.tileHeight;
+          const ex = Math.max(ds.x, tileX) * this.mapRef.tileWidth + this.mapRef.tileWidth;
+          const ey = Math.max(ds.y, tileY) * this.mapRef.tileHeight + this.mapRef.tileHeight;
+          this.setSelectionRect({ x: sx, y: sy, w: ex - sx, h: ey - sy });
+        }
+      } catch {}
     });
     this.input.on('pointerup', (pointer: Phaser.Input.Pointer) => {
       const { tileX, tileY } = toTile(pointer);
-      if (!this.panState.isPanning) gameBridge.onPointerUpTile({ tileX, tileY });
+      if (this.editorMode && !this.panState.isPanning) gameBridge.onPointerUpTile({ tileX, tileY });
+      // Szene-eigene Terrain-Anwendung bei aktivem Ghost und Drag-Start
+      try {
+        const ds = (this as any)._dragStartTile as { x: number; y: number } | undefined;
+        if (this.editorMode && ds && this.ghostSprite && (this as any)._ghostDataUrl && this.editorCurrentTool !== 'collision' && this.editorCurrentTool !== 'erase') {
+          const rect = { startX: ds.x, startY: ds.y, endX: tileX, endY: tileY };
+          this.applyTerrainPaint({ rect, dataUrl: (this as any)._ghostDataUrl as string });
+        } else if (this.editorMode && ds && (this.editorCurrentTool === 'collision' || this.editorCurrentTool === 'erase')) {
+          // Kollision/Erase ohne App-Handler direkt anwenden
+          const rect = { startX: ds.x, startY: ds.y, endX: tileX, endY: tileY };
+          const edit = { layer: 'Collision' as const, tilesetKey: 'collision_tiles', tileIndex: this.editorCurrentTool === 'erase' ? -1 : 1, rect };
+          this.applyTilePaint(edit);
+        }
+      } catch {}
       this.setSelectionRect(null);
+      (this as any)._dragStartTile = undefined;
+      this.updateCursor();
     });
 
     // Global pointer up/down to suppress OS/browser context menu
@@ -587,6 +627,7 @@ export class MainScene extends Phaser.Scene {
         this.hoveredSprite = null;
         this.updateHoverOutline();
       }
+      this.updateCursor();
     });
     
     // Removed duplicate handler - combined with main pointerdown below
@@ -642,6 +683,10 @@ export class MainScene extends Phaser.Scene {
       try { this.saveEditorLayers(); } catch {}
       try { gameBridge.setSceneApi(null); } catch {}
     });
+  }
+
+  setEditorTool(tool: 'terrain' | 'collision' | 'erase' | 'select') {
+    this.editorCurrentTool = tool;
   }
 
   private ensureRecenterUi() {
@@ -712,6 +757,8 @@ export class MainScene extends Phaser.Scene {
     if (this.editorMode) {
       // Lock movement while editing
       this.setMovementLocked(true);
+      // Kollisionen-Overlay standardmäßig sichtbar im Editor
+      try { this.setCollisionVisible(true); } catch {}
       // Stop follow to avoid accidental jumps; lock movement via gameBridge consumer
       try { this.cameras.main.stopFollow(); } catch {}
       this.manualCameraActive = true;
@@ -969,13 +1016,25 @@ export class MainScene extends Phaser.Scene {
         bounds.width + 8,
         bounds.height + 8
       );
-      
-      // Change cursor
-      this.input.setDefaultCursor('pointer');
     } else {
-      // Reset cursor
-      this.input.setDefaultCursor('default');
     }
+    this.updateCursor();
+  }
+
+  private updateCursor() {
+    try {
+      const input = this.input;
+      if (!input) return;
+      let cursor: string = 'default';
+      if (this.panState?.isPanning) {
+        cursor = 'grabbing';
+      } else if (this.spaceHeld) {
+        cursor = 'grab';
+      } else if (this.hoveredSprite) {
+        cursor = 'pointer';
+      }
+      input.setDefaultCursor(cursor);
+    } catch {}
   }
 
   setZoneOverlay(polys: { name: string; points: any[] }[]) {
@@ -1119,6 +1178,8 @@ export class MainScene extends Phaser.Scene {
           this.ghostSprite.setTexture(newKey);
         }
         try { this.ghostSprite.setVisible(true); } catch {}
+        // Terrain-URL merken, damit pointerup anwenden kann
+        (this as any)._ghostDataUrl = preview.dataUrl;
         // Setzen der Position auf Tilezentrum in Sicht
         if (this.mapRef) {
           const cx = Math.round((this.cameras.main.worldView.centerX) / this.mapRef.tileWidth) * this.mapRef.tileWidth + this.mapRef.tileWidth / 2;
@@ -1135,13 +1196,167 @@ export class MainScene extends Phaser.Scene {
       if (this.textures.exists(newKey)) {
         place();
       } else {
-        // Ghost während des Ladens ausblenden, um „null glTexture“ zu vermeiden
+        // Ghost während des Ladens ausblenden, um „null glTexture" zu vermeiden
         try { this.ghostSprite?.setVisible(false); } catch {}
         this.textures.once('addtexture', (k: string) => { if (k === newKey) place(); });
         if (nextUrl.startsWith('data:')) this.textures.addBase64(newKey, nextUrl);
         else { this.load.image(newKey, nextUrl); this.load.start(); }
       }
     } catch {}
+  }
+
+  // Neues Terrain-Painting: benutzt Ghost/Preview wie Objekte, schreibt aber in EditorGround/Walls
+  applyTerrainPaint(edit: { rect: { startX: number; startY: number; endX: number; endY: number }; dataUrl: string; attempt?: number }) {
+    if (!this.mapRef) return;
+    // Ziel-Layer: EditorGround
+    const targetLayer = this.editorGround;
+    if (!targetLayer) return;
+    const map = this.mapRef;
+    const tilesetKey = this.ensureTerrainTilesetFor(edit.dataUrl);
+    if (!tilesetKey) return;
+    const tileset = this.dynamicTilesets.get(tilesetKey) || map.tilesets.find(t => t.name === tilesetKey);
+    if (!tileset) {
+      const nextAttempt = (edit.attempt ?? 0) + 1;
+      if (nextAttempt <= 20) {
+        setTimeout(() => this.applyTerrainPaint({ rect: edit.rect, dataUrl: edit.dataUrl, attempt: nextAttempt }), 50);
+      }
+      return;
+    }
+    // Sicherstellen, dass Layer Tileset kennt
+    try {
+      const allTilesets = Array.from(new Set([...(this.mapRef?.tilesets || []), ...this.dynamicTilesets.values()]));
+      (targetLayer as any).setTilesets?.(allTilesets);
+      (targetLayer as any).tileset = allTilesets;
+    } catch {}
+    const gid = (tileset as any).firstgid || 1;
+    const idx = 0; // Single-tile tileset
+    const globalIndex = gid + idx;
+    const { startX, startY, endX, endY } = edit.rect;
+    const x0 = Math.min(startX, endX);
+    const y0 = Math.min(startY, endY);
+    const x1 = Math.max(startX, endX);
+    const y1 = Math.max(startY, endY);
+    for (let ty = y0; ty <= y1; ty++) {
+      for (let tx = x0; tx <= x1; tx++) {
+        try { targetLayer.putTileAt(globalIndex, tx, ty); } catch {}
+      }
+    }
+    this.saveEditorLayers();
+  }
+
+  eraseTerrainRect(rect: { startX: number; startY: number; endX: number; endY: number }) {
+    if (!this.mapRef || !this.editorGround) return;
+    const layer = this.editorGround;
+    const { startX, startY, endX, endY } = rect;
+    const x0 = Math.min(startX, endX);
+    const y0 = Math.min(startY, endY);
+    const x1 = Math.max(startX, endX);
+    const y1 = Math.max(startY, endY);
+    for (let ty = y0; ty <= y1; ty++) {
+      for (let tx = x0; tx <= x1; tx++) {
+        try { layer.removeTileAt(tx, ty); } catch {}
+      }
+    }
+    this.saveEditorLayers();
+  }
+
+  private ensureTerrainTilesetFor(dataUrl: string): string | null {
+    try {
+      if (!this.mapRef) return null;
+      const map = this.mapRef;
+      // Stabile ID aus URL ableiten
+      const simpleKey = dataUrl.replace(/[^a-zA-Z0-9_:\-]/g, '_');
+      const tilesetName = `terrain:${simpleKey}`;
+      if (this.dynamicTilesets.has(tilesetName) || map.tilesets.find(t => t.name === tilesetName)) {
+        return tilesetName;
+      }
+      // Texture vorbereiten: skaliert auf Tilegröße der Map, 1 Tile groß
+      const texKey = `terrain_tex_${simpleKey}`;
+      const doAddTileset = () => {
+        // firstgid wählen
+        let assignedFirstGid = 0;
+        try {
+          const mapAny = map as any;
+          if (!mapAny._nextDynamicFirstGid) {
+            const maxGid = Math.max(1, ...map.tilesets.map(t => (t as any).firstgid || 1));
+            mapAny._nextDynamicFirstGid = Math.ceil((maxGid + 1) / 1024) * 1024;
+          }
+          assignedFirstGid = mapAny._nextDynamicFirstGid;
+          mapAny._nextDynamicFirstGid += 1024;
+        } catch {}
+        // Raw map data tilesets-Eintrag ergänzen
+        try {
+          const mapAny = map as any;
+          const data = mapAny.data;
+          const tex = this.textures.get(texKey);
+          const src = tex?.getSourceImage() as HTMLImageElement | HTMLCanvasElement | undefined;
+          if (data && src) {
+            const imgW = (src as any).width || map.tileWidth;
+            const imgH = (src as any).height || map.tileHeight;
+            const exists = Array.isArray(data.tilesets) && data.tilesets.find((t: any) => t.name === tilesetName);
+            if (!exists) {
+              data.tilesets = data.tilesets || [];
+              data.tilesets.push({
+                firstgid: assignedFirstGid || 1,
+                name: tilesetName,
+                image: texKey,
+                imagewidth: imgW,
+                imageheight: imgH,
+                tilewidth: map.tileWidth,
+                tileheight: map.tileHeight,
+                margin: 0,
+                spacing: 0,
+                columns: 1,
+                tilecount: 1
+              });
+            }
+          }
+        } catch {}
+        // Push a meta tileset first so addTilesetImage finds the name
+        try {
+          if (!map.tilesets.find(t => t.name === tilesetName)) {
+            const meta = new Phaser.Tilemaps.Tileset(tilesetName, assignedFirstGid || 1, map.tileWidth, map.tileHeight, 0, 0);
+            (map.tilesets as any).push(meta);
+          }
+        } catch {}
+        const tileset = map.addTilesetImage(tilesetName, texKey, map.tileWidth, map.tileHeight, 0, 0, assignedFirstGid || undefined as any);
+        if (tileset) {
+          this.dynamicTilesets.set(tilesetName, tileset);
+          try { this.terrainTilesetSources.set(tilesetName, dataUrl); } catch {}
+          // Layer Tilesets aktualisieren
+          const all = Array.from(new Set([...(map.tilesets || []), ...this.dynamicTilesets.values()]));
+          try { (this.editorGround as any)?.setTilesets?.(all); } catch {}
+          try { (this.wallsLayer as any)?.setTilesets?.(all); } catch {}
+          try { (this.collisionLayer as any)?.setTilesets?.(all); } catch {}
+          return tilesetName;
+        }
+        return null;
+      };
+      if (this.textures.exists(texKey)) {
+        return doAddTileset();
+      }
+      // Bild laden und auf Canvas-Texture in Map-Tilegröße zeichnen
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        const tw = map.tileWidth;
+        const th = map.tileHeight;
+        const ctex = this.textures.createCanvas(texKey, tw, th);
+        const ctx = ctex?.getContext();
+        if (ctex && ctx) {
+          ctx.clearRect(0, 0, tw, th);
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high' as any;
+          ctx.drawImage(img, 0, 0, tw, th);
+          ctex.refresh();
+          doAddTileset();
+        }
+      };
+      img.src = dataUrl;
+      return tilesetName; // Wird unmittelbar zurückgegeben; tatsächliche Nutzung sollte auf nächsten Paint warten
+    } catch {
+      return null;
+    }
   }
 
   setSelectionRect(rect: { x: number; y: number; w: number; h: number } | null) {
@@ -1168,19 +1383,12 @@ export class MainScene extends Phaser.Scene {
     const targetLayer = edit.layer === 'Collision' ? this.collisionLayer : edit.layer === 'EditorWalls' ? this.wallsLayer : this.editorGround;
     if (!targetLayer) return;
     
-    // CRITICAL FIX: Ensure collision layer has all tilesets before painting
-    if (edit.layer === 'Collision' && targetLayer) {
+    // Ensure target layer knows all tilesets before painting
+    if (targetLayer) {
       const allTilesets = Array.from(this.dynamicTilesets.values());
       allTilesets.push(...this.mapRef.tilesets.filter(ts => !this.dynamicTilesets.has(ts.name)));
-      
-      // Direct assignment to ensure tilesets are available
-      (targetLayer as any).tileset = allTilesets;
-      if ((targetLayer as any).layer) {
-        (targetLayer as any).layer.tileset = allTilesets;
-        (targetLayer as any).layer.tilesets = allTilesets;
-      }
-      
-      editorLog('Paint', `Updated collision layer with ${allTilesets.length} tilesets`);
+      try { (targetLayer as any).setTilesets?.(allTilesets); } catch {}
+      try { (targetLayer as any).tileset = allTilesets; } catch {}
     }
     
     // Get the specific tileset
@@ -1242,9 +1450,11 @@ export class MainScene extends Phaser.Scene {
         }
       }
     }
-    // Collision-Physik neu aufbauen
+    // Collision-Physik neu aufbauen und Overlay anzeigen
     if (targetLayer === this.collisionLayer) {
       this.rebuildStaticColliders();
+      // Overlay sichtbar machen, damit Nutzer direkt Feedback bekommen
+      try { this.setCollisionVisible(true); } catch {}
       this.updateCollisionOverlay();
     }
     // Persistenz speichern
@@ -1307,8 +1517,18 @@ export class MainScene extends Phaser.Scene {
         base = `${window.location.protocol}//${window.location.hostname}:2567`;
       }
       if (!base) base = 'http://localhost:2567';
+      // Tilesets (Terrain) miterfassen, damit Reload gelingt
+      const terrainTilesets: any[] = [];
+      try {
+        this.dynamicTilesets.forEach((ts, name) => {
+          if (name && name.startsWith('terrain:')) {
+            const src = this.terrainTilesetSources.get(name) || '';
+            terrainTilesets.push({ key: name, dataUrl: src, tileWidth: this.mapRef!.tileWidth, tileHeight: this.mapRef!.tileHeight, category: 'terrain' });
+          }
+        });
+      } catch {}
       // Only save to server if data is not too large (< 100KB)
-      const serverPayload: any = { editorGround: data.editorGround, editorWalls: data.editorWalls, collision: data.collision };
+      const serverPayload: any = { editorGround: data.editorGround, editorWalls: data.editorWalls, collision: data.collision, tilesets: terrainTilesets };
       const jsonStr = JSON.stringify(serverPayload);
       // Server payload ready
       if (jsonStr.length < 100000) {
@@ -1408,6 +1628,18 @@ export class MainScene extends Phaser.Scene {
         return;
       }
       const data = await res.json();
+      // Tilesets vom Server registrieren (inkl. dynamischer Terrain-Tilesets)
+      try {
+        const arr = Array.isArray((data as any)?.tilesets) ? (data as any).tilesets : [];
+        for (const ts of arr) {
+          if (ts && ts.key && ts.dataUrl && ts.tileWidth && ts.tileHeight) {
+            this.registerTileset({ key: ts.key, dataUrl: ts.dataUrl, tileWidth: ts.tileWidth, tileHeight: ts.tileHeight, margin: (ts as any).margin ?? 0, spacing: (ts as any).spacing ?? 0 });
+            if (typeof ts.key === 'string' && typeof ts.dataUrl === 'string' && ts.key.startsWith('terrain:')) {
+              this.terrainTilesetSources.set(ts.key, ts.dataUrl);
+            }
+          }
+        }
+      } catch {}
       // Apply background color from server if present
       try {
         const bg = typeof data?.backgroundColor === 'string' ? data.backgroundColor : null;
@@ -1588,34 +1820,111 @@ export class MainScene extends Phaser.Scene {
         key = `${ts.key}-${Date.now()}`;
       }
       const safeKey = key;
-      // addBase64 returns a promise when the texture is loaded
+      // add texture and hook once it's available
       this.textures.once('addtexture', (key: string) => {
         if (key === safeKey && this.mapRef) {
           let tileset: Phaser.Tilemaps.Tileset | null = null;
           // Tileset zur Map hinzufügen nachdem die Textur geladen wurde
           try {
-            // Check if a tileset with similar name already exists
-            const existingTileset = this.mapRef.tilesets.find(t => 
-              t.name === safeKey || 
-              t.name.includes('Tileset') || 
-              (t as any).image?.key === safeKey
-            );
+            // Optional: bei Tilegrößen-Mismatch zur Mapgröße skalieren
+            let textureKeyForMap = safeKey;
+            let tileWForMap = ts.tileWidth;
+            let tileHForMap = ts.tileHeight;
+            try {
+              const map = this.mapRef;
+              const tex = this.textures.get(safeKey);
+              const src = tex?.getSourceImage() as HTMLImageElement | HTMLCanvasElement | undefined;
+              if (map && src && (ts.tileWidth !== map.tileWidth || ts.tileHeight !== map.tileHeight)) {
+                const sx = map.tileWidth / ts.tileWidth;
+                const sy = map.tileHeight / ts.tileHeight;
+                const cw = Math.max(1, Math.round((src as any).width * sx));
+                const ch = Math.max(1, Math.round((src as any).height * sy));
+                const scaledKey = `${safeKey}__scaled_${map.tileWidth}x${map.tileHeight}`;
+                if (!this.textures.exists(scaledKey)) {
+                  const ctex = this.textures.createCanvas(scaledKey, cw, ch);
+                  const ctx = ctex?.getContext();
+                  if (ctex && ctx) {
+                    ctx.clearRect(0, 0, cw, ch);
+                    ctx.imageSmoothingEnabled = true;
+                    ctx.imageSmoothingQuality = 'high' as any;
+                    ctx.drawImage(src as any, 0, 0, cw, ch);
+                    ctex.refresh();
+                  }
+                }
+                if (this.textures.exists(scaledKey)) {
+                  textureKeyForMap = scaledKey;
+                  tileWForMap = map.tileWidth;
+                  tileHForMap = map.tileHeight;
+                }
+              }
+            } catch {}
+            // Check if a tileset with intended name already exists
+            const existingTileset = this.mapRef.tilesets.find(t => t.name === ts.key);
             
             if (existingTileset) {
               // Use existing tileset
               tileset = existingTileset;
-              this.dynamicTilesets.set(safeKey, tileset);
-              // Map original intended key to this tileset as well, so editor references still work
-              try { this.dynamicTilesets.set(ts.key, tileset); } catch {}
-              editorLog('Tileset', `Using existing tileset ${existingTileset.name} for ${safeKey}`);
+              this.dynamicTilesets.set(ts.key, tileset);
+              editorLog('Tileset', `Using existing tileset ${existingTileset.name} for ${ts.key}`);
             } else {
               // Create new tileset
               try {
-                tileset = this.mapRef.addTilesetImage(safeKey, safeKey, ts.tileWidth, ts.tileHeight, ts.margin ?? 0, ts.spacing ?? 0);
+                // Name: ts.key (uuid:...); Texture-Key: textureKeyForMap
+                // Ensure a metadata Tileset exists on the map so addTilesetImage doesn't warn
+                let assignedFirstGid = 0;
+                try {
+                  const mapAny = this.mapRef as any;
+                  if (!mapAny._nextDynamicFirstGid) {
+                    const maxGid = Math.max(1, ...this.mapRef.tilesets.map(t => (t as any).firstgid || 1));
+                    mapAny._nextDynamicFirstGid = Math.ceil((maxGid + 1) / 1024) * 1024;
+                  }
+                  assignedFirstGid = mapAny._nextDynamicFirstGid;
+                  mapAny._nextDynamicFirstGid += 1024;
+                } catch {}
+                // Ensure raw map data knows this tileset (so addTilesetImage won't warn)
+                try {
+                  const mapAny = this.mapRef as any;
+                  const data = mapAny.data;
+                  const tex = this.textures.get(textureKeyForMap);
+                  const src = tex?.getSourceImage() as HTMLImageElement | HTMLCanvasElement | undefined;
+                  if (data && src) {
+                    const margin = ts.margin ?? 0;
+                    const spacing = ts.spacing ?? 0;
+                    const imgW = (src as any).width || 0;
+                    const imgH = (src as any).height || 0;
+                    const cols = Math.max(1, Math.floor((imgW - margin + spacing) / (tileWForMap + spacing)));
+                    const rows = Math.max(1, Math.floor((imgH - margin + spacing) / (tileHForMap + spacing)));
+                    const tilecount = Math.max(0, cols * rows);
+                    const existsInData = Array.isArray(data.tilesets) && data.tilesets.find((t: any) => t.name === ts.key);
+                    if (!existsInData) {
+                      data.tilesets = data.tilesets || [];
+                      data.tilesets.push({
+                        firstgid: assignedFirstGid || 1,
+                        source: undefined,
+                        name: ts.key,
+                        image: textureKeyForMap,
+                        imagewidth: imgW,
+                        imageheight: imgH,
+                        tilewidth: tileWForMap,
+                        tileheight: tileHForMap,
+                        margin,
+                        spacing,
+                        columns: cols,
+                        tilecount
+                      });
+                    }
+                  }
+                } catch {}
+                tileset = this.mapRef.addTilesetImage(ts.key, textureKeyForMap, tileWForMap, tileHForMap, ts.margin ?? 0, ts.spacing ?? 0, assignedFirstGid || undefined as any);
                 if (tileset) {
-                  this.dynamicTilesets.set(safeKey, tileset);
-                  try { this.dynamicTilesets.set(ts.key, tileset); } catch {}
-                  editorLog('Tileset', `Successfully added tileset ${safeKey}`);
+                  // Ensure the tileset is present in map tilesets list
+                  try {
+                    if (!this.mapRef.tilesets.find(t => t.name === tileset!.name)) {
+                      (this.mapRef.tilesets as any).push(tileset);
+                    }
+                  } catch {}
+                  this.dynamicTilesets.set(ts.key, tileset);
+                  editorLog('Tileset', `Successfully added tileset ${ts.key}`);
                 }
               } catch (err) {
                 editorLog('Tileset', `Failed to create tileset ${safeKey}:`, err);
@@ -1630,10 +1939,12 @@ export class MainScene extends Phaser.Scene {
               allTilesets.push(...extra);
               
               if (this.editorGround) {
-                (this.editorGround as any).tileset = allTilesets;
+                try { (this.editorGround as any).setTilesets?.(allTilesets); } catch {}
+                try { (this.editorGround as any).tileset = allTilesets; } catch {}
               }
               if (this.wallsLayer) {
-                (this.wallsLayer as any).tileset = allTilesets;
+                try { (this.wallsLayer as any).setTilesets?.(allTilesets); } catch {}
+                try { (this.wallsLayer as any).tileset = allTilesets; } catch {}
               }
               if (this.collisionLayer) {
                 (this.collisionLayer as any).setTilesets(allTilesets);
@@ -1654,23 +1965,85 @@ export class MainScene extends Phaser.Scene {
           }
         }
       });
-      this.textures.addBase64(safeKey, ts.dataUrl);
+      // Load image correctly depending on source type
+      const isDataUrl = typeof ts.dataUrl === 'string' && ts.dataUrl.startsWith('data:');
+      if (isDataUrl) {
+        this.textures.addBase64(safeKey, ts.dataUrl);
+      } else {
+        try {
+          this.load.image(safeKey, ts.dataUrl);
+          this.load.start();
+        } catch {}
+      }
     } else {
       // Textur existiert bereits
       try {
-        const tileset = this.mapRef.addTilesetImage(ts.key, ts.key, ts.tileWidth, ts.tileHeight, ts.margin ?? 0, ts.spacing ?? 0);
+        // Name: ts.key (uuid:...); Texture-Key: ts.key
+        // Assign a unique firstgid and make sure map data/meta are populated
+        let assignedFirstGid = 0;
+        try {
+          const mapAny = this.mapRef as any;
+          if (!mapAny._nextDynamicFirstGid) {
+            const maxGid = Math.max(1, ...this.mapRef.tilesets.map(t => (t as any).firstgid || 1));
+            mapAny._nextDynamicFirstGid = Math.ceil((maxGid + 1) / 1024) * 1024;
+          }
+          assignedFirstGid = mapAny._nextDynamicFirstGid;
+          mapAny._nextDynamicFirstGid += 1024;
+        } catch {}
+        // Update raw map data tilesets
+        try {
+          const mapAny = this.mapRef as any;
+          const data = mapAny.data;
+          const tex = this.textures.get(ts.key);
+          const src = tex?.getSourceImage() as HTMLImageElement | HTMLCanvasElement | undefined;
+          if (data && src) {
+            const margin = ts.margin ?? 0;
+            const spacing = ts.spacing ?? 0;
+            const imgW = (src as any).width || 0;
+            const imgH = (src as any).height || 0;
+            const cols = Math.max(1, Math.floor((imgW - margin + spacing) / ((ts.tileWidth || 16) + spacing)));
+            const rows = Math.max(1, Math.floor((imgH - margin + spacing) / ((ts.tileHeight || 16) + spacing)));
+            const tilecount = Math.max(0, cols * rows);
+            const existsInData = Array.isArray(data.tilesets) && data.tilesets.find((t: any) => t.name === ts.key);
+            if (!existsInData) {
+              data.tilesets = data.tilesets || [];
+              data.tilesets.push({
+                firstgid: assignedFirstGid || 1,
+                source: undefined,
+                name: ts.key,
+                image: ts.key,
+                imagewidth: imgW,
+                imageheight: imgH,
+                tilewidth: ts.tileWidth,
+                tileheight: ts.tileHeight,
+                margin,
+                spacing,
+                columns: cols,
+                tilecount
+              });
+            }
+          }
+        } catch {}
+        // Ensure meta tileset exists with name
+        try {
+          if (!this.mapRef.tilesets.find(t => t.name === ts.key)) {
+            const meta = new Phaser.Tilemaps.Tileset(ts.key, assignedFirstGid || 1, ts.tileWidth, ts.tileHeight, ts.margin ?? 0, ts.spacing ?? 0);
+            (this.mapRef.tilesets as any).push(meta);
+          }
+        } catch {}
+        const tileset = this.mapRef.addTilesetImage(ts.key, ts.key, ts.tileWidth, ts.tileHeight, ts.margin ?? 0, ts.spacing ?? 0, assignedFirstGid || undefined as any);
         if (tileset) {
           this.dynamicTilesets.set(ts.key, tileset);
-          
           // Update all editor layers to include the tileset
           const allTilesets = Array.from(this.dynamicTilesets.values());
           allTilesets.push(...this.mapRef.tilesets.filter(ts => !this.dynamicTilesets.has(ts.name)));
-          
           if (this.editorGround) {
-            (this.editorGround as any).tileset = allTilesets;
+            try { (this.editorGround as any).setTilesets?.(allTilesets); } catch {}
+            try { (this.editorGround as any).tileset = allTilesets; } catch {}
           }
           if (this.wallsLayer) {
-            (this.wallsLayer as any).tileset = allTilesets;
+            try { (this.wallsLayer as any).setTilesets?.(allTilesets); } catch {}
+            try { (this.wallsLayer as any).tileset = allTilesets; } catch {}
           }
           if (this.collisionLayer) {
             (this.collisionLayer as any).setTilesets(allTilesets);

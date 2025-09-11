@@ -13,6 +13,8 @@ export function EditorPanel(props: {
   React.useEffect(() => {
     // Activate editor mode for scene interactions
     try { gameBridge.setEditorMode(true); } catch {}
+    // Aktivieren des Editor-States und Standardkategorie Terrain
+    setEditor(s => ({ ...s, active: true, category: 'terrain', tool: s.tool === 'terrain' ? s.tool : 'terrain' }));
     return () => { try { gameBridge.setEditorMode(false); } catch {} };
   }, []);
   return (
@@ -33,36 +35,70 @@ export function EditorPanel(props: {
         />
       </div>
       <div style={{ display: 'flex', gap: 6 }}>
-        <button onClick={() => setEditor(s => ({ ...s, tool: 'select' }))} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid var(--border)', background: editor.tool==='select'?'rgba(59,130,246,0.18)':'var(--glass)', color: 'var(--fg)', fontSize: 13 }}>Auswählen</button>
-        <button onClick={() => setEditor(s => ({ ...s, tool: 'erase' }))} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid var(--border)', background: editor.tool==='erase'?'rgba(239,68,68,0.18)':'var(--glass)', color: 'var(--fg)', fontSize: 13 }}>Löschen</button>
+        {editor.category !== 'terrain' && (
+          <button onClick={() => setEditor(s => ({ ...s, tool: 'select' }))} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid var(--border)', background: editor.tool==='select'?'rgba(59,130,246,0.18)':'var(--glass)', color: 'var(--fg)', fontSize: 13 }}>Auswählen</button>
+        )}
+        {editor.category === 'terrain' ? (
+          <>
+            <button onClick={() => {
+              setEditor(s => ({ ...s, tool: 'collision' }));
+              try { (window as any).currentPhaserScene?.setEditorTool?.('collision'); } catch {}
+            }} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid var(--border)', background: editor.tool==='collision'?'rgba(239,68,68,0.18)':'var(--glass)', color: 'var(--fg)', fontSize: 13 }}>Kollision</button>
+            <button onClick={() => {
+              setEditor(s => ({ ...s, tool: 'erase' }));
+              try { (window as any).currentPhaserScene?.setEditorTool?.('erase'); } catch {}
+            }} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid var(--border)', background: editor.tool==='erase'?'rgba(239,68,68,0.18)':'var(--glass)', color: 'var(--fg)', fontSize: 13 }}>Löschen</button>
+          </>
+        ) : (
+          <>
+            <button onClick={() => setEditor(s => ({ ...s, tool: 'collision' }))} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid var(--border)', background: editor.tool==='collision'?'rgba(239,68,68,0.18)':'var(--glass)', color: 'var(--fg)', fontSize: 13 }}>Kollision</button>
+            <button onClick={() => setEditor(s => ({ ...s, tool: 'erase' }))} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid var(--border)', background: editor.tool==='erase'?'rgba(239,68,68,0.18)':'var(--glass)', color: 'var(--fg)', fontSize: 13 }}>Löschen</button>
+          </>
+        )}
       </div>
 
       {editor.category === 'terrain' && (
         <>
           <div style={{ display: 'grid', gap: 8 }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg)' }}>Terrain-Werkzeuge</div>
-            <div style={{ display: 'grid', grid: 'auto / 1fr 1fr', gap: 6 }}>
-              <button onClick={() => setEditor(s => ({ ...s, tool: 'floor' }))} style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid var(--border)', background: editor.tool==='floor'?'rgba(34,197,94,0.18)':'var(--glass)', color: 'var(--fg)', fontSize: 13 }}>🏠 Boden</button>
-              <button onClick={() => setEditor(s => ({ ...s, tool: 'collision' }))} style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid var(--border)', background: editor.tool==='collision'?'rgba(239,68,68,0.18)':'var(--glass)', color: 'var(--fg)', fontSize: 13 }}>🚫 Kollision</button>
-            </div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg)' }}>Terrain</div>
+            {(!editor.packItems || editor.packItems.filter(it=>it.category==='terrain').length === 0) && (
+              <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>Keine Terrain-Items gefunden.</div>
+            )}
+            {editor.packItems && editor.packItems.filter(it=>it.category==='terrain').length > 0 && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(64px, 1fr))', gap: 8, maxHeight: 260, overflow: 'auto', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--glass)', padding: 8 }}>
+                {editor.packItems.filter(it => it.category === 'terrain').map(it => {
+                  const selected = !!editor.pendingTerrain && editor.pendingTerrain.itemId === it.itemId && editor.pendingTerrain.packUuid === it.packUuid;
+                  return (
+                    <button key={`${it.packUuid}:${it.itemId}`}
+                      onClick={() => {
+                        setEditor(s => ({
+                          ...s,
+                          tool: 'terrain',
+                          pendingTerrain: { packUuid: it.packUuid, itemId: it.itemId, key: it.key, dataUrl: it.dataUrl, width: it.width, height: it.height }
+                        }));
+                        try { (window as any).currentPhaserScene?.setAssetPreview?.({ dataUrl: it.dataUrl, width: it.width, height: it.height }); } catch {}
+                      }}
+                      title={it.key}
+                      style={{
+                        padding: 4,
+                        borderRadius: 8,
+                        border: `1px solid ${selected ? 'rgba(34,197,94,0.8)' : 'var(--border)'}`,
+                        background: selected ? 'rgba(34,197,94,0.12)' : 'var(--glass)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        height: 64,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <img src={it.dataUrl} alt={it.key} style={{ maxWidth: '100%', maxHeight: '100%', imageRendering: 'pixelated' as any }} />
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            <div style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>Wähle ein Terrain-Item und markiere einen Bereich auf der Karte.</div>
           </div>
-
-          {editor.tool === 'floor' && (
-            <div style={{ display: 'grid', gap: 8 }}>
-              <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--fg-subtle)' }}>Bodentextur auswählen</div>
-              {editor.tilePaint && editor.tilesets && editor.tilesets.length > 0 && (
-                <div style={{ maxHeight: 200, overflow: 'auto', border: '1px solid var(--border)', borderRadius: 8, padding: 8, background: 'var(--glass)' }}>
-                  {editor.tilesets.filter(ts => !ts.category || ts.category === 'terrain').map(lib => (
-                    <div key={lib.key} style={{ marginBottom: 8 }}>
-                       <div style={{ fontSize: 12, color: 'var(--fg-subtle)', marginBottom: 4 }}>{lib.key}</div>
-                      <TilesetPreview tileset={lib} selectedIndex={editor.tilePaint?.tilesetKey === lib.key ? editor.tilePaint.tileIndex : -1} onSelect={(index: number) => setEditor(s => ({ ...s, tilePaint: { tilesetKey: lib.key, tileIndex: index, tileWidth: lib.tileWidth, tileHeight: lib.tileHeight, margin: lib.margin, spacing: lib.spacing } }))} />
-                    </div>
-                  ))}
-                </div>
-              )}
-              <div style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>Ziehe mit der Maus um Boden zu malen</div>
-            </div>
-          )}
         </>
       )}
 
@@ -123,58 +159,60 @@ export function EditorPanel(props: {
         </>
       )}
 
-      {(editor.category === 'structures' || editor.category === 'objects') && (
+      {(editor.category === 'terrain' || editor.category === 'structures' || editor.category === 'objects') && (
         <>
-          <div style={{ display: 'grid', gap: 8 }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg)' }}>Pack-Items</div>
-            {(!editor.packItems || editor.packItems.length === 0) && (
-              <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>Keine Asset-Packs installiert oder keine Items in dieser Kategorie.</div>
-            )}
-            {editor.packItems && editor.packItems.length > 0 && (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(64px, 1fr))', gap: 8, maxHeight: 260, overflow: 'auto', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--glass)', padding: 8 }}>
-                {editor.packItems.filter(it => it.category === editor.category).map(it => {
-                  const selected = !!editor.pendingAsset && editor.pendingAsset.itemId === it.itemId && editor.pendingAsset.packUuid === it.packUuid;
-                  return (
-                    <button key={`${it.packUuid}:${it.itemId}`}
-                      onClick={() => {
-                        setEditor(s => ({
-                          ...s,
-                          tool: 'asset',
-                          pendingAsset: {
-                            key: it.key,
-                            dataUrl: it.dataUrl,
-                            packUuid: it.packUuid,
-                            itemId: it.itemId,
-                            category: it.category,
-                            collide: it.collide,
-                            width: it.width,
-                            height: it.height,
-                          }
-                        }));
-                        // Setze Ghost einmalig beim Auswählen
-                        try { (window as any).currentPhaserScene?.setAssetPreview?.({ dataUrl: it.dataUrl, width: it.width, height: it.height }); } catch {}
-                      }}
-                      title={it.key}
-                      style={{
-                        padding: 4,
-                        borderRadius: 8,
-                        border: `1px solid ${selected ? 'rgba(59,130,246,0.8)' : 'var(--border)'}`,
-                        background: selected ? 'rgba(59,130,246,0.12)' : 'var(--glass)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        height: 64,
-                        cursor: 'pointer'
-                      }}
-                    >
-                      <img src={it.dataUrl} alt={it.key} style={{ maxWidth: '100%', maxHeight: '100%', imageRendering: 'pixelated' as any }} />
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-            <div style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>Klicke ein Item und platziere es durch Klick auf eine Kachel.</div>
-          </div>
+          {editor.category !== 'terrain' && (
+            <div style={{ display: 'grid', gap: 8 }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg)' }}>Pack-Items</div>
+              {(!editor.packItems || editor.packItems.length === 0) && (
+                <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>Keine Asset-Packs installiert oder keine Items in dieser Kategorie.</div>
+              )}
+              {editor.packItems && editor.packItems.length > 0 && (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(64px, 1fr))', gap: 8, maxHeight: 260, overflow: 'auto', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--glass)', padding: 8 }}>
+                  {editor.packItems.filter(it => it.category === editor.category).map(it => {
+                    const selected = !!editor.pendingAsset && editor.pendingAsset.itemId === it.itemId && editor.pendingAsset.packUuid === it.packUuid;
+                    return (
+                      <button key={`${it.packUuid}:${it.itemId}`}
+                        onClick={() => {
+                          setEditor(s => ({
+                            ...s,
+                            tool: 'asset',
+                            pendingAsset: {
+                              key: it.key,
+                              dataUrl: it.dataUrl,
+                              packUuid: it.packUuid,
+                              itemId: it.itemId,
+                              category: it.category,
+                              collide: it.collide,
+                              width: it.width,
+                              height: it.height,
+                            }
+                          }));
+                          // Setze Ghost einmalig beim Auswählen
+                          try { (window as any).currentPhaserScene?.setAssetPreview?.({ dataUrl: it.dataUrl, width: it.width, height: it.height }); } catch {}
+                        }}
+                        title={it.key}
+                        style={{
+                          padding: 4,
+                          borderRadius: 8,
+                          border: `1px solid ${selected ? 'rgba(59,130,246,0.8)' : 'var(--border)'}`,
+                          background: selected ? 'rgba(59,130,246,0.12)' : 'var(--glass)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          height: 64,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <img src={it.dataUrl} alt={it.key} style={{ maxWidth: '100%', maxHeight: '100%', imageRendering: 'pixelated' as any }} />
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              <div style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>Klicke ein Item und platziere es durch Klick auf eine Kachel.</div>
+            </div>
+          )}
         </>
       )}
 

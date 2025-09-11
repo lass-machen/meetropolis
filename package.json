@@ -15,7 +15,11 @@
     "prisma:migrate": "npm -w @meetropolis/server run prisma:migrate"
   },
   "devDependencies": {
+    "@types/react": "^19.1.12",
     "concurrently": "^8.2.2"
+  },
+  "dependencies": {
+    "@types/multer": "^2.0.0",
+    "unzipper": "^0.12.3"
   }
 }
-

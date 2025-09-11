@@ -180,6 +180,81 @@ export function App() {
     fetchMe();
   }, [page]);
 
+  // Editor: Tile-basierte Pointer-Events für Drag-Selektion (Terrain, Floor, Walls, Collision)
+  useEffect(() => {
+    if (page !== 'world') return;
+    const scene: any = (window as any).currentPhaserScene;
+    const setRectPx = (drag: { startTileX: number; startTileY: number; endTileX: number; endTileY: number }) => {
+      try {
+        const map = scene?.mapRef;
+        if (!map) return;
+        const x0 = Math.min(drag.startTileX, drag.endTileX) * map.tileWidth;
+        const y0 = Math.min(drag.startTileY, drag.endTileY) * map.tileHeight;
+        const x1 = Math.max(drag.startTileX, drag.endTileX) * map.tileWidth + map.tileWidth;
+        const y1 = Math.max(drag.startTileY, drag.endTileY) * map.tileHeight + map.tileHeight;
+        scene?.setSelectionRect?.({ x: x0, y: y0, w: x1 - x0, h: y1 - y0 });
+      } catch {}
+    };
+    gameBridge.onPointerDownTile = ({ tileX, tileY }) => {
+      if (!editorActiveRef.current) return;
+      setEditor(s => ({ ...s, drag: { startTileX: tileX, startTileY: tileY, endTileX: tileX, endTileY: tileY } }));
+      setRectPx({ startTileX: tileX, startTileY: tileY, endTileX: tileX, endTileY: tileY });
+    };
+    gameBridge.onPointerMoveTile = ({ tileX, tileY }) => {
+      if (!editorActiveRef.current) return;
+      setEditor(s => {
+        if (!s.drag) return s;
+        const drag = { ...s.drag, endTileX: tileX, endTileY: tileY };
+        setRectPx(drag);
+        return { ...s, drag };
+      });
+    };
+    gameBridge.onPointerUpTile = ({ tileX, tileY }) => {
+      if (!editorActiveRef.current) return;
+      setEditor(s => {
+        if (!s.drag) return s;
+        const drag = { ...s.drag, endTileX: tileX, endTileY: tileY };
+        const rect = { startX: drag.startTileX, startY: drag.startTileY, endX: drag.endTileX, endY: drag.endTileY };
+        gameBridge.setSelectionRect(null);
+        const isErase = s.tool === 'erase';
+        // Terrain: echte Tiles (Variante 2)
+        if (s.tool === 'terrain' && s.pendingTerrain) {
+          if (isErase) {
+            (window as any).currentPhaserScene?.eraseTerrainRect?.(rect);
+          } else {
+            (window as any).currentPhaserScene?.applyTerrainPaint?.({ rect, dataUrl: s.pendingTerrain.dataUrl });
+          }
+          return { ...s, drag: null };
+        }
+        // Boden/Wände
+        if ((s.tool === 'floor' || s.tool === 'walls' || isErase) && s.tilePaint) {
+          const index = isErase ? -1 : s.tilePaint.tileIndex;
+          const layer = s.tool === 'walls' ? 'EditorWalls' : 'EditorGround';
+          const edit = { layer: layer as 'EditorGround' | 'EditorWalls', tilesetKey: s.tilePaint.tilesetKey, tileIndex: index, rect };
+          gameBridge.applyTilePaint(edit);
+          return { ...s, drag: null };
+        }
+        // Kollision
+        if (s.tool === 'collision' || isErase) {
+          const index = isErase ? -1 : 1;
+          const edit = { layer: 'Collision' as const, tilesetKey: 'collision_tiles', tileIndex: index, rect };
+          // Editor-Seite anwenden und gleich speichern (Sichtbarkeit direkt an)
+          try { (window as any).currentPhaserScene?.applyTilePaint?.(edit); } catch {}
+          return { ...s, drag: null };
+        }
+        return { ...s, drag: null };
+      });
+    };
+    return () => {
+      // Aufräumen: Handler zurücksetzen
+      try {
+        gameBridge.onPointerDownTile = () => {};
+        gameBridge.onPointerMoveTile = () => {};
+        gameBridge.onPointerUpTile = () => {};
+      } catch {}
+    };
+  }, [page, setEditor]);
+
   // Editor: Laden aus localStorage
   useEffect(() => {
     try {
@@ -219,6 +294,10 @@ export function App() {
                   category: 'terrain'
                 });
               }
+              // Terrain → auswählbare Terrain-Items (wie Objekte behandeln)
+              for (const t of (p.terrain || [])) {
+                packItems.push({ packUuid: uuid, itemId: t.id, key: t.key, category: 'terrain', dataUrl: t.dataURL, width: t.tileWidth, height: t.tileHeight, collide: !!t.collide });
+              }
               // Structures & Objects → auswählbare Items
               for (const s of (p.structures || [])) {
                 packItems.push({ packUuid: uuid, itemId: s.id, key: s.key, category: 'structures', dataUrl: s.dataURL, width: s.width, height: s.height, collide: !!s.collide });
@@ -228,18 +307,25 @@ export function App() {
               }
             }
             if (packTilesets.length > 0) {
-              // Merge mit existierenden Tilesets (keine Duplikate per key)
+              // Merge mit Überschreiben: Pack-Definitionen ersetzen bestehende Einträge gleicher Keys
               setEditor(s => {
                 const existing = s.tilesets || [];
                 const merged = [...existing];
                 for (const ts of packTilesets) {
-                  if (!merged.find(m => m.key === ts.key)) merged.push(ts);
+                  const idx = merged.findIndex(m => m.key === ts.key);
+                  if (idx >= 0) merged[idx] = ts; else merged.push(ts);
                 }
                 try { localStorage.setItem('meetropolis.tilesets', JSON.stringify(merged)); } catch {}
                 // Phaser-Registrierung beim Szenenstart über pendingTilesets
                 (window as any).pendingTilesets = merged;
                 return { ...s, tilesets: merged };
               });
+              // Szene sofort über Bridge registrieren (asynchrones Laden vermeiden Timing-Probleme)
+              try {
+                for (const ts of packTilesets) {
+                  gameBridge.registerTileset({ key: ts.key, dataUrl: ts.dataUrl, tileWidth: ts.tileWidth, tileHeight: ts.tileHeight, margin: ts.margin ?? 0, spacing: ts.spacing ?? 0 });
+                }
+              } catch {}
             }
             setEditor(s => ({ ...s, packItems }));
           }
@@ -265,6 +351,12 @@ export function App() {
       setEditor(s => ({ ...s, tilesets, tilePaint: { ...(s.tilePaint as any), tilesetKey: s.tilePaint?.tilesetKey || 'office_tiles' } }));
       // Tilesets zur späteren Registrierung speichern
       (window as any).pendingTilesets = tilesets;
+      // Und sofortige Registrierung versuchen (falls Szene bereits läuft)
+      try {
+        for (const ts of tilesets) {
+          gameBridge.registerTileset({ key: ts.key, dataUrl: ts.dataUrl, tileWidth: ts.tileWidth, tileHeight: ts.tileHeight, margin: ts.margin ?? 0, spacing: ts.spacing ?? 0 });
+        }
+      } catch {}
       // Bereits vorhandene Editor-Layer sofort anwenden (falls vorhanden)
       try { gameBridge.reloadEditorLayers(); } catch {}
       // Server-state laden (best-effort) – bei 404 Map anlegen und lokalen Stand hochladen
@@ -1623,6 +1715,10 @@ export function App() {
         const rect = { startX: drag.startTileX, startY: drag.startTileY, endX: drag.endTileX, endY: drag.endTileY };
         gameBridge.setSelectionRect(null);
         const isErase = s.tool === 'erase';
+        if (s.tool === 'terrain' && s.pendingTerrain && !isErase) {
+          // Neues Terrain-Painting: sende direkt an Szene, kein Tileset nötig
+          (window as any).currentPhaserScene?.applyTerrainPaint?.({ rect, dataUrl: s.pendingTerrain.dataUrl });
+        }
         if ((s.tool === 'floor' || s.tool === 'walls' || isErase) && s.tilePaint) {
           const index = isErase ? -1 : s.tilePaint.tileIndex;
           const layer = s.tool === 'walls' ? 'EditorWalls' : 'EditorGround';
