@@ -58,10 +58,20 @@ model Map {
   id        String   @id @default(cuid())
   name      String   @unique
   meta      Json
+  // v2 Map Geometry & Settings
+  width      Int?
+  height     Int?
+  tileWidth  Int?
+  tileHeight Int?
+  chunkSize  Int?     @default(32)
+  version    Int?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   rooms     Room[]
   zones     Zone[]
+  // v2 relations
+  tilesets  MapTileset[]
+  layers    MapLayer[]
 }
 
 model Room {
@@ -115,4 +125,56 @@ model AssetPack {
   objects     Json
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+/// v2: Deterministische Tileset-Registry pro Map
+model MapTileset {
+  id         String   @id @default(cuid())
+  map        Map      @relation(fields: [mapId], references: [id])
+  mapId      String
+  slot       Int
+  key        String
+  imageUrl   String
+  tileWidth  Int
+  tileHeight Int
+  margin     Int?
+  spacing    Int?
+  hash       String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([mapId, slot])
+  @@index([mapId])
+}
+
+/// v2: Logische Layer pro Map (z. B. ground, walls, collision)
+model MapLayer {
+  id         String      @id @default(cuid())
+  map        Map         @relation(fields: [mapId], references: [id])
+  mapId      String
+  name       String
+  chunkSize  Int
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  chunks     MapChunk[]
+
+  @@unique([mapId, name])
+  @@index([mapId])
+}
+
+/// v2: Chunk-basierte Speicherung von Layer-Daten
+model MapChunk {
+  id        String   @id @default(cuid())
+  layer     MapLayer @relation(fields: [layerId], references: [id])
+  layerId   String
+  x         Int
+  y         Int
+  version   Int
+  encoding  String   // 'rle' | 'rle-bool' | 'gzip+rle'
+  data      Bytes
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([layerId, x, y])
+  @@index([layerId])
 }

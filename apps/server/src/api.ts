@@ -670,6 +670,225 @@ export function registerApi(app: express.Express) {
     res.json(maps);
   });
 
+  // ========================
+  // v2 Map State (READ-ONLY, PR1)
+  // ========================
+  app.get('/maps/:name/state-v2', async (req, res) => {
+    const name = req.params.name;
+    const map = await prisma.map.findUnique({ where: { name } });
+    if (!map) return res.status(404).json({ error: 'map not found' });
+
+    // Fetch tileset registry (deterministic by slot)
+    const tilesets = await prisma.mapTileset.findMany({
+      where: { mapId: map.id },
+      orderBy: { slot: 'asc' },
+      select: {
+        id: true,
+        slot: true,
+        key: true,
+        imageUrl: true,
+        tileWidth: true,
+        tileHeight: true,
+        margin: true,
+        spacing: true,
+        hash: true,
+      },
+    });
+
+    // Fetch layers and existing chunk keys per layer
+    const layers = await prisma.mapLayer.findMany({ where: { mapId: map.id }, select: { id: true, name: true, chunkSize: true } });
+    const layerIndex: Record<string, { keys: string[]; chunkSize: number } > = {};
+    for (const layer of layers) {
+      const chunks = await prisma.mapChunk.findMany({ where: { layerId: layer.id }, select: { x: true, y: true } });
+      const keys = chunks.map((c) => `${c.x}:${c.y}`);
+      layerIndex[layer.name] = { keys, chunkSize: layer.chunkSize };
+    }
+
+    const mapMeta = {
+      width: map.width ?? null,
+      height: map.height ?? null,
+      tileWidth: map.tileWidth ?? null,
+      tileHeight: map.tileHeight ?? null,
+      chunkSize: map.chunkSize ?? 32,
+      version: map.version ?? null,
+    };
+
+    res.json({
+      mapMeta,
+      tilesetRegistry: tilesets,
+      layerIndex,
+    });
+  });
+
+  app.get('/maps/:name/chunks', async (req, res) => {
+    const schema = z.object({ layer: z.string().min(1), keys: z.string().min(1) });
+    const parse = schema.safeParse(req.query || {});
+    if (!parse.success) return res.status(400).json({ error: 'layer and keys required' });
+
+    const name = req.params.name;
+    const { layer: layerName, keys } = parse.data;
+    const map = await prisma.map.findUnique({ where: { name } });
+    if (!map) return res.status(404).json({ error: 'map not found' });
+    const layer = await prisma.mapLayer.findUnique({ where: { mapId_name: { mapId: map.id, name: layerName } } as any });
+    if (!layer) return res.status(404).json({ error: 'layer not found' });
+
+    const keyList = keys.split(',').map((s) => s.trim()).filter((s) => s.length > 0);
+    const wanted: Array<{ x: number; y: number; key: string }> = [];
+    for (const k of keyList) {
+      const [xs, ys] = k.split(':');
+      const x = Number(xs);
+      const y = Number(ys);
+      if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+      wanted.push({ x, y, key: k });
+    }
+    if (wanted.length === 0) return res.json({ chunks: {} });
+
+    const orList = wanted.map((w) => ({ x: w.x, y: w.y }));
+    const found = await prisma.mapChunk.findMany({ where: { layerId: layer.id, OR: orList }, select: { x: true, y: true, version: true, encoding: true, data: true } });
+    const out: Record<string, { version: number; encoding: string; data: string } > = {};
+    for (const c of found) {
+      const key = `${c.x}:${c.y}`;
+      out[key] = { version: c.version, encoding: c.encoding, data: Buffer.from(c.data as any).toString('base64') };
+    }
+
+    res.setHeader('Cache-Control', 'no-cache');
+    res.json({ chunks: out });
+  });
+
+  // ========================
+  // v2 Map State (WRITE - PR2)
+  // ========================
+  app.patch('/maps/:name/paint-rect', async (req, res) => {
+    const schema = z.object({
+      layer: z.enum(['editor_ground', 'editor_walls', 'collision', 'ground', 'walls']),
+      rect: z.object({ x0: z.number().int(), y0: z.number().int(), x1: z.number().int(), y1: z.number().int() }),
+      tileRefId: z.number().int().optional(),
+      erase: z.boolean().optional(),
+    });
+    const parse = schema.safeParse(req.body || {});
+    if (!parse.success) return res.status(400).json({ error: 'invalid payload' });
+
+    const name = req.params.name;
+    const { layer: layerName, rect, tileRefId, erase } = parse.data;
+    const map = await prisma.map.findUnique({ where: { name } });
+    if (!map) return res.status(404).json({ error: 'map not found' });
+
+    // Validate tileRefId range lightly (slot/index 16-bit)
+    if (!erase && (tileRefId === undefined || tileRefId < 0 || tileRefId > 0xffffffff)) {
+      return res.status(400).json({ error: 'invalid tileRefId' });
+    }
+
+    // Ensure layer exists
+    let layer = await prisma.mapLayer.findUnique({ where: { mapId_name: { mapId: map.id, name: layerName } } as any });
+    if (!layer) {
+      layer = await prisma.mapLayer.create({ data: { mapId: map.id, name: layerName, chunkSize: map.chunkSize ?? 32 } });
+    }
+
+    const chunkSize = layer.chunkSize;
+    const x0 = Math.min(rect.x0, rect.x1);
+    const y0 = Math.min(rect.y0, rect.y1);
+    const x1 = Math.max(rect.x0, rect.x1);
+    const y1 = Math.max(rect.y0, rect.y1);
+
+    // Which chunks are affected?
+    const cx0 = Math.floor(x0 / chunkSize);
+    const cy0 = Math.floor(y0 / chunkSize);
+    const cx1 = Math.floor(x1 / chunkSize);
+    const cy1 = Math.floor(y1 / chunkSize);
+
+    const updates: Array<{ key: string; version: number; encoding: string; data: string }> = [];
+
+    for (let cy = cy0; cy <= cy1; cy++) {
+      for (let cx = cx0; cx <= cx1; cx++) {
+        // Load or initialize chunk
+        let chunk = await prisma.mapChunk.findUnique({ where: { layerId_x_y: { layerId: layer.id, x: cx, y: cy } } as any });
+        let values: number[];
+        if (!chunk) {
+          // Empty chunk
+          values = new Array(chunkSize * chunkSize).fill(0);
+        } else {
+          const { decodeRlePairsFromBuffer, rleDecodeToNumbers } = await import('./mapEncoding.js');
+          const pairs = decodeRlePairsFromBuffer(Buffer.from(chunk.data as any));
+          values = rleDecodeToNumbers(pairs, chunkSize * chunkSize);
+        }
+
+        // Apply rect within this chunk
+        const sx = cx * chunkSize;
+        const sy = cy * chunkSize;
+        const ex = sx + chunkSize - 1;
+        const ey = sy + chunkSize - 1;
+
+        const rx0 = Math.max(x0, sx);
+        const ry0 = Math.max(y0, sy);
+        const rx1 = Math.min(x1, ex);
+        const ry1 = Math.min(y1, ey);
+
+        if (rx0 > rx1 || ry0 > ry1) continue;
+
+        for (let yy = ry0; yy <= ry1; yy++) {
+          for (let xx = rx0; xx <= rx1; xx++) {
+            const lx = xx - sx;
+            const ly = yy - sy;
+            const idx = ly * chunkSize + lx;
+            values[idx] = erase ? 0 : (tileRefId as number);
+          }
+        }
+
+        // Encode and persist
+        const { rleEncodeNumbers, rleEncodeBooleans, encodeRlePairsToBuffer } = await import('./mapEncoding.js');
+        const encoding = layerName === 'collision' ? 'rle-bool' : 'rle';
+        const pairs = encoding === 'rle-bool'
+          ? rleEncodeBooleans(values.map(v => v !== 0))
+          : rleEncodeNumbers(values);
+        const buf = encodeRlePairsToBuffer(pairs);
+
+        if (!chunk) {
+          chunk = await prisma.mapChunk.create({ data: { layerId: layer.id, x: cx, y: cy, version: 1, encoding, data: buf } });
+        } else {
+          chunk = await prisma.mapChunk.update({ where: { id: chunk.id }, data: { version: chunk.version + 1, encoding, data: buf } });
+        }
+
+        updates.push({ key: `${cx}:${cy}`, version: chunk.version, encoding: chunk.encoding, data: buf.toString('base64') });
+      }
+    }
+
+    // Broadcast stub via Colyseus rooms if available
+    try {
+      const rooms: any[] = Array.from(((global as any).activeWorldRooms || new Set()).values());
+      for (const room of rooms) {
+        try { room.broadcast('chunks_updated', { map: name, layer: layerName, updates }); } catch {}
+      }
+    } catch {}
+
+    res.json({ updates });
+  });
+
+  app.post('/maps/:name/tilesets', async (req, res) => {
+    const schema = z.object({ key: z.string().min(1), imageUrl: z.string().min(1), tileWidth: z.number().int().positive(), tileHeight: z.number().int().positive(), margin: z.number().int().nonnegative().optional(), spacing: z.number().int().nonnegative().optional(), hash: z.string().optional() });
+    const parse = schema.safeParse(req.body || {});
+    if (!parse.success) return res.status(400).json({ error: 'invalid payload' });
+
+    const name = req.params.name;
+    const map = await prisma.map.findUnique({ where: { name } });
+    if (!map) return res.status(404).json({ error: 'map not found' });
+
+    const last = await prisma.mapTileset.findFirst({ where: { mapId: map.id }, orderBy: { slot: 'desc' } });
+    const newSlot = last ? last.slot + 1 : 0;
+    await prisma.mapTileset.create({ data: { mapId: map.id, slot: newSlot, ...parse.data } });
+
+    const tilesets = await prisma.mapTileset.findMany({ where: { mapId: map.id }, orderBy: { slot: 'asc' } });
+
+    // Broadcast registry update
+    try {
+      const rooms: any[] = Array.from(((global as any).activeWorldRooms || new Set()).values());
+      for (const room of rooms) {
+        try { room.broadcast('tileset_registry_updated', { map: name, tilesetRegistry: tilesets }); } catch {}
+      }
+    } catch {}
+
+    res.json({ tilesetRegistry: tilesets });
+  });
+
   app.get('/zones', async (_req, res) => {
     const zones = await prisma.zone.findMany();
     res.json(zones);

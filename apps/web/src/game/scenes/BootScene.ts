@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { fetchStateV2, preloadTilesetImages } from '../../lib/mapV2';
 
 export class BootScene extends Phaser.Scene {
   constructor() {
@@ -6,13 +7,11 @@ export class BootScene extends Phaser.Scene {
   }
 
   preload() {
-    // Tileset-Bilder laden
+    // v2: Tileset-Images werden dynamisch anhand Registry geladen
+    // Fallback: v1 TMJ nur, wenn v2 nicht verfügbar
     this.load.image('office_tiles_raw', '/assets/tilesets/office_tiles.png');
     this.load.image('furniture_tiles', '/assets/tilesets/furniture_tiles.png');
     this.load.image('decor_tiles', '/assets/tilesets/decor_tiles.png');
-    // Collision tiles are created as canvas in create() method
-
-    this.load.tilemapTiledJSON('office', '/maps/office.json');
     // Charakter-Sprites laden
     this.load.spritesheet('hero_walk_down', '/assets/sprites/businessman1_walk_down.png', { frameWidth: 16, frameHeight: 24 });
     this.load.spritesheet('hero_walk_up', '/assets/sprites/businessman1_walk_up.png', { frameWidth: 16, frameHeight: 24 });
@@ -52,8 +51,27 @@ export class BootScene extends Phaser.Scene {
       }
       ctex.refresh();
     }
-    
-    this.scene.start('Main');
+
+    // v2 Boot: prefetch state-v2; bei 404 fallback zu TMJ
+    (async () => {
+      const state = await fetchStateV2('office');
+      if (!state) {
+        // Fallback: lade TMJ und nutze v1-Pfad
+        try {
+          this.load.once('complete', () => this.scene.start('Main'));
+          this.load.tilemapTiledJSON('office', '/maps/office.json');
+          this.load.start();
+          return;
+        } catch {}
+        this.scene.start('Main');
+        return;
+      }
+      // Tileset-Images für Registry laden (Schlüssel = key)
+      await preloadTilesetImages(this, state.tilesetRegistry);
+      // Markiere im Registry‑Cache (global) für MainScene
+      (window as any).__v2_state = state;
+      this.scene.start('Main');
+    })().catch(() => this.scene.start('Main'));
   }
 }
 

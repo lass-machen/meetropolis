@@ -65,8 +65,8 @@ export class AVManager {
       this.currentName = name;
       this.reconnectAttempts = 0;
       this.wireRoomEvents();
-      // Versuche Audio-Wiedergabe sofort freizuschalten; falls blockiert, per User-Interaktion
-      void this.ensureAudioPlaybackUnlocked();
+      // Audio-Wiedergabe erst per Nutzerinteraktion freischalten
+      this.attachAudioUnlockHandlers();
       if (!SIMPLE) {
         await this.waitForConnected(room).catch(()=>{});
       }
@@ -134,7 +134,7 @@ export class AVManager {
       const participants = Array.from((room as any).remoteParticipants?.values() || []);
       const p = participants.find((participant: any) => participant.identity === identity);
       if (!p) return;
-      const pubs: any[] = Array.from((p.trackPublications?.values?.() || []) as any);
+      const pubs: any[] = Array.from(((p as any).trackPublications?.values?.() || []) as any);
       for (const pub of pubs) {
         const track: any = (pub as any).track;
         if (!track) continue;
@@ -169,7 +169,7 @@ export class AVManager {
       try {
         const mod = await import('livekit-client');
         const RoomEvent = (mod as any).RoomEvent;
-        const ParticipantEvent = (mod as any).ParticipantEvent;
+        // const ParticipantEvent = (mod as any).ParticipantEvent;
         if (RoomEvent) {
           room.off?.(RoomEvent.Reconnected, () => {});
           room.off?.(RoomEvent.Disconnected, () => {});
@@ -359,20 +359,7 @@ export class AVManager {
   }
 
   private async ensureAudioPlaybackUnlocked(): Promise<void> {
-    const roomAny: any = this.current as any;
-    if (!roomAny) return;
-    // Versuch 1: sofort starten (falls bereits durch Nutzerinteraktion möglich)
-    try {
-      await roomAny.startAudio?.();
-      const can = !!(roomAny.canPlaybackAudio ?? false);
-      if (can) {
-        this.audioUnlocked = true;
-        return;
-      }
-    } catch {
-      // Ignorieren – wir hängen Listener an
-    }
-    // Versuch 2: auf erste User-Geste warten
+    // Kein sofortiger Startversuch mehr – nur Listener für User-Geste anhängen
     this.attachAudioUnlockHandlers();
   }
 
@@ -486,6 +473,8 @@ export class AVManager {
         return src === 'microphone' || src === 0 || src === 2 || kind === 'audio';
       });
       if (enabled) {
+        // Stelle sicher, dass Audio-Wiedergabe freigeschaltet ist (User-Geste erforderlich)
+        try { await (this.current as any)?.startAudio?.(); } catch {}
         if (micPubs.some(p => !!(p as any).track)) return; // already enabled
         const { createLocalTracks } = await import('livekit-client');
         const tracks = await createLocalTracks({ audio: this.preferredMic ? { deviceId: this.preferredMic, noiseSuppression: true, echoCancellation: true, autoGainControl: true } : { noiseSuppression: true, echoCancellation: true, autoGainControl: true } });
@@ -578,13 +567,49 @@ export class AVManager {
   }
 
   async listDevices(): Promise<AVDevices> {
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    const microphones = devices
+    const safeEnumerate = async (): Promise<MediaDeviceInfo[]> => {
+      try { return await navigator.mediaDevices.enumerateDevices(); } catch { return []; }
+    };
+    let devices = await safeEnumerate();
+    let microphones = devices
       .filter(d => d.kind === 'audioinput')
-      .map(d => ({ deviceId: d.deviceId, label: d.label || 'Microphone' }));
-    const cameras = devices
+      .map(d => ({ deviceId: d.deviceId, label: d.label }));
+    let cameras = devices
       .filter(d => d.kind === 'videoinput')
-      .map(d => ({ deviceId: d.deviceId, label: d.label || 'Camera' }));
+      .map(d => ({ deviceId: d.deviceId, label: d.label }));
+
+    // Manche Browser (Safari/Firefox) liefern erst nach getUserMedia-Geräte mit Labels
+    const missingAnyDevices = (microphones.length === 0 && cameras.length === 0);
+    const labelsMissing = devices.length > 0 && devices.every(d => !d.label);
+    if (missingAnyDevices || labelsMissing) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+        try { for (const t of stream.getTracks()) { try { t.stop(); } catch {} } } catch {}
+      } catch {
+        // Wenn Benutzer verweigert, geben wir die (evtl. leere) Liste zurück
+      }
+      devices = await safeEnumerate();
+      microphones = devices
+        .filter(d => d.kind === 'audioinput')
+        .map(d => ({ deviceId: d.deviceId, label: d.label }));
+      cameras = devices
+        .filter(d => d.kind === 'videoinput')
+        .map(d => ({ deviceId: d.deviceId, label: d.label }));
+    }
+
+    // Duplikate (z.B. 'default') entfernen
+    const uniqueById = <T extends { deviceId: string }>(arr: T[]): T[] => {
+      const seen = new Set<string>();
+      const result: T[] = [];
+      for (const item of arr) {
+        if (seen.has(item.deviceId)) continue;
+        seen.add(item.deviceId);
+        result.push(item);
+      }
+      return result;
+    };
+    microphones = uniqueById(microphones).map((d, i) => ({ deviceId: d.deviceId, label: d.label || `Microphone ${i + 1}` }));
+    cameras = uniqueById(cameras).map((d, i) => ({ deviceId: d.deviceId, label: d.label || `Camera ${i + 1}` }));
     return { microphones, cameras };
   }
 }

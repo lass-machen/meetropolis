@@ -73,6 +73,8 @@ let cachedHeroName: string | null = null;
 let cachedDoNotDisturb = false;
 let remotePlayersCache: Record<string, { x: number; y: number; direction: Direction; name?: string; dnd?: boolean }> = {};
 let cachedBackgroundColor: string = (typeof window !== 'undefined' && localStorage.getItem('meetropolis.backgroundColor')) || '#202020';
+// Cache, um unnötige Doppel-Aufrufe zu vermeiden (z.B. wiederholt null)
+let lastDesiredPosition: { x: number; y: number } | null = null;
 
 export const gameBridge: Bridge = {
   onLocalMove: () => {},
@@ -159,7 +161,11 @@ export const gameBridge: Bridge = {
     }
   },
   setDesiredPosition: (pos) => {
-    try { console.debug('[Bridge] setDesiredPosition called', pos); } catch {}
+    const prev = lastDesiredPosition;
+    const same = (prev === null && pos === null) || (prev && pos && prev.x === pos.x && prev.y === pos.y);
+    if (same) return;
+    lastDesiredPosition = pos ? { x: pos.x, y: pos.y } : null;
+    try { console.debug('[Bridge] setDesiredPosition changed to', pos); } catch {}
     sceneApi?.setDesiredPosition(pos);
   },
   setZoneOverlay: (polys) => {

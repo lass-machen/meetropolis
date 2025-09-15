@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { gameBridge } from '../bridge';
 import { editorLog, editorError } from '../../lib/editorLog';
+import { V2State, computeFirstGids, decodeRLE, fetchChunks, fetchStateV2, tileRefIdToGid } from '../../lib/mapV2';
 
 export class MainScene extends Phaser.Scene {
   private hero!: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
@@ -41,33 +42,100 @@ export class MainScene extends Phaser.Scene {
   private ghostTextureKey?: string;
   private terrainTilesetSources: Map<string, string> = new Map();
   private editorCurrentTool: 'terrain' | 'collision' | 'erase' | 'select' = 'select';
+  // v2
+  private v2?: { state: V2State; firstGids: number[]; chunkSize: number };
+  private loadedChunks: Set<string> = new Set();
+  private heroVsTilesCollider?: Phaser.Physics.Arcade.Collider;
+
   constructor() {
     super('Main');
   }
 
+  private autoFollowIfHeroOutOfView() {
+    try {
+      const cam = this.cameras.main;
+      if (!cam || !this.hero) return;
+      // Wenn Kamera bereits folgt und nicht manuell, nichts tun
+      const isFollowing = (cam as any).follow === this.hero;
+      if (!this.manualCameraActive && isFollowing) return;
+
+      const view = cam.worldView;
+      const margin = 8; // kleiner Puffer in Weltpixeln
+      const outLeft = this.hero.x < view.x - margin;
+      const outRight = this.hero.x > view.right + margin;
+      const outTop = this.hero.y < view.y - margin;
+      const outBottom = this.hero.y > view.bottom + margin;
+      const isOutside = outLeft || outRight || outTop || outBottom;
+
+      // Nur automatisch reaktivieren, wenn wir nicht im Editor sind und gerade nicht pannen/zoomen
+      if (isOutside && !this.editorMode && !this.panState.isPanning) {
+        try { cam.startFollow(this.hero, true, 0.1, 0.1); } catch {}
+        this.manualCameraActive = false;
+        this.updateRecenterUiVisibility();
+      }
+    } catch {}
+  }
+
   create() {
-    const map = this.make.tilemap({ key: 'office' });
-    this.mapRef = map;
+    const pre = (window as any).__v2_state as V2State | undefined;
+    if (pre && pre.mapMeta.width && pre.mapMeta.height && pre.mapMeta.tileWidth && pre.mapMeta.tileHeight) {
+      // v2: blank tilemap
+      const map = this.make.tilemap({ width: pre.mapMeta.width, height: pre.mapMeta.height, tileWidth: pre.mapMeta.tileWidth, tileHeight: pre.mapMeta.tileHeight });
+      this.mapRef = map;
+      // Register tilesets from registry
+      for (const ts of pre.tilesetRegistry) {
+        try {
+          const phTs = map.addTilesetImage(ts.key, ts.key, ts.tileWidth, ts.tileHeight, ts.margin ?? 0, ts.spacing ?? 0);
+          if (phTs) this.dynamicTilesets.set(ts.key, phTs);
+        } catch {}
+      }
+      // Layers
+      const allTs = Array.from(this.dynamicTilesets.values());
+      this.editorGround = map.createBlankLayer('Ground', allTs[0] || undefined as any, 0, 0, pre.mapMeta.width, pre.mapMeta.height, pre.mapMeta.tileWidth, pre.mapMeta.tileHeight) as any;
+      this.wallsLayer = map.createBlankLayer('Walls', allTs[0] || undefined as any, 0, 0, pre.mapMeta.width, pre.mapMeta.height, pre.mapMeta.tileWidth, pre.mapMeta.tileHeight) as any;
+      this.collisionLayer = map.createBlankLayer('Collision', allTs[0] || undefined as any, 0, 0, pre.mapMeta.width, pre.mapMeta.height, pre.mapMeta.tileWidth, pre.mapMeta.tileHeight) as any;
+      this.editorGround?.setDepth(0);
+      this.wallsLayer?.setDepth(5);
+      this.collisionLayer?.setDepth(10);
+      // Kollision-Layer ist standardmäßig unsichtbar (nur Collider), Overlay nur im Editor
+      try { this.collisionLayer?.setVisible(false); } catch {}
+      // Any non -1 index will collide
+      try { this.collisionLayer?.setCollisionByExclusion([-1], true); } catch {}
+      // Compute firstgids for tileRefId->gid
+      const firstGids = computeFirstGids(pre.tilesetRegistry, this);
+      this.v2 = { state: pre, firstGids, chunkSize: pre.mapMeta.chunkSize };
+      // initial chunks load
+      this.loadVisibleChunks('ground');
+      this.loadVisibleChunks('walls');
+      this.loadVisibleChunks('collision');
+    } else {
+      // Fallback TMJ
+      const map = this.make.tilemap({ key: 'office' });
+      this.mapRef = map;
+    }
 
     // Binde Tilesets
+    const map = this.mapRef!;
     const office = map.addTilesetImage('office_tiles', 'office_tiles', 16, 16, 0, 0);
     const furniture = map.addTilesetImage('furniture_tiles', 'furniture_tiles', 16, 16, 0, 0);
     const decor = map.addTilesetImage('decor_tiles', 'decor_tiles', 16, 16, 0, 0);
     const collision = map.addTilesetImage('collision_tiles', 'collision_tiles', 16, 16, 0, 0);
     
-    // Try to add any missing tilesets referenced in the map data
-    try {
-      const mapData = (map as any).data;
-      if (mapData && mapData.tilesets) {
-        mapData.tilesets.forEach((ts: any) => {
-          if (ts && ts.name && !map.tilesets.find(t => t.name === ts.name)) {
-            try {
-              map.addTilesetImage(ts.name, ts.name, ts.tilewidth || 16, ts.tileheight || 16, ts.margin || 0, ts.spacing || 0);
-            } catch {}
-          }
-        });
-      }
-    } catch {}
+    // Try to add any missing tilesets referenced in the map data (only in TMJ/v1 path)
+    if (!this.v2) {
+      try {
+        const mapData = (map as any).data;
+        if (mapData && mapData.tilesets) {
+          mapData.tilesets.forEach((ts: any) => {
+            if (ts && ts.name && !map.tilesets.find(t => t.name === ts.name)) {
+              try {
+                map.addTilesetImage(ts.name, ts.name, ts.tilewidth || 16, ts.tileheight || 16, ts.margin || 0, ts.spacing || 0);
+              } catch {}
+            }
+          });
+        }
+      } catch {}
+    }
 
     if (!office) {
       // Tileset office_tiles not found
@@ -81,9 +149,9 @@ export class MainScene extends Phaser.Scene {
     });
     const available = Array.from(uniq.values());
     // Beim Erzeugen von Layern können fehlende Tileset-Namen zu Phaser-Warnungen führen.
-    // Wir bauen die Layer trotzdem aus der Menge der aktuell verfügbaren Tilesets.
-    const ground = available.length ? map.createLayer('Ground', available, 0, 0) : undefined;
-    const walls = available.length ? map.createLayer('Walls', available, 0, 0) : undefined;
+    // Im v2-Pfad wurden Blank-Layer bereits erstellt; nutze diese statt neue zu erzeugen.
+    const ground = this.v2 ? this.editorGround : (available.length ? map.createLayer('Ground', available, 0, 0) : undefined);
+    const walls = this.v2 ? this.wallsLayer : (available.length ? map.createLayer('Walls', available, 0, 0) : undefined);
     // Layers are created conditionally based on available tilesets
 
     ground?.setDepth(0);
@@ -92,8 +160,15 @@ export class MainScene extends Phaser.Scene {
     // Collision-Layer einlesen und statische Physik-Körper erzeugen
     let collisionLayer: Phaser.Tilemaps.TilemapLayer | undefined;
     try {
-      const created = map.createLayer('Collision', available, 0, 0);
-      collisionLayer = created ?? undefined;
+      if (this.v2) {
+        collisionLayer = this.collisionLayer;
+        if (collisionLayer) {
+          try { (collisionLayer as any).setTilesets(available); } catch {}
+        }
+      } else {
+        const created = map.createLayer('Collision', available, 0, 0);
+        collisionLayer = created ?? undefined;
+      }
       
       // Fix: Check if collision layer has wrong data dimensions
       const layerData = (collisionLayer as any)?.layer;
@@ -289,9 +364,16 @@ export class MainScene extends Phaser.Scene {
     // Get initial position from global window object (set by App.tsx after DB load)
     const initialPos = (window as any).initialPlayerPosition || { x: 80, y: 120 };
     this.hero = this.physics.add.sprite(initialPos.x, initialPos.y, 'hero_walk_down', 0);
-    this.hero.setCollideWorldBounds(true);
+    // Ensure arcade body configured for reliable collisions
+    try {
+      this.hero.setCollideWorldBounds(true);
+      this.hero.body.setSize(map.tileWidth * 0.8, map.tileHeight * 0.9);
+      (this.hero.body as Phaser.Physics.Arcade.Body).offset.set(map.tileWidth * 0.1, map.tileHeight * 0.1);
+    } catch {}
     this.hero.setDepth(10);
     if (staticColliders) this.physics.add.collider(this.hero, staticColliders);
+    // Ensure tilemap collision collider
+    this.ensureCollisionCollider();
     
     // Create name label for hero (will be set later when we get the actual name)
     this.heroNameLabel = this.createNameLabel('Loading...', 'local');
@@ -490,6 +572,8 @@ export class MainScene extends Phaser.Scene {
       }
       // Update recenter visibility depending on camera vs hero position
       this.updateRecenterUiVisibility();
+      // Auto-follow wieder aktivieren, wenn der Held den sichtbaren Bereich verlässt
+      this.autoFollowIfHeroOutOfView();
     });
 
     // Tile-basierte Eingabe für Editor
@@ -661,26 +745,25 @@ export class MainScene extends Phaser.Scene {
 
     // Nach dem Aufbau: IMMER vom Server laden für konsistenten State
     setTimeout(() => {
-      // Always load from server first to ensure consistency
-      this.fetchAndApplyServerLayers().then(() => {
-        // Don't restore collision visibility here - let App.tsx handle it based on editor state
-        // The collision visibility will be set by the useEffect in App.tsx when editor state changes
-      }).catch(() => {
-        // Fallback to localStorage if server fails
-        this.loadEditorLayers();
-        
-        // Don't restore collision visibility here - let App.tsx handle it based on editor state
-        // The collision visibility will be set by the useEffect in App.tsx when editor state changes
-      });
+      // v2 aktiv? dann keinen v1-Reload/LocalStorage anwenden
+      if (this.v2) {
+        // Kollision außerhalb des Editors unsichtbar halten
+        try { this.collisionLayer?.setVisible(false); } catch {}
+        return;
+      }
+      // v1-Pfad: Server-/LocalStorage-Layer laden
+      // this.fetchAndApplyServerLayers().catch(() => {
+      //   this.loadEditorLayers();
+      // });
     }, 0);
 
     // Bridge aufräumen, wenn Szene herunterfährt
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
-      try { this.saveEditorLayers(); } catch {}
+      // try { this.saveEditorLayers(); } catch {}
       try { gameBridge.setSceneApi(null); } catch {}
     });
     this.events.once(Phaser.Scenes.Events.DESTROY, () => {
-      try { this.saveEditorLayers(); } catch {}
+      // try { this.saveEditorLayers(); } catch {}
       try { gameBridge.setSceneApi(null); } catch {}
     });
   }
@@ -759,6 +842,8 @@ export class MainScene extends Phaser.Scene {
       this.setMovementLocked(true);
       // Kollisionen-Overlay standardmäßig sichtbar im Editor
       try { this.setCollisionVisible(true); } catch {}
+      // Kollision-Layer selbst bleibt verborgen
+      try { this.collisionLayer?.setVisible(false); } catch {}
       // Stop follow to avoid accidental jumps; lock movement via gameBridge consumer
       try { this.cameras.main.stopFollow(); } catch {}
       this.manualCameraActive = true;
@@ -788,6 +873,10 @@ export class MainScene extends Phaser.Scene {
       try { this.bubbleOutlines.forEach(g => g.setVisible(true)); } catch {}
       // Beim Verlassen des Editors: Zonen-Overlay ausblenden
       try { if (this.zoneG) { this.zoneG.clear(); this.zoneG.setVisible(false); } } catch {}
+      // Im v2-Modus bleibt der Collision-Layer weiterhin verborgen
+      if (this.v2) {
+        try { this.collisionLayer?.setVisible(false); } catch {}
+      }
     }
   }
 
@@ -924,6 +1013,9 @@ export class MainScene extends Phaser.Scene {
   }
 
   setDesiredPosition(pos: { x: number; y: number } | null) {
+    const prev = this.desiredPos;
+    const same = (prev === null && pos === null) || (prev && pos && prev.x === pos.x && prev.y === pos.y);
+    if (same) return;
     this.desiredPos = pos;
     try { console.debug('[Scene] desiredPos set to', pos); } catch {}
   }
@@ -1452,10 +1544,12 @@ export class MainScene extends Phaser.Scene {
     }
     // Collision-Physik neu aufbauen und Overlay anzeigen
     if (targetLayer === this.collisionLayer) {
-      this.rebuildStaticColliders();
-      // Overlay sichtbar machen, damit Nutzer direkt Feedback bekommen
-      try { this.setCollisionVisible(true); } catch {}
-      this.updateCollisionOverlay();
+      // Update tilemap collider
+      this.ensureCollisionCollider();
+      // Im v2-Modus: Kollision-Layer unsichtbar lassen; Overlay nur im Editor setzen
+      if (this.v2) {
+        try { this.collisionLayer?.setVisible(false); } catch {}
+      }
     }
     // Persistenz speichern
     // Save layers after painting
@@ -1793,6 +1887,8 @@ export class MainScene extends Phaser.Scene {
             const y = row * map.tileHeight + map.tileHeight / 2;
             const body = this.add.rectangle(x, y, map.tileWidth, map.tileHeight, 0x000000, 0);
             this.physics.add.existing(body, true);
+            // Refresh static body to sync with physics world
+            try { ((body as any).body as Phaser.Physics.Arcade.StaticBody).refreshBody(); } catch {}
             this.staticColliders.add(body);
           }
         }
@@ -2287,5 +2383,98 @@ export class MainScene extends Phaser.Scene {
 
   setBackgroundColor(hex: string) {
     try { this.cameras.main.setBackgroundColor(hex); } catch {}
+  }
+
+  private async loadVisibleChunks(layerName: 'ground' | 'walls' | 'collision') {
+    if (!this.v2 || !this.mapRef) return;
+    const cam = this.cameras.main;
+    const tileW = this.mapRef.tileWidth;
+    const tileH = this.mapRef.tileHeight;
+    const cs = this.v2.chunkSize;
+    const x0 = Math.max(0, Math.floor(cam.worldView.x / tileW));
+    const y0 = Math.max(0, Math.floor(cam.worldView.y / tileH));
+    const x1 = Math.min(this.mapRef.width - 1, Math.floor((cam.worldView.x + cam.worldView.width) / tileW));
+    const y1 = Math.min(this.mapRef.height - 1, Math.floor((cam.worldView.y + cam.worldView.height) / tileH));
+    const cx0 = Math.floor(x0 / cs);
+    const cy0 = Math.floor(y0 / cs);
+    const cx1 = Math.floor(x1 / cs);
+    const cy1 = Math.floor(y1 / cs);
+    const keys: string[] = [];
+    for (let cy = cy0; cy <= cy1; cy++) for (let cx = cx0; cx <= cx1; cx++) {
+      const k = `${cx}:${cy}`;
+      if (!this.loadedChunks.has(`${layerName}:${k}`)) keys.push(k);
+    }
+    if (keys.length === 0) return;
+    const chunks = await fetchChunks('office', layerName, keys);
+    const updates = Object.entries(chunks).map(([key, val]) => ({ key, version: val.version, encoding: val.encoding, data: val.data }));
+    this.applyChunkUpdates(layerName, updates);
+  }
+
+  private applyChunkUpdates(layerName: 'ground' | 'walls' | 'collision', updates: Array<{ key: string; version: number; encoding: string; data: string }>) {
+    if (!this.v2 || !this.mapRef) return;
+    const layer = layerName === 'collision' ? this.collisionLayer : (layerName === 'walls' ? this.wallsLayer : this.editorGround);
+    if (!layer) return;
+    const cs = this.v2.chunkSize;
+    const total = cs * cs;
+    for (const u of updates) {
+      const [xs, ys] = u.key.split(':');
+      const cx = Number(xs), cy = Number(ys);
+      if (!Number.isFinite(cx) || !Number.isFinite(cy)) continue;
+      const arr = decodeRLE(u.data, total);
+      for (let i = 0; i < total; i++) {
+        const vx = i % cs;
+        const vy = Math.floor(i / cs);
+        const gx = cx * cs + vx;
+        const gy = cy * cs + vy;
+        if (gx >= this.mapRef.width || gy >= this.mapRef.height) continue;
+        if (layerName === 'collision') {
+          // Nur Physik: keine sichtbaren Tiles außerhalb des Editors
+          const v = arr[i] !== 0;
+          if (v) {
+            // optional: könnte eine unsichtbare Repräsentation setzen; wir belassen die Tilemap leer und nutzen Collider
+          } else {
+            try { layer.removeTileAt(gx, gy); } catch {}
+          }
+        } else {
+          const gid = tileRefIdToGid(arr[i] | 0, this.v2.firstGids);
+          if (gid < 0) layer.removeTileAt(gx, gy);
+          else layer.putTileAt(gid, gx, gy);
+        }
+      }
+      this.loadedChunks.add(`${layerName}:${cx}:${cy}`);
+    }
+    if (layerName === 'collision') {
+      this.ensureCollisionCollider();
+      if (this.v2) {
+        try { this.collisionLayer?.setVisible(false); } catch {}
+      }
+    }
+  }
+
+  update(time: number, delta: number) {
+    super.update(time, delta);
+    if (this.v2) {
+      // Erzwinge Unsichtbarkeit des Kollision-Layers außerhalb des Editors
+      try { this.collisionLayer?.setVisible(this.editorMode === true); } catch {}
+      // throttle chunk loading
+      if (!this._chunkThrottle || time - this._chunkThrottle > 250) {
+        this._chunkThrottle = time;
+        this.loadVisibleChunks('ground');
+        this.loadVisibleChunks('walls');
+        this.loadVisibleChunks('collision');
+      }
+    }
+  }
+  private _chunkThrottle = 0;
+
+  private ensureCollisionCollider() {
+    try {
+      if (!this.collisionLayer || !this.hero) return;
+      // Mark all tiles (index != -1) as colliding
+      try { this.collisionLayer.setCollisionByExclusion([-1], true); } catch {}
+      // Recreate collider to be safe
+      try { this.heroVsTilesCollider?.destroy(); } catch {}
+      this.heroVsTilesCollider = this.physics.add.collider(this.hero, this.collisionLayer);
+    } catch {}
   }
 }
