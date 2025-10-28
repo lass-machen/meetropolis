@@ -1,5 +1,21 @@
 version: '3.9'
 
+# Production docker compose for Meetropolis behind Traefik
+# - Uses built images (no code mounts)
+# - Internal app network isolates DB
+# - Traefik routes web (5173), api (2567), livekit (7880)
+# - LiveKit RTC (7881/tcp, 7882/udp) published on host
+
+networks:
+  traefik:
+    external: true
+    name: ${TRAEFIK_NETWORK:-traefik}
+  meetropolis:
+    internal: true
+
+volumes:
+  db_data:
+
 services:
   migrate:
     build:
@@ -9,11 +25,34 @@ services:
     working_dir: /workspace/apps/server
     env_file: .env
     environment:
+      NODE_ENV: production
       DATABASE_URL: ${DATABASE_URL}
       PRISMA_SCHEMA: /workspace/apps/server/prisma/schema.prisma
+    depends_on:
+      db:
+        condition: service_healthy
     command: >-
-      sh -lc "npx prisma migrate deploy --schema $${PRISMA_SCHEMA}"
+      sh -lc "npx prisma migrate deploy --schema \"$${PRISMA_SCHEMA}\" && (npx prisma db seed --schema \"$${PRISMA_SCHEMA}\" || true)"
+    networks:
+      - meetropolis
     restart: 'no'
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-meetropolis}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - meetropolis
+    restart: unless-stopped
 
   server:
     build:
@@ -24,20 +63,98 @@ services:
     env_file: .env
     environment:
       NODE_ENV: production
+      PORT: 2567
+      TRUST_PROXY: 'true'
       DATABASE_URL: ${DATABASE_URL}
+      LIVEKIT_URL: ${LIVEKIT_URL}
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET}
+      API_TOKEN_PEPPER: ${API_TOKEN_PEPPER}
+      JWT_SECRET: ${JWT_SECRET}
+      CORS_ORIGIN: ${CORS_ORIGIN}
     depends_on:
+      db:
+        condition: service_healthy
       migrate:
         condition: service_completed_successfully
-    ports:
-      - '2567:2567'
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=${TRAEFIK_NETWORK:-traefik}"
+      - "traefik.http.routers.meetropolis-api.rule=Host(`${API_HOST}`)"
+      - "traefik.http.routers.meetropolis-api.entrypoints=${TRAEFIK_ENTRYPOINT:-websecure}"
+      - "traefik.http.routers.meetropolis-api.tls=true"
+      - "traefik.http.routers.meetropolis-api.tls.certresolver=${TRAEFIK_CERT_RESOLVER:-le}"
+      - "traefik.http.services.meetropolis-api.loadbalancer.server.port=2567"
+    networks:
+      - meetropolis
+      - traefik
     healthcheck:
       test: ["CMD-SHELL", "node -e 'require(\"http\").get(\"http://localhost:2567/readyz\", r => process.exit(r.statusCode === 200 ? 0 : 1)).on(\"error\", () => process.exit(1))'"]
+    
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 20s
+    restart: unless-stopped
 
-networks:
-  default:
-    name: meetropolis-prod
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        - VITE_API_BASE=${VITE_API_BASE}
+        - VITE_LIVEKIT_URL=${VITE_LIVEKIT_URL}
+    env_file: .env
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=${TRAEFIK_NETWORK:-traefik}"
+      - "traefik.http.routers.meetropolis.rule=Host(`${WEB_HOST}`)"
+      - "traefik.http.routers.meetropolis.entrypoints=${TRAEFIK_ENTRYPOINT:-websecure}"
+      - "traefik.http.routers.meetropolis.tls=true"
+      - "traefik.http.routers.meetropolis.tls.certresolver=${TRAEFIK_CERT_RESOLVER:-le}"
+      - "traefik.http.services.meetropolis.loadbalancer.server.port=5173"
+    networks:
+      - traefik
+    depends_on:
+      server:
+        condition: service_started
+    restart: unless-stopped
+
+  livekit:
+    image: livekit/livekit-server:latest
+    command: ["--dev", "--bind", "0.0.0.0"]
+    environment:
+      LK_API_KEY: ${LIVEKIT_API_KEY:-devkey}
+      LK_API_SECRET: ${LIVEKIT_API_SECRET:-secret}
+      LK_NODE_IP: ${LK_NODE_IP:-127.0.0.1}
+      LK_NAT_1_TO_1_IPS: ${LK_NAT_1_TO_1_IPS}
+      LK_RTC_USE_EXTERNAL_IP: ${LK_RTC_USE_EXTERNAL_IP:-true}
+      LK_RTC_TCP_PORT: ${LK_RTC_TCP_PORT:-7881}
+      LK_RTC_UDP_PORT: ${LK_RTC_UDP_PORT:-7882}
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=${TRAEFIK_NETWORK:-traefik}"
+      - "traefik.http.routers.meetropolis-livekit.rule=Host(`${LIVEKIT_HOST}`)"
+      - "traefik.http.routers.meetropolis-livekit.entrypoints=${TRAEFIK_ENTRYPOINT:-websecure}"
+      - "traefik.http.routers.meetropolis-livekit.tls=true"
+      - "traefik.http.routers.meetropolis-livekit.tls.certresolver=${TRAEFIK_CERT_RESOLVER:-le}"
+      - "traefik.http.services.meetropolis-livekit.loadbalancer.server.port=7880"
+      - "traefik.http.routers.meetropolis-livekit.service=meetropolis-livekit"
+      - "traefik.http.middlewares.meetropolis-livekit-cors.headers.accesscontrolallowmethods=GET,OPTIONS,POST"
+      - "traefik.http.middlewares.meetropolis-livekit-cors.headers.accesscontrolallowheaders=Origin,X-Requested-With,Content-Type,Accept,Authorization"
+      - "traefik.http.middlewares.meetropolis-livekit-cors.headers.accesscontrolallowcredentials=true"
+      - "traefik.http.middlewares.meetropolis-livekit-cors.headers.accesscontrolalloworiginlist=https://${WEB_HOST}"
+      - "traefik.http.middlewares.meetropolis-livekit-cors.headers.accesscontrolmaxage=100"
+      - "traefik.http.middlewares.meetropolis-livekit-cors.headers.addvaryheader=true"
+      - "traefik.http.routers.meetropolis-livekit.middlewares=meetropolis-livekit-cors@docker"
+      - "traefik.http.middlewares.meetropolis-livekit-cors.headers.customResponseHeaders.Access-Control-Allow-Origin=https://${WEB_HOST}"
+      - "traefik.http.middlewares.meetropolis-livekit-cors.headers.customResponseHeaders.Access-Control-Allow-Credentials=true"
+      - "traefik.http.middlewares.meetropolis-livekit-cors.headers.customResponseHeaders.Access-Control-Allow-Headers=Origin,X-Requested-With,Content-Type,Accept,Authorization"
+      - "traefik.http.middlewares.meetropolis-livekit-cors.headers.customResponseHeaders.Access-Control-Allow-Methods=GET,OPTIONS,POST"
+    ports:
+      - "0.0.0.0:${EXTERNAL_LK_RTC_TCP_PORT:-7881}:${LK_RTC_TCP_PORT:-7881}/tcp"
+      - "0.0.0.0:${EXTERNAL_LK_RTC_UDP_PORT:-7882}:${LK_RTC_UDP_PORT:-7882}/udp"
+    networks:
+      - traefik
+    restart: unless-stopped
 
