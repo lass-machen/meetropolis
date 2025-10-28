@@ -1,4 +1,6 @@
 FROM node:20-bookworm-slim AS builder
+RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
 
 # 1) Prepare server workspace
 WORKDIR /workspace/apps/server
@@ -20,6 +22,8 @@ RUN npm run build
 RUN npm prune --omit=dev
 
 FROM node:20-bookworm-slim AS runner
+RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
 WORKDIR /workspace/apps/server
 ENV NODE_ENV=production
 
