@@ -18,8 +18,8 @@ COPY apps/server/tsconfig.json ./tsconfig.json
 COPY apps/server/src ./src
 RUN npm run build
 
-# 4) Prod-Dependencies behalten (ohne dev)
-RUN npm prune --omit=dev
+# 4) Prod-Dependencies behalten (ohne dev), aber tsx für Seed behalten
+RUN npm prune --omit=dev && npm install tsx --save-prod
 
 FROM node:20-bookworm-slim AS runner
 RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates \

@@ -1,13 +1,40 @@
-FROM node:20-alpine as base
-WORKDIR /usr/src/app
+# Build Stage
+FROM node:20-alpine AS builder
 
-COPY ../../package.json ../../package-lock.json* ../../pnpm-lock.yaml* ../../tsconfig.base.json /usr/src/
-COPY . /usr/src/app
+WORKDIR /workspace
 
-RUN cd /usr/src && npm i --workspaces=false && cd /usr/src/app && npm i
+# Copy root package files
+COPY package*.json ./
+COPY tsconfig.base.json ./
 
+# Copy web app
+COPY apps/web ./apps/web
+
+# Copy shared package if it exists
+COPY packages ./packages
+
+# Build arguments for environment variables
+ARG VITE_API_BASE
+ARG VITE_LIVEKIT_URL
+
+ENV VITE_API_BASE=${VITE_API_BASE}
+ENV VITE_LIVEKIT_URL=${VITE_LIVEKIT_URL}
+
+# Install dependencies and build
+WORKDIR /workspace/apps/web
+RUN npm ci || npm install
 RUN npm run build
 
+# Production Stage
+FROM nginx:alpine AS runner
+
+# Copy built files to nginx
+COPY --from=builder /workspace/apps/web/dist /usr/share/nginx/html
+
+# Copy nginx configuration
+COPY apps/web/nginx.conf /etc/nginx/conf.d/default.conf
+
 EXPOSE 5173
-CMD ["npm", "run", "preview"]
+
+CMD ["nginx", "-g", "daemon off;"]
 
