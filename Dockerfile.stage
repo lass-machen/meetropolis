@@ -23,12 +23,17 @@ WORKDIR /workspace
 RUN echo '#!/bin/sh\n\
 set -e\n\
 \n\
-# Run database migrations and seed\n\
+# Resolve Prisma schema path (default to apps/server/prisma/schema.prisma)\n\
+PRISMA_SCHEMA_PATH="${PRISMA_SCHEMA:-/workspace/apps/server/prisma/schema.prisma}"\n\
+\n\
+# Run database migrations (deploy) and optional seed\n\
 if [ "$RUN_MIGRATIONS" = "true" ]; then\n\
-  echo "Running database migrations..."\n\
+  echo "Running prisma migrate deploy using schema: $PRISMA_SCHEMA_PATH"\n\
   cd /workspace/apps/server\n\
-  npx prisma db push\n\
-  npx prisma db seed || echo "Seed already exists or failed"\n\
+  npx prisma migrate deploy --schema "$PRISMA_SCHEMA_PATH"\n\
+  if [ "$RUN_SEED" = "true" ]; then\n\
+    npx prisma db seed --schema "$PRISMA_SCHEMA_PATH" || echo "Seed failed (non-fatal)"\n\
+  fi\n\
 fi\n\
 \n\
 # Execute the passed command\n\
