@@ -1,26 +1,34 @@
-FROM node:20-bookworm-slim
+FROM node:20-bookworm-slim AS builder
 
-# 1) Prepare workspace
-WORKDIR /workspace
-
-# Root base files (nur tsconfig-base, damit tsconfig der App extends kann)
-COPY tsconfig.base.json /workspace/tsconfig.base.json
-
-# 2) Wechsel in Server-Package und Dependencies installieren
+# 1) Prepare server workspace
 WORKDIR /workspace/apps/server
 COPY apps/server/package*.json ./
-RUN npm ci --omit=dev || npm install --omit=dev
+# Install mit Dev-Dependencies für Build
+RUN npm ci || npm install
 
-# 3) Prisma schema + client generate
+# 2) Prisma Client generieren (benötigt für Build/Typs)
 COPY apps/server/prisma ./prisma
 RUN npx prisma generate --schema ./prisma/schema.prisma
 
-# 4) Copy source and build
+# 3) Source kopieren und bauen
+COPY tsconfig.base.json /workspace/tsconfig.base.json
 COPY apps/server/tsconfig.json ./tsconfig.json
 COPY apps/server/src ./src
 RUN npm run build
 
-# 5) Entrypoint to run migrations (optional) then start
+# 4) Prod-Dependencies behalten (ohne dev)
+RUN npm prune --omit=dev
+
+FROM node:20-bookworm-slim AS runner
+WORKDIR /workspace/apps/server
+ENV NODE_ENV=production
+
+# 5) Nur das Nötige übernehmen
+COPY --from=builder /workspace/apps/server/node_modules ./node_modules
+COPY --from=builder /workspace/apps/server/prisma ./prisma
+COPY --from=builder /workspace/apps/server/dist ./dist
+
+# 6) Entrypoint (Migration optional) + Start
 COPY apps/server/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
