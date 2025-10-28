@@ -48,6 +48,11 @@ services:
         max-file: "3"
     depends_on:
       - db
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:2567/readyz"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
     networks:
       - default
       - traefik
@@ -81,7 +86,13 @@ services:
         max-size: "10m"
         max-file: "3"
     depends_on:
-      - server
+      server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:5173"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
     networks:
       - default
       - traefik
@@ -106,6 +117,11 @@ services:
       - "7880:7880"
       - "7881:7881/tcp"
       - "7882:7882/udp"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:7880/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.meetropolis-livekit.rule=Host(`livekit.meetropolis.s4.lmwow.de`)"

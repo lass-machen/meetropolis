@@ -1,4 +1,5 @@
 import type express from 'express';
+// use global shim for multer types
 import { PrismaClient } from '@prisma/client';
 import { createLivekitToken } from './livekit.js';
 import crypto from 'crypto';
@@ -79,10 +80,47 @@ async function requireApiToken(req: express.Request): Promise<{ userId: string }
 }
 
 export function registerApi(app: express.Express) {
-  app.get('/health', (_req, res) => res.json({ ok: true }));
+  app.get('/health', (_req: express.Request, res: express.Response) => res.json({ ok: true }));
+  // Liveness probe: keine externen Abhängigkeiten
+  app.get('/healthz', (_req: express.Request, res: express.Response) => res.json({ ok: true }));
+  // Readiness probe: prüft DB und LiveKit-Konfiguration
+  app.get('/readyz', async (_req: express.Request, res: express.Response) => {
+    const result: { db: 'ok' | 'fail'; livekit: 'ok' | 'missing'; ok: boolean } = {
+      db: 'fail',
+      livekit: 'missing',
+      ok: false,
+    };
+    // DB Check mit Timeout
+    try {
+      const p = prisma.$queryRaw`SELECT 1` as unknown as Promise<any>;
+      const withTimeout = new Promise((resolve, reject) => {
+        const to = setTimeout(() => reject(new Error('db-timeout')), 2000);
+        p.then((v) => { clearTimeout(to); resolve(v); }).catch((e) => { clearTimeout(to); reject(e); });
+      });
+      await withTimeout;
+      result.db = 'ok';
+    } catch {
+      result.db = 'fail';
+    }
+    // LiveKit Konfiguration vorhanden?
+    if (process.env.LIVEKIT_API_KEY && process.env.LIVEKIT_API_SECRET) {
+      try {
+        // Token-Generierung validiert Secrets syntaktisch
+        await createLivekitToken({ roomName: 'readyz', identity: 'probe', canPublish: false, canSubscribe: false, canPublishData: false });
+        result.livekit = 'ok';
+      } catch {
+        result.livekit = 'missing';
+      }
+    } else {
+      result.livekit = 'missing';
+    }
+    result.ok = result.db === 'ok' && result.livekit === 'ok';
+    const status = result.ok ? 200 : 503;
+    res.status(status).json(result);
+  });
 
   // Auth Endpoints
-  app.post('/auth/invite', async (req, res) => {
+  app.post('/auth/invite', async (req: express.Request, res: express.Response) => {
     const auth = requireAuth(req);
     if (!auth) return res.status(401).json({ error: 'unauthorized' });
     const schema = z.object({ email: z.string().email() });
@@ -93,7 +131,7 @@ export function registerApi(app: express.Express) {
     res.json({ code: inv.code });
   });
 
-  app.post('/auth/register', async (req, res) => {
+  app.post('/auth/register', async (req: express.Request, res: express.Response) => {
     const schema = z.object({ code: z.string().min(4), name: z.string().min(1).optional(), email: z.string().email(), password: z.string().min(8) });
     const parse = schema.safeParse(req.body || {});
     if (!parse.success) return res.status(400).json({ error: 'code, email, password required' });
@@ -118,7 +156,7 @@ export function registerApi(app: express.Express) {
     res.json({ id: user.id, email: user.email, name: user.name });
   });
 
-  app.post('/auth/login', async (req, res) => {
+  app.post('/auth/login', async (req: express.Request, res: express.Response) => {
     const schema = z.object({ email: z.string().email(), password: z.string().min(8) });
     const parse = schema.safeParse(req.body || {});
     if (!parse.success) return res.status(400).json({ error: 'email and password required' });
@@ -132,7 +170,7 @@ export function registerApi(app: express.Express) {
     res.json({ id: user.id, email: user.email, name: user.name });
   });
 
-  app.post('/auth/logout', async (_req, res) => {
+  app.post('/auth/logout', async (_req: express.Request, res: express.Response) => {
     res.clearCookie(COOKIE_NAME, { path: '/' });
     res.json({ ok: true });
   });
@@ -253,7 +291,7 @@ export function registerApi(app: express.Express) {
   });
 
   // Basic User Management (requires authentication)
-  app.get('/users', async (req, res) => {
+  app.get('/users', async (req: express.Request, res: express.Response) => {
     const auth = requireAuth(req);
     if (!auth) return res.status(401).json({ error: 'unauthorized' });
     const users = await prisma.user.findMany({
@@ -262,7 +300,7 @@ export function registerApi(app: express.Express) {
     res.json(users);
   });
 
-  app.patch('/users/:id', async (req, res) => {
+  app.patch('/users/:id', async (req: express.Request, res: express.Response) => {
     const auth = requireAuth(req);
     if (!auth) return res.status(401).json({ error: 'unauthorized' });
     const id = req.params.id;
@@ -279,7 +317,7 @@ export function registerApi(app: express.Express) {
     }
   });
 
-  app.delete('/users/:id', async (req, res) => {
+  app.delete('/users/:id', async (req: express.Request, res: express.Response) => {
     const auth = requireAuth(req);
     if (!auth) return res.status(401).json({ error: 'unauthorized' });
     const id = req.params.id;
@@ -431,8 +469,8 @@ export function registerApi(app: express.Express) {
     const auth = sessionAuth || tokenAuth;
     if (!auth) return res.status(401).json({ error: 'unauthorized' });
     try {
-      const file = (req as any).file as Express.Multer.File | undefined;
-      if (!file || !file.buffer || file.size <= 0) {
+      const file = (req as any).file as any as { buffer?: Buffer; size?: number } | undefined;
+      if (!file || !file.buffer || !file.size || file.size <= 0) {
         return res.status(400).json({ error: 'file required' });
       }
       const buf = file.buffer as Buffer;
@@ -632,13 +670,13 @@ export function registerApi(app: express.Express) {
   });
 
   // List
-  app.get('/asset-packs', async (_req, res) => {
+  app.get('/asset-packs', async (_req: express.Request, res: express.Response) => {
     const list = await prisma.assetPack.findMany({ orderBy: { createdAt: 'desc' } });
     res.json(list);
   });
 
   // Get by id
-  app.get('/asset-packs/:id', async (req, res) => {
+  app.get('/asset-packs/:id', async (req: express.Request, res: express.Response) => {
     const id = Number(req.params.id);
     if (!Number.isFinite(id)) return res.status(400).json({ error: 'invalid id' });
     const pack = await prisma.assetPack.findUnique({ where: { id } });
@@ -647,7 +685,7 @@ export function registerApi(app: express.Express) {
   });
 
   // Delete
-  app.delete('/asset-packs/:id', async (req, res) => {
+  app.delete('/asset-packs/:id', async (req: express.Request, res: express.Response) => {
     const sessionAuth = requireAuth(req);
     const tokenAuth = await requireApiToken(req);
     const auth = sessionAuth || tokenAuth;
@@ -665,7 +703,7 @@ export function registerApi(app: express.Express) {
   });
 
   // Existing endpoints
-  app.get('/maps', async (_req, res) => {
+  app.get('/maps', async (_req: express.Request, res: express.Response) => {
     const maps = await prisma.map.findMany({ include: { zones: true, rooms: true } });
     res.json(maps);
   });
@@ -673,7 +711,7 @@ export function registerApi(app: express.Express) {
   // ========================
   // v2 Map State (READ-ONLY, PR1)
   // ========================
-  app.get('/maps/:name/state-v2', async (req, res) => {
+  app.get('/maps/:name/state-v2', async (req: express.Request, res: express.Response) => {
     const name = req.params.name;
     const map = await prisma.map.findUnique({ where: { name } });
     if (!map) return res.status(404).json({ error: 'map not found' });
@@ -700,7 +738,7 @@ export function registerApi(app: express.Express) {
     const layerIndex: Record<string, { keys: string[]; chunkSize: number } > = {};
     for (const layer of layers) {
       const chunks = await prisma.mapChunk.findMany({ where: { layerId: layer.id }, select: { x: true, y: true } });
-      const keys = chunks.map((c) => `${c.x}:${c.y}`);
+    const keys = chunks.map((c: { x: number; y: number }) => `${c.x}:${c.y}`);
       layerIndex[layer.name] = { keys, chunkSize: layer.chunkSize };
     }
 
@@ -720,7 +758,7 @@ export function registerApi(app: express.Express) {
     });
   });
 
-  app.get('/maps/:name/chunks', async (req, res) => {
+  app.get('/maps/:name/chunks', async (req: express.Request, res: express.Response) => {
     const schema = z.object({ layer: z.string().min(1), keys: z.string().min(1) });
     const parse = schema.safeParse(req.query || {});
     if (!parse.success) return res.status(400).json({ error: 'layer and keys required' });
@@ -758,7 +796,7 @@ export function registerApi(app: express.Express) {
   // ========================
   // v2 Map State (WRITE - PR2)
   // ========================
-  app.patch('/maps/:name/paint-rect', async (req, res) => {
+  app.patch('/maps/:name/paint-rect', async (req: express.Request, res: express.Response) => {
     const schema = z.object({
       layer: z.enum(['editor_ground', 'editor_walls', 'collision', 'ground', 'walls']),
       rect: z.object({ x0: z.number().int(), y0: z.number().int(), x1: z.number().int(), y1: z.number().int() }),
@@ -863,7 +901,7 @@ export function registerApi(app: express.Express) {
     res.json({ updates });
   });
 
-  app.post('/maps/:name/tilesets', async (req, res) => {
+  app.post('/maps/:name/tilesets', async (req: express.Request, res: express.Response) => {
     const schema = z.object({ key: z.string().min(1), imageUrl: z.string().min(1), tileWidth: z.number().int().positive(), tileHeight: z.number().int().positive(), margin: z.number().int().nonnegative().optional(), spacing: z.number().int().nonnegative().optional(), hash: z.string().optional() });
     const parse = schema.safeParse(req.body || {});
     if (!parse.success) return res.status(400).json({ error: 'invalid payload' });
@@ -889,13 +927,13 @@ export function registerApi(app: express.Express) {
     res.json({ tilesetRegistry: tilesets });
   });
 
-  app.get('/zones', async (_req, res) => {
+  app.get('/zones', async (_req: express.Request, res: express.Response) => {
     const zones = await prisma.zone.findMany();
     res.json(zones);
   });
 
   // Editor: Save/Load Map State (authenticated)
-  app.get('/maps/:name/editor-state', async (req, res) => {
+  app.get('/maps/:name/editor-state', async (req: express.Request, res: express.Response) => {
     const auth = requireAuth(req);
     if (!auth) return res.status(401).json({ error: 'unauthorized' });
     const name = req.params.name;
@@ -915,7 +953,7 @@ export function registerApi(app: express.Express) {
     });
   });
 
-  app.put('/maps/:name/editor-state', async (req, res) => {
+  app.put('/maps/:name/editor-state', async (req: express.Request, res: express.Response) => {
     const auth = requireAuth(req);
     if (!auth) return res.status(401).json({ error: 'unauthorized' });
     const name = req.params.name;
@@ -993,7 +1031,7 @@ export function registerApi(app: express.Express) {
   });
 
   // Profile update (authenticated)
-  app.patch('/me', async (req, res) => {
+  app.patch('/me', async (req: express.Request, res: express.Response) => {
     const auth = requireAuth(req);
     if (!auth) return res.status(401).json({ error: 'unauthorized' });
     const { name, email } = (req.body ?? {}) as { name?: string; email?: string };
@@ -1008,14 +1046,14 @@ export function registerApi(app: express.Express) {
   });
 
   // Invitations management (authenticated)
-  app.get('/invites', async (req, res) => {
+  app.get('/invites', async (req: express.Request, res: express.Response) => {
     const auth = requireAuth(req);
     if (!auth) return res.status(401).json({ error: 'unauthorized' });
     const list = await prisma.invite.findMany({ orderBy: { createdAt: 'desc' } });
     res.json(list);
   });
 
-  app.delete('/invites/:code', async (req, res) => {
+  app.delete('/invites/:code', async (req: express.Request, res: express.Response) => {
     const auth = requireAuth(req);
     if (!auth) return res.status(401).json({ error: 'unauthorized' });
     const code = req.params.code;
@@ -1030,7 +1068,7 @@ export function registerApi(app: express.Express) {
     }
   });
 
-  app.post('/livekit/token', async (req, res) => {
+  app.post('/livekit/token', async (req: express.Request, res: express.Response) => {
     const auth = requireAuth(req);
     if (!auth) return res.status(401).json({ error: 'unauthorized' });
     const schema = z.object({ roomName: z.string().min(1), identity: z.string().min(1), name: z.string().optional(), canPublish: z.boolean().optional(), canSubscribe: z.boolean().optional() });
@@ -1050,7 +1088,7 @@ export function registerApi(app: express.Express) {
   });
 
   // Single user lookup (authenticated)
-  app.get('/users/:id', async (req, res) => {
+  app.get('/users/:id', async (req: express.Request, res: express.Response) => {
     const auth = requireAuth(req);
     if (!auth) return res.status(401).json({ error: 'unauthorized' });
     const id = req.params.id;
@@ -1060,14 +1098,14 @@ export function registerApi(app: express.Express) {
   });
 
   // API Tokens management (session-authenticated)
-  app.get('/api-tokens', async (req, res) => {
+  app.get('/api-tokens', async (req: express.Request, res: express.Response) => {
     const auth = requireAuth(req);
     if (!auth) return res.status(401).json({ error: 'unauthorized' });
     const list = await prisma.apiToken.findMany({ where: { userId: auth.userId }, orderBy: { createdAt: 'desc' } });
-    res.json(list.map(t => ({ id: t.id, name: t.name, createdAt: t.createdAt, lastUsedAt: t.lastUsedAt })));
+    res.json(list.map((t: any) => ({ id: t.id, name: t.name, createdAt: t.createdAt, lastUsedAt: t.lastUsedAt })));
   });
 
-  app.post('/api-tokens', async (req, res) => {
+  app.post('/api-tokens', async (req: express.Request, res: express.Response) => {
     const auth = requireAuth(req);
     if (!auth) return res.status(401).json({ error: 'unauthorized' });
     const schema = z.object({ name: z.string().min(1).max(100).optional() });
@@ -1079,7 +1117,7 @@ export function registerApi(app: express.Express) {
     res.json({ id: rec.id, token: raw, name: rec.name, createdAt: rec.createdAt });
   });
 
-  app.delete('/api-tokens/:id', async (req, res) => {
+  app.delete('/api-tokens/:id', async (req: express.Request, res: express.Response) => {
     const auth = requireAuth(req);
     if (!auth) return res.status(401).json({ error: 'unauthorized' });
     const id = req.params.id;
@@ -1094,7 +1132,7 @@ export function registerApi(app: express.Express) {
   });
 
   // Remote controls (session or API token)
-  app.post('/controls', async (req, res) => {
+  app.post('/controls', async (req: express.Request, res: express.Response) => {
     const sessionAuth = requireAuth(req);
     const tokenAuth = await requireApiToken(req);
     const auth = sessionAuth || tokenAuth;
@@ -1162,7 +1200,7 @@ export function registerApi(app: express.Express) {
   });
 
   // Debug endpoint for Colyseus rooms
-  app.get('/debug/rooms', async (_req, res) => {
+  app.get('/debug/rooms', async (_req: express.Request, res: express.Response) => {
     const gameServer = (global as any).gameServer;
     if (!gameServer) return res.json({ error: 'Game server not initialized' });
     

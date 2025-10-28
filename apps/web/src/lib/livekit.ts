@@ -32,7 +32,7 @@ export async function joinLivekitRoom(params: {
   }
   const token = (await res.text()).trim();
   const room = new Room();
-  const serverUrl = normalizeLivekitUrl(import.meta.env.VITE_LIVEKIT_URL);
+  const serverUrl = normalizeLivekitUrl((import.meta as any).env?.VITE_LIVEKIT_URL);
   // Warten auf erste Nutzergeste, um AudioContext-Warnung beim Laden zu vermeiden
   const waitForUserGesture = async () => {
     try {
@@ -52,33 +52,37 @@ export async function joinLivekitRoom(params: {
   await waitForUserGesture();
   
   await room.connect(serverUrl, token, {
-    autoSubscribe: true,
-    // WICHTIG: Keine automatische AudioContext-Erstellung – erst nach User-Geste starten
-    // Lokale Tracks werden nicht automatisch erzeugt; Remote-Subscribe bleibt aktiv
+    autoSubscribe: false,
+    // Lokale Tracks werden nicht automatisch erzeugt; Remote-Subscribe erfolgt gezielt
     video: false,
     audio: false,
-    // Adaptive Stream aktivieren: LiveKit liefert nur sicht-/benötigte Layer
-    // @ts-ignore: SDK akzeptiert boolean oder Settings-Objekt
+    // Adaptive Stream: liefert nur benötigte Layer
+    // @ts-ignore
     adaptiveStream: true,
-    // Nutzt Simulcast effizienter (deaktiviert ungenutzte Layer)
+    // Simulcast/Dynacast für effiziente Layer-Nutzung
     // @ts-ignore
     dynacast: true,
-    // Publishing-Defaults (werden vom SDK teils ignoriert, dienen als Hint)
+    // Publishing-Defaults inkl. DTX für Sprache
     // @ts-ignore
     publishDefaults: {
-      // Kamera moderat, Screenshare hoch
+      // @ts-ignore
+      dtx: true,
+      // @ts-ignore
+      simulcast: true,
       // @ts-ignore
       videoEncoding: { maxBitrate: 1_200_000, maxFramerate: 30 },
       // @ts-ignore
       screenShareEncoding: { maxBitrate: 2_500_000, maxFramerate: 30 },
-      // @ts-ignore
-      simulcast: true,
     },
-    // Zusätzliche Bitraten-Hints (falls von Version unterstützt)
-    // @ts-ignore optional in SDK
-    maxAudioBitrate: 64_000,
-    // @ts-ignore optional in SDK
-    maxVideoBitrate: 2_000_000
+    // Audio-Capture Defaults (für Browser-Track-Erzeugung)
+    // @ts-ignore
+    audioCaptureDefaults: {
+      echoCancellation: true,
+      noiseSuppression: true,
+      autoGainControl: true,
+    },
+    // Optional für harte NATs (Feature-Flag-basiert aktivieren)
+    // rtcConfig: { iceTransportPolicy: 'relay' },
   } as any);
   // WICHTIG: keine lokalen Audio/Video-Tracks automatisch erstellen/publizieren.
   return room;

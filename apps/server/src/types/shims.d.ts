@@ -8,4 +8,12 @@ declare module 'unzipper' {
   export default mod;
 }
 
+declare module 'multer' {
+  const multer: any;
+  namespace multer {
+    export interface File { fieldname: string; originalname: string; mimetype: string; size: number; buffer?: Buffer; }
+  }
+  export default multer;
+}
+
 

@@ -29,6 +29,11 @@ services:
       - db_data:/var/lib/postgresql/data
     networks:
       - meetropolis-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   server:
     build:
@@ -58,7 +63,13 @@ services:
         max-size: "10m"
         max-file: "3"
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:2567/readyz"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
     volumes:
       - ./apps:/workspace/apps
       - ./package.json:/workspace/package.json:ro
@@ -106,7 +117,13 @@ services:
         max-size: "10m"
         max-file: "3"
     depends_on:
-      - server
+      server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:5173"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
     volumes:
       - ./apps:/workspace/apps
       - ./package.json:/workspace/package.json:ro
@@ -138,6 +155,11 @@ services:
       - "127.0.0.1:7890:7880"
       - "0.0.0.0:7881:7881/tcp"
       - "0.0.0.0:7882:7882/udp"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:7880/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
     logging:
       driver: "json-file"
       options:

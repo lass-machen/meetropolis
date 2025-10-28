@@ -18,6 +18,7 @@ const __dirname = path.dirname(__filename);
 import { WorldRoom } from './rooms/WorldRoom.js';
 import { registerApi } from './api.js';
 import { logger } from './logger.js';
+import { registry, metricsMiddleware } from './metrics.js';
 
 const app = express();
 const isProd = process.env.NODE_ENV === 'production';
@@ -28,11 +29,13 @@ const allowedOrigins = (process.env.CORS_ORIGIN || '')
 
 app.set('trust proxy', process.env.TRUST_PROXY === 'true' || isProd);
 
-app.use(helmet({ contentSecurityPolicy: false }));
-app.use(compression());
+app.use(helmet({ contentSecurityPolicy: false }) as any);
+app.use(compression() as any);
+// Prometheus HTTP-Metriken
+app.use(metricsMiddleware() as any);
 
 // CORS middleware with explicit OPTIONS handling
-app.use((req, res, next) => {
+app.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
   const origin = req.headers.origin as string;
   
   if (allowedOrigins.length > 0) {
@@ -59,9 +62,9 @@ app.use((req, res, next) => {
   }
 });
 
-app.use(cookieParser());
-app.use(express.json({ limit: '4mb' }));
-app.use(express.urlencoded({ extended: true, limit: '4mb' }));
+app.use(cookieParser() as any);
+app.use(express.json({ limit: '4mb' }) as any);
+app.use(express.urlencoded({ extended: true, limit: '4mb' }) as any);
 
 // Basic rate-limiting for sensitive endpoints
 const authLimiter = rateLimit({
@@ -78,15 +81,21 @@ const authLimiter = rateLimit({
   },
 });
 // Apply strict limiter only to sensitive auth write endpoints
-app.use([
+const limitedPaths = new Set<string>([
   '/auth/login',
   '/auth/register',
   '/auth/forgot',
   '/auth/reset',
   '/livekit/token',
-], authLimiter);
+]);
+app.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (limitedPaths.has(req.path)) {
+    return (authLimiter as unknown as express.RequestHandler)(req, res, next);
+  }
+  return next();
+});
 
-app.get('/', (_req, res) => res.send('ok'));
+app.get('/', (_req: express.Request, res: express.Response) => res.send('ok'));
 
 // Static serving for Asset Packs
 const packsDir = process.env.ASSET_PACKS_DIR || path.resolve(__dirname, '../../public/packs');
@@ -96,6 +105,16 @@ try {
 app.use('/packs', express.static(packsDir, { maxAge: '365d', immutable: true }));
 
 registerApi(app);
+
+// Expose Prometheus Metriken
+app.get('/metrics', async (_req, res) => {
+  try {
+    res.set('Content-Type', registry.contentType);
+    res.end(await registry.metrics());
+  } catch (e) {
+    res.status(500).send('metrics error');
+  }
+});
 
 const port = Number(process.env.PORT ?? 2567);
 const httpServer = createServer(app);
@@ -112,7 +131,7 @@ gameServer.define('world', WorldRoom as any);
 // Monitor can be enabled by installing @colyseus/monitor
 
 // Make gameServer available globally for debugging
-(global as any).gameServer = gameServer;
+(globalThis as any).gameServer = gameServer;
 
 httpServer.listen(port, '0.0.0.0', () => {
   logger.info(`Server listening on :${port}`);

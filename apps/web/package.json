@@ -13,6 +13,8 @@
   },
   "dependencies": {
     "@colyseus/schema": "^2.0.29",
+    "@sentry/browser": "^10.22.0",
+    "@sentry/tracing": "^7.120.4",
     "colyseus.js": "^0.15.15",
     "livekit-client": "^2.3.7",
     "phaser": "^3.90.0",

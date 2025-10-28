@@ -2,6 +2,7 @@ const SIMPLE = (import.meta as any).env?.VITE_AV_SIMPLE === 'true';
 const ALLOW_RECONNECT = (import.meta as any).env?.VITE_AV_RECONNECT !== 'false';
 import { Room, createLocalScreenTracks } from 'livekit-client';
 import { joinLivekitRoom } from '../lib/livekit';
+import { onBubbleMembersUpdate } from '../lib/avEvents';
 
 export type AVDevices = {
   microphones: { deviceId: string; label: string }[];
@@ -24,6 +25,9 @@ export class AVManager {
   private pendingCam = false;
   private reconnectAttempts = 0;
   private reconnectTimer: any = null;
+  private unsubscribeBus: (() => void) | null = null;
+  private lastProximityAt = 0;
+  private fallbackSubTimer: any = null;
   // Audio-Unlock State
   private audioUnlocked = false;
   private audioUnlockHandlersAttached = false;
@@ -114,6 +118,10 @@ export class AVManager {
     try { if (this.reconnectTimer) clearTimeout(this.reconnectTimer); } catch {}
     this.reconnectTimer = null;
     this.reconnectAttempts = 0;
+    try { this.unsubscribeBus?.(); } catch {}
+    this.unsubscribeBus = null;
+    try { if (this.fallbackSubTimer) clearInterval(this.fallbackSubTimer); } catch {}
+    this.fallbackSubTimer = null;
     this.current = undefined;
     this.currentName = null;
     setTimeout(() => { this.isDisconnecting = false; }, 50);
@@ -240,6 +248,60 @@ export class AVManager {
         this.scheduleReconnect();
       }
     })();
+
+    // Proximity-basierte Subscriptions: nur in Bubble (ids)
+    try { this.unsubscribeBus?.(); } catch {}
+    this.unsubscribeBus = onBubbleMembersUpdate((ids: string[]) => {
+      this.lastProximityAt = Date.now();
+      const room = this.current as any;
+      if (!room) return;
+      try {
+        const remoteParticipants: any[] = Array.from((room.remoteParticipants?.values?.() || []) as any);
+        const idSet = new Set(ids);
+        for (const p of remoteParticipants) {
+          const shouldSub = idSet.has(String(p.identity || ''));
+          const pubs: any[] = Array.from((p.trackPublications?.values?.() || []) as any);
+          for (const pub of pubs) {
+            const kind = (pub as any).kind ?? (pub.track as any)?.kind;
+            if (kind === 'audio') {
+              if (shouldSub) { try { pub.setSubscribed?.(true); } catch {} }
+              else { try { pub.setSubscribed?.(false); } catch {} }
+            }
+            if (kind === 'video') {
+              // Optional: Video nur für sehr nahe Teilnehmer
+              const near = shouldSub; // später: Distanzschwelle unterscheiden
+              if (near) { try { pub.setSubscribed?.(true); } catch {} }
+              else { try { pub.setSubscribed?.(false); } catch {} }
+            }
+          }
+        }
+      } catch {}
+    });
+
+    // Fallback: Wenn keine Proximity-Events eintreffen, abonniere bis zu N Audio-Tracks
+    try { if (this.fallbackSubTimer) clearInterval(this.fallbackSubTimer); } catch {}
+    const MAX_AUDIO = Math.max(1, Number((import.meta as any).env?.VITE_AV_MAX_AUDIO_SUBS || 6));
+    this.fallbackSubTimer = setInterval(() => {
+      const room: any = this.current as any;
+      if (!room) return;
+      const since = Date.now() - this.lastProximityAt;
+      if (since < 3000) return; // Proximity aktiv → kein Fallback nötig
+      try {
+        const parts: any[] = Array.from((room.remoteParticipants?.values?.() || []) as any);
+        const chosen = parts.slice(0, MAX_AUDIO);
+        for (const p of parts) {
+          const should = chosen.includes(p);
+          const pubs: any[] = Array.from((p.trackPublications?.values?.() || []) as any);
+          for (const pub of pubs) {
+            const kind = (pub as any).kind ?? (pub.track as any)?.kind;
+            if (kind === 'audio') {
+              if (should) { try { pub.setSubscribed?.(true); } catch {} }
+              else { try { pub.setSubscribed?.(false); } catch {} }
+            }
+          }
+        }
+      } catch {}
+    }, 1000);
   }
 
   private onConnectionQualityChanged(participant: any, quality: any) {
@@ -467,9 +529,9 @@ export class AVManager {
     this.pendingMic = false; // Clear pending flag when we have a room
     try {
       const pubs = Array.from(this.current.localParticipant.trackPublications.values());
-      const micPubs = pubs.filter(pub => {
-        const src = (pub as any).source ?? (pub.track as any)?.source;
-        const kind = (pub as any).kind ?? (pub.track as any)?.kind;
+      const micPubs = (pubs as any[]).filter((pub: any) => {
+        const src = (pub as any).source ?? (pub as any)?.track?.source;
+        const kind = (pub as any).kind ?? (pub as any)?.track?.kind;
         return src === 'microphone' || src === 0 || src === 2 || kind === 'audio';
       });
       if (enabled) {
@@ -504,9 +566,9 @@ export class AVManager {
     this.pendingCam = false; // Clear pending flag when we have a room
     try {
       const pubs = Array.from(this.current.localParticipant.trackPublications.values());
-      const camPubs = pubs.filter(pub => {
-        const src = (pub as any).source ?? (pub.track as any)?.source;
-        const kind = (pub as any).kind ?? (pub.track as any)?.kind;
+      const camPubs = (pubs as any[]).filter((pub: any) => {
+        const src = (pub as any).source ?? (pub as any)?.track?.source;
+        const kind = (pub as any).kind ?? (pub as any)?.track?.kind;
         return src === 'camera' || src === 1 || (kind === 'video' && src !== 'screen_share');
       });
       if (enabled) {

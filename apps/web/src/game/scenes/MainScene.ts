@@ -2196,6 +2196,15 @@ export class MainScene extends Phaser.Scene {
   }
   
   setBubbleMembers(members: Set<string>) {
+    try {
+      // Dynamischer Import, um Zirkularimporte zu vermeiden
+      (async () => {
+        try {
+          const mod: any = await import('../../lib/avEvents');
+          mod.emitBubbleMembers(Array.from(members));
+        } catch {}
+      })();
+    } catch {}
     // setBubbleMembers called
     
     // Clear existing bubble outlines

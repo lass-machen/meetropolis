@@ -1,6 +1,7 @@
 import type { Client } from 'colyseus';
 import Colyseus from 'colyseus';
 import { logger } from '../logger.js';
+import { colyseusRooms, colyseusPlayers } from '../metrics.js';
 import { Schema, type, MapSchema } from '@colyseus/schema';
 
 class Player extends Schema {
@@ -25,10 +26,18 @@ export class WorldRoom extends Colyseus.Room<WorldState> {
     this.setState(new WorldState());
     logger.info('[WorldRoom] Room created with initial state');
     activeRooms.add(this);
+    try { colyseusRooms.inc(); } catch {}
     
     // Make rooms accessible globally
     (global as any).activeWorldRooms = activeRooms;
+    const lastMove: Map<string, number> = new Map();
     this.onMessage('move', (client, data: { x: number; y: number; direction: string }) => {
+      const now = Date.now();
+      const prev = lastMove.get(client.sessionId) || 0;
+      if (now - prev < 80) {
+        return; // drosseln ~12.5 Hz
+      }
+      lastMove.set(client.sessionId, now);
       const player = this.state.players.get(client.sessionId);
       if (!player) {
         logger.warn('[WorldRoom] Move from unknown player:', client.sessionId);
@@ -96,6 +105,7 @@ export class WorldRoom extends Colyseus.Room<WorldState> {
     player.identity = options?.identity || client.sessionId; // Use provided identity or fallback
     player.name = options?.name || options?.identity || client.sessionId; // Use provided name or fallback
     this.state.players.set(client.sessionId, player);
+    try { colyseusPlayers.inc(); } catch {}
     logger.info('[WorldRoom] Player joined:', client.sessionId, 'identity:', player.identity, 'name:', player.name, 'at', player.x, player.y);
     logger.debug('[WorldRoom] Current players:', this.state.players.size);
     
@@ -135,6 +145,7 @@ export class WorldRoom extends Colyseus.Room<WorldState> {
 
   override onLeave(client: Client) {
     this.state.players.delete(client.sessionId);
+    try { colyseusPlayers.dec(); } catch {}
     logger.info('[WorldRoom] Player left:', client.sessionId);
     
     // Broadcast player left to all other clients
@@ -145,6 +156,7 @@ export class WorldRoom extends Colyseus.Room<WorldState> {
   
   override onDispose() {
     activeRooms.delete(this);
+    try { colyseusRooms.dec(); } catch {}
     logger.info('[WorldRoom] Room disposed');
   }
 }

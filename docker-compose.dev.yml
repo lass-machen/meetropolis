@@ -49,7 +49,7 @@ services:
       # Stabilisiere Tokens in Dev: gleicher Pepper/Secret über Neustarts
       API_TOKEN_PEPPER: dev-pepper-change-me
       JWT_SECRET: dev-jwt-secret-change-me
-    command: sh -c "cd /workspace && npm install && npm -w @meetropolis/server run dev"
+    command: sh -c "cd /workspace/apps/server && npm install && npm run dev"
     ports:
       - "2567:2567"
     logging:
@@ -60,6 +60,11 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:2567/readyz',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))\" "]
+      interval: 15s
+      timeout: 5s
+      retries: 5
     networks:
       - meetropolis-dev
     volumes:
@@ -78,7 +83,7 @@ services:
       VITE_DEBUG_LOGS: "true"
       # Proxy-Ziel im Container: spreche den Server-Dienst direkt an
       VITE_PROXY_TARGET: http://server:2567
-    command: sh -c "cd /workspace && npm install && npm -w @meetropolis/web run dev -- --host 0.0.0.0"
+    command: sh -c "npm install -w @meetropolis/web && npm -w @meetropolis/web run dev -- --host 0.0.0.0"
     ports:
       - "5174:5173"
     logging:
@@ -88,6 +93,11 @@ services:
         max-file: "3"
     depends_on:
       - server
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:5173',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))\" "]
+      interval: 15s
+      timeout: 5s
+      retries: 5
     networks:
       - meetropolis-dev
     volumes:
@@ -106,10 +116,13 @@ services:
       LK_RTC_USE_EXTERNAL_IP: "true"
       LK_RTC_TCP_PORT: 7881
       LK_RTC_UDP_PORT: 7882
+      LK_PROMETHEUS_PORT: 9090
     ports:
       - "7880:7880"
       - "7881:7881/tcp"
       - "7882:7882/udp"
+      - "9090:9090"
+    # healthcheck optional (Image-Tools variieren); kann bei Bedarf ergänzt werden
     logging:
       driver: "json-file"
       options:
@@ -117,3 +130,60 @@ services:
         max-file: "3"
     networks:
       - meetropolis-dev
+
+  grafana:
+    image: grafana/grafana:10.4.10
+    container_name: meetropolis-grafana-dev
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    networks:
+      - meetropolis-dev
+    depends_on:
+      - server
+      - livekit
+
+  prometheus:
+    image: prom/prometheus:v2.52.0
+    container_name: meetropolis-prometheus-dev
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    command: ["--config.file=/etc/prometheus/prometheus.yml"]
+    ports:
+      - "9095:9090"
+    networks:
+      - meetropolis-dev
+    depends_on:
+      - server
+      - livekit
+
+  loadtest:
+    build:
+      context: .
+      dockerfile: apps/loadtest/Dockerfile
+    container_name: meetropolis-loadtest
+    environment:
+      - API_BASE=http://server:2567
+      - LIVEKIT_URL=ws://livekit:7880
+      - LIVEKIT_API_KEY=devkey
+      - LIVEKIT_API_SECRET=secret
+      - USERS=30
+      - RAMP=5
+      - DURATION=90
+      - MODE=node
+    networks:
+      - meetropolis-dev
+    depends_on:
+      server:
+        condition: service_healthy
+      livekit:
+        condition: service_started
+    command:
+      - sh
+      - -lc
+      - >-
+        until node -e "require('http').get('http://server:2567/readyz',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"; do
+          echo waiting for server...; sleep 2;
+        done;
+        npm run dev
