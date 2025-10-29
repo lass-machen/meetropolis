@@ -1,20 +1,79 @@
 import * as Colyseus from 'colyseus.js';
 
+type Zone = { id: string; name: string; polygon: Array<{ x: number; y: number }> };
+
+function centroid(points: Array<{ x: number; y: number }>): { x: number; y: number } {
+  if (!points || points.length === 0) return { x: 0, y: 0 };
+  let sx = 0, sy = 0;
+  for (const p of points) { sx += p.x; sy += p.y; }
+  return { x: Math.round(sx / points.length), y: Math.round(sy / points.length) };
+}
+
 export async function spawnColyseusBot(opts: { apiBase: string; identity: string }) {
   const client = new Colyseus.Client(opts.apiBase.replace('http', 'ws'));
   const room = await client.joinOrCreate('world', { identity: opts.identity, name: opts.identity });
-  // Simple movement loop
+
+  // Lade Zonen und baue Wegpunkte (Zentroiden)
+  let waypoints: Array<{ x: number; y: number }> = [];
+  try {
+    const mapsRes = await fetch(`${opts.apiBase.replace('ws', 'http')}/maps`, { method: 'GET' });
+    if (mapsRes.ok) {
+      const maps = await mapsRes.json();
+      const office = Array.isArray(maps) ? maps.find((m: any) => (m?.name || '').toLowerCase() === 'office') || maps[0] : null;
+      const zones: Zone[] = Array.isArray(office?.zones) ? office.zones : [];
+      const cs = zones
+        .map((z) => Array.isArray((z as any)?.polygon) ? centroid((z as any).polygon) : null)
+        .filter((c): c is { x: number; y: number } => !!c);
+      if (cs.length > 0) waypoints = cs;
+    }
+  } catch {}
+  // Fallback Kreisbewegung, falls keine Zonen vorhanden
+  if (waypoints.length === 0) {
+    waypoints = [
+      { x: 80, y: 80 },
+      { x: 160, y: 80 },
+      { x: 160, y: 160 },
+      { x: 80, y: 160 },
+    ];
+  }
+
+  // Zufällige Reihenfolge pro Bot
+  waypoints = [...waypoints].sort(() => Math.random() - 0.5);
+
   let alive = true;
-  let t = 0;
+  let idx = 0;
+  let pos = { x: waypoints[0].x, y: waypoints[0].y };
+  const speed = 40; // Pixel pro Sekunde
+  let lastTs = Date.now();
+
   (async () => {
+    // initiale Position
+    try { room.send('move', { x: pos.x, y: pos.y, direction: 'down' }); } catch {}
     while (alive) {
-      t += 0.25;
-      const x = 100 + Math.round(Math.sin(t) * 50);
-      const y = 100 + Math.round(Math.cos(t) * 50);
-      try { room.send('move', { x, y, direction: 'down' }); } catch {}
-      await new Promise((r) => setTimeout(r, 500));
+      const now = Date.now();
+      const dt = Math.max(1, now - lastTs) / 1000;
+      lastTs = now;
+      const target = waypoints[idx % waypoints.length];
+      const dx = target.x - pos.x;
+      const dy = target.y - pos.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist < 3) {
+        // kurze Verweilzeit in Zone, dann nächster Waypoint
+        idx++;
+        await new Promise((r) => setTimeout(r, 500 + Math.floor(Math.random() * 800)));
+        continue;
+      }
+      const step = Math.min(dist, speed * dt);
+      if (dist > 0) {
+        pos = { x: Math.round(pos.x + (dx / dist) * step), y: Math.round(pos.y + (dy / dist) * step) };
+      }
+      // Richtung approximieren
+      const dir = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up');
+      try { room.send('move', { x: pos.x, y: pos.y, direction: dir }); } catch {}
+      await new Promise((r) => setTimeout(r, 150));
     }
   })();
+
   return {
     async stop() {
       alive = false;

@@ -54,24 +54,39 @@ export class BootScene extends Phaser.Scene {
 
     // v2 Boot: prefetch state-v2; bei 404 fallback zu TMJ
     (async () => {
-      const state = await fetchStateV2('office');
-      if (!state) {
-        // Fallback: lade TMJ und nutze v1-Pfad
-        try {
-          this.load.once('complete', () => this.scene.start('Main'));
-          this.load.tilemapTiledJSON('office', '/maps/office.json');
-          this.load.start();
-          return;
-        } catch {}
-        this.scene.start('Main');
+      let useV2 = false;
+      try {
+        const state = await fetchStateV2('office');
+        const metaOk = !!(state && state.mapMeta && state.mapMeta.width && state.mapMeta.height && state.mapMeta.tileWidth && state.mapMeta.tileHeight);
+        if (metaOk) {
+          // Tileset-Images für Registry laden (Schlüssel = key)
+          await preloadTilesetImages(this, state!.tilesetRegistry);
+          (window as any).__v2_state = state;
+          useV2 = true;
+        }
+      } catch {
+        useV2 = false;
+      }
+
+      if (!useV2) {
+        // Fallback: TMJ laden, dann Main starten, damit map key 'office' existiert
+        this.load.once('complete', () => this.scene.start('Main'));
+        this.load.tilemapTiledJSON('office', '/maps/office.json');
+        this.load.start();
         return;
       }
-      // Tileset-Images für Registry laden (Schlüssel = key)
-      await preloadTilesetImages(this, state.tilesetRegistry);
-      // Markiere im Registry‑Cache (global) für MainScene
-      (window as any).__v2_state = state;
+
       this.scene.start('Main');
-    })().catch(() => this.scene.start('Main'));
+    })().catch(() => {
+      // Hard fallback
+      try {
+        this.load.once('complete', () => this.scene.start('Main'));
+        this.load.tilemapTiledJSON('office', '/maps/office.json');
+        this.load.start();
+      } catch {
+        this.scene.start('Main');
+      }
+    });
   }
 }
 

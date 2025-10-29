@@ -111,8 +111,34 @@ export class AVManager {
   }
 
   async leave() {
+    // Merke aktuellen Track-Status, um ihn nach Rejoin wieder zu aktivieren
+    let wasMicOn = false;
+    let wasCamOn = false;
+    try {
+      const r = this.current;
+      if (r) {
+        const pubs = Array.from(r.localParticipant.trackPublications.values());
+        for (const pub of pubs) {
+          const src = (pub as any).source ?? (pub as any)?.track?.source;
+          const kind = (pub as any).kind ?? (pub as any)?.track?.kind;
+          const isMic = src === 'microphone' || src === 0 || kind === 'audio';
+          const isCam = src === 'camera' || src === 1 || (kind === 'video' && src !== 'screen_share');
+          if (isMic && (pub as any).track) wasMicOn = true;
+          if (isCam && (pub as any).track) wasCamOn = true;
+        }
+      }
+    } catch {}
+
     if (this.current) {
       this.isDisconnecting = true;
+      try {
+        // Unpublish & stop lokale Tracks vor Disconnect, um sauberen Zustand zu garantieren
+        const pubs = Array.from(this.current.localParticipant.trackPublications.values());
+        for (const pub of pubs) {
+          try { await this.current.localParticipant.unpublishTrack(pub.track!); } catch {}
+          try { (pub.track as any)?.stop?.(); } catch {}
+        }
+      } catch {}
       try { await this.current.disconnect(); } catch {}
     }
     try { if (this.reconnectTimer) clearTimeout(this.reconnectTimer); } catch {}
@@ -125,6 +151,10 @@ export class AVManager {
     this.current = undefined;
     this.currentName = null;
     setTimeout(() => { this.isDisconnecting = false; }, 50);
+
+    // Setze Pending-Flags, damit sie nach Rejoin automatisch aktiviert werden
+    if (wasMicOn) this.pendingMic = true;
+    if (wasCamOn) this.pendingCam = true;
   }
 
   get activeRoom(): string | null {
@@ -521,7 +551,9 @@ export class AVManager {
   }
 
   async setMicrophoneEnabled(enabled: boolean): Promise<void> {
-    if (!this.current) {
+    // Wenn kein Room oder nicht verbunden → als pending setzen und Berechtigungen anfragen
+    const notConnected = !this.current || !this.isConnected;
+    if (notConnected) {
       this.pendingMic = enabled;
       if (enabled) await this.ensurePermissions(true, false);
       return;
@@ -558,7 +590,8 @@ export class AVManager {
   }
 
   async setCameraEnabled(enabled: boolean): Promise<void> {
-    if (!this.current) {
+    const notConnected = !this.current || !this.isConnected;
+    if (notConnected) {
       this.pendingCam = enabled;
       if (enabled) await this.ensurePermissions(false, true);
       return;
