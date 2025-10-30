@@ -53,7 +53,12 @@ app.use((req: express.Request, res: express.Response, next: express.NextFunction
   // We only set '*' when there's no origin and rely on proxies to strip credentials in that case.
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  // Allow requested headers dynamically, fallback to known list including custom correlation headers
+  const reqHeaders = (req.headers['access-control-request-headers'] as string | undefined)?.toString();
+  const allowed = reqHeaders && reqHeaders.length > 0
+    ? reqHeaders
+    : 'Origin, X-Requested-With, Content-Type, Accept, Authorization, x-correlation-id, x-av-identity, x-av-room';
+  res.setHeader('Access-Control-Allow-Headers', allowed);
   
   if (req.method === 'OPTIONS') {
     res.sendStatus(200);
