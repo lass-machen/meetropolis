@@ -46,6 +46,7 @@ export class MainScene extends Phaser.Scene {
   private v2?: { state: V2State; firstGids: number[]; chunkSize: number };
   private loadedChunks: Set<string> = new Set();
   private heroVsTilesCollider?: Phaser.Physics.Arcade.Collider;
+  private currentMapName: string = (typeof window !== 'undefined' && (((window as any).__map_name) || (window as any).MAP_NAME)) || 'office';
 
   constructor() {
     super('Main');
@@ -371,7 +372,7 @@ export class MainScene extends Phaser.Scene {
       (this.hero.body as Phaser.Physics.Arcade.Body).offset.set(map.tileWidth * 0.1, map.tileHeight * 0.1);
     } catch {}
     this.hero.setDepth(10);
-    if (staticColliders) this.physics.add.collider(this.hero, staticColliders);
+    // Vermeide Doppel-Kollision: kein zusätzlicher Collider gegen statische Bodies
     // Ensure tilemap collision collider
     this.ensureCollisionCollider();
     
@@ -1542,6 +1543,13 @@ export class MainScene extends Phaser.Scene {
         }
       }
     }
+    // Forciere Re-Render des Layers (best effort)
+    try { ((targetLayer as any).layer || targetLayer)["dirty"] = true; } catch {}
+    try {
+      const a = targetLayer.alpha;
+      targetLayer.setAlpha(a === 1 ? 0.999 : 1);
+      setTimeout(() => { try { targetLayer.setAlpha(1); } catch {} }, 0);
+    } catch {}
     // Collision-Physik neu aufbauen und Overlay anzeigen
     if (targetLayer === this.collisionLayer) {
       // Update tilemap collider
@@ -1627,7 +1635,7 @@ export class MainScene extends Phaser.Scene {
       // Server payload ready
       if (jsonStr.length < 100000) {
         // Saving to server
-        fetch(`${base}/maps/office/editor-state`, {
+        fetch(`${base}/maps/${encodeURIComponent(this.currentMapName)}/editor-state`, {
           method: 'PUT',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
@@ -1717,7 +1725,7 @@ export class MainScene extends Phaser.Scene {
   async fetchAndApplyServerLayers() {
     try {
       const base = (window as any).VITE_API_BASE || import.meta.env.VITE_API_BASE || `${window.location.protocol}//${window.location.hostname}:2567`;
-      const res = await fetch(`${base}/maps/office/editor-state`, { credentials: 'include' });
+      const res = await fetch(`${base}/maps/${encodeURIComponent(this.currentMapName)}/editor-state`, { credentials: 'include' });
       if (!res.ok) {
         return;
       }
@@ -1893,8 +1901,7 @@ export class MainScene extends Phaser.Scene {
           }
         }
       }
-      // Hero-Kollision neu verbinden
-      if (this.hero && this.staticColliders) this.physics.add.collider(this.hero, this.staticColliders);
+      // Keine Hero-zu-Static-Kollision registrieren (nur Tilemap-Collider nutzen)
     } catch {}
   }
 

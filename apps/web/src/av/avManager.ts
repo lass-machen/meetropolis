@@ -30,6 +30,7 @@ export class AVManager {
   private unsubscribeBus: (() => void) | null = null;
   private lastProximityAt = 0;
   private fallbackSubTimer: any = null;
+  private lastFallbackChosenKey: string | null = null;
   // Audio-Unlock State
   private audioUnlocked = false;
   private audioUnlockHandlersAttached = false;
@@ -39,6 +40,15 @@ export class AVManager {
   private qualityCooldownUntil = 0;
   private avState: 'idle' | 'connecting' | 'connected' | 'publishing' | 'subscribed' | 'error' | 'reconnecting' | 'closed' = 'idle';
   private sharePending = false;
+  private remoteQualityTuningDisabled = false;
+  private lastMicDesired = false;
+  private lastCamDesired = false;
+  private lastApplyDefaultRemoteQualityAt = 0;
+  // Debounce/Dedupe für Bubble-Updates
+  private desiredIds: string[] = [];
+  private bubbleDebounceTimer: any = null;
+  private lastDesiredIdsKey: string | null = null;
+  private lastDesiredSubs = new Map<string, boolean>();
 
   constructor(opts: { baseUrl: string; identity: string; displayName?: string; useVideo: boolean }) {
     this.baseUrl = opts.baseUrl;
@@ -64,6 +74,20 @@ export class AVManager {
         }, true);
       }
     } catch {}
+
+    // Netzereignisse: bei Offline/Online automatisch State setzen & Rejoin versuchen
+    try {
+      window.addEventListener('offline', () => {
+        try { this.setState('reconnecting'); } catch {}
+      });
+      window.addEventListener('online', () => {
+        try {
+          if (this.currentName && !this.isRoomConnected()) {
+            void this.switchTo(this.currentName).catch(() => {});
+          }
+        } catch {}
+      });
+    } catch {}
   }
 
   private setState(next: typeof this.avState) {
@@ -78,6 +102,33 @@ export class AVManager {
     if (!room) return false;
     const state = room.connectionState || room.state;
     return state === 'connected' || state === 2;
+  }
+
+  private isSignalOpen(): boolean {
+    try {
+      const ws: any = (this.current as any)?.engine?.signalClient?.ws;
+      if (ws && typeof ws.readyState === 'number') return ws.readyState === 1; // OPEN
+    } catch {}
+    // Fallback auf Verbindungszustand
+    return this.isRoomConnected();
+  }
+
+  private getSubscribed(pub: any): boolean {
+    try {
+      if (typeof pub?.isSubscribed === 'boolean') return pub.isSubscribed;
+      if (typeof pub?.subscribed === 'boolean') return pub.subscribed;
+      // Heuristik: wenn Track existiert, ist meist subscribed
+      return !!(pub?.track);
+    } catch { return false; }
+  }
+
+  private ensureSubscribed(pub: any, should: boolean): void {
+    try {
+      const current = this.getSubscribed(pub);
+      if (current === should) return;
+      if (!this.isSignalOpen()) return;
+      pub.setSubscribed?.(should);
+    } catch {}
   }
 
   get isConnected(): boolean {
@@ -267,12 +318,14 @@ export class AVManager {
           room.off?.(RoomEvent.Disconnected, () => {});
           room.on?.(RoomEvent.Reconnected, () => { this.reconnectAttempts = 0; try { avLog('info', 'livekit.reconnected', {}, { identity: this.identity, roomName: this.currentName || undefined as any }); } catch {} });
           room.on?.(RoomEvent.Disconnected, () => { try { avLog('warn', 'livekit.disconnected', {}, { identity: this.identity, roomName: this.currentName || undefined as any }); } catch {}; this.setState('reconnecting'); if (ALLOW_RECONNECT && !this.isDisconnecting) this.scheduleReconnect(); });
+          // Nach erfolgreichem Reconnect gewünschte Tracks wiederherstellen
+          room.on?.(RoomEvent.Reconnected, () => { void this.restoreDesiredTracks(); });
           // Auf neue/aktualisierte Tracks reagieren (Remote-Video-Qualität standardmäßig drosseln)
           try {
             room.off?.(RoomEvent.TrackPublished, (() => {}) as any);
             room.off?.(RoomEvent.TrackSubscribed, (() => {}) as any);
-            room.on?.(RoomEvent.TrackPublished, () => { try { avLog('debug', 'livekit.track_published', {}, { identity: this.identity, roomName: this.currentName || undefined as any }); this.applyDefaultRemoteQuality(); } catch {} });
-            room.on?.(RoomEvent.TrackSubscribed, () => { try { avLog('debug', 'livekit.track_subscribed', {}, { identity: this.identity, roomName: this.currentName || undefined as any }); this.applyDefaultRemoteQuality(); this.setState('subscribed'); } catch {} });
+            room.on?.(RoomEvent.TrackPublished, () => { try { avLog('debug', 'livekit.track_published', {}, { identity: this.identity, roomName: this.currentName || undefined as any }); if (!this.remoteQualityTuningDisabled) this.applyDefaultRemoteQuality(); } catch {} });
+            room.on?.(RoomEvent.TrackSubscribed, () => { try { avLog('debug', 'livekit.track_subscribed', {}, { identity: this.identity, roomName: this.currentName || undefined as any }); if (!this.remoteQualityTuningDisabled) this.applyDefaultRemoteQuality(); this.setState('subscribed'); } catch {} });
           } catch {}
           // Verbindungsgüte beobachten → Kameraqualität dynamisch anpassen
           try {
@@ -298,14 +351,14 @@ export class AVManager {
           const r: any = room as any;
           r.off?.('reconnected', () => {});
           r.off?.('disconnected', () => {});
-          r.on?.('reconnected', () => { this.reconnectAttempts = 0; try { avLog('info', 'livekit.reconnected', {}, { identity: this.identity, roomName: this.currentName || undefined as any }); } catch {} });
+          r.on?.('reconnected', () => { this.reconnectAttempts = 0; try { avLog('info', 'livekit.reconnected', {}, { identity: this.identity, roomName: this.currentName || undefined as any }); } catch {}; void this.restoreDesiredTracks(); });
           r.on?.('disconnected', () => { try { avLog('warn', 'livekit.disconnected', {}, { identity: this.identity, roomName: this.currentName || undefined as any }); } catch {}; this.setState('reconnecting'); if (ALLOW_RECONNECT && !this.isDisconnecting) this.scheduleReconnect(); });
           // Fallback: Track-Events
           try {
             r.off?.('trackPublished', () => {});
             r.off?.('trackSubscribed', () => {});
-            r.on?.('trackPublished', () => { try { avLog('debug', 'livekit.track_published', {}, { identity: this.identity, roomName: this.currentName || undefined as any }); this.applyDefaultRemoteQuality(); } catch {} });
-            r.on?.('trackSubscribed', () => { try { avLog('debug', 'livekit.track_subscribed', {}, { identity: this.identity, roomName: this.currentName || undefined as any }); this.applyDefaultRemoteQuality(); this.setState('subscribed'); } catch {} });
+            r.on?.('trackPublished', () => { try { avLog('debug', 'livekit.track_published', {}, { identity: this.identity, roomName: this.currentName || undefined as any }); if (!this.remoteQualityTuningDisabled) this.applyDefaultRemoteQuality(); } catch {} });
+            r.on?.('trackSubscribed', () => { try { avLog('debug', 'livekit.track_subscribed', {}, { identity: this.identity, roomName: this.currentName || undefined as any }); if (!this.remoteQualityTuningDisabled) this.applyDefaultRemoteQuality(); this.setState('subscribed'); } catch {} });
           } catch {}
           // Fallback: Verbindungsgüte
           try {
@@ -337,32 +390,7 @@ export class AVManager {
     try { this.unsubscribeBus?.(); } catch {}
     this.unsubscribeBus = onBubbleMembersUpdate((ids: string[]) => {
       this.lastProximityAt = Date.now();
-      const room = this.current as any;
-      if (!room) return;
-      // Nur arbeiten, wenn die Signalisierung verbunden ist
-      const st = room.connectionState || room.state;
-      if (!(st === 'connected' || st === 2)) return;
-      try {
-        const remoteParticipants: any[] = Array.from((room.remoteParticipants?.values?.() || []) as any);
-        const idSet = new Set(ids);
-        for (const p of remoteParticipants) {
-          const shouldSub = idSet.has(String(p.identity || ''));
-          const pubs: any[] = Array.from((p.trackPublications?.values?.() || []) as any);
-          for (const pub of pubs) {
-            const kind = (pub as any).kind ?? (pub.track as any)?.kind;
-            if (kind === 'audio') {
-              if (shouldSub) { try { pub.setSubscribed?.(true); } catch {} }
-              else { try { pub.setSubscribed?.(false); } catch {} }
-            }
-            if (kind === 'video') {
-              // Optional: Video nur für sehr nahe Teilnehmer
-              const near = shouldSub; // später: Distanzschwelle unterscheiden
-              if (near) { try { pub.setSubscribed?.(true); } catch {} }
-              else { try { pub.setSubscribed?.(false); } catch {} }
-            }
-          }
-        }
-      } catch {}
+      this.handleDesiredIdsUpdate(ids);
     });
 
     // Fallback: Wenn keine Proximity-Events eintreffen, abonniere bis zu N Audio-Tracks
@@ -373,25 +401,78 @@ export class AVManager {
       if (!room) return;
       // Nur arbeiten, wenn verbunden
       const st = room.connectionState || room.state;
-      if (!(st === 'connected' || st === 2)) return;
+      if (!(st === 'connected' || st === 2) || !this.isSignalOpen()) return;
       const since = Date.now() - this.lastProximityAt;
       if (since < 3000) return; // Proximity aktiv → kein Fallback nötig
       try {
         const parts: any[] = Array.from((room.remoteParticipants?.values?.() || []) as any);
         const chosen = parts.slice(0, MAX_AUDIO);
+        const key = JSON.stringify(chosen.map((p: any) => String(p.identity || '')).sort());
+        if (key === this.lastFallbackChosenKey) return;
+        this.lastFallbackChosenKey = key;
         for (const p of parts) {
           const should = chosen.includes(p);
+          const identity = String(p.identity || '');
           const pubs: any[] = Array.from((p.trackPublications?.values?.() || []) as any);
           for (const pub of pubs) {
             const kind = (pub as any).kind ?? (pub.track as any)?.kind;
-            if (kind === 'audio') {
-              if (should) { try { pub.setSubscribed?.(true); } catch {} }
-              else { try { pub.setSubscribed?.(false); } catch {} }
-            }
+            if (kind === 'audio') this.setDesired(pub, identity, 'audio', !!should);
           }
         }
       } catch {}
-    }, 1000);
+    }, 4000);
+  }
+
+  private handleDesiredIdsUpdate(ids: string[]): void {
+    try {
+      const normalized = Array.from(new Set(ids.map(id => String(id || '')))).sort();
+      const a = JSON.stringify(normalized);
+      const b = JSON.stringify(Array.from(new Set(this.desiredIds)).sort());
+      if (a === b) return;
+      this.desiredIds = normalized;
+      try { if (this.bubbleDebounceTimer) clearTimeout(this.bubbleDebounceTimer); } catch {}
+      this.bubbleDebounceTimer = setTimeout(() => {
+        this.bubbleDebounceTimer = null;
+        this.applyDesiredSubscriptions();
+      }, 200);
+    } catch {}
+  }
+
+  private applyDesiredSubscriptions(): void {
+    const room: any = this.current as any;
+    if (!room) return;
+    const st = room.connectionState || room.state;
+    if (!(st === 'connected' || st === 2) || !this.isSignalOpen()) return;
+    const key = JSON.stringify(this.desiredIds);
+    if (key === this.lastDesiredIdsKey) return;
+    this.lastDesiredIdsKey = key;
+    try {
+      const desiredSet = new Set(this.desiredIds.map(id => String(id)));
+      const remoteParticipants: any[] = Array.from((room.remoteParticipants?.values?.() || []) as any);
+      for (const p of remoteParticipants) {
+        const identity = String(p.identity || '');
+        const shouldSub = desiredSet.has(identity);
+        const pubs: any[] = Array.from((p.trackPublications?.values?.() || []) as any);
+        for (const pub of pubs) {
+          const kind = (pub as any).kind ?? (pub.track as any)?.kind;
+          if (kind === 'audio') this.setDesired(pub, identity, 'audio', !!shouldSub);
+          if (kind === 'video') {
+            const near = shouldSub;
+            this.setDesired(pub, identity, 'video', !!near);
+          }
+        }
+      }
+    } catch {}
+  }
+
+  private setDesired(pub: any, identity: string, kind: 'audio'|'video', should: boolean): void {
+    try {
+      const key = `${identity}:${kind}`;
+      const prev = this.lastDesiredSubs.get(key);
+      if (prev === should) return;
+      this.lastDesiredSubs.set(key, should);
+      this.ensureSubscribed(pub, should);
+    } catch {}
   }
 
   private startStatsLoop() {
@@ -564,10 +645,23 @@ export class AVManager {
     }
   }
 
+  private async restoreDesiredTracks(): Promise<void> {
+    try {
+      if (!this.current) return;
+      // Warte kurz, bis connection vollständig stabil ist
+      await this.waitForConnected(this.current as any).catch(() => {});
+      if (this.lastMicDesired) { try { await this.setMicrophoneEnabled(true); } catch {} }
+      if (this.lastCamDesired) { try { await this.setCameraEnabled(true); } catch {} }
+    } catch {}
+  }
+
   private async applyDefaultRemoteQuality(): Promise<void> {
     const room: any = this.current as any;
     if (!room) return;
     try {
+      const now = Date.now();
+      if (now - this.lastApplyDefaultRemoteQualityAt < 5000) return;
+      this.lastApplyDefaultRemoteQualityAt = now;
       const mod = await import('livekit-client');
       const VideoQuality = (mod as any).VideoQuality || { Low: 0, Medium: 1, High: 2 };
       // Robust Mapping: stelle sicher, dass wir eine numerische Enum verwenden
@@ -590,12 +684,16 @@ export class AVManager {
           const kind = (pub as any).kind ?? (pub.track as any)?.kind;
           const src = (pub as any).source ?? (pub.track as any)?.source;
           if (kind === 'video' && src !== 'screen_share') {
-            try { (pub as any).setVideoQuality?.(Q_MED); } catch {}
+            // Verwende nur die bevorzugte Videoqualität API, vermeide setVideoQuality (kompat/enum issues)
             try { (pub as any).setPreferredVideoQuality?.(Q_MED); } catch {}
           }
         }
       }
-    } catch {}
+    } catch (e: any) {
+      // Deaktiviere weitere Tuning-Versuche, wenn das Backend Formatfehler meldet
+      this.remoteQualityTuningDisabled = true;
+      try { avLog('warn', 'av.remote_quality.disabled', { reason: e?.message || String(e) }, { identity: this.identity, roomName: this.currentName || undefined as any }); } catch {}
+    }
   }
 
   private attachAudioUnlockHandlers() {
@@ -745,6 +843,7 @@ export class AVManager {
   }
 
   async setMicrophoneEnabled(enabled: boolean): Promise<void> {
+    this.lastMicDesired = !!enabled;
     // Wenn kein Room oder nicht verbunden → als pending setzen und Berechtigungen anfragen
     const notConnected = !this.current || !this.isConnected;
     if (notConnected) {
@@ -784,6 +883,7 @@ export class AVManager {
   }
 
   async setCameraEnabled(enabled: boolean): Promise<void> {
+    this.lastCamDesired = !!enabled;
     const notConnected = !this.current || !this.isConnected;
     if (notConnected) {
       this.pendingCam = enabled;

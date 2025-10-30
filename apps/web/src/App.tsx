@@ -81,11 +81,50 @@ export function App() {
   const [uiParticipants, setUiParticipants] = React.useState<{ sid: string; identity: string; hasVideo: boolean; hasMic: boolean; isSpeaking: boolean; media: 'camera' | 'screen'; volume?: number }[]>([]);
   const participantVolumesRef = useRef<Record<string, number>>({});
   const dndRef = useRef<boolean>(false);
+  const prevAvBeforeDndRef = React.useRef<{ mic: boolean; cam: boolean } | null>(null);
   const [cameraManual, setCameraManual] = React.useState(false);
   React.useEffect(() => {
     const handler = (active: boolean) => setCameraManual(!!active);
     try { (gameBridge as any).onCameraManualChange = handler; } catch {}
     return () => { try { (gameBridge as any).onCameraManualChange = () => {}; } catch {} };
+  }, []);
+
+  // Intercept DND toggles to resume AV after DND is turned off
+  React.useEffect(() => {
+    const gb: any = gameBridge as any;
+    const originalSetDnd = gb.setDoNotDisturb;
+    if (typeof originalSetDnd !== 'function') return;
+    gb.setDoNotDisturb = (enabled: boolean) => {
+      try { originalSetDnd?.(!!enabled); } catch {}
+      dndRef.current = !!enabled;
+      if (enabled) {
+        // Capture current AV publish state to restore later
+        try {
+          const room: any = avRef.current?.room as any;
+          let hasMic = false, hasCam = false;
+          const pubs = Array.from(room?.localParticipant?.trackPublications?.values?.() || []);
+          for (const pub of pubs) {
+            const src = (pub as any)?.source ?? (pub as any)?.track?.source;
+            const kind = (pub as any)?.kind ?? (pub as any)?.track?.kind;
+            if ((kind === 'audio' || src === 'microphone' || src === 0) && (pub as any)?.track) hasMic = true;
+            if (((kind === 'video' && src !== 'screen_share') || src === 'camera' || src === 1) && (pub as any)?.track) hasCam = true;
+          }
+          prevAvBeforeDndRef.current = { mic: hasMic, cam: hasCam };
+        } catch {
+          prevAvBeforeDndRef.current = prevAvBeforeDndRef.current || { mic: false, cam: false };
+        }
+      } else {
+        // Resume audio playback (autoplay policies) and restore previous mic/cam
+        try { (avRef.current?.room as any)?.startAudio?.(); } catch {}
+        const prev = prevAvBeforeDndRef.current;
+        prevAvBeforeDndRef.current = null;
+        if (prev) {
+          try { if (prev.mic) void avRef.current?.setMicrophoneEnabled(true); } catch {}
+          try { if (prev.cam) void avRef.current?.setCameraEnabled(true); } catch {}
+        }
+      }
+    };
+    return () => { try { gb.setDoNotDisturb = originalSetDnd; } catch {} };
   }, []);
   // Auth state
   const [authChecked, setAuthChecked] = React.useState(false);
@@ -206,6 +245,27 @@ export function App() {
         if (!s.drag) return s;
         const drag = { ...s.drag, endTileX: tileX, endTileY: tileY };
         setRectPx(drag);
+        // Live-Malen während des Drags (kein Broadcast, nur lokale Szene)
+        const rect = { startX: drag.startTileX, startY: drag.startTileY, endX: drag.endTileX, endY: drag.endTileY };
+        const isErase = s.tool === 'erase';
+        if (s.tool === 'terrain' && s.pendingTerrain) {
+          if (isErase) {
+            try { (window as any).currentPhaserScene?.eraseTerrainRect?.(rect); } catch {}
+          } else {
+            try { (window as any).currentPhaserScene?.applyTerrainPaint?.({ rect, dataUrl: s.pendingTerrain.dataUrl }); } catch {}
+          }
+        }
+        if ((s.tool === 'floor' || s.tool === 'walls' || isErase) && s.tilePaint) {
+          const index = isErase ? -1 : s.tilePaint.tileIndex;
+          const layer = s.tool === 'walls' ? 'EditorWalls' : 'EditorGround';
+          const edit = { layer: layer as 'EditorGround' | 'EditorWalls', tilesetKey: s.tilePaint.tilesetKey, tileIndex: index, rect };
+          try { gameBridge.applyTilePaint(edit); } catch {}
+        }
+        if (s.tool === 'collision' || isErase) {
+          const index = isErase ? -1 : 1;
+          const edit = { layer: 'Collision' as const, tilesetKey: 'collision_tiles', tileIndex: index, rect };
+          try { (window as any).currentPhaserScene?.applyTilePaint?.(edit); } catch {}
+        }
         return { ...s, drag };
       });
     };
@@ -1855,13 +1915,25 @@ export function App() {
 
     // Save position on visibility change/unload to increase reliability
     const onVisibility = () => {
-      if (document.hidden) void savePosition({ immediate: true });
+      if (document.hidden) {
+        void savePosition({ immediate: true });
+      } else {
+        // Tab sichtbar: Audio-Wiedergabe wieder anstoßen (Autoplay-Policy)
+        try { (avRef.current?.room as any)?.startAudio?.(); } catch {}
+        // Versuche die Colyseus-Verbindung zu berühren; falls getrennt, wird so ein Fehler sichtbar
+        try { (colyseusRef.current as any)?.send?.('poke', {}); } catch {}
+      }
+    };
+    const onFocus = () => {
+      // Auf Fenster-Fokus ebenfalls Audio-Start versuchen
+      try { (avRef.current?.room as any)?.startAudio?.(); } catch {}
     };
     const onBeforeUnload = () => { void savePosition({ immediate: true }); };
     const onPageHide = () => { void savePosition({ immediate: true }); };
     document.addEventListener('visibilitychange', onVisibility);
     window.addEventListener('beforeunload', onBeforeUnload);
     window.addEventListener('pagehide', onPageHide);
+    window.addEventListener('focus', onFocus);
     
     // Track zone for participant list updates
     let participantListLastZone: string | null = null;
@@ -1951,6 +2023,7 @@ export function App() {
       document.removeEventListener('visibilitychange', onVisibility);
       window.removeEventListener('beforeunload', onBeforeUnload);
       window.removeEventListener('pagehide', onPageHide);
+      window.removeEventListener('focus', onFocus);
     };
   }, [authChecked, me, apiBase, buildParticipantList, page]);
 
