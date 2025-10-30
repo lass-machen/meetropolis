@@ -73,6 +73,13 @@ export class AVManager {
     try { avLog('debug', 'av.state', { prev, next }, { identity: this.identity, roomName: this.currentName || undefined as any }); } catch {}
   }
 
+  private isRoomConnected(): boolean {
+    const room: any = this.current as any;
+    if (!room) return false;
+    const state = room.connectionState || room.state;
+    return state === 'connected' || state === 2;
+  }
+
   get isConnected(): boolean {
     return !!this.current;
   }
@@ -332,6 +339,9 @@ export class AVManager {
       this.lastProximityAt = Date.now();
       const room = this.current as any;
       if (!room) return;
+      // Nur arbeiten, wenn die Signalisierung verbunden ist
+      const st = room.connectionState || room.state;
+      if (!(st === 'connected' || st === 2)) return;
       try {
         const remoteParticipants: any[] = Array.from((room.remoteParticipants?.values?.() || []) as any);
         const idSet = new Set(ids);
@@ -361,6 +371,9 @@ export class AVManager {
     this.fallbackSubTimer = setInterval(() => {
       const room: any = this.current as any;
       if (!room) return;
+      // Nur arbeiten, wenn verbunden
+      const st = room.connectionState || room.state;
+      if (!(st === 'connected' || st === 2)) return;
       const since = Date.now() - this.lastProximityAt;
       if (since < 3000) return; // Proximity aktiv → kein Fallback nötig
       try {
@@ -557,6 +570,19 @@ export class AVManager {
     try {
       const mod = await import('livekit-client');
       const VideoQuality = (mod as any).VideoQuality || { Low: 0, Medium: 1, High: 2 };
+      // Robust Mapping: stelle sicher, dass wir eine numerische Enum verwenden
+      const toNumericQuality = (q: any): number => {
+        if (typeof q === 'number' && Number.isFinite(q)) return q;
+        if (typeof q === 'string') {
+          const s = q.toLowerCase();
+          if (s.includes('low')) return 0;
+          if (s.includes('med')) return 1;
+          if (s.includes('high')) return 2;
+        }
+        // Fallback: Medium
+        return 1;
+      };
+      const Q_MED = toNumericQuality((VideoQuality as any).Medium);
       const participants: any[] = Array.from((room.remoteParticipants?.values?.() || []) as any);
       for (const p of participants) {
         const pubs: any[] = Array.from((p.trackPublications?.values?.() || []) as any);
@@ -564,8 +590,8 @@ export class AVManager {
           const kind = (pub as any).kind ?? (pub.track as any)?.kind;
           const src = (pub as any).source ?? (pub.track as any)?.source;
           if (kind === 'video' && src !== 'screen_share') {
-            try { (pub as any).setVideoQuality?.(VideoQuality.Medium ?? 1); } catch {}
-            try { (pub as any).setPreferredVideoQuality?.(VideoQuality.Medium ?? 1); } catch {}
+            try { (pub as any).setVideoQuality?.(Q_MED); } catch {}
+            try { (pub as any).setPreferredVideoQuality?.(Q_MED); } catch {}
           }
         }
       }

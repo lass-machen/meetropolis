@@ -37,6 +37,7 @@ export async function joinLivekitRoom(params: {
   const token = (await res.text()).trim();
   const room = new Room();
   const serverUrl = normalizeLivekitUrl((import.meta as any).env?.VITE_LIVEKIT_URL);
+  const forceRelay = ((import.meta as any).env?.VITE_AV_FORCE_RELAY || (import.meta as any).env?.VITE_LK_FORCE_RELAY) === 'true';
   // Warten auf erste Nutzergeste, um AudioContext-Warnung beim Laden zu vermeiden
   const waitForUserGesture = async () => {
     try {
@@ -86,7 +87,7 @@ export async function joinLivekitRoom(params: {
       autoGainControl: true,
     },
     // Optional für harte NATs (Feature-Flag-basiert aktivieren)
-    // rtcConfig: { iceTransportPolicy: 'relay' },
+    ...(forceRelay ? { rtcConfig: { iceTransportPolicy: 'relay' } as any } : {}),
   } as any);
   // WICHTIG: keine lokalen Audio/Video-Tracks automatisch erstellen/publizieren.
   return room;
