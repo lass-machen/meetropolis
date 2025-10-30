@@ -61,6 +61,9 @@ export async function joinLivekitRoom(params: {
     // Lokale Tracks werden nicht automatisch erzeugt; Remote-Subscribe erfolgt gezielt
     video: false,
     audio: false,
+    // Nicht automatisch trennen bei pagehide/visibilitychange (wir managen Resume selbst)
+    // @ts-ignore
+    disconnectOnPageLeave: false,
     // Adaptive Stream: liefert nur benötigte Layer
     // @ts-ignore
     adaptiveStream: true,

@@ -658,6 +658,7 @@ export class AVManager {
   private async applyDefaultRemoteQuality(): Promise<void> {
     const room: any = this.current as any;
     if (!room) return;
+    if (this.remoteQualityTuningDisabled) return;
     try {
       const now = Date.now();
       if (now - this.lastApplyDefaultRemoteQualityAt < 5000) return;
