@@ -9,6 +9,7 @@ export async function spawnLivekitBot(opts: { apiBase: string; livekitUrl: strin
   at.addGrant({ room: opts.roomName, roomJoin: true, canPublish: true, canSubscribe: true });
   const token = await at.toJwt();
 
+  const t0 = Date.now();
   const room: Room = await connect(opts.livekitUrl, token, {
     autoSubscribe: false,
     // @ts-ignore
@@ -18,6 +19,7 @@ export async function spawnLivekitBot(opts: { apiBase: string; livekitUrl: strin
     // @ts-ignore
     publishDefaults: { dtx: true }
   } as any);
+  const timeToConnectMs = Date.now() - t0;
 
   // Publish silence audio
   try {
@@ -37,6 +39,9 @@ export async function spawnLivekitBot(opts: { apiBase: string; livekitUrl: strin
   } catch {}
 
   let alive = true;
+  let samples = 0;
+  let lastInboundAudio = 0;
+  let lastRemoteParticipants = 0;
   // Periodically subscribe to a few participants (simulate proximity)
   (async () => {
     while (alive) {
@@ -50,6 +55,18 @@ export async function spawnLivekitBot(opts: { apiBase: string; livekitUrl: strin
             if (kind === 'audio') { try { pub.setSubscribed?.(true); } catch {} }
           }
         }
+        // Basic metrics
+        lastRemoteParticipants = parts.length;
+        let inboundAudio = 0;
+        for (const p of parts) {
+          const pubs: any[] = Array.from((p.trackPublications?.values?.() || []) as any);
+          for (const pub of pubs) {
+            const kind = (pub as any).kind ?? (pub.track as any)?.kind;
+            if (kind === 'audio') inboundAudio++;
+          }
+        }
+        lastInboundAudio = inboundAudio;
+        samples++;
       } catch {}
       await new Promise((r) => setTimeout(r, 1000));
     }
@@ -59,6 +76,19 @@ export async function spawnLivekitBot(opts: { apiBase: string; livekitUrl: strin
     async stop() {
       alive = false;
       try { await room.disconnect(); } catch {}
+      // Emit summary line for ingestion
+      try {
+        // eslint-disable-next-line no-console
+        console.log(JSON.stringify({
+          event: 'livekit_bot_summary',
+          identity: opts.identity,
+          room: opts.roomName,
+          timeToConnectMs,
+          samples,
+          lastRemoteParticipants,
+          lastInboundAudio,
+        }));
+      } catch {}
     }
   };
 }

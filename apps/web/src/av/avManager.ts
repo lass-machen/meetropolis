@@ -2,6 +2,7 @@ const SIMPLE = (import.meta as any).env?.VITE_AV_SIMPLE === 'true';
 const ALLOW_RECONNECT = (import.meta as any).env?.VITE_AV_RECONNECT !== 'false';
 import { Room, createLocalScreenTracks } from 'livekit-client';
 import { joinLivekitRoom } from '../lib/livekit';
+import { avLog } from '../lib/avLog';
 import { onBubbleMembersUpdate } from '../lib/avEvents';
 
 export type AVDevices = {
@@ -25,6 +26,7 @@ export class AVManager {
   private pendingCam = false;
   private reconnectAttempts = 0;
   private reconnectTimer: any = null;
+  private statsTimer: any = null;
   private unsubscribeBus: (() => void) | null = null;
   private lastProximityAt = 0;
   private fallbackSubTimer: any = null;
@@ -35,12 +37,40 @@ export class AVManager {
   // Local camera quality adaptation
   private camQuality: 'low' | 'med' | 'high' = 'high';
   private qualityCooldownUntil = 0;
+  private avState: 'idle' | 'connecting' | 'connected' | 'publishing' | 'subscribed' | 'error' | 'reconnecting' | 'closed' = 'idle';
+  private sharePending = false;
 
   constructor(opts: { baseUrl: string; identity: string; displayName?: string; useVideo: boolean }) {
     this.baseUrl = opts.baseUrl;
     this.identity = opts.identity;
     this.displayName = opts.displayName || opts.identity;
     this.useVideo = opts.useVideo;
+    // Install global debug overlay toggle once
+    try {
+      const w: any = window as any;
+      if (!w.__avDebugToggleInstalled) {
+        w.__avDebugToggleInstalled = true;
+        window.addEventListener('keydown', (e) => {
+          try {
+            if ((e.altKey && (e.key.toLowerCase?.() === 'd')) || (e.ctrlKey && e.shiftKey && e.key.toLowerCase?.() === 'd')) {
+              const ww: any = window as any;
+              ww.__avDebugOn = !ww.__avDebugOn;
+              if (!ww.__avDebugOn) {
+                const el = document.getElementById('av-debug-hud');
+                if (el) el.remove();
+              }
+            }
+          } catch {}
+        }, true);
+      }
+    } catch {}
+  }
+
+  private setState(next: typeof this.avState) {
+    if (this.avState === next) return;
+    const prev = this.avState;
+    this.avState = next;
+    try { avLog('debug', 'av.state', { prev, next }, { identity: this.identity, roomName: this.currentName || undefined as any }); } catch {}
   }
 
   get isConnected(): boolean {
@@ -54,6 +84,8 @@ export class AVManager {
     if (!SIMPLE && this.isConnecting) return; // Debounce parallele Verbindungsversuche
     this.isConnecting = true;
     try {
+      this.setState('connecting');
+      avLog('info', 'av.switchTo.start', { targetRoom: name }, { identity: this.identity, roomName: name });
       await this.leave();
       if (seq !== this.connectSeq) return; // verworfen
       const room = await joinLivekitRoom({
@@ -69,10 +101,20 @@ export class AVManager {
       this.currentName = name;
       this.reconnectAttempts = 0;
       this.wireRoomEvents();
+      this.startStatsLoop();
+      avLog('info', 'av.switchTo.connected', { connected: true }, { identity: this.identity, roomName: name });
+      this.setState('connected');
       // Audio-Wiedergabe erst per Nutzerinteraktion freischalten
       this.attachAudioUnlockHandlers();
       if (!SIMPLE) {
+        const connectedBefore = Date.now();
         await this.waitForConnected(room).catch(()=>{});
+        const waited = Date.now() - connectedBefore;
+        const anyRoom2: any = room as any;
+        const state = anyRoom2?.connectionState || anyRoom2?.state;
+        if (waited > 4500 && !(state === 'connected' || state === 2)) {
+          this.setState('error');
+        }
       }
     } finally {
       this.isConnecting = false;
@@ -112,6 +154,7 @@ export class AVManager {
 
   async leave() {
     // Merke aktuellen Track-Status, um ihn nach Rejoin wieder zu aktivieren
+    const prevName = this.currentName;
     let wasMicOn = false;
     let wasCamOn = false;
     try {
@@ -148,13 +191,17 @@ export class AVManager {
     this.unsubscribeBus = null;
     try { if (this.fallbackSubTimer) clearInterval(this.fallbackSubTimer); } catch {}
     this.fallbackSubTimer = null;
+    try { if (this.statsTimer) clearInterval(this.statsTimer); } catch {}
+    this.statsTimer = null;
     this.current = undefined;
     this.currentName = null;
     setTimeout(() => { this.isDisconnecting = false; }, 50);
+    this.setState('closed');
 
     // Setze Pending-Flags, damit sie nach Rejoin automatisch aktiviert werden
     if (wasMicOn) this.pendingMic = true;
     if (wasCamOn) this.pendingCam = true;
+    avLog('info', 'av.leave', { wasMicOn, wasCamOn, prevRoom: prevName || null }, { identity: this.identity, roomName: prevName || undefined as any });
   }
 
   get activeRoom(): string | null {
@@ -211,14 +258,14 @@ export class AVManager {
         if (RoomEvent) {
           room.off?.(RoomEvent.Reconnected, () => {});
           room.off?.(RoomEvent.Disconnected, () => {});
-          room.on?.(RoomEvent.Reconnected, () => { this.reconnectAttempts = 0; });
-          room.on?.(RoomEvent.Disconnected, () => { if (ALLOW_RECONNECT && !this.isDisconnecting) this.scheduleReconnect(); });
+          room.on?.(RoomEvent.Reconnected, () => { this.reconnectAttempts = 0; try { avLog('info', 'livekit.reconnected', {}, { identity: this.identity, roomName: this.currentName || undefined as any }); } catch {} });
+          room.on?.(RoomEvent.Disconnected, () => { try { avLog('warn', 'livekit.disconnected', {}, { identity: this.identity, roomName: this.currentName || undefined as any }); } catch {}; this.setState('reconnecting'); if (ALLOW_RECONNECT && !this.isDisconnecting) this.scheduleReconnect(); });
           // Auf neue/aktualisierte Tracks reagieren (Remote-Video-Qualität standardmäßig drosseln)
           try {
             room.off?.(RoomEvent.TrackPublished, (() => {}) as any);
             room.off?.(RoomEvent.TrackSubscribed, (() => {}) as any);
-            room.on?.(RoomEvent.TrackPublished, () => { try { this.applyDefaultRemoteQuality(); } catch {} });
-            room.on?.(RoomEvent.TrackSubscribed, () => { try { this.applyDefaultRemoteQuality(); } catch {} });
+            room.on?.(RoomEvent.TrackPublished, () => { try { avLog('debug', 'livekit.track_published', {}, { identity: this.identity, roomName: this.currentName || undefined as any }); this.applyDefaultRemoteQuality(); } catch {} });
+            room.on?.(RoomEvent.TrackSubscribed, () => { try { avLog('debug', 'livekit.track_subscribed', {}, { identity: this.identity, roomName: this.currentName || undefined as any }); this.applyDefaultRemoteQuality(); this.setState('subscribed'); } catch {} });
           } catch {}
           // Verbindungsgüte beobachten → Kameraqualität dynamisch anpassen
           try {
@@ -244,14 +291,14 @@ export class AVManager {
           const r: any = room as any;
           r.off?.('reconnected', () => {});
           r.off?.('disconnected', () => {});
-          r.on?.('reconnected', () => { this.reconnectAttempts = 0; });
-          r.on?.('disconnected', () => { if (ALLOW_RECONNECT && !this.isDisconnecting) this.scheduleReconnect(); });
+          r.on?.('reconnected', () => { this.reconnectAttempts = 0; try { avLog('info', 'livekit.reconnected', {}, { identity: this.identity, roomName: this.currentName || undefined as any }); } catch {} });
+          r.on?.('disconnected', () => { try { avLog('warn', 'livekit.disconnected', {}, { identity: this.identity, roomName: this.currentName || undefined as any }); } catch {}; this.setState('reconnecting'); if (ALLOW_RECONNECT && !this.isDisconnecting) this.scheduleReconnect(); });
           // Fallback: Track-Events
           try {
             r.off?.('trackPublished', () => {});
             r.off?.('trackSubscribed', () => {});
-            r.on?.('trackPublished', () => { try { this.applyDefaultRemoteQuality(); } catch {} });
-            r.on?.('trackSubscribed', () => { try { this.applyDefaultRemoteQuality(); } catch {} });
+            r.on?.('trackPublished', () => { try { avLog('debug', 'livekit.track_published', {}, { identity: this.identity, roomName: this.currentName || undefined as any }); this.applyDefaultRemoteQuality(); } catch {} });
+            r.on?.('trackSubscribed', () => { try { avLog('debug', 'livekit.track_subscribed', {}, { identity: this.identity, roomName: this.currentName || undefined as any }); this.applyDefaultRemoteQuality(); this.setState('subscribed'); } catch {} });
           } catch {}
           // Fallback: Verbindungsgüte
           try {
@@ -332,6 +379,101 @@ export class AVManager {
         }
       } catch {}
     }, 1000);
+  }
+
+  private startStatsLoop() {
+    try { if (this.statsTimer) clearInterval(this.statsTimer); } catch {}
+    const roomName = this.currentName || 'world';
+    const identity = this.identity;
+    const baseUrl = this.baseUrl;
+    const collectOnce = async () => {
+      try {
+        const room: any = this.current as any;
+        if (!room) return;
+        // Connection state best-effort
+        const connectionState = (room.connectionState || room.state || '').toString();
+        // Count local/remote tracks
+        let nRemoteAudio = 0, nRemoteVideo = 0, nLocalAudio = 0, nLocalVideo = 0;
+        try {
+          const participants: any[] = Array.from((room.remoteParticipants?.values?.() || []) as any);
+          for (const p of participants) {
+            const pubs: any[] = Array.from((p.trackPublications?.values?.() || []) as any);
+            for (const pub of pubs) {
+              const kind = (pub as any).kind ?? (pub.track as any)?.kind;
+              if (kind === 'audio') nRemoteAudio++;
+              if (kind === 'video') nRemoteVideo++;
+            }
+          }
+          const pubsLocal: any[] = Array.from((room.localParticipant?.trackPublications?.values?.() || []) as any);
+          for (const pub of pubsLocal) {
+            const kind = (pub as any).kind ?? (pub.track as any)?.kind;
+            const src = (pub as any).source ?? (pub.track as any)?.source;
+            if (kind === 'audio' || src === 'microphone') nLocalAudio++;
+            if ((kind === 'video' && src !== 'screen_share') || src === 'camera') nLocalVideo++;
+          }
+        } catch {}
+        // Try to probe DTLS/ICE states if exposed (best-effort)
+        let iceState: string | undefined;
+        let dtlsState: string | undefined;
+        try {
+          const pc = (room as any)?.engine?.pcManager?.publisher?.pc || (room as any)?.pc;
+          if (pc) {
+            iceState = (pc.iceConnectionState || pc.connectionState || '').toString();
+            dtlsState = (pc.connectionState || '').toString();
+          }
+        } catch {}
+        // Construct payload (numbers optional)
+        const payload: any = {
+          roomName,
+          identity,
+          connectionState,
+          iceState,
+          dtlsState,
+          nRemoteAudio,
+          nRemoteVideo,
+          nLocalAudio,
+          nLocalVideo,
+        };
+        try { this.updateDebugHud(payload); } catch {}
+        await fetch(`${baseUrl}/av/stats`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify(payload),
+        }).catch(() => {});
+      } catch {}
+    };
+    this.statsTimer = setInterval(() => { void collectOnce(); }, 5000);
+    // Fire one immediately
+    void collectOnce();
+  }
+
+  private updateDebugHud(p: { roomName: string; identity: string; connectionState?: string; iceState?: string; dtlsState?: string; nRemoteAudio?: number; nRemoteVideo?: number; nLocalAudio?: number; nLocalVideo?: number; }) {
+    const w: any = window as any;
+    if (!w.__avDebugOn) return;
+    let el = document.getElementById('av-debug-hud');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'av-debug-hud';
+      el.style.position = 'fixed';
+      el.style.right = '12px';
+      el.style.bottom = '12px';
+      el.style.zIndex = '2147483647';
+      el.style.background = 'rgba(0,0,0,0.7)';
+      el.style.color = '#fff';
+      el.style.padding = '10px 12px';
+      el.style.borderRadius = '8px';
+      el.style.font = '12px/1.4 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace';
+      el.style.pointerEvents = 'none';
+      document.body.appendChild(el);
+    }
+    const lines = [
+      `AV Debug (Alt+D)`,
+      `room: ${p.roomName}  id: ${this.identity}`,
+      `state: ${p.connectionState || '-'}  ice: ${p.iceState || '-'}  dtls: ${p.dtlsState || '-'}`,
+      `tracks L[a:${p.nLocalAudio ?? 0}|v:${p.nLocalVideo ?? 0}]  R[a:${p.nRemoteAudio ?? 0}|v:${p.nRemoteVideo ?? 0}]`,
+    ];
+    el.textContent = lines.join('\n');
   }
 
   private onConnectionQualityChanged(participant: any, quality: any) {
@@ -483,7 +625,11 @@ export class AVManager {
 
   async startScreenshare(): Promise<boolean> {
     if (!this.current) return false;
+    if (this.sharePending) return false;
+    // If already sharing, do nothing
+    if (this.isScreensharing()) return true;
     try {
+      this.sharePending = true;
       // WICHTIG: getDisplayMedia muss direkt aus der User-Geste aufgerufen werden.
       // Daher zuerst Tracks holen (öffnet den Picker), dann erst auf Verbindung warten/publizieren.
       const tracks = await createLocalScreenTracks({
@@ -504,6 +650,11 @@ export class AVManager {
             try { mst.contentHint = 'detail'; } catch {}
           }
           (t as any)?.setContentHint?.('detail');
+          // Auto-stop wenn User die Freigabe im System beendet
+          if (mst && typeof mst.addEventListener === 'function') {
+            const onEnded = () => { try { this.stopScreenshare().catch(()=>{}); } catch {} };
+            try { mst.addEventListener('ended', onEnded, { once: true } as any); } catch {}
+          }
         } catch {}
       }
       // Nach Publish: bevorzugte Layer/Bitrate setzen (falls unterstützt)
@@ -516,9 +667,11 @@ export class AVManager {
           }
         }
       } catch {}
+      this.sharePending = false;
       return true;
     } catch (e: any) {
       // Bei Abbruch/Verweigerung keinen Fehler werfen, sondern false zurück
+      this.sharePending = false;
       return false;
     }
   }
@@ -531,10 +684,25 @@ export class AVManager {
         const src = (pub as any).source || (pub.track as any)?.source;
         if (src && (src === 'screen_share' || src === 'screen_share_audio')) {
           try { await this.current.localParticipant.unpublishTrack(pub.track!); } catch {}
+          try { (pub.track as any)?.stop?.(); } catch {}
         }
       }
     } catch (e) {
       // Stop screenshare failed silently
+    }
+  }
+
+  private isScreensharing(): boolean {
+    const room = this.current;
+    if (!room) return false;
+    try {
+      const pubs = Array.from(room.localParticipant.trackPublications.values());
+      return pubs.some((pub: any) => {
+        const src = (pub as any).source || (pub.track as any)?.source;
+        return src === 'screen_share' || src === 'screen_share_audio';
+      });
+    } catch {
+      return false;
     }
   }
 

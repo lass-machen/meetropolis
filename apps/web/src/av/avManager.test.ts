@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { setTimeout as timersSetTimeout } from 'timers';
 import { AVManager } from './avManager';
 
 // Mock livekit-client dynamic imports used inside AVManager
@@ -13,6 +14,30 @@ vi.mock('livekit-client', () => {
     }),
     // For screenshare
     createLocalScreenTracks: vi.fn(async () => [{ kind: 'video' }, { kind: 'audio' }]),
+  } as any;
+});
+
+// Mock joinLivekitRoom to return a minimal fake room
+vi.mock('../lib/livekit', () => {
+  return {
+    joinLivekitRoom: vi.fn(async () => {
+      const handlers: Record<string, Function[]> = {};
+      const room: any = {
+        localParticipant: {
+          trackPublications: new Map<string, any>(),
+          publishTrack: vi.fn(async (t: any) => { /* noop */ }),
+          unpublishTrack: vi.fn(async (_t: any) => { /* noop */ }),
+        },
+        remoteParticipants: new Map<string, any>(),
+        disconnect: vi.fn(async () => {}),
+        on: (ev: string, cb: Function) => { (handlers[ev] ||= []).push(cb); },
+        off: (ev: string, cb: Function) => {
+          handlers[ev] = (handlers[ev] || []).filter((f) => f !== cb);
+        },
+        __emit: (ev: string, ...args: any[]) => { (handlers[ev] || []).forEach((f) => f(...args)); },
+      };
+      return room;
+    }),
   } as any;
 });
 
@@ -100,6 +125,23 @@ describe('AVManager', () => {
 
     await mgr.startScreenshare();
     expect(room.localParticipant.publishTrack).toHaveBeenCalled();
+  });
+
+  it('aktiviert Mic nach Join, wenn vorher pending war (Join-Order deterministisch)', async () => {
+    vi.useFakeTimers();
+    const { joinLivekitRoom } = await import('../lib/livekit');
+    const mgr = makeManager() as any;
+    // Mic vor Connect einschalten → pending flag
+    await mgr.setMicrophoneEnabled(true);
+    // Join triggern
+    const p = mgr.switchTo('world');
+    // Warten bis switchTo Promise resolved
+    await p;
+    // Pending-Activation läuft via setTimeout(250)
+    vi.advanceTimersByTime(300);
+    const fakeRoom: any = (await (joinLivekitRoom as any).mock.results[0].value);
+    expect(fakeRoom.localParticipant.publishTrack).toHaveBeenCalled();
+    vi.useRealTimers();
   });
 });
 

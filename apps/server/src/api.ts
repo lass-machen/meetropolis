@@ -7,6 +7,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import { logger } from './logger.js';
+import { livekitSamples, livekitRttSeconds, livekitJitterSeconds, livekitInboundBitrateBps, livekitOutboundBitrateBps, livekitPacketLossRatio } from './metrics.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
@@ -1076,14 +1077,71 @@ export function registerApi(app: express.Express) {
     if (!parse.success) return res.status(400).json({ error: 'roomName and identity required' });
     const { roomName, identity, name, canPublish, canSubscribe } = parse.data;
     try {
+      const corrId = (req.headers['x-correlation-id'] || '').toString();
+      const hdrIdentity = (req.headers['x-av-identity'] || '').toString();
+      const hdrRoom = (req.headers['x-av-room'] || '').toString();
+      try {
+        logger.info({ event: 'livekit.token.request', correlationId: corrId || undefined, roomName: roomName || hdrRoom || undefined, identity: identity || hdrIdentity || undefined, ua: (req.headers['user-agent'] || '').toString() });
+      } catch {}
       if (!process.env.LIVEKIT_API_KEY || !process.env.LIVEKIT_API_SECRET) {
         return res.status(500).json({ error: 'livekit not configured' });
       }
       const token = await createLivekitToken({ roomName, identity, name, canPublish, canPublishData: true, canSubscribe });
       res.type('text/plain').send(token);
     } catch (e: any) {
-      logger.error('[LiveKit] Failed to create token:', e?.message || e);
+      logger.error({ event: 'livekit.token.error', error: e?.message || String(e) });
       res.status(500).json({ error: 'failed to create token' });
+    }
+  });
+
+  // Client-reported WebRTC/LiveKit stats (RUM)
+  app.post('/av/stats', async (req: express.Request, res: express.Response) => {
+    const auth = requireAuth(req);
+    if (!auth) return res.status(401).json({ error: 'unauthorized' });
+    const schema = z.object({
+      roomName: z.string().min(1),
+      identity: z.string().min(1),
+      // optional numeric metrics in base units
+      rttMs: z.number().nonnegative().optional(),
+      jitterMs: z.number().nonnegative().optional(),
+      inboundBitrateBps: z.number().nonnegative().optional(),
+      outboundBitrateBps: z.number().nonnegative().optional(),
+      packetLossRatio: z.number().min(0).max(1).optional(),
+      connectionState: z.string().optional(),
+      dtlsState: z.string().optional(),
+      iceState: z.string().optional(),
+      nRemoteAudio: z.number().int().nonnegative().optional(),
+      nRemoteVideo: z.number().int().nonnegative().optional(),
+      nLocalAudio: z.number().int().nonnegative().optional(),
+      nLocalVideo: z.number().int().nonnegative().optional(),
+    });
+    const parse = schema.safeParse(req.body || {});
+    if (!parse.success) return res.status(400).json({ error: 'invalid stats payload' });
+    const p = parse.data;
+    try {
+      // Observations (no high-cardinality labels)
+      livekitSamples.inc();
+      if (typeof p.rttMs === 'number' && Number.isFinite(p.rttMs)) {
+        livekitRttSeconds.observe(p.rttMs / 1000);
+      }
+      if (typeof p.jitterMs === 'number' && Number.isFinite(p.jitterMs)) {
+        livekitJitterSeconds.observe(p.jitterMs / 1000);
+      }
+      if (typeof p.inboundBitrateBps === 'number' && Number.isFinite(p.inboundBitrateBps)) {
+        livekitInboundBitrateBps.observe(p.inboundBitrateBps);
+      }
+      if (typeof p.outboundBitrateBps === 'number' && Number.isFinite(p.outboundBitrateBps)) {
+        livekitOutboundBitrateBps.observe(p.outboundBitrateBps);
+      }
+      if (typeof p.packetLossRatio === 'number' && Number.isFinite(p.packetLossRatio)) {
+        livekitPacketLossRatio.observe(p.packetLossRatio);
+      }
+      // Best-effort structured log for correlation
+      try { logger.debug({ event: 'av.stats', roomName: p.roomName, identity: p.identity, connectionState: p.connectionState, dtlsState: p.dtlsState, iceState: p.iceState }); } catch {}
+      return res.json({ ok: true });
+    } catch (e) {
+      logger.error({ event: 'av.stats.error', error: (e as any)?.message || String(e) });
+      return res.status(500).json({ error: 'stats ingest failed' });
     }
   });
 

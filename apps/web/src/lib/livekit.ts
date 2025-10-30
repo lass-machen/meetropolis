@@ -1,5 +1,6 @@
 import { createLocalScreenTracks, Room } from 'livekit-client';
 import { logger } from './logger';
+import { buildCorrelationHeaders } from './avLog';
 
 function normalizeLivekitUrl(input: string | undefined): string {
   const host = (typeof window !== 'undefined') ? window.location.hostname : 'localhost';
@@ -23,7 +24,10 @@ export async function joinLivekitRoom(params: {
 }) {
   const res = await fetch(`${params.baseUrl}/livekit/token`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 
+      'Content-Type': 'application/json',
+      ...buildCorrelationHeaders({ identity: params.identity, roomName: params.roomName }),
+    },
     credentials: 'include',
     body: JSON.stringify({ roomName: params.roomName, identity: params.identity, name: params.displayName || params.identity })
   });

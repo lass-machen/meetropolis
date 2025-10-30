@@ -14,12 +14,33 @@ const pinoLogger = pino({
   base: { service: 'meetropolis-server' },
 });
 
+function asRecord(args: unknown[]): Record<string, unknown> | null {
+  if (args.length === 0) return null;
+  const [first, ...rest] = args;
+  // If first is an object, merge others if objects
+  if (first && typeof first === 'object' && !Array.isArray(first)) {
+    const base = { ...(first as Record<string, unknown>) };
+    for (const r of rest) {
+      if (r && typeof r === 'object' && !Array.isArray(r)) Object.assign(base, r as Record<string, unknown>);
+    }
+    return base;
+  }
+  // If first is string and second is object -> include msg + context
+  if (typeof first === 'string' && rest.length > 0 && rest[0] && typeof rest[0] === 'object') {
+    const obj = { ...(rest[0] as Record<string, unknown>) };
+    (obj as any).msg = first as string;
+    return obj;
+  }
+  // Fallback: join to msg
+  return { msg: args.map((a) => (typeof a === 'string' ? a : JSON.stringify(a))).join(' ') };
+}
+
 export const logger = {
   level: pinoLogger.level as LogLevel,
-  debug: (...args: unknown[]) => pinoLogger.debug({ msg: args.map(String).join(' ') }),
-  info: (...args: unknown[]) => pinoLogger.info({ msg: args.map(String).join(' ') }),
-  warn: (...args: unknown[]) => pinoLogger.warn({ msg: args.map(String).join(' ') }),
-  error: (...args: unknown[]) => pinoLogger.error({ msg: args.map(String).join(' ') }),
+  debug: (...args: unknown[]) => pinoLogger.debug(asRecord(args) as any),
+  info: (...args: unknown[]) => pinoLogger.info(asRecord(args) as any),
+  warn: (...args: unknown[]) => pinoLogger.warn(asRecord(args) as any),
+  error: (...args: unknown[]) => pinoLogger.error(asRecord(args) as any),
 };
 
 

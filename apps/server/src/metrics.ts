@@ -28,6 +28,48 @@ export const colyseusPlayers = new client.Gauge({
 });
 registry.registerMetric(colyseusPlayers);
 
+// LiveKit/WebRTC client-reported stats
+export const livekitSamples = new client.Counter({
+  name: 'meetropolis_livekit_stats_samples_total',
+  help: 'Number of client-reported WebRTC stats samples',
+});
+registry.registerMetric(livekitSamples);
+
+export const livekitRttSeconds = new client.Histogram({
+  name: 'meetropolis_livekit_rtt_seconds',
+  help: 'Round-trip-time (RTT) reported by clients',
+  buckets: [0.01, 0.03, 0.05, 0.1, 0.2, 0.5, 1, 2],
+});
+registry.registerMetric(livekitRttSeconds);
+
+export const livekitJitterSeconds = new client.Histogram({
+  name: 'meetropolis_livekit_jitter_seconds',
+  help: 'Jitter reported by clients',
+  buckets: [0.001, 0.003, 0.005, 0.01, 0.02, 0.05, 0.1],
+});
+registry.registerMetric(livekitJitterSeconds);
+
+export const livekitInboundBitrateBps = new client.Histogram({
+  name: 'meetropolis_livekit_inbound_bitrate_bps',
+  help: 'Inbound bitrate in bits per second reported by clients',
+  buckets: [1e3, 5e3, 1e4, 5e4, 1e5, 3e5, 6e5, 1e6, 2e6, 5e6, 1e7],
+});
+registry.registerMetric(livekitInboundBitrateBps);
+
+export const livekitOutboundBitrateBps = new client.Histogram({
+  name: 'meetropolis_livekit_outbound_bitrate_bps',
+  help: 'Outbound bitrate in bits per second reported by clients',
+  buckets: [1e3, 5e3, 1e4, 5e4, 1e5, 3e5, 6e5, 1e6, 2e6, 5e6, 1e7],
+});
+registry.registerMetric(livekitOutboundBitrateBps);
+
+export const livekitPacketLossRatio = new client.Histogram({
+  name: 'meetropolis_livekit_packet_loss_ratio',
+  help: 'Packet loss ratio (0..1) reported by clients',
+  buckets: [0.001, 0.003, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2],
+});
+registry.registerMetric(livekitPacketLossRatio);
+
 export function metricsMiddleware() {
   return function (req: any, res: any, next: any) {
     const start = process.hrtime.bigint();
