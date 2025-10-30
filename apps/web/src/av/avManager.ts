@@ -132,7 +132,7 @@ export class AVManager {
   }
 
   get isConnected(): boolean {
-    return !!this.current;
+    return this.isRoomConnected();
   }
 
   async switchTo(roomName: string) {
@@ -316,7 +316,7 @@ export class AVManager {
         if (RoomEvent) {
           room.off?.(RoomEvent.Reconnected, () => {});
           room.off?.(RoomEvent.Disconnected, () => {});
-          room.on?.(RoomEvent.Reconnected, () => { this.reconnectAttempts = 0; try { avLog('info', 'livekit.reconnected', {}, { identity: this.identity, roomName: this.currentName || undefined as any }); } catch {} });
+          room.on?.(RoomEvent.Reconnected, () => { this.reconnectAttempts = 0; try { avLog('info', 'livekit.reconnected', {}, { identity: this.identity, roomName: this.currentName || undefined as any }); } catch {}; try { this.ensureSubscribeAllAudio(); } catch {} });
           room.on?.(RoomEvent.Disconnected, () => { try { avLog('warn', 'livekit.disconnected', {}, { identity: this.identity, roomName: this.currentName || undefined as any }); } catch {}; this.setState('reconnecting'); if (ALLOW_RECONNECT && !this.isDisconnecting) this.scheduleReconnect(); });
           // Nach erfolgreichem Reconnect gewünschte Tracks wiederherstellen
           room.on?.(RoomEvent.Reconnected, () => { void this.restoreDesiredTracks(); });
@@ -324,8 +324,8 @@ export class AVManager {
           try {
             room.off?.(RoomEvent.TrackPublished, (() => {}) as any);
             room.off?.(RoomEvent.TrackSubscribed, (() => {}) as any);
-            room.on?.(RoomEvent.TrackPublished, () => { try { avLog('debug', 'livekit.track_published', {}, { identity: this.identity, roomName: this.currentName || undefined as any }); if (!this.remoteQualityTuningDisabled) this.applyDefaultRemoteQuality(); } catch {} });
-            room.on?.(RoomEvent.TrackSubscribed, () => { try { avLog('debug', 'livekit.track_subscribed', {}, { identity: this.identity, roomName: this.currentName || undefined as any }); if (!this.remoteQualityTuningDisabled) this.applyDefaultRemoteQuality(); this.setState('subscribed'); } catch {} });
+            room.on?.(RoomEvent.TrackPublished, () => { try { avLog('debug', 'livekit.track_published', {}, { identity: this.identity, roomName: this.currentName || undefined as any }); if (!this.remoteQualityTuningDisabled) this.applyDefaultRemoteQuality(); this.ensureSubscribeAllAudio(); } catch {} });
+            room.on?.(RoomEvent.TrackSubscribed, () => { try { avLog('debug', 'livekit.track_subscribed', {}, { identity: this.identity, roomName: this.currentName || undefined as any }); if (!this.remoteQualityTuningDisabled) this.applyDefaultRemoteQuality(); this.setState('subscribed'); this.ensureSubscribeAllAudio(); } catch {} });
           } catch {}
           // Verbindungsgüte beobachten → Kameraqualität dynamisch anpassen
           try {
@@ -357,8 +357,8 @@ export class AVManager {
           try {
             r.off?.('trackPublished', () => {});
             r.off?.('trackSubscribed', () => {});
-            r.on?.('trackPublished', () => { try { avLog('debug', 'livekit.track_published', {}, { identity: this.identity, roomName: this.currentName || undefined as any }); if (!this.remoteQualityTuningDisabled) this.applyDefaultRemoteQuality(); } catch {} });
-            r.on?.('trackSubscribed', () => { try { avLog('debug', 'livekit.track_subscribed', {}, { identity: this.identity, roomName: this.currentName || undefined as any }); if (!this.remoteQualityTuningDisabled) this.applyDefaultRemoteQuality(); this.setState('subscribed'); } catch {} });
+            r.on?.('trackPublished', () => { try { avLog('debug', 'livekit.track_published', {}, { identity: this.identity, roomName: this.currentName || undefined as any }); if (!this.remoteQualityTuningDisabled) this.applyDefaultRemoteQuality(); this.ensureSubscribeAllAudio(); } catch {} });
+            r.on?.('trackSubscribed', () => { try { avLog('debug', 'livekit.track_subscribed', {}, { identity: this.identity, roomName: this.currentName || undefined as any }); if (!this.remoteQualityTuningDisabled) this.applyDefaultRemoteQuality(); this.setState('subscribed'); this.ensureSubscribeAllAudio(); } catch {} });
           } catch {}
           // Fallback: Verbindungsgüte
           try {
@@ -459,6 +459,27 @@ export class AVManager {
           if (kind === 'video') {
             const near = shouldSub;
             this.setDesired(pub, identity, 'video', !!near);
+          }
+        }
+      }
+    } catch {}
+  }
+
+  private ensureSubscribeAllAudio(maxCount: number = 32): void {
+    const room: any = this.current as any;
+    if (!room) return;
+    const st = room.connectionState || room.state;
+    if (!(st === 'connected' || st === 2) || !this.isSignalOpen()) return;
+    try {
+      const parts: any[] = Array.from((room.remoteParticipants?.values?.() || []) as any);
+      let count = 0;
+      for (const p of parts) {
+        const identity = String(p.identity || '');
+        const pubs: any[] = Array.from((p.trackPublications?.values?.() || []) as any);
+        for (const pub of pubs) {
+          const kind = (pub as any).kind ?? (pub as any)?.track?.kind;
+          if (kind === 'audio') {
+            if (count < maxCount) { this.setDesired(pub, identity, 'audio', true); count++; }
           }
         }
       }
