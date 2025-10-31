@@ -4,6 +4,7 @@
     "jsx": "react-jsx",
     "baseUrl": ".",
     "paths": {
+      "@meetropolis/shared": ["../../packages/shared/src/index.ts"],
       "@meetropolis/shared/*": ["../../packages/shared/src/*"]
     },
     "types": ["react", "react-dom", "vite/client", "vitest/globals"],

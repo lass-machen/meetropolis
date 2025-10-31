@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { gameBridge } from '../bridge';
 import { editorLog, editorError } from '../../lib/editorLog';
-import { V2State, computeFirstGids, decodeRLE, fetchChunks, fetchStateV2, tileRefIdToGid } from '../../lib/mapV2';
+import { V2State, computeFirstGids, decodeRLE, fetchChunks, tileRefIdToGid } from '../../lib/mapV2';
 
 export class MainScene extends Phaser.Scene {
   private hero!: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
@@ -402,6 +402,7 @@ export class MainScene extends Phaser.Scene {
     this.ensureRecenterUi();
     this.updateRecenterUiVisibility();
 
+
     // Allow typing into HTML inputs (do not capture SPACE in Phaser when an input is focused)
     const isEditableTarget = (t: EventTarget | null) => {
       const el = t as HTMLElement | null;
@@ -520,6 +521,16 @@ export class MainScene extends Phaser.Scene {
     
     // Track current direction
     let currentDirection: 'up' | 'down' | 'left' | 'right' = 'down';
+    // Defensive cleanup: if any remote for self was created before localSessionId was known, remove it now
+    try {
+      const selfId = (typeof window !== 'undefined' ? (window as any).__localSessionId : undefined);
+      if (selfId && this.remotes.has(selfId)) {
+        this.remotes.get(selfId)?.destroy();
+        this.remotes.delete(selfId);
+        const lbl = this.nameLabels.get(selfId);
+        if (lbl) { lbl.destroy(); this.nameLabels.delete(selfId); }
+      }
+    } catch {}
     
     this.events.on(Phaser.Scenes.Events.UPDATE, () => {
       const speed = 80;
@@ -568,11 +579,15 @@ export class MainScene extends Phaser.Scene {
         }
         else { 
           this.hero.anims.stop(); 
+          const base: any = { up: 'hero_walk_up', down: 'hero_walk_down', left: 'hero_walk_left', right: 'hero_walk_right' };
+          this.hero.setTexture(base[currentDirection] || 'hero_walk_down', 0);
         }
       } else {
         // Locked und keine Zielbewegung: stoppen
         body.setVelocity(0, 0);
         this.hero.anims.stop();
+        const base: any = { up: 'hero_walk_up', down: 'hero_walk_down', left: 'hero_walk_left', right: 'hero_walk_right' };
+        this.hero.setTexture(base[currentDirection] || 'hero_walk_down', 0);
       }
 
       gameBridge.onLocalMove({ x: this.hero.x, y: this.hero.y, direction: currentDirection });
@@ -817,7 +832,7 @@ export class MainScene extends Phaser.Scene {
     bg.setScrollFactor(0);
 
     // Label
-    const label = this.add.text(10, 6, 'Zentrieren', {
+    const label = this.add.text(10, 6, (window as any).i18next?.t?.('av.recenter') || 'Recenter', {
       fontSize: '13px',
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
       color: '#ffffff'
@@ -915,10 +930,24 @@ export class MainScene extends Phaser.Scene {
   }
 
   syncRemotePlayers(players: Record<string, { x: number; y: number; direction: 'up'|'down'|'left'|'right'; prevX?: number; prevY?: number; name?: string }>) {
+    const localSession: string | undefined = (typeof window !== 'undefined' ? (window as any).__localSessionId : undefined);
     for (const [id, p] of Object.entries(players)) {
+      // never create a remote sprite for self (by sessionId)
+      if (localSession && id === localSession) continue;
+      // defensive: if a remote entry sits exactly at hero position, treat as duplicate self and skip
+      try {
+        if (this.hero && Math.abs(p.x - this.hero.x) < 0.01 && Math.abs(p.y - this.hero.y) < 0.01) {
+          // also ensure any lingering sprite for this id is removed
+          const lingering = this.remotes.get(id);
+          if (lingering) { lingering.destroy(); this.remotes.delete(id); }
+          const lbl = this.nameLabels.get(id);
+          if (lbl) { lbl.destroy(); this.nameLabels.delete(id); }
+          continue;
+        }
+      } catch {}
       let s = this.remotes.get(id);
       if (!s) {
-        // Creating new sprite for player
+        // Creating new sprite for player (Businessman only)
         s = this.add.sprite(p.x, p.y, 'hero_walk_down', 0);
         s.setDepth(10); // Same depth as local hero
         // Store previous position and direction for movement detection
@@ -981,7 +1010,6 @@ export class MainScene extends Phaser.Scene {
       
       if (isMoving) {
         (s as any).lastMoveTime = Date.now();
-        // Always play the animation for movement
         s.play(animKey, true);
       } else {
         // Check if we recently stopped moving (within 100ms)
@@ -1287,7 +1315,7 @@ export class MainScene extends Phaser.Scene {
         if (this.ghostTextureKey && this.textures.exists(this.ghostTextureKey)) {
           try { this.textures.remove(this.ghostTextureKey); } catch {}
         }
-        this.ghostTextureKey = undefined;
+        delete (this as any).ghostTextureKey;
         return;
       }
       const nextUrl = preview.dataUrl;
@@ -1658,6 +1686,7 @@ export class MainScene extends Phaser.Scene {
       const terrainTilesets: any[] = [];
       try {
         this.dynamicTilesets.forEach((ts, name) => {
+          void ts;
           if (name && name.startsWith('terrain:')) {
             const src = this.terrainTilesetSources.get(name) || '';
             terrainTilesets.push({ key: name, dataUrl: src, tileWidth: this.mapRef!.tileWidth, tileHeight: this.mapRef!.tileHeight, category: 'terrain' });
@@ -1931,7 +1960,7 @@ export class MainScene extends Phaser.Scene {
             const body = this.add.rectangle(x, y, map.tileWidth, map.tileHeight, 0x000000, 0);
             this.physics.add.existing(body, true);
             // Refresh static body to sync with physics world
-            try { ((body as any).body as Phaser.Physics.Arcade.StaticBody).refreshBody(); } catch {}
+            try { (body as any).body?.refreshBody?.(); } catch {}
             this.staticColliders.add(body);
           }
         }
@@ -2502,7 +2531,7 @@ export class MainScene extends Phaser.Scene {
     }
   }
 
-  update(time: number, delta: number) {
+  override update(time: number, delta: number) {
     super.update(time, delta);
     if (this.v2) {
       // Erzwinge Unsichtbarkeit des Kollision-Layers außerhalb des Editors

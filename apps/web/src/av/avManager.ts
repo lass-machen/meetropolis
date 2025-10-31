@@ -7,6 +7,8 @@ import { onBubbleMembersUpdate } from '../lib/avEvents';
 import { startStatsLoopImpl } from './core/stats';
 import { applyDefaultRemoteQualityImpl, onConnectionQualityChangedImpl } from './core/quality';
 import { AVController } from './controller/avController';
+import { buildAudioPipeline } from './audio/buildAudioPipeline';
+import { useAvSettingsStore } from '../state/avSettings';
 import { applySubscriptions as applySubscriptionsCtl, ensureSubscribeAllAudio as ensureSubscribeAllAudioCtl } from './controller/subscriptions';
 
 export type AVDevices = {
@@ -72,6 +74,8 @@ export class AVManager {
   private lastVideoOnAt = new Map<string, number>();
   // DND
   private dnd = false;
+  private unsubscribeAvSettings: (() => void) | null = null;
+  private settingsRepubTimer: any = null;
 
   constructor(opts: { baseUrl: string; identity: string; displayName?: string; useVideo: boolean }) {
     this.baseUrl = opts.baseUrl;
@@ -116,6 +120,26 @@ export class AVManager {
       const setLeaving = () => { this.pageLeaving = true; };
       window.addEventListener('pagehide', setLeaving);
       window.addEventListener('beforeunload', setLeaving);
+    } catch {}
+    // Auf AV-Settings reagieren (sanftes Re-Publish des Mic-Tracks, falls aktiv)
+    try {
+      this.unsubscribeAvSettings = useAvSettingsStore.subscribe((_state, _prev) => {
+        try { if (this.settingsRepubTimer) clearTimeout(this.settingsRepubTimer); } catch {}
+        this.settingsRepubTimer = setTimeout(async () => {
+          this.settingsRepubTimer = null;
+          const room = this.current;
+          if (!room) return;
+          const pubs = Array.from(room.localParticipant.trackPublications.values());
+          const micOn = (pubs as any[]).some((pub: any) => {
+            const src = (pub as any).source ?? (pub as any)?.track?.source;
+            const kind = (pub as any).kind ?? (pub as any)?.track?.kind;
+            return (src === 'microphone' || src === 0 || src === 2 || kind === 'audio') && !!(pub as any).track;
+          });
+          if (!micOn) return;
+          try { await this.setMicrophoneEnabled(false); } catch {}
+          try { await this.setMicrophoneEnabled(true); } catch {}
+        }, 250);
+      });
     } catch {}
     // Page-Leave-Guards
     try {
@@ -200,6 +224,11 @@ export class AVManager {
       });
       if (seq !== this.connectSeq) { try { await room.disconnect(); } catch {} return; }
       this.current = room;
+      // Apply audio publish defaults from settings (DTX/FEC)
+      try {
+        const s = useAvSettingsStore.getState().settings;
+        (room as any).setTrackPublishDefaults?.({ dtx: !!s.useDtx, red: !!s.useFec });
+      } catch {}
       try { this.controller?.setRoom(room); } catch {}
       this.currentName = name;
       this.reconnectAttempts = 0;
@@ -307,6 +336,8 @@ export class AVManager {
     this.setState('closed');
     try { this.removePageLeaveGuards?.(); } catch {}
     this.removePageLeaveGuards = null;
+    try { this.unsubscribeAvSettings?.(); } catch {}
+    this.unsubscribeAvSettings = null;
 
     // Setze Pending-Flags, damit sie nach Rejoin automatisch aktiviert werden
     if (wasMicOn) this.pendingMic = true;
@@ -805,11 +836,14 @@ export class AVManager {
         // Stelle sicher, dass Audio-Wiedergabe freigeschaltet ist (User-Geste erforderlich)
         try { await (this.current as any)?.startAudio?.(); } catch {}
         if (micPubs.some(p => !!(p as any).track)) return; // already enabled
-        const { createLocalTracks } = await import('livekit-client');
-        const tracks = await createLocalTracks({ audio: this.preferredMic ? { deviceId: this.preferredMic, noiseSuppression: true, echoCancellation: true, autoGainControl: true } : { noiseSuppression: true, echoCancellation: true, autoGainControl: true } });
-        for (const t of tracks) {
-          if ((t as any).kind === 'audio') await room.localParticipant.publishTrack(t);
-        }
+        const settings = useAvSettingsStore.getState().settings;
+        const localAudioTrack: any = await buildAudioPipeline({ ...(this.preferredMic ? { deviceId: this.preferredMic } : {}), settings } as any);
+        try {
+          const mst: any = (localAudioTrack as any)?.mediaStreamTrack;
+          if (mst && 'contentHint' in mst) { try { mst.contentHint = 'speech'; } catch {} }
+          (localAudioTrack as any)?.setContentHint?.('speech');
+        } catch {}
+        await room.localParticipant.publishTrack(localAudioTrack);
       } else {
         for (const pub of micPubs) {
           try { await room.localParticipant.unpublishTrack(pub.track!); } catch {}

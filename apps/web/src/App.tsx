@@ -1,10 +1,10 @@
 import React, { useEffect, useRef } from 'react';
+import { TableContainer, Table, THead, TBody, Tr, Th, Td, Modal } from './ui/system';
 import { UserManagement } from './ui/admin/UserManagement';
 import { AuthScreen } from './ui/auth/AuthScreen';
 import { pointInPolygon, rectsOverlap } from './lib/geom';
 import { getDisplayName as getDisplayNameLib } from './lib/displayName';
 import { ThemeToggleButton } from './ui/theme';
-import { Overlay } from './ui/Overlay';
 // removed unused component imports from ui/components
 import { AVBar } from './ui/av/AVBar';
 import { TilesetUploadDialog } from './ui/editor/TilesetUploadDialog';
@@ -1960,7 +1960,7 @@ export function App() {
   useEffect(() => {
     if (!authChecked || !me) return;
     const onKey = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'D' || e.key === 'd')) {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'U' || e.key === 'u')) {
         e.preventDefault();
         const next = !dndRef.current;
         try { gameBridge.setDoNotDisturb(next); } catch {}
@@ -2052,6 +2052,7 @@ export function App() {
           <div
             ref={containerRef}
             style={{ width: '100%', height: '100%', position: 'relative' }}
+            onContextMenu={(e)=>{ e.preventDefault(); }}
           >
             {avState.dnd && (
               <div
@@ -2170,9 +2171,9 @@ export function App() {
         </>
       )}
 
-      <Overlay open={userModalOpen} onClose={()=>setUserModalOpen(false)} title="Benutzerverwaltung" right={<div style={{ display:'flex', gap:8 }}><ThemeToggleButton /></div>}>
+      <Modal open={userModalOpen} onOpenChange={setUserModalOpen} title="Benutzerverwaltung" right={<div style={{ display:'flex', gap:8 }}><ThemeToggleButton /></div>}>
         <UserManagement baseUrl={apiBase} onBack={() => setUserModalOpen(false)} />
-      </Overlay>
+      </Modal>
 
       {/* Profil-Seite ist (noch) nicht implementiert; Stub entfernt */}
 
@@ -2205,6 +2206,7 @@ export function App() {
         }}
         editorActive={editor.active}
         onLogout={async () => { try { await fetch(`${apiBase}/auth/logout`, { method: 'POST', credentials: 'include' }); } finally { setMe(null); setMenuOpen(false); setPage('world'); } }}
+
       />
 
       </div>
@@ -2345,7 +2347,7 @@ export function App() {
 
       {/* Kontextmenü */}
       {contextMenu.open && contextMenu.playerId && (
-        <div onClick={() => setContextMenu({ open: false, x: 0, y: 0, playerId: null })} style={{ position: 'absolute', inset: 0, zIndex: 60 }}>
+        <div onClick={() => setContextMenu({ open: false, x: 0, y: 0, playerId: null })} onContextMenu={(e)=> e.preventDefault()} style={{ position: 'absolute', inset: 0, zIndex: 60 }}>
           <div onClick={(e)=>e.stopPropagation()} style={{ position: 'absolute', left: Math.min(Math.max(8, contextMenu.x), window.innerWidth - 196), top: Math.min(Math.max(8, contextMenu.y), window.innerHeight - 96), background:'rgba(17,17,20,0.98)', color:'#fff', border:'1px solid rgba(255,255,255,0.12)', borderRadius: 8, boxShadow:'0 12px 40px rgba(0,0,0,0.5)' }}>
             <button onClick={() => {
               setContextMenu({ open: false, x: 0, y: 0, playerId: null });
@@ -2374,41 +2376,41 @@ export function App() {
 
       {/* Einladungen Modal */}
       {invitesModalOpen && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 100, display: 'grid', placeItems: 'center', background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(2px)' }} onClick={() => setInvitesModalOpen(false)}>
-          <div onClick={(e)=>e.stopPropagation()} className="glass-surface" style={{ width: 'min(96vw, 780px)', padding: 16, borderRadius: 12 }}>
-            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom: 12 }}>
-              <div style={{ fontWeight: 800 }}>Einladungen</div>
-              <button onClick={()=>setInvitesModalOpen(false)} style={{ width: 32, height: 32, borderRadius: 6, border: '1px solid var(--border)', background:'var(--glass)', color:'#fff', cursor:'pointer' }}>×</button>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'grid', placeItems: 'center', background: 'rgba(0,0,0,0.68)', backdropFilter: 'blur(4px)' }} onClick={() => setInvitesModalOpen(false)}>
+          <div onClick={(e)=>e.stopPropagation()} className="glass-surface" style={{ width: 'min(96vw, 900px)', borderRadius: 12, overflow: 'hidden', maxHeight: '90vh', display: 'grid', gridTemplateRows: 'auto 1fr' }}>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding: '12px 16px', borderBottom: '1px solid var(--border)', background: 'var(--glass)' }}>
+              <div style={{ fontWeight: 800, letterSpacing: 0.2 }}>Einladungen</div>
+              <button onClick={()=>setInvitesModalOpen(false)} style={{ width: 32, height: 32, borderRadius: 6, border: '1px solid var(--border)', background:'var(--glass)', color:'var(--fg)', cursor:'pointer' }}>×</button>
             </div>
-            <div style={{ display:'grid', gap: 12 }}>
+            <div style={{ display:'grid', gap: 12, padding: 16, overflow: 'auto' }}>
               {invitesLoading ? (
                 <div style={{ color:'var(--fg-subtle)', fontSize: 13 }}>Lade Einladungen…</div>
               ) : (
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse:'separate', borderSpacing: 0 }}>
-                    <thead>
-                      <tr style={{ textAlign:'left', color:'var(--fg-subtle)', fontSize: 12 }}>
-                        <th style={{ padding:'8px 10px' }}>Code</th>
-                        <th style={{ padding:'8px 10px' }}>E-Mail</th>
-                        <th style={{ padding:'8px 10px' }}>Erstellt</th>
-                        <th style={{ padding:'8px 10px' }}>Status</th>
-                        <th style={{ padding:'8px 10px', width: 160 }}>Aktionen</th>
-                      </tr>
-                    </thead>
-                    <tbody>
+                <TableContainer>
+                  <Table>
+                    <THead sticky>
+                      <Tr>
+                        <Th>Code</Th>
+                        <Th>E-Mail</Th>
+                        <Th>Erstellt</Th>
+                        <Th>Status</Th>
+                        <Th style={{ width: 200 }}>Aktionen</Th>
+                      </Tr>
+                    </THead>
+                    <TBody>
                       {invites.length === 0 && (
-                        <tr><td colSpan={5} style={{ padding:'10px', color:'var(--fg-subtle)' }}>Keine Einladungen vorhanden.</td></tr>
+                        <tr><td colSpan={5} style={{ padding:'12px', color:'var(--fg-subtle)' }}>Keine Einladungen vorhanden.</td></tr>
                       )}
                       {invites.map(inv => (
-                        <tr key={inv.code}>
-                          <td style={{ padding:'8px 10px' }}>
+                        <Tr key={inv.code} style={{ borderBottom: '1px solid var(--border)' }}>
+                          <Td>
                             <code style={{ display:'inline-block', padding:'4px 6px', borderRadius:6, border:'1px solid var(--border)', background:'rgba(255,255,255,0.06)' }}>{inv.code}</code>
-                          </td>
-                          <td style={{ padding:'8px 10px' }}>{inv.email || '—'}</td>
-                          <td style={{ padding:'8px 10px' }}>{inv.createdAt ? new Date(inv.createdAt).toLocaleString() : '—'}</td>
-                          <td style={{ padding:'8px 10px' }}>{inv.usedAt ? 'Eingelöst' : 'Offen'}</td>
-                          <td style={{ padding:'8px 10px', display:'flex', gap: 8 }}>
-                            <button onClick={async ()=>{ try { await navigator.clipboard.writeText(inv.code); } catch {} }} style={{ padding:'6px 10px', borderRadius:8, border:'1px solid var(--border)', background:'var(--glass)', color:'#fff', cursor:'pointer' }}>Kopieren</button>
+                          </Td>
+                          <Td>{inv.email || '—'}</Td>
+                          <Td>{inv.createdAt ? new Date(inv.createdAt).toLocaleString() : '—'}</Td>
+                          <Td>{inv.usedAt ? 'Eingelöst' : 'Offen'}</Td>
+                          <Td style={{ display:'flex', gap: 8, justifyContent: 'flex-end' }}>
+                            <button onClick={async ()=>{ try { await navigator.clipboard.writeText(inv.code); } catch {} }} style={{ padding:'6px 10px', borderRadius:8, border:'1px solid var(--border)', background:'var(--glass)', color:'var(--fg)', cursor:'pointer' }}>Kopieren</button>
                             {!inv.usedAt && (
                               <button onClick={async ()=>{
                                 try {
@@ -2417,12 +2419,12 @@ export function App() {
                                 } catch {}
                               }} style={{ padding:'6px 10px', borderRadius:8, border:'1px solid rgba(244,63,94,0.45)', background:'rgba(244,63,94,0.15)', color:'#fff', cursor:'pointer' }}>Löschen</button>
                             )}
-                          </td>
-                        </tr>
+                          </Td>
+                        </Tr>
                       ))}
-                    </tbody>
-                  </table>
-                </div>
+                    </TBody>
+                  </Table>
+                </TableContainer>
               )}
             </div>
           </div>

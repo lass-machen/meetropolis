@@ -102,6 +102,8 @@ services:
       args:
         - VITE_API_BASE=${VITE_API_BASE}
         - VITE_LIVEKIT_URL=${VITE_LIVEKIT_URL}
+        - VITE_FEATURE_AV_SETTINGS=${VITE_FEATURE_AV_SETTINGS:-true}
+        - VITE_FEATURE_VOICE_ISOLATION=${VITE_FEATURE_VOICE_ISOLATION:-client}
     env_file: .env
     labels:
       - "traefik.enable=true"

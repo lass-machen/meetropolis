@@ -1,6 +1,7 @@
 import React from 'react';
 import { ButtonGroup } from './buttonGroup/ButtonGroup';
 import { BGButton as Button } from './buttonGroup/Button';
+import { useTranslation } from 'react-i18next';
 
 type ThemeMode = 'light' | 'dark';
 type ThemeOverride = 'system' | ThemeMode;
@@ -67,27 +68,28 @@ export function ThemeProvider(props: { children: React.ReactNode }) {
 
 export function ThemeToggleButton() {
   const { override, setOverride, cycle, effective } = useTheme();
+  const { t } = useTranslation();
   return (
     <ButtonGroup size="sm">
       <Button
         icon="sun"
         iconPosition="only"
         active={override === 'light'}
-        title="Helles Design"
+        title={t('theme.light')}
         onClick={() => setOverride('light')}
       />
       <Button
         icon="moon"
         iconPosition="only"
         active={override === 'dark'}
-        title="Dunkles Design"
+        title={t('theme.dark')}
         onClick={() => setOverride('dark')}
       />
       <Button
         icon="desktop"
         iconPosition="only"
         active={override === 'system'}
-        title="Systemeinstellung"
+        title={t('theme.system')}
         onClick={() => setOverride('system')}
       />
     </ButtonGroup>

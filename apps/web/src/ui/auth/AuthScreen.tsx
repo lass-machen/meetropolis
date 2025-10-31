@@ -1,9 +1,11 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Card, Input, Button } from '../../ui/system';
 import { ThemeToggleButton } from '../../ui/theme';
 
 export function AuthScreen(props: { baseUrl: string; onDone: () => void }) {
   const { baseUrl, onDone } = props;
+  const { t } = useTranslation();
   const [view, setView] = React.useState<'login'|'register'|'forgot'|'reset'>('login');
   const [email, setEmail] = React.useState('');
   const [password, setPassword] = React.useState('');
@@ -13,9 +15,25 @@ export function AuthScreen(props: { baseUrl: string; onDone: () => void }) {
   const [msg, setMsg] = React.useState<string | null>(null);
 
   async function post(path: string, body: any) {
-    const res = await fetch(`${baseUrl}${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(body) });
-    if (!res.ok) throw new Error((await res.json())?.error || 'Fehler');
-    return await res.json().catch(() => ({}));
+    const url = `${baseUrl}${path}`;
+    let lastErr: any = null;
+    const attempts = [200, 500, 1000];
+    for (let i = 0; i < attempts.length; i++) {
+      try {
+        const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(body) });
+        if (!res.ok) throw new Error((await res.json())?.error || t('common.error'));
+        return await res.json().catch(() => ({}));
+      } catch (e: any) {
+        lastErr = e;
+        // Netzwerk-/Verbindungsfehler: kurzer Retry mit Backoff
+        if (i < attempts.length - 1) {
+          await new Promise((r) => setTimeout(r, attempts[i]));
+          continue;
+        }
+        break;
+      }
+    }
+    throw lastErr || new Error(t('common.networkError'));
   }
 
   async function handleLoginSubmit(e: React.FormEvent) {
@@ -58,7 +76,7 @@ export function AuthScreen(props: { baseUrl: string; onDone: () => void }) {
     try {
       await post('/auth/reset', { token, password });
       setView('login');
-      setMsg('Passwort aktualisiert');
+      setMsg(t('auth.passwordUpdated'));
     } catch (e: any) {
       setMsg(e.message);
     }
@@ -104,7 +122,7 @@ export function AuthScreen(props: { baseUrl: string; onDone: () => void }) {
               WebkitTextFillColor: 'transparent' as any
             }}>Meetropolis</span>
           </div>
-          <div style={{ fontSize: 16, color: 'var(--muted)' }}>Dein virtueller Arbeitsplatz</div>
+          <div style={{ fontSize: 16, color: 'var(--muted)' }}>{t('auth.tagline')}</div>
         </div>
         
         <Card style={{ 
@@ -117,23 +135,23 @@ export function AuthScreen(props: { baseUrl: string; onDone: () => void }) {
           <div style={commonStyle}>
         {view === 'login' && (
           <form onSubmit={handleLoginSubmit} autoComplete="on" style={{ display: 'contents' }}>
-            <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: 'var(--fg)' }}>Willkommen zurück</h2>
+            <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: 'var(--fg)' }}>{t('auth.login.title')}</h2>
             <div style={{ display: 'grid', gap: 10 }}>
               <div>
-                <label htmlFor="login-email" style={{ fontSize: 12, color: 'var(--muted)', display: 'block', marginBottom: 6 }}>E-Mail</label>
+                <label htmlFor="login-email" style={{ fontSize: 12, color: 'var(--muted)', display: 'block', marginBottom: 6 }}>{t('auth.email')}</label>
                 <Input 
                   id="login-email"
                   name="email"
                   inputMode="email"
                   autoComplete="username"
-                  placeholder="name@beispiel.de" 
+                  placeholder={t('auth.emailExample')} 
                   value={email} 
                   onChange={e=>setEmail(e.target.value)}
                   style={{ fontSize: 14 }}
                 />
               </div>
               <div>
-                <label htmlFor="login-password" style={{ fontSize: 12, color: 'var(--muted)', display: 'block', marginBottom: 6 }}>Passwort</label>
+                <label htmlFor="login-password" style={{ fontSize: 12, color: 'var(--muted)', display: 'block', marginBottom: 6 }}>{t('auth.password')}</label>
                 <Input 
                   id="login-password"
                   name="password"
@@ -155,55 +173,55 @@ export function AuthScreen(props: { baseUrl: string; onDone: () => void }) {
                 fontSize: 15
               }}
             >
-              Einloggen
+              {t('auth.login.submit')}
             </Button>
             <div style={{ display:'flex', justifyContent:'space-between', fontSize: 13, color:'var(--muted)' }}>
-              <a style={{ cursor:'pointer', color: 'var(--brand-primary)', textDecoration: 'none' }} onClick={()=>setView('forgot')}>Passwort vergessen?</a>
-              <a style={{ cursor:'pointer', color: 'var(--brand-primary)', textDecoration: 'none' }} onClick={()=>setView('register')}>Einladung einlösen</a>
+              <a style={{ cursor:'pointer', color: 'var(--brand-primary)', textDecoration: 'none' }} onClick={()=>setView('forgot')}>{t('auth.forgotLink')}</a>
+              <a style={{ cursor:'pointer', color: 'var(--brand-primary)', textDecoration: 'none' }} onClick={()=>setView('register')}>{t('auth.inviteLink')}</a>
             </div>
           </form>
         )}
         {view === 'register' && (
           <form onSubmit={handleRegisterSubmit} autoComplete="on" style={{ display: 'contents' }}>
-            <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: 'var(--fg)' }}>Registrierung</h2>
+            <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: 'var(--fg)' }}>{t('auth.register.title')}</h2>
             <div style={{ display: 'grid', gap: 10 }}>
               <div>
-                <label htmlFor="reg-code" style={{ fontSize: 12, color: 'var(--muted)', display: 'block', marginBottom: 6 }}>Einladungscode</label>
+                <label htmlFor="reg-code" style={{ fontSize: 12, color: 'var(--muted)', display: 'block', marginBottom: 6 }}>{t('auth.inviteCode')}</label>
                 <Input 
                   id="reg-code"
                   name="code"
-                  placeholder="Code eingeben" 
+                  placeholder={t('auth.invitePlaceholder')} 
                   value={invite} 
                   onChange={e=>setInvite(e.target.value)}
                   style={{ fontSize: 14 }}
                 />
               </div>
               <div>
-                <label htmlFor="reg-name" style={{ fontSize: 12, color: 'var(--muted)', display: 'block', marginBottom: 6 }}>Name (optional)</label>
+                <label htmlFor="reg-name" style={{ fontSize: 12, color: 'var(--muted)', display: 'block', marginBottom: 6 }}>{t('auth.nameOptional')}</label>
                 <Input 
                   id="reg-name"
                   name="name"
-                  placeholder="Max Mustermann" 
+                  placeholder={t('auth.nameExample')} 
                   value={name} 
                   onChange={e=>setName(e.target.value)}
                   style={{ fontSize: 14 }}
                 />
               </div>
               <div>
-                <label htmlFor="reg-email" style={{ fontSize: 12, color: 'var(--muted)', display: 'block', marginBottom: 6 }}>E-Mail</label>
+                <label htmlFor="reg-email" style={{ fontSize: 12, color: 'var(--muted)', display: 'block', marginBottom: 6 }}>{t('auth.email')}</label>
                 <Input 
                   id="reg-email"
                   name="email"
                   inputMode="email"
                   autoComplete="username"
-                  placeholder="name@beispiel.de" 
+                  placeholder={t('auth.emailExample')} 
                   value={email} 
                   onChange={e=>setEmail(e.target.value)}
                   style={{ fontSize: 14 }}
                 />
               </div>
               <div>
-                <label htmlFor="reg-password" style={{ fontSize: 12, color: 'var(--muted)', display: 'block', marginBottom: 6 }}>Passwort</label>
+                <label htmlFor="reg-password" style={{ fontSize: 12, color: 'var(--muted)', display: 'block', marginBottom: 6 }}>{t('auth.password')}</label>
                 <Input 
                   id="reg-password"
                   name="password"
@@ -225,26 +243,26 @@ export function AuthScreen(props: { baseUrl: string; onDone: () => void }) {
                 fontSize: 15
               }}
             >
-              Registrieren
+              {t('auth.register.submit')}
             </Button>
-            <a style={{ cursor:'pointer', color: 'var(--brand-primary)', textDecoration: 'none', fontSize: 13, textAlign: 'center' }} onClick={()=>setView('login')}>Zurück zum Login</a>
+            <a style={{ cursor:'pointer', color: 'var(--brand-primary)', textDecoration: 'none', fontSize: 13, textAlign: 'center' }} onClick={()=>setView('login')}>{t('auth.backToLogin')}</a>
           </form>
         )}
         {view === 'forgot' && (
           <form onSubmit={handleForgotSubmit} autoComplete="on" style={{ display: 'contents' }}>
-            <h3 style={{ margin: 0 }}>Passwort vergessen</h3>
-            <Input id="forgot-email" name="email" inputMode="email" autoComplete="email" placeholder="E-Mail" value={email} onChange={e=>setEmail(e.target.value)} />
-            <Button type="submit" variant="primary">Zurücksetzen anfordern</Button>
-            <a style={{ cursor:'pointer', color: 'var(--brand-primary)', textDecoration: 'none' }} onClick={()=>setView('login')}>Zurück zum Login</a>
+            <h3 style={{ margin: 0 }}>{t('auth.forgot.title')}</h3>
+            <Input id="forgot-email" name="email" inputMode="email" autoComplete="email" placeholder={t('auth.email')} value={email} onChange={e=>setEmail(e.target.value)} />
+            <Button type="submit" variant="primary">{t('auth.forgot.submit')}</Button>
+            <a style={{ cursor:'pointer', color: 'var(--brand-primary)', textDecoration: 'none' }} onClick={()=>setView('login')}>{t('auth.backToLogin')}</a>
           </form>
         )}
         {view === 'reset' && (
           <form onSubmit={handleResetSubmit} autoComplete="on" style={{ display: 'contents' }}>
-            <h3 style={{ margin: 0 }}>Passwort zurücksetzen</h3>
-            <Input id="reset-token" name="token" placeholder="Reset-Token" value={token} onChange={e=>setToken(e.target.value)} />
-            <Input id="reset-password" name="password" placeholder="Neues Passwort" type="password" autoComplete="new-password" value={password} onChange={e=>setPassword(e.target.value)} />
-            <Button type="submit" variant="primary">Passwort speichern</Button>
-            <a style={{ cursor:'pointer', color: 'var(--brand-primary)', textDecoration: 'none' }} onClick={()=>setView('login')}>Zurück zum Login</a>
+            <h3 style={{ margin: 0 }}>{t('auth.reset.title')}</h3>
+            <Input id="reset-token" name="token" placeholder={t('auth.reset.token')} value={token} onChange={e=>setToken(e.target.value)} />
+            <Input id="reset-password" name="password" placeholder={t('auth.reset.newPassword')} type="password" autoComplete="new-password" value={password} onChange={e=>setPassword(e.target.value)} />
+            <Button type="submit" variant="primary">{t('auth.reset.submit')}</Button>
+            <a style={{ cursor:'pointer', color: 'var(--brand-primary)', textDecoration: 'none' }} onClick={()=>setView('login')}>{t('auth.backToLogin')}</a>
           </form>
         )}
         {msg && (

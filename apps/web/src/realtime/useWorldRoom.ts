@@ -51,7 +51,6 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
     setAvState,
     rosterByIdentityRef,
     setRoster,
-    disposedRef,
   } = args;
 
   const reconnectAttemptsRef = React.useRef(0);
@@ -60,6 +59,7 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
   React.useEffect(() => {
     if (!me) return;
     let disposed = false;
+    try { if (args.disposedRef) args.disposedRef.current = false; } catch {}
 
     const scheduleReconnect = () => {
       if (disposed) return;
@@ -91,6 +91,7 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
         const colyseusSessionId = room.sessionId;
         colyseusToLivekitMap.current[colyseusSessionId] = localLivekitIdentity;
         localPosRef.current.id = colyseusSessionId;
+        if (typeof window !== 'undefined') { (window as any).__localSessionId = colyseusSessionId; }
 
         room.onMessage('full_state', (data: any) => {
           if (!gameBridge?.syncRemotePlayers) return;
@@ -102,11 +103,11 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
                 colyseusToLivekitMap.current[p.id] = p.identity;
                 if (p.name) identityToNameMap.current[p.identity] = p.name;
               }
-              players[p.id] = { x: p.x, y: p.y, direction: p.direction, name: p.name, dnd: p.dnd };
+              players[p.id] = { x: p.x, y: p.y, direction: p.direction, name: p.name, dnd: p.dnd } as any;
             }
-            try { gameBridge.syncRemotePlayers(players); } catch {}
-            try { remotesRef.current = Object.fromEntries(Object.entries(players).map(([id, p]) => [id, { x: (p as any).x, y: (p as any).y }])); } catch {}
-            try { setTimeout(buildParticipantList, 0); } catch {}
+            if (gameBridge && typeof gameBridge.syncRemotePlayers === 'function') gameBridge.syncRemotePlayers(players);
+            remotesRef.current = Object.fromEntries(Object.entries(players).map(([id, p]) => [id, { x: (p as any).x, y: (p as any).y }]));
+            setTimeout(buildParticipantList, 0);
           }
         });
 
@@ -117,8 +118,8 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
             colyseusToLivekitMap.current[data.id] = data.identity;
             if (data.name) identityToNameMap.current[data.identity] = data.name;
           }
-          try { gameBridge.addRemotePlayer?.(data.id, { x: data.x, y: data.y, direction: data.direction, name: data.name, dnd: data.dnd }); } catch {}
-          try { setTimeout(buildParticipantList, 50); } catch {}
+          if (gameBridge && typeof (gameBridge as any).addRemotePlayer === 'function') (gameBridge as any).addRemotePlayer(data.id, { x: data.x, y: data.y, direction: data.direction, name: data.name, dnd: data.dnd });
+          setTimeout(buildParticipantList, 50);
           try {
             const currZones = (editor?.zones || []);
             if (Array.isArray(currZones) && currZones.length > 0) {
@@ -130,37 +131,35 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
         room.onMessage('player_moved', (data: any) => {
           if (data.id === localPosRef.current.id) return;
           remotesRef.current[data.id] = { x: data.x, y: data.y };
-          try { gameBridge.updateRemotePlayer?.(data.id, { x: data.x, y: data.y, direction: data.direction }); } catch {}
-          try { setTimeout(buildParticipantList, 50); } catch {}
+          if (gameBridge && typeof gameBridge.updateRemotePlayer === 'function') gameBridge.updateRemotePlayer(data.id, { x: data.x, y: data.y, direction: data.direction });
+          setTimeout(buildParticipantList, 50);
         });
 
         room.onMessage('player_left', (data: any) => {
           delete remotesRef.current[data.id];
           delete colyseusToLivekitMap.current[data.id];
-          try { gameBridge.removeRemotePlayer?.(data.id); } catch {}
-          try { setTimeout(buildParticipantList, 50); } catch {}
+          if (gameBridge && typeof gameBridge.removeRemotePlayer === 'function') gameBridge.removeRemotePlayer(data.id);
+          setTimeout(buildParticipantList, 50);
         });
 
         room.onMessage('player_dnd', (data: { id: string; dnd: boolean }) => {
-          try { gameBridge.updateRemotePlayerDnd?.(data.id, data.dnd); } catch {}
-          try { setTimeout(buildParticipantList, 50); } catch {}
+          if (gameBridge && typeof (gameBridge as any).updateRemotePlayerDnd === 'function') (gameBridge as any).updateRemotePlayerDnd(data.id, data.dnd);
+          setTimeout(buildParticipantList, 50);
         });
 
         room.onMessage('editor_update', (data: any) => {
-          try {
-            if (data?.type === 'zone' && Array.isArray(data.polys)) {
-              setEditor((s: any) => ({ ...s, zones: data.polys }));
-              try { localStorage.setItem('meetropolis.zones', JSON.stringify(data.polys)); } catch {}
-              try { gameBridge.setZoneOverlay(data.polys); } catch {}
-              try { zoneRef.current?.setZones?.(data.polys); } catch {}
-              try { setTimeout(buildParticipantList, 0); } catch {}
-              return;
-            }
-            if (data?.type === 'tile_paint' && data.edit) { try { gameBridge.applyTilePaint(data.edit); } catch {} return; }
-            if (data?.type === 'layers' || data?.type === 'all') { try { gameBridge.fetchAndApplyServerLayers?.(); } catch {} return; }
-            if (data?.type === 'asset' && Array.isArray(data.assets)) { try { gameBridge.setEditorAssets(data.assets); } catch {} return; }
-          } catch {}
-          try { gameBridge.handleEditorUpdate?.(data); } catch {}
+          if (data?.type === 'zone' && Array.isArray(data.polys)) {
+            setEditor((s: any) => ({ ...s, zones: data.polys }));
+            try { localStorage.setItem('meetropolis.zones', JSON.stringify(data.polys)); } catch {}
+            if (gameBridge && typeof gameBridge.setZoneOverlay === 'function') gameBridge.setZoneOverlay(data.polys);
+            if (zoneRef.current && typeof zoneRef.current.setZones === 'function') zoneRef.current.setZones(data.polys);
+            setTimeout(buildParticipantList, 0);
+            return;
+          }
+          if (data?.type === 'tile_paint' && data.edit) { if (gameBridge && typeof gameBridge.applyTilePaint === 'function') gameBridge.applyTilePaint(data.edit); return; }
+          if (data?.type === 'layers' || data?.type === 'all') { if (gameBridge && typeof (gameBridge as any).fetchAndApplyServerLayers === 'function') (gameBridge as any).fetchAndApplyServerLayers(); return; }
+          if (data?.type === 'asset' && Array.isArray(data.assets)) { if (gameBridge && typeof (gameBridge as any).setEditorAssets === 'function') (gameBridge as any).setEditorAssets(data.assets); return; }
+          if (gameBridge && typeof (gameBridge as any).handleEditorUpdate === 'function') (gameBridge as any).handleEditorUpdate(data);
         });
 
         room.onMessage('remote_control', async (payload: { mic?: boolean; cam?: boolean; share?: boolean; dnd?: boolean }) => {
@@ -189,7 +188,7 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
           }
           if (typeof payload.dnd === 'boolean') {
             const next = !!payload.dnd;
-            try { gameBridge.setDoNotDisturb(next); } catch {}
+            if (gameBridge && typeof (gameBridge as any).setDoNotDisturb === 'function') (gameBridge as any).setDoNotDisturb(next);
             if (next) {
               try { await avRef.current?.setMicrophoneEnabled(false); } catch {}
               try { await avRef.current?.setCameraEnabled(false); } catch {}
@@ -205,11 +204,11 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
           const incoming = new Set<string>(Array.isArray(payload?.members) ? payload.members : []);
           const visual = new Set<string>();
           const amInBubble = !!(localPosRef.current.id && incoming.has(localPosRef.current.id));
-          try { gameBridge.setMovementLocked(!!amInBubble); } catch {}
+          if (gameBridge && typeof (gameBridge as any).setMovementLocked === 'function') (gameBridge as any).setMovementLocked(!!amInBubble);
           if (localPosRef.current.id && incoming.has(localPosRef.current.id)) visual.add('__local__');
           for (const id of incoming) { if (id !== localPosRef.current.id) visual.add(id); }
-          try { gameBridge.setBubbleMembers(visual); } catch {}
-          try { applyVolumesToUi(); } catch {}
+          if (gameBridge && typeof (gameBridge as any).setBubbleMembers === 'function') (gameBridge as any).setBubbleMembers(visual);
+          applyVolumesToUi();
           // UI names
           const names: string[] = [];
           for (const id of incoming) {
@@ -229,7 +228,7 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
             } else if (typeof state.players.entries === 'function') {
               for (const [key, value] of state.players.entries()) { players[key] = { x: value.x, y: value.y, direction: value.direction, dnd: value.dnd }; if (value.identity && value.name) identityToNameMap.current[value.identity] = value.name; }
             } else if ((state.players as any)[Symbol.iterator]) {
-              for (const [key, value] of state.players as any) { players[key] = { x: value.x, y: value.y, direction: value.direction, dnd: value.dnd }; if (value.identity && value.name) identityToNameMap.current[value.identity] = value.name; }
+              for (const [key, value] of (state.players as any)) { players[key] = { x: value.x, y: value.y, direction: value.direction, dnd: value.dnd }; if (value.identity && value.name) identityToNameMap.current[value.identity] = value.name; }
             }
           }
           remotesRef.current = Object.fromEntries(Object.entries(players).filter(([id]) => id !== localPosRef.current.id).map(([id, p]) => [id, { x: (p as any).x, y: (p as any).y }]));
@@ -238,7 +237,7 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
             const name = identityToNameMap.current[livekitIdentity] || livekitIdentity;
             return [id, { ...p, name }];
           }));
-          try { gameBridge.syncRemotePlayers(filtered); } catch {}
+          if (gameBridge && typeof gameBridge.syncRemotePlayers === 'function') gameBridge.syncRemotePlayers(filtered);
 
           try {
           const online: Record<string, { name: string; x: number; y: number }> = {};
@@ -277,7 +276,7 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
               return Array.from(map.values()).sort((a, b) => Number(b.online) - Number(a.online) || a.name.localeCompare(b.name));
             });
           } catch {}
-          try { setTimeout(buildParticipantList, 0); } catch {}
+          setTimeout(buildParticipantList, 0);
         });
 
         room.onError?.(() => { colyseusRef.current = null; scheduleReconnect(); });
@@ -291,6 +290,7 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
 
     return () => {
       disposed = true;
+      try { if (args.disposedRef) args.disposedRef.current = true; } catch {}
       try {
         const room: any = colyseusRef.current;
         const wsReadyState = room?.connection?.ws?.readyState ?? room?.connection?.transport?.ws?.readyState ?? room?.connection?._transport?.ws?.readyState;

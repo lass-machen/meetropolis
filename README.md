@@ -16,7 +16,7 @@ Ein internes Gather.town-ähnliches MVP mit Monorepo-Struktur.
 
 #### Setup
 1. Repo klonen und ins Projekt wechseln.
-2. `.env.example` nach `.env` kopieren und ggf. Variablen anpassen.
+2. `.env` erstellen (lokal). Beispiel siehe unten und Variablen anpassen.
 3. Abhängigkeiten installieren:
    - Mit npm Workspaces: `npm install`
 4. Prisma Client generieren und Datenbank migrieren:
@@ -27,6 +27,38 @@ Ein internes Gather.town-ähnliches MVP mit Monorepo-Struktur.
    - Alternativ lokal (ohne Docker) in zwei Terminals: `npm run dev` (startet Web und Server)
 
 Web: `http://localhost:5173`  |  Server: `http://localhost:2567`  |  LiveKit: `http://localhost:7880`
+
+#### Beispiel `.env` (lokal)
+```
+# Server / Datenbank
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/meetropolis
+LOG_LEVEL=info
+PORT=2567
+
+# LiveKit (lokal)
+LIVEKIT_URL=http://localhost:7880
+LIVEKIT_API_KEY=devkey
+LIVEKIT_API_SECRET=secret
+
+# Web-Client
+VITE_API_BASE=http://localhost:2567
+VITE_LIVEKIT_URL=ws://localhost:7880
+VITE_DEBUG_LOGS=true
+VITE_FEATURE_AV_SETTINGS=true
+VITE_FEATURE_VOICE_ISOLATION=client
+# Optional
+# VITE_FEATURE_VOICE_ONLY=true
+# VITE_AV_FORCE_RELAY=false
+VITE_HMR_HOST=localhost
+VITE_HMR_PROTOCOL=ws
+
+# CORS für lokale Web-Ports
+CORS_ORIGIN=http://localhost:5173,http://localhost:5174
+
+# Nur Dev (nicht für Prod verwenden)
+API_TOKEN_PEPPER=dev-pepper-change-me
+JWT_SECRET=dev-jwt-secret-change-me
+```
 
 #### API-Tokens
 Mit persönlichen API-Tokens kannst du Mikrofon, Kamera, Screenshare und den Nicht-stören-Modus remote steuern – solange dein Benutzer online ist.

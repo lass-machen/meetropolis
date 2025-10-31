@@ -1,8 +1,10 @@
 import React from 'react';
 import { ButtonGroup } from '../buttonGroup/ButtonGroup';
-import { Button, Separator, Spacer } from '../buttonGroup';
+import { Button, Separator } from '../buttonGroup';
 import type { ButtonGroupItemSize } from '../buttonGroup';
 import { FAIcon } from '../FAIcon';
+import { AudioSettingsModal } from './AudioSettingsModal';
+import { useTranslation } from 'react-i18next';
 
 export function AVBar(props: {
   size?: ButtonGroupItemSize;
@@ -32,9 +34,20 @@ export function AVBar(props: {
     className, style
   } = props;
 
+  const [settingsOpen, setSettingsOpen] = React.useState(false);
+  // Default: Einstellungen sichtbar, außer explizit deaktiviert
+  const showSettings = ((import.meta as any).env?.VITE_FEATURE_AV_SETTINGS !== 'false');
+  const { t } = useTranslation();
+
   return (
-    <ButtonGroup size={size} className={className} style={style}>
-      <Button disabled={dndOn} active={micOn} onClick={onToggleMic} icon={micOn ? 'microphone' : 'microphone-slash'} iconPosition="only"></Button>
+    <ButtonGroup size={size} {...(className ? { className } : {})} {...(style ? { style } : {})}>
+      <Button
+        disabled={dndOn}
+        variant={micOn ? 'primary' : 'default'}
+        onClick={onToggleMic}
+        icon={micOn ? 'microphone' : 'microphone-slash'}
+        iconPosition="only"
+      />
       <select
         className="bg-select"
         disabled={!devices.mics.length || dndOn}
@@ -49,13 +62,19 @@ export function AVBar(props: {
           color: 'var(--fg)'
         }}
       >
-        <option value="" disabled>Mic wählen…</option>
+        <option value="" disabled>{t('av.selectMic')}</option>
         {devices.mics.map(d => <option key={d.id} value={d.id}>{d.label}</option>)}
       </select>
 
       <Separator variant="vertical" />
 
-      <Button disabled={dndOn} active={camOn} onClick={onToggleCam} icon={camOn ? 'video' : 'video-slash'} iconPosition="only" />
+      <Button
+        disabled={dndOn}
+        variant={camOn ? 'primary' : 'default'}
+        onClick={onToggleCam}
+        icon={camOn ? 'video' : 'video-slash'}
+        iconPosition="only"
+      />
       <select
         className="bg-select"
         disabled={!devices.cams.length || dndOn}
@@ -70,22 +89,34 @@ export function AVBar(props: {
           color: 'var(--fg)'
         }}
       >
-        <option value="" disabled>Kamera wählen…</option>
+        <option value="" disabled>{t('av.selectCam')}</option>
         {devices.cams.map(d => <option key={d.id} value={d.id}>{d.label}</option>)}
       </select>
 
       <Separator variant="vertical" />
 
-      <Button disabled={dndOn} active={shareOn} onClick={onToggleShare} iconPosition="left">
+      <Button
+        disabled={dndOn}
+        variant={shareOn ? 'primary' : 'default'}
+        onClick={onToggleShare}
+        iconPosition="left"
+      >
         <FAIcon name="screencast" variant="solid" />
-        <span>{shareOn ? 'Screenshare stoppen' : 'Screenshare starten'}</span>
+        <span>{shareOn ? t('av.share.stop') : t('av.share.start')}</span>
       </Button>
 
       <Separator variant="vertical" />
 
-      <Button active={dndOn} onClick={onToggleDnd} icon="bell-slash" iconPosition="only" title={dndOn ? 'Bitte nicht stören: an' : 'Bitte nicht stören: aus'} />
+      <Button active={dndOn} onClick={onToggleDnd} icon="bell-slash" iconPosition="only" title={dndOn ? t('av.dnd.on') : t('av.dnd.off')} />
       {cameraManual && (
-        <Button disabled={dndOn} onClick={onRecenter} icon="location-crosshairs" iconPosition="only" title="Zentrieren" />
+        <Button disabled={dndOn} onClick={onRecenter} icon="location-crosshairs" iconPosition="only" title={t('av.recenter')} />
+      )}
+      {showSettings && (
+        <>
+          <Separator variant="vertical" />
+          <Button onClick={() => setSettingsOpen(true)} icon="gear" iconPosition="only" title={t('av.audioSettings')} />
+          <AudioSettingsModal open={settingsOpen} onOpenChange={setSettingsOpen} />
+        </>
       )}
     </ButtonGroup>
   );

@@ -1,5 +1,8 @@
 import { Modal } from '../system/Modal';
+import { Input } from '../system/Input';
+import { Button } from '../system/Button';
 import { useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 
 export function ApiTokensOverlay(props: {
   open: boolean;
@@ -13,6 +16,7 @@ export function ApiTokensOverlay(props: {
   setFreshToken: (v: string | null) => void;
 }) {
   const { open, onClose, apiBase, apiTokens, setApiTokens, newTokenName, setNewTokenName, freshToken, setFreshToken } = props;
+  const { t } = useTranslation();
 
   useEffect(() => {
     if (open) {
@@ -23,12 +27,12 @@ export function ApiTokensOverlay(props: {
   }, [open, apiBase, setApiTokens]);
 
   return (
-    <Modal open={open} onOpenChange={(o)=>{ if(!o) onClose(); }} title="API-Zugriff">
+    <Modal open={open} onOpenChange={(o)=>{ if(!o) onClose(); }} title={t('admin.api.title')}>
       <div style={{ display:'grid', gap: 10 }}>
-        <div style={{ fontSize: 13, color: '#e5e7eb' }}>Mit persönlichen Tokens kannst du dein Mikro, Kamera, Screenshare und den Nicht-stören-Modus remote steuern – solange du online bist.</div>
+        <div style={{ fontSize: 13, color: 'var(--fg-subtle)' }}>{t('admin.api.helper')}</div>
         <div style={{ display:'flex', gap: 12, alignItems:'center' }}>
-          <input value={newTokenName} onChange={e=>setNewTokenName(e.target.value)} placeholder="Token-Name (optional)" style={{ flex:1, padding:'8px 10px', borderRadius:8, border:'1px solid rgba(255,255,255,0.12)', background:'rgba(0,0,0,0.35)', color:'#fff' }} />
-          <button onClick={async()=>{
+          <Input value={newTokenName} onChange={e=>setNewTokenName(e.target.value)} placeholder={t('admin.api.newTokenPlaceholder')} style={{ flex:1, padding:'8px 10px' }} />
+          <Button variant="brand" onClick={async()=>{
             try {
               const res = await fetch(`${apiBase}/api-tokens`, { method:'POST', headers:{ 'Content-Type':'application/json' }, credentials:'include', body: JSON.stringify({ name: newTokenName || undefined }) });
               if (!res.ok) throw new Error('Token konnte nicht erstellt werden');
@@ -38,49 +42,49 @@ export function ApiTokensOverlay(props: {
               const list = await fetch(`${apiBase}/api-tokens`, { credentials:'include' }).then(r=>r.json());
               setApiTokens(list);
             } catch (e:any) {
-              alert(e.message || 'Fehler beim Erstellen');
+              alert(e.message || t('admin.api.createError'));
             }
-          }} style={{ padding:'8px 10px', borderRadius:8, border:'1px solid rgba(255,255,255,0.12)', background:'rgba(16,185,129,0.2)', color:'#10b981' }}>Neuen Token erstellen</button>
+          }}>{t('admin.api.createToken')}</Button>
         </div>
         {freshToken && (
-          <div style={{ padding:10, borderRadius:8, border:'1px solid rgba(16,185,129,0.35)', background:'rgba(16,185,129,0.12)', color:'#d1fae5' }}>
-            <div style={{ fontWeight:600, marginBottom:6 }}>Dein neuer Token (zeige ihn nur einmal an):</div>
+          <div style={{ padding:10, borderRadius:8, border:'1px solid var(--border)', background:'var(--glass)', color:'var(--fg)' }}>
+            <div style={{ fontWeight:600, marginBottom:6 }}>{t('admin.api.newTokenReveal')}</div>
             <code style={{ userSelect:'all' }}>{freshToken}</code>
           </div>
         )}
-        <div style={{ fontWeight:600, marginTop: 4 }}>Deine Tokens</div>
+        <div style={{ fontWeight:600, marginTop: 4 }}>{t('admin.api.tokensHeader')}</div>
         <div style={{ display:'grid', gap:6 }}>
           {(apiTokens||[]).map((t: any) => (
-            <div key={t.id} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', border:'1px solid rgba(255,255,255,0.12)', borderRadius:8, padding:'8px 10px' }}>
+            <div key={t.id} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', border:'1px solid var(--border)', borderRadius:8, padding:'8px 10px', background:'var(--glass)' }}>
               <div>
                 <div style={{ fontWeight:600 }}>{t.name || 'Token'}</div>
-                <div style={{ fontSize:12, opacity:0.75 }}>Erstellt: {new Date(t.createdAt).toLocaleString()} {t.lastUsedAt ? `· Zuletzt genutzt: ${new Date(t.lastUsedAt).toLocaleString()}` : ''}</div>
+                <div style={{ fontSize:12, color:'var(--fg-subtle)' }}>{t('admin.api.createdAt')}: {new Date(t.createdAt).toLocaleString()} {t.lastUsedAt ? `· ${t('admin.api.lastUsed')}: ${new Date(t.lastUsedAt).toLocaleString()}` : ''}</div>
               </div>
-              <button onClick={async()=>{ try{ await fetch(`${apiBase}/api-tokens/${t.id}`, { method:'DELETE', credentials:'include' }); const list = await fetch(`${apiBase}/api-tokens`, { credentials:'include' }).then(r=>r.json()); setApiTokens(list); } catch(e:any){ alert(e.message||'Fehler beim Löschen'); } }} style={{ padding:'6px 8px', borderRadius:6, border:'1px solid rgba(255,255,255,0.12)', background:'rgba(239,68,68,0.15)', color:'#fca5a5' }}>Löschen</button>
+              <Button variant="danger" onClick={async()=>{ try{ await fetch(`${apiBase}/api-tokens/${t.id}`, { method:'DELETE', credentials:'include' }); const list = await fetch(`${apiBase}/api-tokens`, { credentials:'include' }).then(r=>r.json()); setApiTokens(list); } catch(e:any){ alert(e.message||t('admin.api.deleteError')); } }} style={{ padding:'6px 8px' }}>{t('admin.api.delete')}</Button>
             </div>
           ))}
-          {!apiTokens?.length && <div style={{ fontSize:13, opacity:0.7 }}>Noch keine Tokens erstellt.</div>}
+          {!apiTokens?.length && <div style={{ fontSize:13, color:'var(--fg-subtle)' }}>{t('admin.api.noneYet')}</div>}
         </div>
-        <div style={{ fontWeight:600 }}>API-Dokumentation</div>
+        <div style={{ fontWeight:600 }}>{t('admin.api.docs')}</div>
         <div>
-          <div style={{ fontWeight:600, marginBottom:6 }}>Base URL</div>
-          <code style={{ display:'block', padding:'8px 10px', borderRadius:8, border:'1px solid rgba(255,255,255,0.12)', background:'rgba(0,0,0,0.35)' }}>{apiBase}</code>
-        </div>
-        <div>
-          <div style={{ fontWeight:600, margin:'10px 0 6px' }}>Authentifizierung</div>
-          <div style={{ fontSize:13, opacity:0.85 }}>Setze den HTTP Header Authorization: Bearer YOUR_TOKEN</div>
+          <div style={{ fontWeight:600, marginBottom:6 }}>{t('admin.api.baseUrl')}</div>
+          <code style={{ display:'block', padding:'8px 10px', borderRadius:8, border:'1px solid var(--border)', background:'var(--glass)' }}>{apiBase}</code>
         </div>
         <div>
-          <div style={{ fontWeight:600, margin:'10px 0 6px' }}>Steuer-Endpunkt</div>
-          <code style={{ display:'block', padding:'8px 10px', borderRadius:8, border:'1px solid rgba(255,255,255,0.12)', background:'rgba(0,0,0,0.35)' }}>POST /controls</code>
-          <div style={{ fontSize:13, opacity:0.85, marginTop:6 }}>Body (JSON, mindestens ein Feld):</div>
-          <code style={{ display:'block', padding:'8px 10px', borderRadius:8, border:'1px solid rgba(255,255,255,0.12)', background:'rgba(0,0,0,0.35)' }}>{`{ "mic": true|false, "cam": true|false, "share": true|false, "dnd": true|false }`}</code>
-          <div style={{ fontSize:13, opacity:0.85, marginTop:6 }}>Antwort: <code>{`{ "ok": true, "delivered": n }`}</code></div>
-          <div style={{ fontSize:13, opacity:0.85, marginTop:6 }}>Hinweise: DND schaltet Mic/Kamera/Share automatisch aus. Steuerung funktioniert nur, wenn du online bist.</div>
+          <div style={{ fontWeight:600, margin:'10px 0 6px' }}>{t('admin.api.auth')}</div>
+          <div style={{ fontSize:13, color:'var(--fg-subtle)' }}>{t('admin.api.authHint')}</div>
         </div>
         <div>
-          <div style={{ fontWeight:600, margin:'10px 0 6px' }}>Beispiel</div>
-          <code style={{ display:'block', padding:'8px 10px', borderRadius:8, border:'1px solid rgba(255,255,255,0.12)', background:'rgba(0,0,0,0.35)', whiteSpace:'pre-wrap' }}>{`curl -X POST "${apiBase}/controls" \n- H "Authorization: Bearer YOUR_TOKEN" \\\n- H "Content-Type: application/json" \\\n- d '{ "mic": false, "dnd": true }'`}</code>
+          <div style={{ fontWeight:600, margin:'10px 0 6px' }}>{t('admin.api.controlEndpoint')}</div>
+          <code style={{ display:'block', padding:'8px 10px', borderRadius:8, border:'1px solid var(--border)', background:'var(--glass)' }}>POST /controls</code>
+          <div style={{ fontSize:13, color:'var(--fg-subtle)', marginTop:6 }}>{t('admin.api.bodyHint')}</div>
+          <code style={{ display:'block', padding:'8px 10px', borderRadius:8, border:'1px solid var(--border)', background:'var(--glass)' }}>{`{ "mic": true|false, "cam": true|false, "share": true|false, "dnd": true|false }`}</code>
+          <div style={{ fontSize:13, color:'var(--fg-subtle)', marginTop:6 }}>{t('admin.api.responseHint')}: <code>{`{ "ok": true, "delivered": n }`}</code></div>
+          <div style={{ fontSize:13, color:'var(--fg-subtle)', marginTop:6 }}>{t('admin.api.notes')}</div>
+        </div>
+        <div>
+          <div style={{ fontWeight:600, margin:'10px 0 6px' }}>{t('admin.api.example')}</div>
+          <code style={{ display:'block', padding:'8px 10px', borderRadius:8, border:'1px solid var(--border)', background:'var(--glass)', whiteSpace:'pre-wrap' }}>{`curl -X POST "${apiBase}/controls" \n- H "Authorization: Bearer YOUR_TOKEN" \\\n+ H "Content-Type: application/json" \\\n+ d '{ "mic": false, "dnd": true }'`}</code>
         </div>
       </div>
     </Modal>

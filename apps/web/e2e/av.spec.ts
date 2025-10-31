@@ -38,8 +38,9 @@ const SHOULD_RUN = process.env.E2E_RUN === 'true';
   const ctx = await browser.newContext();
   const page = await ctx.newPage();
   await page.goto(url);
-  // TODO: Trigger DND via UI if available; placeholder ensures page loaded
-  await page.waitForTimeout(2_000);
+  // Minimaler Smoke: App lädt und fordert LiveKit-Token an (impliziter Join)
+  const tokenReq = page.waitForRequest((req) => req.url().includes('/livekit/token'), { timeout: 60_000 });
+  await expect.soft(await tokenReq).toBeTruthy();
   await ctx.close();
 });
 
@@ -49,8 +50,9 @@ const SHOULD_RUN = process.env.E2E_RUN === 'true';
   const ctx = await browser.newContext();
   const page = await ctx.newPage();
   await page.goto(url);
-  // TODO: Click screenshare control if present; this is a placeholder
-  await page.waitForTimeout(2_000);
+  // Minimaler Smoke: App lädt und fordert LiveKit-Token an (impliziter Join)
+  const tokenReq = page.waitForRequest((req) => req.url().includes('/livekit/token'), { timeout: 60_000 });
+  await expect.soft(await tokenReq).toBeTruthy();
   await ctx.close();
 });
 

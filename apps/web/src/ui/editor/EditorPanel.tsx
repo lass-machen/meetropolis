@@ -1,8 +1,9 @@
 import React from 'react';
-import { TilesetPreview, Button } from '../../ui/components';
-import type { EditorState, EditorCategory, EditorTool } from '../../hooks/useEditor';
+import { Checkbox } from '../../ui/system';
+import type { EditorState } from '../../hooks/useEditor';
 import { gameBridge } from '../../game/bridge';
 import { Toast } from '../../ui/system';
+import { useTranslation } from 'react-i18next';
 
 export function EditorPanel(props: {
   editor: EditorState;
@@ -11,6 +12,7 @@ export function EditorPanel(props: {
   onSave?: () => Promise<boolean> | void;
 }) {
   const { editor, setEditor } = props;
+  const { t } = useTranslation();
   React.useEffect(() => {
     // Activate editor mode for scene interactions
     try { gameBridge.setEditorMode(true); } catch {}
@@ -65,14 +67,14 @@ export function EditorPanel(props: {
       const ok = typeof result === 'boolean' ? result : true;
       if (ok) {
         setLastSavedAt(Date.now());
-        setToast({ title: 'Gespeichert', description: 'Änderungen wurden erfolgreich gespeichert.', intent: 'success' });
+        setToast({ title: t('editor.savedTitle'), description: t('editor.changesSaved'), intent: 'success' });
         setToastOpen(true);
       } else {
-        setToast({ title: 'Speichern fehlgeschlagen', description: 'Bitte erneut versuchen.', intent: 'error' });
+        setToast({ title: t('editor.saveFailedTitle'), description: t('editor.saveFailedDesc'), intent: 'error' });
         setToastOpen(true);
       }
     } catch (e: any) {
-      setToast({ title: 'Speichern fehlgeschlagen', description: (e?.message || 'Unbekannter Fehler').toString(), intent: 'error' });
+      setToast({ title: t('editor.saveFailedTitle'), description: (e?.message || t('common.error')).toString(), intent: 'error' });
       setToastOpen(true);
     } finally {
       setSaving(false);
@@ -115,7 +117,7 @@ export function EditorPanel(props: {
   return (
     <div style={{ padding: 16, display: 'grid', gap: 12 }}>
       <div style={{ display: 'grid', gap: 6 }}>
-        <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>Hintergrundfarbe</div>
+        <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>{t('editor.background')}</div>
         <input
           type="color"
           value={editor.backgroundColor}
@@ -131,23 +133,23 @@ export function EditorPanel(props: {
       </div>
       <div style={{ display: 'flex', gap: 6 }}>
         {editor.category !== 'terrain' && (
-          <button onClick={() => setEditor(s => ({ ...s, tool: 'select' }))} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid var(--border)', background: editor.tool==='select'?'rgba(59,130,246,0.18)':'var(--glass)', color: 'var(--fg)', fontSize: 13 }}>Auswählen</button>
+          <button onClick={() => setEditor(s => ({ ...s, tool: 'select' }))} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid var(--border)', background: editor.tool==='select'?'rgba(59,130,246,0.18)':'var(--glass)', color: 'var(--fg)', fontSize: 13 }}>{t('editor.select')}</button>
         )}
         {editor.category === 'terrain' ? (
           <>
             <button onClick={() => {
               setEditor(s => ({ ...s, tool: 'collision' }));
               try { (window as any).currentPhaserScene?.setEditorTool?.('collision'); } catch {}
-            }} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid var(--border)', background: editor.tool==='collision'?'rgba(239,68,68,0.18)':'var(--glass)', color: 'var(--fg)', fontSize: 13 }}>Kollision</button>
+            }} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid var(--border)', background: editor.tool==='collision'?'rgba(239,68,68,0.18)':'var(--glass)', color: 'var(--fg)', fontSize: 13 }}>{t('editor.collision')}</button>
             <button onClick={() => {
               setEditor(s => ({ ...s, tool: 'erase' }));
               try { (window as any).currentPhaserScene?.setEditorTool?.('erase'); } catch {}
-            }} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid var(--border)', background: editor.tool==='erase'?'rgba(239,68,68,0.18)':'var(--glass)', color: 'var(--fg)', fontSize: 13 }}>Löschen</button>
+            }} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid var(--border)', background: editor.tool==='erase'?'rgba(239,68,68,0.18)':'var(--glass)', color: 'var(--fg)', fontSize: 13 }}>{t('editor.delete')}</button>
           </>
         ) : (
           <>
-            <button onClick={() => setEditor(s => ({ ...s, tool: 'collision' }))} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid var(--border)', background: editor.tool==='collision'?'rgba(239,68,68,0.18)':'var(--glass)', color: 'var(--fg)', fontSize: 13 }}>Kollision</button>
-            <button onClick={() => setEditor(s => ({ ...s, tool: 'erase' }))} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid var(--border)', background: editor.tool==='erase'?'rgba(239,68,68,0.18)':'var(--glass)', color: 'var(--fg)', fontSize: 13 }}>Löschen</button>
+            <button onClick={() => setEditor(s => ({ ...s, tool: 'collision' }))} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid var(--border)', background: editor.tool==='collision'?'rgba(239,68,68,0.18)':'var(--glass)', color: 'var(--fg)', fontSize: 13 }}>{t('editor.collision')}</button>
+            <button onClick={() => setEditor(s => ({ ...s, tool: 'erase' }))} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid var(--border)', background: editor.tool==='erase'?'rgba(239,68,68,0.18)':'var(--glass)', color: 'var(--fg)', fontSize: 13 }}>{t('editor.delete')}</button>
           </>
         )}
       </div>
@@ -155,9 +157,9 @@ export function EditorPanel(props: {
       {editor.category === 'terrain' && (
         <>
           <div style={{ display: 'grid', gap: 8 }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg)' }}>Terrain</div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg)' }}>{t('editor.terrain')}</div>
             {(!editor.packItems || editor.packItems.filter(it=>it.category==='terrain').length === 0) && (
-              <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>Keine Terrain-Items gefunden.</div>
+              <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>{t('editor.noTerrain')}</div>
             )}
             {editor.packItems && editor.packItems.filter(it=>it.category==='terrain').length > 0 && (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(64px, 1fr))', gap: 8, maxHeight: 260, overflow: 'auto', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--glass)', padding: 8 }}>
@@ -192,38 +194,38 @@ export function EditorPanel(props: {
                 })}
               </div>
             )}
-            <div style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>Wähle ein Terrain-Item und markiere einen Bereich auf der Karte.</div>
+            <div style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>{t('editor.hintTerrain')}</div>
           </div>
         </>
       )}
 
       {editor.category === 'zones' && (
         <>
-          <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg)' }}>Zonen-Verwaltung</div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg)' }}>{t('editor.zones')}</div>
           <div style={{ display: 'grid', gap: 6 }}>
-            <label style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>Zonenname</label>
-            <input value={editor.name} onChange={(e)=>setEditor(s=>({ ...s, name: e.target.value }))} placeholder="z.B. Meeting Room A" style={{ padding: 8, borderRadius: 6, border: '1px solid var(--border)', background: 'var(--glass)', color: 'var(--fg)', fontSize: 13 }} />
+            <label style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>{t('editor.zoneName')}</label>
+            <input value={editor.name} onChange={(e)=>setEditor(s=>({ ...s, name: e.target.value }))} placeholder={t('editor.exampleRoomName')} style={{ padding: 8, borderRadius: 6, border: '1px solid var(--border)', background: 'var(--glass)', color: 'var(--fg)', fontSize: 13 }} />
             <div style={{ display: 'flex', gap: 6 }}>
               <button onClick={()=>{
                 // Starte neuen Zonen-Zeichenvorgang
                 setEditor(s=>({ ...s, tool: 'zone', category: 'zones', editingZoneIndex: null }));
                 try { (window as any).currentPhaserScene?.setSelectionRect?.(null); } catch {}
-              }} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid var(--border)', background: editor.tool==='zone'?'rgba(59,130,246,0.18)':'var(--glass)', color: 'var(--fg)', fontSize: 13 }}>Neu ziehen</button>
+              }} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid var(--border)', background: editor.tool==='zone'?'rgba(59,130,246,0.18)':'var(--glass)', color: 'var(--fg)', fontSize: 13 }}>{t('editor.drawNew')}</button>
               <button onClick={()=>{
                 setEditor(s=>({ ...s, tool: 'select', editingZoneIndex: null }));
                 try { (window as any).currentPhaserScene?.setSelectionRect?.(null); } catch {}
-              }} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--glass)', color: 'var(--fg)', fontSize: 13 }}>Abbrechen</button>
+              }} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--glass)', color: 'var(--fg)', fontSize: 13 }}>{t('editor.cancel')}</button>
             </div>
           </div>
           <div style={{ marginTop: 10, display: 'grid', gap: 8 }}>
-            <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>Vorhandene Zonen</div>
+            <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>{t('editor.existingZones')}</div>
             {editor.zones.length === 0 && (
-              <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>Noch keine Zonen. Ziehe auf der Karte einen Bereich, um eine Zone zu erstellen.</div>
+              <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>{t('editor.noZones')}</div>
             )}
             {editor.zones.map((z, idx) => (
               <div key={idx} style={{ display: 'grid', gap: 6, padding: 8, borderRadius: 8, border: '1px solid var(--border)', background: editor.editingZoneIndex===idx? 'rgba(59,130,246,0.08)' : 'var(--glass)' }}>
                 <div style={{ display: 'grid', gap: 4 }}>
-                  <label style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>Name</label>
+                  <label style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>{t('editor.name')}</label>
                   <input
                     value={z.name}
                     onChange={(e)=>setEditor(s=>{
@@ -235,18 +237,18 @@ export function EditorPanel(props: {
                   />
                 </div>
                 <div style={{ display: 'flex', gap: 6 }}>
-                  <button onClick={()=>setEditor(s=>({ ...s, editingZoneIndex: idx, tool: 'zone', category: 'zones', name: s.zones[idx]?.name || '' }))} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--glass)', color: 'var(--fg)', fontSize: 12 }}>Neu ziehen</button>
+                  <button onClick={()=>setEditor(s=>({ ...s, editingZoneIndex: idx, tool: 'zone', category: 'zones', name: s.zones[idx]?.name || '' }))} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--glass)', color: 'var(--fg)', fontSize: 12 }}>{t('editor.drawNew')}</button>
                   <button onClick={()=>setEditor(s=>{
                     const zones = s.zones.filter((_,i)=>i!==idx);
                     // Wenn gerade bearbeitet wird und diese Zone entfernt wird, Bearbeitung zurücksetzen
-                    const editing = (s.editingZoneIndex ?? null) === idx ? null : s.editingZoneIndex;
+                    const editing = (s.editingZoneIndex ?? null) === idx ? null : (s.editingZoneIndex ?? null);
                     // Persistiere nach LocalStorage
                     try { localStorage.setItem('meetropolis.zones', JSON.stringify(zones)); } catch {}
                     // Szene-Overlay aktualisieren, falls verfügbar
                     try { (window as any).currentPhaserScene?.setZoneOverlay?.(zones); } catch {}
                     // Keine Autospeicherung – Speichern-Button verwenden
                     return { ...s, zones, editingZoneIndex: editing };
-                  })} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'rgba(239,68,68,0.12)', color: 'var(--fg)', fontSize: 12 }}>Löschen</button>
+                  })} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'rgba(239,68,68,0.12)', color: 'var(--fg)', fontSize: 12 }}>{t('editor.remove')}</button>
                 </div>
               </div>
             ))}
@@ -258,9 +260,9 @@ export function EditorPanel(props: {
         <>
           {editor.category !== 'terrain' && (
             <div style={{ display: 'grid', gap: 8 }}>
-              <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg)' }}>Pack-Items</div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg)' }}>{t('editor.packs')}</div>
               {(!editor.packItems || editor.packItems.length === 0) && (
-                <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>Keine Asset-Packs installiert oder keine Items in dieser Kategorie.</div>
+                <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>{t('editor.noPacks')}</div>
               )}
               {editor.packItems && editor.packItems.length > 0 && (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(64px, 1fr))', gap: 8, maxHeight: 260, overflow: 'auto', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--glass)', padding: 8 }}>
@@ -277,7 +279,7 @@ export function EditorPanel(props: {
                               dataUrl: it.dataUrl,
                               packUuid: it.packUuid,
                               itemId: it.itemId,
-                              category: it.category,
+                              category: it.category as 'structures' | 'objects',
                               collide: it.collide,
                               width: it.width,
                               height: it.height,
@@ -305,7 +307,7 @@ export function EditorPanel(props: {
                   })}
                 </div>
               )}
-              <div style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>Klicke ein Item und platziere es durch Klick auf eine Kachel.</div>
+              <div style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>{t('editor.placeHint')}</div>
             </div>
           )}
         </>
@@ -313,32 +315,32 @@ export function EditorPanel(props: {
 
       {/* Footer mit Speichern-Button und Overlay-Toggle */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-        <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>
-          {lastSavedLabel ? `Zuletzt gespeichert: ${lastSavedLabel}` : 'Noch nicht gespeichert'}
+          <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>
+          {lastSavedLabel ? t('editor.lastSaved', { time: lastSavedLabel }) : t('editor.notSaved')}
         </div>
         <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--fg-subtle)' }}>
-          <input type="checkbox" checked={zonesVisible} onChange={e => setZonesVisible(e.target.checked)} /> Zonen anzeigen
+          <Checkbox checked={zonesVisible} onChange={e => setZonesVisible((e.target as HTMLInputElement).checked)} /> {t('editor.showZones')}
         </label>
         <button onClick={handleSaveClick} disabled={saving} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'rgba(59,130,246,0.18)', color: 'var(--fg)', fontSize: 13, fontWeight: 600, opacity: saving ? 0.7 : 1, cursor: saving ? 'default' : 'pointer' }}>
-          {saving ? 'Speichern…' : 'Speichern'}
+          {saving ? t('editor.saving') : t('editor.save')}
         </button>
       </div>
 
       {(editor.category === 'terrain' || editor.category === 'structures' || editor.category === 'objects') && (
         <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12, marginTop: 12 }}>
           <div style={{ display: 'grid', gap: 8 }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg)' }}>Tileset hochladen</div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg)' }}>{t('editor.uploadTileset')}</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--glass)', cursor: 'pointer' }}>
               <label style={{ cursor: 'pointer', flex: 1, display: 'flex', alignItems: 'center', gap: 8, color: 'var(--fg)' }}>
                 <span style={{ fontSize: 16 }}>📁</span>
-                <span style={{ fontSize: 13 }}>Tileset-Bild auswählen...</span>
+                <span style={{ fontSize: 13 }}>{t('editor.chooseImage')}</span>
                 <input type="file" accept="image/*" style={{ display: 'none' }} onChange={props.onOpenUpload} />
               </label>
             </div>
           </div>
         </div>
       )}
-      <Toast open={toastOpen} onOpenChange={setToastOpen} title={toast.title} description={toast.description} intent={toast.intent as any} />
+      <Toast open={toastOpen} onOpenChange={setToastOpen} title={toast.title || ''} description={toast.description || ''} intent={toast.intent || 'info'} />
     </div>
   );
 }

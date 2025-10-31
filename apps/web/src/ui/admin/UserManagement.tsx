@@ -1,8 +1,10 @@
 import React from 'react';
 import { Toolbar, Button, Card, Input, Modal } from '../../ui/system';
+import { useTranslation } from 'react-i18next';
 
 export function UserManagement(props: { baseUrl: string; onBack: () => void }) {
   const { baseUrl, onBack } = props;
+  const { t } = useTranslation();
   const [loading, setLoading] = React.useState(true);
   const [users, setUsers] = React.useState<{ id: string; email: string; name?: string; createdAt?: string }[]>([]);
   const [error, setError] = React.useState<string | null>(null);
@@ -17,11 +19,11 @@ export function UserManagement(props: { baseUrl: string; onBack: () => void }) {
     setError(null);
     try {
       const res = await fetch(`${baseUrl}/users`, { credentials: 'include' });
-      if (!res.ok) throw new Error('Fehler beim Laden');
+      if (!res.ok) throw new Error(t('common.error'));
       const list = await res.json();
       setUsers(list);
     } catch (e: any) {
-      setError(e.message || 'Fehler');
+      setError(e.message || t('common.error'));
     } finally {
       setLoading(false);
     }
@@ -39,13 +41,13 @@ export function UserManagement(props: { baseUrl: string; onBack: () => void }) {
   }
 
   async function remove(id: string) {
-    if (!confirm('Benutzer wirklich löschen?')) return;
+    if (!confirm(t('admin.users.confirmDelete'))) return;
     try {
       const res = await fetch(`${baseUrl}/users/${id}`, { method: 'DELETE', credentials: 'include' });
-      if (!res.ok) throw new Error((await res.json())?.error || 'Löschen fehlgeschlagen');
+      if (!res.ok) throw new Error((await res.json())?.error || t('common.error'));
       await load();
     } catch (e: any) {
-      setError(e.message || 'Fehler');
+      setError(e.message || t('common.error'));
     }
   }
 
@@ -59,9 +61,9 @@ export function UserManagement(props: { baseUrl: string; onBack: () => void }) {
     <div style={{ maxWidth: 1040, margin: '0 auto', display: 'grid', gap: 20, padding: '20px' }}>
       <Toolbar
         left={<>
-          <Button onClick={onBack}>← Zurück</Button>
+          <Button onClick={onBack}>← {t('admin.users.back')}</Button>
           <div style={{ padding: '6px 12px', borderRadius: 20, background: 'var(--glass)', border: '1px solid var(--border)', fontSize: 12, color: 'var(--fg)', fontWeight: 600 }}>
-            Admin
+            {t('admin.users.adminBadge')}
           </div>
         </>}
         right={<>
@@ -69,7 +71,7 @@ export function UserManagement(props: { baseUrl: string; onBack: () => void }) {
             variant="brand" 
             onClick={() => { setInviteCode(null); setNewEmail(''); setNewName(''); setCreateOpen(true); }}
           >
-            + Neuer Benutzer
+            + {t('admin.users.newUser')}
           </Button>
         </>}
         style={{ background: 'transparent', border: 'none', padding: 0 }}
@@ -85,7 +87,7 @@ export function UserManagement(props: { baseUrl: string; onBack: () => void }) {
       )}
       {loading ? (
         <Card style={{ textAlign: 'center', padding: 40 }}>
-          <div style={{ color: 'rgba(255,255,255,0.6)' }}>Lade Benutzerdaten...</div>
+          <div style={{ color: 'rgba(255,255,255,0.6)' }}>{t('admin.users.loading')}</div>
         </Card>
       ) : (
         <Card style={{ padding: 0, overflow: 'hidden' }}>
@@ -103,9 +105,9 @@ export function UserManagement(props: { baseUrl: string; onBack: () => void }) {
               textTransform: 'uppercase',
               letterSpacing: '0.05em'
             }}>
-              <div>E-Mail</div>
-              <div>Name</div>
-              <div>Aktionen</div>
+              <div>{t('admin.users.email')}</div>
+              <div>{t('admin.users.name')}</div>
+              <div>{t('admin.users.actions')}</div>
             </div>
             {users.map(u => (
               <div key={u.id} style={{ 
@@ -154,14 +156,14 @@ export function UserManagement(props: { baseUrl: string; onBack: () => void }) {
                         onClick={() => setEdit({ id: u.id, email: u.email, name: u.name ?? '' })}
                         style={{ padding: '6px 16px', borderRadius: 6, fontSize: 13 }}
                       >
-                        Bearbeiten
+                        {t('admin.users.edit')}
                       </Button>
                       <Button 
                         variant="danger" 
                         onClick={() => remove(u.id)}
                         style={{ padding: '6px 16px', borderRadius: 6, fontSize: 13 }}
                       >
-                        Löschen
+                        {t('admin.users.delete')}
                       </Button>
                     </div>
                   </>
@@ -174,43 +176,43 @@ export function UserManagement(props: { baseUrl: string; onBack: () => void }) {
                 textAlign: 'center', 
                 color: 'rgba(255,255,255,0.4)' 
               }}>
-                Keine Benutzer vorhanden
+                {t('admin.users.none')}
               </div>
             )}
           </div>
         </Card>
       )}
 
-      <Modal zIndexBase={1100} open={createOpen} onOpenChange={(o)=> setCreateOpen(o)} title="Neuen Benutzer einladen" maxWidth={520} footer={<>
-        <Button onClick={() => setCreateOpen(false)}>Abbrechen</Button>
+      <Modal zIndexBase={1100} open={createOpen} onOpenChange={(o)=> setCreateOpen(o)} title={t('admin.users.inviteTitle')} maxWidth={520} footer={<> 
+        <Button onClick={() => setCreateOpen(false)}>{t('admin.users.cancel')}</Button>
         <Button variant="brand" onClick={async () => {
           setError(null);
           try {
             const res = await fetch(`${baseUrl}/auth/invite`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ email: newEmail, name: newName || undefined }) });
-            if (!res.ok) throw new Error((await res.json())?.error || 'Fehler beim Einladen');
+            if (!res.ok) throw new Error((await res.json())?.error || t('common.error'));
             const data = await res.json();
             setInviteCode(data.code || null);
             try { await (document as any).__userManagementLoad?.(); } catch {}
           } catch (e: any) {
-            setError(e.message || 'Fehler');
+            setError(e.message || t('common.error'));
           }
-        }}>Einladung erstellen</Button>
+        }}>{t('admin.users.createInvite')}</Button>
       </>}>
         <div style={{ display: 'grid', gap: 10 }}>
-          <Input placeholder="E-Mail-Adresse" value={newEmail} onChange={e => setNewEmail(e.target.value)} />
-          <Input placeholder="Name (optional)" value={newName} onChange={e => setNewName(e.target.value)} />
+          <Input placeholder={t('admin.users.emailAddress')} value={newEmail} onChange={e => setNewEmail(e.target.value)} />
+          <Input placeholder={t('admin.users.nameOptional')} value={newName} onChange={e => setNewName(e.target.value)} />
           {inviteCode && (
             <div className="glass-surface" style={{ padding: 12, borderRadius: 'var(--radius-sm)', display:'grid', gap: 8 }}>
-              <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>Einladungscode</div>
+              <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>{t('admin.users.inviteCode')}</div>
               <div style={{ display:'flex', alignItems:'center', gap: 8 }}>
                 <div style={{ flex: 1, padding: '10px 12px', borderRadius: 'var(--radius-xs)', border: '1px solid var(--border)', background: 'var(--glass)', color: 'var(--fg)', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontWeight: 700, letterSpacing: '0.06em' }}>
                   {inviteCode}
                 </div>
-                <Button onClick={() => { navigator.clipboard?.writeText(inviteCode); }}>Kopieren</Button>
+                <Button onClick={() => { navigator.clipboard?.writeText(inviteCode); }}>{t('admin.users.copy')}</Button>
               </div>
             </div>
           )}
-          <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>Der eingeladene Nutzer erhält einen Code. Mit diesem kann er sich selbst registrieren.</div>
+          <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>{t('admin.users.inviteHint')}</div>
         </div>
       </Modal>
     </div>

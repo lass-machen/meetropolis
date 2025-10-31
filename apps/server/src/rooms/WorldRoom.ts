@@ -3,7 +3,6 @@ import Colyseus from 'colyseus';
 import { logger } from '../logger.js';
 import { colyseusRooms, colyseusPlayers } from '../metrics.js';
 import { Schema, type, MapSchema } from '@colyseus/schema';
-
 class Player extends Schema {
   @type('string') id: string = '';
   @type('number') x: number = 0;
@@ -55,6 +54,7 @@ export class WorldRoom extends Colyseus.Room<WorldState> {
         direction: data.direction
       }, { except: client });
     });
+
     
     // Handle editor updates
     this.onMessage('editor_update', (client, data: any) => {
@@ -95,7 +95,7 @@ export class WorldRoom extends Colyseus.Room<WorldState> {
     });
   }
 
-  override onJoin(client: Client, options?: any) {
+  override async onJoin(client: Client, options?: any) {
     // Vor Anlage eines neuen Spielers: Duplikate anhand Identity bereinigen
     const joiningIdentity = options?.identity || client.sessionId;
     try {

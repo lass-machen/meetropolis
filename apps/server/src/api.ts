@@ -80,6 +80,21 @@ async function requireApiToken(req: express.Request): Promise<{ userId: string }
   return { userId: found.userId };
 }
 
+function normalizeEmailForStorage(email: string): string {
+  return email.trim().toLowerCase();
+}
+
+function normalizeEmailForMatching(email: string): string {
+  const trimmed = email.trim().toLowerCase();
+  const atIndex = trimmed.indexOf('@');
+  if (atIndex === -1) return trimmed;
+  const local = trimmed.slice(0, atIndex);
+  const domain = trimmed.slice(atIndex + 1);
+  const plusIndex = local.indexOf('+');
+  const localBase = plusIndex >= 0 ? local.slice(0, plusIndex) : local;
+  return `${localBase}@${domain}`;
+}
+
 export function registerApi(app: express.Express) {
   app.get('/health', (_req: express.Request, res: express.Response) => res.json({ ok: true }));
   // Liveness probe: keine externen Abhängigkeiten
@@ -128,7 +143,8 @@ export function registerApi(app: express.Express) {
     const parse = schema.safeParse(req.body || {});
     if (!parse.success) return res.status(400).json({ error: 'email required' });
     const code = crypto.randomBytes(12).toString('hex');
-    const inv = await prisma.invite.create({ data: { code, email: parse.data.email, createdBy: auth.userId } });
+    const normalizedEmail = normalizeEmailForStorage(parse.data.email);
+    const inv = await prisma.invite.create({ data: { code, email: normalizedEmail, createdBy: auth.userId } });
     res.json({ code: inv.code });
   });
 
@@ -140,13 +156,14 @@ export function registerApi(app: express.Express) {
     const invite = await prisma.invite.findUnique({ where: { code } });
     if (!invite || invite.usedAt) return res.status(400).json({ error: 'invalid or used invite' });
     // Enforce invite email if present
-    if (invite.email && invite.email.toLowerCase() !== email.toLowerCase()) {
+    if (invite.email && normalizeEmailForMatching(invite.email) !== normalizeEmailForMatching(email)) {
       return res.status(400).json({ error: 'invite does not match email' });
     }
     const hash = await bcrypt.hash(password, 10);
     let user;
     try {
-      user = await prisma.user.create({ data: { email, name, passwordHash: hash, emailVerifiedAt: new Date() } });
+      const emailForStorage = normalizeEmailForStorage(email);
+      user = await prisma.user.create({ data: { email: emailForStorage, name, passwordHash: hash, emailVerifiedAt: new Date() } });
     } catch (e: any) {
       if (e?.code === 'P2002') return res.status(400).json({ error: 'email already in use' });
       return res.status(400).json({ error: 'registration failed' });
@@ -162,7 +179,8 @@ export function registerApi(app: express.Express) {
     const parse = schema.safeParse(req.body || {});
     if (!parse.success) return res.status(400).json({ error: 'email and password required' });
     const { email, password } = parse.data;
-    const user = await prisma.user.findUnique({ where: { email } });
+    const emailLookup = normalizeEmailForStorage(email);
+    const user = await prisma.user.findFirst({ where: { email: { equals: emailLookup, mode: 'insensitive' } } });
     if (!user || !user.passwordHash) return res.status(401).json({ error: 'invalid credentials' });
     const ok = await bcrypt.compare(password, user.passwordHash);
     if (!ok) return res.status(401).json({ error: 'invalid credentials' });
@@ -198,53 +216,57 @@ export function registerApi(app: express.Express) {
     });
   });
 
-  // Save user position
+  // Save user position (guarded: never crash on DB errors)
   app.post('/auth/position', async (req, res) => {
-    const auth = requireAuth(req);
-    if (!auth) return res.status(401).json({ error: 'unauthorized' });
-    const schema = z.object({ 
-      x: z.number(), 
-      y: z.number(), 
-      direction: z.enum(['up', 'down', 'left', 'right']),
-      roomId: z.string().optional()
-    });
-    const parse = schema.safeParse(req.body || {});
-    if (!parse.success) return res.status(400).json({ error: 'invalid position data' });
-    
-    const { x, y, direction, roomId = 'world' } = parse.data;
-    
-    // Get or create the default room
-    let room = await prisma.room.findFirst({ where: { name: roomId } });
-    if (!room) {
-      // Create default map and room if not exists
-      let map = await prisma.map.findFirst({ where: { name: 'office' } });
-      if (!map) {
-        map = await prisma.map.create({ data: { name: 'office', meta: {} } });
-      }
-      room = await prisma.room.create({ data: { name: roomId, mapId: map.id } });
-    }
-    
-    // Update or create presence
-    // First try to find existing presence
-    const existingPresence = await prisma.presence.findFirst({
-      where: {
-        userId: auth.userId,
-        roomId: room.id
-      }
-    });
-    
-    if (existingPresence) {
-      await prisma.presence.update({
-        where: { id: existingPresence.id },
-        data: { x, y, direction }
+    try {
+      const auth = requireAuth(req);
+      if (!auth) return res.status(401).json({ error: 'unauthorized' });
+      const schema = z.object({ 
+        x: z.number(), 
+        y: z.number(), 
+        direction: z.enum(['up', 'down', 'left', 'right']),
+        roomId: z.string().optional()
       });
-    } else {
-      await prisma.presence.create({
-        data: { userId: auth.userId, roomId: room.id, x, y, direction }
+      const parse = schema.safeParse(req.body || {});
+      if (!parse.success) return res.status(400).json({ error: 'invalid position data' });
+      
+      const { x, y, direction, roomId = 'world' } = parse.data;
+      
+      // Get or create the default room
+      let room = await prisma.room.findFirst({ where: { name: roomId } });
+      if (!room) {
+        // Create default map and room if not exists
+        let map = await prisma.map.findFirst({ where: { name: 'office' } });
+        if (!map) {
+          map = await prisma.map.create({ data: { name: 'office', meta: {} } });
+        }
+        room = await prisma.room.create({ data: { name: roomId, mapId: map.id } });
+      }
+      
+      // Update or create presence
+      const existingPresence = await prisma.presence.findFirst({
+        where: {
+          userId: auth.userId,
+          roomId: room.id
+        }
       });
+      
+      if (existingPresence) {
+        await prisma.presence.update({
+          where: { id: existingPresence.id },
+          data: { x, y, direction }
+        });
+      } else {
+        await prisma.presence.create({
+          data: { userId: auth.userId, roomId: room.id, x, y, direction }
+        });
+      }
+      
+      res.json({ ok: true });
+    } catch (e: any) {
+      try { logger.error('[Auth] position update failed', e); } catch {}
+      return res.status(500).json({ error: 'position update failed' });
     }
-    
-    res.json({ ok: true });
   });
 
   app.post('/auth/forgot', async (req, res) => {
@@ -252,7 +274,8 @@ export function registerApi(app: express.Express) {
     const parse = schema.safeParse(req.body || {});
     if (!parse.success) return res.status(400).json({ error: 'email required' });
     const email = parse.data.email;
-    const user = await prisma.user.findUnique({ where: { email } });
+    const emailLookup = normalizeEmailForStorage(email);
+    const user = await prisma.user.findFirst({ where: { email: { equals: emailLookup, mode: 'insensitive' } } });
     if (!user) return res.json({ ok: true });
     const token = crypto.randomBytes(24).toString('hex');
     const expiresAt = new Date(Date.now() + 1000 * 60 * 30);
@@ -310,7 +333,8 @@ export function registerApi(app: express.Express) {
     if (!parse.success || (!parse.data.email && !parse.data.name)) return res.status(400).json({ error: 'nothing to update' });
     const { email, name } = parse.data;
     try {
-      const user = await prisma.user.update({ where: { id }, data: { email: email ?? undefined, name: name ?? undefined } });
+      const normalized = email ? normalizeEmailForStorage(email) : undefined;
+      const user = await prisma.user.update({ where: { id }, data: { email: normalized ?? undefined, name: name ?? undefined } });
       res.json({ id: user.id, email: user.email, name: user.name });
     } catch (e: any) {
       if (e?.code === 'P2002') return res.status(400).json({ error: 'email already in use' });
@@ -891,13 +915,17 @@ export function registerApi(app: express.Express) {
       }
     }
 
-    // Broadcast stub via Colyseus rooms if available
-    try {
+    // Broadcast stub via Colyseus rooms if available (best-effort, mit Logging)
+    {
       const rooms: any[] = Array.from(((global as any).activeWorldRooms || new Set()).values());
       for (const room of rooms) {
-        try { room.broadcast('chunks_updated', { map: name, layer: layerName, updates }); } catch {}
+        try {
+          room.broadcast('chunks_updated', { map: name, layer: layerName, updates });
+        } catch (e: any) {
+          try { logger.debug('[Broadcast] chunks_updated failed', { error: e?.message || String(e) }); } catch {}
+        }
       }
-    } catch {}
+    }
 
     res.json({ updates });
   });
@@ -917,13 +945,17 @@ export function registerApi(app: express.Express) {
 
     const tilesets = await prisma.mapTileset.findMany({ where: { mapId: map.id }, orderBy: { slot: 'asc' } });
 
-    // Broadcast registry update
-    try {
+    // Broadcast registry update (best-effort, mit Logging)
+    {
       const rooms: any[] = Array.from(((global as any).activeWorldRooms || new Set()).values());
       for (const room of rooms) {
-        try { room.broadcast('tileset_registry_updated', { map: name, tilesetRegistry: tilesets }); } catch {}
+        try {
+          room.broadcast('tileset_registry_updated', { map: name, tilesetRegistry: tilesets });
+        } catch (e: any) {
+          try { logger.debug('[Broadcast] tileset_registry_updated failed', { error: e?.message || String(e) }); } catch {}
+        }
       }
-    } catch {}
+    }
 
     res.json({ tilesetRegistry: tilesets });
   });
@@ -1045,6 +1077,7 @@ export function registerApi(app: express.Express) {
       res.status(400).json({ error: 'update failed' });
     }
   });
+
 
   // Invitations management (authenticated)
   app.get('/invites', async (req: express.Request, res: express.Response) => {

@@ -178,11 +178,17 @@ body {
   color: var(--bg-btn-fg, var(--fg));
   cursor: pointer;
   transition: background 120ms ease, border-color 120ms ease, opacity 120ms ease;
+  outline: none; /* Verhindert weißen Standard-Fokusrahmen */
 }
 .bg-button[disabled] { cursor: not-allowed; opacity: var(--bg-btn-opacity, 0.6); }
 .bg-button:hover { filter: brightness(1.05); }
 .bg-button .bg-button-content { display: inline-flex; align-items: center; gap: 8px; }
 .bg-button.bg-icon-only { width: var(--bg-item-height, 32px); padding: 0; }
+
+/* Dezenter, einheitlicher Fokusrahmen nur bei Tastatur-Navigation */
+.bg-button:focus-visible {
+  box-shadow: 0 0 0 2px var(--focus);
+}
 
 .bg-button-content, .bg-button-content span { white-space: nowrap; }
 

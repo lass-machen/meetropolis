@@ -35,6 +35,30 @@ export function useLivekit({
   setAvState,
 }: UseLivekitArgs) {
   const isConnectingRef = React.useRef(false);
+  const refreshingDevicesRef = React.useRef(false);
+
+  const refreshDevices = React.useCallback(async () => {
+    if (!avRef.current || refreshingDevicesRef.current) return;
+    refreshingDevicesRef.current = true;
+    try {
+      const list = await avRef.current.listDevices();
+      const micOptions = list.microphones.map(d => ({ id: d.deviceId, label: d.label }));
+      const camOptions = list.cameras.map(d => ({ id: d.deviceId, label: d.label }));
+      setDevices({ mics: micOptions, cams: camOptions });
+      // Defaults nur setzen, wenn noch keine Auswahl existiert
+      const defaultMic = micOptions.find(d => d.id === 'default')?.id || micOptions[0]?.id || '';
+      const defaultCam = camOptions.find(d => d.id === 'default')?.id || camOptions[0]?.id || '';
+      if (defaultMic) {
+        setSelectedMicId(prev => prev || defaultMic);
+      }
+      if (defaultCam) {
+        setSelectedCamId(prev => prev || defaultCam);
+      }
+    } catch {}
+    finally {
+      refreshingDevicesRef.current = false;
+    }
+  }, [avRef, setDevices, setSelectedMicId, setSelectedCamId]);
 
   React.useEffect(() => {
     if (!me) return;
@@ -58,20 +82,7 @@ export function useLivekit({
         try { zoneRef.current?.setAV(avRef.current); } catch {}
 
         await avRef.current.switchTo('world');
-        const list = await avRef.current.listDevices();
-        const micOptions = list.microphones.map(d => ({ id: d.deviceId, label: d.label }));
-        const camOptions = list.cameras.map(d => ({ id: d.deviceId, label: d.label }));
-        setDevices({ mics: micOptions, cams: camOptions });
-        const defaultMic = micOptions.find(d => d.id === 'default')?.id || micOptions[0]?.id || '';
-        const defaultCam = camOptions.find(d => d.id === 'default')?.id || camOptions[0]?.id || '';
-        if (defaultMic) {
-          setSelectedMicId(defaultMic);
-          try { await avRef.current.useMicrophoneDevice(defaultMic); } catch {}
-        }
-        if (defaultCam) {
-          setSelectedCamId(defaultCam);
-          try { await avRef.current.useCameraDevice(defaultCam); } catch {}
-        }
+        await refreshDevices();
 
         const room: any = avRef.current.room as any;
         if (room) {
@@ -139,6 +150,8 @@ export function useLivekit({
       if (!avRef.current?.room && connectLivekitRef.current) {
         try { connectLivekitRef.current?.(); } catch {}
       }
+      // Versuche sofort Berechtigungen einzuholen, damit Gerätesystem Labels liefert
+      try { avRef.current?.ensurePermissions(true, (import.meta as any).env?.VITE_FEATURE_VOICE_ONLY === 'true' ? false : true); } catch {}
       const pendingTracks = (window as any).pendingAudioTracks;
       if (pendingTracks && pendingTracks.length > 0) {
         pendingTracks.forEach(({ track, audio }: any) => {
@@ -146,6 +159,8 @@ export function useLivekit({
         });
         (window as any).pendingAudioTracks = [];
       }
+      // Nach der ersten Interaktion Geräte neu einlesen (Permissions können jetzt erlaubt sein)
+      setTimeout(() => { refreshDevices(); }, 100);
     };
     window.addEventListener('pointerdown', firstInteract, { once: true } as any);
     window.addEventListener('keydown', firstInteract, { once: true } as any);
@@ -153,7 +168,18 @@ export function useLivekit({
       window.removeEventListener('pointerdown', firstInteract as any);
       window.removeEventListener('keydown', firstInteract as any);
     };
-  }, [connectLivekitRef.current]);
+  }, [connectLivekitRef.current, refreshDevices]);
+
+  // Geräte-Änderungen des Browsers beobachten (z. B. USB-Headset eingesteckt)
+  React.useEffect(() => {
+    const md = (navigator as any).mediaDevices;
+    if (!md || typeof md.addEventListener !== 'function') return;
+    const handler = () => { refreshDevices(); };
+    md.addEventListener('devicechange', handler);
+    return () => {
+      try { md.removeEventListener('devicechange', handler); } catch {}
+    };
+  }, [refreshDevices]);
 }
 
 

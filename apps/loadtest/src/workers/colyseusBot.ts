@@ -10,13 +10,35 @@ function centroid(points: Array<{ x: number; y: number }>): { x: number; y: numb
 }
 
 export async function spawnColyseusBot(opts: { apiBase: string; identity: string }) {
-  const client = new Colyseus.Client(opts.apiBase.replace('http', 'ws'));
-  const room = await client.joinOrCreate('world', { identity: opts.identity, name: opts.identity });
+  const toWs = (url: string) => url.replace(/^http(s?):\/\//, 'ws$1://');
+  const toHttp = (url: string) => url.replace(/^ws(s?):\/\//, 'http$1://');
+  const wsEndpoint = toWs(opts.apiBase);
+  const httpEndpoint = toHttp(opts.apiBase);
+
+  const client = new Colyseus.Client(wsEndpoint);
+
+  // Retry matchmaking a few times to avoid transient "connection refused" during warmup
+  async function joinWithRetry(maxAttempts: number, baseDelayMs: number) {
+    let attempt = 0;
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      try {
+        return await client.joinOrCreate('world', { identity: opts.identity, name: opts.identity });
+      } catch (e: any) {
+        attempt++;
+        if (attempt >= maxAttempts) throw e;
+        const delay = Math.min(5000, baseDelayMs * Math.pow(2, attempt - 1));
+        await new Promise((r) => setTimeout(r, delay));
+      }
+    }
+  }
+
+  const room = await joinWithRetry(6, 200);
 
   // Lade Zonen und baue Wegpunkte (Zentroiden)
   let waypoints: Array<{ x: number; y: number }> = [];
   try {
-    const mapsRes = await fetch(`${opts.apiBase.replace('ws', 'http')}/maps`, { method: 'GET' });
+    const mapsRes = await fetch(`${httpEndpoint}/maps`, { method: 'GET' });
     if (mapsRes.ok) {
       const maps = await mapsRes.json();
       const office = Array.isArray(maps) ? maps.find((m: any) => (m?.name || '').toLowerCase() === 'office') || maps[0] : null;

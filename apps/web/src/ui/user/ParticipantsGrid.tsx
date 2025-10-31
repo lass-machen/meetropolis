@@ -2,6 +2,7 @@
 import { UserCardContainer } from './UserCard';
 import { ParticipantCard } from './ParticipantCard';
 import { FAIcon } from '../FAIcon';
+import { useTranslation } from 'react-i18next';
 
 export type UIParticipant = { sid: string; identity: string; hasVideo: boolean; hasMic: boolean; isSpeaking: boolean; media: 'camera' | 'screen'; volume?: number };
 
@@ -14,6 +15,7 @@ export function ParticipantsGrid(props: {
   roomGetter: () => any | undefined;
 }) {
   const { participants, expanded, onToggleExpand, selectedSid, onSelect, roomGetter } = props;
+  const { t } = useTranslation();
   const count = participants.length || 1;
   const cols = Math.max(1, Math.min(count, expanded ? 3 : 4));
   const gap = expanded ? 18 : 12;
@@ -23,7 +25,7 @@ export function ParticipantsGrid(props: {
       columns={cols}
       gap={gap}
       onToggleExpand={onToggleExpand}
-      expandButton={expanded ? <FAIcon size="sm" name="down-left-and-up-right-to-center" variant="solid" ariaLabel="Verkleinern" /> : <FAIcon size="sm" name="up-right-and-down-left-from-center" variant="solid" ariaLabel="Vergrößern" />}
+      expandButton={expanded ? <FAIcon size="sm" name="down-left-and-up-right-to-center" variant="solid" ariaLabel={t('participantsGrid.collapse')} /> : <FAIcon size="sm" name="up-right-and-down-left-from-center" variant="solid" ariaLabel={t('participantsGrid.expand')} />}
     >
       {participants.map(p => (
         <div key={p.sid} onClick={() => onSelect(selectedSid === p.sid ? null : p.sid)} style={{ cursor: 'pointer', transition: 'transform 180ms ease' }}>
