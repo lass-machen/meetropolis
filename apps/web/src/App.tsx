@@ -1,5 +1,4 @@
 import React, { useEffect, useRef } from 'react';
-import { ParticipantCard } from './ui/user/ParticipantCard';
 import { UserManagement } from './ui/admin/UserManagement';
 import { AuthScreen } from './ui/auth/AuthScreen';
 import { pointInPolygon } from './lib/geom';
@@ -12,7 +11,9 @@ import { AVBar } from './ui/av/AVBar';
 import { TilesetUploadDialog } from './ui/editor/TilesetUploadDialog';
 import { RosterPanel } from './ui/user/RosterPanel';
 import { BubbleBanner } from './ui/user/BubbleBanner';
-import { UserCardContainer } from './ui/user/UserCard';
+import { ParticipantsGrid } from './ui/user/ParticipantsGrid';
+import { ParticipantOverlay } from './ui/user/ParticipantOverlay';
+import { useParticipants } from './features/participants/useParticipants';
 import { EditorPanel } from './ui/editor/EditorPanel';
 import { useEditor } from './hooks/useEditor';
 import { createPhaserGame, destroyPhaserGame } from './game/phaserGame';
@@ -49,6 +50,7 @@ export function App() {
   const colyseusToLivekitMap = useRef<Record<string, string>>({});
   const identityToNameMap = useRef<Record<string, string>>({});
   // const livekitSidToColyseusMap = useRef<Record<string, string>>({});
+  const getDisplayName = (identity: string): string => getDisplayNameLib(identity, identityToNameMap.current, me);
   const [hud, setHud] = React.useState<{ zone?: string; follow?: string | null; avRoom?: string | null }>({});
   const [devices, setDevices] = React.useState<{ mics: { id: string; label: string }[]; cams: { id: string; label: string }[] }>({ mics: [], cams: [] });
   const [avState, setAvState] = React.useState<{ mic: boolean; cam: boolean; share: boolean; dnd: boolean }>({ mic: false, cam: false, share: false, dnd: false });
@@ -81,6 +83,8 @@ export function App() {
     (typeof window !== 'undefined'
       ? `${window.location.protocol}//${window.location.hostname}:2567`
       : 'http://localhost:2567');
+
+  // Participants logic (hook) moved below after state declarations
 
   // Roster: periodisch letzte Präsenz (für Offline/zuletzt online)
   React.useEffect(() => {
@@ -192,6 +196,22 @@ export function App() {
   }, []);
 
   // apiBase declared earlier
+
+  // Participants logic (hook)
+  const { buildParticipantList, applyVolumesToUi } = useParticipants({
+    avRef,
+    zoneRef,
+    localPosRef,
+    remotesRef,
+    colyseusToLivekitMap,
+    identityToNameMap,
+    volumeRef,
+    me,
+    setUiParticipants: (list) => setUiParticipants(list),
+    disposedRef,
+    getDisplayName,
+    gameBridge,
+  });
 
   // Laden der Tokenliste beim Öffnen des Modals
   useEffect(() => {
@@ -768,12 +788,8 @@ export function App() {
   // Nutzerverwaltung als Overlay: Spiel/AV laufen weiter
   // (keine Pause mehr beim Wechsel auf 'users')
 
-  // Helper function to get display name for a LiveKit identity (moved to lib)
-  const getDisplayName = (identity: string): string => getDisplayNameLib(identity, identityToNameMap.current, me);
-
-  // (verschoben) applyVolumesToUi wird unterhalb von buildParticipantList definiert
-
-  const buildParticipantList = React.useCallback(() => {
+  // (Teilnehmerlisten-Logik in Hook ausgelagert)
+  /* const buildParticipantList = React.useCallback(() => {
     const room: any = avRef.current?.room as any;
     if (!room || !room.localParticipant) {
       // Fallback: Kein LiveKit-Raum – baue Karten aus Colyseus-Remotes + Local (mit Zonenfilter)
@@ -995,30 +1011,9 @@ export function App() {
     });
     
     gameBridge.updateSpeakingStates(speakingIds);
-  }, [me]);
+  }, [me]); */
 
-  // Wendet berechnete Volumes auf die UI an und baut die Teilnehmerliste neu
-  const applyVolumesToUi = React.useCallback(() => {
-    const vols = volumeRef.current?.update() || {};
-    const next: Record<string, number> = {};
-    for (const [colyseusId, vol] of Object.entries(vols)) {
-      const livekitIdentity = colyseusToLivekitMap.current[colyseusId];
-      if (livekitIdentity) {
-        // Map auf LiveKit-Identity
-        next[livekitIdentity] = vol;
-        // Zusätzlich auf den in der UI verwendeten Anzeigenamen mappen
-        try {
-          const display = getDisplayName(livekitIdentity);
-          if (display) next[display] = vol;
-          // Screen-Suffix für Screen-Karten hinzufügen
-          next[`${display} – Bildschirm`] = vol;
-        } catch {}
-      }
-    }
-    // Mergen statt Ersetzen, um kurzzeitig fehlende Mappings nicht zu verlieren
-    participantVolumesRef.current = { ...participantVolumesRef.current, ...next };
-    try { buildParticipantList(); } catch {}
-  }, [buildParticipantList]);
+  // applyVolumesToUi via Hook
 
   useEffect(() => {
     // Suppression-Flag für Zonen-Broadcast (verhindert Echo bei eingehenden Updates)
@@ -2313,31 +2308,21 @@ export function App() {
 
   return (
     <ThemeProvider>
-    <div style={{ width: '100vw', height: '100vh', position: 'relative' }}>
+    <div style={{ width: '100vw', height: '100vh', display: 'grid', gridTemplateColumns: '1fr 240px' }}>
+      <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
       {page === 'world' && (
         <>
           {/* Participants Grid Overlay (hidden in editor mode; hidden in DND) */}
-          {!editor.active && !avState.dnd && (() => {
-            const gap = gridExpanded ? 18 : 12;
-            const count = participantsToRender.length || 1;
-            const cols = Math.max(1, Math.min(count, gridExpanded ? 3 : 4));
-            
-            return (
-              <UserCardContainer
-                expanded={gridExpanded}
-                columns={cols}
-                gap={gap}
-                onToggleExpand={() => setGridExpanded(e => !e)}
-                expandButton={gridExpanded ? <FAIcon size="sm" name="down-left-and-up-right-to-center" variant="solid" ariaLabel="Verkleinern" /> : <FAIcon size="sm" name="up-right-and-down-left-from-center" variant="solid" ariaLabel="Vergrößern" />}
-              >
-                {participantsToRender.map(p => (
-                  <div key={p.sid} onClick={() => setSelectedSid(s => s === p.sid ? null : p.sid)} style={{ cursor: 'pointer', transition: 'transform 180ms ease' }}>
-                    <ParticipantCard part={p} roomGetter={getRoom} compact={!gridExpanded} />
-                  </div>
-                ))}
-              </UserCardContainer>
-            );
-          })()}
+          {!editor.active && !avState.dnd && (
+            <ParticipantsGrid 
+              participants={participantsToRender}
+              expanded={gridExpanded}
+              onToggleExpand={() => setGridExpanded(e => !e)}
+              selectedSid={selectedSid}
+              onSelect={(sid)=> setSelectedSid(sid)}
+              roomGetter={getRoom}
+            />
+          )}
           <div
             ref={containerRef}
             style={{ width: '100%', height: '100%', position: 'relative' }}
@@ -2368,23 +2353,21 @@ export function App() {
             <div>Following: {hud.follow ?? 'no'}</div>
           </div>
           {/* Single Card Fullscreen Overlay (hidden in editor mode; hidden in DND) */}
-          {!editor.active && !avState.dnd && selectedSid && (() => {
-            const pick = participantsToRender.find(p => p.sid === selectedSid);
-            if (!pick) return null;
-            return (
-              <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 30, backdropFilter: 'blur(2px)' }} onClick={() => { setSelectedSid(null); setOverlayZoom(1); }}>
-                <div style={{ position:'absolute', top: 24, bottom: 24, left: 24, right: 24, display: 'grid', placeItems: 'center', overflow: 'auto', borderRadius: 12 }} onWheel={(e)=>{ if (e.ctrlKey || e.metaKey) { e.preventDefault(); const dir = e.deltaY > 0 ? -0.1 : 0.1; setOverlayZoom(z => Math.max(0.25, Math.min(4, +(z+dir).toFixed(2)))); } }}>
-                  <ParticipantCard part={pick} roomGetter={getRoom} compact={false} full zoom={overlayZoom} />
-                </div>
-                {/* Zoom Controls */}
-                <div style={{ position:'absolute', top: 24, right: 24, display:'flex', gap:8 }}>
-                  <button title="Zoom -" onClick={(e)=>{e.stopPropagation(); setOverlayZoom(z=>Math.max(0.25, +(z-0.1).toFixed(2)));}} style={{ padding:6, width:32, height:32, borderRadius:8, border:'1px solid rgba(255,255,255,0.12)', background:'rgba(0,0,0,0.55)', color:'#fff' }}>-</button>
-                  <button title="Reset" onClick={(e)=>{e.stopPropagation(); setOverlayZoom(1);}} style={{ padding:6, width:32, height:32, borderRadius:8, border:'1px solid rgba(255,255,255,0.12)', background:'rgba(0,0,0,0.55)', color:'#fff' }}>1x</button>
-                  <button title="Zoom +" onClick={(e)=>{e.stopPropagation(); setOverlayZoom(z=>Math.min(4, +(z+0.1).toFixed(2)));}} style={{ padding:6, width:32, height:32, borderRadius:8, border:'1px solid rgba(255,255,255,0.12)', background:'rgba(0,0,0,0.55)', color:'#fff' }}>+</button>
-                </div>
-              </div>
-            );
-          })()}
+          {!editor.active && !avState.dnd && selectedSid && (
+            (() => {
+              const pick = participantsToRender.find(p => p.sid === selectedSid);
+              if (!pick) return null;
+              return (
+                <ParticipantOverlay
+                  participant={pick}
+                  roomGetter={getRoom}
+                  zoom={overlayZoom}
+                  onZoom={(z)=> setOverlayZoom(z)}
+                  onClose={() => { setSelectedSid(null); setOverlayZoom(1); }}
+                />
+              );
+            })()
+          )}
 
           {/* Bottom Control Bar (hidden in editor mode) */}
           {!editor.active && (
@@ -2472,7 +2455,7 @@ export function App() {
       {/* Profil-Seite ist (noch) nicht implementiert; Stub entfernt */}
 
       {/* Settings & Theme (oben rechts) */}
-      <div style={{ position: 'absolute', top: 12, right: 12, zIndex: 40, display: 'flex', gap: 8 }}>
+      <div style={{ position: 'absolute', top: 12, right: 12, zIndex: 40, display: 'flex', alignItems: 'center', gap: 8 }}>
         <ThemeToggleButton />
         <button onClick={() => setMenuOpen(v => !v)} title="Einstellungen" style={{ width: 36, height: 36, display: 'grid', placeItems: 'center', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--glass)', cursor: 'pointer' }}>
           <GearIcon />
@@ -2508,6 +2491,7 @@ export function App() {
         )}
       </div>
 
+      </div>
       {/* Rechte Roster-Leiste (volle Höhe) */}
       <RosterPanel roster={roster} onJumpTo={(r)=>{
         try {
