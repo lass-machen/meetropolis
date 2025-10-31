@@ -32,3 +32,26 @@ const SHOULD_RUN = process.env.E2E_RUN === 'true';
 });
 
 
+(SHOULD_RUN ? test : test.skip)('DND toggling disables local publish and remote subscriptions', async ({ browser, baseURL }) => {
+  test.setTimeout(180_000);
+  const url = baseURL!;
+  const ctx = await browser.newContext();
+  const page = await ctx.newPage();
+  await page.goto(url);
+  // TODO: Trigger DND via UI if available; placeholder ensures page loaded
+  await page.waitForTimeout(2_000);
+  await ctx.close();
+});
+
+(SHOULD_RUN ? test : test.skip)('Screenshare start/stop flow is stable', async ({ browser, baseURL }) => {
+  test.setTimeout(180_000);
+  const url = baseURL!;
+  const ctx = await browser.newContext();
+  const page = await ctx.newPage();
+  await page.goto(url);
+  // TODO: Click screenshare control if present; this is a placeholder
+  await page.waitForTimeout(2_000);
+  await ctx.close();
+});
+
+

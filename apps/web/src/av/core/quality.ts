@@ -4,8 +4,8 @@ export async function republishCameraProfileImpl(manager: any, profile: 'low' | 
   const room = manager.current;
   if (!room) return;
   try {
-    const pubs = Array.from(room.localParticipant.trackPublications.values());
-    const camPubs = pubs.filter((pub: any) => {
+    const pubs: any[] = Array.from(room.localParticipant.trackPublications.values() as any);
+    const camPubs: any[] = pubs.filter((pub: any) => {
       const src = (pub as any).source ?? (pub.track as any)?.source;
       const kind = (pub as any).kind ?? (pub.track as any)?.kind;
       return src === 'camera' || src === 1 || (kind === 'video' && src !== 'screen_share');
@@ -57,7 +57,8 @@ export async function applyDefaultRemoteQualityImpl(manager: any): Promise<void>
   const room: any = manager.current as any;
   if (!room) return;
   if (manager.remoteQualityTuningDisabled) return;
-  if (!manager.isSignalOpen?.() && typeof manager.isSignalOpen === 'function') return; // wenn verfügbar
+  // Wenn verfügbar: nur arbeiten, wenn Signalkanals offen ist
+  if (typeof manager.isSignalOpen === 'function' && !manager.isSignalOpen()) return;
   try {
     const now = Date.now();
     if (now - (manager.lastApplyDefaultRemoteQualityAt || 0) < 5000) return;
@@ -71,7 +72,15 @@ export async function applyDefaultRemoteQualityImpl(manager: any): Promise<void>
       for (const pub of pubs) {
         const kind = (pub as any).kind ?? (pub.track as any)?.kind;
         const src = (pub as any).source ?? (pub.track as any)?.source;
-        if (kind === 'video' && src !== 'screen_share') {
+        // Nur Qualität setzen, wenn wir tatsächlich subscribed sind
+        const isSubscribed = (() => {
+          try {
+            if (typeof (pub as any).isSubscribed === 'boolean') return (pub as any).isSubscribed;
+            if (typeof (pub as any).subscribed === 'boolean') return (pub as any).subscribed;
+            return !!((pub as any).track);
+          } catch { return false; }
+        })();
+        if (kind === 'video' && src !== 'screen_share' && isSubscribed) {
           try {
             if (typeof (pub as any).setVideoQuality === 'function') {
               (pub as any).setVideoQuality(Q_MED);
