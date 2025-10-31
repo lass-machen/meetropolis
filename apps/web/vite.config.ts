@@ -10,10 +10,7 @@ export default defineConfig({
   resolve: {
     // Verhindert doppelte React-Instanzen (Invalid hook call #321)
     dedupe: ['react', 'react-dom'],
-    alias: {
-      react: require.resolve('react'),
-      'react-dom': require.resolve('react-dom')
-    }
+    alias: {}
   },
   build: {
     sourcemap: true,
