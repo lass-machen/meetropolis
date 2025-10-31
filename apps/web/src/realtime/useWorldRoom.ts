@@ -183,7 +183,34 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
           // damit Pending-Flags, Reconnect-Recovery und Publishes konsistent bleiben.
           try {
             if (typeof payload.mic === 'boolean') {
-              await avRef.current?.setMicrophoneEnabled(payload.mic);
+              const target = !!payload.mic;
+              await avRef.current?.setMicrophoneEnabled(target);
+              try {
+                if (!target) {
+                  // Zeige lokale Toast-Meldung
+                  const { default: i18n } = await import('../lib/i18n');
+                  const title = i18n.t('participant.forceMutedSelfTitle');
+                  const desc = i18n.t('participant.forceMutedSelfDesc');
+                  const close = i18n.t('toast.close');
+                  const host = document.createElement('div');
+                  host.style.position = 'fixed';
+                  host.style.bottom = '16px';
+                  host.style.right = '16px';
+                  host.style.zIndex = '120';
+                  host.innerHTML = `
+                    <div style="display:grid;gap:6px;min-width:240px;max-width:420px;padding:12px;border-radius:10px;border:1px solid rgba(244,63,94,0.45);background:rgba(244,63,94,0.15);color:var(--fg);box-shadow:var(--shadow)">
+                      <div style="font-weight:700;">${title}</div>
+                      <div style="font-size:13px;color:var(--fg-subtle)">${desc}</div>
+                      <div style="display:flex;justify-content:flex-end">
+                        <button data-toast-close style="padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--glass);color:var(--fg);cursor:pointer">${close}</button>
+                      </div>
+                    </div>`;
+                  document.body.appendChild(host);
+                  const remove = () => { try { host.remove(); } catch {} };
+                  try { host.querySelector('[data-toast-close]')?.addEventListener('click', remove, { once: true } as any); } catch {}
+                  setTimeout(remove, 4500);
+                }
+              } catch {}
             }
           } catch {}
           try {

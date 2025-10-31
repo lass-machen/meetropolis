@@ -1,11 +1,15 @@
 import React from 'react';
 import { FAIcon } from '../FAIcon';
+import { useTranslation } from 'react-i18next';
+import { Button } from '../system/Button';
 
 export function ParticipantCard(props: { part: { sid: string; identity: string; hasVideo: boolean; hasMic: boolean; isSpeaking: boolean; media: 'camera'|'screen'; volume?: number }, roomGetter: () => any | undefined, compact?: boolean, full?: boolean, zoom?: number }) {
   const videoRef = React.useRef<HTMLVideoElement | null>(null);
   const { part, roomGetter, compact, full, zoom = 1 } = props;
   const [isVideoRendering, setIsVideoRendering] = React.useState(false);
   const [isLocal, setIsLocal] = React.useState(false);
+  const [hover, setHover] = React.useState(false);
+  const { t } = useTranslation('common');
 
   React.useEffect(() => {
     const room: any = roomGetter();
@@ -200,8 +204,20 @@ export function ParticipantCard(props: { part: { sid: string; identity: string; 
   const minW = full ? undefined : (compact ? 260 : 420);
   const disabled = !isLocal && (volume <= 0.1);
 
+  const handleForceMute = async () => {
+    try {
+      const target = (part.identity || '').replace(/\s+–\s*Bildschirm$/, '');
+      await fetch(`/controls/for/${encodeURIComponent(target)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ mic: false })
+      });
+    } catch {}
+  };
+
   return (
-    <div style={{
+    <div onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)} style={{
       width: full ? 'min(calc(100vw - 64px), 1920px)' : `min(${targetSize}, 100%)`,
       minWidth: minW as any,
       maxHeight: full ? 'calc(100vh - 64px)' : (targetSize as any),
@@ -230,6 +246,14 @@ export function ParticipantCard(props: { part: { sid: string; identity: string; 
           <FAIcon size="sm" name={(part.hasVideo || isVideoRendering) ? 'video' : 'video-slash'} variant="solid" ariaLabel={(part.hasVideo || isVideoRendering) ? 'Kamera an' : 'Kamera aus'} />
         </div>
       </div>
+      {!isLocal && hover && part.media === 'camera' && (
+        <div style={{ position: 'absolute', bottom: 6, right: 6, display: 'flex', gap: 8 }}>
+          <Button onClick={handleForceMute} aria-label={t('participant.forceMuteTitle')} title={t('participant.forceMuteTitle')} variant="danger">
+            <FAIcon size="sm" name="microphone-slash" variant="solid" ariaLabel={t('participant.forceMute')} />
+            {t('participant.forceMute')}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

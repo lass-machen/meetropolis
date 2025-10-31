@@ -1316,6 +1316,67 @@ export function registerApi(app: express.Express) {
     res.json({ ok: true, delivered });
   });
 
+  // Force-controls for a specific identity (moderation)
+  app.post('/controls/for/:identity', async (req: express.Request, res: express.Response) => {
+    const sessionAuth = requireAuth(req);
+    const tokenAuth = await requireApiToken(req);
+    const auth = sessionAuth || tokenAuth;
+    if (!auth) return res.status(401).json({ error: 'unauthorized' });
+
+    const schema = z.object({ mic: z.boolean().optional(), cam: z.boolean().optional(), share: z.boolean().optional(), dnd: z.boolean().optional() })
+      .refine(v => (v.mic !== undefined || v.cam !== undefined || v.share !== undefined || v.dnd !== undefined), { message: 'at least one field required' });
+    const parse = schema.safeParse(req.body || {});
+    if (!parse.success) return res.status(400).json({ error: 'invalid payload' });
+
+    const targetIdentity = (req.params.identity || '').toString();
+    if (!targetIdentity) return res.status(400).json({ error: 'identity required' });
+
+    const gameServer = (global as any).gameServer;
+    if (!gameServer) return res.status(500).json({ error: 'game server not available' });
+
+    const payload = parse.data;
+    let delivered = 0;
+    let roomArray: any[] = [];
+    const activeWorldRooms = (global as any).activeWorldRooms;
+    if (activeWorldRooms && activeWorldRooms.size > 0) {
+      roomArray = Array.from(activeWorldRooms);
+    } else if (gameServer.matchMaker) {
+      const allRooms = await gameServer.matchMaker.query({}) || [];
+      roomArray = allRooms;
+    } else if (gameServer.rooms) {
+      const rooms = gameServer.rooms;
+      roomArray = rooms instanceof Map ? Array.from(rooms.values()) : Array.from(rooms);
+    }
+
+    const debug = { by: auth.userId, targetIdentity, roomCount: roomArray.length, matched: [] as Array<{ sid: string; identity: string }> };
+    for (const room of roomArray) {
+      try {
+        if (!room || !room.state || !room.state.players) continue;
+        const matches: string[] = [];
+        room.state.players.forEach((p: any, sid: string) => {
+          if (p && (p.identity === targetIdentity || p.name === targetIdentity)) {
+            matches.push(sid);
+            debug.matched.push({ sid, identity: p.identity });
+          }
+        });
+        if (matches.length === 0) continue;
+        const clients: any[] = Array.from((room as any).clients?.values?.() || (room as any).clients || []);
+        for (const sid of matches) {
+          const client: any = clients.find((c: any) => c.sessionId === sid);
+          if (client && typeof client.send === 'function') {
+            client.send('remote_control', payload);
+            delivered++;
+          }
+        }
+      } catch (e) {}
+    }
+    if (delivered === 0) {
+      logger.debug('[Controls] No target online:', debug);
+      return res.status(409).json({ error: 'target not online', debug });
+    }
+    res.json({ ok: true, delivered });
+  });
+
   // Debug endpoint for Colyseus rooms
   app.get('/debug/rooms', async (_req: express.Request, res: express.Response) => {
     const gameServer = (global as any).gameServer;

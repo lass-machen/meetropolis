@@ -152,6 +152,11 @@
   "av.echoCancellation": "Echo cancellation",
   "av.autoGainControl": "Auto gain control"
 ,
+  "participant.forceMute": "Mute for everyone",
+  "participant.forceMuteTitle": "Turn off this participant's microphone for everyone",
+  "participant.forceMutedSelfTitle": "You were muted",
+  "participant.forceMutedSelfDesc": "A moderator has turned off your microphone for everyone.",
+  
   "time.unknown": "unknown",
   "time.justNow": "just now",
   "time.minute": "{{count}} min ago",

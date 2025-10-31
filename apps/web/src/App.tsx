@@ -1712,9 +1712,20 @@ export function App() {
     gameBridge.onPointerUpTile = ({ tileX, tileY }) => {
       if (!editorActiveRef.current) return; // Only handle in editor mode
       setEditor(s => {
-        if (!s.drag) {
-          return s;
+        // Spawn-Setzmodus: auf Kachel-Klick Spawn speichern und Modus beenden
+        if ((s as any).settingSpawn) {
+          const tileSize = 16;
+          const x = tileX * tileSize + tileSize / 2;
+          const y = tileY * tileSize + tileSize / 2;
+          try { localStorage.setItem('meetropolis.spawn', JSON.stringify({ x, y })); } catch {}
+          try { (window as any).initialPlayerPosition = { x, y }; } catch {}
+          try { gameBridge.setSpawnMarker?.({ x, y }); } catch {}
+          try { gameBridge.setDesiredPosition?.({ x, y }); } catch {}
+          try { window.dispatchEvent(new CustomEvent('editor:toast', { detail: { title: 'Spawn gesetzt', description: `Startposition: (${Math.round(x)}, ${Math.round(y)})`, intent: 'success' } })); } catch {}
+          gameBridge.setSelectionRect(null);
+          return { ...s, settingSpawn: false, spawn: { x, y }, drag: null } as any;
         }
+        if (!s.drag) { return s; }
         const drag = { ...s.drag, endTileX: tileX, endTileY: tileY };
         const rect = { startX: drag.startTileX, startY: drag.startTileY, endX: drag.endTileX, endY: drag.endTileY };
         gameBridge.setSelectionRect(null);

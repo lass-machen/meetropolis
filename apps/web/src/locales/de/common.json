@@ -168,6 +168,11 @@
   "av.echoCancellation": "Echo Cancellation",
   "av.autoGainControl": "Auto Gain Control"
 ,
+  "participant.forceMute": "Für alle stummschalten",
+  "participant.forceMuteTitle": "Mikrofon dieses Teilnehmers für alle ausschalten",
+  "participant.forceMutedSelfTitle": "Du wurdest stummgeschaltet",
+  "participant.forceMutedSelfDesc": "Ein Moderator hat dein Mikrofon für alle ausgeschaltet.",
+  
   "time.unknown": "unbekannt",
   "time.justNow": "gerade eben",
   "time.minute": "vor {{count}} Min",
