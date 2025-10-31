@@ -3,7 +3,6 @@ import { UserManagement } from './ui/admin/UserManagement';
 import { AuthScreen } from './ui/auth/AuthScreen';
 import { pointInPolygon } from './lib/geom';
 import { getDisplayName as getDisplayNameLib } from './lib/displayName';
-import { FAIcon } from './ui/FAIcon';
 import { ThemeProvider, ThemeToggleButton } from './ui/theme';
 import { Overlay } from './ui/Overlay';
 // removed unused component imports from ui/components
@@ -15,6 +14,9 @@ import { ParticipantsGrid } from './ui/user/ParticipantsGrid';
 import { ParticipantOverlay } from './ui/user/ParticipantOverlay';
 import { useParticipants } from './features/participants/useParticipants';
 import { EditorPanel } from './ui/editor/EditorPanel';
+import { HudPanel } from './ui/hud/HudPanel';
+import { TopRightMenu } from './ui/app/TopRightMenu';
+import { ApiTokensOverlay } from './ui/admin/ApiTokensOverlay';
 import { useEditor } from './hooks/useEditor';
 import { createPhaserGame, destroyPhaserGame } from './game/phaserGame';
 import { gameBridge } from './game/bridge';
@@ -187,6 +189,9 @@ export function App() {
   const [page, setPage] = React.useState<'world' | 'admin' | string>('world');
   const [menuOpen, setMenuOpen] = React.useState(false);
   const connectLivekitRef = React.useRef<null | (() => Promise<void>)>(null);
+  // Single-run guards to prevent repeated re-inits/auto-connects
+  const gameCreatedRef = React.useRef(false);
+  const livekitAutoConnectOnceRef = React.useRef(false);
 
   useEffect(() => {
     disposedRef.current = false;
@@ -1024,6 +1029,11 @@ export function App() {
   useEffect(() => {
     if (!authChecked || !me) return;
     if (!containerRef.current) return;
+    // Prevent multiple initializations causing WebGL context leaks / WS storms
+    if (gameCreatedRef.current) return;
+    gameCreatedRef.current = true;
+    // Ensure container is clean before creating a new Phaser instance
+    try { const el = containerRef.current; while (el && el.firstChild) { el.removeChild(el.firstChild); } } catch {}
     const game = createPhaserGame(containerRef.current);
 
     // Colyseus World mit Auto-Reconnect
@@ -1574,14 +1584,17 @@ export function App() {
       }
     };
     connectLivekitRef.current = connectLivekit;
-    // Auto-Connect LiveKit (ohne User-Geste) – publiziert keine Tracks automatisch
-    setTimeout(() => {
-      try {
-        if (!editorActiveRef.current && connectLivekitRef.current && !avRef.current?.room && !isConnectingRef.current) {
-          connectLivekitRef.current();
-        }
-      } catch {}
-    }, 300);
+    // Auto-Connect LiveKit (ohne User-Geste) – nur einmal versuchen
+    if (!livekitAutoConnectOnceRef.current) {
+      livekitAutoConnectOnceRef.current = true;
+      setTimeout(() => {
+        try {
+          if (!editorActiveRef.current && connectLivekitRef.current && !avRef.current?.room && !isConnectingRef.current) {
+            connectLivekitRef.current();
+          }
+        } catch {}
+      }, 300);
+    }
 
     bubbleRef.current = new BubbleManager(64, null);
     followRef.current = new FollowManager(96);
@@ -2077,7 +2090,15 @@ export function App() {
       disposed = true;
       try { gameBridge.setSceneApi?.(null); } catch {}
       destroyPhaserGame(game);
-      colyseusRef.current?.leave?.();
+      // Remove any leftover canvases to free WebGL contexts
+      try { const el = containerRef.current; while (el && el.firstChild) { el.removeChild(el.firstChild); } } catch {}
+      // Leave Colyseus room only if connection is open
+      try {
+        const room: any = colyseusRef.current;
+        const wsReadyState = room?.connection?.ws?.readyState ?? room?.connection?.transport?.ws?.readyState ?? room?.connection?._transport?.ws?.readyState;
+        const isOpen = room?.connection?.isOpen === true || wsReadyState === 1;
+        if (isOpen) room.leave();
+      } catch {}
       try { avRef.current?.leave?.(); } catch {}
       try { if (colyseusReconnectTimerRef.current) clearTimeout(colyseusReconnectTimerRef.current); } catch {}
       clearInterval(hudTimer);
@@ -2089,7 +2110,7 @@ export function App() {
       window.removeEventListener('pagehide', onPageHide);
       window.removeEventListener('focus', onFocus);
     };
-  }, [authChecked, me, apiBase, buildParticipantList, page]);
+  }, [authChecked, me?.id, apiBase]);
 
 
   // Global Audio Track Manager - handles all remote participants' audio
@@ -2347,11 +2368,7 @@ export function App() {
           </div>
 
           {/* HUD (links oben klein) */}
-          <div style={{ position: 'absolute', top: 12, left: 12, background: 'var(--glass)', color: 'var(--fg)', padding: 8, borderRadius: 8, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 12, backdropFilter: 'blur(6px)', border: '1px solid var(--border)' }}>
-            <div>Zone: {hud.zone ?? '-'}</div>
-            <div>AV: {hud.avRoom ?? 'lobby'}</div>
-            <div>Following: {hud.follow ?? 'no'}</div>
-          </div>
+          <HudPanel hud={hud} />
           {/* Single Card Fullscreen Overlay (hidden in editor mode; hidden in DND) */}
           {!editor.active && !avState.dnd && selectedSid && (
             (() => {
@@ -2455,41 +2472,25 @@ export function App() {
       {/* Profil-Seite ist (noch) nicht implementiert; Stub entfernt */}
 
       {/* Settings & Theme (oben rechts) */}
-      <div style={{ position: 'absolute', top: 12, right: 12, zIndex: 40, display: 'flex', alignItems: 'center', gap: 8 }}>
-        <ThemeToggleButton />
-        <button onClick={() => setMenuOpen(v => !v)} title="Einstellungen" style={{ width: 36, height: 36, display: 'grid', placeItems: 'center', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--glass)', cursor: 'pointer' }}>
-          <GearIcon />
-        </button>
-        {menuOpen && (
-          <div style={{ position: 'absolute', top: 44, right: 0, background: 'rgba(17,17,20,0.96)', color: '#fff', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12, padding: 8, display: 'grid', gap: 6, minWidth: 260, boxShadow: '0 16px 40px rgba(0,0,0,0.45)', backdropFilter: 'blur(6px)' }}>
-            <button onClick={() => { setUserModalOpen(true); setMenuOpen(false); }} style={{ textAlign: 'left', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--glass)', color: 'var(--fg)', cursor: 'pointer' }}>Benutzer verwalten</button>
-            <button onClick={() => { setPage('world'); setMenuOpen(false); }} style={{ textAlign: 'left', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--glass)', color: 'var(--fg)', cursor: 'pointer' }}>Zurück zur Welt</button>
-            <button onClick={() => { setApiModalOpen(true); setMenuOpen(false); }} style={{ textAlign: 'left', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--glass)', color: 'var(--fg)', cursor: 'pointer' }}>API-Tokens & Doku</button>
-            <button onClick={async () => { 
-              if (editor.active) { 
-                await saveAllToServer().catch(()=>{}); 
-              } 
-              setEditor(s => ({ ...s, active: !s.active })); 
-              setMenuOpen(false); 
-              // Update UI based on new editor state after state change
-              setTimeout(() => {
-                const newEditorState = !editor.active;
-                if (newEditorState) {
-                  // Enabling editor - show zones
-                  gameBridge.setZoneOverlay(editor.zones);
-                  // Collision visibility will be handled by useEffect
-                } else {
-                  // Disabling editor - hide zones
-                  gameBridge.setZoneOverlay([]);
-                  // Collision visibility will be handled by useEffect
-                }
-                // Assets are always visible - they are part of the map
-              }, 0);
-            }} style={{ textAlign: 'left', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: editor.active ? 'rgba(16,185,129,0.18)' : 'var(--glass)', color: 'var(--fg)', cursor: 'pointer' }}>{editor.active ? 'Editor beenden' : 'Map-Editor öffnen'}</button>
-            <button onClick={async () => { try { await fetch(`${apiBase}/auth/logout`, { method: 'POST', credentials: 'include' }); } finally { setMe(null); setMenuOpen(false); setPage('world'); } }} style={{ textAlign: 'left', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--glass)', color: 'var(--fg)', cursor: 'pointer' }}>Logout</button>
-          </div>
-        )}
-      </div>
+      <TopRightMenu
+        menuOpen={menuOpen}
+        onToggleMenu={() => setMenuOpen(v => !v)}
+        onOpenUsers={() => { setUserModalOpen(true); setMenuOpen(false); }}
+        onBackToWorld={() => { setPage('world'); setMenuOpen(false); }}
+        onOpenApi={() => { setApiModalOpen(true); setMenuOpen(false); }}
+        onToggleEditor={async () => {
+          if (editor.active) { await saveAllToServer().catch(()=>{}); }
+          setEditor(s => ({ ...s, active: !s.active }));
+          setMenuOpen(false);
+          setTimeout(() => {
+            const newEditorState = !editor.active;
+            if (newEditorState) { gameBridge.setZoneOverlay(editor.zones); }
+            else { gameBridge.setZoneOverlay([]); }
+          }, 0);
+        }}
+        editorActive={editor.active}
+        onLogout={async () => { try { await fetch(`${apiBase}/auth/logout`, { method: 'POST', credentials: 'include' }); } finally { setMe(null); setMenuOpen(false); setPage('world'); } }}
+      />
 
       </div>
       {/* Rechte Roster-Leiste (volle Höhe) */}
@@ -2503,68 +2504,17 @@ export function App() {
       }} />
 
       {/* API Token Modal */}
-      <Overlay open={apiModalOpen} onClose={()=>setApiModalOpen(false)} title="API-Zugriff" right={<></>}>
-        <div style={{ display:'grid', gap: 10 }}>
-              <div style={{ fontSize: 13, color: '#e5e7eb' }}>Mit persönlichen Tokens kannst du dein Mikro, Kamera, Screenshare und den Nicht-stören-Modus remote steuern – solange du online bist.</div>
-              <div style={{ display:'flex', gap: 12, alignItems:'center' }}>
-                <input value={newTokenName} onChange={e=>setNewTokenName(e.target.value)} placeholder="Token-Name (optional)" style={{ flex:1, padding:'8px 10px', borderRadius:8, border:'1px solid rgba(255,255,255,0.12)', background:'rgba(0,0,0,0.35)', color:'#fff' }} />
-                <button onClick={async()=>{
-                  try {
-                    const res = await fetch(`${apiBase}/api-tokens`, { method:'POST', headers:{ 'Content-Type':'application/json' }, credentials:'include', body: JSON.stringify({ name: newTokenName || undefined }) });
-                    if (!res.ok) throw new Error('Token konnte nicht erstellt werden');
-                    const data = await res.json();
-                    setFreshToken(data.token);
-                    setNewTokenName('');
-                    // refresh list
-                    const list = await fetch(`${apiBase}/api-tokens`, { credentials:'include' }).then(r=>r.json());
-                    setApiTokens(list);
-                  } catch (e:any) {
-                    alert(e.message || 'Fehler beim Erstellen');
-                  }
-                }} style={{ padding:'8px 10px', borderRadius:8, border:'1px solid rgba(255,255,255,0.12)', background:'rgba(16,185,129,0.2)', color:'#10b981' }}>Neuen Token erstellen</button>
-              </div>
-              {freshToken && (
-                <div style={{ padding:10, borderRadius:8, border:'1px solid rgba(16,185,129,0.35)', background:'rgba(16,185,129,0.12)', color:'#d1fae5' }}>
-                  <div style={{ fontWeight:600, marginBottom:6 }}>Dein neuer Token (zeige ihn nur einmal an):</div>
-                  <code style={{ userSelect:'all' }}>{freshToken}</code>
-                </div>
-              )}
-              <div style={{ fontWeight:600, marginTop: 4 }}>Deine Tokens</div>
-              <div style={{ display:'grid', gap:6 }}>
-                {(apiTokens||[]).map(t => (
-                  <div key={t.id} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', border:'1px solid rgba(255,255,255,0.12)', borderRadius:8, padding:'8px 10px' }}>
-                    <div>
-                      <div style={{ fontWeight:600 }}>{t.name || 'Token'}</div>
-                      <div style={{ fontSize:12, opacity:0.75 }}>Erstellt: {new Date(t.createdAt).toLocaleString()} {t.lastUsedAt ? `· Zuletzt genutzt: ${new Date(t.lastUsedAt).toLocaleString()}` : ''}</div>
-                    </div>
-                    <button onClick={async()=>{ try{ await fetch(`${apiBase}/api-tokens/${t.id}`, { method:'DELETE', credentials:'include' }); setApiTokens(await fetch(`${apiBase}/api-tokens`, { credentials:'include' }).then(r=>r.json())); } catch(e:any){ alert(e.message||'Fehler beim Löschen'); } }} style={{ padding:'6px 8px', borderRadius:6, border:'1px solid rgba(255,255,255,0.12)', background:'rgba(239,68,68,0.15)', color:'#fca5a5' }}>Löschen</button>
-                  </div>
-                ))}
-                {!apiTokens?.length && <div style={{ fontSize:13, opacity:0.7 }}>Noch keine Tokens erstellt.</div>}
-              </div>
-              <div style={{ fontWeight:600 }}>API-Dokumentation</div>
-              <div>
-                <div style={{ fontWeight:600, marginBottom:6 }}>Base URL</div>
-                <code style={{ display:'block', padding:'8px 10px', borderRadius:8, border:'1px solid rgba(255,255,255,0.12)', background:'rgba(0,0,0,0.35)' }}>{apiBase}</code>
-              </div>
-              <div>
-                <div style={{ fontWeight:600, margin:'10px 0 6px' }}>Authentifizierung</div>
-                <div style={{ fontSize:13, opacity:0.85 }}>Setze den HTTP Header Authorization: Bearer YOUR_TOKEN</div>
-              </div>
-              <div>
-                <div style={{ fontWeight:600, margin:'10px 0 6px' }}>Steuer-Endpunkt</div>
-                <code style={{ display:'block', padding:'8px 10px', borderRadius:8, border:'1px solid rgba(255,255,255,0.12)', background:'rgba(0,0,0,0.35)' }}>POST /controls</code>
-                <div style={{ fontSize:13, opacity:0.85, marginTop:6 }}>Body (JSON, mindestens ein Feld):</div>
-                <code style={{ display:'block', padding:'8px 10px', borderRadius:8, border:'1px solid rgba(255,255,255,0.12)', background:'rgba(0,0,0,0.35)' }}>{`{ "mic": true|false, "cam": true|false, "share": true|false, "dnd": true|false }`}</code>
-                <div style={{ fontSize:13, opacity:0.85, marginTop:6 }}>Antwort: <code>{"{ \"ok\": true, \"delivered\": n }"}</code></div>
-                <div style={{ fontSize:13, opacity:0.85, marginTop:6 }}>Hinweise: DND schaltet Mic/Kamera/Share automatisch aus. Steuerung funktioniert nur, wenn du online bist.</div>
-              </div>
-              <div>
-                <div style={{ fontWeight:600, margin:'10px 0 6px' }}>Beispiel</div>
-                <code style={{ display:'block', padding:'8px 10px', borderRadius:8, border:'1px solid rgba(255,255,255,0.12)', background:'rgba(0,0,0,0.35)', whiteSpace:'pre-wrap' }}>{`curl -X POST "${apiBase}/controls" \\n- H "Authorization: Bearer YOUR_TOKEN" \\\n- H "Content-Type: application/json" \\\n- d '{ "mic": false, "dnd": true }'`}</code>
-              </div>
-        </div>
-      </Overlay>
+      <ApiTokensOverlay 
+        open={apiModalOpen}
+        onClose={()=>setApiModalOpen(false)}
+        apiBase={apiBase}
+        apiTokens={apiTokens}
+        setApiTokens={setApiTokens}
+        newTokenName={newTokenName}
+        setNewTokenName={setNewTokenName}
+        freshToken={freshToken}
+        setFreshToken={setFreshToken}
+      />
 
       {/* Editor Panel */}
       {editor.active && (
@@ -2808,15 +2758,3 @@ export function App() {
 // Styles (unused button styles removed)
 
 // ParticipantCard moved to ./ui/user/ParticipantCard
-
-function GearIcon() {
-  return (
-    <FAIcon name="gear" variant="solid" ariaLabel="Einstellungen" className="btn-text-color" />
-  );
-}
-
-// UserManagement moved to ./ui/admin/UserManagement
-
-// AuthScreen moved to ./ui/auth/AuthScreen
-
-export default App;
