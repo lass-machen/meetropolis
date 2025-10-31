@@ -13,6 +13,7 @@ networks:
 
 volumes:
   db_data:
+  packs_data:
 
 services:
   migrate:
@@ -70,6 +71,9 @@ services:
       API_TOKEN_PEPPER: ${API_TOKEN_PEPPER}
       JWT_SECRET: ${JWT_SECRET}
       CORS_ORIGIN: ${CORS_ORIGIN}
+      ASSET_PACKS_DIR: /workspace/apps/public/packs
+    volumes:
+      - packs_data:/workspace/apps/public/packs
     depends_on:
       db:
         condition: service_healthy
