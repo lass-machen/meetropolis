@@ -841,7 +841,7 @@ export class AVManager {
         const settings = useAvSettingsStore.getState().settings;
         const localAudioTrack: any = await buildAudioPipeline({ ...(this.preferredMic ? { deviceId: this.preferredMic } : {}), settings } as any);
         try {
-          const mst: any = (localAudioTrack as any)?.mediaStreamTrack;
+          const mst: any = (localAudioTrack as any)?.mediaStreamTrack || localAudioTrack;
           if (mst && 'contentHint' in mst) { try { mst.contentHint = 'speech'; } catch {} }
           (localAudioTrack as any)?.setContentHint?.('speech');
         } catch {}

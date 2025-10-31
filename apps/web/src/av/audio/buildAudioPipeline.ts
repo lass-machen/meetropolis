@@ -117,32 +117,18 @@ async function buildLightDspGraph(
   }
 }
 
-export async function buildAudioPipeline(params: BuildParams) {
+export async function buildAudioPipeline(params: BuildParams): Promise<MediaStreamTrack> {
   const { settings } = params;
   const constraints = buildAudioConstraints(params);
 
-  // Try to capture mic
-  let userStream: MediaStream | null = null;
-  try {
-    userStream = await navigator.mediaDevices.getUserMedia(constraints);
-  } catch (e) {
-    // Fallback: let LiveKit capture with its internals
-    const { createLocalAudioTrack } = await import('livekit-client');
-    return await createLocalAudioTrack({ deviceId: params.deviceId } as any);
-  }
+  // Capture mic via browser API (avoid wrapping in SDK to prevent structuredClone issues)
+  const userStream = await navigator.mediaDevices.getUserMedia(constraints);
 
   const useClientIsolation = settings.clientVoiceIsolation === true;
   if (useClientIsolation || settings.highpassFilter || settings.compressor) {
     const dsp = await buildLightDspGraph(userStream, settings.highpassFilter, settings.compressor, useClientIsolation);
     if (dsp && dsp.track) {
-      const { createLocalAudioTrack } = await import('livekit-client');
-      // Create a new MediaStream with the processed track to avoid cloning issues
-      // LiveKit's createLocalAudioTrack can clone MediaStream objects but not MediaStreamTrack directly
-      const processedStream = new MediaStream([dsp.track]);
-      const lkTrack = await createLocalAudioTrack(processedStream as any);
-      // Attach cleanup so that stopping the local track cleans resources
-      try { (lkTrack as any)._meetropolisCleanup = dsp.cleanup; } catch {}
-      return lkTrack;
+      return dsp.track;
     }
     // If DSP graph failed, fall back to direct capture
   }
@@ -153,8 +139,7 @@ export async function buildAudioPipeline(params: BuildParams) {
     // This should not happen if getUserMedia succeeded, but handle gracefully
     throw new Error('No audio track found in media stream');
   }
-  const { createLocalAudioTrack } = await import('livekit-client');
-  return await createLocalAudioTrack(rawTrack as any);
+  return rawTrack;
 }
 
 
