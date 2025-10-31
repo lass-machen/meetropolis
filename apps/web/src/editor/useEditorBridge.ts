@@ -26,7 +26,7 @@ export function useEditorBridge(params: {
 
     const handleDown = ({ tileX, tileY }: { tileX: number; tileY: number }) => {
       if (!editorActiveRef.current) return;
-      setEditor(s => ({ ...s, drag: { startTileX: tileX, startTileY: tileY, endTileX: tileX, endTileY: tileY } }));
+      setEditor(s => ({ ...s, drag: { startTileX: tileX, startTileY: tileY, endTileX: tileX, endTileY: tileY }, lastTile: { tileX, tileY } }));
       setRectPx({ startTileX: tileX, startTileY: tileY, endTileX: tileX, endTileY: tileY });
     };
 
@@ -43,13 +43,9 @@ export function useEditorBridge(params: {
     const handleUp = ({ tileX, tileY }: { tileX: number; tileY: number }) => {
       if (!editorActiveRef.current) return;
       setEditor(s => {
-        if (!s.drag) return s;
-        const drag = { ...s.drag, endTileX: tileX, endTileY: tileY };
-        const rect = { startX: drag.startTileX, startY: drag.startTileY, endX: drag.endTileX, endY: drag.endTileY };
+        if (!s.drag) return { ...s, lastTile: { tileX, tileY } } as any;
         try { gameBridge.setSelectionRect(null); } catch {}
-        // Delegate painting to existing gameBridge API; concrete action decided elsewhere
-        // This bridge only syncs the selection rectangle and drag state.
-        return { ...s, drag: null };
+        return { ...s, drag: null, lastTile: { tileX, tileY } } as any;
       });
     };
 

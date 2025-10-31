@@ -74,6 +74,21 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
 
     const connect = async () => {
       try {
+        // Falls kein valider lokaler Startpunkt vorhanden ist, Spawn aus LocalStorage verwenden
+        try {
+          const lp = localPosRef.current as any;
+          const hasLocal = lp && typeof lp.x === 'number' && typeof lp.y === 'number' && (lp.x !== 0 || lp.y !== 0);
+          if (!hasLocal && typeof window !== 'undefined') {
+            const raw = localStorage.getItem('meetropolis.spawn');
+            if (raw) {
+              const sp = JSON.parse(raw);
+              if (sp && typeof sp.x === 'number' && typeof sp.y === 'number') {
+                localPosRef.current = { ...(localPosRef.current as any), x: sp.x, y: sp.y } as any;
+                try { (window as any).initialPlayerPosition = { x: sp.x, y: sp.y }; } catch {}
+              }
+            }
+          }
+        } catch {}
         const positionToUse = localPosRef.current && (localPosRef.current.x !== undefined && localPosRef.current.y !== undefined)
           ? localPosRef.current
           : undefined;

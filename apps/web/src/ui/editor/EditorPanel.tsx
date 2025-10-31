@@ -131,6 +131,36 @@ export function EditorPanel(props: {
           style={{ width: 48, height: 28, padding: 0, border: '1px solid var(--border)', borderRadius: 6, background: 'transparent' }}
         />
       </div>
+      {/* Spawnpunkt setzen */}
+      <div style={{ display: 'grid', gap: 6 }}>
+        <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>Spawnpunkt</div>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <button
+            onClick={() => {
+              const last = (editor as any).lastTile as { tileX: number; tileY: number } | undefined;
+              if (!last) {
+                setToast({ title: 'Kein Ziel', description: 'Klicke in der Karte, um eine Kachel zu wählen.', intent: 'info' });
+                setToastOpen(true);
+                return;
+              }
+              const tileSize = 16;
+              const x = last.tileX * tileSize + tileSize / 2;
+              const y = last.tileY * tileSize + tileSize / 2;
+              try { localStorage.setItem('meetropolis.spawn', JSON.stringify({ x, y })); } catch {}
+              try { (window as any).initialPlayerPosition = { x, y }; } catch {}
+              try { gameBridge.setDesiredPosition({ x, y }); } catch {}
+              setToast({ title: 'Spawn gesetzt', description: `Startposition: (${Math.round(x)}, ${Math.round(y)})`, intent: 'success' });
+              setToastOpen(true);
+            }}
+            style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--glass)', color: 'var(--fg)', fontSize: 13 }}
+          >
+            Hier als Spawn setzen
+          </button>
+          <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>
+            { (editor as any).lastTile ? `Letzte Kachel: ${(editor as any).lastTile.tileX}, ${(editor as any).lastTile.tileY}` : 'Letzte Kachel: –' }
+          </div>
+        </div>
+      </div>
       <div style={{ display: 'flex', gap: 6 }}>
         {editor.category !== 'terrain' && (
           <button onClick={() => setEditor(s => ({ ...s, tool: 'select' }))} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid var(--border)', background: editor.tool==='select'?'rgba(59,130,246,0.18)':'var(--glass)', color: 'var(--fg)', fontSize: 13 }}>{t('editor.select')}</button>

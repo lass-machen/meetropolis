@@ -705,8 +705,11 @@ export class AVManager {
         // Nach der Auswahl Verbindung sicherstellen
         await this.waitForConnected(this.current).catch(()=>{});
       } catch {}
-      // Kamera deaktivieren, um Bandbreite zu sparen
-      try { await this.setCameraEnabled(false); } catch {}
+      // Kamera standardmäßig nicht mehr deaktivieren. Optional via Flag.
+      const disableCamOnShare = ((import.meta as any).env?.VITE_AV_DISABLE_CAMERA_ON_SHARE === 'true');
+      if (disableCamOnShare) {
+        try { await this.setCameraEnabled(false); } catch {}
+      }
       for (const t of tracks) {
         await this.current.localParticipant.publishTrack(t);
         try {

@@ -17,6 +17,8 @@ export type EditorState = {
   pendingTerrain?: { packUuid: string; itemId: string; key: string; dataUrl: string; width?: number; height?: number } | null;
   tilePaint?: { tilesetKey: string; tileIndex: number; tileWidth: number; tileHeight: number; margin?: number; spacing?: number } | null;
   drag?: { startTileX: number; startTileY: number; endTileX: number; endTileY: number } | null;
+  // Zuletzt anvisierte Kachel im Editor (für Spawn-Setzen u.ä.)
+  lastTile?: { tileX: number; tileY: number } | null;
   tilesets?: { key: string; dataUrl: string; tileWidth: number; tileHeight: number; margin?: number; spacing?: number; category?: string }[];
   uploadDialog?: { open: boolean; dataUrl: string; fileName: string; tileWidth: number; tileHeight: number; margin: number; spacing: number; category?: string } | null;
   backgroundColor: string;
@@ -37,6 +39,7 @@ export function useEditor(): [EditorState, React.Dispatch<React.SetStateAction<E
     pendingTerrain: null,
     tilePaint: { tilesetKey: 'office_tiles', tileIndex: -1, tileWidth: 16, tileHeight: 16 },
     drag: null,
+    lastTile: null,
     tilesets: [],
     backgroundColor: (typeof window !== 'undefined' && localStorage.getItem('meetropolis.backgroundColor')) || '#202020',
   });
