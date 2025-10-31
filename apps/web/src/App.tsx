@@ -18,6 +18,12 @@ import { HudPanel } from './ui/hud/HudPanel';
 import { TopRightMenu } from './ui/app/TopRightMenu';
 import { ApiTokensOverlay } from './ui/admin/ApiTokensOverlay';
 import { useEditor } from './hooks/useEditor';
+import { useEditorBridge } from './editor/useEditorBridge';
+import { useGlobalAudioTracks } from './av/useGlobalAudioTracks';
+import { usePositionPersistence } from './hooks/usePositionPersistence';
+import { useZones as useZonesSync } from './features/zones/useZones';
+import { useWorldRoom } from './realtime/useWorldRoom';
+import { useLivekit } from './av/useLivekit';
 import { createPhaserGame, destroyPhaserGame } from './game/phaserGame';
 import { gameBridge } from './game/bridge';
 import { joinWorld } from './lib/colyseus';
@@ -40,6 +46,7 @@ export function App() {
   const colyseusRef = useRef<any>(null);
   const colyseusReconnectAttemptsRef = useRef(0);
   const colyseusReconnectTimerRef = useRef<any>(null);
+  // Reconnect-Handling liegt im WorldRoom-Hook
   const avRef = useRef<AVManager | null>(null);
   const bubbleRef = useRef<BubbleManager | null>(null);
   const zoneRef = useRef<ZoneManager | null>(null);
@@ -218,6 +225,8 @@ export function App() {
     gameBridge,
   });
 
+  
+
   // Laden der Tokenliste beim Öffnen des Modals
   useEffect(() => {
     if (!apiModalOpen) return;
@@ -229,11 +238,36 @@ export function App() {
       } catch {}
     })();
   }, [apiModalOpen, apiBase]);
-  const isConnectingRef = React.useRef(false);
   // Map Editor State (moved to hook)
   const [editor, setEditor] = useEditor();
   const editorActiveRef = React.useRef(false);
   React.useEffect(() => { editorActiveRef.current = editor.active; }, [editor.active]);
+  // Editor Pointer Bridge
+  useEditorBridge({ editor, setEditor, gameBridge });
+  
+  // Colyseus-Verbindung (ausgelagerter Hook)
+  useWorldRoom({
+    apiBase,
+    me,
+    avRef,
+    colyseusRef,
+    localPosRef,
+    remotesRef,
+    colyseusToLivekitMap,
+    identityToNameMap,
+    gameBridge,
+    editor,
+    setEditor,
+    zoneRef,
+    buildParticipantList,
+    applyVolumesToUi,
+    setBubbleUi,
+    dndRef,
+    setAvState,
+    rosterByIdentityRef,
+    setRoster,
+    disposedRef,
+  });
   
   // Collision-Overlay: Sichtbarkeit steuert ausschließlich der Edit-Mode
 
@@ -271,101 +305,7 @@ export function App() {
     fetchMe();
   }, [apiBase]);
 
-  // Editor: Tile-basierte Pointer-Events für Drag-Selektion (Terrain, Floor, Walls, Collision)
-  useEffect(() => {
-    const scene: any = (window as any).currentPhaserScene;
-    if (!scene) return;
-    const setRectPx = (drag: { startTileX: number; startTileY: number; endTileX: number; endTileY: number }) => {
-      try {
-        const map = scene?.mapRef;
-        if (!map) return;
-        const x0 = Math.min(drag.startTileX, drag.endTileX) * map.tileWidth;
-        const y0 = Math.min(drag.startTileY, drag.endTileY) * map.tileHeight;
-        const x1 = Math.max(drag.startTileX, drag.endTileX) * map.tileWidth + map.tileWidth;
-        const y1 = Math.max(drag.startTileY, drag.endTileY) * map.tileHeight + map.tileHeight;
-        scene?.setSelectionRect?.({ x: x0, y: y0, w: x1 - x0, h: y1 - y0 });
-      } catch {}
-    };
-    gameBridge.onPointerDownTile = ({ tileX, tileY }) => {
-      if (!editorActiveRef.current) return;
-      setEditor(s => ({ ...s, drag: { startTileX: tileX, startTileY: tileY, endTileX: tileX, endTileY: tileY } }));
-      setRectPx({ startTileX: tileX, startTileY: tileY, endTileX: tileX, endTileY: tileY });
-    };
-    gameBridge.onPointerMoveTile = ({ tileX, tileY }) => {
-      if (!editorActiveRef.current) return;
-      setEditor(s => {
-        if (!s.drag) return s;
-        const drag = { ...s.drag, endTileX: tileX, endTileY: tileY };
-        setRectPx(drag);
-        // Live-Malen während des Drags (kein Broadcast, nur lokale Szene)
-        const rect = { startX: drag.startTileX, startY: drag.startTileY, endX: drag.endTileX, endY: drag.endTileY };
-        const isErase = s.tool === 'erase';
-        if (s.tool === 'terrain' && s.pendingTerrain) {
-          if (isErase) {
-            try { (window as any).currentPhaserScene?.eraseTerrainRect?.(rect); } catch {}
-          } else {
-            try { (window as any).currentPhaserScene?.applyTerrainPaint?.({ rect, dataUrl: s.pendingTerrain.dataUrl }); } catch {}
-          }
-        }
-        if ((s.tool === 'floor' || s.tool === 'walls' || isErase) && s.tilePaint) {
-          const index = isErase ? -1 : s.tilePaint.tileIndex;
-          const layer = s.tool === 'walls' ? 'EditorWalls' : 'EditorGround';
-          const edit = { layer: layer as 'EditorGround' | 'EditorWalls', tilesetKey: s.tilePaint.tilesetKey, tileIndex: index, rect };
-          try { gameBridge.applyTilePaint(edit); } catch {}
-        }
-        if (s.tool === 'collision' || isErase) {
-          const index = isErase ? -1 : 1;
-          const edit = { layer: 'Collision' as const, tilesetKey: 'collision_tiles', tileIndex: index, rect };
-          try { (window as any).currentPhaserScene?.applyTilePaint?.(edit); } catch {}
-        }
-        return { ...s, drag };
-      });
-    };
-    gameBridge.onPointerUpTile = ({ tileX, tileY }) => {
-      if (!editorActiveRef.current) return;
-      setEditor(s => {
-        if (!s.drag) return s;
-        const drag = { ...s.drag, endTileX: tileX, endTileY: tileY };
-        const rect = { startX: drag.startTileX, startY: drag.startTileY, endX: drag.endTileX, endY: drag.endTileY };
-        gameBridge.setSelectionRect(null);
-        const isErase = s.tool === 'erase';
-        // Terrain: echte Tiles (Variante 2)
-        if (s.tool === 'terrain' && s.pendingTerrain) {
-          if (isErase) {
-            (window as any).currentPhaserScene?.eraseTerrainRect?.(rect);
-          } else {
-            (window as any).currentPhaserScene?.applyTerrainPaint?.({ rect, dataUrl: s.pendingTerrain.dataUrl });
-          }
-          return { ...s, drag: null };
-        }
-        // Boden/Wände
-        if ((s.tool === 'floor' || s.tool === 'walls' || isErase) && s.tilePaint) {
-          const index = isErase ? -1 : s.tilePaint.tileIndex;
-          const layer = s.tool === 'walls' ? 'EditorWalls' : 'EditorGround';
-          const edit = { layer: layer as 'EditorGround' | 'EditorWalls', tilesetKey: s.tilePaint.tilesetKey, tileIndex: index, rect };
-          gameBridge.applyTilePaint(edit);
-          return { ...s, drag: null };
-        }
-        // Kollision
-        if (s.tool === 'collision' || isErase) {
-          const index = isErase ? -1 : 1;
-          const edit = { layer: 'Collision' as const, tilesetKey: 'collision_tiles', tileIndex: index, rect };
-          // Editor-Seite anwenden und gleich speichern (Sichtbarkeit direkt an)
-          try { (window as any).currentPhaserScene?.applyTilePaint?.(edit); } catch {}
-          return { ...s, drag: null };
-        }
-        return { ...s, drag: null };
-      });
-    };
-    return () => {
-      // Aufräumen: Handler zurücksetzen
-      try {
-        gameBridge.onPointerDownTile = () => {};
-        gameBridge.onPointerMoveTile = () => {};
-        gameBridge.onPointerUpTile = () => {};
-      } catch {}
-    };
-  }, [page, setEditor]);
+  // Editor-Pointer-Handler sind via useEditorBridge ausgelagert
 
   // Editor: Laden aus localStorage
   useEffect(() => {
@@ -1481,120 +1421,22 @@ export function App() {
     };
     void connectColyseus();
 
-    // LiveKit nach User-Geste verbinden
-    const identity = me.id;
-    const displayName = me.name || me.email || me.id;
-    const connectLivekit = async () => {
-      // Im Editor-Modus nie LiveKit initialisieren (verhindert Blocking/Errors)
-      if (editorActiveRef.current) return;
-      if (isConnectingRef.current) return; // Verhindere doppelte Verbindung
-      if (avRef.current?.room) return; // Bereits verbunden
-      
-      isConnectingRef.current = true;
-      try {
-        avRef.current = new AVManager({ 
-          baseUrl: apiBase, 
-          identity, 
-          displayName,
-          useVideo: import.meta.env.VITE_FEATURE_VOICE_ONLY !== 'true' 
-        });
-        bubbleRef.current?.setAV(avRef.current);
-        zoneRef.current?.setAV(avRef.current);
-        await avRef.current.switchTo('world');
-        const list = await avRef.current.listDevices();
-        const micOptions = list.microphones.map(d => ({ id: d.deviceId, label: d.label }));
-        const camOptions = list.cameras.map(d => ({ id: d.deviceId, label: d.label }));
-        setDevices({ mics: micOptions, cams: camOptions });
-        // System-Standard (deviceId === 'default') wählen, sonst erstes Gerät
-        const defaultMic = micOptions.find(d => d.id === 'default')?.id || micOptions[0]?.id || '';
-        const defaultCam = camOptions.find(d => d.id === 'default')?.id || camOptions[0]?.id || '';
-        if (defaultMic) {
-          setSelectedMicId(defaultMic);
-          try { await avRef.current.useMicrophoneDevice(defaultMic); } catch {}
-        }
-        if (defaultCam) {
-          setSelectedCamId(defaultCam);
-          try { await avRef.current.useCameraDevice(defaultCam); } catch {}
-        }
-        // Warte bis die Verbindung stabil ist
-        const room = avRef.current.room;
-        if (room) {
-          await new Promise<void>((resolve) => {
-            const checkConnection = () => {
-              if ((room as any).state === 'connected' || (room as any).connectionState === 'connected') {
-                resolve();
-              } else {
-                setTimeout(checkConnection, 100);
-              }
-            };
-            checkConnection();
-          });
-        }
-        // Add event handlers for participant changes
-        if (room) {
-          // Import LiveKit event constants
-          (async () => {
-            try {
-              const mod = await import('livekit-client');
-              const RoomEvent = (mod as any).RoomEvent;
-              if (RoomEvent) {
-                room.on(RoomEvent.ParticipantConnected, () => {
-                  setTimeout(buildParticipantList, 100);
-                });
-                room.on(RoomEvent.ParticipantDisconnected, () => {
-                  setTimeout(buildParticipantList, 100);
-                });
-                room.on(RoomEvent.TrackPublished, (_publication: any, _participant: any) => {
-                  try {
-                    const source = (_publication?.source || _publication?.track?.source);
-                    const isRemote = _participant?.sid !== room.localParticipant?.sid;
-                    if (isRemote && (source === 'screen_share' || source === 'camera')) {
-                      try { _publication?.setSubscribed?.(true); } catch {}
-                      try { _publication?.setVideoQuality?.('high'); } catch {}
-                    }
-                  } catch {}
-                  setTimeout(buildParticipantList, 100);
-                });
-                room.on(RoomEvent.TrackUnpublished, () => {
-                  setTimeout(buildParticipantList, 100);
-                });
-                room.on(RoomEvent.TrackSubscribed, (track: any, _publication: any, _participant: any) => {
-                  if (((_publication as any)?.source || (track as any)?.source) === 'screen_share') {
-                    setTimeout(buildParticipantList, 200);
-                  }
-                });
-                room.on(RoomEvent.ActiveSpeakersChanged, () => {
-                  buildParticipantList();
-                });
-              }
-            } catch {}
-          })();
-        }
-        // Mikrofon-Zustand beibehalten: nicht automatisch aktivieren
-        // Der sichtbare Zustand wird über LiveKit-Events/buildParticipantList synchronisiert
-        // erst listen, dann sicher bauen
-        setTimeout(buildParticipantList, 50);
-      } catch (e) {
-        // Editor weiterhin bedienbar halten
-        try { bubbleRef.current?.setAV(null as any); } catch {}
-        try { zoneRef.current?.setAV(null as any); } catch {}
-        isConnectingRef.current = false; // Reset flag on error
-      } finally {
-        isConnectingRef.current = false; // Reset flag when done
-      }
-    };
-    connectLivekitRef.current = connectLivekit;
-    // Auto-Connect LiveKit (ohne User-Geste) – nur einmal versuchen
-    if (!livekitAutoConnectOnceRef.current) {
-      livekitAutoConnectOnceRef.current = true;
-      setTimeout(() => {
-        try {
-          if (!editorActiveRef.current && connectLivekitRef.current && !avRef.current?.room && !isConnectingRef.current) {
-            connectLivekitRef.current();
-          }
-        } catch {}
-      }, 300);
-    }
+  // LiveKit-Verbindung via Hook
+  useLivekit({
+    apiBase,
+    me,
+    editorActiveRef,
+    avRef,
+    bubbleRef,
+    zoneRef,
+    setDevices,
+    setSelectedMicId,
+    setSelectedCamId,
+    buildParticipantList,
+    connectLivekitRef,
+    livekitAutoConnectOnceRef,
+    setAvState,
+  });
 
     bubbleRef.current = new BubbleManager(64, null);
     followRef.current = new FollowManager(96);
@@ -1990,27 +1832,8 @@ export function App() {
       }, 1000);
     };
 
-    // Save position on visibility change/unload to increase reliability
-    const onVisibility = () => {
-      if (document.hidden) {
-        void savePosition({ immediate: true });
-      } else {
-        // Tab sichtbar: Audio-Wiedergabe wieder anstoßen (Autoplay-Policy)
-        try { (avRef.current?.room as any)?.startAudio?.(); } catch {}
-        // Versuche die Colyseus-Verbindung zu berühren; falls getrennt, wird so ein Fehler sichtbar
-        try { (colyseusRef.current as any)?.send?.('poke', {}); } catch {}
-      }
-    };
-    const onFocus = () => {
-      // Auf Fenster-Fokus ebenfalls Audio-Start versuchen
-      try { (avRef.current?.room as any)?.startAudio?.(); } catch {}
-    };
-    const onBeforeUnload = () => { void savePosition({ immediate: true }); };
-    const onPageHide = () => { void savePosition({ immediate: true }); };
-    document.addEventListener('visibilitychange', onVisibility);
-    window.addEventListener('beforeunload', onBeforeUnload);
-    window.addEventListener('pagehide', onPageHide);
-    window.addEventListener('focus', onFocus);
+    // Position-Persistenz (ausgelagert)
+    usePositionPersistence({ apiBase, localPosRef, gameBridge });
     
     // Track zone for participant list updates
     let participantListLastZone: string | null = null;
@@ -2105,137 +1928,17 @@ export function App() {
       if (moveTimeoutRef) {
         clearTimeout(moveTimeoutRef);
       }
-      document.removeEventListener('visibilitychange', onVisibility);
-      window.removeEventListener('beforeunload', onBeforeUnload);
-      window.removeEventListener('pagehide', onPageHide);
-      window.removeEventListener('focus', onFocus);
+      // Position-Persistenz cleanup wird im Hook gehandhabt
     };
   }, [authChecked, me?.id, apiBase]);
 
 
-  // Global Audio Track Manager - handles all remote participants' audio
-  useEffect(() => {
-    const room = avRef.current?.room as any;
-    if (!room) return;
+  // Global Audio Track Manager - ausgelagert
+  useGlobalAudioTracks({ avRef });
 
-    const audioElements = new Map<string, HTMLAudioElement>();
-    
-    const attachAudioTrack = (track: any, participantId: string) => {
-      try {
-        const audio = new Audio();
-        audio.autoplay = true;
-        (audio as any).playsInline = true;
-        audio.volume = 1.0;
-        // Important: Add audio element to DOM for autoplay to work
-        audio.style.display = 'none';
-        document.body.appendChild(audio);
-        
-        // Try to attach and play, but handle autoplay policy gracefully
-        track.attach(audio).catch((err: any) => {
-          console.warn('Audio autoplay blocked, will retry on user interaction', err);
-          // Store for retry on user interaction
-          (window as any).pendingAudioTracks = (window as any).pendingAudioTracks || [];
-          (window as any).pendingAudioTracks.push({ track, audio, participantId });
-        });
-        
-        audioElements.set(participantId, audio);
-      } catch (e) {
-      }
-    };
-
-    const detachAudioTrack = (participantId: string) => {
-      const audio = audioElements.get(participantId);
-      if (audio) {
-        audio.pause();
-        audio.srcObject = null;
-        // Remove from DOM
-        if (audio.parentNode) {
-          audio.parentNode.removeChild(audio);
-        }
-        audioElements.delete(participantId);
-      }
-    };
-
-    const handleTrackSubscribed = (track: any, _publication: any, participant: any) => {
-      if (track.kind === 'audio' && participant.sid !== room.localParticipant?.sid) {
-        attachAudioTrack(track, participant.sid);
-      }
-    };
-
-    const handleTrackUnsubscribed = (track: any, _publication: any, participant: any) => {
-      if (track.kind === 'audio') {
-        detachAudioTrack(participant.sid);
-      }
-    };
-
-    // Initial setup for existing participants
-    const participants = Array.from((room as any).remoteParticipants?.values?.() || (room as any).participants?.values?.() || []);
-    
-    participants.forEach((participant: any) => {
-      if (participant.sid === room.localParticipant?.sid) return;
-      
-      const audioTracks = Array.from(participant.trackPublications.values())
-        .filter((pub: any) => pub.kind === 'audio' && pub.track)
-        .map((pub: any) => pub.track);
-      
-      
-      audioTracks.forEach((track: any) => {
-        attachAudioTrack(track, participant.sid);
-      });
-    });
-
-    // Subscribe to events
-    (async () => {
-      try {
-        const mod = await import('livekit-client');
-        const RoomEvent = (mod as any).RoomEvent;
-        if (RoomEvent) {
-          room.on(RoomEvent.TrackSubscribed, handleTrackSubscribed);
-          room.on(RoomEvent.TrackUnsubscribed, handleTrackUnsubscribed);
-        }
-      } catch {}
-    })();
-
-    return () => {
-      // Cleanup all audio elements
-      audioElements.forEach((audio) => {
-        audio.pause();
-        audio.srcObject = null;
-        if (audio.parentNode) {
-          audio.parentNode.removeChild(audio);
-        }
-      });
-      audioElements.clear();
-    };
-  }, [avRef.current?.room]); // Re-run when room changes
-
-  // Wenn aus dem Editor herausgegangen wird, LiveKit-Connect bei erster Interaktion erneut anbieten
+  // DND Shortcut bleibt hier
   useEffect(() => {
     if (!authChecked || !me) return;
-    if (!connectLivekitRef.current) return;
-    if (editorActiveRef.current) return; // nur wenn Editor aus
-    // Wait for user interaction before connecting (browser autoplay policy)
-    const firstInteract = () => {
-      if (!avRef.current?.room && connectLivekitRef.current && !isConnectingRef.current) {
-        try { connectLivekitRef.current?.(); } catch {}
-      }
-      
-      // Retry any pending audio tracks after user interaction
-      const pendingTracks = (window as any).pendingAudioTracks;
-      if (pendingTracks && pendingTracks.length > 0) {
-        pendingTracks.forEach(({ track, audio }: any) => {
-          try {
-            track.attach(audio);
-          } catch (e) {
-            console.warn('Failed to attach audio track after interaction', e);
-          }
-        });
-        (window as any).pendingAudioTracks = [];
-      }
-    };
-    window.addEventListener('pointerdown', firstInteract, { once: true } as any);
-    window.addEventListener('keydown', firstInteract, { once: true } as any);
-    // DND Shortcut: Ctrl/Cmd + Shift + D
     const onKey = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'D' || e.key === 'd')) {
         e.preventDefault();
@@ -2249,29 +1952,16 @@ export function App() {
         }
         dndRef.current = next;
         setAvState(s => ({ ...s, dnd: next, mic: next ? false : s.mic, cam: next ? false : s.cam, share: next ? false : s.share }));
-        // Send DND status to server
         try { colyseusRef.current?.send?.('dnd_status', { dnd: next }); } catch {}
         try { volumeRef.current?.update(); } catch {}
       }
     };
     window.addEventListener('keydown', onKey);
-    return () => {
-      window.removeEventListener('pointerdown', firstInteract);
-      window.removeEventListener('keydown', firstInteract);
-      window.removeEventListener('keydown', onKey);
-    };
-  }, [editor.active, page, authChecked, me]);
+    return () => { window.removeEventListener('keydown', onKey); };
+  }, [authChecked, me]);
 
-  // Wenn Editor-Zonen sich ändern, ins Game-Overlay + ZoneManager schieben (ohne Autosave)
-  useEffect(() => {
-    const zonesToShow = editor.active ? editor.zones : [];
-    gameBridge.setZoneOverlay(zonesToShow);
-    zoneRef.current?.setZones?.(editor.zones as any);
-    try { localStorage.setItem('meetropolis.zones', JSON.stringify(editor.zones || [])); } catch {}
-    if (!suppressZoneBroadcastRef.current) {
-      try { colyseusRef.current?.send?.('editor_update', { type: 'zone', polys: editor.zones || [] }); } catch {}
-    }
-  }, [editor.active, editor.zones]);
+  // Zonen-Handling/Sync (ausgelagert)
+  useZonesSync({ editor, setEditor, zoneRef, gameBridge, colyseusRef });
 
   useEffect(() => {
     // Assets immer anzeigen - sie sind Teil der Map!
@@ -2476,6 +2166,16 @@ export function App() {
         menuOpen={menuOpen}
         onToggleMenu={() => setMenuOpen(v => !v)}
         onOpenUsers={() => { setUserModalOpen(true); setMenuOpen(false); }}
+        onOpenInvites={async () => {
+          setInvitesModalOpen(true);
+          setInvitesLoading(true);
+          try {
+            const res = await fetch(`${apiBase}/invites`, { credentials: 'include' });
+            if (res.ok) setInvites(await res.json());
+          } catch {}
+          setInvitesLoading(false);
+          setMenuOpen(false);
+        }}
         onBackToWorld={() => { setPage('world'); setMenuOpen(false); }}
         onOpenApi={() => { setApiModalOpen(true); setMenuOpen(false); }}
         onToggleEditor={async () => {
@@ -2646,19 +2346,7 @@ export function App() {
       )}
       {/* Recenter Button wird nun in der AV-Leiste rechts angezeigt */}
 
-      {/* Admin Toolbar: Benutzer & Einladungen (bleibt über dem Space, Verbindung bleibt aktiv) */}
-      <div style={{ position: 'absolute', top: 12, right: 12, zIndex: 50, display: 'flex', gap: 8 }}>
-        <button onClick={() => { setUserModalOpen(true); }} style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'rgba(0,0,0,0.5)', color: '#fff', cursor: 'pointer' }}>Benutzer</button>
-        <button onClick={async () => {
-          setInvitesModalOpen(true);
-          setInvitesLoading(true);
-          try {
-            const res = await fetch(`${apiBase}/invites`, { credentials: 'include' });
-            if (res.ok) setInvites(await res.json());
-          } catch {}
-          setInvitesLoading(false);
-        }} style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'rgba(0,0,0,0.5)', color: '#fff', cursor: 'pointer' }}>Einladungen</button>
-      </div>
+      {/* Admin-Toolbar entfernt – Direktzugriff über Icon-Buttons oben rechts */}
 
       {/* Benutzerverwaltung Modal */}
       {userModalOpen && (

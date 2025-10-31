@@ -1,0 +1,282 @@
+import React from 'react';
+import { joinWorld } from '../lib/colyseus';
+
+type AnyRef<T> = React.MutableRefObject<T>;
+
+interface UseWorldRoomArgs {
+  apiBase: string;
+  me: { id: string; email: string; name?: string } | null;
+  avRef: AnyRef<any>;
+  colyseusRef: AnyRef<any>;
+  localPosRef: AnyRef<{ id: string; x: number; y: number }>;
+  remotesRef: AnyRef<Record<string, { x: number; y: number }>>;
+  colyseusToLivekitMap: AnyRef<Record<string, string>>;
+  identityToNameMap: AnyRef<Record<string, string>>;
+  gameBridge: any;
+  // editor/zone sync
+  editor: any;
+  setEditor: React.Dispatch<React.SetStateAction<any>>;
+  zoneRef: AnyRef<any>;
+  // UI & audio
+  buildParticipantList: () => void;
+  applyVolumesToUi: () => void;
+  setBubbleUi: React.Dispatch<React.SetStateAction<{ active: boolean; members: string[] }>>;
+  dndRef: AnyRef<boolean>;
+  setAvState: React.Dispatch<React.SetStateAction<{ mic: boolean; cam: boolean; share: boolean; dnd: boolean }>>;
+  // roster
+  rosterByIdentityRef: AnyRef<Record<string, { name: string; x: number; y: number }>>;
+  setRoster: React.Dispatch<React.SetStateAction<Array<{ identity: string; name: string; online: boolean; x?: number; y?: number; lastSeen?: string }>>>;
+  // lifetime
+  disposedRef: AnyRef<boolean>;
+}
+
+export function useWorldRoom(args: UseWorldRoomArgs) {
+  const {
+    apiBase,
+    me,
+    avRef,
+    colyseusRef,
+    localPosRef,
+    remotesRef,
+    colyseusToLivekitMap,
+    identityToNameMap,
+    gameBridge,
+    editor,
+    setEditor,
+    zoneRef,
+    buildParticipantList,
+    applyVolumesToUi,
+    setBubbleUi,
+    dndRef,
+    setAvState,
+    rosterByIdentityRef,
+    setRoster,
+    disposedRef,
+  } = args;
+
+  const reconnectAttemptsRef = React.useRef(0);
+  const reconnectTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  React.useEffect(() => {
+    if (!me) return;
+    let disposed = false;
+
+    const scheduleReconnect = () => {
+      if (disposed) return;
+      const attempt = ++reconnectAttemptsRef.current;
+      const delay = Math.min(30000, 1000 * Math.pow(2, attempt - 1) + Math.random() * 500);
+      if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = setTimeout(() => {
+        reconnectTimerRef.current = null;
+        void connect();
+      }, delay);
+    };
+
+    const connect = async () => {
+      try {
+        const positionToUse = localPosRef.current && (localPosRef.current.x !== undefined && localPosRef.current.y !== undefined)
+          ? localPosRef.current
+          : undefined;
+        const room = await joinWorld(
+          apiBase,
+          me.id,
+          me.name || me.email || me.id,
+          positionToUse
+        );
+        if (disposed) { try { room.leave(); } catch {} return; }
+        colyseusRef.current = room;
+        reconnectAttemptsRef.current = 0;
+
+        const localLivekitIdentity = avRef.current?.room?.localParticipant?.identity || me.id;
+        const colyseusSessionId = room.sessionId;
+        colyseusToLivekitMap.current[colyseusSessionId] = localLivekitIdentity;
+        localPosRef.current.id = colyseusSessionId;
+
+        room.onMessage('full_state', (data: any) => {
+          if (!gameBridge?.syncRemotePlayers) return;
+          if (data?.players) {
+            const players: Record<string, { x: number; y: number; direction: any; name?: string; dnd?: boolean }> = {};
+            for (const p of data.players) {
+              if (p.id === localPosRef.current.id) continue;
+              if (p.identity) {
+                colyseusToLivekitMap.current[p.id] = p.identity;
+                if (p.name) identityToNameMap.current[p.identity] = p.name;
+              }
+              players[p.id] = { x: p.x, y: p.y, direction: p.direction, name: p.name, dnd: p.dnd };
+            }
+            try { gameBridge.syncRemotePlayers(players); } catch {}
+            try { remotesRef.current = Object.fromEntries(Object.entries(players).map(([id, p]) => [id, { x: (p as any).x, y: (p as any).y }])); } catch {}
+            try { setTimeout(buildParticipantList, 0); } catch {}
+          }
+        });
+
+        room.onMessage('player_joined', (data: any) => {
+          if (data.id === localPosRef.current.id) return;
+          remotesRef.current[data.id] = { x: data.x, y: data.y };
+          if (data.identity) {
+            colyseusToLivekitMap.current[data.id] = data.identity;
+            if (data.name) identityToNameMap.current[data.identity] = data.name;
+          }
+          try { gameBridge.addRemotePlayer?.(data.id, { x: data.x, y: data.y, direction: data.direction, name: data.name, dnd: data.dnd }); } catch {}
+          try { setTimeout(buildParticipantList, 50); } catch {}
+          try {
+            const currZones = (editor?.zones || []);
+            if (Array.isArray(currZones) && currZones.length > 0) {
+              colyseusRef.current?.send?.('editor_update', { type: 'zone', polys: currZones });
+            }
+          } catch {}
+        });
+
+        room.onMessage('player_moved', (data: any) => {
+          if (data.id === localPosRef.current.id) return;
+          remotesRef.current[data.id] = { x: data.x, y: data.y };
+          try { gameBridge.updateRemotePlayer?.(data.id, { x: data.x, y: data.y, direction: data.direction }); } catch {}
+          try { setTimeout(buildParticipantList, 50); } catch {}
+        });
+
+        room.onMessage('player_left', (data: any) => {
+          delete remotesRef.current[data.id];
+          delete colyseusToLivekitMap.current[data.id];
+          try { gameBridge.removeRemotePlayer?.(data.id); } catch {}
+          try { setTimeout(buildParticipantList, 50); } catch {}
+        });
+
+        room.onMessage('player_dnd', (data: { id: string; dnd: boolean }) => {
+          try { gameBridge.updateRemotePlayerDnd?.(data.id, data.dnd); } catch {}
+          try { setTimeout(buildParticipantList, 50); } catch {}
+        });
+
+        room.onMessage('editor_update', (data: any) => {
+          try {
+            if (data?.type === 'zone' && Array.isArray(data.polys)) {
+              setEditor((s: any) => ({ ...s, zones: data.polys }));
+              try { localStorage.setItem('meetropolis.zones', JSON.stringify(data.polys)); } catch {}
+              try { gameBridge.setZoneOverlay(data.polys); } catch {}
+              try { zoneRef.current?.setZones?.(data.polys); } catch {}
+              try { setTimeout(buildParticipantList, 0); } catch {}
+              return;
+            }
+            if (data?.type === 'tile_paint' && data.edit) { try { gameBridge.applyTilePaint(data.edit); } catch {} return; }
+            if (data?.type === 'layers' || data?.type === 'all') { try { gameBridge.fetchAndApplyServerLayers?.(); } catch {} return; }
+            if (data?.type === 'asset' && Array.isArray(data.assets)) { try { gameBridge.setEditorAssets(data.assets); } catch {} return; }
+          } catch {}
+          try { gameBridge.handleEditorUpdate?.(data); } catch {}
+        });
+
+        room.onMessage('remote_control', async (payload: { mic?: boolean; cam?: boolean; share?: boolean; dnd?: boolean }) => {
+          const lkRoom: any = avRef.current?.room as any;
+          try {
+            if (typeof payload.mic === 'boolean' && lkRoom?.localParticipant?.isMicrophoneEnabled !== payload.mic) {
+              await lkRoom?.localParticipant?.setMicrophoneEnabled(payload.mic);
+            }
+          } catch {}
+          try {
+            if (typeof payload.cam === 'boolean' && lkRoom?.localParticipant?.isCameraEnabled !== payload.cam) {
+              await lkRoom?.localParticipant?.setCameraEnabled(payload.cam);
+            }
+          } catch {}
+          if (typeof payload.share === 'boolean') {
+            try {
+              if (payload.share && !avRef.current?.room?.localParticipant?.isScreenShareEnabled) {
+                const ok = await avRef.current?.startScreenshare();
+                if (ok) setAvState(s => ({ ...s, share: true }));
+              } else if (!payload.share && avRef.current?.room?.localParticipant?.isScreenShareEnabled) {
+                await avRef.current?.stopScreenshare();
+                setAvState(s => ({ ...s, share: false }));
+              }
+            } catch {}
+          }
+          if (typeof payload.dnd === 'boolean') {
+            const next = !!payload.dnd;
+            try { gameBridge.setDoNotDisturb(next); } catch {}
+            if (next) {
+              try { await avRef.current?.setMicrophoneEnabled(false); } catch {}
+              try { await avRef.current?.setCameraEnabled(false); } catch {}
+              try { await avRef.current?.stopScreenshare(); } catch {}
+            }
+            setAvState(s => ({ ...s, dnd: next, mic: next ? false : s.mic, cam: next ? false : s.cam, share: next ? false : s.share }));
+            dndRef.current = next;
+            try { colyseusRef.current?.send?.('dnd_status', { dnd: next }); } catch {}
+          }
+        });
+
+        room.onMessage('bubble_state', (payload: { members: string[] }) => {
+          const incoming = new Set<string>(Array.isArray(payload?.members) ? payload.members : []);
+          const visual = new Set<string>();
+          const amInBubble = !!(localPosRef.current.id && incoming.has(localPosRef.current.id));
+          try { gameBridge.setMovementLocked(!!amInBubble); } catch {}
+          if (localPosRef.current.id && incoming.has(localPosRef.current.id)) visual.add('__local__');
+          for (const id of incoming) { if (id !== localPosRef.current.id) visual.add(id); }
+          try { gameBridge.setBubbleMembers(visual); } catch {}
+          try { applyVolumesToUi(); } catch {}
+          // UI names
+          const names: string[] = [];
+          for (const id of incoming) {
+            if (id === localPosRef.current.id) continue;
+            const identity = colyseusToLivekitMap.current[id] || id;
+            const name = identityToNameMap.current[identity] || identity;
+            names.push(name);
+          }
+          setBubbleUi({ active: amInBubble && incoming.size > 1, members: names });
+        });
+
+        room.onStateChange((state: any) => {
+          const players: Record<string, { x: number; y: number; direction: any; dnd?: boolean }> = {};
+          if (state.players) {
+            if (typeof state.players.forEach === 'function') {
+              state.players.forEach((value: any, key: string) => { players[key] = { x: value.x, y: value.y, direction: value.direction, dnd: value.dnd }; if (value.identity && value.name) identityToNameMap.current[value.identity] = value.name; });
+            } else if (typeof state.players.entries === 'function') {
+              for (const [key, value] of state.players.entries()) { players[key] = { x: value.x, y: value.y, direction: value.direction, dnd: value.dnd }; if (value.identity && value.name) identityToNameMap.current[value.identity] = value.name; }
+            } else if ((state.players as any)[Symbol.iterator]) {
+              for (const [key, value] of state.players as any) { players[key] = { x: value.x, y: value.y, direction: value.direction, dnd: value.dnd }; if (value.identity && value.name) identityToNameMap.current[value.identity] = value.name; }
+            }
+          }
+          remotesRef.current = Object.fromEntries(Object.entries(players).filter(([id]) => id !== localPosRef.current.id).map(([id, p]) => [id, { x: (p as any).x, y: (p as any).y }]));
+          const filtered = Object.fromEntries(Object.entries(players).filter(([id]) => id !== localPosRef.current.id).map(([id, p]) => {
+            const livekitIdentity = colyseusToLivekitMap.current[id] || id;
+            const name = identityToNameMap.current[livekitIdentity] || livekitIdentity;
+            return [id, { ...p, name }];
+          }));
+          try { gameBridge.syncRemotePlayers(filtered); } catch {}
+
+          try {
+            const online: Record<string, { name: string; x: number; y: number }> = {};
+            for (const [sid, p] of Object.entries(filtered) as any) {
+              const livekitIdentity = (colyseusToLivekitMap.current as any)[sid] || sid;
+              const name = (p as any).name || livekitIdentity;
+              online[livekitIdentity] = { name, x: (p as any).x, y: (p as any).y };
+            }
+            rosterByIdentityRef.current = online;
+            setRoster(prev => {
+              const map = new Map<string, { identity: string; name: string; online: boolean; x?: number; y?: number; lastSeen?: string }>();
+              for (const r of prev) map.set(r.identity, { ...r, online: false });
+              for (const [ident, v] of Object.entries(online)) map.set(ident, { identity: ident, name: v.name, online: true, x: v.x, y: v.y });
+              return Array.from(map.values()).sort((a, b) => Number(b.online) - Number(a.online) || a.name.localeCompare(b.name));
+            });
+          } catch {}
+          try { setTimeout(buildParticipantList, 0); } catch {}
+        });
+
+        room.onError?.(() => { colyseusRef.current = null; scheduleReconnect(); });
+        room.onLeave?.(() => { colyseusRef.current = null; scheduleReconnect(); });
+      } catch {
+        scheduleReconnect();
+      }
+    };
+
+    void connect();
+
+    return () => {
+      disposed = true;
+      try {
+        const room: any = colyseusRef.current;
+        const wsReadyState = room?.connection?.ws?.readyState ?? room?.connection?.transport?.ws?.readyState ?? room?.connection?._transport?.ws?.readyState;
+        const isOpen = room?.connection?.isOpen === true || wsReadyState === 1;
+        if (isOpen) room.leave();
+      } catch {}
+      if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
+    };
+  }, [apiBase, me?.id]);
+}
+
+
