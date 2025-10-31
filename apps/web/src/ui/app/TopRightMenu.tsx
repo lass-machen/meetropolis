@@ -46,6 +46,7 @@ export function TopRightMenu(props: {
             </div>
           )}
         </div>
+        <Button icon="users" iconPosition="only" title="Benutzerverwaltung" aria-label="Benutzerverwaltung" onClick={onOpenUsers} />
         <Button icon="envelope" iconPosition="only" title="Einladungen" aria-label="Einladungen" onClick={onOpenInvites} />
       </ButtonGroup>
     </div>
