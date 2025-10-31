@@ -264,28 +264,28 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
         });
 
         room.onStateChange((state: any) => {
-          const players: Record<string, { x: number; y: number; direction: any; dnd?: boolean }> = {};
+          const players: Record<string, { x: number; y: number; direction: any; dnd?: boolean; identity?: string; name?: string }> = {};
           if (state.players) {
             if (typeof state.players.forEach === 'function') {
-              state.players.forEach((value: any, key: string) => { players[key] = { x: value.x, y: value.y, direction: value.direction, dnd: value.dnd }; if (value.identity && value.name) identityToNameMap.current[value.identity] = value.name; });
+              state.players.forEach((value: any, key: string) => { players[key] = { x: value.x, y: value.y, direction: value.direction, dnd: value.dnd, identity: value.identity, name: value.name }; if (value.identity && value.name) identityToNameMap.current[value.identity] = value.name; });
             } else if (typeof state.players.entries === 'function') {
-              for (const [key, value] of state.players.entries()) { players[key] = { x: value.x, y: value.y, direction: value.direction, dnd: value.dnd }; if (value.identity && value.name) identityToNameMap.current[value.identity] = value.name; }
+              for (const [key, value] of state.players.entries()) { players[key] = { x: value.x, y: value.y, direction: value.direction, dnd: value.dnd, identity: value.identity, name: value.name }; if (value.identity && value.name) identityToNameMap.current[value.identity] = value.name; }
             } else if ((state.players as any)[Symbol.iterator]) {
-              for (const [key, value] of (state.players as any)) { players[key] = { x: value.x, y: value.y, direction: value.direction, dnd: value.dnd }; if (value.identity && value.name) identityToNameMap.current[value.identity] = value.name; }
+              for (const [key, value] of (state.players as any)) { players[key] = { x: value.x, y: value.y, direction: value.direction, dnd: value.dnd, identity: value.identity, name: value.name }; if (value.identity && value.name) identityToNameMap.current[value.identity] = value.name; }
             }
           }
           remotesRef.current = Object.fromEntries(Object.entries(players).filter(([id]) => id !== localPosRef.current.id).map(([id, p]) => [id, { x: (p as any).x, y: (p as any).y }]));
           const filtered = Object.fromEntries(Object.entries(players).filter(([id]) => id !== localPosRef.current.id).map(([id, p]) => {
-            const livekitIdentity = colyseusToLivekitMap.current[id] || id;
-            const name = identityToNameMap.current[livekitIdentity] || livekitIdentity;
-            return [id, { ...p, name }];
+            const livekitIdentity = (p as any).identity || colyseusToLivekitMap.current[id] || id;
+            const name = identityToNameMap.current[livekitIdentity] || (p as any).name || livekitIdentity;
+            return [id, { ...p, name, identity: livekitIdentity }];
           }));
           if (gameBridge && typeof gameBridge.syncRemotePlayers === 'function') gameBridge.syncRemotePlayers(filtered);
 
           try {
           const online: Record<string, { name: string; x: number; y: number }> = {};
             for (const [sid, p] of Object.entries(filtered) as any) {
-              const livekitIdentity = (colyseusToLivekitMap.current as any)[sid] || sid;
+              const livekitIdentity = (p as any).identity || (colyseusToLivekitMap.current as any)[sid] || sid;
               const name = (p as any).name || livekitIdentity;
               online[livekitIdentity] = { name, x: (p as any).x, y: (p as any).y };
             }

@@ -225,7 +225,7 @@ export function ParticipantCard(props: { part: { sid: string; identity: string; 
       position: 'relative', borderRadius: 14, overflow: 'hidden', background: 'var(--uc-glass)', border: `1px solid ${borderColor}`, boxShadow: glow,
       opacity: opacity,
       transition: 'opacity 0.3s ease-in-out',
-      pointerEvents: disabled ? 'none' : 'auto',
+      pointerEvents: 'auto',
       filter: disabled ? 'grayscale(90%) brightness(0.8)' : undefined,
       height: full ? 'auto' : 'min(140px, 30vh)'
     }}>
@@ -247,8 +247,12 @@ export function ParticipantCard(props: { part: { sid: string; identity: string; 
         </div>
       </div>
       {!isLocal && hover && part.media === 'camera' && (
-        <div style={{ position: 'absolute', bottom: 6, right: 6, display: 'flex', gap: 8 }}>
-          <Button onClick={handleForceMute} aria-label={t('participant.forceMuteTitle')} title={t('participant.forceMuteTitle')} variant="danger">
+        <div style={{ position: 'absolute', left: '50%', bottom: 10, transform: 'translateX(-50%)', display: 'flex', gap: 8, zIndex: 5 }}>
+          <Button 
+            onMouseDown={(e)=>{ e.preventDefault(); e.stopPropagation(); }}
+            onClick={(e)=>{ e.preventDefault(); e.stopPropagation(); handleForceMute(); }}
+            onDoubleClick={(e)=>{ e.preventDefault(); e.stopPropagation(); }}
+            aria-label={t('participant.forceMuteTitle')} title={t('participant.forceMuteTitle')} variant="danger">
             <FAIcon size="sm" name="microphone-slash" variant="solid" ariaLabel={t('participant.forceMute')} />
             {t('participant.forceMute')}
           </Button>
