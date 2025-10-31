@@ -1376,7 +1376,7 @@ export function App() {
               .filter(([id]) => id !== localPosRef.current.id)
               .map(([id, p]) => {
                 const livekitIdentity = colyseusToLivekitMap.current[id] || id;
-                const name = identityToNameMap.current[livekitIdentity] || getDisplayName(livekitIdentity);
+                const name = identityToNameMap.current[livekitIdentity] || getDisplayNameLib(livekitIdentity);
                 return [id, { ...p, name }];
               })
           );
@@ -1386,7 +1386,7 @@ export function App() {
             const online: Record<string, { name: string; x: number; y: number }> = {};
             for (const [sid, p] of Object.entries(filteredPlayers) as any) {
               const livekitIdentity = (colyseusToLivekitMap.current as any)[sid] || sid;
-              const name = (p as any).name || getDisplayName(livekitIdentity);
+              const name = (p as any).name || getDisplayNameLib(livekitIdentity);
               online[livekitIdentity] = { name, x: (p as any).x, y: (p as any).y };
             }
             rosterByIdentityRef.current = online;
