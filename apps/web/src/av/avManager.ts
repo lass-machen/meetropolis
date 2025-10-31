@@ -124,6 +124,8 @@ export class AVManager {
     // Auf AV-Settings reagieren (sanftes Re-Publish des Mic-Tracks, falls aktiv)
     try {
       this.unsubscribeAvSettings = useAvSettingsStore.subscribe((_state, _prev) => {
+        // Only act when AV settings feature is enabled in build-time flags
+        if (((import.meta as any).env?.VITE_FEATURE_AV_SETTINGS) !== 'true') return;
         try { if (this.settingsRepubTimer) clearTimeout(this.settingsRepubTimer); } catch {}
         this.settingsRepubTimer = setTimeout(async () => {
           this.settingsRepubTimer = null;

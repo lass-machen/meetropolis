@@ -19,12 +19,39 @@ function buildAudioConstraints(params: BuildParams): MediaStreamConstraints {
   return { audio: base, video: false } as MediaStreamConstraints;
 }
 
-async function buildLightDspGraph(stream: MediaStream, enableHpf: boolean, enableCompressor: boolean): Promise<{ track: MediaStreamTrack; cleanup: () => void; ctx: AudioContext; } | null> {
+function cleanupAudioGraph(nodes: AudioNode[], stream: MediaStream, ctx: AudioContext): void {
   try {
-    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)({ latencyHint: 'interactive', sampleRate: 48000 });
-    const source = ctx.createMediaStreamSource(stream);
+    nodes.forEach(n => {
+      try {
+        (n as any).disconnect?.();
+      } catch {}
+    });
+  } catch {}
+  try {
+    stream.getTracks().forEach(t => {
+      try {
+        t.stop();
+      } catch {}
+    });
+  } catch {}
+  try {
+    ctx.close();
+  } catch {}
+}
 
-    const nodes: AudioNode[] = [source];
+async function buildLightDspGraph(
+  stream: MediaStream,
+  enableHpf: boolean,
+  enableCompressor: boolean,
+  enableRnnoise: boolean
+): Promise<{ track: MediaStreamTrack; cleanup: () => void; ctx: AudioContext; } | null> {
+  const nodes: AudioNode[] = [];
+  let ctx: AudioContext | null = null;
+
+  try {
+    ctx = new (window.AudioContext || (window as any).webkitAudioContext)({ latencyHint: 'interactive', sampleRate: 48000 });
+    const source = ctx.createMediaStreamSource(stream);
+    nodes.push(source);
 
     let last: AudioNode = source;
     let hpf: BiquadFilterNode | null = null;
@@ -50,32 +77,42 @@ async function buildLightDspGraph(stream: MediaStream, enableHpf: boolean, enabl
       nodes.push(comp);
     }
 
-    // Optional: RNNoise Worklet (if present). Fails gracefully.
+    // Optional: RNNoise Worklet (if present). Enabled only when requested.
     let rnnoiseNode: AudioWorkletNode | null = null;
-    try {
-      if ((window as any).AudioWorkletNode && ctx.audioWorklet) {
-        // Expect worklet at /assets/rnnoise.worklet.js if supplied
-        await ctx.audioWorklet.addModule('/assets/rnnoise.worklet.js');
-        rnnoiseNode = new AudioWorkletNode(ctx, 'rnnoise-processor', { numberOfInputs: 1, numberOfOutputs: 1, channelCount: 1 });
-        last.connect(rnnoiseNode);
-        last = rnnoiseNode;
-        nodes.push(rnnoiseNode);
+    if (enableRnnoise) {
+      try {
+        if ((window as any).AudioWorkletNode && (ctx as any).audioWorklet) {
+          await (ctx as any).audioWorklet.addModule('/assets/rnnoise.worklet.js');
+          rnnoiseNode = new (window as any).AudioWorkletNode(ctx, 'rnnoise-processor', { numberOfInputs: 1, numberOfOutputs: 1, channelCount: 1 });
+          if (rnnoiseNode) {
+            last.connect(rnnoiseNode as any);
+            last = rnnoiseNode;
+            nodes.push(rnnoiseNode);
+          }
+        }
+      } catch {
+        // ignore – not available by default
       }
-    } catch {
-      // ignore – not available in local setup by default
     }
 
     const dest = ctx.createMediaStreamDestination();
     last.connect(dest);
     const track = dest.stream.getAudioTracks()[0];
 
+    // Validate that we have a valid track
+    if (!track) {
+      cleanupAudioGraph(nodes, stream, ctx);
+      return null;
+    }
+
     const cleanup = () => {
-      try { nodes.forEach(n => { try { (n as any).disconnect?.(); } catch {} }); } catch {}
-      try { stream.getTracks().forEach(t => { try { t.stop(); } catch {} }); } catch {}
-      try { ctx.close(); } catch {}
+      cleanupAudioGraph(nodes, stream, ctx!);
     };
     return { track, cleanup, ctx };
   } catch {
+    if (ctx) {
+      cleanupAudioGraph(nodes, stream, ctx);
+    }
     return null;
   }
 }
@@ -96,7 +133,7 @@ export async function buildAudioPipeline(params: BuildParams) {
 
   const useClientIsolation = settings.clientVoiceIsolation === true;
   if (useClientIsolation || settings.highpassFilter || settings.compressor) {
-    const dsp = await buildLightDspGraph(userStream, settings.highpassFilter, settings.compressor);
+    const dsp = await buildLightDspGraph(userStream, settings.highpassFilter, settings.compressor, useClientIsolation);
     if (dsp && dsp.track) {
       const { createLocalAudioTrack } = await import('livekit-client');
       // create from processed MediaStreamTrack
@@ -109,8 +146,12 @@ export async function buildAudioPipeline(params: BuildParams) {
   }
 
   // Direct path: return track captured by browser
-  const { createLocalAudioTrack } = await import('livekit-client');
   const rawTrack = userStream.getAudioTracks()[0];
+  if (!rawTrack) {
+    // This should not happen if getUserMedia succeeded, but handle gracefully
+    throw new Error('No audio track found in media stream');
+  }
+  const { createLocalAudioTrack } = await import('livekit-client');
   return await createLocalAudioTrack(rawTrack as any);
 }
 
