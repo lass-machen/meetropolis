@@ -27,6 +27,7 @@ import { useWorldRoom } from './realtime/useWorldRoom';
 import { useLivekit } from './av/useLivekit';
 import { createPhaserGame, destroyPhaserGame } from './game/phaserGame';
 import { gameBridge } from './game/bridge';
+import { useEditorBridge } from './editor/useEditorBridge';
 import { joinWorld } from './lib/colyseus';
 import { AVManager } from './av/avManager';
 import { BubbleManager } from './game/bubbleManager';
@@ -2028,6 +2029,9 @@ export function App() {
       try { (gameBridge as any).onCameraManualChange = () => {}; } catch {}
     };
   }, []);
+
+  // Editor Bridge: verbindet Pointer-Events der Szene mit der Editor-Logik (Zonen/Spawn)
+  useEditorBridge({ editor: editor as any, setEditor: setEditor as any, gameBridge });
 
   if (!authChecked) {
     return (
