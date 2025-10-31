@@ -1,5 +1,6 @@
 import React from 'react';
-import { ButtonGroup, Button } from './buttonGroup';
+import { ButtonGroup } from './buttonGroup/ButtonGroup';
+import { BGButton as Button } from './buttonGroup/Button';
 
 type ThemeMode = 'light' | 'dark';
 type ThemeOverride = 'system' | ThemeMode;

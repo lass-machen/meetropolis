@@ -5,6 +5,11 @@ export default defineConfig({
   plugins: [react()],
   // eigener Cache-Ordner, um alte Optimierungen sicher zu umgehen (Docker)
   cacheDir: '/tmp/.vite',
+  build: {
+    sourcemap: true,
+    minify: 'esbuild',
+    target: 'es2020'
+  },
   optimizeDeps: {
     force: true,
     include: ['react', 'react-dom'],
