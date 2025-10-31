@@ -8,6 +8,7 @@ export class MainScene extends Phaser.Scene {
   private remotes: Map<string, Phaser.GameObjects.Sprite> = new Map();
   private desiredPos: { x: number; y: number } | null = null;
   private zoneG?: Phaser.GameObjects.Graphics;
+  private spawnG?: Phaser.GameObjects.Graphics;
   private editorSprites: Map<string, Phaser.GameObjects.Image> = new Map();
   private pendingTextures: Set<string> = new Set();
   private selectionG?: Phaser.GameObjects.Graphics;
@@ -1238,6 +1239,35 @@ export class MainScene extends Phaser.Scene {
     } catch {
       // Ensure overlay drawing never breaks the scene
     }
+  }
+
+  setSpawnMarker(pos: { x: number; y: number } | null) {
+    try {
+      // Spawn nur im Editor anzeigen (analog Zonen)
+      if (!this.editorMode) {
+        if (this.spawnG) { this.spawnG.clear(); this.spawnG.setVisible(false); }
+        return;
+      }
+      if (!this.spawnG || !this.spawnG.scene) {
+        this.spawnG = this.add.graphics();
+        this.spawnG.setDepth(9);
+      }
+      const g = this.spawnG;
+      g.setVisible(true);
+      g.clear();
+      if (!pos) return;
+      // Grauer Marker: gefüllter Kreis + Kreuz
+      const r = 6;
+      g.fillStyle(0x9ca3af, 0.35); // grau, halbtransparent
+      g.fillCircle(pos.x, pos.y, r);
+      g.lineStyle(1, 0x9ca3af, 0.9);
+      g.beginPath();
+      g.moveTo(pos.x - r - 2, pos.y);
+      g.lineTo(pos.x + r + 2, pos.y);
+      g.moveTo(pos.x, pos.y - r - 2);
+      g.lineTo(pos.x, pos.y + r + 2);
+      g.strokePath();
+    } catch {}
   }
 
   setEditorAssets(assets: { id: string; key: string; dataUrl: string; x: number; y: number }[]) {

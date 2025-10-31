@@ -39,6 +39,8 @@ type Bridge = {
   handleEditorUpdate?: (data: any) => void;
   // Background color
   setBackgroundColor: (hex: string) => void;
+  // Spawn-Marker Overlay (Editor)
+  setSpawnMarker: (pos: { x: number; y: number } | null) => void;
 };
 
 export type SceneApi = {
@@ -63,6 +65,7 @@ export type SceneApi = {
   recenterCamera?: () => void;
   setEditorMode?: (enabled: boolean) => void;
   setBackgroundColor?: (hex: string) => void;
+  setSpawnMarker?: (pos: { x: number; y: number } | null) => void;
 };
 
 let sceneApi: SceneApi | null = null;
@@ -75,6 +78,7 @@ let remotePlayersCache: Record<string, { x: number; y: number; direction: Direct
 let cachedBackgroundColor: string = (typeof window !== 'undefined' && localStorage.getItem('meetropolis.backgroundColor')) || '#202020';
 // Cache, um unnötige Doppel-Aufrufe zu vermeiden (z.B. wiederholt null)
 let lastDesiredPosition: { x: number; y: number } | null = null;
+let cachedSpawnMarker: { x: number; y: number } | null = (typeof window !== 'undefined' && (()=>{ try { const raw = localStorage.getItem('meetropolis.spawn'); return raw ? JSON.parse(raw) : null; } catch { return null; } })()) || null;
 
 export const gameBridge: Bridge = {
   onLocalMove: () => {},
@@ -110,6 +114,8 @@ export const gameBridge: Bridge = {
       try { sceneApi.syncRemotePlayers(remotePlayersCache); } catch {}
       // Apply cached background color
       try { sceneApi.setBackgroundColor?.(cachedBackgroundColor); } catch {}
+      // Apply cached spawn marker
+      try { sceneApi.setSpawnMarker?.(cachedSpawnMarker); } catch {}
     }
   },
   recenterCamera: () => {
@@ -248,5 +254,9 @@ export const gameBridge: Bridge = {
     try { localStorage.setItem('meetropolis.backgroundColor', hex); } catch {}
     cachedBackgroundColor = hex;
     sceneApi?.setBackgroundColor?.(hex);
+  },
+  setSpawnMarker: (pos) => {
+    cachedSpawnMarker = pos ? { x: pos.x, y: pos.y } : null;
+    sceneApi?.setSpawnMarker?.(pos);
   }
 };

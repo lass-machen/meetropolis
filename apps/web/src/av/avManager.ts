@@ -237,9 +237,20 @@ export class AVManager {
       this.wireRoomEvents();
       this.startStatsLoop();
       avLog('info', 'av.switchTo.connected', { connected: true }, { identity: this.identity, roomName: name });
+      try { console.debug('[AV][debug] connected', { room: name, identity: this.identity }); } catch {}
       this.setState('connected');
       // Audio-Wiedergabe erst per Nutzerinteraktion freischalten
       this.attachAudioUnlockHandlers();
+      // Sofortige Erst-Subscriptions für kleine Gruppen (vermeidet "stumm" nach Join)
+      try {
+        setTimeout(() => {
+          try {
+            console.debug('[AV][debug] initial subscribe apply');
+            this.ensureSubscribeAllAudio(64);
+            this.applyDesiredSubscriptions();
+          } catch {}
+        }, 200);
+      } catch {}
       if (!SIMPLE) {
         const connectedBefore = Date.now();
         await this.waitForConnected(room).catch(()=>{});
@@ -401,11 +412,20 @@ export class AVManager {
         const mod = await import('livekit-client');
         const RoomEvent = (mod as any).RoomEvent;
         if (RoomEvent) {
-          const onReconnected = () => { this.reconnectAttempts = 0; try { avLog('info', 'livekit.reconnected', {}, { identity: this.identity, roomName: this.currentName || undefined as any }); } catch {}; try { this.ensureSubscribeAllAudio(64); } catch {}; void this.restoreDesiredTracks(); };
+          const onReconnected = () => { this.reconnectAttempts = 0; try { avLog('info', 'livekit.reconnected', {}, { identity: this.identity, roomName: this.currentName || undefined as any }); } catch {}; try { this.ensureSubscribeAllAudio(64); this.applyDesiredSubscriptions(); } catch {}; void this.restoreDesiredTracks(); };
           const onDisconnected = () => { try { avLog('warn', 'livekit.disconnected', {}, { identity: this.identity, roomName: this.currentName || undefined as any }); } catch {}; this.setState('reconnecting'); try { this.controller?.setDisconnecting(this.isDisconnecting); this.controller?.setPageLeaving(this.pageLeaving); } catch {}; if (ALLOW_RECONNECT && this.controller?.shouldScheduleReconnect()) this.controller?.scheduleReconnect((n) => this.switchTo(n), () => this.currentName); else if (this.pageLeaving) { try { avLog('info', 'av.pageleave.blockReconnect', {}, { identity: this.identity, roomName: this.currentName || undefined as any }); } catch {} } };
-          const onTrackPublished = () => { try { avLog('debug', 'livekit.track_published', {}, { identity: this.identity, roomName: this.currentName || undefined as any }); if (!this.remoteQualityTuningDisabled) this.applyDefaultRemoteQuality(); this.ensureSubscribeAllAudio(64); } catch {} };
-          const onTrackSubscribed = (_track: any, pub: any, _participant: any) => { try {
-            avLog('debug', 'livekit.track_subscribed', { kind: pub?.kind }, { identity: this.identity, roomName: this.currentName || undefined as any });
+          const onTrackPublished = (pub?: any, participant?: any) => { try {
+            const src = (pub as any)?.source ?? (pub as any)?.track?.source;
+            const kind = (pub as any)?.kind ?? (pub as any)?.track?.kind;
+            avLog('debug', 'livekit.track_published', { kind, source: src, pid: participant?.sid }, { identity: this.identity, roomName: this.currentName || undefined as any });
+            try { console.debug('[AV][debug] track_published', { kind, source: src, pid: participant?.sid }); } catch {}
+            if (!this.remoteQualityTuningDisabled) this.applyDefaultRemoteQuality(); this.ensureSubscribeAllAudio(64);
+          } catch {} };
+          const onTrackSubscribed = (_track: any, pub: any, participant: any) => { try {
+            const src = (pub as any)?.source ?? (pub as any)?.track?.source;
+            const kind = (pub as any)?.kind ?? (pub as any)?.track?.kind;
+            avLog('debug', 'livekit.track_subscribed', { kind, source: src, pid: participant?.sid }, { identity: this.identity, roomName: this.currentName || undefined as any });
+            try { console.debug('[AV][debug] track_subscribed', { kind, source: src, pid: participant?.sid }); } catch {}
             if (pub && ((pub as any).kind === 'audio' || (pub as any)?.track?.kind === 'audio')) {
               try { (this.current as any)?.startAudio?.(); } catch {}
               try { (pub as any)?.track?.setVolume?.(1); } catch {}
@@ -447,11 +467,20 @@ export class AVManager {
           };
         } else {
           const r: any = room as any;
-          const onReconnected = () => { this.reconnectAttempts = 0; try { avLog('info', 'livekit.reconnected', {}, { identity: this.identity, roomName: this.currentName || undefined as any }); } catch {}; void this.restoreDesiredTracks(); };
+          const onReconnected = () => { this.reconnectAttempts = 0; try { avLog('info', 'livekit.reconnected', {}, { identity: this.identity, roomName: this.currentName || undefined as any }); } catch {}; try { this.ensureSubscribeAllAudio(64); this.applyDesiredSubscriptions(); } catch {}; void this.restoreDesiredTracks(); };
           const onDisconnected = () => { try { avLog('warn', 'livekit.disconnected', {}, { identity: this.identity, roomName: this.currentName || undefined as any }); } catch {}; this.setState('reconnecting'); try { this.controller?.setDisconnecting(this.isDisconnecting); this.controller?.setPageLeaving(this.pageLeaving); } catch {}; if (ALLOW_RECONNECT && this.controller?.shouldScheduleReconnect()) this.controller?.scheduleReconnect((n) => this.switchTo(n), () => this.currentName); else if (this.pageLeaving) { try { avLog('info', 'av.pageleave.blockReconnect', {}, { identity: this.identity, roomName: this.currentName || undefined as any }); } catch {} } };
-          const onTrackPublished = () => { try { avLog('debug', 'livekit.track_published', {}, { identity: this.identity, roomName: this.currentName || undefined as any }); if (!this.remoteQualityTuningDisabled) this.applyDefaultRemoteQuality(); this.ensureSubscribeAllAudio(64); } catch {} };
-          const onTrackSubscribed = (_track: any, pub: any, _participant: any) => { try {
-            avLog('debug', 'livekit.track_subscribed', { kind: pub?.kind }, { identity: this.identity, roomName: this.currentName || undefined as any });
+          const onTrackPublished = (pub?: any, participant?: any) => { try {
+            const src = (pub as any)?.source ?? (pub as any)?.track?.source;
+            const kind = (pub as any)?.kind ?? (pub as any)?.track?.kind;
+            avLog('debug', 'livekit.track_published', { kind, source: src, pid: participant?.sid }, { identity: this.identity, roomName: this.currentName || undefined as any });
+            try { console.debug('[AV][debug] track_published', { kind, source: src, pid: participant?.sid }); } catch {}
+            if (!this.remoteQualityTuningDisabled) this.applyDefaultRemoteQuality(); this.ensureSubscribeAllAudio(64);
+          } catch {} };
+          const onTrackSubscribed = (_track: any, pub: any, participant: any) => { try {
+            const src = (pub as any)?.source ?? (pub as any)?.track?.source;
+            const kind = (pub as any)?.kind ?? (pub as any)?.track?.kind;
+            avLog('debug', 'livekit.track_subscribed', { kind, source: src, pid: participant?.sid }, { identity: this.identity, roomName: this.currentName || undefined as any });
+            try { console.debug('[AV][debug] track_subscribed', { kind, source: src, pid: participant?.sid }); } catch {}
             if (pub && ((pub as any).kind === 'audio' || (pub as any)?.track?.kind === 'audio')) {
               try { (this.current as any)?.startAudio?.(); } catch {}
               try { (pub as any)?.track?.setVolume?.(1); } catch {}
@@ -557,6 +586,10 @@ export class AVManager {
 
   private applyDesiredSubscriptions(): void {
     const room: any = this.current as any;
+    try {
+      const nParts = Array.from((room?.remoteParticipants?.values?.() || []) as any).length;
+      console.debug('[AV][debug] applyDesiredSubscriptions', { desiredIds: this.desiredIds, activeSpeakerIds: this.activeSpeakerIds, nParts });
+    } catch {}
     applySubscriptionsCtl({
       room,
       isSignalOpen: () => this.isSignalOpen(),
@@ -568,6 +601,7 @@ export class AVManager {
       lastDesiredIdsKeyRef: this.lastDesiredIdsKeyRef,
     });
     try { avLog('debug', 'av.subscriptions.applied', { nDesired: this.desiredIds.length }, { identity: this.identity, roomName: this.currentName || undefined as any }); } catch {}
+    try { console.debug('[AV][debug] subscriptions.applied', { nDesired: this.desiredIds.length, key: this.lastDesiredIdsKeyRef.current }); } catch {}
   }
 
   private ensureSubscribeAllAudio(maxCount: number = 32): void {
@@ -849,6 +883,7 @@ export class AVManager {
           (localAudioTrack as any)?.setContentHint?.('speech');
         } catch {}
         await room.localParticipant.publishTrack(localAudioTrack, { source: 'microphone' } as any);
+        try { avLog('info', 'av.mic.published', {}, { identity: this.identity, roomName: this.currentName || undefined as any }); console.debug('[AV][debug] mic published'); } catch {}
       } else {
         for (const pub of micPubs) {
           try { await room.localParticipant.unpublishTrack(pub.track!); } catch {}

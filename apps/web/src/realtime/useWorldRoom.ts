@@ -85,6 +85,7 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
               if (sp && typeof sp.x === 'number' && typeof sp.y === 'number') {
                 localPosRef.current = { ...(localPosRef.current as any), x: sp.x, y: sp.y } as any;
                 try { (window as any).initialPlayerPosition = { x: sp.x, y: sp.y }; } catch {}
+                try { (window as any).currentPhaserScene?.setSpawnMarker?.({ x: sp.x, y: sp.y }); } catch {}
               }
             }
           }

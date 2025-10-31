@@ -42,6 +42,23 @@ export function useEditorBridge(params: {
 
     const handleUp = ({ tileX, tileY }: { tileX: number; tileY: number }) => {
       if (!editorActiveRef.current) return;
+      // Wenn Spawn-Setzmodus aktiv: Spawn speichern und Marker zeichnen
+      if ((editor as any)?.settingSpawn) {
+        const tileSize = 16;
+        const x = tileX * tileSize + tileSize / 2;
+        const y = tileY * tileSize + tileSize / 2;
+        try { localStorage.setItem('meetropolis.spawn', JSON.stringify({ x, y })); } catch {}
+        try { (window as any).initialPlayerPosition = { x, y }; } catch {}
+        try { gameBridge.setSpawnMarker?.({ x, y }); } catch {}
+        try { gameBridge.setDesiredPosition?.({ x, y }); } catch {}
+        try {
+          const ev = new CustomEvent('editor:toast', { detail: { title: 'Spawn gesetzt', description: `Startposition: (${Math.round(x)}, ${Math.round(y)})`, intent: 'success' } });
+          window.dispatchEvent(ev);
+        } catch {}
+        setEditor(s => ({ ...s, settingSpawn: false, spawn: { x, y }, lastTile: { tileX, tileY }, drag: null }));
+        try { gameBridge.setSelectionRect(null); } catch {}
+        return;
+      }
       setEditor(s => {
         if (!s.drag) return { ...s, lastTile: { tileX, tileY } } as any;
         try { gameBridge.setSelectionRect(null); } catch {}

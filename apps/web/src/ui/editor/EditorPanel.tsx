@@ -131,33 +131,43 @@ export function EditorPanel(props: {
           style={{ width: 48, height: 28, padding: 0, border: '1px solid var(--border)', borderRadius: 6, background: 'transparent' }}
         />
       </div>
-      {/* Spawnpunkt setzen */}
+      {/* Spawnpunkt setzen (Modus: Button → Klick in Map) */}
       <div style={{ display: 'grid', gap: 6 }}>
         <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>Spawnpunkt</div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          {!editor.settingSpawn ? (
+            <button
+              onClick={() => {
+                setEditor(s => ({ ...s, settingSpawn: true }));
+                setToast({ title: 'Spawn setzen', description: 'Klicke in die Map, um den Spawnpunkt zu wählen.', intent: 'info' });
+                setToastOpen(true);
+              }}
+              style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--glass)', color: 'var(--fg)', fontSize: 13 }}
+            >
+              Spawn setzen
+            </button>
+          ) : (
+            <button
+              onClick={() => setEditor(s => ({ ...s, settingSpawn: false }))}
+              style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid var(--border)', background: 'rgba(239,68,68,0.12)', color: 'var(--fg)', fontSize: 13 }}
+            >
+              Abbrechen
+            </button>
+          )}
           <button
             onClick={() => {
-              const last = (editor as any).lastTile as { tileX: number; tileY: number } | undefined;
-              if (!last) {
-                setToast({ title: 'Kein Ziel', description: 'Klicke in der Karte, um eine Kachel zu wählen.', intent: 'info' });
-                setToastOpen(true);
-                return;
-              }
-              const tileSize = 16;
-              const x = last.tileX * tileSize + tileSize / 2;
-              const y = last.tileY * tileSize + tileSize / 2;
-              try { localStorage.setItem('meetropolis.spawn', JSON.stringify({ x, y })); } catch {}
-              try { (window as any).initialPlayerPosition = { x, y }; } catch {}
-              try { gameBridge.setDesiredPosition({ x, y }); } catch {}
-              setToast({ title: 'Spawn gesetzt', description: `Startposition: (${Math.round(x)}, ${Math.round(y)})`, intent: 'success' });
+              try { localStorage.removeItem('meetropolis.spawn'); } catch {}
+              try { gameBridge.setSpawnMarker(null); } catch {}
+              setEditor(s => ({ ...s, spawn: null }));
+              setToast({ title: 'Spawn entfernt', description: 'Der Spawnpunkt wurde zurückgesetzt.', intent: 'info' });
               setToastOpen(true);
             }}
             style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--glass)', color: 'var(--fg)', fontSize: 13 }}
           >
-            Hier als Spawn setzen
+            Entfernen
           </button>
           <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>
-            { (editor as any).lastTile ? `Letzte Kachel: ${(editor as any).lastTile.tileX}, ${(editor as any).lastTile.tileY}` : 'Letzte Kachel: –' }
+            {editor.spawn ? `Aktueller Spawn: (${Math.round(editor.spawn.x)}, ${Math.round(editor.spawn.y)})` : 'Kein Spawn gesetzt'}
           </div>
         </div>
       </div>

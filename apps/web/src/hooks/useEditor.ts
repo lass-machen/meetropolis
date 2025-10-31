@@ -19,6 +19,9 @@ export type EditorState = {
   drag?: { startTileX: number; startTileY: number; endTileX: number; endTileY: number } | null;
   // Zuletzt anvisierte Kachel im Editor (für Spawn-Setzen u.ä.)
   lastTile?: { tileX: number; tileY: number } | null;
+  // Spawn setzen Modus + persistierter Spawn
+  settingSpawn?: boolean;
+  spawn?: { x: number; y: number } | null;
   tilesets?: { key: string; dataUrl: string; tileWidth: number; tileHeight: number; margin?: number; spacing?: number; category?: string }[];
   uploadDialog?: { open: boolean; dataUrl: string; fileName: string; tileWidth: number; tileHeight: number; margin: number; spacing: number; category?: string } | null;
   backgroundColor: string;
@@ -40,6 +43,8 @@ export function useEditor(): [EditorState, React.Dispatch<React.SetStateAction<E
     tilePaint: { tilesetKey: 'office_tiles', tileIndex: -1, tileWidth: 16, tileHeight: 16 },
     drag: null,
     lastTile: null,
+    settingSpawn: false,
+    spawn: (typeof window !== 'undefined' && (()=>{ try { const raw = localStorage.getItem('meetropolis.spawn'); return raw ? JSON.parse(raw) : null; } catch { return null; } })()) || null,
     tilesets: [],
     backgroundColor: (typeof window !== 'undefined' && localStorage.getItem('meetropolis.backgroundColor')) || '#202020',
   });
