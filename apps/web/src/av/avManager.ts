@@ -856,7 +856,11 @@ export class AVManager {
         const ok = await this.ensurePermissions(true, false);
         if (ok && enabled) return this.setMicrophoneEnabled(true);
       }
-      // setMicrophoneEnabled failed silently
+      // Log error for debugging and rethrow to let UI handle it
+      if (enabled) {
+        console.error('Failed to enable microphone:', e);
+        throw e;
+      }
     }
   }
 

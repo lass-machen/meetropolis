@@ -2106,8 +2106,13 @@ export function App() {
                 selectedCamId={selectedCamId}
                 onToggleMic={async () => {
                   const enabled = !avState.mic;
-                  await avRef.current?.setMicrophoneEnabled(enabled);
-                  setAvState(s => ({ ...s, mic: enabled }));
+                  try {
+                    await avRef.current?.setMicrophoneEnabled(enabled);
+                    setAvState(s => ({ ...s, mic: enabled }));
+                  } catch (e) {
+                    // If enabling failed, revert UI state
+                    setAvState(s => ({ ...s, mic: !enabled }));
+                  }
                 }}
                 onSelectMic={async (id: string) => {
                   setSelectedMicId(id);
