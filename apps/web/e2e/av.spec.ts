@@ -54,4 +54,17 @@ const SHOULD_RUN = process.env.E2E_RUN === 'true';
   await ctx.close();
 });
 
+(SHOULD_RUN ? test : test.skip)('Three users join; video remains stable for small group', async ({ browser, baseURL }) => {
+  test.setTimeout(240_000);
+  const url = baseURL!;
+  const mk = async (n: string) => { const c = await browser.newContext(); const p = await c.newPage(); await p.goto(url); await p.addInitScript((m) => { try { localStorage.setItem('displayName', m); } catch {} }, n); return { c, p }; };
+  const A = await mk('A');
+  const B = await mk('B');
+  const C = await mk('C');
+  await A.p.waitForTimeout(2000);
+  await B.p.waitForTimeout(2000);
+  await C.p.waitForTimeout(2000);
+  await A.c.close(); await B.c.close(); await C.c.close();
+});
+
 

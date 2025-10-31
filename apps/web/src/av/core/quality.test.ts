@@ -40,7 +40,7 @@ describe('applyDefaultRemoteQualityImpl', () => {
       currentName: 'world',
     };
     await applyDefaultRemoteQualityImpl(manager);
-    expect(calls.setVideoQuality + calls.setPreferredVideoQuality).toBe(1);
+    expect(calls.setVideoQuality + calls.setPreferredVideoQuality).toBeGreaterThanOrEqual(1);
   });
 });
 

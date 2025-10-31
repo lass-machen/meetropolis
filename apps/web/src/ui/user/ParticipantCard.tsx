@@ -124,9 +124,6 @@ export function ParticipantCard(props: { part: { sid: string; identity: string; 
             t.attach(el); 
             setIsVideoRendering(false);
           } catch {}
-        } else if (participant?.sid === baseSid) {
-          try { _publication?.setSubscribed?.(true); } catch {}
-          try { _publication?.setVideoQuality?.('high'); } catch {}
         }
       } catch {}
     };

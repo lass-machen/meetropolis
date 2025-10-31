@@ -48,7 +48,12 @@ app.use((req: express.Request, res: express.Response, next: express.NextFunction
       }
     }
   } else {
-    res.setHeader('Access-Control-Allow-Origin', origin || '*');
+    // Fallback: wenn keine Whitelist gesetzt ist, spiegle die Origin (besser für Credentials als '*')
+    if (origin) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+    } else {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+    }
   }
   
   // Always vary by Origin for proper CDN/proxy caching

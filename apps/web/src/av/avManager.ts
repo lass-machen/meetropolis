@@ -7,6 +7,7 @@ import { onBubbleMembersUpdate } from '../lib/avEvents';
 import { startStatsLoopImpl, updateDebugHudImpl } from './core/stats';
 import { applyDefaultRemoteQualityImpl, onConnectionQualityChangedImpl, republishCameraProfileImpl } from './core/quality';
 import { AVController } from './controller/avController';
+import { applySubscriptions as applySubscriptionsCtl, ensureSubscribeAllAudio as ensureSubscribeAllAudioCtl } from './controller/subscriptions';
 
 export type AVDevices = {
   microphones: { deviceId: string; label: string }[];
@@ -52,6 +53,7 @@ export class AVManager {
   private desiredIds: string[] = [];
   private bubbleDebounceTimer: any = null;
   private lastDesiredIdsKey: string | null = null;
+  private lastDesiredIdsKeyRef = { current: null as string | null };
   private lastDesiredSubs = new Map<string, boolean>();
   // Event-Wiring / Idempotenz
   private wiredRoom: Room | undefined;
@@ -144,6 +146,7 @@ export class AVManager {
     if (this.avState === next) return;
     const prev = this.avState;
     this.avState = next;
+    try { this.controller?.setState(next as any); } catch {}
     try { avLog('debug', 'av.state', { prev, next }, { identity: this.identity, roomName: this.currentName || undefined as any }); } catch {}
   }
 
@@ -283,6 +286,7 @@ export class AVManager {
 
     if (this.current) {
       this.isDisconnecting = true;
+      try { this.controller?.setDisconnecting(true); } catch {}
       try {
         // Vor Disconnect: Events vom Room lösen
         try { this.unwireRoomEvents(); } catch {}
@@ -308,6 +312,7 @@ export class AVManager {
     try { this.controller?.setRoom(undefined as any); } catch {}
     this.currentName = null;
     setTimeout(() => { this.isDisconnecting = false; }, 50);
+    try { this.controller?.setDisconnecting(false); this.controller?.resetReconnect(); } catch {}
     this.setState('closed');
 
     // Setze Pending-Flags, damit sie nach Rejoin automatisch aktiviert werden
@@ -371,7 +376,7 @@ export class AVManager {
         const RoomEvent = (mod as any).RoomEvent;
         if (RoomEvent) {
           const onReconnected = () => { this.reconnectAttempts = 0; try { avLog('info', 'livekit.reconnected', {}, { identity: this.identity, roomName: this.currentName || undefined as any }); } catch {}; try { this.ensureSubscribeAllAudio(64); } catch {}; void this.restoreDesiredTracks(); };
-          const onDisconnected = () => { try { avLog('warn', 'livekit.disconnected', {}, { identity: this.identity, roomName: this.currentName || undefined as any }); } catch {}; this.setState('reconnecting'); if (ALLOW_RECONNECT && !this.isDisconnecting && !this.pageLeaving) this.scheduleReconnect(); else if (this.pageLeaving) { try { avLog('info', 'av.pageleave.blockReconnect', {}, { identity: this.identity, roomName: this.currentName || undefined as any }); } catch {} } };
+          const onDisconnected = () => { try { avLog('warn', 'livekit.disconnected', {}, { identity: this.identity, roomName: this.currentName || undefined as any }); } catch {}; this.setState('reconnecting'); try { this.controller?.setDisconnecting(this.isDisconnecting); this.controller?.setPageLeaving(this.pageLeaving); } catch {}; if (ALLOW_RECONNECT && this.controller?.shouldScheduleReconnect()) this.controller?.scheduleReconnect((n) => this.switchTo(n), () => this.currentName); else if (this.pageLeaving) { try { avLog('info', 'av.pageleave.blockReconnect', {}, { identity: this.identity, roomName: this.currentName || undefined as any }); } catch {} } };
           const onTrackPublished = () => { try { avLog('debug', 'livekit.track_published', {}, { identity: this.identity, roomName: this.currentName || undefined as any }); if (!this.remoteQualityTuningDisabled) this.applyDefaultRemoteQuality(); this.ensureSubscribeAllAudio(64); } catch {} };
           const onTrackSubscribed = (_track: any, pub: any, _participant: any) => { try {
             avLog('debug', 'livekit.track_subscribed', { kind: pub?.kind }, { identity: this.identity, roomName: this.currentName || undefined as any });
@@ -417,7 +422,7 @@ export class AVManager {
         } else {
           const r: any = room as any;
           const onReconnected = () => { this.reconnectAttempts = 0; try { avLog('info', 'livekit.reconnected', {}, { identity: this.identity, roomName: this.currentName || undefined as any }); } catch {}; void this.restoreDesiredTracks(); };
-          const onDisconnected = () => { try { avLog('warn', 'livekit.disconnected', {}, { identity: this.identity, roomName: this.currentName || undefined as any }); } catch {}; this.setState('reconnecting'); if (ALLOW_RECONNECT && !this.isDisconnecting && !this.pageLeaving) this.scheduleReconnect(); else if (this.pageLeaving) { try { avLog('info', 'av.pageleave.blockReconnect', {}, { identity: this.identity, roomName: this.currentName || undefined as any }); } catch {} } };
+          const onDisconnected = () => { try { avLog('warn', 'livekit.disconnected', {}, { identity: this.identity, roomName: this.currentName || undefined as any }); } catch {}; this.setState('reconnecting'); try { this.controller?.setDisconnecting(this.isDisconnecting); this.controller?.setPageLeaving(this.pageLeaving); } catch {}; if (ALLOW_RECONNECT && this.controller?.shouldScheduleReconnect()) this.controller?.scheduleReconnect((n) => this.switchTo(n), () => this.currentName); else if (this.pageLeaving) { try { avLog('info', 'av.pageleave.blockReconnect', {}, { identity: this.identity, roomName: this.currentName || undefined as any }); } catch {} } };
           const onTrackPublished = () => { try { avLog('debug', 'livekit.track_published', {}, { identity: this.identity, roomName: this.currentName || undefined as any }); if (!this.remoteQualityTuningDisabled) this.applyDefaultRemoteQuality(); this.ensureSubscribeAllAudio(64); } catch {} };
           const onTrackSubscribed = (_track: any, pub: any, _participant: any) => { try {
             avLog('debug', 'livekit.track_subscribed', { kind: pub?.kind }, { identity: this.identity, roomName: this.currentName || undefined as any });
@@ -521,62 +526,23 @@ export class AVManager {
 
   private applyDesiredSubscriptions(): void {
     const room: any = this.current as any;
-    if (!room) return;
-    const st = room.connectionState || room.state;
-    if (this.dnd) return;
-    if (!(st === 'connected' || st === 2) || !this.isSignalOpen()) return;
-    const participants: any[] = Array.from((room.remoteParticipants?.values?.() || []) as any);
-    const participantCount = participants.length;
-    const key = JSON.stringify(this.desiredIds) + '|' + JSON.stringify(this.activeSpeakerIds.slice(0, this.maxVideoSubs)) + '|' + participantCount;
-    if (key === this.lastDesiredIdsKey) return;
-    this.lastDesiredIdsKey = key;
-    try {
-      const desiredSet = new Set(this.desiredIds.map(id => String(id)));
-      const prioritizedVideoSet = new Set<string>(this.desiredIds.slice(0, this.maxVideoSubs).map(id => String(id)));
-      const activeVideoSet = new Set<string>(this.activeSpeakerIds.slice(0, this.maxVideoSubs).map(id => String(id)));
-      for (const p of participants) {
-        const identity = String(p.identity || '');
-        const shouldSub = desiredSet.has(identity);
-        const pubs: any[] = Array.from((p.trackPublications?.values?.() || []) as any);
-        for (const pub of pubs) {
-          const kind = (pub as any).kind ?? (pub.track as any)?.kind;
-          const src = (pub as any).source ?? (pub.track as any)?.source;
-          // Audio: innerhalb Raum immer abonnieren (kein aktives Deaktivieren), außer DND
-          if (kind === 'audio') this.setDesired(pub, identity, 'audio', true);
-          if (kind === 'video') {
-            // Video-Entscheidung:
-            // - ScreenShare immer
-            // - Wenn wenige Teilnehmer (<= maxVideoSubs): standardmäßig an
-            // - Sonst priorisiert: desiredIds (z. B. Bubble/Zone) und Active-Speaker
-            const few = participantCount <= this.maxVideoSubs || this.maxVideoSubs === 0;
-            const near = (src === 'screen_share') || few || prioritizedVideoSet.has(identity) || activeVideoSet.has(identity);
-            this.setDesired(pub, identity, 'video', !!near);
-          }
-        }
-      }
-    } catch {}
+    applySubscriptionsCtl({
+      room,
+      isSignalOpen: () => this.isSignalOpen(),
+      dnd: this.dnd,
+      desiredIds: this.desiredIds,
+      activeSpeakerIds: this.activeSpeakerIds,
+      maxVideoSubs: this.maxVideoSubs,
+      setDesired: (pub, identity, kind, should) => this.setDesired(pub, identity, kind, should),
+      lastDesiredIdsKeyRef: this.lastDesiredIdsKeyRef,
+    });
+    try { avLog('debug', 'av.subscriptions.applied', { nDesired: this.desiredIds.length }, { identity: this.identity, roomName: this.currentName || undefined as any }); } catch {}
   }
 
   private ensureSubscribeAllAudio(maxCount: number = 32): void {
     const room: any = this.current as any;
-    if (!room) return;
-    const st = room.connectionState || room.state;
     if (this.dnd) return;
-    if (!(st === 'connected' || st === 2) || !this.isSignalOpen()) return;
-    try {
-      const parts: any[] = Array.from((room.remoteParticipants?.values?.() || []) as any);
-      let count = 0;
-      for (const p of parts) {
-        const identity = String(p.identity || '');
-        const pubs: any[] = Array.from((p.trackPublications?.values?.() || []) as any);
-        for (const pub of pubs) {
-          const kind = (pub as any).kind ?? (pub as any)?.track?.kind;
-          if (kind === 'audio') {
-            if (count < maxCount) { this.setDesired(pub, identity, 'audio', true); count++; }
-          }
-        }
-      }
-    } catch {}
+    ensureSubscribeAllAudioCtl(room, () => this.isSignalOpen(), (pub, identity, kind, should) => this.setDesired(pub, identity, kind, should), maxCount);
   }
 
   private applyBubbleAttenuation(bubbleIds: string[]): void {
