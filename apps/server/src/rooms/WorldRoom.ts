@@ -96,14 +96,31 @@ export class WorldRoom extends Colyseus.Room<WorldState> {
   }
 
   override onJoin(client: Client, options?: any) {
+    // Vor Anlage eines neuen Spielers: Duplikate anhand Identity bereinigen
+    const joiningIdentity = options?.identity || client.sessionId;
+    try {
+      const toRemove: string[] = [];
+      this.state.players.forEach((p, id) => {
+        if (p.identity && p.identity === joiningIdentity) {
+          toRemove.push(id);
+        }
+      });
+      for (const oldId of toRemove) {
+        this.state.players.delete(oldId);
+        try { colyseusPlayers.dec(); } catch {}
+        // Andere Clients über Entfernen informieren (Geist-Avatare vermeiden)
+        this.broadcast('player_left', { id: oldId });
+      }
+    } catch {}
+
     const player = new Player();
     player.id = client.sessionId;
     // Use provided position or random initial position
     player.x = options?.x ?? Math.floor(Math.random() * 200) + 100;
     player.y = options?.y ?? Math.floor(Math.random() * 200) + 100;
     player.direction = options?.direction || 'down';
-    player.identity = options?.identity || client.sessionId; // Use provided identity or fallback
-    player.name = options?.name || options?.identity || client.sessionId; // Use provided name or fallback
+    player.identity = joiningIdentity; // Use provided identity or fallback
+    player.name = options?.name || joiningIdentity; // Use provided name or fallback
     this.state.players.set(client.sessionId, player);
     try { colyseusPlayers.inc(); } catch {}
     logger.info('[WorldRoom] Player joined:', client.sessionId, 'identity:', player.identity, 'name:', player.name, 'at', player.x, player.y);

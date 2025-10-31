@@ -73,8 +73,6 @@ export function App() {
   // Admin/UI: Benutzer & Einladungen
   const [userModalOpen, setUserModalOpen] = React.useState(false);
   const [invitesModalOpen, setInvitesModalOpen] = React.useState(false);
-  const [meProfile, setMeProfile] = React.useState<{ id: string; email: string; name?: string } | null>(null);
-  const [nameEdit, setNameEdit] = React.useState('');
   const [invites, setInvites] = React.useState<Array<{ code: string; email?: string | null; usedAt?: string | null; createdAt?: string }>>([]);
   const [invitesLoading, setInvitesLoading] = React.useState(false);
   // Roster (rechte Seitenleiste)
@@ -95,44 +93,7 @@ export function App() {
 
   // Participants logic (hook) moved below after state declarations
 
-  // Roster: periodisch letzte Präsenz (für Offline/zuletzt online)
-  React.useEffect(() => {
-    if (!authChecked || !me) return;
-    let stop = false as boolean;
-    const load = async () => {
-      try {
-        const res = await fetch(`${apiBase}/presence/recent`, { credentials: 'include' });
-        if (res.ok) {
-          const data = await res.json();
-          const online = rosterByIdentityRef.current || {};
-          setRoster((prev) => {
-            const map = new Map<string, { identity: string; name: string; online: boolean; x?: number; y?: number; lastSeen?: string }>();
-            for (const r of prev) map.set(r.identity, { ...r, online: false });
-            for (const p of data || []) {
-              const ident = String(p.userId || (p.user && p.user.id) || '');
-              const name = String((p.user && (p.user.name || p.user.email)) || ident);
-              if (!ident) continue;
-              if (online[ident]) continue;
-              map.set(ident, { identity: ident, name, online: false, lastSeen: p.updatedAt });
-            }
-            // keep online ones
-            for (const [ident, v] of Object.entries(online)) {
-              const prevItem = map.get(ident);
-              const entry: { identity: string; name: string; online: boolean; x?: number; y?: number; lastSeen?: string } = { identity: ident, name: v.name, online: true, x: v.x, y: v.y };
-              if (prevItem && typeof (prevItem as any).lastSeen === 'string') {
-                entry.lastSeen = (prevItem as any).lastSeen;
-              }
-              map.set(ident, entry);
-            }
-            return Array.from(map.values()).sort((a, b) => Number(b.online) - Number(a.online) || a.name.localeCompare(b.name));
-          });
-        }
-      } catch {}
-      if (!stop) setTimeout(load, 30000);
-    };
-    load();
-    return () => { stop = true; };
-  }, [apiBase]);
+  
 
   // Intercept DND toggles to resume AV after DND is turned off
   React.useEffect(() => {
@@ -180,6 +141,44 @@ export function App() {
   const [newTokenName, setNewTokenName] = React.useState('');
   const [freshToken, setFreshToken] = React.useState<string | null>(null);
   // view/state werden in AuthScreen verwaltet
+  // Roster: periodisch letzte Präsenz (für Offline/"zuletzt online")
+  React.useEffect(() => {
+    if (!authChecked || !me) return;
+    let stop = false as boolean;
+    const load = async () => {
+      try {
+        const res = await fetch(`${apiBase}/presence/recent`, { credentials: 'include' });
+        if (res.ok) {
+          const data = await res.json();
+          const online = rosterByIdentityRef.current || {};
+          setRoster((prev) => {
+            const map = new Map<string, { identity: string; name: string; online: boolean; x?: number; y?: number; lastSeen?: string }>();
+            for (const r of prev) map.set(r.identity, { ...r, online: false });
+            for (const p of data || []) {
+              const ident = String(p.userId || (p.user && p.user.id) || '');
+              const name = String((p.user && (p.user.name || p.user.email)) || ident);
+              if (!ident) continue;
+              if (online[ident]) continue;
+              map.set(ident, { identity: ident, name, online: false, lastSeen: p.updatedAt });
+            }
+            // keep online ones
+            for (const [ident, v] of Object.entries(online)) {
+              const prevItem = map.get(ident);
+              const entry: { identity: string; name: string; online: boolean; x?: number; y?: number; lastSeen?: string } = { identity: ident, name: v.name, online: true, x: v.x, y: v.y };
+              if (prevItem && typeof (prevItem as any).lastSeen === 'string') {
+                entry.lastSeen = (prevItem as any).lastSeen;
+              }
+              map.set(ident, entry);
+            }
+            return Array.from(map.values()).sort((a, b) => Number(b.online) - Number(a.online) || a.name.localeCompare(b.name));
+          });
+        }
+      } catch {}
+      if (!stop) setTimeout(load, 30000);
+    };
+    load();
+    return () => { stop = true; };
+  }, [apiBase, authChecked, me?.id]);
   // Grid Overlay expand/collapse + selection
   const [gridExpanded, setGridExpanded] = React.useState(false);
   const [selectedSid, setSelectedSid] = React.useState<string | null>(null);
@@ -303,8 +302,6 @@ export function App() {
       } else {
         const u = await res.json();
         setMe(u);
-        setMeProfile({ id: u.id, email: u.email, name: u.name });
-        setNameEdit(u.name || '');
         // Store last position if available
         if (u.lastPosition) {
           localPosRef.current = { id: u.id, x: u.lastPosition.x, y: u.lastPosition.y };
@@ -2351,39 +2348,7 @@ export function App() {
 
       {/* Admin-Toolbar entfernt – Direktzugriff über Icon-Buttons oben rechts */}
 
-      {/* Benutzerverwaltung Modal */}
-      {userModalOpen && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 100, display: 'grid', placeItems: 'center', background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(2px)' }} onClick={() => setUserModalOpen(false)}>
-          <div onClick={(e)=>e.stopPropagation()} className="glass-surface" style={{ width: 'min(92vw, 560px)', padding: 16, borderRadius: 12 }}>
-            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom: 12 }}>
-              <div style={{ fontWeight: 800 }}>Benutzerverwaltung</div>
-              <button onClick={()=>setUserModalOpen(false)} style={{ width: 32, height: 32, borderRadius: 6, border: '1px solid var(--border)', background:'var(--glass)', color:'#fff', cursor:'pointer' }}>×</button>
-            </div>
-            <div style={{ display:'grid', gap: 12 }}>
-              <div>
-                <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>E-Mail</div>
-                <input value={meProfile?.email || ''} readOnly style={{ width:'100%', padding:'10px 12px', borderRadius: 8, border:'1px solid var(--border)', background:'var(--glass)', color:'#fff' }} />
-              </div>
-              <div>
-                <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>Anzeigename</div>
-                <input value={nameEdit} onChange={(e)=>setNameEdit(e.target.value)} placeholder="z. B. Max Mustermann" style={{ width:'100%', padding:'10px 12px', borderRadius: 8, border:'1px solid var(--border)', background:'var(--glass)', color:'#fff' }} />
-              </div>
-              <div style={{ display:'flex', justifyContent:'flex-end', gap: 8 }}>
-                <button onClick={()=>setUserModalOpen(false)} style={{ padding:'10px 12px', borderRadius:8, border:'1px solid var(--border)', background:'var(--glass)', color:'#fff', cursor:'pointer' }}>Schließen</button>
-                <button onClick={async ()=>{
-                  try {
-                    const res = await fetch(`${apiBase}/me`, { method:'PATCH', credentials:'include', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ name: nameEdit }) });
-                    if (res.ok) {
-                      const u = await res.json();
-                      setMeProfile(u);
-                    }
-                  } catch {}
-                }} style={{ padding:'10px 12px', borderRadius:8, border:'none', background:'linear-gradient(135deg,var(--brand-primary),var(--brand-accent))', color:'#fff', cursor:'pointer' }}>Speichern</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* (Alt) Benutzerverwaltung-Profilmodal entfernt – Benutzerverwaltung läuft über Overlay + UserManagement */}
 
       {/* Einladungen Modal */}
       {invitesModalOpen && (
