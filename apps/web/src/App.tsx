@@ -185,12 +185,7 @@ export function App() {
   const [gridExpanded, setGridExpanded] = React.useState(false);
   const [selectedSid, setSelectedSid] = React.useState<string | null>(null);
   const [overlayZoom, setOverlayZoom] = React.useState(1);
-  // Simple view routing
-  const [page, setPage] = React.useState<'world' | 'profile'>('world');
-  const [userModalOpen, setUserModalOpen] = React.useState(false);
-  const [menuOpen, setMenuOpen] = React.useState(false);
-  const editorActiveRef = React.useRef(false);
-  const connectLivekitRef = React.useRef<null | (() => Promise<void>)>(null);
+  // Simple view routing (removed legacy state)
   // Bubble UI state
   const [bubbleUi, setBubbleUi] = React.useState<{ active: boolean; members: string[] }>({ active: false, members: [] });
   // Pending bubble navigation until arrival near target
