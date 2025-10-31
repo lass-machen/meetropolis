@@ -1,5 +1,5 @@
 import React from 'react';
-import { Toolbar, Button, Card, Input, Modal } from '../../ui/components';
+import { Toolbar, Button, Card, Input, Modal } from '../../ui/system';
 
 export function UserManagement(props: { baseUrl: string; onBack: () => void }) {
   const { baseUrl, onBack } = props;
@@ -59,45 +59,20 @@ export function UserManagement(props: { baseUrl: string; onBack: () => void }) {
     <div style={{ maxWidth: 1040, margin: '0 auto', display: 'grid', gap: 20, padding: '20px' }}>
       <Toolbar
         left={<>
-          <Button onClick={onBack} style={{ 
-            background: 'rgba(255,255,255,0.05)', 
-            border: '1px solid rgba(255,255,255,0.12)',
-            padding: '8px 16px',
-            borderRadius: 8
-          }}>
-            ← Zurück
-          </Button>
-          <div style={{ 
-            padding: '6px 12px', 
-            borderRadius: 20, 
-            background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)', 
-            fontSize: 12, 
-            color: '#fff',
-            fontWeight: 600
-          }}>
+          <Button onClick={onBack}>← Zurück</Button>
+          <div style={{ padding: '6px 12px', borderRadius: 20, background: 'var(--glass)', border: '1px solid var(--border)', fontSize: 12, color: 'var(--fg)', fontWeight: 600 }}>
             Admin
           </div>
         </>}
         right={<>
           <Button 
-            variant="primary" 
+            variant="brand" 
             onClick={() => { setInviteCode(null); setNewEmail(''); setNewName(''); setCreateOpen(true); }}
-            style={{
-              background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-              border: 'none',
-              padding: '10px 20px',
-              borderRadius: 8,
-              fontWeight: 600
-            }}
           >
             + Neuer Benutzer
           </Button>
         </>}
-        style={{ 
-          background: 'transparent',
-          border: 'none',
-          padding: 0
-        }}
+        style={{ background: 'transparent', border: 'none', padding: 0 }}
       />
 
       {error && (
@@ -109,31 +84,21 @@ export function UserManagement(props: { baseUrl: string; onBack: () => void }) {
         </Card>
       )}
       {loading ? (
-        <Card style={{ 
-          background: 'rgba(255,255,255,0.04)',
-          border: '1px solid rgba(255,255,255,0.08)',
-          textAlign: 'center',
-          padding: 40
-        }}>
+        <Card style={{ textAlign: 'center', padding: 40 }}>
           <div style={{ color: 'rgba(255,255,255,0.6)' }}>Lade Benutzerdaten...</div>
         </Card>
       ) : (
-        <Card style={{ 
-          background: 'rgba(255,255,255,0.04)',
-          border: '1px solid rgba(255,255,255,0.08)',
-          padding: 0,
-          overflow: 'hidden'
-        }}>
+        <Card style={{ padding: 0, overflow: 'hidden' }}>
           <div style={{ display: 'grid', gap: 0 }}>
             <div style={{ 
               display: 'grid', 
               gridTemplateColumns: 'minmax(150px, 1fr) minmax(150px, 1fr) minmax(160px, 180px)', 
               gap: 16, 
               padding: '16px 24px', 
-              background: 'rgba(255,255,255,0.03)',
-              borderBottom: '1px solid rgba(255,255,255,0.08)',
+              background: 'var(--glass)',
+              borderBottom: '1px solid var(--border)',
               fontWeight: 600, 
-              color: 'rgba(255,255,255,0.7)',
+              color: 'var(--fg-subtle)',
               fontSize: 13,
               textTransform: 'uppercase',
               letterSpacing: '0.05em'
@@ -148,7 +113,7 @@ export function UserManagement(props: { baseUrl: string; onBack: () => void }) {
                 gridTemplateColumns: 'minmax(150px, 1fr) minmax(150px, 1fr) minmax(160px, 180px)', 
                 gap: 16, 
                 padding: '16px 24px',
-                borderBottom: '1px solid rgba(255,255,255,0.06)',
+                borderBottom: '1px solid var(--border)',
                 transition: 'background 0.2s',
                 background: edit?.id === u.id ? 'rgba(59,130,246,0.1)' : 'transparent'
               }}>
@@ -157,46 +122,24 @@ export function UserManagement(props: { baseUrl: string; onBack: () => void }) {
                     <Input 
                       value={edit.email} 
                       onChange={e => setEdit({ ...(edit as any), email: e.target.value })}
-                      style={{
-                        background: 'rgba(255,255,255,0.05)',
-                        border: '1px solid rgba(255,255,255,0.12)',
-                        padding: '8px 12px',
-                        fontSize: 14
-                      }}
+                      style={{ padding: '8px 12px', fontSize: 14 }}
                     />
                     <Input 
                       value={edit.name ?? ''} 
                       onChange={e => setEdit({ ...(edit as any), name: e.target.value })}
-                      style={{
-                        background: 'rgba(255,255,255,0.05)',
-                        border: '1px solid rgba(255,255,255,0.12)',
-                        padding: '8px 12px',
-                        fontSize: 14
-                      }}
+                      style={{ padding: '8px 12px', fontSize: 14 }}
                     />
                     <div style={{ display: 'flex', gap: 8 }}>
                       <Button 
-                        variant="primary" 
+                        variant="brand" 
                         onClick={() => save(edit!)}
-                        style={{
-                          background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                          border: 'none',
-                          padding: '6px 16px',
-                          borderRadius: 6,
-                          fontSize: 13
-                        }}
+                        style={{ padding: '6px 16px', borderRadius: 6, fontSize: 13 }}
                       >
                         ✓
                       </Button>
                       <Button 
                         onClick={() => setEdit(null)}
-                        style={{
-                          background: 'rgba(255,255,255,0.05)',
-                          border: '1px solid rgba(255,255,255,0.12)',
-                          padding: '6px 16px',
-                          borderRadius: 6,
-                          fontSize: 13
-                        }}
+                        style={{ padding: '6px 16px', borderRadius: 6, fontSize: 13 }}
                       >
                         ✕
                       </Button>
@@ -204,32 +147,19 @@ export function UserManagement(props: { baseUrl: string; onBack: () => void }) {
                   </>
                 ) : (
                   <>
-                    <div style={{ display: 'flex', alignItems: 'center', color: '#fff', fontSize: 14 }}>{u.email}</div>
-                    <div style={{ display: 'flex', alignItems: 'center', color: u.name ? '#fff' : 'rgba(255,255,255,0.4)', fontSize: 14 }}>{u.name ?? '—'}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', color: 'var(--fg)', fontSize: 14 }}>{u.email}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', color: u.name ? 'var(--fg)' : 'var(--fg-subtle)', fontSize: 14 }}>{u.name ?? '—'}</div>
                     <div style={{ display: 'flex', gap: 8 }}>
                       <Button 
                         onClick={() => setEdit({ id: u.id, email: u.email, name: u.name ?? '' })}
-                        style={{
-                          background: 'rgba(255,255,255,0.05)',
-                          border: '1px solid rgba(255,255,255,0.12)',
-                          padding: '6px 16px',
-                          borderRadius: 6,
-                          fontSize: 13
-                        }}
+                        style={{ padding: '6px 16px', borderRadius: 6, fontSize: 13 }}
                       >
                         Bearbeiten
                       </Button>
                       <Button 
                         variant="danger" 
                         onClick={() => remove(u.id)}
-                        style={{
-                          background: 'rgba(239,68,68,0.1)',
-                          border: '1px solid rgba(239,68,68,0.3)',
-                          color: '#f87171',
-                          padding: '6px 16px',
-                          borderRadius: 6,
-                          fontSize: 13
-                        }}
+                        style={{ padding: '6px 16px', borderRadius: 6, fontSize: 13 }}
                       >
                         Löschen
                       </Button>
@@ -251,9 +181,9 @@ export function UserManagement(props: { baseUrl: string; onBack: () => void }) {
         </Card>
       )}
 
-      <Modal open={createOpen} onClose={() => setCreateOpen(false)} title="Neuen Benutzer einladen" maxWidth={520} footer={<>
+      <Modal zIndexBase={1100} open={createOpen} onOpenChange={(o)=> setCreateOpen(o)} title="Neuen Benutzer einladen" maxWidth={520} footer={<>
         <Button onClick={() => setCreateOpen(false)}>Abbrechen</Button>
-        <Button variant="primary" onClick={async () => {
+        <Button variant="brand" onClick={async () => {
           setError(null);
           try {
             const res = await fetch(`${baseUrl}/auth/invite`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ email: newEmail, name: newName || undefined }) });
@@ -269,10 +199,17 @@ export function UserManagement(props: { baseUrl: string; onBack: () => void }) {
         <div style={{ display: 'grid', gap: 10 }}>
           <Input placeholder="E-Mail-Adresse" value={newEmail} onChange={e => setNewEmail(e.target.value)} />
           <Input placeholder="Name (optional)" value={newName} onChange={e => setNewName(e.target.value)} />
-          {inviteCode && <div className="glass-surface" style={{ padding: 10, borderRadius: 10, display:'flex', alignItems:'center', justifyContent:'space-between', gap:8 }}>
-            <div>Einladungscode: <b>{inviteCode}</b></div>
-            <Button onClick={() => { navigator.clipboard?.writeText(inviteCode); }}>Kopieren</Button>
-          </div>}
+          {inviteCode && (
+            <div className="glass-surface" style={{ padding: 12, borderRadius: 'var(--radius-sm)', display:'grid', gap: 8 }}>
+              <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>Einladungscode</div>
+              <div style={{ display:'flex', alignItems:'center', gap: 8 }}>
+                <div style={{ flex: 1, padding: '10px 12px', borderRadius: 'var(--radius-xs)', border: '1px solid var(--border)', background: 'var(--glass)', color: 'var(--fg)', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontWeight: 700, letterSpacing: '0.06em' }}>
+                  {inviteCode}
+                </div>
+                <Button onClick={() => { navigator.clipboard?.writeText(inviteCode); }}>Kopieren</Button>
+              </div>
+            </div>
+          )}
           <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>Der eingeladene Nutzer erhält einen Code. Mit diesem kann er sich selbst registrieren.</div>
         </div>
       </Modal>

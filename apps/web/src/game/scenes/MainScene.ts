@@ -35,6 +35,7 @@ export class MainScene extends Phaser.Scene {
   private leftDragCandidate: { active: boolean; startX: number; startY: number } | null = null;
   private editorMode = false;
   private spaceHeld = false;
+  private editorPanKeys?: { up?: Phaser.Input.Keyboard.Key; down?: Phaser.Input.Keyboard.Key; left?: Phaser.Input.Keyboard.Key; right?: Phaser.Input.Keyboard.Key };
   // Zweite Kamera nur für Labels/UI (kein Zoom)
   private labelCamera?: Phaser.Cameras.Scene2D.Camera;
   private labelLayer?: Phaser.GameObjects.Layer;
@@ -386,6 +387,15 @@ export class MainScene extends Phaser.Scene {
     this.anims.create({ key: 'walk_right', frames: this.anims.generateFrameNumbers('hero_walk_right', { start: 0, end: 3 }), frameRate: 8, repeat: -1 });
 
     const cursors = this.input.keyboard!.createCursorKeys();
+    // WASD for editor camera pan
+    try {
+      this.editorPanKeys = this.input.keyboard!.addKeys({
+        up: Phaser.Input.Keyboard.KeyCodes.W,
+        left: Phaser.Input.Keyboard.KeyCodes.A,
+        down: Phaser.Input.Keyboard.KeyCodes.S,
+        right: Phaser.Input.Keyboard.KeyCodes.D,
+      }) as any;
+    } catch {}
     this.spaceKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
     this.cameras.main.startFollow(this.hero, true, 0.1, 0.1);
     this.manualCameraActive = false;
@@ -575,6 +585,27 @@ export class MainScene extends Phaser.Scene {
       this.updateRecenterUiVisibility();
       // Auto-follow wieder aktivieren, wenn der Held den sichtbaren Bereich verlässt
       this.autoFollowIfHeroOutOfView();
+
+      // Editor: Keyboard Camera Pan (WASD + Pfeile)
+      try {
+        if (this.editorMode && !this.panState.isPanning) {
+          const cam = this.cameras.main;
+          const dt = Math.max(this.game.loop.delta, 16) / 1000; // seconds
+          const base = 600; // px/s
+          const step = (base * dt) / Math.max(cam.zoom, 0.001);
+          const anyCursors: any = cursors;
+          const keys = this.editorPanKeys || {} as any;
+          if (anyCursors.left?.isDown || keys.left?.isDown) cam.scrollX -= step;
+          if (anyCursors.right?.isDown || keys.right?.isDown) cam.scrollX += step;
+          if (anyCursors.up?.isDown || keys.up?.isDown) cam.scrollY -= step;
+          if (anyCursors.down?.isDown || keys.down?.isDown) cam.scrollY += step;
+          if (anyCursors.left?.isDown || anyCursors.right?.isDown || anyCursors.up?.isDown || anyCursors.down?.isDown || keys.left?.isDown || keys.right?.isDown || keys.up?.isDown || keys.down?.isDown) {
+            try { cam.stopFollow(); } catch {}
+            this.manualCameraActive = true;
+            this.updateRecenterUiVisibility();
+          }
+        }
+      } catch {}
     });
 
     // Tile-basierte Eingabe für Editor
@@ -853,6 +884,8 @@ export class MainScene extends Phaser.Scene {
       try { if (this.heroNameLabel) this.heroNameLabel.setVisible(false); } catch {}
       try { this.nameLabels.forEach(lbl => lbl.setVisible(false)); } catch {}
       try { this.bubbleOutlines.forEach(g => g.setVisible(false)); } catch {}
+      // Beim Aktivieren des Editors: Serverzustand laden (inkl. Zonen)
+      try { this.fetchAndApplyServerLayers(); } catch {}
       // Beim Aktivieren des Editors: Zonen-Overlay aus LocalStorage laden und anzeigen
       try {
         const raw = typeof window !== 'undefined' ? localStorage.getItem('meetropolis.zones') : null;
@@ -1139,7 +1172,7 @@ export class MainScene extends Phaser.Scene {
       }
       if (!this.zoneG || !this.zoneG.scene) {
         this.zoneG = this.add.graphics();
-        this.zoneG.setDepth(7);
+      this.zoneG.setDepth(8);
       }
       const g = this.zoneG;
       g.setVisible(true);

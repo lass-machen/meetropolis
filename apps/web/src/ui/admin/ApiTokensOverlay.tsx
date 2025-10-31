@@ -1,4 +1,5 @@
 import { Modal } from '../system/Modal';
+import { useEffect } from 'react';
 
 export function ApiTokensOverlay(props: {
   open: boolean;
@@ -12,6 +13,14 @@ export function ApiTokensOverlay(props: {
   setFreshToken: (v: string | null) => void;
 }) {
   const { open, onClose, apiBase, apiTokens, setApiTokens, newTokenName, setNewTokenName, freshToken, setFreshToken } = props;
+
+  useEffect(() => {
+    if (open) {
+      fetch(`${apiBase}/api-tokens`, { credentials:'include' })
+        .then(r => r.json())
+        .then(list => setApiTokens(list));
+    }
+  }, [open, apiBase, setApiTokens]);
 
   return (
     <Modal open={open} onOpenChange={(o)=>{ if(!o) onClose(); }} title="API-Zugriff">

@@ -9,6 +9,8 @@ export function useZones(params: {
 }) {
   const { editor, setEditor, zoneRef, gameBridge, colyseusRef } = params;
   const suppressZoneBroadcastRef = React.useRef(false);
+  const debounceTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastPayloadRef = React.useRef<any>(null);
 
   // Mirror editor zones to game overlay and ZoneManager; broadcast optionally via Colyseus
   React.useEffect(() => {
@@ -16,9 +18,16 @@ export function useZones(params: {
     try { gameBridge.setZoneOverlay(zonesToShow); } catch {}
     try { zoneRef.current?.setZones?.(editor.zones as any); } catch {}
     try { localStorage.setItem('meetropolis.zones', JSON.stringify(editor.zones || [])); } catch {}
-    if (!suppressZoneBroadcastRef.current) {
-      try { colyseusRef.current?.send?.('editor_update', { type: 'zone', polys: editor.zones || [] }); } catch {}
-    }
+
+    if (suppressZoneBroadcastRef.current) return;
+
+    // Debounce Broadcast (coalesce schnelle Änderungen)
+    lastPayloadRef.current = { type: 'zone', polys: editor.zones || [] };
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    debounceTimerRef.current = setTimeout(() => {
+      try { colyseusRef.current?.send?.('editor_update', lastPayloadRef.current); } catch {}
+      debounceTimerRef.current = null;
+    }, 150);
   }, [editor.active, editor.zones]);
 
   // Handle incoming zone updates (should be called by Colyseus message handler)
@@ -28,7 +37,9 @@ export function useZones(params: {
     try { localStorage.setItem('meetropolis.zones', JSON.stringify(polys)); } catch {}
     try { gameBridge.setZoneOverlay(polys); } catch {}
     try { zoneRef.current?.setZones?.(polys as any); } catch {}
-    setTimeout(() => { suppressZoneBroadcastRef.current = false; }, 50);
+    // Cancel pending debounced send; re-allow broadcasting nach kurzer Pause
+    if (debounceTimerRef.current) { clearTimeout(debounceTimerRef.current); debounceTimerRef.current = null; }
+    setTimeout(() => { suppressZoneBroadcastRef.current = false; }, 100);
   }, [setEditor, zoneRef, gameBridge]);
 
   return { applyIncomingZones } as const;

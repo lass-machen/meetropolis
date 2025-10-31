@@ -28,6 +28,33 @@ Ein internes Gather.town-ähnliches MVP mit Monorepo-Struktur.
 
 Web: `http://localhost:5173`  |  Server: `http://localhost:2567`  |  LiveKit: `http://localhost:7880`
 
+#### API-Tokens
+Mit persönlichen API-Tokens kannst du Mikrofon, Kamera, Screenshare und den Nicht-stören-Modus remote steuern – solange dein Benutzer online ist.
+
+1) Token erstellen
+- In der Web-App oben rechts „API-Tokens & Doku“ öffnen und „Neuen Token erstellen“ klicken. Der Klartext-Token wird nur einmal angezeigt – sicher speichern.
+
+2) Token verwenden
+- Setze den HTTP Header `Authorization: Bearer <DEIN_TOKEN>`.
+- Endpoint:
+  - `POST /controls`
+  - Body (JSON, mindestens ein Feld): `{ "mic": true|false, "cam": true|false, "share": true|false, "dnd": true|false }`
+
+Beispiel (cURL):
+```
+curl -X POST "http://localhost:2567/controls" \
+  -H "Authorization: Bearer DEIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{ "mic": false, "dnd": true }'
+```
+
+3) Token löschen
+- Im gleichen Dialog können Tokens gelöscht werden. Gelöschte Tokens sind sofort ungültig.
+
+Hinweise
+- In Produktion muss `API_TOKEN_PEPPER` gesetzt sein (erzwungen). In Dev ist ein Ephemeral-Pepper aktiv; bei Server-Neustart werden alte Tokens ungültig.
+- Der Endpoint antwortet mit `409`, wenn dein Benutzer nicht online ist, und mit `401`, wenn der Token ungültig ist.
+
 #### LiveKit (Entwicklung)
 - Der Compose-Container startet LiveKit im Dev-Modus mit Schlüsseln `devkey/secret` auf Port `7880`.
 - Der Web-Client liest `VITE_LIVEKIT_URL` und der Server `LIVEKIT_URL` aus `.env`.

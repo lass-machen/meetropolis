@@ -38,6 +38,7 @@ services:
     container_name: meetropolis-server-dev
     working_dir: /workspace/apps/server
     environment:
+      LOG_LEVEL: info
       DATABASE_URL: postgresql://postgres:postgres@db:5432/meetropolis
       PORT: 2567
       LIVEKIT_URL: http://livekit:7880
@@ -109,6 +110,7 @@ services:
     container_name: meetropolis-livekit-dev
     command: ["--dev", "--bind", "0.0.0.0"]
     environment:
+      LK_LOG_LEVEL: info
       LK_API_KEY: devkey
       LK_API_SECRET: secret
       LK_NODE_IP: 0.0.0.0

@@ -24,6 +24,7 @@
   --radius-sm: 10px;
   --radius-xs: 8px;
   --gradient: linear-gradient(135deg, #450db3 0%, #f3a814 100%);
+  --gradient-hero: linear-gradient(135deg, #60a5fa 0%, #a78bfa 50%, #34d399 100%);
 
   --btn-text-shadow: none;
 }
@@ -77,6 +78,7 @@
   --radius-sm: 10px;
   --radius-xs: 8px;
   --gradient: linear-gradient(135deg, #450db3 0%, #f3a814 100%);
+  --gradient-hero: linear-gradient(135deg, #60a5fa 0%, #a78bfa 50%, #34d399 100%);
   --btn-text-shadow: 0 1px 1px rgba(0,0,0,.3);
   --uc-glass: rgba(255, 255, 255, 0.1);
 }
@@ -410,3 +412,9 @@ body {
 
 .text-subtle { color: var(--fg-subtle); }
 
+
+/* Safety: never blur the entire app content.
+   Overlays should use backdrop-filter, not filter on roots. */
+html, body, #root, #root > div {
+  filter: none !important;
+}

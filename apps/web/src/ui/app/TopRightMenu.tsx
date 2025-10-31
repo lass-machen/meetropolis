@@ -1,5 +1,6 @@
 import { useTheme } from '../theme';
 import { ButtonGroup, Button, Separator } from '../buttonGroup';
+import { FAIcon } from '../FAIcon';
 
 export function TopRightMenu(props: {
   menuOpen: boolean;
@@ -20,20 +21,33 @@ export function TopRightMenu(props: {
         <Button icon="sun" iconPosition="only" active={override === 'light'} title="Helles Design" aria-label="Helles Design" onClick={() => setOverride('light')} />
         <Button icon="moon" iconPosition="only" active={override === 'dark'} title="Dunkles Design" aria-label="Dunkles Design" onClick={() => setOverride('dark')} />
         <Button icon="desktop" iconPosition="only" active={override === 'system'} title="Systemeinstellung" aria-label="Systemeinstellung" onClick={() => setOverride('system')} />
-        <Separator />
-        <Button icon="gear" iconPosition="only" title="Einstellungen" aria-label="Einstellungen" onClick={onToggleMenu} />
-        <Button icon="users" iconPosition="only" title="Benutzerverwaltung" aria-label="Benutzerverwaltung" onClick={onOpenUsers} />
+        <Separator style={{ margin: '0 8px' }} />
+        <div style={{ position: 'relative', display: 'inline-flex' }}>
+          <Button icon="gear" iconPosition="only" title="Einstellungen" aria-label="Einstellungen" onClick={onToggleMenu} />
+          {menuOpen && (
+            <div role="menu" style={{ position: 'absolute', top: 'calc(100% + 8px)', right: 0, background: 'rgba(17,17,20,0.96)', color: '#fff', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12, padding: 10, display: 'grid', gap: 8, minWidth: 280, boxShadow: '0 16px 40px rgba(0,0,0,0.45)', backdropFilter: 'blur(6px)', zIndex: 70 }}>
+              <button role="menuitem" onClick={onBackToWorld} style={{ textAlign: 'left', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--glass)', color: 'var(--fg)', cursor: 'pointer', display:'flex', alignItems:'center', gap:8 }}>
+                <FAIcon name="earth-europe" variant="solid" fixedWidth />
+                <span>Zurück zur Welt</span>
+              </button>
+              <button role="menuitem" onClick={onOpenApi} style={{ textAlign: 'left', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--glass)', color: 'var(--fg)', cursor: 'pointer', display:'flex', alignItems:'center', gap:8 }}>
+                <FAIcon name="key" variant="solid" fixedWidth />
+                <span>API‑Tokens & Doku</span>
+              </button>
+              <button role="menuitem" onClick={onToggleEditor} style={{ textAlign: 'left', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: editorActive ? 'rgba(16,185,129,0.18)' : 'var(--glass)', color: 'var(--fg)', cursor: 'pointer', display:'flex', alignItems:'center', gap:8 }}>
+                <FAIcon name={editorActive ? 'pen-to-square' : 'pen-ruler'} variant="solid" fixedWidth />
+                <span>{editorActive ? 'Editor beenden' : 'Map‑Editor öffnen'}</span>
+              </button>
+              <div style={{ height: 1, background: 'var(--border)', margin: '6px 4px' }} />
+              <button role="menuitem" onClick={onLogout} style={{ textAlign: 'left', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--glass)', color: 'var(--fg)', cursor: 'pointer', display:'flex', alignItems:'center', gap:8 }}>
+                <FAIcon name="right-from-bracket" variant="solid" fixedWidth />
+                <span>Abmelden</span>
+              </button>
+            </div>
+          )}
+        </div>
         <Button icon="envelope" iconPosition="only" title="Einladungen" aria-label="Einladungen" onClick={onOpenInvites} />
       </ButtonGroup>
-      {menuOpen && (
-        <div style={{ position: 'absolute', top: 44, right: 0, background: 'rgba(17,17,20,0.96)', color: '#fff', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12, padding: 8, display: 'grid', gap: 6, minWidth: 260, boxShadow: '0 16px 40px rgba(0,0,0,0.45)', backdropFilter: 'blur(6px)' }}>
-          <button onClick={onOpenUsers} style={{ textAlign: 'left', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--glass)', color: 'var(--fg)', cursor: 'pointer' }}>Benutzer verwalten</button>
-          <button onClick={onBackToWorld} style={{ textAlign: 'left', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--glass)', color: 'var(--fg)', cursor: 'pointer' }}>Zurück zur Welt</button>
-          <button onClick={onOpenApi} style={{ textAlign: 'left', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--glass)', color: 'var(--fg)', cursor: 'pointer' }}>API-Tokens & Doku</button>
-          <button onClick={onToggleEditor} style={{ textAlign: 'left', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: editorActive ? 'rgba(16,185,129,0.18)' : 'var(--glass)', color: 'var(--fg)', cursor: 'pointer' }}>{editorActive ? 'Editor beenden' : 'Map-Editor öffnen'}</button>
-          <button onClick={onLogout} style={{ textAlign: 'left', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--glass)', color: 'var(--fg)', cursor: 'pointer' }}>Logout</button>
-        </div>
-      )}
     </div>
   );
 }

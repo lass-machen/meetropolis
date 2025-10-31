@@ -1,6 +1,6 @@
 import * as React from 'react';
 
-export type ButtonVariant = 'primary' | 'ghost' | 'danger';
+export type ButtonVariant = 'primary' | 'brand' | 'ghost' | 'danger';
 
 export type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: ButtonVariant;
@@ -11,6 +11,7 @@ export type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
 export function Button(props: ButtonProps) {
   const { variant = 'ghost', leftIcon, rightIcon, style, ...rest } = props;
   const base: React.CSSProperties = {
+    boxSizing: 'border-box',
     padding: '10px 12px',
     borderRadius: 'var(--radius-sm)',
     border: '1px solid var(--border)',
@@ -22,6 +23,11 @@ export function Button(props: ButtonProps) {
   const styles: Record<ButtonVariant, React.CSSProperties> = {
     primary: {
       background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-accent))',
+      color: '#fff',
+      border: 'none',
+    },
+    brand: {
+      background: 'var(--gradient-hero)',
       color: '#fff',
       border: 'none',
     },

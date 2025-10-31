@@ -1,4 +1,43 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import { buildEditorSavePayload, saveJSON, keys } from './editorStorage';
+
+describe('editorStorage', () => {
+  beforeEach(() => {
+    // @ts-ignore
+    global.localStorage = {
+      store: {} as Record<string, string>,
+      getItem(key: string) { return this.store[key] ?? null; },
+      setItem(key: string, value: string) { this.store[key] = value; },
+      removeItem(key: string) { delete this.store[key]; },
+      clear() { this.store = {}; }
+    };
+  });
+
+  it('buildEditorSavePayload includes layers, assets, tilesets, bg and zones with replaceZones', () => {
+    // prepare local data
+    // @ts-ignore
+    global.localStorage.setItem(keys.layers, JSON.stringify({ editorGround: [1,2], editorWalls: [3], collision: [4,5] }));
+    // @ts-ignore
+    global.localStorage.setItem(keys.assets, JSON.stringify([{ id: 'a' }]));
+    // @ts-ignore
+    global.localStorage.setItem(keys.tilesets, JSON.stringify([{ key: 't' }]));
+    // @ts-ignore
+    global.localStorage.setItem('meetropolis.backgroundColor', '#112233');
+
+    const zones = [{ name: 'Z1', points: [{ x:0, y:0 }] }];
+    const payload = buildEditorSavePayload(zones);
+    expect(payload.editorGround).toEqual([1,2]);
+    expect(payload.editorWalls).toEqual([3]);
+    expect(payload.collision).toEqual([4,5]);
+    expect(payload.assets).toEqual([{ id: 'a' }]);
+    expect(payload.tilesets).toEqual([{ key: 't' }]);
+    expect(payload.backgroundColor).toEqual('#112233');
+    expect(payload.replaceZones).toBe(true);
+    expect(payload.zones).toEqual(zones);
+  });
+});
+
+import { describe, it, expect, beforeEach } from 'vitest';
 import { loadJSON, saveJSON, keys, loadLayers, saveLayers, buildServerPayloadFromLocal } from './editorStorage';
 
 describe('editorStorage', () => {

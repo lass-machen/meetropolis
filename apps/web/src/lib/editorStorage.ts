@@ -41,3 +41,23 @@ export function buildServerPayloadFromLocal(): { editorGround: number[] | null; 
 }
 
 
+export function buildEditorSavePayload(zones: any[] | null | undefined): any {
+  const layers = loadLayers();
+  const tilesets = loadJSON<any[]>(keys.tilesets, []);
+  const assets = loadJSON<any[]>(keys.assets, []);
+  let backgroundColor = '#202020';
+  try { backgroundColor = (localStorage.getItem('meetropolis.backgroundColor') || '#202020'); } catch {}
+  const payload: any = {
+    editorGround: layers?.editorGround ?? null,
+    editorWalls: layers?.editorWalls ?? null,
+    collision: layers?.collision ?? null,
+    tilesets,
+    assets,
+    backgroundColor,
+    replaceZones: true,
+  };
+  if (Array.isArray(zones)) payload.zones = zones;
+  return payload;
+}
+
+

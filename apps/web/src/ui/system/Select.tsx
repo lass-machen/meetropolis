@@ -9,6 +9,7 @@ export function Select(props: SelectProps) {
       {...rest}
       style={{
         ...(style || {}),
+        boxSizing: 'border-box',
         width: '100%',
         padding: '10px 12px',
         borderRadius: 'var(--radius-xs)',

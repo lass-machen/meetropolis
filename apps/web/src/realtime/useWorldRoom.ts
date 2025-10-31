@@ -241,17 +241,39 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
           try { gameBridge.syncRemotePlayers(filtered); } catch {}
 
           try {
-            const online: Record<string, { name: string; x: number; y: number }> = {};
+          const online: Record<string, { name: string; x: number; y: number }> = {};
             for (const [sid, p] of Object.entries(filtered) as any) {
               const livekitIdentity = (colyseusToLivekitMap.current as any)[sid] || sid;
               const name = (p as any).name || livekitIdentity;
               online[livekitIdentity] = { name, x: (p as any).x, y: (p as any).y };
             }
+          // Include local user via stable userId so presence merge marks self online
+          try {
+            if (me?.id) {
+              const lp = localPosRef.current as any;
+              online[me.id] = { name: me.name || me.email || me.id, x: lp?.x ?? 0, y: lp?.y ?? 0 };
+            }
+          } catch {}
             rosterByIdentityRef.current = online;
             setRoster(prev => {
               const map = new Map<string, { identity: string; name: string; online: boolean; x?: number; y?: number; lastSeen?: string }>();
               for (const r of prev) map.set(r.identity, { ...r, online: false });
-              for (const [ident, v] of Object.entries(online)) map.set(ident, { identity: ident, name: v.name, online: true, x: v.x, y: v.y });
+              for (const [ident, v] of Object.entries(online)) {
+                if (map.has(ident)) {
+                  map.set(ident, { ...(map.get(ident) as any), name: v.name, online: true, x: v.x, y: v.y });
+                } else {
+                  let matchedKey: string | undefined;
+                  for (const [k, val] of map.entries()) {
+                    if ((val.name || '').toLowerCase() === (v.name || '').toLowerCase()) { matchedKey = k; break; }
+                  }
+                  if (matchedKey) {
+                    const cur = map.get(matchedKey)!;
+                    map.set(matchedKey, { ...cur, online: true, x: v.x, y: v.y });
+                  } else {
+                    map.set(ident, { identity: ident, name: v.name, online: true, x: v.x, y: v.y });
+                  }
+                }
+              }
               return Array.from(map.values()).sort((a, b) => Number(b.online) - Number(a.online) || a.name.localeCompare(b.name));
             });
           } catch {}

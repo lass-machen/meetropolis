@@ -8,6 +8,7 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
+    "test": "vitest run",
     "map:import:v2": "tsx src/scripts/importMapV2.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev --name init",
@@ -44,7 +45,10 @@
     "@types/jsonwebtoken": "^9.0.6",
     "@types/node": "^20.14.10",
     "tsx": "^4.16.2",
-    "typescript": "^5.5.4"
+    "typescript": "^5.5.4",
+    "supertest": "^6.3.4",
+    "vitest": "^1.6.0",
+    "@types/supertest": "^2.0.12"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

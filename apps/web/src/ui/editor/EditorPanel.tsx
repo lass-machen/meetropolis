@@ -2,12 +2,13 @@ import React from 'react';
 import { TilesetPreview, Button } from '../../ui/components';
 import type { EditorState, EditorCategory, EditorTool } from '../../hooks/useEditor';
 import { gameBridge } from '../../game/bridge';
+import { Toast } from '../../ui/system';
 
 export function EditorPanel(props: {
   editor: EditorState;
   setEditor: React.Dispatch<React.SetStateAction<EditorState>>;
   onOpenUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  onSave?: () => void;
+  onSave?: () => Promise<boolean> | void;
 }) {
   const { editor, setEditor } = props;
   React.useEffect(() => {
@@ -17,6 +18,100 @@ export function EditorPanel(props: {
     setEditor(s => ({ ...s, active: true, category: 'terrain', tool: s.tool === 'terrain' ? s.tool : 'terrain' }));
     return () => { try { gameBridge.setEditorMode(false); } catch {} };
   }, []);
+
+  // Beim Öffnen: Server-Zustand (insb. Zonen) laden und in Editor-State spiegeln
+  React.useEffect(() => {
+    let cancelled = false;
+    const fetchZones = async () => {
+      try {
+        const base = (window as any).VITE_API_BASE || (import.meta as any).env?.VITE_API_BASE || `${window.location.protocol}//${window.location.hostname}:2567`;
+        const res = await fetch(`${base}/maps/office/editor-state`, { credentials: 'include' });
+        if (!res.ok) return;
+        const data = await res.json();
+        const zones = Array.isArray((data as any)?.zones)
+          ? (data as any).zones.map((z: any) => {
+              const anyZ = z || {};
+              const pts = Array.isArray(anyZ.points)
+                ? anyZ.points
+                : Array.isArray(anyZ.polygon)
+                  ? anyZ.polygon
+                  : (anyZ.polygon && Array.isArray(anyZ.polygon.points))
+                    ? anyZ.polygon.points
+                    : [];
+              return { name: anyZ.name, points: pts };
+            })
+          : [];
+        if (!cancelled) {
+          setEditor(s => ({ ...s, zones } as any));
+          try { localStorage.setItem('meetropolis.zones', JSON.stringify(zones)); } catch {}
+          try { (window as any).currentPhaserScene?.setZoneOverlay?.(zones); } catch {}
+        }
+      } catch {}
+    };
+    fetchZones();
+    return () => { cancelled = true; };
+  }, [setEditor]);
+  const [saving, setSaving] = React.useState(false);
+  const [lastSavedAt, setLastSavedAt] = React.useState<number | null>(null);
+  const [toastOpen, setToastOpen] = React.useState(false);
+  const [toast, setToast] = React.useState<{ title?: string; description?: string; intent?: 'info' | 'success' | 'error' }>({});
+  const [zonesVisible, setZonesVisible] = React.useState(true);
+
+  const handleSaveClick = React.useCallback(async () => {
+    if (saving) return;
+    setSaving(true);
+    try {
+      const result = await props.onSave?.();
+      const ok = typeof result === 'boolean' ? result : true;
+      if (ok) {
+        setLastSavedAt(Date.now());
+        setToast({ title: 'Gespeichert', description: 'Änderungen wurden erfolgreich gespeichert.', intent: 'success' });
+        setToastOpen(true);
+      } else {
+        setToast({ title: 'Speichern fehlgeschlagen', description: 'Bitte erneut versuchen.', intent: 'error' });
+        setToastOpen(true);
+      }
+    } catch (e: any) {
+      setToast({ title: 'Speichern fehlgeschlagen', description: (e?.message || 'Unbekannter Fehler').toString(), intent: 'error' });
+      setToastOpen(true);
+    } finally {
+      setSaving(false);
+    }
+  }, [props.onSave, saving]);
+
+  const lastSavedLabel = React.useMemo(() => {
+    if (!lastSavedAt) return null;
+    const dt = new Date(lastSavedAt);
+    const hh = dt.getHours().toString().padStart(2, '0');
+    const mm = dt.getMinutes().toString().padStart(2, '0');
+    const ss = dt.getSeconds().toString().padStart(2, '0');
+    return `${hh}:${mm}:${ss}`;
+  }, [lastSavedAt]);
+
+  // Overlay Toggle anwenden
+  React.useEffect(() => {
+    try {
+      if (!zonesVisible) {
+        (window as any).currentPhaserScene?.setZoneOverlay?.([]);
+      } else {
+        (window as any).currentPhaserScene?.setZoneOverlay?.(props.editor.zones || []);
+      }
+    } catch {}
+  }, [zonesVisible, props.editor.zones]);
+
+  // Globale Editor-Toast Events empfangen (z. B. Fehlermeldungen aus App.tsx)
+  React.useEffect(() => {
+    const onToast = (e: any) => {
+      try {
+        const d = (e as CustomEvent)?.detail || {};
+        setToast({ title: d.title, description: d.description, intent: d.intent });
+        setToastOpen(true);
+      } catch {}
+    };
+    window.addEventListener('editor:toast', onToast as any);
+    return () => { window.removeEventListener('editor:toast', onToast as any); };
+  }, []);
+
   return (
     <div style={{ padding: 16, display: 'grid', gap: 12 }}>
       <div style={{ display: 'grid', gap: 6 }}>
@@ -216,10 +311,16 @@ export function EditorPanel(props: {
         </>
       )}
 
-      {/* Footer mit Speichern-Button */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-        <button onClick={() => props.onSave?.()} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'rgba(59,130,246,0.18)', color: 'var(--fg)', fontSize: 13, fontWeight: 600 }}>
-          Speichern
+      {/* Footer mit Speichern-Button und Overlay-Toggle */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+        <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>
+          {lastSavedLabel ? `Zuletzt gespeichert: ${lastSavedLabel}` : 'Noch nicht gespeichert'}
+        </div>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--fg-subtle)' }}>
+          <input type="checkbox" checked={zonesVisible} onChange={e => setZonesVisible(e.target.checked)} /> Zonen anzeigen
+        </label>
+        <button onClick={handleSaveClick} disabled={saving} style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'rgba(59,130,246,0.18)', color: 'var(--fg)', fontSize: 13, fontWeight: 600, opacity: saving ? 0.7 : 1, cursor: saving ? 'default' : 'pointer' }}>
+          {saving ? 'Speichern…' : 'Speichern'}
         </button>
       </div>
 
@@ -237,6 +338,7 @@ export function EditorPanel(props: {
           </div>
         </div>
       )}
+      <Toast open={toastOpen} onOpenChange={setToastOpen} title={toast.title} description={toast.description} intent={toast.intent as any} />
     </div>
   );
 }

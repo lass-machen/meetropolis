@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { UserManagement } from './ui/admin/UserManagement';
 import { AuthScreen } from './ui/auth/AuthScreen';
-import { pointInPolygon } from './lib/geom';
+import { pointInPolygon, rectsOverlap } from './lib/geom';
 import { getDisplayName as getDisplayNameLib } from './lib/displayName';
 import { ThemeToggleButton } from './ui/theme';
 import { Overlay } from './ui/Overlay';
@@ -18,6 +18,7 @@ import { HudPanel } from './ui/hud/HudPanel';
 import { TopRightMenu } from './ui/app/TopRightMenu';
 import { ApiTokensOverlay } from './ui/admin/ApiTokensOverlay';
 import { useEditor } from './hooks/useEditor';
+import { buildEditorSavePayload } from './lib/editorStorage';
 import { useEditorBridge } from './editor/useEditorBridge';
 import { useGlobalAudioTracks } from './av/useGlobalAudioTracks';
 import { usePositionPersistence } from './hooks/usePositionPersistence';
@@ -1334,12 +1335,33 @@ export function App() {
               const name = (p as any).name || livekitIdentity;
               online[livekitIdentity] = { name, x: (p as any).x, y: (p as any).y };
             }
+            // Ensure local user is marked online using stable userId for reconciliation with presence API
+            try {
+              if (me?.id) {
+                const lp = localPosRef.current;
+                online[me.id] = { name: me.name || me.email || me.id, x: lp?.x ?? 0, y: lp?.y ?? 0 };
+              }
+            } catch {}
             rosterByIdentityRef.current = online;
             setRoster((prev) => {
               const map = new Map<string, { identity: string; name: string; online: boolean; x?: number; y?: number; lastSeen?: string }>();
               for (const r of prev) map.set(r.identity, { ...r, online: false });
               for (const [ident, v] of Object.entries(online)) {
-                map.set(ident, { identity: ident, name: v.name, online: true, x: v.x, y: v.y });
+                if (map.has(ident)) {
+                  map.set(ident, { ...(map.get(ident) as any), name: v.name, online: true, x: v.x, y: v.y });
+                } else {
+                  // Fallback: reconcile by display name (e.g., "Root Admin") to avoid duplicates when identities differ (userId vs livekit identity)
+                  let matchedKey: string | undefined;
+                  for (const [k, val] of map.entries()) {
+                    if ((val.name || '').toLowerCase() === (v.name || '').toLowerCase()) { matchedKey = k; break; }
+                  }
+                  if (matchedKey) {
+                    const cur = map.get(matchedKey)!;
+                    map.set(matchedKey, { ...cur, online: true, x: v.x, y: v.y });
+                  } else {
+                    map.set(ident, { identity: ident, name: v.name, online: true, x: v.x, y: v.y });
+                  }
+                }
               }
               return Array.from(map.values()).sort((a, b) => Number(b.online) - Number(a.online) || a.name.localeCompare(b.name));
             });
@@ -1725,9 +1747,6 @@ export function App() {
           const name = (s.name || `Zone ${s.zones.length+1}`).trim();
           const poly = { name, points: [ {x:x0,y:y0}, {x:x1,y:y0}, {x:x1,y:y1}, {x:x0,y:y1} ] };
           // No-overlap rule: reject if rectangle overlaps any existing zone (except the one being edited)
-          const rectsOverlap = (a: {x0:number;y0:number;x1:number;y1:number}, b: {x0:number;y0:number;x1:number;y1:number}) => {
-            return !(a.x1 <= b.x0 || a.x0 >= b.x1 || a.y1 <= b.y0 || a.y0 >= b.y1);
-          };
           const newRect = { x0, y0, x1, y1 };
           const hasOverlap = s.zones.some((z, idx) => {
             const editingIdx = s.editingZoneIndex ?? null;
@@ -1741,6 +1760,7 @@ export function App() {
           });
           if (hasOverlap) {
             try { console.warn('[Editor] Zone-Overlap verhindert'); } catch {}
+            try { window.dispatchEvent(new CustomEvent('editor:toast', { detail: { title: 'Überlappung verhindert', description: 'Zonen dürfen sich nicht überlappen.', intent: 'error' } })); } catch {}
             return { ...s, drag: null };
           }
           const editingIdx = s.editingZoneIndex ?? null;
@@ -2216,8 +2236,18 @@ export function App() {
         <div style={{ position: 'absolute', top: 64, right: 12, zIndex: 35, width: 360 }}>
           <div style={{ background: 'rgba(17,17,20,0.95)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12, padding: 0, color: '#fff', overflow: 'hidden' }}>
             {/* Header */}
-            <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.02)' }}>
+            <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.02)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div style={{ fontWeight: 700, fontSize: 16 }}>Map-Editor</div>
+              <button
+                onClick={() => {
+                  try { gameBridge.setEditorMode(false); } catch {}
+                  setEditor(s => ({ ...s, active: false }));
+                }}
+                title="Editor verlassen"
+                style={{ border: '1px solid var(--border)', background: 'var(--glass)', color: 'var(--fg)', borderRadius: 8, width: 34, height: 28, cursor: 'pointer', lineHeight: '26px', fontSize: 18 }}
+              >
+                ×
+              </button>
             </div>
             
             {/* Category Tabs */}
@@ -2257,25 +2287,22 @@ export function App() {
               }}
               onSave={async () => {
                 try {
-                  console.log("SPEICHERN! 2099");
-                  const tilesets = JSON.parse(localStorage.getItem('meetropolis.tilesets') || '[]');
-                  const assets = JSON.parse(localStorage.getItem('meetropolis.assets') || '[]');
-                  const zones = editor.zones;
-                  const layers = JSON.parse(localStorage.getItem('meetropolis.editorLayers') || '{}');
-                  const backgroundColor = localStorage.getItem('meetropolis.backgroundColor') || '#202020';
-                  const payload: any = { editorGround: layers.editorGround ?? null, collision: layers.collision ?? null, tilesets, assets, backgroundColor };
-                  if (Array.isArray(zones) && zones.some((z:any) => Array.isArray(z?.points) && z.points.length > 0)) {
-                    payload.zones = zones;
-                    payload.replaceZones = true;
-                  }
-                  await fetch(`${apiBase}/maps/office/editor-state`, {
+                  const payload = buildEditorSavePayload(editor.zones as any);
+                  const res = await fetch(`${apiBase}/maps/office/editor-state`, {
                     method: 'PUT',
                     credentials: 'include',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                   });
+                  if (!res.ok) {
+                    const text = await res.text().catch(() => 'Speichern fehlgeschlagen');
+                    throw new Error(text || `HTTP ${res.status}`);
+                  }
                   try { colyseusRef.current?.send?.('editor_update', { type: 'reload_all' }); } catch {}
-                } catch {}
+                  return true;
+                } catch (e) {
+                  return false;
+                }
               }}
             />
           </div>
