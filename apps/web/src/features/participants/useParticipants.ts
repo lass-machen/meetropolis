@@ -107,7 +107,14 @@ export function useParticipants(deps: {
               const source = (pub as any)?.source || (pub as any)?.track?.source;
               if (source === 'camera' || source === 'screen_share') {
                 try { (pub as any)?.setSubscribed?.(true); } catch {}
-                try { (pub as any)?.setVideoQuality?.('high'); } catch {}
+                try {
+                  const qHigh: any = 2; // VideoQuality.High fallback
+                  if (typeof (pub as any)?.setVideoQuality === 'function') {
+                    (pub as any).setVideoQuality(qHigh);
+                  } else if (typeof (pub as any)?.setPreferredVideoQuality === 'function') {
+                    (pub as any).setPreferredVideoQuality(qHigh);
+                  }
+                } catch {}
               }
             }
           } catch {}
