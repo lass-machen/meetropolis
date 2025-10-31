@@ -491,24 +491,7 @@ export class AVManager {
             this.ensureSubscribeAllAudio(64);
           } catch {} };
           const onConnQuality = (participant: any, quality: any) => { try { this.onConnectionQualityChanged(participant, quality); } catch {} };
-          const onParticipantConnected = (participant: any) => { try {
-            const id = String(participant?.identity || '');
-            try {
-              const parts: any[] = Array.from(((r as any).remoteParticipants?.values?.() || []) as any);
-              const dbg = parts.map((p: any) => ({ id: String(p.identity||''), pubs: Array.from((p.trackPublications?.values?.()||[]) as any).map((pub:any)=>({ kind: pub?.kind ?? pub?.track?.kind, src: pub?.source ?? pub?.track?.source })) }));
-              console.debug('[AV][debug] participant.connected', { id, n: parts.length, dbg });
-            } catch {}
-            this.ensureSubscribeAllAudio(64);
-            this.applyDesiredSubscriptions();
-          } catch {} };
-          const onParticipantDisconnected = (participant: any) => { try {
-            const id = String(participant?.identity || '');
-            try {
-              const parts: any[] = Array.from(((r as any).remoteParticipants?.values?.() || []) as any);
-              console.debug('[AV][debug] participant.disconnected', { id, n: parts.length });
-            } catch {}
-            this.applyDesiredSubscriptions();
-          } catch {} };
+          
           const onParticipantConnected = (participant: any) => { try {
             const id = String(participant?.identity || '');
             try {
