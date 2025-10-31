@@ -105,6 +105,9 @@ export function useLivekit({
                         }
                       } catch {}
                     }
+                    if (isRemote && (source === 'microphone')) {
+                      try { _publication?.setSubscribed?.(true); } catch {}
+                    }
                   } catch {}
                   setTimeout(buildParticipantList, 100);
                 });

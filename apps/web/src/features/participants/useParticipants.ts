@@ -76,8 +76,8 @@ export function useParticipants(deps: {
             const publications = Array.from((p.trackPublications?.values?.() || []) as any);
             for (const pub of publications) {
               const source = (pub as any)?.source || (pub as any)?.track?.source;
-              const kind = (pub as any)?.kind ?? (pub as any)?.track?.kind;
-              if (source === 'camera' || source === 'screen_share' || kind === 'audio') {
+              // Audio nicht aggressiv unsubscriben
+              if (source === 'camera' || source === 'screen_share') {
                 try { (pub as any)?.setSubscribed?.(false); } catch {}
               }
             }
@@ -90,8 +90,8 @@ export function useParticipants(deps: {
             const publications = Array.from((p.trackPublications?.values?.() || []) as any);
             for (const pub of publications) {
               const source = (pub as any)?.source || (pub as any)?.track?.source;
-              const kind = (pub as any)?.kind ?? (pub as any)?.track?.kind;
-              if (source === 'camera' || source === 'screen_share' || kind === 'audio') {
+              // Audio nicht aggressiv unsubscriben
+              if (source === 'camera' || source === 'screen_share') {
                 try { (pub as any)?.setSubscribed?.(false); } catch {}
               }
             }
@@ -105,6 +105,7 @@ export function useParticipants(deps: {
           try {
             for (const pub of publications) {
               const source = (pub as any)?.source || (pub as any)?.track?.source;
+              const kind = (pub as any)?.kind ?? (pub as any)?.track?.kind;
               if (source === 'camera' || source === 'screen_share') {
                 try { (pub as any)?.setSubscribed?.(true); } catch {}
                 try {
@@ -115,6 +116,9 @@ export function useParticipants(deps: {
                     (pub as any).setPreferredVideoQuality(qHigh);
                   }
                 } catch {}
+              }
+              if (kind === 'audio' || source === 'microphone') {
+                try { (pub as any)?.setSubscribed?.(true); } catch {}
               }
             }
           } catch {}
