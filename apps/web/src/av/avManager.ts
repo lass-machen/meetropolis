@@ -425,7 +425,7 @@ export class AVManager {
             }
             if (!this.remoteQualityTuningDisabled) this.applyDefaultRemoteQuality(); this.ensureSubscribeAllAudio(64);
           } catch {} };
-          const onTrackSubscribed = (_track: any, pub: any, participant: any) => { try {
+          const onTrackSubscribed = async (_track: any, pub: any, participant: any) => { try {
             const src = (pub as any)?.source ?? (pub as any)?.track?.source;
             const kind = (pub as any)?.kind ?? (pub as any)?.track?.kind;
             avLog('debug', 'livekit.track_subscribed', { kind, source: src, pid: participant?.sid }, { identity: this.identity, roomName: this.currentName || undefined as any });
@@ -517,7 +517,7 @@ export class AVManager {
             }
             if (!this.remoteQualityTuningDisabled) this.applyDefaultRemoteQuality(); this.ensureSubscribeAllAudio(64);
           } catch {} };
-          const onTrackSubscribed = (_track: any, pub: any, participant: any) => { try {
+          const onTrackSubscribed = async (_track: any, pub: any, participant: any) => { try {
             const src = (pub as any)?.source ?? (pub as any)?.track?.source;
             const kind = (pub as any)?.kind ?? (pub as any)?.track?.kind;
             avLog('debug', 'livekit.track_subscribed', { kind, source: src, pid: participant?.sid }, { identity: this.identity, roomName: this.currentName || undefined as any });
