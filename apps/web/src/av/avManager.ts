@@ -698,6 +698,7 @@ export class AVManager {
     const room: any = this.current as any;
     if (!room) return;
     if (this.remoteQualityTuningDisabled) return;
+    if (!this.isSignalOpen()) return;
     try {
       const now = Date.now();
       if (now - this.lastApplyDefaultRemoteQualityAt < 5000) return;

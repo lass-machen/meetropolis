@@ -92,22 +92,7 @@ export function useLivekit({
                 room.on(RoomEvent.ParticipantDisconnected, () => setTimeout(buildParticipantList, 100));
                 room.on(RoomEvent.TrackPublished, (_publication: any, _participant: any) => {
                   try {
-                    const source = (_publication?.source || _publication?.track?.source);
-                    const isRemote = _participant?.sid !== room.localParticipant?.sid;
-                    if (isRemote && (source === 'screen_share' || source === 'camera')) {
-                      try { _publication?.setSubscribed?.(true); } catch {}
-                      try {
-                        const qHigh: any = 2; // VideoQuality.High fallback
-                        if (typeof (_publication as any)?.setVideoQuality === 'function') {
-                          (_publication as any).setVideoQuality(qHigh);
-                        } else if (typeof (_publication as any)?.setPreferredVideoQuality === 'function') {
-                          (_publication as any).setPreferredVideoQuality(qHigh);
-                        }
-                      } catch {}
-                    }
-                    if (isRemote && (source === 'microphone')) {
-                      try { _publication?.setSubscribed?.(true); } catch {}
-                    }
+                    // Keine Subscription-/Quality-Änderungen hier; AV-Manager kümmert sich darum
                   } catch {}
                   setTimeout(buildParticipantList, 100);
                 });
