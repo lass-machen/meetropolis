@@ -1,10 +1,20 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
 
 export default defineConfig({
   plugins: [react()],
   // eigener Cache-Ordner, um alte Optimierungen sicher zu umgehen (Docker)
   cacheDir: '/tmp/.vite',
+  resolve: {
+    // Verhindert doppelte React-Instanzen (Invalid hook call #321)
+    dedupe: ['react', 'react-dom'],
+    alias: {
+      react: require.resolve('react'),
+      'react-dom': require.resolve('react-dom')
+    }
+  },
   build: {
     sourcemap: true,
     minify: 'esbuild',
