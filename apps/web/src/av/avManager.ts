@@ -419,16 +419,52 @@ export class AVManager {
             const kind = (pub as any)?.kind ?? (pub as any)?.track?.kind;
             avLog('debug', 'livekit.track_published', { kind, source: src, pid: participant?.sid }, { identity: this.identity, roomName: this.currentName || undefined as any });
             try { console.debug('[AV][debug] track_published', { kind, source: src, pid: participant?.sid }); } catch {}
+            // Force-Abo für Audio sofort beim Publish (verhindert "stumm"-Fenster)
+            if (kind === 'audio' || src === 'microphone') {
+              try { (pub as any)?.setSubscribed?.(true); } catch {}
+            }
             if (!this.remoteQualityTuningDisabled) this.applyDefaultRemoteQuality(); this.ensureSubscribeAllAudio(64);
           } catch {} };
           const onTrackSubscribed = (_track: any, pub: any, participant: any) => { try {
             const src = (pub as any)?.source ?? (pub as any)?.track?.source;
             const kind = (pub as any)?.kind ?? (pub as any)?.track?.kind;
             avLog('debug', 'livekit.track_subscribed', { kind, source: src, pid: participant?.sid }, { identity: this.identity, roomName: this.currentName || undefined as any });
-            try { console.debug('[AV][debug] track_subscribed', { kind, source: src, pid: participant?.sid }); } catch {}
+            try {
+              const mutedPub = (pub as any)?.muted ?? (pub as any)?.isMuted;
+              const isSub = this.getSubscribed(pub);
+              const t: any = (pub as any)?.track;
+              const tEnabled = (t?.isEnabled ?? t?.enabled ?? t?.mediaStreamTrack?.enabled);
+              const tVol = (typeof t?.getVolume === 'function') ? t.getVolume() : (t as any)?.volume;
+              const micEnabledRemote = (typeof (participant as any)?.isMicrophoneEnabled === 'function') ? (participant as any).isMicrophoneEnabled() : undefined;
+              console.debug('[AV][debug] track_subscribed', { kind, source: src, pid: participant?.sid, mutedPub, isSub, tEnabled, tVol, micEnabledRemote });
+            } catch {}
             if (pub && ((pub as any).kind === 'audio' || (pub as any)?.track?.kind === 'audio')) {
-              try { (this.current as any)?.startAudio?.(); } catch {}
-              try { (pub as any)?.track?.setVolume?.(1); } catch {}
+              try {
+                const anyRoom: any = this.current as any;
+                const before = !!(anyRoom?.canPlaybackAudio ?? false);
+                const r = await (anyRoom?.startAudio?.());
+                const after = !!(anyRoom?.canPlaybackAudio ?? false);
+                console.debug('[AV][debug] startAudio on subscribe', { before, result: r, after });
+              } catch (e) { try { console.warn('[AV][debug] startAudio error', e); } catch {} }
+              try { (pub as any)?.track?.setVolume?.(1); console.debug('[AV][debug] setVolume(1) on remote audio'); } catch {}
+              // Fallback-Attach: falls globaler Audio-Hook nicht greift
+              try {
+                const t: any = (pub as any).track;
+                if (t && typeof document !== 'undefined') {
+                  const el = document.createElement('audio');
+                  el.autoplay = true; (el as any).playsInline = true; el.style.display = 'none';
+                  document.body.appendChild(el);
+                  try {
+                    console.debug('[AV][debug] audio_attach_attempt', { muted: el.muted, vol: el.volume, readyState: el.readyState });
+                    el.addEventListener('error', (ev) => { try { console.warn('[AV][debug] audio_attach_error', ev); } catch {} }, { once: true } as any);
+                    el.addEventListener('stalled', () => { try { console.warn('[AV][debug] audio_attach_stalled'); } catch {} }, { once: true } as any);
+                    el.addEventListener('canplay', () => { try { console.debug('[AV][debug] audio_attach_canplay'); } catch {} }, { once: true } as any);
+                    el.addEventListener('playing', () => { try { console.debug('[AV][debug] audio_attach_playing'); } catch {} }, { once: true } as any);
+                    t.attach(el);
+                    console.debug('[AV][debug] audio_attach_ok');
+                  } catch (e) { try { console.warn('[AV][debug] audio_attach_failed', e); } catch {} }
+                }
+              } catch {}
             }
             if (!this.remoteQualityTuningDisabled) this.applyDefaultRemoteQuality();
             this.setState('subscribed');
@@ -438,12 +474,14 @@ export class AVManager {
           const onAudioPlayback = () => {
             const anyRoom: any = room as any;
             const can = !!(anyRoom.canPlaybackAudio ?? false);
+            try { console.debug('[AV][debug] audioPlaybackStatusChanged', { canPlaybackAudio: can }); } catch {}
             if (can) { try { this.removeAudioUnlockHandlers?.(); } catch {}; this.removeAudioUnlockHandlers = null; }
           };
           const onActiveSpeakers = () => {
             try {
               const list: any[] = (room as any).activeSpeakers || [];
               this.activeSpeakerIds = list.map((p: any) => String(p.identity || '')).filter(Boolean);
+              try { console.debug('[AV][debug] activeSpeakers', { ids: this.activeSpeakerIds }); } catch {}
               // Video-Fallback auf aktive Sprecher anwenden
               this.applyDesiredSubscriptions();
             } catch {}
@@ -474,16 +512,50 @@ export class AVManager {
             const kind = (pub as any)?.kind ?? (pub as any)?.track?.kind;
             avLog('debug', 'livekit.track_published', { kind, source: src, pid: participant?.sid }, { identity: this.identity, roomName: this.currentName || undefined as any });
             try { console.debug('[AV][debug] track_published', { kind, source: src, pid: participant?.sid }); } catch {}
+            if (kind === 'audio' || src === 'microphone') {
+              try { (pub as any)?.setSubscribed?.(true); } catch {}
+            }
             if (!this.remoteQualityTuningDisabled) this.applyDefaultRemoteQuality(); this.ensureSubscribeAllAudio(64);
           } catch {} };
           const onTrackSubscribed = (_track: any, pub: any, participant: any) => { try {
             const src = (pub as any)?.source ?? (pub as any)?.track?.source;
             const kind = (pub as any)?.kind ?? (pub as any)?.track?.kind;
             avLog('debug', 'livekit.track_subscribed', { kind, source: src, pid: participant?.sid }, { identity: this.identity, roomName: this.currentName || undefined as any });
-            try { console.debug('[AV][debug] track_subscribed', { kind, source: src, pid: participant?.sid }); } catch {}
+            try {
+              const mutedPub = (pub as any)?.muted ?? (pub as any)?.isMuted;
+              const isSub = this.getSubscribed(pub);
+              const t: any = (pub as any)?.track;
+              const tEnabled = (t?.isEnabled ?? t?.enabled ?? t?.mediaStreamTrack?.enabled);
+              const tVol = (typeof t?.getVolume === 'function') ? t.getVolume() : (t as any)?.volume;
+              const micEnabledRemote = (typeof (participant as any)?.isMicrophoneEnabled === 'function') ? (participant as any).isMicrophoneEnabled() : undefined;
+              console.debug('[AV][debug] track_subscribed', { kind, source: src, pid: participant?.sid, mutedPub, isSub, tEnabled, tVol, micEnabledRemote });
+            } catch {}
             if (pub && ((pub as any).kind === 'audio' || (pub as any)?.track?.kind === 'audio')) {
-              try { (this.current as any)?.startAudio?.(); } catch {}
-              try { (pub as any)?.track?.setVolume?.(1); } catch {}
+              try {
+                const rAny: any = this.current as any;
+                const before = !!(rAny?.canPlaybackAudio ?? false);
+                const r = await (rAny?.startAudio?.());
+                const after = !!(rAny?.canPlaybackAudio ?? false);
+                console.debug('[AV][debug] startAudio on subscribe', { before, result: r, after });
+              } catch (e) { try { console.warn('[AV][debug] startAudio error', e); } catch {} }
+              try { (pub as any)?.track?.setVolume?.(1); console.debug('[AV][debug] setVolume(1) on remote audio'); } catch {}
+              try {
+                const t: any = (pub as any).track;
+                if (t && typeof document !== 'undefined') {
+                  const el = document.createElement('audio');
+                  el.autoplay = true; (el as any).playsInline = true; el.style.display = 'none';
+                  document.body.appendChild(el);
+                  try {
+                    console.debug('[AV][debug] audio_attach_attempt', { muted: el.muted, vol: el.volume, readyState: el.readyState });
+                    el.addEventListener('error', (ev) => { try { console.warn('[AV][debug] audio_attach_error', ev); } catch {} }, { once: true } as any);
+                    el.addEventListener('stalled', () => { try { console.warn('[AV][debug] audio_attach_stalled'); } catch {} }, { once: true } as any);
+                    el.addEventListener('canplay', () => { try { console.debug('[AV][debug] audio_attach_canplay'); } catch {} }, { once: true } as any);
+                    el.addEventListener('playing', () => { try { console.debug('[AV][debug] audio_attach_playing'); } catch {} }, { once: true } as any);
+                    t.attach(el);
+                    console.debug('[AV][debug] audio_attach_ok');
+                  } catch (e) { try { console.warn('[AV][debug] audio_attach_failed', e); } catch {} }
+                }
+              } catch {}
             }
             if (!this.remoteQualityTuningDisabled) this.applyDefaultRemoteQuality();
             this.setState('subscribed');
@@ -492,12 +564,14 @@ export class AVManager {
           const onConnQuality = (participant: any, quality: any) => { try { this.onConnectionQualityChanged(participant, quality); } catch {} };
           const onAudioPlayback = () => {
             const can = !!(r.canPlaybackAudio ?? false);
+            try { console.debug('[AV][debug] audioPlaybackStatusChanged', { canPlaybackAudio: can }); } catch {}
             if (can) { try { this.removeAudioUnlockHandlers?.(); } catch {}; this.removeAudioUnlockHandlers = null; }
           };
           const onActiveSpeakers = () => {
             try {
               const list: any[] = (r as any).activeSpeakers || [];
               this.activeSpeakerIds = list.map((p: any) => String(p.identity || '')).filter(Boolean);
+              try { console.debug('[AV][debug] activeSpeakers', { ids: this.activeSpeakerIds }); } catch {}
               this.applyDesiredSubscriptions();
             } catch {}
           };
@@ -608,6 +682,21 @@ export class AVManager {
     const room: any = this.current as any;
     if (this.dnd) return;
     ensureSubscribeAllAudioCtl(room, () => this.isSignalOpen(), (pub, identity, kind, should) => this.setDesired(pub, identity, kind, should), maxCount);
+    try {
+      const parts: any[] = Array.from((room?.remoteParticipants?.values?.() || []) as any);
+      let nAudio = 0; let nSub = 0;
+      for (const p of parts) {
+        const pubs: any[] = Array.from((p?.trackPublications?.values?.() || []) as any);
+        for (const pub of pubs) {
+          const kind = (pub as any).kind ?? (pub as any)?.track?.kind;
+          if (kind === 'audio') {
+            nAudio++;
+            if (this.getSubscribed(pub)) nSub++;
+          }
+        }
+      }
+      console.debug('[AV][debug] ensureSubscribeAllAudio.result', { nParticipants: parts.length, nAudioPubs: nAudio, nAudioSubscribed: nSub, maxCount });
+    } catch {}
   }
 
   private applyBubbleAttenuation(bubbleIds: string[]): void {
@@ -678,7 +767,13 @@ export class AVManager {
     if (this.audioUnlockHandlersAttached) return;
     this.audioUnlockHandlersAttached = true;
     const handler = async () => {
-      try { await (this.current as any)?.startAudio?.(); } catch {}
+      try {
+        const anyRoom: any = this.current as any;
+        const before = !!(anyRoom?.canPlaybackAudio ?? false);
+        const r = await (anyRoom?.startAudio?.());
+        const after = !!(anyRoom?.canPlaybackAudio ?? false);
+        console.debug('[AV][debug] startAudio on unlock', { before, result: r, after });
+      } catch (e) { try { console.warn('[AV][debug] startAudio unlock error', e); } catch {} }
       const anyRoom: any = this.current as any;
       const can = !!(anyRoom?.canPlaybackAudio ?? false);
       if (can) cleanup();
@@ -873,7 +968,13 @@ export class AVManager {
       });
       if (enabled) {
         // Stelle sicher, dass Audio-Wiedergabe freigeschaltet ist (User-Geste erforderlich)
-        try { await (this.current as any)?.startAudio?.(); } catch {}
+        try {
+          const anyRoom: any = this.current as any;
+          const before = !!(anyRoom?.canPlaybackAudio ?? false);
+          const r = await (anyRoom?.startAudio?.());
+          const after = !!(anyRoom?.canPlaybackAudio ?? false);
+          console.debug('[AV][debug] startAudio on mic enable', { before, result: r, after });
+        } catch (e) { try { console.warn('[AV][debug] startAudio mic error', e); } catch {} }
         if (micPubs.some(p => !!(p as any).track)) return; // already enabled
         const settings = useAvSettingsStore.getState().settings;
         const localAudioTrack: any = await buildAudioPipeline({ ...(this.preferredMic ? { deviceId: this.preferredMic } : {}), settings } as any);
@@ -883,7 +984,13 @@ export class AVManager {
           (localAudioTrack as any)?.setContentHint?.('speech');
         } catch {}
         await room.localParticipant.publishTrack(localAudioTrack, { source: 'microphone' } as any);
-        try { avLog('info', 'av.mic.published', {}, { identity: this.identity, roomName: this.currentName || undefined as any }); console.debug('[AV][debug] mic published'); } catch {}
+        try {
+          const mst: any = (localAudioTrack as any)?.mediaStreamTrack || localAudioTrack;
+          const info = mst ? { id: mst.id, kind: mst.kind, label: mst.label, enabled: mst.enabled, readyState: mst.readyState, hint: (mst as any).contentHint } : {};
+          avLog('info', 'av.mic.published', info as any, { identity: this.identity, roomName: this.currentName || undefined as any });
+          console.debug('[AV][debug] mic published', info);
+          try { mst?.addEventListener?.('ended', () => { try { console.warn('[AV][debug] mic track ended'); } catch {} }, { once: true } as any); } catch {}
+        } catch {}
       } else {
         for (const pub of micPubs) {
           try { await room.localParticipant.unpublishTrack(pub.track!); } catch {}
