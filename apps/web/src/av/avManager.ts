@@ -538,7 +538,9 @@ export class AVManager {
         for (const pub of pubs) {
           const kind = (pub as any).kind ?? (pub.track as any)?.kind;
           const src = (pub as any).source ?? (pub.track as any)?.source;
-          if (kind === 'audio') this.setDesired(pub, identity, 'audio', !!shouldSub);
+          // Audio: nicht aktiv deaktivieren, wenn nicht in desiredIds.
+          // Positive Präferenzen (Bubble/Zone) werden gesetzt, sonst greifen Fallback/Active-Speaker.
+          if (kind === 'audio' && shouldSub) this.setDesired(pub, identity, 'audio', true);
           if (kind === 'video') {
             const near = (src === 'screen_share') || prioritizedVideoSet.has(identity) || activeVideoSet.has(identity);
             this.setDesired(pub, identity, 'video', !!near);
