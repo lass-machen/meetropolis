@@ -165,8 +165,8 @@ export function App() {
   // Define apiBase before using it
   const apiBase = (import.meta.env.VITE_API_BASE as string | undefined) ||
     (typeof window !== 'undefined'
-      ? `${window.location.protocol}//${window.location.hostname}:2568`
-      : 'http://localhost:2568');
+      ? `${window.location.protocol}//${window.location.hostname}:2567`
+      : 'http://localhost:2567');
 
   // Laden der Tokenliste beim Öffnen des Modals
   useEffect(() => {
@@ -1244,9 +1244,16 @@ export function App() {
             }
           }
           try {
-            colyseusRef.current?.send?.('move', p);
+            const room: any = colyseusRef.current as any;
+            const wsReadyState =
+              room?.connection?.ws?.readyState ??
+              room?.connection?.transport?.ws?.readyState ??
+              room?.connection?._transport?.ws?.readyState;
+            const isOpen = room?.connection?.isOpen === true || wsReadyState === 1;
+            if (room && isOpen) {
+              room.send('move', p);
+            }
           } catch (e) {
-            // Ignore WebSocket errors during shutdown
           }
         };
         // Add manual state check first
@@ -1320,9 +1327,13 @@ export function App() {
           try { setTimeout(buildParticipantList, 0); } catch {}
         });
         room.onError?.((_code: any, _message: any) => {
+          try { (gameBridge as any).onLocalMove = () => {}; } catch {}
+          colyseusRef.current = null;
           scheduleColyseusReconnect();
         });
         room.onLeave?.((_code: any) => {
+          try { (gameBridge as any).onLocalMove = () => {}; } catch {}
+          colyseusRef.current = null;
           scheduleColyseusReconnect();
         });
         
