@@ -259,14 +259,13 @@ export function App() {
   }
 
   useEffect(() => {
-    if (page !== 'world') return;
     fetchMe();
-  }, [page]);
+  }, [apiBase]);
 
   // Editor: Tile-basierte Pointer-Events für Drag-Selektion (Terrain, Floor, Walls, Collision)
   useEffect(() => {
-    if (page !== 'world') return;
     const scene: any = (window as any).currentPhaserScene;
+    if (!scene) return;
     const setRectPx = (drag: { startTileX: number; startTileY: number; endTileX: number; endTileY: number }) => {
       try {
         const map = scene?.mapRef;
@@ -1044,7 +1043,6 @@ export function App() {
   const suppressZoneBroadcastRef = React.useRef(false);
 
   useEffect(() => {
-    if (page !== 'world') return;
     if (!authChecked || !me) return;
     if (!containerRef.current) return;
     const game = createPhaserGame(containerRef.current);
@@ -2213,7 +2211,6 @@ export function App() {
 
   // Wenn aus dem Editor herausgegangen wird, LiveKit-Connect bei erster Interaktion erneut anbieten
   useEffect(() => {
-    if (page !== 'world') return;
     if (!authChecked || !me) return;
     if (!connectLivekitRef.current) return;
     if (editorActiveRef.current) return; // nur wenn Editor aus
