@@ -223,6 +223,7 @@ export function App() {
   const isConnectingRef = React.useRef(false);
   // Map Editor State (moved to hook)
   const [editor, setEditor] = useEditor();
+  const editorActiveRef = React.useRef(false);
   React.useEffect(() => { editorActiveRef.current = editor.active; }, [editor.active]);
   
   // Collision-Overlay: Sichtbarkeit steuert ausschließlich der Edit-Mode
