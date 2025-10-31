@@ -75,6 +75,8 @@ export class AVManager {
     const gain = Math.max(0, Math.min(1, Math.pow(10, db / 20)));
     return isFinite(gain) ? gain : 0.25;
   })();
+  private readonly videoRetentionMs: number = Math.max(0, Number(((import.meta as any).env?.VITE_AV_VIDEO_RETENTION_MS) ?? 8000));
+  private lastVideoOnAt = new Map<string, number>();
   // DND
   private dnd = false;
 
@@ -523,26 +525,31 @@ export class AVManager {
     const st = room.connectionState || room.state;
     if (this.dnd) return;
     if (!(st === 'connected' || st === 2) || !this.isSignalOpen()) return;
-    const key = JSON.stringify(this.desiredIds) + '|' + JSON.stringify(this.activeSpeakerIds.slice(0, this.maxVideoSubs));
+    const participants: any[] = Array.from((room.remoteParticipants?.values?.() || []) as any);
+    const participantCount = participants.length;
+    const key = JSON.stringify(this.desiredIds) + '|' + JSON.stringify(this.activeSpeakerIds.slice(0, this.maxVideoSubs)) + '|' + participantCount;
     if (key === this.lastDesiredIdsKey) return;
     this.lastDesiredIdsKey = key;
     try {
       const desiredSet = new Set(this.desiredIds.map(id => String(id)));
       const prioritizedVideoSet = new Set<string>(this.desiredIds.slice(0, this.maxVideoSubs).map(id => String(id)));
-      const remoteParticipants: any[] = Array.from((room.remoteParticipants?.values?.() || []) as any);
       const activeVideoSet = new Set<string>(this.activeSpeakerIds.slice(0, this.maxVideoSubs).map(id => String(id)));
-      for (const p of remoteParticipants) {
+      for (const p of participants) {
         const identity = String(p.identity || '');
         const shouldSub = desiredSet.has(identity);
         const pubs: any[] = Array.from((p.trackPublications?.values?.() || []) as any);
         for (const pub of pubs) {
           const kind = (pub as any).kind ?? (pub.track as any)?.kind;
           const src = (pub as any).source ?? (pub.track as any)?.source;
-          // Audio: nicht aktiv deaktivieren, wenn nicht in desiredIds.
-          // Positive Präferenzen (Bubble/Zone) werden gesetzt, sonst greifen Fallback/Active-Speaker.
-          if (kind === 'audio' && shouldSub) this.setDesired(pub, identity, 'audio', true);
+          // Audio: innerhalb Raum immer abonnieren (kein aktives Deaktivieren), außer DND
+          if (kind === 'audio') this.setDesired(pub, identity, 'audio', true);
           if (kind === 'video') {
-            const near = (src === 'screen_share') || prioritizedVideoSet.has(identity) || activeVideoSet.has(identity);
+            // Video-Entscheidung:
+            // - ScreenShare immer
+            // - Wenn wenige Teilnehmer (<= maxVideoSubs): standardmäßig an
+            // - Sonst priorisiert: desiredIds (z. B. Bubble/Zone) und Active-Speaker
+            const few = participantCount <= this.maxVideoSubs || this.maxVideoSubs === 0;
+            const near = (src === 'screen_share') || few || prioritizedVideoSet.has(identity) || activeVideoSet.has(identity);
             this.setDesired(pub, identity, 'video', !!near);
           }
         }
@@ -604,6 +611,17 @@ export class AVManager {
       const key = `${identity}:${kind}`;
       const prev = this.lastDesiredSubs.get(key);
       if (prev === should) return;
+      // Video-Hysterese: Verhindere schnelles Flapping beim Abschalten
+      if (kind === 'video') {
+        if (should) {
+          this.lastVideoOnAt.set(identity, Date.now());
+        } else {
+          const lastOn = this.lastVideoOnAt.get(identity) || 0;
+          if (Date.now() - lastOn < this.videoRetentionMs) {
+            return; // innerhalb Retention: nicht deaktivieren
+          }
+        }
+      }
       this.lastDesiredSubs.set(key, should);
       this.ensureSubscribed(pub, should);
     } catch {}
