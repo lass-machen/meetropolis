@@ -88,6 +88,8 @@ export function App() {
     try { (gameBridge as any).onCameraManualChange = handler; } catch {}
     return () => { try { (gameBridge as any).onCameraManualChange = () => {}; } catch {} };
   }, []);
+  // Positions-Persistenz (Throttle)
+  const lastPositionPostAtRef = React.useRef(0);
 
   // Intercept DND toggles to resume AV after DND is turned off
   React.useEffect(() => {
@@ -1255,6 +1257,20 @@ export function App() {
             }
           } catch (e) {
           }
+
+          // Spielerposition serverseitig speichern (gedrosselt)
+          try {
+            const now = Date.now();
+            if (now - lastPositionPostAtRef.current > 1500) {
+              lastPositionPostAtRef.current = now;
+              fetch(`${apiBase}/auth/position`, {
+                method: 'POST',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ x: p.x, y: p.y, direction: p.direction || 'down', roomId: 'world' })
+              }).catch(() => {});
+            }
+          } catch {}
         };
         // Add manual state check first
         if (room.state && room.state.players) {

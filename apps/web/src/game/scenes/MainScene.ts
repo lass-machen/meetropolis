@@ -1558,6 +1558,8 @@ export class MainScene extends Phaser.Scene {
       if (this.v2) {
         try { this.collisionLayer?.setVisible(false); } catch {}
       }
+      // Overlay sofort aktualisieren, damit Änderungen ohne Moduswechsel sichtbar sind
+      try { if (this.collisionVisible) this.updateCollisionOverlay(); } catch {}
     }
     // Persistenz speichern
     // Save layers after painting
