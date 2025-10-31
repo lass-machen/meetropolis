@@ -246,6 +246,9 @@ export function App() {
   // Editor Pointer Bridge
   useEditorBridge({ editor, setEditor, gameBridge });
 
+  // Position-Persistenz (Hook auf Top-Level)
+  usePositionPersistence({ apiBase, localPosRef, gameBridge });
+
   // LiveKit-Verbindung via Hook (Top-Level, nicht in Effekten verwenden)
   useLivekit({
     apiBase,
@@ -1835,9 +1838,6 @@ export function App() {
       }, 1000);
     };
 
-    // Position-Persistenz (ausgelagert)
-    usePositionPersistence({ apiBase, localPosRef, gameBridge });
-    
     // Track zone for participant list updates
     let participantListLastZone: string | null = null;
     let lastParticipantUpdate = 0;
