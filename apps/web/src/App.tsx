@@ -97,6 +97,7 @@ export function App() {
 
   // Roster: periodisch letzte Präsenz (für Offline/zuletzt online)
   React.useEffect(() => {
+    if (!authChecked || !me) return;
     let stop = false as boolean;
     const load = async () => {
       try {
@@ -244,6 +245,23 @@ export function App() {
   React.useEffect(() => { editorActiveRef.current = editor.active; }, [editor.active]);
   // Editor Pointer Bridge
   useEditorBridge({ editor, setEditor, gameBridge });
+
+  // LiveKit-Verbindung via Hook (Top-Level, nicht in Effekten verwenden)
+  useLivekit({
+    apiBase,
+    me,
+    editorActiveRef,
+    avRef,
+    bubbleRef,
+    zoneRef,
+    setDevices,
+    setSelectedMicId,
+    setSelectedCamId,
+    buildParticipantList,
+    connectLivekitRef,
+    livekitAutoConnectOnceRef,
+    setAvState,
+  });
   
   // Colyseus-Verbindung (ausgelagerter Hook)
   useWorldRoom({
@@ -1421,22 +1439,7 @@ export function App() {
     };
     void connectColyseus();
 
-  // LiveKit-Verbindung via Hook
-  useLivekit({
-    apiBase,
-    me,
-    editorActiveRef,
-    avRef,
-    bubbleRef,
-    zoneRef,
-    setDevices,
-    setSelectedMicId,
-    setSelectedCamId,
-    buildParticipantList,
-    connectLivekitRef,
-    livekitAutoConnectOnceRef,
-    setAvState,
-  });
+  // LiveKit-Verbindung via Hook (nach oben verlegt)
 
     bubbleRef.current = new BubbleManager(64, null);
     followRef.current = new FollowManager(96);
