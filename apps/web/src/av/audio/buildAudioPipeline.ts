@@ -136,8 +136,10 @@ export async function buildAudioPipeline(params: BuildParams) {
     const dsp = await buildLightDspGraph(userStream, settings.highpassFilter, settings.compressor, useClientIsolation);
     if (dsp && dsp.track) {
       const { createLocalAudioTrack } = await import('livekit-client');
-      // create from processed MediaStreamTrack
-      const lkTrack = await createLocalAudioTrack(dsp.track as any);
+      // Create a new MediaStream with the processed track to avoid cloning issues
+      // LiveKit's createLocalAudioTrack can clone MediaStream objects but not MediaStreamTrack directly
+      const processedStream = new MediaStream([dsp.track]);
+      const lkTrack = await createLocalAudioTrack(processedStream as any);
       // Attach cleanup so that stopping the local track cleans resources
       try { (lkTrack as any)._meetropolisCleanup = dsp.cleanup; } catch {}
       return lkTrack;
