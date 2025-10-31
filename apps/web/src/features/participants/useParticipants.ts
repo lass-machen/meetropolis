@@ -72,57 +72,16 @@ export function useParticipants(deps: {
       }
       if (!isLocal) {
         if (!participantPos) {
-          try {
-            const publications = Array.from((p.trackPublications?.values?.() || []) as any);
-            for (const pub of publications) {
-              const source = (pub as any)?.source || (pub as any)?.track?.source;
-              // Audio nicht aggressiv unsubscriben
-              if (source === 'camera' || source === 'screen_share') {
-                try { (pub as any)?.setSubscribed?.(false); } catch {}
-              }
-            }
-          } catch {}
           return;
         }
         const remoteZone = zones.find((z: any) => pointInPolygon(participantPos!, z.points));
         if ((localZone && !remoteZone) || (!localZone && remoteZone) || (localZone && remoteZone && localZone.name !== remoteZone.name)) {
-          try {
-            const publications = Array.from((p.trackPublications?.values?.() || []) as any);
-            for (const pub of publications) {
-              const source = (pub as any)?.source || (pub as any)?.track?.source;
-              // Audio nicht aggressiv unsubscriben
-              if (source === 'camera' || source === 'screen_share') {
-                try { (pub as any)?.setSubscribed?.(false); } catch {}
-              }
-            }
-          } catch {}
           return;
         }
       }
       try {
         const publications = Array.from((p.trackPublications?.values?.() || []) as any);
-        if (!isLocal) {
-          try {
-            for (const pub of publications) {
-              const source = (pub as any)?.source || (pub as any)?.track?.source;
-              const kind = (pub as any)?.kind ?? (pub as any)?.track?.kind;
-              if (source === 'camera' || source === 'screen_share') {
-                try { (pub as any)?.setSubscribed?.(true); } catch {}
-                try {
-                  const qHigh: any = 2; // VideoQuality.High fallback
-                  if (typeof (pub as any)?.setVideoQuality === 'function') {
-                    (pub as any).setVideoQuality(qHigh);
-                  } else if (typeof (pub as any)?.setPreferredVideoQuality === 'function') {
-                    (pub as any).setPreferredVideoQuality(qHigh);
-                  }
-                } catch {}
-              }
-              if (kind === 'audio' || source === 'microphone') {
-                try { (pub as any)?.setSubscribed?.(true); } catch {}
-              }
-            }
-          } catch {}
-        }
+        // Keine LiveKit-Subscription-Änderungen hier – AV-Manager steuert Subscriptions & Qualitäten zentral
         const isVideoPub = (pub: any) => {
           const source = (pub?.source ?? pub?.track?.source);
           return (!!pub?.track && (source === 'camera' || source === 1));
