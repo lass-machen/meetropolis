@@ -18,6 +18,18 @@ export async function joinWorld(serverUrl: string, identity?: string, name?: str
       y: position?.y,
       direction: position?.direction
     });
+    // Vorsorgliche No-Op Handler, um Colyseus-Warnungen zu vermeiden,
+    // falls UI-Handler noch nicht registriert sind (Race direkt nach Join).
+    try {
+      const noop = () => {};
+      room.onMessage('player_moved', noop);
+      room.onMessage('player_joined', noop);
+      room.onMessage('player_left', noop);
+      room.onMessage('player_dnd', noop);
+      room.onMessage('editor_update', noop);
+      room.onMessage('bubble_state', noop);
+      room.onMessage('remote_control', noop);
+    } catch {}
     
     // Wait for initial state sync
     await new Promise<void>((resolve) => {

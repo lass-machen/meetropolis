@@ -382,3 +382,31 @@ body {
   justify-items: stretch;
 }
 
+/* ===================== */
+/* UI Utilities          */
+/* ===================== */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--glass);
+  color: var(--fg);
+  cursor: pointer;
+}
+.btn:hover { filter: brightness(1.05); }
+.btn[disabled] { opacity: 0.6; cursor: not-allowed; }
+.btn-primary { background: linear-gradient(135deg, var(--brand-primary), var(--brand-accent)); color: #fff; border: none; }
+.btn-ghost { background: var(--glass); }
+.btn-danger { background: rgba(244,63,94,0.15); border-color: rgba(244,63,94,0.45); color: #fff; }
+
+.panel { background: var(--glass); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
+
+.stack-v-8 { display: grid; gap: 8px; }
+.stack-v-12 { display: grid; gap: 12px; }
+.stack-v-16 { display: grid; gap: 16px; }
+
+.text-subtle { color: var(--fg-subtle); }
+

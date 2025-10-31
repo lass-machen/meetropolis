@@ -3,7 +3,7 @@ import { UserManagement } from './ui/admin/UserManagement';
 import { AuthScreen } from './ui/auth/AuthScreen';
 import { pointInPolygon } from './lib/geom';
 import { getDisplayName as getDisplayNameLib } from './lib/displayName';
-import { ThemeProvider, ThemeToggleButton } from './ui/theme';
+import { ThemeToggleButton } from './ui/theme';
 import { Overlay } from './ui/Overlay';
 // removed unused component imports from ui/components
 import { AVBar } from './ui/av/AVBar';
@@ -2000,16 +2000,12 @@ export function App() {
 
   if (!authChecked) {
     return (
-      <ThemeProvider>
-        <div style={{display:'grid',placeItems:'center',height:'100vh'}}>Lade…</div>
-      </ThemeProvider>
+      <div style={{display:'grid',placeItems:'center',height:'100vh'}}>Lade…</div>
     );
   }
   if (!me) {
     return (
-      <ThemeProvider>
-        <AuthScreen baseUrl={apiBase} onDone={async () => { await fetchMe(); }} />
-      </ThemeProvider>
+      <AuthScreen baseUrl={apiBase} onDone={async () => { await fetchMe(); }} />
     );
   }
 
@@ -2018,7 +2014,6 @@ export function App() {
     : [{ sid: (avRef.current?.room?.localParticipant?.sid ?? 'local'), identity: me.name || me.email, hasVideo: false, hasMic: avState.mic, isSpeaking: false, media: 'camera' as const }];
 
   return (
-    <ThemeProvider>
     <div style={{ width: '100vw', height: '100vh', display: 'grid', gridTemplateColumns: '1fr 240px' }}>
       <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
       {page === 'world' && (
@@ -2407,8 +2402,7 @@ export function App() {
         </div>
       )}
     </div>
-    </ThemeProvider>
-  );
+    );
 }
 
 // Styles (unused button styles removed)

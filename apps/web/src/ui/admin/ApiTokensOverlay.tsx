@@ -1,4 +1,4 @@
-import { Overlay } from '../../ui/Overlay';
+import { Modal } from '../system/Modal';
 
 export function ApiTokensOverlay(props: {
   open: boolean;
@@ -14,7 +14,7 @@ export function ApiTokensOverlay(props: {
   const { open, onClose, apiBase, apiTokens, setApiTokens, newTokenName, setNewTokenName, freshToken, setFreshToken } = props;
 
   return (
-    <Overlay open={open} onClose={onClose} title="API-Zugriff" right={<></>}>
+    <Modal open={open} onOpenChange={(o)=>{ if(!o) onClose(); }} title="API-Zugriff">
       <div style={{ display:'grid', gap: 10 }}>
         <div style={{ fontSize: 13, color: '#e5e7eb' }}>Mit persönlichen Tokens kannst du dein Mikro, Kamera, Screenshare und den Nicht-stören-Modus remote steuern – solange du online bist.</div>
         <div style={{ display:'flex', gap: 12, alignItems:'center' }}>
@@ -74,7 +74,7 @@ export function ApiTokensOverlay(props: {
           <code style={{ display:'block', padding:'8px 10px', borderRadius:8, border:'1px solid rgba(255,255,255,0.12)', background:'rgba(0,0,0,0.35)', whiteSpace:'pre-wrap' }}>{`curl -X POST "${apiBase}/controls" \n- H "Authorization: Bearer YOUR_TOKEN" \\\n- H "Content-Type: application/json" \\\n- d '{ "mic": false, "dnd": true }'`}</code>
         </div>
       </div>
-    </Overlay>
+    </Modal>
   );
 }
 

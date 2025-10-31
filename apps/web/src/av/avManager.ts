@@ -4,8 +4,8 @@ import { Room, createLocalScreenTracks } from 'livekit-client';
 import { joinLivekitRoom } from '../lib/livekit';
 import { avLog } from '../lib/avLog';
 import { onBubbleMembersUpdate } from '../lib/avEvents';
-import { startStatsLoopImpl, updateDebugHudImpl } from './core/stats';
-import { applyDefaultRemoteQualityImpl, onConnectionQualityChangedImpl, republishCameraProfileImpl } from './core/quality';
+import { startStatsLoopImpl } from './core/stats';
+import { applyDefaultRemoteQualityImpl, onConnectionQualityChangedImpl } from './core/quality';
 import { AVController } from './controller/avController';
 import { applySubscriptions as applySubscriptionsCtl, ensureSubscribeAllAudio as ensureSubscribeAllAudioCtl } from './controller/subscriptions';
 
@@ -37,36 +37,27 @@ export class AVManager {
   private fallbackSubTimer: any = null;
   private lastFallbackChosenKey: string | null = null;
   // Audio-Unlock State
-  private audioUnlocked = false;
   private audioUnlockHandlersAttached = false;
   private removeAudioUnlockHandlers: (() => void) | null = null;
-  // Local camera quality adaptation
-  private camQuality: 'low' | 'med' | 'high' = 'high';
-  private qualityCooldownUntil = 0;
+  // Local camera quality adaptation (removed unused fields)
   private avState: 'idle' | 'connecting' | 'connected' | 'publishing' | 'subscribed' | 'error' | 'reconnecting' | 'closed' = 'idle';
   private sharePending = false;
   private remoteQualityTuningDisabled = ((import.meta as any).env?.VITE_AV_DISABLE_REMOTE_QUALITY === 'true');
   private lastMicDesired = false;
   private lastCamDesired = false;
-  private lastApplyDefaultRemoteQualityAt = 0;
+  // removed unused field lastApplyDefaultRemoteQualityAt
   // Debounce/Dedupe für Bubble-Updates
   private desiredIds: string[] = [];
   private bubbleDebounceTimer: any = null;
-  private lastDesiredIdsKey: string | null = null;
+  // removed unused field lastDesiredIdsKey
   private lastDesiredIdsKeyRef = { current: null as string | null };
   private lastDesiredSubs = new Map<string, boolean>();
-  // Event-Wiring / Idempotenz
-  private wiredRoom: Room | undefined;
-  private preferRoomEventConsts = false;
-  private handlers: any = {};
-  private lastActiveSpeakers: string[] = [];
+  // Event-Wiring / Idempotenz (removed unused fields)
   // Page-Leave Guard
   private pageLeaving = false;
   private removePageLeaveGuards: (() => void) | null = null;
   // Event-Handler Verwaltung
   private roomHandlersCleanup: (() => void) | null = null;
-  // Page-Leave Guard
-  private pageLeaving = false;
   // Active Speaker Cache
   private activeSpeakerIds: string[] = [];
   // Config
@@ -314,6 +305,8 @@ export class AVManager {
     setTimeout(() => { this.isDisconnecting = false; }, 50);
     try { this.controller?.setDisconnecting(false); this.controller?.resetReconnect(); } catch {}
     this.setState('closed');
+    try { this.removePageLeaveGuards?.(); } catch {}
+    this.removePageLeaveGuards = null;
 
     // Setze Pending-Flags, damit sie nach Rejoin automatisch aktiviert werden
     if (wasMicOn) this.pendingMic = true;
@@ -392,7 +385,7 @@ export class AVManager {
           const onAudioPlayback = () => {
             const anyRoom: any = room as any;
             const can = !!(anyRoom.canPlaybackAudio ?? false);
-            if (can) { this.audioUnlocked = true; try { this.removeAudioUnlockHandlers?.(); } catch {}; this.removeAudioUnlockHandlers = null; }
+            if (can) { try { this.removeAudioUnlockHandlers?.(); } catch {}; this.removeAudioUnlockHandlers = null; }
           };
           const onActiveSpeakers = () => {
             try {
@@ -437,7 +430,7 @@ export class AVManager {
           const onConnQuality = (participant: any, quality: any) => { try { this.onConnectionQualityChanged(participant, quality); } catch {} };
           const onAudioPlayback = () => {
             const can = !!(r.canPlaybackAudio ?? false);
-            if (can) { this.audioUnlocked = true; try { this.removeAudioUnlockHandlers?.(); } catch {}; this.removeAudioUnlockHandlers = null; }
+            if (can) { try { this.removeAudioUnlockHandlers?.(); } catch {}; this.removeAudioUnlockHandlers = null; }
           };
           const onActiveSpeakers = () => {
             try {
@@ -507,6 +500,11 @@ export class AVManager {
         }
       } catch {}
     }, 4000);
+  }
+
+  private unwireRoomEvents() {
+    try { this.roomHandlersCleanup?.(); } catch {}
+    this.roomHandlersCleanup = null;
   }
 
   private handleDesiredIdsUpdate(ids: string[]): void {
@@ -595,11 +593,7 @@ export class AVManager {
 
   private startStatsLoop() { startStatsLoopImpl(this as any); }
 
-  private updateDebugHud(p: { roomName: string; identity: string; connectionState?: string; iceState?: string; dtlsState?: string; nRemoteAudio?: number; nRemoteVideo?: number; nLocalAudio?: number; nLocalVideo?: number; }) { updateDebugHudImpl(this as any, p); }
-
   private onConnectionQualityChanged(participant: any, quality: any) { return onConnectionQualityChangedImpl(this as any, participant, quality); }
-
-  private async republishCameraProfile(profile: 'low' | 'med' | 'high'): Promise<void> { return republishCameraProfileImpl(this as any, profile); }
 
   private async restoreDesiredTracks(): Promise<void> {
     try {
@@ -628,15 +622,12 @@ export class AVManager {
     const cleanup = () => {
       events.forEach(ev => window.removeEventListener(ev, handler as any, true));
       this.audioUnlockHandlersAttached = false;
-      this.audioUnlocked = true;
+      // audio unlocked
     };
     this.removeAudioUnlockHandlers = cleanup;
   }
 
-  private async ensureAudioPlaybackUnlocked(): Promise<void> {
-    // Kein sofortiger Startversuch mehr – nur Listener für User-Geste anhängen
-    this.attachAudioUnlockHandlers();
-  }
+  // ensureAudioPlaybackUnlocked removed (not used)
 
   private async waitForConnected(room: Room, timeoutMs: number = 5000): Promise<void> {
     const anyRoom: any = room as any;
@@ -720,11 +711,13 @@ export class AVManager {
   async stopScreenshare() {
     if (!this.current) return;
     try {
-      const pubs = Array.from(this.current.localParticipant.trackPublications.values());
+      const room = this.current;
+      if (!room) return;
+      const pubs = Array.from(room.localParticipant.trackPublications.values());
       for (const pub of pubs) {
         const src = (pub as any).source || (pub.track as any)?.source;
         if (src && (src === 'screen_share' || src === 'screen_share_audio')) {
-          try { await this.current.localParticipant.unpublishTrack(pub.track!); } catch {}
+        try { await room.localParticipant.unpublishTrack(pub.track!); } catch {}
           try { (pub.track as any)?.stop?.(); } catch {}
         }
       }
@@ -800,7 +793,9 @@ export class AVManager {
     }
     this.pendingMic = false; // Clear pending flag when we have a room
     try {
-      const pubs = Array.from(this.current.localParticipant.trackPublications.values());
+      const room = this.current;
+      if (!room) return;
+      const pubs = Array.from(room.localParticipant.trackPublications.values());
       const micPubs = (pubs as any[]).filter((pub: any) => {
         const src = (pub as any).source ?? (pub as any)?.track?.source;
         const kind = (pub as any).kind ?? (pub as any)?.track?.kind;
@@ -813,11 +808,11 @@ export class AVManager {
         const { createLocalTracks } = await import('livekit-client');
         const tracks = await createLocalTracks({ audio: this.preferredMic ? { deviceId: this.preferredMic, noiseSuppression: true, echoCancellation: true, autoGainControl: true } : { noiseSuppression: true, echoCancellation: true, autoGainControl: true } });
         for (const t of tracks) {
-          if ((t as any).kind === 'audio') await this.current.localParticipant.publishTrack(t);
+          if ((t as any).kind === 'audio') await room.localParticipant.publishTrack(t);
         }
       } else {
         for (const pub of micPubs) {
-          try { await this.current.localParticipant.unpublishTrack(pub.track!); } catch {}
+          try { await room.localParticipant.unpublishTrack(pub.track!); } catch {}
         }
       }
     } catch (e: any) {
@@ -839,7 +834,9 @@ export class AVManager {
     }
     this.pendingCam = false; // Clear pending flag when we have a room
     try {
-      const pubs = Array.from(this.current.localParticipant.trackPublications.values());
+      const room = this.current;
+      if (!room) return;
+      const pubs = Array.from(room.localParticipant.trackPublications.values());
       const camPubs = (pubs as any[]).filter((pub: any) => {
         const src = (pub as any).source ?? (pub as any)?.track?.source;
         const kind = (pub as any).kind ?? (pub as any)?.track?.kind;
@@ -854,7 +851,7 @@ export class AVManager {
         for (const t of tracks) {
           if ((t as any).kind === 'video') {
             try {
-              await this.current.localParticipant.publishTrack(t);
+              await room.localParticipant.publishTrack(t);
             } catch (e) {
               throw e; // Re-throw to handle in UI
             }
@@ -862,7 +859,7 @@ export class AVManager {
         }
       } else {
         for (const pub of camPubs) {
-          try { await this.current.localParticipant.unpublishTrack(pub.track!); } catch {}
+          try { await room.localParticipant.unpublishTrack(pub.track!); } catch {}
         }
       }
     } catch (e: any) {
