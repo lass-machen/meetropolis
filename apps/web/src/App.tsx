@@ -83,6 +83,16 @@ export function App() {
   const dndRef = useRef<boolean>(false);
   const prevAvBeforeDndRef = React.useRef<{ mic: boolean; cam: boolean } | null>(null);
   const [cameraManual, setCameraManual] = React.useState(false);
+  // Admin/UI: Benutzer & Einladungen
+  const [userModalOpen, setUserModalOpen] = React.useState(false);
+  const [invitesModalOpen, setInvitesModalOpen] = React.useState(false);
+  const [meProfile, setMeProfile] = React.useState<{ id: string; email: string; name?: string } | null>(null);
+  const [nameEdit, setNameEdit] = React.useState('');
+  const [invites, setInvites] = React.useState<Array<{ code: string; email?: string | null; usedAt?: string | null; createdAt?: string }>>([]);
+  const [invitesLoading, setInvitesLoading] = React.useState(false);
+  // Roster (rechte Seitenleiste)
+  const [roster, setRoster] = React.useState<Array<{ identity: string; name: string; online: boolean; x?: number; y?: number; lastSeen?: string }>>([]);
+  const rosterByIdentityRef = React.useRef<Record<string, { name: string; x: number; y: number }>>({});
   React.useEffect(() => {
     const handler = (active: boolean) => setCameraManual(!!active);
     try { (gameBridge as any).onCameraManualChange = handler; } catch {}
@@ -90,6 +100,40 @@ export function App() {
   }, []);
   // Positions-Persistenz (Throttle)
   const lastPositionPostAtRef = React.useRef(0);
+
+  // Roster: periodisch letzte Präsenz (für Offline/zuletzt online)
+  React.useEffect(() => {
+    let stop = false as boolean;
+    const load = async () => {
+      try {
+        const res = await fetch(`${apiBase}/presence/recent`, { credentials: 'include' });
+        if (res.ok) {
+          const data = await res.json();
+          const online = rosterByIdentityRef.current || {};
+          setRoster((prev) => {
+            const map = new Map<string, { identity: string; name: string; online: boolean; x?: number; y?: number; lastSeen?: string }>();
+            for (const r of prev) map.set(r.identity, { ...r, online: false });
+            for (const p of data || []) {
+              const ident = String(p.userId || (p.user && p.user.id) || '');
+              const name = String((p.user && (p.user.name || p.user.email)) || ident);
+              if (!ident) continue;
+              if (online[ident]) continue;
+              map.set(ident, { identity: ident, name, online: false, lastSeen: p.updatedAt });
+            }
+            // keep online ones
+            for (const [ident, v] of Object.entries(online)) {
+              const prevItem = map.get(ident);
+              map.set(ident, { identity: ident, name: v.name, online: true, x: v.x, y: v.y, lastSeen: prevItem?.lastSeen });
+            }
+            return Array.from(map.values()).sort((a, b) => Number(b.online) - Number(a.online) || a.name.localeCompare(b.name));
+          });
+        }
+      } catch {}
+      if (!stop) setTimeout(load, 30000);
+    };
+    load();
+    return () => { stop = true; };
+  }, [apiBase]);
 
   // Intercept DND toggles to resume AV after DND is turned off
   React.useEffect(() => {
@@ -199,6 +243,8 @@ export function App() {
       } else {
         const u = await res.json();
         setMe(u);
+        setMeProfile({ id: u.id, email: u.email, name: u.name });
+        setNameEdit(u.name || '');
         // Store last position if available
         if (u.lastPosition) {
           localPosRef.current = { id: u.id, x: u.lastPosition.x, y: u.lastPosition.y };
@@ -1339,6 +1385,24 @@ export function App() {
               })
           );
           gameBridge.syncRemotePlayers(filteredPlayers);
+          // Update roster with currently online players
+          try {
+            const online: Record<string, { name: string; x: number; y: number }> = {};
+            for (const [sid, p] of Object.entries(filteredPlayers) as any) {
+              const livekitIdentity = (colyseusToLivekitMap.current as any)[sid] || sid;
+              const name = (p as any).name || getDisplayName(livekitIdentity);
+              online[livekitIdentity] = { name, x: (p as any).x, y: (p as any).y };
+            }
+            rosterByIdentityRef.current = online;
+            setRoster((prev) => {
+              const map = new Map<string, { identity: string; name: string; online: boolean; x?: number; y?: number; lastSeen?: string }>();
+              for (const r of prev) map.set(r.identity, { ...r, online: false });
+              for (const [ident, v] of Object.entries(online)) {
+                map.set(ident, { identity: ident, name: v.name, online: true, x: v.x, y: v.y });
+              }
+              return Array.from(map.values()).sort((a, b) => Number(b.online) - Number(a.online) || a.name.localeCompare(b.name));
+            });
+          } catch {}
           // Ensure participant grid reflects latest positions/zones
           try { setTimeout(buildParticipantList, 0); } catch {}
         });
@@ -2468,6 +2532,35 @@ export function App() {
         )}
       </div>
 
+      {/* Rechte Roster-Leiste (volle Höhe) */}
+      <div style={{ position: 'absolute', top: 0, right: 0, bottom: 0, width: 280, background: 'rgba(15,15,18,0.82)', borderLeft: '1px solid rgba(255,255,255,0.08)', zIndex: 40, display: 'flex', flexDirection: 'column' }}>
+        <div style={{ padding: '10px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+          <div style={{ fontWeight: 800 }}>Team</div>
+          <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>{roster.filter(r=>r.online).length} online</div>
+        </div>
+        <div style={{ flex: 1, overflow: 'auto' }}>
+          {roster.map(r => (
+            <div key={r.identity} onDoubleClick={() => {
+              if (!r.online) return;
+              try {
+                if (typeof r.x === 'number' && typeof r.y === 'number') {
+                  gameBridge.setDesiredPosition({ x: r.x!, y: r.y! });
+                  try { (window as any).currentPhaserScene?.cameras?.main?.pan?.(r.x!, r.y!, 250, 'Sine.easeInOut'); } catch {}
+                }
+              } catch {}
+            }} style={{ display:'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderBottom: '1px solid rgba(255,255,255,0.06)', cursor: r.online ? 'pointer' : 'default' }}>
+              <div style={{ width: 10, height: 10, borderRadius: 999, background: r.online ? '#22c55e' : '#6b7280' }} />
+              <div style={{ display:'grid', gap: 2 }}>
+                <div style={{ fontSize: 13, color:'#fff' }}>{r.name || r.identity}</div>
+                {!r.online && (
+                  <div style={{ fontSize: 11, color:'var(--fg-subtle)' }}>zuletzt online: {r.lastSeen ? new Date(r.lastSeen).toLocaleString() : 'unbekannt'}</div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
       {/* API Token Modal */}
       <Overlay open={apiModalOpen} onClose={()=>setApiModalOpen(false)} title="API-Zugriff" right={<></>}>
         <div style={{ display:'grid', gap: 10 }}>
@@ -2666,6 +2759,111 @@ export function App() {
         </div>
       )}
       {/* Recenter Button wird nun in der AV-Leiste rechts angezeigt */}
+
+      {/* Admin Toolbar: Benutzer & Einladungen (bleibt über dem Space, Verbindung bleibt aktiv) */}
+      <div style={{ position: 'absolute', top: 12, right: 12, zIndex: 50, display: 'flex', gap: 8 }}>
+        <button onClick={() => { setUserModalOpen(true); }} style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'rgba(0,0,0,0.5)', color: '#fff', cursor: 'pointer' }}>Benutzer</button>
+        <button onClick={async () => {
+          setInvitesModalOpen(true);
+          setInvitesLoading(true);
+          try {
+            const res = await fetch(`${apiBase}/invites`, { credentials: 'include' });
+            if (res.ok) setInvites(await res.json());
+          } catch {}
+          setInvitesLoading(false);
+        }} style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'rgba(0,0,0,0.5)', color: '#fff', cursor: 'pointer' }}>Einladungen</button>
+      </div>
+
+      {/* Benutzerverwaltung Modal */}
+      {userModalOpen && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 100, display: 'grid', placeItems: 'center', background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(2px)' }} onClick={() => setUserModalOpen(false)}>
+          <div onClick={(e)=>e.stopPropagation()} className="glass-surface" style={{ width: 'min(92vw, 560px)', padding: 16, borderRadius: 12 }}>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom: 12 }}>
+              <div style={{ fontWeight: 800 }}>Benutzerverwaltung</div>
+              <button onClick={()=>setUserModalOpen(false)} style={{ width: 32, height: 32, borderRadius: 6, border: '1px solid var(--border)', background:'var(--glass)', color:'#fff', cursor:'pointer' }}>×</button>
+            </div>
+            <div style={{ display:'grid', gap: 12 }}>
+              <div>
+                <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>E-Mail</div>
+                <input value={meProfile?.email || ''} readOnly style={{ width:'100%', padding:'10px 12px', borderRadius: 8, border:'1px solid var(--border)', background:'var(--glass)', color:'#fff' }} />
+              </div>
+              <div>
+                <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>Anzeigename</div>
+                <input value={nameEdit} onChange={(e)=>setNameEdit(e.target.value)} placeholder="z. B. Max Mustermann" style={{ width:'100%', padding:'10px 12px', borderRadius: 8, border:'1px solid var(--border)', background:'var(--glass)', color:'#fff' }} />
+              </div>
+              <div style={{ display:'flex', justifyContent:'flex-end', gap: 8 }}>
+                <button onClick={()=>setUserModalOpen(false)} style={{ padding:'10px 12px', borderRadius:8, border:'1px solid var(--border)', background:'var(--glass)', color:'#fff', cursor:'pointer' }}>Schließen</button>
+                <button onClick={async ()=>{
+                  try {
+                    const res = await fetch(`${apiBase}/me`, { method:'PATCH', credentials:'include', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ name: nameEdit }) });
+                    if (res.ok) {
+                      const u = await res.json();
+                      setMeProfile(u);
+                    }
+                  } catch {}
+                }} style={{ padding:'10px 12px', borderRadius:8, border:'none', background:'linear-gradient(135deg,var(--brand-primary),var(--brand-accent))', color:'#fff', cursor:'pointer' }}>Speichern</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Einladungen Modal */}
+      {invitesModalOpen && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 100, display: 'grid', placeItems: 'center', background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(2px)' }} onClick={() => setInvitesModalOpen(false)}>
+          <div onClick={(e)=>e.stopPropagation()} className="glass-surface" style={{ width: 'min(96vw, 780px)', padding: 16, borderRadius: 12 }}>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom: 12 }}>
+              <div style={{ fontWeight: 800 }}>Einladungen</div>
+              <button onClick={()=>setInvitesModalOpen(false)} style={{ width: 32, height: 32, borderRadius: 6, border: '1px solid var(--border)', background:'var(--glass)', color:'#fff', cursor:'pointer' }}>×</button>
+            </div>
+            <div style={{ display:'grid', gap: 12 }}>
+              {invitesLoading ? (
+                <div style={{ color:'var(--fg-subtle)', fontSize: 13 }}>Lade Einladungen…</div>
+              ) : (
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse:'separate', borderSpacing: 0 }}>
+                    <thead>
+                      <tr style={{ textAlign:'left', color:'var(--fg-subtle)', fontSize: 12 }}>
+                        <th style={{ padding:'8px 10px' }}>Code</th>
+                        <th style={{ padding:'8px 10px' }}>E-Mail</th>
+                        <th style={{ padding:'8px 10px' }}>Erstellt</th>
+                        <th style={{ padding:'8px 10px' }}>Status</th>
+                        <th style={{ padding:'8px 10px', width: 160 }}>Aktionen</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {invites.length === 0 && (
+                        <tr><td colSpan={5} style={{ padding:'10px', color:'var(--fg-subtle)' }}>Keine Einladungen vorhanden.</td></tr>
+                      )}
+                      {invites.map(inv => (
+                        <tr key={inv.code}>
+                          <td style={{ padding:'8px 10px' }}>
+                            <code style={{ display:'inline-block', padding:'4px 6px', borderRadius:6, border:'1px solid var(--border)', background:'rgba(255,255,255,0.06)' }}>{inv.code}</code>
+                          </td>
+                          <td style={{ padding:'8px 10px' }}>{inv.email || '—'}</td>
+                          <td style={{ padding:'8px 10px' }}>{inv.createdAt ? new Date(inv.createdAt).toLocaleString() : '—'}</td>
+                          <td style={{ padding:'8px 10px' }}>{inv.usedAt ? 'Eingelöst' : 'Offen'}</td>
+                          <td style={{ padding:'8px 10px', display:'flex', gap: 8 }}>
+                            <button onClick={async ()=>{ try { await navigator.clipboard.writeText(inv.code); } catch {} }} style={{ padding:'6px 10px', borderRadius:8, border:'1px solid var(--border)', background:'var(--glass)', color:'#fff', cursor:'pointer' }}>Kopieren</button>
+                            {!inv.usedAt && (
+                              <button onClick={async ()=>{
+                                try {
+                                  const res = await fetch(`${apiBase}/invites/${encodeURIComponent(inv.code)}`, { method:'DELETE', credentials:'include' });
+                                  if (res.ok) setInvites(invites.filter(i => i.code !== inv.code));
+                                } catch {}
+                              }} style={{ padding:'6px 10px', borderRadius:8, border:'1px solid rgba(244,63,94,0.45)', background:'rgba(244,63,94,0.15)', color:'#fff', cursor:'pointer' }}>Löschen</button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
     </ThemeProvider>
   );

@@ -1145,6 +1145,32 @@ export function registerApi(app: express.Express) {
     }
   });
 
+  // Presence: recent per user (latest entry), for roster UI
+  app.get('/presence/recent', async (req: express.Request, res: express.Response) => {
+    const auth = requireAuth(req);
+    if (!auth) return res.status(401).json({ error: 'unauthorized' });
+    try {
+      // Get latest presence per user by ordering desc and using distinct by userId
+      const recent = await prisma.presence.findMany({
+        orderBy: { updatedAt: 'desc' },
+        distinct: ['userId'],
+        include: { user: { select: { id: true, email: true, name: true } }, room: { select: { name: true } } },
+      } as any);
+      const out = recent.map((p: any) => ({
+        userId: p.userId,
+        user: { id: p.user?.id, email: p.user?.email, name: p.user?.name },
+        room: p.room?.name || 'world',
+        x: p.x,
+        y: p.y,
+        direction: p.direction,
+        updatedAt: p.updatedAt,
+      }));
+      res.json(out);
+    } catch (e) {
+      res.status(500).json({ error: 'failed to load presence' });
+    }
+  });
+
   // Single user lookup (authenticated)
   app.get('/users/:id', async (req: express.Request, res: express.Response) => {
     const auth = requireAuth(req);

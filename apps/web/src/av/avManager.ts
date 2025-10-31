@@ -40,7 +40,7 @@ export class AVManager {
   private qualityCooldownUntil = 0;
   private avState: 'idle' | 'connecting' | 'connected' | 'publishing' | 'subscribed' | 'error' | 'reconnecting' | 'closed' = 'idle';
   private sharePending = false;
-  private remoteQualityTuningDisabled = false;
+  private remoteQualityTuningDisabled = ((import.meta as any).env?.VITE_AV_DISABLE_REMOTE_QUALITY === 'true');
   private lastMicDesired = false;
   private lastCamDesired = false;
   private lastApplyDefaultRemoteQualityAt = 0;
@@ -316,7 +316,7 @@ export class AVManager {
         if (RoomEvent) {
           room.off?.(RoomEvent.Reconnected, () => {});
           room.off?.(RoomEvent.Disconnected, () => {});
-          room.on?.(RoomEvent.Reconnected, () => { this.reconnectAttempts = 0; try { avLog('info', 'livekit.reconnected', {}, { identity: this.identity, roomName: this.currentName || undefined as any }); } catch {}; try { this.ensureSubscribeAllAudio(); } catch {} });
+          room.on?.(RoomEvent.Reconnected, () => { this.reconnectAttempts = 0; try { avLog('info', 'livekit.reconnected', {}, { identity: this.identity, roomName: this.currentName || undefined as any }); } catch {}; try { this.ensureSubscribeAllAudio(64); } catch {} });
           room.on?.(RoomEvent.Disconnected, () => { try { avLog('warn', 'livekit.disconnected', {}, { identity: this.identity, roomName: this.currentName || undefined as any }); } catch {}; this.setState('reconnecting'); if (ALLOW_RECONNECT && !this.isDisconnecting) this.scheduleReconnect(); });
           // Nach erfolgreichem Reconnect gewünschte Tracks wiederherstellen
           room.on?.(RoomEvent.Reconnected, () => { void this.restoreDesiredTracks(); });
@@ -324,8 +324,17 @@ export class AVManager {
           try {
             room.off?.(RoomEvent.TrackPublished, (() => {}) as any);
             room.off?.(RoomEvent.TrackSubscribed, (() => {}) as any);
-            room.on?.(RoomEvent.TrackPublished, () => { try { avLog('debug', 'livekit.track_published', {}, { identity: this.identity, roomName: this.currentName || undefined as any }); if (!this.remoteQualityTuningDisabled) this.applyDefaultRemoteQuality(); this.ensureSubscribeAllAudio(); } catch {} });
-            room.on?.(RoomEvent.TrackSubscribed, () => { try { avLog('debug', 'livekit.track_subscribed', {}, { identity: this.identity, roomName: this.currentName || undefined as any }); if (!this.remoteQualityTuningDisabled) this.applyDefaultRemoteQuality(); this.setState('subscribed'); this.ensureSubscribeAllAudio(); } catch {} });
+          room.on?.(RoomEvent.TrackPublished, () => { try { avLog('debug', 'livekit.track_published', {}, { identity: this.identity, roomName: this.currentName || undefined as any }); if (!this.remoteQualityTuningDisabled) this.applyDefaultRemoteQuality(); this.ensureSubscribeAllAudio(64); } catch {} });
+          room.on?.(RoomEvent.TrackSubscribed, (_track: any, pub: any, _participant: any) => { try {
+            avLog('debug', 'livekit.track_subscribed', { kind: pub?.kind }, { identity: this.identity, roomName: this.currentName || undefined as any });
+            if (pub && ((pub as any).kind === 'audio' || (pub as any)?.track?.kind === 'audio')) {
+              try { (this.current as any)?.startAudio?.(); } catch {}
+              try { (pub as any)?.track?.setVolume?.(1); } catch {}
+            }
+            if (!this.remoteQualityTuningDisabled) this.applyDefaultRemoteQuality();
+            this.setState('subscribed');
+            this.ensureSubscribeAllAudio(64);
+          } catch {} });
           } catch {}
           // Verbindungsgüte beobachten → Kameraqualität dynamisch anpassen
           try {
@@ -357,8 +366,17 @@ export class AVManager {
           try {
             r.off?.('trackPublished', () => {});
             r.off?.('trackSubscribed', () => {});
-            r.on?.('trackPublished', () => { try { avLog('debug', 'livekit.track_published', {}, { identity: this.identity, roomName: this.currentName || undefined as any }); if (!this.remoteQualityTuningDisabled) this.applyDefaultRemoteQuality(); this.ensureSubscribeAllAudio(); } catch {} });
-            r.on?.('trackSubscribed', () => { try { avLog('debug', 'livekit.track_subscribed', {}, { identity: this.identity, roomName: this.currentName || undefined as any }); if (!this.remoteQualityTuningDisabled) this.applyDefaultRemoteQuality(); this.setState('subscribed'); this.ensureSubscribeAllAudio(); } catch {} });
+          r.on?.('trackPublished', () => { try { avLog('debug', 'livekit.track_published', {}, { identity: this.identity, roomName: this.currentName || undefined as any }); if (!this.remoteQualityTuningDisabled) this.applyDefaultRemoteQuality(); this.ensureSubscribeAllAudio(64); } catch {} });
+          r.on?.('trackSubscribed', (_track: any, pub: any, _participant: any) => { try {
+            avLog('debug', 'livekit.track_subscribed', { kind: pub?.kind }, { identity: this.identity, roomName: this.currentName || undefined as any });
+            if (pub && ((pub as any).kind === 'audio' || (pub as any)?.track?.kind === 'audio')) {
+              try { (this.current as any)?.startAudio?.(); } catch {}
+              try { (pub as any)?.track?.setVolume?.(1); } catch {}
+            }
+            if (!this.remoteQualityTuningDisabled) this.applyDefaultRemoteQuality();
+            this.setState('subscribed');
+            this.ensureSubscribeAllAudio(64);
+          } catch {} });
           } catch {}
           // Fallback: Verbindungsgüte
           try {
@@ -685,20 +703,11 @@ export class AVManager {
       if (now - this.lastApplyDefaultRemoteQualityAt < 5000) return;
       this.lastApplyDefaultRemoteQualityAt = now;
       const mod = await import('livekit-client');
-      const VideoQuality = (mod as any).VideoQuality || { Low: 0, Medium: 1, High: 2 };
-      // Robust Mapping: stelle sicher, dass wir eine numerische Enum verwenden
-      const toNumericQuality = (q: any): number => {
-        if (typeof q === 'number' && Number.isFinite(q)) return q;
-        if (typeof q === 'string') {
-          const s = q.toLowerCase();
-          if (s.includes('low')) return 0;
-          if (s.includes('med')) return 1;
-          if (s.includes('high')) return 2;
-        }
-        // Fallback: Medium
-        return 1;
-      };
-      const Q_MED = toNumericQuality((VideoQuality as any).Medium);
+      // Beziehe die echte Enum direkt vom SDK; fallback auf numerische Defaults
+      const VideoQualityEnum = (mod as any).VideoQuality;
+      const Q_LOW  = (VideoQualityEnum && (VideoQualityEnum.Low    ?? VideoQualityEnum.LOW))  ?? 0;
+      const Q_MED  = (VideoQualityEnum && (VideoQualityEnum.Medium ?? VideoQualityEnum.MEDIUM)) ?? 1;
+      // const Q_HIGH = (VideoQualityEnum && (VideoQualityEnum.High   ?? VideoQualityEnum.HIGH))  ?? 2;
       const participants: any[] = Array.from((room.remoteParticipants?.values?.() || []) as any);
       for (const p of participants) {
         const pubs: any[] = Array.from((p.trackPublications?.values?.() || []) as any);
@@ -706,8 +715,14 @@ export class AVManager {
           const kind = (pub as any).kind ?? (pub.track as any)?.kind;
           const src = (pub as any).source ?? (pub.track as any)?.source;
           if (kind === 'video' && src !== 'screen_share') {
-            // Verwende nur die bevorzugte Videoqualität API, vermeide setVideoQuality (kompat/enum issues)
-            try { (pub as any).setPreferredVideoQuality?.(Q_MED); } catch {}
+            // Verwende ausschließlich SDK-Enum; kein String-Mapping
+            try {
+              if (typeof (pub as any).setVideoQuality === 'function') {
+                (pub as any).setVideoQuality(Q_MED);
+              } else if (typeof (pub as any).setPreferredVideoQuality === 'function') {
+                (pub as any).setPreferredVideoQuality(Q_MED);
+              }
+            } catch {}
           }
         }
       }
