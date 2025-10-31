@@ -207,7 +207,8 @@ export function ParticipantCard(props: { part: { sid: string; identity: string; 
   const handleForceMute = async () => {
     try {
       const target = (part.identity || '').replace(/\s+–\s*Bildschirm$/, '');
-      await fetch(`/controls/for/${encodeURIComponent(target)}`, {
+      const base = (window as any).VITE_API_BASE || (import.meta as any).env?.VITE_API_BASE || `${window.location.protocol}//${window.location.hostname}:2567`;
+      await fetch(`${base}/controls/for/${encodeURIComponent(target)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
