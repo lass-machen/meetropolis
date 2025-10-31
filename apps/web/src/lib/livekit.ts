@@ -92,6 +92,8 @@ export async function joinLivekitRoom(params: {
     // Optional für harte NATs (Feature-Flag-basiert aktivieren)
     ...(forceRelay ? { rtcConfig: { iceTransportPolicy: 'relay' } as any } : {}),
   } as any);
+  // Absicherung: explizit Auto-Disconnect bei Page-Leave deaktivieren (falls vom SDK unterstützt)
+  try { (room as any).setDisconnectOnPageLeave?.(false); } catch {}
   // WICHTIG: keine lokalen Audio/Video-Tracks automatisch erstellen/publizieren.
   return room;
 }

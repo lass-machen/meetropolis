@@ -4,6 +4,8 @@ import { Room, createLocalScreenTracks } from 'livekit-client';
 import { joinLivekitRoom } from '../lib/livekit';
 import { avLog } from '../lib/avLog';
 import { onBubbleMembersUpdate } from '../lib/avEvents';
+import { startStatsLoopImpl, updateDebugHudImpl } from './core/stats';
+import { applyDefaultRemoteQualityImpl, onConnectionQualityChangedImpl, republishCameraProfileImpl } from './core/quality';
 
 export type AVDevices = {
   microphones: { deviceId: string; label: string }[];
@@ -514,175 +516,13 @@ export class AVManager {
     } catch {}
   }
 
-  private startStatsLoop() {
-    try { if (this.statsTimer) clearInterval(this.statsTimer); } catch {}
-    const roomName = this.currentName || 'world';
-    const identity = this.identity;
-    const baseUrl = this.baseUrl;
-    const collectOnce = async () => {
-      try {
-        const room: any = this.current as any;
-        if (!room) return;
-        // Connection state best-effort
-        const connectionState = (room.connectionState || room.state || '').toString();
-        // Count local/remote tracks
-        let nRemoteAudio = 0, nRemoteVideo = 0, nLocalAudio = 0, nLocalVideo = 0;
-        try {
-          const participants: any[] = Array.from((room.remoteParticipants?.values?.() || []) as any);
-          for (const p of participants) {
-            const pubs: any[] = Array.from((p.trackPublications?.values?.() || []) as any);
-            for (const pub of pubs) {
-              const kind = (pub as any).kind ?? (pub.track as any)?.kind;
-              if (kind === 'audio') nRemoteAudio++;
-              if (kind === 'video') nRemoteVideo++;
-            }
-          }
-          const pubsLocal: any[] = Array.from((room.localParticipant?.trackPublications?.values?.() || []) as any);
-          for (const pub of pubsLocal) {
-            const kind = (pub as any).kind ?? (pub.track as any)?.kind;
-            const src = (pub as any).source ?? (pub.track as any)?.source;
-            if (kind === 'audio' || src === 'microphone') nLocalAudio++;
-            if ((kind === 'video' && src !== 'screen_share') || src === 'camera') nLocalVideo++;
-          }
-        } catch {}
-        // Try to probe DTLS/ICE states if exposed (best-effort)
-        let iceState: string | undefined;
-        let dtlsState: string | undefined;
-        try {
-          const pc = (room as any)?.engine?.pcManager?.publisher?.pc || (room as any)?.pc;
-          if (pc) {
-            iceState = (pc.iceConnectionState || pc.connectionState || '').toString();
-            dtlsState = (pc.connectionState || '').toString();
-          }
-        } catch {}
-        // Construct payload (numbers optional)
-        const payload: any = {
-          roomName,
-          identity,
-          connectionState,
-          iceState,
-          dtlsState,
-          nRemoteAudio,
-          nRemoteVideo,
-          nLocalAudio,
-          nLocalVideo,
-        };
-        try { this.updateDebugHud(payload); } catch {}
-        await fetch(`${baseUrl}/av/stats`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify(payload),
-        }).catch(() => {});
-      } catch {}
-    };
-    this.statsTimer = setInterval(() => { void collectOnce(); }, 5000);
-    // Fire one immediately
-    void collectOnce();
-  }
+  private startStatsLoop() { startStatsLoopImpl(this as any); }
 
-  private updateDebugHud(p: { roomName: string; identity: string; connectionState?: string; iceState?: string; dtlsState?: string; nRemoteAudio?: number; nRemoteVideo?: number; nLocalAudio?: number; nLocalVideo?: number; }) {
-    const w: any = window as any;
-    if (!w.__avDebugOn) return;
-    let el = document.getElementById('av-debug-hud');
-    if (!el) {
-      el = document.createElement('div');
-      el.id = 'av-debug-hud';
-      el.style.position = 'fixed';
-      el.style.right = '12px';
-      el.style.bottom = '12px';
-      el.style.zIndex = '2147483647';
-      el.style.background = 'rgba(0,0,0,0.7)';
-      el.style.color = '#fff';
-      el.style.padding = '10px 12px';
-      el.style.borderRadius = '8px';
-      el.style.font = '12px/1.4 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace';
-      el.style.pointerEvents = 'none';
-      document.body.appendChild(el);
-    }
-    const lines = [
-      `AV Debug (Alt+D)`,
-      `room: ${p.roomName}  id: ${this.identity}`,
-      `state: ${p.connectionState || '-'}  ice: ${p.iceState || '-'}  dtls: ${p.dtlsState || '-'}`,
-      `tracks L[a:${p.nLocalAudio ?? 0}|v:${p.nLocalVideo ?? 0}]  R[a:${p.nRemoteAudio ?? 0}|v:${p.nRemoteVideo ?? 0}]`,
-    ];
-    el.textContent = lines.join('\n');
-  }
+  private updateDebugHud(p: { roomName: string; identity: string; connectionState?: string; iceState?: string; dtlsState?: string; nRemoteAudio?: number; nRemoteVideo?: number; nLocalAudio?: number; nLocalVideo?: number; }) { updateDebugHudImpl(this as any, p); }
 
-  private onConnectionQualityChanged(participant: any, quality: any) {
-    const room = this.current as any;
-    if (!room) return;
-    const isLocal = !!participant?.isLocal || participant?.sid === room?.localParticipant?.sid;
-    if (!isLocal) return;
-    const now = Date.now();
-    if (now < this.qualityCooldownUntil) return;
-    // Normalize quality to string
-    const q = typeof quality === 'string' ? quality : (quality?.toString?.().toLowerCase?.() || String(quality));
-    let desired: 'low' | 'med' | 'high' = this.camQuality;
-    if (q.includes('poor') || q.includes('lost') || q.includes('bad') || q.includes('0')) desired = 'low';
-    else if (q.includes('good') || q.includes('2')) desired = 'med';
-    else if (q.includes('excellent') || q.includes('3')) desired = 'high';
-    else desired = 'med';
-    if (desired === this.camQuality) return;
-    this.qualityCooldownUntil = now + 8000; // 8s Cooldown gegen Flapping
-    void this.republishCameraProfile(desired).catch(() => {});
-  }
+  private onConnectionQualityChanged(participant: any, quality: any) { return onConnectionQualityChangedImpl(this as any, participant, quality); }
 
-  private async republishCameraProfile(profile: 'low' | 'med' | 'high'): Promise<void> {
-    const room = this.current;
-    if (!room) return;
-    try {
-      const pubs = Array.from(room.localParticipant.trackPublications.values());
-      const camPubs = pubs.filter(pub => {
-        const src = (pub as any).source ?? (pub.track as any)?.source;
-        const kind = (pub as any).kind ?? (pub.track as any)?.kind;
-        return src === 'camera' || src === 1 || (kind === 'video' && src !== 'screen_share');
-      });
-      // Kamera derzeit nicht aktiv → nichts zu tun
-      if (!camPubs.some(p => !!(p as any).track)) { this.camQuality = profile; return; }
-      // Unpublish aktuelle Kamera
-      for (const pub of camPubs) {
-        try { await room.localParticipant.unpublishTrack(pub.track!); } catch {}
-      }
-      // Neue Kamera-Constraints je Profil
-      const presets: Record<'low'|'med'|'high', { width: number; height: number; frameRate: number; bitrate: number }>
-        = {
-          low: { width: 320, height: 180, frameRate: 15, bitrate: 220_000 },
-          med: { width: 640, height: 360, frameRate: 24, bitrate: 550_000 },
-          high:{ width: 960, height: 540, frameRate: 30, bitrate: 1_200_000 }
-        };
-      const c = presets[profile];
-      const { createLocalTracks } = await import('livekit-client');
-      const videoConstraints: any = {
-        facingMode: 'user',
-        width: { ideal: c.width },
-        height: { ideal: c.height },
-        frameRate: { ideal: c.frameRate }
-      };
-      if (this.preferredCam) (videoConstraints as any).deviceId = this.preferredCam;
-      const tracks = await createLocalTracks({ video: videoConstraints } as any);
-      for (const t of tracks) {
-        if ((t as any).kind === 'video') {
-          try {
-            try {
-              const mst: any = (t as any)?.mediaStreamTrack;
-              if (mst && 'contentHint' in mst) { try { mst.contentHint = 'motion'; } catch {} }
-            } catch {}
-            await room.localParticipant.publishTrack(t as any, {
-              // @ts-ignore publish options
-              videoEncoding: { maxBitrate: c.bitrate, maxFramerate: c.frameRate },
-              // Behalte Simulcast; Dynacast entscheidet aktive Layer
-              // @ts-ignore
-              simulcast: true
-            } as any);
-          } catch {}
-        }
-      }
-      this.camQuality = profile;
-    } catch {
-      // Ignorieren – kein harter Fehler im UI
-    }
-  }
+  private async republishCameraProfile(profile: 'low' | 'med' | 'high'): Promise<void> { return republishCameraProfileImpl(this as any, profile); }
 
   private async restoreDesiredTracks(): Promise<void> {
     try {
@@ -694,45 +534,7 @@ export class AVManager {
     } catch {}
   }
 
-  private async applyDefaultRemoteQuality(): Promise<void> {
-    const room: any = this.current as any;
-    if (!room) return;
-    if (this.remoteQualityTuningDisabled) return;
-    if (!this.isSignalOpen()) return;
-    try {
-      const now = Date.now();
-      if (now - this.lastApplyDefaultRemoteQualityAt < 5000) return;
-      this.lastApplyDefaultRemoteQualityAt = now;
-      const mod = await import('livekit-client');
-      // Beziehe die echte Enum direkt vom SDK; fallback auf numerische Defaults
-      const VideoQualityEnum = (mod as any).VideoQuality;
-      const Q_LOW  = (VideoQualityEnum && (VideoQualityEnum.Low    ?? VideoQualityEnum.LOW))  ?? 0;
-      const Q_MED  = (VideoQualityEnum && (VideoQualityEnum.Medium ?? VideoQualityEnum.MEDIUM)) ?? 1;
-      // const Q_HIGH = (VideoQualityEnum && (VideoQualityEnum.High   ?? VideoQualityEnum.HIGH))  ?? 2;
-      const participants: any[] = Array.from((room.remoteParticipants?.values?.() || []) as any);
-      for (const p of participants) {
-        const pubs: any[] = Array.from((p.trackPublications?.values?.() || []) as any);
-        for (const pub of pubs) {
-          const kind = (pub as any).kind ?? (pub.track as any)?.kind;
-          const src = (pub as any).source ?? (pub.track as any)?.source;
-          if (kind === 'video' && src !== 'screen_share') {
-            // Verwende ausschließlich SDK-Enum; kein String-Mapping
-            try {
-              if (typeof (pub as any).setVideoQuality === 'function') {
-                (pub as any).setVideoQuality(Q_MED);
-              } else if (typeof (pub as any).setPreferredVideoQuality === 'function') {
-                (pub as any).setPreferredVideoQuality(Q_MED);
-              }
-            } catch {}
-          }
-        }
-      }
-    } catch (e: any) {
-      // Deaktiviere weitere Tuning-Versuche, wenn das Backend Formatfehler meldet
-      this.remoteQualityTuningDisabled = true;
-      try { avLog('warn', 'av.remote_quality.disabled', { reason: e?.message || String(e) }, { identity: this.identity, roomName: this.currentName || undefined as any }); } catch {}
-    }
-  }
+  private async applyDefaultRemoteQuality(): Promise<void> { return applyDefaultRemoteQualityImpl(this as any); }
 
   private attachAudioUnlockHandlers() {
     if (this.audioUnlockHandlersAttached) return;

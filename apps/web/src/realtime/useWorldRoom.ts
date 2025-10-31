@@ -164,15 +164,16 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
         });
 
         room.onMessage('remote_control', async (payload: { mic?: boolean; cam?: boolean; share?: boolean; dnd?: boolean }) => {
-          const lkRoom: any = avRef.current?.room as any;
+          // Wichtig: Schalte Mic/Kamera ausschließlich über den AVManager,
+          // damit Pending-Flags, Reconnect-Recovery und Publishes konsistent bleiben.
           try {
-            if (typeof payload.mic === 'boolean' && lkRoom?.localParticipant?.isMicrophoneEnabled !== payload.mic) {
-              await lkRoom?.localParticipant?.setMicrophoneEnabled(payload.mic);
+            if (typeof payload.mic === 'boolean') {
+              await avRef.current?.setMicrophoneEnabled(payload.mic);
             }
           } catch {}
           try {
-            if (typeof payload.cam === 'boolean' && lkRoom?.localParticipant?.isCameraEnabled !== payload.cam) {
-              await lkRoom?.localParticipant?.setCameraEnabled(payload.cam);
+            if (typeof payload.cam === 'boolean') {
+              await avRef.current?.setCameraEnabled(payload.cam);
             }
           } catch {}
           if (typeof payload.share === 'boolean') {

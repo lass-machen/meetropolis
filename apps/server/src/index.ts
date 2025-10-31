@@ -41,6 +41,11 @@ app.use((req: express.Request, res: express.Response, next: express.NextFunction
   if (allowedOrigins.length > 0) {
     if (origin && allowedOrigins.includes(origin)) {
       res.setHeader('Access-Control-Allow-Origin', origin);
+    } else {
+      // Hilft beim Betrieb: sichtbares Logging, wenn Origin nicht freigegeben ist
+      if (origin) {
+        try { logger.warn({ event: 'cors.origin_not_allowed', origin, allowedOrigins }); } catch {}
+      }
     }
   } else {
     res.setHeader('Access-Control-Allow-Origin', origin || '*');
