@@ -16,7 +16,6 @@ model User {
   email           String         @unique
   name            String?
   imageUrl        String?
-  avatarConfig    Json?
   passwordHash    String?
   emailVerifiedAt DateTime?
   createdAt       DateTime       @default(now())
