@@ -89,6 +89,10 @@ services:
       - "traefik.http.middlewares.meetropolis-api-cors.headers.accesscontrolalloworiginlist=https://${WEB_HOST}"
       - "traefik.http.middlewares.meetropolis-api-cors.headers.accesscontrolmaxage=100"
       - "traefik.http.middlewares.meetropolis-api-cors.headers.addvaryheader=true"
+      - "traefik.http.middlewares.meetropolis-api-cors.headers.customResponseHeaders.Access-Control-Allow-Origin=https://${WEB_HOST}"
+      - "traefik.http.middlewares.meetropolis-api-cors.headers.customResponseHeaders.Access-Control-Allow-Credentials=true"
+      - "traefik.http.middlewares.meetropolis-api-cors.headers.customResponseHeaders.Access-Control-Allow-Headers=Origin,X-Requested-With,Content-Type,Accept,Authorization"
+      - "traefik.http.middlewares.meetropolis-api-cors.headers.customResponseHeaders.Access-Control-Allow-Methods=GET,OPTIONS,PUT,POST,DELETE"
       - "traefik.http.routers.meetropolis-api.middlewares=meetropolis-api-cors@docker"
     networks:
       - meetropolis
