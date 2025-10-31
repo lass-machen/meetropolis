@@ -96,7 +96,14 @@ export function useLivekit({
                     const isRemote = _participant?.sid !== room.localParticipant?.sid;
                     if (isRemote && (source === 'screen_share' || source === 'camera')) {
                       try { _publication?.setSubscribed?.(true); } catch {}
-                      try { _publication?.setVideoQuality?.('high'); } catch {}
+                      try {
+                        const qHigh: any = 2; // VideoQuality.High fallback
+                        if (typeof (_publication as any)?.setVideoQuality === 'function') {
+                          (_publication as any).setVideoQuality(qHigh);
+                        } else if (typeof (_publication as any)?.setPreferredVideoQuality === 'function') {
+                          (_publication as any).setPreferredVideoQuality(qHigh);
+                        }
+                      } catch {}
                     }
                   } catch {}
                   setTimeout(buildParticipantList, 100);
