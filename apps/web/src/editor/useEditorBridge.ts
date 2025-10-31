@@ -9,7 +9,9 @@ export function useEditorBridge(params: {
 }) {
   const { editor, setEditor, gameBridge } = params;
   const editorActiveRef = React.useRef(false);
+  const settingSpawnRef = React.useRef(false);
   React.useEffect(() => { editorActiveRef.current = !!editor.active; }, [editor.active]);
+  React.useEffect(() => { settingSpawnRef.current = !!(editor as any)?.settingSpawn; }, [(editor as any)?.settingSpawn]);
 
   React.useEffect(() => {
     const tileSize = 16;
@@ -43,7 +45,7 @@ export function useEditorBridge(params: {
     const handleUp = ({ tileX, tileY }: { tileX: number; tileY: number }) => {
       if (!editorActiveRef.current) return;
       // Wenn Spawn-Setzmodus aktiv: Spawn speichern und Marker zeichnen
-      if ((editor as any)?.settingSpawn) {
+      if (settingSpawnRef.current) {
         const tileSize = 16;
         const x = tileX * tileSize + tileSize / 2;
         const y = tileY * tileSize + tileSize / 2;

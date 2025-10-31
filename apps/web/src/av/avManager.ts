@@ -419,8 +419,8 @@ export class AVManager {
             const kind = (pub as any)?.kind ?? (pub as any)?.track?.kind;
             avLog('debug', 'livekit.track_published', { kind, source: src, pid: participant?.sid }, { identity: this.identity, roomName: this.currentName || undefined as any });
             try { console.debug('[AV][debug] track_published', { kind, source: src, pid: participant?.sid }); } catch {}
-            // Force-Abo für Audio sofort beim Publish (verhindert "stumm"-Fenster)
-            if (kind === 'audio' || src === 'microphone') {
+            // Force-Abo: Audio sofort, Screenshare-Video auch sofort
+            if (kind === 'audio' || src === 'microphone' || src === 'screen_share') {
               try { (pub as any)?.setSubscribed?.(true); } catch {}
             }
             if (!this.remoteQualityTuningDisabled) this.applyDefaultRemoteQuality(); this.ensureSubscribeAllAudio(64);
@@ -463,6 +463,26 @@ export class AVManager {
                     t.attach(el);
                     console.debug('[AV][debug] audio_attach_ok');
                   } catch (e) { try { console.warn('[AV][debug] audio_attach_failed', e); } catch {} }
+                }
+              } catch {}
+            }
+            if (pub && ((pub as any).kind === 'video' || (pub as any)?.track?.kind === 'video')) {
+              try {
+                const dbgOn = !!((window as any).__avDebugOn);
+                if (dbgOn) {
+                  const t: any = (pub as any).track;
+                  if (t && typeof document !== 'undefined') {
+                    let hud = document.getElementById('av-debug-hud');
+                    if (!hud) {
+                      hud = document.createElement('div');
+                      hud.id = 'av-debug-hud'; hud.style.position = 'fixed'; hud.style.right = '8px'; hud.style.bottom = '8px'; hud.style.zIndex = '99999'; hud.style.display = 'flex'; hud.style.gap = '4px'; hud.style.flexWrap = 'wrap'; hud.style.maxWidth = '40vw';
+                      document.body.appendChild(hud);
+                    }
+                    const el = document.createElement('video');
+                    el.autoplay = true; (el as any).playsInline = true; el.muted = true; el.width = 160; el.height = 90; el.style.background = '#000'; el.style.border = '1px solid #0ff';
+                    hud.appendChild(el);
+                    try { t.attach(el); console.debug('[AV][debug] video_debug_attach_ok'); } catch (e) { try { console.warn('[AV][debug] video_debug_attach_failed', e); } catch {} }
+                  }
                 }
               } catch {}
             }
@@ -512,7 +532,7 @@ export class AVManager {
             const kind = (pub as any)?.kind ?? (pub as any)?.track?.kind;
             avLog('debug', 'livekit.track_published', { kind, source: src, pid: participant?.sid }, { identity: this.identity, roomName: this.currentName || undefined as any });
             try { console.debug('[AV][debug] track_published', { kind, source: src, pid: participant?.sid }); } catch {}
-            if (kind === 'audio' || src === 'microphone') {
+            if (kind === 'audio' || src === 'microphone' || src === 'screen_share') {
               try { (pub as any)?.setSubscribed?.(true); } catch {}
             }
             if (!this.remoteQualityTuningDisabled) this.applyDefaultRemoteQuality(); this.ensureSubscribeAllAudio(64);
@@ -554,6 +574,26 @@ export class AVManager {
                     t.attach(el);
                     console.debug('[AV][debug] audio_attach_ok');
                   } catch (e) { try { console.warn('[AV][debug] audio_attach_failed', e); } catch {} }
+                }
+              } catch {}
+            }
+            if (pub && ((pub as any).kind === 'video' || (pub as any)?.track?.kind === 'video')) {
+              try {
+                const dbgOn = !!((window as any).__avDebugOn);
+                if (dbgOn) {
+                  const t: any = (pub as any).track;
+                  if (t && typeof document !== 'undefined') {
+                    let hud = document.getElementById('av-debug-hud');
+                    if (!hud) {
+                      hud = document.createElement('div');
+                      hud.id = 'av-debug-hud'; hud.style.position = 'fixed'; hud.style.right = '8px'; hud.style.bottom = '8px'; hud.style.zIndex = '99999'; hud.style.display = 'flex'; hud.style.gap = '4px'; hud.style.flexWrap = 'wrap'; hud.style.maxWidth = '40vw';
+                      document.body.appendChild(hud);
+                    }
+                    const el = document.createElement('video');
+                    el.autoplay = true; (el as any).playsInline = true; el.muted = true; el.width = 160; el.height = 90; el.style.background = '#000'; el.style.border = '1px solid #0ff';
+                    hud.appendChild(el);
+                    try { t.attach(el); console.debug('[AV][debug] video_debug_attach_ok'); } catch (e) { try { console.warn('[AV][debug] video_debug_attach_failed', e); } catch {} }
+                  }
                 }
               } catch {}
             }
@@ -824,6 +864,7 @@ export class AVManager {
     if (this.isScreensharing()) return true;
     try {
       this.sharePending = true;
+      try { console.debug('[AV][debug] screenshare.start'); } catch {}
       // WICHTIG: getDisplayMedia muss direkt aus der User-Geste aufgerufen werden.
       // Daher zuerst Tracks holen (öffnet den Picker), dann erst auf Verbindung warten/publizieren.
       const tracks = await createLocalScreenTracks({
@@ -847,6 +888,11 @@ export class AVManager {
             try { mst.contentHint = 'detail'; } catch {}
           }
           (t as any)?.setContentHint?.('detail');
+          try {
+            const src: any = (t as any)?.source;
+            const info = { id: mst?.id, kind: mst?.kind, readyState: mst?.readyState, hint: (mst as any)?.contentHint, src };
+            console.debug('[AV][debug] screenshare.published.track', info);
+          } catch {}
           // Auto-stop wenn User die Freigabe im System beendet
           if (mst && typeof mst.addEventListener === 'function') {
             const onEnded = () => { try { this.stopScreenshare().catch(()=>{}); } catch {} };
@@ -864,6 +910,7 @@ export class AVManager {
           }
         }
       } catch {}
+      try { console.debug('[AV][debug] screenshare.start.done'); } catch {}
       this.sharePending = false;
       return true;
     } catch (e: any) {
