@@ -845,7 +845,7 @@ export class AVManager {
           if (mst && 'contentHint' in mst) { try { mst.contentHint = 'speech'; } catch {} }
           (localAudioTrack as any)?.setContentHint?.('speech');
         } catch {}
-        await room.localParticipant.publishTrack(localAudioTrack);
+        await room.localParticipant.publishTrack(localAudioTrack, { source: 'microphone' } as any);
       } else {
         for (const pub of micPubs) {
           try { await room.localParticipant.unpublishTrack(pub.track!); } catch {}
