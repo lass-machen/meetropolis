@@ -37,6 +37,7 @@ export function applySubscriptions(ctx: ApplySubscriptionsContext): void {
         if (kind === 'audio') setDesired(pub, identity, 'audio', true);
         if (kind === 'video') {
           const near = src === 'screen_share' || few || prioritizedVideoSet.has(identity) || activeVideoSet.has(identity) || shouldSub;
+          try { console.debug('[AV][debug] setDesired.video', { identity, src, near, few, active: Array.from(activeVideoSet), desired: Array.from(prioritizedVideoSet) }); } catch {}
           setDesired(pub, identity, 'video', !!near);
         }
       }

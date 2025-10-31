@@ -37,6 +37,7 @@ export async function joinLivekitRoom(params: {
   const token = (await res.text()).trim();
   const room = new Room();
   const serverUrl = normalizeLivekitUrl((import.meta as any).env?.VITE_LIVEKIT_URL);
+  try { logger.debug('[AV][debug] livekit.connecting', { serverUrl, roomName: params.roomName, identity: params.identity }); } catch {}
   const forceRelay = ((import.meta as any).env?.VITE_AV_FORCE_RELAY || (import.meta as any).env?.VITE_LK_FORCE_RELAY) === 'true';
   // Warten auf erste Nutzergeste, um AudioContext-Warnung beim Laden zu vermeiden
   const waitForUserGesture = async () => {
@@ -92,6 +93,13 @@ export async function joinLivekitRoom(params: {
     // Optional für harte NATs (Feature-Flag-basiert aktivieren)
     ...(forceRelay ? { rtcConfig: { iceTransportPolicy: 'relay' } as any } : {}),
   } as any);
+  try {
+    const anyRoom: any = room as any;
+    const roomID = anyRoom?.roomID || anyRoom?.sid || anyRoom?.name;
+    const localSid = anyRoom?.localParticipant?.sid;
+    const nRem = Array.from((anyRoom?.remoteParticipants?.values?.() || []) as any).length;
+    logger.debug('[AV][debug] livekit.connected', { roomID, localSid, nRemote: nRem });
+  } catch {}
   // Absicherung: explizit Auto-Disconnect bei Page-Leave deaktivieren (falls vom SDK unterstützt)
   try { (room as any).setDisconnectOnPageLeave?.(false); } catch {}
   // WICHTIG: keine lokalen Audio/Video-Tracks automatisch erstellen/publizieren.
