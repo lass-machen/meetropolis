@@ -1,10 +1,17 @@
 import React, { useEffect, useRef } from 'react';
+import { ParticipantCard } from './ui/user/ParticipantCard';
+import { UserManagement } from './ui/admin/UserManagement';
+import { AuthScreen } from './ui/auth/AuthScreen';
+import { pointInPolygon } from './lib/geom';
+import { getDisplayName as getDisplayNameLib } from './lib/displayName';
 import { FAIcon } from './ui/FAIcon';
-import { ThemeProvider, AppShell, ThemeToggleButton } from './ui/theme';
+import { ThemeProvider, ThemeToggleButton } from './ui/theme';
 import { Overlay } from './ui/Overlay';
-import { Button, Card, Input, Toolbar, Modal } from './ui/components';
+// removed unused component imports from ui/components
 import { AVBar } from './ui/av/AVBar';
 import { TilesetUploadDialog } from './ui/editor/TilesetUploadDialog';
+import { RosterPanel } from './ui/user/RosterPanel';
+import { BubbleBanner } from './ui/user/BubbleBanner';
 import { UserCardContainer } from './ui/user/UserCard';
 import { EditorPanel } from './ui/editor/EditorPanel';
 import { useEditor } from './hooks/useEditor';
@@ -19,41 +26,11 @@ import { VolumeManager } from './game/volumeManager';
 // import removed: getDisplayName
 // (removed duplicate incorrect import)
 
-// Helper function for point in polygon check
-function pointInPolygon(p: { x: number; y: number }, poly: { x: number; y: number }[]): boolean {
-  let c = false;
-  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
-    const pi = poly[i], pj = poly[j];
-    if (((pi.y > p.y) !== (pj.y > p.y)) && (p.x < (pj.x - pi.x) * (p.y - pi.y) / (pj.y - pi.y + 1e-9) + pi.x)) {
-      c = !c;
-    }
-  }
-  return c;
-}
+// pointInPolygon moved to ./lib/geom
 
 // (lokale Inline-Icons entfernt; Nutzung erfolgt über FAIcon)
 
-// Small UI Icons
-function ExpandIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M9 5H5v4" stroke="#e5e7eb" strokeWidth="1.8" strokeLinecap="round"/>
-      <path d="M5 5l5 5" stroke="#e5e7eb" strokeWidth="1.8" strokeLinecap="round"/>
-      <path d="M15 19h4v-4" stroke="#e5e7eb" strokeWidth="1.8" strokeLinecap="round"/>
-      <path d="M19 19l-5-5" stroke="#e5e7eb" strokeWidth="1.8" strokeLinecap="round"/>
-    </svg>
-  );
-}
-function CollapseIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M10 10L5 5" stroke="#e5e7eb" strokeWidth="1.8" strokeLinecap="round"/>
-      <path d="M9 5h-4v4" stroke="#e5e7eb" strokeWidth="1.8" strokeLinecap="round"/>
-      <path d="M14 14l5 5" stroke="#e5e7eb" strokeWidth="1.8" strokeLinecap="round"/>
-      <path d="M15 19h4v-4" stroke="#e5e7eb" strokeWidth="1.8" strokeLinecap="round"/>
-    </svg>
-  );
-}
+// Small UI Icons removed (using FAIcon directly)
 
 export function App() {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -66,8 +43,7 @@ export function App() {
   const followRef = useRef<import('./game/followManager').FollowManager | null>(null);
   const volumeRef = useRef<VolumeManager | null>(null);
   const bubbleMembersRef = useRef<Set<string>>(new Set());
-  const rightClickTimerRef = useRef<any>(null);
-  const lastRightClickRef = useRef<{ colyseusId: string; livekitIdentity: string; time: number } | null>(null);
+  // removed unused right-click timers
   const localPosRef = useRef<{ id: string; x: number; y: number }>({ id: '', x: 0, y: 0 });
   const remotesRef = useRef<Record<string, { x: number; y: number }>>({});
   const colyseusToLivekitMap = useRef<Record<string, string>>({});
@@ -100,6 +76,11 @@ export function App() {
   }, []);
   // Positions-Persistenz (Throttle)
   const lastPositionPostAtRef = React.useRef(0);
+  // API Base (früh deklarieren)
+  const apiBase = (import.meta.env.VITE_API_BASE as string | undefined) ||
+    (typeof window !== 'undefined'
+      ? `${window.location.protocol}//${window.location.hostname}:2567`
+      : 'http://localhost:2567');
 
   // Roster: periodisch letzte Präsenz (für Offline/zuletzt online)
   React.useEffect(() => {
@@ -123,7 +104,11 @@ export function App() {
             // keep online ones
             for (const [ident, v] of Object.entries(online)) {
               const prevItem = map.get(ident);
-              map.set(ident, { identity: ident, name: v.name, online: true, x: v.x, y: v.y, lastSeen: prevItem?.lastSeen });
+              const entry: { identity: string; name: string; online: boolean; x?: number; y?: number; lastSeen?: string } = { identity: ident, name: v.name, online: true, x: v.x, y: v.y };
+              if (prevItem && typeof (prevItem as any).lastSeen === 'string') {
+                entry.lastSeen = (prevItem as any).lastSeen;
+              }
+              map.set(ident, entry);
             }
             return Array.from(map.values()).sort((a, b) => Number(b.online) - Number(a.online) || a.name.localeCompare(b.name));
           });
@@ -195,6 +180,9 @@ export function App() {
   // Expose bubble start from effect to JSX
   const bubbleStartRef = React.useRef<null | ((id: string) => void)>(null);
   const disposedRef = React.useRef(false);
+  const [page, setPage] = React.useState<'world' | 'admin' | string>('world');
+  const [menuOpen, setMenuOpen] = React.useState(false);
+  const connectLivekitRef = React.useRef<null | (() => Promise<void>)>(null);
 
   useEffect(() => {
     disposedRef.current = false;
@@ -203,11 +191,7 @@ export function App() {
     };
   }, []);
 
-  // Define apiBase before using it
-  const apiBase = (import.meta.env.VITE_API_BASE as string | undefined) ||
-    (typeof window !== 'undefined'
-      ? `${window.location.protocol}//${window.location.hostname}:2567`
-      : 'http://localhost:2567');
+  // apiBase declared earlier
 
   // Laden der Tokenliste beim Öffnen des Modals
   useEffect(() => {
@@ -457,7 +441,7 @@ export function App() {
       // Und sofortige Registrierung versuchen (falls Szene bereits läuft)
       try {
         for (const ts of tilesets) {
-          gameBridge.registerTileset({ key: ts.key, dataUrl: ts.dataUrl, tileWidth: ts.tileWidth, tileHeight: ts.tileHeight, margin: ts.margin ?? 0, spacing: ts.spacing ?? 0 });
+          gameBridge.registerTileset({ key: ts.key, dataUrl: ts.dataUrl, tileWidth: ts.tileWidth, tileHeight: ts.tileHeight, margin: (ts as any).margin ?? 0, spacing: (ts as any).spacing ?? 0 });
         }
       } catch {}
       // Bereits vorhandene Editor-Layer sofort anwenden (falls vorhanden)
@@ -472,7 +456,7 @@ export function App() {
             if (data?.tilesets) try { localStorage.setItem('meetropolis.tilesets', JSON.stringify(data.tilesets)); } catch {}
             if (data?.assets) try { localStorage.setItem('meetropolis.assets', JSON.stringify(data.assets)); } catch {}
             if (data?.zones) try {
-              const zones = Array.isArray(data.zones) ? data.zones.map((z:any)=>{
+              const zones = Array.isArray(data.zones) ? data.zones.map((z: any)=>{
                 const anyZ = z || {};
                 const pts = Array.isArray(anyZ.points)
                   ? anyZ.points
@@ -484,7 +468,7 @@ export function App() {
                 return { name: anyZ.name, points: pts };
               }) : [];
               // Nur übernehmen/speichern, wenn es mindestens eine gültige Zone gibt
-              if (zones.some(z => Array.isArray(z.points) && z.points.length > 0)) {
+              if (zones.some((z: any) => Array.isArray((z as any).points) && (z as any).points.length > 0)) {
                 localStorage.setItem('meetropolis.zones', JSON.stringify(zones));
                 setEditor(s => ({ ...s, zones }));
                 try { gameBridge.setZoneOverlay(zones); } catch {}
@@ -514,7 +498,7 @@ export function App() {
             const backgroundColor = localStorage.getItem('meetropolis.backgroundColor') || '#202020';
             // Server ist Source of Truth: Zonen nur mitsenden, wenn vorhanden
             const payload: any = { editorGround: layers.editorGround ?? null, collision: layers.collision ?? null, tilesets, assets, backgroundColor };
-            if (Array.isArray(zones) && zones.some((z:any)=> Array.isArray(z?.points) && z.points.length > 0)) {
+              if (Array.isArray(zones) && zones.some((z: any)=> Array.isArray((z as any)?.points) && (z as any).points.length > 0)) {
               payload.zones = zones;
               payload.replaceZones = true;
             }
@@ -717,7 +701,7 @@ export function App() {
       // Default: keine Vorschau
       try { gameBridge.setSelectionRect(null); } catch {}
     };
-    const handleUp = ({ tileX, tileY }: { tileX: number; tileY: number }) => {
+    const handleUp = (_arg: { tileX: number; tileY: number }) => {
       if (!editor.active) return;
       if (editor.tool === 'floor' && editor.tilePaint && editor.tilePaint.tileIndex >= 0) {
         if (!editor.drag) return;
@@ -849,12 +833,12 @@ export function App() {
       if (!isLocal) {
         if (!participantPos) {
           try {
-            const publications = Array.from((p.trackPublications?.values?.() || []) as any);
-            for (const pub of publications) {
-              const source = (pub?.source || pub?.track?.source);
-              const kind = pub?.kind ?? pub?.track?.kind;
+          const publications: any[] = Array.from((p.trackPublications?.values?.() || []) as any);
+          for (const pub of publications) {
+            const source = (pub as any)?.source || (pub as any)?.track?.source;
+            const kind = (pub as any)?.kind ?? (pub as any)?.track?.kind;
               if (source === 'camera' || source === 'screen_share' || kind === 'audio') {
-                try { pub?.setSubscribed?.(false); } catch {}
+              try { (pub as any)?.setSubscribed?.(false); } catch {}
               }
             }
           } catch {}
@@ -863,12 +847,12 @@ export function App() {
         const remoteZone = zones.find(z => pointInPolygon(participantPos!, z.points));
         if ((localZone && !remoteZone) || (!localZone && remoteZone) || (localZone && remoteZone && localZone.name !== remoteZone.name)) {
           try {
-            const publications = Array.from((p.trackPublications?.values?.() || []) as any);
-            for (const pub of publications) {
-              const source = (pub?.source || pub?.track?.source);
-              const kind = pub?.kind ?? pub?.track?.kind;
+          const publications: any[] = Array.from((p.trackPublications?.values?.() || []) as any);
+          for (const pub of publications) {
+            const source = (pub as any)?.source || (pub as any)?.track?.source;
+            const kind = (pub as any)?.kind ?? (pub as any)?.track?.kind;
               if (source === 'camera' || source === 'screen_share' || kind === 'audio') {
-                try { pub?.setSubscribed?.(false); } catch {}
+              try { (pub as any)?.setSubscribed?.(false); } catch {}
               }
             }
           } catch {}
@@ -877,15 +861,15 @@ export function App() {
       }
       
       try {
-        const publications = Array.from((p.trackPublications?.values?.() || []) as any);
+        const publications: any[] = Array.from((p.trackPublications?.values?.() || []) as any);
         // Erzwinge Subscribe f fcr Remote-Kamera/Screenshare
         if (!isLocal) {
           try {
             for (const pub of publications) {
-              const source = (pub?.source || pub?.track?.source);
+              const source = (pub as any)?.source || (pub as any)?.track?.source;
               if (source === 'camera' || source === 'screen_share') {
-                try { pub?.setSubscribed?.(true); } catch {}
-                try { pub?.setVideoQuality?.('high'); } catch {}
+                try { (pub as any)?.setSubscribed?.(true); } catch {}
+                try { (pub as any)?.setVideoQuality?.('high'); } catch {}
               }
             }
           } catch {}
@@ -1242,10 +1226,10 @@ export function App() {
             } catch {}
           }
           if (payload.dnd !== undefined) {
-            setDndStatus(payload.dnd);
-            if (colyseusRef.current) {
-              colyseusRef.current.send('dnd_status', { dnd: payload.dnd });
-            }
+            try { gameBridge.setDoNotDisturb(!!payload.dnd); } catch {}
+            dndRef.current = !!payload.dnd;
+            setAvState(s => ({ ...s, dnd: !!payload.dnd, mic: payload.dnd ? false : s.mic, cam: payload.dnd ? false : s.cam, share: payload.dnd ? false : s.share }));
+            try { colyseusRef.current?.send?.('dnd_status', { dnd: !!payload.dnd }); } catch {}
           }
         });
         
@@ -1319,7 +1303,7 @@ export function App() {
         
         room.onStateChange((state: any) => {
           
-          const players: Record<string, { x: number; y: number; direction: any }> = {};
+        const players: Record<string, { x: number; y: number; direction: any; dnd?: boolean }> = {};
           
           // Try different ways to iterate over the players
           if (state.players) {
@@ -2059,7 +2043,7 @@ export function App() {
       
       // Check if zone changed for participant list
       if (z !== participantListLastZone || Date.now() - lastParticipantUpdate > 2000) {
-        participantListLastZone = z;
+        participantListLastZone = (z ?? null) as any;
         lastParticipantUpdate = Date.now();
         setTimeout(buildParticipantList, 0);
       }
@@ -2334,7 +2318,6 @@ export function App() {
         <>
           {/* Participants Grid Overlay (hidden in editor mode; hidden in DND) */}
           {!editor.active && !avState.dnd && (() => {
-            const minCard = gridExpanded ? 480 : 260;
             const gap = gridExpanded ? 18 : 12;
             const count = participantsToRender.length || 1;
             const cols = Math.max(1, Math.min(count, gridExpanded ? 3 : 4));
@@ -2526,33 +2509,14 @@ export function App() {
       </div>
 
       {/* Rechte Roster-Leiste (volle Höhe) */}
-      <div style={{ position: 'absolute', top: 0, right: 0, bottom: 0, width: 280, background: 'rgba(15,15,18,0.82)', borderLeft: '1px solid rgba(255,255,255,0.08)', zIndex: 40, display: 'flex', flexDirection: 'column' }}>
-        <div style={{ padding: '10px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-          <div style={{ fontWeight: 800 }}>Team</div>
-          <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>{roster.filter(r=>r.online).length} online</div>
-        </div>
-        <div style={{ flex: 1, overflow: 'auto' }}>
-          {roster.map(r => (
-            <div key={r.identity} onDoubleClick={() => {
-              if (!r.online) return;
-              try {
-                if (typeof r.x === 'number' && typeof r.y === 'number') {
-                  gameBridge.setDesiredPosition({ x: r.x!, y: r.y! });
-                  try { (window as any).currentPhaserScene?.cameras?.main?.pan?.(r.x!, r.y!, 250, 'Sine.easeInOut'); } catch {}
-                }
-              } catch {}
-            }} style={{ display:'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderBottom: '1px solid rgba(255,255,255,0.06)', cursor: r.online ? 'pointer' : 'default' }}>
-              <div style={{ width: 10, height: 10, borderRadius: 999, background: r.online ? '#22c55e' : '#6b7280' }} />
-              <div style={{ display:'grid', gap: 2 }}>
-                <div style={{ fontSize: 13, color:'#fff' }}>{r.name || r.identity}</div>
-                {!r.online && (
-                  <div style={{ fontSize: 11, color:'var(--fg-subtle)' }}>zuletzt online: {r.lastSeen ? new Date(r.lastSeen).toLocaleString() : 'unbekannt'}</div>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
+      <RosterPanel roster={roster} onJumpTo={(r)=>{
+        try {
+          if (typeof r.x === 'number' && typeof r.y === 'number') {
+            gameBridge.setDesiredPosition({ x: r.x!, y: r.y! });
+            try { (window as any).currentPhaserScene?.cameras?.main?.pan?.(r.x!, r.y!, 250, 'Sine.easeInOut'); } catch {}
+          }
+        } catch {}
+      }} />
 
       {/* API Token Modal */}
       <Overlay open={apiModalOpen} onClose={()=>setApiModalOpen(false)} title="API-Zugriff" right={<></>}>
@@ -2709,24 +2673,19 @@ export function App() {
       )}
 
       {/* Bubble Banner */}
-      {bubbleUi.active && (
-        <div style={{ position: 'absolute', bottom: 140, left: '50%', transform: 'translateX(-50%)', zIndex: 40 }}>
-          <div style={{ display:'flex', alignItems:'center', gap: 12, background:'rgba(17,17,20,0.9)', border:'1px solid rgba(255,255,255,0.12)', borderRadius: 12, padding: '10px 14px', color:'#fff', boxShadow:'0 12px 32px rgba(0,0,0,0.5)' }}>
-            <span style={{ fontWeight:600 }}>In Bubble mit:</span>
-            <span>{bubbleUi.members.join(', ')}</span>
-            <button onClick={() => {
-              // Leave bubble immediately
-              const set = bubbleMembersRef.current;
-              set.clear();
-              try { gameBridge.setBubbleMembers(new Set()); } catch {}
-              try { gameBridge.setMovementLocked(false); } catch {}
-              try { colyseusRef.current?.send?.('bubble_update', { members: [] }); } catch {}
-              setBubbleUi({ active: false, members: [] });
-              setTimeout(() => applyVolumesToUi(), 0);
-            }} style={{ marginLeft: 8, padding:'6px 10px', borderRadius:8, border:'1px solid rgba(244,63,94,0.4)', background:'rgba(244,63,94,0.18)', color:'#fff', cursor:'pointer' }}>Bubble verlassen</button>
-          </div>
-        </div>
-      )}
+      <BubbleBanner 
+        active={bubbleUi.active} 
+        members={bubbleUi.members} 
+        onLeave={() => {
+          const set = bubbleMembersRef.current;
+          set.clear();
+          try { gameBridge.setBubbleMembers(new Set()); } catch {}
+          try { gameBridge.setMovementLocked(false); } catch {}
+          try { colyseusRef.current?.send?.('bubble_update', { members: [] }); } catch {}
+          setBubbleUi({ active: false, members: [] });
+          setTimeout(() => applyVolumesToUi(), 0);
+        }}
+      />
 
       {/* Kontextmenü */}
       {contextMenu.open && contextMenu.playerId && (
@@ -2862,345 +2821,9 @@ export function App() {
   );
 }
 
-// Styles
-const btnStyle = (active: boolean): React.CSSProperties => ({
-  display: 'flex', alignItems: 'center', gap: 8,
-  padding: '8px 12px', borderRadius: 10,
-  background: active ? 'rgba(16,185,129,0.12)' : 'rgba(255,255,255,0.06)',
-  border: `1px solid ${active ? 'rgba(16,185,129,0.35)' : 'rgba(255,255,255,0.08)'}`,
-  color: '#fff', cursor: 'pointer',
-  outline: 'none',
-});
-const btnLabelStyle: React.CSSProperties = { fontSize: 12, letterSpacing: 0.2 }; 
-const selectStyle: React.CSSProperties = {
-  background: 'rgba(255,255,255,0.06)',
-  border: '1px solid rgba(255,255,255,0.08)',
-  color: '#fff',
-  borderRadius: 8,
-  padding: '6px 8px',
-  fontSize: 12,
-};
+// Styles (unused button styles removed)
 
-// Teilnehmer-Card-Komponente (verschönert)
-function ParticipantCard(props: { part: { sid: string; identity: string; hasVideo: boolean; hasMic: boolean; isSpeaking: boolean; media: 'camera'|'screen'; volume?: number }, roomGetter: () => any | undefined, compact?: boolean, full?: boolean, zoom?: number }) {
-  const videoRef = React.useRef<HTMLVideoElement | null>(null);
-  const { part, roomGetter, compact, full, zoom = 1 } = props;
-  const [isVideoRendering, setIsVideoRendering] = React.useState(false);
-  const [isLocal, setIsLocal] = React.useState(false);
-
-  useEffect(() => {
-    const room: any = roomGetter();
-    const el = videoRef.current;
-    if (!room || !room.localParticipant || !el) return;
-    let baseSid = (part.sid || '').split(':')[0];
-    const isLocalNow = room.localParticipant?.sid === baseSid;
-    setIsLocal(isLocalNow);
-    let p: any = isLocalNow ? room.localParticipant : (room.participants?.get?.(baseSid) || room.remoteParticipants?.get?.(baseSid));
-    
-    // If not found by SID, try to match by identity
-    if (!p && !isLocalNow) {
-      const allParticipants = Array.from(room.remoteParticipants?.values() || []);
-      
-      
-      // For screenshare, remove the " – Bildschirm" suffix to find the base participant
-      const searchIdentity = part.media === 'screen' && part.identity.endsWith(' – Bildschirm') 
-        ? part.identity.slice(0, -14) // Remove " – Bildschirm"
-        : part.identity;
-      
-      // First try to find by display name
-      p = allParticipants.find((participant: any) => {
-        const pName = participant.name || participant.identity;
-        return pName === searchIdentity;
-      });
-      
-      if (!p) {
-        // Try to find by identity (LiveKit ID)
-        p = allParticipants.find((participant: any) => participant.identity === searchIdentity);
-      }
-      
-      if (p) {
-        // Update baseSid for event matching
-        baseSid = p.sid;
-      } else if (part.media === 'screen') {
-        // For screenshare, also try finding by name with suffix
-        p = allParticipants.find((participant: any) => {
-          const pName = participant.name || participant.identity;
-          return part.identity.startsWith(pName + ' –');
-        });
-        if (p) {
-          baseSid = p.sid;
-        }
-      }
-    }
-    
-    // For screenshare of remote participants, ensure we wait for the track
-    if (!p && part.media === 'screen' && !isLocalNow) {
-      // The tryAttach polling will handle this case
-    }
-    
-    if (!p || !p.trackPublications) {
-      return;
-    }
-    const pubs: any[] = Array.from(p.trackPublications?.values?.() || []);
-    const wantedPub = pubs.find(pub => {
-      const src = (pub?.source || pub?.track?.source);
-      const isScreenShare = src === 'screen_share';
-      const isCamera = src === 'camera';
-      if (part.media === 'screen') {
-        return isScreenShare;
-      }
-      return isCamera;
-    });
-    const track = (part.media === 'screen'
-      ? pubs.find(pub => (pub?.source || pub?.track?.source) === 'screen_share')?.track
-      : pubs.find(pub => (pub?.source || pub?.track?.source) === 'camera')?.track);
-    let cleanup: (() => void) | undefined;
-    let pollTimer: any;
-
-    const onLoaded = () => {
-      try {
-        // Wenn Frames gerendert werden, sollte readyState > 2 sein
-        if (el.readyState >= 2) setIsVideoRendering(true);
-      } catch {}
-    };
-    const onPlaying = () => setIsVideoRendering(true);
-    const onEmptied = () => setIsVideoRendering(false);
-    el.addEventListener('loadeddata', onLoaded);
-    el.addEventListener('playing', onPlaying);
-    el.addEventListener('emptied', onEmptied);
-
-    if (track && el) {
-      try {
-        el.muted = true; // Immer stumm schalten, damit Autoplay zuverlässig funktioniert
-        track.attach(el);
-        cleanup = () => { try { track.detach(el); } catch {} };
-        // Check if video is actually playing
-        setTimeout(() => {
-          if (el.videoWidth > 0 && el.videoHeight > 0) {
-          } else {
-            // Video not ready yet
-          }
-        }, 500);
-      } catch (e) {
-      }
-    } else {
-      // No track found yet
-    }
-
-    // Aggressiver Fallback: pollt kurzzeitig und versucht zu attachen, wenn Track verzögert verfügbar wird
-    const tryAttach = () => {
-      try {
-        // For screenshare, also try to find participant again if not found initially
-        let currentP = p;
-        if (!currentP && part.media === 'screen' && !isLocalNow) {
-          const allParticipants = Array.from(room.remoteParticipants?.values() || []);
-          const searchIdentity = part.identity.endsWith(' – Bildschirm') 
-            ? part.identity.slice(0, -14) 
-            : part.identity;
-          // Try to find by display name first
-          currentP = allParticipants.find((participant: any) => {
-            const pName = participant.name || participant.identity;
-            return pName === searchIdentity || part.identity.startsWith(pName + ' –');
-          });
-          
-          if (!currentP) {
-            // Try by identity
-            currentP = allParticipants.find((participant: any) => 
-              participant.identity === searchIdentity ||
-              part.identity.startsWith(participant.identity + ' –')
-            );
-          }
-          if (currentP && currentP !== p) {
-            p = currentP;
-            baseSid = currentP.sid;
-          }
-        }
-        
-        if (!currentP) return;
-        
-        const pubsNow: any[] = Array.from(currentP.trackPublications?.values?.() || []);
-        if (part.media === 'screen' && pubsNow.length > 0) {
-          // Screen share publications found
-        }
-        const cam = pubsNow.find((pub: any) => {
-          const src = (pub?.source || pub?.track?.source);
-          if (part.media === 'screen') return src === 'screen_share';
-          return src === 'camera';
-        });
-        const trackObj = (cam as any)?.track;
-        if (trackObj && el && !el.srcObject) {
-          try { 
-            el.muted = true; // Immer stumm schalten
-            trackObj.attach(el); 
-            setIsVideoRendering(false); 
-            clearInterval(pollTimer);
-            // Check video status after attach
-            setTimeout(() => {
-              if (el.videoWidth > 0 && el.videoHeight > 0) {
-              }
-            }, 500);
-          } catch (e) {
-          }
-        }
-      } catch {}
-    };
-    pollTimer = setInterval(tryAttach, 400);
-    setTimeout(() => { try { clearInterval(pollTimer); } catch {} }, 6000);
-
-    // Fallback: auf spätere Publishes/Subscribes reagieren und (re-)attachen
-    const onTrackSubscribed = (t: any, _publication: any, participant: any) => {
-      try {
-        const src = (t?.source || t?.mediaStreamTrack?.kind) as string | undefined;
-        const isDesired = part.media === 'screen' ? (src === 'screen_share') : (src === 'camera');
-        if (participant?.sid === baseSid && isDesired && el) {
-          try { 
-            el.muted = true; // Immer stumm schalten
-            t.attach(el); 
-            setIsVideoRendering(false);
-            setTimeout(() => {
-              if (el.videoWidth > 0 && el.videoHeight > 0) {
-              } else {
-              }
-            }, 500);
-          } catch (e) {
-          }
-        } else if (participant?.sid === baseSid) {
-          // Sicherstellen, dass wir die gewünschte Quelle abonnieren (screen oder camera)
-          try { _publication?.setSubscribed?.(true); } catch {}
-          try { _publication?.setVideoQuality?.('high'); } catch {}
-        } else {
-        }
-      } catch {}
-    };
-    const onTrackUnsubscribed = (_t: any, _publication: any, participant: any) => {
-      try {
-        if (participant?.sid?.startsWith?.(baseSid) && el) {
-        }
-      } catch {}
-    };
-    const onTrackPublished = (t: any, _publication: any, participant: any) => {
-      try {
-        const src = (_publication?.source || t?.source || t?.mediaStreamTrack?.kind) as string | undefined;
-        const isDesired = part.media === 'screen' ? (src === 'screen_share') : (src === 'camera');
-        if (participant?.sid === baseSid && isDesired && _publication?.track && el) {
-        }
-      } catch {}
-    };
-    // Event-Wiring über RoomEvent (LiveKit v2)
-    (async () => {
-      try {
-        const mod = await import('livekit-client');
-        const RoomEvent = (mod as any).RoomEvent;
-        if (RoomEvent) {
-          room.on?.(RoomEvent.TrackSubscribed, onTrackSubscribed);
-          room.on?.(RoomEvent.TrackUnsubscribed, onTrackUnsubscribed);
-          room.on?.(RoomEvent.TrackPublished, onTrackPublished);
-          room.on?.(RoomEvent.LocalTrackPublished, (publication: any) => {
-            try {
-              const src = (publication?.source || publication?.track?.source) as string | undefined;
-              const wantCamera = (part.media === 'camera' && src === 'camera');
-              const wantScreen = (part.media === 'screen' && src === 'screen_share');
-              if (isLocalNow && (wantCamera || wantScreen) && publication?.track && el) {
-                try { el.muted = true; publication.track.attach(el); setIsVideoRendering(false); } catch {}
-              }
-            } catch {}
-          });
-        } else {
-          // Fallback auf String-Events (ältere Clients)
-          room.on?.('trackSubscribed', onTrackSubscribed);
-          room.on?.('trackUnsubscribed', onTrackUnsubscribed);
-          room.on?.('trackPublished', onTrackPublished);
-          room.on?.('localTrackPublished', () => { try { if (isLocalNow && el) setTimeout(()=>setIsVideoRendering(false),0); } catch {} });
-        }
-      } catch {}
-    })();
-    return () => {
-      const node = videoRef.current;
-      try { node?.removeEventListener('loadeddata', onLoaded); } catch {}
-      try { node?.removeEventListener('playing', onPlaying); } catch {}
-      try { node?.removeEventListener('emptied', onEmptied); } catch {}
-      cleanup?.();
-      try { clearInterval(pollTimer); } catch {}
-      try {
-        const offAll = async () => {
-          try {
-            const mod = await import('livekit-client');
-            const RoomEvent = (mod as any).RoomEvent;
-            if (RoomEvent) {
-              room.off?.(RoomEvent.TrackSubscribed, onTrackSubscribed);
-              room.off?.(RoomEvent.TrackUnsubscribed, onTrackUnsubscribed);
-              room.off?.(RoomEvent.TrackPublished, onTrackPublished);
-              room.off?.(RoomEvent.LocalTrackPublished, () => {});
-            } else {
-              room.off?.('trackSubscribed', onTrackSubscribed);
-              room.off?.('trackUnsubscribed', onTrackUnsubscribed);
-              room.off?.('trackPublished', onTrackPublished);
-              room.off?.('localTrackPublished', () => {});
-            }
-          } catch {}
-        };
-        offAll();
-      } catch {}
-    };
-  }, [part.sid, part.hasVideo, roomGetter]);
-
-  // Calculate opacity based on volume
-  const volume = part.volume ?? 1;
-  const opacity = isLocal ? 1 : (0.4 + (volume * 0.6)); // Min 40%, max 100% opacity
-  
-  const borderColor = part.isSpeaking ? '#22d3ee' : 'var(--border)';
-  const glow = part.isSpeaking ? '0 0 0 2px rgba(34,211,238,0.35), var(--shadow)' : 'var(--shadow)';
-  const bg = `var(--glass)`;
-  const headerBg = `rgba(17,17,20,${0.6 * opacity})`;
-  const badgeOn = 'rgba(16,185,129,0.25)';
-  const badgeOff = 'rgba(244,63,94,0.25)';
-  const borderOn = 'rgba(16,185,129,0.5)';
-  const borderOff = 'rgba(244,63,94,0.5)';
-
-  // Größenlogik:
-  // - Kamera: in der kleinen Ansicht quadratisch, groß etwas höher
-  // - Screenshare: soll nicht abgeschnitten werden -> 16:9 in klein, 16:9 in groß
-  const isScreen = part.media === 'screen';
-  const aspect = full ? undefined : (isScreen ? '16 / 9' : '16 / 9');
-  const targetSize = full ? undefined : (compact ? '100%' : '36vh');
-  const minW = full ? undefined : (compact ? 260 : 420);
-
-  // Interaktion für "außerhalb Bubble" sperren (Volume ~ outsideBubbleAttenuation)
-  const disabled = !isLocal && (volume <= 0.1);
-
-  return (
-    <div style={{
-      width: full ? 'min(calc(100vw - 64px), 1920px)' : `min(${targetSize}, 100%)`,
-      minWidth: minW as any,
-      maxHeight: full ? 'calc(100vh - 64px)' : (targetSize as any),
-      aspectRatio: aspect as any,
-      position: 'relative', borderRadius: 14, overflow: 'hidden', background: 'var(--uc-glass)', border: `1px solid ${borderColor}`, boxShadow: glow,
-      opacity: opacity,
-      transition: 'opacity 0.3s ease-in-out',
-      pointerEvents: disabled ? 'none' : 'auto',
-      filter: disabled ? 'grayscale(90%) brightness(0.8)' : undefined,
-      height: full ? 'auto' : 'min(140px, 30vh)'
-    }}>
-      <video ref={videoRef} autoPlay playsInline muted style={{ width: '100%', height: full ? 'auto' : '100%', maxHeight: full ? 'calc(100vh - 64px)' : undefined, objectFit: isScreen ? 'contain' : (full ? 'contain' : 'cover'), background: 'transparent', transform: (isLocal && part.media==='camera') ? `scaleX(-1) scale(${zoom})` : `scale(${zoom})`, transformOrigin: 'center center' }} />
-      {!(part.hasVideo || isVideoRendering) && (
-        <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', color: 'var(--fg)', fontWeight: 600, fontSize: 14 }}>
-          {part.identity}
-        </div>
-      )}
-      <div style={{ position: 'absolute', top: 6, left: 6, display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', background: 'var(--bg-btn-bg, var(--glass))', borderRadius: 10, border: '1px solid rgba(255,255,255,0.08)' }}>
-        <div style={{ fontSize: 12, color: 'var(--fg)', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{part.identity}</div>
-      </div>
-      <div style={{ position: 'absolute', top: 6, right: 6, display: 'flex', gap: 8 }}>
-        <div title={part.hasMic ? 'Mikro an' : 'Mikro aus'} style={{ display:   'grid', placeItems: 'center', width: 28, height: 28, borderRadius: 999, background: part.hasMic ? badgeOn : badgeOff, border: `1px solid ${part.hasMic ? borderOn : borderOff}` }}>
-          <FAIcon size="sm" name={part.hasMic ? 'microphone' : 'microphone-slash'} variant="solid" ariaLabel={part.hasMic ? 'Mikro an' : 'Mikro aus'} />
-        </div>
-        <div title={part.hasVideo ? 'Kamera an' : 'Kamera aus'} style={{ display: 'grid', placeItems: 'center', width: 28, height: 28, borderRadius: 999, background: (part.hasVideo || isVideoRendering) ? badgeOn : badgeOff, border: `1px solid ${(part.hasVideo || isVideoRendering) ? borderOn : borderOff}` }}>
-          <FAIcon size="sm" name={(part.hasVideo || isVideoRendering) ? 'video' : 'video-slash'} variant="solid" ariaLabel={(part.hasVideo || isVideoRendering) ? 'Kamera an' : 'Kamera aus'} />
-        </div>
-      </div>
-    </div>
-  );
-}
+// ParticipantCard moved to ./ui/user/ParticipantCard
 
 function GearIcon() {
   return (
@@ -3208,529 +2831,8 @@ function GearIcon() {
   );
 }
 
-function UserManagement(props: { baseUrl: string; onBack: () => void }) {
-  const { baseUrl, onBack } = props;
-  const [loading, setLoading] = React.useState(true);
-  const [users, setUsers] = React.useState<{ id: string; email: string; name?: string; createdAt?: string }[]>([]);
-  const [error, setError] = React.useState<string | null>(null);
-  const [edit, setEdit] = React.useState<{ id: string; email: string; name?: string } | null>(null);
-  const [createOpen, setCreateOpen] = React.useState(false);
-  const [newEmail, setNewEmail] = React.useState('');
-  const [newName, setNewName] = React.useState('');
-  const [inviteCode, setInviteCode] = React.useState<string | null>(null);
+// UserManagement moved to ./ui/admin/UserManagement
 
-  async function load() {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch(`${baseUrl}/users`, { credentials: 'include' });
-      if (!res.ok) throw new Error('Fehler beim Laden');
-      const list = await res.json();
-      setUsers(list);
-    } catch (e: any) {
-      setError(e.message || 'Fehler');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function save(u: { id: string; email: string; name?: string }) {
-    try {
-      const res = await fetch(`${baseUrl}/users/${u.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ email: u.email, name: u.name }) });
-      if (!res.ok) throw new Error((await res.json())?.error || 'Update fehlgeschlagen');
-      await load();
-      setEdit(null);
-    } catch (e: any) {
-      setError(e.message || 'Fehler');
-    }
-  }
-
-  async function remove(id: string) {
-    if (!confirm('Benutzer wirklich löschen?')) return;
-    try {
-      const res = await fetch(`${baseUrl}/users/${id}`, { method: 'DELETE', credentials: 'include' });
-      if (!res.ok) throw new Error((await res.json())?.error || 'Löschen fehlgeschlagen');
-      await load();
-    } catch (e: any) {
-      setError(e.message || 'Fehler');
-    }
-  }
-
-  React.useEffect(() => { load(); }, []);
-  // Expose loader for external refresh (invite modal)
-  React.useEffect(() => {
-    (document as any).__userManagementLoad = load;
-    return () => { delete (document as any).__userManagementLoad; };
-  }, []);
-
-  return (
-    <div style={{ maxWidth: 1040, margin: '0 auto', display: 'grid', gap: 20, padding: '20px' }}>
-      <Toolbar
-        left={<>
-          <Button onClick={onBack} style={{ 
-            background: 'rgba(255,255,255,0.05)', 
-            border: '1px solid rgba(255,255,255,0.12)',
-            padding: '8px 16px',
-            borderRadius: 8
-          }}>
-            ← Zurück
-          </Button>
-          <div style={{ 
-            padding: '6px 12px', 
-            borderRadius: 20, 
-            background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)', 
-            fontSize: 12, 
-            color: '#fff',
-            fontWeight: 600
-          }}>
-            Admin
-          </div>
-        </>}
-        right={<>
-          <Button 
-            variant="primary" 
-            onClick={() => { setInviteCode(null); setNewEmail(''); setNewName(''); setCreateOpen(true); }}
-            style={{
-              background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-              border: 'none',
-              padding: '10px 20px',
-              borderRadius: 8,
-              fontWeight: 600
-            }}
-          >
-            + Neuer Benutzer
-          </Button>
-        </>}
-        style={{ 
-          background: 'transparent',
-          border: 'none',
-          padding: 0
-        }}
-      />
-
-      {error && (
-        <Card style={{ 
-          background: 'rgba(239,68,68,0.1)', 
-          border: '1px solid rgba(239,68,68,0.3)'
-        }}>
-          <div style={{ color: '#fca5a5' }}>{error}</div>
-        </Card>
-      )}
-      {loading ? (
-        <Card style={{ 
-          background: 'rgba(255,255,255,0.04)',
-          border: '1px solid rgba(255,255,255,0.08)',
-          textAlign: 'center',
-          padding: 40
-        }}>
-          <div style={{ color: 'rgba(255,255,255,0.6)' }}>Lade Benutzerdaten...</div>
-        </Card>
-      ) : (
-        <Card style={{ 
-          background: 'rgba(255,255,255,0.04)',
-          border: '1px solid rgba(255,255,255,0.08)',
-          padding: 0,
-          overflow: 'hidden'
-        }}>
-          <div style={{ display: 'grid', gap: 0 }}>
-            <div style={{ 
-              display: 'grid', 
-              gridTemplateColumns: 'minmax(150px, 1fr) minmax(150px, 1fr) minmax(160px, 180px)', 
-              gap: 16, 
-              padding: '16px 24px', 
-              background: 'rgba(255,255,255,0.03)',
-              borderBottom: '1px solid rgba(255,255,255,0.08)',
-              fontWeight: 600, 
-              color: 'rgba(255,255,255,0.7)',
-              fontSize: 13,
-              textTransform: 'uppercase',
-              letterSpacing: '0.05em'
-            }}>
-              <div>E-Mail</div>
-              <div>Name</div>
-              <div>Aktionen</div>
-            </div>
-            {users.map(u => (
-              <div key={u.id} style={{ 
-                display: 'grid', 
-                gridTemplateColumns: 'minmax(150px, 1fr) minmax(150px, 1fr) minmax(160px, 180px)', 
-                gap: 16, 
-                padding: '16px 24px',
-                borderBottom: '1px solid rgba(255,255,255,0.06)',
-                transition: 'background 0.2s',
-                background: edit?.id === u.id ? 'rgba(59,130,246,0.1)' : 'transparent'
-              }}>
-                {edit?.id === u.id ? (
-                  <>
-                    <Input 
-                      value={edit.email} 
-                      onChange={e => setEdit({ ...(edit as any), email: e.target.value })}
-                      style={{
-                        background: 'rgba(255,255,255,0.05)',
-                        border: '1px solid rgba(255,255,255,0.12)',
-                        padding: '8px 12px',
-                        fontSize: 14
-                      }}
-                    />
-                    <Input 
-                      value={edit.name ?? ''} 
-                      onChange={e => setEdit({ ...(edit as any), name: e.target.value })}
-                      style={{
-                        background: 'rgba(255,255,255,0.05)',
-                        border: '1px solid rgba(255,255,255,0.12)',
-                        padding: '8px 12px',
-                        fontSize: 14
-                      }}
-                    />
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <Button 
-                        variant="primary" 
-                        onClick={() => save(edit!)}
-                        style={{
-                          background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                          border: 'none',
-                          padding: '6px 16px',
-                          borderRadius: 6,
-                          fontSize: 13
-                        }}
-                      >
-                        ✓
-                      </Button>
-                      <Button 
-                        onClick={() => setEdit(null)}
-                        style={{
-                          background: 'rgba(255,255,255,0.05)',
-                          border: '1px solid rgba(255,255,255,0.12)',
-                          padding: '6px 16px',
-                          borderRadius: 6,
-                          fontSize: 13
-                        }}
-                      >
-                        ✕
-                      </Button>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div style={{ display: 'flex', alignItems: 'center', color: '#fff', fontSize: 14 }}>{u.email}</div>
-                    <div style={{ display: 'flex', alignItems: 'center', color: u.name ? '#fff' : 'rgba(255,255,255,0.4)', fontSize: 14 }}>{u.name ?? '—'}</div>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <Button 
-                        onClick={() => setEdit({ id: u.id, email: u.email, name: u.name ?? '' })}
-                        style={{
-                          background: 'rgba(255,255,255,0.05)',
-                          border: '1px solid rgba(255,255,255,0.12)',
-                          padding: '6px 16px',
-                          borderRadius: 6,
-                          fontSize: 13
-                        }}
-                      >
-                        Bearbeiten
-                      </Button>
-                      <Button 
-                        variant="danger" 
-                        onClick={() => remove(u.id)}
-                        style={{
-                          background: 'rgba(239,68,68,0.1)',
-                          border: '1px solid rgba(239,68,68,0.3)',
-                          color: '#f87171',
-                          padding: '6px 16px',
-                          borderRadius: 6,
-                          fontSize: 13
-                        }}
-                      >
-                        Löschen
-                      </Button>
-                    </div>
-                  </>
-                )}
-              </div>
-            ))}
-            {users.length === 0 && (
-              <div style={{ 
-                padding: 40, 
-                textAlign: 'center', 
-                color: 'rgba(255,255,255,0.4)' 
-              }}>
-                Keine Benutzer vorhanden
-              </div>
-            )}
-          </div>
-        </Card>
-      )}
-
-      <Modal open={createOpen} onClose={() => setCreateOpen(false)} title="Neuen Benutzer einladen" maxWidth={520} footer={<>
-        <Button onClick={() => setCreateOpen(false)}>Abbrechen</Button>
-        <Button variant="primary" onClick={async () => {
-          setError(null);
-          try {
-            // Einladung erzeugen
-            const res = await fetch(`${baseUrl}/auth/invite`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ email: newEmail, name: newName || undefined }) });
-            if (!res.ok) throw new Error((await res.json())?.error || 'Fehler beim Einladen');
-            const data = await res.json();
-            setInviteCode(data.code || null);
-            // Liste neu laden, damit eingeladener User angezeigt wird
-            try { await (document as any).__userManagementLoad?.(); } catch {}
-            // offen lassen, damit Code kopiert werden kann
-          } catch (e: any) {
-            setError(e.message || 'Fehler');
-          }
-        }}>Einladung erstellen</Button>
-      </>}>
-        <div style={{ display: 'grid', gap: 10 }}>
-          <Input placeholder="E-Mail-Adresse" value={newEmail} onChange={e => setNewEmail(e.target.value)} />
-          <Input placeholder="Name (optional)" value={newName} onChange={e => setNewName(e.target.value)} />
-          {inviteCode && <div className="glass-surface" style={{ padding: 10, borderRadius: 10, display:'flex', alignItems:'center', justifyContent:'space-between', gap:8 }}>
-            <div>Einladungscode: <b>{inviteCode}</b></div>
-            <Button onClick={() => { navigator.clipboard?.writeText(inviteCode); }}>Kopieren</Button>
-          </div>}
-          <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>Der eingeladene Nutzer erhält einen Code. Mit diesem kann er sich selbst registrieren.</div>
-        </div>
-      </Modal>
-    </div>
-  );
-}
-
-function AuthScreen(props: { baseUrl: string; onDone: () => void }) {
-  const { baseUrl, onDone } = props;
-  const [view, setView] = React.useState<'login'|'register'|'forgot'|'reset'>('login');
-  const [email, setEmail] = React.useState('');
-  const [password, setPassword] = React.useState('');
-  const [name, setName] = React.useState('');
-  const [invite, setInvite] = React.useState('');
-  const [token, setToken] = React.useState('');
-  const [msg, setMsg] = React.useState<string | null>(null);
-
-  async function post(path: string, body: any) {
-    const res = await fetch(`${baseUrl}${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(body) });
-    if (!res.ok) throw new Error((await res.json())?.error || 'Fehler');
-    return await res.json().catch(() => ({}));
-  }
-
-  const commonStyle: React.CSSProperties = { display: 'grid', gap: 16, width: '100%' };
-
-  return (
-    <div style={{ 
-      width: '100vw', 
-      height: '100vh', 
-      display: 'grid', 
-      placeItems: 'center',
-      background: 'linear-gradient(135deg, rgba(17,17,20,0.98) 0%, rgba(30,30,35,0.98) 100%)',
-      position: 'relative',
-      overflow: 'hidden'
-    }}>
-      {/* Animated background pattern */}
-      <div style={{
-        position: 'absolute',
-        inset: 0,
-        background: 'radial-gradient(circle at 20% 50%, rgba(59,130,246,0.08) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(147,51,234,0.08) 0%, transparent 50%), radial-gradient(circle at 40% 20%, rgba(16,185,129,0.08) 0%, transparent 50%)',
-      }} />
-      
-      <div style={{ 
-        position: 'relative',
-        width: '100%',
-        maxWidth: 440,
-        padding: '0 20px'
-      }}>
-        {/* Logo and Title */}
-        <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          <div style={{ 
-            fontSize: 48, 
-            fontWeight: 900, 
-            background: 'linear-gradient(135deg, #60a5fa 0%, #a78bfa 50%, #34d399 100%)',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent as any',
-            marginBottom: 8,
-            letterSpacing: '-0.02em'
-          }}>
-            Meetropolis
-          </div>
-          <div style={{ fontSize: 16, color: 'rgba(255,255,255,0.6)' }}>Dein virtueller Arbeitsplatz</div>
-        </div>
-        
-        <Card style={{ 
-          background: 'rgba(255,255,255,0.04)',
-          backdropFilter: 'blur(20px)',
-          border: '1px solid rgba(255,255,255,0.08)',
-          padding: 32,
-          borderRadius: 16,
-          boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
-          position: 'relative'
-        }}>
-          <div style={{ position: 'absolute', top: 16, right: 16 }}>
-            <ThemeToggleButton />
-          </div>
-          <div style={commonStyle}>
-        {view === 'login' && (
-          <>
-            <h2 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: '#fff' }}>Willkommen zurück</h2>
-            <div style={{ display: 'grid', gap: 12 }}>
-              <div>
-                <label style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', display: 'block', marginBottom: 6 }}>E-Mail</label>
-                <Input 
-                  placeholder="name@beispiel.de" 
-                  value={email} 
-                  onChange={e=>setEmail(e.target.value)}
-                  style={{ 
-                    background: 'rgba(255,255,255,0.05)',
-                    border: '1px solid rgba(255,255,255,0.12)',
-                    padding: '12px 16px',
-                    fontSize: 14
-                  }}
-                />
-              </div>
-              <div>
-                <label style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', display: 'block', marginBottom: 6 }}>Passwort</label>
-                <Input 
-                  placeholder="••••••••" 
-                  type="password" 
-                  value={password} 
-                  onChange={e=>setPassword(e.target.value)}
-                  style={{ 
-                    background: 'rgba(255,255,255,0.05)',
-                    border: '1px solid rgba(255,255,255,0.12)',
-                    padding: '12px 16px',
-                    fontSize: 14
-                  }}
-                />
-              </div>
-            </div>
-            <Button 
-              variant="primary" 
-              onClick={async()=>{ try{ await post('/auth/login',{email,password}); onDone(); } catch(e:any){ setMsg(e.message); } }}
-              style={{ 
-                width: '100%', 
-                padding: '12px 24px',
-                fontSize: 15,
-                fontWeight: 600,
-                background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)',
-                border: 'none',
-                borderRadius: 8
-              }}
-            >
-              Einloggen
-            </Button>
-            <div style={{ display:'flex', justifyContent:'space-between', fontSize: 13 }}>
-              <a style={{ cursor:'pointer', color: '#60a5fa', textDecoration: 'none' }} onClick={()=>setView('forgot')}>Passwort vergessen?</a>
-              <a style={{ cursor:'pointer', color: '#60a5fa', textDecoration: 'none' }} onClick={()=>setView('register')}>Einladung einlösen</a>
-            </div>
-          </>
-        )}
-        {view === 'register' && (
-          <>
-            <h2 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: '#fff' }}>Registrierung</h2>
-            <div style={{ display: 'grid', gap: 12 }}>
-              <div>
-                <label style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', display: 'block', marginBottom: 6 }}>Einladungscode</label>
-                <Input 
-                  placeholder="Code eingeben" 
-                  value={invite} 
-                  onChange={e=>setInvite(e.target.value)}
-                  style={{ 
-                    background: 'rgba(255,255,255,0.05)',
-                    border: '1px solid rgba(255,255,255,0.12)',
-                    padding: '12px 16px',
-                    fontSize: 14
-                  }}
-                />
-              </div>
-              <div>
-                <label style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', display: 'block', marginBottom: 6 }}>Name (optional)</label>
-                <Input 
-                  placeholder="Max Mustermann" 
-                  value={name} 
-                  onChange={e=>setName(e.target.value)}
-                  style={{ 
-                    background: 'rgba(255,255,255,0.05)',
-                    border: '1px solid rgba(255,255,255,0.12)',
-                    padding: '12px 16px',
-                    fontSize: 14
-                  }}
-                />
-              </div>
-              <div>
-                <label style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', display: 'block', marginBottom: 6 }}>E-Mail</label>
-                <Input 
-                  placeholder="name@beispiel.de" 
-                  value={email} 
-                  onChange={e=>setEmail(e.target.value)}
-                  style={{ 
-                    background: 'rgba(255,255,255,0.05)',
-                    border: '1px solid rgba(255,255,255,0.12)',
-                    padding: '12px 16px',
-                    fontSize: 14
-                  }}
-                />
-              </div>
-              <div>
-                <label style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', display: 'block', marginBottom: 6 }}>Passwort</label>
-                <Input 
-                  placeholder="••••••••" 
-                  type="password" 
-                  value={password} 
-                  onChange={e=>setPassword(e.target.value)}
-                  style={{ 
-                    background: 'rgba(255,255,255,0.05)',
-                    border: '1px solid rgba(255,255,255,0.12)',
-                    padding: '12px 16px',
-                    fontSize: 14
-                  }}
-                />
-              </div>
-            </div>
-            <Button 
-              variant="primary" 
-              onClick={async()=>{ try{ await post('/auth/register',{code:invite,name,email,password}); onDone(); } catch(e:any){ setMsg(e.message); } }}
-              style={{ 
-                width: '100%', 
-                padding: '12px 24px',
-                fontSize: 15,
-                fontWeight: 600,
-                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                border: 'none',
-                borderRadius: 8
-              }}
-            >
-              Registrieren
-            </Button>
-            <a style={{ cursor:'pointer', color: '#60a5fa', textDecoration: 'none', fontSize: 13, textAlign: 'center' }} onClick={()=>setView('login')}>Zurück zum Login</a>
-          </>
-        )}
-        {view === 'forgot' && (
-          <>
-            <h3 style={{ margin: 0 }}>Passwort vergessen</h3>
-            <Input placeholder="E-Mail" value={email} onChange={e=>setEmail(e.target.value)} />
-            <Button variant="primary" onClick={async()=>{ try{ const r=await post('/auth/forgot',{email}); setMsg(`Reset-Token (Debug): ${r.token||'per Mail'}`); setView('reset'); } catch(e:any){ setMsg(e.message); } }}>Zurücksetzen anfordern</Button>
-            <a style={{ cursor:'pointer' }} onClick={()=>setView('login')}>Zurück zum Login</a>
-          </>
-        )}
-        {view === 'reset' && (
-          <>
-            <h3 style={{ margin: 0 }}>Passwort zurücksetzen</h3>
-            <Input placeholder="Reset-Token" value={token} onChange={e=>setToken(e.target.value)} />
-            <Input placeholder="Neues Passwort" type="password" value={password} onChange={e=>setPassword(e.target.value)} />
-            <Button variant="primary" onClick={async()=>{ try{ await post('/auth/reset',{token,password}); setView('login'); setMsg('Passwort aktualisiert'); } catch(e:any){ setMsg(e.message); } }}>Passwort speichern</Button>
-            <a style={{ cursor:'pointer' }} onClick={()=>setView('login')}>Zurück zum Login</a>
-          </>
-        )}
-        {msg && (
-          <div style={{ 
-            padding: '12px 16px', 
-            borderRadius: 8, 
-            background: 'rgba(239,68,68,0.1)', 
-            border: '1px solid rgba(239,68,68,0.3)',
-            color: '#fca5a5',
-            fontSize: 14,
-            marginTop: 8
-          }}>
-            {msg}
-          </div>
-        )}
-          </div>
-        </Card>
-      </div>
-    </div>
-  );
-}
+// AuthScreen moved to ./ui/auth/AuthScreen
 
 export default App;
