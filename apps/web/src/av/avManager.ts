@@ -76,6 +76,8 @@ export class AVManager {
   private dnd = false;
   private unsubscribeAvSettings: (() => void) | null = null;
   private settingsRepubTimer: any = null;
+  // Console-Debug Steuerung (Original-Funktion merken, um togglen zu können)
+  private originalConsoleDebug: ((...args: any[]) => void) | null = null;
 
   constructor(opts: { baseUrl: string; identity: string; displayName?: string; useVideo: boolean }) {
     this.baseUrl = opts.baseUrl;
@@ -98,11 +100,14 @@ export class AVManager {
                 const el = document.getElementById('av-debug-hud');
                 if (el) el.remove();
               }
+              try { this.updateConsoleDebugHook(); } catch {}
             }
           } catch {}
         }, true);
       }
     } catch {}
+    // Initiales Setzen des console.debug Hooks entsprechend Env/Flag
+    try { this.updateConsoleDebugHook(); } catch {}
 
     // Netzereignisse: bei Offline/Online automatisch State setzen & Rejoin versuchen
     try {
@@ -172,6 +177,19 @@ export class AVManager {
     if (!room) return false;
     const state = room.connectionState || room.state;
     return state === 'connected' || state === 2;
+  }
+
+  // Aktiviert/Deaktiviert console.debug abhängig von Env/Debug-Flag, um Prod-Konsole nicht zu fluten
+  private updateConsoleDebugHook(): void {
+    try {
+      const w: any = window as any;
+      const env: any = (import.meta as any).env || {};
+      const enableDebug = !!env.DEV || env.VITE_AV_DEBUG === 'true' || !!w.__avDebugOn;
+      if (!this.originalConsoleDebug) {
+        try { this.originalConsoleDebug = console.debug.bind(console); } catch {}
+      }
+      (console as any).debug = enableDebug && this.originalConsoleDebug ? (this.originalConsoleDebug as any) : (() => {}) as any;
+    } catch {}
   }
 
   private isSignalOpen(): boolean {

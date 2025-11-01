@@ -29,6 +29,7 @@ export function TilesetUploadDialog(props: {
       open={props.open}
       onOpenChange={(v)=> { if (!v) props.onCancel(); }}
       title={`${t('tileset.configureTitle', { file: d.fileName })}`}
+      description={t('tileset.hint')}
       maxWidth={800}
       footer={(
         <>
@@ -43,6 +44,10 @@ export function TilesetUploadDialog(props: {
               spacing: d.spacing,
             } as const;
             const tileset = (d.category ? { ...base, category: d.category } : base);
+            try {
+              const ev = new CustomEvent('editor:tileset-confirm', { detail: tileset });
+              window.dispatchEvent(ev);
+            } catch {}
             props.onConfirm(tileset as { key: string; dataUrl: string; tileWidth: number; tileHeight: number; margin: number; spacing: number; category?: 'terrain' | 'structures' | 'objects' });
           }}>{t('tileset.add')}</Button>
         </>

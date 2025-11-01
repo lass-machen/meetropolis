@@ -494,6 +494,7 @@ export function registerApi(app: express.Express) {
     const auth = sessionAuth || tokenAuth;
     if (!auth) return res.status(401).json({ error: 'unauthorized' });
     try {
+    try { logger.info('[AssetPacks] upload request received'); } catch {}
       const file = (req as any).file as any as { buffer?: Buffer; size?: number } | undefined;
       if (!file || !file.buffer || !file.size || file.size <= 0) {
         return res.status(400).json({ error: 'file required' });
@@ -554,6 +555,7 @@ export function registerApi(app: express.Express) {
         return res.status(400).json({ error: 'invalid config schema', details: parsed.error.errors });
       }
       const cfg = parsed.data as any;
+      try { logger.info('[AssetPacks] parsed config.json', { uuid: cfg?.uuid, name: cfg?.name, v: cfg?.version, nTerrain: (cfg?.terrain||[]).length, nStruct: (cfg?.structures||[]).length, nObjects: (cfg?.objects||[]).length }); } catch {}
 
       // Ensure all referenced dataURL exist in assets and have allowed extensions
       const assetSet = new Set<string>();
@@ -686,7 +688,7 @@ export function registerApi(app: express.Express) {
       } else {
         rec = await prisma.assetPack.create({ data: dataRecord as any });
       }
-
+      try { logger.info('[AssetPacks] upload success', { id: rec.id, uuid: rec.uuid, version: rec.version }); } catch {}
       return res.json({ ok: true, id: rec.id, uuid: rec.uuid, version: rec.version });
     } catch (e: any) {
       logger.error('[AssetPacks] upload failed', e);
@@ -942,6 +944,7 @@ export function registerApi(app: express.Express) {
     const last = await prisma.mapTileset.findFirst({ where: { mapId: map.id }, orderBy: { slot: 'desc' } });
     const newSlot = last ? last.slot + 1 : 0;
     await prisma.mapTileset.create({ data: { mapId: map.id, slot: newSlot, ...parse.data } });
+    try { logger.info('[Tilesets] registry add', { map: name, slot: newSlot, key: parse.data.key, url: parse.data.imageUrl }); } catch {}
 
     const tilesets = await prisma.mapTileset.findMany({ where: { mapId: map.id }, orderBy: { slot: 'asc' } });
 
@@ -983,6 +986,7 @@ export function registerApi(app: express.Express) {
       assets: meta.assets ?? [],
       zones: await prisma.zone.findMany({ where: { mapId: map.id }, select: { id: true, name: true, capacity: true, polygon: true } }),
       backgroundColor: typeof meta.backgroundColor === 'string' ? meta.backgroundColor : null,
+      spawn: (meta.spawn && typeof (meta.spawn as any).x === 'number' && typeof (meta.spawn as any).y === 'number') ? meta.spawn : null,
     });
   });
 
@@ -998,10 +1002,12 @@ export function registerApi(app: express.Express) {
       zones: z.array(z.any()).optional(),
       backgroundColor: z.string().regex(/^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/).optional(),
       replaceZones: z.boolean().optional(),
+      spawn: z.object({ x: z.number(), y: z.number() }).optional(),
     });
     const parse = editorSchema.safeParse(req.body || {});
     if (!parse.success) return res.status(400).json({ error: 'invalid editor payload' });
-    const { editorGround, collision, tilesets, assets, zones, backgroundColor, replaceZones } = parse.data;
+    const { editorGround, collision, tilesets, assets, zones, backgroundColor, replaceZones, spawn } = parse.data;
+    try { logger.debug('[EditorState] PUT', { map: name, tilesets: Array.isArray(tilesets) ? tilesets.length : undefined, assets: Array.isArray(assets) ? assets.length : undefined, zones: Array.isArray(zones) ? zones.length : undefined, spawn: !!spawn }); } catch {}
     const found = await prisma.map.findUnique({ where: { name }, include: { rooms: true } });
     const map = found ?? await prisma.map.create({ data: { name, meta: {} } });
     // Ensure there is at least one room for this map (for zone assignment)
@@ -1027,6 +1033,7 @@ export function registerApi(app: express.Express) {
           tilesets: tilesets ?? currentMeta.tilesets ?? [], 
           assets: assets ?? currentMeta.assets ?? [],
           backgroundColor: backgroundColor ?? currentMeta.backgroundColor ?? undefined,
+          spawn: spawn ?? currentMeta.spawn ?? undefined,
         } as any 
       } 
     });
@@ -1059,6 +1066,16 @@ export function registerApi(app: express.Express) {
           await prisma.zone.create({ data: { name: z.name, capacity: z.capacity ?? undefined, polygon: z.polygon, mapId: map.id, roomId: roomForZones?.id as string } as any });
         }
       }
+    }
+    // Broadcast spawn update to active rooms (best-effort)
+    if (spawn && typeof spawn.x === 'number' && typeof spawn.y === 'number') {
+      try {
+        const rooms: any[] = Array.from(((global as any).activeWorldRooms || new Set()).values());
+        for (const room of rooms) {
+          try { room.broadcast('editor_update', { type: 'spawn', pos: { x: spawn.x, y: spawn.y } }); } catch {}
+          try { if (typeof room.setDefaultSpawn === 'function') room.setDefaultSpawn({ x: spawn.x, y: spawn.y }); } catch {}
+        }
+      } catch {}
     }
     res.json({ ok: true });
   });

@@ -10,6 +10,7 @@ type Bridge = {
   updateRemotePlayerDnd: (id: string, dnd: boolean) => void;
   setDesiredPosition: (pos: { x: number; y: number } | null) => void;
   setZoneOverlay: (polys: { name: string; points: { x: number; y: number }[] }[]) => void;
+  setZonesVisible: (visible: boolean) => void;
   onPointerDown: (p: { x: number; y: number }) => void;
   onRightClick: (p: { x: number; y: number; playerId?: string }) => void;
   setEditorAssets: (assets: { id: string; key: string; dataUrl: string; x: number; y: number }[]) => void;
@@ -47,6 +48,7 @@ export type SceneApi = {
   syncRemotePlayers: (players: Record<string, { x: number; y: number; direction: Direction; name?: string; dnd?: boolean }>) => void;
   setDesiredPosition: (pos: { x: number; y: number } | null) => void;
   setZoneOverlay: (polys: { name: string; points: { x: number; y: number }[] }[]) => void;
+  setZonesVisible?: (visible: boolean) => void;
   setEditorAssets: (assets: { id: string; key: string; dataUrl: string; x: number; y: number }[]) => void;
   setSelectionRect: (rect: { x: number; y: number; w: number; h: number } | null) => void;
   applyTilePaint: (edit: { layer: 'EditorGround' | 'EditorWalls' | 'Collision'; tilesetKey: string; tileIndex: number; rect: { startX: number; startY: number; endX: number; endY: number } }) => void;
@@ -70,6 +72,7 @@ export type SceneApi = {
 
 let sceneApi: SceneApi | null = null;
 let cachedZones: { name: string; points: { x: number; y: number }[] }[] = [];
+let cachedZonesVisible: boolean = true;
 let cachedAssets: { id: string; key: string; dataUrl: string; x: number; y: number }[] = [];
 let cachedCollisionVisible = false;
 let cachedHeroName: string | null = null;
@@ -78,6 +81,8 @@ let remotePlayersCache: Record<string, { x: number; y: number; direction: Direct
 let cachedBackgroundColor: string = (typeof window !== 'undefined' && localStorage.getItem('meetropolis.backgroundColor')) || '#202020';
 // Cache, um unnötige Doppel-Aufrufe zu vermeiden (z.B. wiederholt null)
 let lastDesiredPosition: { x: number; y: number } | null = null;
+let tilesetPersistLastLen = -1;
+let tilesetPersistTimer: number | null = null as any;
 let cachedSpawnMarker: { x: number; y: number } | null = (typeof window !== 'undefined' && (()=>{ try { const raw = localStorage.getItem('meetropolis.spawn'); return raw ? JSON.parse(raw) : null; } catch { return null; } })()) || null;
 
 export const gameBridge: Bridge = {
@@ -97,7 +102,8 @@ export const gameBridge: Bridge = {
           cachedZones = stored;
         }
       } catch {}
-      try { sceneApi.setZoneOverlay(cachedZones); } catch {}
+      try { sceneApi.setZonesVisible?.(cachedZonesVisible); } catch {}
+      try { if (cachedZonesVisible) sceneApi.setZoneOverlay(cachedZones); } catch {}
       try { sceneApi.setEditorAssets(cachedAssets); } catch {}
       try { sceneApi.setCollisionVisible(cachedCollisionVisible); } catch {}
       // 2) Best-Effort: Serverzustand laden (nur falls die Szene es unterstützt)
@@ -176,7 +182,15 @@ export const gameBridge: Bridge = {
   },
   setZoneOverlay: (polys) => {
     cachedZones = Array.isArray(polys) ? polys : [];
-    sceneApi?.setZoneOverlay(polys);
+    if (cachedZonesVisible) sceneApi?.setZoneOverlay(polys);
+  },
+  setZonesVisible: (visible) => {
+    cachedZonesVisible = !!visible;
+    try { sceneApi?.setZonesVisible?.(cachedZonesVisible); } catch {}
+    if (cachedZonesVisible) {
+      // Re-apply cached zones when becoming visible again
+      try { sceneApi?.setZoneOverlay?.(cachedZones); } catch {}
+    }
   },
   setEditorAssets: (assets) => {
     cachedAssets = Array.isArray(assets) ? assets : [];
@@ -193,7 +207,35 @@ export const gameBridge: Bridge = {
     sceneApi?.applyTilePaint(edit);
   },
   registerTileset: (ts) => {
+    // 1) Apply to scene
     sceneApi?.registerTileset(ts);
+    // 2) Persist best-effort to localStorage and server editor-state
+    try {
+      // Merge into cached list in localStorage to avoid duplicates
+      const stored = (typeof window !== 'undefined') ? localStorage.getItem('meetropolis.tilesets') : null;
+      const list: any[] = stored ? JSON.parse(stored) : [];
+      const next = Array.isArray(list) ? list.slice() : [];
+      const exists = next.find((t: any) => t && t.key === ts.key);
+      if (!exists) next.push({ key: ts.key, dataUrl: ts.dataUrl, tileWidth: ts.tileWidth, tileHeight: ts.tileHeight, margin: ts.margin ?? 0, spacing: ts.spacing ?? 0 });
+      try { localStorage.setItem('meetropolis.tilesets', JSON.stringify(next)); } catch {}
+      // Best-effort: debounce server PUT to avoid flooding
+      if (next.length !== tilesetPersistLastLen) {
+        tilesetPersistLastLen = next.length;
+        if (tilesetPersistTimer) {
+          clearTimeout(tilesetPersistTimer as any);
+        }
+        tilesetPersistTimer = setTimeout(() => {
+          try {
+            const base = (window as any).VITE_API_BASE || (import.meta as any).env?.VITE_API_BASE || `${window.location.protocol}//${window.location.hostname}:2567`;
+            const body = JSON.stringify({ tilesets: next });
+            if (body.length < 200_000) {
+              fetch(`${base}/maps/office/editor-state`, { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body }).catch(()=>{});
+              try { (window as any).DEBUG_LOGS && console.debug('[ASSETS_DBG][Bridge] persisted tileset to server', { count: next.length }); } catch {}
+            }
+          } catch {}
+        }, 300) as any;
+      }
+    } catch {}
   },
   setCollisionVisible: (visible) => {
     cachedCollisionVisible = !!visible;

@@ -8,6 +8,7 @@ export class MainScene extends Phaser.Scene {
   private remotes: Map<string, Phaser.GameObjects.Sprite> = new Map();
   private desiredPos: { x: number; y: number } | null = null;
   private zoneG?: Phaser.GameObjects.Graphics;
+  private zonesVisible: boolean = true;
   private spawnG?: Phaser.GameObjects.Graphics;
   private editorSprites: Map<string, Phaser.GameObjects.Image> = new Map();
   private pendingTextures: Set<string> = new Set();
@@ -243,27 +244,29 @@ export class MainScene extends Phaser.Scene {
       collisionLayer.setDepth(10);
       collisionLayer.setVisible(false); // Hide the actual collision layer - we use overlay for visualization
       try {
-        const data = (collisionLayer as any)?.layer?.data as Phaser.Tilemaps.Tile[][] | undefined;
-        if (Array.isArray(data) && data.length > 0 && Array.isArray(data[0]) && data[0].length > 0) {
-          staticColliders = this.physics.add.staticGroup();
-          for (let row = 0; row < data.length; row++) {
-            const rowArr = data[row];
-            if (!Array.isArray(rowArr)) continue;
-            for (let col = 0; col < rowArr.length; col++) {
-              const tile = rowArr[col];
-              if (tile && tile.index !== -1) {
-                const x = col * map.tileWidth + map.tileWidth / 2;
-                const y = row * map.tileHeight + map.tileHeight / 2;
-                const body = this.add.rectangle(x, y, map.tileWidth, map.tileHeight, 0x000000, 0);
-                this.physics.add.existing(body, true); // static body
-                staticColliders.add(body);
+        if (!this.v2) {
+          const data = (collisionLayer as any)?.layer?.data as Phaser.Tilemaps.Tile[][] | undefined;
+          if (Array.isArray(data) && data.length > 0 && Array.isArray(data[0]) && data[0].length > 0) {
+            staticColliders = this.physics.add.staticGroup();
+            for (let row = 0; row < data.length; row++) {
+              const rowArr = data[row];
+              if (!Array.isArray(rowArr)) continue;
+              for (let col = 0; col < rowArr.length; col++) {
+                const tile = rowArr[col];
+                if (tile && tile.index !== -1) {
+                  const x = col * map.tileWidth + map.tileWidth / 2;
+                  const y = row * map.tileHeight + map.tileHeight / 2;
+                  const body = this.add.rectangle(x, y, map.tileWidth, map.tileHeight, 0x000000, 0);
+                  this.physics.add.existing(body, true); // static body
+                  staticColliders.add(body);
+                }
               }
             }
+            // Collision layer visibility will be managed by editor state
+            this.staticColliders = staticColliders;
+          } else {
+            editorLog('Init', 'Collision layer has no tile data; skipping collision setup');
           }
-          // Collision layer visibility will be managed by editor state
-          this.staticColliders = staticColliders;
-        } else {
-          editorLog('Init', 'Collision layer has no tile data; skipping collision setup');
         }
       } catch (e) {
         editorError('Init', 'Failed to configure collision layer', e);
@@ -662,6 +665,7 @@ export class MainScene extends Phaser.Scene {
           gameBridge.onPointerDown({ x: worldPoint.x, y: worldPoint.y });
         }
         const { tileX, tileY } = toTile(pointer);
+        try { window.dispatchEvent(new CustomEvent('editor:tileDown', { detail: { tileX, tileY } })); } catch {}
         gameBridge.onPointerDownTile({ tileX, tileY });
         // Szene-eigene Drag-Auswahl starten
         try {
@@ -676,6 +680,7 @@ export class MainScene extends Phaser.Scene {
     });
     this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
       const { tileX, tileY } = toTile(pointer);
+      try { if (this.editorMode && !this.panState.isPanning) window.dispatchEvent(new CustomEvent('editor:tileMove', { detail: { tileX, tileY } })); } catch {}
       if (this.editorMode && !this.panState.isPanning) gameBridge.onPointerMoveTile({ tileX, tileY });
       // Move ghost preview sprite with cursor (snap to tile center)
       if (this.ghostSprite && this.mapRef) {
@@ -700,7 +705,11 @@ export class MainScene extends Phaser.Scene {
     });
     this.input.on('pointerup', (pointer: Phaser.Input.Pointer) => {
       const { tileX, tileY } = toTile(pointer);
-      if (this.editorMode && !this.panState.isPanning) gameBridge.onPointerUpTile({ tileX, tileY });
+      if (this.editorMode && !this.panState.isPanning) {
+        try { console.log('[SPAWN_DBG][Scene] pointerup->onPointerUpTile', { tileX, tileY }); } catch {}
+        try { window.dispatchEvent(new CustomEvent('editor:tileUp', { detail: { tileX, tileY } })); } catch {}
+        gameBridge.onPointerUpTile({ tileX, tileY });
+      }
       // Szene-eigene Terrain-Anwendung bei aktivem Ghost und Drag-Start
       try {
         const ds = (this as any)._dragStartTile as { x: number; y: number } | undefined;
@@ -1194,8 +1203,8 @@ export class MainScene extends Phaser.Scene {
 
   setZoneOverlay(polys: { name: string; points: any[] }[]) {
     try {
-      // Zonen nur im Editor anzeigen
-      if (!this.editorMode) {
+      // Zonen nur im Editor anzeigen und wenn sichtbar
+      if (!this.editorMode || !this.zonesVisible) {
         if (this.zoneG) { this.zoneG.clear(); this.zoneG.setVisible(false); }
         return;
       }
@@ -1239,6 +1248,15 @@ export class MainScene extends Phaser.Scene {
     } catch {
       // Ensure overlay drawing never breaks the scene
     }
+  }
+  setZonesVisible(visible: boolean) {
+    try {
+      this.zonesVisible = !!visible;
+      if (!this.zonesVisible && this.zoneG) {
+        this.zoneG.clear();
+        this.zoneG.setVisible(false);
+      }
+    } catch {}
   }
 
   setSpawnMarker(pos: { x: number; y: number } | null) {
@@ -1651,6 +1669,19 @@ export class MainScene extends Phaser.Scene {
       }
       // Overlay sofort aktualisieren, damit Änderungen ohne Moduswechsel sichtbar sind
       try { if (this.collisionVisible) this.updateCollisionOverlay(); } catch {}
+      // Persistiere Kollision serverseitig im v2-Modus (inkrementell)
+      try {
+        if (this.v2) {
+          const base = (window as any).VITE_API_BASE || import.meta.env.VITE_API_BASE || `${window.location.protocol}//${window.location.hostname}:2567`;
+          const body = JSON.stringify({
+            layer: 'collision',
+            rect: { x0, y0, x1, y1 },
+            erase: edit.tileIndex < 0,
+            tileRefId: 1
+          });
+          fetch(`${base}/maps/${encodeURIComponent(this.currentMapName)}/paint-rect`, { method: 'PATCH', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body }).catch(()=>{});
+        }
+      } catch {}
     }
     // Persistenz speichern
     // Save layers after painting
@@ -1835,6 +1866,8 @@ export class MainScene extends Phaser.Scene {
             }
           }
         }
+        // Spiegel in LocalStorage damit Bridge mergen kann
+        try { localStorage.setItem('meetropolis.tilesets', JSON.stringify(arr)); } catch {}
       } catch {}
       // Apply background color from server if present
       try {
@@ -2000,25 +2033,36 @@ export class MainScene extends Phaser.Scene {
   }
 
   registerTileset(ts: { key: string; dataUrl: string; tileWidth: number; tileHeight: number; margin?: number; spacing?: number }) {
+    const nameForTileset = (() => {
+      const k = ts.key || '';
+      if (!k || k.length > 64 || k.startsWith('data:') || k.includes('data:image')) {
+        return `tileset-${Date.now()}`;
+      }
+      return k;
+    })();
+    try { (window as any).DEBUG_LOGS && console.debug('[ASSETS_DBG][Scene] registerTileset', { key: nameForTileset, url: ts.dataUrl?.slice?.(0, 32) || typeof ts.dataUrl, tw: ts.tileWidth, th: ts.tileHeight, m: ts.margin ?? 0, s: ts.spacing ?? 0 }); } catch {}
     if (!this.mapRef || !this.game || !(this.game as any).renderer) return;
     
     // Check if tileset already exists in map
-    const existingTileset = this.mapRef.tilesets.find(t => t.name === ts.key);
+    const existingTileset = this.mapRef.tilesets.find(t => t.name === nameForTileset);
     if (existingTileset) {
-      this.dynamicTilesets.set(ts.key, existingTileset);
+      this.dynamicTilesets.set(nameForTileset, existingTileset);
       return;
     }
     
+    // Verhindere doppelte Registrierung
+    try { if (this.dynamicTilesets.has(ts.key)) return; } catch {}
     // Textur registrieren
     if (!this.textures.exists(ts.key)) {
       // Wenn Key schon existiert, generiere einen stabilen, kollisionsfreien Key
-      let key = ts.key;
+      let key = nameForTileset;
       while (this.textures.exists(key)) {
-        key = `${ts.key}-${Date.now()}`;
+        key = `${nameForTileset}-${Date.now()}`;
       }
       const safeKey = key;
       // add texture and hook once it's available
       this.textures.once('addtexture', (key: string) => {
+        try { (window as any).DEBUG_LOGS && console.debug('[ASSETS_DBG][Scene] addtexture event', { key, safeKey }); } catch {}
         if (key === safeKey && this.mapRef) {
           let tileset: Phaser.Tilemaps.Tileset | null = null;
           // Tileset zur Map hinzufügen nachdem die Textur geladen wurde
@@ -2055,14 +2099,27 @@ export class MainScene extends Phaser.Scene {
                 }
               }
             } catch {}
+            // Pre-validate tile multiple against source image to avoid Phaser error
+            try {
+              const margin = ts.margin ?? 0;
+              const spacing = ts.spacing ?? 0;
+              const imgW = (src as any)?.width || 0;
+              const imgH = (src as any)?.height || 0;
+              const fitsW = imgW > 0 ? ((imgW - margin + spacing) % (tileWForMap + spacing) === 0) : true;
+              const fitsH = imgH > 0 ? ((imgH - margin + spacing) % (tileHForMap + spacing) === 0) : true;
+              if (!fitsW || !fitsH) {
+                try { (window as any).DEBUG_LOGS && console.debug('[ASSETS_DBG][Scene] skip tileset (non-multiple area)', { key: ts.key, imgW, imgH, tileWForMap, tileHForMap, margin, spacing }); } catch {}
+                return;
+              }
+            } catch {}
             // Check if a tileset with intended name already exists
-            const existingTileset = this.mapRef.tilesets.find(t => t.name === ts.key);
+            const existingTileset = this.mapRef.tilesets.find(t => t.name === nameForTileset);
             
             if (existingTileset) {
               // Use existing tileset
               tileset = existingTileset;
-              this.dynamicTilesets.set(ts.key, tileset);
-              editorLog('Tileset', `Using existing tileset ${existingTileset.name} for ${ts.key}`);
+              this.dynamicTilesets.set(nameForTileset, tileset);
+              editorLog('Tileset', `Using existing tileset ${existingTileset.name} for ${nameForTileset}`);
             } else {
               // Create new tileset
               try {
@@ -2092,13 +2149,13 @@ export class MainScene extends Phaser.Scene {
                     const cols = Math.max(1, Math.floor((imgW - margin + spacing) / (tileWForMap + spacing)));
                     const rows = Math.max(1, Math.floor((imgH - margin + spacing) / (tileHForMap + spacing)));
                     const tilecount = Math.max(0, cols * rows);
-                    const existsInData = Array.isArray(data.tilesets) && data.tilesets.find((t: any) => t.name === ts.key);
+                        const existsInData = Array.isArray(data.tilesets) && data.tilesets.find((t: any) => t.name === nameForTileset);
                     if (!existsInData) {
                       data.tilesets = data.tilesets || [];
                       data.tilesets.push({
                         firstgid: assignedFirstGid || 1,
                         source: undefined,
-                        name: ts.key,
+                            name: nameForTileset,
                         image: textureKeyForMap,
                         imagewidth: imgW,
                         imageheight: imgH,
@@ -2112,7 +2169,14 @@ export class MainScene extends Phaser.Scene {
                     }
                   }
                 } catch {}
-                tileset = this.mapRef.addTilesetImage(ts.key, textureKeyForMap, tileWForMap, tileHForMap, ts.margin ?? 0, ts.spacing ?? 0, assignedFirstGid || undefined as any);
+                    // Ensure meta tileset entry exists before addTilesetImage to avoid Phaser warning
+                    try {
+                      if (!this.mapRef.tilesets.find(t => t.name === nameForTileset)) {
+                        const meta = new Phaser.Tilemaps.Tileset(nameForTileset, assignedFirstGid || 1, tileWForMap, tileHForMap, ts.margin ?? 0, ts.spacing ?? 0);
+                        (this.mapRef.tilesets as any).push(meta);
+                      }
+                    } catch {}
+                    tileset = this.mapRef.addTilesetImage(nameForTileset, textureKeyForMap, tileWForMap, tileHForMap, ts.margin ?? 0, ts.spacing ?? 0, assignedFirstGid || undefined as any);
                 if (tileset) {
                   // Ensure the tileset is present in map tilesets list
                   try {
@@ -2120,8 +2184,8 @@ export class MainScene extends Phaser.Scene {
                       (this.mapRef.tilesets as any).push(tileset);
                     }
                   } catch {}
-                  this.dynamicTilesets.set(ts.key, tileset);
-                  editorLog('Tileset', `Successfully added tileset ${ts.key}`);
+                      this.dynamicTilesets.set(nameForTileset, tileset);
+                      editorLog('Tileset', `Successfully added tileset ${nameForTileset}`);
                 }
               } catch (err) {
                 editorLog('Tileset', `Failed to create tileset ${safeKey}:`, err);
@@ -2538,10 +2602,10 @@ export class MainScene extends Phaser.Scene {
         const gy = cy * cs + vy;
         if (gx >= this.mapRef.width || gy >= this.mapRef.height) continue;
         if (layerName === 'collision') {
-          // Nur Physik: keine sichtbaren Tiles außerhalb des Editors
+          // Setze eine Dummy-Kachel für Kollisionen (Layer bleibt unsichtbar)
           const v = arr[i] !== 0;
           if (v) {
-            // optional: könnte eine unsichtbare Repräsentation setzen; wir belassen die Tilemap leer und nutzen Collider
+            try { layer.putTileAt(1, gx, gy); } catch {}
           } else {
             try { layer.removeTileAt(gx, gy); } catch {}
           }

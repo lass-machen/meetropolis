@@ -27,7 +27,6 @@ import { useWorldRoom } from './realtime/useWorldRoom';
 import { useLivekit } from './av/useLivekit';
 import { createPhaserGame, destroyPhaserGame } from './game/phaserGame';
 import { gameBridge } from './game/bridge';
-import { useEditorBridge } from './editor/useEditorBridge';
 import { joinWorld } from './lib/colyseus';
 import { AVManager } from './av/avManager';
 import { BubbleManager } from './game/bubbleManager';
@@ -137,6 +136,8 @@ export function App() {
   // Auth state
   const [authChecked, setAuthChecked] = React.useState(false);
   const [me, setMe] = React.useState<{ id: string; email: string; name?: string } | null>(null);
+  // Blockiere Spiel-Start bis Position geladen/entschieden ist
+  const [positionReady, setPositionReady] = React.useState(false);
   // API Tokens & Settings
   const [apiModalOpen, setApiModalOpen] = React.useState(false);
   const [apiTokens, setApiTokens] = React.useState<{ id: string; name?: string | null; createdAt: string; lastUsedAt?: string | null }[]>([]);
@@ -297,23 +298,80 @@ export function App() {
   const getRoom = React.useCallback(() => avRef.current?.room, []);
 
   async function fetchMe() {
+    const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
     try {
-      const res = await fetch(`${apiBase}/auth/me`, { credentials: 'include' });
-      if (!res.ok) {
+      // 1) Auth-Abfrage mit Backoff (Cookie-/Auth-Race nach Hard-Reload abfangen)
+      const authBackoff = [0, 150, 300, 600, 1200, 2000];
+      let user: any | null = null;
+      for (let i = 0; i < authBackoff.length; i++) {
+        if (i > 0) await sleep(authBackoff[i]);
+        try {
+          const res = await fetch(`${apiBase}/auth/me`, { credentials: 'include' });
+          if (res.ok) {
+            user = await res.json();
+            break;
+          }
+        } catch {}
+      }
+      if (!user) {
+        // Nicht eingeloggt → AuthScreen anzeigen
         setMe(null);
+        return;
+      }
+
+      // 2) Position ermitteln: bevorzugt vom Server, sonst lokaler Spawn als Fallback
+      const applyPosition = (pos: { x: number; y: number } | null) => {
+        if (pos && Number.isFinite(pos.x) && Number.isFinite(pos.y)) {
+          try { localPosRef.current = { id: user.id, x: pos.x, y: pos.y }; } catch {}
+          try { (window as any).initialPlayerPosition = { x: pos.x, y: pos.y }; } catch {}
+        }
+      };
+
+      const readLocalSpawn = (): { x: number; y: number } | null => {
+        try {
+          const raw = localStorage.getItem('meetropolis.spawn');
+          if (!raw) return null;
+          const sp = JSON.parse(raw);
+          if (sp && typeof sp.x === 'number' && typeof sp.y === 'number') return { x: sp.x, y: sp.y };
+        } catch {}
+        return null;
+      };
+
+      let posApplied = false;
+      if (user.lastPosition && typeof user.lastPosition.x === 'number' && typeof user.lastPosition.y === 'number') {
+        applyPosition({ x: user.lastPosition.x, y: user.lastPosition.y });
+        posApplied = true;
       } else {
-        const u = await res.json();
-        setMe(u);
-        // Store last position if available
-        if (u.lastPosition) {
-          localPosRef.current = { id: u.id, x: u.lastPosition.x, y: u.lastPosition.y };
-          // Make position available to Phaser scene
-          (window as any).initialPlayerPosition = { 
-            x: u.lastPosition.x, 
-            y: u.lastPosition.y 
-          };
+        // Kurzer Retry ausschließlich für Position (Server braucht evtl. einen Tick nach Auth)
+        const posBackoff = [150, 300, 600, 1200];
+        for (let i = 0; i < posBackoff.length && !posApplied; i++) {
+          await sleep(posBackoff[i]);
+          try {
+            const res = await fetch(`${apiBase}/auth/me`, { credentials: 'include' });
+            if (res.ok) {
+              const next = await res.json();
+              user = next; // aktualisieren (Name usw.)
+              if (next.lastPosition && typeof next.lastPosition.x === 'number' && typeof next.lastPosition.y === 'number') {
+                applyPosition({ x: next.lastPosition.x, y: next.lastPosition.y });
+                posApplied = true;
+                break;
+              }
+            }
+          } catch {}
+        }
+        if (!posApplied) {
+          // Fallback: lokaler Spawn (vom Editor gesetzt) falls vorhanden
+          const localSpawn = readLocalSpawn();
+          if (localSpawn) {
+            applyPosition(localSpawn);
+            posApplied = true;
+          }
         }
       }
+
+      // User erst setzen, wenn wir Position bestmöglich abgeholt haben
+      setMe(user);
+      setPositionReady(true);
     } catch {
       setMe(null);
     } finally {
@@ -702,7 +760,11 @@ export function App() {
         if (!editor.drag) return;
         // Erase sowohl Boden als auch Kollision im gewählten Bereich
         setEditor(s => {
-          const d = s.drag!;
+          const d = s.drag;
+          if (!d) {
+            try { gameBridge.setSelectionRect(null); } catch {}
+            return s;
+          }
           const rect = { startX: Math.min(d.startTileX, d.endTileX), startY: Math.min(d.startTileY, d.endTileY), endX: Math.max(d.startTileX, d.endTileX), endY: Math.max(d.startTileY, d.endTileY) };
           try { gameBridge.applyTilePaint({ layer: 'EditorGround', tilesetKey: s.tilePaint?.tilesetKey || 'office_tiles', tileIndex: -1, rect }); } catch {}
           try { gameBridge.applyTilePaint({ layer: 'Collision', tilesetKey: 'collision_tiles', tileIndex: -1, rect }); } catch {}
@@ -1688,131 +1750,7 @@ export function App() {
       // Öffne Kontextmenü-UI
       setContextMenu({ open: true, x, y, playerId });
     };
-    // Tile-basierte Selektion/Malen
-    gameBridge.onPointerDownTile = ({ tileX, tileY }) => {
-      if (!editorActiveRef.current) return; // Only handle in editor mode
-      setEditor(s => {
-        return { ...s, drag: { startTileX: tileX, startTileY: tileY, endTileX: tileX, endTileY: tileY } };
-      });
-      const tw = 16, th = 16;
-      gameBridge.setSelectionRect({ x: tileX * tw, y: tileY * th, w: tw, h: th });
-    };
-    gameBridge.onPointerMoveTile = ({ tileX, tileY }) => {
-      if (!editorActiveRef.current) return; // Only handle in editor mode
-      setEditor(s => {
-        if (!s.drag) return s;
-        const drag = { ...s.drag, endTileX: tileX, endTileY: tileY };
-        const x0 = Math.min(drag.startTileX, drag.endTileX);
-        const y0 = Math.min(drag.startTileY, drag.endTileY);
-        const w = Math.abs(drag.endTileX - drag.startTileX) + 1;
-        const h = Math.abs(drag.endTileY - drag.startTileY) + 1;
-        gameBridge.setSelectionRect({ x: x0 * 16, y: y0 * 16, w: w * 16, h: h * 16 });
-        return { ...s, drag };
-      });
-    };
-    gameBridge.onPointerUpTile = ({ tileX, tileY }) => {
-      if (!editorActiveRef.current) return; // Only handle in editor mode
-      setEditor(s => {
-        // Spawn-Setzmodus: auf Kachel-Klick Spawn speichern und Modus beenden
-        if ((s as any).settingSpawn) {
-          const tileSize = 16;
-          const x = tileX * tileSize + tileSize / 2;
-          const y = tileY * tileSize + tileSize / 2;
-          try { localStorage.setItem('meetropolis.spawn', JSON.stringify({ x, y })); } catch {}
-          try { (window as any).initialPlayerPosition = { x, y }; } catch {}
-          try { gameBridge.setSpawnMarker?.({ x, y }); } catch {}
-          try { gameBridge.setDesiredPosition?.({ x, y }); } catch {}
-          try { window.dispatchEvent(new CustomEvent('editor:toast', { detail: { title: 'Spawn gesetzt', description: `Startposition: (${Math.round(x)}, ${Math.round(y)})`, intent: 'success' } })); } catch {}
-          gameBridge.setSelectionRect(null);
-          return { ...s, settingSpawn: false, spawn: { x, y }, drag: null } as any;
-        }
-        if (!s.drag) { return s; }
-        const drag = { ...s.drag, endTileX: tileX, endTileY: tileY };
-        const rect = { startX: drag.startTileX, startY: drag.startTileY, endX: drag.endTileX, endY: drag.endTileY };
-        gameBridge.setSelectionRect(null);
-        const isErase = s.tool === 'erase';
-        if (s.tool === 'terrain' && s.pendingTerrain && !isErase) {
-          // Neues Terrain-Painting: sende direkt an Szene, kein Tileset nötig
-          (window as any).currentPhaserScene?.applyTerrainPaint?.({ rect, dataUrl: s.pendingTerrain.dataUrl });
-        }
-        if ((s.tool === 'floor' || s.tool === 'walls' || isErase) && s.tilePaint) {
-          const index = isErase ? -1 : s.tilePaint.tileIndex;
-          const layer = s.tool === 'walls' ? 'EditorWalls' : 'EditorGround';
-          const edit = { layer: layer as 'EditorGround' | 'EditorWalls', tilesetKey: s.tilePaint.tilesetKey, tileIndex: index, rect };
-          gameBridge.applyTilePaint(edit);
-          // Broadcast to other users
-          colyseusRef.current?.send?.('editor_update', { type: 'tile_paint', edit });
-        }
-        if (s.tool === 'collision' || isErase) {
-          // Kollisionen als solide (Tile-Index 1) markieren; konkrete Indexe hängen vom Tileset ab
-          const index = isErase ? -1 : 1;
-          const edit = { layer: 'Collision' as const, tilesetKey: 'collision_tiles', tileIndex: index, rect };
-          gameBridge.applyTilePaint(edit);
-          // Broadcast to other users
-          colyseusRef.current?.send?.('editor_update', { type: 'tile_paint', edit });
-        }
-        if (s.tool === 'zone' || (s.category === 'zones' && s.tool === 'select')) {
-          const x0 = Math.min(rect.startX, rect.endX) * 16;
-          const y0 = Math.min(rect.startY, rect.endY) * 16;
-          const x1 = (Math.max(rect.startX, rect.endX) + 1) * 16;
-          const y1 = (Math.max(rect.startY, rect.endY) + 1) * 16;
-          const name = (s.name || `Zone ${s.zones.length+1}`).trim();
-          const poly = { name, points: [ {x:x0,y:y0}, {x:x1,y:y0}, {x:x1,y:y1}, {x:x0,y:y1} ] };
-          // No-overlap rule: reject if rectangle overlaps any existing zone (except the one being edited)
-          const newRect = { x0, y0, x1, y1 };
-          const hasOverlap = s.zones.some((z, idx) => {
-            const editingIdx = s.editingZoneIndex ?? null;
-            if (editingIdx !== null && idx === editingIdx) return false;
-            if (!z.points || z.points.length < 4) return false;
-            const zx0 = Math.min(z.points[0].x, z.points[3].x);
-            const zy0 = Math.min(z.points[0].y, z.points[1].y);
-            const zx1 = Math.max(z.points[1].x, z.points[2].x);
-            const zy1 = Math.max(z.points[2].y, z.points[3].y);
-            return rectsOverlap(newRect, { x0: zx0, y0: zy0, x1: zx1, y1: zy1 });
-          });
-          if (hasOverlap) {
-            try { console.warn('[Editor] Zone-Overlap verhindert'); } catch {}
-            try { window.dispatchEvent(new CustomEvent('editor:toast', { detail: { title: 'Überlappung verhindert', description: 'Zonen dürfen sich nicht überlappen.', intent: 'error' } })); } catch {}
-            return { ...s, drag: null };
-          }
-          const editingIdx = s.editingZoneIndex ?? null;
-          const zones = Array.isArray(s.zones) ? s.zones.slice() : [];
-          if (editingIdx !== null && editingIdx >= 0 && editingIdx < zones.length) {
-            zones[editingIdx] = poly;
-          } else {
-            zones.push(poly);
-          }
-          try { localStorage.setItem('meetropolis.zones', JSON.stringify(zones)); } catch {}
-          gameBridge.setZoneOverlay(zones);
-          zoneRef.current?.setZones?.(zones as any);
-          // Broadcast to other clients
-          try { colyseusRef.current?.send?.('editor_update', { type: 'zone', polys: zones }); } catch {}
-          // Server speichern (best-effort) – nur wenn Zonen vorhanden
-          (async ()=>{ 
-            try { 
-              const payload: any = {};
-              if (Array.isArray(zones) && zones.some(z => Array.isArray((z as any)?.points) && (z as any).points.length > 0)) {
-                payload.zones = zones;
-                payload.replaceZones = true;
-              }
-              const body = JSON.stringify(payload);
-              console.log("SPEICHERN!");
-              if (body.length < 100000 && Object.keys(payload).length > 0) {
-                await fetch(`${apiBase}/maps/office/editor-state`, { 
-                  method: 'PUT', 
-                  credentials: 'include', 
-                  headers: { 'Content-Type': 'application/json' }, 
-                  body 
-                });
-              } else {
-              }
-            } catch {} 
-          })();
-          return { ...s, zones, drag: null, editingZoneIndex: null };
-        }
-        return { ...s, drag: null };
-      });
-    };
+    // Tile-basierte Pointer-Events werden exklusiv in useEditorBridge gebunden
 
     // Save position when player stops moving
     let lastSavedPosition = { x: 0, y: 0, direction: 'down' };
@@ -2043,6 +1981,11 @@ export function App() {
       <AuthScreen baseUrl={apiBase} onDone={async () => { await fetchMe(); }} />
     );
   }
+  if (!positionReady) {
+    return (
+      <div style={{display:'grid',placeItems:'center',height:'100vh'}}>Position wird geladen…</div>
+    );
+  }
 
   const participantsToRender = uiParticipants.length > 0
     ? uiParticipants
@@ -2064,29 +2007,33 @@ export function App() {
               roomGetter={getRoom}
             />
           )}
-          <div
-            ref={containerRef}
-            style={{ width: '100%', height: '100%', position: 'relative' }}
-            onContextMenu={(e)=>{ e.preventDefault(); }}
-          >
-            {avState.dnd && (
-              <div
-                onClick={(e)=>{ e.stopPropagation(); }}
-                onMouseDown={(e)=>{ e.stopPropagation(); e.preventDefault(); }}
-                onMouseUp={(e)=>{ e.stopPropagation(); e.preventDefault(); }}
-                onPointerDown={(e)=>{ e.stopPropagation(); e.preventDefault(); }}
-                onPointerUp={(e)=>{ e.stopPropagation(); e.preventDefault(); }}
-                onWheel={(e)=>{ e.stopPropagation(); e.preventDefault(); }}
-                style={{
-                  position: 'absolute', inset: 0,
-                  background: 'rgba(0,0,0,0.55)',
-                  backdropFilter: 'blur(2px) grayscale(0.2)',
-                  zIndex: 20,
-                  cursor: 'not-allowed'
-                }}
-              />
-            )}
-          </div>
+          {positionReady ? (
+            <div
+              ref={containerRef}
+              style={{ width: '100%', height: '100%', position: 'relative' }}
+              onContextMenu={(e)=>{ e.preventDefault(); }}
+            >
+              {avState.dnd && (
+                <div
+                  onClick={(e)=>{ e.stopPropagation(); }}
+                  onMouseDown={(e)=>{ e.stopPropagation(); e.preventDefault(); }}
+                  onMouseUp={(e)=>{ e.stopPropagation(); e.preventDefault(); }}
+                  onPointerDown={(e)=>{ e.stopPropagation(); e.preventDefault(); }}
+                  onPointerUp={(e)=>{ e.stopPropagation(); e.preventDefault(); }}
+                  onWheel={(e)=>{ e.stopPropagation(); e.preventDefault(); }}
+                  style={{
+                    position: 'absolute', inset: 0,
+                    background: 'rgba(0,0,0,0.55)',
+                    backdropFilter: 'blur(2px) grayscale(0.2)',
+                    zIndex: 20,
+                    cursor: 'not-allowed'
+                  }}
+                />
+              )}
+            </div>
+          ) : (
+            <div style={{display:'grid',placeItems:'center',height:'100%', color: 'var(--fg-subtle)'}}>Starte Welt…</div>
+          )}
 
           {/* HUD (links oben klein) */}
           <HudPanel hud={hud} />

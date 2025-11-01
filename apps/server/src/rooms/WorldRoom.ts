@@ -3,6 +3,7 @@ import Colyseus from 'colyseus';
 import { logger } from '../logger.js';
 import { colyseusRooms, colyseusPlayers } from '../metrics.js';
 import { Schema, type, MapSchema } from '@colyseus/schema';
+import { PrismaClient } from '@prisma/client';
 class Player extends Schema {
   @type('string') id: string = '';
   @type('number') x: number = 0;
@@ -21,6 +22,8 @@ class WorldState extends Schema {
 const activeRooms = new Set<WorldRoom>();
 
 export class WorldRoom extends Colyseus.Room<WorldState> {
+  private defaultSpawn: { x: number; y: number } | null = null;
+
   override onCreate() {
     this.setState(new WorldState());
     logger.info('[WorldRoom] Room created with initial state');
@@ -29,6 +32,24 @@ export class WorldRoom extends Colyseus.Room<WorldState> {
     
     // Make rooms accessible globally
     (global as any).activeWorldRooms = activeRooms;
+
+    // Load default spawn from DB (best-effort)
+    (async () => {
+      try {
+        const prisma = new PrismaClient();
+        const mapName = process.env.DEFAULT_MAP_NAME || 'office';
+        const map = await prisma.map.findUnique({ where: { name: mapName } });
+        const meta: any = (map as any)?.meta || {};
+        const sp = meta?.spawn;
+        if (sp && typeof sp.x === 'number' && typeof sp.y === 'number') {
+          this.defaultSpawn = { x: sp.x, y: sp.y };
+          logger.info('[WorldRoom] Loaded default spawn from DB:', this.defaultSpawn);
+        }
+        await prisma.$disconnect().catch(() => {});
+      } catch (e: any) {
+        try { logger.debug('[WorldRoom] Failed to load default spawn:', e?.message || String(e)); } catch {}
+      }
+    })().catch(()=>{});
     const lastMove: Map<string, number> = new Map();
     this.onMessage('move', (client, data: { x: number; y: number; direction: string }) => {
       const now = Date.now();
@@ -115,9 +136,11 @@ export class WorldRoom extends Colyseus.Room<WorldState> {
 
     const player = new Player();
     player.id = client.sessionId;
-    // Use provided position or random initial position
-    player.x = options?.x ?? Math.floor(Math.random() * 200) + 100;
-    player.y = options?.y ?? Math.floor(Math.random() * 200) + 100;
+    // Use provided position, else default spawn (if configured), else random
+    const spawnX = this.defaultSpawn?.x;
+    const spawnY = this.defaultSpawn?.y;
+    player.x = (options?.x !== undefined ? options.x : (spawnX !== undefined ? spawnX : (Math.floor(Math.random() * 200) + 100)));
+    player.y = (options?.y !== undefined ? options.y : (spawnY !== undefined ? spawnY : (Math.floor(Math.random() * 200) + 100)));
     player.direction = options?.direction || 'down';
     player.identity = joiningIdentity; // Use provided identity or fallback
     player.name = options?.name || joiningIdentity; // Use provided name or fallback

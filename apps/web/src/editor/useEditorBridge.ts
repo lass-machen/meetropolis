@@ -1,4 +1,5 @@
 import React from 'react';
+import { logger } from '../lib/logger';
 import { rectsOverlap } from '../lib/geom';
 
 type EditorState = any;
@@ -15,6 +16,7 @@ export function useEditorBridge(params: {
   React.useEffect(() => { settingSpawnRef.current = !!(editor as any)?.settingSpawn; }, [(editor as any)?.settingSpawn]);
 
   React.useEffect(() => {
+    try { logger.debug('[SPAWN_DBG] useEditorBridge effect mount/bind', { editorActive: editorActiveRef.current }); } catch {}
     const tileSize = 16;
 
     const setRectPx = (drag: { startTileX: number; startTileY: number; endTileX: number; endTileY: number }) => {
@@ -28,6 +30,32 @@ export function useEditorBridge(params: {
     };
 
     const handleDown = ({ tileX, tileY }: { tileX: number; tileY: number }) => {
+      // Spawn-Setzen muss auch außerhalb des aktiven Editor-Modus funktionieren
+      try { logger.debug('[SPAWN_DBG] handleDown', { tileX, tileY, settingSpawn: settingSpawnRef.current, editorActive: editorActiveRef.current }); } catch {}
+      if (settingSpawnRef.current) {
+        const tileSize = 16;
+        const x = tileX * tileSize + tileSize / 2;
+        const y = tileY * tileSize + tileSize / 2;
+        try { localStorage.setItem('meetropolis.spawn', JSON.stringify({ x, y })); } catch {}
+        try { (window as any).initialPlayerPosition = { x, y }; } catch {}
+        try { gameBridge.setSpawnMarker?.({ x, y }); } catch {}
+        try { gameBridge.setDesiredPosition?.({ x, y }); } catch {}
+        // Best-effort: Server-Persistenz
+        try {
+          const base = (window as any).VITE_API_BASE || (import.meta as any).env?.VITE_API_BASE || `${window.location.protocol}//${window.location.hostname}:2567`;
+          const body = JSON.stringify({ spawn: { x, y } });
+          if (body.length < 100000) {
+            fetch(`${base}/maps/office/editor-state`, { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body }).catch(() => {});
+          }
+        } catch {}
+        try {
+          const ev = new CustomEvent('editor:toast', { detail: { title: 'Spawn gesetzt', description: `Startposition: (${Math.round(x)}, ${Math.round(y)})`, intent: 'success' } });
+          window.dispatchEvent(ev);
+        } catch {}
+        setEditor(s => ({ ...s, settingSpawn: false, spawn: { x, y }, lastTile: { tileX, tileY }, drag: null }));
+        try { gameBridge.setSelectionRect(null); } catch {}
+        return;
+      }
       if (!editorActiveRef.current) return;
       setEditor(s => ({ ...s, drag: { startTileX: tileX, startTileY: tileY, endTileX: tileX, endTileY: tileY }, lastTile: { tileX, tileY } }));
       setRectPx({ startTileX: tileX, startTileY: tileY, endTileX: tileX, endTileY: tileY });
@@ -35,6 +63,7 @@ export function useEditorBridge(params: {
 
     const handleMove = ({ tileX, tileY }: { tileX: number; tileY: number }) => {
       if (!editorActiveRef.current) return;
+      try { logger.debug('[SPAWN_DBG] handleMove', { tileX, tileY }); } catch {}
       setEditor(s => {
         if (!s.drag) return s;
         const drag = { ...s.drag, endTileX: tileX, endTileY: tileY };
@@ -44,8 +73,8 @@ export function useEditorBridge(params: {
     };
 
     const handleUp = ({ tileX, tileY }: { tileX: number; tileY: number }) => {
-      if (!editorActiveRef.current) return;
-      // Wenn Spawn-Setzmodus aktiv: Spawn speichern und Marker zeichnen
+      // Spawn-Setzen muss auch außerhalb des aktiven Editor-Modus funktionieren
+      try { logger.debug('[SPAWN_DBG] handleUp', { tileX, tileY, settingSpawn: settingSpawnRef.current, editorActive: editorActiveRef.current }); } catch {}
       if (settingSpawnRef.current) {
         const tileSize = 16;
         const x = tileX * tileSize + tileSize / 2;
@@ -54,6 +83,14 @@ export function useEditorBridge(params: {
         try { (window as any).initialPlayerPosition = { x, y }; } catch {}
         try { gameBridge.setSpawnMarker?.({ x, y }); } catch {}
         try { gameBridge.setDesiredPosition?.({ x, y }); } catch {}
+        // Best-effort: Server-Persistenz
+        try {
+          const base = (window as any).VITE_API_BASE || (import.meta as any).env?.VITE_API_BASE || `${window.location.protocol}//${window.location.hostname}:2567`;
+          const body = JSON.stringify({ spawn: { x, y } });
+          if (body.length < 100000) {
+            fetch(`${base}/maps/office/editor-state`, { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body }).catch(() => {});
+          }
+        } catch {}
         try {
           const ev = new CustomEvent('editor:toast', { detail: { title: 'Spawn gesetzt', description: `Startposition: (${Math.round(x)}, ${Math.round(y)})`, intent: 'success' } });
           window.dispatchEvent(ev);
@@ -62,6 +99,7 @@ export function useEditorBridge(params: {
         try { gameBridge.setSelectionRect(null); } catch {}
         return;
       }
+      if (!editorActiveRef.current) return;
       setEditor(s => {
         if (!s.drag) return { ...s, lastTile: { tileX, tileY } } as any;
         const rect = s.drag;
@@ -118,13 +156,29 @@ export function useEditorBridge(params: {
       gameBridge.onPointerDownTile = handleDown;
       gameBridge.onPointerMoveTile = handleMove;
       gameBridge.onPointerUpTile = handleUp;
+      try { logger.debug('[SPAWN_DBG] handlers set on gameBridge'); } catch {}
+    } catch {}
+
+    // Fallback: höre auf Szenen-Events, falls Bridge-Zuweisung aus irgendeinem Grund nicht greift
+    const upListener = (e: any) => { try { const d = e?.detail || {}; handleUp({ tileX: d.tileX, tileY: d.tileY }); } catch {} };
+    const downListener = (e: any) => { try { const d = e?.detail || {}; handleDown({ tileX: d.tileX, tileY: d.tileY }); } catch {} };
+    const moveListener = (e: any) => { try { const d = e?.detail || {}; handleMove({ tileX: d.tileX, tileY: d.tileY }); } catch {} };
+    try {
+      window.addEventListener('editor:tileUp', upListener as any);
+      window.addEventListener('editor:tileDown', downListener as any);
+      window.addEventListener('editor:tileMove', moveListener as any);
     } catch {}
 
     return () => {
       try {
-        gameBridge.onPointerDownTile = () => {};
-        gameBridge.onPointerMoveTile = () => {};
-        gameBridge.onPointerUpTile = () => {};
+        gameBridge.onPointerDownTile = () => { try { logger.debug('[SPAWN_DBG] handlers cleared (down)'); } catch {} };
+        gameBridge.onPointerMoveTile = () => { try { logger.debug('[SPAWN_DBG] handlers cleared (move)'); } catch {} };
+        gameBridge.onPointerUpTile = () => { try { logger.debug('[SPAWN_DBG] handlers cleared (up)'); } catch {} };
+      } catch {}
+      try {
+        window.removeEventListener('editor:tileUp', upListener as any);
+        window.removeEventListener('editor:tileDown', downListener as any);
+        window.removeEventListener('editor:tileMove', moveListener as any);
       } catch {}
     };
   }, [editor.active]);

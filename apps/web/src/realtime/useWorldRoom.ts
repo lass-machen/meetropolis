@@ -74,22 +74,7 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
 
     const connect = async () => {
       try {
-        // Falls kein valider lokaler Startpunkt vorhanden ist, Spawn aus LocalStorage verwenden
-        try {
-          const lp = localPosRef.current as any;
-          const hasLocal = lp && typeof lp.x === 'number' && typeof lp.y === 'number' && (lp.x !== 0 || lp.y !== 0);
-          if (!hasLocal && typeof window !== 'undefined') {
-            const raw = localStorage.getItem('meetropolis.spawn');
-            if (raw) {
-              const sp = JSON.parse(raw);
-              if (sp && typeof sp.x === 'number' && typeof sp.y === 'number') {
-                localPosRef.current = { ...(localPosRef.current as any), x: sp.x, y: sp.y } as any;
-                try { (window as any).initialPlayerPosition = { x: sp.x, y: sp.y }; } catch {}
-                try { (window as any).currentPhaserScene?.setSpawnMarker?.({ x: sp.x, y: sp.y }); } catch {}
-              }
-            }
-          }
-        } catch {}
+        // Server entscheidet über Default-Spawn: keine LocalStorage-Spawninjektion mehr
         const positionToUse = localPosRef.current && (localPosRef.current.x !== undefined && localPosRef.current.y !== undefined)
           ? localPosRef.current
           : undefined;
@@ -170,6 +155,12 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
             if (gameBridge && typeof gameBridge.setZoneOverlay === 'function') gameBridge.setZoneOverlay(data.polys);
             if (zoneRef.current && typeof zoneRef.current.setZones === 'function') zoneRef.current.setZones(data.polys);
             setTimeout(buildParticipantList, 0);
+            return;
+          }
+          if (data?.type === 'spawn' && data.pos && typeof data.pos.x === 'number' && typeof data.pos.y === 'number') {
+            try { gameBridge?.setSpawnMarker?.({ x: data.pos.x, y: data.pos.y }); } catch {}
+            try { localStorage.setItem('meetropolis.spawn', JSON.stringify({ x: data.pos.x, y: data.pos.y })); } catch {}
+            try { setEditor((s: any) => ({ ...s, spawn: { x: data.pos.x, y: data.pos.y } })); } catch {}
             return;
           }
           if (data?.type === 'tile_paint' && data.edit) { if (gameBridge && typeof gameBridge.applyTilePaint === 'function') gameBridge.applyTilePaint(data.edit); return; }

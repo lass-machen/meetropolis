@@ -9,9 +9,12 @@ function resolveLogLevel(): LogLevel {
 		const env = (import.meta as any).env || {};
 		const raw = (env.VITE_LOG_LEVEL || env.MODE)?.toString().toLowerCase() || '';
 		if (raw === 'debug' || raw === 'info' || raw === 'warn' || raw === 'error' || raw === 'silent') return raw;
-		return env.PROD ? 'info' : 'debug';
+    // Prefer explicit debug flags; otherwise keep dev quiet by default
+    const debugFlag = (env.VITE_DEBUG_LOGS === 'true') || (typeof window !== 'undefined' && (window as any).DEBUG_LOGS === true);
+    if (debugFlag) return 'debug';
+    return env.PROD ? 'info' : 'warn';
 	} catch {
-		return 'debug';
+    return 'warn';
 	}
 }
 
