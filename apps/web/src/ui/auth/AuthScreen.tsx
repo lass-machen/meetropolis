@@ -6,7 +6,7 @@ import { ThemeToggleButton } from '../../ui/theme';
 export function AuthScreen(props: { baseUrl: string; onDone: () => void }) {
   const { baseUrl, onDone } = props;
   const { t } = useTranslation();
-  const [view, setView] = React.useState<'login'|'register'|'forgot'|'reset'>('login');
+  const [view, setView] = React.useState<'login'|'register'|'reset'>('login');
   const [email, setEmail] = React.useState('');
   const [password, setPassword] = React.useState('');
   const [name, setName] = React.useState('');
@@ -58,23 +58,11 @@ export function AuthScreen(props: { baseUrl: string; onDone: () => void }) {
     }
   }
 
-  async function handleForgotSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setMsg(null);
-    try {
-      const r = await post('/auth/forgot', { email });
-      setMsg(`Reset-Token (Debug): ${r.token || 'per Mail'}`);
-      setView('reset');
-    } catch (e: any) {
-      setMsg(e.message);
-    }
-  }
-
   async function handleResetSubmit(e: React.FormEvent) {
     e.preventDefault();
     setMsg(null);
     try {
-      await post('/auth/reset', { token, password });
+      await post('/auth/reset', { email, token, password });
       setView('login');
       setMsg(t('auth.passwordUpdated'));
     } catch (e: any) {
@@ -83,6 +71,7 @@ export function AuthScreen(props: { baseUrl: string; onDone: () => void }) {
   }
 
   const commonStyle: React.CSSProperties = { display: 'grid', gap: 16, width: '100%' };
+  const linkStyle: React.CSSProperties = { cursor: 'pointer', color: 'color-mix(in oklab, var(--brand-primary), #ffffff 65%)', textDecoration: 'none' };
 
   return (
     <div style={{ 
@@ -176,8 +165,8 @@ export function AuthScreen(props: { baseUrl: string; onDone: () => void }) {
               {t('auth.login.submit')}
             </Button>
             <div style={{ display:'flex', justifyContent:'space-between', fontSize: 13, color:'var(--muted)' }}>
-              <a style={{ cursor:'pointer', color: 'var(--brand-primary)', textDecoration: 'none' }} onClick={()=>setView('forgot')}>{t('auth.forgotLink')}</a>
-              <a style={{ cursor:'pointer', color: 'var(--brand-primary)', textDecoration: 'none' }} onClick={()=>setView('register')}>{t('auth.inviteLink')}</a>
+              <a style={linkStyle} onClick={()=>setView('reset')}>{t('auth.forgotLink')}</a>
+              <a style={linkStyle} onClick={()=>setView('register')}>{t('auth.inviteLink')}</a>
             </div>
           </form>
         )}
@@ -248,17 +237,10 @@ export function AuthScreen(props: { baseUrl: string; onDone: () => void }) {
             <a style={{ cursor:'pointer', color: 'var(--brand-primary)', textDecoration: 'none', fontSize: 13, textAlign: 'center' }} onClick={()=>setView('login')}>{t('auth.backToLogin')}</a>
           </form>
         )}
-        {view === 'forgot' && (
-          <form onSubmit={handleForgotSubmit} autoComplete="on" style={{ display: 'contents' }}>
-            <h3 style={{ margin: 0 }}>{t('auth.forgot.title')}</h3>
-            <Input id="forgot-email" name="email" inputMode="email" autoComplete="email" placeholder={t('auth.email')} value={email} onChange={e=>setEmail(e.target.value)} />
-            <Button type="submit" variant="primary">{t('auth.forgot.submit')}</Button>
-            <a style={{ cursor:'pointer', color: 'var(--brand-primary)', textDecoration: 'none' }} onClick={()=>setView('login')}>{t('auth.backToLogin')}</a>
-          </form>
-        )}
         {view === 'reset' && (
           <form onSubmit={handleResetSubmit} autoComplete="on" style={{ display: 'contents' }}>
             <h3 style={{ margin: 0 }}>{t('auth.reset.title')}</h3>
+            <Input id="reset-email" name="email" inputMode="email" autoComplete="email" placeholder={t('auth.email')} value={email} onChange={e=>setEmail(e.target.value)} />
             <Input id="reset-token" name="token" placeholder={t('auth.reset.token')} value={token} onChange={e=>setToken(e.target.value)} />
             <Input id="reset-password" name="password" placeholder={t('auth.reset.newPassword')} type="password" autoComplete="new-password" value={password} onChange={e=>setPassword(e.target.value)} />
             <Button type="submit" variant="primary">{t('auth.reset.submit')}</Button>

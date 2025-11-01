@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
-import { TableContainer, Table, THead, TBody, Tr, Th, Td, Modal } from './ui/system';
+import { TableContainer, Table, THead, TBody, Tr, Th, Td, Modal, Button, Card } from './ui/system';
+import { AdminTable } from './ui/admin/AdminTable';
 import { UserManagement } from './ui/admin/UserManagement';
 import { AuthScreen } from './ui/auth/AuthScreen';
 import { pointInPolygon, rectsOverlap } from './lib/geom';
@@ -2341,62 +2342,49 @@ export function App() {
 
       {/* (Alt) Benutzerverwaltung-Profilmodal entfernt – Benutzerverwaltung läuft über Overlay + UserManagement */}
 
-      {/* Einladungen Modal */}
-      {invitesModalOpen && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'grid', placeItems: 'center', background: 'rgba(0,0,0,0.68)', backdropFilter: 'blur(4px)' }} onClick={() => setInvitesModalOpen(false)}>
-          <div onClick={(e)=>e.stopPropagation()} className="glass-surface" style={{ width: 'min(96vw, 900px)', borderRadius: 12, overflow: 'hidden', maxHeight: '90vh', display: 'grid', gridTemplateRows: 'auto 1fr' }}>
-            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding: '12px 16px', borderBottom: '1px solid var(--border)', background: 'var(--glass)' }}>
-              <div style={{ fontWeight: 800, letterSpacing: 0.2 }}>Einladungen</div>
-              <button onClick={()=>setInvitesModalOpen(false)} style={{ width: 32, height: 32, borderRadius: 6, border: '1px solid var(--border)', background:'var(--glass)', color:'var(--fg)', cursor:'pointer' }}>×</button>
-            </div>
-            <div style={{ display:'grid', gap: 12, padding: 16, overflow: 'auto' }}>
-              {invitesLoading ? (
-                <div style={{ color:'var(--fg-subtle)', fontSize: 13 }}>Lade Einladungen…</div>
-              ) : (
-                <TableContainer>
-                  <Table>
-                    <THead sticky>
-                      <Tr>
-                        <Th>Code</Th>
-                        <Th>E-Mail</Th>
-                        <Th>Erstellt</Th>
-                        <Th>Status</Th>
-                        <Th style={{ width: 200 }}>Aktionen</Th>
-                      </Tr>
-                    </THead>
-                    <TBody>
-                      {invites.length === 0 && (
-                        <tr><td colSpan={5} style={{ padding:'12px', color:'var(--fg-subtle)' }}>Keine Einladungen vorhanden.</td></tr>
-                      )}
-                      {invites.map(inv => (
-                        <Tr key={inv.code} style={{ borderBottom: '1px solid var(--border)' }}>
-                          <Td>
-                            <code style={{ display:'inline-block', padding:'4px 6px', borderRadius:6, border:'1px solid var(--border)', background:'rgba(255,255,255,0.06)' }}>{inv.code}</code>
-                          </Td>
-                          <Td>{inv.email || '—'}</Td>
-                          <Td>{inv.createdAt ? new Date(inv.createdAt).toLocaleString() : '—'}</Td>
-                          <Td>{inv.usedAt ? 'Eingelöst' : 'Offen'}</Td>
-                          <Td style={{ display:'flex', gap: 8, justifyContent: 'flex-end' }}>
-                            <button onClick={async ()=>{ try { await navigator.clipboard.writeText(inv.code); } catch {} }} style={{ padding:'6px 10px', borderRadius:8, border:'1px solid var(--border)', background:'var(--glass)', color:'var(--fg)', cursor:'pointer' }}>Kopieren</button>
-                            {!inv.usedAt && (
-                              <button onClick={async ()=>{
-                                try {
-                                  const res = await fetch(`${apiBase}/invites/${encodeURIComponent(inv.code)}`, { method:'DELETE', credentials:'include' });
-                                  if (res.ok) setInvites(invites.filter(i => i.code !== inv.code));
-                                } catch {}
-                              }} style={{ padding:'6px 10px', borderRadius:8, border:'1px solid rgba(244,63,94,0.45)', background:'rgba(244,63,94,0.15)', color:'#fff', cursor:'pointer' }}>Löschen</button>
-                            )}
-                          </Td>
-                        </Tr>
-                      ))}
-                    </TBody>
-                  </Table>
-                </TableContainer>
+      {/* Einladungen Modal (einheitliche Modal-Komponente) */}
+      <Modal open={invitesModalOpen} onOpenChange={setInvitesModalOpen} title="Einladungen" maxWidth={900}>
+        {invitesLoading ? (
+          <div style={{ color:'var(--fg-subtle)', fontSize: 13 }}>Lade Einladungen…</div>
+        ) : (
+          <Card style={{ padding: 0, overflow: 'hidden' }}>
+            <AdminTable
+              headers={[
+                'Code',
+                'E-Mail',
+                'Erstellt',
+                'Status',
+                <span key="actions" style={{ display:'inline-block', width: 220 }}>Aktionen</span>
+              ]}
+            >
+              {invites.length === 0 && (
+                <tr><td colSpan={5} style={{ padding:'12px', color:'var(--fg-subtle)' }}>Keine Einladungen vorhanden.</td></tr>
               )}
-            </div>
-          </div>
-        </div>
-      )}
+              {invites.map(inv => (
+                <Tr key={inv.code} style={{ borderBottom: '1px solid var(--border)' }}>
+                  <Td>
+                    <code style={{ display:'inline-block', padding:'4px 6px', borderRadius:6, border:'1px solid var(--border)', background:'rgba(255,255,255,0.06)' }}>{inv.code}</code>
+                  </Td>
+                  <Td>{inv.email || '—'}</Td>
+                  <Td>{inv.createdAt ? new Date(inv.createdAt).toLocaleString() : '—'}</Td>
+                  <Td>{inv.usedAt ? 'Eingelöst' : 'Offen'}</Td>
+                  <Td style={{ display:'flex', gap: 8 }}>
+                    <Button onClick={async ()=>{ try { await navigator.clipboard.writeText(inv.code); } catch {} }} style={{ padding:'6px 16px', borderRadius: 6, fontSize: 13 }}>Kopieren</Button>
+                    {!inv.usedAt && (
+                      <Button variant="danger" onClick={async ()=>{
+                        try {
+                          const res = await fetch(`${apiBase}/invites/${encodeURIComponent(inv.code)}`, { method:'DELETE', credentials:'include' });
+                          if (res.ok) setInvites(invites.filter(i => i.code !== inv.code));
+                        } catch {}
+                      }} style={{ padding:'6px 16px', borderRadius: 6, fontSize: 13 }}>Löschen</Button>
+                    )}
+                  </Td>
+                </Tr>
+              ))}
+            </AdminTable>
+          </Card>
+        )}
+      </Modal>
     </div>
     );
 }

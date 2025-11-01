@@ -1,5 +1,6 @@
 import React from 'react';
-import { Toolbar, Button, Card, Input, Modal } from '../../ui/system';
+import { Toolbar, Button, Card, Input, Modal, Tr, Td } from '../../ui/system';
+import { AdminTable } from './AdminTable';
 import { useTranslation } from 'react-i18next';
 
 export function UserManagement(props: { baseUrl: string; onBack: () => void }) {
@@ -13,6 +14,9 @@ export function UserManagement(props: { baseUrl: string; onBack: () => void }) {
   const [newEmail, setNewEmail] = React.useState('');
   const [newName, setNewName] = React.useState('');
   const [inviteCode, setInviteCode] = React.useState<string | null>(null);
+  const [resetOpen, setResetOpen] = React.useState(false);
+  const [resetFor, setResetFor] = React.useState<{ id: string; email: string } | null>(null);
+  const [resetToken, setResetToken] = React.useState<string | null>(null);
 
   async function load() {
     setLoading(true);
@@ -91,47 +95,37 @@ export function UserManagement(props: { baseUrl: string; onBack: () => void }) {
         </Card>
       ) : (
         <Card style={{ padding: 0, overflow: 'hidden' }}>
-          <div style={{ display: 'grid', gap: 0 }}>
-            <div style={{ 
-              display: 'grid', 
-              gridTemplateColumns: 'minmax(150px, 1fr) minmax(150px, 1fr) minmax(160px, 180px)', 
-              gap: 16, 
-              padding: '16px 24px', 
-              background: 'var(--glass)',
-              borderBottom: '1px solid var(--border)',
-              fontWeight: 600, 
-              color: 'var(--fg-subtle)',
-              fontSize: 13,
-              textTransform: 'uppercase',
-              letterSpacing: '0.05em'
-            }}>
-              <div>{t('admin.users.email')}</div>
-              <div>{t('admin.users.name')}</div>
-              <div>{t('admin.users.actions')}</div>
-            </div>
+          <AdminTable
+            headers={[
+              t('admin.users.email'),
+              t('admin.users.name'),
+              <span key="actions" style={{ display: 'inline-block', width: 220 }}>{t('admin.users.actions')}</span>
+            ]}
+          >
+            {users.length === 0 && (
+              <tr>
+                <td colSpan={3} style={{ padding: 24, textAlign: 'center', color: 'rgba(255,255,255,0.4)' }}>{t('admin.users.none')}</td>
+              </tr>
+            )}
             {users.map(u => (
-              <div key={u.id} style={{ 
-                display: 'grid', 
-                gridTemplateColumns: 'minmax(150px, 1fr) minmax(150px, 1fr) minmax(160px, 180px)', 
-                gap: 16, 
-                padding: '16px 24px',
-                borderBottom: '1px solid var(--border)',
-                transition: 'background 0.2s',
-                background: edit?.id === u.id ? 'rgba(59,130,246,0.1)' : 'transparent'
-              }}>
+              <Tr key={u.id} style={{ borderBottom: '1px solid var(--border)', background: edit?.id === u.id ? 'rgba(59,130,246,0.1)' : 'transparent' }}>
                 {edit?.id === u.id ? (
                   <>
-                    <Input 
-                      value={edit.email} 
-                      onChange={e => setEdit({ ...(edit as any), email: e.target.value })}
-                      style={{ padding: '8px 12px', fontSize: 14 }}
-                    />
-                    <Input 
-                      value={edit.name ?? ''} 
-                      onChange={e => setEdit({ ...(edit as any), name: e.target.value })}
-                      style={{ padding: '8px 12px', fontSize: 14 }}
-                    />
-                    <div style={{ display: 'flex', gap: 8 }}>
+                    <Td>
+                      <Input 
+                        value={edit.email} 
+                        onChange={e => setEdit({ ...(edit as any), email: e.target.value })}
+                        style={{ padding: '8px 12px', fontSize: 14 }}
+                      />
+                    </Td>
+                    <Td>
+                      <Input 
+                        value={edit.name ?? ''} 
+                        onChange={e => setEdit({ ...(edit as any), name: e.target.value })}
+                        style={{ padding: '8px 12px', fontSize: 14 }}
+                      />
+                    </Td>
+                    <Td style={{ display: 'flex', gap: 8 }}>
                       <Button 
                         variant="brand" 
                         onClick={() => save(edit!)}
@@ -145,18 +139,37 @@ export function UserManagement(props: { baseUrl: string; onBack: () => void }) {
                       >
                         ✕
                       </Button>
-                    </div>
+                    </Td>
                   </>
                 ) : (
                   <>
-                    <div style={{ display: 'flex', alignItems: 'center', color: 'var(--fg)', fontSize: 14 }}>{u.email}</div>
-                    <div style={{ display: 'flex', alignItems: 'center', color: u.name ? 'var(--fg)' : 'var(--fg-subtle)', fontSize: 14 }}>{u.name ?? '—'}</div>
-                    <div style={{ display: 'flex', gap: 8 }}>
+                    <Td><div style={{ display: 'flex', alignItems: 'center', color: 'var(--fg)', fontSize: 14 }}>{u.email}</div></Td>
+                    <Td><div style={{ display: 'flex', alignItems: 'center', color: u.name ? 'var(--fg)' : 'var(--fg-subtle)', fontSize: 14 }}>{u.name ?? '—'}</div></Td>
+                    <Td style={{ display: 'flex', gap: 8 }}>
                       <Button 
                         onClick={() => setEdit({ id: u.id, email: u.email, name: u.name ?? '' })}
                         style={{ padding: '6px 16px', borderRadius: 6, fontSize: 13 }}
                       >
                         {t('admin.users.edit')}
+                      </Button>
+                      <Button
+                        onClick={async () => {
+                          try {
+                            setError(null);
+                            setResetFor({ id: u.id, email: u.email });
+                            setResetToken(null);
+                            const res = await fetch(`${baseUrl}/auth/forgot`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ email: u.email }) });
+                            const data = await res.json();
+                            if (!res.ok) throw new Error(data?.error || 'Failed');
+                            setResetToken(data.token || null);
+                            setResetOpen(true);
+                          } catch (e: any) {
+                            setError(e.message || 'Fehler');
+                          }
+                        }}
+                        style={{ padding: '6px 16px', borderRadius: 6, fontSize: 13 }}
+                      >
+                        {t('admin.users.generateReset')}
                       </Button>
                       <Button 
                         variant="danger" 
@@ -165,21 +178,12 @@ export function UserManagement(props: { baseUrl: string; onBack: () => void }) {
                       >
                         {t('admin.users.delete')}
                       </Button>
-                    </div>
+                    </Td>
                   </>
                 )}
-              </div>
+              </Tr>
             ))}
-            {users.length === 0 && (
-              <div style={{ 
-                padding: 40, 
-                textAlign: 'center', 
-                color: 'rgba(255,255,255,0.4)' 
-              }}>
-                {t('admin.users.none')}
-              </div>
-            )}
-          </div>
+          </AdminTable>
         </Card>
       )}
 
@@ -213,6 +217,31 @@ export function UserManagement(props: { baseUrl: string; onBack: () => void }) {
             </div>
           )}
           <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>{t('admin.users.inviteHint')}</div>
+        </div>
+      </Modal>
+
+      <Modal zIndexBase={1100} open={resetOpen} onOpenChange={(o)=> setResetOpen(o)} title={t('admin.users.resetTitle')} maxWidth={520} footer={<>
+        <Button onClick={() => setResetOpen(false)}>{t('admin.users.close')}</Button>
+        {resetToken && (
+          <Button onClick={() => { try { navigator.clipboard?.writeText(resetToken); } catch {} }}>{t('admin.users.copy')}</Button>
+        )}
+      </>}>
+        <div style={{ display: 'grid', gap: 10 }}>
+          <div className="glass-surface" style={{ padding: 12, borderRadius: 'var(--radius-sm)', display:'grid', gap: 8 }}>
+            <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>{t('admin.users.resetToken')}</div>
+            <div style={{ display:'flex', alignItems:'center', gap: 8 }}>
+              <div style={{ flex: 1, padding: '10px 12px', borderRadius: 'var(--radius-xs)', border: '1px solid var(--border)', background: 'var(--glass)', color: 'var(--fg)', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontWeight: 700, letterSpacing: '0.06em' }}>
+                {resetToken || '—'}
+              </div>
+              {resetToken && (
+                <Button onClick={() => { try { navigator.clipboard?.writeText(resetToken); } catch {} }}>{t('admin.users.copy')}</Button>
+              )}
+            </div>
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>
+            {t('admin.users.resetHint')}
+            {resetFor?.email ? ` (${resetFor.email})` : ''}
+          </div>
         </div>
       </Modal>
     </div>

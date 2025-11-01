@@ -285,12 +285,18 @@ export function registerApi(app: express.Express) {
   });
 
   app.post('/auth/reset', async (req, res) => {
-    const schema = z.object({ token: z.string().min(8), password: z.string().min(8) });
+    const schema = z.object({ email: z.string().email().optional(), token: z.string().min(8), password: z.string().min(8) });
     const parse = schema.safeParse(req.body || {});
     if (!parse.success) return res.status(400).json({ error: 'token and password required' });
-    const { token, password } = parse.data;
+    const { email, token, password } = parse.data;
     const pr = await prisma.passwordReset.findUnique({ where: { token } });
     if (!pr || pr.usedAt || pr.expiresAt < new Date()) return res.status(400).json({ error: 'invalid token' });
+    if (email) {
+      const u = await prisma.user.findUnique({ where: { id: pr.userId } });
+      if (!u || normalizeEmailForMatching(u.email) !== normalizeEmailForMatching(email)) {
+        return res.status(400).json({ error: 'invalid token' });
+      }
+    }
     const hash = await bcrypt.hash(password, 10);
     await prisma.user.update({ where: { id: pr.userId }, data: { passwordHash: hash } });
     await prisma.passwordReset.update({ where: { token }, data: { usedAt: new Date() } });
