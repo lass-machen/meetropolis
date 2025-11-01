@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { TableContainer, Table, THead, TBody, Tr, Th, Td, Modal, Button, Card } from './ui/system';
 import { AdminTable } from './ui/admin/AdminTable';
 import { UserManagement } from './ui/admin/UserManagement';
@@ -44,6 +45,7 @@ import { VolumeManager } from './game/volumeManager';
 // Small UI Icons removed (using FAIcon directly)
 
 export function App() {
+  const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const colyseusRef = useRef<any>(null);
   const colyseusReconnectAttemptsRef = useRef(0);
@@ -96,6 +98,8 @@ export function App() {
   // Participants logic (hook) moved below after state declarations
 
   
+  // Map-Editor State (must be declared before any hooks that reference `editor`)
+  const [editor, setEditor] = useEditor();
 
   // Intercept DND toggles to resume AV after DND is turned off
   React.useEffect(() => {
@@ -199,6 +203,74 @@ export function App() {
   const disposedRef = React.useRef(false);
   const [page, setPage] = React.useState<'world' | 'admin' | string>('world');
   const [menuOpen, setMenuOpen] = React.useState(false);
+  // Draggable state for Map-Editor window (only this window is draggable)
+  const editorWinRef = React.useRef<HTMLDivElement | null>(null);
+  const [editorWinPos, setEditorWinPos] = React.useState<{ x: number; y: number } | null>(null);
+  const [editorWinDragging, setEditorWinDragging] = React.useState(false);
+  const editorWinStartMouseRef = React.useRef<{ x: number; y: number } | null>(null);
+  const editorWinStartPosRef = React.useRef<{ x: number; y: number } | null>(null);
+  const [editorDirty, setEditorDirty] = React.useState(false);
+  const [confirmExitOpen, setConfirmExitOpen] = React.useState(false);
+  const editorSavedSnapshotRef = React.useRef<string | null>(null);
+  const getEditorSnapshot = React.useCallback(() => {
+    try {
+      return JSON.stringify({ zones: editor.zones, spawn: editor.spawn, backgroundColor: editor.backgroundColor });
+    } catch {
+      return null;
+    }
+  }, [editor.zones, editor.spawn, editor.backgroundColor]);
+
+  React.useEffect(() => {
+    // Initialize snapshot when editor is opened
+    if (editor.active && editorSavedSnapshotRef.current === null) {
+      editorSavedSnapshotRef.current = getEditorSnapshot();
+      setEditorDirty(false);
+    }
+    if (!editor.active) {
+      editorSavedSnapshotRef.current = null;
+      setEditorDirty(false);
+    }
+  }, [editor.active, getEditorSnapshot]);
+
+  React.useEffect(() => {
+    if (!editor.active) return;
+    const now = getEditorSnapshot();
+    const base = editorSavedSnapshotRef.current;
+    setEditorDirty(!!(base && now && base !== now));
+  }, [getEditorSnapshot, editor.active]);
+
+  const beginEditorDrag = (e: React.MouseEvent) => {
+    try {
+      const el = editorWinRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      editorWinStartPosRef.current = { x: rect.left, y: rect.top };
+      editorWinStartMouseRef.current = { x: e.clientX, y: e.clientY };
+      setEditorWinDragging(true);
+      if (!editorWinPos) setEditorWinPos({ x: rect.left, y: rect.top });
+      e.preventDefault();
+      e.stopPropagation();
+    } catch {}
+  };
+
+  React.useEffect(() => {
+    if (!editorWinDragging) return;
+    const onMove = (ev: MouseEvent) => {
+      try {
+        if (!editorWinStartMouseRef.current || !editorWinStartPosRef.current) return;
+        const dx = ev.clientX - editorWinStartMouseRef.current.x;
+        const dy = ev.clientY - editorWinStartMouseRef.current.y;
+        setEditorWinPos({ x: editorWinStartPosRef.current.x + dx, y: editorWinStartPosRef.current.y + dy });
+      } catch {}
+    };
+    const onUp = () => setEditorWinDragging(false);
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp, { once: true });
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp as any);
+    };
+  }, [editorWinDragging]);
   const connectLivekitRef = React.useRef<null | (() => Promise<void>)>(null);
   // Single-run guards to prevent repeated re-inits/auto-connects
   const gameCreatedRef = React.useRef(false);
@@ -243,7 +315,6 @@ export function App() {
     })();
   }, [apiModalOpen, apiBase]);
   // Map Editor State (moved to hook)
-  const [editor, setEditor] = useEditor();
   const editorActiveRef = React.useRef(false);
   React.useEffect(() => { editorActiveRef.current = editor.active; }, [editor.active]);
   // Editor Pointer Bridge
@@ -2139,7 +2210,7 @@ export function App() {
         </>
       )}
 
-      <Modal open={userModalOpen} onOpenChange={setUserModalOpen} title="Benutzerverwaltung" right={<div style={{ display:'flex', gap:8 }}><ThemeToggleButton /></div>}>
+      <Modal open={userModalOpen} onOpenChange={setUserModalOpen} title="Benutzerverwaltung" maxWidth={900} right={<div style={{ display:'flex', gap:8 }}><ThemeToggleButton /></div>}>
         <UserManagement baseUrl={apiBase} onBack={() => setUserModalOpen(false)} />
       </Modal>
 
@@ -2203,15 +2274,17 @@ export function App() {
 
       {/* Editor Panel */}
       {editor.active && (
-        <div style={{ position: 'absolute', top: 64, right: 12, zIndex: 35, width: 360 }}>
+        <div ref={editorWinRef} style={{ position: 'absolute', zIndex: 35, width: 360, ...(editorWinPos ? { left: editorWinPos.x, top: editorWinPos.y } : { top: 64, right: 12 }) }}>
           <div style={{ background: 'rgba(17,17,20,0.95)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12, padding: 0, color: '#fff', overflow: 'hidden' }}>
             {/* Header */}
-            <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.02)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div onMouseDown={beginEditorDrag} style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.02)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'move' }}>
               <div style={{ fontWeight: 700, fontSize: 16 }}>Map-Editor</div>
               <button
                 onClick={() => {
+                  if (editorDirty) { setConfirmExitOpen(true); return; }
+                  try { (window as any).currentPhaserScene?.setAssetPreview?.(null); } catch {}
                   try { gameBridge.setEditorMode(false); } catch {}
-                  setEditor(s => ({ ...s, active: false }));
+                  setEditor(s => ({ ...s, pendingTerrain: null as any, pendingAsset: null as any, tool: 'select', active: false } as any));
                 }}
                 title="Editor verlassen"
                 style={{ border: '1px solid var(--border)', background: 'var(--glass)', color: 'var(--fg)', borderRadius: 8, width: 34, height: 28, cursor: 'pointer', lineHeight: '26px', fontSize: 18 }}
@@ -2232,6 +2305,7 @@ export function App() {
             <EditorPanel
               editor={editor}
               setEditor={setEditor}
+              onDirtyChange={(dirty)=> setEditorDirty(!!dirty)}
               onOpenUpload={async (e) => {
                       const file = e.target.files?.[0];
                       if (!file) return;
@@ -2269,6 +2343,9 @@ export function App() {
                     throw new Error(text || `HTTP ${res.status}`);
                   }
                   try { colyseusRef.current?.send?.('editor_update', { type: 'reload_all' }); } catch {}
+                  // Mark current state as saved baseline
+                  editorSavedSnapshotRef.current = getEditorSnapshot();
+                  setEditorDirty(false);
                   return true;
                 } catch (e) {
                   return false;
@@ -2384,6 +2461,14 @@ export function App() {
             </AdminTable>
           </Card>
         )}
+      </Modal>
+
+      {/* Editor Exit Confirm */}
+      <Modal open={confirmExitOpen} onOpenChange={setConfirmExitOpen} title={t('editor.confirmExitTitle')} description={t('editor.confirmExitDesc')} maxWidth={420}>
+        <div style={{ display:'flex', justifyContent:'flex-end', gap: 8 }}>
+          <Button onClick={() => setConfirmExitOpen(false)}>{t('editor.exitCancel')}</Button>
+          <Button variant="danger" onClick={() => { setConfirmExitOpen(false); try { (window as any).currentPhaserScene?.setAssetPreview?.(null); } catch {}; try { gameBridge.setEditorMode(false); } catch {}; setEditor(s => ({ ...s, pendingTerrain: null as any, pendingAsset: null as any, tool: 'select', active: false } as any)); }}>{t('editor.exitConfirm')}</Button>
+        </div>
       </Modal>
     </div>
     );

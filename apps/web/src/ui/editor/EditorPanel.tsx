@@ -12,6 +12,7 @@ export function EditorPanel(props: {
   setEditor: React.Dispatch<React.SetStateAction<EditorState>>;
   onOpenUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onSave?: () => Promise<boolean> | void;
+  onDirtyChange?: (dirty: boolean) => void;
 }) {
   const { editor, setEditor } = props;
   const { t } = useTranslation();
@@ -182,6 +183,11 @@ export function EditorPanel(props: {
   }, [setEditor]);
   const [saving, setSaving] = React.useState(false);
   const [lastSavedAt, setLastSavedAt] = React.useState<number | null>(null);
+  const [lastChangeAt, setLastChangeAt] = React.useState<number | null>(null);
+  React.useEffect(() => {
+    const dirty = !!(lastChangeAt && (!lastSavedAt || lastChangeAt > lastSavedAt));
+    props.onDirtyChange?.(dirty);
+  }, [lastChangeAt, lastSavedAt, props.onDirtyChange]);
   const [toastOpen, setToastOpen] = React.useState(false);
   const [toast, setToast] = React.useState<{ title?: string; description?: string; intent?: 'info' | 'success' | 'error' }>({});
   const [zonesVisible, setZonesVisible] = React.useState(true);
@@ -253,6 +259,7 @@ export function EditorPanel(props: {
             try { localStorage.setItem('meetropolis.backgroundColor', color); } catch {}
             try { gameBridge.setBackgroundColor(color); } catch {}
             // Keine Autospeicherung – Speichern-Button verwenden
+            setLastChangeAt(Date.now());
           }}
           style={{ width: 48, height: 28, padding: 0, border: '1px solid var(--border)', borderRadius: 6, background: 'transparent' }}
         />
@@ -288,6 +295,7 @@ export function EditorPanel(props: {
               setEditor(s => ({ ...s, spawn: null }));
               setToast({ title: 'Spawn entfernt', description: 'Der Spawnpunkt wurde zurückgesetzt.', intent: 'info' });
               setToastOpen(true);
+            setLastChangeAt(Date.now());
             }}
             style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--glass)', color: 'var(--fg)', fontSize: 13 }}
           >
@@ -395,11 +403,11 @@ export function EditorPanel(props: {
                   <label style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>{t('editor.name')}</label>
                   <input
                     value={z.name}
-                    onChange={(e)=>setEditor(s=>{
+                    onChange={(e)=>{ setEditor(s=>{
                       const zones = s.zones.slice();
                       zones[idx] = { ...zones[idx], name: e.target.value };
-                      return { ...s, zones };
-                    })}
+                      return { ...s, zones } as any;
+                    }); setLastChangeAt(Date.now()); }}
                     style={{ padding: 6, borderRadius: 6, border: '1px solid var(--border)', background: 'var(--glass)', color: 'var(--fg)', fontSize: 12 }}
                   />
                 </div>
@@ -414,6 +422,7 @@ export function EditorPanel(props: {
                     // Szene-Overlay aktualisieren, falls verfügbar
                     try { (window as any).currentPhaserScene?.setZoneOverlay?.(zones); } catch {}
                     // Keine Autospeicherung – Speichern-Button verwenden
+                    setLastChangeAt(Date.now());
                     return { ...s, zones, editingZoneIndex: editing };
                   })} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'rgba(239,68,68,0.12)', color: 'var(--fg)', fontSize: 12 }}>{t('editor.remove')}</button>
                 </div>

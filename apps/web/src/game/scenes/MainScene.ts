@@ -932,6 +932,8 @@ export class MainScene extends Phaser.Scene {
       try { this.bubbleOutlines.forEach(g => g.setVisible(true)); } catch {}
       // Beim Verlassen des Editors: Zonen-Overlay ausblenden
       try { if (this.zoneG) { this.zoneG.clear(); this.zoneG.setVisible(false); } } catch {}
+      // Beim Verlassen des Editors: Spawn-Marker ausblenden
+      try { if (this.spawnG) { this.spawnG.clear(); this.spawnG.setVisible(false); } } catch {}
       // Im v2-Modus bleibt der Collision-Layer weiterhin verborgen
       if (this.v2) {
         try { this.collisionLayer?.setVisible(false); } catch {}

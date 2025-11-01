@@ -62,7 +62,7 @@ export function UserManagement(props: { baseUrl: string; onBack: () => void }) {
   }, []);
 
   return (
-    <div style={{ maxWidth: 1040, margin: '0 auto', display: 'grid', gap: 20, padding: '20px' }}>
+    <div style={{ width: '100%', display: 'grid', gap: 10 }}>
       <Toolbar
         left={<>
           <Button onClick={onBack}>← {t('admin.users.back')}</Button>
