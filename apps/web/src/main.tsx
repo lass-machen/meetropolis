@@ -29,11 +29,21 @@ try {
     const prevWarn = console.warn;
     const prevError = console.error;
     console.log = (...args: any[]) => {
-      try { if (typeof args[0] === 'string' && /Phaser v\d/i.test(args[0])) return; } catch {}
+      try {
+        if (typeof args[0] === 'string') {
+          if (/^SPEICHERN!/.test(args[0])) return;
+          if (/Phaser v\d/i.test(args[0])) return;
+        }
+      } catch {}
       return (prevLog as any).apply(console, args as any);
     };
     console.info = (...args: any[]) => {
-      try { if (typeof args[0] === 'string' && /Download the React DevTools/i.test(args[0])) return; } catch {}
+      try {
+        if (typeof args[0] === 'string') {
+          if (/^SPEICHERN!/.test(args[0])) return;
+          if (/Download the React DevTools/i.test(args[0])) return;
+        }
+      } catch {}
       return (prevInfo as any).apply(console, args as any);
     };
     console.warn = (...args: any[]) => {

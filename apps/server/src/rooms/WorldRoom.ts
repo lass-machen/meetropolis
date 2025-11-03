@@ -24,7 +24,7 @@ const activeRooms = new Set<WorldRoom>();
 export class WorldRoom extends Colyseus.Room<WorldState> {
   private defaultSpawn: { x: number; y: number } | null = null;
 
-  override onCreate() {
+  override onCreate(options?: any) {
     this.setState(new WorldState());
     logger.info('[WorldRoom] Room created with initial state');
     activeRooms.add(this);
@@ -33,12 +33,19 @@ export class WorldRoom extends Colyseus.Room<WorldState> {
     // Make rooms accessible globally
     (global as any).activeWorldRooms = activeRooms;
 
+    // Attach tenant metadata for filterBy and accounting
+    try {
+      const tenantSlug = (options && (options as any).tenant) || process.env.DEFAULT_TENANT_SLUG || 'default';
+      this.setMetadata({ tenant: tenantSlug });
+    } catch {}
+
     // Load default spawn from DB (best-effort)
     (async () => {
       try {
         const prisma = new PrismaClient();
         const mapName = process.env.DEFAULT_MAP_NAME || 'office';
-        const map = await prisma.map.findUnique({ where: { name: mapName } });
+        const tenantSlug = (options && (options as any).tenant) || process.env.DEFAULT_TENANT_SLUG || 'default';
+        const map = await prisma.map.findFirst({ where: { name: mapName, tenant: { slug: tenantSlug } } });
         const meta: any = (map as any)?.meta || {};
         const sp = meta?.spawn;
         if (sp && typeof sp.x === 'number' && typeof sp.y === 'number') {
@@ -117,6 +124,34 @@ export class WorldRoom extends Colyseus.Room<WorldState> {
   }
 
   override async onJoin(client: Client, options?: any) {
+    // Enforce concurrent user limit per tenant (unless bypassed)
+    try {
+      const tenantSlug: string = (options?.tenant || this.metadata?.tenant || process.env.DEFAULT_TENANT_SLUG || 'default');
+      const prisma = new PrismaClient();
+      const tenant = await prisma.tenant.findUnique({ where: { slug: tenantSlug } });
+      if (tenant && !tenant.bypassLimits) {
+        let active = 0;
+        try {
+          const rooms: any[] = Array.from(activeRooms.values());
+          for (const r of rooms) {
+            const meta = (r as any).metadata || {};
+            if (meta && meta.tenant === tenantSlug) {
+              try { active += (r.state?.players?.size) || 0; } catch {}
+            }
+          }
+        } catch {}
+        const paidSeats = Math.max(0, tenant.concurrentLimit || 0);
+        const freeSeats = Math.max(0, (tenant as any).freeSeats || 0);
+        const effectiveLimit = Math.max(paidSeats, freeSeats);
+        if (active >= effectiveLimit) {
+          try { logger.warn('[WorldRoom] Tenant limit reached', { tenant: tenantSlug, active, limit: effectiveLimit, paidSeats, freeSeats }); } catch {}
+          try { client.error(4001, 'tenant_limit_reached'); } catch {}
+          try { await prisma.$disconnect().catch(()=>{}); } catch {}
+          return client.leave(1000);
+        }
+      }
+      try { await prisma.$disconnect().catch(()=>{}); } catch {}
+    } catch {}
     // Vor Anlage eines neuen Spielers: Duplikate anhand Identity bereinigen
     const joiningIdentity = options?.identity || client.sessionId;
     try {

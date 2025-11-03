@@ -8,6 +8,13 @@ export async function joinWorld(serverUrl: string, identity?: string, name?: str
   } else if (serverUrl.startsWith('http://')) {
     wsUrl = serverUrl.replace('http://', 'ws://');
   }
+  // Derive tenant from browser hostname (first label), fallback to 'default'
+  let tenant = 'default';
+  try {
+    const host = typeof window !== 'undefined' ? window.location.hostname : '';
+    const parts = host.split('.');
+    if (parts.length >= 3) tenant = parts[0];
+  } catch {}
   
   try {
     const client = new Client(wsUrl);
@@ -16,7 +23,8 @@ export async function joinWorld(serverUrl: string, identity?: string, name?: str
       name,
       x: position?.x,
       y: position?.y,
-      direction: position?.direction
+      direction: position?.direction,
+      tenant
     });
     // Vorsorgliche No-Op Handler, um Colyseus-Warnungen zu vermeiden,
     // falls UI-Handler noch nicht registriert sind (Race direkt nach Join).

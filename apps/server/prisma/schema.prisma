@@ -11,6 +11,47 @@ datasource db {
 // Prisma seed configuration (uses TS seed file)
 // This is read by `prisma db seed` via package.json in the server workspace.
 
+enum Role {
+  owner
+  admin
+  member
+}
+
+model Tenant {
+  id                    String       @id @default(cuid())
+  slug                  String       @unique
+  name                  String
+  concurrentLimit       Int          @default(50)
+  freeSeats             Int          @default(3)
+  bypassLimits          Boolean      @default(false)
+  isInternal            Boolean      @default(false)
+  stripeCustomerId      String?
+  stripeSubscriptionId  String?
+  status                String?
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
+
+  memberships           Membership[]
+  maps                  Map[]
+  rooms                 Room[]
+  zones                 Zone[]
+  presences             Presence[]
+  invites               Invite[]
+}
+
+model Membership {
+  id        String   @id @default(cuid())
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId  String
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  role      Role     @default(member)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, userId])
+}
+
 model User {
   id              String         @id @default(cuid())
   email           String         @unique
@@ -23,6 +64,7 @@ model User {
   presences       Presence[]
   passwordResets  PasswordReset[]
   apiTokens       ApiToken[]
+  memberships     Membership[]
 }
 
 model Invite {
@@ -33,6 +75,9 @@ model Invite {
   createdBy String?
   usedAt    DateTime?
   usedById  String?
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId  String
+  role      Role     @default(member)
 }
 
 model PasswordReset {
@@ -57,7 +102,9 @@ model ApiToken {
 
 model Map {
   id        String   @id @default(cuid())
-  name      String   @unique
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId  String
+  name      String
   meta      Json
   // v2 Map Geometry & Settings
   width      Int?
@@ -73,17 +120,23 @@ model Map {
   // v2 relations
   tilesets  MapTileset[]
   layers    MapLayer[]
+
+  @@unique([tenantId, name])
 }
 
 model Room {
   id        String   @id @default(cuid())
   name      String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId  String
   map       Map      @relation(fields: [mapId], references: [id])
   mapId     String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   zones     Zone[]
   presences Presence[]
+
+  @@unique([tenantId, name])
 }
 
 model Zone {
@@ -95,6 +148,8 @@ model Zone {
   roomId     String
   map        Map      @relation(fields: [mapId], references: [id])
   mapId      String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId   String
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 }
@@ -105,6 +160,8 @@ model Presence {
   userId     String
   room       Room     @relation(fields: [roomId], references: [id])
   roomId     String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId   String
   x          Int
   y          Int
   direction  String

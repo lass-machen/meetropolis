@@ -4,18 +4,28 @@ import bcrypt from 'bcryptjs';
 const prisma = new PrismaClient();
 
 async function main() {
-  // Basic map and room
-  const map = await prisma.map.upsert({
-    where: { name: 'office' },
-    create: { name: 'office', meta: {} },
+  // Ensure tenants exist
+  const internal = await prisma.tenant.upsert({
+    where: { slug: 'internal' },
+    create: { slug: 'internal', name: 'Internal', concurrentLimit: 999999, bypassLimits: true, isInternal: true },
+    update: {},
+  });
+  const def = await prisma.tenant.upsert({
+    where: { slug: 'default' },
+    create: { slug: 'default', name: 'Default', concurrentLimit: 50 },
     update: {},
   });
 
-  const room = await prisma.room.upsert({
-    where: { id: map.id + ':lobby' },
-    create: { id: map.id + ':lobby', name: 'lobby', mapId: map.id },
-    update: {},
-  });
+  // Basic map and room
+  let map = await prisma.map.findFirst({ where: { name: 'office', tenantId: def.id } });
+  if (!map) {
+    map = await prisma.map.create({ data: { name: 'office', meta: {}, tenantId: def.id } });
+  }
+
+  let room = await prisma.room.findUnique({ where: { id: map.id + ':lobby' } });
+  if (!room) {
+    room = await prisma.room.create({ data: { id: map.id + ':lobby', name: 'lobby', mapId: map.id, tenantId: def.id } });
+  }
 
   // Zones (simple rectangles)
   const zones = [
@@ -28,7 +38,7 @@ async function main() {
     if (existing) {
       await prisma.zone.update({ where: { id: existing.id }, data: { polygon: z.polygon as any } });
     } else {
-      await prisma.zone.create({ data: { name: z.name, polygon: z.polygon as any, roomId: room.id, mapId: map.id } });
+      await prisma.zone.create({ data: { name: z.name, polygon: z.polygon as any, roomId: room.id, mapId: map.id, tenantId: def.id } });
     }
   }
 
@@ -48,11 +58,25 @@ async function main() {
     console.log('Admin user exists:', adminEmail);
   }
 
+  // Ensure memberships
+  if (admin) {
+    await prisma.membership.upsert({
+      where: { tenantId_userId: { tenantId: internal.id, userId: admin.id } } as any,
+      update: { role: 'owner' as any },
+      create: { tenantId: internal.id, userId: admin.id, role: 'owner' as any },
+    });
+    await prisma.membership.upsert({
+      where: { tenantId_userId: { tenantId: def.id, userId: admin.id } } as any,
+      update: {},
+      create: { tenantId: def.id, userId: admin.id, role: 'admin' as any },
+    });
+  }
+
   // Create a default invite (for onboarding teammates)
-  const existingInvite = await prisma.invite.findFirst({ where: { email: adminEmail } });
+  const existingInvite = await prisma.invite.findFirst({ where: { email: adminEmail, tenantId: def.id } });
   if (!existingInvite) {
     const code = Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 10);
-    await prisma.invite.create({ data: { code, email: adminEmail, createdBy: admin.id } });
+    await prisma.invite.create({ data: { code, email: adminEmail, createdBy: admin!.id, tenantId: def.id, role: 'admin' as any } });
     // eslint-disable-next-line no-console
     console.log('Seeded invite for admin email (can be shared to teammates):', code);
   }
