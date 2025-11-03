@@ -54,13 +54,13 @@ export function ApiTokensOverlay(props: {
         )}
         <div style={{ fontWeight:600, marginTop: 4 }}>{t('admin.api.tokensHeader')}</div>
         <div style={{ display:'grid', gap:6 }}>
-          {(apiTokens||[]).map((t: any) => (
-            <div key={t.id} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', border:'1px solid var(--border)', borderRadius:8, padding:'8px 10px', background:'var(--glass)' }}>
+          {(apiTokens||[]).map((token: any) => (
+            <div key={token.id} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', border:'1px solid var(--border)', borderRadius:8, padding:'8px 10px', background:'var(--glass)' }}>
               <div>
-                <div style={{ fontWeight:600 }}>{t.name || 'Token'}</div>
-                <div style={{ fontSize:12, color:'var(--fg-subtle)' }}>{t('admin.api.createdAt')}: {new Date(t.createdAt).toLocaleString()} {t.lastUsedAt ? `· ${t('admin.api.lastUsed')}: ${new Date(t.lastUsedAt).toLocaleString()}` : ''}</div>
+                <div style={{ fontWeight:600 }}>{token.name || 'Token'}</div>
+                <div style={{ fontSize:12, color:'var(--fg-subtle)' }}>{t('admin.api.createdAt')}: {new Date(token.createdAt).toLocaleString()} {token.lastUsedAt ? `· ${t('admin.api.lastUsed')}: ${new Date(token.lastUsedAt).toLocaleString()}` : ''}</div>
               </div>
-              <Button variant="danger" onClick={async()=>{ try{ await fetch(`${apiBase}/api-tokens/${t.id}`, { method:'DELETE', credentials:'include' }); const list = await fetch(`${apiBase}/api-tokens`, { credentials:'include' }).then(r=>r.json()); setApiTokens(list); } catch(e:any){ alert(e.message||t('admin.api.deleteError')); } }} style={{ padding:'6px 8px' }}>{t('admin.api.delete')}</Button>
+              <Button variant="danger" onClick={async()=>{ try{ await fetch(`${apiBase}/api-tokens/${token.id}`, { method:'DELETE', credentials:'include' }); const list = await fetch(`${apiBase}/api-tokens`, { credentials:'include' }).then(r=>r.json()); setApiTokens(list); } catch(e:any){ alert(e.message||t('admin.api.deleteError')); } }} style={{ padding:'6px 8px' }}>{t('admin.api.delete')}</Button>
             </div>
           ))}
           {!apiTokens?.length && <div style={{ fontSize:13, color:'var(--fg-subtle)' }}>{t('admin.api.noneYet')}</div>}
