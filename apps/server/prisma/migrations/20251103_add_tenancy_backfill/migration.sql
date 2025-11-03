@@ -30,6 +30,35 @@ ON CONFLICT ("slug") DO NOTHING;
 
 -- 2) Add tenantId to domain tables (nullable first), backfill, then enforce
 
+-- Create enum Role if missing and align role columns
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'Role') THEN
+    CREATE TYPE "Role" AS ENUM ('owner','admin','member');
+  END IF;
+END $$;
+
+-- Invite.role column (enum)
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name='Invite' AND column_name='role'
+  ) THEN
+    ALTER TABLE "Invite" ADD COLUMN "role" "Role" NOT NULL DEFAULT 'member';
+  END IF;
+END $$;
+
+-- If Membership exists with text role, convert to enum
+DO $$ BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name='Membership' AND column_name='role' AND udt_name <> 'Role'
+  ) THEN
+    ALTER TABLE "Membership" ALTER COLUMN "role" TYPE "Role" USING "role"::"Role";
+    ALTER TABLE "Membership" ALTER COLUMN "role" SET NOT NULL;
+    ALTER TABLE "Membership" ALTER COLUMN "role" SET DEFAULT 'member';
+  END IF;
+END $$;
+
 -- Map
 ALTER TABLE "Map" ADD COLUMN IF NOT EXISTS "tenantId" text;
 UPDATE "Map" SET "tenantId" = (SELECT "id" FROM "Tenant" WHERE slug='default') WHERE "tenantId" IS NULL;
@@ -99,7 +128,7 @@ DO $$ BEGIN
       "id" text PRIMARY KEY,
       "tenantId" text NOT NULL,
       "userId" text NOT NULL,
-      "role" text NOT NULL DEFAULT 'member',
+      "role" "Role" NOT NULL DEFAULT 'member',
       "createdAt" timestamp NOT NULL DEFAULT now(),
       "updatedAt" timestamp NOT NULL DEFAULT now(),
       CONSTRAINT "Membership_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE,
