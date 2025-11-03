@@ -61,7 +61,7 @@ function getTenantFromReq(req: express.Request): { id: string; slug: string; byp
   return null;
 }
 
-async function requireInternalOwner(req: express.Request, userId: string): Promise<boolean> {
+async function requireInternalOwner(_req: express.Request, userId: string): Promise<boolean> {
   try {
     const internal = await prisma.tenant.findUnique({ where: { slug: 'internal' } });
     if (!internal) return false;
@@ -1010,11 +1010,12 @@ export function registerApi(app: express.Express) {
           ? rleEncodeBooleans(values.map(v => v !== 0))
           : rleEncodeNumbers(values);
         const buf = encodeRlePairsToBuffer(pairs);
+        const u8 = new Uint8Array(buf);
 
         if (!chunk) {
-          chunk = await prisma.mapChunk.create({ data: { layerId: layer.id, x: cx, y: cy, version: 1, encoding, data: buf } });
+          chunk = await prisma.mapChunk.create({ data: { layerId: layer.id, x: cx, y: cy, version: 1, encoding, data: u8 } });
         } else {
-          chunk = await prisma.mapChunk.update({ where: { id: chunk.id }, data: { version: chunk.version + 1, encoding, data: buf } });
+          chunk = await prisma.mapChunk.update({ where: { id: chunk.id }, data: { version: chunk.version + 1, encoding, data: u8 } });
         }
 
         updates.push({ key: `${cx}:${cy}`, version: chunk.version, encoding: chunk.encoding, data: buf.toString('base64') });

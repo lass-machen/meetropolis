@@ -18,13 +18,19 @@ async function main() {
   const mapName = process.env.IMPORT_MAP_NAME || 'office';
   const tmjPath = process.env.IMPORT_TMJ_PATH || path.resolve(process.cwd(), 'apps/web/public/maps/office.json');
   const chunkSize = Number(process.env.IMPORT_CHUNK_SIZE || 32);
+  const tenantSlug = process.env.IMPORT_TENANT_SLUG || 'default';
 
   const raw = await fs.readFile(tmjPath, 'utf8');
   const tmj: Tmj = JSON.parse(raw);
 
+  const tenant = await prisma.tenant.findUnique({ where: { slug: tenantSlug } });
+  if (!tenant) {
+    throw new Error(`Tenant '${tenantSlug}' not found. Set IMPORT_TENANT_SLUG or create tenant first.`);
+  }
+
   const map = await prisma.map.upsert({
-    where: { name: mapName },
-    create: { name: mapName, meta: {}, width: tmj.width, height: tmj.height, tileWidth: tmj.tilewidth, tileHeight: tmj.tileheight, chunkSize },
+    where: { tenantId_name: { tenantId: tenant.id, name: mapName } as any },
+    create: { name: mapName, meta: {}, width: tmj.width, height: tmj.height, tileWidth: tmj.tilewidth, tileHeight: tmj.tileheight, chunkSize, tenant: { connect: { id: tenant.id } } as any },
     update: { width: tmj.width, height: tmj.height, tileWidth: tmj.tilewidth, tileHeight: tmj.tileheight, chunkSize },
   });
 
@@ -117,7 +123,8 @@ async function main() {
 
         const pairs = enc === 'rle' ? rleEncodeNumbers(values) : rleEncodeBooleans(values.map(v => v === 1));
         const buf = encodeRlePairsToBuffer(pairs);
-        await prisma.mapChunk.create({ data: { layerId: layer.id, x: cx, y: cy, version: 1, encoding: enc, data: buf } });
+        const u8 = new Uint8Array(buf);
+        await prisma.mapChunk.create({ data: { layerId: layer.id, x: cx, y: cy, version: 1, encoding: enc, data: u8 } });
       }
     }
   }
