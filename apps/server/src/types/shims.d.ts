@@ -17,3 +17,10 @@ declare module 'multer' {
 }
 
 
+// Optional proprietary tenancy module. Present only in enterprise builds.
+declare module '@meetropolis/tenancy' {
+  const mod: any;
+  export default mod;
+}
+
+
