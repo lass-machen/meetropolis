@@ -1,5 +1,6 @@
 import type express from 'express';
 import { PrismaClient } from '@prisma/client';
+import { getTenancyModule } from './tenancyLoader.js';
 
 const prisma = new PrismaClient();
 
@@ -24,6 +25,16 @@ function sanitizeSlug(s: string): string {
 
 export async function tenantMiddleware(req: express.Request, res: express.Response, next: express.NextFunction) {
   try {
+    // Feature-Gate: In OSS-Only Builds ohne Enterprise-Package strikt Single-Tenant fahren
+    try {
+      const tenancy = await getTenancyModule();
+      if (!tenancy.isMultiTenantEnabled()) {
+        const fallback = process.env.DEFAULT_TENANT_SLUG || 'default';
+        (req as any).tenantSlug = fallback;
+        return next();
+      }
+    } catch {}
+
     const fromHeader = (req.headers['x-tenant'] || '').toString();
     const fromQuery = (req.query?.tenant || '').toString();
     const fromHost = extractTenantSlugFromHost(extractHost(req) || null) || '';
