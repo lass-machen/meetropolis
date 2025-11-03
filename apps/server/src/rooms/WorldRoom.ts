@@ -44,7 +44,8 @@ export class WorldRoom extends Colyseus.Room<WorldState> {
       try {
         const prisma = new PrismaClient();
         const mapName = process.env.DEFAULT_MAP_NAME || 'office';
-        const map = await prisma.map.findUnique({ where: { name: mapName } });
+        const tenantSlug = (options && (options as any).tenant) || process.env.DEFAULT_TENANT_SLUG || 'default';
+        const map = await prisma.map.findFirst({ where: { name: mapName, tenant: { slug: tenantSlug } } });
         const meta: any = (map as any)?.meta || {};
         const sp = meta?.spawn;
         if (sp && typeof sp.x === 'number' && typeof sp.y === 'number') {
