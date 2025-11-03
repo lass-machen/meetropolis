@@ -106,3 +106,17 @@ packages/
 #### Nächste Schritte
 - Bewegung/Präsenz, LiveKit-Basis, Bubble/Zone-Logik, Follow & Editor gemäß Prozess in der Aufgabenbeschreibung implementieren.
 
+
+#### Lizenz & Editionen
+
+- Kern des Projekts ist **Open Source unter Apache-2.0** (siehe `LICENSE`, `NOTICE`).
+- Mandanten-Funktionen werden als **proprietäre Edition** separat gepflegt und sind nicht Teil der Open-Source-Distribution.
+- Marken (Name/Logo) sind separat geregelt, siehe `TRADEMARKS.md`.
+
+Erlaubt (Auszug):
+- Nutzung, Veränderung und Weitergabe gemäß Apache-2.0.
+
+Nicht über die OSS-Edition abgedeckt:
+- Multi-Tenant-Funktionalität, Wiederverkauf als Service/Produkt unter Nutzung der Marken, oder Behauptung einer offiziellen Distribution.
+
+Für eine kommerzielle Lizenz der Mandanten-Edition kontaktiere uns bitte.
