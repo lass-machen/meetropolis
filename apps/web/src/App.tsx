@@ -19,9 +19,8 @@ import { useParticipants } from './features/participants/useParticipants';
 import { EditorPanel } from './ui/editor/EditorPanel';
 import { HudPanel } from './ui/hud/HudPanel';
 import { TopRightMenu } from './ui/app/TopRightMenu';
-import { TenantsAdmin } from './ui/admin/TenantsAdmin';
-import { BillingAdmin } from './ui/admin/BillingAdmin';
 import { ApiTokensOverlay } from './ui/admin/ApiTokensOverlay';
+import { AdminOverlay } from './ui/admin/AdminOverlay';
 import { useEditor } from './hooks/useEditor';
 import { buildEditorSavePayload } from './lib/editorStorage';
 import { useEditorBridge } from './editor/useEditorBridge';
@@ -2140,23 +2139,14 @@ export function App() {
 
           {/* HUD (links oben klein) */}
           <HudPanel hud={hud} />
-          {/* Admin Quick Button (nur Root-Admin) */}
+          {/* Admin Overlay (einzige Instanz) */}
           {isInternalOwner && (
-            <div style={{ position: 'absolute', top: 12, right: 12, zIndex: 60 }}>
-              <Button onClick={()=>{ setAdminTab('tenants'); setAdminOpen(true); }} variant="secondary">Admin</Button>
-            </div>
-          )}
-          {/* Admin Modal */}
-          {isInternalOwner && (
-            <Modal open={adminOpen} onOpenChange={(o)=>{ setAdminOpen(!!o); }} title="Administration" maxWidth={1100}>
-              <div style={{ display:'grid', gap:12 }}>
-                <div style={{ display:'flex', gap:8 }}>
-                  <button onClick={()=>setAdminTab('tenants')} style={{ padding:'8px 12px', borderRadius:8, border:'1px solid var(--border)', background: adminTab==='tenants'?'var(--glass-strong)':'var(--glass)' }}>Mandanten</button>
-                  <button onClick={()=>setAdminTab('billing')} style={{ padding:'8px 12px', borderRadius:8, border:'1px solid var(--border)', background: adminTab==='billing'?'var(--glass-strong)':'var(--glass)' }}>Pakete & Billing</button>
-                </div>
-                {adminTab === 'tenants' ? <TenantsAdmin apiBase={apiBase} /> : <BillingAdmin apiBase={apiBase} />}
+            <>
+              <div style={{ position: 'absolute', top: 12, right: 12, zIndex: 60 }}>
+                <Button onClick={()=> setAdminOpen(true)} variant="secondary">Admin</Button>
               </div>
-            </Modal>
+              <AdminOverlay apiBase={apiBase} open={adminOpen} onOpenChange={setAdminOpen} />
+            </>
           )}
           {/* Single Card Fullscreen Overlay (hidden in editor mode; hidden in DND) */}
           {!editor.active && !avState.dnd && selectedSid && (
