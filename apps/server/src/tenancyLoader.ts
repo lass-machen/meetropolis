@@ -1,5 +1,9 @@
 import { z } from 'zod';
-import type { TenancyModule } from '@meetropolis/shared';
+// Lokaler Minimaltyp, um Build ohne Workspace/Shared zu ermöglichen
+export type TenancyModule = {
+  readonly version: 1;
+  isMultiTenantEnabled(): boolean;
+};
 
 const tenancyModuleSchema = z.object({
   version: z.literal(1),
