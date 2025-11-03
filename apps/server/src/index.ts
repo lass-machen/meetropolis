@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import cookieParser from 'cookie-parser';
+import bodyParser from 'body-parser';
 import helmet from 'helmet';
 import compression from 'compression';
 import rateLimit from 'express-rate-limit';
@@ -19,6 +20,7 @@ import { WorldRoom } from './rooms/WorldRoom.js';
 import { registerApi } from './api.js';
 import { logger } from './logger.js';
 import { registry, metricsMiddleware } from './metrics.js';
+import { tenantMiddleware } from './tenancy.js';
 
 const app = express();
 const isProd = process.env.NODE_ENV === 'production';
@@ -77,9 +79,14 @@ app.use((req: express.Request, res: express.Response, next: express.NextFunction
   }
 });
 
+// Stripe Webhook requires raw body for signature verification; mount before json parser
+app.use('/billing/webhook', bodyParser.raw({ type: 'application/json' }) as any);
 app.use(cookieParser() as any);
 app.use(express.json({ limit: '4mb' }) as any);
 app.use(express.urlencoded({ extended: true, limit: '4mb' }) as any);
+
+// Tenant resolution (must run before API routes)
+app.use(tenantMiddleware as any);
 
 // Basic rate-limiting for sensitive endpoints
 const authLimiter = rateLimit({
@@ -141,7 +148,7 @@ httpServer.on('error', (err) => {
 // Colyseus Server
 const gameServer = new Colyseus.Server({ server: httpServer as any });
 
-gameServer.define('world', WorldRoom as any);
+gameServer.define('world', WorldRoom as any).filterBy(['tenant']);
 
 // Monitor can be enabled by installing @colyseus/monitor
 

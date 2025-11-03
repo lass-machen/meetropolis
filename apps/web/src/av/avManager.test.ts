@@ -127,6 +127,64 @@ describe('AVManager', () => {
     expect(room.localParticipant.publishTrack).toHaveBeenCalled();
   });
 
+  it('re-publiziert Mic, wenn vorhandener Track beendet/disabled ist', async () => {
+    const mgr = makeManager() as any;
+    const room = makeFakeRoom();
+    mgr.current = room;
+
+    // Simuliere alten, beendeten Mic-Track
+    const endedTrack: any = { kind: 'audio', mediaStreamTrack: { readyState: 'ended', enabled: false }, stop: vi.fn() };
+    room.localParticipant.trackPublications.set('mic', { track: endedTrack, source: 'microphone', kind: 'audio' });
+
+    await mgr.setMicrophoneEnabled(true);
+
+    // Erwartung: alter Track wurde entfernt, neuer publiziert
+    expect(room.localParticipant.unpublishTrack).toHaveBeenCalledWith(endedTrack);
+    expect(room.localParticipant.publishTrack).toHaveBeenCalled();
+  });
+
+  it('Mute deaktiviert Track sofort lokal und triggert Unpublish', async () => {
+    const mgr = makeManager() as any;
+    const room = makeFakeRoom();
+    mgr.current = room;
+
+    const track: any = { kind: 'audio', mediaStreamTrack: { enabled: true }, setEnabled: vi.fn((v: boolean) => { track.mediaStreamTrack.enabled = v; }) };
+    room.localParticipant.trackPublications.set('mic', { track, source: 'microphone', kind: 'audio' });
+
+    await mgr.setMicrophoneEnabled(false);
+
+    expect(track.mediaStreamTrack.enabled).toBe(false);
+    expect(room.localParticipant.unpublishTrack).toHaveBeenCalledWith(track);
+  });
+
+  it('re-publiziert Kamera, wenn vorhandener Track beendet/disabled ist', async () => {
+    const mgr = makeManager() as any;
+    const room = makeFakeRoom();
+    mgr.current = room;
+
+    const endedCam: any = { kind: 'video', mediaStreamTrack: { readyState: 'ended', enabled: false }, stop: vi.fn() };
+    room.localParticipant.trackPublications.set('cam', { track: endedCam, source: 'camera', kind: 'video' });
+
+    await mgr.setCameraEnabled(true);
+
+    expect(room.localParticipant.unpublishTrack).toHaveBeenCalledWith(endedCam);
+    expect(room.localParticipant.publishTrack).toHaveBeenCalled();
+  });
+
+  it('Kamera-Deaktivierung setzt Track sofort lokal aus und triggert Unpublish', async () => {
+    const mgr = makeManager() as any;
+    const room = makeFakeRoom();
+    mgr.current = room;
+
+    const cam: any = { kind: 'video', mediaStreamTrack: { enabled: true }, setEnabled: vi.fn((v: boolean) => { cam.mediaStreamTrack.enabled = v; }) };
+    room.localParticipant.trackPublications.set('cam', { track: cam, source: 'camera', kind: 'video' });
+
+    await mgr.setCameraEnabled(false);
+
+    expect(cam.mediaStreamTrack.enabled).toBe(false);
+    expect(room.localParticipant.unpublishTrack).toHaveBeenCalledWith(cam);
+  });
+
   it('aktiviert Mic nach Join, wenn vorher pending war (Join-Order deterministisch)', async () => {
     vi.useFakeTimers();
     const { joinLivekitRoom } = await import('../lib/livekit');

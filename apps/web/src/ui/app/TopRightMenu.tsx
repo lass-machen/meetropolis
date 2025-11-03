@@ -8,13 +8,15 @@ export function TopRightMenu(props: {
   onToggleMenu: () => void;
   onOpenUsers: () => void;
   onOpenInvites: () => void;
+  onOpenAdmin?: () => void;
+  isAdmin?: boolean;
   onBackToWorld: () => void;
   onOpenApi: () => void;
   onToggleEditor: () => void | Promise<void>;
   editorActive: boolean;
   onLogout: () => void | Promise<void>;
 }) {
-  const { menuOpen, onToggleMenu, onOpenUsers, onOpenInvites, onBackToWorld, onOpenApi, onToggleEditor, editorActive, onLogout } = props;
+  const { menuOpen, onToggleMenu, onOpenUsers, onOpenInvites, onOpenAdmin, isAdmin, onBackToWorld, onOpenApi, onToggleEditor, editorActive, onLogout } = props;
   const { override, setOverride } = useTheme();
   const { t } = useTranslation();
   return (
@@ -51,6 +53,9 @@ export function TopRightMenu(props: {
         </div>
         <Button icon="users" iconPosition="only" title={t('topRightMenu.users')} aria-label={t('topRightMenu.users')} onClick={onOpenUsers} />
         <Button icon="envelope" iconPosition="only" title={t('topRightMenu.invites')} aria-label={t('topRightMenu.invites')} onClick={onOpenInvites} />
+        {isAdmin ? (
+          <Button icon="shield" iconPosition="only" title="Admin" aria-label="Admin" onClick={onOpenAdmin} />
+        ) : null}
       </ButtonGroup>
     </div>
   );

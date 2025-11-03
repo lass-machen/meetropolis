@@ -16,6 +16,7 @@ import fs from 'fs';
 import fsp from 'fs/promises';
 import multer from 'multer';
 import unzipper from 'unzipper';
+import Stripe from 'stripe';
 
 const prisma = new PrismaClient();
 const JWT_SECRET = (() => {
@@ -54,12 +55,52 @@ function setAuthCookie(res: express.Response, token: string) {
   });
 }
 
-function requireAuth(req: express.Request): { userId: string } | null {
+function getTenantFromReq(req: express.Request): { id: string; slug: string; bypassLimits?: boolean; isInternal?: boolean } | null {
+  const t: any = (req as any).tenant;
+  if (t && t.id && t.slug) return { id: t.id, slug: t.slug, bypassLimits: !!t.bypassLimits, isInternal: !!t.isInternal };
+  return null;
+}
+
+async function requireInternalOwner(req: express.Request, userId: string): Promise<boolean> {
+  try {
+    const internal = await prisma.tenant.findUnique({ where: { slug: 'internal' } });
+    if (!internal) return false;
+    const member = await prisma.membership.findUnique({ where: { tenantId_userId: { tenantId: internal.id, userId } } as any });
+    if (!member) return false;
+    return (member as any).role === 'owner';
+  } catch {
+    return false;
+  }
+}
+
+function computeOnlineUsageByTenantSlug(): Record<string, number> {
+  const usage: Record<string, number> = {};
+  try {
+    const activeWorldRooms: any = (global as any).activeWorldRooms;
+    const rooms: any[] = activeWorldRooms ? Array.from(activeWorldRooms.values()) : [];
+    for (const r of rooms) {
+      const slug = (r as any).metadata?.tenant || 'default';
+      const n = (r as any).state?.players?.size || 0;
+      usage[slug] = (usage[slug] || 0) + n;
+    }
+  } catch {}
+  return usage;
+}
+
+async function requireMembership(req: express.Request, userId: string): Promise<{ role: string } | null> {
+  const tenant = getTenantFromReq(req);
+  if (!tenant) return null;
+  const m = await prisma.membership.findUnique({ where: { tenantId_userId: { tenantId: tenant.id, userId } } as any });
+  if (!m) return null;
+  return { role: (m as any).role };
+}
+
+function requireAuth(req: express.Request): { userId: string; tenantId?: string } | null {
   const raw = (req as any).cookies?.[COOKIE_NAME] || req.headers['authorization']?.toString()?.replace('Bearer ', '');
   if (!raw) return null;
   try {
     const payload = jwt.verify(raw, JWT_SECRET) as any;
-    return { userId: payload.sub };
+    return { userId: payload.sub, tenantId: payload.tid };
   } catch {
     return null;
   }
@@ -96,6 +137,17 @@ function normalizeEmailForMatching(email: string): string {
 }
 
 export function registerApi(app: express.Express) {
+  async function getDefaultFreeSeats(): Promise<number> {
+    // Prefer internal tenant's freeSeats as platform default
+    try {
+      const internal = await prisma.tenant.findUnique({ where: { slug: 'internal' } });
+      const v = (internal as any)?.freeSeats;
+      if (typeof v === 'number' && Number.isFinite(v) && v >= 0) return v;
+    } catch {}
+    const envV = Number(process.env.FREE_SEATS_DEFAULT || '');
+    if (Number.isFinite(envV) && envV >= 0) return envV;
+    return 3;
+  }
   app.get('/health', (_req: express.Request, res: express.Response) => res.json({ ok: true }));
   // Liveness probe: keine externen Abhängigkeiten
   app.get('/healthz', (_req: express.Request, res: express.Response) => res.json({ ok: true }));
@@ -139,12 +191,18 @@ export function registerApi(app: express.Express) {
   app.post('/auth/invite', async (req: express.Request, res: express.Response) => {
     const auth = requireAuth(req);
     if (!auth) return res.status(401).json({ error: 'unauthorized' });
+    const tenant = getTenantFromReq(req);
+    if (!tenant) return res.status(400).json({ error: 'tenant_required' });
+    const membership = await requireMembership(req, auth.userId);
+    if (!membership || (membership.role !== 'admin' && membership.role !== 'owner')) {
+      return res.status(403).json({ error: 'forbidden' });
+    }
     const schema = z.object({ email: z.string().email() });
     const parse = schema.safeParse(req.body || {});
     if (!parse.success) return res.status(400).json({ error: 'email required' });
     const code = crypto.randomBytes(12).toString('hex');
     const normalizedEmail = normalizeEmailForStorage(parse.data.email);
-    const inv = await prisma.invite.create({ data: { code, email: normalizedEmail, createdBy: auth.userId } });
+    const inv = await prisma.invite.create({ data: { code, email: normalizedEmail, createdBy: auth.userId, tenantId: tenant.id } });
     res.json({ code: inv.code });
   });
 
@@ -169,7 +227,17 @@ export function registerApi(app: express.Express) {
       return res.status(400).json({ error: 'registration failed' });
     }
     await prisma.invite.update({ where: { code }, data: { usedAt: new Date(), usedById: user.id } });
-    const token = jwt.sign({ sub: user.id }, JWT_SECRET, { expiresIn: '30d' });
+    // Create membership in invite's tenant
+    try {
+      if ((invite as any).tenantId) {
+        await prisma.membership.upsert({
+          where: { tenantId_userId: { tenantId: (invite as any).tenantId, userId: user.id } } as any,
+          update: {},
+          create: { tenantId: (invite as any).tenantId, userId: user.id, role: (invite as any).role || 'member' },
+        });
+      }
+    } catch {}
+    const token = jwt.sign({ sub: user.id, tid: (invite as any).tenantId }, JWT_SECRET, { expiresIn: '30d' });
     setAuthCookie(res, token);
     res.json({ id: user.id, email: user.email, name: user.name });
   });
@@ -184,7 +252,12 @@ export function registerApi(app: express.Express) {
     if (!user || !user.passwordHash) return res.status(401).json({ error: 'invalid credentials' });
     const ok = await bcrypt.compare(password, user.passwordHash);
     if (!ok) return res.status(401).json({ error: 'invalid credentials' });
-    const token = jwt.sign({ sub: user.id }, JWT_SECRET, { expiresIn: '30d' });
+    const tenant = getTenantFromReq(req);
+    if (!tenant) return res.status(400).json({ error: 'tenant_required' });
+    // Ensure user is member of current tenant
+    const membership = await prisma.membership.findUnique({ where: { tenantId_userId: { tenantId: tenant.id, userId: user.id } } as any });
+    if (!membership) return res.status(403).json({ error: 'not_member_of_tenant' });
+    const token = jwt.sign({ sub: user.id, tid: tenant.id }, JWT_SECRET, { expiresIn: '30d' });
     setAuthCookie(res, token);
     res.json({ id: user.id, email: user.email, name: user.name });
   });
@@ -197,21 +270,32 @@ export function registerApi(app: express.Express) {
   app.get('/auth/me', async (req, res) => {
     const auth = requireAuth(req);
     if (!auth) return res.status(401).json({ error: 'unauthorized' });
+    const tenant = getTenantFromReq(req);
+    if (!tenant) return res.status(400).json({ error: 'tenant_required' });
+    const member = await prisma.membership.findUnique({ where: { tenantId_userId: { tenantId: tenant.id, userId: auth.userId } } as any });
+    if (!member) return res.status(403).json({ error: 'not_member_of_tenant' });
     const user = await prisma.user.findUnique({ 
       where: { id: auth.userId },
       include: {
         presences: {
+          where: { tenantId: tenant.id },
           orderBy: { updatedAt: 'desc' },
           take: 1
         }
       }
     });
     if (!user) return res.status(401).json({ error: 'unauthorized' });
+    // Root-Admin Flag (internal:owner)
+    let isInternalOwner = false;
+    try {
+      isInternalOwner = await requireInternalOwner(req, auth.userId);
+    } catch {}
     const lastPosition = user.presences[0];
     res.json({ 
       id: user.id, 
       email: user.email, 
       name: user.name,
+      isInternalOwner,
       lastPosition: lastPosition ? { x: lastPosition.x, y: lastPosition.y, direction: lastPosition.direction } : null
     });
   });
@@ -221,6 +305,8 @@ export function registerApi(app: express.Express) {
     try {
       const auth = requireAuth(req);
       if (!auth) return res.status(401).json({ error: 'unauthorized' });
+      const tenant = getTenantFromReq(req);
+      if (!tenant) return res.status(400).json({ error: 'tenant_required' });
       const schema = z.object({ 
         x: z.number(), 
         y: z.number(), 
@@ -233,21 +319,22 @@ export function registerApi(app: express.Express) {
       const { x, y, direction, roomId = 'world' } = parse.data;
       
       // Get or create the default room
-      let room = await prisma.room.findFirst({ where: { name: roomId } });
+      let room = await prisma.room.findFirst({ where: { name: roomId, tenantId: tenant.id } });
       if (!room) {
         // Create default map and room if not exists
-        let map = await prisma.map.findFirst({ where: { name: 'office' } });
+        let map = await prisma.map.findFirst({ where: { name: 'office', tenantId: tenant.id } });
         if (!map) {
-          map = await prisma.map.create({ data: { name: 'office', meta: {} } });
+          map = await prisma.map.create({ data: { name: 'office', meta: {}, tenantId: tenant.id } });
         }
-        room = await prisma.room.create({ data: { name: roomId, mapId: map.id } });
+        room = await prisma.room.create({ data: { name: roomId, mapId: map.id, tenantId: tenant.id } });
       }
       
       // Update or create presence
       const existingPresence = await prisma.presence.findFirst({
         where: {
           userId: auth.userId,
-          roomId: room.id
+          roomId: room.id,
+          tenantId: tenant.id
         }
       });
       
@@ -258,7 +345,7 @@ export function registerApi(app: express.Express) {
         });
       } else {
         await prisma.presence.create({
-          data: { userId: auth.userId, roomId: room.id, x, y, direction }
+          data: { userId: auth.userId, roomId: room.id, tenantId: tenant.id, x, y, direction }
         });
       }
       
@@ -324,7 +411,10 @@ export function registerApi(app: express.Express) {
   app.get('/users', async (req: express.Request, res: express.Response) => {
     const auth = requireAuth(req);
     if (!auth) return res.status(401).json({ error: 'unauthorized' });
+    const tenant = getTenantFromReq(req);
+    if (!tenant) return res.status(400).json({ error: 'tenant_required' });
     const users = await prisma.user.findMany({
+      where: { memberships: { some: { tenantId: tenant.id } } } as any,
       select: { id: true, email: true, name: true, createdAt: true, updatedAt: true }
     });
     res.json(users);
@@ -736,8 +826,10 @@ export function registerApi(app: express.Express) {
   });
 
   // Existing endpoints
-  app.get('/maps', async (_req: express.Request, res: express.Response) => {
-    const maps = await prisma.map.findMany({ include: { zones: true, rooms: true } });
+  app.get('/maps', async (req: express.Request, res: express.Response) => {
+    const tenant = getTenantFromReq(req);
+    if (!tenant) return res.status(400).json({ error: 'tenant_required' });
+    const maps = await prisma.map.findMany({ where: { tenantId: tenant.id }, include: { zones: true, rooms: true } });
     res.json(maps);
   });
 
@@ -746,7 +838,9 @@ export function registerApi(app: express.Express) {
   // ========================
   app.get('/maps/:name/state-v2', async (req: express.Request, res: express.Response) => {
     const name = req.params.name;
-    const map = await prisma.map.findUnique({ where: { name } });
+    const tenant = getTenantFromReq(req);
+    if (!tenant) return res.status(400).json({ error: 'tenant_required' });
+    const map = await prisma.map.findFirst({ where: { name, tenantId: tenant.id } });
     if (!map) return res.status(404).json({ error: 'map not found' });
 
     // Fetch tileset registry (deterministic by slot)
@@ -797,8 +891,10 @@ export function registerApi(app: express.Express) {
     if (!parse.success) return res.status(400).json({ error: 'layer and keys required' });
 
     const name = req.params.name;
+    const tenant = getTenantFromReq(req);
+    if (!tenant) return res.status(400).json({ error: 'tenant_required' });
     const { layer: layerName, keys } = parse.data;
-    const map = await prisma.map.findUnique({ where: { name } });
+    const map = await prisma.map.findFirst({ where: { name, tenantId: tenant.id } });
     if (!map) return res.status(404).json({ error: 'map not found' });
     const layer = await prisma.mapLayer.findUnique({ where: { mapId_name: { mapId: map.id, name: layerName } } as any });
     if (!layer) return res.status(404).json({ error: 'layer not found' });
@@ -840,8 +936,10 @@ export function registerApi(app: express.Express) {
     if (!parse.success) return res.status(400).json({ error: 'invalid payload' });
 
     const name = req.params.name;
+    const tenant = getTenantFromReq(req);
+    if (!tenant) return res.status(400).json({ error: 'tenant_required' });
     const { layer: layerName, rect, tileRefId, erase } = parse.data;
-    const map = await prisma.map.findUnique({ where: { name } });
+    const map = await prisma.map.findFirst({ where: { name, tenantId: tenant.id } });
     if (!map) return res.status(404).json({ error: 'map not found' });
 
     // Validate tileRefId range lightly (slot/index 16-bit)
@@ -944,7 +1042,9 @@ export function registerApi(app: express.Express) {
     if (!parse.success) return res.status(400).json({ error: 'invalid payload' });
 
     const name = req.params.name;
-    const map = await prisma.map.findUnique({ where: { name } });
+    const tenant = getTenantFromReq(req);
+    if (!tenant) return res.status(400).json({ error: 'tenant_required' });
+    const map = await prisma.map.findFirst({ where: { name, tenantId: tenant.id } });
     if (!map) return res.status(404).json({ error: 'map not found' });
 
     const last = await prisma.mapTileset.findFirst({ where: { mapId: map.id }, orderBy: { slot: 'desc' } });
@@ -969,8 +1069,10 @@ export function registerApi(app: express.Express) {
     res.json({ tilesetRegistry: tilesets });
   });
 
-  app.get('/zones', async (_req: express.Request, res: express.Response) => {
-    const zones = await prisma.zone.findMany();
+  app.get('/zones', async (req: express.Request, res: express.Response) => {
+    const tenant = getTenantFromReq(req);
+    if (!tenant) return res.status(400).json({ error: 'tenant_required' });
+    const zones = await prisma.zone.findMany({ where: { tenantId: tenant.id } });
     res.json(zones);
   });
 
@@ -979,9 +1081,11 @@ export function registerApi(app: express.Express) {
     const auth = requireAuth(req);
     if (!auth) return res.status(401).json({ error: 'unauthorized' });
     const name = req.params.name;
-    let map = await prisma.map.findUnique({ where: { name } });
+    const tenant = getTenantFromReq(req);
+    if (!tenant) return res.status(400).json({ error: 'tenant_required' });
+    let map = await prisma.map.findFirst({ where: { name, tenantId: tenant.id } });
     if (!map) {
-      map = await prisma.map.create({ data: { name, meta: {} } });
+      map = await prisma.map.create({ data: { name, meta: {}, tenantId: tenant.id } });
     }
     // meta speichert editor bezogene daten
     const meta = (map.meta as any) || {};
@@ -1000,6 +1104,8 @@ export function registerApi(app: express.Express) {
     const auth = requireAuth(req);
     if (!auth) return res.status(401).json({ error: 'unauthorized' });
     const name = req.params.name;
+    const tenant = getTenantFromReq(req);
+    if (!tenant) return res.status(400).json({ error: 'tenant_required' });
     const editorSchema = z.object({
       editorGround: z.array(z.number()).nullable().optional(),
       collision: z.array(z.number()).nullable().optional(),
@@ -1014,14 +1120,14 @@ export function registerApi(app: express.Express) {
     if (!parse.success) return res.status(400).json({ error: 'invalid editor payload' });
     const { editorGround, collision, tilesets, assets, zones, backgroundColor, replaceZones, spawn } = parse.data;
     try { logger.debug('[EditorState] PUT', { map: name, tilesets: Array.isArray(tilesets) ? tilesets.length : undefined, assets: Array.isArray(assets) ? assets.length : undefined, zones: Array.isArray(zones) ? zones.length : undefined, spawn: !!spawn }); } catch {}
-    const found = await prisma.map.findUnique({ where: { name }, include: { rooms: true } });
-    const map = found ?? await prisma.map.create({ data: { name, meta: {} } });
+    const found = await prisma.map.findFirst({ where: { name, tenantId: tenant.id }, include: { rooms: true } });
+    const map = found ?? await prisma.map.create({ data: { name, meta: {}, tenantId: tenant.id } });
     // Ensure there is at least one room for this map (for zone assignment)
     let roomForZones = await prisma.room.findFirst({ where: { mapId: map.id }, orderBy: { createdAt: 'asc' } });
     if (!roomForZones) {
       const lobbyId = `${map.id}:lobby`;
       try {
-        roomForZones = await prisma.room.create({ data: { id: lobbyId, name: 'lobby', mapId: map.id } });
+        roomForZones = await prisma.room.create({ data: { id: lobbyId, name: 'lobby', mapId: map.id, tenantId: tenant.id } });
       } catch {
         // Fallback: try to find again without assuming custom id
         roomForZones = await prisma.room.findFirst({ where: { mapId: map.id } });
@@ -1069,7 +1175,7 @@ export function registerApi(app: express.Express) {
       if (prepared.length > 0 || replaceZones === true) {
         await prisma.zone.deleteMany({ where: { mapId: map.id } });
         for (const z of prepared) {
-          await prisma.zone.create({ data: { name: z.name, capacity: z.capacity ?? undefined, polygon: z.polygon, mapId: map.id, roomId: roomForZones?.id as string } as any });
+          await prisma.zone.create({ data: { name: z.name, capacity: z.capacity ?? undefined, polygon: z.polygon, mapId: map.id, roomId: roomForZones?.id as string, tenantId: tenant.id } as any });
         }
       }
     }
@@ -1106,17 +1212,21 @@ export function registerApi(app: express.Express) {
   app.get('/invites', async (req: express.Request, res: express.Response) => {
     const auth = requireAuth(req);
     if (!auth) return res.status(401).json({ error: 'unauthorized' });
-    const list = await prisma.invite.findMany({ orderBy: { createdAt: 'desc' } });
+    const tenant = getTenantFromReq(req);
+    if (!tenant) return res.status(400).json({ error: 'tenant_required' });
+    const list = await prisma.invite.findMany({ where: { tenantId: tenant.id }, orderBy: { createdAt: 'desc' } });
     res.json(list);
   });
 
   app.delete('/invites/:code', async (req: express.Request, res: express.Response) => {
     const auth = requireAuth(req);
     if (!auth) return res.status(401).json({ error: 'unauthorized' });
+    const tenant = getTenantFromReq(req);
+    if (!tenant) return res.status(400).json({ error: 'tenant_required' });
     const code = req.params.code;
     try {
       const inv = await prisma.invite.findUnique({ where: { code } });
-      if (!inv) return res.status(404).json({ error: 'not found' });
+      if (!inv || (inv as any).tenantId !== tenant.id) return res.status(404).json({ error: 'not found' });
       if (inv.usedAt) return res.status(400).json({ error: 'already used' });
       await prisma.invite.delete({ where: { code } });
       res.json({ ok: true });
@@ -1142,7 +1252,10 @@ export function registerApi(app: express.Express) {
       if (!process.env.LIVEKIT_API_KEY || !process.env.LIVEKIT_API_SECRET) {
         return res.status(500).json({ error: 'livekit not configured' });
       }
-      const token = await createLivekitToken({ roomName, identity, name, canPublish, canPublishData: true, canSubscribe });
+      const tenant = getTenantFromReq(req);
+      if (!tenant) return res.status(400).json({ error: 'tenant_required' });
+      const roomNameWithTenant = `${tenant.slug}:${roomName}`;
+      const token = await createLivekitToken({ roomName: roomNameWithTenant, identity, name, canPublish, canPublishData: true, canSubscribe });
       res.type('text/plain').send(token);
     } catch (e: any) {
       logger.error({ event: 'livekit.token.error', error: e?.message || String(e) });
@@ -1201,13 +1314,413 @@ export function registerApi(app: express.Express) {
     }
   });
 
+  // ========================
+  // Billing (Stripe) - Skeleton
+  // ========================
+  app.post('/billing/checkout-session', async (req: express.Request, res: express.Response) => {
+    const auth = requireAuth(req);
+    if (!auth) return res.status(401).json({ error: 'unauthorized' });
+    const tenant = getTenantFromReq(req);
+    if (!tenant) return res.status(400).json({ error: 'tenant_required' });
+    if (tenant.isInternal || tenant.bypassLimits) return res.status(400).json({ error: 'billing_not_applicable' });
+    if (!process.env.STRIPE_SECRET_KEY) return res.status(501).json({ error: 'billing_not_configured' });
+    try {
+      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2024-06-20' } as any);
+      const schema = z.object({ priceId: z.string().min(3).optional(), plan: z.string().min(1).optional(), returnUrl: z.string().url().optional() }).refine(v => !!(v.priceId || v.plan), { message: 'priceId or plan required' });
+      const parse = schema.safeParse(req.body || {});
+      if (!parse.success) return res.status(400).json({ error: 'invalid payload' });
+      const priceId = parse.data.priceId || process.env[`STRIPE_PRICE_${(parse.data.plan || '').toUpperCase()}` as any];
+      if (!priceId) return res.status(400).json({ error: 'price_not_configured' });
+
+      // Ensure Stripe customer for tenant
+      let tenantRec = await prisma.tenant.findUnique({ where: { id: tenant.id } });
+      let customerId = (tenantRec as any)?.stripeCustomerId || null;
+      if (!customerId) {
+        const customer = await stripe.customers.create({
+          name: tenantRec?.name || tenant.slug,
+          metadata: { tenantId: tenant.id, tenantSlug: tenant.slug },
+        });
+        customerId = customer.id;
+        await prisma.tenant.update({ where: { id: tenant.id }, data: { stripeCustomerId: customerId } });
+      }
+
+      const origin = (req.headers.origin as string) || (req.headers.referer as string) || process.env.BILLING_PUBLIC_URL || '';
+      const successUrl = (parse.data.returnUrl || origin || '').replace(/\/$/, '') + '/billing/success';
+      const cancelUrl = (parse.data.returnUrl || origin || '').replace(/\/$/, '') + '/billing/cancel';
+
+      const session = await stripe.checkout.sessions.create({
+        mode: 'subscription',
+        customer: customerId,
+        client_reference_id: tenant.id,
+        line_items: [{ price: priceId, quantity: 1 }],
+        success_url: successUrl,
+        cancel_url: cancelUrl,
+        subscription_data: {
+          metadata: { tenantId: tenant.id, tenantSlug: tenant.slug },
+        },
+        allow_promotion_codes: true,
+      });
+      return res.json({ url: session.url });
+    } catch (e: any) {
+      logger.error({ event: 'billing.checkout.error', error: e?.message || String(e) });
+      return res.status(500).json({ error: 'checkout_failed' });
+    }
+  });
+
+  app.post('/billing/portal-session', async (req: express.Request, res: express.Response) => {
+    const auth = requireAuth(req);
+    if (!auth) return res.status(401).json({ error: 'unauthorized' });
+    const tenant = getTenantFromReq(req);
+    if (!tenant) return res.status(400).json({ error: 'tenant_required' });
+    if (tenant.isInternal || tenant.bypassLimits) return res.status(400).json({ error: 'billing_not_applicable' });
+    if (!process.env.STRIPE_SECRET_KEY) return res.status(501).json({ error: 'billing_not_configured' });
+    try {
+      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2024-06-20' } as any);
+      const tenantRec = await prisma.tenant.findUnique({ where: { id: tenant.id } });
+      const customerId = (tenantRec as any)?.stripeCustomerId;
+      if (!customerId) return res.status(400).json({ error: 'no_customer' });
+      const origin = (req.headers.origin as string) || (req.headers.referer as string) || process.env.BILLING_PUBLIC_URL || '';
+      const returnUrl = (origin || '').replace(/\/$/, '') + '/billing/account';
+      const session = await stripe.billingPortal.sessions.create({ customer: customerId, return_url: returnUrl });
+      return res.json({ url: session.url });
+    } catch (e: any) {
+      logger.error({ event: 'billing.portal.error', error: e?.message || String(e) });
+      return res.status(500).json({ error: 'portal_failed' });
+    }
+  });
+
+  app.post('/billing/webhook', async (req: express.Request, res: express.Response) => {
+    if (!process.env.STRIPE_WEBHOOK_SECRET || !process.env.STRIPE_SECRET_KEY) return res.status(501).json({ error: 'billing_not_configured' });
+    try {
+      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2024-06-20' } as any);
+      const sig = req.headers['stripe-signature'] as string;
+      const raw = (req as any).body as Buffer;
+      const event = stripe.webhooks.constructEvent(raw, sig, process.env.STRIPE_WEBHOOK_SECRET!);
+
+      async function applyLimitFromSubscription(sub: Stripe.Subscription) {
+        let tenantId = (sub.metadata as any)?.tenantId as string | undefined;
+        let customerId = (sub.customer as any) as string | undefined;
+        let limit = 0;
+        try {
+          const items = (sub.items?.data || []) as any[];
+          const first = items[0];
+          const price: any = first?.price;
+          const m = (price?.metadata || {}) as Record<string, string>;
+          const pM = (price?.product?.metadata || {}) as Record<string, string>;
+          const metaLimit = Number(m.concurrent_limit || pM.concurrent_limit || 0);
+          limit = Number.isFinite(metaLimit) && metaLimit > 0 ? metaLimit : 0;
+        } catch {}
+        // Fallback: keep existing limit if no metadata
+        if (!tenantId && customerId) {
+          const t = await prisma.tenant.findFirst({ where: { stripeCustomerId: customerId } });
+          if (t) tenantId = t.id;
+        }
+        if (!tenantId) return;
+        const t = await prisma.tenant.findUnique({ where: { id: tenantId } });
+        if (!t) return;
+        await prisma.tenant.update({ where: { id: tenantId }, data: { stripeCustomerId: customerId ?? t.stripeCustomerId ?? undefined, stripeSubscriptionId: (sub.id || undefined) as any, status: (sub.status || t.status || null) as any, concurrentLimit: limit > 0 ? limit : t.concurrentLimit } });
+      }
+
+      switch (event.type) {
+        case 'checkout.session.completed': {
+          const s = event.data.object as Stripe.Checkout.Session;
+          const subId = (s.subscription as any) as string | undefined;
+          const customerId = (s.customer as any) as string | undefined;
+          const tenantId = (s.client_reference_id as string) || (s.metadata as any)?.tenantId;
+          if (tenantId) {
+            await prisma.tenant.update({ where: { id: tenantId }, data: { stripeCustomerId: customerId ?? undefined, stripeSubscriptionId: subId ?? undefined } });
+          }
+          if (subId) {
+            const sub = await stripe.subscriptions.retrieve(subId, { expand: ['items.data.price.product'] });
+            await applyLimitFromSubscription(sub);
+          }
+          break;
+        }
+        case 'customer.subscription.created':
+        case 'customer.subscription.updated': {
+          const sub = event.data.object as Stripe.Subscription;
+          // Ensure product expanded is available
+          if (!(sub.items?.data?.[0]?.price as any)?.product?.metadata) {
+            const full = await stripe.subscriptions.retrieve(sub.id, { expand: ['items.data.price.product'] });
+            await applyLimitFromSubscription(full);
+          } else {
+            await applyLimitFromSubscription(sub);
+          }
+          break;
+        }
+        case 'customer.subscription.deleted': {
+          const sub = event.data.object as Stripe.Subscription;
+          const tenantId = (sub.metadata as any)?.tenantId as string | undefined;
+          if (tenantId) {
+            try { await prisma.tenant.update({ where: { id: tenantId }, data: { concurrentLimit: 0 } }); } catch {}
+          } else {
+            const customerId = (sub.customer as any) as string | undefined;
+            if (customerId) { try { await prisma.tenant.updateMany({ where: { stripeCustomerId: customerId }, data: { concurrentLimit: 0 } }); } catch {} }
+          }
+          break;
+        }
+        default:
+          break;
+      }
+      res.json({ received: true });
+    } catch (e: any) {
+      logger.error({ event: 'billing.webhook.error', error: e?.message || String(e) });
+      return res.status(400).send('webhook error');
+    }
+  });
+
+  // ========================
+  // Admin: Tenants (platform-level) – protected by internal:owner
+  // ========================
+  app.get('/admin/tenants', async (req: express.Request, res: express.Response) => {
+    const auth = requireAuth(req);
+    if (!auth) return res.status(401).json({ error: 'unauthorized' });
+    const ok = await requireInternalOwner(req, auth.userId);
+    if (!ok) return res.status(403).json({ error: 'forbidden' });
+    const list = await prisma.tenant.findMany({ orderBy: { createdAt: 'asc' } });
+    const usage = computeOnlineUsageByTenantSlug();
+    const out = list.map((t: any) => ({
+      id: t.id,
+      slug: t.slug,
+      name: t.name,
+      concurrentLimit: t.concurrentLimit,
+      freeSeats: (t as any).freeSeats ?? 0,
+      bypassLimits: !!t.bypassLimits,
+      isInternal: !!t.isInternal,
+      status: t.status || null,
+      stripeCustomerId: t.stripeCustomerId || null,
+      stripeSubscriptionId: t.stripeSubscriptionId || null,
+      createdAt: t.createdAt,
+      updatedAt: t.updatedAt,
+      online: usage[t.slug] || 0,
+    }));
+    res.json(out);
+  });
+
+  app.post('/admin/tenants', async (req: express.Request, res: express.Response) => {
+    const auth = requireAuth(req);
+    if (!auth) return res.status(401).json({ error: 'unauthorized' });
+    const ok = await requireInternalOwner(req, auth.userId);
+    if (!ok) return res.status(403).json({ error: 'forbidden' });
+    const schema = z.object({ slug: z.string().min(2).max(64), name: z.string().min(1), concurrentLimit: z.number().int().nonnegative().default(50), freeSeats: z.number().int().nonnegative().optional(), bypassLimits: z.boolean().optional() });
+    const parse = schema.safeParse(req.body || {});
+    if (!parse.success) return res.status(400).json({ error: 'invalid payload' });
+    try {
+      const freeDefault = typeof parse.data.freeSeats === 'number' ? parse.data.freeSeats : await getDefaultFreeSeats();
+      const t = await prisma.tenant.create({ data: { slug: parse.data.slug.toLowerCase(), name: parse.data.name, concurrentLimit: parse.data.concurrentLimit, freeSeats: freeDefault, bypassLimits: !!parse.data.bypassLimits } });
+      res.json({ id: t.id });
+    } catch (e: any) {
+      if (e?.code === 'P2002') return res.status(400).json({ error: 'slug_exists' });
+      return res.status(400).json({ error: 'create_failed' });
+    }
+  });
+
+  app.patch('/admin/tenants/:id', async (req: express.Request, res: express.Response) => {
+    const auth = requireAuth(req);
+    if (!auth) return res.status(401).json({ error: 'unauthorized' });
+    const ok = await requireInternalOwner(req, auth.userId);
+    if (!ok) return res.status(403).json({ error: 'forbidden' });
+    const id = req.params.id;
+    const schema = z.object({ name: z.string().min(1).optional(), concurrentLimit: z.number().int().nonnegative().optional(), freeSeats: z.number().int().nonnegative().optional(), bypassLimits: z.boolean().optional(), status: z.string().optional() });
+    const parse = schema.safeParse(req.body || {});
+    if (!parse.success) return res.status(400).json({ error: 'invalid payload' });
+    try {
+      const t = await prisma.tenant.update({ where: { id }, data: { name: parse.data.name ?? undefined, concurrentLimit: parse.data.concurrentLimit ?? undefined, freeSeats: parse.data.freeSeats ?? undefined, bypassLimits: parse.data.bypassLimits ?? undefined, status: parse.data.status ?? undefined } });
+      res.json({ ok: true, id: t.id });
+    } catch (e) {
+      res.status(400).json({ error: 'update_failed' });
+    }
+  });
+
+  // ========================
+  // Admin: Billing (Stripe) – products, prices, KPIs
+  // ========================
+  app.get('/admin/billing/products', async (req: express.Request, res: express.Response) => {
+    const auth = requireAuth(req);
+    if (!auth) return res.status(401).json({ error: 'unauthorized' });
+    const ok = await requireInternalOwner(req, auth.userId);
+    if (!ok) return res.status(403).json({ error: 'forbidden' });
+    if (!process.env.STRIPE_SECRET_KEY) return res.status(501).json({ error: 'billing_not_configured' });
+    try {
+      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2024-06-20' } as any);
+      const prods = await stripe.products.list({ limit: 100, expand: ['data.default_price'] });
+      const prices = await stripe.prices.list({ limit: 100, expand: ['data.product'] });
+      const priceByProduct = new Map<string, any[]>();
+      for (const p of prices.data) {
+        const pid = (typeof p.product === 'string') ? p.product : (p.product as any).id;
+        const arr = priceByProduct.get(pid) || [];
+        arr.push({
+          id: p.id,
+          unitAmount: p.unit_amount,
+          currency: p.currency,
+          recurring: (p.recurring || null),
+          active: p.active,
+          metadata: p.metadata || {},
+        });
+        priceByProduct.set(pid, arr);
+      }
+      const out = prods.data.map(pr => ({
+        id: pr.id,
+        name: pr.name,
+        description: pr.description || null,
+        active: pr.active,
+        metadata: pr.metadata || {},
+        prices: priceByProduct.get(pr.id) || [],
+      }));
+      res.json(out);
+    } catch (e: any) {
+      logger.error({ event: 'admin.billing.products.error', error: e?.message || String(e) });
+      res.status(500).json({ error: 'failed_to_list_products' });
+    }
+  });
+
+  app.post('/admin/billing/products', async (req: express.Request, res: express.Response) => {
+    const auth = requireAuth(req);
+    if (!auth) return res.status(401).json({ error: 'unauthorized' });
+    const ok = await requireInternalOwner(req, auth.userId);
+    if (!ok) return res.status(403).json({ error: 'forbidden' });
+    if (!process.env.STRIPE_SECRET_KEY) return res.status(501).json({ error: 'billing_not_configured' });
+    const schema = z.object({ name: z.string().min(1), description: z.string().optional(), amount: z.number().int().nonnegative(), currency: z.string().default('eur'), interval: z.enum(['month','year']).default('month'), concurrentLimit: z.number().int().positive() });
+    const parse = schema.safeParse(req.body || {});
+    if (!parse.success) return res.status(400).json({ error: 'invalid payload' });
+    try {
+      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2024-06-20' } as any);
+      const product = await stripe.products.create({ name: parse.data.name, description: parse.data.description, metadata: { concurrent_limit: String(parse.data.concurrentLimit) } });
+      const price = await stripe.prices.create({ product: product.id, unit_amount: parse.data.amount, currency: parse.data.currency, recurring: { interval: parse.data.interval }, metadata: { concurrent_limit: String(parse.data.concurrentLimit) } });
+      res.json({ id: product.id, priceId: price.id });
+    } catch (e: any) {
+      logger.error({ event: 'admin.billing.products.create.error', error: e?.message || String(e) });
+      res.status(500).json({ error: 'create_failed' });
+    }
+  });
+
+  app.post('/admin/billing/products/:id/prices', async (req: express.Request, res: express.Response) => {
+    const auth = requireAuth(req);
+    if (!auth) return res.status(401).json({ error: 'unauthorized' });
+    const ok = await requireInternalOwner(req, auth.userId);
+    if (!ok) return res.status(403).json({ error: 'forbidden' });
+    if (!process.env.STRIPE_SECRET_KEY) return res.status(501).json({ error: 'billing_not_configured' });
+    const schema = z.object({ amount: z.number().int().nonnegative(), currency: z.string().default('eur'), interval: z.enum(['month','year']).default('month'), concurrentLimit: z.number().int().positive() });
+    const parse = schema.safeParse(req.body || {});
+    if (!parse.success) return res.status(400).json({ error: 'invalid payload' });
+    try {
+      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2024-06-20' } as any);
+      const price = await stripe.prices.create({ product: req.params.id, unit_amount: parse.data.amount, currency: parse.data.currency, recurring: { interval: parse.data.interval }, metadata: { concurrent_limit: String(parse.data.concurrentLimit) } });
+      res.json({ id: price.id });
+    } catch (e: any) {
+      logger.error({ event: 'admin.billing.price.create.error', error: e?.message || String(e) });
+      res.status(500).json({ error: 'create_failed' });
+    }
+  });
+
+  app.patch('/admin/billing/products/:id', async (req: express.Request, res: express.Response) => {
+    const auth = requireAuth(req);
+    if (!auth) return res.status(401).json({ error: 'unauthorized' });
+    const ok = await requireInternalOwner(req, auth.userId);
+    if (!ok) return res.status(403).json({ error: 'forbidden' });
+    if (!process.env.STRIPE_SECRET_KEY) return res.status(501).json({ error: 'billing_not_configured' });
+    const schema = z.object({ name: z.string().min(1).optional(), description: z.string().optional(), active: z.boolean().optional() });
+    const parse = schema.safeParse(req.body || {});
+    if (!parse.success) return res.status(400).json({ error: 'invalid payload' });
+    try {
+      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2024-06-20' } as any);
+      const pr = await stripe.products.update(req.params.id, { name: parse.data.name ?? undefined, description: parse.data.description ?? undefined, active: parse.data.active ?? undefined });
+      res.json({ id: pr.id, active: pr.active });
+    } catch (e: any) {
+      logger.error({ event: 'admin.billing.product.update.error', error: e?.message || String(e) });
+      res.status(500).json({ error: 'update_failed' });
+    }
+  });
+
+  app.patch('/admin/billing/prices/:id', async (req: express.Request, res: express.Response) => {
+    const auth = requireAuth(req);
+    if (!auth) return res.status(401).json({ error: 'unauthorized' });
+    const ok = await requireInternalOwner(req, auth.userId);
+    if (!ok) return res.status(403).json({ error: 'forbidden' });
+    if (!process.env.STRIPE_SECRET_KEY) return res.status(501).json({ error: 'billing_not_configured' });
+    const schema = z.object({ active: z.boolean().optional() });
+    const parse = schema.safeParse(req.body || {});
+    if (!parse.success) return res.status(400).json({ error: 'invalid payload' });
+    try {
+      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2024-06-20' } as any);
+      const price = await stripe.prices.update(req.params.id, { active: parse.data.active ?? undefined });
+      res.json({ id: price.id, active: price.active });
+    } catch (e: any) {
+      logger.error({ event: 'admin.billing.price.update.error', error: e?.message || String(e) });
+      res.status(500).json({ error: 'update_failed' });
+    }
+  });
+
+  app.get('/admin/billing/metrics', async (req: express.Request, res: express.Response) => {
+    const auth = requireAuth(req);
+    if (!auth) return res.status(401).json({ error: 'unauthorized' });
+    const ok = await requireInternalOwner(req, auth.userId);
+    if (!ok) return res.status(403).json({ error: 'forbidden' });
+    if (!process.env.STRIPE_SECRET_KEY) return res.status(501).json({ error: 'billing_not_configured' });
+    try {
+      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2024-06-20' } as any);
+      const subs = await stripe.subscriptions.list({ status: 'all', limit: 100, expand: ['data.items.data.price.product'] });
+      const now = Date.now();
+      const last30 = now - 30 * 24 * 60 * 60 * 1000;
+      let activeCount = 0;
+      let mrrCents = 0;
+      let revenue30dCents = 0;
+      for (const s of subs.data) {
+        const isActive = ['active', 'trialing', 'past_due', 'unpaid'].includes(s.status as any);
+        if (isActive) activeCount++;
+        const it = s.items?.data?.[0];
+        const price: any = it?.price;
+        const amount = Number(price?.unit_amount || 0);
+        const interval = price?.recurring?.interval || 'month';
+        if (interval === 'month') mrrCents += amount;
+        if (s.current_period_start && s.status === 'active' && s.current_period_start * 1000 >= last30) {
+          revenue30dCents += amount;
+        }
+      }
+      res.json({ activeSubscriptions: activeCount, mrrCents, revenue30dCents });
+    } catch (e: any) {
+      logger.error({ event: 'admin.billing.metrics.error', error: e?.message || String(e) });
+      res.status(500).json({ error: 'metrics_failed' });
+    }
+  });
+
+  // Public signup: create tenant + owner user and sign in
+  app.post('/public/tenants', async (req: express.Request, res: express.Response) => {
+    const schema = z.object({ slug: z.string().min(2).max(64).regex(/^[a-z0-9-]+$/), name: z.string().min(1).max(100), email: z.string().email(), password: z.string().min(8) });
+    const parse = schema.safeParse(req.body || {});
+    if (!parse.success) return res.status(400).json({ error: 'invalid payload' });
+    const slug = parse.data.slug.toLowerCase();
+    try {
+      const exists = await prisma.tenant.findUnique({ where: { slug } });
+      if (exists) return res.status(400).json({ error: 'slug_exists' });
+      const freeDefault = await getDefaultFreeSeats();
+      const tenant = await prisma.tenant.create({ data: { slug, name: parse.data.name, concurrentLimit: 0, freeSeats: freeDefault, bypassLimits: false } });
+      const email = normalizeEmailForStorage(parse.data.email);
+      const hash = await bcrypt.hash(parse.data.password, 10);
+      let user = await prisma.user.findUnique({ where: { email } }).catch(() => null);
+      if (!user) {
+        user = await prisma.user.create({ data: { email, name: parse.data.name, passwordHash: hash, emailVerifiedAt: new Date() } });
+      }
+      await prisma.membership.upsert({ where: { tenantId_userId: { tenantId: tenant.id, userId: (user as any).id } } as any, update: { role: 'owner' as any }, create: { tenantId: tenant.id, userId: (user as any).id, role: 'owner' as any } });
+      const token = jwt.sign({ sub: (user as any).id, tid: tenant.id }, JWT_SECRET, { expiresIn: '30d' });
+      setAuthCookie(res, token);
+      return res.json({ ok: true, tenant: { id: tenant.id, slug: tenant.slug, freeSeats: tenant.freeSeats }, user: { id: (user as any).id, email: (user as any).email } });
+    } catch (e: any) {
+      logger.error({ event: 'public.signup.error', error: e?.message || String(e) });
+      return res.status(400).json({ error: 'signup_failed' });
+    }
+  });
+
   // Presence: recent per user (latest entry), for roster UI
   app.get('/presence/recent', async (req: express.Request, res: express.Response) => {
     const auth = requireAuth(req);
     if (!auth) return res.status(401).json({ error: 'unauthorized' });
+    const tenant = getTenantFromReq(req);
+    if (!tenant) return res.status(400).json({ error: 'tenant_required' });
     try {
       // Get latest presence per user by ordering desc and using distinct by userId
       const recent = await prisma.presence.findMany({
+        where: { tenantId: tenant.id },
         orderBy: { updatedAt: 'desc' },
         distinct: ['userId'],
         include: { user: { select: { id: true, email: true, name: true } }, room: { select: { name: true } } },
@@ -1231,8 +1744,10 @@ export function registerApi(app: express.Express) {
   app.get('/users/:id', async (req: express.Request, res: express.Response) => {
     const auth = requireAuth(req);
     if (!auth) return res.status(401).json({ error: 'unauthorized' });
+    const tenant = getTenantFromReq(req);
+    if (!tenant) return res.status(400).json({ error: 'tenant_required' });
     const id = req.params.id;
-    const user = await prisma.user.findUnique({ where: { id }, select: { id: true, email: true, name: true, createdAt: true, updatedAt: true } });
+    const user = await prisma.user.findFirst({ where: { id, memberships: { some: { tenantId: tenant.id } } } as any, select: { id: true, email: true, name: true, createdAt: true, updatedAt: true } });
     if (!user) return res.status(404).json({ error: 'not found' });
     res.json(user);
   });
