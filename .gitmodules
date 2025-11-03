@@ -1,0 +1,3 @@
+[submodule "packages/tenancy-enterprise"]
+	path = packages/tenancy-enterprise
+	url = git@github.com:lass-machen/meetropolis-enterprise.git
