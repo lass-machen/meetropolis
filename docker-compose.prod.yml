@@ -143,7 +143,7 @@ services:
 
   livekit:
     image: livekit/livekit-server:latest
-    command: ["--dev", "--bind", "0.0.0.0"]
+    command: ["--dev", "--bind", "0.0.0.0", "--turn.enabled=true", "--turn.domain=${TURN_HOST}", "--turn.tls_port=5349", "--turn.external_tls=true"]
     environment:
       LK_API_KEY: ${LIVEKIT_API_KEY:-devkey}
       LK_API_SECRET: ${LIVEKIT_API_SECRET:-secret}
@@ -172,6 +172,12 @@ services:
       - "traefik.http.middlewares.meetropolis-livekit-cors.headers.customResponseHeaders.Access-Control-Allow-Credentials=true"
       - "traefik.http.middlewares.meetropolis-livekit-cors.headers.customResponseHeaders.Access-Control-Allow-Headers=Origin,X-Requested-With,Content-Type,Accept,Authorization"
       - "traefik.http.middlewares.meetropolis-livekit-cors.headers.customResponseHeaders.Access-Control-Allow-Methods=GET,OPTIONS,POST"
+      - "traefik.tcp.routers.meetropolis-turn.rule=HostSNI(`${TURN_HOST}`)"
+      - "traefik.tcp.routers.meetropolis-turn.entrypoints=${TRAEFIK_ENTRYPOINT:-websecure}"
+      - "traefik.tcp.routers.meetropolis-turn.tls=true"
+      - "traefik.tcp.routers.meetropolis-turn.tls.certresolver=${TRAEFIK_CERT_RESOLVER:-le}"
+      - "traefik.tcp.routers.meetropolis-turn.service=meetropolis-turn"
+      - "traefik.tcp.services.meetropolis-turn.loadbalancer.server.port=5349"
     ports:
       - "0.0.0.0:${EXTERNAL_LK_RTC_TCP_PORT:-7881}:${LK_RTC_TCP_PORT:-7881}/tcp"
       - "0.0.0.0:${EXTERNAL_LK_RTC_UDP_PORT:-7882}:${LK_RTC_UDP_PORT:-7882}/udp"
