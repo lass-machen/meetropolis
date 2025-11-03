@@ -34,7 +34,11 @@ ON CONFLICT ("slug") DO NOTHING;
 ALTER TABLE "Map" ADD COLUMN IF NOT EXISTS "tenantId" text;
 UPDATE "Map" SET "tenantId" = (SELECT "id" FROM "Tenant" WHERE slug='default') WHERE "tenantId" IS NULL;
 ALTER TABLE "Map" ALTER COLUMN "tenantId" SET NOT NULL;
-ALTER TABLE "Map" ADD CONSTRAINT IF NOT EXISTS "Map_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='Map_tenantId_fkey') THEN
+    ALTER TABLE "Map" ADD CONSTRAINT "Map_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+END $$;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='Map_tenantId_name_key') THEN
     ALTER TABLE "Map" ADD CONSTRAINT "Map_tenantId_name_key" UNIQUE ("tenantId","name");
@@ -45,7 +49,11 @@ END $$;
 ALTER TABLE "Room" ADD COLUMN IF NOT EXISTS "tenantId" text;
 UPDATE "Room" r SET "tenantId" = m."tenantId" FROM "Map" m WHERE r."mapId" = m."id" AND r."tenantId" IS NULL;
 ALTER TABLE "Room" ALTER COLUMN "tenantId" SET NOT NULL;
-ALTER TABLE "Room" ADD CONSTRAINT IF NOT EXISTS "Room_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='Room_tenantId_fkey') THEN
+    ALTER TABLE "Room" ADD CONSTRAINT "Room_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+END $$;
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='Room_tenantId_name_key') THEN
     ALTER TABLE "Room" ADD CONSTRAINT "Room_tenantId_name_key" UNIQUE ("tenantId","name");
@@ -56,19 +64,31 @@ END $$;
 ALTER TABLE "Zone" ADD COLUMN IF NOT EXISTS "tenantId" text;
 UPDATE "Zone" z SET "tenantId" = m."tenantId" FROM "Map" m WHERE z."mapId" = m."id" AND z."tenantId" IS NULL;
 ALTER TABLE "Zone" ALTER COLUMN "tenantId" SET NOT NULL;
-ALTER TABLE "Zone" ADD CONSTRAINT IF NOT EXISTS "Zone_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='Zone_tenantId_fkey') THEN
+    ALTER TABLE "Zone" ADD CONSTRAINT "Zone_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- Presence
 ALTER TABLE "Presence" ADD COLUMN IF NOT EXISTS "tenantId" text;
 UPDATE "Presence" p SET "tenantId" = r."tenantId" FROM "Room" r WHERE p."roomId" = r."id" AND p."tenantId" IS NULL;
 ALTER TABLE "Presence" ALTER COLUMN "tenantId" SET NOT NULL;
-ALTER TABLE "Presence" ADD CONSTRAINT IF NOT EXISTS "Presence_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='Presence_tenantId_fkey') THEN
+    ALTER TABLE "Presence" ADD CONSTRAINT "Presence_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- Invite
 ALTER TABLE "Invite" ADD COLUMN IF NOT EXISTS "tenantId" text;
 UPDATE "Invite" SET "tenantId" = (SELECT "id" FROM "Tenant" WHERE slug='default') WHERE "tenantId" IS NULL;
 ALTER TABLE "Invite" ALTER COLUMN "tenantId" SET NOT NULL;
-ALTER TABLE "Invite" ADD CONSTRAINT IF NOT EXISTS "Invite_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='Invite_tenantId_fkey') THEN
+    ALTER TABLE "Invite" ADD CONSTRAINT "Invite_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- 3) Membership table (if not exists)
 DO $$ BEGIN
