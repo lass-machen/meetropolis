@@ -14,6 +14,39 @@ function normalizeLivekitUrl(input: string | undefined): string {
   return u; // assume caller provided correct host without protocol
 }
 
+function shouldForceRelay(): boolean {
+  // 1) Build-time env flags take precedence when explicitly set
+  const env: any = (import.meta as any).env || {};
+  const envRaw = (env?.VITE_AV_FORCE_RELAY ?? env?.VITE_LK_FORCE_RELAY);
+  if (typeof envRaw === 'string') {
+    const v = envRaw.trim().toLowerCase();
+    if (v === 'true') return true;
+    if (v === 'false') return false;
+  }
+  // 2) URL overrides (runtime): ?relay=1 / ?lkrelay=1 / ?forceRelay=1
+  try {
+    const search = (typeof window !== 'undefined') ? window.location.search : '';
+    const qp = new URLSearchParams(search);
+    const relayParam = (qp.get('relay') || qp.get('lkrelay') || qp.get('forceRelay') || '').toLowerCase();
+    if (['1','true','yes','on'].includes(relayParam)) return true;
+  } catch {}
+  // 3) LocalStorage override (runtime persistent)
+  try {
+    const ls = (typeof window !== 'undefined') ? window.localStorage : null;
+    const lsVal = (ls?.getItem('av.forceRelay') || ls?.getItem('lk.forceRelay') || '').toLowerCase();
+    if (lsVal === 'true') return true;
+  } catch {}
+  // 4) Heuristic: cellular / constrained networks often require TURN/relay
+  try {
+    const conn: any = (navigator as any).connection || (navigator as any).mozConnection || (navigator as any).webkitConnection;
+    const type = (conn?.type || '').toString().toLowerCase();
+    const eff = (conn?.effectiveType || '').toString().toLowerCase();
+    if (type === 'cellular') return true;
+    if (eff.includes('slow-2g') || eff.includes('2g')) return true;
+  } catch {}
+  return false;
+}
+
 export async function joinLivekitRoom(params: {
   baseUrl: string;
   tokenEndpoint: string;
@@ -38,7 +71,7 @@ export async function joinLivekitRoom(params: {
   const room = new Room();
   const serverUrl = normalizeLivekitUrl((import.meta as any).env?.VITE_LIVEKIT_URL);
   try { logger.debug('[AV][debug] livekit.connecting', { serverUrl, roomName: params.roomName, identity: params.identity }); } catch {}
-  const forceRelay = ((import.meta as any).env?.VITE_AV_FORCE_RELAY || (import.meta as any).env?.VITE_LK_FORCE_RELAY) === 'true';
+  const forceRelay = shouldForceRelay();
   // Warten auf erste Nutzergeste, um AudioContext-Warnung beim Laden zu vermeiden
   const waitForUserGesture = async () => {
     try {
