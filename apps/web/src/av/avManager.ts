@@ -1067,6 +1067,17 @@ export class AVManager {
         const kind = (pub as any).kind ?? (pub as any)?.track?.kind;
         return src === 'microphone' || src === 0 || src === 2 || kind === 'audio';
       });
+      // Prüfe, ob vorhandene Mic-Tracks wirklich "live" sind. Browser können
+      // lange inaktive Tracks automatisch beenden. In diesem Fall müssen wir
+      // vor dem (Re-)Aktivieren alte Publishes entfernen.
+      const hasLiveMic = micPubs.some((p: any) => {
+        const t: any = (p as any)?.track;
+        const mst: any = t?.mediaStreamTrack || t;
+        const ready: string | undefined = mst?.readyState;
+        const enabled: boolean | undefined = (t?.isEnabled ?? t?.enabled ?? mst?.enabled);
+        return !!t && (ready === undefined || ready === 'live') && enabled !== false;
+      });
+      const hasAnyMicTrack = micPubs.some((p: any) => !!((p as any)?.track));
       if (enabled) {
         // Stelle sicher, dass Audio-Wiedergabe freigeschaltet ist (User-Geste erforderlich)
         try {
@@ -1076,7 +1087,16 @@ export class AVManager {
           const after = !!(anyRoom?.canPlaybackAudio ?? false);
           console.debug('[AV][debug] startAudio on mic enable', { before, result: r, after });
         } catch (e) { try { console.warn('[AV][debug] startAudio mic error', e); } catch {} }
-        if (micPubs.some(p => !!(p as any).track)) return; // already enabled
+        // Wenn ein Track existiert, der aber nicht mehr live ist, zuerst sauber entfernen
+        if (hasAnyMicTrack && !hasLiveMic) {
+          for (const pub of micPubs) {
+            const track: any = (pub as any)?.track;
+            if (!track) continue;
+            try { await room.localParticipant.unpublishTrack(track); } catch {}
+            try { (track as any)?.stop?.(); } catch {}
+          }
+        }
+        if (hasLiveMic) return; // bereits aktiv
         const settings = useAvSettingsStore.getState().settings;
         const localAudioTrack: any = await buildAudioPipeline({ ...(this.preferredMic ? { deviceId: this.preferredMic } : {}), settings } as any);
         try {
@@ -1094,7 +1114,18 @@ export class AVManager {
         } catch {}
       } else {
         for (const pub of micPubs) {
-          try { await room.localParticipant.unpublishTrack(pub.track!); } catch {}
+          try {
+            const t: any = (pub as any)?.track;
+            const mst: any = t?.mediaStreamTrack || t;
+            // Sofortige lokale Stummschaltung für snappiges UI
+            if (typeof t?.setEnabled === 'function') {
+              try { t.setEnabled(false); } catch {}
+            } else if (mst && typeof mst.enabled === 'boolean') {
+              try { mst.enabled = false; } catch {}
+            }
+            // Unpublish im Hintergrund, um Signaling-Latenz nicht zu blockieren
+            try { void room.localParticipant.unpublishTrack(t); } catch {}
+          } catch {}
         }
       }
     } catch (e: any) {
@@ -1128,10 +1159,25 @@ export class AVManager {
         const kind = (pub as any).kind ?? (pub as any)?.track?.kind;
         return src === 'camera' || src === 1 || (kind === 'video' && src !== 'screen_share');
       });
+      const hasLiveCam = camPubs.some((p: any) => {
+        const t: any = (p as any)?.track;
+        const mst: any = t?.mediaStreamTrack || t;
+        const ready: string | undefined = mst?.readyState;
+        const enabled: boolean | undefined = (t?.isEnabled ?? t?.enabled ?? mst?.enabled);
+        return !!t && (ready === undefined || ready === 'live') && enabled !== false;
+      });
+      const hasAnyCamTrack = camPubs.some((p: any) => !!((p as any)?.track));
       if (enabled) {
-        if (camPubs.some(p => !!(p as any).track)) {
-          return; // already enabled
+        // Entferne alte, beendete/disabled Tracks vor Republish
+        if (hasAnyCamTrack && !hasLiveCam) {
+          for (const pub of camPubs) {
+            const track: any = (pub as any)?.track;
+            if (!track) continue;
+            try { await room.localParticipant.unpublishTrack(track); } catch {}
+            try { (track as any)?.stop?.(); } catch {}
+          }
         }
+        if (hasLiveCam) return; // bereits aktiv
         const { createLocalTracks } = await import('livekit-client');
         const tracks = await createLocalTracks({ video: this.preferredCam ? { deviceId: this.preferredCam, facingMode: 'user' } : { facingMode: 'user' } });
         for (const t of tracks) {
@@ -1145,7 +1191,18 @@ export class AVManager {
         }
       } else {
         for (const pub of camPubs) {
-          try { await room.localParticipant.unpublishTrack(pub.track!); } catch {}
+          try {
+            const t: any = (pub as any)?.track;
+            const mst: any = t?.mediaStreamTrack || t;
+            // Sofortige lokale Deaktivierung für snappiges UI
+            if (typeof t?.setEnabled === 'function') {
+              try { t.setEnabled(false); } catch {}
+            } else if (mst && typeof mst.enabled === 'boolean') {
+              try { mst.enabled = false; } catch {}
+            }
+            // Unpublish asynchron, um UI nicht zu blockieren
+            try { void room.localParticipant.unpublishTrack(t); } catch {}
+          } catch {}
         }
       }
     } catch (e: any) {

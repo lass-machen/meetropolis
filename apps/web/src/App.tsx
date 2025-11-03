@@ -4,6 +4,7 @@ import { TableContainer, Table, THead, TBody, Tr, Th, Td, Modal, Button, Card } 
 import { AdminTable } from './ui/admin/AdminTable';
 import { UserManagement } from './ui/admin/UserManagement';
 import { AuthScreen } from './ui/auth/AuthScreen';
+import { Signup } from './ui/auth/Signup';
 import { pointInPolygon, rectsOverlap } from './lib/geom';
 import { getDisplayName as getDisplayNameLib } from './lib/displayName';
 import { ThemeToggleButton } from './ui/theme';
@@ -18,6 +19,8 @@ import { useParticipants } from './features/participants/useParticipants';
 import { EditorPanel } from './ui/editor/EditorPanel';
 import { HudPanel } from './ui/hud/HudPanel';
 import { TopRightMenu } from './ui/app/TopRightMenu';
+import { TenantsAdmin } from './ui/admin/TenantsAdmin';
+import { BillingAdmin } from './ui/admin/BillingAdmin';
 import { ApiTokensOverlay } from './ui/admin/ApiTokensOverlay';
 import { useEditor } from './hooks/useEditor';
 import { buildEditorSavePayload } from './lib/editorStorage';
@@ -148,6 +151,9 @@ export function App() {
   const [apiTokens, setApiTokens] = React.useState<{ id: string; name?: string | null; createdAt: string; lastUsedAt?: string | null }[]>([]);
   const [newTokenName, setNewTokenName] = React.useState('');
   const [freshToken, setFreshToken] = React.useState<string | null>(null);
+  const [adminOpen, setAdminOpen] = React.useState(false);
+  const [adminTab, setAdminTab] = React.useState<'tenants'|'billing'>('tenants');
+  const [isInternalOwner, setIsInternalOwner] = React.useState(false);
   // view/state werden in AuthScreen verwaltet
   // Roster: periodisch letzte Präsenz (für Offline/"zuletzt online")
   React.useEffect(() => {
@@ -390,6 +396,7 @@ export function App() {
         setMe(null);
         return;
       }
+      try { setIsInternalOwner(!!user.isInternalOwner); } catch {}
 
       // 2) Position ermitteln: bevorzugt vom Server, sonst lokaler Spawn als Fallback
       const applyPosition = (pos: { x: number; y: number } | null) => {
@@ -2050,7 +2057,31 @@ export function App() {
   }
   if (!me) {
     return (
-      <AuthScreen baseUrl={apiBase} onDone={async () => { await fetchMe(); }} />
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:24,alignItems:'start',padding:'6vh 6vw'}}>
+        <div>
+          <h2 style={{ margin: '8px 0' }}>Anmelden</h2>
+          <AuthScreen baseUrl={apiBase} onDone={async () => { await fetchMe(); }} />
+        </div>
+        <div>
+          <h2 style={{ margin: '8px 0' }}>Registrieren (neuen Mandanten anlegen)</h2>
+          <Signup apiBase={apiBase} onSuccess={(slug)=>{
+            try {
+              const proto = window.location.protocol;
+              const host = window.location.host;
+              const baseHost = host.split(':')[0];
+              const parts = baseHost.split('.');
+              if (parts.length >= 2) {
+                const rest = parts.slice(-2).join('.');
+                const port = host.includes(':') ? (':' + host.split(':')[1]) : '';
+                window.location.href = `${proto}//${slug}.${rest}${port}`;
+              } else {
+                // localhost/dev fallback: reload to keep cookie
+                window.location.reload();
+              }
+            } catch { window.location.reload(); }
+          }} />
+        </div>
+      </div>
     );
   }
   if (!positionReady) {
@@ -2109,6 +2140,24 @@ export function App() {
 
           {/* HUD (links oben klein) */}
           <HudPanel hud={hud} />
+          {/* Admin Quick Button (nur Root-Admin) */}
+          {isInternalOwner && (
+            <div style={{ position: 'absolute', top: 12, right: 12, zIndex: 60 }}>
+              <Button onClick={()=>{ setAdminTab('tenants'); setAdminOpen(true); }} variant="secondary">Admin</Button>
+            </div>
+          )}
+          {/* Admin Modal */}
+          {isInternalOwner && (
+            <Modal open={adminOpen} onOpenChange={(o)=>{ setAdminOpen(!!o); }} title="Administration" maxWidth={1100}>
+              <div style={{ display:'grid', gap:12 }}>
+                <div style={{ display:'flex', gap:8 }}>
+                  <button onClick={()=>setAdminTab('tenants')} style={{ padding:'8px 12px', borderRadius:8, border:'1px solid var(--border)', background: adminTab==='tenants'?'var(--glass-strong)':'var(--glass)' }}>Mandanten</button>
+                  <button onClick={()=>setAdminTab('billing')} style={{ padding:'8px 12px', borderRadius:8, border:'1px solid var(--border)', background: adminTab==='billing'?'var(--glass-strong)':'var(--glass)' }}>Pakete & Billing</button>
+                </div>
+                {adminTab === 'tenants' ? <TenantsAdmin apiBase={apiBase} /> : <BillingAdmin apiBase={apiBase} />}
+              </div>
+            </Modal>
+          )}
           {/* Single Card Fullscreen Overlay (hidden in editor mode; hidden in DND) */}
           {!editor.active && !avState.dnd && selectedSid && (
             (() => {
@@ -2232,6 +2281,8 @@ export function App() {
           setMenuOpen(false);
         }}
         onBackToWorld={() => { setPage('world'); setMenuOpen(false); }}
+        onOpenAdmin={() => { setAdminOpen(true); setMenuOpen(false); }}
+        isAdmin={isInternalOwner}
         onOpenApi={() => { setApiModalOpen(true); setMenuOpen(false); }}
         onToggleEditor={async () => {
           if (editor.active) { await saveAllToServer().catch(()=>{}); }
@@ -2460,6 +2511,15 @@ export function App() {
               ))}
             </AdminTable>
           </Card>
+        )}
+      </Modal>
+
+      {/* Admin: Tenants */}
+      <Modal open={adminOpen} onOpenChange={setAdminOpen} title="Mandanten-Administration" maxWidth={1000}>
+        {isInternalOwner ? (
+          <TenantsAdmin apiBase={apiBase} />
+        ) : (
+          <div style={{ color:'var(--fg-subtle)', fontSize: 13 }}>Kein Zugriff</div>
         )}
       </Modal>
 
