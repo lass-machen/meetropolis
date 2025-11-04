@@ -3,10 +3,13 @@ import react from '@vitejs/plugin-react';
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 
+const isDesktop = process.env.VITE_TARGET === 'desktop';
+
 export default defineConfig({
   plugins: [react()],
   // eigener Cache-Ordner, um alte Optimierungen sicher zu umgehen (Docker)
   cacheDir: '/tmp/.vite',
+  base: isDesktop ? './' : '/',
   resolve: {
     // Verhindert doppelte React-Instanzen (Invalid hook call #321)
     dedupe: ['react', 'react-dom'],

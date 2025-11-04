@@ -1,4 +1,6 @@
 import React from 'react';
+import { BrandLogo } from '../../ui/branding/BrandLogo';
+import { BrandWordmark } from '../../ui/branding/BrandWordmark';
 
 export function AppShell(props: { title?: string; right?: React.ReactNode; children: React.ReactNode }) {
   return (
@@ -6,8 +8,10 @@ export function AppShell(props: { title?: string; right?: React.ReactNode; child
       <header style={{ minHeight: 56, padding: '10px 16px', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0, zIndex: 40, background: 'linear-gradient(180deg, rgba(0,0,0,0.06), transparent 70%)', backdropFilter: 'saturate(1.1) blur(2px)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, maxWidth: 1200, margin: '0 auto' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ width: 32, height: 32, borderRadius: 999, background: 'var(--gradient)' }} />
-            <div style={{ fontWeight: 800, letterSpacing: 0.3 }}>Meetropolis</div>
+            <BrandLogo size={32} />
+            <BrandWordmark height={18} renderFallback={() => (
+              <div style={{ fontWeight: 800, letterSpacing: 0.3 }}>Meetropolis</div>
+            )} />
             {props.title && (
               <div style={{ marginLeft: 8, padding: '4px 8px', borderRadius: '999px', background: 'var(--glass)', border: '1px solid var(--border)', fontSize: 12, color: 'var(--fg-subtle)' }}>{props.title}</div>
             )}

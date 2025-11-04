@@ -1,6 +1,8 @@
 import { Client, Room } from 'colyseus.js';
 
 export async function joinWorld(serverUrl: string, identity?: string, name?: string, position?: { x: number; y: number; direction?: string }) {
+  // normalize base: remove trailing slashes to avoid double '//'
+  if (serverUrl.endsWith('/')) serverUrl = serverUrl.replace(/\/+$/g, '');
   // Properly handle both http and https URLs
   let wsUrl = serverUrl;
   if (serverUrl.startsWith('https://')) {

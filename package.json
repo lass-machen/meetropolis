@@ -14,7 +14,10 @@
     "build": "npm -w @meetropolis/web run build && npm -w @meetropolis/server run build",
     "generate": "npm -w @meetropolis/server run prisma:generate",
     "prisma:migrate": "npm -w @meetropolis/server run prisma:migrate",
-    "dev:loadtest": "npm -w @meetropolis/loadtest run dev"
+    "dev:loadtest": "npm -w @meetropolis/loadtest run dev",
+    "dev:desktop": "concurrently -n web,desktop \"npm:dev:web\" \"npm --workspace=@meetropolis/desktop run dev\"",
+    "build:desktop": "npm -w @meetropolis/web run build && npm -w @meetropolis/desktop run build",
+    "dist:desktop": "VITE_TARGET=desktop npm -w @meetropolis/web run build && npm -w @meetropolis/desktop run dist"
   },
   "devDependencies": {
     "@types/react": "^19.1.12",
