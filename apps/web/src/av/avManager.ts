@@ -464,13 +464,19 @@ export class AVManager {
                 const after = !!(anyRoom?.canPlaybackAudio ?? false);
                 console.debug('[AV][debug] startAudio on subscribe', { before, result: r, after });
               } catch (e) { try { console.warn('[AV][debug] startAudio error', e); } catch {} }
-              try { (pub as any)?.track?.setVolume?.(1); console.debug('[AV][debug] setVolume(1) on remote audio'); } catch {}
+              try {
+                const vol = this.dnd ? 0 : 1;
+                (pub as any)?.track?.setVolume?.(vol);
+                console.debug('[AV][debug] setVolume on remote audio', { vol, dnd: this.dnd });
+              } catch {}
               // Fallback-Attach: falls globaler Audio-Hook nicht greift
               try {
                 const t: any = (pub as any).track;
                 if (t && typeof document !== 'undefined') {
                   const el = document.createElement('audio');
                   el.autoplay = true; (el as any).playsInline = true; el.style.display = 'none';
+                  // Respektiere DND beim Attach
+                  try { el.muted = !!this.dnd; el.volume = this.dnd ? 0 : 1; } catch {}
                   document.body.appendChild(el);
                   try {
                     console.debug('[AV][debug] audio_attach_attempt', { muted: el.muted, vol: el.volume, readyState: el.readyState });
@@ -599,12 +605,17 @@ export class AVManager {
                 const after = !!(rAny?.canPlaybackAudio ?? false);
                 console.debug('[AV][debug] startAudio on subscribe', { before, result: r, after });
               } catch (e) { try { console.warn('[AV][debug] startAudio error', e); } catch {} }
-              try { (pub as any)?.track?.setVolume?.(1); console.debug('[AV][debug] setVolume(1) on remote audio'); } catch {}
+              try {
+                const vol = this.dnd ? 0 : 1;
+                (pub as any)?.track?.setVolume?.(vol);
+                console.debug('[AV][debug] setVolume on remote audio', { vol, dnd: this.dnd });
+              } catch {}
               try {
                 const t: any = (pub as any).track;
                 if (t && typeof document !== 'undefined') {
                   const el = document.createElement('audio');
                   el.autoplay = true; (el as any).playsInline = true; el.style.display = 'none';
+                  try { el.muted = !!this.dnd; el.volume = this.dnd ? 0 : 1; } catch {}
                   document.body.appendChild(el);
                   try {
                     console.debug('[AV][debug] audio_attach_attempt', { muted: el.muted, vol: el.volume, readyState: el.readyState });
@@ -1016,6 +1027,19 @@ export class AVManager {
       try { await this.setMicrophoneEnabled(false); } catch {}
       try { await this.setCameraEnabled(false); } catch {}
       try { await this.stopScreenshare(); } catch {}
+      // Sofort: alle Remote-Audio stumm schalten (unabhängig von Subscribe-State)
+      try {
+        const parts: any[] = Array.from((room.remoteParticipants?.values?.() || []) as any);
+        for (const p of parts) {
+          const pubs: any[] = Array.from((p.trackPublications?.values?.() || []) as any);
+          for (const pub of pubs) {
+            const kind = (pub as any).kind ?? (pub.track as any)?.kind;
+            if (kind === 'audio') {
+              try { (pub as any)?.track?.setVolume?.(0); } catch {}
+            }
+          }
+        }
+      } catch {}
       // Remote-Abos deaktivieren
       try {
         const parts: any[] = Array.from((room.remoteParticipants?.values?.() || []) as any);
@@ -1033,6 +1057,19 @@ export class AVManager {
       // Wiederherstellen
       try { await this.restoreDesiredTracks(); } catch {}
       try { this.applyDesiredSubscriptions(); } catch {}
+      // Sofort: Remote-Audio auf 1 setzen (Bubble/Attenuation greift danach wieder)
+      try {
+        const parts: any[] = Array.from((room.remoteParticipants?.values?.() || []) as any);
+        for (const p of parts) {
+          const pubs: any[] = Array.from((p.trackPublications?.values?.() || []) as any);
+          for (const pub of pubs) {
+            const kind = (pub as any).kind ?? (pub.track as any)?.kind;
+            if (kind === 'audio') {
+              try { (pub as any)?.track?.setVolume?.(1); } catch {}
+            }
+          }
+        }
+      } catch {}
     }
   }
 
@@ -1110,7 +1147,17 @@ export class AVManager {
           const info = mst ? { id: mst.id, kind: mst.kind, label: mst.label, enabled: mst.enabled, readyState: mst.readyState, hint: (mst as any).contentHint } : {};
           avLog('info', 'av.mic.published', info as any, { identity: this.identity, roomName: this.currentName || undefined as any });
           console.debug('[AV][debug] mic published', info);
-          try { mst?.addEventListener?.('ended', () => { try { console.warn('[AV][debug] mic track ended'); } catch {} }, { once: true } as any); } catch {}
+          try {
+            mst?.addEventListener?.('ended', () => {
+              try { console.warn('[AV][debug] mic track ended'); } catch {}
+              // Auto-Republish, falls weiterhin gewünscht
+              try {
+                if (this.lastMicDesired) {
+                  setTimeout(() => { void this.setMicrophoneEnabled(true).catch(()=>{}); }, 150);
+                }
+              } catch {}
+            }, { once: true } as any);
+          } catch {}
         } catch {}
       } else {
         for (const pub of micPubs) {
@@ -1129,12 +1176,14 @@ export class AVManager {
         }
       }
     } catch (e: any) {
-      if (e && (e.name === 'NotAllowedError' || e.name === 'NotFoundError')) {
-        const ok = await this.ensurePermissions(true, false);
-        if (ok && enabled) return this.setMicrophoneEnabled(true);
-      }
-      // Log error for debugging and rethrow to let UI handle it
+      // Versuche breiteres Recovery: Permissions anfragen und einmalig retry
+      const name = e?.name || '';
+      const recoverable = ['NotAllowedError','NotFoundError','AbortError','NotReadableError','SecurityError','OverconstrainedError'].includes(name);
       if (enabled) {
+        try {
+          const ok = recoverable ? await this.ensurePermissions(true, false) : false;
+          if (ok) return this.setMicrophoneEnabled(true);
+        } catch {}
         console.error('Failed to enable microphone:', e);
         throw e;
       }
@@ -1187,6 +1236,17 @@ export class AVManager {
             } catch (e) {
               throw e; // Re-throw to handle in UI
             }
+            try {
+              const mst: any = (t as any)?.mediaStreamTrack || t;
+              mst?.addEventListener?.('ended', () => {
+                try { console.warn('[AV][debug] camera track ended'); } catch {}
+                try {
+                  if (this.lastCamDesired) {
+                    setTimeout(() => { void this.setCameraEnabled(true).catch(()=>{}); }, 150);
+                  }
+                } catch {}
+              }, { once: true } as any);
+            } catch {}
           }
         }
       } else {
@@ -1206,11 +1266,16 @@ export class AVManager {
         }
       }
     } catch (e: any) {
-      if (e && (e.name === 'NotAllowedError' || e.name === 'NotFoundError')) {
-        const ok = await this.ensurePermissions(false, true);
-        if (ok && enabled) return this.setCameraEnabled(true);
+      // Breiteres Recovery für Kamera
+      const name = e?.name || '';
+      const recoverable = ['NotAllowedError','NotFoundError','AbortError','NotReadableError','SecurityError','OverconstrainedError'].includes(name);
+      if (enabled) {
+        try {
+          const ok = recoverable ? await this.ensurePermissions(false, true) : false;
+          if (ok) return this.setCameraEnabled(true);
+        } catch {}
       }
-      // setCameraEnabled failed silently
+      // ansonsten still
     }
   }
 
