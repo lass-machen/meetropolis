@@ -2179,11 +2179,12 @@ export function App() {
                 selectedCamId={selectedCamId}
                 onToggleMic={async () => {
                   const enabled = !avState.mic;
+                  // Optimistisches UI-Update, Aktion im Hintergrund
+                  setAvState(s => ({ ...s, mic: enabled }));
                   try {
                     await avRef.current?.setMicrophoneEnabled(enabled);
-                    setAvState(s => ({ ...s, mic: enabled }));
                   } catch (e) {
-                    // If enabling failed, revert UI state
+                    // Revert bei Fehler
                     setAvState(s => ({ ...s, mic: !enabled }));
                   }
                 }}
@@ -2193,9 +2194,10 @@ export function App() {
                 }}
                 onToggleCam={async () => {
                   const enabled = !avState.cam;
+                  // Optimistisches UI-Update, Aktion im Hintergrund
+                  setAvState(s => ({ ...s, cam: enabled }));
                   try {
                     await avRef.current?.setCameraEnabled(enabled);
-                    setAvState(s => ({ ...s, cam: enabled }));
                   } catch (e) {
                     setAvState(s => ({ ...s, cam: !enabled }));
                   }
