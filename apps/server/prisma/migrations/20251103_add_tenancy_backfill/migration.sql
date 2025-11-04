@@ -128,7 +128,7 @@ DO $$ BEGIN
       "id" text PRIMARY KEY,
       "tenantId" text NOT NULL,
       "userId" text NOT NULL,
-      "role" "Role" NOT NULL DEFAULT 'member',
+      "role" "Role" NOT NULL DEFAULT 'member'::"Role",
       "createdAt" timestamp NOT NULL DEFAULT now(),
       "updatedAt" timestamp NOT NULL DEFAULT now(),
       CONSTRAINT "Membership_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE,

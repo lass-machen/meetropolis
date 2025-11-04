@@ -16,7 +16,7 @@ DO $$ BEGIN
     SELECT 1 FROM information_schema.columns 
     WHERE table_name='Invite' AND column_name='role'
   ) THEN
-    ALTER TABLE "Invite" ADD COLUMN "role" "Role" NOT NULL DEFAULT 'member';
+    ALTER TABLE "Invite" ADD COLUMN "role" "Role" NOT NULL DEFAULT 'member'::"Role";
   END IF;
 END $$;
 
@@ -28,12 +28,12 @@ DO $$ BEGIN
   ) THEN
     ALTER TABLE "Membership" ALTER COLUMN "role" TYPE "Role" USING "role"::"Role";
     ALTER TABLE "Membership" ALTER COLUMN "role" SET NOT NULL;
-    ALTER TABLE "Membership" ALTER COLUMN "role" SET DEFAULT 'member';
+    ALTER TABLE "Membership" ALTER COLUMN "role" SET DEFAULT 'member'::"Role";
   ELSIF NOT EXISTS (
     SELECT 1 FROM information_schema.columns 
     WHERE table_name='Membership' AND column_name='role'
   ) THEN
-    ALTER TABLE "Membership" ADD COLUMN "role" "Role" NOT NULL DEFAULT 'member';
+    ALTER TABLE "Membership" ADD COLUMN "role" "Role" NOT NULL DEFAULT 'member'::"Role";
   END IF;
 END $$;
 
