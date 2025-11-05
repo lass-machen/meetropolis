@@ -32,6 +32,7 @@ import { useLivekit } from './av/useLivekit';
 import { createPhaserGame, destroyPhaserGame } from './game/phaserGame';
 import { gameBridge } from './game/bridge';
 import { joinWorld } from './lib/colyseus';
+import { getApiBaseFromWindow } from './lib/runtimeConfig';
 import { AVManager } from './av/avManager';
 import { BubbleManager } from './game/bubbleManager';
 import { FollowManager } from './game/followManager';
@@ -91,11 +92,8 @@ export function App() {
   }, []);
   // Positions-Persistenz (Throttle)
   const lastPositionPostAtRef = React.useRef(0);
-  // API Base (früh deklarieren)
-  const apiBase = (import.meta.env.VITE_API_BASE as string | undefined) ||
-    (typeof window !== 'undefined'
-      ? `${window.location.protocol}//${window.location.hostname}:2567`
-      : 'http://localhost:2567');
+  // API Base (früh deklarieren) – unterstützt Desktop-Query (?apiBase=...)
+  const apiBase = getApiBaseFromWindow();
 
   // Participants logic (hook) moved below after state declarations
 
