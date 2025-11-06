@@ -1,11 +1,11 @@
 import React, { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { TableContainer, Table, THead, TBody, Tr, Th, Td, Modal, Button, Card } from './ui/system';
+import { Modal, Button, Card, Tr, Td } from './ui/system';
 import { AdminTable } from './ui/admin/AdminTable';
 import { UserManagement } from './ui/admin/UserManagement';
 import { AuthScreen } from './ui/auth/AuthScreen';
 import { Signup } from './ui/auth/Signup';
-import { pointInPolygon, rectsOverlap } from './lib/geom';
+import { pointInPolygon } from './lib/geom';
 import { getDisplayName as getDisplayNameLib } from './lib/displayName';
 import { ThemeToggleButton } from './ui/theme';
 // removed unused component imports from ui/components
@@ -21,6 +21,7 @@ import { HudPanel } from './ui/hud/HudPanel';
 import { TopRightMenu } from './ui/app/TopRightMenu';
 import { ApiTokensOverlay } from './ui/admin/ApiTokensOverlay';
 import { AdminOverlay } from './ui/admin/AdminOverlay';
+import { TenantsAdmin } from './ui/admin/TenantsAdmin';
 import { useEditor } from './hooks/useEditor';
 import { buildEditorSavePayload } from './lib/editorStorage';
 import { useEditorBridge } from './editor/useEditorBridge';
@@ -138,36 +139,7 @@ export function App() {
     };
     return () => { try { gb.setDoNotDisturb = originalSetDnd; } catch {} };
   }, []);
-  // Roster/Participants helpers for world room hook (no-ops for now)
-  const buildParticipantList = React.useCallback(() => {
-    // TODO(TEST): Integration wird e2e über UI geprüft; hier keine Unit-Logik nötig
-  }, []);
-  const applyVolumesToUi = React.useCallback(() => {
-    // TODO(TEST): Integration wird e2e über UI geprüft; hier keine Unit-Logik nötig
-  }, []);
-  // WorldRoom: verbindet Colyseus-Präsenz mit UI (Roster, Bubble, Zonen etc.)
-  useWorldRoom({
-    apiBase,
-    me,
-    avRef,
-    colyseusRef,
-    localPosRef,
-    remotesRef,
-    colyseusToLivekitMap,
-    identityToNameMap,
-    gameBridge,
-    editor,
-    setEditor,
-    zoneRef,
-    buildParticipantList,
-    applyVolumesToUi,
-    setBubbleUi,
-    dndRef,
-    setAvState,
-    rosterByIdentityRef,
-    setRoster,
-    disposedRef
-  });
+  // (veraltet) Lokale No-Op-Teilnehmer-Helpers und früher WorldRoom-Aufruf entfernt; Nutzung erfolgt weiter unten mit den Hook-Funktionen
   // Auth state
   const [authChecked, setAuthChecked] = React.useState(false);
   const [me, setMe] = React.useState<{ id: string; email: string; name?: string } | null>(null);
@@ -179,7 +151,7 @@ export function App() {
   const [newTokenName, setNewTokenName] = React.useState('');
   const [freshToken, setFreshToken] = React.useState<string | null>(null);
   const [adminOpen, setAdminOpen] = React.useState(false);
-  const [adminTab, setAdminTab] = React.useState<'tenants'|'billing'>('tenants');
+  
   const [isInternalOwner, setIsInternalOwner] = React.useState(false);
   // view/state werden in AuthScreen verwaltet
   // Roster: periodisch letzte Präsenz (für Offline/"zuletzt online")
@@ -319,7 +291,7 @@ export function App() {
   // apiBase declared earlier
 
   // Participants logic (hook)
-  const { buildParticipantList, applyVolumesToUi } = useParticipants({
+  const { buildParticipantList: buildParticipantListHook, applyVolumesToUi: applyVolumesToUiHook } = useParticipants({
     avRef,
     zoneRef,
     localPosRef,
@@ -333,6 +305,8 @@ export function App() {
     getDisplayName,
     gameBridge,
   });
+  const buildParticipantList = buildParticipantListHook;
+  const applyVolumesToUi = applyVolumesToUiHook;
 
   
 
@@ -367,7 +341,7 @@ export function App() {
     setDevices,
     setSelectedMicId,
     setSelectedCamId,
-    buildParticipantList,
+    buildParticipantList: buildParticipantListHook,
     connectLivekitRef,
     livekitAutoConnectOnceRef,
     setAvState,
@@ -387,8 +361,8 @@ export function App() {
     editor,
     setEditor,
     zoneRef,
-    buildParticipantList,
-    applyVolumesToUi,
+    buildParticipantList: buildParticipantListHook,
+    applyVolumesToUi: applyVolumesToUiHook,
     setBubbleUi,
     dndRef,
     setAvState,
@@ -907,15 +881,24 @@ export function App() {
       const zones = editor.zones;
       const layers = JSON.parse(localStorage.getItem('meetropolis.editorLayers') || '{}');
       const backgroundColor = localStorage.getItem('meetropolis.backgroundColor') || '#202020';
-      await fetch(`${apiBase}/maps/office/editor-state`, {
+      const mapName = (typeof window !== 'undefined' && (((window as any).__map_name) || (window as any).MAP_NAME)) || 'office';
+      const res = await fetch(`${apiBase}/maps/${encodeURIComponent(mapName)}/editor-state`, {
         method: 'PUT',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ editorGround: layers.editorGround ?? null, editorWalls: layers.editorWalls ?? null, collision: layers.collision ?? null, tilesets, assets, zones, backgroundColor })
       });
+      if (!res.ok) {
+        try { window.dispatchEvent(new CustomEvent('editor:toast', { detail: { title: 'Speichern fehlgeschlagen', description: `Server antwortete mit ${res.status}`, intent: 'error' } })); } catch {}
+        return false;
+      }
       // Notify other users to reload from server
       colyseusRef.current?.send?.('editor_update', { type: 'reload_all' });
-    } catch {}
+      return true;
+    } catch {
+      try { window.dispatchEvent(new CustomEvent('editor:toast', { detail: { title: 'Speichern fehlgeschlagen', description: 'Netzwerk- oder Serverfehler', intent: 'error' } })); } catch {}
+      return false;
+    }
   }
 
   // Nutzerverwaltung als Overlay: Spiel/AV laufen weiter
@@ -2171,7 +2154,7 @@ export function App() {
           {isInternalOwner && (
             <>
               <div style={{ position: 'absolute', top: 12, right: 12, zIndex: 60 }}>
-                <Button onClick={()=> setAdminOpen(true)} variant="secondary">Admin</Button>
+                <Button onClick={()=> setAdminOpen(true)} variant="ghost">Admin</Button>
               </div>
               <AdminOverlay apiBase={apiBase} open={adminOpen} onOpenChange={setAdminOpen} />
             </>
@@ -2376,6 +2359,7 @@ export function App() {
             <EditorPanel
               editor={editor}
               setEditor={setEditor}
+              onSave={saveAllToServer}
               onDirtyChange={(dirty)=> setEditorDirty(!!dirty)}
               onOpenUpload={async (e) => {
                       const file = e.target.files?.[0];
@@ -2400,7 +2384,7 @@ export function App() {
                         }
                       }));
               }}
-              onSave={async () => {
+              onSaveEditor={async () => {
                 try {
                   const payload = buildEditorSavePayload(editor.zones as any);
                   const res = await fetch(`${apiBase}/maps/office/editor-state`, {

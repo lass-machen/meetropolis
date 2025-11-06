@@ -1092,6 +1092,7 @@ export function registerApi(app: express.Express) {
     const meta = (map.meta as any) || {};
     res.json({
       editorGround: meta.editorGround ?? null,
+      editorWalls: meta.editorWalls ?? null,
       collision: meta.collision ?? null,
       tilesets: meta.tilesets ?? [],
       assets: meta.assets ?? [],
@@ -1109,6 +1110,7 @@ export function registerApi(app: express.Express) {
     if (!tenant) return res.status(400).json({ error: 'tenant_required' });
     const editorSchema = z.object({
       editorGround: z.array(z.number()).nullable().optional(),
+      editorWalls: z.array(z.number()).nullable().optional(),
       collision: z.array(z.number()).nullable().optional(),
       tilesets: z.array(z.any()).optional(),
       assets: z.array(z.any()).optional(),
@@ -1119,7 +1121,7 @@ export function registerApi(app: express.Express) {
     });
     const parse = editorSchema.safeParse(req.body || {});
     if (!parse.success) return res.status(400).json({ error: 'invalid editor payload' });
-    const { editorGround, collision, tilesets, assets, zones, backgroundColor, replaceZones, spawn } = parse.data;
+    const { editorGround, editorWalls, collision, tilesets, assets, zones, backgroundColor, replaceZones, spawn } = parse.data;
     try { logger.debug('[EditorState] PUT', { map: name, tilesets: Array.isArray(tilesets) ? tilesets.length : undefined, assets: Array.isArray(assets) ? assets.length : undefined, zones: Array.isArray(zones) ? zones.length : undefined, spawn: !!spawn }); } catch {}
     const found = await prisma.map.findFirst({ where: { name, tenantId: tenant.id }, include: { rooms: true } });
     const map = found ?? await prisma.map.create({ data: { name, meta: {}, tenantId: tenant.id } });
@@ -1142,6 +1144,7 @@ export function registerApi(app: express.Express) {
         meta: { 
           ...currentMeta,
           editorGround: editorGround ?? currentMeta.editorGround ?? null, 
+          editorWalls: editorWalls ?? currentMeta.editorWalls ?? null,
           collision: collision ?? currentMeta.collision ?? null, 
           tilesets: tilesets ?? currentMeta.tilesets ?? [], 
           assets: assets ?? currentMeta.assets ?? [],

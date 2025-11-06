@@ -12,6 +12,7 @@ export function EditorPanel(props: {
   setEditor: React.Dispatch<React.SetStateAction<EditorState>>;
   onOpenUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onSave?: () => Promise<boolean> | void;
+  onSaveEditor?: () => Promise<boolean> | void; // alias to avoid prop name collisions in some callsites
   onDirtyChange?: (dirty: boolean) => void;
 }) {
   const { editor, setEditor } = props;
@@ -196,7 +197,8 @@ export function EditorPanel(props: {
     if (saving) return;
     setSaving(true);
     try {
-      const result = await props.onSave?.();
+      const saveHandler = props.onSave || props.onSaveEditor;
+      const result = await saveHandler?.();
       const ok = typeof result === 'boolean' ? result : true;
       if (ok) {
         setLastSavedAt(Date.now());
