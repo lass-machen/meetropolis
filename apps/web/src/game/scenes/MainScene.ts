@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { GameSystem } from '../systems/types';
 import { gameBridge } from '../bridge';
 import { editorLog, editorError } from '../../lib/editorLog';
 import { V2State, computeFirstGids, decodeRLE, fetchChunks, tileRefIdToGid } from '../../lib/mapV2';
@@ -50,6 +51,64 @@ export class MainScene extends Phaser.Scene {
   private loadedChunks: Set<string> = new Set();
   private heroVsTilesCollider?: Phaser.Physics.Arcade.Collider;
   private currentMapName: string = (typeof window !== 'undefined' && (((window as any).__map_name) || (window as any).MAP_NAME)) || 'office';
+  // Debounced Editor-Layer Autosave
+  private editorSaveTimer: number | null = null as any;
+  private systems: GameSystem[] = [];
+
+  private ensureEditorLayers() {
+    if (!this.mapRef) return;
+    // Wähle irgendein verfügbares Tileset
+    const anyTileset = (() => {
+      const dyn = Array.from(this.dynamicTilesets.values());
+      if (dyn.length > 0) return dyn[0];
+      if (this.mapRef!.tilesets && this.mapRef!.tilesets.length > 0) return this.mapRef!.tilesets[0];
+      return null;
+    })();
+    if (!anyTileset) return;
+    try {
+      if (!this.editorGround) {
+        const l = this.mapRef.createBlankLayer('EditorGround', anyTileset, 0, 0, this.mapRef.width, this.mapRef.height, this.mapRef.tileWidth, this.mapRef.tileHeight);
+        this.editorGround = l as any;
+        try { this.editorGround?.setDepth(1); } catch {}
+      }
+    } catch {}
+    try {
+      if (!this.wallsLayer) {
+        const l = this.mapRef.createBlankLayer('EditorWalls', anyTileset, 0, 0, this.mapRef.width, this.mapRef.height, this.mapRef.tileWidth, this.mapRef.tileHeight);
+        this.wallsLayer = l as any;
+        try { this.wallsLayer?.setDepth(2); } catch {}
+      }
+    } catch {}
+    try {
+      if (!this.collisionLayer) {
+        const l = this.mapRef.createBlankLayer('Collision', anyTileset, 0, 0, this.mapRef.width, this.mapRef.height, this.mapRef.tileWidth, this.mapRef.tileHeight);
+        this.collisionLayer = l as any;
+        try { this.collisionLayer?.setVisible(false); } catch {}
+      }
+    } catch {}
+  }
+
+  private async waitForTilesetsReady(requiredKeys: string[], timeoutMs: number = 1500): Promise<void> {
+    const start = Date.now();
+    return new Promise((resolve) => {
+      const check = () => {
+        try {
+          const allReady = requiredKeys.every((k) => {
+            if (!k) return true;
+            const inDyn = this.dynamicTilesets.has(k);
+            const inMap = !!this.mapRef?.tilesets?.find(t => t.name === k);
+            return inDyn || inMap;
+          });
+          if (allReady || Date.now() - start > timeoutMs) {
+            resolve();
+            return;
+          }
+        } catch {}
+        setTimeout(check, 50);
+      };
+      check();
+    });
+  }
 
   constructor() {
     super('Main');
@@ -939,6 +998,12 @@ export class MainScene extends Phaser.Scene {
         try { this.collisionLayer?.setVisible(false); } catch {}
       }
     }
+    try {
+      this.systems.forEach((s) => s.init());
+      this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+        try { this.systems.forEach((s) => s.destroy()); } catch {}
+      });
+    } catch {}
   }
 
   syncRemotePlayers(players: Record<string, { x: number; y: number; direction: 'up'|'down'|'left'|'right'; prevX?: number; prevY?: number; name?: string }>) {
@@ -1702,9 +1767,34 @@ export class MainScene extends Phaser.Scene {
         }
       } catch {}
     }
-    // Persistenz speichern
-    // Save layers after painting
-    this.saveEditorLayers();
+    // v2: Persistenz serverseitig per API; v1 Fallback nur, wenn nicht v2
+    if (!this.v2) {
+      this.saveEditorLayers();
+      try {
+        if (this.editorSaveTimer) clearTimeout(this.editorSaveTimer as any);
+        this.editorSaveTimer = setTimeout(() => { try { this.saveEditorLayersHard(); } catch {} }, 250) as any;
+      } catch {}
+    } else {
+      // v2: für Ground/Walls ebenfalls inkrementell speichern
+      try {
+        const base = (window as any).VITE_API_BASE || import.meta.env.VITE_API_BASE || `${window.location.protocol}//${window.location.hostname}:2567`;
+        const bodyCommon = { rect: { x0, y0, x1, y1 }, erase: edit.tileIndex < 0 };
+        if (edit.layer === 'EditorGround' || edit.layer === 'EditorWalls') {
+          const layerName = edit.layer === 'EditorGround' ? 'ground' : 'walls';
+          let tileRefId: number | undefined = undefined;
+          if (!bodyCommon.erase) {
+            try {
+              const ts = this.v2?.state?.tilesetRegistry?.find((t: any) => t?.key === edit.tilesetKey);
+              const slot = typeof ts?.slot === 'number' ? ts.slot : 0;
+              const idx = Math.max(0, edit.tileIndex | 0);
+              tileRefId = ((slot & 0xffff) << 16) | (idx & 0xffff);
+            } catch {}
+          }
+          const body = JSON.stringify({ layer: layerName, ...bodyCommon, tileRefId });
+          fetch(`${base}/maps/${encodeURIComponent(this.currentMapName)}/paint-rect`, { method: 'PATCH', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body }).catch(()=>{});
+        }
+      } catch {}
+    }
   }
 
   private saveEditorLayers() {
@@ -1797,6 +1887,58 @@ export class MainScene extends Phaser.Scene {
     }
   }
 
+  // Unbedingtes Speichern der Editor-Layer zum Server (ohne Größenlimit)
+  saveEditorLayersHard() {
+    if (!this.mapRef) return;
+    const width = this.mapRef.width;
+    const height = this.mapRef.height;
+    const dumpLayer = (layer?: Phaser.Tilemaps.TilemapLayer): number[] | null => {
+      if (!layer) return null;
+      const arr: number[] = new Array(width * height).fill(-1);
+      let hasAny = false;
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          const t = layer.getTileAt(x, y);
+          const idx = t ? t.index : -1;
+          arr[y * width + x] = idx;
+          if (idx !== -1) hasAny = true;
+        }
+      }
+      return hasAny ? arr : null;
+    };
+    const data = {
+      editorGround: dumpLayer(this.editorGround),
+      editorWalls: dumpLayer(this.wallsLayer),
+      collision: dumpLayer(this.collisionLayer),
+      w: width,
+      h: height,
+    };
+    try { localStorage.setItem('meetropolis.editorLayers', JSON.stringify(data)); } catch {}
+    try {
+      let base = (window as any).VITE_API_BASE || import.meta.env.VITE_API_BASE as any;
+      if (!base && typeof window !== 'undefined') base = `${window.location.protocol}//${window.location.hostname}:2567`;
+      if (!base) base = 'http://localhost:2567';
+      const serverPayload: any = { editorGround: data.editorGround, editorWalls: data.editorWalls, collision: data.collision, tilesets: [] };
+      // Füge dynamische Terrain-Tilesets hinzu, damit Reload gelingt
+      try {
+        const terrainTilesets: any[] = [];
+        this.dynamicTilesets.forEach((_, name) => {
+          if (name && name.startsWith('terrain:')) {
+            const src = this.terrainTilesetSources.get(name) || '';
+            terrainTilesets.push({ key: name, dataUrl: src, tileWidth: this.mapRef!.tileWidth, tileHeight: this.mapRef!.tileHeight, category: 'terrain' });
+          }
+        });
+        serverPayload.tilesets = terrainTilesets;
+      } catch {}
+      fetch(`${base}/maps/${encodeURIComponent(this.currentMapName)}/editor-state`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(serverPayload)
+      }).catch(()=>{});
+    } catch {}
+  }
+
   private loadEditorLayers() {
     if (!this.mapRef) return;
     try {
@@ -1807,12 +1949,13 @@ export class MainScene extends Phaser.Scene {
       const storedH = (typeof data?.h === 'number' && data.h > 0) ? data.h : this.mapRef.height;
       const width = Math.min(this.mapRef.width, storedW);
       const height = Math.min(this.mapRef.height, storedH);
+      this.ensureEditorLayers();
       const applyArr = (arr: number[] | null | undefined, layer?: Phaser.Tilemaps.TilemapLayer, layerName?: 'editorGround' | 'editorWalls' | 'collision') => {
         if (!arr || !layer) return;
         // Stelle sicher, dass der Layer alle Tilesets kennt (für globale Indizes)
         try {
           const allTilesets = Array.from(this.dynamicTilesets.values());
-          allTilesets.push(...this.mapRef.tilesets.filter(ts => !this.dynamicTilesets.has(ts.name)));
+          allTilesets.push(...this.mapRef!.tilesets.filter(ts => !this.dynamicTilesets.has(ts.name)));
           (layer as any).setTilesets?.(allTilesets);
           (layer as any).tileset = allTilesets;
         } catch {}
@@ -1821,19 +1964,19 @@ export class MainScene extends Phaser.Scene {
           // Fix data dimensions if needed
           const layerData = (layer as any).layer;
           if (layerData?.data) {
-            const expectedRows = this.mapRef.height;
+            const expectedRows = this.mapRef!.height;
             while (layerData.data.length < expectedRows) {
-              const newRow = new Array(this.mapRef.width);
-              for (let x = 0; x < this.mapRef.width; x++) {
+              const newRow = new Array(this.mapRef!.width);
+              for (let x = 0; x < this.mapRef!.width; x++) {
                 newRow[x] = new Phaser.Tilemaps.Tile(
                   layerData,
                   -1,
                   x,
                   layerData.data.length,
-                  this.mapRef.tileWidth,
-                  this.mapRef.tileHeight,
-                  this.mapRef.tileWidth,
-                  this.mapRef.tileHeight
+                  this.mapRef!.tileWidth,
+                  this.mapRef!.tileHeight,
+                  this.mapRef!.tileWidth,
+                  this.mapRef!.tileHeight
                 );
               }
               layerData.data.push(newRow);
@@ -1853,6 +1996,7 @@ export class MainScene extends Phaser.Scene {
             }
           }
         }
+        // Keep default rendering; no forced alpha toggling
       };
       applyArr(data?.editorGround, this.editorGround, 'editorGround');
       applyArr(data?.editorWalls, this.wallsLayer, 'editorWalls');
@@ -1877,6 +2021,7 @@ export class MainScene extends Phaser.Scene {
       }
       const data = await res.json();
       // Tilesets vom Server registrieren (inkl. dynamischer Terrain-Tilesets)
+      let requiredTsKeys: string[] = [];
       try {
         const arr = Array.isArray((data as any)?.tilesets) ? (data as any).tilesets : [];
         for (const ts of arr) {
@@ -1885,6 +2030,7 @@ export class MainScene extends Phaser.Scene {
             if (typeof ts.key === 'string' && typeof ts.dataUrl === 'string' && ts.key.startsWith('terrain:')) {
               this.terrainTilesetSources.set(ts.key, ts.dataUrl);
             }
+            try { requiredTsKeys.push(ts.key); } catch {}
           }
         }
         // Spiegel in LocalStorage damit Bridge mergen kann
@@ -1920,12 +2066,15 @@ export class MainScene extends Phaser.Scene {
           try { this.setZoneOverlay(zones); } catch {}
         }
       } catch {}
-      
+      // Warte kurz, bis Tilesets bereit sind, bevor wir Tiles anwenden
+      try { await this.waitForTilesetsReady(requiredTsKeys, 1500); } catch {}
+
       if (!this.mapRef) return;
       const storedW = this.mapRef.width;
       const width = this.mapRef.width;
       const height = this.mapRef.height;
       
+      this.ensureEditorLayers();
       const applyArr = (arr: number[] | null | undefined, layer?: Phaser.Tilemaps.TilemapLayer, layerName?: 'editorGround' | 'editorWalls' | 'collision') => {
         if (!arr || !layer) {
           return;
@@ -2008,6 +2157,7 @@ export class MainScene extends Phaser.Scene {
         if (layerName === 'collision') {
           editorLog('Load', `Applied ${appliedCount} collision tiles`);
         }
+        // No forced alpha toggle/visibility – keep default rendering behavior
       };
       
       applyArr(data?.editorGround, this.editorGround, 'editorGround');
@@ -2020,7 +2170,9 @@ export class MainScene extends Phaser.Scene {
       // Apply persisted editor assets from server state if present
       try {
         if (Array.isArray((data as any)?.assets)) {
-          this.setEditorAssets((data as any).assets);
+          const assets = (data as any).assets;
+          this.setEditorAssets(assets);
+          try { localStorage.setItem('meetropolis.assets', JSON.stringify(assets)); } catch {}
         }
       } catch {}
     } catch (e) {
@@ -2129,10 +2281,12 @@ export class MainScene extends Phaser.Scene {
             } catch {}
             // Pre-validate tile multiple against source image to avoid Phaser error
             try {
+              const tex2 = this.textures.get(textureKeyForMap);
+              const src2 = tex2?.getSourceImage?.() as HTMLImageElement | HTMLCanvasElement | undefined;
               const margin = ts.margin ?? 0;
               const spacing = ts.spacing ?? 0;
-              const imgW = (src as any)?.width || 0;
-              const imgH = (src as any)?.height || 0;
+              const imgW = (src2 as any)?.width || 0;
+              const imgH = (src2 as any)?.height || 0;
               const fitsW = imgW > 0 ? ((imgW - margin + spacing) % (tileWForMap + spacing) === 0) : true;
               const fitsH = imgH > 0 ? ((imgH - margin + spacing) % (tileHForMap + spacing) === 0) : true;
               if (!fitsW || !fitsH) {
@@ -2607,7 +2761,7 @@ export class MainScene extends Phaser.Scene {
       if (!this.loadedChunks.has(`${layerName}:${k}`)) keys.push(k);
     }
     if (keys.length === 0) return;
-    const chunks = await fetchChunks('office', layerName, keys);
+    const chunks = await fetchChunks(this.currentMapName, layerName, keys);
     const updates = Object.entries(chunks).map(([key, val]) => ({ key, version: val.version, encoding: val.encoding, data: val.data }));
     this.applyChunkUpdates(layerName, updates);
   }
@@ -2646,7 +2800,10 @@ export class MainScene extends Phaser.Scene {
       this.loadedChunks.add(`${layerName}:${cx}:${cy}`);
     }
     if (layerName === 'collision') {
+      // Stelle sicher, dass Physik nach Chunk-Updates konsistent ist
       this.ensureCollisionCollider();
+      // Baue zusätzlich statische Collider neu auf (robuster gegen Tileset/Index-Mismatches)
+      try { this.rebuildStaticColliders(); } catch {}
       if (this.v2) {
         try { this.collisionLayer?.setVisible(false); } catch {}
       }
@@ -2655,6 +2812,7 @@ export class MainScene extends Phaser.Scene {
 
   override update(time: number, delta: number) {
     super.update(time, delta);
+    try { this.systems.forEach((s) => s.update(time, delta)); } catch {}
     if (this.v2) {
       // Erzwinge Unsichtbarkeit des Kollision-Layers außerhalb des Editors
       try { this.collisionLayer?.setVisible(this.editorMode === true); } catch {}

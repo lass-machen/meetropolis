@@ -1,7 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { useTranslation } from 'react-i18next';
-import { Modal, Button, Card, Tr, Td } from './ui/system';
-import { AdminTable } from './ui/admin/AdminTable';
+import { Modal, Button } from './ui/system';
 import { UserManagement } from './ui/admin/UserManagement';
 import { AuthScreen } from './ui/auth/AuthScreen';
 import { Signup } from './ui/auth/Signup';
@@ -10,24 +8,28 @@ import { getDisplayName as getDisplayNameLib } from './lib/displayName';
 import { ThemeToggleButton } from './ui/theme';
 // removed unused component imports from ui/components
 import { AVBar } from './ui/av/AVBar';
-import { TilesetUploadDialog } from './ui/editor/TilesetUploadDialog';
 import { RosterPanel } from './ui/user/RosterPanel';
 import { BubbleBanner } from './ui/user/BubbleBanner';
-import { ParticipantsGrid } from './ui/user/ParticipantsGrid';
-import { ParticipantOverlay } from './ui/user/ParticipantOverlay';
+import { Overlays } from './app/layout/Overlays';
 import { useParticipants } from './features/participants/useParticipants';
-import { EditorPanel } from './ui/editor/EditorPanel';
-import { HudPanel } from './ui/hud/HudPanel';
-import { TopRightMenu } from './ui/app/TopRightMenu';
+// presence merge now used via useRosterPresence hook
+import { useRosterPresence } from './features/roster/useRosterPresence';
+import { EditorWindow } from './features/editor/EditorWindow';
+import { useEditorPointer } from './features/editor/useEditorPointer';
+// HudPanel moved into Overlays
+import { TopRightControls } from './app/layout/TopRightControls';
 import { ApiTokensOverlay } from './ui/admin/ApiTokensOverlay';
 import { AdminOverlay } from './ui/admin/AdminOverlay';
-import { TenantsAdmin } from './ui/admin/TenantsAdmin';
+import { TenantsAdminModal } from './features/admin/TenantsAdminModal';
+import { InvitesModal } from './features/admin/InvitesModal';
 import { useEditor } from './hooks/useEditor';
-import { buildEditorSavePayload } from './lib/editorStorage';
+import { useApiTokensLoader } from './features/admin/useApiTokens';
 import { useEditorBridge } from './editor/useEditorBridge';
 import { useGlobalAudioTracks } from './av/useGlobalAudioTracks';
 import { usePositionPersistence } from './hooks/usePositionPersistence';
 import { useZones as useZonesSync } from './features/zones/useZones';
+import { useHudTicker } from './features/hud/useHudTicker';
+import { useBubbleNavigation } from './features/bubble/useBubbleNavigation';
 import { useWorldRoom } from './realtime/useWorldRoom';
 import { useLivekit } from './av/useLivekit';
 import { createPhaserGame, destroyPhaserGame } from './game/phaserGame';
@@ -35,21 +37,15 @@ import { gameBridge } from './game/bridge';
 import { joinWorld } from './lib/colyseus';
 import { getApiBaseFromWindow } from './lib/runtimeConfig';
 import { AVManager } from './av/avManager';
+import { useDoNotDisturbBridge } from './av/hooks/useDoNotDisturbBridge';
+import { useDndShortcut } from './av/hooks/useDndShortcut';
 import { BubbleManager } from './game/bubbleManager';
 import { FollowManager } from './game/followManager';
 import { ZoneManager } from './game/zoneManager';
 import { VolumeManager } from './game/volumeManager';
-// import removed: getDisplayName
-// (removed duplicate incorrect import)
-
-// pointInPolygon moved to ./lib/geom
-
-// (lokale Inline-Icons entfernt; Nutzung erfolgt über FAIcon)
-
-// Small UI Icons removed (using FAIcon directly)
+ 
 
 export function App() {
-  const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const colyseusRef = useRef<any>(null);
   const colyseusReconnectAttemptsRef = useRef(0);
@@ -76,13 +72,11 @@ export function App() {
   const [uiParticipants, setUiParticipants] = React.useState<{ sid: string; identity: string; hasVideo: boolean; hasMic: boolean; isSpeaking: boolean; media: 'camera' | 'screen'; volume?: number }[]>([]);
   const participantVolumesRef = useRef<Record<string, number>>({});
   const dndRef = useRef<boolean>(false);
-  const prevAvBeforeDndRef = React.useRef<{ mic: boolean; cam: boolean } | null>(null);
   const [cameraManual, setCameraManual] = React.useState(false);
   // Admin/UI: Benutzer & Einladungen
   const [userModalOpen, setUserModalOpen] = React.useState(false);
   const [invitesModalOpen, setInvitesModalOpen] = React.useState(false);
-  const [invites, setInvites] = React.useState<Array<{ code: string; email?: string | null; usedAt?: string | null; createdAt?: string }>>([]);
-  const [invitesLoading, setInvitesLoading] = React.useState(false);
+  // Invites-Modal State wird im InvitesModal verwaltet
   // Roster (rechte Seitenleiste)
   const [roster, setRoster] = React.useState<Array<{ identity: string; name: string; online: boolean; x?: number; y?: number; lastSeen?: string }>>([]);
   const rosterByIdentityRef = React.useRef<Record<string, { name: string; x: number; y: number }>>({});
@@ -103,42 +97,7 @@ export function App() {
   const [editor, setEditor] = useEditor();
 
   // Intercept DND toggles to resume AV after DND is turned off
-  React.useEffect(() => {
-    const gb: any = gameBridge as any;
-    const originalSetDnd = gb.setDoNotDisturb;
-    if (typeof originalSetDnd !== 'function') return;
-    gb.setDoNotDisturb = (enabled: boolean) => {
-      try { originalSetDnd?.(!!enabled); } catch {}
-      dndRef.current = !!enabled;
-      if (enabled) {
-        // Capture current AV publish state to restore later
-        try {
-          const room: any = avRef.current?.room as any;
-          let hasMic = false, hasCam = false;
-          const pubs = Array.from(room?.localParticipant?.trackPublications?.values?.() || []);
-          for (const pub of pubs) {
-            const src = (pub as any)?.source ?? (pub as any)?.track?.source;
-            const kind = (pub as any)?.kind ?? (pub as any)?.track?.kind;
-            if ((kind === 'audio' || src === 'microphone' || src === 0) && (pub as any)?.track) hasMic = true;
-            if (((kind === 'video' && src !== 'screen_share') || src === 'camera' || src === 1) && (pub as any)?.track) hasCam = true;
-          }
-          prevAvBeforeDndRef.current = { mic: hasMic, cam: hasCam };
-        } catch {
-          prevAvBeforeDndRef.current = prevAvBeforeDndRef.current || { mic: false, cam: false };
-        }
-      } else {
-        // Resume audio playback (autoplay policies) and restore previous mic/cam
-        try { (avRef.current?.room as any)?.startAudio?.(); } catch {}
-        const prev = prevAvBeforeDndRef.current;
-        prevAvBeforeDndRef.current = null;
-        if (prev) {
-          try { if (prev.mic) void avRef.current?.setMicrophoneEnabled(true); } catch {}
-          try { if (prev.cam) void avRef.current?.setCameraEnabled(true); } catch {}
-        }
-      }
-    };
-    return () => { try { gb.setDoNotDisturb = originalSetDnd; } catch {} };
-  }, []);
+  useDoNotDisturbBridge(avRef);
   // (veraltet) Lokale No-Op-Teilnehmer-Helpers und früher WorldRoom-Aufruf entfernt; Nutzung erfolgt weiter unten mit den Hook-Funktionen
   // Auth state
   const [authChecked, setAuthChecked] = React.useState(false);
@@ -155,58 +114,7 @@ export function App() {
   const [isInternalOwner, setIsInternalOwner] = React.useState(false);
   // view/state werden in AuthScreen verwaltet
   // Roster: periodisch letzte Präsenz (für Offline/"zuletzt online")
-  React.useEffect(() => {
-    if (!authChecked || !me) return;
-    let stop = false as boolean;
-    const load = async () => {
-      try {
-        const res = await fetch(`${apiBase}/presence/recent`, { credentials: 'include' });
-        if (res.ok) {
-          const data = await res.json();
-          const online = rosterByIdentityRef.current || {};
-          setRoster((prev) => {
-            const map = new Map<string, { identity: string; name: string; online: boolean; x?: number; y?: number; lastSeen?: string }>();
-            for (const r of prev) map.set(r.identity, { ...r, online: false });
-            for (const p of data || []) {
-              const ident = String(p.userId || (p.user && p.user.id) || '');
-              const name = String((p.user && (p.user.name || p.user.email)) || ident);
-              if (!ident) continue;
-              if (online[ident]) continue;
-              map.set(ident, { identity: ident, name, online: false, lastSeen: p.updatedAt });
-            }
-            // keep online ones (mit Fallback auf Namen, falls Identity nicht übereinstimmt)
-            for (const [ident, v] of Object.entries(online)) {
-              const prevItem = map.get(ident);
-              if (prevItem) {
-                const entry: { identity: string; name: string; online: boolean; x?: number; y?: number; lastSeen?: string } = { identity: ident, name: v.name, online: true, x: v.x, y: v.y };
-                if (typeof (prevItem as any).lastSeen === 'string') entry.lastSeen = (prevItem as any).lastSeen;
-                map.set(ident, entry);
-                continue;
-              }
-              // Name-basierter Fallback (ältere Clients mit abweichender Identity)
-              let matchedKey: string | undefined;
-              const vName = (v.name || '').trim().toLowerCase();
-              for (const [k, item] of map.entries()) {
-                const iName = (item.name || '').trim().toLowerCase();
-                if (iName && vName && iName === vName) { matchedKey = k; break; }
-              }
-              if (matchedKey) {
-                const cur = map.get(matchedKey)!;
-                const entry = { ...cur, online: true, x: (v as any).x, y: (v as any).y } as any;
-                map.set(matchedKey, entry);
-              } else {
-                map.set(ident, { identity: ident, name: v.name, online: true, x: (v as any).x, y: (v as any).y });
-              }
-            }
-            return Array.from(map.values()).sort((a, b) => Number(b.online) - Number(a.online) || a.name.localeCompare(b.name));
-          });
-        }
-      } catch {}
-      if (!stop) setTimeout(load, 30000);
-    };
-    load();
-    return () => { stop = true; };
-  }, [apiBase, authChecked, me?.id]);
+  useRosterPresence({ apiBase, authChecked, meId: me?.id ?? null, rosterByIdentityRef, setRoster });
   // Grid Overlay expand/collapse + selection
   const [gridExpanded, setGridExpanded] = React.useState(false);
   const [selectedSid, setSelectedSid] = React.useState<string | null>(null);
@@ -223,74 +131,7 @@ export function App() {
   const disposedRef = React.useRef(false);
   const [page, setPage] = React.useState<'world' | 'admin' | string>('world');
   const [menuOpen, setMenuOpen] = React.useState(false);
-  // Draggable state for Map-Editor window (only this window is draggable)
-  const editorWinRef = React.useRef<HTMLDivElement | null>(null);
-  const [editorWinPos, setEditorWinPos] = React.useState<{ x: number; y: number } | null>(null);
-  const [editorWinDragging, setEditorWinDragging] = React.useState(false);
-  const editorWinStartMouseRef = React.useRef<{ x: number; y: number } | null>(null);
-  const editorWinStartPosRef = React.useRef<{ x: number; y: number } | null>(null);
-  const [editorDirty, setEditorDirty] = React.useState(false);
-  const [confirmExitOpen, setConfirmExitOpen] = React.useState(false);
-  const editorSavedSnapshotRef = React.useRef<string | null>(null);
-  const getEditorSnapshot = React.useCallback(() => {
-    try {
-      return JSON.stringify({ zones: editor.zones, spawn: editor.spawn, backgroundColor: editor.backgroundColor });
-    } catch {
-      return null;
-    }
-  }, [editor.zones, editor.spawn, editor.backgroundColor]);
-
-  React.useEffect(() => {
-    // Initialize snapshot when editor is opened
-    if (editor.active && editorSavedSnapshotRef.current === null) {
-      editorSavedSnapshotRef.current = getEditorSnapshot();
-      setEditorDirty(false);
-    }
-    if (!editor.active) {
-      editorSavedSnapshotRef.current = null;
-      setEditorDirty(false);
-    }
-  }, [editor.active, getEditorSnapshot]);
-
-  React.useEffect(() => {
-    if (!editor.active) return;
-    const now = getEditorSnapshot();
-    const base = editorSavedSnapshotRef.current;
-    setEditorDirty(!!(base && now && base !== now));
-  }, [getEditorSnapshot, editor.active]);
-
-  const beginEditorDrag = (e: React.MouseEvent) => {
-    try {
-      const el = editorWinRef.current;
-      if (!el) return;
-      const rect = el.getBoundingClientRect();
-      editorWinStartPosRef.current = { x: rect.left, y: rect.top };
-      editorWinStartMouseRef.current = { x: e.clientX, y: e.clientY };
-      setEditorWinDragging(true);
-      if (!editorWinPos) setEditorWinPos({ x: rect.left, y: rect.top });
-      e.preventDefault();
-      e.stopPropagation();
-    } catch {}
-  };
-
-  React.useEffect(() => {
-    if (!editorWinDragging) return;
-    const onMove = (ev: MouseEvent) => {
-      try {
-        if (!editorWinStartMouseRef.current || !editorWinStartPosRef.current) return;
-        const dx = ev.clientX - editorWinStartMouseRef.current.x;
-        const dy = ev.clientY - editorWinStartMouseRef.current.y;
-        setEditorWinPos({ x: editorWinStartPosRef.current.x + dx, y: editorWinStartPosRef.current.y + dy });
-      } catch {}
-    };
-    const onUp = () => setEditorWinDragging(false);
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp, { once: true });
-    return () => {
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp as any);
-    };
-  }, [editorWinDragging]);
+  // EditorWindow Drag/Dirty/Exit-Logik ausgelagert in <EditorWindow />
   const connectLivekitRef = React.useRef<null | (() => Promise<void>)>(null);
   // Single-run guards to prevent repeated re-inits/auto-connects
   const gameCreatedRef = React.useRef(false);
@@ -325,17 +166,8 @@ export function App() {
 
   
 
-  // Laden der Tokenliste beim Öffnen des Modals
-  useEffect(() => {
-    if (!apiModalOpen) return;
-    (async () => {
-      try {
-        setFreshToken(null);
-        const res = await fetch(`${apiBase}/api-tokens`, { credentials: 'include' });
-        if (res.ok) setApiTokens(await res.json());
-      } catch {}
-    })();
-  }, [apiModalOpen, apiBase]);
+  // Laden der Tokenliste beim Öffnen des Modals (ausgelagert)
+  useApiTokensLoader({ apiBase, open: apiModalOpen, setFreshToken, setApiTokens });
   // Map Editor State (moved to hook)
   const editorActiveRef = React.useRef(false);
   React.useEffect(() => { editorActiveRef.current = editor.active; }, [editor.active]);
@@ -344,6 +176,9 @@ export function App() {
 
   // Position-Persistenz (Hook auf Top-Level)
   usePositionPersistence({ apiBase, localPosRef, gameBridge });
+
+  // Editor-Pointer-Logik (aus App extrahiert)
+  useEditorPointer({ editor, setEditor, apiBase });
 
   // LiveKit-Verbindung via Hook (Top-Level, nicht in Effekten verwenden)
   useLivekit({
@@ -587,12 +422,16 @@ export function App() {
       // Server-state laden (best-effort) – bei 404 Map anlegen und lokalen Stand hochladen
       (async () => {
         try {
-          const res = await fetch(`${apiBase}/maps/office/editor-state`, { credentials: 'include' });
-          console.log("SPEICHERN! 224");
+          const mapName = (typeof window !== 'undefined' && (((window as any).__map_name) || (window as any).MAP_NAME)) || 'office';
+          const res = await fetch(`${apiBase}/maps/${encodeURIComponent(mapName)}/editor-state`, { credentials: 'include' });
+          console.debug('[EDITOR] load server editor-state', { mapName, ok: res.ok, status: res.status });
           if (res.ok) {
             const data = await res.json();
             if (data?.tilesets) try { localStorage.setItem('meetropolis.tilesets', JSON.stringify(data.tilesets)); } catch {}
-            if (data?.assets) try { localStorage.setItem('meetropolis.assets', JSON.stringify(data.assets)); } catch {}
+            // Assets nur übernehmen, wenn der Server welche hat (nicht leere Antwort über lokale schreiben)
+            if (Array.isArray(data?.assets) && data.assets.length > 0) {
+              try { localStorage.setItem('meetropolis.assets', JSON.stringify(data.assets)); } catch {}
+            }
             if (data?.zones) try {
               const zones = Array.isArray(data.zones) ? data.zones.map((z: any)=>{
                 const anyZ = z || {};
@@ -617,13 +456,13 @@ export function App() {
               setEditor(s => ({ ...s, backgroundColor: data.backgroundColor }));
               try { gameBridge.setBackgroundColor(data.backgroundColor); } catch {}
             }
-            if (Array.isArray(data?.editorGround) || Array.isArray(data?.collision)) {
-              try { localStorage.setItem('meetropolis.editorLayers', JSON.stringify({ editorGround: data.editorGround, collision: data.collision, w: undefined, h: undefined })); } catch {}
+            if (Array.isArray(data?.editorGround) || Array.isArray(data?.editorWalls) || Array.isArray(data?.collision)) {
+              try { localStorage.setItem('meetropolis.editorLayers', JSON.stringify({ editorGround: data.editorGround, editorWalls: data.editorWalls, collision: data.collision, w: undefined, h: undefined })); } catch {}
               // Nach erfolgreichem Laden: direkt in Szene anwenden
               try { gameBridge.reloadEditorLayers(); } catch {}
             }
-            if (Array.isArray(data?.assets)) {
-              // Editor-Assets in UI/Scene anwenden
+            if (Array.isArray(data?.assets) && data.assets.length > 0) {
+              // Editor-Assets in UI/Scene anwenden (nur wenn vorhanden)
               setEditor(s => ({ ...s, assets: data.assets }));
               try { gameBridge.setEditorAssets(data.assets); } catch {}
             }
@@ -640,10 +479,10 @@ export function App() {
               payload.zones = zones;
               payload.replaceZones = true;
             }
-            console.log("SPEICHERN! 264", payload);
+            console.debug('[EDITOR] bootstrap create map editor-state', { mapName });
             const body = JSON.stringify(payload);
             if (body.length < 100000) {
-              await fetch(`${apiBase}/maps/office/editor-state`, {
+              await fetch(`${apiBase}/maps/${encodeURIComponent(mapName)}/editor-state`, {
                 method: 'PUT',
                 credentials: 'include',
                 headers: { 'Content-Type': 'application/json' },
@@ -675,233 +514,20 @@ export function App() {
     }
   }, [editor.tool]);
 
-  // Grid-basiertes Platzieren von Pack-Items
-  React.useEffect(() => {
-    const tileSize = 16; // Map tile size (office)
-
-    const placeAsset = (tileX: number, tileY: number) => {
-      const p = editor.pendingAsset;
-      if (!p) return;
-      const x = tileX * tileSize + tileSize / 2;
-      const y = tileY * tileSize + tileSize / 2;
-      const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-      const next: { id: string; key: string; dataUrl: string; x: number; y: number; packUuid?: string; itemId?: string; category?: 'structures' | 'objects'; collide?: boolean; width?: number; height?: number } = { id, key: p.key, dataUrl: p.dataUrl, x, y };
-      if (p.packUuid) next.packUuid = p.packUuid;
-      if (p.itemId) next.itemId = p.itemId;
-      if (p.category) next.category = p.category;
-      if (p.collide) next.collide = true;
-      if (typeof p.width === 'number') next.width = p.width;
-      if (typeof p.height === 'number') next.height = p.height;
-      setEditor(s => {
-        const assets = [...s.assets, next];
-        try { localStorage.setItem('meetropolis.assets', JSON.stringify(assets)); } catch {}
-        try { gameBridge.setEditorAssets(assets); } catch {}
-        if (next.collide === true) {
-          const wTiles = Math.max(1, Math.round(((next.width ?? tileSize) / tileSize)));
-          const hTiles = Math.max(1, Math.round(((next.height ?? tileSize) / tileSize)));
-          const startX = tileX - Math.floor(wTiles / 2);
-          const startY = tileY - Math.floor(hTiles / 2);
-          const endX = startX + wTiles - 1;
-          const endY = startY + hTiles - 1;
-          try { gameBridge.applyTilePaint({ layer: 'Collision', tilesetKey: 'collision_tiles', tileIndex: 0, rect: { startX, startY, endX, endY } }); } catch {}
-        }
-        return { ...s, assets };
-      });
-    };
-
-    const beginDrag = (tileX: number, tileY: number) => {
-      setEditor(s => ({ ...s, drag: { startTileX: tileX, startTileY: tileY, endTileX: tileX, endTileY: tileY } }));
-      // Initiales Ghost-Rect
-      try {
-        const x0 = tileX * tileSize;
-        const y0 = tileY * tileSize;
-        gameBridge.setSelectionRect({ x: x0, y: y0, w: tileSize, h: tileSize });
-      } catch {}
-    };
-    const updateDrag = (tileX: number, tileY: number) => {
-      setEditor(s => {
-        if (!s.drag) return s;
-        const next = { ...s.drag, endTileX: tileX, endTileY: tileY };
-        try {
-          const x0 = Math.min(next.startTileX, next.endTileX) * tileSize;
-          const y0 = Math.min(next.startTileY, next.endTileY) * tileSize;
-          const x1 = (Math.max(next.startTileX, next.endTileX) + 1) * tileSize;
-          const y1 = (Math.max(next.startTileY, next.endTileY) + 1) * tileSize;
-          gameBridge.setSelectionRect({ x: x0, y: y0, w: x1 - x0, h: y1 - y0 });
-        } catch {}
-        return { ...s, drag: next };
-      });
-    };
-    const endDragPaint = (layer: 'EditorGround' | 'Collision', tilesetKey: string, tileIndex: number) => {
-      setEditor(s => {
-        const d = s.drag;
-        if (!d) return s;
-        const rect = { startX: Math.min(d.startTileX, d.endTileX), startY: Math.min(d.startTileY, d.endTileY), endX: Math.max(d.startTileX, d.endTileX), endY: Math.max(d.startTileY, d.endTileY) };
-        try { gameBridge.applyTilePaint({ layer, tilesetKey, tileIndex, rect }); } catch {}
-        try { gameBridge.setSelectionRect(null); } catch {}
-        return { ...s, drag: null };
-      });
-    };
-    const endDragZone = () => {
-      setEditor(s => {
-        const d = s.drag;
-        if (!d) return s;
-        const x0 = Math.min(d.startTileX, d.endTileX) * tileSize;
-        const y0 = Math.min(d.startTileY, d.endTileY) * tileSize;
-        const x1 = (Math.max(d.startTileX, d.endTileX) + 1) * tileSize;
-        const y1 = (Math.max(d.startTileY, d.endTileY) + 1) * tileSize;
-        const poly = [ { x: x0, y: y0 }, { x: x1, y: y0 }, { x: x1, y: y1 }, { x: x0, y: y1 } ];
-        const zones = s.zones.slice();
-        zones.push({ name: s.name || 'Zone', points: poly } as any);
-        try { localStorage.setItem('meetropolis.zones', JSON.stringify(zones)); } catch {}
-        try { gameBridge.setZoneOverlay(zones as any); } catch {}
-        try { gameBridge.setSelectionRect(null); } catch {}
-        return { ...s, zones, drag: null, editingZoneIndex: null, tool: 'select' };
-      });
-    };
-
-    const handleDown = ({ tileX, tileY }: { tileX: number; tileY: number }) => {
-      if (!editor.active) return;
-      if (editor.tool === 'asset' && editor.pendingAsset) {
-        placeAsset(tileX, tileY);
-        return;
-      }
-      if (editor.tool === 'floor' && editor.tilePaint && editor.tilePaint.tileIndex >= 0) {
-        beginDrag(tileX, tileY);
-        return;
-      }
-      if (editor.tool === 'collision' && editor.tilePaint && editor.tilePaint.tileIndex >= 0) {
-        beginDrag(tileX, tileY);
-        return;
-      }
-      if (editor.tool === 'erase' && editor.category === 'terrain') {
-        beginDrag(tileX, tileY);
-        return;
-      }
-      if (editor.tool === 'erase' && (editor.category === 'objects' || editor.category === 'structures')) {
-        const x = tileX * tileSize + tileSize / 2;
-        const y = tileY * tileSize + tileSize / 2;
-        setEditor(s => {
-          const radius = tileSize / 2;
-          const idx = [...s.assets].reverse().findIndex(a => Math.abs(a.x - x) <= radius && Math.abs(a.y - y) <= radius);
-          if (idx === -1) return s;
-          const realIdx = s.assets.length - 1 - idx;
-          const assets = s.assets.slice();
-          assets.splice(realIdx, 1);
-          try { localStorage.setItem('meetropolis.assets', JSON.stringify(assets)); } catch {}
-          try { gameBridge.setEditorAssets(assets); } catch {}
-          return { ...s, assets };
-        });
-        return;
-      }
-      if (editor.tool === 'zone') {
-        beginDrag(tileX, tileY);
-        return;
-      }
-    };
-    const handleMove = ({ tileX, tileY }: { tileX: number; tileY: number }) => {
-      if (!editor.active) return;
-      if (editor.tool === 'asset' && editor.pendingAsset) {
-        // Vorschau nicht bei jeder Bewegung neu setzen (verursacht Flackern);
-        // die Szene aktualisiert die Ghost-Position selbst in pointermove.
-        return;
-      }
-      // Terrain/Zonen Ghost (1x1) und Drag-Update
-      if (editor.tool === 'floor' || editor.tool === 'collision') {
-        if (editor.drag) {
-          updateDrag(tileX, tileY);
-        } else if (editor.tilePaint && editor.tilePaint.tileIndex >= 0) {
-          const x0 = tileX * tileSize;
-          const y0 = tileY * tileSize;
-          try { gameBridge.setSelectionRect({ x: x0, y: y0, w: tileSize, h: tileSize }); } catch {}
-        }
-        return;
-      }
-      if (editor.tool === 'erase' && editor.category === 'terrain') {
-        if (editor.drag) updateDrag(tileX, tileY);
-        else {
-          const x0 = tileX * tileSize;
-          const y0 = tileY * tileSize;
-          try { gameBridge.setSelectionRect({ x: x0, y: y0, w: tileSize, h: tileSize }); } catch {}
-        }
-        return;
-      }
-      if (editor.tool === 'zone') {
-        if (editor.drag) {
-          updateDrag(tileX, tileY);
-        } else {
-          const x0 = tileX * tileSize;
-          const y0 = tileY * tileSize;
-          try { gameBridge.setSelectionRect({ x: x0, y: y0, w: tileSize, h: tileSize }); } catch {}
-        }
-        return;
-      }
-      // Default: keine Vorschau
-      try { gameBridge.setSelectionRect(null); } catch {}
-    };
-    const handleUp = (_arg: { tileX: number; tileY: number }) => {
-      if (!editor.active) return;
-      if (editor.tool === 'floor' && editor.tilePaint && editor.tilePaint.tileIndex >= 0) {
-        if (!editor.drag) return;
-        endDragPaint('EditorGround', editor.tilePaint.tilesetKey, editor.tilePaint.tileIndex);
-        return;
-      }
-      if (editor.tool === 'collision' && editor.tilePaint && editor.tilePaint.tileIndex >= 0) {
-        if (!editor.drag) return;
-        endDragPaint('Collision', editor.tilePaint.tilesetKey, editor.tilePaint.tileIndex);
-        return;
-      }
-      if (editor.tool === 'erase' && editor.category === 'terrain') {
-        if (!editor.drag) return;
-        // Erase sowohl Boden als auch Kollision im gewählten Bereich
-        setEditor(s => {
-          const d = s.drag;
-          if (!d) {
-            try { gameBridge.setSelectionRect(null); } catch {}
-            return s;
-          }
-          const rect = { startX: Math.min(d.startTileX, d.endTileX), startY: Math.min(d.startTileY, d.endTileY), endX: Math.max(d.startTileX, d.endTileX), endY: Math.max(d.startTileY, d.endTileY) };
-          try { gameBridge.applyTilePaint({ layer: 'EditorGround', tilesetKey: s.tilePaint?.tilesetKey || 'office_tiles', tileIndex: -1, rect }); } catch {}
-          try { gameBridge.applyTilePaint({ layer: 'Collision', tilesetKey: 'collision_tiles', tileIndex: -1, rect }); } catch {}
-          try { gameBridge.setSelectionRect(null); } catch {}
-          return { ...s, drag: null };
-        });
-        return;
-      }
-      if (editor.tool === 'zone') {
-        if (!editor.drag) return;
-        endDragZone();
-        return;
-      }
-    };
-    const noop = () => {};
-    try {
-      (gameBridge as any).onPointerDownTile = handleDown;
-      (gameBridge as any).onPointerMoveTile = handleMove;
-      (gameBridge as any).onPointerUpTile = handleUp;
-    } catch {}
-    return () => {
-      try {
-        (gameBridge as any).onPointerDownTile = noop;
-        (gameBridge as any).onPointerMoveTile = noop;
-        (gameBridge as any).onPointerUpTile = noop;
-      } catch {}
-    };
-  }, [editor.active, editor.tool, editor.pendingAsset, editor.tilePaint, editor.drag, editor.name, editor.editingZoneIndex]);
+  
 
   async function saveAllToServer() {
     try {
       const tilesets = JSON.parse(localStorage.getItem('meetropolis.tilesets') || '[]');
       const assets = JSON.parse(localStorage.getItem('meetropolis.assets') || '[]');
       const zones = editor.zones;
-      const layers = JSON.parse(localStorage.getItem('meetropolis.editorLayers') || '{}');
       const backgroundColor = localStorage.getItem('meetropolis.backgroundColor') || '#202020';
       const mapName = (typeof window !== 'undefined' && (((window as any).__map_name) || (window as any).MAP_NAME)) || 'office';
       const res = await fetch(`${apiBase}/maps/${encodeURIComponent(mapName)}/editor-state`, {
         method: 'PUT',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ editorGround: layers.editorGround ?? null, editorWalls: layers.editorWalls ?? null, collision: layers.collision ?? null, tilesets, assets, zones, backgroundColor })
+        body: JSON.stringify({ tilesets, assets, zones, backgroundColor })
       });
       if (!res.ok) {
         try { window.dispatchEvent(new CustomEvent('editor:toast', { detail: { title: 'Speichern fehlgeschlagen', description: `Server antwortete mit ${res.status}`, intent: 'error' } })); } catch {}
@@ -919,230 +545,7 @@ export function App() {
   // Nutzerverwaltung als Overlay: Spiel/AV laufen weiter
   // (keine Pause mehr beim Wechsel auf 'users')
 
-  // (Teilnehmerlisten-Logik in Hook ausgelagert)
-  /* const buildParticipantList = React.useCallback(() => {
-    const room: any = avRef.current?.room as any;
-    if (!room || !room.localParticipant) {
-      // Fallback: Kein LiveKit-Raum – baue Karten aus Colyseus-Remotes + Local (mit Zonenfilter)
-      const list: { sid: string; identity: string; hasVideo: boolean; hasMic: boolean; isSpeaking: boolean; media: 'camera' | 'screen'; volume?: number }[] = [];
-      try {
-        // Local
-        const localIdentity = me?.name || me?.email || me?.id || 'You';
-        list.push({ sid: 'local', identity: localIdentity, hasVideo: false, hasMic: false, isSpeaking: false, media: 'camera', volume: 1 });
-        const zones = (zoneRef.current?.getZones?.() || []).map(z => ({ ...z, points: (Array.isArray(z.points) ? z.points : []).map((p:any)=> Array.isArray(p) ? { x: p[0], y: p[1] } : p).filter((p:any)=> p && typeof p.x === 'number' && typeof p.y === 'number') }));
-        const localPos = { x: localPosRef.current.x, y: localPosRef.current.y };
-        const localZone = zones.find(z => pointInPolygon(localPos, z.points));
-        // Remotes (aus Colyseus)
-        for (const [colyseusId, pos] of Object.entries(remotesRef.current || {})) {
-          // Zonenfilter
-          try {
-            const remoteZone = zones.find(z => pointInPolygon(pos as any, z.points));
-            if ((localZone && !remoteZone) || (!localZone && remoteZone) || (localZone && remoteZone && localZone.name !== remoteZone.name)) {
-              continue;
-            }
-          } catch {}
-          const livekitIdentity = colyseusToLivekitMap.current[colyseusId] || colyseusId;
-          const name = identityToNameMap.current[livekitIdentity] || getDisplayName(livekitIdentity);
-          // Verwende Colyseus-ID als Pseudo-SID, damit Keys stabil sind
-          list.push({ sid: `col:${colyseusId}`, identity: name, hasVideo: false, hasMic: false, isSpeaking: false, media: 'camera', volume: 1 });
-        }
-      } catch {}
-      setUiParticipants(list);
-      return;
-    }
-    // buildParticipantList - participants
-    
-    // Get current local zone
-    const zones = (zoneRef.current?.getZones?.() || []).map(z => ({ ...z, points: (Array.isArray(z.points) ? z.points : []).map((p:any)=> Array.isArray(p) ? { x: p[0], y: p[1] } : p).filter((p:any)=> p && typeof p.x === 'number' && typeof p.y === 'number') }));
-    const localPos = { x: localPosRef.current.x, y: localPosRef.current.y };
-    const localZone = zones.find(z => pointInPolygon(localPos, z.points));
-    
-    const activeSet = new Set<string>((room.activeSpeakers || []).map((p: any) => p.sid));
-    const list: { sid: string; identity: string; hasVideo: boolean; hasMic: boolean; isSpeaking: boolean; media: 'camera' | 'screen'; volume?: number }[] = [];
-    const pushP = (p: any, isLocal: boolean = false) => {
-      if (!p) return;
-      
-      // Get participant position for zone check
-      let participantPos: { x: number; y: number } | null = null;
-      if (isLocal) {
-        participantPos = localPos;
-      } else {
-        // Find remote participant position by their identity
-        const colyseusId = Object.keys(colyseusToLivekitMap.current).find(
-          key => colyseusToLivekitMap.current[key] === p.identity
-        );
-        if (colyseusId && remotesRef.current[colyseusId]) {
-          participantPos = remotesRef.current[colyseusId];
-        }
-      }
-      
-      // Zonenfilter: Nur Teilnehmer in gleicher Zone anzeigen. Falls Position unbekannt → konservativ ausblenden.
-      if (!isLocal) {
-        if (!participantPos) {
-          try {
-          const publications: any[] = Array.from((p.trackPublications?.values?.() || []) as any);
-          for (const pub of publications) {
-            const source = (pub as any)?.source || (pub as any)?.track?.source;
-            const kind = (pub as any)?.kind ?? (pub as any)?.track?.kind;
-              if (source === 'camera' || source === 'screen_share' || kind === 'audio') {
-              try { (pub as any)?.setSubscribed?.(false); } catch {}
-              }
-            }
-          } catch {}
-          return;
-        }
-        const remoteZone = zones.find(z => pointInPolygon(participantPos!, z.points));
-        if ((localZone && !remoteZone) || (!localZone && remoteZone) || (localZone && remoteZone && localZone.name !== remoteZone.name)) {
-          try {
-          const publications: any[] = Array.from((p.trackPublications?.values?.() || []) as any);
-          for (const pub of publications) {
-            const source = (pub as any)?.source || (pub as any)?.track?.source;
-            const kind = (pub as any)?.kind ?? (pub as any)?.track?.kind;
-              if (source === 'camera' || source === 'screen_share' || kind === 'audio') {
-              try { (pub as any)?.setSubscribed?.(false); } catch {}
-              }
-            }
-          } catch {}
-          return;
-        }
-      }
-      
-      try {
-        const publications: any[] = Array.from((p.trackPublications?.values?.() || []) as any);
-        // Erzwinge Subscribe f fcr Remote-Kamera/Screenshare
-        if (!isLocal) {
-          try {
-            for (const pub of publications) {
-              const source = (pub as any)?.source || (pub as any)?.track?.source;
-              if (source === 'camera' || source === 'screen_share') {
-                try { (pub as any)?.setSubscribed?.(true); } catch {}
-                try { (pub as any)?.setVideoQuality?.('high'); } catch {}
-              }
-            }
-          } catch {}
-        }
-        const isVideoPub = (pub: any) => {
-          const source = (pub?.source ?? pub?.track?.source);
-          // Kamera an nur wenn Camera-Quelle; Screenshare ausklammern
-          return (!!pub?.track && (source === 'camera' || source === 1));
-        };
-        const isMicPub = (pub: any) => {
-          const source = (pub?.source ?? pub?.track?.source);
-          const kind = pub?.kind ?? pub?.track?.kind;
-          return (!!pub?.track && (kind === 'audio' || source === 'microphone' || source === 0));
-        };
-        const isScreenPub = (pub: any) => {
-          const source = (pub?.source ?? pub?.track?.source);
-          // Kartenanzeige auch ohne bereits abonnierten Track, sobald screen_share publiziert wurde
-          return (source === 'screen_share' || source === 2);
-        };
-        const hasV = publications.some(isVideoPub);
-        const hasMic = publications.some(isMicPub);
-        const hasScreen = publications.some(isScreenPub);
-      // DisplayName: zuerst Mapping, dann p.name, dann fallback
-      let displayName = identityToNameMap.current[p.identity] || p.name || p.identity || 'User';
-      if (p && p.sid === room.localParticipant?.sid) {
-        displayName = me?.name || me?.email || displayName;
-      }
-      // Fallback-Kürzung nur wenn immer noch wie rohe ID wirkt
-      if (!identityToNameMap.current[p.identity] && !p.name) {
-        if (displayName.length > 20 && /^[a-zA-Z0-9]+$/.test(displayName)) {
-          displayName = `User ${displayName.substring(0, 6)}`;
-        }
-      }
-      const identity = displayName;
-      
-      // Get volume for this participant using last computed volumes
-      let volume = 1;
-      try {
-        const last = volumeRef.current?.getLastVolumes?.() || {} as Record<string, number>;
-        if (!isLocal) {
-          const colyseusIdForIdentity = Object.keys(colyseusToLivekitMap.current).find(
-            key => colyseusToLivekitMap.current[key] === p.identity
-          );
-          if (colyseusIdForIdentity && typeof last[colyseusIdForIdentity] === 'number') {
-            volume = last[colyseusIdForIdentity];
-          }
-        }
-      } catch {}
-      
-      // Kamera-/Audio-Karte: immer anzeigen, wenn der Teilnehmer online ist.
-      // hasVideo steuert nur die Videoanzeige, nicht die Sichtbarkeit der Karte.
-      list.push({ sid: p.sid, identity, hasVideo: !!hasV, hasMic: !!hasMic, isSpeaking: activeSet.has(p.sid), media: 'camera', volume });
-      // Screenshare als eigene Karte (auch wenn Track noch nicht abonniert ist)
-      if (hasScreen) {
-        list.push({ sid: p.sid + ':screen', identity: `${identity} – Bildschirm`, hasVideo: true, hasMic: false, isSpeaking: false, media: 'screen', volume });
-      }
-      } catch (e) {
-      }
-    };
-    pushP(room.localParticipant, true); // true = isLocal
-    const remotes = Array.from((room.remoteParticipants?.values?.() || room.participants?.values?.() || []) as any);
-    // Processing remote participants
-    for (const rp of remotes) {
-      pushP(rp, false);
-    }
-    // Merge in Colyseus remotes to avoid gaps when LiveKit has delays (mit Zonenfilter)
-    try {
-      const presentIdentities = new Set<string>(list.map(p => p.identity));
-      for (const [colyseusId, _pos] of Object.entries(remotesRef.current || {})) {
-        const livekitIdentity = colyseusToLivekitMap.current[colyseusId] || colyseusId;
-        const name = identityToNameMap.current[livekitIdentity] || getDisplayName(livekitIdentity);
-        // Zonenfilter anhand Position
-        try {
-          const zones = (zoneRef.current?.getZones?.() || []).map(z => ({ ...z, points: (Array.isArray(z.points) ? z.points : []).map((p:any)=> Array.isArray(p) ? { x: p[0], y: p[1] } : p).filter((p:any)=> p && typeof p.x === 'number' && typeof p.y === 'number') }));
-          const localPos = { x: localPosRef.current.x, y: localPosRef.current.y };
-          const localZone = zones.find(z => pointInPolygon(localPos, z.points));
-          const pos = remotesRef.current[colyseusId];
-          const remoteZone = pos ? zones.find(z => pointInPolygon(pos, z.points)) : null;
-          if ((localZone && !remoteZone) || (!localZone && remoteZone) || (localZone && remoteZone && localZone.name !== remoteZone.name)) {
-            continue;
-          }
-        } catch {}
-        if (!presentIdentities.has(name) && !presentIdentities.has(livekitIdentity)) {
-          list.push({ sid: `col:${colyseusId}`, identity: name, hasVideo: false, hasMic: false, isSpeaking: false, media: 'camera', volume: 1 });
-          presentIdentities.add(name);
-        }
-      }
-    } catch {}
-    // Final participant list
-    setUiParticipants(list);
-    // Trigger early rebuild shortly after to account for late position sync (ensures zone filter applies when remotesRef fills)
-    try { setTimeout(() => { if (!disposedRef.current) buildParticipantList(); }, 150); } catch {}
-    
-    // Update speaking states in the game
-    // Use the activeSpeakers from LiveKit directly
-    const speakingIds = new Set<string>();
-    const activeSpeakers = room.activeSpeakers || [];
-    
-    // Process active speakers
-    
-    activeSpeakers.forEach((speaker: any) => {
-      // Check if it's the local participant
-      if (speaker.sid === room.localParticipant?.sid) {
-        speakingIds.add('local');
-      } else {
-        // For remote participants, we need to find their Colyseus ID
-        // The speaker has an identity field which should match what we stored
-        // Find ALL matching Colyseus IDs (there might be multiple due to reconnects)
-        const matchingColyseusIds = Object.entries(colyseusToLivekitMap.current)
-          .filter(([_, livekitIdentity]) => livekitIdentity === speaker.identity)
-          .map(([colyseusId]) => colyseusId);
-        
-        if (matchingColyseusIds.length > 0) {
-          // Check which one is currently active in remotesRef
-          const activeColyseusId = matchingColyseusIds.find(id => id in remotesRef.current);
-          if (activeColyseusId) {
-            speakingIds.add(activeColyseusId);
-          } else {
-          }
-        } else {
-        }
-      }
-    });
-    
-    gameBridge.updateSpeakingStates(speakingIds);
-  }, [me]); */
+  
 
   // applyVolumesToUi via Hook
 
@@ -1561,41 +964,7 @@ export function App() {
             } catch {}
           }
         });
-        // Remote control commands from server (API-driven)
-        room.onMessage('remote_control', async (payload: { mic?: boolean; cam?: boolean; share?: boolean; dnd?: boolean }) => {
-          try {
-            if (typeof payload.dnd === 'boolean') {
-              const next = payload.dnd;
-              try { gameBridge.setDoNotDisturb(next); } catch {}
-              if (next) {
-                try { await avRef.current?.setMicrophoneEnabled(false); } catch {}
-                try { await avRef.current?.setCameraEnabled(false); } catch {}
-                try { await avRef.current?.stopScreenshare(); } catch {}
-              }
-              setAvState(s => ({ ...s, dnd: next, mic: next ? false : s.mic, cam: next ? false : s.cam, share: next ? false : s.share }));
-              dndRef.current = next;
-              // Send DND status to server
-              try { colyseusRef.current?.send?.('dnd_status', { dnd: next }); } catch {}
-            }
-            if (typeof payload.mic === 'boolean' && !dndRef.current) {
-              const enabled = payload.mic;
-              try { await avRef.current?.setMicrophoneEnabled(enabled); } catch {}
-              setAvState(s => ({ ...s, mic: enabled }));
-            }
-            if (typeof payload.cam === 'boolean' && !dndRef.current) {
-              const enabled = payload.cam;
-              try { await avRef.current?.setCameraEnabled(enabled); } catch {}
-              setAvState(s => ({ ...s, cam: enabled }));
-            }
-            if (typeof payload.share === 'boolean' && !dndRef.current) {
-              if (payload.share && !avState.share) {
-                try { const ok = await avRef.current?.startScreenshare(); if (ok) setAvState(s => ({ ...s, share: true })); } catch {}
-              } else if (!payload.share && avState.share) {
-                try { await avRef.current?.stopScreenshare(); setAvState(s => ({ ...s, share: false })); } catch {}
-              }
-            }
-          } catch {}
-        });
+        // Remote control handling ist zentral in useWorldRoom.ts implementiert
 
         // Bubble-State von Server empfangen
         room.onMessage('bubble_state', (payload: { members: string[] }) => {
@@ -1708,8 +1077,12 @@ export function App() {
         try { gameBridge.setHeroName(heroName); } catch {}
       }, 100);
     }, 0);
-    // Editor-Click-Handler
+    // Editor-Click-Handler (deaktiviert in Editor-Modus, da tile-basierte Pointer-Events genutzt werden)
     gameBridge.onPointerDown = ({ x, y }) => {
+      if (editorActiveRef.current) {
+        // Editor verwendet onPointerDownTile / onPointerMoveTile / onPointerUpTile
+        return;
+      }
       setEditor(prev => {
         if (!prev.active) return prev;
         
@@ -1778,74 +1151,12 @@ export function App() {
           return prev;
         }
         
-        // Handle legacy asset placement
-        if (prev.tool === 'asset' && prev.pendingAsset) {
-          const id = `${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
-          const asset = { id, key: prev.pendingAsset.key + ':' + id, dataUrl: prev.pendingAsset.dataUrl, x: snappedX, y: snappedY };
-          const assets = [...prev.assets, asset];
-          try { localStorage.setItem('meetropolis.assets', JSON.stringify(assets)); } catch {}
-          gameBridge.setEditorAssets(assets);
-          return { ...prev, assets, pendingAsset: null };
-        }
+        // Legacy Asset-Placement deaktiviert; Editor nutzt tile-basierte Platzierung
         return prev;
       });
     };
     
-    const activateBubbleNow = (targetId: string) => {
-      // Set members
-      bubbleMembersRef.current.clear();
-      if (localPosRef.current.id) bubbleMembersRef.current.add(localPosRef.current.id);
-      bubbleMembersRef.current.add(targetId);
-      try { gameBridge.setMovementLocked(true); } catch {}
-      // Visuals
-      const visual = new Set<string>();
-      if (localPosRef.current.id) visual.add('__local__');
-      visual.add(targetId);
-      try { gameBridge.setBubbleMembers(visual); } catch {}
-      // Broadcast
-      try { colyseusRef.current?.send?.('bubble_update', { members: Array.from(bubbleMembersRef.current) }); } catch {}
-      // UI names
-      const names: string[] = [];
-      const identity = colyseusToLivekitMap.current[targetId] || targetId;
-      const name = identityToNameMap.current[identity] || getDisplayName(identity);
-      names.push(name);
-      setBubbleUi({ active: true, members: names });
-      applyVolumesToUi();
-      bubblePendingRef.current = null;
-    };
-
-    const startBubbleTo = (targetColyseusId: string) => {
-      try { console.debug('[Bubble] startBubbleTo', targetColyseusId); } catch {}
-      // Wenn schon nah genug am Ziel, direkt aktivieren
-      const targetPos = remotesRef.current[targetColyseusId];
-      if (targetPos) {
-        const dx0 = (localPosRef.current.x || 0) - targetPos.x;
-        const dy0 = (localPosRef.current.y || 0) - targetPos.y;
-        if (dx0*dx0 + dy0*dy0 < 20*20) {
-          try { console.debug('[Bubble] already near target, activating'); } catch {}
-          activateBubbleNow(targetColyseusId);
-          return;
-        }
-      }
-      // Während der Navigation: keine Sperre aktivieren
-      try { gameBridge.setMovementLocked(false); } catch {}
-      bubblePendingRef.current = { targetId: targetColyseusId };
-      // Follow immer starten, damit kontinuierliche Interpolation greift
-      try { console.debug('[Bubble] start following', targetColyseusId); } catch {}
-      followRef.current?.startFollowing?.(targetColyseusId);
-      // Optional: freien Spot als initialen Hint setzen
-      try {
-        const free = gameBridge.findFreeSpotNear(targetColyseusId, { radius: 16, step: 16 });
-        if (free) {
-          try { console.debug('[Bubble] hint desiredPos (free spot)', free); } catch {}
-          gameBridge.setDesiredPosition({ x: free.x, y: free.y });
-        } else if (targetPos) {
-          try { console.debug('[Bubble] hint desiredPos (target pos)', targetPos); } catch {}
-          gameBridge.setDesiredPosition({ x: targetPos.x, y: targetPos.y });
-        }
-      } catch {}
-    };
-    bubbleStartRef.current = startBubbleTo;
+    // startBubbleTo ist oben initialisiert und im Ref hinterlegt
 
     gameBridge.onRightClick = ({ x, y, playerId }) => {
       if (editorActiveRef.current) return;
@@ -1909,80 +1220,6 @@ export function App() {
       }, 1000);
     };
 
-    // Track zone for participant list updates
-    let participantListLastZone: string | null = null;
-    let lastParticipantUpdate = 0;
-    
-    const hudTimer = setInterval(() => {
-      const z = zoneRef.current?.getCurrent?.();
-      const next: { zone?: string; follow?: string | null; avRoom?: string | null } = {
-        follow: followRef.current?.getTarget?.() ?? null,
-        avRoom: avRef.current?.activeRoom ?? null,
-      };
-      if (typeof z === 'string') next.zone = z;
-      setHud(next);
-      
-      // Pending bubble navigation handling: check arrival
-      if (bubblePendingRef.current && localPosRef.current) {
-        const { dest, targetId } = bubblePendingRef.current;
-        const targetPos = remotesRef.current[targetId];
-        // Consider arrived if near dest OR near the (possibly moving) target
-        let arrived = false;
-        if (dest) {
-          const dx = (localPosRef.current.x || 0) - dest.x;
-          const dy = (localPosRef.current.y || 0) - dest.y;
-          arrived = (dx*dx + dy*dy) < 12*12;
-        }
-        if (!arrived && targetPos) {
-          const dx = (localPosRef.current.x || 0) - targetPos.x;
-          const dy = (localPosRef.current.y || 0) - targetPos.y;
-          arrived = (dx*dx + dy*dy) < 20*20;
-        }
-        if (arrived) {
-          // Stop follow and desired motion, then activate bubble
-          try { followRef.current?.stop?.(); } catch {}
-          try { gameBridge.setDesiredPosition(null); } catch {}
-          activateBubbleNow(targetId);
-        }
-      }
-      
-      // Check if zone changed for participant list
-      if (z !== participantListLastZone || Date.now() - lastParticipantUpdate > 2000) {
-        participantListLastZone = (z ?? null) as any;
-        lastParticipantUpdate = Date.now();
-        setTimeout(buildParticipantList, 0);
-      }
-
-      const room: any = avRef.current?.room as any;
-      if (room && room.localParticipant && room.localParticipant.trackPublications) {
-        const pubs = Array.from(room.localParticipant.trackPublications?.values?.() || []);
-        const isVideoPub = (pub: any) => {
-          const source = (pub?.source ?? pub?.track?.source);
-          // Kamera zählt nur, wenn Quelle 'camera' ist (Screenshare nicht)
-          return (!!pub?.track && (source === 'camera' || source === 1));
-        };
-        const isMicPub = (pub: any) => {
-          const source = (pub?.source ?? pub?.track?.source);
-          const kind = pub?.kind ?? pub?.track?.kind;
-          return (!!pub?.track && (kind === 'audio' || source === 'microphone' || source === 0));
-        };
-        const isSharePub = (pub: any) => {
-          const source = (pub?.source ?? pub?.track?.source);
-          return (!!pub?.track && (source === 'screen_share' || source === 'screen_share_audio' || source === 2));
-        };
-        const hasMic = pubs.some(isMicPub);
-        const hasCam = pubs.some(isVideoPub);
-        const hasShare = pubs.some(isSharePub);
-        setAvState(s => (s.mic === hasMic && s.cam === hasCam && s.share === hasShare) ? s : { ...s, mic: hasMic, cam: hasCam, share: hasShare });
-        // Don't call buildParticipantList in the HUD timer - it's called by LiveKit events
-      }
-      // Lautstärke-Mix aktualisieren
-      const volumes = volumeRef.current?.update();
-      if (volumes) {
-        participantVolumesRef.current = volumes;
-      }
-    }, 250);
-
     return () => {
       disposed = true;
       try { gameBridge.setSceneApi?.(null); } catch {}
@@ -1998,7 +1235,7 @@ export function App() {
       } catch {}
       try { avRef.current?.leave?.(); } catch {}
       try { if (colyseusReconnectTimerRef.current) clearTimeout(colyseusReconnectTimerRef.current); } catch {}
-      clearInterval(hudTimer);
+      // HUD-Ticker Cleanup wird vom Hook übernommen
       if (moveTimeoutRef) {
         clearTimeout(moveTimeoutRef);
       }
@@ -2010,32 +1247,50 @@ export function App() {
   // Global Audio Track Manager - ausgelagert
   useGlobalAudioTracks({ avRef });
 
-  // DND Shortcut bleibt hier
-  useEffect(() => {
-    if (!authChecked || !me) return;
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'U' || e.key === 'u')) {
-        e.preventDefault();
-        const next = !dndRef.current;
-        try { gameBridge.setDoNotDisturb(next); } catch {}
-        try { gameBridge.setMovementLocked(next); } catch {}
-        if (next) {
-          try { avRef.current?.setMicrophoneEnabled(false); } catch {}
-          try { avRef.current?.setCameraEnabled(false); } catch {}
-          try { avRef.current?.stopScreenshare(); } catch {}
-        }
-        dndRef.current = next;
-        setAvState(s => ({ ...s, dnd: next, mic: next ? false : s.mic, cam: next ? false : s.cam, share: next ? false : s.share }));
-        try { colyseusRef.current?.send?.('dnd_status', { dnd: next }); } catch {}
-        try { volumeRef.current?.update(); } catch {}
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => { window.removeEventListener('keydown', onKey); };
-  }, [authChecked, me]);
+  useDndShortcut({ enabled: !!(authChecked && me), dndRef, avRef, setAvState, colyseusRef, volumeRef, gameBridge });
 
   // Zonen-Handling/Sync (ausgelagert)
   useZonesSync({ editor, setEditor, zoneRef, gameBridge, colyseusRef });
+
+  // Bubble-Navigation (ausgelagert)
+  const { startBubbleTo } = useBubbleNavigation({
+    bubbleMembersRef,
+    localPosRef,
+    colyseusRef,
+    gameBridge,
+    identityToNameMap,
+    colyseusToLivekitMap,
+    setBubbleUi,
+    applyVolumesToUi,
+    followRef,
+  });
+  bubbleStartRef.current = startBubbleTo;
+
+  // HUD-Ticker ausgelagert
+  useHudTicker({
+    enabled: !!(authChecked && me),
+    zoneRef,
+    avRef,
+    setHud,
+    bubblePendingRef,
+    localPosRef,
+    remotesRef,
+    onZoneParticipantRefresh: () => setTimeout(buildParticipantList, 0),
+    volumeRef,
+    setParticipantVolumesRef: (vols) => { participantVolumesRef.current = vols; },
+    onArrivedAtBubbleTarget: (targetId) => {
+      try { followRef.current?.stop?.(); } catch {}
+      try { gameBridge.setDesiredPosition(null); } catch {}
+      try {
+        // reuse bubble activation from hook by dispatching message to server and UI
+        // minimal local activation
+        const visual = new Set<string>();
+        if (localPosRef.current.id) visual.add('__local__');
+        visual.add(targetId);
+        gameBridge.setBubbleMembers(visual);
+      } catch {}
+    },
+  });
 
   useEffect(() => {
     // Assets immer anzeigen - sie sind Teil der Map!
@@ -2073,7 +1328,7 @@ export function App() {
   }, []);
 
   // Editor Bridge: verbindet Pointer-Events der Szene mit der Editor-Logik (Zonen/Spawn)
-  useEditorBridge({ editor: editor as any, setEditor: setEditor as any, gameBridge });
+  // (bereits früher aufgerufen)
 
   if (!authChecked) {
     return (
@@ -2124,17 +1379,19 @@ export function App() {
       <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
       {page === 'world' && (
         <>
-          {/* Participants Grid Overlay (hidden in editor mode; hidden in DND) */}
-          {!editor.active && !avState.dnd && (
-            <ParticipantsGrid 
-              participants={participantsToRender}
-              expanded={gridExpanded}
-              onToggleExpand={() => setGridExpanded(e => !e)}
-              selectedSid={selectedSid}
-              onSelect={(sid)=> setSelectedSid(sid)}
-              roomGetter={getRoom}
-            />
-          )}
+          <Overlays
+            hud={hud}
+            editorActive={editor.active}
+            avDnd={avState.dnd}
+            participants={participantsToRender}
+            gridExpanded={gridExpanded}
+            onToggleExpand={() => setGridExpanded(e => !e)}
+            selectedSid={selectedSid}
+            onSelectSid={(sid) => setSelectedSid(sid)}
+            getRoom={getRoom}
+            overlayZoom={overlayZoom}
+            onZoom={(z) => setOverlayZoom(z)}
+          />
           {positionReady ? (
             <div
               ref={containerRef}
@@ -2163,8 +1420,6 @@ export function App() {
             <div style={{display:'grid',placeItems:'center',height:'100%', color: 'var(--fg-subtle)'}}>Starte Welt…</div>
           )}
 
-          {/* HUD (links oben klein) */}
-          <HudPanel hud={hud} />
           {/* Admin Overlay (einzige Instanz) */}
           {isInternalOwner && (
             <>
@@ -2174,22 +1429,7 @@ export function App() {
               <AdminOverlay apiBase={apiBase} open={adminOpen} onOpenChange={setAdminOpen} />
             </>
           )}
-          {/* Single Card Fullscreen Overlay (hidden in editor mode; hidden in DND) */}
-          {!editor.active && !avState.dnd && selectedSid && (
-            (() => {
-              const pick = participantsToRender.find(p => p.sid === selectedSid);
-              if (!pick) return null;
-              return (
-                <ParticipantOverlay
-                  participant={pick}
-                  roomGetter={getRoom}
-                  zoom={overlayZoom}
-                  onZoom={(z)=> setOverlayZoom(z)}
-                  onClose={() => { setSelectedSid(null); setOverlayZoom(1); }}
-                />
-              );
-            })()
-          )}
+          {/* ParticipantOverlay über Overlays */}
 
           {/* Bottom Control Bar (hidden in editor mode) */}
           {!editor.active && (
@@ -2284,20 +1524,11 @@ export function App() {
       {/* Profil-Seite ist (noch) nicht implementiert; Stub entfernt */}
 
       {/* Settings & Theme (oben rechts) */}
-      <TopRightMenu
+      <TopRightControls
         menuOpen={menuOpen}
         onToggleMenu={() => setMenuOpen(v => !v)}
         onOpenUsers={() => { setUserModalOpen(true); setMenuOpen(false); }}
-        onOpenInvites={async () => {
-          setInvitesModalOpen(true);
-          setInvitesLoading(true);
-          try {
-            const res = await fetch(`${apiBase}/invites`, { credentials: 'include' });
-            if (res.ok) setInvites(await res.json());
-          } catch {}
-          setInvitesLoading(false);
-          setMenuOpen(false);
-        }}
+        onOpenInvites={() => { setInvitesModalOpen(true); setMenuOpen(false); }}
         onBackToWorld={() => { setPage('world'); setMenuOpen(false); }}
         onOpenAdmin={() => { setAdminOpen(true); setMenuOpen(false); }}
         isAdmin={isInternalOwner}
@@ -2341,109 +1572,9 @@ export function App() {
         setFreshToken={setFreshToken}
       />
 
-      {/* Editor Panel */}
-      {editor.active && (
-        <div ref={editorWinRef} style={{ position: 'absolute', zIndex: 35, width: 360, ...(editorWinPos ? { left: editorWinPos.x, top: editorWinPos.y } : { top: 64, right: 12 }) }}>
-          <div style={{ background: 'rgba(17,17,20,0.95)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12, padding: 0, color: '#fff', overflow: 'hidden' }}>
-            {/* Header */}
-            <div onMouseDown={beginEditorDrag} style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.02)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'move' }}>
-              <div style={{ fontWeight: 700, fontSize: 16 }}>Map-Editor</div>
-              <button
-                onClick={() => {
-                  if (editorDirty) { setConfirmExitOpen(true); return; }
-                  try { (window as any).currentPhaserScene?.setAssetPreview?.(null); } catch {}
-                  try { gameBridge.setEditorMode(false); } catch {}
-                  setEditor(s => ({ ...s, pendingTerrain: null as any, pendingAsset: null as any, tool: 'select', active: false } as any));
-                }}
-                title="Editor verlassen"
-                style={{ border: '1px solid var(--border)', background: 'var(--glass)', color: 'var(--fg)', borderRadius: 8, width: 34, height: 28, cursor: 'pointer', lineHeight: '26px', fontSize: 18 }}
-              >
-                ×
-              </button>
-            </div>
-            
-            {/* Category Tabs */}
-            <div style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.08)', background: 'rgba(0,0,0,0.2)' }}>
-              <button onClick={() => setEditor(s => ({ ...s, category: 'terrain', tool: 'floor' }))} style={{ flex: 1, padding: '10px 12px', border: 'none', borderBottom: editor.category==='terrain'?'2px solid #3b82f6':'2px solid transparent', background: 'transparent', color: editor.category==='terrain'?'#3b82f6':'#9ca3af', fontSize: 14, fontWeight: 500, cursor: 'pointer' }}>Terrain</button>
-              <button onClick={() => setEditor(s => ({ ...s, category: 'structures', tool: 'walls' }))} style={{ flex: 1, padding: '10px 12px', border: 'none', borderBottom: editor.category==='structures'?'2px solid #3b82f6':'2px solid transparent', background: 'transparent', color: editor.category==='structures'?'#3b82f6':'#9ca3af', fontSize: 14, fontWeight: 500, cursor: 'pointer' }}>Strukturen</button>
-              <button onClick={() => setEditor(s => ({ ...s, category: 'objects', tool: 'asset' }))} style={{ flex: 1, padding: '10px 12px', border: 'none', borderBottom: editor.category==='objects'?'2px solid #3b82f6':'2px solid transparent', background: 'transparent', color: editor.category==='objects'?'#3b82f6':'#9ca3af', fontSize: 14, fontWeight: 500, cursor: 'pointer' }}>Objekte</button>
-              <button onClick={() => setEditor(s => ({ ...s, category: 'zones', tool: 'zone' }))} style={{ flex: 1, padding: '10px 12px', border: 'none', borderBottom: editor.category==='zones'?'2px solid #3b82f6':'2px solid transparent', background: 'transparent', color: editor.category==='zones'?'#3b82f6':'#9ca3af', fontSize: 14, fontWeight: 500, cursor: 'pointer' }}>Zonen</button>
-            </div>
-            
-            {/* Content */}
-            <EditorPanel
-              editor={editor}
-              setEditor={setEditor}
-              onSave={saveAllToServer}
-              onDirtyChange={(dirty)=> setEditorDirty(!!dirty)}
-              onOpenUpload={async (e) => {
-                      const file = e.target.files?.[0];
-                      if (!file) return;
-                      const buf = await file.arrayBuffer();
-                      const base64 = await new Promise<string>((resolve) => {
-                        const reader = new FileReader();
-                        reader.onload = () => resolve(reader.result as string);
-                        reader.readAsDataURL(new Blob([buf], { type: file.type || 'image/png' }));
-                      });
-                      setEditor(s => ({ 
-                        ...s, 
-                        uploadDialog: {
-                          open: true,
-                          dataUrl: base64,
-                          fileName: file.name,
-                          tileWidth: file.name.toLowerCase().includes('little') ? 32 : 16,
-                          tileHeight: file.name.toLowerCase().includes('little') ? 32 : 16,
-                          margin: 0,
-                          spacing: 0,
-                          category: s.category
-                        }
-                      }));
-              }}
-              onSaveEditor={async () => {
-                try {
-                  const payload = buildEditorSavePayload(editor.zones as any);
-                  const res = await fetch(`${apiBase}/maps/office/editor-state`, {
-                    method: 'PUT',
-                    credentials: 'include',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                  });
-                  if (!res.ok) {
-                    const text = await res.text().catch(() => 'Speichern fehlgeschlagen');
-                    throw new Error(text || `HTTP ${res.status}`);
-                  }
-                  try { colyseusRef.current?.send?.('editor_update', { type: 'reload_all' }); } catch {}
-                  // Mark current state as saved baseline
-                  editorSavedSnapshotRef.current = getEditorSnapshot();
-                  setEditorDirty(false);
-                  return true;
-                } catch (e) {
-                  return false;
-                }
-              }}
-            />
-          </div>
-        </div>
-      )}
+      <EditorWindow editor={editor} setEditor={setEditor} onSave={saveAllToServer} />
       
-      {/* Tileset Upload Dialog */}
-      {editor.uploadDialog?.open && (
-        <TilesetUploadDialog
-          open
-          dialog={editor.uploadDialog as any}
-          onCancel={() => setEditor(s => ({ ...s, uploadDialog: null }))}
-          setDialog={(next) => setEditor(s => ({ ...s, uploadDialog: next }))}
-          onConfirm={(tileset) => {
-                gameBridge.registerTileset(tileset);
-                setEditor(s => {
-                  const tilesets = [...(s.tilesets || [])];
-              if (!tilesets.find(t => t.key === tileset.key)) tilesets.push(tileset);
-                  try { localStorage.setItem('meetropolis.tilesets', JSON.stringify(tilesets)); } catch {}
-              return { ...s, tilesets, uploadDialog: null, tilePaint: { ...tileset, tilesetKey: tileset.key, tileIndex: 0 } } as any;
-            });
-          }}
-        />
-      )}
+      {/* Tileset Upload Dialog ausgelagert in EditorWindow */}
 
       {/* Bubble Banner */}
       <BubbleBanner 
@@ -2490,65 +1621,12 @@ export function App() {
       {/* (Alt) Benutzerverwaltung-Profilmodal entfernt – Benutzerverwaltung läuft über Overlay + UserManagement */}
 
       {/* Einladungen Modal (einheitliche Modal-Komponente) */}
-      <Modal open={invitesModalOpen} onOpenChange={setInvitesModalOpen} title="Einladungen" maxWidth={900}>
-        {invitesLoading ? (
-          <div style={{ color:'var(--fg-subtle)', fontSize: 13 }}>Lade Einladungen…</div>
-        ) : (
-          <Card style={{ padding: 0, overflow: 'hidden' }}>
-            <AdminTable
-              headers={[
-                'Code',
-                'E-Mail',
-                'Erstellt',
-                'Status',
-                <span key="actions" style={{ display:'inline-block', width: 220 }}>Aktionen</span>
-              ]}
-            >
-              {invites.length === 0 && (
-                <tr><td colSpan={5} style={{ padding:'12px', color:'var(--fg-subtle)' }}>Keine Einladungen vorhanden.</td></tr>
-              )}
-              {invites.map(inv => (
-                <Tr key={inv.code} style={{ borderBottom: '1px solid var(--border)' }}>
-                  <Td>
-                    <code style={{ display:'inline-block', padding:'4px 6px', borderRadius:6, border:'1px solid var(--border)', background:'rgba(255,255,255,0.06)' }}>{inv.code}</code>
-                  </Td>
-                  <Td>{inv.email || '—'}</Td>
-                  <Td>{inv.createdAt ? new Date(inv.createdAt).toLocaleString() : '—'}</Td>
-                  <Td>{inv.usedAt ? 'Eingelöst' : 'Offen'}</Td>
-                  <Td style={{ display:'flex', gap: 8 }}>
-                    <Button onClick={async ()=>{ try { await navigator.clipboard.writeText(inv.code); } catch {} }} style={{ padding:'6px 16px', borderRadius: 6, fontSize: 13 }}>Kopieren</Button>
-                    {!inv.usedAt && (
-                      <Button variant="danger" onClick={async ()=>{
-                        try {
-                          const res = await fetch(`${apiBase}/invites/${encodeURIComponent(inv.code)}`, { method:'DELETE', credentials:'include' });
-                          if (res.ok) setInvites(invites.filter(i => i.code !== inv.code));
-                        } catch {}
-                      }} style={{ padding:'6px 16px', borderRadius: 6, fontSize: 13 }}>Löschen</Button>
-                    )}
-                  </Td>
-                </Tr>
-              ))}
-            </AdminTable>
-          </Card>
-        )}
-      </Modal>
+      <InvitesModal open={invitesModalOpen} onOpenChange={setInvitesModalOpen} apiBase={apiBase} />
 
       {/* Admin: Tenants */}
-      <Modal open={adminOpen} onOpenChange={setAdminOpen} title="Mandanten-Administration" maxWidth={1000}>
-        {isInternalOwner ? (
-          <TenantsAdmin apiBase={apiBase} />
-        ) : (
-          <div style={{ color:'var(--fg-subtle)', fontSize: 13 }}>Kein Zugriff</div>
-        )}
-      </Modal>
+      <TenantsAdminModal open={adminOpen} onOpenChange={setAdminOpen} apiBase={apiBase} isInternalOwner={isInternalOwner} />
 
-      {/* Editor Exit Confirm */}
-      <Modal open={confirmExitOpen} onOpenChange={setConfirmExitOpen} title={t('editor.confirmExitTitle')} description={t('editor.confirmExitDesc')} maxWidth={420}>
-        <div style={{ display:'flex', justifyContent:'flex-end', gap: 8 }}>
-          <Button onClick={() => setConfirmExitOpen(false)}>{t('editor.exitCancel')}</Button>
-          <Button variant="danger" onClick={() => { setConfirmExitOpen(false); try { (window as any).currentPhaserScene?.setAssetPreview?.(null); } catch {}; try { gameBridge.setEditorMode(false); } catch {}; setEditor(s => ({ ...s, pendingTerrain: null as any, pendingAsset: null as any, tool: 'select', active: false } as any)); }}>{t('editor.exitConfirm')}</Button>
-        </div>
-      </Modal>
+      {/* Editor Exit Confirm ausgelagert in EditorWindow */}
     </div>
     );
 }

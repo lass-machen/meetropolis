@@ -42,6 +42,8 @@ type Bridge = {
   setBackgroundColor: (hex: string) => void;
   // Spawn-Marker Overlay (Editor)
   setSpawnMarker: (pos: { x: number; y: number } | null) => void;
+  // Force-persist editor layers to server (no size guard)
+  saveEditorLayersHard?: () => void;
 };
 
 export type SceneApi = {
@@ -68,6 +70,7 @@ export type SceneApi = {
   setEditorMode?: (enabled: boolean) => void;
   setBackgroundColor?: (hex: string) => void;
   setSpawnMarker?: (pos: { x: number; y: number } | null) => void;
+  saveEditorLayersHard?: () => void;
 };
 
 let sceneApi: SceneApi | null = null;
@@ -227,9 +230,10 @@ export const gameBridge: Bridge = {
         tilesetPersistTimer = setTimeout(() => {
           try {
             const base = (window as any).VITE_API_BASE || (import.meta as any).env?.VITE_API_BASE || `${window.location.protocol}//${window.location.hostname}:2567`;
+            const mapName = (typeof window !== 'undefined' && (((window as any).__map_name) || (window as any).MAP_NAME)) || 'office';
             const body = JSON.stringify({ tilesets: next });
             if (body.length < 200_000) {
-              fetch(`${base}/maps/office/editor-state`, { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body }).catch(()=>{});
+              fetch(`${base}/maps/${encodeURIComponent(mapName)}/editor-state`, { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body }).catch(()=>{});
               try { (window as any).DEBUG_LOGS && console.debug('[ASSETS_DBG][Bridge] persisted tileset to server', { count: next.length }); } catch {}
             }
           } catch {}
@@ -300,5 +304,6 @@ export const gameBridge: Bridge = {
   setSpawnMarker: (pos) => {
     cachedSpawnMarker = pos ? { x: pos.x, y: pos.y } : null;
     sceneApi?.setSpawnMarker?.(pos);
-  }
+  },
+  saveEditorLayersHard: () => { try { sceneApi?.saveEditorLayersHard?.(); } catch {} }
 };

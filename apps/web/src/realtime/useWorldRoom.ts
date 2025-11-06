@@ -216,52 +216,77 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
           if (gameBridge && typeof (gameBridge as any).handleEditorUpdate === 'function') (gameBridge as any).handleEditorUpdate(data);
         });
 
+        // v2: Chunks-Updates direkt anwenden
+        room.onMessage('chunks_updated', (payload: any) => {
+          try {
+            const layer = (payload && typeof payload.layer === 'string') ? payload.layer : null;
+            const updates = Array.isArray(payload?.updates) ? payload.updates : [];
+            if (!layer || updates.length === 0) return;
+            const layerName = (layer === 'collision' || layer === 'walls' || layer === 'ground') ? layer : null;
+            if (!layerName) return;
+            if (gameBridge && typeof (gameBridge as any).applyChunkUpdates === 'function') {
+              (gameBridge as any).applyChunkUpdates(layerName, updates);
+            }
+          } catch {}
+        });
+
         room.onMessage('remote_control', async (payload: { mic?: boolean; cam?: boolean; share?: boolean; dnd?: boolean }) => {
           // Wichtig: Schalte Mic/Kamera ausschließlich über den AVManager,
-          // damit Pending-Flags, Reconnect-Recovery und Publishes konsistent bleiben.
+          // und vermeide No-Op/Flapping durch idempotente Guards.
+          const roomRef: any = avRef.current?.room as any;
           try {
             if (typeof payload.mic === 'boolean') {
+              const { isLocalMicOn } = await import('../av/core/localState');
+              const current = isLocalMicOn(roomRef);
               const target = !!payload.mic;
-              await avRef.current?.setMicrophoneEnabled(target);
-              try {
-                if (!target) {
-                  // Zeige lokale Toast-Meldung
-                  const { default: i18n } = await import('../lib/i18n');
-                  const title = i18n.t('participant.forceMutedSelfTitle');
-                  const desc = i18n.t('participant.forceMutedSelfDesc');
-                  const close = i18n.t('toast.close');
-                  const host = document.createElement('div');
-                  host.style.position = 'fixed';
-                  host.style.bottom = '16px';
-                  host.style.right = '16px';
-                  host.style.zIndex = '120';
-                  host.innerHTML = `
-                    <div style="display:grid;gap:6px;min-width:240px;max-width:420px;padding:12px;border-radius:10px;border:1px solid rgba(244,63,94,0.45);background:rgba(244,63,94,0.15);color:var(--fg);box-shadow:var(--shadow)">
-                      <div style="font-weight:700;">${title}</div>
-                      <div style="font-size:13px;color:var(--fg-subtle)">${desc}</div>
-                      <div style="display:flex;justify-content:flex-end">
-                        <button data-toast-close style="padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--glass);color:var(--fg);cursor:pointer">${close}</button>
-                      </div>
-                    </div>`;
-                  document.body.appendChild(host);
-                  const remove = () => { try { host.remove(); } catch {} };
-                  try { host.querySelector('[data-toast-close]')?.addEventListener('click', remove, { once: true } as any); } catch {}
-                  setTimeout(remove, 4500);
-                }
-              } catch {}
+              if (current !== target) {
+                await avRef.current?.setMicrophoneEnabled(target);
+                try {
+                  if (!target) {
+                    const { default: i18n } = await import('../lib/i18n');
+                    const title = i18n.t('participant.forceMutedSelfTitle');
+                    const desc = i18n.t('participant.forceMutedSelfDesc');
+                    const close = i18n.t('toast.close');
+                    const host = document.createElement('div');
+                    host.style.position = 'fixed';
+                    host.style.bottom = '16px';
+                    host.style.right = '16px';
+                    host.style.zIndex = '120';
+                    host.innerHTML = `
+                      <div style="display:grid;gap:6px;min-width:240px;max-width:420px;padding:12px;border-radius:10px;border:1px solid rgba(244,63,94,0.45);background:rgba(244,63,94,0.15);color:var(--fg);box-shadow:var(--shadow)">
+                        <div style="font-weight:700;">${title}</div>
+                        <div style="font-size:13px;color:var(--fg-subtle)">${desc}</div>
+                        <div style="display:flex;justify-content:flex-end">
+                          <button data-toast-close style="padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--glass);color:var(--fg);cursor:pointer">${close}</button>
+                        </div>
+                      </div>`;
+                    document.body.appendChild(host);
+                    const remove = () => { try { host.remove(); } catch {} };
+                    try { host.querySelector('[data-toast-close]')?.addEventListener('click', remove, { once: true } as any); } catch {}
+                    setTimeout(remove, 4500);
+                  }
+                } catch {}
+              }
             }
           } catch {}
           try {
             if (typeof payload.cam === 'boolean') {
-              await avRef.current?.setCameraEnabled(payload.cam);
+              const { isLocalCamOn } = await import('../av/core/localState');
+              const current = isLocalCamOn(roomRef);
+              if (current !== !!payload.cam) {
+                await avRef.current?.setCameraEnabled(!!payload.cam);
+              }
             }
           } catch {}
           if (typeof payload.share === 'boolean') {
             try {
-              if (payload.share && !avRef.current?.room?.localParticipant?.isScreenShareEnabled) {
+              const { isLocalShareOn } = await import('../av/core/localState');
+              const current = isLocalShareOn(roomRef);
+              const target = !!payload.share;
+              if (target && !current) {
                 const ok = await avRef.current?.startScreenshare();
                 if (ok) setAvState(s => ({ ...s, share: true }));
-              } else if (!payload.share && avRef.current?.room?.localParticipant?.isScreenShareEnabled) {
+              } else if (!target && current) {
                 await avRef.current?.stopScreenshare();
                 setAvState(s => ({ ...s, share: false }));
               }

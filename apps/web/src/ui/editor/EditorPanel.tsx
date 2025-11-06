@@ -33,7 +33,8 @@ export function EditorPanel(props: {
     const fetchZones = async () => {
       try {
         const base = (window as any).VITE_API_BASE || (import.meta as any).env?.VITE_API_BASE || `${window.location.protocol}//${window.location.hostname}:2567`;
-        const res = await fetch(`${base}/maps/office/editor-state`, { credentials: 'include' });
+        const mapName = (typeof window !== 'undefined' && (((window as any).__map_name) || (window as any).MAP_NAME)) || 'office';
+        const res = await fetch(`${base}/maps/${encodeURIComponent(mapName)}/editor-state`, { credentials: 'include' });
         if (!res.ok) return;
         const data = await res.json();
         const zones = Array.isArray((data as any)?.zones)
@@ -61,6 +62,15 @@ export function EditorPanel(props: {
               setEditor(s => ({ ...s, spawn: { x: sp.x, y: sp.y } } as any));
               try { (window as any).currentPhaserScene?.setSpawnMarker?.({ x: sp.x, y: sp.y }); } catch {}
               try { localStorage.setItem('meetropolis.spawn', JSON.stringify({ x: sp.x, y: sp.y })); } catch {}
+            }
+          } catch {}
+          // Assets (Server → Scene + State + LocalStorage)
+          try {
+            const assets = Array.isArray((data as any)?.assets) ? (data as any).assets : [];
+            if (assets.length > 0) {
+              try { (window as any).currentPhaserScene?.setEditorAssets?.(assets); } catch {}
+              setEditor(s => ({ ...s, assets } as any));
+              try { localStorage.setItem('meetropolis.assets', JSON.stringify(assets)); } catch {}
             }
           } catch {}
         }
@@ -345,10 +355,20 @@ export function EditorPanel(props: {
                   return (
                     <button key={`${it.packUuid}:${it.itemId}`}
                       onClick={() => {
+                        // Behandle Terrain-Items wie Objekte: platziere als Asset (wie zuvor)
                         setEditor(s => ({
                           ...s,
-                          tool: 'terrain',
-                          pendingTerrain: { packUuid: it.packUuid, itemId: it.itemId, key: it.key, dataUrl: it.dataUrl, width: it.width, height: it.height }
+                          tool: 'asset',
+                          pendingAsset: {
+                            key: it.key,
+                            dataUrl: it.dataUrl,
+                            packUuid: it.packUuid,
+                            itemId: it.itemId,
+                            category: 'terrain',
+                            collide: false,
+                            width: it.width,
+                            height: it.height,
+                          }
                         }));
                         try { (window as any).currentPhaserScene?.setAssetPreview?.({ dataUrl: it.dataUrl, width: it.width, height: it.height }); } catch {}
                       }}

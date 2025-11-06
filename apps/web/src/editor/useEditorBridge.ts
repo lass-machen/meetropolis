@@ -43,9 +43,10 @@ export function useEditorBridge(params: {
         // Best-effort: Server-Persistenz
         try {
           const base = (window as any).VITE_API_BASE || (import.meta as any).env?.VITE_API_BASE || `${window.location.protocol}//${window.location.hostname}:2567`;
+          const mapName = (typeof window !== 'undefined' && (((window as any).__map_name) || (window as any).MAP_NAME)) || 'office';
           const body = JSON.stringify({ spawn: { x, y } });
           if (body.length < 100000) {
-            fetch(`${base}/maps/office/editor-state`, { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body }).catch(() => {});
+            fetch(`${base}/maps/${encodeURIComponent(mapName)}/editor-state`, { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body }).catch(() => {});
           }
         } catch {}
         try {
@@ -86,9 +87,10 @@ export function useEditorBridge(params: {
         // Best-effort: Server-Persistenz
         try {
           const base = (window as any).VITE_API_BASE || (import.meta as any).env?.VITE_API_BASE || `${window.location.protocol}//${window.location.hostname}:2567`;
+          const mapName = (typeof window !== 'undefined' && (((window as any).__map_name) || (window as any).MAP_NAME)) || 'office';
           const body = JSON.stringify({ spawn: { x, y } });
           if (body.length < 100000) {
-            fetch(`${base}/maps/office/editor-state`, { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body }).catch(() => {});
+            fetch(`${base}/maps/${encodeURIComponent(mapName)}/editor-state`, { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body }).catch(() => {});
           }
         } catch {}
         try {
@@ -140,9 +142,10 @@ export function useEditorBridge(params: {
           // Best-effort Server-Update (optional, ohne UI-Block)
           try {
             const base = (window as any).VITE_API_BASE || (import.meta as any).env?.VITE_API_BASE || `${window.location.protocol}//${window.location.hostname}:2567`;
+            const mapName = (typeof window !== 'undefined' && (((window as any).__map_name) || (window as any).MAP_NAME)) || 'office';
             const body = JSON.stringify({ zones, replaceZones: true });
             if (body.length < 100000) {
-              fetch(`${base}/maps/office/editor-state`, { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body }).catch(() => {});
+              fetch(`${base}/maps/${encodeURIComponent(mapName)}/editor-state`, { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body }).catch(() => {});
             }
           } catch {}
           return { ...s, zones, drag: null, editingZoneIndex: null, lastTile: { tileX, tileY } } as any;

@@ -19,6 +19,10 @@ export function Modal(props: ModalProps) {
   const { open, onOpenChange, title, description, right, children, footer, maxWidth = 600, zIndexBase, draggable } = props;
   const baseZ = typeof zIndexBase === 'number' ? zIndexBase : 1000;
   const { t } = useTranslation();
+  const tr = (key: string, fallback: string) => {
+    const v = t(key);
+    return v && v !== key ? v : fallback;
+  };
   const contentRef = React.useRef<HTMLDivElement | null>(null);
   const [dragging, setDragging] = React.useState(false);
   const dragOriginRef = React.useRef<{ x: number; y: number } | null>(null);
@@ -90,7 +94,7 @@ export function Modal(props: ModalProps) {
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 {right}
                 <DialogClose asChild>
-                  <button title={t('modal.close')} style={{ border: '1px solid var(--border)', background: 'var(--glass)', borderRadius: 'var(--radius-xs)', width: 32, height: 32, cursor: 'pointer' }}>×</button>
+                  <button title={tr('modal.close', 'Schließen')} style={{ border: '1px solid var(--border)', background: 'var(--glass)', borderRadius: 'var(--radius-xs)', width: 32, height: 32, cursor: 'pointer' }}>×</button>
                 </DialogClose>
               </div>
             </div>

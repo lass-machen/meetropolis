@@ -17,19 +17,26 @@ import fsp from 'fs/promises';
 import multer from 'multer';
 import unzipper from 'unzipper';
 import Stripe from 'stripe';
+import { registerApiTokenRoutes } from './api/routes/tokens.js';
+import { registerPresenceRoutes } from './api/routes/presence.js';
+import { registerUserRoutes } from './api/routes/users.js';
+import { registerControlRoutes } from './api/routes/controls.js';
 
 const prisma = new PrismaClient();
-const JWT_SECRET = (() => {
+function getJwtSecret(): string {
   const fromEnv = process.env.JWT_SECRET;
   if (fromEnv && fromEnv.length > 0) return fromEnv;
   if (process.env.NODE_ENV === 'production') {
     throw new Error('[SECURITY] JWT_SECRET fehlt in Produktion');
   }
   // Development: ephemeres Secret, nur für lokale Sessions
+  const key = (globalThis as any).__DEV_JWT_SECRET__ as string | undefined;
+  if (key && key.length > 0) return key;
   const devSecret = crypto.randomBytes(32).toString('hex');
-  logger.warn('[SECURITY] JWT_SECRET fehlt – verwende ephemeres DEV-Secret.');
+  try { logger.warn('[SECURITY] JWT_SECRET fehlt – verwende ephemeres DEV-Secret.'); } catch {}
+  (globalThis as any).__DEV_JWT_SECRET__ = devSecret;
   return devSecret;
-})();
+}
 const COOKIE_NAME = 'auth_token';
 const API_TOKEN_PEPPER = (() => {
   const fromEnv = process.env.API_TOKEN_PEPPER;
@@ -99,7 +106,7 @@ function requireAuth(req: express.Request): { userId: string; tenantId?: string 
   const raw = (req as any).cookies?.[COOKIE_NAME] || req.headers['authorization']?.toString()?.replace('Bearer ', '');
   if (!raw) return null;
   try {
-    const payload = jwt.verify(raw, JWT_SECRET) as any;
+    const payload = jwt.verify(raw, getJwtSecret()) as any;
     return { userId: payload.sub, tenantId: payload.tid };
   } catch {
     return null;
@@ -237,7 +244,7 @@ export function registerApi(app: express.Express) {
         });
       }
     } catch {}
-    const token = jwt.sign({ sub: user.id, tid: (invite as any).tenantId }, JWT_SECRET, { expiresIn: '30d' });
+    const token = jwt.sign({ sub: user.id, tid: (invite as any).tenantId }, getJwtSecret(), { expiresIn: '30d' });
     setAuthCookie(res, token);
     res.json({ id: user.id, email: user.email, name: user.name });
   });
@@ -257,7 +264,7 @@ export function registerApi(app: express.Express) {
     // Ensure user is member of current tenant
     const membership = await prisma.membership.findUnique({ where: { tenantId_userId: { tenantId: tenant.id, userId: user.id } } as any });
     if (!membership) return res.status(403).json({ error: 'not_member_of_tenant' });
-    const token = jwt.sign({ sub: user.id, tid: tenant.id }, JWT_SECRET, { expiresIn: '30d' });
+    const token = jwt.sign({ sub: user.id, tid: tenant.id }, getJwtSecret(), { expiresIn: '30d' });
     setAuthCookie(res, token);
     res.json({ id: user.id, email: user.email, name: user.name });
   });
@@ -1090,10 +1097,8 @@ export function registerApi(app: express.Express) {
     }
     // meta speichert editor bezogene daten
     const meta = (map.meta as any) || {};
+    try { logger.debug('[EditorState] GET', { map: name, tilesets: Array.isArray(meta.tilesets) ? meta.tilesets.length : 0, assets: Array.isArray(meta.assets) ? meta.assets.length : 0 }); } catch {}
     res.json({
-      editorGround: meta.editorGround ?? null,
-      editorWalls: meta.editorWalls ?? null,
-      collision: meta.collision ?? null,
       tilesets: meta.tilesets ?? [],
       assets: meta.assets ?? [],
       zones: await prisma.zone.findMany({ where: { mapId: map.id }, select: { id: true, name: true, capacity: true, polygon: true } }),
@@ -1109,9 +1114,7 @@ export function registerApi(app: express.Express) {
     const tenant = getTenantFromReq(req);
     if (!tenant) return res.status(400).json({ error: 'tenant_required' });
     const editorSchema = z.object({
-      editorGround: z.array(z.number()).nullable().optional(),
-      editorWalls: z.array(z.number()).nullable().optional(),
-      collision: z.array(z.number()).nullable().optional(),
+      // v2-only: keine Layer-Arrays mehr, nur Meta
       tilesets: z.array(z.any()).optional(),
       assets: z.array(z.any()).optional(),
       zones: z.array(z.any()).optional(),
@@ -1121,7 +1124,7 @@ export function registerApi(app: express.Express) {
     });
     const parse = editorSchema.safeParse(req.body || {});
     if (!parse.success) return res.status(400).json({ error: 'invalid editor payload' });
-    const { editorGround, editorWalls, collision, tilesets, assets, zones, backgroundColor, replaceZones, spawn } = parse.data;
+    const { tilesets, assets, zones, backgroundColor, replaceZones, spawn } = parse.data;
     try { logger.debug('[EditorState] PUT', { map: name, tilesets: Array.isArray(tilesets) ? tilesets.length : undefined, assets: Array.isArray(assets) ? assets.length : undefined, zones: Array.isArray(zones) ? zones.length : undefined, spawn: !!spawn }); } catch {}
     const found = await prisma.map.findFirst({ where: { name, tenantId: tenant.id }, include: { rooms: true } });
     const map = found ?? await prisma.map.create({ data: { name, meta: {}, tenantId: tenant.id } });
@@ -1136,16 +1139,13 @@ export function registerApi(app: express.Express) {
         roomForZones = await prisma.room.findFirst({ where: { mapId: map.id } });
       }
     }
-    // Update meta blobs - merge with existing data to preserve previous edits
+    // Update meta blobs - v2-only: keine Layer-Arrays mehr
     const currentMeta = (map.meta as any) || {};
     await prisma.map.update({ 
       where: { id: map.id }, 
       data: { 
         meta: { 
           ...currentMeta,
-          editorGround: editorGround ?? currentMeta.editorGround ?? null, 
-          editorWalls: editorWalls ?? currentMeta.editorWalls ?? null,
-          collision: collision ?? currentMeta.collision ?? null, 
           tilesets: tilesets ?? currentMeta.tilesets ?? [], 
           assets: assets ?? currentMeta.assets ?? [],
           backgroundColor: backgroundColor ?? currentMeta.backgroundColor ?? undefined,
@@ -1706,7 +1706,7 @@ export function registerApi(app: express.Express) {
         user = await prisma.user.create({ data: { email, name: parse.data.name, passwordHash: hash, emailVerifiedAt: new Date() } });
       }
       await prisma.membership.upsert({ where: { tenantId_userId: { tenantId: tenant.id, userId: (user as any).id } } as any, update: { role: 'owner' as any }, create: { tenantId: tenant.id, userId: (user as any).id, role: 'owner' as any } });
-      const token = jwt.sign({ sub: (user as any).id, tid: tenant.id }, JWT_SECRET, { expiresIn: '30d' });
+      const token = jwt.sign({ sub: (user as any).id, tid: tenant.id }, getJwtSecret(), { expiresIn: '30d' });
       setAuthCookie(res, token);
       return res.json({ ok: true, tenant: { id: tenant.id, slug: tenant.slug, freeSeats: tenant.freeSeats }, user: { id: (user as any).id, email: (user as any).email } });
     } catch (e: any) {
@@ -1715,209 +1715,17 @@ export function registerApi(app: express.Express) {
     }
   });
 
-  // Presence: recent per user (latest entry), for roster UI
-  app.get('/presence/recent', async (req: express.Request, res: express.Response) => {
-    const auth = requireAuth(req);
-    if (!auth) return res.status(401).json({ error: 'unauthorized' });
-    const tenant = getTenantFromReq(req);
-    if (!tenant) return res.status(400).json({ error: 'tenant_required' });
-    try {
-      // Get latest presence per user by ordering desc and using distinct by userId
-      const recent = await prisma.presence.findMany({
-        where: { tenantId: tenant.id },
-        orderBy: { updatedAt: 'desc' },
-        distinct: ['userId'],
-        include: { user: { select: { id: true, email: true, name: true } }, room: { select: { name: true } } },
-      } as any);
-      const out = recent.map((p: any) => ({
-        userId: p.userId,
-        user: { id: p.user?.id, email: p.user?.email, name: p.user?.name },
-        room: p.room?.name || 'world',
-        x: p.x,
-        y: p.y,
-        direction: p.direction,
-        updatedAt: p.updatedAt,
-      }));
-      res.json(out);
-    } catch (e) {
-      res.status(500).json({ error: 'failed to load presence' });
-    }
-  });
+  // Presence (recent)
+  registerPresenceRoutes(app, prisma, requireAuth, getTenantFromReq);
 
-  // Single user lookup (authenticated)
-  app.get('/users/:id', async (req: express.Request, res: express.Response) => {
-    const auth = requireAuth(req);
-    if (!auth) return res.status(401).json({ error: 'unauthorized' });
-    const tenant = getTenantFromReq(req);
-    if (!tenant) return res.status(400).json({ error: 'tenant_required' });
-    const id = req.params.id;
-    const user = await prisma.user.findFirst({ where: { id, memberships: { some: { tenantId: tenant.id } } } as any, select: { id: true, email: true, name: true, createdAt: true, updatedAt: true } });
-    if (!user) return res.status(404).json({ error: 'not found' });
-    res.json(user);
-  });
+  // Users
+  registerUserRoutes(app, prisma, requireAuth, getTenantFromReq);
 
   // API Tokens management (session-authenticated)
-  app.get('/api-tokens', async (req: express.Request, res: express.Response) => {
-    const auth = requireAuth(req);
-    if (!auth) return res.status(401).json({ error: 'unauthorized' });
-    const list = await prisma.apiToken.findMany({ where: { userId: auth.userId }, orderBy: { createdAt: 'desc' } });
-    res.json(list.map((t: any) => ({ id: t.id, name: t.name, createdAt: t.createdAt, lastUsedAt: t.lastUsedAt })));
-  });
+  registerApiTokenRoutes(app, prisma, requireAuth, API_TOKEN_PEPPER);
 
-  app.post('/api-tokens', async (req: express.Request, res: express.Response) => {
-    const auth = requireAuth(req);
-    if (!auth) return res.status(401).json({ error: 'unauthorized' });
-    const schema = z.object({ name: z.string().min(1).max(100).optional() });
-    const parse = schema.safeParse(req.body || {});
-    if (!parse.success) return res.status(400).json({ error: 'invalid payload' });
-    const raw = crypto.randomBytes(32).toString('hex');
-    const hash = crypto.createHash('sha256').update(API_TOKEN_PEPPER + raw).digest('hex');
-    const rec = await prisma.apiToken.create({ data: { userId: auth.userId, name: parse.data.name, hash } });
-    res.json({ id: rec.id, token: raw, name: rec.name, createdAt: rec.createdAt });
-  });
-
-  app.delete('/api-tokens/:id', async (req: express.Request, res: express.Response) => {
-    const auth = requireAuth(req);
-    if (!auth) return res.status(401).json({ error: 'unauthorized' });
-    const id = req.params.id;
-    try {
-      const tok = await prisma.apiToken.findUnique({ where: { id } });
-      if (!tok || tok.userId !== auth.userId) return res.status(404).json({ error: 'not found' });
-      await prisma.apiToken.delete({ where: { id } });
-      res.json({ ok: true });
-    } catch {
-      res.status(400).json({ error: 'delete failed' });
-    }
-  });
-
-  // Remote controls (session or API token)
-  app.post('/controls', async (req: express.Request, res: express.Response) => {
-    const sessionAuth = requireAuth(req);
-    const tokenAuth = await requireApiToken(req);
-    const auth = sessionAuth || tokenAuth;
-    if (!auth) return res.status(401).json({ error: 'unauthorized' });
-
-    const schema = z.object({
-      mic: z.boolean().optional(),
-      cam: z.boolean().optional(),
-      share: z.boolean().optional(),
-      dnd: z.boolean().optional(),
-    }).refine(v => (v.mic !== undefined || v.cam !== undefined || v.share !== undefined || v.dnd !== undefined), { message: 'at least one field required' });
-    const parse = schema.safeParse(req.body || {});
-    if (!parse.success) return res.status(400).json({ error: 'invalid payload' });
-
-    const gameServer = (global as any).gameServer;
-    if (!gameServer) return res.status(500).json({ error: 'game server not available' });
-
-    // Find connected client(s) of this user
-    const payload = parse.data;
-    let delivered = 0;
-    // Try different ways to access rooms
-    let roomArray: any[] = [];
-    
-    // First try our global active rooms
-    const activeWorldRooms = (global as any).activeWorldRooms;
-    if (activeWorldRooms && activeWorldRooms.size > 0) {
-      roomArray = Array.from(activeWorldRooms);
-    } else if (gameServer.matchMaker) {
-      // Colyseus 0.14+ uses matchMaker
-      const allRooms = await gameServer.matchMaker.query({}) || [];
-      roomArray = allRooms;
-    } else if (gameServer.rooms) {
-      const rooms = gameServer.rooms;
-      roomArray = rooms instanceof Map ? Array.from(rooms.values()) : Array.from(rooms);
-    }
-    
-    const debug = { authUserId: auth.userId, foundPlayers: [] as any[], roomCount: roomArray.length };
-    
-    for (const room of roomArray) {
-      try {
-        if (!room || !room.state || !room.state.players) continue;
-        const matches: string[] = [];
-        room.state.players.forEach((p: any, sid: string) => {
-          debug.foundPlayers.push({ sid, identity: p.identity, name: p.name });
-          if (p && (p.identity === auth.userId || p.name === auth.userId)) matches.push(sid);
-        });
-        if (matches.length === 0) continue;
-        // Map session IDs to client instances
-        const clients: any[] = Array.from((room as any).clients?.values?.() || (room as any).clients || []);
-        for (const sid of matches) {
-          const client: any = clients.find((c: any) => c.sessionId === sid);
-          if (client && typeof client.send === 'function') {
-            client.send('remote_control', payload);
-            delivered++;
-          }
-        }
-      } catch {}
-    }
-
-    if (delivered === 0) {
-      logger.debug('[Controls] No user online:', debug);
-      return res.status(409).json({ error: 'user not online', debug });
-    }
-    res.json({ ok: true, delivered });
-  });
-
-  // Force-controls for a specific identity (moderation)
-  app.post('/controls/for/:identity', async (req: express.Request, res: express.Response) => {
-    const sessionAuth = requireAuth(req);
-    const tokenAuth = await requireApiToken(req);
-    const auth = sessionAuth || tokenAuth;
-    if (!auth) return res.status(401).json({ error: 'unauthorized' });
-
-    const schema = z.object({ mic: z.boolean().optional(), cam: z.boolean().optional(), share: z.boolean().optional(), dnd: z.boolean().optional() })
-      .refine(v => (v.mic !== undefined || v.cam !== undefined || v.share !== undefined || v.dnd !== undefined), { message: 'at least one field required' });
-    const parse = schema.safeParse(req.body || {});
-    if (!parse.success) return res.status(400).json({ error: 'invalid payload' });
-
-    const targetIdentity = (req.params.identity || '').toString();
-    if (!targetIdentity) return res.status(400).json({ error: 'identity required' });
-
-    const gameServer = (global as any).gameServer;
-    if (!gameServer) return res.status(500).json({ error: 'game server not available' });
-
-    const payload = parse.data;
-    let delivered = 0;
-    let roomArray: any[] = [];
-    const activeWorldRooms = (global as any).activeWorldRooms;
-    if (activeWorldRooms && activeWorldRooms.size > 0) {
-      roomArray = Array.from(activeWorldRooms);
-    } else if (gameServer.matchMaker) {
-      const allRooms = await gameServer.matchMaker.query({}) || [];
-      roomArray = allRooms;
-    } else if (gameServer.rooms) {
-      const rooms = gameServer.rooms;
-      roomArray = rooms instanceof Map ? Array.from(rooms.values()) : Array.from(rooms);
-    }
-
-    const debug = { by: auth.userId, targetIdentity, roomCount: roomArray.length, matched: [] as Array<{ sid: string; identity: string }> };
-    for (const room of roomArray) {
-      try {
-        if (!room || !room.state || !room.state.players) continue;
-        const matches: string[] = [];
-        room.state.players.forEach((p: any, sid: string) => {
-          if (p && (p.identity === targetIdentity || p.name === targetIdentity)) {
-            matches.push(sid);
-            debug.matched.push({ sid, identity: p.identity });
-          }
-        });
-        if (matches.length === 0) continue;
-        const clients: any[] = Array.from((room as any).clients?.values?.() || (room as any).clients || []);
-        for (const sid of matches) {
-          const client: any = clients.find((c: any) => c.sessionId === sid);
-          if (client && typeof client.send === 'function') {
-            client.send('remote_control', payload);
-            delivered++;
-          }
-        }
-      } catch (e) {}
-    }
-    if (delivered === 0) {
-      logger.debug('[Controls] No target online:', debug);
-      return res.status(409).json({ error: 'target not online', debug });
-    }
-    res.json({ ok: true, delivered });
-  });
+  // Controls
+  registerControlRoutes(app, requireAuth, requireApiToken);
 
   // Debug endpoint for Colyseus rooms
   app.get('/debug/rooms', async (_req: express.Request, res: express.Response) => {

@@ -1,8 +1,8 @@
 import React from 'react';
 import './styles/theme.css';
 import { createRoot } from 'react-dom/client';
-import { App } from './App';
-import { AppProviders } from './app/providers/AppProviders';
+import { AppRoutes } from './app/routes/AppRoutes';
+import { RootProviders } from './app/providers/RootProviders';
 // Sentry Browser SDK (optional via VITE_SENTRY_DSN)
 try {
   const dsn = (import.meta as any).env?.VITE_SENTRY_DSN as string | undefined;
@@ -65,9 +65,9 @@ try {
 const root = createRoot(document.getElementById('root')!);
 root.render(
   <React.StrictMode>
-    <AppProviders>
-      <App />
-    </AppProviders>
+    <RootProviders>
+      <AppRoutes />
+    </RootProviders>
   </React.StrictMode>
 );
 

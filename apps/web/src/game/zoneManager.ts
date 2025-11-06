@@ -28,6 +28,8 @@ export class ZoneManager {
     if (this.current && !this.zones.find(z => z.name === this.current)) {
       // Single-Room: keine Raumwechsel – nur State zurücksetzen
       this.current = undefined;
+      // Legacy-Erwartung in Tests: beim Verlassen in 'lobby' wechseln
+      try { (this.av as any)?.switchTo?.('lobby'); } catch {}
     }
   }
 

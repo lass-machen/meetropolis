@@ -32,6 +32,7 @@ export function ThemeProvider(props: { children: React.ReactNode }) {
 
   React.useEffect(() => {
     if (typeof window === 'undefined') return;
+    if (typeof window.matchMedia !== 'function') return;
     const mq = window.matchMedia('(prefers-color-scheme: light)');
     const onChange = () => setSystem(mq.matches ? 'light' : 'dark');
     mq.addEventListener?.('change', onChange);
@@ -55,6 +56,10 @@ export function ThemeProvider(props: { children: React.ReactNode }) {
     setOverride((o: ThemeOverride) => o === 'system' ? 'light' : o === 'light' ? 'dark' : 'system');
   }, []);
 
+  const tr = (key: string, fallback: string) => {
+    const v = t(key);
+    return v && v !== key ? v : fallback;
+  };
   return (
     <ThemeContext.Provider value={{ override, setOverride, effective, cycle }}>
       <div style={{ background: 'var(--bg)', color: 'var(--fg)', minHeight: '100%', width: '100%' }}>
@@ -69,27 +74,31 @@ export function ThemeProvider(props: { children: React.ReactNode }) {
 export function ThemeToggleButton() {
   const { override, setOverride, cycle, effective } = useTheme();
   const { t } = useTranslation();
+  const tr = (key: string, fallback: string) => {
+    const v = t(key);
+    return v && v !== key ? v : fallback;
+  };
   return (
     <ButtonGroup size="sm">
       <Button
         icon="sun"
         iconPosition="only"
         active={override === 'light'}
-        title={t('theme.light')}
+        title={tr('theme.light', 'Helles Design')}
         onClick={() => setOverride('light')}
       />
       <Button
         icon="moon"
         iconPosition="only"
         active={override === 'dark'}
-        title={t('theme.dark')}
+        title={tr('theme.dark', 'Dunkles Design')}
         onClick={() => setOverride('dark')}
       />
       <Button
         icon="desktop"
         iconPosition="only"
         active={override === 'system'}
-        title={t('theme.system')}
+        title={tr('theme.system', 'Systemeinstellung')}
         onClick={() => setOverride('system')}
       />
     </ButtonGroup>
