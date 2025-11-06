@@ -996,6 +996,23 @@ export class MainScene extends Phaser.Scene {
       
       // Get name label first
       const nameLabel = this.nameLabels.get(id);
+      // If we initially rendered with a fallback (e.g. after hard reload) and
+      // we now have a proper name from the app/state, update the label text
+      // and recompute its geometry.
+      // TODO(TEST): UI/Phaser code is hard to unit-test here; covered indirectly via manual smoke.
+      if (nameLabel && p && typeof (p as any).name === 'string' && (p as any).name) {
+        try {
+          const textObj = (nameLabel as any).text as Phaser.GameObjects.Text | undefined;
+          if (textObj && textObj.text !== (p as any).name) {
+            textObj.setText((p as any).name);
+            const padX = (nameLabel as any).paddingX || 0;
+            const padY = (nameLabel as any).paddingY || 0;
+            (nameLabel as any).width = textObj.width + padX * 2;
+            (nameLabel as any).height = textObj.height + padY * 2;
+            this.drawNameLabel(nameLabel, false);
+          }
+        } catch {}
+      }
       
       // Update transparency if player has DND
       if ((p as any).dnd !== undefined) {
