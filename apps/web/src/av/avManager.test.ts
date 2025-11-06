@@ -103,6 +103,20 @@ describe('AVManager', () => {
     expect(room.localParticipant.unpublishTrack).toHaveBeenCalled();
   });
 
+  it('setMicrophoneEnabled(true) bei bereits aktivem Mic republished nicht erneut', async () => {
+    const mgr = makeManager() as any;
+    const room = makeFakeRoom();
+    mgr.current = room;
+
+    // Bereits live publizierter Mic-Track
+    const liveMic: any = { kind: 'audio', mediaStreamTrack: { readyState: 'live', enabled: true } };
+    room.localParticipant.trackPublications.set('mic', { track: liveMic, source: 'microphone', kind: 'audio' });
+
+    await mgr.setMicrophoneEnabled(true);
+
+    expect(room.localParticipant.publishTrack).not.toHaveBeenCalled();
+  });
+
   it('setCameraEnabled(true) publiziert Video-Track, false unpubliziert', async () => {
     const mgr = makeManager() as any;
     const room = makeFakeRoom();
@@ -118,6 +132,19 @@ describe('AVManager', () => {
     expect(room.localParticipant.unpublishTrack).toHaveBeenCalled();
   });
 
+  it('setCameraEnabled(true) bei bereits aktiver Kamera republished nicht erneut', async () => {
+    const mgr = makeManager() as any;
+    const room = makeFakeRoom();
+    mgr.current = room;
+
+    const liveCam: any = { kind: 'video', mediaStreamTrack: { readyState: 'live', enabled: true } };
+    room.localParticipant.trackPublications.set('cam', { track: liveCam, source: 'camera', kind: 'video' });
+
+    await mgr.setCameraEnabled(true);
+
+    expect(room.localParticipant.publishTrack).not.toHaveBeenCalled();
+  });
+
   it('startScreenshare publiziert Screen-Tracks', async () => {
     const mgr = makeManager() as any;
     const room = makeFakeRoom();
@@ -125,6 +152,36 @@ describe('AVManager', () => {
 
     await mgr.startScreenshare();
     expect(room.localParticipant.publishTrack).toHaveBeenCalled();
+  });
+
+  it('startScreenshare ist idempotent, wenn bereits Screensharing aktiv ist', async () => {
+    const mgr = makeManager() as any;
+    const room = makeFakeRoom();
+    mgr.current = room;
+
+    // Markiere bereits aktive Screen-Share-Pubs
+    room.localParticipant.trackPublications.set('shareV', { track: { kind: 'video' }, source: 'screen_share', kind: 'video' });
+    room.localParticipant.trackPublications.set('shareA', { track: { kind: 'audio' }, source: 'screen_share_audio', kind: 'audio' });
+
+    await mgr.startScreenshare();
+
+    expect(room.localParticipant.publishTrack).not.toHaveBeenCalled();
+  });
+
+  it('stopScreenshare unpubliziert vorhandene Screen-Share-Tracks', async () => {
+    const mgr = makeManager() as any;
+    const room = makeFakeRoom();
+    mgr.current = room;
+
+    const v: any = { kind: 'video', stop: vi.fn() };
+    const a: any = { kind: 'audio', stop: vi.fn() };
+    room.localParticipant.trackPublications.set('shareV', { track: v, source: 'screen_share', kind: 'video' });
+    room.localParticipant.trackPublications.set('shareA', { track: a, source: 'screen_share_audio', kind: 'audio' });
+
+    await mgr.stopScreenshare();
+
+    expect(room.localParticipant.unpublishTrack).toHaveBeenCalledWith(v);
+    expect(room.localParticipant.unpublishTrack).toHaveBeenCalledWith(a);
   });
 
   it('setzt initiale Remote-Audio-Lautstärke auf 0 bei TrackSubscribed (sicherer Start)', async () => {

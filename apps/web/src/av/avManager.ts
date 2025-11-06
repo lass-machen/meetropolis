@@ -135,14 +135,59 @@ export class AVManager {
           const room = this.current;
           if (!room) return;
           const pubs = Array.from(room.localParticipant.trackPublications.values());
-          const micOn = (pubs as any[]).some((pub: any) => {
+          const micPub: any = (pubs as any[]).find((pub: any) => {
             const src = (pub as any).source ?? (pub as any)?.track?.source;
             const kind = (pub as any).kind ?? (pub as any)?.track?.kind;
             return (src === 'microphone' || src === 0 || src === 2 || kind === 'audio') && !!(pub as any).track;
           });
-          if (!micOn) return;
-          try { await this.setMicrophoneEnabled(false); } catch {}
-          try { await this.setMicrophoneEnabled(true); } catch {}
+          if (!micPub) return; // Mic ist aus – Änderungen greifen beim nächsten Einschalten
+          const currentTrack: any = micPub.track;
+          const oldMst: any = currentTrack?.mediaStreamTrack || currentTrack;
+
+          const settings = useAvSettingsStore.getState().settings;
+          const isApple = (() => { try { const ua = (navigator as any)?.userAgent || ''; return /Macintosh|Mac OS X|iPhone|iPad/i.test(ua); } catch { return false; } })();
+          const supportsNs = (() => { try { const c = (navigator as any)?.mediaDevices?.getSupportedConstraints?.(); return !!(c && c.noiseSuppression); } catch { return false; } })();
+
+          try {
+            let newMst: MediaStreamTrack;
+            if (isApple && supportsNs) {
+              const audio: any = {
+                echoCancellation: settings.echoCancellation,
+                noiseSuppression: true,
+                autoGainControl: settings.autoGainControl,
+                channelCount: settings.channelCount,
+              };
+              if (this.preferredMic) audio.deviceId = this.preferredMic;
+              const stream = await navigator.mediaDevices.getUserMedia({ audio, video: false } as any);
+              newMst = stream.getAudioTracks()[0];
+              try { if ('contentHint' in newMst) (newMst as any).contentHint = 'speech'; } catch {}
+            } else {
+              const audio: any = {
+                echoCancellation: settings.echoCancellation,
+                noiseSuppression: false,
+                autoGainControl: settings.autoGainControl,
+                channelCount: settings.channelCount,
+              };
+              if (this.preferredMic) audio.deviceId = this.preferredMic;
+              const rawStream = await navigator.mediaDevices.getUserMedia({ audio, video: false } as any);
+              const rawMst = rawStream.getAudioTracks()[0];
+              const { wrapTrackWithVoiceIsolation } = await import('./audio/voiceIsolation');
+              newMst = await wrapTrackWithVoiceIsolation(rawMst);
+            }
+            // Nahtlos ersetzen statt Mute-Flip
+            if (typeof currentTrack?.replaceTrack === 'function') {
+              await currentTrack.replaceTrack(newMst as any);
+              try { oldMst?.stop?.(); } catch {}
+            } else {
+              // Fallback: minimaler Flip, falls replaceTrack nicht verfügbar
+              try { await this.setMicrophoneEnabled(false); } catch {}
+              try { await this.setMicrophoneEnabled(true); } catch {}
+            }
+          } catch {
+            // Letzter Fallback: alter Mechanismus
+            try { await this.setMicrophoneEnabled(false); } catch {}
+            try { await this.setMicrophoneEnabled(true); } catch {}
+          }
         }, 250);
       });
     } catch {}

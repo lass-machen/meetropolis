@@ -138,6 +138,36 @@ export function App() {
     };
     return () => { try { gb.setDoNotDisturb = originalSetDnd; } catch {} };
   }, []);
+  // Roster/Participants helpers for world room hook (no-ops for now)
+  const buildParticipantList = React.useCallback(() => {
+    // TODO(TEST): Integration wird e2e über UI geprüft; hier keine Unit-Logik nötig
+  }, []);
+  const applyVolumesToUi = React.useCallback(() => {
+    // TODO(TEST): Integration wird e2e über UI geprüft; hier keine Unit-Logik nötig
+  }, []);
+  // WorldRoom: verbindet Colyseus-Präsenz mit UI (Roster, Bubble, Zonen etc.)
+  useWorldRoom({
+    apiBase,
+    me,
+    avRef,
+    colyseusRef,
+    localPosRef,
+    remotesRef,
+    colyseusToLivekitMap,
+    identityToNameMap,
+    gameBridge,
+    editor,
+    setEditor,
+    zoneRef,
+    buildParticipantList,
+    applyVolumesToUi,
+    setBubbleUi,
+    dndRef,
+    setAvState,
+    rosterByIdentityRef,
+    setRoster,
+    disposedRef
+  });
   // Auth state
   const [authChecked, setAuthChecked] = React.useState(false);
   const [me, setMe] = React.useState<{ id: string; email: string; name?: string } | null>(null);
