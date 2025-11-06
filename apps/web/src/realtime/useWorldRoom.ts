@@ -94,6 +94,48 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
         localPosRef.current.id = colyseusSessionId;
         if (typeof window !== 'undefined') { (window as any).__localSessionId = colyseusSessionId; }
 
+        const refreshRosterFromRemotes = () => {
+          try {
+            const online: Record<string, { name: string; x: number; y: number }> = {};
+            // Remotes (Colyseus SIDs -> LiveKit Identity)
+            for (const [sid, pos] of Object.entries(remotesRef.current)) {
+              const livekitIdentity = (colyseusToLivekitMap.current as any)[sid] || sid;
+              const name = identityToNameMap.current[livekitIdentity] || livekitIdentity;
+              online[livekitIdentity] = { name, x: (pos as any).x, y: (pos as any).y };
+            }
+            // Local (stabile User-ID)
+            try {
+              if (me?.id) {
+                const lp = localPosRef.current as any;
+                online[me.id] = { name: me.name || me.email || me.id, x: lp?.x ?? 0, y: lp?.y ?? 0 };
+              }
+            } catch {}
+            rosterByIdentityRef.current = online;
+            setRoster(prev => {
+              const map = new Map<string, { identity: string; name: string; online: boolean; x?: number; y?: number; lastSeen?: string }>();
+              for (const r of prev) map.set(r.identity, { ...r, online: false });
+              for (const [ident, v] of Object.entries(online)) {
+                if (map.has(ident)) {
+                  map.set(ident, { ...(map.get(ident) as any), name: (v as any).name, online: true, x: (v as any).x, y: (v as any).y });
+                } else {
+                  // Fallback: match by display name to avoid duplicates when identities diverge
+                  let matchedKey: string | undefined;
+                  for (const [k, val] of map.entries()) {
+                    if ((val.name || '').toLowerCase() === ((v as any).name || '').toLowerCase()) { matchedKey = k; break; }
+                  }
+                  if (matchedKey) {
+                    const cur = map.get(matchedKey)!;
+                    map.set(matchedKey, { ...cur, online: true, x: (v as any).x, y: (v as any).y });
+                  } else {
+                    map.set(ident, { identity: ident, name: (v as any).name, online: true, x: (v as any).x, y: (v as any).y });
+                  }
+                }
+              }
+              return Array.from(map.values()).sort((a, b) => Number(b.online) - Number(a.online) || a.name.localeCompare(b.name));
+            });
+          } catch {}
+        };
+
         room.onMessage('full_state', (data: any) => {
           if (!gameBridge?.syncRemotePlayers) return;
           if (data?.players) {
@@ -109,6 +151,8 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
             if (gameBridge && typeof gameBridge.syncRemotePlayers === 'function') gameBridge.syncRemotePlayers(players);
             remotesRef.current = Object.fromEntries(Object.entries(players).map(([id, p]) => [id, { x: (p as any).x, y: (p as any).y }]));
             setTimeout(buildParticipantList, 0);
+            // Roster unmittelbar aus Remotes aktualisieren
+            setTimeout(refreshRosterFromRemotes, 0);
           }
         });
 
@@ -121,6 +165,7 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
           }
           if (gameBridge && typeof (gameBridge as any).addRemotePlayer === 'function') (gameBridge as any).addRemotePlayer(data.id, { x: data.x, y: data.y, direction: data.direction, name: data.name, dnd: data.dnd });
           setTimeout(buildParticipantList, 50);
+          setTimeout(refreshRosterFromRemotes, 0);
           try {
             const currZones = (editor?.zones || []);
             if (Array.isArray(currZones) && currZones.length > 0) {
@@ -134,6 +179,7 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
           remotesRef.current[data.id] = { x: data.x, y: data.y };
           if (gameBridge && typeof gameBridge.updateRemotePlayer === 'function') gameBridge.updateRemotePlayer(data.id, { x: data.x, y: data.y, direction: data.direction });
           setTimeout(buildParticipantList, 50);
+          setTimeout(refreshRosterFromRemotes, 0);
         });
 
         room.onMessage('player_left', (data: any) => {
@@ -141,6 +187,7 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
           delete colyseusToLivekitMap.current[data.id];
           if (gameBridge && typeof gameBridge.removeRemotePlayer === 'function') gameBridge.removeRemotePlayer(data.id);
           setTimeout(buildParticipantList, 50);
+          setTimeout(refreshRosterFromRemotes, 0);
         });
 
         room.onMessage('player_dnd', (data: { id: string; dnd: boolean }) => {

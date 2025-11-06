@@ -1809,13 +1809,15 @@ export class MainScene extends Phaser.Scene {
       const height = Math.min(this.mapRef.height, storedH);
       const applyArr = (arr: number[] | null | undefined, layer?: Phaser.Tilemaps.TilemapLayer, layerName?: 'editorGround' | 'editorWalls' | 'collision') => {
         if (!arr || !layer) return;
-        // Ensure tilesets and layer dimensions for collision layer
-        if (layerName === 'collision' && this.mapRef) {
-          // Ensure collision layer knows about all tilesets
+        // Stelle sicher, dass der Layer alle Tilesets kennt (für globale Indizes)
+        try {
           const allTilesets = Array.from(this.dynamicTilesets.values());
           allTilesets.push(...this.mapRef.tilesets.filter(ts => !this.dynamicTilesets.has(ts.name)));
           (layer as any).setTilesets?.(allTilesets);
-
+          (layer as any).tileset = allTilesets;
+        } catch {}
+        // Ensure tilesets and layer dimensions for collision layer
+        if (layerName === 'collision' && this.mapRef) {
           // Fix data dimensions if needed
           const layerData = (layer as any).layer;
           if (layerData?.data) {
@@ -1928,6 +1930,13 @@ export class MainScene extends Phaser.Scene {
         if (!arr || !layer) {
           return;
         }
+        // Stelle sicher, dass der Layer alle Tilesets kennt (für globale Indizes)
+        try {
+          const allTilesets = Array.from(this.dynamicTilesets.values());
+          allTilesets.push(...this.mapRef!.tilesets.filter(ts => !this.dynamicTilesets.has(ts.name)));
+          (layer as any).setTilesets?.(allTilesets);
+          (layer as any).tileset = allTilesets;
+        } catch {}
         if (layerName === 'collision') {
           editorLog('Load', `Applying collision: ${arr.length} tiles to ${width}x${height} layer`);
           
