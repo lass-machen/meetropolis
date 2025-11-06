@@ -20,12 +20,35 @@ export async function wrapTrackWithVoiceIsolation(inputTrack: MediaStreamTrack):
   const url = new URL('./worklets/rnnoise-processor.js', import.meta.url).toString();
   await (audioContext as any).audioWorklet.addModule(url);
 
-  // Build minimal chain: source -> rnnoise -> destination
+  // Graph: source -> highpass -> rnnoise(gate) -> limiter -> destination
+  const highpass = audioContext.createBiquadFilter();
+  highpass.type = 'highpass';
+  highpass.frequency.value = 100; // rumble/low HVAC entfernen
+  highpass.Q.value = 0.707;
+
   const rnnoise = new (window as any).AudioWorkletNode(audioContext, 'rnnoise-processor');
+  try {
+    (rnnoise as any).parameters.get('threshold')?.setValueAtTime(-48, audioContext.currentTime);
+    (rnnoise as any).parameters.get('ratio')?.setValueAtTime(0.2, audioContext.currentTime);
+    (rnnoise as any).parameters.get('attackMs')?.setValueAtTime(12, audioContext.currentTime);
+    (rnnoise as any).parameters.get('releaseMs')?.setValueAtTime(140, audioContext.currentTime);
+    (rnnoise as any).parameters.get('makeupGainDb')?.setValueAtTime(0, audioContext.currentTime);
+  } catch {}
+
+  const limiter = audioContext.createDynamicsCompressor();
+  // Soft-Limiter, erhält Sprache, verhindert Clipping
+  limiter.threshold.value = -3;
+  limiter.knee.value = 12;
+  limiter.ratio.value = 6;
+  limiter.attack.value = 0.005;
+  limiter.release.value = 0.05;
+
   const destination = audioContext.createMediaStreamDestination();
 
-  source.connect(rnnoise as any);
-  (rnnoise as any).connect(destination);
+  source.connect(highpass);
+  highpass.connect(rnnoise as any);
+  (rnnoise as any).connect(limiter);
+  limiter.connect(destination);
 
   const processed = destination.stream.getAudioTracks()[0];
   // Ensure mono speech hint when supported

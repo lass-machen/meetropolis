@@ -129,8 +129,6 @@ export class AVManager {
     // Auf AV-Settings reagieren (sanftes Re-Publish des Mic-Tracks, falls aktiv)
     try {
       this.unsubscribeAvSettings = useAvSettingsStore.subscribe((_state, _prev) => {
-        // Only act when AV settings feature is enabled in build-time flags
-        if (((import.meta as any).env?.VITE_FEATURE_AV_SETTINGS) !== 'true') return;
         try { if (this.settingsRepubTimer) clearTimeout(this.settingsRepubTimer); } catch {}
         this.settingsRepubTimer = setTimeout(async () => {
           this.settingsRepubTimer = null;
@@ -465,9 +463,9 @@ export class AVManager {
                 console.debug('[AV][debug] startAudio on subscribe', { before, result: r, after });
               } catch (e) { try { console.warn('[AV][debug] startAudio error', e); } catch {} }
               try {
-                const vol = this.dnd ? 0 : 1;
+                const vol = 0; // sichere Initial-Lautstärke bis Bubble/Zonen greifen
                 (pub as any)?.track?.setVolume?.(vol);
-                console.debug('[AV][debug] setVolume on remote audio', { vol, dnd: this.dnd });
+                console.debug('[AV][debug] setVolume on remote audio (initial safe)', { vol, dnd: this.dnd });
               } catch {}
               // Fallback-Attach: falls globaler Audio-Hook nicht greift
               try {
@@ -475,8 +473,8 @@ export class AVManager {
                 if (t && typeof document !== 'undefined') {
                   const el = document.createElement('audio');
                   el.autoplay = true; (el as any).playsInline = true; el.style.display = 'none';
-                  // Respektiere DND beim Attach
-                  try { el.muted = !!this.dnd; el.volume = this.dnd ? 0 : 1; } catch {}
+                  // Element-Volume nicht künstlich absenken – Track-Volume steuert initial 0
+                  try { el.muted = !!this.dnd; } catch {}
                   document.body.appendChild(el);
                   try {
                     console.debug('[AV][debug] audio_attach_attempt', { muted: el.muted, vol: el.volume, readyState: el.readyState });
@@ -606,16 +604,16 @@ export class AVManager {
                 console.debug('[AV][debug] startAudio on subscribe', { before, result: r, after });
               } catch (e) { try { console.warn('[AV][debug] startAudio error', e); } catch {} }
               try {
-                const vol = this.dnd ? 0 : 1;
+                const vol = 0; // sichere Initial-Lautstärke bis Bubble/Zonen greifen
                 (pub as any)?.track?.setVolume?.(vol);
-                console.debug('[AV][debug] setVolume on remote audio', { vol, dnd: this.dnd });
+                console.debug('[AV][debug] setVolume on remote audio (initial safe)', { vol, dnd: this.dnd });
               } catch {}
               try {
                 const t: any = (pub as any).track;
                 if (t && typeof document !== 'undefined') {
                   const el = document.createElement('audio');
                   el.autoplay = true; (el as any).playsInline = true; el.style.display = 'none';
-                  try { el.muted = !!this.dnd; el.volume = this.dnd ? 0 : 1; } catch {}
+                  try { el.muted = !!this.dnd; } catch {}
                   document.body.appendChild(el);
                   try {
                     console.debug('[AV][debug] audio_attach_attempt', { muted: el.muted, vol: el.volume, readyState: el.readyState });

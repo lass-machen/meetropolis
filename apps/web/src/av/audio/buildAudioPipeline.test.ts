@@ -27,23 +27,44 @@ import { buildAudioPipeline } from './buildAudioPipeline';
 describe('buildAudioPipeline', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Reset navigator stubs
+    (global as any).navigator = undefined;
   });
 
-  it('uses browser NS/EC/AGC when voice isolation is off', async () => {
-    const settings: any = {
-      clientVoiceIsolation: false,
-      echoCancellation: true,
-      noiseSuppression: true,
-      autoGainControl: true,
-      channelCount: 1,
+  it('on Apple with NS support uses native NS path and does not wrap', async () => {
+    (wrapTrackWithVoiceIsolation as any).mockResolvedValueOnce({} as MediaStreamTrack);
+
+    (global as any).navigator = {
+      userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15',
+      mediaDevices: {
+        getSupportedConstraints: () => ({ noiseSuppression: true }),
+      },
     };
-    const track = await buildAudioPipeline({ deviceId: 'default', settings } as any);
+
+    const settings: any = { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 };
+    const track: any = await buildAudioPipeline({ deviceId: 'default', settings } as any);
+    // Erste Capture-Constraints sollten NS=true enthalten
+    expect((createLocalAudioTrack as any).mock.calls[0][0]).toMatchObject({ noiseSuppression: true });
+    // Kein Replace über Worklet, da Apple-Branch
+    expect(track.replaceTrack).not.toHaveBeenCalled();
+    expect((wrapTrackWithVoiceIsolation as any)).not.toHaveBeenCalled();
+  });
+
+  it('tries voice isolation first (NS off) and replaces track on success', async () => {
+    (wrapTrackWithVoiceIsolation as any).mockResolvedValueOnce({} as MediaStreamTrack);
+
+    (global as any).navigator = {
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome',
+      mediaDevices: { getSupportedConstraints: () => ({ noiseSuppression: true }) },
+    };
+    const settings: any = { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 };
+    const track: any = await buildAudioPipeline({ deviceId: 'default', settings } as any);
     expect((createLocalAudioTrack as any).mock.calls[0][0]).toMatchObject({
       echoCancellation: true,
-      noiseSuppression: true,
+      noiseSuppression: false,
       autoGainControl: true,
     });
-    expect(track).toBeTruthy();
+    expect(track.replaceTrack).toHaveBeenCalledTimes(1);
   });
 
   it('disables browser NS and wraps with voice isolation when enabled', async () => {
@@ -68,13 +89,7 @@ describe('buildAudioPipeline', () => {
   it('falls back to browser NS if voice isolation load fails', async () => {
     (wrapTrackWithVoiceIsolation as any).mockRejectedValueOnce(new Error('load-failed'));
 
-    const settings: any = {
-      clientVoiceIsolation: true,
-      echoCancellation: true,
-      noiseSuppression: true,
-      autoGainControl: true,
-      channelCount: 1,
-    };
+    const settings: any = { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 };
     const track: any = await buildAudioPipeline({ deviceId: 'default', settings } as any);
     // First attempt with NS off
     expect((createLocalAudioTrack as any).mock.calls[0][0]).toMatchObject({ noiseSuppression: false });

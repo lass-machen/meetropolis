@@ -127,6 +127,33 @@ describe('AVManager', () => {
     expect(room.localParticipant.publishTrack).toHaveBeenCalled();
   });
 
+  it('setzt initiale Remote-Audio-Lautstärke auf 0 bei TrackSubscribed (sicherer Start)', async () => {
+    const mgr = makeManager() as any;
+    // Fake-Raum mit Event-Emitter (string events)
+    const handlers: Record<string, Function[]> = {};
+    const room: any = {
+      localParticipant: { sid: 'local', trackPublications: new Map<string, any>() },
+      remoteParticipants: new Map<string, any>(),
+      on: (ev: string, cb: Function) => { (handlers[ev] ||= []).push(cb); },
+      off: (ev: string, cb: Function) => { handlers[ev] = (handlers[ev] || []).filter((f) => f !== cb); },
+      __emit: (ev: string, ...args: any[]) => { (handlers[ev] || []).forEach((f) => f(...args)); },
+    };
+    mgr.current = room;
+    // Events verdrahten
+    (mgr as any).wireRoomEvents();
+
+    const setVolume = vi.fn();
+    const track: any = { kind: 'audio', setVolume };
+    const pub: any = { kind: 'audio', track };
+    const participant: any = { sid: 'remote1' };
+
+    // Event auslösen
+    room.__emit('trackSubscribed', track, pub, participant);
+
+    expect(setVolume).toHaveBeenCalledTimes(1);
+    expect(setVolume).toHaveBeenCalledWith(0);
+  });
+
   it('re-publiziert Mic, wenn vorhandener Track beendet/disabled ist', async () => {
     const mgr = makeManager() as any;
     const room = makeFakeRoom();

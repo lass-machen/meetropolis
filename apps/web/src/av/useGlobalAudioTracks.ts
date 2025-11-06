@@ -14,7 +14,10 @@ export function useGlobalAudioTracks(params: { avRef: React.MutableRefObject<any
         const audio = document.createElement('audio');
         audio.autoplay = true;
         (audio as any).playsInline = true;
-        audio.volume = 1.0;
+        // Respektiere DND bereits beim Attach, um kurze Audio-Leaks zu vermeiden
+        const dnd = !!((avRef.current as any)?.dnd);
+        try { (audio as any).muted = dnd; } catch {}
+        audio.volume = dnd ? 0 : 1.0;
         audio.style.display = 'none';
         document.body.appendChild(audio);
         try { track.attach(audio); } catch (err) {

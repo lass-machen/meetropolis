@@ -48,7 +48,7 @@ const DEFAULTS: AvSettings = {
   useFec: true,
   highpassFilter: true,
   compressor: false,
-  clientVoiceIsolation: (import.meta as any).env?.VITE_FEATURE_VOICE_ISOLATION === 'client',
+  clientVoiceIsolation: true,
   serverVoiceIsolation: false,
   preset: 'standard',
 };

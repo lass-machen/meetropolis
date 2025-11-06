@@ -21,7 +21,6 @@ export function AudioSettingsModal(props: { open: boolean; onOpenChange: (v: boo
 
         <FieldRow label={t('av.hpFilter')} control={<Checkbox checked={settings.highpassFilter} onChange={e => setSetting('highpassFilter', (e.target as HTMLInputElement).checked)} />} />
         <FieldRow label={t('av.lightCompressor')} control={<Checkbox checked={settings.compressor} onChange={e => setSetting('compressor', (e.target as HTMLInputElement).checked)} />} />
-        <FieldRow label={t('av.voiceIsolation')} control={<Checkbox checked={settings.clientVoiceIsolation} onChange={e => setSetting('clientVoiceIsolation', (e.target as HTMLInputElement).checked)} />} />
 
         <div style={{ height: 1, background: 'var(--border)' }} />
 
