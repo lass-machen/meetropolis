@@ -174,14 +174,29 @@ export function App() {
               if (online[ident]) continue;
               map.set(ident, { identity: ident, name, online: false, lastSeen: p.updatedAt });
             }
-            // keep online ones
+            // keep online ones (mit Fallback auf Namen, falls Identity nicht übereinstimmt)
             for (const [ident, v] of Object.entries(online)) {
               const prevItem = map.get(ident);
-              const entry: { identity: string; name: string; online: boolean; x?: number; y?: number; lastSeen?: string } = { identity: ident, name: v.name, online: true, x: v.x, y: v.y };
-              if (prevItem && typeof (prevItem as any).lastSeen === 'string') {
-                entry.lastSeen = (prevItem as any).lastSeen;
+              if (prevItem) {
+                const entry: { identity: string; name: string; online: boolean; x?: number; y?: number; lastSeen?: string } = { identity: ident, name: v.name, online: true, x: v.x, y: v.y };
+                if (typeof (prevItem as any).lastSeen === 'string') entry.lastSeen = (prevItem as any).lastSeen;
+                map.set(ident, entry);
+                continue;
               }
-              map.set(ident, entry);
+              // Name-basierter Fallback (ältere Clients mit abweichender Identity)
+              let matchedKey: string | undefined;
+              const vName = (v.name || '').trim().toLowerCase();
+              for (const [k, item] of map.entries()) {
+                const iName = (item.name || '').trim().toLowerCase();
+                if (iName && vName && iName === vName) { matchedKey = k; break; }
+              }
+              if (matchedKey) {
+                const cur = map.get(matchedKey)!;
+                const entry = { ...cur, online: true, x: (v as any).x, y: (v as any).y } as any;
+                map.set(matchedKey, entry);
+              } else {
+                map.set(ident, { identity: ident, name: v.name, online: true, x: (v as any).x, y: (v as any).y });
+              }
             }
             return Array.from(map.values()).sort((a, b) => Number(b.online) - Number(a.online) || a.name.localeCompare(b.name));
           });
