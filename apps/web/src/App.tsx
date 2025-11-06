@@ -1452,7 +1452,26 @@ export function App() {
                   } catch (e) {
                     // Revert bei Fehler
                     setAvState(s => ({ ...s, mic: !enabled }));
+                    return;
                   }
+                  // Nach erfolgreichem Toggle: tatsächlichen Zustand aus dem Room lesen und UI ggf. korrigieren
+                  try {
+                    const mod: any = await import('./av/core/localState');
+                    const roomAny: any = avRef.current?.room as any;
+                    const realOn = mod.isLocalMicOn(roomAny);
+                    if (realOn !== enabled) {
+                      setAvState(s => ({ ...s, mic: realOn }));
+                    }
+                    // Fange Pending/Connect-Fälle ab: kurze Nachprüfung
+                    setTimeout(() => {
+                      try {
+                        const again = mod.isLocalMicOn(avRef.current?.room as any);
+                        if (again !== realOn) {
+                          setAvState(s => ({ ...s, mic: again }));
+                        }
+                      } catch {}
+                    }, 400);
+                  } catch {}
                 }}
                 onSelectMic={async (id: string) => {
                   setSelectedMicId(id);

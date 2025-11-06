@@ -3,6 +3,17 @@ import { GameSystem } from '../systems/types';
 import { gameBridge } from '../bridge';
 import { editorLog, editorError } from '../../lib/editorLog';
 import { V2State, computeFirstGids, decodeRLE, fetchChunks, tileRefIdToGid } from '../../lib/mapV2';
+import { createNameLabel as uiCreateNameLabel, drawNameLabel as uiDrawNameLabel, updateNameLabel as uiUpdateNameLabel, setHeroName as uiSetHeroName, updateSpeakingStates as uiUpdateSpeakingStates } from '../ui/nameLabels';
+import { setBubbleMembers as uiSetBubbleMembers, updateBubbleOutline as uiUpdateBubbleOutline } from '../ui/bubbles';
+import { ensureRecenterUi as camEnsureRecenterUi, updateRecenterUiVisibility as camUpdateRecenterUiVisibility, recenterCamera as camRecenterCamera } from '../camera/recenterUi';
+import { setCollisionVisible as colSetVisible, updateCollisionOverlay as colUpdateOverlay } from '../collision/overlay';
+import { ensureCollisionCollider as colEnsureCollider, rebuildStaticColliders as colRebuildStatic } from '../collision/collider';
+import { setEditorAssets as edSetAssets, setAssetPreview as edSetPreview } from '../editor/assets';
+import { applyTerrainPaint as edApplyTerrainPaint, eraseTerrainRect as edEraseTerrainRect, applyTilePaint as edApplyTilePaint, ensureTerrainTilesetFor as edEnsureTerrainTilesetFor } from '../editor/painting';
+import { saveEditorLayers as mapSaveLayers, saveEditorLayersHard as mapSaveLayersHard, loadEditorLayers as mapLoadLayers, reloadEditorLayers as mapReloadLayers } from '../map/editorLayers';
+import { fetchAndApplyServerLayers as mapFetchAndApply } from '../map/serverSync';
+import { loadVisibleChunks as mapLoadVisibleChunks, applyChunkUpdates as mapApplyChunkUpdates } from '../map/chunks';
+import { registerTileset as mapRegisterTileset } from '../map/tilesets';
 
 export class MainScene extends Phaser.Scene {
   private hero!: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
@@ -889,66 +900,15 @@ export class MainScene extends Phaser.Scene {
   }
 
   private ensureRecenterUi() {
-    if (this.recenterUi && this.recenterUi.scene) return;
-    const container = this.add.container(0, 0);
-    container.setDepth(1000);
-    container.setScrollFactor(0);
-
-    // Background
-    const bg = this.add.rectangle(0, 0, 120, 28, 0x111114, 0.9);
-    bg.setStrokeStyle(1, 0xffffff, 0.12);
-    bg.setOrigin(0, 0);
-    bg.setScrollFactor(0);
-
-    // Label
-    const label = this.add.text(10, 6, (window as any).i18next?.t?.('av.recenter') || 'Recenter', {
-      fontSize: '13px',
-      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-      color: '#ffffff'
-    });
-    label.setScrollFactor(0);
-
-    container.add(bg);
-    container.add(label);
-    container.setPosition(12, 12);
-
-    container.setSize(120, 28);
-    container.setInteractive(new Phaser.Geom.Rectangle(0, 0, 120, 28), Phaser.Geom.Rectangle.Contains);
-    container.on(Phaser.Input.Events.POINTER_DOWN, () => {
-      this.cameras.main.startFollow(this.hero, true, 0.1, 0.1);
-      this.manualCameraActive = false;
-      this.updateRecenterUiVisibility();
-    });
-
-    this.recenterUi = container;
-    this.recenterUi.setVisible(false);
+    camEnsureRecenterUi(this as any);
   }
 
   private updateRecenterUiVisibility() {
-    if (!this.recenterUi) return;
-    const cam = this.cameras.main;
-    // If camera is following hero, hide
-    const isFollowing = (cam as any).follow === this.hero;
-    if (!this.manualCameraActive && isFollowing) {
-      this.recenterUi.setVisible(false);
-      try { gameBridge.onCameraManualChange?.(false); } catch {}
-      return;
-    }
-    // If hero is near camera center, hide; otherwise show
-    const centerX = cam.worldView.centerX;
-    const centerY = cam.worldView.centerY;
-    const dx = Math.abs(this.hero.x - centerX);
-    const dy = Math.abs(this.hero.y - centerY);
-    const tolerance = 8; // pixels
-    const shouldShow = this.manualCameraActive || dx > tolerance || dy > tolerance;
-    this.recenterUi.setVisible(shouldShow);
-    try { gameBridge.onCameraManualChange?.(shouldShow); } catch {}
+    camUpdateRecenterUiVisibility(this as any);
   }
 
   recenterCamera() {
-    this.cameras.main.startFollow(this.hero, true, 0.1, 0.1);
-    this.manualCameraActive = false;
-    this.updateRecenterUiVisibility();
+    camRecenterCamera(this as any);
   }
 
   setEditorMode(enabled: boolean) {
@@ -1064,7 +1024,7 @@ export class MainScene extends Phaser.Scene {
       // If we initially rendered with a fallback (e.g. after hard reload) and
       // we now have a proper name from the app/state, update the label text
       // and recompute its geometry.
-      // TODO(TEST): UI/Phaser code is hard to unit-test here; covered indirectly via manual smoke.
+      
       if (nameLabel && p && typeof (p as any).name === 'string' && (p as any).name) {
         try {
           const textObj = (nameLabel as any).text as Phaser.GameObjects.Text | undefined;
@@ -1373,276 +1333,24 @@ export class MainScene extends Phaser.Scene {
   }
 
   setEditorAssets(assets: { id: string; key: string; dataUrl: string; x: number; y: number }[]) {
-    // Wenn Spiel bereits zerstört -> nichts tun
-    if (!this.game || !(this.game as any).renderer) return;
-    // Entferne nicht verwendete Sprites
-    const keep = new Set(assets.map(a => a.id));
-    for (const [id, sprite] of this.editorSprites) {
-      if (!keep.has(id)) {
-        sprite.destroy();
-        this.editorSprites.delete(id);
-      }
-    }
-    // Stelle sicher, dass Texturen existieren und Sprites positioniert sind
-    for (const a of assets) {
-      // Use asset ID as texture key to avoid conflicts
-      const textureKey = `asset_${a.id}`;
-      
-      // Update or create sprite
-      let img = this.editorSprites.get(a.id);
-      
-      if (!img) {
-        // Sprite doesn't exist, need to create it
-        if (!this.textures.exists(textureKey) && !this.pendingTextures.has(textureKey)) {
-          // Texture doesn't exist and not pending, add it and create sprite when ready
-          this.pendingTextures.add(textureKey);
-
-          this.textures.once('addtexture', (key: string) => {
-            if (key === textureKey) {
-              // Remove from pending
-              this.pendingTextures.delete(textureKey);
-
-              // Create sprite once texture is loaded
-              const newImg = this.add.image(a.x, a.y, textureKey);
-              newImg.setDepth(6);
-              newImg.setInteractive();
-              this.editorSprites.set(a.id, newImg);
-            }
-          });
-
-          // Load texture depending on data source
-          const isDataUrl = typeof a.dataUrl === 'string' && a.dataUrl.startsWith('data:');
-          if (isDataUrl) {
-            this.textures.addBase64(textureKey, a.dataUrl);
-          } else {
-            try {
-              this.load.image(textureKey, a.dataUrl);
-              // Start the loader if needed; Phaser will auto-start when queueing at runtime
-              this.load.start();
-            } catch {}
-          }
-        } else if (this.textures.exists(textureKey)) {
-          // Texture exists, create sprite immediately
-          img = this.add.image(a.x, a.y, textureKey);
-          img.setDepth(6);
-          img.setInteractive();
-          this.editorSprites.set(a.id, img);
-        }
-        // If texture is pending, skip for now - it will be created when texture loads
-      } else {
-        // Sprite exists, just update position
-        img.setPosition(a.x, a.y);
-      }
-    }
+    edSetAssets(this as any, assets);
   }
 
   setAssetPreview(preview: { dataUrl: string; width?: number; height?: number } | null) {
-    try {
-      if (!preview) {
-        if (this.ghostSprite) {
-          this.ghostSprite.destroy();
-          delete (this as any).ghostSprite;
-        }
-        // Optional: Textur aufräumen
-        if (this.ghostTextureKey && this.textures.exists(this.ghostTextureKey)) {
-          try { this.textures.remove(this.ghostTextureKey); } catch {}
-        }
-        delete (this as any).ghostTextureKey;
-        return;
-      }
-      const nextUrl = preview.dataUrl;
-      const newKey = `ghost_${Date.now()}_${Math.floor(Math.random()*1000000)}`;
-      const prevKey = this.ghostTextureKey;
-
-      const place = () => {
-        if (!this.ghostSprite) {
-          const img = this.add.image(0, 0, newKey);
-          img.setAlpha(0.6);
-          img.setDepth(6.5);
-          this.ghostSprite = img;
-        } else {
-          this.ghostSprite.setTexture(newKey);
-        }
-        try { this.ghostSprite.setVisible(true); } catch {}
-        // Terrain-URL merken, damit pointerup anwenden kann
-        (this as any)._ghostDataUrl = preview.dataUrl;
-        // Setzen der Position auf Tilezentrum in Sicht
-        if (this.mapRef) {
-          const cx = Math.round((this.cameras.main.worldView.centerX) / this.mapRef.tileWidth) * this.mapRef.tileWidth + this.mapRef.tileWidth / 2;
-          const cy = Math.round((this.cameras.main.worldView.centerY) / this.mapRef.tileHeight) * this.mapRef.tileHeight + this.mapRef.tileHeight / 2;
-          this.ghostSprite.setPosition(cx, cy);
-        }
-        // Nach dem Wechsel alte Textur aufräumen
-        if (prevKey && prevKey !== newKey && this.textures.exists(prevKey)) {
-          try { this.textures.remove(prevKey); } catch {}
-        }
-        this.ghostTextureKey = newKey;
-      };
-
-      if (this.textures.exists(newKey)) {
-        place();
-      } else {
-        // Ghost während des Ladens ausblenden, um „null glTexture" zu vermeiden
-        try { this.ghostSprite?.setVisible(false); } catch {}
-        this.textures.once('addtexture', (k: string) => { if (k === newKey) place(); });
-        if (nextUrl.startsWith('data:')) this.textures.addBase64(newKey, nextUrl);
-        else { this.load.image(newKey, nextUrl); this.load.start(); }
-      }
-    } catch {}
+    edSetPreview(this as any, preview);
   }
 
   // Neues Terrain-Painting: benutzt Ghost/Preview wie Objekte, schreibt aber in EditorGround/Walls
   applyTerrainPaint(edit: { rect: { startX: number; startY: number; endX: number; endY: number }; dataUrl: string; attempt?: number }) {
-    if (!this.mapRef) return;
-    // Ziel-Layer: EditorGround
-    const targetLayer = this.editorGround;
-    if (!targetLayer) return;
-    const map = this.mapRef;
-    const tilesetKey = this.ensureTerrainTilesetFor(edit.dataUrl);
-    if (!tilesetKey) return;
-    const tileset = this.dynamicTilesets.get(tilesetKey) || map.tilesets.find(t => t.name === tilesetKey);
-    if (!tileset) {
-      const nextAttempt = (edit.attempt ?? 0) + 1;
-      if (nextAttempt <= 20) {
-        setTimeout(() => this.applyTerrainPaint({ rect: edit.rect, dataUrl: edit.dataUrl, attempt: nextAttempt }), 50);
-      }
-      return;
-    }
-    // Sicherstellen, dass Layer Tileset kennt
-    try {
-      const allTilesets = Array.from(new Set([...(this.mapRef?.tilesets || []), ...this.dynamicTilesets.values()]));
-      (targetLayer as any).setTilesets?.(allTilesets);
-      (targetLayer as any).tileset = allTilesets;
-    } catch {}
-    const gid = (tileset as any).firstgid || 1;
-    const idx = 0; // Single-tile tileset
-    const globalIndex = gid + idx;
-    const { startX, startY, endX, endY } = edit.rect;
-    const x0 = Math.min(startX, endX);
-    const y0 = Math.min(startY, endY);
-    const x1 = Math.max(startX, endX);
-    const y1 = Math.max(startY, endY);
-    for (let ty = y0; ty <= y1; ty++) {
-      for (let tx = x0; tx <= x1; tx++) {
-        try { targetLayer.putTileAt(globalIndex, tx, ty); } catch {}
-      }
-    }
-    this.saveEditorLayers();
+    edApplyTerrainPaint(this as any, edit);
   }
 
   eraseTerrainRect(rect: { startX: number; startY: number; endX: number; endY: number }) {
-    if (!this.mapRef || !this.editorGround) return;
-    const layer = this.editorGround;
-    const { startX, startY, endX, endY } = rect;
-    const x0 = Math.min(startX, endX);
-    const y0 = Math.min(startY, endY);
-    const x1 = Math.max(startX, endX);
-    const y1 = Math.max(startY, endY);
-    for (let ty = y0; ty <= y1; ty++) {
-      for (let tx = x0; tx <= x1; tx++) {
-        try { layer.removeTileAt(tx, ty); } catch {}
-      }
-    }
-    this.saveEditorLayers();
+    edEraseTerrainRect(this as any, rect);
   }
 
   private ensureTerrainTilesetFor(dataUrl: string): string | null {
-    try {
-      if (!this.mapRef) return null;
-      const map = this.mapRef;
-      // Stabile ID aus URL ableiten
-      const simpleKey = dataUrl.replace(/[^a-zA-Z0-9_:\-]/g, '_');
-      const tilesetName = `terrain:${simpleKey}`;
-      if (this.dynamicTilesets.has(tilesetName) || map.tilesets.find(t => t.name === tilesetName)) {
-        return tilesetName;
-      }
-      // Texture vorbereiten: skaliert auf Tilegröße der Map, 1 Tile groß
-      const texKey = `terrain_tex_${simpleKey}`;
-      const doAddTileset = () => {
-        // firstgid wählen
-        let assignedFirstGid = 0;
-        try {
-          const mapAny = map as any;
-          if (!mapAny._nextDynamicFirstGid) {
-            const maxGid = Math.max(1, ...map.tilesets.map(t => (t as any).firstgid || 1));
-            mapAny._nextDynamicFirstGid = Math.ceil((maxGid + 1) / 1024) * 1024;
-          }
-          assignedFirstGid = mapAny._nextDynamicFirstGid;
-          mapAny._nextDynamicFirstGid += 1024;
-        } catch {}
-        // Raw map data tilesets-Eintrag ergänzen
-        try {
-          const mapAny = map as any;
-          const data = mapAny.data;
-          const tex = this.textures.get(texKey);
-          const src = tex?.getSourceImage() as HTMLImageElement | HTMLCanvasElement | undefined;
-          if (data && src) {
-            const imgW = (src as any).width || map.tileWidth;
-            const imgH = (src as any).height || map.tileHeight;
-            const exists = Array.isArray(data.tilesets) && data.tilesets.find((t: any) => t.name === tilesetName);
-            if (!exists) {
-              data.tilesets = data.tilesets || [];
-              data.tilesets.push({
-                firstgid: assignedFirstGid || 1,
-                name: tilesetName,
-                image: texKey,
-                imagewidth: imgW,
-                imageheight: imgH,
-                tilewidth: map.tileWidth,
-                tileheight: map.tileHeight,
-                margin: 0,
-                spacing: 0,
-                columns: 1,
-                tilecount: 1
-              });
-            }
-          }
-        } catch {}
-        // Push a meta tileset first so addTilesetImage finds the name
-        try {
-          if (!map.tilesets.find(t => t.name === tilesetName)) {
-            const meta = new Phaser.Tilemaps.Tileset(tilesetName, assignedFirstGid || 1, map.tileWidth, map.tileHeight, 0, 0);
-            (map.tilesets as any).push(meta);
-          }
-        } catch {}
-        const tileset = map.addTilesetImage(tilesetName, texKey, map.tileWidth, map.tileHeight, 0, 0, assignedFirstGid || undefined as any);
-        if (tileset) {
-          this.dynamicTilesets.set(tilesetName, tileset);
-          try { this.terrainTilesetSources.set(tilesetName, dataUrl); } catch {}
-          // Layer Tilesets aktualisieren
-          const all = Array.from(new Set([...(map.tilesets || []), ...this.dynamicTilesets.values()]));
-          try { (this.editorGround as any)?.setTilesets?.(all); } catch {}
-          try { (this.wallsLayer as any)?.setTilesets?.(all); } catch {}
-          try { (this.collisionLayer as any)?.setTilesets?.(all); } catch {}
-          return tilesetName;
-        }
-        return null;
-      };
-      if (this.textures.exists(texKey)) {
-        return doAddTileset();
-      }
-      // Bild laden und auf Canvas-Texture in Map-Tilegröße zeichnen
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-      img.onload = () => {
-        const tw = map.tileWidth;
-        const th = map.tileHeight;
-        const ctex = this.textures.createCanvas(texKey, tw, th);
-        const ctx = ctex?.getContext();
-        if (ctex && ctx) {
-          ctx.clearRect(0, 0, tw, th);
-          ctx.imageSmoothingEnabled = true;
-          ctx.imageSmoothingQuality = 'high' as any;
-          ctx.drawImage(img, 0, 0, tw, th);
-          ctex.refresh();
-          doAddTileset();
-        }
-      };
-      img.src = dataUrl;
-      return tilesetName; // Wird unmittelbar zurückgegeben; tatsächliche Nutzung sollte auf nächsten Paint warten
-    } catch {
-      return null;
-    }
+    return edEnsureTerrainTilesetFor(this as any, dataUrl);
   }
 
   setSelectionRect(rect: { x: number; y: number; w: number; h: number } | null) {
@@ -1665,1076 +1373,73 @@ export class MainScene extends Phaser.Scene {
   }
 
   applyTilePaint(edit: { layer: 'EditorGround' | 'EditorWalls' | 'Collision'; tilesetKey: string; tileIndex: number; rect: { startX: number; startY: number; endX: number; endY: number } }) {
-    if (!this.mapRef) return;
-    const targetLayer = edit.layer === 'Collision' ? this.collisionLayer : edit.layer === 'EditorWalls' ? this.wallsLayer : this.editorGround;
-    if (!targetLayer) return;
-    
-    // Ensure target layer knows all tilesets before painting
-    if (targetLayer) {
-      const allTilesets = Array.from(this.dynamicTilesets.values());
-      allTilesets.push(...this.mapRef.tilesets.filter(ts => !this.dynamicTilesets.has(ts.name)));
-      try { (targetLayer as any).setTilesets?.(allTilesets); } catch {}
-      try { (targetLayer as any).tileset = allTilesets; } catch {}
-    }
-    
-    // Get the specific tileset
-    let tileset = this.dynamicTilesets.get(edit.tilesetKey) || this.mapRef.tilesets.find(ts => ts.name === edit.tilesetKey);
-    
-    // If tileset not found, try to find it in pending registrations and retry
-    if (!tileset && edit.tileIndex >= 0) {
-      // Check if it's a pending tileset that needs registration
-      const pending = this.pendingTilesetRegistrations?.find(ts => ts.key === edit.tilesetKey);
-      if (pending) {
-        this.registerTileset(pending);
-        
-        // Retry after a short delay
-        setTimeout(() => {
-          this.applyTilePaint(edit);
-        }, 200);
-        return;
-      }
-      
-      // Tileset not in pending list either. Cannot paint.
-      return;
-    }
-    
-    const x0 = Math.min(edit.rect.startX, edit.rect.endX);
-    const y0 = Math.min(edit.rect.startY, edit.rect.endY);
-    const x1 = Math.max(edit.rect.startX, edit.rect.endX);
-    const y1 = Math.max(edit.rect.startY, edit.rect.endY);
-    
-    for (let ty = y0; ty <= y1; ty++) {
-      for (let tx = x0; tx <= x1; tx++) {
-        if (edit.tileIndex < 0) {
-          // Erase
-          targetLayer.removeTileAt(tx, ty);
-        } else if (tileset) {
-          // Calculate the global tile index for this tileset
-          const globalIndex = tileset.firstgid + edit.tileIndex;
-          // Putting tile
-          
-          // Debug layer information
-          if (edit.layer === 'Collision') {
-            editorLog('Paint', 'Collision layer state');
-          }
-          
-          try {
-            // Additional debug for collision layer
-            if (edit.layer === 'Collision') {
-              const layerLayer = (targetLayer as any).layer;
-              if (layerLayer?.data) {
-                editorLog('Paint', 'Attempting putTileAt');
-              }
-            }
-            
-            targetLayer.putTileAt(globalIndex, tx, ty);
-          } catch (error) {
-            if (edit.layer === 'Collision') {
-              editorError('Paint', 'Failed to put collision tile', error);
-            }
-          }
-        }
-      }
-    }
-    // Forciere Re-Render des Layers (best effort)
-    try { ((targetLayer as any).layer || targetLayer)["dirty"] = true; } catch {}
-    try {
-      const a = targetLayer.alpha;
-      targetLayer.setAlpha(a === 1 ? 0.999 : 1);
-      setTimeout(() => { try { targetLayer.setAlpha(1); } catch {} }, 0);
-    } catch {}
-    // Collision-Physik neu aufbauen und Overlay anzeigen
-    if (targetLayer === this.collisionLayer) {
-      // Update tilemap collider
-      this.ensureCollisionCollider();
-      // Im v2-Modus: Kollision-Layer unsichtbar lassen; Overlay nur im Editor setzen
-      if (this.v2) {
-        try { this.collisionLayer?.setVisible(false); } catch {}
-      }
-      // Overlay sofort aktualisieren, damit Änderungen ohne Moduswechsel sichtbar sind
-      try { if (this.collisionVisible) this.updateCollisionOverlay(); } catch {}
-      // Persistiere Kollision serverseitig im v2-Modus (inkrementell)
-      try {
-        if (this.v2) {
-          const base = (window as any).VITE_API_BASE || import.meta.env.VITE_API_BASE || `${window.location.protocol}//${window.location.hostname}:2567`;
-          const body = JSON.stringify({
-            layer: 'collision',
-            rect: { x0, y0, x1, y1 },
-            erase: edit.tileIndex < 0,
-            tileRefId: 1
-          });
-          fetch(`${base}/maps/${encodeURIComponent(this.currentMapName)}/paint-rect`, { method: 'PATCH', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body }).catch(()=>{});
-        }
-      } catch {}
-    }
-    // v2: Persistenz serverseitig per API; v1 Fallback nur, wenn nicht v2
-    if (!this.v2) {
-      this.saveEditorLayers();
-      try {
-        if (this.editorSaveTimer) clearTimeout(this.editorSaveTimer as any);
-        this.editorSaveTimer = setTimeout(() => { try { this.saveEditorLayersHard(); } catch {} }, 250) as any;
-      } catch {}
-    } else {
-      // v2: für Ground/Walls ebenfalls inkrementell speichern
-      try {
-        const base = (window as any).VITE_API_BASE || import.meta.env.VITE_API_BASE || `${window.location.protocol}//${window.location.hostname}:2567`;
-        const bodyCommon = { rect: { x0, y0, x1, y1 }, erase: edit.tileIndex < 0 };
-        if (edit.layer === 'EditorGround' || edit.layer === 'EditorWalls') {
-          const layerName = edit.layer === 'EditorGround' ? 'ground' : 'walls';
-          let tileRefId: number | undefined = undefined;
-          if (!bodyCommon.erase) {
-            try {
-              const ts = this.v2?.state?.tilesetRegistry?.find((t: any) => t?.key === edit.tilesetKey);
-              const slot = typeof ts?.slot === 'number' ? ts.slot : 0;
-              const idx = Math.max(0, edit.tileIndex | 0);
-              tileRefId = ((slot & 0xffff) << 16) | (idx & 0xffff);
-            } catch {}
-          }
-          const body = JSON.stringify({ layer: layerName, ...bodyCommon, tileRefId });
-          fetch(`${base}/maps/${encodeURIComponent(this.currentMapName)}/paint-rect`, { method: 'PATCH', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body }).catch(()=>{});
-        }
-      } catch {}
-    }
+    edApplyTilePaint(this as any, edit);
   }
 
   private saveEditorLayers() {
-    if (!this.mapRef) {
-      return;
-    }
-    const width = this.mapRef.width;
-    const height = this.mapRef.height;
-    const dumpLayer = (layer?: Phaser.Tilemaps.TilemapLayer, _layerName?: string) => {
-      if (!layer) {
-        return null;
-      }
-      
-      // Debug layer info removed
-      
-      const arr: number[] = new Array(width * height).fill(-1);
-      let tileCount = 0;
-      let errorCount = 0;
-      
-      for (let y = 0; y < height; y++) {
-        for (let x = 0; x < width; x++) {
-          try {
-            const tile = layer.getTileAt(x, y);
-            const tileIndex = tile ? tile.index : -1;
-            arr[y * width + x] = tileIndex;
-            if (tileIndex !== -1) tileCount++;
-          } catch (e) {
-            errorCount++;
-            arr[y * width + x] = -1; // Default empty
-          }
-        }
-      }
-      
-      if (errorCount > 0) {
-      }
-      
-      
-      // Special debugging for collision layer removed
-      
-      return tileCount > 0 ? arr : null;
-    };
-    try {
-      const data = {
-        editorGround: dumpLayer(this.editorGround, 'editorGround'),
-        editorWalls: dumpLayer(this.wallsLayer, 'editorWalls'),
-        collision: dumpLayer(this.collisionLayer, 'collision'),
-        w: width,
-        h: height,
-      };
-      // Editor layers saved
-      localStorage.setItem('meetropolis.editorLayers', JSON.stringify(data));
-      // Server speichern (best-effort)
-      let base = (window as any).VITE_API_BASE || import.meta.env.VITE_API_BASE as any;
-      if (!base && typeof window !== 'undefined') {
-        base = `${window.location.protocol}//${window.location.hostname}:2567`;
-      }
-      if (!base) base = 'http://localhost:2567';
-      // Tilesets (Terrain) miterfassen, damit Reload gelingt
-      const terrainTilesets: any[] = [];
-      try {
-        this.dynamicTilesets.forEach((ts, name) => {
-          void ts;
-          if (name && name.startsWith('terrain:')) {
-            const src = this.terrainTilesetSources.get(name) || '';
-            terrainTilesets.push({ key: name, dataUrl: src, tileWidth: this.mapRef!.tileWidth, tileHeight: this.mapRef!.tileHeight, category: 'terrain' });
-          }
-        });
-      } catch {}
-      // Only save to server if data is not too large (< 100KB)
-      const serverPayload: any = { editorGround: data.editorGround, editorWalls: data.editorWalls, collision: data.collision, tilesets: terrainTilesets };
-      const jsonStr = JSON.stringify(serverPayload);
-      // Server payload ready
-      if (jsonStr.length < 100000) {
-        // Saving to server
-        fetch(`${base}/maps/${encodeURIComponent(this.currentMapName)}/editor-state`, {
-          method: 'PUT',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: jsonStr
-        }).then(async (res) => {
-          if (res.ok) {
-          } else {
-            await res.text().catch(() => 'Unknown error');
-          }
-        }).catch(()=>{ 
-        });
-      } else {
-      }
-    } catch (error) {
-    }
+    mapSaveLayers(this as any);
   }
 
   // Unbedingtes Speichern der Editor-Layer zum Server (ohne Größenlimit)
   saveEditorLayersHard() {
-    if (!this.mapRef) return;
-    const width = this.mapRef.width;
-    const height = this.mapRef.height;
-    const dumpLayer = (layer?: Phaser.Tilemaps.TilemapLayer): number[] | null => {
-      if (!layer) return null;
-      const arr: number[] = new Array(width * height).fill(-1);
-      let hasAny = false;
-      for (let y = 0; y < height; y++) {
-        for (let x = 0; x < width; x++) {
-          const t = layer.getTileAt(x, y);
-          const idx = t ? t.index : -1;
-          arr[y * width + x] = idx;
-          if (idx !== -1) hasAny = true;
-        }
-      }
-      return hasAny ? arr : null;
-    };
-    const data = {
-      editorGround: dumpLayer(this.editorGround),
-      editorWalls: dumpLayer(this.wallsLayer),
-      collision: dumpLayer(this.collisionLayer),
-      w: width,
-      h: height,
-    };
-    try { localStorage.setItem('meetropolis.editorLayers', JSON.stringify(data)); } catch {}
-    try {
-      let base = (window as any).VITE_API_BASE || import.meta.env.VITE_API_BASE as any;
-      if (!base && typeof window !== 'undefined') base = `${window.location.protocol}//${window.location.hostname}:2567`;
-      if (!base) base = 'http://localhost:2567';
-      const serverPayload: any = { editorGround: data.editorGround, editorWalls: data.editorWalls, collision: data.collision, tilesets: [] };
-      // Füge dynamische Terrain-Tilesets hinzu, damit Reload gelingt
-      try {
-        const terrainTilesets: any[] = [];
-        this.dynamicTilesets.forEach((_, name) => {
-          if (name && name.startsWith('terrain:')) {
-            const src = this.terrainTilesetSources.get(name) || '';
-            terrainTilesets.push({ key: name, dataUrl: src, tileWidth: this.mapRef!.tileWidth, tileHeight: this.mapRef!.tileHeight, category: 'terrain' });
-          }
-        });
-        serverPayload.tilesets = terrainTilesets;
-      } catch {}
-      fetch(`${base}/maps/${encodeURIComponent(this.currentMapName)}/editor-state`, {
-        method: 'PUT',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(serverPayload)
-      }).catch(()=>{});
-    } catch {}
+    mapSaveLayersHard(this as any);
   }
 
   private loadEditorLayers() {
-    if (!this.mapRef) return;
-    try {
-      const raw = localStorage.getItem('meetropolis.editorLayers');
-      if (!raw) return;
-      const data = JSON.parse(raw);
-      const storedW = (typeof data?.w === 'number' && data.w > 0) ? data.w : this.mapRef.width;
-      const storedH = (typeof data?.h === 'number' && data.h > 0) ? data.h : this.mapRef.height;
-      const width = Math.min(this.mapRef.width, storedW);
-      const height = Math.min(this.mapRef.height, storedH);
-      this.ensureEditorLayers();
-      const applyArr = (arr: number[] | null | undefined, layer?: Phaser.Tilemaps.TilemapLayer, layerName?: 'editorGround' | 'editorWalls' | 'collision') => {
-        if (!arr || !layer) return;
-        // Stelle sicher, dass der Layer alle Tilesets kennt (für globale Indizes)
-        try {
-          const allTilesets = Array.from(this.dynamicTilesets.values());
-          allTilesets.push(...this.mapRef!.tilesets.filter(ts => !this.dynamicTilesets.has(ts.name)));
-          (layer as any).setTilesets?.(allTilesets);
-          (layer as any).tileset = allTilesets;
-        } catch {}
-        // Ensure tilesets and layer dimensions for collision layer
-        if (layerName === 'collision' && this.mapRef) {
-          // Fix data dimensions if needed
-          const layerData = (layer as any).layer;
-          if (layerData?.data) {
-            const expectedRows = this.mapRef!.height;
-            while (layerData.data.length < expectedRows) {
-              const newRow = new Array(this.mapRef!.width);
-              for (let x = 0; x < this.mapRef!.width; x++) {
-                newRow[x] = new Phaser.Tilemaps.Tile(
-                  layerData,
-                  -1,
-                  x,
-                  layerData.data.length,
-                  this.mapRef!.tileWidth,
-                  this.mapRef!.tileHeight,
-                  this.mapRef!.tileWidth,
-                  this.mapRef!.tileHeight
-                );
-              }
-              layerData.data.push(newRow);
-            }
-            layerData.height = expectedRows;
-          }
-        }
-
-        for (let y = 0; y < height; y++) {
-          for (let x = 0; x < width; x++) {
-            const stride = storedW!;
-            const idx = arr[y * stride + x];
-            if (typeof idx === 'number' && idx >= 0) {
-              try {
-                layer.putTileAt(idx, x, y);
-              } catch {}
-            }
-          }
-        }
-        // Keep default rendering; no forced alpha toggling
-      };
-      applyArr(data?.editorGround, this.editorGround, 'editorGround');
-      applyArr(data?.editorWalls, this.wallsLayer, 'editorWalls');
-      applyArr(data?.collision, this.collisionLayer, 'collision');
-      if (data?.collision) this.rebuildStaticColliders();
-    } catch {}
+    mapLoadLayers(this as any);
   }
 
   reloadEditorLayers() {
-    // externe Bridge-API ruft diese Methode, um LocalStorage-Layer erneut zu laden
-    try { this.loadEditorLayers(); } catch {}
-    try { this.updateCollisionOverlay(); } catch {}
+    mapReloadLayers(this as any);
   }
 
 
   async fetchAndApplyServerLayers() {
-    try {
-      const base = (window as any).VITE_API_BASE || import.meta.env.VITE_API_BASE || `${window.location.protocol}//${window.location.hostname}:2567`;
-      const res = await fetch(`${base}/maps/${encodeURIComponent(this.currentMapName)}/editor-state`, { credentials: 'include' });
-      if (!res.ok) {
-        return;
-      }
-      const data = await res.json();
-      // Tilesets vom Server registrieren (inkl. dynamischer Terrain-Tilesets)
-      let requiredTsKeys: string[] = [];
-      try {
-        const arr = Array.isArray((data as any)?.tilesets) ? (data as any).tilesets : [];
-        for (const ts of arr) {
-          if (ts && ts.key && ts.dataUrl && ts.tileWidth && ts.tileHeight) {
-            this.registerTileset({ key: ts.key, dataUrl: ts.dataUrl, tileWidth: ts.tileWidth, tileHeight: ts.tileHeight, margin: (ts as any).margin ?? 0, spacing: (ts as any).spacing ?? 0 });
-            if (typeof ts.key === 'string' && typeof ts.dataUrl === 'string' && ts.key.startsWith('terrain:')) {
-              this.terrainTilesetSources.set(ts.key, ts.dataUrl);
-            }
-            try { requiredTsKeys.push(ts.key); } catch {}
-          }
-        }
-        // Spiegel in LocalStorage damit Bridge mergen kann
-        try { localStorage.setItem('meetropolis.tilesets', JSON.stringify(arr)); } catch {}
-      } catch {}
-      // Apply background color from server if present
-      try {
-        const bg = typeof data?.backgroundColor === 'string' ? data.backgroundColor : null;
-        if (bg) {
-          this.cameras.main.setBackgroundColor(bg);
-          try { localStorage.setItem('meetropolis.backgroundColor', bg); } catch {}
-        }
-      } catch {}
-      if (data?.collision) {
-        const collisionTiles = data.collision.filter((t: number) => t !== -1).length;
-        editorLog('Load', `Received from server: ${collisionTiles} collision tiles`);
-      }
-      // Zones vom Server anwenden (Overlay + LocalStorage spiegeln)
-      try {
-        const zones = Array.isArray(data?.zones) ? data.zones.map((z: any) => {
-          const anyZ = z || {};
-          const pts = Array.isArray(anyZ.points)
-            ? anyZ.points
-            : Array.isArray(anyZ.polygon)
-              ? anyZ.polygon
-              : (anyZ.polygon && Array.isArray(anyZ.polygon.points))
-                ? anyZ.polygon.points
-                : [];
-          return { name: anyZ.name, points: pts };
-        }) : [];
-        if (zones.length > 0) {
-          try { localStorage.setItem('meetropolis.zones', JSON.stringify(zones)); } catch {}
-          try { this.setZoneOverlay(zones); } catch {}
-        }
-      } catch {}
-      // Warte kurz, bis Tilesets bereit sind, bevor wir Tiles anwenden
-      try { await this.waitForTilesetsReady(requiredTsKeys, 1500); } catch {}
-
-      if (!this.mapRef) return;
-      const storedW = this.mapRef.width;
-      const width = this.mapRef.width;
-      const height = this.mapRef.height;
-      
-      this.ensureEditorLayers();
-      const applyArr = (arr: number[] | null | undefined, layer?: Phaser.Tilemaps.TilemapLayer, layerName?: 'editorGround' | 'editorWalls' | 'collision') => {
-        if (!arr || !layer) {
-          return;
-        }
-        // Stelle sicher, dass der Layer alle Tilesets kennt (für globale Indizes)
-        try {
-          const allTilesets = Array.from(this.dynamicTilesets.values());
-          allTilesets.push(...this.mapRef!.tilesets.filter(ts => !this.dynamicTilesets.has(ts.name)));
-          (layer as any).setTilesets?.(allTilesets);
-          (layer as any).tileset = allTilesets;
-        } catch {}
-        if (layerName === 'collision') {
-          editorLog('Load', `Applying collision: ${arr.length} tiles to ${width}x${height} layer`);
-          
-          // CRITICAL: Ensure collision layer has all tilesets before applying tiles
-          const allTilesets = Array.from(this.dynamicTilesets.values());
-          allTilesets.push(...this.mapRef!.tilesets.filter(ts => !this.dynamicTilesets.has(ts.name)));
-          (layer as any).setTilesets(allTilesets);
-          
-          // Check layer dimensions and fix if needed
-          const layerData = (layer as any).layer;
-          if (layerData?.data) {
-            editorLog('Load', `Collision layer actual size: ${layerData.data.length}x${layerData.data[0]?.length || 0}`);
-            
-            // Fix data array if it's too small (same fix as in create)
-            const expectedRows = this.mapRef!.height;
-            const actualRows = layerData.data.length;
-            
-            if (actualRows < expectedRows) {
-              editorLog('Load', `Fixing collision layer dimensions again: ${actualRows} rows -> ${expectedRows} rows`);
-              
-              while (layerData.data.length < expectedRows) {
-                const newRow = new Array(this.mapRef!.width);
-                for (let x = 0; x < this.mapRef!.width; x++) {
-                  newRow[x] = new Phaser.Tilemaps.Tile(
-                    layerData,
-                    -1,
-                    x,
-                    layerData.data.length,
-                    this.mapRef!.tileWidth,
-                    this.mapRef!.tileHeight,
-                    this.mapRef!.tileWidth,
-                    this.mapRef!.tileHeight
-                  );
-                }
-                layerData.data.push(newRow);
-              }
-              layerData.height = expectedRows;
-              editorLog('Load', `Fixed collision layer to ${layerData.data.length}x${layerData.data[0]?.length || 0}`);
-            }
-          }
-        }
-        let appliedCount = 0;
-        let validTileCount = 0;
-        
-        // Count valid tiles first
-        for (const idx of arr) {
-          if (typeof idx === 'number' && idx >= 0) validTileCount++;
-        }
-        if (layerName === 'collision') {
-          editorLog('Load', `Found ${validTileCount} valid collision tiles`);
-        }
-        
-        for (let y = 0; y < height; y++) {
-          for (let x = 0; x < width; x++) {
-            const idx = arr[y * storedW + x];
-            if (typeof idx === 'number' && idx >= 0) {
-              try {
-                layer.putTileAt(idx, x, y);
-                appliedCount++;
-              } catch (e) {
-                if (layerName === 'collision' && appliedCount === 0) {
-                  editorError('Load', `First collision tile failed at ${x},${y} with index ${idx}`, e);
-                }
-              }
-            }
-          }
-        }
-        
-        if (layerName === 'collision') {
-          editorLog('Load', `Applied ${appliedCount} collision tiles`);
-        }
-        // No forced alpha toggle/visibility – keep default rendering behavior
-      };
-      
-      applyArr(data?.editorGround, this.editorGround, 'editorGround');
-      applyArr(data?.editorWalls, this.wallsLayer, 'editorWalls');
-      applyArr(data?.collision, this.collisionLayer, 'collision');
-      if (data?.collision) this.rebuildStaticColliders();
-      // Ensure overlay reflects the latest data if visibility is on
-      if (this.collisionVisible) this.updateCollisionOverlay();
-
-      // Apply persisted editor assets from server state if present
-      try {
-        if (Array.isArray((data as any)?.assets)) {
-          const assets = (data as any).assets;
-          this.setEditorAssets(assets);
-          try { localStorage.setItem('meetropolis.assets', JSON.stringify(assets)); } catch {}
-        }
-      } catch {}
-    } catch (e) {
-      editorError('Load', 'Failed to fetch/apply server layers', e);
-    }
+    await mapFetchAndApply(this as any);
   }
 
   private rebuildStaticColliders() {
-    try {
-      // Alte entfernen
-      if (this.staticColliders) {
-        this.staticColliders.clear(true, true);
-      }
-      if (!this.collisionLayer) return;
-      const layer: any = this.collisionLayer;
-      const map = this.mapRef!;
-      const data = (layer as any)?.layer?.data as Phaser.Tilemaps.Tile[][] | undefined;
-      if (!data) return;
-      if (!this.staticColliders) this.staticColliders = this.physics.add.staticGroup();
-      for (let row = 0; row < data.length; row++) {
-        const rowArr = data[row];
-        if (!Array.isArray(rowArr)) continue;
-        for (let col = 0; col < rowArr.length; col++) {
-          const tile = rowArr[col];
-          if (tile && tile.index !== -1) {
-            const x = col * map.tileWidth + map.tileWidth / 2;
-            const y = row * map.tileHeight + map.tileHeight / 2;
-            const body = this.add.rectangle(x, y, map.tileWidth, map.tileHeight, 0x000000, 0);
-            this.physics.add.existing(body, true);
-            // Refresh static body to sync with physics world
-            try { (body as any).body?.refreshBody?.(); } catch {}
-            this.staticColliders.add(body);
-          }
-        }
-      }
-      // Keine Hero-zu-Static-Kollision registrieren (nur Tilemap-Collider nutzen)
-    } catch {}
+    colRebuildStatic(this as any);
   }
 
   registerTileset(ts: { key: string; dataUrl: string; tileWidth: number; tileHeight: number; margin?: number; spacing?: number }) {
-    const nameForTileset = (() => {
-      const k = ts.key || '';
-      if (!k || k.length > 64 || k.startsWith('data:') || k.includes('data:image')) {
-        return `tileset-${Date.now()}`;
-      }
-      return k;
-    })();
-    try { (window as any).DEBUG_LOGS && console.debug('[ASSETS_DBG][Scene] registerTileset', { key: nameForTileset, url: ts.dataUrl?.slice?.(0, 32) || typeof ts.dataUrl, tw: ts.tileWidth, th: ts.tileHeight, m: ts.margin ?? 0, s: ts.spacing ?? 0 }); } catch {}
-    if (!this.mapRef || !this.game || !(this.game as any).renderer) return;
-    
-    // Check if tileset already exists in map
-    const existingTileset = this.mapRef.tilesets.find(t => t.name === nameForTileset);
-    if (existingTileset) {
-      this.dynamicTilesets.set(nameForTileset, existingTileset);
-      return;
-    }
-    
-    // Verhindere doppelte Registrierung
-    try { if (this.dynamicTilesets.has(ts.key)) return; } catch {}
-    // Textur registrieren
-    if (!this.textures.exists(ts.key)) {
-      // Wenn Key schon existiert, generiere einen stabilen, kollisionsfreien Key
-      let key = nameForTileset;
-      while (this.textures.exists(key)) {
-        key = `${nameForTileset}-${Date.now()}`;
-      }
-      const safeKey = key;
-      // add texture and hook once it's available
-      this.textures.once('addtexture', (key: string) => {
-        try { (window as any).DEBUG_LOGS && console.debug('[ASSETS_DBG][Scene] addtexture event', { key, safeKey }); } catch {}
-        if (key === safeKey && this.mapRef) {
-          let tileset: Phaser.Tilemaps.Tileset | null = null;
-          // Tileset zur Map hinzufügen nachdem die Textur geladen wurde
-          try {
-            // Optional: bei Tilegrößen-Mismatch zur Mapgröße skalieren
-            let textureKeyForMap = safeKey;
-            let tileWForMap = ts.tileWidth;
-            let tileHForMap = ts.tileHeight;
-            try {
-              const map = this.mapRef;
-              const tex = this.textures.get(safeKey);
-              const src = tex?.getSourceImage() as HTMLImageElement | HTMLCanvasElement | undefined;
-              if (map && src && (ts.tileWidth !== map.tileWidth || ts.tileHeight !== map.tileHeight)) {
-                const sx = map.tileWidth / ts.tileWidth;
-                const sy = map.tileHeight / ts.tileHeight;
-                const cw = Math.max(1, Math.round((src as any).width * sx));
-                const ch = Math.max(1, Math.round((src as any).height * sy));
-                const scaledKey = `${safeKey}__scaled_${map.tileWidth}x${map.tileHeight}`;
-                if (!this.textures.exists(scaledKey)) {
-                  const ctex = this.textures.createCanvas(scaledKey, cw, ch);
-                  const ctx = ctex?.getContext();
-                  if (ctex && ctx) {
-                    ctx.clearRect(0, 0, cw, ch);
-                    ctx.imageSmoothingEnabled = true;
-                    ctx.imageSmoothingQuality = 'high' as any;
-                    ctx.drawImage(src as any, 0, 0, cw, ch);
-                    ctex.refresh();
-                  }
-                }
-                if (this.textures.exists(scaledKey)) {
-                  textureKeyForMap = scaledKey;
-                  tileWForMap = map.tileWidth;
-                  tileHForMap = map.tileHeight;
-                }
-              }
-            } catch {}
-            // Pre-validate tile multiple against source image to avoid Phaser error
-            try {
-              const tex2 = this.textures.get(textureKeyForMap);
-              const src2 = tex2?.getSourceImage?.() as HTMLImageElement | HTMLCanvasElement | undefined;
-              const margin = ts.margin ?? 0;
-              const spacing = ts.spacing ?? 0;
-              const imgW = (src2 as any)?.width || 0;
-              const imgH = (src2 as any)?.height || 0;
-              const fitsW = imgW > 0 ? ((imgW - margin + spacing) % (tileWForMap + spacing) === 0) : true;
-              const fitsH = imgH > 0 ? ((imgH - margin + spacing) % (tileHForMap + spacing) === 0) : true;
-              if (!fitsW || !fitsH) {
-                try { (window as any).DEBUG_LOGS && console.debug('[ASSETS_DBG][Scene] skip tileset (non-multiple area)', { key: ts.key, imgW, imgH, tileWForMap, tileHForMap, margin, spacing }); } catch {}
-                return;
-              }
-            } catch {}
-            // Check if a tileset with intended name already exists
-            const existingTileset = this.mapRef.tilesets.find(t => t.name === nameForTileset);
-            
-            if (existingTileset) {
-              // Use existing tileset
-              tileset = existingTileset;
-              this.dynamicTilesets.set(nameForTileset, tileset);
-              editorLog('Tileset', `Using existing tileset ${existingTileset.name} for ${nameForTileset}`);
-            } else {
-              // Create new tileset
-              try {
-                // Name: ts.key (uuid:...); Texture-Key: textureKeyForMap
-                // Ensure a metadata Tileset exists on the map so addTilesetImage doesn't warn
-                let assignedFirstGid = 0;
-                try {
-                  const mapAny = this.mapRef as any;
-                  if (!mapAny._nextDynamicFirstGid) {
-                    const maxGid = Math.max(1, ...this.mapRef.tilesets.map(t => (t as any).firstgid || 1));
-                    mapAny._nextDynamicFirstGid = Math.ceil((maxGid + 1) / 1024) * 1024;
-                  }
-                  assignedFirstGid = mapAny._nextDynamicFirstGid;
-                  mapAny._nextDynamicFirstGid += 1024;
-                } catch {}
-                // Ensure raw map data knows this tileset (so addTilesetImage won't warn)
-                try {
-                  const mapAny = this.mapRef as any;
-                  const data = mapAny.data;
-                  const tex = this.textures.get(textureKeyForMap);
-                  const src = tex?.getSourceImage() as HTMLImageElement | HTMLCanvasElement | undefined;
-                  if (data && src) {
-                    const margin = ts.margin ?? 0;
-                    const spacing = ts.spacing ?? 0;
-                    const imgW = (src as any).width || 0;
-                    const imgH = (src as any).height || 0;
-                    const cols = Math.max(1, Math.floor((imgW - margin + spacing) / (tileWForMap + spacing)));
-                    const rows = Math.max(1, Math.floor((imgH - margin + spacing) / (tileHForMap + spacing)));
-                    const tilecount = Math.max(0, cols * rows);
-                        const existsInData = Array.isArray(data.tilesets) && data.tilesets.find((t: any) => t.name === nameForTileset);
-                    if (!existsInData) {
-                      data.tilesets = data.tilesets || [];
-                      data.tilesets.push({
-                        firstgid: assignedFirstGid || 1,
-                        source: undefined,
-                            name: nameForTileset,
-                        image: textureKeyForMap,
-                        imagewidth: imgW,
-                        imageheight: imgH,
-                        tilewidth: tileWForMap,
-                        tileheight: tileHForMap,
-                        margin,
-                        spacing,
-                        columns: cols,
-                        tilecount
-                      });
-                    }
-                  }
-                } catch {}
-                    // Ensure meta tileset entry exists before addTilesetImage to avoid Phaser warning
-                    try {
-                      if (!this.mapRef.tilesets.find(t => t.name === nameForTileset)) {
-                        const meta = new Phaser.Tilemaps.Tileset(nameForTileset, assignedFirstGid || 1, tileWForMap, tileHForMap, ts.margin ?? 0, ts.spacing ?? 0);
-                        (this.mapRef.tilesets as any).push(meta);
-                      }
-                    } catch {}
-                    tileset = this.mapRef.addTilesetImage(nameForTileset, textureKeyForMap, tileWForMap, tileHForMap, ts.margin ?? 0, ts.spacing ?? 0, assignedFirstGid || undefined as any);
-                if (tileset) {
-                  // Ensure the tileset is present in map tilesets list
-                  try {
-                    if (!this.mapRef.tilesets.find(t => t.name === tileset!.name)) {
-                      (this.mapRef.tilesets as any).push(tileset);
-                    }
-                  } catch {}
-                      this.dynamicTilesets.set(nameForTileset, tileset);
-                      editorLog('Tileset', `Successfully added tileset ${nameForTileset}`);
-                }
-              } catch (err) {
-                editorLog('Tileset', `Failed to create tileset ${safeKey}:`, err);
-                // Don't throw - just log and continue
-              }
-            }
-            
-            if (tileset) {
-              // Update all editor layers to include the new tileset
-              const allTilesets = Array.from(this.dynamicTilesets.values());
-              const extra = this.mapRef ? this.mapRef.tilesets.filter(ts => !this.dynamicTilesets.has(ts.name)) : [] as Phaser.Tilemaps.Tileset[];
-              allTilesets.push(...extra);
-              
-              if (this.editorGround) {
-                try { (this.editorGround as any).setTilesets?.(allTilesets); } catch {}
-                try { (this.editorGround as any).tileset = allTilesets; } catch {}
-              }
-              if (this.wallsLayer) {
-                try { (this.wallsLayer as any).setTilesets?.(allTilesets); } catch {}
-                try { (this.wallsLayer as any).tileset = allTilesets; } catch {}
-              }
-              if (this.collisionLayer) {
-                (this.collisionLayer as any).setTilesets(allTilesets);
-              }
-              
-              // Create layer if it doesn't exist
-              if (!this.editorGround && this.mapRef) {
-                try {
-                  const tmp = this.mapRef.createBlankLayer('EditorGround', tileset, 0, 0, this.mapRef.width, this.mapRef.height, this.mapRef.tileWidth, this.mapRef.tileHeight);
-                  this.editorGround = tmp as any;
-                  if (this.editorGround) this.editorGround.setDepth(1);
-                } catch {}
-              }
-            }
-          } catch (error) {
-            editorLog('Tileset', `Failed to add tileset ${safeKey}:`, error);
-            return;
-          }
-        }
-      });
-      // Load image correctly depending on source type
-      const isDataUrl = typeof ts.dataUrl === 'string' && ts.dataUrl.startsWith('data:');
-      if (isDataUrl) {
-        this.textures.addBase64(safeKey, ts.dataUrl);
-      } else {
-        try {
-          this.load.image(safeKey, ts.dataUrl);
-          this.load.start();
-        } catch {}
-      }
-    } else {
-      // Textur existiert bereits
-      try {
-        // Name: ts.key (uuid:...); Texture-Key: ts.key
-        // Assign a unique firstgid and make sure map data/meta are populated
-        let assignedFirstGid = 0;
-        try {
-          const mapAny = this.mapRef as any;
-          if (!mapAny._nextDynamicFirstGid) {
-            const maxGid = Math.max(1, ...this.mapRef.tilesets.map(t => (t as any).firstgid || 1));
-            mapAny._nextDynamicFirstGid = Math.ceil((maxGid + 1) / 1024) * 1024;
-          }
-          assignedFirstGid = mapAny._nextDynamicFirstGid;
-          mapAny._nextDynamicFirstGid += 1024;
-        } catch {}
-        // Update raw map data tilesets
-        try {
-          const mapAny = this.mapRef as any;
-          const data = mapAny.data;
-          const tex = this.textures.get(ts.key);
-          const src = tex?.getSourceImage() as HTMLImageElement | HTMLCanvasElement | undefined;
-          if (data && src) {
-            const margin = ts.margin ?? 0;
-            const spacing = ts.spacing ?? 0;
-            const imgW = (src as any).width || 0;
-            const imgH = (src as any).height || 0;
-            const cols = Math.max(1, Math.floor((imgW - margin + spacing) / ((ts.tileWidth || 16) + spacing)));
-            const rows = Math.max(1, Math.floor((imgH - margin + spacing) / ((ts.tileHeight || 16) + spacing)));
-            const tilecount = Math.max(0, cols * rows);
-            const existsInData = Array.isArray(data.tilesets) && data.tilesets.find((t: any) => t.name === ts.key);
-            if (!existsInData) {
-              data.tilesets = data.tilesets || [];
-              data.tilesets.push({
-                firstgid: assignedFirstGid || 1,
-                source: undefined,
-                name: ts.key,
-                image: ts.key,
-                imagewidth: imgW,
-                imageheight: imgH,
-                tilewidth: ts.tileWidth,
-                tileheight: ts.tileHeight,
-                margin,
-                spacing,
-                columns: cols,
-                tilecount
-              });
-            }
-          }
-        } catch {}
-        // Ensure meta tileset exists with name
-        try {
-          if (!this.mapRef.tilesets.find(t => t.name === ts.key)) {
-            const meta = new Phaser.Tilemaps.Tileset(ts.key, assignedFirstGid || 1, ts.tileWidth, ts.tileHeight, ts.margin ?? 0, ts.spacing ?? 0);
-            (this.mapRef.tilesets as any).push(meta);
-          }
-        } catch {}
-        const tileset = this.mapRef.addTilesetImage(ts.key, ts.key, ts.tileWidth, ts.tileHeight, ts.margin ?? 0, ts.spacing ?? 0, assignedFirstGid || undefined as any);
-        if (tileset) {
-          this.dynamicTilesets.set(ts.key, tileset);
-          // Update all editor layers to include the tileset
-          const allTilesets = Array.from(this.dynamicTilesets.values());
-          allTilesets.push(...this.mapRef.tilesets.filter(ts => !this.dynamicTilesets.has(ts.name)));
-          if (this.editorGround) {
-            try { (this.editorGround as any).setTilesets?.(allTilesets); } catch {}
-            try { (this.editorGround as any).tileset = allTilesets; } catch {}
-          }
-          if (this.wallsLayer) {
-            try { (this.wallsLayer as any).setTilesets?.(allTilesets); } catch {}
-            try { (this.wallsLayer as any).tileset = allTilesets; } catch {}
-          }
-          if (this.collisionLayer) {
-            (this.collisionLayer as any).setTilesets(allTilesets);
-          }
-        }
-      } catch (error) {
-        editorLog('Tileset', `Failed to add existing tileset ${ts.key}:`, error);
-      }
-    }
+    mapRegisterTileset(this as any, ts);
   }
 
   setCollisionVisible(visible: boolean) {
-    editorLog('Visibility', `Setting collision visibility to ${visible}`);
-    this.collisionVisible = !!visible;
-    this.updateCollisionOverlay();
-    // Store visibility state
-    try {
-      localStorage.setItem('meetropolis.collisionVisible', visible.toString());
-    } catch {}
+    colSetVisible(this as any, visible);
   }
 
   private updateCollisionOverlay() {
-    if (!this.mapRef) return;
-    this.collisionOverlay?.destroy();
-    if (!this.collisionVisible || !this.collisionLayer) {
-      editorLog('Visibility', `Not showing collision overlay: visible=${this.collisionVisible}, hasLayer=${!!this.collisionLayer}`);
-      return;
-    }
-    const g = this.add.graphics();
-    g.fillStyle(0xff4757, 0.18);
-    g.lineStyle(1, 0xff4757, 0.8);
-    const layer: any = this.collisionLayer;
-    const data = (layer as any)?.layer?.data as Phaser.Tilemaps.Tile[][] | undefined;
-    if (data) {
-      let tileCount = 0;
-      for (let y = 0; y < data.length; y++) {
-        const row = data[y];
-        if (!row) continue;
-        for (let x = 0; x < row.length; x++) {
-          const t = row[x];
-          if (t && t.index !== -1) {
-            const px = x * this.mapRef.tileWidth;
-            const py = y * this.mapRef.tileHeight;
-            g.fillRect(px, py, this.mapRef.tileWidth, this.mapRef.tileHeight);
-            g.strokeRect(px, py, this.mapRef.tileWidth, this.mapRef.tileHeight);
-            tileCount++;
-          }
-        }
-      }
-      editorLog('Visibility', `Collision overlay created with ${tileCount} collision tiles`);
-    }
-    g.setDepth(8);
-    this.collisionOverlay = g;
+    colUpdateOverlay(this as any);
   }
   
   setBubbleMembers(members: Set<string>) {
-    try {
-      // Dynamischer Import, um Zirkularimporte zu vermeiden
-      (async () => {
-        try {
-          const mod: any = await import('../../lib/avEvents');
-          mod.emitBubbleMembers(Array.from(members));
-        } catch {}
-      })();
-    } catch {}
-    // setBubbleMembers called
-    
-    // Clear existing bubble outlines
-    for (const outline of this.bubbleOutlines.values()) {
-      outline.destroy();
-    }
-    this.bubbleOutlines.clear();
-    
-    // We don't have access to local player ID here, but we can check if any remote is in bubble
-    // The local player bubble effect should be handled differently
-    
-    // Create bubble outlines for remote members
-    for (const id of members) {
-      const sprite = this.remotes.get(id);
-      if (sprite) {
-        const g = this.add.graphics();
-        g.setDepth(9);
-        this.bubbleOutlines.set(id, g);
-        // Start animation update
-        const updateFunc = () => {
-          if (this.bubbleOutlines.has(id)) {
-            this.updateBubbleOutline(id, sprite);
-          }
-        };
-        this.time.addEvent({
-          delay: 50,
-          callback: updateFunc,
-          loop: true
-        });
-      }
-    }
-    
-    // Also check if local hero should have bubble (we'll pass a special marker)
-    if (members.has('__local__')) {
-      const g = this.add.graphics();
-      g.setDepth(9);
-      this.bubbleOutlines.set('local', g);
-      const updateFunc = () => {
-        if (this.bubbleOutlines.has('local')) {
-          this.updateBubbleOutline('local', this.hero);
-        }
-      };
-      this.time.addEvent({
-        delay: 50,
-        callback: updateFunc,
-        loop: true
-      });
-    }
+    uiSetBubbleMembers(this as any, members);
   }
   
   private updateBubbleOutline(id: string, sprite: Phaser.GameObjects.Sprite) {
-    const g = this.bubbleOutlines.get(id);
-    if (!g) return;
-    
-    g.clear();
-    
-    // Draw bubble effect
-    const x = sprite.x;
-    const y = sprite.y;
-    const radius = 20;
-    const color = 0x00ffff;
-    const alpha = 0.25;
-    
-    g.lineStyle(2, color, 0.9);
-    g.strokeCircle(x, y, radius);
-    
-    g.fillStyle(color, alpha);
-    g.fillCircle(x, y, radius);
+    uiUpdateBubbleOutline(this as any, id, sprite);
   }
   
   private createNameLabel(name: string, playerId?: string): Phaser.GameObjects.Container {
-    const container = this.add.container(0, 0);
-    
-    // Background for name
-    const bg = this.add.graphics();
-    const paddingX = 10;
-    const paddingY = 6;
-    const textStyle = { 
-      fontSize: '16px', 
-      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-      color: '#ffffff',
-      fontStyle: 'normal',
-      fontWeight: '500'
-    };
-    const text = this.add.text(0, 0, name, textStyle);
-    try { text.setResolution((window as any).devicePixelRatio || 2); } catch {}
-    try { (text as any).setPadding?.(0, 0, 0, 1); } catch {}
-    text.setOrigin(0.5, 0.5);
-    
-    const width = text.width + paddingX * 2;
-    const height = text.height + paddingY * 2;
-    
-    // Store references for animation
-    (container as any).bg = bg;
-    (container as any).text = text;
-    (container as any).playerId = playerId;
-    (container as any).width = width;
-    (container as any).height = height;
-    (container as any).paddingX = paddingX;
-    (container as any).paddingY = paddingY;
-    
-    // Initial draw
-    this.drawNameLabel(container, false);
-    
-    container.add(bg);
-    container.add(text);
-    container.setDepth(12); // Above sprites
-    try { this.labelLayer?.add(container); } catch {}
-    
-    return container;
+    return uiCreateNameLabel(this as any, name, playerId);
   }
   
   private drawNameLabel(container: Phaser.GameObjects.Container, isSpeaking: boolean) {
-    const bg = (container as any).bg as Phaser.GameObjects.Graphics;
-    const width = (container as any).width;
-    const height = (container as any).height;
-    
-    bg.clear();
-    
-    if (isSpeaking) {
-      // Speaking state - cyan border with glow
-      const w = Math.round(width);
-      const h = Math.round(height);
-      const rx = -Math.floor(w / 2);
-      const ry = -Math.floor(h / 2);
-      bg.fillStyle(0x111114, 0.85); // Darker background
-      bg.fillRoundedRect(rx, ry, w, h, Math.floor(h / 2));
-      
-      // Cyan border
-      bg.lineStyle(1, 0x22d3ee, 1);
-      bg.strokeRoundedRect(rx, ry, w, h, Math.floor(h / 2));
-      
-      // Add glow effect using multiple strokes
-      bg.lineStyle(2, 0x22d3ee, 0.3);
-      bg.strokeRoundedRect(rx, ry, w, h, Math.floor(h / 2));
-      bg.lineStyle(3, 0x22d3ee, 0.15);
-      bg.strokeRoundedRect(rx, ry, w, h, Math.floor(h / 2));
-    } else {
-      // Normal state
-      const w = Math.round(width);
-      const h = Math.round(height);
-      const rx = -Math.floor(w / 2);
-      const ry = -Math.floor(h / 2);
-      bg.fillStyle(0x111114, 0.75); // Dark background matching UI
-      bg.fillRoundedRect(rx, ry, w, h, Math.floor(h / 2));
-      bg.lineStyle(1, 0xffffff, 0.1); // Subtle border
-      bg.strokeRoundedRect(rx, ry, w, h, Math.floor(h / 2));
-    }
+    uiDrawNameLabel(this as any, container, isSpeaking);
   }
   
   private updateNameLabel(container: Phaser.GameObjects.Container, x: number, y: number) {
-    const cam = this.cameras.main;
-    const view = cam.worldView;
-    const screenX = (x - view.x) * cam.zoom;
-    const screenY = (y - view.y) * cam.zoom;
-    // Vertikaler Abstand relativ zur Zoomstufe: Avatar-Höhe ~24px in Weltkoordinaten
-    const avatarWorldHeight = 24;
-    const baseGap = 6; // zusätzlicher Abstand zum Kopf
-    const offsetY = (avatarWorldHeight / 2 + baseGap) * cam.zoom;
-    container.setPosition(Math.round(screenX), Math.round(screenY - offsetY));
+    uiUpdateNameLabel(this as any, container, x, y);
   }
   
   setHeroName(name: string) {
-    if (this.heroNameLabel) {
-      this.heroNameLabel.destroy();
-    }
-    this.heroNameLabel = this.createNameLabel(name, 'local');
-    this.updateNameLabel(this.heroNameLabel, this.hero.x, this.hero.y);
+    uiSetHeroName(this as any, name);
   }
   
   updateSpeakingStates(speakingIds: Set<string>) {
-    // Update all name labels with speaking state
-    this.nameLabels.forEach((label, id) => {
-      const isSpeaking = speakingIds.has(id);
-      this.drawNameLabel(label, isSpeaking);
-    });
-    
-    // Update hero label if local player is speaking
-    if (this.heroNameLabel && speakingIds.has('local')) {
-      this.drawNameLabel(this.heroNameLabel, true);
-    } else if (this.heroNameLabel) {
-      this.drawNameLabel(this.heroNameLabel, false);
-    }
+    uiUpdateSpeakingStates(this as any, speakingIds);
   }
 
   setBackgroundColor(hex: string) {
@@ -2742,72 +1447,11 @@ export class MainScene extends Phaser.Scene {
   }
 
   private async loadVisibleChunks(layerName: 'ground' | 'walls' | 'collision') {
-    if (!this.v2 || !this.mapRef) return;
-    const cam = this.cameras.main;
-    const tileW = this.mapRef.tileWidth;
-    const tileH = this.mapRef.tileHeight;
-    const cs = this.v2.chunkSize;
-    const x0 = Math.max(0, Math.floor(cam.worldView.x / tileW));
-    const y0 = Math.max(0, Math.floor(cam.worldView.y / tileH));
-    const x1 = Math.min(this.mapRef.width - 1, Math.floor((cam.worldView.x + cam.worldView.width) / tileW));
-    const y1 = Math.min(this.mapRef.height - 1, Math.floor((cam.worldView.y + cam.worldView.height) / tileH));
-    const cx0 = Math.floor(x0 / cs);
-    const cy0 = Math.floor(y0 / cs);
-    const cx1 = Math.floor(x1 / cs);
-    const cy1 = Math.floor(y1 / cs);
-    const keys: string[] = [];
-    for (let cy = cy0; cy <= cy1; cy++) for (let cx = cx0; cx <= cx1; cx++) {
-      const k = `${cx}:${cy}`;
-      if (!this.loadedChunks.has(`${layerName}:${k}`)) keys.push(k);
-    }
-    if (keys.length === 0) return;
-    const chunks = await fetchChunks(this.currentMapName, layerName, keys);
-    const updates = Object.entries(chunks).map(([key, val]) => ({ key, version: val.version, encoding: val.encoding, data: val.data }));
-    this.applyChunkUpdates(layerName, updates);
+    await mapLoadVisibleChunks(this as any, layerName);
   }
 
   private applyChunkUpdates(layerName: 'ground' | 'walls' | 'collision', updates: Array<{ key: string; version: number; encoding: string; data: string }>) {
-    if (!this.v2 || !this.mapRef) return;
-    const layer = layerName === 'collision' ? this.collisionLayer : (layerName === 'walls' ? this.wallsLayer : this.editorGround);
-    if (!layer) return;
-    const cs = this.v2.chunkSize;
-    const total = cs * cs;
-    for (const u of updates) {
-      const [xs, ys] = u.key.split(':');
-      const cx = Number(xs), cy = Number(ys);
-      if (!Number.isFinite(cx) || !Number.isFinite(cy)) continue;
-      const arr = decodeRLE(u.data, total);
-      for (let i = 0; i < total; i++) {
-        const vx = i % cs;
-        const vy = Math.floor(i / cs);
-        const gx = cx * cs + vx;
-        const gy = cy * cs + vy;
-        if (gx >= this.mapRef.width || gy >= this.mapRef.height) continue;
-        if (layerName === 'collision') {
-          // Setze eine Dummy-Kachel für Kollisionen (Layer bleibt unsichtbar)
-          const v = arr[i] !== 0;
-          if (v) {
-            try { layer.putTileAt(1, gx, gy); } catch {}
-          } else {
-            try { layer.removeTileAt(gx, gy); } catch {}
-          }
-        } else {
-          const gid = tileRefIdToGid(arr[i] | 0, this.v2.firstGids);
-          if (gid < 0) layer.removeTileAt(gx, gy);
-          else layer.putTileAt(gid, gx, gy);
-        }
-      }
-      this.loadedChunks.add(`${layerName}:${cx}:${cy}`);
-    }
-    if (layerName === 'collision') {
-      // Stelle sicher, dass Physik nach Chunk-Updates konsistent ist
-      this.ensureCollisionCollider();
-      // Baue zusätzlich statische Collider neu auf (robuster gegen Tileset/Index-Mismatches)
-      try { this.rebuildStaticColliders(); } catch {}
-      if (this.v2) {
-        try { this.collisionLayer?.setVisible(false); } catch {}
-      }
-    }
+    mapApplyChunkUpdates(this as any, layerName, updates);
   }
 
   override update(time: number, delta: number) {
@@ -2828,13 +1472,6 @@ export class MainScene extends Phaser.Scene {
   private _chunkThrottle = 0;
 
   private ensureCollisionCollider() {
-    try {
-      if (!this.collisionLayer || !this.hero) return;
-      // Mark all tiles (index != -1) as colliding
-      try { this.collisionLayer.setCollisionByExclusion([-1], true); } catch {}
-      // Recreate collider to be safe
-      try { this.heroVsTilesCollider?.destroy(); } catch {}
-      this.heroVsTilesCollider = this.physics.add.collider(this.hero, this.collisionLayer);
-    } catch {}
+    colEnsureCollider(this as any);
   }
 }
