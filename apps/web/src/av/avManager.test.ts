@@ -269,6 +269,50 @@ describe('AVManager', () => {
     expect(room.localParticipant.unpublishTrack).toHaveBeenCalledWith(cam);
   });
 
+  it('Toggles während geschlossenem Signal werden pending gesetzt und Fast-Reconnect getriggert (Mic)', async () => {
+    const mgr = makeManager() as any;
+    const room = makeFakeRoom();
+    mgr.current = room;
+    (mgr as any).currentName = 'world';
+    (mgr as any).isSignalOpen = () => false; // Signal geschlossen
+    const switchSpy = vi.spyOn(mgr as any, 'switchTo').mockResolvedValue(undefined);
+
+    await mgr.setMicrophoneEnabled(true);
+
+    expect(switchSpy).toHaveBeenCalledWith('world');
+    expect(room.localParticipant.publishTrack).not.toHaveBeenCalled();
+  });
+
+  it('Toggles während geschlossenem Signal werden pending gesetzt und Fast-Reconnect getriggert (Cam)', async () => {
+    const mgr = makeManager() as any;
+    const room = makeFakeRoom();
+    mgr.current = room;
+    (mgr as any).currentName = 'world';
+    (mgr as any).isSignalOpen = () => false; // Signal geschlossen
+    const switchSpy = vi.spyOn(mgr as any, 'switchTo').mockResolvedValue(undefined);
+
+    await mgr.setCameraEnabled(true);
+
+    expect(switchSpy).toHaveBeenCalledWith('world');
+    expect(room.localParticipant.publishTrack).not.toHaveBeenCalled();
+  });
+
+  it('startScreenshare bei geschlossenem Signal löst Fast-Reconnect aus und publiziert nicht sofort', async () => {
+    const mgr = makeManager() as any;
+    const room = makeFakeRoom();
+    mgr.current = room;
+    (mgr as any).currentName = 'world';
+    let open = false;
+    (mgr as any).isSignalOpen = () => open; // zunächst geschlossen
+    const switchSpy = vi.spyOn(mgr as any, 'switchTo').mockImplementation(async () => { open = true; });
+
+    const ok = await mgr.startScreenshare();
+
+    expect(switchSpy).toHaveBeenCalledWith('world');
+    expect(ok).toBe(true);
+    expect(room.localParticipant.publishTrack).toHaveBeenCalled();
+  });
+
   it('aktiviert Mic nach Join, wenn vorher pending war (Join-Order deterministisch)', async () => {
     vi.useFakeTimers();
     const { joinLivekitRoom } = await import('../lib/livekit');

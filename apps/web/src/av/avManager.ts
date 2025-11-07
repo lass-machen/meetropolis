@@ -241,10 +241,7 @@ export class AVManager {
     const room: any = this.current as any;
     if (!room) return false;
     const state = room.connectionState || room.state;
-    if (state === 'connected' || state === 2) return true;
-    // Test-/Fallback: wenn ein Room mit localParticipant existiert, als verbunden betrachten
-    try { if (room.localParticipant) return true; } catch {}
-    return false;
+    return state === 'connected' || state === 2;
   }
 
   // Aktiviert/Deaktiviert console.debug abhängig von Env/Debug-Flag, um Prod-Konsole nicht zu fluten
@@ -267,6 +264,20 @@ export class AVManager {
     } catch {}
     // Fallback auf Verbindungszustand
     return this.isRoomConnected();
+  }
+
+  private ensureConnectedNow(): void {
+    if (!this.currentName) return;
+    if (this.isConnecting) return;
+    // Reset Backoff und sofortiger Reconnect-Versuch
+    this.reconnectAttempts = 0;
+    try { if (this.reconnectTimer) clearTimeout(this.reconnectTimer); } catch {}
+    this.reconnectTimer = null;
+    const name = this.currentName;
+    void this.switchTo(name!).catch(() => {
+      // Falls sofortiger Versuch scheitert, reguläres Backoff starten
+      this.scheduleReconnect();
+    });
   }
 
   private getSubscribed(pub: any): boolean {
@@ -1046,6 +1057,19 @@ export class AVManager {
         video: { frameRate: 30, resolution: { width: 1920, height: 1080 } } as any,
         audio: true,
       } as any);
+      // Sicherstellen, dass Signal/Verbindung offen ist; falls nicht → Fast-Reconnect
+      if (!this.isSignalOpen()) {
+        try { this.ensureConnectedNow(); } catch {}
+        try { await this.waitForConnected(this.current as any, 8000); } catch {}
+        if (!this.isSignalOpen()) {
+          // Aufräumen lokaler, nicht publizierter Tracks und abbrechen
+          try {
+            for (const t of tracks) { try { (t as any)?.stop?.(); } catch {} }
+          } catch {}
+          this.sharePending = false;
+          return false;
+        }
+      }
       try {
         // Nach der Auswahl Verbindung sicherstellen
         await this.waitForConnected(this.current).catch(()=>{});
@@ -1204,6 +1228,12 @@ export class AVManager {
       if (enabled) await this.ensurePermissions(true, false);
       return;
     }
+    // Wenn Signal nicht offen ist: pending setzen, Fast-Reconnect anstoßen und zurück
+    if (!this.isSignalOpen()) {
+      this.pendingMic = enabled;
+      if (enabled) { try { this.ensureConnectedNow(); } catch {} }
+      return;
+    }
     this.pendingMic = false; // Clear pending flag when we have a room
     try {
       const room = this.current;
@@ -1343,6 +1373,12 @@ export class AVManager {
     if (notConnected) {
       this.pendingCam = enabled;
       if (enabled) await this.ensurePermissions(false, true);
+      return;
+    }
+    // Wenn Signal nicht offen ist: pending setzen, Fast-Reconnect anstoßen und zurück
+    if (!this.isSignalOpen()) {
+      this.pendingCam = enabled;
+      if (enabled) { try { this.ensureConnectedNow(); } catch {} }
       return;
     }
     this.pendingCam = false; // Clear pending flag when we have a room
