@@ -198,7 +198,29 @@ export class AVManager {
       window.addEventListener('pagehide', handler, { capture: true } as any);
       window.addEventListener('beforeunload', handler, { capture: true } as any);
       document.addEventListener('visibilitychange', () => {
-        try { if (document.visibilityState === 'hidden') this.pageLeaving = true; } catch {}
+        try {
+          if (document.visibilityState === 'hidden') {
+            this.pageLeaving = true;
+          } else if (document.visibilityState === 'visible') {
+            // Sofortige Wiederaufnahme der Subscriptions/Publishes bei Rückkehr
+            try { (this.current as any)?.startAudio?.(); } catch {}
+            try { this.ensureSubscribeAllAudio(64); } catch {}
+            try { this.applyDesiredSubscriptions(); } catch {}
+            try { void this.restoreDesiredTracks(); } catch {}
+          }
+        } catch {}
+      }, { capture: true } as any);
+      window.addEventListener('focus', () => {
+        try { (this.current as any)?.startAudio?.(); } catch {}
+        try { this.ensureSubscribeAllAudio(64); } catch {}
+        try { this.applyDesiredSubscriptions(); } catch {}
+        try { void this.restoreDesiredTracks(); } catch {}
+      }, { capture: true } as any);
+      window.addEventListener('pageshow', () => {
+        try { (this.current as any)?.startAudio?.(); } catch {}
+        try { this.ensureSubscribeAllAudio(64); } catch {}
+        try { this.applyDesiredSubscriptions(); } catch {}
+        try { void this.restoreDesiredTracks(); } catch {}
       }, { capture: true } as any);
       this.removePageLeaveGuards = () => {
         try { window.removeEventListener('pagehide', handler, true); } catch {}
@@ -622,6 +644,17 @@ export class AVManager {
           room.on?.(RoomEvent.Disconnected, onDisconnected);
           room.on?.(RoomEvent.TrackPublished, onTrackPublished);
           room.on?.(RoomEvent.TrackSubscribed, onTrackSubscribed);
+          // Zusätzliche Events: Unsubscribe/Unpublish/Muted wollen wir aktiv beantworten
+          try {
+            room.on?.(RoomEvent.TrackUnsubscribed, (_track: any, _pub: any, _p: any) => { try { this.ensureSubscribeAllAudio(64); this.applyDesiredSubscriptions(); } catch {} });
+          } catch {}
+          try {
+            room.on?.(RoomEvent.TrackUnpublished, (_pub: any, _p: any) => { try { this.ensureSubscribeAllAudio(64); this.applyDesiredSubscriptions(); } catch {} });
+          } catch {}
+          try {
+            room.on?.(RoomEvent.TrackMuted, (_pub: any, _p: any) => { try { this.ensureSubscribeAllAudio(64); this.applyDesiredSubscriptions(); } catch {} });
+            room.on?.(RoomEvent.TrackUnmuted, (_pub: any, _p: any) => { try { this.ensureSubscribeAllAudio(64); this.applyDesiredSubscriptions(); } catch {} });
+          } catch {}
           room.on?.(RoomEvent.ConnectionQualityChanged, onConnQuality);
           room.on?.(RoomEvent.ParticipantConnected, onParticipantConnected);
           room.on?.(RoomEvent.ParticipantDisconnected, onParticipantDisconnected);
@@ -740,6 +773,10 @@ export class AVManager {
           r.on?.('disconnected', onDisconnected);
           r.on?.('trackPublished', onTrackPublished);
           r.on?.('trackSubscribed', onTrackSubscribed);
+          try { r.on?.('trackUnsubscribed', (_t: any, _p: any, _pp: any) => { try { this.ensureSubscribeAllAudio(64); this.applyDesiredSubscriptions(); } catch {} }); } catch {}
+          try { r.on?.('trackUnpublished', (_p: any, _pp: any) => { try { this.ensureSubscribeAllAudio(64); this.applyDesiredSubscriptions(); } catch {} }); } catch {}
+          try { r.on?.('trackMuted', (_p: any, _pp: any) => { try { this.ensureSubscribeAllAudio(64); this.applyDesiredSubscriptions(); } catch {} }); } catch {}
+          try { r.on?.('trackUnmuted', (_p: any, _pp: any) => { try { this.ensureSubscribeAllAudio(64); this.applyDesiredSubscriptions(); } catch {} }); } catch {}
           r.on?.('connectionQualityChanged', onConnQuality);
           r.on?.('participantConnected', onParticipantConnected);
           r.on?.('participantDisconnected', onParticipantDisconnected);
@@ -948,6 +985,10 @@ export class AVManager {
         const after = !!(anyRoom?.canPlaybackAudio ?? false);
         console.debug('[AV][debug] startAudio on unlock', { before, result: r, after });
       } catch (e) { try { console.warn('[AV][debug] startAudio unlock error', e); } catch {} }
+      // Nach Audio-Unlock: sichere Subscriptions/Publishes sofort anwenden
+      try { this.ensureSubscribeAllAudio(64); } catch {}
+      try { this.applyDesiredSubscriptions(); } catch {}
+      try { void this.restoreDesiredTracks(); } catch {}
       const anyRoom: any = this.current as any;
       const can = !!(anyRoom?.canPlaybackAudio ?? false);
       if (can) cleanup();
@@ -1226,6 +1267,43 @@ export class AVManager {
                 }
               } catch {}
             }, { once: true } as any);
+          } catch {}
+          // Watchdog: Falls der lokale Mic-Status nach kurzer Zeit nicht wirklich aktiv ist, erzwinge ein schnelles Re-Publish über einen simpleren Pfad
+          try {
+            const recheck = async () => {
+              try {
+                const mod: any = await import('./core/localState');
+                const ok = mod.isLocalMicOn(room as any);
+                if (!ok && this.lastMicDesired) {
+                  // Hartes Cleanup evtl. toter Publishes
+                  try {
+                    const pubs2 = Array.from(room.localParticipant.trackPublications.values());
+                    for (const pub of pubs2) {
+                      const src2 = (pub as any).source ?? (pub as any)?.track?.source;
+                      const kind2 = (pub as any).kind ?? (pub as any)?.track?.kind;
+                      const isMic2 = src2 === 'microphone' || src2 === 0 || kind2 === 'audio';
+                      if (isMic2 && (pub as any)?.track) {
+                        try { await room.localParticipant.unpublishTrack((pub as any).track); } catch {}
+                        try { ((pub as any).track as any)?.stop?.(); } catch {}
+                      }
+                    }
+                  } catch {}
+                  try {
+                    const lkc: any = await import('livekit-client');
+                    const simple: any = await (lkc as any).createLocalAudioTrack({
+                      ...(this.preferredMic ? { deviceId: this.preferredMic } : {}),
+                      echoCancellation: true,
+                      noiseSuppression: true,
+                      autoGainControl: true,
+                    } as any);
+                    await room.localParticipant.publishTrack(simple, { source: 'microphone' } as any);
+                    try { console.debug('[AV][debug] mic republish (watchdog) done'); } catch {}
+                  } catch (e) { try { console.warn('[AV][debug] mic watchdog republish failed', e); } catch {} }
+                }
+              } catch {}
+            };
+            setTimeout(recheck, 1200);
+            setTimeout(recheck, 5000);
           } catch {}
         } catch {}
       } else {
