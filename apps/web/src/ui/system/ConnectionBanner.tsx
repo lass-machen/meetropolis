@@ -3,11 +3,23 @@ import React from 'react';
 export function ConnectionBanner(props: {
   reconnecting: boolean;
   reason?: string;
+  minVisibleMs?: number;
   className?: string;
   style?: React.CSSProperties;
 }) {
-  const { reconnecting, reason, className = '', style } = props;
-  if (!reconnecting) return null;
+  const { reconnecting, reason, minVisibleMs = 1000, className = '', style } = props;
+  const [show, setShow] = React.useState(false);
+  React.useEffect(() => {
+    let t: number | null = null;
+    if (reconnecting) {
+      t = window.setTimeout(() => setShow(true), Math.max(0, minVisibleMs));
+    } else {
+      setShow(false);
+      if (t) { clearTimeout(t); t = null; }
+    }
+    return () => { if (t) clearTimeout(t); };
+  }, [reconnecting, minVisibleMs]);
+  if (!reconnecting || !show) return null;
   return (
     <div
       className={className}

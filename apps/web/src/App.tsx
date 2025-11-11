@@ -115,7 +115,7 @@ export function App() {
   const [isInternalOwner, setIsInternalOwner] = React.useState(false);
   // view/state werden in AuthScreen verwaltet
   // Roster: periodisch letzte Präsenz (für Offline/"zuletzt online")
-  useRosterPresence({ apiBase, authChecked, meId: me?.id ?? null, rosterByIdentityRef, setRoster });
+  useRosterPresence({ apiBase, authChecked, meId: me?.id ?? null, rosterByIdentityRef, setRoster, avRef });
   // Grid Overlay expand/collapse + selection
   const [gridExpanded, setGridExpanded] = React.useState(false);
   const [selectedSid, setSelectedSid] = React.useState<string | null>(null);
@@ -1577,6 +1577,21 @@ export function App() {
         onOpenAdmin={() => { setAdminOpen(true); setMenuOpen(false); }}
         isAdmin={isInternalOwner}
         onOpenApi={() => { setApiModalOpen(true); setMenuOpen(false); }}
+        onResetApp={async () => {
+          setMenuOpen(false);
+          try { await fetch(`${apiBase}/auth/logout`, { method: 'POST', credentials: 'include' }); } catch {}
+          try { localStorage.clear(); } catch {}
+          try { sessionStorage.clear(); } catch {}
+          try {
+            const parts = (document.cookie || '').split(';');
+            for (const raw of parts) {
+              const name = raw.split('=')[0]?.trim();
+              if (!name) continue;
+              document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`;
+            }
+          } catch {}
+          window.location.reload();
+        }}
         onToggleEditor={async () => {
           if (editor.active) { await saveAllToServer().catch(()=>{}); }
           setEditor(s => ({ ...s, active: !s.active }));

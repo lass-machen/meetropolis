@@ -59,6 +59,8 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
   const reconnectAttemptsRef = React.useRef(0);
   const reconnectTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastCloseInfoRef = React.useRef<{ code?: number; reason?: string }>({});
+  const connectingRef = React.useRef<boolean>(false);
+  const coolDownUntilRef = React.useRef<number>(0);
 
   React.useEffect(() => {
     if (!me) return;
@@ -69,8 +71,22 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
       if (disposed) return;
       try { setConnectionStatus?.((s) => ({ reconnecting: true, lastCode: lastCloseInfoRef.current.code, lastReason: lastCloseInfoRef.current.reason })); } catch {}
       try { (window as any).__wsReconnects = ((window as any).__wsReconnects || 0) + 1; } catch {}
-      const attempt = ++reconnectAttemptsRef.current;
-      const delay = Math.min(30000, 1000 * Math.pow(2, attempt - 1) + Math.random() * 500);
+      const now = Date.now();
+      if (coolDownUntilRef.current > now) {
+        // In Cooldown (z. B. bei 'Insufficient resources') – warte bis Ablauf.
+      } else {
+        // Exponentieller Backoff
+        const attempt = ++reconnectAttemptsRef.current;
+        // Circuit breaker: nach vielen Fehlversuchen längeren Cooldown setzen
+        if (attempt >= 8) {
+          coolDownUntilRef.current = now + 60_000; // 60s Pause
+          reconnectAttemptsRef.current = 0;
+        }
+      }
+      const baseAttempt = Math.max(1, reconnectAttemptsRef.current);
+      const delayBase = Math.min(30_000, 1000 * Math.pow(2, baseAttempt - 1) + Math.random() * 500);
+      const extra = Math.max(0, coolDownUntilRef.current - now);
+      const delay = Math.max(delayBase, extra);
       if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
       reconnectTimerRef.current = setTimeout(() => {
         reconnectTimerRef.current = null;
@@ -79,6 +95,15 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
     };
 
     const connect = async () => {
+      if (disposed) return;
+      if (connectingRef.current) return;
+      const now = Date.now();
+      if (coolDownUntilRef.current > now) {
+        // Noch im Cooldown – später erneut versuchen
+        scheduleReconnect();
+        return;
+      }
+      connectingRef.current = true;
       try {
         // Server entscheidet über Default-Spawn: keine LocalStorage-Spawninjektion mehr
         const positionToUse = localPosRef.current && (localPosRef.current.x !== undefined && localPosRef.current.y !== undefined)
@@ -94,6 +119,7 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
         colyseusRef.current = room;
         reconnectAttemptsRef.current = 0;
         try { setConnectionStatus?.({ reconnecting: false, lastCode: undefined, lastReason: undefined }); } catch {}
+        connectingRef.current = false;
 
         const localLivekitIdentity = avRef.current?.room?.localParticipant?.identity || me.id;
         const colyseusSessionId = room.sessionId;
@@ -422,17 +448,34 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
           try {
             const code = (ev && ev[0] && typeof ev[0].code === 'number') ? ev[0].code : undefined;
             const reason = (ev && ev[0] && typeof ev[0].reason === 'string') ? ev[0].reason : undefined;
+            // Manche Browser-Stacks liefern nur Message-Strings
+            const msg = (ev && ev[0] && (ev[0].message || ev[0].toString?.())) || '';
+            const text = String(reason || msg || '');
+            if (text.toLowerCase().includes('insufficient resources')) {
+              // Setze Cooldown um Session-ID-Flut zu verhindern
+              coolDownUntilRef.current = Date.now() + 60_000;
+            }
             lastCloseInfoRef.current = { code, reason };
           } catch {}
           colyseusRef.current = null;
+          connectingRef.current = false;
           scheduleReconnect();
         });
         room.onLeave?.((code?: number) => {
           try { lastCloseInfoRef.current = { code, reason: undefined }; } catch {}
           colyseusRef.current = null;
+          connectingRef.current = false;
           scheduleReconnect();
         });
-      } catch {
+      } catch (err: any) {
+        try {
+          const msg = (err && (err.message || err.toString?.())) || '';
+          if (String(msg).toLowerCase().includes('insufficient resources')) {
+            coolDownUntilRef.current = Date.now() + 60_000;
+            lastCloseInfoRef.current = { code: undefined, reason: 'Insufficient resources' };
+          }
+        } catch {}
+        connectingRef.current = false;
         scheduleReconnect();
       }
     };

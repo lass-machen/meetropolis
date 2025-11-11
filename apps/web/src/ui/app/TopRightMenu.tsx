@@ -15,8 +15,9 @@ export function TopRightMenu(props: {
   onToggleEditor: () => void | Promise<void>;
   editorActive: boolean;
   onLogout: () => void | Promise<void>;
+  onResetApp?: () => void;
 }) {
-  const { menuOpen, onToggleMenu, onOpenUsers, onOpenInvites, onOpenAdmin, isAdmin, onBackToWorld, onOpenApi, onToggleEditor, editorActive, onLogout } = props;
+  const { menuOpen, onToggleMenu, onOpenUsers, onOpenInvites, onOpenAdmin, isAdmin, onBackToWorld, onOpenApi, onToggleEditor, editorActive, onLogout, onResetApp } = props;
   const { override, setOverride } = useTheme();
   const { t } = useTranslation();
   return (
@@ -44,6 +45,12 @@ export function TopRightMenu(props: {
                 <span>{editorActive ? t('topRightMenu.editorOff') : t('topRightMenu.editorOn')}</span>
               </button>
               <div style={{ height: 1, background: 'var(--border)', margin: '6px 4px' }} />
+              {onResetApp && (
+                <button role="menuitem" onClick={onResetApp} style={{ textAlign: 'left', padding: '10px 12px', borderRadius: 8, border: '1px solid rgba(244,63,94,0.35)', background: 'rgba(244,63,94,0.12)', color: '#fff', cursor: 'pointer', display:'flex', alignItems:'center', gap:8 }}>
+                  <FAIcon name="broom" variant="solid" fixedWidth />
+                  <span>{t('topRightMenu.resetApp') || 'App zurücksetzen'}</span>
+                </button>
+              )}
               <button role="menuitem" onClick={onLogout} style={{ textAlign: 'left', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--glass)', color: 'var(--fg)', cursor: 'pointer', display:'flex', alignItems:'center', gap:8 }}>
                 <FAIcon name="right-from-bracket" variant="solid" fixedWidth />
                 <span>{t('topRightMenu.logout')}</span>
