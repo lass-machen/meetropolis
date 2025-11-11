@@ -28,6 +28,8 @@ interface UseWorldRoomArgs {
   setRoster: React.Dispatch<React.SetStateAction<Array<{ identity: string; name: string; online: boolean; x?: number; y?: number; lastSeen?: string }>>>;
   // lifetime
   disposedRef: AnyRef<boolean>;
+  // connection monitor (optional)
+  setConnectionStatus?: React.Dispatch<React.SetStateAction<{ reconnecting: boolean; lastCode?: number; lastReason?: string }>>;
 }
 
 export function useWorldRoom(args: UseWorldRoomArgs) {
@@ -51,10 +53,12 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
     setAvState,
     rosterByIdentityRef,
     setRoster,
+    setConnectionStatus,
   } = args;
 
   const reconnectAttemptsRef = React.useRef(0);
   const reconnectTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastCloseInfoRef = React.useRef<{ code?: number; reason?: string }>({});
 
   React.useEffect(() => {
     if (!me) return;
@@ -63,6 +67,8 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
 
     const scheduleReconnect = () => {
       if (disposed) return;
+      try { setConnectionStatus?.((s) => ({ reconnecting: true, lastCode: lastCloseInfoRef.current.code, lastReason: lastCloseInfoRef.current.reason })); } catch {}
+      try { (window as any).__wsReconnects = ((window as any).__wsReconnects || 0) + 1; } catch {}
       const attempt = ++reconnectAttemptsRef.current;
       const delay = Math.min(30000, 1000 * Math.pow(2, attempt - 1) + Math.random() * 500);
       if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
@@ -87,6 +93,7 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
         if (disposed) { try { room.leave(); } catch {} return; }
         colyseusRef.current = room;
         reconnectAttemptsRef.current = 0;
+        try { setConnectionStatus?.({ reconnecting: false, lastCode: undefined, lastReason: undefined }); } catch {}
 
         const localLivekitIdentity = avRef.current?.room?.localParticipant?.identity || me.id;
         const colyseusSessionId = room.sessionId;
@@ -411,8 +418,20 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
           setTimeout(buildParticipantList, 0);
         });
 
-        room.onError?.(() => { colyseusRef.current = null; scheduleReconnect(); });
-        room.onLeave?.(() => { colyseusRef.current = null; scheduleReconnect(); });
+        room.onError?.((...ev: any[]) => {
+          try {
+            const code = (ev && ev[0] && typeof ev[0].code === 'number') ? ev[0].code : undefined;
+            const reason = (ev && ev[0] && typeof ev[0].reason === 'string') ? ev[0].reason : undefined;
+            lastCloseInfoRef.current = { code, reason };
+          } catch {}
+          colyseusRef.current = null;
+          scheduleReconnect();
+        });
+        room.onLeave?.((code?: number) => {
+          try { lastCloseInfoRef.current = { code, reason: undefined }; } catch {}
+          colyseusRef.current = null;
+          scheduleReconnect();
+        });
       } catch {
         scheduleReconnect();
       }

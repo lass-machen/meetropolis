@@ -41,16 +41,17 @@ export function mergeRecentPresence(
     if (!ident) continue;
     const prev = map.get(ident);
     const base: RosterItem = prev || { identity: ident, name, online: false };
+    const nextLastSeen = p.updatedAt ?? base.lastSeen;
     map.set(ident, {
       ...base,
-      lastSeen: p.updatedAt || base.lastSeen,
+      ...(nextLastSeen ? { lastSeen: nextLastSeen } : {}),
     });
   }
 
   for (const [ident, v] of Object.entries(onlineByIdentity)) {
     const prevItem = map.get(ident);
     if (prevItem) {
-      map.set(ident, { identity: ident, name: v.name, online: true, x: v.x, y: v.y, lastSeen: prevItem.lastSeen });
+      map.set(ident, { identity: ident, name: v.name, online: true, x: v.x, y: v.y, ...(prevItem.lastSeen ? { lastSeen: prevItem.lastSeen } : {}) });
       continue;
     }
     // Name-based fallback: match by equal lowercased name if identity differs (legacy clients)

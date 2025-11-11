@@ -43,6 +43,7 @@ import { BubbleManager } from './game/bubbleManager';
 import { FollowManager } from './game/followManager';
 import { ZoneManager } from './game/zoneManager';
 import { VolumeManager } from './game/volumeManager';
+import { ConnectionBanner } from './ui/system/ConnectionBanner';
  
 
 export function App() {
@@ -119,6 +120,8 @@ export function App() {
   const [gridExpanded, setGridExpanded] = React.useState(false);
   const [selectedSid, setSelectedSid] = React.useState<string | null>(null);
   const [overlayZoom, setOverlayZoom] = React.useState(1);
+  // Connection status (Colyseus)
+  const [connStatus, setConnStatus] = React.useState<{ reconnecting: boolean; lastCode?: number; lastReason?: string }>({ reconnecting: false });
   // Simple view routing (removed legacy state)
   // Bubble UI state
   const [bubbleUi, setBubbleUi] = React.useState<{ active: boolean; members: string[] }>({ active: false, members: [] });
@@ -239,6 +242,7 @@ export function App() {
     rosterByIdentityRef,
     setRoster,
     disposedRef,
+    setConnectionStatus: setConnStatus,
   });
   
   // Collision-Overlay: Sichtbarkeit steuert ausschließlich der Edit-Mode
@@ -1412,6 +1416,7 @@ export function App() {
             overlayZoom={overlayZoom}
             onZoom={(z) => setOverlayZoom(z)}
           />
+          <ConnectionBanner reconnecting={connStatus.reconnecting} reason={connStatus.lastReason || (typeof connStatus.lastCode === 'number' ? String(connStatus.lastCode) : undefined)} />
           {positionReady ? (
             <div
               ref={containerRef}
