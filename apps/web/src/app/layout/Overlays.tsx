@@ -20,11 +20,41 @@ type Props = {
 };
 
 export function Overlays({ hud, editorActive, avDnd, participants, gridExpanded, onToggleExpand, selectedSid, onSelectSid, getRoom, overlayZoom, onZoom }: Props) {
+  // Halte die letzte nicht-leere Teilnehmerliste für kurze Zeit (Reconnect-Grace),
+  // um visuelles Flackern bei kurzzeitigen Verbindungsabbrüchen zu vermeiden.
+  const lastNonEmptyRef = React.useRef<Participant[]>(participants);
+  const [stableParticipants, setStableParticipants] = React.useState<Participant[]>(participants);
+  const graceTimerRef = React.useRef<number | null>(null);
+  React.useEffect(() => {
+    if (graceTimerRef.current) {
+      clearTimeout(graceTimerRef.current);
+      graceTimerRef.current = null;
+    }
+    if (participants.length > 0) {
+      lastNonEmptyRef.current = participants;
+      setStableParticipants(participants);
+      return;
+    }
+    // Teilnehmerliste ist leer:  Entprellen für kurze Zeit
+    // (z. B. während Colyseus-Reconnects), um UI-Flackern zu verhindern.
+    setStableParticipants(lastNonEmptyRef.current);
+    graceTimerRef.current = window.setTimeout(() => {
+      setStableParticipants(participants);
+      graceTimerRef.current = null;
+    }, 2000);
+    return () => {
+      if (graceTimerRef.current) {
+        clearTimeout(graceTimerRef.current);
+        graceTimerRef.current = null;
+      }
+    };
+  }, [participants]);
+
   return (
     <>
       {!editorActive && !avDnd && (
         <ParticipantsGrid
-          participants={participants}
+          participants={stableParticipants}
           expanded={gridExpanded}
           onToggleExpand={onToggleExpand}
           selectedSid={selectedSid}

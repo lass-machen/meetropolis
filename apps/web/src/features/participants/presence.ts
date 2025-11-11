@@ -27,7 +27,13 @@ export function mergeRecentPresence(
   apiData: ApiPresence[]
 ): RosterItem[] {
   const map = new Map<string, RosterItem>();
-  for (const r of previous) map.set(r.identity, { ...r, online: false });
+  const onlineCount = Object.keys(onlineByIdentity || {}).length;
+  const shouldFlipOffline = onlineCount > 0;
+  // Bewusstes Entprellen: Wenn die Online-Map leer ist (z. B. kurzzeitiger Disconnect),
+  // behalten wir den bisherigen Online-Status bei, statt alles sofort auf offline zu setzen.
+  for (const r of previous) {
+    map.set(r.identity, shouldFlipOffline ? { ...r, online: false } : { ...r });
+  }
 
   for (const p of apiData || []) {
     const ident = String(p.userId || (p.user && p.user.id) || '');
