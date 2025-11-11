@@ -525,7 +525,7 @@ export class AVManager {
       rAny.on?.('trackSubscribed', earlySub);
       // Remove on cleanup if no RoomEvent wiring is used
       const prevCleanup = this.roomHandlersCleanup;
-      this.roomHandlersCleanup = () => { try { rAny.off?.('trackSubscribed', earlySub); } catch {}; try { prevCleanup?.(); } catch {} };
+      this.roomHandlersCleanup = () => { try { rAny.off?.('trackSubscribed', earlySub); } catch {}; try { const prev = prevCleanup as unknown as (() => void) | undefined; if (prev) prev(); } catch {} };
     } catch {}
     (async () => {
       try {
@@ -767,6 +767,24 @@ export class AVManager {
             this.ensureSubscribeAllAudio(64);
           } catch {} };
           const onConnQuality = (participant: any, quality: any) => { try { this.onConnectionQualityChanged(participant, quality); } catch {} };
+          const onParticipantConnected2 = (participant: any) => { try {
+            const id = String(participant?.identity || '');
+            try {
+              const parts: any[] = Array.from(((r as any).remoteParticipants?.values?.() || []) as any);
+              const dbg = parts.map((p: any) => ({ id: String(p.identity||''), pubs: Array.from((p.trackPublications?.values?.()||[]) as any).map((pub:any)=>({ kind: pub?.kind ?? pub?.track?.kind, src: pub?.source ?? pub?.track?.source })) }));
+              console.debug('[AV][debug] participant.connected', { id, n: parts.length, dbg });
+            } catch {}
+            this.ensureSubscribeAllAudio(64);
+            this.applyDesiredSubscriptions();
+          } catch {} };
+          const onParticipantDisconnected2 = (participant: any) => { try {
+            const id = String(participant?.identity || '');
+            try {
+              const parts: any[] = Array.from(((r as any).remoteParticipants?.values?.() || []) as any);
+              console.debug('[AV][debug] participant.disconnected', { id, n: parts.length });
+            } catch {}
+            this.applyDesiredSubscriptions();
+          } catch {} };
           const onAudioPlayback = () => {
             const can = !!(r.canPlaybackAudio ?? false);
             try { console.debug('[AV][debug] audioPlaybackStatusChanged', { canPlaybackAudio: can }); } catch {}
@@ -789,8 +807,8 @@ export class AVManager {
           try { r.on?.('trackMuted', (_p: any, _pp: any) => { try { this.ensureSubscribeAllAudio(64); this.applyDesiredSubscriptions(); } catch {} }); } catch {}
           try { r.on?.('trackUnmuted', (_p: any, _pp: any) => { try { this.ensureSubscribeAllAudio(64); this.applyDesiredSubscriptions(); } catch {} }); } catch {}
           r.on?.('connectionQualityChanged', onConnQuality);
-          r.on?.('participantConnected', onParticipantConnected);
-          r.on?.('participantDisconnected', onParticipantDisconnected);
+          r.on?.('participantConnected', onParticipantConnected2);
+          r.on?.('participantDisconnected', onParticipantDisconnected2);
           r.on?.('audioPlaybackStatusChanged', onAudioPlayback);
           r.on?.('activeSpeakersChanged', onActiveSpeakers);
           this.roomHandlersCleanup = () => {
@@ -799,8 +817,8 @@ export class AVManager {
             try { r.off?.('trackPublished', onTrackPublished); } catch {}
             try { r.off?.('trackSubscribed', onTrackSubscribed); } catch {}
             try { r.off?.('connectionQualityChanged', onConnQuality); } catch {}
-            try { r.off?.('participantConnected', onParticipantConnected); } catch {}
-            try { r.off?.('participantDisconnected', onParticipantDisconnected); } catch {}
+            try { r.off?.('participantConnected', onParticipantConnected2); } catch {}
+            try { r.off?.('participantDisconnected', onParticipantDisconnected2); } catch {}
             try { r.off?.('audioPlaybackStatusChanged', onAudioPlayback); } catch {}
             try { r.off?.('activeSpeakersChanged', onActiveSpeakers); } catch {}
           };
@@ -1005,7 +1023,7 @@ export class AVManager {
       if (can) cleanup();
     };
     const opts: AddEventListenerOptions | boolean = true;
-    const events: (keyof WindowEventMap)[] = ['pointerdown', 'click', 'keydown', 'touchstart'];
+    const events: (keyof WindowEventMap)[] = ['pointerdown', 'pointerup', 'click', 'keydown', 'touchstart', 'touchend'];
     events.forEach(ev => window.addEventListener(ev, handler as any, opts));
     const cleanup = () => {
       events.forEach(ev => window.removeEventListener(ev, handler as any, true));

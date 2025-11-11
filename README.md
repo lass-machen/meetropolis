@@ -28,6 +28,9 @@ Ein internes Gather.town-ähnliches MVP mit Monorepo-Struktur.
 
 Web: `http://localhost:5173`  |  Server: `http://localhost:2567`  |  LiveKit: `http://localhost:7880`
 
+#### Changelog (Kurz)
+- AV-Reconnect: LiveKit-Join ist nicht mehr von einer Nutzer-Geste abhängig. Audio-Playback wird separat per Unlock-Handler freigeschaltet; Entmuten/Rejoin friert nicht mehr bei fehlendem zweiten Klick ein.
+
 #### Beispiel `.env` (lokal)
 ```
 # Server / Datenbank

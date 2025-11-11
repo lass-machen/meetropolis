@@ -72,23 +72,6 @@ export async function joinLivekitRoom(params: {
   const serverUrl = normalizeLivekitUrl((import.meta as any).env?.VITE_LIVEKIT_URL);
   try { logger.debug('[AV][debug] livekit.connecting', { serverUrl, roomName: params.roomName, identity: params.identity }); } catch {}
   const forceRelay = shouldForceRelay();
-  // Warten auf erste Nutzergeste, um AudioContext-Warnung beim Laden zu vermeiden
-  const waitForUserGesture = async () => {
-    try {
-      const ua: any = (navigator as any).userActivation;
-      if (ua && ua.isActive) return; // Bereits durch Nutzergeste aktiv
-    } catch {}
-    await new Promise<void>((resolve) => {
-      let done = false;
-      const finish = () => { if (!done) { done = true; cleanup(); resolve(); } };
-      const handler = () => finish();
-      const opts: AddEventListenerOptions | boolean = { capture: true, once: true };
-      const events: (keyof WindowEventMap)[] = ['pointerdown', 'click', 'keydown', 'touchstart'];
-      const cleanup = () => events.forEach(ev => window.removeEventListener(ev, handler as any, true));
-      events.forEach(ev => window.addEventListener(ev, handler as any, opts));
-    });
-  };
-  await waitForUserGesture();
   
   await room.connect(serverUrl, token, {
     autoSubscribe: false,

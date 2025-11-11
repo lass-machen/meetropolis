@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { setTimeout as timersSetTimeout } from 'timers';
 import { AVManager } from './avManager';
 
 // Mock livekit-client dynamic imports used inside AVManager
@@ -25,7 +24,7 @@ vi.mock('../lib/livekit', () => {
       const room: any = {
         localParticipant: {
           trackPublications: new Map<string, any>(),
-          publishTrack: vi.fn(async (t: any) => { /* noop */ }),
+          publishTrack: vi.fn(async () => { /* noop */ }),
           unpublishTrack: vi.fn(async (_t: any) => { /* noop */ }),
         },
         remoteParticipants: new Map<string, any>(),
@@ -328,6 +327,29 @@ describe('AVManager', () => {
     const fakeRoom: any = (await (joinLivekitRoom as any).mock.results[0].value);
     expect(fakeRoom.localParticipant.publishTrack).toHaveBeenCalled();
     vi.useRealTimers();
+  });
+
+  it('Audio-Unlock-Handler ruft startAudio genau einmal und cleaned danach auf', async () => {
+    const mgr = makeManager() as any;
+    const room = makeFakeRoom() as any;
+    room.canPlaybackAudio = false;
+    room.startAudio = vi.fn(async () => { room.canPlaybackAudio = true; });
+    mgr.current = room;
+
+    // Handler anhängen
+    (mgr as any).attachAudioUnlockHandlers();
+    expect((mgr as any).audioUnlockHandlersAttached).toBe(true);
+
+    // Erste Geste triggert startAudio
+    window.dispatchEvent(new Event('pointerdown'));
+    expect(room.startAudio).toHaveBeenCalledTimes(1);
+
+    // Nach erfolgreichem Unlock sollten Handler entfernt sein
+    expect((mgr as any).audioUnlockHandlersAttached).toBe(false);
+
+    // Weitere Gesten haben keinen Effekt mehr
+    window.dispatchEvent(new Event('click'));
+    expect(room.startAudio).toHaveBeenCalledTimes(1);
   });
 });
 
