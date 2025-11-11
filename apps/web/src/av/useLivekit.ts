@@ -132,7 +132,7 @@ export function useLivekit({
                     scheduleBuildParticipantList(200);
                   }
                 });
-                room.on(RoomEvent.ActiveSpeakersChanged, () => { buildParticipantList(); });
+                room.on(RoomEvent.ActiveSpeakersChanged, () => { scheduleBuildParticipantList(100); });
               }
             } catch {}
           })();

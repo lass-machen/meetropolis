@@ -151,7 +151,6 @@ export function useParticipants(deps: {
       }
     } catch {}
     setUiParticipants(list);
-    try { setTimeout(() => { if (!disposedRef?.current) buildParticipantList(); }, 150); } catch {}
     const speakingIds = new Set<string>();
     const activeSpeakers = room.activeSpeakers || [];
     activeSpeakers.forEach((speaker: any) => {

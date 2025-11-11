@@ -32,6 +32,7 @@ export async function joinWorld(serverUrl: string, identity?: string, name?: str
     // falls UI-Handler noch nicht registriert sind (Race direkt nach Join).
     try {
       const noop = () => {};
+      room.onMessage('full_state', noop);
       room.onMessage('player_moved', noop);
       room.onMessage('player_joined', noop);
       room.onMessage('player_left', noop);

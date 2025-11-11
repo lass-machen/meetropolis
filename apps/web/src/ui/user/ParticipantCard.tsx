@@ -142,10 +142,7 @@ export function ParticipantCard(props: { part: { sid: string; identity: string; 
         const mod = await import('livekit-client');
         const RoomEvent = (mod as any).RoomEvent;
         if (RoomEvent) {
-          room.on?.(RoomEvent.TrackSubscribed, onTrackSubscribed);
-          room.on?.(RoomEvent.TrackUnsubscribed, onTrackUnsubscribed);
-          room.on?.(RoomEvent.TrackPublished, onTrackPublished);
-          room.on?.(RoomEvent.LocalTrackPublished, (publication: any) => {
+          const onLocalTrackPublished = (publication: any) => {
             try {
               const src = (publication?.source || publication?.track?.source) as string | undefined;
               const wantCamera = (part.media === 'camera' && src === 'camera');
@@ -154,12 +151,34 @@ export function ParticipantCard(props: { part: { sid: string; identity: string; 
                 try { el.muted = true; publication.track.attach(el); setIsVideoRendering(false); } catch {}
               }
             } catch {}
+          };
+          room.on?.(RoomEvent.TrackSubscribed, onTrackSubscribed);
+          room.on?.(RoomEvent.TrackUnsubscribed, onTrackUnsubscribed);
+          room.on?.(RoomEvent.TrackPublished, onTrackPublished);
+          room.on?.(RoomEvent.LocalTrackPublished, onLocalTrackPublished as any);
+          // Store cleanup function capturing handler
+          cleanup = (() => {
+            try {
+              room.off?.(RoomEvent.TrackSubscribed, onTrackSubscribed);
+              room.off?.(RoomEvent.TrackUnsubscribed, onTrackUnsubscribed);
+              room.off?.(RoomEvent.TrackPublished, onTrackPublished);
+              room.off?.(RoomEvent.LocalTrackPublished, onLocalTrackPublished as any);
+            } catch {}
           });
         } else {
           room.on?.('trackSubscribed', onTrackSubscribed);
           room.on?.('trackUnsubscribed', onTrackUnsubscribed);
           room.on?.('trackPublished', onTrackPublished);
-          room.on?.('localTrackPublished', () => { try { if (isLocalNow && el) setTimeout(()=>setIsVideoRendering(false),0); } catch {} });
+          const onLocalTrackPublished2 = () => { try { if (isLocalNow && el) setTimeout(()=>setIsVideoRendering(false),0); } catch {} };
+          room.on?.('localTrackPublished', onLocalTrackPublished2);
+          cleanup = (() => {
+            try {
+              room.off?.('trackSubscribed', onTrackSubscribed);
+              room.off?.('trackUnsubscribed', onTrackUnsubscribed);
+              room.off?.('trackPublished', onTrackPublished);
+              room.off?.('localTrackPublished', onLocalTrackPublished2);
+            } catch {}
+          });
         }
       } catch {}
     })();
@@ -170,26 +189,8 @@ export function ParticipantCard(props: { part: { sid: string; identity: string; 
       try { node?.removeEventListener('emptied', onEmptied); } catch {}
       cleanup?.();
       try { clearInterval(pollTimer); } catch {}
-      try {
-        const offAll = async () => {
-          try {
-            const mod = await import('livekit-client');
-            const RoomEvent = (mod as any).RoomEvent;
-            if (RoomEvent) {
-              room.off?.(RoomEvent.TrackSubscribed, onTrackSubscribed);
-              room.off?.(RoomEvent.TrackUnsubscribed, onTrackUnsubscribed);
-              room.off?.(RoomEvent.TrackPublished, onTrackPublished);
-              room.off?.(RoomEvent.LocalTrackPublished, () => {});
-            } else {
-              room.off?.('trackSubscribed', onTrackSubscribed);
-              room.off?.('trackUnsubscribed', onTrackUnsubscribed);
-              room.off?.('trackPublished', onTrackPublished);
-              room.off?.('localTrackPublished', () => {});
-            }
-          } catch {}
-        };
-        offAll();
-      } catch {}
+      // Event-Handler über in-closure cleanup entfernen
+      try { cleanup?.(); } catch {}
     };
   }, [part.sid, part.hasVideo, roomGetter]);
 
