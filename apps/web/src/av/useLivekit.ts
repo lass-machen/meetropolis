@@ -36,6 +36,25 @@ export function useLivekit({
 }: UseLivekitArgs) {
   const isConnectingRef = React.useRef(false);
   const refreshingDevicesRef = React.useRef(false);
+  // Lokaler Debounce für ParticipantList-Builds (rAF + Delay)
+  const blTimerRef = React.useRef<any>(null);
+  const blRafRef = React.useRef<number | null>(null);
+  const scheduleBuildParticipantList = React.useCallback((delay: number = 100) => {
+    if (blTimerRef.current || blRafRef.current !== null) return;
+    blTimerRef.current = setTimeout(() => {
+      blTimerRef.current = null;
+      blRafRef.current = requestAnimationFrame(() => {
+        blRafRef.current = null;
+        try { buildParticipantList(); } catch {}
+      });
+    }, Math.max(0, delay));
+  }, [buildParticipantList]);
+  React.useEffect(() => {
+    return () => {
+      try { if (blTimerRef.current) clearTimeout(blTimerRef.current); } catch {}
+      try { if (blRafRef.current !== null) cancelAnimationFrame(blRafRef.current); } catch {}
+    };
+  }, []);
 
   const refreshDevices = React.useCallback(async () => {
     if (!avRef.current || refreshingDevicesRef.current) return;
@@ -99,18 +118,18 @@ export function useLivekit({
               const mod = await import('livekit-client');
               const RoomEvent = (mod as any).RoomEvent;
               if (RoomEvent) {
-                room.on(RoomEvent.ParticipantConnected, () => setTimeout(buildParticipantList, 100));
-                room.on(RoomEvent.ParticipantDisconnected, () => setTimeout(buildParticipantList, 100));
+                room.on(RoomEvent.ParticipantConnected, () => scheduleBuildParticipantList(100));
+                room.on(RoomEvent.ParticipantDisconnected, () => scheduleBuildParticipantList(100));
                 room.on(RoomEvent.TrackPublished, (_publication: any, _participant: any) => {
                   try {
                     // Keine Subscription-/Quality-Änderungen hier; AV-Manager kümmert sich darum
                   } catch {}
-                  setTimeout(buildParticipantList, 100);
+                  scheduleBuildParticipantList(100);
                 });
-                room.on(RoomEvent.TrackUnpublished, () => setTimeout(buildParticipantList, 100));
+                room.on(RoomEvent.TrackUnpublished, () => scheduleBuildParticipantList(100));
                 room.on(RoomEvent.TrackSubscribed, (track: any, _publication: any) => {
                   if (((_publication as any)?.source || (track as any)?.source) === 'screen_share') {
-                    setTimeout(buildParticipantList, 200);
+                    scheduleBuildParticipantList(200);
                   }
                 });
                 room.on(RoomEvent.ActiveSpeakersChanged, () => { buildParticipantList(); });
@@ -119,7 +138,7 @@ export function useLivekit({
           })();
         }
 
-        setTimeout(buildParticipantList, 50);
+        scheduleBuildParticipantList(50);
       } catch (e) {
         try { bubbleRef.current?.setAV(null as any); } catch {}
         try { zoneRef.current?.setAV(null as any); } catch {}

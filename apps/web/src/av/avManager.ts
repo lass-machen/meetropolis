@@ -62,6 +62,8 @@ export class AVManager {
   private roomHandlersCleanup: (() => void) | null = null;
   // Active Speaker Cache
   private activeSpeakerIds: string[] = [];
+  // Fallback-Audio-Elemente, die bei TrackSubscribed angelegt werden
+  private fallbackAudioEls = new WeakMap<any, HTMLAudioElement>();
   // Config
   private readonly maxVideoSubs: number = Math.max(0, Number(((import.meta as any).env?.VITE_AV_MAX_VIDEO_SUBS) ?? 6));
   private readonly bubbleAttenuation: number = (() => {
@@ -303,7 +305,7 @@ export class AVManager {
   }
 
   async switchTo(roomName: string) {
-    if (this.currentName === roomName) return;
+    if (this.currentName === roomName && this.isRoomConnected()) return;
     const name = roomName || 'world';
     const seq = ++this.connectSeq;
     if (!SIMPLE && this.isConnecting) return; // Debounce parallele Verbindungsversuche
@@ -588,6 +590,8 @@ export class AVManager {
                     el.addEventListener('playing', () => { try { console.debug('[AV][debug] audio_attach_playing'); } catch {} }, { once: true } as any);
                     t.attach(el);
                     console.debug('[AV][debug] audio_attach_ok');
+                    // Merken für späteren Cleanup
+                    try { this.fallbackAudioEls.set(pub, el); } catch {}
                   } catch (e) { try { console.warn('[AV][debug] audio_attach_failed', e); } catch {} }
                 }
               } catch {}
@@ -657,10 +661,22 @@ export class AVManager {
           room.on?.(RoomEvent.TrackSubscribed, onTrackSubscribed);
           // Zusätzliche Events: Unsubscribe/Unpublish/Muted wollen wir aktiv beantworten
           try {
-            room.on?.(RoomEvent.TrackUnsubscribed, (_track: any, _pub: any, _p: any) => { try { this.ensureSubscribeAllAudio(64); this.applyDesiredSubscriptions(); } catch {} });
+            room.on?.(RoomEvent.TrackUnsubscribed, (_track: any, _pub: any, _p: any) => {
+              try {
+                const el = this.fallbackAudioEls.get(_pub);
+                if (el) { try { el.remove(); } catch {}; try { this.fallbackAudioEls.delete(_pub); } catch {} }
+                this.ensureSubscribeAllAudio(64); this.applyDesiredSubscriptions();
+              } catch {}
+            });
           } catch {}
           try {
-            room.on?.(RoomEvent.TrackUnpublished, (_pub: any, _p: any) => { try { this.ensureSubscribeAllAudio(64); this.applyDesiredSubscriptions(); } catch {} });
+            room.on?.(RoomEvent.TrackUnpublished, (_pub: any, _p: any) => {
+              try {
+                const el = this.fallbackAudioEls.get(_pub);
+                if (el) { try { el.remove(); } catch {}; try { this.fallbackAudioEls.delete(_pub); } catch {} }
+                this.ensureSubscribeAllAudio(64); this.applyDesiredSubscriptions();
+              } catch {}
+            });
           } catch {}
           try {
             room.on?.(RoomEvent.TrackMuted, (_pub: any, _p: any) => { try { this.ensureSubscribeAllAudio(64); this.applyDesiredSubscriptions(); } catch {} });
@@ -802,8 +818,8 @@ export class AVManager {
           r.on?.('disconnected', onDisconnected);
           r.on?.('trackPublished', onTrackPublished);
           r.on?.('trackSubscribed', onTrackSubscribed);
-          try { r.on?.('trackUnsubscribed', (_t: any, _p: any, _pp: any) => { try { this.ensureSubscribeAllAudio(64); this.applyDesiredSubscriptions(); } catch {} }); } catch {}
-          try { r.on?.('trackUnpublished', (_p: any, _pp: any) => { try { this.ensureSubscribeAllAudio(64); this.applyDesiredSubscriptions(); } catch {} }); } catch {}
+          try { r.on?.('trackUnsubscribed', (_t: any, _p: any, _pp: any) => { try { const el = this.fallbackAudioEls.get(_p); if (el) { try { el.remove(); } catch {}; try { this.fallbackAudioEls.delete(_p); } catch {} } this.ensureSubscribeAllAudio(64); this.applyDesiredSubscriptions(); } catch {} }); } catch {}
+          try { r.on?.('trackUnpublished', (_p: any, _pp: any) => { try { const el = this.fallbackAudioEls.get(_p); if (el) { try { el.remove(); } catch {}; try { this.fallbackAudioEls.delete(_p); } catch {} } this.ensureSubscribeAllAudio(64); this.applyDesiredSubscriptions(); } catch {} }); } catch {}
           try { r.on?.('trackMuted', (_p: any, _pp: any) => { try { this.ensureSubscribeAllAudio(64); this.applyDesiredSubscriptions(); } catch {} }); } catch {}
           try { r.on?.('trackUnmuted', (_p: any, _pp: any) => { try { this.ensureSubscribeAllAudio(64); this.applyDesiredSubscriptions(); } catch {} }); } catch {}
           r.on?.('connectionQualityChanged', onConnQuality);

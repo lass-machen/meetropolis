@@ -136,6 +136,32 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
           } catch {}
         };
 
+        // Debounce: Teilnehmerliste/Roster nur 1x pro kurzem Intervall aktualisieren (rAF + Delay)
+        const buildListTimerRef = React.useRef<any>(null);
+        const buildListRafRef = React.useRef<number | null>(null);
+        const rosterTimerRef = React.useRef<any>(null);
+        const rosterRafRef = React.useRef<number | null>(null);
+        const scheduleBuildParticipantList = (delay: number = 100) => {
+          if (buildListTimerRef.current || buildListRafRef.current !== null) return;
+          buildListTimerRef.current = setTimeout(() => {
+            buildListTimerRef.current = null;
+            buildListRafRef.current = requestAnimationFrame(() => {
+              buildListRafRef.current = null;
+              try { buildParticipantList(); } catch {}
+            });
+          }, Math.max(0, delay));
+        };
+        const scheduleRefreshRosterFromRemotes = (delay: number = 0) => {
+          if (rosterTimerRef.current || rosterRafRef.current !== null) return;
+          rosterTimerRef.current = setTimeout(() => {
+            rosterTimerRef.current = null;
+            rosterRafRef.current = requestAnimationFrame(() => {
+              rosterRafRef.current = null;
+              try { refreshRosterFromRemotes(); } catch {}
+            });
+          }, Math.max(0, delay));
+        };
+
         room.onMessage('full_state', (data: any) => {
           if (!gameBridge?.syncRemotePlayers) return;
           if (data?.players) {
@@ -150,9 +176,9 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
             }
             if (gameBridge && typeof gameBridge.syncRemotePlayers === 'function') gameBridge.syncRemotePlayers(players);
             remotesRef.current = Object.fromEntries(Object.entries(players).map(([id, p]) => [id, { x: (p as any).x, y: (p as any).y }]));
-            setTimeout(buildParticipantList, 0);
+            scheduleBuildParticipantList(0);
             // Roster unmittelbar aus Remotes aktualisieren
-            setTimeout(refreshRosterFromRemotes, 0);
+            scheduleRefreshRosterFromRemotes(0);
           }
         });
 
@@ -164,8 +190,8 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
             if (data.name) identityToNameMap.current[data.identity] = data.name;
           }
           if (gameBridge && typeof (gameBridge as any).addRemotePlayer === 'function') (gameBridge as any).addRemotePlayer(data.id, { x: data.x, y: data.y, direction: data.direction, name: data.name, dnd: data.dnd });
-          setTimeout(buildParticipantList, 50);
-          setTimeout(refreshRosterFromRemotes, 0);
+          scheduleBuildParticipantList(50);
+          scheduleRefreshRosterFromRemotes(0);
           try {
             const currZones = (editor?.zones || []);
             if (Array.isArray(currZones) && currZones.length > 0) {
@@ -178,21 +204,21 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
           if (data.id === localPosRef.current.id) return;
           remotesRef.current[data.id] = { x: data.x, y: data.y };
           if (gameBridge && typeof gameBridge.updateRemotePlayer === 'function') gameBridge.updateRemotePlayer(data.id, { x: data.x, y: data.y, direction: data.direction });
-          setTimeout(buildParticipantList, 50);
-          setTimeout(refreshRosterFromRemotes, 0);
+          scheduleBuildParticipantList(50);
+          scheduleRefreshRosterFromRemotes(0);
         });
 
         room.onMessage('player_left', (data: any) => {
           delete remotesRef.current[data.id];
           delete colyseusToLivekitMap.current[data.id];
           if (gameBridge && typeof gameBridge.removeRemotePlayer === 'function') gameBridge.removeRemotePlayer(data.id);
-          setTimeout(buildParticipantList, 50);
-          setTimeout(refreshRosterFromRemotes, 0);
+          scheduleBuildParticipantList(50);
+          scheduleRefreshRosterFromRemotes(0);
         });
 
         room.onMessage('player_dnd', (data: { id: string; dnd: boolean }) => {
           if (gameBridge && typeof (gameBridge as any).updateRemotePlayerDnd === 'function') (gameBridge as any).updateRemotePlayerDnd(data.id, data.dnd);
-          setTimeout(buildParticipantList, 50);
+          scheduleBuildParticipantList(50);
         });
 
         room.onMessage('editor_update', (data: any) => {
@@ -201,7 +227,7 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
             try { localStorage.setItem('meetropolis.zones', JSON.stringify(data.polys)); } catch {}
             if (gameBridge && typeof gameBridge.setZoneOverlay === 'function') gameBridge.setZoneOverlay(data.polys);
             if (zoneRef.current && typeof zoneRef.current.setZones === 'function') zoneRef.current.setZones(data.polys);
-            setTimeout(buildParticipantList, 0);
+            scheduleBuildParticipantList(0);
             return;
           }
           if (data?.type === 'spawn' && data.pos && typeof data.pos.x === 'number' && typeof data.pos.y === 'number') {

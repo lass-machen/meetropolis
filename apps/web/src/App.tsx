@@ -164,6 +164,26 @@ export function App() {
   const buildParticipantList = buildParticipantListHook;
   const applyVolumesToUi = applyVolumesToUiHook;
 
+  // Debounce: Teilnehmerliste nur 1x pro Tick/kurzem Intervall neu bauen
+  const buildListTimerRef = React.useRef<any>(null);
+  const buildListRafRef = React.useRef<number | null>(null);
+  const scheduleBuildParticipantList = React.useCallback((delay: number = 100) => {
+    if (buildListTimerRef.current || buildListRafRef.current !== null) return;
+    buildListTimerRef.current = setTimeout(() => {
+      buildListTimerRef.current = null;
+      buildListRafRef.current = requestAnimationFrame(() => {
+        buildListRafRef.current = null;
+        try { buildParticipantListHook(); } catch {}
+      });
+    }, Math.max(0, delay));
+  }, [buildParticipantListHook]);
+  React.useEffect(() => {
+    return () => {
+      try { if (buildListTimerRef.current) clearTimeout(buildListTimerRef.current); } catch {}
+      try { if (buildListRafRef.current !== null) cancelAnimationFrame(buildListRafRef.current); } catch {}
+    };
+  }, []);
+
   
 
   // Laden der Tokenliste beim Öffnen des Modals (ausgelagert)
@@ -631,8 +651,8 @@ export function App() {
                 Object.entries(players).map(([id, p]) => [id, { x: p.x, y: p.y }])
               );
             } catch {}
-            // Trigger participant grid build for the new joiner
-            try { setTimeout(buildParticipantList, 0); } catch {}
+            // Trigger participant grid build (debounced)
+            try { scheduleBuildParticipantList(0); } catch {}
           }
         });
         
@@ -657,7 +677,7 @@ export function App() {
               });
             }
             // Update participant grid (zone/nearby)
-            try { setTimeout(buildParticipantList, 50); } catch {}
+            try { scheduleBuildParticipantList(50); } catch {}
             // Re-broadcast current zones so new joiner gets them live (even if server save failed)
             try {
               const currZones = (editor?.zones || []);
@@ -679,7 +699,7 @@ export function App() {
               });
             }
             // Movement may change zone membership
-            try { setTimeout(buildParticipantList, 50); } catch {}
+            try { scheduleBuildParticipantList(50); } catch {}
           }
         });
         
@@ -691,7 +711,7 @@ export function App() {
             gameBridge.removeRemotePlayer(data.id);
           }
           // Rebuild participants after roster change
-          try { setTimeout(buildParticipantList, 50); } catch {}
+          try { scheduleBuildParticipantList(50); } catch {}
         });
         
         room.onMessage('player_dnd', (data: { id: string; dnd: boolean }) => {
@@ -699,7 +719,7 @@ export function App() {
             gameBridge.updateRemotePlayerDnd(data.id, data.dnd);
           }
           // DND affects visibility/opacity in UI cards
-          try { setTimeout(buildParticipantList, 50); } catch {}
+          try { scheduleBuildParticipantList(50); } catch {}
         });
         
         room.onMessage('editor_update', (data: any) => {
@@ -713,7 +733,7 @@ export function App() {
               gameBridge.setZoneOverlay(data.polys);
               zoneRef.current?.setZones?.(data.polys as any);
               // Teilnehmerliste neu bauen (Zonenfilter)
-              try { setTimeout(buildParticipantList, 0); } catch {}
+              try { scheduleBuildParticipantList(0); } catch {}
               // Nach kurzem Delay Broadcast wieder zulassen
               setTimeout(() => { suppressZoneBroadcastRef.current = false; }, 50);
               return;
