@@ -88,7 +88,6 @@ export function WorldApp() {
     return () => { try { (gameBridge as any).onCameraManualChange = () => {}; } catch {} };
   }, []);
   // Positions-Persistenz (Throttle)
-  const lastPositionPostAtRef = React.useRef(0);
   // API Base (früh deklarieren) – unterstützt Desktop-Query (?apiBase=...)
   const apiBase = getApiBaseFromWindow();
 
@@ -616,6 +615,7 @@ export function WorldApp() {
         if (disposed) { try { room.leave(); } catch {} return; }
         colyseusRef.current = room;
         colyseusReconnectAttemptsRef.current = 0;
+        try { if (colyseusReconnectTimerRef.current) { clearTimeout(colyseusReconnectTimerRef.current); colyseusReconnectTimerRef.current = null; } } catch {}
         // Store LiveKit identity for cross-referencing, but keep Colyseus session ID for positioning
         const localLivekitIdentity = avRef.current?.room?.localParticipant?.identity || me.id;
         const colyseusSessionId = room.sessionId;
@@ -625,6 +625,41 @@ export function WorldApp() {
         
         // Keep the session ID for position tracking consistency
         localPosRef.current.id = colyseusSessionId;
+        
+        // Register remote control handlers immediately (before any other async work)
+        const handleRemoteControlEarly = async (payload: { mic?: boolean; cam?: boolean; share?: boolean; dnd?: boolean }) => {
+          const lkRoom = avRef.current?.room;
+          if (payload?.mic !== undefined) {
+            try { if (lkRoom?.localParticipant?.isMicrophoneEnabled !== payload.mic) await lkRoom?.localParticipant?.setMicrophoneEnabled(payload.mic); } catch {}
+          }
+          if (payload?.cam !== undefined) {
+            try { if (lkRoom?.localParticipant?.isCameraEnabled !== payload.cam) await lkRoom?.localParticipant?.setCameraEnabled(payload.cam); } catch {}
+          }
+          if (payload?.share !== undefined) {
+            try {
+              if (payload.share && !avRef.current?.room?.localParticipant?.isScreenShareEnabled) {
+                const ok = await avRef.current?.startScreenshare();
+                if (ok) setAvState(s => ({ ...s, share: true }));
+              } else if (!payload.share && avRef.current?.room?.localParticipant?.isScreenShareEnabled) {
+                await avRef.current?.stopScreenshare();
+                setAvState(s => ({ ...s, share: false }));
+              }
+            } catch {}
+          }
+          if (payload?.dnd !== undefined) {
+            try { gameBridge.setDoNotDisturb(!!payload.dnd); } catch {}
+            dndRef.current = !!payload.dnd;
+            setAvState(s => ({ ...s, dnd: !!payload.dnd, mic: payload.dnd ? false : s.mic, cam: payload.dnd ? false : s.cam, share: payload.dnd ? false : s.share }));
+            try { colyseusRef.current?.send?.('dnd_status', { dnd: !!payload.dnd }); } catch {}
+          }
+        };
+        room.onMessage('remote_control', async (payload: any) => { await handleRemoteControlEarly(payload || {}); });
+        room.onMessage('remote_controls', async (msg: any) => { if (msg?.payload) await handleRemoteControlEarly(msg.payload); });
+        room.onMessage('remote_controls_for', async (msg: any) => {
+          const localIdentity = avRef.current?.room?.localParticipant?.identity || me.id;
+          if (!msg?.forIdentity || String(localIdentity || '') !== String(msg.forIdentity || '')) return;
+          if (msg?.payload) await handleRemoteControlEarly(msg.payload);
+        });
         
         // Register message handlers immediately (before game loads)
         // Ensure handlers exist before server sends full_state/player events
@@ -782,52 +817,7 @@ export function WorldApp() {
           } catch {}
         });
         // Remote control helpers and handlers
-        const handleRemoteControl = async (payload: { mic?: boolean; cam?: boolean; share?: boolean; dnd?: boolean }) => {
-          const lkRoom = avRef.current?.room;
-          if (payload.mic !== undefined) {
-            if (lkRoom?.localParticipant?.isMicrophoneEnabled !== payload.mic) {
-              await lkRoom?.localParticipant?.setMicrophoneEnabled(payload.mic);
-            }
-          }
-          if (payload.cam !== undefined) {
-            if (lkRoom?.localParticipant?.isCameraEnabled !== payload.cam) {
-              await lkRoom?.localParticipant?.setCameraEnabled(payload.cam);
-            }
-          }
-          if (payload.share !== undefined) {
-            try {
-              if (payload.share && !avRef.current?.room?.localParticipant?.isScreenShareEnabled) {
-                const ok = await avRef.current?.startScreenshare();
-                if (ok) setAvState(s => ({ ...s, share: true }));
-              } else if (!payload.share && avRef.current?.room?.localParticipant?.isScreenShareEnabled) {
-                await avRef.current?.stopScreenshare();
-                setAvState(s => ({ ...s, share: false }));
-              }
-            } catch {}
-          }
-          if (payload.dnd !== undefined) {
-            try { gameBridge.setDoNotDisturb(!!payload.dnd); } catch {}
-            dndRef.current = !!payload.dnd;
-            setAvState(s => ({ ...s, dnd: !!payload.dnd, mic: payload.dnd ? false : s.mic, cam: payload.dnd ? false : s.cam, share: payload.dnd ? false : s.share }));
-            try { colyseusRef.current?.send?.('dnd_status', { dnd: !!payload.dnd }); } catch {}
-          }
-        };
-        // Backcompat singular message
-        room.onMessage('remote_control', async (payload: { mic?: boolean; cam?: boolean; share?: boolean; dnd?: boolean }) => {
-          await handleRemoteControl(payload);
-        });
-        // Broadcast controls for all
-        room.onMessage('remote_controls', async (msg: { from?: string; payload?: { mic?: boolean; cam?: boolean; share?: boolean; dnd?: boolean } }) => {
-          if (msg && msg.payload) await handleRemoteControl(msg.payload);
-        });
-        // Targeted controls (for a specific LiveKit identity)
-        room.onMessage('remote_controls_for', async (msg: { forIdentity?: string; from?: string; payload?: { mic?: boolean; cam?: boolean; share?: boolean; dnd?: boolean } }) => {
-          const localIdentity = avRef.current?.room?.localParticipant?.identity || me.id;
-          if (!msg?.payload) return;
-          if (!msg?.forIdentity) return;
-          if (String(localIdentity || '') !== String(msg.forIdentity || '')) return;
-          await handleRemoteControl(msg.payload);
-        });
+        
         
         // State is initialized and ready for player tracking
         
@@ -843,55 +833,7 @@ export function WorldApp() {
           } catch (e) {
           }
         }
-        gameBridge.onLocalMove = (p) => {
-          localPosRef.current.x = p.x;
-          localPosRef.current.y = p.y;
-          // Store last direction for position saving
-          (gameBridge as any).lastDirection = p.direction;
-          zoneRef.current?.update({ x: p.x, y: p.y });
-          if (followRef.current) {
-            const f = followRef.current.update(
-              { x: p.x, y: p.y },
-              remotesRef.current
-            );
-            // WICHTIG: keine Überschreibung der Zielbewegung, wenn Bubble-Navigation aussteht
-            if (!bubblePendingRef.current) {
-              if (f.following) {
-                gameBridge.setDesiredPosition({ x: f.x, y: f.y });
-              } else {
-                gameBridge.setDesiredPosition(null);
-              }
-            } else if (f.following) {
-              gameBridge.setDesiredPosition({ x: f.x, y: f.y });
-            }
-          }
-          try {
-            const room: any = colyseusRef.current as any;
-            const wsReadyState =
-              room?.connection?.ws?.readyState ??
-              room?.connection?.transport?.ws?.readyState ??
-              room?.connection?._transport?.ws?.readyState;
-            const isOpen = room?.connection?.isOpen === true || wsReadyState === 1;
-            if (room && isOpen) {
-              room.send('move', p);
-            }
-          } catch (e) {
-          }
-
-          // Spielerposition serverseitig speichern (gedrosselt)
-          try {
-            const now = Date.now();
-            if (now - lastPositionPostAtRef.current > 1500) {
-              lastPositionPostAtRef.current = now;
-              fetch(`${apiBase}/auth/position`, {
-                method: 'POST',
-                credentials: 'include',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ x: p.x, y: p.y, direction: p.direction || 'down', roomId: 'world' })
-              }).catch(() => {});
-            }
-          } catch {}
-        };
+        // onLocalMove wird weiter unten zentral zusammengesetzt gesetzt
         // Add manual state check first
         if (room.state && room.state.players) {
           room.state.players.forEach(() => {});
@@ -916,7 +858,7 @@ export function WorldApp() {
             // Try entries() method if available
             else if (typeof state.players.entries === 'function') {
               for (const [key, value] of state.players.entries()) {
-                players[key] = { x: value.x, y: value.y, direction: value.direction };
+                players[key] = { x: value.x, y: value.y, direction: value.direction, dnd: value.dnd };
                 // Store name mapping if available
                 if (value.identity && value.name) {
                   identityToNameMap.current[value.identity] = value.name;
@@ -926,7 +868,7 @@ export function WorldApp() {
             // Try direct iteration
             else if (state.players[Symbol.iterator]) {
               for (const [key, value] of state.players) {
-                players[key] = { x: value.x, y: value.y, direction: value.direction };
+                players[key] = { x: value.x, y: value.y, direction: value.direction, dnd: value.dnd };
                 // Store name mapping if available
                 if (value.identity && value.name) {
                   identityToNameMap.current[value.identity] = value.name;
@@ -1071,6 +1013,7 @@ export function WorldApp() {
     gameBridge.onLocalMove = (p) => {
       localPosRef.current.x = p.x;
       localPosRef.current.y = p.y;
+      (gameBridge as any).lastDirection = p.direction;
       zoneRef.current?.update({ x: p.x, y: p.y });
       
       // Check if zone changed
@@ -1102,7 +1045,27 @@ export function WorldApp() {
           gameBridge.setDesiredPosition({ x: f.x, y: f.y });
         }
       }
-      colyseusRef.current?.send?.('move', p);
+      try {
+        const room: any = colyseusRef.current as any;
+        const wsReadyState =
+          room?.connection?.ws?.readyState ??
+          room?.connection?.transport?.ws?.readyState ??
+          room?.connection?._transport?.ws?.readyState;
+        const isOpen = room?.connection?.isOpen === true || wsReadyState === 1;
+        if (room && isOpen) {
+          room.send('move', p);
+        }
+      } catch (e) {
+      }
+      
+      // Debounced position save after movement stops
+      if (moveTimeoutRef) {
+        clearTimeout(moveTimeoutRef);
+      }
+      moveTimeoutRef = setTimeout(() => {
+        void savePosition();
+        moveTimeoutRef = null;
+      }, 1000);
     };
     volumeRef.current = new VolumeManager(
       { 
@@ -1265,22 +1228,7 @@ export function WorldApp() {
       } catch {}
     };
     
-    // Override onLocalMove to save position after movement stops
-    const originalOnLocalMove = gameBridge.onLocalMove;
-    gameBridge.onLocalMove = (p) => {
-      originalOnLocalMove(p);
-      
-      // Clear existing timeout
-      if (moveTimeoutRef) {
-        clearTimeout(moveTimeoutRef);
-      }
-      
-      // Set new timeout to save position 1 second after movement stops
-      moveTimeoutRef = setTimeout(() => {
-        void savePosition();
-        moveTimeoutRef = null;
-      }, 1000);
-    };
+    // onLocalMove bereits oben gesetzt und beinhaltet Debounce-Speichern
 
     return () => {
       disposed = true;
@@ -1457,7 +1405,7 @@ export function WorldApp() {
           {(import.meta as any).env?.DEV ? (
             <ConnectionBanner
               reconnecting={connStatus.reconnecting}
-              reason={connStatus.lastReason || (typeof connStatus.lastCode === 'number' ? String(connStatus.lastCode) : undefined)}
+              reason={connStatus.lastReason ?? (typeof connStatus.lastCode === 'number' ? String(connStatus.lastCode) : '')}
             />
           ) : null}
           {positionReady ? (
