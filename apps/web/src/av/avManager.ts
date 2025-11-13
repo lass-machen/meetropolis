@@ -340,6 +340,26 @@ export class AVManager {
       this.setState('connected');
       // Audio-Wiedergabe erst per Nutzerinteraktion freischalten
       this.attachAudioUnlockHandlers();
+      // Optionaler Mic-Autostart: Wenn Mikrofon-Berechtigung bereits erteilt wurde, aktiviere das Mic direkt.
+      try {
+        setTimeout(async () => {
+          try {
+            if (this.dnd) return;
+            const permApi: any = (navigator as any).permissions;
+            let granted = false;
+            try {
+              const q = await permApi?.query?.({ name: 'microphone' as any });
+              granted = !!q && (q.state === 'granted');
+            } catch {
+              // Keine Permissions-API → best effort aktivieren (getUserMedia prüft selbst)
+              granted = true;
+            }
+            if (granted) {
+              try { await this.setMicrophoneEnabled(true); } catch {}
+            }
+          } catch {}
+        }, 50);
+      } catch {}
       // Sofort versuchen, ggf. ausstehende lokale Publishes zu aktivieren (deterministischer für Tests und UI)
       try {
         if (this.pendingMic) { await this.setMicrophoneEnabled(true); this.pendingMic = false; }
@@ -542,7 +562,7 @@ export class AVManager {
             avLog('debug', 'livekit.track_published', { kind, source: src, pid: participant?.sid }, { identity: this.identity, roomName: this.currentName || undefined as any });
             try { console.debug('[AV][debug] track_published', { kind, source: src, pid: participant?.sid }); } catch {}
             // Force-Abo: Audio, Kamera und Screenshare sofort
-            if (kind === 'audio' || src === 'microphone' || src === 'screen_share' || src === 'camera') {
+            if (!this.dnd && (kind === 'audio' || src === 'microphone' || src === 'screen_share' || src === 'camera')) {
               try { (pub as any)?.setSubscribed?.(true); } catch {}
             }
             if (!this.remoteQualityTuningDisabled) this.applyDefaultRemoteQuality(); this.ensureSubscribeAllAudio(64);
@@ -708,7 +728,7 @@ export class AVManager {
             const kind = (pub as any)?.kind ?? (pub as any)?.track?.kind;
             avLog('debug', 'livekit.track_published', { kind, source: src, pid: participant?.sid }, { identity: this.identity, roomName: this.currentName || undefined as any });
             try { console.debug('[AV][debug] track_published', { kind, source: src, pid: participant?.sid }); } catch {}
-            if (kind === 'audio' || src === 'microphone' || src === 'screen_share' || src === 'camera') {
+            if (!this.dnd && (kind === 'audio' || src === 'microphone' || src === 'screen_share' || src === 'camera')) {
               try { (pub as any)?.setSubscribed?.(true); } catch {}
             }
             if (!this.remoteQualityTuningDisabled) this.applyDefaultRemoteQuality(); this.ensureSubscribeAllAudio(64);

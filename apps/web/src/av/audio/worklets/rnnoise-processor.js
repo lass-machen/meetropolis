@@ -16,10 +16,10 @@
 class NoiseGateProcessor extends AudioWorkletProcessor {
   static get parameterDescriptors() {
     return [
-      { name: 'threshold', defaultValue: -50, minValue: -100, maxValue: -10, automationRate: 'k-rate' },
+      { name: 'threshold', defaultValue: -56, minValue: -100, maxValue: -10, automationRate: 'k-rate' },
       { name: 'ratio', defaultValue: 0.2, minValue: 0.05, maxValue: 1.0, automationRate: 'k-rate' },
       { name: 'attackMs', defaultValue: 10, minValue: 0.1, maxValue: 200, automationRate: 'k-rate' },
-      { name: 'releaseMs', defaultValue: 120, minValue: 5, maxValue: 1000, automationRate: 'k-rate' },
+      { name: 'releaseMs', defaultValue: 100, minValue: 5, maxValue: 1000, automationRate: 'k-rate' },
       { name: 'makeupGainDb', defaultValue: 0, minValue: -12, maxValue: 12, automationRate: 'k-rate' },
     ];
   }

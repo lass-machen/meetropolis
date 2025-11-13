@@ -48,6 +48,12 @@ describe('applySubscriptions', () => {
     applySubscriptions(ctx);
     expect(calls.length).toBe(first);
   });
+
+  it('abonniert nichts bei DND', () => {
+    const { ctx, calls } = makeCtx({ dnd: true });
+    applySubscriptions(ctx);
+    expect(calls.length).toBe(0);
+  });
 });
 
 

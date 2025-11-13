@@ -170,7 +170,7 @@ export function useLivekit({
         try { connectLivekitRef.current?.(); } catch {}
       }
       // Versuche sofort Berechtigungen einzuholen, damit Gerätesystem Labels liefert
-      try { avRef.current?.ensurePermissions(true, (import.meta as any).env?.VITE_FEATURE_VOICE_ONLY === 'true' ? false : true); } catch {}
+      try { avRef.current?.ensurePermissions(true, false); } catch {}
       const pendingTracks = (window as any).pendingAudioTracks;
       if (pendingTracks && pendingTracks.length > 0) {
         pendingTracks.forEach(({ track, audio }: any) => {

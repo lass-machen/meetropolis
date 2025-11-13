@@ -485,6 +485,7 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
     return () => {
       disposed = true;
       try { if (args.disposedRef) args.disposedRef.current = true; } catch {}
+      try { setConnectionStatus?.({ reconnecting: false, lastCode: undefined, lastReason: undefined }); } catch {}
       try {
         const room: any = colyseusRef.current;
         const wsReadyState = room?.connection?.ws?.readyState ?? room?.connection?.transport?.ws?.readyState ?? room?.connection?._transport?.ws?.readyState;

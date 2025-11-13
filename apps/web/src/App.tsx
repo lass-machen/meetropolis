@@ -1579,6 +1579,14 @@ export function App() {
         onOpenApi={() => { setApiModalOpen(true); setMenuOpen(false); }}
         onResetApp={async () => {
           setMenuOpen(false);
+          // Verbindungen sauber schließen, bevor Storage/Cookies gelöscht werden
+          try { await avRef.current?.leave?.(); } catch {}
+          try {
+            const room: any = colyseusRef.current;
+            const wsReadyState = room?.connection?.ws?.readyState ?? room?.connection?.transport?.ws?.readyState ?? room?.connection?._transport?.ws?.readyState;
+            const isOpen = room?.connection?.isOpen === true || wsReadyState === 1;
+            if (isOpen) await room.leave();
+          } catch {}
           try { await fetch(`${apiBase}/auth/logout`, { method: 'POST', credentials: 'include' }); } catch {}
           try { localStorage.clear(); } catch {}
           try { sessionStorage.clear(); } catch {}

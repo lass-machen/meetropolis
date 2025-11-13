@@ -28,10 +28,10 @@ export async function wrapTrackWithVoiceIsolation(inputTrack: MediaStreamTrack):
 
   const rnnoise = new (window as any).AudioWorkletNode(audioContext, 'rnnoise-processor');
   try {
-    (rnnoise as any).parameters.get('threshold')?.setValueAtTime(-48, audioContext.currentTime);
-    (rnnoise as any).parameters.get('ratio')?.setValueAtTime(0.2, audioContext.currentTime);
-    (rnnoise as any).parameters.get('attackMs')?.setValueAtTime(12, audioContext.currentTime);
-    (rnnoise as any).parameters.get('releaseMs')?.setValueAtTime(140, audioContext.currentTime);
+    (rnnoise as any).parameters.get('threshold')?.setValueAtTime(-56, audioContext.currentTime);
+    (rnnoise as any).parameters.get('ratio')?.setValueAtTime(0.25, audioContext.currentTime);
+    (rnnoise as any).parameters.get('attackMs')?.setValueAtTime(10, audioContext.currentTime);
+    (rnnoise as any).parameters.get('releaseMs')?.setValueAtTime(100, audioContext.currentTime);
     (rnnoise as any).parameters.get('makeupGainDb')?.setValueAtTime(0, audioContext.currentTime);
   } catch {}
 

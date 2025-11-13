@@ -3,8 +3,8 @@
 
 class RNNoiseProcessor extends AudioWorkletProcessor {
   // Simple noise gate variables (very light) to avoid total pass-through in extremely noisy input
-  private readonly threshold = 0.0025; // ~-52 dBFS
-  private readonly release = 0.05; // seconds
+  private readonly threshold = 0.0016; // ~-56 dBFS (etwas sensibler)
+  private readonly release = 0.08; // seconds (leicht verlängert für natürliche Ausklingzeit)
   private env = 0;
 
   process(inputs: Float32Array[][], outputs: Float32Array[][]): boolean {
