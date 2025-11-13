@@ -21,6 +21,8 @@ import { registerApi } from './api.js';
 import { logger } from './logger.js';
 import { registry, metricsMiddleware } from './metrics.js';
 import { tenantMiddleware } from './tenancy.js';
+import { requestLogger } from './api/requestLogger.js';
+import { errorHandler } from './api/errorHandler.js';
 
 const app = express();
 const isProd = process.env.NODE_ENV === 'production';
@@ -87,6 +89,8 @@ app.use(express.urlencoded({ extended: true, limit: '4mb' }) as any);
 
 // Tenant resolution (must run before API routes)
 app.use(tenantMiddleware as any);
+// Request logging (after tenant to include context)
+app.use(requestLogger as any);
 
 // Basic rate-limiting for sensitive endpoints
 const authLimiter = rateLimit({
@@ -158,3 +162,6 @@ gameServer.define('world', WorldRoom as any).filterBy(['tenant']);
 httpServer.listen(port, '0.0.0.0', () => {
   logger.info(`Server listening on :${port}`);
 });
+
+// Central error handler last
+app.use(errorHandler as any);

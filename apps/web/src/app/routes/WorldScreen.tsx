@@ -1,8 +1,8 @@
 import * as React from 'react';
-import { App } from '../../App';
+import { WorldApp } from './WorldApp';
 
 export function WorldScreen() {
-  return <App />;
+  return <WorldApp />;
 }
 
 

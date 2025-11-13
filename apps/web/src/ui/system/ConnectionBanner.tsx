@@ -9,17 +9,29 @@ export function ConnectionBanner(props: {
 }) {
   const { reconnecting, reason, minVisibleMs = 1000, className = '', style } = props;
   const [show, setShow] = React.useState(false);
+  const startedAtRef = React.useRef<number | null>(null);
   React.useEffect(() => {
-    let t: number | null = null;
+    let hideTimer: number | null = null;
     if (reconnecting) {
-      t = window.setTimeout(() => setShow(true), Math.max(0, minVisibleMs));
+      startedAtRef.current = Date.now();
+      setShow(true);
     } else {
-      setShow(false);
-      if (t) { clearTimeout(t); t = null; }
+      const startedAt = startedAtRef.current;
+      if (!startedAt) {
+        setShow(false);
+      } else {
+        const elapsed = Date.now() - startedAt;
+        const remaining = Math.max(0, minVisibleMs - elapsed);
+        if (remaining <= 0) {
+          setShow(false);
+        } else {
+          hideTimer = window.setTimeout(() => setShow(false), remaining);
+        }
+      }
     }
-    return () => { if (t) clearTimeout(t); };
+    return () => { if (hideTimer) clearTimeout(hideTimer); };
   }, [reconnecting, minVisibleMs]);
-  if (!reconnecting || !show) return null;
+  if (!show) return null;
   return (
     <div
       className={className}

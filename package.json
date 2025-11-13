@@ -11,6 +11,7 @@
     "dev": "concurrently -n server,web \"npm:dev:server\" \"npm:dev:web\"",
     "dev:web": "npm --workspace=@meetropolis/web run dev",
     "dev:server": "npm --workspace=@meetropolis/server run dev",
+    "lint": "node scripts/enforce-budgets.js",
     "build": "npm -w @meetropolis/web run build && npm -w @meetropolis/server run build",
     "generate": "npm -w @meetropolis/server run prisma:generate",
     "prisma:migrate": "npm -w @meetropolis/server run prisma:migrate",

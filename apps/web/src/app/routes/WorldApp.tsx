@@ -1,52 +1,52 @@
 import React, { useEffect, useRef } from 'react';
-import { Modal, Button } from './ui/system';
-import { UserManagement } from './ui/admin/UserManagement';
-import { AuthScreen } from './ui/auth/AuthScreen';
-import { Signup } from './ui/auth/Signup';
-import { pointInPolygon } from './lib/geom';
-import { getDisplayName as getDisplayNameLib } from './lib/displayName';
-import { ThemeToggleButton } from './ui/theme';
+import { Modal, Button } from '../../ui/system';
+import { UserManagement } from '../../ui/admin/UserManagement';
+import { AuthScreen } from '../../ui/auth/AuthScreen';
+import { Signup } from '../../ui/auth/Signup';
+import { pointInPolygon } from '../../lib/geom';
+import { getDisplayName as getDisplayNameLib } from '../../lib/displayName';
+import { ThemeToggleButton } from '../../ui/theme';
 // removed unused component imports from ui/components
-import { AVBar } from './ui/av/AVBar';
-import { RosterPanel } from './ui/user/RosterPanel';
-import { BubbleBanner } from './ui/user/BubbleBanner';
-import { Overlays } from './app/layout/Overlays';
-import { useParticipants } from './features/participants/useParticipants';
+import { AVBar } from '../../ui/av/AVBar';
+import { RosterPanel } from '../../ui/user/RosterPanel';
+import { BubbleBanner } from '../../ui/user/BubbleBanner';
+import { Overlays } from '../layout/Overlays';
+import { useParticipants } from '../../features/participants/useParticipants';
 // presence merge now used via useRosterPresence hook
-import { useRosterPresence } from './features/roster/useRosterPresence';
-import { EditorWindow } from './features/editor/EditorWindow';
-import { useEditorPointer } from './features/editor/useEditorPointer';
+import { useRosterPresence } from '../../features/roster/useRosterPresence';
+import { EditorWindow } from '../../features/editor/EditorWindow';
+import { useEditorPointer } from '../../features/editor/useEditorPointer';
 // HudPanel moved into Overlays
-import { TopRightControls } from './app/layout/TopRightControls';
-import { ApiTokensOverlay } from './ui/admin/ApiTokensOverlay';
-import { AdminOverlay } from './ui/admin/AdminOverlay';
-import { TenantsAdminModal } from './features/admin/TenantsAdminModal';
-import { InvitesModal } from './features/admin/InvitesModal';
-import { useEditor } from './hooks/useEditor';
-import { useApiTokensLoader } from './features/admin/useApiTokens';
-import { useEditorBridge } from './editor/useEditorBridge';
-import { useGlobalAudioTracks } from './av/useGlobalAudioTracks';
-import { usePositionPersistence } from './hooks/usePositionPersistence';
-import { useZones as useZonesSync } from './features/zones/useZones';
-import { useHudTicker } from './features/hud/useHudTicker';
-import { useBubbleNavigation } from './features/bubble/useBubbleNavigation';
-import { useWorldRoom } from './realtime/useWorldRoom';
-import { useLivekit } from './av/useLivekit';
-import { createPhaserGame, destroyPhaserGame } from './game/phaserGame';
-import { gameBridge } from './game/bridge';
-import { joinWorld } from './lib/colyseus';
-import { getApiBaseFromWindow } from './lib/runtimeConfig';
-import { AVManager } from './av/avManager';
-import { useDoNotDisturbBridge } from './av/hooks/useDoNotDisturbBridge';
-import { useDndShortcut } from './av/hooks/useDndShortcut';
-import { BubbleManager } from './game/bubbleManager';
-import { FollowManager } from './game/followManager';
-import { ZoneManager } from './game/zoneManager';
-import { VolumeManager } from './game/volumeManager';
-import { ConnectionBanner } from './ui/system/ConnectionBanner';
+import { TopRightControls } from '../layout/TopRightControls';
+import { ApiTokensOverlay } from '../../ui/admin/ApiTokensOverlay';
+import { AdminOverlay } from '../../ui/admin/AdminOverlay';
+import { TenantsAdminModal } from '../../features/admin/TenantsAdminModal';
+import { InvitesModal } from '../../features/admin/InvitesModal';
+import { useEditor } from '../../hooks/useEditor';
+import { useApiTokensLoader } from '../../features/admin/useApiTokens';
+import { useEditorBridge } from '../../editor/useEditorBridge';
+import { useGlobalAudioTracks } from '../../av/useGlobalAudioTracks';
+import { usePositionPersistence } from '../../hooks/usePositionPersistence';
+import { useZones as useZonesSync } from '../../features/zones/useZones';
+import { useHudTicker } from '../../features/hud/useHudTicker';
+import { useBubbleNavigation } from '../../features/bubble/useBubbleNavigation';
+import { useWorldRoom } from '../../realtime/useWorldRoom';
+import { useLivekit } from '../../av/useLivekit';
+import { createPhaserGame, destroyPhaserGame } from '../../game/phaserGame';
+import { gameBridge } from '../../game/bridge';
+import { joinWorld } from '../../lib/colyseus';
+import { getApiBaseFromWindow } from '../../lib/runtimeConfig';
+import { AVManager } from '../../av/avManager';
+import { useDoNotDisturbBridge } from '../../av/hooks/useDoNotDisturbBridge';
+import { useDndShortcut } from '../../av/hooks/useDndShortcut';
+import { BubbleManager } from '../../game/bubbleManager';
+import { FollowManager } from '../../game/followManager';
+import { ZoneManager } from '../../game/zoneManager';
+import { VolumeManager } from '../../game/volumeManager';
+import { ConnectionBanner } from '../../ui/system/ConnectionBanner';
  
 
-export function App() {
+export function WorldApp() {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const colyseusRef = useRef<any>(null);
   const colyseusReconnectAttemptsRef = useRef(0);
@@ -55,7 +55,7 @@ export function App() {
   const avRef = useRef<AVManager | null>(null);
   const bubbleRef = useRef<BubbleManager | null>(null);
   const zoneRef = useRef<ZoneManager | null>(null);
-  const followRef = useRef<import('./game/followManager').FollowManager | null>(null);
+  const followRef = useRef<import('../../game/followManager').FollowManager | null>(null);
   const volumeRef = useRef<VolumeManager | null>(null);
   const bubbleMembersRef = useRef<Set<string>>(new Set());
   // removed unused right-click timers
@@ -1416,7 +1416,12 @@ export function App() {
             overlayZoom={overlayZoom}
             onZoom={(z) => setOverlayZoom(z)}
           />
-          <ConnectionBanner reconnecting={connStatus.reconnecting} reason={connStatus.lastReason || (typeof connStatus.lastCode === 'number' ? String(connStatus.lastCode) : undefined)} />
+          {(import.meta as any).env?.DEV ? (
+            <ConnectionBanner
+              reconnecting={connStatus.reconnecting}
+              reason={connStatus.lastReason || (typeof connStatus.lastCode === 'number' ? String(connStatus.lastCode) : undefined)}
+            />
+          ) : null}
           {positionReady ? (
             <div
               ref={containerRef}
@@ -1481,7 +1486,7 @@ export function App() {
                   }
                   // Nach erfolgreichem Toggle: tatsächlichen Zustand aus dem Room lesen und UI ggf. korrigieren
                   try {
-                    const mod: any = await import('./av/core/localState');
+                    const mod: any = await import('../../av/core/localState');
                     const roomAny: any = avRef.current?.room as any;
                     const realOn = mod.isLocalMicOn(roomAny);
                     if (realOn !== enabled) {
@@ -1700,4 +1705,6 @@ export function App() {
 
 // Styles (unused button styles removed)
 
-// ParticipantCard moved to ./ui/user/ParticipantCard
+// ParticipantCard moved to ../../ui/user/ParticipantCard
+
+
