@@ -126,6 +126,7 @@ export function WorldApp() {
   const [connStatus, setConnStatus] = React.useState<{ reconnecting: boolean; lastCode?: number; lastReason?: string }>({ reconnecting: false });
   // Simple view routing (removed legacy state)
   // Bubble UI state
+  const [rosterCollapsed, setRosterCollapsed] = React.useState(false);
   const [bubbleUi, setBubbleUi] = React.useState<{ active: boolean; members: string[] }>({ active: false, members: [] });
   // Pending bubble navigation until arrival near target
   const bubblePendingRef = React.useRef<{ targetId: string; dest?: { x: number; y: number } } | null>(null);
@@ -1263,7 +1264,7 @@ export function WorldApp() {
   useZonesSync({ editor, setEditor, zoneRef, gameBridge, colyseusRef });
 
   // Bubble-Navigation (ausgelagert)
-  const { startBubbleTo } = useBubbleNavigation({
+  const { startBubbleTo, activateBubbleNow } = useBubbleNavigation({
     bubbleMembersRef,
     localPosRef,
     colyseusRef,
@@ -1274,7 +1275,10 @@ export function WorldApp() {
     applyVolumesToUi,
     followRef,
   });
-  bubbleStartRef.current = startBubbleTo;
+  bubbleStartRef.current = (id: string) => {
+    try { bubblePendingRef.current = { targetId: id }; } catch {}
+    try { startBubbleTo(id); } catch {}
+  };
 
   // HUD-Ticker ausgelagert
   useHudTicker({
@@ -1291,14 +1295,7 @@ export function WorldApp() {
     onArrivedAtBubbleTarget: (targetId) => {
       try { followRef.current?.stop?.(); } catch {}
       try { gameBridge.setDesiredPosition(null); } catch {}
-      try {
-        // reuse bubble activation from hook by dispatching message to server and UI
-        // minimal local activation
-        const visual = new Set<string>();
-        if (localPosRef.current.id) visual.add('__local__');
-        visual.add(targetId);
-        gameBridge.setBubbleMembers(visual);
-      } catch {}
+      try { activateBubbleNow(targetId); } catch {}
     },
   });
 
@@ -1385,7 +1382,7 @@ export function WorldApp() {
     : [{ sid: (avRef.current?.room?.localParticipant?.sid ?? 'local'), identity: me.name || me.email, hasVideo: false, hasMic: avState.mic, isSpeaking: false, media: 'camera' as const }];
 
   return (
-    <div style={{ width: '100vw', height: '100vh', display: 'grid', gridTemplateColumns: '1fr 240px' }}>
+    <div style={{ width: '100vw', height: '100vh', display: 'grid', gridTemplateColumns: rosterCollapsed ? '1fr 24px' : '1fr 240px' }}>
       <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
       {page === 'world' && (
         <>
@@ -1608,7 +1605,11 @@ export function WorldApp() {
 
       </div>
       {/* Rechte Roster-Leiste (volle Höhe) */}
-      <RosterPanel roster={roster} onJumpTo={(r)=>{
+      <RosterPanel
+        roster={roster}
+        collapsed={rosterCollapsed}
+        onToggleCollapse={() => setRosterCollapsed(v => !v)}
+        onJumpTo={(r)=>{
         try {
           if (typeof r.x === 'number' && typeof r.y === 'number') {
             gameBridge.setDesiredPosition({ x: r.x!, y: r.y! });

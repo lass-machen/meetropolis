@@ -72,6 +72,9 @@ export function ParticipantCard(props: { part: { sid: string; identity: string; 
         track.attach(el);
         cleanup = () => { try { track.detach(el); } catch {} };
       } catch {}
+    } else {
+      try { (el as any).srcObject = null; el.load?.(); } catch {}
+      setIsVideoRendering(false);
     }
 
     const tryAttach = () => {
@@ -131,11 +134,30 @@ export function ParticipantCard(props: { part: { sid: string; identity: string; 
         }
       } catch {}
     };
-    const onTrackUnsubscribed = (_t: any, _publication: any, _participant: any) => {
-      try {} catch {}
+    const onTrackUnsubscribed = (t: any, _publication: any, participant: any) => {
+      try {
+        const src = (t?.source || t?.mediaStreamTrack?.kind) as string | undefined;
+        const want = part.media === 'screen' ? 'screen_share' : 'camera';
+        if (participant?.sid === baseSid && src === want && el) {
+          try { t.detach?.(el); } catch {}
+          try { (el as any).srcObject = null; el.load?.(); } catch {}
+          setIsVideoRendering(false);
+        }
+      } catch {}
     };
     const onTrackPublished = (_t: any, _publication: any, _participant: any) => {
       try {} catch {}
+    };
+    const onLocalTrackUnpublished = (publication: any, _participant?: any) => {
+      try {
+        const src = (publication?.source || publication?.track?.source) as string | undefined;
+        const want = part.media === 'screen' ? 'screen_share' : 'camera';
+        if (isLocalNow && src === want && el) {
+          try { publication?.track?.detach?.(el); } catch {}
+          try { (el as any).srcObject = null; el.load?.(); } catch {}
+          setIsVideoRendering(false);
+        }
+      } catch {}
     };
     (async () => {
       try {
@@ -156,6 +178,7 @@ export function ParticipantCard(props: { part: { sid: string; identity: string; 
           room.on?.(RoomEvent.TrackUnsubscribed, onTrackUnsubscribed);
           room.on?.(RoomEvent.TrackPublished, onTrackPublished);
           room.on?.(RoomEvent.LocalTrackPublished, onLocalTrackPublished as any);
+          room.on?.(RoomEvent.LocalTrackUnpublished, onLocalTrackUnpublished as any);
           // Store cleanup function capturing handler
           cleanup = (() => {
             try {
@@ -163,6 +186,7 @@ export function ParticipantCard(props: { part: { sid: string; identity: string; 
               room.off?.(RoomEvent.TrackUnsubscribed, onTrackUnsubscribed);
               room.off?.(RoomEvent.TrackPublished, onTrackPublished);
               room.off?.(RoomEvent.LocalTrackPublished, onLocalTrackPublished as any);
+              room.off?.(RoomEvent.LocalTrackUnpublished, onLocalTrackUnpublished as any);
             } catch {}
           });
         } else {
@@ -171,12 +195,22 @@ export function ParticipantCard(props: { part: { sid: string; identity: string; 
           room.on?.('trackPublished', onTrackPublished);
           const onLocalTrackPublished2 = () => { try { if (isLocalNow && el) setTimeout(()=>setIsVideoRendering(false),0); } catch {} };
           room.on?.('localTrackPublished', onLocalTrackPublished2);
+          const onLocalTrackUnpublished2 = () => {
+            try {
+              if (isLocalNow && el) {
+                try { (el as any).srcObject = null; el.load?.(); } catch {}
+                setIsVideoRendering(false);
+              }
+            } catch {}
+          };
+          room.on?.('localTrackUnpublished', onLocalTrackUnpublished2);
           cleanup = (() => {
             try {
               room.off?.('trackSubscribed', onTrackSubscribed);
               room.off?.('trackUnsubscribed', onTrackUnsubscribed);
               room.off?.('trackPublished', onTrackPublished);
               room.off?.('localTrackPublished', onLocalTrackPublished2);
+              room.off?.('localTrackUnpublished', onLocalTrackUnpublished2);
             } catch {}
           });
         }
@@ -207,9 +241,23 @@ export function ParticipantCard(props: { part: { sid: string; identity: string; 
 
   const handleForceMute = async () => {
     try {
-      const target = (part.identity || '').replace(/\s+–\s*Bildschirm$/, '');
+      const label = (part.identity || '').replace(/\s+–\s*Bildschirm$/, '');
+      let targetIdentity = label;
+      try {
+        const room: any = roomGetter?.();
+        if (room) {
+          const local = room.localParticipant;
+          if (local && (local.name === label || local.identity === label)) {
+            targetIdentity = local.identity;
+          } else {
+            const allRemotes: any[] = Array.from((room.remoteParticipants?.values?.() || room.participants?.values?.() || []) as any);
+            const found = allRemotes.find((p: any) => (p?.name || p?.identity) === label) || allRemotes.find((p: any) => p?.identity === label);
+            if (found?.identity) targetIdentity = found.identity;
+          }
+        }
+      } catch {}
       const base = (window as any).VITE_API_BASE || (import.meta as any).env?.VITE_API_BASE || `${window.location.protocol}//${window.location.hostname}:2567`;
-      await fetch(`${base}/controls/for/${encodeURIComponent(target)}`, {
+      await fetch(`${base}/controls/for/${encodeURIComponent(targetIdentity)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',

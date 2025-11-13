@@ -18,10 +18,11 @@ type Params = {
 export function useDndShortcut({ enabled, dndRef, avRef, setAvState, colyseusRef, volumeRef, gameBridge }: Params) {
   React.useEffect(() => {
     if (!enabled) return;
-    const onKey = (e: KeyboardEvent) => {
+    const onKey = async (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'U' || e.key === 'u')) {
         e.preventDefault();
         const next = !dndRef.current;
+        try { await avRef.current?.setDoNotDisturb(next); } catch {}
         try { gameBridge.setDoNotDisturb(next); } catch {}
         try { gameBridge.setMovementLocked(next); } catch {}
         if (next) {
