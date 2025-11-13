@@ -950,50 +950,6 @@ export function WorldApp() {
   // Editor Bridge: verbindet Pointer-Events der Szene mit der Editor-Logik (Zonen/Spawn)
   // (bereits früher aufgerufen)
 
-  if (!authChecked) {
-    return (
-      <div style={{display:'grid',placeItems:'center',height:'100vh'}}>Lade…</div>
-    );
-  }
-  if (!me) {
-    return (
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:24,alignItems:'start',padding:'6vh 6vw'}}>
-        <div>
-          <h2 style={{ margin: '8px 0' }}>Anmelden</h2>
-          <AuthScreen baseUrl={apiBase} onDone={async () => { await fetchMe(); }} />
-        </div>
-        <div>
-          <h2 style={{ margin: '8px 0' }}>Registrieren (neuen Mandanten anlegen)</h2>
-          <Signup apiBase={apiBase} onSuccess={(slug)=>{
-            try {
-              const proto = window.location.protocol;
-              const host = window.location.host;
-              const baseHost = host.split(':')[0];
-              const parts = baseHost.split('.');
-              if (parts.length >= 2) {
-                const rest = parts.slice(-2).join('.');
-                const port = host.includes(':') ? (':' + host.split(':')[1]) : '';
-                window.location.href = `${proto}//${slug}.${rest}${port}`;
-              } else {
-                // localhost/dev fallback: reload to keep cookie
-                window.location.reload();
-              }
-            } catch { window.location.reload(); }
-          }} />
-        </div>
-      </div>
-    );
-  }
-  if (!positionReady) {
-    return (
-      <div style={{display:'grid',placeItems:'center',height:'100vh'}}>Position wird geladen…</div>
-    );
-  }
-
-  const participantsToRender = uiParticipants.length > 0
-    ? uiParticipants
-    : [{ sid: (avRef.current?.room?.localParticipant?.sid ?? 'local'), identity: me.name || me.email, hasVideo: false, hasMic: avState.mic, isSpeaking: false, media: 'camera' as const }];
-
   // Event-basierter Sync des echten AV-Zustands (Mic/Cam/Share) in avState
   React.useEffect(() => {
     let removeHandlers: (() => void) | null = null;
@@ -1072,6 +1028,50 @@ export function WorldApp() {
       try { if (watcher) clearInterval(watcher); } catch {}
     };
   }, []);
+
+  if (!authChecked) {
+    return (
+      <div style={{display:'grid',placeItems:'center',height:'100vh'}}>Lade…</div>
+    );
+  }
+  if (!me) {
+    return (
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:24,alignItems:'start',padding:'6vh 6vw'}}>
+        <div>
+          <h2 style={{ margin: '8px 0' }}>Anmelden</h2>
+          <AuthScreen baseUrl={apiBase} onDone={async () => { await fetchMe(); }} />
+        </div>
+        <div>
+          <h2 style={{ margin: '8px 0' }}>Registrieren (neuen Mandanten anlegen)</h2>
+          <Signup apiBase={apiBase} onSuccess={(slug)=>{
+            try {
+              const proto = window.location.protocol;
+              const host = window.location.host;
+              const baseHost = host.split(':')[0];
+              const parts = baseHost.split('.');
+              if (parts.length >= 2) {
+                const rest = parts.slice(-2).join('.');
+                const port = host.includes(':') ? (':' + host.split(':')[1]) : '';
+                window.location.href = `${proto}//${slug}.${rest}${port}`;
+              } else {
+                // localhost/dev fallback: reload to keep cookie
+                window.location.reload();
+              }
+            } catch { window.location.reload(); }
+          }} />
+        </div>
+      </div>
+    );
+  }
+  if (!positionReady) {
+    return (
+      <div style={{display:'grid',placeItems:'center',height:'100vh'}}>Position wird geladen…</div>
+    );
+  }
+
+  const participantsToRender = uiParticipants.length > 0
+    ? uiParticipants
+    : [{ sid: (avRef.current?.room?.localParticipant?.sid ?? 'local'), identity: me.name || me.email, hasVideo: false, hasMic: avState.mic, isSpeaking: false, media: 'camera' as const }];
 
   return (
     <div style={{ width: '100vw', height: '100vh', display: 'grid', gridTemplateColumns: '1fr auto' }}>
