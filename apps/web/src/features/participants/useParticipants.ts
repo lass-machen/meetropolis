@@ -90,7 +90,14 @@ export function useParticipants(deps: {
         const isMicPub = (pub: any) => {
           const source = (pub?.source ?? pub?.track?.source);
           const kind = (pub?.kind ?? pub?.track?.kind);
-          return (!!pub?.track && (kind === 'audio' || source === 'microphone' || source === 0));
+          if (!(kind === 'audio' || source === 'microphone' || source === 0)) return false;
+          const t: any = pub?.track;
+          if (!t) return false;
+          const mst: any = t.mediaStreamTrack || t;
+          const enabled: boolean | undefined = (t.isEnabled ?? t.enabled ?? mst?.enabled);
+          const ready: string | undefined = mst?.readyState;
+          const pubMuted: boolean = (pub?.muted === true || (pub as any)?.isMuted === true);
+          return enabled !== false && !pubMuted && (ready === undefined || ready === 'live');
         };
         const isScreenPub = (pub: any) => {
           const source = (pub?.source ?? pub?.track?.source);

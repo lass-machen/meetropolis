@@ -1,5 +1,6 @@
 import React from 'react';
 import { joinWorld } from '../lib/colyseus';
+import { mergeRecentPresence, type ApiPresence } from '../features/participants/presence';
 
 type AnyRef<T> = React.MutableRefObject<T>;
 
@@ -202,6 +203,9 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
           }, Math.max(0, delay));
         };
 
+        // Präsenz (zuletzt online) – lokaler Cache im Effekt-Scope
+        let recentPresenceRef: ApiPresence[] = [];
+
         room.onMessage('full_state', (data: any) => {
           if (!gameBridge?.syncRemotePlayers) return;
           if (data?.players) {
@@ -296,6 +300,25 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
           } catch {}
         });
 
+        // Presence: Seed der letzten Aktivitäten (ohne Polling)
+        room.onMessage('presence_recent', (list: ApiPresence[]) => {
+          try {
+            recentPresenceRef = Array.isArray(list) ? list : [];
+            setRoster((prev) => mergeRecentPresence(prev, rosterByIdentityRef.current, recentPresenceRef));
+          } catch {}
+        });
+        // Presence: Einzel-Update (z. B. Positions-/Zeitstempelaktualisierung)
+        room.onMessage('presence_update', (p: ApiPresence) => {
+          try {
+            const list = Array.isArray(recentPresenceRef) ? [...recentPresenceRef] : [];
+            const idx = list.findIndex(x => String(x.userId) === String((p as any)?.userId));
+            if (idx >= 0) list[idx] = { ...list[idx], ...p, updatedAt: p.updatedAt || new Date().toISOString() };
+            else list.push({ ...p, updatedAt: p.updatedAt || new Date().toISOString() });
+            recentPresenceRef = list;
+            setRoster((prev) => mergeRecentPresence(prev, rosterByIdentityRef.current, recentPresenceRef));
+          } catch {}
+        });
+
         // Helper, um Remote-Controls konsistent anzuwenden (genutzt von weiteren Message-Typen)
         const applyRemoteControl = async (payload: { mic?: boolean; cam?: boolean; share?: boolean; dnd?: boolean }) => {
           const roomRef: any = avRef.current?.room as any;
@@ -306,6 +329,18 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
               const target = !!payload.mic;
               if (current !== target) {
                 await avRef.current?.setMicrophoneEnabled(target);
+                // Nachführen UI mit tatsächlichem Zustand
+                try {
+                  const real = isLocalMicOn(roomRef);
+                  setAvState(s => ({ ...s, mic: real }));
+                } catch {}
+                // Kurzer Re-Check (Pending/Signaling)
+                setTimeout(() => {
+                  try {
+                    const again = isLocalMicOn(avRef.current?.room as any);
+                    setAvState(s => ({ ...s, mic: again }));
+                  } catch {}
+                }, 400);
                 try {
                   if (!target) {
                     const { default: i18n } = await import('../lib/i18n');
@@ -338,8 +373,20 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
             if (typeof payload.cam === 'boolean') {
               const { isLocalCamOn } = await import('../av/core/localState');
               const current = isLocalCamOn(roomRef);
-              if (current !== !!payload.cam) {
-                await avRef.current?.setCameraEnabled(!!payload.cam);
+              const target = !!payload.cam;
+              if (current !== target) {
+                await avRef.current?.setCameraEnabled(target);
+                // Nachführen UI mit tatsächlichem Zustand
+                try {
+                  const real = isLocalCamOn(roomRef);
+                  setAvState(s => ({ ...s, cam: real }));
+                } catch {}
+                setTimeout(() => {
+                  try {
+                    const again = isLocalCamOn(avRef.current?.room as any);
+                    setAvState(s => ({ ...s, cam: again }));
+                  } catch {}
+                }, 400);
               }
             }
           } catch {}
@@ -355,10 +402,18 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
                 await avRef.current?.stopScreenshare();
                 setAvState(s => ({ ...s, share: false }));
               }
+              // Kurzer Re-Check für Share
+              setTimeout(() => {
+                try {
+                  const again = isLocalShareOn(avRef.current?.room as any);
+                  setAvState(s => ({ ...s, share: again }));
+                } catch {}
+              }, 400);
             } catch {}
           }
           if (typeof payload.dnd === 'boolean') {
             const next = !!payload.dnd;
+            try { await avRef.current?.setDoNotDisturb(next); } catch {}
             if (gameBridge && typeof (gameBridge as any).setDoNotDisturb === 'function') (gameBridge as any).setDoNotDisturb(next);
             if (next) {
               try { await avRef.current?.setMicrophoneEnabled(false); } catch {}
@@ -368,6 +423,19 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
             setAvState(s => ({ ...s, dnd: next, mic: next ? false : s.mic, cam: next ? false : s.cam, share: next ? false : s.share }));
             dndRef.current = next;
             try { colyseusRef.current?.send?.('dnd_status', { dnd: next }); } catch {}
+            // DND beeinflusst Lautstärke/Mute – UI-Volumes neu anwenden
+            try { applyVolumesToUi(); } catch {}
+            // Verifiziere nach kurzer Zeit den echten Zustand (Mic/Cam/Share) und gleiche UI an
+            setTimeout(async () => {
+              try {
+                const mod: any = await import('../av/core/localState');
+                const r: any = avRef.current?.room as any;
+                const realMic = mod.isLocalMicOn(r);
+                const realCam = mod.isLocalCamOn(r);
+                const realShare = mod.isLocalShareOn(r);
+                setAvState(s => ({ ...s, mic: next ? false : realMic, cam: next ? false : realCam, share: next ? false : realShare }));
+              } catch {}
+            }, 450);
           }
         };
 

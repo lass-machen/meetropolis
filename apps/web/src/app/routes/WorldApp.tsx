@@ -35,7 +35,6 @@ import { useWorldRoom } from '../../realtime/useWorldRoom';
 import { useLivekit } from '../../av/useLivekit';
 import { createPhaserGame, destroyPhaserGame } from '../../game/phaserGame';
 import { gameBridge } from '../../game/bridge';
-import { joinWorld } from '../../lib/colyseus';
 import { getApiBaseFromWindow } from '../../lib/runtimeConfig';
 import { AVManager } from '../../av/avManager';
 import { useDoNotDisturbBridge } from '../../av/hooks/useDoNotDisturbBridge';
@@ -134,6 +133,8 @@ export function WorldApp() {
   const [contextMenu, setContextMenu] = React.useState<{ open: boolean; x: number; y: number; playerId: string | null }>({ open: false, x: 0, y: 0, playerId: null });
   // Expose bubble start from effect to JSX
   const bubbleStartRef = React.useRef<null | ((id: string) => void)>(null);
+  // Manuelle Navigation zu fixer Position (Roster-Klick)
+  const manualNavRef = React.useRef<{ x: number; y: number } | null>(null);
   const disposedRef = React.useRef(false);
   const [page, setPage] = React.useState<'world' | 'admin' | string>('world');
   const [menuOpen, setMenuOpen] = React.useState(false);
@@ -592,417 +593,8 @@ export function WorldApp() {
     try { const el = containerRef.current; while (el && el.firstChild) { el.removeChild(el.firstChild); } } catch {}
     const game = createPhaserGame(containerRef.current);
 
-    // Colyseus World mit Auto-Reconnect
+    // Colyseus-Verbindung wird exklusiv im useWorldRoom-Hook aufgebaut
     let disposed = false;
-    const scheduleColyseusReconnect = () => {
-      if (disposed) return;
-      const attempt = ++colyseusReconnectAttemptsRef.current;
-      const delay = Math.min(30000, 1000 * Math.pow(2, attempt - 1) + Math.random() * 500);
-      try { if (colyseusReconnectTimerRef.current) clearTimeout(colyseusReconnectTimerRef.current); } catch {}
-      colyseusReconnectTimerRef.current = setTimeout(() => {
-        colyseusReconnectTimerRef.current = null;
-        void connectColyseus();
-      }, delay);
-    };
-    const connectColyseus = async () => {
-      try {
-        const positionToUse = localPosRef.current && (localPosRef.current.x !== undefined && localPosRef.current.y !== undefined) ? localPosRef.current : undefined;
-        const room = await joinWorld(
-          apiBase, 
-          me.id, 
-          me.name || me.email || me.id,
-          positionToUse
-        );
-        if (disposed) { try { room.leave(); } catch {} return; }
-        colyseusRef.current = room;
-        colyseusReconnectAttemptsRef.current = 0;
-        try { if (colyseusReconnectTimerRef.current) { clearTimeout(colyseusReconnectTimerRef.current); colyseusReconnectTimerRef.current = null; } } catch {}
-        // Store LiveKit identity for cross-referencing, but keep Colyseus session ID for positioning
-        const localLivekitIdentity = avRef.current?.room?.localParticipant?.identity || me.id;
-        const colyseusSessionId = room.sessionId;
-        
-        // Map between Colyseus session ID and LiveKit identity for volume control
-        colyseusToLivekitMap.current[colyseusSessionId] = localLivekitIdentity;
-        
-        // Keep the session ID for position tracking consistency
-        localPosRef.current.id = colyseusSessionId;
-        
-        // Register remote control handlers immediately (before any other async work)
-        const handleRemoteControlEarly = async (payload: { mic?: boolean; cam?: boolean; share?: boolean; dnd?: boolean }) => {
-          const lkRoom = avRef.current?.room;
-          if (payload?.mic !== undefined) {
-            try { if (lkRoom?.localParticipant?.isMicrophoneEnabled !== payload.mic) await lkRoom?.localParticipant?.setMicrophoneEnabled(payload.mic); } catch {}
-          }
-          if (payload?.cam !== undefined) {
-            try { if (lkRoom?.localParticipant?.isCameraEnabled !== payload.cam) await lkRoom?.localParticipant?.setCameraEnabled(payload.cam); } catch {}
-          }
-          if (payload?.share !== undefined) {
-            try {
-              if (payload.share && !avRef.current?.room?.localParticipant?.isScreenShareEnabled) {
-                const ok = await avRef.current?.startScreenshare();
-                if (ok) setAvState(s => ({ ...s, share: true }));
-              } else if (!payload.share && avRef.current?.room?.localParticipant?.isScreenShareEnabled) {
-                await avRef.current?.stopScreenshare();
-                setAvState(s => ({ ...s, share: false }));
-              }
-            } catch {}
-          }
-          if (payload?.dnd !== undefined) {
-            try { gameBridge.setDoNotDisturb(!!payload.dnd); } catch {}
-            dndRef.current = !!payload.dnd;
-            setAvState(s => ({ ...s, dnd: !!payload.dnd, mic: payload.dnd ? false : s.mic, cam: payload.dnd ? false : s.cam, share: payload.dnd ? false : s.share }));
-            try { colyseusRef.current?.send?.('dnd_status', { dnd: !!payload.dnd }); } catch {}
-          }
-        };
-        room.onMessage('remote_control', async (payload: any) => { await handleRemoteControlEarly(payload || {}); });
-        room.onMessage('remote_controls', async (msg: any) => { if (msg?.payload) await handleRemoteControlEarly(msg.payload); });
-        room.onMessage('remote_controls_for', async (msg: any) => {
-          const localIdentity = avRef.current?.room?.localParticipant?.identity || me.id;
-          if (!msg?.forIdentity || String(localIdentity || '') !== String(msg.forIdentity || '')) return;
-          if (msg?.payload) await handleRemoteControlEarly(msg.payload);
-        });
-        
-        // Register message handlers immediately (before game loads)
-        // Ensure handlers exist before server sends full_state/player events
-        room.onMessage('full_state', (data: any) => {
-          if (!gameBridge?.syncRemotePlayers) return; // Skip if game not loaded
-          if (data.players) {
-            const players: Record<string, { x: number; y: number; direction: any; name?: string }> = {};
-            data.players.forEach((p: any) => {
-              if (p.id !== localPosRef.current.id) {
-                // Store identity mapping
-                if (p.identity) {
-                  colyseusToLivekitMap.current[p.id] = p.identity;
-                  // Store name mapping if provided
-                  if (p.name) {
-                    identityToNameMap.current[p.identity] = p.name;
-                  }
-                }
-                players[p.id] = { 
-                  x: p.x, 
-                  y: p.y, 
-                  direction: p.direction,
-                  name: p.name || getDisplayName(p.identity || p.id),
-                  dnd: p.dnd
-                } as any;
-              }
-            });
-            gameBridge.syncRemotePlayers(players);
-            // Update remote positions cache for distance/zone calculations
-            try {
-              remotesRef.current = Object.fromEntries(
-                Object.entries(players).map(([id, p]) => [id, { x: p.x, y: p.y }])
-              );
-            } catch {}
-            // Trigger participant grid build (debounced)
-            try { scheduleBuildParticipantList(0); } catch {}
-          }
-        });
-        
-        room.onMessage('player_joined', (data: any) => {
-          if (data.id !== localPosRef.current.id) {
-            remotesRef.current[data.id] = { x: data.x, y: data.y };
-            // Store identity mapping
-            if (data.identity) {
-              colyseusToLivekitMap.current[data.id] = data.identity;
-              // Store name mapping if provided  
-              if (data.name) {
-                identityToNameMap.current[data.identity] = data.name;
-              }
-            }
-            if (gameBridge?.addRemotePlayer) {
-              gameBridge.addRemotePlayer(data.id, { 
-                x: data.x, 
-                y: data.y, 
-                direction: data.direction, 
-                name: data.name || getDisplayName(data.identity || data.id),
-                dnd: data.dnd
-              });
-            }
-            // Update participant grid (zone/nearby)
-            try { scheduleBuildParticipantList(50); } catch {}
-            // Re-broadcast current zones so new joiner gets them live (even if server save failed)
-            try {
-              const currZones = (editor?.zones || []);
-              if (Array.isArray(currZones) && currZones.length > 0) {
-                colyseusRef.current?.send?.('editor_update', { type: 'zone', polys: currZones });
-              }
-            } catch {}
-          }
-        });
-        
-        room.onMessage('player_moved', (data: any) => {
-          if (data.id !== localPosRef.current.id) {
-            remotesRef.current[data.id] = { x: data.x, y: data.y };
-            if (gameBridge?.updateRemotePlayer) {
-              gameBridge.updateRemotePlayer(data.id, { 
-                x: data.x, 
-                y: data.y, 
-                direction: data.direction 
-              });
-            }
-            // Movement may change zone membership
-            try { scheduleBuildParticipantList(50); } catch {}
-          }
-        });
-        
-        room.onMessage('player_left', (data: any) => {
-          delete remotesRef.current[data.id];
-          // Clean up identity mapping
-          delete colyseusToLivekitMap.current[data.id];
-          if (gameBridge?.removeRemotePlayer) {
-            gameBridge.removeRemotePlayer(data.id);
-          }
-          // Rebuild participants after roster change
-          try { scheduleBuildParticipantList(50); } catch {}
-        });
-        
-        room.onMessage('player_dnd', (data: { id: string; dnd: boolean }) => {
-          if (gameBridge?.updateRemotePlayerDnd) {
-            gameBridge.updateRemotePlayerDnd(data.id, data.dnd);
-          }
-          // DND affects visibility/opacity in UI cards
-          try { scheduleBuildParticipantList(50); } catch {}
-        });
-        
-        room.onMessage('editor_update', (data: any) => {
-          // Zonen-Update oder Tiles direkt anwenden, ohne Neuladen zu benötigen
-          try {
-            if (data?.type === 'zone' && Array.isArray(data.polys)) {
-              // Update lokale Anzeige und Manager
-              suppressZoneBroadcastRef.current = true;
-              setEditor(s => ({ ...s, zones: data.polys }));
-              try { localStorage.setItem('meetropolis.zones', JSON.stringify(data.polys)); } catch {}
-              gameBridge.setZoneOverlay(data.polys);
-              zoneRef.current?.setZones?.(data.polys as any);
-              // Teilnehmerliste neu bauen (Zonenfilter)
-              try { scheduleBuildParticipantList(0); } catch {}
-              // Nach kurzem Delay Broadcast wieder zulassen
-              setTimeout(() => { suppressZoneBroadcastRef.current = false; }, 50);
-              return;
-            }
-            if (data?.type === 'tile_paint' && data.edit) {
-              gameBridge.applyTilePaint(data.edit);
-              return;
-            }
-            if (data?.type === 'layers' || data?.type === 'all') {
-              gameBridge.fetchAndApplyServerLayers?.();
-              return;
-            }
-            if (data?.type === 'asset' && Array.isArray(data.assets)) {
-              gameBridge.setEditorAssets(data.assets);
-              return;
-            }
-          } catch {}
-          if (gameBridge?.handleEditorUpdate) {
-            gameBridge.handleEditorUpdate(data);
-          }
-        });
-        
-        // Presence: Seed der letzten Aktivitäten (ohne Polling)
-        room.onMessage('presence_recent', (list: ApiPresence[]) => {
-          try {
-            recentPresenceRef.current = Array.isArray(list) ? list : [];
-            setRoster((prev) => mergeRecentPresence(prev, rosterByIdentityRef.current, recentPresenceRef.current));
-          } catch {}
-        });
-        // Presence: Einzel-Update (z. B. Positions-/Zeitstempelaktualisierung)
-        room.onMessage('presence_update', (p: ApiPresence) => {
-          try {
-            const list = Array.isArray(recentPresenceRef.current) ? [...recentPresenceRef.current] : [];
-            const idx = list.findIndex(x => String(x.userId) === String((p as any)?.userId));
-            if (idx >= 0) list[idx] = { ...list[idx], ...p, updatedAt: p.updatedAt || new Date().toISOString() };
-            else list.push({ ...p, updatedAt: p.updatedAt || new Date().toISOString() });
-            recentPresenceRef.current = list;
-            setRoster((prev) => mergeRecentPresence(prev, rosterByIdentityRef.current, recentPresenceRef.current));
-          } catch {}
-        });
-        // Remote control helpers and handlers
-        
-        
-        // State is initialized and ready for player tracking
-        
-        // Try to access players directly
-        if (room.state && room.state.players) {
-          try {
-            // Method 1: forEach
-            if (typeof room.state.players.forEach === 'function') {
-              // noop
-              room.state.players.forEach(() => {});
-            }
-            // Method 2: Direct access
-          } catch (e) {
-          }
-        }
-        // onLocalMove wird weiter unten zentral zusammengesetzt gesetzt
-        // Add manual state check first
-        if (room.state && room.state.players) {
-          room.state.players.forEach(() => {});
-        }
-        
-        room.onStateChange((state: any) => {
-          
-        const players: Record<string, { x: number; y: number; direction: any; dnd?: boolean }> = {};
-          
-          // Try different ways to iterate over the players
-          if (state.players) {
-            // Check if it's a MapSchema
-            if (typeof state.players.forEach === 'function') {
-              state.players.forEach((value: any, key: string) => {
-                players[key] = { x: value.x, y: value.y, direction: value.direction, dnd: value.dnd };
-                // Store name mapping if available
-                if (value.identity && value.name) {
-                  identityToNameMap.current[value.identity] = value.name;
-                }
-              });
-            } 
-            // Try entries() method if available
-            else if (typeof state.players.entries === 'function') {
-              for (const [key, value] of state.players.entries()) {
-                players[key] = { x: value.x, y: value.y, direction: value.direction, dnd: value.dnd };
-                // Store name mapping if available
-                if (value.identity && value.name) {
-                  identityToNameMap.current[value.identity] = value.name;
-                }
-              }
-            }
-            // Try direct iteration
-            else if (state.players[Symbol.iterator]) {
-              for (const [key, value] of state.players) {
-                players[key] = { x: value.x, y: value.y, direction: value.direction, dnd: value.dnd };
-                // Store name mapping if available
-                if (value.identity && value.name) {
-                  identityToNameMap.current[value.identity] = value.name;
-                }
-              }
-            }
-          }
-          
-          const playerEntries = Object.entries(players) as [string, { x: number; y: number; direction: any }][];
-          remotesRef.current = Object.fromEntries(
-            playerEntries
-              .filter(([id]) => id !== localPosRef.current.id)
-              .map(([id, p]) => [id, { x: p.x, y: p.y }])
-          );
-          
-          
-          if (bubbleRef.current) {
-            const remoteEntries = Object.entries(remotesRef.current) as [string, { x: number; y: number }][];
-            const others = remoteEntries.map(([id, p]) => ({ id, x: p.x, y: p.y }));
-            bubbleRef.current.update(localPosRef.current, others);
-          }
-          // Filter out local player before syncing to scene and add names
-          const filteredPlayers = Object.fromEntries(
-            Object.entries(players)
-              .filter(([id]) => id !== localPosRef.current.id)
-              .map(([id, p]) => {
-                const livekitIdentity = colyseusToLivekitMap.current[id] || id;
-                const name = identityToNameMap.current[livekitIdentity] || livekitIdentity;
-                return [id, { ...p, name }];
-              })
-          );
-          gameBridge.syncRemotePlayers(filteredPlayers);
-          // Update roster with currently online players
-          try {
-            const online: Record<string, { name: string; x: number; y: number }> = {};
-            for (const [sid, p] of Object.entries(filteredPlayers) as any) {
-              const livekitIdentity = (colyseusToLivekitMap.current as any)[sid] || sid;
-              const name = (p as any).name || livekitIdentity;
-              online[livekitIdentity] = { name, x: (p as any).x, y: (p as any).y };
-            }
-            // Ensure local user is marked online using stable userId for reconciliation with presence API
-            try {
-              if (me?.id) {
-                const lp = localPosRef.current;
-                online[me.id] = { name: me.name || me.email || me.id, x: lp?.x ?? 0, y: lp?.y ?? 0 };
-              }
-            } catch {}
-            rosterByIdentityRef.current = online;
-            setRoster((prev) => {
-              const map = new Map<string, { identity: string; name: string; online: boolean; x?: number; y?: number; lastSeen?: string }>();
-              for (const r of prev) map.set(r.identity, { ...r, online: false });
-              for (const [ident, v] of Object.entries(online)) {
-                if (map.has(ident)) {
-                  map.set(ident, { ...(map.get(ident) as any), name: v.name, online: true, x: v.x, y: v.y });
-                } else {
-                  // Fallback: reconcile by display name (e.g., "Root Admin") to avoid duplicates when identities differ (userId vs livekit identity)
-                  let matchedKey: string | undefined;
-                  for (const [k, val] of map.entries()) {
-                    if ((val.name || '').toLowerCase() === (v.name || '').toLowerCase()) { matchedKey = k; break; }
-                  }
-                  if (matchedKey) {
-                    const cur = map.get(matchedKey)!;
-                    map.set(matchedKey, { ...cur, online: true, x: v.x, y: v.y });
-                  } else {
-                    map.set(ident, { identity: ident, name: v.name, online: true, x: v.x, y: v.y });
-                  }
-                }
-              }
-              return Array.from(map.values()).sort((a, b) => Number(b.online) - Number(a.online) || a.name.localeCompare(b.name));
-            });
-          } catch {}
-          // Ensure participant grid reflects latest positions/zones
-          try { setTimeout(buildParticipantList, 0); } catch {}
-        });
-        room.onError?.((_code: any, _message: any) => {
-          try { (gameBridge as any).onLocalMove = () => {}; } catch {}
-          colyseusRef.current = null;
-          scheduleColyseusReconnect();
-        });
-        room.onLeave?.((_code: any) => {
-          try { (gameBridge as any).onLocalMove = () => {}; } catch {}
-          colyseusRef.current = null;
-          scheduleColyseusReconnect();
-        });
-        
-        // Editor update handler registration moved up
-        // Note: editor_update is still handled here for game bridge
-        room.onMessage('editor_update', (data: any) => {
-          // Apply the update to the local scene
-          if (data.type === 'tile_paint') {
-            gameBridge.applyTilePaint(data.edit);
-          } else if (data.type === 'reload_all') {
-            // Another user saved to server, reload from server
-            try {
-              const scene = (window as any).currentPhaserScene;
-              scene?.fetchAndApplyServerLayers?.();
-            } catch {}
-          }
-        });
-        // Remote control handling ist zentral in useWorldRoom.ts implementiert
-
-        // Bubble-State von Server empfangen
-        room.onMessage('bubble_state', (payload: { members: string[] }) => {
-          const incoming = new Set<string>(Array.isArray(payload?.members) ? payload.members : []);
-          bubbleMembersRef.current = incoming;
-          const visual = new Set<string>();
-          const amInBubble = !!(localPosRef.current.id && incoming.has(localPosRef.current.id));
-          if (amInBubble) {
-            try { gameBridge.setMovementLocked(true); } catch {}
-          } else {
-            try { gameBridge.setMovementLocked(false); } catch {}
-          }
-          if (localPosRef.current.id && incoming.has(localPosRef.current.id)) visual.add('__local__');
-          for (const id of incoming) { if (id !== localPosRef.current.id) visual.add(id); }
-          try { gameBridge.setBubbleMembers(visual); } catch {}
-          applyVolumesToUi();
-          // Update banner UI
-          const names: string[] = [];
-          for (const id of incoming) {
-            if (id === localPosRef.current.id) continue;
-            const identity = colyseusToLivekitMap.current[id] || id;
-            const name = identityToNameMap.current[identity] || getDisplayName(identity);
-            names.push(name);
-          }
-          setBubbleUi({ active: amInBubble && incoming.size > 1, members: names });
-        });
-      } catch {
-        scheduleColyseusReconnect();
-      }
-    };
-    void connectColyseus();
-
-  // LiveKit-Verbindung via Hook (nach oben verlegt)
 
     bubbleRef.current = new BubbleManager(64, null);
     followRef.current = new FollowManager(96);
@@ -1040,7 +632,21 @@ export function WorldApp() {
           if (f.following) {
             gameBridge.setDesiredPosition({ x: f.x, y: f.y });
           } else {
-            gameBridge.setDesiredPosition(null);
+            // Manuelle Navigation aktiv? Dann gewünschte Position halten, bis Ziel erreicht
+            const target = manualNavRef.current;
+            if (target) {
+              const dx = (target.x ?? 0) - p.x;
+              const dy = (target.y ?? 0) - p.y;
+              const dist = Math.hypot(dx, dy);
+              if (dist <= 12) {
+                manualNavRef.current = null;
+                gameBridge.setDesiredPosition(null);
+              } else {
+                gameBridge.setDesiredPosition({ x: target.x, y: target.y });
+              }
+            } else {
+              gameBridge.setDesiredPosition(null);
+            }
           }
         } else if (f.following) {
           gameBridge.setDesiredPosition({ x: f.x, y: f.y });
@@ -1276,7 +882,14 @@ export function WorldApp() {
     followRef,
   });
   bubbleStartRef.current = (id: string) => {
-    try { bubblePendingRef.current = { targetId: id }; } catch {}
+    try {
+      let dest: { x: number; y: number } | undefined = undefined;
+      try {
+        const free = gameBridge.findFreeSpotNear(id, { radius: 16, step: 16 });
+        if (free) dest = { x: free.x, y: free.y };
+      } catch {}
+      bubblePendingRef.current = dest ? { targetId: id, dest } : { targetId: id };
+    } catch {}
     try { startBubbleTo(id); } catch {}
   };
 
@@ -1381,8 +994,87 @@ export function WorldApp() {
     ? uiParticipants
     : [{ sid: (avRef.current?.room?.localParticipant?.sid ?? 'local'), identity: me.name || me.email, hasVideo: false, hasMic: avState.mic, isSpeaking: false, media: 'camera' as const }];
 
+  // Event-basierter Sync des echten AV-Zustands (Mic/Cam/Share) in avState
+  React.useEffect(() => {
+    let removeHandlers: (() => void) | null = null;
+    let pollTimer: any = null;
+    let watcher: any = null;
+    const applyNow = async () => {
+      try {
+        const mod: any = await import('../../av/core/localState');
+        const roomAny: any = avRef.current?.room as any;
+        if (!roomAny) return;
+        const mic = mod.isLocalMicOn(roomAny);
+        const cam = mod.isLocalCamOn(roomAny);
+        let share = false;
+        try { share = mod.isLocalShareOn(roomAny); } catch {}
+        setAvState(s => ({ ...s, mic, cam, ...(typeof share === 'boolean' ? { share } : {}) }));
+      } catch {}
+    };
+    const installHandlersForRoom = async (room: any) => {
+      try {
+        const lk: any = await import('livekit-client');
+        const RoomEvent = (lk as any).RoomEvent;
+        const onAny = () => { void applyNow(); };
+        if (RoomEvent) {
+          room.on?.(RoomEvent.LocalTrackPublished, onAny);
+          room.on?.(RoomEvent.LocalTrackUnpublished, onAny);
+          room.on?.(RoomEvent.TrackMuted, onAny);
+          room.on?.(RoomEvent.TrackUnmuted, onAny);
+          room.on?.(RoomEvent.ConnectionStateChanged, onAny);
+          removeHandlers = () => {
+            try {
+              room.off?.(RoomEvent.LocalTrackPublished, onAny);
+              room.off?.(RoomEvent.LocalTrackUnpublished, onAny);
+              room.off?.(RoomEvent.TrackMuted, onAny);
+              room.off?.(RoomEvent.TrackUnmuted, onAny);
+              room.off?.(RoomEvent.ConnectionStateChanged, onAny);
+            } catch {}
+          };
+        } else {
+          room.on?.('localTrackPublished', onAny);
+          room.on?.('localTrackUnpublished', onAny);
+          room.on?.('trackMuted', onAny);
+          room.on?.('trackUnmuted', onAny);
+          room.on?.('connectionStateChanged', onAny);
+          removeHandlers = () => {
+            try {
+              room.off?.('localTrackPublished', onAny);
+              room.off?.('localTrackUnpublished', onAny);
+              room.off?.('trackMuted', onAny);
+              room.off?.('trackUnmuted', onAny);
+              room.off?.('connectionStateChanged', onAny);
+            } catch {}
+          };
+        }
+      } catch {}
+      void applyNow();
+    };
+    // Wenn Room noch nicht da ist: zyklisch prüfen und nachträglich Handler setzen
+    watcher = setInterval(() => {
+      const room: any = avRef.current?.room as any;
+      if (!room) {
+        // bis dahin leichter Poll, damit UI nicht veraltet ist
+        if (!pollTimer) pollTimer = setInterval(applyNow, 750);
+        return;
+      }
+      // Room ist verfügbar → Listener setzen, Poller beenden
+      try { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } } catch {}
+      clearInterval(watcher);
+      watcher = null;
+      void installHandlersForRoom(room);
+    }, 500);
+    // initialen State einmal lesen
+    void applyNow();
+    return () => {
+      try { removeHandlers?.(); } catch {}
+      try { clearInterval(pollTimer); } catch {}
+      try { if (watcher) clearInterval(watcher); } catch {}
+    };
+  }, []);
+
   return (
-    <div style={{ width: '100vw', height: '100vh', display: 'grid', gridTemplateColumns: rosterCollapsed ? '1fr 24px' : '1fr 240px' }}>
+    <div style={{ width: '100vw', height: '100vh', display: 'grid', gridTemplateColumns: '1fr auto' }}>
       <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
       {page === 'world' && (
         <>
@@ -1517,6 +1209,7 @@ export function WorldApp() {
                 }}
                 onToggleDnd={async () => {
                   const next = !avState.dnd;
+                  try { await avRef.current?.setDoNotDisturb(next); } catch {}
                   try { gameBridge.setDoNotDisturb(next); } catch {}
                   try { gameBridge.setMovementLocked(next); } catch {}
                   if (next) {
@@ -1540,6 +1233,19 @@ export function WorldApp() {
                   setAvState(s => ({ ...s, dnd: next, mic: next ? false : s.mic, cam: next ? false : s.cam, share: next ? false : s.share }));
                   try { colyseusRef.current?.send?.('dnd_status', { dnd: next }); } catch {}
                   try { volumeRef.current?.update(); } catch {}
+                  // Verifiziere echten Zustand nach kurzer Zeit und gleiche UI an
+                  setTimeout(async () => {
+                    try {
+                      const mod: any = await import('../../av/core/localState');
+                      const r: any = avRef.current?.room as any;
+                      if (!r) return;
+                      const realMic = mod.isLocalMicOn(r);
+                      const realCam = mod.isLocalCamOn(r);
+                      let realShare = false;
+                      try { realShare = mod.isLocalShareOn(r); } catch {}
+                      setAvState(s => ({ ...s, mic: next ? false : realMic, cam: next ? false : realCam, share: next ? false : realShare }));
+                    } catch {}
+                  }, 450);
                 }}
                 cameraManual={cameraManual}
                 onRecenter={() => { try { gameBridge.recenterCamera(); } catch {} }}
@@ -1612,6 +1318,7 @@ export function WorldApp() {
         onJumpTo={(r)=>{
         try {
           if (typeof r.x === 'number' && typeof r.y === 'number') {
+            manualNavRef.current = { x: r.x!, y: r.y! };
             gameBridge.setDesiredPosition({ x: r.x!, y: r.y! });
             try { (window as any).currentPhaserScene?.cameras?.main?.pan?.(r.x!, r.y!, 250, 'Sine.easeInOut'); } catch {}
           }

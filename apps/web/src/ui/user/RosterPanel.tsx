@@ -27,17 +27,40 @@ export function RosterPanel(props: { roster: RosterItem[]; onJumpTo?: (item: Ros
   const online = (roster || []).filter(r => !!r.online).sort((a, b) => (a.name || a.identity).localeCompare(b.name || b.identity));
   const offline = (roster || []).filter(r => !r.online).sort((a, b) => (a.name || a.identity).localeCompare(b.name || b.identity));
   return (
-    <div style={{ width: 240, height: '100%', background: 'rgba(15,15,18,0.82)', borderLeft: '1px solid rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ padding: '10px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-          <button onClick={onToggleCollapse} aria-label={collapsed ? t('common.expand') : t('common.collapse')} title={collapsed ? t('common.expand') : t('common.collapse')} style={{ width:22, height:22, display:'grid', placeItems:'center', border:'1px solid rgba(255,255,255,0.12)', background:'transparent', color:'#fff', borderRadius:6, cursor:'pointer' }}>
-            <FAIcon name={collapsed ? 'chevron-left' : 'chevron-right'} variant="solid" size="sm" ariaLabel={collapsed ? t('common.expand') : t('common.collapse')} />
+    <div style={{ width: collapsed ? 12 : 240, height: '100%', background: collapsed ? 'transparent' : 'rgba(15,15,18,0.82)', borderLeft: collapsed ? 'none' : '1px solid rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ padding: collapsed ? '0' : '10px 12px', display: 'flex', alignItems: 'center', justifyContent: collapsed ? 'center' : 'space-between', borderBottom: collapsed ? 'none' : '1px solid rgba(255,255,255,0.08)' }}>
+        {collapsed ? (
+          <button
+            onClick={onToggleCollapse}
+            aria-label={t('common.expand')}
+            title={t('common.expand')}
+            style={{
+              width: 18,
+              height: 28,
+              display: 'grid',
+              placeItems: 'center',
+              border: '1px solid var(--border)',
+              background: 'var(--glass)',
+              color: 'var(--fg)',
+              borderRadius: 6,
+              cursor: 'pointer'
+            }}
+          >
+            <FAIcon name="chevron-left" variant="solid" size="sm" ariaLabel={t('common.expand')} />
           </button>
-          <div style={{ fontWeight: 800 }}>{t('roster.team')}</div>
-        </div>
-        <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>{online.length} {t('roster.onlineStatus')}</div>
+        ) : (
+          <>
+            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+              <button onClick={onToggleCollapse} aria-label={t('common.collapse')} title={t('common.collapse')} style={{ width:22, height:22, display:'grid', placeItems:'center', border:'1px solid rgba(255,255,255,0.12)', background:'transparent', color:'#fff', borderRadius:6, cursor:'pointer' }}>
+                <FAIcon name="chevron-right" variant="solid" size="sm" ariaLabel={t('common.collapse')} />
+              </button>
+              <div style={{ fontWeight: 800 }}>{t('roster.team')}</div>
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>{online.length} {t('roster.onlineStatus')}</div>
+          </>
+        )}
       </div>
-      <div style={{ flex: 1, overflow: 'auto' }}>
+      <div style={{ flex: 1, overflow: 'auto', display: collapsed ? 'none' : 'block' }}>
         {/* Online Section */}
         {online.length > 0 && (
           <div>
