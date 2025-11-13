@@ -67,6 +67,12 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
     let disposed = false;
     try { if (args.disposedRef) args.disposedRef.current = false; } catch {}
 
+    // Debounce-Timer/RAF-Handles im Effekt-Scope halten, damit Cleanup sie erreicht
+    let buildListTimer: any = null;
+    let buildListRaf: number | null = null;
+    let rosterTimer: any = null;
+    let rosterRaf: number | null = null;
+
     const scheduleReconnect = () => {
       if (disposed) return;
       try { setConnectionStatus?.((s) => ({ reconnecting: true, lastCode: lastCloseInfoRef.current.code, lastReason: lastCloseInfoRef.current.reason })); } catch {}
@@ -170,26 +176,27 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
         };
 
         // Debounce: Teilnehmerliste/Roster nur 1x pro kurzem Intervall aktualisieren (rAF + Delay)
-        const buildListTimerRef = React.useRef<any>(null);
-        const buildListRafRef = React.useRef<number | null>(null);
-        const rosterTimerRef = React.useRef<any>(null);
-        const rosterRafRef = React.useRef<number | null>(null);
+        // Vor neuem Session-Lauf evtl. hängende Handles räumen und zurücksetzen
+        if (buildListTimer) { try { clearTimeout(buildListTimer); } catch {} buildListTimer = null; }
+        if (buildListRaf !== null) { try { cancelAnimationFrame(buildListRaf); } catch {} buildListRaf = null; }
+        if (rosterTimer) { try { clearTimeout(rosterTimer); } catch {} rosterTimer = null; }
+        if (rosterRaf !== null) { try { cancelAnimationFrame(rosterRaf); } catch {} rosterRaf = null; }
         const scheduleBuildParticipantList = (delay: number = 100) => {
-          if (buildListTimerRef.current || buildListRafRef.current !== null) return;
-          buildListTimerRef.current = setTimeout(() => {
-            buildListTimerRef.current = null;
-            buildListRafRef.current = requestAnimationFrame(() => {
-              buildListRafRef.current = null;
+          if (buildListTimer || buildListRaf !== null) return;
+          buildListTimer = setTimeout(() => {
+            buildListTimer = null;
+            buildListRaf = requestAnimationFrame(() => {
+              buildListRaf = null;
               try { buildParticipantList(); } catch {}
             });
           }, Math.max(0, delay));
         };
         const scheduleRefreshRosterFromRemotes = (delay: number = 0) => {
-          if (rosterTimerRef.current || rosterRafRef.current !== null) return;
-          rosterTimerRef.current = setTimeout(() => {
-            rosterTimerRef.current = null;
-            rosterRafRef.current = requestAnimationFrame(() => {
-              rosterRafRef.current = null;
+          if (rosterTimer || rosterRaf !== null) return;
+          rosterTimer = setTimeout(() => {
+            rosterTimer = null;
+            rosterRaf = requestAnimationFrame(() => {
+              rosterRaf = null;
               try { refreshRosterFromRemotes(); } catch {}
             });
           }, Math.max(0, delay));
@@ -289,9 +296,8 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
           } catch {}
         });
 
-        room.onMessage('remote_control', async (payload: { mic?: boolean; cam?: boolean; share?: boolean; dnd?: boolean }) => {
-          // Wichtig: Schalte Mic/Kamera ausschließlich über den AVManager,
-          // und vermeide No-Op/Flapping durch idempotente Guards.
+        // Helper, um Remote-Controls konsistent anzuwenden (genutzt von weiteren Message-Typen)
+        const applyRemoteControl = async (payload: { mic?: boolean; cam?: boolean; share?: boolean; dnd?: boolean }) => {
           const roomRef: any = avRef.current?.room as any;
           try {
             if (typeof payload.mic === 'boolean') {
@@ -362,6 +368,23 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
             setAvState(s => ({ ...s, dnd: next, mic: next ? false : s.mic, cam: next ? false : s.cam, share: next ? false : s.share }));
             dndRef.current = next;
             try { colyseusRef.current?.send?.('dnd_status', { dnd: next }); } catch {}
+          }
+        };
+
+        room.onMessage('remote_control', async (payload: any) => {
+          await applyRemoteControl(payload || {});
+        });
+        room.onMessage('remote_controls', async (msg: any) => {
+          if (msg?.payload) {
+            await applyRemoteControl(msg.payload);
+          }
+        });
+
+        room.onMessage('remote_controls_for', async (msg: any) => {
+          const localIdentity = avRef.current?.room?.localParticipant?.identity || me?.id;
+          if (!msg?.forIdentity || String(localIdentity || '') !== String(msg.forIdentity || '')) return;
+          if (msg?.payload) {
+            await applyRemoteControl(msg.payload);
           }
         });
 
@@ -492,6 +515,11 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
         const isOpen = room?.connection?.isOpen === true || wsReadyState === 1;
         if (isOpen) room.leave();
       } catch {}
+      // Ausstehende Debounce-Timeouts/AnimationFrames sauber räumen
+      try { if (buildListTimer) { clearTimeout(buildListTimer); buildListTimer = null; } } catch {}
+      try { if (rosterTimer) { clearTimeout(rosterTimer); rosterTimer = null; } } catch {}
+      try { if (buildListRaf !== null) { cancelAnimationFrame(buildListRaf); buildListRaf = null; } } catch {}
+      try { if (rosterRaf !== null) { cancelAnimationFrame(rosterRaf); rosterRaf = null; } } catch {}
       if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
     };
   }, [apiBase, me?.id]);

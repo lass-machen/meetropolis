@@ -71,12 +71,13 @@ export function useParticipants(deps: {
         }
       }
       if (!isLocal) {
-        if (!participantPos) {
-          return;
-        }
-        const remoteZone = zones.find((z: any) => pointInPolygon(participantPos!, z.points));
-        if ((localZone && !remoteZone) || (!localZone && remoteZone) || (localZone && remoteZone && localZone.name !== remoteZone.name)) {
-          return;
+        // Wenn keine Position bekannt ist, Teilnehmer dennoch aufnehmen (tolerant gegenüber Race-Conditions);
+        // Zonenfilter nur anwenden, wenn wir eine Position haben.
+        if (participantPos) {
+          const remoteZone = zones.find((z: any) => pointInPolygon(participantPos!, z.points));
+          if ((localZone && !remoteZone) || (!localZone && remoteZone) || (localZone && remoteZone && localZone.name !== remoteZone.name)) {
+            return;
+          }
         }
       }
       try {

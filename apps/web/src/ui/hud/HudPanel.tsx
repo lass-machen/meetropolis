@@ -1,7 +1,8 @@
 // Simple HUD panel showing zone, AV room and follow target
+import React from 'react';
 import { useTranslation } from 'react-i18next';
 
-export function HudPanel(props: { hud: { zone?: string; avRoom?: string | null; follow?: string | null } }) {
+export const HudPanel = React.memo(function HudPanel(props: { hud: { zone?: string; avRoom?: string | null; follow?: string | null } }) {
   const { hud } = props;
   const { t } = useTranslation();
   return (
@@ -11,6 +12,6 @@ export function HudPanel(props: { hud: { zone?: string; avRoom?: string | null; 
       <div>{t('hud.following')}: {hud.follow ?? t('hud.no')}</div>
     </div>
   );
-}
+});
 
 

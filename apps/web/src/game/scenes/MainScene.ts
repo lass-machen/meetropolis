@@ -1460,16 +1460,18 @@ export class MainScene extends Phaser.Scene {
     if (this.v2) {
       // Erzwinge Unsichtbarkeit des Kollision-Layers außerhalb des Editors
       try { this.collisionLayer?.setVisible(this.editorMode === true); } catch {}
-      // throttle chunk loading
-      if (!this._chunkThrottle || time - this._chunkThrottle > 250) {
-        this._chunkThrottle = time;
+      // Chunk-Reloads nur bei Kamera-Änderungen
+      const vw = this.cameras.main.worldView;
+      const camSig = `${Math.floor(vw.x)}:${Math.floor(vw.y)}:${Math.floor(vw.width)}:${Math.floor(vw.height)}:${this.cameras.main.zoom.toFixed(2)}`;
+      if (camSig !== this._lastCamSig) {
+        this._lastCamSig = camSig;
         this.loadVisibleChunks('ground');
         this.loadVisibleChunks('walls');
         this.loadVisibleChunks('collision');
       }
     }
   }
-  private _chunkThrottle = 0;
+  private _lastCamSig: string | null = null;
 
   private ensureCollisionCollider() {
     colEnsureCollider(this as any);

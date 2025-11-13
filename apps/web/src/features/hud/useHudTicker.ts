@@ -43,7 +43,13 @@ export function useHudTicker(params: UseHudTickerParams) {
           avRoom: avRef.current?.activeRoom ?? null,
         } as any;
         if (typeof z === 'string') next.zone = z;
-        setHud(next);
+        setHud(prev => {
+          const sameZone = (prev.zone ?? undefined) === next.zone;
+          const sameFollow = (prev.follow ?? null) === next.follow;
+          const sameAv = (prev.avRoom ?? null) === next.avRoom;
+          if (sameZone && sameFollow && sameAv) return prev;
+          return next;
+        });
 
         if (bubblePendingRef.current && localPosRef.current) {
           const { dest, targetId } = bubblePendingRef.current;
