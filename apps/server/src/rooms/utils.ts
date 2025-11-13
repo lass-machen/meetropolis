@@ -1,7 +1,7 @@
-import type Colyseus from 'colyseus';
+import type { Room, IBroadcastOptions } from 'colyseus';
 import { logger } from '../logger.js';
 
-export function safeBroadcast<T>(room: Colyseus.Room, type: string, payload: T, options?: Parameters<Colyseus.Room['broadcast']>[2]) {
+export function safeBroadcast<T>(room: Room, type: string, payload: T, options?: IBroadcastOptions) {
   try {
     room.broadcast(type, payload as any, options as any);
   } catch (e: any) {
