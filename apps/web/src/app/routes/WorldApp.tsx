@@ -14,6 +14,7 @@ import { Overlays } from '../layout/Overlays';
 import { useParticipants } from '../../features/participants/useParticipants';
 // presence merge now used via useRosterPresence hook
 import { useRosterPresence } from '../../features/roster/useRosterPresence';
+import { mergeRecentPresence, type ApiPresence } from '../../features/participants/presence';
 import { EditorWindow } from '../../features/editor/EditorWindow';
 import { useEditorPointer } from '../../features/editor/useEditorPointer';
 // HudPanel moved into Overlays
@@ -115,7 +116,9 @@ export function WorldApp() {
   const [isInternalOwner, setIsInternalOwner] = React.useState(false);
   // view/state werden in AuthScreen verwaltet
   // Roster: periodisch letzte Präsenz (für Offline/"zuletzt online")
-  useRosterPresence({ apiBase, authChecked, meId: me?.id ?? null, rosterByIdentityRef, setRoster, avRef });
+  // HTTP-Poll für Presence deaktivieren – wir nutzen WS-Push (presence_recent/presence_update)
+  useRosterPresence({ apiBase, authChecked, meId: me?.id ?? null, rosterByIdentityRef, setRoster, avRef, enablePoll: false });
+  const recentPresenceRef = React.useRef<ApiPresence[]>([]);
   // Grid Overlay expand/collapse + selection
   const [gridExpanded, setGridExpanded] = React.useState(false);
   const [selectedSid, setSelectedSid] = React.useState<string | null>(null);
@@ -760,7 +763,26 @@ export function WorldApp() {
           }
         });
         
-        room.onMessage('remote_control', async (payload: { mic?: boolean; cam?: boolean; share?: boolean; dnd?: boolean }) => {
+        // Presence: Seed der letzten Aktivitäten (ohne Polling)
+        room.onMessage('presence_recent', (list: ApiPresence[]) => {
+          try {
+            recentPresenceRef.current = Array.isArray(list) ? list : [];
+            setRoster((prev) => mergeRecentPresence(prev, rosterByIdentityRef.current, recentPresenceRef.current));
+          } catch {}
+        });
+        // Presence: Einzel-Update (z. B. Positions-/Zeitstempelaktualisierung)
+        room.onMessage('presence_update', (p: ApiPresence) => {
+          try {
+            const list = Array.isArray(recentPresenceRef.current) ? [...recentPresenceRef.current] : [];
+            const idx = list.findIndex(x => String(x.userId) === String((p as any)?.userId));
+            if (idx >= 0) list[idx] = { ...list[idx], ...p, updatedAt: p.updatedAt || new Date().toISOString() };
+            else list.push({ ...p, updatedAt: p.updatedAt || new Date().toISOString() });
+            recentPresenceRef.current = list;
+            setRoster((prev) => mergeRecentPresence(prev, rosterByIdentityRef.current, recentPresenceRef.current));
+          } catch {}
+        });
+        // Remote control helpers and handlers
+        const handleRemoteControl = async (payload: { mic?: boolean; cam?: boolean; share?: boolean; dnd?: boolean }) => {
           const lkRoom = avRef.current?.room;
           if (payload.mic !== undefined) {
             if (lkRoom?.localParticipant?.isMicrophoneEnabled !== payload.mic) {
@@ -789,6 +811,22 @@ export function WorldApp() {
             setAvState(s => ({ ...s, dnd: !!payload.dnd, mic: payload.dnd ? false : s.mic, cam: payload.dnd ? false : s.cam, share: payload.dnd ? false : s.share }));
             try { colyseusRef.current?.send?.('dnd_status', { dnd: !!payload.dnd }); } catch {}
           }
+        };
+        // Backcompat singular message
+        room.onMessage('remote_control', async (payload: { mic?: boolean; cam?: boolean; share?: boolean; dnd?: boolean }) => {
+          await handleRemoteControl(payload);
+        });
+        // Broadcast controls for all
+        room.onMessage('remote_controls', async (msg: { from?: string; payload?: { mic?: boolean; cam?: boolean; share?: boolean; dnd?: boolean } }) => {
+          if (msg && msg.payload) await handleRemoteControl(msg.payload);
+        });
+        // Targeted controls (for a specific LiveKit identity)
+        room.onMessage('remote_controls_for', async (msg: { forIdentity?: string; from?: string; payload?: { mic?: boolean; cam?: boolean; share?: boolean; dnd?: boolean } }) => {
+          const localIdentity = avRef.current?.room?.localParticipant?.identity || me.id;
+          if (!msg?.payload) return;
+          if (!msg?.forIdentity) return;
+          if (String(localIdentity || '') !== String(msg.forIdentity || '')) return;
+          await handleRemoteControl(msg.payload);
         });
         
         // State is initialized and ready for player tracking

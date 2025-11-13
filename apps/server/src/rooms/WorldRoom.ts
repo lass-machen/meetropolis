@@ -23,6 +23,7 @@ const activeRooms = new Set<WorldRoom>();
 
 export class WorldRoom extends Colyseus.Room<WorldState> {
   private defaultSpawn: { x: number; y: number } | null = null;
+  private prismaForPresence: PrismaClient | null = null;
 
   override onCreate(options?: any) {
     this.setState(new WorldState());
@@ -43,6 +44,7 @@ export class WorldRoom extends Colyseus.Room<WorldState> {
     (async () => {
       try {
         const prisma = new PrismaClient();
+        this.prismaForPresence = prisma;
         const mapName = process.env.DEFAULT_MAP_NAME || 'office';
         const tenantSlug = (options && (options as any).tenant) || process.env.DEFAULT_TENANT_SLUG || 'default';
         const map = await prisma.map.findFirst({ where: { name: mapName, tenant: { slug: tenantSlug } } });
@@ -52,7 +54,6 @@ export class WorldRoom extends Colyseus.Room<WorldState> {
           this.defaultSpawn = { x: sp.x, y: sp.y };
           logger.info('[WorldRoom] Loaded default spawn from DB:', this.defaultSpawn);
         }
-        await prisma.$disconnect().catch(() => {});
       } catch (e: any) {
         try { logger.debug('[WorldRoom] Failed to load default spawn:', e?.message || String(e)); } catch {}
       }
@@ -216,6 +217,33 @@ export class WorldRoom extends Colyseus.Room<WorldState> {
       name: player.name,
       dnd: player.dnd
     }, { except: client });
+
+    // Seed: recent presence list via WS (best-effort, tenant-scoped)
+    try {
+      const prisma = this.prismaForPresence ?? new PrismaClient();
+      const tenantSlug: string = (options?.tenant || this.metadata?.tenant || process.env.DEFAULT_TENANT_SLUG || 'default');
+      const tenant = await prisma.tenant.findUnique({ where: { slug: tenantSlug } });
+      if (tenant) {
+        const recent = await prisma.presence.findMany({
+          where: { tenantId: tenant.id },
+          orderBy: { updatedAt: 'desc' },
+          distinct: ['userId'],
+          include: { user: { select: { id: true, email: true, name: true } }, room: { select: { name: true } } },
+        } as any);
+        const out = recent.map((p: any) => ({
+          userId: p.userId,
+          user: { id: p.user?.id, email: p.user?.email, name: p.user?.name },
+          room: p.room?.name || 'world',
+          x: p.x,
+          y: p.y,
+          direction: p.direction,
+          updatedAt: p.updatedAt,
+        }));
+        try { client.send('presence_recent', out as any); } catch {}
+      }
+    } catch (e) {
+      try { logger.debug('[WorldRoom] presence_recent seed failed', e as any); } catch {}
+    }
   }
 
   override onLeave(client: Client) {
@@ -232,6 +260,7 @@ export class WorldRoom extends Colyseus.Room<WorldState> {
   override onDispose() {
     activeRooms.delete(this);
     try { colyseusRooms.dec(); } catch {}
+    try { this.prismaForPresence && this.prismaForPresence.$disconnect().catch(()=>{}); } catch {}
     logger.info('[WorldRoom] Room disposed');
   }
 }

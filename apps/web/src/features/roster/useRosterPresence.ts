@@ -9,11 +9,13 @@ type Params = {
   setRoster: (updater: (prev: Array<{ identity: string; name: string; online: boolean; x?: number; y?: number; lastSeen?: string }>) => Array<{ identity: string; name: string; online: boolean; x?: number; y?: number; lastSeen?: string }>) => void;
   // Optional: LiveKit-Fallback, um Online-Status ohne World-WS zu erhalten
   avRef?: React.MutableRefObject<any>;
+  enablePoll?: boolean;
 };
 
-export function useRosterPresence({ apiBase, authChecked, meId, rosterByIdentityRef, setRoster, avRef }: Params) {
+export function useRosterPresence({ apiBase, authChecked, meId, rosterByIdentityRef, setRoster, avRef, enablePoll = true }: Params) {
   React.useEffect(() => {
     if (!authChecked || !meId) return;
+    if (!enablePoll) return;
     let stop = false as boolean;
     const load = async () => {
       try {
@@ -46,7 +48,7 @@ export function useRosterPresence({ apiBase, authChecked, meId, rosterByIdentity
     };
     load();
     return () => { stop = true; };
-  }, [apiBase, authChecked, meId]);
+  }, [apiBase, authChecked, meId, enablePoll]);
 }
 
 

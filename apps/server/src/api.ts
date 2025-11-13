@@ -356,6 +356,22 @@ export function registerApi(app: express.Express) {
         });
       }
       
+      // Best-effort WS push: presence_update for this tenant
+      try {
+        const rooms: any[] = Array.from(((global as any).activeWorldRooms || new Set()).values());
+        for (const r of rooms) {
+          const meta = (r as any).metadata || {};
+          if (meta && meta.tenant && meta.tenant !== tenant.slug) continue;
+          try {
+            (r as any).broadcast?.('presence_update', {
+              userId: auth.userId,
+              x, y, direction,
+              updatedAt: new Date().toISOString(),
+            });
+          } catch {}
+        }
+      } catch {}
+      
       res.json({ ok: true });
     } catch (e: any) {
       try { logger.error('[Auth] position update failed', e); } catch {}
