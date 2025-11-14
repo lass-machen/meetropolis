@@ -608,6 +608,32 @@ export function WorldApp() {
       localPosRef.current.y = p.y;
       (gameBridge as any).lastDirection = p.direction;
       zoneRef.current?.update({ x: p.x, y: p.y });
+      // Bubble: Ankunft direkt beim Movement prüfen
+      try {
+        const pending = bubblePendingRef.current;
+        if (pending) {
+          let arrived = false;
+          if (pending.dest) {
+            const dx = (p.x || 0) - pending.dest.x;
+            const dy = (p.y || 0) - pending.dest.y;
+            arrived = (dx * dx + dy * dy) < 12 * 12;
+          }
+          if (!arrived) {
+            const t = remotesRef.current[pending.targetId];
+            if (t) {
+              const dx = (p.x || 0) - t.x;
+              const dy = (p.y || 0) - t.y;
+              arrived = (dx * dx + dy * dy) < 20 * 20;
+            }
+          }
+          if (arrived) {
+            try { followRef.current?.stop?.(); } catch {}
+            try { gameBridge.setDesiredPosition(null); } catch {}
+            try { activateBubbleNowRef.current(pending.targetId); } catch {}
+            bubblePendingRef.current = null;
+          }
+        }
+      } catch {}
       
       // Check if zone changed
       const zones = zoneRef.current?.getZones?.() || [];
@@ -619,7 +645,7 @@ export function WorldApp() {
         // Rebuild participant list when zone changes
         setTimeout(buildParticipantList, 50);
         // Force volume update when zone changes
-        setTimeout(() => volumeRef.current?.update(), 100);
+        applyVolumesToUi();
       }
       
       if (followRef.current) {
@@ -881,6 +907,8 @@ export function WorldApp() {
     applyVolumesToUi,
     followRef,
   });
+  const activateBubbleNowRef = React.useRef<(id: string) => void>(() => {});
+  activateBubbleNowRef.current = activateBubbleNow;
   bubbleStartRef.current = (id: string) => {
     try {
       let dest: { x: number; y: number } | undefined = undefined;

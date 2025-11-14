@@ -236,6 +236,7 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
           if (gameBridge && typeof (gameBridge as any).addRemotePlayer === 'function') (gameBridge as any).addRemotePlayer(data.id, { x: data.x, y: data.y, direction: data.direction, name: data.name, dnd: data.dnd });
           scheduleBuildParticipantList(50);
           scheduleRefreshRosterFromRemotes(0);
+          applyVolumesToUi();
           try {
             const currZones = (editor?.zones || []);
             if (Array.isArray(currZones) && currZones.length > 0) {
@@ -250,6 +251,7 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
           if (gameBridge && typeof gameBridge.updateRemotePlayer === 'function') gameBridge.updateRemotePlayer(data.id, { x: data.x, y: data.y, direction: data.direction });
           scheduleBuildParticipantList(50);
           scheduleRefreshRosterFromRemotes(0);
+          applyVolumesToUi();
         });
 
         room.onMessage('player_left', (data: any) => {
@@ -258,6 +260,7 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
           if (gameBridge && typeof gameBridge.removeRemotePlayer === 'function') gameBridge.removeRemotePlayer(data.id);
           scheduleBuildParticipantList(50);
           scheduleRefreshRosterFromRemotes(0);
+          applyVolumesToUi();
         });
 
         room.onMessage('player_dnd', (data: { id: string; dnd: boolean }) => {

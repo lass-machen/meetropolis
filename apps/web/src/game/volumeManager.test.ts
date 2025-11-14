@@ -82,6 +82,30 @@ describe('computePairVolume', () => {
     expect(v2).toBeCloseTo(0.2, 5);
   });
 
+  it('mutes when local is in a zone and remote is outside', () => {
+    const v = computePairVolume(
+      { id: 'me', x: 50, y: 50 },   // in zone A
+      { id: 'u', x: 250, y: 250 },  // außerhalb
+      zones,
+      null,
+      new Set(),
+      rules
+    );
+    expect(v).toBe(0);
+  });
+
+  it('mutes when both are in different zones', () => {
+    const v = computePairVolume(
+      { id: 'me', x: 50, y: 50 },    // in zone A
+      { id: 'u', x: 350, y: 50 },    // in zone B
+      zones,
+      null,
+      new Set(),
+      rules
+    );
+    expect(v).toBe(0);
+  });
+
   it('follow target is always full volume', () => {
     const v = computePairVolume(
       { id: 'me', x: 0, y: 0 },
