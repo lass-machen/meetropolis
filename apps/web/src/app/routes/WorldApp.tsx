@@ -892,6 +892,19 @@ export function WorldApp() {
 
   // Global Audio Track Manager - ausgelagert
   useGlobalAudioTracks({ avRef });
+  // Re-apply Volumes when remote audio topology changes (screenshare on/off, resubscribe)
+  React.useEffect(() => {
+    let off: (() => void) | null = null;
+    (async () => {
+      try {
+        const mod: any = await import('../../lib/avEvents');
+        off = mod.onAudioTracksChanged?.(() => {
+          try { applyVolumesToUi(); } catch {}
+        }) || null;
+      } catch {}
+    })();
+    return () => { try { off?.(); } catch {} };
+  }, []);
 
   useDndShortcut({ enabled: !!(authChecked && me), dndRef, avRef, setAvState, colyseusRef, volumeRef, gameBridge });
 

@@ -3,7 +3,7 @@ const ALLOW_RECONNECT = (import.meta as any).env?.VITE_AV_RECONNECT !== 'false';
 import { Room, createLocalScreenTracks } from 'livekit-client';
 import { joinLivekitRoom } from '../lib/livekit';
 import { avLog } from '../lib/avLog';
-import { onBubbleMembersUpdate } from '../lib/avEvents';
+import { onBubbleMembersUpdate, emitAudioTracksChanged } from '../lib/avEvents';
 import { startStatsLoopImpl } from './core/stats';
 import { applyDefaultRemoteQualityImpl, onConnectionQualityChangedImpl } from './core/quality';
 import { AVController } from './controller/avController';
@@ -566,6 +566,7 @@ export class AVManager {
               try { (pub as any)?.setSubscribed?.(true); } catch {}
             }
             if (!this.remoteQualityTuningDisabled) this.applyDefaultRemoteQuality(); this.ensureSubscribeAllAudio(64);
+            try { emitAudioTracksChanged(); } catch {}
           } catch {} };
           const onTrackSubscribed = async (_track: any, pub: any, participant: any) => { try {
             const src = (pub as any)?.source ?? (pub as any)?.track?.source;
@@ -639,6 +640,7 @@ export class AVManager {
             if (!this.remoteQualityTuningDisabled) this.applyDefaultRemoteQuality();
             this.setState('subscribed');
             this.ensureSubscribeAllAudio(64);
+            try { emitAudioTracksChanged(); } catch {}
           } catch {} };
           const onConnQuality = (participant: any, quality: any) => { try { this.onConnectionQualityChanged(participant, quality); } catch {} };
           
@@ -686,6 +688,7 @@ export class AVManager {
                 const el = this.fallbackAudioEls.get(_pub);
                 if (el) { try { el.remove(); } catch {}; try { this.fallbackAudioEls.delete(_pub); } catch {} }
                 this.ensureSubscribeAllAudio(64); this.applyDesiredSubscriptions();
+                try { emitAudioTracksChanged(); } catch {}
               } catch {}
             });
           } catch {}
@@ -695,6 +698,7 @@ export class AVManager {
                 const el = this.fallbackAudioEls.get(_pub);
                 if (el) { try { el.remove(); } catch {}; try { this.fallbackAudioEls.delete(_pub); } catch {} }
                 this.ensureSubscribeAllAudio(64); this.applyDesiredSubscriptions();
+                try { emitAudioTracksChanged(); } catch {}
               } catch {}
             });
           } catch {}

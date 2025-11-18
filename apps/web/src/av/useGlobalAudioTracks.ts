@@ -8,6 +8,7 @@ export function useGlobalAudioTracks(params: { avRef: React.MutableRefObject<any
     if (!room) return;
 
     const audioElements = new Map<string, HTMLAudioElement>();
+    let cleanupBus: (() => void) | null = null;
 
     const attachAudioTrack = (track: any, participantId: string) => {
       try {
@@ -45,11 +46,14 @@ export function useGlobalAudioTracks(params: { avRef: React.MutableRefObject<any
     const handleTrackSubscribed = (track: any, _publication: any, participant: any) => {
       if (track?.kind === 'audio' && participant?.sid !== room?.localParticipant?.sid) {
         attachAudioTrack(track, participant.sid);
+        // Signalisiere, dass sich die Audio-Topologie geändert hat
+        (async () => { try { const mod: any = await import('../lib/avEvents'); mod.emitAudioTracksChanged?.(); } catch {} })();
       }
     };
 
     const handleTrackUnsubscribed = (_track: any, _publication: any, participant: any) => {
       detachAudioTrack(participant?.sid);
+      (async () => { try { const mod: any = await import('../lib/avEvents'); mod.emitAudioTracksChanged?.(); } catch {} })();
     };
 
     // Initial pass for already subscribed audio tracks
@@ -95,6 +99,7 @@ export function useGlobalAudioTracks(params: { avRef: React.MutableRefObject<any
         try { audio.parentNode?.removeChild(audio); } catch {}
       });
       audioElements.clear();
+      try { cleanupBus?.(); } catch {}
     };
   }, [avRef.current?.room]);
 
