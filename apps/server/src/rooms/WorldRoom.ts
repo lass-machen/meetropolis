@@ -24,6 +24,26 @@ const activeRooms = new Set<WorldRoom>();
 export class WorldRoom extends Colyseus.Room<WorldState> {
   private defaultSpawn: { x: number; y: number } | null = null;
   private prismaForPresence: PrismaClient | null = null;
+  // Persist multiple bubble groups: groupId -> member sessionIds
+  private bubbleGroups: Record<string, string[]> = {};
+  private getAllBubbleMembers(): string[] {
+    const all: string[] = [];
+    for (const members of Object.values(this.bubbleGroups)) {
+      for (const m of members) { if (!all.includes(m)) all.push(m); }
+    }
+    return all;
+  }
+  private canonicalGroupId(members: string[]): string {
+    return Array.from(new Set(members)).sort().join('|');
+  }
+  private broadcastBubbleState(): void {
+    const groups = Object.entries(this.bubbleGroups).map(([id, members]) => ({
+      id,
+      members: members.filter((m) => this.state.players.has(m)),
+    })).filter(g => Array.isArray(g.members) && g.members.length >= 2);
+    const members = this.getAllBubbleMembers();
+    this.broadcast('bubble_state', { groups, members });
+  }
 
   override onCreate(options?: any) {
     this.setState(new WorldState());
@@ -116,11 +136,27 @@ export class WorldRoom extends Colyseus.Room<WorldState> {
       client.send('remote_control', data);
     });
 
-    // Bubble-Updates: Einfaches globales Mitglieder-Set an alle broadcasten
-    this.onMessage('bubble_update', (_client, data: { members: string[] }) => {
-      const members = Array.isArray(data?.members) ? data.members : [];
-      logger.info('[WorldRoom] bubble_update:', members);
-      this.broadcast('bubble_state', { members });
+    // Bubble-Updates: Mehrere Gruppen unterstützen
+    this.onMessage('bubble_update', (_client, data: { id?: string; members?: string[] }) => {
+      const raw = Array.isArray(data?.members) ? data!.members! : [];
+      const filtered = Array.from(new Set(raw)).filter((id) => this.state.players.has(id));
+      logger.info('[WorldRoom] bubble_update:', filtered);
+      // Entferne die Mitglieder aus bestehenden Gruppen
+      if (filtered.length > 0) {
+        const toRemoveFrom: string[] = [];
+        for (const [gid, mems] of Object.entries(this.bubbleGroups)) {
+          if (mems.some(m => filtered.includes(m))) toRemoveFrom.push(gid);
+        }
+        for (const gid of toRemoveFrom) delete this.bubbleGroups[gid];
+      }
+      // Leere Liste bedeutet: nur Auflösen ohne neue Gruppe
+      if (filtered.length >= 2) {
+        const gid = data?.id && typeof data.id === 'string' && data.id.length > 0
+          ? data.id
+          : this.canonicalGroupId(filtered);
+        this.bubbleGroups[gid] = filtered;
+      }
+      this.broadcastBubbleState();
     });
   }
 
@@ -204,6 +240,13 @@ export class WorldRoom extends Colyseus.Room<WorldState> {
             dnd: p.dnd
           }))
         });
+        // Aktuellen Bubble-Status (mit Gruppen) mitschicken
+        const groups = Object.entries(this.bubbleGroups).map(([id, members]) => ({
+          id,
+          members: members.filter((m) => this.state.players.has(m)),
+        })).filter(g => Array.isArray(g.members) && g.members.length >= 2);
+        const members = this.getAllBubbleMembers();
+        client.send('bubble_state', { groups, members });
       } catch {}
     }, 25);
     
@@ -255,6 +298,22 @@ export class WorldRoom extends Colyseus.Room<WorldState> {
     this.broadcast('player_left', {
       id: client.sessionId
     });
+    // Spieler aus evtl. Bubble-Gruppen entfernen
+    let changed = false;
+    for (const [gid, members] of Object.entries(this.bubbleGroups)) {
+      if (members.includes(client.sessionId)) {
+        this.bubbleGroups[gid] = members.filter(m => m !== client.sessionId);
+        changed = true;
+      }
+    }
+    // Gruppen mit <2 Mitgliedern entfernen
+    for (const [gid, members] of Object.entries(this.bubbleGroups)) {
+      if (!Array.isArray(members) || members.length < 2) {
+        delete this.bubbleGroups[gid];
+        changed = true;
+      }
+    }
+    if (changed) this.broadcastBubbleState();
   }
   
   override onDispose() {

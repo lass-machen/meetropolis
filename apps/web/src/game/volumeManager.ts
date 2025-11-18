@@ -5,6 +5,7 @@ export type VolumeRules = {
   nearRadius: number; // Distanz, bis zu der volle Lautstärke gilt
   farRadius: number;  // Distanz, ab der stumm gilt
   outsideBubbleAttenuation: number; // Lautstärke für Außen-vs-Bubble
+  differentBubbleMute?: boolean; // Unterschiedliche Bubble-IDs vollständig trennen (default: true)
 };
 
 export interface VolumeAV {
@@ -16,7 +17,8 @@ export type Providers = {
   getRemotes: () => Record<string, { x: number; y: number }>;
   getZones: () => Polygon[];
   getFollowTarget: () => string | null;
-  getBubbleMembers: () => Set<string>;
+  // Map: colyseusId -> bubbleGroupId (gleiche ID = gleiche Bubble)
+  getBubbleGroups: () => Record<string, string>;
   getLocalDnd?: () => boolean;
 };
 
@@ -49,7 +51,7 @@ export function computePairVolume(
   remote: { id: string; x: number; y: number },
   zones: Polygon[],
   followTarget: string | null,
-  bubbleMembers: Set<string>,
+  bubbleGroups: Record<string, string>,
   rules: VolumeRules
 ): number {
   // Follow hat höchste Priorität (darf Zonenregeln außer Kraft setzen)
@@ -70,13 +72,19 @@ export function computePairVolume(
   // - beide in derselben Zone, oder
   // - beide außerhalb aller Zonen
 
-  // Bubble-Logik: Mini-Gesprächszone innerhalb der grundsätzlich hörbaren Menge
-  const localInBubble = bubbleMembers.has(local.id);
-  const remoteInBubble = bubbleMembers.has(remote.id);
-  if (localInBubble && remoteInBubble) {
-    return 1;
+  // Bubble-Logik mit Gruppen: nur gleiche Bubble-ID hören sich voll
+  const localGroup = bubbleGroups[local.id] || '';
+  const remoteGroup = bubbleGroups[remote.id] || '';
+  const bothInBubble = !!localGroup && !!remoteGroup;
+  if (bothInBubble) {
+    if (localGroup === remoteGroup) {
+      return 1;
+    }
+    // Unterschiedliche Bubbles innerhalb derselben Zone isolieren
+    return rules.differentBubbleMute === false ? rules.outsideBubbleAttenuation : 0;
   }
-  if (localInBubble !== remoteInBubble) {
+  // genau einer in Bubble → stark abschwächen (hörbar, aber deutlich)
+  if (!!localGroup !== !!remoteGroup) {
     return rules.outsideBubbleAttenuation;
   }
 
@@ -106,6 +114,7 @@ export class VolumeManager {
       nearRadius: 96,
       farRadius: 384,
       outsideBubbleAttenuation: 0.2,
+      differentBubbleMute: true,
       ...(rules || {})
     } as VolumeRules;
   }
@@ -128,13 +137,13 @@ export class VolumeManager {
     const remotes = this.providers.getRemotes();
     const zones = this.providers.getZones();
     const followTarget = this.providers.getFollowTarget();
-    const bubbleMembers = this.providers.getBubbleMembers();
+    const bubbleGroups = this.providers.getBubbleGroups();
     
     
     const volumes: Record<string, number> = {};
     
     for (const [sid, pos] of Object.entries(remotes)) {
-      const vol = computePairVolume(local, { id: sid, x: pos.x, y: pos.y }, zones, followTarget, bubbleMembers, this.rules);
+      const vol = computePairVolume(local, { id: sid, x: pos.x, y: pos.y }, zones, followTarget, bubbleGroups, this.rules);
       this.av.setParticipantVolume(sid, vol);
       volumes[sid] = vol;
     }

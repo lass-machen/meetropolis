@@ -58,6 +58,7 @@ export function WorldApp() {
   const followRef = useRef<import('../../game/followManager').FollowManager | null>(null);
   const volumeRef = useRef<VolumeManager | null>(null);
   const bubbleMembersRef = useRef<Set<string>>(new Set());
+  const bubbleGroupsRef = useRef<Record<string, string>>({});
   // removed unused right-click timers
   const localPosRef = useRef<{ id: string; x: number; y: number }>({ id: '', x: 0, y: 0 });
   const remotesRef = useRef<Record<string, { x: number; y: number }>>({});
@@ -241,6 +242,8 @@ export function WorldApp() {
     buildParticipantList: buildParticipantListHook,
     applyVolumesToUi: applyVolumesToUiHook,
     setBubbleUi,
+    bubbleMembersRef,
+    bubbleGroupsRef,
     dndRef,
     setAvState,
     rosterByIdentityRef,
@@ -721,7 +724,7 @@ export function WorldApp() {
         },
         getZones: () => zoneRef.current?.getZones?.() || [],
         getFollowTarget: () => followRef.current?.getTarget?.() || null,
-        getBubbleMembers: () => bubbleMembersRef.current,
+        getBubbleGroups: () => bubbleGroupsRef.current,
         getLocalDnd: () => dndRef.current,
       },
       { nearRadius: 96, farRadius: 384, outsideBubbleAttenuation: 0.05 }
@@ -1379,7 +1382,11 @@ export function WorldApp() {
           set.clear();
           try { gameBridge.setBubbleMembers(new Set()); } catch {}
           try { gameBridge.setMovementLocked(false); } catch {}
-          try { colyseusRef.current?.send?.('bubble_update', { members: [] }); } catch {}
+          // Entferne mich serverseitig aus evtl. Bubble-Gruppen (1 Mitglied -> nur entfernen, keine neue Gruppe)
+          try { 
+            const meId = localPosRef.current.id;
+            if (meId) colyseusRef.current?.send?.('bubble_update', { members: [meId] }); 
+          } catch {}
           setBubbleUi({ active: false, members: [] });
           setTimeout(() => applyVolumesToUi(), 0);
         }}

@@ -22,6 +22,10 @@ interface UseWorldRoomArgs {
   buildParticipantList: () => void;
   applyVolumesToUi: () => void;
   setBubbleUi: React.Dispatch<React.SetStateAction<{ active: boolean; members: string[] }>>;
+  // bubble members (used by VolumeManager providers)
+  bubbleMembersRef: AnyRef<Set<string>>;
+  // bubble groups mapping: colyseusId -> groupId
+  bubbleGroupsRef: AnyRef<Record<string, string>>;
   dndRef: AnyRef<boolean>;
   setAvState: React.Dispatch<React.SetStateAction<{ mic: boolean; cam: boolean; share: boolean; dnd: boolean }>>;
   // roster
@@ -50,6 +54,8 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
     buildParticipantList,
     applyVolumesToUi,
     setBubbleUi,
+    bubbleMembersRef,
+    bubbleGroupsRef,
     dndRef,
     setAvState,
     rosterByIdentityRef,
@@ -459,8 +465,30 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
           }
         });
 
-        room.onMessage('bubble_state', (payload: { members: string[] }) => {
-          const incoming = new Set<string>(Array.isArray(payload?.members) ? payload.members : []);
+        room.onMessage('bubble_state', (payload: { members?: string[]; groups?: Array<{ id: string; members: string[] }> }) => {
+          const membersArr = Array.isArray(payload?.members) ? payload.members! : [];
+          // Groups -> mapping
+          const groupsArr = Array.isArray(payload?.groups) ? payload.groups! : null;
+          const mapping: Record<string, string> = {};
+          if (groupsArr) {
+            for (const g of groupsArr) {
+              const gid = String(g?.id || '');
+              const ms = Array.isArray(g?.members) ? g.members : [];
+              if (!gid || ms.length < 2) continue;
+              for (const id of ms) mapping[id] = gid;
+            }
+          } else if (membersArr.length >= 2) {
+            // Legacy: alle Mitglieder als eine Bubble
+            const gid = 'legacy';
+            for (const id of membersArr) mapping[id] = gid;
+          }
+          try { bubbleGroupsRef.current = mapping; } catch {}
+          const incoming = new Set<string>(membersArr);
+          // Sync bubbleMembersRef used by VolumeManager providers
+          try {
+            bubbleMembersRef.current.clear();
+            for (const id of incoming) bubbleMembersRef.current.add(id);
+          } catch {}
           const visual = new Set<string>();
           const amInBubble = !!(localPosRef.current.id && incoming.has(localPosRef.current.id));
           if (gameBridge && typeof (gameBridge as any).setMovementLocked === 'function') (gameBridge as any).setMovementLocked(!!amInBubble);
