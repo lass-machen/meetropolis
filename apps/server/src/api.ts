@@ -340,7 +340,18 @@ export function registerApi(app: express.Express) {
         // Create default map and room if not exists
         let map = await prisma.map.findFirst({ where: { name: 'office', tenantId: tenant.id } });
         if (!map) {
-          map = await prisma.map.create({ data: { name: 'office', meta: {}, tenantId: tenant.id } });
+          map = await prisma.map.create({
+            data: {
+              name: 'office',
+              meta: {},
+              tenantId: tenant.id,
+              width: 32,
+              height: 32,
+              tileWidth: 16,
+              tileHeight: 16,
+              chunkSize: 32
+            }
+          });
         }
         room = await prisma.room.create({ data: { name: roomId, mapId: map.id, tenantId: tenant.id } });
       }
@@ -873,13 +884,32 @@ export function registerApi(app: express.Express) {
     const tenant = getTenantFromReq(req);
     if (!tenant) return res.status(400).json({ error: 'tenant_required' });
     let map = await prisma.map.findFirst({ where: { name, tenantId: tenant.id } });
+    
+    const defaults = { width: 32, height: 32, tileWidth: 16, tileHeight: 16, chunkSize: 32 };
+
     if (!map) {
       // Auto-provision map if missing to ensure v2 mode works
       try {
-        map = await prisma.map.create({ data: { name, meta: {}, tenantId: tenant.id } });
+        map = await prisma.map.create({ data: { name, meta: {}, tenantId: tenant.id, ...defaults } });
         logger.info('[Map] Auto-created map on state-v2 fetch', { name, tenant: tenant.slug });
       } catch (e) {
         return res.status(500).json({ error: 'failed to create map' });
+      }
+    } else {
+      // Auto-fix: if map exists but has no dimensions, patch it
+      if (!map.width || !map.height || !map.tileWidth || !map.tileHeight) {
+        try {
+          map = await prisma.map.update({
+            where: { id: map.id },
+            data: {
+              width: map.width ?? defaults.width,
+              height: map.height ?? defaults.height,
+              tileWidth: map.tileWidth ?? defaults.tileWidth,
+              tileHeight: map.tileHeight ?? defaults.tileHeight,
+            }
+          });
+          logger.info('[Map] Auto-patched map dimensions on state-v2 fetch', { name, tenant: tenant.slug });
+        } catch {}
       }
     }
 
@@ -1136,7 +1166,18 @@ export function registerApi(app: express.Express) {
     if (!tenant) return res.status(400).json({ error: 'tenant_required' });
     let map = await prisma.map.findFirst({ where: { name, tenantId: tenant.id } });
     if (!map) {
-      map = await prisma.map.create({ data: { name, meta: {}, tenantId: tenant.id } });
+      map = await prisma.map.create({
+        data: {
+          name,
+          meta: {},
+          tenantId: tenant.id,
+          width: 32,
+          height: 32,
+          tileWidth: 16,
+          tileHeight: 16,
+          chunkSize: 32
+        }
+      });
     }
     // meta speichert editor bezogene daten
     const meta = (map.meta as any) || {};
@@ -1170,7 +1211,18 @@ export function registerApi(app: express.Express) {
     const { tilesets, assets, zones, backgroundColor, replaceZones, spawn } = parse.data;
     try { logger.debug('[EditorState] PUT', { map: name, tilesets: Array.isArray(tilesets) ? tilesets.length : undefined, assets: Array.isArray(assets) ? assets.length : undefined, zones: Array.isArray(zones) ? zones.length : undefined, spawn: !!spawn }); } catch {}
     const found = await prisma.map.findFirst({ where: { name, tenantId: tenant.id }, include: { rooms: true } });
-    const map = found ?? await prisma.map.create({ data: { name, meta: {}, tenantId: tenant.id } });
+    const map = found ?? await prisma.map.create({
+      data: {
+        name,
+        meta: {},
+        tenantId: tenant.id,
+        width: 32,
+        height: 32,
+        tileWidth: 16,
+        tileHeight: 16,
+        chunkSize: 32
+      }
+    });
     // Ensure there is at least one room for this map (for zone assignment)
     let roomForZones = await prisma.room.findFirst({ where: { mapId: map.id }, orderBy: { createdAt: 'asc' } });
     if (!roomForZones) {
