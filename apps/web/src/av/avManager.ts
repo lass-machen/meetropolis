@@ -1132,23 +1132,38 @@ export class AVManager {
             const anyWin = window as any;
             const choice = await (anyWin.desktop?.pickDisplaySource?.({ types: ['screen','window'] }) || anyWin.desktop?.chooseDisplaySource?.({ types: ['screen','window'] }));
             if (choice && choice.id) {
-              const stream = await navigator.mediaDevices.getUserMedia({
-                audio: false,
-                video: {
-                  mandatory: {
-                    chromeMediaSource: 'desktop',
-                    chromeMediaSourceId: choice.id,
-                    maxFrameRate: 30,
-                  }
-                } as any
-              } as any);
+              let stream: MediaStream;
+              try {
+                stream = await navigator.mediaDevices.getUserMedia({
+                  audio: false,
+                  video: {
+                    mandatory: {
+                      chromeMediaSource: 'desktop',
+                      chromeMediaSourceId: choice.id,
+                      maxFrameRate: 30,
+                    }
+                  } as any
+                } as any);
+              } catch (err) {
+                console.warn('[AV] getUserMedia with constraints failed, retrying minimal...', err);
+                stream = await navigator.mediaDevices.getUserMedia({
+                  audio: false,
+                  video: {
+                    mandatory: {
+                      chromeMediaSource: 'desktop',
+                      chromeMediaSourceId: choice.id
+                    }
+                  } as any
+                } as any);
+              }
+
               const vTrack = stream.getVideoTracks()[0];
               if (vTrack) {
                 tracks = [{ kind: 'video', mediaStreamTrack: vTrack } as any];
               }
             }
           } catch (e3) {
-            try { console.debug('[AV][debug] screenshare.electron.desktopCapturer.failed', e3); } catch {}
+            console.error('[AV] screenshare.electron.desktopCapturer.failed', e3);
           }
         }
       }
