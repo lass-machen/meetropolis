@@ -45,8 +45,14 @@ export function applyChunkUpdates(scene: Phaser.Scene & any, layerName: 'ground'
       if (gx >= scene.mapRef.width || gy >= scene.mapRef.height) continue;
       if (layerName === 'collision') {
         const v = arr[i] !== 0;
-        if (v) { try { layer.putTileAt(1, gx, gy); } catch {} }
-        else { try { layer.removeTileAt(gx, gy); } catch {} }
+        if (v) {
+          try {
+            const t = layer.putTileAt(1, gx, gy);
+            if (t) t.setCollision(true, true, true, true);
+          } catch (e) { console.warn('[Chunks] putTileAt failed', e); }
+        } else {
+          try { layer.removeTileAt(gx, gy); } catch {}
+        }
       } else {
         const gid = tileRefIdToGid(arr[i] | 0, scene.v2.firstGids);
         if (gid < 0) layer.removeTileAt(gx, gy);
