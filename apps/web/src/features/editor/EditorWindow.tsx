@@ -26,7 +26,8 @@ export function EditorWindow({
   const getEditorSnapshot = React.useCallback(() => {
     try {
       return JSON.stringify({ zones: editor.zones, spawn: editor.spawn, backgroundColor: editor.backgroundColor });
-    } catch {
+    } catch (e) {
+      console.error('Failed to snapshot editor state', e);
       return null;
     }
   }, [editor.zones, editor.spawn, editor.backgroundColor]);
@@ -42,7 +43,7 @@ export function EditorWindow({
       if (!editorWinPos) setEditorWinPos({ x: rect.left, y: rect.top });
       e.preventDefault();
       e.stopPropagation();
-    } catch {}
+    } catch (err) { console.warn('Drag start failed', err); }
   };
 
   React.useEffect(() => {
@@ -53,7 +54,7 @@ export function EditorWindow({
         const dx = ev.clientX - editorWinStartMouseRef.current.x;
         const dy = ev.clientY - editorWinStartMouseRef.current.y;
         setEditorWinPos({ x: editorWinStartPosRef.current.x + dx, y: editorWinStartPosRef.current.y + dy });
-      } catch {}
+      } catch (err) { console.warn('Drag move failed', err); }
     };
     const onUp = () => setEditorWinDragging(false);
     window.addEventListener('mousemove', onMove);
@@ -94,8 +95,8 @@ export function EditorWindow({
             <button
               onClick={() => {
                 if (editorDirty) { setConfirmExitOpen(true); return; }
-                try { (window as any).currentPhaserScene?.setAssetPreview?.(null); } catch {}
-                try { gameBridge.setEditorMode(false); } catch {}
+                try { (window as any).currentPhaserScene?.setAssetPreview?.(null); } catch (e) { console.error('Failed to clear asset preview', e); }
+                try { gameBridge.setEditorMode(false); } catch (e) { console.error('Failed to disable editor mode', e); }
                 setEditor((s: any) => ({ ...s, pendingTerrain: null as any, pendingAsset: null as any, tool: 'select', active: false } as any));
               }}
               title="Editor verlassen"
@@ -152,8 +153,8 @@ export function EditorWindow({
             variant="danger"
             onClick={() => {
               setConfirmExitOpen(false);
-              try { (window as any).currentPhaserScene?.setAssetPreview?.(null); } catch {}
-              try { gameBridge.setEditorMode(false); } catch {}
+              try { (window as any).currentPhaserScene?.setAssetPreview?.(null); } catch (e) { console.error('Failed to clear asset preview', e); }
+              try { gameBridge.setEditorMode(false); } catch (e) { console.error('Failed to disable editor mode', e); }
               setEditor((s: any) => ({ ...s, pendingTerrain: null as any, pendingAsset: null as any, tool: 'select', active: false } as any));
             }}
           >

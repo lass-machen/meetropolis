@@ -5,13 +5,14 @@
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --host 0.0.0.0",
+    "dev": "vite --host 0.0.0.0 --port 5173 --strictPort",
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0 --port 5173",
     "test": "vitest run --reporter=verbose",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "e2e": "node ./e2e-run.js"
+    "e2e": "node ./e2e-run.js",
+    "tauri": "tauri"
   },
   "dependencies": {
     "@colyseus/schema": "^2.0.29",
@@ -33,6 +34,8 @@
     "zustand": "^5.0.7"
   },
   "devDependencies": {
+    "@tauri-apps/api": "^1.6.0",
+    "@tauri-apps/cli": "^1.6.3",
     "@testing-library/jest-dom": "^6.4.8",
     "@testing-library/react": "^16.0.0",
     "@types/react": "^18.3.3",

@@ -346,22 +346,9 @@ export function WorldApp() {
 
   // Editor-Pointer-Handler sind via useEditorBridge ausgelagert
 
-  // Editor: Laden aus localStorage
+  // Editor: Laden aus localStorage und Server
   useEffect(() => {
     try {
-      const raw = localStorage.getItem('meetropolis.zones');
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        setEditor(s => ({ ...s, zones: Array.isArray(parsed) ? parsed : [] }));
-        gameBridge.setZoneOverlay(Array.isArray(parsed) ? parsed : []);
-      }
-      const rawA = localStorage.getItem('meetropolis.assets');
-      if (rawA) {
-        const assets = JSON.parse(rawA) || [];
-        setEditor(s => ({ ...s, assets }));
-        gameBridge.setEditorAssets(assets);
-      }
-      
       // Asset-Packs laden
       try {
         (async () => {
@@ -406,7 +393,6 @@ export function WorldApp() {
                   const idx = merged.findIndex(m => m.key === ts.key);
                   if (idx >= 0) merged[idx] = ts; else merged.push(ts);
                 }
-                try { localStorage.setItem('meetropolis.tilesets', JSON.stringify(merged)); } catch {}
                 // Phaser-Registrierung beim Szenenstart über pendingTilesets
                 (window as any).pendingTilesets = merged;
                 return { ...s, tilesets: merged };
@@ -420,6 +406,27 @@ export function WorldApp() {
             }
             setEditor(s => ({ ...s, packItems }));
           }
+          // Restore local custom items (Palette)
+          try {
+            const raw = localStorage.getItem('meetropolis.packItems');
+            if (raw) {
+              const local = JSON.parse(raw);
+              if (Array.isArray(local)) {
+                setEditor(s => {
+                  const current = s.packItems || [];
+                  const seen = new Set(current.map(p => p.key));
+                  const next = [...current];
+                  for (const li of local) {
+                    if (!seen.has(li.key)) {
+                       next.push(li);
+                       seen.add(li.key);
+                    }
+                  }
+                  return { ...s, packItems: next };
+                });
+              }
+            }
+          } catch {}
         })();
       } catch {}
 
@@ -428,29 +435,24 @@ export function WorldApp() {
         gameBridge.fetchAndApplyServerLayers();
       } catch (e) {
       }
-      const rawTs = localStorage.getItem('meetropolis.tilesets');
       const defaultTs = [
         { key: 'office_tiles', dataUrl: '/assets/tilesets/office_tiles.png', tileWidth: 16, tileHeight: 16, category: 'terrain' },
         { key: 'furniture_tiles', dataUrl: '/assets/tilesets/furniture_tiles.png', tileWidth: 16, tileHeight: 16, category: 'objects' },
         { key: 'decor_tiles', dataUrl: '/assets/tilesets/decor_tiles.png', tileWidth: 16, tileHeight: 16, category: 'objects' },
       ];
-      let tilesets = defaultTs;
-      if (rawTs) {
-        try { const parsed = JSON.parse(rawTs) || []; tilesets = [...defaultTs, ...parsed.filter((t:any)=>!defaultTs.find(d=>d.key===t.key))]; } catch {}
-      }
-      try { localStorage.setItem('meetropolis.tilesets', JSON.stringify(tilesets)); } catch {}
-      setEditor(s => ({ ...s, tilesets, tilePaint: { ...(s.tilePaint as any), tilesetKey: s.tilePaint?.tilesetKey || 'office_tiles' } }));
       // Tilesets zur späteren Registrierung speichern
-      (window as any).pendingTilesets = tilesets;
+      (window as any).pendingTilesets = defaultTs;
+      setEditor(s => ({ ...s, tilesets: defaultTs, tilePaint: { ...(s.tilePaint as any), tilesetKey: s.tilePaint?.tilesetKey || 'office_tiles' } }));
+      
       // Und sofortige Registrierung versuchen (falls Szene bereits läuft)
       try {
-        for (const ts of tilesets) {
+        for (const ts of defaultTs) {
           gameBridge.registerTileset({ key: ts.key, dataUrl: ts.dataUrl, tileWidth: ts.tileWidth, tileHeight: ts.tileHeight, margin: (ts as any).margin ?? 0, spacing: (ts as any).spacing ?? 0 });
         }
       } catch {}
       // Bereits vorhandene Editor-Layer sofort anwenden (falls vorhanden)
       try { gameBridge.reloadEditorLayers(); } catch {}
-      // Server-state laden (best-effort) – bei 404 Map anlegen und lokalen Stand hochladen
+      // Server-state laden (source of truth)
       (async () => {
         try {
           const mapName = (typeof window !== 'undefined' && (((window as any).__map_name) || (window as any).MAP_NAME)) || 'office';
@@ -458,11 +460,6 @@ export function WorldApp() {
           console.debug('[EDITOR] load server editor-state', { mapName, ok: res.ok, status: res.status });
           if (res.ok) {
             const data = await res.json();
-            if (data?.tilesets) try { localStorage.setItem('meetropolis.tilesets', JSON.stringify(data.tilesets)); } catch {}
-            // Assets nur übernehmen, wenn der Server welche hat (nicht leere Antwort über lokale schreiben)
-            if (Array.isArray(data?.assets) && data.assets.length > 0) {
-              try { localStorage.setItem('meetropolis.assets', JSON.stringify(data.assets)); } catch {}
-            }
             if (data?.zones) try {
               const zones = Array.isArray(data.zones) ? data.zones.map((z: any)=>{
                 const anyZ = z || {};
@@ -475,53 +472,26 @@ export function WorldApp() {
                       : [];
                 return { name: anyZ.name, points: pts };
               }) : [];
-              // Nur übernehmen/speichern, wenn es mindestens eine gültige Zone gibt
-              if (zones.some((z: any) => Array.isArray((z as any).points) && (z as any).points.length > 0)) {
-                localStorage.setItem('meetropolis.zones', JSON.stringify(zones));
-                setEditor(s => ({ ...s, zones }));
-                try { gameBridge.setZoneOverlay(zones); } catch {}
-              }
+              setEditor(s => ({ ...s, zones }));
+              try { gameBridge.setZoneOverlay(zones); } catch {}
             } catch {}
             if (typeof data?.backgroundColor === 'string') {
-              try { localStorage.setItem('meetropolis.backgroundColor', data.backgroundColor); } catch {}
               setEditor(s => ({ ...s, backgroundColor: data.backgroundColor }));
               try { gameBridge.setBackgroundColor(data.backgroundColor); } catch {}
             }
             if (Array.isArray(data?.editorGround) || Array.isArray(data?.editorWalls) || Array.isArray(data?.collision)) {
-              try { localStorage.setItem('meetropolis.editorLayers', JSON.stringify({ editorGround: data.editorGround, editorWalls: data.editorWalls, collision: data.collision, w: undefined, h: undefined })); } catch {}
               // Nach erfolgreichem Laden: direkt in Szene anwenden
               try { gameBridge.reloadEditorLayers(); } catch {}
             }
             if (Array.isArray(data?.assets) && data.assets.length > 0) {
-              // Editor-Assets in UI/Scene anwenden (nur wenn vorhanden)
+              // Editor-Assets in UI/Scene anwenden
               setEditor(s => ({ ...s, assets: data.assets }));
               try { gameBridge.setEditorAssets(data.assets); } catch {}
             }
-          } else if (res.status === 404) {
-            // Map auf dem Server erzeugen mit lokalem Stand
-            const tilesets = JSON.parse(localStorage.getItem('meetropolis.tilesets') || '[]');
-            const assets = JSON.parse(localStorage.getItem('meetropolis.assets') || '[]');
-            const zones = JSON.parse(localStorage.getItem('meetropolis.zones') || '[]');
-            const layers = JSON.parse(localStorage.getItem('meetropolis.editorLayers') || '{}');
-            const backgroundColor = localStorage.getItem('meetropolis.backgroundColor') || '#202020';
-            // Server ist Source of Truth: Zonen nur mitsenden, wenn vorhanden
-            const payload: any = { editorGround: layers.editorGround ?? null, collision: layers.collision ?? null, tilesets, assets, backgroundColor };
-              if (Array.isArray(zones) && zones.some((z: any)=> Array.isArray((z as any)?.points) && (z as any).points.length > 0)) {
-              payload.zones = zones;
-              payload.replaceZones = true;
+            if (data?.spawn && typeof data.spawn.x === 'number') {
+                setEditor(s => ({ ...s, spawn: { x: data.spawn.x, y: data.spawn.y } }));
+                try { gameBridge.setSpawnMarker({ x: data.spawn.x, y: data.spawn.y }); } catch {}
             }
-            console.debug('[EDITOR] bootstrap create map editor-state', { mapName });
-            const body = JSON.stringify(payload);
-            if (body.length < 100000) {
-              await fetch(`${apiBase}/maps/${encodeURIComponent(mapName)}/editor-state`, {
-                method: 'PUT',
-                credentials: 'include',
-                headers: { 'Content-Type': 'application/json' },
-                body
-              }).catch(()=>{});
-            } else {
-            }
-            try { gameBridge.reloadEditorLayers(); } catch {}
           }
         } catch {}
       })();
@@ -549,10 +519,10 @@ export function WorldApp() {
 
   async function saveAllToServer() {
     try {
-      const tilesets = JSON.parse(localStorage.getItem('meetropolis.tilesets') || '[]');
-      const assets = JSON.parse(localStorage.getItem('meetropolis.assets') || '[]');
+      const tilesets = editor.tilesets || [];
+      const assets = editor.assets || [];
       const zones = editor.zones;
-      const backgroundColor = localStorage.getItem('meetropolis.backgroundColor') || '#202020';
+      const backgroundColor = editor.backgroundColor || '#202020';
       const mapName = (typeof window !== 'undefined' && (((window as any).__map_name) || (window as any).MAP_NAME)) || 'office';
       const res = await fetch(`${apiBase}/maps/${encodeURIComponent(mapName)}/editor-state`, {
         method: 'PUT',
@@ -1182,7 +1152,7 @@ export function WorldApp() {
 
           {/* Bottom Control Bar (hidden in editor mode) */}
           {!editor.active && (
-            <div style={{ position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-50%)', zIndex: 30 }}>
+            <div style={{ position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-50%)', zIndex: 30, maxWidth: 'calc(100vw - 32px)', display: 'flex', justifyContent: 'center' }}>
               <AVBar
                 size="md"
                 micOn={avState.mic}
@@ -1427,6 +1397,32 @@ export function WorldApp() {
                 followRef.current?.startFollowing?.(id);
               }
             }} style={{ display:'block', padding:'8px 12px', background:'transparent', color:'#fff', border:'none', borderBottom:'1px solid rgba(255,255,255,0.08)', width: 180, textAlign:'left', cursor:'pointer' }}>Folgen</button>
+            {/* In fremde Bubble beitreten (wenn Zielspieler in einer Bubble ist und ich nicht bereits in derselben) */}
+            {(() => {
+              try {
+                const target = contextMenu.playerId!;
+                const targetGroup = target ? (bubbleGroupsRef.current[target] || null) : null;
+                const meId = localPosRef.current.id;
+                const myGroup = meId ? (bubbleGroupsRef.current[meId] || null) : null;
+                return !!targetGroup && targetGroup !== myGroup;
+              } catch { return false; }
+            })() && (
+              <button onClick={() => {
+                setContextMenu({ open: false, x: 0, y: 0, playerId: null });
+                try {
+                  const target = contextMenu.playerId!;
+                  const targetGroup = bubbleGroupsRef.current[target];
+                  const meId = localPosRef.current.id;
+                  if (!target || !targetGroup || !meId) return;
+                  // Mitglieder der Ziel-Bubble + mich
+                  const currentMembers = Object.entries(bubbleGroupsRef.current)
+                    .filter(([,_gid]) => _gid === targetGroup)
+                    .map(([sid]) => sid);
+                  const next = Array.from(new Set([...currentMembers, meId]));
+                  colyseusRef.current?.send?.('bubble_update', { id: targetGroup, members: next });
+                } catch {}
+              }} style={{ display:'block', padding:'8px 12px', background:'transparent', color:'#fff', border:'none', borderBottom:'1px solid rgba(255,255,255,0.08)', width: 180, textAlign:'left', cursor:'pointer' }}>Bubble beitreten</button>
+            )}
             {/* Zur bestehenden Bubble hinzufügen (nur anzeigen, wenn ich bereits in einer Bubble bin) */}
             {(() => {
               try {

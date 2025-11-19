@@ -3,6 +3,11 @@ import './styles/theme.css';
 import { createRoot } from 'react-dom/client';
 import { AppRoutes } from './app/routes/AppRoutes';
 import { RootProviders } from './app/providers/RootProviders';
+import { initTauriBridge } from './lib/tauriBridge';
+
+// Initialize Tauri Bridge if available
+initTauriBridge();
+
 // Sentry Browser SDK (optional via VITE_SENTRY_DSN)
 try {
   const dsn = (import.meta as any).env?.VITE_SENTRY_DSN as string | undefined;

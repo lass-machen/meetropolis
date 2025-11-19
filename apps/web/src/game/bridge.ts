@@ -81,12 +81,12 @@ let cachedCollisionVisible = false;
 let cachedHeroName: string | null = null;
 let cachedDoNotDisturb = false;
 let remotePlayersCache: Record<string, { x: number; y: number; direction: Direction; name?: string; dnd?: boolean }> = {};
-let cachedBackgroundColor: string = (typeof window !== 'undefined' && localStorage.getItem('meetropolis.backgroundColor')) || '#202020';
+let cachedBackgroundColor: string = '#202020';
 // Cache, um unnötige Doppel-Aufrufe zu vermeiden (z.B. wiederholt null)
 let lastDesiredPosition: { x: number; y: number } | null = null;
 let tilesetPersistLastLen = -1;
 let tilesetPersistTimer: number | null = null as any;
-let cachedSpawnMarker: { x: number; y: number } | null = (typeof window !== 'undefined' && (()=>{ try { const raw = localStorage.getItem('meetropolis.spawn'); return raw ? JSON.parse(raw) : null; } catch { return null; } })()) || null;
+let cachedSpawnMarker: { x: number; y: number } | null = null;
 
 export const gameBridge: Bridge = {
   onLocalMove: () => {},
@@ -180,7 +180,7 @@ export const gameBridge: Bridge = {
     const same = (prev === null && pos === null) || (prev && pos && prev.x === pos.x && prev.y === pos.y);
     if (same) return;
     lastDesiredPosition = pos ? { x: pos.x, y: pos.y } : null;
-    try { console.debug('[Bridge] setDesiredPosition changed to', pos); } catch {}
+    try { console.debug('[Bridge] setDesiredPosition changed to', pos); } catch (e) { console.error('Log failed', e); }
     sceneApi?.setDesiredPosition(pos);
   },
   setZoneOverlay: (polys) => {
@@ -189,10 +189,10 @@ export const gameBridge: Bridge = {
   },
   setZonesVisible: (visible) => {
     cachedZonesVisible = !!visible;
-    try { sceneApi?.setZonesVisible?.(cachedZonesVisible); } catch {}
+    try { sceneApi?.setZonesVisible?.(cachedZonesVisible); } catch (e) { console.error('Failed to set zones visible', e); }
     if (cachedZonesVisible) {
       // Re-apply cached zones when becoming visible again
-      try { sceneApi?.setZoneOverlay?.(cachedZones); } catch {}
+      try { sceneApi?.setZoneOverlay?.(cachedZones); } catch (e) { console.error('Failed to set zone overlay', e); }
     }
   },
   setEditorAssets: (assets) => {
@@ -220,7 +220,7 @@ export const gameBridge: Bridge = {
       const next = Array.isArray(list) ? list.slice() : [];
       const exists = next.find((t: any) => t && t.key === ts.key);
       if (!exists) next.push({ key: ts.key, dataUrl: ts.dataUrl, tileWidth: ts.tileWidth, tileHeight: ts.tileHeight, margin: ts.margin ?? 0, spacing: ts.spacing ?? 0 });
-      try { localStorage.setItem('meetropolis.tilesets', JSON.stringify(next)); } catch {}
+      try { localStorage.setItem('meetropolis.tilesets', JSON.stringify(next)); } catch (e) { console.warn('Failed to save tilesets to localStorage', e); }
       // Best-effort: debounce server PUT to avoid flooding
       if (next.length !== tilesetPersistLastLen) {
         tilesetPersistLastLen = next.length;
@@ -233,13 +233,13 @@ export const gameBridge: Bridge = {
             const mapName = (typeof window !== 'undefined' && (((window as any).__map_name) || (window as any).MAP_NAME)) || 'office';
             const body = JSON.stringify({ tilesets: next });
             if (body.length < 200_000) {
-              fetch(`${base}/maps/${encodeURIComponent(mapName)}/editor-state`, { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body }).catch(()=>{});
-              try { (window as any).DEBUG_LOGS && console.debug('[ASSETS_DBG][Bridge] persisted tileset to server', { count: next.length }); } catch {}
+              fetch(`${base}/maps/${encodeURIComponent(mapName)}/editor-state`, { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body }).catch((e)=>{ console.error('Failed to persist tilesets to server', e); });
+              try { (window as any).DEBUG_LOGS && console.debug('[ASSETS_DBG][Bridge] persisted tileset to server', { count: next.length }); } catch (e) { console.error('Log failed', e); }
             }
-          } catch {}
+          } catch (e) { console.error('Failed to persist tilesets', e); }
         }, 300) as any;
       }
-    } catch {}
+    } catch (e) { console.error('Failed to register tileset', e); }
   },
   setCollisionVisible: (visible) => {
     cachedCollisionVisible = !!visible;
@@ -294,10 +294,10 @@ export const gameBridge: Bridge = {
         sceneApi?.setZoneOverlay?.(data.polys);
         return;
       }
-    } catch {}
+    } catch (e) { console.error('Failed to handle editor update', e); }
   },
   setBackgroundColor: (hex: string) => {
-    try { localStorage.setItem('meetropolis.backgroundColor', hex); } catch {}
+    try { localStorage.setItem('meetropolis.backgroundColor', hex); } catch (e) { console.warn('Failed to save background color', e); }
     cachedBackgroundColor = hex;
     sceneApi?.setBackgroundColor?.(hex);
   },
@@ -305,5 +305,5 @@ export const gameBridge: Bridge = {
     cachedSpawnMarker = pos ? { x: pos.x, y: pos.y } : null;
     sceneApi?.setSpawnMarker?.(pos);
   },
-  saveEditorLayersHard: () => { try { sceneApi?.saveEditorLayersHard?.(); } catch {} }
+  saveEditorLayersHard: () => { try { sceneApi?.saveEditorLayersHard?.(); } catch (e) { console.error('Failed hard save', e); } }
 };

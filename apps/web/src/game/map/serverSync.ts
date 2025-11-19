@@ -27,6 +27,10 @@ export async function fetchAndApplyServerLayers(scene: Phaser.Scene & any): Prom
         scene.cameras.main.setBackgroundColor(bg);
         try { localStorage.setItem('meetropolis.backgroundColor', bg); } catch {}
       }
+      const sp = (data as any)?.spawn;
+      if (sp && typeof sp.x === 'number' && typeof sp.y === 'number') {
+        try { scene.setSpawnMarker(sp); } catch {}
+      }
     } catch {}
     if (data?.collision) {
       const collisionTiles = data.collision.filter((t: number) => t !== -1).length;

@@ -1,4 +1,4 @@
-// React JSX runtime via tsconfig
+import { useEffect, useState } from 'react';
 import { UserCardContainer } from './UserCard';
 import { ParticipantCard } from './ParticipantCard';
 import { FAIcon } from '../FAIcon';
@@ -16,8 +16,24 @@ export function ParticipantsGrid(props: {
 }) {
   const { participants, expanded, onToggleExpand, selectedSid, onSelect, roomGetter } = props;
   const { t } = useTranslation();
+  
+  const [maxCols, setMaxCols] = useState(4);
+
+  useEffect(() => {
+    const handleResize = () => {
+      const w = window.innerWidth;
+      if (w < 700) setMaxCols(1);
+      else if (w < 1100) setMaxCols(2);
+      else if (w < 1600) setMaxCols(3);
+      else setMaxCols(4);
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   const count = participants.length || 1;
-  const cols = Math.max(1, Math.min(count, expanded ? 3 : 4));
+  const cols = Math.max(1, Math.min(count, expanded ? Math.min(maxCols, 3) : maxCols));
   const gap = expanded ? 18 : 12;
   return (
     <UserCardContainer

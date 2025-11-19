@@ -21,10 +21,12 @@
     "dist:desktop": "VITE_TARGET=desktop npm -w @meetropolis/web run build && npm -w @meetropolis/desktop run dist"
   },
   "devDependencies": {
+    "@tauri-apps/cli": "^2.9.4",
     "@types/react": "^19.1.12",
     "concurrently": "^8.2.2"
   },
   "dependencies": {
+    "@tauri-apps/api": "^2.9.0",
     "@types/multer": "^2.0.0",
     "pino": "^10.1.0",
     "unzipper": "^0.12.3"

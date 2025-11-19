@@ -21,126 +21,14 @@ export function EditorPanel(props: {
   useEditorBridge({ editor, setEditor, gameBridge });
   React.useEffect(() => {
     // Activate editor mode for scene interactions
-    try { gameBridge.setEditorMode(true); } catch {}
+    try { gameBridge.setEditorMode(true); } catch (e) { logger.error('Failed to enable editor mode', e); }
     // Aktivieren des Editor-States und Standardkategorie Terrain
     setEditor(s => ({ ...s, active: true, category: 'terrain', tool: s.tool === 'terrain' ? s.tool : 'terrain' }));
-    return () => { try { gameBridge.setEditorMode(false); } catch {} };
+    return () => { try { gameBridge.setEditorMode(false); } catch (e) { logger.error('Failed to disable editor mode', e); } };
   }, []);
 
-  // Beim Öffnen: Server-Zustand (insb. Zonen) laden und in Editor-State spiegeln
+  // Höre auf Tileset-Konfiguration (Modal bestätigt): Atlas in Items aufteilen
   React.useEffect(() => {
-    let cancelled = false;
-    const fetchZones = async () => {
-      try {
-        const base = (window as any).VITE_API_BASE || (import.meta as any).env?.VITE_API_BASE || `${window.location.protocol}//${window.location.hostname}:2567`;
-        const mapName = (typeof window !== 'undefined' && (((window as any).__map_name) || (window as any).MAP_NAME)) || 'office';
-        const res = await fetch(`${base}/maps/${encodeURIComponent(mapName)}/editor-state`, { credentials: 'include' });
-        if (!res.ok) return;
-        const data = await res.json();
-        const zones = Array.isArray((data as any)?.zones)
-          ? (data as any).zones.map((z: any) => {
-              const anyZ = z || {};
-              const pts = Array.isArray(anyZ.points)
-                ? anyZ.points
-                : Array.isArray(anyZ.polygon)
-                  ? anyZ.polygon
-                  : (anyZ.polygon && Array.isArray(anyZ.polygon.points))
-                    ? anyZ.polygon.points
-                    : [];
-              return { name: anyZ.name, points: pts };
-            })
-          : [];
-        if (!cancelled) {
-          // Zones
-          setEditor(s => ({ ...s, zones } as any));
-          try { localStorage.setItem('meetropolis.zones', JSON.stringify(zones)); } catch {}
-          try { (window as any).currentPhaserScene?.setZoneOverlay?.(zones); } catch {}
-          // Spawn
-          try {
-            const sp = (data as any)?.spawn;
-            if (sp && typeof sp.x === 'number' && typeof sp.y === 'number') {
-              setEditor(s => ({ ...s, spawn: { x: sp.x, y: sp.y } } as any));
-              try { (window as any).currentPhaserScene?.setSpawnMarker?.({ x: sp.x, y: sp.y }); } catch {}
-              try { localStorage.setItem('meetropolis.spawn', JSON.stringify({ x: sp.x, y: sp.y })); } catch {}
-            }
-          } catch {}
-          // Assets (Server → Scene + State + LocalStorage)
-          try {
-            const assets = Array.isArray((data as any)?.assets) ? (data as any).assets : [];
-            if (assets.length > 0) {
-              try { (window as any).currentPhaserScene?.setEditorAssets?.(assets); } catch {}
-              setEditor(s => ({ ...s, assets } as any));
-              try { localStorage.setItem('meetropolis.assets', JSON.stringify(assets)); } catch {}
-            }
-          } catch {}
-        }
-      } catch {}
-    };
-    fetchZones();
-    // Zusätzlich: Asset-Packs laden und in packItems spiegeln
-    const fetchPacks = async () => {
-      try {
-        const base = (window as any).VITE_API_BASE || (import.meta as any).env?.VITE_API_BASE || `${window.location.protocol}//${window.location.hostname}:2567`;
-        const res = await fetch(`${base}/asset-packs`, { credentials: 'include' });
-        if (!res.ok) return;
-        const packs = await res.json();
-        if (cancelled) return;
-        const items: any[] = [];
-        try {
-          for (const p of (Array.isArray(packs) ? packs : [])) {
-            const uuid = p.uuid;
-            // Structures
-            if (Array.isArray(p.structures)) {
-              for (const it of p.structures) {
-                if (!it?.dataURL) continue;
-                items.push({ packUuid: uuid, itemId: it.id, key: it.key, category: 'structures', dataUrl: it.dataURL, width: it.width, height: it.height, collide: !!it.collide });
-              }
-            }
-            // Objects
-            if (Array.isArray(p.objects)) {
-              for (const it of p.objects) {
-                if (!it?.dataURL) continue;
-                items.push({ packUuid: uuid, itemId: it.id, key: it.key, category: 'objects', dataUrl: it.dataURL, width: it.width, height: it.height, collide: !!it.collide });
-              }
-            }
-            // (Optional) Terrain listings can be added later if needed for packItems UI
-          }
-        } catch {}
-        // Merge lokale Katalog-Items (persistiert)
-        try {
-          const rawItems = localStorage.getItem('meetropolis.packItems');
-          const storedItems = rawItems ? JSON.parse(rawItems) : [];
-          if (Array.isArray(storedItems)) items.push(...storedItems);
-        } catch {}
-        // Merge in locally registered tilesets as Terrain items so the Terrain-Panel is populated
-        try {
-          const raw = localStorage.getItem('meetropolis.tilesets');
-          const tilesets = raw ? JSON.parse(raw) : [];
-          if (Array.isArray(tilesets)) {
-            for (const ts of tilesets) {
-              if (!ts || !ts.key || !ts.dataUrl || !ts.tileWidth || !ts.tileHeight) continue;
-              items.push({ packUuid: 'local:tileset', itemId: ts.key, key: ts.key, category: 'terrain', dataUrl: ts.dataUrl, width: ts.tileWidth, height: ts.tileHeight, collide: false });
-            }
-          }
-        } catch {}
-        // Dedupliziere Items nach (packUuid:itemId)
-        try {
-          const seen = new Set<string>();
-          const unique: any[] = [];
-          for (const it of items) {
-            const k = `${it.packUuid}:${it.itemId}`;
-            if (seen.has(k)) continue;
-            seen.add(k);
-            unique.push(it);
-          }
-          setEditor(s => ({ ...s, packItems: unique } as any));
-        } catch {
-          setEditor(s => ({ ...s, packItems: items } as any));
-        }
-      } catch {}
-    };
-    fetchPacks();
-    // Höre auf Tileset-Konfiguration (Modal bestätigt): Atlas in Items aufteilen
     const onTilesetConfirm = (e: any) => {
       try {
         const ts = (e as CustomEvent)?.detail as any;
@@ -181,17 +69,19 @@ export function EditorPanel(props: {
                 seen.add(k);
                 unique.push(it);
               }
-              try { localStorage.setItem('meetropolis.packItems', JSON.stringify(unique)); } catch {}
+              // LocalStorage sync for custom palette items (client-side preference)
+              try { localStorage.setItem('meetropolis.packItems', JSON.stringify(unique)); } catch (e) { logger.warn('Failed to save packItems to localStorage', e); }
               return { ...s, packItems: unique } as any;
             });
-          } catch {}
+          } catch (e) { logger.error('Failed to slice tileset', e); }
         };
         img.src = ts.dataUrl;
-      } catch {}
+      } catch (e) { logger.error('Failed to process tileset confirmation', e); }
     };
     window.addEventListener('editor:tileset-confirm', onTilesetConfirm as any);
-    return () => { cancelled = true; };
+    return () => { window.removeEventListener('editor:tileset-confirm', onTilesetConfirm as any); };
   }, [setEditor]);
+  
   const [saving, setSaving] = React.useState(false);
   const [lastSavedAt, setLastSavedAt] = React.useState<number | null>(null);
   const [lastChangeAt, setLastChangeAt] = React.useState<number | null>(null);
@@ -242,7 +132,7 @@ export function EditorPanel(props: {
       if (zonesVisible) {
         gameBridge.setZoneOverlay(props.editor.zones || []);
       }
-    } catch {}
+    } catch (e) { logger.error('Failed to toggle zone overlay', e); }
   }, [zonesVisible, props.editor.zones]);
 
   // Globale Editor-Toast Events empfangen (z. B. Fehlermeldungen aus App.tsx)
@@ -252,7 +142,7 @@ export function EditorPanel(props: {
         const d = (e as CustomEvent)?.detail || {};
         setToast({ title: d.title, description: d.description, intent: d.intent });
         setToastOpen(true);
-      } catch {}
+      } catch (e) { logger.error('Failed to process editor toast', e); }
     };
     window.addEventListener('editor:toast', onToast as any);
     return () => { window.removeEventListener('editor:toast', onToast as any); };
@@ -268,8 +158,7 @@ export function EditorPanel(props: {
           onChange={(e)=> {
             const color = e.target.value;
             setEditor(s => ({ ...s, backgroundColor: color }));
-            try { localStorage.setItem('meetropolis.backgroundColor', color); } catch {}
-            try { gameBridge.setBackgroundColor(color); } catch {}
+            try { gameBridge.setBackgroundColor(color); } catch (e) { logger.error('Failed to set background color in game', e); }
             // Keine Autospeicherung – Speichern-Button verwenden
             setLastChangeAt(Date.now());
           }}
@@ -283,7 +172,7 @@ export function EditorPanel(props: {
           {!editor.settingSpawn ? (
             <button
               onClick={() => {
-                try { console.log('[SPAWN_DBG] EditorPanel: enable settingSpawn'); } catch {}
+                try { console.log('[SPAWN_DBG] EditorPanel: enable settingSpawn'); } catch (e) { logger.error('Spawn log failed', e); }
                 setEditor(s => ({ ...s, settingSpawn: true }));
                 setToast({ title: 'Spawn setzen', description: 'Klicke in die Map, um den Spawnpunkt zu wählen.', intent: 'info' });
                 setToastOpen(true);
@@ -294,7 +183,7 @@ export function EditorPanel(props: {
             </button>
           ) : (
             <button
-              onClick={() => { try { console.log('[SPAWN_DBG] EditorPanel: cancel settingSpawn'); } catch {}; setEditor(s => ({ ...s, settingSpawn: false })); }}
+              onClick={() => { try { console.log('[SPAWN_DBG] EditorPanel: cancel settingSpawn'); } catch (e) { logger.error('Spawn log failed', e); }; setEditor(s => ({ ...s, settingSpawn: false })); }}
               style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid var(--border)', background: 'rgba(239,68,68,0.12)', color: 'var(--fg)', fontSize: 13 }}
             >
               Abbrechen
@@ -302,12 +191,11 @@ export function EditorPanel(props: {
           )}
           <button
             onClick={() => {
-              try { localStorage.removeItem('meetropolis.spawn'); } catch {}
-              try { gameBridge.setSpawnMarker(null); } catch {}
+              try { gameBridge.setSpawnMarker(null); } catch (e) { logger.error('Failed to clear spawn marker', e); }
               setEditor(s => ({ ...s, spawn: null }));
               setToast({ title: 'Spawn entfernt', description: 'Der Spawnpunkt wurde zurückgesetzt.', intent: 'info' });
               setToastOpen(true);
-            setLastChangeAt(Date.now());
+              setLastChangeAt(Date.now());
             }}
             style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--glass)', color: 'var(--fg)', fontSize: 13 }}
           >
@@ -326,11 +214,11 @@ export function EditorPanel(props: {
           <>
             <button onClick={() => {
               setEditor(s => ({ ...s, tool: 'collision' }));
-              try { (window as any).currentPhaserScene?.setEditorTool?.('collision'); } catch {}
+              try { (window as any).currentPhaserScene?.setEditorTool?.('collision'); } catch (e) { logger.error('Failed to set editor tool collision', e); }
             }} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid var(--border)', background: editor.tool==='collision'?'rgba(239,68,68,0.18)':'var(--glass)', color: 'var(--fg)', fontSize: 13 }}>{t('editor.collision')}</button>
             <button onClick={() => {
               setEditor(s => ({ ...s, tool: 'erase' }));
-              try { (window as any).currentPhaserScene?.setEditorTool?.('erase'); } catch {}
+              try { (window as any).currentPhaserScene?.setEditorTool?.('erase'); } catch (e) { logger.error('Failed to set editor tool erase', e); }
             }} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid var(--border)', background: editor.tool==='erase'?'rgba(239,68,68,0.18)':'var(--glass)', color: 'var(--fg)', fontSize: 13 }}>{t('editor.delete')}</button>
           </>
         ) : (
@@ -370,7 +258,7 @@ export function EditorPanel(props: {
                             height: it.height,
                           }
                         }));
-                        try { (window as any).currentPhaserScene?.setAssetPreview?.({ dataUrl: it.dataUrl, width: it.width, height: it.height }); } catch {}
+                        try { (window as any).currentPhaserScene?.setAssetPreview?.({ dataUrl: it.dataUrl, width: it.width, height: it.height }); } catch (e) { logger.error('Failed to set asset preview', e); }
                       }}
                       title={it.key}
                       style={{
@@ -406,11 +294,11 @@ export function EditorPanel(props: {
               <button onClick={()=>{
                 // Starte neuen Zonen-Zeichenvorgang
                 setEditor(s=>({ ...s, tool: 'zone', category: 'zones', editingZoneIndex: null }));
-                try { (window as any).currentPhaserScene?.setSelectionRect?.(null); } catch {}
+                try { (window as any).currentPhaserScene?.setSelectionRect?.(null); } catch (e) { logger.error('Failed to clear selection rect', e); }
               }} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid var(--border)', background: editor.tool==='zone'?'rgba(59,130,246,0.18)':'var(--glass)', color: 'var(--fg)', fontSize: 13 }}>{t('editor.drawNew')}</button>
               <button onClick={()=>{
                 setEditor(s=>({ ...s, tool: 'select', editingZoneIndex: null }));
-                try { (window as any).currentPhaserScene?.setSelectionRect?.(null); } catch {}
+                try { (window as any).currentPhaserScene?.setSelectionRect?.(null); } catch (e) { logger.error('Failed to clear selection rect', e); }
               }} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--glass)', color: 'var(--fg)', fontSize: 13 }}>{t('editor.cancel')}</button>
             </div>
           </div>
@@ -439,10 +327,8 @@ export function EditorPanel(props: {
                     const zones = s.zones.filter((_,i)=>i!==idx);
                     // Wenn gerade bearbeitet wird und diese Zone entfernt wird, Bearbeitung zurücksetzen
                     const editing = (s.editingZoneIndex ?? null) === idx ? null : (s.editingZoneIndex ?? null);
-                    // Persistiere nach LocalStorage
-                    try { localStorage.setItem('meetropolis.zones', JSON.stringify(zones)); } catch {}
                     // Szene-Overlay aktualisieren, falls verfügbar
-                    try { (window as any).currentPhaserScene?.setZoneOverlay?.(zones); } catch {}
+                    try { (window as any).currentPhaserScene?.setZoneOverlay?.(zones); } catch (e) { logger.error('Failed to set zone overlay', e); }
                     // Keine Autospeicherung – Speichern-Button verwenden
                     setLastChangeAt(Date.now());
                     return { ...s, zones, editingZoneIndex: editing };
@@ -485,7 +371,7 @@ export function EditorPanel(props: {
                                 height: it.height,
                               }
                             }));
-                            try { (window as any).currentPhaserScene?.setAssetPreview?.({ dataUrl: it.dataUrl, width: it.width, height: it.height }); } catch {}
+                            try { (window as any).currentPhaserScene?.setAssetPreview?.({ dataUrl: it.dataUrl, width: it.width, height: it.height }); } catch (e) { logger.error('Failed to set asset preview', e); }
                           }}
                           title={it.key}
                           style={{
@@ -542,8 +428,8 @@ export function EditorPanel(props: {
                     try {
                       const f = (e.target as HTMLInputElement).files?.[0];
                       if (f) logger.debug('[ASSETS_DBG] image selected', { name: f.name, size: f.size, type: f.type });
-                    } catch {}
-                    try { logger.debug('[ASSETS_DBG] calling onOpenUpload'); } catch {}
+                    } catch (e) { logger.error('Failed to debug image selection', e); }
+                    try { logger.debug('[ASSETS_DBG] calling onOpenUpload'); } catch (e) { logger.error('Failed to debug log', e); }
                     props.onOpenUpload(e);
                   }}
                 />

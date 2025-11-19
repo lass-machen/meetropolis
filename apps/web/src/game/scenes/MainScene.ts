@@ -1341,16 +1341,16 @@ export class MainScene extends Phaser.Scene {
   }
 
   // Neues Terrain-Painting: benutzt Ghost/Preview wie Objekte, schreibt aber in EditorGround/Walls
-  applyTerrainPaint(edit: { rect: { startX: number; startY: number; endX: number; endY: number }; dataUrl: string; attempt?: number }) {
-    edApplyTerrainPaint(this as any, edit);
+  async applyTerrainPaint(edit: { rect: { startX: number; startY: number; endX: number; endY: number }; dataUrl: string; attempt?: number }) {
+    await edApplyTerrainPaint(this as any, edit);
   }
 
   eraseTerrainRect(rect: { startX: number; startY: number; endX: number; endY: number }) {
     edEraseTerrainRect(this as any, rect);
   }
 
-  private ensureTerrainTilesetFor(dataUrl: string): string | null {
-    return edEnsureTerrainTilesetFor(this as any, dataUrl);
+  private async ensureTerrainTilesetFor(dataUrl: string): Promise<string | null> {
+    return await edEnsureTerrainTilesetFor(this as any, dataUrl);
   }
 
   setSelectionRect(rect: { x: number; y: number; w: number; h: number } | null) {

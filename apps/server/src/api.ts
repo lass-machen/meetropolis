@@ -1218,6 +1218,22 @@ export function registerApi(app: express.Express) {
         }
       } catch {}
     }
+
+    // Broadcast generic 'all' update if significant changes occurred (zones, assets, tilesets, bg)
+    if (tilesets || assets || zones || backgroundColor || replaceZones) {
+       try {
+        const rooms: any[] = Array.from(((global as any).activeWorldRooms || new Set()).values());
+        for (const room of rooms) {
+          try { 
+             // Broadcast 'all' so clients re-fetch the complete editor state
+             room.broadcast('editor_update', { type: 'all', map: name }); 
+          } catch (e: any) {
+             try { logger.debug('[Broadcast] editor_update all failed', { error: e?.message || String(e) }); } catch {}
+          }
+        }
+      } catch {}
+    }
+
     res.json({ ok: true });
   });
 

@@ -1116,7 +1116,12 @@ export class AVManager {
       // Wenn wir in Electron sind, nutzen wir IMMER den direkten, bewährten Pfad über desktop.pickDisplaySource.
       // Wir vertrauen hier nicht mehr auf createLocalScreenTracks, da es in Electron oft hängt oder falsche Constraints setzt.
       const anyWin = window as any;
+      // Tauri: window.desktop.pickDisplaySource ist dort undefined, daher false -> Web-Pfad
       const isElectron = !!(anyWin.desktop && anyWin.desktop.pickDisplaySource);
+
+      if ((window as any).__TAURI__) {
+        try { console.debug('[AV] Running in Tauri - using standard web screenshare API'); } catch {}
+      }
 
       if (isElectron) {
          try {
@@ -1230,7 +1235,8 @@ export class AVManager {
         for (const pub of pubs) {
           const src = (pub as any).source || (pub.track as any)?.source;
           if (src === 'screen_share' && (pub as any).setVideoLayers) {
-            try { (pub as any).setVideoLayers?.([{ width: 1920, height: 1080, bitrate: 2500_000 }]); } catch {}
+            // Disable forced layers for screenshare to prevent black screens on resize
+            // try { (pub as any).setVideoLayers?.([{ width: 1920, height: 1080, bitrate: 2500_000 }]); } catch {}
           }
         }
       } catch {}
