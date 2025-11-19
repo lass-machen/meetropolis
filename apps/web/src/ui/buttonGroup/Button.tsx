@@ -2,14 +2,14 @@ import React from 'react';
 import { FAIcon } from '../FAIcon';
 import type { ButtonGroupItemSize, ButtonIconPosition, ButtonVariant } from './types';
 
-export function BGButton(props: React.ButtonHTMLAttributes<HTMLButtonElement> & {
+export const BGButton = React.forwardRef<HTMLButtonElement, React.ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: ButtonVariant;
   size?: ButtonGroupItemSize;
   icon?: string;
   iconVariant?: 'solid' | 'regular' | 'brands';
   iconPosition?: ButtonIconPosition;
   active?: boolean;
-}) {
+}>((props, ref) => {
   const {
     variant = 'default',
     size,
@@ -31,7 +31,7 @@ export function BGButton(props: React.ButtonHTMLAttributes<HTMLButtonElement> & 
   const classes = ['bg-button', variantClass, activeClass, sizeClass, iconOnlyClass, className].filter(Boolean).join(' ');
 
   return (
-    <button className={classes} {...rest}>
+    <button ref={ref} className={classes} {...rest}>
       <span className="bg-button-content">
         {icon && (iconPosition === 'left' || iconPosition === 'only') && (
           <FAIcon name={icon} variant={iconVariant} ariaLabel={typeof children === 'string' ? String(children) : undefined} />
@@ -43,6 +43,8 @@ export function BGButton(props: React.ButtonHTMLAttributes<HTMLButtonElement> & 
       </span>
     </button>
   );
-}
+});
+
+BGButton.displayName = 'BGButton';
 
 
