@@ -26,12 +26,12 @@ services:
       LIVEKIT_URL: ${LIVEKIT_URL}
       LIVEKIT_API_KEY: ${LIVEKIT_API_KEY}
       LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET}
-      NODE_ENV: production
+      NODE_ENV: development
       TRUST_PROXY: "true"
       # Safe local fallbacks to avoid crashes during local testing with this compose
       API_TOKEN_PEPPER: ${API_TOKEN_PEPPER:-dev-pepper-change-me}
       JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-me}
-      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173,http://localhost:5174}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173,http://localhost:5174,https://meetropolis.s4.lmwow.de}
     command: sh -c "npm ci --include=dev && npx prisma generate && npx prisma db push && npx prisma db seed && npx tsx src/index.ts"
     ports:
       - "2567:2567"

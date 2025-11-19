@@ -124,7 +124,7 @@ app.use((req: express.Request, res: express.Response, next: express.NextFunction
 app.get('/', (_req: express.Request, res: express.Response) => res.send('ok'));
 
 // Static serving for Asset Packs
-const packsDir = process.env.ASSET_PACKS_DIR || path.resolve(__dirname, '../../public/packs');
+const packsDir = process.env.ASSET_PACKS_DIR || path.resolve(__dirname, '../../../public/packs');
 try {
   fs.mkdirSync(packsDir, { recursive: true });
 } catch {}

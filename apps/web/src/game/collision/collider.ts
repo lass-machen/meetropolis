@@ -18,9 +18,13 @@ export function rebuildStaticColliders(scene: Phaser.Scene & any): void {
     }
     
     // Ensure collider with hero exists
-    if (scene.hero && !scene.physics.world.colliders.contains(scene.heroVsStaticCollider)) {
-       try { scene.heroVsStaticCollider?.destroy(); } catch {}
-       scene.heroVsStaticCollider = scene.physics.add.collider(scene.hero, scene.staticColliders);
+    if (scene.hero) {
+       const colliders = scene.physics.world.colliders;
+       const active = colliders.getActive();
+       if (!active.includes(scene.heroVsStaticCollider)) {
+          try { scene.heroVsStaticCollider?.destroy(); } catch {}
+          scene.heroVsStaticCollider = scene.physics.add.collider(scene.hero, scene.staticColliders);
+       }
     }
 
     if (!scene.collisionLayer) return;

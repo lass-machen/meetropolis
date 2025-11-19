@@ -505,7 +505,7 @@ export function registerApi(app: express.Express) {
   // ========================
   // Asset Packs API
   // ========================
-  const packsDir = process.env.ASSET_PACKS_DIR || path.resolve(__dirname, '../../public/packs');
+  const packsDir = process.env.ASSET_PACKS_DIR || path.resolve(__dirname, '../../../public/packs');
   try {
     fs.mkdirSync(packsDir, { recursive: true });
   } catch {}
@@ -967,7 +967,10 @@ export function registerApi(app: express.Express) {
     const map = await prisma.map.findFirst({ where: { name, tenantId: tenant.id } });
     if (!map) return res.status(404).json({ error: 'map not found' });
     const layer = await prisma.mapLayer.findUnique({ where: { mapId_name: { mapId: map.id, name: layerName } } as any });
-    if (!layer) return res.status(404).json({ error: 'layer not found' });
+    if (!layer) {
+      // Layer doesn't exist yet -> treat as empty (no chunks)
+      return res.json({ chunks: {} });
+    }
 
     const keyList = keys.split(',').map((s) => s.trim()).filter((s) => s.length > 0);
     const wanted: Array<{ x: number; y: number; key: string }> = [];
