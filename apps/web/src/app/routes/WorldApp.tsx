@@ -27,7 +27,7 @@ import { useEditor } from '../../hooks/useEditor';
 import { useApiTokensLoader } from '../../features/admin/useApiTokens';
 import { useEditorBridge } from '../../editor/useEditorBridge';
 import { useGlobalAudioTracks } from '../../av/useGlobalAudioTracks';
-import { usePositionPersistence } from '../../hooks/usePositionPersistence';
+// usePositionPersistence removed - logic integrated into WorldApp
 import { useZones as useZonesSync } from '../../features/zones/useZones';
 import { useHudTicker } from '../../features/hud/useHudTicker';
 import { useBubbleNavigation } from '../../features/bubble/useBubbleNavigation';
@@ -145,6 +145,10 @@ export function WorldApp() {
   const gameCreatedRef = React.useRef(false);
   const livekitAutoConnectOnceRef = React.useRef(false);
 
+  // Save position refs declared at top level to be used in useEffect
+  const lastSavedPositionRef = useRef({ x: 0, y: 0, direction: 'down' });
+  const moveTimeoutRef = useRef<any>(null);
+
   useEffect(() => {
     disposedRef.current = false;
     return () => {
@@ -203,8 +207,7 @@ export function WorldApp() {
   // Editor Pointer Bridge
   useEditorBridge({ editor, setEditor, gameBridge });
 
-  // Position-Persistenz (Hook auf Top-Level)
-  usePositionPersistence({ apiBase, localPosRef, gameBridge });
+  // Position-Persistenz (Hook entfernt, Logik unten in useEffect integriert)
 
   // Editor-Pointer-Logik (aus App extrahiert)
   useEditorPointer({ editor, setEditor, apiBase });
@@ -792,25 +795,32 @@ export function WorldApp() {
     };
     // Tile-basierte Pointer-Events werden exklusiv in useEditorBridge gebunden
 
-    // Save position when player stops moving
-    let lastSavedPosition = { x: 0, y: 0, direction: 'down' };
-    let moveTimeoutRef: NodeJS.Timeout | null = null;
-
     const savePosition = async (opts?: { immediate?: boolean }) => {
       const currentPos = localPosRef.current;
       const currentDirection = (gameBridge as any).lastDirection || 'down';
+      const last = lastSavedPositionRef.current;
+      
       const hasMoved = currentPos.x && currentPos.y && (
-        Math.abs(currentPos.x - lastSavedPosition.x) > 10 ||
-        Math.abs(currentPos.y - lastSavedPosition.y) > 10 ||
-        currentDirection !== lastSavedPosition.direction
+        Math.abs(currentPos.x - last.x) > 10 ||
+        Math.abs(currentPos.y - last.y) > 10 ||
+        currentDirection !== last.direction
       );
+      
       if (!hasMoved && !opts?.immediate) return;
-      lastSavedPosition = { x: currentPos.x || lastSavedPosition.x, y: currentPos.y || lastSavedPosition.y, direction: currentDirection };
+      
+      // Update ref immediately
+      lastSavedPositionRef.current = { 
+        x: currentPos.x || last.x, 
+        y: currentPos.y || last.y, 
+        direction: currentDirection 
+      };
+      
       const payload = JSON.stringify({ 
-        x: Math.round(lastSavedPosition.x), 
-        y: Math.round(lastSavedPosition.y), 
-        direction: lastSavedPosition.direction 
+        x: Math.round(lastSavedPositionRef.current.x), 
+        y: Math.round(lastSavedPositionRef.current.y), 
+        direction: lastSavedPositionRef.current.direction 
       });
+      
       try {
         if (opts?.immediate && 'sendBeacon' in navigator) {
           const blob = new Blob([payload], { type: 'application/json' });
@@ -828,7 +838,96 @@ export function WorldApp() {
       } catch {}
     };
     
-    // onLocalMove bereits oben gesetzt und beinhaltet Debounce-Speichern
+    // onLocalMove bereits oben gesetzt und beinhaltet Debounce-Speichern -> Update logic there
+    // Wir müssen den Handler oben patchen, um die neuen Refs zu nutzen!
+    
+    // RE-DEFINE onLocalMove here to close over the Refs correctly
+    gameBridge.onLocalMove = (p) => {
+      localPosRef.current.x = p.x;
+      localPosRef.current.y = p.y;
+      (gameBridge as any).lastDirection = p.direction;
+      zoneRef.current?.update({ x: p.x, y: p.y });
+      // Bubble: Ankunft direkt beim Movement prüfen
+      try {
+        const pending = bubblePendingRef.current;
+        if (pending) {
+          let arrived = false;
+          if (pending.dest) {
+            const dx = (p.x || 0) - pending.dest.x;
+            const dy = (p.y || 0) - pending.dest.y;
+            arrived = (dx * dx + dy * dy) < 12 * 12;
+          }
+          if (!arrived) {
+            const t = remotesRef.current[pending.targetId];
+            if (t) {
+              const dx = (p.x || 0) - t.x;
+              const dy = (p.y || 0) - t.y;
+              arrived = (dx * dx + dy * dy) < 20 * 20;
+            }
+          }
+          if (arrived) {
+            try { followRef.current?.stop?.(); } catch {}
+            try { gameBridge.setDesiredPosition(null); } catch {}
+            try { activateBubbleNowRef.current(pending.targetId); } catch {}
+            bubblePendingRef.current = null;
+          }
+        }
+      } catch {}
+      
+      // Check if zone changed
+      const zones = zoneRef.current?.getZones?.() || [];
+      const currentZone = zones.find(z => pointInPolygon({ x: p.x, y: p.y }, z.points));
+      const currentZoneName = currentZone?.name || null;
+      
+      if (currentZoneName !== lastZone) {
+        lastZone = currentZoneName;
+        setTimeout(buildParticipantList, 50);
+        applyVolumesToUi();
+      }
+      
+      if (followRef.current) {
+        const f = followRef.current.update({ x: p.x, y: p.y }, remotesRef.current);
+        if (!bubblePendingRef.current) {
+          if (f.following) {
+            gameBridge.setDesiredPosition({ x: f.x, y: f.y });
+          } else {
+            const target = manualNavRef.current;
+            if (target) {
+              const dx = (target.x ?? 0) - p.x;
+              const dy = (target.y ?? 0) - p.y;
+              const dist = Math.hypot(dx, dy);
+              if (dist <= 12) {
+                manualNavRef.current = null;
+                gameBridge.setDesiredPosition(null);
+              } else {
+                gameBridge.setDesiredPosition({ x: target.x, y: target.y });
+              }
+            } else {
+              gameBridge.setDesiredPosition(null);
+            }
+          }
+        } else if (f.following) {
+          gameBridge.setDesiredPosition({ x: f.x, y: f.y });
+        }
+      }
+      
+      try {
+        const room: any = colyseusRef.current as any;
+        const isOpen = room?.connection?.isOpen === true || room?.connection?.ws?.readyState === 1;
+        if (room && isOpen) {
+          room.send('move', p);
+        }
+      } catch (e) {}
+      
+      // Debounced position save
+      if (moveTimeoutRef.current) {
+        clearTimeout(moveTimeoutRef.current);
+      }
+      moveTimeoutRef.current = setTimeout(() => {
+        void savePosition();
+        moveTimeoutRef.current = null;
+      }, 1000);
+    };
 
     return () => {
       disposed = true;
@@ -846,8 +945,8 @@ export function WorldApp() {
       try { avRef.current?.leave?.(); } catch {}
       try { if (colyseusReconnectTimerRef.current) clearTimeout(colyseusReconnectTimerRef.current); } catch {}
       // HUD-Ticker Cleanup wird vom Hook übernommen
-      if (moveTimeoutRef) {
-        clearTimeout(moveTimeoutRef);
+      if (moveTimeoutRef.current) {
+        clearTimeout(moveTimeoutRef.current);
       }
       // Position-Persistenz cleanup wird im Hook gehandhabt
     };
