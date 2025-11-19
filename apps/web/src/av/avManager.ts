@@ -1120,16 +1120,12 @@ export class AVManager {
 
       if (isElectron) {
          try {
-           console.log('[AV] Starting Electron native screenshare flow');
            const choice = await anyWin.desktop.pickDisplaySource({ types: ['screen','window'] });
            if (!choice || !choice.id) {
-             console.log('[AV] User cancelled picker');
              this.sharePending = false;
              return false;
            }
 
-           console.log('[AV] Picker choice:', choice);
-           
            // Native getUserMedia Anfrage mit der ID aus dem Picker
            const stream = await navigator.mediaDevices.getUserMedia({
              audio: false,
@@ -1142,16 +1138,17 @@ export class AVManager {
              } as any
            } as any);
 
-           console.log('[AV] Got native stream:', stream.id);
-           
            const vTrack = stream.getVideoTracks()[0];
            if (vTrack) {
              // Wrapper für LiveKit, damit es als LocalTrack akzeptiert wird
-             // Wir nutzen createLocalTracks (low-level) oder bauen das Objekt manuell, 
-             // aber am sichersten ist es, den Track direkt zu wrappen.
-             // LiveKit's LocalVideoTrack erwartet einen MediaStreamTrack.
-             const { LocalVideoTrack } = await import('livekit-client');
-             const lkTrack = new LocalVideoTrack(vTrack, undefined, false); // false = userProvidedTrack (don't stop on unpublish usually, but we handle cleanup)
+             // WICHTIG: Wir müssen LiveKit sagen, dass dies ein Screenshare ist!
+             const { LocalVideoTrack, Track } = await import('livekit-client');
+             // Konstruktor-Signatur: track, constraints, userProvided
+             // Aber um Source zu setzen, müssen wir die Optionen anpassen oder den Track manipulieren.
+             // In neueren SDKs gibt es Optionen im Konstruktor, in älteren ist es schwieriger.
+             // Sicherster Weg: Track erstellen und dann 'source' patchen, bevor wir ihn publishen.
+             const lkTrack = new LocalVideoTrack(vTrack, undefined, false);
+             (lkTrack as any).source = Track.Source.ScreenShare;
              tracks = [lkTrack];
            }
          } catch (err) {
