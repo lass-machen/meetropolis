@@ -1130,7 +1130,7 @@ export class AVManager {
           try { console.debug('[AV][debug] screenshare.electron.desktopCapturer'); } catch {}
           try {
             const anyWin = window as any;
-            const choice = await anyWin.desktop?.chooseDisplaySource?.({ types: ['screen'] });
+            const choice = await (anyWin.desktop?.pickDisplaySource?.({ types: ['screen','window'] }) || anyWin.desktop?.chooseDisplaySource?.({ types: ['screen','window'] }));
             if (choice && choice.id) {
               const stream = await navigator.mediaDevices.getUserMedia({
                 audio: false,

@@ -366,6 +366,94 @@ app.whenReady().then(async () => {
     }
     /* handled in prompt, but also update memory */ 
   });
+  ipcMain.handle('desktop:pickDisplaySource', async (_evt, opts: { types?: Array<'screen'|'window'> } = {}) => {
+    const token = String(Date.now()) + Math.random().toString(36).slice(2);
+    return await new Promise<{ id: string; name: string } | null>((resolve) => {
+      const picker = new BrowserWindow({
+        width: 760,
+        height: 520,
+        resizable: false,
+        modal: true,
+        parent: BrowserWindow.getFocusedWindow() || undefined,
+        title: 'Bildschirm oder Fenster wählen',
+        webPreferences: {
+          preload: getPreloadPath(),
+          contextIsolation: true,
+          sandbox: true,
+          nodeIntegration: false
+        }
+      });
+      const html = `<!doctype html>
+        <html>
+          <head>
+            <meta charset="utf-8" />
+            <meta name="viewport" content="width=device-width,initial-scale=1" />
+            <title>Quelle wählen</title>
+            <style>
+              body{font:13px -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;margin:0;padding:14px;color:#111;background:#111}
+              h1{margin:0 0 12px 0;font-size:16px;color:#ddd}
+              .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+              .item{background:#1a1a1a;border:1px solid #2a2a2a;border-radius:8px;overflow:hidden;cursor:pointer}
+              .thumb{width:100%;height:152px;background:#000;object-fit:cover;display:block}
+              .name{padding:8px;color:#eee;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px}
+              .row{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}
+              button{appearance:none;border:0;border-radius:8px;padding:8px 14px;font-weight:600;background:#0b5;color:#fff;cursor:pointer}
+              button[variant=secondary]{background:#333;color:#ddd}
+              .tabs{display:flex;gap:8px;margin-bottom:10px}
+              .tab{padding:6px 10px;border-radius:6px;border:1px solid #2a2a2a;color:#ddd;cursor:pointer}
+              .tab[active]{background:#0b5;color:#fff;border-color:#0b5}
+            </style>
+          </head>
+          <body>
+            <h1>Quelle teilen</h1>
+            <div class="tabs">
+              <div class="tab" id="tab-screen" active>Bildschirme</div>
+              <div class="tab" id="tab-window">Fenster</div>
+            </div>
+            <div class="grid" id="grid"></div>
+            <div class="row">
+              <button variant="secondary" id="cancel">Abbrechen</button>
+            </div>
+            <script>
+              const $ = (s)=>document.querySelector(s);
+              let mode = 'screen';
+              const load = async () => {
+                const list = await window.desktop.listDisplaySources({ types: [mode] });
+                const grid = $('#grid');
+                grid.innerHTML = '';
+                list.forEach(src => {
+                  const el = document.createElement('div');
+                  el.className = 'item';
+                  el.innerHTML = '<img class="thumb" src="' + (src.thumbnail || '') + '" alt="thumb" /><div class="name">' + (src.name || src.id) + '</div>';
+                  el.onclick = () => {
+                    window.desktop.__resolveDisplayPick('${token}', src.id);
+                  };
+                  grid.appendChild(el);
+                });
+              };
+              $('#tab-screen').onclick = () => { $('#tab-screen').setAttribute('active',''); $('#tab-window').removeAttribute('active'); mode = 'screen'; load(); };
+              $('#tab-window').onclick = () => { $('#tab-window').setAttribute('active',''); $('#tab-screen').removeAttribute('active'); mode = 'window'; load(); };
+              $('#cancel').onclick = () => { window.desktop.__resolveDisplayPick('${token}', ''); };
+              load();
+            </script>
+          </body>
+        </html>`;
+      picker.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
+      const channel = 'desktop:pickDisplaySource:resolve:' + token;
+      const handler = (_e: any, payload: { id: string }) => {
+        try { ipcMain.off(channel, handler as any); } catch {}
+        try { picker.close(); } catch {}
+        const id = (payload && payload.id) || '';
+        if (!id) { resolve(null); return; }
+        resolve({ id, name: '' });
+      };
+      ipcMain.once(channel, handler as any);
+      picker.on('closed', () => {
+        try { ipcMain.off(channel, handler as any); } catch {}
+        resolve(null);
+      });
+    });
+  });
 
   let cfg = await readConfig();
   let apiBase = cfg.apiBase;

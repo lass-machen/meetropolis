@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { gameBridge } from '../bridge';
 
 export function ensureRecenterUi(scene: Phaser.Scene & any): void {
   if (scene.recenterUi && scene.recenterUi.scene) return;
@@ -40,7 +41,7 @@ export function updateRecenterUiVisibility(scene: Phaser.Scene & any): void {
   const isFollowing = (cam as any).follow === scene.hero;
   if (!scene.manualCameraActive && isFollowing) {
     scene.recenterUi.setVisible(false);
-    try { scene.gameBridge.onCameraManualChange?.(false); } catch {}
+    try { gameBridge.onCameraManualChange?.(false); } catch {}
     return;
   }
   const centerX = cam.worldView.centerX;
@@ -50,7 +51,7 @@ export function updateRecenterUiVisibility(scene: Phaser.Scene & any): void {
   const tolerance = 8;
   const shouldShow = scene.manualCameraActive || dx > tolerance || dy > tolerance;
   scene.recenterUi.setVisible(shouldShow);
-  try { scene.gameBridge.onCameraManualChange?.(shouldShow); } catch {}
+  try { gameBridge.onCameraManualChange?.(shouldShow); } catch {}
 }
 
 export function recenterCamera(scene: Phaser.Scene & any): void {

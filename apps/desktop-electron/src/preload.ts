@@ -10,6 +10,60 @@ try {
   try { (window as any).__MEETROPOLIS_API_BASE__ = cachedApiBase; } catch {}
 } catch {}
 
+// Polyfill für navigator.mediaDevices.getDisplayMedia im Main-World-Kontext.
+// Viele Electron/Chromium-Builds markieren die API als "Not supported".
+// Wir ersetzen sie durch einen Wrapper, der desktopCapturer nutzt.
+(function injectGetDisplayMediaPolyfill() {
+  try {
+    const code = `
+      (function(){
+        try {
+          const hasNative = !!(navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia);
+          const shouldOverride = !hasNative || typeof navigator.mediaDevices.getDisplayMedia !== 'function';
+          // Auch bei vorhandener API überschreiben wir, wenn sie "Not supported" werfen würde – Pauschal-Override ist am robustesten im Electron-Kontext.
+          const origGDM = hasNative ? navigator.mediaDevices.getDisplayMedia.bind(navigator.mediaDevices) : null;
+          navigator.mediaDevices.getDisplayMedia = async function(constraints){
+            try {
+              // Versuche native API zuerst; wenn sie existiert und funktioniert, nutze sie.
+              if (origGDM) {
+                return await origGDM(constraints || { video: true });
+              }
+            } catch (e) {
+              // Fällt unten auf Electron-Fallback zurück
+            }
+            if (!window.desktop || typeof window.desktop.chooseDisplaySource !== 'function') {
+              throw new DOMException('NotSupportedError', 'Not supported');
+            }
+            // Quelle auswählen (Screen bevorzugen)
+            const choice = await window.desktop.chooseDisplaySource({ types: ['screen','window'] });
+            if (!choice || !choice.id) {
+              throw new DOMException('NotAllowedError', 'User cancelled or no source available');
+            }
+            const videoOnly = (constraints && constraints.audio === false);
+            const stream = await navigator.mediaDevices.getUserMedia({
+              audio: false,
+              video: {
+                mandatory: {
+                  chromeMediaSource: 'desktop',
+                  chromeMediaSourceId: choice.id,
+                  maxFrameRate: 30
+                }
+              }
+            });
+            return stream;
+          };
+          // Kennzeichne, dass ein Polyfill aktiv ist (für Debugging)
+          (navigator.mediaDevices as any).__gdmPolyfilled = true;
+        } catch {}
+      })();
+    `;
+    const s = document.createElement('script');
+    s.textContent = code;
+    (document.head || document.documentElement).appendChild(s);
+    s.remove();
+  } catch {}
+})();
+
 contextBridge.exposeInMainWorld('desktop', {
   // Optional direkt lesbar für runtimeConfig: anyWin.desktop?.apiBase
   get apiBase(): string | undefined {
@@ -24,6 +78,24 @@ contextBridge.exposeInMainWorld('desktop', {
   setConfig: async (cfg: { apiBase?: string; webBase?: string }): Promise<boolean> => {
     try { return !!(await ipcRenderer.invoke('desktop:setConfig', cfg)); } catch { return false; }
   },
+  listDisplaySources: async (opts?: { types?: ('screen'|'window')[] }): Promise<Array<{ id: string; name: string; type: 'screen'|'window'; thumbnail?: string }>> => {
+    try {
+      const types = (opts?.types && opts.types.length > 0) ? opts.types : ['screen','window'];
+      const sources = await desktopCapturer.getSources({ types, thumbnailSize: { width: 320, height: 200 }, fetchWindowIcons: true } as any);
+      return sources.map(s => ({
+        id: s.id,
+        name: s.name,
+        type: (s.id || '').startsWith('screen:') ? 'screen' : 'window',
+        thumbnail: (s.thumbnail && !s.thumbnail.isEmpty()) ? s.thumbnail.toDataURL() : undefined
+      }));
+    } catch {
+      return [];
+    }
+  },
+  pickDisplaySource: async (opts?: { types?: ('screen'|'window')[] }): Promise<{ id: string; name: string } | null> => {
+    try { return await ipcRenderer.invoke('desktop:pickDisplaySource', opts || {}); } catch { return null; }
+  },
+  __resolveDisplayPick: (token: string, id: string) => { try { ipcRenderer.send('desktop:pickDisplaySource:resolve:' + token, { id }); } catch {} },
   // Electron-native Auswahl einer Bildschirm-/Fensterquelle.
   // Liefert eine sourceId zurück (für chromeMediaSourceId).
   chooseDisplaySource: async (opts?: { types?: ('screen'|'window')[] }): Promise<{ id: string; name: string } | null> => {
