@@ -1,4 +1,4 @@
-import { app, BrowserWindow, session, ipcMain, Menu } from 'electron';
+import { app, BrowserWindow, session, ipcMain, Menu, desktopCapturer } from 'electron';
 import path from 'path';
 import url from 'url';
 import fs from 'fs/promises';
@@ -47,7 +47,7 @@ function getIndexUrl(apiBase?: string): string {
       u.hostname = host;
       u.pathname = '/';
       return u.toString().replace(/\/+$/g, '');
-    } catch {}
+    } catch { }
   }
   // Fallback: Lokales HTML für Setup/Error
   const indexPath = path.join(process.resourcesPath, 'web', 'index.html');
@@ -60,7 +60,7 @@ function withApiBase(u: string, apiBase?: string): string {
   if (!apiBase) return u;
   // Wenn u == apiBase, nichts anhängen
   if (u.replace(/\/$/, '') === apiBase.replace(/\/$/, '')) return u;
-  
+
   try {
     const parsed = new URL(u);
     parsed.searchParams.set('apiBase', apiBase);
@@ -100,7 +100,7 @@ async function createMainWindow(apiBase?: string): Promise<BrowserWindow> {
   } catch (e) {
     // Falls Remote-Load fehlschlägt (Offline?), lokalen Dialog zeigen
     if (startUrl !== getIndexUrl(undefined)) {
-       await win.loadURL(getIndexUrl(undefined));
+      await win.loadURL(getIndexUrl(undefined));
     }
   }
 
@@ -133,7 +133,7 @@ function setAppMenu(): void {
                 return u.toString().replace(/\/+$/g, '');
               } catch { return globalWebBase; }
             })();
-            try { await writeConfig({ apiBase: v, webBase: webFromApi }); globalApiBase = v; globalWebBase = webFromApi; } catch {}
+            try { await writeConfig({ apiBase: v, webBase: webFromApi }); globalApiBase = v; globalWebBase = webFromApi; } catch { }
             const all = BrowserWindow.getAllWindows();
             const win = all[0];
             if (win) {
@@ -253,8 +253,8 @@ async function promptForApiBase(currentValue?: string): Promise<string | undefin
     win.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
 
     ipcMain.once('desktop:setApiBase', async (_evt, v: string) => {
-      try { await writeConfig({ apiBase: v }); globalApiBase = v; } catch {}
-      try { win.close(); } catch {}
+      try { await writeConfig({ apiBase: v }); globalApiBase = v; } catch { }
+      try { win.close(); } catch { }
       resolve(v);
     });
     win.on('closed', () => resolve(undefined));
@@ -278,7 +278,7 @@ function registerSecurityHandlers(): void {
       if ((permission as any) === 'display-capture') return true;
       return false;
     });
-  } catch {}
+  } catch { }
 
   // Einfache CSP zur Härtung (anpassbar bei Bedarf)
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
@@ -322,7 +322,7 @@ app.whenReady().then(async () => {
           // Fallback: try parsing json
           try { const json = await res.json(); return !!json; } catch { return false; }
         }
-      } catch {}
+      } catch { }
       return false;
     };
 
@@ -335,7 +335,7 @@ app.whenReady().then(async () => {
         u.hostname = host;
         u.pathname = '/';
         webUrl = normalize(u.toString());
-      } catch {}
+      } catch { }
       return { valid: true, apiUrl: url, webUrl };
     }
 
@@ -352,21 +352,35 @@ app.whenReady().then(async () => {
           return { valid: true, apiUrl, webUrl };
         }
       }
-    } catch {}
+    } catch { }
 
     return { valid: false, apiUrl: inputUrl, webUrl: '' };
   });
   ipcMain.on('desktop:getApiBaseSync', (evt) => { evt.returnValue = globalApiBase; });
-  ipcMain.handle('desktop:setConfig', async (_evt, cfg: AppConfig) => { await writeConfig(cfg||{}); return true; });
-  ipcMain.on('desktop:setApiBase', (_evt, v: string) => { 
-    globalApiBase = v; 
+  ipcMain.handle('desktop:setConfig', async (_evt, cfg: AppConfig) => { await writeConfig(cfg || {}); return true; });
+  ipcMain.on('desktop:setApiBase', (_evt, v: string) => {
+    globalApiBase = v;
     // try to keep web base in sync if missing
     if (!globalWebBase && v) {
-      try { const u = new URL(v); const host = u.hostname.startsWith('api.') ? u.hostname.slice('api.'.length) : u.hostname; u.hostname = host; u.pathname = '/'; globalWebBase = u.toString().replace(/\/+$/,''); } catch {}
+      try { const u = new URL(v); const host = u.hostname.startsWith('api.') ? u.hostname.slice('api.'.length) : u.hostname; u.hostname = host; u.pathname = '/'; globalWebBase = u.toString().replace(/\/+$/, ''); } catch { }
     }
-    /* handled in prompt, but also update memory */ 
+    /* handled in prompt, but also update memory */
   });
-  ipcMain.handle('desktop:pickDisplaySource', async (_evt, opts: { types?: Array<'screen'|'window'> } = {}) => {
+  ipcMain.handle('desktop:getSources', async (_evt, opts: { types?: string[], thumbnailSize?: { width: number, height: number }, fetchWindowIcons?: boolean }) => {
+    const types = (opts?.types && opts.types.length > 0) ? opts.types : ['screen', 'window'];
+    const sources = await desktopCapturer.getSources({
+      types: types as any,
+      thumbnailSize: opts?.thumbnailSize || { width: 150, height: 150 },
+      fetchWindowIcons: opts?.fetchWindowIcons
+    });
+    return sources.map(s => ({
+      id: s.id,
+      name: s.name,
+      thumbnail: s.thumbnail.toDataURL(),
+      appIcon: s.appIcon?.toDataURL()
+    }));
+  });
+  ipcMain.handle('desktop:pickDisplaySource', async (_evt, opts: { types?: Array<'screen' | 'window'> } = {}) => {
     const token = String(Date.now()) + Math.random().toString(36).slice(2);
     return await new Promise<{ id: string; name: string } | null>((resolve) => {
       const picker = new BrowserWindow({
@@ -441,15 +455,15 @@ app.whenReady().then(async () => {
       picker.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
       const channel = 'desktop:pickDisplaySource:resolve:' + token;
       const handler = (_e: any, payload: { id: string }) => {
-        try { ipcMain.off(channel, handler as any); } catch {}
-        try { picker.close(); } catch {}
+        try { ipcMain.off(channel, handler as any); } catch { }
+        try { picker.close(); } catch { }
         const id = (payload && payload.id) || '';
         if (!id) { resolve(null); return; }
         resolve({ id, name: '' });
       };
       ipcMain.once(channel, handler as any);
       picker.on('closed', () => {
-        try { ipcMain.off(channel, handler as any); } catch {}
+        try { ipcMain.off(channel, handler as any); } catch { }
         resolve(null);
       });
     });
@@ -457,7 +471,7 @@ app.whenReady().then(async () => {
 
   let cfg = await readConfig();
   let apiBase = cfg.apiBase;
-  globalWebBase = cfg.webBase || globalWebBase || (apiBase ? (() => { try { const u = new URL(apiBase); const host = u.hostname.startsWith('api.') ? u.hostname.slice('api.'.length) : u.hostname; u.hostname = host; u.pathname = '/'; return u.toString().replace(/\/+$/,''); } catch { return undefined; } })() : undefined);
+  globalWebBase = cfg.webBase || globalWebBase || (apiBase ? (() => { try { const u = new URL(apiBase); const host = u.hostname.startsWith('api.') ? u.hostname.slice('api.'.length) : u.hostname; u.hostname = host; u.pathname = '/'; return u.toString().replace(/\/+$/, ''); } catch { return undefined; } })() : undefined);
   globalApiBase = apiBase; // Init global var
   if (!apiBase) {
     apiBase = await promptForApiBase();

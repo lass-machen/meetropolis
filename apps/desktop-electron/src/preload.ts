@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer, desktopCapturer } from 'electron';
+import { contextBridge, ipcRenderer } from 'electron';
 
 // Schmale, sichere Bridge. Vorläufig werden keine Node-APIs exponiert.
 // TODO(TEST): Bridge-API hat noch keine Unit-Tests; später ergänzen, wenn benötigt.
@@ -7,8 +7,8 @@ let cachedApiBase: string | undefined;
 try {
   // Synchroner Abruf, damit apiBase SOFORT da ist (vor React-Start)
   cachedApiBase = ipcRenderer.sendSync('desktop:getApiBaseSync');
-  try { (window as any).__MEETROPOLIS_API_BASE__ = cachedApiBase; } catch {}
-} catch {}
+  try { (window as any).__MEETROPOLIS_API_BASE__ = cachedApiBase; } catch { }
+} catch { }
 
 // Polyfill für navigator.mediaDevices.getDisplayMedia im Main-World-Kontext.
 // Viele Electron/Chromium-Builds markieren die API als "Not supported".
@@ -61,7 +61,7 @@ try {
     s.textContent = code;
     (document.head || document.documentElement).appendChild(s);
     s.remove();
-  } catch {}
+  } catch { }
 })();
 
 contextBridge.exposeInMainWorld('desktop', {
@@ -78,32 +78,32 @@ contextBridge.exposeInMainWorld('desktop', {
   setConfig: async (cfg: { apiBase?: string; webBase?: string }): Promise<boolean> => {
     try { return !!(await ipcRenderer.invoke('desktop:setConfig', cfg)); } catch { return false; }
   },
-  listDisplaySources: async (opts?: { types?: ('screen'|'window')[] }): Promise<Array<{ id: string; name: string; type: 'screen'|'window'; thumbnail?: string }>> => {
+  listDisplaySources: async (opts?: { types?: ('screen' | 'window')[] }): Promise<Array<{ id: string; name: string; type: 'screen' | 'window'; thumbnail?: string }>> => {
     try {
-      const types = (opts?.types && opts.types.length > 0) ? opts.types : ['screen','window'];
-      const sources = await desktopCapturer.getSources({ types, thumbnailSize: { width: 320, height: 200 }, fetchWindowIcons: true } as any);
-      return sources.map(s => ({
+      const types = (opts?.types && opts.types.length > 0) ? opts.types : ['screen', 'window'];
+      const sources = await ipcRenderer.invoke('desktop:getSources', { types, thumbnailSize: { width: 320, height: 200 }, fetchWindowIcons: true });
+      return sources.map((s: any) => ({
         id: s.id,
         name: s.name,
         type: (s.id || '').startsWith('screen:') ? 'screen' : 'window',
-        thumbnail: (s.thumbnail && !s.thumbnail.isEmpty()) ? s.thumbnail.toDataURL() : undefined
+        thumbnail: s.thumbnail
       }));
     } catch {
       return [];
     }
   },
-  pickDisplaySource: async (opts?: { types?: ('screen'|'window')[] }): Promise<{ id: string; name: string } | null> => {
+  pickDisplaySource: async (opts?: { types?: ('screen' | 'window')[] }): Promise<{ id: string; name: string } | null> => {
     try { return await ipcRenderer.invoke('desktop:pickDisplaySource', opts || {}); } catch { return null; }
   },
-  __resolveDisplayPick: (token: string, id: string) => { try { ipcRenderer.send('desktop:pickDisplaySource:resolve:' + token, { id }); } catch {} },
+  __resolveDisplayPick: (token: string, id: string) => { try { ipcRenderer.send('desktop:pickDisplaySource:resolve:' + token, { id }); } catch { } },
   // Electron-native Auswahl einer Bildschirm-/Fensterquelle.
   // Liefert eine sourceId zurück (für chromeMediaSourceId).
-  chooseDisplaySource: async (opts?: { types?: ('screen'|'window')[] }): Promise<{ id: string; name: string } | null> => {
+  chooseDisplaySource: async (opts?: { types?: ('screen' | 'window')[] }): Promise<{ id: string; name: string } | null> => {
     try {
       const types = (opts?.types && opts.types.length > 0) ? opts.types : ['screen', 'window'];
-      const sources = await desktopCapturer.getSources({ types, thumbnailSize: { width: 0, height: 0 }, fetchWindowIcons: false } as any);
+      const sources = await ipcRenderer.invoke('desktop:getSources', { types, thumbnailSize: { width: 0, height: 0 }, fetchWindowIcons: false });
       // Priorisiere Screens vor Fenstern
-      const screen = sources.find(s => s.id.startsWith('screen:')) || sources[0];
+      const screen = sources.find((s: any) => s.id.startsWith('screen:')) || sources[0];
       if (!screen) return null;
       return { id: screen.id, name: screen.name };
     } catch {
@@ -113,12 +113,12 @@ contextBridge.exposeInMainWorld('desktop', {
   __setApiBase: (v: string) => {
     try {
       cachedApiBase = v;
-      try { (window as any).__MEETROPOLIS_API_BASE__ = v; } catch {}
+      try { (window as any).__MEETROPOLIS_API_BASE__ = v; } catch { }
       ipcRenderer.send('desktop:setApiBase', v);
-    } catch {}
+    } catch { }
   }
 });
 
-export {};
+export { };
 
 
