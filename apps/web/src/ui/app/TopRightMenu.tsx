@@ -31,27 +31,27 @@ export function TopRightMenu(props: {
           <Button icon="gear" iconPosition="only" title={t('topRightMenu.settings')} aria-label={t('topRightMenu.settings')} onClick={onToggleMenu} />
           {menuOpen && (
             <div role="menu" style={{ position: 'absolute', top: 'calc(100% + 8px)', right: 0, background: 'rgba(17,17,20,0.96)', color: '#fff', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12, padding: 10, display: 'grid', gap: 8, minWidth: 280, boxShadow: '0 16px 40px rgba(0,0,0,0.45)', backdropFilter: 'blur(6px)', zIndex: 70 }}>
-              <button role="menuitem" onClick={onBackToWorld} style={{ textAlign: 'left', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--glass)', color: 'var(--fg)', cursor: 'pointer', display:'flex', alignItems:'center', gap:8 }}>
+              <button role="menuitem" onClick={onBackToWorld} className="menu-item">
                 <FAIcon name="earth-europe" variant="solid" fixedWidth />
                 <span>{t('topRightMenu.backToWorld')}</span>
               </button>
               
-              <button role="menuitem" onClick={onOpenApi} style={{ textAlign: 'left', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--glass)', color: 'var(--fg)', cursor: 'pointer', display:'flex', alignItems:'center', gap:8 }}>
+              <button role="menuitem" onClick={onOpenApi} className="menu-item">
                 <FAIcon name="key" variant="solid" fixedWidth />
                 <span>{t('topRightMenu.api')}</span>
               </button>
-              <button role="menuitem" onClick={onToggleEditor} style={{ textAlign: 'left', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: editorActive ? 'rgba(16,185,129,0.18)' : 'var(--glass)', color: 'var(--fg)', cursor: 'pointer', display:'flex', alignItems:'center', gap:8 }}>
+              <button role="menuitem" onClick={onToggleEditor} className={`menu-item ${editorActive ? 'active' : ''}`}>
                 <FAIcon name={editorActive ? 'pen-to-square' : 'pen-ruler'} variant="solid" fixedWidth />
                 <span>{editorActive ? t('topRightMenu.editorOff') : t('topRightMenu.editorOn')}</span>
               </button>
               <div style={{ height: 1, background: 'var(--border)', margin: '6px 4px' }} />
               {onResetApp && (
-                <button role="menuitem" onClick={onResetApp} style={{ textAlign: 'left', padding: '10px 12px', borderRadius: 8, border: '1px solid rgba(244,63,94,0.35)', background: 'rgba(244,63,94,0.12)', color: '#fff', cursor: 'pointer', display:'flex', alignItems:'center', gap:8 }}>
+                <button role="menuitem" onClick={onResetApp} className="menu-item danger">
                   <FAIcon name="broom" variant="solid" fixedWidth />
                   <span>{t('topRightMenu.resetApp') || 'App zurücksetzen'}</span>
                 </button>
               )}
-              <button role="menuitem" onClick={onLogout} style={{ textAlign: 'left', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--glass)', color: 'var(--fg)', cursor: 'pointer', display:'flex', alignItems:'center', gap:8 }}>
+              <button role="menuitem" onClick={onLogout} className="menu-item">
                 <FAIcon name="right-from-bracket" variant="solid" fixedWidth />
                 <span>{t('topRightMenu.logout')}</span>
               </button>

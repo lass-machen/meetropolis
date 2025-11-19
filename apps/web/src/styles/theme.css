@@ -7,7 +7,7 @@
   --fg-subtle: #9ca3af;
   --border: rgba(255,255,255,0.08);
   --glass: rgba(255,255,255,0.06);
-  --glass-hover: rgba(255,255,255,0.10);
+  --glass-hover: rgba(255,255,255,0.12);
   --shadow: 0 12px 30px rgba(0,0,0,0.35);
   --modal-bg: rgba(17,17,20,0.98);
   --modal-fg: #e5e7eb;
@@ -62,7 +62,7 @@
   --fg-subtle: #9ca3af;
   --border: rgba(255,255,255,0.08);
   --glass: rgba(255,255,255,0.06);
-  --glass-hover: rgba(255,255,255,0.10);
+  --glass-hover: rgba(255,255,255,0.12);
   --shadow: 0 12px 30px rgba(0,0,0,0.35);
   --modal-bg: rgba(17,17,20,0.98);
   --modal-fg: #e5e7eb;
@@ -434,4 +434,62 @@ body {
    Overlays should use backdrop-filter, not filter on roots. */
 html, body, #root, #root > div {
   filter: none !important;
+}
+
+/* Menu Items */
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--glass);
+  color: var(--fg);
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.1s ease;
+  font-size: 13px;
+}
+.menu-item:hover {
+  background: var(--glass-hover);
+}
+.menu-item:active {
+  transform: scale(0.98);
+}
+.menu-item.active {
+  background: rgba(16,185,129,0.18);
+  border-color: rgba(16,185,129,0.35);
+}
+.menu-item.danger {
+  background: rgba(244,63,94,0.12);
+  border-color: rgba(244,63,94,0.35);
+  color: #fff;
+}
+.menu-item.danger:hover {
+  background: rgba(244,63,94,0.25);
+}
+
+/* Device Selector Items (Small Lists) */
+.device-selector-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fg);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.1s ease;
+}
+.device-selector-item:hover {
+  background: var(--glass-hover);
+}
+.device-selector-item.selected {
+  background: rgba(255,255,255,0.15);
 }

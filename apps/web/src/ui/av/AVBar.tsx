@@ -68,17 +68,7 @@ function DeviceSelector(props: {
             <button
               key={d.id}
               onClick={() => { onSelect(d.id); setOpen(false); }}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 8,
-                background: d.id === selectedId ? 'rgba(255,255,255,0.1)' : 'transparent',
-                border: 'none', borderRadius: 6,
-                padding: '8px 10px',
-                color: 'var(--fg)',
-                fontSize: 13,
-                cursor: 'pointer',
-                textAlign: 'left',
-                transition: 'background 0.1s'
-              }}
+              className={`device-selector-item ${d.id === selectedId ? 'selected' : ''}`}
             >
               {d.id === selectedId && <FAIcon name="check" size="xs" style={{ color: '#22d3ee' }} />}
               <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.label}</span>
