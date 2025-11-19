@@ -40,7 +40,7 @@ function DeviceSelector(props: {
             style={{ borderTopLeftRadius: 0, borderBottomLeftRadius: 0, paddingLeft: 4, paddingRight: 4, minWidth: 24 }}
           />
         </PopoverTrigger>
-        <PopoverContent side="top" align="center" sideOffset={5} style={{ zIndex: 1000 }}>
+        <PopoverContent side="top" align="center" sideOffset={5} collisionPadding={10} style={{ zIndex: 1000 }}>
           <div className="glass-surface" style={{ padding: 4, display: 'grid', gap: 2, minWidth: 200 }}>
             <div style={{ padding: '4px 8px', fontSize: 11, color: 'var(--fg-subtle)', fontWeight: 600 }}>
               {labelSelect}

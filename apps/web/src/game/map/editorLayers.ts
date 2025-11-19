@@ -33,9 +33,7 @@ export function saveEditorLayers(scene: Phaser.Scene & any): void {
       w: width,
       h: height,
     };
-    // No longer writing to localStorage to avoid split-brain
-    // localStorage.setItem('meetropolis.editorLayers', JSON.stringify(data));
-
+    
     let base = (window as any).VITE_API_BASE || (import.meta as any).env.VITE_API_BASE as any;
     if (!base && typeof window !== 'undefined') base = `${window.location.protocol}//${window.location.hostname}:2567`;
     if (!base) base = 'http://localhost:2567';
@@ -53,8 +51,6 @@ export function saveEditorLayers(scene: Phaser.Scene & any): void {
     const jsonStr = JSON.stringify(serverPayload);
     if (jsonStr.length < 100000) {
        // Legacy PUT logic for v1 maps - DEPRECATED, do nothing
-       // const mapName = (typeof window !== 'undefined' && (((window as any).__map_name) || (window as any).MAP_NAME)) || 'office';
-       // fetch(`${base}/maps/${encodeURIComponent(mapName)}/editor-state`, { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: jsonStr }).catch(()=>{});
     }
   } catch {}
 }

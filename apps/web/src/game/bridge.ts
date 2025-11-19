@@ -44,6 +44,8 @@ type Bridge = {
   setSpawnMarker: (pos: { x: number; y: number } | null) => void;
   // Force-persist editor layers to server (no size guard)
   saveEditorLayersHard?: () => void;
+  applyChunkUpdates?: (layerName: 'ground' | 'walls' | 'collision', updates: Array<{ key: string; version: number; encoding: string; data: string }>) => void;
+  forceReloadMap?: () => void;
 };
 
 export type SceneApi = {
@@ -71,6 +73,8 @@ export type SceneApi = {
   setBackgroundColor?: (hex: string) => void;
   setSpawnMarker?: (pos: { x: number; y: number } | null) => void;
   saveEditorLayersHard?: () => void;
+  applyChunkUpdates?: (layerName: 'ground' | 'walls' | 'collision', updates: Array<{ key: string; version: number; encoding: string; data: string }>) => void;
+  forceReloadMap?: () => void;
 };
 
 let sceneApi: SceneApi | null = null;
@@ -206,15 +210,14 @@ export const gameBridge: Bridge = {
   registerTileset: (ts) => {
     // 1) Apply to scene
     sceneApi?.registerTileset(ts);
-    // 2) Persist best-effort to localStorage and server editor-state
+    // 2) Persist best-effort to server editor-state
     try {
-      // Merge into cached list in localStorage to avoid duplicates
-      const stored = (typeof window !== 'undefined') ? localStorage.getItem('meetropolis.tilesets') : null;
-      const list: any[] = stored ? JSON.parse(stored) : [];
+      // removed localstorage logic for tilesets
+      const list: any[] = (typeof (window as any).pendingTilesets !== 'undefined') ? (window as any).pendingTilesets : [];
       const next = Array.isArray(list) ? list.slice() : [];
       const exists = next.find((t: any) => t && t.key === ts.key);
       if (!exists) next.push({ key: ts.key, dataUrl: ts.dataUrl, tileWidth: ts.tileWidth, tileHeight: ts.tileHeight, margin: ts.margin ?? 0, spacing: ts.spacing ?? 0 });
-      try { localStorage.setItem('meetropolis.tilesets', JSON.stringify(next)); } catch (e) { console.warn('Failed to save tilesets to localStorage', e); }
+      
       // Best-effort: debounce server PUT to avoid flooding
       if (next.length !== tilesetPersistLastLen) {
         tilesetPersistLastLen = next.length;
@@ -291,7 +294,6 @@ export const gameBridge: Bridge = {
     } catch (e) { console.error('Failed to handle editor update', e); }
   },
   setBackgroundColor: (hex: string) => {
-    try { localStorage.setItem('meetropolis.backgroundColor', hex); } catch (e) { console.warn('Failed to save background color', e); }
     cachedBackgroundColor = hex;
     sceneApi?.setBackgroundColor?.(hex);
   },
@@ -299,5 +301,11 @@ export const gameBridge: Bridge = {
     cachedSpawnMarker = pos ? { x: pos.x, y: pos.y } : null;
     sceneApi?.setSpawnMarker?.(pos);
   },
-  saveEditorLayersHard: () => { try { sceneApi?.saveEditorLayersHard?.(); } catch (e) { console.error('Failed hard save', e); } }
+  saveEditorLayersHard: () => { try { sceneApi?.saveEditorLayersHard?.(); } catch (e) { console.error('Failed hard save', e); } },
+  applyChunkUpdates: (layerName, updates) => {
+    try { sceneApi?.applyChunkUpdates?.(layerName, updates); } catch (e) { console.error('Failed to apply chunk updates', e); }
+  },
+  forceReloadMap: () => {
+    try { sceneApi?.forceReloadMap?.(); } catch (e) { console.error('Failed to force reload map', e); }
+  }
 };

@@ -36,7 +36,6 @@ export function useEditorBridge(params: {
         const tileSize = 16;
         const x = tileX * tileSize + tileSize / 2;
         const y = tileY * tileSize + tileSize / 2;
-        try { localStorage.setItem('meetropolis.spawn', JSON.stringify({ x, y })); } catch (e) { logger.warn('Failed to save spawn locally', e); }
         try { (window as any).initialPlayerPosition = { x, y }; } catch (e) { console.error('Failed to set global spawn', e); }
         try { gameBridge.setSpawnMarker?.({ x, y }); } catch (e) { logger.error('Failed to set spawn marker', e); }
         try { gameBridge.setDesiredPosition?.({ x, y }); } catch (e) { logger.error('Failed to set desired pos', e); }

@@ -860,12 +860,20 @@ export class MainScene extends Phaser.Scene {
     }
 
     // Nach dem Aufbau: IMMER vom Server laden für konsistenten State
-    // v2 aktiv? dann keinen v1-Reload/LocalStorage anwenden
+    setTimeout(() => {
+      // WICHTIG: Auch für V2-Maps müssen dynamische Server-Daten (Kollision, Editor-Paints) geladen werden!
+      // Sonst haben normale User keine Kollisionen, da diese nicht im statischen Map-Build enthalten sind.
+      this.fetchAndApplyServerLayers().then(() => {
+        // Nach dem Laden: Kollision für Nicht-Editoren verstecken
+        if (!this.editorMode) {
+           try { this.collisionLayer?.setVisible(false); } catch (e) { editorError('Init', 'Failed to hide collision layer', e); }
+        }
+      }).catch(e => editorError('Init', 'Failed to load server layers', e));
+    }, 100);
+
     if (this.v2) {
-      // Kollision außerhalb des Editors unsichtbar halten
-      try { this.collisionLayer?.setVisible(false); } catch (e) { editorError('Init', 'Failed to hide collision layer', e); }
-    } else {
-      // Legacy path: should not happen in new maps, but safe to ignore or log
+       // Initial verstecken (wird nach Load erneut sichergestellt)
+       try { this.collisionLayer?.setVisible(false); } catch (e) { editorError('Init', 'Failed to hide collision layer', e); }
     }
 
     // Bridge aufräumen, wenn Szene herunterfährt
@@ -1456,6 +1464,23 @@ export class MainScene extends Phaser.Scene {
     }
   }
   private _lastCamSig: string | null = null;
+
+  forceReloadMap() {
+    if (this.v2) {
+       this.loadedChunks.clear();
+       this._lastCamSig = null; // force re-check in update()
+       try { editorLog('Reload', 'Forced full map reload (chunks cleared)'); } catch {}
+       // Trigger re-load of all layers immediately
+       this.loadVisibleChunks('ground');
+       this.loadVisibleChunks('walls');
+       this.loadVisibleChunks('collision');
+       // Also reload non-chunk server state
+       this.fetchAndApplyServerLayers().catch(() => {});
+    } else {
+       // Legacy path: just re-fetch
+       this.fetchAndApplyServerLayers().catch(() => {});
+    }
+  }
 
   private ensureCollisionCollider() {
     colEnsureCollider(this as any);

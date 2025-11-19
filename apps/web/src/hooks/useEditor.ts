@@ -44,9 +44,9 @@ export function useEditor(): [EditorState, React.Dispatch<React.SetStateAction<E
     drag: null,
     lastTile: null,
     settingSpawn: false,
-    spawn: (typeof window !== 'undefined' && (()=>{ try { const raw = localStorage.getItem('meetropolis.spawn'); return raw ? JSON.parse(raw) : null; } catch { return null; } })()) || null,
+    spawn: null,
     tilesets: [],
-    backgroundColor: (typeof window !== 'undefined' && localStorage.getItem('meetropolis.backgroundColor')) || '#202020',
+    backgroundColor: '#202020',
   });
   return [editor, setEditor];
 }

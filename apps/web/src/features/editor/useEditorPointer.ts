@@ -35,7 +35,6 @@ export function useEditorPointer({ editor, setEditor, apiBase }: { editor: Edito
       if (typeof p.height === 'number') next.height = p.height;
       setEditor((s: any) => {
         const assets = [...s.assets, next];
-        try { localStorage.setItem('meetropolis.assets', JSON.stringify(assets)); } catch {}
         try { gameBridge.setEditorAssets(assets); } catch {}
         scheduleSaveAssets(assets);
         if (next.collide === true) {
@@ -76,7 +75,6 @@ export function useEditorPointer({ editor, setEditor, apiBase }: { editor: Edito
             nextAssets.push(na);
           }
         }
-        try { localStorage.setItem('meetropolis.assets', JSON.stringify(nextAssets)); } catch {}
         try { gameBridge.setEditorAssets(nextAssets); } catch {}
         scheduleSaveAssets(nextAssets);
         try { gameBridge.setSelectionRect(null); } catch {}
@@ -129,7 +127,6 @@ export function useEditorPointer({ editor, setEditor, apiBase }: { editor: Edito
         const poly = [ { x: x0, y: y0 }, { x: x1, y: y0 }, { x: x1, y: y1 }, { x: x0, y: y1 } ];
         const zones = s.zones.slice();
         zones.push({ name: s.name || 'Zone', points: poly } as any);
-        try { localStorage.setItem('meetropolis.zones', JSON.stringify(zones)); } catch {}
         try { gameBridge.setZoneOverlay(zones as any); } catch {}
         try { gameBridge.setSelectionRect(null); } catch {}
         return { ...s, zones, drag: null, editingZoneIndex: null, tool: 'select' };
@@ -152,7 +149,6 @@ export function useEditorPointer({ editor, setEditor, apiBase }: { editor: Edito
           const realIdx = s.assets.length - 1 - idx;
           const assets = s.assets.slice();
           assets.splice(realIdx, 1);
-          try { localStorage.setItem('meetropolis.assets', JSON.stringify(assets)); } catch {}
           try { gameBridge.setEditorAssets(assets); } catch {}
           scheduleSaveAssets(assets);
           return { ...s, assets };

@@ -19,13 +19,11 @@ export async function fetchAndApplyServerLayers(scene: Phaser.Scene & any): Prom
           try { requiredTsKeys.push(ts.key); } catch {}
         }
       }
-      try { localStorage.setItem('meetropolis.tilesets', JSON.stringify(arr)); } catch {}
     } catch {}
     try {
       const bg = typeof (data as any)?.backgroundColor === 'string' ? (data as any).backgroundColor : null;
       if (bg) {
         scene.cameras.main.setBackgroundColor(bg);
-        try { localStorage.setItem('meetropolis.backgroundColor', bg); } catch {}
       }
       const sp = (data as any)?.spawn;
       if (sp && typeof sp.x === 'number' && typeof sp.y === 'number') {
@@ -43,7 +41,6 @@ export async function fetchAndApplyServerLayers(scene: Phaser.Scene & any): Prom
         return { name: anyZ.name, points: pts };
       }) : [];
       if (zones.length > 0) {
-        try { localStorage.setItem('meetropolis.zones', JSON.stringify(zones)); } catch {}
         try { scene.setZoneOverlay(zones); } catch {}
       }
     } catch {}
@@ -115,7 +112,6 @@ export async function fetchAndApplyServerLayers(scene: Phaser.Scene & any): Prom
       if (Array.isArray((data as any)?.assets)) {
         const assets = (data as any).assets;
         scene.setEditorAssets(assets);
-        try { localStorage.setItem('meetropolis.assets', JSON.stringify(assets)); } catch {}
       }
     } catch {}
   } catch (e) {

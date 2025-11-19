@@ -289,12 +289,7 @@ export function WorldApp() {
       };
 
       const readLocalSpawn = (): { x: number; y: number } | null => {
-        try {
-          const raw = localStorage.getItem('meetropolis.spawn');
-          if (!raw) return null;
-          const sp = JSON.parse(raw);
-          if (sp && typeof sp.x === 'number' && typeof sp.y === 'number') return { x: sp.x, y: sp.y };
-        } catch {}
+        // Removed localStorage logic for spawn, rely on server or default
         return null;
       };
 
@@ -734,7 +729,6 @@ export function WorldApp() {
           
           if (clickedAsset) {
             const assets = prev.assets.filter(a => a.id !== clickedAsset.id);
-            try { localStorage.setItem('meetropolis.assets', JSON.stringify(assets)); } catch {}
             gameBridge.setEditorAssets(assets);
             return { ...prev, assets };
           }
@@ -771,7 +765,6 @@ export function WorldApp() {
                 
                 setEditor(s => {
                   const assets = [...s.assets, asset];
-                  try { localStorage.setItem('meetropolis.assets', JSON.stringify(assets)); } catch {}
                   gameBridge.setEditorAssets(assets);
                   return { ...s, assets };
                 });
@@ -1152,9 +1145,10 @@ export function WorldApp() {
 
           {/* Bottom Control Bar (hidden in editor mode) */}
           {!editor.active && (
-            <div style={{ position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-50%)', zIndex: 30, maxWidth: 'calc(100vw - 32px)', display: 'flex', justifyContent: 'center' }}>
-              <AVBar
-                size="md"
+            <div style={{ position: 'absolute', bottom: 16, left: 0, right: 0, zIndex: 30, display: 'flex', justifyContent: 'center', pointerEvents: 'none' }}>
+              <div style={{ pointerEvents: 'auto', maxWidth: 'calc(100vw - 32px)', display: 'flex', justifyContent: 'center' }}>
+                <AVBar
+                  size="md"
                 micOn={avState.mic}
                 camOn={avState.cam}
                 shareOn={avState.share}

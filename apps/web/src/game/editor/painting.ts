@@ -193,6 +193,8 @@ export function applyTilePaint(scene: Phaser.Scene & any, edit: { layer: 'Editor
   try { const a = (targetLayer as Phaser.Tilemaps.TilemapLayer).alpha; (targetLayer as Phaser.Tilemaps.TilemapLayer).setAlpha(a === 1 ? 0.999 : 1); setTimeout(() => { try { (targetLayer as Phaser.Tilemaps.TilemapLayer).setAlpha(1); } catch (e) { editorError('Paint', 'Failed to restore alpha', e); } }, 0); } catch (e) { editorError('Paint', 'Failed to toggle alpha', e); }
   if (targetLayer === scene.collisionLayer) {
     scene.ensureCollisionCollider();
+    // WICHTIG: Auch für den Editor sofort static bodies neu bauen, damit die Physik konsistent ist
+    try { scene.rebuildStaticColliders(); } catch (e) { editorError('Paint', 'Failed to rebuild static colliders', e); }
     if (scene.v2) { try { scene.collisionLayer?.setVisible(false); } catch (e) { editorError('Paint', 'Failed to hide collision layer', e); } }
     try { if (scene.collisionVisible) scene.updateCollisionOverlay(); } catch (e) { editorError('Paint', 'Failed to update collision overlay', e); }
     try {

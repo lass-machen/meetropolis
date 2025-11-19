@@ -182,6 +182,9 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
           } catch {}
         };
 
+        // Force full map reload on join/reconnect to ensure consistency
+        try { gameBridge.forceReloadMap?.(); } catch (e) { console.error('Failed to force reload map on join', e); }
+
         // Debounce: Teilnehmerliste/Roster nur 1x pro kurzem Intervall aktualisieren (rAF + Delay)
         // Vor neuem Session-Lauf evtl. hängende Handles räumen und zurücksetzen
         if (buildListTimer) { try { clearTimeout(buildListTimer); } catch {} buildListTimer = null; }

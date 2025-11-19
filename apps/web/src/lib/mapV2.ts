@@ -36,7 +36,9 @@ export async function fetchStateV2(mapName: string): Promise<V2State | null> {
 export async function fetchChunks(mapName: string, layer: string, keys: string[]): Promise<Record<string, V2ChunkPayload>> {
   if (keys.length === 0) return {};
   const qs = keys.join(',');
-  const res = await fetch(`${baseUrl()}/maps/${encodeURIComponent(mapName)}/chunks?layer=${encodeURIComponent(layer)}&keys=${encodeURIComponent(qs)}`, { credentials: 'include' });
+  // Prevent aggressive webview/browser caching with timestamp
+  const ts = Date.now();
+  const res = await fetch(`${baseUrl()}/maps/${encodeURIComponent(mapName)}/chunks?layer=${encodeURIComponent(layer)}&keys=${encodeURIComponent(qs)}&t=${ts}`, { credentials: 'include' });
   if (!res.ok) throw new Error('failed to fetch chunks');
   const json = await res.json();
   return (json?.chunks ?? {}) as Record<string, V2ChunkPayload>;

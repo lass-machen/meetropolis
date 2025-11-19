@@ -17,7 +17,6 @@ export function useZones(params: {
     const zonesToShow = editor.active ? editor.zones : [];
     try { gameBridge.setZoneOverlay(zonesToShow); } catch {}
     try { zoneRef.current?.setZones?.(editor.zones as any); } catch {}
-    try { localStorage.setItem('meetropolis.zones', JSON.stringify(editor.zones || [])); } catch {}
 
     if (suppressZoneBroadcastRef.current) return;
 
@@ -34,7 +33,6 @@ export function useZones(params: {
   const applyIncomingZones = React.useCallback((polys: any[]) => {
     suppressZoneBroadcastRef.current = true;
     setEditor(s => ({ ...s, zones: polys }));
-    try { localStorage.setItem('meetropolis.zones', JSON.stringify(polys)); } catch {}
     try { gameBridge.setZoneOverlay(polys); } catch {}
     try { zoneRef.current?.setZones?.(polys as any); } catch {}
     // Cancel pending debounced send; re-allow broadcasting nach kurzer Pause
