@@ -6,9 +6,10 @@ import fs from 'fs/promises';
 // TODO(TEST): Minimaler Desktop-Smoke-Test fehlt (Window-Start, Dev/Prod-Ladepfad)
 
 let globalApiBase: string | undefined; // Memory cache for sync IPC
+let globalWebBase: string | undefined;  // Remote Web UI base (e.g., https://meetropolis.example.com)
 
 const isDev = !app.isPackaged;
-type AppConfig = { apiBase?: string };
+type AppConfig = { apiBase?: string; webBase?: string };
 function getConfigPath(): string { return path.join(app.getPath('userData'), 'config.json'); }
 async function readConfig(): Promise<AppConfig> {
   try {
@@ -29,17 +30,37 @@ function getPreloadPath(): string {
   return path.join(__dirname, 'preload.js');
 }
 
-function getIndexUrl(): string {
+function getIndexUrl(apiBase?: string): string {
   if (isDev) {
     return 'http://localhost:5173';
   }
-  // In Produktion wird das Web-Build als ExtraResource "web" gepackt
+  // In Produktion: Wenn eine Web-URL konfiguriert ist, laden wir direkt diese Remote-URL.
+  // So ist die Desktop-App 1:1 identisch mit der Browser-Version.
+  if (globalWebBase && /^https?:\/\//.test(globalWebBase)) {
+    return globalWebBase;
+  }
+  // Notfall: aus apiBase eine Web-URL ableiten (api.foo -> foo)
+  if (apiBase && /^https?:\/\//.test(apiBase)) {
+    try {
+      const u = new URL(apiBase);
+      const host = u.hostname.startsWith('api.') ? u.hostname.slice('api.'.length) : u.hostname;
+      u.hostname = host;
+      u.pathname = '/';
+      return u.toString().replace(/\/+$/g, '');
+    } catch {}
+  }
+  // Fallback: Lokales HTML für Setup/Error
   const indexPath = path.join(process.resourcesPath, 'web', 'index.html');
   return url.pathToFileURL(indexPath).toString();
 }
 
 function withApiBase(u: string, apiBase?: string): string {
+  // Wenn wir die Remote-URL direkt laden, brauchen wir den Query-Param nicht zwingend,
+  // hängen ihn aber zur Sicherheit an (für Hybrid-Setups).
   if (!apiBase) return u;
+  // Wenn u == apiBase, nichts anhängen
+  if (u.replace(/\/$/, '') === apiBase.replace(/\/$/, '')) return u;
+  
   try {
     const parsed = new URL(u);
     parsed.searchParams.set('apiBase', apiBase);
@@ -54,6 +75,8 @@ async function createMainWindow(apiBase?: string): Promise<BrowserWindow> {
     width: 1280,
     height: 800,
     title: 'Meetropolis',
+    show: false, // Erst zeigen wenn geladen
+    backgroundColor: '#111',
     webPreferences: {
       preload: getPreloadPath(),
       contextIsolation: true,
@@ -64,8 +87,22 @@ async function createMainWindow(apiBase?: string): Promise<BrowserWindow> {
     }
   });
 
-  const startUrl = withApiBase(getIndexUrl(), apiBase);
-  await win.loadURL(startUrl);
+  const startUrl = withApiBase(getIndexUrl(apiBase), apiBase);
+  // Wenn Remote: User-Agent anpassen, falls Server Weichen stellt
+  if (startUrl.startsWith('http')) {
+    win.webContents.setUserAgent(win.webContents.getUserAgent() + ' MeetropolisDesktop/0.1.0');
+  }
+
+  win.once('ready-to-show', () => win.show());
+
+  try {
+    await win.loadURL(startUrl);
+  } catch (e) {
+    // Falls Remote-Load fehlschlägt (Offline?), lokalen Dialog zeigen
+    if (startUrl !== getIndexUrl(undefined)) {
+       await win.loadURL(getIndexUrl(undefined));
+    }
+  }
 
   if (isDev) {
     win.webContents.openDevTools({ mode: 'detach' });
@@ -86,11 +123,21 @@ function setAppMenu(): void {
           click: async () => {
             const v = await promptForApiBase(globalApiBase);
             if (!v) return;
-            try { await writeConfig({ apiBase: v }); globalApiBase = v; } catch {}
+            // webBase aus apiBase ableiten, falls unbekannt
+            const webFromApi = (() => {
+              try {
+                const u = new URL(v);
+                const host = u.hostname.startsWith('api.') ? u.hostname.slice('api.'.length) : u.hostname;
+                u.hostname = host;
+                u.pathname = '/';
+                return u.toString().replace(/\/+$/g, '');
+              } catch { return globalWebBase; }
+            })();
+            try { await writeConfig({ apiBase: v, webBase: webFromApi }); globalApiBase = v; globalWebBase = webFromApi; } catch {}
             const all = BrowserWindow.getAllWindows();
             const win = all[0];
             if (win) {
-              const startUrl = withApiBase(getIndexUrl(), v);
+              const startUrl = withApiBase(getIndexUrl(v), v);
               await win.loadURL(startUrl);
             } else {
               await createMainWindow(v);
@@ -175,13 +222,16 @@ async function promptForApiBase(currentValue?: string): Promise<string | undefin
               saveBtn.innerText = 'Prüfe…';
               
               try {
-                // Validate & Auto-Discover API
+                // Validate & Auto-Discover API + Web URL
                 const res = await window.desktop.validateApiUrl(v);
                 if (res.valid) {
+                  const cfg = { apiBase: (res.apiUrl||'').replace(/\\/+$/,''), webBase: (res.webUrl||'').replace(/\\/+$/,'') };
+                  await window.desktop.setConfig(cfg);
                   saveBtn.innerText = 'Verbunden!';
                   saveBtn.style.background = '#10b981';
                   setTimeout(() => {
-                    window.desktop && window.desktop.__setApiBase && window.desktop.__setApiBase(res.url);
+                    // Inform main to close dialog and continue
+                    window.desktop && window.desktop.__setApiBase && window.desktop.__setApiBase(cfg.apiBase);
                   }, 400);
                 } else {
                   alert('Unter dieser URL konnte kein Meetropolis-Server gefunden werden.\\n\\nBitte prüfe die Adresse.');
@@ -266,8 +316,18 @@ app.whenReady().then(async () => {
       return false;
     };
 
-    // 1. Try as is
-    if (await check(url)) return { valid: true, url };
+    // 1. Try as is (assume user entered API URL)
+    if (await check(url)) {
+      let webUrl = '';
+      try {
+        const u = new URL(url);
+        const host = u.hostname.startsWith('api.') ? u.hostname.slice('api.'.length) : u.hostname;
+        u.hostname = host;
+        u.pathname = '/';
+        webUrl = normalize(u.toString());
+      } catch {}
+      return { valid: true, apiUrl: url, webUrl };
+    }
 
     // 2. Try adding 'api.' prefix to hostname if not present
     try {
@@ -276,21 +336,30 @@ app.whenReady().then(async () => {
         const originalHost = u.hostname;
         u.hostname = 'api.' + u.hostname;
         const apiUrl = normalize(u.toString());
-        if (await check(apiUrl)) return { valid: true, url: apiUrl };
+        if (await check(apiUrl)) {
+          // If original was web host, keep it as webUrl
+          const webUrl = normalize(url);
+          return { valid: true, apiUrl, webUrl };
+        }
       }
     } catch {}
 
-    return { valid: false, url: inputUrl };
+    return { valid: false, apiUrl: inputUrl, webUrl: '' };
   });
   ipcMain.on('desktop:getApiBaseSync', (evt) => { evt.returnValue = globalApiBase; });
   ipcMain.handle('desktop:setConfig', async (_evt, cfg: AppConfig) => { await writeConfig(cfg||{}); return true; });
   ipcMain.on('desktop:setApiBase', (_evt, v: string) => { 
     globalApiBase = v; 
+    // try to keep web base in sync if missing
+    if (!globalWebBase && v) {
+      try { const u = new URL(v); const host = u.hostname.startsWith('api.') ? u.hostname.slice('api.'.length) : u.hostname; u.hostname = host; u.pathname = '/'; globalWebBase = u.toString().replace(/\/+$/,''); } catch {}
+    }
     /* handled in prompt, but also update memory */ 
   });
 
   let cfg = await readConfig();
   let apiBase = cfg.apiBase;
+  globalWebBase = cfg.webBase || globalWebBase || (apiBase ? (() => { try { const u = new URL(apiBase); const host = u.hostname.startsWith('api.') ? u.hostname.slice('api.'.length) : u.hostname; u.hostname = host; u.pathname = '/'; return u.toString().replace(/\/+$/,''); } catch { return undefined; } })() : undefined);
   globalApiBase = apiBase; // Init global var
   if (!apiBase) {
     apiBase = await promptForApiBase();

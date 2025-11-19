@@ -15,13 +15,13 @@ contextBridge.exposeInMainWorld('desktop', {
   get apiBase(): string | undefined {
     return cachedApiBase;
   },
-  getConfig: async (): Promise<{ apiBase?: string }> => {
+  getConfig: async (): Promise<{ apiBase?: string; webBase?: string }> => {
     try { return (await ipcRenderer.invoke('desktop:getConfig')) as any; } catch { return {}; }
   },
-  validateApiUrl: async (url: string): Promise<{ valid: boolean; url: string }> => {
-    try { return await ipcRenderer.invoke('desktop:validateApiUrl', url); } catch { return { valid: false, url }; }
+  validateApiUrl: async (url: string): Promise<{ valid: boolean; apiUrl: string; webUrl?: string }> => {
+    try { return await ipcRenderer.invoke('desktop:validateApiUrl', url); } catch { return { valid: false, apiUrl: url }; }
   },
-  setConfig: async (cfg: { apiBase?: string }): Promise<boolean> => {
+  setConfig: async (cfg: { apiBase?: string; webBase?: string }): Promise<boolean> => {
     try { return !!(await ipcRenderer.invoke('desktop:setConfig', cfg)); } catch { return false; }
   },
   __setApiBase: (v: string) => {
