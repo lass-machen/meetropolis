@@ -270,6 +270,15 @@ function registerSecurityHandlers(): void {
     }
     callback(false);
   });
+  // Proaktive Erlaubnisprüfung (einige Chromium-Pfade prüfen vor dem Request)
+  try {
+    session.defaultSession.setPermissionCheckHandler((_wc, permission) => {
+      if (permission === 'media') return true;
+      // display-capture ist ggf. im Typ nicht enthalten – als any behandeln
+      if ((permission as any) === 'display-capture') return true;
+      return false;
+    });
+  } catch {}
 
   // Einfache CSP zur Härtung (anpassbar bei Bedarf)
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
@@ -279,14 +288,11 @@ function registerSecurityHandlers(): void {
       "media-src 'self' blob: https: http:",
       "connect-src 'self' ws: wss: https: http:"
     ].join('; ');
-    const responseHeaders = {
-      ...details.responseHeaders,
-      'Content-Security-Policy': [csp],
-      // Erlaube getDisplayMedia im Top-Level-Dokument explizit
-      'Permissions-Policy': ["display-capture=(self)"],
-      // Legacy alias (einige Stacks nutzen noch diese Bezeichnung)
-      'Feature-Policy': ["display-capture 'self'"]
-    } as Record<string, string[]>;
+    const responseHeaders = { ...(details.responseHeaders || {}) } as Record<string, string[]>;
+    responseHeaders['Content-Security-Policy'] = [csp];
+    // Überschreibe evtl. vorhandene Policies gezielt
+    responseHeaders['Permissions-Policy'] = [`display-capture=(self)`];
+    responseHeaders['Feature-Policy'] = [`display-capture 'self'`];
     callback({ responseHeaders });
   });
 }

@@ -1118,12 +1118,39 @@ export class AVManager {
           audio: true,
         } as any);
       } catch (e) {
-        // Fallback: ohne System-Audio teilen (macOS Screen Recording ohne spezielle Setup)
-        try { console.debug('[AV][debug] screenshare.start retry without audio'); } catch {}
-        tracks = await createLocalScreenTracks({
-          video: { frameRate: 30, resolution: { width: 1920, height: 1080 } } as any,
-          audio: false,
-        } as any);
+        // Fallback Pfad 1: ohne System-Audio teilen
+        try { console.debug('[AV][debug] screenshare.start retry without audio', e); } catch {}
+        try {
+          tracks = await createLocalScreenTracks({
+            video: { frameRate: 30, resolution: { width: 1920, height: 1080 } } as any,
+            audio: false,
+          } as any);
+        } catch (e2) {
+          // Fallback Pfad 2 (Electron): desktopCapturer verwenden
+          try { console.debug('[AV][debug] screenshare.electron.desktopCapturer'); } catch {}
+          try {
+            const anyWin = window as any;
+            const choice = await anyWin.desktop?.chooseDisplaySource?.({ types: ['screen'] });
+            if (choice && choice.id) {
+              const stream = await navigator.mediaDevices.getUserMedia({
+                audio: false,
+                video: {
+                  mandatory: {
+                    chromeMediaSource: 'desktop',
+                    chromeMediaSourceId: choice.id,
+                    maxFrameRate: 30,
+                  }
+                } as any
+              } as any);
+              const vTrack = stream.getVideoTracks()[0];
+              if (vTrack) {
+                tracks = [{ kind: 'video', mediaStreamTrack: vTrack } as any];
+              }
+            }
+          } catch (e3) {
+            try { console.debug('[AV][debug] screenshare.electron.desktopCapturer.failed', e3); } catch {}
+          }
+        }
       }
       if (!Array.isArray(tracks) || tracks.length === 0) {
         this.sharePending = false;
