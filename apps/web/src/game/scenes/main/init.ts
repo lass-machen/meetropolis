@@ -28,8 +28,7 @@ export function initMainScene(scene: Phaser.Scene & any): void {
     scene.loadVisibleChunks('walls');
     scene.loadVisibleChunks('collision');
   } else {
-    const map = scene.make.tilemap({ key: 'office' });
-    scene.mapRef = map;
+    throw new Error('Missing V2 state in initMainScene');
   }
 
   const map = scene.mapRef!;
@@ -37,37 +36,22 @@ export function initMainScene(scene: Phaser.Scene & any): void {
   const furniture = map.addTilesetImage('furniture_tiles', 'furniture_tiles', 16, 16, 0, 0);
   const decor = map.addTilesetImage('decor_tiles', 'decor_tiles', 16, 16, 0, 0);
   const collision = map.addTilesetImage('collision_tiles', 'collision_tiles', 16, 16, 0, 0);
-  if (!scene.v2) {
-    try {
-      const mapData = (map as any).data;
-      if (mapData && mapData.tilesets) {
-        mapData.tilesets.forEach((ts: any) => {
-          if (ts && ts.name && !map.tilesets.find((t: any) => t.name === ts.name)) {
-            try { map.addTilesetImage(ts.name, ts.name, ts.tilewidth || 16, ts.tileheight || 16, ts.margin || 0, ts.spacing || 0); } catch {}
-          }
-        });
-      }
-    } catch {}
-  }
+  
   const uniq = new Map<string, Phaser.Tilemaps.Tileset>();
   ;[office, furniture, decor, collision].filter(Boolean).forEach((ts: any) => {
     if (!uniq.has(ts.name)) uniq.set(ts.name, ts);
   });
   const available = Array.from(uniq.values());
-  const ground = scene.v2 ? scene.editorGround : (available.length ? map.createLayer('Ground', available, 0, 0) : undefined);
-  const walls = scene.v2 ? scene.wallsLayer : (available.length ? map.createLayer('Walls', available, 0, 0) : undefined);
+  const ground = scene.editorGround;
+  const walls = scene.wallsLayer;
   ground?.setDepth(0);
   walls?.setDepth(5);
 
   let collisionLayer: Phaser.Tilemaps.TilemapLayer | undefined;
   try {
-    if (scene.v2) {
-      collisionLayer = scene.collisionLayer;
-      if (collisionLayer) { try { (collisionLayer as any).setTilesets(available); } catch {} }
-    } else {
-      const created = map.createLayer('Collision', available, 0, 0);
-      collisionLayer = created ?? undefined;
-    }
+    collisionLayer = scene.collisionLayer;
+    if (collisionLayer) { try { (collisionLayer as any).setTilesets(available); } catch {} }
+    
     const layerData = (collisionLayer as any)?.layer;
     if (layerData && layerData.data) {
       const expectedRows = map.height;
@@ -89,7 +73,7 @@ export function initMainScene(scene: Phaser.Scene & any): void {
       }
     }
   } catch (e) {
-    editorLog('Init', 'No Collision layer in map, creating blank layer');
+    editorLog('Init', 'Collision layer setup failed');
     if (available.length > 0) {
       const firstTs = available[0]!;
       collisionLayer = map.createBlankLayer('Collision', firstTs, 0, 0, map.width, map.height, map.tileWidth, map.tileHeight) as any;
@@ -101,33 +85,6 @@ export function initMainScene(scene: Phaser.Scene & any): void {
   if (collisionLayer) {
     collisionLayer.setDepth(10);
     collisionLayer.setVisible(false);
-    try {
-      if (!scene.v2) {
-        const data = (collisionLayer as any)?.layer?.data as Phaser.Tilemaps.Tile[][] | undefined;
-        if (Array.isArray(data) && data.length > 0 && Array.isArray(data[0]) && data[0].length > 0) {
-          const staticColliders = scene.physics.add.staticGroup();
-          for (let row = 0; row < data.length; row++) {
-            const rowArr = data[row];
-            if (!Array.isArray(rowArr)) continue;
-            for (let col = 0; col < rowArr.length; col++) {
-              const tile = rowArr[col];
-              if (tile && tile.index !== -1) {
-                const x = col * map.tileWidth + map.tileWidth / 2;
-                const y = row * map.tileHeight + map.tileHeight / 2;
-                const body = scene.add.rectangle(x, y, map.tileWidth, map.tileHeight, 0x000000, 0);
-                scene.physics.add.existing(body, true);
-                staticColliders.add(body);
-              }
-            }
-          }
-          scene.staticColliders = staticColliders;
-        } else {
-          editorLog('Init', 'Collision layer has no tile data; skipping collision setup');
-        }
-      }
-    } catch (e) {
-      editorError('Init', 'Failed to configure collision layer', e);
-    }
   } else {
     editorLog('Init', 'No collision layer created');
   }
@@ -139,12 +96,8 @@ export function initMainScene(scene: Phaser.Scene & any): void {
     }
   }
   let editorGround: Phaser.Tilemaps.TilemapLayer | undefined;
-  if (available.length) {
-    try {
-      const hasLayer = (map.layers || []).some((l: any) => l?.name === 'EditorGround');
-      if (hasLayer) editorGround = map.createLayer('EditorGround', available, 0, 0) as any;
-    } catch {}
-  }
+  editorGround = scene.editorGround;
+
   if (!editorGround) {
     try {
       const tmp = map.createBlankLayer('EditorGround', available[0], 0, 0, map.width, map.height, map.tileWidth, map.tileHeight);
@@ -152,15 +105,10 @@ export function initMainScene(scene: Phaser.Scene & any): void {
     } catch {}
   } else {
     editorGround.setDepth(1);
-    scene.editorGround = editorGround as any;
   }
   let editorWalls: Phaser.Tilemaps.TilemapLayer | undefined;
-  if (available.length) {
-    try {
-      const hasLayer = (map.layers || []).some((l: any) => l?.name === 'EditorWalls');
-      if (hasLayer) editorWalls = map.createLayer('EditorWalls', available, 0, 0) as any;
-    } catch {}
-  }
+  editorWalls = scene.wallsLayer;
+
   if (!editorWalls) {
     try {
       const tmp = map.createBlankLayer('EditorWalls', available[0], 0, 0, map.width, map.height, map.tileWidth, map.tileHeight);
@@ -168,7 +116,6 @@ export function initMainScene(scene: Phaser.Scene & any): void {
     } catch {}
   } else {
     editorWalls.setDepth(6);
-    scene.wallsLayer = editorWalls as any;
   }
   if (scene.wallsLayer && available.length > 0) { (scene.wallsLayer as any).tileset = available; }
   const cam = scene.cameras.main;

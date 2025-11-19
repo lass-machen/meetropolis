@@ -872,8 +872,16 @@ export function registerApi(app: express.Express) {
     const name = req.params.name;
     const tenant = getTenantFromReq(req);
     if (!tenant) return res.status(400).json({ error: 'tenant_required' });
-    const map = await prisma.map.findFirst({ where: { name, tenantId: tenant.id } });
-    if (!map) return res.status(404).json({ error: 'map not found' });
+    let map = await prisma.map.findFirst({ where: { name, tenantId: tenant.id } });
+    if (!map) {
+      // Auto-provision map if missing to ensure v2 mode works
+      try {
+        map = await prisma.map.create({ data: { name, meta: {}, tenantId: tenant.id } });
+        logger.info('[Map] Auto-created map on state-v2 fetch', { name, tenant: tenant.slug });
+      } catch (e) {
+        return res.status(500).json({ error: 'failed to create map' });
+      }
+    }
 
     // Fetch tileset registry (deterministic by slot)
     const tilesets = await prisma.mapTileset.findMany({
@@ -965,14 +973,23 @@ export function registerApi(app: express.Express) {
       erase: z.boolean().optional(),
     });
     const parse = schema.safeParse(req.body || {});
-    if (!parse.success) return res.status(400).json({ error: 'invalid payload' });
+    if (!parse.success) {
+      logger.warn('[Paint] invalid payload', parse.error);
+      return res.status(400).json({ error: 'invalid payload' });
+    }
 
     const name = req.params.name;
     const tenant = getTenantFromReq(req);
     if (!tenant) return res.status(400).json({ error: 'tenant_required' });
     const { layer: layerName, rect, tileRefId, erase } = parse.data;
+
+    logger.info('[Paint] Request', { map: name, layer: layerName, rect, erase });
+
     const map = await prisma.map.findFirst({ where: { name, tenantId: tenant.id } });
-    if (!map) return res.status(404).json({ error: 'map not found' });
+    if (!map) {
+       logger.warn('[Paint] map not found', { name, tenant: tenant.slug });
+       return res.status(404).json({ error: 'map not found' });
+    }
 
     // Validate tileRefId range lightly (slot/index 16-bit)
     if (!erase && (tileRefId === undefined || tileRefId < 0 || tileRefId > 0xffffffff)) {
@@ -983,6 +1000,7 @@ export function registerApi(app: express.Express) {
     let layer = await prisma.mapLayer.findUnique({ where: { mapId_name: { mapId: map.id, name: layerName } } as any });
     if (!layer) {
       layer = await prisma.mapLayer.create({ data: { mapId: map.id, name: layerName, chunkSize: map.chunkSize ?? 32 } });
+      logger.info('[Paint] created layer', { layerId: layer.id, name: layerName });
     }
 
     const chunkSize = layer.chunkSize;

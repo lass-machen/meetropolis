@@ -183,9 +183,7 @@ export class MainScene extends Phaser.Scene {
       this.loadVisibleChunks('walls');
       this.loadVisibleChunks('collision');
     } else {
-      // Fallback TMJ
-      const map = this.make.tilemap({ key: 'office' });
-      this.mapRef = map;
+      throw new Error('Missing V2 state in MainScene');
     }
 
     // Binde Tilesets
@@ -195,11 +193,6 @@ export class MainScene extends Phaser.Scene {
     const decor = map.addTilesetImage('decor_tiles', 'decor_tiles', 16, 16, 0, 0);
     const collision = map.addTilesetImage('collision_tiles', 'collision_tiles', 16, 16, 0, 0);
     
-    // Try to add any missing tilesets referenced in the map data (only in TMJ/v1 path)
-    if (!this.v2) {
-       // Legacy v1 path for TMJ tileset loading removed to enforce v2 usage
-    }
-
     if (!office) {
       // Tileset office_tiles not found
     }
@@ -213,24 +206,17 @@ export class MainScene extends Phaser.Scene {
     const available = Array.from(uniq.values());
     // Beim Erzeugen von Layern können fehlende Tileset-Namen zu Phaser-Warnungen führen.
     // Im v2-Pfad wurden Blank-Layer bereits erstellt; nutze diese statt neue zu erzeugen.
-    const ground = this.v2 ? this.editorGround : (available.length ? map.createLayer('Ground', available, 0, 0) : undefined);
-    const walls = this.v2 ? this.wallsLayer : (available.length ? map.createLayer('Walls', available, 0, 0) : undefined);
-    // Layers are created conditionally based on available tilesets
+    const ground = this.editorGround;
+    const walls = this.wallsLayer;
 
     ground?.setDepth(0);
     walls?.setDepth(5);
 
     // Collision-Layer einlesen und statische Physik-Körper erzeugen
-    let collisionLayer: Phaser.Tilemaps.TilemapLayer | undefined;
+    let collisionLayer: Phaser.Tilemaps.TilemapLayer | undefined = this.collisionLayer;
     try {
-      if (this.v2) {
-        collisionLayer = this.collisionLayer;
-        if (collisionLayer) {
-          try { (collisionLayer as any).setTilesets(available); } catch {}
-        }
-      } else {
-        const created = map.createLayer('Collision', available, 0, 0);
-        collisionLayer = created ?? undefined;
+      if (collisionLayer) {
+        try { (collisionLayer as any).setTilesets(available); } catch {}
       }
       
       // Fix: Check if collision layer has wrong data dimensions
@@ -277,7 +263,7 @@ export class MainScene extends Phaser.Scene {
         }
       }
     } catch (e) {
-      editorLog('Init', 'No Collision layer in map, creating blank layer');
+      editorLog('Init', 'Collision layer setup failed');
       // Create blank collision layer if it doesn't exist
       if (available.length > 0) {
         // Use the first available tileset for blank layer creation
@@ -298,38 +284,9 @@ export class MainScene extends Phaser.Scene {
       editorLog('Init', 'Collision layer created');
     }
     
-    let staticColliders: Phaser.Physics.Arcade.StaticGroup | undefined;
     if (collisionLayer) {
       collisionLayer.setDepth(10);
       collisionLayer.setVisible(false); // Hide the actual collision layer - we use overlay for visualization
-      try {
-        if (!this.v2) {
-          const data = (collisionLayer as any)?.layer?.data as Phaser.Tilemaps.Tile[][] | undefined;
-          if (Array.isArray(data) && data.length > 0 && Array.isArray(data[0]) && data[0].length > 0) {
-            staticColliders = this.physics.add.staticGroup();
-            for (let row = 0; row < data.length; row++) {
-              const rowArr = data[row];
-              if (!Array.isArray(rowArr)) continue;
-              for (let col = 0; col < rowArr.length; col++) {
-                const tile = rowArr[col];
-                if (tile && tile.index !== -1) {
-                  const x = col * map.tileWidth + map.tileWidth / 2;
-                  const y = row * map.tileHeight + map.tileHeight / 2;
-                  const body = this.add.rectangle(x, y, map.tileWidth, map.tileHeight, 0x000000, 0);
-                  this.physics.add.existing(body, true); // static body
-                  staticColliders.add(body);
-                }
-              }
-            }
-            // Collision layer visibility will be managed by editor state
-            this.staticColliders = staticColliders;
-          } else {
-            editorLog('Init', 'Collision layer has no tile data; skipping collision setup');
-          }
-        }
-      } catch (e) {
-        editorError('Init', 'Failed to configure collision layer', e);
-      }
     } else {
       editorLog('Init', 'No collision layer created');
     }
@@ -347,14 +304,9 @@ export class MainScene extends Phaser.Scene {
 
     // Editor-Layer (zusätzlicher Boden, den wir bemalen können)
     let editorGround: Phaser.Tilemaps.TilemapLayer | undefined;
-    if (available.length) {
-      try {
-        const hasLayer = (map.layers || []).some((l: any) => l?.name === 'EditorGround');
-        if (hasLayer) editorGround = map.createLayer('EditorGround', available, 0, 0) as any;
-      } catch (e) {
-        // EditorGround layer not found
-      }
-    }
+    // Im v2-Pfad wurden Blank-Layer bereits erstellt; nutze diese
+    editorGround = this.editorGround;
+
     if (!editorGround) {
       // Wenn Layer nicht existiert, erzeugen wir einen Dummy-Layer (leere Kacheln), indem wir eine neue Schicht hinzufügen
       try {
@@ -366,19 +318,12 @@ export class MainScene extends Phaser.Scene {
       }
     } else {
       editorGround.setDepth(1);
-      this.editorGround = editorGround as any;
     }
 
     // Editor-Walls Layer (zusätzliche Wände, die wir bemalen können)
     let editorWalls: Phaser.Tilemaps.TilemapLayer | undefined;
-    if (available.length) {
-      try {
-        const hasLayer = (map.layers || []).some((l: any) => l?.name === 'EditorWalls');
-        if (hasLayer) editorWalls = map.createLayer('EditorWalls', available, 0, 0) as any;
-      } catch (e) {
-        // EditorWalls layer not found
-      }
-    }
+    editorWalls = this.wallsLayer;
+
     if (!editorWalls) {
       try {
         const tmp = map.createBlankLayer('EditorWalls', available[0], 0, 0, map.width, map.height, map.tileWidth, map.tileHeight);
@@ -388,7 +333,6 @@ export class MainScene extends Phaser.Scene {
       }
     } else {
       editorWalls.setDepth(6); // Higher than regular walls
-      this.wallsLayer = editorWalls as any;
     }
     
     // Ensure walls layer can use all tilesets
@@ -1442,7 +1386,7 @@ export class MainScene extends Phaser.Scene {
     await mapLoadVisibleChunks(this as any, layerName);
   }
 
-  private applyChunkUpdates(layerName: 'ground' | 'walls' | 'collision', updates: Array<{ key: string; version: number; encoding: string; data: string }>) {
+  public applyChunkUpdates(layerName: 'ground' | 'walls' | 'collision', updates: Array<{ key: string; version: number; encoding: string; data: string }>) {
     mapApplyChunkUpdates(this as any, layerName, updates);
   }
 

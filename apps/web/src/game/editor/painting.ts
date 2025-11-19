@@ -201,32 +201,33 @@ export function applyTilePaint(scene: Phaser.Scene & any, edit: { layer: 'Editor
       if (scene.v2) {
         const base = (window as any).VITE_API_BASE || (import.meta as any).env.VITE_API_BASE || `${window.location.protocol}//${window.location.hostname}:2567`;
         const body = JSON.stringify({ layer: 'collision', rect: { x0, y0, x1, y1 }, erase: edit.tileIndex < 0, tileRefId: 1 });
-        fetch(`${base}/maps/${encodeURIComponent(scene.currentMapName)}/paint-rect`, { method: 'PATCH', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body }).catch((e)=>{ editorError('Paint', 'Failed to patch collision', e); });
+        fetch(`${base}/maps/${encodeURIComponent(scene.currentMapName)}/paint-rect`, { method: 'PATCH', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body })
+          .then(res => { if (!res.ok) console.error('Paint failed', res.status, res.statusText); })
+          .catch((e)=>{ editorError('Paint', 'Failed to patch collision', e); });
       }
     } catch (e) { editorError('Paint', 'Failed to sync collision', e); }
   }
 
-  // Only proceed if v2 is active (legacy v1 paths removed)
-  if (scene.v2) {
-    try {
-      const base = (window as any).VITE_API_BASE || (import.meta as any).env.VITE_API_BASE || `${window.location.protocol}//${window.location.hostname}:2567`;
-      const bodyCommon = { rect: { x0, y0, x1, y1 }, erase: edit.tileIndex < 0 } as any;
-      if (edit.layer === 'EditorGround' || edit.layer === 'EditorWalls') {
-        const layerName = edit.layer === 'EditorGround' ? 'ground' : 'walls';
-        let tileRefId: number | undefined = undefined;
-        if (!bodyCommon.erase) {
-          try {
-            const ts = scene.v2?.state?.tilesetRegistry?.find((t: any) => t?.key === edit.tilesetKey);
-            const slot = typeof ts?.slot === 'number' ? ts.slot : 0;
-            const idx = Math.max(0, edit.tileIndex | 0);
-            tileRefId = ((slot & 0xffff) << 16) | (idx & 0xffff);
-          } catch (e) { editorError('Paint', 'Failed to compute tileRefId', e); }
-        }
-        const body = JSON.stringify({ layer: layerName, ...bodyCommon, tileRefId });
-        fetch(`${base}/maps/${encodeURIComponent(scene.currentMapName)}/paint-rect`, { method: 'PATCH', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body }).catch((e)=>{ editorError('Paint', 'Failed to patch layer', e); });
+  try {
+    const base = (window as any).VITE_API_BASE || (import.meta as any).env.VITE_API_BASE || `${window.location.protocol}//${window.location.hostname}:2567`;
+    const bodyCommon = { rect: { x0, y0, x1, y1 }, erase: edit.tileIndex < 0 } as any;
+    if (edit.layer === 'EditorGround' || edit.layer === 'EditorWalls') {
+      const layerName = edit.layer === 'EditorGround' ? 'ground' : 'walls';
+      let tileRefId: number | undefined = undefined;
+      if (!bodyCommon.erase) {
+        try {
+          const ts = scene.v2?.state?.tilesetRegistry?.find((t: any) => t?.key === edit.tilesetKey);
+          const slot = typeof ts?.slot === 'number' ? ts.slot : 0;
+          const idx = Math.max(0, edit.tileIndex | 0);
+          tileRefId = ((slot & 0xffff) << 16) | (idx & 0xffff);
+        } catch (e) { editorError('Paint', 'Failed to compute tileRefId', e); }
       }
-    } catch (e) { editorError('Paint', 'Failed to sync paint', e); }
-  }
+      const body = JSON.stringify({ layer: layerName, ...bodyCommon, tileRefId });
+      fetch(`${base}/maps/${encodeURIComponent(scene.currentMapName)}/paint-rect`, { method: 'PATCH', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body })
+        .then(res => { if (!res.ok) console.error('Paint failed', res.status, res.statusText); })
+        .catch((e)=>{ editorError('Paint', 'Failed to patch layer', e); });
+    }
+  } catch (e) { editorError('Paint', 'Failed to sync paint', e); }
 }
 
 

@@ -53,9 +53,8 @@ export class BootScene extends Phaser.Scene {
       ctex.refresh();
     }
 
-    // v2 Boot: prefetch state-v2; bei 404 fallback zu TMJ
+    // v2 Boot: prefetch state-v2
     (async () => {
-      let useV2 = false;
       try {
         const state = await fetchStateV2('office');
         const metaOk = !!(state && state.mapMeta && state.mapMeta.width && state.mapMeta.height && state.mapMeta.tileWidth && state.mapMeta.tileHeight);
@@ -63,31 +62,14 @@ export class BootScene extends Phaser.Scene {
           // Tileset-Images für Registry laden (Schlüssel = key)
           await preloadTilesetImages(this, state!.tilesetRegistry);
           (window as any).__v2_state = state;
-          useV2 = true;
+          this.scene.start('Main');
+        } else {
+          console.error('[Boot] Invalid V2 state received');
         }
-      } catch {
-        useV2 = false;
+      } catch (e) {
+        console.error('[Boot] Failed to load V2 state', e);
       }
-
-      if (!useV2) {
-        // Fallback: TMJ laden, dann Main starten, damit map key 'office' existiert
-        this.load.once('complete', () => this.scene.start('Main'));
-        this.load.tilemapTiledJSON('office', '/maps/office.json');
-        this.load.start();
-        return;
-      }
-
-      this.scene.start('Main');
-    })().catch(() => {
-      // Hard fallback
-      try {
-        this.load.once('complete', () => this.scene.start('Main'));
-        this.load.tilemapTiledJSON('office', '/maps/office.json');
-        this.load.start();
-      } catch {
-        this.scene.start('Main');
-      }
-    });
+    })();
   }
 }
 
