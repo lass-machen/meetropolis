@@ -24,6 +24,11 @@ const activeRooms = new Set<WorldRoom>();
 export class WorldRoom extends Colyseus.Room<WorldState> {
   private defaultSpawn: { x: number; y: number } | null = null;
   private prismaForPresence: PrismaClient | null = null;
+  // Map-Metadaten (Pixel-Grenzen berechnen zu können)
+  private mapWidthTiles: number | null = null;
+  private mapHeightTiles: number | null = null;
+  private tileWidthPx: number | null = null;
+  private tileHeightPx: number | null = null;
   // Persist multiple bubble groups: groupId -> member sessionIds
   private bubbleGroups: Record<string, string[]> = {};
   private getAllBubbleMembers(): string[] {
@@ -60,7 +65,7 @@ export class WorldRoom extends Colyseus.Room<WorldState> {
       this.setMetadata({ tenant: tenantSlug });
     } catch {}
 
-    // Load default spawn from DB (best-effort)
+    // Load default spawn and map meta from DB (best-effort)
     (async () => {
       try {
         const prisma = new PrismaClient();
@@ -68,10 +73,21 @@ export class WorldRoom extends Colyseus.Room<WorldState> {
         const mapName = process.env.DEFAULT_MAP_NAME || 'office';
         const tenantSlug = (options && (options as any).tenant) || process.env.DEFAULT_TENANT_SLUG || 'default';
         const map = await prisma.map.findFirst({ where: { name: mapName, tenant: { slug: tenantSlug } } });
+        // Map-Metadaten cachen (für Bounds/Clamping)
+        if (map) {
+          try {
+            // width/height in Tiles, tileWidth/tileHeight in Pixel
+            this.mapWidthTiles = (map as any).width ?? null;
+            this.mapHeightTiles = (map as any).height ?? null;
+            this.tileWidthPx = (map as any).tileWidth ?? null;
+            this.tileHeightPx = (map as any).tileHeight ?? null;
+          } catch {}
+        }
         const meta: any = (map as any)?.meta || {};
         const sp = meta?.spawn;
         if (sp && typeof sp.x === 'number' && typeof sp.y === 'number') {
-          this.defaultSpawn = { x: sp.x, y: sp.y };
+          const clamped = this.sanitizePosition(sp.x, sp.y);
+          this.defaultSpawn = clamped;
           logger.info('[WorldRoom] Loaded default spawn from DB:', this.defaultSpawn);
         }
       } catch (e: any) {
@@ -160,6 +176,60 @@ export class WorldRoom extends Colyseus.Room<WorldState> {
     });
   }
 
+  // Editor-Updates können das Default-Spawn live setzen
+  public setDefaultSpawn(pos: { x: number; y: number }) {
+    const s = this.sanitizePosition(pos.x, pos.y);
+    this.defaultSpawn = s;
+    try { logger.info('[WorldRoom] Default spawn updated to:', s); } catch {}
+  }
+
+  private getBoundsPx(): { minX: number; minY: number; maxX: number; maxY: number } | null {
+    const wTiles = this.mapWidthTiles;
+    const hTiles = this.mapHeightTiles;
+    const tW = this.tileWidthPx;
+    const tH = this.tileHeightPx;
+    if (!wTiles || !hTiles || !tW || !tH) return null;
+    const minX = tW / 2;
+    const minY = tH / 2;
+    const maxX = wTiles * tW - tW / 2;
+    const maxY = hTiles * tH - tH / 2;
+    return { minX, minY, maxX, maxY };
+  }
+
+  private sanitizePosition(x: number, y: number): { x: number; y: number } {
+    // Ungültige Zahlen -> späterer Fallback handled das
+    if (!Number.isFinite(x) || !Number.isFinite(y)) {
+      const fallback = this.defaultSpawn ?? this.getMapCenter();
+      return fallback ?? { x: 200, y: 200 };
+    }
+    const bounds = this.getBoundsPx();
+    if (!bounds) {
+      // Keine Map-Grenzen bekannt – zurückgeben wie gegeben
+      return { x, y };
+    }
+    // Liegt Position außerhalb der Bounds? → lieber auf Spawn/Center zurückfallen
+    if (x < bounds.minX || x > bounds.maxX || y < bounds.minY || y > bounds.maxY) {
+      const fallback = this.defaultSpawn ?? this.getMapCenter();
+      if (fallback) {
+        // Fallback selbst noch einmal klammern (sollte innerhalb sein, aber sicher ist sicher)
+        const fx = Math.max(bounds.minX, Math.min(bounds.maxX, fallback.x));
+        const fy = Math.max(bounds.minY, Math.min(bounds.maxY, fallback.y));
+        return { x: fx, y: fy };
+      }
+      return { x: Math.max(bounds.minX, Math.min(bounds.maxX, x)), y: Math.max(bounds.minY, Math.min(bounds.maxY, y)) };
+    }
+    return { x, y };
+  }
+
+  private getMapCenter(): { x: number; y: number } | null {
+    const wTiles = this.mapWidthTiles;
+    const hTiles = this.mapHeightTiles;
+    const tW = this.tileWidthPx;
+    const tH = this.tileHeightPx;
+    if (!wTiles || !hTiles || !tW || !tH) return null;
+    return { x: (wTiles * tW) / 2, y: (hTiles * tH) / 2 };
+  }
+
   override async onJoin(client: Client, options?: any) {
     // Enforce concurrent user limit per tenant (unless bypassed)
     try {
@@ -206,13 +276,47 @@ export class WorldRoom extends Colyseus.Room<WorldState> {
       }
     } catch {}
 
+    // Sicherstellen, dass wir Map-Metadaten haben (Race gegen onCreate-Loader vermeiden)
+    try {
+      if (!this.mapWidthTiles || !this.mapHeightTiles || !this.tileWidthPx || !this.tileHeightPx || !this.defaultSpawn) {
+        const prisma = new PrismaClient();
+        const mapName = process.env.DEFAULT_MAP_NAME || 'office';
+        const tenantSlug = (options?.tenant || this.metadata?.tenant || process.env.DEFAULT_TENANT_SLUG || 'default');
+        const map = await prisma.map.findFirst({ where: { name: mapName, tenant: { slug: tenantSlug } } });
+        try { await prisma.$disconnect().catch(()=>{}); } catch {}
+        if (map) {
+          try {
+            this.mapWidthTiles = (map as any).width ?? this.mapWidthTiles;
+            this.mapHeightTiles = (map as any).height ?? this.mapHeightTiles;
+            this.tileWidthPx = (map as any).tileWidth ?? this.tileWidthPx;
+            this.tileHeightPx = (map as any).tileHeight ?? this.tileHeightPx;
+          } catch {}
+          const meta: any = (map as any).meta || {};
+          const sp = meta?.spawn;
+          if (!this.defaultSpawn && sp && typeof sp.x === 'number' && typeof sp.y === 'number') {
+            this.defaultSpawn = this.sanitizePosition(sp.x, sp.y);
+          }
+        }
+      }
+    } catch {}
+
     const player = new Player();
     player.id = client.sessionId;
-    // Use provided position, else default spawn (if configured), else random
-    const spawnX = this.defaultSpawn?.x;
-    const spawnY = this.defaultSpawn?.y;
-    player.x = (options?.x !== undefined ? options.x : (spawnX !== undefined ? spawnX : (Math.floor(Math.random() * 200) + 100)));
-    player.y = (options?.y !== undefined ? options.y : (spawnY !== undefined ? spawnY : (Math.floor(Math.random() * 200) + 100)));
+    // Robuste Positionswahl:
+    // 1) Wenn Client Koordinaten liefert: validieren/klammern
+    // 2) Sonst: Default-Spawn (aus DB), geklammert
+    // 3) Sonst: Kartenmitte
+    // 4) Notfalls: konservatives (200,200)
+    let initial: { x: number; y: number } | null = null;
+    if (options && typeof options.x === 'number' && typeof options.y === 'number') {
+      initial = this.sanitizePosition(options.x, options.y);
+    } else if (this.defaultSpawn) {
+      initial = this.sanitizePosition(this.defaultSpawn.x, this.defaultSpawn.y);
+    } else {
+      initial = this.getMapCenter() ?? { x: 200, y: 200 };
+    }
+    player.x = initial.x;
+    player.y = initial.y;
     player.direction = options?.direction || 'down';
     player.identity = joiningIdentity; // Use provided identity or fallback
     player.name = options?.name || joiningIdentity; // Use provided name or fallback

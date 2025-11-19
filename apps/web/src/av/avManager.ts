@@ -1111,10 +1111,24 @@ export class AVManager {
       try { console.debug('[AV][debug] screenshare.start'); } catch {}
       // WICHTIG: getDisplayMedia muss direkt aus der User-Geste aufgerufen werden.
       // Daher zuerst Tracks holen (öffnet den Picker), dann erst auf Verbindung warten/publizieren.
-      const tracks = await createLocalScreenTracks({
-        video: { frameRate: 30, resolution: { width: 1920, height: 1080 } } as any,
-        audio: true,
-      } as any);
+      let tracks;
+      try {
+        tracks = await createLocalScreenTracks({
+          video: { frameRate: 30, resolution: { width: 1920, height: 1080 } } as any,
+          audio: true,
+        } as any);
+      } catch (e) {
+        // Fallback: ohne System-Audio teilen (macOS Screen Recording ohne spezielle Setup)
+        try { console.debug('[AV][debug] screenshare.start retry without audio'); } catch {}
+        tracks = await createLocalScreenTracks({
+          video: { frameRate: 30, resolution: { width: 1920, height: 1080 } } as any,
+          audio: false,
+        } as any);
+      }
+      if (!Array.isArray(tracks) || tracks.length === 0) {
+        this.sharePending = false;
+        return false;
+      }
       // Sicherstellen, dass Signal/Verbindung offen ist; falls nicht → Fast-Reconnect
       if (!this.isSignalOpen()) {
         try { this.ensureConnectedNow(); } catch {}

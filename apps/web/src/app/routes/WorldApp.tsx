@@ -1395,10 +1395,17 @@ export function WorldApp() {
           set.clear();
           try { gameBridge.setBubbleMembers(new Set()); } catch {}
           try { gameBridge.setMovementLocked(false); } catch {}
-          // Entferne mich serverseitig aus evtl. Bubble-Gruppen (1 Mitglied -> nur entfernen, keine neue Gruppe)
-          try { 
+          // Entferne nur mich aus meiner bestehenden Bubble-Gruppe (Gruppe nicht komplett löschen)
+          try {
             const meId = localPosRef.current.id;
-            if (meId) colyseusRef.current?.send?.('bubble_update', { members: [meId] }); 
+            const myGroup = meId ? (bubbleGroupsRef.current[meId] || null) : null;
+            if (meId && myGroup) {
+              const currentMembers = Object.entries(bubbleGroupsRef.current)
+                .filter(([,_gid]) => _gid === myGroup)
+                .map(([sid]) => sid);
+              const remaining = currentMembers.filter((sid) => sid !== meId);
+              colyseusRef.current?.send?.('bubble_update', { id: myGroup, members: remaining });
+            }
           } catch {}
           setBubbleUi({ active: false, members: [] });
           setTimeout(() => applyVolumesToUi(), 0);
@@ -1420,6 +1427,31 @@ export function WorldApp() {
                 followRef.current?.startFollowing?.(id);
               }
             }} style={{ display:'block', padding:'8px 12px', background:'transparent', color:'#fff', border:'none', borderBottom:'1px solid rgba(255,255,255,0.08)', width: 180, textAlign:'left', cursor:'pointer' }}>Folgen</button>
+            {/* Zur bestehenden Bubble hinzufügen (nur anzeigen, wenn ich bereits in einer Bubble bin) */}
+            {(() => {
+              try {
+                const meId = localPosRef.current.id;
+                const myGroup = meId ? (bubbleGroupsRef.current[meId] || null) : null;
+                return !!myGroup;
+              } catch { return false; }
+            })() && (
+              <button onClick={() => {
+                setContextMenu({ open: false, x: 0, y: 0, playerId: null });
+                try {
+                  const id = contextMenu.playerId!;
+                  const meId = localPosRef.current.id;
+                  if (!meId || !id || meId === id) return;
+                  const myGroup = bubbleGroupsRef.current[meId];
+                  if (!myGroup) return;
+                  // Bilde neue Menge: bestehende Gruppenmitglieder + Zielspieler
+                  const currentMembers = Object.entries(bubbleGroupsRef.current)
+                    .filter(([,_gid]) => _gid === myGroup)
+                    .map(([sid]) => sid);
+                  const next = Array.from(new Set([...currentMembers, id]));
+                  colyseusRef.current?.send?.('bubble_update', { id: myGroup, members: next });
+                } catch {}
+              }} style={{ display:'block', padding:'8px 12px', background:'transparent', color:'#fff', border:'none', borderBottom:'1px solid rgba(255,255,255,0.08)', width: 180, textAlign:'left', cursor:'pointer' }}>Zur Bubble hinzufügen</button>
+            )}
             <button onClick={() => {
               setContextMenu({ open: false, x: 0, y: 0, playerId: null });
               const id = contextMenu.playerId!;
