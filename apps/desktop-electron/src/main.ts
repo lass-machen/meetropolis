@@ -281,7 +281,11 @@ function registerSecurityHandlers(): void {
     ].join('; ');
     const responseHeaders = {
       ...details.responseHeaders,
-      'Content-Security-Policy': [csp]
+      'Content-Security-Policy': [csp],
+      // Erlaube getDisplayMedia im Top-Level-Dokument explizit
+      'Permissions-Policy': ["display-capture=(self)"],
+      // Legacy alias (einige Stacks nutzen noch diese Bezeichnung)
+      'Feature-Policy': ["display-capture 'self'"]
     } as Record<string, string[]>;
     callback({ responseHeaders });
   });
