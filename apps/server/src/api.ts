@@ -158,6 +158,15 @@ export function registerApi(app: express.Express) {
   app.get('/health', (_req: express.Request, res: express.Response) => res.json({ ok: true }));
   // Liveness probe: keine externen Abhängigkeiten
   app.get('/healthz', (_req: express.Request, res: express.Response) => res.json({ ok: true }));
+  
+  // Public Client Config (Auto-Discovery helper)
+  app.get('/config', (_req: express.Request, res: express.Response) => {
+    res.json({
+      livekitUrl: process.env.LIVEKIT_URL || 'ws://localhost:7880',
+      billingEnabled: !!process.env.STRIPE_SECRET_KEY,
+    });
+  });
+
   // Readiness probe: prüft DB und LiveKit-Konfiguration
   app.get('/readyz', async (_req: express.Request, res: express.Response) => {
     const result: { db: 'ok' | 'fail'; livekit: 'ok' | 'missing'; ok: boolean } = {
@@ -1253,6 +1262,12 @@ export function registerApi(app: express.Express) {
     } catch {
       res.status(400).json({ error: 'delete failed' });
     }
+  });
+
+  app.get('/livekit/url', async (_req: express.Request, res: express.Response) => {
+    // Return configured public LiveKit URL for clients
+    const url = process.env.LIVEKIT_URL || '';
+    res.json({ url });
   });
 
   app.post('/livekit/token', async (req: express.Request, res: express.Response) => {

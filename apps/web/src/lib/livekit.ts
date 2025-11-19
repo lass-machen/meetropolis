@@ -55,6 +55,7 @@ export async function joinLivekitRoom(params: {
   displayName?: string;
   useVideo: boolean;
 }) {
+  // 1. Fetch Token
   const res = await fetch(`${params.baseUrl}/livekit/token`, {
     method: 'POST',
     headers: { 
@@ -68,8 +69,23 @@ export async function joinLivekitRoom(params: {
     throw new Error('LiveKit Token konnte nicht geholt werden');
   }
   const token = (await res.text()).trim();
+
+  // 2. Determine Server URL
+  let serverUrl = normalizeLivekitUrl((import.meta as any).env?.VITE_LIVEKIT_URL);
+  // If fallback/localhost or empty, try fetching from API
+  if (!serverUrl || serverUrl.includes('localhost')) {
+    try {
+      const urlRes = await fetch(`${params.baseUrl}/livekit/url`);
+      if (urlRes.ok) {
+        const data = await urlRes.json();
+        if (data.url) {
+          serverUrl = normalizeLivekitUrl(data.url);
+        }
+      }
+    } catch {}
+  }
+
   const room = new Room();
-  const serverUrl = normalizeLivekitUrl((import.meta as any).env?.VITE_LIVEKIT_URL);
   try { logger.debug('[AV][debug] livekit.connecting', { serverUrl, roomName: params.roomName, identity: params.identity }); } catch {}
   const forceRelay = shouldForceRelay();
   

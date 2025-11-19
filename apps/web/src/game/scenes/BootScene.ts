@@ -9,14 +9,15 @@ export class BootScene extends Phaser.Scene {
   preload() {
     // v2: Tileset-Images werden dynamisch anhand Registry geladen
     // Fallback: v1 TMJ nur, wenn v2 nicht verfügbar
-    this.load.image('office_tiles_raw', '/assets/tilesets/office_tiles.png');
-    this.load.image('furniture_tiles', '/assets/tilesets/furniture_tiles.png');
-    this.load.image('decor_tiles', '/assets/tilesets/decor_tiles.png');
+    // Relativer Pfad für Electron-Kompatibilität (kein führender Slash)
+    this.load.image('office_tiles_raw', 'assets/tilesets/office_tiles.png');
+    this.load.image('furniture_tiles', 'assets/tilesets/furniture_tiles.png');
+    this.load.image('decor_tiles', 'assets/tilesets/decor_tiles.png');
     // Charakter-Sprites laden
-    this.load.spritesheet('hero_walk_down', '/assets/sprites/businessman1_walk_down.png', { frameWidth: 16, frameHeight: 24 });
-    this.load.spritesheet('hero_walk_up', '/assets/sprites/businessman1_walk_up.png', { frameWidth: 16, frameHeight: 24 });
-    this.load.spritesheet('hero_walk_left', '/assets/sprites/businessman1_walk_left.png', { frameWidth: 16, frameHeight: 24 });
-    this.load.spritesheet('hero_walk_right', '/assets/sprites/businessman1_walk_right.png', { frameWidth: 16, frameHeight: 24 });
+    this.load.spritesheet('hero_walk_down', 'assets/sprites/businessman1_walk_down.png', { frameWidth: 16, frameHeight: 24 });
+    this.load.spritesheet('hero_walk_up', 'assets/sprites/businessman1_walk_up.png', { frameWidth: 16, frameHeight: 24 });
+    this.load.spritesheet('hero_walk_left', 'assets/sprites/businessman1_walk_left.png', { frameWidth: 16, frameHeight: 24 });
+    this.load.spritesheet('hero_walk_right', 'assets/sprites/businessman1_walk_right.png', { frameWidth: 16, frameHeight: 24 });
   }
 
   create() {
