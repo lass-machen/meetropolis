@@ -40,12 +40,11 @@ async function main() {
   console.log(`Found ${chunks.length} chunks.`);
 
   const chunkSize = layer.chunkSize;
-  const visual: string[][] = [];
 
   for (const chunk of chunks) {
     console.log(`Chunk [${chunk.x}, ${chunk.y}] - Encoding: ${chunk.encoding}, Version: ${chunk.version}`);
     
-    const buf = chunk.data;
+    const buf = Buffer.from(chunk.data);
     const pairs = decodeRlePairsFromBuffer(buf);
     const values = rleDecodeToNumbers(pairs, chunkSize * chunkSize);
 
