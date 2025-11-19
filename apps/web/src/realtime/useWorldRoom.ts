@@ -10,7 +10,7 @@ interface UseWorldRoomArgs {
   avRef: AnyRef<any>;
   colyseusRef: AnyRef<any>;
   localPosRef: AnyRef<{ id: string; x: number; y: number }>;
-  remotesRef: AnyRef<Record<string, { x: number; y: number }>>;
+  remotesRef: AnyRef<Record<string, { x: number; y: number; dnd?: boolean }>>;
   colyseusToLivekitMap: AnyRef<Record<string, string>>;
   identityToNameMap: AnyRef<Record<string, string>>;
   gameBridge: any;
@@ -228,7 +228,7 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
               players[p.id] = { x: p.x, y: p.y, direction: p.direction, name: p.name, dnd: p.dnd } as any;
             }
             if (gameBridge && typeof gameBridge.syncRemotePlayers === 'function') gameBridge.syncRemotePlayers(players);
-            remotesRef.current = Object.fromEntries(Object.entries(players).map(([id, p]) => [id, { x: (p as any).x, y: (p as any).y }]));
+            remotesRef.current = Object.fromEntries(Object.entries(players).map(([id, p]) => [id, { x: (p as any).x, y: (p as any).y, dnd: (p as any).dnd }]));
             scheduleBuildParticipantList(0);
             // Roster unmittelbar aus Remotes aktualisieren
             scheduleRefreshRosterFromRemotes(0);
@@ -237,7 +237,7 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
 
         room.onMessage('player_joined', (data: any) => {
           if (data.id === localPosRef.current.id) return;
-          remotesRef.current[data.id] = { x: data.x, y: data.y };
+          remotesRef.current[data.id] = { x: data.x, y: data.y, dnd: data.dnd };
           if (data.identity) {
             colyseusToLivekitMap.current[data.id] = data.identity;
             if (data.name) identityToNameMap.current[data.identity] = data.name;
@@ -256,7 +256,9 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
 
         room.onMessage('player_moved', (data: any) => {
           if (data.id === localPosRef.current.id) return;
-          remotesRef.current[data.id] = { x: data.x, y: data.y };
+          // keep existing dnd state
+          const prev = remotesRef.current[data.id] || {};
+          remotesRef.current[data.id] = { ...prev, x: data.x, y: data.y };
           if (gameBridge && typeof gameBridge.updateRemotePlayer === 'function') gameBridge.updateRemotePlayer(data.id, { x: data.x, y: data.y, direction: data.direction });
           scheduleBuildParticipantList(50);
           scheduleRefreshRosterFromRemotes(0);
@@ -273,6 +275,9 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
         });
 
         room.onMessage('player_dnd', (data: { id: string; dnd: boolean }) => {
+          if (remotesRef.current[data.id]) {
+             remotesRef.current[data.id].dnd = data.dnd;
+          }
           if (gameBridge && typeof (gameBridge as any).updateRemotePlayerDnd === 'function') (gameBridge as any).updateRemotePlayerDnd(data.id, data.dnd);
           scheduleBuildParticipantList(50);
         });
@@ -521,7 +526,7 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
               for (const [key, value] of (state.players as any)) { players[key] = { x: value.x, y: value.y, direction: value.direction, dnd: value.dnd, identity: value.identity, name: value.name }; if (value.identity && value.name) identityToNameMap.current[value.identity] = value.name; }
             }
           }
-          remotesRef.current = Object.fromEntries(Object.entries(players).filter(([id]) => id !== localPosRef.current.id).map(([id, p]) => [id, { x: (p as any).x, y: (p as any).y }]));
+          remotesRef.current = Object.fromEntries(Object.entries(players).filter(([id]) => id !== localPosRef.current.id).map(([id, p]) => [id, { x: (p as any).x, y: (p as any).y, dnd: (p as any).dnd }]));
           const filtered = Object.fromEntries(Object.entries(players).filter(([id]) => id !== localPosRef.current.id).map(([id, p]) => {
             const livekitIdentity = (p as any).identity || colyseusToLivekitMap.current[id] || id;
             const name = identityToNameMap.current[livekitIdentity] || (p as any).name || livekitIdentity;

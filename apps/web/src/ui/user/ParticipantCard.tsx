@@ -3,7 +3,7 @@ import { FAIcon } from '../FAIcon';
 import { useTranslation } from 'react-i18next';
 import { Button } from '../system/Button';
 
-export function ParticipantCard(props: { part: { sid: string; identity: string; hasVideo: boolean; hasMic: boolean; isSpeaking: boolean; media: 'camera'|'screen'; volume?: number }, roomGetter: () => any | undefined, compact?: boolean, full?: boolean, zoom?: number }) {
+export function ParticipantCard(props: { part: { sid: string; identity: string; hasVideo: boolean; hasMic: boolean; isSpeaking: boolean; media: 'camera'|'screen'; volume?: number; dnd?: boolean }, roomGetter: () => any | undefined, compact?: boolean, full?: boolean, zoom?: number }) {
   const videoRef = React.useRef<HTMLVideoElement | null>(null);
   const { part, roomGetter, compact, full, zoom = 1 } = props;
   const [isVideoRendering, setIsVideoRendering] = React.useState(false);
@@ -237,7 +237,8 @@ export function ParticipantCard(props: { part: { sid: string; identity: string; 
   const aspect = full ? undefined : (isScreen ? '16 / 9' : '16 / 9');
   const targetSize = full ? undefined : (compact ? '100%' : '36vh');
   const minW = full ? undefined : (compact ? 260 : 420);
-  const disabled = !isLocal && (volume <= 0.1);
+  const isDnd = !!part.dnd;
+  const disabled = (!isLocal && (volume <= 0.1)) || isDnd;
 
   const handleForceMute = async () => {
     try {
@@ -289,6 +290,11 @@ export function ParticipantCard(props: { part: { sid: string; identity: string; 
         <div style={{ fontSize: 12, color: 'var(--fg)', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{part.identity}</div>
       </div>
       <div style={{ position: 'absolute', top: 6, right: 6, display: 'flex', gap: 8 }}>
+        {isDnd && (
+          <div title="Nicht stören (DND)" style={{ display: 'grid', placeItems: 'center', width: 28, height: 28, borderRadius: 999, background: 'rgba(244,63,94,0.6)', border: '1px solid rgba(244,63,94,0.8)' }}>
+            <FAIcon size="sm" name="moon" variant="solid" ariaLabel="DND" />
+          </div>
+        )}
         <div title={part.hasMic ? 'Mikro an' : 'Mikro aus'} style={{ display:   'grid', placeItems: 'center', width: 28, height: 28, borderRadius: 999, background: part.hasMic ? 'rgba(16,185,129,0.25)' : 'rgba(244,63,94,0.25)', border: `1px solid ${part.hasMic ? 'rgba(16,185,129,0.5)' : 'rgba(244,63,94,0.5)'}` }}>
           <FAIcon size="sm" name={part.hasMic ? 'microphone' : 'microphone-slash'} variant="solid" ariaLabel={part.hasMic ? 'Mikro an' : 'Mikro aus'} />
         </div>

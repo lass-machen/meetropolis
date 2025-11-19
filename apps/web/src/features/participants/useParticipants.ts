@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import { pointInPolygon } from '../../lib/geom';
 
-export type UIParticipant = { sid: string; identity: string; hasVideo: boolean; hasMic: boolean; isSpeaking: boolean; media: 'camera' | 'screen'; volume?: number };
+export type UIParticipant = { sid: string; identity: string; hasVideo: boolean; hasMic: boolean; isSpeaking: boolean; media: 'camera' | 'screen'; volume?: number; dnd?: boolean };
 
 type Mutable<T> = { current: T };
 
@@ -9,7 +9,7 @@ export function useParticipants(deps: {
   avRef: Mutable<any>;
   zoneRef: Mutable<any>;
   localPosRef: Mutable<{ id: string; x: number; y: number }>;
-  remotesRef: Mutable<Record<string, { x: number; y: number }>>;
+  remotesRef: Mutable<Record<string, { x: number; y: number; dnd?: boolean }>>;
   colyseusToLivekitMap: Mutable<Record<string, string>>;
   identityToNameMap: Mutable<Record<string, string>>;
   volumeRef: Mutable<any>;
@@ -18,8 +18,9 @@ export function useParticipants(deps: {
   disposedRef?: Mutable<boolean>;
   getDisplayName: (identity: string) => string;
   gameBridge?: any;
+  dndRef?: Mutable<boolean>;
 }) {
-  const { avRef, zoneRef, localPosRef, remotesRef, colyseusToLivekitMap, identityToNameMap, volumeRef, me, setUiParticipants, disposedRef, getDisplayName, gameBridge } = deps;
+  const { avRef, zoneRef, localPosRef, remotesRef, colyseusToLivekitMap, identityToNameMap, volumeRef, me, setUiParticipants, disposedRef, getDisplayName, gameBridge, dndRef } = deps;
 
   const buildParticipantList = useCallback(() => {
     const room: any = avRef.current?.room as any;
@@ -29,7 +30,7 @@ export function useParticipants(deps: {
       try {
         // Local
         const localIdentity = me?.name || me?.email || me?.id || 'You';
-        list.push({ sid: 'local', identity: localIdentity, hasVideo: false, hasMic: false, isSpeaking: false, media: 'camera', volume: 1 });
+        list.push({ sid: 'local', identity: localIdentity, hasVideo: false, hasMic: false, isSpeaking: false, media: 'camera', volume: 1, dnd: !!dndRef?.current });
         const zones = (zoneRef.current?.getZones?.() || []).map((z: any) => ({ ...z, points: (Array.isArray(z.points) ? z.points : []).map((p: any)=> Array.isArray(p) ? { x: p[0], y: p[1] } : p).filter((p: any)=> p && typeof p.x === 'number' && typeof p.y === 'number') }));
         const localPos = { x: localPosRef.current.x, y: localPosRef.current.y };
         const localZone = zones.find((z: any) => pointInPolygon(localPos, z.points));
@@ -43,7 +44,7 @@ export function useParticipants(deps: {
           } catch {}
           const livekitIdentity = colyseusToLivekitMap.current[colyseusId] || colyseusId;
           const name = identityToNameMap.current[livekitIdentity] || getDisplayName(livekitIdentity);
-          list.push({ sid: `col:${colyseusId}`, identity: name, hasVideo: false, hasMic: false, isSpeaking: false, media: 'camera', volume: 1 });
+          list.push({ sid: `col:${colyseusId}`, identity: name, hasVideo: false, hasMic: false, isSpeaking: false, media: 'camera', volume: 1, dnd: !!pos.dnd });
         }
       } catch {}
       setUiParticipants(list);
@@ -60,6 +61,7 @@ export function useParticipants(deps: {
     const pushP = (p: any, isLocal: boolean = false) => {
       if (!p) return;
       let participantPos: { x: number; y: number } | null = null;
+      let remoteDnd = false;
       if (isLocal) {
         participantPos = localPos;
       } else {
@@ -68,6 +70,7 @@ export function useParticipants(deps: {
         );
         if (colyseusId && remotesRef.current[colyseusId]) {
           participantPos = remotesRef.current[colyseusId];
+          remoteDnd = !!remotesRef.current[colyseusId].dnd;
         }
       }
       if (!isLocal) {
@@ -128,9 +131,10 @@ export function useParticipants(deps: {
             }
           }
         } catch {}
-        list.push({ sid: p.sid, identity, hasVideo: !!hasV, hasMic: !!hasMic, isSpeaking: activeSet.has(p.sid), media: 'camera', volume });
+        const dnd = isLocal ? !!dndRef?.current : remoteDnd;
+        list.push({ sid: p.sid, identity, hasVideo: !!hasV, hasMic: !!hasMic, isSpeaking: activeSet.has(p.sid), media: 'camera', volume, dnd });
         if (hasScreen) {
-          list.push({ sid: p.sid + ':screen', identity: `${identity} – Bildschirm`, hasVideo: true, hasMic: false, isSpeaking: false, media: 'screen', volume });
+          list.push({ sid: p.sid + ':screen', identity: `${identity} – Bildschirm`, hasVideo: true, hasMic: false, isSpeaking: false, media: 'screen', volume, dnd });
         }
       } catch {}
     };
@@ -153,7 +157,8 @@ export function useParticipants(deps: {
           }
         } catch {}
         if (!presentIdentities.has(name) && !presentIdentities.has(livekitIdentity)) {
-          list.push({ sid: `col:${colyseusId}`, identity: name, hasVideo: false, hasMic: false, isSpeaking: false, media: 'camera', volume: 1 });
+          const pos = remotesRef.current[colyseusId];
+          list.push({ sid: `col:${colyseusId}`, identity: name, hasVideo: false, hasMic: false, isSpeaking: false, media: 'camera', volume: 1, dnd: !!pos?.dnd });
           presentIdentities.add(name);
         }
       }

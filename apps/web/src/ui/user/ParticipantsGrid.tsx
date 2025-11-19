@@ -4,7 +4,7 @@ import { ParticipantCard } from './ParticipantCard';
 import { FAIcon } from '../FAIcon';
 import { useTranslation } from 'react-i18next';
 
-export type UIParticipant = { sid: string; identity: string; hasVideo: boolean; hasMic: boolean; isSpeaking: boolean; media: 'camera' | 'screen'; volume?: number };
+export type UIParticipant = { sid: string; identity: string; hasVideo: boolean; hasMic: boolean; isSpeaking: boolean; media: 'camera' | 'screen'; volume?: number; dnd?: boolean };
 
 export function ParticipantsGrid(props: {
   participants: UIParticipant[];

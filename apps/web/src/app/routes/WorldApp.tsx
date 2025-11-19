@@ -168,6 +168,7 @@ export function WorldApp() {
     disposedRef,
     getDisplayName,
     gameBridge,
+    dndRef,
   });
   const buildParticipantList = buildParticipantListHook;
   const applyVolumesToUi = applyVolumesToUiHook;
@@ -1259,6 +1260,7 @@ export function WorldApp() {
                 onRecenter={() => { try { gameBridge.recenterCamera(); } catch {} }}
               />
             </div>
+          </div>
           )}
         </>
       )}
