@@ -1159,7 +1159,7 @@ export class AVManager {
 
               const vTrack = stream.getVideoTracks()[0];
               if (vTrack) {
-                tracks = [{ kind: 'video', mediaStreamTrack: vTrack } as any];
+                tracks = [vTrack];
               }
             }
           } catch (e3) {
@@ -1196,7 +1196,7 @@ export class AVManager {
       for (const t of tracks) {
         await this.current.localParticipant.publishTrack(t);
         try {
-          const mst: any = (t as any)?.mediaStreamTrack;
+          const mst: any = (t as any)?.mediaStreamTrack || t;
           if (mst && 'contentHint' in mst) {
             try { mst.contentHint = 'detail'; } catch {}
           }
