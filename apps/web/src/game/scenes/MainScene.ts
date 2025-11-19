@@ -1394,8 +1394,6 @@ export class MainScene extends Phaser.Scene {
     super.update(time, delta);
     try { this.systems.forEach((s) => s.update(time, delta)); } catch {}
     if (this.v2) {
-      // Erzwinge Unsichtbarkeit des Kollision-Layers außerhalb des Editors
-      try { this.collisionLayer?.setVisible(this.editorMode === true); } catch {}
       // Chunk-Reloads nur bei Kamera-Änderungen
       const vw = this.cameras.main.worldView;
       const camSig = `${Math.floor(vw.x)}:${Math.floor(vw.y)}:${Math.floor(vw.width)}:${Math.floor(vw.height)}:${this.cameras.main.zoom.toFixed(2)}`;

@@ -23,13 +23,19 @@ export async function loadVisibleChunks(scene: Phaser.Scene & any, layerName: 'g
   if (keys.length === 0) return;
   const chunks = await fetchChunks(scene.currentMapName, layerName, keys);
   const updates = Object.entries(chunks).map(([key, val]: any) => ({ key, version: val.version, encoding: val.encoding, data: val.data }));
+  if (layerName === 'collision' && updates.length > 0) {
+    console.log(`[Chunks] Applying ${updates.length} collision updates for keys: ${updates.map(u => u.key).join(', ')}`);
+  }
   applyChunkUpdates(scene, layerName, updates);
 }
 
 export function applyChunkUpdates(scene: Phaser.Scene & any, layerName: 'ground' | 'walls' | 'collision', updates: Array<{ key: string; version: number; encoding: string; data: string }>): void {
   if (!scene.v2 || !scene.mapRef) return;
   const layer = layerName === 'collision' ? scene.collisionLayer : (layerName === 'walls' ? scene.wallsLayer : scene.editorGround);
-  if (!layer) return;
+  if (!layer) {
+     console.warn(`[Chunks] Layer ${layerName} not found on scene`);
+     return;
+  }
   const cs = scene.v2.chunkSize;
   const total = cs * cs;
   for (const u of updates) {
