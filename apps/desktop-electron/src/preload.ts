@@ -4,17 +4,11 @@ import { contextBridge, ipcRenderer } from 'electron';
 // TODO(TEST): Bridge-API hat noch keine Unit-Tests; später ergänzen, wenn benötigt.
 
 let cachedApiBase: string | undefined;
-// Beim Start Konfiguration laden und als globale Variable verfügbar machen,
-// damit die Web-App sie über runtimeConfig lesen kann.
-(async () => {
-  try {
-    const cfg = (await ipcRenderer.invoke('desktop:getConfig')) as { apiBase?: string } | undefined;
-    cachedApiBase = cfg?.apiBase;
-    try { (window as any).__MEETROPOLIS_API_BASE__ = cachedApiBase; } catch {}
-  } catch {
-    // still no-op
-  }
-})();
+try {
+  // Synchroner Abruf, damit apiBase SOFORT da ist (vor React-Start)
+  cachedApiBase = ipcRenderer.sendSync('desktop:getApiBaseSync');
+  try { (window as any).__MEETROPOLIS_API_BASE__ = cachedApiBase; } catch {}
+} catch {}
 
 contextBridge.exposeInMainWorld('desktop', {
   // Optional direkt lesbar für runtimeConfig: anyWin.desktop?.apiBase
@@ -23,6 +17,9 @@ contextBridge.exposeInMainWorld('desktop', {
   },
   getConfig: async (): Promise<{ apiBase?: string }> => {
     try { return (await ipcRenderer.invoke('desktop:getConfig')) as any; } catch { return {}; }
+  },
+  validateApiUrl: async (url: string): Promise<{ valid: boolean; url: string }> => {
+    try { return await ipcRenderer.invoke('desktop:validateApiUrl', url); } catch { return { valid: false, url }; }
   },
   setConfig: async (cfg: { apiBase?: string }): Promise<boolean> => {
     try { return !!(await ipcRenderer.invoke('desktop:setConfig', cfg)); } catch { return false; }

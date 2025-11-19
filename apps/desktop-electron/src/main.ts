@@ -5,6 +5,8 @@ import fs from 'fs/promises';
 
 // TODO(TEST): Minimaler Desktop-Smoke-Test fehlt (Window-Start, Dev/Prod-Ladepfad)
 
+let globalApiBase: string | undefined; // Memory cache for sync IPC
+
 const isDev = !app.isPackaged;
 type AppConfig = { apiBase?: string };
 function getConfigPath(): string { return path.join(app.getPath('userData'), 'config.json'); }
@@ -82,9 +84,9 @@ function setAppMenu(): void {
         {
           label: 'Server wechseln…',
           click: async () => {
-            const v = await promptForApiBase();
+            const v = await promptForApiBase(globalApiBase);
             if (!v) return;
-            try { await writeConfig({ apiBase: v }); } catch {}
+            try { await writeConfig({ apiBase: v }); globalApiBase = v; } catch {}
             const all = BrowserWindow.getAllWindows();
             const win = all[0];
             if (win) {
@@ -111,7 +113,7 @@ function setAppMenu(): void {
   Menu.setApplicationMenu(menu);
 }
 
-async function promptForApiBase(): Promise<string | undefined> {
+async function promptForApiBase(currentValue?: string): Promise<string | undefined> {
   return await new Promise<string | undefined>((resolve) => {
     const win = new BrowserWindow({
       width: 520,
@@ -127,6 +129,7 @@ async function promptForApiBase(): Promise<string | undefined> {
         nodeIntegration: false
       }
     });
+    const safeValue = (currentValue || 'http://localhost:2567').replace(/'/g, "\\'");
     const html = `<!doctype html>
       <html>
         <head>
@@ -153,13 +156,46 @@ async function promptForApiBase(): Promise<string | undefined> {
           </div>
           <script>
             const $ = (s)=>document.querySelector(s);
-            $('#api').value = 'http://localhost:2567';
-            $('#api').addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ $('#save').click(); }});
-            $('#cancel').onclick = ()=>{ window.close(); };
-            $('#save').onclick = ()=>{
-              const v = String($('#api').value||'').trim();
+            const apiInp = $('#api');
+            const saveBtn = $('#save');
+            const cancelBtn = $('#cancel');
+
+            apiInp.value = '${safeValue}';
+            apiInp.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ saveBtn.click(); }});
+            
+            cancelBtn.onclick = ()=>{ window.close(); };
+            
+            saveBtn.onclick = async ()=>{
+              const v = String(apiInp.value||'').trim();
               if(!v){ alert('Bitte eine URL eingeben'); return; }
-              window.desktop && window.desktop.__setApiBase && window.desktop.__setApiBase(v);
+              
+              saveBtn.disabled = true;
+              apiInp.disabled = true;
+              const originalText = saveBtn.innerText;
+              saveBtn.innerText = 'Prüfe…';
+              
+              try {
+                // Validate & Auto-Discover API
+                const res = await window.desktop.validateApiUrl(v);
+                if (res.valid) {
+                  saveBtn.innerText = 'Verbunden!';
+                  saveBtn.style.background = '#10b981';
+                  setTimeout(() => {
+                    window.desktop && window.desktop.__setApiBase && window.desktop.__setApiBase(res.url);
+                  }, 400);
+                } else {
+                  alert('Unter dieser URL konnte kein Meetropolis-Server gefunden werden.\\n\\nBitte prüfe die Adresse.');
+                  saveBtn.disabled = false;
+                  apiInp.disabled = false;
+                  saveBtn.innerText = originalText;
+                  apiInp.focus();
+                }
+              } catch (e) {
+                alert('Fehler beim Prüfen der URL.');
+                saveBtn.disabled = false;
+                apiInp.disabled = false;
+                saveBtn.innerText = originalText;
+              }
             };
           </script>
         </body>
@@ -167,7 +203,7 @@ async function promptForApiBase(): Promise<string | undefined> {
     win.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
 
     ipcMain.once('desktop:setApiBase', async (_evt, v: string) => {
-      try { await writeConfig({ apiBase: v }); } catch {}
+      try { await writeConfig({ apiBase: v }); globalApiBase = v; } catch {}
       try { win.close(); } catch {}
       resolve(v);
     });
@@ -212,13 +248,53 @@ app.whenReady().then(async () => {
   setAppMenu();
   // IPC für Setup-Dialog
   ipcMain.handle('desktop:getConfig', async () => await readConfig());
+  ipcMain.handle('desktop:validateApiUrl', async (_evt, inputUrl: string) => {
+    const normalize = (u: string) => u.replace(/\/+$/, '').trim();
+    let url = normalize(inputUrl);
+    if (!url.startsWith('http')) url = 'https://' + url;
+
+    const check = async (u: string) => {
+      try {
+        const res = await fetch(u + '/health');
+        if (res.ok) {
+          const contentType = res.headers.get('content-type');
+          if (contentType && contentType.includes('application/json')) return true;
+          // Fallback: try parsing json
+          try { const json = await res.json(); return !!json; } catch { return false; }
+        }
+      } catch {}
+      return false;
+    };
+
+    // 1. Try as is
+    if (await check(url)) return { valid: true, url };
+
+    // 2. Try adding 'api.' prefix to hostname if not present
+    try {
+      const u = new URL(url);
+      if (!u.hostname.startsWith('api.')) {
+        const originalHost = u.hostname;
+        u.hostname = 'api.' + u.hostname;
+        const apiUrl = normalize(u.toString());
+        if (await check(apiUrl)) return { valid: true, url: apiUrl };
+      }
+    } catch {}
+
+    return { valid: false, url: inputUrl };
+  });
+  ipcMain.on('desktop:getApiBaseSync', (evt) => { evt.returnValue = globalApiBase; });
   ipcMain.handle('desktop:setConfig', async (_evt, cfg: AppConfig) => { await writeConfig(cfg||{}); return true; });
-  ipcMain.on('desktop:setApiBase', (_evt, v: string) => { /* handled in prompt */ });
+  ipcMain.on('desktop:setApiBase', (_evt, v: string) => { 
+    globalApiBase = v; 
+    /* handled in prompt, but also update memory */ 
+  });
 
   let cfg = await readConfig();
   let apiBase = cfg.apiBase;
+  globalApiBase = apiBase; // Init global var
   if (!apiBase) {
     apiBase = await promptForApiBase();
+    globalApiBase = apiBase;
   }
   await createMainWindow(apiBase);
 
