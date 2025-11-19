@@ -69,7 +69,7 @@ export function UserCard(props: {
     <div className={classes} style={{
       width: isCollapsed ? '100%' : undefined,
       height: isCollapsed ? '100%' : undefined,
-      ['--uc-opacity' as any]: opacity,
+      ['--uc-opacity' as any]: isLocal ? 1 : (0.4 + (volume * 0.6)),
       ['--uc-video-zoom' as any]: zoom,
       ...style
     }}>

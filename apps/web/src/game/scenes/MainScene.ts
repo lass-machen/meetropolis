@@ -197,18 +197,7 @@ export class MainScene extends Phaser.Scene {
     
     // Try to add any missing tilesets referenced in the map data (only in TMJ/v1 path)
     if (!this.v2) {
-      try {
-        const mapData = (map as any).data;
-        if (mapData && mapData.tilesets) {
-          mapData.tilesets.forEach((ts: any) => {
-            if (ts && ts.name && !map.tilesets.find(t => t.name === ts.name)) {
-              try {
-                map.addTilesetImage(ts.name, ts.name, ts.tilewidth || 16, ts.tileheight || 16, ts.margin || 0, ts.spacing || 0);
-              } catch {}
-            }
-          });
-        }
-      } catch {}
+       // Legacy v1 path for TMJ tileset loading removed to enforce v2 usage
     }
 
     if (!office) {
@@ -871,18 +860,13 @@ export class MainScene extends Phaser.Scene {
     }
 
     // Nach dem Aufbau: IMMER vom Server laden für konsistenten State
-    setTimeout(() => {
-      // v2 aktiv? dann keinen v1-Reload/LocalStorage anwenden
-      if (this.v2) {
-        // Kollision außerhalb des Editors unsichtbar halten
-        try { this.collisionLayer?.setVisible(false); } catch {}
-        return;
-      }
-      // v1-Pfad: Server-/LocalStorage-Layer laden
-      // this.fetchAndApplyServerLayers().catch(() => {
-      //   this.loadEditorLayers();
-      // });
-    }, 0);
+    // v2 aktiv? dann keinen v1-Reload/LocalStorage anwenden
+    if (this.v2) {
+      // Kollision außerhalb des Editors unsichtbar halten
+      try { this.collisionLayer?.setVisible(false); } catch (e) { editorError('Init', 'Failed to hide collision layer', e); }
+    } else {
+      // Legacy path: should not happen in new maps, but safe to ignore or log
+    }
 
     // Bridge aufräumen, wenn Szene herunterfährt
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {

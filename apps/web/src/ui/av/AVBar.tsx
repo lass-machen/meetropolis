@@ -5,6 +5,77 @@ import type { ButtonGroupItemSize } from '../buttonGroup';
 import { FAIcon } from '../FAIcon';
 import { AudioSettingsModal } from './AudioSettingsModal';
 import { useTranslation } from 'react-i18next';
+import { PopoverRoot, PopoverTrigger, PopoverContent, PopoverArrow } from '../primitives/Popover';
+
+function DeviceSelector(props: {
+  icon: string;
+  isOn: boolean;
+  onToggle: () => void;
+  devices: { id: string; label: string }[];
+  selectedId: string | '';
+  onSelect: (id: string) => void;
+  labelSelect: string;
+  disabled?: boolean;
+}) {
+  const { icon, isOn, onToggle, devices, selectedId, onSelect, labelSelect, disabled } = props;
+  const [open, setOpen] = React.useState(false);
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+      <Button
+        disabled={disabled}
+        variant={isOn ? 'primary' : 'default'}
+        onClick={onToggle}
+        icon={icon}
+        iconPosition="only"
+        style={{ borderTopRightRadius: 0, borderBottomRightRadius: 0 }}
+      />
+      <PopoverRoot open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            disabled={disabled}
+            variant={isOn ? 'primary' : 'default'}
+            icon="caret-up"
+            iconPosition="only"
+            style={{ borderTopLeftRadius: 0, borderBottomLeftRadius: 0, paddingLeft: 4, paddingRight: 4, minWidth: 24 }}
+          />
+        </PopoverTrigger>
+        <PopoverContent side="top" align="center" sideOffset={5} style={{ zIndex: 1000 }}>
+          <div className="glass-surface" style={{ padding: 4, display: 'grid', gap: 2, minWidth: 200 }}>
+            <div style={{ padding: '4px 8px', fontSize: 11, color: 'var(--fg-subtle)', fontWeight: 600 }}>
+              {labelSelect}
+            </div>
+            {devices.length === 0 && (
+              <div style={{ padding: '8px', fontSize: 13, color: 'var(--fg-subtle)', fontStyle: 'italic' }}>
+                Keine Geräte gefunden
+              </div>
+            )}
+            {devices.map(d => (
+              <button
+                key={d.id}
+                onClick={() => { onSelect(d.id); setOpen(false); }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  background: d.id === selectedId ? 'rgba(255,255,255,0.1)' : 'transparent',
+                  border: 'none', borderRadius: 4,
+                  padding: '6px 8px',
+                  color: 'var(--fg)',
+                  fontSize: 13,
+                  cursor: 'pointer',
+                  textAlign: 'left'
+                }}
+              >
+                {d.id === selectedId && <FAIcon name="check" size="xs" />}
+                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.label}</span>
+              </button>
+            ))}
+          </div>
+          <PopoverArrow style={{ fill: 'var(--glass)' }} />
+        </PopoverContent>
+      </PopoverRoot>
+    </div>
+  );
+}
 
 export function AVBar(props: {
   size?: ButtonGroupItemSize;
@@ -41,57 +112,29 @@ export function AVBar(props: {
 
   return (
     <ButtonGroup size={size} {...(className ? { className } : {})} {...(style ? { style } : {})}>
-      <Button
-        disabled={dndOn}
-        variant={micOn ? 'primary' : 'default'}
-        onClick={onToggleMic}
+      <DeviceSelector
         icon={micOn ? 'microphone' : 'microphone-slash'}
-        iconPosition="only"
+        isOn={micOn}
+        onToggle={onToggleMic}
+        devices={devices.mics}
+        selectedId={selectedMicId}
+        onSelect={onSelectMic}
+        labelSelect={t('av.selectMic')}
+        disabled={dndOn}
       />
-      <select
-        className="bg-select"
-        disabled={!devices.mics.length || dndOn}
-        value={selectedMicId}
-        onChange={(e) => onSelectMic(e.target.value)}
-        style={{
-          height: 'var(--bg-item-height, 32px)',
-          borderRadius: 'var(--radius-sm)',
-          border: '1px solid var(--border)',
-          background: 'var(--glass)',
-          padding: '0 10px',
-          color: 'var(--fg)'
-        }}
-      >
-        <option value="" disabled>{t('av.selectMic')}</option>
-        {devices.mics.map(d => <option key={d.id} value={d.id}>{d.label}</option>)}
-      </select>
 
       <Separator variant="vertical" />
 
-      <Button
-        disabled={dndOn}
-        variant={camOn ? 'primary' : 'default'}
-        onClick={onToggleCam}
+      <DeviceSelector
         icon={camOn ? 'video' : 'video-slash'}
-        iconPosition="only"
+        isOn={camOn}
+        onToggle={onToggleCam}
+        devices={devices.cams}
+        selectedId={selectedCamId}
+        onSelect={onSelectCam}
+        labelSelect={t('av.selectCam')}
+        disabled={dndOn}
       />
-      <select
-        className="bg-select"
-        disabled={!devices.cams.length || dndOn}
-        value={selectedCamId}
-        onChange={(e) => onSelectCam(e.target.value)}
-        style={{
-          height: 'var(--bg-item-height, 32px)',
-          borderRadius: 'var(--radius-sm)',
-          border: '1px solid var(--border)',
-          background: 'var(--glass)',
-          padding: '0 10px',
-          color: 'var(--fg)'
-        }}
-      >
-        <option value="" disabled>{t('av.selectCam')}</option>
-        {devices.cams.map(d => <option key={d.id} value={d.id}>{d.label}</option>)}
-      </select>
 
       <Separator variant="vertical" />
 

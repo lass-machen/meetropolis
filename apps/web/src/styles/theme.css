@@ -245,7 +245,7 @@ body {
 
 .uc-container {
   position: absolute;
-  top: var(--uc-top, 10px);
+  top: var(--uc-top, 12px);
   left: 50%;
   transform: translateX(-50%);
   z-index: 20;
@@ -260,8 +260,8 @@ body {
   box-shadow: var(--uc-shadow);
 }
 
-.uc-container.uc-expanded { --uc-top: 0; --uc-gap: 18px; }
-.uc-container.uc-collapsed { --uc-top: 10px; --uc-gap: 12px; }
+.uc-container.uc-expanded { --uc-top: 12px; --uc-gap: 18px; }
+.uc-container.uc-collapsed { --uc-top: 12px; --uc-gap: 12px; }
 
 .uc-expand-btn {
   position: absolute;

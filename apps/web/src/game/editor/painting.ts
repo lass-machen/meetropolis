@@ -203,10 +203,9 @@ export function applyTilePaint(scene: Phaser.Scene & any, edit: { layer: 'Editor
       }
     } catch (e) { editorError('Paint', 'Failed to sync collision', e); }
   }
-  if (!scene.v2) {
-    scene.saveEditorLayers();
-    try { if (scene.editorSaveTimer) clearTimeout(scene.editorSaveTimer as any); scene.editorSaveTimer = setTimeout(() => { try { scene.saveEditorLayersHard(); } catch (e) { editorError('Paint', 'Failed hard save', e); } }, 250) as any; } catch (e) { editorError('Paint', 'Failed to schedule save', e); }
-  } else {
+
+  // Only proceed if v2 is active (legacy v1 paths removed)
+  if (scene.v2) {
     try {
       const base = (window as any).VITE_API_BASE || (import.meta as any).env.VITE_API_BASE || `${window.location.protocol}//${window.location.hostname}:2567`;
       const bodyCommon = { rect: { x0, y0, x1, y1 }, erase: edit.tileIndex < 0 } as any;

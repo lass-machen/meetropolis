@@ -97,21 +97,15 @@ export const gameBridge: Bridge = {
     sceneApi = api;
     // Wenn Szene frisch gebunden wird, zuletzt bekannte Overlays/Assets anwenden
     if (sceneApi) {
-      // 1) Zonen aus LocalStorage lesen (falls vorhanden) und anwenden
-      try {
-        const raw = typeof window !== 'undefined' ? localStorage.getItem('meetropolis.zones') : null;
-        const stored = raw ? JSON.parse(raw) : null;
-        if (Array.isArray(stored)) {
-          cachedZones = stored;
-        }
-      } catch {}
-      try { sceneApi.setZonesVisible?.(cachedZonesVisible); } catch {}
-      try { if (cachedZonesVisible) sceneApi.setZoneOverlay(cachedZones); } catch {}
-      try { sceneApi.setEditorAssets(cachedAssets); } catch {}
-      try { sceneApi.setCollisionVisible(cachedCollisionVisible); } catch {}
-      // 2) Best-Effort: Serverzustand laden (nur falls die Szene es unterstützt)
-      try { sceneApi.fetchAndApplyServerLayers?.(); } catch {}
-      try { sceneApi.reloadEditorLayers(); } catch {}
+    // 1) Zonen nur noch aus Server-Daten (via Props/Server-Call) laden. LocalStorage ist NICHT mehr source-of-truth.
+    // Alte LocalStorage-Logik entfernt, um Konflikte zu vermeiden.
+    try { sceneApi.setZonesVisible?.(cachedZonesVisible); } catch (e) { console.error('Failed to set zones visible', e); }
+    try { if (cachedZonesVisible) sceneApi.setZoneOverlay(cachedZones); } catch (e) { console.error('Failed to set zone overlay', e); }
+    try { sceneApi.setEditorAssets(cachedAssets); } catch (e) { console.error('Failed to set editor assets', e); }
+    try { sceneApi.setCollisionVisible(cachedCollisionVisible); } catch (e) { console.error('Failed to set collision visible', e); }
+    // 2) Best-Effort: Serverzustand laden (nur falls die Szene es unterstützt)
+    try { sceneApi.fetchAndApplyServerLayers?.(); } catch (e) { console.error('Failed to fetch server layers', e); }
+    try { sceneApi.reloadEditorLayers(); } catch (e) { console.error('Failed to reload editor layers', e); }
       // Set cached hero name if available
       if (cachedHeroName && sceneApi.setHeroName) {
         try { sceneApi.setHeroName(cachedHeroName); } catch {}

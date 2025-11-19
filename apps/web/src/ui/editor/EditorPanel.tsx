@@ -109,6 +109,7 @@ export function EditorPanel(props: {
         setToastOpen(true);
       }
     } catch (e: any) {
+      logger.error('Failed to save editor changes', e);
       setToast({ title: t('editor.saveFailedTitle'), description: (e?.message || t('common.error')).toString(), intent: 'error' });
       setToastOpen(true);
     } finally {
