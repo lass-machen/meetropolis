@@ -1109,64 +1109,78 @@ export class AVManager {
     try {
       this.sharePending = true;
       try { console.debug('[AV][debug] screenshare.start'); } catch {}
-      // WICHTIG: getDisplayMedia muss direkt aus der User-Geste aufgerufen werden.
-      // Daher zuerst Tracks holen (öffnet den Picker), dann erst auf Verbindung warten/publizieren.
-      let tracks;
-      try {
-        tracks = await createLocalScreenTracks({
-          video: { frameRate: 30, resolution: { width: 1920, height: 1080 } } as any,
-          audio: true,
-        } as any);
-      } catch (e) {
-        // Fallback Pfad 1: ohne System-Audio teilen
-        try { console.debug('[AV][debug] screenshare.start retry without audio', e); } catch {}
+
+      let tracks: LocalVideoTrack[] = [];
+
+      // HIER: Explizite Weiche für Electron-App.
+      // Wenn wir in Electron sind, nutzen wir IMMER den direkten, bewährten Pfad über desktop.pickDisplaySource.
+      // Wir vertrauen hier nicht mehr auf createLocalScreenTracks, da es in Electron oft hängt oder falsche Constraints setzt.
+      const anyWin = window as any;
+      const isElectron = !!(anyWin.desktop && anyWin.desktop.pickDisplaySource);
+
+      if (isElectron) {
+         try {
+           console.log('[AV] Starting Electron native screenshare flow');
+           const choice = await anyWin.desktop.pickDisplaySource({ types: ['screen','window'] });
+           if (!choice || !choice.id) {
+             console.log('[AV] User cancelled picker');
+             this.sharePending = false;
+             return false;
+           }
+
+           console.log('[AV] Picker choice:', choice);
+           
+           // Native getUserMedia Anfrage mit der ID aus dem Picker
+           const stream = await navigator.mediaDevices.getUserMedia({
+             audio: false,
+             video: {
+               mandatory: {
+                 chromeMediaSource: 'desktop',
+                 chromeMediaSourceId: choice.id,
+                 maxFrameRate: 30,
+               }
+             } as any
+           } as any);
+
+           console.log('[AV] Got native stream:', stream.id);
+           
+           const vTrack = stream.getVideoTracks()[0];
+           if (vTrack) {
+             // Wrapper für LiveKit, damit es als LocalTrack akzeptiert wird
+             // Wir nutzen createLocalTracks (low-level) oder bauen das Objekt manuell, 
+             // aber am sichersten ist es, den Track direkt zu wrappen.
+             // LiveKit's LocalVideoTrack erwartet einen MediaStreamTrack.
+             const { LocalVideoTrack } = await import('livekit-client');
+             const lkTrack = new LocalVideoTrack(vTrack, undefined, false); // false = userProvidedTrack (don't stop on unpublish usually, but we handle cleanup)
+             tracks = [lkTrack];
+           }
+         } catch (err) {
+           console.error('[AV] Electron screenshare failed:', err);
+           this.sharePending = false;
+           return false;
+         }
+      } else {
+        // Standard Web-Weg (für Browser)
         try {
+          // WICHTIG: getDisplayMedia muss direkt aus der User-Geste aufgerufen werden.
+          // Daher zuerst Tracks holen (öffnet den Picker), dann erst auf Verbindung warten/publizieren.
           tracks = await createLocalScreenTracks({
             video: { frameRate: 30, resolution: { width: 1920, height: 1080 } } as any,
-            audio: false,
-          } as any);
-        } catch (e2) {
-          // Fallback Pfad 2 (Electron): desktopCapturer verwenden
-          try { console.debug('[AV][debug] screenshare.electron.desktopCapturer'); } catch {}
+            audio: true,
+          }) as any; // Cast to help TS if needed
+        } catch (e) {
+          // Fallback Web: ohne Audio
           try {
-            const anyWin = window as any;
-            const choice = await (anyWin.desktop?.pickDisplaySource?.({ types: ['screen','window'] }) || anyWin.desktop?.chooseDisplaySource?.({ types: ['screen','window'] }));
-            if (choice && choice.id) {
-              let stream: MediaStream;
-              try {
-                stream = await navigator.mediaDevices.getUserMedia({
-                  audio: false,
-                  video: {
-                    mandatory: {
-                      chromeMediaSource: 'desktop',
-                      chromeMediaSourceId: choice.id,
-                      maxFrameRate: 30,
-                    }
-                  } as any
-                } as any);
-              } catch (err) {
-                console.warn('[AV] getUserMedia with constraints failed, retrying minimal...', err);
-                stream = await navigator.mediaDevices.getUserMedia({
-                  audio: false,
-                  video: {
-                    mandatory: {
-                      chromeMediaSource: 'desktop',
-                      chromeMediaSourceId: choice.id
-                    }
-                  } as any
-                } as any);
-              }
-
-              const vTrack = stream.getVideoTracks()[0];
-              if (vTrack) {
-                tracks = [vTrack];
-              }
-            }
-          } catch (e3) {
-            console.error('[AV] screenshare.electron.desktopCapturer.failed', e3);
+            tracks = await createLocalScreenTracks({
+              video: { frameRate: 30, resolution: { width: 1920, height: 1080 } } as any,
+              audio: false,
+            }) as any;
+          } catch (e2) {
+            console.warn('[AV] Web screenshare failed', e2);
           }
         }
       }
+
       if (!Array.isArray(tracks) || tracks.length === 0) {
         this.sharePending = false;
         return false;
