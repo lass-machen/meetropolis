@@ -1185,6 +1185,7 @@ export function registerApi(app: express.Express) {
     // meta speichert editor bezogene daten
     const meta = (map.meta as any) || {};
     try { logger.debug('[EditorState] GET', { map: name, tilesets: Array.isArray(meta.tilesets) ? meta.tilesets.length : 0, assets: Array.isArray(meta.assets) ? meta.assets.length : 0 }); } catch {}
+    res.set('Cache-Control', 'no-store, max-age=0');
     res.json({
       tilesets: meta.tilesets ?? [],
       assets: meta.assets ?? [],

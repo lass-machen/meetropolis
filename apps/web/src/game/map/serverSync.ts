@@ -4,7 +4,7 @@ import { editorLog, editorError } from '../../lib/editorLog';
 export async function fetchAndApplyServerLayers(scene: Phaser.Scene & any): Promise<void> {
   try {
     const base = (window as any).VITE_API_BASE || (import.meta as any).env.VITE_API_BASE || `${window.location.protocol}//${window.location.hostname}:2567`;
-    const res = await fetch(`${base}/maps/${encodeURIComponent(scene.currentMapName)}/editor-state`, { credentials: 'include' });
+    const res = await fetch(`${base}/maps/${encodeURIComponent(scene.currentMapName)}/editor-state?t=${Date.now()}`, { credentials: 'include' });
     if (!res.ok) return;
     const data = await res.json();
     let requiredTsKeys: string[] = [];

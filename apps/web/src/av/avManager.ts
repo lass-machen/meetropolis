@@ -1352,6 +1352,24 @@ export class AVManager {
 
   async setMicrophoneEnabled(enabled: boolean): Promise<void> {
     this.lastMicDesired = !!enabled;
+
+    // EAGER AUDIO UNLOCK: Try to capture user gesture immediately
+    if (enabled && this.current) {
+      try {
+        const anyRoom: any = this.current as any;
+        // Try standard LiveKit startAudio
+        if (typeof anyRoom.startAudio === 'function') {
+          anyRoom.startAudio().catch((e: any) => console.warn('[AV] eager startAudio failed', e));
+        }
+        // Fallback: Try to find and resume AudioContext directly
+        // engine.client.audioContext (v2) or engine.audioContext (v1)
+        const ctx = anyRoom.engine?.client?.audioContext || anyRoom.engine?.audioContext;
+        if (ctx && typeof ctx.resume === 'function' && ctx.state === 'suspended') {
+          ctx.resume().catch(() => {});
+        }
+      } catch {}
+    }
+
     // Wenn kein Room oder nicht verbunden → als pending setzen und Berechtigungen anfragen
     const notConnected = !this.current || !this.isConnected;
     if (notConnected) {
