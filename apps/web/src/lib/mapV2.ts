@@ -62,8 +62,10 @@ export function decodeRLE(base64: string, total: number): number[] {
 }
 
 export function splitTileRefId(id: number): { slot: number; tileIndex: number } {
-  const slot = (id >>> 16) & 0xffff;
-  const tileIndex = id & 0xffff;
+  // Offset by 1 (0 is reserved for empty)
+  const raw = id - 1;
+  const slot = (raw >>> 16) & 0xffff;
+  const tileIndex = raw & 0xffff;
   return { slot, tileIndex };
 }
 

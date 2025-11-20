@@ -36,7 +36,7 @@ export function decodeRlePairsFromBuffer(buf: Buffer): RlePair[] {
     const s = buf.toString('utf8');
     const arr = JSON.parse(s);
     if (Array.isArray(arr)) return arr as RlePair[];
-  } catch {}
+  } catch { }
   return [];
 }
 
@@ -54,7 +54,8 @@ export function rleDecodeToNumbers(pairs: RlePair[], total: number): number[] {
 }
 
 export function tileRefIdFrom(slot: number, tileIndex: number): number {
-  return ((slot & 0xffff) << 16) | (tileIndex & 0xffff);
+  // Offset by 1 to ensure 0 is reserved for "empty"
+  return (((slot & 0xffff) << 16) | (tileIndex & 0xffff)) + 1;
 }
 
 export function chunkIndex(x: number, y: number, chunkSize: number): number {

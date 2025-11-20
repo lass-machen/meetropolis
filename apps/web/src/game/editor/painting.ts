@@ -86,12 +86,12 @@ export async function ensureTerrainTilesetFor(scene: Phaser.Scene & any, dataUrl
           ctex.refresh();
           resolve(doAddTileset());
         } else {
-            resolve(null);
+          resolve(null);
         }
       };
       img.onerror = () => {
-          editorError('Paint', 'Failed to load image for terrain', null);
-          resolve(null);
+        editorError('Paint', 'Failed to load image for terrain', null);
+        resolve(null);
       };
       img.src = dataUrl;
     });
@@ -110,7 +110,7 @@ export async function applyTerrainPaint(scene: Phaser.Scene & any, edit: { rect:
   if (!tilesetKey) return;
   const tileset = scene.dynamicTilesets.get(tilesetKey) || map.tilesets.find(t => t.name === tilesetKey);
   if (!tileset) {
-     // Should not happen if ensureTerrainTilesetFor works correctly and returns valid key only when ready
+    // Should not happen if ensureTerrainTilesetFor works correctly and returns valid key only when ready
     return;
   }
   try {
@@ -203,7 +203,7 @@ export function applyTilePaint(scene: Phaser.Scene & any, edit: { layer: 'Editor
         const body = JSON.stringify({ layer: 'collision', rect: { x0, y0, x1, y1 }, erase: edit.tileIndex < 0, tileRefId: 1 });
         fetch(`${base}/maps/${encodeURIComponent(scene.currentMapName)}/paint-rect`, { method: 'PATCH', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body })
           .then(res => { if (!res.ok) console.error('Paint failed', res.status, res.statusText); })
-          .catch((e)=>{ editorError('Paint', 'Failed to patch collision', e); });
+          .catch((e) => { editorError('Paint', 'Failed to patch collision', e); });
       }
     } catch (e) { editorError('Paint', 'Failed to sync collision', e); }
   }
@@ -219,13 +219,14 @@ export function applyTilePaint(scene: Phaser.Scene & any, edit: { layer: 'Editor
           const ts = scene.v2?.state?.tilesetRegistry?.find((t: any) => t?.key === edit.tilesetKey);
           const slot = typeof ts?.slot === 'number' ? ts.slot : 0;
           const idx = Math.max(0, edit.tileIndex | 0);
-          tileRefId = ((slot & 0xffff) << 16) | (idx & 0xffff);
+          // Offset by 1 to ensure 0 is reserved for "empty"
+          tileRefId = (((slot & 0xffff) << 16) | (idx & 0xffff)) + 1;
         } catch (e) { editorError('Paint', 'Failed to compute tileRefId', e); }
       }
       const body = JSON.stringify({ layer: layerName, ...bodyCommon, tileRefId });
       fetch(`${base}/maps/${encodeURIComponent(scene.currentMapName)}/paint-rect`, { method: 'PATCH', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body })
         .then(res => { if (!res.ok) console.error('Paint failed', res.status, res.statusText); })
-        .catch((e)=>{ editorError('Paint', 'Failed to patch layer', e); });
+        .catch((e) => { editorError('Paint', 'Failed to patch layer', e); });
     }
   } catch (e) { editorError('Paint', 'Failed to sync paint', e); }
 }
