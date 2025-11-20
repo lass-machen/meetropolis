@@ -33,7 +33,7 @@ function getJwtSecret(): string {
   const key = (globalThis as any).__DEV_JWT_SECRET__ as string | undefined;
   if (key && key.length > 0) return key;
   const devSecret = crypto.randomBytes(32).toString('hex');
-  try { logger.warn('[SECURITY] JWT_SECRET fehlt – verwende ephemeres DEV-Secret.'); } catch {}
+  try { logger.warn('[SECURITY] JWT_SECRET fehlt – verwende ephemeres DEV-Secret.'); } catch { }
   (globalThis as any).__DEV_JWT_SECRET__ = devSecret;
   return devSecret;
 }
@@ -90,7 +90,7 @@ function computeOnlineUsageByTenantSlug(): Record<string, number> {
       const n = (r as any).state?.players?.size || 0;
       usage[slug] = (usage[slug] || 0) + n;
     }
-  } catch {}
+  } catch { }
   return usage;
 }
 
@@ -150,7 +150,7 @@ export function registerApi(app: express.Express) {
       const internal = await prisma.tenant.findUnique({ where: { slug: 'internal' } });
       const v = (internal as any)?.freeSeats;
       if (typeof v === 'number' && Number.isFinite(v) && v >= 0) return v;
-    } catch {}
+    } catch { }
     const envV = Number(process.env.FREE_SEATS_DEFAULT || '');
     if (Number.isFinite(envV) && envV >= 0) return envV;
     return 3;
@@ -158,7 +158,7 @@ export function registerApi(app: express.Express) {
   app.get('/health', (_req: express.Request, res: express.Response) => res.json({ ok: true }));
   // Liveness probe: keine externen Abhängigkeiten
   app.get('/healthz', (_req: express.Request, res: express.Response) => res.json({ ok: true }));
-  
+
   // Public Client Config (Auto-Discovery helper)
   app.get('/config', (_req: express.Request, res: express.Response) => {
     res.json({
@@ -252,7 +252,7 @@ export function registerApi(app: express.Express) {
           create: { tenantId: (invite as any).tenantId, userId: user.id, role: (invite as any).role || 'member' },
         });
       }
-    } catch {}
+    } catch { }
     const token = jwt.sign({ sub: user.id, tid: (invite as any).tenantId }, getJwtSecret(), { expiresIn: '30d' });
     setAuthCookie(res, token);
     res.json({ id: user.id, email: user.email, name: user.name });
@@ -290,7 +290,7 @@ export function registerApi(app: express.Express) {
     if (!tenant) return res.status(400).json({ error: 'tenant_required' });
     const member = await prisma.membership.findUnique({ where: { tenantId_userId: { tenantId: tenant.id, userId: auth.userId } } as any });
     if (!member) return res.status(403).json({ error: 'not_member_of_tenant' });
-    const user = await prisma.user.findUnique({ 
+    const user = await prisma.user.findUnique({
       where: { id: auth.userId },
       include: {
         presences: {
@@ -305,11 +305,11 @@ export function registerApi(app: express.Express) {
     let isInternalOwner = false;
     try {
       isInternalOwner = await requireInternalOwner(req, auth.userId);
-    } catch {}
+    } catch { }
     const lastPosition = user.presences[0];
-    res.json({ 
-      id: user.id, 
-      email: user.email, 
+    res.json({
+      id: user.id,
+      email: user.email,
       name: user.name,
       isInternalOwner,
       lastPosition: lastPosition ? { x: lastPosition.x, y: lastPosition.y, direction: lastPosition.direction } : null
@@ -323,17 +323,17 @@ export function registerApi(app: express.Express) {
       if (!auth) return res.status(401).json({ error: 'unauthorized' });
       const tenant = getTenantFromReq(req);
       if (!tenant) return res.status(400).json({ error: 'tenant_required' });
-      const schema = z.object({ 
-        x: z.number(), 
-        y: z.number(), 
+      const schema = z.object({
+        x: z.number(),
+        y: z.number(),
         direction: z.enum(['up', 'down', 'left', 'right']),
         roomId: z.string().optional()
       });
       const parse = schema.safeParse(req.body || {});
       if (!parse.success) return res.status(400).json({ error: 'invalid position data' });
-      
+
       const { x, y, direction, roomId = 'world' } = parse.data;
-      
+
       // Get or create the default room
       let room = await prisma.room.findFirst({ where: { name: roomId, tenantId: tenant.id } });
       if (!room) {
@@ -355,7 +355,7 @@ export function registerApi(app: express.Express) {
         }
         room = await prisma.room.create({ data: { name: roomId, mapId: map.id, tenantId: tenant.id } });
       }
-      
+
       // Update or create presence
       const existingPresence = await prisma.presence.findFirst({
         where: {
@@ -364,7 +364,7 @@ export function registerApi(app: express.Express) {
           tenantId: tenant.id
         }
       });
-      
+
       if (existingPresence) {
         await prisma.presence.update({
           where: { id: existingPresence.id },
@@ -375,7 +375,7 @@ export function registerApi(app: express.Express) {
           data: { userId: auth.userId, roomId: room.id, tenantId: tenant.id, x, y, direction }
         });
       }
-      
+
       // Best-effort WS push: presence_update for this tenant
       try {
         const rooms: any[] = Array.from(((global as any).activeWorldRooms || new Set()).values());
@@ -388,13 +388,13 @@ export function registerApi(app: express.Express) {
               x, y, direction,
               updatedAt: new Date().toISOString(),
             });
-          } catch {}
+          } catch { }
         }
-      } catch {}
-      
+      } catch { }
+
       res.json({ ok: true });
     } catch (e: any) {
-      try { logger.error('[Auth] position update failed', e); } catch {}
+      try { logger.error('[Auth] position update failed', e); } catch { }
       return res.status(500).json({ error: 'position update failed' });
     }
   });
@@ -490,10 +490,10 @@ export function registerApi(app: express.Express) {
       const exists = await prisma.user.findUnique({ where: { id } });
       if (!exists) return res.status(404).json({ error: 'not found' });
       // Best-effort clean up to avoid constraint violations
-      try { await prisma.presence.deleteMany({ where: { userId: id } }); } catch {}
-      try { await prisma.passwordReset.deleteMany({ where: { userId: id } }); } catch {}
-      try { await prisma.apiToken.deleteMany({ where: { userId: id } }); } catch {}
-      try { await prisma.invite.updateMany({ where: { usedById: id }, data: { usedById: null } }); } catch {}
+      try { await prisma.presence.deleteMany({ where: { userId: id } }); } catch { }
+      try { await prisma.passwordReset.deleteMany({ where: { userId: id } }); } catch { }
+      try { await prisma.apiToken.deleteMany({ where: { userId: id } }); } catch { }
+      try { await prisma.invite.updateMany({ where: { usedById: id }, data: { usedById: null } }); } catch { }
       await prisma.user.delete({ where: { id } });
       return res.json({ ok: true });
     } catch (e) {
@@ -508,7 +508,7 @@ export function registerApi(app: express.Express) {
   const packsDir = process.env.ASSET_PACKS_DIR || path.resolve(__dirname, '../../../public/packs');
   try {
     fs.mkdirSync(packsDir, { recursive: true });
-  } catch {}
+  } catch { }
   const FALLBACK_ASSET_URL = process.env.FALLBACK_ASSET_URL || '/packs/__fallback__/missing.png';
 
   // Zod Schemas according to ASSET_PACKS_SPEC.md
@@ -633,7 +633,7 @@ export function registerApi(app: express.Express) {
     const auth = sessionAuth || tokenAuth;
     if (!auth) return res.status(401).json({ error: 'unauthorized' });
     try {
-    try { logger.info('[AssetPacks] upload request received'); } catch {}
+      try { logger.info('[AssetPacks] upload request received'); } catch { }
       const file = (req as any).file as any as { buffer?: Buffer; size?: number } | undefined;
       if (!file || !file.buffer || !file.size || file.size <= 0) {
         return res.status(400).json({ error: 'file required' });
@@ -694,7 +694,7 @@ export function registerApi(app: express.Express) {
         return res.status(400).json({ error: 'invalid config schema', details: parsed.error.errors });
       }
       const cfg = parsed.data as any;
-      try { logger.info('[AssetPacks] parsed config.json', { uuid: cfg?.uuid, name: cfg?.name, v: cfg?.version, nTerrain: (cfg?.terrain||[]).length, nStruct: (cfg?.structures||[]).length, nObjects: (cfg?.objects||[]).length }); } catch {}
+      try { logger.info('[AssetPacks] parsed config.json', { uuid: cfg?.uuid, name: cfg?.name, v: cfg?.version, nTerrain: (cfg?.terrain || []).length, nStruct: (cfg?.structures || []).length, nObjects: (cfg?.objects || []).length }); } catch { }
 
       // Ensure all referenced dataURL exist in assets and have allowed extensions
       const assetSet = new Set<string>();
@@ -779,7 +779,7 @@ export function registerApi(app: express.Express) {
           }, cfg);
           if (!check.ok) {
             // Clean temp
-            try { await fsp.rm(tmpDir, { recursive: true, force: true }); } catch {}
+            try { await fsp.rm(tmpDir, { recursive: true, force: true }); } catch { }
             return res.status(409).json({ error: 'dimension mismatch', reason: (check as any).reason, itemId: (check as any).offendingId });
           }
         }
@@ -787,7 +787,7 @@ export function registerApi(app: express.Express) {
 
       // Atomic replace: remove old dir, move tmp into place
       const finalDir = path.resolve(packsDir, uuid);
-      try { await fsp.rm(finalDir, { recursive: true, force: true }); } catch {}
+      try { await fsp.rm(finalDir, { recursive: true, force: true }); } catch { }
       await fsp.mkdir(path.dirname(finalDir), { recursive: true });
       // Move by renaming each file tree from tmp to final
       // Use fs.rename for best-effort atomic move when same filesystem
@@ -806,7 +806,7 @@ export function registerApi(app: express.Express) {
           }
         };
         await copyRecursive(tmpDir, finalDir);
-        try { await fsp.rm(tmpDir, { recursive: true, force: true }); } catch {}
+        try { await fsp.rm(tmpDir, { recursive: true, force: true }); } catch { }
       }
 
       // Upsert DB
@@ -827,7 +827,7 @@ export function registerApi(app: express.Express) {
       } else {
         rec = await prisma.assetPack.create({ data: dataRecord as any });
       }
-      try { logger.info('[AssetPacks] upload success', { id: rec.id, uuid: rec.uuid, version: rec.version }); } catch {}
+      try { logger.info('[AssetPacks] upload success', { id: rec.id, uuid: rec.uuid, version: rec.version }); } catch { }
       return res.json({ ok: true, id: rec.id, uuid: rec.uuid, version: rec.version });
     } catch (e: any) {
       logger.error('[AssetPacks] upload failed', e);
@@ -863,7 +863,7 @@ export function registerApi(app: express.Express) {
     try {
       const dir = path.resolve(packsDir, pack.uuid);
       await fsp.rm(dir, { recursive: true, force: true });
-    } catch {}
+    } catch { }
     await prisma.assetPack.delete({ where: { id } });
     res.json({ ok: true, fallback: FALLBACK_ASSET_URL });
   });
@@ -880,277 +880,297 @@ export function registerApi(app: express.Express) {
   // v2 Map State (READ-ONLY, PR1)
   // ========================
   app.get('/maps/:name/state-v2', async (req: express.Request, res: express.Response) => {
-    const name = req.params.name;
-    const tenant = getTenantFromReq(req);
-    if (!tenant) return res.status(400).json({ error: 'tenant_required' });
-    let map = await prisma.map.findFirst({ where: { name, tenantId: tenant.id } });
-    
-    const defaults = { width: 32, height: 32, tileWidth: 16, tileHeight: 16, chunkSize: 32 };
+    try {
+      const name = req.params.name;
+      const tenant = getTenantFromReq(req);
+      if (!tenant) return res.status(400).json({ error: 'tenant_required' });
+      let map = await prisma.map.findFirst({ where: { name, tenantId: tenant.id } });
 
-    if (!map) {
-      // Auto-provision map if missing to ensure v2 mode works
-      try {
-        map = await prisma.map.create({ data: { name, meta: {}, tenantId: tenant.id, ...defaults } });
-        logger.info('[Map] Auto-created map on state-v2 fetch', { name, tenant: tenant.slug });
-      } catch (e) {
-        return res.status(500).json({ error: 'failed to create map' });
-      }
-    } else {
-      // Auto-fix: if map exists but has no dimensions, patch it
-      if (!map.width || !map.height || !map.tileWidth || !map.tileHeight) {
+      const defaults = { width: 32, height: 32, tileWidth: 16, tileHeight: 16, chunkSize: 32 };
+
+      if (!map) {
+        // Auto-provision map if missing to ensure v2 mode works
         try {
-          map = await prisma.map.update({
-            where: { id: map.id },
-            data: {
-              width: map.width ?? defaults.width,
-              height: map.height ?? defaults.height,
-              tileWidth: map.tileWidth ?? defaults.tileWidth,
-              tileHeight: map.tileHeight ?? defaults.tileHeight,
-            }
-          });
-          logger.info('[Map] Auto-patched map dimensions on state-v2 fetch', { name, tenant: tenant.slug });
-        } catch {}
+          map = await prisma.map.create({ data: { name, meta: {}, tenantId: tenant.id, ...defaults } });
+          logger.info('[Map] Auto-created map on state-v2 fetch', { name, tenant: tenant.slug });
+        } catch (e) {
+          return res.status(500).json({ error: 'failed to create map' });
+        }
+      } else {
+        // Auto-fix: if map exists but has no dimensions, patch it
+        if (!map.width || !map.height || !map.tileWidth || !map.tileHeight) {
+          try {
+            map = await prisma.map.update({
+              where: { id: map.id },
+              data: {
+                width: map.width ?? defaults.width,
+                height: map.height ?? defaults.height,
+                tileWidth: map.tileWidth ?? defaults.tileWidth,
+                tileHeight: map.tileHeight ?? defaults.tileHeight,
+              }
+            });
+            logger.info('[Map] Auto-patched map dimensions on state-v2 fetch', { name, tenant: tenant.slug });
+          } catch { }
+        }
       }
+
+      // Fetch tileset registry (deterministic by slot)
+      const tilesets = await prisma.mapTileset.findMany({
+        where: { mapId: map.id },
+        orderBy: { slot: 'asc' },
+        select: {
+          id: true,
+          slot: true,
+          key: true,
+          imageUrl: true,
+          tileWidth: true,
+          tileHeight: true,
+          margin: true,
+          spacing: true,
+          hash: true,
+        },
+      });
+
+      // Fetch layers and existing chunk keys per layer
+      const layers = await prisma.mapLayer.findMany({ where: { mapId: map.id }, select: { id: true, name: true, chunkSize: true } });
+      const layerIndex: Record<string, { keys: string[]; chunkSize: number }> = {};
+      for (const layer of layers) {
+        const chunks = await prisma.mapChunk.findMany({ where: { layerId: layer.id }, select: { x: true, y: true } });
+        const keys = chunks.map((c: { x: number; y: number }) => `${c.x}:${c.y}`);
+        layerIndex[layer.name] = { keys, chunkSize: layer.chunkSize };
+      }
+
+      const mapMeta = {
+        width: map.width ?? null,
+        height: map.height ?? null,
+        tileWidth: map.tileWidth ?? null,
+        tileHeight: map.tileHeight ?? null,
+        chunkSize: map.chunkSize ?? 32,
+        version: map.version ?? null,
+      };
+
+      res.json({
+        mapMeta,
+        tilesetRegistry: tilesets,
+        layerIndex,
+      });
+    } catch (e: any) {
+      logger.error('[Map] state-v2 failed', e);
+      res.status(500).json({ error: 'internal_error' });
     }
-
-    // Fetch tileset registry (deterministic by slot)
-    const tilesets = await prisma.mapTileset.findMany({
-      where: { mapId: map.id },
-      orderBy: { slot: 'asc' },
-      select: {
-        id: true,
-        slot: true,
-        key: true,
-        imageUrl: true,
-        tileWidth: true,
-        tileHeight: true,
-        margin: true,
-        spacing: true,
-        hash: true,
-      },
-    });
-
-    // Fetch layers and existing chunk keys per layer
-    const layers = await prisma.mapLayer.findMany({ where: { mapId: map.id }, select: { id: true, name: true, chunkSize: true } });
-    const layerIndex: Record<string, { keys: string[]; chunkSize: number } > = {};
-    for (const layer of layers) {
-      const chunks = await prisma.mapChunk.findMany({ where: { layerId: layer.id }, select: { x: true, y: true } });
-    const keys = chunks.map((c: { x: number; y: number }) => `${c.x}:${c.y}`);
-      layerIndex[layer.name] = { keys, chunkSize: layer.chunkSize };
-    }
-
-    const mapMeta = {
-      width: map.width ?? null,
-      height: map.height ?? null,
-      tileWidth: map.tileWidth ?? null,
-      tileHeight: map.tileHeight ?? null,
-      chunkSize: map.chunkSize ?? 32,
-      version: map.version ?? null,
-    };
-
-    res.json({
-      mapMeta,
-      tilesetRegistry: tilesets,
-      layerIndex,
-    });
   });
 
   app.get('/maps/:name/chunks', async (req: express.Request, res: express.Response) => {
-    const schema = z.object({ layer: z.string().min(1), keys: z.string().min(1) });
-    const parse = schema.safeParse(req.query || {});
-    if (!parse.success) return res.status(400).json({ error: 'layer and keys required' });
+    try {
+      const schema = z.object({ layer: z.string().min(1), keys: z.string().min(1) });
+      const parse = schema.safeParse(req.query || {});
+      if (!parse.success) return res.status(400).json({ error: 'layer and keys required' });
 
-    const name = req.params.name;
-    const tenant = getTenantFromReq(req);
-    if (!tenant) return res.status(400).json({ error: 'tenant_required' });
-    const { layer: layerName, keys } = parse.data;
-    const map = await prisma.map.findFirst({ where: { name, tenantId: tenant.id } });
-    if (!map) return res.status(404).json({ error: 'map not found' });
-    const layer = await prisma.mapLayer.findUnique({ where: { mapId_name: { mapId: map.id, name: layerName } } as any });
-    if (!layer) {
-      // Layer doesn't exist yet -> treat as empty (no chunks)
-      return res.json({ chunks: {} });
+      const name = req.params.name;
+      const tenant = getTenantFromReq(req);
+      if (!tenant) return res.status(400).json({ error: 'tenant_required' });
+      const { layer: layerName, keys } = parse.data;
+      const map = await prisma.map.findFirst({ where: { name, tenantId: tenant.id } });
+      if (!map) return res.status(404).json({ error: 'map not found' });
+      const layer = await prisma.mapLayer.findUnique({ where: { mapId_name: { mapId: map.id, name: layerName } } as any });
+      if (!layer) {
+        // Layer doesn't exist yet -> treat as empty (no chunks)
+        return res.json({ chunks: {} });
+      }
+
+      const keyList = keys.split(',').map((s) => s.trim()).filter((s) => s.length > 0);
+      const wanted: Array<{ x: number; y: number; key: string }> = [];
+      for (const k of keyList) {
+        const [xs, ys] = k.split(':');
+        const x = Number(xs);
+        const y = Number(ys);
+        if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+        wanted.push({ x, y, key: k });
+      }
+      if (wanted.length === 0) return res.json({ chunks: {} });
+
+      const orList = wanted.map((w) => ({ x: w.x, y: w.y }));
+      const found = await prisma.mapChunk.findMany({ where: { layerId: layer.id, OR: orList }, select: { x: true, y: true, version: true, encoding: true, data: true } });
+      const out: Record<string, { version: number; encoding: string; data: string }> = {};
+      for (const c of found) {
+        const key = `${c.x}:${c.y}`;
+        out[key] = { version: c.version, encoding: c.encoding, data: Buffer.from(c.data as any).toString('base64') };
+      }
+
+      res.setHeader('Cache-Control', 'no-cache');
+      res.json({ chunks: out });
+    } catch (e: any) {
+      logger.error('[Map] chunks fetch failed', e);
+      res.status(500).json({ error: 'internal_error' });
     }
-
-    const keyList = keys.split(',').map((s) => s.trim()).filter((s) => s.length > 0);
-    const wanted: Array<{ x: number; y: number; key: string }> = [];
-    for (const k of keyList) {
-      const [xs, ys] = k.split(':');
-      const x = Number(xs);
-      const y = Number(ys);
-      if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
-      wanted.push({ x, y, key: k });
-    }
-    if (wanted.length === 0) return res.json({ chunks: {} });
-
-    const orList = wanted.map((w) => ({ x: w.x, y: w.y }));
-    const found = await prisma.mapChunk.findMany({ where: { layerId: layer.id, OR: orList }, select: { x: true, y: true, version: true, encoding: true, data: true } });
-    const out: Record<string, { version: number; encoding: string; data: string } > = {};
-    for (const c of found) {
-      const key = `${c.x}:${c.y}`;
-      out[key] = { version: c.version, encoding: c.encoding, data: Buffer.from(c.data as any).toString('base64') };
-    }
-
-    res.setHeader('Cache-Control', 'no-cache');
-    res.json({ chunks: out });
   });
 
   // ========================
   // v2 Map State (WRITE - PR2)
   // ========================
   app.patch('/maps/:name/paint-rect', async (req: express.Request, res: express.Response) => {
-    const schema = z.object({
-      layer: z.enum(['editor_ground', 'editor_walls', 'collision', 'ground', 'walls']),
-      rect: z.object({ x0: z.number().int(), y0: z.number().int(), x1: z.number().int(), y1: z.number().int() }),
-      tileRefId: z.number().int().optional(),
-      erase: z.boolean().optional(),
-    });
-    const parse = schema.safeParse(req.body || {});
-    if (!parse.success) {
-      logger.warn('[Paint] invalid payload', parse.error);
-      return res.status(400).json({ error: 'invalid payload' });
-    }
+    try {
+      const schema = z.object({
+        layer: z.enum(['editor_ground', 'editor_walls', 'collision', 'ground', 'walls']),
+        rect: z.object({ x0: z.number().int(), y0: z.number().int(), x1: z.number().int(), y1: z.number().int() }),
+        tileRefId: z.number().int().optional(),
+        erase: z.boolean().optional(),
+      });
+      const parse = schema.safeParse(req.body || {});
+      if (!parse.success) {
+        logger.warn('[Paint] invalid payload', parse.error);
+        return res.status(400).json({ error: 'invalid payload' });
+      }
 
-    const name = req.params.name;
-    const tenant = getTenantFromReq(req);
-    if (!tenant) return res.status(400).json({ error: 'tenant_required' });
-    const { layer: layerName, rect, tileRefId, erase } = parse.data;
+      const name = req.params.name;
+      const tenant = getTenantFromReq(req);
+      if (!tenant) return res.status(400).json({ error: 'tenant_required' });
+      const { layer: layerName, rect, tileRefId, erase } = parse.data;
 
-    logger.info('[Paint] Request', { map: name, layer: layerName, rect, erase });
+      logger.info('[Paint] Request', { map: name, layer: layerName, rect, erase });
 
-    const map = await prisma.map.findFirst({ where: { name, tenantId: tenant.id } });
-    if (!map) {
-       logger.warn('[Paint] map not found', { name, tenant: tenant.slug });
-       return res.status(404).json({ error: 'map not found' });
-    }
+      const map = await prisma.map.findFirst({ where: { name, tenantId: tenant.id } });
+      if (!map) {
+        logger.warn('[Paint] map not found', { name, tenant: tenant.slug });
+        return res.status(404).json({ error: 'map not found' });
+      }
 
-    // Validate tileRefId range lightly (slot/index 16-bit)
+      // Validate tileRefId range lightly (slot/index 16-bit)
       if (!erase && (tileRefId === undefined || tileRefId < 0)) {
-      return res.status(400).json({ error: 'invalid tileRefId' });
-    }
+        return res.status(400).json({ error: 'invalid tileRefId' });
+      }
 
-    // Ensure layer exists
-    let layer = await prisma.mapLayer.findUnique({ where: { mapId_name: { mapId: map.id, name: layerName } } as any });
-    if (!layer) {
-      layer = await prisma.mapLayer.create({ data: { mapId: map.id, name: layerName, chunkSize: map.chunkSize ?? 32 } });
-      logger.info('[Paint] created layer', { layerId: layer.id, name: layerName });
-    }
+      // Ensure layer exists
+      let layer = await prisma.mapLayer.findUnique({ where: { mapId_name: { mapId: map.id, name: layerName } } as any });
+      if (!layer) {
+        layer = await prisma.mapLayer.create({ data: { mapId: map.id, name: layerName, chunkSize: map.chunkSize ?? 32 } });
+        logger.info('[Paint] created layer', { layerId: layer.id, name: layerName });
+      }
 
-    const chunkSize = layer.chunkSize;
-    const x0 = Math.min(rect.x0, rect.x1);
-    const y0 = Math.min(rect.y0, rect.y1);
-    const x1 = Math.max(rect.x0, rect.x1);
-    const y1 = Math.max(rect.y0, rect.y1);
+      const chunkSize = layer.chunkSize;
+      const x0 = Math.min(rect.x0, rect.x1);
+      const y0 = Math.min(rect.y0, rect.y1);
+      const x1 = Math.max(rect.x0, rect.x1);
+      const y1 = Math.max(rect.y0, rect.y1);
 
-    // Which chunks are affected?
-    const cx0 = Math.floor(x0 / chunkSize);
-    const cy0 = Math.floor(y0 / chunkSize);
-    const cx1 = Math.floor(x1 / chunkSize);
-    const cy1 = Math.floor(y1 / chunkSize);
+      // Which chunks are affected?
+      const cx0 = Math.floor(x0 / chunkSize);
+      const cy0 = Math.floor(y0 / chunkSize);
+      const cx1 = Math.floor(x1 / chunkSize);
+      const cy1 = Math.floor(y1 / chunkSize);
 
-    const updates: Array<{ key: string; version: number; encoding: string; data: string }> = [];
+      const updates: Array<{ key: string; version: number; encoding: string; data: string }> = [];
 
-    for (let cy = cy0; cy <= cy1; cy++) {
-      for (let cx = cx0; cx <= cx1; cx++) {
-        // Load or initialize chunk
-        let chunk = await prisma.mapChunk.findUnique({ where: { layerId_x_y: { layerId: layer.id, x: cx, y: cy } } as any });
-        let values: number[];
-        if (!chunk) {
-          // Empty chunk
-          values = new Array(chunkSize * chunkSize).fill(0);
-        } else {
-          const { decodeRlePairsFromBuffer, rleDecodeToNumbers } = await import('./mapEncoding.js');
-          const pairs = decodeRlePairsFromBuffer(Buffer.from(chunk.data as any));
-          values = rleDecodeToNumbers(pairs, chunkSize * chunkSize);
+      for (let cy = cy0; cy <= cy1; cy++) {
+        for (let cx = cx0; cx <= cx1; cx++) {
+          // Load or initialize chunk
+          let chunk = await prisma.mapChunk.findUnique({ where: { layerId_x_y: { layerId: layer.id, x: cx, y: cy } } as any });
+          let values: number[];
+          if (!chunk) {
+            // Empty chunk
+            values = new Array(chunkSize * chunkSize).fill(0);
+          } else {
+            const { decodeRlePairsFromBuffer, rleDecodeToNumbers } = await import('./mapEncoding.js');
+            const pairs = decodeRlePairsFromBuffer(Buffer.from(chunk.data as any));
+            values = rleDecodeToNumbers(pairs, chunkSize * chunkSize);
+          }
+
+          // Apply rect within this chunk
+          const sx = cx * chunkSize;
+          const sy = cy * chunkSize;
+          const ex = sx + chunkSize - 1;
+          const ey = sy + chunkSize - 1;
+
+          const rx0 = Math.max(x0, sx);
+          const ry0 = Math.max(y0, sy);
+          const rx1 = Math.min(x1, ex);
+          const ry1 = Math.min(y1, ey);
+
+          if (rx0 > rx1 || ry0 > ry1) continue;
+
+          for (let yy = ry0; yy <= ry1; yy++) {
+            for (let xx = rx0; xx <= rx1; xx++) {
+              const lx = xx - sx;
+              const ly = yy - sy;
+              const idx = ly * chunkSize + lx;
+              values[idx] = erase ? 0 : (tileRefId as number);
+            }
+          }
+
+          // Encode and persist
+          const { rleEncodeNumbers, rleEncodeBooleans, encodeRlePairsToBuffer } = await import('./mapEncoding.js');
+          const encoding = layerName === 'collision' ? 'rle-bool' : 'rle';
+          const pairs = encoding === 'rle-bool'
+            ? rleEncodeBooleans(values.map(v => v !== 0))
+            : rleEncodeNumbers(values);
+          const buf = encodeRlePairsToBuffer(pairs);
+          const u8 = new Uint8Array(buf);
+
+          if (!chunk) {
+            chunk = await prisma.mapChunk.create({ data: { layerId: layer.id, x: cx, y: cy, version: 1, encoding, data: u8 } });
+          } else {
+            chunk = await prisma.mapChunk.update({ where: { id: chunk.id }, data: { version: chunk.version + 1, encoding, data: u8 } });
+          }
+
+          updates.push({ key: `${cx}:${cy}`, version: chunk.version, encoding: chunk.encoding, data: buf.toString('base64') });
         }
+      }
 
-        // Apply rect within this chunk
-        const sx = cx * chunkSize;
-        const sy = cy * chunkSize;
-        const ex = sx + chunkSize - 1;
-        const ey = sy + chunkSize - 1;
-
-        const rx0 = Math.max(x0, sx);
-        const ry0 = Math.max(y0, sy);
-        const rx1 = Math.min(x1, ex);
-        const ry1 = Math.min(y1, ey);
-
-        if (rx0 > rx1 || ry0 > ry1) continue;
-
-        for (let yy = ry0; yy <= ry1; yy++) {
-          for (let xx = rx0; xx <= rx1; xx++) {
-            const lx = xx - sx;
-            const ly = yy - sy;
-            const idx = ly * chunkSize + lx;
-            values[idx] = erase ? 0 : (tileRefId as number);
+      // Broadcast stub via Colyseus rooms if available (best-effort, mit Logging)
+      {
+        const rooms: any[] = Array.from(((global as any).activeWorldRooms || new Set()).values());
+        for (const room of rooms) {
+          try {
+            room.broadcast('chunks_updated', { map: name, layer: layerName, updates });
+          } catch (e: any) {
+            try { logger.debug('[Broadcast] chunks_updated failed', { error: e?.message || String(e) }); } catch { }
           }
         }
-
-        // Encode and persist
-        const { rleEncodeNumbers, rleEncodeBooleans, encodeRlePairsToBuffer } = await import('./mapEncoding.js');
-        const encoding = layerName === 'collision' ? 'rle-bool' : 'rle';
-        const pairs = encoding === 'rle-bool'
-          ? rleEncodeBooleans(values.map(v => v !== 0))
-          : rleEncodeNumbers(values);
-        const buf = encodeRlePairsToBuffer(pairs);
-        const u8 = new Uint8Array(buf);
-
-        if (!chunk) {
-          chunk = await prisma.mapChunk.create({ data: { layerId: layer.id, x: cx, y: cy, version: 1, encoding, data: u8 } });
-        } else {
-          chunk = await prisma.mapChunk.update({ where: { id: chunk.id }, data: { version: chunk.version + 1, encoding, data: u8 } });
-        }
-
-        updates.push({ key: `${cx}:${cy}`, version: chunk.version, encoding: chunk.encoding, data: buf.toString('base64') });
       }
-    }
 
-    // Broadcast stub via Colyseus rooms if available (best-effort, mit Logging)
-    {
-      const rooms: any[] = Array.from(((global as any).activeWorldRooms || new Set()).values());
-      for (const room of rooms) {
-        try {
-          room.broadcast('chunks_updated', { map: name, layer: layerName, updates });
-        } catch (e: any) {
-          try { logger.debug('[Broadcast] chunks_updated failed', { error: e?.message || String(e) }); } catch {}
-        }
-      }
+      res.json({ updates });
+    } catch (e: any) {
+      logger.error('[Map] paint-rect failed', e);
+      res.status(500).json({ error: 'internal_error' });
     }
-
-    res.json({ updates });
   });
 
   app.post('/maps/:name/tilesets', async (req: express.Request, res: express.Response) => {
-    const schema = z.object({ key: z.string().min(1), imageUrl: z.string().min(1), tileWidth: z.number().int().positive(), tileHeight: z.number().int().positive(), margin: z.number().int().nonnegative().optional(), spacing: z.number().int().nonnegative().optional(), hash: z.string().optional() });
-    const parse = schema.safeParse(req.body || {});
-    if (!parse.success) return res.status(400).json({ error: 'invalid payload' });
+    try {
+      const schema = z.object({ key: z.string().min(1), imageUrl: z.string().min(1), tileWidth: z.number().int().positive(), tileHeight: z.number().int().positive(), margin: z.number().int().nonnegative().optional(), spacing: z.number().int().nonnegative().optional(), hash: z.string().optional() });
+      const parse = schema.safeParse(req.body || {});
+      if (!parse.success) return res.status(400).json({ error: 'invalid payload' });
 
-    const name = req.params.name;
-    const tenant = getTenantFromReq(req);
-    if (!tenant) return res.status(400).json({ error: 'tenant_required' });
-    const map = await prisma.map.findFirst({ where: { name, tenantId: tenant.id } });
-    if (!map) return res.status(404).json({ error: 'map not found' });
+      const name = req.params.name;
+      const tenant = getTenantFromReq(req);
+      if (!tenant) return res.status(400).json({ error: 'tenant_required' });
+      const map = await prisma.map.findFirst({ where: { name, tenantId: tenant.id } });
+      if (!map) return res.status(404).json({ error: 'map not found' });
 
-    const last = await prisma.mapTileset.findFirst({ where: { mapId: map.id }, orderBy: { slot: 'desc' } });
-    const newSlot = last ? last.slot + 1 : 0;
-    await prisma.mapTileset.create({ data: { mapId: map.id, slot: newSlot, ...parse.data } });
-    try { logger.info('[Tilesets] registry add', { map: name, slot: newSlot, key: parse.data.key, url: parse.data.imageUrl }); } catch {}
+      const last = await prisma.mapTileset.findFirst({ where: { mapId: map.id }, orderBy: { slot: 'desc' } });
+      const newSlot = last ? last.slot + 1 : 0;
+      await prisma.mapTileset.create({ data: { mapId: map.id, slot: newSlot, ...parse.data } });
+      try { logger.info('[Tilesets] registry add', { map: name, slot: newSlot, key: parse.data.key, url: parse.data.imageUrl }); } catch { }
 
-    const tilesets = await prisma.mapTileset.findMany({ where: { mapId: map.id }, orderBy: { slot: 'asc' } });
+      const tilesets = await prisma.mapTileset.findMany({ where: { mapId: map.id }, orderBy: { slot: 'asc' } });
 
-    // Broadcast registry update (best-effort, mit Logging)
-    {
-      const rooms: any[] = Array.from(((global as any).activeWorldRooms || new Set()).values());
-      for (const room of rooms) {
-        try {
-          room.broadcast('tileset_registry_updated', { map: name, tilesetRegistry: tilesets });
-        } catch (e: any) {
-          try { logger.debug('[Broadcast] tileset_registry_updated failed', { error: e?.message || String(e) }); } catch {}
+      // Broadcast registry update (best-effort, mit Logging)
+      {
+        const rooms: any[] = Array.from(((global as any).activeWorldRooms || new Set()).values());
+        for (const room of rooms) {
+          try {
+            room.broadcast('tileset_registry_updated', { map: name, tilesetRegistry: tilesets });
+          } catch (e: any) {
+            try { logger.debug('[Broadcast] tileset_registry_updated failed', { error: e?.message || String(e) }); } catch { }
+          }
         }
       }
-    }
 
-    res.json({ tilesetRegistry: tilesets });
+      res.json({ tilesetRegistry: tilesets });
+    } catch (e: any) {
+      logger.error('[Tilesets] add failed', e);
+      res.status(500).json({ error: 'internal_error' });
+    }
   });
 
   app.get('/zones', async (req: express.Request, res: express.Response) => {
@@ -1184,7 +1204,7 @@ export function registerApi(app: express.Express) {
     }
     // meta speichert editor bezogene daten
     const meta = (map.meta as any) || {};
-    try { logger.debug('[EditorState] GET', { map: name, tilesets: Array.isArray(meta.tilesets) ? meta.tilesets.length : 0, assets: Array.isArray(meta.assets) ? meta.assets.length : 0 }); } catch {}
+    try { logger.debug('[EditorState] GET', { map: name, tilesets: Array.isArray(meta.tilesets) ? meta.tilesets.length : 0, assets: Array.isArray(meta.assets) ? meta.assets.length : 0 }); } catch { }
     res.set('Cache-Control', 'no-store, max-age=0');
     res.json({
       tilesets: meta.tilesets ?? [],
@@ -1213,7 +1233,7 @@ export function registerApi(app: express.Express) {
     const parse = editorSchema.safeParse(req.body || {});
     if (!parse.success) return res.status(400).json({ error: 'invalid editor payload' });
     const { tilesets, assets, zones, backgroundColor, replaceZones, spawn } = parse.data;
-    try { logger.debug('[EditorState] PUT', { map: name, tilesets: Array.isArray(tilesets) ? tilesets.length : undefined, assets: Array.isArray(assets) ? assets.length : undefined, zones: Array.isArray(zones) ? zones.length : undefined, spawn: !!spawn }); } catch {}
+    try { logger.debug('[EditorState] PUT', { map: name, tilesets: Array.isArray(tilesets) ? tilesets.length : undefined, assets: Array.isArray(assets) ? assets.length : undefined, zones: Array.isArray(zones) ? zones.length : undefined, spawn: !!spawn }); } catch { }
     const found = await prisma.map.findFirst({ where: { name, tenantId: tenant.id }, include: { rooms: true } });
     const map = found ?? await prisma.map.create({
       data: {
@@ -1240,17 +1260,17 @@ export function registerApi(app: express.Express) {
     }
     // Update meta blobs - v2-only: keine Layer-Arrays mehr
     const currentMeta = (map.meta as any) || {};
-    await prisma.map.update({ 
-      where: { id: map.id }, 
-      data: { 
-        meta: { 
+    await prisma.map.update({
+      where: { id: map.id },
+      data: {
+        meta: {
           ...currentMeta,
-          tilesets: tilesets ?? currentMeta.tilesets ?? [], 
+          tilesets: tilesets ?? currentMeta.tilesets ?? [],
           assets: assets ?? currentMeta.assets ?? [],
           backgroundColor: backgroundColor ?? currentMeta.backgroundColor ?? undefined,
           spawn: spawn ?? currentMeta.spawn ?? undefined,
-        } as any 
-      } 
+        } as any
+      }
     });
     // Upsert zones (simple strategy: replace all zones for map)
     if (Array.isArray(zones)) {
@@ -1269,7 +1289,7 @@ export function registerApi(app: express.Express) {
           } else if (anyZ?.polygon && Array.isArray(anyZ.polygon.points)) {
             polygon = anyZ.polygon.points;
           }
-        } catch {}
+        } catch { }
         if (Array.isArray(polygon) && polygon.length > 0) {
           prepared.push({ name, capacity, polygon });
         }
@@ -1287,25 +1307,25 @@ export function registerApi(app: express.Express) {
       try {
         const rooms: any[] = Array.from(((global as any).activeWorldRooms || new Set()).values());
         for (const room of rooms) {
-          try { room.broadcast('editor_update', { type: 'spawn', pos: { x: spawn.x, y: spawn.y } }); } catch {}
-          try { if (typeof room.setDefaultSpawn === 'function') room.setDefaultSpawn({ x: spawn.x, y: spawn.y }); } catch {}
+          try { room.broadcast('editor_update', { type: 'spawn', pos: { x: spawn.x, y: spawn.y } }); } catch { }
+          try { if (typeof room.setDefaultSpawn === 'function') room.setDefaultSpawn({ x: spawn.x, y: spawn.y }); } catch { }
         }
-      } catch {}
+      } catch { }
     }
 
     // Broadcast generic 'all' update if significant changes occurred (zones, assets, tilesets, bg)
     if (tilesets || assets || zones || backgroundColor || replaceZones) {
-       try {
+      try {
         const rooms: any[] = Array.from(((global as any).activeWorldRooms || new Set()).values());
         for (const room of rooms) {
-          try { 
-             // Broadcast 'all' so clients re-fetch the complete editor state
-             room.broadcast('editor_update', { type: 'all', map: name }); 
+          try {
+            // Broadcast 'all' so clients re-fetch the complete editor state
+            room.broadcast('editor_update', { type: 'all', map: name });
           } catch (e: any) {
-             try { logger.debug('[Broadcast] editor_update all failed', { error: e?.message || String(e) }); } catch {}
+            try { logger.debug('[Broadcast] editor_update all failed', { error: e?.message || String(e) }); } catch { }
           }
         }
-      } catch {}
+      } catch { }
     }
 
     res.json({ ok: true });
@@ -1373,7 +1393,7 @@ export function registerApi(app: express.Express) {
       const hdrRoom = (req.headers['x-av-room'] || '').toString();
       try {
         logger.info({ event: 'livekit.token.request', correlationId: corrId || undefined, roomName: roomName || hdrRoom || undefined, identity: identity || hdrIdentity || undefined, ua: (req.headers['user-agent'] || '').toString() });
-      } catch {}
+      } catch { }
       if (!process.env.LIVEKIT_API_KEY || !process.env.LIVEKIT_API_SECRET) {
         return res.status(500).json({ error: 'livekit not configured' });
       }
@@ -1431,7 +1451,7 @@ export function registerApi(app: express.Express) {
         livekitPacketLossRatio.observe(p.packetLossRatio);
       }
       // Best-effort structured log for correlation
-      try { logger.debug({ event: 'av.stats', roomName: p.roomName, identity: p.identity, connectionState: p.connectionState, dtlsState: p.dtlsState, iceState: p.iceState }); } catch {}
+      try { logger.debug({ event: 'av.stats', roomName: p.roomName, identity: p.identity, connectionState: p.connectionState, dtlsState: p.dtlsState, iceState: p.iceState }); } catch { }
       return res.json({ ok: true });
     } catch (e) {
       logger.error({ event: 'av.stats.error', error: (e as any)?.message || String(e) });
@@ -1534,7 +1554,7 @@ export function registerApi(app: express.Express) {
           const pM = (price?.product?.metadata || {}) as Record<string, string>;
           const metaLimit = Number(m.concurrent_limit || pM.concurrent_limit || 0);
           limit = Number.isFinite(metaLimit) && metaLimit > 0 ? metaLimit : 0;
-        } catch {}
+        } catch { }
         // Fallback: keep existing limit if no metadata
         if (!tenantId && customerId) {
           const t = await prisma.tenant.findFirst({ where: { stripeCustomerId: customerId } });
@@ -1577,10 +1597,10 @@ export function registerApi(app: express.Express) {
           const sub = event.data.object as Stripe.Subscription;
           const tenantId = (sub.metadata as any)?.tenantId as string | undefined;
           if (tenantId) {
-            try { await prisma.tenant.update({ where: { id: tenantId }, data: { concurrentLimit: 0 } }); } catch {}
+            try { await prisma.tenant.update({ where: { id: tenantId }, data: { concurrentLimit: 0 } }); } catch { }
           } else {
             const customerId = (sub.customer as any) as string | undefined;
-            if (customerId) { try { await prisma.tenant.updateMany({ where: { stripeCustomerId: customerId }, data: { concurrentLimit: 0 } }); } catch {} }
+            if (customerId) { try { await prisma.tenant.updateMany({ where: { stripeCustomerId: customerId }, data: { concurrentLimit: 0 } }); } catch { } }
           }
           break;
         }
@@ -1705,7 +1725,7 @@ export function registerApi(app: express.Express) {
     const ok = await requireInternalOwner(req, auth.userId);
     if (!ok) return res.status(403).json({ error: 'forbidden' });
     if (!process.env.STRIPE_SECRET_KEY) return res.status(501).json({ error: 'billing_not_configured' });
-    const schema = z.object({ name: z.string().min(1), description: z.string().optional(), amount: z.number().int().nonnegative(), currency: z.string().default('eur'), interval: z.enum(['month','year']).default('month'), concurrentLimit: z.number().int().positive() });
+    const schema = z.object({ name: z.string().min(1), description: z.string().optional(), amount: z.number().int().nonnegative(), currency: z.string().default('eur'), interval: z.enum(['month', 'year']).default('month'), concurrentLimit: z.number().int().positive() });
     const parse = schema.safeParse(req.body || {});
     if (!parse.success) return res.status(400).json({ error: 'invalid payload' });
     try {
@@ -1725,7 +1745,7 @@ export function registerApi(app: express.Express) {
     const ok = await requireInternalOwner(req, auth.userId);
     if (!ok) return res.status(403).json({ error: 'forbidden' });
     if (!process.env.STRIPE_SECRET_KEY) return res.status(501).json({ error: 'billing_not_configured' });
-    const schema = z.object({ amount: z.number().int().nonnegative(), currency: z.string().default('eur'), interval: z.enum(['month','year']).default('month'), concurrentLimit: z.number().int().positive() });
+    const schema = z.object({ amount: z.number().int().nonnegative(), currency: z.string().default('eur'), interval: z.enum(['month', 'year']).default('month'), concurrentLimit: z.number().int().positive() });
     const parse = schema.safeParse(req.body || {});
     if (!parse.success) return res.status(400).json({ error: 'invalid payload' });
     try {
@@ -1852,12 +1872,12 @@ export function registerApi(app: express.Express) {
   app.get('/debug/rooms', async (_req: express.Request, res: express.Response) => {
     const gameServer = (global as any).gameServer;
     if (!gameServer) return res.json({ error: 'Game server not initialized' });
-    
+
     const rooms: any[] = [];
     try {
       // Colyseus 0.14/0.15 compatibility - try different ways to access rooms
       let roomArray: any[] = [];
-      
+
       // First try our global active rooms
       const activeWorldRooms = (global as any).activeWorldRooms;
       if (activeWorldRooms && activeWorldRooms.size > 0) {
@@ -1870,7 +1890,7 @@ export function registerApi(app: express.Express) {
         const rooms = gameServer.rooms;
         roomArray = rooms instanceof Map ? Array.from(rooms.values()) : Array.from(rooms);
       }
-      
+
       roomArray.forEach((room: any) => {
         const players: any[] = [];
         if (room.state && room.state.players) {
@@ -1898,7 +1918,7 @@ export function registerApi(app: express.Express) {
     } catch (e: any) {
       return res.json({ error: 'Failed to get rooms', details: e.message });
     }
-    
+
     res.json({ rooms, total: rooms.length });
   });
 }
