@@ -46,6 +46,8 @@ type Bridge = {
   saveEditorLayersHard?: () => void;
   applyChunkUpdates?: (layerName: 'ground' | 'walls' | 'collision', updates: Array<{ key: string; version: number; encoding: string; data: string }>) => void;
   forceReloadMap?: () => void;
+// Expose method to hydrate tileset cache from outside (e.g. serverSync)
+  hydrateTilesetsCache: (tilesets: { key: string; dataUrl: string; tileWidth: number; tileHeight: number; margin?: number; spacing?: number }[]) => void;
 };
 
 export type SceneApi = {
@@ -91,6 +93,7 @@ let lastDesiredPosition: { x: number; y: number } | null = null;
 let tilesetPersistLastLen = -1;
 let tilesetPersistTimer: number | null = null as any;
 let cachedSpawnMarker: { x: number; y: number } | null = null;
+let cachedTilesets: { key: string; dataUrl: string; tileWidth: number; tileHeight: number; margin?: number; spacing?: number }[] = [];
 
 export const gameBridge: Bridge = {
   onLocalMove: () => {},
@@ -210,13 +213,18 @@ export const gameBridge: Bridge = {
   registerTileset: (ts) => {
     // 1) Apply to scene
     sceneApi?.registerTileset(ts);
-    // 2) Persist best-effort to server editor-state
+    
+    // 2) Update local cache
+    const idx = cachedTilesets.findIndex(t => t.key === ts.key);
+    if (idx >= 0) {
+      cachedTilesets[idx] = ts;
+    } else {
+      cachedTilesets.push(ts);
+    }
+
+    // 3) Persist to server editor-state
     try {
-      // removed localstorage logic for tilesets
-      const list: any[] = (typeof (window as any).pendingTilesets !== 'undefined') ? (window as any).pendingTilesets : [];
-      const next = Array.isArray(list) ? list.slice() : [];
-      const exists = next.find((t: any) => t && t.key === ts.key);
-      if (!exists) next.push({ key: ts.key, dataUrl: ts.dataUrl, tileWidth: ts.tileWidth, tileHeight: ts.tileHeight, margin: ts.margin ?? 0, spacing: ts.spacing ?? 0 });
+      const next = cachedTilesets.slice();
       
       // Best-effort: debounce server PUT to avoid flooding
       if (next.length !== tilesetPersistLastLen) {
@@ -229,9 +237,11 @@ export const gameBridge: Bridge = {
             const base = (window as any).VITE_API_BASE || (import.meta as any).env?.VITE_API_BASE || `${window.location.protocol}//${window.location.hostname}:2567`;
             const mapName = (typeof window !== 'undefined' && (((window as any).__map_name) || (window as any).MAP_NAME)) || 'office';
             const body = JSON.stringify({ tilesets: next });
-            if (body.length < 200_000) {
+            if (body.length < 4_000_000) { // Increased limit to 4MB
               fetch(`${base}/maps/${encodeURIComponent(mapName)}/editor-state`, { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body }).catch((e)=>{ console.error('Failed to persist tilesets to server', e); });
               try { (window as any).DEBUG_LOGS && console.debug('[ASSETS_DBG][Bridge] persisted tileset to server', { count: next.length }); } catch (e) { console.error('Log failed', e); }
+            } else {
+              console.error('Tileset body too large to persist', body.length);
             }
           } catch (e) { console.error('Failed to persist tilesets', e); }
         }, 300) as any;
@@ -307,5 +317,8 @@ export const gameBridge: Bridge = {
   },
   forceReloadMap: () => {
     try { sceneApi?.forceReloadMap?.(); } catch (e) { console.error('Failed to force reload map', e); }
+  },
+  hydrateTilesetsCache: (tilesets) => {
+    cachedTilesets = Array.isArray(tilesets) ? tilesets : [];
   }
 };

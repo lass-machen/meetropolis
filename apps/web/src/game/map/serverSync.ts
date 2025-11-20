@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { editorLog, editorError } from '../../lib/editorLog';
+import { gameBridge } from '../bridge';
 
 export async function fetchAndApplyServerLayers(scene: Phaser.Scene & any): Promise<void> {
   try {
@@ -10,6 +11,9 @@ export async function fetchAndApplyServerLayers(scene: Phaser.Scene & any): Prom
     let requiredTsKeys: string[] = [];
     try {
       const arr = Array.isArray((data as any)?.tilesets) ? (data as any).tilesets : [];
+      // Hydrate bridge cache so subsequent uploads don't overwrite existing tilesets
+      try { gameBridge.hydrateTilesetsCache(arr); } catch (e) { console.error('Failed to hydrate tileset cache', e); }
+
       for (const ts of arr) {
         if (ts && ts.key && ts.dataUrl && ts.tileWidth && ts.tileHeight) {
           scene.registerTileset({ key: ts.key, dataUrl: ts.dataUrl, tileWidth: ts.tileWidth, tileHeight: ts.tileHeight, margin: (ts as any).margin ?? 0, spacing: (ts as any).spacing ?? 0 });

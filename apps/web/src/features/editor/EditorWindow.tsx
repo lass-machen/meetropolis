@@ -2,6 +2,7 @@ import * as React from 'react';
 import { useTranslation } from 'react-i18next';
 import { gameBridge } from '../../game/bridge';
 import { EditorPanel } from '../../ui/editor/EditorPanel';
+import { TilesetUploadDialog, UploadDialogState } from '../../ui/editor/TilesetUploadDialog';
 import { Modal, Button } from '../../ui/system';
 
 export function EditorWindow({
@@ -162,6 +163,51 @@ export function EditorWindow({
           </Button>
         </div>
       </Modal>
+      {editor.uploadDialog && editor.uploadDialog.open && (
+        <TilesetUploadDialog
+          open={editor.uploadDialog.open}
+          dialog={editor.uploadDialog as UploadDialogState}
+          setDialog={(next) => {
+            setEditor((s: any) => ({ ...s, uploadDialog: next }));
+          }}
+          onCancel={() => {
+            setEditor((s: any) => ({ ...s, uploadDialog: null }));
+          }}
+          onConfirm={(tileset) => {
+            try {
+              gameBridge.registerTileset({
+                key: tileset.key,
+                dataUrl: tileset.dataUrl,
+                tileWidth: tileset.tileWidth,
+                tileHeight: tileset.tileHeight,
+                margin: tileset.margin,
+                spacing: tileset.spacing,
+              });
+            } catch (e: any) {
+              console.error('Failed to register tileset via gameBridge', e);
+              try {
+                const ev = new CustomEvent('editor:toast', {
+                  detail: {
+                    title: 'Tileset-Upload fehlgeschlagen',
+                    description: (e?.message || 'Tileset konnte nicht registriert werden.').toString(),
+                    intent: 'error',
+                  },
+                });
+                window.dispatchEvent(ev);
+              } catch {}
+            }
+            setEditor((s: any) => {
+              const prev = Array.isArray(s.tilesets) ? s.tilesets : [];
+              const filtered = prev.filter((ts: any) => ts && ts.key !== tileset.key);
+              return {
+                ...s,
+                tilesets: [...filtered, tileset],
+                uploadDialog: null,
+              };
+            });
+          }}
+        />
+      )}
     </>
   );
 }
