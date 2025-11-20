@@ -2,7 +2,6 @@ import * as React from 'react';
 import { useTranslation } from 'react-i18next';
 import { gameBridge } from '../../game/bridge';
 import { EditorPanel } from '../../ui/editor/EditorPanel';
-import { TilesetUploadDialog } from '../../ui/editor/TilesetUploadDialog';
 import { Modal, Button } from '../../ui/system';
 
 export function EditorWindow({
@@ -146,17 +145,6 @@ export function EditorWindow({
           />
         </div>
       </div>
-
-      <TilesetUploadDialog
-        open={!!editor.uploadDialog?.open}
-        dialog={editor.uploadDialog || { open: false, dataUrl: '', fileName: '', tileWidth: 16, tileHeight: 16, margin: 0, spacing: 0 }}
-        onCancel={() => setEditor((s: any) => ({ ...s, uploadDialog: null }))}
-        setDialog={(val) => setEditor((s: any) => ({ ...s, uploadDialog: val }))}
-        onConfirm={(ts) => {
-          gameBridge.registerTileset(ts);
-          setEditor((s: any) => ({ ...s, uploadDialog: null }));
-        }}
-      />
 
       <Modal open={confirmExitOpen} onOpenChange={setConfirmExitOpen} title={t('editor.confirmExitTitle')} description={t('editor.confirmExitDesc')} maxWidth={420}>
         <div style={{ display:'flex', justifyContent:'flex-end', gap: 8 }}>
