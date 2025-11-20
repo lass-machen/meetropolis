@@ -1427,4 +1427,30 @@ export class MainScene extends Phaser.Scene {
   private ensureCollisionCollider() {
     colEnsureCollider(this as any);
   }
+
+  public updateTilesetRegistry(registry: any[]) {
+    if (!this.v2 || !this.v2.state) return;
+    // Merge new registry
+    this.v2.state.tilesetRegistry = registry;
+    // Recompute firstGids
+    try {
+       this.v2.firstGids = computeFirstGids(registry, this);
+    } catch (e) { editorLog('Registry', 'Failed to recompute firstGids', e); }
+    
+    // Register new tileset images in Phaser
+    for (const ts of registry) {
+        if (!this.dynamicTilesets.has(ts.key) && !this.mapRef?.tilesets.find(t => t.name === ts.key)) {
+           try {
+              const phTs = this.mapRef?.addTilesetImage(ts.key, ts.key, ts.tileWidth, ts.tileHeight, ts.margin ?? 0, ts.spacing ?? 0);
+              if (phTs) this.dynamicTilesets.set(ts.key, phTs);
+           } catch {}
+        }
+    }
+    // Refresh layers tilesets
+    const all = Array.from(this.dynamicTilesets.values());
+    if (this.mapRef) all.push(...this.mapRef.tilesets.filter(t => !this.dynamicTilesets.has(t.name)));
+    try { (this.editorGround as any)?.setTilesets?.(all); } catch {}
+    try { (this.wallsLayer as any)?.setTilesets?.(all); } catch {}
+    try { (this.collisionLayer as any)?.setTilesets?.(all); } catch {}
+  }
 }

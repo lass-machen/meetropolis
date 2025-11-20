@@ -317,6 +317,16 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
           } catch {}
         });
 
+        // Tileset Registry Sync (v2)
+        room.onMessage('tileset_registry_updated', (payload: any) => {
+          try {
+            const registry = Array.isArray(payload?.tilesetRegistry) ? payload.tilesetRegistry : null;
+            if (registry && gameBridge && typeof (gameBridge as any).updateTilesetRegistry === 'function') {
+              (gameBridge as any).updateTilesetRegistry(registry);
+            }
+          } catch {}
+        });
+
         // Presence: Seed der letzten Aktivitäten (ohne Polling)
         room.onMessage('presence_recent', (list: ApiPresence[]) => {
           try {

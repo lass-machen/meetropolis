@@ -77,6 +77,7 @@ export type SceneApi = {
   saveEditorLayersHard?: () => void;
   applyChunkUpdates?: (layerName: 'ground' | 'walls' | 'collision', updates: Array<{ key: string; version: number; encoding: string; data: string }>) => void;
   forceReloadMap?: () => void;
+  updateTilesetRegistry?: (registry: any[]) => void;
 };
 
 let sceneApi: SceneApi | null = null;
@@ -222,11 +223,36 @@ export const gameBridge: Bridge = {
       cachedTilesets.push(ts);
     }
 
-    // 3) Persist to server editor-state
+    // 3) Persist to server editor-state AND new v2 Registry
     try {
+      // v2 Registry POST (immediately for new tilesets to ensure slot assignment)
+      const base = (window as any).VITE_API_BASE || (import.meta as any).env?.VITE_API_BASE || `${window.location.protocol}//${window.location.hostname}:2567`;
+      const mapName = (typeof window !== 'undefined' && (((window as any).__map_name) || (window as any).MAP_NAME)) || 'office';
+      
+      if (ts.key && !cachedTilesets.find(t => t.key === ts.key && (t as any)._synced)) {
+         const payload = { 
+            key: ts.key, 
+            imageUrl: ts.dataUrl, 
+            tileWidth: ts.tileWidth, 
+            tileHeight: ts.tileHeight, 
+            margin: ts.margin ?? 0, 
+            spacing: ts.spacing ?? 0 
+         };
+         fetch(`${base}/maps/${encodeURIComponent(mapName)}/tilesets`, { 
+            method: 'POST', 
+            credentials: 'include', 
+            headers: { 'Content-Type': 'application/json' }, 
+            body: JSON.stringify(payload) 
+         }).then(() => {
+            // Mark as synced so we don't spam POSTs (though backend handles dupes gracefully via append)
+            const inCache = cachedTilesets.find(t => t.key === ts.key);
+            if (inCache) (inCache as any)._synced = true;
+         }).catch(e => console.error('Failed to post new tileset to v2 registry', e));
+      }
+
       const next = cachedTilesets.slice();
       
-      // Best-effort: debounce server PUT to avoid flooding
+      // Best-effort: debounce server PUT to avoid flooding (Legacy)
       if (next.length !== tilesetPersistLastLen) {
         tilesetPersistLastLen = next.length;
         if (tilesetPersistTimer) {
@@ -320,5 +346,8 @@ export const gameBridge: Bridge = {
   },
   hydrateTilesetsCache: (tilesets) => {
     cachedTilesets = Array.isArray(tilesets) ? tilesets : [];
+  },
+  updateTilesetRegistry: (registry) => {
+    try { sceneApi?.updateTilesetRegistry?.(registry); } catch (e) { console.error('Failed to update tileset registry', e); }
   }
 };
