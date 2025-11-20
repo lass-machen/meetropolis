@@ -210,32 +210,34 @@ export const gameBridge: Bridge = {
   registerTileset: (ts) => {
     // 1) Apply to scene
     sceneApi?.registerTileset(ts);
-    // 2) Persist best-effort to server editor-state
+    // 2) Persist to server (V2)
     try {
-      // removed localstorage logic for tilesets
-      const list: any[] = (typeof (window as any).pendingTilesets !== 'undefined') ? (window as any).pendingTilesets : [];
-      const next = Array.isArray(list) ? list.slice() : [];
-      const exists = next.find((t: any) => t && t.key === ts.key);
-      if (!exists) next.push({ key: ts.key, dataUrl: ts.dataUrl, tileWidth: ts.tileWidth, tileHeight: ts.tileHeight, margin: ts.margin ?? 0, spacing: ts.spacing ?? 0 });
+      const base = (window as any).VITE_API_BASE || (import.meta as any).env?.VITE_API_BASE || `${window.location.protocol}//${window.location.hostname}:2567`;
+      const mapName = (typeof window !== 'undefined' && (((window as any).__map_name) || (window as any).MAP_NAME)) || 'office';
       
-      // Best-effort: debounce server PUT to avoid flooding
-      if (next.length !== tilesetPersistLastLen) {
-        tilesetPersistLastLen = next.length;
-        if (tilesetPersistTimer) {
-          clearTimeout(tilesetPersistTimer as any);
+      const body = JSON.stringify({
+        key: ts.key,
+        imageUrl: ts.dataUrl,
+        tileWidth: ts.tileWidth,
+        tileHeight: ts.tileHeight,
+        margin: ts.margin ?? 0,
+        spacing: ts.spacing ?? 0
+      });
+      
+      fetch(`${base}/maps/${encodeURIComponent(mapName)}/tilesets`, { 
+        method: 'POST', 
+        credentials: 'include', 
+        headers: { 'Content-Type': 'application/json' }, 
+        body 
+      })
+      .then(res => {
+        if (!res.ok) console.error('[Bridge] Failed to register tileset on server', res.status);
+        else {
+          try { (window as any).DEBUG_LOGS && console.debug('[Bridge] Tileset registered on server', ts.key); } catch {}
         }
-        tilesetPersistTimer = setTimeout(() => {
-          try {
-            const base = (window as any).VITE_API_BASE || (import.meta as any).env?.VITE_API_BASE || `${window.location.protocol}//${window.location.hostname}:2567`;
-            const mapName = (typeof window !== 'undefined' && (((window as any).__map_name) || (window as any).MAP_NAME)) || 'office';
-            const body = JSON.stringify({ tilesets: next });
-            if (body.length < 200_000) {
-              fetch(`${base}/maps/${encodeURIComponent(mapName)}/editor-state`, { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body }).catch((e)=>{ console.error('Failed to persist tilesets to server', e); });
-              try { (window as any).DEBUG_LOGS && console.debug('[ASSETS_DBG][Bridge] persisted tileset to server', { count: next.length }); } catch (e) { console.error('Log failed', e); }
-            }
-          } catch (e) { console.error('Failed to persist tilesets', e); }
-        }, 300) as any;
-      }
+      })
+      .catch(e => console.error('[Bridge] Failed to register tileset request', e));
+
     } catch (e) { console.error('Failed to register tileset', e); }
   },
   setCollisionVisible: (visible) => {
