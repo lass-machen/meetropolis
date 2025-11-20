@@ -1025,7 +1025,7 @@ export function registerApi(app: express.Express) {
     }
 
     // Validate tileRefId range lightly (slot/index 16-bit)
-    if (!erase && (tileRefId === undefined || tileRefId < 0 || tileRefId > 0xffffffff)) {
+      if (!erase && (tileRefId === undefined || tileRefId < 0)) {
       return res.status(400).json({ error: 'invalid tileRefId' });
     }
 

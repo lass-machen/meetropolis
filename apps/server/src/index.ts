@@ -75,7 +75,7 @@ app.use((req: express.Request, res: express.Response, next: express.NextFunction
   res.setHeader('Access-Control-Allow-Headers', allowed);
   
   if (req.method === 'OPTIONS') {
-    res.sendStatus(200);
+    return res.sendStatus(200);
   } else {
     next();
   }
