@@ -96,11 +96,17 @@ export function computeFirstGids(tilesets: V2Tileset[], scene: Phaser.Scene): nu
     const th = ts.tileHeight;
     const spacing = (ts.spacing ?? 0) as number;
     const margin = (ts.margin ?? 0) as number;
-    if (src && typeof (src as any).width === 'number' && typeof (src as any).height === 'number') {
+    if (src && typeof (src as any).width === 'number' && typeof (src as any).height === 'number' && (src as any).width > 0 && (src as any).height > 0) {
       const w = (src as any).width;
       const h = (src as any).height;
       cols = Math.max(1, Math.floor((w - margin * 2 + spacing) / (tw + spacing)));
       rows = Math.max(1, Math.floor((h - margin * 2 + spacing) / (th + spacing)));
+    } else {
+      // Fallback: reserve a safe chunk of IDs if texture is missing
+      // Assuming max 1024x1024 texture as safe upper bound or 64x64 tiles
+      console.warn(`[MapV2] Texture missing for tileset ${ts.key}, using fallback dimensions`);
+      cols = 64;
+      rows = 64;
     }
     first[ts.slot] = acc;
     acc += cols * rows;
