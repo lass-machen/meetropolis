@@ -1014,6 +1014,7 @@ export function registerApi(app: express.Express) {
         layer: z.enum(['editor_ground', 'editor_walls', 'collision', 'ground', 'walls']),
         rect: z.object({ x0: z.number().int(), y0: z.number().int(), x1: z.number().int(), y1: z.number().int() }),
         tileRefId: z.number().int().optional(),
+        values: z.array(z.number().int()).optional(),
         erase: z.boolean().optional(),
       });
       const parse = schema.safeParse(req.body || {});
@@ -1025,9 +1026,9 @@ export function registerApi(app: express.Express) {
       const name = req.params.name;
       const tenant = getTenantFromReq(req);
       if (!tenant) return res.status(400).json({ error: 'tenant_required' });
-      const { layer: layerName, rect, tileRefId, erase } = parse.data;
+      const { layer: layerName, rect, tileRefId, values: rawValues, erase } = parse.data;
 
-      logger.info('[Paint] Request', { map: name, layer: layerName, rect, erase });
+      logger.info('[Paint] Request', { map: name, layer: layerName, rect, erase, hasValues: !!rawValues, tileRefId });
 
       const map = await prisma.map.findFirst({ where: { name, tenantId: tenant.id } });
       if (!map) {
@@ -1035,11 +1036,12 @@ export function registerApi(app: express.Express) {
         return res.status(404).json({ error: 'map not found' });
       }
 
-      // Validate tileRefId range lightly (slot/index 16-bit)
-      if (!erase && (tileRefId === undefined || tileRefId < 0)) {
-        return res.status(400).json({ error: 'invalid tileRefId' });
+      // Validate payload: either erase, tileRefId, or values must be present
+      if (!erase && tileRefId === undefined && (!rawValues || rawValues.length === 0)) {
+        return res.status(400).json({ error: 'invalid payload: missing tileRefId or values' });
       }
 
+      // ... (layer creation logic remains same)
       // Ensure layer exists
       let layer = await prisma.mapLayer.findUnique({ where: { mapId_name: { mapId: map.id, name: layerName } } as any });
       if (!layer) {
@@ -1080,9 +1082,11 @@ export function registerApi(app: express.Express) {
 
       // 1. Apply all changes to in-memory chunks
       const { decodeRlePairsFromBuffer, rleDecodeToNumbers, rleDecodeToBooleans } = await import('./mapEncoding.js');
+
+      const rectWidth = rect.x1 - rect.x0 + 1;
+
       for (let y = rect.y0; y <= rect.y1; y++) {
         for (let x = rect.x0; x <= rect.x1; x++) {
-
           const cx = Math.floor(x / chunkSize);
           const cy = Math.floor(y / chunkSize);
           const chunkKey = `${cx}:${cy}`;
@@ -1110,7 +1114,20 @@ export function registerApi(app: express.Express) {
             }
           }
 
-          const val = erase ? 0 : (tileRefId as number); // The value to paint
+          let val = 0;
+          if (erase) {
+            val = 0;
+          } else if (rawValues && rawValues.length > 0) {
+            // Use values array if present
+            const vy = y - rect.y0;
+            const vx = x - rect.x0;
+            const vIdx = vy * rectWidth + vx;
+            val = rawValues[vIdx] || 0;
+          } else {
+            // Fallback to single tileRefId
+            val = (tileRefId as number);
+          }
+
           if (chunkData._decoded[idx] !== val) {
             chunkData._decoded[idx] = val;
             chunkData.modified = true;
@@ -1346,8 +1363,9 @@ export function registerApi(app: express.Express) {
           prepared.push({ name, capacity, polygon });
         }
       }
-      // Only mutate DB if there is at least one valid polygon OR explicit replaceZones=true
-      if (prepared.length > 0 || replaceZones === true) {
+      // Only mutate DB if there is at least one valid polygon OR explicit replaceZones=true OR the input list was explicitly empty (clearing all zones)
+      const shouldUpdate = (zones.length === 0) || (prepared.length > 0) || (replaceZones === true);
+      if (shouldUpdate) {
         await prisma.zone.deleteMany({ where: { mapId: map.id } });
         for (const z of prepared) {
           await prisma.zone.create({ data: { name: z.name, capacity: z.capacity ?? undefined, polygon: z.polygon, mapId: map.id, roomId: roomForZones?.id as string, tenantId: tenant.id } as any });
@@ -1356,28 +1374,50 @@ export function registerApi(app: express.Express) {
     }
     // Broadcast spawn update to active rooms (best-effort)
     if (spawn && typeof spawn.x === 'number' && typeof spawn.y === 'number') {
-      try {
-        const rooms: any[] = Array.from(((global as any).activeWorldRooms || new Set()).values());
-        for (const room of rooms) {
-          try { room.broadcast('editor_update', { type: 'spawn', pos: { x: spawn.x, y: spawn.y } }); } catch { }
-          try { if (typeof room.setDefaultSpawn === 'function') room.setDefaultSpawn({ x: spawn.x, y: spawn.y }); } catch { }
-        }
-      } catch { }
+      const gameServer = (global as any).gameServer;
+      if (gameServer && gameServer.presence) {
+        try {
+          gameServer.presence.publish(`map_update:${tenant.slug}`, {
+            type: 'editor_update',
+            payload: { type: 'spawn', pos: { x: spawn.x, y: spawn.y } }
+          });
+        } catch { }
+      } else {
+        try {
+          const rooms: any[] = Array.from(((global as any).activeWorldRooms || new Set()).values());
+          for (const room of rooms) {
+            try { room.broadcast('editor_update', { type: 'spawn', pos: { x: spawn.x, y: spawn.y } }); } catch { }
+            try { if (typeof room.setDefaultSpawn === 'function') room.setDefaultSpawn({ x: spawn.x, y: spawn.y }); } catch { }
+          }
+        } catch { }
+      }
     }
 
     // Broadcast generic 'all' update if significant changes occurred (zones, assets, tilesets, bg)
     if (tilesets || assets || zones || backgroundColor || replaceZones) {
-      try {
-        const rooms: any[] = Array.from(((global as any).activeWorldRooms || new Set()).values());
-        for (const room of rooms) {
-          try {
-            // Broadcast 'all' so clients re-fetch the complete editor state
-            room.broadcast('editor_update', { type: 'all', map: name });
-          } catch (e: any) {
-            try { logger.debug('[Broadcast] editor_update all failed', { error: e?.message || String(e) }); } catch { }
-          }
+      const gameServer = (global as any).gameServer;
+      if (gameServer && gameServer.presence) {
+        try {
+          gameServer.presence.publish(`map_update:${tenant.slug}`, {
+            type: 'editor_update',
+            payload: { type: 'all', map: name }
+          });
+        } catch (e: any) {
+          logger.error('[Broadcast] presence publish editor_update failed', { error: e?.message || String(e) });
         }
-      } catch { }
+      } else {
+        try {
+          const rooms: any[] = Array.from(((global as any).activeWorldRooms || new Set()).values());
+          for (const room of rooms) {
+            try {
+              // Broadcast 'all' so clients re-fetch the complete editor state
+              room.broadcast('editor_update', { type: 'all', map: name });
+            } catch (e: any) {
+              try { logger.debug('[Broadcast] editor_update all failed', { error: e?.message || String(e) }); } catch { }
+            }
+          }
+        } catch { }
+      }
     }
 
     res.json({ ok: true });
