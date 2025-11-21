@@ -1118,12 +1118,26 @@ export function registerApi(app: express.Express) {
 
       // Broadcast stub via Colyseus rooms if available (best-effort, mit Logging)
       {
-        const rooms: any[] = Array.from(((global as any).activeWorldRooms || new Set()).values());
-        for (const room of rooms) {
+        // Broadcast via Presence (PubSub)
+        const gameServer = (global as any).gameServer;
+        if (gameServer && gameServer.presence) {
           try {
-            room.broadcast('chunks_updated', { map: name, layer: layerName, updates });
+            gameServer.presence.publish(`map_update:${tenant.slug}`, {
+              type: 'chunks_updated',
+              payload: { map: name, layer: layerName, updates }
+            });
           } catch (e: any) {
-            try { logger.debug('[Broadcast] chunks_updated failed', { error: e?.message || String(e) }); } catch { }
+            logger.error('[Broadcast] presence publish failed', { error: e?.message || String(e) });
+          }
+        } else {
+          // Fallback: iterate local rooms (legacy)
+          const rooms: any[] = Array.from(((global as any).activeWorldRooms || new Set()).values());
+          for (const room of rooms) {
+            try {
+              room.broadcast('chunks_updated', { map: name, layer: layerName, updates });
+            } catch (e: any) {
+              try { logger.debug('[Broadcast] chunks_updated failed', { error: e?.message || String(e) }); } catch { }
+            }
           }
         }
       }
@@ -1155,7 +1169,18 @@ export function registerApi(app: express.Express) {
       const tilesets = await prisma.mapTileset.findMany({ where: { mapId: map.id }, orderBy: { slot: 'asc' } });
 
       // Broadcast registry update (best-effort, mit Logging)
-      {
+      // Broadcast registry update via Presence
+      const gameServer = (global as any).gameServer;
+      if (gameServer && gameServer.presence) {
+        try {
+          gameServer.presence.publish(`map_update:${tenant.slug}`, {
+            type: 'tileset_registry_updated',
+            payload: { map: name, tilesetRegistry: tilesets }
+          });
+        } catch (e: any) {
+          logger.error('[Broadcast] presence publish registry failed', { error: e?.message || String(e) });
+        }
+      } else {
         const rooms: any[] = Array.from(((global as any).activeWorldRooms || new Set()).values());
         for (const room of rooms) {
           try {

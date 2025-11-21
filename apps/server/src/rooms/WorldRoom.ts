@@ -54,8 +54,8 @@ export class WorldRoom extends Colyseus.Room<WorldState> {
     this.setState(new WorldState());
     logger.info('[WorldRoom] Room created with initial state');
     activeRooms.add(this);
-    try { colyseusRooms.inc(); } catch {}
-    
+    try { colyseusRooms.inc(); } catch { }
+
     // Make rooms accessible globally
     (global as any).activeWorldRooms = activeRooms;
 
@@ -63,7 +63,7 @@ export class WorldRoom extends Colyseus.Room<WorldState> {
     try {
       const tenantSlug = (options && (options as any).tenant) || process.env.DEFAULT_TENANT_SLUG || 'default';
       this.setMetadata({ tenant: tenantSlug });
-    } catch {}
+    } catch { }
 
     // Load default spawn and map meta from DB (best-effort)
     (async () => {
@@ -81,7 +81,7 @@ export class WorldRoom extends Colyseus.Room<WorldState> {
             this.mapHeightTiles = (map as any).height ?? null;
             this.tileWidthPx = (map as any).tileWidth ?? null;
             this.tileHeightPx = (map as any).tileHeight ?? null;
-          } catch {}
+          } catch { }
         }
         const meta: any = (map as any)?.meta || {};
         const sp = meta?.spawn;
@@ -91,9 +91,9 @@ export class WorldRoom extends Colyseus.Room<WorldState> {
           logger.info('[WorldRoom] Loaded default spawn from DB:', this.defaultSpawn);
         }
       } catch (e: any) {
-        try { logger.debug('[WorldRoom] Failed to load default spawn:', e?.message || String(e)); } catch {}
+        try { logger.debug('[WorldRoom] Failed to load default spawn:', e?.message || String(e)); } catch { }
       }
-    })().catch(()=>{});
+    })().catch(() => { });
     const lastMove: Map<string, number> = new Map();
     this.onMessage('move', (client, data: { x: number; y: number; direction: string }) => {
       const now = Date.now();
@@ -110,7 +110,7 @@ export class WorldRoom extends Colyseus.Room<WorldState> {
       player.x = data.x;
       player.y = data.y;
       player.direction = data.direction;
-      
+
       // Broadcast movement to all other clients
       this.broadcast('player_moved', {
         id: client.sessionId,
@@ -120,14 +120,14 @@ export class WorldRoom extends Colyseus.Room<WorldState> {
       }, { except: client });
     });
 
-    
+
     // Handle editor updates
     this.onMessage('editor_update', (client, data: any) => {
       logger.debug('[WorldRoom] Editor update from:', client.sessionId, 'type:', data.type);
       // Broadcast editor update to all other clients
       this.broadcast('editor_update', data, { except: client });
     });
-    
+
     // Handle DND status updates
     this.onMessage('dnd_status', (client, data: { dnd: boolean }) => {
       const player = this.state.players.get(client.sessionId);
@@ -137,14 +137,14 @@ export class WorldRoom extends Colyseus.Room<WorldState> {
       }
       player.dnd = data.dnd;
       logger.info('[WorldRoom] Player', client.sessionId, 'DND status:', data.dnd);
-      
+
       // Broadcast DND status to all other clients
       this.broadcast('player_dnd', {
         id: client.sessionId,
         dnd: data.dnd
       }, { except: client });
     });
-    
+
     // Handle remote control messages from API
     this.onMessage('remote_control', (client, data: any) => {
       logger.info('[WorldRoom] Remote control received for:', client.sessionId, 'data:', data);
@@ -174,13 +174,31 @@ export class WorldRoom extends Colyseus.Room<WorldState> {
       }
       this.broadcastBubbleState();
     });
+
+    // Subscribe to map updates via Presence (works across processes if Redis is used, or locally)
+    try {
+      const tenantSlug = (options && (options as any).tenant) || this.metadata?.tenant || 'default';
+      this.presence.subscribe(`map_update:${tenantSlug}`, (message: any) => {
+        try {
+          if (message.type === 'chunks_updated') {
+            this.broadcast('chunks_updated', message.payload);
+          } else if (message.type === 'tileset_registry_updated') {
+            this.broadcast('tileset_registry_updated', message.payload);
+          }
+        } catch (e) {
+          logger.error('[WorldRoom] Failed to handle presence map_update', e);
+        }
+      });
+    } catch (e) {
+      logger.error('[WorldRoom] Failed to subscribe to presence', e);
+    }
   }
 
   // Editor-Updates können das Default-Spawn live setzen
   public setDefaultSpawn(pos: { x: number; y: number }) {
     const s = this.sanitizePosition(pos.x, pos.y);
     this.defaultSpawn = s;
-    try { logger.info('[WorldRoom] Default spawn updated to:', s); } catch {}
+    try { logger.info('[WorldRoom] Default spawn updated to:', s); } catch { }
   }
 
   private getBoundsPx(): { minX: number; minY: number; maxX: number; maxY: number } | null {
@@ -243,22 +261,22 @@ export class WorldRoom extends Colyseus.Room<WorldState> {
           for (const r of rooms) {
             const meta = (r as any).metadata || {};
             if (meta && meta.tenant === tenantSlug) {
-              try { active += (r.state?.players?.size) || 0; } catch {}
+              try { active += (r.state?.players?.size) || 0; } catch { }
             }
           }
-        } catch {}
+        } catch { }
         const paidSeats = Math.max(0, tenant.concurrentLimit || 0);
         const freeSeats = Math.max(0, (tenant as any).freeSeats || 0);
         const effectiveLimit = Math.max(paidSeats, freeSeats);
         if (active >= effectiveLimit) {
-          try { logger.warn('[WorldRoom] Tenant limit reached', { tenant: tenantSlug, active, limit: effectiveLimit, paidSeats, freeSeats }); } catch {}
-          try { client.error(4001, 'tenant_limit_reached'); } catch {}
-          try { await prisma.$disconnect().catch(()=>{}); } catch {}
+          try { logger.warn('[WorldRoom] Tenant limit reached', { tenant: tenantSlug, active, limit: effectiveLimit, paidSeats, freeSeats }); } catch { }
+          try { client.error(4001, 'tenant_limit_reached'); } catch { }
+          try { await prisma.$disconnect().catch(() => { }); } catch { }
           return client.leave(1000);
         }
       }
-      try { await prisma.$disconnect().catch(()=>{}); } catch {}
-    } catch {}
+      try { await prisma.$disconnect().catch(() => { }); } catch { }
+    } catch { }
     // Vor Anlage eines neuen Spielers: Duplikate anhand Identity bereinigen
     const joiningIdentity = options?.identity || client.sessionId;
     try {
@@ -270,11 +288,11 @@ export class WorldRoom extends Colyseus.Room<WorldState> {
       });
       for (const oldId of toRemove) {
         this.state.players.delete(oldId);
-        try { colyseusPlayers.dec(); } catch {}
+        try { colyseusPlayers.dec(); } catch { }
         // Andere Clients über Entfernen informieren (Geist-Avatare vermeiden)
         this.broadcast('player_left', { id: oldId });
       }
-    } catch {}
+    } catch { }
 
     // Sicherstellen, dass wir Map-Metadaten haben (Race gegen onCreate-Loader vermeiden)
     try {
@@ -283,14 +301,14 @@ export class WorldRoom extends Colyseus.Room<WorldState> {
         const mapName = process.env.DEFAULT_MAP_NAME || 'office';
         const tenantSlug = (options?.tenant || this.metadata?.tenant || process.env.DEFAULT_TENANT_SLUG || 'default');
         const map = await prisma.map.findFirst({ where: { name: mapName, tenant: { slug: tenantSlug } } });
-        try { await prisma.$disconnect().catch(()=>{}); } catch {}
+        try { await prisma.$disconnect().catch(() => { }); } catch { }
         if (map) {
           try {
             this.mapWidthTiles = (map as any).width ?? this.mapWidthTiles;
             this.mapHeightTiles = (map as any).height ?? this.mapHeightTiles;
             this.tileWidthPx = (map as any).tileWidth ?? this.tileWidthPx;
             this.tileHeightPx = (map as any).tileHeight ?? this.tileHeightPx;
-          } catch {}
+          } catch { }
           const meta: any = (map as any).meta || {};
           const sp = meta?.spawn;
           if (!this.defaultSpawn && sp && typeof sp.x === 'number' && typeof sp.y === 'number') {
@@ -298,7 +316,7 @@ export class WorldRoom extends Colyseus.Room<WorldState> {
           }
         }
       }
-    } catch {}
+    } catch { }
 
     const player = new Player();
     player.id = client.sessionId;
@@ -321,15 +339,15 @@ export class WorldRoom extends Colyseus.Room<WorldState> {
     player.identity = joiningIdentity; // Use provided identity or fallback
     player.name = options?.name || joiningIdentity; // Use provided name or fallback
     this.state.players.set(client.sessionId, player);
-    try { colyseusPlayers.inc(); } catch {}
+    try { colyseusPlayers.inc(); } catch { }
     logger.info('[WorldRoom] Player joined:', client.sessionId, 'identity:', player.identity, 'name:', player.name, 'at', player.x, player.y);
     logger.debug('[WorldRoom] Current players:', this.state.players.size);
-    
+
     // Debug: Log all players
     this.state.players.forEach((p, id) => {
       logger.debug('[WorldRoom] - Player', id, 'identity:', p.identity, 'at', p.x, p.y);
     });
-    
+
     // Send full state to the new client (delay slightly so client can register handlers)
     setTimeout(() => {
       try {
@@ -351,9 +369,9 @@ export class WorldRoom extends Colyseus.Room<WorldState> {
         })).filter(g => Array.isArray(g.members) && g.members.length >= 2);
         const members = this.getAllBubbleMembers();
         client.send('bubble_state', { groups, members });
-      } catch {}
+      } catch { }
     }, 25);
-    
+
     // Broadcast new player to all other clients
     this.broadcast('player_joined', {
       id: client.sessionId,
@@ -386,18 +404,18 @@ export class WorldRoom extends Colyseus.Room<WorldState> {
           direction: p.direction,
           updatedAt: p.updatedAt,
         }));
-        try { client.send('presence_recent', out as any); } catch {}
+        try { client.send('presence_recent', out as any); } catch { }
       }
     } catch (e) {
-      try { logger.debug('[WorldRoom] presence_recent seed failed', e as any); } catch {}
+      try { logger.debug('[WorldRoom] presence_recent seed failed', e as any); } catch { }
     }
   }
 
   override onLeave(client: Client) {
     this.state.players.delete(client.sessionId);
-    try { colyseusPlayers.dec(); } catch {}
+    try { colyseusPlayers.dec(); } catch { }
     logger.info('[WorldRoom] Player left:', client.sessionId);
-    
+
     // Broadcast player left to all other clients
     this.broadcast('player_left', {
       id: client.sessionId
@@ -419,11 +437,11 @@ export class WorldRoom extends Colyseus.Room<WorldState> {
     }
     if (changed) this.broadcastBubbleState();
   }
-  
+
   override onDispose() {
     activeRooms.delete(this);
-    try { colyseusRooms.dec(); } catch {}
-    try { this.prismaForPresence && this.prismaForPresence.$disconnect().catch(()=>{}); } catch {}
+    try { colyseusRooms.dec(); } catch { }
+    try { this.prismaForPresence && this.prismaForPresence.$disconnect().catch(() => { }); } catch { }
     logger.info('[WorldRoom] Room disposed');
   }
 }
