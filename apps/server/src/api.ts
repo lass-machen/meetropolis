@@ -1363,13 +1363,11 @@ export function registerApi(app: express.Express) {
           prepared.push({ name, capacity, polygon });
         }
       }
-      // Only mutate DB if there is at least one valid polygon OR explicit replaceZones=true OR the input list was explicitly empty (clearing all zones)
-      const shouldUpdate = (zones.length === 0) || (prepared.length > 0) || (replaceZones === true);
-      if (shouldUpdate) {
-        await prisma.zone.deleteMany({ where: { mapId: map.id } });
-        for (const z of prepared) {
-          await prisma.zone.create({ data: { name: z.name, capacity: z.capacity ?? undefined, polygon: z.polygon, mapId: map.id, roomId: roomForZones?.id as string, tenantId: tenant.id } as any });
-        }
+      // Always update if zones array is provided (it represents the authoritative list)
+      logger.info('[EditorState] Updating zones', { map: map.name, count: zones.length, prepared: prepared.length });
+      await prisma.zone.deleteMany({ where: { mapId: map.id } });
+      for (const z of prepared) {
+        await prisma.zone.create({ data: { name: z.name, capacity: z.capacity ?? undefined, polygon: z.polygon, mapId: map.id, roomId: roomForZones?.id as string, tenantId: tenant.id } as any });
       }
     }
     // Broadcast spawn update to active rooms (best-effort)
