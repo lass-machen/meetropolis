@@ -1047,77 +1047,104 @@ export function registerApi(app: express.Express) {
         logger.info('[Paint] created layer', { layerId: layer.id, name: layerName });
       }
 
-      const chunkSize = layer.chunkSize;
-      const x0 = Math.min(rect.x0, rect.x1);
-      const y0 = Math.min(rect.y0, rect.y1);
-      const x1 = Math.max(rect.x0, rect.x1);
-      const y1 = Math.max(rect.y0, rect.y1);
+      const chunkSize = layer.chunkSize || 32;
 
-      // Which chunks are affected?
-      const cx0 = Math.floor(x0 / chunkSize);
-      const cy0 = Math.floor(y0 / chunkSize);
-      const cx1 = Math.floor(x1 / chunkSize);
-      const cy1 = Math.floor(y1 / chunkSize);
-
-      const updates: Array<{ key: string; version: number; encoding: string; data: string }> = [];
-
-      for (let cy = cy0; cy <= cy1; cy++) {
-        for (let cx = cx0; cx <= cx1; cx++) {
-          // Load or initialize chunk
-          let chunk = await prisma.mapChunk.findUnique({ where: { layerId_x_y: { layerId: layer.id, x: cx, y: cy } } as any });
-          let values: number[];
-          if (!chunk) {
-            // Empty chunk
-            values = new Array(chunkSize * chunkSize).fill(0);
-          } else {
-            const { decodeRlePairsFromBuffer, rleDecodeToNumbers } = await import('./mapEncoding.js');
-            const pairs = decodeRlePairsFromBuffer(Buffer.from(chunk.data as any));
-            values = rleDecodeToNumbers(pairs, chunkSize * chunkSize);
+      // Calculate chunks to fetch
+      const chunkCoordsToFetch: { x: number, y: number }[] = [];
+      for (let y = rect.y0; y <= rect.y1; y++) {
+        for (let x = rect.x0; x <= rect.x1; x++) {
+          const cx = Math.floor(x / chunkSize);
+          const cy = Math.floor(y / chunkSize);
+          if (!chunkCoordsToFetch.find(c => c.x === cx && c.y === cy)) {
+            chunkCoordsToFetch.push({ x: cx, y: cy });
           }
-
-          // Apply rect within this chunk
-          const sx = cx * chunkSize;
-          const sy = cy * chunkSize;
-          const ex = sx + chunkSize - 1;
-          const ey = sy + chunkSize - 1;
-
-          const rx0 = Math.max(x0, sx);
-          const ry0 = Math.max(y0, sy);
-          const rx1 = Math.min(x1, ex);
-          const ry1 = Math.min(y1, ey);
-
-          if (rx0 > rx1 || ry0 > ry1) continue;
-
-          for (let yy = ry0; yy <= ry1; yy++) {
-            for (let xx = rx0; xx <= rx1; xx++) {
-              const lx = xx - sx;
-              const ly = yy - sy;
-              const idx = ly * chunkSize + lx;
-              values[idx] = erase ? 0 : (tileRefId as number);
-            }
-          }
-
-          // Encode and persist
-          const { rleEncodeNumbers, rleEncodeBooleans, encodeRlePairsToBuffer } = await import('./mapEncoding.js');
-          const encoding = layerName === 'collision' ? 'rle-bool' : 'rle';
-          const pairs = encoding === 'rle-bool'
-            ? rleEncodeBooleans(values.map(v => v !== 0))
-            : rleEncodeNumbers(values);
-          const buf = encodeRlePairsToBuffer(pairs);
-          const u8 = new Uint8Array(buf);
-
-          if (!chunk) {
-            chunk = await prisma.mapChunk.create({ data: { layerId: layer.id, x: cx, y: cy, version: 1, encoding, data: u8 } });
-          } else {
-            chunk = await prisma.mapChunk.update({ where: { id: chunk.id }, data: { version: chunk.version + 1, encoding, data: u8 } });
-          }
-
-          updates.push({ key: `${cx}:${cy}`, version: chunk.version, encoding: chunk.encoding, data: buf.toString('base64') });
         }
       }
 
-      // Broadcast stub via Colyseus rooms if available (best-effort, mit Logging)
-      {
+      // Fetch all relevant chunks in one go
+      const existingChunks = await prisma.mapChunk.findMany({
+        where: {
+          layerId: layer.id,
+          OR: chunkCoordsToFetch,
+        },
+      });
+
+      // Map for quick lookup
+      const chunks = new Map<string, any>();
+      for (const c of existingChunks) {
+        chunks.set(`${c.x}:${c.y}`, c);
+      }
+
+      // Group updates by chunk to avoid N+1 DB writes
+      const chunkUpdates = new Map<string, { chunk: any, cx: number, cy: number, modified: boolean, _decoded: number[] }>();
+
+      // 1. Apply all changes to in-memory chunks
+      const { decodeRlePairsFromBuffer, rleDecodeToNumbers, rleDecodeToBooleans } = await import('./mapEncoding.js');
+      for (let y = rect.y0; y <= rect.y1; y++) {
+        for (let x = rect.x0; x <= rect.x1; x++) {
+
+          const cx = Math.floor(x / chunkSize);
+          const cy = Math.floor(y / chunkSize);
+          const chunkKey = `${cx}:${cy}`;
+
+          let chunkData = chunkUpdates.get(chunkKey);
+          if (!chunkData) {
+            // Get existing or create new placeholder
+            const existingChunk = chunks.get(chunkKey);
+            chunkData = { chunk: existingChunk, cx, cy, modified: false, _decoded: [] };
+            chunkUpdates.set(chunkKey, chunkData);
+          }
+
+          const rx = x % chunkSize;
+          const ry = y % chunkSize;
+          const idx = ry * chunkSize + rx;
+
+          // Decode if not already decoded in this batch
+          if (chunkData._decoded.length === 0) { // Check if _decoded is empty
+            const c = chunkData.chunk;
+            if (c) {
+              const pairs = decodeRlePairsFromBuffer(Buffer.from(c.data as any));
+              chunkData._decoded = c.encoding === 'rle-bool' ? rleDecodeToBooleans(pairs, chunkSize * chunkSize).map(b => b ? 1 : 0) : rleDecodeToNumbers(pairs, chunkSize * chunkSize);
+            } else {
+              chunkData._decoded = new Array(chunkSize * chunkSize).fill(0);
+            }
+          }
+
+          const val = erase ? 0 : (tileRefId as number); // The value to paint
+          if (chunkData._decoded[idx] !== val) {
+            chunkData._decoded[idx] = val;
+            chunkData.modified = true;
+          }
+        }
+      }
+
+      // 2. Persist and Broadcast modified chunks
+      const updates: any[] = [];
+      const { rleEncodeNumbers, rleEncodeBooleans, encodeRlePairsToBuffer } = await import('./mapEncoding.js');
+      const encoding = layerName === 'collision' ? 'rle-bool' : 'rle';
+
+      for (const [key, data] of chunkUpdates.entries()) {
+        if (!data.modified) continue;
+
+        const chunkValues = data._decoded;
+        const pairs = encoding === 'rle-bool'
+          ? rleEncodeBooleans(chunkValues.map((v: number) => v !== 0))
+          : rleEncodeNumbers(chunkValues);
+        const buf = encodeRlePairsToBuffer(pairs);
+        const u8 = new Uint8Array(buf);
+
+        let chunk = chunks.get(key);
+        if (!chunk) {
+          chunk = await prisma.mapChunk.create({ data: { layerId: layer.id, x: data.cx, y: data.cy, version: 1, encoding, data: u8 } });
+        } else {
+          chunk = await prisma.mapChunk.update({ where: { id: chunk.id }, data: { version: chunk.version + 1, encoding, data: u8 } });
+        }
+
+        updates.push({ key, version: chunk.version, encoding: chunk.encoding, data: buf.toString('base64') });
+      }
+
+      // 3. Broadcast all updates in one go
+      if (updates.length > 0) {
         // Broadcast via Presence (PubSub)
         const gameServer = (global as any).gameServer;
         if (gameServer && gameServer.presence) {

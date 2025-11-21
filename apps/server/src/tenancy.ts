@@ -45,7 +45,7 @@ export async function tenantMiddleware(req: express.Request, res: express.Respon
         (req as any).tenantId = tenant.id;
         return next();
       }
-    } catch {}
+    } catch { }
 
     const fromHeader = (req.headers['x-tenant'] || '').toString();
     const fromQuery = (req.query?.tenant || '').toString();
@@ -76,7 +76,7 @@ export async function tenantMiddleware(req: express.Request, res: express.Respon
     (req as any).tenantId = tenant.id;
     return next();
   } catch (e: any) {
-    return res.status(500).json({ error: 'tenant_resolution_failed' });
+    return res.status(500).json({ error: 'tenant_resolution_failed', details: e?.message || String(e) });
   }
 }
 

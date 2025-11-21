@@ -53,6 +53,10 @@ export function rleDecodeToNumbers(pairs: RlePair[], total: number): number[] {
   return out;
 }
 
+export function rleDecodeToBooleans(pairs: RlePair[], total: number): boolean[] {
+  return rleDecodeToNumbers(pairs, total).map(v => v !== 0);
+}
+
 export function tileRefIdFrom(slot: number, tileIndex: number): number {
   // Offset by 1 to ensure 0 is reserved for "empty"
   return (((slot & 0xffff) << 16) | (tileIndex & 0xffff)) + 1;
