@@ -9,7 +9,7 @@ interface UseWorldRoomArgs {
   me: { id: string; email: string; name?: string } | null;
   avRef: AnyRef<any>;
   colyseusRef: AnyRef<any>;
-  localPosRef: AnyRef<{ id: string; x: number; y: number }>;
+  localPosRef: AnyRef<{ id: string; x?: number; y?: number }>;
   remotesRef: AnyRef<Record<string, { x: number; y: number; dnd?: boolean }>>;
   colyseusToLivekitMap: AnyRef<Record<string, string>>;
   identityToNameMap: AnyRef<Record<string, string>>;

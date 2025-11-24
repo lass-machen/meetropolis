@@ -8,7 +8,7 @@ interface UseHudTickerParams {
   avRef: AnyRef<any>;
   setHud: React.Dispatch<React.SetStateAction<{ zone?: string; follow?: string | null; avRoom?: string | null }>>;
   bubblePendingRef: AnyRef<{ targetId: string; dest?: { x: number; y: number } } | null>;
-  localPosRef: AnyRef<{ id: string; x: number; y: number }>;
+  localPosRef: AnyRef<{ id: string; x?: number; y?: number }>;
   remotesRef: AnyRef<Record<string, { x: number; y: number }>>;
   onZoneParticipantRefresh: () => void;
   volumeRef: AnyRef<{ update?: () => Record<string, number> | undefined } | null>;

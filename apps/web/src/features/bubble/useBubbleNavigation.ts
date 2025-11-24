@@ -4,7 +4,7 @@ type AnyRef<T> = React.MutableRefObject<T>;
 
 interface UseBubbleNavigationParams {
   bubbleMembersRef: AnyRef<Set<string>>;
-  localPosRef: AnyRef<{ id: string; x: number; y: number }>;
+  localPosRef: AnyRef<{ id: string; x?: number; y?: number }>;
   colyseusRef: AnyRef<any>;
   gameBridge: any;
   identityToNameMap: AnyRef<Record<string, string>>;

@@ -8,7 +8,7 @@ type Mutable<T> = { current: T };
 export function useParticipants(deps: {
   avRef: Mutable<any>;
   zoneRef: Mutable<any>;
-  localPosRef: Mutable<{ id: string; x: number; y: number }>;
+  localPosRef: Mutable<{ id: string; x?: number; y?: number }>;
   remotesRef: Mutable<Record<string, { x: number; y: number; dnd?: boolean }>>;
   colyseusToLivekitMap: Mutable<Record<string, string>>;
   identityToNameMap: Mutable<Record<string, string>>;

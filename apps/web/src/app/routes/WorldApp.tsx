@@ -61,7 +61,7 @@ export function WorldApp() {
   const bubbleMembersRef = useRef<Set<string>>(new Set());
   const bubbleGroupsRef = useRef<Record<string, string>>({});
   // removed unused right-click timers
-  const localPosRef = useRef<{ id: string; x: number; y: number }>({ id: '', x: 0, y: 0 });
+  const localPosRef = useRef<{ id: string; x?: number; y?: number }>({ id: '' });
   const remotesRef = useRef<Record<string, { x: number; y: number }>>({});
   const colyseusToLivekitMap = useRef<Record<string, string>>({});
   const identityToNameMap = useRef<Record<string, string>>({});
@@ -536,13 +536,20 @@ export function WorldApp() {
       const assets = currentState.assets || editor.assets || [];
       const zones = currentState.zones || editor.zones;
       const backgroundColor = currentState.backgroundColor || editor.backgroundColor || '#202020';
-      const spawn = currentState.spawn || editor.spawn || null;
+      const spawn = currentState.spawn || editor.spawn || undefined; // undefined statt null!
       const mapName = (typeof window !== 'undefined' && (((window as any).__map_name) || (window as any).MAP_NAME)) || 'office';
+      
+      // Payload: nur definierte Werte senden
+      const payload: any = { tilesets, assets, zones, backgroundColor };
+      if (spawn && typeof spawn.x === 'number' && typeof spawn.y === 'number') {
+        payload.spawn = spawn;
+      }
+      
       const res = await fetch(`${apiBase}/maps/${encodeURIComponent(mapName)}/editor-state`, {
         method: 'PUT',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tilesets, assets, zones, backgroundColor, spawn })
+        body: JSON.stringify(payload)
       });
       if (!res.ok) {
         try { window.dispatchEvent(new CustomEvent('editor:toast', { detail: { title: 'Speichern fehlgeschlagen', description: `Server antwortete mit ${res.status}`, intent: 'error' } })); } catch {}
