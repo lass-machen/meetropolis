@@ -312,7 +312,13 @@ export function EditorPanel(props: {
                     Bearbeiten
                   </button>
                   <button
-                    onClick={() => EditorService.dispatch({ type: 'DELETE_ZONE', index: idx })}
+                    onClick={async () => {
+                      EditorService.dispatch({ type: 'DELETE_ZONE', index: idx });
+                      // Auto-save nach Löschen, damit Server-State synchron bleibt
+                      if (props.onSave) {
+                        await props.onSave();
+                      }
+                    }}
                     style={{
                       padding: '6px 10px',
                       borderRadius: 6,
