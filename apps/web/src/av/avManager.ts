@@ -206,7 +206,13 @@ export class AVManager {
             this.pageLeaving = true;
           } else if (document.visibilityState === 'visible') {
             // Sofortige Wiederaufnahme der Subscriptions/Publishes bei Rückkehr
-            try { (this.current as any)?.startAudio?.(); } catch {}
+            try { 
+              (this.current as any)?.startAudio?.().catch((e: any) => {
+                // Browser Autoplay-Policy: Audio benötigt User-Interaktion
+                if (e?.name === 'NotAllowedError') return;
+                throw e;
+              });
+            } catch {}
             try { this.ensureSubscribeAllAudio(64); } catch {}
             try { this.applyDesiredSubscriptions(); } catch {}
             try { void this.restoreDesiredTracks(); } catch {}
@@ -214,13 +220,25 @@ export class AVManager {
         } catch {}
       }, { capture: true } as any);
       window.addEventListener('focus', () => {
-        try { (this.current as any)?.startAudio?.(); } catch {}
+        try { 
+          (this.current as any)?.startAudio?.().catch((e: any) => {
+            // Browser Autoplay-Policy: Audio benötigt User-Interaktion
+            if (e?.name === 'NotAllowedError') return;
+            throw e;
+          });
+        } catch {}
         try { this.ensureSubscribeAllAudio(64); } catch {}
         try { this.applyDesiredSubscriptions(); } catch {}
         try { void this.restoreDesiredTracks(); } catch {}
       }, { capture: true } as any);
       window.addEventListener('pageshow', () => {
-        try { (this.current as any)?.startAudio?.(); } catch {}
+        try { 
+          (this.current as any)?.startAudio?.().catch((e: any) => {
+            // Browser Autoplay-Policy: Audio benötigt User-Interaktion
+            if (e?.name === 'NotAllowedError') return;
+            throw e;
+          });
+        } catch {}
         try { this.ensureSubscribeAllAudio(64); } catch {}
         try { this.applyDesiredSubscriptions(); } catch {}
         try { void this.restoreDesiredTracks(); } catch {}

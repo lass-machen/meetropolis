@@ -325,17 +325,12 @@ export class WorldRoom extends Colyseus.Room<WorldState> {
     // 2) Sonst: Default-Spawn (aus DB), geklammert
     // 3) Sonst: Kartenmitte
     // 4) Notfalls: konservatives (200,200)
-    logger.info('[WorldRoom] onJoin - received options:', JSON.stringify({ x: options?.x, y: options?.y, identity: options?.identity, name: options?.name }));
     let initial: { x: number; y: number } | null = null;
     if (options && typeof options.x === 'number' && typeof options.y === 'number') {
-      logger.info('[WorldRoom] Using client-provided position:', options.x, options.y);
       initial = this.sanitizePosition(options.x, options.y);
-      logger.info('[WorldRoom] After sanitize:', initial);
     } else if (this.defaultSpawn) {
-      logger.info('[WorldRoom] Using defaultSpawn:', this.defaultSpawn);
       initial = this.sanitizePosition(this.defaultSpawn.x, this.defaultSpawn.y);
     } else {
-      logger.info('[WorldRoom] Using fallback center/default');
       initial = this.getMapCenter() ?? { x: 200, y: 200 };
     }
     player.x = initial.x;
