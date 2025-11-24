@@ -49,41 +49,32 @@ export function setEditorAssets(scene: Phaser.Scene & any, assets: { id: string;
     // Fall 3: Texture muss geladen werden
     scene.pendingTextures.add(textureKey);
     
-    const isDataUrl = typeof a.dataUrl === 'string' && a.dataUrl.startsWith('data:');
-    
-    if (isDataUrl) {
-      // Synchrones Base64-Laden - NUR wenn Texture wirklich nicht existiert
-      if (!scene.textures.exists(textureKey)) {
-        scene.textures.addBase64(textureKey, a.dataUrl);
-      }
+    // Event-Handler für ALLE Texture-Typen (Base64 UND URL)
+    const loadHandler = (key: string) => {
+      if (key !== textureKey) return;
       
       scene.pendingTextures.delete(textureKey);
+      scene.textures.off('addtexture', loadHandler);
       
-      // Erstelle Sprite
-      img = scene.add.image(a.x, a.y, textureKey);
-      img.setDepth(6);
-      img.setInteractive();
-      scene.editorSprites.set(a.id, img);
-    } else {
-      // Asynchrones URL-Laden
-      const loadHandler = (key: string) => {
-        if (key !== textureKey) return;
-        
-        scene.pendingTextures.delete(textureKey);
-        scene.textures.off('addtexture', loadHandler);
-        
-        // Erstelle Sprites für ALLE Assets mit diesem textureKey
-        for (const asset of assets) {
-          if (asset.key === a.key && !scene.editorSprites.has(asset.id)) {
-            const newImg = scene.add.image(asset.x, asset.y, textureKey);
-            newImg.setDepth(6);
-            newImg.setInteractive();
-            scene.editorSprites.set(asset.id, newImg);
-          }
+      // Erstelle Sprites für ALLE Assets mit diesem textureKey
+      for (const asset of assets) {
+        if (asset.key === a.key && !scene.editorSprites.has(asset.id)) {
+          const newImg = scene.add.image(asset.x, asset.y, textureKey);
+          newImg.setDepth(6);
+          newImg.setInteractive();
+          scene.editorSprites.set(asset.id, newImg);
         }
-      };
-      
-      scene.textures.on('addtexture', loadHandler);
+      }
+    };
+    
+    scene.textures.on('addtexture', loadHandler);
+    
+    const isDataUrl = typeof a.dataUrl === 'string' && a.dataUrl.startsWith('data:');
+    if (isDataUrl) {
+      // Base64-Laden ist AUCH asynchron!
+      scene.textures.addBase64(textureKey, a.dataUrl);
+    } else {
+      // URL-Laden
       scene.load.image(textureKey, a.dataUrl);
       scene.load.start();
     }
