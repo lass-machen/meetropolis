@@ -286,8 +286,12 @@ export function WorldApp() {
       // 2) Position ermitteln: bevorzugt vom Server, sonst lokaler Spawn als Fallback
       const applyPosition = (pos: { x: number; y: number } | null) => {
         if (pos && Number.isFinite(pos.x) && Number.isFinite(pos.y)) {
+          console.log('[DEBUG fetchMe] Applying position:', pos, 'for user:', user.id);
           try { localPosRef.current = { id: user.id, x: pos.x, y: pos.y }; } catch {}
           try { (window as any).initialPlayerPosition = { x: pos.x, y: pos.y }; } catch {}
+          console.log('[DEBUG fetchMe] localPosRef after apply:', JSON.stringify(localPosRef.current));
+        } else {
+          console.log('[DEBUG fetchMe] Position NOT applied, invalid:', pos);
         }
       };
 
@@ -297,10 +301,13 @@ export function WorldApp() {
       };
 
       let posApplied = false;
+      console.log('[DEBUG fetchMe] user.lastPosition:', user.lastPosition);
       if (user.lastPosition && typeof user.lastPosition.x === 'number' && typeof user.lastPosition.y === 'number') {
+        console.log('[DEBUG fetchMe] Has lastPosition, applying immediately');
         applyPosition({ x: user.lastPosition.x, y: user.lastPosition.y });
         posApplied = true;
       } else {
+        console.log('[DEBUG fetchMe] No lastPosition, will retry');
         // Kurzer Retry ausschließlich für Position (Server braucht evtl. einen Tick nach Auth)
         const posBackoff = [150, 300, 600, 1200];
         for (let i = 0; i < posBackoff.length && !posApplied; i++) {
@@ -445,21 +452,23 @@ export function WorldApp() {
       (window as any).pendingTilesets = defaultTs;
       setEditor(s => ({ ...s, tilesets: defaultTs, tilePaint: { ...(s.tilePaint as any), tilesetKey: s.tilePaint?.tilesetKey || 'office_tiles' } }));
       
-      // Registrierung versuchen - mit besserem Error-Logging
-      try {
-        for (const ts of defaultTs) {
-          gameBridge.registerTileset({ 
-            key: ts.key, 
-            dataUrl: ts.dataUrl, 
-            tileWidth: ts.tileWidth, 
-            tileHeight: ts.tileHeight, 
-            margin: 0, 
-            spacing: 0 
-          });
+      // Registrierung SEQUENTIELL (nicht parallel!) um Race Condition zu vermeiden
+      (async () => {
+        try {
+          for (const ts of defaultTs) {
+            await gameBridge.registerTileset({ 
+              key: ts.key, 
+              dataUrl: ts.dataUrl, 
+              tileWidth: ts.tileWidth, 
+              tileHeight: ts.tileHeight, 
+              margin: 0, 
+              spacing: 0 
+            });
+          }
+        } catch (e) {
+          console.warn('[EDITOR] Tileset registration failed (non-critical):', e);
         }
-      } catch (e) {
-        console.warn('[EDITOR] Tileset registration failed (non-critical):', e);
-      }
+      })();
       
       // Bereits vorhandene Editor-Layer sofort anwenden (falls vorhanden)
       try { gameBridge.reloadEditorLayers(); } catch {}

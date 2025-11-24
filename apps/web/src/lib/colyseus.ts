@@ -20,6 +20,7 @@ export async function joinWorld(serverUrl: string, identity?: string, name?: str
   
   try {
     const client = new Client(wsUrl);
+    console.log('[DEBUG joinWorld] Joining with position:', position, 'identity:', identity);
     const room = await client.joinOrCreate('world', { 
       identity, 
       name,
@@ -28,6 +29,7 @@ export async function joinWorld(serverUrl: string, identity?: string, name?: str
       direction: position?.direction,
       tenant
     });
+    console.log('[DEBUG joinWorld] Joined successfully with sessionId:', room.sessionId);
     // Vorsorgliche No-Op Handler, um Colyseus-Warnungen zu vermeiden,
     // falls UI-Handler noch nicht registriert sind (Race direkt nach Join).
     try {

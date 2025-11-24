@@ -294,11 +294,11 @@ export const gameBridge: Bridge = {
   applyTilePaint: (edit) => {
     sceneApi?.applyTilePaint(edit);
   },
-  registerTileset: (ts) => {
+  registerTileset: async (ts) => {
     // Direkt an Scene durchreichen - kein Caching mehr
     sceneApi?.registerTileset(ts);
     
-    // Server-Sync für Tileset-Registry
+    // Server-Sync für Tileset-Registry (SEQUENTIELL!)
     const base = (window as any).VITE_API_BASE || (import.meta as any).env?.VITE_API_BASE || `${window.location.protocol}//${window.location.hostname}:2567`;
     const mapName = (typeof window !== 'undefined' && (((window as any).__map_name) || (window as any).MAP_NAME)) || 'office';
     
@@ -311,29 +311,31 @@ export const gameBridge: Bridge = {
       spacing: ts.spacing ?? 0 
     };
     
-    fetch(`${base}/maps/${encodeURIComponent(mapName)}/tilesets`, { 
-      method: 'POST', 
-      credentials: 'include', 
-      headers: { 'Content-Type': 'application/json' }, 
-      body: JSON.stringify(payload) 
-    })
-    .then(res => {
+    try {
+      const res = await fetch(`${base}/maps/${encodeURIComponent(mapName)}/tilesets`, { 
+        method: 'POST', 
+        credentials: 'include', 
+        headers: { 'Content-Type': 'application/json' }, 
+        body: JSON.stringify(payload) 
+      });
+      
       if (!res.ok) {
         console.warn(`[Bridge] Tileset registration failed: ${res.status} ${res.statusText} for key="${ts.key}"`);
-        return res.text().then(text => {
-          try { 
-            const json = JSON.parse(text); 
-            console.warn('[Bridge] Server error:', json); 
-          } catch { 
-            console.warn('[Bridge] Server response:', text); 
-          }
-        });
+        const text = await res.text();
+        try { 
+          const json = JSON.parse(text); 
+          console.warn('[Bridge] Server error:', json); 
+        } catch { 
+          console.warn('[Bridge] Server response:', text); 
+        }
+        return;
       }
-      return res.json().then(data => {
-        console.debug(`[Bridge] Tileset "${ts.key}" registered successfully`);
-      });
-    })
-    .catch(e => console.error('[Bridge] Failed to register tileset on server', e));
+      
+      const data = await res.json();
+      console.debug(`[Bridge] Tileset "${ts.key}" registered successfully`);
+    } catch (e) {
+      console.error('[Bridge] Failed to register tileset on server', e);
+    }
   },
   setCollisionVisible: (visible) => {
     cachedCollisionVisible = !!visible;

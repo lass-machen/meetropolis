@@ -118,16 +118,19 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
       }
       connectingRef.current = true;
       try {
+        console.log('[DEBUG useWorldRoom] connect() - localPosRef.current:', JSON.stringify(localPosRef.current));
         // Server entscheidet über Default-Spawn: keine LocalStorage-Spawninjektion mehr
         const positionToUse = localPosRef.current && (localPosRef.current.x !== undefined && localPosRef.current.y !== undefined)
           ? localPosRef.current
           : undefined;
+        console.log('[DEBUG useWorldRoom] positionToUse:', JSON.stringify(positionToUse));
         const room = await joinWorld(
           apiBase,
           me.id,
           me.name || me.email || me.id,
           positionToUse
         );
+        console.log('[DEBUG useWorldRoom] Joined room successfully');
         if (disposed) { try { room.leave(); } catch {} return; }
         colyseusRef.current = room;
         reconnectAttemptsRef.current = 0;
