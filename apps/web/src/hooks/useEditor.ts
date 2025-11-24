@@ -1,54 +1,47 @@
-import React from 'react';
+/**
+ * useEditor - React Hook für EditorService
+ * 
+ * Dünner Wrapper um EditorService mit React Observer Pattern
+ * BACKWARDS COMPATIBLE: Gibt Array zurück wie alter Hook
+ */
 
-export type EditorTool = 'zone' | 'asset' | 'select' | 'floor' | 'walls' | 'collision' | 'terrain' | 'erase';
-export type EditorCategory = 'terrain' | 'structures' | 'objects' | 'zones';
+import { useState, useEffect } from 'react';
+import { EditorService, EditorState, EditorAction } from '../services/EditorService';
 
-export type EditorState = {
-  active: boolean;
-  tool: EditorTool;
-  category: EditorCategory;
-  tempPoints: { x: number; y: number }[];
-  name: string;
-  zones: { name: string; points: { x: number; y: number }[] }[];
-  editingZoneIndex?: number | null;
-  assets: { id: string; key: string; dataUrl: string; x: number; y: number; packUuid?: string; itemId?: string; category?: 'structures' | 'objects'; collide?: boolean; width?: number; height?: number }[];
-  pendingAsset?: { key: string; dataUrl: string; packUuid?: string; itemId?: string; category?: 'structures' | 'objects'; collide?: boolean; width?: number; height?: number } | null;
-  packItems?: { packUuid: string; itemId: string; key: string; category: 'terrain' | 'structures' | 'objects'; dataUrl: string; width: number; height: number; collide: boolean }[];
-  pendingTerrain?: { packUuid: string; itemId: string; key: string; dataUrl: string; width?: number; height?: number } | null;
-  tilePaint?: { tilesetKey: string; tileIndex: number; tileWidth: number; tileHeight: number; margin?: number; spacing?: number } | null;
-  drag?: { startTileX: number; startTileY: number; endTileX: number; endTileY: number } | null;
-  // Zuletzt anvisierte Kachel im Editor (für Spawn-Setzen u.ä.)
-  lastTile?: { tileX: number; tileY: number } | null;
-  // Spawn setzen Modus + persistierter Spawn
-  settingSpawn?: boolean;
-  spawn?: { x: number; y: number } | null;
-  tilesets?: { key: string; dataUrl: string; tileWidth: number; tileHeight: number; margin?: number; spacing?: number; category?: string }[];
-  uploadDialog?: { open: boolean; dataUrl: string; fileName: string; tileWidth: number; tileHeight: number; margin: number; spacing: number; category?: string } | null;
-  backgroundColor: string;
-};
+// Re-export Types für Backwards Compatibility
+export type { EditorState, EditorAction, EditorTool, EditorCategory } from '../services/EditorService';
 
+/**
+ * Hook der den EditorService State mit React verbindet
+ * @returns Array mit [state, setState-Wrapper] für Backwards Compatibility
+ */
 export function useEditor(): [EditorState, React.Dispatch<React.SetStateAction<EditorState>>] {
-  const [editor, setEditor] = React.useState<EditorState>({
-    active: false,
-    tool: 'zone',
-    category: 'zones',
-    tempPoints: [],
-    name: '',
-    zones: [],
-    editingZoneIndex: null,
-    assets: [],
-    pendingAsset: null,
-    packItems: [],
-    pendingTerrain: null,
-    tilePaint: { tilesetKey: 'office_tiles', tileIndex: -1, tileWidth: 16, tileHeight: 16 },
-    drag: null,
-    lastTile: null,
-    settingSpawn: false,
-    spawn: null,
-    tilesets: [],
-    backgroundColor: '#202020',
-  });
-  return [editor, setEditor];
+  const [state, setState] = useState<EditorState>(EditorService.getState());
+
+  useEffect(() => {
+    // Subscribe zu State-Änderungen
+    const unsubscribe = EditorService.subscribe((newState) => {
+      setState(newState);
+    });
+
+    return unsubscribe;
+  }, []);
+
+  // Wrapper für setState der funktionale Updates in LOAD_STATE Actions übersetzt
+  const setStateWrapper = (update: React.SetStateAction<EditorState>) => {
+    if (typeof update === 'function') {
+      // Funktionales Update: Führe die Funktion mit aktuellem State aus
+      const currentState = EditorService.getState();
+      const newState = update(currentState);
+      // Überschreibe via LOAD_STATE action
+      EditorService.dispatch({ type: 'LOAD_STATE', state: newState });
+    } else {
+      // Direktes State-Setting - überschreibe via LOAD_STATE action
+      EditorService.dispatch({ type: 'LOAD_STATE', state: update });
+    }
+  };
+
+  return [state, setStateWrapper as any];
 }
 
 

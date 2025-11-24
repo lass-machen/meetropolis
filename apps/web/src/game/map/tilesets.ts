@@ -76,7 +76,7 @@ export function registerTileset(scene: Phaser.Scene & any, ts: { key: string; da
           if (existingTileset2) {
             tileset = existingTileset2;
             scene.dynamicTilesets.set(nameForTileset, tileset);
-            editorLog('Tileset', `Using existing tileset ${existingTileset2.name} for ${nameForTileset}`);
+            console.log('Tileset', `Using existing tileset ${existingTileset2.name} for ${nameForTileset}`);
           } else {
             try {
               let assignedFirstGid = 0;
@@ -119,10 +119,10 @@ export function registerTileset(scene: Phaser.Scene & any, ts: { key: string; da
               if (tileset) {
                 try { if (!scene.mapRef.tilesets.find((t: any) => t.name === (tileset as any).name)) { (scene.mapRef.tilesets as any).push(tileset); } } catch {}
                 scene.dynamicTilesets.set(nameForTileset, tileset);
-                editorLog('Tileset', `Successfully added tileset ${nameForTileset}`);
+                console.log('Tileset', `Successfully added tileset ${nameForTileset}`);
               }
             } catch (err) {
-              editorLog('Tileset', `Failed to create tileset ${safeKey}:`, err);
+              console.log('Tileset', `Failed to create tileset ${safeKey}:`, err);
               return;
             }
           }
@@ -142,7 +142,7 @@ export function registerTileset(scene: Phaser.Scene & any, ts: { key: string; da
             }
           }
         } catch (error) {
-          editorLog('Tileset', `Failed to add tileset ${safeKey}:`, error);
+          console.log('Tileset', `Failed to add tileset ${safeKey}:`, error);
           return;
         }
       }
@@ -201,7 +201,7 @@ export function registerTileset(scene: Phaser.Scene & any, ts: { key: string; da
         if (scene.collisionLayer) { (scene.collisionLayer as any).setTilesets(allTilesets); }
       }
     } catch (error) {
-      editorLog('Tileset', `Failed to add existing tileset ${ts.key}:`, error);
+      console.log('Tileset', `Failed to add existing tileset ${ts.key}:`, error);
     }
   }
 }

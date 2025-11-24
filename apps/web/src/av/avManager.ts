@@ -1,5 +1,6 @@
 const SIMPLE = (import.meta as any).env?.VITE_AV_SIMPLE === 'true';
 const ALLOW_RECONNECT = (import.meta as any).env?.VITE_AV_RECONNECT !== 'false';
+const AV_DEBUG = (import.meta as any).env?.VITE_AV_DEBUG === 'true' || false;
 import { Room, createLocalScreenTracks } from 'livekit-client';
 import { joinLivekitRoom } from '../lib/livekit';
 import { avLog } from '../lib/avLog';

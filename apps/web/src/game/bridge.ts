@@ -1,3 +1,5 @@
+import { EditorService } from '../services/EditorService';
+
 export type Direction = 'up' | 'down' | 'left' | 'right';
 
 type Bridge = {
@@ -81,20 +83,16 @@ export type SceneApi = {
 };
 
 let sceneApi: SceneApi | null = null;
-let cachedZones: { name: string; points: { x: number; y: number }[] }[] = [];
-let cachedZonesVisible: boolean = true;
-let cachedAssets: { id: string; key: string; dataUrl: string; x: number; y: number }[] = [];
+
+// Non-Editor State (behalten)
 let cachedCollisionVisible = false;
 let cachedHeroName: string | null = null;
 let cachedDoNotDisturb = false;
 let remotePlayersCache: Record<string, { x: number; y: number; direction: Direction; name?: string; dnd?: boolean }> = {};
-let cachedBackgroundColor: string = '#202020';
-// Cache, um unnötige Doppel-Aufrufe zu vermeiden (z.B. wiederholt null)
 let lastDesiredPosition: { x: number; y: number } | null = null;
-let tilesetPersistLastLen = -1;
-let tilesetPersistTimer: number | null = null as any;
-let cachedSpawnMarker: { x: number; y: number } | null = null;
-let cachedTilesets: { key: string; dataUrl: string; tileWidth: number; tileHeight: number; margin?: number; spacing?: number }[] = [];
+
+// Editor-State-Caching ENTFERNT - EditorService ist jetzt Single Source of Truth
+// cachedZones, cachedAssets, cachedSpawnMarker, cachedTilesets, cachedBackgroundColor -> GELÖSCHT
 
 export const gameBridge: Bridge = {
   onLocalMove: () => {},
@@ -103,30 +101,25 @@ export const gameBridge: Bridge = {
   onCameraManualChange: () => {},
   setSceneApi: (api) => {
     sceneApi = api;
-    // Wenn Szene frisch gebunden wird, zuletzt bekannte Overlays/Assets anwenden
+    
     if (sceneApi) {
-    // 1) Zonen nur noch aus Server-Daten (via Props/Server-Call) laden. LocalStorage ist NICHT mehr source-of-truth.
-    // Alte LocalStorage-Logik entfernt, um Konflikte zu vermeiden.
-    try { sceneApi.setZonesVisible?.(cachedZonesVisible); } catch (e) { console.error('Failed to set zones visible', e); }
-    try { if (cachedZonesVisible) sceneApi.setZoneOverlay(cachedZones); } catch (e) { console.error('Failed to set zone overlay', e); }
-    try { sceneApi.setEditorAssets(cachedAssets); } catch (e) { console.error('Failed to set editor assets', e); }
-    try { sceneApi.setCollisionVisible(cachedCollisionVisible); } catch (e) { console.error('Failed to set collision visible', e); }
-    // 2) Best-Effort: Serverzustand laden (nur falls die Szene es unterstützt)
-    try { sceneApi.fetchAndApplyServerLayers?.(); } catch (e) { console.error('Failed to fetch server layers', e); }
-    try { sceneApi.reloadEditorLayers(); } catch (e) { console.error('Failed to reload editor layers', e); }
-      // Set cached hero name if available
+      // Nicht-Editor State wiederherstellen
+      try { sceneApi.setCollisionVisible(cachedCollisionVisible); } catch (e) { console.error('Failed to set collision visible', e); }
+      
       if (cachedHeroName && sceneApi.setHeroName) {
         try { sceneApi.setHeroName(cachedHeroName); } catch {}
       }
+      
       if (typeof sceneApi.setDoNotDisturb === 'function') {
         try { sceneApi.setDoNotDisturb(cachedDoNotDisturb); } catch {}
       }
-      // WICHTIG: Bereits bekannte Remote-Spieler sofort rendern
+      
+      // Remote-Spieler wiederherstellen
       try { sceneApi.syncRemotePlayers(remotePlayersCache); } catch {}
-      // Apply cached background color
-      try { sceneApi.setBackgroundColor?.(cachedBackgroundColor); } catch {}
-      // Apply cached spawn marker
-      try { sceneApi.setSpawnMarker?.(cachedSpawnMarker); } catch {}
+      
+      // Server-Layers laden (für Map-Daten)
+      try { sceneApi.fetchAndApplyServerLayers?.(); } catch (e) { console.error('Failed to fetch server layers', e); }
+      try { sceneApi.reloadEditorLayers(); } catch (e) { console.error('Failed to reload editor layers', e); }
     }
   },
   recenterCamera: () => {
@@ -185,26 +178,116 @@ export const gameBridge: Bridge = {
     try { console.debug('[Bridge] setDesiredPosition changed to', pos); } catch (e) { console.error('Log failed', e); }
     sceneApi?.setDesiredPosition(pos);
   },
+  // Editor-Methoden: Kein Caching mehr, direkt an Scene durchreichen
   setZoneOverlay: (polys) => {
-    cachedZones = Array.isArray(polys) ? polys : [];
-    if (cachedZonesVisible) sceneApi?.setZoneOverlay(polys);
+    sceneApi?.setZoneOverlay(polys);
   },
   setZonesVisible: (visible) => {
-    cachedZonesVisible = !!visible;
-    try { sceneApi?.setZonesVisible?.(cachedZonesVisible); } catch (e) { console.error('Failed to set zones visible', e); }
-    if (cachedZonesVisible) {
-      // Re-apply cached zones when becoming visible again
-      try { sceneApi?.setZoneOverlay?.(cachedZones); } catch (e) { console.error('Failed to set zone overlay', e); }
-    }
+    sceneApi?.setZonesVisible?.(visible);
   },
   setEditorAssets: (assets) => {
-    cachedAssets = Array.isArray(assets) ? assets : [];
     sceneApi?.setEditorAssets(assets);
   },
   // Optional: dedizierter Weg um Bubble-Mitglieder zu cachen (UI steuert dieses Set)
-  onPointerDownTile: () => {},
-  onPointerMoveTile: () => {},
-  onPointerUpTile: () => {},
+  onPointerDownTile: (p) => {
+    const state = EditorService.getState();
+    if (!state.active) return;
+
+    const { tileX, tileY } = p;
+
+    switch (state.tool) {
+      case 'zone':
+        EditorService.dispatch({ type: 'START_ZONE_DRAG', tileX, tileY });
+        break;
+      case 'asset':
+        if (state.pendingAsset) {
+          EditorService.dispatch({ type: 'START_ASSET_DRAG', tileX, tileY });
+        }
+        break;
+      case 'spawn':
+        // Spawn wird bei PointerUp gesetzt
+        break;
+      case 'erase':
+        // Check if clicking on an asset to delete
+        const tileSize = 16; // TODO: Get from map
+        const worldX = tileX * tileSize + tileSize / 2;
+        const worldY = tileY * tileSize + tileSize / 2;
+        const asset = state.assets.find(a => {
+          const dx = Math.abs(a.x - worldX);
+          const dy = Math.abs(a.y - worldY);
+          return dx < tileSize && dy < tileSize;
+        });
+        if (asset) {
+          EditorService.dispatch({ type: 'DELETE_ASSET', id: asset.id });
+        }
+        break;
+    }
+  },
+  onPointerMoveTile: (p) => {
+    const state = EditorService.getState();
+    if (!state.active || !state.dragState) return;
+
+    const { tileX, tileY } = p;
+
+    switch (state.tool) {
+      case 'zone':
+        EditorService.dispatch({ type: 'UPDATE_ZONE_DRAG', tileX, tileY });
+        // Update visual selection via setSelectionRect
+        if (state.dragState) {
+          const drag = state.dragState;
+          const tileSize = 16;
+          const x0 = Math.min(drag.startTileX, tileX) * tileSize;
+          const y0 = Math.min(drag.startTileY, tileY) * tileSize;
+          const x1 = (Math.max(drag.startTileX, tileX) + 1) * tileSize;
+          const y1 = (Math.max(drag.startTileY, tileY) + 1) * tileSize;
+          gameBridge.setSelectionRect({ x: x0, y: y0, w: x1 - x0, h: y1 - y0 });
+        }
+        break;
+      case 'asset':
+        if (state.pendingAsset) {
+          EditorService.dispatch({ type: 'UPDATE_ASSET_DRAG', tileX, tileY });
+          // Update visual selection
+          if (state.dragState) {
+            const drag = state.dragState;
+            const tileSize = 16;
+            const x0 = Math.min(drag.startTileX, tileX) * tileSize;
+            const y0 = Math.min(drag.startTileY, tileY) * tileSize;
+            const x1 = (Math.max(drag.startTileX, tileX) + 1) * tileSize;
+            const y1 = (Math.max(drag.startTileY, tileY) + 1) * tileSize;
+            gameBridge.setSelectionRect({ x: x0, y: y0, w: x1 - x0, h: y1 - y0 });
+          }
+        }
+        break;
+    }
+  },
+  onPointerUpTile: (p) => {
+    const state = EditorService.getState();
+    if (!state.active) return;
+
+    const { tileX, tileY } = p;
+
+    switch (state.tool) {
+      case 'zone':
+        if (state.dragState) {
+          EditorService.dispatch({ type: 'COMPLETE_ZONE', tileX, tileY });
+          gameBridge.setSelectionRect(null);
+        }
+        break;
+      case 'asset':
+        if (state.pendingAsset) {
+          if (state.dragState) {
+            EditorService.dispatch({ type: 'COMPLETE_ASSET_DRAG', tileX, tileY });
+          } else {
+            EditorService.dispatch({ type: 'PLACE_ASSET', tileX, tileY });
+          }
+          gameBridge.setSelectionRect(null);
+        }
+        break;
+      case 'spawn':
+        EditorService.dispatch({ type: 'SET_SPAWN', tileX, tileY });
+        break;
+    }
+  },
   setSelectionRect: (rect) => {
     sceneApi?.setSelectionRect(rect);
   },
@@ -212,67 +295,28 @@ export const gameBridge: Bridge = {
     sceneApi?.applyTilePaint(edit);
   },
   registerTileset: (ts) => {
-    // 1) Apply to scene
+    // Direkt an Scene durchreichen - kein Caching mehr
     sceneApi?.registerTileset(ts);
     
-    // 2) Update local cache
-    const idx = cachedTilesets.findIndex(t => t.key === ts.key);
-    if (idx >= 0) {
-      cachedTilesets[idx] = ts;
-    } else {
-      cachedTilesets.push(ts);
-    }
-
-    // 3) Persist to server editor-state AND new v2 Registry
-    try {
-      // v2 Registry POST (immediately for new tilesets to ensure slot assignment)
-      const base = (window as any).VITE_API_BASE || (import.meta as any).env?.VITE_API_BASE || `${window.location.protocol}//${window.location.hostname}:2567`;
-      const mapName = (typeof window !== 'undefined' && (((window as any).__map_name) || (window as any).MAP_NAME)) || 'office';
-      
-      if (ts.key && !cachedTilesets.find(t => t.key === ts.key && (t as any)._synced)) {
-         const payload = { 
-            key: ts.key, 
-            imageUrl: ts.dataUrl, 
-            tileWidth: ts.tileWidth, 
-            tileHeight: ts.tileHeight, 
-            margin: ts.margin ?? 0, 
-            spacing: ts.spacing ?? 0 
-         };
-         fetch(`${base}/maps/${encodeURIComponent(mapName)}/tilesets`, { 
-            method: 'POST', 
-            credentials: 'include', 
-            headers: { 'Content-Type': 'application/json' }, 
-            body: JSON.stringify(payload) 
-         }).then(() => {
-            // Mark as synced so we don't spam POSTs (though backend handles dupes gracefully via append)
-            const inCache = cachedTilesets.find(t => t.key === ts.key);
-            if (inCache) (inCache as any)._synced = true;
-         }).catch(e => console.error('Failed to post new tileset to v2 registry', e));
-      }
-
-      const next = cachedTilesets.slice();
-      
-      // Best-effort: debounce server PUT to avoid flooding (Legacy)
-      if (next.length !== tilesetPersistLastLen) {
-        tilesetPersistLastLen = next.length;
-        if (tilesetPersistTimer) {
-          clearTimeout(tilesetPersistTimer as any);
-        }
-        tilesetPersistTimer = setTimeout(() => {
-          try {
-            const base = (window as any).VITE_API_BASE || (import.meta as any).env?.VITE_API_BASE || `${window.location.protocol}//${window.location.hostname}:2567`;
-            const mapName = (typeof window !== 'undefined' && (((window as any).__map_name) || (window as any).MAP_NAME)) || 'office';
-            const body = JSON.stringify({ tilesets: next });
-            if (body.length < 4_000_000) { // Increased limit to 4MB
-              fetch(`${base}/maps/${encodeURIComponent(mapName)}/editor-state`, { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body }).catch((e)=>{ console.error('Failed to persist tilesets to server', e); });
-              try { (window as any).DEBUG_LOGS && console.debug('[ASSETS_DBG][Bridge] persisted tileset to server', { count: next.length }); } catch (e) { console.error('Log failed', e); }
-            } else {
-              console.error('Tileset body too large to persist', body.length);
-            }
-          } catch (e) { console.error('Failed to persist tilesets', e); }
-        }, 300) as any;
-      }
-    } catch (e) { console.error('Failed to register tileset', e); }
+    // Server-Sync für Tileset-Registry
+    const base = (window as any).VITE_API_BASE || (import.meta as any).env?.VITE_API_BASE || `${window.location.protocol}//${window.location.hostname}:2567`;
+    const mapName = (typeof window !== 'undefined' && (((window as any).__map_name) || (window as any).MAP_NAME)) || 'office';
+    
+    const payload = { 
+      key: ts.key, 
+      imageUrl: ts.dataUrl, 
+      tileWidth: ts.tileWidth, 
+      tileHeight: ts.tileHeight, 
+      margin: ts.margin ?? 0, 
+      spacing: ts.spacing ?? 0 
+    };
+    
+    fetch(`${base}/maps/${encodeURIComponent(mapName)}/tilesets`, { 
+      method: 'POST', 
+      credentials: 'include', 
+      headers: { 'Content-Type': 'application/json' }, 
+      body: JSON.stringify(payload) 
+    }).catch(e => console.error('Failed to register tileset on server', e));
   },
   setCollisionVisible: (visible) => {
     cachedCollisionVisible = !!visible;
@@ -329,12 +373,11 @@ export const gameBridge: Bridge = {
       }
     } catch (e) { console.error('Failed to handle editor update', e); }
   },
+  // Editor-Methoden: Kein Caching, direkt durchreichen
   setBackgroundColor: (hex: string) => {
-    cachedBackgroundColor = hex;
     sceneApi?.setBackgroundColor?.(hex);
   },
   setSpawnMarker: (pos) => {
-    cachedSpawnMarker = pos ? { x: pos.x, y: pos.y } : null;
     sceneApi?.setSpawnMarker?.(pos);
   },
   saveEditorLayersHard: () => { try { sceneApi?.saveEditorLayersHard?.(); } catch (e) { console.error('Failed hard save', e); } },
@@ -344,10 +387,84 @@ export const gameBridge: Bridge = {
   forceReloadMap: () => {
     try { sceneApi?.forceReloadMap?.(); } catch (e) { console.error('Failed to force reload map', e); }
   },
-  hydrateTilesetsCache: (tilesets) => {
-    cachedTilesets = Array.isArray(tilesets) ? tilesets : [];
+  // Tileset-Cache entfernt - nicht mehr benötigt
+  hydrateTilesetsCache: (_tilesets) => {
+    // DEPRECATED: Caching entfernt
   },
   updateTilesetRegistry: (registry) => {
     try { sceneApi?.updateTilesetRegistry?.(registry); } catch (e) { console.error('Failed to update tileset registry', e); }
   }
 };
+
+// Subscribe EditorService zu gameBridge für automatische Synchronisation
+// WICHTIG: Nur bei tatsächlichen Änderungen updaten, um Render-Loops zu vermeiden
+let lastSyncedState: {
+  zonesLength: number;
+  assetsLength: number;
+  spawn: any;
+  pendingAsset: any;
+  active: boolean;
+} = {
+  zonesLength: 0,
+  assetsLength: 0,
+  spawn: null,
+  pendingAsset: null,
+  active: false,
+};
+
+// Debounce für Asset-Updates um initiale Multi-Calls zu vermeiden
+let assetUpdateTimeout: ReturnType<typeof setTimeout> | null = null;
+
+EditorService.subscribe((state) => {
+  // Sync Zones (nur wenn Anzahl geändert - schneller als JSON.stringify)
+  if (state.zones.length !== lastSyncedState.zonesLength) {
+    gameBridge.setZoneOverlay(state.zones);
+    lastSyncedState.zonesLength = state.zones.length;
+  }
+  
+  // Sync Assets (debounced um initiale Multi-Calls zu vermeiden)
+  const assetsChanged = state.assets.length !== lastSyncedState.assetsLength;
+  if (assetsChanged) {
+    lastSyncedState.assetsLength = state.assets.length;
+    
+    // Clear existing timeout
+    if (assetUpdateTimeout) {
+      clearTimeout(assetUpdateTimeout);
+    }
+    
+    // Debounce Asset-Updates (50ms)
+    assetUpdateTimeout = setTimeout(() => {
+      gameBridge.setEditorAssets(state.assets);
+      assetUpdateTimeout = null;
+    }, 50);
+  }
+  
+  // Sync Spawn (nur wenn geändert)
+  const spawnChanged = JSON.stringify(state.spawn) !== JSON.stringify(lastSyncedState.spawn);
+  if (spawnChanged) {
+    gameBridge.setSpawnMarker(state.spawn);
+    lastSyncedState.spawn = state.spawn;
+  }
+  
+  // Sync Asset Preview (nur wenn geändert)
+  const pendingAssetChanged = JSON.stringify(state.pendingAsset) !== JSON.stringify(lastSyncedState.pendingAsset);
+  if (pendingAssetChanged) {
+    if (state.pendingAsset) {
+      gameBridge.setAssetPreview({
+        dataUrl: state.pendingAsset.dataUrl,
+        width: state.pendingAsset.width,
+        height: state.pendingAsset.height,
+      });
+    } else {
+      gameBridge.setAssetPreview(null);
+    }
+    lastSyncedState.pendingAsset = state.pendingAsset;
+  }
+  
+  // Sync Editor Mode & Collision Visibility (nur wenn geändert)
+  if (state.active !== lastSyncedState.active) {
+    gameBridge.setEditorMode(state.active);
+    gameBridge.setCollisionVisible(state.active);
+    lastSyncedState.active = state.active;
+  }
+});

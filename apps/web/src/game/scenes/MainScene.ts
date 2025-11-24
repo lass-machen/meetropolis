@@ -1,19 +1,24 @@
 import Phaser from 'phaser';
 import { GameSystem } from '../systems/types';
 import { gameBridge } from '../bridge';
-import { editorLog, editorError } from '../../lib/editorLog';
+// editorLog removed - using console methods instead
 import { V2State, computeFirstGids, decodeRLE, fetchChunks, tileRefIdToGid } from '../../lib/mapV2';
 import { createNameLabel as uiCreateNameLabel, drawNameLabel as uiDrawNameLabel, updateNameLabel as uiUpdateNameLabel, setHeroName as uiSetHeroName, updateSpeakingStates as uiUpdateSpeakingStates } from '../ui/nameLabels';
 import { setBubbleMembers as uiSetBubbleMembers, updateBubbleOutline as uiUpdateBubbleOutline } from '../ui/bubbles';
 import { ensureRecenterUi as camEnsureRecenterUi, updateRecenterUiVisibility as camUpdateRecenterUiVisibility, recenterCamera as camRecenterCamera } from '../camera/recenterUi';
 import { setCollisionVisible as colSetVisible, updateCollisionOverlay as colUpdateOverlay } from '../collision/overlay';
 import { ensureCollisionCollider as colEnsureCollider, rebuildStaticColliders as colRebuildStatic } from '../collision/collider';
-import { setEditorAssets as edSetAssets, setAssetPreview as edSetPreview } from '../editor/assets';
-import { applyTerrainPaint as edApplyTerrainPaint, eraseTerrainRect as edEraseTerrainRect, applyTilePaint as edApplyTilePaint, ensureTerrainTilesetFor as edEnsureTerrainTilesetFor } from '../editor/painting';
-import { saveEditorLayers as mapSaveLayers, saveEditorLayersHard as mapSaveLayersHard, loadEditorLayers as mapLoadLayers, reloadEditorLayers as mapReloadLayers } from '../map/editorLayers';
+// Old editor imports removed - now using EditorRenderer and EditorService
+// import { setEditorAssets as edSetAssets, setAssetPreview as edSetPreview } from '../editor/assets';
+// import { applyTerrainPaint as edApplyTerrainPaint, eraseTerrainRect as edEraseTerrainRect, applyTilePaint as edApplyTilePaint, ensureTerrainTilesetFor as edEnsureTerrainTilesetFor } from '../editor/painting';
+// Editor layers import removed - deprecated file deleted
+// import { saveEditorLayers as mapSaveLayers, saveEditorLayersHard as mapSaveLayersHard, loadEditorLayers as mapLoadLayers, reloadEditorLayers as mapReloadLayers } from '../map/editorLayers';
+// Temporäre Editor-Funktionen bis EditorRenderer vollständig integriert ist
+import { setEditorAssets as edSetAssets, setAssetPreview as edSetAssetPreview } from '../editor/assets-temp';
 import { fetchAndApplyServerLayers as mapFetchAndApply } from '../map/serverSync';
 import { loadVisibleChunks as mapLoadVisibleChunks, applyChunkUpdates as mapApplyChunkUpdates } from '../map/chunks';
 import { registerTileset as mapRegisterTileset } from '../map/tilesets';
+import { EditorService } from '../../services/EditorService';
 
 export class MainScene extends Phaser.Scene {
   private hero!: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
@@ -226,7 +231,7 @@ export class MainScene extends Phaser.Scene {
         const actualRows = layerData.data.length;
         
         if (actualRows < expectedRows) {
-          editorLog('Init', `Collision layer has wrong dimensions: ${actualRows} rows instead of ${expectedRows}, fixing...`);
+          console.log(`[MainScene] Collision layer has wrong dimensions: ${actualRows} rows instead of ${expectedRows}, fixing...`);
           
           // Extend the data array to have the correct number of rows
           while (layerData.data.length < expectedRows) {
@@ -251,25 +256,25 @@ export class MainScene extends Phaser.Scene {
           // Update layer dimensions
           layerData.height = expectedRows;
           
-          editorLog('Init', `Fixed collision layer dimensions to ${layerData.data.length}x${layerData.data[0]?.length || 0}`);
+          console.log(`[MainScene] Fixed collision layer dimensions to ${layerData.data.length}x${layerData.data[0]?.length || 0}`);
           
           // Verify the fix worked
           const testY = 30; // Test a row that should exist now
           if (layerData.data[testY]) {
-            editorLog('Init', `Verification: Row ${testY} exists with ${layerData.data[testY].length} tiles`);
+            console.log(`[MainScene] Verification: Row ${testY} exists with ${layerData.data[testY].length} tiles`);
           } else {
-            editorError('Init', `Verification failed: Row ${testY} still doesn't exist!`, null);
+            console.error(`[MainScene] Verification failed: Row ${testY} still doesn't exist!`);
           }
         }
       }
     } catch (e) {
-      editorLog('Init', 'Collision layer setup failed');
+      console.log('[MainScene] Collision layer setup failed');
       // Create blank collision layer if it doesn't exist
       if (available.length > 0) {
         // Use the first available tileset for blank layer creation
         const firstTs = available[0]!;
         collisionLayer = map.createBlankLayer('Collision', firstTs, 0, 0, map.width, map.height, map.tileWidth, map.tileHeight) as any;
-        editorLog('Init', `Created blank collision layer: ${map.width}x${map.height}`);
+        console.log(`[MainScene] Created blank collision layer: ${map.width}x${map.height}`);
       }
     }
     if (collisionLayer) {
@@ -281,14 +286,14 @@ export class MainScene extends Phaser.Scene {
     
     // Debug: Check collision layer dimensions
     if (collisionLayer) {
-      editorLog('Init', 'Collision layer created');
+      console.log('[MainScene] Collision layer created');
     }
     
     if (collisionLayer) {
       collisionLayer.setDepth(10);
       collisionLayer.setVisible(false); // Hide the actual collision layer - we use overlay for visualization
     } else {
-      editorLog('Init', 'No collision layer created');
+      console.log('[MainScene] No collision layer created');
     }
 
     // Register collision tileset in dynamicTilesets
@@ -670,13 +675,17 @@ export class MainScene extends Phaser.Scene {
         const { tileX, tileY } = toTile(pointer);
         try { window.dispatchEvent(new CustomEvent('editor:tileDown', { detail: { tileX, tileY } })); } catch {}
         gameBridge.onPointerDownTile({ tileX, tileY });
-        // Szene-eigene Drag-Auswahl starten
+        // Szene-eigene Drag-Auswahl starten (NUR für Terrain/Collision Tools)
         try {
-          (this as any)._dragStartTile = { x: tileX, y: tileY };
-          if (this.mapRef) {
-            const x = tileX * this.mapRef.tileWidth;
-            const y = tileY * this.mapRef.tileHeight;
-            this.setSelectionRect({ x, y, w: this.mapRef.tileWidth, h: this.mapRef.tileHeight });
+          const editorTool = EditorService.getState().tool;
+          const isTerrainCollisionTool = editorTool === 'terrain' || editorTool === 'collision';
+          if (isTerrainCollisionTool) {
+            (this as any)._dragStartTile = { x: tileX, y: tileY };
+            if (this.mapRef) {
+              const x = tileX * this.mapRef.tileWidth;
+              const y = tileY * this.mapRef.tileHeight;
+              this.setSelectionRect({ x, y, w: this.mapRef.tileWidth, h: this.mapRef.tileHeight });
+            }
           }
         } catch {}
       }
@@ -694,10 +703,14 @@ export class MainScene extends Phaser.Scene {
           this.ghostSprite.setPosition(x, y);
         }
       }
-      // Szene-eigene Drag-Auswahl zeichnen
+      // Szene-eigene Drag-Auswahl zeichnen (NUR für Terrain/Collision, nicht für Zone/Asset)
+      // Zone/Asset-Drag wird von gameBridge-Handlern verwaltet
       try {
         const ds = (this as any)._dragStartTile as { x: number; y: number } | undefined;
-        if (this.editorMode && ds && pointer.leftButtonDown() && !this.panState.isPanning && this.mapRef) {
+        // Nur für Terrain/Collision Tools (nicht zone/asset)
+        const editorTool = EditorService.getState().tool;
+        const isTerrainCollisionTool = editorTool === 'terrain' || editorTool === 'collision';
+        if (this.editorMode && ds && pointer.leftButtonDown() && !this.panState.isPanning && this.mapRef && isTerrainCollisionTool) {
           const sx = Math.min(ds.x, tileX) * this.mapRef.tileWidth;
           const sy = Math.min(ds.y, tileY) * this.mapRef.tileHeight;
           const ex = Math.max(ds.x, tileX) * this.mapRef.tileWidth + this.mapRef.tileWidth;
@@ -709,25 +722,31 @@ export class MainScene extends Phaser.Scene {
     this.input.on('pointerup', (pointer: Phaser.Input.Pointer) => {
       const { tileX, tileY } = toTile(pointer);
       if (this.editorMode && !this.panState.isPanning) {
-        try { console.log('[SPAWN_DBG][Scene] pointerup->onPointerUpTile', { tileX, tileY }); } catch {}
+        // Debug log removed - too verbose
         try { window.dispatchEvent(new CustomEvent('editor:tileUp', { detail: { tileX, tileY } })); } catch {}
         gameBridge.onPointerUpTile({ tileX, tileY });
       }
       // Szene-eigene Terrain-Anwendung bei aktivem Ghost und Drag-Start
       try {
         const ds = (this as any)._dragStartTile as { x: number; y: number } | undefined;
-        if (this.editorMode && ds && this.ghostSprite && (this as any)._ghostDataUrl && this.editorCurrentTool !== 'collision' && this.editorCurrentTool !== 'erase') {
+        const editorTool = EditorService.getState().tool;
+        if (this.editorMode && ds && this.ghostSprite && (this as any)._ghostDataUrl && editorTool === 'terrain') {
           const rect = { startX: ds.x, startY: ds.y, endX: tileX, endY: tileY };
           this.applyTerrainPaint({ rect, dataUrl: (this as any)._ghostDataUrl as string });
-        } else if (this.editorMode && ds && (this.editorCurrentTool === 'collision' || this.editorCurrentTool === 'erase')) {
-          // Kollision/Erase ohne App-Handler direkt anwenden
+        } else if (this.editorMode && ds && editorTool === 'collision') {
+          // Kollision direkt anwenden
           const rect = { startX: ds.x, startY: ds.y, endX: tileX, endY: tileY };
-          const edit = { layer: 'Collision' as const, tilesetKey: 'collision_tiles', tileIndex: this.editorCurrentTool === 'erase' ? -1 : 1, rect };
+          const edit = { layer: 'Collision' as const, tilesetKey: 'collision_tiles', tileIndex: 1, rect };
           this.applyTilePaint(edit);
         }
       } catch {}
-      this.setSelectionRect(null);
-      (this as any)._dragStartTile = undefined;
+      // Cleanup nur für Terrain/Collision Tools - Zone/Asset-Tools werden von gameBridge verwaltet
+      const editorTool = EditorService.getState().tool;
+      const isTerrainCollisionTool = editorTool === 'terrain' || editorTool === 'collision';
+      if (isTerrainCollisionTool) {
+        this.setSelectionRect(null);
+        (this as any)._dragStartTile = undefined;
+      }
       this.updateCursor();
     });
 
@@ -810,14 +829,14 @@ export class MainScene extends Phaser.Scene {
       this.fetchAndApplyServerLayers().then(() => {
         // Nach dem Laden: Kollision für Nicht-Editoren verstecken
         if (!this.editorMode) {
-           try { this.collisionLayer?.setVisible(false); } catch (e) { editorError('Init', 'Failed to hide collision layer', e); }
+           try { this.collisionLayer?.setVisible(false); } catch (e) { console.error('[MainScene] Failed to hide collision layer', e); }
         }
-      }).catch(e => editorError('Init', 'Failed to load server layers', e));
+      }).catch(e => console.error('[MainScene] Failed to load server layers', e));
     }, 100);
 
     if (this.v2) {
        // Initial verstecken (wird nach Load erneut sichergestellt)
-       try { this.collisionLayer?.setVisible(false); } catch (e) { editorError('Init', 'Failed to hide collision layer', e); }
+       try { this.collisionLayer?.setVisible(false); } catch (e) { console.error('[MainScene] Failed to hide collision layer', e); }
     }
 
     // Bridge aufräumen, wenn Szene herunterfährt
@@ -1080,7 +1099,7 @@ export class MainScene extends Phaser.Scene {
       try { this.hero?.body?.setVelocity?.(0, 0); } catch {}
       try { this.hero?.anims?.stop?.(); } catch {}
     }
-    try { console.debug('[Scene] movementLocked =', this.movementLocked); } catch {}
+    // Debug log removed - too verbose
   }
 
   private isWalkable(x: number, y: number): boolean {
@@ -1269,24 +1288,28 @@ export class MainScene extends Phaser.Scene {
   }
 
   setEditorAssets(assets: { id: string; key: string; dataUrl: string; x: number; y: number }[]) {
-    edSetAssets(this as any, assets);
+    edSetAssets(this, assets);
   }
 
   setAssetPreview(preview: { dataUrl: string; width?: number; height?: number } | null) {
-    edSetPreview(this as any, preview);
+    edSetAssetPreview(this, preview);
   }
 
   // Neues Terrain-Painting: benutzt Ghost/Preview wie Objekte, schreibt aber in EditorGround/Walls
   async applyTerrainPaint(edit: { rect: { startX: number; startY: number; endX: number; endY: number }; dataUrl: string; attempt?: number }) {
-    await edApplyTerrainPaint(this as any, edit);
+    // TODO: Integrate with new Editor system
+    console.log('[MainScene] applyTerrainPaint called (stub)', edit.rect);
   }
 
   eraseTerrainRect(rect: { startX: number; startY: number; endX: number; endY: number }) {
-    edEraseTerrainRect(this as any, rect);
+    // TODO: Integrate with new Editor system
+    console.log('[MainScene] eraseTerrainRect called (stub)', rect);
   }
 
   private async ensureTerrainTilesetFor(dataUrl: string): Promise<string | null> {
-    return await edEnsureTerrainTilesetFor(this as any, dataUrl);
+    // TODO: Integrate with new Editor system
+    console.log('[MainScene] ensureTerrainTilesetFor called (stub)');
+    return null;
   }
 
   setSelectionRect(rect: { x: number; y: number; w: number; h: number } | null) {
@@ -1309,24 +1332,29 @@ export class MainScene extends Phaser.Scene {
   }
 
   applyTilePaint(edit: { layer: 'EditorGround' | 'EditorWalls' | 'Collision'; tilesetKey: string; tileIndex: number; rect: { startX: number; startY: number; endX: number; endY: number } }) {
-    edApplyTilePaint(this as any, edit);
+    // TODO: Integrate with new Editor system
+    // Silent stub
   }
 
   private saveEditorLayers() {
-    mapSaveLayers(this as any);
+    // DEPRECATED: No longer used with new EditorService
+    console.log('[MainScene] saveEditorLayers called (deprecated)');
   }
 
   // Unbedingtes Speichern der Editor-Layer zum Server (ohne Größenlimit)
   saveEditorLayersHard() {
-    mapSaveLayersHard(this as any);
+    // DEPRECATED: No longer used with new EditorService
+    console.log('[MainScene] saveEditorLayersHard called (deprecated)');
   }
 
   private loadEditorLayers() {
-    mapLoadLayers(this as any);
+    // DEPRECATED: No longer used with new EditorService
+    console.log('[MainScene] loadEditorLayers called (deprecated)');
   }
 
   reloadEditorLayers() {
-    mapReloadLayers(this as any);
+    // DEPRECATED: No longer used with new EditorService
+    // Silent - too verbose
   }
 
 
@@ -1411,7 +1439,7 @@ export class MainScene extends Phaser.Scene {
     if (this.v2) {
        this.loadedChunks.clear();
        this._lastCamSig = null; // force re-check in update()
-       try { editorLog('Reload', 'Forced full map reload (chunks cleared)'); } catch {}
+       try { console.log('[MainScene] Forced full map reload (chunks cleared)'); } catch {}
        // Trigger re-load of all layers immediately
        this.loadVisibleChunks('ground');
        this.loadVisibleChunks('walls');
@@ -1435,7 +1463,7 @@ export class MainScene extends Phaser.Scene {
     // Recompute firstGids
     try {
        this.v2.firstGids = computeFirstGids(registry, this);
-    } catch (e) { editorLog('Registry', 'Failed to recompute firstGids', e); }
+    } catch (e) { console.error('[MainScene] Failed to recompute firstGids', e); }
     
     // Register new tileset images in Phaser
     for (const ts of registry) {

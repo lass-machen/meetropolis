@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { logger } from '../../lib/logger';
 
 export function ensureCollisionCollider(scene: Phaser.Scene & any): void {
   try {
@@ -50,7 +51,7 @@ export function rebuildStaticColliders(scene: Phaser.Scene & any): void {
         }
       }
     }
-    console.log(`[Collision] Rebuilt static colliders: ${count} bodies`);
+    logger.debug(`[Collision] Rebuilt static colliders: ${count} bodies`);
   } catch (e) {
     console.error('[Collision] Failed to rebuild static colliders', e);
   }

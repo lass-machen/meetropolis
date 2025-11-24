@@ -1,0 +1,322 @@
+/**
+ * EditorRenderer - Reine Rendering-Schicht für den Editor
+ * 
+ * Prinzipien:
+ * - Keine Business-Logik
+ * - Keine State-Verwaltung
+ * - Nur "dumb renderer"
+ * - Explizite Fehler
+ */
+
+import Phaser from 'phaser';
+import { Zone, Asset } from '../../services/EditorService';
+
+export class EditorRenderer {
+  private scene: Phaser.Scene;
+  
+  // Graphics Objects
+  private zonesGraphics?: Phaser.GameObjects.Graphics;
+  private spawnGraphics?: Phaser.GameObjects.Graphics;
+  private selectionGraphics?: Phaser.GameObjects.Graphics;
+  private ghostSprite?: Phaser.GameObjects.Image;
+  
+  // Asset Sprites
+  private assetSprites: Map<string, Phaser.GameObjects.Image> = new Map();
+  private pendingTextures: Set<string> = new Set();
+  
+  // Ghost state
+  private ghostTextureKey?: string;
+
+  constructor(scene: Phaser.Scene) {
+    this.scene = scene;
+    this.initialize();
+  }
+
+  private initialize(): void {
+    // Zones Graphics
+    this.zonesGraphics = this.scene.add.graphics();
+    this.zonesGraphics.setDepth(9);
+
+    // Spawn Graphics
+    this.spawnGraphics = this.scene.add.graphics();
+    this.spawnGraphics.setDepth(9);
+
+    // Selection Graphics
+    this.selectionGraphics = this.scene.add.graphics();
+    this.selectionGraphics.setDepth(8);
+  }
+
+  /**
+   * Rendert Zonen-Overlays
+   */
+  public renderZones(zones: Zone[], visible: boolean = true): void {
+    if (!this.zonesGraphics) {
+      throw new Error('ZonesGraphics not initialized');
+    }
+
+    this.zonesGraphics.clear();
+
+    if (!visible || zones.length === 0) {
+      return;
+    }
+
+    zones.forEach((zone, index) => {
+      if (!zone.points || zone.points.length < 3) {
+        return;
+      }
+
+      const hue = (index * 137.5) % 360;
+      const fillColor = Phaser.Display.Color.HSLToColor(hue / 360, 0.6, 0.5).color;
+      const strokeColor = Phaser.Display.Color.HSLToColor(hue / 360, 0.8, 0.7).color;
+
+      this.zonesGraphics!.fillStyle(fillColor, 0.15);
+      this.zonesGraphics!.lineStyle(2, strokeColor, 0.8);
+
+      this.zonesGraphics!.beginPath();
+      this.zonesGraphics!.moveTo(zone.points[0].x, zone.points[0].y);
+
+      for (let i = 1; i < zone.points.length; i++) {
+        this.zonesGraphics!.lineTo(zone.points[i].x, zone.points[i].y);
+      }
+
+      this.zonesGraphics!.closePath();
+      this.zonesGraphics!.fillPath();
+      this.zonesGraphics!.strokePath();
+
+      // Zone-Name rendern
+      const centerX = zone.points.reduce((sum, p) => sum + p.x, 0) / zone.points.length;
+      const centerY = zone.points.reduce((sum, p) => sum + p.y, 0) / zone.points.length;
+
+      const text = this.scene.add.text(centerX, centerY, zone.name, {
+        fontSize: '14px',
+        color: '#ffffff',
+        backgroundColor: '#000000aa',
+        padding: { x: 6, y: 4 },
+      });
+      text.setOrigin(0.5);
+      text.setDepth(10);
+    });
+  }
+
+  /**
+   * Rendert Spawn-Marker
+   */
+  public renderSpawn(spawn: { x: number; y: number } | null): void {
+    if (!this.spawnGraphics) {
+      throw new Error('SpawnGraphics not initialized');
+    }
+
+    this.spawnGraphics.clear();
+
+    if (!spawn) {
+      return;
+    }
+
+    // Äußerer Kreis
+    this.spawnGraphics.lineStyle(3, 0x22c55e, 1);
+    this.spawnGraphics.strokeCircle(spawn.x, spawn.y, 12);
+
+    // Innerer Kreis
+    this.spawnGraphics.fillStyle(0x22c55e, 0.3);
+    this.spawnGraphics.fillCircle(spawn.x, spawn.y, 8);
+
+    // Kreuz
+    this.spawnGraphics.lineStyle(2, 0x22c55e, 1);
+    this.spawnGraphics.beginPath();
+    this.spawnGraphics.moveTo(spawn.x - 6, spawn.y);
+    this.spawnGraphics.lineTo(spawn.x + 6, spawn.y);
+    this.spawnGraphics.moveTo(spawn.x, spawn.y - 6);
+    this.spawnGraphics.lineTo(spawn.x, spawn.y + 6);
+    this.spawnGraphics.strokePath();
+  }
+
+  /**
+   * Rendert Selektion-Rechteck
+   */
+  public renderSelection(rect: { x: number; y: number; w: number; h: number } | null): void {
+    if (!this.selectionGraphics) {
+      throw new Error('SelectionGraphics not initialized');
+    }
+
+    this.selectionGraphics.clear();
+
+    if (!rect) {
+      return;
+    }
+
+    this.selectionGraphics.lineStyle(2, 0x3b82f6, 1);
+    this.selectionGraphics.strokeRect(rect.x, rect.y, rect.w, rect.h);
+
+    // Gestrichelte Ecken für bessere Sichtbarkeit
+    this.selectionGraphics.fillStyle(0x3b82f6, 0.1);
+    this.selectionGraphics.fillRect(rect.x, rect.y, rect.w, rect.h);
+  }
+
+  /**
+   * Rendert Ghost-Sprite (Preview für Asset-Tool)
+   */
+  public renderGhost(preview: { dataUrl: string; width?: number; height?: number } | null): void {
+    if (!preview) {
+      this.clearGhost();
+      return;
+    }
+
+    const newKey = `ghost_${Date.now()}_${Math.floor(Math.random() * 1000000)}`;
+
+    const place = () => {
+      if (!this.ghostSprite) {
+        const img = this.scene.add.image(0, 0, newKey);
+        img.setAlpha(0.6);
+        img.setDepth(6.5);
+        this.ghostSprite = img;
+      } else {
+        this.ghostSprite.setTexture(newKey);
+      }
+
+      this.ghostSprite.setVisible(true);
+
+      // Position auf Kamera-Center setzen
+      const cam = this.scene.cameras.main;
+      this.ghostSprite.setPosition(cam.worldView.centerX, cam.worldView.centerY);
+
+      // Alte Texture aufräumen
+      if (this.ghostTextureKey && this.ghostTextureKey !== newKey) {
+        if (this.scene.textures.exists(this.ghostTextureKey)) {
+          this.scene.textures.remove(this.ghostTextureKey);
+        }
+      }
+
+      this.ghostTextureKey = newKey;
+    };
+
+    if (this.scene.textures.exists(newKey)) {
+      place();
+    } else {
+      if (this.ghostSprite) {
+        this.ghostSprite.setVisible(false);
+      }
+
+      this.scene.textures.once('addtexture', (key: string) => {
+        if (key === newKey) {
+          place();
+        }
+      });
+
+      if (preview.dataUrl.startsWith('data:')) {
+        this.scene.textures.addBase64(newKey, preview.dataUrl);
+      } else {
+        this.scene.load.image(newKey, preview.dataUrl);
+        this.scene.load.start();
+      }
+    }
+  }
+
+  /**
+   * Entfernt Ghost-Sprite
+   */
+  private clearGhost(): void {
+    if (this.ghostSprite) {
+      this.ghostSprite.destroy();
+      this.ghostSprite = undefined;
+    }
+
+    if (this.ghostTextureKey && this.scene.textures.exists(this.ghostTextureKey)) {
+      this.scene.textures.remove(this.ghostTextureKey);
+    }
+
+    this.ghostTextureKey = undefined;
+  }
+
+  /**
+   * Rendert Assets
+   */
+  public renderAssets(assets: Asset[]): void {
+    // Entferne nicht mehr existierende Assets
+    const assetIds = new Set(assets.map(a => a.id));
+    for (const [id, sprite] of this.assetSprites) {
+      if (!assetIds.has(id)) {
+        sprite.destroy();
+        this.assetSprites.delete(id);
+      }
+    }
+
+    // Rendere/Update Assets
+    for (const asset of assets) {
+      const textureKey = `asset_${asset.id}`;
+      let sprite = this.assetSprites.get(asset.id);
+
+      if (!sprite) {
+        // Sprite muss erstellt werden
+        if (!this.scene.textures.exists(textureKey) && !this.pendingTextures.has(textureKey)) {
+          this.pendingTextures.add(textureKey);
+
+          this.scene.textures.once('addtexture', (key: string) => {
+            if (key === textureKey) {
+              this.pendingTextures.delete(textureKey);
+
+              const newSprite = this.scene.add.image(asset.x, asset.y, textureKey);
+              newSprite.setDepth(6);
+              newSprite.setInteractive();
+              this.assetSprites.set(asset.id, newSprite);
+            }
+          });
+
+          if (asset.dataUrl.startsWith('data:')) {
+            this.scene.textures.addBase64(textureKey, asset.dataUrl);
+          } else {
+            this.scene.load.image(textureKey, asset.dataUrl);
+            this.scene.load.start();
+          }
+        } else if (this.scene.textures.exists(textureKey)) {
+          sprite = this.scene.add.image(asset.x, asset.y, textureKey);
+          sprite.setDepth(6);
+          sprite.setInteractive();
+          this.assetSprites.set(asset.id, sprite);
+        }
+      } else {
+        // Sprite existiert, Position updaten
+        sprite.setPosition(asset.x, asset.y);
+      }
+    }
+  }
+
+  /**
+   * Update Ghost-Position (wird bei Pointer-Move aufgerufen)
+   */
+  public updateGhostPosition(x: number, y: number): void {
+    if (this.ghostSprite) {
+      this.ghostSprite.setPosition(x, y);
+    }
+  }
+
+  /**
+   * Räumt alle Renderer-Objekte auf
+   */
+  public clearAll(): void {
+    this.zonesGraphics?.clear();
+    this.spawnGraphics?.clear();
+    this.selectionGraphics?.clear();
+    this.clearGhost();
+
+    for (const sprite of this.assetSprites.values()) {
+      sprite.destroy();
+    }
+    this.assetSprites.clear();
+  }
+
+  /**
+   * Zerstört den Renderer und gibt Ressourcen frei
+   */
+  public destroy(): void {
+    this.clearAll();
+
+    this.zonesGraphics?.destroy();
+    this.spawnGraphics?.destroy();
+    this.selectionGraphics?.destroy();
+
+    this.zonesGraphics = undefined;
+    this.spawnGraphics = undefined;
+    this.selectionGraphics = undefined;
+  }
+}
+

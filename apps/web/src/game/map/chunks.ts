@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { fetchChunks, decodeRLE, tileRefIdToGid } from '../../lib/mapV2';
+import { logger } from '../../lib/logger';
 
 export async function loadVisibleChunks(scene: Phaser.Scene & any, layerName: 'ground' | 'walls' | 'collision'): Promise<void> {
   if (!scene.v2 || !scene.mapRef) return;
@@ -24,7 +25,7 @@ export async function loadVisibleChunks(scene: Phaser.Scene & any, layerName: 'g
   const chunks = await fetchChunks(scene.currentMapName, layerName, keys);
   const updates = Object.entries(chunks).map(([key, val]: any) => ({ key, version: val.version, encoding: val.encoding, data: val.data }));
   if (layerName === 'collision' && updates.length > 0) {
-    console.log(`[Chunks] Applying ${updates.length} collision updates for keys: ${updates.map(u => u.key).join(', ')}`);
+    logger.debug(`[Chunks] Applying ${updates.length} collision updates for keys: ${updates.map(u => u.key).join(', ')}`);
   }
   applyChunkUpdates(scene, layerName, updates);
 }
@@ -33,7 +34,7 @@ export function applyChunkUpdates(scene: Phaser.Scene & any, layerName: 'ground'
   if (!scene.v2 || !scene.mapRef) return;
   const layer = layerName === 'collision' ? scene.collisionLayer : (layerName === 'walls' ? scene.wallsLayer : scene.editorGround);
   if (!layer) {
-     console.warn(`[Chunks] Layer ${layerName} not found on scene`);
+     logger.warn(`[Chunks] Layer ${layerName} not found on scene`);
      return;
   }
   const cs = scene.v2.chunkSize;
@@ -55,7 +56,7 @@ export function applyChunkUpdates(scene: Phaser.Scene & any, layerName: 'ground'
           try {
             const t = layer.putTileAt(1, gx, gy);
             if (t) t.setCollision(true, true, true, true);
-          } catch (e) { console.warn('[Chunks] putTileAt failed', e); }
+          } catch (e) { logger.warn('[Chunks] putTileAt failed', e); }
         } else {
           try { layer.removeTileAt(gx, gy); } catch {}
         }

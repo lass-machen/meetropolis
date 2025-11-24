@@ -16,7 +16,7 @@ import { useParticipants } from '../../features/participants/useParticipants';
 import { useRosterPresence } from '../../features/roster/useRosterPresence';
 import { mergeRecentPresence, type ApiPresence } from '../../features/participants/presence';
 import { EditorWindow } from '../../features/editor/EditorWindow';
-import { useEditorPointer } from '../../features/editor/useEditorPointer';
+// useEditorPointer removed - now handled by EditorInputHandler in MainScene
 // HudPanel moved into Overlays
 import { TopRightControls } from '../layout/TopRightControls';
 import { ApiTokensOverlay } from '../../ui/admin/ApiTokensOverlay';
@@ -24,8 +24,9 @@ import { AdminOverlay } from '../../ui/admin/AdminOverlay';
 import { TenantsAdminModal } from '../../features/admin/TenantsAdminModal';
 import { InvitesModal } from '../../features/admin/InvitesModal';
 import { useEditor } from '../../hooks/useEditor';
+import { EditorService } from '../../services/EditorService';
 import { useApiTokensLoader } from '../../features/admin/useApiTokens';
-import { useEditorBridge } from '../../editor/useEditorBridge';
+// useEditorBridge removed - now handled by EditorInputHandler in MainScene
 import { useGlobalAudioTracks } from '../../av/useGlobalAudioTracks';
 // usePositionPersistence removed - logic integrated into WorldApp
 import { useZones as useZonesSync } from '../../features/zones/useZones';
@@ -204,13 +205,11 @@ export function WorldApp() {
   // Map Editor State (moved to hook)
   const editorActiveRef = React.useRef(false);
   React.useEffect(() => { editorActiveRef.current = editor.active; }, [editor.active]);
-  // Editor Pointer Bridge
-  useEditorBridge({ editor, setEditor, gameBridge });
+  // Editor Pointer Bridge removed - now handled by EditorInputHandler in MainScene
 
   // Position-Persistenz (Hook entfernt, Logik unten in useEffect integriert)
 
-  // Editor-Pointer-Logik (aus App extrahiert)
-  useEditorPointer({ editor, setEditor, apiBase });
+  // Editor-Pointer-Logik removed - now handled by EditorInputHandler in MainScene
 
   // LiveKit-Verbindung via Hook (Top-Level, nicht in Effekten verwenden)
   useLivekit({
@@ -343,7 +342,7 @@ export function WorldApp() {
     fetchMe();
   }, [apiBase]);
 
-  // Editor-Pointer-Handler sind via useEditorBridge ausgelagert
+  // Editor-Pointer-Handler sind jetzt via EditorInputHandler in MainScene implementiert
 
   // Editor: Laden aus localStorage und Server
   useEffect(() => {
@@ -485,7 +484,7 @@ export function WorldApp() {
             if (Array.isArray(data?.assets) && data.assets.length > 0) {
               // Editor-Assets in UI/Scene anwenden
               setEditor(s => ({ ...s, assets: data.assets }));
-              try { gameBridge.setEditorAssets(data.assets); } catch {}
+              // gameBridge.setEditorAssets wird automatisch durch EditorService-Subscription aufgerufen
             }
             if (data?.spawn && typeof data.spawn.x === 'number') {
                 setEditor(s => ({ ...s, spawn: { x: data.spawn.x, y: data.spawn.y } }));
@@ -664,12 +663,12 @@ export function WorldApp() {
       }
       
       // Debounced position save after movement stops
-      if (moveTimeoutRef) {
-        clearTimeout(moveTimeoutRef);
+      if (moveTimeoutRef.current) {
+        clearTimeout(moveTimeoutRef.current);
       }
-      moveTimeoutRef = setTimeout(() => {
+      moveTimeoutRef.current = setTimeout(() => {
         void savePosition();
-        moveTimeoutRef = null;
+        moveTimeoutRef.current = null;
       }, 1000);
     };
     volumeRef.current = new VolumeManager(
@@ -733,7 +732,7 @@ export function WorldApp() {
           
           if (clickedAsset) {
             const assets = prev.assets.filter(a => a.id !== clickedAsset.id);
-            gameBridge.setEditorAssets(assets);
+            // gameBridge.setEditorAssets wird automatisch durch EditorService-Subscription aufgerufen
             return { ...prev, assets };
           }
           return prev;
@@ -769,7 +768,7 @@ export function WorldApp() {
                 
                 setEditor(s => {
                   const assets = [...s.assets, asset];
-                  gameBridge.setEditorAssets(assets);
+                  // gameBridge.setEditorAssets wird automatisch durch EditorService-Subscription aufgerufen
                   return { ...s, assets };
                 });
               };
@@ -793,7 +792,7 @@ export function WorldApp() {
       // Öffne Kontextmenü-UI
       setContextMenu({ open: true, x, y, playerId });
     };
-    // Tile-basierte Pointer-Events werden exklusiv in useEditorBridge gebunden
+    // Tile-basierte Pointer-Events werden jetzt in EditorInputHandler gebunden
 
     const savePosition = async (opts?: { immediate?: boolean }) => {
       const currentPos = localPosRef.current;
@@ -1019,10 +1018,8 @@ export function WorldApp() {
     },
   });
 
-  useEffect(() => {
-    // Assets immer anzeigen - sie sind Teil der Map!
-    gameBridge.setEditorAssets(editor.assets);
-  }, [editor.assets]);
+  // REMOVED: gameBridge.setEditorAssets wird jetzt durch EditorService-Subscription in bridge.ts aufgerufen
+  // Kein separater useEffect mehr nötig - verhindert doppelte Calls
 
   // Collision-Overlay immer im Edit-Modus anzeigen (User-Erwartung)
   useEffect(() => {
@@ -1404,14 +1401,17 @@ export function WorldApp() {
           window.location.reload();
         }}
         onToggleEditor={async () => {
-          if (editor.active) { await saveAllToServer().catch(()=>{}); }
-          setEditor(s => ({ ...s, active: !s.active }));
+          const isCurrentlyActive = editor.active;
+          if (isCurrentlyActive) { 
+            await saveAllToServer().catch(()=>{}); 
+          }
+          // Toggle über EditorService (wird automatisch mit setEditor synchronisiert)
+          if (isCurrentlyActive) {
+            EditorService.dispatch({ type: 'DEACTIVATE_EDITOR' });
+          } else {
+            EditorService.dispatch({ type: 'ACTIVATE_EDITOR' });
+          }
           setMenuOpen(false);
-          setTimeout(() => {
-            const newEditorState = !editor.active;
-            if (newEditorState) { gameBridge.setZoneOverlay(editor.zones); }
-            else { gameBridge.setZoneOverlay([]); }
-          }, 0);
         }}
         editorActive={editor.active}
         onLogout={async () => { try { await fetch(`${apiBase}/auth/logout`, { method: 'POST', credentials: 'include' }); } finally { setMe(null); setMenuOpen(false); setPage('world'); } }}
@@ -1447,7 +1447,12 @@ export function WorldApp() {
         setFreshToken={setFreshToken}
       />
 
-      <EditorWindow editor={editor} setEditor={setEditor} onSave={saveAllToServer} />
+      <EditorWindow 
+        onSave={saveAllToServer}
+        onClose={() => {
+          EditorService.dispatch({ type: 'DEACTIVATE_EDITOR' });
+        }}
+      />
       
       {/* Tileset Upload Dialog ausgelagert in EditorWindow */}
 

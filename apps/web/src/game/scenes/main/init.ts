@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { V2State, computeFirstGids } from '../../../lib/mapV2';
-import { editorLog, editorError } from '../../../lib/editorLog';
+// editorLog removed - using console methods instead
 
 export function initMainScene(scene: Phaser.Scene & any): void {
   const pre = (window as any).__v2_state as V2State | undefined;
@@ -57,7 +57,7 @@ export function initMainScene(scene: Phaser.Scene & any): void {
       const expectedRows = map.height;
       const actualRows = layerData.data.length;
       if (actualRows < expectedRows) {
-        editorLog('Init', `Collision layer has wrong dimensions: ${actualRows} rows instead of ${expectedRows}, fixing...`);
+        console.log('Init', `Collision layer has wrong dimensions: ${actualRows} rows instead of ${expectedRows}, fixing...`);
         while (layerData.data.length < expectedRows) {
           const newRow = new Array(map.width);
           for (let x = 0; x < map.width; x++) {
@@ -66,27 +66,27 @@ export function initMainScene(scene: Phaser.Scene & any): void {
           layerData.data.push(newRow);
         }
         layerData.height = expectedRows;
-        editorLog('Init', `Fixed collision layer dimensions to ${layerData.data.length}x${layerData.data[0]?.length || 0}`);
+        console.log('Init', `Fixed collision layer dimensions to ${layerData.data.length}x${layerData.data[0]?.length || 0}`);
         const testY = 30;
-        if (layerData.data[testY]) { editorLog('Init', `Verification: Row ${testY} exists with ${layerData.data[testY].length} tiles`); }
-        else { editorError('Init', `Verification failed: Row ${testY} still doesn't exist!`, null); }
+        if (layerData.data[testY]) { console.log('Init', `Verification: Row ${testY} exists with ${layerData.data[testY].length} tiles`); }
+        else { console.error('Init', `Verification failed: Row ${testY} still doesn't exist!`, null); }
       }
     }
   } catch (e) {
-    editorLog('Init', 'Collision layer setup failed');
+    console.log('Init', 'Collision layer setup failed');
     if (available.length > 0) {
       const firstTs = available[0]!;
       collisionLayer = map.createBlankLayer('Collision', firstTs, 0, 0, map.width, map.height, map.tileWidth, map.tileHeight) as any;
-      editorLog('Init', `Created blank collision layer: ${map.width}x${map.height}`);
+      console.log('Init', `Created blank collision layer: ${map.width}x${map.height}`);
     }
   }
   if (collisionLayer) scene.collisionLayer = collisionLayer; else delete (scene as any).collisionLayer;
-  if (collisionLayer) { editorLog('Init', 'Collision layer created'); }
+  if (collisionLayer) { console.log('Init', 'Collision layer created'); }
   if (collisionLayer) {
     collisionLayer.setDepth(10);
     collisionLayer.setVisible(false);
   } else {
-    editorLog('Init', 'No collision layer created');
+    console.log('Init', 'No collision layer created');
   }
   if (collision) {
     scene.dynamicTilesets.set('collision_tiles', collision);

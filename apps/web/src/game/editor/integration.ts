@@ -1,0 +1,100 @@
+/**
+ * Editor Integration - Verbindet MainScene mit neuem Editor-System
+ * 
+ * Initialisiert EditorRenderer und EditorInputHandler für eine Phaser Scene
+ */
+
+import Phaser from 'phaser';
+import { EditorRenderer } from './EditorRenderer';
+import { EditorInputHandler } from './EditorInputHandler';
+import { EditorService } from '../../services/EditorService';
+
+export class EditorIntegration {
+  private scene: Phaser.Scene;
+  private renderer: EditorRenderer;
+  private inputHandler: EditorInputHandler;
+  private stateUnsubscribe?: () => void;
+
+  constructor(scene: Phaser.Scene, tileSize: number = 16) {
+    this.scene = scene;
+    this.renderer = new EditorRenderer(scene);
+    this.inputHandler = new EditorInputHandler(scene, this.renderer, tileSize);
+
+    this.subscribeToState();
+  }
+
+  private subscribeToState(): void {
+    this.stateUnsubscribe = EditorService.subscribe((state) => {
+      // Render Zones
+      this.renderer.renderZones(state.zones, true);
+
+      // Render Assets
+      this.renderer.renderAssets(state.assets);
+
+      // Render Spawn
+      this.renderer.renderSpawn(state.spawn);
+
+      // Render Ghost Preview für Asset-Tool
+      if (state.tool === 'asset' && state.pendingAsset) {
+        this.renderer.renderGhost({
+          dataUrl: state.pendingAsset.dataUrl,
+          width: state.pendingAsset.width,
+          height: state.pendingAsset.height,
+        });
+      } else {
+        this.renderer.renderGhost(null);
+      }
+
+      // Render Selection basierend auf Drag-State
+      if (state.dragState) {
+        const tileSize = 16;
+        const x0 = Math.min(state.dragState.startTileX, state.dragState.endTileX) * tileSize;
+        const y0 = Math.min(state.dragState.startTileY, state.dragState.endTileY) * tileSize;
+        const x1 = (Math.max(state.dragState.startTileX, state.dragState.endTileX) + 1) * tileSize;
+        const y1 = (Math.max(state.dragState.startTileY, state.dragState.endTileY) + 1) * tileSize;
+
+        this.renderer.renderSelection({
+          x: x0,
+          y: y0,
+          w: x1 - x0,
+          h: y1 - y0,
+        });
+      }
+    });
+  }
+
+  /**
+   * Gibt Ressourcen frei
+   */
+  public destroy(): void {
+    if (this.stateUnsubscribe) {
+      this.stateUnsubscribe();
+    }
+
+    this.inputHandler.destroy();
+    this.renderer.destroy();
+  }
+
+  /**
+   * Gibt den Renderer zurück (für manuelle Operationen)
+   */
+  public getRenderer(): EditorRenderer {
+    return this.renderer;
+  }
+
+  /**
+   * Gibt den InputHandler zurück
+   */
+  public getInputHandler(): EditorInputHandler {
+    return this.inputHandler;
+  }
+}
+
+/**
+ * Helper-Funktion für MainScene
+ * Initialisiert das neue Editor-System
+ */
+export function initializeEditorSystem(scene: Phaser.Scene, tileSize: number = 16): EditorIntegration {
+  return new EditorIntegration(scene, tileSize);
+}
+

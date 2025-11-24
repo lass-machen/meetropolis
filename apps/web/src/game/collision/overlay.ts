@@ -1,8 +1,8 @@
 import Phaser from 'phaser';
-import { editorLog } from '../../lib/editorLog';
+import { logger } from '../../lib/logger';
 
 export function setCollisionVisible(scene: Phaser.Scene & any, visible: boolean): void {
-  editorLog('Visibility', `Setting collision visibility to ${visible}`);
+  logger.debug('[Collision]', `Setting visibility to ${visible}`);
   scene.collisionVisible = !!visible;
   updateCollisionOverlay(scene);
   try { localStorage.setItem('meetropolis.collisionVisible', visible.toString()); } catch {}
@@ -12,7 +12,7 @@ export function updateCollisionOverlay(scene: Phaser.Scene & any): void {
   if (!scene.mapRef) return;
   scene.collisionOverlay?.destroy();
   if (!scene.collisionVisible || !scene.collisionLayer) {
-    editorLog('Visibility', `Not showing collision overlay: visible=${scene.collisionVisible}, hasLayer=${!!scene.collisionLayer}`);
+    logger.debug('[Collision]', `Not showing overlay: visible=${scene.collisionVisible}, hasLayer=${!!scene.collisionLayer}`);
     return;
   }
   const g = scene.add.graphics();
@@ -36,7 +36,7 @@ export function updateCollisionOverlay(scene: Phaser.Scene & any): void {
         }
       }
     }
-    editorLog('Visibility', `Collision overlay created with ${tileCount} collision tiles`);
+    logger.debug('[Collision]', `Overlay created with ${tileCount} collision tiles`);
   }
   g.setDepth(8);
   scene.collisionOverlay = g;
