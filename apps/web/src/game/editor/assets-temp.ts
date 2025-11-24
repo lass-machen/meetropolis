@@ -52,36 +52,18 @@ export function setEditorAssets(scene: Phaser.Scene & any, assets: { id: string;
     const isDataUrl = typeof a.dataUrl === 'string' && a.dataUrl.startsWith('data:');
     
     if (isDataUrl) {
-      // Synchrones Base64-Laden
-      // WICHTIG: Texture könnte zwischen Check und hier existieren (Race Condition)
-      // → Nochmals prüfen bevor wir addBase64 aufrufen
+      // Synchrones Base64-Laden - NUR wenn Texture wirklich nicht existiert
       if (!scene.textures.exists(textureKey)) {
-        try {
-          // Silent check - Phaser wirft Debug-Warnung wenn Key existiert
-          // Wir prüfen nochmals um Race Conditions zu vermeiden
-          const tex = scene.textures.get(textureKey);
-          if (tex && tex.key === '__MISSING') {
-            // Texture existiert wirklich nicht - laden
-            scene.textures.addBase64(textureKey, a.dataUrl);
-          }
-          // Sonst: existiert bereits, nichts tun
-        } catch (e) {
-          // Fehler nur bei echten Problemen loggen, nicht bei "already exists"
-          if (!e.message?.includes('already')) {
-            console.error('[EditorAssets] Failed to add base64 texture:', textureKey, e);
-          }
-        }
+        scene.textures.addBase64(textureKey, a.dataUrl);
       }
       
       scene.pendingTextures.delete(textureKey);
       
-      // Erstelle Sprite (Texture sollte jetzt definitiv existieren)
-      if (scene.textures.exists(textureKey)) {
-        img = scene.add.image(a.x, a.y, textureKey);
-        img.setDepth(6);
-        img.setInteractive();
-        scene.editorSprites.set(a.id, img);
-      }
+      // Erstelle Sprite
+      img = scene.add.image(a.x, a.y, textureKey);
+      img.setDepth(6);
+      img.setInteractive();
+      scene.editorSprites.set(a.id, img);
     } else {
       // Asynchrones URL-Laden
       const loadHandler = (key: string) => {
