@@ -231,7 +231,30 @@ export function EditorPanel(props: {
       {/* Zone-spezifisches UI */}
       {state.category === 'zones' && (
         <>
-          <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg)' }}>{t('editor.zones')}</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg)' }}>{t('editor.zones')}</div>
+            <button
+              onClick={async () => {
+                if (props.onSave) {
+                  const saved = await props.onSave();
+                  if (saved) {
+                    try { window.dispatchEvent(new CustomEvent('editor:toast', { detail: { title: 'Gespeichert', description: 'Zonen wurden gespeichert', intent: 'success' } })); } catch {}
+                  }
+                }
+              }}
+              style={{
+                padding: '6px 12px',
+                borderRadius: 6,
+                border: '1px solid var(--border)',
+                background: 'rgba(34,197,94,0.12)',
+                color: 'var(--fg)',
+                fontSize: 12,
+                fontWeight: 500,
+              }}
+            >
+              💾 Speichern
+            </button>
+          </div>
           <div style={{ display: 'grid', gap: 6 }}>
             <label style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>{t('editor.zoneName')}</label>
             <input

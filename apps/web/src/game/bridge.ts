@@ -316,7 +316,24 @@ export const gameBridge: Bridge = {
       credentials: 'include', 
       headers: { 'Content-Type': 'application/json' }, 
       body: JSON.stringify(payload) 
-    }).catch(e => console.error('Failed to register tileset on server', e));
+    })
+    .then(res => {
+      if (!res.ok) {
+        console.warn(`[Bridge] Tileset registration failed: ${res.status} ${res.statusText} for key="${ts.key}"`);
+        return res.text().then(text => {
+          try { 
+            const json = JSON.parse(text); 
+            console.warn('[Bridge] Server error:', json); 
+          } catch { 
+            console.warn('[Bridge] Server response:', text); 
+          }
+        });
+      }
+      return res.json().then(data => {
+        console.debug(`[Bridge] Tileset "${ts.key}" registered successfully`);
+      });
+    })
+    .catch(e => console.error('[Bridge] Failed to register tileset on server', e));
   },
   setCollisionVisible: (visible) => {
     cachedCollisionVisible = !!visible;

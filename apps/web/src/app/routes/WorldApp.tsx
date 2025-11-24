@@ -433,21 +433,32 @@ export function WorldApp() {
         gameBridge.fetchAndApplyServerLayers();
       } catch (e) {
       }
+      
+      // Standard-Tilesets (existieren in public/assets/tilesets/)
       const defaultTs = [
         { key: 'office_tiles', dataUrl: '/assets/tilesets/office_tiles.png', tileWidth: 16, tileHeight: 16, category: 'terrain' },
         { key: 'furniture_tiles', dataUrl: '/assets/tilesets/furniture_tiles.png', tileWidth: 16, tileHeight: 16, category: 'objects' },
         { key: 'decor_tiles', dataUrl: '/assets/tilesets/decor_tiles.png', tileWidth: 16, tileHeight: 16, category: 'objects' },
       ];
-      // Tilesets zur späteren Registrierung speichern
       (window as any).pendingTilesets = defaultTs;
       setEditor(s => ({ ...s, tilesets: defaultTs, tilePaint: { ...(s.tilePaint as any), tilesetKey: s.tilePaint?.tilesetKey || 'office_tiles' } }));
       
-      // Und sofortige Registrierung versuchen (falls Szene bereits läuft)
+      // Registrierung versuchen - mit besserem Error-Logging
       try {
         for (const ts of defaultTs) {
-          gameBridge.registerTileset({ key: ts.key, dataUrl: ts.dataUrl, tileWidth: ts.tileWidth, tileHeight: ts.tileHeight, margin: (ts as any).margin ?? 0, spacing: (ts as any).spacing ?? 0 });
+          gameBridge.registerTileset({ 
+            key: ts.key, 
+            dataUrl: ts.dataUrl, 
+            tileWidth: ts.tileWidth, 
+            tileHeight: ts.tileHeight, 
+            margin: 0, 
+            spacing: 0 
+          });
         }
-      } catch {}
+      } catch (e) {
+        console.warn('[EDITOR] Tileset registration failed (non-critical):', e);
+      }
+      
       // Bereits vorhandene Editor-Layer sofort anwenden (falls vorhanden)
       try { gameBridge.reloadEditorLayers(); } catch {}
       // Server-state laden (source of truth)
@@ -517,16 +528,19 @@ export function WorldApp() {
 
   async function saveAllToServer() {
     try {
-      const tilesets = editor.tilesets || [];
-      const assets = editor.assets || [];
-      const zones = editor.zones;
-      const backgroundColor = editor.backgroundColor || '#202020';
+      // WICHTIG: Aktuellen State vom EditorService holen, nicht aus lokalem useState!
+      const currentState = EditorService.getState();
+      const tilesets = currentState.tilesets || editor.tilesets || [];
+      const assets = currentState.assets || editor.assets || [];
+      const zones = currentState.zones || editor.zones;
+      const backgroundColor = currentState.backgroundColor || editor.backgroundColor || '#202020';
+      const spawn = currentState.spawn || editor.spawn || null;
       const mapName = (typeof window !== 'undefined' && (((window as any).__map_name) || (window as any).MAP_NAME)) || 'office';
       const res = await fetch(`${apiBase}/maps/${encodeURIComponent(mapName)}/editor-state`, {
         method: 'PUT',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tilesets, assets, zones, backgroundColor })
+        body: JSON.stringify({ tilesets, assets, zones, backgroundColor, spawn })
       });
       if (!res.ok) {
         try { window.dispatchEvent(new CustomEvent('editor:toast', { detail: { title: 'Speichern fehlgeschlagen', description: `Server antwortete mit ${res.status}`, intent: 'error' } })); } catch {}
