@@ -1,6 +1,7 @@
 import React from 'react';
 import { joinWorld } from '../lib/colyseus';
 import { mergeRecentPresence, type ApiPresence } from '../features/participants/presence';
+import { EditorService } from '../services/EditorService';
 
 type AnyRef<T> = React.MutableRefObject<T>;
 
@@ -284,7 +285,9 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
 
         room.onMessage('editor_update', (data: any) => {
           if (data?.type === 'zone' && Array.isArray(data.polys)) {
-            setEditor((s: any) => ({ ...s, zones: data.polys }));
+            // WICHTIG: EditorService als Single Source of Truth updaten!
+            EditorService.dispatch({ type: 'LOAD_STATE', state: { zones: data.polys } });
+            // useState wird durch EditorService-Subscription automatisch aktualisiert
             try { localStorage.setItem('meetropolis.zones', JSON.stringify(data.polys)); } catch {}
             if (gameBridge && typeof gameBridge.setZoneOverlay === 'function') gameBridge.setZoneOverlay(data.polys);
             if (zoneRef.current && typeof zoneRef.current.setZones === 'function') zoneRef.current.setZones(data.polys);

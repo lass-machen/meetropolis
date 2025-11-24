@@ -1205,6 +1205,15 @@ export function registerApi(app: express.Express) {
       const map = await prisma.map.findFirst({ where: { name, tenantId: tenant.id } });
       if (!map) return res.status(404).json({ error: 'map not found' });
 
+      // Prüfe ob Tileset bereits existiert (nach key)
+      const existing = await prisma.mapTileset.findFirst({ where: { mapId: map.id, key: parse.data.key } });
+      if (existing) {
+        // Bereits registriert - gebe 200 zurück ohne Fehler
+        try { logger.debug('[Tilesets] already registered, skipping', { map: name, key: parse.data.key }); } catch { }
+        const tilesets = await prisma.mapTileset.findMany({ where: { mapId: map.id }, orderBy: { slot: 'asc' } });
+        return res.json(tilesets);
+      }
+
       const last = await prisma.mapTileset.findFirst({ where: { mapId: map.id }, orderBy: { slot: 'desc' } });
       const newSlot = last ? last.slot + 1 : 0;
       await prisma.mapTileset.create({ data: { mapId: map.id, slot: newSlot, ...parse.data } });
@@ -1237,6 +1246,21 @@ export function registerApi(app: express.Express) {
 
       res.json({ tilesetRegistry: tilesets });
     } catch (e: any) {
+      // P2002 = Unique Constraint Violation (Race Condition bei slot)
+      if (e?.code === 'P2002') {
+        try { logger.warn('[Tilesets] duplicate slot (race condition), returning current registry'); } catch { }
+        try {
+          const name = req.params.name;
+          const tenant = getTenantFromReq(req);
+          if (tenant) {
+            const map = await prisma.map.findFirst({ where: { name, tenantId: tenant.id } });
+            if (map) {
+              const tilesets = await prisma.mapTileset.findMany({ where: { mapId: map.id }, orderBy: { slot: 'asc' } });
+              return res.json({ tilesetRegistry: tilesets });
+            }
+          }
+        } catch { }
+      }
       logger.error('[Tilesets] add failed', e);
       res.status(500).json({ error: 'internal_error' });
     }

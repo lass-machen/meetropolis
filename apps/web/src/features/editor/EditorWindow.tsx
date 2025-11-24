@@ -10,6 +10,7 @@ import { EditorPanel } from '../../ui/editor/EditorPanel';
 import { TilesetUploadDialog, UploadDialogState } from '../../ui/editor/TilesetUploadDialog';
 import { Modal, Button } from '../../ui/system';
 import { EditorService } from '../../services/EditorService';
+import { uploadTilesetAsAssetPack } from '../../lib/assetPackUpload';
 
 export function EditorWindow({
   onSave,
@@ -281,9 +282,62 @@ export function EditorWindow({
           dialog={uploadDialog}
           setDialog={setUploadDialog}
           onCancel={() => setUploadDialog(null)}
-          onConfirm={(tileset) => {
-            EditorService.dispatch({ type: 'REGISTER_TILESET', tileset });
-            setUploadDialog(null);
+          onConfirm={async (tileset) => {
+            // Upload zum Server für persistente Speicherung
+            try {
+              const apiBase = (window as any).VITE_API_BASE || (import.meta as any).env?.VITE_API_BASE || `${window.location.protocol}//${window.location.hostname}:2567`;
+              
+              console.log('[EditorWindow] Uploading tileset as AssetPack...');
+              
+              const result = await uploadTilesetAsAssetPack(tileset, apiBase);
+              
+              if (result.success) {
+                console.log('[EditorWindow] Tileset uploaded successfully:', result.uuid);
+                try { 
+                  window.dispatchEvent(new CustomEvent('editor:toast', { 
+                    detail: { 
+                      title: 'Upload erfolgreich', 
+                      description: 'Tileset wurde permanent gespeichert', 
+                      intent: 'success' 
+                    } 
+                  })); 
+                } catch {}
+                
+                // Seite neu laden, damit das AssetPack geladen wird
+                setTimeout(() => window.location.reload(), 1000);
+              } else {
+                console.error('[EditorWindow] Upload failed:', result.error);
+                try { 
+                  window.dispatchEvent(new CustomEvent('editor:toast', { 
+                    detail: { 
+                      title: 'Upload fehlgeschlagen', 
+                      description: result.error || 'Unbekannter Fehler', 
+                      intent: 'error' 
+                    } 
+                  })); 
+                } catch {}
+                
+                // Fallback: lokal speichern
+                EditorService.dispatch({ type: 'REGISTER_TILESET', tileset });
+              }
+              
+              setUploadDialog(null);
+            } catch (e: any) {
+              console.error('[EditorWindow] Tileset upload failed:', e);
+              try { 
+                window.dispatchEvent(new CustomEvent('editor:toast', { 
+                  detail: { 
+                    title: 'Upload fehlgeschlagen', 
+                    description: e.message || 'Unbekannter Fehler', 
+                    intent: 'error' 
+                  } 
+                })); 
+              } catch {}
+              
+              // Fallback: lokal speichern
+              EditorService.dispatch({ type: 'REGISTER_TILESET', tileset });
+              setUploadDialog(null);
+            }
           }}
         />
       )}
