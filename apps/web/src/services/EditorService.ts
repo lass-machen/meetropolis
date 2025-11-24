@@ -492,3 +492,7 @@ class EditorServiceClass {
 
 export const EditorService = new EditorServiceClass();
 
+// Expose auf window für Debugging
+if (typeof window !== 'undefined') {
+  (window as any).EditorService = EditorService;
+}
