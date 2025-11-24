@@ -344,8 +344,10 @@ export function WorldApp() {
 
   // Editor-Pointer-Handler sind jetzt via EditorInputHandler in MainScene implementiert
 
-  // Editor: Laden aus localStorage und Server
+  // Editor: Laden aus localStorage und Server (nur wenn eingeloggt)
   useEffect(() => {
+    if (!me) return; // Nur wenn eingeloggt - verhindert 401/500-Fehler
+    
     try {
       // Asset-Packs laden
       try {
@@ -505,7 +507,7 @@ export function WorldApp() {
         } catch {}
       })();
     } catch {}
-  }, []);
+  }, [me]); // Läuft nur wenn User eingeloggt ist
 
   // Reset von Auswahl beim Kategorienwechsel
   React.useEffect(() => {
