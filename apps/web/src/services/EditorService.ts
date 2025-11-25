@@ -9,7 +9,7 @@
  */
 
 export type EditorTool = 'zone' | 'asset' | 'terrain' | 'collision' | 'spawn' | 'select' | 'erase';
-export type EditorCategory = 'terrain' | 'structures' | 'objects' | 'zones';
+export type EditorCategory = 'general' | 'terrain' | 'structures' | 'objects' | 'zones' | 'collisions';
 
 export type Zone = {
   name: string;
@@ -55,12 +55,15 @@ export type EditorState = {
   active: boolean;
   tool: EditorTool;
   category: EditorCategory;
-  
+  selectedAsset?: Asset;
+  terrainColor?: string;
+  gridVisible: boolean;
+
   // Zone-Daten
   zones: Zone[];
   editingZoneIndex: number | null;
   zoneName: string;
-  
+
   // Asset-Daten
   assets: Asset[];
   pendingAsset: {
@@ -74,16 +77,16 @@ export type EditorState = {
     height?: number;
   } | null;
   packItems: PackItem[];
-  
+
   // Terrain-Daten
   tilesets: Tileset[];
-  
+
   // Spawn-Daten
   spawn: { x: number; y: number } | null;
-  
+
   // UI-State
   backgroundColor: string;
-  
+
   // Drag-State (für Tools)
   dragState: {
     startTileX: number;
@@ -99,7 +102,7 @@ export type EditorAction =
   | { type: 'DEACTIVATE_EDITOR' }
   | { type: 'SET_TOOL'; tool: EditorTool }
   | { type: 'SET_CATEGORY'; category: EditorCategory }
-  
+
   // Zone Actions
   | { type: 'START_ZONE_DRAG'; tileX: number; tileY: number }
   | { type: 'UPDATE_ZONE_DRAG'; tileX: number; tileY: number }
@@ -108,7 +111,7 @@ export type EditorAction =
   | { type: 'START_EDIT_ZONE'; index: number }
   | { type: 'UPDATE_ZONE_NAME'; index: number; name: string }
   | { type: 'SET_ZONE_NAME'; name: string }
-  
+
   // Asset Actions
   | { type: 'SELECT_ASSET'; asset: PackItem }
   | { type: 'PLACE_ASSET'; tileX: number; tileY: number }
@@ -117,17 +120,19 @@ export type EditorAction =
   | { type: 'COMPLETE_ASSET_DRAG'; tileX: number; tileY: number }
   | { type: 'DELETE_ASSET'; id: string }
   | { type: 'ADD_PACK_ITEMS'; items: PackItem[] }
-  
+
   // Tileset Actions
   | { type: 'REGISTER_TILESET'; tileset: Tileset }
   | { type: 'LOAD_TILESETS'; tilesets: Tileset[] }
-  
+
   // Spawn Actions
-  | { type: 'SET_SPAWN'; tileX: number; tileY: number }
+  | { type: 'SET_SPAWN'; x: number; y: number }
   | { type: 'CLEAR_SPAWN' }
-  
+
   // State Actions
   | { type: 'SET_BACKGROUND_COLOR'; color: string }
+  | { type: 'SET_TERRAIN_COLOR'; color: string }
+  | { type: 'TOGGLE_GRID' }
   | { type: 'LOAD_STATE'; state: Partial<EditorState> }
   | { type: 'CLEAR_DRAG' };
 
@@ -145,16 +150,19 @@ class EditorServiceClass {
     return {
       active: false,
       tool: 'select',
-      category: 'terrain',
+      category: 'general',
       zones: [],
       editingZoneIndex: null,
       zoneName: '',
+      zonesVisible: true,
       assets: [],
       pendingAsset: null,
       packItems: [],
       tilesets: [],
-      spawn: null,
-      backgroundColor: '#202020',
+      spawn: undefined,
+      backgroundColor: undefined,
+      terrainColor: undefined,
+      gridVisible: false,
       dragState: null,
     };
   }
@@ -176,6 +184,7 @@ class EditorServiceClass {
 
   private updateState(updates: Partial<EditorState>): void {
     this.state = { ...this.state, ...updates };
+
     this.notify();
   }
 
@@ -185,7 +194,7 @@ class EditorServiceClass {
         this.updateState({
           active: true,
           category: action.category || 'terrain',
-          tool: action.category === 'zones' ? 'zone' : 'select',
+          tool: action.category === 'zones' ? 'zone' : 'select', // Reverted to original logic
         });
         break;
 
@@ -454,15 +463,21 @@ class EditorServiceClass {
         break;
 
       case 'SET_SPAWN': {
-        const tileSize = 16;
-        const x = action.tileX * tileSize + tileSize / 2;
-        const y = action.tileY * tileSize + tileSize / 2;
-        this.updateState({ spawn: { x, y } });
+        console.log('[EditorService] SET_SPAWN', action);
+        this.updateState({ spawn: { x: action.x, y: action.y } });
         break;
       }
 
       case 'CLEAR_SPAWN':
-        this.updateState({ spawn: null });
+        this.updateState({ spawn: undefined });
+        break;
+
+      case 'SET_TERRAIN_COLOR':
+        this.updateState({ terrainColor: action.color });
+        break;
+
+      case 'TOGGLE_GRID':
+        this.updateState({ gridVisible: !this.state.gridVisible });
         break;
 
       case 'SET_BACKGROUND_COLOR':

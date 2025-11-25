@@ -62,7 +62,7 @@ describe('EditorService', () => {
     it('should delete zone', () => {
       EditorService.dispatch({ type: 'START_ZONE_DRAG', tileX: 0, tileY: 0 });
       EditorService.dispatch({ type: 'COMPLETE_ZONE', tileX: 5, tileY: 5 });
-      
+
       expect(EditorService.getState().zones).toHaveLength(1);
 
       EditorService.dispatch({ type: 'DELETE_ZONE', index: 0 });
@@ -144,9 +144,9 @@ describe('EditorService', () => {
 
       EditorService.dispatch({ type: 'SELECT_ASSET', asset });
       EditorService.dispatch({ type: 'PLACE_ASSET', tileX: 5, tileY: 5 });
-      
+
       const id = EditorService.getState().assets[0].id;
-      
+
       EditorService.dispatch({ type: 'DELETE_ASSET', id });
       expect(EditorService.getState().assets).toHaveLength(0);
     });
@@ -160,7 +160,7 @@ describe('EditorService', () => {
 
   describe('Spawn', () => {
     it('should set spawn', () => {
-      EditorService.dispatch({ type: 'SET_SPAWN', tileX: 10, tileY: 10 });
+      EditorService.dispatch({ type: 'SET_SPAWN', x: 168, y: 168 });
 
       const state = EditorService.getState();
       expect(state.spawn).not.toBeNull();
@@ -169,7 +169,7 @@ describe('EditorService', () => {
     });
 
     it('should clear spawn', () => {
-      EditorService.dispatch({ type: 'SET_SPAWN', tileX: 10, tileY: 10 });
+      EditorService.dispatch({ type: 'SET_SPAWN', x: 168, y: 168 });
       EditorService.dispatch({ type: 'CLEAR_SPAWN' });
 
       expect(EditorService.getState().spawn).toBeNull();

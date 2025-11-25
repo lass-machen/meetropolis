@@ -226,7 +226,9 @@ export class EditorInputHandler {
 
   private handleSpawnTool(phase: 'down' | 'move' | 'up', tileX: number, tileY: number): void {
     if (phase === 'up') {
-      EditorService.dispatch({ type: 'SET_SPAWN', tileX, tileY });
+      const x = tileX * this.tileSize + this.tileSize / 2;
+      const y = tileY * this.tileSize + this.tileSize / 2;
+      EditorService.dispatch({ type: 'SET_SPAWN', x, y });
     }
   }
 

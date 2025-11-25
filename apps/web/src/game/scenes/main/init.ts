@@ -179,14 +179,19 @@ export function initMainScene(scene: Phaser.Scene & any): void {
     const prevZoom = camera.zoom;
     let nextZoom = Phaser.Math.Clamp(prevZoom + zoomDelta, 1, 5);
     if (Math.abs(nextZoom - prevZoom) < 1e-3) return;
-    const worldBefore = (pointer as Phaser.Input.Pointer).positionToCamera(camera) as Phaser.Math.Vector2;
-    camera.setZoom(nextZoom);
-    const worldAfter = (pointer as Phaser.Input.Pointer).positionToCamera(camera) as Phaser.Math.Vector2;
-    camera.scrollX += worldBefore.x - worldAfter.x;
-    camera.scrollY += worldBefore.y - worldAfter.y;
-    camera.stopFollow();
-    scene.manualCameraActive = true;
-    scene.updateRecenterUiVisibility();
+
+    if (scene.editorMode) {
+      const worldBefore = (pointer as Phaser.Input.Pointer).positionToCamera(camera) as Phaser.Math.Vector2;
+      camera.setZoom(nextZoom);
+      const worldAfter = (pointer as Phaser.Input.Pointer).positionToCamera(camera) as Phaser.Math.Vector2;
+      camera.scrollX += worldBefore.x - worldAfter.x;
+      camera.scrollY += worldBefore.y - worldAfter.y;
+      camera.stopFollow();
+      scene.manualCameraActive = true;
+      scene.updateRecenterUiVisibility();
+    } else {
+      camera.setZoom(nextZoom);
+    }
   });
   scene.input.on(Phaser.Input.Events.POINTER_DOWN, (p: Phaser.Input.Pointer) => {
     const isLeft = p.leftButtonDown();

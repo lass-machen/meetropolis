@@ -48,7 +48,7 @@ type Bridge = {
   saveEditorLayersHard?: () => void;
   applyChunkUpdates?: (layerName: 'ground' | 'walls' | 'collision', updates: Array<{ key: string; version: number; encoding: string; data: string }>) => void;
   forceReloadMap?: () => void;
-// Expose method to hydrate tileset cache from outside (e.g. serverSync)
+  // Expose method to hydrate tileset cache from outside (e.g. serverSync)
   hydrateTilesetsCache: (tilesets: { key: string; dataUrl: string; tileWidth: number; tileHeight: number; margin?: number; spacing?: number }[]) => void;
 };
 
@@ -95,28 +95,28 @@ let lastDesiredPosition: { x: number; y: number } | null = null;
 // cachedZones, cachedAssets, cachedSpawnMarker, cachedTilesets, cachedBackgroundColor -> GELÖSCHT
 
 export const gameBridge: Bridge = {
-  onLocalMove: () => {},
-  onPointerDown: () => {},
-  onRightClick: () => {},
-  onCameraManualChange: () => {},
+  onLocalMove: () => { },
+  onPointerDown: () => { },
+  onRightClick: () => { },
+  onCameraManualChange: () => { },
   setSceneApi: (api) => {
     sceneApi = api;
-    
+
     if (sceneApi) {
       // Nicht-Editor State wiederherstellen
       try { sceneApi.setCollisionVisible(cachedCollisionVisible); } catch (e) { console.error('Failed to set collision visible', e); }
-      
+
       if (cachedHeroName && sceneApi.setHeroName) {
-        try { sceneApi.setHeroName(cachedHeroName); } catch {}
+        try { sceneApi.setHeroName(cachedHeroName); } catch { }
       }
-      
+
       if (typeof sceneApi.setDoNotDisturb === 'function') {
-        try { sceneApi.setDoNotDisturb(cachedDoNotDisturb); } catch {}
+        try { sceneApi.setDoNotDisturb(cachedDoNotDisturb); } catch { }
       }
-      
+
       // Remote-Spieler wiederherstellen
-      try { sceneApi.syncRemotePlayers(remotePlayersCache); } catch {}
-      
+      try { sceneApi.syncRemotePlayers(remotePlayersCache); } catch { }
+
       // Server-Layers laden (für Map-Daten)
       try { sceneApi.fetchAndApplyServerLayers?.(); } catch (e) { console.error('Failed to fetch server layers', e); }
       try { sceneApi.reloadEditorLayers(); } catch (e) { console.error('Failed to reload editor layers', e); }
@@ -262,6 +262,7 @@ export const gameBridge: Bridge = {
   },
   onPointerUpTile: (p) => {
     const state = EditorService.getState();
+    console.log('[Bridge] onPointerUpTile', p, state.tool);
     if (!state.active) return;
 
     const { tileX, tileY } = p;
@@ -284,7 +285,11 @@ export const gameBridge: Bridge = {
         }
         break;
       case 'spawn':
-        EditorService.dispatch({ type: 'SET_SPAWN', tileX, tileY });
+        const tileSize = 16;
+        const x = tileX * tileSize + tileSize / 2;
+        const y = tileY * tileSize + tileSize / 2;
+        console.log('[Bridge] Dispatching SET_SPAWN', { x, y });
+        EditorService.dispatch({ type: 'SET_SPAWN', x, y });
         break;
     }
   },
@@ -297,40 +302,40 @@ export const gameBridge: Bridge = {
   registerTileset: async (ts) => {
     // Direkt an Scene durchreichen - kein Caching mehr
     sceneApi?.registerTileset(ts);
-    
+
     // Server-Sync für Tileset-Registry (SEQUENTIELL!)
     const base = (window as any).VITE_API_BASE || (import.meta as any).env?.VITE_API_BASE || `${window.location.protocol}//${window.location.hostname}:2567`;
     const mapName = (typeof window !== 'undefined' && (((window as any).__map_name) || (window as any).MAP_NAME)) || 'office';
-    
-    const payload = { 
-      key: ts.key, 
-      imageUrl: ts.dataUrl, 
-      tileWidth: ts.tileWidth, 
-      tileHeight: ts.tileHeight, 
-      margin: ts.margin ?? 0, 
-      spacing: ts.spacing ?? 0 
+
+    const payload = {
+      key: ts.key,
+      imageUrl: ts.dataUrl,
+      tileWidth: ts.tileWidth,
+      tileHeight: ts.tileHeight,
+      margin: ts.margin ?? 0,
+      spacing: ts.spacing ?? 0
     };
-    
+
     try {
-      const res = await fetch(`${base}/maps/${encodeURIComponent(mapName)}/tilesets`, { 
-        method: 'POST', 
-        credentials: 'include', 
-        headers: { 'Content-Type': 'application/json' }, 
-        body: JSON.stringify(payload) 
+      const res = await fetch(`${base}/maps/${encodeURIComponent(mapName)}/tilesets`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
       });
-      
+
       if (!res.ok) {
         console.warn(`[Bridge] Tileset registration failed: ${res.status} ${res.statusText} for key="${ts.key}"`);
         const text = await res.text();
-        try { 
-          const json = JSON.parse(text); 
-          console.warn('[Bridge] Server error:', json); 
-        } catch { 
-          console.warn('[Bridge] Server response:', text); 
+        try {
+          const json = JSON.parse(text);
+          console.warn('[Bridge] Server error:', json);
+        } catch {
+          console.warn('[Bridge] Server response:', text);
         }
         return;
       }
-      
+
       const data = await res.json();
       console.debug(`[Bridge] Tileset "${ts.key}" registered successfully`);
     } catch (e) {
@@ -440,31 +445,31 @@ EditorService.subscribe((state) => {
     gameBridge.setZoneOverlay(state.zones);
     lastSyncedState.zonesLength = state.zones.length;
   }
-  
+
   // Sync Assets (debounced um initiale Multi-Calls zu vermeiden)
   const assetsChanged = state.assets.length !== lastSyncedState.assetsLength;
   if (assetsChanged) {
     lastSyncedState.assetsLength = state.assets.length;
-    
+
     // Clear existing timeout
     if (assetUpdateTimeout) {
       clearTimeout(assetUpdateTimeout);
     }
-    
+
     // Debounce Asset-Updates (50ms)
     assetUpdateTimeout = setTimeout(() => {
       gameBridge.setEditorAssets(state.assets);
       assetUpdateTimeout = null;
     }, 50);
   }
-  
+
   // Sync Spawn (nur wenn geändert)
   const spawnChanged = JSON.stringify(state.spawn) !== JSON.stringify(lastSyncedState.spawn);
   if (spawnChanged) {
     gameBridge.setSpawnMarker(state.spawn);
     lastSyncedState.spawn = state.spawn;
   }
-  
+
   // Sync Asset Preview (nur wenn geändert)
   const pendingAssetChanged = JSON.stringify(state.pendingAsset) !== JSON.stringify(lastSyncedState.pendingAsset);
   if (pendingAssetChanged) {
@@ -479,7 +484,7 @@ EditorService.subscribe((state) => {
     }
     lastSyncedState.pendingAsset = state.pendingAsset;
   }
-  
+
   // Sync Editor Mode & Collision Visibility (nur wenn geändert)
   if (state.active !== lastSyncedState.active) {
     gameBridge.setEditorMode(state.active);

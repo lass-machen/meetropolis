@@ -35,7 +35,33 @@ export function AuthScreen(props: { baseUrl: string; onDone: () => void }) {
     }
     throw lastErr || new Error(t('common.networkError'));
   }
-
+ 
+  // Debug-Auto-Login via Env-Flag
+  React.useEffect(() => {
+    try {
+      const env: any = (import.meta as any).env || {};
+      const enabled = String(env.VITE_DEBUG_AUTOLOGIN || '').toLowerCase() === 'true';
+      const isProd = Boolean((import.meta as any).env?.PROD);
+      if (!enabled) return;
+      // Sicherheit: in PROD nur wenn explizit erlaubt
+      if (isProd && String(env.VITE_DEBUG_AUTOLOGIN_ALLOW_PROD || '').toLowerCase() !== 'true') {
+        return;
+      }
+      const autoEmail = env.VITE_DEBUG_AUTOLOGIN_EMAIL || 'admin@meetropolis.local';
+      const autoPassword = env.VITE_DEBUG_AUTOLOGIN_PASSWORD || 'admin123';
+      setEmail(autoEmail);
+      setPassword(autoPassword);
+      (async () => {
+        try {
+          await post('/auth/login', { email: autoEmail, password: autoPassword });
+          onDone();
+        } catch (e: any) {
+          setMsg(e?.message || 'Auto-Login fehlgeschlagen');
+        }
+      })();
+    } catch {}
+  }, []);
+ 
   async function handleLoginSubmit(e: React.FormEvent) {
     e.preventDefault();
     setMsg(null);

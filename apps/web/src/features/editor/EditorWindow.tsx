@@ -21,8 +21,7 @@ export function EditorWindow({
 }) {
   const { t } = useTranslation();
   const [state, setState] = React.useState(EditorService.getState());
-  const [zonesVisible, setZonesVisible] = React.useState(true);
-  
+
   // Window dragging
   const editorWinRef = React.useRef<HTMLDivElement | null>(null);
   const [editorWinPos, setEditorWinPos] = React.useState<{ x: number; y: number } | null>(null);
@@ -62,7 +61,7 @@ export function EditorWindow({
     editorWinStartMouseRef.current = { x: e.clientX, y: e.clientY };
     setEditorWinDragging(true);
     if (!editorWinPos) setEditorWinPos({ x: rect.left, y: rect.top });
-    
+
     e.preventDefault();
     e.stopPropagation();
   };
@@ -121,7 +120,7 @@ export function EditorWindow({
         style={{
           position: 'absolute',
           zIndex: 35,
-          width: 360,
+          width: 460,
           ...(editorWinPos ? { left: editorWinPos.x, top: editorWinPos.y } : { top: 64, right: 12 }),
         }}
       >
@@ -149,30 +148,67 @@ export function EditorWindow({
             }}
           >
             <div style={{ fontWeight: 700, fontSize: 16 }}>Map-Editor</div>
-            <button
-              onClick={() => {
-                // Direkt schließen - onToggleEditor speichert bereits
-                onClose();
-              }}
-              title="Editor verlassen"
-              style={{
-                border: '1px solid var(--border)',
-                background: 'var(--glass)',
-                color: 'var(--fg)',
-                borderRadius: 8,
-                width: 34,
-                height: 28,
-                cursor: 'pointer',
-                lineHeight: '26px',
-                fontSize: 18,
-              }}
-            >
-              ×
-            </button>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                onClick={() => EditorService.dispatch({ type: 'TOGGLE_GRID' })}
+                title="Raster umschalten"
+                style={{
+                  padding: '6px 10px',
+                  background: state.gridVisible ? 'rgba(59,130,246,0.2)' : 'transparent',
+                  border: state.gridVisible ? '1px solid #3b82f6' : '1px solid transparent',
+                  borderRadius: 6,
+                  color: state.gridVisible ? '#3b82f6' : '#9ca3af',
+                  cursor: 'pointer',
+                  fontSize: 12,
+                  fontWeight: 500,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                }}
+              >
+                Grid
+              </button>
+              <button
+                onClick={onClose}
+                style={{
+                  border: '1px solid var(--border)',
+                  background: 'var(--glass)',
+                  color: 'var(--fg)',
+                  borderRadius: 8,
+                  width: 34,
+                  height: 28,
+                  cursor: 'pointer',
+                  lineHeight: '26px',
+                  fontSize: 18,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: 0,
+                }}
+              >
+                ×
+              </button>
+            </div>
           </div>
 
           {/* Tabs */}
           <div style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.08)', background: 'rgba(0,0,0,0.2)' }}>
+            <button
+              onClick={() => EditorService.dispatch({ type: 'SET_CATEGORY', category: 'general' })}
+              style={{
+                flex: 1,
+                padding: '10px 12px',
+                border: 'none',
+                borderBottom: state.category === 'general' ? '2px solid #3b82f6' : '2px solid transparent',
+                background: 'transparent',
+                color: state.category === 'general' ? '#3b82f6' : '#9ca3af',
+                fontSize: 14,
+                fontWeight: 500,
+                cursor: 'pointer',
+              }}
+            >
+              Allgemein
+            </button>
             <button
               onClick={() => EditorService.dispatch({ type: 'SET_CATEGORY', category: 'terrain' })}
               style={{
@@ -222,6 +258,22 @@ export function EditorWindow({
               Objekte
             </button>
             <button
+              onClick={() => EditorService.dispatch({ type: 'SET_CATEGORY', category: 'collisions' })}
+              style={{
+                flex: 1,
+                padding: '10px 12px',
+                border: 'none',
+                borderBottom: state.category === 'collisions' ? '2px solid #3b82f6' : '2px solid transparent',
+                background: 'transparent',
+                color: state.category === 'collisions' ? '#3b82f6' : '#9ca3af',
+                fontSize: 14,
+                fontWeight: 500,
+                cursor: 'pointer',
+              }}
+            >
+              Kollisionen
+            </button>
+            <button
               onClick={() => EditorService.dispatch({ type: 'SET_CATEGORY', category: 'zones' })}
               style={{
                 flex: 1,
@@ -242,8 +294,6 @@ export function EditorWindow({
           {/* Content */}
           <EditorPanel
             onSave={onSave}
-            zonesVisible={zonesVisible}
-            onZonesVisibleChange={setZonesVisible}
           />
 
           {/* Upload Section */}
@@ -273,74 +323,76 @@ export function EditorWindow({
             </div>
           )}
         </div>
-      </div>
+      </div >
 
       {/* Upload Dialog */}
-      {uploadDialog && uploadDialog.open && (
-        <TilesetUploadDialog
-          open={uploadDialog.open}
-          dialog={uploadDialog}
-          setDialog={setUploadDialog}
-          onCancel={() => setUploadDialog(null)}
-          onConfirm={async (tileset) => {
-            // Upload zum Server für persistente Speicherung
-            try {
-              const apiBase = (window as any).VITE_API_BASE || (import.meta as any).env?.VITE_API_BASE || `${window.location.protocol}//${window.location.hostname}:2567`;
-              
-              console.log('[EditorWindow] Uploading tileset as AssetPack...');
-              
-              const result = await uploadTilesetAsAssetPack(tileset, apiBase);
-              
-              if (result.success) {
-                console.log('[EditorWindow] Tileset uploaded successfully:', result.uuid);
-                try { 
-                  window.dispatchEvent(new CustomEvent('editor:toast', { 
-                    detail: { 
-                      title: 'Upload erfolgreich', 
-                      description: 'Tileset wurde permanent gespeichert', 
-                      intent: 'success' 
-                    } 
-                  })); 
-                } catch {}
-                
-                // Seite neu laden, damit das AssetPack geladen wird
-                setTimeout(() => window.location.reload(), 1000);
-              } else {
-                console.error('[EditorWindow] Upload failed:', result.error);
-                try { 
-                  window.dispatchEvent(new CustomEvent('editor:toast', { 
-                    detail: { 
-                      title: 'Upload fehlgeschlagen', 
-                      description: result.error || 'Unbekannter Fehler', 
-                      intent: 'error' 
-                    } 
-                  })); 
-                } catch {}
-                
+      {
+        uploadDialog && uploadDialog.open && (
+          <TilesetUploadDialog
+            open={uploadDialog.open}
+            dialog={uploadDialog}
+            setDialog={setUploadDialog}
+            onCancel={() => setUploadDialog(null)}
+            onConfirm={async (tileset) => {
+              // Upload zum Server für persistente Speicherung
+              try {
+                const apiBase = (window as any).VITE_API_BASE || (import.meta as any).env?.VITE_API_BASE || `${window.location.protocol}//${window.location.hostname}:2567`;
+
+                console.log('[EditorWindow] Uploading tileset as AssetPack...');
+
+                const result = await uploadTilesetAsAssetPack(tileset, apiBase);
+
+                if (result.success) {
+                  console.log('[EditorWindow] Tileset uploaded successfully:', result.uuid);
+                  try {
+                    window.dispatchEvent(new CustomEvent('editor:toast', {
+                      detail: {
+                        title: 'Upload erfolgreich',
+                        description: 'Tileset wurde permanent gespeichert',
+                        intent: 'success'
+                      }
+                    }));
+                  } catch { }
+
+                  // Seite neu laden, damit das AssetPack geladen wird
+                  setTimeout(() => window.location.reload(), 1000);
+                } else {
+                  console.error('[EditorWindow] Upload failed:', result.error);
+                  try {
+                    window.dispatchEvent(new CustomEvent('editor:toast', {
+                      detail: {
+                        title: 'Upload fehlgeschlagen',
+                        description: result.error || 'Unbekannter Fehler',
+                        intent: 'error'
+                      }
+                    }));
+                  } catch { }
+
+                  // Fallback: lokal speichern
+                  EditorService.dispatch({ type: 'REGISTER_TILESET', tileset });
+                }
+
+                setUploadDialog(null);
+              } catch (e: any) {
+                console.error('[EditorWindow] Tileset upload failed:', e);
+                try {
+                  window.dispatchEvent(new CustomEvent('editor:toast', {
+                    detail: {
+                      title: 'Upload fehlgeschlagen',
+                      description: e.message || 'Unbekannter Fehler',
+                      intent: 'error'
+                    }
+                  }));
+                } catch { }
+
                 // Fallback: lokal speichern
                 EditorService.dispatch({ type: 'REGISTER_TILESET', tileset });
+                setUploadDialog(null);
               }
-              
-              setUploadDialog(null);
-            } catch (e: any) {
-              console.error('[EditorWindow] Tileset upload failed:', e);
-              try { 
-                window.dispatchEvent(new CustomEvent('editor:toast', { 
-                  detail: { 
-                    title: 'Upload fehlgeschlagen', 
-                    description: e.message || 'Unbekannter Fehler', 
-                    intent: 'error' 
-                  } 
-                })); 
-              } catch {}
-              
-              // Fallback: lokal speichern
-              EditorService.dispatch({ type: 'REGISTER_TILESET', tileset });
-              setUploadDialog(null);
-            }
-          }}
-        />
-      )}
+            }}
+          />
+        )
+      }
     </>
   );
 }

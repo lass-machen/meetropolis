@@ -9,15 +9,13 @@
 
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { Checkbox, Toast } from '../system';
+import { Toast } from '../system';
 import { EditorService, EditorAction, PackItem } from '../../services/EditorService';
 import { EditorPersistence } from '../../services/EditorPersistence';
 import { logger } from '../../lib/logger';
 
 export function EditorPanel(props: {
   onSave?: () => Promise<boolean>;
-  zonesVisible: boolean;
-  onZonesVisibleChange: (visible: boolean) => void;
 }) {
   const { t } = useTranslation();
   const [state, setState] = React.useState(EditorService.getState());
@@ -42,8 +40,8 @@ export function EditorPanel(props: {
         return;
       }
 
-      const category = (detail.category === 'structures' || detail.category === 'objects' || detail.category === 'terrain') 
-        ? detail.category 
+      const category = (detail.category === 'structures' || detail.category === 'objects' || detail.category === 'terrain')
+        ? detail.category
         : 'terrain';
 
       const img = new Image();
@@ -67,7 +65,7 @@ export function EditorPanel(props: {
             const sy = margin + r * (detail.tileHeight + spacing);
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.drawImage(img, sx, sy, detail.tileWidth, detail.tileHeight, 0, 0, detail.tileWidth, detail.tileHeight);
-            
+
             const url = canvas.toDataURL('image/png');
             const itemId = `${detail.key}:${r}:${c}`;
             items.push({
@@ -85,12 +83,12 @@ export function EditorPanel(props: {
 
         EditorService.dispatch({ type: 'ADD_PACK_ITEMS', items });
       };
-      
+
       img.onerror = () => {
         setToast({ title: 'Fehler', description: 'Bild konnte nicht geladen werden', intent: 'error' });
         setToastOpen(true);
       };
-      
+
       img.src = detail.dataUrl;
     };
 
@@ -147,58 +145,140 @@ export function EditorPanel(props: {
 
   return (
     <div style={{ padding: 16, display: 'grid', gap: 12 }}>
-      {/* Background Color */}
-      <div style={{ display: 'grid', gap: 6 }}>
-        <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>{t('editor.background')}</div>
-        <input
-          type="color"
-          value={state.backgroundColor}
-          onChange={(e) => {
-            EditorService.dispatch({ type: 'SET_BACKGROUND_COLOR', color: e.target.value });
-          }}
-          style={{ width: 48, height: 28, padding: 0, border: '1px solid var(--border)', borderRadius: 6, background: 'transparent' }}
-        />
-      </div>
 
-      {/* Spawn Tool */}
-      <div style={{ display: 'grid', gap: 6 }}>
-        <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>Spawnpunkt</div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          <button
-            onClick={() => EditorService.dispatch({ type: 'SET_TOOL', tool: 'spawn' })}
-            style={{
-              padding: '6px 12px',
-              borderRadius: 6,
-              border: '1px solid var(--border)',
-              background: state.tool === 'spawn' ? 'rgba(59,130,246,0.18)' : 'var(--glass)',
-              color: 'var(--fg)',
-              fontSize: 13,
-            }}
-          >
-            Spawn setzen
-          </button>
-          <button
-            onClick={() => EditorService.dispatch({ type: 'CLEAR_SPAWN' })}
-            style={{
-              padding: '6px 12px',
-              borderRadius: 6,
-              border: '1px solid var(--border)',
-              background: 'var(--glass)',
-              color: 'var(--fg)',
-              fontSize: 13,
-            }}
-          >
-            Entfernen
-          </button>
-          <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>
-            {state.spawn ? `Aktueller Spawn: (${Math.round(state.spawn.x)}, ${Math.round(state.spawn.y)})` : 'Kein Spawn gesetzt'}
+
+
+      {/* General Settings */}
+      {state.category === 'general' && (
+        <div style={{ display: 'grid', gap: 12 }}>
+          {/* Spawn Point */}
+          <div style={{ display: 'grid', gap: 6 }}>
+            <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>Spawnpunkt</div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <button
+                onClick={() => EditorService.dispatch({ type: 'SET_TOOL', tool: 'spawn' })}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: 6,
+                  border: '1px solid var(--border)',
+                  background: state.tool === 'spawn' ? 'rgba(59,130,246,0.18)' : 'var(--glass)',
+                  color: 'var(--fg)',
+                  fontSize: 13,
+                }}
+              >
+                Spawn setzen
+              </button>
+              <button
+                onClick={() => EditorService.dispatch({ type: 'CLEAR_SPAWN' })}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: 6,
+                  border: '1px solid var(--border)',
+                  background: 'var(--glass)',
+                  color: 'var(--fg)',
+                  fontSize: 13,
+                }}
+              >
+                Entfernen
+              </button>
+              <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>
+                {state.spawn ? `(${Math.round(state.spawn.x)}, ${Math.round(state.spawn.y)})` : 'Kein Spawn'}
+              </div>
+            </div>
+          </div>
+
+          {/* Space Background */}
+          <div style={{ display: 'grid', gap: 6 }}>
+            <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>Space Hintergrund</div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <input
+                type="color"
+                value={state.backgroundColor || '#111827'}
+                onChange={(e) => EditorService.dispatch({ type: 'SET_BACKGROUND_COLOR', color: e.target.value })}
+                style={{
+                  width: 32,
+                  height: 32,
+                  padding: 0,
+                  border: '1px solid var(--border)',
+                  borderRadius: 4,
+                  cursor: 'pointer',
+                  background: 'none',
+                }}
+              />
+              <span style={{ fontSize: 12, color: 'var(--fg)', fontFamily: 'monospace' }}>
+                {state.backgroundColor || '#111827'}
+              </span>
+            </div>
           </div>
         </div>
-      </div>
+      )}
+
+      {/* Terrain Settings */}
+      {state.category === 'terrain' && (
+        <div style={{ display: 'grid', gap: 12 }}>
+          {/* Terrain Background */}
+          <div style={{ display: 'grid', gap: 6 }}>
+            <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>Terrain Hintergrund</div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <input
+                type="color"
+                value={state.terrainColor || '#202020'}
+                onChange={(e) => EditorService.dispatch({ type: 'SET_TERRAIN_COLOR', color: e.target.value })}
+                style={{
+                  width: 32,
+                  height: 32,
+                  padding: 0,
+                  border: '1px solid var(--border)',
+                  borderRadius: 4,
+                  cursor: 'pointer',
+                  background: 'none',
+                }}
+              />
+              <span style={{ fontSize: 12, color: 'var(--fg)', fontFamily: 'monospace' }}>
+                {state.terrainColor || '#202020'}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Tools */}
       <div style={{ display: 'flex', gap: 6 }}>
-        {state.category !== 'terrain' && (
+        {state.category === 'terrain' && (
+          <>
+            <button
+              onClick={() => EditorService.dispatch({ type: 'SET_TOOL', tool: 'terrain' })}
+              style={{
+                padding: '6px 12px',
+                borderRadius: 6,
+                border: '1px solid var(--border)',
+                background: state.tool === 'terrain' ? 'rgba(59,130,246,0.18)' : 'var(--glass)',
+                color: 'var(--fg)',
+                fontSize: 13,
+              }}
+            >
+              Terrain
+            </button>
+          </>
+        )}
+        {state.category === 'collisions' && (
+          <>
+            <button
+              onClick={() => EditorService.dispatch({ type: 'SET_TOOL', tool: 'collision' })}
+              style={{
+                padding: '6px 12px',
+                borderRadius: 6,
+                border: '1px solid var(--border)',
+                background: state.tool === 'collision' ? 'rgba(244,63,94,0.18)' : 'var(--glass)',
+                color: 'var(--fg)',
+                fontSize: 13,
+              }}
+            >
+              Kollision zeichnen
+            </button>
+          </>
+        )}
+        {state.category !== 'terrain' && state.category !== 'collisions' && state.category !== 'general' && (
           <button
             onClick={() => EditorService.dispatch({ type: 'SET_TOOL', tool: 'select' })}
             style={{
@@ -213,19 +293,21 @@ export function EditorPanel(props: {
             {t('editor.select')}
           </button>
         )}
-        <button
-          onClick={() => EditorService.dispatch({ type: 'SET_TOOL', tool: 'erase' })}
-          style={{
-            padding: '6px 12px',
-            borderRadius: 6,
-            border: '1px solid var(--border)',
-            background: state.tool === 'erase' ? 'rgba(239,68,68,0.18)' : 'var(--glass)',
-            color: 'var(--fg)',
-            fontSize: 13,
-          }}
-        >
-          {t('editor.delete')}
-        </button>
+        {state.category !== 'general' && (
+          <button
+            onClick={() => EditorService.dispatch({ type: 'SET_TOOL', tool: 'erase' })}
+            style={{
+              padding: '6px 12px',
+              borderRadius: 6,
+              border: '1px solid var(--border)',
+              background: state.tool === 'erase' ? 'rgba(239,68,68,0.18)' : 'var(--glass)',
+              color: 'var(--fg)',
+              fontSize: 13,
+            }}
+          >
+            {t('editor.delete')}
+          </button>
+        )}
       </div>
 
       {/* Zone-spezifisches UI */}
@@ -238,7 +320,7 @@ export function EditorPanel(props: {
                 if (props.onSave) {
                   const saved = await props.onSave();
                   if (saved) {
-                    try { window.dispatchEvent(new CustomEvent('editor:toast', { detail: { title: 'Gespeichert', description: 'Zonen wurden gespeichert', intent: 'success' } })); } catch {}
+                    try { window.dispatchEvent(new CustomEvent('editor:toast', { detail: { title: 'Gespeichert', description: 'Zonen wurden gespeichert', intent: 'success' } })); } catch { }
                   }
                 }
               }}
@@ -428,10 +510,7 @@ export function EditorPanel(props: {
         <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>
           {lastSavedLabel ? t('editor.lastSaved', { time: lastSavedLabel }) : t('editor.notSaved')}
         </div>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--fg-subtle)' }}>
-          <Checkbox checked={props.zonesVisible} onChange={e => props.onZonesVisibleChange((e.target as HTMLInputElement).checked)} />{' '}
-          {t('editor.showZones')}
-        </label>
+
         <button
           onClick={handleSaveClick}
           disabled={saving}
