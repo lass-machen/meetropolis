@@ -1496,20 +1496,8 @@ export class MainScene extends Phaser.Scene {
 
     if (!state.gridVisible) return;
 
-    const terrainColorHex = state.terrainColor || '#202020';
-    const baseColor = Phaser.Display.Color.HexStringToColor(terrainColorHex);
-    const hsv = baseColor.hsv;
-
-    let newV = hsv.v + 0.3;
-    if (newV > 1) newV = 1;
-    if (hsv.v > 0.7) {
-      newV = Math.max(0, hsv.v - 0.4);
-    }
-
-    const gridColorObj = new Phaser.Display.Color();
-    gridColorObj.setFromHSV(hsv.h, hsv.s, newV);
-
-    const gridColor = gridColorObj.color;
+    // Einfache Grid-Farbe: Hellgrau für gute Sichtbarkeit
+    const gridColor = 0x888888;
     const alpha = 0.5;
 
     this.gridGraphics.lineStyle(1, gridColor, alpha);

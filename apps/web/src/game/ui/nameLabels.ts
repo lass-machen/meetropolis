@@ -80,16 +80,21 @@ export function drawNameLabel(
 }
 
 export function updateNameLabel(
-  _scene: Phaser.Scene & any,
+  scene: Phaser.Scene & any,
   container: Phaser.GameObjects.Container,
   x: number,
   y: number
 ): void {
-  // Position in Weltkoordinaten - die Kamera kümmert sich um die Transformation
+  // Labels sind in einem separaten Layer mit eigener Kamera (labelCamera),
+  // die NICHT scrollt (setScroll(0,0)). Daher müssen wir Bildschirmkoordinaten berechnen.
+  const cam = scene.cameras.main;
+  const view = cam.worldView;
+  const screenX = (x - view.x) * cam.zoom;
+  const screenY = (y - view.y) * cam.zoom;
   const avatarWorldHeight = 24;
   const baseGap = 6;
-  const offsetY = avatarWorldHeight / 2 + baseGap;
-  container.setPosition(Math.round(x), Math.round(y - offsetY));
+  const offsetY = (avatarWorldHeight / 2 + baseGap) * cam.zoom;
+  container.setPosition(Math.round(screenX), Math.round(screenY - offsetY));
 }
 
 export function setHeroName(scene: Phaser.Scene & any, name: string): void {
