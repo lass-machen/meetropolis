@@ -578,6 +578,15 @@ export class MainScene extends Phaser.Scene {
       if (this.heroNameLabel) {
         this.updateNameLabel(this.heroNameLabel, this.hero.x, this.hero.y);
       }
+      // Update ALL remote player labels (needed when camera moves/zooms)
+      if (this.nameLabels && this.remotes) {
+        this.nameLabels.forEach((label, id) => {
+          const sprite = this.remotes.get(id);
+          if (sprite) {
+            this.updateNameLabel(label, sprite.x, sprite.y);
+          }
+        });
+      }
       // Update recenter visibility depending on camera vs hero position
       this.updateRecenterUiVisibility();
       // Auto-follow wieder aktivieren, wenn der Held den sichtbaren Bereich verlässt

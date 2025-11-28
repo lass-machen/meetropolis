@@ -89,11 +89,14 @@ export function updateNameLabel(
   // die NICHT scrollt (setScroll(0,0)). Daher müssen wir Bildschirmkoordinaten berechnen.
   const cam = scene.cameras.main;
   const view = cam.worldView;
+  // Berechne Bildschirmposition: Weltkoordinaten -> Bildschirmkoordinaten
   const screenX = (x - view.x) * cam.zoom;
   const screenY = (y - view.y) * cam.zoom;
+  // Avatar-Höhe und Abstand zum Label (in Weltpixeln, dann mit Zoom skaliert)
   const avatarWorldHeight = 24;
-  const baseGap = 6;
+  const baseGap = 8;
   const offsetY = (avatarWorldHeight / 2 + baseGap) * cam.zoom;
+  // Label bleibt in fester Größe, nur Position wird angepasst
   container.setPosition(Math.round(screenX), Math.round(screenY - offsetY));
 }
 
