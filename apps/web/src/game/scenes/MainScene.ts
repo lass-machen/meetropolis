@@ -1003,40 +1003,38 @@ export class MainScene extends Phaser.Scene {
       };
 
       const animKey = animationMap[p.direction] || 'walk_down';
+      const textureMap: Record<string, string> = {
+        'up': 'hero_walk_up',
+        'down': 'hero_walk_down',
+        'left': 'hero_walk_left',
+        'right': 'hero_walk_right'
+      };
+      const standingTexture = textureMap[p.direction] || 'hero_walk_down';
 
       if (isMoving) {
         (s as any).lastMoveTime = Date.now();
-        s.play(animKey, true);
-      } else {
-        // Check if we recently stopped moving (within 100ms)
-        const timeSinceLastMove = Date.now() - ((s as any).lastMoveTime || 0);
-        if (timeSinceLastMove < 100) {
-          // Keep playing animation briefly after stopping
-          if (!s.anims.isPlaying || s.anims.currentAnim?.key !== animKey) {
-            s.play(animKey, true);
-          }
-        } else {
-          // Stop animation and show standing frame
-          s.anims.stop();
-          const textureMap: Record<string, string> = {
-            'up': 'hero_walk_up',
-            'down': 'hero_walk_down',
-            'left': 'hero_walk_left',
-            'right': 'hero_walk_right'
-          };
-          s.setTexture(textureMap[p.direction] || 'hero_walk_down', 0);
+        (s as any).isStanding = false;
+        // Nur Animation starten wenn sie nicht bereits läuft
+        if (!s.anims.isPlaying || s.anims.currentAnim?.key !== animKey) {
+          s.play(animKey, true);
         }
-      }
-
-      // If direction changed while standing, update texture
-      if (directionChanged && !isMoving) {
-        const textureMap: Record<string, string> = {
-          'up': 'hero_walk_up',
-          'down': 'hero_walk_down',
-          'left': 'hero_walk_left',
-          'right': 'hero_walk_right'
-        };
-        s.setTexture(textureMap[p.direction] || 'hero_walk_down', 0);
+      } else {
+        // Prüfe ob wir kürzlich aufgehört haben zu laufen
+        const timeSinceLastMove = Date.now() - ((s as any).lastMoveTime || 0);
+        
+        if (timeSinceLastMove >= 100) {
+          // Spieler steht - Animation stoppen und Standing-Frame zeigen
+          // Nur stoppen wenn wir nicht bereits im Standing-Modus sind
+          if (!(s as any).isStanding) {
+            s.anims.stop();
+            s.setTexture(standingTexture, 0);
+            (s as any).isStanding = true;
+          } else if (directionChanged) {
+            // Nur Textur aktualisieren wenn sich die Richtung geändert hat
+            s.setTexture(standingTexture, 0);
+          }
+        }
+        // Während der 100ms Grace-Period: Animation weiterlaufen lassen
       }
     }
     for (const id of Array.from(this.remotes.keys())) {

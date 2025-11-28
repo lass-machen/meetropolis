@@ -80,19 +80,16 @@ export function drawNameLabel(
 }
 
 export function updateNameLabel(
-  scene: Phaser.Scene & any,
+  _scene: Phaser.Scene & any,
   container: Phaser.GameObjects.Container,
   x: number,
   y: number
 ): void {
-  const cam = scene.cameras.main;
-  const view = cam.worldView;
-  const screenX = (x - view.x) * cam.zoom;
-  const screenY = (y - view.y) * cam.zoom;
+  // Position in Weltkoordinaten - die Kamera kümmert sich um die Transformation
   const avatarWorldHeight = 24;
   const baseGap = 6;
-  const offsetY = (avatarWorldHeight / 2 + baseGap) * cam.zoom;
-  container.setPosition(Math.round(screenX), Math.round(screenY - offsetY));
+  const offsetY = avatarWorldHeight / 2 + baseGap;
+  container.setPosition(Math.round(x), Math.round(y - offsetY));
 }
 
 export function setHeroName(scene: Phaser.Scene & any, name: string): void {

@@ -120,7 +120,7 @@ export function EditorWindow({
         style={{
           position: 'absolute',
           zIndex: 35,
-          width: 460,
+          width: 560,
           ...(editorWinPos ? { left: editorWinPos.x, top: editorWinPos.y } : { top: 64, right: 12 }),
         }}
       >
