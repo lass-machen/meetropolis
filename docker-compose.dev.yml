@@ -84,6 +84,7 @@ services:
       VITE_DEBUG_LOGS: "true"
       VITE_FEATURE_AV_SETTINGS: "true"
       VITE_FEATURE_VOICE_ISOLATION: client
+      VITE_DEBUG_AUTOLOGIN: "true"
       # Proxy-Ziel im Container: spreche den Server-Dienst direkt an
       VITE_PROXY_TARGET: http://server:2567
     command: sh -c "npm install -w @meetropolis/web && npm -w @meetropolis/web run dev -- --host 0.0.0.0"

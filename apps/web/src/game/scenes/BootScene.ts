@@ -36,7 +36,7 @@ export class BootScene extends Phaser.Scene {
         ctex.refresh();
       }
     }
-    
+
     // Always create collision tiles as canvas
     const ctex = this.textures.createCanvas('collision_tiles', 256, 48); // 16x3 tiles
     if (ctex) {
@@ -57,6 +57,10 @@ export class BootScene extends Phaser.Scene {
     (async () => {
       try {
         const state = await fetchStateV2('office');
+        // Override default map size if it's the standard 32x32
+        if (state && state.mapMeta && state.mapMeta.width === 32 && state.mapMeta.height === 32) {
+          state.mapMeta.width = 64;
+        }
         const metaOk = !!(state && state.mapMeta && state.mapMeta.width && state.mapMeta.height && state.mapMeta.tileWidth && state.mapMeta.tileHeight);
         if (metaOk) {
           // Tileset-Images für Registry laden (Schlüssel = key)

@@ -49,6 +49,11 @@ VITE_LIVEKIT_URL=ws://localhost:7880
 VITE_DEBUG_LOGS=true
 VITE_FEATURE_AV_SETTINGS=true
 VITE_FEATURE_VOICE_ISOLATION=client
+# Dev-Helfer: automatischer Login (nur lokal verwenden)
+VITE_DEBUG_AUTOLOGIN=true
+# Optional anpassen:
+# VITE_DEBUG_AUTOLOGIN_EMAIL=admin@meetropolis.local
+# VITE_DEBUG_AUTOLOGIN_PASSWORD=admin123
 # Optional
 # VITE_FEATURE_VOICE_ONLY=true
 # VITE_AV_FORCE_RELAY=false

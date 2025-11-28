@@ -44,7 +44,8 @@ import { FollowManager } from '../../game/followManager';
 import { ZoneManager } from '../../game/zoneManager';
 import { VolumeManager } from '../../game/volumeManager';
 import { ConnectionBanner } from '../../ui/system/ConnectionBanner';
- 
+import { splitTilesetImage } from '../../lib/tilesetUtils';
+
 
 export function WorldApp() {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -83,8 +84,8 @@ export function WorldApp() {
   const rosterByIdentityRef = React.useRef<Record<string, { name: string; x: number; y: number }>>({});
   React.useEffect(() => {
     const handler = (active: boolean) => setCameraManual(!!active);
-    try { (gameBridge as any).onCameraManualChange = handler; } catch {}
-    return () => { try { (gameBridge as any).onCameraManualChange = () => {}; } catch {} };
+    try { (gameBridge as any).onCameraManualChange = handler; } catch { }
+    return () => { try { (gameBridge as any).onCameraManualChange = () => { }; } catch { } };
   }, []);
   // Positions-Persistenz (Throttle)
   // API Base (früh deklarieren) – unterstützt Desktop-Query (?apiBase=...)
@@ -92,7 +93,7 @@ export function WorldApp() {
 
   // Participants logic (hook) moved below after state declarations
 
-  
+
   // Map-Editor State (must be declared before any hooks that reference `editor`)
   const [editor, setEditor] = useEditor();
 
@@ -110,7 +111,7 @@ export function WorldApp() {
   const [newTokenName, setNewTokenName] = React.useState('');
   const [freshToken, setFreshToken] = React.useState<string | null>(null);
   const [adminOpen, setAdminOpen] = React.useState(false);
-  
+
   const [isInternalOwner, setIsInternalOwner] = React.useState(false);
   // view/state werden in AuthScreen verwaltet
   // Roster: periodisch letzte Präsenz (für Offline/"zuletzt online")
@@ -181,12 +182,12 @@ export function WorldApp() {
   // scheduleBuildParticipantList is used in useWorldRoom hook via buildParticipantListHook
   React.useEffect(() => {
     return () => {
-      try { if (buildListTimerRef.current) clearTimeout(buildListTimerRef.current); } catch {}
-      try { if (buildListRafRef.current !== null) cancelAnimationFrame(buildListRafRef.current); } catch {}
+      try { if (buildListTimerRef.current) clearTimeout(buildListTimerRef.current); } catch { }
+      try { if (buildListRafRef.current !== null) cancelAnimationFrame(buildListRafRef.current); } catch { }
     };
   }, []);
 
-  
+
 
   // Laden der Tokenliste beim Öffnen des Modals (ausgelagert)
   useApiTokensLoader({ apiBase, open: apiModalOpen, setFreshToken, setApiTokens });
@@ -215,7 +216,7 @@ export function WorldApp() {
     livekitAutoConnectOnceRef,
     setAvState,
   });
-  
+
   // Colyseus-Verbindung (ausgelagerter Hook)
   useWorldRoom({
     apiBase,
@@ -242,7 +243,7 @@ export function WorldApp() {
     disposedRef,
     setConnectionStatus: setConnStatus,
   });
-  
+
   // Collision-Overlay: Sichtbarkeit steuert ausschließlich der Edit-Mode
 
   // Room getter stabil hält die gleiche Referenz für Child-Komponenten
@@ -262,20 +263,20 @@ export function WorldApp() {
             user = await res.json();
             break;
           }
-        } catch {}
+        } catch { }
       }
       if (!user) {
         // Nicht eingeloggt → AuthScreen anzeigen
         setMe(null);
         return;
       }
-      try { setIsInternalOwner(!!user.isInternalOwner); } catch {}
+      try { setIsInternalOwner(!!user.isInternalOwner); } catch { }
 
       // 2) Position ermitteln: bevorzugt vom Server, sonst lokaler Spawn als Fallback
       const applyPosition = (pos: { x: number; y: number } | null) => {
         if (pos && Number.isFinite(pos.x) && Number.isFinite(pos.y)) {
-          try { localPosRef.current = { id: user.id, x: pos.x, y: pos.y }; } catch {}
-          try { (window as any).initialPlayerPosition = { x: pos.x, y: pos.y }; } catch {}
+          try { localPosRef.current = { id: user.id, x: pos.x, y: pos.y }; } catch { }
+          try { (window as any).initialPlayerPosition = { x: pos.x, y: pos.y }; } catch { }
         }
       };
 
@@ -304,7 +305,7 @@ export function WorldApp() {
                 break;
               }
             }
-          } catch {}
+          } catch { }
         }
         if (!posApplied) {
           // Fallback: lokaler Spawn (vom Editor gesetzt) falls vorhanden
@@ -335,7 +336,7 @@ export function WorldApp() {
   // Editor: Laden aus localStorage und Server (nur wenn eingeloggt)
   useEffect(() => {
     if (!me) return; // Nur wenn eingeloggt - verhindert 401/500-Fehler
-    
+
     try {
       // Asset-Packs laden
       try {
@@ -362,7 +363,36 @@ export function WorldApp() {
               }
               // Terrain → auswählbare Terrain-Items (wie Objekte behandeln)
               for (const t of (p.terrain || [])) {
-                packItems.push({ packUuid: uuid, itemId: t.id, key: t.key, category: 'terrain', dataUrl: t.dataURL, width: t.tileWidth, height: t.tileHeight, collide: !!t.collide });
+                // Wenn es sich um ein Tileset handelt (keine einzelnen Items definiert), splitten wir es
+                if (t.dataURL) {
+                  try {
+                    const tiles = await splitTilesetImage(t.dataURL, {
+                      tileWidth: t.tileWidth,
+                      tileHeight: t.tileHeight,
+                      margin: t.margin,
+                      spacing: t.spacing
+                    });
+
+                    for (const tile of tiles) {
+                      packItems.push({
+                        packUuid: uuid,
+                        itemId: `${t.id}:${tile.row}:${tile.col}`,
+                        key: `${t.key}-${tile.row}-${tile.col}`,
+                        category: 'terrain',
+                        dataUrl: tile.dataUrl,
+                        width: t.tileWidth,
+                        height: t.tileHeight,
+                        collide: !!t.collide
+                      });
+                    }
+                  } catch (e) {
+                    console.warn('[WorldApp] Failed to split tileset:', t.key, e);
+                    // Fallback: Das ganze Bild als ein Item (besser als nichts)
+                    packItems.push({ packUuid: uuid, itemId: t.id, key: t.key, category: 'terrain', dataUrl: t.dataURL, width: t.tileWidth, height: t.tileHeight, collide: !!t.collide });
+                  }
+                } else {
+                  packItems.push({ packUuid: uuid, itemId: t.id, key: t.key, category: 'terrain', dataUrl: t.dataURL, width: t.tileWidth, height: t.tileHeight, collide: !!t.collide });
+                }
               }
               // Structures & Objects → auswählbare Items
               for (const s of (p.structures || [])) {
@@ -390,7 +420,7 @@ export function WorldApp() {
                 for (const ts of packTilesets) {
                   gameBridge.registerTileset({ key: ts.key, dataUrl: ts.dataUrl, tileWidth: ts.tileWidth, tileHeight: ts.tileHeight, margin: ts.margin ?? 0, spacing: ts.spacing ?? 0 });
                 }
-              } catch {}
+              } catch { }
             }
             setEditor(s => ({ ...s, packItems }));
           }
@@ -406,24 +436,24 @@ export function WorldApp() {
                   const next = [...current];
                   for (const li of local) {
                     if (!seen.has(li.key)) {
-                       next.push(li);
-                       seen.add(li.key);
+                      next.push(li);
+                      seen.add(li.key);
                     }
                   }
                   return { ...s, packItems: next };
                 });
               }
             }
-          } catch {}
+          } catch { }
         })();
-      } catch {}
+      } catch { }
 
       // Load layers from server on startup
       try {
         gameBridge.fetchAndApplyServerLayers();
       } catch (e) {
       }
-      
+
       // Standard-Tilesets (existieren in public/assets/tilesets/)
       const defaultTs = [
         { key: 'office_tiles', dataUrl: '/assets/tilesets/office_tiles.png', tileWidth: 16, tileHeight: 16, category: 'terrain' },
@@ -432,27 +462,27 @@ export function WorldApp() {
       ];
       (window as any).pendingTilesets = defaultTs;
       setEditor(s => ({ ...s, tilesets: defaultTs }));
-      
+
       // Registrierung SEQUENTIELL (nicht parallel!) um Race Condition zu vermeiden
       (async () => {
         try {
           for (const ts of defaultTs) {
-            await gameBridge.registerTileset({ 
-              key: ts.key, 
-              dataUrl: ts.dataUrl, 
-              tileWidth: ts.tileWidth, 
-              tileHeight: ts.tileHeight, 
-              margin: 0, 
-              spacing: 0 
+            await gameBridge.registerTileset({
+              key: ts.key,
+              dataUrl: ts.dataUrl,
+              tileWidth: ts.tileWidth,
+              tileHeight: ts.tileHeight,
+              margin: 0,
+              spacing: 0
             });
           }
         } catch (e) {
           console.warn('[EDITOR] Tileset registration failed (non-critical):', e);
         }
       })();
-      
+
       // Bereits vorhandene Editor-Layer sofort anwenden (falls vorhanden)
-      try { gameBridge.reloadEditorLayers(); } catch {}
+      try { gameBridge.reloadEditorLayers(); } catch { }
       // Server-state laden (source of truth)
       (async () => {
         try {
@@ -462,7 +492,7 @@ export function WorldApp() {
           if (res.ok) {
             const data = await res.json();
             if (data?.zones) try {
-              const zones = Array.isArray(data.zones) ? data.zones.map((z: any)=>{
+              const zones = Array.isArray(data.zones) ? data.zones.map((z: any) => {
                 const anyZ = z || {};
                 const pts = Array.isArray(anyZ.points)
                   ? anyZ.points
@@ -474,15 +504,15 @@ export function WorldApp() {
                 return { name: anyZ.name, points: pts };
               }) : [];
               setEditor(s => ({ ...s, zones }));
-              try { gameBridge.setZoneOverlay(zones); } catch {}
-            } catch {}
+              try { gameBridge.setZoneOverlay(zones); } catch { }
+            } catch { }
             if (typeof data?.backgroundColor === 'string') {
               setEditor(s => ({ ...s, backgroundColor: data.backgroundColor }));
-              try { gameBridge.setBackgroundColor(data.backgroundColor); } catch {}
+              try { gameBridge.setBackgroundColor(data.backgroundColor); } catch { }
             }
             if (Array.isArray(data?.editorGround) || Array.isArray(data?.editorWalls) || Array.isArray(data?.collision)) {
               // Nach erfolgreichem Laden: direkt in Szene anwenden
-              try { gameBridge.reloadEditorLayers(); } catch {}
+              try { gameBridge.reloadEditorLayers(); } catch { }
             }
             if (Array.isArray(data?.assets) && data.assets.length > 0) {
               // Editor-Assets in UI/Scene anwenden
@@ -490,20 +520,20 @@ export function WorldApp() {
               // gameBridge.setEditorAssets wird automatisch durch EditorService-Subscription aufgerufen
             }
             if (data?.spawn && typeof data.spawn.x === 'number') {
-                setEditor(s => ({ ...s, spawn: { x: data.spawn.x, y: data.spawn.y } }));
-                try { gameBridge.setSpawnMarker({ x: data.spawn.x, y: data.spawn.y }); } catch {}
+              setEditor(s => ({ ...s, spawn: { x: data.spawn.x, y: data.spawn.y } }));
+              try { gameBridge.setSpawnMarker({ x: data.spawn.x, y: data.spawn.y }); } catch { }
             }
           }
-        } catch {}
+        } catch { }
       })();
-    } catch {}
+    } catch { }
   }, [me]); // Läuft nur wenn User eingeloggt ist
 
   // Reset von Auswahl beim Kategorienwechsel
   React.useEffect(() => {
     setEditor(s => {
       // Beim Wechsel der Kategorie: pendingAsset entfernen, Ghost-Vorschau entfernen
-      try { (window as any).currentPhaserScene?.setAssetPreview?.(null); } catch {}
+      try { (window as any).currentPhaserScene?.setAssetPreview?.(null); } catch { }
       // Standard: Keine aktive Aktion nach Tab-Wechsel
       return { ...s, pendingAsset: null, tool: 'select' };
     });
@@ -512,24 +542,24 @@ export function WorldApp() {
   // Tool-Wechsel: Asset-Ghost deaktivieren, wenn nicht 'asset'
   React.useEffect(() => {
     if (editor.tool !== 'asset') {
-      try { (window as any).currentPhaserScene?.setAssetPreview?.(null); } catch {}
+      try { (window as any).currentPhaserScene?.setAssetPreview?.(null); } catch { }
     }
   }, [editor.tool]);
 
   // Auto-Save: Zonen automatisch speichern nach Änderungen (EditorService subscription)
   const autoSaveTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const prevZonesHashRef = React.useRef<string>('');
-  
+
   React.useEffect(() => {
     if (!me) return; // Nur wenn eingeloggt
-    
+
     const unsubscribe = EditorService.subscribe((state) => {
       if (!state.active) return; // Nur wenn Editor aktiv
-      
+
       // Einfacher Hash: JSON-String der Zonen
       const currentHash = JSON.stringify(state.zones || []);
       const hasChanged = currentHash !== prevZonesHashRef.current;
-      
+
       if (hasChanged && prevZonesHashRef.current !== '') { // Nicht beim ersten Laden
         // Debounce: Warte 800ms nach letzter Änderung, dann speichern
         if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
@@ -538,19 +568,19 @@ export function WorldApp() {
           saveAllToServer().then(saved => {
             if (saved) {
               console.debug('[EDITOR] Zones auto-saved successfully');
-              try { window.dispatchEvent(new CustomEvent('editor:toast', { detail: { title: 'Auto-Speichern', description: 'Zonen wurden automatisch gespeichert', intent: 'success' } })); } catch {}
+              try { window.dispatchEvent(new CustomEvent('editor:toast', { detail: { title: 'Auto-Speichern', description: 'Zonen wurden automatisch gespeichert', intent: 'success' } })); } catch { }
             }
           });
         }, 800);
       }
-      
+
       prevZonesHashRef.current = currentHash;
     });
-    
+
     return () => unsubscribe();
   }, [me]);
 
-  
+
 
   async function saveAllToServer() {
     try {
@@ -562,13 +592,13 @@ export function WorldApp() {
       const backgroundColor = currentState.backgroundColor || editor.backgroundColor || '#202020';
       const spawn = currentState.spawn || editor.spawn || undefined; // undefined statt null!
       const mapName = (typeof window !== 'undefined' && (((window as any).__map_name) || (window as any).MAP_NAME)) || 'office';
-      
+
       // Payload: nur definierte Werte senden
       const payload: any = { tilesets, assets, zones, backgroundColor };
       if (spawn && typeof spawn.x === 'number' && typeof spawn.y === 'number') {
         payload.spawn = spawn;
       }
-      
+
       const res = await fetch(`${apiBase}/maps/${encodeURIComponent(mapName)}/editor-state`, {
         method: 'PUT',
         credentials: 'include',
@@ -576,14 +606,14 @@ export function WorldApp() {
         body: JSON.stringify(payload)
       });
       if (!res.ok) {
-        try { window.dispatchEvent(new CustomEvent('editor:toast', { detail: { title: 'Speichern fehlgeschlagen', description: `Server antwortete mit ${res.status}`, intent: 'error' } })); } catch {}
+        try { window.dispatchEvent(new CustomEvent('editor:toast', { detail: { title: 'Speichern fehlgeschlagen', description: `Server antwortete mit ${res.status}`, intent: 'error' } })); } catch { }
         return false;
       }
       // Notify other users to reload from server
       colyseusRef.current?.send?.('editor_update', { type: 'reload_all' });
       return true;
     } catch {
-      try { window.dispatchEvent(new CustomEvent('editor:toast', { detail: { title: 'Speichern fehlgeschlagen', description: 'Netzwerk- oder Serverfehler', intent: 'error' } })); } catch {}
+      try { window.dispatchEvent(new CustomEvent('editor:toast', { detail: { title: 'Speichern fehlgeschlagen', description: 'Netzwerk- oder Serverfehler', intent: 'error' } })); } catch { }
       return false;
     }
   }
@@ -591,7 +621,7 @@ export function WorldApp() {
   // Nutzerverwaltung als Overlay: Spiel/AV laufen weiter
   // (keine Pause mehr beim Wechsel auf 'users')
 
-  
+
 
   // applyVolumesToUi via Hook
 
@@ -606,7 +636,7 @@ export function WorldApp() {
     if (gameCreatedRef.current) return;
     gameCreatedRef.current = true;
     // Ensure container is clean before creating a new Phaser instance
-    try { const el = containerRef.current; while (el && el.firstChild) { el.removeChild(el.firstChild); } } catch {}
+    try { const el = containerRef.current; while (el && el.firstChild) { el.removeChild(el.firstChild); } } catch { }
 
     // Colyseus-Verbindung wird exklusiv im useWorldRoom-Hook aufgebaut
 
@@ -615,38 +645,35 @@ export function WorldApp() {
     followRef.current = new FollowManager(96);
     zoneRef.current = new ZoneManager([], null);
     // Seed Zonen sofort, auch wenn der Editor bisher nie geöffnet war
-    try { zoneRef.current.setZones(editor.zones as any); } catch {}
-    
+    try { zoneRef.current.setZones(editor.zones as any); } catch { }
+
     // WICHTIG: savePosition muss VOR onLocalMove definiert werden (kein Hoisting bei const)
     const savePosition = async (opts?: { immediate?: boolean }) => {
       const currentPos = localPosRef.current;
       const currentDirection = (gameBridge as any).lastDirection || 'down';
       const last = lastSavedPositionRef.current;
-      
+
       const hasMoved = currentPos.x && currentPos.y && (
         Math.abs(currentPos.x - last.x) > 10 ||
         Math.abs(currentPos.y - last.y) > 10 ||
         currentDirection !== last.direction
       );
-      
+
       if (!hasMoved && !opts?.immediate) return;
-      
-      // DEBUG: Position wird gespeichert
-      console.log('[savePosition] Saving - currentPos:', JSON.stringify(currentPos), 'hasMoved:', hasMoved);
-      
+
       // Update ref immediately
-      lastSavedPositionRef.current = { 
-        x: currentPos.x || last.x, 
-        y: currentPos.y || last.y, 
-        direction: currentDirection 
+      lastSavedPositionRef.current = {
+        x: currentPos.x || last.x,
+        y: currentPos.y || last.y,
+        direction: currentDirection
       };
-      
-      const payload = JSON.stringify({ 
-        x: Math.round(lastSavedPositionRef.current.x), 
-        y: Math.round(lastSavedPositionRef.current.y), 
-        direction: lastSavedPositionRef.current.direction 
+
+      const payload = JSON.stringify({
+        x: Math.round(lastSavedPositionRef.current.x),
+        y: Math.round(lastSavedPositionRef.current.y),
+        direction: lastSavedPositionRef.current.direction
       });
-      
+
       try {
         if (opts?.immediate && 'sendBeacon' in navigator) {
           const blob = new Blob([payload], { type: 'application/json' });
@@ -660,11 +687,9 @@ export function WorldApp() {
             body: payload
           });
         }
-      } catch (e) {
-        console.error('[savePosition] Failed to save:', e);
-      }
+      } catch { }
     };
-    
+
     // Stelle sicher, dass ZoneManager initial eine Position bekommt, auch bevor Colyseus onLocalMove feuert
     let lastZone: string | null = null;
     gameBridge.onLocalMove = (p) => {
@@ -691,19 +716,19 @@ export function WorldApp() {
             }
           }
           if (arrived) {
-            try { followRef.current?.stop?.(); } catch {}
-            try { gameBridge.setDesiredPosition(null); } catch {}
-            try { activateBubbleNowRef.current(pending.targetId); } catch {}
+            try { followRef.current?.stop?.(); } catch { }
+            try { gameBridge.setDesiredPosition(null); } catch { }
+            try { activateBubbleNowRef.current(pending.targetId); } catch { }
             bubblePendingRef.current = null;
           }
         }
-      } catch {}
-      
+      } catch { }
+
       // Check if zone changed
       const zones = zoneRef.current?.getZones?.() || [];
       const currentZone = zones.find(z => pointInPolygon({ x: p.x, y: p.y }, z.points));
       const currentZoneName = currentZone?.name || null;
-      
+
       if (currentZoneName !== lastZone) {
         lastZone = currentZoneName;
         // Rebuild participant list when zone changes
@@ -711,7 +736,7 @@ export function WorldApp() {
         // Force volume update when zone changes
         applyVolumesToUi();
       }
-      
+
       if (followRef.current) {
         const f = followRef.current.update(
           { x: p.x, y: p.y },
@@ -754,7 +779,7 @@ export function WorldApp() {
         }
       } catch (e) {
       }
-      
+
       // Debounced position save after movement stops
       if (moveTimeoutRef.current) {
         clearTimeout(moveTimeoutRef.current);
@@ -769,7 +794,7 @@ export function WorldApp() {
     const game = createPhaserGame(containerRef.current);
     
     volumeRef.current = new VolumeManager(
-      { 
+      {
         setParticipantVolume: (colyseusId, vol) => {
           // Map Colyseus ID to LiveKit identity
           const livekitIdentity = colyseusToLivekitMap.current[colyseusId];
@@ -799,12 +824,12 @@ export function WorldApp() {
       { nearRadius: 96, farRadius: 384, outsideBubbleAttenuation: 0.05 }
     );
     // Direkt nach Szenenstart versuchen, lokal gespeicherte Editor-Layer zu laden
-    setTimeout(() => { 
-      try { gameBridge.reloadEditorLayers(); } catch {}
+    setTimeout(() => {
+      try { gameBridge.reloadEditorLayers(); } catch { }
       // Set hero name with a small delay to ensure scene is ready
       const heroName = me.name || me.email || 'You';
       setTimeout(() => {
-        try { gameBridge.setHeroName(heroName); } catch {}
+        try { gameBridge.setHeroName(heroName); } catch { }
       }, 100);
     }, 0);
     // Editor-Click-Handler (deaktiviert in Editor-Modus, da tile-basierte Pointer-Events genutzt werden)
@@ -815,15 +840,15 @@ export function WorldApp() {
       }
       setEditor(prev => {
         if (!prev.active) return prev;
-        
+
         // Handle object deletion
         if (prev.tool === 'erase' && prev.category === 'objects') {
           // Find object at position
           const clickRadius = 16; // Tolerance for clicking
-          const clickedAsset = prev.assets.find(a => 
+          const clickedAsset = prev.assets.find(a =>
             Math.abs(a.x - x) < clickRadius && Math.abs(a.y - y) < clickRadius
           );
-          
+
           if (clickedAsset) {
             const assets = prev.assets.filter(a => a.id !== clickedAsset.id);
             // gameBridge.setEditorAssets wird automatisch durch EditorService-Subscription aufgerufen
@@ -831,40 +856,40 @@ export function WorldApp() {
           }
           return prev;
         }
-        
+
         // Asset placement is now handled via EditorService.dispatch('PLACE_ASSET')
         // Legacy tilePaint-based placement has been removed
-        
+
         // Legacy Asset-Placement deaktiviert; Editor nutzt tile-basierte Platzierung
         return prev;
       });
     };
-    
+
     // startBubbleTo ist oben initialisiert und im Ref hinterlegt
 
     gameBridge.onRightClick = ({ x, y, playerId }) => {
       if (editorActiveRef.current) return;
       if (!playerId) return;
-      try { console.debug('[UI] context menu for', playerId, 'at', x, y); } catch {}
+      try { console.debug('[UI] context menu for', playerId, 'at', x, y); } catch { }
       // Öffne Kontextmenü-UI
       setContextMenu({ open: true, x, y, playerId });
     };
     // Tile-basierte Pointer-Events werden jetzt in EditorInputHandler gebunden
 
     return () => {
-      try { gameBridge.setSceneApi?.(null); } catch {}
+      try { gameBridge.setSceneApi?.(null); } catch { }
       destroyPhaserGame(game);
       // Remove any leftover canvases to free WebGL contexts
-      try { const el = containerRef.current; while (el && el.firstChild) { el.removeChild(el.firstChild); } } catch {}
+      try { const el = containerRef.current; while (el && el.firstChild) { el.removeChild(el.firstChild); } } catch { }
       // Leave Colyseus room only if connection is open
       try {
         const room: any = colyseusRef.current;
         const wsReadyState = room?.connection?.ws?.readyState ?? room?.connection?.transport?.ws?.readyState ?? room?.connection?._transport?.ws?.readyState;
         const isOpen = room?.connection?.isOpen === true || wsReadyState === 1;
         if (isOpen) room.leave();
-      } catch {}
-      try { avRef.current?.leave?.(); } catch {}
-      try { if (colyseusReconnectTimerRef.current) clearTimeout(colyseusReconnectTimerRef.current); } catch {}
+      } catch { }
+      try { avRef.current?.leave?.(); } catch { }
+      try { if (colyseusReconnectTimerRef.current) clearTimeout(colyseusReconnectTimerRef.current); } catch { }
       // HUD-Ticker Cleanup wird vom Hook übernommen
       if (moveTimeoutRef.current) {
         clearTimeout(moveTimeoutRef.current);
@@ -883,11 +908,11 @@ export function WorldApp() {
       try {
         const mod: any = await import('../../lib/avEvents');
         off = mod.onAudioTracksChanged?.(() => {
-          try { applyVolumesToUi(); } catch {}
+          try { applyVolumesToUi(); } catch { }
         }) || null;
-      } catch {}
+      } catch { }
     })();
-    return () => { try { off?.(); } catch {} };
+    return () => { try { off?.(); } catch { } };
   }, []);
 
   useDndShortcut({ enabled: !!(authChecked && me), dndRef, avRef, setAvState, colyseusRef, volumeRef, gameBridge });
@@ -907,7 +932,7 @@ export function WorldApp() {
     applyVolumesToUi,
     followRef,
   });
-  const activateBubbleNowRef = React.useRef<(id: string) => void>(() => {});
+  const activateBubbleNowRef = React.useRef<(id: string) => void>(() => { });
   activateBubbleNowRef.current = activateBubbleNow;
   bubbleStartRef.current = (id: string) => {
     try {
@@ -915,10 +940,10 @@ export function WorldApp() {
       try {
         const free = gameBridge.findFreeSpotNear(id, { radius: 16, step: 16 });
         if (free) dest = { x: free.x, y: free.y };
-      } catch {}
+      } catch { }
       bubblePendingRef.current = dest ? { targetId: id, dest } : { targetId: id };
-    } catch {}
-    try { startBubbleTo(id); } catch {}
+    } catch { }
+    try { startBubbleTo(id); } catch { }
   };
 
   // HUD-Ticker ausgelagert
@@ -934,9 +959,9 @@ export function WorldApp() {
     volumeRef,
     setParticipantVolumesRef: (vols) => { participantVolumesRef.current = vols; },
     onArrivedAtBubbleTarget: (targetId) => {
-      try { followRef.current?.stop?.(); } catch {}
-      try { gameBridge.setDesiredPosition(null); } catch {}
-      try { activateBubbleNow(targetId); } catch {}
+      try { followRef.current?.stop?.(); } catch { }
+      try { gameBridge.setDesiredPosition(null); } catch { }
+      try { activateBubbleNow(targetId); } catch { }
     },
   });
 
@@ -967,9 +992,9 @@ export function WorldApp() {
   React.useEffect(() => {
     // Subscribe to camera manual change from scene
     const handler = (active: boolean) => setCameraManual(!!active);
-    try { (gameBridge as any).onCameraManualChange = handler; } catch {}
+    try { (gameBridge as any).onCameraManualChange = handler; } catch { }
     return () => {
-      try { (gameBridge as any).onCameraManualChange = () => {}; } catch {}
+      try { (gameBridge as any).onCameraManualChange = () => { }; } catch { }
     };
   }, []);
 
@@ -989,9 +1014,9 @@ export function WorldApp() {
         const mic = mod.isLocalMicOn(roomAny);
         const cam = mod.isLocalCamOn(roomAny);
         let share = false;
-        try { share = mod.isLocalShareOn(roomAny); } catch {}
+        try { share = mod.isLocalShareOn(roomAny); } catch { }
         setAvState(s => ({ ...s, mic, cam, ...(typeof share === 'boolean' ? { share } : {}) }));
-      } catch {}
+      } catch { }
     };
     const installHandlersForRoom = async (room: any) => {
       try {
@@ -1011,7 +1036,7 @@ export function WorldApp() {
               room.off?.(RoomEvent.TrackMuted, onAny);
               room.off?.(RoomEvent.TrackUnmuted, onAny);
               room.off?.(RoomEvent.ConnectionStateChanged, onAny);
-            } catch {}
+            } catch { }
           };
         } else {
           room.on?.('localTrackPublished', onAny);
@@ -1026,10 +1051,10 @@ export function WorldApp() {
               room.off?.('trackMuted', onAny);
               room.off?.('trackUnmuted', onAny);
               room.off?.('connectionStateChanged', onAny);
-            } catch {}
+            } catch { }
           };
         }
-      } catch {}
+      } catch { }
       void applyNow();
     };
     // Wenn Room noch nicht da ist: zyklisch prüfen und nachträglich Handler setzen
@@ -1041,7 +1066,7 @@ export function WorldApp() {
         return;
       }
       // Room ist verfügbar → Listener setzen, Poller beenden
-      try { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } } catch {}
+      try { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } } catch { }
       clearInterval(watcher);
       watcher = null;
       void installHandlersForRoom(room);
@@ -1049,27 +1074,27 @@ export function WorldApp() {
     // initialen State einmal lesen
     void applyNow();
     return () => {
-      try { removeHandlers?.(); } catch {}
-      try { clearInterval(pollTimer); } catch {}
-      try { if (watcher) clearInterval(watcher); } catch {}
+      try { removeHandlers?.(); } catch { }
+      try { clearInterval(pollTimer); } catch { }
+      try { if (watcher) clearInterval(watcher); } catch { }
     };
   }, []);
 
   if (!authChecked) {
     return (
-      <div style={{display:'grid',placeItems:'center',height:'100vh'}}>Lade…</div>
+      <div style={{ display: 'grid', placeItems: 'center', height: '100vh' }}>Lade…</div>
     );
   }
   if (!me) {
     return (
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:24,alignItems:'start',padding:'6vh 6vw'}}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, alignItems: 'start', padding: '6vh 6vw' }}>
         <div>
           <h2 style={{ margin: '8px 0' }}>Anmelden</h2>
           <AuthScreen baseUrl={apiBase} onDone={async () => { await fetchMe(); }} />
         </div>
         <div>
           <h2 style={{ margin: '8px 0' }}>Registrieren (neuen Mandanten anlegen)</h2>
-          <Signup apiBase={apiBase} onSuccess={(slug)=>{
+          <Signup apiBase={apiBase} onSuccess={(slug) => {
             try {
               const proto = window.location.protocol;
               const host = window.location.host;
@@ -1091,7 +1116,7 @@ export function WorldApp() {
   }
   if (!positionReady) {
     return (
-      <div style={{display:'grid',placeItems:'center',height:'100vh'}}>Position wird geladen…</div>
+      <div style={{ display: 'grid', placeItems: 'center', height: '100vh' }}>Position wird geladen…</div>
     );
   }
 
@@ -1102,243 +1127,243 @@ export function WorldApp() {
   return (
     <div style={{ width: '100vw', height: '100vh', display: 'grid', gridTemplateColumns: '1fr auto' }}>
       <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
-      {page === 'world' && (
-        <>
-          <Overlays
-            hud={hud}
-            editorActive={editor.active}
-            avDnd={avState.dnd}
-            participants={participantsToRender}
-            gridExpanded={gridExpanded}
-            onToggleExpand={() => setGridExpanded(e => !e)}
-            selectedSid={selectedSid}
-            onSelectSid={(sid) => setSelectedSid(sid)}
-            getRoom={getRoom}
-            overlayZoom={overlayZoom}
-            onZoom={(z) => setOverlayZoom(z)}
-          />
-          {(import.meta as any).env?.DEV ? (
-            <ConnectionBanner
-              reconnecting={connStatus.reconnecting}
-              reason={connStatus.lastReason ?? (typeof connStatus.lastCode === 'number' ? String(connStatus.lastCode) : '')}
+        {page === 'world' && (
+          <>
+            <Overlays
+              hud={hud}
+              editorActive={editor.active}
+              avDnd={avState.dnd}
+              participants={participantsToRender}
+              gridExpanded={gridExpanded}
+              onToggleExpand={() => setGridExpanded(e => !e)}
+              selectedSid={selectedSid}
+              onSelectSid={(sid) => setSelectedSid(sid)}
+              getRoom={getRoom}
+              overlayZoom={overlayZoom}
+              onZoom={(z) => setOverlayZoom(z)}
             />
-          ) : null}
-          {positionReady ? (
-            <div
-              ref={containerRef}
-              style={{ width: '100%', height: '100%', position: 'relative' }}
-              onContextMenu={(e)=>{ e.preventDefault(); }}
-            >
-              {avState.dnd && (
-                <div
-                  onClick={(e)=>{ e.stopPropagation(); }}
-                  onMouseDown={(e)=>{ e.stopPropagation(); e.preventDefault(); }}
-                  onMouseUp={(e)=>{ e.stopPropagation(); e.preventDefault(); }}
-                  onPointerDown={(e)=>{ e.stopPropagation(); e.preventDefault(); }}
-                  onPointerUp={(e)=>{ e.stopPropagation(); e.preventDefault(); }}
-                  onWheel={(e)=>{ e.stopPropagation(); e.preventDefault(); }}
-                  style={{
-                    position: 'absolute', inset: 0,
-                    background: 'rgba(0,0,0,0.55)',
-                    backdropFilter: 'blur(2px) grayscale(0.2)',
-                    zIndex: 20,
-                    cursor: 'not-allowed'
-                  }}
-                />
-              )}
-            </div>
-          ) : (
-            <div style={{display:'grid',placeItems:'center',height:'100%', color: 'var(--fg-subtle)'}}>Starte Welt…</div>
-          )}
-
-          {/* Admin Overlay (einzige Instanz) */}
-          {isInternalOwner && (
-            <>
-              <div style={{ position: 'absolute', top: 12, right: 12, zIndex: 60 }}>
-                <Button onClick={()=> setAdminOpen(true)} variant="ghost">Admin</Button>
-              </div>
-              <AdminOverlay apiBase={apiBase} open={adminOpen} onOpenChange={setAdminOpen} />
-            </>
-          )}
-          {/* ParticipantOverlay über Overlays */}
-
-          {/* Bottom Control Bar (hidden in editor mode) */}
-          {!editor.active && (
-            <div style={{ position: 'absolute', bottom: 16, left: 0, right: 0, zIndex: 30, display: 'flex', justifyContent: 'center', pointerEvents: 'none' }}>
-              <div style={{ pointerEvents: 'auto', maxWidth: 'calc(100vw - 32px)', display: 'flex', justifyContent: 'center' }}>
-                <AVBar
-                  size="md"
-                micOn={avState.mic}
-                camOn={avState.cam}
-                shareOn={avState.share}
-                dndOn={avState.dnd}
-                devices={devices}
-                selectedMicId={selectedMicId}
-                selectedCamId={selectedCamId}
-                onToggleMic={async () => {
-                  const enabled = !avState.mic;
-                  // Optimistisches UI-Update, Aktion im Hintergrund
-                  setAvState(s => ({ ...s, mic: enabled }));
-                  try {
-                    await avRef.current?.setMicrophoneEnabled(enabled);
-                  } catch (e) {
-                    // Revert bei Fehler
-                    setAvState(s => ({ ...s, mic: !enabled }));
-                    return;
-                  }
-                  // Nach erfolgreichem Toggle: tatsächlichen Zustand aus dem Room lesen und UI ggf. korrigieren
-                  try {
-                    const mod: any = await import('../../av/core/localState');
-                    const roomAny: any = avRef.current?.room as any;
-                    const realOn = mod.isLocalMicOn(roomAny);
-                    if (realOn !== enabled) {
-                      setAvState(s => ({ ...s, mic: realOn }));
-                    }
-                    // Fange Pending/Connect-Fälle ab: kurze Nachprüfung
-                    setTimeout(() => {
-                      try {
-                        const again = mod.isLocalMicOn(avRef.current?.room as any);
-                        if (again !== realOn) {
-                          setAvState(s => ({ ...s, mic: again }));
-                        }
-                      } catch {}
-                    }, 400);
-                  } catch {}
-                }}
-                onSelectMic={async (id: string) => {
-                  setSelectedMicId(id);
-                  await avRef.current?.useMicrophoneDevice(id);
-                }}
-                onToggleCam={async () => {
-                  const enabled = !avState.cam;
-                  // Optimistisches UI-Update, Aktion im Hintergrund
-                  setAvState(s => ({ ...s, cam: enabled }));
-                  try {
-                    await avRef.current?.setCameraEnabled(enabled);
-                  } catch (e) {
-                    setAvState(s => ({ ...s, cam: !enabled }));
-                  }
-                }}
-                onSelectCam={async (id: string) => {
-                  setSelectedCamId(id);
-                  await avRef.current?.useCameraDevice(id);
-                }}
-                onToggleShare={async () => {
-                  try {
-                    if (!avState.share) {
-                      const ok = await avRef.current?.startScreenshare();
-                      if (ok) setAvState(s => ({ ...s, share: true }));
-                    } else {
-                      await avRef.current?.stopScreenshare();
-                      setAvState(s => ({ ...s, share: false }));
-                    }
-                  } catch (e) {}
-                }}
-                onToggleDnd={async () => {
-                  const next = !avState.dnd;
-                  try { await avRef.current?.setDoNotDisturb(next); } catch {}
-                  try { gameBridge.setDoNotDisturb(next); } catch {}
-                  try { gameBridge.setMovementLocked(next); } catch {}
-                  if (next) {
-                    try { await avRef.current?.setMicrophoneEnabled(false); } catch {}
-                    try { await avRef.current?.setCameraEnabled(false); } catch {}
-                    try { await avRef.current?.stopScreenshare(); } catch {}
-                    try {
-                      const room: any = avRef.current?.room as any;
-                      if (room?.remoteParticipants) {
-                        const participants: any[] = Array.from((room.remoteParticipants as any).values());
-                        for (const p of participants) {
-                          const sid = (p as any)?.sid;
-                          if (sid) {
-                            try { avRef.current?.setParticipantVolume(sid, 0); } catch {}
-                          }
-                        }
-                      }
-                    } catch {}
-                  }
-                  dndRef.current = next;
-                  setAvState(s => ({ ...s, dnd: next, mic: next ? false : s.mic, cam: next ? false : s.cam, share: next ? false : s.share }));
-                  try { colyseusRef.current?.send?.('dnd_status', { dnd: next }); } catch {}
-                  try { volumeRef.current?.update(); } catch {}
-                  // Verifiziere echten Zustand nach kurzer Zeit und gleiche UI an
-                  setTimeout(async () => {
-                    try {
-                      const mod: any = await import('../../av/core/localState');
-                      const r: any = avRef.current?.room as any;
-                      if (!r) return;
-                      const realMic = mod.isLocalMicOn(r);
-                      const realCam = mod.isLocalCamOn(r);
-                      let realShare = false;
-                      try { realShare = mod.isLocalShareOn(r); } catch {}
-                      setAvState(s => ({ ...s, mic: next ? false : realMic, cam: next ? false : realCam, share: next ? false : realShare }));
-                    } catch {}
-                  }, 450);
-                }}
-                cameraManual={cameraManual}
-                onRecenter={() => { try { gameBridge.recenterCamera(); } catch {} }}
+            {(import.meta as any).env?.DEV ? (
+              <ConnectionBanner
+                reconnecting={connStatus.reconnecting}
+                reason={connStatus.lastReason ?? (typeof connStatus.lastCode === 'number' ? String(connStatus.lastCode) : '')}
               />
-            </div>
-          </div>
-          )}
-        </>
-      )}
+            ) : null}
+            {positionReady ? (
+              <div
+                ref={containerRef}
+                style={{ width: '100%', height: '100%', position: 'relative' }}
+                onContextMenu={(e) => { e.preventDefault(); }}
+              >
+                {avState.dnd && (
+                  <div
+                    onClick={(e) => { e.stopPropagation(); }}
+                    onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); }}
+                    onMouseUp={(e) => { e.stopPropagation(); e.preventDefault(); }}
+                    onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); }}
+                    onPointerUp={(e) => { e.stopPropagation(); e.preventDefault(); }}
+                    onWheel={(e) => { e.stopPropagation(); e.preventDefault(); }}
+                    style={{
+                      position: 'absolute', inset: 0,
+                      background: 'rgba(0,0,0,0.55)',
+                      backdropFilter: 'blur(2px) grayscale(0.2)',
+                      zIndex: 20,
+                      cursor: 'not-allowed'
+                    }}
+                  />
+                )}
+              </div>
+            ) : (
+              <div style={{ display: 'grid', placeItems: 'center', height: '100%', color: 'var(--fg-subtle)' }}>Starte Welt…</div>
+            )}
 
-      <Modal open={userModalOpen} onOpenChange={setUserModalOpen} title="Benutzerverwaltung" maxWidth={900} right={<div style={{ display:'flex', gap:8 }}><ThemeToggleButton /></div>}>
-        <UserManagement baseUrl={apiBase} onBack={() => setUserModalOpen(false)} />
-      </Modal>
+            {/* Admin Overlay (einzige Instanz) */}
+            {isInternalOwner && (
+              <>
+                <div style={{ position: 'absolute', top: 12, right: 12, zIndex: 60 }}>
+                  <Button onClick={() => setAdminOpen(true)} variant="ghost">Admin</Button>
+                </div>
+                <AdminOverlay apiBase={apiBase} open={adminOpen} onOpenChange={setAdminOpen} />
+              </>
+            )}
+            {/* ParticipantOverlay über Overlays */}
 
-      {/* Profil-Seite ist (noch) nicht implementiert; Stub entfernt */}
+            {/* Bottom Control Bar (hidden in editor mode) */}
+            {!editor.active && (
+              <div style={{ position: 'absolute', bottom: 16, left: 0, right: 0, zIndex: 30, display: 'flex', justifyContent: 'center', pointerEvents: 'none' }}>
+                <div style={{ pointerEvents: 'auto', maxWidth: 'calc(100vw - 32px)', display: 'flex', justifyContent: 'center' }}>
+                  <AVBar
+                    size="md"
+                    micOn={avState.mic}
+                    camOn={avState.cam}
+                    shareOn={avState.share}
+                    dndOn={avState.dnd}
+                    devices={devices}
+                    selectedMicId={selectedMicId}
+                    selectedCamId={selectedCamId}
+                    onToggleMic={async () => {
+                      const enabled = !avState.mic;
+                      // Optimistisches UI-Update, Aktion im Hintergrund
+                      setAvState(s => ({ ...s, mic: enabled }));
+                      try {
+                        await avRef.current?.setMicrophoneEnabled(enabled);
+                      } catch (e) {
+                        // Revert bei Fehler
+                        setAvState(s => ({ ...s, mic: !enabled }));
+                        return;
+                      }
+                      // Nach erfolgreichem Toggle: tatsächlichen Zustand aus dem Room lesen und UI ggf. korrigieren
+                      try {
+                        const mod: any = await import('../../av/core/localState');
+                        const roomAny: any = avRef.current?.room as any;
+                        const realOn = mod.isLocalMicOn(roomAny);
+                        if (realOn !== enabled) {
+                          setAvState(s => ({ ...s, mic: realOn }));
+                        }
+                        // Fange Pending/Connect-Fälle ab: kurze Nachprüfung
+                        setTimeout(() => {
+                          try {
+                            const again = mod.isLocalMicOn(avRef.current?.room as any);
+                            if (again !== realOn) {
+                              setAvState(s => ({ ...s, mic: again }));
+                            }
+                          } catch { }
+                        }, 400);
+                      } catch { }
+                    }}
+                    onSelectMic={async (id: string) => {
+                      setSelectedMicId(id);
+                      await avRef.current?.useMicrophoneDevice(id);
+                    }}
+                    onToggleCam={async () => {
+                      const enabled = !avState.cam;
+                      // Optimistisches UI-Update, Aktion im Hintergrund
+                      setAvState(s => ({ ...s, cam: enabled }));
+                      try {
+                        await avRef.current?.setCameraEnabled(enabled);
+                      } catch (e) {
+                        setAvState(s => ({ ...s, cam: !enabled }));
+                      }
+                    }}
+                    onSelectCam={async (id: string) => {
+                      setSelectedCamId(id);
+                      await avRef.current?.useCameraDevice(id);
+                    }}
+                    onToggleShare={async () => {
+                      try {
+                        if (!avState.share) {
+                          const ok = await avRef.current?.startScreenshare();
+                          if (ok) setAvState(s => ({ ...s, share: true }));
+                        } else {
+                          await avRef.current?.stopScreenshare();
+                          setAvState(s => ({ ...s, share: false }));
+                        }
+                      } catch (e) { }
+                    }}
+                    onToggleDnd={async () => {
+                      const next = !avState.dnd;
+                      try { await avRef.current?.setDoNotDisturb(next); } catch { }
+                      try { gameBridge.setDoNotDisturb(next); } catch { }
+                      try { gameBridge.setMovementLocked(next); } catch { }
+                      if (next) {
+                        try { await avRef.current?.setMicrophoneEnabled(false); } catch { }
+                        try { await avRef.current?.setCameraEnabled(false); } catch { }
+                        try { await avRef.current?.stopScreenshare(); } catch { }
+                        try {
+                          const room: any = avRef.current?.room as any;
+                          if (room?.remoteParticipants) {
+                            const participants: any[] = Array.from((room.remoteParticipants as any).values());
+                            for (const p of participants) {
+                              const sid = (p as any)?.sid;
+                              if (sid) {
+                                try { avRef.current?.setParticipantVolume(sid, 0); } catch { }
+                              }
+                            }
+                          }
+                        } catch { }
+                      }
+                      dndRef.current = next;
+                      setAvState(s => ({ ...s, dnd: next, mic: next ? false : s.mic, cam: next ? false : s.cam, share: next ? false : s.share }));
+                      try { colyseusRef.current?.send?.('dnd_status', { dnd: next }); } catch { }
+                      try { volumeRef.current?.update(); } catch { }
+                      // Verifiziere echten Zustand nach kurzer Zeit und gleiche UI an
+                      setTimeout(async () => {
+                        try {
+                          const mod: any = await import('../../av/core/localState');
+                          const r: any = avRef.current?.room as any;
+                          if (!r) return;
+                          const realMic = mod.isLocalMicOn(r);
+                          const realCam = mod.isLocalCamOn(r);
+                          let realShare = false;
+                          try { realShare = mod.isLocalShareOn(r); } catch { }
+                          setAvState(s => ({ ...s, mic: next ? false : realMic, cam: next ? false : realCam, share: next ? false : realShare }));
+                        } catch { }
+                      }, 450);
+                    }}
+                    cameraManual={cameraManual}
+                    onRecenter={() => { try { gameBridge.recenterCamera(); } catch { } }}
+                  />
+                </div>
+              </div>
+            )}
+          </>
+        )}
 
-      {/* Settings & Theme (oben rechts) */}
-      <TopRightControls
-        menuOpen={menuOpen}
-        onToggleMenu={() => setMenuOpen(v => !v)}
-        onOpenUsers={() => { setUserModalOpen(true); setMenuOpen(false); }}
-        onOpenInvites={() => { setInvitesModalOpen(true); setMenuOpen(false); }}
-        onBackToWorld={() => { setPage('world'); setMenuOpen(false); }}
-        onOpenAdmin={() => { setAdminOpen(true); setMenuOpen(false); }}
-        isAdmin={isInternalOwner}
-        onOpenApi={() => { setApiModalOpen(true); setMenuOpen(false); }}
-        onResetApp={async () => {
-          setMenuOpen(false);
-          // Verbindungen sauber schließen, bevor Storage/Cookies gelöscht werden
-          try { await avRef.current?.leave?.(); } catch {}
-          try {
-            const room: any = colyseusRef.current;
-            const wsReadyState = room?.connection?.ws?.readyState ?? room?.connection?.transport?.ws?.readyState ?? room?.connection?._transport?.ws?.readyState;
-            const isOpen = room?.connection?.isOpen === true || wsReadyState === 1;
-            if (isOpen) await room.leave();
-          } catch {}
-          try { await fetch(`${apiBase}/auth/logout`, { method: 'POST', credentials: 'include' }); } catch {}
-          try { localStorage.clear(); } catch {}
-          try { sessionStorage.clear(); } catch {}
-          try {
-            const parts = (document.cookie || '').split(';');
-            for (const raw of parts) {
-              const name = raw.split('=')[0]?.trim();
-              if (!name) continue;
-              document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`;
+        <Modal open={userModalOpen} onOpenChange={setUserModalOpen} title="Benutzerverwaltung" maxWidth={900} right={<div style={{ display: 'flex', gap: 8 }}><ThemeToggleButton /></div>}>
+          <UserManagement baseUrl={apiBase} onBack={() => setUserModalOpen(false)} />
+        </Modal>
+
+        {/* Profil-Seite ist (noch) nicht implementiert; Stub entfernt */}
+
+        {/* Settings & Theme (oben rechts) */}
+        <TopRightControls
+          menuOpen={menuOpen}
+          onToggleMenu={() => setMenuOpen(v => !v)}
+          onOpenUsers={() => { setUserModalOpen(true); setMenuOpen(false); }}
+          onOpenInvites={() => { setInvitesModalOpen(true); setMenuOpen(false); }}
+          onBackToWorld={() => { setPage('world'); setMenuOpen(false); }}
+          onOpenAdmin={() => { setAdminOpen(true); setMenuOpen(false); }}
+          isAdmin={isInternalOwner}
+          onOpenApi={() => { setApiModalOpen(true); setMenuOpen(false); }}
+          onResetApp={async () => {
+            setMenuOpen(false);
+            // Verbindungen sauber schließen, bevor Storage/Cookies gelöscht werden
+            try { await avRef.current?.leave?.(); } catch { }
+            try {
+              const room: any = colyseusRef.current;
+              const wsReadyState = room?.connection?.ws?.readyState ?? room?.connection?.transport?.ws?.readyState ?? room?.connection?._transport?.ws?.readyState;
+              const isOpen = room?.connection?.isOpen === true || wsReadyState === 1;
+              if (isOpen) await room.leave();
+            } catch { }
+            try { await fetch(`${apiBase}/auth/logout`, { method: 'POST', credentials: 'include' }); } catch { }
+            try { localStorage.clear(); } catch { }
+            try { sessionStorage.clear(); } catch { }
+            try {
+              const parts = (document.cookie || '').split(';');
+              for (const raw of parts) {
+                const name = raw.split('=')[0]?.trim();
+                if (!name) continue;
+                document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`;
+              }
+            } catch { }
+            window.location.reload();
+          }}
+          onToggleEditor={async () => {
+            const isCurrentlyActive = editor.active;
+            if (isCurrentlyActive) {
+              await saveAllToServer().catch(() => { });
             }
-          } catch {}
-          window.location.reload();
-        }}
-        onToggleEditor={async () => {
-          const isCurrentlyActive = editor.active;
-          if (isCurrentlyActive) { 
-            await saveAllToServer().catch(()=>{}); 
-          }
-          // Toggle über EditorService (wird automatisch mit setEditor synchronisiert)
-          if (isCurrentlyActive) {
-            EditorService.dispatch({ type: 'DEACTIVATE_EDITOR' });
-          } else {
-            EditorService.dispatch({ type: 'ACTIVATE_EDITOR' });
-          }
-          setMenuOpen(false);
-        }}
-        editorActive={editor.active}
-        onLogout={async () => { try { await fetch(`${apiBase}/auth/logout`, { method: 'POST', credentials: 'include' }); } finally { setMe(null); setMenuOpen(false); setPage('world'); } }}
+            // Toggle über EditorService (wird automatisch mit setEditor synchronisiert)
+            if (isCurrentlyActive) {
+              EditorService.dispatch({ type: 'DEACTIVATE_EDITOR' });
+            } else {
+              EditorService.dispatch({ type: 'ACTIVATE_EDITOR' });
+            }
+            setMenuOpen(false);
+          }}
+          editorActive={editor.active}
+          onLogout={async () => { try { await fetch(`${apiBase}/auth/logout`, { method: 'POST', credentials: 'include' }); } finally { setMe(null); setMenuOpen(false); setPage('world'); } }}
 
-      />
+        />
 
       </div>
       {/* Rechte Roster-Leiste (volle Höhe) */}
@@ -1346,20 +1371,20 @@ export function WorldApp() {
         roster={roster}
         collapsed={rosterCollapsed}
         onToggleCollapse={() => setRosterCollapsed(v => !v)}
-        onJumpTo={(r)=>{
-        try {
-          if (typeof r.x === 'number' && typeof r.y === 'number') {
-            manualNavRef.current = { x: r.x!, y: r.y! };
-            gameBridge.setDesiredPosition({ x: r.x!, y: r.y! });
-            try { (window as any).currentPhaserScene?.cameras?.main?.pan?.(r.x!, r.y!, 250, 'Sine.easeInOut'); } catch {}
-          }
-        } catch {}
-      }} />
+        onJumpTo={(r) => {
+          try {
+            if (typeof r.x === 'number' && typeof r.y === 'number') {
+              manualNavRef.current = { x: r.x!, y: r.y! };
+              gameBridge.setDesiredPosition({ x: r.x!, y: r.y! });
+              try { (window as any).currentPhaserScene?.cameras?.main?.pan?.(r.x!, r.y!, 250, 'Sine.easeInOut'); } catch { }
+            }
+          } catch { }
+        }} />
 
       {/* API Token Modal */}
-      <ApiTokensOverlay 
+      <ApiTokensOverlay
         open={apiModalOpen}
-        onClose={()=>setApiModalOpen(false)}
+        onClose={() => setApiModalOpen(false)}
         apiBase={apiBase}
         apiTokens={apiTokens}
         setApiTokens={setApiTokens}
@@ -1369,36 +1394,36 @@ export function WorldApp() {
         setFreshToken={setFreshToken}
       />
 
-      <EditorWindow 
+      <EditorWindow
         onSave={saveAllToServer}
         onClose={() => {
           EditorService.dispatch({ type: 'DEACTIVATE_EDITOR' });
         }}
       />
-      
+
       {/* Tileset Upload Dialog ausgelagert in EditorWindow */}
 
       {/* Bubble Banner */}
-      <BubbleBanner 
-        active={bubbleUi.active} 
-        members={bubbleUi.members} 
+      <BubbleBanner
+        active={bubbleUi.active}
+        members={bubbleUi.members}
         onLeave={() => {
           const set = bubbleMembersRef.current;
           set.clear();
-          try { gameBridge.setBubbleMembers(new Set()); } catch {}
-          try { gameBridge.setMovementLocked(false); } catch {}
+          try { gameBridge.setBubbleMembers(new Set()); } catch { }
+          try { gameBridge.setMovementLocked(false); } catch { }
           // Entferne nur mich aus meiner bestehenden Bubble-Gruppe (Gruppe nicht komplett löschen)
           try {
             const meId = localPosRef.current.id;
             const myGroup = meId ? (bubbleGroupsRef.current[meId] || null) : null;
             if (meId && myGroup) {
               const currentMembers = Object.entries(bubbleGroupsRef.current)
-                .filter(([,_gid]) => _gid === myGroup)
+                .filter(([, _gid]) => _gid === myGroup)
                 .map(([sid]) => sid);
               const remaining = currentMembers.filter((sid) => sid !== meId);
               colyseusRef.current?.send?.('bubble_update', { id: myGroup, members: remaining });
             }
-          } catch {}
+          } catch { }
           setBubbleUi({ active: false, members: [] });
           setTimeout(() => applyVolumesToUi(), 0);
         }}
@@ -1406,8 +1431,8 @@ export function WorldApp() {
 
       {/* Kontextmenü */}
       {contextMenu.open && contextMenu.playerId && (
-        <div onClick={() => setContextMenu({ open: false, x: 0, y: 0, playerId: null })} onContextMenu={(e)=> e.preventDefault()} style={{ position: 'absolute', inset: 0, zIndex: 60 }}>
-          <div onClick={(e)=>e.stopPropagation()} style={{ position: 'absolute', left: Math.min(Math.max(8, contextMenu.x), window.innerWidth - 196), top: Math.min(Math.max(8, contextMenu.y), window.innerHeight - 96), background:'rgba(17,17,20,0.98)', color:'#fff', border:'1px solid rgba(255,255,255,0.12)', borderRadius: 8, boxShadow:'0 12px 40px rgba(0,0,0,0.5)' }}>
+        <div onClick={() => setContextMenu({ open: false, x: 0, y: 0, playerId: null })} onContextMenu={(e) => e.preventDefault()} style={{ position: 'absolute', inset: 0, zIndex: 60 }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ position: 'absolute', left: Math.min(Math.max(8, contextMenu.x), window.innerWidth - 196), top: Math.min(Math.max(8, contextMenu.y), window.innerHeight - 96), background: 'rgba(17,17,20,0.98)', color: '#fff', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8, boxShadow: '0 12px 40px rgba(0,0,0,0.5)' }}>
             <button onClick={() => {
               setContextMenu({ open: false, x: 0, y: 0, playerId: null });
               const id = contextMenu.playerId!;
@@ -1418,7 +1443,7 @@ export function WorldApp() {
               } else {
                 followRef.current?.startFollowing?.(id);
               }
-            }} style={{ display:'block', padding:'8px 12px', background:'transparent', color:'#fff', border:'none', borderBottom:'1px solid rgba(255,255,255,0.08)', width: 180, textAlign:'left', cursor:'pointer' }}>Folgen</button>
+            }} style={{ display: 'block', padding: '8px 12px', background: 'transparent', color: '#fff', border: 'none', borderBottom: '1px solid rgba(255,255,255,0.08)', width: 180, textAlign: 'left', cursor: 'pointer' }}>Folgen</button>
             {/* In fremde Bubble beitreten (wenn Zielspieler in einer Bubble ist und ich nicht bereits in derselben) */}
             {(() => {
               try {
@@ -1429,22 +1454,22 @@ export function WorldApp() {
                 return !!targetGroup && targetGroup !== myGroup;
               } catch { return false; }
             })() && (
-              <button onClick={() => {
-                setContextMenu({ open: false, x: 0, y: 0, playerId: null });
-                try {
-                  const target = contextMenu.playerId!;
-                  const targetGroup = bubbleGroupsRef.current[target];
-                  const meId = localPosRef.current.id;
-                  if (!target || !targetGroup || !meId) return;
-                  // Mitglieder der Ziel-Bubble + mich
-                  const currentMembers = Object.entries(bubbleGroupsRef.current)
-                    .filter(([,_gid]) => _gid === targetGroup)
-                    .map(([sid]) => sid);
-                  const next = Array.from(new Set([...currentMembers, meId]));
-                  colyseusRef.current?.send?.('bubble_update', { id: targetGroup, members: next });
-                } catch {}
-              }} style={{ display:'block', padding:'8px 12px', background:'transparent', color:'#fff', border:'none', borderBottom:'1px solid rgba(255,255,255,0.08)', width: 180, textAlign:'left', cursor:'pointer' }}>Bubble beitreten</button>
-            )}
+                <button onClick={() => {
+                  setContextMenu({ open: false, x: 0, y: 0, playerId: null });
+                  try {
+                    const target = contextMenu.playerId!;
+                    const targetGroup = bubbleGroupsRef.current[target];
+                    const meId = localPosRef.current.id;
+                    if (!target || !targetGroup || !meId) return;
+                    // Mitglieder der Ziel-Bubble + mich
+                    const currentMembers = Object.entries(bubbleGroupsRef.current)
+                      .filter(([, _gid]) => _gid === targetGroup)
+                      .map(([sid]) => sid);
+                    const next = Array.from(new Set([...currentMembers, meId]));
+                    colyseusRef.current?.send?.('bubble_update', { id: targetGroup, members: next });
+                  } catch { }
+                }} style={{ display: 'block', padding: '8px 12px', background: 'transparent', color: '#fff', border: 'none', borderBottom: '1px solid rgba(255,255,255,0.08)', width: 180, textAlign: 'left', cursor: 'pointer' }}>Bubble beitreten</button>
+              )}
             {/* Zur bestehenden Bubble hinzufügen (nur anzeigen, wenn ich bereits in einer Bubble bin) */}
             {(() => {
               try {
@@ -1453,28 +1478,28 @@ export function WorldApp() {
                 return !!myGroup;
               } catch { return false; }
             })() && (
-              <button onClick={() => {
-                setContextMenu({ open: false, x: 0, y: 0, playerId: null });
-                try {
-                  const id = contextMenu.playerId!;
-                  const meId = localPosRef.current.id;
-                  if (!meId || !id || meId === id) return;
-                  const myGroup = bubbleGroupsRef.current[meId];
-                  if (!myGroup) return;
-                  // Bilde neue Menge: bestehende Gruppenmitglieder + Zielspieler
-                  const currentMembers = Object.entries(bubbleGroupsRef.current)
-                    .filter(([,_gid]) => _gid === myGroup)
-                    .map(([sid]) => sid);
-                  const next = Array.from(new Set([...currentMembers, id]));
-                  colyseusRef.current?.send?.('bubble_update', { id: myGroup, members: next });
-                } catch {}
-              }} style={{ display:'block', padding:'8px 12px', background:'transparent', color:'#fff', border:'none', borderBottom:'1px solid rgba(255,255,255,0.08)', width: 180, textAlign:'left', cursor:'pointer' }}>Zur Bubble hinzufügen</button>
-            )}
+                <button onClick={() => {
+                  setContextMenu({ open: false, x: 0, y: 0, playerId: null });
+                  try {
+                    const id = contextMenu.playerId!;
+                    const meId = localPosRef.current.id;
+                    if (!meId || !id || meId === id) return;
+                    const myGroup = bubbleGroupsRef.current[meId];
+                    if (!myGroup) return;
+                    // Bilde neue Menge: bestehende Gruppenmitglieder + Zielspieler
+                    const currentMembers = Object.entries(bubbleGroupsRef.current)
+                      .filter(([, _gid]) => _gid === myGroup)
+                      .map(([sid]) => sid);
+                    const next = Array.from(new Set([...currentMembers, id]));
+                    colyseusRef.current?.send?.('bubble_update', { id: myGroup, members: next });
+                  } catch { }
+                }} style={{ display: 'block', padding: '8px 12px', background: 'transparent', color: '#fff', border: 'none', borderBottom: '1px solid rgba(255,255,255,0.08)', width: 180, textAlign: 'left', cursor: 'pointer' }}>Zur Bubble hinzufügen</button>
+              )}
             <button onClick={() => {
               setContextMenu({ open: false, x: 0, y: 0, playerId: null });
               const id = contextMenu.playerId!;
               bubbleStartRef.current?.(id);
-            }} style={{ display:'block', padding:'8px 12px', background:'transparent', color:'#fff', border:'none', width: 180, textAlign:'left', cursor:'pointer' }}>Bubble starten</button>
+            }} style={{ display: 'block', padding: '8px 12px', background: 'transparent', color: '#fff', border: 'none', width: 180, textAlign: 'left', cursor: 'pointer' }}>Bubble starten</button>
           </div>
         </div>
       )}
@@ -1492,7 +1517,7 @@ export function WorldApp() {
 
       {/* Editor Exit Confirm ausgelagert in EditorWindow */}
     </div>
-    );
+  );
 }
 
 // Styles (unused button styles removed)
