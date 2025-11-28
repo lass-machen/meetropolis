@@ -241,6 +241,8 @@ body {
   --uc-badge-off: color-mix(in oklab, #f43f5e 25%, transparent);
   --uc-badge-border-on: color-mix(in oklab, #10b981 50%, transparent);
   --uc-badge-border-off: color-mix(in oklab, #f43f5e 50%, transparent);
+  --speaking-color: #22d3ee;
+  --speaking-glow: rgba(34,211,238,0.35);
 }
 
 .uc-container {

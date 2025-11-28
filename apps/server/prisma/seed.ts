@@ -48,14 +48,16 @@ async function main() {
   const adminName = process.env.SEED_ADMIN_NAME || 'Root Admin';
 
   let admin = await prisma.user.findUnique({ where: { email: adminEmail } });
+  const hash = await bcrypt.hash(adminPass, 10);
   if (!admin) {
-    const hash = await bcrypt.hash(adminPass, 10);
     admin = await prisma.user.create({ data: { email: adminEmail, name: adminName, passwordHash: hash, emailVerifiedAt: new Date() } });
     // eslint-disable-next-line no-console
     console.log('Seeded admin user:', adminEmail);
   } else {
+    // Update password hash (damit Seed immer das erwartete Passwort setzt)
+    admin = await prisma.user.update({ where: { email: adminEmail }, data: { passwordHash: hash } });
     // eslint-disable-next-line no-console
-    console.log('Admin user exists:', adminEmail);
+    console.log('Admin user exists, password updated:', adminEmail);
   }
 
   // Ensure memberships
@@ -67,8 +69,8 @@ async function main() {
     });
     await prisma.membership.upsert({
       where: { tenantId_userId: { tenantId: def.id, userId: admin.id } } as any,
-      update: {},
-      create: { tenantId: def.id, userId: admin.id, role: 'admin' as any },
+      update: { role: 'owner' as any },
+      create: { tenantId: def.id, userId: admin.id, role: 'owner' as any },
     });
   }
 

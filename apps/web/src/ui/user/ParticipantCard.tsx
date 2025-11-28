@@ -231,8 +231,10 @@ export function ParticipantCard(props: { part: { sid: string; identity: string; 
   const volume = part.volume ?? 1;
   const opacity = isLocal ? 1 : (0.4 + (volume * 0.6));
   
-  const borderColor = part.isSpeaking ? '#22d3ee' : 'var(--border)';
-  const glow = part.isSpeaking ? '0 0 0 2px rgba(34,211,238,0.35), var(--shadow)' : 'var(--shadow)';
+  // Konsistente Farben via CSS-Variablen
+  const speakingColor = 'var(--speaking-color, #22d3ee)';
+  const borderColor = part.isSpeaking ? speakingColor : 'var(--border)';
+  const glow = part.isSpeaking ? `0 0 0 2px var(--speaking-glow, rgba(34,211,238,0.35)), var(--shadow)` : 'var(--shadow)';
   const isScreen = part.media === 'screen';
   const aspect = full ? undefined : (isScreen ? '16 / 9' : '16 / 9');
   const targetSize = full ? undefined : (compact ? '100%' : '36vh');
@@ -289,17 +291,17 @@ export function ParticipantCard(props: { part: { sid: string; identity: string; 
       <div style={{ position: 'absolute', top: 6, left: 6, display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', background: 'var(--bg-btn-bg, var(--glass))', borderRadius: 10, border: '1px solid rgba(255,255,255,0.08)' }}>
         <div style={{ fontSize: 12, color: 'var(--fg)', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{part.identity}</div>
       </div>
-      <div style={{ position: 'absolute', top: 6, right: 6, display: 'flex', gap: 8 }}>
+      <div style={{ position: 'absolute', top: 6, right: 6, display: 'flex', gap: 6 }}>
         {isDnd && (
-          <div title="Nicht stören (DND)" style={{ display: 'grid', placeItems: 'center', width: 28, height: 28, borderRadius: 999, background: 'rgba(244,63,94,0.6)', border: '1px solid rgba(244,63,94,0.8)' }}>
-            <FAIcon size="sm" name="moon" variant="solid" ariaLabel="DND" />
+          <div title={t('participant.dnd')} style={{ display: 'grid', placeItems: 'center', width: 26, height: 26, borderRadius: 999, background: 'var(--uc-badge-off)', border: '1px solid var(--uc-badge-border-off)' }}>
+            <FAIcon size="xs" name="moon" variant="solid" ariaLabel={t('participant.dnd')} />
           </div>
         )}
-        <div title={part.hasMic ? 'Mikro an' : 'Mikro aus'} style={{ display:   'grid', placeItems: 'center', width: 28, height: 28, borderRadius: 999, background: part.hasMic ? 'rgba(16,185,129,0.25)' : 'rgba(244,63,94,0.25)', border: `1px solid ${part.hasMic ? 'rgba(16,185,129,0.5)' : 'rgba(244,63,94,0.5)'}` }}>
-          <FAIcon size="sm" name={part.hasMic ? 'microphone' : 'microphone-slash'} variant="solid" ariaLabel={part.hasMic ? 'Mikro an' : 'Mikro aus'} />
+        <div title={part.hasMic ? t('participant.micOn') : t('participant.micOff')} style={{ display: 'grid', placeItems: 'center', width: 26, height: 26, borderRadius: 999, background: part.hasMic ? 'var(--uc-badge-on)' : 'var(--uc-badge-off)', border: `1px solid ${part.hasMic ? 'var(--uc-badge-border-on)' : 'var(--uc-badge-border-off)'}` }}>
+          <FAIcon size="xs" name={part.hasMic ? 'microphone' : 'microphone-slash'} variant="solid" ariaLabel={part.hasMic ? t('participant.micOn') : t('participant.micOff')} />
         </div>
-        <div title={part.hasVideo ? 'Kamera an' : 'Kamera aus'} style={{ display: 'grid', placeItems: 'center', width: 28, height: 28, borderRadius: 999, background: (part.hasVideo || isVideoRendering) ? 'rgba(16,185,129,0.25)' : 'rgba(244,63,94,0.25)', border: `1px solid ${(part.hasVideo || isVideoRendering) ? 'rgba(16,185,129,0.5)' : 'rgba(244,63,94,0.5)'}` }}>
-          <FAIcon size="sm" name={(part.hasVideo || isVideoRendering) ? 'video' : 'video-slash'} variant="solid" ariaLabel={(part.hasVideo || isVideoRendering) ? 'Kamera an' : 'Kamera aus'} />
+        <div title={(part.hasVideo || isVideoRendering) ? t('participant.camOn') : t('participant.camOff')} style={{ display: 'grid', placeItems: 'center', width: 26, height: 26, borderRadius: 999, background: (part.hasVideo || isVideoRendering) ? 'var(--uc-badge-on)' : 'var(--uc-badge-off)', border: `1px solid ${(part.hasVideo || isVideoRendering) ? 'var(--uc-badge-border-on)' : 'var(--uc-badge-border-off)'}` }}>
+          <FAIcon size="xs" name={(part.hasVideo || isVideoRendering) ? 'video' : 'video-slash'} variant="solid" ariaLabel={(part.hasVideo || isVideoRendering) ? t('participant.camOn') : t('participant.camOff')} />
         </div>
       </div>
       {!isLocal && hover && part.media === 'camera' && (

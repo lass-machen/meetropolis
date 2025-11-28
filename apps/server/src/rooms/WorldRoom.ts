@@ -384,26 +384,46 @@ export class WorldRoom extends Colyseus.Room<WorldState> {
     }, { except: client });
 
     // Seed: recent presence list via WS (best-effort, tenant-scoped)
+    // Now includes ALL tenant members, even those who never logged in
     try {
       const prisma = this.prismaForPresence ?? new PrismaClient();
       const tenantSlug: string = (options?.tenant || this.metadata?.tenant || process.env.DEFAULT_TENANT_SLUG || 'default');
       const tenant = await prisma.tenant.findUnique({ where: { slug: tenantSlug } });
       if (tenant) {
+        // 1. Hole alle Tenant-Mitglieder
+        const memberships = await prisma.membership.findMany({
+          where: { tenantId: tenant.id },
+          include: { user: { select: { id: true, email: true, name: true } } },
+        });
+
+        // 2. Hole Presence-Daten für diese User
         const recent = await prisma.presence.findMany({
           where: { tenantId: tenant.id },
           orderBy: { updatedAt: 'desc' },
           distinct: ['userId'],
-          include: { user: { select: { id: true, email: true, name: true } }, room: { select: { name: true } } },
+          include: { room: { select: { name: true } } },
         } as any);
-        const out = recent.map((p: any) => ({
-          userId: p.userId,
-          user: { id: p.user?.id, email: p.user?.email, name: p.user?.name },
-          room: p.room?.name || 'world',
-          x: p.x,
-          y: p.y,
-          direction: p.direction,
-          updatedAt: p.updatedAt,
-        }));
+
+        // 3. Erstelle Map von userId -> Presence
+        const presenceMap = new Map<string, any>();
+        for (const p of recent) {
+          presenceMap.set(p.userId, p);
+        }
+
+        // 4. Kombiniere: Alle Mitglieder mit ihren Presence-Daten (falls vorhanden)
+        const out = memberships.map((m: any) => {
+          const presence = presenceMap.get(m.userId);
+          return {
+            userId: m.userId,
+            user: { id: m.user?.id, email: m.user?.email, name: m.user?.name },
+            room: presence?.room?.name || null,
+            x: presence?.x ?? null,
+            y: presence?.y ?? null,
+            direction: presence?.direction || null,
+            updatedAt: presence?.updatedAt || null,
+          };
+        });
+
         try { client.send('presence_recent', out as any); } catch { }
       }
     } catch (e) {

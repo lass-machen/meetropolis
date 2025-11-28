@@ -213,13 +213,19 @@ export function registerApi(app: express.Express) {
     if (!membership || (membership.role !== 'admin' && membership.role !== 'owner')) {
       return res.status(403).json({ error: 'forbidden' });
     }
-    const schema = z.object({ email: z.string().email() });
+    const schema = z.object({ 
+      email: z.string().email(),
+      role: z.enum(['admin', 'member']).optional().default('member')
+    });
     const parse = schema.safeParse(req.body || {});
     if (!parse.success) return res.status(400).json({ error: 'email required' });
+    // Admins können nur member einladen, Owners können auch admins einladen
+    const requestedRole = parse.data.role;
+    const allowedRole = membership.role === 'owner' ? requestedRole : 'member';
     const code = crypto.randomBytes(12).toString('hex');
     const normalizedEmail = normalizeEmailForStorage(parse.data.email);
-    const inv = await prisma.invite.create({ data: { code, email: normalizedEmail, createdBy: auth.userId, tenantId: tenant.id } });
-    res.json({ code: inv.code });
+    const inv = await prisma.invite.create({ data: { code, email: normalizedEmail, createdBy: auth.userId, tenantId: tenant.id, role: allowedRole as any } });
+    res.json({ code: inv.code, role: allowedRole });
   });
 
   app.post('/auth/register', async (req: express.Request, res: express.Response) => {
@@ -458,9 +464,28 @@ export function registerApi(app: express.Express) {
     if (!tenant) return res.status(400).json({ error: 'tenant_required' });
     const users = await prisma.user.findMany({
       where: { memberships: { some: { tenantId: tenant.id } } } as any,
-      select: { id: true, email: true, name: true, createdAt: true, updatedAt: true }
+      select: { 
+        id: true, 
+        email: true, 
+        name: true, 
+        createdAt: true, 
+        updatedAt: true,
+        memberships: {
+          where: { tenantId: tenant.id },
+          select: { role: true }
+        }
+      }
     });
-    res.json(users);
+    // Flatten: Rolle aus Membership extrahieren
+    const result = users.map((u: any) => ({
+      id: u.id,
+      email: u.email,
+      name: u.name,
+      createdAt: u.createdAt,
+      updatedAt: u.updatedAt,
+      role: u.memberships?.[0]?.role || 'member'
+    }));
+    res.json(result);
   });
 
   app.patch('/users/:id', async (req: express.Request, res: express.Response) => {
@@ -481,6 +506,54 @@ export function registerApi(app: express.Express) {
     }
   });
 
+  // Rolle eines Users ändern (Owner und Admins können Rollen ändern)
+  app.patch('/users/:id/role', async (req: express.Request, res: express.Response) => {
+    const auth = requireAuth(req);
+    if (!auth) return res.status(401).json({ error: 'unauthorized' });
+    const tenant = getTenantFromReq(req);
+    if (!tenant) return res.status(400).json({ error: 'tenant_required' });
+    
+    // Owner und Admins können Rollen ändern
+    const callerMembership = await requireMembership(req, auth.userId);
+    if (!callerMembership || (callerMembership.role !== 'owner' && callerMembership.role !== 'admin')) {
+      return res.status(403).json({ error: 'forbidden - only owners and admins can change roles' });
+    }
+    
+    const id = req.params.id;
+    const schema = z.object({ role: z.enum(['admin', 'member']) });
+    const parse = schema.safeParse(req.body || {});
+    if (!parse.success) return res.status(400).json({ error: 'valid role required (admin or member)' });
+    
+    // Kann nicht die eigene Rolle ändern (Schutz vor versehentlichem Downgrade)
+    if (id === auth.userId) {
+      return res.status(400).json({ error: 'cannot change own role' });
+    }
+    
+    try {
+      const membership = await prisma.membership.findFirst({
+        where: { userId: id, tenantId: tenant.id }
+      });
+      if (!membership) return res.status(404).json({ error: 'user not found in this tenant' });
+      
+      // Admins können keine Owner-Rollen ändern (nur Owner können das)
+      if ((membership as any).role === 'owner' && callerMembership.role !== 'owner') {
+        return res.status(403).json({ error: 'forbidden - only owners can change owner roles' });
+      }
+      
+      // Owner-Rolle kann nicht vergeben werden (nur über Seed/Migration)
+      await prisma.membership.update({
+        where: { id: membership.id },
+        data: { role: parse.data.role as any }
+      });
+      
+      logger.info('[Users] Role changed', { userId: id, newRole: parse.data.role, changedBy: auth.userId });
+      res.json({ ok: true, role: parse.data.role });
+    } catch (e) {
+      logger.error('[Users] Role change failed', e);
+      res.status(400).json({ error: 'role change failed' });
+    }
+  });
+
   app.delete('/users/:id', async (req: express.Request, res: express.Response) => {
     const auth = requireAuth(req);
     if (!auth) return res.status(401).json({ error: 'unauthorized' });
@@ -494,6 +567,8 @@ export function registerApi(app: express.Express) {
       try { await prisma.passwordReset.deleteMany({ where: { userId: id } }); } catch { }
       try { await prisma.apiToken.deleteMany({ where: { userId: id } }); } catch { }
       try { await prisma.invite.updateMany({ where: { usedById: id }, data: { usedById: null } }); } catch { }
+      // WICHTIG: Memberships müssen vor dem User gelöscht werden (FK constraint)
+      try { await prisma.membership.deleteMany({ where: { userId: id } }); } catch { }
       await prisma.user.delete({ where: { id } });
       return res.json({ ok: true });
     } catch (e) {
@@ -1445,6 +1520,67 @@ export function registerApi(app: express.Express) {
     }
 
     res.json({ ok: true });
+  });
+
+  // Admin: Zonen löschen (einzeln oder alle)
+  app.delete('/maps/:name/zones', async (req: express.Request, res: express.Response) => {
+    const auth = requireAuth(req);
+    if (!auth) return res.status(401).json({ error: 'unauthorized' });
+    const tenant = getTenantFromReq(req);
+    if (!tenant) return res.status(400).json({ error: 'tenant_required' });
+    const membership = await requireMembership(req, auth.userId);
+    if (!membership || (membership.role !== 'admin' && membership.role !== 'owner')) {
+      return res.status(403).json({ error: 'forbidden - admin required' });
+    }
+    const mapName = req.params.name || 'office';
+    const zoneName = req.query.name as string | undefined; // Optional: nur bestimmte Zone löschen
+    const zoneId = req.query.id as string | undefined;
+    
+    try {
+      const map = await prisma.map.findFirst({ where: { name: mapName, tenantId: tenant.id } });
+      if (!map) return res.status(404).json({ error: 'map not found' });
+      
+      let deleted = 0;
+      if (zoneId) {
+        // Einzelne Zone nach ID löschen
+        const result = await prisma.zone.deleteMany({ where: { id: zoneId, mapId: map.id } });
+        deleted = result.count;
+      } else if (zoneName) {
+        // Alle Zonen mit diesem Namen löschen
+        const result = await prisma.zone.deleteMany({ where: { name: zoneName, mapId: map.id } });
+        deleted = result.count;
+      } else {
+        // Alle Zonen der Map löschen
+        const result = await prisma.zone.deleteMany({ where: { mapId: map.id } });
+        deleted = result.count;
+      }
+      
+      logger.info('[Zones] Deleted zones', { map: mapName, zoneName, zoneId, deleted });
+      res.json({ ok: true, deleted });
+    } catch (e) {
+      logger.error('[Zones] Delete failed', e);
+      res.status(500).json({ error: 'delete failed' });
+    }
+  });
+
+  // Admin: Alle Zonen einer Map auflisten
+  app.get('/maps/:name/zones', async (req: express.Request, res: express.Response) => {
+    const auth = requireAuth(req);
+    if (!auth) return res.status(401).json({ error: 'unauthorized' });
+    const tenant = getTenantFromReq(req);
+    if (!tenant) return res.status(400).json({ error: 'tenant_required' });
+    const mapName = req.params.name || 'office';
+    
+    try {
+      const map = await prisma.map.findFirst({ where: { name: mapName, tenantId: tenant.id } });
+      if (!map) return res.status(404).json({ error: 'map not found' });
+      
+      const zones = await prisma.zone.findMany({ where: { mapId: map.id } });
+      res.json(zones.map(z => ({ id: z.id, name: z.name, capacity: z.capacity, polygon: z.polygon })));
+    } catch (e) {
+      logger.error('[Zones] List failed', e);
+      res.status(500).json({ error: 'list failed' });
+    }
   });
 
   // Profile update (authenticated)

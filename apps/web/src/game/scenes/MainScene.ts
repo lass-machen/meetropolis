@@ -2,12 +2,12 @@ import Phaser from 'phaser';
 import { GameSystem } from '../systems/types';
 import { gameBridge } from '../bridge';
 // editorLog removed - using console methods instead
-import { V2State, computeFirstGids, decodeRLE, fetchChunks, tileRefIdToGid } from '../../lib/mapV2';
+import { V2State, computeFirstGids } from '../../lib/mapV2';
 import { createNameLabel as uiCreateNameLabel, drawNameLabel as uiDrawNameLabel, updateNameLabel as uiUpdateNameLabel, setHeroName as uiSetHeroName, updateSpeakingStates as uiUpdateSpeakingStates } from '../ui/nameLabels';
-import { setBubbleMembers as uiSetBubbleMembers, updateBubbleOutline as uiUpdateBubbleOutline } from '../ui/bubbles';
+import { setBubbleMembers as uiSetBubbleMembers } from '../ui/bubbles';
 import { ensureRecenterUi as camEnsureRecenterUi, updateRecenterUiVisibility as camUpdateRecenterUiVisibility, recenterCamera as camRecenterCamera } from '../camera/recenterUi';
 import { setCollisionVisible as colSetVisible, updateCollisionOverlay as colUpdateOverlay } from '../collision/overlay';
-import { ensureCollisionCollider as colEnsureCollider, rebuildStaticColliders as colRebuildStatic } from '../collision/collider';
+import { ensureCollisionCollider as colEnsureCollider, rebuildStaticColliders as colRebuildStaticColliders } from '../collision/collider';
 // Old editor imports removed - now using EditorRenderer and EditorService
 // import { setEditorAssets as edSetAssets, setAssetPreview as edSetPreview } from '../editor/assets';
 // import { applyTerrainPaint as edApplyTerrainPaint, eraseTerrainRect as edEraseTerrainRect, applyTilePaint as edApplyTilePaint, ensureTerrainTilesetFor as edEnsureTerrainTilesetFor } from '../editor/painting';
@@ -27,17 +27,12 @@ export class MainScene extends Phaser.Scene {
   private zoneG?: Phaser.GameObjects.Graphics;
   private zonesVisible: boolean = true;
   private spawnG?: Phaser.GameObjects.Graphics;
-  private editorSprites: Map<string, Phaser.GameObjects.Image> = new Map();
-  private pendingTextures: Set<string> = new Set();
   private selectionG?: Phaser.GameObjects.Graphics;
   private mapRef?: Phaser.Tilemaps.Tilemap;
   private editorGround?: Phaser.Tilemaps.TilemapLayer;
   private wallsLayer?: Phaser.Tilemaps.TilemapLayer;
   private collisionLayer?: Phaser.Tilemaps.TilemapLayer;
-  private staticColliders?: Phaser.Physics.Arcade.StaticGroup;
   private dynamicTilesets: Map<string, Phaser.Tilemaps.Tileset> = new Map();
-  private collisionOverlay?: Phaser.GameObjects.Graphics;
-  private collisionVisible = false;
   private hoveredSprite: Phaser.GameObjects.Sprite | null = null;
   private hoverOutline?: Phaser.GameObjects.Graphics;
   private bubbleOutlines: Map<string, Phaser.GameObjects.Graphics> = new Map();
@@ -48,7 +43,6 @@ export class MainScene extends Phaser.Scene {
   private doNotDisturb = false;
   // Camera & interaction additions
   private manualCameraActive = false;
-  private recenterUi?: Phaser.GameObjects.Container;
   private panState: { isPanning: boolean; lastX: number; lastY: number } = { isPanning: false, lastX: 0, lastY: 0 };
   private spaceKey?: Phaser.Input.Keyboard.Key;
   private leftDragCandidate: { active: boolean; startX: number; startY: number } | null = null;
@@ -59,72 +53,22 @@ export class MainScene extends Phaser.Scene {
   private labelCamera?: Phaser.Cameras.Scene2D.Camera;
   private labelLayer?: Phaser.GameObjects.Layer;
   private ghostSprite?: Phaser.GameObjects.Image;
-  private ghostTextureKey?: string;
-  private terrainTilesetSources: Map<string, string> = new Map();
-  private editorCurrentTool: 'terrain' | 'collision' | 'erase' | 'select' = 'select';
   // v2
   private v2?: { state: V2State; firstGids: number[]; chunkSize: number };
   private loadedChunks: Set<string> = new Set();
-  private heroVsTilesCollider?: Phaser.Physics.Arcade.Collider;
-  private currentMapName: string = (typeof window !== 'undefined' && (((window as any).__map_name) || (window as any).MAP_NAME)) || 'office';
-  // Debounced Editor-Layer Autosave
-  private editorSaveTimer: number | null = null as any;
   private systems: GameSystem[] = [];
-
-  private ensureEditorLayers() {
-    if (!this.mapRef) return;
-    // Wähle irgendein verfügbares Tileset
-    const anyTileset = (() => {
-      const dyn = Array.from(this.dynamicTilesets.values());
-      if (dyn.length > 0) return dyn[0];
-      if (this.mapRef!.tilesets && this.mapRef!.tilesets.length > 0) return this.mapRef!.tilesets[0];
-      return null;
-    })();
-    if (!anyTileset) return;
-    try {
-      if (!this.editorGround) {
-        const l = this.mapRef.createBlankLayer('EditorGround', anyTileset, 0, 0, this.mapRef.width, this.mapRef.height, this.mapRef.tileWidth, this.mapRef.tileHeight);
-        this.editorGround = l as any;
-        try { this.editorGround?.setDepth(1); } catch {}
-      }
-    } catch {}
-    try {
-      if (!this.wallsLayer) {
-        const l = this.mapRef.createBlankLayer('EditorWalls', anyTileset, 0, 0, this.mapRef.width, this.mapRef.height, this.mapRef.tileWidth, this.mapRef.tileHeight);
-        this.wallsLayer = l as any;
-        try { this.wallsLayer?.setDepth(2); } catch {}
-      }
-    } catch {}
-    try {
-      if (!this.collisionLayer) {
-        const l = this.mapRef.createBlankLayer('Collision', anyTileset, 0, 0, this.mapRef.width, this.mapRef.height, this.mapRef.tileWidth, this.mapRef.tileHeight);
-        this.collisionLayer = l as any;
-        try { this.collisionLayer?.setVisible(false); } catch {}
-      }
-    } catch {}
-  }
-
-  private async waitForTilesetsReady(requiredKeys: string[], timeoutMs: number = 1500): Promise<void> {
-    const start = Date.now();
-    return new Promise((resolve) => {
-      const check = () => {
-        try {
-          const allReady = requiredKeys.every((k) => {
-            if (!k) return true;
-            const inDyn = this.dynamicTilesets.has(k);
-            const inMap = !!this.mapRef?.tilesets?.find(t => t.name === k);
-            return inDyn || inMap;
-          });
-          if (allReady || Date.now() - start > timeoutMs) {
-            resolve();
-            return;
-          }
-        } catch {}
-        setTimeout(check, 50);
-      };
-      check();
-    });
-  }
+  // Map name for server sync
+  public currentMapName: string = (typeof window !== 'undefined' && (((window as any).__map_name) || (window as any).MAP_NAME)) || 'office';
+  // Terrain tileset sources for editor
+  public terrainTilesetSources: Map<string, string> = new Map();
+  // Collision overlay visibility
+  public collisionVisible: boolean = false;
+  // Collision overlay graphics
+  public collisionOverlay?: Phaser.GameObjects.Graphics;
+  // Editor sprites map (for assets-temp.ts)
+  public editorSprites: Map<string, Phaser.GameObjects.Image> = new Map();
+  // Pending textures set (for assets-temp.ts)
+  public pendingTextures: Set<string> = new Set();
 
   constructor() {
     super('Main');
@@ -377,6 +321,8 @@ export class MainScene extends Phaser.Scene {
     this.physics.world.setBounds(0, 0, map.widthInPixels, map.heightInPixels);
     // Get initial position from global window object (set by App.tsx after DB load)
     const initialPos = (window as any).initialPlayerPosition || { x: 80, y: 120 };
+    // DEBUG: Position beim Spawn
+    console.log('[MainScene] Spawning hero at:', JSON.stringify(initialPos), 'window.initialPlayerPosition:', JSON.stringify((window as any).initialPlayerPosition));
     this.hero = this.physics.add.sprite(initialPos.x, initialPos.y, 'hero_walk_down', 0);
     // Ensure arcade body configured for reliable collisions
     try {
@@ -531,8 +477,11 @@ export class MainScene extends Phaser.Scene {
       }
     });
     
-    // Track current direction
+    // Track current direction and last position for change detection
     let currentDirection: 'up' | 'down' | 'left' | 'right' = 'down';
+    let lastReportedX = this.hero.x;
+    let lastReportedY = this.hero.y;
+    let lastReportedDirection: string = currentDirection;
     // Defensive cleanup: if any remote for self was created before localSessionId was known, remove it now
     try {
       const selfId = (typeof window !== 'undefined' ? (window as any).__localSessionId : undefined);
@@ -602,7 +551,16 @@ export class MainScene extends Phaser.Scene {
         this.hero.setTexture(base[currentDirection] || 'hero_walk_down', 0);
       }
 
-      gameBridge.onLocalMove({ x: this.hero.x, y: this.hero.y, direction: currentDirection });
+      // Nur onLocalMove aufrufen, wenn sich Position oder Richtung geändert hat
+      const positionChanged = Math.abs(this.hero.x - lastReportedX) > 0.5 || Math.abs(this.hero.y - lastReportedY) > 0.5;
+      const directionChanged = currentDirection !== lastReportedDirection;
+      
+      if (positionChanged || directionChanged) {
+        lastReportedX = this.hero.x;
+        lastReportedY = this.hero.y;
+        lastReportedDirection = currentDirection;
+        gameBridge.onLocalMove({ x: this.hero.x, y: this.hero.y, direction: currentDirection });
+      }
       
       // Update hero name label position
       if (this.heroNameLabel) {
@@ -848,10 +806,6 @@ export class MainScene extends Phaser.Scene {
       // try { this.saveEditorLayers(); } catch {}
       try { gameBridge.setSceneApi(null); } catch {}
     });
-  }
-
-  setEditorTool(tool: 'terrain' | 'collision' | 'erase' | 'select') {
-    this.editorCurrentTool = tool;
   }
 
   private ensureRecenterUi() {
@@ -1298,18 +1252,12 @@ export class MainScene extends Phaser.Scene {
   // Neues Terrain-Painting: benutzt Ghost/Preview wie Objekte, schreibt aber in EditorGround/Walls
   async applyTerrainPaint(edit: { rect: { startX: number; startY: number; endX: number; endY: number }; dataUrl: string; attempt?: number }) {
     // TODO: Integrate with new Editor system
-    console.log('[MainScene] applyTerrainPaint called (stub)', edit.rect);
+    console.log('[MainScene] applyTerrainPaint called (stub)', edit.rect, edit.dataUrl.substring(0, 30));
   }
 
   eraseTerrainRect(rect: { startX: number; startY: number; endX: number; endY: number }) {
     // TODO: Integrate with new Editor system
     console.log('[MainScene] eraseTerrainRect called (stub)', rect);
-  }
-
-  private async ensureTerrainTilesetFor(dataUrl: string): Promise<string | null> {
-    // TODO: Integrate with new Editor system
-    console.log('[MainScene] ensureTerrainTilesetFor called (stub)');
-    return null;
   }
 
   setSelectionRect(rect: { x: number; y: number; w: number; h: number } | null) {
@@ -1333,23 +1281,13 @@ export class MainScene extends Phaser.Scene {
 
   applyTilePaint(edit: { layer: 'EditorGround' | 'EditorWalls' | 'Collision'; tilesetKey: string; tileIndex: number; rect: { startX: number; startY: number; endX: number; endY: number } }) {
     // TODO: Integrate with new Editor system
-    // Silent stub
-  }
-
-  private saveEditorLayers() {
-    // DEPRECATED: No longer used with new EditorService
-    console.log('[MainScene] saveEditorLayers called (deprecated)');
+    console.log('[MainScene] applyTilePaint called (stub)', edit.layer, edit.rect);
   }
 
   // Unbedingtes Speichern der Editor-Layer zum Server (ohne Größenlimit)
   saveEditorLayersHard() {
     // DEPRECATED: No longer used with new EditorService
     console.log('[MainScene] saveEditorLayersHard called (deprecated)');
-  }
-
-  private loadEditorLayers() {
-    // DEPRECATED: No longer used with new EditorService
-    console.log('[MainScene] loadEditorLayers called (deprecated)');
   }
 
   reloadEditorLayers() {
@@ -1362,10 +1300,6 @@ export class MainScene extends Phaser.Scene {
     await mapFetchAndApply(this as any);
   }
 
-  private rebuildStaticColliders() {
-    colRebuildStatic(this as any);
-  }
-
   registerTileset(ts: { key: string; dataUrl: string; tileWidth: number; tileHeight: number; margin?: number; spacing?: number }) {
     mapRegisterTileset(this as any, ts);
   }
@@ -1373,17 +1307,9 @@ export class MainScene extends Phaser.Scene {
   setCollisionVisible(visible: boolean) {
     colSetVisible(this as any, visible);
   }
-
-  private updateCollisionOverlay() {
-    colUpdateOverlay(this as any);
-  }
   
   setBubbleMembers(members: Set<string>) {
     uiSetBubbleMembers(this as any, members);
-  }
-  
-  private updateBubbleOutline(id: string, sprite: Phaser.GameObjects.Sprite) {
-    uiUpdateBubbleOutline(this as any, id, sprite);
   }
   
   private createNameLabel(name: string, playerId?: string): Phaser.GameObjects.Container {
@@ -1454,6 +1380,56 @@ export class MainScene extends Phaser.Scene {
 
   private ensureCollisionCollider() {
     colEnsureCollider(this as any);
+  }
+
+  // Called by serverSync.ts after loading collision data
+  rebuildStaticColliders() {
+    colRebuildStaticColliders(this as any);
+  }
+
+  // Called by serverSync.ts - ensures editor layers exist (stub for v2)
+  ensureEditorLayers() {
+    // In v2, layers are already created in create() - this is a no-op
+    // Just ensure the layers exist and have proper tilesets
+    try {
+      const allTilesets = Array.from(this.dynamicTilesets.values());
+      if (this.mapRef) {
+        allTilesets.push(...this.mapRef.tilesets.filter(ts => !this.dynamicTilesets.has(ts.name)));
+      }
+      if (this.editorGround && allTilesets.length > 0) {
+        try { (this.editorGround as any).setTilesets?.(allTilesets); } catch {}
+      }
+      if (this.wallsLayer && allTilesets.length > 0) {
+        try { (this.wallsLayer as any).setTilesets?.(allTilesets); } catch {}
+      }
+      if (this.collisionLayer && allTilesets.length > 0) {
+        try { (this.collisionLayer as any).setTilesets?.(allTilesets); } catch {}
+      }
+    } catch (e) {
+      console.error('[MainScene] ensureEditorLayers failed', e);
+    }
+  }
+
+  // Called by serverSync.ts to update collision overlay
+  updateCollisionOverlay() {
+    colUpdateOverlay(this as any);
+  }
+
+  // Called by serverSync.ts - waits for tilesets to be loaded
+  async waitForTilesetsReady(keys: string[], timeoutMs: number = 1500): Promise<void> {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      let allReady = true;
+      for (const key of keys) {
+        if (!this.textures.exists(key)) {
+          allReady = false;
+          break;
+        }
+      }
+      if (allReady) return;
+      await new Promise(r => setTimeout(r, 50));
+    }
+    // Timeout reached, continue anyway
   }
 
   public updateTilesetRegistry(registry: any[]) {

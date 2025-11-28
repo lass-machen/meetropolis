@@ -1,7 +1,7 @@
 const SIMPLE = (import.meta as any).env?.VITE_AV_SIMPLE === 'true';
 const ALLOW_RECONNECT = (import.meta as any).env?.VITE_AV_RECONNECT !== 'false';
-const AV_DEBUG = (import.meta as any).env?.VITE_AV_DEBUG === 'true' || false;
-import { Room, createLocalScreenTracks } from 'livekit-client';
+// AV_DEBUG is checked inline via (import.meta as any).env
+import { Room, createLocalScreenTracks, LocalVideoTrack } from 'livekit-client';
 import { joinLivekitRoom } from '../lib/livekit';
 import { avLog } from '../lib/avLog';
 import { onBubbleMembersUpdate, emitAudioTracksChanged } from '../lib/avEvents';
@@ -1301,12 +1301,19 @@ export class AVManager {
     }
   }
 
+  // Speichert Mic/Cam-Status vor DND, um ihn danach wiederherzustellen
+  private micBeforeDnd = false;
+  private camBeforeDnd = false;
+
   async setDoNotDisturb(enabled: boolean): Promise<void> {
     this.dnd = !!enabled;
     try { avLog('info', 'av.dnd.toggle', { enabled: this.dnd }, { identity: this.identity, roomName: this.currentName || undefined as any }); } catch {}
     const room: any = this.current as any;
     if (!room) return;
     if (this.dnd) {
+      // Vorherigen Mic/Cam-Status speichern BEVOR wir deaktivieren
+      this.micBeforeDnd = this.lastMicDesired;
+      this.camBeforeDnd = this.lastCamDesired;
       // Lokale Publishes stoppen
       try { await this.setMicrophoneEnabled(false); } catch {}
       try { await this.setCameraEnabled(false); } catch {}
@@ -1338,8 +1345,18 @@ export class AVManager {
         }
       } catch {}
     } else {
-      // Wiederherstellen
-      try { await this.restoreDesiredTracks(); } catch {}
+      // Wiederherstellen: Nutze gespeicherten Status vor DND, nicht lastMicDesired
+      // (das wurde durch setMicrophoneEnabled(false) auf false gesetzt)
+      try {
+        if (this.micBeforeDnd) {
+          this.lastMicDesired = true; // Setze zurück bevor wir aktivieren
+          await this.setMicrophoneEnabled(true);
+        }
+        if (this.camBeforeDnd) {
+          this.lastCamDesired = true;
+          await this.setCameraEnabled(true);
+        }
+      } catch {}
       try { this.applyDesiredSubscriptions(); } catch {}
       // Sofort: Remote-Audio auf 1 setzen (Bubble/Attenuation greift danach wieder)
       try {
@@ -1396,11 +1413,53 @@ export class AVManager {
       if (enabled) await this.ensurePermissions(true, false);
       return;
     }
-    // Wenn Signal nicht offen ist: pending setzen, Fast-Reconnect anstoßen und zurück
+    // Wenn Signal nicht offen ist: aggressives Recovery mit mehreren Versuchen
     if (!this.isSignalOpen()) {
-      this.pendingMic = enabled;
-      if (enabled) { try { this.ensureConnectedNow(); } catch {} }
-      return;
+      if (enabled) {
+        console.warn('[AV] Signal nicht offen - versuche Recovery für Mic-Aktivierung');
+        try { this.ensureConnectedNow(); } catch {}
+        
+        // Mehrere Versuche mit steigender Wartezeit
+        const retryDelays = [300, 600, 1500, 3000];
+        for (const delay of retryDelays) {
+          await new Promise<void>(resolve => setTimeout(resolve, delay));
+          if (this.isSignalOpen()) {
+            console.debug('[AV] Signal wiederhergestellt nach', delay, 'ms');
+            break;
+          }
+          // Nach jedem fehlgeschlagenen Versuch: Force-Reconnect
+          try { this.ensureConnectedNow(); } catch {}
+        }
+        
+        // Wenn nach allen Versuchen immer noch nicht offen: Force-Reconnect zum Room
+        if (!this.isSignalOpen() && this.currentName) {
+          console.warn('[AV] Signal nach Retries nicht offen - Force-Reconnect');
+          try {
+            const roomName = this.currentName;
+            await this.leave();
+            await new Promise<void>(r => setTimeout(r, 500));
+            await this.switchTo(roomName);
+            await this.waitForConnected(this.current as any, 5000).catch(() => {});
+          } catch (e) {
+            console.error('[AV] Force-Reconnect fehlgeschlagen', e);
+          }
+        }
+        
+        // Finaler Check: wenn jetzt offen, machen wir weiter; sonst pending
+        if (!this.isSignalOpen()) {
+          this.pendingMic = true;
+          // Letzter Retry nach 5 Sekunden
+          setTimeout(() => {
+            if (this.pendingMic && this.lastMicDesired) {
+              void this.setMicrophoneEnabled(true).catch(() => {});
+            }
+          }, 5000);
+          return;
+        }
+      } else {
+        this.pendingMic = false;
+        return;
+      }
     }
     this.pendingMic = false; // Clear pending flag when we have a room
     try {

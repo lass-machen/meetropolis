@@ -20,6 +20,10 @@ export type ApiPresence = {
 /**
  * Merge server-side recent presence list with currently online map (from live session),
  * returning a roster list sorted by online first and then name.
+ * 
+ * Einfache Logik:
+ * 1. Alle User aus der API sind erstmal offline (mit lastSeen)
+ * 2. Online-User aus der Live-Session werden als online markiert
  */
 export function mergeRecentPresence(
   previous: RosterItem[],
@@ -27,31 +31,33 @@ export function mergeRecentPresence(
   apiData: ApiPresence[]
 ): RosterItem[] {
   const map = new Map<string, RosterItem>();
-  const onlineCount = Object.keys(onlineByIdentity || {}).length;
-  const shouldFlipOffline = onlineCount > 0;
-  // Bewusstes Entprellen: Wenn die Online-Map leer ist (z. B. kurzzeitiger Disconnect),
-  // behalten wir den bisherigen Online-Status bei, statt alles sofort auf offline zu setzen.
-  for (const r of previous) {
-    map.set(r.identity, shouldFlipOffline ? { ...r, online: false } : { ...r });
-  }
 
+  // 1. Alle User aus der API einfügen (erstmal offline)
   for (const p of apiData || []) {
     const ident = String(p.userId || (p.user && p.user.id) || '');
     const name = String((p.user && (p.user.name || p.user.email)) || ident);
     if (!ident) continue;
-    const prev = map.get(ident);
-    const base: RosterItem = prev || { identity: ident, name, online: false };
-    const nextLastSeen = p.updatedAt ?? base.lastSeen;
-    map.set(ident, {
-      ...base,
-      ...(nextLastSeen ? { lastSeen: nextLastSeen } : {}),
-    });
+    const item: RosterItem = {
+      identity: ident,
+      name,
+      online: false,
+    };
+    if (p.updatedAt) item.lastSeen = p.updatedAt;
+    map.set(ident, item);
   }
 
-  for (const [ident, v] of Object.entries(onlineByIdentity)) {
-    const prevItem = map.get(ident);
-    if (prevItem) {
-      map.set(ident, { identity: ident, name: v.name, online: true, x: v.x, y: v.y, ...(prevItem.lastSeen ? { lastSeen: prevItem.lastSeen } : {}) });
+  // 2. Vorherige Einträge übernehmen (für User die noch nicht in der API sind)
+  for (const r of previous) {
+    if (!map.has(r.identity)) {
+      map.set(r.identity, { ...r, online: false });
+    }
+  }
+
+  // 3. Online-User markieren
+  for (const [ident, v] of Object.entries(onlineByIdentity || {})) {
+    const existing = map.get(ident);
+    if (existing) {
+      map.set(ident, { ...existing, name: v.name || existing.name, online: true, x: v.x, y: v.y });
       continue;
     }
     // Name-based fallback: match by equal lowercased name if identity differs (legacy clients)

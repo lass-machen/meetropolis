@@ -14,7 +14,6 @@ import { Overlays } from '../layout/Overlays';
 import { useParticipants } from '../../features/participants/useParticipants';
 // presence merge now used via useRosterPresence hook
 import { useRosterPresence } from '../../features/roster/useRosterPresence';
-import { mergeRecentPresence, type ApiPresence } from '../../features/participants/presence';
 import { EditorWindow } from '../../features/editor/EditorWindow';
 // useEditorPointer removed - now handled by EditorInputHandler in MainScene
 // HudPanel moved into Overlays
@@ -50,7 +49,6 @@ import { ConnectionBanner } from '../../ui/system/ConnectionBanner';
 export function WorldApp() {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const colyseusRef = useRef<any>(null);
-  const colyseusReconnectAttemptsRef = useRef(0);
   const colyseusReconnectTimerRef = useRef<any>(null);
   // Reconnect-Handling liegt im WorldRoom-Hook
   const avRef = useRef<AVManager | null>(null);
@@ -118,7 +116,6 @@ export function WorldApp() {
   // Roster: periodisch letzte Präsenz (für Offline/"zuletzt online")
   // HTTP-Poll für Presence deaktivieren – wir nutzen WS-Push (presence_recent/presence_update)
   useRosterPresence({ apiBase, authChecked, meId: me?.id ?? null, rosterByIdentityRef, setRoster, avRef, enablePoll: false });
-  const recentPresenceRef = React.useRef<ApiPresence[]>([]);
   // Grid Overlay expand/collapse + selection
   const [gridExpanded, setGridExpanded] = React.useState(false);
   const [selectedSid, setSelectedSid] = React.useState<string | null>(null);
@@ -181,16 +178,7 @@ export function WorldApp() {
   // Debounce: Teilnehmerliste nur 1x pro Tick/kurzem Intervall neu bauen
   const buildListTimerRef = React.useRef<any>(null);
   const buildListRafRef = React.useRef<number | null>(null);
-  const scheduleBuildParticipantList = React.useCallback((delay: number = 100) => {
-    if (buildListTimerRef.current || buildListRafRef.current !== null) return;
-    buildListTimerRef.current = setTimeout(() => {
-      buildListTimerRef.current = null;
-      buildListRafRef.current = requestAnimationFrame(() => {
-        buildListRafRef.current = null;
-        try { buildParticipantListHook(); } catch {}
-      });
-    }, Math.max(0, delay));
-  }, [buildParticipantListHook]);
+  // scheduleBuildParticipantList is used in useWorldRoom hook via buildParticipantListHook
   React.useEffect(() => {
     return () => {
       try { if (buildListTimerRef.current) clearTimeout(buildListTimerRef.current); } catch {}
@@ -443,7 +431,7 @@ export function WorldApp() {
         { key: 'decor_tiles', dataUrl: '/assets/tilesets/decor_tiles.png', tileWidth: 16, tileHeight: 16, category: 'objects' },
       ];
       (window as any).pendingTilesets = defaultTs;
-      setEditor(s => ({ ...s, tilesets: defaultTs, tilePaint: { ...(s.tilePaint as any), tilesetKey: s.tilePaint?.tilesetKey || 'office_tiles' } }));
+      setEditor(s => ({ ...s, tilesets: defaultTs }));
       
       // Registrierung SEQUENTIELL (nicht parallel!) um Race Condition zu vermeiden
       (async () => {
@@ -611,8 +599,6 @@ export function WorldApp() {
     // Suppression-Flag für Zonen-Broadcast (verhindert Echo bei eingehenden Updates)
   }, []);
 
-  const suppressZoneBroadcastRef = React.useRef(false);
-
   useEffect(() => {
     if (!authChecked || !me) return;
     if (!containerRef.current) return;
@@ -621,16 +607,64 @@ export function WorldApp() {
     gameCreatedRef.current = true;
     // Ensure container is clean before creating a new Phaser instance
     try { const el = containerRef.current; while (el && el.firstChild) { el.removeChild(el.firstChild); } } catch {}
-    const game = createPhaserGame(containerRef.current);
 
     // Colyseus-Verbindung wird exklusiv im useWorldRoom-Hook aufgebaut
-    let disposed = false;
 
+    // WICHTIG: Manager und Handler VOR Phaser erstellen, damit onLocalMove bereit ist
     bubbleRef.current = new BubbleManager(64, null);
     followRef.current = new FollowManager(96);
     zoneRef.current = new ZoneManager([], null);
     // Seed Zonen sofort, auch wenn der Editor bisher nie geöffnet war
     try { zoneRef.current.setZones(editor.zones as any); } catch {}
+    
+    // WICHTIG: savePosition muss VOR onLocalMove definiert werden (kein Hoisting bei const)
+    const savePosition = async (opts?: { immediate?: boolean }) => {
+      const currentPos = localPosRef.current;
+      const currentDirection = (gameBridge as any).lastDirection || 'down';
+      const last = lastSavedPositionRef.current;
+      
+      const hasMoved = currentPos.x && currentPos.y && (
+        Math.abs(currentPos.x - last.x) > 10 ||
+        Math.abs(currentPos.y - last.y) > 10 ||
+        currentDirection !== last.direction
+      );
+      
+      if (!hasMoved && !opts?.immediate) return;
+      
+      // DEBUG: Position wird gespeichert
+      console.log('[savePosition] Saving - currentPos:', JSON.stringify(currentPos), 'hasMoved:', hasMoved);
+      
+      // Update ref immediately
+      lastSavedPositionRef.current = { 
+        x: currentPos.x || last.x, 
+        y: currentPos.y || last.y, 
+        direction: currentDirection 
+      };
+      
+      const payload = JSON.stringify({ 
+        x: Math.round(lastSavedPositionRef.current.x), 
+        y: Math.round(lastSavedPositionRef.current.y), 
+        direction: lastSavedPositionRef.current.direction 
+      });
+      
+      try {
+        if (opts?.immediate && 'sendBeacon' in navigator) {
+          const blob = new Blob([payload], { type: 'application/json' });
+          (navigator as any).sendBeacon?.(`${apiBase}/auth/position`, blob);
+        } else {
+          await fetch(`${apiBase}/auth/position`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            keepalive: !!opts?.immediate,
+            body: payload
+          });
+        }
+      } catch (e) {
+        console.error('[savePosition] Failed to save:', e);
+      }
+    };
+    
     // Stelle sicher, dass ZoneManager initial eine Position bekommt, auch bevor Colyseus onLocalMove feuert
     let lastZone: string | null = null;
     gameBridge.onLocalMove = (p) => {
@@ -730,6 +764,10 @@ export function WorldApp() {
         moveTimeoutRef.current = null;
       }, 1000);
     };
+    
+    // JETZT erst Phaser erstellen - nachdem gameBridge.onLocalMove gesetzt ist
+    const game = createPhaserGame(containerRef.current);
+    
     volumeRef.current = new VolumeManager(
       { 
         setParticipantVolume: (colyseusId, vol) => {
@@ -743,7 +781,11 @@ export function WorldApp() {
       {
         getLocal: () => {
           // Return Colyseus ID for volume calculations
-          return localPosRef.current.id ? { id: localPosRef.current.id, x: localPosRef.current.x, y: localPosRef.current.y } : null;
+          const pos = localPosRef.current;
+          if (pos.id && typeof pos.x === 'number' && typeof pos.y === 'number') {
+            return { id: pos.id, x: pos.x, y: pos.y };
+          }
+          return null;
         },
         getRemotes: () => {
           // Always return all remotes - DND is handled in VolumeManager
@@ -774,13 +816,6 @@ export function WorldApp() {
       setEditor(prev => {
         if (!prev.active) return prev;
         
-        // Grid snapping - align to 16x16 grid
-        // Since sprites are centered, we need to offset by half a tile
-        const GRID_SIZE = 16;
-        const HALF_GRID = GRID_SIZE / 2;
-        const snappedX = Math.floor(x / GRID_SIZE) * GRID_SIZE + HALF_GRID;
-        const snappedY = Math.floor(y / GRID_SIZE) * GRID_SIZE + HALF_GRID;
-        
         // Handle object deletion
         if (prev.tool === 'erase' && prev.category === 'objects') {
           // Find object at position
@@ -797,45 +832,8 @@ export function WorldApp() {
           return prev;
         }
         
-        // Handle object placement from tileset
-        if (prev.tool === 'asset' && prev.tilePaint && prev.category === 'objects') {
-          const tileset = prev.tilesets?.find(ts => ts.key === prev.tilePaint?.tilesetKey);
-          if (tileset) {
-            // Create a canvas to extract the specific tile
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            if (ctx) {
-              canvas.width = tileset.tileWidth;
-              canvas.height = tileset.tileHeight;
-              
-              const img = new Image();
-              img.onload = () => {
-                const margin = tileset.margin || 0;
-                const spacing = tileset.spacing || 0;
-                const cols = Math.floor((img.width - margin + spacing) / (tileset.tileWidth + spacing));
-                const tileIndex = prev.tilePaint?.tileIndex || 0;
-                const tx = tileIndex % cols;
-                const ty = Math.floor(tileIndex / cols);
-                const sx = margin + tx * (tileset.tileWidth + spacing);
-                const sy = margin + ty * (tileset.tileHeight + spacing);
-                
-                ctx.drawImage(img, sx, sy, tileset.tileWidth, tileset.tileHeight, 0, 0, tileset.tileWidth, tileset.tileHeight);
-                
-                const tileDataUrl = canvas.toDataURL();
-                const id = `${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
-                const asset = { id, key: `${tileset.key}:${tileIndex}:${id}`, dataUrl: tileDataUrl, x: snappedX, y: snappedY };
-                
-                setEditor(s => {
-                  const assets = [...s.assets, asset];
-                  // gameBridge.setEditorAssets wird automatisch durch EditorService-Subscription aufgerufen
-                  return { ...s, assets };
-                });
-              };
-              img.src = tileset.dataUrl;
-            }
-          }
-          return prev;
-        }
+        // Asset placement is now handled via EditorService.dispatch('PLACE_ASSET')
+        // Legacy tilePaint-based placement has been removed
         
         // Legacy Asset-Placement deaktiviert; Editor nutzt tile-basierte Platzierung
         return prev;
@@ -853,142 +851,7 @@ export function WorldApp() {
     };
     // Tile-basierte Pointer-Events werden jetzt in EditorInputHandler gebunden
 
-    const savePosition = async (opts?: { immediate?: boolean }) => {
-      const currentPos = localPosRef.current;
-      const currentDirection = (gameBridge as any).lastDirection || 'down';
-      const last = lastSavedPositionRef.current;
-      
-      const hasMoved = currentPos.x && currentPos.y && (
-        Math.abs(currentPos.x - last.x) > 10 ||
-        Math.abs(currentPos.y - last.y) > 10 ||
-        currentDirection !== last.direction
-      );
-      
-      if (!hasMoved && !opts?.immediate) return;
-      
-      // Update ref immediately
-      lastSavedPositionRef.current = { 
-        x: currentPos.x || last.x, 
-        y: currentPos.y || last.y, 
-        direction: currentDirection 
-      };
-      
-      const payload = JSON.stringify({ 
-        x: Math.round(lastSavedPositionRef.current.x), 
-        y: Math.round(lastSavedPositionRef.current.y), 
-        direction: lastSavedPositionRef.current.direction 
-      });
-      
-      try {
-        if (opts?.immediate && 'sendBeacon' in navigator) {
-          const blob = new Blob([payload], { type: 'application/json' });
-          (navigator as any).sendBeacon?.(`${apiBase}/auth/position`, blob);
-        } else {
-          await fetch(`${apiBase}/auth/position`, {
-            method: 'POST',
-            credentials: 'include',
-            headers: { 'Content-Type': 'application/json' },
-            // keepalive erlaubt Senden bei pagehide/unload
-            keepalive: !!opts?.immediate,
-            body: payload
-          });
-        }
-      } catch {}
-    };
-    
-    // onLocalMove bereits oben gesetzt und beinhaltet Debounce-Speichern -> Update logic there
-    // Wir müssen den Handler oben patchen, um die neuen Refs zu nutzen!
-    
-    // RE-DEFINE onLocalMove here to close over the Refs correctly
-    gameBridge.onLocalMove = (p) => {
-      localPosRef.current.x = p.x;
-      localPosRef.current.y = p.y;
-      (gameBridge as any).lastDirection = p.direction;
-      zoneRef.current?.update({ x: p.x, y: p.y });
-      // Bubble: Ankunft direkt beim Movement prüfen
-      try {
-        const pending = bubblePendingRef.current;
-        if (pending) {
-          let arrived = false;
-          if (pending.dest) {
-            const dx = (p.x || 0) - pending.dest.x;
-            const dy = (p.y || 0) - pending.dest.y;
-            arrived = (dx * dx + dy * dy) < 12 * 12;
-          }
-          if (!arrived) {
-            const t = remotesRef.current[pending.targetId];
-            if (t) {
-              const dx = (p.x || 0) - t.x;
-              const dy = (p.y || 0) - t.y;
-              arrived = (dx * dx + dy * dy) < 20 * 20;
-            }
-          }
-          if (arrived) {
-            try { followRef.current?.stop?.(); } catch {}
-            try { gameBridge.setDesiredPosition(null); } catch {}
-            try { activateBubbleNowRef.current(pending.targetId); } catch {}
-            bubblePendingRef.current = null;
-          }
-        }
-      } catch {}
-      
-      // Check if zone changed
-      const zones = zoneRef.current?.getZones?.() || [];
-      const currentZone = zones.find(z => pointInPolygon({ x: p.x, y: p.y }, z.points));
-      const currentZoneName = currentZone?.name || null;
-      
-      if (currentZoneName !== lastZone) {
-        lastZone = currentZoneName;
-        setTimeout(buildParticipantList, 50);
-        applyVolumesToUi();
-      }
-      
-      if (followRef.current) {
-        const f = followRef.current.update({ x: p.x, y: p.y }, remotesRef.current);
-        if (!bubblePendingRef.current) {
-          if (f.following) {
-            gameBridge.setDesiredPosition({ x: f.x, y: f.y });
-          } else {
-            const target = manualNavRef.current;
-            if (target) {
-              const dx = (target.x ?? 0) - p.x;
-              const dy = (target.y ?? 0) - p.y;
-              const dist = Math.hypot(dx, dy);
-              if (dist <= 12) {
-                manualNavRef.current = null;
-                gameBridge.setDesiredPosition(null);
-              } else {
-                gameBridge.setDesiredPosition({ x: target.x, y: target.y });
-              }
-            } else {
-              gameBridge.setDesiredPosition(null);
-            }
-          }
-        } else if (f.following) {
-          gameBridge.setDesiredPosition({ x: f.x, y: f.y });
-        }
-      }
-      
-      try {
-        const room: any = colyseusRef.current as any;
-        const isOpen = room?.connection?.isOpen === true || room?.connection?.ws?.readyState === 1;
-        if (room && isOpen) {
-          room.send('move', p);
-        }
-      } catch (e) {}
-      
-      // Debounced position save
-      if (moveTimeoutRef.current) {
-        clearTimeout(moveTimeoutRef.current);
-      }
-      moveTimeoutRef.current = setTimeout(() => {
-        void savePosition();
-        moveTimeoutRef.current = null;
-      }, 1000);
-    };
-
     return () => {
-      disposed = true;
       try { gameBridge.setSceneApi?.(null); } catch {}
       destroyPhaserGame(game);
       // Remove any leftover canvases to free WebGL contexts

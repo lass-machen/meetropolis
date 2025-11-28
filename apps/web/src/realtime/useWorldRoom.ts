@@ -83,7 +83,13 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
 
     const scheduleReconnect = () => {
       if (disposed) return;
-      try { setConnectionStatus?.((s) => ({ reconnecting: true, lastCode: lastCloseInfoRef.current.code, lastReason: lastCloseInfoRef.current.reason })); } catch {}
+      try { 
+        const { code, reason } = lastCloseInfoRef.current;
+        const status: { reconnecting: boolean; lastCode?: number; lastReason?: string } = { reconnecting: true };
+        if (code !== undefined) status.lastCode = code;
+        if (reason !== undefined) status.lastReason = reason;
+        setConnectionStatus?.(status); 
+      } catch {}
       try { (window as any).__wsReconnects = ((window as any).__wsReconnects || 0) + 1; } catch {}
       const now = Date.now();
       if (coolDownUntilRef.current > now) {
@@ -120,9 +126,14 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
       connectingRef.current = true;
       try {
         // Server entscheidet über Default-Spawn: keine LocalStorage-Spawninjektion mehr
-        const positionToUse = localPosRef.current && (localPosRef.current.x !== undefined && localPosRef.current.y !== undefined)
-          ? localPosRef.current
-          : undefined;
+        const positionToUse: { x: number; y: number; direction?: string } | undefined = 
+          localPosRef.current && typeof localPosRef.current.x === 'number' && typeof localPosRef.current.y === 'number'
+            ? { x: localPosRef.current.x, y: localPosRef.current.y }
+            : undefined;
+        // Position wird beim Join an Server gesendet
+        if (positionToUse) {
+          console.log('[useWorldRoom] Joining with saved position:', positionToUse.x, positionToUse.y);
+        }
         const room = await joinWorld(
           apiBase,
           me.id,
@@ -132,7 +143,7 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
         if (disposed) { try { room.leave(); } catch {} return; }
         colyseusRef.current = room;
         reconnectAttemptsRef.current = 0;
-        try { setConnectionStatus?.({ reconnecting: false, lastCode: undefined, lastReason: undefined }); } catch {}
+        try { setConnectionStatus?.({ reconnecting: false }); } catch {}
         connectingRef.current = false;
 
         const localLivekitIdentity = avRef.current?.room?.localParticipant?.identity || me.id;
@@ -605,7 +616,11 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
           scheduleReconnect();
         });
         room.onLeave?.((code?: number) => {
-          try { lastCloseInfoRef.current = { code, reason: undefined }; } catch {}
+          try { 
+            const info: { code?: number; reason?: string } = {};
+            if (code !== undefined) info.code = code;
+            lastCloseInfoRef.current = info; 
+          } catch {}
           colyseusRef.current = null;
           connectingRef.current = false;
           scheduleReconnect();
@@ -615,7 +630,7 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
           const msg = (err && (err.message || err.toString?.())) || '';
           if (String(msg).toLowerCase().includes('insufficient resources')) {
             coolDownUntilRef.current = Date.now() + 60_000;
-            lastCloseInfoRef.current = { code: undefined, reason: 'Insufficient resources' };
+            lastCloseInfoRef.current = { reason: 'Insufficient resources' };
           }
         } catch {}
         connectingRef.current = false;
@@ -628,7 +643,7 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
     return () => {
       disposed = true;
       try { if (args.disposedRef) args.disposedRef.current = true; } catch {}
-      try { setConnectionStatus?.({ reconnecting: false, lastCode: undefined, lastReason: undefined }); } catch {}
+      try { setConnectionStatus?.({ reconnecting: false }); } catch {}
       try {
         const room: any = colyseusRef.current;
         const wsReadyState = room?.connection?.ws?.readyState ?? room?.connection?.transport?.ws?.readyState ?? room?.connection?._transport?.ws?.readyState;

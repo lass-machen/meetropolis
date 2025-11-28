@@ -51,10 +51,10 @@ function DeviceSelector(props: {
       {open && (
         <div style={{
           position: 'absolute', bottom: '100%', left: '50%', transform: 'translateX(-50%)', marginBottom: 8,
-          background: 'rgba(17,17,20,0.96)', color: '#fff',
-          border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12,
+          background: 'var(--panel-bg)', color: 'var(--panel-fg)',
+          border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)',
           padding: 4, display: 'grid', gap: 2, minWidth: 220,
-          boxShadow: '0 12px 40px rgba(0,0,0,0.45)', backdropFilter: 'blur(6px)', zIndex: 1000
+          boxShadow: 'var(--shadow)', backdropFilter: 'blur(12px)', zIndex: 1000
         }}>
           <div style={{ padding: '4px 8px', fontSize: 11, color: 'var(--fg-subtle)', fontWeight: 600 }}>
             {labelSelect}
@@ -70,7 +70,7 @@ function DeviceSelector(props: {
               onClick={() => { onSelect(d.id); setOpen(false); }}
               className={`device-selector-item ${d.id === selectedId ? 'selected' : ''}`}
             >
-              {d.id === selectedId && <FAIcon name="check" size="xs" style={{ color: '#22d3ee' }} />}
+              {d.id === selectedId && <FAIcon name="check" size="xs" style={{ color: 'var(--speaking-color)' }} />}
               <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.label}</span>
             </button>
           ))}
