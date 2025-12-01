@@ -1306,10 +1306,18 @@ export class AVManager {
   private camBeforeDnd = false;
 
   async setDoNotDisturb(enabled: boolean): Promise<void> {
+    const room: any = this.current as any;
+    // Wenn kein Room: versuche Reconnect, aber setze DND-Status trotzdem
+    if (!room) {
+      console.warn('[AV] setDoNotDisturb: No room available, attempting reconnect');
+      // DND-Status trotzdem setzen für UI-Konsistenz
+      this.dnd = !!enabled;
+      // Versuche Reconnect
+      try { await this.ensureConnectedNow(); } catch {}
+      return;
+    }
     this.dnd = !!enabled;
     try { avLog('info', 'av.dnd.toggle', { enabled: this.dnd }, { identity: this.identity, roomName: this.currentName || undefined as any }); } catch {}
-    const room: any = this.current as any;
-    if (!room) return;
     if (this.dnd) {
       // Vorherigen Mic/Cam-Status speichern BEVOR wir deaktivieren
       this.micBeforeDnd = this.lastMicDesired;

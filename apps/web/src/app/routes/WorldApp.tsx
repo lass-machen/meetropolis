@@ -1267,11 +1267,29 @@ export function WorldApp() {
                       } catch (e) { }
                     }}
                     onToggleDnd={async () => {
-                      const next = !avState.dnd;
-                      try { await avRef.current?.setDoNotDisturb(next); } catch { }
+                      console.log('[DND] Button clicked!');
+                      // Lese echten DND-Status aus AVManager, nicht aus UI-State
+                      const avManager = avRef.current;
+                      const realDnd = !!(avManager as any)?.dnd;
+                      const next = !realDnd;
+                      console.log('[DND] Toggle:', { 
+                        realDnd, 
+                        next, 
+                        uiDnd: avState.dnd, 
+                        hasAvManager: !!avManager,
+                        hasRoom: !!(avManager as any)?.room,
+                        connectionState: (avManager as any)?.room?.state
+                      });
+                      try { 
+                        await avManager?.setDoNotDisturb(next); 
+                        console.log('[DND] setDoNotDisturb completed');
+                      } catch (e) { 
+                        console.error('[DND] setDoNotDisturb failed:', e);
+                      }
                       try { gameBridge.setDoNotDisturb(next); } catch { }
                       try { gameBridge.setMovementLocked(next); } catch { }
                       if (next) {
+                        // DND aktivieren: Alles stumm schalten
                         try { await avRef.current?.setMicrophoneEnabled(false); } catch { }
                         try { await avRef.current?.setCameraEnabled(false); } catch { }
                         try { await avRef.current?.stopScreenshare(); } catch { }
@@ -1287,9 +1305,29 @@ export function WorldApp() {
                             }
                           }
                         } catch { }
+                      } else {
+                        // DND deaktivieren: Remote-Lautstärken wiederherstellen
+                        try {
+                          const room: any = avRef.current?.room as any;
+                          if (room?.remoteParticipants) {
+                            const participants: any[] = Array.from((room.remoteParticipants as any).values());
+                            for (const p of participants) {
+                              const sid = (p as any)?.sid;
+                              if (sid) {
+                                try { avRef.current?.setParticipantVolume(sid, 1); } catch { }
+                              }
+                            }
+                          }
+                        } catch { }
+                        // Volume-Update triggern
+                        try { volumeRef.current?.update(); } catch { }
                       }
                       dndRef.current = next;
-                      setAvState(s => ({ ...s, dnd: next, mic: next ? false : s.mic, cam: next ? false : s.cam, share: next ? false : s.share }));
+                      console.log('[DND] Updating UI state to:', next);
+                      setAvState(s => {
+                        console.log('[DND] State update - old:', s.dnd, 'new:', next);
+                        return { ...s, dnd: next, mic: next ? false : s.mic, cam: next ? false : s.cam, share: next ? false : s.share };
+                      });
                       try { colyseusRef.current?.send?.('dnd_status', { dnd: next }); } catch { }
                       try { volumeRef.current?.update(); } catch { }
                       // Verifiziere echten Zustand nach kurzer Zeit und gleiche UI an

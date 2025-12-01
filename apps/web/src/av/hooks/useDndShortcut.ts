@@ -21,11 +21,15 @@ export function useDndShortcut({ enabled, dndRef, avRef, setAvState, colyseusRef
     const onKey = async (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'U' || e.key === 'u')) {
         e.preventDefault();
-        const next = !dndRef.current;
+        // Lese echten DND-Status aus AVManager
+        const realDnd = !!(avRef.current as any)?.dnd;
+        const next = !realDnd;
+        console.debug('[DND Shortcut] Toggle:', { realDnd, next, refDnd: dndRef.current });
         try { await avRef.current?.setDoNotDisturb(next); } catch {}
         try { gameBridge.setDoNotDisturb(next); } catch {}
         try { gameBridge.setMovementLocked(next); } catch {}
         if (next) {
+          // DND aktivieren
           try { avRef.current?.setMicrophoneEnabled(false); } catch {}
           try { avRef.current?.setCameraEnabled(false); } catch {}
           try { avRef.current?.stopScreenshare(); } catch {}
@@ -41,6 +45,21 @@ export function useDndShortcut({ enabled, dndRef, avRef, setAvState, colyseusRef
               }
             }
           } catch {}
+        } else {
+          // DND deaktivieren: Remote-Lautstärken wiederherstellen
+          try {
+            const room: any = avRef.current?.room as any;
+            if (room?.remoteParticipants) {
+              const participants: any[] = Array.from((room.remoteParticipants as any).values());
+              for (const p of participants) {
+                const sid = (p as any)?.sid;
+                if (sid) {
+                  try { avRef.current?.setParticipantVolume(sid, 1); } catch {}
+                }
+              }
+            }
+          } catch {}
+          try { volumeRef.current?.update(); } catch {}
         }
         dndRef.current = next;
         setAvState(s => ({ ...s, dnd: next, mic: next ? false : s.mic, cam: next ? false : s.cam, share: next ? false : s.share }));
