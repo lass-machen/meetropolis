@@ -1202,6 +1202,13 @@ export function WorldApp() {
                     selectedCamId={selectedCamId}
                     onToggleMic={async () => {
                       const enabled = !avState.mic;
+                      // AudioContext-Unlock bei User-Geste (Browser-Policy)
+                      try {
+                        const anyRoom: any = avRef.current?.room;
+                        if (anyRoom?.startAudio) await anyRoom.startAudio().catch(() => {});
+                        const ctx = anyRoom?.engine?.client?.audioContext || anyRoom?.engine?.audioContext;
+                        if (ctx?.state === 'suspended') await ctx.resume().catch(() => {});
+                      } catch {}
                       // Optimistisches UI-Update, Aktion im Hintergrund
                       setAvState(s => ({ ...s, mic: enabled }));
                       try {
