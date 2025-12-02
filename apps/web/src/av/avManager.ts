@@ -573,7 +573,7 @@ export class AVManager {
         const mod = await import('livekit-client');
         const RoomEvent = (mod as any).RoomEvent;
         if (RoomEvent) {
-          const onReconnected = () => { this.reconnectAttempts = 0; try { avLog('info', 'livekit.reconnected', {}, { identity: this.identity, roomName: this.currentName || undefined as any }); } catch {}; try { this.ensureSubscribeAllAudio(64); this.applyDesiredSubscriptions(); } catch {}; void this.restoreDesiredTracks(); };
+          const onReconnected = () => { this.reconnectAttempts = 0; try { avLog('info', 'livekit.reconnected', {}, { identity: this.identity, roomName: this.currentName || undefined as any }); } catch {}; try { this.ensureSubscribeAllAudio(64); this.applyDesiredSubscriptions(); } catch {}; void this.restoreDesiredTracks(); this.attachAudioUnlockHandlers(true); };
           const onDisconnected = () => { try { avLog('warn', 'livekit.disconnected', {}, { identity: this.identity, roomName: this.currentName || undefined as any }); } catch {}; this.setState('reconnecting'); try { this.controller?.setDisconnecting(this.isDisconnecting); this.controller?.setPageLeaving(this.pageLeaving); } catch {}; if (ALLOW_RECONNECT && this.controller?.shouldScheduleReconnect()) this.controller?.scheduleReconnect((n) => this.switchTo(n), () => this.currentName); else if (this.pageLeaving) { try { avLog('info', 'av.pageleave.blockReconnect', {}, { identity: this.identity, roomName: this.currentName || undefined as any }); } catch {} } };
           const onTrackPublished = (pub?: any, participant?: any) => { try {
             const src = (pub as any)?.source ?? (pub as any)?.track?.source;
@@ -744,7 +744,7 @@ export class AVManager {
           };
         } else {
           const r: any = room as any;
-          const onReconnected = () => { this.reconnectAttempts = 0; try { avLog('info', 'livekit.reconnected', {}, { identity: this.identity, roomName: this.currentName || undefined as any }); } catch {}; try { this.ensureSubscribeAllAudio(64); this.applyDesiredSubscriptions(); } catch {}; void this.restoreDesiredTracks(); };
+          const onReconnected = () => { this.reconnectAttempts = 0; try { avLog('info', 'livekit.reconnected', {}, { identity: this.identity, roomName: this.currentName || undefined as any }); } catch {}; try { this.ensureSubscribeAllAudio(64); this.applyDesiredSubscriptions(); } catch {}; void this.restoreDesiredTracks(); this.attachAudioUnlockHandlers(true); };
           const onDisconnected = () => { try { avLog('warn', 'livekit.disconnected', {}, { identity: this.identity, roomName: this.currentName || undefined as any }); } catch {}; this.setState('reconnecting'); try { this.controller?.setDisconnecting(this.isDisconnecting); this.controller?.setPageLeaving(this.pageLeaving); } catch {}; if (ALLOW_RECONNECT && this.controller?.shouldScheduleReconnect()) this.controller?.scheduleReconnect((n) => this.switchTo(n), () => this.currentName); else if (this.pageLeaving) { try { avLog('info', 'av.pageleave.blockReconnect', {}, { identity: this.identity, roomName: this.currentName || undefined as any }); } catch {} } };
           const onTrackPublished = (pub?: any, participant?: any) => { try {
             const src = (pub as any)?.source ?? (pub as any)?.track?.source;
@@ -1062,7 +1062,12 @@ export class AVManager {
 
   private async applyDefaultRemoteQuality(): Promise<void> { return applyDefaultRemoteQualityImpl(this as any); }
 
-  private attachAudioUnlockHandlers() {
+  private attachAudioUnlockHandlers(force = false) {
+    // Bei force=true (z.B. nach Reconnect) alte Handler entfernen und neu anbringen
+    if (force && this.removeAudioUnlockHandlers) {
+      try { this.removeAudioUnlockHandlers(); } catch {}
+      this.audioUnlockHandlersAttached = false;
+    }
     if (this.audioUnlockHandlersAttached) return;
     this.audioUnlockHandlersAttached = true;
     const handler = async () => {
