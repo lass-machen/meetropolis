@@ -162,7 +162,8 @@ export function registerApi(app: express.Express) {
   // Public Client Config (Auto-Discovery helper)
   app.get('/config', (_req: express.Request, res: express.Response) => {
     res.json({
-      livekitUrl: process.env.LIVEKIT_URL || 'ws://localhost:7880',
+      // Use LIVEKIT_EXTERNAL_URL for external clients (Tauri), fallback to LIVEKIT_URL
+      livekitUrl: process.env.LIVEKIT_EXTERNAL_URL || process.env.LIVEKIT_URL || 'ws://localhost:7880',
       billingEnabled: !!process.env.STRIPE_SECRET_KEY,
     });
   });
@@ -1634,7 +1635,8 @@ export function registerApi(app: express.Express) {
 
   app.get('/livekit/url', async (_req: express.Request, res: express.Response) => {
     // Return configured public LiveKit URL for clients
-    const url = process.env.LIVEKIT_URL || '';
+    // Use LIVEKIT_EXTERNAL_URL for external clients (Tauri), fallback to LIVEKIT_URL
+    const url = process.env.LIVEKIT_EXTERNAL_URL || process.env.LIVEKIT_URL || '';
     res.json({ url });
   });
 

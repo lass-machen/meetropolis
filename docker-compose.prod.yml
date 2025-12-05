@@ -66,6 +66,7 @@ services:
       TRUST_PROXY: 'true'
       DATABASE_URL: ${DATABASE_URL}
       LIVEKIT_URL: ${LIVEKIT_URL}
+      LIVEKIT_EXTERNAL_URL: ${LIVEKIT_EXTERNAL_URL:-${VITE_LIVEKIT_URL}}
       LIVEKIT_API_KEY: ${LIVEKIT_API_KEY}
       LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET}
       API_TOKEN_PEPPER: ${API_TOKEN_PEPPER}
@@ -163,11 +164,11 @@ services:
       - "traefik.http.middlewares.meetropolis-livekit-cors.headers.accesscontrolallowmethods=GET,OPTIONS,POST"
       - "traefik.http.middlewares.meetropolis-livekit-cors.headers.accesscontrolallowheaders=Origin,X-Requested-With,Content-Type,Accept,Authorization"
       - "traefik.http.middlewares.meetropolis-livekit-cors.headers.accesscontrolallowcredentials=true"
-      - "traefik.http.middlewares.meetropolis-livekit-cors.headers.accesscontrolalloworiginlist=https://${WEB_HOST}"
+      - "traefik.http.middlewares.meetropolis-livekit-cors.headers.accesscontrolalloworiginlist=https://${WEB_HOST},tauri://localhost"
       - "traefik.http.middlewares.meetropolis-livekit-cors.headers.accesscontrolmaxage=100"
       - "traefik.http.middlewares.meetropolis-livekit-cors.headers.addvaryheader=true"
       - "traefik.http.routers.meetropolis-livekit.middlewares=meetropolis-livekit-cors@docker"
-      - "traefik.http.middlewares.meetropolis-livekit-cors.headers.customResponseHeaders.Access-Control-Allow-Origin=https://${WEB_HOST}"
+      - "traefik.http.middlewares.meetropolis-livekit-cors.headers.customResponseHeaders.Access-Control-Allow-Origin=*"
       - "traefik.http.middlewares.meetropolis-livekit-cors.headers.customResponseHeaders.Access-Control-Allow-Credentials=true"
       - "traefik.http.middlewares.meetropolis-livekit-cors.headers.customResponseHeaders.Access-Control-Allow-Headers=Origin,X-Requested-With,Content-Type,Accept,Authorization"
       - "traefik.http.middlewares.meetropolis-livekit-cors.headers.customResponseHeaders.Access-Control-Allow-Methods=GET,OPTIONS,POST"
