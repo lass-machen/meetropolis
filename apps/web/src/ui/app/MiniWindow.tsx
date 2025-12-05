@@ -6,11 +6,21 @@
  * - AV-Steuerung (Mic/Cam/DND)
  * - Anzeige anderer User
  * - Button zum Maximieren
- * - Drag-Handle
+ * - Drag-Handle (mit Tauri startDragging API)
  */
 
 import React from 'react';
 import { FAIcon } from '../FAIcon';
+
+// Tauri drag function
+async function startDragging() {
+  try {
+    const { appWindow } = await import('@tauri-apps/api/window');
+    await appWindow.startDragging();
+  } catch (e) {
+    console.warn('[MiniWindow] startDragging failed:', e);
+  }
+}
 
 interface MiniWindowUser {
   identity: string;
@@ -76,7 +86,10 @@ export function MiniWindow({
     >
       {/* Drag-Handle (oben) - ganzer oberer Bereich ist draggable */}
       <div
-        data-tauri-drag-region="true"
+        onMouseDown={(e) => {
+          e.preventDefault();
+          startDragging();
+        }}
         style={{
           height: 32,
           background: 'rgba(255,255,255,0.05)',
@@ -85,8 +98,7 @@ export function MiniWindow({
           justifyContent: 'center',
           cursor: 'grab',
           borderBottom: '1px solid rgba(255,255,255,0.1)',
-          WebkitAppRegion: 'drag',
-        } as React.CSSProperties}
+        }}
       >
         <div
           style={{

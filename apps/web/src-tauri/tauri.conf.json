@@ -27,7 +27,7 @@
       },
       "fs": {
         "all": true,
-        "scope": ["$APPCONFIG/*", "$APPCACHED/*", "$APPDATA/*"]
+        "scope": ["$APPCONFIG/*", "$APPCACHE/*", "$APPDATA/*"]
       },
       "window": {
         "all": true

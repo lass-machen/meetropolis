@@ -30,7 +30,35 @@ export function useTauriApp(): TauriAppState {
     if (!isTauri) return;
 
     const handleMiniModeChange = (event: CustomEvent<{ mini: boolean }>) => {
-      setIsMiniMode(event.detail.mini);
+      const wasMini = isMiniMode;
+      const isNowMini = event.detail.mini;
+      setIsMiniMode(isNowMini);
+
+      // Wenn wir von Mini zu Normal wechseln, Phaser refreshen
+      if (wasMini && !isNowMini) {
+        console.log('[Tauri] Exiting mini mode, refreshing Phaser...');
+        // Mehrere Refresh-Versuche mit Verzögerung
+        const refreshPhaser = () => {
+          window.dispatchEvent(new Event('resize'));
+          const game = (window as any).__PHASER_GAME__;
+          if (game) {
+            try {
+              game.scale.refresh();
+              // Force re-render der aktiven Szene
+              const scene = game.scene.getScene('MainScene');
+              if (scene && scene.cameras && scene.cameras.main) {
+                scene.cameras.main.dirty = true;
+              }
+            } catch (e) {
+              console.warn('[Tauri] Phaser refresh error:', e);
+            }
+          }
+        };
+        // Sofort und dann nochmal nach Delays
+        setTimeout(refreshPhaser, 50);
+        setTimeout(refreshPhaser, 200);
+        setTimeout(refreshPhaser, 500);
+      }
     };
 
     window.addEventListener('tauri-mini-mode', handleMiniModeChange as EventListener);
@@ -41,7 +69,7 @@ export function useTauriApp(): TauriAppState {
     return () => {
       window.removeEventListener('tauri-mini-mode', handleMiniModeChange as EventListener);
     };
-  }, [isTauri]);
+  }, [isTauri, isMiniMode]);
 
   const toggleMiniMode = React.useCallback(async () => {
     if (!isTauri) return;

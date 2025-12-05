@@ -258,6 +258,22 @@ export function WorldApp() {
   // Tauri Desktop App Integration
   const { isTauri, isMiniMode, toggleMiniMode, reload: tauriReload } = useTauriApp();
 
+  // Globaler Keyboard-Shortcut für Mini-Mode (Cmd+M / Ctrl+M)
+  React.useEffect(() => {
+    if (!isTauri) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'm') {
+        e.preventDefault();
+        e.stopPropagation();
+        toggleMiniMode();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
+  }, [isTauri, toggleMiniMode]);
+
   // Connection Recovery - Auto-Reload bei Server-Disconnect
   const { isConnected: isColyseusConnected, showReloadBanner, handleReload: handleConnectionReload, dismissBanner } = useConnectionRecovery({
     enabled: !!(authChecked && me),
@@ -1177,65 +1193,65 @@ export function WorldApp() {
     ? uiParticipants
     : [{ sid: (avRef.current?.room?.localParticipant?.sid ?? 'local'), identity: me.name || me.email, hasVideo: false, hasMic: avState.mic, isSpeaking: false, media: 'camera' as const }];
 
-  // Mini-Fenster Modus (Tauri Desktop App)
-  if (isTauri && isMiniMode) {
-    // Baue User-Liste für Mini-Window aus uiParticipants
-    const miniWindowUsers = uiParticipants.map(p => ({
+  // Mini-Fenster Modus (Tauri Desktop App) - wird als Overlay gerendert, nicht als Ersatz
+  // Damit bleibt Phaser im DOM und die Canvas wird nicht zerstört
+  const miniWindowUsers = React.useMemo(() =>
+    uiParticipants.map(p => ({
       identity: p.identity,
       name: getDisplayName(p.identity),
       hasVideo: p.hasVideo,
       hasMic: p.hasMic,
       isSpeaking: p.isSpeaking,
-    }));
+    })), [uiParticipants, getDisplayName]
+  );
 
-    return (
-      <MiniWindow
-        micOn={avState.mic}
-        camOn={avState.cam}
-        dndOn={avState.dnd}
-        shareOn={avState.share}
-        onlineUsers={miniWindowUsers}
-        onToggleMic={async () => {
-          try {
-            if (!avState.mic) {
-              await avRef.current?.setMicrophoneEnabled(true);
-              setAvState(s => ({ ...s, mic: true }));
-            } else {
-              await avRef.current?.setMicrophoneEnabled(false);
-              setAvState(s => ({ ...s, mic: false }));
-            }
-          } catch {}
-        }}
-        onToggleCam={async () => {
-          try {
-            if (!avState.cam) {
-              await avRef.current?.setCameraEnabled(true);
-              setAvState(s => ({ ...s, cam: true }));
-            } else {
-              await avRef.current?.setCameraEnabled(false);
-              setAvState(s => ({ ...s, cam: false }));
-            }
-          } catch {}
-        }}
-        onToggleDnd={async () => {
-          try {
-            const nextDnd = !avState.dnd;
-            await avRef.current?.setDoNotDisturb(nextDnd);
-            setAvState(s => ({
-              ...s,
-              dnd: nextDnd,
-              mic: nextDnd ? false : s.mic,
-              cam: nextDnd ? false : s.cam,
-            }));
-            (gameBridge as any).setDoNotDisturb?.(nextDnd);
-            (gameBridge as any).setMovementLocked?.(nextDnd);
-          } catch {}
-        }}
-        onExpand={toggleMiniMode}
-        onReload={tauriReload}
-      />
-    );
-  }
+  const miniWindowOverlay = isTauri && isMiniMode ? (
+    <MiniWindow
+      micOn={avState.mic}
+      camOn={avState.cam}
+      dndOn={avState.dnd}
+      shareOn={avState.share}
+      onlineUsers={miniWindowUsers}
+      onToggleMic={async () => {
+        try {
+          if (!avState.mic) {
+            await avRef.current?.setMicrophoneEnabled(true);
+            setAvState(s => ({ ...s, mic: true }));
+          } else {
+            await avRef.current?.setMicrophoneEnabled(false);
+            setAvState(s => ({ ...s, mic: false }));
+          }
+        } catch {}
+      }}
+      onToggleCam={async () => {
+        try {
+          if (!avState.cam) {
+            await avRef.current?.setCameraEnabled(true);
+            setAvState(s => ({ ...s, cam: true }));
+          } else {
+            await avRef.current?.setCameraEnabled(false);
+            setAvState(s => ({ ...s, cam: false }));
+          }
+        } catch {}
+      }}
+      onToggleDnd={async () => {
+        try {
+          const nextDnd = !avState.dnd;
+          await avRef.current?.setDoNotDisturb(nextDnd);
+          setAvState(s => ({
+            ...s,
+            dnd: nextDnd,
+            mic: nextDnd ? false : s.mic,
+            cam: nextDnd ? false : s.cam,
+          }));
+          (gameBridge as any).setDoNotDisturb?.(nextDnd);
+          (gameBridge as any).setMovementLocked?.(nextDnd);
+        } catch {}
+      }}
+      onExpand={toggleMiniMode}
+      onReload={tauriReload}
+    />
+  ) : null;
 
   return (
     <div style={{ width: '100vw', height: '100vh', display: 'grid', gridTemplateColumns: '1fr auto' }}>
@@ -1729,6 +1745,9 @@ export function WorldApp() {
       <TenantsAdminModal open={adminOpen} onOpenChange={setAdminOpen} apiBase={apiBase} isInternalOwner={isInternalOwner} />
 
       {/* Editor Exit Confirm ausgelagert in EditorWindow */}
+
+      {/* Mini-Fenster Overlay (Tauri) - wird über allem gerendert */}
+      {miniWindowOverlay}
     </div>
   );
 }
