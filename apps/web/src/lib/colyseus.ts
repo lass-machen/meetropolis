@@ -18,6 +18,9 @@ export async function joinWorld(serverUrl: string, identity?: string, name?: str
   } else if (serverUrl.startsWith('http://')) {
     wsUrl = serverUrl.replace('http://', 'ws://');
   }
+
+  console.log('[Colyseus] wsUrl after conversion:', wsUrl, 'type:', typeof wsUrl);
+
   // Derive tenant from browser hostname (first label), fallback to 'default'
   let tenant = 'default';
   try {
@@ -25,9 +28,12 @@ export async function joinWorld(serverUrl: string, identity?: string, name?: str
     const parts = host.split('.');
     if (parts.length >= 3) tenant = parts[0];
   } catch {}
-  
+
+  console.log('[Colyseus] Creating client with wsUrl:', wsUrl);
+
   try {
     const client = new Client(wsUrl);
+    console.log('[Colyseus] Client created, joining room...');
     const room = await client.joinOrCreate('world', { 
       identity, 
       name,
