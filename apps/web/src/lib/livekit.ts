@@ -71,18 +71,53 @@ export async function joinLivekitRoom(params: {
   const token = (await res.text()).trim();
 
   // 2. Determine Server URL
-  let serverUrl = normalizeLivekitUrl((import.meta as any).env?.VITE_LIVEKIT_URL);
-  // If fallback/localhost or empty, try fetching from API
-  if (!serverUrl || serverUrl.includes('localhost')) {
+  // In Tauri, always fetch from API since VITE_LIVEKIT_URL is not available at runtime
+  const anyWin = window as any;
+  const isTauri = !!(anyWin.__MEETROPOLIS_API_BASE__ || anyWin.desktop?.apiBase);
+
+  let serverUrl: string | undefined;
+
+  // For Tauri apps, always fetch from server to get the external LiveKit URL
+  if (isTauri) {
     try {
-      const urlRes = await fetch(`${params.baseUrl}/livekit/url`);
+      const urlRes = await fetch(`${params.baseUrl}/livekit/url`, { credentials: 'include' });
       if (urlRes.ok) {
         const data = await urlRes.json();
-        if (data.url) {
+        if (data.url && typeof data.url === 'string') {
+          serverUrl = normalizeLivekitUrl(data.url);
+        }
+      }
+    } catch (e) {
+      console.error('[LiveKit] Failed to fetch LiveKit URL from server:', e);
+    }
+  }
+
+  // Fallback to env variable for browser builds
+  if (!serverUrl) {
+    const envUrl = (import.meta as any).env?.VITE_LIVEKIT_URL;
+    if (typeof envUrl === 'string' && envUrl) {
+      serverUrl = normalizeLivekitUrl(envUrl);
+    }
+  }
+
+  // If still no URL or localhost, try fetching from API
+  if (!serverUrl || serverUrl.includes('localhost')) {
+    try {
+      const urlRes = await fetch(`${params.baseUrl}/livekit/url`, { credentials: 'include' });
+      if (urlRes.ok) {
+        const data = await urlRes.json();
+        if (data.url && typeof data.url === 'string') {
           serverUrl = normalizeLivekitUrl(data.url);
         }
       }
     } catch {}
+  }
+
+  // Final fallback
+  if (!serverUrl) {
+    const host = (typeof window !== 'undefined') ? window.location.hostname : 'localhost';
+    const scheme = (typeof window !== 'undefined' && window.location.protocol === 'https:') ? 'wss' : 'ws';
+    serverUrl = `${scheme}://${host}:7880`;
   }
 
   const room = new Room();
