@@ -45,6 +45,8 @@ import { ZoneManager } from '../../game/zoneManager';
 import { VolumeManager } from '../../game/volumeManager';
 import { ConnectionBanner } from '../../ui/system/ConnectionBanner';
 import { splitTilesetImage } from '../../lib/tilesetUtils';
+import { useTauriApp, useConnectionRecovery } from '../../hooks/useTauriApp';
+import { MiniWindow } from '../../ui/app/MiniWindow';
 
 
 export function WorldApp() {
@@ -251,6 +253,23 @@ export function WorldApp() {
         setOverlayZoom(1);
       }
     }, [selectedSid]),
+  });
+
+  // Tauri Desktop App Integration
+  const { isTauri, isMiniMode, toggleMiniMode, reload: tauriReload } = useTauriApp();
+
+  // Connection Recovery - Auto-Reload bei Server-Disconnect
+  const { isConnected: isColyseusConnected, showReloadBanner, handleReload: handleConnectionReload, dismissBanner } = useConnectionRecovery({
+    enabled: !!(authChecked && me),
+    colyseusRef,
+    onConnectionLost: () => {
+      console.warn('[WorldApp] Colyseus connection lost');
+    },
+    onConnectionRestored: () => {
+      console.log('[WorldApp] Colyseus connection restored');
+      // Teilnehmerliste neu aufbauen
+      setTimeout(() => buildParticipantListHook(), 500);
+    },
   });
 
   // Colyseus-Verbindung (ausgelagerter Hook)
@@ -1158,6 +1177,56 @@ export function WorldApp() {
     ? uiParticipants
     : [{ sid: (avRef.current?.room?.localParticipant?.sid ?? 'local'), identity: me.name || me.email, hasVideo: false, hasMic: avState.mic, isSpeaking: false, media: 'camera' as const }];
 
+  // Mini-Fenster Modus (Tauri Desktop App)
+  if (isTauri && isMiniMode) {
+    return (
+      <MiniWindow
+        micOn={avState.mic}
+        camOn={avState.cam}
+        dndOn={avState.dnd}
+        shareOn={avState.share}
+        onToggleMic={async () => {
+          try {
+            if (!avState.mic) {
+              await avRef.current?.setMicrophoneEnabled(true);
+              setAvState(s => ({ ...s, mic: true }));
+            } else {
+              await avRef.current?.setMicrophoneEnabled(false);
+              setAvState(s => ({ ...s, mic: false }));
+            }
+          } catch {}
+        }}
+        onToggleCam={async () => {
+          try {
+            if (!avState.cam) {
+              await avRef.current?.setCameraEnabled(true);
+              setAvState(s => ({ ...s, cam: true }));
+            } else {
+              await avRef.current?.setCameraEnabled(false);
+              setAvState(s => ({ ...s, cam: false }));
+            }
+          } catch {}
+        }}
+        onToggleDnd={async () => {
+          try {
+            const nextDnd = !avState.dnd;
+            await avRef.current?.setDoNotDisturb(nextDnd);
+            setAvState(s => ({
+              ...s,
+              dnd: nextDnd,
+              mic: nextDnd ? false : s.mic,
+              cam: nextDnd ? false : s.cam,
+            }));
+            (gameBridge as any).setDoNotDisturb?.(nextDnd);
+            (gameBridge as any).setMovementLocked?.(nextDnd);
+          } catch {}
+        }}
+        onExpand={toggleMiniMode}
+        onReload={tauriReload}
+      />
+    );
+  }
+
   return (
     <div style={{ width: '100vw', height: '100vh', display: 'grid', gridTemplateColumns: '1fr auto' }}>
       <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
@@ -1182,6 +1251,61 @@ export function WorldApp() {
                 reason={connStatus.lastReason ?? (typeof connStatus.lastCode === 'number' ? String(connStatus.lastCode) : '')}
               />
             ) : null}
+            {/* Server Disconnect Reload Banner */}
+            {showReloadBanner && (
+              <div
+                style={{
+                  position: 'fixed',
+                  top: 20,
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  zIndex: 1000,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                  padding: '12px 20px',
+                  borderRadius: 12,
+                  background: 'rgba(239, 68, 68, 0.95)',
+                  backdropFilter: 'blur(8px)',
+                  border: '1px solid rgba(255,255,255,0.2)',
+                  boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+                  color: '#fff',
+                  fontSize: 14,
+                  fontWeight: 500,
+                }}
+              >
+                <span>Verbindung zum Server verloren</span>
+                <button
+                  onClick={handleConnectionReload}
+                  style={{
+                    padding: '6px 14px',
+                    borderRadius: 6,
+                    border: 'none',
+                    background: 'rgba(255,255,255,0.2)',
+                    color: '#fff',
+                    cursor: 'pointer',
+                    fontWeight: 600,
+                    fontSize: 13,
+                  }}
+                >
+                  Neu laden
+                </button>
+                <button
+                  onClick={dismissBanner}
+                  style={{
+                    padding: '4px 8px',
+                    borderRadius: 4,
+                    border: 'none',
+                    background: 'transparent',
+                    color: 'rgba(255,255,255,0.7)',
+                    cursor: 'pointer',
+                    fontSize: 16,
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+            )}
             {positionReady ? (
               <div
                 ref={containerRef}
