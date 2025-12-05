@@ -4,6 +4,7 @@ declare global {
     desktop?: any;
     __TAURI__?: any;
     __MEETROPOLIS_API_BASE__?: string;
+    __MEETROPOLIS_WEB_BASE__?: string;
     __TAURI_CONFIG_LOADED__?: Promise<void>;
   }
 }
@@ -95,6 +96,10 @@ async function loadConfigAndSetApiBase() {
       console.log('[Tauri] API Base set to:', config.api_base);
     } else {
       console.warn('[Tauri] No api_base in config, using default');
+    }
+    if (config.web_base) {
+      window.__MEETROPOLIS_WEB_BASE__ = config.web_base;
+      console.log('[Tauri] Web Base set to:', config.web_base);
     }
   } catch (e) {
     console.error('[Tauri] Failed to load config:', e);

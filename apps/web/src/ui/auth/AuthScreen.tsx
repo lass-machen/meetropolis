@@ -17,11 +17,22 @@ export function AuthScreen(props: { baseUrl: string; onDone: () => void }) {
   async function post(path: string, body: any) {
     const url = `${baseUrl}${path}`;
     console.log('[AuthScreen] POST to:', url, 'baseUrl:', baseUrl);
+    // In Tauri: extract tenant from web_base or current host
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (window.__TAURI__) {
+      // Extract tenant slug from web_base config (e.g., https://meetropolis.s4.lmwow.de -> meetropolis)
+      const webBase = (window as any).__MEETROPOLIS_WEB_BASE__ || '';
+      const match = webBase.match(/https?:\/\/([^.]+)\./);
+      if (match?.[1]) {
+        headers['x-tenant'] = match[1];
+        console.log('[AuthScreen] Setting x-tenant header:', match[1]);
+      }
+    }
     let lastErr: any = null;
     const attempts = [200, 500, 1000];
     for (let i = 0; i < attempts.length; i++) {
       try {
-        const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(body) });
+        const res = await fetch(url, { method: 'POST', headers, credentials: 'include', body: JSON.stringify(body) });
         if (!res.ok) throw new Error((await res.json())?.error || t('common.error'));
         return await res.json().catch(() => ({}));
       } catch (e: any) {
