@@ -1,6 +1,14 @@
 import { Client, Room } from 'colyseus.js';
 
 export async function joinWorld(serverUrl: string, identity?: string, name?: string, position?: { x: number; y: number; direction?: string }) {
+  // Defensive check: ensure serverUrl is actually a string
+  if (typeof serverUrl !== 'string') {
+    console.error('[Colyseus] serverUrl is not a string:', serverUrl, typeof serverUrl);
+    throw new Error(`Invalid serverUrl type: ${typeof serverUrl}`);
+  }
+
+  console.log('[Colyseus] joinWorld called with serverUrl:', serverUrl);
+
   // normalize base: remove trailing slashes to avoid double '//'
   if (serverUrl.endsWith('/')) serverUrl = serverUrl.replace(/\/+$/g, '');
   // Properly handle both http and https URLs
