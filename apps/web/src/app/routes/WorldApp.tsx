@@ -1179,12 +1179,22 @@ export function WorldApp() {
 
   // Mini-Fenster Modus (Tauri Desktop App)
   if (isTauri && isMiniMode) {
+    // Baue User-Liste für Mini-Window aus uiParticipants
+    const miniWindowUsers = uiParticipants.map(p => ({
+      identity: p.identity,
+      name: getDisplayName(p.identity),
+      hasVideo: p.hasVideo,
+      hasMic: p.hasMic,
+      isSpeaking: p.isSpeaking,
+    }));
+
     return (
       <MiniWindow
         micOn={avState.mic}
         camOn={avState.cam}
         dndOn={avState.dnd}
         shareOn={avState.share}
+        onlineUsers={miniWindowUsers}
         onToggleMic={async () => {
           try {
             if (!avState.mic) {

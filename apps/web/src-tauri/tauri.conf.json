@@ -62,8 +62,10 @@
         "title": "Meetropolis",
         "width": 1280,
         "height": 800,
-        "center": true
+        "center": true,
+        "fileDropEnabled": false
       }
-    ]
+    ],
+    "macOSPrivateApi": true
   }
 }

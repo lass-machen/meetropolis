@@ -35,7 +35,12 @@ export function createPhaserGame(parent: HTMLElement) {
       arcade: { debug: false }
     },
   };
-  return new Phaser.Game(config);
+  const game = new Phaser.Game(config);
+
+  // Expose game globally for Tauri mini-mode refresh
+  (window as any).__PHASER_GAME__ = game;
+
+  return game;
 }
 
 export function destroyPhaserGame(game: Phaser.Game) {

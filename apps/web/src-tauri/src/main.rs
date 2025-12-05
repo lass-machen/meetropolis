@@ -95,18 +95,19 @@ fn shrink_to_mini_window(app: &tauri::AppHandle, state: &AppState) {
             *state.last_main_size.lock().unwrap() = Some((size.width, size.height));
         }
 
-        // Mini-Fenster: Klein, immer im Vordergrund, unten rechts
-        let _ = main_window.set_size(PhysicalSize::new(320, 180));
+        // Mini-Fenster: Klein, immer im Vordergrund
+        let _ = main_window.set_size(PhysicalSize::new(320, 200));
         let _ = main_window.set_always_on_top(true);
         let _ = main_window.set_decorations(false);
 
-        // Positioniere unten rechts auf dem Bildschirm
+        // Positioniere unten rechts auf dem Bildschirm (mit Abstand zur Menüleiste und Dock)
         if let Ok(monitor) = main_window.current_monitor() {
             if let Some(monitor) = monitor {
                 let screen_size = monitor.size();
                 let screen_pos = monitor.position();
-                let x = screen_pos.x + (screen_size.width as i32) - 340;
-                let y = screen_pos.y + (screen_size.height as i32) - 200;
+                // 20px Abstand vom rechten Rand, 80px vom unteren Rand (für Dock)
+                let x = screen_pos.x + (screen_size.width as i32) - 320 - 20;
+                let y = screen_pos.y + (screen_size.height as i32) - 200 - 80;
                 let _ = main_window.set_position(PhysicalPosition::new(x, y));
             }
         }
@@ -132,8 +133,19 @@ fn expand_to_main_window(app: &tauri::AppHandle, state: &AppState) {
             let _ = main_window.center();
         }
 
-        // Benachrichtige die App
-        let _ = main_window.eval("window.__TAURI_MINI_MODE__ = false; window.dispatchEvent(new CustomEvent('tauri-mini-mode', { detail: { mini: false } }));");
+        // Benachrichtige die App und triggere Map-Refresh
+        let _ = main_window.eval(r#"
+            window.__TAURI_MINI_MODE__ = false;
+            window.dispatchEvent(new CustomEvent('tauri-mini-mode', { detail: { mini: false } }));
+            // Triggere Phaser resize nach kurzer Verzögerung
+            setTimeout(() => {
+                window.dispatchEvent(new Event('resize'));
+                // Triggere auch einen manuellen Phaser-Refresh falls vorhanden
+                if (window.__PHASER_GAME__) {
+                    window.__PHASER_GAME__.scale.refresh();
+                }
+            }, 100);
+        "#);
     }
 }
 
