@@ -1195,15 +1195,13 @@ export function WorldApp() {
 
   // Mini-Fenster Modus (Tauri Desktop App) - wird als Overlay gerendert, nicht als Ersatz
   // Damit bleibt Phaser im DOM und die Canvas wird nicht zerstört
-  const miniWindowUsers = React.useMemo(() =>
-    uiParticipants.map(p => ({
-      identity: p.identity,
-      name: getDisplayName(p.identity),
-      hasVideo: p.hasVideo,
-      hasMic: p.hasMic,
-      isSpeaking: p.isSpeaking,
-    })), [uiParticipants, getDisplayName]
-  );
+  const miniWindowUsers = uiParticipants.map(p => ({
+    identity: p.identity,
+    name: getDisplayName(p.identity),
+    hasVideo: p.hasVideo,
+    hasMic: p.hasMic,
+    isSpeaking: p.isSpeaking,
+  }));
 
   const miniWindowOverlay = isTauri && isMiniMode ? (
     <MiniWindow
