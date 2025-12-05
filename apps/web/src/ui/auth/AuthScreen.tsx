@@ -16,6 +16,7 @@ export function AuthScreen(props: { baseUrl: string; onDone: () => void }) {
 
   async function post(path: string, body: any) {
     const url = `${baseUrl}${path}`;
+    console.log('[AuthScreen] POST to:', url, 'baseUrl:', baseUrl);
     let lastErr: any = null;
     const attempts = [200, 500, 1000];
     for (let i = 0; i < attempts.length; i++) {
@@ -24,6 +25,7 @@ export function AuthScreen(props: { baseUrl: string; onDone: () => void }) {
         if (!res.ok) throw new Error((await res.json())?.error || t('common.error'));
         return await res.json().catch(() => ({}));
       } catch (e: any) {
+        console.error('[AuthScreen] Fetch error:', e.message, 'URL:', url);
         lastErr = e;
         // Netzwerk-/Verbindungsfehler: kurzer Retry mit Backoff
         if (i < attempts.length - 1) {

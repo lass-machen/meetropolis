@@ -86,7 +86,9 @@ export function initTauriBridge() {
 async function loadConfigAndSetApiBase() {
   try {
     const { invoke } = await import('@tauri-apps/api/core');
+    console.log('[Tauri] Loading config...');
     const config = await invoke<TauriConfig>('get_config');
+    console.log('[Tauri] Config loaded:', JSON.stringify(config));
     if (config.api_base) {
       window.desktop.apiBase = config.api_base;
       window.__MEETROPOLIS_API_BASE__ = config.api_base;
@@ -97,6 +99,7 @@ async function loadConfigAndSetApiBase() {
   } catch (e) {
     console.error('[Tauri] Failed to load config:', e);
   } finally {
+    console.log('[Tauri] Config loading complete, window.__MEETROPOLIS_API_BASE__:', window.__MEETROPOLIS_API_BASE__);
     configLoadedResolve();
   }
 }

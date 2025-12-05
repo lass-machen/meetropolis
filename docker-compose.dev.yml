@@ -46,7 +46,7 @@ services:
       LIVEKIT_API_SECRET: secret
       NODE_ENV: development
       TRUST_PROXY: "false"
-      CORS_ORIGIN: http://localhost:5174,http://localhost:5173
+      CORS_ORIGIN: http://localhost:5174,http://localhost:5173,tauri://localhost
       # Stabilisiere Tokens in Dev: gleicher Pepper/Secret über Neustarts
       API_TOKEN_PEPPER: dev-pepper-change-me
       JWT_SECRET: dev-jwt-secret-change-me

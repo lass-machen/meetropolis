@@ -23,7 +23,8 @@
         "width": 1280,
         "height": 800,
         "center": true,
-        "dragDropEnabled": false
+        "dragDropEnabled": false,
+        "url": "index.html"
       }
     ],
     "macOSPrivateApi": true
