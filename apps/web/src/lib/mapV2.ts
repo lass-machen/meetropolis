@@ -19,11 +19,20 @@ export type V2State = {
 export type V2ChunkPayload = { version: number; encoding: string; data: string };
 
 export function baseUrl(): string {
-  let base: string | undefined = (window as any).VITE_API_BASE || (import.meta as any).env?.VITE_API_BASE;
-  if (!base && typeof window !== 'undefined') {
-    base = `${window.location.protocol}//${window.location.hostname}:2567`;
+  // 1) Check Tauri/Desktop bridge first
+  if (typeof window !== 'undefined') {
+    const anyWin = window as any;
+    const fromDesktop = anyWin.desktop?.apiBase || anyWin.__MEETROPOLIS_API_BASE__;
+    if (typeof fromDesktop === 'string' && fromDesktop) return fromDesktop;
   }
-  return base || 'http://localhost:2567';
+  // 2) Build-time Env (Vite)
+  let base: string | undefined = (window as any).VITE_API_BASE || (import.meta as any).env?.VITE_API_BASE;
+  if (base) return base;
+  // 3) Browser-Host Fallback (Dev/Browser)
+  if (typeof window !== 'undefined') {
+    return `${window.location.protocol}//${window.location.hostname}:2567`;
+  }
+  return 'http://localhost:2567';
 }
 
 export async function fetchStateV2(mapName: string): Promise<V2State | null> {

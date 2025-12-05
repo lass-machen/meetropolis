@@ -304,7 +304,9 @@ export const gameBridge: Bridge = {
     sceneApi?.registerTileset(ts);
 
     // Server-Sync für Tileset-Registry (SEQUENTIELL!)
-    const base = (window as any).VITE_API_BASE || (import.meta as any).env?.VITE_API_BASE || `${window.location.protocol}//${window.location.hostname}:2567`;
+    // Check Tauri/Desktop bridge first, then fallback to env/host
+    const anyWin = window as any;
+    const base = anyWin.desktop?.apiBase || anyWin.__MEETROPOLIS_API_BASE__ || anyWin.VITE_API_BASE || (import.meta as any).env?.VITE_API_BASE || `${window.location.protocol}//${window.location.hostname}:2567`;
     const mapName = (typeof window !== 'undefined' && (((window as any).__map_name) || (window as any).MAP_NAME)) || 'office';
 
     const payload = {
