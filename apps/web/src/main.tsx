@@ -1,3 +1,8 @@
+// WICHTIG: WebSocket Patch MUSS als erstes importiert werden!
+// Colyseus cached WebSocket auf Modul-Ebene, daher muss der Patch
+// vor allen anderen Imports passieren.
+import './lib/patchWebSocket';
+
 import React from 'react';
 import './styles/theme.css';
 import { createRoot } from 'react-dom/client';

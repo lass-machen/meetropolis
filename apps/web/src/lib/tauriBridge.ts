@@ -20,53 +20,6 @@ const configLoadedPromise = new Promise<void>((resolve) => {
   configLoadedResolve = resolve;
 });
 
-/**
- * Patch WebSocket for WKWebView compatibility.
- *
- * The problem: Colyseus.js tries to pass an options object to WebSocket:
- *   new WebSocket(url, { headers, protocols })
- *
- * In Node.js this works, in Chrome it throws an error and falls back.
- * But in WKWebView (Safari/Tauri), it doesn't throw - it converts the object
- * to string "[object Object]" which becomes an invalid protocol.
- *
- * This patch wraps WebSocket to handle the case where the second argument
- * is an object instead of an array of protocols.
- */
-function patchWebSocketForWKWebView() {
-  if (typeof window === 'undefined' || !window.__TAURI__) return;
-
-  const OriginalWebSocket = window.WebSocket;
-
-  // @ts-ignore - we're patching the global WebSocket
-  window.WebSocket = function PatchedWebSocket(url: string, protocols?: string | string[] | Record<string, any>) {
-    // If protocols is an object (not array, not string), extract the protocols array
-    if (protocols && typeof protocols === 'object' && !Array.isArray(protocols)) {
-      console.log('[Tauri WebSocket Patch] Converting object to protocols array:', protocols);
-      const actualProtocols = (protocols as any).protocols;
-      if (Array.isArray(actualProtocols)) {
-        return new OriginalWebSocket(url, actualProtocols);
-      } else {
-        // No protocols specified, just connect without
-        return new OriginalWebSocket(url);
-      }
-    }
-    // Normal case - pass through
-    return new OriginalWebSocket(url, protocols as string | string[] | undefined);
-  } as any;
-
-  // Copy static properties
-  (window.WebSocket as any).CONNECTING = OriginalWebSocket.CONNECTING;
-  (window.WebSocket as any).OPEN = OriginalWebSocket.OPEN;
-  (window.WebSocket as any).CLOSING = OriginalWebSocket.CLOSING;
-  (window.WebSocket as any).CLOSED = OriginalWebSocket.CLOSED;
-
-  // Preserve prototype chain for instanceof checks
-  window.WebSocket.prototype = OriginalWebSocket.prototype;
-
-  console.log('[Tauri] WebSocket patched for WKWebView compatibility');
-}
-
 export function initTauriBridge() {
   // Nur ausführen, wenn wir wirklich in Tauri sind
   if (!window.__TAURI__) {
@@ -75,10 +28,6 @@ export function initTauriBridge() {
   }
 
   console.log('[Tauri] Initializing Bridge...');
-
-  // WICHTIG: WebSocket patchen BEVOR irgendwas geladen wird
-  // Dies behebt Kompatibilitätsprobleme mit Colyseus in WKWebView
-  patchWebSocketForWKWebView();
 
   // Setze das Promise auf window für andere Module
   window.__TAURI_CONFIG_LOADED__ = configLoadedPromise;
