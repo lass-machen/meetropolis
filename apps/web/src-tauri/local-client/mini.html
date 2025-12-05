@@ -138,7 +138,8 @@
   </div>
 
   <script>
-    const invoke = window.__TAURI__?.invoke;
+    // Tauri v2 API
+    const invoke = window.__TAURI__?.core?.invoke;
     const listen = window.__TAURI__?.event?.listen;
 
     // State

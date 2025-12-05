@@ -1,77 +1,19 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <title>Meetropolis Launcher</title>
-  <style>
-    body { background: #111; color: #eee; font-family: system-ui, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; user-select: none; }
-    input { padding: 10px; border-radius: 4px; border: 1px solid #333; background: #222; color: white; width: 300px; margin-bottom: 10px; font-size: 14px; }
-    button { padding: 10px 20px; border-radius: 4px; border: none; background: #0b5; color: white; font-weight: bold; cursor: pointer; font-size: 14px; transition: background 0.2s; }
-    button:hover { background: #0a4; }
-    .error { color: #f55; margin-top: 10px; font-size: 0.9em; }
-    h2 { margin-bottom: 20px; font-weight: 500; }
-    .hint { color: #666; font-size: 11px; margin-top: 30px; }
-  </style>
-</head>
-<body>
-  <img src="icon.png" width="96" height="96" style="margin-bottom: 20px; border-radius: 18px;">
-  
-  <h2>Server verbinden</h2>
-  
-  <div id="input-area">
-    <p style="color: #888; margin-bottom: 20px; max-width: 300px; text-align: center; font-size: 13px;">Bitte gib die URL deines Meetropolis-Servers ein.</p>
-    <input type="text" id="url" placeholder="https://..." value="https://meetropolis.s4.lmwow.de">
-    <br>
-    <div style="text-align: center;">
-        <button id="go">Verbinden</button>
-    </div>
-  </div>
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Meetropolis - Dein virtueller Arbeitsplatz</title>
+    <link rel="icon" type="image/png" href="./brand/favicon.png" />
+    <meta name="description" content="Meetropolis - Ein virtueller Arbeitsplatz für Remote-Teams mit Video, Audio und interaktiver Karte" />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f6f7fb" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#111114" />
+    <link rel="stylesheet" href="./vendor/fontawesome/css/all.min.css" />
+    <script type="module" crossorigin src="./assets/index-Ry5aerRl.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-w0a7XgLR.css">
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+  </html>
 
-  <div id="msg" class="error"></div>
-  
-  <div class="hint">Tipp: Drücke Cmd+, um diese Einstellungen später erneut aufzurufen.</div>
-
-  <script>
-    const invoke = window.__TAURI__ ? window.__TAURI__.invoke : null;
-
-    async function init() {
-      if (!invoke) return;
-      try {
-        const cfg = await invoke('get_config');
-        if (cfg && cfg.api_base) {
-          document.getElementById('url').value = cfg.api_base;
-          
-          // Wenn wir nicht im Setup-Modus sind -> Auto-Redirect
-          if (!window.location.hash.includes('setup')) {
-             document.getElementById('msg').innerText = 'Verbinde...';
-             // Kurze Verzögerung damit der User sieht was passiert
-             setTimeout(() => { window.location.href = cfg.api_base; }, 100);
-          }
-        }
-      } catch (e) {
-        console.error(e);
-      }
-    }
-
-    document.getElementById('go').onclick = async () => {
-      let url = document.getElementById('url').value;
-      if (!url) return;
-      if (!url.startsWith('http')) url = 'https://' + url;
-      
-      document.getElementById('msg').innerText = 'Speichere...';
-      
-      if (invoke) {
-        await invoke('set_config', { config: { api_base: url, web_base: url } });
-      }
-      window.location.href = url;
-    };
-    
-    // Enter-Taste support
-    document.getElementById('url').onkeydown = (e) => {
-        if (e.key === 'Enter') document.getElementById('go').click();
-    };
-
-    init();
-  </script>
-</body>
-</html>

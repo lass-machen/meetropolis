@@ -4,8 +4,8 @@
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Mutex;
-use tauri::api::path::app_config_dir;
-use tauri::{CustomMenuItem, Manager, Menu, MenuItem, Submenu, AboutMetadata, WindowBuilder, WindowUrl, PhysicalPosition};
+use tauri::{Emitter, Manager, PhysicalPosition, WebviewUrl, WebviewWindowBuilder};
+use tauri::menu::{MenuBuilder, MenuItemBuilder, SubmenuBuilder, PredefinedMenuItem};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
@@ -31,7 +31,7 @@ pub struct AvStatus {
 }
 
 fn get_config_path(handle: &tauri::AppHandle) -> Option<PathBuf> {
-    let config_dir = app_config_dir(&handle.config()).unwrap_or_default();
+    let config_dir = handle.path().app_config_dir().ok()?;
     if !config_dir.exists() {
         let _ = fs::create_dir_all(&config_dir);
     }
@@ -66,8 +66,8 @@ fn set_config(handle: tauri::AppHandle, config: AppConfig) -> bool {
 }
 
 #[tauri::command]
-fn reload_app(window: tauri::Window) -> bool {
-    let _ = window.eval("window.location.reload()");
+fn reload_app(webview: tauri::Webview) -> bool {
+    let _ = webview.eval("window.location.reload()");
     true
 }
 
@@ -94,7 +94,7 @@ fn is_mini_mode(state: tauri::State<AppState>) -> bool {
 // Vom Hauptfenster aufgerufen: AV-Status an Mini-Fenster senden
 #[tauri::command]
 fn sync_av_status(app: tauri::AppHandle, status: AvStatus) {
-    if let Some(mini_window) = app.get_window("mini") {
+    if let Some(mini_window) = app.get_webview_window("mini") {
         let _ = mini_window.emit("av-status-update", status);
     }
 }
@@ -102,7 +102,7 @@ fn sync_av_status(app: tauri::AppHandle, status: AvStatus) {
 // Vom Mini-Fenster aufgerufen: AV-Aktion an Hauptfenster senden
 #[tauri::command]
 fn mini_av_action(app: tauri::AppHandle, action: String) {
-    if let Some(main_window) = app.get_window("main") {
+    if let Some(main_window) = app.get_webview_window("main") {
         let _ = main_window.emit("mini-av-action", action);
     }
 }
@@ -115,16 +115,16 @@ fn expand_from_mini(app: tauri::AppHandle, state: tauri::State<AppState>) {
 
 fn hide_main_show_mini(app: &tauri::AppHandle, state: &AppState) {
     // Hauptfenster verstecken (nicht schließen!)
-    if let Some(main_window) = app.get_window("main") {
+    if let Some(main_window) = app.get_webview_window("main") {
         let _ = main_window.hide();
     }
 
     // Mini-Fenster erstellen falls es noch nicht existiert
-    if app.get_window("mini").is_none() {
-        let mini_window = WindowBuilder::new(
+    if app.get_webview_window("mini").is_none() {
+        let mini_window = WebviewWindowBuilder::new(
             app,
             "mini",
-            WindowUrl::App("mini.html".into())
+            WebviewUrl::App("mini.html".into())
         )
         .title("Meetropolis")
         .inner_size(280.0, 160.0)
@@ -146,7 +146,7 @@ fn hide_main_show_mini(app: &tauri::AppHandle, state: &AppState) {
                 let _ = window.set_position(PhysicalPosition::new(x, y));
             }
         }
-    } else if let Some(mini_window) = app.get_window("mini") {
+    } else if let Some(mini_window) = app.get_webview_window("mini") {
         let _ = mini_window.show();
         let _ = mini_window.set_focus();
     }
@@ -154,19 +154,19 @@ fn hide_main_show_mini(app: &tauri::AppHandle, state: &AppState) {
     *state.is_mini_mode.lock().unwrap() = true;
 
     // Hauptfenster informieren
-    if let Some(main_window) = app.get_window("main") {
+    if let Some(main_window) = app.get_webview_window("main") {
         let _ = main_window.emit("mini-mode-changed", true);
     }
 }
 
 fn close_mini_show_main(app: &tauri::AppHandle, state: &AppState) {
     // Mini-Fenster schließen
-    if let Some(mini_window) = app.get_window("mini") {
+    if let Some(mini_window) = app.get_webview_window("mini") {
         let _ = mini_window.close();
     }
 
     // Hauptfenster wieder zeigen
-    if let Some(main_window) = app.get_window("main") {
+    if let Some(main_window) = app.get_webview_window("main") {
         let _ = main_window.show();
         let _ = main_window.set_focus();
     }
@@ -174,70 +174,90 @@ fn close_mini_show_main(app: &tauri::AppHandle, state: &AppState) {
     *state.is_mini_mode.lock().unwrap() = false;
 
     // Hauptfenster informieren
-    if let Some(main_window) = app.get_window("main") {
+    if let Some(main_window) = app.get_webview_window("main") {
         let _ = main_window.emit("mini-mode-changed", false);
     }
 }
 
 fn main() {
-    // Menü Definition
-    let prefs = CustomMenuItem::new("preferences".to_string(), "Einstellungen...").accelerator("CmdOrCtrl+,");
-    let reload = CustomMenuItem::new("reload".to_string(), "Neu laden").accelerator("CmdOrCtrl+R");
-    let mini_mode = CustomMenuItem::new("mini_mode".to_string(), "Mini-Fenster").accelerator("CmdOrCtrl+M");
-
-    let submenu_app = Submenu::new("Meetropolis", Menu::new()
-        .add_native_item(MenuItem::About("Meetropolis".to_string(), AboutMetadata::default()))
-        .add_native_item(MenuItem::Separator)
-        .add_item(prefs)
-        .add_native_item(MenuItem::Separator)
-        .add_native_item(MenuItem::Services)
-        .add_native_item(MenuItem::Hide)
-        .add_native_item(MenuItem::HideOthers)
-        .add_native_item(MenuItem::ShowAll)
-        .add_native_item(MenuItem::Separator)
-        .add_native_item(MenuItem::Quit));
-
-    let submenu_edit = Submenu::new("Bearbeiten", Menu::new()
-        .add_native_item(MenuItem::Undo)
-        .add_native_item(MenuItem::Redo)
-        .add_native_item(MenuItem::Separator)
-        .add_native_item(MenuItem::Cut)
-        .add_native_item(MenuItem::Copy)
-        .add_native_item(MenuItem::Paste)
-        .add_native_item(MenuItem::SelectAll));
-
-    let submenu_view = Submenu::new("Darstellung", Menu::new()
-        .add_item(reload)
-        .add_native_item(MenuItem::Separator)
-        .add_item(mini_mode)
-        .add_native_item(MenuItem::Separator)
-        .add_native_item(MenuItem::EnterFullScreen));
-
-    let submenu_window = Submenu::new("Fenster", Menu::new()
-        .add_native_item(MenuItem::Minimize)
-        .add_native_item(MenuItem::Zoom));
-
-    let menu = Menu::new()
-        .add_submenu(submenu_app)
-        .add_submenu(submenu_edit)
-        .add_submenu(submenu_view)
-        .add_submenu(submenu_window);
-
     tauri::Builder::default()
+        .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_http::init())
+        .plugin(tauri_plugin_fs::init())
         .manage(AppState {
             is_mini_mode: Mutex::new(false),
         })
-        .menu(menu)
-        .on_menu_event(|event| {
-            let app = event.window().app_handle();
-            match event.menu_item_id() {
+        .setup(|app| {
+            // Menü erstellen
+            let prefs = MenuItemBuilder::with_id("preferences", "Einstellungen...")
+                .accelerator("CmdOrCtrl+,")
+                .build(app)?;
+            let reload = MenuItemBuilder::with_id("reload", "Neu laden")
+                .accelerator("CmdOrCtrl+R")
+                .build(app)?;
+            let mini_mode = MenuItemBuilder::with_id("mini_mode", "Mini-Fenster")
+                .accelerator("CmdOrCtrl+M")
+                .build(app)?;
+
+            let submenu_app = SubmenuBuilder::new(app, "Meetropolis")
+                .item(&PredefinedMenuItem::about(app, Some("Über Meetropolis"), None)?)
+                .separator()
+                .item(&prefs)
+                .separator()
+                .item(&PredefinedMenuItem::services(app, Some("Dienste"))?)
+                .item(&PredefinedMenuItem::hide(app, Some("Meetropolis ausblenden"))?)
+                .item(&PredefinedMenuItem::hide_others(app, Some("Andere ausblenden"))?)
+                .item(&PredefinedMenuItem::show_all(app, Some("Alle anzeigen"))?)
+                .separator()
+                .item(&PredefinedMenuItem::quit(app, Some("Meetropolis beenden"))?)
+                .build()?;
+
+            let submenu_edit = SubmenuBuilder::new(app, "Bearbeiten")
+                .item(&PredefinedMenuItem::undo(app, Some("Widerrufen"))?)
+                .item(&PredefinedMenuItem::redo(app, Some("Wiederholen"))?)
+                .separator()
+                .item(&PredefinedMenuItem::cut(app, Some("Ausschneiden"))?)
+                .item(&PredefinedMenuItem::copy(app, Some("Kopieren"))?)
+                .item(&PredefinedMenuItem::paste(app, Some("Einsetzen"))?)
+                .item(&PredefinedMenuItem::select_all(app, Some("Alles auswählen"))?)
+                .build()?;
+
+            let submenu_view = SubmenuBuilder::new(app, "Darstellung")
+                .item(&reload)
+                .separator()
+                .item(&mini_mode)
+                .separator()
+                .item(&PredefinedMenuItem::fullscreen(app, Some("Vollbild ein/aus"))?)
+                .build()?;
+
+            let submenu_window = SubmenuBuilder::new(app, "Fenster")
+                .item(&PredefinedMenuItem::minimize(app, Some("Minimieren"))?)
+                .item(&PredefinedMenuItem::maximize(app, Some("Zoomen"))?)
+                .build()?;
+
+            let menu = MenuBuilder::new(app)
+                .item(&submenu_app)
+                .item(&submenu_edit)
+                .item(&submenu_view)
+                .item(&submenu_window)
+                .build()?;
+
+            app.set_menu(menu)?;
+
+            Ok(())
+        })
+        .on_menu_event(|app, event| {
+            match event.id().as_ref() {
                 "preferences" => {
-                    let window = event.window();
-                    let _ = window.eval("window.location.href = 'tauri://localhost/index.html#setup'");
+                    if let Some(window) = app.get_webview_window("main") {
+                        let _ = window.eval("window.location.href = 'tauri://localhost/index.html#setup'");
+                    }
                 }
                 "reload" => {
-                    let window = event.window();
-                    let _ = window.eval("window.location.reload()");
+                    if let Some(window) = app.get_webview_window("main") {
+                        let _ = window.eval("window.location.reload()");
+                    }
                 }
                 "mini_mode" => {
                     let state = app.state::<AppState>();
@@ -252,15 +272,15 @@ fn main() {
                 _ => {}
             }
         })
-        .on_window_event(|event| {
+        .on_window_event(|window, event| {
             // Wenn Mini-Fenster geschlossen wird, zurück zum Hauptfenster
-            if event.window().label() == "mini" {
-                if let tauri::WindowEvent::CloseRequested { .. } = event.event() {
-                    let app = event.window().app_handle();
+            if window.label() == "mini" {
+                if let tauri::WindowEvent::CloseRequested { .. } = event {
+                    let app = window.app_handle();
                     let state = app.state::<AppState>();
                     *state.is_mini_mode.lock().unwrap() = false;
 
-                    if let Some(main_window) = app.get_window("main") {
+                    if let Some(main_window) = app.get_webview_window("main") {
                         let _ = main_window.show();
                         let _ = main_window.set_focus();
                         let _ = main_window.emit("mini-mode-changed", false);

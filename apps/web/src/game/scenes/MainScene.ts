@@ -1527,30 +1527,6 @@ export class MainScene extends Phaser.Scene {
     this.gridGraphics.strokePath();
   }
 
-  private updateCursor() {
-    try {
-      const input = this.input;
-      if (!input) return;
-      let cursor: string = 'default';
-
-      if (this.editorMode) {
-        const state = EditorService.getState();
-        if (state.tool === 'spawn') {
-          cursor = 'crosshair';
-        }
-      }
-
-      if (this.panState?.isPanning) {
-        cursor = 'grabbing';
-      } else if (this.spaceHeld) {
-        cursor = 'grab';
-      } else if (this.hoveredSprite) {
-        cursor = 'pointer';
-      }
-      input.setDefaultCursor(cursor);
-    } catch { }
-  }
-
   private createNameLabel(name: string, playerId?: string): Phaser.GameObjects.Container {
     return uiCreateNameLabel(this as any, name, playerId);
   }

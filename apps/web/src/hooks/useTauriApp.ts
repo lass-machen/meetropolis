@@ -59,7 +59,7 @@ export function useTauriApp(): TauriAppState {
     // Initial check
     const checkMiniMode = async () => {
       try {
-        const { invoke } = await import('@tauri-apps/api');
+        const { invoke } = await import('@tauri-apps/api/core');
         const miniMode = await invoke<boolean>('is_mini_mode');
         setIsMiniMode(miniMode);
       } catch (e) {
@@ -77,7 +77,7 @@ export function useTauriApp(): TauriAppState {
     if (!isTauri) return;
 
     try {
-      const { invoke } = await import('@tauri-apps/api');
+      const { invoke } = await import('@tauri-apps/api/core');
       const newMiniMode = await invoke<boolean>('toggle_mini_mode');
       setIsMiniMode(newMiniMode);
     } catch (error) {
@@ -88,7 +88,7 @@ export function useTauriApp(): TauriAppState {
   const reload = React.useCallback(async () => {
     if (isTauri) {
       try {
-        const { invoke } = await import('@tauri-apps/api');
+        const { invoke } = await import('@tauri-apps/api/core');
         await invoke('reload_app');
       } catch (error) {
         window.location.reload();
@@ -103,7 +103,7 @@ export function useTauriApp(): TauriAppState {
     if (!isTauri) return;
 
     try {
-      const { invoke } = await import('@tauri-apps/api');
+      const { invoke } = await import('@tauri-apps/api/core');
       await invoke('sync_av_status', { status });
     } catch (error) {
       // Mini-Fenster möglicherweise nicht offen - ignorieren
