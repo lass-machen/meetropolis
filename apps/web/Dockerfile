@@ -24,9 +24,12 @@ ENV VITE_LIVEKIT_URL=${VITE_LIVEKIT_URL}
 ENV VITE_FEATURE_AV_SETTINGS=${VITE_FEATURE_AV_SETTINGS}
 ENV VITE_FEATURE_VOICE_ISOLATION=${VITE_FEATURE_VOICE_ISOLATION}
 
-# Install dependencies and build
+# Install dependencies from workspace root
+WORKDIR /workspace
+RUN npm install
+
+# Build web app
 WORKDIR /workspace/apps/web
-RUN npm ci || npm install
 RUN npm run build
 
 # Production Stage
