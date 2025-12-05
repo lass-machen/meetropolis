@@ -46,7 +46,6 @@ import { VolumeManager } from '../../game/volumeManager';
 import { ConnectionBanner } from '../../ui/system/ConnectionBanner';
 import { splitTilesetImage } from '../../lib/tilesetUtils';
 import { useTauriApp, useConnectionRecovery } from '../../hooks/useTauriApp';
-import { MiniWindow } from '../../ui/app/MiniWindow';
 
 
 export function WorldApp() {
@@ -256,7 +255,7 @@ export function WorldApp() {
   });
 
   // Tauri Desktop App Integration
-  const { isTauri, isMiniMode, toggleMiniMode, reload: tauriReload } = useTauriApp();
+  const { isTauri, isMiniMode, toggleMiniMode, syncAvStatus, onMiniAvAction } = useTauriApp();
 
   // Globaler Keyboard-Shortcut für Mini-Mode (Cmd+M / Ctrl+M)
   React.useEffect(() => {
@@ -274,8 +273,80 @@ export function WorldApp() {
     return () => window.removeEventListener('keydown', handleKeyDown, true);
   }, [isTauri, toggleMiniMode]);
 
+  // AV-Status an Mini-Fenster synchronisieren (alle 500ms wenn Mini-Modus aktiv)
+  React.useEffect(() => {
+    if (!isTauri || !isMiniMode) return;
+
+    const syncStatus = () => {
+      const speakingNames = uiParticipants
+        .filter(p => p.isSpeaking)
+        .map(p => getDisplayName(p.identity).split(' ')[0])
+        .slice(0, 3);
+
+      syncAvStatus({
+        mic: avState.mic,
+        cam: avState.cam,
+        dnd: avState.dnd,
+        share: avState.share,
+        online_count: uiParticipants.filter(p => p.hasMic || p.hasVideo).length,
+        speaking_names: speakingNames,
+      });
+    };
+
+    // Sofort synchronisieren und dann alle 500ms
+    syncStatus();
+    const interval = setInterval(syncStatus, 500);
+    return () => clearInterval(interval);
+  }, [isTauri, isMiniMode, avState, uiParticipants, syncAvStatus, getDisplayName]);
+
+  // Auf AV-Aktionen vom Mini-Fenster reagieren
+  React.useEffect(() => {
+    if (!isTauri) return;
+
+    const unsubscribe = onMiniAvAction(async (action: string) => {
+      try {
+        switch (action) {
+          case 'toggle_mic':
+            if (!avState.mic) {
+              await avRef.current?.setMicrophoneEnabled(true);
+              setAvState(s => ({ ...s, mic: true }));
+            } else {
+              await avRef.current?.setMicrophoneEnabled(false);
+              setAvState(s => ({ ...s, mic: false }));
+            }
+            break;
+          case 'toggle_cam':
+            if (!avState.cam) {
+              await avRef.current?.setCameraEnabled(true);
+              setAvState(s => ({ ...s, cam: true }));
+            } else {
+              await avRef.current?.setCameraEnabled(false);
+              setAvState(s => ({ ...s, cam: false }));
+            }
+            break;
+          case 'toggle_dnd':
+            const nextDnd = !avState.dnd;
+            await avRef.current?.setDoNotDisturb(nextDnd);
+            setAvState(s => ({
+              ...s,
+              dnd: nextDnd,
+              mic: nextDnd ? false : s.mic,
+              cam: nextDnd ? false : s.cam,
+            }));
+            (gameBridge as any).setDoNotDisturb?.(nextDnd);
+            (gameBridge as any).setMovementLocked?.(nextDnd);
+            break;
+        }
+      } catch (e) {
+        console.error('[Tauri] AV action failed:', e);
+      }
+    });
+
+    return unsubscribe;
+  }, [isTauri, avState, onMiniAvAction]);
+
   // Connection Recovery - Auto-Reload bei Server-Disconnect
-  const { isConnected: isColyseusConnected, showReloadBanner, handleReload: handleConnectionReload, dismissBanner } = useConnectionRecovery({
+  const { showReloadBanner, handleReload: handleConnectionReload, dismissBanner } = useConnectionRecovery({
     enabled: !!(authChecked && me),
     colyseusRef,
     onConnectionLost: () => {
@@ -1193,64 +1264,6 @@ export function WorldApp() {
     ? uiParticipants
     : [{ sid: (avRef.current?.room?.localParticipant?.sid ?? 'local'), identity: me.name || me.email, hasVideo: false, hasMic: avState.mic, isSpeaking: false, media: 'camera' as const }];
 
-  // Mini-Fenster Modus (Tauri Desktop App) - wird als Overlay gerendert, nicht als Ersatz
-  // Damit bleibt Phaser im DOM und die Canvas wird nicht zerstört
-  const miniWindowUsers = uiParticipants.map(p => ({
-    identity: p.identity,
-    name: getDisplayName(p.identity),
-    hasVideo: p.hasVideo,
-    hasMic: p.hasMic,
-    isSpeaking: p.isSpeaking,
-  }));
-
-  const miniWindowOverlay = isTauri && isMiniMode ? (
-    <MiniWindow
-      micOn={avState.mic}
-      camOn={avState.cam}
-      dndOn={avState.dnd}
-      shareOn={avState.share}
-      onlineUsers={miniWindowUsers}
-      onToggleMic={async () => {
-        try {
-          if (!avState.mic) {
-            await avRef.current?.setMicrophoneEnabled(true);
-            setAvState(s => ({ ...s, mic: true }));
-          } else {
-            await avRef.current?.setMicrophoneEnabled(false);
-            setAvState(s => ({ ...s, mic: false }));
-          }
-        } catch {}
-      }}
-      onToggleCam={async () => {
-        try {
-          if (!avState.cam) {
-            await avRef.current?.setCameraEnabled(true);
-            setAvState(s => ({ ...s, cam: true }));
-          } else {
-            await avRef.current?.setCameraEnabled(false);
-            setAvState(s => ({ ...s, cam: false }));
-          }
-        } catch {}
-      }}
-      onToggleDnd={async () => {
-        try {
-          const nextDnd = !avState.dnd;
-          await avRef.current?.setDoNotDisturb(nextDnd);
-          setAvState(s => ({
-            ...s,
-            dnd: nextDnd,
-            mic: nextDnd ? false : s.mic,
-            cam: nextDnd ? false : s.cam,
-          }));
-          (gameBridge as any).setDoNotDisturb?.(nextDnd);
-          (gameBridge as any).setMovementLocked?.(nextDnd);
-        } catch {}
-      }}
-      onExpand={toggleMiniMode}
-      onReload={tauriReload}
-    />
-  ) : null;
-
   return (
     <div style={{ width: '100vw', height: '100vh', display: 'grid', gridTemplateColumns: '1fr auto' }}>
       <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
@@ -1743,9 +1756,6 @@ export function WorldApp() {
       <TenantsAdminModal open={adminOpen} onOpenChange={setAdminOpen} apiBase={apiBase} isInternalOwner={isInternalOwner} />
 
       {/* Editor Exit Confirm ausgelagert in EditorWindow */}
-
-      {/* Mini-Fenster Overlay (Tauri) - wird über allem gerendert */}
-      {miniWindowOverlay}
     </div>
   );
 }

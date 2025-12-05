@@ -2,18 +2,30 @@
  * useTauriApp Hook
  *
  * Integrationshook für Tauri Desktop App Features:
- * - Mini-Fenster-Modus
+ * - Mini-Fenster-Modus (separates natives Fenster)
+ * - IPC zwischen Haupt- und Mini-Fenster
  * - Reload-Funktionalität
  * - Server-Disconnect-Handling mit Auto-Reload
  */
 
 import React from 'react';
 
+interface AvStatus {
+  mic: boolean;
+  cam: boolean;
+  dnd: boolean;
+  share: boolean;
+  online_count: number;
+  speaking_names: string[];
+}
+
 interface TauriAppState {
   isTauri: boolean;
   isMiniMode: boolean;
   toggleMiniMode: () => Promise<void>;
   reload: () => Promise<void>;
+  syncAvStatus: (status: AvStatus) => Promise<void>;
+  onMiniAvAction: (callback: (action: string) => void) => () => void;
 }
 
 // Prüft ob wir in einer Tauri-App laufen
@@ -25,51 +37,41 @@ export function useTauriApp(): TauriAppState {
   const [isMiniMode, setIsMiniMode] = React.useState(false);
   const isTauri = React.useMemo(() => isTauriEnvironment(), []);
 
-  // Listener für Mini-Mode-Änderungen von Rust
+  // Listener für Mini-Mode-Änderungen von Rust (via Tauri events)
   React.useEffect(() => {
     if (!isTauri) return;
 
-    const handleMiniModeChange = (event: CustomEvent<{ mini: boolean }>) => {
-      const wasMini = isMiniMode;
-      const isNowMini = event.detail.mini;
-      setIsMiniMode(isNowMini);
+    let unlisten: (() => void) | undefined;
 
-      // Wenn wir von Mini zu Normal wechseln, Phaser refreshen
-      if (wasMini && !isNowMini) {
-        console.log('[Tauri] Exiting mini mode, refreshing Phaser...');
-        // Mehrere Refresh-Versuche mit Verzögerung
-        const refreshPhaser = () => {
-          window.dispatchEvent(new Event('resize'));
-          const game = (window as any).__PHASER_GAME__;
-          if (game) {
-            try {
-              game.scale.refresh();
-              // Force re-render der aktiven Szene
-              const scene = game.scene.getScene('MainScene');
-              if (scene && scene.cameras && scene.cameras.main) {
-                scene.cameras.main.dirty = true;
-              }
-            } catch (e) {
-              console.warn('[Tauri] Phaser refresh error:', e);
-            }
-          }
-        };
-        // Sofort und dann nochmal nach Delays
-        setTimeout(refreshPhaser, 50);
-        setTimeout(refreshPhaser, 200);
-        setTimeout(refreshPhaser, 500);
+    const setupListener = async () => {
+      try {
+        const { listen } = await import('@tauri-apps/api/event');
+        unlisten = await listen<boolean>('mini-mode-changed', (event) => {
+          setIsMiniMode(event.payload);
+        });
+      } catch (e) {
+        console.warn('[Tauri] Failed to setup mini-mode listener:', e);
       }
     };
 
-    window.addEventListener('tauri-mini-mode', handleMiniModeChange as EventListener);
+    setupListener();
 
-    // Initial-Check
-    setIsMiniMode(!!(window as any).__TAURI_MINI_MODE__);
+    // Initial check
+    const checkMiniMode = async () => {
+      try {
+        const { invoke } = await import('@tauri-apps/api');
+        const miniMode = await invoke<boolean>('is_mini_mode');
+        setIsMiniMode(miniMode);
+      } catch (e) {
+        console.warn('[Tauri] Failed to check mini mode:', e);
+      }
+    };
+    checkMiniMode();
 
     return () => {
-      window.removeEventListener('tauri-mini-mode', handleMiniModeChange as EventListener);
+      unlisten?.();
     };
-  }, [isTauri, isMiniMode]);
+  }, [isTauri]);
 
   const toggleMiniMode = React.useCallback(async () => {
     if (!isTauri) return;
@@ -89,7 +91,6 @@ export function useTauriApp(): TauriAppState {
         const { invoke } = await import('@tauri-apps/api');
         await invoke('reload_app');
       } catch (error) {
-        // Fallback: Browser reload
         window.location.reload();
       }
     } else {
@@ -97,11 +98,49 @@ export function useTauriApp(): TauriAppState {
     }
   }, [isTauri]);
 
+  // AV-Status an Mini-Fenster senden
+  const syncAvStatus = React.useCallback(async (status: AvStatus) => {
+    if (!isTauri) return;
+
+    try {
+      const { invoke } = await import('@tauri-apps/api');
+      await invoke('sync_av_status', { status });
+    } catch (error) {
+      // Mini-Fenster möglicherweise nicht offen - ignorieren
+    }
+  }, [isTauri]);
+
+  // Listener für AV-Aktionen vom Mini-Fenster registrieren
+  const onMiniAvAction = React.useCallback((callback: (action: string) => void) => {
+    if (!isTauri) return () => {};
+
+    let unlisten: (() => void) | undefined;
+
+    const setupListener = async () => {
+      try {
+        const { listen } = await import('@tauri-apps/api/event');
+        unlisten = await listen<string>('mini-av-action', (event) => {
+          callback(event.payload);
+        });
+      } catch (e) {
+        console.warn('[Tauri] Failed to setup mini-av-action listener:', e);
+      }
+    };
+
+    setupListener();
+
+    return () => {
+      unlisten?.();
+    };
+  }, [isTauri]);
+
   return {
     isTauri,
     isMiniMode,
     toggleMiniMode,
     reload,
+    syncAvStatus,
+    onMiniAvAction,
   };
 }
 
