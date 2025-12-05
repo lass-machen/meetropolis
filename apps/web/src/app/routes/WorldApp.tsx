@@ -32,13 +32,12 @@ import { useZones as useZonesSync } from '../../features/zones/useZones';
 import { useHudTicker } from '../../features/hud/useHudTicker';
 import { useBubbleNavigation } from '../../features/bubble/useBubbleNavigation';
 import { useWorldRoom } from '../../realtime/useWorldRoom';
-import { useLivekit } from '../../av/useLivekit';
+import { useAVManager } from '../../av/hooks/useAVManager';
 import { createPhaserGame, destroyPhaserGame } from '../../game/phaserGame';
 import { gameBridge } from '../../game/bridge';
 import { getApiBaseFromWindow } from '../../lib/runtimeConfig';
 import { AVManager } from '../../av/avManager';
-import { useDoNotDisturbBridge } from '../../av/hooks/useDoNotDisturbBridge';
-import { useDndShortcut } from '../../av/hooks/useDndShortcut';
+import { useDoNotDisturb } from '../../av/hooks/useDoNotDisturb';
 import { BubbleManager } from '../../game/bubbleManager';
 import { FollowManager } from '../../game/followManager';
 import { ZoneManager } from '../../game/zoneManager';
@@ -97,8 +96,14 @@ export function WorldApp() {
   // Map-Editor State (must be declared before any hooks that reference `editor`)
   const [editor, setEditor] = useEditor();
 
-  // Intercept DND toggles to resume AV after DND is turned off
-  useDoNotDisturbBridge(avRef);
+  // DND Hook - vereinfacht beide alten Hooks (useDoNotDisturbBridge + useDndShortcut)
+  useDoNotDisturb({
+    enabled: !!(authChecked && me),
+    avRef,
+    dndRef,
+    setAvState,
+    colyseusRef,
+  });
   // (veraltet) Lokale No-Op-Teilnehmer-Helpers und früher WorldRoom-Aufruf entfernt; Nutzung erfolgt weiter unten mit den Hook-Funktionen
   // Auth state
   const [authChecked, setAuthChecked] = React.useState(false);
@@ -139,10 +144,8 @@ export function WorldApp() {
   const [page, setPage] = React.useState<'world' | 'admin' | string>('world');
   const [menuOpen, setMenuOpen] = React.useState(false);
   // EditorWindow Drag/Dirty/Exit-Logik ausgelagert in <EditorWindow />
-  const connectLivekitRef = React.useRef<null | (() => Promise<void>)>(null);
   // Single-run guards to prevent repeated re-inits/auto-connects
   const gameCreatedRef = React.useRef(false);
-  const livekitAutoConnectOnceRef = React.useRef(false);
 
   // Save position refs declared at top level to be used in useEffect
   const lastSavedPositionRef = useRef({ x: 0, y: 0, direction: 'down' });
@@ -201,20 +204,15 @@ export function WorldApp() {
   // Editor-Pointer-Logik removed - now handled by EditorInputHandler in MainScene
 
   // LiveKit-Verbindung via Hook (Top-Level, nicht in Effekten verwenden)
-  useLivekit({
+  useAVManager({
     apiBase,
     me,
     editorActiveRef,
     avRef,
-    bubbleRef,
-    zoneRef,
     setDevices,
     setSelectedMicId,
     setSelectedCamId,
     buildParticipantList: buildParticipantListHook,
-    connectLivekitRef,
-    livekitAutoConnectOnceRef,
-    setAvState,
   });
 
   // Colyseus-Verbindung (ausgelagerter Hook)
@@ -914,8 +912,6 @@ export function WorldApp() {
     })();
     return () => { try { off?.(); } catch { } };
   }, []);
-
-  useDndShortcut({ enabled: !!(authChecked && me), dndRef, avRef, setAvState, colyseusRef, volumeRef, gameBridge });
 
   // Zonen-Handling/Sync (ausgelagert)
   useZonesSync({ editor, setEditor, zoneRef, gameBridge, colyseusRef });
