@@ -2,6 +2,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Card, Input, Button } from '../../ui/system';
 import { ThemeToggleButton } from '../../ui/theme';
+import { setTauriAuthToken } from '../../lib/tauriAuth';
 
 export function AuthScreen(props: { baseUrl: string; onDone: () => void }) {
   const { baseUrl, onDone } = props;
@@ -79,7 +80,11 @@ export function AuthScreen(props: { baseUrl: string; onDone: () => void }) {
     e.preventDefault();
     setMsg(null);
     try {
-      await post('/auth/login', { email, password });
+      const result = await post('/auth/login', { email, password });
+      // Store token for Tauri (returned by server for tauri:// origin)
+      if (result.token) {
+        setTauriAuthToken(result.token);
+      }
       onDone();
     } catch (e: any) {
       setMsg(e.message);
@@ -90,7 +95,11 @@ export function AuthScreen(props: { baseUrl: string; onDone: () => void }) {
     e.preventDefault();
     setMsg(null);
     try {
-      await post('/auth/register', { code: invite, name, email, password });
+      const result = await post('/auth/register', { code: invite, name, email, password });
+      // Store token for Tauri (returned by server for tauri:// origin)
+      if (result.token) {
+        setTauriAuthToken(result.token);
+      }
       onDone();
     } catch (e: any) {
       setMsg(e.message);

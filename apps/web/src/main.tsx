@@ -4,6 +4,8 @@ import { createRoot } from 'react-dom/client';
 import { AppRoutes } from './app/routes/AppRoutes';
 import { RootProviders } from './app/providers/RootProviders';
 import { initTauriBridge, waitForTauriConfig } from './lib/tauriBridge';
+// Import tauriAuth to install fetch interceptor early
+import './lib/tauriAuth';
 
 // Initialize Tauri Bridge if available
 initTauriBridge();

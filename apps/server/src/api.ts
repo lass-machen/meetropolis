@@ -261,7 +261,10 @@ export function registerApi(app: express.Express) {
     } catch { }
     const token = jwt.sign({ sub: user.id, tid: (invite as any).tenantId }, getJwtSecret(), { expiresIn: '30d' });
     setAuthCookie(res, token);
-    res.json({ id: user.id, email: user.email, name: user.name });
+    // Return token in body for Tauri/native clients that can't use cookies
+    const origin = req.headers.origin || '';
+    const isTauri = origin.startsWith('tauri://');
+    res.json({ id: user.id, email: user.email, name: user.name, ...(isTauri && { token }) });
   });
 
   app.post('/auth/login', async (req: express.Request, res: express.Response) => {
@@ -281,7 +284,10 @@ export function registerApi(app: express.Express) {
     if (!membership) return res.status(403).json({ error: 'not_member_of_tenant' });
     const token = jwt.sign({ sub: user.id, tid: tenant.id }, getJwtSecret(), { expiresIn: '30d' });
     setAuthCookie(res, token);
-    res.json({ id: user.id, email: user.email, name: user.name });
+    // Return token in body for Tauri/native clients that can't use cookies
+    const origin = req.headers.origin || '';
+    const isTauri = origin.startsWith('tauri://');
+    res.json({ id: user.id, email: user.email, name: user.name, ...(isTauri && { token }) });
   });
 
   app.post('/auth/logout', async (_req: express.Request, res: express.Response) => {
