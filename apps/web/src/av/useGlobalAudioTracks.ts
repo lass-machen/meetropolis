@@ -51,8 +51,28 @@ export function useGlobalAudioTracks(params: { avRef: React.MutableRefObject<any
       }
     };
 
-    const handleTrackUnsubscribed = (_track: any, _publication: any, participant: any) => {
-      detachAudioTrack(participant?.sid);
+    const handleTrackUnsubscribed = (track: any, _publication: any, participant: any) => {
+      // Nur Audio-Tracks behandeln - Screen-Share-Video-Tracks dürfen nicht das
+      // Mikrofon-Audio des Teilnehmers entfernen!
+      if (track?.kind !== 'audio') return;
+      
+      // Prüfe ob der Teilnehmer noch einen anderen Mikrofon-Audio-Track hat
+      // (z.B. wenn nur der Screen-Share-Audio deabonniert wird, aber das Mikrofon noch aktiv ist)
+      const otherAudioTracks = Array.from(participant?.trackPublications?.values?.() || [])
+        .filter((pub: any) => {
+          const pubTrack = pub?.track;
+          if (!pubTrack || pubTrack === track) return false;
+          const kind = pub?.kind ?? pubTrack?.kind;
+          const source = pub?.source ?? pubTrack?.source;
+          // Nur Mikrofon-Tracks zählen (nicht screen_share_audio)
+          return kind === 'audio' && source !== 'screen_share_audio';
+        });
+      
+      // Nur Audio-Element entfernen, wenn kein anderer Mikrofon-Track mehr vorhanden ist
+      if (otherAudioTracks.length === 0) {
+        detachAudioTrack(participant?.sid);
+      }
+      
       (async () => { try { const mod: any = await import('../lib/avEvents'); mod.emitAudioTracksChanged?.(); } catch {} })();
     };
 
