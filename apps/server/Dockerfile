@@ -25,8 +25,13 @@ RUN npx prisma generate --schema ./prisma/schema.prisma
 # 3) Build
 RUN npm run build
 
-# 4) Prod-Dependencies behalten (ohne dev), aber tsx für Seed behalten
-RUN npm prune --omit=dev && npm install tsx --save-prod
+# 4) Prune dev dependencies from root
+WORKDIR /workspace
+RUN npm prune --omit=dev
+
+# Install tsx for seed in server workspace
+WORKDIR /workspace/apps/server
+RUN npm install tsx --save-prod
 
 FROM node:20-bookworm-slim AS runner
 RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates \
@@ -34,7 +39,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-cert
 WORKDIR /workspace/apps/server
 ENV NODE_ENV=production
 
-# 5) Nur das Nötige übernehmen
+# 5) Copy entire workspace node_modules (for hoisted deps) and server-specific
+COPY --from=builder /workspace/node_modules /workspace/node_modules
 COPY --from=builder /workspace/apps/server/node_modules ./node_modules
 COPY --from=builder /workspace/apps/server/prisma ./prisma
 COPY --from=builder /workspace/apps/server/dist ./dist
