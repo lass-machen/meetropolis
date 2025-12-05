@@ -48,7 +48,7 @@ fn get_config(handle: tauri::AppHandle) -> AppConfig {
         }
     }
     AppConfig {
-        api_base: Some("https://meetropolis.s4.lmwow.de".to_string()),
+        api_base: Some("https://api.meetropolis.s4.lmwow.de".to_string()),
         web_base: Some("https://meetropolis.s4.lmwow.de".to_string()),
     }
 }

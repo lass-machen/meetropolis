@@ -7,7 +7,7 @@
     "beforeDevCommand": "echo 'Skipping local dev server'",
     "beforeBuildCommand": "echo 'Skipping frontend build - using local-client'",
     "devUrl": "file:///Users/ricoroder/Cursor/meetropolis/apps/web/src-tauri/local-client/index.html",
-    "frontendDist": "../src-tauri/local-client"
+    "frontendDist": "./local-client"
   },
   "app": {
     "withGlobalTauri": true,

@@ -3,7 +3,7 @@ import './styles/theme.css';
 import { createRoot } from 'react-dom/client';
 import { AppRoutes } from './app/routes/AppRoutes';
 import { RootProviders } from './app/providers/RootProviders';
-import { initTauriBridge } from './lib/tauriBridge';
+import { initTauriBridge, waitForTauriConfig } from './lib/tauriBridge';
 
 // Initialize Tauri Bridge if available
 initTauriBridge();
@@ -67,12 +67,15 @@ try {
   }
 } catch {}
 
-const root = createRoot(document.getElementById('root')!);
-root.render(
-  <React.StrictMode>
-    <RootProviders>
-      <AppRoutes />
-    </RootProviders>
-  </React.StrictMode>
-);
+// Warte auf Tauri Config bevor wir rendern (wichtig für apiBase)
+waitForTauriConfig().then(() => {
+  const root = createRoot(document.getElementById('root')!);
+  root.render(
+    <React.StrictMode>
+      <RootProviders>
+        <AppRoutes />
+      </RootProviders>
+    </React.StrictMode>
+  );
+});
 
