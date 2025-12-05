@@ -38,6 +38,7 @@ import { gameBridge } from '../../game/bridge';
 import { getApiBaseFromWindow } from '../../lib/runtimeConfig';
 import { AVManager } from '../../av/avManager';
 import { useDoNotDisturb } from '../../av/hooks/useDoNotDisturb';
+import { useScreenshareEvents } from '../../av/hooks/useScreenshareEvents';
 import { BubbleManager } from '../../game/bubbleManager';
 import { FollowManager } from '../../game/followManager';
 import { ZoneManager } from '../../game/zoneManager';
@@ -213,6 +214,43 @@ export function WorldApp() {
     setSelectedMicId,
     setSelectedCamId,
     buildParticipantList: buildParticipantListHook,
+  });
+
+  // Auto-Fullscreen bei Remote-Screenshare
+  // Speichere letzte Auto-Fullscreen-Zeit um Spam zu vermeiden
+  const lastAutoFullscreenRef = React.useRef<number>(0);
+  const autoFullscreenCooldown = 5000; // 5 Sekunden Cooldown
+
+  useScreenshareEvents({
+    avRef,
+    enabled: !!(authChecked && me && !editor.active && !avState.dnd),
+    onRemoteScreenshareStart: React.useCallback((participantSid: string, _participantIdentity: string) => {
+      // Auto-Fullscreen nur wenn:
+      // 1. Kein anderer Participant bereits ausgewählt ist
+      // 2. Cooldown abgelaufen
+      // 3. User hat das Feature nicht deaktiviert (TODO: Settings)
+      const now = Date.now();
+      if (selectedSid) return; // Bereits ein Overlay offen
+      if (now - lastAutoFullscreenRef.current < autoFullscreenCooldown) return;
+
+      lastAutoFullscreenRef.current = now;
+
+      // Screenshare-SID hat :screen Suffix
+      const screenSid = participantSid + ':screen';
+      setSelectedSid(screenSid);
+      setOverlayZoom(1);
+
+      // Teilnehmerliste neu bauen, damit der Screenshare-Eintrag existiert
+      setTimeout(() => buildParticipantListHook(), 200);
+    }, [selectedSid, buildParticipantListHook]),
+    onRemoteScreenshareStop: React.useCallback((participantSid: string) => {
+      // Wenn der gestoppte Screenshare gerade im Fullscreen ist, schließen
+      const screenSid = participantSid + ':screen';
+      if (selectedSid === screenSid) {
+        setSelectedSid(null);
+        setOverlayZoom(1);
+      }
+    }, [selectedSid]),
   });
 
   // Colyseus-Verbindung (ausgelagerter Hook)

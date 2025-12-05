@@ -11,6 +11,7 @@ export type { AVDevices } from './core/types';
 // Hooks
 export { useAVManager } from './hooks/useAVManager';
 export { useDoNotDisturb, toggleDoNotDisturb } from './hooks/useDoNotDisturb';
+export { useScreenshareEvents } from './hooks/useScreenshareEvents';
 export { useGlobalAudioTracks } from './useGlobalAudioTracks';
 
 // Logger (for external debugging)
