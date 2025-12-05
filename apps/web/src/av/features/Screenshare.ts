@@ -61,24 +61,29 @@ export class Screenshare implements Disposable {
         return false;
       }
 
-      // Ensure connection before publishing
-      if (!this.deps.isSignalOpen()) {
+      // Get room - we need it for publishing
+      let room = this.deps.getRoom();
+
+      // If no room, try to connect first
+      if (!room) {
+        AVLogger.debug('screenshare.waiting_for_room');
         await this.deps.ensureConnected();
         const connected = await this.deps.waitForConnected(8000);
 
-        if (!connected || !this.deps.isSignalOpen()) {
-          AVLogger.warn('screenshare.connection_failed');
+        if (!connected) {
+          AVLogger.warn('screenshare.connection_failed', { reason: 'timeout' });
           this.cleanupTracks(tracks);
           this._isPending = false;
           return false;
         }
-      }
 
-      const room = this.deps.getRoom();
-      if (!room) {
-        this.cleanupTracks(tracks);
-        this._isPending = false;
-        return false;
+        room = this.deps.getRoom();
+        if (!room) {
+          AVLogger.warn('screenshare.connection_failed', { reason: 'no_room_after_wait' });
+          this.cleanupTracks(tracks);
+          this._isPending = false;
+          return false;
+        }
       }
 
       // Publish tracks

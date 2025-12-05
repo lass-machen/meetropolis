@@ -42,6 +42,10 @@ export class TrackManager implements Disposable {
   private _lastAudioContextResume = 0;
   private _trackEndedCleanups: Map<string, () => void> = new Map();
 
+  // Locks to prevent concurrent track operations
+  private _micLock = false;
+  private _camLock = false;
+
   constructor(private readonly deps: TrackManagerDeps) {}
 
   // ============================================================================
@@ -56,11 +60,52 @@ export class TrackManager implements Disposable {
   }
 
   get isMicrophoneEnabled(): boolean {
-    return this._state.microphone.published;
+    // Check both internal state AND actual room state to avoid desync
+    if (!this._state.microphone.published) return false;
+
+    // Verify track is actually live in the room
+    const room = this.deps.getRoom();
+    if (!room) return this._state.microphone.published;
+
+    try {
+      const pubs = Array.from((room.localParticipant?.trackPublications?.values() || []) as any);
+      const hasMic = pubs.some((pub: any) => {
+        const src = pub?.source ?? pub?.track?.source;
+        const kind = pub?.kind ?? pub?.track?.kind;
+        const track = pub?.track;
+        if (!track) return false;
+        const mst = track.mediaStreamTrack;
+        return (kind === 'audio' || src === 'microphone' || src === 0) && mst?.readyState === 'live';
+      });
+      return hasMic;
+    } catch {
+      return this._state.microphone.published;
+    }
   }
 
   get isCameraEnabled(): boolean {
-    return this._state.camera.published;
+    // Check both internal state AND actual room state to avoid desync
+    if (!this._state.camera.published) return false;
+
+    // Verify track is actually live in the room
+    const room = this.deps.getRoom();
+    if (!room) return this._state.camera.published;
+
+    try {
+      const pubs = Array.from((room.localParticipant?.trackPublications?.values() || []) as any);
+      const hasCam = pubs.some((pub: any) => {
+        const src = pub?.source ?? pub?.track?.source;
+        const kind = pub?.kind ?? pub?.track?.kind;
+        const track = pub?.track;
+        if (!track) return false;
+        const mst = track.mediaStreamTrack;
+        const isCam = src === 'camera' || src === 1 || (kind === 'video' && src !== 'screen_share');
+        return isCam && mst?.readyState === 'live';
+      });
+      return hasCam;
+    } catch {
+      return this._state.camera.published;
+    }
   }
 
   get hasPendingTracks(): boolean {
@@ -74,41 +119,59 @@ export class TrackManager implements Disposable {
   async setMicrophoneEnabled(enabled: boolean): Promise<void> {
     if (this._disposed) return;
 
-    const state = this._state.microphone;
-    state.desired = enabled;
-
-    AVLogger.debug('track.mic.set', { enabled, currentlyPublished: state.published });
-
-    // Handle AudioContext unlock with throttling
-    if (enabled) {
-      await this.tryUnlockAudio();
-    }
-
-    const room = this.deps.getRoom();
-
-    // If no room or signal not open, mark as pending
-    if (!room || !this.deps.isSignalOpen()) {
-      state.pending = enabled;
-      if (enabled) {
-        AVLogger.info('track.mic.pending', { reason: 'no_connection' });
-        // Request permissions proactively
-        await this.ensureAudioPermissions();
-        // Try to connect
-        try {
-          await this.deps.ensureConnected();
-        } catch {
-          // Will retry when connection is established
-        }
-      }
+    // Prevent concurrent operations on mic
+    if (this._micLock) {
+      AVLogger.debug('track.mic.locked', { enabled });
       return;
     }
 
-    state.pending = false;
+    const state = this._state.microphone;
 
-    if (enabled) {
-      await this.publishMicrophone(room);
-    } else {
-      await this.unpublishMicrophone(room);
+    // Skip if already in desired state
+    if (state.published === enabled && !state.pending) {
+      AVLogger.debug('track.mic.already_in_state', { enabled });
+      return;
+    }
+
+    this._micLock = true;
+    state.desired = enabled;
+
+    try {
+      AVLogger.debug('track.mic.set', { enabled, currentlyPublished: state.published });
+
+      // Handle AudioContext unlock with throttling
+      if (enabled) {
+        await this.tryUnlockAudio();
+      }
+
+      const room = this.deps.getRoom();
+
+      // If no room, mark as pending and try to connect
+      if (!room) {
+        state.pending = enabled;
+        if (enabled) {
+          AVLogger.info('track.mic.pending', { reason: 'no_room' });
+          await this.ensureAudioPermissions();
+          try {
+            await this.deps.ensureConnected();
+          } catch {
+            // Will retry when connection is established
+          }
+        }
+        return;
+      }
+
+      // If room exists, proceed even if signal check is uncertain
+      // The publish operation will fail safely if connection is truly broken
+      state.pending = false;
+
+      if (enabled) {
+        await this.publishMicrophone(room);
+      } else {
+        await this.unpublishMicrophone(room);
+      }
+    } finally {
+      this._micLock = false;
     }
   }
 
@@ -132,34 +195,54 @@ export class TrackManager implements Disposable {
   async setCameraEnabled(enabled: boolean): Promise<void> {
     if (this._disposed) return;
 
-    const state = this._state.camera;
-    state.desired = enabled;
-
-    AVLogger.debug('track.cam.set', { enabled, currentlyPublished: state.published });
-
-    const room = this.deps.getRoom();
-
-    // If no room or signal not open, mark as pending
-    if (!room || !this.deps.isSignalOpen()) {
-      state.pending = enabled;
-      if (enabled) {
-        AVLogger.info('track.cam.pending', { reason: 'no_connection' });
-        await this.ensureVideoPermissions();
-        try {
-          await this.deps.ensureConnected();
-        } catch {
-          // Will retry when connection is established
-        }
-      }
+    // Prevent concurrent operations on cam
+    if (this._camLock) {
+      AVLogger.debug('track.cam.locked', { enabled });
       return;
     }
 
-    state.pending = false;
+    const state = this._state.camera;
 
-    if (enabled) {
-      await this.publishCamera(room);
-    } else {
-      await this.unpublishCamera(room);
+    // Skip if already in desired state
+    if (state.published === enabled && !state.pending) {
+      AVLogger.debug('track.cam.already_in_state', { enabled });
+      return;
+    }
+
+    this._camLock = true;
+    state.desired = enabled;
+
+    try {
+      AVLogger.debug('track.cam.set', { enabled, currentlyPublished: state.published });
+
+      const room = this.deps.getRoom();
+
+      // If no room, mark as pending and try to connect
+      if (!room) {
+        state.pending = enabled;
+        if (enabled) {
+          AVLogger.info('track.cam.pending', { reason: 'no_room' });
+          await this.ensureVideoPermissions();
+          try {
+            await this.deps.ensureConnected();
+          } catch {
+            // Will retry when connection is established
+          }
+        }
+        return;
+      }
+
+      // If room exists, proceed even if signal check is uncertain
+      // The publish operation will fail safely if connection is truly broken
+      state.pending = false;
+
+      if (enabled) {
+        await this.publishCamera(room);
+      } else {
+        await this.unpublishCamera(room);
+      }
+    } finally {
+      this._camLock = false;
     }
   }
 
@@ -187,7 +270,7 @@ export class TrackManager implements Disposable {
     if (this._disposed) return;
 
     const room = this.deps.getRoom();
-    if (!room || !this.deps.isSignalOpen()) return;
+    if (!room) return;
 
     if (this._state.microphone.pending && this._state.microphone.desired) {
       AVLogger.info('track.mic.publish_pending');

@@ -74,27 +74,41 @@ export class SignalMonitor implements Disposable {
     try {
       const roomAny = this._room as any;
 
-      // Check WebSocket readyState
-      const ws = roomAny.engine?.signalClient?.ws;
+      // Check room connection state first (most reliable indicator)
+      const connectionState = roomAny.connectionState ?? roomAny.state;
+      const isConnected = connectionState === 'connected' || connectionState === 2;
+
+      // If room says connected, trust it (skip WebSocket check)
+      if (isConnected) {
+        return true;
+      }
+
+      // Only check WebSocket if room state is ambiguous
+      // Try multiple paths to find the WebSocket
+      const ws = roomAny.engine?.signalClient?.ws
+        ?? roomAny.engine?.client?.ws
+        ?? roomAny.engine?.ws;
+
       if (ws && typeof ws.readyState === 'number') {
-        if (ws.readyState !== 1) {
-          // Not OPEN
-          return false;
+        if (ws.readyState === 1) {
+          // WebSocket is OPEN
+          return true;
         }
       }
 
-      // Check room connection state
-      const connectionState = roomAny.connectionState ?? roomAny.state;
+      // Check if disconnected explicitly
       if (connectionState === 'disconnected' || connectionState === 3) {
         return false;
       }
 
-      // Check if we've missed too many pings
+      // If we've missed too many pings AND room is not connected, signal is lost
       if (this._health.missedPings >= this.config.maxMissedPings) {
         return false;
       }
 
-      return true;
+      // Default: if room exists and state is not disconnected, assume open
+      // This handles "connecting" state and other intermediate states
+      return connectionState !== undefined;
     } catch {
       return false;
     }
