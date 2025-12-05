@@ -1123,6 +1123,20 @@ export function WorldApp() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
+  // Escape to close participant overlay (screenshare viewer)
+  useEffect(() => {
+    if (!selectedSid) return;
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setSelectedSid(null);
+        setOverlayZoom(1);
+      }
+    };
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [selectedSid]);
+
   useEffect(() => {
     // Kein globales Blockieren des Kontextmenüs mehr.
     // Das Unterdrücken des Kontextmenüs wird ausschließlich in der Phaser-Scene
