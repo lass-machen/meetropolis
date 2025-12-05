@@ -99,6 +99,10 @@ export function WorldApp() {
   // Map-Editor State (must be declared before any hooks that reference `editor`)
   const [editor, setEditor] = useEditor();
 
+  // Auth state (must be declared before hooks that use them)
+  const [authChecked, setAuthChecked] = React.useState(false);
+  const [me, setMe] = React.useState<{ id: string; email: string; name?: string } | null>(null);
+
   // DND Hook - vereinfacht beide alten Hooks (useDoNotDisturbBridge + useDndShortcut)
   useDoNotDisturb({
     enabled: !!(authChecked && me),
@@ -107,10 +111,6 @@ export function WorldApp() {
     setAvState,
     colyseusRef,
   });
-  // (veraltet) Lokale No-Op-Teilnehmer-Helpers und früher WorldRoom-Aufruf entfernt; Nutzung erfolgt weiter unten mit den Hook-Funktionen
-  // Auth state
-  const [authChecked, setAuthChecked] = React.useState(false);
-  const [me, setMe] = React.useState<{ id: string; email: string; name?: string } | null>(null);
   // Blockiere Spiel-Start bis Position geladen/entschieden ist
   const [positionReady, setPositionReady] = React.useState(false);
   // API Tokens & Settings
