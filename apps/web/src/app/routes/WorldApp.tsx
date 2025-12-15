@@ -1476,7 +1476,8 @@ export function WorldApp() {
                       } catch (e) { }
                     }}
                     onToggleDnd={async () => {
-                      const current = !!(avRef.current?.dndEnabled ?? dndRef.current ?? avState.dnd);
+                      // Use UI state as source of truth to avoid desync issues (especially in Tauri/WKWebView)
+                      const current = avState.dnd;
                       const next = !current;
                       try { (gameBridge as any).setDoNotDisturb?.(next); } catch { }
                       try { (gameBridge as any).setMovementLocked?.(next); } catch { }
