@@ -1476,82 +1476,10 @@ export function WorldApp() {
                       } catch (e) { }
                     }}
                     onToggleDnd={async () => {
-                      console.log('[DND] Button clicked!');
-                      // Lese echten DND-Status aus AVManager, nicht aus UI-State
-                      const avManager = avRef.current;
-                      const realDnd = !!avManager?.dndEnabled;
-                      const next = !realDnd;
-                      console.log('[DND] Toggle:', { 
-                        realDnd, 
-                        next, 
-                        uiDnd: avState.dnd, 
-                        hasAvManager: !!avManager,
-                        hasRoom: !!(avManager as any)?.room,
-                        connectionState: (avManager as any)?.room?.state
-                      });
-                      try { 
-                        await avManager?.setDoNotDisturb(next); 
-                        console.log('[DND] setDoNotDisturb completed');
-                      } catch (e) { 
-                        console.error('[DND] setDoNotDisturb failed:', e);
-                      }
-                      try { gameBridge.setDoNotDisturb(next); } catch { }
-                      try { gameBridge.setMovementLocked(next); } catch { }
-                      if (next) {
-                        // DND aktivieren: Alles stumm schalten
-                        try { await avRef.current?.setMicrophoneEnabled(false); } catch { }
-                        try { await avRef.current?.setCameraEnabled(false); } catch { }
-                        try { await avRef.current?.stopScreenshare(); } catch { }
-                        try {
-                          const room: any = avRef.current?.room as any;
-                          if (room?.remoteParticipants) {
-                            const participants: any[] = Array.from((room.remoteParticipants as any).values());
-                            for (const p of participants) {
-                              const sid = (p as any)?.sid;
-                              if (sid) {
-                                try { avRef.current?.setParticipantVolume(sid, 0); } catch { }
-                              }
-                            }
-                          }
-                        } catch { }
-                      } else {
-                        // DND deaktivieren: Remote-Lautstärken wiederherstellen
-                        try {
-                          const room: any = avRef.current?.room as any;
-                          if (room?.remoteParticipants) {
-                            const participants: any[] = Array.from((room.remoteParticipants as any).values());
-                            for (const p of participants) {
-                              const sid = (p as any)?.sid;
-                              if (sid) {
-                                try { avRef.current?.setParticipantVolume(sid, 1); } catch { }
-                              }
-                            }
-                          }
-                        } catch { }
-                        // Volume-Update triggern
-                        try { volumeRef.current?.update(); } catch { }
-                      }
-                      dndRef.current = next;
-                      console.log('[DND] Updating UI state to:', next);
-                      setAvState(s => {
-                        console.log('[DND] State update - old:', s.dnd, 'new:', next);
-                        return { ...s, dnd: next, mic: next ? false : s.mic, cam: next ? false : s.cam, share: next ? false : s.share };
-                      });
-                      try { colyseusRef.current?.send?.('dnd_status', { dnd: next }); } catch { }
-                      try { volumeRef.current?.update(); } catch { }
-                      // Verifiziere echten Zustand nach kurzer Zeit und gleiche UI an
-                      setTimeout(async () => {
-                        try {
-                          const mod: any = await import('../../av/core/localState');
-                          const r: any = avRef.current?.room as any;
-                          if (!r) return;
-                          const realMic = mod.isLocalMicOn(r);
-                          const realCam = mod.isLocalCamOn(r);
-                          let realShare = false;
-                          try { realShare = mod.isLocalShareOn(r); } catch { }
-                          setAvState(s => ({ ...s, mic: next ? false : realMic, cam: next ? false : realCam, share: next ? false : realShare }));
-                        } catch { }
-                      }, 450);
+                      const current = !!(avRef.current?.dndEnabled ?? dndRef.current ?? avState.dnd);
+                      const next = !current;
+                      try { (gameBridge as any).setDoNotDisturb?.(next); } catch { }
+                      try { (gameBridge as any).setMovementLocked?.(next); } catch { }
                     }}
                     cameraManual={cameraManual}
                     onRecenter={() => { try { gameBridge.recenterCamera(); } catch { } }}
@@ -1777,4 +1705,3 @@ export function WorldApp() {
 // Styles (unused button styles removed)
 
 // ParticipantCard moved to ../../ui/user/ParticipantCard
-

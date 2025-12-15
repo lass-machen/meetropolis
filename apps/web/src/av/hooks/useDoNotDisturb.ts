@@ -33,20 +33,11 @@ export function useDoNotDisturb({
 
     // Override gameBridge.setDoNotDisturb to sync with AVManager
     gb.setDoNotDisturb = async (nextEnabled: boolean) => {
-      try {
-        // Call original for game-side effects
-        originalSetDnd?.(!!nextEnabled);
-      } catch {}
+      // 1) Apply game-side effects immediately (movement lock, etc.)
+      try { originalSetDnd?.(!!nextEnabled); } catch {}
 
-      // Sync with AVManager (single source of truth)
-      try {
-        await avRef.current?.setDoNotDisturb(nextEnabled);
-      } catch {}
-
-      // Update local ref
+      // 2) Update UI immediately (do not block on AV operations)
       dndRef.current = nextEnabled;
-
-      // Update UI state
       setAvState((s) => ({
         ...s,
         dnd: nextEnabled,
@@ -55,10 +46,11 @@ export function useDoNotDisturb({
         share: nextEnabled ? false : s.share,
       }));
 
-      // Notify Colyseus
-      try {
-        colyseusRef?.current?.send?.('dnd_status', { dnd: nextEnabled });
-      } catch {}
+      // 3) Notify Colyseus (best-effort)
+      try { colyseusRef?.current?.send?.('dnd_status', { dnd: nextEnabled }); } catch {}
+
+      // 4) Sync with AVManager in background (best-effort)
+      try { void avRef.current?.setDoNotDisturb(nextEnabled); } catch {}
     };
 
     return () => {

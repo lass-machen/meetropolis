@@ -539,6 +539,9 @@ export class AVManager implements Disposable {
             this.subscriptionManager.ensureAudioSubscriptions(64);
           }
 
+          // Important: apply subscriptions immediately so screenshares appear quickly.
+          this.subscriptionManager.forceApply();
+
           emitAudioTracksChanged();
         });
 

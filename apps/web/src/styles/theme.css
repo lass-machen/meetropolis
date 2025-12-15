@@ -248,12 +248,13 @@ body {
 .uc-container {
   position: absolute;
   top: var(--uc-top, 12px);
-  /* Feste Abstände links und rechts, damit nie Kollision mit seitlichen Buttons */
-  left: var(--uc-left, 12px);
-  right: auto;
+  /* Zentriert im verfügbaren Bereich (links von den rechten Buttons) */
+  --uc-available-width: calc(100vw - var(--uc-right-reserve, 380px));
+  left: calc(var(--uc-available-width) / 2);
+  transform: translateX(-50%);
   z-index: 20;
-  /* Breite begrenzt: Viewport minus linke und rechte Button-Bereiche */
-  max-width: calc(100vw - var(--uc-left, 12px) - var(--uc-right, 350px) - 24px);
+  /* Breite begrenzt, damit die Karte nicht über den verfügbaren Bereich hinausragt */
+  max-width: calc(var(--uc-available-width) - 48px);
   background: var(--uc-bg);
   backdrop-filter: blur(16px);
   color: var(--fg);
@@ -269,14 +270,18 @@ body {
 
 /* Responsive: Platz für rechte Buttons anpassen */
 @media (max-width: 1200px) {
-  .uc-container { --uc-right: 300px; }
+  .uc-container { --uc-right-reserve: 320px; }
 }
 @media (max-width: 900px) {
-  .uc-container { --uc-right: 250px; }
+  .uc-container { --uc-right-reserve: 280px; }
 }
 @media (max-width: 700px) {
-  /* Auf sehr kleinen Screens: Karte nach unten verschieben */
-  .uc-container { --uc-top: 56px; --uc-right: 12px; }
+  /* Auf sehr kleinen Screens: Karte nach unten verschieben und zentrieren */
+  .uc-container { 
+    --uc-top: 56px; 
+    --uc-right-reserve: 24px;
+    left: 50%;
+  }
 }
 
 .uc-expand-btn {

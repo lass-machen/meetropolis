@@ -38,6 +38,7 @@ export class DoNotDisturb implements Disposable {
 
   private _listeners: Set<DNDChangeHandler> = new Set();
   private _disposed = false;
+  private _op: Promise<void> = Promise.resolve();
 
   constructor(private readonly deps: DNDDeps) {}
 
@@ -62,13 +63,15 @@ export class DoNotDisturb implements Disposable {
 
     AVLogger.info('dnd.set', { enabled });
 
-    if (enabled) {
-      await this.enableDND();
-    } else {
-      await this.disableDND();
-    }
-
+    if (enabled) this.prepareEnable();
+    else this.prepareDisable();
     this.notifyListeners();
+
+    // Side-effects run asynchronously so UI is never blocked by track operations.
+    this.enqueue(async () => {
+      if (enabled) await this.enableSideEffects();
+      else await this.disableSideEffects();
+    });
   }
 
   /**
@@ -97,7 +100,11 @@ export class DoNotDisturb implements Disposable {
   // Private
   // ============================================================================
 
-  private async enableDND(): Promise<void> {
+  private enqueue(task: () => Promise<void>): void {
+    this._op = this._op.catch(() => {}).then(task);
+  }
+
+  private prepareEnable(): void {
     // IMPORTANT: Save state BEFORE disabling anything
     this._state.micBeforeDND = this.deps.isMicrophoneEnabled();
     this._state.camBeforeDND = this.deps.isCameraEnabled();
@@ -108,6 +115,15 @@ export class DoNotDisturb implements Disposable {
     });
 
     this._state.enabled = true;
+  }
+
+  private prepareDisable(): void {
+    this._state.enabled = false;
+  }
+
+  private async enableSideEffects(): Promise<void> {
+    if (this._disposed) return;
+    if (!this._state.enabled) return;
 
     // Disable local tracks
     try {
@@ -116,11 +132,15 @@ export class DoNotDisturb implements Disposable {
       AVLogger.warn('dnd.mic_disable.error', { error: String(error) });
     }
 
+    if (!this._state.enabled) return;
+
     try {
       await this.deps.setCameraEnabled(false);
     } catch (error) {
       AVLogger.warn('dnd.cam_disable.error', { error: String(error) });
     }
+
+    if (!this._state.enabled) return;
 
     try {
       await this.deps.stopScreenshare();
@@ -128,12 +148,15 @@ export class DoNotDisturb implements Disposable {
       AVLogger.warn('dnd.screenshare_stop.error', { error: String(error) });
     }
 
+    if (!this._state.enabled) return;
+
     // Mute all remote audio immediately
     this.deps.muteAllRemote();
   }
 
-  private async disableDND(): Promise<void> {
-    this._state.enabled = false;
+  private async disableSideEffects(): Promise<void> {
+    if (this._disposed) return;
+    if (this._state.enabled) return;
 
     AVLogger.debug('dnd.disable', {
       restoreMic: this._state.micBeforeDND,
@@ -152,6 +175,8 @@ export class DoNotDisturb implements Disposable {
       }
     }
 
+    if (this._state.enabled) return;
+
     if (this._state.camBeforeDND) {
       try {
         await this.deps.setCameraEnabled(true);
@@ -161,8 +186,10 @@ export class DoNotDisturb implements Disposable {
     }
 
     // Reset saved state
-    this._state.micBeforeDND = false;
-    this._state.camBeforeDND = false;
+    if (!this._state.enabled) {
+      this._state.micBeforeDND = false;
+      this._state.camBeforeDND = false;
+    }
   }
 
   private notifyListeners(): void {
