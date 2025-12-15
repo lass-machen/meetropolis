@@ -8,7 +8,6 @@ export function useGlobalAudioTracks(params: { avRef: React.MutableRefObject<any
     if (!room) return;
 
     const audioElements = new Map<string, HTMLAudioElement>();
-    let cleanupBus: (() => void) | null = null;
 
     const attachAudioTrack = (track: any, participantId: string) => {
       try {
@@ -99,7 +98,6 @@ export function useGlobalAudioTracks(params: { avRef: React.MutableRefObject<any
         try { audio.parentNode?.removeChild(audio); } catch {}
       });
       audioElements.clear();
-      try { cleanupBus?.(); } catch {}
     };
   }, [avRef.current?.room]);
 
@@ -123,5 +121,4 @@ export function useGlobalAudioTracks(params: { avRef: React.MutableRefObject<any
     } catch { return; }
   }, []);
 }
-
 

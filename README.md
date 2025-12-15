@@ -98,6 +98,7 @@ Hinweise
 #### LiveKit (Entwicklung)
 - Der Compose-Container startet LiveKit im Dev-Modus mit Schlüsseln `devkey/secret` auf Port `7880`.
 - Der Web-Client liest `VITE_LIVEKIT_URL` und der Server `LIVEKIT_URL` aus `.env`.
+- Fallback für harte NATs (Hotspot/VPN/Corporate): Der Client retryt bei Connect-Fehler einmal mit TURN/Relay; erzwingbar via `VITE_AV_FORCE_RELAY=true`, `?forceRelay=1` (auch `?relay=1`/`?lkrelay=1`) oder `localStorage.setItem('av.forceRelay','true')`.
 
 #### Ordnerstruktur
 ```

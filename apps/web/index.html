@@ -12,6 +12,50 @@
   </head>
   <body>
     <div id="root"></div>
+    <!-- WebSocket Patch for WKWebView (Tauri) - MUST run BEFORE main bundle -->
+    <script>
+      (function() {
+        // Only patch in Tauri (WKWebView)
+        if (typeof window === 'undefined' || !window.__TAURI__) return;
+
+        var OriginalWebSocket = window.WebSocket;
+        if (!OriginalWebSocket) return;
+
+        function PatchedWebSocket(url, protocols) {
+          // If protocols is an object (not array, not string), extract the protocols array
+          // This fixes Colyseus.js which passes { headers, protocols } to WebSocket
+          if (protocols !== undefined && protocols !== null && typeof protocols === 'object' && !Array.isArray(protocols)) {
+            console.log('[WS Patch] Object detected, extracting protocols from:', protocols);
+            var actualProtocols = protocols.protocols;
+            if (Array.isArray(actualProtocols) && actualProtocols.length > 0) {
+              return new OriginalWebSocket(url, actualProtocols);
+            } else {
+              return new OriginalWebSocket(url);
+            }
+          }
+          // Normal case
+          if (protocols === undefined || protocols === null) {
+            return new OriginalWebSocket(url);
+          }
+          return new OriginalWebSocket(url, protocols);
+        }
+
+        // Copy static properties
+        PatchedWebSocket.CONNECTING = OriginalWebSocket.CONNECTING;
+        PatchedWebSocket.OPEN = OriginalWebSocket.OPEN;
+        PatchedWebSocket.CLOSING = OriginalWebSocket.CLOSING;
+        PatchedWebSocket.CLOSED = OriginalWebSocket.CLOSED;
+        PatchedWebSocket.prototype = OriginalWebSocket.prototype;
+
+        // Replace globally
+        window.WebSocket = PatchedWebSocket;
+        if (typeof globalThis !== 'undefined') {
+          globalThis.WebSocket = PatchedWebSocket;
+        }
+
+        console.log('[WS Patch] WebSocket patched for WKWebView (pre-bundle)');
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
   </html>

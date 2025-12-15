@@ -36,33 +36,47 @@ const configLoadedPromise = new Promise<void>((resolve) => {
 function patchWebSocketForWKWebView() {
   if (typeof window === 'undefined' || !window.__TAURI__) return;
 
-  const OriginalWebSocket = window.WebSocket;
+  const OriginalWebSocket = (window as any).WebSocket;
 
-  // @ts-ignore - we're patching the global WebSocket
-  window.WebSocket = function PatchedWebSocket(url: string, protocols?: string | string[] | Record<string, any>) {
-    // If protocols is an object (not array, not string), extract the protocols array
-    if (protocols && typeof protocols === 'object' && !Array.isArray(protocols)) {
-      console.log('[Tauri WebSocket Patch] Converting object to protocols array:', protocols);
+  // Create a proper constructor function that can be used with 'new'
+  function PatchedWebSocket(this: WebSocket, url: string | URL, protocols?: string | string[] | Record<string, any>): WebSocket {
+    console.log('[Tauri WebSocket Patch] Called with:', url, protocols, typeof protocols);
+
+    // If protocols is an object (not array, not string, not undefined), extract the protocols array
+    if (protocols !== undefined && protocols !== null && typeof protocols === 'object' && !Array.isArray(protocols)) {
+      console.log('[Tauri WebSocket Patch] Converting object to protocols array');
       const actualProtocols = (protocols as any).protocols;
-      if (Array.isArray(actualProtocols)) {
+      if (Array.isArray(actualProtocols) && actualProtocols.length > 0) {
+        console.log('[Tauri WebSocket Patch] Using protocols:', actualProtocols);
         return new OriginalWebSocket(url, actualProtocols);
       } else {
-        // No protocols specified, just connect without
+        console.log('[Tauri WebSocket Patch] No protocols, connecting without');
         return new OriginalWebSocket(url);
       }
     }
+
     // Normal case - pass through
-    return new OriginalWebSocket(url, protocols as string | string[] | undefined);
-  } as any;
+    if (protocols === undefined || protocols === null) {
+      return new OriginalWebSocket(url);
+    }
+    return new OriginalWebSocket(url, protocols as string | string[]);
+  }
 
   // Copy static properties
-  (window.WebSocket as any).CONNECTING = OriginalWebSocket.CONNECTING;
-  (window.WebSocket as any).OPEN = OriginalWebSocket.OPEN;
-  (window.WebSocket as any).CLOSING = OriginalWebSocket.CLOSING;
-  (window.WebSocket as any).CLOSED = OriginalWebSocket.CLOSED;
+  PatchedWebSocket.CONNECTING = OriginalWebSocket.CONNECTING;
+  PatchedWebSocket.OPEN = OriginalWebSocket.OPEN;
+  PatchedWebSocket.CLOSING = OriginalWebSocket.CLOSING;
+  PatchedWebSocket.CLOSED = OriginalWebSocket.CLOSED;
 
-  // Preserve prototype chain for instanceof checks
-  window.WebSocket.prototype = OriginalWebSocket.prototype;
+  // Set prototype for instanceof checks
+  PatchedWebSocket.prototype = OriginalWebSocket.prototype;
+
+  // Replace global WebSocket
+  (window as any).WebSocket = PatchedWebSocket;
+  // Also patch globalThis for libraries that use it
+  if (typeof globalThis !== 'undefined') {
+    (globalThis as any).WebSocket = PatchedWebSocket;
+  }
 
   console.log('[Tauri] WebSocket patched for WKWebView compatibility');
 }

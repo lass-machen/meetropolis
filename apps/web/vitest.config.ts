@@ -5,11 +5,15 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./src/test/setup.ts'],
-    exclude: ['e2e/**'],
+    exclude: [
+      'e2e/**',
+      'dist/**',
+      'src-tauri/**',
+      '**/src-tauri/**',
+    ],
     coverage: {
       provider: 'v8',
     },
   },
 });
-
 
