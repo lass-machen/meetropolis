@@ -22,14 +22,25 @@ export async function joinWorld(serverUrl: string, identity?: string, name?: str
   console.log('[Colyseus] wsUrl after conversion:', wsUrl, 'type:', typeof wsUrl);
 
   // Derive tenant from browser hostname (first label), fallback to 'default'
+  // In Tauri: Use __MEETROPOLIS_WEB_BASE__ as the hostname is localhost
   let tenant = 'default';
   try {
-    const host = typeof window !== 'undefined' ? window.location.hostname : '';
-    const parts = host.split('.');
-    if (parts.length >= 3) tenant = parts[0];
+    const anyWin = typeof window !== 'undefined' ? (window as any) : {};
+    const webBase = anyWin.__MEETROPOLIS_WEB_BASE__ || '';
+    
+    // Try to extract tenant from web_base first (Tauri)
+    const webBaseMatch = webBase.match(/https?:\/\/([^.]+)\./);
+    if (webBaseMatch?.[1]) {
+      tenant = webBaseMatch[1];
+    } else {
+      // Fallback: extract from browser hostname (Web)
+      const host = typeof window !== 'undefined' ? window.location.hostname : '';
+      const parts = host.split('.');
+      if (parts.length >= 3) tenant = parts[0];
+    }
   } catch {}
 
-  console.log('[Colyseus] Creating client with wsUrl:', wsUrl);
+  console.log('[Colyseus] Creating client with wsUrl:', wsUrl, 'tenant:', tenant);
 
   try {
     const client = new Client(wsUrl);

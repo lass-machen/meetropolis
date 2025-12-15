@@ -181,6 +181,8 @@ services:
     ports:
       - "0.0.0.0:${EXTERNAL_LK_RTC_TCP_PORT:-7881}:${LK_RTC_TCP_PORT:-7881}/tcp"
       - "0.0.0.0:${EXTERNAL_LK_RTC_UDP_PORT:-7882}:${LK_RTC_UDP_PORT:-7882}/udp"
+      - "0.0.0.0:3478:3478/tcp"
+      - "0.0.0.0:3478:3478/udp"
     networks:
       - traefik
     restart: unless-stopped
