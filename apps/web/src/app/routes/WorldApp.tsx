@@ -1479,7 +1479,7 @@ export function WorldApp() {
                       console.log('[DND] Button clicked!');
                       // Lese echten DND-Status aus AVManager, nicht aus UI-State
                       const avManager = avRef.current;
-                      const realDnd = !!(avManager as any)?.dnd;
+                      const realDnd = !!avManager?.dndEnabled;
                       const next = !realDnd;
                       console.log('[DND] Toggle:', { 
                         realDnd, 
@@ -1777,5 +1777,4 @@ export function WorldApp() {
 // Styles (unused button styles removed)
 
 // ParticipantCard moved to ../../ui/user/ParticipantCard
-
 

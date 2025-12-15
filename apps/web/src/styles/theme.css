@@ -252,6 +252,8 @@ body {
   transform: translateX(-50%);
   z-index: 20;
   width: var(--uc-width, auto);
+  /* Begrenze Breite, damit Platz für Buttons links (≈350px) und rechts (≈350px) bleibt */
+  max-width: calc(100vw - 700px);
   background: var(--uc-bg);
   backdrop-filter: blur(16px);
   color: var(--fg);
@@ -264,6 +266,17 @@ body {
 
 .uc-container.uc-expanded { --uc-top: 12px; --uc-gap: 18px; }
 .uc-container.uc-collapsed { --uc-top: 12px; --uc-gap: 12px; }
+
+/* Auf kleineren Bildschirmen: weniger Rand, da Buttons evtl. kleiner oder gestapelt */
+@media (max-width: 1200px) {
+  .uc-container { max-width: calc(100vw - 500px); }
+}
+@media (max-width: 900px) {
+  .uc-container { max-width: calc(100vw - 300px); }
+}
+@media (max-width: 600px) {
+  .uc-container { max-width: calc(100vw - 150px); }
+}
 
 .uc-expand-btn {
   position: absolute;
