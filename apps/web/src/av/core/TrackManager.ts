@@ -283,6 +283,16 @@ export class TrackManager implements Disposable {
       return;
     }
 
+    // If signaling is stale/closed, reconnect first; publishing into a dead signal is unreliable.
+    if (enabled && !this.deps.isSignalOpen()) {
+      state.pending = true;
+      AVLogger.info('track.mic.pending', { reason: 'signal_closed' });
+      try {
+        await this.deps.ensureConnected();
+      } catch {}
+      return;
+    }
+
     state.pending = false;
 
     if (enabled) {
@@ -332,6 +342,15 @@ export class TrackManager implements Disposable {
           await this.deps.ensureConnected();
         } catch {}
       }
+      return;
+    }
+
+    if (enabled && !this.deps.isSignalOpen()) {
+      state.pending = true;
+      AVLogger.info('track.cam.pending', { reason: 'signal_closed' });
+      try {
+        await this.deps.ensureConnected();
+      } catch {}
       return;
     }
 

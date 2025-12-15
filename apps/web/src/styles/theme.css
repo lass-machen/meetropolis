@@ -267,16 +267,16 @@ body {
 .uc-container.uc-expanded { --uc-top: 12px; --uc-gap: 18px; }
 .uc-container.uc-collapsed { --uc-top: 12px; --uc-gap: 12px; }
 
-/* Auf kleineren Bildschirmen: weniger Rand für die Buttons */
-@media (max-width: 1400px) {
-  .uc-container { --uc-left: 280px; --uc-right: 280px; }
+/* Responsive: Platz für rechte Buttons anpassen */
+@media (max-width: 1200px) {
+  .uc-container { --uc-right: 300px; }
 }
-@media (max-width: 1100px) {
-  .uc-container { --uc-left: 200px; --uc-right: 200px; }
+@media (max-width: 900px) {
+  .uc-container { --uc-right: 250px; }
 }
-@media (max-width: 800px) {
+@media (max-width: 700px) {
   /* Auf sehr kleinen Screens: Karte nach unten verschieben */
-  .uc-container { --uc-top: 56px; --uc-left: 12px; --uc-right: 12px; }
+  .uc-container { --uc-top: 56px; --uc-right: 12px; }
 }
 
 .uc-expand-btn {

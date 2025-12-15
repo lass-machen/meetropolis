@@ -65,7 +65,10 @@ export class Screenshare implements Disposable {
       let room = this.deps.getRoom();
 
       // If no room, try to connect first
-      if (!room) {
+      if (!room || !this.deps.isSignalOpen()) {
+        if (room && !this.deps.isSignalOpen()) {
+          AVLogger.warn('screenshare.signal_closed');
+        }
         AVLogger.debug('screenshare.waiting_for_room');
         await this.deps.ensureConnected();
         const connected = await this.deps.waitForConnected(8000);

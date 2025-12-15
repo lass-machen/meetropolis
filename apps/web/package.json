@@ -9,6 +9,7 @@
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0 --port 5173",
     "test": "vitest run --reporter=verbose",
+    "check:av": "vite build && vitest run --reporter=verbose src/lib/livekit.test.ts src/av/core/TrackManager.concurrency.test.ts src/av/core/TrackManager.signalClosed.test.ts",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "e2e": "node ./e2e-run.js",
