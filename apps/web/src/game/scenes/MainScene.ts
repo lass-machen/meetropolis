@@ -13,8 +13,7 @@ import { ensureCollisionCollider as colEnsureCollider, rebuildStaticColliders as
 // import { applyTerrainPaint as edApplyTerrainPaint, eraseTerrainRect as edEraseTerrainRect, applyTilePaint as edApplyTilePaint, ensureTerrainTilesetFor as edEnsureTerrainTilesetFor } from '../editor/painting';
 // Editor layers import removed - deprecated file deleted
 // import { saveEditorLayers as mapSaveLayers, saveEditorLayersHard as mapSaveLayersHard, loadEditorLayers as mapLoadLayers, reloadEditorLayers as mapReloadLayers } from '../map/editorLayers';
-// Temporäre Editor-Funktionen bis EditorRenderer vollständig integriert ist
-import { setEditorAssets as edSetAssets, setAssetPreview as edSetAssetPreview } from '../editor/assets-temp';
+import { setEditorAssets as edSetAssets, setAssetPreview as edSetAssetPreview } from '../editor/editorAssets';
 import { fetchAndApplyServerLayers as mapFetchAndApply } from '../map/serverSync';
 import { loadVisibleChunks as mapLoadVisibleChunks, applyChunkUpdates as mapApplyChunkUpdates } from '../map/chunks';
 import { registerTileset as mapRegisterTileset } from '../map/tilesets';

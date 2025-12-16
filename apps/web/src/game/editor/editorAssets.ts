@@ -1,5 +1,5 @@
 /**
- * Temporäre Asset-Funktionen bis EditorRenderer vollständig integriert ist
+ * Editor asset management for placing and previewing sprites in the map editor
  */
 
 import Phaser from 'phaser';
