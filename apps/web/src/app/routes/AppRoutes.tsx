@@ -1,9 +1,12 @@
 import * as React from 'react';
 import { WorldScreen } from './WorldScreen';
 import { LandingPage, PricingPage, TenantSignupPage } from '../../ui/public';
+import { PrivacyPolicy } from '../../ui/legal/PrivacyPolicy';
+import { TermsOfService } from '../../ui/legal/TermsOfService';
+import { Impressum } from '../../ui/legal/Impressum';
 import { getApiBaseFromWindow } from '../../lib/runtimeConfig';
 
-type Route = 'landing' | 'pricing' | 'signup' | 'app';
+type Route = 'landing' | 'pricing' | 'signup' | 'app' | 'privacy' | 'terms' | 'impressum' | 'verify';
 
 /**
  * Simple hash-based routing for public pages and the main app.
@@ -20,6 +23,8 @@ export function AppRoutes() {
   const [route, setRoute] = React.useState<Route>('landing');
   const [selectedPlan, setSelectedPlan] = React.useState<string | undefined>();
 
+  const [verifyToken, setVerifyToken] = React.useState<string | undefined>();
+
   // Parse initial route from hash
   React.useEffect(() => {
     const handleHashChange = () => {
@@ -30,6 +35,16 @@ export function AppRoutes() {
         const params = new URLSearchParams(hash.split('?')[1] || '');
         setSelectedPlan(params.get('plan') || undefined);
         setRoute('signup');
+      } else if (hash === '/privacy') {
+        setRoute('privacy');
+      } else if (hash === '/terms') {
+        setRoute('terms');
+      } else if (hash === '/impressum' || hash === '/imprint') {
+        setRoute('impressum');
+      } else if (hash.startsWith('/verify')) {
+        const params = new URLSearchParams(hash.split('?')[1] || '');
+        setVerifyToken(params.get('token') || undefined);
+        setRoute('verify');
       } else if (hash === '/app' || hash.startsWith('/app')) {
         setRoute('app');
       } else {
@@ -106,8 +121,131 @@ export function AppRoutes() {
         />
       );
 
+    case 'privacy':
+      return <PrivacyPolicy onBack={() => navigate('landing')} />;
+
+    case 'terms':
+      return <TermsOfService onBack={() => navigate('landing')} />;
+
+    case 'impressum':
+      return <Impressum onBack={() => navigate('landing')} />;
+
+    case 'verify':
+      return (
+        <EmailVerifyPage
+          token={verifyToken}
+          apiBase={apiBase}
+          onSuccess={() => navigate('app')}
+          onBack={() => navigate('landing')}
+        />
+      );
+
     case 'app':
     default:
       return <WorldScreen />;
   }
+}
+
+// Simple email verification page
+function EmailVerifyPage({
+  token,
+  apiBase,
+  onSuccess,
+  onBack,
+}: {
+  token?: string;
+  apiBase: string;
+  onSuccess: () => void;
+  onBack: () => void;
+}) {
+  const [status, setStatus] = React.useState<'verifying' | 'success' | 'error'>('verifying');
+  const [message, setMessage] = React.useState('');
+
+  React.useEffect(() => {
+    if (!token) {
+      setStatus('error');
+      setMessage('No verification token provided');
+      return;
+    }
+
+    const verify = async () => {
+      try {
+        const res = await fetch(`${apiBase}/auth/verify`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ token }),
+        });
+
+        if (res.ok) {
+          setStatus('success');
+          setMessage('Email verified successfully!');
+          setTimeout(onSuccess, 2000);
+        } else {
+          const data = await res.json().catch(() => ({}));
+          setStatus('error');
+          setMessage(data.error || 'Verification failed');
+        }
+      } catch (e: any) {
+        setStatus('error');
+        setMessage(e.message || 'Network error');
+      }
+    };
+
+    verify();
+  }, [token, apiBase, onSuccess]);
+
+  return (
+    <div style={{
+      minHeight: '100vh',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      background: 'var(--bg, #0a0a0a)',
+      color: 'var(--fg, #fff)',
+    }}>
+      <div style={{
+        textAlign: 'center',
+        padding: 40,
+        background: 'rgba(255,255,255,0.05)',
+        borderRadius: 16,
+        maxWidth: 400,
+      }}>
+        {status === 'verifying' && (
+          <>
+            <div style={{ fontSize: 48, marginBottom: 16 }}>Loading...</div>
+            <p>Verifying your email...</p>
+          </>
+        )}
+        {status === 'success' && (
+          <>
+            <div style={{ fontSize: 48, marginBottom: 16, color: '#22c55e' }}>check_circle</div>
+            <h2 style={{ marginBottom: 8 }}>Email Verified!</h2>
+            <p style={{ color: 'var(--fg-subtle, #888)' }}>{message}</p>
+            <p style={{ color: 'var(--fg-subtle, #888)', fontSize: 14 }}>Redirecting...</p>
+          </>
+        )}
+        {status === 'error' && (
+          <>
+            <div style={{ fontSize: 48, marginBottom: 16, color: '#ef4444' }}>error</div>
+            <h2 style={{ marginBottom: 8 }}>Verification Failed</h2>
+            <p style={{ color: 'var(--fg-subtle, #888)', marginBottom: 24 }}>{message}</p>
+            <button
+              onClick={onBack}
+              style={{
+                padding: '10px 24px',
+                background: 'var(--accent, #3b82f6)',
+                border: 'none',
+                borderRadius: 8,
+                color: '#fff',
+                cursor: 'pointer',
+              }}
+            >
+              Go Back
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
 }

@@ -20,6 +20,59 @@ export function registerMiscRoutes(app: express.Application, prisma: PrismaClien
     }
   });
 
+  // Delete own account (GDPR compliance)
+  app.delete('/users/me', async (req: express.Request, res: express.Response) => {
+    const auth = requireAuth(req);
+    if (!auth) return res.status(401).json({ error: 'unauthorized' });
+    const userId = auth.userId;
+
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        include: { memberships: true }
+      });
+      if (!user) return res.status(404).json({ error: 'user not found' });
+
+      // Check if user is the sole owner of any tenant
+      for (const membership of user.memberships) {
+        if ((membership as any).role === 'owner') {
+          const otherOwners = await prisma.membership.count({
+            where: {
+              tenantId: membership.tenantId,
+              role: 'owner' as any,
+              userId: { not: userId }
+            }
+          });
+          if (otherOwners === 0) {
+            return res.status(400).json({
+              error: 'cannot delete account - you are the sole owner of an organization. Transfer ownership first.'
+            });
+          }
+        }
+      }
+
+      // Delete all related data
+      logger.info('[Users] Account self-deletion initiated', { userId, email: user.email });
+
+      try { await prisma.presence.deleteMany({ where: { userId } }); } catch { }
+      try { await prisma.passwordReset.deleteMany({ where: { userId } }); } catch { }
+      try { await prisma.apiToken.deleteMany({ where: { userId } }); } catch { }
+      try { await prisma.invite.updateMany({ where: { usedById: userId }, data: { usedById: null } }); } catch { }
+      try { await prisma.invite.updateMany({ where: { createdBy: userId }, data: { createdBy: null } }); } catch { }
+      try { await prisma.membership.deleteMany({ where: { userId } }); } catch { }
+      await prisma.user.delete({ where: { id: userId } });
+
+      logger.info('[Users] Account deleted successfully', { userId });
+
+      // Clear auth cookie
+      res.clearCookie('token', { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production' });
+      return res.json({ ok: true, message: 'Account deleted successfully' });
+    } catch (e) {
+      logger.error('[Users] Account self-deletion failed', e);
+      return res.status(500).json({ error: 'deletion failed' });
+    }
+  });
+
   // Invitations list
   app.get('/invites', async (req: express.Request, res: express.Response) => {
     const auth = requireAuth(req);

@@ -337,4 +337,212 @@ export function registerAdminRoutes(app: express.Application, prisma: PrismaClie
 
     res.json({ rooms, total: rooms.length });
   });
+
+  // Admin System Health Dashboard
+  app.get('/admin/health', async (req: express.Request, res: express.Response) => {
+    const auth = requireAuth(req);
+    if (!auth) return res.status(401).json({ error: 'unauthorized' });
+    const ok = await requireInternalOwner(req, auth.userId, prisma);
+    if (!ok) return res.status(403).json({ error: 'forbidden' });
+
+    const startTime = Date.now();
+    const health: Record<string, any> = {
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      nodeVersion: process.version,
+      platform: process.platform,
+      memory: {
+        heapUsed: process.memoryUsage().heapUsed,
+        heapTotal: process.memoryUsage().heapTotal,
+        rss: process.memoryUsage().rss,
+        external: process.memoryUsage().external,
+      },
+    };
+
+    // Database health
+    try {
+      const dbStart = Date.now();
+      await prisma.$queryRaw`SELECT 1`;
+      health.database = {
+        status: 'connected',
+        responseTime: Date.now() - dbStart,
+      };
+    } catch (e: any) {
+      health.database = {
+        status: 'error',
+        error: e?.message || String(e),
+      };
+    }
+
+    // Count models
+    try {
+      const [userCount, tenantCount, sessionCount, membershipCount] = await Promise.all([
+        prisma.user.count(),
+        prisma.tenant.count(),
+        prisma.session.count(),
+        prisma.membership.count(),
+      ]);
+      health.counts = {
+        users: userCount,
+        tenants: tenantCount,
+        sessions: sessionCount,
+        memberships: membershipCount,
+      };
+    } catch {
+      health.counts = { error: 'failed to count' };
+    }
+
+    // Active WebSocket connections
+    try {
+      const gameServer = (global as any).gameServer;
+      const activeWorldRooms = (global as any).activeWorldRooms;
+      let activeConnections = 0;
+      let roomCount = 0;
+
+      if (activeWorldRooms && activeWorldRooms.size > 0) {
+        roomCount = activeWorldRooms.size;
+        activeWorldRooms.forEach((room: any) => {
+          activeConnections += room.clients?.size || room.clients?.length || 0;
+        });
+      } else if (gameServer?.matchMaker) {
+        const allRooms = await gameServer.matchMaker.query({});
+        roomCount = allRooms?.length || 0;
+        (allRooms || []).forEach((r: any) => {
+          activeConnections += r.clients || 0;
+        });
+      }
+
+      health.websocket = {
+        status: 'ok',
+        activeRooms: roomCount,
+        activeConnections,
+      };
+    } catch (e: any) {
+      health.websocket = {
+        status: 'error',
+        error: e?.message || String(e),
+      };
+    }
+
+    // LiveKit status
+    try {
+      if (process.env.LIVEKIT_API_KEY && process.env.LIVEKIT_API_SECRET) {
+        health.livekit = {
+          status: 'configured',
+          url: process.env.LIVEKIT_EXTERNAL_URL || process.env.LIVEKIT_URL || 'not set',
+        };
+      } else {
+        health.livekit = {
+          status: 'not_configured',
+        };
+      }
+    } catch {
+      health.livekit = { status: 'error' };
+    }
+
+    // Stripe status
+    try {
+      if (process.env.STRIPE_SECRET_KEY) {
+        health.stripe = {
+          status: 'configured',
+          webhookConfigured: !!process.env.STRIPE_WEBHOOK_SECRET,
+        };
+      } else {
+        health.stripe = {
+          status: 'not_configured',
+        };
+      }
+    } catch {
+      health.stripe = { status: 'error' };
+    }
+
+    // Email service status
+    try {
+      const emailConfig = process.env.SMTP_HOST || process.env.RESEND_API_KEY;
+      health.email = {
+        status: emailConfig ? 'configured' : 'not_configured',
+        provider: process.env.RESEND_API_KEY ? 'resend' : (process.env.SMTP_HOST ? 'smtp' : 'none'),
+      };
+    } catch {
+      health.email = { status: 'error' };
+    }
+
+    // Online users by tenant (from Colyseus state)
+    try {
+      const usage = computeOnlineUsageByTenantSlug();
+      health.onlineByTenant = usage;
+      health.totalOnline = Object.values(usage).reduce((a: number, b: number) => a + b, 0);
+    } catch {
+      health.onlineByTenant = {};
+      health.totalOnline = 0;
+    }
+
+    // Response time
+    health.responseTime = Date.now() - startTime;
+
+    res.json(health);
+  });
+
+  // Admin System Stats (for dashboard charts)
+  app.get('/admin/stats', async (req: express.Request, res: express.Response) => {
+    const auth = requireAuth(req);
+    if (!auth) return res.status(401).json({ error: 'unauthorized' });
+    const ok = await requireInternalOwner(req, auth.userId, prisma);
+    if (!ok) return res.status(403).json({ error: 'forbidden' });
+
+    try {
+      // Get stats over time
+      const now = new Date();
+      const last24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      const last7d = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      const last30d = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+      const [
+        usersLast24h,
+        usersLast7d,
+        usersLast30d,
+        tenantsLast24h,
+        tenantsLast7d,
+        tenantsLast30d,
+        totalUsers,
+        totalTenants,
+        activeSessions,
+        verifiedUsers,
+      ] = await Promise.all([
+        prisma.user.count({ where: { createdAt: { gte: last24h } } }),
+        prisma.user.count({ where: { createdAt: { gte: last7d } } }),
+        prisma.user.count({ where: { createdAt: { gte: last30d } } }),
+        prisma.tenant.count({ where: { createdAt: { gte: last24h } } }),
+        prisma.tenant.count({ where: { createdAt: { gte: last7d } } }),
+        prisma.tenant.count({ where: { createdAt: { gte: last30d } } }),
+        prisma.user.count(),
+        prisma.tenant.count(),
+        prisma.session.count({ where: { expiresAt: { gt: now } } }),
+        prisma.user.count({ where: { emailVerifiedAt: { not: null } } }),
+      ]);
+
+      res.json({
+        users: {
+          total: totalUsers,
+          last24h: usersLast24h,
+          last7d: usersLast7d,
+          last30d: usersLast30d,
+          verified: verifiedUsers,
+          verificationRate: totalUsers > 0 ? Math.round((verifiedUsers / totalUsers) * 100) : 0,
+        },
+        tenants: {
+          total: totalTenants,
+          last24h: tenantsLast24h,
+          last7d: tenantsLast7d,
+          last30d: tenantsLast30d,
+        },
+        sessions: {
+          active: activeSessions,
+        },
+      });
+    } catch (e: any) {
+      logger.error({ event: 'admin.stats.error', error: e?.message || String(e) });
+      return res.status(500).json({ error: 'stats_failed' });
+    }
+  });
 }

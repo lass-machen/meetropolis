@@ -16,8 +16,12 @@ export function TopRightMenu(props: {
   editorActive: boolean;
   onLogout: () => void | Promise<void>;
   onResetApp?: () => void;
+  onOpenBilling?: () => void;
+  onOpenProfile?: () => void;
+  onOpenTenantSettings?: () => void;
+  onOpenSessions?: () => void;
 }) {
-  const { menuOpen, onToggleMenu, onOpenUsers, onOpenInvites, onOpenAdmin, isAdmin, onBackToWorld, onOpenApi, onToggleEditor, editorActive, onLogout, onResetApp } = props;
+  const { menuOpen, onToggleMenu, onOpenUsers, onOpenInvites, onOpenAdmin, isAdmin, onBackToWorld, onOpenApi, onToggleEditor, editorActive, onLogout, onResetApp, onOpenBilling, onOpenProfile, onOpenTenantSettings, onOpenSessions } = props;
   const { override, setOverride } = useTheme();
   const { t } = useTranslation();
   const menuRef = React.useRef<HTMLDivElement>(null);
@@ -182,7 +186,35 @@ export function TopRightMenu(props: {
 
           <div style={{ height: 1, background: 'rgba(255,255,255,0.1)', margin: '4px 8px' }} />
 
-          {/* Account */}
+          {/* Account & Settings */}
+          {onOpenProfile && (
+            <button role="menuitem" onClick={() => handleItemClick(onOpenProfile)} className="menu-item">
+              <FAIcon name="user-gear" variant="solid" fixedWidth />
+              <span>{t('topRightMenu.profile') || 'Profile Settings'}</span>
+            </button>
+          )}
+          {onOpenTenantSettings && (
+            <button role="menuitem" onClick={() => handleItemClick(onOpenTenantSettings)} className="menu-item">
+              <FAIcon name="building" variant="solid" fixedWidth />
+              <span>{t('topRightMenu.orgSettings') || 'Organization'}</span>
+            </button>
+          )}
+          {onOpenBilling && (
+            <button role="menuitem" onClick={() => handleItemClick(onOpenBilling)} className="menu-item">
+              <FAIcon name="credit-card" variant="solid" fixedWidth />
+              <span>{t('topRightMenu.billing') || 'Billing'}</span>
+            </button>
+          )}
+          {onOpenSessions && (
+            <button role="menuitem" onClick={() => handleItemClick(onOpenSessions)} className="menu-item">
+              <FAIcon name="laptop" variant="solid" fixedWidth />
+              <span>{t('topRightMenu.sessions') || 'Active Sessions'}</span>
+            </button>
+          )}
+
+          <div style={{ height: 1, background: 'rgba(255,255,255,0.1)', margin: '4px 8px' }} />
+
+          {/* Logout & Reset */}
           {onResetApp && (
             <button role="menuitem" onClick={() => handleItemClick(onResetApp)} className="menu-item danger">
               <FAIcon name="broom" variant="solid" fixedWidth />

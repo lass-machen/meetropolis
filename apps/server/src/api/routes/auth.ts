@@ -75,6 +75,27 @@ export function registerAuthRoutes(app: express.Application, prisma: PrismaClien
     } catch { }
     const token = jwt.sign({ sub: user.id, tid: (invite as any).tenantId }, getJwtSecret(), { expiresIn: '30d' });
     setAuthCookie(res, token);
+
+    // Create session record for session management
+    try {
+      const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+      const userAgent = req.headers['user-agent'] || null;
+      const ipAddress = req.ip || req.headers['x-forwarded-for']?.toString().split(',')[0] || null;
+      const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
+
+      await prisma.session.create({
+        data: {
+          userId: user.id,
+          tokenHash,
+          userAgent,
+          ipAddress,
+          expiresAt,
+        }
+      });
+    } catch (e) {
+      logger.warn({ event: 'auth.register.session_create_failed', userId: user.id, error: String(e) });
+    }
+
     // Return token in body for Tauri/native clients that can't use cookies
     const origin = req.headers.origin || '';
     const isTauri = origin.startsWith('tauri://');
@@ -98,13 +119,47 @@ export function registerAuthRoutes(app: express.Application, prisma: PrismaClien
     if (!membership) return res.status(403).json({ error: 'not_member_of_tenant' });
     const token = jwt.sign({ sub: user.id, tid: tenant.id }, getJwtSecret(), { expiresIn: '30d' });
     setAuthCookie(res, token);
+
+    // Create session record for session management
+    try {
+      const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+      const userAgent = req.headers['user-agent'] || null;
+      const ipAddress = req.ip || req.headers['x-forwarded-for']?.toString().split(',')[0] || null;
+      const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
+
+      await prisma.session.create({
+        data: {
+          userId: user.id,
+          tokenHash,
+          userAgent,
+          ipAddress,
+          expiresAt,
+        }
+      });
+    } catch (e) {
+      // Session tracking is non-critical, don't fail login
+      logger.warn({ event: 'auth.login.session_create_failed', userId: user.id, error: String(e) });
+    }
+
     // Return token in body for Tauri/native clients that can't use cookies
     const origin = req.headers.origin || '';
     const isTauri = origin.startsWith('tauri://');
     res.json({ id: user.id, email: user.email, name: user.name, ...(isTauri && { token }) });
   });
 
-  app.post('/auth/logout', async (_req: express.Request, res: express.Response) => {
+  app.post('/auth/logout', async (req: express.Request, res: express.Response) => {
+    // Delete session from database if exists
+    try {
+      const currentToken = req.cookies?.auth_token || req.headers.authorization?.replace('Bearer ', '');
+      if (currentToken) {
+        const tokenHash = crypto.createHash('sha256').update(currentToken).digest('hex');
+        await prisma.session.deleteMany({ where: { tokenHash } });
+      }
+    } catch (e) {
+      // Non-critical, continue with logout
+      logger.warn({ event: 'auth.logout.session_delete_failed', error: String(e) });
+    }
+
     res.clearCookie('auth_token', { path: '/' });
     res.json({ ok: true });
   });
@@ -299,5 +354,233 @@ export function registerAuthRoutes(app: express.Application, prisma: PrismaClien
     const hash = await bcrypt.hash(newPassword, 10);
     await prisma.user.update({ where: { id: user.id }, data: { passwordHash: hash } });
     res.json({ ok: true });
+  });
+
+  // Request email verification
+  app.post('/auth/verify/request', async (req, res) => {
+    const auth = requireAuth(req);
+    if (!auth) return res.status(401).json({ error: 'unauthorized' });
+
+    try {
+      const user = await prisma.user.findUnique({ where: { id: auth.userId } });
+      if (!user) return res.status(404).json({ error: 'user not found' });
+
+      // Check if already verified
+      if (user.emailVerifiedAt) {
+        return res.json({ ok: true, alreadyVerified: true });
+      }
+
+      // Check for recent verification request (rate limit: 1 per 2 minutes)
+      const recent = await prisma.emailVerification.findFirst({
+        where: {
+          userId: user.id,
+          createdAt: { gte: new Date(Date.now() - 2 * 60 * 1000) }
+        }
+      });
+      if (recent) {
+        return res.status(429).json({ error: 'Please wait before requesting another verification email' });
+      }
+
+      // Create verification token
+      const token = crypto.randomBytes(24).toString('hex');
+      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
+      await prisma.emailVerification.create({
+        data: {
+          token,
+          userId: user.id,
+          email: user.email,
+          expiresAt,
+        }
+      });
+
+      // Send verification email
+      const tenant = getTenantFromReq(req);
+      const baseUrl = process.env.BILLING_PUBLIC_URL || req.headers.origin || `https://${tenant?.slug || 'app'}.meetropolis.de`;
+      const verifyUrl = `${baseUrl}/#/verify?token=${token}`;
+
+      const emailService = getEmailService();
+      const emailContent = emailTemplates.verifyEmail({
+        name: user.name || '',
+        verifyUrl,
+      });
+      emailContent.to = user.email;
+
+      emailService.send(emailContent).catch((e) => {
+        logger.error({ event: 'auth.verify.email_failed', userId: user.id, error: String(e) });
+      });
+
+      // In dev mode, also return token for testing
+      const isDev = process.env.NODE_ENV !== 'production';
+      res.json({ ok: true, ...(isDev && { token }) });
+    } catch (e: any) {
+      logger.error({ event: 'auth.verify.request_failed', error: String(e) });
+      return res.status(500).json({ error: 'verification request failed' });
+    }
+  });
+
+  // Verify email with token
+  app.post('/auth/verify', async (req, res) => {
+    const schema = z.object({ token: z.string().min(8) });
+    const parse = schema.safeParse(req.body || {});
+    if (!parse.success) return res.status(400).json({ error: 'token required' });
+
+    const { token } = parse.data;
+
+    try {
+      const verification = await prisma.emailVerification.findUnique({ where: { token } });
+      if (!verification) return res.status(400).json({ error: 'invalid token' });
+      if (verification.usedAt) return res.status(400).json({ error: 'token already used' });
+      if (verification.expiresAt < new Date()) return res.status(400).json({ error: 'token expired' });
+
+      // Mark verification as used
+      await prisma.emailVerification.update({
+        where: { token },
+        data: { usedAt: new Date() }
+      });
+
+      // Update user's email verified status
+      await prisma.user.update({
+        where: { id: verification.userId },
+        data: { emailVerifiedAt: new Date() }
+      });
+
+      logger.info({ event: 'auth.verify.success', userId: verification.userId });
+      res.json({ ok: true, message: 'Email verified successfully' });
+    } catch (e: any) {
+      logger.error({ event: 'auth.verify.failed', error: String(e) });
+      return res.status(500).json({ error: 'verification failed' });
+    }
+  });
+
+  // Get verification status
+  app.get('/auth/verify/status', async (req, res) => {
+    const auth = requireAuth(req);
+    if (!auth) return res.status(401).json({ error: 'unauthorized' });
+
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: auth.userId },
+        select: { email: true, emailVerifiedAt: true }
+      });
+      if (!user) return res.status(404).json({ error: 'user not found' });
+
+      res.json({
+        email: user.email,
+        verified: !!user.emailVerifiedAt,
+        verifiedAt: user.emailVerifiedAt?.toISOString() || null,
+      });
+    } catch (e: any) {
+      return res.status(500).json({ error: 'status check failed' });
+    }
+  });
+
+  // =============================================================================
+  // Session Management
+  // =============================================================================
+
+  // List all active sessions for current user
+  app.get('/auth/sessions', async (req, res) => {
+    const auth = requireAuth(req);
+    if (!auth) return res.status(401).json({ error: 'unauthorized' });
+
+    try {
+      // Clean up expired sessions first
+      await prisma.session.deleteMany({
+        where: {
+          userId: auth.userId,
+          expiresAt: { lt: new Date() }
+        }
+      });
+
+      const sessions = await prisma.session.findMany({
+        where: { userId: auth.userId },
+        orderBy: { lastActiveAt: 'desc' },
+        select: {
+          id: true,
+          userAgent: true,
+          ipAddress: true,
+          lastActiveAt: true,
+          createdAt: true,
+          tokenHash: true,
+        }
+      });
+
+      // Determine current session by comparing token hash
+      const currentToken = req.cookies?.auth_token || req.headers.authorization?.replace('Bearer ', '');
+      let currentSessionId: string | null = null;
+      if (currentToken) {
+        const currentHash = crypto.createHash('sha256').update(currentToken).digest('hex');
+        const currentSession = sessions.find(s => s.tokenHash === currentHash);
+        currentSessionId = currentSession?.id || null;
+      }
+
+      res.json({
+        sessions: sessions.map(s => ({
+          id: s.id,
+          userAgent: s.userAgent,
+          ipAddress: s.ipAddress,
+          lastActiveAt: s.lastActiveAt.toISOString(),
+          createdAt: s.createdAt.toISOString(),
+          isCurrent: s.id === currentSessionId,
+        })),
+        currentSessionId,
+      });
+    } catch (e: any) {
+      logger.error({ event: 'auth.sessions.list_failed', error: String(e) });
+      return res.status(500).json({ error: 'failed to list sessions' });
+    }
+  });
+
+  // Revoke a specific session
+  app.delete('/auth/sessions/:id', async (req, res) => {
+    const auth = requireAuth(req);
+    if (!auth) return res.status(401).json({ error: 'unauthorized' });
+
+    const sessionId = req.params.id;
+
+    try {
+      const session = await prisma.session.findUnique({ where: { id: sessionId } });
+      if (!session || session.userId !== auth.userId) {
+        return res.status(404).json({ error: 'session not found' });
+      }
+
+      await prisma.session.delete({ where: { id: sessionId } });
+
+      logger.info({ event: 'auth.session.revoked', userId: auth.userId, sessionId });
+      res.json({ ok: true });
+    } catch (e: any) {
+      logger.error({ event: 'auth.session.revoke_failed', error: String(e) });
+      return res.status(500).json({ error: 'failed to revoke session' });
+    }
+  });
+
+  // Revoke all sessions except current
+  app.delete('/auth/sessions', async (req, res) => {
+    const auth = requireAuth(req);
+    if (!auth) return res.status(401).json({ error: 'unauthorized' });
+
+    try {
+      // Determine current session
+      const currentToken = req.cookies?.auth_token || req.headers.authorization?.replace('Bearer ', '');
+      let currentHash: string | null = null;
+      if (currentToken) {
+        currentHash = crypto.createHash('sha256').update(currentToken).digest('hex');
+      }
+
+      // Delete all sessions except current
+      const result = await prisma.session.deleteMany({
+        where: {
+          userId: auth.userId,
+          ...(currentHash ? { tokenHash: { not: currentHash } } : {}),
+        }
+      });
+
+      logger.info({ event: 'auth.sessions.revoked_all', userId: auth.userId, count: result.count });
+      res.json({ ok: true, revokedCount: result.count });
+    } catch (e: any) {
+      logger.error({ event: 'auth.sessions.revoke_all_failed', error: String(e) });
+      return res.status(500).json({ error: 'failed to revoke sessions' });
+    }
   });
 }

@@ -21,6 +21,10 @@ import { EditorWindow } from '../../features/editor/EditorWindow';
 import { ApiTokensOverlay } from '../../ui/admin/ApiTokensOverlay';
 import { AdminOverlay } from '../../ui/admin/AdminOverlay';
 import { TenantsAdminModal } from '../../features/admin/TenantsAdminModal';
+import { BillingDashboard } from '../../ui/billing/BillingDashboard';
+import { ProfileSettings } from '../../ui/settings/ProfileSettings';
+import { TenantSettings } from '../../ui/settings/TenantSettings';
+import { SessionManagement } from '../../ui/settings/SessionManagement';
 import { InvitesModal } from '../../features/admin/InvitesModal';
 import { useEditor } from '../../hooks/useEditor';
 import { EditorService } from '../../services/EditorService';
@@ -118,6 +122,10 @@ export function WorldApp() {
   const [newTokenName, setNewTokenName] = React.useState('');
   const [freshToken, setFreshToken] = React.useState<string | null>(null);
   const [adminOpen, setAdminOpen] = React.useState(false);
+  const [billingOpen, setBillingOpen] = React.useState(false);
+  const [profileOpen, setProfileOpen] = React.useState(false);
+  const [tenantSettingsOpen, setTenantSettingsOpen] = React.useState(false);
+  const [sessionsOpen, setSessionsOpen] = React.useState(false);
 
   const [isInternalOwner, setIsInternalOwner] = React.useState(false);
   // view/state werden in AuthScreen verwaltet
@@ -1303,6 +1311,10 @@ export function WorldApp() {
                 onOpenAdmin: () => { setAdminOpen(true); setMenuOpen(false); },
                 isAdmin: isInternalOwner,
                 onOpenApi: () => { setApiModalOpen(true); setMenuOpen(false); },
+                onOpenBilling: () => { setBillingOpen(true); setMenuOpen(false); },
+                onOpenProfile: () => { setProfileOpen(true); setMenuOpen(false); },
+                onOpenTenantSettings: () => { setTenantSettingsOpen(true); setMenuOpen(false); },
+                onOpenSessions: () => { setSessionsOpen(true); setMenuOpen(false); },
                 onResetApp: async () => {
                   setMenuOpen(false);
                   try { await avRef.current?.leave?.(); } catch { }
@@ -1535,7 +1547,25 @@ export function WorldApp() {
           <UserManagement baseUrl={apiBase} onBack={() => setUserModalOpen(false)} />
         </Modal>
 
-        {/* Profil-Seite ist (noch) nicht implementiert; Stub entfernt */}
+        {/* Profile Settings Modal */}
+        <Modal open={profileOpen} onOpenChange={setProfileOpen} title="Profile Settings" maxWidth={600}>
+          <ProfileSettings onClose={() => setProfileOpen(false)} />
+        </Modal>
+
+        {/* Billing Dashboard Modal */}
+        <Modal open={billingOpen} onOpenChange={setBillingOpen} title="Billing & Subscription" maxWidth={900}>
+          <BillingDashboard onClose={() => setBillingOpen(false)} />
+        </Modal>
+
+        {/* Tenant/Organization Settings Modal */}
+        <Modal open={tenantSettingsOpen} onOpenChange={setTenantSettingsOpen} title="Organization Settings" maxWidth={800}>
+          <TenantSettings onClose={() => setTenantSettingsOpen(false)} />
+        </Modal>
+
+        {/* Session Management Modal */}
+        <Modal open={sessionsOpen} onOpenChange={setSessionsOpen} title="Active Sessions" maxWidth={700}>
+          <SessionManagement onClose={() => setSessionsOpen(false)} />
+        </Modal>
 
       </div>
       {/* Rechte Roster-Leiste (volle Höhe) */}

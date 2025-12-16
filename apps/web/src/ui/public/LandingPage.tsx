@@ -164,6 +164,17 @@ export function LandingPage({ onLogin, onSignup, onPricing }: LandingPageProps) 
             Contact
           </a>
         </div>
+        <div style={{ marginBottom: 16 }}>
+          <a href="#/privacy" style={{ color: 'var(--muted)', marginRight: 24 }}>
+            Privacy Policy
+          </a>
+          <a href="#/terms" style={{ color: 'var(--muted)', marginRight: 24 }}>
+            Terms of Service
+          </a>
+          <a href="#/impressum" style={{ color: 'var(--muted)' }}>
+            Impressum
+          </a>
+        </div>
         <div>
           Open Source under Apache-2.0 | Copyright 2025 Meetropolis Contributors
         </div>
