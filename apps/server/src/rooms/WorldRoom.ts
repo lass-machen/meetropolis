@@ -4,6 +4,7 @@ import { logger } from '../logger.js';
 import { colyseusRooms, colyseusPlayers } from '../metrics.js';
 import { Schema, type, MapSchema } from '@colyseus/schema';
 import { PrismaClient } from '@prisma/client';
+import { getTenancyModule, OSS_USER_LIMIT } from '../tenancyLoader.js';
 class Player extends Schema {
   @type('string') id: string = '';
   @type('number') x: number = 0;
@@ -249,6 +250,30 @@ export class WorldRoom extends Colyseus.Room<WorldState> {
   }
 
   override async onJoin(client: Client, options?: any) {
+    // Check OSS user limit (25 concurrent users for self-hosted OSS)
+    // Enterprise license holders bypass this limit via bypassOssLimit()
+    try {
+      const tenancyModule = await getTenancyModule();
+      const hasEnterpriseLicense = tenancyModule.bypassOssLimit?.() ?? false;
+
+      if (!hasEnterpriseLicense) {
+        // Count all active users across ALL rooms (global OSS limit)
+        let totalActive = 0;
+        try {
+          const rooms: any[] = Array.from(activeRooms.values());
+          for (const r of rooms) {
+            try { totalActive += (r.state?.players?.size) || 0; } catch { }
+          }
+        } catch { }
+
+        if (totalActive >= OSS_USER_LIMIT) {
+          try { logger.warn('[WorldRoom] OSS user limit reached', { totalActive, limit: OSS_USER_LIMIT }); } catch { }
+          try { client.error(4002, 'oss_limit_reached'); } catch { }
+          return client.leave(1000);
+        }
+      }
+    } catch { }
+
     // Enforce concurrent user limit per tenant (unless bypassed)
     try {
       const tenantSlug: string = (options?.tenant || this.metadata?.tenant || process.env.DEFAULT_TENANT_SLUG || 'default');

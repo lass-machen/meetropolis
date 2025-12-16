@@ -3,11 +3,16 @@ import { z } from 'zod';
 export type TenancyModule = {
   readonly version: 1;
   isMultiTenantEnabled(): boolean;
+  bypassOssLimit?: () => boolean;
 };
+
+/** Default concurrent user limit for OSS self-hosted installations */
+export const OSS_USER_LIMIT = 25;
 
 const tenancyModuleSchema = z.object({
   version: z.literal(1),
   isMultiTenantEnabled: z.function().args().returns(z.boolean()),
+  bypassOssLimit: z.function().args().returns(z.boolean()).optional(),
 });
 
 let cached: TenancyModule | null = null;

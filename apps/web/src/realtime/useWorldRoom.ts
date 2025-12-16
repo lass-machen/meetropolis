@@ -610,6 +610,35 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
               coolDownUntilRef.current = Date.now() + 60_000;
             }
             lastCloseInfoRef.current = { code, reason };
+
+            // Handle user limit errors - show UI feedback and don't auto-reconnect
+            if (code === 4001 || code === 4002 || text === 'tenant_limit_reached' || text === 'oss_limit_reached') {
+              const isOssLimit = code === 4002 || text === 'oss_limit_reached';
+              const title = isOssLimit ? 'User Limit Reached' : 'Tenant Limit Reached';
+              const desc = isOssLimit
+                ? 'This instance has reached its maximum user limit (25). Please try again later or contact the administrator.'
+                : 'Your organization has reached its maximum concurrent user limit. Please upgrade your plan or try again later.';
+
+              try {
+                const host = document.createElement('div');
+                host.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:9999;';
+                host.innerHTML = `
+                  <div style="min-width:320px;max-width:480px;padding:24px;border-radius:12px;border:1px solid rgba(234,88,12,0.5);background:rgba(234,88,12,0.15);backdrop-filter:blur(8px);color:var(--fg,#fff);box-shadow:0 8px 32px rgba(0,0,0,0.3);text-align:center;">
+                    <div style="font-size:48px;margin-bottom:12px;">⚠️</div>
+                    <div style="font-weight:700;font-size:18px;margin-bottom:8px;">${title}</div>
+                    <div style="font-size:14px;color:var(--fg-subtle,#ccc);margin-bottom:16px;">${desc}</div>
+                    <button data-limit-retry style="padding:10px 20px;border-radius:8px;border:none;background:var(--accent,#3b82f6);color:white;cursor:pointer;font-weight:600;">Retry</button>
+                  </div>`;
+                document.body.appendChild(host);
+                const retry = () => { try { host.remove(); } catch {} scheduleReconnect(); };
+                host.querySelector('[data-limit-retry]')?.addEventListener('click', retry, { once: true } as any);
+              } catch {}
+
+              colyseusRef.current = null;
+              connectingRef.current = false;
+              // Don't auto-reconnect for limit errors - user must click retry
+              return;
+            }
           } catch {}
           colyseusRef.current = null;
           connectingRef.current = false;
