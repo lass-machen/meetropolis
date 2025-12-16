@@ -1,4 +1,3 @@
-![CI](https://github.com/lass-machen/meetropolis/actions/workflows/ci.yml/badge.svg)
 ![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)
 ![Node](https://img.shields.io/badge/Node-20%2B-green.svg)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.5-blue.svg)
@@ -7,141 +6,156 @@
 
 A virtual office platform for remote teams - like Gather.town, but open source.
 
-**Features:**
-- Real-time spatial audio/video (LiveKit)
-- 2D game world with Tiled map support (Phaser)
-- Proximity-based conversations
-- Zone-based audio isolation
-- Map editor for custom worlds
-- Multi-tenant architecture with Stripe billing
-- Desktop app support (Tauri)
+## Features
 
----
+- **Spatial Audio/Video** - Proximity-based conversations powered by LiveKit
+- **2D Game World** - Interactive maps with Phaser and Tiled editor support
+- **Zone-based Audio** - Isolated conversation areas and meeting rooms
+- **Multi-tenant Architecture** - SaaS-ready with Stripe billing integration
+- **Desktop App** - Native support via Tauri (macOS, Windows, Linux)
+- **GDPR Compliant** - Data export, account deletion, cookie consent
 
-#### Inhalte
-- Monorepo mit `apps/web`, `apps/server`, `packages/shared`
-- Docker Compose für Web (Vite), Server (Colyseus + Prisma), LiveKit und Postgres
-- Prisma Schema (User, Room, Zone, Map, Presence)
-- Colyseus WorldRoom (minimaler Weltzustand)
-- Minimaler Phaser 3 Scene-Start, lädt Tiled JSON Map
-- `.env.example` für lokale Variablen
+## Quick Start
 
-#### Voraussetzungen
+### Prerequisites
+
 - Node.js 20+
 - Docker & Docker Compose
 
-#### Setup
-1. Repo klonen und ins Projekt wechseln.
-2. `.env` erstellen (lokal). Beispiel siehe unten und Variablen anpassen.
-3. Abhängigkeiten installieren:
-   - Mit npm Workspaces: `npm install`
-4. Prisma Client generieren und Datenbank migrieren:
-   - `npm run generate`
-   - `npm run prisma:migrate` (erstellt Initialschema)
-5. Dev-Umgebung starten:
-   - `docker compose up --build`
-   - Alternativ lokal (ohne Docker) in zwei Terminals: `npm run dev` (startet Web und Server)
+### Setup
 
-Web: `http://localhost:5173`  |  Server: `http://localhost:2567`  |  LiveKit: `http://localhost:7880`
+1. **Clone and install dependencies:**
+   ```bash
+   git clone https://github.com/lass-machen/meetropolis.git
+   cd meetropolis
+   npm install
+   ```
 
-#### Changelog (Kurz)
-- AV-Reconnect: LiveKit-Join ist nicht mehr von einer Nutzer-Geste abhängig. Audio-Playback wird separat per Unlock-Handler freigeschaltet; Entmuten/Rejoin friert nicht mehr bei fehlendem zweiten Klick ein.
+2. **Create environment file:**
+   ```bash
+   cp .env.example .env
+   ```
 
-#### Beispiel `.env` (lokal)
-```
-# Server / Datenbank
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/meetropolis
-LOG_LEVEL=info
-PORT=2567
+3. **Start development environment:**
+   ```bash
+   docker compose up --build
+   ```
 
-# LiveKit (lokal)
-LIVEKIT_URL=http://localhost:7880
-LIVEKIT_API_KEY=devkey
-LIVEKIT_API_SECRET=secret
+4. **Access the application:**
+   - Web: http://localhost:5173
+   - API: http://localhost:2567
+   - LiveKit: http://localhost:7880
 
-# Web-Client
-VITE_API_BASE=http://localhost:2567
-VITE_LIVEKIT_URL=ws://localhost:7880
-VITE_DEBUG_LOGS=true
-VITE_FEATURE_AV_SETTINGS=true
-VITE_FEATURE_VOICE_ISOLATION=client
-# Dev-Helfer: automatischer Login (nur lokal verwenden)
-VITE_DEBUG_AUTOLOGIN=true
-# Optional anpassen:
-# VITE_DEBUG_AUTOLOGIN_EMAIL=admin@meetropolis.local
-# VITE_DEBUG_AUTOLOGIN_PASSWORD=admin123
-# Optional
-# VITE_FEATURE_VOICE_ONLY=true
-# VITE_AV_FORCE_RELAY=false
-VITE_HMR_HOST=localhost
-VITE_HMR_PROTOCOL=ws
+### Alternative: Local Development (without Docker)
 
-# CORS für lokale Web-Ports
-CORS_ORIGIN=http://localhost:5173,http://localhost:5174
+```bash
+# Generate Prisma client
+npm run generate
 
-# Nur Dev (nicht für Prod verwenden)
-API_TOKEN_PEPPER=dev-pepper-change-me
-JWT_SECRET=dev-jwt-secret-change-me
+# Run database migrations
+npm run prisma:migrate
+
+# Start web and server in parallel
+npm run dev
 ```
 
-#### API-Tokens
-Mit persönlichen API-Tokens kannst du Mikrofon, Kamera, Screenshare und den Nicht-stören-Modus remote steuern – solange dein Benutzer online ist.
+## Project Structure
 
-1) Token erstellen
-- In der Web-App oben rechts „API-Tokens & Doku“ öffnen und „Neuen Token erstellen“ klicken. Der Klartext-Token wird nur einmal angezeigt – sicher speichern.
-
-2) Token verwenden
-- Setze den HTTP Header `Authorization: Bearer <DEIN_TOKEN>`.
-- Endpoint:
-  - `POST /controls`
-  - Body (JSON, mindestens ein Feld): `{ "mic": true|false, "cam": true|false, "share": true|false, "dnd": true|false }`
-
-Beispiel (cURL):
 ```
+meetropolis/
+├── apps/
+│   ├── server/          # Express + Colyseus + Prisma backend
+│   │   └── prisma/      # Database schema and migrations
+│   └── web/             # React + Vite + Phaser frontend
+│       └── src-tauri/   # Tauri desktop app config
+├── packages/
+│   └── shared/          # Shared types and utilities
+├── docker-compose.yml   # Development environment
+└── docker-compose.prod.yml  # Production deployment
+```
+
+## Configuration
+
+See `.env.example` for all available configuration options. Key variables:
+
+| Variable | Description |
+|----------|-------------|
+| `DATABASE_URL` | PostgreSQL connection string |
+| `JWT_SECRET` | Secret for JWT signing (32+ chars in production) |
+| `LIVEKIT_URL` | LiveKit server URL |
+| `LIVEKIT_API_KEY` | LiveKit API key |
+| `LIVEKIT_API_SECRET` | LiveKit API secret |
+| `CORS_ORIGIN` | Allowed origins (required in production) |
+| `STRIPE_SECRET_KEY` | Stripe API key (for billing) |
+
+## API Tokens
+
+Control your presence remotely with personal API tokens:
+
+1. Open **API Tokens & Docs** from the top-right menu
+2. Create a new token (shown only once - save securely)
+3. Use the token to control mic, camera, screenshare, and DND status:
+
+```bash
 curl -X POST "http://localhost:2567/controls" \
-  -H "Authorization: Bearer DEIN_TOKEN" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{ "mic": false, "dnd": true }'
 ```
 
-3) Token löschen
-- Im gleichen Dialog können Tokens gelöscht werden. Gelöschte Tokens sind sofort ungültig.
+## Production Deployment
 
-Hinweise
-- In Produktion muss `API_TOKEN_PEPPER` gesetzt sein (erzwungen). In Dev ist ein Ephemeral-Pepper aktiv; bei Server-Neustart werden alte Tokens ungültig.
-- Der Endpoint antwortet mit `409`, wenn dein Benutzer nicht online ist, und mit `401`, wenn der Token ungültig ist.
+### Docker Compose (Recommended)
 
-#### LiveKit (Entwicklung)
-- Der Compose-Container startet LiveKit im Dev-Modus mit Schlüsseln `devkey/secret` auf Port `7880`.
-- Der Web-Client liest `VITE_LIVEKIT_URL` und der Server `LIVEKIT_URL` aus `.env`.
-- Fallback für harte NATs (Hotspot/VPN/Corporate): Der Client retryt bei Connect-Fehler einmal mit TURN/Relay; erzwingbar via `VITE_AV_FORCE_RELAY=true`, `?forceRelay=1` (auch `?relay=1`/`?lkrelay=1`) oder `localStorage.setItem('av.forceRelay','true')`.
+```bash
+# Configure production environment
+cp .env.example .env
+# Edit .env with production values
 
-#### Ordnerstruktur
-```
-apps/
-  server/
-    prisma/
-    src/
-  web/
-    src/
-packages/
-  shared/
+# Deploy with Traefik reverse proxy
+docker compose -f docker-compose.prod.yml up -d
 ```
 
-#### Nächste Schritte
-- Bewegung/Präsenz, LiveKit-Basis, Bubble/Zone-Logik, Follow & Editor gemäß Prozess in der Aufgabenbeschreibung implementieren.
+### Required Production Configuration
 
+- `NODE_ENV=production`
+- `JWT_SECRET` - Cryptographically random, 32+ characters
+- `API_TOKEN_PEPPER` - Random string for API token hashing
+- `CORS_ORIGIN` - Explicit list of allowed origins
+- `COOKIE_SECURE=true` - Enable secure cookies
 
-#### Lizenz & Editionen
+## OSS Edition Limits
 
-- Kern des Projekts ist **Open Source unter Apache-2.0** (siehe `LICENSE`, `NOTICE`).
-- Mandanten-Funktionen werden als **proprietäre Edition** separat gepflegt und sind nicht Teil der Open-Source-Distribution.
-- Marken (Name/Logo) sind separat geregelt, siehe `TRADEMARKS.md`.
+The open source edition includes a **25 concurrent user limit** per instance. This limit ensures fair use while keeping the core platform freely available.
 
-Erlaubt (Auszug):
-- Nutzung, Veränderung und Weitergabe gemäß Apache-2.0.
+For unlimited users and multi-tenant features, see [Enterprise Edition](docs/enterprise.md).
 
-Nicht über die OSS-Edition abgedeckt:
-- Multi-Tenant-Funktionalität, Wiederverkauf als Service/Produkt unter Nutzung der Marken, oder Behauptung einer offiziellen Distribution.
+## Contributing
 
-Für eine kommerzielle Lizenz der Mandanten-Edition kontaktiere uns bitte.
+We welcome contributions! Please read our [Contributing Guide](CONTRIBUTING.md) before submitting PRs.
+
+- [Code of Conduct](CODE_OF_CONDUCT.md)
+- [Security Policy](SECURITY.md)
+
+## License & Editions
+
+- **Open Source**: Apache 2.0 (see [LICENSE](LICENSE), [NOTICE](NOTICE))
+- **Enterprise**: Multi-tenant features available separately
+- **Trademarks**: See [TRADEMARKS.md](TRADEMARKS.md)
+
+### What's Included (OSS)
+
+- Full virtual office functionality
+- Spatial audio/video with LiveKit
+- Map editor and custom worlds
+- Single-tenant deployment
+- 25 concurrent user limit
+
+### Enterprise Features
+
+- Multi-tenant architecture
+- Stripe billing integration
+- Unlimited concurrent users
+- Priority support
+
+For commercial licensing, contact us at [info@meetropolis.de](mailto:info@meetropolis.de).
