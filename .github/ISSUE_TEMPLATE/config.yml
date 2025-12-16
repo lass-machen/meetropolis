@@ -1,8 +1,0 @@
-blank_issues_enabled: false
-contact_links:
-  - name: Questions & Discussions
-    url: https://github.com/lass-machen/meetropolis/discussions
-    about: Ask and answer questions here
-  - name: Security Vulnerabilities
-    url: https://github.com/lass-machen/meetropolis/blob/main/SECURITY.md
-    about: Report security vulnerabilities via our security policy
