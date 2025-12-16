@@ -3,6 +3,8 @@
   "theme.dark": "Dark theme",
   "theme.system": "System setting",
 
+  "topRightMenu.menu": "Menu",
+  "topRightMenu.theme": "Theme",
   "topRightMenu.settings": "Settings",
   "topRightMenu.backToWorld": "Back to world",
   "topRightMenu.api": "API tokens & docs",

@@ -3,6 +3,8 @@
   "theme.dark": "Dunkles Design",
   "theme.system": "Systemeinstellung",
 
+  "topRightMenu.menu": "Menü",
+  "topRightMenu.theme": "Theme",
   "topRightMenu.settings": "Einstellungen",
   "topRightMenu.backToWorld": "Zurück zur Welt",
   "topRightMenu.api": "API‑Tokens & Doku",

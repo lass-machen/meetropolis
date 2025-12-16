@@ -15,6 +15,11 @@ export function ParticipantCard(props: { part: { sid: string; identity: string; 
     const room: any = roomGetter();
     const el = videoRef.current;
     if (!room || !room.localParticipant || !el) return;
+
+    // Reset video element at start of effect to ensure clean state
+    try { (el as any).srcObject = null; } catch {}
+    setIsVideoRendering(false);
+
     let baseSid = (part.sid || '').split(':')[0];
     const isLocalNow = room.localParticipant?.sid === baseSid;
     setIsLocal(isLocalNow);
@@ -221,10 +226,10 @@ export function ParticipantCard(props: { part: { sid: string; identity: string; 
       try { node?.removeEventListener('loadeddata', onLoaded); } catch {}
       try { node?.removeEventListener('playing', onPlaying); } catch {}
       try { node?.removeEventListener('emptied', onEmptied); } catch {}
-      cleanup?.();
       try { clearInterval(pollTimer); } catch {}
-      // Event-Handler über in-closure cleanup entfernen
-      try { cleanup?.(); } catch {}
+      cleanup?.();
+      // Reset srcObject on cleanup to ensure clean state for next render
+      try { if (node) { (node as any).srcObject = null; } } catch {}
     };
   }, [part.sid, part.hasVideo, roomGetter]);
 
@@ -259,7 +264,8 @@ export function ParticipantCard(props: { part: { sid: string; identity: string; 
           }
         }
       } catch {}
-      const base = (window as any).VITE_API_BASE || (import.meta as any).env?.VITE_API_BASE || `${window.location.protocol}//${window.location.hostname}:2567`;
+      const anyWin = window as any;
+      const base = anyWin.desktop?.apiBase || anyWin.__MEETROPOLIS_API_BASE__ || anyWin.VITE_API_BASE || (import.meta as any).env?.VITE_API_BASE || `${window.location.protocol}//${window.location.hostname}:2567`;
       await fetch(`${base}/controls/for/${encodeURIComponent(targetIdentity)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
