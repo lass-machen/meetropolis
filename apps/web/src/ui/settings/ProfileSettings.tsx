@@ -278,6 +278,38 @@ export function ProfileSettings({ onClose }: { onClose: () => void }) {
             )}
           </div>
 
+          {/* Data Export (GDPR) */}
+          <div style={styles.section}>
+            <h3 style={styles.sectionTitle}>Your Data (GDPR)</h3>
+            <p style={styles.infoText}>
+              Download a copy of all your personal data stored in Meetropolis.
+            </p>
+            <button
+              onClick={async () => {
+                try {
+                  const res = await fetch(`${apiBase}/users/me/export`, { credentials: 'include' });
+                  if (res.ok) {
+                    const blob = await res.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `meetropolis-data-export-${Date.now()}.json`;
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    setSuccess('Data exported successfully');
+                  } else {
+                    setError('Failed to export data');
+                  }
+                } catch (e) {
+                  setError('Export failed');
+                }
+              }}
+              style={styles.secondaryBtn}
+            >
+              Export My Data
+            </button>
+          </div>
+
           {/* Danger Zone */}
           <div style={styles.dangerSection}>
             <h3 style={styles.sectionTitle}>Danger Zone</h3>
@@ -452,6 +484,11 @@ const styles: Record<string, React.CSSProperties> = {
   },
   infoLabel: {
     fontWeight: 500,
+  },
+  infoText: {
+    margin: '0 0 12px',
+    fontSize: 13,
+    color: 'var(--fg-subtle, #888)',
   },
   primaryBtn: {
     padding: '10px 20px',

@@ -20,6 +20,123 @@ export function registerMiscRoutes(app: express.Application, prisma: PrismaClien
     }
   });
 
+  // Export own data (GDPR Art. 20 - Right to Data Portability)
+  app.get('/users/me/export', async (req: express.Request, res: express.Response) => {
+    const auth = requireAuth(req);
+    if (!auth) return res.status(401).json({ error: 'unauthorized' });
+
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: auth.userId },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          imageUrl: true,
+          emailVerifiedAt: true,
+          createdAt: true,
+          updatedAt: true,
+        }
+      });
+      if (!user) return res.status(404).json({ error: 'user not found' });
+
+      // Get all memberships
+      const memberships = await prisma.membership.findMany({
+        where: { userId: auth.userId },
+        include: {
+          tenant: {
+            select: { id: true, slug: true, name: true }
+          }
+        }
+      });
+
+      // Get all sessions
+      const sessions = await prisma.session.findMany({
+        where: { userId: auth.userId },
+        select: {
+          id: true,
+          userAgent: true,
+          ipAddress: true,
+          lastActiveAt: true,
+          createdAt: true,
+        }
+      });
+
+      // Get presence history (last positions)
+      const presences = await prisma.presence.findMany({
+        where: { userId: auth.userId },
+        select: {
+          id: true,
+          x: true,
+          y: true,
+          direction: true,
+          updatedAt: true,
+          room: { select: { name: true } },
+          tenant: { select: { slug: true } }
+        }
+      });
+
+      // Get API tokens (without hashes)
+      const apiTokens = await prisma.apiToken.findMany({
+        where: { userId: auth.userId },
+        select: {
+          id: true,
+          name: true,
+          lastUsedAt: true,
+          createdAt: true,
+        }
+      });
+
+      const exportData = {
+        exportedAt: new Date().toISOString(),
+        gdprArticle: 'Art. 20 GDPR - Right to Data Portability',
+        user: {
+          ...user,
+          createdAt: user.createdAt.toISOString(),
+          updatedAt: user.updatedAt.toISOString(),
+          emailVerifiedAt: user.emailVerifiedAt?.toISOString() || null,
+        },
+        memberships: memberships.map(m => ({
+          tenantId: m.tenant.id,
+          tenantSlug: m.tenant.slug,
+          tenantName: m.tenant.name,
+          role: m.role,
+          joinedAt: m.createdAt.toISOString(),
+        })),
+        sessions: sessions.map(s => ({
+          id: s.id,
+          userAgent: s.userAgent,
+          ipAddress: s.ipAddress,
+          lastActiveAt: s.lastActiveAt.toISOString(),
+          createdAt: s.createdAt.toISOString(),
+        })),
+        presences: presences.map(p => ({
+          tenant: p.tenant.slug,
+          room: p.room.name,
+          position: { x: p.x, y: p.y, direction: p.direction },
+          updatedAt: p.updatedAt.toISOString(),
+        })),
+        apiTokens: apiTokens.map(t => ({
+          id: t.id,
+          name: t.name,
+          lastUsedAt: t.lastUsedAt?.toISOString() || null,
+          createdAt: t.createdAt.toISOString(),
+        })),
+      };
+
+      // Set headers for download
+      const filename = `meetropolis-data-export-${user.id}-${Date.now()}.json`;
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+
+      logger.info({ event: 'gdpr.data_export', userId: auth.userId });
+      return res.json(exportData);
+    } catch (e: any) {
+      logger.error({ event: 'gdpr.data_export.failed', userId: auth.userId, error: e?.message || String(e) });
+      return res.status(500).json({ error: 'export failed' });
+    }
+  });
+
   // Delete own account (GDPR compliance)
   app.delete('/users/me', async (req: express.Request, res: express.Response) => {
     const auth = requireAuth(req);
