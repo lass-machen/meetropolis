@@ -227,6 +227,57 @@ body {
 }
 
 /* ===================== */
+/* Top Header Bar        */
+/* ===================== */
+.top-header-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 12px;
+  gap: 12px;
+  pointer-events: none;
+  z-index: 20;
+}
+
+.top-header-spacer {
+  /* Matches the right menu width for centering */
+  flex: 0 0 auto;
+  width: 0;
+}
+
+.top-header-center {
+  flex: 1 1 auto;
+  display: flex;
+  justify-content: center;
+  min-width: 0;
+  pointer-events: auto;
+}
+
+.top-header-right {
+  flex: 0 0 auto;
+  pointer-events: auto;
+}
+
+/* Responsive: Stack vertically on small screens */
+@media (max-width: 700px) {
+  .top-header-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .top-header-spacer { display: none; }
+  .top-header-center { order: 2; }
+  .top-header-right {
+    order: 1;
+    display: flex;
+    justify-content: flex-end;
+  }
+}
+
+/* ===================== */
 /* UserCard: Variables   */
 /* ===================== */
 .uc-container {
@@ -234,7 +285,6 @@ body {
   --uc-gap: 12px;
   --uc-border: var(--border);
   --uc-bg: var(--bar-bg);
-  /* --uc-glass: rgba(255, 255, 255, 0.1); */
   --uc-shadow: var(--shadow);
   --uc-name-bg: color-mix(in oklab, var(--bg) 60%, transparent);
   --uc-badge-on: color-mix(in oklab, #10b981 25%, transparent);
@@ -246,15 +296,11 @@ body {
 }
 
 .uc-container {
-  position: absolute;
-  top: var(--uc-top, 12px);
-  /* Zentriert im verfügbaren Bereich (links von den rechten Buttons) */
-  --uc-available-width: calc(100vw - var(--uc-right-reserve, 380px));
-  left: calc(var(--uc-available-width) / 2);
-  transform: translateX(-50%);
-  z-index: 20;
-  /* Breite begrenzt, damit die Karte nicht über den verfügbaren Bereich hinausragt */
-  max-width: calc(var(--uc-available-width) - 48px);
+  /* Flow-based layout instead of absolute positioning */
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  max-width: 100%;
   background: var(--uc-bg);
   backdrop-filter: blur(16px);
   color: var(--fg);
@@ -265,24 +311,8 @@ body {
   box-shadow: var(--uc-shadow);
 }
 
-.uc-container.uc-expanded { --uc-top: 12px; --uc-gap: 18px; }
-.uc-container.uc-collapsed { --uc-top: 12px; --uc-gap: 12px; }
-
-/* Responsive: Platz für rechte Buttons anpassen */
-@media (max-width: 1200px) {
-  .uc-container { --uc-right-reserve: 320px; }
-}
-@media (max-width: 900px) {
-  .uc-container { --uc-right-reserve: 280px; }
-}
-@media (max-width: 700px) {
-  /* Auf sehr kleinen Screens: Karte nach unten verschieben und zentrieren */
-  .uc-container { 
-    --uc-top: 56px; 
-    --uc-right-reserve: 24px;
-    left: 50%;
-  }
-}
+.uc-container.uc-expanded { --uc-gap: 18px; }
+.uc-container.uc-collapsed { --uc-gap: 12px; }
 
 .uc-expand-btn {
   position: absolute;

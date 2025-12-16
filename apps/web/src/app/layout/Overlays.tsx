@@ -2,8 +2,11 @@ import * as React from 'react';
 import { ParticipantsGrid } from '../../ui/user/ParticipantsGrid';
 import { ParticipantOverlay } from '../../ui/user/ParticipantOverlay';
 import { HudPanel } from '../../ui/hud/HudPanel';
+import { TopRightMenu } from '../../ui/app/TopRightMenu';
 
 type Participant = { sid: string; identity: string; hasVideo: boolean; hasMic: boolean; isSpeaking: boolean; media: 'camera' | 'screen'; volume?: number };
+
+type TopRightMenuProps = React.ComponentProps<typeof TopRightMenu>;
 
 type Props = {
   hud: { zone?: string; follow?: string | null; avRoom?: string | null };
@@ -17,9 +20,11 @@ type Props = {
   getRoom: () => any;
   overlayZoom: number;
   onZoom: (z: number) => void;
+  // TopRightMenu props
+  topRightMenu?: TopRightMenuProps;
 };
 
-export function Overlays({ hud, editorActive, avDnd, participants, gridExpanded, onToggleExpand, selectedSid, onSelectSid, getRoom, overlayZoom, onZoom }: Props) {
+export function Overlays({ hud, editorActive, avDnd, participants, gridExpanded, onToggleExpand, selectedSid, onSelectSid, getRoom, overlayZoom, onZoom, topRightMenu }: Props) {
   // Halte die letzte nicht-leere Teilnehmerliste für kurze Zeit (Reconnect-Grace),
   // um visuelles Flackern bei kurzzeitigen Verbindungsabbrüchen zu vermeiden.
   const lastNonEmptyRef = React.useRef<Participant[]>(participants);
@@ -50,19 +55,42 @@ export function Overlays({ hud, editorActive, avDnd, participants, gridExpanded,
     };
   }, [participants]);
 
+  const showParticipants = !editorActive && !avDnd;
+  const showTopRightMenu = topRightMenu && !selectedSid; // Hide menu when overlay is open
+
   return (
     <>
-      {!editorActive && !avDnd && (
-        <ParticipantsGrid
-          participants={stableParticipants}
-          expanded={gridExpanded}
-          onToggleExpand={onToggleExpand}
-          selectedSid={selectedSid}
-          onSelect={(sid) => onSelectSid(sid)}
-          roomGetter={getRoom}
-        />
+      {/* Top Header Bar - flex layout for participants + menu */}
+      {(showParticipants || showTopRightMenu) && (
+        <div className="top-header-bar">
+          {/* Left spacer for symmetry */}
+          <div className="top-header-spacer" />
+
+          {/* Center: Participants Grid */}
+          <div className="top-header-center">
+            {showParticipants && (
+              <ParticipantsGrid
+                participants={stableParticipants}
+                expanded={gridExpanded}
+                onToggleExpand={onToggleExpand}
+                selectedSid={selectedSid}
+                onSelect={(sid) => onSelectSid(sid)}
+                roomGetter={getRoom}
+              />
+            )}
+          </div>
+
+          {/* Right: TopRightMenu */}
+          <div className="top-header-right">
+            {showTopRightMenu && <TopRightMenu {...topRightMenu} />}
+          </div>
+        </div>
       )}
-      <HudPanel hud={hud} />
+
+      {/* HudPanel hidden when fullscreen overlay is open */}
+      {!selectedSid && <HudPanel hud={hud} />}
+
+      {/* Fullscreen Participant Overlay */}
       {!editorActive && !avDnd && selectedSid && (() => {
         const pick = participants.find(p => p.sid === selectedSid);
         if (!pick) return null;

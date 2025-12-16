@@ -261,104 +261,20 @@ export function ParticipantOverlay(props: {
         </div>
       </div>
 
-      {/* Zoom controls */}
+      {/* Zoom controls - improved layout */}
       <div
         style={{
           position: 'absolute',
-          top: 24,
-          right: 24,
+          top: 16,
+          right: 16,
           display: 'flex',
+          flexDirection: 'column',
           gap: 8,
-          alignItems: 'center',
+          alignItems: 'flex-end',
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Zoom level indicator */}
-        <div
-          style={{
-            padding: '6px 10px',
-            borderRadius: 8,
-            background: 'rgba(0,0,0,0.55)',
-            border: '1px solid rgba(255,255,255,0.12)',
-            color: '#fff',
-            fontSize: 12,
-            fontWeight: 500,
-            minWidth: 48,
-            textAlign: 'center',
-          }}
-        >
-          {Math.round(zoom * 100)}%
-        </div>
-
-        <button
-          title={t('participant.zoomMinus') + ' (-)'}
-          onClick={(e) => {
-            e.stopPropagation();
-            onZoom(Math.max(0.25, +(zoom - 0.25).toFixed(2)));
-          }}
-          style={{
-            padding: 6,
-            width: 32,
-            height: 32,
-            borderRadius: 8,
-            border: '1px solid rgba(255,255,255,0.12)',
-            background: 'rgba(0,0,0,0.55)',
-            color: '#fff',
-            cursor: 'pointer',
-            display: 'grid',
-            placeItems: 'center',
-          }}
-        >
-          −
-        </button>
-
-        <button
-          title={t('participant.reset') + ' (0)'}
-          onClick={(e) => {
-            e.stopPropagation();
-            onZoom(1);
-            setPanOffset({ x: 0, y: 0 });
-          }}
-          style={{
-            padding: 6,
-            width: 32,
-            height: 32,
-            borderRadius: 8,
-            border: '1px solid rgba(255,255,255,0.12)',
-            background: zoom === 1 ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.55)',
-            color: '#fff',
-            cursor: 'pointer',
-            display: 'grid',
-            placeItems: 'center',
-            fontSize: 11,
-          }}
-        >
-          1x
-        </button>
-
-        <button
-          title={t('participant.zoomPlus') + ' (+)'}
-          onClick={(e) => {
-            e.stopPropagation();
-            onZoom(Math.min(4, +(zoom + 0.25).toFixed(2)));
-          }}
-          style={{
-            padding: 6,
-            width: 32,
-            height: 32,
-            borderRadius: 8,
-            border: '1px solid rgba(255,255,255,0.12)',
-            background: 'rgba(0,0,0,0.55)',
-            color: '#fff',
-            cursor: 'pointer',
-            display: 'grid',
-            placeItems: 'center',
-          }}
-        >
-          +
-        </button>
-
-        {/* Close button */}
+        {/* Close button - prominent */}
         <button
           title={t('common.close') + ' (Esc)'}
           onClick={(e) => {
@@ -366,21 +282,127 @@ export function ParticipantOverlay(props: {
             onClose();
           }}
           style={{
-            padding: 6,
-            width: 32,
-            height: 32,
-            borderRadius: 8,
-            border: '1px solid rgba(255,255,255,0.12)',
-            background: 'rgba(0,0,0,0.55)',
+            padding: 8,
+            width: 40,
+            height: 40,
+            borderRadius: 10,
+            border: '1px solid rgba(255,255,255,0.15)',
+            background: 'rgba(0,0,0,0.65)',
+            backdropFilter: 'blur(8px)',
             color: '#fff',
             cursor: 'pointer',
             display: 'grid',
             placeItems: 'center',
-            marginLeft: 8,
+            fontSize: 18,
+            fontWeight: 300,
           }}
         >
           ✕
         </button>
+
+        {/* Zoom control group */}
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 4,
+            padding: 8,
+            borderRadius: 12,
+            background: 'rgba(0,0,0,0.65)',
+            backdropFilter: 'blur(8px)',
+            border: '1px solid rgba(255,255,255,0.12)',
+          }}
+        >
+          {/* Zoom In */}
+          <button
+            title={t('participant.zoomPlus') + ' (+)'}
+            onClick={(e) => {
+              e.stopPropagation();
+              onZoom(Math.min(4, +(zoom + 0.25).toFixed(2)));
+            }}
+            style={{
+              padding: 6,
+              width: 36,
+              height: 36,
+              borderRadius: 8,
+              border: '1px solid rgba(255,255,255,0.08)',
+              background: 'rgba(255,255,255,0.08)',
+              color: '#fff',
+              cursor: 'pointer',
+              display: 'grid',
+              placeItems: 'center',
+              fontSize: 18,
+              fontWeight: 300,
+            }}
+          >
+            +
+          </button>
+
+          {/* Zoom level indicator */}
+          <div
+            style={{
+              padding: '6px 4px',
+              color: '#fff',
+              fontSize: 11,
+              fontWeight: 600,
+              textAlign: 'center',
+              minWidth: 36,
+            }}
+          >
+            {Math.round(zoom * 100)}%
+          </div>
+
+          {/* Zoom Out */}
+          <button
+            title={t('participant.zoomMinus') + ' (-)'}
+            onClick={(e) => {
+              e.stopPropagation();
+              onZoom(Math.max(0.25, +(zoom - 0.25).toFixed(2)));
+            }}
+            style={{
+              padding: 6,
+              width: 36,
+              height: 36,
+              borderRadius: 8,
+              border: '1px solid rgba(255,255,255,0.08)',
+              background: 'rgba(255,255,255,0.08)',
+              color: '#fff',
+              cursor: 'pointer',
+              display: 'grid',
+              placeItems: 'center',
+              fontSize: 18,
+              fontWeight: 300,
+            }}
+          >
+            −
+          </button>
+
+          {/* Reset button */}
+          <button
+            title={t('participant.reset') + ' (0)'}
+            onClick={(e) => {
+              e.stopPropagation();
+              onZoom(1);
+              setPanOffset({ x: 0, y: 0 });
+            }}
+            style={{
+              padding: 6,
+              width: 36,
+              height: 36,
+              borderRadius: 8,
+              border: '1px solid rgba(255,255,255,0.08)',
+              background: zoom === 1 ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.08)',
+              color: '#fff',
+              cursor: 'pointer',
+              display: 'grid',
+              placeItems: 'center',
+              fontSize: 10,
+              fontWeight: 600,
+            }}
+          >
+            1:1
+          </button>
+        </div>
       </div>
 
       {/* Keyboard shortcut hints */}

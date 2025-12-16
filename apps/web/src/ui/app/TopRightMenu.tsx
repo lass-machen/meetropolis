@@ -21,7 +21,7 @@ export function TopRightMenu(props: {
   const { override, setOverride } = useTheme();
   const { t } = useTranslation();
   return (
-    <div style={{ position: 'absolute', top: 12, right: 12, zIndex: 60, display: 'flex', alignItems: 'center' }}>
+    <div style={{ display: 'flex', alignItems: 'center' }}>
       <ButtonGroup size="sm">
         <Button icon="sun" iconPosition="only" active={override === 'light'} title={t('theme.light')} aria-label={t('theme.light')} onClick={() => setOverride('light')} />
         <Button icon="moon" iconPosition="only" active={override === 'dark'} title={t('theme.dark')} aria-label={t('theme.dark')} onClick={() => setOverride('dark')} />

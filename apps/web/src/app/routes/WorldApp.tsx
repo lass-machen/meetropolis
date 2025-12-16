@@ -17,7 +17,7 @@ import { useRosterPresence } from '../../features/roster/useRosterPresence';
 import { EditorWindow } from '../../features/editor/EditorWindow';
 // useEditorPointer removed - now handled by EditorInputHandler in MainScene
 // HudPanel moved into Overlays
-import { TopRightControls } from '../layout/TopRightControls';
+// TopRightControls now integrated into Overlays
 import { ApiTokensOverlay } from '../../ui/admin/ApiTokensOverlay';
 import { AdminOverlay } from '../../ui/admin/AdminOverlay';
 import { TenantsAdminModal } from '../../features/admin/TenantsAdminModal';
@@ -121,9 +121,8 @@ export function WorldApp() {
 
   const [isInternalOwner, setIsInternalOwner] = React.useState(false);
   // view/state werden in AuthScreen verwaltet
-  // Roster: periodisch letzte Präsenz (für Offline/"zuletzt online")
-  // HTTP-Poll für Presence deaktivieren – wir nutzen WS-Push (presence_recent/presence_update)
-  useRosterPresence({ apiBase, authChecked, meId: me?.id ?? null, rosterByIdentityRef, setRoster, avRef, enablePoll: false });
+  // Roster: HTTP-Fetch beim Mount für alle Tenant-Mitglieder, WS für Live-Updates
+  useRosterPresence({ apiBase, authChecked, meId: me?.id ?? null, rosterByIdentityRef, setRoster, avRef });
   // Grid Overlay expand/collapse + selection
   const [gridExpanded, setGridExpanded] = React.useState(false);
   const [selectedSid, setSelectedSid] = React.useState<string | null>(null);
@@ -1295,6 +1294,52 @@ export function WorldApp() {
               getRoom={getRoom}
               overlayZoom={overlayZoom}
               onZoom={(z) => setOverlayZoom(z)}
+              topRightMenu={{
+                menuOpen,
+                onToggleMenu: () => setMenuOpen(v => !v),
+                onOpenUsers: () => { setUserModalOpen(true); setMenuOpen(false); },
+                onOpenInvites: () => { setInvitesModalOpen(true); setMenuOpen(false); },
+                onBackToWorld: () => { setPage('world'); setMenuOpen(false); },
+                onOpenAdmin: () => { setAdminOpen(true); setMenuOpen(false); },
+                isAdmin: isInternalOwner,
+                onOpenApi: () => { setApiModalOpen(true); setMenuOpen(false); },
+                onResetApp: async () => {
+                  setMenuOpen(false);
+                  try { await avRef.current?.leave?.(); } catch { }
+                  try {
+                    const room: any = colyseusRef.current;
+                    const wsReadyState = room?.connection?.ws?.readyState ?? room?.connection?.transport?.ws?.readyState ?? room?.connection?._transport?.ws?.readyState;
+                    const isOpen = room?.connection?.isOpen === true || wsReadyState === 1;
+                    if (isOpen) await room.leave();
+                  } catch { }
+                  try { await fetch(`${apiBase}/auth/logout`, { method: 'POST', credentials: 'include' }); } catch { }
+                  try { localStorage.clear(); } catch { }
+                  try { sessionStorage.clear(); } catch { }
+                  try {
+                    const parts = (document.cookie || '').split(';');
+                    for (const raw of parts) {
+                      const name = raw.split('=')[0]?.trim();
+                      if (!name) continue;
+                      document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`;
+                    }
+                  } catch { }
+                  window.location.reload();
+                },
+                onToggleEditor: async () => {
+                  const isCurrentlyActive = editor.active;
+                  if (isCurrentlyActive) {
+                    await saveAllToServer().catch(() => { });
+                  }
+                  if (isCurrentlyActive) {
+                    EditorService.dispatch({ type: 'DEACTIVATE_EDITOR' });
+                  } else {
+                    EditorService.dispatch({ type: 'ACTIVATE_EDITOR' });
+                  }
+                  setMenuOpen(false);
+                },
+                editorActive: editor.active,
+                onLogout: async () => { try { await fetch(`${apiBase}/auth/logout`, { method: 'POST', credentials: 'include' }); } finally { setMe(null); setMenuOpen(false); setPage('world'); } },
+              }}
             />
             {(import.meta as any).env?.DEV ? (
               <ConnectionBanner
@@ -1385,14 +1430,9 @@ export function WorldApp() {
               <div style={{ display: 'grid', placeItems: 'center', height: '100%', color: 'var(--fg-subtle)' }}>Starte Welt…</div>
             )}
 
-            {/* Admin Overlay (einzige Instanz) */}
+            {/* Admin Overlay (Modal) */}
             {isInternalOwner && (
-              <>
-                <div style={{ position: 'absolute', top: 12, right: 12, zIndex: 60 }}>
-                  <Button onClick={() => setAdminOpen(true)} variant="ghost">Admin</Button>
-                </div>
-                <AdminOverlay apiBase={apiBase} open={adminOpen} onOpenChange={setAdminOpen} />
-              </>
+              <AdminOverlay apiBase={apiBase} open={adminOpen} onOpenChange={setAdminOpen} />
             )}
             {/* ParticipantOverlay über Overlays */}
 
@@ -1496,57 +1536,6 @@ export function WorldApp() {
         </Modal>
 
         {/* Profil-Seite ist (noch) nicht implementiert; Stub entfernt */}
-
-        {/* Settings & Theme (oben rechts) */}
-        <TopRightControls
-          menuOpen={menuOpen}
-          onToggleMenu={() => setMenuOpen(v => !v)}
-          onOpenUsers={() => { setUserModalOpen(true); setMenuOpen(false); }}
-          onOpenInvites={() => { setInvitesModalOpen(true); setMenuOpen(false); }}
-          onBackToWorld={() => { setPage('world'); setMenuOpen(false); }}
-          onOpenAdmin={() => { setAdminOpen(true); setMenuOpen(false); }}
-          isAdmin={isInternalOwner}
-          onOpenApi={() => { setApiModalOpen(true); setMenuOpen(false); }}
-          onResetApp={async () => {
-            setMenuOpen(false);
-            // Verbindungen sauber schließen, bevor Storage/Cookies gelöscht werden
-            try { await avRef.current?.leave?.(); } catch { }
-            try {
-              const room: any = colyseusRef.current;
-              const wsReadyState = room?.connection?.ws?.readyState ?? room?.connection?.transport?.ws?.readyState ?? room?.connection?._transport?.ws?.readyState;
-              const isOpen = room?.connection?.isOpen === true || wsReadyState === 1;
-              if (isOpen) await room.leave();
-            } catch { }
-            try { await fetch(`${apiBase}/auth/logout`, { method: 'POST', credentials: 'include' }); } catch { }
-            try { localStorage.clear(); } catch { }
-            try { sessionStorage.clear(); } catch { }
-            try {
-              const parts = (document.cookie || '').split(';');
-              for (const raw of parts) {
-                const name = raw.split('=')[0]?.trim();
-                if (!name) continue;
-                document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`;
-              }
-            } catch { }
-            window.location.reload();
-          }}
-          onToggleEditor={async () => {
-            const isCurrentlyActive = editor.active;
-            if (isCurrentlyActive) {
-              await saveAllToServer().catch(() => { });
-            }
-            // Toggle über EditorService (wird automatisch mit setEditor synchronisiert)
-            if (isCurrentlyActive) {
-              EditorService.dispatch({ type: 'DEACTIVATE_EDITOR' });
-            } else {
-              EditorService.dispatch({ type: 'ACTIVATE_EDITOR' });
-            }
-            setMenuOpen(false);
-          }}
-          editorActive={editor.active}
-          onLogout={async () => { try { await fetch(`${apiBase}/auth/logout`, { method: 'POST', credentials: 'include' }); } finally { setMe(null); setMenuOpen(false); setPage('world'); } }}
-
-        />
 
       </div>
       {/* Rechte Roster-Leiste (volle Höhe) */}
