@@ -10,14 +10,17 @@ export function ParticipantCard(props: { part: { sid: string; identity: string; 
   const [isLocal, setIsLocal] = React.useState(false);
   const [hover, setHover] = React.useState(false);
   const { t } = useTranslation('common');
+  // Track which track is currently attached to detect changes
+  const attachedTrackIdRef = React.useRef<string | null>(null);
 
   React.useEffect(() => {
     const room: any = roomGetter();
     const el = videoRef.current;
     if (!room || !room.localParticipant || !el) return;
 
-    // Reset video element at start of effect to ensure clean state
+    // Reset video element and tracking ref at start of effect
     try { (el as any).srcObject = null; } catch {}
+    attachedTrackIdRef.current = null;
     setIsVideoRendering(false);
 
     let baseSid = (part.sid || '').split(':')[0];
@@ -71,10 +74,14 @@ export function ParticipantCard(props: { part: { sid: string; identity: string; 
     el.addEventListener('playing', onPlaying);
     el.addEventListener('emptied', onEmptied);
 
+    // Helper to get track ID for comparison
+    const getTrackId = (t: any) => t?.sid || t?.mediaStreamTrack?.id || t?.id || null;
+
     if (track && el) {
       try {
         el.muted = true;
         track.attach(el);
+        attachedTrackIdRef.current = getTrackId(track);
         cleanup = () => { try { track.detach(el); } catch {} };
       } catch {}
     } else {
@@ -85,17 +92,18 @@ export function ParticipantCard(props: { part: { sid: string; identity: string; 
     const tryAttach = () => {
       try {
         let currentP = p;
+        // For remote screenshare, try to find participant if not found initially
         if (!currentP && part.media === 'screen' && !isLocalNow) {
           const allParticipants = Array.from(room.remoteParticipants?.values() || []);
-          const searchIdentity = part.identity.endsWith(' – Bildschirm') 
-            ? part.identity.slice(0, -14) 
+          const searchIdentity = part.identity.endsWith(' – Bildschirm')
+            ? part.identity.slice(0, -14)
             : part.identity;
           currentP = allParticipants.find((participant: any) => {
             const pName = participant.name || participant.identity;
             return pName === searchIdentity || part.identity.startsWith(pName + ' –');
           });
           if (!currentP) {
-            currentP = allParticipants.find((participant: any) => 
+            currentP = allParticipants.find((participant: any) =>
               participant.identity === searchIdentity ||
               part.identity.startsWith(participant.identity + ' –')
             );
@@ -105,26 +113,50 @@ export function ParticipantCard(props: { part: { sid: string; identity: string; 
             baseSid = currentP.sid;
           }
         }
+        // For local participant, always use room.localParticipant to get fresh state
+        if (isLocalNow) {
+          currentP = room.localParticipant;
+        }
         if (!currentP) return;
+
         const pubsNow: any[] = Array.from(currentP.trackPublications?.values?.() || []);
-        const cam = pubsNow.find((pub: any) => {
+        const pub = pubsNow.find((pub: any) => {
           const src = (pub?.source || pub?.track?.source);
           if (part.media === 'screen') return src === 'screen_share';
           return src === 'camera';
         });
-        const trackObj = (cam as any)?.track;
-        if (trackObj && el && !el.srcObject) {
-          try { 
+
+        // For remote tracks: try to subscribe if not subscribed yet
+        if (pub && !isLocalNow && part.media === 'screen') {
+          const isSubscribed = (pub as any).isSubscribed ?? (pub as any).subscribed ?? !!(pub as any).track;
+          if (!isSubscribed && typeof (pub as any).setSubscribed === 'function') {
+            try { (pub as any).setSubscribed(true); } catch {}
+          }
+        }
+
+        const trackObj = (pub as any)?.track;
+        const trackId = getTrackId(trackObj);
+
+        // Attach if: track exists AND (no track attached OR different track)
+        if (trackObj && el && trackId && attachedTrackIdRef.current !== trackId) {
+          try {
+            // Detach old track if any
+            if (el.srcObject) {
+              try { (el as any).srcObject = null; } catch {}
+            }
             el.muted = true;
-            trackObj.attach(el); 
-            setIsVideoRendering(false); 
+            trackObj.attach(el);
+            attachedTrackIdRef.current = trackId;
+            setIsVideoRendering(false);
             clearInterval(pollTimer);
           } catch {}
         }
       } catch {}
     };
-    pollTimer = setInterval(tryAttach, 400);
-    setTimeout(() => { try { clearInterval(pollTimer); } catch {} }, 6000);
+    // Run immediately once, then poll
+    tryAttach();
+    pollTimer = setInterval(tryAttach, 300);
+    setTimeout(() => { try { clearInterval(pollTimer); } catch {} }, 10000);
 
     const onTrackSubscribed = (t: any, _publication: any, participant: any) => {
       try {
@@ -228,7 +260,8 @@ export function ParticipantCard(props: { part: { sid: string; identity: string; 
       try { node?.removeEventListener('emptied', onEmptied); } catch {}
       try { clearInterval(pollTimer); } catch {}
       cleanup?.();
-      // Reset srcObject on cleanup to ensure clean state for next render
+      // Reset srcObject and tracking ref on cleanup
+      attachedTrackIdRef.current = null;
       try { if (node) { (node as any).srcObject = null; } } catch {}
     };
   }, [part.sid, part.hasVideo, roomGetter]);
