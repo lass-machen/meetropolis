@@ -279,6 +279,19 @@ export class WorldRoom extends Colyseus.Room<WorldState> {
       const tenantSlug: string = (options?.tenant || this.metadata?.tenant || process.env.DEFAULT_TENANT_SLUG || 'default');
       const prisma = new PrismaClient();
       const tenant = await prisma.tenant.findUnique({ where: { slug: tenantSlug } });
+
+      // Check subscription status - block if payment failed (past_due, unpaid, canceled)
+      if (tenant && !tenant.bypassLimits) {
+        const status = (tenant as any).status as string | undefined;
+        const blockedStatuses = ['past_due', 'unpaid', 'canceled', 'incomplete_expired'];
+        if (status && blockedStatuses.includes(status)) {
+          try { logger.warn('[WorldRoom] Tenant subscription inactive', { tenant: tenantSlug, status }); } catch { }
+          try { client.error(4003, 'subscription_inactive'); } catch { }
+          try { await prisma.$disconnect().catch(() => { }); } catch { }
+          return client.leave(1000);
+        }
+      }
+
       if (tenant && !tenant.bypassLimits) {
         let active = 0;
         try {

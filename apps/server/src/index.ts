@@ -55,17 +55,27 @@ app.use(metricsMiddleware() as any);
 app.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
   const origin = req.headers.origin as string;
   
+  const isProduction = process.env.NODE_ENV === 'production';
+
   if (allowedOrigins.length > 0) {
     if (origin && allowedOrigins.includes(origin)) {
       res.setHeader('Access-Control-Allow-Origin', origin);
     } else {
-      // Hilft beim Betrieb: sichtbares Logging, wenn Origin nicht freigegeben ist
+      // Log blocked origins for monitoring
       if (origin) {
         try { logger.warn({ event: 'cors.origin_not_allowed', origin, allowedOrigins }); } catch {}
       }
+      // In production, block requests from non-whitelisted origins
+      if (isProduction && origin) {
+        return res.status(403).json({ error: 'cors_origin_not_allowed' });
+      }
     }
+  } else if (isProduction) {
+    // SECURITY: In production, CORS_ORIGIN must be configured
+    try { logger.error({ event: 'cors.no_whitelist_in_production', origin }); } catch {}
+    return res.status(500).json({ error: 'cors_not_configured' });
   } else {
-    // Fallback: wenn keine Whitelist gesetzt ist, spiegle die Origin (besser für Credentials als '*')
+    // Development only: allow any origin for easier local development
     if (origin) {
       res.setHeader('Access-Control-Allow-Origin', origin);
     } else {

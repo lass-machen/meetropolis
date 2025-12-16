@@ -46,9 +46,13 @@ export function getApiTokenPepper(): string {
 }
 
 export function setAuthCookie(res: express.Response, token: string) {
+  const isProduction = process.env.NODE_ENV === 'production';
   const forceSecure = process.env.COOKIE_SECURE === 'true';
-  const secure = forceSecure || false;
-  const sameSite = secure ? 'none' : 'lax';
+  const secure = forceSecure || isProduction;
+  // Use 'strict' in production for CSRF protection, 'lax' in development for easier testing
+  // Note: 'strict' prevents cookie from being sent on cross-site navigation,
+  // which provides strong CSRF protection but may require users to re-login after following external links
+  const sameSite = isProduction ? 'strict' : 'lax';
   res.cookie(COOKIE_NAME, token, {
     httpOnly: true,
     sameSite: sameSite as any,
