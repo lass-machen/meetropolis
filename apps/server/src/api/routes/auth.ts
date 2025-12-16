@@ -14,6 +14,7 @@ import {
   normalizeEmailForStorage,
   normalizeEmailForMatching,
 } from '../utils/authHelpers.js';
+import { getEmailService, emailTemplates } from '../../services/email.js';
 
 export function registerAuthRoutes(app: express.Application, prisma: PrismaClient) {
   // Auth Endpoints
@@ -235,12 +236,33 @@ export function registerAuthRoutes(app: express.Application, prisma: PrismaClien
     const email = parse.data.email;
     const emailLookup = normalizeEmailForStorage(email);
     const user = await prisma.user.findFirst({ where: { email: { equals: emailLookup, mode: 'insensitive' } } });
+    // Always return ok to prevent email enumeration
     if (!user) return res.json({ ok: true });
+
     const token = crypto.randomBytes(24).toString('hex');
     const expiresAt = new Date(Date.now() + 1000 * 60 * 30);
     await prisma.passwordReset.create({ data: { token, userId: user.id, expiresAt } });
-    // In real app: send email with URL containing token
-    res.json({ ok: true, token });
+
+    // Send password reset email
+    const tenant = getTenantFromReq(req);
+    const baseUrl = process.env.BILLING_PUBLIC_URL || req.headers.origin || `https://${tenant?.slug || 'app'}.meetropolis.de`;
+    const resetUrl = `${baseUrl}/#/reset?token=${token}&email=${encodeURIComponent(email)}`;
+
+    const emailService = getEmailService();
+    const emailContent = emailTemplates.resetPassword({
+      name: user.name || '',
+      resetUrl,
+    });
+    emailContent.to = email;
+
+    // Send email asynchronously (don't block response)
+    emailService.send(emailContent).catch((e) => {
+      logger.error({ event: 'auth.forgot.email_failed', userId: user.id, error: String(e) });
+    });
+
+    // In dev mode, also return token for testing (remove in production)
+    const isDev = process.env.NODE_ENV !== 'production';
+    res.json({ ok: true, ...(isDev && { token }) });
   });
 
   app.post('/auth/reset', async (req, res) => {

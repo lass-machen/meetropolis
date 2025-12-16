@@ -35,6 +35,10 @@ RUN npm run build
 # Production Stage
 FROM nginx:alpine AS runner
 
+LABEL org.opencontainers.image.source="https://github.com/lass-machen/meetropolis"
+LABEL org.opencontainers.image.description="Meetropolis Web - Virtual Office Platform"
+LABEL org.opencontainers.image.licenses="Apache-2.0"
+
 # Copy built files to nginx
 COPY --from=builder /workspace/apps/web/dist /usr/share/nginx/html
 

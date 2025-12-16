@@ -1,6 +1,22 @@
-### Meetropolis (MVP Scaffold)
+![CI](https://github.com/lass-machen/meetropolis/actions/workflows/ci.yml/badge.svg)
+![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)
+![Node](https://img.shields.io/badge/Node-20%2B-green.svg)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.5-blue.svg)
 
-Ein internes Gather.town-ähnliches MVP mit Monorepo-Struktur.
+# Meetropolis
+
+A virtual office platform for remote teams - like Gather.town, but open source.
+
+**Features:**
+- Real-time spatial audio/video (LiveKit)
+- 2D game world with Tiled map support (Phaser)
+- Proximity-based conversations
+- Zone-based audio isolation
+- Map editor for custom worlds
+- Multi-tenant architecture with Stripe billing
+- Desktop app support (Tauri)
+
+---
 
 #### Inhalte
 - Monorepo mit `apps/web`, `apps/server`, `packages/shared`

@@ -13,6 +13,7 @@ import {
   setAuthCookie,
   normalizeEmailForStorage,
 } from '../utils/authHelpers.js';
+import { getEmailService, emailTemplates } from '../../services/email.js';
 
 async function getDefaultFreeSeats(prisma: PrismaClient): Promise<number> {
   try {
@@ -264,6 +265,22 @@ export function registerAdminRoutes(app: express.Application, prisma: PrismaClie
       await prisma.membership.upsert({ where: { tenantId_userId: { tenantId: tenant.id, userId: (user as any).id } } as any, update: { role: 'owner' as any }, create: { tenantId: tenant.id, userId: (user as any).id, role: 'owner' as any } });
       const token = jwt.sign({ sub: (user as any).id, tid: tenant.id }, getJwtSecret(), { expiresIn: '30d' });
       setAuthCookie(res, token);
+
+      // Send welcome email asynchronously
+      const loginUrl = process.env.BILLING_PUBLIC_URL
+        ? `${process.env.BILLING_PUBLIC_URL.replace(/\/$/, '')}/#/app`
+        : `https://${slug}.meetropolis.de`;
+      const emailService = getEmailService();
+      const emailContent = emailTemplates.welcomeTenant({
+        name: parse.data.name,
+        tenantName: parse.data.name,
+        loginUrl,
+      });
+      emailContent.to = email;
+      emailService.send(emailContent).catch((e) => {
+        logger.error({ event: 'signup.welcome_email_failed', tenantId: tenant.id, error: String(e) });
+      });
+
       return res.json({ ok: true, tenant: { id: tenant.id, slug: tenant.slug, freeSeats: tenant.freeSeats }, user: { id: (user as any).id, email: (user as any).email } });
     } catch (e: any) {
       logger.error({ event: 'public.signup.error', error: e?.message || String(e) });
