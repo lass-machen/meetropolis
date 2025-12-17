@@ -53,9 +53,8 @@ export function rebuildStaticColliders(scene: Phaser.Scene & any): void {
     }
     logger.debug(`[Collision] Rebuilt static colliders: ${count} bodies`);
   } catch (e) {
-    console.error('[Collision] Failed to rebuild static colliders', e);
+    logger.error('[Collision] Failed to rebuild static colliders', e);
   }
 }
-
 
 

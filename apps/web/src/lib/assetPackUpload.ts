@@ -6,6 +6,7 @@
  */
 
 import JSZip from 'jszip';
+import { logger } from './logger';
 
 export type TilesetData = {
   key: string;
@@ -116,8 +117,7 @@ export async function uploadTilesetAsAssetPack(
     return { success: true, uuid: result.uuid };
     
   } catch (e: any) {
-    console.error('[AssetPackUpload] Failed:', e);
+    logger.error('[AssetPackUpload] Failed:', e);
     return { success: false, error: e.message || String(e) };
   }
 }
-

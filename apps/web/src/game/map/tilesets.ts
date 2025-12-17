@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { editorLog } from '../../lib/editorLog';
+import { logger } from '../../lib/logger';
 
 export function registerTileset(scene: Phaser.Scene & any, ts: { key: string; dataUrl: string; tileWidth: number; tileHeight: number; margin?: number; spacing?: number }): void {
   const nameForTileset = (() => {
@@ -9,7 +9,7 @@ export function registerTileset(scene: Phaser.Scene & any, ts: { key: string; da
     }
     return k;
   })();
-  try { (window as any).DEBUG_LOGS && console.debug('[ASSETS_DBG][Scene] registerTileset', { key: nameForTileset, url: ts.dataUrl?.slice?.(0, 32) || typeof ts.dataUrl, tw: ts.tileWidth, th: ts.tileHeight, m: ts.margin ?? 0, s: ts.spacing ?? 0 }); } catch {}
+  logger.debug('[ASSETS_DBG][Scene] registerTileset', { key: nameForTileset, url: ts.dataUrl?.slice?.(0, 32) || typeof ts.dataUrl, tw: ts.tileWidth, th: ts.tileHeight, m: ts.margin ?? 0, s: ts.spacing ?? 0 });
   if (!scene.mapRef || !scene.game || !(scene.game as any).renderer) return;
 
   const existingTileset = scene.mapRef.tilesets.find((t: any) => t.name === nameForTileset);
@@ -23,7 +23,7 @@ export function registerTileset(scene: Phaser.Scene & any, ts: { key: string; da
     while (scene.textures.exists(key)) { key = `${nameForTileset}-${Date.now()}`; }
     const safeKey = key;
     scene.textures.once('addtexture', (key: string) => {
-      try { (window as any).DEBUG_LOGS && console.debug('[ASSETS_DBG][Scene] addtexture event', { key, safeKey }); } catch {}
+      logger.debug('[ASSETS_DBG][Scene] addtexture event', { key, safeKey });
       if (key === safeKey && scene.mapRef) {
         let tileset: Phaser.Tilemaps.Tileset | null = null;
         try {
@@ -68,7 +68,7 @@ export function registerTileset(scene: Phaser.Scene & any, ts: { key: string; da
             const fitsW = imgW > 0 ? ((imgW - margin + spacing) % (tileWForMap + spacing) === 0) : true;
             const fitsH = imgH > 0 ? ((imgH - margin + spacing) % (tileHForMap + spacing) === 0) : true;
             if (!fitsW || !fitsH) {
-              try { (window as any).DEBUG_LOGS && console.debug('[ASSETS_DBG][Scene] skip tileset (non-multiple area)', { key: ts.key, imgW, imgH, tileWForMap, tileHForMap, margin, spacing }); } catch {}
+              logger.debug('[ASSETS_DBG][Scene] skip tileset (non-multiple area)', { key: ts.key, imgW, imgH, tileWForMap, tileHForMap, margin, spacing });
               return;
             }
           } catch {}
@@ -76,7 +76,7 @@ export function registerTileset(scene: Phaser.Scene & any, ts: { key: string; da
           if (existingTileset2) {
             tileset = existingTileset2;
             scene.dynamicTilesets.set(nameForTileset, tileset);
-            console.log('Tileset', `Using existing tileset ${existingTileset2.name} for ${nameForTileset}`);
+            logger.debug('Tileset', `Using existing tileset ${existingTileset2.name} for ${nameForTileset}`);
           } else {
             try {
               let assignedFirstGid = 0;
@@ -119,10 +119,10 @@ export function registerTileset(scene: Phaser.Scene & any, ts: { key: string; da
               if (tileset) {
                 try { if (!scene.mapRef.tilesets.find((t: any) => t.name === (tileset as any).name)) { (scene.mapRef.tilesets as any).push(tileset); } } catch {}
                 scene.dynamicTilesets.set(nameForTileset, tileset);
-                console.log('Tileset', `Successfully added tileset ${nameForTileset}`);
+                logger.debug('Tileset', `Successfully added tileset ${nameForTileset}`);
               }
             } catch (err) {
-              console.log('Tileset', `Failed to create tileset ${safeKey}:`, err);
+              logger.warn('Tileset', `Failed to create tileset ${safeKey}:`, err);
               return;
             }
           }
@@ -142,7 +142,7 @@ export function registerTileset(scene: Phaser.Scene & any, ts: { key: string; da
             }
           }
         } catch (error) {
-          console.log('Tileset', `Failed to add tileset ${safeKey}:`, error);
+          logger.warn('Tileset', `Failed to add tileset ${safeKey}:`, error);
           return;
         }
       }
@@ -201,9 +201,8 @@ export function registerTileset(scene: Phaser.Scene & any, ts: { key: string; da
         if (scene.collisionLayer) { (scene.collisionLayer as any).setTilesets(allTilesets); }
       }
     } catch (error) {
-      console.log('Tileset', `Failed to add existing tileset ${ts.key}:`, error);
+      logger.warn('Tileset', `Failed to add existing tileset ${ts.key}:`, error);
     }
   }
 }
-
 

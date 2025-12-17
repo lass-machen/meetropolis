@@ -1,3 +1,5 @@
+import { AVLogger } from '../AVLogger';
+
 export type DesiredSubscription = { identity: string; audio?: boolean; video?: boolean };
 
 export type ApplySubscriptionsContext = {
@@ -37,13 +39,24 @@ export function applySubscriptions(ctx: ApplySubscriptionsContext): void {
         if (kind === 'audio') setDesired(pub, identity, 'audio', true);
         if (kind === 'video') {
           const near = src === 'screen_share' || few || prioritizedVideoSet.has(identity) || activeVideoSet.has(identity) || shouldSub;
-          try { console.debug('[AV][debug] setDesired.video', { identity, src, near, few, active: Array.from(activeVideoSet), desired: Array.from(prioritizedVideoSet) }); } catch {}
+          AVLogger.debug('subscriptions.set_desired.video', {
+            identity,
+            src: src ? String(src) : undefined,
+            near,
+            few,
+            activeCount: activeVideoSet.size,
+            desiredCount: prioritizedVideoSet.size,
+          });
           setDesired(pub, identity, 'video', !!near);
         }
       }
     }
     // Telemetrie-Hook (optional): Anzahl Teilnehmer und Keys zusammenfassen
-    try { (window as any).__avLastApply = { n: participants.length, key }; } catch {}
+    try {
+      const env = (import.meta as any).env;
+      const debugOn = env?.VITE_AV_DEBUG === 'true' || (window as any).__avDebugOn;
+      if (debugOn) (window as any).__avLastApply = { n: participants.length, key };
+    } catch {}
   } catch {}
 }
 
@@ -69,5 +82,4 @@ export function ensureSubscribeAllAudio(room: any, isSignalOpen: () => boolean, 
     }
   } catch {}
 }
-
 

@@ -142,11 +142,10 @@ export class SubscriptionManager implements Disposable {
         if (!track) continue;
 
         const kind = (pub as any).kind ?? track.kind;
-        if (kind !== 'audio') continue;
-
-        if (typeof track.setVolume === 'function') {
-          track.setVolume(Math.max(0, Math.min(1, volume)));
-        }
+        const isAudio = kind === 'audio' || (kind == null && typeof track.setVolume === 'function');
+        if (!isAudio) continue;
+        if (typeof track.setVolume !== 'function') continue;
+        track.setVolume(Math.max(0, Math.min(1, volume)));
       }
     } catch (error) {
       AVLogger.warn('subscription.volume.error', { identity, error: String(error) });
@@ -169,7 +168,8 @@ export class SubscriptionManager implements Disposable {
           if (!track) continue;
 
           const kind = (pub as any).kind ?? track.kind;
-          if (kind === 'audio' && typeof track.setVolume === 'function') {
+          const isAudio = kind === 'audio' || (kind == null && typeof track.setVolume === 'function');
+          if (isAudio && typeof track.setVolume === 'function') {
             track.setVolume(0);
           }
         }
@@ -195,7 +195,8 @@ export class SubscriptionManager implements Disposable {
           if (!track) continue;
 
           const kind = (pub as any).kind ?? track.kind;
-          if (kind === 'audio' && typeof track.setVolume === 'function') {
+          const isAudio = kind === 'audio' || (kind == null && typeof track.setVolume === 'function');
+          if (isAudio && typeof track.setVolume === 'function') {
             track.setVolume(1);
           }
         }

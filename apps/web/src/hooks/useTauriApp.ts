@@ -9,6 +9,7 @@
  */
 
 import React from 'react';
+import { logger } from '../lib/logger';
 
 interface AvStatus {
   mic: boolean;
@@ -50,7 +51,7 @@ export function useTauriApp(): TauriAppState {
           setIsMiniMode(event.payload);
         });
       } catch (e) {
-        console.warn('[Tauri] Failed to setup mini-mode listener:', e);
+        logger.warn('[Tauri] Failed to setup mini-mode listener:', e);
       }
     };
 
@@ -63,7 +64,7 @@ export function useTauriApp(): TauriAppState {
         const miniMode = await invoke<boolean>('is_mini_mode');
         setIsMiniMode(miniMode);
       } catch (e) {
-        console.warn('[Tauri] Failed to check mini mode:', e);
+        logger.warn('[Tauri] Failed to check mini mode:', e);
       }
     };
     checkMiniMode();
@@ -81,7 +82,7 @@ export function useTauriApp(): TauriAppState {
       const newMiniMode = await invoke<boolean>('toggle_mini_mode');
       setIsMiniMode(newMiniMode);
     } catch (error) {
-      console.error('[Tauri] Failed to toggle mini mode:', error);
+      logger.error('[Tauri] Failed to toggle mini mode:', error);
     }
   }, [isTauri]);
 
@@ -123,7 +124,7 @@ export function useTauriApp(): TauriAppState {
           callback(event.payload);
         });
       } catch (e) {
-        console.warn('[Tauri] Failed to setup mini-av-action listener:', e);
+        logger.warn('[Tauri] Failed to setup mini-av-action listener:', e);
       }
     };
 
@@ -179,7 +180,7 @@ export function useServerHealthCheck(options: {
 
         if (response.ok) {
           if (!isServerHealthy) {
-            console.log('[HealthCheck] Server is back online');
+            logger.debug('[HealthCheck] Server is back online');
             setIsServerHealthy(true);
             setDisconnectCount(0);
             onReconnect?.();
@@ -187,7 +188,7 @@ export function useServerHealthCheck(options: {
             // Wenn wir einen Reload geplant hatten, führen wir ihn jetzt aus
             if (reloadScheduledRef.current) {
               reloadScheduledRef.current = false;
-              console.log('[HealthCheck] Reloading after reconnect...');
+              logger.debug('[HealthCheck] Reloading after reconnect...');
               setTimeout(() => window.location.reload(), 500);
             }
           }
@@ -202,7 +203,7 @@ export function useServerHealthCheck(options: {
 
     const handleUnhealthy = () => {
       if (isServerHealthy) {
-        console.warn('[HealthCheck] Server appears to be down');
+        logger.warn('[HealthCheck] Server appears to be down');
         setIsServerHealthy(false);
         onDisconnect?.();
       }
@@ -227,7 +228,7 @@ export function useServerHealthCheck(options: {
 
     // Nach 5 fehlgeschlagenen Versuchen (ca. 50 Sekunden), plane Reload
     if (disconnectCount >= 5 && !reloadScheduledRef.current) {
-      console.log('[HealthCheck] Scheduling reload after multiple failures');
+      logger.debug('[HealthCheck] Scheduling reload after multiple failures');
       reloadScheduledRef.current = true;
     }
   }, [enabled, isServerHealthy, disconnectCount]);
@@ -272,7 +273,7 @@ export function useConnectionRecovery(options: {
 
       if (!isOpen && isConnected) {
         // Verbindung verloren
-        console.warn('[ConnectionRecovery] Connection lost');
+        logger.warn('[ConnectionRecovery] Connection lost');
         setIsConnected(false);
         disconnectTimeRef.current = Date.now();
         onConnectionLost?.();
@@ -285,7 +286,7 @@ export function useConnectionRecovery(options: {
         }, 10000);
       } else if (isOpen && !isConnected) {
         // Verbindung wiederhergestellt
-        console.log('[ConnectionRecovery] Connection restored');
+        logger.debug('[ConnectionRecovery] Connection restored');
         setIsConnected(true);
         setShowReloadBanner(false);
         disconnectTimeRef.current = null;

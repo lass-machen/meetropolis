@@ -4,6 +4,8 @@
  * that can't use cookies for cross-origin requests.
  */
 
+import { logger } from './logger';
+
 const TOKEN_KEY = 'meetropolis_auth_token';
 
 export function isTauri(): boolean {
@@ -24,13 +26,13 @@ export function setTauriAuthToken(token: string | null): void {
   try {
     if (token) {
       localStorage.setItem(TOKEN_KEY, token);
-      console.log('[TauriAuth] Token stored');
+      logger.debug('[TauriAuth] Token stored');
     } else {
       localStorage.removeItem(TOKEN_KEY);
-      console.log('[TauriAuth] Token cleared');
+      logger.debug('[TauriAuth] Token cleared');
     }
   } catch (e) {
-    console.error('[TauriAuth] Failed to store token:', e);
+    logger.error('[TauriAuth] Failed to store token:', e);
   }
 }
 
@@ -108,5 +110,5 @@ if (isTauri() && typeof window !== 'undefined') {
 
     return originalFetch.call(window, input, init);
   };
-  console.log('[TauriAuth] Fetch interceptor installed');
+  logger.debug('[TauriAuth] Fetch interceptor installed');
 }

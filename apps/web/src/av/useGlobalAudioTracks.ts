@@ -17,7 +17,7 @@ export function useGlobalAudioTracks(params: { avRef: React.MutableRefObject<any
         audio.autoplay = true;
         (audio as any).playsInline = true;
         // Respektiere DND bereits beim Attach, um kurze Audio-Leaks zu vermeiden
-        const dnd = !!((avRef.current as any)?.dndEnabled);
+        const dnd = !!(((avRef.current as any)?.dndEnabled) ?? ((avRef.current as any)?.dnd));
         try { (audio as any).muted = dnd; } catch {}
         audio.volume = dnd ? 0 : 1.0;
         audio.style.display = 'none';
@@ -121,23 +121,4 @@ export function useGlobalAudioTracks(params: { avRef: React.MutableRefObject<any
     };
   }, [avRef.current?.room]);
 
-  // Test-only Fallback: stelle sicher, dass mindestens ein Audio-Element vorhanden ist
-  React.useEffect(() => {
-    try {
-      const isTest = ((import.meta as any).env?.MODE === 'test') || !!((import.meta as any).vitest);
-      if (!isTest) return;
-      // Räumt ggf. alte Audios auf, um deterministische Tests zu gewährleisten
-      try {
-        const all = Array.from(document.querySelectorAll('audio')) as HTMLAudioElement[];
-        for (const a of all) { try { a.remove(); } catch {} }
-      } catch {}
-      const dnd = !!((avRef.current as any)?.dndEnabled);
-      const el = document.createElement('audio');
-      el.autoplay = true; (el as any).playsInline = true; el.style.display = 'none';
-      try { (el as any).muted = dnd; } catch {}
-      el.volume = dnd ? 0 : 1;
-      document.body.appendChild(el);
-      return () => { try { el.remove(); } catch {} };
-    } catch { return; }
-  }, []);
 }

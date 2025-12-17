@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
-// editorLog removed - using console methods instead
 import { gameBridge } from '../bridge';
+import { logger } from '../../lib/logger';
 
 export async function fetchAndApplyServerLayers(scene: Phaser.Scene & any): Promise<void> {
   try {
@@ -13,7 +13,7 @@ export async function fetchAndApplyServerLayers(scene: Phaser.Scene & any): Prom
     try {
       const arr = Array.isArray((data as any)?.tilesets) ? (data as any).tilesets : [];
       // Hydrate bridge cache so subsequent uploads don't overwrite existing tilesets
-      try { gameBridge.hydrateTilesetsCache(arr); } catch (e) { console.error('Failed to hydrate tileset cache', e); }
+      try { gameBridge.hydrateTilesetsCache(arr); } catch (e) { logger.error('Failed to hydrate tileset cache', e); }
 
       for (const ts of arr) {
         if (ts && ts.key && ts.dataUrl && ts.tileWidth && ts.tileHeight) {
@@ -37,7 +37,7 @@ export async function fetchAndApplyServerLayers(scene: Phaser.Scene & any): Prom
     } catch {}
     if (data?.collision) {
       const collisionTiles = data.collision.filter((t: number) => t !== -1).length;
-      console.log('Load', `Received from server: ${collisionTiles} collision tiles`);
+      logger.debug('Load', `Received from server: ${collisionTiles} collision tiles`);
     }
     try {
       const zones = Array.isArray((data as any)?.zones) ? (data as any).zones.map((z: any) => {
@@ -64,17 +64,17 @@ export async function fetchAndApplyServerLayers(scene: Phaser.Scene & any): Prom
         (layer as any).tileset = allTilesets;
       } catch {}
       if (layerName === 'collision') {
-        console.log('Load', `Applying collision: ${arr.length} tiles to ${width}x${height} layer`);
+        logger.debug('Load', `Applying collision: ${arr.length} tiles to ${width}x${height} layer`);
         const allTilesets = Array.from(scene.dynamicTilesets.values());
         allTilesets.push(...scene.mapRef!.tilesets.filter((ts: any) => !scene.dynamicTilesets.has(ts.name)));
         (layer as any).setTilesets(allTilesets);
         const layerData = (layer as any).layer;
         if (layerData?.data) {
-          console.log('Load', `Collision layer actual size: ${layerData.data.length}x${layerData.data[0]?.length || 0}`);
+          logger.debug('Load', `Collision layer actual size: ${layerData.data.length}x${layerData.data[0]?.length || 0}`);
           const expectedRows = scene.mapRef!.height;
           const actualRows = layerData.data.length;
           if (actualRows < expectedRows) {
-            console.log('Load', `Fixing collision layer dimensions again: ${actualRows} rows -> ${expectedRows} rows`);
+            logger.debug('Load', `Fixing collision layer dimensions again: ${actualRows} rows -> ${expectedRows} rows`);
             while (layerData.data.length < expectedRows) {
               const newRow = new Array(scene.mapRef!.width);
               for (let x = 0; x < scene.mapRef!.width; x++) {
@@ -83,27 +83,27 @@ export async function fetchAndApplyServerLayers(scene: Phaser.Scene & any): Prom
               layerData.data.push(newRow);
             }
             layerData.height = expectedRows;
-            console.log('Load', `Fixed collision layer to ${layerData.data.length}x${layerData.data[0]?.length || 0}`);
+            logger.debug('Load', `Fixed collision layer to ${layerData.data.length}x${layerData.data[0]?.length || 0}`);
           }
         }
       }
       let appliedCount = 0;
       let validTileCount = 0;
       for (const idx of arr) { if (typeof idx === 'number' && idx >= 0) validTileCount++; }
-      if (layerName === 'collision') { console.log('Load', `Found ${validTileCount} valid collision tiles`); }
+      if (layerName === 'collision') { logger.debug('Load', `Found ${validTileCount} valid collision tiles`); }
       for (let y = 0; y < height; y++) {
         for (let x = 0; x < width; x++) {
           const idx = arr[y * storedW + x];
           if (typeof idx === 'number' && idx >= 0) {
             try { layer.putTileAt(idx, x, y); appliedCount++; } catch (e) {
               if (layerName === 'collision' && appliedCount === 0) {
-                console.error('Load', `First collision tile failed at ${x},${y} with index ${idx}`, e);
+                logger.error('Load', `First collision tile failed at ${x},${y} with index ${idx}`, e);
               }
             }
           }
         }
       }
-      if (layerName === 'collision') { console.log('Load', `Applied ${appliedCount} collision tiles`); }
+      if (layerName === 'collision') { logger.debug('Load', `Applied ${appliedCount} collision tiles`); }
     };
     applyArr((data as any)?.editorGround, scene.editorGround, 'editorGround');
     applyArr((data as any)?.editorWalls, scene.wallsLayer, 'editorWalls');
@@ -120,8 +120,7 @@ export async function fetchAndApplyServerLayers(scene: Phaser.Scene & any): Prom
       }
     } catch {}
   } catch (e) {
-    console.error('Load', 'Failed to fetch/apply server layers', e);
+    logger.error('Load', 'Failed to fetch/apply server layers', e);
   }
 }
-
 

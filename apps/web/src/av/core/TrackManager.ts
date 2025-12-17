@@ -68,7 +68,9 @@ export class TrackManager implements Disposable {
         const track = pub?.track;
         if (!track) return false;
         const mst = track.mediaStreamTrack;
-        return kind === 'audio' && (src === 'microphone' || src === 0) && mst?.readyState === 'live';
+        const readyState = mst?.readyState;
+        const isLive = readyState === undefined || readyState === 'live';
+        return kind === 'audio' && (src === 'microphone' || src === 0) && isLive;
       });
       return hasMic;
     } catch {
@@ -91,7 +93,9 @@ export class TrackManager implements Disposable {
         if (kind !== 'video') return false;
         if (src === 'screen_share') return false;
         const isCam = src === 'camera' || src === 1 || src == null;
-        return isCam && mst?.readyState === 'live';
+        const readyState = mst?.readyState;
+        const isLive = readyState === undefined || readyState === 'live';
+        return isCam && isLive;
       });
       return hasCam;
     } catch {
@@ -161,12 +165,10 @@ export class TrackManager implements Disposable {
 
     if (this._state.microphone.pending && this._state.microphone.desired) {
       AVLogger.info('track.mic.publish_pending');
-      this._state.microphone.pending = false;
       await this.setMicrophoneEnabled(true);
     }
     if (this._state.camera.pending && this._state.camera.desired) {
       AVLogger.info('track.cam.publish_pending');
-      this._state.camera.pending = false;
       await this.setCameraEnabled(true);
     }
   }

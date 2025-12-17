@@ -25,7 +25,7 @@ export function registerControlRoutes(
     const gameServer = (global as any).gameServer;
     if (!gameServer) return res.status(500).json({ error: 'game server not available' });
 
-    const payload = parse.data as any;
+    const payload = parse.data;
     let delivered = 0;
     let roomArray: any[] = [];
 
@@ -48,6 +48,7 @@ export function registerControlRoutes(
         }
       } catch {}
     }
+    if (delivered === 0) return res.status(409).json({ error: 'no_active_targets' });
     res.json({ ok: true, delivered });
   });
 
@@ -73,7 +74,7 @@ export function registerControlRoutes(
     const gameServer = (global as any).gameServer;
     if (!gameServer) return res.status(500).json({ error: 'game server not available' });
 
-    const payload = parse.data as any;
+    const payload = parse.data;
     let delivered = 0;
     let roomArray: any[] = [];
 
@@ -96,8 +97,8 @@ export function registerControlRoutes(
         }
       } catch {}
     }
+    if (delivered === 0) return res.status(409).json({ error: 'no_active_targets' });
     res.json({ ok: true, delivered });
   });
 }
-
 

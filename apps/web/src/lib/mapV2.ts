@@ -1,3 +1,5 @@
+import { logger } from './logger';
+
 export type V2Tileset = {
   id: string;
   slot: number;
@@ -86,7 +88,7 @@ export async function preloadTilesetImages(scene: Phaser.Scene, tilesets: V2Tile
     const key = ts.key;
     // Filter out known missing assets to prevent 404s and crashes
     if (ts.imageUrl && ts.imageUrl.includes(BAD_UUID)) {
-      console.warn(`[MapV2] Skipping known missing asset: ${key} (${ts.imageUrl})`);
+      logger.warn(`[MapV2] Skipping known missing asset: ${key} (${ts.imageUrl})`);
       continue;
     }
 
@@ -135,7 +137,7 @@ export function computeFirstGids(tilesets: V2Tileset[], scene: Phaser.Scene): nu
     } else {
       // Fallback: reserve a safe chunk of IDs if texture is missing
       // Assuming max 1024x1024 texture as safe upper bound or 64x64 tiles
-      console.warn(`[MapV2] Texture missing for tileset ${ts.key}, using fallback dimensions`);
+      logger.warn(`[MapV2] Texture missing for tileset ${ts.key}, using fallback dimensions`);
       cols = 64;
       rows = 64;
     }
@@ -151,5 +153,4 @@ export function tileRefIdToGid(tileRefId: number, firstGids: number[]): number {
   const fg = firstGids[slot] ?? 1;
   return fg + tileIndex;
 }
-
 

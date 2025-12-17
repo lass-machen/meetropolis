@@ -17,6 +17,13 @@ const tenancyModuleSchema = z.object({
 
 let cached: TenancyModule | null = null;
 
+function unwrapDefaultExport(moduleValue: unknown): unknown {
+  if (!moduleValue || typeof moduleValue !== 'object') return moduleValue;
+  if (!('default' in moduleValue)) return moduleValue;
+  const withDefault = moduleValue as { default?: unknown };
+  return withDefault.default ?? moduleValue;
+}
+
 /**
  * Loads an optional proprietary tenancy module if present. Falls back to a strict
  * single-tenant adapter in OSS builds. No network or phone-home logic.
@@ -27,7 +34,7 @@ export async function getTenancyModule(): Promise<TenancyModule> {
   try {
     // Dynamic import on runtime; absent in OSS. Use unknown and validate.
     const modUnknown: unknown = await import('@meetropolis/tenancy');
-    const mod = tenancyModuleSchema.parse((modUnknown as any)?.default ?? modUnknown);
+    const mod = tenancyModuleSchema.parse(unwrapDefaultExport(modUnknown));
     cached = mod;
     return mod;
   } catch {
@@ -46,4 +53,3 @@ export function isMultiTenantEnabledSync(): boolean {
   // the real value should await getTenancyModule().
   return false;
 }
-

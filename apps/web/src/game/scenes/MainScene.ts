@@ -1,8 +1,8 @@
 import Phaser from 'phaser';
 import { GameSystem } from '../systems/types';
 import { gameBridge } from '../bridge';
-// editorLog removed - using console methods instead
 import { V2State, computeFirstGids } from '../../lib/mapV2';
+import { logger } from '../../lib/logger';
 import { createNameLabel as uiCreateNameLabel, drawNameLabel as uiDrawNameLabel, updateNameLabel as uiUpdateNameLabel, setHeroName as uiSetHeroName, updateSpeakingStates as uiUpdateSpeakingStates } from '../ui/nameLabels';
 import { setBubbleMembers as uiSetBubbleMembers } from '../ui/bubbles';
 import { ensureRecenterUi as camEnsureRecenterUi, updateRecenterUiVisibility as camUpdateRecenterUiVisibility, recenterCamera as camRecenterCamera } from '../camera/recenterUi';
@@ -188,7 +188,7 @@ export class MainScene extends Phaser.Scene {
         const actualRows = layerData.data.length;
 
         if (actualRows < expectedRows) {
-          console.log(`[MainScene] Collision layer has wrong dimensions: ${actualRows} rows instead of ${expectedRows}, fixing...`);
+          logger.debug(`[MainScene] Collision layer has wrong dimensions: ${actualRows} rows instead of ${expectedRows}, fixing...`);
 
           // Extend the data array to have the correct number of rows
           while (layerData.data.length < expectedRows) {
@@ -213,25 +213,25 @@ export class MainScene extends Phaser.Scene {
           // Update layer dimensions
           layerData.height = expectedRows;
 
-          console.log(`[MainScene] Fixed collision layer dimensions to ${layerData.data.length}x${layerData.data[0]?.length || 0}`);
+          logger.debug(`[MainScene] Fixed collision layer dimensions to ${layerData.data.length}x${layerData.data[0]?.length || 0}`);
 
           // Verify the fix worked
           const testY = 30; // Test a row that should exist now
           if (layerData.data[testY]) {
-            console.log(`[MainScene] Verification: Row ${testY} exists with ${layerData.data[testY].length} tiles`);
+            logger.debug(`[MainScene] Verification: Row ${testY} exists with ${layerData.data[testY].length} tiles`);
           } else {
-            console.error(`[MainScene] Verification failed: Row ${testY} still doesn't exist!`);
+            logger.error(`[MainScene] Verification failed: Row ${testY} still doesn't exist!`);
           }
         }
       }
     } catch (e) {
-      console.log('[MainScene] Collision layer setup failed');
+      logger.debug('[MainScene] Collision layer setup failed');
       // Create blank collision layer if it doesn't exist
       if (available.length > 0) {
         // Use the first available tileset for blank layer creation
         const firstTs = available[0]!;
         collisionLayer = map.createBlankLayer('Collision', firstTs, 0, 0, map.width, map.height, map.tileWidth, map.tileHeight) as any;
-        console.log(`[MainScene] Created blank collision layer: ${map.width}x${map.height}`);
+        logger.debug(`[MainScene] Created blank collision layer: ${map.width}x${map.height}`);
       }
     }
     if (collisionLayer) {
@@ -243,14 +243,14 @@ export class MainScene extends Phaser.Scene {
 
     // Debug: Check collision layer dimensions
     if (collisionLayer) {
-      console.log('[MainScene] Collision layer created');
+      logger.debug('[MainScene] Collision layer created');
     }
 
     if (collisionLayer) {
       collisionLayer.setDepth(10);
       collisionLayer.setVisible(false); // Hide the actual collision layer - we use overlay for visualization
     } else {
-      console.log('[MainScene] No collision layer created');
+      logger.debug('[MainScene] No collision layer created');
     }
 
     // Register collision tileset in dynamicTilesets
@@ -335,7 +335,7 @@ export class MainScene extends Phaser.Scene {
     // Get initial position from global window object (set by App.tsx after DB load)
     const initialPos = (window as any).initialPlayerPosition || { x: 80, y: 120 };
     // DEBUG: Position beim Spawn
-    console.log('[MainScene] Spawning hero at:', JSON.stringify(initialPos), 'window.initialPlayerPosition:', JSON.stringify((window as any).initialPlayerPosition));
+    logger.debug('[MainScene] Spawning hero at:', JSON.stringify(initialPos), 'window.initialPlayerPosition:', JSON.stringify((window as any).initialPlayerPosition));
     this.hero = this.physics.add.sprite(initialPos.x, initialPos.y, 'hero_walk_down', 0);
     // Ensure arcade body configured for reliable collisions
     try {
@@ -705,7 +705,7 @@ export class MainScene extends Phaser.Scene {
     this.input.on('pointerup', (pointer: Phaser.Input.Pointer) => {
       const { tileX, tileY } = toTile(pointer);
       if (this.editorMode && !this.panState.isPanning) {
-        console.log('[MainScene] pointerup tile:', tileX, tileY);
+        logger.debug('[MainScene] pointerup tile:', tileX, tileY);
         try { window.dispatchEvent(new CustomEvent('editor:tileUp', { detail: { tileX, tileY } })); } catch { }
         gameBridge.onPointerUpTile({ tileX, tileY });
       }
@@ -828,14 +828,14 @@ export class MainScene extends Phaser.Scene {
       this.fetchAndApplyServerLayers().then(() => {
         // Nach dem Laden: Kollision für Nicht-Editoren verstecken
         if (!this.editorMode) {
-          try { this.collisionLayer?.setVisible(false); } catch (e) { console.error('[MainScene] Failed to hide collision layer', e); }
+          try { this.collisionLayer?.setVisible(false); } catch (e) { logger.error('[MainScene] Failed to hide collision layer', e); }
         }
-      }).catch(e => console.error('[MainScene] Failed to load server layers', e));
+      }).catch(e => logger.error('[MainScene] Failed to load server layers', e));
     }, 100);
 
     if (this.v2) {
       // Initial verstecken (wird nach Load erneut sichergestellt)
-      try { this.collisionLayer?.setVisible(false); } catch (e) { console.error('[MainScene] Failed to hide collision layer', e); }
+      try { this.collisionLayer?.setVisible(false); } catch (e) { logger.error('[MainScene] Failed to hide collision layer', e); }
     }
 
     // Bridge aufräumen, wenn Szene herunterfährt
@@ -1081,7 +1081,7 @@ export class MainScene extends Phaser.Scene {
     const same = (prev === null && pos === null) || (prev && pos && prev.x === pos.x && prev.y === pos.y);
     if (same) return;
     this.desiredPos = pos;
-    try { console.debug('[Scene] desiredPos set to', pos); } catch { }
+    try { logger.debug('[Scene] desiredPos set to', pos); } catch { }
   }
 
   setMovementLocked(locked: boolean) {
@@ -1185,7 +1185,6 @@ export class MainScene extends Phaser.Scene {
 
       if (this.editorMode) {
         const state = EditorService.getState();
-        // console.log('[MainScene] updateCursor tool:', state.tool);
         if (state.tool === 'spawn') {
           cursor = 'crosshair';
         }
@@ -1300,7 +1299,7 @@ export class MainScene extends Phaser.Scene {
   // Neues Terrain-Painting: benutzt Ghost/Preview wie Objekte, schreibt aber in EditorGround/Walls
   async applyTerrainPaint(edit: { rect: { startX: number; startY: number; endX: number; endY: number }; dataUrl: string; attempt?: number }) {
     // TODO: Integrate with new Editor system
-    console.log('[MainScene] applyTerrainPaint called (stub)', edit.rect, edit.dataUrl.substring(0, 30));
+    void edit;
   }
 
   eraseTerrainRect(rect: { startX: number; startY: number; endX: number; endY: number }) {
@@ -1340,11 +1339,11 @@ export class MainScene extends Phaser.Scene {
             }
           }
         } catch (e) {
-          console.error('[MainScene] eraseTerrainRect local update failed', e);
+          logger.error('[MainScene] eraseTerrainRect local update failed', e);
         }
       });
     } catch (e) {
-      console.error('[MainScene] eraseTerrainRect failed', e);
+      logger.error('[MainScene] eraseTerrainRect failed', e);
     }
   }
 
@@ -1425,20 +1424,20 @@ export class MainScene extends Phaser.Scene {
                 try { if (this.collisionVisible) (this as any).updateCollisionOverlay?.(); } catch { }
               }
             }
-          } catch (e) { console.error('[MainScene] applyTilePaint local update failed', e); }
+          } catch (e) { logger.error('[MainScene] applyTilePaint local update failed', e); }
         })
         .catch((e) => {
-          console.error('[MainScene] paint-rect failed', e);
+          logger.error('[MainScene] paint-rect failed', e);
         });
     } catch (e) {
-      console.error('[MainScene] applyTilePaint failed', e);
+      logger.error('[MainScene] applyTilePaint failed', e);
     }
   }
 
   // Unbedingtes Speichern der Editor-Layer zum Server (ohne Größenlimit)
   saveEditorLayersHard() {
     // DEPRECATED: No longer used with new EditorService
-    console.log('[MainScene] saveEditorLayersHard called (deprecated)');
+    // Deprecated: hard-save handled elsewhere.
   }
 
   reloadEditorLayers() {
@@ -1579,7 +1578,7 @@ export class MainScene extends Phaser.Scene {
     if (this.v2) {
       this.loadedChunks.clear();
       this._lastCamSig = null; // force re-check in update()
-      try { console.log('[MainScene] Forced full map reload (chunks cleared)'); } catch { }
+      try { logger.debug('[MainScene] Forced full map reload (chunks cleared)'); } catch { }
       // Trigger re-load of all layers immediately
       this.loadVisibleChunks('ground');
       this.loadVisibleChunks('walls');
@@ -1620,7 +1619,7 @@ export class MainScene extends Phaser.Scene {
         try { (this.collisionLayer as any).setTilesets?.(allTilesets); } catch {}
       }
     } catch (e) {
-      console.error('[MainScene] ensureEditorLayers failed', e);
+      logger.error('[MainScene] ensureEditorLayers failed', e);
     }
   }
 
@@ -1653,7 +1652,7 @@ export class MainScene extends Phaser.Scene {
     // Recompute firstGids
     try {
       this.v2.firstGids = computeFirstGids(registry, this);
-    } catch (e) { console.error('[MainScene] Failed to recompute firstGids', e); }
+    } catch (e) { logger.error('[MainScene] Failed to recompute firstGids', e); }
 
     // Register new tileset images in Phaser
     for (const ts of registry) {

@@ -12,6 +12,37 @@ function getLocalTrackPublications(room: Room): any[] {
   }
 }
 
+async function unpublishNonLiveCameraTracks(room: Room): Promise<void> {
+  try {
+    const pubs = getLocalTrackPublications(room);
+    for (const pub of pubs) {
+      const src = pub?.source ?? pub?.track?.source;
+      const kind = pub?.kind ?? pub?.track?.kind;
+      const t = pub?.track;
+      if (!t) continue;
+      if (kind !== 'video') continue;
+      if (src === 'screen_share') continue;
+      if (!(src === 'camera' || src === 1 || src == null)) continue;
+
+      const mst = (t as any).mediaStreamTrack;
+      if (mst?.readyState === 'live') continue;
+
+      try {
+        if (typeof (t as any).setEnabled === 'function') {
+          (t as any).setEnabled(false);
+        } else if (mst) {
+          mst.enabled = false;
+        }
+      } catch {}
+
+      try {
+        await room.localParticipant.unpublishTrack(t as any);
+      } catch {}
+      try { (t as any).stop?.(); } catch {}
+    }
+  } catch {}
+}
+
 type PublishCameraParams = {
   room: Room;
   state: LocalTrackState;
@@ -37,7 +68,9 @@ export async function publishCamera({
       const mst = t?.mediaStreamTrack;
       if (kind !== 'video') return false;
       if (src === 'screen_share') return false;
-      return (src === 'camera' || src === 1 || src == null) && mst?.readyState === 'live';
+      const readyState = mst?.readyState;
+      const isLive = readyState === undefined || readyState === 'live';
+      return (src === 'camera' || src === 1 || src == null) && isLive;
     });
     if (livePub?.track) {
       state.track = livePub.track as LocalVideoTrack;
@@ -58,6 +91,7 @@ export async function publishCamera({
   }
 
   try {
+    await unpublishNonLiveCameraTracks(room);
     const { createLocalTracks } = await import('livekit-client');
 
     const constraints: any = {
@@ -113,6 +147,14 @@ export async function unpublishCamera({
         if (!t) continue;
         if (kind === 'video' && (src === 'camera' || src === 1 || src == null)) {
           if (src === 'screen_share') continue;
+          try {
+            const mst = (t as any).mediaStreamTrack;
+            if (typeof (t as any).setEnabled === 'function') {
+              (t as any).setEnabled(false);
+            } else if (mst) {
+              mst.enabled = false;
+            }
+          } catch {}
           await room.localParticipant.unpublishTrack(t as any);
           try { t.stop?.(); } catch {}
         }

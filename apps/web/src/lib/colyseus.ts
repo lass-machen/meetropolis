@@ -1,25 +1,27 @@
 import { Client, Room } from 'colyseus.js';
+import { logger } from './logger';
 
 export async function joinWorld(serverUrl: string, identity?: string, name?: string, position?: { x: number; y: number; direction?: string }) {
+  let baseUrl = serverUrl;
   // Defensive check: ensure serverUrl is actually a string
-  if (typeof serverUrl !== 'string') {
-    console.error('[Colyseus] serverUrl is not a string:', serverUrl, typeof serverUrl);
-    throw new Error(`Invalid serverUrl type: ${typeof serverUrl}`);
+  if (typeof baseUrl !== 'string') {
+    logger.error('[Colyseus] serverUrl is not a string:', baseUrl, typeof baseUrl);
+    throw new Error(`Invalid serverUrl type: ${typeof baseUrl}`);
   }
 
-  console.log('[Colyseus] joinWorld called with serverUrl:', serverUrl);
+  logger.debug('[Colyseus] joinWorld called with serverUrl:', baseUrl);
 
   // normalize base: remove trailing slashes to avoid double '//'
-  if (serverUrl.endsWith('/')) serverUrl = serverUrl.replace(/\/+$/g, '');
+  if (baseUrl.endsWith('/')) baseUrl = baseUrl.replace(/\/+$/g, '');
   // Properly handle both http and https URLs
-  let wsUrl = serverUrl;
-  if (serverUrl.startsWith('https://')) {
-    wsUrl = serverUrl.replace('https://', 'wss://');
-  } else if (serverUrl.startsWith('http://')) {
-    wsUrl = serverUrl.replace('http://', 'ws://');
+  let wsUrl = baseUrl;
+  if (baseUrl.startsWith('https://')) {
+    wsUrl = baseUrl.replace('https://', 'wss://');
+  } else if (baseUrl.startsWith('http://')) {
+    wsUrl = baseUrl.replace('http://', 'ws://');
   }
 
-  console.log('[Colyseus] wsUrl after conversion:', wsUrl, 'type:', typeof wsUrl);
+  logger.debug('[Colyseus] wsUrl after conversion:', wsUrl, 'type:', typeof wsUrl);
 
   // Derive tenant from browser hostname (first label), fallback to 'default'
   // In Tauri: Use __MEETROPOLIS_WEB_BASE__ as the hostname is localhost
@@ -40,11 +42,11 @@ export async function joinWorld(serverUrl: string, identity?: string, name?: str
     }
   } catch {}
 
-  console.log('[Colyseus] Creating client with wsUrl:', wsUrl, 'tenant:', tenant);
+  logger.debug('[Colyseus] Creating client with wsUrl:', wsUrl, 'tenant:', tenant);
 
   try {
     const client = new Client(wsUrl);
-    console.log('[Colyseus] Client created, joining room...');
+    logger.debug('[Colyseus] Client created, joining room...');
     const room = await client.joinOrCreate('world', { 
       identity, 
       name,
@@ -85,4 +87,3 @@ export async function joinWorld(serverUrl: string, identity?: string, name?: str
     throw error;
   }
 }
-

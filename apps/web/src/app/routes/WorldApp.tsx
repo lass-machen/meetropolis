@@ -40,6 +40,7 @@ import { useAVManager } from '../../av/hooks/useAVManager';
 import { createPhaserGame, destroyPhaserGame } from '../../game/phaserGame';
 import { gameBridge } from '../../game/bridge';
 import { getApiBaseFromWindow } from '../../lib/runtimeConfig';
+import { logger } from '../../lib/logger';
 import { AVManager } from '../../av/avManager';
 import { useDoNotDisturb } from '../../av/hooks/useDoNotDisturb';
 import { useScreenshareEvents } from '../../av/hooks/useScreenshareEvents';
@@ -345,7 +346,7 @@ export function WorldApp() {
             break;
         }
       } catch (e) {
-        console.error('[Tauri] AV action failed:', e);
+        logger.error('[Tauri] AV action failed:', e);
       }
     });
 
@@ -357,10 +358,10 @@ export function WorldApp() {
     enabled: !!(authChecked && me),
     colyseusRef,
     onConnectionLost: () => {
-      console.warn('[WorldApp] Colyseus connection lost');
+      logger.warn('[WorldApp] Colyseus connection lost');
     },
     onConnectionRestored: () => {
-      console.log('[WorldApp] Colyseus connection restored');
+      logger.debug('[WorldApp] Colyseus connection restored');
       // Teilnehmerliste neu aufbauen
       setTimeout(() => buildParticipantListHook(), 500);
     },
@@ -535,7 +536,7 @@ export function WorldApp() {
                       });
                     }
                   } catch (e) {
-                    console.warn('[WorldApp] Failed to split tileset:', t.key, e);
+                    logger.warn('[WorldApp] Failed to split tileset:', t.key, e);
                     // Fallback: Das ganze Bild als ein Item (besser als nichts)
                     packItems.push({ packUuid: uuid, itemId: t.id, key: t.key, category: 'terrain', dataUrl: t.dataURL, width: t.tileWidth, height: t.tileHeight, collide: !!t.collide });
                   }
@@ -626,7 +627,7 @@ export function WorldApp() {
             });
           }
         } catch (e) {
-          console.warn('[EDITOR] Tileset registration failed (non-critical):', e);
+          logger.warn('[EDITOR] Tileset registration failed (non-critical):', e);
         }
       })();
 
@@ -637,7 +638,7 @@ export function WorldApp() {
         try {
           const mapName = (typeof window !== 'undefined' && (((window as any).__map_name) || (window as any).MAP_NAME)) || 'office';
           const res = await fetch(`${apiBase}/maps/${encodeURIComponent(mapName)}/editor-state`, { credentials: 'include' });
-          console.debug('[EDITOR] load server editor-state', { mapName, ok: res.ok, status: res.status });
+          logger.debug('[EDITOR] load server editor-state', { mapName, ok: res.ok, status: res.status });
           if (res.ok) {
             const data = await res.json();
             if (data?.zones) try {
@@ -713,10 +714,10 @@ export function WorldApp() {
         // Debounce: Warte 800ms nach letzter Änderung, dann speichern
         if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
         autoSaveTimerRef.current = setTimeout(() => {
-          console.debug('[EDITOR] Auto-saving zones...', { count: (state.zones || []).length });
+          logger.debug('[EDITOR] Auto-saving zones...', { count: (state.zones || []).length });
           saveAllToServer().then(saved => {
             if (saved) {
-              console.debug('[EDITOR] Zones auto-saved successfully');
+              logger.debug('[EDITOR] Zones auto-saved successfully');
               try { window.dispatchEvent(new CustomEvent('editor:toast', { detail: { title: 'Auto-Speichern', description: 'Zonen wurden automatisch gespeichert', intent: 'success' } })); } catch { }
             }
           });
@@ -1019,7 +1020,7 @@ export function WorldApp() {
     gameBridge.onRightClick = ({ x, y, playerId }) => {
       if (editorActiveRef.current) return;
       if (!playerId) return;
-      try { console.debug('[UI] context menu for', playerId, 'at', x, y); } catch { }
+      try { logger.debug('[UI] context menu for', playerId, 'at', x, y); } catch { }
       // Öffne Kontextmenü-UI
       setContextMenu({ open: true, x, y, playerId });
     };

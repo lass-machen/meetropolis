@@ -47,6 +47,10 @@ export class Screenshare implements Disposable {
     if (this._disposed) return false;
     if (this._isPending) return false;
     if (this._isSharing) return true;
+    if (this.checkIsSharing()) {
+      this._isSharing = true;
+      return true;
+    }
 
     this._isPending = true;
     AVLogger.info('screenshare.start');
@@ -129,7 +133,13 @@ export class Screenshare implements Disposable {
    */
   async stop(): Promise<void> {
     if (this._disposed) return;
-    if (!this._isSharing && this._tracks.length === 0) return;
+    if (!this._isSharing && this._tracks.length === 0) {
+      // Best-effort cleanup for desync cases where we didn't create the tracks locally
+      const room = this.deps.getRoom();
+      if (!room) return;
+      await this.unpublishPublishedTracks(room);
+      return;
+    }
 
     AVLogger.info('screenshare.stop');
 
@@ -143,7 +153,7 @@ export class Screenshare implements Disposable {
     }
     this._trackEndedCleanups = [];
 
-    // Unpublish and stop all tracks
+    // Unpublish and stop all tracks we created
     for (const track of this._tracks) {
       try {
         if (room) {
@@ -157,6 +167,11 @@ export class Screenshare implements Disposable {
 
     this._tracks = [];
     this._isSharing = false;
+
+    // Also ensure any currently published screenshare tracks are cleaned up
+    if (room) {
+      await this.unpublishPublishedTracks(room);
+    }
 
     AVLogger.info('screenshare.stopped');
   }
@@ -247,6 +262,25 @@ export class Screenshare implements Disposable {
       AVLogger.error('screenshare.electron.error', { error: String(error) });
       return [];
     }
+  }
+
+  private async unpublishPublishedTracks(room: Room): Promise<void> {
+    try {
+      const publications = Array.from(room.localParticipant.trackPublications.values()) as any[];
+      for (const pub of publications) {
+        const source = pub?.source ?? pub?.track?.source;
+        const track = pub?.track;
+        if (!track) continue;
+        if (source !== 'screen_share' && source !== 'screen_share_audio') continue;
+
+        try {
+          await room.localParticipant.unpublishTrack(track);
+        } catch {}
+        try {
+          track.stop?.();
+        } catch {}
+      }
+    } catch {}
   }
 
   private async captureWeb(): Promise<LocalTrack[]> {

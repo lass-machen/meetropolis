@@ -1,6 +1,7 @@
 import React from 'react';
 import { describe, it, expect } from 'vitest';
 import { createRoot } from 'react-dom/client';
+import { act } from 'react-dom/test-utils';
 import { useGlobalAudioTracks } from './useGlobalAudioTracks';
 
 function TestHarness({ avRef }: { avRef: React.MutableRefObject<any> }) {
@@ -32,15 +33,22 @@ describe('useGlobalAudioTracks', () => {
     const room = makeRoom();
     const avRef = { current: { room, dnd: true } } as React.MutableRefObject<any>;
 
-    root.render(<TestHarness avRef={avRef} />);
+    await act(async () => {
+      root.render(<TestHarness avRef={avRef} />);
+    });
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
 
-    // Effect ausführen lassen
-    await new Promise((r) => setTimeout(r, 0));
+    const audio = document.querySelector('audio[data-av-remote="remote1"]') as HTMLAudioElement | null;
+    expect(audio).toBeTruthy();
+    expect(audio!.muted).toBe(true);
+    expect(audio!.volume).toBe(0);
 
-    const audios = Array.from(document.querySelectorAll('audio')) as HTMLAudioElement[];
-    expect(audios.length).toBe(1);
-    expect(audios[0].muted).toBe(true);
-    expect(audios[0].volume).toBe(0);
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
   });
 
   it('legt Audiotags ohne DND mit volume=1 an', async () => {
@@ -51,30 +59,21 @@ describe('useGlobalAudioTracks', () => {
     const room = makeRoom();
     const avRef = { current: { room, dnd: false } } as React.MutableRefObject<any>;
 
-    root.render(<TestHarness avRef={avRef} />);
+    await act(async () => {
+      root.render(<TestHarness avRef={avRef} />);
+    });
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
 
-    await new Promise((r) => setTimeout(r, 0));
+    const audio = document.querySelector('audio[data-av-remote="remote1"]') as HTMLAudioElement | null;
+    expect(audio).toBeTruthy();
+    expect(audio!.muted).toBe(false);
+    expect(audio!.volume).toBeCloseTo(1);
 
-    const audios = Array.from(document.querySelectorAll('audio')) as HTMLAudioElement[];
-    expect(audios.length).toBe(1);
-    expect(audios[0].muted).toBe(false);
-    expect(audios[0].volume).toBeCloseTo(1);
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
   });
 });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

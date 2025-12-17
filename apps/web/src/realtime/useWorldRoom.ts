@@ -2,6 +2,7 @@ import React from 'react';
 import { joinWorld } from '../lib/colyseus';
 import { mergeRecentPresence, type ApiPresence } from '../features/participants/presence';
 import { EditorService } from '../services/EditorService';
+import { logger } from '../lib/logger';
 
 type AnyRef<T> = React.MutableRefObject<T>;
 
@@ -132,7 +133,7 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
             : undefined;
         // Position wird beim Join an Server gesendet
         if (positionToUse) {
-          console.log('[useWorldRoom] Joining with saved position:', positionToUse.x, positionToUse.y);
+          logger.debug('[useWorldRoom] Joining with saved position:', positionToUse.x, positionToUse.y);
         }
         const room = await joinWorld(
           apiBase,
@@ -195,7 +196,7 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
         };
 
         // Force full map reload on join/reconnect to ensure consistency
-        try { gameBridge.forceReloadMap?.(); } catch (e) { console.error('Failed to force reload map on join', e); }
+        try { gameBridge.forceReloadMap?.(); } catch (e) { logger.error('Failed to force reload map on join', e); }
 
         // Debounce: Teilnehmerliste/Roster nur 1x pro kurzem Intervall aktualisieren (rAF + Delay)
         // Vor neuem Session-Lauf evtl. hängende Handles räumen und zurücksetzen
@@ -688,5 +689,4 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
     };
   }, [apiBase, me?.id]);
 }
-
 

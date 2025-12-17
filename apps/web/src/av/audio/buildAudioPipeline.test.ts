@@ -27,6 +27,10 @@ import { buildAudioPipeline } from './buildAudioPipeline';
 describe('buildAudioPipeline', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    (wrapTrackWithVoiceIsolation as any).mockReset();
+    (wrapTrackWithVoiceIsolation as any).mockImplementation(async (_t: MediaStreamTrack) => {
+      return {} as any as MediaStreamTrack;
+    });
     // Reset navigator stubs
     (global as any).navigator = undefined;
   });
@@ -93,10 +97,9 @@ describe('buildAudioPipeline', () => {
     const track: any = await buildAudioPipeline({ deviceId: 'default', settings } as any);
     // First attempt with NS off
     expect((createLocalAudioTrack as any).mock.calls[0][0]).toMatchObject({ noiseSuppression: false });
-    // Second attempt fallback with NS on
+    // Fallback attempt with NS on
+    expect((createLocalAudioTrack as any).mock.calls.length).toBe(2);
     expect((createLocalAudioTrack as any).mock.calls[1][0]).toMatchObject({ noiseSuppression: true });
     expect(track.replaceTrack).not.toHaveBeenCalled();
   });
 });
-
-

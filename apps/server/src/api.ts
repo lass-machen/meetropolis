@@ -1,11 +1,3 @@
-/**
- * API Entry Point - Refactored
- *
- * This file serves as the main entry point for all API routes.
- * Individual route modules are organized by domain in ./api/routes/
- *
- * File size reduced from ~2184 lines to ~50 lines.
- */
 import type express from 'express';
 import { PrismaClient } from '@prisma/client';
 

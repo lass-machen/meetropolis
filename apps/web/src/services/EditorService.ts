@@ -8,6 +8,8 @@
  * - Observer Pattern für State-Updates
  */
 
+import { logger } from '../lib/logger';
+
 export type EditorTool = 'zone' | 'asset' | 'terrain' | 'collision' | 'spawn' | 'select' | 'erase';
 export type EditorCategory = 'general' | 'terrain' | 'structures' | 'objects' | 'zones' | 'collisions';
 
@@ -159,7 +161,7 @@ class EditorServiceClass {
       pendingAsset: null,
       packItems: [],
       tilesets: [],
-      spawn: undefined,
+      spawn: null,
       backgroundColor: undefined,
       terrainColor: undefined,
       gridVisible: false,
@@ -463,13 +465,13 @@ class EditorServiceClass {
         break;
 
       case 'SET_SPAWN': {
-        console.log('[EditorService] SET_SPAWN', action);
+        logger.debug('[EditorService] SET_SPAWN', action);
         this.updateState({ spawn: { x: action.x, y: action.y } });
         break;
       }
 
       case 'CLEAR_SPAWN':
-        this.updateState({ spawn: undefined });
+        this.updateState({ spawn: null });
         break;
 
       case 'SET_TERRAIN_COLOR':
@@ -508,6 +510,6 @@ class EditorServiceClass {
 export const EditorService = new EditorServiceClass();
 
 // Expose auf window für Debugging
-if (typeof window !== 'undefined') {
+if (typeof window !== 'undefined' && ((import.meta as any).env?.DEV || (import.meta as any).env?.VITE_DEBUG_LOGS === 'true')) {
   (window as any).EditorService = EditorService;
 }

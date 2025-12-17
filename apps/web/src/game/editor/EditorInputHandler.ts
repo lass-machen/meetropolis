@@ -11,6 +11,7 @@
 import Phaser from 'phaser';
 import { EditorService, EditorAction } from '../../services/EditorService';
 import { EditorRenderer } from './EditorRenderer';
+import { logger } from '../../lib/logger';
 
 export class EditorInputHandler {
   private scene: Phaser.Scene;
@@ -63,7 +64,7 @@ export class EditorInputHandler {
     try {
       this.dispatchToolAction('down', tileX, tileY);
     } catch (error) {
-      console.error('Editor input error (down):', error);
+      logger.error('Editor input error (down):', error);
       throw error;
     }
   }
@@ -89,7 +90,7 @@ export class EditorInputHandler {
       try {
         this.dispatchToolAction('move', tileX, tileY);
       } catch (error) {
-        console.error('Editor input error (move):', error);
+        logger.error('Editor input error (move):', error);
         throw error;
       }
     }
@@ -125,7 +126,7 @@ export class EditorInputHandler {
     try {
       this.dispatchToolAction('up', tileX, tileY);
     } catch (error) {
-      console.error('Editor input error (up):', error);
+      logger.error('Editor input error (up):', error);
       throw error;
     }
 
@@ -274,4 +275,3 @@ export class EditorInputHandler {
     this.scene.input.off('pointerup', this.handlePointerUp);
   }
 }
-

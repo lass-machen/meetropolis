@@ -11,6 +11,7 @@ import { TilesetUploadDialog, UploadDialogState } from '../../ui/editor/TilesetU
 import { Modal, Button } from '../../ui/system';
 import { EditorService } from '../../services/EditorService';
 import { uploadTilesetAsAssetPack } from '../../lib/assetPackUpload';
+import { logger } from '../../lib/logger';
 
 export function EditorWindow({
   onSave,
@@ -338,12 +339,12 @@ export function EditorWindow({
               try {
                 const apiBase = (window as any).VITE_API_BASE || (import.meta as any).env?.VITE_API_BASE || `${window.location.protocol}//${window.location.hostname}:2567`;
 
-                console.log('[EditorWindow] Uploading tileset as AssetPack...');
+                logger.debug('[EditorWindow] Uploading tileset as AssetPack...');
 
                 const result = await uploadTilesetAsAssetPack(tileset, apiBase);
 
                 if (result.success) {
-                  console.log('[EditorWindow] Tileset uploaded successfully:', result.uuid);
+                  logger.debug('[EditorWindow] Tileset uploaded successfully:', result.uuid);
                   try {
                     window.dispatchEvent(new CustomEvent('editor:toast', {
                       detail: {
@@ -357,7 +358,7 @@ export function EditorWindow({
                   // Seite neu laden, damit das AssetPack geladen wird
                   setTimeout(() => window.location.reload(), 1000);
                 } else {
-                  console.error('[EditorWindow] Upload failed:', result.error);
+                  logger.error('[EditorWindow] Upload failed:', result.error);
                   try {
                     window.dispatchEvent(new CustomEvent('editor:toast', {
                       detail: {
@@ -374,7 +375,7 @@ export function EditorWindow({
 
                 setUploadDialog(null);
               } catch (e: any) {
-                console.error('[EditorWindow] Tileset upload failed:', e);
+                logger.error('[EditorWindow] Tileset upload failed:', e);
                 try {
                   window.dispatchEvent(new CustomEvent('editor:toast', {
                     detail: {

@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { fetchStateV2, preloadTilesetImages } from '../../lib/mapV2';
+import { logger } from '../../lib/logger';
 
 export class BootScene extends Phaser.Scene {
   constructor() {
@@ -68,12 +69,11 @@ export class BootScene extends Phaser.Scene {
           (window as any).__v2_state = state;
           this.scene.start('Main');
         } else {
-          console.error('[Boot] Invalid V2 state received');
+          logger.error('[Boot] Invalid V2 state received');
         }
       } catch (e) {
-        console.error('[Boot] Failed to load V2 state', e);
+        logger.error('[Boot] Failed to load V2 state', e);
       }
     })();
   }
 }
-

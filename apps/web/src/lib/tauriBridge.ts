@@ -1,4 +1,6 @@
 // Typen für die existierende Bridge, damit TypeScript nicht meckert
+import { logger } from './logger';
+
 declare global {
   interface Window {
     desktop?: any;
@@ -27,7 +29,7 @@ export function initTauriBridge() {
     return;
   }
 
-  console.log('[Tauri] Initializing Bridge...');
+  logger.debug('[Tauri] Initializing Bridge...');
 
   // Setze das Promise auf window für andere Module
   window.__TAURI_CONFIG_LOADED__ = configLoadedPromise;
@@ -41,7 +43,7 @@ export function initTauriBridge() {
         const { invoke } = await import('@tauri-apps/api/core');
         return await invoke('get_config');
       } catch (e) {
-        console.error('[Tauri] getConfig failed', e);
+        logger.error('[Tauri] getConfig failed', e);
         return {};
       }
     },
@@ -56,7 +58,7 @@ export function initTauriBridge() {
         }
         return result;
       } catch (e) {
-        console.error('[Tauri] setConfig failed', e);
+        logger.error('[Tauri] setConfig failed', e);
         return false;
       }
     },
@@ -81,30 +83,30 @@ export function initTauriBridge() {
   // Lade die Config sofort und setze apiBase
   loadConfigAndSetApiBase();
 
-  console.log('[Tauri] Bridge initialized. Running as native app.');
+  logger.debug('[Tauri] Bridge initialized. Running as native app.');
 }
 
 async function loadConfigAndSetApiBase() {
   try {
     const { invoke } = await import('@tauri-apps/api/core');
-    console.log('[Tauri] Loading config...');
+    logger.debug('[Tauri] Loading config...');
     const config = await invoke<TauriConfig>('get_config');
-    console.log('[Tauri] Config loaded:', JSON.stringify(config));
+    logger.debug('[Tauri] Config loaded:', JSON.stringify(config));
     if (config.api_base) {
       window.desktop.apiBase = config.api_base;
       window.__MEETROPOLIS_API_BASE__ = config.api_base;
-      console.log('[Tauri] API Base set to:', config.api_base);
+      logger.debug('[Tauri] API Base set to:', config.api_base);
     } else {
-      console.warn('[Tauri] No api_base in config, using default');
+      logger.warn('[Tauri] No api_base in config, using default');
     }
     if (config.web_base) {
       window.__MEETROPOLIS_WEB_BASE__ = config.web_base;
-      console.log('[Tauri] Web Base set to:', config.web_base);
+      logger.debug('[Tauri] Web Base set to:', config.web_base);
     }
   } catch (e) {
-    console.error('[Tauri] Failed to load config:', e);
+    logger.error('[Tauri] Failed to load config:', e);
   } finally {
-    console.log('[Tauri] Config loading complete, window.__MEETROPOLIS_API_BASE__:', window.__MEETROPOLIS_API_BASE__);
+    logger.debug('[Tauri] Config loading complete, window.__MEETROPOLIS_API_BASE__:', window.__MEETROPOLIS_API_BASE__);
     configLoadedResolve();
   }
 }

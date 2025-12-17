@@ -1,4 +1,5 @@
 import { EditorService } from '../services/EditorService';
+import { logger } from '../lib/logger';
 
 export type Direction = 'up' | 'down' | 'left' | 'right';
 
@@ -104,7 +105,7 @@ export const gameBridge: Bridge = {
 
     if (sceneApi) {
       // Nicht-Editor State wiederherstellen
-      try { sceneApi.setCollisionVisible(cachedCollisionVisible); } catch (e) { console.error('Failed to set collision visible', e); }
+      try { sceneApi.setCollisionVisible(cachedCollisionVisible); } catch (e) { logger.error('Failed to set collision visible', e); }
 
       if (cachedHeroName && sceneApi.setHeroName) {
         try { sceneApi.setHeroName(cachedHeroName); } catch { }
@@ -118,8 +119,8 @@ export const gameBridge: Bridge = {
       try { sceneApi.syncRemotePlayers(remotePlayersCache); } catch { }
 
       // Server-Layers laden (für Map-Daten)
-      try { sceneApi.fetchAndApplyServerLayers?.(); } catch (e) { console.error('Failed to fetch server layers', e); }
-      try { sceneApi.reloadEditorLayers(); } catch (e) { console.error('Failed to reload editor layers', e); }
+      try { sceneApi.fetchAndApplyServerLayers?.(); } catch (e) { logger.error('Failed to fetch server layers', e); }
+      try { sceneApi.reloadEditorLayers(); } catch (e) { logger.error('Failed to reload editor layers', e); }
     }
   },
   recenterCamera: () => {
@@ -175,7 +176,7 @@ export const gameBridge: Bridge = {
     const same = (prev === null && pos === null) || (prev && pos && prev.x === pos.x && prev.y === pos.y);
     if (same) return;
     lastDesiredPosition = pos ? { x: pos.x, y: pos.y } : null;
-    try { console.debug('[Bridge] setDesiredPosition changed to', pos); } catch (e) { console.error('Log failed', e); }
+    try { logger.debug('[Bridge] setDesiredPosition changed to', pos); } catch (e) { logger.error('Log failed', e); }
     sceneApi?.setDesiredPosition(pos);
   },
   // Editor-Methoden: Kein Caching mehr, direkt an Scene durchreichen
@@ -262,7 +263,7 @@ export const gameBridge: Bridge = {
   },
   onPointerUpTile: (p) => {
     const state = EditorService.getState();
-    console.log('[Bridge] onPointerUpTile', p, state.tool);
+    logger.debug('[Bridge] onPointerUpTile', p, state.tool);
     if (!state.active) return;
 
     const { tileX, tileY } = p;
@@ -288,7 +289,7 @@ export const gameBridge: Bridge = {
         const tileSize = 16;
         const x = tileX * tileSize + tileSize / 2;
         const y = tileY * tileSize + tileSize / 2;
-        console.log('[Bridge] Dispatching SET_SPAWN', { x, y });
+        logger.debug('[Bridge] Dispatching SET_SPAWN', { x, y });
         EditorService.dispatch({ type: 'SET_SPAWN', x, y });
         break;
     }
@@ -327,21 +328,21 @@ export const gameBridge: Bridge = {
       });
 
       if (!res.ok) {
-        console.warn(`[Bridge] Tileset registration failed: ${res.status} ${res.statusText} for key="${ts.key}"`);
+        logger.warn(`[Bridge] Tileset registration failed: ${res.status} ${res.statusText} for key="${ts.key}"`);
         const text = await res.text();
         try {
           const json = JSON.parse(text);
-          console.warn('[Bridge] Server error:', json);
+          logger.warn('[Bridge] Server error:', json);
         } catch {
-          console.warn('[Bridge] Server response:', text);
+          logger.warn('[Bridge] Server response:', text);
         }
         return;
       }
 
       const data = await res.json();
-      console.debug(`[Bridge] Tileset "${ts.key}" registered successfully`);
+      logger.debug(`[Bridge] Tileset "${ts.key}" registered successfully`);
     } catch (e) {
-      console.error('[Bridge] Failed to register tileset on server', e);
+      logger.error('[Bridge] Failed to register tileset on server', e);
     }
   },
   setCollisionVisible: (visible) => {
@@ -397,7 +398,7 @@ export const gameBridge: Bridge = {
         sceneApi?.setZoneOverlay?.(data.polys);
         return;
       }
-    } catch (e) { console.error('Failed to handle editor update', e); }
+    } catch (e) { logger.error('Failed to handle editor update', e); }
   },
   // Editor-Methoden: Kein Caching, direkt durchreichen
   setBackgroundColor: (hex: string) => {
@@ -406,19 +407,19 @@ export const gameBridge: Bridge = {
   setSpawnMarker: (pos) => {
     sceneApi?.setSpawnMarker?.(pos);
   },
-  saveEditorLayersHard: () => { try { sceneApi?.saveEditorLayersHard?.(); } catch (e) { console.error('Failed hard save', e); } },
+  saveEditorLayersHard: () => { try { sceneApi?.saveEditorLayersHard?.(); } catch (e) { logger.error('Failed hard save', e); } },
   applyChunkUpdates: (layerName, updates) => {
-    try { sceneApi?.applyChunkUpdates?.(layerName, updates); } catch (e) { console.error('Failed to apply chunk updates', e); }
+    try { sceneApi?.applyChunkUpdates?.(layerName, updates); } catch (e) { logger.error('Failed to apply chunk updates', e); }
   },
   forceReloadMap: () => {
-    try { sceneApi?.forceReloadMap?.(); } catch (e) { console.error('Failed to force reload map', e); }
+    try { sceneApi?.forceReloadMap?.(); } catch (e) { logger.error('Failed to force reload map', e); }
   },
   // Tileset-Cache entfernt - nicht mehr benötigt
   hydrateTilesetsCache: (_tilesets) => {
     // DEPRECATED: Caching entfernt
   },
   updateTilesetRegistry: (registry) => {
-    try { sceneApi?.updateTilesetRegistry?.(registry); } catch (e) { console.error('Failed to update tileset registry', e); }
+    try { sceneApi?.updateTilesetRegistry?.(registry); } catch (e) { logger.error('Failed to update tileset registry', e); }
   }
 };
 

@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Card, Input, Button } from '../../ui/system';
 import { ThemeToggleButton } from '../../ui/theme';
 import { setTauriAuthToken } from '../../lib/tauriAuth';
+import { logger } from '../../lib/logger';
 
 export function AuthScreen(props: { baseUrl: string; onDone: () => void }) {
   const { baseUrl, onDone } = props;
@@ -17,7 +18,7 @@ export function AuthScreen(props: { baseUrl: string; onDone: () => void }) {
 
   async function post(path: string, body: any) {
     const url = `${baseUrl}${path}`;
-    console.log('[AuthScreen] POST to:', url, 'baseUrl:', baseUrl);
+    logger.debug('[AuthScreen] POST to:', url);
     // In Tauri: extract tenant from web_base or current host
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (window.__TAURI__) {
@@ -26,7 +27,7 @@ export function AuthScreen(props: { baseUrl: string; onDone: () => void }) {
       const match = webBase.match(/https?:\/\/([^.]+)\./);
       if (match?.[1]) {
         headers['x-tenant'] = match[1];
-        console.log('[AuthScreen] Setting x-tenant header:', match[1]);
+        logger.debug('[AuthScreen] Setting x-tenant header:', match[1]);
       }
     }
     let lastErr: any = null;
@@ -37,7 +38,7 @@ export function AuthScreen(props: { baseUrl: string; onDone: () => void }) {
         if (!res.ok) throw new Error((await res.json())?.error || t('common.error'));
         return await res.json().catch(() => ({}));
       } catch (e: any) {
-        console.error('[AuthScreen] Fetch error:', e.message, 'URL:', url);
+        logger.warn('[AuthScreen] Fetch error:', e?.message || String(e), 'URL:', url);
         lastErr = e;
         // Netzwerk-/Verbindungsfehler: kurzer Retry mit Backoff
         if (i < attempts.length - 1) {
@@ -314,5 +315,4 @@ export function AuthScreen(props: { baseUrl: string; onDone: () => void }) {
     </div>
   );
 }
-
 

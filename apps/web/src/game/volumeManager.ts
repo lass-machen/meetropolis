@@ -51,7 +51,7 @@ export function computePairVolume(
   remote: { id: string; x: number; y: number },
   zones: Polygon[],
   followTarget: string | null,
-  bubbleGroups: Record<string, string>,
+  bubbleGroups: Record<string, string> | Set<string>,
   rules: VolumeRules
 ): number {
   // Follow hat höchste Priorität (darf Zonenregeln außer Kraft setzen)
@@ -72,20 +72,27 @@ export function computePairVolume(
   // - beide in derselben Zone, oder
   // - beide außerhalb aller Zonen
 
-  // Bubble-Logik mit Gruppen: nur gleiche Bubble-ID hören sich voll
-  const localGroup = bubbleGroups[local.id] || '';
-  const remoteGroup = bubbleGroups[remote.id] || '';
-  const bothInBubble = !!localGroup && !!remoteGroup;
-  if (bothInBubble) {
-    if (localGroup === remoteGroup) {
-      return 1;
+  // Bubble-Logik:
+  // - Legacy: Set<string> = "in bubble" (keine Group-ID verfügbar)
+  // - Current: Record<string, string> = participantId -> bubbleGroupId
+  if (bubbleGroups instanceof Set) {
+    const localInBubble = bubbleGroups.has(local.id);
+    const remoteInBubble = bubbleGroups.has(remote.id);
+    if (localInBubble && remoteInBubble) return 1;
+    if (localInBubble !== remoteInBubble) return rules.outsideBubbleAttenuation;
+  } else {
+    const localGroup = bubbleGroups[local.id] || '';
+    const remoteGroup = bubbleGroups[remote.id] || '';
+    const bothInBubble = !!localGroup && !!remoteGroup;
+    if (bothInBubble) {
+      if (localGroup === remoteGroup) return 1;
+      // Unterschiedliche Bubbles innerhalb derselben Zone isolieren
+      return rules.differentBubbleMute === false ? rules.outsideBubbleAttenuation : 0;
     }
-    // Unterschiedliche Bubbles innerhalb derselben Zone isolieren
-    return rules.differentBubbleMute === false ? rules.outsideBubbleAttenuation : 0;
-  }
-  // genau einer in Bubble → stark abschwächen (hörbar, aber deutlich)
-  if (!!localGroup !== !!remoteGroup) {
-    return rules.outsideBubbleAttenuation;
+    // genau einer in Bubble → stark abschwächen (hörbar, aber deutlich)
+    if (!!localGroup !== !!remoteGroup) {
+      return rules.outsideBubbleAttenuation;
+    }
   }
 
   // Wenn in derselben Zone und keine Bubble-Sonderfälle: volle Lautstärke (distanzunabhängig)
@@ -156,5 +163,4 @@ export class VolumeManager {
     return this.lastVolumes;
   }
 }
-
 

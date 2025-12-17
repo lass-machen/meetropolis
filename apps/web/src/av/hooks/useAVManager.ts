@@ -7,6 +7,7 @@
 
 import React from 'react';
 import { AVManager } from '../avManager';
+import { AVLogger } from '../AVLogger';
 
 interface UseAVManagerArgs {
   apiBase: string;
@@ -121,7 +122,7 @@ export function useAVManager({
       onConnected?.();
 
     } catch (error) {
-      console.error('[AV] Connection failed:', error);
+      AVLogger.error('connection.failed', { error: String(error) });
     } finally {
       isConnectingRef.current = false;
     }

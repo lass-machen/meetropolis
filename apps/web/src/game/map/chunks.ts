@@ -70,9 +70,8 @@ export function applyChunkUpdates(scene: Phaser.Scene & any, layerName: 'ground'
   }
   if (layerName === 'collision') {
     scene.ensureCollisionCollider();
-    try { scene.rebuildStaticColliders(); } catch (e) { console.error('[Chunks] Failed to rebuild static colliders', e); }
+    try { scene.rebuildStaticColliders(); } catch (e) { logger.error('[Chunks] Failed to rebuild static colliders', e); }
     if (scene.v2) { try { scene.collisionLayer?.setVisible(false); } catch {} }
   }
 }
-
 

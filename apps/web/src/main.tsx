@@ -32,48 +32,6 @@ try {
   }
 } catch {}
 
-// Filter noisy framework logs in non-debug mode
-try {
-  const allowDebug = (window as any).DEBUG_LOGS || (import.meta as any).env?.VITE_DEBUG_LOGS === 'true';
-  if (!allowDebug) {
-    const prevLog = console.log;
-    const prevInfo = console.info;
-    const prevWarn = console.warn;
-    const prevError = console.error;
-    console.log = (...args: any[]) => {
-      try {
-        if (typeof args[0] === 'string') {
-          if (/^SPEICHERN!/.test(args[0])) return;
-          if (/Phaser v\d/i.test(args[0])) return;
-        }
-      } catch {}
-      return (prevLog as any).apply(console, args as any);
-    };
-    console.info = (...args: any[]) => {
-      try {
-        if (typeof args[0] === 'string') {
-          if (/^SPEICHERN!/.test(args[0])) return;
-          if (/Download the React DevTools/i.test(args[0])) return;
-        }
-      } catch {}
-      return (prevInfo as any).apply(console, args as any);
-    };
-    console.warn = (...args: any[]) => {
-      try {
-        if (typeof args[0] === 'string') {
-          if (/^SPEICHERN!/.test(args[0])) return;
-          if (/Download the React DevTools/i.test(args[0])) return;
-        }
-      } catch {}
-      return (prevWarn as any).apply(console, args as any);
-    };
-    console.error = (...args: any[]) => {
-      try { if (typeof args[0] === 'string' && /Tilemap has no tileset/i.test(args[0])) return; } catch {}
-      return (prevError as any).apply(console, args as any);
-    };
-  }
-} catch {}
-
 // Warte auf Tauri Config bevor wir rendern (wichtig für apiBase)
 waitForTauriConfig().then(() => {
   const root = createRoot(document.getElementById('root')!);
@@ -85,4 +43,3 @@ waitForTauriConfig().then(() => {
     </React.StrictMode>
   );
 });
-

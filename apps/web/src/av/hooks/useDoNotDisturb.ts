@@ -8,6 +8,7 @@
 import React from 'react';
 import type { AVManager } from '../avManager';
 import { gameBridge } from '../../game/bridge';
+import { logger } from '../../lib/logger';
 
 interface UseDNDArgs {
   enabled: boolean;
@@ -78,7 +79,7 @@ export function useDoNotDisturb({
       const currentDnd = !!(avRef.current as any)?.dndEnabled;
       const nextDnd = !currentDnd;
 
-      console.debug('[DND] Shortcut toggle:', { currentDnd, nextDnd });
+      logger.debug('[DND] Shortcut toggle:', { currentDnd, nextDnd });
 
       // Use gameBridge to trigger the full flow
       try {

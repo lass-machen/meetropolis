@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { V2State, computeFirstGids } from '../../../lib/mapV2';
-// editorLog removed - using console methods instead
+import { logger } from '../../../lib/logger';
 
 export function initMainScene(scene: Phaser.Scene & any): void {
   const pre = (window as any).__v2_state as V2State | undefined;
@@ -57,7 +57,7 @@ export function initMainScene(scene: Phaser.Scene & any): void {
       const expectedRows = map.height;
       const actualRows = layerData.data.length;
       if (actualRows < expectedRows) {
-        console.log('Init', `Collision layer has wrong dimensions: ${actualRows} rows instead of ${expectedRows}, fixing...`);
+        logger.debug('Init', `Collision layer has wrong dimensions: ${actualRows} rows instead of ${expectedRows}, fixing...`);
         while (layerData.data.length < expectedRows) {
           const newRow = new Array(map.width);
           for (let x = 0; x < map.width; x++) {
@@ -66,27 +66,27 @@ export function initMainScene(scene: Phaser.Scene & any): void {
           layerData.data.push(newRow);
         }
         layerData.height = expectedRows;
-        console.log('Init', `Fixed collision layer dimensions to ${layerData.data.length}x${layerData.data[0]?.length || 0}`);
+        logger.debug('Init', `Fixed collision layer dimensions to ${layerData.data.length}x${layerData.data[0]?.length || 0}`);
         const testY = 30;
-        if (layerData.data[testY]) { console.log('Init', `Verification: Row ${testY} exists with ${layerData.data[testY].length} tiles`); }
-        else { console.error('Init', `Verification failed: Row ${testY} still doesn't exist!`, null); }
+        if (layerData.data[testY]) { logger.debug('Init', `Verification: Row ${testY} exists with ${layerData.data[testY].length} tiles`); }
+        else { logger.error('Init', `Verification failed: Row ${testY} still doesn't exist!`, null); }
       }
     }
   } catch (e) {
-    console.log('Init', 'Collision layer setup failed');
+    logger.debug('Init', 'Collision layer setup failed');
     if (available.length > 0) {
       const firstTs = available[0]!;
       collisionLayer = map.createBlankLayer('Collision', firstTs, 0, 0, map.width, map.height, map.tileWidth, map.tileHeight) as any;
-      console.log('Init', `Created blank collision layer: ${map.width}x${map.height}`);
+      logger.debug('Init', `Created blank collision layer: ${map.width}x${map.height}`);
     }
   }
   if (collisionLayer) scene.collisionLayer = collisionLayer; else delete (scene as any).collisionLayer;
-  if (collisionLayer) { console.log('Init', 'Collision layer created'); }
+  if (collisionLayer) { logger.debug('Init', 'Collision layer created'); }
   if (collisionLayer) {
     collisionLayer.setDepth(10);
     collisionLayer.setVisible(false);
   } else {
-    console.log('Init', 'No collision layer created');
+    logger.debug('Init', 'No collision layer created');
   }
   if (collision) {
     scene.dynamicTilesets.set('collision_tiles', collision);
@@ -371,7 +371,7 @@ export function initMainScene(scene: Phaser.Scene & any): void {
   scene.input.on('pointerup', (pointer: Phaser.Input.Pointer) => {
     const { tileX, tileY } = toTile(pointer);
     if (scene.editorMode && !scene.panState.isPanning) {
-      try { console.log('[SPAWN_DBG][Scene] pointerup->onPointerUpTile', { tileX, tileY }); } catch {}
+      try { logger.debug('[SPAWN_DBG][Scene] pointerup->onPointerUpTile', { tileX, tileY }); } catch {}
       try { window.dispatchEvent(new CustomEvent('editor:tileUp', { detail: { tileX, tileY } })); } catch {}
       scene.gameBridge.onPointerUpTile({ tileX, tileY });
     }
@@ -428,5 +428,3 @@ export function initMainScene(scene: Phaser.Scene & any): void {
   scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => { try { scene.gameBridge.setSceneApi(null); } catch {} });
   scene.events.once(Phaser.Scenes.Events.DESTROY, () => { try { scene.gameBridge.setSceneApi(null); } catch {} });
 }
-
-

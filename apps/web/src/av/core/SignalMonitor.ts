@@ -108,7 +108,7 @@ export class SignalMonitor implements Disposable {
 
       // Default: if room exists and state is not disconnected, assume open
       // This handles "connecting" state and other intermediate states
-      return connectionState !== undefined;
+      return true;
     } catch {
       return false;
     }
@@ -245,6 +245,9 @@ export async function waitForRoomConnected(
 
   const isConnected = () => {
     const state = roomAny.connectionState ?? roomAny.state;
+    // If the room implementation doesn't expose connection state, assume the join call
+    // succeeded and don't block callers behind an arbitrary timeout.
+    if (state === undefined) return true;
     return state === 'connected' || state === 2;
   };
 

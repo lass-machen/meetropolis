@@ -4,6 +4,11 @@ import { getTenancyModule } from './tenancyLoader.js';
 
 const prisma = new PrismaClient();
 
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  return String(error);
+}
+
 function extractHost(req: express.Request): string | null {
   const xfHost = (req.headers['x-forwarded-host'] || '').toString();
   const host = (xfHost || req.headers.host || '').toString();
@@ -26,26 +31,22 @@ function sanitizeSlug(s: string): string {
 export async function tenantMiddleware(req: express.Request, res: express.Response, next: express.NextFunction) {
   try {
     // Feature-Gate: In OSS-Only Builds ohne Enterprise-Package strikt Single-Tenant fahren
-    try {
-      const tenancy = await getTenancyModule();
-      if (!tenancy.isMultiTenantEnabled()) {
-        const fallback = process.env.DEFAULT_TENANT_SLUG || 'default';
-        (req as any).tenantSlug = fallback;
-        // In OSS-Modus: tatsächlichen Tenant laden und an Request hängen
-        let tenant = await prisma.tenant.findUnique({ where: { slug: fallback } });
-        if (!tenant) {
-          const isProd = process.env.NODE_ENV === 'production';
-          if (isProd) {
-            return res.status(404).json({ error: 'tenant_not_found' });
-          }
-          // Entwicklung: Default-Tenant anlegen
-          tenant = await prisma.tenant.create({ data: { slug: fallback, name: fallback, concurrentLimit: 50 } });
-        }
-        (req as any).tenant = tenant;
-        (req as any).tenantId = tenant.id;
-        return next();
+    const tenancy = await getTenancyModule();
+    if (!tenancy.isMultiTenantEnabled()) {
+      const fallback = process.env.DEFAULT_TENANT_SLUG || 'default';
+      req.tenantSlug = fallback;
+
+      let tenant = await prisma.tenant.findUnique({ where: { slug: fallback } });
+      if (!tenant) {
+        const isProd = process.env.NODE_ENV === 'production';
+        if (isProd) return res.status(404).json({ error: 'tenant_not_found' });
+        tenant = await prisma.tenant.create({ data: { slug: fallback, name: fallback, concurrentLimit: 50 } });
       }
-    } catch { }
+
+      req.tenant = tenant;
+      req.tenantId = tenant.id;
+      return next();
+    }
 
     const fromHeader = (req.headers['x-tenant'] || '').toString();
     const fromQuery = (req.query?.tenant || '').toString();
@@ -55,7 +56,7 @@ export async function tenantMiddleware(req: express.Request, res: express.Respon
     const slug = sanitizeSlug(raw || fallback) || 'default';
 
     // Cache on request for downstream handlers
-    (req as any).tenantSlug = slug;
+    req.tenantSlug = slug;
 
     // Load tenant; in development, create on demand for convenience
     let tenant = await prisma.tenant.findUnique({ where: { slug } });
@@ -72,12 +73,11 @@ export async function tenantMiddleware(req: express.Request, res: express.Respon
     }
     if (!tenant) return res.status(404).json({ error: 'tenant_not_found' });
 
-    (req as any).tenant = tenant;
-    (req as any).tenantId = tenant.id;
+    req.tenant = tenant;
+    req.tenantId = tenant.id;
     return next();
-  } catch (e: any) {
-    return res.status(500).json({ error: 'tenant_resolution_failed', details: e?.message || String(e) });
+  } catch (error: unknown) {
+    return res.status(500).json({ error: 'tenant_resolution_failed', details: getErrorMessage(error) });
   }
 }
-
 

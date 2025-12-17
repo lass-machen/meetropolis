@@ -29,7 +29,9 @@ function findLiveMicrophonePublication(room: Room): LocalAudioTrack | null {
       const kind = pub?.kind ?? pub?.track?.kind;
       const t = pub?.track;
       const mst = t?.mediaStreamTrack;
-      return kind === 'audio' && (src === 'microphone' || src === 0) && mst?.readyState === 'live';
+      const readyState = mst?.readyState;
+      const isLive = readyState === undefined || readyState === 'live';
+      return kind === 'audio' && (src === 'microphone' || src === 0) && isLive;
     });
     return (livePub?.track as LocalAudioTrack) ?? null;
   } catch {
@@ -40,6 +42,34 @@ function findLiveMicrophonePublication(room: Room): LocalAudioTrack | null {
 function isTrackLive(track: unknown): boolean {
   const mst = (track as any)?.mediaStreamTrack;
   return mst?.readyState === 'live';
+}
+
+async function unpublishNonLiveMicrophoneTracks(room: Room): Promise<void> {
+  try {
+    const pubs = getLocalTrackPublications(room);
+    for (const pub of pubs) {
+      const src = pub?.source ?? pub?.track?.source;
+      const kind = pub?.kind ?? pub?.track?.kind;
+      const t = pub?.track;
+      if (!t) continue;
+      if (kind !== 'audio' || (src !== 'microphone' && src !== 0)) continue;
+      const mst = (t as any).mediaStreamTrack;
+      if (mst?.readyState === 'live') continue;
+
+      try {
+        if (typeof (t as any).setEnabled === 'function') {
+          (t as any).setEnabled(false);
+        } else if (mst) {
+          mst.enabled = false;
+        }
+      } catch {}
+
+      try {
+        await room.localParticipant.unpublishTrack(t as any);
+      } catch {}
+      try { (t as any).stop?.(); } catch {}
+    }
+  } catch {}
 }
 
 async function buildAndPublishMicrophoneTrack(room: Room, state: LocalTrackState): Promise<LocalAudioTrack> {
@@ -99,9 +129,8 @@ export async function publishMicrophone({
   }
 
   try {
-    if (state.track) {
-      await unpublishMicrophone({ room, state, checkAllTracksUnpublished: () => {} });
-    }
+    await unpublishNonLiveMicrophoneTracks(room);
+    if (state.track) await unpublishMicrophone({ room, state, checkAllTracksUnpublished: () => {} });
 
     const track = await buildAndPublishMicrophoneTrack(room, state);
     state.track = track;
@@ -160,6 +189,14 @@ export async function unpublishMicrophone({
         const t = pub?.track;
         if (!t) continue;
         if (kind === 'audio' && (src === 'microphone' || src === 0)) {
+          try {
+            const mst = (t as any).mediaStreamTrack;
+            if (typeof (t as any).setEnabled === 'function') {
+              (t as any).setEnabled(false);
+            } else if (mst) {
+              mst.enabled = false;
+            }
+          } catch {}
           await room.localParticipant.unpublishTrack(t as any);
           try { t.stop?.(); } catch {}
         }

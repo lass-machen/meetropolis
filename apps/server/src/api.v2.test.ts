@@ -52,6 +52,7 @@ vi.mock('@prisma/client', () => {
     mapChunk = {
       async findMany({ where, select }: any) {
         const list = mem.chunks.filter(c => c.layerId === where.layerId && (!where.OR || where.OR.some((k: any) => k.x === c.x && k.y === c.y)));
+        if (!select) return list as any;
         return list.map(c => ({ x: c.x, y: c.y, version: c.version, encoding: c.encoding, data: c.data })) as any;
       },
       async findUnique({ where }: any) {
@@ -168,5 +169,4 @@ describe('v2 map editing', () => {
     expect(payload.encoding).toBe('rle-bool');
   });
 });
-
 

@@ -8,9 +8,13 @@ package-lock.json
 apps/server/node_modules/
 apps/web/node_modules/
 packages/shared/node_modules/
+.npm-cache/
 apps/server/prisma/dev.db*
 coverage/
 *.log
+Meetropolis.dmg
+fresh_icon.icns
+apps/server/cookies.txt
 
 # Web build output
 apps/web/dist/
@@ -29,4 +33,3 @@ apps/web/src-tauri/local-client/
 # Temporary directories
 tmp/
 tmp_extract/
-

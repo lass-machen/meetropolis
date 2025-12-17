@@ -17,6 +17,8 @@
  * geladen wird.
  */
 
+import { logger } from './logger';
+
 // Nur in Tauri-Umgebung patchen
 const isTauri = typeof window !== 'undefined' && !!(window as any).__TAURI__;
 
@@ -27,11 +29,11 @@ if (isTauri) {
     // @ts-ignore - we're patching the global WebSocket
     globalThis.WebSocket = function PatchedWebSocket(
       url: string,
-      protocols?: string | string[] | Record<string, any>
+      protocols?: string | string[] | Record<string, unknown>
     ): WebSocket {
       // If protocols is an object (not array, not string), handle it
       if (protocols && typeof protocols === 'object' && !Array.isArray(protocols)) {
-        console.log('[WebSocket Patch] Detected object as protocols, extracting...');
+        logger.debug('[WebSocket Patch] Detected object as protocols, extracting...');
         const actualProtocols = (protocols as any).protocols;
         if (Array.isArray(actualProtocols)) {
           return new OriginalWebSocket(url, actualProtocols);
@@ -53,9 +55,8 @@ if (isTauri) {
     // Preserve prototype for instanceof checks
     globalThis.WebSocket.prototype = OriginalWebSocket.prototype;
 
-    console.log('[WebSocket Patch] Patched globalThis.WebSocket for WKWebView compatibility');
+    logger.debug('[WebSocket Patch] Patched globalThis.WebSocket for WKWebView compatibility');
   }
 }
 
 export {};
-

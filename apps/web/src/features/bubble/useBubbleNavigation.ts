@@ -1,4 +1,5 @@
 import React from 'react';
+import { logger } from '../../lib/logger';
 
 type AnyRef<T> = React.MutableRefObject<T>;
 
@@ -48,7 +49,7 @@ export function useBubbleNavigation(params: UseBubbleNavigationParams) {
   }, [applyVolumesToUi, bubbleMembersRef, colyseusRef, colyseusToLivekitMap, gameBridge, identityToNameMap, localPosRef, setBubbleUi]);
 
   const startBubbleTo = React.useCallback((targetColyseusId: string) => {
-    try { console.debug('[Bubble] startBubbleTo', targetColyseusId); } catch {}
+    try { logger.debug('[Bubble] startBubbleTo', targetColyseusId); } catch {}
     try { gameBridge.setMovementLocked(false); } catch {}
     try { followRef.current?.startFollowing?.(targetColyseusId); } catch {}
     try {
@@ -61,5 +62,4 @@ export function useBubbleNavigation(params: UseBubbleNavigationParams) {
 
   return { activateBubbleNow, startBubbleTo };
 }
-
 
