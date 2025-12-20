@@ -321,6 +321,28 @@ export class WorldRoom extends Colyseus.Room<WorldState> {
             }
           }
         } catch { }
+        // Check OSS user limit (25 users max unless enterprise tenancy bypasses it)
+        const tenancy = await getTenancyModule();
+        const bypassOssLimit = tenancy.bypassOssLimit?.() ?? false;
+
+        if (!bypassOssLimit) {
+          // OSS mode: enforce hard 25-user limit across all tenants
+          let totalActive = 0;
+          try {
+            const rooms: any[] = Array.from(activeRooms.values());
+            for (const r of rooms) {
+              try { totalActive += (r.state?.players?.size) || 0; } catch { }
+            }
+          } catch { }
+          if (totalActive >= OSS_USER_LIMIT) {
+            try { logger.warn('[WorldRoom] OSS user limit reached', { totalActive, limit: OSS_USER_LIMIT }); } catch { }
+            try { client.error(4002, 'oss_limit_reached'); } catch { }
+            try { await prisma.$disconnect().catch(() => { }); } catch { }
+            return client.leave(1000);
+          }
+        }
+
+        // Enterprise mode: enforce per-tenant limit
         const paidSeats = Math.max(0, tenant.concurrentLimit || 0);
         const freeSeats = Math.max(0, (tenant as any).freeSeats || 0);
         const effectiveLimit = Math.max(paidSeats, freeSeats);
