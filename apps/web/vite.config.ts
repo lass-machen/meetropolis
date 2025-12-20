@@ -31,7 +31,7 @@ export default defineConfig({
       host: process.env.VITE_HMR_HOST || 'localhost',
       protocol: process.env.VITE_HMR_PROTOCOL || 'ws'
     },
-    allowedHosts: ['meetropolis.s4.lmwow.de', 'localhost', 'razor-crest.local'],
+    allowedHosts: ['localhost'],
     proxy: {
       // Nur /packs proxien, damit statische Web-Assets (z. B. /maps/office.json) unangetastet bleiben
       '/packs': {
