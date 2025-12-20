@@ -1,4 +1,4 @@
-import type express from 'express';
+import express from 'express';
 import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 import Stripe from 'stripe';

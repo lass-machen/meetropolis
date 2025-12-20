@@ -1,6 +1,14 @@
-import type express from 'express';
+import type { Request, Response, NextFunction } from 'express';
+import type { Tenant } from '@prisma/client';
 import { PrismaClient } from '@prisma/client';
 import { getTenancyModule } from './tenancyLoader.js';
+
+// Extended request with tenant properties
+interface TenantRequest extends Request {
+  tenantSlug?: string;
+  tenantId?: string;
+  tenant?: Tenant;
+}
 
 const prisma = new PrismaClient();
 
@@ -9,7 +17,7 @@ function getErrorMessage(error: unknown): string {
   return String(error);
 }
 
-function extractHost(req: express.Request): string | null {
+function extractHost(req: Request): string | null {
   const xfHost = (req.headers['x-forwarded-host'] || '').toString();
   const host = (xfHost || req.headers.host || '').toString();
   return host || null;
@@ -28,7 +36,7 @@ function sanitizeSlug(s: string): string {
   return s.trim().toLowerCase().replace(/[^a-z0-9-_]/g, '');
 }
 
-export async function tenantMiddleware(req: express.Request, res: express.Response, next: express.NextFunction) {
+export async function tenantMiddleware(req: TenantRequest, res: Response, next: NextFunction) {
   try {
     // Feature-Gate: In OSS-Only Builds ohne Enterprise-Package strikt Single-Tenant fahren
     const tenancy = await getTenancyModule();
