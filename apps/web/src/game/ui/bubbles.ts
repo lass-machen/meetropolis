@@ -1,13 +1,9 @@
 import Phaser from 'phaser';
+import { emitBubbleMembers } from '../../lib/avEvents';
 
 export function setBubbleMembers(scene: Phaser.Scene & any, members: Set<string>): void {
   try {
-    (async () => {
-      try {
-        const mod: any = await import('../../lib/avEvents');
-        mod.emitBubbleMembers(Array.from(members));
-      } catch {}
-    })();
+    emitBubbleMembers(Array.from(members));
   } catch {}
 
   for (const outline of (scene.bubbleOutlines?.values?.() || []) as Iterable<Phaser.GameObjects.Graphics>) {

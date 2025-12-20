@@ -1,4 +1,5 @@
 import React from 'react';
+import { emitAudioTracksChanged } from '../lib/avEvents';
 
 export function useGlobalAudioTracks(params: { avRef: React.MutableRefObject<any> }) {
   const { avRef } = params;
@@ -46,7 +47,7 @@ export function useGlobalAudioTracks(params: { avRef: React.MutableRefObject<any
       if (track?.kind === 'audio' && participant?.sid !== room?.localParticipant?.sid) {
         attachAudioTrack(track, participant.sid);
         // Signalisiere, dass sich die Audio-Topologie geändert hat
-        (async () => { try { const mod: any = await import('../lib/avEvents'); mod.emitAudioTracksChanged?.(); } catch {} })();
+        try { emitAudioTracksChanged(); } catch {}
       }
     };
 
@@ -71,8 +72,8 @@ export function useGlobalAudioTracks(params: { avRef: React.MutableRefObject<any
       if (otherAudioTracks.length === 0) {
         detachAudioTrack(participant?.sid);
       }
-      
-      (async () => { try { const mod: any = await import('../lib/avEvents'); mod.emitAudioTracksChanged?.(); } catch {} })();
+
+      try { emitAudioTracksChanged(); } catch {}
     };
 
     // Initial pass for already subscribed audio tracks

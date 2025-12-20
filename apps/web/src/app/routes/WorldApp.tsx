@@ -51,6 +51,7 @@ import { VolumeManager } from '../../game/volumeManager';
 import { ConnectionBanner } from '../../ui/system/ConnectionBanner';
 import { splitTilesetImage } from '../../lib/tilesetUtils';
 import { useTauriApp, useConnectionRecovery } from '../../hooks/useTauriApp';
+import { onAudioTracksChanged } from '../../lib/avEvents';
 
 
 export function WorldApp() {
@@ -1054,14 +1055,11 @@ export function WorldApp() {
   // Re-apply Volumes when remote audio topology changes (screenshare on/off, resubscribe)
   React.useEffect(() => {
     let off: (() => void) | null = null;
-    (async () => {
-      try {
-        const mod: any = await import('../../lib/avEvents');
-        off = mod.onAudioTracksChanged?.(() => {
-          try { applyVolumesToUi(); } catch { }
-        }) || null;
-      } catch { }
-    })();
+    try {
+      off = onAudioTracksChanged?.(() => {
+        try { applyVolumesToUi(); } catch { }
+      }) || null;
+    } catch { }
     return () => { try { off?.(); } catch { } };
   }, []);
 
