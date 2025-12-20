@@ -3,9 +3,102 @@ import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 import Stripe from 'stripe';
 import { logger } from '../../logger.js';
-import { requireAuth, getTenantFromReq } from '../utils/authHelpers.js';
+import { requireAuth, getTenantFromReq, getUserIdFromReq } from '../utils/authHelpers.js';
+import { getBillingModule } from '../../billingLoader.js';
 
-export function registerBillingRoutes(app: express.Application, prisma: PrismaClient) {
+/**
+ * Register billing routes
+ *
+ * OSS Version provides:
+ * - Basic billing status, invoices, plans
+ * - Checkout and portal sessions
+ * - Basic webhook handling
+ *
+ * Enterprise Version adds:
+ * - Trial management (14-day trials)
+ * - Dunning workflow (payment failure → emails → degradation → cancellation)
+ * - Subscription pause/resume
+ * - Proration for plan changes
+ * - Billing audit log
+ * - Email notifications
+ */
+export async function registerBillingRoutes(app: express.Application, prisma: PrismaClient) {
+  // Try to load enterprise billing module
+  const enterpriseBilling = await getBillingModule();
+
+  if (enterpriseBilling && process.env.STRIPE_SECRET_KEY && process.env.STRIPE_WEBHOOK_SECRET) {
+    // Enterprise billing available - set up advanced routes
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2024-06-20' } as any);
+
+    const emailService = {
+      async send(email: { to: string; subject: string; text: string; html: string }) {
+        // TODO: Integrate with your email service (SendGrid, SES, etc.)
+        logger.info({ event: 'billing.email.send', to: email.to, subject: email.subject });
+      },
+    };
+
+    const billingPortalUrl = process.env.BILLING_PORTAL_URL || process.env.BILLING_PUBLIC_URL || '';
+    const pricingUrl = process.env.PRICING_URL || process.env.BILLING_PUBLIC_URL || '';
+
+    const getOwnerEmail = async (tenantId: string): Promise<string | null> => {
+      try {
+        const membership = await prisma.membership.findFirst({
+          where: { tenantId, role: 'owner' },
+          include: { user: { select: { email: true } } },
+        });
+        return membership?.user?.email ?? null;
+      } catch {
+        return null;
+      }
+    };
+
+    const requireTenantAdmin = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+      const auth = requireAuth(req);
+      if (!auth) {
+        res.status(401).json({ error: 'unauthorized' });
+        return;
+      }
+      const tenant = getTenantFromReq(req);
+      if (!tenant) {
+        res.status(400).json({ error: 'tenant_required' });
+        return;
+      }
+      next();
+    };
+
+    const getTenantId = (req: express.Request): string | null => {
+      const tenant = getTenantFromReq(req);
+      return tenant?.id ?? null;
+    };
+
+    const getUserId = (req: express.Request): string | null => {
+      return getUserIdFromReq(req);
+    };
+
+    // Create a router for enterprise billing routes
+    const router = express.Router();
+
+    enterpriseBilling.setupBillingRoutes(router, {
+      prisma,
+      stripe,
+      webhookSecret: process.env.STRIPE_WEBHOOK_SECRET,
+      emailService,
+      logger,
+      billingPortalUrl,
+      pricingUrl,
+      getOwnerEmail,
+      requireTenantAdmin,
+      getTenantId,
+      getUserId,
+    });
+
+    // Mount enterprise routes (they will handle /billing/webhook, trial, dunning, etc.)
+    app.use(router);
+
+    logger.info({ event: 'billing.enterprise_routes_registered' });
+  }
+
+  // Register OSS billing routes (basic functionality always available)
   // Get billing status (current plan, usage, limits)
   app.get('/billing/status', async (req: express.Request, res: express.Response) => {
     const auth = requireAuth(req);

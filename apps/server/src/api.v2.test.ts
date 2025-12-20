@@ -102,14 +102,14 @@ vi.mock('@prisma/client', () => {
 
 import { registerApi } from './api.js';
 
-function createApp() {
+async function createApp() {
   const app = express();
   app.use(cookieParser() as any);
   app.use(express.json() as any);
   app.use(express.urlencoded({ extended: true }) as any);
   // Attach a default tenant for tests
   app.use((req, _res, next) => { (req as any).tenant = { id: 't1', slug: 'default' }; next(); });
-  registerApi(app as any);
+  await registerApi(app as any);
   // Seed one map and tileset registry entry
   if (!mem.maps.find(m => m.name === 'test')) mem.maps.push({ id: 'm_test', name: 'test', tenantId: 't1', meta: {}, chunkSize: 32, width: 64, height: 64, tileWidth: 16, tileHeight: 16 });
   if (!mem.tilesets.find(t => t.mapId === 'm_test')) mem.tilesets.push({ id: 'ts1', mapId: 'm_test', slot: 0, key: 'office_tiles', imageUrl: '/tiles.png', tileWidth: 16, tileHeight: 16 });
@@ -123,7 +123,7 @@ describe('v2 map editing', () => {
   });
 
   it('paints a ground rect and returns chunk from /chunks', async () => {
-    const app = createApp();
+    const app = await createApp();
     const patch = await request(app)
       .patch('/maps/test/paint-rect')
       .set('x-tenant', 'default')
@@ -145,7 +145,7 @@ describe('v2 map editing', () => {
   });
 
   it('paints and erases collision using rle-bool', async () => {
-    const app = createApp();
+    const app = await createApp();
     const setRes = await request(app)
       .patch('/maps/test/paint-rect')
       .set('x-tenant', 'default')

@@ -94,6 +94,11 @@ export function getTenantFromReq(req: express.Request): { id: string; slug: stri
   return null;
 }
 
+export function getUserIdFromReq(req: express.Request): string | null {
+  const auth = requireAuth(req);
+  return auth?.userId ?? null;
+}
+
 export async function requireMembership(req: express.Request, userId: string, prisma: PrismaClient): Promise<{ role: string } | null> {
   const tenant = getTenantFromReq(req);
   if (!tenant) return null;

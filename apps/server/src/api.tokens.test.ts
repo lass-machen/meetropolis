@@ -70,12 +70,12 @@ vi.mock('@prisma/client', () => {
 // Import after mocking
 import { registerApi } from './api.js';
 
-function createApp() {
+async function createApp() {
   const app = express();
   app.use(cookieParser() as any);
   app.use(express.json() as any);
   app.use(express.urlencoded({ extended: true }) as any);
-  registerApi(app as any);
+  await registerApi(app as any);
   return app;
 }
 
@@ -92,7 +92,7 @@ describe('API Tokens & Controls', () => {
   });
 
   it('creates and lists API tokens for a session user', async () => {
-    const app = createApp();
+    const app = await createApp();
     const jwtToken = signSession('user-1');
 
     const createRes = await request(app)
@@ -112,7 +112,7 @@ describe('API Tokens & Controls', () => {
   });
 
   it('authenticates /controls with API token and updates lastUsedAt', async () => {
-    const app = createApp();
+    const app = await createApp();
     const jwtToken = signSession('user-1');
 
     const createRes = await request(app)
@@ -136,7 +136,7 @@ describe('API Tokens & Controls', () => {
   });
 
   it('deletes token and prevents further use', async () => {
-    const app = createApp();
+    const app = await createApp();
     const jwtToken = signSession('user-1');
 
     const createRes = await request(app)

@@ -24,7 +24,7 @@ const prisma = new PrismaClient();
 /**
  * Register all API routes on the Express app
  */
-export function registerApi(app: express.Express) {
+export async function registerApi(app: express.Express) {
   // Health, config, readiness probes
   registerHealthRoutes(app, prisma);
 
@@ -40,8 +40,8 @@ export function registerApi(app: express.Express) {
   // Asset packs upload/management
   registerAssetPackRoutes(app, prisma);
 
-  // Billing (Stripe)
-  registerBillingRoutes(app, prisma);
+  // Billing (Stripe) - async to allow enterprise module loading
+  await registerBillingRoutes(app, prisma);
 
   // Admin routes (tenants, billing management)
   registerAdminRoutes(app, prisma);
