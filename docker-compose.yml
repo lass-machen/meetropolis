@@ -31,13 +31,13 @@ services:
       # Safe local fallbacks to avoid crashes during local testing with this compose
       API_TOKEN_PEPPER: ${API_TOKEN_PEPPER:-dev-pepper-change-me}
       JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-me}
-      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173,http://localhost:5174,https://meetropolis.s4.lmwow.de}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173,http://localhost:5174}
     command: sh -c "npm ci --include=dev && npx prisma generate && npx prisma db push && npx prisma db seed && npx tsx src/index.ts"
     ports:
       - "2567:2567"
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.meetropolis-api.rule=Host(`api.meetropolis.s4.lmwow.de`)"
+      - "traefik.http.routers.meetropolis-api.rule=Host(`api.localhost`)"
       - "traefik.http.routers.meetropolis-api.entrypoints=websecure"
       - "traefik.http.routers.meetropolis-api.tls.certresolver=le"
       - "traefik.http.services.meetropolis-api.loadbalancer.server.port=2567"
@@ -69,14 +69,14 @@ services:
     environment:
       VITE_API_BASE: ${VITE_API_BASE}
       VITE_LIVEKIT_URL: ${VITE_LIVEKIT_URL}
-      VITE_HMR_HOST: meetropolis.s4.lmwow.de
-      VITE_HMR_PROTOCOL: wss
+      VITE_HMR_HOST: localhost
+      VITE_HMR_PROTOCOL: ws
     command: sh -c "npm ci && npm run dev"
     ports:
       - "5173:5173"
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.meetropolis.rule=Host(`meetropolis.s4.lmwow.de`)"
+      - "traefik.http.routers.meetropolis.rule=Host(`localhost`)"
       - "traefik.http.routers.meetropolis.entrypoints=websecure"
       - "traefik.http.routers.meetropolis.tls.certresolver=le"
       - "traefik.http.services.meetropolis.loadbalancer.server.port=5173"
@@ -125,7 +125,7 @@ services:
       retries: 5
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.meetropolis-livekit.rule=Host(`livekit.meetropolis.s4.lmwow.de`)"
+      - "traefik.http.routers.meetropolis-livekit.rule=Host(`livekit.localhost`)"
       - "traefik.http.routers.meetropolis-livekit.entrypoints=websecure"
       - "traefik.http.routers.meetropolis-livekit.tls.certresolver=le"
       - "traefik.http.services.meetropolis-livekit.loadbalancer.server.port=7880"
@@ -145,3 +145,6 @@ volumes:
 networks:
   traefik:
     external: true
+    name: traefik
+  default:
+    driver: bridge
