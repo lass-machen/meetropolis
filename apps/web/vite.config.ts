@@ -18,7 +18,21 @@ export default defineConfig({
   build: {
     sourcemap: true,
     minify: 'esbuild',
-    target: 'es2020'
+    target: 'es2020',
+    chunkSizeWarningLimit: 1500, // Increase limit - large deps like Phaser, LiveKit are unavoidable
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          // Split large dependencies into separate chunks
+          if (id.includes('node_modules')) {
+            if (id.includes('phaser')) return 'vendor-phaser';
+            if (id.includes('livekit-client')) return 'vendor-livekit';
+            if (id.includes('colyseus') || id.includes('@colyseus')) return 'vendor-colyseus';
+            if (id.includes('react-dom') || id.includes('react-router')) return 'vendor-react';
+          }
+        },
+      },
+    },
   },
   optimizeDeps: {
     force: true,
