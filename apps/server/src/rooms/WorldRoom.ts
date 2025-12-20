@@ -301,7 +301,8 @@ export class WorldRoom extends Colyseus.Room<WorldState> {
         }
 
         // Other inactive statuses (canceled, incomplete, etc.)
-        const blockedStatuses = ['past_due', 'unpaid', 'canceled', 'incomplete_expired', 'incomplete'];
+        // Note: past_due is NOT blocked - users retain access during dunning period
+        const blockedStatuses = ['canceled', 'incomplete_expired', 'incomplete'];
         if (status && blockedStatuses.includes(status)) {
           try { logger.warn('[WorldRoom] Tenant subscription inactive', { tenant: tenantSlug, status }); } catch { }
           try { client.error(4003, 'subscription_inactive'); } catch { }
