@@ -612,13 +612,31 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
             }
             lastCloseInfoRef.current = { code, reason };
 
-            // Handle user limit errors - show UI feedback and don't auto-reconnect
-            if (code === 4001 || code === 4002 || text === 'tenant_limit_reached' || text === 'oss_limit_reached') {
-              const isOssLimit = code === 4002 || text === 'oss_limit_reached';
-              const title = isOssLimit ? 'User Limit Reached' : 'Tenant Limit Reached';
-              const desc = isOssLimit
-                ? 'This instance has reached its maximum user limit (25). Please try again later or contact the administrator.'
-                : 'Your organization has reached its maximum concurrent user limit. Please upgrade your plan or try again later.';
+            // Handle user limit and billing errors - show UI feedback and don't auto-reconnect
+            const isBillingError = code === 4003 || code === 4004 || code === 4005 ||
+              text === 'subscription_inactive' || text === 'subscription_suspended' || text === 'trial_expired';
+            const isLimitError = code === 4001 || code === 4002 || text === 'tenant_limit_reached' || text === 'oss_limit_reached';
+
+            if (isBillingError || isLimitError) {
+              let title = '';
+              let desc = '';
+
+              if (code === 4005 || text === 'trial_expired') {
+                title = 'Trial Expired';
+                desc = 'Your free trial has ended. Please subscribe to continue using the service.';
+              } else if (code === 4004 || text === 'subscription_suspended') {
+                title = 'Account Suspended';
+                desc = 'Your account has been suspended due to payment issues. Please update your payment method.';
+              } else if (code === 4003 || text === 'subscription_inactive') {
+                title = 'Subscription Inactive';
+                desc = 'Your subscription is not active. Please check your billing settings.';
+              } else if (code === 4002 || text === 'oss_limit_reached') {
+                title = 'User Limit Reached';
+                desc = 'This instance has reached its maximum user limit (25). Please try again later or contact the administrator.';
+              } else {
+                title = 'Tenant Limit Reached';
+                desc = 'Your organization has reached its maximum concurrent user limit. Please upgrade your plan or try again later.';
+              }
 
               try {
                 const host = document.createElement('div');
