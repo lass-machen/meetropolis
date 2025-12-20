@@ -23,6 +23,8 @@ const require = createRequire(import.meta.url);
 // Use CJS require for Colyseus to avoid ESM interop issues
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const Colyseus = require('colyseus');
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { WebSocketTransport } = require('@colyseus/ws-transport');
 import { createServer } from 'http';
 import path from 'path';
 import fs from 'fs';
@@ -194,7 +196,7 @@ try {
 } catch {}
 app.use('/packs', express.static(packsDir, { maxAge: '365d', immutable: true }));
 
-registerApi(app);
+await registerApi(app);
 
 // Expose Prometheus Metriken
 app.get('/metrics', async (_req, res) => {
@@ -212,9 +214,13 @@ httpServer.on('error', (err) => {
   logger.error('HTTP server error', err);
 });
 
-// Attach to existing HTTP server; compatible with Colyseus 0.14/0.15
-// Colyseus Server
-const gameServer = new Colyseus.Server({ server: httpServer as any });
+// Attach to existing HTTP server; compatible with Colyseus 0.15+
+// Colyseus Server with WebSocketTransport
+const gameServer = new Colyseus.Server({
+  transport: new WebSocketTransport({
+    server: httpServer,
+  }),
+});
 
 gameServer.define('world', WorldRoom as any).filterBy(['tenant']);
 
