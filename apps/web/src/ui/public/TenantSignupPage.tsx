@@ -6,7 +6,7 @@ interface TenantSignupPageProps {
   apiBase: string;
   onBack: () => void;
   onSuccess: (tenantSlug: string) => void;
-  selectedPlan?: string;
+  selectedPlan?: string | undefined;
 }
 
 export function TenantSignupPage({ apiBase, onBack, onSuccess, selectedPlan }: TenantSignupPageProps) {

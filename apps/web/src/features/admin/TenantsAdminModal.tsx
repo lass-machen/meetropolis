@@ -1,4 +1,3 @@
-import * as React from 'react';
 import { Modal } from '../../ui/system';
 import { TenantsAdmin } from '../../ui/admin/TenantsAdmin';
 

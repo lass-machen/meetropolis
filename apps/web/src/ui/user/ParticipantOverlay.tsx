@@ -14,30 +14,9 @@ export function ParticipantOverlay(props: {
   const { participant, roomGetter, zoom, onZoom, onClose } = props;
   const { t } = useTranslation();
   const containerRef = React.useRef<HTMLDivElement>(null);
-  const [containerSize, setContainerSize] = React.useState({ width: 0, height: 0 });
   const [isDragging, setIsDragging] = React.useState(false);
   const [panOffset, setPanOffset] = React.useState({ x: 0, y: 0 });
   const dragStartRef = React.useRef({ x: 0, y: 0, panX: 0, panY: 0 });
-
-  // Track container size for optimal video scaling
-  React.useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-
-    const updateSize = () => {
-      setContainerSize({
-        width: container.clientWidth,
-        height: container.clientHeight,
-      });
-    };
-
-    updateSize();
-
-    const resizeObserver = new ResizeObserver(updateSize);
-    resizeObserver.observe(container);
-
-    return () => resizeObserver.disconnect();
-  }, []);
 
   // Keyboard shortcuts for zoom
   React.useEffect(() => {
@@ -200,13 +179,7 @@ export function ParticipantOverlay(props: {
 
   const isScreen = participant.media === 'screen';
 
-  // Calculate optimal aspect ratio based on container
-  const aspectRatio = isScreen ? 16 / 9 : 1;
-  const optimalWidth = Math.min(
-    containerSize.width - 48,
-    (containerSize.height - 48) * aspectRatio,
-    1920
-  );
+  // aspectRatio could be used for future responsive sizing
 
   return (
     <div

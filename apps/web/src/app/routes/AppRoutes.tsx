@@ -153,7 +153,7 @@ function EmailVerifyPage({
   onSuccess,
   onBack,
 }: {
-  token?: string;
+  token?: string | undefined;
   apiBase: string;
   onSuccess: () => void;
   onBack: () => void;

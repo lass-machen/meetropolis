@@ -56,10 +56,6 @@ export function ThemeProvider(props: { children: React.ReactNode }) {
     setOverride((o: ThemeOverride) => o === 'system' ? 'light' : o === 'light' ? 'dark' : 'system');
   }, []);
 
-  const tr = (key: string, fallback: string) => {
-    const v = t(key);
-    return v && v !== key ? v : fallback;
-  };
   return (
     <ThemeContext.Provider value={{ override, setOverride, effective, cycle }}>
       <div style={{ background: 'var(--bg)', color: 'var(--fg)', minHeight: '100%', width: '100%' }}>
@@ -72,7 +68,7 @@ export function ThemeProvider(props: { children: React.ReactNode }) {
 // CSS-Variablen sind nun in apps/web/src/styles/theme.css definiert.
 
 export function ThemeToggleButton() {
-  const { override, setOverride, cycle, effective } = useTheme();
+  const { override, setOverride, cycle: _cycle, effective: _effective } = useTheme();
   const { t } = useTranslation();
   const tr = (key: string, fallback: string) => {
     const v = t(key);

@@ -1,6 +1,6 @@
 /**
  * Editor Integration - Verbindet MainScene mit neuem Editor-System
- * 
+ *
  * Initialisiert EditorRenderer und EditorInputHandler für eine Phaser Scene
  */
 
@@ -10,13 +10,11 @@ import { EditorInputHandler } from './EditorInputHandler';
 import { EditorService } from '../../services/EditorService';
 
 export class EditorIntegration {
-  private scene: Phaser.Scene;
   private renderer: EditorRenderer;
   private inputHandler: EditorInputHandler;
   private stateUnsubscribe?: () => void;
 
   constructor(scene: Phaser.Scene, tileSize: number = 16) {
-    this.scene = scene;
     this.renderer = new EditorRenderer(scene);
     this.inputHandler = new EditorInputHandler(scene, this.renderer, tileSize);
 
@@ -36,11 +34,16 @@ export class EditorIntegration {
 
       // Render Ghost Preview für Asset-Tool
       if (state.tool === 'asset' && state.pendingAsset) {
-        this.renderer.renderGhost({
+        const ghostPreview: { dataUrl: string; width?: number | undefined; height?: number | undefined } = {
           dataUrl: state.pendingAsset.dataUrl,
-          width: state.pendingAsset.width,
-          height: state.pendingAsset.height,
-        });
+        };
+        if (state.pendingAsset.width !== undefined) {
+          ghostPreview.width = state.pendingAsset.width;
+        }
+        if (state.pendingAsset.height !== undefined) {
+          ghostPreview.height = state.pendingAsset.height;
+        }
+        this.renderer.renderGhost(ghostPreview);
       } else {
         this.renderer.renderGhost(null);
       }

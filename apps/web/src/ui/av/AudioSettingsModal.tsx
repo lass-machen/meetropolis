@@ -1,4 +1,3 @@
-import * as React from 'react';
 import { Modal, Select, Checkbox, Slider, FieldRow } from '../system';
 import { useAvSettingsStore } from '../../state/avSettings';
 import { useTranslation } from 'react-i18next';

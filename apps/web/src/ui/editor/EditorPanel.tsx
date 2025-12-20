@@ -10,8 +10,7 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Toast } from '../system';
-import { EditorService, EditorAction, PackItem } from '../../services/EditorService';
-import { EditorPersistence } from '../../services/EditorPersistence';
+import { EditorService, PackItem } from '../../services/EditorService';
 import { logger } from '../../lib/logger';
 
 export function EditorPanel(props: {

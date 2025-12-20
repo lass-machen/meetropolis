@@ -34,9 +34,10 @@ export function setEditorAssets(scene: Phaser.Scene & any, assets: { id: string;
     // Sprite existiert nicht - erstelle es
     // Fall 1: Texture existiert bereits → Sprite sofort erstellen
     if (scene.textures.exists(textureKey)) {
-      img = scene.add.image(a.x, a.y, textureKey);
-      img.setDepth(6);
-      img.setInteractive();
+      const newImg = scene.add.image(a.x, a.y, textureKey);
+      newImg.setDepth(6);
+      newImg.setInteractive();
+      img = newImg;
       scene.editorSprites.set(a.id, img);
       continue;
     }
@@ -81,7 +82,7 @@ export function setEditorAssets(scene: Phaser.Scene & any, assets: { id: string;
   }
 }
 
-export function setAssetPreview(scene: Phaser.Scene & any, preview: { dataUrl: string; width?: number; height?: number } | null): void {
+export function setAssetPreview(scene: Phaser.Scene & any, preview: { dataUrl: string; width?: number | undefined; height?: number | undefined } | null): void {
   if (!preview) {
     if (scene.ghostSprite) {
       scene.ghostSprite.destroy();

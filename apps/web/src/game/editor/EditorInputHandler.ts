@@ -9,7 +9,7 @@
  */
 
 import Phaser from 'phaser';
-import { EditorService, EditorAction } from '../../services/EditorService';
+import { EditorService } from '../../services/EditorService';
 import { EditorRenderer } from './EditorRenderer';
 import { logger } from '../../lib/logger';
 

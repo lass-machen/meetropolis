@@ -27,7 +27,7 @@ export function TenantSettings({ onClose }: { onClose: () => void }) {
   const [error, setError] = React.useState<string | null>(null);
   const [success, setSuccess] = React.useState<string | null>(null);
 
-  const [tenantName, setTenantName] = React.useState('');
+  const [_tenantName, setTenantName] = React.useState('');
   const [activeTab, setActiveTab] = React.useState<'general' | 'members'>('general');
 
   // Invite
@@ -76,11 +76,7 @@ export function TenantSettings({ onClose }: { onClose: () => void }) {
     fetchData();
   }, [fetchData]);
 
-  const handleSaveTenant = async (e: React.FormEvent) => {
-    e.preventDefault();
-    // Note: We'd need a PATCH /tenant endpoint - for now show limitation
-    setError('Organization name changes require admin assistance');
-  };
+  // Note: handleSaveTenant would need a PATCH /tenant endpoint - for now disabled
 
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -18,14 +18,16 @@ export function getCorrelationSessionId(): string {
     const w: any = window as any;
     if (w.__corrSessionId && typeof w.__corrSessionId === 'string') {
       cachedSessionId = w.__corrSessionId;
-      return cachedSessionId;
+      return w.__corrSessionId;
     }
-    cachedSessionId = generateSessionId();
-    w.__corrSessionId = cachedSessionId;
-    return cachedSessionId;
+    const sessionId = generateSessionId();
+    cachedSessionId = sessionId;
+    w.__corrSessionId = sessionId;
+    return sessionId;
   } catch {
-    cachedSessionId = generateSessionId();
-    return cachedSessionId;
+    const sessionId = generateSessionId();
+    cachedSessionId = sessionId;
+    return sessionId;
   }
 }
 

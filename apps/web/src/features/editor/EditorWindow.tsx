@@ -8,7 +8,6 @@ import * as React from 'react';
 import { useTranslation } from 'react-i18next';
 import { EditorPanel } from '../../ui/editor/EditorPanel';
 import { TilesetUploadDialog, UploadDialogState } from '../../ui/editor/TilesetUploadDialog';
-import { Modal, Button } from '../../ui/system';
 import { EditorService } from '../../services/EditorService';
 import { uploadTilesetAsAssetPack } from '../../lib/assetPackUpload';
 import { logger } from '../../lib/logger';
@@ -108,7 +107,9 @@ export function EditorWindow({
       tileHeight: file.name.toLowerCase().includes('little') ? 32 : 16,
       margin: 0,
       spacing: 0,
-      category: state.category,
+      category: state.category === 'terrain' || state.category === 'structures' || state.category === 'objects'
+        ? state.category
+        : 'terrain',
     });
   };
 

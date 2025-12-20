@@ -6,9 +6,9 @@ export type Direction = 'up' | 'down' | 'left' | 'right';
 type Bridge = {
   onLocalMove: (p: { x: number; y: number; direction: Direction }) => void;
   setSceneApi: (api: SceneApi | null) => void;
-  syncRemotePlayers: (players: Record<string, { x: number; y: number; direction: Direction; name?: string; dnd?: boolean }>) => void;
-  addRemotePlayer: (id: string, p: { x: number; y: number; direction: Direction; name?: string; dnd?: boolean }) => void;
-  updateRemotePlayer: (id: string, p: Partial<{ x: number; y: number; direction: Direction; name?: string; dnd?: boolean }>) => void;
+  syncRemotePlayers: (players: Record<string, { x: number; y: number; direction: Direction; name?: string | undefined; dnd?: boolean | undefined }>) => void;
+  addRemotePlayer: (id: string, p: { x: number; y: number; direction: Direction; name?: string | undefined; dnd?: boolean | undefined }) => void;
+  updateRemotePlayer: (id: string, p: Partial<{ x: number; y: number; direction: Direction; name?: string | undefined; dnd?: boolean | undefined }>) => void;
   removeRemotePlayer: (id: string) => void;
   updateRemotePlayerDnd: (id: string, dnd: boolean) => void;
   setDesiredPosition: (pos: { x: number; y: number } | null) => void;
@@ -22,7 +22,7 @@ type Bridge = {
   onPointerUpTile: (p: { tileX: number; tileY: number }) => void;
   setSelectionRect: (rect: { x: number; y: number; w: number; h: number } | null) => void;
   applyTilePaint: (edit: { layer: 'EditorGround' | 'EditorWalls' | 'Collision'; tilesetKey: string; tileIndex: number; rect: { startX: number; startY: number; endX: number; endY: number } }) => void;
-  registerTileset: (ts: { key: string; dataUrl: string; tileWidth: number; tileHeight: number; margin?: number; spacing?: number }) => void;
+  registerTileset: (ts: { key: string; dataUrl: string; tileWidth: number; tileHeight: number; margin?: number | undefined; spacing?: number | undefined }) => void;
   setCollisionVisible: (visible: boolean) => void;
   reloadEditorLayers: () => void;
   fetchAndApplyServerLayers: () => void;
@@ -31,7 +31,7 @@ type Bridge = {
   updateSpeakingStates: (speakingIds: Set<string>) => void;
   setDoNotDisturb: (enabled: boolean) => void;
   // Asset-Preview im Editor (Ghost-Sprite unter Cursor)
-  setAssetPreview: (preview: { dataUrl: string; width?: number; height?: number } | null) => void;
+  setAssetPreview: (preview: { dataUrl: string; width?: number | undefined; height?: number | undefined } | null) => void;
   // New: lock movement and find free spot near a sprite
   setMovementLocked: (locked: boolean) => void;
   findFreeSpotNear: (targetId: string, options?: { radius?: number; step?: number }) => { x: number; y: number } | null;
@@ -50,18 +50,20 @@ type Bridge = {
   applyChunkUpdates?: (layerName: 'ground' | 'walls' | 'collision', updates: Array<{ key: string; version: number; encoding: string; data: string }>) => void;
   forceReloadMap?: () => void;
   // Expose method to hydrate tileset cache from outside (e.g. serverSync)
-  hydrateTilesetsCache: (tilesets: { key: string; dataUrl: string; tileWidth: number; tileHeight: number; margin?: number; spacing?: number }[]) => void;
+  hydrateTilesetsCache: (tilesets: { key: string; dataUrl: string; tileWidth: number; tileHeight: number; margin?: number | undefined; spacing?: number | undefined }[]) => void;
+  // Update tileset registry in scene
+  updateTilesetRegistry: (registry: any[]) => void;
 };
 
 export type SceneApi = {
-  syncRemotePlayers: (players: Record<string, { x: number; y: number; direction: Direction; name?: string; dnd?: boolean }>) => void;
+  syncRemotePlayers: (players: Record<string, { x: number; y: number; direction: Direction; name?: string | undefined; dnd?: boolean | undefined }>) => void;
   setDesiredPosition: (pos: { x: number; y: number } | null) => void;
   setZoneOverlay: (polys: { name: string; points: { x: number; y: number }[] }[]) => void;
   setZonesVisible?: (visible: boolean) => void;
   setEditorAssets: (assets: { id: string; key: string; dataUrl: string; x: number; y: number }[]) => void;
   setSelectionRect: (rect: { x: number; y: number; w: number; h: number } | null) => void;
   applyTilePaint: (edit: { layer: 'EditorGround' | 'EditorWalls' | 'Collision'; tilesetKey: string; tileIndex: number; rect: { startX: number; startY: number; endX: number; endY: number } }) => void;
-  registerTileset: (ts: { key: string; dataUrl: string; tileWidth: number; tileHeight: number; margin?: number; spacing?: number }) => void;
+  registerTileset: (ts: { key: string; dataUrl: string; tileWidth: number; tileHeight: number; margin?: number | undefined; spacing?: number | undefined }) => void;
   setCollisionVisible: (visible: boolean) => void;
   reloadEditorLayers: () => void;
   fetchAndApplyServerLayers?: () => void;
@@ -69,7 +71,7 @@ export type SceneApi = {
   setHeroName?: (name: string) => void;
   updateSpeakingStates?: (speakingIds: Set<string>) => void;
   setDoNotDisturb?: (enabled: boolean) => void;
-  setAssetPreview?: (preview: { dataUrl: string; width?: number; height?: number } | null) => void;
+  setAssetPreview?: (preview: { dataUrl: string; width?: number | undefined; height?: number | undefined } | null) => void;
   // New hooks
   setMovementLocked?: (locked: boolean) => void;
   findFreeSpotNear?: (targetId: string, options?: { radius?: number; step?: number }) => { x: number; y: number } | null;
@@ -89,7 +91,7 @@ let sceneApi: SceneApi | null = null;
 let cachedCollisionVisible = false;
 let cachedHeroName: string | null = null;
 let cachedDoNotDisturb = false;
-let remotePlayersCache: Record<string, { x: number; y: number; direction: Direction; name?: string; dnd?: boolean }> = {};
+let remotePlayersCache: Record<string, { x: number; y: number; direction: Direction; name?: string | undefined; dnd?: boolean | undefined }> = {};
 let lastDesiredPosition: { x: number; y: number } | null = null;
 
 // Editor-State-Caching ENTFERNT - EditorService ist jetzt Single Source of Truth
@@ -339,7 +341,7 @@ export const gameBridge: Bridge = {
         return;
       }
 
-      const data = await res.json();
+      await res.json();
       logger.debug(`[Bridge] Tileset "${ts.key}" registered successfully`);
     } catch (e) {
       logger.error('[Bridge] Failed to register tileset on server', e);

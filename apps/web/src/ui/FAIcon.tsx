@@ -7,8 +7,8 @@ export type FAIconProps = {
   variant?: FAStyle;
   className?: string;
   title?: string;
-  ariaLabel?: string;
-  size?: 'sm' | 'lg' | 'xl' | '2x' | '3x';
+  ariaLabel?: string | undefined;
+  size?: 'sm' | 'lg' | 'xl' | '2x' | '3x' | 'xs';
   fixedWidth?: boolean;
   style?: React.CSSProperties;
 };

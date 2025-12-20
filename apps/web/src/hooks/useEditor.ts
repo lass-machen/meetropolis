@@ -6,7 +6,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { EditorService, EditorState, EditorAction } from '../services/EditorService';
+import { EditorService, EditorState } from '../services/EditorService';
 
 // Re-export Types für Backwards Compatibility
 export type { EditorState, EditorAction, EditorTool, EditorCategory } from '../services/EditorService';

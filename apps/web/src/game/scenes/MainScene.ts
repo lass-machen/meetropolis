@@ -399,7 +399,7 @@ export class MainScene extends Phaser.Scene {
     window.addEventListener('blur', () => { this.spaceHeld = false; this.updateCursor(); }, true);
 
     // Zoom via mouse wheel (trackpad supported)
-    this.input.on('wheel', (pointer: any, _over: any, _dx: number, dy: number) => {
+    this.input.on('wheel', (_pointer: any, _over: any, _dx: number, dy: number) => {
       const camera = this.cameras.main;
       // Zoom factor per wheel step
       const zoomDelta = -dy * 0.002;
@@ -916,7 +916,7 @@ export class MainScene extends Phaser.Scene {
     } catch { }
   }
 
-  syncRemotePlayers(players: Record<string, { x: number; y: number; direction: 'up' | 'down' | 'left' | 'right'; prevX?: number; prevY?: number; name?: string }>) {
+  syncRemotePlayers(players: Record<string, { x: number; y: number; direction: 'up' | 'down' | 'left' | 'right'; prevX?: number; prevY?: number; name?: string | undefined; dnd?: boolean | undefined }>) {
     const localSession: string | undefined = (typeof window !== 'undefined' ? (window as any).__localSessionId : undefined);
     for (const [id, p] of Object.entries(players)) {
       // never create a remote sprite for self (by sessionId)
@@ -1292,7 +1292,7 @@ export class MainScene extends Phaser.Scene {
     edSetAssets(this, assets);
   }
 
-  setAssetPreview(preview: { dataUrl: string; width?: number; height?: number } | null) {
+  setAssetPreview(preview: { dataUrl: string; width?: number | undefined; height?: number | undefined } | null) {
     edSetAssetPreview(this, preview);
   }
 
@@ -1450,7 +1450,7 @@ export class MainScene extends Phaser.Scene {
     await mapFetchAndApply(this as any);
   }
 
-  registerTileset(ts: { key: string; dataUrl: string; tileWidth: number; tileHeight: number; margin?: number; spacing?: number }) {
+  registerTileset(ts: { key: string; dataUrl: string; tileWidth: number; tileHeight: number; margin?: number | undefined; spacing?: number | undefined }) {
     mapRegisterTileset(this as any, ts);
   }
 

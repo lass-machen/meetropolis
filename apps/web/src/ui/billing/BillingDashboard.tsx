@@ -180,7 +180,7 @@ export function BillingDashboard({ onClose }: { onClose: () => void }) {
     setActionLoading(false);
   };
 
-  const formatDate = (iso: string | null) => {
+  const formatDate = (iso: string | null | undefined) => {
     if (!iso) return '-';
     return new Date(iso).toLocaleDateString('de-DE', { year: 'numeric', month: 'short', day: 'numeric' });
   };

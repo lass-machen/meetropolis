@@ -24,12 +24,12 @@ export type Asset = {
   dataUrl: string;
   x: number;
   y: number;
-  packUuid?: string;
-  itemId?: string;
-  category?: 'structures' | 'objects' | 'terrain';
-  collide?: boolean;
-  width?: number;
-  height?: number;
+  packUuid?: string | undefined;
+  itemId?: string | undefined;
+  category?: 'structures' | 'objects' | 'terrain' | undefined;
+  collide?: boolean | undefined;
+  width?: number | undefined;
+  height?: number | undefined;
 };
 
 export type PackItem = {
@@ -48,17 +48,17 @@ export type Tileset = {
   dataUrl: string;
   tileWidth: number;
   tileHeight: number;
-  margin?: number;
-  spacing?: number;
-  category?: string;
+  margin?: number | undefined;
+  spacing?: number | undefined;
+  category?: string | undefined;
 };
 
 export type EditorState = {
   active: boolean;
   tool: EditorTool;
   category: EditorCategory;
-  selectedAsset?: Asset;
-  terrainColor?: string;
+  selectedAsset?: Asset | undefined;
+  terrainColor?: string | undefined;
   gridVisible: boolean;
 
   // Zone-Daten
@@ -71,12 +71,12 @@ export type EditorState = {
   pendingAsset: {
     key: string;
     dataUrl: string;
-    packUuid?: string;
-    itemId?: string;
-    category?: 'structures' | 'objects' | 'terrain';
-    collide?: boolean;
-    width?: number;
-    height?: number;
+    packUuid?: string | undefined;
+    itemId?: string | undefined;
+    category?: 'structures' | 'objects' | 'terrain' | undefined;
+    collide?: boolean | undefined;
+    width?: number | undefined;
+    height?: number | undefined;
   } | null;
   packItems: PackItem[];
 
@@ -87,7 +87,7 @@ export type EditorState = {
   spawn: { x: number; y: number } | null;
 
   // UI-State
-  backgroundColor: string;
+  backgroundColor?: string | undefined;
 
   // Drag-State (für Tools)
   dragState: {
@@ -156,14 +156,11 @@ class EditorServiceClass {
       zones: [],
       editingZoneIndex: null,
       zoneName: '',
-      zonesVisible: true,
       assets: [],
       pendingAsset: null,
       packItems: [],
       tilesets: [],
       spawn: null,
-      backgroundColor: undefined,
-      terrainColor: undefined,
       gridVisible: false,
       dragState: null,
     };

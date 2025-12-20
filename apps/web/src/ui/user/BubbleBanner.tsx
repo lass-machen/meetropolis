@@ -1,4 +1,3 @@
-import React from 'react';
 import { useTranslation } from 'react-i18next';
 
 export function BubbleBanner(props: { active: boolean; members: string[]; onLeave: () => void }) {

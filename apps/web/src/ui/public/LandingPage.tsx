@@ -1,4 +1,3 @@
-import React from 'react';
 import { Button, Card } from '../system';
 import { ThemeToggleButton } from '../theme';
 

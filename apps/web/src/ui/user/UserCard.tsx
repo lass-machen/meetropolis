@@ -52,7 +52,6 @@ export function UserCard(props: {
 }) {
   const { participant: part, videoRef, isVideoRendering, isLocal, compact, full, zoom = 1, className = '', style, rightBadges, collapsed } = props;
   const volume = part.volume ?? 1;
-  const opacity = isLocal ? 1 : (0.4 + (volume * 0.6));
   const isScreen = part.media === 'screen';
   const isCollapsed = !!collapsed;
   const classes = [

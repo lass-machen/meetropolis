@@ -2,8 +2,8 @@ export type AVDebugPayload = {
   roomName: string;
   identity: string;
   connectionState?: string;
-  iceState?: string;
-  dtlsState?: string;
+  iceState?: string | undefined;
+  dtlsState?: string | undefined;
   nRemoteAudio?: number;
   nRemoteVideo?: number;
   nLocalAudio?: number;
@@ -74,7 +74,7 @@ export function startStatsLoopImpl(manager: any): void {
   void collectOnce();
 }
 
-export function updateDebugHudImpl(manager: any, p: AVDebugPayload): void {
+export function updateDebugHudImpl(_manager: any, p: AVDebugPayload): void {
   const w: any = window as any;
   if (!w.__avDebugOn) return;
   let el = document.getElementById('av-debug-hud');

@@ -1,5 +1,4 @@
 import React from 'react';
-import { AdminTable } from './AdminTable';
 import { TableContainer, Table, THead, TBody, Tr, Th, Td, Button, Input } from '../system';
 
 type TenantRow = {

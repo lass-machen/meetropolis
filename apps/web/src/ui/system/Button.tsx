@@ -1,6 +1,6 @@
 import * as React from 'react';
 
-export type ButtonVariant = 'primary' | 'brand' | 'ghost' | 'danger';
+export type ButtonVariant = 'primary' | 'brand' | 'ghost' | 'danger' | 'secondary';
 
 export type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: ButtonVariant;
@@ -33,6 +33,11 @@ export function Button(props: ButtonProps) {
     },
     ghost: {
       background: 'var(--glass)'
+    },
+    secondary: {
+      background: 'rgba(255,255,255,0.05)',
+      border: '1px solid rgba(255,255,255,0.15)',
+      color: 'var(--fg)'
     },
     danger: {
       background: 'rgba(244,63,94,0.15)',

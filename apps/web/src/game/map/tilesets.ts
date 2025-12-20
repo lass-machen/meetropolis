@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { logger } from '../../lib/logger';
 
-export function registerTileset(scene: Phaser.Scene & any, ts: { key: string; dataUrl: string; tileWidth: number; tileHeight: number; margin?: number; spacing?: number }): void {
+export function registerTileset(scene: Phaser.Scene & any, ts: { key: string; dataUrl: string; tileWidth: number; tileHeight: number; margin?: number | undefined; spacing?: number | undefined }): void {
   const nameForTileset = (() => {
     const k = ts.key || '';
     if (!k || k.length > 64 || k.startsWith('data:') || k.includes('data:image')) {

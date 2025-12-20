@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { Modal, Button } from '../../ui/system';
+import { Modal } from '../../ui/system';
 import { UserManagement } from '../../ui/admin/UserManagement';
 import { AuthScreen } from '../../ui/auth/AuthScreen';
 import { Signup } from '../../ui/auth/Signup';

@@ -155,7 +155,7 @@ export class EditorRenderer {
   /**
    * Rendert Ghost-Sprite (Preview für Asset-Tool)
    */
-  public renderGhost(preview: { dataUrl: string; width?: number; height?: number } | null): void {
+  public renderGhost(preview: { dataUrl: string; width?: number | undefined; height?: number | undefined } | null): void {
     if (!preview) {
       this.clearGhost();
       return;
@@ -217,14 +217,14 @@ export class EditorRenderer {
   private clearGhost(): void {
     if (this.ghostSprite) {
       this.ghostSprite.destroy();
-      this.ghostSprite = undefined;
+      delete this.ghostSprite;
     }
 
     if (this.ghostTextureKey && this.scene.textures.exists(this.ghostTextureKey)) {
       this.scene.textures.remove(this.ghostTextureKey);
     }
 
-    this.ghostTextureKey = undefined;
+    delete this.ghostTextureKey;
   }
 
   /**
@@ -314,9 +314,9 @@ export class EditorRenderer {
     this.spawnGraphics?.destroy();
     this.selectionGraphics?.destroy();
 
-    this.zonesGraphics = undefined;
-    this.spawnGraphics = undefined;
-    this.selectionGraphics = undefined;
+    delete this.zonesGraphics;
+    delete this.spawnGraphics;
+    delete this.selectionGraphics;
   }
 }
 

@@ -32,7 +32,7 @@ export function useParticipants(deps: {
         const localIdentity = me?.name || me?.email || me?.id || 'You';
         list.push({ sid: 'local', identity: localIdentity, hasVideo: false, hasMic: false, isSpeaking: false, media: 'camera', volume: 1, dnd: !!dndRef?.current });
         const zones = (zoneRef.current?.getZones?.() || []).map((z: any) => ({ ...z, points: (Array.isArray(z.points) ? z.points : []).map((p: any)=> Array.isArray(p) ? { x: p[0], y: p[1] } : p).filter((p: any)=> p && typeof p.x === 'number' && typeof p.y === 'number') }));
-        const localPos = { x: localPosRef.current.x, y: localPosRef.current.y };
+        const localPos = { x: localPosRef.current.x ?? 0, y: localPosRef.current.y ?? 0 };
         const localZone = zones.find((z: any) => pointInPolygon(localPos, z.points));
         // Remotes (aus Colyseus)
         for (const [colyseusId, pos] of Object.entries(remotesRef.current || {})) {
@@ -53,7 +53,7 @@ export function useParticipants(deps: {
 
     // LiveKit Raum vorhanden
     const zones = (zoneRef.current?.getZones?.() || []).map((z: any) => ({ ...z, points: (Array.isArray(z.points) ? z.points : []).map((p: any)=> Array.isArray(p) ? { x: p[0], y: p[1] } : p).filter((p: any)=> p && typeof p.x === 'number' && typeof p.y === 'number') }));
-    const localPos = { x: localPosRef.current.x, y: localPosRef.current.y };
+    const localPos = { x: localPosRef.current.x ?? 0, y: localPosRef.current.y ?? 0 };
     const localZone = zones.find((z: any) => pointInPolygon(localPos, z.points));
     const activeSet = new Set<string>((room.activeSpeakers || []).map((p: any) => p.sid));
 
@@ -148,7 +148,7 @@ export function useParticipants(deps: {
         const name = identityToNameMap.current[livekitIdentity] || getDisplayName(livekitIdentity);
         try {
           const zones2 = (zoneRef.current?.getZones?.() || []).map((z: any) => ({ ...z, points: (Array.isArray(z.points) ? z.points : []).map((p: any)=> Array.isArray(p) ? { x: p[0], y: p[1] } : p).filter((p: any)=> p && typeof p.x === 'number' && typeof p.y === 'number') }));
-          const localPos2 = { x: localPosRef.current.x, y: localPosRef.current.y };
+          const localPos2 = { x: localPosRef.current.x ?? 0, y: localPosRef.current.y ?? 0 };
           const localZone2 = zones2.find((z: any) => pointInPolygon(localPos2, z.points));
           const pos = remotesRef.current[colyseusId];
           const remoteZone2 = pos ? zones2.find((z: any) => pointInPolygon(pos, z.points)) : null;

@@ -8,7 +8,6 @@ export type AVControllerOptions = {
 };
 
 export class AVController {
-  private readonly options: AVControllerOptions;
   private _room: Room | undefined;
   private _state: 'idle' | 'connecting' | 'connected' | 'publishing' | 'subscribed' | 'reconnecting' | 'closed' | 'error' = 'idle';
   private _pageLeaving = false;
@@ -16,8 +15,8 @@ export class AVController {
   private _reconnectAttempts = 0;
   private _reconnectTimer: any = null;
 
-  constructor(options: AVControllerOptions) {
-    this.options = options;
+  constructor(_options: AVControllerOptions) {
+    // options parameter kept for API compatibility
   }
 
   get room(): Room | undefined {

@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { EditorService, EditorAction } from './EditorService';
+import { EditorService } from './EditorService';
 
 describe('EditorService', () => {
   beforeEach(() => {
