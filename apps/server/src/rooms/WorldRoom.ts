@@ -280,10 +280,28 @@ export class WorldRoom extends Colyseus.Room<WorldState> {
       const prisma = new PrismaClient();
       const tenant = await prisma.tenant.findUnique({ where: { slug: tenantSlug } });
 
-      // Check subscription status - block if payment failed (past_due, unpaid, canceled)
+      // Check subscription status - block if payment failed or subscription inactive
       if (tenant && !tenant.bypassLimits) {
         const status = (tenant as any).status as string | undefined;
-        const blockedStatuses = ['past_due', 'unpaid', 'canceled', 'incomplete_expired'];
+
+        // Trial expired - user needs to subscribe
+        if (status === 'trial_expired') {
+          try { logger.warn('[WorldRoom] Tenant trial expired', { tenant: tenantSlug, status }); } catch { }
+          try { client.error(4005, 'trial_expired'); } catch { }
+          try { await prisma.$disconnect().catch(() => { }); } catch { }
+          return client.leave(1000);
+        }
+
+        // Subscription suspended (dunning step 4+, after 7 days non-payment)
+        if (status === 'suspended') {
+          try { logger.warn('[WorldRoom] Tenant subscription suspended', { tenant: tenantSlug, status }); } catch { }
+          try { client.error(4004, 'subscription_suspended'); } catch { }
+          try { await prisma.$disconnect().catch(() => { }); } catch { }
+          return client.leave(1000);
+        }
+
+        // Other inactive statuses (canceled, incomplete, etc.)
+        const blockedStatuses = ['past_due', 'unpaid', 'canceled', 'incomplete_expired', 'incomplete'];
         if (status && blockedStatuses.includes(status)) {
           try { logger.warn('[WorldRoom] Tenant subscription inactive', { tenant: tenantSlug, status }); } catch { }
           try { client.error(4003, 'subscription_inactive'); } catch { }
