@@ -13,6 +13,22 @@ export default defineConfig({
     ],
     coverage: {
       provider: 'v8',
+      reporter: ['text', 'html', 'lcov'],
+      exclude: [
+        'node_modules/',
+        'dist/',
+        'e2e/',
+        '**/*.d.ts',
+        'src/test/**',
+        '**/*.config.*',
+        'src-tauri/**',
+      ],
+      thresholds: {
+        lines: 60,
+        functions: 60,
+        branches: 50,
+        statements: 60
+      }
     },
   },
 });
