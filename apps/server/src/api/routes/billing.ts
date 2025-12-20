@@ -30,9 +30,65 @@ export async function registerBillingRoutes(app: express.Application, prisma: Pr
     // Enterprise billing available - set up advanced routes
     const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2024-06-20' } as any);
 
+    /**
+     * Email service stub for billing notifications
+     *
+     * TODO: Integrate with a production email service provider
+     *
+     * Recommended providers:
+     * - SendGrid: https://sendgrid.com/docs/API_Reference/Web_API_v3/Mail/index.html
+     *   - npm install @sendgrid/mail
+     *   - env: SENDGRID_API_KEY
+     *
+     * - AWS SES: https://docs.aws.amazon.com/ses/latest/dg/send-email-nodejs.html
+     *   - npm install @aws-sdk/client-ses
+     *   - env: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION
+     *
+     * - Postmark: https://postmarkapp.com/developer/user-guide/send-email-with-api
+     *   - npm install postmark
+     *   - env: POSTMARK_SERVER_TOKEN
+     *
+     * - Resend: https://resend.com/docs/send-with-nodejs
+     *   - npm install resend
+     *   - env: RESEND_API_KEY
+     *
+     * - SMTP (universal): Use nodemailer for any SMTP provider
+     *   - npm install nodemailer
+     *   - env: SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, SMTP_FROM
+     *
+     * Required environment variables are documented in /.env.example
+     *
+     * Email types sent by billing system:
+     * - Payment failure notifications (dunning workflow)
+     * - Trial expiration warnings
+     * - Subscription status changes
+     * - Invoice receipts
+     */
     const emailService = {
       async send(email: { to: string; subject: string; text: string; html: string }) {
-        // TODO: Integrate with your email service (SendGrid, SES, etc.)
+        // TODO: Replace this stub with actual email service integration
+        // Example implementations:
+        //
+        // SendGrid:
+        // const sgMail = require('@sendgrid/mail');
+        // sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+        // await sgMail.send({ to: email.to, from: process.env.SMTP_FROM, subject: email.subject, text: email.text, html: email.html });
+        //
+        // AWS SES:
+        // const { SESClient, SendEmailCommand } = require('@aws-sdk/client-ses');
+        // const ses = new SESClient({ region: process.env.AWS_REGION });
+        // await ses.send(new SendEmailCommand({ Source: process.env.SMTP_FROM, Destination: { ToAddresses: [email.to] }, Message: { Subject: { Data: email.subject }, Body: { Html: { Data: email.html }, Text: { Data: email.text } } } }));
+        //
+        // Postmark:
+        // const postmark = require('postmark');
+        // const client = new postmark.ServerClient(process.env.POSTMARK_SERVER_TOKEN);
+        // await client.sendEmail({ From: process.env.SMTP_FROM, To: email.to, Subject: email.subject, HtmlBody: email.html, TextBody: email.text });
+        //
+        // SMTP (nodemailer):
+        // const nodemailer = require('nodemailer');
+        // const transporter = nodemailer.createTransport({ host: process.env.SMTP_HOST, port: process.env.SMTP_PORT, auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASSWORD } });
+        // await transporter.sendMail({ from: process.env.SMTP_FROM, to: email.to, subject: email.subject, text: email.text, html: email.html });
+
         logger.info({ event: 'billing.email.send', to: email.to, subject: email.subject });
       },
     };
