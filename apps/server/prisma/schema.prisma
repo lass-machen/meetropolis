@@ -31,12 +31,29 @@ model Tenant {
   createdAt             DateTime     @default(now())
   updatedAt             DateTime     @updatedAt
 
+  // Trial tracking
+  trialStartedAt        DateTime?
+  trialEndsAt           DateTime?
+  trialConvertedAt      DateTime?
+
+  // Payment failure / Dunning state
+  paymentFailedAt       DateTime?
+  gracePeriodEndsAt     DateTime?
+  dunningStep           Int?         @default(0)
+  lastDunningEmailAt    DateTime?
+
+  // Subscription pause
+  pausedAt              DateTime?
+  pauseEndsAt           DateTime?
+  pauseReason           String?
+
   memberships           Membership[]
   maps                  Map[]
   rooms                 Room[]
   zones                 Zone[]
   presences             Presence[]
   invites               Invite[]
+  billingAuditLogs      BillingAuditLog[]
 }
 
 model Membership {
@@ -263,4 +280,28 @@ model MapChunk {
 
   @@unique([layerId, x, y])
   @@index([layerId])
+}
+
+/// Billing audit log for tracking all billing-related events
+model BillingAuditLog {
+  id              String   @id @default(cuid())
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenantId        String
+
+  eventType       String   // 'payment_failed', 'dunning_email_sent', 'trial_started', etc.
+  eventSource     String   // 'stripe_webhook', 'cron_job', 'api', 'manual'
+  stripeEventId   String?  // Stripe event ID for deduplication
+
+  previousValues  Json?    // Snapshot of previous state
+  newValues       Json?    // Snapshot of new state
+
+  triggeredBy     String?  // User ID or 'system'
+  metadata        Json?    // Additional context
+
+  createdAt       DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([eventType])
+  @@index([createdAt])
+  @@index([stripeEventId])
 }
