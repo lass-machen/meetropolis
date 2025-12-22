@@ -1,5 +1,5 @@
 import type express from 'express';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from './generated/prisma/index.js';
 
 // Route modules
 import { registerAuthRoutes } from './api/routes/auth.js';

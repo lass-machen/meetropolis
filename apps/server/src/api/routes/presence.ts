@@ -1,5 +1,5 @@
 import type express from 'express';
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '../../generated/prisma/index.js';
 
 export function registerPresenceRoutes(
   app: express.Application,

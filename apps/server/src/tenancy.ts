@@ -1,6 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
-import type { Tenant } from '@prisma/client';
-import { PrismaClient } from '@prisma/client';
+import type { Tenant } from './generated/prisma/index.js';
+import { PrismaClient } from './generated/prisma/index.js';
 import { getTenancyModule } from './tenancyLoader.js';
 
 // Extended request with tenant properties

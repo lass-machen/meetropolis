@@ -2,7 +2,7 @@ import { Room, type Client } from 'colyseus';
 import { logger } from '../logger.js';
 import { colyseusRooms, colyseusPlayers } from '../metrics.js';
 import { Schema, type, MapSchema } from '@colyseus/schema';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../generated/prisma/index.js';
 import { getTenancyModule, OSS_USER_LIMIT } from '../tenancyLoader.js';
 class Player extends Schema {
   @type('string') id: string = '';

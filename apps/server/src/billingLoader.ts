@@ -1,5 +1,5 @@
 import type { Router, Request, Response, NextFunction } from 'express';
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from './generated/prisma/index.js';
 import type Stripe from 'stripe';
 import { z } from 'zod';
 import { logger } from './logger.js';

@@ -50,7 +50,7 @@ services:
       # Stabilisiere Tokens in Dev: gleicher Pepper/Secret über Neustarts
       API_TOKEN_PEPPER: dev-pepper-change-me
       JWT_SECRET: dev-jwt-secret-change-me
-    command: sh -c "cd /workspace/apps/server && npm install && npm run dev"
+    command: sh -c "cd /workspace && npm install && ./apps/server/node_modules/.bin/prisma generate --schema=./apps/server/prisma/schema.prisma && ./apps/server/node_modules/.bin/prisma db push --schema=./apps/server/prisma/schema.prisma && ./apps/server/node_modules/.bin/prisma db seed --schema=./apps/server/prisma/schema.prisma && npm run -w @meetropolis/server start:dev"
     ports:
       - "2567:2567"
     logging:
@@ -70,7 +70,6 @@ services:
       - meetropolis-dev
     volumes:
       - ./:/workspace
-      - /workspace/node_modules
 
   web:
     image: node:20
@@ -87,7 +86,7 @@ services:
       VITE_DEBUG_AUTOLOGIN: "true"
       # Proxy-Ziel im Container: spreche den Server-Dienst direkt an
       VITE_PROXY_TARGET: http://server:2567
-    command: sh -c "npm install -w @meetropolis/web && npm -w @meetropolis/web run dev -- --host 0.0.0.0"
+    command: sh -c "cd /workspace && npm install && npm -w @meetropolis/web run dev -- --host 0.0.0.0"
     ports:
       - "5174:5173"
     logging:
@@ -106,7 +105,6 @@ services:
       - meetropolis-dev
     volumes:
       - ./:/workspace
-      - /workspace/node_modules
 
   livekit:
     image: livekit/livekit-server:latest

@@ -1,5 +1,5 @@
 import type express from 'express';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../../generated/prisma/index.js';
 import { z } from 'zod';
 import Stripe from 'stripe';
 import bcrypt from 'bcryptjs';

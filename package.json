@@ -27,6 +27,7 @@
     "concurrently": "^8.2.2"
   },
   "dependencies": {
+    "@prisma/client": "^6.19.1",
     "@tauri-apps/api": "^2.9.0",
     "@types/multer": "^2.0.0",
     "pino": "^10.1.0",

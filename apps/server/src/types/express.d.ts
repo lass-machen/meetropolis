@@ -1,5 +1,5 @@
 import 'express-serve-static-core';
-import type { Tenant } from '@prisma/client';
+import type { Tenant } from '../generated/prisma/index.js';
 
 declare module 'express-serve-static-core' {
   interface Request {
