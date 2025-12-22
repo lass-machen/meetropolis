@@ -50,6 +50,8 @@ COPY --from=builder /workspace/node_modules /workspace/node_modules
 COPY --from=builder /workspace/apps/server/node_modules ./node_modules
 COPY --from=builder /workspace/apps/server/prisma ./prisma
 COPY --from=builder /workspace/apps/server/dist ./dist
+# Copy generated Prisma client to dist/ (compiled code imports from dist/generated)
+COPY --from=builder /workspace/apps/server/src/generated ./dist/generated
 
 # 6) Entrypoint (Migration optional) + Start
 COPY apps/server/entrypoint.sh /entrypoint.sh
