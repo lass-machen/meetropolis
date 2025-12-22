@@ -2,6 +2,9 @@
 # Use with: docker compose -f docker-compose.prod.yml -f docker-compose.override.yml up
 
 services:
+  db:
+    ports:
+      - "5432:5432"
   server:
     ports:
       - "2567:2567"
