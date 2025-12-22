@@ -1,0 +1,15 @@
+# Local development overrides - exposes ports for direct access
+# Use with: docker compose -f docker-compose.prod.yml -f docker-compose.override.yml up
+
+services:
+  server:
+    ports:
+      - "2567:2567"
+  web:
+    ports:
+      - "5173:5173"
+  livekit:
+    # Override command to disable TURN for local development (requires TURN_HOST in prod)
+    command: ["--dev", "--bind", "0.0.0.0"]
+    ports:
+      - "7880:7880"
