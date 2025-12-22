@@ -15,8 +15,8 @@ COPY apps/server ./apps/server
 # Copy packages if they exist (for shared deps)
 COPY packages ./packages
 
-# Install all deps from workspace root
-RUN npm install
+# Install all deps from workspace root (with Prisma hoisting fix)
+RUN npm install && cd apps/server && npm install @prisma/client prisma
 
 # 2) Prisma Client generieren (benötigt für Build/Typs)
 WORKDIR /workspace/apps/server
