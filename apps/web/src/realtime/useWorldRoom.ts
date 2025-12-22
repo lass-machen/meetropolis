@@ -1,6 +1,7 @@
 import React from 'react';
 import { logger } from '../lib/logger';
-import type { UseWorldRoomArgs, ConnectionRefs, ApiPresence } from './types';
+import type { UseWorldRoomArgs, ConnectionRefs } from './types';
+import type { ApiPresence } from '../features/participants/presence';
 import { useColyseusConnection } from './hooks/useColyseusConnection';
 import { setupPlayerHandlers } from './handlers/playerHandlers';
 import { setupBubbleHandlers } from './handlers/bubbleHandlers';
@@ -8,7 +9,7 @@ import { setupEditorHandlers } from './handlers/editorHandlers';
 import { setupRemoteControlHandlers } from './handlers/remoteControlHandlers';
 import { setupPresenceHandlers, createRosterRefresher } from './handlers/presenceHandlers';
 
-export { UseWorldRoomArgs } from './types';
+export type { UseWorldRoomArgs } from './types';
 
 export function useWorldRoom(args: UseWorldRoomArgs) {
   const {
