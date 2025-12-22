@@ -375,7 +375,7 @@ export function EditorWindow({
                 }
 
                 setUploadDialog(null);
-              } catch (e: any) {
+              } catch (e: unknown) {
                 logger.error('[EditorWindow] Tileset upload failed:', e);
                 try {
                   window.dispatchEvent(new CustomEvent('editor:toast', {

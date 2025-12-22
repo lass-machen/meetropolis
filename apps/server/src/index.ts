@@ -1,5 +1,8 @@
 import 'dotenv/config';
 
+// express-async-errors must be imported first to catch async errors in route handlers
+import 'express-async-errors';
+
 // Sentry must be initialized before other imports
 const sentryDsn = process.env.SENTRY_DSN;
 if (sentryDsn) {
@@ -9,7 +12,10 @@ if (sentryDsn) {
       environment: process.env.NODE_ENV || 'development',
       tracesSampleRate: 0.1,
     });
-  }).catch(() => {});
+  }).catch((error) => {
+    // Logger not available yet - using console.error for early init failure
+    console.error('[Sentry] Initialization failed:', error?.message || String(error));
+  });
 }
 
 import express from 'express';
@@ -65,7 +71,7 @@ app.use((req: express.Request, res: express.Response, next: express.NextFunction
     } else {
       // Log blocked origins for monitoring
       if (origin) {
-        try { logger.warn({ event: 'cors.origin_not_allowed', origin, allowedOrigins }); } catch {}
+        logger.warn({ event: 'cors.origin_not_allowed', origin, allowedOrigins });
       }
       // In production, block requests from non-whitelisted origins
       if (isProduction && origin) {
@@ -74,7 +80,7 @@ app.use((req: express.Request, res: express.Response, next: express.NextFunction
     }
   } else if (isProduction) {
     // SECURITY: In production, CORS_ORIGIN must be configured
-    try { logger.error({ event: 'cors.no_whitelist_in_production', origin }); } catch {}
+    logger.error({ event: 'cors.no_whitelist_in_production', origin });
     return res.status(500).json({ error: 'cors_not_configured' });
   } else {
     // Development only: allow any origin for easier local development
@@ -193,7 +199,9 @@ app.get('/', (_req: express.Request, res: express.Response) => res.send('ok'));
 const packsDir = process.env.ASSET_PACKS_DIR || path.resolve(__dirname, '../../../public/packs');
 try {
   fs.mkdirSync(packsDir, { recursive: true });
-} catch {}
+} catch (error) {
+  logger.error({ event: 'filesystem.mkdir_failed', path: packsDir, error });
+}
 app.use('/packs', express.static(packsDir, { maxAge: '365d', immutable: true }));
 
 await registerApi(app);

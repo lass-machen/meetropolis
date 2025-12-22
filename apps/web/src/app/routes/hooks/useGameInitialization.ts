@@ -1,0 +1,237 @@
+import { useEffect } from 'react';
+import { createPhaserGame, destroyPhaserGame } from '../../../game/phaserGame';
+import { gameBridge } from '../../../game/bridge';
+import { logger } from '../../../lib/logger';
+import { BubbleManager } from '../../../game/bubbleManager';
+import { FollowManager } from '../../../game/followManager';
+import { ZoneManager } from '../../../game/zoneManager';
+import { VolumeManager } from '../../../game/volumeManager';
+import { pointInPolygon } from '../../../lib/geom';
+
+interface UseGameInitializationParams {
+  authChecked: boolean;
+  me: { id: string; email: string; name?: string } | null;
+  apiBase: string;
+  containerRef: React.RefObject<HTMLDivElement | null>;
+  bubbleRef: React.RefObject<BubbleManager | null>;
+  followRef: React.RefObject<FollowManager | null>;
+  zoneRef: React.RefObject<ZoneManager | null>;
+  volumeRef: React.RefObject<VolumeManager | null>;
+  gameCreatedRef: React.RefObject<boolean>;
+  editorActiveRef: React.RefObject<boolean>;
+  localPosRef: React.RefObject<{ id: string; x?: number; y?: number }>;
+  remotesRef: React.RefObject<Record<string, { x: number; y: number }>>;
+  bubblePendingRef: React.RefObject<{ targetId: string; dest?: { x: number; y: number } } | null>;
+  activateBubbleNowRef: React.RefObject<(id: string) => void>;
+  manualNavRef: React.RefObject<{ x: number; y: number } | null>;
+  lastSavedPositionRef: React.RefObject<{ x: number; y: number; direction: string }>;
+  moveTimeoutRef: React.RefObject<any>;
+  colyseusRef: React.RefObject<any>;
+  avRef: React.RefObject<any>;
+  colyseusToLivekitMap: React.RefObject<Record<string, string>>;
+  colyseusReconnectTimerRef: React.RefObject<any>;
+  bubbleGroupsRef: React.RefObject<Record<string, string>>;
+  editor: any;
+  setEditor: (editor: any) => void;
+  setContextMenu: React.Dispatch<React.SetStateAction<{ open: boolean; x: number; y: number; playerId: string | null }>>;
+  buildParticipantList: () => void;
+  applyVolumesToUi: () => void;
+}
+
+export function useGameInitialization(params: UseGameInitializationParams) {
+  const {
+    authChecked, me, apiBase, containerRef, bubbleRef, followRef, zoneRef, volumeRef,
+    gameCreatedRef, editorActiveRef, localPosRef, remotesRef, bubblePendingRef,
+    activateBubbleNowRef, manualNavRef, lastSavedPositionRef, moveTimeoutRef, colyseusRef,
+    avRef, colyseusToLivekitMap, colyseusReconnectTimerRef, bubbleGroupsRef,
+    editor, setEditor, setContextMenu, buildParticipantList, applyVolumesToUi,
+  } = params;
+
+  useEffect(() => {
+    if (!authChecked || !me) return;
+    if (!containerRef.current) return;
+    if (gameCreatedRef.current) return;
+    gameCreatedRef.current = true;
+    try { const el = containerRef.current; while (el && el.firstChild) { el.removeChild(el.firstChild); } } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
+
+    bubbleRef.current = new BubbleManager(64, null);
+    followRef.current = new FollowManager(96);
+    zoneRef.current = new ZoneManager([], null);
+    try { zoneRef.current.setZones(editor.zones as any); } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
+
+    const savePosition = async (opts?: { immediate?: boolean }) => {
+      const currentPos = localPosRef.current;
+      const currentDirection = (gameBridge as any).lastDirection || 'down';
+      const last = lastSavedPositionRef.current;
+      const hasMoved = currentPos.x && currentPos.y && (Math.abs(currentPos.x - last.x) > 10 || Math.abs(currentPos.y - last.y) > 10 || currentDirection !== last.direction);
+      if (!hasMoved && !opts?.immediate) return;
+      lastSavedPositionRef.current = { x: currentPos.x || last.x, y: currentPos.y || last.y, direction: currentDirection };
+      const payload = JSON.stringify({ x: Math.round(lastSavedPositionRef.current.x), y: Math.round(lastSavedPositionRef.current.y), direction: lastSavedPositionRef.current.direction });
+      try {
+        if (opts?.immediate && 'sendBeacon' in navigator) {
+          const blob = new Blob([payload], { type: 'application/json' });
+          (navigator as any).sendBeacon?.(`${apiBase}/auth/position`, blob);
+        } else {
+          await fetch(`${apiBase}/auth/position`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, keepalive: !!opts?.immediate, body: payload });
+        }
+      } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
+    };
+
+    let lastZone: string | null = null;
+    gameBridge.onLocalMove = (p) => {
+      localPosRef.current.x = p.x;
+      localPosRef.current.y = p.y;
+      (gameBridge as any).lastDirection = p.direction;
+      zoneRef.current?.update({ x: p.x, y: p.y });
+
+      try {
+        const pending = bubblePendingRef.current;
+        if (pending) {
+          let arrived = false;
+          if (pending.dest) {
+            const dx = (p.x || 0) - pending.dest.x;
+            const dy = (p.y || 0) - pending.dest.y;
+            arrived = (dx * dx + dy * dy) < 12 * 12;
+          }
+          if (!arrived) {
+            const t = remotesRef.current[pending.targetId];
+            if (t) {
+              const dx = (p.x || 0) - t.x;
+              const dy = (p.y || 0) - t.y;
+              arrived = (dx * dx + dy * dy) < 20 * 20;
+            }
+          }
+          if (arrived) {
+            try { followRef.current?.stop?.(); } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
+            try { gameBridge.setDesiredPosition(null); } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
+            try { activateBubbleNowRef.current(pending.targetId); } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
+            bubblePendingRef.current = null;
+          }
+        }
+      } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
+
+      const zones = zoneRef.current?.getZones?.() || [];
+      const currentZone = zones.find(z => pointInPolygon({ x: p.x, y: p.y }, z.points));
+      const currentZoneName = currentZone?.name || null;
+      if (currentZoneName !== lastZone) {
+        lastZone = currentZoneName;
+        setTimeout(buildParticipantList, 50);
+        applyVolumesToUi();
+      }
+
+      if (followRef.current) {
+        const f = followRef.current.update({ x: p.x, y: p.y }, remotesRef.current);
+        if (!bubblePendingRef.current) {
+          if (f.following) {
+            gameBridge.setDesiredPosition({ x: f.x, y: f.y });
+          } else {
+            const target = manualNavRef.current;
+            if (target) {
+              const dx = (target.x ?? 0) - p.x;
+              const dy = (target.y ?? 0) - p.y;
+              const dist = Math.hypot(dx, dy);
+              if (dist <= 12) {
+                manualNavRef.current = null;
+                gameBridge.setDesiredPosition(null);
+              } else {
+                gameBridge.setDesiredPosition({ x: target.x, y: target.y });
+              }
+            } else {
+              gameBridge.setDesiredPosition(null);
+            }
+          }
+        } else if (f.following) {
+          gameBridge.setDesiredPosition({ x: f.x, y: f.y });
+        }
+      }
+
+      try {
+        const room: any = colyseusRef.current as any;
+        const wsReadyState = room?.connection?.ws?.readyState ?? room?.connection?.transport?.ws?.readyState ?? room?.connection?._transport?.ws?.readyState;
+        const isOpen = room?.connection?.isOpen === true || wsReadyState === 1;
+        if (room && isOpen) { room.send('move', p); }
+      } catch (e) { }
+
+      if (moveTimeoutRef.current) { clearTimeout(moveTimeoutRef.current); }
+      moveTimeoutRef.current = setTimeout(() => {
+        void savePosition();
+        moveTimeoutRef.current = null;
+      }, 1000);
+    };
+
+    const game = createPhaserGame(containerRef.current);
+
+    volumeRef.current = new VolumeManager(
+      {
+        setParticipantVolume: (colyseusId, vol) => {
+          const livekitIdentity = colyseusToLivekitMap.current[colyseusId];
+          if (livekitIdentity && avRef.current) {
+            avRef.current.setParticipantVolume(livekitIdentity, vol);
+          }
+        }
+      },
+      {
+        getLocal: () => {
+          const pos = localPosRef.current;
+          if (pos.id && typeof pos.x === 'number' && typeof pos.y === 'number') {
+            return { id: pos.id, x: pos.x, y: pos.y };
+          }
+          return null;
+        },
+        getRemotes: () => remotesRef.current,
+        getZones: () => zoneRef.current?.getZones?.() || [],
+        getFollowTarget: () => followRef.current?.getTarget?.() || null,
+        getBubbleGroups: () => bubbleGroupsRef.current,
+        getLocalDnd: () => false,
+      },
+      { nearRadius: 96, farRadius: 384, outsideBubbleAttenuation: 0.05 }
+    );
+
+    setTimeout(() => {
+      try { gameBridge.reloadEditorLayers(); } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
+      const heroName = me.name || me.email || 'You';
+      setTimeout(() => {
+        try { gameBridge.setHeroName(heroName); } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
+      }, 100);
+    }, 0);
+
+    gameBridge.onPointerDown = ({ x, y }) => {
+      if (editorActiveRef.current) return;
+      setEditor((prev: any) => {
+        if (!prev.active) return prev;
+        if (prev.tool === 'erase' && prev.category === 'objects') {
+          const clickRadius = 16;
+          const clickedAsset = prev.assets.find((a: any) => Math.abs(a.x - x) < clickRadius && Math.abs(a.y - y) < clickRadius);
+          if (clickedAsset) {
+            const assets = prev.assets.filter((a: any) => a.id !== clickedAsset.id);
+            return { ...prev, assets };
+          }
+          return prev;
+        }
+        return prev;
+      });
+    };
+
+    gameBridge.onRightClick = ({ x, y, playerId }) => {
+      if (editorActiveRef.current) return;
+      if (!playerId) return;
+      try { logger.debug('[UI] context menu for', playerId, 'at', x, y); } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
+      setContextMenu({ open: true, x, y, playerId });
+    };
+
+    return () => {
+      try { gameBridge.setSceneApi?.(null); } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
+      destroyPhaserGame(game);
+      try { const el = containerRef.current; while (el && el.firstChild) { el.removeChild(el.firstChild); } } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
+      try {
+        const room: any = colyseusRef.current;
+        const wsReadyState = room?.connection?.ws?.readyState ?? room?.connection?.transport?.ws?.readyState ?? room?.connection?._transport?.ws?.readyState;
+        const isOpen = room?.connection?.isOpen === true || wsReadyState === 1;
+        if (isOpen) room.leave();
+      } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
+      try { avRef.current?.leave?.(); } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
+      try { if (colyseusReconnectTimerRef.current) clearTimeout(colyseusReconnectTimerRef.current); } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
+      if (moveTimeoutRef.current) { clearTimeout(moveTimeoutRef.current); }
+    };
+  }, [authChecked, me?.id, apiBase]);
+}

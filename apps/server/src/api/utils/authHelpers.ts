@@ -137,7 +137,7 @@ export function normalizeEmailForMatching(email: string): string {
 export function computeOnlineUsageByTenantSlug(): Record<string, number> {
   const usage: Record<string, number> = {};
   try {
-    const activeWorldRooms: any = (global as any).activeWorldRooms;
+    const activeWorldRooms: any = global.activeWorldRooms;
     const rooms: any[] = activeWorldRooms ? Array.from(activeWorldRooms.values()) : [];
     for (const r of rooms) {
       const slug = (r as any).metadata?.tenant || 'default';

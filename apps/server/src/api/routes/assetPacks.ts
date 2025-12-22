@@ -322,7 +322,7 @@ export function registerAssetPackRoutes(app: express.Application, prisma: Prisma
       }
       try { logger.info('[AssetPacks] upload success', { id: rec.id, uuid: rec.uuid, version: rec.version }); } catch { }
       return res.json({ ok: true, id: rec.id, uuid: rec.uuid, version: rec.version });
-    } catch (e: any) {
+    } catch (e: unknown) {
       logger.error('[AssetPacks] upload failed', e);
       return res.status(500).json({ error: 'upload failed' });
     }

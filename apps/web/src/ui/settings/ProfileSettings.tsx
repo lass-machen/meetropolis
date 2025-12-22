@@ -44,7 +44,7 @@ export function ProfileSettings({ onClose }: { onClose: () => void }) {
         } else {
           setError('Failed to load profile');
         }
-      } catch (e: any) {
+      } catch (e: unknown) {
         setError(e.message || 'Network error');
       } finally {
         setLoading(false);
@@ -75,7 +75,7 @@ export function ProfileSettings({ onClose }: { onClose: () => void }) {
         const err = await res.json().catch(() => ({}));
         setError(err.error || 'Failed to update profile');
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       setError(e.message || 'Network error');
     } finally {
       setSaving(false);
@@ -115,7 +115,7 @@ export function ProfileSettings({ onClose }: { onClose: () => void }) {
         const err = await res.json().catch(() => ({}));
         setError(err.error || 'Failed to change password');
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       setError(e.message || 'Network error');
     } finally {
       setSaving(false);
@@ -145,7 +145,7 @@ export function ProfileSettings({ onClose }: { onClose: () => void }) {
         const err = await res.json().catch(() => ({}));
         setError(err.error || 'Failed to delete account');
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       setError(e.message || 'Network error');
     } finally {
       setSaving(false);

@@ -38,7 +38,7 @@ export function registerAuthRoutes(app: express.Application, prisma: PrismaClien
     const allowedRole = membership.role === 'owner' ? requestedRole : 'member';
     const code = crypto.randomBytes(12).toString('hex');
     const normalizedEmail = normalizeEmailForStorage(parse.data.email);
-    const inv = await prisma.invite.create({ data: { code, email: normalizedEmail, createdBy: auth.userId, tenantId: tenant.id, role: allowedRole as any } });
+    const inv = await prisma.invite.create({ data: { code, email: normalizedEmail, createdBy: auth.userId, tenantId: tenant.id, role: allowedRole } });
     res.json({ code: inv.code, role: allowedRole });
   });
 
@@ -58,22 +58,22 @@ export function registerAuthRoutes(app: express.Application, prisma: PrismaClien
     try {
       const emailForStorage = normalizeEmailForStorage(email);
       user = await prisma.user.create({ data: { email: emailForStorage, name, passwordHash: hash, emailVerifiedAt: new Date() } });
-    } catch (e: any) {
-      if (e?.code === 'P2002') return res.status(400).json({ error: 'email already in use' });
+    } catch (e: unknown) {
+      if (e && typeof e === 'object' && 'code' in e && e.code === 'P2002') return res.status(400).json({ error: 'email already in use' });
       return res.status(400).json({ error: 'registration failed' });
     }
     await prisma.invite.update({ where: { code }, data: { usedAt: new Date(), usedById: user.id } });
     // Create membership in invite's tenant
     try {
-      if ((invite as any).tenantId) {
+      if (invite.tenantId) {
         await prisma.membership.upsert({
-          where: { tenantId_userId: { tenantId: (invite as any).tenantId, userId: user.id } } as any,
+          where: { tenantId_userId: { tenantId: invite.tenantId, userId: user.id } },
           update: {},
-          create: { tenantId: (invite as any).tenantId, userId: user.id, role: (invite as any).role || 'member' },
+          create: { tenantId: invite.tenantId, userId: user.id, role: invite.role || 'member' },
         });
       }
     } catch { }
-    const token = jwt.sign({ sub: user.id, tid: (invite as any).tenantId }, getJwtSecret(), { expiresIn: '30d' });
+    const token = jwt.sign({ sub: user.id, tid: invite.tenantId }, getJwtSecret(), { expiresIn: '30d' });
     setAuthCookie(res, token);
 
     // Create session record for session management
@@ -115,7 +115,7 @@ export function registerAuthRoutes(app: express.Application, prisma: PrismaClien
     const tenant = getTenantFromReq(req);
     if (!tenant) return res.status(400).json({ error: 'tenant_required' });
     // Ensure user is member of current tenant
-    const membership = await prisma.membership.findUnique({ where: { tenantId_userId: { tenantId: tenant.id, userId: user.id } } as any });
+    const membership = await prisma.membership.findUnique({ where: { tenantId_userId: { tenantId: tenant.id, userId: user.id } } });
     if (!membership) return res.status(403).json({ error: 'not_member_of_tenant' });
     const token = jwt.sign({ sub: user.id, tid: tenant.id }, getJwtSecret(), { expiresIn: '30d' });
     setAuthCookie(res, token);
@@ -169,7 +169,7 @@ export function registerAuthRoutes(app: express.Application, prisma: PrismaClien
     if (!auth) return res.status(401).json({ error: 'unauthorized' });
     const tenant = getTenantFromReq(req);
     if (!tenant) return res.status(400).json({ error: 'tenant_required' });
-    const member = await prisma.membership.findUnique({ where: { tenantId_userId: { tenantId: tenant.id, userId: auth.userId } } as any });
+    const member = await prisma.membership.findUnique({ where: { tenantId_userId: { tenantId: tenant.id, userId: auth.userId } } });
     if (!member) return res.status(403).json({ error: 'not_member_of_tenant' });
     const user = await prisma.user.findUnique({
       where: { id: auth.userId },
@@ -187,8 +187,8 @@ export function registerAuthRoutes(app: express.Application, prisma: PrismaClien
     try {
       const internal = await prisma.tenant.findUnique({ where: { slug: 'internal' } });
       if (internal) {
-        const internalMember = await prisma.membership.findUnique({ where: { tenantId_userId: { tenantId: internal.id, userId: auth.userId } } as any });
-        isInternalOwner = (internalMember as any)?.role === 'owner';
+        const internalMember = await prisma.membership.findUnique({ where: { tenantId_userId: { tenantId: internal.id, userId: auth.userId } } });
+        isInternalOwner = internalMember?.role === 'owner';
       }
     } catch { }
     const lastPosition = user.presences[0];
@@ -263,12 +263,13 @@ export function registerAuthRoutes(app: express.Application, prisma: PrismaClien
 
       // Best-effort WS push: presence_update for this tenant
       try {
-        const rooms: any[] = Array.from(((global as any).activeWorldRooms || new Set()).values());
+        const globalScope = global as { activeWorldRooms?: Set<{ metadata?: { tenant?: string }; broadcast?: (event: string, data: unknown) => void }> };
+        const rooms = Array.from((globalScope.activeWorldRooms || new Set()).values());
         for (const r of rooms) {
-          const meta = (r as any).metadata || {};
+          const meta = r.metadata || {};
           if (meta && meta.tenant && meta.tenant !== tenant.slug) continue;
           try {
-            (r as any).broadcast?.('presence_update', {
+            r.broadcast?.('presence_update', {
               userId: auth.userId,
               x, y, direction,
               updatedAt: new Date().toISOString(),
@@ -278,7 +279,7 @@ export function registerAuthRoutes(app: express.Application, prisma: PrismaClien
       } catch { }
 
       res.json({ ok: true });
-    } catch (e: any) {
+    } catch (e: unknown) {
       try { logger.error('[Auth] position update failed', e); } catch { }
       return res.status(500).json({ error: 'position update failed' });
     }
@@ -413,7 +414,7 @@ export function registerAuthRoutes(app: express.Application, prisma: PrismaClien
       // In dev mode, also return token for testing
       const isDev = process.env.NODE_ENV !== 'production';
       res.json({ ok: true, ...(isDev && { token }) });
-    } catch (e: any) {
+    } catch (e: unknown) {
       logger.error({ event: 'auth.verify.request_failed', error: String(e) });
       return res.status(500).json({ error: 'verification request failed' });
     }
@@ -447,7 +448,7 @@ export function registerAuthRoutes(app: express.Application, prisma: PrismaClien
 
       logger.info({ event: 'auth.verify.success', userId: verification.userId });
       res.json({ ok: true, message: 'Email verified successfully' });
-    } catch (e: any) {
+    } catch (e: unknown) {
       logger.error({ event: 'auth.verify.failed', error: String(e) });
       return res.status(500).json({ error: 'verification failed' });
     }
@@ -470,7 +471,7 @@ export function registerAuthRoutes(app: express.Application, prisma: PrismaClien
         verified: !!user.emailVerifiedAt,
         verifiedAt: user.emailVerifiedAt?.toISOString() || null,
       });
-    } catch (e: any) {
+    } catch (e: unknown) {
       return res.status(500).json({ error: 'status check failed' });
     }
   });
@@ -526,7 +527,7 @@ export function registerAuthRoutes(app: express.Application, prisma: PrismaClien
         })),
         currentSessionId,
       });
-    } catch (e: any) {
+    } catch (e: unknown) {
       logger.error({ event: 'auth.sessions.list_failed', error: String(e) });
       return res.status(500).json({ error: 'failed to list sessions' });
     }
@@ -549,7 +550,7 @@ export function registerAuthRoutes(app: express.Application, prisma: PrismaClien
 
       logger.info({ event: 'auth.session.revoked', userId: auth.userId, sessionId });
       res.json({ ok: true });
-    } catch (e: any) {
+    } catch (e: unknown) {
       logger.error({ event: 'auth.session.revoke_failed', error: String(e) });
       return res.status(500).json({ error: 'failed to revoke session' });
     }
@@ -578,7 +579,7 @@ export function registerAuthRoutes(app: express.Application, prisma: PrismaClien
 
       logger.info({ event: 'auth.sessions.revoked_all', userId: auth.userId, count: result.count });
       res.json({ ok: true, revokedCount: result.count });
-    } catch (e: any) {
+    } catch (e: unknown) {
       logger.error({ event: 'auth.sessions.revoke_all_failed', error: String(e) });
       return res.status(500).json({ error: 'failed to revoke sessions' });
     }

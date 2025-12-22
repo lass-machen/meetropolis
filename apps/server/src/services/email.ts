@@ -50,6 +50,8 @@ class ConsoleEmailService implements EmailService {
 class SmtpEmailService implements EmailService {
   private transporter: any = null;
   private from: string;
+  private maxRetries: number = 3;
+  private retryDelay: number = 1000; // 1 second
 
   constructor() {
     this.from = process.env.SMTP_FROM || 'noreply@meetropolis.de';
@@ -69,32 +71,65 @@ class SmtpEmailService implements EmailService {
         secure: process.env.SMTP_SECURE === 'true',
         auth: {
           user: process.env.SMTP_USER,
-          pass: process.env.SMTP_PASSWORD,
+          pass: process.env.SMTP_PASS || process.env.SMTP_PASSWORD,
         },
       });
       return this.transporter;
-    } catch (e: any) {
-      logger.error({ event: 'email.smtp.init_failed', error: e.message });
+    } catch (e: unknown) {
+      logger.error({ event: 'email.smtp.init_failed', error: e instanceof Error ? e.message : String(e) });
       throw new Error('SMTP not configured - install nodemailer: npm install nodemailer');
     }
   }
 
+  private async sleep(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
   async send(options: EmailOptions): Promise<boolean> {
-    try {
-      const transporter = await this.getTransporter();
-      await transporter.sendMail({
-        from: this.from,
-        to: options.to,
-        subject: options.subject,
-        text: options.text,
-        html: options.html,
-      });
-      logger.info({ event: 'email.sent', to: options.to, subject: options.subject });
-      return true;
-    } catch (e: any) {
-      logger.error({ event: 'email.send_failed', to: options.to, error: e.message });
-      return false;
+    let lastError: unknown = null;
+
+    for (let attempt = 1; attempt <= this.maxRetries; attempt++) {
+      try {
+        const transporter = await this.getTransporter();
+        await transporter.sendMail({
+          from: this.from,
+          to: options.to,
+          subject: options.subject,
+          text: options.text,
+          html: options.html,
+        });
+        logger.info({
+          event: 'email.sent',
+          to: options.to,
+          subject: options.subject,
+          attempt
+        });
+        return true;
+      } catch (e: unknown) {
+        lastError = e;
+        logger.warn({
+          event: 'email.send_attempt_failed',
+          to: options.to,
+          attempt,
+          maxRetries: this.maxRetries,
+          error: e instanceof Error ? e.message : String(e)
+        });
+
+        // Don't sleep after the last attempt
+        if (attempt < this.maxRetries) {
+          await this.sleep(this.retryDelay * attempt); // Exponential backoff
+        }
+      }
     }
+
+    // All retries failed
+    logger.error({
+      event: 'email.send_failed',
+      to: options.to,
+      attempts: this.maxRetries,
+      error: lastError instanceof Error ? lastError.message : String(lastError || 'Unknown error')
+    });
+    return false;
   }
 }
 

@@ -8,6 +8,10 @@
  * - SubscriptionManager: Remote subscriptions
  * - DoNotDisturb: DND feature
  * - Screenshare: Screen sharing
+ * - ConnectionManager: Room connection lifecycle
+ * - DeviceManager: Device enumeration
+ * - PublishingManager: Track publishing delegation
+ * - VolumeController: Volume and DND coordination
  */
 
 import type { Room } from 'livekit-client';
@@ -24,9 +28,10 @@ import { SubscriptionManager } from './core/SubscriptionManager';
 import { DoNotDisturb } from './features/DoNotDisturb';
 import { Screenshare } from './features/Screenshare';
 import { AVLogger } from './AVLogger';
-import { joinLivekitRoom } from '../lib/livekit';
-import { useAvSettingsStore } from '../state/avSettings';
-import { emitAudioTracksChanged } from '../lib/avEvents';
+import { ConnectionManager } from './manager/connectionManager';
+import { DeviceManager } from './manager/deviceManager';
+import { PublishingManager } from './manager/publishingManager';
+import { VolumeController } from './manager/volumeController';
 
 // Re-export for backwards compatibility
 export type { AVDevices } from './core/types';
@@ -63,13 +68,11 @@ export class AVManager implements Disposable {
   private readonly dnd: DoNotDisturb;
   private readonly screenshare: Screenshare;
 
-  // Connection state
-  private _currentRoomName: string | null = null;
-  private _connectSeq = 0;
-  private _roomEventCleanup: (() => void) | null = null;
-
-  private audioUnlockHandlersAttached = false;
-  private audioUnlockCleanup: (() => void) | null = null;
+  // Manager modules
+  private readonly connectionManager: ConnectionManager;
+  private readonly deviceManager: DeviceManager;
+  private readonly publishingManager: PublishingManager;
+  private readonly volumeController: VolumeController;
 
   // Disposed flag
   private _disposed = false;
@@ -106,7 +109,7 @@ export class AVManager implements Disposable {
       isSignalOpen: () => this.isSignalOpen(),
       onTrackPublished: () => this.handleTrackPublished(),
       onAllTracksUnpublished: () => this.handleAllTracksUnpublished(),
-      ensureConnected: () => this.ensureConnected(),
+      ensureConnected: () => this.connectionManager.ensureConnected(),
     });
 
     // Initialize subscription manager
@@ -140,15 +143,37 @@ export class AVManager implements Disposable {
     this.screenshare = new Screenshare({
       getRoom: () => this.stateMachine.room,
       isSignalOpen: () => this.isSignalOpen(),
-      ensureConnected: () => this.ensureConnected(),
+      ensureConnected: () => this.connectionManager.ensureConnected(),
       waitForConnected: (timeout) => this.waitForConnected(timeout),
+    });
+
+    // Initialize manager modules
+    this.connectionManager = new ConnectionManager(this.config, {
+      stateMachine: this.stateMachine,
+      trackManager: this.trackManager,
+      subscriptionManager: this.subscriptionManager,
+      dnd: this.dnd,
+      screenshare: this.screenshare,
+      signalMonitor: this.signalMonitor,
+    });
+
+    this.deviceManager = new DeviceManager();
+
+    this.publishingManager = new PublishingManager({
+      trackManager: this.trackManager,
+      dnd: this.dnd,
+    });
+
+    this.volumeController = new VolumeController({
+      dnd: this.dnd,
+      subscriptionManager: this.subscriptionManager,
     });
 
     // Wire up signal lost handling
     this.signalMonitor.onSignalLost(() => {
       if (!this.stateMachine.pageLeaving) {
         this.stateMachine.dispatch({ type: 'SIGNAL_LOST' });
-        this.scheduleReconnect();
+        this.connectionManager.scheduleReconnect();
       }
     });
 
@@ -174,19 +199,19 @@ export class AVManager implements Disposable {
     return this.stateMachine.room;
   }
   set current(room: Room | null) {
-    this.stateMachine.setRoom(room, this._currentRoomName);
+    this.stateMachine.setRoom(room, this.connectionManager.currentRoomName);
     this.signalMonitor.setRoom(room);
   }
 
   get activeRoom(): string | null {
-    return this._currentRoomName;
+    return this.connectionManager.currentRoomName;
   }
 
   get currentName(): string | null {
-    return this._currentRoomName;
+    return this.connectionManager.currentRoomName;
   }
   set currentName(name: string | null) {
-    this._currentRoomName = name;
+    this.connectionManager.currentRoomName = name;
   }
 
   get isConnected(): boolean {
@@ -203,7 +228,7 @@ export class AVManager implements Disposable {
 
   // DND state (for backwards compatibility with direct access)
   get dndEnabled(): boolean {
-    return this.dnd.enabled;
+    return this.volumeController.dndEnabled;
   }
 
   // ============================================================================
@@ -212,117 +237,11 @@ export class AVManager implements Disposable {
 
   async switchTo(roomName: string): Promise<void> {
     if (this._disposed) return;
-
-    const name = roomName || 'world';
-
-    // Skip if already connected to same room
-    if (this._currentRoomName === name && this.stateMachine.isConnected) {
-      AVLogger.debug('manager.switchTo.skip', { roomName: name, reason: 'already_connected' });
-      return;
-    }
-
-    const seq = ++this._connectSeq;
-
-    AVLogger.info('manager.switchTo', { roomName: name });
-
-    // Dispatch connecting event
-    this.stateMachine.dispatch({ type: 'CONNECT', roomName: name });
-
-    try {
-      // Leave current room if any
-      await this.leave();
-      if (seq !== this._connectSeq) return;
-
-      // Join new room
-      const room = await joinLivekitRoom({
-        baseUrl: this.config.baseUrl,
-        tokenEndpoint: '/livekit/token',
-        roomName: name,
-        identity: this.config.identity,
-        displayName: this.config.displayName,
-        useVideo: this.config.useVideo,
-      });
-
-      if (seq !== this._connectSeq) {
-        await room.disconnect();
-        return;
-      }
-
-      // Apply audio settings
-      try {
-        const settings = useAvSettingsStore.getState().settings;
-        (room as any).setTrackPublishDefaults?.({ dtx: !!settings.useDtx, red: !!settings.useFec });
-      } catch {}
-
-      // Update state
-      this.stateMachine.setRoom(room, name);
-      this._currentRoomName = name;
-
-      // Setup room events
-      this.wireRoomEvents(room);
-
-      // Start signal monitor
-      this.signalMonitor.setRoom(room);
-
-      // Start subscription manager
-      this.subscriptionManager.start();
-
-      // Dispatch connected event
-      this.stateMachine.dispatch({ type: 'CONNECTED', room });
-
-      AVLogger.info('manager.connected', { roomName: name });
-
-      // Wait for connection to stabilize
-      await waitForRoomConnected(room, 5000);
-
-      // Publish any pending tracks
-      if (!this.dnd.enabled) {
-        await this.trackManager.publishPendingTracks();
-      }
-
-      // Initial subscriptions
-      this.subscriptionManager.ensureAudioSubscriptions(64);
-      this.subscriptionManager.forceApply();
-
-    } catch (error) {
-      AVLogger.error('manager.switchTo.error', { error: String(error) });
-      this.stateMachine.dispatch({ type: 'ERROR', error: error as Error });
-      throw error;
-    }
+    await this.connectionManager.switchTo(roomName);
   }
 
   async leave(): Promise<void> {
-    if (!this.stateMachine.room) return;
-
-    const prevRoomName = this._currentRoomName;
-    AVLogger.info('manager.leave', { roomName: prevRoomName });
-
-    // Stop subscriptions
-    this.subscriptionManager.stop();
-
-    // Stop signal monitor
-    this.signalMonitor.setRoom(null);
-
-    // Stop all local tracks
-    await this.trackManager.stopAllTracks();
-    await this.screenshare.stop();
-
-    // Cleanup room events
-    this._roomEventCleanup?.();
-    this._roomEventCleanup = null;
-    this.audioUnlockCleanup?.();
-    this.audioUnlockCleanup = null;
-    this.audioUnlockHandlersAttached = false;
-
-    // Disconnect room
-    try {
-      await this.stateMachine.room.disconnect();
-    } catch {}
-
-    // Update state
-    this.stateMachine.setRoom(null, null);
-    this._currentRoomName = null;
-    this.stateMachine.dispatch({ type: 'DISCONNECT' });
+    await this.connectionManager.leave();
   }
 
   // ============================================================================
@@ -330,70 +249,23 @@ export class AVManager implements Disposable {
   // ============================================================================
 
   attachAudioUnlockHandlers(): void {
-    if (typeof window === 'undefined') return;
-    if (this.audioUnlockHandlersAttached) return;
-
-    const roomAny = this.stateMachine.room as any;
-    if (!roomAny || typeof roomAny.startAudio !== 'function') return;
-
-    this.audioUnlockHandlersAttached = true;
-
-    const tryUnlock = () => {
-      const room = this.stateMachine.room as any;
-      if (!room || typeof room.startAudio !== 'function') return;
-      if (room.canPlaybackAudio) return cleanup();
-
-      try {
-        const p = room.startAudio();
-        if (room.canPlaybackAudio) return cleanup();
-        if (p && typeof p.then === 'function') {
-          p.then(() => { if (room.canPlaybackAudio) cleanup(); }).catch(() => {});
-        }
-      } catch {}
-    };
-
-    function onGesture() {
-      tryUnlock();
-    }
-
-    const cleanup = () => {
-      if (!this.audioUnlockHandlersAttached) return;
-      this.audioUnlockHandlersAttached = false;
-      try { window.removeEventListener('pointerdown', onGesture as any); } catch {}
-      try { window.removeEventListener('click', onGesture as any); } catch {}
-      this.audioUnlockCleanup = null;
-    };
-
-    try { window.addEventListener('pointerdown', onGesture as any); } catch {}
-    try { window.addEventListener('click', onGesture as any); } catch {}
-
-    this.audioUnlockCleanup = cleanup;
+    this.connectionManager.attachAudioUnlockHandlers();
   }
 
   async setMicrophoneEnabled(enabled: boolean): Promise<void> {
-    if (this._disposed) return;
-    if (this.dnd.enabled && enabled) {
-      AVLogger.debug('manager.mic.blocked_by_dnd');
-      return;
-    }
-    await this.trackManager.setMicrophoneEnabled(enabled);
+    await this.publishingManager.setMicrophoneEnabled(enabled);
   }
 
   async setCameraEnabled(enabled: boolean): Promise<void> {
-    if (this._disposed) return;
-    if (this.dnd.enabled && enabled) {
-      AVLogger.debug('manager.cam.blocked_by_dnd');
-      return;
-    }
-    await this.trackManager.setCameraEnabled(enabled);
+    await this.publishingManager.setCameraEnabled(enabled);
   }
 
   async useMicrophoneDevice(deviceId: string): Promise<void> {
-    await this.trackManager.useMicrophoneDevice(deviceId);
+    await this.publishingManager.useMicrophoneDevice(deviceId);
   }
 
   async useCameraDevice(deviceId: string): Promise<void> {
-    await this.trackManager.useCameraDevice(deviceId);
+    await this.publishingManager.useCameraDevice(deviceId);
   }
 
   // ============================================================================
@@ -418,8 +290,7 @@ export class AVManager implements Disposable {
   // ============================================================================
 
   async setDoNotDisturb(enabled: boolean): Promise<void> {
-    if (this._disposed) return;
-    await this.dnd.setEnabled(enabled);
+    await this.volumeController.setDoNotDisturb(enabled);
   }
 
   // ============================================================================
@@ -427,7 +298,7 @@ export class AVManager implements Disposable {
   // ============================================================================
 
   setParticipantVolume(identity: string, volume: number): void {
-    this.subscriptionManager.setParticipantVolume(identity, volume);
+    this.volumeController.setParticipantVolume(identity, volume);
   }
 
   // ============================================================================
@@ -435,67 +306,11 @@ export class AVManager implements Disposable {
   // ============================================================================
 
   async listDevices(): Promise<{ microphones: { deviceId: string; label: string }[]; cameras: { deviceId: string; label: string }[] }> {
-    const safeEnumerate = async (): Promise<MediaDeviceInfo[]> => {
-      try {
-        return await navigator.mediaDevices.enumerateDevices();
-      } catch {
-        return [];
-      }
-    };
-
-    let devices = await safeEnumerate();
-    let microphones = devices.filter((d) => d.kind === 'audioinput').map((d) => ({ deviceId: d.deviceId, label: d.label }));
-    let cameras = devices.filter((d) => d.kind === 'videoinput').map((d) => ({ deviceId: d.deviceId, label: d.label }));
-
-    // Request permissions if no labels
-    const missingDevices = microphones.length === 0 && cameras.length === 0;
-    const missingLabels = devices.length > 0 && devices.every((d) => !d.label);
-
-    if (missingDevices || missingLabels) {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
-        for (const track of stream.getTracks()) {
-          track.stop();
-        }
-      } catch {}
-
-      devices = await safeEnumerate();
-      microphones = devices.filter((d) => d.kind === 'audioinput').map((d) => ({ deviceId: d.deviceId, label: d.label }));
-      cameras = devices.filter((d) => d.kind === 'videoinput').map((d) => ({ deviceId: d.deviceId, label: d.label }));
-    }
-
-    // Deduplicate
-    const uniqueById = <T extends { deviceId: string }>(arr: T[]): T[] => {
-      const seen = new Set<string>();
-      return arr.filter((item) => {
-        if (seen.has(item.deviceId)) return false;
-        seen.add(item.deviceId);
-        return true;
-      });
-    };
-
-    return {
-      microphones: uniqueById(microphones).map((d, i) => ({
-        deviceId: d.deviceId,
-        label: d.label || `Microphone ${i + 1}`,
-      })),
-      cameras: uniqueById(cameras).map((d, i) => ({
-        deviceId: d.deviceId,
-        label: d.label || `Camera ${i + 1}`,
-      })),
-    };
+    return this.deviceManager.listDevices();
   }
 
   async ensurePermissions(audio: boolean, video: boolean): Promise<boolean> {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio, video });
-      for (const track of stream.getTracks()) {
-        track.stop();
-      }
-      return true;
-    } catch {
-      return false;
-    }
+    return this.deviceManager.ensurePermissions(audio, video);
   }
 
   // ============================================================================
@@ -516,7 +331,7 @@ export class AVManager implements Disposable {
 
     AVLogger.info('manager.dispose');
 
-    this.leave().catch(() => {});
+    this.connectionManager.leave().catch(() => {});
 
     this.stateMachine.dispose();
     this.signalMonitor.dispose();
@@ -524,6 +339,10 @@ export class AVManager implements Disposable {
     this.subscriptionManager.dispose();
     this.dnd.dispose();
     this.screenshare.dispose();
+    this.connectionManager.dispose();
+    this.deviceManager.dispose();
+    this.publishingManager.dispose();
+    this.volumeController.dispose();
 
     AVLogger.clearContext();
   }
@@ -559,193 +378,6 @@ export class AVManager implements Disposable {
     }
   }
 
-  private wireRoomEvents(room?: Room): void {
-    const r = room ?? this.stateMachine.room;
-    if (!r) return;
-    this._roomEventCleanup?.();
-
-    const handlers: Array<[string, (...args: any[]) => void]> = [];
-    const registered = new Set<string>();
-
-    const register = (event: string, handler: (...args: any[]) => void) => {
-      if (registered.has(event)) return;
-      registered.add(event);
-      (r as any).on?.(event, handler);
-      handlers.push([event, handler]);
-    };
-
-    // Register string events synchronously (tests + fallback runtime).
-    register('reconnected', () => {
-      AVLogger.info('room.reconnected');
-      this.stateMachine.resetReconnect();
-      this.subscriptionManager.forceApply();
-      this.subscriptionManager.ensureAudioSubscriptions(64);
-      if (!this.dnd.enabled) {
-        this.trackManager.publishPendingTracks().catch(() => {});
-      }
-    });
-
-    register('disconnected', () => {
-      AVLogger.warn('room.disconnected');
-      if (!this.stateMachine.pageLeaving) {
-        this.stateMachine.dispatch({ type: 'SIGNAL_LOST' });
-        this.scheduleReconnect();
-      }
-    });
-
-    register('trackPublished', (_pub: any, _participant: any) => {
-      if (!this.dnd.enabled) {
-        this.subscriptionManager.ensureAudioSubscriptions(64);
-      }
-      this.subscriptionManager.forceApply();
-      emitAudioTracksChanged();
-    });
-
-    register('trackSubscribed', (track: any, pub: any, participant: any) => {
-      const kind = pub?.kind ?? track?.kind;
-      AVLogger.debug('room.track_subscribed', { kind, participant: participant?.identity });
-      if (kind === 'audio') {
-        try {
-          (pub?.track?.setVolume ?? track?.setVolume)?.(0);
-        } catch {}
-      }
-      emitAudioTracksChanged();
-    });
-
-    register('trackUnsubscribed', () => {
-      this.subscriptionManager.forceApply();
-      emitAudioTracksChanged();
-    });
-
-    register('trackUnpublished', () => {
-      this.subscriptionManager.forceApply();
-      emitAudioTracksChanged();
-    });
-
-    register('participantConnected', () => {
-      this.subscriptionManager.ensureAudioSubscriptions(64);
-      this.subscriptionManager.forceApply();
-    });
-
-    register('participantDisconnected', () => {
-      this.subscriptionManager.forceApply();
-    });
-
-    register('activeSpeakersChanged', (speakers: any[]) => {
-      this.subscriptionManager.setActiveSpeakers(speakers);
-    });
-
-    // Import RoomEvent dynamically
-    (async () => {
-      try {
-        const { RoomEvent } = await import('livekit-client');
-
-        register(RoomEvent.Reconnected as any, () => {
-          AVLogger.info('room.reconnected');
-          this.stateMachine.resetReconnect();
-          this.subscriptionManager.forceApply();
-          this.subscriptionManager.ensureAudioSubscriptions(64);
-          if (!this.dnd.enabled) {
-            this.trackManager.publishPendingTracks().catch(() => {});
-          }
-        });
-
-        register(RoomEvent.Disconnected as any, () => {
-          AVLogger.warn('room.disconnected');
-          if (!this.stateMachine.pageLeaving) {
-            this.stateMachine.dispatch({ type: 'SIGNAL_LOST' });
-            this.scheduleReconnect();
-          }
-        });
-
-        register(RoomEvent.TrackPublished as any, (pub: any, participant: any) => {
-          const kind = pub?.kind ?? pub?.track?.kind;
-          const source = pub?.source ?? pub?.track?.source;
-
-          AVLogger.debug('room.track_published', {
-            kind,
-            source,
-            participant: participant?.identity,
-          });
-
-          if (!this.dnd.enabled) {
-            this.subscriptionManager.ensureAudioSubscriptions(64);
-          }
-
-          // Important: apply subscriptions immediately so screenshares appear quickly.
-          this.subscriptionManager.forceApply();
-
-          emitAudioTracksChanged();
-        });
-
-        register(RoomEvent.TrackSubscribed as any, (track: any, pub: any, participant: any) => {
-          const kind = pub?.kind ?? track?.kind;
-
-          AVLogger.debug('room.track_subscribed', {
-            kind,
-            participant: participant?.identity,
-          });
-
-          // Set initial volume to 0 for safety (bubble will adjust)
-          if (kind === 'audio') {
-            try {
-              (pub?.track?.setVolume ?? track?.setVolume)?.(0);
-            } catch {}
-          }
-
-          emitAudioTracksChanged();
-        });
-
-        register(RoomEvent.TrackUnsubscribed as any, () => {
-          this.subscriptionManager.forceApply();
-          emitAudioTracksChanged();
-        });
-
-        register(RoomEvent.TrackUnpublished as any, () => {
-          this.subscriptionManager.forceApply();
-          emitAudioTracksChanged();
-        });
-
-        register(RoomEvent.ParticipantConnected as any, (participant: any) => {
-          AVLogger.debug('room.participant_connected', {
-            identity: participant?.identity,
-          });
-          this.subscriptionManager.ensureAudioSubscriptions(64);
-          this.subscriptionManager.forceApply();
-        });
-
-        register(RoomEvent.ParticipantDisconnected as any, (participant: any) => {
-          AVLogger.debug('room.participant_disconnected', {
-            identity: participant?.identity,
-          });
-          this.subscriptionManager.forceApply();
-        });
-
-        register(RoomEvent.ActiveSpeakersChanged as any, (speakers: any[]) => {
-          this.subscriptionManager.setActiveSpeakers(speakers);
-        });
-
-        register(RoomEvent.ConnectionQualityChanged as any, (participant: any, quality: any) => {
-          if (participant?.identity === this.config.identity) {
-            AVLogger.debug('room.quality_changed', { quality });
-          }
-        });
-
-      } catch {
-        // Fallback to string events
-        AVLogger.warn('room.events.fallback');
-      }
-    })();
-
-    this._roomEventCleanup = () => {
-      for (const [event, handler] of handlers) {
-        try {
-          (r as any).off?.(event, handler);
-        } catch {}
-      }
-    };
-  }
-
   private setupNetworkListeners(): void {
     if (typeof window === 'undefined') return;
 
@@ -758,27 +390,10 @@ export class AVManager implements Disposable {
 
     window.addEventListener('online', () => {
       AVLogger.info('network.online');
-      if (this._currentRoomName && !this.stateMachine.isConnected) {
-        this.switchTo(this._currentRoomName).catch(() => {});
+      if (this.connectionManager.currentRoomName && !this.stateMachine.isConnected) {
+        this.connectionManager.switchTo(this.connectionManager.currentRoomName).catch(() => {});
       }
     });
-  }
-
-  private scheduleReconnect(): void {
-    if (this.stateMachine.pageLeaving) return;
-    if (!this._currentRoomName) return;
-
-    this.stateMachine.scheduleReconnect(async () => {
-      await this.switchTo(this._currentRoomName!);
-    });
-  }
-
-  private async ensureConnected(): Promise<void> {
-    if (this.stateMachine.isConnected && this.isSignalOpen()) return;
-
-    if (this._currentRoomName) {
-      await this.switchTo(this._currentRoomName);
-    }
   }
 
   private async waitForConnected(timeoutMs: number = 10000): Promise<boolean> {

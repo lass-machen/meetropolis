@@ -4,6 +4,26 @@ import { colyseusRooms, colyseusPlayers } from '../metrics.js';
 import { Schema, type, MapSchema } from '@colyseus/schema';
 import { PrismaClient } from '../generated/prisma/index.js';
 import { getTenancyModule, OSS_USER_LIMIT } from '../tenancyLoader.js';
+
+interface RoomOptions {
+  tenant?: string;
+  x?: number;
+  y?: number;
+  direction?: string;
+  identity?: string;
+  name?: string;
+}
+
+interface MapMeta {
+  spawn?: { x: number; y: number };
+  [key: string]: unknown;
+}
+
+interface RoomMetadata {
+  tenant?: string;
+  [key: string]: unknown;
+}
+
 class Player extends Schema {
   @type('string') id: string = '';
   @type('number') x: number = 0;
@@ -50,20 +70,20 @@ export class WorldRoom extends Room<WorldState> {
     this.broadcast('bubble_state', { groups, members });
   }
 
-  override onCreate(options?: any) {
+  override onCreate(options?: RoomOptions) {
     this.setState(new WorldState());
     logger.info('[WorldRoom] Room created with initial state');
     activeRooms.add(this);
-    try { colyseusRooms.inc(); } catch { }
+    try { colyseusRooms.inc(); } catch (e) { logger.debug('[WorldRoom] Failed to increment colyseusRooms metric', e); }
 
     // Make rooms accessible globally
-    (global as any).activeWorldRooms = activeRooms;
+    (global as Record<string, unknown>).activeWorldRooms = activeRooms;
 
     // Attach tenant metadata for filterBy and accounting
     try {
-      const tenantSlug = (options && (options as any).tenant) || process.env.DEFAULT_TENANT_SLUG || 'default';
+      const tenantSlug = options?.tenant || process.env.DEFAULT_TENANT_SLUG || 'default';
       this.setMetadata({ tenant: tenantSlug });
-    } catch { }
+    } catch (e) { logger.debug('[WorldRoom] Failed to set metadata', e); }
 
     // Load default spawn and map meta from DB (best-effort)
     (async () => {
@@ -71,27 +91,27 @@ export class WorldRoom extends Room<WorldState> {
         const prisma = new PrismaClient();
         this.prismaForPresence = prisma;
         const mapName = process.env.DEFAULT_MAP_NAME || 'office';
-        const tenantSlug = (options && (options as any).tenant) || process.env.DEFAULT_TENANT_SLUG || 'default';
+        const tenantSlug = options?.tenant || process.env.DEFAULT_TENANT_SLUG || 'default';
         const map = await prisma.map.findFirst({ where: { name: mapName, tenant: { slug: tenantSlug } } });
         // Map-Metadaten cachen (für Bounds/Clamping)
         if (map) {
           try {
             // width/height in Tiles, tileWidth/tileHeight in Pixel
-            this.mapWidthTiles = (map as any).width ?? null;
-            this.mapHeightTiles = (map as any).height ?? null;
-            this.tileWidthPx = (map as any).tileWidth ?? null;
-            this.tileHeightPx = (map as any).tileHeight ?? null;
-          } catch { }
+            this.mapWidthTiles = map.width ?? null;
+            this.mapHeightTiles = map.height ?? null;
+            this.tileWidthPx = map.tileWidth ?? null;
+            this.tileHeightPx = map.tileHeight ?? null;
+          } catch (e) { logger.debug('[WorldRoom] Failed to cache map metadata', e); }
         }
-        const meta: any = (map as any)?.meta || {};
+        const meta = (map?.meta as MapMeta) || {};
         const sp = meta?.spawn;
         if (sp && typeof sp.x === 'number' && typeof sp.y === 'number') {
           const clamped = this.sanitizePosition(sp.x, sp.y);
           this.defaultSpawn = clamped;
           logger.info('[WorldRoom] Loaded default spawn from DB:', this.defaultSpawn);
         }
-      } catch (e: any) {
-        try { logger.debug('[WorldRoom] Failed to load default spawn:', e?.message || String(e)); } catch { }
+      } catch (e) {
+        try { logger.debug('[WorldRoom] Failed to load default spawn:', e instanceof Error ? e.message : String(e)); } catch (e2) { logger.debug('[WorldRoom] Failed to log default spawn error', e2); }
       }
     })().catch(() => { });
     const lastMove: Map<string, number> = new Map();
@@ -122,7 +142,7 @@ export class WorldRoom extends Room<WorldState> {
 
 
     // Handle editor updates
-    this.onMessage('editor_update', (client, data: any) => {
+    this.onMessage('editor_update', (client, data: { type: string; [key: string]: unknown }) => {
       logger.debug('[WorldRoom] Editor update from:', client.sessionId, 'type:', data.type);
       // Broadcast editor update to all other clients
       this.broadcast('editor_update', data, { except: client });
@@ -146,7 +166,7 @@ export class WorldRoom extends Room<WorldState> {
     });
 
     // Handle remote control messages from API
-    this.onMessage('remote_control', (client, data: any) => {
+    this.onMessage('remote_control', (client, data: Record<string, unknown>) => {
       logger.info('[WorldRoom] Remote control received for:', client.sessionId, 'data:', data);
       // Forward to the specific client
       client.send('remote_control', data);
@@ -154,7 +174,7 @@ export class WorldRoom extends Room<WorldState> {
 
     // Bubble-Updates: Mehrere Gruppen unterstützen
     this.onMessage('bubble_update', (_client, data: { id?: string; members?: string[] }) => {
-      const raw = Array.isArray(data?.members) ? data!.members! : [];
+      const raw = Array.isArray(data?.members) ? data.members : [];
       const filtered = Array.from(new Set(raw)).filter((id) => this.state.players.has(id));
       logger.info('[WorldRoom] bubble_update:', filtered);
       // Entferne die Mitglieder aus bestehenden Gruppen
@@ -177,8 +197,8 @@ export class WorldRoom extends Room<WorldState> {
 
     // Subscribe to map updates via Presence (works across processes if Redis is used, or locally)
     try {
-      const tenantSlug = (options && (options as any).tenant) || this.metadata?.tenant || 'default';
-      this.presence.subscribe(`map_update:${tenantSlug}`, (message: any) => {
+      const tenantSlug = options?.tenant || (this.metadata as RoomMetadata)?.tenant || 'default';
+      this.presence.subscribe(`map_update:${tenantSlug}`, (message: { type: string; payload: unknown }) => {
         try {
           if (message.type === 'chunks_updated') {
             this.broadcast('chunks_updated', message.payload);
@@ -198,7 +218,7 @@ export class WorldRoom extends Room<WorldState> {
   public setDefaultSpawn(pos: { x: number; y: number }) {
     const s = this.sanitizePosition(pos.x, pos.y);
     this.defaultSpawn = s;
-    try { logger.info('[WorldRoom] Default spawn updated to:', s); } catch { }
+    try { logger.info('[WorldRoom] Default spawn updated to:', s); } catch (e) { logger.debug('[WorldRoom] Failed to log default spawn update', e); }
   }
 
   private getBoundsPx(): { minX: number; minY: number; maxX: number; maxY: number } | null {
@@ -248,7 +268,7 @@ export class WorldRoom extends Room<WorldState> {
     return { x: (wTiles * tW) / 2, y: (hTiles * tH) / 2 };
   }
 
-  override async onJoin(client: Client, options?: any) {
+  override async onJoin(client: Client, options?: RoomOptions) {
     // Check OSS user limit (25 concurrent users for self-hosted OSS)
     // Enterprise license holders bypass this limit via bypassOssLimit()
     try {
@@ -259,43 +279,43 @@ export class WorldRoom extends Room<WorldState> {
         // Count all active users across ALL rooms (global OSS limit)
         let totalActive = 0;
         try {
-          const rooms: any[] = Array.from(activeRooms.values());
+          const rooms = Array.from(activeRooms.values());
           for (const r of rooms) {
-            try { totalActive += (r.state?.players?.size) || 0; } catch { }
+            try { totalActive += (r.state?.players?.size) || 0; } catch (e) { logger.debug('[WorldRoom] Failed to get player count from room', e); }
           }
-        } catch { }
+        } catch (e) { logger.debug('[WorldRoom] Failed to count total active users', e); }
 
         if (totalActive >= OSS_USER_LIMIT) {
-          try { logger.warn('[WorldRoom] OSS user limit reached', { totalActive, limit: OSS_USER_LIMIT }); } catch { }
-          try { client.error(4002, 'oss_limit_reached'); } catch { }
+          try { logger.warn('[WorldRoom] OSS user limit reached', { totalActive, limit: OSS_USER_LIMIT }); } catch (e) { logger.debug('[WorldRoom] Failed to log OSS limit warning', e); }
+          try { client.error(4002, 'oss_limit_reached'); } catch (e) { logger.debug('[WorldRoom] Failed to send error to client', e); }
           return client.leave(1000);
         }
       }
-    } catch { }
+    } catch (e) { logger.debug('[WorldRoom] Failed to check OSS user limit in onJoin', e); }
 
     // Enforce concurrent user limit per tenant (unless bypassed)
     try {
-      const tenantSlug: string = (options?.tenant || this.metadata?.tenant || process.env.DEFAULT_TENANT_SLUG || 'default');
+      const tenantSlug: string = options?.tenant || (this.metadata as RoomMetadata)?.tenant || process.env.DEFAULT_TENANT_SLUG || 'default';
       const prisma = new PrismaClient();
       const tenant = await prisma.tenant.findUnique({ where: { slug: tenantSlug } });
 
       // Check subscription status - block if payment failed or subscription inactive
       if (tenant && !tenant.bypassLimits) {
-        const status = (tenant as any).status as string | undefined;
+        const status = tenant.status as string | undefined;
 
         // Trial expired - user needs to subscribe
         if (status === 'trial_expired') {
-          try { logger.warn('[WorldRoom] Tenant trial expired', { tenant: tenantSlug, status }); } catch { }
-          try { client.error(4005, 'trial_expired'); } catch { }
-          try { await prisma.$disconnect().catch(() => { }); } catch { }
+          try { logger.warn('[WorldRoom] Tenant trial expired', { tenant: tenantSlug, status }); } catch (e) { logger.debug('[WorldRoom] Failed to log trial expiry', e); }
+          try { client.error(4005, 'trial_expired'); } catch (e) { logger.debug('[WorldRoom] Failed to send trial_expired error', e); }
+          try { await prisma.$disconnect().catch(() => { }); } catch (e) { logger.debug('[WorldRoom] Failed to disconnect prisma', e); }
           return client.leave(1000);
         }
 
         // Subscription suspended (dunning step 4+, after 7 days non-payment)
         if (status === 'suspended') {
-          try { logger.warn('[WorldRoom] Tenant subscription suspended', { tenant: tenantSlug, status }); } catch { }
-          try { client.error(4004, 'subscription_suspended'); } catch { }
-          try { await prisma.$disconnect().catch(() => { }); } catch { }
+          try { logger.warn('[WorldRoom] Tenant subscription suspended', { tenant: tenantSlug, status }); } catch (e) { logger.debug('[WorldRoom] Failed to log subscription suspension', e); }
+          try { client.error(4004, 'subscription_suspended'); } catch (e) { logger.debug('[WorldRoom] Failed to send subscription_suspended error', e); }
+          try { await prisma.$disconnect().catch(() => { }); } catch (e) { logger.debug('[WorldRoom] Failed to disconnect prisma', e); }
           return client.leave(1000);
         }
 
@@ -303,9 +323,9 @@ export class WorldRoom extends Room<WorldState> {
         // Note: past_due is NOT blocked - users retain access during dunning period
         const blockedStatuses = ['canceled', 'incomplete_expired', 'incomplete'];
         if (status && blockedStatuses.includes(status)) {
-          try { logger.warn('[WorldRoom] Tenant subscription inactive', { tenant: tenantSlug, status }); } catch { }
-          try { client.error(4003, 'subscription_inactive'); } catch { }
-          try { await prisma.$disconnect().catch(() => { }); } catch { }
+          try { logger.warn('[WorldRoom] Tenant subscription inactive', { tenant: tenantSlug, status }); } catch (e) { logger.debug('[WorldRoom] Failed to log subscription inactive', e); }
+          try { client.error(4003, 'subscription_inactive'); } catch (e) { logger.debug('[WorldRoom] Failed to send subscription_inactive error', e); }
+          try { await prisma.$disconnect().catch(() => { }); } catch (e) { logger.debug('[WorldRoom] Failed to disconnect prisma', e); }
           return client.leave(1000);
         }
       }
@@ -313,14 +333,14 @@ export class WorldRoom extends Room<WorldState> {
       if (tenant && !tenant.bypassLimits) {
         let active = 0;
         try {
-          const rooms: any[] = Array.from(activeRooms.values());
+          const rooms = Array.from(activeRooms.values());
           for (const r of rooms) {
-            const meta = (r as any).metadata || {};
+            const meta = (r.metadata as RoomMetadata) || {};
             if (meta && meta.tenant === tenantSlug) {
-              try { active += (r.state?.players?.size) || 0; } catch { }
+              try { active += (r.state?.players?.size) || 0; } catch (e) { logger.debug('[WorldRoom] Failed to get active count from room', e); }
             }
           }
-        } catch { }
+        } catch (e) { logger.debug('[WorldRoom] Failed to count active users for tenant', e); }
         // Check OSS user limit (25 users max unless enterprise tenancy bypasses it)
         const tenancy = await getTenancyModule();
         const bypassOssLimit = tenancy.bypassOssLimit?.() ?? false;
@@ -329,32 +349,32 @@ export class WorldRoom extends Room<WorldState> {
           // OSS mode: enforce hard 25-user limit across all tenants
           let totalActive = 0;
           try {
-            const rooms: any[] = Array.from(activeRooms.values());
+            const rooms = Array.from(activeRooms.values());
             for (const r of rooms) {
-              try { totalActive += (r.state?.players?.size) || 0; } catch { }
+              try { totalActive += (r.state?.players?.size) || 0; } catch (e) { logger.debug('[WorldRoom] Failed to get player count from room', e); }
             }
-          } catch { }
+          } catch (e) { logger.debug('[WorldRoom] Failed to count total active for OSS limit', e); }
           if (totalActive >= OSS_USER_LIMIT) {
-            try { logger.warn('[WorldRoom] OSS user limit reached', { totalActive, limit: OSS_USER_LIMIT }); } catch { }
-            try { client.error(4002, 'oss_limit_reached'); } catch { }
-            try { await prisma.$disconnect().catch(() => { }); } catch { }
+            try { logger.warn('[WorldRoom] OSS user limit reached', { totalActive, limit: OSS_USER_LIMIT }); } catch (e) { logger.debug('[WorldRoom] Failed to log OSS limit', e); }
+            try { client.error(4002, 'oss_limit_reached'); } catch (e) { logger.debug('[WorldRoom] Failed to send oss_limit_reached error', e); }
+            try { await prisma.$disconnect().catch(() => { }); } catch (e) { logger.debug('[WorldRoom] Failed to disconnect prisma', e); }
             return client.leave(1000);
           }
         }
 
         // Enterprise mode: enforce per-tenant limit
         const paidSeats = Math.max(0, tenant.concurrentLimit || 0);
-        const freeSeats = Math.max(0, (tenant as any).freeSeats || 0);
+        const freeSeats = Math.max(0, tenant.freeSeats || 0);
         const effectiveLimit = Math.max(paidSeats, freeSeats);
         if (active >= effectiveLimit) {
-          try { logger.warn('[WorldRoom] Tenant limit reached', { tenant: tenantSlug, active, limit: effectiveLimit, paidSeats, freeSeats }); } catch { }
-          try { client.error(4001, 'tenant_limit_reached'); } catch { }
-          try { await prisma.$disconnect().catch(() => { }); } catch { }
+          try { logger.warn('[WorldRoom] Tenant limit reached', { tenant: tenantSlug, active, limit: effectiveLimit, paidSeats, freeSeats }); } catch (e) { logger.debug('[WorldRoom] Failed to log tenant limit', e); }
+          try { client.error(4001, 'tenant_limit_reached'); } catch (e) { logger.debug('[WorldRoom] Failed to send tenant_limit_reached error', e); }
+          try { await prisma.$disconnect().catch(() => { }); } catch (e) { logger.debug('[WorldRoom] Failed to disconnect prisma', e); }
           return client.leave(1000);
         }
       }
-      try { await prisma.$disconnect().catch(() => { }); } catch { }
-    } catch { }
+      try { await prisma.$disconnect().catch(() => { }); } catch (e) { logger.debug('[WorldRoom] Failed to disconnect prisma', e); }
+    } catch (e) { logger.debug('[WorldRoom] Failed to enforce tenant/user limits', e); }
     // Vor Anlage eines neuen Spielers: Duplikate anhand Identity bereinigen
     const joiningIdentity = options?.identity || client.sessionId;
     try {
@@ -366,35 +386,35 @@ export class WorldRoom extends Room<WorldState> {
       });
       for (const oldId of toRemove) {
         this.state.players.delete(oldId);
-        try { colyseusPlayers.dec(); } catch { }
+        try { colyseusPlayers.dec(); } catch (e) { logger.debug('[WorldRoom] Failed to decrement colyseusPlayers metric', e); }
         // Andere Clients über Entfernen informieren (Geist-Avatare vermeiden)
         this.broadcast('player_left', { id: oldId });
       }
-    } catch { }
+    } catch (e) { logger.debug('[WorldRoom] Failed to remove duplicate player', e); }
 
     // Sicherstellen, dass wir Map-Metadaten haben (Race gegen onCreate-Loader vermeiden)
     try {
       if (!this.mapWidthTiles || !this.mapHeightTiles || !this.tileWidthPx || !this.tileHeightPx || !this.defaultSpawn) {
         const prisma = new PrismaClient();
         const mapName = process.env.DEFAULT_MAP_NAME || 'office';
-        const tenantSlug = (options?.tenant || this.metadata?.tenant || process.env.DEFAULT_TENANT_SLUG || 'default');
+        const tenantSlug = options?.tenant || (this.metadata as RoomMetadata)?.tenant || process.env.DEFAULT_TENANT_SLUG || 'default';
         const map = await prisma.map.findFirst({ where: { name: mapName, tenant: { slug: tenantSlug } } });
-        try { await prisma.$disconnect().catch(() => { }); } catch { }
+        try { await prisma.$disconnect().catch(() => { }); } catch (e) { logger.debug('[WorldRoom] Failed to disconnect prisma', e); }
         if (map) {
           try {
-            this.mapWidthTiles = (map as any).width ?? this.mapWidthTiles;
-            this.mapHeightTiles = (map as any).height ?? this.mapHeightTiles;
-            this.tileWidthPx = (map as any).tileWidth ?? this.tileWidthPx;
-            this.tileHeightPx = (map as any).tileHeight ?? this.tileHeightPx;
-          } catch { }
-          const meta: any = (map as any).meta || {};
+            this.mapWidthTiles = map.width ?? this.mapWidthTiles;
+            this.mapHeightTiles = map.height ?? this.mapHeightTiles;
+            this.tileWidthPx = map.tileWidth ?? this.tileWidthPx;
+            this.tileHeightPx = map.tileHeight ?? this.tileHeightPx;
+          } catch (e) { logger.debug('[WorldRoom] Failed to update map metadata', e); }
+          const meta = (map.meta as MapMeta) || {};
           const sp = meta?.spawn;
           if (!this.defaultSpawn && sp && typeof sp.x === 'number' && typeof sp.y === 'number') {
             this.defaultSpawn = this.sanitizePosition(sp.x, sp.y);
           }
         }
       }
-    } catch { }
+    } catch (e) { logger.debug('[WorldRoom] Failed to ensure map metadata on join', e); }
 
     const player = new Player();
     player.id = client.sessionId;
@@ -417,7 +437,7 @@ export class WorldRoom extends Room<WorldState> {
     player.identity = joiningIdentity; // Use provided identity or fallback
     player.name = options?.name || joiningIdentity; // Use provided name or fallback
     this.state.players.set(client.sessionId, player);
-    try { colyseusPlayers.inc(); } catch { }
+    try { colyseusPlayers.inc(); } catch (e) { logger.debug('[WorldRoom] Failed to increment colyseusPlayers metric', e); }
     logger.info('[WorldRoom] Player joined:', client.sessionId, 'identity:', player.identity, 'name:', player.name, 'at', player.x, player.y);
     logger.debug('[WorldRoom] Current players:', this.state.players.size);
 
@@ -447,7 +467,7 @@ export class WorldRoom extends Room<WorldState> {
         })).filter(g => Array.isArray(g.members) && g.members.length >= 2);
         const members = this.getAllBubbleMembers();
         client.send('bubble_state', { groups, members });
-      } catch { }
+      } catch (e) { logger.debug('[WorldRoom] Failed to send full_state/bubble_state to client', e); }
     }, 25);
 
     // Broadcast new player to all other clients
@@ -465,7 +485,7 @@ export class WorldRoom extends Room<WorldState> {
     // Now includes ALL tenant members, even those who never logged in
     try {
       const prisma = this.prismaForPresence ?? new PrismaClient();
-      const tenantSlug: string = (options?.tenant || this.metadata?.tenant || process.env.DEFAULT_TENANT_SLUG || 'default');
+      const tenantSlug: string = options?.tenant || (this.metadata as RoomMetadata)?.tenant || process.env.DEFAULT_TENANT_SLUG || 'default';
       const tenant = await prisma.tenant.findUnique({ where: { slug: tenantSlug } });
       if (tenant) {
         // 1. Hole alle Tenant-Mitglieder
@@ -480,16 +500,17 @@ export class WorldRoom extends Room<WorldState> {
           orderBy: { updatedAt: 'desc' },
           distinct: ['userId'],
           include: { room: { select: { name: true } } },
-        } as any);
+        });
 
         // 3. Erstelle Map von userId -> Presence
-        const presenceMap = new Map<string, any>();
+        type PresenceWithRoom = typeof recent[0];
+        const presenceMap = new Map<string, PresenceWithRoom>();
         for (const p of recent) {
           presenceMap.set(p.userId, p);
         }
 
         // 4. Kombiniere: Alle Mitglieder mit ihren Presence-Daten (falls vorhanden)
-        const out = memberships.map((m: any) => {
+        const out = memberships.map((m) => {
           const presence = presenceMap.get(m.userId);
           return {
             userId: m.userId,
@@ -502,16 +523,16 @@ export class WorldRoom extends Room<WorldState> {
           };
         });
 
-        try { client.send('presence_recent', out as any); } catch { }
+        try { client.send('presence_recent', out); } catch (e) { logger.debug('[WorldRoom] Failed to send presence_recent', e); }
       }
     } catch (e) {
-      try { logger.debug('[WorldRoom] presence_recent seed failed', e as any); } catch { }
+      try { logger.debug('[WorldRoom] presence_recent seed failed', e); } catch (e2) { logger.debug('[WorldRoom] Failed to log presence_recent error', e2); }
     }
   }
 
   override onLeave(client: Client) {
     this.state.players.delete(client.sessionId);
-    try { colyseusPlayers.dec(); } catch { }
+    try { colyseusPlayers.dec(); } catch (e) { logger.debug('[WorldRoom] Failed to decrement colyseusPlayers metric', e); }
     logger.info('[WorldRoom] Player left:', client.sessionId);
 
     // Broadcast player left to all other clients
@@ -538,8 +559,8 @@ export class WorldRoom extends Room<WorldState> {
 
   override onDispose() {
     activeRooms.delete(this);
-    try { colyseusRooms.dec(); } catch { }
-    try { this.prismaForPresence && this.prismaForPresence.$disconnect().catch(() => { }); } catch { }
+    try { colyseusRooms.dec(); } catch (e) { logger.debug('[WorldRoom] Failed to decrement colyseusRooms metric', e); }
+    try { this.prismaForPresence && this.prismaForPresence.$disconnect().catch(() => { }); } catch (e) { logger.debug('[WorldRoom] Failed to disconnect prisma', e); }
     logger.info('[WorldRoom] Room disposed');
   }
 }

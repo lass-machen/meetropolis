@@ -186,7 +186,7 @@ function EmailVerifyPage({
           setStatus('error');
           setMessage(data.error || 'Verification failed');
         }
-      } catch (e: any) {
+      } catch (e: unknown) {
         setStatus('error');
         setMessage(e.message || 'Network error');
       }

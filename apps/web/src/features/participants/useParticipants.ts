@@ -1,29 +1,32 @@
 import { useCallback } from 'react';
 import { pointInPolygon } from '../../lib/geom';
+import type { Room, Participant, TrackPublication } from 'livekit-client';
+import type { Zone, ZoneManager, GameBridge, VolumeManager, Position, RemotePlayer } from '../../types/game';
+import type { AVManager } from '../../types/av';
 
 export type UIParticipant = { sid: string; identity: string; hasVideo: boolean; hasMic: boolean; isSpeaking: boolean; media: 'camera' | 'screen'; volume?: number; dnd?: boolean };
 
 type Mutable<T> = { current: T };
 
 export function useParticipants(deps: {
-  avRef: Mutable<any>;
-  zoneRef: Mutable<any>;
+  avRef: Mutable<AVManager | null>;
+  zoneRef: Mutable<ZoneManager | null>;
   localPosRef: Mutable<{ id: string; x?: number; y?: number }>;
-  remotesRef: Mutable<Record<string, { x: number; y: number; dnd?: boolean }>>;
+  remotesRef: Mutable<Record<string, RemotePlayer>>;
   colyseusToLivekitMap: Mutable<Record<string, string>>;
   identityToNameMap: Mutable<Record<string, string>>;
-  volumeRef: Mutable<any>;
+  volumeRef: Mutable<VolumeManager | null>;
   me: { id: string; email?: string; name?: string } | null;
   setUiParticipants: (list: UIParticipant[]) => void;
   disposedRef?: Mutable<boolean>;
   getDisplayName: (identity: string) => string;
-  gameBridge?: any;
+  gameBridge?: GameBridge;
   dndRef?: Mutable<boolean>;
 }) {
   const { avRef, zoneRef, localPosRef, remotesRef, colyseusToLivekitMap, identityToNameMap, volumeRef, me, setUiParticipants, disposedRef, getDisplayName, gameBridge, dndRef } = deps;
 
   const buildParticipantList = useCallback(() => {
-    const room: any = avRef.current?.room as any;
+    const room: Room | null | undefined = avRef.current?.room;
     // Fallback: Kein LiveKit-Raum – baue Karten aus Colyseus-Remotes + Local (mit Zonenfilter)
     if (!room || !room.localParticipant) {
       const list: UIParticipant[] = [];
@@ -31,13 +34,13 @@ export function useParticipants(deps: {
         // Local
         const localIdentity = me?.name || me?.email || me?.id || 'You';
         list.push({ sid: 'local', identity: localIdentity, hasVideo: false, hasMic: false, isSpeaking: false, media: 'camera', volume: 1, dnd: !!dndRef?.current });
-        const zones = (zoneRef.current?.getZones?.() || []).map((z: any) => ({ ...z, points: (Array.isArray(z.points) ? z.points : []).map((p: any)=> Array.isArray(p) ? { x: p[0], y: p[1] } : p).filter((p: any)=> p && typeof p.x === 'number' && typeof p.y === 'number') }));
-        const localPos = { x: localPosRef.current.x ?? 0, y: localPosRef.current.y ?? 0 };
-        const localZone = zones.find((z: any) => pointInPolygon(localPos, z.points));
+        const zones = (zoneRef.current?.getZones?.() || []).map((z: Zone) => ({ ...z, points: (Array.isArray(z.points) ? z.points : []).map((p: unknown)=> Array.isArray(p) ? { x: p[0], y: p[1] } : p as Position).filter((p: Position | unknown): p is Position => p !== null && typeof p === 'object' && 'x' in p && 'y' in p && typeof (p as Position).x === 'number' && typeof (p as Position).y === 'number') }));
+        const localPos: Position = { x: localPosRef.current.x ?? 0, y: localPosRef.current.y ?? 0 };
+        const localZone = zones.find((z: Zone) => pointInPolygon(localPos, z.points));
         // Remotes (aus Colyseus)
         for (const [colyseusId, pos] of Object.entries(remotesRef.current || {})) {
           try {
-            const remoteZone = zones.find((z: any) => pointInPolygon(pos as any, z.points));
+            const remoteZone = zones.find((z: Zone) => pointInPolygon(pos, z.points));
             if ((localZone && !remoteZone) || (!localZone && remoteZone) || (localZone && remoteZone && localZone.name !== remoteZone.name)) {
               continue;
             }
@@ -52,15 +55,15 @@ export function useParticipants(deps: {
     }
 
     // LiveKit Raum vorhanden
-    const zones = (zoneRef.current?.getZones?.() || []).map((z: any) => ({ ...z, points: (Array.isArray(z.points) ? z.points : []).map((p: any)=> Array.isArray(p) ? { x: p[0], y: p[1] } : p).filter((p: any)=> p && typeof p.x === 'number' && typeof p.y === 'number') }));
-    const localPos = { x: localPosRef.current.x ?? 0, y: localPosRef.current.y ?? 0 };
-    const localZone = zones.find((z: any) => pointInPolygon(localPos, z.points));
-    const activeSet = new Set<string>((room.activeSpeakers || []).map((p: any) => p.sid));
+    const zones = (zoneRef.current?.getZones?.() || []).map((z: Zone) => ({ ...z, points: (Array.isArray(z.points) ? z.points : []).map((p: unknown)=> Array.isArray(p) ? { x: p[0], y: p[1] } : p as Position).filter((p: Position | unknown): p is Position => p !== null && typeof p === 'object' && 'x' in p && 'y' in p && typeof (p as Position).x === 'number' && typeof (p as Position).y === 'number') }));
+    const localPos: Position = { x: localPosRef.current.x ?? 0, y: localPosRef.current.y ?? 0 };
+    const localZone = zones.find((z: Zone) => pointInPolygon(localPos, z.points));
+    const activeSet = new Set<string>((room.activeSpeakers || []).map((p: Participant) => p.sid));
 
     const list: UIParticipant[] = [];
-    const pushP = (p: any, isLocal: boolean = false) => {
+    const pushP = (p: Participant, isLocal: boolean = false) => {
       if (!p) return;
-      let participantPos: { x: number; y: number } | null = null;
+      let participantPos: Position | null = null;
       let remoteDnd = false;
       if (isLocal) {
         participantPos = localPos;
@@ -77,32 +80,41 @@ export function useParticipants(deps: {
         // Wenn keine Position bekannt ist, Teilnehmer dennoch aufnehmen (tolerant gegenüber Race-Conditions);
         // Zonenfilter nur anwenden, wenn wir eine Position haben.
         if (participantPos) {
-          const remoteZone = zones.find((z: any) => pointInPolygon(participantPos!, z.points));
+          const remoteZone = zones.find((z: Zone) => pointInPolygon(participantPos!, z.points));
           if ((localZone && !remoteZone) || (!localZone && remoteZone) || (localZone && remoteZone && localZone.name !== remoteZone.name)) {
             return;
           }
         }
       }
       try {
-        const publications = Array.from((p.trackPublications?.values?.() || []) as any);
+        const publications = Array.from(p.trackPublications?.values() || []);
         // Keine LiveKit-Subscription-Änderungen hier – AV-Manager steuert Subscriptions & Qualitäten zentral
-        const isVideoPub = (pub: any) => {
+        const isVideoPub = (pub: TrackPublication) => {
           const source = (pub?.source ?? pub?.track?.source);
           return (!!pub?.track && (source === 'camera' || source === 1));
         };
-        const isMicPub = (pub: any) => {
+        const isMicPub = (pub: TrackPublication) => {
           const source = (pub?.source ?? pub?.track?.source);
           const kind = (pub?.kind ?? pub?.track?.kind);
           if (!(kind === 'audio' || source === 'microphone' || source === 0)) return false;
-          const t: any = pub?.track;
+          const t = pub?.track;
           if (!t) return false;
-          const mst: any = t.mediaStreamTrack || t;
-          const enabled: boolean | undefined = (t.isEnabled ?? t.enabled ?? mst?.enabled);
+          const tExtended = t as typeof t & {
+            isEnabled?: boolean;
+            enabled?: boolean;
+            mediaStreamTrack?: MediaStreamTrack & {
+              enabled?: boolean;
+              readyState?: string;
+            };
+          };
+          const mst = tExtended.mediaStreamTrack || tExtended;
+          const enabled: boolean | undefined = (tExtended.isEnabled ?? tExtended.enabled ?? mst?.enabled);
           const ready: string | undefined = mst?.readyState;
-          const pubMuted: boolean = (pub?.muted === true || (pub as any)?.isMuted === true);
+          const pubExtended = pub as TrackPublication & { muted?: boolean; isMuted?: boolean };
+          const pubMuted: boolean = (pubExtended?.muted === true || pubExtended?.isMuted === true);
           return enabled !== false && !pubMuted && (ready === undefined || ready === 'live');
         };
-        const isScreenPub = (pub: any) => {
+        const isScreenPub = (pub: TrackPublication) => {
           const source = (pub?.source ?? pub?.track?.source);
           return (source === 'screen_share' || source === 2);
         };
@@ -121,13 +133,13 @@ export function useParticipants(deps: {
         const identity = displayName;
         let volume = 1;
         try {
-          const last = volumeRef.current?.getLastVolumes?.() || {} as Record<string, number>;
+          const last = volumeRef.current?.getLastVolumes?.() || {};
           if (!isLocal) {
             const colyseusIdForIdentity = Object.keys(colyseusToLivekitMap.current).find(
               key => colyseusToLivekitMap.current[key] === p.identity
             );
-            if (colyseusIdForIdentity && typeof (last as any)[colyseusIdForIdentity] === 'number') {
-              volume = (last as any)[colyseusIdForIdentity];
+            if (colyseusIdForIdentity && typeof last[colyseusIdForIdentity] === 'number') {
+              volume = last[colyseusIdForIdentity];
             }
           }
         } catch {}
@@ -139,7 +151,7 @@ export function useParticipants(deps: {
       } catch {}
     };
     pushP(room.localParticipant, true);
-    const remotes = Array.from((room.remoteParticipants?.values?.() || room.participants?.values?.() || []) as any);
+    const remotes = Array.from(room.remoteParticipants?.values() || room.participants?.values() || []);
     for (const rp of remotes) pushP(rp, false);
     try {
       const presentIdentities = new Set<string>(list.map(p => p.identity));
@@ -147,11 +159,11 @@ export function useParticipants(deps: {
         const livekitIdentity = colyseusToLivekitMap.current[colyseusId] || colyseusId;
         const name = identityToNameMap.current[livekitIdentity] || getDisplayName(livekitIdentity);
         try {
-          const zones2 = (zoneRef.current?.getZones?.() || []).map((z: any) => ({ ...z, points: (Array.isArray(z.points) ? z.points : []).map((p: any)=> Array.isArray(p) ? { x: p[0], y: p[1] } : p).filter((p: any)=> p && typeof p.x === 'number' && typeof p.y === 'number') }));
-          const localPos2 = { x: localPosRef.current.x ?? 0, y: localPosRef.current.y ?? 0 };
-          const localZone2 = zones2.find((z: any) => pointInPolygon(localPos2, z.points));
+          const zones2 = (zoneRef.current?.getZones?.() || []).map((z: Zone) => ({ ...z, points: (Array.isArray(z.points) ? z.points : []).map((p: unknown)=> Array.isArray(p) ? { x: p[0], y: p[1] } : p as Position).filter((p: Position | unknown): p is Position => p !== null && typeof p === 'object' && 'x' in p && 'y' in p && typeof (p as Position).x === 'number' && typeof (p as Position).y === 'number') }));
+          const localPos2: Position = { x: localPosRef.current.x ?? 0, y: localPosRef.current.y ?? 0 };
+          const localZone2 = zones2.find((z: Zone) => pointInPolygon(localPos2, z.points));
           const pos = remotesRef.current[colyseusId];
-          const remoteZone2 = pos ? zones2.find((z: any) => pointInPolygon(pos, z.points)) : null;
+          const remoteZone2 = pos ? zones2.find((z: Zone) => pointInPolygon(pos, z.points)) : null;
           if ((localZone2 && !remoteZone2) || (!localZone2 && remoteZone2) || (localZone2 && remoteZone2 && localZone2.name !== remoteZone2.name)) {
             continue;
           }
@@ -166,7 +178,7 @@ export function useParticipants(deps: {
     setUiParticipants(list);
     const speakingIds = new Set<string>();
     const activeSpeakers = room.activeSpeakers || [];
-    activeSpeakers.forEach((speaker: any) => {
+    activeSpeakers.forEach((speaker: Participant) => {
       if (speaker.sid === room.localParticipant?.sid) {
         speakingIds.add('local');
       } else {
@@ -185,14 +197,15 @@ export function useParticipants(deps: {
   const applyVolumesToUi = useCallback(() => {
     const vols = volumeRef.current?.update() || {};
     const next: Record<string, number> = {};
-    for (const [colyseusId, vol] of Object.entries(vols as any)) {
+    for (const [colyseusId, vol] of Object.entries(vols)) {
+      if (typeof vol !== 'number') continue;
       const livekitIdentity = colyseusToLivekitMap.current[colyseusId];
       if (livekitIdentity) {
-        next[livekitIdentity] = vol as number;
+        next[livekitIdentity] = vol;
         try {
           const display = getDisplayName(livekitIdentity);
-          if (display) next[display] = vol as number;
-          next[`${display} – Bildschirm`] = vol as number;
+          if (display) next[display] = vol;
+          next[`${display} – Bildschirm`] = vol;
         } catch {}
       }
     }

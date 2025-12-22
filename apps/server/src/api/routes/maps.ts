@@ -3,6 +3,7 @@ import { PrismaClient } from '../../generated/prisma/index.js';
 import { z } from 'zod';
 import { logger } from '../../logger.js';
 import { requireAuth, getTenantFromReq, requireMembership } from '../utils/authHelpers.js';
+import { broadcastMapUpdate, broadcastSpawnUpdate } from '../utils/broadcast.js';
 
 export function registerMapRoutes(app: express.Application, prisma: PrismaClient) {
   // Maps list
@@ -71,7 +72,7 @@ export function registerMapRoutes(app: express.Application, prisma: PrismaClient
       };
 
       res.json({ mapMeta, tilesetRegistry: tilesets, layerIndex });
-    } catch (e: any) {
+    } catch (e: unknown) {
       logger.error('[Map] state-v2 failed', e);
       res.status(500).json({ error: 'internal_error' });
     }
@@ -90,7 +91,7 @@ export function registerMapRoutes(app: express.Application, prisma: PrismaClient
       const { layer: layerName, keys } = parse.data;
       const map = await prisma.map.findFirst({ where: { name, tenantId: tenant.id } });
       if (!map) return res.status(404).json({ error: 'map not found' });
-      const layer = await prisma.mapLayer.findUnique({ where: { mapId_name: { mapId: map.id, name: layerName } } as any });
+      const layer = await prisma.mapLayer.findUnique({ where: { mapId_name: { mapId: map.id, name: layerName } } });
       if (!layer) {
         return res.json({ chunks: {} });
       }
@@ -111,12 +112,13 @@ export function registerMapRoutes(app: express.Application, prisma: PrismaClient
       const out: Record<string, { version: number; encoding: string; data: string }> = {};
       for (const c of found) {
         const key = `${c.x}:${c.y}`;
-        out[key] = { version: c.version, encoding: c.encoding, data: Buffer.from(c.data as any).toString('base64') };
+        const dataBuffer = c.data instanceof Buffer ? c.data : Buffer.from(c.data as Uint8Array);
+        out[key] = { version: c.version, encoding: c.encoding, data: dataBuffer.toString('base64') };
       }
 
       res.setHeader('Cache-Control', 'no-cache');
       res.json({ chunks: out });
-    } catch (e: any) {
+    } catch (e: unknown) {
       logger.error('[Map] chunks fetch failed', e);
       res.status(500).json({ error: 'internal_error' });
     }
@@ -155,7 +157,7 @@ export function registerMapRoutes(app: express.Application, prisma: PrismaClient
         return res.status(400).json({ error: 'invalid payload: missing tileRefId or values' });
       }
 
-      let layer = await prisma.mapLayer.findUnique({ where: { mapId_name: { mapId: map.id, name: layerName } } as any });
+      let layer = await prisma.mapLayer.findUnique({ where: { mapId_name: { mapId: map.id, name: layerName } } });
       if (!layer) {
         layer = await prisma.mapLayer.create({ data: { mapId: map.id, name: layerName, chunkSize: map.chunkSize ?? 32 } });
         logger.info('[Paint] created layer', { layerId: layer.id, name: layerName });
@@ -177,12 +179,29 @@ export function registerMapRoutes(app: express.Application, prisma: PrismaClient
         where: { layerId: layer.id, OR: chunkCoordsToFetch },
       });
 
-      const chunks = new Map<string, any>();
-      for (const c of existingChunks) {
-        chunks.set(`${c.x}:${c.y}`, c);
+      interface ChunkData {
+        id: string;
+        x: number;
+        y: number;
+        version: number;
+        encoding: string;
+        data: Buffer | Uint8Array;
       }
 
-      const chunkUpdates = new Map<string, { chunk: any, cx: number, cy: number, modified: boolean, _decoded: number[] }>();
+      interface ChunkUpdate {
+        chunk: ChunkData | undefined;
+        cx: number;
+        cy: number;
+        modified: boolean;
+        _decoded: number[];
+      }
+
+      const chunks = new Map<string, ChunkData>();
+      for (const c of existingChunks) {
+        chunks.set(`${c.x}:${c.y}`, c as ChunkData);
+      }
+
+      const chunkUpdates = new Map<string, ChunkUpdate>();
       const { decodeRlePairsFromBuffer, rleDecodeToNumbers, rleDecodeToBooleans } = await import('../../mapEncoding.js');
 
       const rectWidth = rect.x1 - rect.x0 + 1;
@@ -207,7 +226,8 @@ export function registerMapRoutes(app: express.Application, prisma: PrismaClient
           if (chunkData._decoded.length === 0) {
             const c = chunkData.chunk;
             if (c) {
-              const pairs = decodeRlePairsFromBuffer(Buffer.from(c.data as any));
+              const dataBuffer = c.data instanceof Buffer ? c.data : Buffer.from(c.data);
+              const pairs = decodeRlePairsFromBuffer(dataBuffer);
               chunkData._decoded = c.encoding === 'rle-bool' ? rleDecodeToBooleans(pairs, chunkSize * chunkSize).map(b => b ? 1 : 0) : rleDecodeToNumbers(pairs, chunkSize * chunkSize);
             } else {
               chunkData._decoded = new Array(chunkSize * chunkSize).fill(0);
@@ -233,7 +253,14 @@ export function registerMapRoutes(app: express.Application, prisma: PrismaClient
         }
       }
 
-      const updates: any[] = [];
+      interface ChunkUpdateResult {
+        key: string;
+        version: number;
+        encoding: string;
+        data: string;
+      }
+
+      const updates: ChunkUpdateResult[] = [];
       const { rleEncodeNumbers, rleEncodeBooleans, encodeRlePairsToBuffer } = await import('../../mapEncoding.js');
       const encoding = layerName === 'collision' ? 'rle-bool' : 'rle';
 
@@ -249,40 +276,20 @@ export function registerMapRoutes(app: express.Application, prisma: PrismaClient
 
         let chunk = chunks.get(key);
         if (!chunk) {
-          chunk = await prisma.mapChunk.create({ data: { layerId: layer.id, x: data.cx, y: data.cy, version: 1, encoding, data: u8 } });
+          chunk = await prisma.mapChunk.create({ data: { layerId: layer.id, x: data.cx, y: data.cy, version: 1, encoding, data: u8 } }) as ChunkData;
         } else {
-          chunk = await prisma.mapChunk.update({ where: { id: chunk.id }, data: { version: chunk.version + 1, encoding, data: u8 } });
+          chunk = await prisma.mapChunk.update({ where: { id: chunk.id }, data: { version: chunk.version + 1, encoding, data: u8 } }) as ChunkData;
         }
 
         updates.push({ key, version: chunk.version, encoding: chunk.encoding, data: buf.toString('base64') });
       }
 
-      // Broadcast updates
       if (updates.length > 0) {
-        const gameServer = (global as any).gameServer;
-        if (gameServer && gameServer.presence) {
-          try {
-            gameServer.presence.publish(`map_update:${tenant.slug}`, {
-              type: 'chunks_updated',
-              payload: { map: name, layer: layerName, updates }
-            });
-          } catch (e: any) {
-            logger.error('[Broadcast] presence publish failed', { error: e?.message || String(e) });
-          }
-        } else {
-          const rooms: any[] = Array.from(((global as any).activeWorldRooms || new Set()).values());
-          for (const room of rooms) {
-            try {
-              room.broadcast('chunks_updated', { map: name, layer: layerName, updates });
-            } catch (e: any) {
-              try { logger.debug('[Broadcast] chunks_updated failed', { error: e?.message || String(e) }); } catch { }
-            }
-          }
-        }
+        broadcastMapUpdate(tenant.slug, 'chunks_updated', { map: name, layer: layerName, updates });
       }
 
       res.json({ updates });
-    } catch (e: any) {
+    } catch (e: unknown) {
       logger.error('[Map] paint-rect failed', e);
       res.status(500).json({ error: 'internal_error' });
     }
@@ -315,31 +322,11 @@ export function registerMapRoutes(app: express.Application, prisma: PrismaClient
 
       const tilesets = await prisma.mapTileset.findMany({ where: { mapId: map.id }, orderBy: { slot: 'asc' } });
 
-      // Broadcast
-      const gameServer = (global as any).gameServer;
-      if (gameServer && gameServer.presence) {
-        try {
-          gameServer.presence.publish(`map_update:${tenant.slug}`, {
-            type: 'tileset_registry_updated',
-            payload: { map: name, tilesetRegistry: tilesets }
-          });
-        } catch (e: any) {
-          logger.error('[Broadcast] presence publish registry failed', { error: e?.message || String(e) });
-        }
-      } else {
-        const rooms: any[] = Array.from(((global as any).activeWorldRooms || new Set()).values());
-        for (const room of rooms) {
-          try {
-            room.broadcast('tileset_registry_updated', { map: name, tilesetRegistry: tilesets });
-          } catch (e: any) {
-            try { logger.debug('[Broadcast] tileset_registry_updated failed', { error: e?.message || String(e) }); } catch { }
-          }
-        }
-      }
+      broadcastMapUpdate(tenant.slug, 'tileset_registry_updated', { map: name, tilesetRegistry: tilesets });
 
       res.json({ tilesetRegistry: tilesets });
-    } catch (e: any) {
-      if (e?.code === 'P2002') {
+    } catch (e: unknown) {
+      if (e && typeof e === 'object' && 'code' in e && e.code === 'P2002') {
         try { logger.warn('[Tilesets] duplicate slot (race condition), returning current registry'); } catch { }
         try {
           const name = req.params.name;
@@ -468,51 +455,13 @@ export function registerMapRoutes(app: express.Application, prisma: PrismaClient
       }
     }
 
-    // Broadcast spawn update
     if (spawn && typeof spawn.x === 'number' && typeof spawn.y === 'number') {
-      const gameServer = (global as any).gameServer;
-      if (gameServer && gameServer.presence) {
-        try {
-          gameServer.presence.publish(`map_update:${tenant.slug}`, {
-            type: 'editor_update',
-            payload: { type: 'spawn', pos: { x: spawn.x, y: spawn.y } }
-          });
-        } catch { }
-      } else {
-        try {
-          const rooms: any[] = Array.from(((global as any).activeWorldRooms || new Set()).values());
-          for (const room of rooms) {
-            try { room.broadcast('editor_update', { type: 'spawn', pos: { x: spawn.x, y: spawn.y } }); } catch { }
-            try { if (typeof room.setDefaultSpawn === 'function') room.setDefaultSpawn({ x: spawn.x, y: spawn.y }); } catch { }
-          }
-        } catch { }
-      }
+      broadcastMapUpdate(tenant.slug, 'editor_update', { type: 'spawn', pos: spawn });
+      broadcastSpawnUpdate(spawn);
     }
 
-    // Broadcast generic 'all' update
     if (tilesets || assets || zones || backgroundColor || replaceZones) {
-      const gameServer = (global as any).gameServer;
-      if (gameServer && gameServer.presence) {
-        try {
-          gameServer.presence.publish(`map_update:${tenant.slug}`, {
-            type: 'editor_update',
-            payload: { type: 'all', map: name }
-          });
-        } catch (e: any) {
-          logger.error('[Broadcast] presence publish editor_update failed', { error: e?.message || String(e) });
-        }
-      } else {
-        try {
-          const rooms: any[] = Array.from(((global as any).activeWorldRooms || new Set()).values());
-          for (const room of rooms) {
-            try {
-              room.broadcast('editor_update', { type: 'all', map: name });
-            } catch (e: any) {
-              try { logger.debug('[Broadcast] editor_update all failed', { error: e?.message || String(e) }); } catch { }
-            }
-          }
-        } catch { }
-      }
+      broadcastMapUpdate(tenant.slug, 'editor_update', { type: 'all', map: name });
     }
 
     res.json({ ok: true });

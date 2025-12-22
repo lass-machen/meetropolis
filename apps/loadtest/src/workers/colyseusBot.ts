@@ -24,7 +24,7 @@ export async function spawnColyseusBot(opts: { apiBase: string; identity: string
     while (true) {
       try {
         return await client.joinOrCreate('world', { identity: opts.identity, name: opts.identity });
-      } catch (e: any) {
+      } catch (e: unknown) {
         attempt++;
         if (attempt >= maxAttempts) throw e;
         const delay = Math.min(5000, baseDelayMs * Math.pow(2, attempt - 1));

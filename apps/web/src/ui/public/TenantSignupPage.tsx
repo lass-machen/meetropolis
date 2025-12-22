@@ -72,7 +72,7 @@ export function TenantSignupPage({ apiBase, onBack, onSuccess, selectedPlan }: T
       const data = await res.json();
       setCreatedTenant({ slug: data.tenant?.slug || slug, freeSeats: data.tenant?.freeSeats || 3 });
       setStep('success');
-    } catch (e: any) {
+    } catch (e: unknown) {
       setError(e?.message || 'Registration failed');
     } finally {
       setBusy(false);

@@ -37,7 +37,7 @@ export function AuthScreen(props: { baseUrl: string; onDone: () => void }) {
         const res = await fetch(url, { method: 'POST', headers, credentials: 'include', body: JSON.stringify(body) });
         if (!res.ok) throw new Error((await res.json())?.error || t('common.error'));
         return await res.json().catch(() => ({}));
-      } catch (e: any) {
+      } catch (e: unknown) {
         logger.warn('[AuthScreen] Fetch error:', e?.message || String(e), 'URL:', url);
         lastErr = e;
         // Netzwerk-/Verbindungsfehler: kurzer Retry mit Backoff
@@ -70,7 +70,7 @@ export function AuthScreen(props: { baseUrl: string; onDone: () => void }) {
         try {
           await post('/auth/login', { email: autoEmail, password: autoPassword });
           onDone();
-        } catch (e: any) {
+        } catch (e: unknown) {
           setMsg(e?.message || 'Auto-Login fehlgeschlagen');
         }
       })();
@@ -87,7 +87,7 @@ export function AuthScreen(props: { baseUrl: string; onDone: () => void }) {
         setTauriAuthToken(result.token);
       }
       onDone();
-    } catch (e: any) {
+    } catch (e: unknown) {
       setMsg(e.message);
     }
   }
@@ -102,7 +102,7 @@ export function AuthScreen(props: { baseUrl: string; onDone: () => void }) {
         setTauriAuthToken(result.token);
       }
       onDone();
-    } catch (e: any) {
+    } catch (e: unknown) {
       setMsg(e.message);
     }
   }
@@ -114,7 +114,7 @@ export function AuthScreen(props: { baseUrl: string; onDone: () => void }) {
       await post('/auth/reset', { email, token, password });
       setView('login');
       setMsg(t('auth.passwordUpdated'));
-    } catch (e: any) {
+    } catch (e: unknown) {
       setMsg(e.message);
     }
   }

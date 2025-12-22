@@ -82,7 +82,13 @@ export function metricsMiddleware() {
         const route = (req.route?.path || req.originalUrl || 'unknown') as string;
         const status = String(res.statusCode || 0);
         httpRequestDuration.labels(method, route, status).observe(dur);
-      } catch {}
+      } catch (error) {
+        // Silently ignore metrics errors - metrics should never break request handling
+        // This is an acceptable silent catch because:
+        // 1. We're in a response finalizer (res.on('finish'))
+        // 2. Metrics are non-critical observability data
+        // 3. Logging here could cause infinite loops if logger uses HTTP
+      }
     });
     next();
   };

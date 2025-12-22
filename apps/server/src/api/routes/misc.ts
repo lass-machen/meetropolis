@@ -14,8 +14,8 @@ export function registerMiscRoutes(app: express.Application, prisma: PrismaClien
     try {
       const u = await prisma.user.update({ where: { id: auth.userId }, data: { name: name ?? undefined, email: email ?? undefined } });
       res.json({ id: u.id, email: u.email, name: u.name });
-    } catch (e: any) {
-      if (e?.code === 'P2002') return res.status(400).json({ error: 'email already in use' });
+    } catch (e: unknown) {
+      if (e && typeof e === 'object' && 'code' in e && e.code === 'P2002') return res.status(400).json({ error: 'email already in use' });
       res.status(400).json({ error: 'update failed' });
     }
   });
@@ -131,8 +131,8 @@ export function registerMiscRoutes(app: express.Application, prisma: PrismaClien
 
       logger.info({ event: 'gdpr.data_export', userId: auth.userId });
       return res.json(exportData);
-    } catch (e: any) {
-      logger.error({ event: 'gdpr.data_export.failed', userId: auth.userId, error: e?.message || String(e) });
+    } catch (e: unknown) {
+      logger.error({ event: 'gdpr.data_export.failed', userId: auth.userId, error: e instanceof Error ? e.message : String(e) });
       return res.status(500).json({ error: 'export failed' });
     }
   });
@@ -262,8 +262,8 @@ export function registerMiscRoutes(app: express.Application, prisma: PrismaClien
       const normalized = email ? email.trim().toLowerCase() : undefined;
       const user = await prisma.user.update({ where: { id }, data: { email: normalized ?? undefined, name: name ?? undefined } });
       res.json({ id: user.id, email: user.email, name: user.name });
-    } catch (e: any) {
-      if (e?.code === 'P2002') return res.status(400).json({ error: 'email already in use' });
+    } catch (e: unknown) {
+      if (e && typeof e === 'object' && 'code' in e && e.code === 'P2002') return res.status(400).json({ error: 'email already in use' });
       res.status(400).json({ error: 'update failed' });
     }
   });

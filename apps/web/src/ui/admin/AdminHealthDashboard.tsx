@@ -93,7 +93,7 @@ export function AdminHealthDashboard({ onClose }: { onClose: () => void }) {
       if (statsRes.ok) {
         setStats(await statsRes.json());
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       setError(e.message || 'Network error');
     } finally {
       setLoading(false);

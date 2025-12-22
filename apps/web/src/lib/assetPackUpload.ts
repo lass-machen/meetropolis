@@ -116,7 +116,7 @@ export async function uploadTilesetAsAssetPack(
     const result = await response.json();
     return { success: true, uuid: result.uuid };
     
-  } catch (e: any) {
+  } catch (e: unknown) {
     logger.error('[AssetPackUpload] Failed:', e);
     return { success: false, error: e.message || String(e) };
   }

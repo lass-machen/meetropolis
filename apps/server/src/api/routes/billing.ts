@@ -5,6 +5,7 @@ import Stripe from 'stripe';
 import { logger } from '../../logger.js';
 import { requireAuth, getTenantFromReq, getUserIdFromReq } from '../utils/authHelpers.js';
 import { getBillingModule } from '../../billingLoader.js';
+import { getEmailService } from '../../services/email.js';
 
 /**
  * Register billing routes
@@ -28,35 +29,25 @@ export async function registerBillingRoutes(app: express.Application, prisma: Pr
 
   if (enterpriseBilling && process.env.STRIPE_SECRET_KEY && process.env.STRIPE_WEBHOOK_SECRET) {
     // Enterprise billing available - set up advanced routes
-    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2024-06-20' } as any);
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2023-10-16' });
 
     /**
-     * Email service stub for billing notifications
+     * Email service for billing notifications
      *
-     * TODO: Integrate with a production email service provider
+     * Production-ready email service with:
+     * - SMTP support via nodemailer
+     * - 3 retry attempts with exponential backoff
+     * - Console fallback for development
+     * - Proper error logging
      *
-     * Recommended providers:
-     * - SendGrid: https://sendgrid.com/docs/API_Reference/Web_API_v3/Mail/index.html
-     *   - npm install @sendgrid/mail
-     *   - env: SENDGRID_API_KEY
+     * Configuration via environment variables:
+     * - SMTP_HOST: SMTP server hostname
+     * - SMTP_PORT: SMTP server port (default: 587)
+     * - SMTP_USER: SMTP authentication username
+     * - SMTP_PASS: SMTP authentication password
+     * - SMTP_FROM: Sender email address
      *
-     * - AWS SES: https://docs.aws.amazon.com/ses/latest/dg/send-email-nodejs.html
-     *   - npm install @aws-sdk/client-ses
-     *   - env: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION
-     *
-     * - Postmark: https://postmarkapp.com/developer/user-guide/send-email-with-api
-     *   - npm install postmark
-     *   - env: POSTMARK_SERVER_TOKEN
-     *
-     * - Resend: https://resend.com/docs/send-with-nodejs
-     *   - npm install resend
-     *   - env: RESEND_API_KEY
-     *
-     * - SMTP (universal): Use nodemailer for any SMTP provider
-     *   - npm install nodemailer
-     *   - env: SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, SMTP_FROM
-     *
-     * Required environment variables are documented in /.env.example
+     * If SMTP is not configured, emails will be logged to console (development mode).
      *
      * Email types sent by billing system:
      * - Payment failure notifications (dunning workflow)
@@ -64,33 +55,11 @@ export async function registerBillingRoutes(app: express.Application, prisma: Pr
      * - Subscription status changes
      * - Invoice receipts
      */
+    const emailServiceImpl = getEmailService();
     const emailService = {
-      async send(email: { to: string; subject: string; text: string; html: string }) {
-        // TODO: Replace this stub with actual email service integration
-        // Example implementations:
-        //
-        // SendGrid:
-        // const sgMail = require('@sendgrid/mail');
-        // sgMail.setApiKey(process.env.SENDGRID_API_KEY);
-        // await sgMail.send({ to: email.to, from: process.env.SMTP_FROM, subject: email.subject, text: email.text, html: email.html });
-        //
-        // AWS SES:
-        // const { SESClient, SendEmailCommand } = require('@aws-sdk/client-ses');
-        // const ses = new SESClient({ region: process.env.AWS_REGION });
-        // await ses.send(new SendEmailCommand({ Source: process.env.SMTP_FROM, Destination: { ToAddresses: [email.to] }, Message: { Subject: { Data: email.subject }, Body: { Html: { Data: email.html }, Text: { Data: email.text } } } }));
-        //
-        // Postmark:
-        // const postmark = require('postmark');
-        // const client = new postmark.ServerClient(process.env.POSTMARK_SERVER_TOKEN);
-        // await client.sendEmail({ From: process.env.SMTP_FROM, To: email.to, Subject: email.subject, HtmlBody: email.html, TextBody: email.text });
-        //
-        // SMTP (nodemailer):
-        // const nodemailer = require('nodemailer');
-        // const transporter = nodemailer.createTransport({ host: process.env.SMTP_HOST, port: process.env.SMTP_PORT, auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASSWORD } });
-        // await transporter.sendMail({ from: process.env.SMTP_FROM, to: email.to, subject: email.subject, text: email.text, html: email.html });
-
-        logger.info({ event: 'billing.email.send', to: email.to, subject: email.subject });
-      },
+      async send(email: { to: string; subject: string; text: string; html: string }): Promise<void> {
+        await emailServiceImpl.send(email);
+      }
     };
 
     const billingPortalUrl = process.env.BILLING_PORTAL_URL || process.env.BILLING_PUBLIC_URL || '';
@@ -180,7 +149,7 @@ export async function registerBillingRoutes(app: express.Application, prisma: Pr
       let plan: any = null;
       if (process.env.STRIPE_SECRET_KEY && tenantRec.stripeSubscriptionId) {
         try {
-          const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2024-06-20' } as any);
+          const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2023-10-16' });
           const sub = await stripe.subscriptions.retrieve(tenantRec.stripeSubscriptionId, {
             expand: ['items.data.price.product', 'default_payment_method']
           });
@@ -203,8 +172,8 @@ export async function registerBillingRoutes(app: express.Application, prisma: Pr
             interval: price?.recurring?.interval || 'month',
             concurrentLimit: Number(price?.metadata?.concurrent_limit || product?.metadata?.concurrent_limit || 0),
           };
-        } catch (e: any) {
-          logger.warn({ event: 'billing.status.stripe_error', error: e?.message });
+        } catch (e: unknown) {
+          logger.warn({ event: 'billing.status.stripe_error', error: e instanceof Error ? e.message : String(e) });
         }
       }
 
@@ -235,8 +204,8 @@ export async function registerBillingRoutes(app: express.Application, prisma: Pr
           isInternal: tenantRec.isInternal,
         },
       });
-    } catch (e: any) {
-      logger.error({ event: 'billing.status.error', error: e?.message || String(e) });
+    } catch (e: unknown) {
+      logger.error({ event: 'billing.status.error', error: e instanceof Error ? e.message : String(e) });
       return res.status(500).json({ error: 'status_failed' });
     }
   });
@@ -253,7 +222,7 @@ export async function registerBillingRoutes(app: express.Application, prisma: Pr
       const tenantRec = await prisma.tenant.findUnique({ where: { id: tenant.id } });
       if (!tenantRec?.stripeCustomerId) return res.json({ invoices: [] });
 
-      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2024-06-20' } as any);
+      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2023-10-16' });
       const invoices = await stripe.invoices.list({
         customer: tenantRec.stripeCustomerId,
         limit: 24,
@@ -273,8 +242,8 @@ export async function registerBillingRoutes(app: express.Application, prisma: Pr
       }));
 
       return res.json({ invoices: formatted });
-    } catch (e: any) {
-      logger.error({ event: 'billing.invoices.error', error: e?.message || String(e) });
+    } catch (e: unknown) {
+      logger.error({ event: 'billing.invoices.error', error: e instanceof Error ? e.message : String(e) });
       return res.status(500).json({ error: 'invoices_failed' });
     }
   });
@@ -284,7 +253,7 @@ export async function registerBillingRoutes(app: express.Application, prisma: Pr
     if (!process.env.STRIPE_SECRET_KEY) return res.status(501).json({ error: 'billing_not_configured' });
 
     try {
-      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2024-06-20' } as any);
+      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2023-10-16' });
       const prices = await stripe.prices.list({
         active: true,
         expand: ['data.product'],
@@ -310,8 +279,8 @@ export async function registerBillingRoutes(app: express.Application, prisma: Pr
         .sort((a, b) => a.amount - b.amount);
 
       return res.json({ plans });
-    } catch (e: any) {
-      logger.error({ event: 'billing.plans.error', error: e?.message || String(e) });
+    } catch (e: unknown) {
+      logger.error({ event: 'billing.plans.error', error: e instanceof Error ? e.message : String(e) });
       return res.status(500).json({ error: 'plans_failed' });
     }
   });
@@ -328,7 +297,7 @@ export async function registerBillingRoutes(app: express.Application, prisma: Pr
       const tenantRec = await prisma.tenant.findUnique({ where: { id: tenant.id } });
       if (!tenantRec?.stripeSubscriptionId) return res.status(400).json({ error: 'no_subscription' });
 
-      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2024-06-20' } as any);
+      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2023-10-16' });
 
       // Cancel at period end (graceful cancellation)
       const updated = await stripe.subscriptions.update(tenantRec.stripeSubscriptionId, {
@@ -340,8 +309,8 @@ export async function registerBillingRoutes(app: express.Application, prisma: Pr
         cancelAt: updated.cancel_at ? new Date(updated.cancel_at * 1000).toISOString() : null,
         currentPeriodEnd: new Date((updated.current_period_end || 0) * 1000).toISOString(),
       });
-    } catch (e: any) {
-      logger.error({ event: 'billing.cancel.error', error: e?.message || String(e) });
+    } catch (e: unknown) {
+      logger.error({ event: 'billing.cancel.error', error: e instanceof Error ? e.message : String(e) });
       return res.status(500).json({ error: 'cancel_failed' });
     }
   });
@@ -358,7 +327,7 @@ export async function registerBillingRoutes(app: express.Application, prisma: Pr
       const tenantRec = await prisma.tenant.findUnique({ where: { id: tenant.id } });
       if (!tenantRec?.stripeSubscriptionId) return res.status(400).json({ error: 'no_subscription' });
 
-      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2024-06-20' } as any);
+      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2023-10-16' });
 
       // Remove cancellation
       const updated = await stripe.subscriptions.update(tenantRec.stripeSubscriptionId, {
@@ -366,8 +335,8 @@ export async function registerBillingRoutes(app: express.Application, prisma: Pr
       });
 
       return res.json({ success: true, status: updated.status });
-    } catch (e: any) {
-      logger.error({ event: 'billing.reactivate.error', error: e?.message || String(e) });
+    } catch (e: unknown) {
+      logger.error({ event: 'billing.reactivate.error', error: e instanceof Error ? e.message : String(e) });
       return res.status(500).json({ error: 'reactivate_failed' });
     }
   });
@@ -381,7 +350,7 @@ export async function registerBillingRoutes(app: express.Application, prisma: Pr
     if (tenant.isInternal || tenant.bypassLimits) return res.status(400).json({ error: 'billing_not_applicable' });
     if (!process.env.STRIPE_SECRET_KEY) return res.status(501).json({ error: 'billing_not_configured' });
     try {
-      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2024-06-20' } as any);
+      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2023-10-16' });
       const schema = z.object({ priceId: z.string().min(3).optional(), plan: z.string().min(1).optional(), returnUrl: z.string().url().optional() }).refine(v => !!(v.priceId || v.plan), { message: 'priceId or plan required' });
       const parse = schema.safeParse(req.body || {});
       if (!parse.success) return res.status(400).json({ error: 'invalid payload' });
@@ -416,8 +385,8 @@ export async function registerBillingRoutes(app: express.Application, prisma: Pr
         allow_promotion_codes: true,
       });
       return res.json({ url: session.url });
-    } catch (e: any) {
-      logger.error({ event: 'billing.checkout.error', error: e?.message || String(e) });
+    } catch (e: unknown) {
+      logger.error({ event: 'billing.checkout.error', error: e instanceof Error ? e.message : String(e) });
       return res.status(500).json({ error: 'checkout_failed' });
     }
   });
@@ -431,7 +400,7 @@ export async function registerBillingRoutes(app: express.Application, prisma: Pr
     if (tenant.isInternal || tenant.bypassLimits) return res.status(400).json({ error: 'billing_not_applicable' });
     if (!process.env.STRIPE_SECRET_KEY) return res.status(501).json({ error: 'billing_not_configured' });
     try {
-      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2024-06-20' } as any);
+      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2023-10-16' });
       const tenantRec = await prisma.tenant.findUnique({ where: { id: tenant.id } });
       const customerId = (tenantRec as any)?.stripeCustomerId;
       if (!customerId) return res.status(400).json({ error: 'no_customer' });
@@ -439,8 +408,8 @@ export async function registerBillingRoutes(app: express.Application, prisma: Pr
       const returnUrl = (origin || '').replace(/\/$/, '') + '/billing/account';
       const session = await stripe.billingPortal.sessions.create({ customer: customerId, return_url: returnUrl });
       return res.json({ url: session.url });
-    } catch (e: any) {
-      logger.error({ event: 'billing.portal.error', error: e?.message || String(e) });
+    } catch (e: unknown) {
+      logger.error({ event: 'billing.portal.error', error: e instanceof Error ? e.message : String(e) });
       return res.status(500).json({ error: 'portal_failed' });
     }
   });
@@ -449,7 +418,7 @@ export async function registerBillingRoutes(app: express.Application, prisma: Pr
   app.post('/billing/webhook', async (req: express.Request, res: express.Response) => {
     if (!process.env.STRIPE_WEBHOOK_SECRET || !process.env.STRIPE_SECRET_KEY) return res.status(501).json({ error: 'billing_not_configured' });
     try {
-      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2024-06-20' } as any);
+      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2023-10-16' });
       const sig = req.headers['stripe-signature'] as string;
       const raw = (req as any).body as Buffer;
       const event = stripe.webhooks.constructEvent(raw, sig, process.env.STRIPE_WEBHOOK_SECRET!);
@@ -518,8 +487,8 @@ export async function registerBillingRoutes(app: express.Application, prisma: Pr
           break;
       }
       res.json({ received: true });
-    } catch (e: any) {
-      logger.error({ event: 'billing.webhook.error', error: e?.message || String(e) });
+    } catch (e: unknown) {
+      logger.error({ event: 'billing.webhook.error', error: e instanceof Error ? e.message : String(e) });
       return res.status(400).send('webhook error');
     }
   });

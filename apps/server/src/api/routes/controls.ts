@@ -22,14 +22,14 @@ export function registerControlRoutes(
     const parse = schema.safeParse(req.body || {});
     if (!parse.success) return res.status(400).json({ error: 'invalid payload' });
 
-    const gameServer = (global as any).gameServer;
+    const gameServer = global.gameServer;
     if (!gameServer) return res.status(500).json({ error: 'game server not available' });
 
     const payload = parse.data;
     let delivered = 0;
     let roomArray: any[] = [];
 
-    const activeWorldRooms = (global as any).activeWorldRooms;
+    const activeWorldRooms = global.activeWorldRooms;
     if (activeWorldRooms && activeWorldRooms.size > 0) {
       roomArray = Array.from(activeWorldRooms);
     } else if (gameServer.matchMaker) {
@@ -71,14 +71,14 @@ export function registerControlRoutes(
     const identity = req.params.identity;
     if (!identity) return res.status(400).json({ error: 'identity required' });
 
-    const gameServer = (global as any).gameServer;
+    const gameServer = global.gameServer;
     if (!gameServer) return res.status(500).json({ error: 'game server not available' });
 
     const payload = parse.data;
     let delivered = 0;
     let roomArray: any[] = [];
 
-    const activeWorldRooms = (global as any).activeWorldRooms;
+    const activeWorldRooms = global.activeWorldRooms;
     if (activeWorldRooms && activeWorldRooms.size > 0) {
       roomArray = Array.from(activeWorldRooms);
     } else if (gameServer.matchMaker) {

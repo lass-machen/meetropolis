@@ -1,0 +1,145 @@
+import { useEffect } from 'react';
+import { logger } from '../../../lib/logger';
+import { splitTilesetImage } from '../../../lib/tilesetUtils';
+import { gameBridge } from '../../../game/bridge';
+
+interface UseEditorLoaderParams {
+  me: { id: string; email: string; name?: string } | null;
+  apiBase: string;
+  setEditor: (editor: any) => void;
+}
+
+export function useEditorLoader({ me, apiBase, setEditor }: UseEditorLoaderParams) {
+  useEffect(() => {
+    if (!me) return;
+
+    try {
+      (async () => {
+        const res = await fetch(`${apiBase}/asset-packs`, { credentials: 'include' });
+        if (res.ok) {
+          const packs = await res.json();
+          const packTilesets: any[] = [];
+          const packItems: any[] = [];
+          for (const p of packs || []) {
+            const uuid = p.uuid;
+            for (const t of (p.terrain || [])) {
+              packTilesets.push({ key: `${uuid}:${t.key}`, dataUrl: t.dataURL, tileWidth: t.tileWidth, tileHeight: t.tileHeight, margin: t.margin ?? 0, spacing: t.spacing ?? 0, category: 'terrain' });
+            }
+            for (const t of (p.terrain || [])) {
+              if (t.dataURL) {
+                try {
+                  const tiles = await splitTilesetImage(t.dataURL, { tileWidth: t.tileWidth, tileHeight: t.tileHeight, margin: t.margin, spacing: t.spacing });
+                  for (const tile of tiles) {
+                    packItems.push({ packUuid: uuid, itemId: `${t.id}:${tile.row}:${tile.col}`, key: `${t.key}-${tile.row}-${tile.col}`, category: 'terrain', dataUrl: tile.dataUrl, width: t.tileWidth, height: t.tileHeight, collide: !!t.collide });
+                  }
+                } catch (e) {
+                  logger.warn('[WorldApp] Failed to split tileset:', t.key, e);
+                  packItems.push({ packUuid: uuid, itemId: t.id, key: t.key, category: 'terrain', dataUrl: t.dataURL, width: t.tileWidth, height: t.tileHeight, collide: !!t.collide });
+                }
+              } else {
+                packItems.push({ packUuid: uuid, itemId: t.id, key: t.key, category: 'terrain', dataUrl: t.dataURL, width: t.tileWidth, height: t.tileHeight, collide: !!t.collide });
+              }
+            }
+            for (const s of (p.structures || [])) {
+              packItems.push({ packUuid: uuid, itemId: s.id, key: s.key, category: 'structures', dataUrl: s.dataURL, width: s.width, height: s.height, collide: !!s.collide });
+            }
+            for (const o of (p.objects || [])) {
+              packItems.push({ packUuid: uuid, itemId: o.id, key: o.key, category: 'objects', dataUrl: o.dataURL, width: o.width, height: o.height, collide: !!o.collide });
+            }
+          }
+          if (packTilesets.length > 0) {
+            setEditor((s: any) => {
+              const existing = s.tilesets || [];
+              const merged = [...existing];
+              for (const ts of packTilesets) {
+                const idx = merged.findIndex((m: any) => m.key === ts.key);
+                if (idx >= 0) merged[idx] = ts; else merged.push(ts);
+              }
+              (window as any).pendingTilesets = merged;
+              return { ...s, tilesets: merged };
+            });
+            try {
+              for (const ts of packTilesets) {
+                gameBridge.registerTileset({ key: ts.key, dataUrl: ts.dataUrl, tileWidth: ts.tileWidth, tileHeight: ts.tileHeight, margin: ts.margin ?? 0, spacing: ts.spacing ?? 0 });
+              }
+            } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
+          }
+          setEditor((s: any) => ({ ...s, packItems }));
+        }
+        try {
+          const raw = localStorage.getItem('meetropolis.packItems');
+          if (raw) {
+            const local = JSON.parse(raw);
+            if (Array.isArray(local)) {
+              setEditor((s: any) => {
+                const current = s.packItems || [];
+                const seen = new Set(current.map((p: any) => p.key));
+                const next = [...current];
+                for (const li of local) {
+                  if (!seen.has(li.key)) {
+                    next.push(li);
+                    seen.add(li.key);
+                  }
+                }
+                return { ...s, packItems: next };
+              });
+            }
+          }
+        } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
+      })();
+    } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
+
+    try { gameBridge.fetchAndApplyServerLayers(); } catch (e) { }
+
+    const defaultTs = [
+      { key: 'office_tiles', dataUrl: '/assets/tilesets/office_tiles.png', tileWidth: 16, tileHeight: 16, category: 'terrain' },
+      { key: 'furniture_tiles', dataUrl: '/assets/tilesets/furniture_tiles.png', tileWidth: 16, tileHeight: 16, category: 'objects' },
+      { key: 'decor_tiles', dataUrl: '/assets/tilesets/decor_tiles.png', tileWidth: 16, tileHeight: 16, category: 'objects' },
+    ];
+    (window as any).pendingTilesets = defaultTs;
+    setEditor((s: any) => ({ ...s, tilesets: defaultTs }));
+
+    (async () => {
+      try {
+        for (const ts of defaultTs) {
+          await gameBridge.registerTileset({ key: ts.key, dataUrl: ts.dataUrl, tileWidth: ts.tileWidth, tileHeight: ts.tileHeight, margin: 0, spacing: 0 });
+        }
+      } catch (e) { logger.warn('[EDITOR] Tileset registration failed (non-critical):', e); }
+    })();
+
+    try { gameBridge.reloadEditorLayers(); } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
+
+    (async () => {
+      try {
+        const mapName = (typeof window !== 'undefined' && (((window as any).__map_name) || (window as any).MAP_NAME)) || 'office';
+        const res = await fetch(`${apiBase}/maps/${encodeURIComponent(mapName)}/editor-state`, { credentials: 'include' });
+        if (res.ok) {
+          const data = await res.json();
+          if (data?.zones) try {
+            const zones = Array.isArray(data.zones) ? data.zones.map((z: any) => {
+              const anyZ = z || {};
+              const pts = Array.isArray(anyZ.points) ? anyZ.points : Array.isArray(anyZ.polygon) ? anyZ.polygon : (anyZ.polygon && Array.isArray(anyZ.polygon.points)) ? anyZ.polygon.points : [];
+              return { name: anyZ.name, points: pts };
+            }) : [];
+            setEditor((s: any) => ({ ...s, zones }));
+            try { gameBridge.setZoneOverlay(zones); } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
+          } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
+          if (typeof data?.backgroundColor === 'string') {
+            setEditor((s: any) => ({ ...s, backgroundColor: data.backgroundColor }));
+            try { gameBridge.setBackgroundColor(data.backgroundColor); } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
+          }
+          if (Array.isArray(data?.editorGround) || Array.isArray(data?.editorWalls) || Array.isArray(data?.collision)) {
+            try { gameBridge.reloadEditorLayers(); } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
+          }
+          if (Array.isArray(data?.assets) && data.assets.length > 0) {
+            setEditor((s: any) => ({ ...s, assets: data.assets }));
+          }
+          if (data?.spawn && typeof data.spawn.x === 'number') {
+            setEditor((s: any) => ({ ...s, spawn: { x: data.spawn.x, y: data.spawn.y } }));
+            try { gameBridge.setSpawnMarker({ x: data.spawn.x, y: data.spawn.y }); } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
+          }
+        }
+      } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
+    })();
+  }, [me, apiBase, setEditor]);
+}

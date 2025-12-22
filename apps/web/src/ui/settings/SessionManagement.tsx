@@ -29,7 +29,7 @@ export function SessionManagement({ onClose }: { onClose: () => void }) {
       } else {
         setError('Failed to load sessions');
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       setError(e.message || 'Network error');
     } finally {
       setLoading(false);
@@ -55,7 +55,7 @@ export function SessionManagement({ onClose }: { onClose: () => void }) {
         const data = await res.json().catch(() => ({}));
         setError(data.error || 'Failed to revoke session');
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       setError(e.message || 'Network error');
     } finally {
       setRevoking(null);
@@ -80,7 +80,7 @@ export function SessionManagement({ onClose }: { onClose: () => void }) {
         const data = await res.json().catch(() => ({}));
         setError(data.error || 'Failed to revoke sessions');
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       setError(e.message || 'Network error');
     } finally {
       setRevoking(null);

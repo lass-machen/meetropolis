@@ -27,7 +27,7 @@ export function Signup(props: { apiBase: string; onSuccess: (tenantSlug: string)
         throw new Error(t || `HTTP ${res.status}`);
       }
       onSuccess(slug);
-    } catch (e: any) {
+    } catch (e: unknown) {
       setError(e?.message || 'Registrierung fehlgeschlagen');
     } finally {
       setBusy(false);

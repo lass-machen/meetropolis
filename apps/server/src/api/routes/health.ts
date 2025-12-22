@@ -83,8 +83,8 @@ export function registerHealthRoutes(app: express.Application, prisma: PrismaCli
       const roomNameWithTenant = `${tenant.slug}:${roomName}`;
       const token = await createLivekitToken({ roomName: roomNameWithTenant, identity, name, canPublish, canPublishData: true, canSubscribe });
       res.type('text/plain').send(token);
-    } catch (e: any) {
-      logger.error({ event: 'livekit.token.error', error: e?.message || String(e) });
+    } catch (e: unknown) {
+      logger.error({ event: 'livekit.token.error', error: e instanceof Error ? e.message : String(e) });
       res.status(500).json({ error: 'failed to create token' });
     }
   });

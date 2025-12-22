@@ -1,19 +1,29 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AVManager } from './avManager';
+import type { LocalTrack } from 'livekit-client';
+
+interface MockTrack {
+  kind: 'audio' | 'video';
+}
+
+interface CreateLocalTracksOptions {
+  audio?: boolean;
+  video?: boolean;
+}
 
 // Mock livekit-client dynamic imports used inside AVManager
 vi.mock('livekit-client', () => {
   return {
     // For mic/cam enabling
-    createLocalTracks: vi.fn(async (opts?: any) => {
-      const tracks: any[] = [];
+    createLocalTracks: vi.fn(async (opts?: CreateLocalTracksOptions): Promise<LocalTrack[]> => {
+      const tracks: MockTrack[] = [];
       if (opts?.audio) tracks.push({ kind: 'audio' });
       if (opts?.video) tracks.push({ kind: 'video' });
-      return tracks;
+      return tracks as LocalTrack[];
     }),
     // For screenshare
-    createLocalScreenTracks: vi.fn(async () => [{ kind: 'video' }, { kind: 'audio' }]),
-  } as any;
+    createLocalScreenTracks: vi.fn(async (): Promise<LocalTrack[]> => [{ kind: 'video' }, { kind: 'audio' }] as LocalTrack[]),
+  };
 });
 
 // Mock joinLivekitRoom to return a minimal fake room

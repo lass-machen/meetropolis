@@ -53,7 +53,7 @@ export function UserManagement(props: { baseUrl: string; onBack: () => void }) {
         const myUser = list.find((u: User) => u.id === myId);
         if (myUser?.role) setCurrentUserRole(myUser.role);
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       setError(e.message || t('common.error'));
     } finally {
       setLoading(false);
@@ -71,7 +71,7 @@ export function UserManagement(props: { baseUrl: string; onBack: () => void }) {
       });
       if (!res.ok) throw new Error((await res.json())?.error || t('common.error'));
       await load();
-    } catch (e: any) {
+    } catch (e: unknown) {
       setError(e.message || t('common.error'));
     }
   }
@@ -93,7 +93,7 @@ export function UserManagement(props: { baseUrl: string; onBack: () => void }) {
       
       await load();
       setEdit(null);
-    } catch (e: any) {
+    } catch (e: unknown) {
       setError(e.message || 'Fehler');
     }
   }
@@ -104,7 +104,7 @@ export function UserManagement(props: { baseUrl: string; onBack: () => void }) {
       const res = await fetch(`${baseUrl}/users/${id}`, { method: 'DELETE', credentials: 'include' });
       if (!res.ok) throw new Error((await res.json())?.error || t('common.error'));
       await load();
-    } catch (e: any) {
+    } catch (e: unknown) {
       setError(e.message || t('common.error'));
     }
   }
@@ -302,7 +302,7 @@ export function UserManagement(props: { baseUrl: string; onBack: () => void }) {
                             if (!res.ok) throw new Error(data?.error || 'Failed');
                             setResetToken(data.token || null);
                             setResetOpen(true);
-                          } catch (e: any) {
+                          } catch (e: unknown) {
                             setError(e.message || 'Fehler');
                           }
                         }}
@@ -341,7 +341,7 @@ export function UserManagement(props: { baseUrl: string; onBack: () => void }) {
             const data = await res.json();
             setInviteCode(data.code || null);
             try { await (document as any).__userManagementLoad?.(); } catch {}
-          } catch (e: any) {
+          } catch (e: unknown) {
             setError(e.message || t('common.error'));
           }
         }}>{t('admin.users.createInvite')}</Button>

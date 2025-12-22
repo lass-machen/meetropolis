@@ -124,7 +124,7 @@ export function EditorPanel(props: {
           setToastOpen(true);
         }
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       logger.error('Save failed', e);
       setToast({ title: t('editor.saveFailedTitle'), description: e.message || 'Unknown error', intent: 'error' });
       setToastOpen(true);

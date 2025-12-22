@@ -35,12 +35,12 @@ export function registerAdminRoutes(app: express.Application, prisma: PrismaClie
     if (!ok) return res.status(403).json({ error: 'forbidden' });
     const list = await prisma.tenant.findMany({ orderBy: { createdAt: 'asc' } });
     const usage = computeOnlineUsageByTenantSlug();
-    const out = list.map((t: any) => ({
+    const out = list.map((t) => ({
       id: t.id,
       slug: t.slug,
       name: t.name,
       concurrentLimit: t.concurrentLimit,
-      freeSeats: (t as any).freeSeats ?? 0,
+      freeSeats: t.freeSeats ?? 0,
       bypassLimits: !!t.bypassLimits,
       isInternal: !!t.isInternal,
       status: t.status || null,
@@ -66,8 +66,8 @@ export function registerAdminRoutes(app: express.Application, prisma: PrismaClie
       const freeDefault = typeof parse.data.freeSeats === 'number' ? parse.data.freeSeats : await getDefaultFreeSeats(prisma);
       const t = await prisma.tenant.create({ data: { slug: parse.data.slug.toLowerCase(), name: parse.data.name, concurrentLimit: parse.data.concurrentLimit, freeSeats: freeDefault, bypassLimits: !!parse.data.bypassLimits } });
       res.json({ id: t.id });
-    } catch (e: any) {
-      if (e?.code === 'P2002') return res.status(400).json({ error: 'slug_exists' });
+    } catch (e: unknown) {
+      if (e && typeof e === 'object' && 'code' in e && e.code === 'P2002') return res.status(400).json({ error: 'slug_exists' });
       return res.status(400).json({ error: 'create_failed' });
     }
   });
@@ -98,10 +98,10 @@ export function registerAdminRoutes(app: express.Application, prisma: PrismaClie
     if (!ok) return res.status(403).json({ error: 'forbidden' });
     if (!process.env.STRIPE_SECRET_KEY) return res.status(501).json({ error: 'billing_not_configured' });
     try {
-      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2024-06-20' } as any);
+      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2023-10-16' });
       const prods = await stripe.products.list({ limit: 100, expand: ['data.default_price'] });
       const prices = await stripe.prices.list({ limit: 100, expand: ['data.product'] });
-      const priceByProduct = new Map<string, any[]>();
+      const priceByProduct = new Map<string, Array<{ id: string; unitAmount: number | null; currency: string; recurring: unknown; active: boolean; metadata: Record<string, string> }>>();
       for (const p of prices.data) {
         const pid = (typeof p.product === 'string') ? p.product : (p.product as any).id;
         const arr = priceByProduct.get(pid) || [];
@@ -124,8 +124,8 @@ export function registerAdminRoutes(app: express.Application, prisma: PrismaClie
         prices: priceByProduct.get(pr.id) || [],
       }));
       res.json(out);
-    } catch (e: any) {
-      logger.error({ event: 'admin.billing.products.error', error: e?.message || String(e) });
+    } catch (e: unknown) {
+      logger.error({ event: 'admin.billing.products.error', error: e instanceof Error ? e.message : String(e) });
       res.status(500).json({ error: 'failed_to_list_products' });
     }
   });
@@ -141,12 +141,12 @@ export function registerAdminRoutes(app: express.Application, prisma: PrismaClie
     const parse = schema.safeParse(req.body || {});
     if (!parse.success) return res.status(400).json({ error: 'invalid payload' });
     try {
-      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2024-06-20' } as any);
+      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2023-10-16' });
       const product = await stripe.products.create({ name: parse.data.name, description: parse.data.description, metadata: { concurrent_limit: String(parse.data.concurrentLimit) } });
       const price = await stripe.prices.create({ product: product.id, unit_amount: parse.data.amount, currency: parse.data.currency, recurring: { interval: parse.data.interval }, metadata: { concurrent_limit: String(parse.data.concurrentLimit) } });
       res.json({ id: product.id, priceId: price.id });
-    } catch (e: any) {
-      logger.error({ event: 'admin.billing.products.create.error', error: e?.message || String(e) });
+    } catch (e: unknown) {
+      logger.error({ event: 'admin.billing.products.create.error', error: e instanceof Error ? e.message : String(e) });
       res.status(500).json({ error: 'create_failed' });
     }
   });
@@ -162,11 +162,11 @@ export function registerAdminRoutes(app: express.Application, prisma: PrismaClie
     const parse = schema.safeParse(req.body || {});
     if (!parse.success) return res.status(400).json({ error: 'invalid payload' });
     try {
-      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2024-06-20' } as any);
+      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2023-10-16' });
       const price = await stripe.prices.create({ product: req.params.id, unit_amount: parse.data.amount, currency: parse.data.currency, recurring: { interval: parse.data.interval }, metadata: { concurrent_limit: String(parse.data.concurrentLimit) } });
       res.json({ id: price.id });
-    } catch (e: any) {
-      logger.error({ event: 'admin.billing.price.create.error', error: e?.message || String(e) });
+    } catch (e: unknown) {
+      logger.error({ event: 'admin.billing.price.create.error', error: e instanceof Error ? e.message : String(e) });
       res.status(500).json({ error: 'create_failed' });
     }
   });
@@ -182,11 +182,11 @@ export function registerAdminRoutes(app: express.Application, prisma: PrismaClie
     const parse = schema.safeParse(req.body || {});
     if (!parse.success) return res.status(400).json({ error: 'invalid payload' });
     try {
-      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2024-06-20' } as any);
+      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2023-10-16' });
       const pr = await stripe.products.update(req.params.id, { name: parse.data.name ?? undefined, description: parse.data.description ?? undefined, active: parse.data.active ?? undefined });
       res.json({ id: pr.id, active: pr.active });
-    } catch (e: any) {
-      logger.error({ event: 'admin.billing.product.update.error', error: e?.message || String(e) });
+    } catch (e: unknown) {
+      logger.error({ event: 'admin.billing.product.update.error', error: e instanceof Error ? e.message : String(e) });
       res.status(500).json({ error: 'update_failed' });
     }
   });
@@ -202,11 +202,11 @@ export function registerAdminRoutes(app: express.Application, prisma: PrismaClie
     const parse = schema.safeParse(req.body || {});
     if (!parse.success) return res.status(400).json({ error: 'invalid payload' });
     try {
-      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2024-06-20' } as any);
+      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2023-10-16' });
       const price = await stripe.prices.update(req.params.id, { active: parse.data.active ?? undefined });
       res.json({ id: price.id, active: price.active });
-    } catch (e: any) {
-      logger.error({ event: 'admin.billing.price.update.error', error: e?.message || String(e) });
+    } catch (e: unknown) {
+      logger.error({ event: 'admin.billing.price.update.error', error: e instanceof Error ? e.message : String(e) });
       res.status(500).json({ error: 'update_failed' });
     }
   });
@@ -219,7 +219,7 @@ export function registerAdminRoutes(app: express.Application, prisma: PrismaClie
     if (!ok) return res.status(403).json({ error: 'forbidden' });
     if (!process.env.STRIPE_SECRET_KEY) return res.status(501).json({ error: 'billing_not_configured' });
     try {
-      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2024-06-20' } as any);
+      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2023-10-16' });
       const subs = await stripe.subscriptions.list({ status: 'all', limit: 100, expand: ['data.items.data.price.product'] });
       const now = Date.now();
       const last30 = now - 30 * 24 * 60 * 60 * 1000;
@@ -227,10 +227,10 @@ export function registerAdminRoutes(app: express.Application, prisma: PrismaClie
       let mrrCents = 0;
       let revenue30dCents = 0;
       for (const s of subs.data) {
-        const isActive = ['active', 'trialing', 'past_due', 'unpaid'].includes(s.status as any);
+        const isActive = ['active', 'trialing', 'past_due', 'unpaid'].includes(s.status);
         if (isActive) activeCount++;
         const it = s.items?.data?.[0];
-        const price: any = it?.price;
+        const price = it?.price as { unit_amount?: number | null; recurring?: { interval?: string } } | undefined;
         const amount = Number(price?.unit_amount || 0);
         const interval = price?.recurring?.interval || 'month';
         if (interval === 'month') mrrCents += amount;
@@ -239,8 +239,8 @@ export function registerAdminRoutes(app: express.Application, prisma: PrismaClie
         }
       }
       res.json({ activeSubscriptions: activeCount, mrrCents, revenue30dCents });
-    } catch (e: any) {
-      logger.error({ event: 'admin.billing.metrics.error', error: e?.message || String(e) });
+    } catch (e: unknown) {
+      logger.error({ event: 'admin.billing.metrics.error', error: e instanceof Error ? e.message : String(e) });
       res.status(500).json({ error: 'metrics_failed' });
     }
   });
@@ -282,21 +282,21 @@ export function registerAdminRoutes(app: express.Application, prisma: PrismaClie
       });
 
       return res.json({ ok: true, tenant: { id: tenant.id, slug: tenant.slug, freeSeats: tenant.freeSeats }, user: { id: (user as any).id, email: (user as any).email } });
-    } catch (e: any) {
-      logger.error({ event: 'public.signup.error', error: e?.message || String(e) });
+    } catch (e: unknown) {
+      logger.error({ event: 'public.signup.error', error: e instanceof Error ? e.message : String(e) });
       return res.status(400).json({ error: 'signup_failed' });
     }
   });
 
   // Debug endpoint for Colyseus rooms
   app.get('/debug/rooms', async (_req: express.Request, res: express.Response) => {
-    const gameServer = (global as any).gameServer;
+    const gameServer = global.gameServer;
     if (!gameServer) return res.json({ error: 'Game server not initialized' });
 
     const rooms: any[] = [];
     try {
       let roomArray: any[] = [];
-      const activeWorldRooms = (global as any).activeWorldRooms;
+      const activeWorldRooms = global.activeWorldRooms;
       if (activeWorldRooms && activeWorldRooms.size > 0) {
         roomArray = Array.from(activeWorldRooms);
       } else if (gameServer.matchMaker) {
@@ -331,8 +331,8 @@ export function registerAdminRoutes(app: express.Application, prisma: PrismaClie
           players
         });
       });
-    } catch (e: any) {
-      return res.json({ error: 'Failed to get rooms', details: e.message });
+    } catch (e: unknown) {
+      return res.json({ error: 'Failed to get rooms', details: e instanceof Error ? e.message : String(e) });
     }
 
     res.json({ rooms, total: rooms.length });
@@ -367,10 +367,10 @@ export function registerAdminRoutes(app: express.Application, prisma: PrismaClie
         status: 'connected',
         responseTime: Date.now() - dbStart,
       };
-    } catch (e: any) {
+    } catch (e: unknown) {
       health.database = {
         status: 'error',
-        error: e?.message || String(e),
+        error: e instanceof Error ? e.message : String(e),
       };
     }
 
@@ -394,8 +394,8 @@ export function registerAdminRoutes(app: express.Application, prisma: PrismaClie
 
     // Active WebSocket connections
     try {
-      const gameServer = (global as any).gameServer;
-      const activeWorldRooms = (global as any).activeWorldRooms;
+      const gameServer = global.gameServer;
+      const activeWorldRooms = global.activeWorldRooms;
       let activeConnections = 0;
       let roomCount = 0;
 
@@ -417,10 +417,10 @@ export function registerAdminRoutes(app: express.Application, prisma: PrismaClie
         activeRooms: roomCount,
         activeConnections,
       };
-    } catch (e: any) {
+    } catch (e: unknown) {
       health.websocket = {
         status: 'error',
-        error: e?.message || String(e),
+        error: e instanceof Error ? e.message : String(e),
       };
     }
 
@@ -540,8 +540,8 @@ export function registerAdminRoutes(app: express.Application, prisma: PrismaClie
           active: activeSessions,
         },
       });
-    } catch (e: any) {
-      logger.error({ event: 'admin.stats.error', error: e?.message || String(e) });
+    } catch (e: unknown) {
+      logger.error({ event: 'admin.stats.error', error: e instanceof Error ? e.message : String(e) });
       return res.status(500).json({ error: 'stats_failed' });
     }
   });
