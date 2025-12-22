@@ -129,7 +129,7 @@ describe('authHelpers', () => {
       );
     });
 
-    it('should respect COOKIE_SECURE override', () => {
+    it('should respect COOKIE_SECURE=true override in development', () => {
       process.env.NODE_ENV = 'development';
       process.env.COOKIE_SECURE = 'true';
 
@@ -144,6 +144,25 @@ describe('authHelpers', () => {
         'test-token',
         expect.objectContaining({
           secure: true,
+        })
+      );
+    });
+
+    it('should respect COOKIE_SECURE=false override in production', () => {
+      process.env.NODE_ENV = 'production';
+      process.env.COOKIE_SECURE = 'false';
+
+      const mockResponse = {
+        cookie: vi.fn()
+      };
+
+      setAuthCookie(mockResponse as any, 'test-token');
+
+      expect(mockResponse.cookie).toHaveBeenCalledWith(
+        'auth_token',
+        'test-token',
+        expect.objectContaining({
+          secure: false,
         })
       );
     });

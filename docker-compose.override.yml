@@ -8,6 +8,13 @@ services:
   server:
     ports:
       - "2567:2567"
+    environment:
+      # Disable secure cookie for HTTP localhost
+      COOKIE_SECURE: "false"
+      # Allow localhost CORS
+      CORS_ORIGIN: "http://localhost:5173"
+      # Use lenient rate limits for local testing
+      RATE_LIMIT_DEV: "true"
   web:
     ports:
       - "5173:5173"

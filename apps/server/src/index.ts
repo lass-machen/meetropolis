@@ -46,7 +46,8 @@ import { requestLogger } from './api/requestLogger.js';
 import { errorHandler } from './api/errorHandler.js';
 
 const app = express();
-const isProd = process.env.NODE_ENV === 'production';
+// Allow override of rate limits for local Docker testing (RATE_LIMIT_DEV=true uses lenient limits)
+const isProd = process.env.NODE_ENV === 'production' && process.env.RATE_LIMIT_DEV !== 'true';
 const allowedOrigins = (process.env.CORS_ORIGIN || '')
   .split(',')
   .map((s) => s.trim())
