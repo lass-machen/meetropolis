@@ -1,5 +1,4 @@
-import type { Client } from 'colyseus';
-import Colyseus from 'colyseus';
+import { Room, type Client } from 'colyseus';
 import { logger } from '../logger.js';
 import { colyseusRooms, colyseusPlayers } from '../metrics.js';
 import { Schema, type, MapSchema } from '@colyseus/schema';
@@ -22,7 +21,7 @@ class WorldState extends Schema {
 // Store all active rooms globally for API access
 const activeRooms = new Set<WorldRoom>();
 
-export class WorldRoom extends Colyseus.Room<WorldState> {
+export class WorldRoom extends Room<WorldState> {
   private defaultSpawn: { x: number; y: number } | null = null;
   private prismaForPresence: PrismaClient | null = null;
   // Map-Metadaten (Pixel-Grenzen berechnen zu können)
