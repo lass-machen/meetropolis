@@ -12,8 +12,9 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "exactOptionalPropertyTypes": true,
-    "useDefineForClassFields": true,
+    "useDefineForClassFields": false,
     "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
     "lib": ["ES2021", "DOM" ],
     "types": []
   }

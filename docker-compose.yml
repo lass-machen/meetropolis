@@ -17,7 +17,7 @@ services:
 
   server:
     image: node:20
-    working_dir: /workspace/apps/server
+    working_dir: /workspace
     env_file:
       - .env
     environment:
@@ -32,7 +32,7 @@ services:
       API_TOKEN_PEPPER: ${API_TOKEN_PEPPER:-dev-pepper-change-me}
       JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-me}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173,http://localhost:5174}
-    command: sh -c "npm ci --include=dev && npx prisma generate && npx prisma db push && npx prisma db seed && npx tsx src/index.ts"
+    command: sh -c "npm ci --include=dev && apps/server/node_modules/.bin/prisma generate --schema=apps/server/prisma/schema.prisma && apps/server/node_modules/.bin/prisma db push --schema=apps/server/prisma/schema.prisma && npm run -w @meetropolis/server prisma:seed && npm run -w @meetropolis/server start:dev"
     ports:
       - "2567:2567"
     labels:
@@ -59,11 +59,11 @@ services:
       - traefik
     volumes:
       - ./:/workspace
-      - /workspace/node_modules
+      - server_node_modules:/workspace/node_modules
 
   web:
     image: node:20
-    working_dir: /workspace/apps/web
+    working_dir: /workspace
     env_file:
       - .env
     environment:
@@ -71,7 +71,7 @@ services:
       VITE_LIVEKIT_URL: ${VITE_LIVEKIT_URL}
       VITE_HMR_HOST: localhost
       VITE_HMR_PROTOCOL: ws
-    command: sh -c "npm ci && npm run dev"
+    command: sh -c "npm ci && cd apps/web && npm run dev"
     ports:
       - "5173:5173"
     labels:
@@ -99,7 +99,7 @@ services:
       - traefik
     volumes:
       - ./:/workspace
-      - /workspace/node_modules
+      - web_node_modules:/workspace/node_modules
 
   livekit:
     image: livekit/livekit-server:latest
@@ -141,6 +141,8 @@ services:
 
 volumes:
   db_data:
+  server_node_modules:
+  web_node_modules:
 
 networks:
   traefik:
