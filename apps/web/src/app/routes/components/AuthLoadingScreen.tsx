@@ -1,4 +1,3 @@
-import React from 'react';
 import { AuthScreen } from '../../../ui/auth/AuthScreen';
 import { Signup } from '../../../ui/auth/Signup';
 

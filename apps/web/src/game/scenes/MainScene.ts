@@ -312,6 +312,7 @@ export class MainScene extends Phaser.Scene {
   }
 
   rebuildStaticColliders() { this.collisionManager.rebuildStaticColliders(); }
+  ensureCollisionCollider() { this.collisionManager.ensureCollisionCollider(); }
   ensureEditorLayers() { this.tileManager.ensureEditorLayers(); }
   updateCollisionOverlay() { updateCollisionOverlay(this as any); }
 

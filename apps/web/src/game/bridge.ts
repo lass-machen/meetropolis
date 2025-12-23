@@ -87,6 +87,73 @@ export type SceneApi = {
 
 let sceneApi: SceneApi | null = null;
 
+// Tileset registration queue - processes requests sequentially to avoid server overload
+const tilesetQueue: Array<{
+  key: string;
+  dataUrl: string;
+  tileWidth: number;
+  tileHeight: number;
+  margin: number;
+  spacing: number;
+}> = [];
+const registeredTilesets = new Set<string>();
+let isProcessingTilesets = false;
+
+async function processTilesetQueue(): Promise<void> {
+  if (isProcessingTilesets || tilesetQueue.length === 0) return;
+  isProcessingTilesets = true;
+
+  const anyWin = window as Record<string, unknown>;
+  const base = (anyWin.desktop as { apiBase?: string })?.apiBase
+    || anyWin.__MEETROPOLIS_API_BASE__ as string
+    || anyWin.VITE_API_BASE as string
+    || (import.meta as { env?: { VITE_API_BASE?: string } }).env?.VITE_API_BASE
+    || `${window.location.protocol}//${window.location.hostname}:2567`;
+  const mapName = (anyWin.__map_name as string) || (anyWin.MAP_NAME as string) || 'office';
+
+  while (tilesetQueue.length > 0) {
+    const ts = tilesetQueue.shift()!;
+
+    if (registeredTilesets.has(ts.key)) {
+      continue;
+    }
+
+    const payload = {
+      key: ts.key,
+      imageUrl: ts.dataUrl,
+      tileWidth: ts.tileWidth,
+      tileHeight: ts.tileHeight,
+      margin: ts.margin,
+      spacing: ts.spacing
+    };
+
+    try {
+      const res = await fetch(`${base}/maps/${encodeURIComponent(mapName)}/tilesets`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (res.ok) {
+        await res.json();
+        registeredTilesets.add(ts.key);
+        logger.debug(`[Bridge] Tileset "${ts.key}" registered successfully`);
+      } else {
+        logger.warn(`[Bridge] Tileset registration failed: ${res.status} for key="${ts.key}"`);
+      }
+    } catch (e) {
+      logger.error('[Bridge] Failed to register tileset on server', e);
+    }
+  }
+
+  isProcessingTilesets = false;
+}
+
+// Deduplication flags for expensive operations
+let isFetchingServerLayers = false;
+let isReloadingEditorLayers = false;
+
 // Non-Editor State (behalten)
 let cachedCollisionVisible = false;
 let cachedHeroName: string | null = null;
@@ -302,49 +369,19 @@ export const gameBridge: Bridge = {
   applyTilePaint: (edit) => {
     sceneApi?.applyTilePaint(edit);
   },
-  registerTileset: async (ts) => {
-    // Direkt an Scene durchreichen - kein Caching mehr
+  registerTileset: (ts) => {
     sceneApi?.registerTileset(ts);
 
-    // Server-Sync für Tileset-Registry (SEQUENTIELL!)
-    // Check Tauri/Desktop bridge first, then fallback to env/host
-    const anyWin = window as any;
-    const base = anyWin.desktop?.apiBase || anyWin.__MEETROPOLIS_API_BASE__ || anyWin.VITE_API_BASE || (import.meta as any).env?.VITE_API_BASE || `${window.location.protocol}//${window.location.hostname}:2567`;
-    const mapName = (typeof window !== 'undefined' && (((window as any).__map_name) || (window as any).MAP_NAME)) || 'office';
-
-    const payload = {
-      key: ts.key,
-      imageUrl: ts.dataUrl,
-      tileWidth: ts.tileWidth,
-      tileHeight: ts.tileHeight,
-      margin: ts.margin ?? 0,
-      spacing: ts.spacing ?? 0
-    };
-
-    try {
-      const res = await fetch(`${base}/maps/${encodeURIComponent(mapName)}/tilesets`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+    if (!registeredTilesets.has(ts.key)) {
+      tilesetQueue.push({
+        key: ts.key,
+        dataUrl: ts.dataUrl,
+        tileWidth: ts.tileWidth,
+        tileHeight: ts.tileHeight,
+        margin: ts.margin ?? 0,
+        spacing: ts.spacing ?? 0
       });
-
-      if (!res.ok) {
-        logger.warn(`[Bridge] Tileset registration failed: ${res.status} ${res.statusText} for key="${ts.key}"`);
-        const text = await res.text();
-        try {
-          const json = JSON.parse(text);
-          logger.warn('[Bridge] Server error:', json);
-        } catch {
-          logger.warn('[Bridge] Server response:', text);
-        }
-        return;
-      }
-
-      await res.json();
-      logger.debug(`[Bridge] Tileset "${ts.key}" registered successfully`);
-    } catch (e) {
-      logger.error('[Bridge] Failed to register tileset on server', e);
+      void processTilesetQueue();
     }
   },
   setCollisionVisible: (visible) => {
@@ -352,10 +389,22 @@ export const gameBridge: Bridge = {
     sceneApi?.setCollisionVisible(visible);
   },
   reloadEditorLayers: () => {
-    sceneApi?.reloadEditorLayers();
+    if (isReloadingEditorLayers) return;
+    isReloadingEditorLayers = true;
+    try {
+      sceneApi?.reloadEditorLayers();
+    } finally {
+      setTimeout(() => { isReloadingEditorLayers = false; }, 100);
+    }
   },
   fetchAndApplyServerLayers: () => {
-    sceneApi?.fetchAndApplyServerLayers?.();
+    if (isFetchingServerLayers) return;
+    isFetchingServerLayers = true;
+    try {
+      sceneApi?.fetchAndApplyServerLayers?.();
+    } finally {
+      setTimeout(() => { isFetchingServerLayers = false; }, 100);
+    }
   },
   setBubbleMembers: (members) => {
     sceneApi?.setBubbleMembers(members);

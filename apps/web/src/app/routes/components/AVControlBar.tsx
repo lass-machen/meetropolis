@@ -1,4 +1,3 @@
-import React from 'react';
 import { AVBar } from '../../../ui/av/AVBar';
 
 interface AVControlBarProps {

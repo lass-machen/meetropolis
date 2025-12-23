@@ -188,7 +188,7 @@ function EmailVerifyPage({
         }
       } catch (e: unknown) {
         setStatus('error');
-        setMessage(e.message || 'Network error');
+        setMessage((e as Error)?.message || 'Network error');
       }
     };
 

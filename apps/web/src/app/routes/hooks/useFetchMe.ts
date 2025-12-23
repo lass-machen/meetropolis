@@ -3,7 +3,7 @@ import { logger } from '../../../lib/logger';
 
 interface UseFetchMeParams {
   apiBase: string;
-  localPosRef: React.RefObject<{ id: string; x?: number; y?: number }>;
+  localPosRef: React.MutableRefObject<{ id: string; x?: number; y?: number }>;
   setMe: React.Dispatch<React.SetStateAction<{ id: string; email: string; name?: string } | null>>;
   setIsInternalOwner: React.Dispatch<React.SetStateAction<boolean>>;
   setPositionReady: React.Dispatch<React.SetStateAction<boolean>>;

@@ -1,4 +1,3 @@
-import React from 'react';
 import { ConnectionBanner } from '../../../ui/system/ConnectionBanner';
 
 interface ConnectionBannersProps {

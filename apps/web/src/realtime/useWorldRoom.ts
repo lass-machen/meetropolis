@@ -106,13 +106,10 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
       setupRemoteControlHandlers(room, args);
       setupPresenceHandlers(room, args, recentPresenceRef);
 
-      // Add roster update to onStateChange handler (called after player handlers)
-      const originalStateChange = room.onStateChange;
-      room.onStateChange = (state: any) => {
-        // Call player handlers first
-        if (originalStateChange) originalStateChange.call(room, state);
-
-        // Then update roster
+      // Add roster update as additional onStateChange callback
+      // In modern Colyseus, onStateChange is a method that registers callbacks, not a property
+      room.onStateChange((state: any) => {
+        // Update roster
         try {
           const { remotesRef, colyseusToLivekitMap, identityToNameMap, localPosRef } = args;
           const online: Record<string, { name: string; x: number; y: number }> = {};
@@ -179,7 +176,7 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
           });
         } catch {}
         setTimeout(buildParticipantList, 0);
-      };
+      });
 
       // Setup error and leave handlers
       room.onError?.((...ev: any[]) => {

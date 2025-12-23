@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { logger } from '../../../lib/logger';
 import { splitTilesetImage } from '../../../lib/tilesetUtils';
 import { gameBridge } from '../../../game/bridge';
@@ -10,8 +10,14 @@ interface UseEditorLoaderParams {
 }
 
 export function useEditorLoader({ me, apiBase, setEditor }: UseEditorLoaderParams) {
+  const hasLoadedRef = useRef(false);
+  const setEditorRef = useRef(setEditor);
+  setEditorRef.current = setEditor;
+
   useEffect(() => {
     if (!me) return;
+    if (hasLoadedRef.current) return;
+    hasLoadedRef.current = true;
 
     try {
       (async () => {
@@ -48,7 +54,7 @@ export function useEditorLoader({ me, apiBase, setEditor }: UseEditorLoaderParam
             }
           }
           if (packTilesets.length > 0) {
-            setEditor((s: any) => {
+            setEditorRef.current((s: any) => {
               const existing = s.tilesets || [];
               const merged = [...existing];
               for (const ts of packTilesets) {
@@ -64,14 +70,14 @@ export function useEditorLoader({ me, apiBase, setEditor }: UseEditorLoaderParam
               }
             } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
           }
-          setEditor((s: any) => ({ ...s, packItems }));
+          setEditorRef.current((s: any) => ({ ...s, packItems }));
         }
         try {
           const raw = localStorage.getItem('meetropolis.packItems');
           if (raw) {
             const local = JSON.parse(raw);
             if (Array.isArray(local)) {
-              setEditor((s: any) => {
+              setEditorRef.current((s: any) => {
                 const current = s.packItems || [];
                 const seen = new Set(current.map((p: any) => p.key));
                 const next = [...current];
@@ -97,7 +103,7 @@ export function useEditorLoader({ me, apiBase, setEditor }: UseEditorLoaderParam
       { key: 'decor_tiles', dataUrl: '/assets/tilesets/decor_tiles.png', tileWidth: 16, tileHeight: 16, category: 'objects' },
     ];
     (window as any).pendingTilesets = defaultTs;
-    setEditor((s: any) => ({ ...s, tilesets: defaultTs }));
+    setEditorRef.current((s: any) => ({ ...s, tilesets: defaultTs }));
 
     (async () => {
       try {
@@ -121,25 +127,25 @@ export function useEditorLoader({ me, apiBase, setEditor }: UseEditorLoaderParam
               const pts = Array.isArray(anyZ.points) ? anyZ.points : Array.isArray(anyZ.polygon) ? anyZ.polygon : (anyZ.polygon && Array.isArray(anyZ.polygon.points)) ? anyZ.polygon.points : [];
               return { name: anyZ.name, points: pts };
             }) : [];
-            setEditor((s: any) => ({ ...s, zones }));
+            setEditorRef.current((s: any) => ({ ...s, zones }));
             try { gameBridge.setZoneOverlay(zones); } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
           } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
           if (typeof data?.backgroundColor === 'string') {
-            setEditor((s: any) => ({ ...s, backgroundColor: data.backgroundColor }));
+            setEditorRef.current((s: any) => ({ ...s, backgroundColor: data.backgroundColor }));
             try { gameBridge.setBackgroundColor(data.backgroundColor); } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
           }
           if (Array.isArray(data?.editorGround) || Array.isArray(data?.editorWalls) || Array.isArray(data?.collision)) {
             try { gameBridge.reloadEditorLayers(); } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
           }
           if (Array.isArray(data?.assets) && data.assets.length > 0) {
-            setEditor((s: any) => ({ ...s, assets: data.assets }));
+            setEditorRef.current((s: any) => ({ ...s, assets: data.assets }));
           }
           if (data?.spawn && typeof data.spawn.x === 'number') {
-            setEditor((s: any) => ({ ...s, spawn: { x: data.spawn.x, y: data.spawn.y } }));
+            setEditorRef.current((s: any) => ({ ...s, spawn: { x: data.spawn.x, y: data.spawn.y } }));
             try { gameBridge.setSpawnMarker({ x: data.spawn.x, y: data.spawn.y }); } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
           }
         }
       } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
     })();
-  }, [me, apiBase, setEditor]);
+  }, [me, apiBase]);
 }

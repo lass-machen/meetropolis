@@ -6,21 +6,14 @@ log_level: info
 
 rtc:
   tcp_port: 7881
-  # Single UDP port for Docker port mapping (range not practical with Docker Desktop)
-  udp_port: 7882
+  port_range_start: 7882
+  port_range_end: 7882
   use_external_ip: false
-  # Force advertising localhost IP for Docker Desktop on macOS
-  # This is necessary because Docker Desktop doesn't support host networking
-  ips:
-    includes:
-      - 127.0.0.1/32
-  # Enable loopback for local development
+  # Docker Desktop NAT requires explicit node-ip (set via --node-ip flag in docker-compose.override.yml)
   enable_loopback_candidate: true
-  # Use ICE lite for faster connections
+  # Use ICE-lite for simpler ICE negotiation in local dev
   use_ice_lite: true
-  # Allow TCP fallback if UDP doesn't work
-  allow_tcp_fallback: true
 
-# Development API keys
+# Development API keys - needs to be 32+ chars for production but works for dev
 keys:
   devkey: secret

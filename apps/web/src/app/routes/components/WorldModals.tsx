@@ -1,4 +1,3 @@
-import React from 'react';
 import { Modal } from '../../../ui/system';
 import { UserManagement } from '../../../ui/admin/UserManagement';
 import { ThemeToggleButton } from '../../../ui/theme';

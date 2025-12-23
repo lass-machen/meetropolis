@@ -12,24 +12,24 @@ interface UseGameInitializationParams {
   authChecked: boolean;
   me: { id: string; email: string; name?: string } | null;
   apiBase: string;
-  containerRef: React.RefObject<HTMLDivElement | null>;
-  bubbleRef: React.RefObject<BubbleManager | null>;
-  followRef: React.RefObject<FollowManager | null>;
-  zoneRef: React.RefObject<ZoneManager | null>;
-  volumeRef: React.RefObject<VolumeManager | null>;
-  gameCreatedRef: React.RefObject<boolean>;
+  containerRef: React.RefObject<HTMLDivElement>;
+  bubbleRef: React.MutableRefObject<BubbleManager | null>;
+  followRef: React.MutableRefObject<FollowManager | null>;
+  zoneRef: React.MutableRefObject<ZoneManager | null>;
+  volumeRef: React.MutableRefObject<VolumeManager | null>;
+  gameCreatedRef: React.MutableRefObject<boolean>;
   editorActiveRef: React.RefObject<boolean>;
-  localPosRef: React.RefObject<{ id: string; x?: number; y?: number }>;
-  remotesRef: React.RefObject<Record<string, { x: number; y: number }>>;
-  bubblePendingRef: React.RefObject<{ targetId: string; dest?: { x: number; y: number } } | null>;
+  localPosRef: React.MutableRefObject<{ id: string; x?: number; y?: number }>;
+  remotesRef: React.MutableRefObject<Record<string, { x: number; y: number }>>;
+  bubblePendingRef: React.MutableRefObject<{ targetId: string; dest?: { x: number; y: number } } | null>;
   activateBubbleNowRef: React.RefObject<(id: string) => void>;
-  manualNavRef: React.RefObject<{ x: number; y: number } | null>;
-  lastSavedPositionRef: React.RefObject<{ x: number; y: number; direction: string }>;
-  moveTimeoutRef: React.RefObject<any>;
+  manualNavRef: React.MutableRefObject<{ x: number; y: number } | null>;
+  lastSavedPositionRef: React.MutableRefObject<{ x: number; y: number; direction: string }>;
+  moveTimeoutRef: React.MutableRefObject<any>;
   colyseusRef: React.RefObject<any>;
   avRef: React.RefObject<any>;
   colyseusToLivekitMap: React.RefObject<Record<string, string>>;
-  colyseusReconnectTimerRef: React.RefObject<any>;
+  colyseusReconnectTimerRef: React.MutableRefObject<any>;
   bubbleGroupsRef: React.RefObject<Record<string, string>>;
   editor: any;
   setEditor: (editor: any) => void;
@@ -104,7 +104,7 @@ export function useGameInitialization(params: UseGameInitializationParams) {
           if (arrived) {
             try { followRef.current?.stop?.(); } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
             try { gameBridge.setDesiredPosition(null); } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
-            try { activateBubbleNowRef.current(pending.targetId); } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
+            try { activateBubbleNowRef.current?.(pending.targetId); } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
             bubblePendingRef.current = null;
           }
         }
@@ -164,7 +164,7 @@ export function useGameInitialization(params: UseGameInitializationParams) {
     volumeRef.current = new VolumeManager(
       {
         setParticipantVolume: (colyseusId, vol) => {
-          const livekitIdentity = colyseusToLivekitMap.current[colyseusId];
+          const livekitIdentity = colyseusToLivekitMap.current?.[colyseusId];
           if (livekitIdentity && avRef.current) {
             avRef.current.setParticipantVolume(livekitIdentity, vol);
           }
@@ -181,7 +181,7 @@ export function useGameInitialization(params: UseGameInitializationParams) {
         getRemotes: () => remotesRef.current,
         getZones: () => zoneRef.current?.getZones?.() || [],
         getFollowTarget: () => followRef.current?.getTarget?.() || null,
-        getBubbleGroups: () => bubbleGroupsRef.current,
+        getBubbleGroups: () => bubbleGroupsRef.current ?? {},
         getLocalDnd: () => false,
       },
       { nearRadius: 96, farRadius: 384, outsideBubbleAttenuation: 0.05 }

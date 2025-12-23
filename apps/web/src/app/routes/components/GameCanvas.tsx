@@ -1,7 +1,5 @@
-import React from 'react';
-
 interface GameCanvasProps {
-  containerRef: React.RefObject<HTMLDivElement | null>;
+  containerRef: React.RefObject<HTMLDivElement>;
   positionReady: boolean;
   avDnd: boolean;
 }

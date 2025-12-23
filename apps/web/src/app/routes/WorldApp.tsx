@@ -40,7 +40,7 @@ import { useTauriEffects } from './hooks/useTauriEffects';
 
 export function WorldApp() {
   // Refs
-  const containerRef = useRef<HTMLDivElement | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null!);
   const colyseusRef = useRef<any>(null);
   const colyseusReconnectTimerRef = useRef<any>(null);
   const avRef = useRef<any>(null);

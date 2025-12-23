@@ -7,12 +7,11 @@ interface UseWorldEventHandlersParams {
   avRef: React.RefObject<any>;
   colyseusRef: React.RefObject<any>;
   localPosRef: React.RefObject<{ id: string; x?: number; y?: number }>;
-  remotesRef: React.RefObject<Record<string, { x: number; y: number }>>;
   bubbleGroupsRef: React.RefObject<Record<string, string>>;
   bubbleMembersRef: React.RefObject<Set<string>>;
   bubbleStartRef: React.RefObject<null | ((id: string) => void)>;
   followRef: React.RefObject<any>;
-  manualNavRef: React.RefObject<{ x: number; y: number } | null>;
+  manualNavRef: React.MutableRefObject<{ x: number; y: number } | null>;
   gameBridge: any;
   editor: any;
   avState: { mic: boolean; cam: boolean; share: boolean; dnd: boolean };
@@ -35,7 +34,6 @@ interface UseWorldEventHandlersParams {
   setRosterCollapsed: React.Dispatch<React.SetStateAction<boolean>>;
   setBubbleUi: React.Dispatch<React.SetStateAction<{ active: boolean; members: string[] }>>;
   setContextMenu: React.Dispatch<React.SetStateAction<{ open: boolean; x: number; y: number; playerId: string | null }>>;
-  setOverlayZoom: React.Dispatch<React.SetStateAction<number>>;
   setSelectedMicId: React.Dispatch<React.SetStateAction<string | ''>>;
   setSelectedCamId: React.Dispatch<React.SetStateAction<string | ''>>;
 
@@ -51,7 +49,6 @@ export function useWorldEventHandlers(params: UseWorldEventHandlersParams) {
     avRef,
     colyseusRef,
     localPosRef,
-    remotesRef,
     bubbleGroupsRef,
     bubbleMembersRef,
     bubbleStartRef,
@@ -78,7 +75,6 @@ export function useWorldEventHandlers(params: UseWorldEventHandlersParams) {
     setRosterCollapsed,
     setBubbleUi,
     setContextMenu,
-    setOverlayZoom,
     setSelectedMicId,
     setSelectedCamId,
     applyVolumesToUi,
@@ -270,14 +266,15 @@ export function useWorldEventHandlers(params: UseWorldEventHandlersParams) {
 
   const handleBubbleLeave = useCallback(() => {
     const set = bubbleMembersRef.current;
-    set.clear();
+    set?.clear();
     try { gameBridge.setBubbleMembers(new Set()); } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
     try { gameBridge.setMovementLocked(false); } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
     try {
-      const meId = localPosRef.current.id;
-      const myGroup = meId ? (bubbleGroupsRef.current[meId] || null) : null;
+      const meId = localPosRef.current?.id;
+      const groups = bubbleGroupsRef.current ?? {};
+      const myGroup = meId ? (groups[meId] || null) : null;
       if (meId && myGroup) {
-        const currentMembers = Object.entries(bubbleGroupsRef.current)
+        const currentMembers = Object.entries(groups)
           .filter(([, _gid]) => _gid === myGroup)
           .map(([sid]) => sid);
         const remaining = currentMembers.filter((sid) => sid !== meId);
@@ -315,10 +312,11 @@ export function useWorldEventHandlers(params: UseWorldEventHandlersParams) {
     setContextMenu({ open: false, x: 0, y: 0, playerId: null });
     try {
       const target = contextMenu.playerId!;
-      const targetGroup = bubbleGroupsRef.current[target];
-      const meId = localPosRef.current.id;
+      const groups = bubbleGroupsRef.current ?? {};
+      const targetGroup = groups[target];
+      const meId = localPosRef.current?.id;
       if (!target || !targetGroup || !meId) return;
-      const currentMembers = Object.entries(bubbleGroupsRef.current)
+      const currentMembers = Object.entries(groups)
         .filter(([, _gid]) => _gid === targetGroup)
         .map(([sid]) => sid);
       const next = Array.from(new Set([...currentMembers, meId]));
@@ -330,11 +328,12 @@ export function useWorldEventHandlers(params: UseWorldEventHandlersParams) {
     setContextMenu({ open: false, x: 0, y: 0, playerId: null });
     try {
       const id = contextMenu.playerId!;
-      const meId = localPosRef.current.id;
+      const meId = localPosRef.current?.id;
       if (!meId || !id || meId === id) return;
-      const myGroup = bubbleGroupsRef.current[meId];
+      const groups = bubbleGroupsRef.current ?? {};
+      const myGroup = groups[meId];
       if (!myGroup) return;
-      const currentMembers = Object.entries(bubbleGroupsRef.current)
+      const currentMembers = Object.entries(groups)
         .filter(([, _gid]) => _gid === myGroup)
         .map(([sid]) => sid);
       const next = Array.from(new Set([...currentMembers, id]));
