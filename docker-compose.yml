@@ -24,6 +24,7 @@ services:
       DATABASE_URL: ${DATABASE_URL}
       PORT: 2567
       LIVEKIT_URL: ${LIVEKIT_URL}
+      LIVEKIT_EXTERNAL_URL: ${LIVEKIT_EXTERNAL_URL:-ws://localhost:7880}
       LIVEKIT_API_KEY: ${LIVEKIT_API_KEY}
       LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET}
       NODE_ENV: development
@@ -103,23 +104,16 @@ services:
 
   livekit:
     image: livekit/livekit-server:latest
-    command: ["--dev", "--bind", "0.0.0.0"]
-    environment:
-      LK_API_KEY: ${LIVEKIT_API_KEY:-devkey}
-      LK_API_SECRET: ${LIVEKIT_API_SECRET:-secret}
-      LK_NODE_IP: ${LK_NODE_IP:-127.0.0.1}
-      # Wichtig für Docker Desktop (macOS): korrekte IP an Clients signalisieren
-      LK_NAT_1_TO_1_IPS: ${LK_NAT_1_TO_1_IPS:-127.0.0.1}
-      LK_RTC_USE_EXTERNAL_IP: ${LK_RTC_USE_EXTERNAL_IP:-true}
-      # Optionale Explizitsetzung der RTC-Ports (gemappt unten)
-      LK_RTC_TCP_PORT: ${LK_RTC_TCP_PORT:-7881}
-      LK_RTC_UDP_PORT: ${LK_RTC_UDP_PORT:-7882}
+    # Use config file instead of --dev for proper NAT handling in Docker Desktop
+    command: ["--config", "/etc/livekit.yaml", "--bind", "0.0.0.0"]
+    volumes:
+      - ./livekit.yaml:/etc/livekit.yaml:ro
     ports:
       - "7880:7880"
       - "7881:7881/tcp"
       - "7882:7882/udp"
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:7880/health"]
+      test: ["CMD", "wget", "-qO-", "http://localhost:7880/"]
       interval: 15s
       timeout: 5s
       retries: 5

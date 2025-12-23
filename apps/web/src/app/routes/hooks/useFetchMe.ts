@@ -8,6 +8,7 @@ interface UseFetchMeParams {
   setIsInternalOwner: React.Dispatch<React.SetStateAction<boolean>>;
   setPositionReady: React.Dispatch<React.SetStateAction<boolean>>;
   setAuthChecked: React.Dispatch<React.SetStateAction<boolean>>;
+  refetchTrigger?: number;
 }
 
 export function useFetchMe({
@@ -17,6 +18,7 @@ export function useFetchMe({
   setIsInternalOwner,
   setPositionReady,
   setAuthChecked,
+  refetchTrigger = 0,
 }: UseFetchMeParams) {
   useEffect(() => {
     const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
@@ -75,7 +77,7 @@ export function useFetchMe({
     }
 
     fetchMe();
-  }, [apiBase]);
+  }, [apiBase, refetchTrigger]);
 
   return null;
 }

@@ -76,6 +76,7 @@ export function WorldApp() {
   const [authChecked, setAuthChecked] = React.useState(false);
   const [me, setMe] = React.useState<{ id: string; email: string; name?: string } | null>(null);
   const [isInternalOwner, setIsInternalOwner] = React.useState(false);
+  const [authRefetchTrigger, setAuthRefetchTrigger] = React.useState(0);
   const [editor, setEditor] = useEditor();
 
   // UI State
@@ -212,7 +213,7 @@ export function WorldApp() {
   const getRoom = useCallback(() => avRef.current?.room, []);
 
   // Fetch user & position (extracted to hook)
-  useFetchMe({ apiBase, localPosRef, setMe, setIsInternalOwner, setPositionReady, setAuthChecked });
+  useFetchMe({ apiBase, localPosRef, setMe, setIsInternalOwner, setPositionReady, setAuthChecked, refetchTrigger: authRefetchTrigger });
 
   // Load editor state (extracted to hook)
   useEditorLoader({ me, apiBase, setEditor });
@@ -450,6 +451,12 @@ export function WorldApp() {
     [uiParticipants, me?.name, me?.email, avState.mic]
   );
 
+  // Callback to trigger re-fetch of user data after successful login
+  const handleAuthComplete = useCallback(async () => {
+    // Trigger refetch of user data
+    setAuthRefetchTrigger(prev => prev + 1);
+  }, []);
+
   // Early return for loading/auth screens
   if (!authChecked || !me || !positionReady) {
     return (
@@ -458,7 +465,7 @@ export function WorldApp() {
         me={me}
         positionReady={positionReady}
         apiBase={apiBase}
-        onAuthComplete={() => {}}
+        onAuthComplete={handleAuthComplete}
       />
     );
   }
