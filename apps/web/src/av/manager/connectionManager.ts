@@ -110,7 +110,8 @@ export class ConnectionManager implements Disposable {
       AVLogger.info('manager.connected', { roomName: name });
 
       // Wait for connection to stabilize
-      await waitForRoomConnected(room, 5000);
+      // Increase timeout for Docker Desktop which has slower ICE negotiation
+      await waitForRoomConnected(room, 20000);
 
       // Publish any pending tracks
       if (!this.deps.dnd.enabled) {

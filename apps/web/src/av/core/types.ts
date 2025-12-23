@@ -117,7 +117,8 @@ export interface AVManagerConfig {
 }
 
 export const DEFAULT_CONFIG: Required<Omit<AVManagerConfig, 'baseUrl' | 'identity' | 'displayName' | 'useVideo'>> = {
-  connectionTimeoutMs: 10000,
+  // Increase timeout for Docker Desktop which has slower ICE negotiation
+  connectionTimeoutMs: 25000,
   signalPingIntervalMs: 5000,
   signalPingTimeoutMs: 3000,
   maxReconnectAttempts: 10,

@@ -75,7 +75,8 @@ export class Screenshare implements Disposable {
         }
         AVLogger.debug('screenshare.waiting_for_room');
         await this.deps.ensureConnected();
-        const connected = await this.deps.waitForConnected(8000);
+        // Increase timeout for Docker Desktop which has slower ICE negotiation
+        const connected = await this.deps.waitForConnected(20000);
 
         if (!connected) {
           AVLogger.warn('screenshare.connection_failed', { reason: 'timeout' });
