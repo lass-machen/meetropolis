@@ -150,20 +150,24 @@ async function connectLivekitRoom(args: {
     });
   } catch {}
 
-  // Build rtcConfig with STUN servers for ICE gathering
-  // For local Docker development, we need STUN to help browsers discover connectivity
+  // Build rtcConfig for ICE gathering
+  const isLocalDev = args.serverUrl.includes('localhost') || args.serverUrl.includes('127.0.0.1');
+
   const rtcConfig: RTCConfiguration = {
-    iceServers: [
-      // Public Google STUN servers for ICE candidate gathering
+    // For local Docker development, DON'T use STUN servers
+    // STUN causes browser to advertise its public IP which Docker can't reach
+    // For production, use STUN to help with NAT traversal
+    iceServers: isLocalDev ? [] : [
       { urls: 'stun:stun.l.google.com:19302' },
       { urls: 'stun:stun1.l.google.com:19302' },
     ],
-    // For local dev with Docker, prefer TCP since UDP through Docker Desktop is unreliable
-    ...(args.serverUrl.includes('localhost') || args.serverUrl.includes('127.0.0.1')
-      ? { iceCandidatePoolSize: 0 }
-      : {}),
     ...(args.forceRelay ? { iceTransportPolicy: 'relay' as RTCIceTransportPolicy } : {}),
   };
+
+  // Log ICE config for debugging (only in dev)
+  if (isLocalDev) {
+    console.log('[LiveKit] ICE config for local dev:', { iceServers: rtcConfig.iceServers, isLocalDev });
+  }
 
   await room.connect(args.serverUrl, args.token, {
     autoSubscribe: false,

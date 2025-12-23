@@ -19,12 +19,29 @@ services:
     ports:
       - "5173:5173"
   livekit:
-    # Use config file for proper NAT handling in Docker Desktop on macOS
-    # --node-ip forces advertising 127.0.0.1 to clients
-    command: ["--config", "/etc/livekit.yaml", "--bind", "0.0.0.0", "--node-ip", "127.0.0.1"]
+    # Override: use config file for local dev
+    # WICHTIG: Chrome filtert 127.0.0.1-Kandidaten von Remote-Peers aus Sicherheitsgründen.
+    # Setze LK_NODE_IP in .env auf deine lokale Netzwerk-IP:
+    #   echo "LK_NODE_IP=$(ifconfig en0 | grep 'inet ' | awk '{print $2}')" >> .env
+    # Beispiel: LK_NODE_IP=192.168.178.136
+    command:
+      - --config
+      - /etc/livekit.yaml
+      - --bind
+      - "0.0.0.0"
+      - --node-ip
+      - "${LK_NODE_IP:-127.0.0.1}"
+    environment:
+      # NAT 1:1 IP für ICE-Kandidaten (Chrome filtert 127.0.0.1)
+      LK_NAT_1_TO_1_IPS: ${LK_NODE_IP:-127.0.0.1}
+      LK_RTC_USE_EXTERNAL_IP: "true"
     volumes:
       - ./livekit.yaml:/etc/livekit.yaml:ro
     ports:
       - "7880:7880"
       - "7881:7881/tcp"
       - "7882:7882/udp"
+      - "3478:3478/udp"   # TURN UDP
+      - "3478:3478/tcp"   # TURN TCP
+      - "50000-50010:50000-50010/udp"  # TURN Relay Ports
+    networks: []

@@ -1,18 +1,27 @@
-# LiveKit development configuration for Docker Desktop
-# This config is needed because --dev mode doesn't properly handle NAT for Docker on macOS
-
+# LiveKit development configuration for Docker Desktop (macOS/Windows)
 port: 7880
-log_level: info
+log_level: debug
 
 rtc:
   tcp_port: 7881
   port_range_start: 7882
   port_range_end: 7882
+  # use_external_ip gesteuert über LK_RTC_USE_EXTERNAL_IP env var
   use_external_ip: false
-  # Docker Desktop NAT requires explicit node-ip (set via --node-ip flag in docker-compose.override.yml)
-  enable_loopback_candidate: true
-  # Use ICE-lite for simpler ICE negotiation in local dev
-  use_ice_lite: true
+  # ICE-lite deaktivieren für lokale Entwicklung - ermöglicht Server-initiierte Checks
+  use_ice_lite: false
+
+# Eingebauter TURN-Server für Relay-Fallback
+# Nötig wenn Host-Kandidaten nicht funktionieren (z.B. Chrome's Loopback-Filterung)
+turn:
+  enabled: true
+  # TURN über TLS auf dem gleichen Port wie WebSocket
+  tls_port: 0
+  # TURN über UDP auf separatem Port
+  udp_port: 3478
+  # Relay-Ports für TURN (müssen exponiert werden)
+  relay_range_start: 50000
+  relay_range_end: 50010
 
 # Development API keys - needs to be 32+ chars for production but works for dev
 keys:
