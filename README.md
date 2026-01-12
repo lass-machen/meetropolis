@@ -59,6 +59,73 @@ npm run prisma:migrate
 npm run dev
 ```
 
+## Desktop App (Tauri)
+
+Meetropolis includes a native desktop app for macOS, Windows, and Linux built with [Tauri v2](https://v2.tauri.app/).
+
+### Prerequisites
+
+- **Rust 1.70+** ([Install Rust](https://www.rust-lang.org/tools/install))
+- **Node.js 20+**
+- Platform-specific dependencies:
+  - **macOS**: Xcode Command Line Tools (`xcode-select --install`)
+  - **Windows**: Microsoft Visual Studio C++ Build Tools
+  - **Linux**: See [Tauri Linux Prerequisites](https://v2.tauri.app/start/prerequisites/#linux)
+
+### Development
+
+```bash
+# Ensure backend is running (Docker or local)
+docker compose up -d
+
+# Start the desktop app in development mode
+cd apps/web
+npm run tauri dev
+```
+
+This will:
+1. Start the Vite dev server with hot-reload
+2. Compile the Rust backend
+3. Launch the native window pointing to `http://localhost:5173`
+
+### Building for Production
+
+```bash
+cd apps/web
+npm run tauri build
+```
+
+Build outputs are in `apps/web/src-tauri/target/release/bundle/`:
+- **macOS**: `Meetropolis.app` and `.dmg`
+- **Windows**: `Meetropolis.exe` and `.msi`
+- **Linux**: `.deb`, `.AppImage`, `.rpm`
+
+### Configuration
+
+The desktop app needs to connect to your Meetropolis server. Configure via:
+
+1. **First Launch**: Enter API URL in the setup screen
+2. **Menu**: `Meetropolis → Einstellungen` (or `Cmd+,` / `Ctrl+,`)
+3. **Config File**:
+   - macOS: `~/Library/Application Support/com.meetropolis.desktop/config.json`
+   - Windows: `%APPDATA%\com.meetropolis.desktop\config.json`
+   - Linux: `~/.config/com.meetropolis.desktop/config.json`
+
+Example `config.json`:
+```json
+{
+  "api_base": "https://api.your-domain.com",
+  "web_base": "https://your-domain.com"
+}
+```
+
+### Desktop App Features
+
+- **Native Performance**: Lightweight WebView with minimal resource usage
+- **Mini Mode**: Floating always-on-top window (`Cmd+M` / `Ctrl+M`)
+- **System Integration**: Native menus, keyboard shortcuts, fullscreen
+- **AV Sync**: Mic, camera, screen share status synced with mini window
+
 ## Project Structure
 
 ```
@@ -123,6 +190,43 @@ docker compose -f docker-compose.prod.yml up -d
 - `API_TOKEN_PEPPER` - Random string for API token hashing
 - `CORS_ORIGIN` - Explicit list of allowed origins
 - `COOKIE_SECURE=true` - Enable secure cookies
+
+## Troubleshooting
+
+### LiveKit Connection Issues
+
+If audio/video doesn't connect in Docker Desktop (macOS/Windows):
+
+1. **Check your host IP** (not 127.0.0.1):
+   ```bash
+   # macOS
+   ipconfig getifaddr en0
+
+   # Linux
+   hostname -I | awk '{print $1}'
+   ```
+
+2. **Update `.env`** with your actual host IP:
+   ```bash
+   LK_NODE_IP=192.168.x.x  # Your IP from step 1
+   ```
+
+3. **Restart LiveKit**:
+   ```bash
+   docker compose restart livekit
+   ```
+
+This is needed because Chrome filters loopback ICE candidates, and Docker Desktop uses a virtual network.
+
+### Port Already in Use
+
+If port 5173 or 2567 is busy:
+```bash
+# Find what's using the port
+lsof -i :5173
+
+# Kill the process or use different ports via .env
+```
 
 ## OSS Edition Limits
 
