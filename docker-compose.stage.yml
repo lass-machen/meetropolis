@@ -85,7 +85,7 @@ services:
       - "traefik.http.middlewares.meetropolis-api-cors.headers.accesscontrolallowmethods=GET,OPTIONS,PUT,POST,DELETE"
       - "traefik.http.middlewares.meetropolis-api-cors.headers.accesscontrolallowheaders=Origin,X-Requested-With,Content-Type,Accept,Authorization"
       - "traefik.http.middlewares.meetropolis-api-cors.headers.accesscontrolallowcredentials=true"
-      - "traefik.http.middlewares.meetropolis-api-cors.headers.accesscontrolalloworiginlist=https://meetropolis.s7.lmwow.de"
+      - "traefik.http.middlewares.meetropolis-api-cors.headers.accesscontrolalloworiginlist=${CORS_ORIGIN}"
       - "traefik.http.middlewares.meetropolis-api-cors.headers.accesscontrolmaxage=100"
       - "traefik.http.middlewares.meetropolis-api-cors.headers.addvaryheader=true"
       - "traefik.http.routers.meetropolis-api.middlewares=meetropolis-api-cors"

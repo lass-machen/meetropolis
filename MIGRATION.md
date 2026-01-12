@@ -1,23 +1,23 @@
 # Mandanten-Fähigkeit + Seats + Stripe – Deployment & Migration
 
-Diese Anleitung beschreibt Schritt für Schritt das Update des Live-Systems auf Mandantenbetrieb (Subdomain), die Migration bestehender Daten und die Aktivierung des Abo-Backends (Stripe). Beispiel-Mandant für die Live-Seite: `lassmachen`.
+Diese Anleitung beschreibt Schritt für Schritt das Update des Live-Systems auf Mandantenbetrieb (Subdomain), die Migration bestehender Daten und die Aktivierung des Abo-Backends (Stripe). Beispiel-Mandant für die Live-Seite: `acme`.
 
 ## 1) Vorbereitungen
 
 - DNS/Wildcard: `*.meine-domain.de` → Frontend/Backend-Loadbalancer routen
-- Live-Mandant: `lassmachen.meine-domain.de` (Frontend) + Backend gleicher Host (CORS beachten)
+- Live-Mandant: `acme.meine-domain.de` (Frontend) + Backend gleicher Host (CORS beachten)
 - ENV Variablen (Server):
   - `JWT_SECRET` (prod, required)
   - `DATABASE_URL` (Postgres)
   - `PORT=2567`
   - `TRUST_PROXY=true` (falls hinter LB/Ingress)
-  - `CORS_ORIGIN=https://lassmachen.meine-domain.de,https://<weitere-subdomains>`
+  - `CORS_ORIGIN=https://acme.meine-domain.de,https://<weitere-subdomains>`
   - `DEFAULT_TENANT_SLUG=default` (optional)
   - `FREE_SEATS_DEFAULT=3` (optional, globaler Default für neue Mandanten; effektiver Default ist `internal.freeSeats` > ENV > 3)
   - Stripe (für Billing):
     - `STRIPE_SECRET_KEY=sk_live_...`
     - `STRIPE_WEBHOOK_SECRET=whsec_...`
-    - `BILLING_PUBLIC_URL=https://lassmachen.meine-domain.de`
+    - `BILLING_PUBLIC_URL=https://acme.meine-domain.de`
     - Preise (optional Mapping per Plan, sonst `priceId` im Request senden):
       - `STRIPE_PRICE_BASIC=price_...`
       - `STRIPE_PRICE_PRO=price_...`
@@ -37,8 +37,8 @@ Diese Anleitung beschreibt Schritt für Schritt das Update des Live-Systems auf 
   - `npx prisma migrate deploy`
 - Seed (legt `internal`, `default`, Admin-User und Basisdaten an):
   - `npm -w @meetropolis/server run prisma:seed`
-- Bestandsdaten auf Ziel-Mandant verschieben (Standard: `lassmachen`):
-  - ENV setzen (einmalig während Migration): `MIGRATE_EXISTING_TO_SLUG=lassmachen`
+- Bestandsdaten auf Ziel-Mandant verschieben (Standard: `acme`):
+  - ENV setzen (einmalig während Migration): `MIGRATE_EXISTING_TO_SLUG=acme`
   - Script ausführen:
     - Dev: `npx tsx apps/server/src/scripts/migrateTenants.ts`
     - Build: `node apps/server/dist/src/scripts/migrateTenants.js`
@@ -54,7 +54,7 @@ Hinweis: In PROD niemals `db push --force-reset` verwenden. Stattdessen zweistuf
    - Als Migrationsdatei ausliefern und mit `npx prisma migrate deploy` anwenden.
 
 2. Backfill:
-   - `MIGRATE_EXISTING_TO_SLUG=lassmachen` setzen.
+   - `MIGRATE_EXISTING_TO_SLUG=acme` setzen.
    - `node apps/server/dist/src/scripts/migrateTenants.js` ausführen (ordnet alle Bestandsdaten dem Ziel-Tenant zu und legt Memberships an).
 
 3. Phase B (Constraints festziehen):
@@ -65,9 +65,9 @@ Hinweis: In PROD niemals `db push --force-reset` verwenden. Stattdessen zweistuf
 Wartungsfenster kurz einplanen (Schema + Backfill); kein Datenverlust, kein Reset.
 
 Ergebnis:
-- Tenant `lassmachen` existiert mit `bypassLimits=true` und `concurrentLimit=999999`.
-- Alle alten `maps/rooms/zones/presences/invites` sind `lassmachen` zugeordnet.
-- Alle vorhandenen `users` haben `Membership` in `lassmachen`.
+- Tenant `acme` existiert mit `bypassLimits=true` und `concurrentLimit=999999`.
+- Alle alten `maps/rooms/zones/presences/invites` sind `acme` zugeordnet.
+- Alle vorhandenen `users` haben `Membership` in `acme`.
 
 ## 4) Start/Restart Server
 
@@ -76,7 +76,7 @@ Ergebnis:
 
 ## 5) Stripe Webhook konfigurieren
 
-- In Stripe: Webhook Endpoint `POST https://lassmachen.meine-domain.de/billing/webhook`
+- In Stripe: Webhook Endpoint `POST https://acme.meine-domain.de/billing/webhook`
 - Events aktivieren: `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`
 - Secret in ENV `STRIPE_WEBHOOK_SECRET` hinterlegen
 
@@ -86,12 +86,12 @@ Ergebnis:
 - Admin-UI Tabs:
   - „Mandanten“: Liste, Online-Usage, Limit, Free-Limit, Bypass, Status
   - „Pakete & Billing“: Stripe-Produkte/Preise (CRUD) und Umsatz-Kacheln (aktive Subs, MRR, Umsatz 30 Tage)
-- Button „Mandant 'lassmachen' sicherstellen“ legt den Mandanten an, falls nicht vorhanden
+- Button „Mandant 'acme' sicherstellen“ legt den Mandanten an, falls nicht vorhanden
 
 ## 7) Smoke-Tests (manuell)
 
 - Tenant-Isolation:
-  - Auf `lassmachen.meine-domain.de` einloggen → funktioniert
+  - Auf `acme.meine-domain.de` einloggen → funktioniert
   - Anderen Subdomain-Tenant anlegen (Admin-UI), User ohne Membership: Login liefert `403 not_member_of_tenant`
 - Seats-Grenze (Limit):
   - In Admin-UI Test-Tenant anlegen, `concurrentLimit=2`, `bypassLimits=false`
@@ -118,7 +118,7 @@ Ergebnis:
 
 ## 9) Hinweise
 
-- `lassmachen` bleibt ohne Limit (bypassLimits=true) – kein Stripe-Zwang
+- `acme` bleibt ohne Limit (bypassLimits=true) – kein Stripe-Zwang
 - Weitere Tenants können per Admin-UI angelegt/verwaltet werden
 - Für horizontale Skalierung (mehrere Instanzen) empfiehlt sich für Seats eine zentrale Zählung (Redis) – TODO Follow-up
 

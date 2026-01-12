@@ -70,20 +70,6 @@ export function TenantsAdmin(props: { apiBase: string }) {
     } catch {}
   };
 
-  const ensureLassmachen = async () => {
-    try {
-      const exists = rows.some((r) => r.slug === 'lassmachen');
-      if (exists) return;
-      const res = await fetch(`${apiBase}/admin/tenants`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ slug: 'lassmachen', name: 'lassmachen', concurrentLimit: 999999, freeSeats: 3, bypassLimits: true }),
-      });
-      if (res.ok) await load();
-    } catch {}
-  };
-
   return (
     <div style={{ display: 'grid', gap: 12 }}>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -91,7 +77,6 @@ export function TenantsAdmin(props: { apiBase: string }) {
         <Input value={createName} onChange={(e: any) => setCreateName(e.target.value)} placeholder="name" style={{ width: 220 }} />
         <Button onClick={createTenant}>Neu anlegen</Button>
         <div style={{ flex: 1 }} />
-        <Button onClick={ensureLassmachen}>Mandant "lassmachen" sicherstellen</Button>
         <Button onClick={() => load()}>{loading ? 'Lade…' : 'Neu laden'}</Button>
       </div>
 

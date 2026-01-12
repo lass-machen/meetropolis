@@ -14,14 +14,22 @@ async function main() {
     create: { slug: 'default', name: 'Default', concurrentLimit: 50 },
     update: {},
   });
-  const lm = await prisma.tenant.upsert({
-    where: { slug: 'lassmachen' },
-    create: { slug: 'lassmachen', name: 'lassmachen', concurrentLimit: 999999, bypassLimits: true },
-    update: {},
-  });
+  // Target tenant for migration - defaults to 'default', can be overridden via MIGRATE_EXISTING_TO_SLUG
+  const targetSlug = (process.env.MIGRATE_EXISTING_TO_SLUG || 'default').toLowerCase();
 
-  const targetSlug = (process.env.MIGRATE_EXISTING_TO_SLUG || 'lassmachen').toLowerCase();
-  const target = targetSlug === 'internal' ? internal : (targetSlug === 'default' ? def : (targetSlug === 'lassmachen' ? lm : await prisma.tenant.upsert({ where: { slug: targetSlug }, create: { slug: targetSlug, name: targetSlug, concurrentLimit: 50 }, update: {} })));
+  let target;
+  if (targetSlug === 'internal') {
+    target = internal;
+  } else if (targetSlug === 'default') {
+    target = def;
+  } else {
+    // Create custom tenant with high limits (typically for enterprise/self-hosted)
+    target = await prisma.tenant.upsert({
+      where: { slug: targetSlug },
+      create: { slug: targetSlug, name: targetSlug, concurrentLimit: 999999, bypassLimits: true },
+      update: {},
+    });
+  }
 
   // Backfill maps
   const maps = await prisma.map.findMany();

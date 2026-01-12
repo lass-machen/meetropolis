@@ -34,3 +34,7 @@ apps/web/src-tauri/local-client/
 # Temporary directories
 tmp/
 tmp_extract/
+
+# Build output logs
+build_output.txt
+**/build_output.txt
