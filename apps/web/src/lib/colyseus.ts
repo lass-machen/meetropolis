@@ -67,6 +67,9 @@ export async function joinWorld(serverUrl: string, identity?: string, name?: str
       room.onMessage('editor_update', noop);
       room.onMessage('bubble_state', noop);
       room.onMessage('remote_control', noop);
+      room.onMessage('presence_recent', noop);
+      room.onMessage('presence_update', noop);
+      room.onMessage('tileset_registry_updated', noop);
     } catch {}
     
     // Wait for initial state sync
