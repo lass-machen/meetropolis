@@ -106,6 +106,12 @@ services:
     image: livekit/livekit-server:latest
     # Use config file instead of --dev for proper NAT handling in Docker Desktop
     command: ["--config", "/etc/livekit.yaml", "--bind", "0.0.0.0"]
+    env_file:
+      - .env
+    environment:
+      LK_API_KEY: ${LIVEKIT_API_KEY:-devkey}
+      LK_API_SECRET: ${LIVEKIT_API_SECRET:-secret}
+      LK_NODE_IP: ${LK_NODE_IP:-127.0.0.1}
     volumes:
       - ./livekit.yaml:/etc/livekit.yaml:ro
     ports:
