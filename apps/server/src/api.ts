@@ -12,6 +12,8 @@ import { registerHealthRoutes } from './api/routes/health.js';
 import { registerMiscRoutes } from './api/routes/misc.js';
 import { registerTmjRoutes } from './api/routes/tmj.js';
 import { registerMapObjectRoutes } from './api/routes/mapObjects.js';
+import { registerNpcRoutes } from './api/routes/npcs.js';
+import { registerNpcMediaRoutes } from './api/routes/npcMedia.js';
 
 // Existing modular routes (already extracted)
 import { registerApiTokenRoutes } from './api/routes/tokens.js';
@@ -71,4 +73,8 @@ export async function registerApi(app: express.Express) {
   });
   registerApiTokenRoutes(app, prisma, requireAuth, getApiTokenPepper());
   registerControlRoutes(app, requireAuth, (req) => requireApiToken(req, prisma));
+
+  // NPC management routes
+  registerNpcRoutes(app, prisma);
+  registerNpcMediaRoutes(app, prisma);
 }

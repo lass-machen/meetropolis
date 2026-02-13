@@ -10,11 +10,13 @@ export interface RemotePlayer {
   name?: string | undefined;
   dnd?: boolean | undefined;
   avatarId?: string | undefined;
+  isNpc?: boolean | undefined;
 }
 
 export class RemotePlayersManager {
   private scene: Phaser.Scene;
   private remotes: Map<string, Phaser.GameObjects.Sprite> = new Map();
+  private loadingAvatars: Set<string> = new Set();
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
@@ -37,8 +39,13 @@ export class RemotePlayersManager {
 
   private createRemoteSprite(id: string, p: RemotePlayer): Phaser.GameObjects.Sprite {
     const remoteAvatarId = p.avatarId || avatarRegistry.getDefaultAvatarId();
-    avatarRegistry.createAnimations(this.scene.anims, remoteAvatarId);
-    const { texture, frame } = avatarRegistry.getIdleFrame(remoteAvatarId, p.direction || 'down');
+    const textureKey = avatarRegistry.getTextureKey(remoteAvatarId);
+    const textureReady = this.scene.textures.exists(textureKey);
+
+    // Use the requested avatar if loaded, otherwise fall back to default
+    const initialAvatarId = textureReady ? remoteAvatarId : avatarRegistry.getDefaultAvatarId();
+    avatarRegistry.createAnimations(this.scene.anims, initialAvatarId);
+    const { texture, frame } = avatarRegistry.getIdleFrame(initialAvatarId, p.direction || 'down');
     const s = this.scene.add.sprite(p.x, p.y, texture, frame);
     s.setDepth(10);
 
@@ -46,9 +53,15 @@ export class RemotePlayersManager {
     (s as any).prevY = p.y;
     (s as any).prevDirection = p.direction;
     (s as any).lastMoveTime = Date.now();
-    (s as any).avatarId = remoteAvatarId;
+    (s as any).avatarId = initialAvatarId;
 
     this.remotes.set(id, s);
+
+    // If the desired avatar wasn't loaded, start loading it asynchronously
+    if (!textureReady) {
+      this.ensureAvatarLoaded(remoteAvatarId, s);
+    }
+
     return s;
   }
 
@@ -76,11 +89,46 @@ export class RemotePlayersManager {
     const currentAvatarId = (s as any).avatarId || avatarRegistry.getDefaultAvatarId();
     const newAvatarId = p.avatarId || currentAvatarId;
     if (newAvatarId !== currentAvatarId) {
-      (s as any).avatarId = newAvatarId;
-      avatarRegistry.createAnimations(this.scene.anims, newAvatarId);
+      const newTextureKey = avatarRegistry.getTextureKey(newAvatarId);
+      if (this.scene.textures.exists(newTextureKey)) {
+        (s as any).avatarId = newAvatarId;
+        avatarRegistry.createAnimations(this.scene.anims, newAvatarId);
+      } else {
+        this.ensureAvatarLoaded(newAvatarId, s);
+      }
     }
 
     this.updateAnimation(s, p.direction, isMoving, directionChanged);
+  }
+
+  private ensureAvatarLoaded(avatarId: string, sprite: Phaser.GameObjects.Sprite): void {
+    const textureKey = avatarRegistry.getTextureKey(avatarId);
+
+    // Already loaded or currently loading - skip
+    if (this.scene.textures.exists(textureKey) || this.loadingAvatars.has(textureKey)) {
+      return;
+    }
+
+    this.loadingAvatars.add(textureKey);
+    avatarRegistry.preloadAvatar(this.scene, avatarId);
+
+    // Use per-texture callback to handle simultaneous loads correctly
+    this.scene.load.once(`filecomplete-spritesheet-${textureKey}`, () => {
+      this.loadingAvatars.delete(textureKey);
+
+      // Sprite may have been destroyed if the player disconnected during loading
+      if (!sprite.active) return;
+
+      avatarRegistry.createAnimations(this.scene.anims, avatarId);
+      (sprite as any).avatarId = avatarId;
+
+      // Update the sprite to use the newly loaded texture
+      const direction = (sprite as any).prevDirection || 'down';
+      const { texture, frame } = avatarRegistry.getIdleFrame(avatarId, direction);
+      sprite.setTexture(texture, frame);
+    });
+
+    this.scene.load.start();
   }
 
   private updateAnimation(

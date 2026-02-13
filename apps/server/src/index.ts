@@ -213,6 +213,21 @@ app.use('/packs', express.static(packsDir, {
   }
 }));
 
+// Static serving for NPC Media
+const npcMediaDir = process.env.NPC_MEDIA_DIR || path.resolve(__dirname, '../../../npc-media');
+try {
+  fs.mkdirSync(npcMediaDir, { recursive: true });
+} catch (error) {
+  logger.error({ event: 'filesystem.mkdir_failed', path: npcMediaDir, error });
+}
+app.use('/npc-media', express.static(npcMediaDir, {
+  maxAge: '7d',
+  setHeaders: (res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.removeHeader('Access-Control-Allow-Credentials');
+  }
+}));
+
 await registerApi(app);
 
 // Expose Prometheus Metriken

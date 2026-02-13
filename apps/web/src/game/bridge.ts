@@ -6,8 +6,8 @@ export type Direction = 'up' | 'down' | 'left' | 'right';
 type Bridge = {
   onLocalMove: (p: { x: number; y: number; direction: Direction }) => void;
   setSceneApi: (api: SceneApi | null) => void;
-  syncRemotePlayers: (players: Record<string, { x: number; y: number; direction: Direction; name?: string | undefined; dnd?: boolean | undefined; avatarId?: string | undefined }>) => void;
-  addRemotePlayer: (id: string, p: { x: number; y: number; direction: Direction; name?: string | undefined; dnd?: boolean | undefined; avatarId?: string | undefined }) => void;
+  syncRemotePlayers: (players: Record<string, { x: number; y: number; direction: Direction; name?: string | undefined; dnd?: boolean | undefined; avatarId?: string | undefined; isNpc?: boolean | undefined }>) => void;
+  addRemotePlayer: (id: string, p: { x: number; y: number; direction: Direction; name?: string | undefined; dnd?: boolean | undefined; avatarId?: string | undefined; isNpc?: boolean | undefined }) => void;
   updateRemotePlayer: (id: string, p: Partial<{ x: number; y: number; direction: Direction; name?: string | undefined; dnd?: boolean | undefined; avatarId?: string | undefined }>) => void;
   removeRemotePlayer: (id: string) => void;
   updateRemotePlayerDnd: (id: string, dnd: boolean) => void;
@@ -62,7 +62,7 @@ type Bridge = {
 };
 
 export type SceneApi = {
-  syncRemotePlayers: (players: Record<string, { x: number; y: number; direction: Direction; name?: string | undefined; dnd?: boolean | undefined; avatarId?: string | undefined }>) => void;
+  syncRemotePlayers: (players: Record<string, { x: number; y: number; direction: Direction; name?: string | undefined; dnd?: boolean | undefined; avatarId?: string | undefined; isNpc?: boolean | undefined }>) => void;
   setDesiredPosition: (pos: { x: number; y: number } | null) => void;
   setZoneOverlay: (polys: { name: string; points: { x: number; y: number }[] }[]) => void;
   setZonesVisible?: (visible: boolean) => void;
@@ -168,7 +168,7 @@ let isReloadingEditorLayers = false;
 let cachedCollisionVisible = false;
 let cachedHeroName: string | null = null;
 let cachedDoNotDisturb = false;
-let remotePlayersCache: Record<string, { x: number; y: number; direction: Direction; name?: string | undefined; dnd?: boolean | undefined; avatarId?: string | undefined }> = {};
+let remotePlayersCache: Record<string, { x: number; y: number; direction: Direction; name?: string | undefined; dnd?: boolean | undefined; avatarId?: string | undefined; isNpc?: boolean | undefined }> = {};
 let lastDesiredPosition: { x: number; y: number } | null = null;
 
 // Editor-State-Caching ENTFERNT - EditorService ist jetzt Single Source of Truth
@@ -214,7 +214,7 @@ export const gameBridge: Bridge = {
     sceneApi?.syncRemotePlayers(remotePlayersCache);
   },
   addRemotePlayer: (id, p) => {
-    remotePlayersCache[id] = { x: p.x, y: p.y, direction: p.direction, name: p.name, dnd: p.dnd, avatarId: p.avatarId };
+    remotePlayersCache[id] = { x: p.x, y: p.y, direction: p.direction, name: p.name, dnd: p.dnd, avatarId: p.avatarId, isNpc: p.isNpc };
     sceneApi?.syncRemotePlayers(remotePlayersCache);
   },
   updateRemotePlayer: (id, p) => {

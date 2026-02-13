@@ -3,7 +3,8 @@ import Phaser from 'phaser';
 export function createNameLabel(
   scene: Phaser.Scene & any,
   name: string,
-  playerId?: string
+  playerId?: string,
+  isNpc?: boolean
 ): Phaser.GameObjects.Container {
   const container = scene.add.container(0, 0);
 
@@ -22,12 +23,33 @@ export function createNameLabel(
   try { (text as any).setPadding?.(0, 0, 0, 1); } catch {}
   text.setOrigin(0.5, 0.5);
 
-  const width = (text as any).width + paddingX * 2;
+  let badgeText: Phaser.GameObjects.Text | null = null;
+  if (isNpc) {
+    const badgeStyle = {
+      fontSize: '10px',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+      color: '#a78bfa',
+      fontStyle: 'bold',
+    } as const;
+    badgeText = scene.add.text(0, 0, 'BOT', badgeStyle as any);
+    try { (badgeText as any).setResolution?.((window as any).devicePixelRatio || 2); } catch {}
+    badgeText!.setOrigin(0.5, 0.5);
+  }
+
+  const badgeWidth = badgeText ? (badgeText as any).width + 8 : 0;
+  const width = (text as any).width + paddingX * 2 + badgeWidth;
   const height = (text as any).height + paddingY * 2;
+
+  if (badgeText) {
+    const totalContentWidth = (text as any).width + badgeWidth;
+    text.setX(-totalContentWidth / 2 + (text as any).width / 2);
+    badgeText.setX(-totalContentWidth / 2 + (text as any).width + 4 + (badgeText as any).width / 2);
+  }
 
   (container as any).bg = bg;
   (container as any).text = text;
   (container as any).playerId = playerId;
+  (container as any).isNpc = !!isNpc;
   (container as any).width = width;
   (container as any).height = height;
   (container as any).paddingX = paddingX;
@@ -37,6 +59,7 @@ export function createNameLabel(
 
   container.add(bg);
   container.add(text);
+  if (badgeText) container.add(badgeText);
   container.setDepth(12);
   try { scene.labelLayer?.add(container); } catch {}
 

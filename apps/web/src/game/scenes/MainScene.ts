@@ -218,7 +218,7 @@ export class MainScene extends Phaser.Scene {
     } catch { }
   }
 
-  syncRemotePlayers(players: Record<string, { x: number; y: number; direction: 'up' | 'down' | 'left' | 'right'; prevX?: number; prevY?: number; name?: string | undefined; dnd?: boolean | undefined; avatarId?: string | undefined }>) {
+  syncRemotePlayers(players: Record<string, { x: number; y: number; direction: 'up' | 'down' | 'left' | 'right'; prevX?: number; prevY?: number; name?: string | undefined; dnd?: boolean | undefined; avatarId?: string | undefined; isNpc?: boolean | undefined }>) {
     const localSession: string | undefined = (typeof window !== 'undefined' ? (window as any).__localSessionId : undefined);
     const hero = this.playerManager.getHero();
 
@@ -234,7 +234,7 @@ export class MainScene extends Phaser.Scene {
 
     for (const [id, p] of Object.entries(filteredPlayers)) {
       if (!this.nameLabelManager.getRemoteLabel(id)) {
-        this.nameLabelManager.createRemoteLabel(id, p.name || `User ${id.substring(0, 6)}`, p.x, p.y);
+        this.nameLabelManager.createRemoteLabel(id, p.name || `User ${id.substring(0, 6)}`, p.x, p.y, (p as any).isNpc);
       }
       if (p && typeof (p as any).name === 'string' && (p as any).name) {
         this.nameLabelManager.updateRemoteLabelName(id, (p as any).name);

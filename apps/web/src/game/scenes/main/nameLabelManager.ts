@@ -42,8 +42,8 @@ export class NameLabelManager {
     uiSetHeroName(this.scene, name);
   }
 
-  createRemoteLabel(id: string, name: string, x: number, y: number): Phaser.GameObjects.Container {
-    const label = uiCreateNameLabel(this.scene, name, id);
+  createRemoteLabel(id: string, name: string, x: number, y: number, isNpc?: boolean): Phaser.GameObjects.Container {
+    const label = uiCreateNameLabel(this.scene, name, id, isNpc);
     this.nameLabels.set(id, label);
     this.updateLabel(label, x, y);
     return label;

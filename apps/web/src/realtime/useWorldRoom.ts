@@ -106,6 +106,56 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
       setupRemoteControlHandlers(room, args);
       setupPresenceHandlers(room, args, recentPresenceRef);
 
+      // Force initial state sync - onStateChange doesn't fire for the initial state,
+      // and full_state message might arrive before handlers are registered
+      try {
+        if (room.state?.players) {
+          const players: Record<string, any> = {};
+          const iteratePlayers = (value: any, key: string) => {
+            if (key === room.sessionId) return; // skip local player
+            players[key] = {
+              x: value.x, y: value.y, direction: value.direction,
+              name: value.name, dnd: value.dnd, avatarId: value.avatarId,
+              isNpc: value.isNpc, identity: value.identity
+            };
+            if (value.identity && value.name) {
+              identityToNameMap.current[value.identity] = value.name;
+            }
+            if (value.identity) {
+              colyseusToLivekitMap.current[key] = value.identity;
+            }
+          };
+          if (typeof room.state.players.forEach === 'function') {
+            room.state.players.forEach(iteratePlayers);
+          } else if (typeof room.state.players.entries === 'function') {
+            for (const [key, value] of room.state.players.entries()) {
+              iteratePlayers(value, key);
+            }
+          }
+
+          // Build the filtered map with proper name resolution
+          const filtered = Object.fromEntries(
+            Object.entries(players).map(([id, p]: [string, any]) => {
+              const livekitIdentity = p.identity || colyseusToLivekitMap.current[id] || id;
+              const name = identityToNameMap.current[livekitIdentity] || p.name || livekitIdentity;
+              return [id, { ...p, name, identity: livekitIdentity }];
+            })
+          );
+
+          if (Object.keys(filtered).length > 0) {
+            gameBridge.syncRemotePlayers(filtered);
+            // Also update remotesRef
+            args.remotesRef.current = Object.fromEntries(
+              Object.entries(filtered).map(([id, p]: [string, any]) => [id, { x: p.x, y: p.y, dnd: p.dnd }])
+            );
+            scheduleBuildParticipantList(0);
+            scheduleRefreshRosterFromRemotes(0);
+          }
+        }
+      } catch (e) {
+        // Non-critical - full_state or onStateChange will handle it eventually
+      }
+
       // Add roster update as additional onStateChange callback
       // In modern Colyseus, onStateChange is a method that registers callbacks, not a property
       room.onStateChange((state: any) => {

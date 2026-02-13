@@ -34,6 +34,7 @@ class Player extends Schema {
   @type('string') name: string = ''; // User's display name
   @type('boolean') dnd: boolean = false; // Do Not Disturb status
   @type('string') avatarId: string = '';
+  @type('boolean') isNpc: boolean = false;
 }
 
 class WorldState extends Schema {
@@ -204,6 +205,9 @@ export class WorldRoom extends Room<WorldState> {
       }
       this.broadcastBubbleState();
     });
+
+    // NPC command handler (no-op: commands are broadcast from API, NPC service listens)
+    this.onMessage('npc_command', () => {});
 
     // Subscribe to map updates via Presence (works across processes if Redis is used, or locally)
     try {
@@ -451,6 +455,7 @@ export class WorldRoom extends Room<WorldState> {
     player.identity = joiningIdentity; // Use provided identity or fallback
     player.name = options?.name || joiningIdentity; // Use provided name or fallback
     player.avatarId = options?.avatarId || 'default-characters:businessman1';
+    player.isNpc = (joiningIdentity || '').startsWith('npc-');
     this.state.players.set(client.sessionId, player);
     try { colyseusPlayers.inc(); } catch (e) { logger.debug('[WorldRoom] Failed to increment colyseusPlayers metric', e); }
     logger.info('[WorldRoom] Player joined:', client.sessionId, 'identity:', player.identity, 'name:', player.name, 'at', player.x, player.y);
@@ -473,7 +478,8 @@ export class WorldRoom extends Room<WorldState> {
             identity: p.identity,
             name: p.name,
             dnd: p.dnd,
-            avatarId: p.avatarId
+            avatarId: p.avatarId,
+            isNpc: p.isNpc
           }))
         });
         // Aktuellen Bubble-Status (mit Gruppen) mitschicken
@@ -495,7 +501,8 @@ export class WorldRoom extends Room<WorldState> {
       identity: player.identity,
       name: player.name,
       dnd: player.dnd,
-      avatarId: player.avatarId
+      avatarId: player.avatarId,
+      isNpc: player.isNpc
     }, { except: client });
 
     // Seed: recent presence list via WS (best-effort, tenant-scoped)

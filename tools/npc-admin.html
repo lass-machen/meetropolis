@@ -1,0 +1,1430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NPC Admin — Meetropolis</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg-deep:#0a0b0f;--bg:#12131a;--bg-raised:#1a1b25;--bg-surface:#22232f;
+  --border:#2a2c3a;--border-active:#3d3f52;--border-accent:#5865f2;
+  --fg:#d4d5db;--fg-dim:#7a7c8a;--fg-muted:#4a4c58;
+  --accent:#5865f2;--accent-dim:#4752c4;--accent-glow:rgba(88,101,242,0.15);
+  --green:#3ba55d;--green-dim:rgba(59,165,93,0.15);
+  --red:#ed4245;--red-dim:rgba(237,66,69,0.15);
+  --orange:#f0a020;--orange-dim:rgba(240,160,32,0.15);
+  --yellow:#fee75c;
+  --radius:6px;--radius-lg:10px;
+  --font-mono:'JetBrains Mono',monospace;--font-sans:'Space Grotesk',sans-serif;
+  --shadow:0 4px 24px rgba(0,0,0,0.4),0 1px 3px rgba(0,0,0,0.3);
+}
+html{font-size:14px}
+body{
+  background:var(--bg-deep);color:var(--fg);
+  font-family:var(--font-sans);line-height:1.5;
+  min-height:100vh;overflow-x:hidden;
+}
+body::after{
+  content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.03) 2px,rgba(0,0,0,0.03) 4px);
+}
+
+/* Layout */
+.app-header{
+  background:var(--bg);border-bottom:1px solid var(--border);
+  padding:14px 28px;display:flex;align-items:center;gap:16px;
+  position:sticky;top:0;z-index:100;
+  backdrop-filter:blur(12px);
+}
+.app-header h1{
+  font-family:var(--font-mono);font-size:15px;font-weight:700;
+  letter-spacing:-0.5px;
+  background:linear-gradient(135deg,var(--accent),#7c8af8);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+}
+.app-header .tag{
+  font-family:var(--font-mono);font-size:10px;font-weight:600;
+  background:var(--accent-dim);color:var(--accent);
+  padding:2px 8px;border-radius:3px;letter-spacing:0.5px;
+  text-transform:uppercase;
+}
+.app-header .conn-status{
+  margin-left:auto;display:flex;align-items:center;gap:8px;
+  font-family:var(--font-mono);font-size:11px;color:var(--fg-dim);
+}
+.app-header .conn-dot{
+  width:8px;height:8px;border-radius:50%;background:var(--fg-muted);
+  transition:background 0.3s,box-shadow 0.3s;
+}
+.app-header .conn-dot.ok{background:var(--green);box-shadow:0 0 8px rgba(59,165,93,0.5)}
+.app-header .conn-dot.err{background:var(--red);box-shadow:0 0 8px rgba(237,66,69,0.5)}
+
+.main{display:grid;grid-template-columns:300px 1fr;gap:0;min-height:calc(100vh - 49px)}
+
+/* Panels */
+.panel{
+  background:var(--bg);border-right:1px solid var(--border);
+  overflow-y:auto;overflow-x:hidden;
+}
+.panel:last-child{border-right:none}
+.panel-section{padding:16px;border-bottom:1px solid var(--border)}
+.panel-section:last-child{border-bottom:none}
+.section-label{
+  font-family:var(--font-mono);font-size:10px;font-weight:600;
+  color:var(--fg-muted);text-transform:uppercase;letter-spacing:1.2px;
+  margin-bottom:12px;display:flex;align-items:center;gap:8px;
+}
+.section-label::before{
+  content:'';flex:0 0 3px;height:3px;background:var(--accent);border-radius:1px;
+}
+
+/* Form elements */
+.field{margin-bottom:10px}
+.field label{
+  display:block;font-size:11px;font-weight:500;
+  color:var(--fg-dim);margin-bottom:4px;
+  font-family:var(--font-mono);
+}
+.field input,.field select,.field textarea{
+  width:100%;padding:7px 10px;
+  background:var(--bg-deep);border:1px solid var(--border);
+  border-radius:var(--radius);color:var(--fg);
+  font-family:var(--font-mono);font-size:12px;
+  transition:border-color 0.2s;outline:none;
+}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--accent)}
+.field textarea{resize:vertical;min-height:80px}
+.field-row{display:flex;gap:8px}
+.field-row .field{flex:1}
+.field input[type="number"]{-moz-appearance:textfield}
+.field input::-webkit-outer-spin-button,
+.field input::-webkit-inner-spin-button{-webkit-appearance:none}
+.field input[readonly]{color:var(--fg-muted);cursor:not-allowed}
+
+.btn{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:7px 14px;border:1px solid var(--border);
+  border-radius:var(--radius);background:var(--bg-raised);
+  color:var(--fg);font-family:var(--font-mono);font-size:11px;
+  font-weight:600;cursor:pointer;transition:all 0.15s;
+  white-space:nowrap;
+}
+.btn:hover{background:var(--bg-surface);border-color:var(--border-active)}
+.btn:disabled{opacity:0.5;cursor:not-allowed}
+.btn-accent{background:var(--accent-dim);border-color:var(--accent);color:#c5ccff}
+.btn-accent:hover{background:var(--accent);color:#fff}
+.btn-danger{border-color:rgba(237,66,69,0.3);color:var(--red)}
+.btn-danger:hover{background:var(--red-dim)}
+.btn-green{border-color:rgba(59,165,93,0.3);color:var(--green)}
+.btn-green:hover{background:var(--green-dim)}
+.btn-orange{border-color:rgba(240,160,32,0.3);color:var(--orange)}
+.btn-orange:hover{background:var(--orange-dim)}
+.btn-sm{padding:4px 10px;font-size:10px}
+.btn-block{width:100%;justify-content:center}
+.btn-row{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+
+/* NPC list items */
+.npc-item{
+  padding:10px 12px;border:1px solid var(--border);
+  border-radius:var(--radius);margin-bottom:6px;
+  cursor:pointer;transition:border-color 0.15s,background 0.15s;
+  background:var(--bg-raised);
+}
+.npc-item:hover{border-color:var(--border-active)}
+.npc-item.active{border-color:var(--accent);background:var(--accent-glow)}
+.npc-item .npc-name{
+  font-family:var(--font-mono);font-size:12px;font-weight:600;
+}
+.npc-item .npc-meta{
+  font-family:var(--font-mono);font-size:10px;color:var(--fg-muted);
+  margin-top:2px;display:flex;align-items:center;gap:6px;
+}
+.badge{
+  display:inline-block;padding:1px 6px;border-radius:3px;
+  font-family:var(--font-mono);font-size:9px;font-weight:600;
+  text-transform:uppercase;letter-spacing:0.3px;
+}
+.badge-enabled{background:var(--green-dim);color:var(--green);border:1px solid rgba(59,165,93,0.25)}
+.badge-disabled{background:var(--red-dim);color:var(--red);border:1px solid rgba(237,66,69,0.25)}
+
+/* Detail panel */
+.detail-panel{
+  background:var(--bg-deep);padding:0;overflow-y:auto;
+}
+.detail-empty{
+  display:flex;align-items:center;justify-content:center;
+  height:100%;
+  font-family:var(--font-mono);font-size:12px;color:var(--fg-muted);
+}
+
+/* Tabs */
+.tab-bar{
+  display:flex;border-bottom:1px solid var(--border);
+  background:var(--bg);
+  position:sticky;top:0;z-index:10;
+}
+.tab-btn{
+  padding:10px 20px;border:none;background:transparent;
+  font-family:var(--font-mono);font-size:11px;font-weight:600;
+  color:var(--fg-muted);cursor:pointer;
+  border-bottom:2px solid transparent;
+  transition:color 0.15s,border-color 0.15s;
+}
+.tab-btn:hover{color:var(--fg)}
+.tab-btn.active{color:var(--accent);border-bottom-color:var(--accent)}
+.tab-content{display:none;padding:20px}
+.tab-content.active{display:block}
+
+/* Media file list */
+.media-item{
+  padding:8px 12px;border:1px solid var(--border);
+  border-radius:var(--radius);margin-bottom:6px;
+  display:flex;align-items:center;justify-content:space-between;
+  background:var(--bg-raised);
+}
+.media-item .media-info{
+  font-family:var(--font-mono);font-size:11px;flex:1;min-width:0;
+}
+.media-item .media-name{font-weight:600;word-break:break-all}
+.media-item .media-meta{font-size:10px;color:var(--fg-muted);margin-top:2px}
+
+/* Control groups */
+.control-group{
+  background:var(--bg-raised);border:1px solid var(--border);
+  border-radius:var(--radius);padding:14px;margin-bottom:12px;
+}
+.control-group-label{
+  font-family:var(--font-mono);font-size:11px;font-weight:600;
+  color:var(--fg);margin-bottom:10px;
+}
+
+/* Checkbox toggle */
+.toggle-row{
+  display:flex;align-items:center;gap:8px;margin-bottom:8px;
+}
+.toggle-row label{
+  font-family:var(--font-mono);font-size:11px;color:var(--fg-dim);cursor:pointer;
+}
+.toggle-row input[type="checkbox"]{
+  accent-color:var(--accent);width:14px;height:14px;cursor:pointer;
+}
+
+/* Modal overlay */
+.modal-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,0.6);
+  display:none;align-items:center;justify-content:center;z-index:500;
+  backdrop-filter:blur(4px);
+}
+.modal-overlay.show{display:flex}
+.modal{
+  background:var(--bg);border:1px solid var(--border);
+  border-radius:var(--radius-lg);padding:24px;
+  width:560px;max-width:90vw;box-shadow:var(--shadow);
+  max-height:90vh;overflow-y:auto;
+}
+.modal h2{
+  font-family:var(--font-mono);font-size:14px;font-weight:700;
+  color:var(--fg);margin-bottom:16px;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:var(--border-active)}
+
+/* Toast */
+#toast{
+  position:fixed;bottom:24px;right:24px;z-index:1000;
+  display:flex;flex-direction:column;gap:6px;
+}
+.toast-item{
+  padding:10px 16px;border-radius:var(--radius);
+  font-family:var(--font-mono);font-size:11px;
+  box-shadow:var(--shadow);animation:toastIn 0.3s ease;
+  max-width:400px;
+}
+.toast-item.ok{background:#1a2e1f;color:var(--green);border:1px solid rgba(59,165,93,0.3)}
+.toast-item.err{background:#2e1a1a;color:var(--red);border:1px solid rgba(237,66,69,0.3)}
+@keyframes toastIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+
+/* Avatar grid picker */
+.avatar-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
+  gap: 8px;
+  max-height: 200px;
+  overflow-y: auto;
+  padding: 4px;
+}
+.avatar-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 6px;
+  background: var(--bg-deep);
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.avatar-card:hover { border-color: var(--border-active) }
+.avatar-card.selected { border-color: var(--accent); background: var(--accent-glow) }
+.avatar-card canvas {
+  image-rendering: pixelated;
+  width: 48px;
+  height: 72px;
+}
+.avatar-card .avatar-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--fg-muted);
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+.avatar-picker-fallback {
+  display: none;
+}
+.avatar-picker-fallback.show {
+  display: block;
+}
+
+/* Dirty indicator */
+.tab-btn.dirty::after {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  background: var(--orange);
+  border-radius: 50%;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+.btn-accent.dirty {
+  animation: pulse 1.5s ease-in-out infinite;
+}
+.unsaved-hint {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--orange);
+  margin-left: 8px;
+  display: none;
+}
+.unsaved-hint.show {
+  display: inline;
+}
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(88,101,242,0.4) }
+  50% { box-shadow: 0 0 0 6px rgba(88,101,242,0) }
+}
+</style>
+</head>
+<body>
+
+<header class="app-header">
+  <h1>NPC ADMIN</h1>
+  <span class="tag">Meetropolis</span>
+  <div class="conn-status">
+    <div class="conn-dot" id="connDot"></div>
+    <span id="connLabel">Disconnected</span>
+  </div>
+</header>
+
+<div class="main">
+  <!-- LEFT SIDEBAR -->
+  <div class="panel" id="sidebar">
+    <!-- Connection -->
+    <div class="panel-section">
+      <div class="section-label">Connection</div>
+      <div class="field">
+        <label>API Base URL</label>
+        <input type="text" id="apiUrl" value="http://localhost:2567">
+      </div>
+      <div class="field">
+        <label>Auth Token (optional)</label>
+        <input type="text" id="authToken" placeholder="Bearer token or leave empty for cookies">
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-accent btn-block" onclick="testConnection()">Test Connection</button>
+      </div>
+    </div>
+
+    <!-- NPC List -->
+    <div class="panel-section" style="flex:1">
+      <div class="section-label" style="justify-content:space-between">
+        <span style="display:flex;align-items:center;gap:8px"><span style="flex:0 0 3px;height:3px;background:var(--accent);border-radius:1px"></span>NPCs</span>
+        <button class="btn btn-sm btn-accent" onclick="openCreateModal()">+ Create</button>
+      </div>
+      <div id="npcList">
+        <span style="font-size:11px;color:var(--fg-muted)">Connect to server to load NPCs.</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN DETAIL AREA -->
+  <div class="detail-panel" id="detailPanel">
+    <div class="detail-empty" id="detailEmpty">
+      <span>Select an NPC from the list or create a new one.</span>
+    </div>
+    <div id="detailContent" style="display:none">
+      <div class="tab-bar">
+        <button class="tab-btn active" data-tab="info" onclick="switchTab('info')">Info &amp; Config</button>
+        <button class="tab-btn" data-tab="media" onclick="switchTab('media')">Media</button>
+        <button class="tab-btn" data-tab="controls" onclick="switchTab('controls')">Controls</button>
+      </div>
+
+      <!-- Info & Config Tab -->
+      <div class="tab-content active" id="tab-info">
+        <div class="section-label">NPC Details</div>
+        <div class="field">
+          <label>Identity (read-only)</label>
+          <input type="text" id="npcIdentity" readonly>
+        </div>
+        <div class="field">
+          <label>Name</label>
+          <input type="text" id="npcName">
+        </div>
+        <input type="hidden" id="npcAvatarId">
+        <div class="section-label" style="margin-top:4px">Avatar</div>
+        <div id="infoAvatarGrid" class="avatar-grid" data-target="npcAvatarId"></div>
+        <div class="avatar-picker-fallback" id="infoAvatarFallback">
+          <div class="field">
+            <label>Avatar ID</label>
+            <input type="text" id="npcAvatarIdFallback" placeholder="e.g. pack-uuid:avatar-key"
+                   oninput="document.getElementById('npcAvatarId').value=this.value; checkDirty()">
+          </div>
+        </div>
+        <div class="field">
+          <label>Map</label>
+          <select id="npcMapName">
+            <option value="">(Default)</option>
+          </select>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>Spawn X (Tile)</label>
+            <input type="number" id="npcSpawnX">
+          </div>
+          <div class="field">
+            <label>Spawn Y (Tile)</label>
+            <input type="number" id="npcSpawnY">
+          </div>
+          <div class="field">
+            <label>Spawn Direction</label>
+            <select id="npcSpawnDir">
+              <option value="">(none)</option>
+              <option value="up">up</option>
+              <option value="down">down</option>
+              <option value="left">left</option>
+              <option value="right">right</option>
+            </select>
+          </div>
+        </div>
+        <div style="font-family:var(--font-mono);font-size:10px;color:var(--fg-muted);margin-bottom:8px" id="spawnPixelHint">Pixel: --</div>
+        <div class="toggle-row">
+          <input type="checkbox" id="npcEnabled">
+          <label for="npcEnabled">Enabled</label>
+        </div>
+        <div class="toggle-row">
+          <input type="checkbox" id="npcShowBadge">
+          <label for="npcShowBadge">Show Badge</label>
+        </div>
+        <div class="field">
+          <label>Config (JSON)</label>
+          <textarea id="npcConfig" placeholder='{"key": "value"}'></textarea>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-accent" id="btnSave" onclick="saveNpc()">Save Changes</button>
+          <span class="unsaved-hint" id="unsavedHint">Unsaved changes</span>
+          <button class="btn btn-danger" onclick="deleteNpc()">Delete NPC</button>
+        </div>
+      </div>
+
+      <!-- Media Tab -->
+      <div class="tab-content" id="tab-media">
+        <div class="section-label">Media Files</div>
+        <div id="mediaList">
+          <span style="font-size:11px;color:var(--fg-muted)">Loading...</span>
+        </div>
+        <div class="control-group" style="margin-top:16px">
+          <div class="control-group-label">Upload Media</div>
+          <div class="field">
+            <label>File (audio/video)</label>
+            <input type="file" id="mediaFileInput" accept="audio/*,video/*" style="font-size:11px">
+          </div>
+          <div class="field">
+            <label>Media Type Override (optional)</label>
+            <select id="mediaTypeOverride">
+              <option value="">Auto-detect</option>
+              <option value="audio">audio</option>
+              <option value="video">video</option>
+              <option value="screenshare">screenshare</option>
+            </select>
+          </div>
+          <button class="btn btn-accent btn-sm" onclick="uploadMedia()">Upload</button>
+        </div>
+      </div>
+
+      <!-- Controls Tab -->
+      <div class="tab-content" id="tab-controls">
+        <div class="section-label">NPC Controls</div>
+
+        <!-- Spawn/Despawn -->
+        <div class="control-group">
+          <div class="control-group-label">Lifecycle</div>
+          <div class="btn-row" style="margin-top:0">
+            <button class="btn btn-green" onclick="spawnNpc()">Spawn</button>
+            <button class="btn btn-danger" onclick="despawnNpc()">Despawn</button>
+          </div>
+        </div>
+
+        <!-- Move -->
+        <div class="control-group">
+          <div class="control-group-label">Move</div>
+          <div class="field-row">
+            <div class="field">
+              <label>X (Tile)</label>
+              <input type="number" id="cmdMoveX" placeholder="0">
+            </div>
+            <div class="field">
+              <label>Y (Tile)</label>
+              <input type="number" id="cmdMoveY" placeholder="0">
+            </div>
+            <div class="field">
+              <label>Speed (opt.)</label>
+              <input type="number" id="cmdMoveSpeed" placeholder="default">
+            </div>
+          </div>
+          <div class="btn-row" style="margin-top:0">
+            <button class="btn btn-accent btn-sm" onclick="cmdMove()">Move</button>
+            <button class="btn btn-danger btn-sm" onclick="cmdStopMovement()">Stop</button>
+          </div>
+        </div>
+
+        <!-- Play Audio -->
+        <div class="control-group">
+          <div class="control-group-label">Play Audio</div>
+          <div class="field">
+            <label>Audio File</label>
+            <select id="cmdAudioFile"></select>
+          </div>
+          <div class="toggle-row">
+            <input type="checkbox" id="cmdAudioLoop">
+            <label for="cmdAudioLoop">Loop</label>
+          </div>
+          <button class="btn btn-accent btn-sm" onclick="cmdPlayAudio()">Play Audio</button>
+        </div>
+
+        <!-- Play Video -->
+        <div class="control-group">
+          <div class="control-group-label">Play Video</div>
+          <div class="field">
+            <label>Video File</label>
+            <select id="cmdVideoFile"></select>
+          </div>
+          <div class="toggle-row">
+            <input type="checkbox" id="cmdVideoLoop">
+            <label for="cmdVideoLoop">Loop</label>
+          </div>
+          <button class="btn btn-accent btn-sm" onclick="cmdPlayVideo()">Play Video</button>
+        </div>
+
+        <!-- Play Screenshare -->
+        <div class="control-group">
+          <div class="control-group-label">Play Screenshare</div>
+          <div class="field">
+            <label>Screenshare File</label>
+            <select id="cmdScreenshareFile"></select>
+          </div>
+          <div class="toggle-row">
+            <input type="checkbox" id="cmdScreenshareLoop">
+            <label for="cmdScreenshareLoop">Loop</label>
+          </div>
+          <button class="btn btn-accent btn-sm" onclick="cmdPlayScreenshare()">Play Screenshare</button>
+        </div>
+
+        <!-- Stop Media -->
+        <div class="control-group">
+          <div class="control-group-label">Stop Media</div>
+          <button class="btn btn-orange btn-sm" onclick="cmdStopMedia()">Stop All Media</button>
+        </div>
+
+        <!-- Set DND -->
+        <div class="control-group">
+          <div class="control-group-label">Do Not Disturb</div>
+          <div class="btn-row" style="margin-top:0">
+            <button class="btn btn-orange btn-sm" onclick="cmdSetDnd(true)">Enable DND</button>
+            <button class="btn btn-sm" onclick="cmdSetDnd(false)">Disable DND</button>
+          </div>
+        </div>
+
+        <!-- Set Avatar -->
+        <div class="control-group">
+          <div class="control-group-label">Set Avatar (Live)</div>
+          <input type="hidden" id="cmdAvatarId">
+          <div class="section-label" style="margin-top:4px">Avatar</div>
+          <div id="cmdAvatarGrid" class="avatar-grid" data-target="cmdAvatarId"></div>
+          <div class="avatar-picker-fallback" id="cmdAvatarFallback">
+            <div class="field">
+              <label>Avatar ID</label>
+              <input type="text" id="cmdAvatarIdFallback" placeholder="pack-uuid:avatar-key"
+                     oninput="document.getElementById('cmdAvatarId').value=this.value">
+            </div>
+          </div>
+          <button class="btn btn-accent btn-sm" style="margin-top:8px" onclick="cmdSetAvatar()">Set Avatar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Create NPC Modal -->
+<div class="modal-overlay" id="createModal">
+  <div class="modal">
+    <h2>Create NPC</h2>
+    <div class="field">
+      <label>Identity (required, lowercase a-z 0-9 hyphens underscores)</label>
+      <input type="text" id="createIdentity" placeholder="my-npc-bot">
+    </div>
+    <div class="field">
+      <label>Name (required)</label>
+      <input type="text" id="createName" placeholder="My NPC">
+    </div>
+    <input type="hidden" id="createAvatarId">
+    <div class="section-label" style="margin-top:4px">Avatar</div>
+    <div id="createAvatarGrid" class="avatar-grid" data-target="createAvatarId"></div>
+    <div class="avatar-picker-fallback" id="createAvatarFallback">
+      <div class="field">
+        <label>Avatar ID (optional)</label>
+        <input type="text" id="createAvatarIdFallback" placeholder="pack-uuid:avatar-key"
+               oninput="document.getElementById('createAvatarId').value=this.value">
+      </div>
+    </div>
+    <div class="field">
+      <label>Map</label>
+      <select id="createMapName">
+        <option value="">(Default)</option>
+      </select>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Spawn X (Tile)</label>
+        <input type="number" id="createSpawnX" placeholder="0">
+      </div>
+      <div class="field">
+        <label>Spawn Y (Tile)</label>
+        <input type="number" id="createSpawnY" placeholder="0">
+      </div>
+      <div class="field">
+        <label>Direction</label>
+        <select id="createSpawnDir">
+          <option value="">(none)</option>
+          <option value="up">up</option>
+          <option value="down" selected>down</option>
+          <option value="left">left</option>
+          <option value="right">right</option>
+        </select>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-accent" onclick="createNpc()">Create</button>
+      <button class="btn" onclick="closeCreateModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ── State ──
+let npcs = [];
+let selectedNpcId = null;
+let selectedNpc = null;
+let npcMediaFiles = [];
+let avatarCache = []; // Global avatar list fetched once on connection
+let isDirty = false; // Tracks unsaved changes in Info tab
+let maps = []; // list of map objects from /maps API
+let mapTileWidth = 16;  // default fallback
+let mapTileHeight = 16;
+
+// ── API Helper ──
+async function apiFetch(path, opts = {}) {
+  const base = document.getElementById('apiUrl').value.replace(/\/+$/, '');
+  const token = document.getElementById('authToken').value.trim();
+  const headers = { ...(opts.headers || {}) };
+  if (token) headers['Authorization'] = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
+  if (opts.body && typeof opts.body === 'string') headers['Content-Type'] = 'application/json';
+  const res = await fetch(`${base}${path}`, { ...opts, headers, ...(token ? {} : { credentials: 'include' }) });
+  return res;
+}
+
+// ── Connection ──
+async function testConnection() {
+  const dot = document.getElementById('connDot');
+  const label = document.getElementById('connLabel');
+  try {
+    const res = await apiFetch('/npcs');
+    if (res.ok) {
+      const data = await res.json();
+      npcs = Array.isArray(data) ? data : [];
+      dot.className = 'conn-dot ok';
+      label.textContent = 'Connected';
+      toast('ok', `Connected — ${npcs.length} NPC(s) found`);
+      renderNpcList();
+      // Fetch map tile dimensions
+      try {
+        const mapsRes = await apiFetch('/maps');
+        if (mapsRes.ok) {
+          const mapsData = await mapsRes.json();
+          maps = Array.isArray(mapsData) ? mapsData : [];
+          if (maps.length > 0) {
+            const firstMap = maps.find(m => m.tileWidth > 0 && m.tileHeight > 0) || maps[0];
+            if (firstMap.tileWidth > 0) mapTileWidth = firstMap.tileWidth;
+            if (firstMap.tileHeight > 0) mapTileHeight = firstMap.tileHeight;
+          }
+          populateMapDropdowns();
+        }
+      } catch (e) {
+        console.warn('Failed to fetch maps for tile dimensions:', e);
+      }
+      // Fetch avatar packs once on connection
+      if (avatarCache.length === 0) fetchAvatarPacks();
+      // Re-select if we had one selected
+      if (selectedNpcId) {
+        const stillExists = npcs.find(n => n.id === selectedNpcId);
+        if (stillExists) {
+          selectNpc(selectedNpcId);
+        } else {
+          clearSelection();
+        }
+      }
+    } else {
+      dot.className = 'conn-dot err';
+      label.textContent = 'Error';
+      toast('err', `HTTP ${res.status}: ${res.statusText}`);
+    }
+  } catch (e) {
+    dot.className = 'conn-dot err';
+    label.textContent = 'Error';
+    toast('err', `Connection failed: ${e.message}`);
+  }
+}
+
+// ── NPC List ──
+function renderNpcList() {
+  const el = document.getElementById('npcList');
+  if (npcs.length === 0) {
+    el.innerHTML = '<span style="font-size:11px;color:var(--fg-muted)">No NPCs found.</span>';
+    return;
+  }
+  el.innerHTML = npcs.map(npc => `
+    <div class="npc-item${npc.id === selectedNpcId ? ' active' : ''}" onclick="selectNpc('${esc(npc.id)}')">
+      <div class="npc-name">${esc(npc.name)}</div>
+      <div class="npc-meta">
+        <span>${esc(npc.identity)}</span>
+        <span class="badge ${npc.enabled ? 'badge-enabled' : 'badge-disabled'}">${npc.enabled ? 'Enabled' : 'Disabled'}</span>
+      </div>
+    </div>
+  `).join('');
+}
+
+// ── NPC Selection ──
+async function selectNpc(id) {
+  // Warn if there are unsaved changes
+  if (isDirty && selectedNpcId && selectedNpcId !== id) {
+    if (!confirm('You have unsaved changes. Discard?')) return;
+  }
+  selectedNpcId = id;
+  renderNpcList();
+
+  try {
+    const res = await apiFetch(`/npcs/${id}`);
+    if (!res.ok) {
+      toast('err', `Failed to load NPC: HTTP ${res.status}`);
+      return;
+    }
+    selectedNpc = await res.json();
+  } catch (e) {
+    toast('err', `Failed to load NPC: ${e.message}`);
+    return;
+  }
+
+  document.getElementById('detailEmpty').style.display = 'none';
+  document.getElementById('detailContent').style.display = 'block';
+
+  // Populate info tab
+  document.getElementById('npcIdentity').value = selectedNpc.identity || '';
+  document.getElementById('npcName').value = selectedNpc.name || '';
+  document.getElementById('npcAvatarId').value = selectedNpc.avatarId || '';
+  document.getElementById('npcMapName').value = selectedNpc.mapName || '';
+  const dims = getSelectedMapTileDims('npcMapName');
+  document.getElementById('npcSpawnX').value = selectedNpc.spawnX != null ? Math.round(selectedNpc.spawnX / dims.tw) : '';
+  document.getElementById('npcSpawnY').value = selectedNpc.spawnY != null ? Math.round(selectedNpc.spawnY / dims.th) : '';
+  document.getElementById('npcSpawnDir').value = selectedNpc.spawnDirection || '';
+  document.getElementById('npcEnabled').checked = !!selectedNpc.enabled;
+  document.getElementById('npcShowBadge').checked = !!selectedNpc.showBadge;
+  document.getElementById('npcConfig').value = selectedNpc.config ? JSON.stringify(selectedNpc.config, null, 2) : '';
+
+  // Refresh avatar grid selections for Info & Controls tabs
+  renderAvatarGrid('infoAvatarGrid', 'infoAvatarFallback');
+  renderAvatarGrid('cmdAvatarGrid', 'cmdAvatarFallback');
+
+  // Reset dirty state
+  setDirty(false);
+
+  // Update pixel hint
+  updateSpawnPixelHint();
+
+  // Load media
+  await loadMedia();
+
+  // Populate controls dropdowns
+  populateMediaDropdowns();
+
+  // Switch to info tab
+  switchTab('info');
+}
+
+function clearSelection() {
+  selectedNpcId = null;
+  selectedNpc = null;
+  npcMediaFiles = [];
+  setDirty(false);
+  document.getElementById('detailEmpty').style.display = 'flex';
+  document.getElementById('detailContent').style.display = 'none';
+  renderNpcList();
+}
+
+// ── Tabs ──
+function switchTab(tabName) {
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.tab === tabName);
+  });
+  document.querySelectorAll('.tab-content').forEach(content => {
+    content.classList.toggle('active', content.id === `tab-${tabName}`);
+  });
+}
+
+// ── NPC CRUD ──
+async function saveNpc() {
+  if (!selectedNpc) return;
+
+  let config = null;
+  const configStr = document.getElementById('npcConfig').value.trim();
+  if (configStr) {
+    try {
+      config = JSON.parse(configStr);
+    } catch (e) {
+      toast('err', 'Invalid JSON in Config field');
+      return;
+    }
+  }
+
+  const saveDims = getSelectedMapTileDims('npcMapName');
+  const body = {
+    name: document.getElementById('npcName').value.trim() || undefined,
+    avatarId: document.getElementById('npcAvatarId').value.trim() || undefined,
+    mapName: document.getElementById('npcMapName').value || null,
+    spawnX: document.getElementById('npcSpawnX').value !== '' ? Number(document.getElementById('npcSpawnX').value) * saveDims.tw : undefined,
+    spawnY: document.getElementById('npcSpawnY').value !== '' ? Number(document.getElementById('npcSpawnY').value) * saveDims.th : undefined,
+    spawnDirection: document.getElementById('npcSpawnDir').value || undefined,
+    enabled: document.getElementById('npcEnabled').checked,
+    showBadge: document.getElementById('npcShowBadge').checked,
+    config: config,
+  };
+
+  try {
+    const res = await apiFetch(`/npcs/${selectedNpc.id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    });
+    if (res.ok) {
+      toast('ok', 'NPC updated');
+      setDirty(false);
+      // Refresh list + re-select
+      await testConnection();
+    } else {
+      const err = await res.json().catch(() => ({}));
+      toast('err', `Save failed: ${err.error || res.statusText}`);
+    }
+  } catch (e) {
+    toast('err', `Save failed: ${e.message}`);
+  }
+}
+
+async function deleteNpc() {
+  if (!selectedNpc) return;
+  if (!confirm(`Delete NPC "${selectedNpc.name}" (${selectedNpc.identity})? This cannot be undone.`)) return;
+
+  try {
+    const res = await apiFetch(`/npcs/${selectedNpc.id}`, { method: 'DELETE' });
+    if (res.ok) {
+      toast('ok', `Deleted: ${selectedNpc.name}`);
+      clearSelection();
+      await testConnection();
+    } else {
+      const err = await res.json().catch(() => ({}));
+      toast('err', `Delete failed: ${err.error || res.statusText}`);
+    }
+  } catch (e) {
+    toast('err', `Delete failed: ${e.message}`);
+  }
+}
+
+// ── Create NPC ──
+function openCreateModal() {
+  document.getElementById('createIdentity').value = '';
+  document.getElementById('createName').value = '';
+  document.getElementById('createAvatarId').value = '';
+  document.getElementById('createMapName').value = '';
+  document.getElementById('createSpawnX').value = '';
+  document.getElementById('createSpawnY').value = '';
+  document.getElementById('createSpawnDir').value = 'down';
+  // Reset fallback input too
+  const fb = document.getElementById('createAvatarIdFallback');
+  if (fb) fb.value = '';
+  // Re-render avatar grid with no selection
+  renderAvatarGrid('createAvatarGrid', 'createAvatarFallback');
+  document.getElementById('createModal').classList.add('show');
+}
+
+function closeCreateModal() {
+  document.getElementById('createModal').classList.remove('show');
+}
+
+async function createNpc() {
+  const identity = document.getElementById('createIdentity').value.trim();
+  const name = document.getElementById('createName').value.trim();
+  if (!identity) { toast('err', 'Identity is required'); return; }
+  if (!name) { toast('err', 'Name is required'); return; }
+  if (!/^[a-z0-9\-_]+$/.test(identity)) { toast('err', 'Identity must be lowercase a-z, 0-9, hyphens, underscores'); return; }
+
+  const body = { identity, name };
+  const avatarId = document.getElementById('createAvatarId').value.trim();
+  if (avatarId) body.avatarId = avatarId;
+  const mapName = document.getElementById('createMapName').value;
+  if (mapName) body.mapName = mapName;
+  const createDims = getSelectedMapTileDims('createMapName');
+  const spawnX = document.getElementById('createSpawnX').value;
+  if (spawnX !== '') body.spawnX = Number(spawnX) * createDims.tw;
+  const spawnY = document.getElementById('createSpawnY').value;
+  if (spawnY !== '') body.spawnY = Number(spawnY) * createDims.th;
+  const dir = document.getElementById('createSpawnDir').value;
+  if (dir) body.spawnDirection = dir;
+
+  try {
+    const res = await apiFetch('/npcs', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+    if (res.ok) {
+      const npc = await res.json();
+      toast('ok', `Created NPC: ${npc.name}`);
+      closeCreateModal();
+      await testConnection();
+      selectNpc(npc.id);
+    } else {
+      const err = await res.json().catch(() => ({}));
+      toast('err', `Create failed: ${err.error || res.statusText}`);
+    }
+  } catch (e) {
+    toast('err', `Create failed: ${e.message}`);
+  }
+}
+
+// Close modal on overlay click
+document.getElementById('createModal').addEventListener('click', function(e) {
+  if (e.target === this) closeCreateModal();
+});
+
+// ── Media ──
+async function loadMedia() {
+  if (!selectedNpc) return;
+  const listEl = document.getElementById('mediaList');
+  try {
+    const res = await apiFetch(`/npcs/${selectedNpc.id}/media`);
+    if (res.ok) {
+      npcMediaFiles = await res.json();
+    } else {
+      npcMediaFiles = selectedNpc.mediaFiles || [];
+    }
+  } catch {
+    npcMediaFiles = selectedNpc.mediaFiles || [];
+  }
+  renderMediaList();
+}
+
+function renderMediaList() {
+  const el = document.getElementById('mediaList');
+  if (npcMediaFiles.length === 0) {
+    el.innerHTML = '<span style="font-size:11px;color:var(--fg-muted)">No media files uploaded.</span>';
+    return;
+  }
+  el.innerHTML = npcMediaFiles.map(mf => `
+    <div class="media-item">
+      <div class="media-info">
+        <div class="media-name">${esc(mf.filename)}</div>
+        <div class="media-meta">
+          ${esc(mf.mediaType)} / ${esc(mf.mimeType)} / ${formatBytes(mf.sizeBytes)}
+        </div>
+      </div>
+      <button class="btn btn-sm btn-danger" onclick="deleteMedia('${esc(mf.id)}')">Del</button>
+    </div>
+  `).join('');
+}
+
+function populateMediaDropdowns() {
+  const audioFiles = npcMediaFiles.filter(f => f.mediaType === 'audio');
+  const videoFiles = npcMediaFiles.filter(f => f.mediaType === 'video');
+  const screenshareFiles = npcMediaFiles.filter(f => f.mediaType === 'screenshare');
+
+  populateSelect('cmdAudioFile', audioFiles);
+  populateSelect('cmdVideoFile', videoFiles);
+  populateSelect('cmdScreenshareFile', screenshareFiles);
+}
+
+function populateSelect(selectId, files) {
+  const sel = document.getElementById(selectId);
+  sel.innerHTML = files.length === 0
+    ? '<option value="">No files</option>'
+    : files.map(f => `<option value="${esc(f.id)}">${esc(f.filename)}</option>`).join('');
+}
+
+async function uploadMedia() {
+  if (!selectedNpc) return;
+  const fileInput = document.getElementById('mediaFileInput');
+  const file = fileInput.files[0];
+  if (!file) { toast('err', 'Select a file first'); return; }
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const mediaType = document.getElementById('mediaTypeOverride').value;
+  const queryParam = mediaType ? `?mediaType=${mediaType}` : '';
+
+  try {
+    const res = await apiFetch(`/npcs/${selectedNpc.id}/media${queryParam}`, {
+      method: 'POST',
+      body: formData,
+    });
+    if (res.ok) {
+      toast('ok', `Uploaded: ${file.name}`);
+      fileInput.value = '';
+      document.getElementById('mediaTypeOverride').value = '';
+      await loadMedia();
+      populateMediaDropdowns();
+    } else {
+      const err = await res.json().catch(() => ({}));
+      toast('err', `Upload failed: ${err.error || res.statusText}`);
+    }
+  } catch (e) {
+    toast('err', `Upload failed: ${e.message}`);
+  }
+}
+
+async function deleteMedia(mediaId) {
+  if (!selectedNpc) return;
+  if (!confirm('Delete this media file?')) return;
+  try {
+    const res = await apiFetch(`/npcs/${selectedNpc.id}/media/${mediaId}`, { method: 'DELETE' });
+    if (res.ok) {
+      toast('ok', 'Media deleted');
+      await loadMedia();
+      populateMediaDropdowns();
+    } else {
+      const err = await res.json().catch(() => ({}));
+      toast('err', `Delete failed: ${err.error || res.statusText}`);
+    }
+  } catch (e) {
+    toast('err', `Delete failed: ${e.message}`);
+  }
+}
+
+// ── NPC Commands ──
+async function spawnNpc() {
+  if (!selectedNpc) return;
+  try {
+    const res = await apiFetch(`/npcs/${selectedNpc.id}/spawn`, { method: 'POST' });
+    if (res.ok) {
+      toast('ok', `Spawned: ${selectedNpc.name}`);
+    } else {
+      const err = await res.json().catch(() => ({}));
+      toast('err', `Spawn failed: ${err.error || err.message || res.statusText}`);
+    }
+  } catch (e) {
+    toast('err', `Spawn failed: ${e.message}`);
+  }
+}
+
+async function despawnNpc() {
+  if (!selectedNpc) return;
+  try {
+    const res = await apiFetch(`/npcs/${selectedNpc.id}/despawn`, { method: 'POST' });
+    if (res.ok) {
+      toast('ok', `Despawned: ${selectedNpc.name}`);
+    } else {
+      const err = await res.json().catch(() => ({}));
+      toast('err', `Despawn failed: ${err.error || err.message || res.statusText}`);
+    }
+  } catch (e) {
+    toast('err', `Despawn failed: ${e.message}`);
+  }
+}
+
+async function sendCommand(action, payload) {
+  if (!selectedNpc) return;
+  const body = { action };
+  if (payload !== undefined) body.payload = payload;
+  try {
+    const res = await apiFetch(`/npcs/${selectedNpc.id}/command`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      toast('ok', `Command "${action}" sent (delivered to ${data.delivered || 0} room(s))`);
+    } else {
+      const err = await res.json().catch(() => ({}));
+      toast('err', `Command failed: ${err.error || res.statusText}`);
+    }
+  } catch (e) {
+    toast('err', `Command failed: ${e.message}`);
+  }
+}
+
+function cmdMove() {
+  const tileX = Number(document.getElementById('cmdMoveX').value);
+  const tileY = Number(document.getElementById('cmdMoveY').value);
+  if (isNaN(tileX) || isNaN(tileY)) { toast('err', 'X and Y are required for move'); return; }
+  const moveDims = getSelectedMapTileDims('npcMapName');
+  const x = tileX * moveDims.tw;
+  const y = tileY * moveDims.th;
+  const payload = { x, y };
+  const speed = document.getElementById('cmdMoveSpeed').value;
+  if (speed !== '') payload.speed = Number(speed);
+  sendCommand('move', payload);
+}
+
+function cmdStopMovement() {
+  sendCommand('stop_movement');
+}
+
+function cmdPlayAudio() {
+  const mediaFileId = document.getElementById('cmdAudioFile').value;
+  if (!mediaFileId) { toast('err', 'Select an audio file'); return; }
+  const loop = document.getElementById('cmdAudioLoop').checked;
+  sendCommand('play_audio', { mediaFileId, loop });
+}
+
+function cmdPlayVideo() {
+  const mediaFileId = document.getElementById('cmdVideoFile').value;
+  if (!mediaFileId) { toast('err', 'Select a video file'); return; }
+  const loop = document.getElementById('cmdVideoLoop').checked;
+  sendCommand('play_video', { mediaFileId, loop });
+}
+
+function cmdPlayScreenshare() {
+  const mediaFileId = document.getElementById('cmdScreenshareFile').value;
+  if (!mediaFileId) { toast('err', 'Select a screenshare file'); return; }
+  const loop = document.getElementById('cmdScreenshareLoop').checked;
+  sendCommand('play_screenshare', { mediaFileId, loop });
+}
+
+function cmdStopMedia() {
+  sendCommand('stop_media');
+}
+
+function cmdSetDnd(dnd) {
+  sendCommand('set_dnd', { dnd });
+}
+
+function cmdSetAvatar() {
+  const avatarId = document.getElementById('cmdAvatarId').value.trim();
+  if (!avatarId) { toast('err', 'Avatar ID is required'); return; }
+  sendCommand('set_avatar', { avatarId });
+}
+
+// ── Avatar Picker ──
+async function fetchAvatarPacks() {
+  try {
+    const res = await apiFetch('/avatar-packs');
+    if (!res.ok) { avatarCache = []; return; }
+    const packs = await res.json();
+    const list = [];
+    if (Array.isArray(packs)) {
+      for (const pack of packs) {
+        const packAvatars = Array.isArray(pack.avatars) ? pack.avatars : [];
+        for (const av of packAvatars) {
+          let spriteUrl = av.spriteUrl || `assets/sprites/${av.key}.png`;
+          if (spriteUrl && !spriteUrl.startsWith('http')) {
+            const base = document.getElementById('apiUrl').value.replace(/\/+$/, '');
+            spriteUrl = `${base}/${spriteUrl.replace(/^\/+/, '')}`;
+          }
+          list.push({
+            id: `${pack.uuid}:${av.key}`,
+            displayName: av.displayName || av.key,
+            spriteUrl,
+            frameWidth: av.frameWidth || 16,
+            frameHeight: av.frameHeight || 24,
+            idleRow: av.states?.idle?.row ?? 0,
+          });
+        }
+      }
+    }
+    avatarCache = list;
+  } catch (e) {
+    console.warn('Failed to fetch avatar packs:', e);
+    avatarCache = [];
+  }
+  // Render all avatar grids after fetch
+  renderAllAvatarGrids();
+}
+
+function renderAllAvatarGrids() {
+  renderAvatarGrid('createAvatarGrid', 'createAvatarFallback');
+  renderAvatarGrid('infoAvatarGrid', 'infoAvatarFallback');
+  renderAvatarGrid('cmdAvatarGrid', 'cmdAvatarFallback');
+}
+
+function renderAvatarGrid(gridId, fallbackId) {
+  const gridEl = document.getElementById(gridId);
+  const fallbackEl = document.getElementById(fallbackId);
+  if (!gridEl) return;
+
+  const targetInputId = gridEl.dataset.target;
+
+  if (avatarCache.length === 0) {
+    gridEl.innerHTML = '';
+    gridEl.style.display = 'none';
+    if (fallbackEl) fallbackEl.classList.add('show');
+    return;
+  }
+
+  gridEl.style.display = '';
+  if (fallbackEl) fallbackEl.classList.remove('show');
+
+  const currentVal = document.getElementById(targetInputId)?.value || '';
+
+  gridEl.innerHTML = '';
+  for (const av of avatarCache) {
+    const card = document.createElement('div');
+    card.className = 'avatar-card' + (av.id === currentVal ? ' selected' : '');
+    card.title = av.displayName;
+    card.onclick = () => selectAvatarInGrid(gridId, av.id);
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 64;
+    canvas.height = 96;
+    renderAvatarCanvas(canvas, av);
+    card.appendChild(canvas);
+
+    const label = document.createElement('div');
+    label.className = 'avatar-label';
+    label.textContent = av.displayName;
+    card.appendChild(label);
+
+    gridEl.appendChild(card);
+  }
+}
+
+function renderAvatarCanvas(canvas, av) {
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  img.onload = () => {
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.imageSmoothingEnabled = false;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, av.idleRow * av.frameHeight, av.frameWidth, av.frameHeight, 0, 0, canvas.width, canvas.height);
+  };
+  img.onerror = () => {
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#333';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#888';
+    ctx.font = 'bold 24px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('?', canvas.width / 2, canvas.height / 2);
+  };
+  img.src = av.spriteUrl;
+}
+
+function selectAvatarInGrid(gridId, avatarId) {
+  const gridEl = document.getElementById(gridId);
+  if (!gridEl) return;
+  const targetInputId = gridEl.dataset.target;
+  const targetInput = document.getElementById(targetInputId);
+  if (targetInput) targetInput.value = avatarId;
+
+  // Update visual selection
+  gridEl.querySelectorAll('.avatar-card').forEach((card, i) => {
+    card.classList.toggle('selected', avatarCache[i]?.id === avatarId);
+  });
+
+  // If this is the Info tab avatar, mark dirty
+  if (targetInputId === 'npcAvatarId') {
+    checkDirty();
+  }
+}
+
+// ── Dirty State Tracking ──
+function getInfoFieldValues() {
+  return {
+    name: document.getElementById('npcName').value,
+    avatarId: document.getElementById('npcAvatarId').value,
+    mapName: document.getElementById('npcMapName').value,
+    spawnX: document.getElementById('npcSpawnX').value,
+    spawnY: document.getElementById('npcSpawnY').value,
+    spawnDir: document.getElementById('npcSpawnDir').value,
+    enabled: document.getElementById('npcEnabled').checked,
+    showBadge: document.getElementById('npcShowBadge').checked,
+    config: document.getElementById('npcConfig').value,
+  };
+}
+
+function getServerFieldValues() {
+  if (!selectedNpc) return {};
+  const serverDims = getSelectedMapTileDims('npcMapName');
+  return {
+    name: selectedNpc.name || '',
+    avatarId: selectedNpc.avatarId || '',
+    mapName: selectedNpc.mapName || '',
+    spawnX: selectedNpc.spawnX != null ? String(Math.round(selectedNpc.spawnX / serverDims.tw)) : '',
+    spawnY: selectedNpc.spawnY != null ? String(Math.round(selectedNpc.spawnY / serverDims.th)) : '',
+    spawnDir: selectedNpc.spawnDirection || '',
+    enabled: !!selectedNpc.enabled,
+    showBadge: !!selectedNpc.showBadge,
+    config: selectedNpc.config ? JSON.stringify(selectedNpc.config, null, 2) : '',
+  };
+}
+
+function checkDirty() {
+  if (!selectedNpc) { setDirty(false); return; }
+  const current = getInfoFieldValues();
+  const server = getServerFieldValues();
+  const dirty = Object.keys(server).some(k => {
+    if (typeof server[k] === 'boolean') return current[k] !== server[k];
+    return String(current[k] || '') !== String(server[k] || '');
+  });
+  setDirty(dirty);
+}
+
+function setDirty(dirty) {
+  isDirty = dirty;
+  const infoTab = document.querySelector('.tab-btn[data-tab="info"]');
+  const saveBtn = document.getElementById('btnSave');
+  const hint = document.getElementById('unsavedHint');
+  if (infoTab) infoTab.classList.toggle('dirty', dirty);
+  if (saveBtn) saveBtn.classList.toggle('dirty', dirty);
+  if (hint) hint.classList.toggle('show', dirty);
+}
+
+function attachDirtyListeners() {
+  const fields = ['npcName', 'npcSpawnX', 'npcSpawnY', 'npcSpawnDir', 'npcMapName', 'npcEnabled', 'npcShowBadge', 'npcConfig'];
+  for (const id of fields) {
+    const el = document.getElementById(id);
+    if (!el) continue;
+    el.addEventListener('input', checkDirty);
+    el.addEventListener('change', checkDirty);
+  }
+  // Update pixel hint when spawn fields change
+  const spawnFields = ['npcSpawnX', 'npcSpawnY'];
+  for (const id of spawnFields) {
+    const el = document.getElementById(id);
+    if (!el) continue;
+    el.addEventListener('input', updateSpawnPixelHint);
+    el.addEventListener('change', updateSpawnPixelHint);
+  }
+  // Update pixel hint and dirty state when map selection changes
+  document.getElementById('npcMapName').addEventListener('change', () => {
+    updateSpawnPixelHint();
+  });
+}
+
+// Attach dirty listeners once on load
+document.addEventListener('DOMContentLoaded', attachDirtyListeners);
+
+// ── Spawn Pixel Hint ──
+function updateSpawnPixelHint() {
+  const hintEl = document.getElementById('spawnPixelHint');
+  if (!hintEl) return;
+  const xVal = document.getElementById('npcSpawnX').value;
+  const yVal = document.getElementById('npcSpawnY').value;
+  if (xVal === '' && yVal === '') {
+    hintEl.textContent = 'Pixel: --';
+    return;
+  }
+  const hintDims = getSelectedMapTileDims('npcMapName');
+  const tileX = xVal !== '' ? Number(xVal) : 0;
+  const tileY = yVal !== '' ? Number(yVal) : 0;
+  const pixelX = tileX * hintDims.tw;
+  const pixelY = tileY * hintDims.th;
+  hintEl.textContent = `Pixel: ${pixelX}, ${pixelY} (Tile: ${hintDims.tw}x${hintDims.th}px)`;
+}
+
+// ── Map Dropdown Helpers ──
+function populateMapDropdowns() {
+  const selectors = ['npcMapName', 'createMapName'];
+  for (const id of selectors) {
+    const sel = document.getElementById(id);
+    if (!sel) continue;
+    sel.innerHTML = '<option value="">(Default)</option>';
+    for (const map of maps) {
+      const opt = document.createElement('option');
+      opt.value = map.name;
+      opt.textContent = map.name;
+      sel.appendChild(opt);
+    }
+  }
+}
+
+function getSelectedMapTileDims(mapSelectId) {
+  const mapName = document.getElementById(mapSelectId)?.value;
+  if (mapName) {
+    const map = maps.find(m => m.name === mapName);
+    if (map && map.tileWidth && map.tileHeight) {
+      return { tw: map.tileWidth, th: map.tileHeight };
+    }
+  }
+  return { tw: mapTileWidth, th: mapTileHeight };
+}
+
+// ── Helpers ──
+function toast(type, text) {
+  const container = document.getElementById('toast');
+  const div = document.createElement('div');
+  div.className = `toast-item ${type}`;
+  div.textContent = text;
+  container.appendChild(div);
+  setTimeout(() => {
+    div.style.opacity = '0';
+    div.style.transition = 'opacity 0.3s';
+    setTimeout(() => div.remove(), 300);
+  }, 3000);
+}
+
+function esc(s) {
+  if (s == null) return '';
+  if (typeof s !== 'string') s = String(s);
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+function formatBytes(bytes) {
+  if (bytes == null) return '?';
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+</script>
+</body>
+</html>

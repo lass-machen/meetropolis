@@ -55,6 +55,7 @@ model Tenant {
   presences             Presence[]
   invites               Invite[]
   billingAuditLogs      BillingAuditLog[]
+  npcs                  Npc[]
 }
 
 model Membership {
@@ -347,4 +348,47 @@ model MapObject {
   updatedAt      DateTime @updatedAt
 
   @@index([mapId, chunkX, chunkY])
+}
+
+enum NpcMediaType {
+  audio
+  video
+  screenshare
+}
+
+model Npc {
+  id             String         @id @default(cuid())
+  tenant         Tenant         @relation(fields: [tenantId], references: [id])
+  tenantId       String
+  identity       String         // unique per tenant, e.g. "npc-greeter"
+  name           String         // display name
+  avatarId       String         @default("default-characters:businessman1")
+  spawnX         Float          @default(200)
+  spawnY         Float          @default(200)
+  spawnDirection String         @default("down")
+  enabled        Boolean        @default(true)
+  showBadge      Boolean        @default(false)
+  mapName        String?        // optional: which map this NPC should spawn on
+  config         Json?          // arbitrary JSON config
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  mediaFiles     NpcMediaFile[]
+
+  @@unique([tenantId, identity])
+  @@index([tenantId])
+}
+
+model NpcMediaFile {
+  id          String       @id @default(cuid())
+  npc         Npc          @relation(fields: [npcId], references: [id], onDelete: Cascade)
+  npcId       String
+  filename    String       // original filename
+  storagePath String       // path on disk relative to NPC_MEDIA_DIR
+  mimeType    String
+  sizeBytes   Int
+  duration    Float?       // seconds, null if unknown
+  mediaType   NpcMediaType
+  createdAt   DateTime     @default(now())
+
+  @@index([npcId])
 }

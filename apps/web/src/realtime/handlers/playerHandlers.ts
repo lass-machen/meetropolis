@@ -21,14 +21,14 @@ export function setupPlayerHandlers(
   room.onMessage('full_state', (data: any) => {
     if (!gameBridge?.syncRemotePlayers) return;
     if (data?.players) {
-      const players: Record<string, { x: number; y: number; direction: any; name?: string; dnd?: boolean; avatarId?: string }> = {};
+      const players: Record<string, { x: number; y: number; direction: any; name?: string; dnd?: boolean; avatarId?: string; isNpc?: boolean }> = {};
       for (const p of data.players) {
         if (p.id === localPosRef.current.id) continue;
         if (p.identity) {
           colyseusToLivekitMap.current[p.id] = p.identity;
           if (p.name) identityToNameMap.current[p.identity] = p.name;
         }
-        players[p.id] = { x: p.x, y: p.y, direction: p.direction, name: p.name, dnd: p.dnd, avatarId: p.avatarId } as any;
+        players[p.id] = { x: p.x, y: p.y, direction: p.direction, name: p.name, dnd: p.dnd, avatarId: p.avatarId, isNpc: p.isNpc } as any;
       }
       if (gameBridge && typeof gameBridge.syncRemotePlayers === 'function') gameBridge.syncRemotePlayers(players);
       remotesRef.current = Object.fromEntries(Object.entries(players).map(([id, p]) => [id, { x: (p as any).x, y: (p as any).y, dnd: (p as any).dnd }]));
@@ -46,7 +46,7 @@ export function setupPlayerHandlers(
       colyseusToLivekitMap.current[data.id] = data.identity;
       if (data.name) identityToNameMap.current[data.identity] = data.name;
     }
-    if (gameBridge && typeof (gameBridge as any).addRemotePlayer === 'function') (gameBridge as any).addRemotePlayer(data.id, { x: data.x, y: data.y, direction: data.direction, name: data.name, dnd: data.dnd, avatarId: data.avatarId });
+    if (gameBridge && typeof (gameBridge as any).addRemotePlayer === 'function') (gameBridge as any).addRemotePlayer(data.id, { x: data.x, y: data.y, direction: data.direction, name: data.name, dnd: data.dnd, avatarId: data.avatarId, isNpc: data.isNpc });
     scheduleBuildParticipantList(50);
     scheduleRefreshRosterFromRemotes(0);
     applyVolumesToUi();
@@ -99,21 +99,21 @@ export function setupPlayerHandlers(
 
   // State change (full state sync via onStateChange)
   room.onStateChange((state: any) => {
-    const players: Record<string, { x: number; y: number; direction: any; dnd?: boolean; identity?: string; name?: string; avatarId?: string }> = {};
+    const players: Record<string, { x: number; y: number; direction: any; dnd?: boolean; identity?: string; name?: string; avatarId?: string; isNpc?: boolean }> = {};
     if (state.players) {
       if (typeof state.players.forEach === 'function') {
         state.players.forEach((value: any, key: string) => {
-          players[key] = { x: value.x, y: value.y, direction: value.direction, dnd: value.dnd, identity: value.identity, name: value.name, avatarId: value.avatarId };
+          players[key] = { x: value.x, y: value.y, direction: value.direction, dnd: value.dnd, identity: value.identity, name: value.name, avatarId: value.avatarId, isNpc: value.isNpc };
           if (value.identity && value.name) identityToNameMap.current[value.identity] = value.name;
         });
       } else if (typeof state.players.entries === 'function') {
         for (const [key, value] of state.players.entries()) {
-          players[key] = { x: value.x, y: value.y, direction: value.direction, dnd: value.dnd, identity: value.identity, name: value.name, avatarId: value.avatarId };
+          players[key] = { x: value.x, y: value.y, direction: value.direction, dnd: value.dnd, identity: value.identity, name: value.name, avatarId: value.avatarId, isNpc: value.isNpc };
           if (value.identity && value.name) identityToNameMap.current[value.identity] = value.name;
         }
       } else if ((state.players as any)[Symbol.iterator]) {
         for (const [key, value] of (state.players as any)) {
-          players[key] = { x: value.x, y: value.y, direction: value.direction, dnd: value.dnd, identity: value.identity, name: value.name, avatarId: value.avatarId };
+          players[key] = { x: value.x, y: value.y, direction: value.direction, dnd: value.dnd, identity: value.identity, name: value.name, avatarId: value.avatarId, isNpc: value.isNpc };
           if (value.identity && value.name) identityToNameMap.current[value.identity] = value.name;
         }
       }

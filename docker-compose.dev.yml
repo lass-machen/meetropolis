@@ -7,6 +7,7 @@ networks:
 
 volumes:
   db_data_dev:
+  npc_media_dev:
 
 services:
   db:
@@ -22,7 +23,7 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: meetropolis
     ports:
-      - "5432:5432"
+      - "5434:5432"
     volumes:
       - db_data_dev:/var/lib/postgresql/data
     networks:
@@ -42,6 +43,7 @@ services:
       DATABASE_URL: postgresql://postgres:postgres@db:5432/meetropolis
       PORT: 2567
       LIVEKIT_URL: http://livekit:7880
+      LIVEKIT_EXTERNAL_URL: ws://localhost:7880
       LIVEKIT_API_KEY: devkey
       LIVEKIT_API_SECRET: secret
       NODE_ENV: development
@@ -50,7 +52,11 @@ services:
       # Stabilisiere Tokens in Dev: gleicher Pepper/Secret über Neustarts
       API_TOKEN_PEPPER: dev-pepper-change-me
       JWT_SECRET: dev-jwt-secret-change-me
-    command: sh -c "cd /workspace && npm install && ./apps/server/node_modules/.bin/prisma generate --schema=./apps/server/prisma/schema.prisma && ./apps/server/node_modules/.bin/prisma db push --schema=./apps/server/prisma/schema.prisma && ./apps/server/node_modules/.bin/prisma db seed --schema=./apps/server/prisma/schema.prisma && npm run -w @meetropolis/server start:dev"
+      NPC_SERVICE_URL: http://npc-service:3100
+      NPC_SERVICE_SECRET: dev-npc-secret
+      NPC_SERVER_URL: http://server:2567
+      NPC_MEDIA_DIR: /data/npc-media
+    command: sh -c "cd /workspace && npm install && npx prisma generate --schema=./apps/server/prisma/schema.prisma && npx prisma db push --schema=./apps/server/prisma/schema.prisma && npx prisma db seed --schema=./apps/server/prisma/schema.prisma && npm run -w @meetropolis/server start:dev"
     ports:
       - "2567:2567"
     logging:
@@ -70,6 +76,7 @@ services:
       - meetropolis-dev
     volumes:
       - ./:/workspace
+      - npc_media_dev:/data/npc-media
 
   web:
     image: node:20
@@ -138,7 +145,7 @@ services:
     image: grafana/grafana:10.4.10
     container_name: meetropolis-grafana-dev
     ports:
-      - "3000:3000"
+      - "3002:3000"
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=admin
     networks:
@@ -190,3 +197,35 @@ services:
           echo waiting for server...; sleep 2;
         done;
         npm run dev
+
+  npc-service:
+    image: node:20
+    container_name: meetropolis-npc-service
+    working_dir: /workspace/apps/npc-service
+    environment:
+      SERVER_URL: http://server:2567
+      LIVEKIT_URL: ws://livekit:7880
+      LIVEKIT_API_KEY: devkey
+      LIVEKIT_API_SECRET: secret
+      NPC_SERVICE_SECRET: dev-npc-secret
+      NPC_MEDIA_DIR: /data/npc-media
+      PORT: 3100
+      LOG_LEVEL: info
+    command: sh -c "cd /workspace && npm install && npm -w @meetropolis/npc-service run dev"
+    ports:
+      - "3100:3100"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    depends_on:
+      server:
+        condition: service_healthy
+      livekit:
+        condition: service_started
+    networks:
+      - meetropolis-dev
+    volumes:
+      - ./:/workspace
+      - npc_media_dev:/data/npc-media
