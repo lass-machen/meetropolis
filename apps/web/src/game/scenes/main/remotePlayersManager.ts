@@ -1,13 +1,15 @@
 import Phaser from 'phaser';
+import { avatarRegistry } from '../../avatarRegistry';
 
 export interface RemotePlayer {
   x: number;
   y: number;
   direction: 'up' | 'down' | 'left' | 'right';
-  prevX?: number;
-  prevY?: number;
-  name?: string;
-  dnd?: boolean;
+  prevX?: number | undefined;
+  prevY?: number | undefined;
+  name?: string | undefined;
+  dnd?: boolean | undefined;
+  avatarId?: string | undefined;
 }
 
 export class RemotePlayersManager {
@@ -34,13 +36,17 @@ export class RemotePlayersManager {
   }
 
   private createRemoteSprite(id: string, p: RemotePlayer): Phaser.GameObjects.Sprite {
-    const s = this.scene.add.sprite(p.x, p.y, 'hero_walk_down', 0);
+    const remoteAvatarId = p.avatarId || avatarRegistry.getDefaultAvatarId();
+    avatarRegistry.createAnimations(this.scene.anims, remoteAvatarId);
+    const { texture, frame } = avatarRegistry.getIdleFrame(remoteAvatarId, p.direction || 'down');
+    const s = this.scene.add.sprite(p.x, p.y, texture, frame);
     s.setDepth(10);
 
     (s as any).prevX = p.x;
     (s as any).prevY = p.y;
     (s as any).prevDirection = p.direction;
     (s as any).lastMoveTime = Date.now();
+    (s as any).avatarId = remoteAvatarId;
 
     this.remotes.set(id, s);
     return s;
@@ -66,6 +72,14 @@ export class RemotePlayersManager {
       s.setAlpha(p.dnd ? 0.35 : 1);
     }
 
+    // Check if avatar changed
+    const currentAvatarId = (s as any).avatarId || avatarRegistry.getDefaultAvatarId();
+    const newAvatarId = p.avatarId || currentAvatarId;
+    if (newAvatarId !== currentAvatarId) {
+      (s as any).avatarId = newAvatarId;
+      avatarRegistry.createAnimations(this.scene.anims, newAvatarId);
+    }
+
     this.updateAnimation(s, p.direction, isMoving, directionChanged);
   }
 
@@ -75,22 +89,9 @@ export class RemotePlayersManager {
     isMoving: boolean,
     directionChanged: boolean
   ) {
-    const animationMap: Record<string, string> = {
-      'up': 'walk_up',
-      'down': 'walk_down',
-      'left': 'walk_left',
-      'right': 'walk_right'
-    };
-
-    const textureMap: Record<string, string> = {
-      'up': 'hero_walk_up',
-      'down': 'hero_walk_down',
-      'left': 'hero_walk_left',
-      'right': 'hero_walk_right'
-    };
-
-    const animKey = animationMap[direction] || 'walk_down';
-    const standingTexture = textureMap[direction] || 'hero_walk_down';
+    const spriteAvatarId = (s as any).avatarId || avatarRegistry.getDefaultAvatarId();
+    const animKey = avatarRegistry.getAnimationKey(spriteAvatarId, 'walk', direction);
+    const { texture: standingTexture, frame: standingFrame } = avatarRegistry.getIdleFrame(spriteAvatarId, direction);
 
     if (isMoving) {
       (s as any).lastMoveTime = Date.now();
@@ -105,10 +106,10 @@ export class RemotePlayersManager {
       if (timeSinceLastMove >= 100) {
         if (!(s as any).isStanding) {
           s.anims.stop();
-          s.setTexture(standingTexture, 0);
+          s.setTexture(standingTexture, standingFrame);
           (s as any).isStanding = true;
         } else if (directionChanged) {
-          s.setTexture(standingTexture, 0);
+          s.setTexture(standingTexture, standingFrame);
         }
       }
     }

@@ -1,0 +1,2619 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Map Editor — Meetropolis</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg-deep:#0a0b0f;--bg:#12131a;--bg-raised:#1a1b25;--bg-surface:#22232f;
+  --border:#2a2c3a;--border-active:#3d3f52;--border-accent:#5865f2;
+  --fg:#d4d5db;--fg-dim:#7a7c8a;--fg-muted:#4a4c58;
+  --accent:#5865f2;--accent-dim:#4752c4;--accent-glow:rgba(88,101,242,0.15);
+  --green:#3ba55d;--green-dim:rgba(59,165,93,0.15);
+  --red:#ed4245;--red-dim:rgba(237,66,69,0.15);
+  --orange:#f0a020;--orange-dim:rgba(240,160,32,0.15);
+  --yellow:#fee75c;
+  --radius:6px;--radius-lg:10px;
+  --font-mono:'JetBrains Mono',monospace;--font-sans:'Space Grotesk',sans-serif;
+  --shadow:0 4px 24px rgba(0,0,0,0.4),0 1px 3px rgba(0,0,0,0.3);
+}
+html{font-size:14px}
+body{
+  background:var(--bg-deep);color:var(--fg);
+  font-family:var(--font-sans);line-height:1.5;
+  min-height:100vh;overflow:hidden;
+}
+body::after{
+  content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.03) 2px,rgba(0,0,0,0.03) 4px);
+}
+
+/* Header */
+.app-header{
+  background:var(--bg);border-bottom:1px solid var(--border);
+  padding:10px 20px;display:flex;align-items:center;gap:14px;
+  position:relative;z-index:100;height:44px;
+}
+.app-header h1{
+  font-family:var(--font-mono);font-size:14px;font-weight:700;
+  letter-spacing:-0.5px;
+  background:linear-gradient(135deg,var(--accent),#7c8af8);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+}
+.app-header .tag{
+  font-family:var(--font-mono);font-size:10px;font-weight:600;
+  background:var(--accent-dim);color:var(--accent);
+  padding:2px 8px;border-radius:3px;letter-spacing:0.5px;
+  text-transform:uppercase;
+}
+.app-header .tool-info{
+  margin-left:auto;display:flex;align-items:center;gap:12px;
+  font-family:var(--font-mono);font-size:11px;color:var(--fg-dim);
+}
+.app-header .conn-dot{
+  width:8px;height:8px;border-radius:50%;background:var(--fg-muted);
+  transition:background 0.3s,box-shadow 0.3s;
+}
+.app-header .conn-dot.ok{background:var(--green);box-shadow:0 0 8px rgba(59,165,93,0.5)}
+.app-header .conn-dot.err{background:var(--red);box-shadow:0 0 8px rgba(237,66,69,0.5)}
+.coord-display{font-family:var(--font-mono);font-size:10px;color:var(--fg-muted)}
+
+/* Layout */
+.main{display:grid;grid-template-columns:300px 1fr 300px;gap:0;height:calc(100vh - 44px)}
+
+/* Panels */
+.panel{
+  background:var(--bg);overflow-y:auto;overflow-x:hidden;
+}
+.panel.left{border-right:1px solid var(--border)}
+.panel.right{border-left:1px solid var(--border)}
+.panel-section{padding:12px 14px;border-bottom:1px solid var(--border)}
+.panel-section:last-child{border-bottom:none}
+.section-label{
+  font-family:var(--font-mono);font-size:10px;font-weight:600;
+  color:var(--fg-muted);text-transform:uppercase;letter-spacing:1.2px;
+  margin-bottom:10px;display:flex;align-items:center;gap:8px;
+}
+.section-label::before{
+  content:'';flex:0 0 3px;height:3px;background:var(--accent);border-radius:1px;
+}
+
+/* Form elements */
+.field{margin-bottom:8px}
+.field label{
+  display:block;font-size:11px;font-weight:500;
+  color:var(--fg-dim);margin-bottom:3px;
+  font-family:var(--font-mono);
+}
+.field input,.field select{
+  width:100%;padding:6px 9px;
+  background:var(--bg-deep);border:1px solid var(--border);
+  border-radius:var(--radius);color:var(--fg);
+  font-family:var(--font-mono);font-size:12px;
+  transition:border-color 0.2s;outline:none;
+}
+.field input:focus,.field select:focus{border-color:var(--accent)}
+.field-row{display:flex;gap:6px}
+.field-row .field{flex:1}
+
+.btn{
+  display:inline-flex;align-items:center;gap:5px;
+  padding:6px 12px;border:1px solid var(--border);
+  border-radius:var(--radius);background:var(--bg-raised);
+  color:var(--fg);font-family:var(--font-mono);font-size:11px;
+  font-weight:600;cursor:pointer;transition:all 0.15s;
+  white-space:nowrap;
+}
+.btn:hover{background:var(--bg-surface);border-color:var(--border-active)}
+.btn-accent{background:var(--accent-dim);border-color:var(--accent);color:#c5ccff}
+.btn-accent:hover{background:var(--accent);color:#fff}
+.btn-danger{border-color:rgba(237,66,69,0.3);color:var(--red)}
+.btn-danger:hover{background:var(--red-dim)}
+.btn-sm{padding:4px 8px;font-size:10px}
+.btn:disabled{opacity:0.4;cursor:not-allowed;pointer-events:none}
+.btn-block{width:100%;justify-content:center}
+.btn-row{display:flex;gap:5px;margin-top:6px}
+
+.msg{
+  padding:6px 10px;border-radius:var(--radius);
+  font-family:var(--font-mono);font-size:11px;
+  margin-top:6px;display:none;
+}
+.msg.show{display:block}
+.msg.ok{background:var(--green-dim);color:var(--green);border:1px solid rgba(59,165,93,0.25)}
+.msg.err{background:var(--red-dim);color:var(--red);border:1px solid rgba(237,66,69,0.25)}
+.msg.warn{background:var(--orange-dim);color:var(--orange);border:1px solid rgba(240,160,32,0.25)}
+
+/* Tool palette */
+.tool-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:4px}
+.tool-btn{
+  padding:6px 4px;border:1px solid var(--border);
+  border-radius:var(--radius);background:var(--bg-raised);
+  color:var(--fg-dim);font-family:var(--font-mono);font-size:10px;
+  cursor:pointer;transition:all 0.15s;text-align:center;
+  display:flex;flex-direction:column;align-items:center;gap:2px;
+}
+.tool-btn:hover{border-color:var(--border-active);color:var(--fg)}
+.tool-btn.active{
+  border-color:var(--accent);color:var(--accent);background:var(--accent-glow);
+}
+.tool-btn .icon{font-size:16px;line-height:1}
+
+/* Category tabs */
+.cat-tabs{display:flex;gap:2px;margin-bottom:8px}
+.cat-tab{
+  flex:1;padding:5px 4px;border:1px solid var(--border);
+  border-radius:var(--radius);background:var(--bg-deep);
+  color:var(--fg-muted);font-family:var(--font-mono);font-size:10px;
+  cursor:pointer;text-align:center;transition:all 0.15s;
+}
+.cat-tab:hover{color:var(--fg)}
+.cat-tab.active{border-color:var(--accent);color:var(--accent);background:var(--accent-glow)}
+
+/* Asset grid */
+#assetBrowser { max-height: 300px; overflow-y: auto; }
+.asset-grid{
+  display:grid;grid-template-columns:repeat(3,1fr);gap:4px;
+}
+.asset-item{
+  border:1px solid var(--border);border-radius:var(--radius);
+  background:var(--bg-deep);cursor:pointer;overflow:hidden;
+  transition:border-color 0.15s;position:relative;
+  aspect-ratio:1;display:flex;align-items:center;justify-content:center;
+}
+.asset-item:hover{border-color:var(--border-active)}
+.asset-item.selected{border-color:var(--accent);box-shadow:0 0 6px var(--accent-glow)}
+.asset-item img,.asset-item canvas{
+  max-width:100%;max-height:100%;image-rendering:pixelated;image-rendering:crisp-edges;
+}
+.asset-item .asset-label{
+  position:absolute;bottom:0;left:0;right:0;
+  font-family:var(--font-mono);font-size:8px;
+  color:var(--fg-dim);background:rgba(10,11,15,0.85);
+  padding:2px 4px;text-align:center;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap;
+}
+
+/* Tileset picker grid */
+.tileset-picker{
+  border:1px solid var(--border);border-radius:var(--radius);
+  background:var(--bg-deep);overflow:auto;max-height:240px;
+  position:relative;cursor:crosshair;
+}
+.tileset-picker canvas{image-rendering:pixelated;image-rendering:crisp-edges;display:block}
+
+/* Toggle switches */
+.toggle-row{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:4px 0;
+}
+.toggle-row label{
+  font-family:var(--font-mono);font-size:11px;color:var(--fg-dim);
+}
+.toggle-row input[type="checkbox"]{accent-color:var(--accent);width:14px;height:14px}
+
+/* Zoom slider */
+.zoom-row{display:flex;align-items:center;gap:8px;margin-top:4px}
+.zoom-row input[type="range"]{flex:1;accent-color:var(--accent)}
+.zoom-row .zoom-val{font-family:var(--font-mono);font-size:10px;color:var(--fg-dim);min-width:32px}
+
+/* Canvas viewport */
+.viewport{
+  background:var(--bg-deep);overflow:hidden;position:relative;
+}
+.viewport canvas{display:block;width:100%;height:100%;cursor:crosshair}
+
+/* Properties panel */
+.prop-row{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:3px 0;font-family:var(--font-mono);font-size:11px;
+}
+.prop-row .prop-label{color:var(--fg-dim)}
+.prop-row .prop-value{color:var(--fg)}
+
+.zone-item{
+  padding:6px 8px;border:1px solid var(--border);
+  border-radius:var(--radius);margin-bottom:4px;
+  background:var(--bg-raised);display:flex;
+  align-items:center;justify-content:space-between;
+}
+.zone-item .zone-name{font-family:var(--font-mono);font-size:11px;color:var(--fg)}
+.zone-item .zone-meta{font-family:var(--font-mono);font-size:9px;color:var(--fg-muted)}
+
+.spawn-display{
+  padding:8px;border:1px solid var(--border);
+  border-radius:var(--radius);background:var(--bg-deep);
+  font-family:var(--font-mono);font-size:11px;color:var(--fg-dim);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:var(--border-active)}
+
+/* Toast */
+#toast{
+  position:fixed;bottom:20px;right:20px;z-index:1000;
+  display:flex;flex-direction:column;gap:5px;
+}
+.toast-item{
+  padding:8px 14px;border-radius:var(--radius);
+  font-family:var(--font-mono);font-size:11px;
+  box-shadow:var(--shadow);animation:toastIn 0.3s ease;
+  max-width:340px;
+}
+.toast-item.ok{background:#1a2e1f;color:var(--green);border:1px solid rgba(59,165,93,0.3)}
+.toast-item.err{background:#2e1a1a;color:var(--red);border:1px solid rgba(237,66,69,0.3)}
+.toast-item.warn{background:#2e2a1a;color:var(--orange);border:1px solid rgba(240,160,32,0.3)}
+@keyframes toastIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+
+/* Empty state */
+.empty-state{
+  font-family:var(--font-mono);font-size:11px;
+  color:var(--fg-muted);padding:8px 0;
+}
+
+/* Pack selector dropdown */
+.pack-select{
+  width:100%;padding:6px 9px;
+  background:var(--bg-deep);border:1px solid var(--border);
+  border-radius:var(--radius);color:var(--fg);
+  font-family:var(--font-mono);font-size:12px;
+  outline:none;margin-bottom:6px;
+}
+.pack-select:focus{border-color:var(--accent)}
+</style>
+</head>
+<body>
+
+<header class="app-header">
+  <h1>MAP EDITOR</h1>
+  <span class="tag">Meetropolis</span>
+  <div class="tool-info">
+    <span class="coord-display" id="coordDisplay">--</span>
+    <button id="saveBtn" class="btn btn-sm" disabled onclick="saveAllChanges()" style="margin-left:2px">
+      Save <span id="saveBadge" style="background:var(--accent);color:#fff;border-radius:8px;padding:0 5px;font-size:9px;margin-left:4px"></span>
+    </button>
+    <span id="toolLabel">Select</span>
+    <div class="conn-dot" id="connDot"></div>
+    <span id="connLabel" style="font-family:var(--font-mono);font-size:11px;color:var(--fg-dim)">Disconnected</span>
+  </div>
+</header>
+
+<div class="main">
+  <!-- LEFT PANEL -->
+  <div class="panel left">
+    <!-- Connection -->
+    <div class="panel-section">
+      <div class="section-label">Connection</div>
+      <div class="field">
+        <label>API Base URL</label>
+        <input type="text" id="apiUrl" value="http://localhost:2567">
+      </div>
+      <div class="field">
+        <label>Auth Token</label>
+        <input type="text" id="authToken" placeholder="Bearer token or leave empty">
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-accent btn-block" onclick="connect()">Connect</button>
+      </div>
+      <div class="msg" id="connMsg"></div>
+    </div>
+
+    <!-- Map Selection -->
+    <div class="panel-section">
+      <div class="section-label">Map</div>
+      <div class="field">
+        <label>Select Map</label>
+        <select id="mapSelect" onchange="onMapSelect()">
+          <option value="">-- connect first --</option>
+        </select>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-sm btn-block" onclick="reloadMap()">Reload Map</button>
+      </div>
+    </div>
+
+    <!-- Tool Palette -->
+    <div class="panel-section">
+      <div class="section-label">Tools</div>
+      <div class="tool-grid">
+        <button class="tool-btn active" data-tool="select" onclick="setTool('select')">
+          <span class="icon">&#9995;</span>Select
+        </button>
+        <button class="tool-btn" data-tool="terrain" onclick="setTool('terrain')">
+          <span class="icon">&#9641;</span>Terrain
+        </button>
+        <button class="tool-btn" data-tool="objects" onclick="setTool('objects')">
+          <span class="icon">&#9733;</span>Objects
+        </button>
+        <button class="tool-btn" data-tool="collision" onclick="setTool('collision')">
+          <span class="icon">&#9632;</span>Collide
+        </button>
+        <button class="tool-btn" data-tool="zones" onclick="setTool('zones')">
+          <span class="icon">&#9634;</span>Zones
+        </button>
+        <button class="tool-btn" data-tool="spawn" onclick="setTool('spawn')">
+          <span class="icon">&#9673;</span>Spawn
+        </button>
+        <button class="tool-btn" data-tool="erase" onclick="setTool('erase')">
+          <span class="icon">&#10005;</span>Erase
+        </button>
+      </div>
+    </div>
+
+    <!-- Asset Browser -->
+    <div class="panel-section" id="assetSection">
+      <div class="section-label">Assets</div>
+      <select class="pack-select" id="packSelect" onchange="onPackSelect()">
+        <option value="">-- no packs --</option>
+      </select>
+      <div class="cat-tabs">
+        <div class="cat-tab active" data-cat="terrain" onclick="setCat('terrain')">Terrain</div>
+        <div class="cat-tab" data-cat="structures" onclick="setCat('structures')">Structures</div>
+        <div class="cat-tab" data-cat="objects" onclick="setCat('objects')">Objects</div>
+      </div>
+      <div id="assetBrowser">
+        <div class="empty-state">Connect and select a pack.</div>
+      </div>
+      <!-- Tileset tile picker (shown when terrain item selected) -->
+      <div id="tilePickerWrap" style="display:none;margin-top:8px">
+        <div class="section-label" style="margin-bottom:6px">Pick Tile</div>
+        <div class="tileset-picker" id="tilesetPicker">
+          <canvas id="tilePickerCanvas"></canvas>
+        </div>
+        <div style="font-family:var(--font-mono);font-size:10px;color:var(--fg-muted);margin-top:4px" id="tilePickerInfo">--</div>
+      </div>
+    </div>
+
+    <!-- View Controls -->
+    <div class="panel-section">
+      <div class="section-label">View</div>
+      <div class="toggle-row">
+        <label>Show Grid</label>
+        <input type="checkbox" id="showGrid" checked onchange="markDirty()">
+      </div>
+      <div class="toggle-row">
+        <label>Show Collision</label>
+        <input type="checkbox" id="showCollision" checked onchange="markDirty()">
+      </div>
+      <div class="toggle-row">
+        <label>Show Zones</label>
+        <input type="checkbox" id="showZones" checked onchange="markDirty()">
+      </div>
+      <div class="toggle-row">
+        <label>Show Objects</label>
+        <input type="checkbox" id="showObjects" checked onchange="markDirty()">
+      </div>
+      <div class="zoom-row">
+        <label style="font-family:var(--font-mono);font-size:11px;color:var(--fg-dim)">Zoom</label>
+        <input type="range" id="zoomSlider" min="0.25" max="6" step="0.25" value="2" oninput="onZoomSlider()">
+        <span class="zoom-val" id="zoomVal">2x</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- CENTER: Canvas Viewport -->
+  <div class="viewport" id="viewport">
+    <canvas id="mapCanvas"></canvas>
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div class="panel right">
+    <!-- Properties -->
+    <div class="panel-section" id="propsSection">
+      <div class="section-label">Properties</div>
+      <div id="propsContent">
+        <div class="empty-state">Select an object to view properties.</div>
+      </div>
+    </div>
+
+    <!-- Zones -->
+    <div class="panel-section">
+      <div class="section-label">Zones</div>
+      <div id="zoneList">
+        <div class="empty-state">No zones defined.</div>
+      </div>
+    </div>
+
+    <!-- Spawn -->
+    <div class="panel-section">
+      <div class="section-label">Spawn Point</div>
+      <div class="spawn-display" id="spawnDisplay">Not set</div>
+    </div>
+
+    <!-- Map Info -->
+    <div class="panel-section">
+      <div class="section-label">Map Info</div>
+      <div id="mapInfo">
+        <div class="empty-state">Load a map to see info.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ============================================================================
+// STATE
+// ============================================================================
+const CFG = { server: '', token: '', connected: false };
+let currentMapName = '';
+let currentTool = 'select';
+let currentCat = 'terrain';
+let assetPacks = [];
+let selectedPackIdx = -1;
+let selectedAssetItem = null;   // { pack, item, cat }
+let selectedTileIndex = -1;     // For terrain tile picker
+let selectedTileRefId = 0;      // Computed tileRefId for painting
+
+// Map state
+let mapMeta = null;             // { width, height, tileWidth, tileHeight, chunkSize }
+let tilesetRegistry = [];       // Array of tileset entries
+let layerIndex = {};            // { layerName: { keys, chunkSize } }
+let editorState = null;         // { zones, spawn, backgroundColor }
+
+// Chunk data caches
+const chunkCache = {};          // { "layer:cx:cy": number[] }
+const chunkVersions = {};       // { "layer:cx:cy": version }
+
+// Object data
+let mapObjects = [];            // All loaded MapObject records
+let selectedObjectId = null;
+let selectedZoneId = null;
+
+// Tileset images
+const tilesetImages = {};       // { key: HTMLImageElement }
+const objectImages = {};        // { dataUrl: HTMLImageElement }
+
+// Rendering
+let dirty = true;
+let animFrameId = null;
+let chunkLoadTimer = null;     // Debounce timer for chunk loading
+let chunkLoadInFlight = false; // Prevent concurrent loads
+
+// Camera
+const camera = { x: 0, y: 0, zoom: 2 };
+
+// Drag state
+let isDragging = false;
+let isPanning = false;
+let dragStart = null;           // { wx, wy } world coords at start
+let dragCurrent = null;         // { wx, wy } current world coords
+let panStart = null;            // { mx, my, cx, cy }
+let spaceDown = false;
+let isRightClickDrag = false;
+
+// Pending changes (buffered until explicit save)
+const pendingChanges = {
+  terrainPaints: [],    // { layer, rect, tileRefId, erase? }
+  objectsToAdd: [],     // { ...params for POST }
+  objectsToDelete: [],  // object IDs
+  objectUpdates: [],    // { id, updates }
+  zonesModified: false, // true if any zone was created/deleted/extended
+  spawnUpdate: null,    // { x, y } or null
+};
+
+function hasPendingChanges() {
+  return pendingChanges.terrainPaints.length > 0 ||
+    pendingChanges.objectsToAdd.length > 0 ||
+    pendingChanges.objectsToDelete.length > 0 ||
+    pendingChanges.objectUpdates.length > 0 ||
+    pendingChanges.zonesModified ||
+    pendingChanges.spawnUpdate !== null;
+}
+
+function clearPendingChanges() {
+  pendingChanges.terrainPaints = [];
+  pendingChanges.objectsToAdd = [];
+  pendingChanges.objectsToDelete = [];
+  pendingChanges.objectUpdates = [];
+  pendingChanges.zonesModified = false;
+  pendingChanges.spawnUpdate = null;
+  updateSaveButton();
+}
+
+function updateSaveButton() {
+  const btn = document.getElementById('saveBtn');
+  const badge = document.getElementById('saveBadge');
+  if (!btn) return;
+  const pending = hasPendingChanges();
+  btn.disabled = !pending;
+  btn.classList.toggle('btn-accent', pending);
+  const count = pendingChanges.terrainPaints.length +
+    pendingChanges.objectsToAdd.length +
+    pendingChanges.objectsToDelete.length +
+    pendingChanges.objectUpdates.length +
+    (pendingChanges.zonesModified ? 1 : 0) +
+    (pendingChanges.spawnUpdate ? 1 : 0);
+  if (badge) badge.textContent = count > 0 ? count : '';
+}
+
+// ============================================================================
+// HELPERS
+// ============================================================================
+function showMsg(el, type, text) {
+  el.className = 'msg show ' + type;
+  el.textContent = text;
+}
+
+function toast(type, text) {
+  const container = document.getElementById('toast');
+  const el = document.createElement('div');
+  el.className = 'toast-item ' + type;
+  el.textContent = text;
+  container.appendChild(el);
+  setTimeout(() => el.remove(), 4000);
+}
+
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = String(s);
+  return d.innerHTML;
+}
+
+function escAttr(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/'/g,'&#39;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ============================================================================
+// API
+// ============================================================================
+async function apiFetch(path, opts = {}) {
+  const url = CFG.server + path;
+  const headers = { ...(opts.headers || {}) };
+  if (CFG.token) headers['Authorization'] = CFG.token.startsWith('Bearer ') ? CFG.token : 'Bearer ' + CFG.token;
+  if (opts.body && typeof opts.body === 'object' && !(opts.body instanceof FormData)) {
+    headers['Content-Type'] = 'application/json';
+    opts.body = JSON.stringify(opts.body);
+  }
+  const fetchOpts = { ...opts, headers };
+  if (!CFG.token) fetchOpts.credentials = 'include';
+  const res = await fetch(url, fetchOpts);
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`${res.status} ${res.statusText}: ${text}`);
+  }
+  return res.json();
+}
+
+// ============================================================================
+// CONNECTION & MAP LOADING
+// ============================================================================
+async function connect() {
+  const msg = document.getElementById('connMsg');
+  const dot = document.getElementById('connDot');
+  const label = document.getElementById('connLabel');
+  CFG.server = document.getElementById('apiUrl').value.replace(/\/+$/, '');
+  CFG.token = document.getElementById('authToken').value.trim();
+  try {
+    // Test connection by fetching maps list
+    const maps = await apiFetch('/maps');
+    CFG.connected = true;
+    dot.className = 'conn-dot ok';
+    label.textContent = 'Connected';
+    showMsg(msg, 'ok', `Connected — ${maps.length} map(s)`);
+
+    // Populate map dropdown
+    const sel = document.getElementById('mapSelect');
+    sel.innerHTML = '<option value="">-- select map --</option>';
+    for (const m of maps) {
+      const opt = document.createElement('option');
+      opt.value = m.name;
+      opt.textContent = m.name;
+      sel.appendChild(opt);
+    }
+
+    // Load asset packs
+    try {
+      assetPacks = await apiFetch('/asset-packs');
+      populatePackSelect();
+    } catch (e) {
+      console.warn('Failed to load asset packs:', e);
+    }
+
+    toast('ok', 'Connected to server');
+  } catch (e) {
+    dot.className = 'conn-dot err';
+    label.textContent = 'Error';
+    showMsg(msg, 'err', e.message);
+    CFG.connected = false;
+  }
+}
+
+function populatePackSelect() {
+  const sel = document.getElementById('packSelect');
+  sel.innerHTML = '<option value="">-- select pack --</option>';
+  for (let i = 0; i < assetPacks.length; i++) {
+    const p = assetPacks[i];
+    const opt = document.createElement('option');
+    opt.value = i;
+    opt.textContent = p.name || p.uuid;
+    sel.appendChild(opt);
+  }
+}
+
+async function onMapSelect() {
+  const name = document.getElementById('mapSelect').value;
+  if (!name) return;
+  currentMapName = name;
+  await loadMap(name);
+}
+
+async function reloadMap() {
+  if (!currentMapName) return;
+  await loadMap(currentMapName);
+}
+
+async function loadMap(name) {
+  if (hasPendingChanges()) {
+    if (!confirm('You have unsaved changes. Discard them?')) return;
+    clearPendingChanges();
+  }
+  try {
+    // Clear caches
+    Object.keys(chunkCache).forEach(k => delete chunkCache[k]);
+    Object.keys(chunkVersions).forEach(k => delete chunkVersions[k]);
+    mapObjects = [];
+    selectedObjectId = null;
+    selectedZoneId = null;
+
+    // Fetch map state
+    const state = await apiFetch(`/maps/${encodeURIComponent(name)}/state-v2`);
+    mapMeta = state.mapMeta;
+    // Match BootScene override: 32x32 maps are actually 64x32
+    if (mapMeta && mapMeta.width === 32 && mapMeta.height === 32) {
+      mapMeta.width = 64;
+    }
+    tilesetRegistry = state.tilesetRegistry || [];
+    layerIndex = state.layerIndex || {};
+
+    // Load editor state
+    let editorStateLoadFailed = false;
+    try {
+      editorState = await apiFetch(`/maps/${encodeURIComponent(name)}/editor-state`);
+    } catch (e) {
+      console.warn('Failed to load editor-state (auth required?):', e.message || e);
+      editorState = { zones: [], spawn: null, backgroundColor: null };
+      editorStateLoadFailed = true;
+      const msg = document.getElementById('connMsg');
+      if (msg) showMsg(msg, 'warn', 'Editor state: auth required for zones/spawn. Enter a Bearer token.');
+    }
+
+    // Load tileset images
+    await loadTilesetImages();
+
+    // Load all objects
+    try {
+      mapObjects = await apiFetch(`/maps/${encodeURIComponent(name)}/objects`);
+    } catch {
+      mapObjects = [];
+    }
+
+    // Load object images
+    await loadObjectImages();
+
+    // Load visible chunks
+    await loadVisibleChunks();
+
+    // Update UI
+    updateMapInfo();
+    updateZoneList();
+    updateSpawnDisplay();
+    updatePropsPanel();
+
+    // Center camera
+    const tw = mapMeta.tileWidth || 16;
+    const th = mapMeta.tileHeight || 16;
+    const mw = (mapMeta.width || 32) * tw;
+    const mh = (mapMeta.height || 32) * th;
+    camera.x = mw / 2 - (canvas.width / camera.zoom) / 2;
+    camera.y = mh / 2 - (canvas.height / camera.zoom) / 2;
+
+    markDirty();
+    toast('ok', `Loaded map: ${name}`);
+  } catch (e) {
+    toast('err', `Failed to load map: ${e.message}`);
+    console.error(e);
+  }
+}
+
+async function loadTilesetImages() {
+  const promises = [];
+  for (const ts of tilesetRegistry) {
+    if (tilesetImages[ts.key]) continue;
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    const p = new Promise((resolve) => {
+      img.onload = () => { tilesetImages[ts.key] = img; resolve(); };
+      img.onerror = () => { console.warn('Failed to load tileset:', ts.key, ts.imageUrl); resolve(); };
+    });
+    // Handle relative URLs
+    if (ts.imageUrl.startsWith('/')) {
+      img.src = CFG.server + ts.imageUrl;
+    } else {
+      img.src = ts.imageUrl;
+    }
+    promises.push(p);
+  }
+  await Promise.all(promises);
+}
+
+async function loadObjectImages() {
+  const urls = new Set(mapObjects.map(o => o.dataUrl).filter(Boolean));
+  const promises = [];
+  for (const url of urls) {
+    if (objectImages[url]) continue;
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    const p = new Promise((resolve) => {
+      img.onload = () => { objectImages[url] = img; resolve(); };
+      img.onerror = () => { console.warn('Failed to load object image:', url); resolve(); };
+    });
+    if (url.startsWith('/')) {
+      img.src = CFG.server + url;
+    } else {
+      img.src = url;
+    }
+    promises.push(p);
+  }
+  await Promise.all(promises);
+}
+
+function scheduleChunkLoad() {
+  if (chunkLoadTimer) clearTimeout(chunkLoadTimer);
+  chunkLoadTimer = setTimeout(() => loadVisibleChunks(), 150);
+}
+
+async function loadVisibleChunks() {
+  if (!mapMeta || chunkLoadInFlight) return;
+  chunkLoadInFlight = true;
+  try {
+    await _doLoadVisibleChunks();
+  } finally {
+    chunkLoadInFlight = false;
+  }
+}
+
+async function _doLoadVisibleChunks() {
+  const cs = mapMeta.chunkSize || 32;
+
+  // Determine visible area in tile coords
+  const vp = getViewportBounds();
+  const minCX = Math.floor(vp.minTX / cs);
+  const minCY = Math.floor(vp.minTY / cs);
+  const maxCX = Math.floor(vp.maxTX / cs);
+  const maxCY = Math.floor(vp.maxTY / cs);
+
+  // Load chunks for each layer
+  for (const layerName of ['ground', 'walls', 'collision', 'editor_ground', 'editor_walls']) {
+    const li = layerIndex[layerName];
+    if (!li) continue;
+
+    const keysToFetch = [];
+    for (let cy = minCY; cy <= maxCY; cy++) {
+      for (let cx = minCX; cx <= maxCX; cx++) {
+        const key = `${cx}:${cy}`;
+        if (li.keys.includes(key) && !chunkCache[`${layerName}:${key}`]) {
+          keysToFetch.push(key);
+        }
+      }
+    }
+
+    if (keysToFetch.length === 0) continue;
+
+    try {
+      const result = await apiFetch(`/maps/${encodeURIComponent(currentMapName)}/chunks?layer=${encodeURIComponent(layerName)}&keys=${encodeURIComponent(keysToFetch.join(','))}`);
+      const chunks = result.chunks || {};
+      const total = cs * cs;
+      for (const [key, chunk] of Object.entries(chunks)) {
+        const decoded = decodeRLE(chunk.data, total);
+        chunkCache[`${layerName}:${key}`] = decoded;
+        chunkVersions[`${layerName}:${key}`] = chunk.version;
+      }
+    } catch (e) {
+      console.warn(`Failed to load chunks for layer ${layerName}:`, e);
+    }
+  }
+  markDirty();
+}
+
+function getViewportBounds() {
+  const tw = mapMeta ? (mapMeta.tileWidth || 16) : 16;
+  const th = mapMeta ? (mapMeta.tileHeight || 16) : 16;
+  const w = canvas.width / camera.zoom;
+  const h = canvas.height / camera.zoom;
+  return {
+    minTX: Math.floor(camera.x / tw) - 1,
+    minTY: Math.floor(camera.y / th) - 1,
+    maxTX: Math.ceil((camera.x + w) / tw) + 1,
+    maxTY: Math.ceil((camera.y + h) / th) + 1,
+  };
+}
+
+// ============================================================================
+// RLE DECODING (matches game client exactly)
+// ============================================================================
+function decodeRLE(base64, total) {
+  try {
+    const json = atob(base64);
+    const pairs = JSON.parse(json);
+    const out = new Array(total);
+    let i = 0;
+    for (const [v, cnt] of pairs) {
+      for (let c = 0; c < cnt && i < total; c++) out[i++] = v;
+      if (i >= total) break;
+    }
+    while (i < total) out[i++] = 0;
+    return out;
+  } catch {
+    return new Array(total).fill(0);
+  }
+}
+
+function splitTileRefId(id) {
+  const raw = id - 1;
+  const slot = (raw >>> 16) & 0xffff;
+  const tileIndex = raw & 0xffff;
+  return { slot, tileIndex };
+}
+
+function makeTileRefId(slot, tileIndex) {
+  return (((slot & 0xffff) << 16) | (tileIndex & 0xffff)) + 1;
+}
+
+// ============================================================================
+// TILESET HELPERS
+// ============================================================================
+function getTilesetBySlot(slot) {
+  return tilesetRegistry.find(ts => ts.slot === slot);
+}
+
+function getTileSourceRect(ts, tileIndex) {
+  const img = tilesetImages[ts.key];
+  if (!img) return null;
+  const margin = ts.margin || 0;
+  const spacing = ts.spacing || 0;
+  const tw = ts.tileWidth;
+  const th = ts.tileHeight;
+  const cols = Math.max(1, Math.floor((img.width - margin * 2 + spacing) / (tw + spacing)));
+  const row = Math.floor(tileIndex / cols);
+  const col = tileIndex % cols;
+  return {
+    sx: margin + col * (tw + spacing),
+    sy: margin + row * (th + spacing),
+    sw: tw,
+    sh: th,
+  };
+}
+
+function getTilesetTileCount(ts) {
+  const img = tilesetImages[ts.key];
+  if (!img) return 0;
+  const margin = ts.margin || 0;
+  const spacing = ts.spacing || 0;
+  const cols = Math.max(1, Math.floor((img.width - margin * 2 + spacing) / (ts.tileWidth + spacing)));
+  const rows = Math.max(1, Math.floor((img.height - margin * 2 + spacing) / (ts.tileHeight + spacing)));
+  return cols * rows;
+}
+
+// ============================================================================
+// COORDINATE CONVERSION
+// ============================================================================
+function screenToWorld(sx, sy) {
+  return {
+    wx: camera.x + sx / camera.zoom,
+    wy: camera.y + sy / camera.zoom,
+  };
+}
+
+function worldToScreen(wx, wy) {
+  return {
+    sx: (wx - camera.x) * camera.zoom,
+    sy: (wy - camera.y) * camera.zoom,
+  };
+}
+
+function worldToTile(wx, wy) {
+  const tw = mapMeta ? (mapMeta.tileWidth || 16) : 16;
+  const th = mapMeta ? (mapMeta.tileHeight || 16) : 16;
+  return {
+    tx: Math.floor(wx / tw),
+    ty: Math.floor(wy / th),
+  };
+}
+
+// ============================================================================
+// CANVAS SETUP & RENDER LOOP
+// ============================================================================
+const canvas = document.getElementById('mapCanvas');
+const ctx = canvas.getContext('2d');
+
+function updateCursor() {
+  if (isPanning) {
+    canvas.style.cursor = 'grabbing';
+  } else if (spaceDown) {
+    canvas.style.cursor = 'grab';
+  } else if (currentTool === 'select') {
+    canvas.style.cursor = 'default';
+  } else if (currentTool === 'erase') {
+    canvas.style.cursor = 'not-allowed';
+  } else {
+    canvas.style.cursor = 'crosshair';
+  }
+}
+
+function resizeCanvas() {
+  const vp = document.getElementById('viewport');
+  canvas.width = vp.clientWidth;
+  canvas.height = vp.clientHeight;
+  markDirty();
+}
+
+function markDirty() { dirty = true; }
+
+function renderLoop() {
+  if (dirty) {
+    dirty = false;
+    render();
+  }
+  animFrameId = requestAnimationFrame(renderLoop);
+}
+
+function render() {
+  ctx.imageSmoothingEnabled = false;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Background
+  if (editorState && editorState.backgroundColor) {
+    ctx.fillStyle = editorState.backgroundColor;
+  } else {
+    ctx.fillStyle = '#0e1018';
+  }
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  if (!mapMeta) return;
+
+  ctx.save();
+  ctx.scale(camera.zoom, camera.zoom);
+  ctx.translate(-camera.x, -camera.y);
+
+  renderTerrain('ground');
+  renderTerrain('editor_ground');
+  renderTerrain('walls');
+  renderTerrain('editor_walls');
+
+  if (document.getElementById('showObjects').checked) {
+    renderObjects();
+  }
+
+  if (document.getElementById('showCollision').checked) {
+    renderCollision();
+  }
+
+  if (document.getElementById('showZones').checked) {
+    renderZones();
+  }
+
+  renderSpawnMarker();
+
+  renderMapBounds();
+
+  if (document.getElementById('showGrid').checked) {
+    renderGrid();
+  }
+
+  renderDragPreview();
+  renderSelection();
+
+  ctx.restore();
+}
+
+function renderTerrain(layerName) {
+  if (!mapMeta) return;
+  const cs = mapMeta.chunkSize || 32;
+  const tw = mapMeta.tileWidth || 16;
+  const th = mapMeta.tileHeight || 16;
+  const vp = getViewportBounds();
+  const minCX = Math.floor(vp.minTX / cs);
+  const minCY = Math.floor(vp.minTY / cs);
+  const maxCX = Math.floor(vp.maxTX / cs);
+  const maxCY = Math.floor(vp.maxTY / cs);
+
+  for (let cy = minCY; cy <= maxCY; cy++) {
+    for (let cx = minCX; cx <= maxCX; cx++) {
+      const key = `${layerName}:${cx}:${cy}`;
+      const data = chunkCache[key];
+      if (!data) continue;
+
+      for (let ly = 0; ly < cs; ly++) {
+        for (let lx = 0; lx < cs; lx++) {
+          const idx = ly * cs + lx;
+          const tileRefId = data[idx];
+          if (!tileRefId) continue;
+
+          const { slot, tileIndex } = splitTileRefId(tileRefId);
+          const ts = getTilesetBySlot(slot);
+          if (!ts) continue;
+
+          const img = tilesetImages[ts.key];
+          if (!img) continue;
+
+          const src = getTileSourceRect(ts, tileIndex);
+          if (!src) continue;
+
+          const worldX = (cx * cs + lx) * tw;
+          const worldY = (cy * cs + ly) * th;
+
+          ctx.drawImage(img, src.sx, src.sy, src.sw, src.sh, worldX, worldY, tw, th);
+        }
+      }
+    }
+  }
+}
+
+function renderObjects() {
+  if (!mapMeta) return;
+  const tw = mapMeta.tileWidth || 16;
+  const th = mapMeta.tileHeight || 16;
+
+  // Sort objects by zIndex, then by tileY for depth
+  const sorted = [...mapObjects].sort((a, b) => {
+    const za = a.zIndex || 0;
+    const zb = b.zIndex || 0;
+    if (za !== zb) return za - zb;
+    return (a.tileY || 0) - (b.tileY || 0);
+  });
+
+  for (const obj of sorted) {
+    const img = objectImages[obj.dataUrl];
+    if (!img) continue;
+
+    const oscale = obj.scaleFactor || 1;
+    const wx = obj.tileX * tw;
+    const wy = obj.tileY * th;
+    const dw = (obj.width || img.width) * oscale;
+    const dh = (obj.height || img.height) * oscale;
+
+    ctx.save();
+
+    if (obj.rotation || obj.flipX || obj.flipY) {
+      const cxw = wx + dw / 2;
+      const cyw = wy + dh / 2;
+      ctx.translate(cxw, cyw);
+      if (obj.rotation) ctx.rotate((obj.rotation * Math.PI) / 180);
+      const sx = obj.flipX ? -1 : 1;
+      const sy = obj.flipY ? -1 : 1;
+      ctx.scale(sx, sy);
+      ctx.drawImage(img, -dw / 2, -dh / 2, dw, dh);
+    } else {
+      ctx.drawImage(img, wx, wy, dw, dh);
+    }
+
+    ctx.restore();
+
+    // Highlight selected object
+    if (selectedObjectId === obj.id) {
+      ctx.strokeStyle = 'rgba(88, 101, 242, 0.8)';
+      ctx.lineWidth = 2 / camera.zoom;
+      ctx.setLineDash([4 / camera.zoom, 4 / camera.zoom]);
+      ctx.strokeRect(wx - 1, wy - 1, dw + 2, dh + 2);
+      ctx.setLineDash([]);
+    }
+  }
+}
+
+function renderCollision() {
+  if (!mapMeta) return;
+  const cs = mapMeta.chunkSize || 32;
+  const tw = mapMeta.tileWidth || 16;
+  const th = mapMeta.tileHeight || 16;
+  const vp = getViewportBounds();
+  const minCX = Math.floor(vp.minTX / cs);
+  const minCY = Math.floor(vp.minTY / cs);
+  const maxCX = Math.floor(vp.maxTX / cs);
+  const maxCY = Math.floor(vp.maxTY / cs);
+
+  ctx.fillStyle = 'rgba(237, 66, 69, 0.25)';
+
+  for (let cy = minCY; cy <= maxCY; cy++) {
+    for (let cx = minCX; cx <= maxCX; cx++) {
+      const key = `collision:${cx}:${cy}`;
+      const data = chunkCache[key];
+      if (!data) continue;
+
+      for (let ly = 0; ly < cs; ly++) {
+        for (let lx = 0; lx < cs; lx++) {
+          const idx = ly * cs + lx;
+          if (!data[idx]) continue;
+
+          const worldX = (cx * cs + lx) * tw;
+          const worldY = (cy * cs + ly) * th;
+          ctx.fillRect(worldX, worldY, tw, th);
+        }
+      }
+    }
+  }
+}
+
+function renderZones() {
+  if (!editorState || !Array.isArray(editorState.zones)) return;
+  const tw = mapMeta ? (mapMeta.tileWidth || 16) : 16;
+  const th = mapMeta ? (mapMeta.tileHeight || 16) : 16;
+
+  for (const zone of editorState.zones) {
+    const points = zone.polygon || zone.points;
+    if (!Array.isArray(points) || points.length < 2) continue;
+
+    const isSelected = selectedZoneId === zone.id;
+    ctx.fillStyle = isSelected ? 'rgba(88, 101, 242, 0.25)' : 'rgba(88, 101, 242, 0.12)';
+    ctx.strokeStyle = isSelected ? 'rgba(88, 101, 242, 1.0)' : 'rgba(88, 101, 242, 0.6)';
+    ctx.lineWidth = isSelected ? 3 / camera.zoom : 2 / camera.zoom;
+
+    ctx.beginPath();
+    for (let i = 0; i < points.length; i++) {
+      const p = points[i];
+      const px = p.x || 0;
+      const py = p.y || 0;
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Dashed outline for selected zone
+    if (isSelected) {
+      ctx.setLineDash([6 / camera.zoom, 4 / camera.zoom]);
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+      ctx.lineWidth = 1 / camera.zoom;
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    // Zone label
+    if (points.length > 0) {
+      const lx = (points[0].x || 0) + 4;
+      const ly = (points[0].y || 0) + 12 / camera.zoom;
+      ctx.fillStyle = isSelected ? 'rgba(88, 101, 242, 1.0)' : 'rgba(88, 101, 242, 0.9)';
+      ctx.font = `${10 / camera.zoom}px 'JetBrains Mono', monospace`;
+      ctx.fillText(zone.name || 'Zone', lx, ly);
+    }
+  }
+}
+
+function renderSpawnMarker() {
+  if (!editorState || !editorState.spawn) return;
+  const tw = mapMeta ? (mapMeta.tileWidth || 16) : 16;
+  const th = mapMeta ? (mapMeta.tileHeight || 16) : 16;
+  const sx = editorState.spawn.x * tw;
+  const sy = editorState.spawn.y * th;
+  const r = 6 / camera.zoom;
+
+  ctx.fillStyle = 'rgba(59, 165, 93, 0.4)';
+  ctx.strokeStyle = 'rgba(59, 165, 93, 0.9)';
+  ctx.lineWidth = 2 / camera.zoom;
+  ctx.beginPath();
+  ctx.arc(sx + tw / 2, sy + th / 2, r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  // Crosshair
+  ctx.beginPath();
+  ctx.moveTo(sx + tw / 2 - r * 1.5, sy + th / 2);
+  ctx.lineTo(sx + tw / 2 + r * 1.5, sy + th / 2);
+  ctx.moveTo(sx + tw / 2, sy + th / 2 - r * 1.5);
+  ctx.lineTo(sx + tw / 2, sy + th / 2 + r * 1.5);
+  ctx.stroke();
+}
+
+function renderMapBounds() {
+  if (!mapMeta) return;
+  const tw = mapMeta.tileWidth || 16;
+  const th = mapMeta.tileHeight || 16;
+  const mw = (mapMeta.width || 32) * tw;
+  const mh = (mapMeta.height || 32) * th;
+
+  // Darken area outside map bounds
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+  const vp = getViewportBounds();
+  const vpMinX = vp.minTX * tw;
+  const vpMinY = vp.minTY * th;
+  const vpMaxX = (vp.maxTX + 1) * tw;
+  const vpMaxY = (vp.maxTY + 1) * th;
+
+  // Top strip
+  if (vpMinY < 0) ctx.fillRect(vpMinX, vpMinY, vpMaxX - vpMinX, -vpMinY);
+  // Bottom strip
+  if (vpMaxY > mh) ctx.fillRect(vpMinX, mh, vpMaxX - vpMinX, vpMaxY - mh);
+  // Left strip
+  ctx.fillRect(vpMinX, Math.max(0, vpMinY), Math.max(0, -vpMinX), Math.min(mh, vpMaxY) - Math.max(0, vpMinY));
+  // Right strip
+  if (vpMaxX > mw) ctx.fillRect(mw, Math.max(0, vpMinY), vpMaxX - mw, Math.min(mh, vpMaxY) - Math.max(0, vpMinY));
+
+  // Map boundary outline
+  ctx.strokeStyle = 'rgba(88, 101, 242, 0.5)';
+  ctx.lineWidth = 2 / camera.zoom;
+  ctx.setLineDash([6 / camera.zoom, 4 / camera.zoom]);
+  ctx.strokeRect(0, 0, mw, mh);
+  ctx.setLineDash([]);
+}
+
+function renderGrid() {
+  if (!mapMeta) return;
+  const tw = mapMeta.tileWidth || 16;
+  const th = mapMeta.tileHeight || 16;
+  const vp = getViewportBounds();
+
+  ctx.strokeStyle = 'rgba(88, 101, 242, 0.12)';
+  ctx.lineWidth = 0.5 / camera.zoom;
+
+  ctx.beginPath();
+  for (let x = vp.minTX; x <= vp.maxTX; x++) {
+    ctx.moveTo(x * tw, vp.minTY * th);
+    ctx.lineTo(x * tw, vp.maxTY * th);
+  }
+  for (let y = vp.minTY; y <= vp.maxTY; y++) {
+    ctx.moveTo(vp.minTX * tw, y * th);
+    ctx.lineTo(vp.maxTX * tw, y * th);
+  }
+  ctx.stroke();
+
+  // Chunk boundaries (stronger lines)
+  const cs = mapMeta.chunkSize || 32;
+  ctx.strokeStyle = 'rgba(88, 101, 242, 0.25)';
+  ctx.lineWidth = 1 / camera.zoom;
+  ctx.beginPath();
+  const minCX = Math.floor(vp.minTX / cs);
+  const maxCX = Math.ceil(vp.maxTX / cs);
+  const minCY = Math.floor(vp.minTY / cs);
+  const maxCY = Math.ceil(vp.maxTY / cs);
+  for (let cx = minCX; cx <= maxCX; cx++) {
+    ctx.moveTo(cx * cs * tw, vp.minTY * th);
+    ctx.lineTo(cx * cs * tw, vp.maxTY * th);
+  }
+  for (let cy = minCY; cy <= maxCY; cy++) {
+    ctx.moveTo(vp.minTX * tw, cy * cs * th);
+    ctx.lineTo(vp.maxTX * tw, cy * cs * th);
+  }
+  ctx.stroke();
+}
+
+function renderDragPreview() {
+  if (!isDragging || !dragStart || !dragCurrent) return;
+  if (!mapMeta) return;
+  const tw = mapMeta.tileWidth || 16;
+  const th = mapMeta.tileHeight || 16;
+
+  if (currentTool === 'terrain' || currentTool === 'collision' || currentTool === 'zones' || currentTool === 'erase') {
+    const t0 = worldToTile(dragStart.wx, dragStart.wy);
+    const t1 = worldToTile(dragCurrent.wx, dragCurrent.wy);
+    const x0 = Math.min(t0.tx, t1.tx);
+    const y0 = Math.min(t0.ty, t1.ty);
+    const x1 = Math.max(t0.tx, t1.tx);
+    const y1 = Math.max(t0.ty, t1.ty);
+
+    if (currentTool === 'terrain') {
+      ctx.fillStyle = 'rgba(88, 101, 242, 0.15)';
+      ctx.strokeStyle = 'rgba(88, 101, 242, 0.6)';
+    } else if (currentTool === 'collision') {
+      ctx.fillStyle = 'rgba(237, 66, 69, 0.2)';
+      ctx.strokeStyle = 'rgba(237, 66, 69, 0.7)';
+    } else if (currentTool === 'erase') {
+      ctx.fillStyle = 'rgba(237, 66, 69, 0.15)';
+      ctx.strokeStyle = 'rgba(237, 66, 69, 0.6)';
+    } else {
+      ctx.fillStyle = 'rgba(88, 101, 242, 0.1)';
+      ctx.strokeStyle = 'rgba(88, 101, 242, 0.5)';
+    }
+    ctx.lineWidth = 1.5 / camera.zoom;
+    ctx.setLineDash([4 / camera.zoom, 4 / camera.zoom]);
+    ctx.fillRect(x0 * tw, y0 * th, (x1 - x0 + 1) * tw, (y1 - y0 + 1) * th);
+    ctx.strokeRect(x0 * tw, y0 * th, (x1 - x0 + 1) * tw, (y1 - y0 + 1) * th);
+    ctx.setLineDash([]);
+  }
+}
+
+function renderSelection() {
+  if (!mapMeta) return;
+  // Hover tile highlight for terrain/collision/spawn tools
+  if (!isDragging && dragCurrent && (currentTool === 'terrain' || currentTool === 'collision' || currentTool === 'spawn' || currentTool === 'objects' || currentTool === 'erase')) {
+    const tw = mapMeta.tileWidth || 16;
+    const th = mapMeta.tileHeight || 16;
+    const t = worldToTile(dragCurrent.wx, dragCurrent.wy);
+    ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+    ctx.lineWidth = 1 / camera.zoom;
+    ctx.strokeRect(t.tx * tw, t.ty * th, tw, th);
+  }
+}
+
+// ============================================================================
+// TOOLS
+// ============================================================================
+function setTool(tool) {
+  currentTool = tool;
+  document.querySelectorAll('.tool-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.tool === tool);
+  });
+  document.getElementById('toolLabel').textContent = tool.charAt(0).toUpperCase() + tool.slice(1);
+
+  // Update cursor
+  updateCursor();
+
+  markDirty();
+}
+
+function setCat(cat) {
+  currentCat = cat;
+  document.querySelectorAll('.cat-tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.cat === cat);
+  });
+  renderAssetBrowser();
+}
+
+// ============================================================================
+// ASSET BROWSER
+// ============================================================================
+function onPackSelect() {
+  const idx = parseInt(document.getElementById('packSelect').value);
+  selectedPackIdx = isNaN(idx) ? -1 : idx;
+  selectedAssetItem = null;
+  selectedTileIndex = -1;
+  selectedTileRefId = 0;
+  renderAssetBrowser();
+  hideTilePicker();
+}
+
+function renderAssetBrowser() {
+  const container = document.getElementById('assetBrowser');
+  if (selectedPackIdx < 0 || !assetPacks[selectedPackIdx]) {
+    container.innerHTML = '<div class="empty-state">Select an asset pack.</div>';
+    return;
+  }
+
+  const pack = assetPacks[selectedPackIdx];
+  const items = pack[currentCat] || [];
+
+  if (items.length === 0) {
+    container.innerHTML = `<div class="empty-state">No ${currentCat} items in this pack.</div>`;
+    return;
+  }
+
+  container.innerHTML = '';
+  const grid = document.createElement('div');
+  grid.className = 'asset-grid';
+
+  for (const item of items) {
+    const el = document.createElement('div');
+    el.className = 'asset-item';
+    if (selectedAssetItem && selectedAssetItem.item.id === item.id) {
+      el.classList.add('selected');
+    }
+    el.title = item.key || item.id;
+
+    const img = document.createElement('img');
+    img.crossOrigin = 'anonymous';
+    const url = item.dataURL || item.dataUrl;
+    if (url && url.startsWith('/')) {
+      img.src = CFG.server + url;
+    } else {
+      img.src = url || '';
+    }
+    img.onerror = () => { img.style.display = 'none'; };
+    el.appendChild(img);
+
+    const label = document.createElement('div');
+    label.className = 'asset-label';
+    label.textContent = item.key || item.id;
+    el.appendChild(label);
+
+    el.addEventListener('click', () => selectAssetItem(pack, item, currentCat));
+    grid.appendChild(el);
+  }
+  container.appendChild(grid);
+}
+
+async function selectAssetItem(pack, item, cat) {
+  selectedAssetItem = { pack, item, cat };
+  renderAssetBrowser();
+
+  if (cat === 'terrain') {
+    // Show tile picker for terrain items
+    await showTilePicker(pack, item);
+    setTool('terrain');
+  } else {
+    hideTilePicker();
+    setTool('objects');
+    // Preload the image
+    const url = item.dataURL || item.dataUrl;
+    if (url && !objectImages[url]) {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => { objectImages[url] = img; };
+      img.src = url.startsWith('/') ? CFG.server + url : url;
+    }
+  }
+}
+
+async function showTilePicker(pack, item) {
+  // Register tileset if needed
+  const tsKey = `${pack.uuid}:${item.id}`;
+  let ts = tilesetRegistry.find(t => t.key === tsKey);
+
+  if (!ts && currentMapName) {
+    try {
+      const imgUrl = (item.dataURL || item.dataUrl);
+      const fullUrl = imgUrl.startsWith('/') ? imgUrl : imgUrl;
+      const result = await apiFetch(`/maps/${encodeURIComponent(currentMapName)}/tilesets`, {
+        method: 'POST',
+        body: {
+          key: tsKey,
+          imageUrl: fullUrl,
+          tileWidth: item.tileWidth,
+          tileHeight: item.tileHeight,
+          margin: item.margin || 0,
+          spacing: item.spacing || 0,
+        },
+      });
+      // Update registry
+      if (result.tilesetRegistry) {
+        tilesetRegistry = result.tilesetRegistry;
+      } else if (Array.isArray(result)) {
+        tilesetRegistry = result;
+      }
+      ts = tilesetRegistry.find(t => t.key === tsKey);
+      // Load the tileset image
+      if (ts && !tilesetImages[ts.key]) {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        await new Promise(resolve => {
+          img.onload = () => { tilesetImages[ts.key] = img; resolve(); };
+          img.onerror = () => resolve();
+          img.src = ts.imageUrl.startsWith('/') ? CFG.server + ts.imageUrl : ts.imageUrl;
+        });
+      }
+      toast('ok', `Tileset registered: ${tsKey}`);
+    } catch (e) {
+      toast('err', `Failed to register tileset: ${e.message}`);
+      return;
+    }
+  }
+
+  if (!ts) return;
+
+  const img = tilesetImages[ts.key];
+  if (!img) return;
+
+  const wrap = document.getElementById('tilePickerWrap');
+  wrap.style.display = 'block';
+
+  const pickerCanvas = document.getElementById('tilePickerCanvas');
+  const scale = 2;
+  pickerCanvas.width = img.width * scale;
+  pickerCanvas.height = img.height * scale;
+  const pctx = pickerCanvas.getContext('2d');
+  pctx.imageSmoothingEnabled = false;
+  pctx.drawImage(img, 0, 0, img.width * scale, img.height * scale);
+
+  // Draw tile grid
+  const margin = ts.margin || 0;
+  const spacing = ts.spacing || 0;
+  const tw = ts.tileWidth;
+  const th = ts.tileHeight;
+  const cols = Math.max(1, Math.floor((img.width - margin * 2 + spacing) / (tw + spacing)));
+  const rows = Math.max(1, Math.floor((img.height - margin * 2 + spacing) / (th + spacing)));
+
+  pctx.strokeStyle = 'rgba(88, 101, 242, 0.3)';
+  pctx.lineWidth = 1;
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const x = (margin + c * (tw + spacing)) * scale;
+      const y = (margin + r * (th + spacing)) * scale;
+      pctx.strokeRect(x, y, tw * scale, th * scale);
+    }
+  }
+
+  // Highlight selected tile
+  if (selectedTileIndex >= 0) {
+    const c = selectedTileIndex % cols;
+    const r = Math.floor(selectedTileIndex / cols);
+    const x = (margin + c * (tw + spacing)) * scale;
+    const y = (margin + r * (th + spacing)) * scale;
+    pctx.strokeStyle = 'rgba(88, 101, 242, 0.9)';
+    pctx.lineWidth = 2;
+    pctx.strokeRect(x, y, tw * scale, th * scale);
+    pctx.fillStyle = 'rgba(88, 101, 242, 0.2)';
+    pctx.fillRect(x, y, tw * scale, th * scale);
+  }
+
+  // Store picker metadata for click handling
+  pickerCanvas._ts = ts;
+  pickerCanvas._scale = scale;
+  pickerCanvas._cols = cols;
+  pickerCanvas._rows = rows;
+
+  document.getElementById('tilePickerInfo').textContent =
+    `${cols}x${rows} tiles | Slot: ${ts.slot}` +
+    (selectedTileIndex >= 0 ? ` | Selected: #${selectedTileIndex} (RefId: ${selectedTileRefId})` : '');
+}
+
+function hideTilePicker() {
+  document.getElementById('tilePickerWrap').style.display = 'none';
+}
+
+// Tile picker click handler
+document.getElementById('tilePickerCanvas').addEventListener('click', function(e) {
+  const ts = this._ts;
+  if (!ts) return;
+  const scale = this._scale;
+  const cols = this._cols;
+  const margin = ts.margin || 0;
+  const spacing = ts.spacing || 0;
+  const tw = ts.tileWidth;
+  const th = ts.tileHeight;
+
+  const rect = this.getBoundingClientRect();
+  const mx = (e.clientX - rect.left) * (this.width / rect.width);
+  const my = (e.clientY - rect.top) * (this.height / rect.height);
+
+  // Determine which tile was clicked
+  const pixX = mx / scale - margin;
+  const pixY = my / scale - margin;
+  const col = Math.floor(pixX / (tw + spacing));
+  const row = Math.floor(pixY / (th + spacing));
+
+  if (col < 0 || col >= cols || row < 0 || row >= this._rows) return;
+
+  selectedTileIndex = row * cols + col;
+  selectedTileRefId = makeTileRefId(ts.slot, selectedTileIndex);
+
+  // Redraw picker with highlight
+  showTilePicker(selectedAssetItem.pack, selectedAssetItem.item);
+});
+
+// ============================================================================
+// MOUSE / INPUT EVENTS
+// ============================================================================
+canvas.addEventListener('mousedown', onMouseDown);
+canvas.addEventListener('mousemove', onMouseMove);
+canvas.addEventListener('mouseup', onMouseUp);
+canvas.addEventListener('mouseleave', onMouseLeave);
+canvas.addEventListener('wheel', onWheel, { passive: false });
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+document.addEventListener('keydown', e => {
+  if (e.code === 'Space') {
+    spaceDown = true;
+    e.preventDefault();
+    updateCursor();
+  }
+});
+document.addEventListener('keyup', e => {
+  if (e.code === 'Space') {
+    spaceDown = false;
+    updateCursor();
+  }
+});
+
+function getMousePos(e) {
+  const rect = canvas.getBoundingClientRect();
+  return { mx: e.clientX - rect.left, my: e.clientY - rect.top };
+}
+
+function onMouseDown(e) {
+  const { mx, my } = getMousePos(e);
+  const { wx, wy } = screenToWorld(mx, my);
+
+  // Middle mouse or Space+Left = pan
+  if (e.button === 1 || (e.button === 0 && spaceDown)) {
+    isPanning = true;
+    panStart = { mx, my, cx: camera.x, cy: camera.y };
+    updateCursor();
+    return;
+  }
+
+  if (e.button === 2 && (currentTool === 'terrain' || currentTool === 'collision')) {
+    isRightClickDrag = true;
+    isDragging = true;
+    dragStart = { wx, wy };
+    dragCurrent = { wx, wy };
+    markDirty();
+    return;
+  }
+
+  if (e.button !== 0) return;
+  if (!mapMeta) return;
+
+  if (currentTool === 'select') {
+    // Try to select an object first, then a zone
+    const obj = findObjectAt(wx, wy);
+    if (obj) {
+      selectedObjectId = obj.id;
+      selectedZoneId = null;
+    } else {
+      const zone = findZoneAt(wx, wy);
+      selectedZoneId = zone ? zone.id : null;
+      selectedObjectId = null;
+    }
+    updatePropsPanel();
+    markDirty();
+    return;
+  }
+
+  if (currentTool === 'erase') {
+    isDragging = true;
+    dragStart = { wx, wy };
+    dragCurrent = { wx, wy };
+    markDirty();
+    return;
+  }
+
+  if (currentTool === 'spawn') {
+    const tile = worldToTile(wx, wy);
+    setSpawn(tile.tx, tile.ty);
+    return;
+  }
+
+  if (currentTool === 'objects') {
+    if (selectedAssetItem && selectedAssetItem.cat !== 'terrain') {
+      const tile = worldToTile(wx, wy);
+      placeObject(tile.tx, tile.ty);
+    }
+    return;
+  }
+
+  // Terrain, collision, zones: start drag
+  if (currentTool === 'terrain' || currentTool === 'collision' || currentTool === 'zones') {
+    isDragging = true;
+    dragStart = { wx, wy };
+    dragCurrent = { wx, wy };
+    markDirty();
+  }
+}
+
+function onMouseMove(e) {
+  const { mx, my } = getMousePos(e);
+
+  if (isPanning && panStart) {
+    const dx = (mx - panStart.mx) / camera.zoom;
+    const dy = (my - panStart.my) / camera.zoom;
+    camera.x = panStart.cx - dx;
+    camera.y = panStart.cy - dy;
+    scheduleChunkLoad();
+    markDirty();
+    return;
+  }
+
+  const { wx, wy } = screenToWorld(mx, my);
+  dragCurrent = { wx, wy };
+
+  // Update coordinate display
+  if (mapMeta) {
+    const tile = worldToTile(wx, wy);
+    document.getElementById('coordDisplay').textContent =
+      `Tile: ${tile.tx}, ${tile.ty} | World: ${Math.round(wx)}, ${Math.round(wy)}`;
+  }
+
+  if (isDragging) {
+    markDirty();
+  } else {
+    markDirty(); // For hover highlight
+  }
+}
+
+function onMouseUp(e) {
+  if (isPanning) {
+    isPanning = false;
+    panStart = null;
+    updateCursor();
+    return;
+  }
+
+  if (!isDragging || !dragStart || !dragCurrent) {
+    isDragging = false;
+    return;
+  }
+
+  if (!mapMeta) {
+    isDragging = false;
+    return;
+  }
+
+  const t0 = worldToTile(dragStart.wx, dragStart.wy);
+  const t1 = worldToTile(dragCurrent.wx, dragCurrent.wy);
+  const x0 = Math.min(t0.tx, t1.tx);
+  const y0 = Math.min(t0.ty, t1.ty);
+  const x1 = Math.max(t0.tx, t1.tx);
+  const y1 = Math.max(t0.ty, t1.ty);
+
+  isDragging = false;
+  dragStart = null;
+
+  if (isRightClickDrag) {
+    isRightClickDrag = false;
+    if (currentTool === 'collision') {
+      paintCollision(x0, y0, x1, y1, false);
+    } else if (currentTool === 'terrain') {
+      eraseTerrain(x0, y0, x1, y1);
+    }
+    markDirty();
+    return;
+  }
+
+  if (currentTool === 'terrain') {
+    paintTerrain(x0, y0, x1, y1);
+  } else if (currentTool === 'collision') {
+    paintCollision(x0, y0, x1, y1, !e.shiftKey);
+  } else if (currentTool === 'zones') {
+    if (selectedZoneId) {
+      extendZone(selectedZoneId, x0, y0, x1, y1);
+    } else {
+      createZone(x0, y0, x1, y1);
+    }
+  } else if (currentTool === 'erase') {
+    eraseRect(x0, y0, x1, y1);
+  }
+
+  markDirty();
+}
+
+function onMouseLeave() {
+  if (isPanning) {
+    isPanning = false;
+    panStart = null;
+    updateCursor();
+  }
+  dragCurrent = null;
+  isRightClickDrag = false;
+  markDirty();
+}
+
+function onWheel(e) {
+  e.preventDefault();
+  const { mx, my } = getMousePos(e);
+  const worldBefore = screenToWorld(mx, my);
+
+  const delta = e.deltaY > 0 ? -0.25 : 0.25;
+  camera.zoom = Math.max(0.25, Math.min(6, camera.zoom + delta));
+
+  // Adjust camera to keep mouse position stable
+  const worldAfter = screenToWorld(mx, my);
+  camera.x += worldBefore.wx - worldAfter.wx;
+  camera.y += worldBefore.wy - worldAfter.wy;
+
+  document.getElementById('zoomSlider').value = camera.zoom;
+  document.getElementById('zoomVal').textContent = camera.zoom + 'x';
+
+  scheduleChunkLoad();
+  markDirty();
+}
+
+function onZoomSlider() {
+  camera.zoom = parseFloat(document.getElementById('zoomSlider').value);
+  document.getElementById('zoomVal').textContent = camera.zoom + 'x';
+  scheduleChunkLoad();
+  markDirty();
+}
+
+// ============================================================================
+// OBJECT OPERATIONS
+// ============================================================================
+function pointInPolygon(px, py, polygon) {
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const xi = polygon[i].x, yi = polygon[i].y;
+    const xj = polygon[j].x, yj = polygon[j].y;
+    if ((yi > py) !== (yj > py) && px < (xj - xi) * (py - yi) / (yj - yi) + xi) {
+      inside = !inside;
+    }
+  }
+  return inside;
+}
+
+function findZoneAt(wx, wy) {
+  if (!editorState || !Array.isArray(editorState.zones)) return null;
+  // Search in reverse order (last zone = on top)
+  for (let i = editorState.zones.length - 1; i >= 0; i--) {
+    const zone = editorState.zones[i];
+    const points = zone.polygon || zone.points;
+    if (Array.isArray(points) && points.length >= 3 && pointInPolygon(wx, wy, points)) {
+      return zone;
+    }
+  }
+  return null;
+}
+
+function findObjectAt(wx, wy) {
+  if (!mapMeta) return null;
+  const tw = mapMeta.tileWidth || 16;
+  const th = mapMeta.tileHeight || 16;
+
+  // Search in reverse order (top objects first)
+  for (let i = mapObjects.length - 1; i >= 0; i--) {
+    const obj = mapObjects[i];
+    const oscale = obj.scaleFactor || 1;
+    const ox = obj.tileX * tw;
+    const oy = obj.tileY * th;
+    const ow = (obj.width || tw) * oscale;
+    const oh = (obj.height || th) * oscale;
+    if (wx >= ox && wx < ox + ow && wy >= oy && wy < oy + oh) {
+      return obj;
+    }
+  }
+  return null;
+}
+
+function placeObject(tileX, tileY) {
+  if (!selectedAssetItem || !currentMapName) return;
+  const { pack, item, cat } = selectedAssetItem;
+
+  // Create a temporary local object with negative ID
+  const tempId = -(Date.now() + Math.random());
+  const obj = {
+    id: tempId,
+    assetPackUuid: pack.uuid,
+    itemId: item.id,
+    category: cat,
+    tileX,
+    tileY,
+    width: item.width || 16,
+    height: item.height || 16,
+    collide: item.collide || false,
+    zIndex: item.zIndex || 0,
+    scaleFactor: item.scaleFactor || 1,
+    dataUrl: item.dataURL || item.dataUrl,
+    _pending: 'add',
+  };
+
+  mapObjects.push(obj);
+  pendingChanges.objectsToAdd.push(obj);
+
+  // Load image if needed
+  const url = obj.dataUrl;
+  if (url && !objectImages[url]) {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => { objectImages[url] = img; markDirty(); };
+    img.src = url.startsWith('/') ? CFG.server + url : url;
+  }
+
+  markDirty();
+  updateSaveButton();
+  toast('ok', `Placed: ${item.key || item.id} — unsaved`);
+}
+
+function deleteObject(obj) {
+  if (!currentMapName) return;
+
+  // If it's a pending add, just remove from pending
+  if (obj._pending === 'add') {
+    pendingChanges.objectsToAdd = pendingChanges.objectsToAdd.filter(o => o.id !== obj.id);
+  } else {
+    // Mark for server deletion
+    pendingChanges.objectsToDelete.push(obj.id);
+  }
+
+  mapObjects = mapObjects.filter(o => o.id !== obj.id);
+  if (selectedObjectId === obj.id) {
+    selectedObjectId = null;
+    updatePropsPanel();
+  }
+
+  markDirty();
+  updateSaveButton();
+  toast('ok', `Deleted object — unsaved`);
+}
+
+function updateObject(id, updates) {
+  if (!currentMapName) return;
+
+  const idx = mapObjects.findIndex(o => o.id === id);
+  if (idx >= 0) {
+    Object.assign(mapObjects[idx], updates);
+
+    if (mapObjects[idx]._pending === 'add') {
+      // Already pending add, no separate update needed
+    } else {
+      // Buffer update for existing server object
+      const existing = pendingChanges.objectUpdates.find(u => u.id === id);
+      if (existing) {
+        Object.assign(existing.updates, updates);
+      } else {
+        pendingChanges.objectUpdates.push({ id, updates: { ...updates } });
+      }
+    }
+  }
+
+  markDirty();
+  updateSaveButton();
+  updatePropsPanel();
+}
+
+// ============================================================================
+// PAINT OPERATIONS
+// ============================================================================
+function eraseTerrain(x0, y0, x1, y1) {
+  if (!currentMapName) return;
+  const cs = mapMeta.chunkSize || 32;
+  let modified = false;
+  for (let y = y0; y <= y1; y++) {
+    for (let x = x0; x <= x1; x++) {
+      const cx = Math.floor(x / cs);
+      const cy = Math.floor(y / cs);
+      const localX = x - cx * cs;
+      const localY = y - cy * cs;
+      const key = `ground:${cx}:${cy}`;
+      if (chunkCache[key] && chunkCache[key][localY * cs + localX] !== 0) {
+        chunkCache[key][localY * cs + localX] = 0;
+        modified = true;
+      }
+    }
+  }
+  if (modified) {
+    pendingChanges.terrainPaints.push({
+      layer: 'ground',
+      rect: { x0, y0, x1, y1 },
+      tileRefId: 0,
+    });
+  }
+  markDirty();
+  updateSaveButton();
+  toast('ok', `Terrain erased (${x1 - x0 + 1}x${y1 - y0 + 1}) — unsaved`);
+}
+
+function paintTerrain(x0, y0, x1, y1) {
+  if (!selectedTileRefId || !currentMapName) {
+    toast('warn', 'Select a tile from the tileset picker first');
+    return;
+  }
+
+  // Buffer the paint operation
+  pendingChanges.terrainPaints.push({
+    layer: 'ground',
+    rect: { x0, y0, x1, y1 },
+    tileRefId: selectedTileRefId,
+  });
+
+  // Update local chunk cache immediately for visual feedback
+  const cs = mapMeta.chunkSize || 32;
+  for (let y = y0; y <= y1; y++) {
+    for (let x = x0; x <= x1; x++) {
+      const cx = Math.floor(x / cs);
+      const cy = Math.floor(y / cs);
+      const localX = x - cx * cs;
+      const localY = y - cy * cs;
+      const key = `ground:${cx}:${cy}`;
+      if (!chunkCache[key]) chunkCache[key] = new Array(cs * cs).fill(0);
+      chunkCache[key][localY * cs + localX] = selectedTileRefId;
+      // Ensure layerIndex knows about this chunk
+      if (!layerIndex.ground) layerIndex.ground = { keys: [], chunkSize: cs };
+      if (!layerIndex.ground.keys.includes(`${cx}:${cy}`)) {
+        layerIndex.ground.keys.push(`${cx}:${cy}`);
+      }
+    }
+  }
+
+  markDirty();
+  updateSaveButton();
+  toast('ok', `Painted terrain (${x1 - x0 + 1}x${y1 - y0 + 1}) — unsaved`);
+}
+
+function paintCollision(x0, y0, x1, y1, set) {
+  if (!currentMapName) return;
+
+  // Buffer the paint operation
+  const op = {
+    layer: 'collision',
+    rect: { x0, y0, x1, y1 },
+  };
+  if (set) {
+    op.tileRefId = 1;
+  } else {
+    op.erase = true;
+  }
+  pendingChanges.terrainPaints.push(op);
+
+  // Update local chunk cache
+  const cs = mapMeta.chunkSize || 32;
+  const value = set ? 1 : 0;
+  for (let y = y0; y <= y1; y++) {
+    for (let x = x0; x <= x1; x++) {
+      const cx = Math.floor(x / cs);
+      const cy = Math.floor(y / cs);
+      const localX = x - cx * cs;
+      const localY = y - cy * cs;
+      const key = `collision:${cx}:${cy}`;
+      if (!chunkCache[key]) chunkCache[key] = new Array(cs * cs).fill(0);
+      chunkCache[key][localY * cs + localX] = value;
+      if (!layerIndex.collision) layerIndex.collision = { keys: [], chunkSize: cs };
+      if (!layerIndex.collision.keys.includes(`${cx}:${cy}`)) {
+        layerIndex.collision.keys.push(`${cx}:${cy}`);
+      }
+    }
+  }
+
+  markDirty();
+  updateSaveButton();
+  toast('ok', set ? `Collision set (${x1 - x0 + 1}x${y1 - y0 + 1}) — unsaved` : `Collision erased — unsaved`);
+}
+
+function eraseRect(x0, y0, x1, y1) {
+  if (!currentMapName) return;
+
+  let erased = { terrain: 0, objects: 0, collision: 0 };
+
+  // 1. Erase terrain tiles (set to 0)
+  const cs = mapMeta.chunkSize || 32;
+  let terrainModified = false;
+  for (let y = y0; y <= y1; y++) {
+    for (let x = x0; x <= x1; x++) {
+      const cx = Math.floor(x / cs);
+      const cy = Math.floor(y / cs);
+      const localX = x - cx * cs;
+      const localY = y - cy * cs;
+      const key = `ground:${cx}:${cy}`;
+      if (chunkCache[key] && chunkCache[key][localY * cs + localX] !== 0) {
+        chunkCache[key][localY * cs + localX] = 0;
+        terrainModified = true;
+        erased.terrain++;
+      }
+    }
+  }
+  if (terrainModified) {
+    pendingChanges.terrainPaints.push({
+      layer: 'ground',
+      rect: { x0, y0, x1, y1 },
+      tileRefId: 0,
+    });
+  }
+
+  // 2. Delete objects in rect
+  const tw = mapMeta.tileWidth || 16;
+  const th = mapMeta.tileHeight || 16;
+  const rectLeft = x0 * tw;
+  const rectTop = y0 * th;
+  const rectRight = (x1 + 1) * tw;
+  const rectBottom = (y1 + 1) * th;
+
+  const toDelete = mapObjects.filter(obj => {
+    const sf = obj.scaleFactor || 1;
+    const objLeft = obj.tileX * tw;
+    const objTop = obj.tileY * th;
+    const objRight = objLeft + obj.width * sf;
+    const objBottom = objTop + obj.height * sf;
+    return objRight > rectLeft && objLeft < rectRight && objBottom > rectTop && objTop < rectBottom;
+  });
+
+  for (const obj of toDelete) {
+    deleteObject(obj);
+    erased.objects++;
+  }
+
+  // 3. Erase collision in rect
+  let collisionModified = false;
+  for (let y = y0; y <= y1; y++) {
+    for (let x = x0; x <= x1; x++) {
+      const cx = Math.floor(x / cs);
+      const cy = Math.floor(y / cs);
+      const localX = x - cx * cs;
+      const localY = y - cy * cs;
+      const key = `collision:${cx}:${cy}`;
+      if (chunkCache[key] && chunkCache[key][localY * cs + localX] !== 0) {
+        chunkCache[key][localY * cs + localX] = 0;
+        collisionModified = true;
+        erased.collision++;
+      }
+    }
+  }
+  if (collisionModified) {
+    pendingChanges.terrainPaints.push({
+      layer: 'collision',
+      rect: { x0, y0, x1, y1 },
+      erase: true,
+    });
+  }
+
+  markDirty();
+  updateSaveButton();
+
+  const parts = [];
+  if (erased.terrain > 0) parts.push(`${erased.terrain} terrain`);
+  if (erased.objects > 0) parts.push(`${erased.objects} objects`);
+  if (erased.collision > 0) parts.push(`${erased.collision} collision`);
+  if (parts.length > 0) {
+    toast('ok', `Erased: ${parts.join(', ')} — unsaved`);
+  } else {
+    toast('info', 'Nothing to erase in selection');
+  }
+}
+
+async function refreshCollisionChunks() {
+  // Refresh layerIndex (collision layer may have been created)
+  try {
+    const state = await apiFetch(`/maps/${encodeURIComponent(currentMapName)}/state-v2`);
+    layerIndex = state.layerIndex || {};
+  } catch { /* ignore */ }
+  // Clear collision cache and reload
+  Object.keys(chunkCache).forEach(k => {
+    if (k.startsWith('collision:')) delete chunkCache[k];
+  });
+  Object.keys(chunkVersions).forEach(k => {
+    if (k.startsWith('collision:')) delete chunkVersions[k];
+  });
+  await loadVisibleChunks();
+}
+
+// ============================================================================
+// ZONE OPERATIONS
+// ============================================================================
+function createZone(x0, y0, x1, y1) {
+  if (!currentMapName) return;
+  const name = prompt('Zone name:', 'Zone');
+  if (!name) return;
+  const capacity = prompt('Capacity (0 = unlimited):', '0');
+
+  const tw = mapMeta ? (mapMeta.tileWidth || 16) : 16;
+  const th = mapMeta ? (mapMeta.tileHeight || 16) : 16;
+  const polygon = [
+    { x: x0 * tw, y: y0 * th },
+    { x: (x1 + 1) * tw, y: y0 * th },
+    { x: (x1 + 1) * tw, y: (y1 + 1) * th },
+    { x: x0 * tw, y: (y1 + 1) * th },
+  ];
+
+  const tempId = 'temp-' + Date.now();
+  const newZone = { id: tempId, name, capacity: parseInt(capacity) || null, polygon };
+
+  if (!editorState) editorState = { zones: [], spawn: null, backgroundColor: null };
+  editorState.zones.push(newZone);
+  pendingChanges.zonesModified = true;
+
+  updateZoneList();
+  markDirty();
+  updateSaveButton();
+  toast('ok', `Zone created: ${name} — unsaved`);
+}
+
+function extendZone(zoneId, x0, y0, x1, y1) {
+  if (!currentMapName || !editorState) return;
+  const tw = mapMeta ? (mapMeta.tileWidth || 16) : 16;
+  const th = mapMeta ? (mapMeta.tileHeight || 16) : 16;
+
+  const zone = editorState.zones.find(z => z.id === zoneId);
+  if (!zone) return;
+
+  const points = zone.polygon || zone.points;
+  if (!Array.isArray(points) || points.length < 2) return;
+
+  // Get current bounding box of the zone (pixel coords)
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const p of points) {
+    if (p.x < minX) minX = p.x;
+    if (p.y < minY) minY = p.y;
+    if (p.x > maxX) maxX = p.x;
+    if (p.y > maxY) maxY = p.y;
+  }
+
+  // New drag rect in pixel coords
+  const newMinX = x0 * tw;
+  const newMinY = y0 * th;
+  const newMaxX = (x1 + 1) * tw;
+  const newMaxY = (y1 + 1) * th;
+
+  // Union bounding boxes
+  const unionMinX = Math.min(minX, newMinX);
+  const unionMinY = Math.min(minY, newMinY);
+  const unionMaxX = Math.max(maxX, newMaxX);
+  const unionMaxY = Math.max(maxY, newMaxY);
+
+  // Update zone polygon with new bounding box
+  zone.polygon = [
+    { x: unionMinX, y: unionMinY },
+    { x: unionMaxX, y: unionMinY },
+    { x: unionMaxX, y: unionMaxY },
+    { x: unionMinX, y: unionMaxY },
+  ];
+
+  // Mark zones as modified — on save, all zones are sent via replaceZones
+  pendingChanges.zonesModified = true;
+
+  updateZoneList();
+  markDirty();
+  updateSaveButton();
+  updatePropsPanel();
+  toast('ok', `Zone "${zone.name}" extended — unsaved`);
+}
+
+function selectZone(zoneId) {
+  selectedZoneId = zoneId;
+  selectedObjectId = null;
+  updateZoneList();
+  updatePropsPanel();
+  markDirty();
+}
+
+function deleteZone(zoneId) {
+  if (!currentMapName) return;
+
+  // Clear selection if deleted zone is selected
+  if (selectedZoneId === zoneId) selectedZoneId = null;
+
+  if (editorState && editorState.zones) {
+    editorState.zones = editorState.zones.filter(z => z.id !== zoneId);
+  }
+  pendingChanges.zonesModified = true;
+
+  updateZoneList();
+  markDirty();
+  updateSaveButton();
+  toast('ok', 'Zone deleted — unsaved');
+}
+
+// ============================================================================
+// SPAWN OPERATIONS
+// ============================================================================
+function setSpawn(tx, ty) {
+  if (!currentMapName) return;
+
+  pendingChanges.spawnUpdate = { x: tx, y: ty };
+
+  if (!editorState) editorState = {};
+  editorState.spawn = { x: tx, y: ty };
+
+  updateSpawnDisplay();
+  markDirty();
+  updateSaveButton();
+  toast('ok', `Spawn set: (${tx}, ${ty}) — unsaved`);
+}
+
+// ============================================================================
+// UI UPDATES
+// ============================================================================
+function updateMapInfo() {
+  const el = document.getElementById('mapInfo');
+  if (!mapMeta) {
+    el.innerHTML = '<div class="empty-state">No map loaded.</div>';
+    return;
+  }
+  el.innerHTML = `
+    <div class="prop-row"><span class="prop-label">Name</span><span class="prop-value">${esc(currentMapName)}</span></div>
+    <div class="prop-row"><span class="prop-label">Size</span><span class="prop-value">${mapMeta.width || '?'} x ${mapMeta.height || '?'} tiles</span></div>
+    <div class="prop-row"><span class="prop-label">Tile Size</span><span class="prop-value">${mapMeta.tileWidth || '?'} x ${mapMeta.tileHeight || '?'} px</span></div>
+    <div class="prop-row"><span class="prop-label">Chunk Size</span><span class="prop-value">${mapMeta.chunkSize || 32}</span></div>
+    <div class="prop-row"><span class="prop-label">Tilesets</span><span class="prop-value">${tilesetRegistry.length}</span></div>
+    <div class="prop-row"><span class="prop-label">Objects</span><span class="prop-value">${mapObjects.length}</span></div>
+  `;
+}
+
+function updateZoneList() {
+  const el = document.getElementById('zoneList');
+  const zones = editorState ? (editorState.zones || []) : [];
+  if (zones.length === 0) {
+    el.innerHTML = '<div class="empty-state">No zones defined.</div>';
+    return;
+  }
+  el.innerHTML = zones.map(z => `
+    <div class="zone-item${selectedZoneId === z.id ? ' selected' : ''}" onclick="selectZone('${escAttr(z.id)}')" style="cursor:pointer${selectedZoneId === z.id ? ';border-color:var(--accent);background:var(--accent-glow)' : ''}">
+      <div>
+        <div class="zone-name">${esc(z.name || 'Zone')}</div>
+        <div class="zone-meta">Cap: ${z.capacity || 'unlimited'}</div>
+      </div>
+      <button class="btn btn-sm btn-danger" onclick="event.stopPropagation();deleteZone('${escAttr(z.id)}')">Del</button>
+    </div>
+  `).join('');
+}
+
+function updateSpawnDisplay() {
+  const el = document.getElementById('spawnDisplay');
+  if (editorState && editorState.spawn) {
+    el.textContent = `X: ${editorState.spawn.x}, Y: ${editorState.spawn.y}`;
+  } else {
+    el.textContent = 'Not set (use Spawn tool to place)';
+  }
+}
+
+function updatePropsPanel() {
+  const el = document.getElementById('propsContent');
+
+  // Show zone properties if a zone is selected
+  if (selectedZoneId && editorState && editorState.zones) {
+    const zone = editorState.zones.find(z => z.id === selectedZoneId);
+    if (zone) {
+      const points = zone.polygon || zone.points || [];
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const p of points) {
+        if (p.x < minX) minX = p.x;
+        if (p.y < minY) minY = p.y;
+        if (p.x > maxX) maxX = p.x;
+        if (p.y > maxY) maxY = p.y;
+      }
+      const tw = mapMeta ? (mapMeta.tileWidth || 16) : 16;
+      const th = mapMeta ? (mapMeta.tileHeight || 16) : 16;
+      el.innerHTML = `
+        <div class="prop-row"><span class="prop-label">Type</span><span class="prop-value" style="color:var(--accent)">Zone</span></div>
+        <div class="prop-row"><span class="prop-label">ID</span><span class="prop-value">${esc(zone.id)}</span></div>
+        <div class="prop-row"><span class="prop-label">Name</span><span class="prop-value">${esc(zone.name || 'Zone')}</span></div>
+        <div class="prop-row"><span class="prop-label">Capacity</span><span class="prop-value">${zone.capacity || 'unlimited'}</span></div>
+        <div class="prop-row"><span class="prop-label">Bounds (px)</span><span class="prop-value">${Math.round(minX)}, ${Math.round(minY)} → ${Math.round(maxX)}, ${Math.round(maxY)}</span></div>
+        <div class="prop-row"><span class="prop-label">Size (tiles)</span><span class="prop-value">${Math.round((maxX - minX) / tw)} x ${Math.round((maxY - minY) / th)}</span></div>
+        <div style="margin-top:8px">
+          <div class="section-label" style="margin-bottom:6px">Actions</div>
+          <div class="btn-row">
+            <button class="btn btn-sm btn-danger" onclick="deleteZone('${escAttr(zone.id)}')">Delete Zone</button>
+          </div>
+          <div style="font-family:var(--font-mono);font-size:10px;color:var(--fg-muted);margin-top:8px">
+            Switch to Zones tool and drag to extend this zone.
+          </div>
+        </div>
+      `;
+      return;
+    }
+  }
+
+  if (!selectedObjectId) {
+    el.innerHTML = '<div class="empty-state">Select an object or zone to view properties.</div>';
+    return;
+  }
+
+  const obj = mapObjects.find(o => o.id === selectedObjectId);
+  if (!obj) {
+    el.innerHTML = '<div class="empty-state">Object not found.</div>';
+    return;
+  }
+
+  el.innerHTML = `
+    <div class="prop-row"><span class="prop-label">ID</span><span class="prop-value">#${obj.id}</span></div>
+    <div class="prop-row"><span class="prop-label">Item</span><span class="prop-value">${esc(obj.itemId || '')}</span></div>
+    <div class="prop-row"><span class="prop-label">Category</span><span class="prop-value">${esc(obj.category || '')}</span></div>
+    <div class="prop-row"><span class="prop-label">Pack</span><span class="prop-value">${esc(obj.assetPackUuid || '')}</span></div>
+    <div class="prop-row"><span class="prop-label">Position</span><span class="prop-value">${obj.tileX}, ${obj.tileY}</span></div>
+    <div class="prop-row"><span class="prop-label">Size</span><span class="prop-value">${obj.width} x ${obj.height}</span></div>
+    <div class="prop-row"><span class="prop-label">Collide</span><span class="prop-value">${obj.collide ? 'Yes' : 'No'}</span></div>
+    <div class="prop-row"><span class="prop-label">Z-Index</span><span class="prop-value">${obj.zIndex || 0}</span></div>
+    <div class="prop-row"><span class="prop-label">Rotation</span><span class="prop-value">${obj.rotation || 0}</span></div>
+    <div class="prop-row"><span class="prop-label">Flip X/Y</span><span class="prop-value">${obj.flipX ? 'Y' : 'N'} / ${obj.flipY ? 'Y' : 'N'}</span></div>
+    <div style="margin-top:8px">
+      <div class="section-label" style="margin-bottom:6px">Edit</div>
+      <div class="field-row">
+        <div class="field">
+          <label>Tile X</label>
+          <input type="number" id="propTileX" value="${obj.tileX}" style="width:100%">
+        </div>
+        <div class="field">
+          <label>Tile Y</label>
+          <input type="number" id="propTileY" value="${obj.tileY}" style="width:100%">
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Z-Index</label>
+          <input type="number" id="propZIndex" value="${obj.zIndex || 0}" style="width:100%">
+        </div>
+        <div class="field">
+          <label>Rotation</label>
+          <input type="number" id="propRotation" value="${obj.rotation || 0}" step="90" style="width:100%">
+        </div>
+      </div>
+      <div class="field-row" style="margin-top:4px">
+        <label style="font-family:var(--font-mono);font-size:10px;color:var(--fg-dim);display:flex;align-items:center;gap:4px;cursor:pointer">
+          <input type="checkbox" id="propFlipX" ${obj.flipX ? 'checked' : ''} style="accent-color:var(--accent)"> Flip X
+        </label>
+        <label style="font-family:var(--font-mono);font-size:10px;color:var(--fg-dim);display:flex;align-items:center;gap:4px;cursor:pointer">
+          <input type="checkbox" id="propFlipY" ${obj.flipY ? 'checked' : ''} style="accent-color:var(--accent)"> Flip Y
+        </label>
+      </div>
+      <div class="btn-row" style="margin-top:6px">
+        <button class="btn btn-accent btn-sm" onclick="applyPropChanges()">Apply</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteObject(mapObjects.find(o=>o.id===${obj.id}))">Delete</button>
+      </div>
+    </div>
+  `;
+}
+
+function applyPropChanges() {
+  if (!selectedObjectId) return;
+  const updates = {
+    tileX: parseInt(document.getElementById('propTileX').value),
+    tileY: parseInt(document.getElementById('propTileY').value),
+    zIndex: parseInt(document.getElementById('propZIndex').value),
+    rotation: parseInt(document.getElementById('propRotation').value),
+    flipX: document.getElementById('propFlipX').checked,
+    flipY: document.getElementById('propFlipY').checked,
+  };
+  updateObject(selectedObjectId, updates);
+}
+
+// ============================================================================
+// SAVE ALL CHANGES
+// ============================================================================
+async function saveAllChanges() {
+  if (!hasPendingChanges() || !currentMapName) return;
+
+  const btn = document.getElementById('saveBtn');
+  btn.disabled = true;
+  btn.textContent = 'Saving...';
+
+  let errors = [];
+  const mapName = encodeURIComponent(currentMapName);
+
+  try {
+    // 1. Send terrain/collision paint operations
+    for (const paint of pendingChanges.terrainPaints) {
+      try {
+        const result = await apiFetch(`/maps/${mapName}/paint-rect`, {
+          method: 'PATCH',
+          body: paint,
+        });
+        // Update chunk cache with authoritative server data
+        if (result.updates) {
+          const cs = mapMeta.chunkSize || 32;
+          const total = cs * cs;
+          for (const upd of result.updates) {
+            const decoded = decodeRLE(upd.data, total);
+            chunkCache[`${paint.layer}:${upd.key}`] = decoded;
+            chunkVersions[`${paint.layer}:${upd.key}`] = upd.version;
+          }
+        }
+      } catch (e) {
+        errors.push(`Paint ${paint.layer}: ${e.message}`);
+      }
+    }
+
+    // 2. Delete objects
+    for (const objId of pendingChanges.objectsToDelete) {
+      try {
+        await apiFetch(`/maps/${mapName}/objects/${objId}`, { method: 'DELETE' });
+      } catch (e) {
+        errors.push(`Delete object #${objId}: ${e.message}`);
+      }
+    }
+
+    // 3. Add objects
+    for (const obj of pendingChanges.objectsToAdd) {
+      try {
+        const created = await apiFetch(`/maps/${mapName}/objects`, {
+          method: 'POST',
+          body: {
+            assetPackUuid: obj.assetPackUuid,
+            itemId: obj.itemId,
+            category: obj.category,
+            tileX: obj.tileX,
+            tileY: obj.tileY,
+            width: obj.width,
+            height: obj.height,
+            collide: obj.collide,
+            zIndex: obj.zIndex,
+            scaleFactor: obj.scaleFactor || 1,
+            dataUrl: obj.dataUrl,
+          },
+        });
+        // Replace temp object with server-assigned one
+        const idx = mapObjects.findIndex(o => o.id === obj.id);
+        if (idx >= 0) mapObjects[idx] = created;
+      } catch (e) {
+        errors.push(`Add object: ${e.message}`);
+      }
+    }
+
+    // 4. Update objects
+    for (const { id, updates } of pendingChanges.objectUpdates) {
+      try {
+        const updated = await apiFetch(`/maps/${mapName}/objects/${id}`, {
+          method: 'PATCH',
+          body: updates,
+        });
+        const idx = mapObjects.findIndex(o => o.id === id);
+        if (idx >= 0) mapObjects[idx] = updated;
+      } catch (e) {
+        errors.push(`Update object #${id}: ${e.message}`);
+      }
+    }
+
+    // 5. Save zones (send ALL zones as a whole via replaceZones)
+    if (pendingChanges.zonesModified) {
+      try {
+        const allZones = editorState ? (editorState.zones || []) : [];
+        await apiFetch(`/maps/${mapName}/editor-state`, {
+          method: 'PUT',
+          body: {
+            zones: allZones.map(z => ({
+              name: z.name,
+              capacity: z.capacity,
+              points: z.polygon || z.points,
+            })),
+            replaceZones: true,
+          },
+        });
+        // Refresh editor state from server to get authoritative IDs
+        editorState = await apiFetch(`/maps/${mapName}/editor-state`);
+        selectedZoneId = null;
+        updateZoneList();
+      } catch (e) {
+        errors.push(`Zones: ${e.message}`);
+      }
+    }
+
+    // 6. Save spawn
+    if (pendingChanges.spawnUpdate) {
+      try {
+        await apiFetch(`/maps/${mapName}/editor-state`, {
+          method: 'PUT',
+          body: { spawn: pendingChanges.spawnUpdate },
+        });
+      } catch (e) {
+        errors.push(`Spawn: ${e.message}`);
+      }
+    }
+
+    // 7. Refresh collision if any collidable objects were added/deleted
+    const hadCollisionChanges = pendingChanges.objectsToAdd.some(o => o.collide) ||
+      pendingChanges.objectsToDelete.length > 0 ||
+      pendingChanges.terrainPaints.some(p => p.layer === 'collision');
+    if (hadCollisionChanges) {
+      await refreshCollisionChunks();
+    }
+
+    // Done
+    clearPendingChanges();
+    markDirty();
+    updatePropsPanel();
+
+    if (errors.length > 0) {
+      toast('err', `Saved with ${errors.length} error(s): ${errors[0]}`);
+    } else {
+      toast('ok', 'All changes saved!');
+    }
+  } finally {
+    btn.disabled = !hasPendingChanges();
+    btn.innerHTML = 'Save <span id="saveBadge" style="background:var(--accent);color:#fff;border-radius:8px;padding:0 5px;font-size:9px;margin-left:4px"></span>';
+    updateSaveButton();
+  }
+}
+
+// ============================================================================
+// KEYBOARD SHORTCUTS
+// ============================================================================
+document.addEventListener('keydown', (e) => {
+  // Ctrl+S / Cmd+S to save (works even in input fields)
+  if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+    e.preventDefault();
+    saveAllChanges();
+    return;
+  }
+
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
+
+  switch (e.key) {
+    case '1': setTool('select'); break;
+    case '2': setTool('terrain'); break;
+    case '3': setTool('objects'); break;
+    case '4': setTool('collision'); break;
+    case '5': setTool('zones'); break;
+    case '6': setTool('spawn'); break;
+    case '7': setTool('erase'); break;
+    case 'g': document.getElementById('showGrid').click(); break;
+    case 'c': document.getElementById('showCollision').click(); break;
+    case 'Delete':
+    case 'Backspace':
+      if (selectedObjectId) {
+        const obj = mapObjects.find(o => o.id === selectedObjectId);
+        if (obj) deleteObject(obj);
+      }
+      break;
+  }
+});
+
+// ============================================================================
+// INIT
+// ============================================================================
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+renderLoop();
+</script>
+</body>
+</html>

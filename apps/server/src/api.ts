@@ -5,10 +5,13 @@ import { PrismaClient } from './generated/prisma/index.js';
 import { registerAuthRoutes } from './api/routes/auth.js';
 import { registerMapRoutes } from './api/routes/maps.js';
 import { registerAssetPackRoutes } from './api/routes/assetPacks.js';
+import { registerAvatarPackRoutes } from './api/routes/avatarPacks.js';
 import { registerBillingRoutes } from './api/routes/billing.js';
 import { registerAdminRoutes } from './api/routes/admin.js';
 import { registerHealthRoutes } from './api/routes/health.js';
 import { registerMiscRoutes } from './api/routes/misc.js';
+import { registerTmjRoutes } from './api/routes/tmj.js';
+import { registerMapObjectRoutes } from './api/routes/mapObjects.js';
 
 // Existing modular routes (already extracted)
 import { registerApiTokenRoutes } from './api/routes/tokens.js';
@@ -37,8 +40,17 @@ export async function registerApi(app: express.Express) {
   // Map routes (v2 state, chunks, editor, zones)
   registerMapRoutes(app, prisma);
 
+  // TMJ import/export
+  registerTmjRoutes(app, prisma);
+
+  // Map object routes (placement, collision)
+  registerMapObjectRoutes(app, prisma);
+
   // Asset packs upload/management
   registerAssetPackRoutes(app, prisma);
+
+  // Avatar packs management
+  registerAvatarPackRoutes(app, prisma);
 
   // Billing (Stripe) - async to allow enterprise module loading
   await registerBillingRoutes(app, prisma);

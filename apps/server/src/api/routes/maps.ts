@@ -2,7 +2,7 @@ import type express from 'express';
 import { PrismaClient } from '../../generated/prisma/index.js';
 import { z } from 'zod';
 import { logger } from '../../logger.js';
-import { requireAuth, getTenantFromReq, requireMembership } from '../utils/authHelpers.js';
+import { requireAuth, getTenantFromReq, requireMembership, requireApiToken } from '../utils/authHelpers.js';
 import { broadcastMapUpdate, broadcastSpawnUpdate } from '../utils/broadcast.js';
 
 export function registerMapRoutes(app: express.Application, prisma: PrismaClient) {
@@ -355,7 +355,9 @@ export function registerMapRoutes(app: express.Application, prisma: PrismaClient
 
   // Editor state GET
   app.get('/maps/:name/editor-state', async (req: express.Request, res: express.Response) => {
-    const auth = requireAuth(req);
+    const sessionAuth = requireAuth(req);
+    const tokenAuth = await requireApiToken(req, prisma);
+    const auth = sessionAuth || tokenAuth;
     if (!auth) return res.status(401).json({ error: 'unauthorized' });
     const name = req.params.name;
     const tenant = getTenantFromReq(req);
@@ -380,7 +382,9 @@ export function registerMapRoutes(app: express.Application, prisma: PrismaClient
 
   // Editor state PUT
   app.put('/maps/:name/editor-state', async (req: express.Request, res: express.Response) => {
-    const auth = requireAuth(req);
+    const sessionAuth = requireAuth(req);
+    const tokenAuth = await requireApiToken(req, prisma);
+    const auth = sessionAuth || tokenAuth;
     if (!auth) return res.status(401).json({ error: 'unauthorized' });
     const name = req.params.name;
     const tenant = getTenantFromReq(req);
@@ -469,7 +473,9 @@ export function registerMapRoutes(app: express.Application, prisma: PrismaClient
 
   // Admin: Zones delete
   app.delete('/maps/:name/zones', async (req: express.Request, res: express.Response) => {
-    const auth = requireAuth(req);
+    const sessionAuth = requireAuth(req);
+    const tokenAuth = await requireApiToken(req, prisma);
+    const auth = sessionAuth || tokenAuth;
     if (!auth) return res.status(401).json({ error: 'unauthorized' });
     const tenant = getTenantFromReq(req);
     if (!tenant) return res.status(400).json({ error: 'tenant_required' });
@@ -507,7 +513,9 @@ export function registerMapRoutes(app: express.Application, prisma: PrismaClient
 
   // Admin: Zones list
   app.get('/maps/:name/zones', async (req: express.Request, res: express.Response) => {
-    const auth = requireAuth(req);
+    const sessionAuth = requireAuth(req);
+    const tokenAuth = await requireApiToken(req, prisma);
+    const auth = sessionAuth || tokenAuth;
     if (!auth) return res.status(401).json({ error: 'unauthorized' });
     const tenant = getTenantFromReq(req);
     if (!tenant) return res.status(400).json({ error: 'tenant_required' });

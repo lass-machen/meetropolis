@@ -31,6 +31,9 @@ apps/desktop-electron/assets/appicon.iconset/
 apps/web/src-tauri/target/
 apps/web/src-tauri/local-client/
 
+# User-uploaded content
+apps/public/packs/
+
 # Temporary directories
 tmp/
 tmp_extract/

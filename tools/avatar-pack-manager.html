@@ -1,0 +1,1171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Avatar Pack Manager — Meetropolis</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg-deep:#0a0b0f;--bg:#12131a;--bg-raised:#1a1b25;--bg-surface:#22232f;
+  --border:#2a2c3a;--border-active:#3d3f52;--border-accent:#5865f2;
+  --fg:#d4d5db;--fg-dim:#7a7c8a;--fg-muted:#4a4c58;
+  --accent:#5865f2;--accent-dim:#4752c4;--accent-glow:rgba(88,101,242,0.15);
+  --green:#3ba55d;--green-dim:rgba(59,165,93,0.15);
+  --red:#ed4245;--red-dim:rgba(237,66,69,0.15);
+  --orange:#f0a020;--orange-dim:rgba(240,160,32,0.15);
+  --yellow:#fee75c;
+  --radius:6px;--radius-lg:10px;
+  --font-mono:'JetBrains Mono',monospace;--font-sans:'Space Grotesk',sans-serif;
+  --shadow:0 4px 24px rgba(0,0,0,0.4),0 1px 3px rgba(0,0,0,0.3);
+  --grid-color:rgba(88,101,242,0.35);--grid-hover:rgba(88,101,242,0.6);
+}
+html{font-size:14px}
+body{
+  background:var(--bg-deep);color:var(--fg);
+  font-family:var(--font-sans);line-height:1.5;
+  min-height:100vh;overflow-x:hidden;
+}
+/* Scanline overlay */
+body::after{
+  content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.03) 2px,rgba(0,0,0,0.03) 4px);
+}
+
+/* Layout */
+.app-header{
+  background:var(--bg);border-bottom:1px solid var(--border);
+  padding:14px 28px;display:flex;align-items:center;gap:16px;
+  position:sticky;top:0;z-index:100;
+  backdrop-filter:blur(12px);
+}
+.app-header h1{
+  font-family:var(--font-mono);font-size:15px;font-weight:700;
+  letter-spacing:-0.5px;
+  background:linear-gradient(135deg,var(--accent),#7c8af8);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+}
+.app-header .tag{
+  font-family:var(--font-mono);font-size:10px;font-weight:600;
+  background:var(--accent-dim);color:var(--accent);
+  padding:2px 8px;border-radius:3px;letter-spacing:0.5px;
+  text-transform:uppercase;
+}
+.app-header .conn-status{
+  margin-left:auto;display:flex;align-items:center;gap:8px;
+  font-family:var(--font-mono);font-size:11px;color:var(--fg-dim);
+}
+.app-header .conn-dot{
+  width:8px;height:8px;border-radius:50%;background:var(--fg-muted);
+  transition:background 0.3s,box-shadow 0.3s;
+}
+.app-header .conn-dot.ok{background:var(--green);box-shadow:0 0 8px rgba(59,165,93,0.5)}
+.app-header .conn-dot.err{background:var(--red);box-shadow:0 0 8px rgba(237,66,69,0.5)}
+
+.main{display:grid;grid-template-columns:320px 1fr 340px;gap:0;min-height:calc(100vh - 49px)}
+
+/* Panels */
+.panel{
+  background:var(--bg);border-right:1px solid var(--border);
+  overflow-y:auto;overflow-x:hidden;
+}
+.panel:last-child{border-right:none;border-left:1px solid var(--border)}
+.panel-section{padding:16px;border-bottom:1px solid var(--border)}
+.panel-section:last-child{border-bottom:none}
+.section-label{
+  font-family:var(--font-mono);font-size:10px;font-weight:600;
+  color:var(--fg-muted);text-transform:uppercase;letter-spacing:1.2px;
+  margin-bottom:12px;display:flex;align-items:center;gap:8px;
+}
+.section-label::before{
+  content:'';flex:0 0 3px;height:3px;background:var(--accent);border-radius:1px;
+}
+
+/* Form elements */
+.field{margin-bottom:10px}
+.field label{
+  display:block;font-size:11px;font-weight:500;
+  color:var(--fg-dim);margin-bottom:4px;
+  font-family:var(--font-mono);
+}
+.field input,.field select,.field textarea{
+  width:100%;padding:7px 10px;
+  background:var(--bg-deep);border:1px solid var(--border);
+  border-radius:var(--radius);color:var(--fg);
+  font-family:var(--font-mono);font-size:12px;
+  transition:border-color 0.2s;outline:none;
+}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--accent)}
+.field textarea{resize:vertical;min-height:48px}
+.field-row{display:flex;gap:8px}
+.field-row .field{flex:1}
+.field input[type="number"]{-moz-appearance:textfield}
+.field input::-webkit-outer-spin-button,
+.field input::-webkit-inner-spin-button{-webkit-appearance:none}
+
+.btn{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:7px 14px;border:1px solid var(--border);
+  border-radius:var(--radius);background:var(--bg-raised);
+  color:var(--fg);font-family:var(--font-mono);font-size:11px;
+  font-weight:600;cursor:pointer;transition:all 0.15s;
+  white-space:nowrap;
+}
+.btn:hover{background:var(--bg-surface);border-color:var(--border-active)}
+.btn-accent{background:var(--accent-dim);border-color:var(--accent);color:#c5ccff}
+.btn-accent:hover{background:var(--accent);color:#fff}
+.btn-danger{border-color:rgba(237,66,69,0.3);color:var(--red)}
+.btn-danger:hover{background:var(--red-dim)}
+.btn-sm{padding:4px 10px;font-size:10px}
+.btn-block{width:100%;justify-content:center}
+.btn-row{display:flex;gap:6px;margin-top:8px}
+
+/* Status messages */
+.msg{
+  padding:8px 12px;border-radius:var(--radius);
+  font-family:var(--font-mono);font-size:11px;
+  margin-top:8px;display:none;
+}
+.msg.show{display:block}
+.msg.ok{background:var(--green-dim);color:var(--green);border:1px solid rgba(59,165,93,0.25)}
+.msg.err{background:var(--red-dim);color:var(--red);border:1px solid rgba(237,66,69,0.25)}
+.msg.warn{background:var(--orange-dim);color:var(--orange);border:1px solid rgba(240,160,32,0.25)}
+
+/* Center: Spritesheet Viewer */
+.viewer{
+  background:var(--bg-deep);overflow:auto;
+  display:flex;flex-direction:column;
+}
+.viewer-toolbar{
+  padding:10px 16px;background:var(--bg);
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+}
+.viewer-toolbar .info{
+  font-family:var(--font-mono);font-size:11px;color:var(--fg-dim);
+}
+.viewer-toolbar .info span{color:var(--fg)}
+.zoom-controls{display:flex;align-items:center;gap:4px;margin-left:auto}
+.zoom-controls .btn{padding:4px 8px}
+
+.viewer-canvas-wrap{
+  flex:1;overflow:auto;padding:24px;
+  display:flex;align-items:flex-start;justify-content:center;
+  background:
+    linear-gradient(45deg,#0e0f15 25%,transparent 25%),
+    linear-gradient(-45deg,#0e0f15 25%,transparent 25%),
+    linear-gradient(45deg,transparent 75%,#0e0f15 75%),
+    linear-gradient(-45deg,transparent 75%,#0e0f15 75%);
+  background-size:20px 20px;
+  background-position:0 0,0 10px,10px -10px,-10px 0;
+  background-color:#111218;
+}
+.viewer-canvas-wrap.empty{
+  align-items:center;
+  background:#111218;
+}
+
+.drop-zone{
+  border:2px dashed var(--border);border-radius:var(--radius-lg);
+  padding:48px;text-align:center;cursor:pointer;
+  transition:border-color 0.2s,background 0.2s;
+  max-width:420px;
+}
+.drop-zone:hover,.drop-zone.dragover{
+  border-color:var(--accent);background:var(--accent-glow);
+}
+.drop-zone h3{
+  font-family:var(--font-mono);font-size:14px;
+  font-weight:600;color:var(--fg);margin-bottom:6px;
+}
+.drop-zone p{font-size:12px;color:var(--fg-dim)}
+
+#spriteContainer{position:relative;display:inline-block;cursor:crosshair}
+#spriteContainer img{
+  display:block;image-rendering:pixelated;image-rendering:crisp-edges;
+}
+#gridOverlay{
+  position:absolute;inset:0;pointer-events:none;
+}
+#hoverOverlay{
+  position:absolute;inset:0;pointer-events:none;
+}
+#cellTooltip{
+  position:fixed;pointer-events:none;z-index:200;
+  background:var(--bg-surface);border:1px solid var(--border-active);
+  border-radius:4px;padding:3px 8px;
+  font-family:var(--font-mono);font-size:10px;color:var(--fg);
+  display:none;white-space:nowrap;
+  box-shadow:var(--shadow);
+}
+
+/* Right panel: avatars & preview */
+.avatar-card{
+  background:var(--bg-raised);border:1px solid var(--border);
+  border-radius:var(--radius);margin-bottom:10px;overflow:hidden;
+}
+.avatar-card-header{
+  padding:8px 12px;display:flex;align-items:center;justify-content:space-between;
+  background:var(--bg-surface);border-bottom:1px solid var(--border);
+  font-family:var(--font-mono);font-size:12px;font-weight:600;cursor:pointer;
+}
+.avatar-card-header:hover{background:var(--border)}
+.avatar-card-body{padding:12px}
+.avatar-card-body.collapsed{display:none}
+
+.state-row{
+  background:var(--bg-deep);border:1px solid var(--border);
+  border-radius:var(--radius);padding:8px 10px;margin-bottom:6px;
+}
+.state-row-header{
+  display:flex;align-items:center;gap:8px;
+  font-family:var(--font-mono);font-size:11px;font-weight:600;color:var(--fg);
+}
+.state-row-fields{
+  display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:8px;
+}
+.state-row-fields .field{margin-bottom:0}
+.state-row-fields .field label{font-size:10px}
+.state-row-fields .field input{padding:5px 8px;font-size:11px}
+.dir-checks{
+  display:flex;gap:8px;margin-top:6px;
+}
+.dir-checks label{
+  display:flex;align-items:center;gap:4px;
+  font-family:var(--font-mono);font-size:10px;color:var(--fg-dim);cursor:pointer;
+}
+.dir-checks input[type="checkbox"]{
+  accent-color:var(--accent);width:13px;height:13px;
+}
+
+/* Preview canvases */
+.preview-section{
+  background:var(--bg-deep);border:1px solid var(--border);
+  border-radius:var(--radius);padding:12px;margin-top:10px;
+}
+.preview-grid{
+  display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:8px;
+}
+.preview-cell{text-align:center}
+.preview-cell canvas{
+  image-rendering:pixelated;image-rendering:crisp-edges;
+  border:1px solid var(--border);border-radius:3px;
+  background:var(--bg);
+}
+.preview-cell .dir-label{
+  font-family:var(--font-mono);font-size:9px;
+  color:var(--fg-muted);margin-top:4px;text-transform:uppercase;letter-spacing:0.5px;
+}
+.preview-state-select{
+  display:flex;gap:4px;flex-wrap:wrap;
+}
+.preview-state-btn{
+  padding:3px 10px;border:1px solid var(--border);
+  border-radius:3px;background:var(--bg-raised);
+  font-family:var(--font-mono);font-size:10px;color:var(--fg-dim);
+  cursor:pointer;transition:all 0.15s;
+}
+.preview-state-btn:hover{border-color:var(--border-active);color:var(--fg)}
+.preview-state-btn.active{
+  border-color:var(--accent);color:var(--accent);background:var(--accent-glow);
+}
+
+/* Existing packs list */
+.pack-item{
+  padding:8px 12px;border:1px solid var(--border);
+  border-radius:var(--radius);margin-bottom:6px;
+  display:flex;align-items:center;justify-content:space-between;
+  background:var(--bg-raised);transition:border-color 0.15s;
+}
+.pack-item:hover{border-color:var(--border-active)}
+.pack-item .pack-name{
+  font-family:var(--font-mono);font-size:12px;font-weight:600;
+}
+.pack-item .pack-meta{
+  font-family:var(--font-mono);font-size:10px;color:var(--fg-muted);
+}
+.pack-item .pack-actions{display:flex;gap:4px}
+
+/* JSON preview */
+.json-preview{
+  background:var(--bg-deep);border:1px solid var(--border);
+  border-radius:var(--radius);padding:10px;margin-top:8px;
+  max-height:300px;overflow:auto;display:none;
+}
+.json-preview.show{display:block}
+.json-preview pre{
+  font-family:var(--font-mono);font-size:10px;
+  color:var(--fg-dim);white-space:pre-wrap;word-break:break-all;
+}
+
+/* Row highlight colors */
+.row-highlight{position:absolute;left:0;right:0;pointer-events:none;opacity:0.12}
+
+/* Scrollbar */
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:var(--border-active)}
+
+/* Toast */
+#toast{
+  position:fixed;bottom:24px;right:24px;z-index:1000;
+  display:flex;flex-direction:column;gap:6px;
+}
+.toast-item{
+  padding:10px 16px;border-radius:var(--radius);
+  font-family:var(--font-mono);font-size:11px;
+  box-shadow:var(--shadow);animation:toastIn 0.3s ease;
+  max-width:360px;
+}
+.toast-item.ok{background:#1a2e1f;color:var(--green);border:1px solid rgba(59,165,93,0.3)}
+.toast-item.err{background:#2e1a1a;color:var(--red);border:1px solid rgba(237,66,69,0.3)}
+@keyframes toastIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+</style>
+</head>
+<body>
+
+<header class="app-header">
+  <h1>AVATAR PACK MANAGER</h1>
+  <span class="tag">Meetropolis</span>
+  <div class="conn-status">
+    <div class="conn-dot" id="connDot"></div>
+    <span id="connLabel">Disconnected</span>
+  </div>
+</header>
+
+<div class="main">
+  <!-- LEFT PANEL -->
+  <div class="panel" id="leftPanel">
+    <!-- Connection -->
+    <div class="panel-section">
+      <div class="section-label">Connection</div>
+      <div class="field">
+        <label>API Base URL</label>
+        <input type="text" id="apiUrl" value="http://localhost:2567" placeholder="http://localhost:3000">
+      </div>
+      <div class="field">
+        <label>Auth Token (optional)</label>
+        <input type="text" id="authToken" placeholder="Bearer token or leave empty for cookies">
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-accent btn-block" onclick="testConnection()">Test Connection</button>
+      </div>
+      <div class="msg" id="connMsg"></div>
+    </div>
+
+    <!-- Pack Metadata -->
+    <div class="panel-section">
+      <div class="section-label">Pack Metadata</div>
+      <div class="field">
+        <label>UUID (unique identifier)</label>
+        <input type="text" id="packUuid" placeholder="my-avatar-pack">
+      </div>
+      <div class="field">
+        <label>Name</label>
+        <input type="text" id="packName" placeholder="My Avatar Pack">
+      </div>
+      <div class="field">
+        <label>Description</label>
+        <textarea id="packDesc" placeholder="A cool set of characters..."></textarea>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Author</label>
+          <input type="text" id="packAuthor" placeholder="Author">
+        </div>
+        <div class="field">
+          <label>Version</label>
+          <input type="text" id="packVersion" value="1.0.0">
+        </div>
+      </div>
+      <div class="field">
+        <label>Type</label>
+        <select id="packType"><option value="full">full</option></select>
+      </div>
+    </div>
+
+    <!-- Spritesheet Settings -->
+    <div class="panel-section">
+      <div class="section-label">Frame Dimensions</div>
+      <div class="field-row">
+        <div class="field">
+          <label>Frame Width (px)</label>
+          <input type="number" id="frameW" value="16" min="1" onchange="onFrameSizeChange()">
+        </div>
+        <div class="field">
+          <label>Frame Height (px)</label>
+          <input type="number" id="frameH" value="24" min="1" onchange="onFrameSizeChange()">
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Zoom</label>
+          <select id="zoomSelect" onchange="onZoomChange()">
+            <option value="2">2x</option>
+            <option value="3">3x</option>
+            <option value="4" selected>4x</option>
+            <option value="6">6x</option>
+            <option value="8">8x</option>
+            <option value="10">10x</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Sprite File</label>
+          <input type="text" id="spriteFilename" readonly placeholder="(upload a PNG)">
+        </div>
+      </div>
+    </div>
+
+    <!-- Existing Packs -->
+    <div class="panel-section">
+      <div class="section-label">Existing Packs</div>
+      <div id="existingPacks"><span style="font-size:11px;color:var(--fg-muted)">Connect to server to load packs.</span></div>
+    </div>
+  </div>
+
+  <!-- CENTER: Viewer -->
+  <div class="viewer">
+    <div class="viewer-toolbar" id="viewerToolbar" style="display:none">
+      <div class="info">Size: <span id="imgDims">—</span></div>
+      <div class="info">Grid: <span id="gridDims">—</span></div>
+      <div class="info">Cell: <span id="cellInfo">—</span></div>
+      <button class="btn btn-sm" onclick="document.getElementById('fileInput').click()">Replace Image</button>
+    </div>
+    <div class="viewer-canvas-wrap" id="viewerWrap">
+      <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+        <h3>Drop Spritesheet Here</h3>
+        <p>or click to browse — PNG files only</p>
+      </div>
+    </div>
+    <input type="file" id="fileInput" accept="image/png" style="display:none" onchange="handleFile(this.files[0])">
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div class="panel" id="rightPanel">
+    <!-- Avatars -->
+    <div class="panel-section">
+      <div class="section-label">Avatars in Pack</div>
+      <div id="avatarList"></div>
+      <button class="btn btn-accent btn-block" onclick="addAvatar()" style="margin-top:8px">+ Add Avatar</button>
+    </div>
+
+    <!-- Preview -->
+    <div class="panel-section">
+      <div class="section-label">Live Preview</div>
+      <div id="previewArea">
+        <span style="font-size:11px;color:var(--fg-muted)">Add an avatar and upload a spritesheet to see preview.</span>
+      </div>
+    </div>
+
+    <!-- Submit -->
+    <div class="panel-section">
+      <div class="section-label">Submit</div>
+      <div class="field" style="margin-bottom:10px">
+        <label>Sprite Upload</label>
+        <div style="display:flex;gap:6px;align-items:center">
+          <button class="btn btn-sm btn-accent" onclick="uploadSprite()" id="uploadBtn">Upload Sprite PNG</button>
+          <span id="uploadStatus" style="font-family:var(--font-mono);font-size:10px;color:var(--fg-dim)"></span>
+        </div>
+        <div class="msg" id="uploadMsg" style="margin-top:6px"></div>
+      </div>
+      <button class="btn btn-sm" onclick="toggleJsonPreview()" style="margin-bottom:6px">Show JSON Payload</button>
+      <div class="json-preview" id="jsonPreview"><pre id="jsonPre"></pre></div>
+      <button class="btn btn-accent btn-block" onclick="submitPack()" style="margin-top:8px">Submit Pack</button>
+      <div class="msg" id="submitMsg"></div>
+    </div>
+  </div>
+</div>
+
+<div id="cellTooltip"></div>
+<div id="toast"></div>
+
+<script>
+// ── State ──
+let uploadedSpriteUrl = null;
+let spriteImg = null;
+let spriteDataUrl = null;
+let zoom = 4;
+let frameW = 16, frameH = 24;
+let avatars = [];
+let avatarIdCounter = 0;
+let previewAnimId = null;
+let previewState = null;
+let connectedApi = null;
+let existingPacks = [];
+
+// ── Connection ──
+async function apiFetch(path, opts = {}) {
+  const base = document.getElementById('apiUrl').value.replace(/\/+$/, '');
+  const token = document.getElementById('authToken').value.trim();
+  const headers = { ...(opts.headers || {}) };
+  if (token) headers['Authorization'] = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
+  if (opts.body && typeof opts.body === 'string') headers['Content-Type'] = 'application/json';
+  const res = await fetch(`${base}${path}`, { ...opts, headers, ...(token ? {} : { credentials: 'include' }) });
+  return res;
+}
+
+async function testConnection() {
+  const msg = document.getElementById('connMsg');
+  const dot = document.getElementById('connDot');
+  const label = document.getElementById('connLabel');
+  try {
+    const res = await apiFetch('/avatar-packs');
+    if (res.ok) {
+      const data = await res.json();
+      existingPacks = Array.isArray(data) ? data : [];
+      connectedApi = document.getElementById('apiUrl').value.replace(/\/+$/, '');
+      dot.className = 'conn-dot ok';
+      label.textContent = 'Connected';
+      showMsg(msg, 'ok', `Connected — ${existingPacks.length} pack(s) found`);
+      renderExistingPacks();
+    } else {
+      dot.className = 'conn-dot err';
+      label.textContent = 'Error';
+      showMsg(msg, 'err', `HTTP ${res.status}: ${res.statusText}`);
+    }
+  } catch (e) {
+    dot.className = 'conn-dot err';
+    label.textContent = 'Error';
+    showMsg(msg, 'err', `Connection failed: ${e.message}`);
+  }
+}
+
+function renderExistingPacks() {
+  const el = document.getElementById('existingPacks');
+  if (existingPacks.length === 0) {
+    el.innerHTML = '<span style="font-size:11px;color:var(--fg-muted)">No packs on server.</span>';
+    return;
+  }
+  el.innerHTML = existingPacks.map((p, i) => `
+    <div class="pack-item">
+      <div>
+        <div class="pack-name">${esc(p.name || p.uuid)}</div>
+        <div class="pack-meta">${esc(p.uuid)} · v${esc(p.version || '?')} · ${Array.isArray(p.avatars) ? p.avatars.length : 0} avatar(s)</div>
+      </div>
+      <div class="pack-actions">
+        <button class="btn btn-sm" onclick="loadPack(${i})" title="Edit">Edit</button>
+        <button class="btn btn-sm btn-danger" onclick="deletePack(${i})" title="Delete">Del</button>
+      </div>
+    </div>`).join('');
+}
+
+function loadPack(idx) {
+  const p = existingPacks[idx];
+  if (!p) return;
+  uploadedSpriteUrl = null;
+  const uploadStatus = document.getElementById('uploadStatus');
+  const uploadMsg = document.getElementById('uploadMsg');
+  if (uploadStatus) uploadStatus.textContent = '';
+  if (uploadMsg) uploadMsg.className = 'msg';
+  document.getElementById('packUuid').value = p.uuid || '';
+  document.getElementById('packName').value = p.name || '';
+  document.getElementById('packDesc').value = p.description || '';
+  document.getElementById('packAuthor').value = p.author || '';
+  document.getElementById('packVersion').value = p.version || '1.0.0';
+  document.getElementById('packType').value = p.type || 'full';
+
+  avatars = [];
+  avatarIdCounter = 0;
+  const avList = Array.isArray(p.avatars) ? p.avatars : [];
+  for (const av of avList) {
+    const states = {};
+    if (av.states) {
+      for (const [sn, sv] of Object.entries(av.states)) {
+        states[sn] = {
+          directions: sv.directions || ['down','left','right','up'],
+          frameCount: sv.frameCount || 1,
+          frameRate: sv.frameRate || 1,
+          row: sv.row || 0,
+        };
+      }
+    }
+    avatars.push({
+      _id: avatarIdCounter++,
+      key: av.key || av.id || '',
+      displayName: av.displayName || av.key || '',
+      states,
+      collapsed: false,
+    });
+    if (av.frameWidth) document.getElementById('frameW').value = av.frameWidth;
+    if (av.frameHeight) document.getElementById('frameH').value = av.frameHeight;
+    if (av.spriteUrl) {
+      const fn = av.spriteUrl.split('/').pop();
+      document.getElementById('spriteFilename').value = fn;
+      if (av.spriteUrl.startsWith('/packs/')) {
+        uploadedSpriteUrl = av.spriteUrl;
+      }
+    }
+  }
+  frameW = parseInt(document.getElementById('frameW').value) || 16;
+  frameH = parseInt(document.getElementById('frameH').value) || 24;
+  renderAvatars();
+  updatePreview();
+  toast('ok', `Loaded pack: ${p.name || p.uuid}`);
+}
+
+async function deletePack(idx) {
+  const p = existingPacks[idx];
+  if (!p) return;
+  if (!confirm(`Delete pack "${p.name || p.uuid}" (ID: ${p.id})?`)) return;
+  try {
+    const res = await apiFetch(`/avatar-packs/${p.id}`, { method: 'DELETE' });
+    if (res.ok) {
+      toast('ok', `Deleted: ${p.name || p.uuid}`);
+      await testConnection();
+    } else {
+      toast('err', `Delete failed: HTTP ${res.status}`);
+    }
+  } catch (e) {
+    toast('err', `Delete failed: ${e.message}`);
+  }
+}
+
+// ── File handling ──
+const dropZone = document.getElementById('dropZone');
+const viewerWrap = document.getElementById('viewerWrap');
+
+viewerWrap.addEventListener('dragover', e => { e.preventDefault(); dropZone && dropZone.classList.add('dragover'); });
+viewerWrap.addEventListener('dragleave', () => { dropZone && dropZone.classList.remove('dragover'); });
+viewerWrap.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone && dropZone.classList.remove('dragover');
+  const f = e.dataTransfer.files[0];
+  if (f && f.type === 'image/png') handleFile(f);
+});
+
+function handleFile(file) {
+  if (!file) return;
+  document.getElementById('spriteFilename').value = file.name;
+  const reader = new FileReader();
+  reader.onload = e => {
+    spriteDataUrl = e.target.result;
+    const img = new Image();
+    img.onload = () => {
+      spriteImg = img;
+      renderSpriteViewer();
+    };
+    img.src = spriteDataUrl;
+  };
+  reader.readAsDataURL(file);
+}
+
+function renderSpriteViewer() {
+  if (!spriteImg) return;
+  const toolbar = document.getElementById('viewerToolbar');
+  toolbar.style.display = 'flex';
+  viewerWrap.classList.remove('empty');
+  viewerWrap.innerHTML = '';
+
+  const container = document.createElement('div');
+  container.id = 'spriteContainer';
+
+  const img = document.createElement('img');
+  img.src = spriteDataUrl;
+  img.style.width = (spriteImg.width * zoom) + 'px';
+  img.style.height = (spriteImg.height * zoom) + 'px';
+  container.appendChild(img);
+
+  // Grid overlay
+  const gridCanvas = document.createElement('canvas');
+  gridCanvas.id = 'gridOverlay';
+  gridCanvas.width = spriteImg.width * zoom;
+  gridCanvas.height = spriteImg.height * zoom;
+  container.appendChild(gridCanvas);
+
+  // Hover overlay
+  const hoverCanvas = document.createElement('canvas');
+  hoverCanvas.id = 'hoverOverlay';
+  hoverCanvas.width = spriteImg.width * zoom;
+  hoverCanvas.height = spriteImg.height * zoom;
+  hoverCanvas.style.position = 'absolute';
+  hoverCanvas.style.inset = '0';
+  hoverCanvas.style.pointerEvents = 'none';
+  container.appendChild(hoverCanvas);
+
+  viewerWrap.appendChild(container);
+
+  drawGrid(gridCanvas);
+  drawRowHighlights(gridCanvas);
+
+  // Mouse events
+  container.addEventListener('mousemove', onSpriteMouseMove);
+  container.addEventListener('mouseleave', onSpriteMouseLeave);
+  container.addEventListener('click', onSpriteClick);
+
+  const cols = Math.floor(spriteImg.width / frameW);
+  const rows = Math.floor(spriteImg.height / frameH);
+  document.getElementById('imgDims').textContent = `${spriteImg.width}×${spriteImg.height}px`;
+  document.getElementById('gridDims').textContent = `${cols}×${rows} (${cols * rows} frames)`;
+}
+
+function drawGrid(canvas) {
+  if (!canvas || !spriteImg) return;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const w = frameW * zoom, h = frameH * zoom;
+  const cols = Math.floor(spriteImg.width / frameW);
+  const rows = Math.floor(spriteImg.height / frameH);
+
+  ctx.strokeStyle = 'var(--grid-color)';
+  ctx.strokeStyle = 'rgba(88,101,242,0.3)';
+  ctx.lineWidth = 1;
+
+  for (let c = 0; c <= cols; c++) {
+    const x = c * w + 0.5;
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, rows * h); ctx.stroke();
+  }
+  for (let r = 0; r <= rows; r++) {
+    const y = r * h + 0.5;
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(cols * w, y); ctx.stroke();
+  }
+
+  // Row/col labels
+  ctx.font = `${Math.max(9, Math.min(11, zoom * 3))}px JetBrains Mono, monospace`;
+  ctx.fillStyle = 'rgba(88,101,242,0.5)';
+  ctx.textBaseline = 'top';
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      ctx.fillText(`${c},${r}`, c * w + 3, r * h + 2);
+    }
+  }
+}
+
+function drawRowHighlights(gridCanvas) {
+  if (!gridCanvas || !spriteImg) return;
+  // Remove old highlights
+  const container = gridCanvas.parentElement;
+  container.querySelectorAll('.row-highlight').forEach(el => el.remove());
+
+  const stateColors = [
+    'rgba(88,101,242,0.12)', 'rgba(59,165,93,0.12)',
+    'rgba(240,160,32,0.12)', 'rgba(237,66,69,0.12)',
+    'rgba(254,231,92,0.12)', 'rgba(128,90,213,0.12)',
+  ];
+
+  let colorIdx = 0;
+  for (const av of avatars) {
+    for (const [, st] of Object.entries(av.states)) {
+      const dirs = st.directions.length || 4;
+      const startRow = st.row;
+      for (let d = 0; d < dirs; d++) {
+        const row = startRow + d;
+        const div = document.createElement('div');
+        div.className = 'row-highlight';
+        div.style.top = (row * frameH * zoom) + 'px';
+        div.style.height = (frameH * zoom) + 'px';
+        div.style.background = stateColors[colorIdx % stateColors.length];
+        div.style.opacity = '1';
+        container.appendChild(div);
+      }
+      colorIdx++;
+    }
+  }
+}
+
+function onSpriteMouseMove(e) {
+  const rect = e.currentTarget.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+  const col = Math.floor(x / (frameW * zoom));
+  const row = Math.floor(y / (frameH * zoom));
+  const maxCols = Math.floor(spriteImg.width / frameW);
+  const maxRows = Math.floor(spriteImg.height / frameH);
+  if (col < 0 || col >= maxCols || row < 0 || row >= maxRows) {
+    onSpriteMouseLeave();
+    return;
+  }
+
+  document.getElementById('cellInfo').textContent = `col ${col}, row ${row}`;
+
+  // Draw hover
+  const hc = document.getElementById('hoverOverlay');
+  if (hc) {
+    const ctx = hc.getContext('2d');
+    ctx.clearRect(0, 0, hc.width, hc.height);
+    ctx.fillStyle = 'rgba(88,101,242,0.18)';
+    ctx.fillRect(col * frameW * zoom, row * frameH * zoom, frameW * zoom, frameH * zoom);
+    ctx.strokeStyle = 'rgba(88,101,242,0.7)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(col * frameW * zoom, row * frameH * zoom, frameW * zoom, frameH * zoom);
+  }
+
+  const tip = document.getElementById('cellTooltip');
+  tip.style.display = 'block';
+  tip.style.left = (e.clientX + 14) + 'px';
+  tip.style.top = (e.clientY + 14) + 'px';
+  tip.textContent = `Frame [${col}, ${row}]`;
+}
+
+function onSpriteMouseLeave() {
+  const hc = document.getElementById('hoverOverlay');
+  if (hc) hc.getContext('2d').clearRect(0, 0, hc.width, hc.height);
+  document.getElementById('cellTooltip').style.display = 'none';
+  document.getElementById('cellInfo').textContent = '—';
+}
+
+function onSpriteClick(e) {
+  const rect = e.currentTarget.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+  const col = Math.floor(x / (frameW * zoom));
+  const row = Math.floor(y / (frameH * zoom));
+  toast('ok', `Selected frame: col ${col}, row ${row}`);
+}
+
+// ── Frame size ──
+function onFrameSizeChange() {
+  frameW = parseInt(document.getElementById('frameW').value) || 16;
+  frameH = parseInt(document.getElementById('frameH').value) || 24;
+  renderSpriteViewer();
+  updatePreview();
+}
+
+function onZoomChange() {
+  zoom = parseInt(document.getElementById('zoomSelect').value) || 4;
+  renderSpriteViewer();
+}
+
+// ── Avatars ──
+function addAvatar() {
+  const id = avatarIdCounter++;
+  avatars.push({
+    _id: id,
+    key: '',
+    displayName: '',
+    states: {
+      idle: { directions: ['down','left','right','up'], frameCount: 1, frameRate: 1, row: 0 },
+      walk: { directions: ['down','left','right','up'], frameCount: 4, frameRate: 8, row: 4 },
+    },
+    collapsed: false,
+  });
+  renderAvatars();
+  updatePreview();
+}
+
+function removeAvatar(id) {
+  avatars = avatars.filter(a => a._id !== id);
+  renderAvatars();
+  updatePreview();
+}
+
+function toggleAvatar(id) {
+  const av = avatars.find(a => a._id === id);
+  if (av) av.collapsed = !av.collapsed;
+  renderAvatars();
+}
+
+function addState(avId) {
+  const av = avatars.find(a => a._id === avId);
+  if (!av) return;
+  const name = prompt('State name (e.g., "run", "sit"):');
+  if (!name || !name.trim()) return;
+  av.states[name.trim()] = { directions: ['down','left','right','up'], frameCount: 1, frameRate: 4, row: 0 };
+  renderAvatars();
+  updatePreview();
+}
+
+function removeState(avId, stateName) {
+  const av = avatars.find(a => a._id === avId);
+  if (!av) return;
+  delete av.states[stateName];
+  renderAvatars();
+  updatePreview();
+}
+
+function renderAvatars() {
+  const el = document.getElementById('avatarList');
+  el.innerHTML = avatars.map(av => {
+    const statesHtml = Object.entries(av.states).map(([sn, sv]) => `
+      <div class="state-row">
+        <div class="state-row-header">
+          <span>${esc(sn)}</span>
+          <button class="btn btn-sm btn-danger" onclick="removeState(${av._id},'${esc(sn)}')" style="margin-left:auto;padding:2px 6px">×</button>
+        </div>
+        <div class="state-row-fields">
+          <div class="field">
+            <label>Row Start</label>
+            <input type="number" min="0" value="${sv.row}" onchange="avatars.find(a=>a._id===${av._id}).states['${esc(sn)}'].row=+this.value;redrawOverlays();updatePreview()">
+          </div>
+          <div class="field">
+            <label>Frames</label>
+            <input type="number" min="1" value="${sv.frameCount}" onchange="avatars.find(a=>a._id===${av._id}).states['${esc(sn)}'].frameCount=+this.value;updatePreview()">
+          </div>
+          <div class="field">
+            <label>FPS</label>
+            <input type="number" min="1" value="${sv.frameRate}" onchange="avatars.find(a=>a._id===${av._id}).states['${esc(sn)}'].frameRate=+this.value;updatePreview()">
+          </div>
+        </div>
+        <div class="dir-checks">
+          ${['down','left','right','up'].map(d => `
+            <label><input type="checkbox" ${sv.directions.includes(d)?'checked':''} onchange="toggleDir(${av._id},'${esc(sn)}','${d}',this.checked)"> ${d}</label>
+          `).join('')}
+        </div>
+      </div>
+    `).join('');
+
+    return `
+      <div class="avatar-card">
+        <div class="avatar-card-header" onclick="toggleAvatar(${av._id})">
+          <span>${esc(av.displayName || av.key || '(unnamed)')}</span>
+          <div style="display:flex;gap:4px;align-items:center">
+            <span style="font-size:9px;color:var(--fg-muted)">${Object.keys(av.states).length} state(s)</span>
+            <button class="btn btn-sm btn-danger" onclick="event.stopPropagation();removeAvatar(${av._id})" style="padding:2px 6px">×</button>
+          </div>
+        </div>
+        <div class="avatar-card-body${av.collapsed ? ' collapsed' : ''}">
+          <div class="field"><label>Key (ID)</label><input type="text" value="${esc(av.key)}" onchange="avatars.find(a=>a._id===${av._id}).key=this.value;renderAvatars()"></div>
+          <div class="field"><label>Display Name</label><input type="text" value="${esc(av.displayName)}" onchange="avatars.find(a=>a._id===${av._id}).displayName=this.value;renderAvatars()"></div>
+          ${statesHtml}
+          <button class="btn btn-sm btn-block" onclick="addState(${av._id})" style="margin-top:6px">+ Add State</button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function toggleDir(avId, stateName, dir, checked) {
+  const av = avatars.find(a => a._id === avId);
+  if (!av || !av.states[stateName]) return;
+  const dirs = av.states[stateName].directions;
+  if (checked && !dirs.includes(dir)) dirs.push(dir);
+  if (!checked) av.states[stateName].directions = dirs.filter(d => d !== dir);
+  updatePreview();
+}
+
+function redrawOverlays() {
+  const gc = document.getElementById('gridOverlay');
+  if (gc) { drawGrid(gc); drawRowHighlights(gc); }
+}
+
+// ── Preview ──
+function updatePreview() {
+  const area = document.getElementById('previewArea');
+  if (avatars.length === 0 || !spriteImg) {
+    area.innerHTML = '<span style="font-size:11px;color:var(--fg-muted)">Add an avatar and upload a spritesheet to see preview.</span>';
+    if (previewAnimId) { cancelAnimationFrame(previewAnimId); previewAnimId = null; }
+    return;
+  }
+
+  // Use first avatar for preview
+  const av = avatars[0];
+  const stateNames = Object.keys(av.states);
+  if (stateNames.length === 0) {
+    area.innerHTML = '<span style="font-size:11px;color:var(--fg-muted)">Add at least one state.</span>';
+    return;
+  }
+
+  if (!previewState || !av.states[previewState]) previewState = stateNames[0];
+
+  const stateButtons = stateNames.map(s =>
+    `<button class="preview-state-btn${s === previewState ? ' active' : ''}" onclick="previewState='${esc(s)}';updatePreview()">${esc(s)}</button>`
+  ).join('');
+
+  const st = av.states[previewState];
+  const dirs = st.directions.length > 0 ? st.directions : ['down','left','right','up'];
+  const allDirs = ['down','left','right','up'];
+  const scale = 4;
+  const pw = frameW * scale, ph = frameH * scale;
+
+  area.innerHTML = `
+    <div class="preview-section">
+      <div class="preview-state-select">${stateButtons}</div>
+      <div style="margin-top:4px;font-family:var(--font-mono);font-size:10px;color:var(--fg-muted)">
+        ${st.frameCount} frame(s) @ ${st.frameRate} fps · row ${st.row}
+      </div>
+      <div class="preview-grid" id="previewGrid">
+        ${allDirs.map(d => `
+          <div class="preview-cell">
+            <canvas width="${pw}" height="${ph}" data-dir="${d}" style="width:${pw}px;height:${ph}px"></canvas>
+            <div class="dir-label">${d}</div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+
+  // Start animation loop
+  if (previewAnimId) cancelAnimationFrame(previewAnimId);
+  let frame = 0;
+  let lastTime = 0;
+  const interval = 1000 / (st.frameRate || 1);
+
+  function animate(time) {
+    if (time - lastTime >= interval) {
+      lastTime = time;
+      frame = (frame + 1) % (st.frameCount || 1);
+    }
+
+    const grid = document.getElementById('previewGrid');
+    if (!grid) return;
+
+    const canvases = grid.querySelectorAll('canvas');
+    canvases.forEach(canvas => {
+      const dir = canvas.dataset.dir;
+      const dirIdx = allDirs.indexOf(dir);
+      const ctx = canvas.getContext('2d');
+      ctx.imageSmoothingEnabled = false;
+      ctx.clearRect(0, 0, pw, ph);
+
+      if (dirs.includes(dir)) {
+        const activeDirIdx = dirs.indexOf(dir);
+        const srcRow = st.row + activeDirIdx;
+        const srcX = frame * frameW;
+        const srcY = srcRow * frameH;
+        if (srcX + frameW <= spriteImg.width && srcY + frameH <= spriteImg.height) {
+          ctx.drawImage(spriteImg, srcX, srcY, frameW, frameH, 0, 0, pw, ph);
+        }
+      } else {
+        ctx.fillStyle = 'rgba(255,255,255,0.03)';
+        ctx.fillRect(0, 0, pw, ph);
+        ctx.fillStyle = 'rgba(255,255,255,0.1)';
+        ctx.font = '10px JetBrains Mono';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('N/A', pw / 2, ph / 2);
+      }
+    });
+
+    previewAnimId = requestAnimationFrame(animate);
+  }
+  previewAnimId = requestAnimationFrame(animate);
+}
+
+// ── Sprite Upload ──
+async function uploadSprite() {
+  const msg = document.getElementById('uploadMsg');
+  const status = document.getElementById('uploadStatus');
+  const btn = document.getElementById('uploadBtn');
+
+  if (!spriteDataUrl) {
+    showMsg(msg, 'err', 'Load a spritesheet first (drop or select a PNG)');
+    return;
+  }
+  const packUuid = document.getElementById('packUuid').value.trim();
+  if (!packUuid) {
+    showMsg(msg, 'err', 'Pack UUID is required');
+    return;
+  }
+
+  // Convert data URL to blob
+  const resp = await fetch(spriteDataUrl);
+  const blob = await resp.blob();
+
+  const filename = document.getElementById('spriteFilename').value || 'sprite.png';
+  const formData = new FormData();
+  formData.append('file', blob, filename);
+  formData.append('packUuid', packUuid);
+
+  btn.disabled = true;
+  status.textContent = 'Uploading...';
+
+  try {
+    const res = await apiFetch('/avatar-packs/upload-sprite', {
+      method: 'POST',
+      body: formData,
+    });
+    if (res.ok) {
+      const data = await res.json();
+      uploadedSpriteUrl = data.url;
+      status.textContent = data.url;
+      showMsg(msg, 'ok', 'Sprite uploaded! URL will be used when submitting the pack.');
+      toast('ok', 'Sprite uploaded: ' + data.url);
+    } else {
+      const err = await res.json().catch(() => ({}));
+      showMsg(msg, 'err', `Upload failed: HTTP ${res.status} — ${err.error || res.statusText}`);
+      status.textContent = 'Failed';
+    }
+  } catch (e) {
+    showMsg(msg, 'err', 'Upload failed: ' + e.message);
+    status.textContent = 'Error';
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ── Submit ──
+function buildPayload() {
+  const filename = document.getElementById('spriteFilename').value || 'sprite.png';
+  return {
+    uuid: document.getElementById('packUuid').value.trim(),
+    name: document.getElementById('packName').value.trim(),
+    description: document.getElementById('packDesc').value.trim(),
+    author: document.getElementById('packAuthor').value.trim(),
+    version: document.getElementById('packVersion').value.trim() || '1.0.0',
+    type: document.getElementById('packType').value || 'full',
+    avatars: avatars.map(av => ({
+      id: av.key,
+      key: av.key,
+      displayName: av.displayName || av.key,
+      type: 'full',
+      spriteUrl: uploadedSpriteUrl || `/assets/sprites/${filename}`,
+      frameWidth: frameW,
+      frameHeight: frameH,
+      states: { ...av.states },
+    })),
+  };
+}
+
+function toggleJsonPreview() {
+  const el = document.getElementById('jsonPreview');
+  el.classList.toggle('show');
+  if (el.classList.contains('show')) {
+    document.getElementById('jsonPre').textContent = JSON.stringify(buildPayload(), null, 2);
+  }
+}
+
+async function submitPack() {
+  const msg = document.getElementById('submitMsg');
+  const payload = buildPayload();
+  if (!payload.uuid) { showMsg(msg, 'err', 'UUID is required'); return; }
+  if (!payload.name) { showMsg(msg, 'err', 'Name is required'); return; }
+  if (payload.avatars.length === 0) { showMsg(msg, 'err', 'Add at least one avatar'); return; }
+  for (const av of payload.avatars) {
+    if (!av.key) { showMsg(msg, 'err', 'All avatars need a key'); return; }
+  }
+
+  try {
+    const res = await apiFetch('/avatar-packs', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      showMsg(msg, 'ok', `Pack submitted! ID: ${data.id || data.uuid || '?'}`);
+      toast('ok', `Pack "${payload.name}" saved`);
+      if (connectedApi) testConnection();
+    } else {
+      const err = await res.json().catch(() => ({}));
+      showMsg(msg, 'err', `HTTP ${res.status}: ${err.error || res.statusText}`);
+    }
+  } catch (e) {
+    showMsg(msg, 'err', `Submit failed: ${e.message}`);
+  }
+}
+
+// ── Helpers ──
+function showMsg(el, type, text) {
+  el.className = `msg show ${type}`;
+  el.textContent = text;
+}
+
+function toast(type, text) {
+  const container = document.getElementById('toast');
+  const div = document.createElement('div');
+  div.className = `toast-item ${type}`;
+  div.textContent = text;
+  container.appendChild(div);
+  setTimeout(() => { div.style.opacity = '0'; div.style.transition = 'opacity 0.3s'; setTimeout(() => div.remove(), 300); }, 3000);
+}
+
+function esc(s) {
+  if (typeof s !== 'string') return '';
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// Init
+viewerWrap.classList.add('empty');
+</script>
+</body>
+</html>

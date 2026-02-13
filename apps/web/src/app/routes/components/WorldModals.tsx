@@ -92,7 +92,7 @@ export function WorldModals({
       </Modal>
 
       {/* Profile Settings Modal */}
-      <Modal open={profileOpen} onOpenChange={setProfileOpen} title="Profile Settings" maxWidth={600}>
+      <Modal open={profileOpen} onOpenChange={setProfileOpen} title="Profile Settings" maxWidth={700}>
         <ProfileSettings onClose={() => setProfileOpen(false)} />
       </Modal>
 

@@ -54,6 +54,15 @@ export function setupEditorHandlers(
     } catch {}
   });
 
+  // MapObject live updates
+  room.onMessage('objects_updated', (payload: any) => {
+    try {
+      if (gameBridge && typeof gameBridge.handleObjectsUpdated === 'function') {
+        gameBridge.handleObjectsUpdated(payload);
+      }
+    } catch { /* ignore */ }
+  });
+
   // Tileset Registry Sync (v2)
   room.onMessage('tileset_registry_updated', (payload: any) => {
     try {

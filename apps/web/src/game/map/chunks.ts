@@ -62,8 +62,8 @@ export function applyChunkUpdates(scene: Phaser.Scene & any, layerName: 'ground'
         }
       } else {
         const gid = tileRefIdToGid(arr[i] | 0, scene.v2.firstGids);
-        if (gid < 0) layer.removeTileAt(gx, gy);
-        else layer.putTileAt(gid, gx, gy);
+        if (gid < 0) { try { layer.removeTileAt(gx, gy); } catch {} }
+        else { try { layer.putTileAt(gid, gx, gy); } catch {} }
       }
     }
     scene.loadedChunks.add(`${layerName}:${cx}:${cy}`);

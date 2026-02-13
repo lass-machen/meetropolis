@@ -32,6 +32,11 @@ export function EditorWindow({
   // Upload Dialog
   const [uploadDialog, setUploadDialog] = React.useState<UploadDialogState | null>(null);
 
+  // .mepack Upload & Pack Management
+  const [uploading, setUploading] = React.useState(false);
+  const [packs, setPacks] = React.useState<Array<{id: number; name: string; version: string; author: string; uuid: string}>>([]);
+  const [deleting, setDeleting] = React.useState<number | null>(null);
+
   // Subscribe zu EditorService
   React.useEffect(() => {
     const unsubscribe = EditorService.subscribe((newState) => {
@@ -49,6 +54,17 @@ export function EditorWindow({
         EditorService.dispatch({ type: 'DEACTIVATE_EDITOR' });
       }
     };
+  }, []);
+
+  // Load installed packs
+  React.useEffect(() => {
+    const apiBase = (window as any).VITE_API_BASE || (import.meta as any).env?.VITE_API_BASE || `${window.location.protocol}//${window.location.hostname}:2567`;
+    fetch(`${apiBase}/asset-packs`, { credentials: 'include' })
+      .then(r => r.json())
+      .then(data => {
+        if (Array.isArray(data)) setPacks(data.map((p: any) => ({ id: p.id, name: p.name, version: p.version, author: p.author, uuid: p.uuid })));
+      })
+      .catch(() => {});
   }, []);
 
   // Window Dragging
@@ -111,6 +127,57 @@ export function EditorWindow({
         ? state.category
         : 'terrain',
     });
+  };
+
+  // .mepack Upload
+  const handleMepackUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.name.endsWith('.mepack') && !file.name.endsWith('.zip')) {
+      window.dispatchEvent(new CustomEvent('editor:toast', { detail: { title: 'Ungültige Datei', description: 'Nur .mepack oder .zip erlaubt', intent: 'error' } }));
+      e.target.value = '';
+      return;
+    }
+    setUploading(true);
+    try {
+      const apiBase = (window as any).VITE_API_BASE || (import.meta as any).env?.VITE_API_BASE || `${window.location.protocol}//${window.location.hostname}:2567`;
+      const form = new FormData();
+      form.append('file', file);
+      const res = await fetch(`${apiBase}/asset-packs/upload`, { method: 'POST', body: form, credentials: 'include' });
+      if (res.ok) {
+        window.dispatchEvent(new CustomEvent('editor:toast', { detail: { title: 'Upload erfolgreich', description: 'Pack wurde importiert', intent: 'success' } }));
+        setTimeout(() => window.location.reload(), 1000);
+      } else {
+        const data = await res.json().catch(() => ({ error: 'Unbekannter Fehler' }));
+        window.dispatchEvent(new CustomEvent('editor:toast', { detail: { title: 'Upload fehlgeschlagen', description: data.error || 'Unbekannter Fehler', intent: 'error' } }));
+      }
+    } catch {
+      window.dispatchEvent(new CustomEvent('editor:toast', { detail: { title: 'Upload fehlgeschlagen', description: 'Netzwerkfehler', intent: 'error' } }));
+    } finally {
+      setUploading(false);
+      e.target.value = '';
+    }
+  };
+
+  // Pack loeschen
+  const handleDeletePack = async (id: number, name: string) => {
+    if (!window.confirm(`Pack "${name}" wirklich löschen?`)) return;
+    setDeleting(id);
+    try {
+      const apiBase = (window as any).VITE_API_BASE || (import.meta as any).env?.VITE_API_BASE || `${window.location.protocol}//${window.location.hostname}:2567`;
+      const res = await fetch(`${apiBase}/asset-packs/${id}`, { method: 'DELETE', credentials: 'include' });
+      if (res.ok) {
+        window.dispatchEvent(new CustomEvent('editor:toast', { detail: { title: 'Pack gelöscht', description: `"${name}" wurde entfernt`, intent: 'success' } }));
+        setTimeout(() => window.location.reload(), 1000);
+      } else {
+        const data = await res.json().catch(() => ({ error: 'Unbekannter Fehler' }));
+        window.dispatchEvent(new CustomEvent('editor:toast', { detail: { title: 'Löschen fehlgeschlagen', description: data.error || 'Unbekannter Fehler', intent: 'error' } }));
+      }
+    } catch {
+      window.dispatchEvent(new CustomEvent('editor:toast', { detail: { title: 'Löschen fehlgeschlagen', description: 'Netzwerkfehler', intent: 'error' } }));
+    } finally {
+      setDeleting(null);
+    }
   };
 
   if (!state.active) return null;
@@ -302,25 +369,49 @@ export function EditorWindow({
           {(state.category === 'terrain' || state.category === 'structures' || state.category === 'objects') && (
             <div style={{ borderTop: '1px solid var(--border)', padding: 16 }}>
               <div style={{ display: 'grid', gap: 8 }}>
-                <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg)' }}>{t('editor.uploadTileset')}</div>
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    padding: '8px 12px',
-                    borderRadius: 8,
-                    border: '1px solid var(--border)',
-                    background: 'var(--glass)',
-                    cursor: 'pointer',
-                  }}
-                >
+                <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg)' }}>Upload</div>
+                {/* Bild-Upload */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--glass)', cursor: 'pointer' }}>
                   <label style={{ cursor: 'pointer', flex: 1, display: 'flex', alignItems: 'center', gap: 8, color: 'var(--fg)' }}>
                     <span style={{ fontSize: 16 }}>📁</span>
                     <span style={{ fontSize: 13 }}>{t('editor.chooseImage')}</span>
                     <input type="file" accept="image/*" style={{ display: 'none' }} onChange={handleFileUpload} />
                   </label>
                 </div>
+                {/* .mepack Upload */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--glass)', cursor: uploading ? 'wait' : 'pointer', opacity: uploading ? 0.6 : 1 }}>
+                  <label style={{ cursor: uploading ? 'wait' : 'pointer', flex: 1, display: 'flex', alignItems: 'center', gap: 8, color: 'var(--fg)' }}>
+                    <span style={{ fontSize: 16 }}>📦</span>
+                    <span style={{ fontSize: 13 }}>{uploading ? 'Wird hochgeladen...' : '.mepack importieren'}</span>
+                    <input type="file" accept=".mepack,.zip" style={{ display: 'none' }} onChange={handleMepackUpload} disabled={uploading} />
+                  </label>
+                </div>
+              </div>
+              {/* Installierte Packs */}
+              <div style={{ marginTop: 16 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg)', marginBottom: 8 }}>Installierte Packs</div>
+                {packs.length === 0 ? (
+                  <div style={{ fontSize: 12, color: '#6b7280', fontStyle: 'italic' }}>Keine Packs installiert</div>
+                ) : (
+                  <div style={{ display: 'grid', gap: 4 }}>
+                    {packs.map(pack => (
+                      <div key={pack.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--glass)', fontSize: 12 }}>
+                        <div style={{ color: 'var(--fg)' }}>
+                          <span style={{ fontWeight: 600 }}>{pack.name}</span>
+                          <span style={{ color: '#6b7280', marginLeft: 6 }}>v{pack.version} &bull; {pack.author}</span>
+                        </div>
+                        <button
+                          onClick={() => handleDeletePack(pack.id, pack.name)}
+                          disabled={deleting === pack.id}
+                          style={{ background: 'none', border: 'none', cursor: deleting === pack.id ? 'wait' : 'pointer', color: '#ef4444', opacity: deleting === pack.id ? 0.5 : 0.7, fontSize: 14, padding: '2px 6px', borderRadius: 4 }}
+                          title="Pack löschen"
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -381,7 +472,7 @@ export function EditorWindow({
                   window.dispatchEvent(new CustomEvent('editor:toast', {
                     detail: {
                       title: 'Upload fehlgeschlagen',
-                      description: e.message || 'Unbekannter Fehler',
+                      description: (e instanceof Error ? e.message : null) || 'Unbekannter Fehler',
                       intent: 'error'
                     }
                   }));

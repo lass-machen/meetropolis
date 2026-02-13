@@ -74,6 +74,33 @@ async function main() {
     });
   }
 
+  // Seed default avatar pack
+  await prisma.avatarPack.upsert({
+    where: { uuid: 'default-characters' },
+    create: {
+      uuid: 'default-characters',
+      name: 'Default Characters',
+      description: 'Built-in character set',
+      author: 'Meetropolis',
+      version: '1.0.0',
+      type: 'full',
+      avatars: [{
+        id: 'businessman1',
+        key: 'businessman1',
+        displayName: 'Businessman',
+        type: 'full',
+        spriteUrl: '/assets/sprites/default-avatars.png',
+        frameWidth: 16,
+        frameHeight: 24,
+        states: {
+          idle: { directions: ['down', 'left', 'right', 'up'], frameCount: 1, frameRate: 1, row: 0 },
+          walk: { directions: ['down', 'left', 'right', 'up'], frameCount: 4, frameRate: 8, row: 4 },
+        },
+      }],
+    },
+    update: { version: '1.0.0' },
+  });
+
   // Create a default invite (for onboarding teammates)
   const existingInvite = await prisma.invite.findFirst({ where: { email: adminEmail, tenantId: def.id } });
   if (!existingInvite) {

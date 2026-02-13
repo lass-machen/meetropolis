@@ -47,13 +47,15 @@ export async function joinWorld(serverUrl: string, identity?: string, name?: str
   try {
     const client = new Client(wsUrl);
     logger.debug('[Colyseus] Client created, joining room...');
-    const room = await client.joinOrCreate('world', { 
-      identity, 
+    const avatarId = typeof window !== 'undefined' ? localStorage.getItem('avatarId') || undefined : undefined;
+    const room = await client.joinOrCreate('world', {
+      identity,
       name,
       x: position?.x,
       y: position?.y,
       direction: position?.direction,
-      tenant
+      tenant,
+      avatarId,
     });
     // Vorsorgliche No-Op Handler, um Colyseus-Warnungen zu vermeiden,
     // falls UI-Handler noch nicht registriert sind (Race direkt nach Join).
@@ -69,6 +71,7 @@ export async function joinWorld(serverUrl: string, identity?: string, name?: str
       room.onMessage('remote_control', noop);
       room.onMessage('presence_recent', noop);
       room.onMessage('presence_update', noop);
+      room.onMessage('player_avatar', noop);
       room.onMessage('tileset_registry_updated', noop);
     } catch {}
     

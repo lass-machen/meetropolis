@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { logger } from '../../../lib/logger';
+import { avatarRegistry } from '../../avatarRegistry';
 
 export interface PlayerManagerConfig {
   scene: Phaser.Scene;
@@ -7,6 +8,7 @@ export interface PlayerManagerConfig {
   anims: Phaser.Animations.AnimationManager;
   mapRef: Phaser.Tilemaps.Tilemap;
   initialPos: { x: number; y: number };
+  avatarId?: string;
 }
 
 export class PlayerManager {
@@ -20,54 +22,35 @@ export class PlayerManager {
   private lastReportedY = 0;
   private lastReportedDirection = 'down';
   private mapRef: Phaser.Tilemaps.Tilemap;
+  private avatarId: string;
 
   constructor(config: PlayerManagerConfig) {
     this.scene = config.scene;
     this.physics = config.physics;
     this.mapRef = config.mapRef;
+    this.avatarId = config.avatarId || avatarRegistry.getDefaultAvatarId();
 
     this.createAnimations(config.anims);
     this.createHero(config.initialPos);
   }
 
   private createAnimations(anims: Phaser.Animations.AnimationManager) {
-    anims.create({
-      key: 'walk_down',
-      frames: anims.generateFrameNumbers('hero_walk_down', { start: 0, end: 3 }),
-      frameRate: 8,
-      repeat: -1
-    });
-    anims.create({
-      key: 'walk_up',
-      frames: anims.generateFrameNumbers('hero_walk_up', { start: 0, end: 3 }),
-      frameRate: 8,
-      repeat: -1
-    });
-    anims.create({
-      key: 'walk_left',
-      frames: anims.generateFrameNumbers('hero_walk_left', { start: 0, end: 3 }),
-      frameRate: 8,
-      repeat: -1
-    });
-    anims.create({
-      key: 'walk_right',
-      frames: anims.generateFrameNumbers('hero_walk_right', { start: 0, end: 3 }),
-      frameRate: 8,
-      repeat: -1
-    });
+    avatarRegistry.createAnimations(anims, this.avatarId);
   }
 
   private createHero(initialPos: { x: number; y: number }) {
     logger.debug('[PlayerManager] Spawning hero at:', JSON.stringify(initialPos));
 
-    this.hero = this.physics.add.sprite(initialPos.x, initialPos.y, 'hero_walk_down', 0);
+    const { texture, frame } = avatarRegistry.getIdleFrame(this.avatarId, 'down');
+    this.hero = this.physics.add.sprite(initialPos.x, initialPos.y, texture, frame);
 
     try {
       this.hero.setCollideWorldBounds(true);
       this.hero.body.setSize(this.mapRef.tileWidth * 0.8, this.mapRef.tileHeight * 0.9);
+      const frameHeight = avatarRegistry.getManifest(this.avatarId)?.frameHeight ?? 24;
       (this.hero.body as Phaser.Physics.Arcade.Body).offset.set(
         this.mapRef.tileWidth * 0.1,
-        this.mapRef.tileHeight * 0.1
+        frameHeight - this.mapRef.tileHeight * 0.9  // Align physics body with avatar feet (bottom of sprite frame)
       );
     } catch { }
 
@@ -136,11 +119,13 @@ export class PlayerManager {
       this.hero.body.setVelocity(nx * speed, ny * speed);
 
       if (Math.abs(nx) > Math.abs(ny)) {
-        this.currentDirection = nx > 0 ? 'right' : 'left';
-        this.hero.play(nx > 0 ? 'walk_right' : 'walk_left', true);
+        const dir = nx > 0 ? 'right' : 'left';
+        this.currentDirection = dir;
+        this.hero.play(avatarRegistry.getAnimationKey(this.avatarId, 'walk', dir), true);
       } else {
-        this.currentDirection = ny > 0 ? 'down' : 'up';
-        this.hero.play(ny > 0 ? 'walk_down' : 'walk_up', true);
+        const dir = ny > 0 ? 'down' : 'up';
+        this.currentDirection = dir;
+        this.hero.play(avatarRegistry.getAnimationKey(this.avatarId, 'walk', dir), true);
       }
     }
   }
@@ -150,19 +135,19 @@ export class PlayerManager {
 
     if (cursors.left?.isDown) {
       body.setVelocityX(-speed);
-      this.hero.play('walk_left', true);
+      this.hero.play(avatarRegistry.getAnimationKey(this.avatarId, 'walk', 'left'), true);
       this.currentDirection = 'left';
     } else if (cursors.right?.isDown) {
       body.setVelocityX(speed);
-      this.hero.play('walk_right', true);
+      this.hero.play(avatarRegistry.getAnimationKey(this.avatarId, 'walk', 'right'), true);
       this.currentDirection = 'right';
     } else if (cursors.up?.isDown) {
       body.setVelocityY(-speed);
-      this.hero.play('walk_up', true);
+      this.hero.play(avatarRegistry.getAnimationKey(this.avatarId, 'walk', 'up'), true);
       this.currentDirection = 'up';
     } else if (cursors.down?.isDown) {
       body.setVelocityY(speed);
-      this.hero.play('walk_down', true);
+      this.hero.play(avatarRegistry.getAnimationKey(this.avatarId, 'walk', 'down'), true);
       this.currentDirection = 'down';
     } else {
       this.stopMovement();
@@ -172,14 +157,8 @@ export class PlayerManager {
   private stopMovement() {
     this.hero.body.setVelocity(0, 0);
     this.hero.anims.stop();
-
-    const base: any = {
-      up: 'hero_walk_up',
-      down: 'hero_walk_down',
-      left: 'hero_walk_left',
-      right: 'hero_walk_right'
-    };
-    this.hero.setTexture(base[this.currentDirection] || 'hero_walk_down', 0);
+    const { texture, frame } = avatarRegistry.getIdleFrame(this.avatarId, this.currentDirection);
+    this.hero.setTexture(texture, frame);
   }
 
   private reportMovement(onMove?: (data: { x: number; y: number; direction: string }) => void) {
@@ -197,5 +176,12 @@ export class PlayerManager {
 
   getCurrentDirection(): string {
     return this.currentDirection;
+  }
+
+  changeAvatar(avatarId: string) {
+    this.avatarId = avatarId;
+    this.createAnimations(this.scene.anims);
+    const { texture, frame } = avatarRegistry.getIdleFrame(avatarId, this.currentDirection);
+    this.hero.setTexture(texture, frame);
   }
 }

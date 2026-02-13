@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { fetchStateV2, preloadTilesetImages } from '../../lib/mapV2';
 import { logger } from '../../lib/logger';
+import { avatarRegistry } from '../avatarRegistry';
 
 export class BootScene extends Phaser.Scene {
   constructor() {
@@ -14,14 +15,22 @@ export class BootScene extends Phaser.Scene {
     this.load.image('office_tiles_raw', 'assets/tilesets/office_tiles.png');
     this.load.image('furniture_tiles', 'assets/tilesets/furniture_tiles.png');
     this.load.image('decor_tiles', 'assets/tilesets/decor_tiles.png');
-    // Charakter-Sprites laden
-    this.load.spritesheet('hero_walk_down', 'assets/sprites/businessman1_walk_down.png', { frameWidth: 16, frameHeight: 24 });
-    this.load.spritesheet('hero_walk_up', 'assets/sprites/businessman1_walk_up.png', { frameWidth: 16, frameHeight: 24 });
-    this.load.spritesheet('hero_walk_left', 'assets/sprites/businessman1_walk_left.png', { frameWidth: 16, frameHeight: 24 });
-    this.load.spritesheet('hero_walk_right', 'assets/sprites/businessman1_walk_right.png', { frameWidth: 16, frameHeight: 24 });
+
+    // Avatar system: load avatar spritesheets
+    avatarRegistry.ensureDefault();
+    const avatarId = localStorage.getItem('avatarId') || avatarRegistry.getDefaultAvatarId();
+    avatarRegistry.preloadAvatar(this, avatarId);
+    if (avatarId !== avatarRegistry.getDefaultAvatarId()) {
+      avatarRegistry.preloadAvatar(this, avatarRegistry.getDefaultAvatarId());
+    }
   }
 
   create() {
+    // Create avatar animations
+    const avatarId = localStorage.getItem('avatarId') || avatarRegistry.getDefaultAvatarId();
+    avatarRegistry.createAnimations(this.anims, avatarId);
+    avatarRegistry.createAnimations(this.anims, avatarRegistry.getDefaultAvatarId());
+
     // Erzeuge gepaddete office_tiles (192x48), wie in Tiled definiert
     const src = this.textures.get('office_tiles_raw')?.getSourceImage() as HTMLImageElement | undefined;
     if (src) {

@@ -12,6 +12,7 @@ interface RoomOptions {
   direction?: string;
   identity?: string;
   name?: string;
+  avatarId?: string;
 }
 
 interface MapMeta {
@@ -32,6 +33,7 @@ class Player extends Schema {
   @type('string') identity: string = ''; // User's actual identity for LiveKit
   @type('string') name: string = ''; // User's display name
   @type('boolean') dnd: boolean = false; // Do Not Disturb status
+  @type('string') avatarId: string = '';
 }
 
 class WorldState extends Schema {
@@ -165,6 +167,14 @@ export class WorldRoom extends Room<WorldState> {
       }, { except: client });
     });
 
+    // Handle avatar change
+    this.onMessage('avatar_change', (client, data: { avatarId: string }) => {
+      const player = this.state.players.get(client.sessionId);
+      if (!player) return;
+      player.avatarId = data.avatarId;
+      this.broadcast('player_avatar', { id: client.sessionId, avatarId: data.avatarId }, { except: client });
+    });
+
     // Handle remote control messages from API
     this.onMessage('remote_control', (client, data: Record<string, unknown>) => {
       logger.info('[WorldRoom] Remote control received for:', client.sessionId, 'data:', data);
@@ -204,6 +214,10 @@ export class WorldRoom extends Room<WorldState> {
             this.broadcast('chunks_updated', message.payload);
           } else if (message.type === 'tileset_registry_updated') {
             this.broadcast('tileset_registry_updated', message.payload);
+          } else if (message.type === 'objects_updated') {
+            this.broadcast('objects_updated', message.payload);
+          } else if (message.type === 'editor_update') {
+            this.broadcast('editor_update', message.payload);
           }
         } catch (e) {
           logger.error('[WorldRoom] Failed to handle presence map_update', e);
@@ -436,6 +450,7 @@ export class WorldRoom extends Room<WorldState> {
     player.direction = options?.direction || 'down';
     player.identity = joiningIdentity; // Use provided identity or fallback
     player.name = options?.name || joiningIdentity; // Use provided name or fallback
+    player.avatarId = options?.avatarId || 'default-characters:businessman1';
     this.state.players.set(client.sessionId, player);
     try { colyseusPlayers.inc(); } catch (e) { logger.debug('[WorldRoom] Failed to increment colyseusPlayers metric', e); }
     logger.info('[WorldRoom] Player joined:', client.sessionId, 'identity:', player.identity, 'name:', player.name, 'at', player.x, player.y);
@@ -457,7 +472,8 @@ export class WorldRoom extends Room<WorldState> {
             direction: p.direction,
             identity: p.identity,
             name: p.name,
-            dnd: p.dnd
+            dnd: p.dnd,
+            avatarId: p.avatarId
           }))
         });
         // Aktuellen Bubble-Status (mit Gruppen) mitschicken
@@ -478,7 +494,8 @@ export class WorldRoom extends Room<WorldState> {
       direction: player.direction,
       identity: player.identity,
       name: player.name,
-      dnd: player.dnd
+      dnd: player.dnd,
+      avatarId: player.avatarId
     }, { except: client });
 
     // Seed: recent presence list via WS (best-effort, tenant-scoped)

@@ -62,6 +62,13 @@ export function tileRefIdFrom(slot: number, tileIndex: number): number {
   return (((slot & 0xffff) << 16) | (tileIndex & 0xffff)) + 1;
 }
 
+export function splitTileRefId(id: number): { slot: number; tileIndex: number } {
+  const raw = id - 1;
+  const slot = (raw >>> 16) & 0xffff;
+  const tileIndex = raw & 0xffff;
+  return { slot, tileIndex };
+}
+
 export function chunkIndex(x: number, y: number, chunkSize: number): number {
   return y * chunkSize + x;
 }

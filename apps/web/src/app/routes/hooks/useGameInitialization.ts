@@ -7,6 +7,7 @@ import { FollowManager } from '../../../game/followManager';
 import { ZoneManager } from '../../../game/zoneManager';
 import { VolumeManager } from '../../../game/volumeManager';
 import { pointInPolygon } from '../../../lib/geom';
+import { avatarRegistry } from '../../../game/avatarRegistry';
 
 interface UseGameInitializationParams {
   authChecked: boolean;
@@ -159,69 +160,76 @@ export function useGameInitialization(params: UseGameInitializationParams) {
       }, 1000);
     };
 
-    const game = createPhaserGame(containerRef.current);
+    let game: ReturnType<typeof createPhaserGame> | null = null;
 
-    volumeRef.current = new VolumeManager(
-      {
-        setParticipantVolume: (colyseusId, vol) => {
-          const livekitIdentity = colyseusToLivekitMap.current?.[colyseusId];
-          if (livekitIdentity && avRef.current) {
-            avRef.current.setParticipantVolume(livekitIdentity, vol);
+    const initGame = async () => {
+      await avatarRegistry.loadPacks(apiBase);
+      if (!containerRef.current) return;
+      game = createPhaserGame(containerRef.current);
+
+      volumeRef.current = new VolumeManager(
+        {
+          setParticipantVolume: (colyseusId, vol) => {
+            const livekitIdentity = colyseusToLivekitMap.current?.[colyseusId];
+            if (livekitIdentity && avRef.current) {
+              avRef.current.setParticipantVolume(livekitIdentity, vol);
+            }
           }
-        }
-      },
-      {
-        getLocal: () => {
-          const pos = localPosRef.current;
-          if (pos.id && typeof pos.x === 'number' && typeof pos.y === 'number') {
-            return { id: pos.id, x: pos.x, y: pos.y };
-          }
-          return null;
         },
-        getRemotes: () => remotesRef.current,
-        getZones: () => zoneRef.current?.getZones?.() || [],
-        getFollowTarget: () => followRef.current?.getTarget?.() || null,
-        getBubbleGroups: () => bubbleGroupsRef.current ?? {},
-        getLocalDnd: () => false,
-      },
-      { nearRadius: 96, farRadius: 384, outsideBubbleAttenuation: 0.05 }
-    );
+        {
+          getLocal: () => {
+            const pos = localPosRef.current;
+            if (pos.id && typeof pos.x === 'number' && typeof pos.y === 'number') {
+              return { id: pos.id, x: pos.x, y: pos.y };
+            }
+            return null;
+          },
+          getRemotes: () => remotesRef.current,
+          getZones: () => zoneRef.current?.getZones?.() || [],
+          getFollowTarget: () => followRef.current?.getTarget?.() || null,
+          getBubbleGroups: () => bubbleGroupsRef.current ?? {},
+          getLocalDnd: () => false,
+        },
+        { nearRadius: 96, farRadius: 384, outsideBubbleAttenuation: 0.05 }
+      );
 
-    setTimeout(() => {
-      try { gameBridge.reloadEditorLayers(); } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
-      const heroName = me.name || me.email || 'You';
       setTimeout(() => {
-        try { gameBridge.setHeroName(heroName); } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
-      }, 100);
-    }, 0);
+        try { gameBridge.reloadEditorLayers(); } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
+        const heroName = me.name || me.email || 'You';
+        setTimeout(() => {
+          try { gameBridge.setHeroName(heroName); } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
+        }, 100);
+      }, 0);
 
-    gameBridge.onPointerDown = ({ x, y }) => {
-      if (editorActiveRef.current) return;
-      setEditor((prev: any) => {
-        if (!prev.active) return prev;
-        if (prev.tool === 'erase' && prev.category === 'objects') {
-          const clickRadius = 16;
-          const clickedAsset = prev.assets.find((a: any) => Math.abs(a.x - x) < clickRadius && Math.abs(a.y - y) < clickRadius);
-          if (clickedAsset) {
-            const assets = prev.assets.filter((a: any) => a.id !== clickedAsset.id);
-            return { ...prev, assets };
+      gameBridge.onPointerDown = ({ x, y }) => {
+        if (editorActiveRef.current) return;
+        setEditor((prev: any) => {
+          if (!prev.active) return prev;
+          if (prev.tool === 'erase' && prev.category === 'objects') {
+            const clickRadius = 16;
+            const clickedAsset = prev.assets.find((a: any) => Math.abs(a.x - x) < clickRadius && Math.abs(a.y - y) < clickRadius);
+            if (clickedAsset) {
+              const assets = prev.assets.filter((a: any) => a.id !== clickedAsset.id);
+              return { ...prev, assets };
+            }
+            return prev;
           }
           return prev;
-        }
-        return prev;
-      });
-    };
+        });
+      };
 
-    gameBridge.onRightClick = ({ x, y, playerId }) => {
-      if (editorActiveRef.current) return;
-      if (!playerId) return;
-      try { logger.debug('[UI] context menu for', playerId, 'at', x, y); } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
-      setContextMenu({ open: true, x, y, playerId });
+      gameBridge.onRightClick = ({ x, y, playerId }) => {
+        if (editorActiveRef.current) return;
+        if (!playerId) return;
+        try { logger.debug('[UI] context menu for', playerId, 'at', x, y); } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
+        setContextMenu({ open: true, x, y, playerId });
+      };
     };
+    initGame();
 
     return () => {
       try { gameBridge.setSceneApi?.(null); } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
-      destroyPhaserGame(game);
+      if (game) destroyPhaserGame(game);
       try { const el = containerRef.current; while (el && el.firstChild) { el.removeChild(el.firstChild); } } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
       try {
         const room: any = colyseusRef.current;

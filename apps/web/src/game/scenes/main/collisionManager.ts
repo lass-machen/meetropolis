@@ -35,6 +35,7 @@ export class CollisionManager {
       if (!this.collisionLayer) return;
       if (this.collisionCollider) return;
 
+      this.collisionLayer.setCollisionByExclusion([-1], true);
       this.collisionCollider = this.scene.physics.add.collider(
         this.hero,
         this.collisionLayer

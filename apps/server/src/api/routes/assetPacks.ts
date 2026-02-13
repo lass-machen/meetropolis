@@ -30,6 +30,7 @@ const BaseItem = z.object({
   zIndex: z.number().int().optional(),
   rotationAllowed: z.boolean().optional(),
   flipAllowed: z.boolean().optional(),
+  scaleFactor: z.number().positive().optional(),
 }).strict();
 
 const TerrainItem = BaseItem.extend({

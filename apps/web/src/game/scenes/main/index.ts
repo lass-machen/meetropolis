@@ -22,3 +22,6 @@ export type { UIManagerConfig } from './uiManager';
 export { NameLabelManager } from './nameLabelManager';
 
 export { SceneInitializer } from './sceneInitializer';
+
+export { ObjectManager } from './objectManager';
+export type { ObjectManagerConfig, MapObjectData, ObjectsUpdatedPayload } from './objectManager';

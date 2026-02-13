@@ -20,18 +20,25 @@ export class SceneInitializer {
       tileHeight: pre.mapMeta.tileHeight,
     });
 
+    // Compute firstGids based on texture dimensions BEFORE registering tilesets,
+    // so we can pass them explicitly to addTilesetImage for GID alignment.
+    const firstGids = computeFirstGids(pre.tilesetRegistry, scene);
+
+    const sorted = [...pre.tilesetRegistry].sort((a, b) => a.slot - b.slot);
     const dynamicTilesets = new Map<string, Phaser.Tilemaps.Tileset>();
-    for (const ts of pre.tilesetRegistry) {
+    for (const ts of sorted) {
       try {
-        const phTs = map.addTilesetImage(ts.key, ts.key, ts.tileWidth, ts.tileHeight, ts.margin ?? 0, ts.spacing ?? 0);
+        const fg = firstGids[ts.slot];
+        const phTs = map.addTilesetImage(ts.key, ts.key, ts.tileWidth, ts.tileHeight, ts.margin ?? 0, ts.spacing ?? 0, fg);
         if (phTs) dynamicTilesets.set(ts.key, phTs);
       } catch {}
     }
 
     const allTs = Array.from(dynamicTilesets.values());
+    const tilesets = allTs.length > 0 ? allTs : [undefined as any];
     const editorGround = map.createBlankLayer(
       'Ground',
-      allTs[0] || (undefined as any),
+      tilesets,
       0,
       0,
       pre.mapMeta.width,
@@ -41,7 +48,7 @@ export class SceneInitializer {
     ) as any;
     const wallsLayer = map.createBlankLayer(
       'Walls',
-      allTs[0] || (undefined as any),
+      tilesets,
       0,
       0,
       pre.mapMeta.width,
@@ -51,7 +58,7 @@ export class SceneInitializer {
     ) as any;
     const collisionLayer = map.createBlankLayer(
       'Collision',
-      allTs[0] || (undefined as any),
+      tilesets,
       0,
       0,
       pre.mapMeta.width,
@@ -71,7 +78,6 @@ export class SceneInitializer {
       collisionLayer?.setCollisionByExclusion([-1], true);
     } catch {}
 
-    const firstGids = computeFirstGids(pre.tilesetRegistry, scene);
     const v2 = { state: pre, firstGids, chunkSize: pre.mapMeta.chunkSize };
 
     const collision = map.addTilesetImage('collision_tiles', 'collision_tiles', 16, 16, 0, 0);

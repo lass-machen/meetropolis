@@ -75,6 +75,7 @@ model User {
   email               String              @unique
   name                String?
   imageUrl            String?
+  avatarId            String?
   passwordHash        String?
   emailVerifiedAt     DateTime?
   createdAt           DateTime            @default(now())
@@ -166,6 +167,7 @@ model Map {
   // v2 relations
   tilesets  MapTileset[]
   layers    MapLayer[]
+  objects   MapObject[]
 
   @@unique([tenantId, name])
 }
@@ -231,6 +233,19 @@ model AssetPack {
   updatedAt   DateTime @updatedAt
 }
 
+model AvatarPack {
+  id          Int      @id @default(autoincrement())
+  uuid        String   @unique
+  name        String
+  description String
+  author      String
+  version     String
+  type        String   @default("full")
+  avatars     Json
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
 /// v2: Deterministische Tileset-Registry pro Map
 model MapTileset {
   id         String   @id @default(cuid())
@@ -244,6 +259,7 @@ model MapTileset {
   margin     Int?
   spacing    Int?
   hash       String?
+  tileCount  Int?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
@@ -305,4 +321,30 @@ model BillingAuditLog {
   @@index([eventType])
   @@index([createdAt])
   @@index([stripeEventId])
+}
+
+model MapObject {
+  id             Int      @id @default(autoincrement())
+  mapId          String
+  map            Map      @relation(fields: [mapId], references: [id], onDelete: Cascade)
+  assetPackUuid  String
+  itemId         String
+  category       String   // 'structure' | 'objects'
+  tileX          Int
+  tileY          Int
+  chunkX         Int      // floor(tileX / chunkSize)
+  chunkY         Int      // floor(tileY / chunkSize)
+  width          Int
+  height         Int
+  collide        Boolean  @default(false)
+  zIndex         Int      @default(0)
+  rotation       Int      @default(0)
+  flipX          Boolean  @default(false)
+  flipY          Boolean  @default(false)
+  scaleFactor    Float    @default(1)
+  dataUrl        String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([mapId, chunkX, chunkY])
 }

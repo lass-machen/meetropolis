@@ -11,6 +11,7 @@ import { fetchAndApplyServerLayers } from '../map/serverSync';
 import { loadVisibleChunks, applyChunkUpdates } from '../map/chunks';
 import { registerTileset } from '../map/tilesets';
 import { EditorService } from '../../services/EditorService';
+import { avatarRegistry } from '../avatarRegistry';
 import {
   PlayerManager,
   RemotePlayersManager,
@@ -21,7 +22,9 @@ import {
   UIManager,
   NameLabelManager,
   SceneInitializer,
+  ObjectManager,
 } from './main';
+import type { ObjectsUpdatedPayload } from './main';
 
 export class MainScene extends Phaser.Scene {
   private playerManager!: PlayerManager;
@@ -32,6 +35,7 @@ export class MainScene extends Phaser.Scene {
   private tileManager!: TileManager;
   private uiManager!: UIManager;
   private nameLabelManager!: NameLabelManager;
+  private objectManager!: ObjectManager;
 
   private selectionG?: Phaser.GameObjects.Graphics;
   private mapRef?: Phaser.Tilemaps.Tilemap;
@@ -83,7 +87,8 @@ export class MainScene extends Phaser.Scene {
   private initializeManagers() {
     const initialPos = (window as any).initialPlayerPosition || { x: 80, y: 120 };
 
-    this.playerManager = new PlayerManager({ scene: this, physics: this.physics, anims: this.anims, mapRef: this.mapRef!, initialPos });
+    const avatarId = localStorage.getItem('avatarId') || 'default-characters:businessman1';
+    this.playerManager = new PlayerManager({ scene: this, physics: this.physics, anims: this.anims, mapRef: this.mapRef!, initialPos, avatarId });
     this.nameLabelManager = new NameLabelManager(this);
     this.nameLabelManager.createHeroLabel('Loading...', initialPos.x, initialPos.y);
     this.remotePlayersManager = new RemotePlayersManager(this);
@@ -99,6 +104,7 @@ export class MainScene extends Phaser.Scene {
     this.tileManager.updateGrid();
     this.uiManager = new UIManager({ scene: this, getEditorMode: () => this.editorMode });
     this.uiManager.init();
+    this.objectManager = new ObjectManager({ scene: this as any });
     this.editorInputHandler = new EditorInputHandler({ scene: this, mapRef: this.mapRef!, getEditorMode: () => this.editorMode, isPanning: () => this.cameraController?.isPanning() || false, isSpaceHeld: () => this.cameraController?.isSpaceHeld() || false, getSpaceKey: () => this.spaceKey, ghostSprite: this.ghostSprite, selectionG: this.selectionG });
     this.editorInputHandler.init();
   }
@@ -175,8 +181,8 @@ export class MainScene extends Phaser.Scene {
   private setupCleanup() {
     gameBridge.setSceneApi(this);
     (window as any).currentPhaserScene = this;
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => { try { gameBridge.setSceneApi(null); } catch { } });
-    this.events.once(Phaser.Scenes.Events.DESTROY, () => { try { gameBridge.setSceneApi(null); } catch { } });
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => { try { this.objectManager.destroy(); } catch { } try { gameBridge.setSceneApi(null); } catch { } });
+    this.events.once(Phaser.Scenes.Events.DESTROY, () => { try { this.objectManager.destroy(); } catch { } try { gameBridge.setSceneApi(null); } catch { } });
   }
 
   recenterCamera() {
@@ -212,7 +218,7 @@ export class MainScene extends Phaser.Scene {
     } catch { }
   }
 
-  syncRemotePlayers(players: Record<string, { x: number; y: number; direction: 'up' | 'down' | 'left' | 'right'; prevX?: number; prevY?: number; name?: string | undefined; dnd?: boolean | undefined }>) {
+  syncRemotePlayers(players: Record<string, { x: number; y: number; direction: 'up' | 'down' | 'left' | 'right'; prevX?: number; prevY?: number; name?: string | undefined; dnd?: boolean | undefined; avatarId?: string | undefined }>) {
     const localSession: string | undefined = (typeof window !== 'undefined' ? (window as any).__localSessionId : undefined);
     const hero = this.playerManager.getHero();
 
@@ -278,6 +284,19 @@ export class MainScene extends Phaser.Scene {
   setBubbleMembers(members: Set<string>) { uiSetBubbleMembers(this as any, members); }
   setHeroName(name: string) { this.nameLabelManager.setHeroName(name); }
   updateSpeakingStates(speakingIds: Set<string>) { this.nameLabelManager.updateSpeakingStates(speakingIds); }
+  changeHeroAvatar(avatarId: string) {
+    const textureKey = avatarRegistry.getTextureKey(avatarId);
+    if (this.textures.exists(textureKey)) {
+      this.playerManager.changeAvatar(avatarId);
+    } else {
+      avatarRegistry.preloadAvatar(this, avatarId);
+      this.load.once('complete', () => {
+        this.playerManager.changeAvatar(avatarId);
+      });
+      this.load.start();
+    }
+  }
+  handleObjectsUpdated(data: ObjectsUpdatedPayload) { this.objectManager.handleObjectsUpdated(data); }
   setBackgroundColor(hex: string) { try { this.cameras.main.setBackgroundColor(hex); } catch { } }
   private async loadVisibleChunks(layerName: 'ground' | 'walls' | 'collision') { await loadVisibleChunks(this as any, layerName); }
   public applyChunkUpdates(layerName: 'ground' | 'walls' | 'collision', updates: Array<{ key: string; version: number; encoding: string; data: string }>) { applyChunkUpdates(this as any, layerName, updates); }
@@ -293,6 +312,7 @@ export class MainScene extends Phaser.Scene {
         this.loadVisibleChunks('ground');
         this.loadVisibleChunks('walls');
         this.loadVisibleChunks('collision');
+        this.objectManager.loadVisibleChunks(this.cameras.main);
       }
     }
   }

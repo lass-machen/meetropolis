@@ -82,16 +82,9 @@ export function splitTileRefId(id: number): { slot: number; tileIndex: number } 
 
 export async function preloadTilesetImages(scene: Phaser.Scene, tilesets: V2Tileset[]): Promise<void> {
   const toLoad: Array<{ key: string; url: string }> = [];
-  const BAD_UUID = 'a41042b0-e2bf-4619-8cd3-1d3204b12d61';
 
   for (const ts of tilesets) {
     const key = ts.key;
-    // Filter out known missing assets to prevent 404s and crashes
-    if (ts.imageUrl && ts.imageUrl.includes(BAD_UUID)) {
-      logger.warn(`[MapV2] Skipping known missing asset: ${key} (${ts.imageUrl})`);
-      continue;
-    }
-
     if (!scene.textures.exists(key)) {
       toLoad.push({ key, url: ts.imageUrl });
     }
@@ -110,7 +103,8 @@ export async function preloadTilesetImages(scene: Phaser.Scene, tilesets: V2Tile
     scene.load.once('complete', onComplete);
 
     for (const { key, url } of toLoad) {
-      scene.load.image(key, url);
+      const resolvedUrl = url.startsWith('/') ? `${baseUrl()}${url}` : url;
+      scene.load.image(key, resolvedUrl);
     }
     scene.load.start();
   });

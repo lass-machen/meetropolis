@@ -8,7 +8,7 @@ type Tmj = {
   height: number;
   tilewidth: number;
   tileheight: number;
-  tilesets: Array<{ firstgid: number; name: string; image: string; tilewidth: number; tileheight: number; margin?: number; spacing?: number }>; 
+  tilesets: Array<{ firstgid: number; name: string; image: string; tilewidth: number; tileheight: number; margin?: number; spacing?: number; tilecount?: number }>;
   layers: Array<{ name: string; type: string; data?: number[]; width?: number; height?: number; }>
 };
 
@@ -50,6 +50,7 @@ async function main() {
         tileHeight: t.tileheight,
         margin: t.margin ?? 0,
         spacing: t.spacing ?? 0,
+        tileCount: t.tilecount ?? null,
       }
     });
   }

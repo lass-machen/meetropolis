@@ -185,7 +185,7 @@ export class EditorInputHandler {
         const rect = { startX: ds.x, startY: ds.y, endX: tileX, endY: tileY };
 
         if (this.ghostSprite && this.ghostDataUrl && editorTool === 'terrain') {
-          gameBridge.onApplyTerrainPaint?.({ rect, dataUrl: this.ghostDataUrl });
+          gameBridge.applyTerrainPaint({ rect, dataUrl: this.ghostDataUrl });
         } else if (editorTool === 'collision' || editorTool === 'erase') {
           this.handleCollisionOrErase(editorState, editorTool, rect);
         }
@@ -199,7 +199,7 @@ export class EditorInputHandler {
     rect: { startX: number; startY: number; endX: number; endY: number }
   ) {
     if (editorState.category === 'terrain' && editorTool === 'erase') {
-      gameBridge.onEraseTerrainRect?.(rect);
+      gameBridge.eraseTerrainRect(rect);
     } else if (editorState.category === 'collisions') {
       const tileIndex = editorTool === 'erase' ? -1 : 1;
       const edit = {
@@ -208,7 +208,7 @@ export class EditorInputHandler {
         tileIndex,
         rect
       };
-      gameBridge.onApplyTilePaint?.(edit);
+      gameBridge.applyTilePaint(edit);
     } else if (editorState.category === 'terrain' && editorTool === 'collision') {
       const edit = {
         layer: 'Collision' as const,
@@ -216,7 +216,7 @@ export class EditorInputHandler {
         tileIndex: 1,
         rect
       };
-      gameBridge.onApplyTilePaint?.(edit);
+      gameBridge.applyTilePaint(edit);
     }
   }
 

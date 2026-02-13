@@ -72,15 +72,13 @@ app.use((req: express.Request, res: express.Response, next: express.NextFunction
   if (allowedOrigins.length > 0) {
     if (origin && allowedOrigins.includes(origin)) {
       res.setHeader('Access-Control-Allow-Origin', origin);
-    } else {
-      // Log blocked origins for monitoring
-      if (origin) {
-        logger.warn({ event: 'cors.origin_not_allowed', origin, allowedOrigins });
-      }
+    } else if (isProduction && origin) {
       // In production, block requests from non-whitelisted origins
-      if (isProduction && origin) {
-        return res.status(403).json({ error: 'cors_origin_not_allowed' });
-      }
+      logger.warn({ event: 'cors.origin_not_allowed', origin, allowedOrigins });
+      return res.status(403).json({ error: 'cors_origin_not_allowed' });
+    } else if (origin) {
+      // Development: allow any origin even if CORS_ORIGIN is set
+      res.setHeader('Access-Control-Allow-Origin', origin);
     }
   } else if (isProduction) {
     // SECURITY: In production, CORS_ORIGIN must be configured
@@ -206,7 +204,14 @@ try {
 } catch (error) {
   logger.error({ event: 'filesystem.mkdir_failed', path: packsDir, error });
 }
-app.use('/packs', express.static(packsDir, { maxAge: '365d', immutable: true }));
+app.use('/packs', express.static(packsDir, {
+  maxAge: '365d',
+  immutable: true,
+  setHeaders: (res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.removeHeader('Access-Control-Allow-Credentials');
+  }
+}));
 
 await registerApi(app);
 
