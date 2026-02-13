@@ -103,10 +103,15 @@ export class NpcBot {
   private handlePlayMedia(
     identity: string,
     action: 'play_audio' | 'play_video' | 'play_screenshare',
-    payload: { mediaFileId: string; loop?: boolean },
+    payload: { mediaFileId: string; loop?: boolean; storagePath?: string; mimeType?: string },
   ): void {
-    logger.info(`[NpcBot ${identity}] ${action} ${payload.mediaFileId}`);
-    const filePath = this.resolveMediaPath(payload.mediaFileId);
+    const storagePath = payload.storagePath;
+    if (!storagePath) {
+      logger.error(`[NpcBot ${identity}] ${action}: missing storagePath in payload`);
+      return;
+    }
+    logger.info(`[NpcBot ${identity}] ${action} ${storagePath}`);
+    const filePath = this.resolveMediaPath(storagePath);
     const publishFn =
       action === 'play_audio'
         ? this.livekit.publishAudio.bind(this.livekit)
@@ -114,7 +119,7 @@ export class NpcBot {
           ? this.livekit.publishVideo.bind(this.livekit)
           : this.livekit.publishScreenshare.bind(this.livekit);
 
-    publishFn(filePath, payload.loop).catch((e) => {
+    publishFn(filePath, payload.loop, payload.mimeType).catch((e) => {
       logger.error(`[NpcBot ${identity}] ${action} failed:`, e);
     });
   }
@@ -126,7 +131,7 @@ export class NpcBot {
     });
   }
 
-  private resolveMediaPath(mediaFileId: string): string {
-    return `${config.npcMediaDir}/${mediaFileId}`;
+  private resolveMediaPath(storagePath: string): string {
+    return `${config.npcMediaDir}/${storagePath}`;
   }
 }

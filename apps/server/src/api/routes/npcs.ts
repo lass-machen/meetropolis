@@ -260,6 +260,8 @@ async function handleNpcCommand(req: express.Request, res: express.Response, pri
   if (cmd.action === 'play_audio' || cmd.action === 'play_video' || cmd.action === 'play_screenshare') {
     const mediaFile = await prisma.npcMediaFile.findFirst({ where: { id: cmd.payload.mediaFileId, npcId: npc.id } });
     if (!mediaFile) return res.status(404).json({ error: 'media_not_found' });
+    (cmd.payload as Record<string, unknown>).storagePath = mediaFile.storagePath;
+    (cmd.payload as Record<string, unknown>).mimeType = mediaFile.mimeType;
   }
 
   // Broadcast command to all active Colyseus rooms

@@ -54,6 +54,8 @@ export interface NpcMovePayload {
 export interface NpcPlayMediaPayload {
   mediaFileId: string;
   loop?: boolean;
+  storagePath?: string;
+  mimeType?: string;
 }
 
 export interface NpcSetDndPayload {
