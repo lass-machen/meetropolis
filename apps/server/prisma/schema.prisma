@@ -18,6 +18,12 @@ enum Role {
   member
 }
 
+enum PackPricingModel {
+  free
+  one_time
+  subscription
+}
+
 model Tenant {
   id                    String       @id @default(cuid())
   slug                  String       @unique
@@ -56,6 +62,8 @@ model Tenant {
   invites               Invite[]
   billingAuditLogs      BillingAuditLog[]
   npcs                  Npc[]
+  assetPacks            TenantAssetPack[]
+  avatarPacks           TenantAvatarPack[]
 }
 
 model Membership {
@@ -221,30 +229,110 @@ model Presence {
 }
 
 model AssetPack {
-  id          Int      @id @default(autoincrement())
-  uuid        String   @unique
-  name        String
-  description String
-  author      String
-  version     String
-  terrain     Json
-  structures  Json
-  objects     Json
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id           Int                @id @default(autoincrement())
+  uuid         String             @unique
+  name         String
+  description  String
+  author       String
+  version      String
+  terrain      Json
+  structures   Json
+  objects      Json
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  catalog      AssetPackCatalog?
+  tenantAccess TenantAssetPack[]
 }
 
 model AvatarPack {
-  id          Int      @id @default(autoincrement())
-  uuid        String   @unique
-  name        String
-  description String
-  author      String
-  version     String
-  type        String   @default("full")
-  avatars     Json
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id           Int                 @id @default(autoincrement())
+  uuid         String              @unique
+  name         String
+  description  String
+  author       String
+  version      String
+  type         String              @default("full")
+  avatars      Json
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+  catalog      AvatarPackCatalog?
+  tenantAccess TenantAvatarPack[]
+}
+
+model AssetPackCatalog {
+  id               String           @id @default(cuid())
+  assetPack        AssetPack        @relation(fields: [assetPackId], references: [id], onDelete: Cascade)
+  assetPackId      Int              @unique
+  pricingModel     PackPricingModel @default(free)
+  stripeProductId  String?
+  stripePriceId    String?
+  priceAmountCents Int              @default(0)
+  priceCurrency    String           @default("EUR")
+  priceInterval    String?
+  published        Boolean          @default(false)
+  featured         Boolean          @default(false)
+  previewImageUrl  String?
+  tags             String[]         @default([])
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+}
+
+model TenantAssetPack {
+  id                    String    @id @default(cuid())
+  tenant                Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenantId              String
+  assetPack             AssetPack @relation(fields: [assetPackId], references: [id], onDelete: Cascade)
+  assetPackId           Int
+  grantSource           String    // 'free' | 'purchase' | 'subscription' | 'manual'
+  purchasedMajorVersion Int       @default(0)
+  stripePaymentId       String?
+  expiresAt             DateTime?
+  revokedAt             DateTime?
+  grantedBy             String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@unique([tenantId, assetPackId])
+  @@index([tenantId])
+  @@index([assetPackId])
+}
+
+model AvatarPackCatalog {
+  id               String           @id @default(cuid())
+  avatarPack       AvatarPack       @relation(fields: [avatarPackId], references: [id], onDelete: Cascade)
+  avatarPackId     Int              @unique
+  pricingModel     PackPricingModel @default(free)
+  stripeProductId  String?
+  stripePriceId    String?
+  priceAmountCents Int              @default(0)
+  priceCurrency    String           @default("EUR")
+  priceInterval    String?
+  published        Boolean          @default(false)
+  featured         Boolean          @default(false)
+  previewImageUrl  String?
+  tags             String[]         @default([])
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+}
+
+model TenantAvatarPack {
+  id                    String     @id @default(cuid())
+  tenant                Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenantId              String
+  avatarPack            AvatarPack @relation(fields: [avatarPackId], references: [id], onDelete: Cascade)
+  avatarPackId          Int
+  grantSource           String
+  purchasedMajorVersion Int        @default(0)
+  stripePaymentId       String?
+  expiresAt             DateTime?
+  revokedAt             DateTime?
+  grantedBy             String?
+  createdAt             DateTime   @default(now())
+  updatedAt             DateTime   @updatedAt
+
+  @@unique([tenantId, avatarPackId])
+  @@index([tenantId])
+  @@index([avatarPackId])
 }
 
 /// v2: Deterministische Tileset-Registry pro Map

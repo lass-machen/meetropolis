@@ -6,6 +6,7 @@ import { logger } from '../../logger.js';
 import { requireAuth, getTenantFromReq, getUserIdFromReq } from '../utils/authHelpers.js';
 import { getBillingModule } from '../../billingLoader.js';
 import { getEmailService } from '../../services/email.js';
+import { grantPackAccess } from '../utils/packAccess.js';
 
 /**
  * Register billing routes
@@ -449,6 +450,32 @@ export async function registerBillingRoutes(app: express.Application, prisma: Pr
       switch (event.type) {
         case 'checkout.session.completed': {
           const s = event.data.object as Stripe.Checkout.Session;
+
+          // Check if this is a pack purchase
+          const purpose = (s.metadata as Record<string, string> | null)?.purpose;
+          if (purpose === 'pack_purchase') {
+            const packTenantId = (s.metadata as Record<string, string>)?.tenantId;
+            const packType = (s.metadata as Record<string, string>)?.packType as 'asset' | 'avatar';
+            const packUuid = (s.metadata as Record<string, string>)?.packUuid;
+            const packMajorVersion = parseInt((s.metadata as Record<string, string>)?.packMajorVersion || '0', 10);
+            const stripePaymentId = s.id;
+
+            if (packTenantId && packType && packUuid) {
+              await grantPackAccess(prisma, {
+                tenantId: packTenantId,
+                packType,
+                packUuid,
+                grantSource: s.mode === 'subscription' ? 'subscription' : 'purchase',
+                purchasedMajorVersion: packMajorVersion,
+                stripePaymentId,
+                expiresAt: null,
+              });
+              logger.info({ event: 'pack_purchase.granted', tenantId: packTenantId, packType, packUuid });
+            }
+            break;
+          }
+
+          // Existing subscription logic
           const subId = (s.subscription as any) as string | undefined;
           const customerId = (s.customer as any) as string | undefined;
           const tenantId = (s.client_reference_id as string) || (s.metadata as any)?.tenantId;
@@ -480,6 +507,46 @@ export async function registerBillingRoutes(app: express.Application, prisma: Pr
           } else {
             const customerId = (sub.customer as any) as string | undefined;
             if (customerId) { try { await prisma.tenant.updateMany({ where: { stripeCustomerId: customerId }, data: { concurrentLimit: 0 } }); } catch { } }
+          }
+          break;
+        }
+        case 'invoice.paid': {
+          const invoice = event.data.object as Stripe.Invoice;
+          const subRef = invoice.subscription as string | undefined;
+          if (subRef) {
+            try {
+              const subscription = await stripe.subscriptions.retrieve(subRef);
+              const subPurpose = (subscription.metadata as Record<string, string> | null)?.purpose;
+              if (subPurpose === 'pack_subscription') {
+                const subTenantId = (subscription.metadata as Record<string, string>)?.tenantId;
+                const subPackType = (subscription.metadata as Record<string, string>)?.packType as 'asset' | 'avatar';
+                const subPackUuid = (subscription.metadata as Record<string, string>)?.packUuid;
+                if (subTenantId && subPackType && subPackUuid) {
+                  const periodEnd = subscription.current_period_end;
+                  const expiresAt = new Date(periodEnd * 1000);
+                  if (subPackType === 'asset') {
+                    const pack = await prisma.assetPack.findUnique({ where: { uuid: subPackUuid } });
+                    if (pack) {
+                      await prisma.tenantAssetPack.updateMany({
+                        where: { tenantId: subTenantId, assetPackId: pack.id, revokedAt: null },
+                        data: { expiresAt },
+                      });
+                    }
+                  } else {
+                    const pack = await prisma.avatarPack.findUnique({ where: { uuid: subPackUuid } });
+                    if (pack) {
+                      await prisma.tenantAvatarPack.updateMany({
+                        where: { tenantId: subTenantId, avatarPackId: pack.id, revokedAt: null },
+                        data: { expiresAt },
+                      });
+                    }
+                  }
+                  logger.info({ event: 'pack_subscription.renewed', tenantId: subTenantId, packType: subPackType, packUuid: subPackUuid });
+                }
+              }
+            } catch (e: unknown) {
+              logger.error({ event: 'billing.invoice_paid.error', error: e instanceof Error ? e.message : String(e) });
+            }
           }
           break;
         }

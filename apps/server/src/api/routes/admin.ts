@@ -13,6 +13,7 @@ import {
   setAuthCookie,
   normalizeEmailForStorage,
 } from '../utils/authHelpers.js';
+import { grantFreePacksToTenant } from '../utils/packAccess.js';
 import { getEmailService, emailTemplates } from '../../services/email.js';
 
 async function getDefaultFreeSeats(prisma: PrismaClient): Promise<number> {
@@ -65,6 +66,8 @@ export function registerAdminRoutes(app: express.Application, prisma: PrismaClie
     try {
       const freeDefault = typeof parse.data.freeSeats === 'number' ? parse.data.freeSeats : await getDefaultFreeSeats(prisma);
       const t = await prisma.tenant.create({ data: { slug: parse.data.slug.toLowerCase(), name: parse.data.name, concurrentLimit: parse.data.concurrentLimit, freeSeats: freeDefault, bypassLimits: !!parse.data.bypassLimits } });
+      // Grant free packs to new tenant
+      await grantFreePacksToTenant(prisma, t.id).catch(e => logger.error({ event: 'admin.tenant_create.free_packs_failed', error: String(e) }));
       res.json({ id: t.id });
     } catch (e: unknown) {
       if (e && typeof e === 'object' && 'code' in e && e.code === 'P2002') return res.status(400).json({ error: 'slug_exists' });
@@ -256,6 +259,8 @@ export function registerAdminRoutes(app: express.Application, prisma: PrismaClie
       if (exists) return res.status(400).json({ error: 'slug_exists' });
       const freeDefault = await getDefaultFreeSeats(prisma);
       const tenant = await prisma.tenant.create({ data: { slug, name: parse.data.name, concurrentLimit: 0, freeSeats: freeDefault, bypassLimits: false } });
+      // Grant free packs to new tenant
+      await grantFreePacksToTenant(prisma, tenant.id).catch(e => logger.error({ event: 'public.signup.free_packs_failed', error: String(e) }));
       const email = normalizeEmailForStorage(parse.data.email);
       const hash = await bcrypt.hash(parse.data.password, 10);
       let user = await prisma.user.findUnique({ where: { email } }).catch(() => null);

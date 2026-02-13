@@ -7,7 +7,8 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
 import { logger } from '../../logger.js';
-import { requireAuth, requireApiToken } from '../utils/authHelpers.js';
+import { requireAuth, requireApiToken, getTenantFromReq } from '../utils/authHelpers.js';
+import { parseMajorVersion } from '../utils/packAccess.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -75,9 +76,26 @@ export function registerAvatarPackRoutes(app: express.Application, prisma: Prism
     }
   });
 
-  // List all avatar packs (public)
-  app.get('/avatar-packs', async (_req: express.Request, res: express.Response) => {
+  // List all avatar packs (tenant-scoped if tenant context exists)
+  app.get('/avatar-packs', async (req: express.Request, res: express.Response) => {
     try {
+      const tenant = getTenantFromReq(req);
+      if (tenant) {
+        const now = new Date();
+        const accessRecords = await prisma.tenantAvatarPack.findMany({
+          where: {
+            tenantId: tenant.id,
+            revokedAt: null,
+            OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+          },
+          include: { avatarPack: true },
+        });
+        const list = accessRecords
+          .filter(a => a.purchasedMajorVersion >= parseMajorVersion(a.avatarPack.version))
+          .map(a => a.avatarPack);
+        return res.json(list);
+      }
+      // No tenant context (admin/API) — return all
       const list = await prisma.avatarPack.findMany({ orderBy: { createdAt: 'desc' } });
       res.json(list);
     } catch (e) {

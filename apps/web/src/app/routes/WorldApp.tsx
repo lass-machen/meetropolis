@@ -26,6 +26,7 @@ import { RosterPanel } from '../../ui/user/RosterPanel';
 import { BubbleBanner } from '../../ui/user/BubbleBanner';
 import { EditorWindow } from '../../features/editor/EditorWindow';
 import { AdminOverlay } from '../../ui/admin/AdminOverlay';
+import { PackStore } from '../../ui/packstore/PackStore';
 import { AuthLoadingScreen } from './components/AuthLoadingScreen';
 import { WorldContextMenu } from './components/WorldContextMenu';
 import { WorldModals } from './components/WorldModals';
@@ -100,6 +101,7 @@ export function WorldApp() {
   const [profileOpen, setProfileOpen] = React.useState(false);
   const [tenantSettingsOpen, setTenantSettingsOpen] = React.useState(false);
   const [sessionsOpen, setSessionsOpen] = React.useState(false);
+  const [packStoreOpen, setPackStoreOpen] = React.useState(false);
   const [gridExpanded, setGridExpanded] = React.useState(false);
   const [selectedSid, setSelectedSid] = React.useState<string | null>(null);
   const [overlayZoom, setOverlayZoom] = React.useState(1);
@@ -500,6 +502,7 @@ export function WorldApp() {
                 onOpenProfile: eventHandlers.handleOpenProfile,
                 onOpenTenantSettings: eventHandlers.handleOpenTenantSettings,
                 onOpenSessions: eventHandlers.handleOpenSessions,
+                onOpenPackStore: () => setPackStoreOpen(true),
                 onResetApp: eventHandlers.handleResetApp,
                 onToggleEditor: eventHandlers.handleToggleEditor,
                 editorActive: editor.active,
@@ -520,6 +523,8 @@ export function WorldApp() {
             {isInternalOwner && (
               <AdminOverlay apiBase={apiBase} open={adminOpen} onOpenChange={setAdminOpen} />
             )}
+
+            <PackStore apiBase={apiBase} open={packStoreOpen} onOpenChange={setPackStoreOpen} />
 
             <AVControlBar
               editorActive={editor.active}

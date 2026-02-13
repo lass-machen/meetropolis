@@ -3,6 +3,7 @@ import { PrismaClient } from '../../generated/prisma/index.js';
 import { z } from 'zod';
 import { logger } from '../../logger.js';
 import { requireAuth, getTenantFromReq, requireApiToken } from '../utils/authHelpers.js';
+import { checkPackAccess } from '../utils/packAccess.js';
 import { broadcastMapUpdate } from '../utils/broadcast.js';
 import {
   computeFootprintTiles,
@@ -163,6 +164,10 @@ export function registerMapObjectRoutes(app: express.Application, prisma: Prisma
 
       const pack = await prisma.assetPack.findUnique({ where: { uuid: data.assetPackUuid } });
       if (!pack) return res.status(400).json({ error: 'asset_pack_not_found' });
+
+      // Check tenant has access to this pack
+      const hasAccess = await checkPackAccess(prisma, tenant.id, data.assetPackUuid);
+      if (!hasAccess) return res.status(403).json({ error: 'pack_access_denied' });
 
       const dims = getMapDimensions(map);
       const chunkX = Math.floor(data.tileX / dims.chunkSize);
@@ -334,6 +339,12 @@ export function registerMapObjectRoutes(app: express.Application, prisma: Prisma
         if (!validUuids.has(obj.assetPackUuid)) {
           return res.status(400).json({ error: 'asset_pack_not_found', uuid: obj.assetPackUuid });
         }
+      }
+
+      // Check tenant access for all packs
+      for (const uuid of uuids) {
+        const hasAccess = await checkPackAccess(prisma, tenant.id, uuid);
+        if (!hasAccess) return res.status(403).json({ error: 'pack_access_denied', uuid });
       }
 
       const created: Array<Record<string, unknown>> = [];

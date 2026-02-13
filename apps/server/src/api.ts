@@ -14,6 +14,8 @@ import { registerTmjRoutes } from './api/routes/tmj.js';
 import { registerMapObjectRoutes } from './api/routes/mapObjects.js';
 import { registerNpcRoutes } from './api/routes/npcs.js';
 import { registerNpcMediaRoutes } from './api/routes/npcMedia.js';
+import { registerPackCatalogAdminRoutes } from './api/routes/packCatalogAdmin.js';
+import { registerPackStoreRoutes } from './api/routes/packStore.js';
 
 // Existing modular routes (already extracted)
 import { registerApiTokenRoutes } from './api/routes/tokens.js';
@@ -73,6 +75,10 @@ export async function registerApi(app: express.Express) {
   });
   registerApiTokenRoutes(app, prisma, requireAuth, getApiTokenPepper());
   registerControlRoutes(app, requireAuth, (req) => requireApiToken(req, prisma));
+
+  // Pack catalog admin + pack store routes
+  registerPackCatalogAdminRoutes(app, prisma);
+  registerPackStoreRoutes(app, prisma);
 
   // NPC management routes
   registerNpcRoutes(app, prisma);

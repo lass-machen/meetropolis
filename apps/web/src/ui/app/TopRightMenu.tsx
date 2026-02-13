@@ -20,8 +20,9 @@ export function TopRightMenu(props: {
   onOpenProfile?: () => void;
   onOpenTenantSettings?: () => void;
   onOpenSessions?: () => void;
+  onOpenPackStore?: () => void;
 }) {
-  const { menuOpen, onToggleMenu, onOpenUsers, onOpenInvites, onOpenAdmin, isAdmin, onBackToWorld, onOpenApi, onToggleEditor, editorActive, onLogout, onResetApp, onOpenBilling, onOpenProfile, onOpenTenantSettings, onOpenSessions } = props;
+  const { menuOpen, onToggleMenu, onOpenUsers, onOpenInvites, onOpenAdmin, isAdmin, onBackToWorld, onOpenApi, onToggleEditor, editorActive, onLogout, onResetApp, onOpenBilling, onOpenProfile, onOpenTenantSettings, onOpenSessions, onOpenPackStore } = props;
   const { override, setOverride } = useTheme();
   const { t } = useTranslation();
   const menuRef = React.useRef<HTMLDivElement>(null);
@@ -209,6 +210,12 @@ export function TopRightMenu(props: {
             <button role="menuitem" onClick={() => handleItemClick(onOpenSessions)} className="menu-item">
               <FAIcon name="laptop" variant="solid" fixedWidth />
               <span>{t('topRightMenu.sessions') || 'Active Sessions'}</span>
+            </button>
+          )}
+          {onOpenPackStore && (
+            <button role="menuitem" onClick={() => handleItemClick(onOpenPackStore)} className="menu-item">
+              <FAIcon name="box-open" variant="solid" fixedWidth />
+              <span>{t('topRightMenu.packStore') || 'Pack Store'}</span>
             </button>
           )}
 

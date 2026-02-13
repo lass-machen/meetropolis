@@ -9,7 +9,8 @@ import fsp from 'fs/promises';
 import multer from 'multer';
 import unzipper from 'unzipper';
 import { logger } from '../../logger.js';
-import { requireAuth, requireApiToken } from '../utils/authHelpers.js';
+import { requireAuth, requireApiToken, getTenantFromReq, requireInternalOwner } from '../utils/authHelpers.js';
+import { parseMajorVersion } from '../utils/packAccess.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -133,12 +134,14 @@ export function registerAssetPackRoutes(app: express.Application, prisma: Prisma
     limits: { fileSize: 50 * 1024 * 1024 },
   });
 
-  // Upload endpoint
+  // Upload endpoint (platform admin only)
   app.post('/asset-packs/upload', upload.single('file'), async (req, res) => {
     const sessionAuth = requireAuth(req);
     const tokenAuth = await requireApiToken(req, prisma);
     const auth = sessionAuth || tokenAuth;
     if (!auth) return res.status(401).json({ error: 'unauthorized' });
+    const isAdmin = await requireInternalOwner(req, auth.userId, prisma);
+    if (!isAdmin) return res.status(403).json({ error: 'forbidden' });
     try {
       try { logger.info('[AssetPacks] upload request received'); } catch { }
       const file = (req as any).file as any as { buffer?: Buffer; size?: number } | undefined;
@@ -322,6 +325,30 @@ export function registerAssetPackRoutes(app: express.Application, prisma: Prisma
         rec = await prisma.assetPack.create({ data: dataRecord as any });
       }
       try { logger.info('[AssetPacks] upload success', { id: rec.id, uuid: rec.uuid, version: rec.version }); } catch { }
+
+      // Auto-grant if this is a free, published pack
+      try {
+        const catalog = await prisma.assetPackCatalog.findUnique({ where: { assetPackId: rec.id } });
+        if (catalog && catalog.pricingModel === 'free' && catalog.published) {
+          const tenants = await prisma.tenant.findMany({ select: { id: true } });
+          for (const t of tenants) {
+            await prisma.tenantAssetPack.upsert({
+              where: { tenantId_assetPackId: { tenantId: t.id, assetPackId: rec.id } },
+              update: { purchasedMajorVersion: parseMajorVersion(rec.version) },
+              create: {
+                tenantId: t.id,
+                assetPackId: rec.id,
+                grantSource: 'free',
+                purchasedMajorVersion: parseMajorVersion(rec.version),
+              },
+            });
+          }
+          logger.info('[AssetPacks] free pack auto-granted', { uuid: rec.uuid, tenantCount: tenants.length });
+        }
+      } catch (grantErr) {
+        logger.error('[AssetPacks] auto-grant failed (non-fatal)', grantErr);
+      }
+
       return res.json({ ok: true, id: rec.id, uuid: rec.uuid, version: rec.version });
     } catch (e: unknown) {
       logger.error('[AssetPacks] upload failed', e);
@@ -329,8 +356,25 @@ export function registerAssetPackRoutes(app: express.Application, prisma: Prisma
     }
   });
 
-  // List
-  app.get('/asset-packs', async (_req: express.Request, res: express.Response) => {
+  // List (tenant-scoped if tenant context exists)
+  app.get('/asset-packs', async (req: express.Request, res: express.Response) => {
+    const tenant = getTenantFromReq(req);
+    if (tenant) {
+      const now = new Date();
+      const accessRecords = await prisma.tenantAssetPack.findMany({
+        where: {
+          tenantId: tenant.id,
+          revokedAt: null,
+          OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+        },
+        include: { assetPack: true },
+      });
+      const list = accessRecords
+        .filter(a => a.purchasedMajorVersion >= parseMajorVersion(a.assetPack.version))
+        .map(a => a.assetPack);
+      return res.json(list);
+    }
+    // No tenant context (admin/API) — return all
     const list = await prisma.assetPack.findMany({ orderBy: { createdAt: 'desc' } });
     res.json(list);
   });
@@ -344,12 +388,14 @@ export function registerAssetPackRoutes(app: express.Application, prisma: Prisma
     res.json(pack);
   });
 
-  // Delete
+  // Delete (platform admin only)
   app.delete('/asset-packs/:id', async (req: express.Request, res: express.Response) => {
     const sessionAuth = requireAuth(req);
     const tokenAuth = await requireApiToken(req, prisma);
     const auth = sessionAuth || tokenAuth;
     if (!auth) return res.status(401).json({ error: 'unauthorized' });
+    const isAdmin = await requireInternalOwner(req, auth.userId, prisma);
+    if (!isAdmin) return res.status(403).json({ error: 'forbidden' });
     const id = Number(req.params.id);
     if (!Number.isFinite(id)) return res.status(400).json({ error: 'invalid id' });
     const pack = await prisma.assetPack.findUnique({ where: { id } });
