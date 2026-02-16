@@ -1,3 +1,4 @@
+import React from 'react';
 import { Modal } from '../system/Modal';
 import { Input } from '../system/Input';
 import { Button } from '../system/Button';
@@ -17,9 +18,11 @@ export function ApiTokensOverlay(props: {
 }) {
   const { open, onClose, apiBase, apiTokens, setApiTokens, newTokenName, setNewTokenName, freshToken, setFreshToken } = props;
   const { t } = useTranslation();
+  const [error, setError] = React.useState<string | null>(null);
 
   useEffect(() => {
     if (open) {
+      setError(null);
       fetch(`${apiBase}/api-tokens`, { credentials:'include' })
         .then(r => r.json())
         .then(list => setApiTokens(list));
@@ -29,6 +32,12 @@ export function ApiTokensOverlay(props: {
   return (
     <Modal open={open} onOpenChange={(o)=>{ if(!o) onClose(); }} title={t('admin.api.title')}>
       <div style={{ display:'grid', gap: 10 }}>
+        {error && (
+          <div style={{ padding: '8px 12px', borderRadius: 8, background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#fca5a5', fontSize: 13, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span>{error}</span>
+            <button onClick={() => setError(null)} style={{ background: 'none', border: 'none', color: '#fca5a5', cursor: 'pointer', fontSize: 16 }}>&#x2715;</button>
+          </div>
+        )}
         <div style={{ fontSize: 13, color: 'var(--fg-subtle)' }}>{t('admin.api.helper')}</div>
         <div style={{ display:'flex', gap: 12, alignItems:'center' }}>
           <Input value={newTokenName} onChange={e=>setNewTokenName(e.target.value)} placeholder={t('admin.api.newTokenPlaceholder')} style={{ flex:1, padding:'8px 10px' }} />
@@ -42,7 +51,7 @@ export function ApiTokensOverlay(props: {
               const list = await fetch(`${apiBase}/api-tokens`, { credentials:'include' }).then(r=>r.json());
               setApiTokens(list);
             } catch (e:any) {
-              alert(e.message || t('admin.api.createError'));
+              setError(e.message || t('admin.api.createError'));
             }
           }}>{t('admin.api.createToken')}</Button>
         </div>
@@ -60,7 +69,7 @@ export function ApiTokensOverlay(props: {
                 <div style={{ fontWeight:600 }}>{token.name || 'Token'}</div>
                 <div style={{ fontSize:12, color:'var(--fg-subtle)' }}>{t('admin.api.createdAt')}: {new Date(token.createdAt).toLocaleString()} {token.lastUsedAt ? `· ${t('admin.api.lastUsed')}: ${new Date(token.lastUsedAt).toLocaleString()}` : ''}</div>
               </div>
-              <Button variant="danger" onClick={async()=>{ try{ await fetch(`${apiBase}/api-tokens/${token.id}`, { method:'DELETE', credentials:'include' }); const list = await fetch(`${apiBase}/api-tokens`, { credentials:'include' }).then(r=>r.json()); setApiTokens(list); } catch(e:any){ alert(e.message||t('admin.api.deleteError')); } }} style={{ padding:'6px 8px' }}>{t('admin.api.delete')}</Button>
+              <Button variant="danger" onClick={async()=>{ try{ await fetch(`${apiBase}/api-tokens/${token.id}`, { method:'DELETE', credentials:'include' }); const list = await fetch(`${apiBase}/api-tokens`, { credentials:'include' }).then(r=>r.json()); setApiTokens(list); } catch(e:any){ setError(e.message || t('admin.api.deleteError')); } }} style={{ padding:'6px 8px' }}>{t('admin.api.delete')}</Button>
             </div>
           ))}
           {!apiTokens?.length && <div style={{ fontSize:13, color:'var(--fg-subtle)' }}>{t('admin.api.noneYet')}</div>}

@@ -1,5 +1,6 @@
 import React from 'react';
 import { TableContainer, Table, THead, TBody, Tr, Th, Td, Button, Input, Card } from '../system';
+import { logger } from '../../lib/logger';
 
 type PriceRow = {
   id: string;
@@ -32,6 +33,10 @@ export function BillingAdmin(props: { apiBase: string }) {
   const [newInterval, setNewInterval] = React.useState<'month' | 'year'>('month');
   const [newConcurrent, setNewConcurrent] = React.useState<number>(10);
 
+  const [addPriceTarget, setAddPriceTarget] = React.useState<string | null>(null);
+  const [addPriceAmount, setAddPriceAmount] = React.useState<number>(0);
+  const [addPriceConcurrent, setAddPriceConcurrent] = React.useState<number>(10);
+
   const load = React.useCallback(async () => {
     setLoading(true);
     try {
@@ -41,7 +46,7 @@ export function BillingAdmin(props: { apiBase: string }) {
       ]);
       if (prodRes.ok) setRows(await prodRes.json());
       if (mRes.ok) setMetrics(await mRes.json());
-    } catch {}
+    } catch (err) { logger.warn('[BillingAdmin] Failed to load data', err); }
     setLoading(false);
   }, [apiBase]);
 
@@ -60,22 +65,25 @@ export function BillingAdmin(props: { apiBase: string }) {
         setNewName(''); setNewDesc(''); setNewAmount(0); setNewCurrency('eur'); setNewInterval('month'); setNewConcurrent(10);
         await load();
       }
-    } catch {}
+    } catch (err) { logger.warn('[BillingAdmin] Failed to create product', err); }
   };
 
-  const addPrice = async (productId: string) => {
-    const amount = Number(prompt('Betrag (in Cent)?', '0') || '0');
-    const concurrent = Number(prompt('Concurrent-Limit?', '10') || '10');
-    if (!Number.isFinite(amount) || amount <= 0 || !Number.isFinite(concurrent) || concurrent <= 0) return;
+  const submitAddPrice = async () => {
+    if (!addPriceTarget || !Number.isFinite(addPriceAmount) || addPriceAmount <= 0 || !Number.isFinite(addPriceConcurrent) || addPriceConcurrent <= 0) return;
     try {
-      const res = await fetch(`${apiBase}/admin/billing/products/${productId}/prices`, {
+      const res = await fetch(`${apiBase}/admin/billing/products/${addPriceTarget}/prices`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ amount, currency: 'eur', interval: 'month', concurrentLimit: concurrent })
+        body: JSON.stringify({ amount: addPriceAmount, currency: 'eur', interval: 'month', concurrentLimit: addPriceConcurrent })
       });
-      if (res.ok) await load();
-    } catch {}
+      if (res.ok) {
+        setAddPriceTarget(null);
+        setAddPriceAmount(0);
+        setAddPriceConcurrent(10);
+        await load();
+      }
+    } catch (err) { logger.warn('[BillingAdmin] Failed to add price', err); }
   };
 
   const toggleProduct = async (productId: string, active: boolean) => {
@@ -87,7 +95,7 @@ export function BillingAdmin(props: { apiBase: string }) {
         body: JSON.stringify({ active })
       });
       if (res.ok) await load();
-    } catch {}
+    } catch (err) { logger.warn('[BillingAdmin] Failed to toggle product', err); }
   };
 
   const togglePrice = async (priceId: string, active: boolean) => {
@@ -99,7 +107,7 @@ export function BillingAdmin(props: { apiBase: string }) {
         body: JSON.stringify({ active })
       });
       if (res.ok) await load();
-    } catch {}
+    } catch (err) { logger.warn('[BillingAdmin] Failed to toggle price', err); }
   };
 
   const fmtEur = (cents?: number | null) => typeof cents === 'number' ? (cents / 100).toFixed(2) + ' €' : '-';
@@ -167,7 +175,16 @@ export function BillingAdmin(props: { apiBase: string }) {
                   </div>
                 </Td>
                 <Td>
-                  <Button onClick={()=>addPrice(p.id)}>Preis hinzufügen</Button>
+                  {addPriceTarget === p.id ? (
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                      <Input type="number" placeholder="Betrag (Cent)" value={addPriceAmount} onChange={(e: any) => setAddPriceAmount(Number(e.target.value) || 0)} style={{ width: 120 }} />
+                      <Input type="number" placeholder="Limit" value={addPriceConcurrent} onChange={(e: any) => setAddPriceConcurrent(Number(e.target.value) || 0)} style={{ width: 80 }} />
+                      <Button onClick={submitAddPrice}>OK</Button>
+                      <Button onClick={() => setAddPriceTarget(null)}>&#x2715;</Button>
+                    </div>
+                  ) : (
+                    <Button onClick={() => setAddPriceTarget(p.id)}>Preis hinzufügen</Button>
+                  )}
                 </Td>
               </Tr>
             ))}

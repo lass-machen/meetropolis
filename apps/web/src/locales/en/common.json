@@ -14,6 +14,11 @@
   "topRightMenu.users": "User management",
   "topRightMenu.invites": "Invitations",
   "topRightMenu.resetApp": "Reset app",
+  "topRightMenu.profile": "Profile",
+  "topRightMenu.orgSettings": "Organization",
+  "topRightMenu.billing": "Billing",
+  "topRightMenu.sessions": "Active Sessions",
+  "topRightMenu.packStore": "Pack Store",
 
   "av.selectMic": "Select mic…",
   "av.selectCam": "Select camera…",

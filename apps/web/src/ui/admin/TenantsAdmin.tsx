@@ -1,5 +1,6 @@
 import React from 'react';
 import { TableContainer, Table, THead, TBody, Tr, Th, Td, Button, Input } from '../system';
+import { logger } from '../../lib/logger';
 
 type TenantRow = {
   id: string;
@@ -29,7 +30,7 @@ export function TenantsAdmin(props: { apiBase: string }) {
       setLoading(true);
       const res = await fetch(`${apiBase}/admin/tenants`, { credentials: 'include' });
       if (res.ok) setRows(await res.json());
-    } catch {}
+    } catch (err) { logger.warn('[TenantsAdmin] Failed to load tenants', err); }
     setLoading(false);
   }, [apiBase]);
 
@@ -48,7 +49,7 @@ export function TenantsAdmin(props: { apiBase: string }) {
         body: JSON.stringify({ name: r.name, concurrentLimit: r.concurrentLimit, freeSeats: r.freeSeats ?? 0, bypassLimits: r.bypassLimits, status: r.status ?? undefined }),
       });
       if (res.ok) await load();
-    } catch {}
+    } catch (err) { logger.warn('[TenantsAdmin] Failed to save tenant', err); }
   };
 
   const createTenant = async () => {
@@ -67,7 +68,7 @@ export function TenantsAdmin(props: { apiBase: string }) {
         setCreateName('');
         await load();
       }
-    } catch {}
+    } catch (err) { logger.warn('[TenantsAdmin] Failed to create tenant', err); }
   };
 
   return (
@@ -118,13 +119,13 @@ export function TenantsAdmin(props: { apiBase: string }) {
                       try {
                         const res = await fetch(`${apiBase}/billing/checkout-session`, { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body: JSON.stringify({ plan: 'BASIC' }) });
                         if (res.ok) { const { url } = await res.json(); window.open(url, '_blank'); }
-                      } catch {}
+                      } catch (err) { logger.warn('[TenantsAdmin] Failed to start checkout', err); }
                     }}>Checkout</Button>
                     <Button onClick={async ()=>{
                       try {
                         const res = await fetch(`${apiBase}/billing/portal-session`, { method:'POST', credentials:'include' });
                         if (res.ok) { const { url } = await res.json(); window.open(url, '_blank'); }
-                      } catch {}
+                      } catch (err) { logger.warn('[TenantsAdmin] Failed to open portal', err); }
                     }}>Portal</Button>
                   </div>
                   {r.stripeCustomerId ? (

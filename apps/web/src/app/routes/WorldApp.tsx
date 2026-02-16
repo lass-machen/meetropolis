@@ -566,9 +566,6 @@ export function WorldApp() {
           setFreshToken={setFreshToken}
           invitesModalOpen={invitesModalOpen}
           setInvitesModalOpen={setInvitesModalOpen}
-          adminOpen={adminOpen}
-          setAdminOpen={setAdminOpen}
-          isInternalOwner={isInternalOwner}
         />
       </div>
 

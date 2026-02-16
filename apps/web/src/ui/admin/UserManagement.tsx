@@ -2,6 +2,7 @@ import React from 'react';
 import { Toolbar, Button, Card, Input, Modal, Tr, Td } from '../../ui/system';
 import { AdminTable } from './AdminTable';
 import { useTranslation } from 'react-i18next';
+import { logger } from '../../lib/logger';
 
 type Role = 'owner' | 'admin' | 'member';
 type User = { id: string; email: string; name?: string; createdAt?: string; role?: Role };
@@ -24,6 +25,7 @@ export function UserManagement(props: { baseUrl: string; onBack: () => void }) {
   const [resetToken, setResetToken] = React.useState<string | null>(null);
   const [currentUserRole, setCurrentUserRole] = React.useState<Role | null>(null);
   const [currentUserId, setCurrentUserId] = React.useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = React.useState<string | null>(null);
 
   // Prüfe ob aktueller User Owner oder Admin ist (kann Rollen ändern)
   const canChangeRoles = currentUserRole === 'owner' || currentUserRole === 'admin';
@@ -99,10 +101,10 @@ export function UserManagement(props: { baseUrl: string; onBack: () => void }) {
   }
 
   async function remove(id: string) {
-    if (!confirm(t('admin.users.confirmDelete'))) return;
     try {
       const res = await fetch(`${baseUrl}/users/${id}`, { method: 'DELETE', credentials: 'include' });
       if (!res.ok) throw new Error((await res.json())?.error || t('common.error'));
+      setConfirmDeleteId(null);
       await load();
     } catch (e: unknown) {
       setError(e.message || t('common.error'));
@@ -310,13 +312,24 @@ export function UserManagement(props: { baseUrl: string; onBack: () => void }) {
                       >
                         {t('admin.users.generateReset')}
                       </Button>
-                      <Button 
-                        variant="danger" 
-                        onClick={() => remove(u.id)}
-                        style={{ padding: '6px 16px', borderRadius: 6, fontSize: 13 }}
-                      >
-                        {t('admin.users.delete')}
-                      </Button>
+                      {confirmDeleteId === u.id ? (
+                        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                          <Button variant="danger" onClick={() => remove(u.id)} style={{ padding: '6px 16px', borderRadius: 6, fontSize: 13 }}>
+                            {t('admin.users.confirmDelete')}
+                          </Button>
+                          <Button onClick={() => setConfirmDeleteId(null)} style={{ padding: '6px 16px', borderRadius: 6, fontSize: 13 }}>
+                            &#x2715;
+                          </Button>
+                        </div>
+                      ) : (
+                        <Button
+                          variant="danger"
+                          onClick={() => setConfirmDeleteId(u.id)}
+                          style={{ padding: '6px 16px', borderRadius: 6, fontSize: 13 }}
+                        >
+                          {t('admin.users.delete')}
+                        </Button>
+                      )}
                     </Td>
                   </>
                 )}
@@ -340,7 +353,7 @@ export function UserManagement(props: { baseUrl: string; onBack: () => void }) {
             if (!res.ok) throw new Error((await res.json())?.error || t('common.error'));
             const data = await res.json();
             setInviteCode(data.code || null);
-            try { await (document as any).__userManagementLoad?.(); } catch {}
+            try { await (document as any).__userManagementLoad?.(); } catch (err) { logger.warn('[UserManagement] Failed to reload after invite', err); }
           } catch (e: unknown) {
             setError(e.message || t('common.error'));
           }

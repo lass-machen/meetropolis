@@ -7,7 +7,6 @@ import { TenantSettings } from '../../../ui/settings/TenantSettings';
 import { SessionManagement } from '../../../ui/settings/SessionManagement';
 import { ApiTokensOverlay } from '../../../ui/admin/ApiTokensOverlay';
 import { InvitesModal } from '../../../features/admin/InvitesModal';
-import { TenantsAdminModal } from '../../../features/admin/TenantsAdminModal';
 
 interface WorldModalsProps {
   apiBase: string;
@@ -45,11 +44,6 @@ interface WorldModalsProps {
   // Invites Modal
   invitesModalOpen: boolean;
   setInvitesModalOpen: (open: boolean) => void;
-
-  // Admin Modal
-  adminOpen: boolean;
-  setAdminOpen: (open: boolean) => void;
-  isInternalOwner: boolean;
 }
 
 export function WorldModals({
@@ -74,9 +68,6 @@ export function WorldModals({
   setFreshToken,
   invitesModalOpen,
   setInvitesModalOpen,
-  adminOpen,
-  setAdminOpen,
-  isInternalOwner,
 }: WorldModalsProps) {
   return (
     <>
@@ -126,9 +117,6 @@ export function WorldModals({
 
       {/* Invites Modal */}
       <InvitesModal open={invitesModalOpen} onOpenChange={setInvitesModalOpen} apiBase={apiBase} />
-
-      {/* Admin: Tenants */}
-      <TenantsAdminModal open={adminOpen} onOpenChange={setAdminOpen} apiBase={apiBase} isInternalOwner={isInternalOwner} />
     </>
   );
 }
