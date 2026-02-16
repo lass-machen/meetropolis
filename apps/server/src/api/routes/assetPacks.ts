@@ -48,6 +48,26 @@ const SpriteItem = BaseItem.extend({
   height: z.number().int().positive(),
 }).strict();
 
+const AutotileVariant = z.object({
+  col: z.number().int().nonnegative(),
+  row: z.number().int().nonnegative(),
+}).strict();
+
+const AutotileItem = z.object({
+  id: idStr,
+  key: z.string().min(1).max(200),
+  category: z.literal('autotile'),
+  dataURL: relPath,
+  placement: z.enum(['any', 'floor', 'wall']).default('wall'),
+  collide: z.boolean().default(true),
+  tileWidth: z.number().int().positive(),
+  tileHeight: z.number().int().positive(),
+  gridHeight: z.number().int().positive().default(1),
+  autotileType: z.enum(['4bit', '8bit']).default('4bit'),
+  variants: z.record(z.string(), AutotileVariant),
+  scaleFactor: z.number().positive().optional(),
+}).strict();
+
 const ConfigSchema = z.object({
   uuid: z.string().uuid(),
   name: z.string().min(1),
@@ -57,6 +77,7 @@ const ConfigSchema = z.object({
   terrain: z.array(TerrainItem).default([]),
   structures: z.array(SpriteItem).default([]),
   objects: z.array(SpriteItem).default([]),
+  autotiles: z.array(AutotileItem).default([]),
 }).strict();
 
 // Helper functions
@@ -89,10 +110,12 @@ function buildDimensionMaps(cfg: any) {
   const terrainMap = new Map<string, any>();
   const structMap = new Map<string, any>();
   const objMap = new Map<string, any>();
+  const autotileMap = new Map<string, any>();
   for (const t of cfg.terrain || []) terrainMap.set(t.id, t);
   for (const s of cfg.structures || []) structMap.set(s.id, s);
   for (const o of cfg.objects || []) objMap.set(o.id, o);
-  return { terrainMap, structMap, objMap };
+  for (const a of cfg.autotiles || []) autotileMap.set(a.id, a);
+  return { terrainMap, structMap, objMap, autotileMap };
 }
 
 function dimensionsStable(oldCfg: any, newCfg: any): { ok: true } | { ok: false; reason: string; offendingId?: string } {
@@ -117,6 +140,13 @@ function dimensionsStable(oldCfg: any, newCfg: any): { ok: true } | { ok: false;
     if (!n) continue;
     if (oldO.width !== n.width || oldO.height !== n.height) {
       return { ok: false, reason: 'object sprite dimensions changed', offendingId: id };
+    }
+  }
+  for (const [id, oldA] of oldMaps.autotileMap) {
+    const n = newMaps.autotileMap.get(id);
+    if (!n) continue;
+    if (oldA.tileWidth !== n.tileWidth || oldA.tileHeight !== n.tileHeight) {
+      return { ok: false, reason: 'autotile dimensions changed', offendingId: id };
     }
   }
   return { ok: true };
@@ -202,7 +232,7 @@ export function registerAssetPackRoutes(app: express.Application, prisma: Prisma
         return res.status(400).json({ error: 'invalid config schema', details: parsed.error.errors });
       }
       const cfg = parsed.data as any;
-      try { logger.info('[AssetPacks] parsed config.json', { uuid: cfg?.uuid, name: cfg?.name, v: cfg?.version, nTerrain: (cfg?.terrain || []).length, nStruct: (cfg?.structures || []).length, nObjects: (cfg?.objects || []).length }); } catch { }
+      try { logger.info('[AssetPacks] parsed config.json', { uuid: cfg?.uuid, name: cfg?.name, v: cfg?.version, nTerrain: (cfg?.terrain || []).length, nStruct: (cfg?.structures || []).length, nObjects: (cfg?.objects || []).length, nAutotiles: (cfg?.autotiles || []).length }); } catch { }
 
       const assetSet = new Set<string>();
       for (const e of assetEntries) {
@@ -221,7 +251,7 @@ export function registerAssetPackRoutes(app: express.Application, prisma: Prisma
       }
 
       const referenced: string[] = [];
-      for (const arrName of ['terrain', 'structures', 'objects'] as const) {
+      for (const arrName of ['terrain', 'structures', 'objects', 'autotiles'] as const) {
         for (const it of (cfg[arrName] as any[]) || []) {
           const r = validateItemPath(it.dataURL);
           if (!r.ok) {
@@ -270,6 +300,7 @@ export function registerAssetPackRoutes(app: express.Application, prisma: Prisma
         terrain: (cfg.terrain || []).map(rewriteItem),
         structures: (cfg.structures || []).map(rewriteItem),
         objects: (cfg.objects || []).map(rewriteItem),
+        autotiles: (cfg.autotiles || []).map(rewriteItem),
       };
 
       const existing = await prisma.assetPack.findUnique({ where: { uuid: uuid } as any });
@@ -279,6 +310,7 @@ export function registerAssetPackRoutes(app: express.Application, prisma: Prisma
             terrain: (existing.terrain as any) || [],
             structures: (existing.structures as any) || [],
             objects: (existing.objects as any) || [],
+            autotiles: (existing.autotiles as any) || [],
           }, cfg);
           if (!check.ok) {
             try { await fsp.rm(tmpDir, { recursive: true, force: true }); } catch { }
@@ -316,6 +348,7 @@ export function registerAssetPackRoutes(app: express.Application, prisma: Prisma
         terrain: rewritten.terrain as any,
         structures: rewritten.structures as any,
         objects: rewritten.objects as any,
+        autotiles: rewritten.autotiles as any,
       } as const;
 
       let rec;

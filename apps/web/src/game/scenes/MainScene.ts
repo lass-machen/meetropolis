@@ -9,8 +9,10 @@ import { setCollisionVisible, updateCollisionOverlay } from '../collision/overla
 import { setEditorAssets, setAssetPreview } from '../editor/editorAssets';
 import { fetchAndApplyServerLayers } from '../map/serverSync';
 import { loadVisibleChunks, applyChunkUpdates } from '../map/chunks';
+import type { ChunkLayerName } from '../map/chunks';
 import { registerTileset } from '../map/tilesets';
 import { EditorService } from '../../services/EditorService';
+import { AutotileGrid, AutotileRenderer } from '../autotile';
 import { avatarRegistry } from '../avatarRegistry';
 import {
   PlayerManager,
@@ -51,6 +53,8 @@ export class MainScene extends Phaser.Scene {
   private loadedChunks: Set<string> = new Set();
   private systems: GameSystem[] = [];
   private editorMode = false;
+  public autotileGrid?: AutotileGrid;
+  public autotileRenderer?: AutotileRenderer;
   private spaceKey?: Phaser.Input.Keyboard.Key;
   private _lastCamSig: string | null = null;
 
@@ -73,9 +77,13 @@ export class MainScene extends Phaser.Scene {
     this.labelCamera = cameraData.labelCamera;
     this.labelLayer = cameraData.labelLayer;
 
+    this.autotileGrid = new AutotileGrid();
+    this.autotileRenderer = new AutotileRenderer(this, this.autotileGrid, this.mapRef?.tileWidth ?? 16);
+
     this.loadVisibleChunks('ground');
     this.loadVisibleChunks('walls');
     this.loadVisibleChunks('collision');
+    this.loadVisibleChunks('walls_auto');
 
     this.initializeManagers();
     this.setupInputHandlers();
@@ -268,6 +276,31 @@ export class MainScene extends Phaser.Scene {
   setAssetPreview(preview: { dataUrl: string; width?: number | undefined; height?: number | undefined } | null) { setAssetPreview(this, preview); }
   async applyTerrainPaint(edit: { rect: { startX: number; startY: number; endX: number; endY: number }; dataUrl: string; attempt?: number }) { void edit; }
   eraseTerrainRect(rect: { startX: number; startY: number; endX: number; endY: number }) { this.tileManager.eraseTerrainRect(rect, this.currentMapName); }
+  applyWallPaint(edit: { rect: { startX: number; startY: number; endX: number; endY: number }; wallTypeId: number }) {
+    if (!this.autotileGrid || !this.autotileRenderer) return;
+    const { rect, wallTypeId } = edit;
+    const x0 = Math.min(rect.startX, rect.endX);
+    const y0 = Math.min(rect.startY, rect.endY);
+    const x1 = Math.max(rect.startX, rect.endX);
+    const y1 = Math.max(rect.startY, rect.endY);
+    const affected: Array<{ x: number; y: number }> = [];
+    for (let ty = y0; ty <= y1; ty++) {
+      for (let tx = x0; tx <= x1; tx++) {
+        if (wallTypeId > 0) {
+          this.autotileGrid.set(tx, ty, wallTypeId);
+        } else {
+          this.autotileGrid.remove(tx, ty);
+        }
+        affected.push({ x: tx, y: ty });
+        // Also include neighbors for bitmask recalculation
+        affected.push({ x: tx, y: ty - 1 });
+        affected.push({ x: tx + 1, y: ty });
+        affected.push({ x: tx, y: ty + 1 });
+        affected.push({ x: tx - 1, y: ty });
+      }
+    }
+    this.autotileRenderer.updateArea(affected);
+  }
   setSelectionRect(rect: { x: number; y: number; w: number; h: number } | null) { this.editorInputHandler.setSelectionGraphics(this.selectionG); }
   applyTilePaint(edit: { layer: 'EditorGround' | 'EditorWalls' | 'Collision'; tilesetKey: string; tileIndex: number; rect: { startX: number; startY: number; endX: number; endY: number } }) {
     this.tileManager.applyTilePaint(edit, this.currentMapName, this.collisionVisible, () => {
@@ -298,8 +331,8 @@ export class MainScene extends Phaser.Scene {
   }
   handleObjectsUpdated(data: ObjectsUpdatedPayload) { this.objectManager.handleObjectsUpdated(data); }
   setBackgroundColor(hex: string) { try { this.cameras.main.setBackgroundColor(hex); } catch { } }
-  private async loadVisibleChunks(layerName: 'ground' | 'walls' | 'collision') { await loadVisibleChunks(this as any, layerName); }
-  public applyChunkUpdates(layerName: 'ground' | 'walls' | 'collision', updates: Array<{ key: string; version: number; encoding: string; data: string }>) { applyChunkUpdates(this as any, layerName, updates); }
+  private async loadVisibleChunks(layerName: ChunkLayerName) { await loadVisibleChunks(this as any, layerName); }
+  public applyChunkUpdates(layerName: ChunkLayerName, updates: Array<{ key: string; version: number; encoding: string; data: string }>) { applyChunkUpdates(this as any, layerName, updates); }
 
   override update(time: number, delta: number) {
     super.update(time, delta);
@@ -312,6 +345,7 @@ export class MainScene extends Phaser.Scene {
         this.loadVisibleChunks('ground');
         this.loadVisibleChunks('walls');
         this.loadVisibleChunks('collision');
+        this.loadVisibleChunks('walls_auto');
         this.objectManager.loadVisibleChunks(this.cameras.main);
       }
     }
@@ -325,6 +359,7 @@ export class MainScene extends Phaser.Scene {
       this.loadVisibleChunks('ground');
       this.loadVisibleChunks('walls');
       this.loadVisibleChunks('collision');
+      this.loadVisibleChunks('walls_auto');
       this.fetchAndApplyServerLayers().catch(() => { });
     } else {
       this.fetchAndApplyServerLayers().catch(() => { });

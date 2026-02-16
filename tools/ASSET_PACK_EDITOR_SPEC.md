@@ -198,6 +198,52 @@ my-pack.mepack
       └─ chair_blue.png
 ```
 
+## Autotile Tab
+
+Neben den bestehenden Tabs (Terrain | Structures | Objects) gibt es einen vierten Tab: **Autotiles**.
+
+### Felder im Autotile-Editor
+
+- `id` (string, Pflicht): Pack-intern stabile ID. Eindeutig innerhalb des Packs.
+- `key` (string, Pflicht): Technischer Name.
+- Datei wählen: Bilddatei (`.png`/`.webp`) für das Spritesheet. Wird unter `assets/autotiles/` abgelegt.
+- `tileWidth` / `tileHeight` (int > 0, Pflicht): Kachelgröße in Pixeln.
+- `gridHeight` (int > 0, default 1): Höhe in Grid-Zellen (für doppelt hohe Wände etc.).
+- `placement`: `"wall"` (default) | `"floor"` | `"any"`.
+- `collide`: boolean (default `true`).
+- `autotileType`: `"4bit"` (default) | `"8bit"`. Bestimmt den Bitmask-Algorithmus.
+- `scaleFactor` (number > 0, optional): Render-Skalierungsfaktor.
+
+### Varianten-Mapping-UI
+
+- Zeigt eine Grid-Vorschau des Spritesheets an.
+- Der Nutzer kann per Klick auf eine Zelle im Grid die Zuordnung Bitmask → Position setzen.
+- Alternative: Tabelle mit Bitmask-Wert (0–15 für 4bit, 0–46 für 8bit) und Spalte/Zeile im Spritesheet.
+- Der Editor kann anhand von `tileWidth`/`tileHeight` und der Bildgröße die verfügbaren Positionen berechnen.
+
+### Validierung
+
+- `category` muss `"autotile"` sein.
+- `tileWidth`, `tileHeight` und `variants` sind Pflicht.
+- `variants` muss ein Objekt sein, in dem Keys gültige Bitmask-Strings und Values `{col, row}` sind.
+- Alle `col`/`row`-Werte müssen innerhalb der berechneten Spritesheet-Grenzen liegen.
+- Bei Versionswechsel: `tileWidth`/`tileHeight` müssen bei gleicher `id` stabil bleiben.
+- Empfohlener Unterordner: `assets/autotiles/`.
+
+### Beispiel-Bundle mit Autotile
+
+```
+my-pack.mepack
+├─ config.json
+└─ assets/
+   ├─ tilesets/
+   │  └─ office_tiles.png
+   ├─ objects/
+   │  └─ chair_blue.png
+   └─ autotiles/
+      └─ wall_gray.png
+```
+
 ## Abgrenzung zu Server-Verhalten
 
 - Der Server rewritet `dataURL` auf gehashte Dateinamen und speichert Inhalte unter `/packs/<uuid>/...`.

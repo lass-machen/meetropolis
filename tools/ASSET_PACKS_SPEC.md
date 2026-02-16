@@ -297,6 +297,92 @@ export const ConfigSchema = z.object({
 5) Upload-Limits für diese Route erhöhen.
 6) Manuelle Tests: Upload eines Minimal-Packs, List/Get/Delete.
 
+## Autotile Items
+
+Neben `terrain`, `structures` und `objects` unterstützt `config.json` ein viertes Array: `autotiles`.
+
+Autotile-Items beschreiben Spritesheet-basierte Kacheln, die sich automatisch an ihre Nachbarn anpassen (z. B. Wände, die je nach Umgebung verschiedene Varianten wählen).
+
+### Felder
+
+| Feld | Typ | Pflicht | Default | Beschreibung |
+|---|---|---|---|---|
+| `id` | string | ja | – | Pack-intern stabile ID |
+| `key` | string | ja | – | Technischer Name |
+| `category` | `"autotile"` | ja | – | Feste Kategorie |
+| `dataURL` | string | ja | – | Pfad relativ zu `assets/` (`.png`/`.webp`) |
+| `placement` | `"wall"\|"floor"\|"any"` | nein | `"wall"` | Platzierungstyp |
+| `collide` | boolean | nein | `true` | Kollision aktiv |
+| `tileWidth` | int > 0 | ja | – | Breite einer Kachel in Pixeln |
+| `tileHeight` | int > 0 | ja | – | Höhe einer Kachel in Pixeln |
+| `gridHeight` | int > 0 | nein | `1` | Höhe in Grid-Zellen (z. B. 2 für doppelt hohe Wände) |
+| `autotileType` | `"4bit"\|"8bit"` | nein | `"4bit"` | Bitmask-Algorithmus (4bit=16 Varianten, 8bit=47 Varianten) |
+| `variants` | Record<string, {col, row}> | ja | – | Bitmask → Spritesheet-Position |
+| `scaleFactor` | number > 0 | nein | – | Optionaler Render-Skalierungsfaktor |
+
+### Bitmask-Varianten-Mapping
+
+Das `variants`-Objekt mappt Bitmask-Werte (als String-Keys, z. B. `"0"`, `"5"`, `"15"`) auf Positionen im Spritesheet:
+
+```json
+{
+  "0": { "col": 0, "row": 0 },
+  "1": { "col": 1, "row": 0 },
+  "5": { "col": 2, "row": 0 },
+  "15": { "col": 3, "row": 0 }
+}
+```
+
+Bei **4bit** werden die 4 direkten Nachbarn (N, E, S, W) mit Bits 1, 2, 4, 8 kodiert → bis zu 16 Varianten.
+Bei **8bit** werden zusätzlich die Diagonalen berücksichtigt → bis zu 47 effektive Varianten (nach Reduktion).
+
+### Dimensions-Stabilität
+
+Bei Versionsupgrade eines Packs müssen `tileWidth` und `tileHeight` von Autotile-Items mit gleicher `id` stabil bleiben. Änderungen führen zu HTTP 409 beim Upload.
+
+### Beispiel config.json (Auszug)
+
+```json
+{
+  "autotiles": [
+    {
+      "id": "office_wall_gray",
+      "key": "office_wall_gray",
+      "category": "autotile",
+      "dataURL": "assets/autotiles/wall_gray.png",
+      "placement": "wall",
+      "collide": true,
+      "tileWidth": 16,
+      "tileHeight": 16,
+      "gridHeight": 1,
+      "autotileType": "4bit",
+      "variants": {
+        "0":  { "col": 0, "row": 0 },
+        "1":  { "col": 1, "row": 0 },
+        "2":  { "col": 2, "row": 0 },
+        "3":  { "col": 3, "row": 0 },
+        "4":  { "col": 0, "row": 1 },
+        "5":  { "col": 1, "row": 1 },
+        "6":  { "col": 2, "row": 1 },
+        "7":  { "col": 3, "row": 1 },
+        "8":  { "col": 0, "row": 2 },
+        "9":  { "col": 1, "row": 2 },
+        "10": { "col": 2, "row": 2 },
+        "11": { "col": 3, "row": 2 },
+        "12": { "col": 0, "row": 3 },
+        "13": { "col": 1, "row": 3 },
+        "14": { "col": 2, "row": 3 },
+        "15": { "col": 3, "row": 3 }
+      }
+    }
+  ]
+}
+```
+
+### Datenbank
+
+Die `AssetPack`-Tabelle enthält eine zusätzliche JSON-Spalte `autotiles` (Default: `[]`). Autotile-Items werden wie Terrain/Structures/Objects behandelt: `dataURL` wird beim Upload auf gehashte Pfade umgeschrieben und in der DB gespeichert.
+
 ## Out of Scope (separate Spez.)
 
 - Frontend-/Editor-Integration: Laden/Registrieren von Tilesets/Objekten, Map-Referenzen (Item-IDs statt roher URLs), UI für Pack-Management, Fallback-Umschreibung in Maps.

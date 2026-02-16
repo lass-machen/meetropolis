@@ -2,7 +2,9 @@ import Phaser from 'phaser';
 import { fetchChunks, decodeRLE, tileRefIdToGid } from '../../lib/mapV2';
 import { logger } from '../../lib/logger';
 
-export async function loadVisibleChunks(scene: Phaser.Scene & any, layerName: 'ground' | 'walls' | 'collision'): Promise<void> {
+export type ChunkLayerName = 'ground' | 'walls' | 'collision' | 'walls_auto';
+
+export async function loadVisibleChunks(scene: Phaser.Scene & any, layerName: ChunkLayerName): Promise<void> {
   if (!scene.v2 || !scene.mapRef) return;
   const cam = scene.cameras.main;
   const tileW = scene.mapRef.tileWidth;
@@ -30,8 +32,38 @@ export async function loadVisibleChunks(scene: Phaser.Scene & any, layerName: 'g
   applyChunkUpdates(scene, layerName, updates);
 }
 
-export function applyChunkUpdates(scene: Phaser.Scene & any, layerName: 'ground' | 'walls' | 'collision', updates: Array<{ key: string; version: number; encoding: string; data: string }>): void {
+export function applyChunkUpdates(scene: Phaser.Scene & any, layerName: ChunkLayerName, updates: Array<{ key: string; version: number; encoding: string; data: string }>): void {
   if (!scene.v2 || !scene.mapRef) return;
+
+  // Handle walls_auto separately — populate AutotileGrid instead of tilemap
+  if (layerName === 'walls_auto') {
+    if (!scene.autotileGrid || !scene.autotileRenderer) return;
+    const cs = scene.v2.chunkSize;
+    const total = cs * cs;
+    for (const u of updates) {
+      const [xs, ys] = u.key.split(':');
+      const cx = Number(xs), cy = Number(ys);
+      if (!Number.isFinite(cx) || !Number.isFinite(cy)) continue;
+      const arr = decodeRLE(u.data, total);
+      for (let i = 0; i < total; i++) {
+        const vx = i % cs;
+        const vy = Math.floor(i / cs);
+        const gx = cx * cs + vx;
+        const gy = cy * cs + vy;
+        if (gx >= scene.mapRef.width || gy >= scene.mapRef.height) continue;
+        const wallTypeId = arr[i];
+        if (wallTypeId > 0) {
+          scene.autotileGrid.set(gx, gy, wallTypeId);
+        } else {
+          scene.autotileGrid.remove(gx, gy);
+        }
+      }
+      scene.loadedChunks.add(`${layerName}:${cx}:${cy}`);
+    }
+    scene.autotileRenderer.updateAllVisible();
+    return;
+  }
+
   const layer = layerName === 'collision' ? scene.collisionLayer : (layerName === 'walls' ? scene.wallsLayer : scene.editorGround);
   if (!layer) {
      logger.warn(`[Chunks] Layer ${layerName} not found on scene`);
@@ -74,4 +106,3 @@ export function applyChunkUpdates(scene: Phaser.Scene & any, layerName: 'ground'
     if (scene.v2) { try { scene.collisionLayer?.setVisible(false); } catch {} }
   }
 }
-

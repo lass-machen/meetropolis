@@ -10,8 +10,8 @@
 
 import { logger } from '../lib/logger';
 
-export type EditorTool = 'zone' | 'asset' | 'terrain' | 'collision' | 'spawn' | 'select' | 'erase';
-export type EditorCategory = 'general' | 'terrain' | 'structures' | 'objects' | 'zones' | 'collisions';
+export type EditorTool = 'zone' | 'asset' | 'terrain' | 'collision' | 'spawn' | 'select' | 'erase' | 'wall';
+export type EditorCategory = 'general' | 'terrain' | 'structures' | 'objects' | 'zones' | 'collisions' | 'autotiles';
 
 export type Zone = {
   name: string;
@@ -89,6 +89,9 @@ export type EditorState = {
   // UI-State
   backgroundColor?: string | undefined;
 
+  // Autotile wall state
+  selectedWallTypeId: number;
+
   // Drag-State (für Tools)
   dragState: {
     startTileX: number;
@@ -136,7 +139,10 @@ export type EditorAction =
   | { type: 'SET_TERRAIN_COLOR'; color: string }
   | { type: 'TOGGLE_GRID' }
   | { type: 'LOAD_STATE'; state: Partial<EditorState> }
-  | { type: 'CLEAR_DRAG' };
+  | { type: 'CLEAR_DRAG' }
+
+  // Autotile Actions
+  | { type: 'SELECT_WALL_TYPE'; wallTypeId: number };
 
 export type EditorListener = (state: EditorState) => void;
 
@@ -162,6 +168,7 @@ class EditorServiceClass {
       tilesets: [],
       spawn: null,
       gridVisible: false,
+      selectedWallTypeId: 0,
       dragState: null,
     };
   }
@@ -212,7 +219,7 @@ class EditorServiceClass {
       case 'SET_CATEGORY':
         this.updateState({
           category: action.category,
-          tool: action.category === 'zones' ? 'zone' : 'select',
+          tool: action.category === 'zones' ? 'zone' : (action.category === 'autotiles' ? 'wall' : 'select'),
           pendingAsset: null,
           dragState: null,
         });
@@ -489,6 +496,14 @@ class EditorServiceClass {
 
       case 'CLEAR_DRAG':
         this.updateState({ dragState: null });
+        break;
+
+      case 'SELECT_WALL_TYPE':
+        this.updateState({
+          selectedWallTypeId: action.wallTypeId,
+          tool: 'wall',
+          category: 'autotiles',
+        });
         break;
 
       default:

@@ -344,6 +344,9 @@ body::after{
         <button class="tool-btn" data-tool="erase" onclick="setTool('erase')">
           <span class="icon">&#10005;</span>Erase
         </button>
+        <button class="tool-btn" data-tool="wall" onclick="setTool('wall')">
+          <span class="icon">&#9639;</span>Wall
+        </button>
       </div>
     </div>
 
@@ -357,6 +360,7 @@ body::after{
         <div class="cat-tab active" data-cat="terrain" onclick="setCat('terrain')">Terrain</div>
         <div class="cat-tab" data-cat="structures" onclick="setCat('structures')">Structures</div>
         <div class="cat-tab" data-cat="objects" onclick="setCat('objects')">Objects</div>
+        <div class="cat-tab" data-cat="autotiles" onclick="setCat('autotiles')">Autotiles</div>
       </div>
       <div id="assetBrowser">
         <div class="empty-state">Connect and select a pack.</div>
@@ -389,6 +393,10 @@ body::after{
       <div class="toggle-row">
         <label>Show Objects</label>
         <input type="checkbox" id="showObjects" checked onchange="markDirty()">
+      </div>
+      <div class="toggle-row">
+        <label>Show Walls</label>
+        <input type="checkbox" id="showWalls" checked onchange="markDirty()">
       </div>
       <div class="zoom-row">
         <label style="font-family:var(--font-mono);font-size:11px;color:var(--fg-dim)">Zoom</label>
@@ -489,6 +497,11 @@ let dragCurrent = null;         // { wx, wy } current world coords
 let panStart = null;            // { mx, my, cx, cy }
 let spaceDown = false;
 let isRightClickDrag = false;
+
+// Autotile wall state
+let selectedWallTypeId = 0;       // Currently selected wall type for painting
+let autotileDefinitions = [];     // Array of loaded autotile definitions from packs
+let autotileImages = {};          // { key: HTMLImageElement } — loaded spritesheet images
 
 // Pending changes (buffered until explicit save)
 const pendingChanges = {
@@ -792,7 +805,7 @@ async function _doLoadVisibleChunks() {
   const maxCY = Math.floor(vp.maxTY / cs);
 
   // Load chunks for each layer
-  for (const layerName of ['ground', 'walls', 'collision', 'editor_ground', 'editor_walls']) {
+  for (const layerName of ['ground', 'walls', 'collision', 'editor_ground', 'editor_walls', 'walls_auto']) {
     const li = layerIndex[layerName];
     if (!li) continue;
 
@@ -988,6 +1001,10 @@ function render() {
   renderTerrain('editor_ground');
   renderTerrain('walls');
   renderTerrain('editor_walls');
+
+  if (document.getElementById('showWalls').checked) {
+    renderAutotileWalls();
+  }
 
   if (document.getElementById('showObjects').checked) {
     renderObjects();
@@ -1245,6 +1262,94 @@ function renderMapBounds() {
   ctx.setLineDash([]);
 }
 
+function computeWallBitmask(x, y) {
+  const cs = mapMeta.chunkSize || 32;
+  let mask = 0;
+  const directions = [[1, 0, -1], [2, 1, 0], [4, 0, 1], [8, -1, 0]]; // [bit, dx, dy]
+  for (const [bit, dx, dy] of directions) {
+    const nx = x + dx, ny = y + dy;
+    const cx = Math.floor(nx / cs), cy = Math.floor(ny / cs);
+    const localX = nx - cx * cs, localY = ny - cy * cs;
+    const key = `walls_auto:${cx}:${cy}`;
+    const d = chunkCache[key];
+    if (d && d[localY * cs + localX] > 0) mask |= bit;
+  }
+  return mask;
+}
+
+function getWallTypeIdAt(x, y) {
+  const cs = mapMeta.chunkSize || 32;
+  const cx = Math.floor(x / cs), cy = Math.floor(y / cs);
+  const localX = x - cx * cs, localY = y - cy * cs;
+  const key = `walls_auto:${cx}:${cy}`;
+  const d = chunkCache[key];
+  return d ? (d[localY * cs + localX] || 0) : 0;
+}
+
+function renderAutotileWalls() {
+  if (!mapMeta) return;
+  const cs = mapMeta.chunkSize || 32;
+  const tw = mapMeta.tileWidth || 16;
+  const th = mapMeta.tileHeight || 16;
+  const vp = getViewportBounds();
+  const minCX = Math.floor(vp.minTX / cs);
+  const minCY = Math.floor(vp.minTY / cs);
+  const maxCX = Math.floor(vp.maxTX / cs);
+  const maxCY = Math.floor(vp.maxTY / cs);
+
+  for (let cy = minCY; cy <= maxCY; cy++) {
+    for (let cx = minCX; cx <= maxCX; cx++) {
+      const key = `walls_auto:${cx}:${cy}`;
+      const data = chunkCache[key];
+      if (!data) continue;
+
+      for (let ly = 0; ly < cs; ly++) {
+        for (let lx = 0; lx < cs; lx++) {
+          const idx = ly * cs + lx;
+          const wallTypeId = data[idx];
+          if (!wallTypeId) continue;
+
+          const gx = cx * cs + lx;
+          const gy = cy * cs + ly;
+          const worldX = gx * tw;
+          const worldY = gy * th;
+
+          // Find the autotile definition for this wallTypeId
+          const def = autotileDefinitions.find(d => d._wallTypeId === wallTypeId);
+          if (!def) {
+            // Fallback: draw a colored rectangle
+            ctx.fillStyle = 'rgba(139, 90, 43, 0.6)';
+            ctx.fillRect(worldX, worldY, tw, th);
+            continue;
+          }
+
+          const img = autotileImages[def.key];
+          if (!img) continue;
+
+          const bitmask = computeWallBitmask(gx, gy);
+          const variant = def.variants[String(bitmask)];
+          if (!variant) continue;
+
+          const srcX = variant.col * def.tileWidth;
+          const srcY = variant.row * def.tileHeight;
+          const gridH = def.gridHeight || 1;
+
+          if (gridH > 1) {
+            // Composite wall: draw top part offset upward
+            const partH = def.tileHeight / gridH;
+            // Top part (wall cap) - drawn one tile above
+            ctx.drawImage(img, srcX, srcY, def.tileWidth, partH, worldX, worldY - partH, tw, partH);
+            // Bottom part (wall face) - drawn at tile position
+            ctx.drawImage(img, srcX, srcY + partH, def.tileWidth, partH, worldX, worldY, tw, partH);
+          } else {
+            ctx.drawImage(img, srcX, srcY, def.tileWidth, def.tileHeight, worldX, worldY, tw, th);
+          }
+        }
+      }
+    }
+  }
+}
+
 function renderGrid() {
   if (!mapMeta) return;
   const tw = mapMeta.tileWidth || 16;
@@ -1291,7 +1396,7 @@ function renderDragPreview() {
   const tw = mapMeta.tileWidth || 16;
   const th = mapMeta.tileHeight || 16;
 
-  if (currentTool === 'terrain' || currentTool === 'collision' || currentTool === 'zones' || currentTool === 'erase') {
+  if (currentTool === 'terrain' || currentTool === 'collision' || currentTool === 'zones' || currentTool === 'erase' || currentTool === 'wall') {
     const t0 = worldToTile(dragStart.wx, dragStart.wy);
     const t1 = worldToTile(dragCurrent.wx, dragCurrent.wy);
     const x0 = Math.min(t0.tx, t1.tx);
@@ -1308,6 +1413,9 @@ function renderDragPreview() {
     } else if (currentTool === 'erase') {
       ctx.fillStyle = 'rgba(237, 66, 69, 0.15)';
       ctx.strokeStyle = 'rgba(237, 66, 69, 0.6)';
+    } else if (currentTool === 'wall') {
+      ctx.fillStyle = 'rgba(139, 90, 43, 0.2)';
+      ctx.strokeStyle = 'rgba(139, 90, 43, 0.7)';
     } else {
       ctx.fillStyle = 'rgba(88, 101, 242, 0.1)';
       ctx.strokeStyle = 'rgba(88, 101, 242, 0.5)';
@@ -1323,7 +1431,7 @@ function renderDragPreview() {
 function renderSelection() {
   if (!mapMeta) return;
   // Hover tile highlight for terrain/collision/spawn tools
-  if (!isDragging && dragCurrent && (currentTool === 'terrain' || currentTool === 'collision' || currentTool === 'spawn' || currentTool === 'objects' || currentTool === 'erase')) {
+  if (!isDragging && dragCurrent && (currentTool === 'terrain' || currentTool === 'collision' || currentTool === 'spawn' || currentTool === 'objects' || currentTool === 'erase' || currentTool === 'wall')) {
     const tw = mapMeta.tileWidth || 16;
     const th = mapMeta.tileHeight || 16;
     const t = worldToTile(dragCurrent.wx, dragCurrent.wy);
@@ -1354,6 +1462,7 @@ function setCat(cat) {
   document.querySelectorAll('.cat-tab').forEach(t => {
     t.classList.toggle('active', t.dataset.cat === cat);
   });
+  if (cat === 'autotiles') setTool('wall');
   renderAssetBrowser();
 }
 
@@ -1378,6 +1487,46 @@ function renderAssetBrowser() {
   }
 
   const pack = assetPacks[selectedPackIdx];
+
+  // Handle autotiles category separately
+  if (currentCat === 'autotiles') {
+    const autotiles = pack.autotiles || [];
+    if (autotiles.length === 0) {
+      container.innerHTML = '<div class="empty-state">No autotile items in this pack.</div>';
+      return;
+    }
+    container.innerHTML = '';
+    const grid = document.createElement('div');
+    grid.className = 'asset-grid';
+    autotiles.forEach((item, idx) => {
+      const wallId = idx + 1;
+      const isSelected = selectedWallTypeId === wallId;
+      const el = document.createElement('div');
+      el.className = 'asset-item' + (isSelected ? ' selected' : '');
+      el.onclick = () => selectAutotile(selectedPackIdx, idx);
+
+      const img = document.createElement('img');
+      img.style.cssText = 'max-width:64px;max-height:64px;image-rendering:pixelated';
+      const url = item.dataURL || item.dataUrl;
+      if (url && url.startsWith('/')) {
+        img.src = CFG.server + url;
+      } else {
+        img.src = url || '';
+      }
+      img.onerror = () => { img.style.display = 'none'; };
+      el.appendChild(img);
+
+      const label = document.createElement('div');
+      label.className = 'asset-label';
+      label.textContent = item.key || item.id;
+      el.appendChild(label);
+
+      grid.appendChild(el);
+    });
+    container.appendChild(grid);
+    return;
+  }
+
   const items = pack[currentCat] || [];
 
   if (items.length === 0) {
@@ -1439,6 +1588,39 @@ async function selectAssetItem(pack, item, cat) {
       img.src = url.startsWith('/') ? CFG.server + url : url;
     }
   }
+}
+
+function selectAutotile(packIdx, itemIdx) {
+  const pack = assetPacks[packIdx];
+  if (!pack || !pack.autotiles) return;
+  const item = pack.autotiles[itemIdx];
+  if (!item) return;
+
+  const wallId = itemIdx + 1;
+  selectedWallTypeId = wallId;
+
+  // Store definition with wallTypeId for rendering
+  const existing = autotileDefinitions.find(d => d.key === item.key);
+  if (!existing) {
+    autotileDefinitions.push({ ...item, _wallTypeId: wallId });
+  }
+
+  // Load spritesheet image if not already loaded
+  if (!autotileImages[item.key]) {
+    const url = item.dataURL || item.dataUrl;
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    if (url && url.startsWith('/')) {
+      img.src = CFG.server + url;
+    } else {
+      img.src = url || '';
+    }
+    img.onload = () => { autotileImages[item.key] = img; markDirty(); };
+  }
+
+  setTool('wall');
+  renderAssetBrowser();
+  toast('ok', `Selected wall: ${item.key}`);
 }
 
 async function showTilePicker(pack, item) {
@@ -1617,7 +1799,7 @@ function onMouseDown(e) {
     return;
   }
 
-  if (e.button === 2 && (currentTool === 'terrain' || currentTool === 'collision')) {
+  if (e.button === 2 && (currentTool === 'terrain' || currentTool === 'collision' || currentTool === 'wall')) {
     isRightClickDrag = true;
     isDragging = true;
     dragStart = { wx, wy };
@@ -1664,6 +1846,14 @@ function onMouseDown(e) {
       const tile = worldToTile(wx, wy);
       placeObject(tile.tx, tile.ty);
     }
+    return;
+  }
+
+  if (currentTool === 'wall') {
+    isDragging = true;
+    dragStart = { wx, wy };
+    dragCurrent = { wx, wy };
+    markDirty();
     return;
   }
 
@@ -1740,6 +1930,8 @@ function onMouseUp(e) {
       paintCollision(x0, y0, x1, y1, false);
     } else if (currentTool === 'terrain') {
       eraseTerrain(x0, y0, x1, y1);
+    } else if (currentTool === 'wall') {
+      eraseWall(x0, y0, x1, y1);
     }
     markDirty();
     return;
@@ -1747,6 +1939,8 @@ function onMouseUp(e) {
 
   if (currentTool === 'terrain') {
     paintTerrain(x0, y0, x1, y1);
+  } else if (currentTool === 'wall') {
+    paintWall(x0, y0, x1, y1);
   } else if (currentTool === 'collision') {
     paintCollision(x0, y0, x1, y1, !e.shiftKey);
   } else if (currentTool === 'zones') {
@@ -2118,6 +2312,30 @@ function eraseRect(x0, y0, x1, y1) {
     });
   }
 
+  // 4. Erase walls_auto in rect
+  let wallsModified = false;
+  for (let y = y0; y <= y1; y++) {
+    for (let x = x0; x <= x1; x++) {
+      const cx = Math.floor(x / cs);
+      const cy = Math.floor(y / cs);
+      const localX = x - cx * cs;
+      const localY = y - cy * cs;
+      const key = `walls_auto:${cx}:${cy}`;
+      if (chunkCache[key] && chunkCache[key][localY * cs + localX] !== 0) {
+        chunkCache[key][localY * cs + localX] = 0;
+        wallsModified = true;
+      }
+    }
+  }
+  if (wallsModified) {
+    pendingChanges.terrainPaints.push({
+      layer: 'walls_auto',
+      rect: { x0, y0, x1, y1 },
+      tileRefId: 0,
+    });
+    erased.walls = (erased.walls || 0) + 1;
+  }
+
   markDirty();
   updateSaveButton();
 
@@ -2125,11 +2343,76 @@ function eraseRect(x0, y0, x1, y1) {
   if (erased.terrain > 0) parts.push(`${erased.terrain} terrain`);
   if (erased.objects > 0) parts.push(`${erased.objects} objects`);
   if (erased.collision > 0) parts.push(`${erased.collision} collision`);
+  if (erased.walls > 0) parts.push(`${erased.walls} walls`);
   if (parts.length > 0) {
     toast('ok', `Erased: ${parts.join(', ')} — unsaved`);
   } else {
     toast('info', 'Nothing to erase in selection');
   }
+}
+
+function paintWall(x0, y0, x1, y1) {
+  if (!selectedWallTypeId || !currentMapName) {
+    toast('warn', 'Select a wall type from the autotiles tab first');
+    return;
+  }
+
+  pendingChanges.terrainPaints.push({
+    layer: 'walls_auto',
+    rect: { x0, y0, x1, y1 },
+    tileRefId: selectedWallTypeId,
+  });
+
+  const cs = mapMeta.chunkSize || 32;
+  for (let y = y0; y <= y1; y++) {
+    for (let x = x0; x <= x1; x++) {
+      const cx = Math.floor(x / cs);
+      const cy = Math.floor(y / cs);
+      const localX = x - cx * cs;
+      const localY = y - cy * cs;
+      const key = `walls_auto:${cx}:${cy}`;
+      if (!chunkCache[key]) chunkCache[key] = new Array(cs * cs).fill(0);
+      chunkCache[key][localY * cs + localX] = selectedWallTypeId;
+      if (!layerIndex.walls_auto) layerIndex.walls_auto = { keys: [], chunkSize: cs };
+      if (!layerIndex.walls_auto.keys.includes(`${cx}:${cy}`)) {
+        layerIndex.walls_auto.keys.push(`${cx}:${cy}`);
+      }
+    }
+  }
+
+  markDirty();
+  updateSaveButton();
+  toast('ok', `Painted walls (${x1 - x0 + 1}x${y1 - y0 + 1}) — unsaved`);
+}
+
+function eraseWall(x0, y0, x1, y1) {
+  if (!currentMapName) return;
+
+  const cs = mapMeta.chunkSize || 32;
+  let modified = false;
+  for (let y = y0; y <= y1; y++) {
+    for (let x = x0; x <= x1; x++) {
+      const cx = Math.floor(x / cs);
+      const cy = Math.floor(y / cs);
+      const localX = x - cx * cs;
+      const localY = y - cy * cs;
+      const key = `walls_auto:${cx}:${cy}`;
+      if (chunkCache[key] && chunkCache[key][localY * cs + localX] !== 0) {
+        chunkCache[key][localY * cs + localX] = 0;
+        modified = true;
+      }
+    }
+  }
+  if (modified) {
+    pendingChanges.terrainPaints.push({
+      layer: 'walls_auto',
+      rect: { x0, y0, x1, y1 },
+      tileRefId: 0,
+    });
+  }
+  markDirty();
+  updateSaveButton();
+  toast('ok', `Walls erased (${x1 - x0 + 1}x${y1 - y0 + 1}) — unsaved`);
 }
 
 async function refreshCollisionChunks() {
@@ -2596,6 +2879,7 @@ document.addEventListener('keydown', (e) => {
     case '5': setTool('zones'); break;
     case '6': setTool('spawn'); break;
     case '7': setTool('erase'); break;
+    case '8': setTool('wall'); break;
     case 'g': document.getElementById('showGrid').click(); break;
     case 'c': document.getElementById('showCollision').click(); break;
     case 'Delete':

@@ -49,7 +49,7 @@ type Bridge = {
   setSpawnMarker: (pos: { x: number; y: number } | null) => void;
   // Force-persist editor layers to server (no size guard)
   saveEditorLayersHard?: () => void;
-  applyChunkUpdates?: (layerName: 'ground' | 'walls' | 'collision', updates: Array<{ key: string; version: number; encoding: string; data: string }>) => void;
+  applyChunkUpdates?: (layerName: 'ground' | 'walls' | 'collision' | 'walls_auto', updates: Array<{ key: string; version: number; encoding: string; data: string }>) => void;
   forceReloadMap?: () => void;
   // Expose method to hydrate tileset cache from outside (e.g. serverSync)
   hydrateTilesetsCache: (tilesets: { key: string; dataUrl: string; tileWidth: number; tileHeight: number; margin?: number | undefined; spacing?: number | undefined }[]) => void;
@@ -59,6 +59,7 @@ type Bridge = {
   changeHeroAvatar: (avatarId: string) => void;
   applyTerrainPaint: (edit: { rect: { startX: number; startY: number; endX: number; endY: number }; dataUrl: string }) => void;
   eraseTerrainRect: (rect: { startX: number; startY: number; endX: number; endY: number }) => void;
+  applyWallPaint: (edit: { rect: { startX: number; startY: number; endX: number; endY: number }; wallTypeId: number }) => void;
 };
 
 export type SceneApi = {
@@ -86,13 +87,14 @@ export type SceneApi = {
   setBackgroundColor?: (hex: string) => void;
   setSpawnMarker?: (pos: { x: number; y: number } | null) => void;
   saveEditorLayersHard?: () => void;
-  applyChunkUpdates?: (layerName: 'ground' | 'walls' | 'collision', updates: Array<{ key: string; version: number; encoding: string; data: string }>) => void;
+  applyChunkUpdates?: (layerName: 'ground' | 'walls' | 'collision' | 'walls_auto', updates: Array<{ key: string; version: number; encoding: string; data: string }>) => void;
   forceReloadMap?: () => void;
   updateTilesetRegistry?: (registry: any[]) => void;
   changeHeroAvatar?: (avatarId: string) => void;
   handleObjectsUpdated?: (data: { action: string; objects?: any[]; objectIds?: number[] }) => void;
   applyTerrainPaint?: (edit: { rect: { startX: number; startY: number; endX: number; endY: number }; dataUrl: string }) => void;
   eraseTerrainRect?: (rect: { startX: number; startY: number; endX: number; endY: number }) => void;
+  applyWallPaint?: (edit: { rect: { startX: number; startY: number; endX: number; endY: number }; wallTypeId: number }) => void;
 };
 
 let sceneApi: SceneApi | null = null;
@@ -385,6 +387,9 @@ export const gameBridge: Bridge = {
   },
   eraseTerrainRect: (rect) => {
     sceneApi?.eraseTerrainRect?.(rect);
+  },
+  applyWallPaint: (edit) => {
+    sceneApi?.applyWallPaint?.(edit);
   },
   registerTileset: (ts) => {
     sceneApi?.registerTileset(ts);

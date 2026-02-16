@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { logger } from '../../logger.js';
 import { requireAuth, getTenantFromReq, requireMembership, requireApiToken } from '../utils/authHelpers.js';
 import { broadcastMapUpdate, broadcastSpawnUpdate } from '../utils/broadcast.js';
+import { applyCollisionSideEffect } from '../utils/collisionSideEffect.js';
 
 export function registerMapRoutes(app: express.Application, prisma: PrismaClient) {
   // Maps list
@@ -128,7 +129,7 @@ export function registerMapRoutes(app: express.Application, prisma: PrismaClient
   app.patch('/maps/:name/paint-rect', async (req: express.Request, res: express.Response) => {
     try {
       const schema = z.object({
-        layer: z.enum(['editor_ground', 'editor_walls', 'collision', 'ground', 'walls']),
+        layer: z.enum(['editor_ground', 'editor_walls', 'collision', 'ground', 'walls', 'walls_auto']),
         rect: z.object({ x0: z.number().int(), y0: z.number().int(), x1: z.number().int(), y1: z.number().int() }),
         tileRefId: z.number().int().optional(),
         values: z.array(z.number().int()).optional(),
@@ -288,7 +289,23 @@ export function registerMapRoutes(app: express.Application, prisma: PrismaClient
         broadcastMapUpdate(tenant.slug, 'chunks_updated', { map: name, layer: layerName, updates });
       }
 
-      res.json({ updates });
+      // Collision side-effect for walls_auto: set collision=1 where wall>0, collision=0 where wall=0
+      let collisionUpdates: ChunkUpdateResult[] | undefined;
+      if (layerName === 'walls_auto' && updates.length > 0) {
+        collisionUpdates = await applyCollisionSideEffect({
+          prisma,
+          mapId: map.id,
+          defaultChunkSize: map.chunkSize ?? 32,
+          rect,
+          wallChunkSize: chunkSize,
+          wallChunkUpdates: chunkUpdates,
+        });
+        if (collisionUpdates.length > 0) {
+          broadcastMapUpdate(tenant.slug, 'chunks_updated', { map: name, layer: 'collision', updates: collisionUpdates });
+        }
+      }
+
+      res.json({ updates, collisionUpdates: collisionUpdates && collisionUpdates.length > 0 ? collisionUpdates : undefined });
     } catch (e: unknown) {
       logger.error('[Map] paint-rect failed', e);
       res.status(500).json({ error: 'internal_error' });

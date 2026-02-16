@@ -96,8 +96,9 @@ export class EditorInputHandler {
       const isTerrainCollisionTool = editorTool === 'terrain' || editorTool === 'collision';
       const isEraseForTerrain = editorTool === 'erase' && editorState.category === 'terrain';
       const isEraseForCollision = editorTool === 'erase' && editorState.category === 'collisions';
+      const isWallTool = editorTool === 'wall';
 
-      if (isTerrainCollisionTool || isEraseForTerrain || isEraseForCollision) {
+      if (isTerrainCollisionTool || isEraseForTerrain || isEraseForCollision || isWallTool) {
         this.dragStartTile = { x: tileX, y: tileY };
         const x = tileX * this.mapRef.tileWidth;
         const y = tileY * this.mapRef.tileHeight;
@@ -147,10 +148,11 @@ export class EditorInputHandler {
       const isTerrainCollisionTool = editorTool === 'terrain' || editorTool === 'collision';
       const isEraseForTerrain = editorTool === 'erase' && editorState.category === 'terrain';
       const isEraseForCollision = editorTool === 'erase' && editorState.category === 'collisions';
+      const isWallTool = editorTool === 'wall';
 
       if (this.getEditorMode() && ds && pointer.leftButtonDown() &&
           !this.isPanning() &&
-          (isTerrainCollisionTool || isEraseForTerrain || isEraseForCollision)) {
+          (isTerrainCollisionTool || isEraseForTerrain || isEraseForCollision || isWallTool)) {
         const sx = Math.min(ds.x, tileX) * this.mapRef.tileWidth;
         const sy = Math.min(ds.y, tileY) * this.mapRef.tileHeight;
         const ex = Math.max(ds.x, tileX) * this.mapRef.tileWidth + this.mapRef.tileWidth;
@@ -188,6 +190,8 @@ export class EditorInputHandler {
           gameBridge.applyTerrainPaint({ rect, dataUrl: this.ghostDataUrl });
         } else if (editorTool === 'collision' || editorTool === 'erase') {
           this.handleCollisionOrErase(editorState, editorTool, rect);
+        } else if (editorTool === 'wall') {
+          gameBridge.applyWallPaint({ rect, wallTypeId: editorState.selectedWallTypeId });
         }
       }
     } catch { }
@@ -224,7 +228,8 @@ export class EditorInputHandler {
     const editorTool = EditorService.getState().tool;
     const isTerrainCollisionTool = editorTool === 'terrain' ||
                                    editorTool === 'collision' ||
-                                   editorTool === 'erase';
+                                   editorTool === 'erase' ||
+                                   editorTool === 'wall';
 
     if (isTerrainCollisionTool) {
       this.setSelectionRect(null);
