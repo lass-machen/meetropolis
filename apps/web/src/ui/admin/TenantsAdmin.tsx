@@ -24,6 +24,7 @@ export function TenantsAdmin(props: { apiBase: string }) {
   const [loading, setLoading] = React.useState(false);
   const [createSlug, setCreateSlug] = React.useState('');
   const [createName, setCreateName] = React.useState('');
+  const [deletingId, setDeletingId] = React.useState<string | null>(null);
 
   const load = React.useCallback(async () => {
     try {
@@ -35,6 +36,23 @@ export function TenantsAdmin(props: { apiBase: string }) {
   }, [apiBase]);
 
   React.useEffect(() => { void load(); }, [load]);
+
+  React.useEffect(() => {
+    if (!deletingId) return;
+    const timer = setTimeout(() => setDeletingId(null), 3000);
+    return () => clearTimeout(timer);
+  }, [deletingId]);
+
+  const deleteTenant = async (id: string) => {
+    try {
+      const res = await fetch(`${apiBase}/admin/tenants/${id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (res.ok) await load();
+    } catch (err) { logger.warn('[TenantsAdmin] Failed to delete tenant', err); }
+    setDeletingId(null);
+  };
 
   const updateRow = (id: string, patch: Partial<TenantRow>) => {
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } as TenantRow : r)));
@@ -139,7 +157,20 @@ export function TenantsAdmin(props: { apiBase: string }) {
                   <Input value={r.status || ''} onChange={(e: any) => updateRow(r.id, { status: e.target.value || null })} />
                 </Td>
                 <Td>
-                  <Button onClick={() => saveRow(r)}>Speichern</Button>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <Button onClick={() => saveRow(r)}>Speichern</Button>
+                    {!r.isInternal && (
+                      <Button
+                        onClick={() => deletingId === r.id ? deleteTenant(r.id) : setDeletingId(r.id)}
+                        style={{
+                          background: deletingId === r.id ? 'var(--red, #ed4245)' : undefined,
+                          color: deletingId === r.id ? '#fff' : undefined,
+                        }}
+                      >
+                        {deletingId === r.id ? 'Wirklich löschen?' : 'Löschen'}
+                      </Button>
+                    )}
+                  </div>
                 </Td>
               </Tr>
             ))}

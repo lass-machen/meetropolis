@@ -253,7 +253,22 @@ export function registerMiscRoutes(app: express.Application, prisma: PrismaClien
   app.patch('/users/:id', async (req: express.Request, res: express.Response) => {
     const auth = requireAuth(req);
     if (!auth) return res.status(401).json({ error: 'unauthorized' });
+
+    const tenant = getTenantFromReq(req);
+    if (!tenant) return res.status(400).json({ error: 'tenant_required' });
+
+    // Allow self-edit without role check
     const id = req.params.id;
+    if (id !== auth.userId) {
+      const callerMembership = await requireMembership(req, auth.userId, prisma);
+      if (!callerMembership || (callerMembership.role !== 'owner' && callerMembership.role !== 'admin')) {
+        return res.status(403).json({ error: 'forbidden' });
+      }
+      // Check target user is in same tenant
+      const targetMembership = await prisma.membership.findFirst({ where: { userId: id, tenantId: tenant.id } });
+      if (!targetMembership) return res.status(404).json({ error: 'user not found in this tenant' });
+    }
+
     const schema = z.object({ email: z.string().email().optional(), name: z.string().min(1).optional() });
     const parse = schema.safeParse(req.body || {});
     if (!parse.success || (!parse.data.email && !parse.data.name)) return res.status(400).json({ error: 'nothing to update' });
@@ -317,8 +332,27 @@ export function registerMiscRoutes(app: express.Application, prisma: PrismaClien
     const auth = requireAuth(req);
     if (!auth) return res.status(401).json({ error: 'unauthorized' });
     const id = req.params.id;
+    if (id === auth.userId) return res.status(400).json({ error: 'cannot delete self' });
+
+    const tenant = getTenantFromReq(req);
+    if (!tenant) return res.status(400).json({ error: 'tenant_required' });
+
+    // Check caller role
+    const callerMembership = await requireMembership(req, auth.userId, prisma);
+    if (!callerMembership || (callerMembership.role !== 'owner' && callerMembership.role !== 'admin')) {
+      return res.status(403).json({ error: 'forbidden' });
+    }
+
+    // Check target user is in same tenant
+    const targetMembership = await prisma.membership.findFirst({ where: { userId: id, tenantId: tenant.id } });
+    if (!targetMembership) return res.status(404).json({ error: 'user not found in this tenant' });
+
+    // Owner cannot be deleted by admins
+    if ((targetMembership as any).role === 'owner' && callerMembership.role !== 'owner') {
+      return res.status(403).json({ error: 'cannot delete owner' });
+    }
+
     try {
-      if (id === auth.userId) return res.status(400).json({ error: 'cannot delete self' });
       const exists = await prisma.user.findUnique({ where: { id } });
       if (!exists) return res.status(404).json({ error: 'not found' });
       try { await prisma.presence.deleteMany({ where: { userId: id } }); } catch { }
@@ -327,6 +361,7 @@ export function registerMiscRoutes(app: express.Application, prisma: PrismaClien
       try { await prisma.invite.updateMany({ where: { usedById: id }, data: { usedById: null } }); } catch { }
       try { await prisma.membership.deleteMany({ where: { userId: id } }); } catch { }
       await prisma.user.delete({ where: { id } });
+      logger.info({ event: 'user.deleted', userId: id, deletedBy: auth.userId, tenantId: tenant.id });
       return res.json({ ok: true });
     } catch (e) {
       logger.error('[Users] delete failed', e);

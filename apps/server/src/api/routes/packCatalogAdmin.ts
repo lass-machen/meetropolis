@@ -2,7 +2,7 @@ import type express from 'express';
 import { PrismaClient } from '../../generated/prisma/index.js';
 import { z } from 'zod';
 import { logger } from '../../logger.js';
-import { requireAuth, requireInternalOwner } from '../utils/authHelpers.js';
+import { requireSuperAdmin } from '../utils/authHelpers.js';
 import { grantPackAccess, parseMajorVersion } from '../utils/packAccess.js';
 
 const catalogUpsertSchema = z.object({
@@ -33,10 +33,8 @@ const revokeSchema = z.object({
 export function registerPackCatalogAdminRoutes(app: express.Application, prisma: PrismaClient) {
   // GET /admin/pack-catalog/asset-packs — all asset packs with catalog data
   app.get('/admin/pack-catalog/asset-packs', async (req: express.Request, res: express.Response) => {
-    const auth = requireAuth(req);
-    if (!auth) return res.status(401).json({ error: 'unauthorized' });
-    const ok = await requireInternalOwner(req, auth.userId, prisma);
-    if (!ok) return res.status(403).json({ error: 'forbidden' });
+    const admin = await requireSuperAdmin(req, prisma);
+    if (!admin) return res.status(403).json({ error: 'forbidden' });
 
     try {
       const packs = await prisma.assetPack.findMany({
@@ -62,10 +60,8 @@ export function registerPackCatalogAdminRoutes(app: express.Application, prisma:
 
   // PUT /admin/pack-catalog/asset-packs/:uuid — upsert catalog entry
   app.put('/admin/pack-catalog/asset-packs/:uuid', async (req: express.Request, res: express.Response) => {
-    const auth = requireAuth(req);
-    if (!auth) return res.status(401).json({ error: 'unauthorized' });
-    const ok = await requireInternalOwner(req, auth.userId, prisma);
-    if (!ok) return res.status(403).json({ error: 'forbidden' });
+    const admin = await requireSuperAdmin(req, prisma);
+    if (!admin) return res.status(403).json({ error: 'forbidden' });
 
     const parse = catalogUpsertSchema.safeParse(req.body);
     if (!parse.success) return res.status(400).json({ error: 'invalid payload', details: parse.error.errors });
@@ -131,10 +127,8 @@ export function registerPackCatalogAdminRoutes(app: express.Application, prisma:
 
   // GET /admin/pack-catalog/avatar-packs — all avatar packs with catalog data
   app.get('/admin/pack-catalog/avatar-packs', async (req: express.Request, res: express.Response) => {
-    const auth = requireAuth(req);
-    if (!auth) return res.status(401).json({ error: 'unauthorized' });
-    const ok = await requireInternalOwner(req, auth.userId, prisma);
-    if (!ok) return res.status(403).json({ error: 'forbidden' });
+    const admin = await requireSuperAdmin(req, prisma);
+    if (!admin) return res.status(403).json({ error: 'forbidden' });
 
     try {
       const packs = await prisma.avatarPack.findMany({
@@ -160,10 +154,8 @@ export function registerPackCatalogAdminRoutes(app: express.Application, prisma:
 
   // PUT /admin/pack-catalog/avatar-packs/:uuid — upsert catalog entry
   app.put('/admin/pack-catalog/avatar-packs/:uuid', async (req: express.Request, res: express.Response) => {
-    const auth = requireAuth(req);
-    if (!auth) return res.status(401).json({ error: 'unauthorized' });
-    const ok = await requireInternalOwner(req, auth.userId, prisma);
-    if (!ok) return res.status(403).json({ error: 'forbidden' });
+    const admin = await requireSuperAdmin(req, prisma);
+    if (!admin) return res.status(403).json({ error: 'forbidden' });
 
     const parse = catalogUpsertSchema.safeParse(req.body);
     if (!parse.success) return res.status(400).json({ error: 'invalid payload', details: parse.error.errors });
@@ -229,10 +221,8 @@ export function registerPackCatalogAdminRoutes(app: express.Application, prisma:
 
   // POST /admin/pack-catalog/grant — manual grant
   app.post('/admin/pack-catalog/grant', async (req: express.Request, res: express.Response) => {
-    const auth = requireAuth(req);
-    if (!auth) return res.status(401).json({ error: 'unauthorized' });
-    const ok = await requireInternalOwner(req, auth.userId, prisma);
-    if (!ok) return res.status(403).json({ error: 'forbidden' });
+    const admin = await requireSuperAdmin(req, prisma);
+    if (!admin) return res.status(403).json({ error: 'forbidden' });
 
     const parse = grantSchema.safeParse(req.body);
     if (!parse.success) return res.status(400).json({ error: 'invalid payload', details: parse.error.errors });
@@ -258,7 +248,7 @@ export function registerPackCatalogAdminRoutes(app: express.Application, prisma:
         packUuid,
         grantSource: 'manual',
         purchasedMajorVersion: parseMajorVersion(version),
-        grantedBy: auth.userId,
+        grantedBy: admin.userId,
       });
 
       res.json({ ok: true });
@@ -270,10 +260,8 @@ export function registerPackCatalogAdminRoutes(app: express.Application, prisma:
 
   // POST /admin/pack-catalog/revoke — revoke pack access
   app.post('/admin/pack-catalog/revoke', async (req: express.Request, res: express.Response) => {
-    const auth = requireAuth(req);
-    if (!auth) return res.status(401).json({ error: 'unauthorized' });
-    const ok = await requireInternalOwner(req, auth.userId, prisma);
-    if (!ok) return res.status(403).json({ error: 'forbidden' });
+    const admin = await requireSuperAdmin(req, prisma);
+    if (!admin) return res.status(403).json({ error: 'forbidden' });
 
     const parse = revokeSchema.safeParse(req.body);
     if (!parse.success) return res.status(400).json({ error: 'invalid payload', details: parse.error.errors });
@@ -297,7 +285,7 @@ export function registerPackCatalogAdminRoutes(app: express.Application, prisma:
         });
       }
 
-      logger.info({ event: 'pack_catalog.revoked', tenantId, packType, packUuid, revokedBy: auth.userId });
+      logger.info({ event: 'pack_catalog.revoked', tenantId, packType, packUuid, revokedBy: admin.userId });
       res.json({ ok: true });
     } catch (e: unknown) {
       logger.error({ event: 'pack_catalog.revoke.error', error: e instanceof Error ? e.message : String(e) });

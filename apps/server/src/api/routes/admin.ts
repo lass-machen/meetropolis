@@ -6,8 +6,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { logger } from '../../logger.js';
 import {
-  requireAuth,
-  requireInternalOwner,
+  requireSuperAdmin,
   computeOnlineUsageByTenantSlug,
   getJwtSecret,
   setAuthCookie,
@@ -30,10 +29,8 @@ async function getDefaultFreeSeats(prisma: PrismaClient): Promise<number> {
 export function registerAdminRoutes(app: express.Application, prisma: PrismaClient) {
   // Tenants list
   app.get('/admin/tenants', async (req: express.Request, res: express.Response) => {
-    const auth = requireAuth(req);
-    if (!auth) return res.status(401).json({ error: 'unauthorized' });
-    const ok = await requireInternalOwner(req, auth.userId, prisma);
-    if (!ok) return res.status(403).json({ error: 'forbidden' });
+    const admin = await requireSuperAdmin(req, prisma);
+    if (!admin) return res.status(403).json({ error: 'forbidden' });
     const list = await prisma.tenant.findMany({ orderBy: { createdAt: 'asc' } });
     const usage = computeOnlineUsageByTenantSlug();
     const out = list.map((t) => ({
@@ -56,10 +53,8 @@ export function registerAdminRoutes(app: express.Application, prisma: PrismaClie
 
   // Create tenant
   app.post('/admin/tenants', async (req: express.Request, res: express.Response) => {
-    const auth = requireAuth(req);
-    if (!auth) return res.status(401).json({ error: 'unauthorized' });
-    const ok = await requireInternalOwner(req, auth.userId, prisma);
-    if (!ok) return res.status(403).json({ error: 'forbidden' });
+    const admin = await requireSuperAdmin(req, prisma);
+    if (!admin) return res.status(403).json({ error: 'forbidden' });
     const schema = z.object({ slug: z.string().min(2).max(64), name: z.string().min(1), concurrentLimit: z.number().int().nonnegative().default(50), freeSeats: z.number().int().nonnegative().optional(), bypassLimits: z.boolean().optional() });
     const parse = schema.safeParse(req.body || {});
     if (!parse.success) return res.status(400).json({ error: 'invalid payload' });
@@ -77,10 +72,8 @@ export function registerAdminRoutes(app: express.Application, prisma: PrismaClie
 
   // Update tenant
   app.patch('/admin/tenants/:id', async (req: express.Request, res: express.Response) => {
-    const auth = requireAuth(req);
-    if (!auth) return res.status(401).json({ error: 'unauthorized' });
-    const ok = await requireInternalOwner(req, auth.userId, prisma);
-    if (!ok) return res.status(403).json({ error: 'forbidden' });
+    const admin = await requireSuperAdmin(req, prisma);
+    if (!admin) return res.status(403).json({ error: 'forbidden' });
     const id = req.params.id;
     const schema = z.object({ name: z.string().min(1).optional(), concurrentLimit: z.number().int().nonnegative().optional(), freeSeats: z.number().int().nonnegative().optional(), bypassLimits: z.boolean().optional(), status: z.string().optional() });
     const parse = schema.safeParse(req.body || {});
@@ -93,12 +86,38 @@ export function registerAdminRoutes(app: express.Application, prisma: PrismaClie
     }
   });
 
+  // Delete tenant (cascade)
+  app.delete('/admin/tenants/:id', async (req: express.Request, res: express.Response) => {
+    const admin = await requireSuperAdmin(req, prisma);
+    if (!admin) return res.status(403).json({ error: 'forbidden' });
+    const id = req.params.id;
+
+    // Safety: internal tenant cannot be deleted
+    const tenant = await prisma.tenant.findUnique({ where: { id } });
+    if (!tenant) return res.status(404).json({ error: 'not_found' });
+    if (tenant.isInternal) return res.status(400).json({ error: 'cannot_delete_internal' });
+
+    try {
+      // Cascade deletion
+      await prisma.presence.deleteMany({ where: { tenantId: id } });
+      await prisma.invite.deleteMany({ where: { tenantId: id } });
+      await prisma.tenantAssetPack.deleteMany({ where: { tenantId: id } });
+      await prisma.tenantAvatarPack.deleteMany({ where: { tenantId: id } });
+      await prisma.membership.deleteMany({ where: { tenantId: id } });
+      await prisma.tenant.delete({ where: { id } });
+
+      logger.info({ event: 'admin.tenant_deleted', tenantId: id, deletedBy: admin.userId });
+      res.json({ ok: true });
+    } catch (e: unknown) {
+      logger.error({ event: 'admin.tenant_delete.error', error: e instanceof Error ? e.message : String(e) });
+      res.status(500).json({ error: 'delete_failed' });
+    }
+  });
+
   // Billing products list
   app.get('/admin/billing/products', async (req: express.Request, res: express.Response) => {
-    const auth = requireAuth(req);
-    if (!auth) return res.status(401).json({ error: 'unauthorized' });
-    const ok = await requireInternalOwner(req, auth.userId, prisma);
-    if (!ok) return res.status(403).json({ error: 'forbidden' });
+    const admin = await requireSuperAdmin(req, prisma);
+    if (!admin) return res.status(403).json({ error: 'forbidden' });
     if (!process.env.STRIPE_SECRET_KEY) return res.status(501).json({ error: 'billing_not_configured' });
     try {
       const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2023-10-16' });
@@ -135,10 +154,8 @@ export function registerAdminRoutes(app: express.Application, prisma: PrismaClie
 
   // Create billing product
   app.post('/admin/billing/products', async (req: express.Request, res: express.Response) => {
-    const auth = requireAuth(req);
-    if (!auth) return res.status(401).json({ error: 'unauthorized' });
-    const ok = await requireInternalOwner(req, auth.userId, prisma);
-    if (!ok) return res.status(403).json({ error: 'forbidden' });
+    const admin = await requireSuperAdmin(req, prisma);
+    if (!admin) return res.status(403).json({ error: 'forbidden' });
     if (!process.env.STRIPE_SECRET_KEY) return res.status(501).json({ error: 'billing_not_configured' });
     const schema = z.object({ name: z.string().min(1), description: z.string().optional(), amount: z.number().int().nonnegative(), currency: z.string().default('eur'), interval: z.enum(['month', 'year']).default('month'), concurrentLimit: z.number().int().positive() });
     const parse = schema.safeParse(req.body || {});
@@ -156,10 +173,8 @@ export function registerAdminRoutes(app: express.Application, prisma: PrismaClie
 
   // Create price for product
   app.post('/admin/billing/products/:id/prices', async (req: express.Request, res: express.Response) => {
-    const auth = requireAuth(req);
-    if (!auth) return res.status(401).json({ error: 'unauthorized' });
-    const ok = await requireInternalOwner(req, auth.userId, prisma);
-    if (!ok) return res.status(403).json({ error: 'forbidden' });
+    const admin = await requireSuperAdmin(req, prisma);
+    if (!admin) return res.status(403).json({ error: 'forbidden' });
     if (!process.env.STRIPE_SECRET_KEY) return res.status(501).json({ error: 'billing_not_configured' });
     const schema = z.object({ amount: z.number().int().nonnegative(), currency: z.string().default('eur'), interval: z.enum(['month', 'year']).default('month'), concurrentLimit: z.number().int().positive() });
     const parse = schema.safeParse(req.body || {});
@@ -176,10 +191,8 @@ export function registerAdminRoutes(app: express.Application, prisma: PrismaClie
 
   // Update product
   app.patch('/admin/billing/products/:id', async (req: express.Request, res: express.Response) => {
-    const auth = requireAuth(req);
-    if (!auth) return res.status(401).json({ error: 'unauthorized' });
-    const ok = await requireInternalOwner(req, auth.userId, prisma);
-    if (!ok) return res.status(403).json({ error: 'forbidden' });
+    const admin = await requireSuperAdmin(req, prisma);
+    if (!admin) return res.status(403).json({ error: 'forbidden' });
     if (!process.env.STRIPE_SECRET_KEY) return res.status(501).json({ error: 'billing_not_configured' });
     const schema = z.object({ name: z.string().min(1).optional(), description: z.string().optional(), active: z.boolean().optional() });
     const parse = schema.safeParse(req.body || {});
@@ -196,10 +209,8 @@ export function registerAdminRoutes(app: express.Application, prisma: PrismaClie
 
   // Update price
   app.patch('/admin/billing/prices/:id', async (req: express.Request, res: express.Response) => {
-    const auth = requireAuth(req);
-    if (!auth) return res.status(401).json({ error: 'unauthorized' });
-    const ok = await requireInternalOwner(req, auth.userId, prisma);
-    if (!ok) return res.status(403).json({ error: 'forbidden' });
+    const admin = await requireSuperAdmin(req, prisma);
+    if (!admin) return res.status(403).json({ error: 'forbidden' });
     if (!process.env.STRIPE_SECRET_KEY) return res.status(501).json({ error: 'billing_not_configured' });
     const schema = z.object({ active: z.boolean().optional() });
     const parse = schema.safeParse(req.body || {});
@@ -216,10 +227,8 @@ export function registerAdminRoutes(app: express.Application, prisma: PrismaClie
 
   // Billing metrics
   app.get('/admin/billing/metrics', async (req: express.Request, res: express.Response) => {
-    const auth = requireAuth(req);
-    if (!auth) return res.status(401).json({ error: 'unauthorized' });
-    const ok = await requireInternalOwner(req, auth.userId, prisma);
-    if (!ok) return res.status(403).json({ error: 'forbidden' });
+    const admin = await requireSuperAdmin(req, prisma);
+    if (!admin) return res.status(403).json({ error: 'forbidden' });
     if (!process.env.STRIPE_SECRET_KEY) return res.status(501).json({ error: 'billing_not_configured' });
     try {
       const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2023-10-16' });
@@ -294,7 +303,9 @@ export function registerAdminRoutes(app: express.Application, prisma: PrismaClie
   });
 
   // Debug endpoint for Colyseus rooms
-  app.get('/debug/rooms', async (_req: express.Request, res: express.Response) => {
+  app.get('/debug/rooms', async (req: express.Request, res: express.Response) => {
+    const admin = await requireSuperAdmin(req, prisma);
+    if (!admin) return res.status(403).json({ error: 'forbidden' });
     const gameServer = global.gameServer;
     if (!gameServer) return res.json({ error: 'Game server not initialized' });
 
@@ -345,10 +356,8 @@ export function registerAdminRoutes(app: express.Application, prisma: PrismaClie
 
   // Admin System Health Dashboard
   app.get('/admin/health', async (req: express.Request, res: express.Response) => {
-    const auth = requireAuth(req);
-    if (!auth) return res.status(401).json({ error: 'unauthorized' });
-    const ok = await requireInternalOwner(req, auth.userId, prisma);
-    if (!ok) return res.status(403).json({ error: 'forbidden' });
+    const admin = await requireSuperAdmin(req, prisma);
+    if (!admin) return res.status(403).json({ error: 'forbidden' });
 
     const startTime = Date.now();
     const health: Record<string, any> = {
@@ -490,10 +499,8 @@ export function registerAdminRoutes(app: express.Application, prisma: PrismaClie
 
   // Admin System Stats (for dashboard charts)
   app.get('/admin/stats', async (req: express.Request, res: express.Response) => {
-    const auth = requireAuth(req);
-    if (!auth) return res.status(401).json({ error: 'unauthorized' });
-    const ok = await requireInternalOwner(req, auth.userId, prisma);
-    if (!ok) return res.status(403).json({ error: 'forbidden' });
+    const admin = await requireSuperAdmin(req, prisma);
+    if (!admin) return res.status(403).json({ error: 'forbidden' });
 
     try {
       // Get stats over time

@@ -108,6 +108,17 @@ export async function requireMembership(req: express.Request, userId: string, pr
   return { role: (m as any).role };
 }
 
+export async function requireSuperAdmin(
+  req: express.Request,
+  prisma: PrismaClient
+): Promise<{ userId: string } | null> {
+  const auth = requireAuth(req) || await requireApiToken(req, prisma);
+  if (!auth) return null;
+  const ok = await requireInternalOwner(req, auth.userId, prisma);
+  if (!ok) return null;
+  return auth;
+}
+
 export async function requireInternalOwner(_req: express.Request, userId: string, prisma: PrismaClient): Promise<boolean> {
   try {
     const internal = await prisma.tenant.findUnique({ where: { slug: 'internal' } });
