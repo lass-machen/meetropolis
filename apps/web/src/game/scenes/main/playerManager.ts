@@ -46,18 +46,28 @@ export class PlayerManager {
 
     try {
       this.hero.setCollideWorldBounds(true);
-      this.hero.body.setSize(this.mapRef.tileWidth * 0.8, this.mapRef.tileHeight * 0.9);
-      const frameHeight = avatarRegistry.getManifest(this.avatarId)?.frameHeight ?? 24;
-      (this.hero.body as Phaser.Physics.Arcade.Body).offset.set(
-        this.mapRef.tileWidth * 0.1,
-        frameHeight - this.mapRef.tileHeight * 0.9  // Align physics body with avatar feet (bottom of sprite frame)
-      );
+      this.recalculateBody();
     } catch { }
 
     this.hero.setDepth(10);
 
     this.lastReportedX = this.hero.x;
     this.lastReportedY = this.hero.y;
+  }
+
+  private recalculateBody() {
+    const manifest = avatarRegistry.getManifest(this.avatarId);
+    const frameWidth = manifest?.frameWidth ?? 16;
+    const frameHeight = manifest?.frameHeight ?? 24;
+
+    const bodyWidth = this.mapRef.tileWidth * 0.75;
+    const bodyHeight = this.mapRef.tileHeight * 0.8;
+
+    this.hero.body.setSize(bodyWidth, bodyHeight);
+    (this.hero.body as Phaser.Physics.Arcade.Body).offset.set(
+      (frameWidth - bodyWidth) / 2,
+      frameHeight - bodyHeight
+    );
   }
 
   getHero(): Phaser.Types.Physics.Arcade.SpriteWithDynamicBody {
@@ -183,5 +193,6 @@ export class PlayerManager {
     this.createAnimations(this.scene.anims);
     const { texture, frame } = avatarRegistry.getIdleFrame(avatarId, this.currentDirection);
     this.hero.setTexture(texture, frame);
+    this.recalculateBody();
   }
 }
