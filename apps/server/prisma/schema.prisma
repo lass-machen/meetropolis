@@ -54,6 +54,9 @@ model Tenant {
   pauseEndsAt           DateTime?
   pauseReason           String?
 
+  // Default map for this tenant
+  defaultMapName    String?   @default("office")
+
   memberships           Membership[]
   maps                  Map[]
   rooms                 Room[]

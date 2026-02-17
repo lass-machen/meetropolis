@@ -93,8 +93,9 @@ export class WorldRoom extends Room<WorldState> {
       try {
         const prisma = new PrismaClient();
         this.prismaForPresence = prisma;
-        const mapName = process.env.DEFAULT_MAP_NAME || 'office';
         const tenantSlug = options?.tenant || process.env.DEFAULT_TENANT_SLUG || 'default';
+        const tenantRecord = await prisma.tenant.findUnique({ where: { slug: tenantSlug }, select: { defaultMapName: true } });
+        const mapName = tenantRecord?.defaultMapName || process.env.DEFAULT_MAP_NAME || 'office';
         const map = await prisma.map.findFirst({ where: { name: mapName, tenant: { slug: tenantSlug } } });
         // Map-Metadaten cachen (für Bounds/Clamping)
         if (map) {
@@ -414,8 +415,9 @@ export class WorldRoom extends Room<WorldState> {
     try {
       if (!this.mapWidthTiles || !this.mapHeightTiles || !this.tileWidthPx || !this.tileHeightPx || !this.defaultSpawn) {
         const prisma = new PrismaClient();
-        const mapName = process.env.DEFAULT_MAP_NAME || 'office';
         const tenantSlug = options?.tenant || (this.metadata as RoomMetadata)?.tenant || process.env.DEFAULT_TENANT_SLUG || 'default';
+        const tenantRec = await prisma.tenant.findUnique({ where: { slug: tenantSlug }, select: { defaultMapName: true } });
+        const mapName = tenantRec?.defaultMapName || process.env.DEFAULT_MAP_NAME || 'office';
         const map = await prisma.map.findFirst({ where: { name: mapName, tenant: { slug: tenantSlug } } });
         try { await prisma.$disconnect().catch(() => { }); } catch (e) { logger.debug('[WorldRoom] Failed to disconnect prisma', e); }
         if (map) {

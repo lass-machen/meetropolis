@@ -8,6 +8,7 @@ import { registerAssetPackRoutes } from './api/routes/assetPacks.js';
 import { registerAvatarPackRoutes } from './api/routes/avatarPacks.js';
 import { registerBillingRoutes } from './api/routes/billing.js';
 import { registerAdminRoutes } from './api/routes/admin.js';
+import { registerAdminUserRoutes } from './api/routes/adminUsers.js';
 import { registerHealthRoutes } from './api/routes/health.js';
 import { registerMiscRoutes } from './api/routes/misc.js';
 import { registerTmjRoutes } from './api/routes/tmj.js';
@@ -16,6 +17,7 @@ import { registerNpcRoutes } from './api/routes/npcs.js';
 import { registerNpcMediaRoutes } from './api/routes/npcMedia.js';
 import { registerPackCatalogAdminRoutes } from './api/routes/packCatalogAdmin.js';
 import { registerPackStoreRoutes } from './api/routes/packStore.js';
+import { registerAdminMapRoutes } from './api/routes/adminMaps.js';
 
 // Existing modular routes (already extracted)
 import { registerApiTokenRoutes } from './api/routes/tokens.js';
@@ -61,6 +63,12 @@ export async function registerApi(app: express.Express) {
 
   // Admin routes (tenants, billing management)
   registerAdminRoutes(app, prisma);
+
+  // Admin user management & billing detail routes
+  registerAdminUserRoutes(app, prisma);
+
+  // Admin map management routes
+  registerAdminMapRoutes(app, prisma);
 
   // Existing modular routes (already extracted before this refactoring)
   registerPresenceRoutes(app, prisma, requireAuth, (req) => {

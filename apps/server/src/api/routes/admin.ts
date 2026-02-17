@@ -44,6 +44,16 @@ export function registerAdminRoutes(app: express.Application, prisma: PrismaClie
       status: t.status || null,
       stripeCustomerId: t.stripeCustomerId || null,
       stripeSubscriptionId: t.stripeSubscriptionId || null,
+      trialStartedAt: t.trialStartedAt,
+      trialEndsAt: t.trialEndsAt,
+      trialConvertedAt: t.trialConvertedAt,
+      paymentFailedAt: t.paymentFailedAt,
+      gracePeriodEndsAt: t.gracePeriodEndsAt,
+      dunningStep: t.dunningStep ?? 0,
+      lastDunningEmailAt: t.lastDunningEmailAt,
+      pausedAt: t.pausedAt,
+      pauseEndsAt: t.pauseEndsAt,
+      pauseReason: t.pauseReason,
       createdAt: t.createdAt,
       updatedAt: t.updatedAt,
       online: usage[t.slug] || 0,
@@ -75,11 +85,16 @@ export function registerAdminRoutes(app: express.Application, prisma: PrismaClie
     const admin = await requireSuperAdmin(req, prisma);
     if (!admin) return res.status(403).json({ error: 'forbidden' });
     const id = req.params.id;
-    const schema = z.object({ name: z.string().min(1).optional(), concurrentLimit: z.number().int().nonnegative().optional(), freeSeats: z.number().int().nonnegative().optional(), bypassLimits: z.boolean().optional(), status: z.string().optional() });
+    const schema = z.object({ name: z.string().min(1).optional(), concurrentLimit: z.number().int().nonnegative().optional(), freeSeats: z.number().int().nonnegative().optional(), bypassLimits: z.boolean().optional(), status: z.string().optional(), defaultMapName: z.string().optional() });
     const parse = schema.safeParse(req.body || {});
     if (!parse.success) return res.status(400).json({ error: 'invalid payload' });
     try {
-      const t = await prisma.tenant.update({ where: { id }, data: { name: parse.data.name ?? undefined, concurrentLimit: parse.data.concurrentLimit ?? undefined, freeSeats: parse.data.freeSeats ?? undefined, bypassLimits: parse.data.bypassLimits ?? undefined, status: parse.data.status ?? undefined } });
+      // Validate defaultMapName if provided
+      if (parse.data.defaultMapName) {
+        const mapExists = await prisma.map.findFirst({ where: { tenantId: id, name: parse.data.defaultMapName } });
+        if (!mapExists) return res.status(400).json({ error: 'map_not_found', message: `No map named "${parse.data.defaultMapName}" exists for this tenant.` });
+      }
+      const t = await prisma.tenant.update({ where: { id }, data: { name: parse.data.name ?? undefined, concurrentLimit: parse.data.concurrentLimit ?? undefined, freeSeats: parse.data.freeSeats ?? undefined, bypassLimits: parse.data.bypassLimits ?? undefined, status: parse.data.status ?? undefined, defaultMapName: parse.data.defaultMapName ?? undefined } });
       res.json({ ok: true, id: t.id });
     } catch (e) {
       res.status(400).json({ error: 'update_failed' });
