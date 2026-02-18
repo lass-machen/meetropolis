@@ -196,7 +196,7 @@ model Room {
   zones     Zone[]
   presences Presence[]
 
-  @@unique([tenantId, name])
+  @@unique([mapId, name])
 }
 
 model Zone {

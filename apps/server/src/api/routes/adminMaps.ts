@@ -97,26 +97,30 @@ export function registerAdminMapRoutes(app: express.Application, prisma: PrismaC
       const existing = await prisma.map.findUnique({ where: { tenantId_name: { tenantId, name } } });
       if (existing) return res.status(400).json({ error: 'map_name_exists' });
 
-      const map = await prisma.map.create({
-        data: {
-          tenantId,
-          name,
-          width,
-          height,
-          tileWidth,
-          tileHeight,
-          chunkSize: 32,
-          meta: {},
-        },
+      const result = await prisma.$transaction(async (tx) => {
+        const map = await tx.map.create({
+          data: {
+            tenantId,
+            name,
+            width,
+            height,
+            tileWidth,
+            tileHeight,
+            chunkSize: 32,
+            meta: {},
+          },
+        });
+
+        // Create default "lobby" room
+        await tx.room.create({
+          data: { name: 'lobby', tenantId, mapId: map.id },
+        });
+
+        return map;
       });
 
-      // Create default "lobby" room
-      await prisma.room.create({
-        data: { name: 'lobby', tenantId, mapId: map.id },
-      });
-
-      logger.info({ event: 'admin_maps.created', mapId: map.id, tenantId, name });
-      res.json({ id: map.id, name: map.name });
+      logger.info({ event: 'admin_maps.created', mapId: result.id, tenantId, name });
+      res.json({ id: result.id, name: result.name });
     } catch (e: unknown) {
       logger.error({ event: 'admin_maps.create.error', error: e instanceof Error ? e.message : String(e) });
       res.status(500).json({ error: 'internal_error' });
