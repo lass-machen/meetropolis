@@ -122,6 +122,9 @@ export class SubscriptionManager implements Disposable {
    */
   forceApply(): void {
     this._lastApplyKey = null;
+    // Clear per-track dedup state so re-published tracks get subscribed.
+    // setSubscribed() has its own isCurrentlySubscribed check to avoid thrashing.
+    this._subscriptionStates.clear();
     this.applySubscriptions();
   }
 
