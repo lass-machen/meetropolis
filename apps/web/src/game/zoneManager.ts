@@ -1,25 +1,50 @@
 import { AVManager } from '../av/avManager';
 
-export type Polygon = { name: string; capacity?: number; points: Array<{ x: number; y: number } | [number, number]> };
+export type Polygon = {
+  name: string;
+  capacity?: number;
+  points: Array<{ x: number; y: number } | [number, number]>;
+  type?: 'default' | 'portal';
+  portalTarget?: string;
+  portalSpawnX?: number;
+  portalSpawnY?: number;
+};
 
 export class ZoneManager {
   private av: AVManager | null;
   private zones: Polygon[];
   private current: string | undefined;
+  private room: { send: (type: string, data: unknown) => void; onMessage: (type: string, handler: (data: unknown) => void) => void } | null = null;
+  private portalCooldownUntil: number = 0;
 
   constructor(zones: Polygon[], av: AVManager | null) {
     this.zones = zones;
     this.av = av;
   }
 
+  setRoom(room: { send: (type: string, data: unknown) => void; onMessage: (type: string, handler: (data: unknown) => void) => void } | null) {
+    this.room = room;
+  }
+
   update(pos: { x: number; y: number }) {
     const inside = this.zones.find(z => pointInPolygon(pos, normalizePoints(z.points)));
     if (inside && inside.name !== this.current) {
       this.current = inside.name;
-      // Single-Room: kein Raumwechsel mehr
+
+      // Portal detection
+      if (inside.type === 'portal' && inside.portalTarget && this.room) {
+        const now = Date.now();
+        if (now > this.portalCooldownUntil) {
+          this.portalCooldownUntil = now + 2000; // 2s cooldown
+          import('./map/changeMap').then(mod => {
+            mod.changeMap(inside.portalTarget!, this.room!);
+          }).catch(e => {
+            console.error('[ZoneManager] Failed to trigger portal:', e);
+          });
+        }
+      }
     } else if (!inside && this.current) {
       this.current = undefined;
-      // Single-Room: kein Raumwechsel mehr
     }
   }
 

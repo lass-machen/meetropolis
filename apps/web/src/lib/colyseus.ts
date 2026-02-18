@@ -1,7 +1,7 @@
 import { Client, Room } from 'colyseus.js';
 import { logger } from './logger';
 
-export async function joinWorld(serverUrl: string, identity?: string, name?: string, position?: { x: number; y: number; direction?: string }) {
+export async function joinWorld(serverUrl: string, identity?: string, name?: string, position?: { x: number; y: number; direction?: string }, mapName?: string) {
   let baseUrl = serverUrl;
   // Defensive check: ensure serverUrl is actually a string
   if (typeof baseUrl !== 'string') {
@@ -56,6 +56,7 @@ export async function joinWorld(serverUrl: string, identity?: string, name?: str
       direction: position?.direction,
       tenant,
       avatarId,
+      mapName,
     });
     // Wait for initial state sync
     await new Promise<void>((resolve) => {

@@ -1,4 +1,5 @@
 import type { UseWorldRoomArgs } from '../types';
+import { useMapStore } from '../../state/mapStore';
 
 export function setupPlayerHandlers(
   room: any,
@@ -21,9 +22,12 @@ export function setupPlayerHandlers(
   room.onMessage('full_state', (data: any) => {
     if (!gameBridge?.syncRemotePlayers) return;
     if (data?.players) {
+      const currentMap = useMapStore.getState().currentMapName;
       const players: Record<string, { x: number; y: number; direction: any; name?: string; dnd?: boolean; avatarId?: string; isNpc?: boolean }> = {};
       for (const p of data.players) {
         if (p.id === localPosRef.current.id) continue;
+        // Only render players on the same map
+        if (p.mapName && p.mapName !== currentMap) continue;
         if (p.identity) {
           colyseusToLivekitMap.current[p.id] = p.identity;
           if (p.name) identityToNameMap.current[p.identity] = p.name;
@@ -41,6 +45,8 @@ export function setupPlayerHandlers(
   // Player joined
   room.onMessage('player_joined', (data: any) => {
     if (data.id === localPosRef.current.id) return;
+    const currentMap = useMapStore.getState().currentMapName;
+    if (data.mapName && data.mapName !== currentMap) return;
     remotesRef.current[data.id] = { x: data.x, y: data.y, dnd: data.dnd };
     if (data.identity) {
       colyseusToLivekitMap.current[data.id] = data.identity;
@@ -61,6 +67,8 @@ export function setupPlayerHandlers(
   // Player moved
   room.onMessage('player_moved', (data: any) => {
     if (data.id === localPosRef.current.id) return;
+    const currentMap = useMapStore.getState().currentMapName;
+    if (data.mapName && data.mapName !== currentMap) return;
     // keep existing dnd state
     const prev = remotesRef.current[data.id] || {};
     remotesRef.current[data.id] = { ...prev, x: data.x, y: data.y };
@@ -94,6 +102,32 @@ export function setupPlayerHandlers(
     if (data.id === localPosRef.current.id) return;
     if (gameBridge && typeof gameBridge.updateRemotePlayer === 'function') {
       gameBridge.updateRemotePlayer(data.id, { avatarId: data.avatarId });
+    }
+  });
+
+  // Player map changed
+  room.onMessage('player_map_changed', (data: { id: string; oldMapName: string; newMapName: string; x: number; y: number }) => {
+    const currentMap = useMapStore.getState().currentMapName;
+
+    if (data.oldMapName === currentMap) {
+      // Player left our map - remove them
+      delete remotesRef.current[data.id];
+      delete colyseusToLivekitMap.current[data.id];
+      if (gameBridge && typeof gameBridge.removeRemotePlayer === 'function') {
+        gameBridge.removeRemotePlayer(data.id);
+      }
+      scheduleBuildParticipantList(50);
+      scheduleRefreshRosterFromRemotes(0);
+    }
+
+    if (data.newMapName === currentMap) {
+      // Player entered our map - add them
+      remotesRef.current[data.id] = { x: data.x, y: data.y };
+      if (gameBridge && typeof (gameBridge as any).addRemotePlayer === 'function') {
+        (gameBridge as any).addRemotePlayer(data.id, { x: data.x, y: data.y, direction: 'down' });
+      }
+      scheduleBuildParticipantList(50);
+      scheduleRefreshRosterFromRemotes(0);
     }
   });
 

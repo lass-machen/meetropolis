@@ -13,6 +13,7 @@ interface RoomOptions {
   identity?: string;
   name?: string;
   avatarId?: string;
+  mapName?: string;
 }
 
 interface MapMeta {
@@ -35,6 +36,7 @@ class Player extends Schema {
   @type('boolean') dnd: boolean = false; // Do Not Disturb status
   @type('string') avatarId: string = '';
   @type('boolean') isNpc: boolean = false;
+  @type('string') mapName: string = '';
 }
 
 class WorldState extends Schema {
@@ -44,6 +46,14 @@ class WorldState extends Schema {
 // Store all active rooms globally for API access
 const activeRooms = new Set<WorldRoom>();
 
+interface MapCacheEntry {
+  widthTiles: number;
+  heightTiles: number;
+  tileWidthPx: number;
+  tileHeightPx: number;
+  defaultSpawn: { x: number; y: number } | null;
+}
+
 export class WorldRoom extends Room<WorldState> {
   private defaultSpawn: { x: number; y: number } | null = null;
   private prismaForPresence: PrismaClient | null = null;
@@ -52,6 +62,8 @@ export class WorldRoom extends Room<WorldState> {
   private mapHeightTiles: number | null = null;
   private tileWidthPx: number | null = null;
   private tileHeightPx: number | null = null;
+  // Multi-map cache
+  private mapCache: Map<string, MapCacheEntry> = new Map();
   // Persist multiple bubble groups: groupId -> member sessionIds
   private bubbleGroups: Record<string, string[]> = {};
   private getAllBubbleMembers(): string[] {
@@ -71,6 +83,82 @@ export class WorldRoom extends Room<WorldState> {
     })).filter(g => Array.isArray(g.members) && g.members.length >= 2);
     const members = this.getAllBubbleMembers();
     this.broadcast('bubble_state', { groups, members });
+  }
+
+  private async ensureMapMeta(mapName: string, tenantSlug: string): Promise<MapCacheEntry | null> {
+    if (this.mapCache.has(mapName)) return this.mapCache.get(mapName)!;
+    const prisma = this.prismaForPresence ?? new PrismaClient();
+    try {
+      const map = await prisma.map.findFirst({ where: { name: mapName, tenant: { slug: tenantSlug } } });
+      if (!map) return null;
+      const meta: MapMeta = (map.meta as MapMeta) || {};
+      const sp = meta?.spawn;
+      const entry: MapCacheEntry = {
+        widthTiles: map.width ?? 32,
+        heightTiles: map.height ?? 32,
+        tileWidthPx: map.tileWidth ?? 16,
+        tileHeightPx: map.tileHeight ?? 16,
+        defaultSpawn: (sp && typeof sp.x === 'number' && typeof sp.y === 'number') ? { x: sp.x, y: sp.y } : null,
+      };
+      this.mapCache.set(mapName, entry);
+      return entry;
+    } catch (e) {
+      logger.debug('[WorldRoom] ensureMapMeta failed for', mapName, e);
+      return null;
+    }
+  }
+
+  private getBoundsPxForMap(mapName?: string): { minX: number; minY: number; maxX: number; maxY: number } | null {
+    if (mapName && this.mapCache.has(mapName)) {
+      const entry = this.mapCache.get(mapName)!;
+      const minX = entry.tileWidthPx / 2;
+      const minY = entry.tileHeightPx / 2;
+      const maxX = entry.widthTiles * entry.tileWidthPx - entry.tileWidthPx / 2;
+      const maxY = entry.heightTiles * entry.tileHeightPx - entry.tileHeightPx / 2;
+      return { minX, minY, maxX, maxY };
+    }
+    return this.getBoundsPx();
+  }
+
+  private sanitizePositionForMap(x: number, y: number, mapName?: string): { x: number; y: number } {
+    if (!Number.isFinite(x) || !Number.isFinite(y)) {
+      if (mapName && this.mapCache.has(mapName)) {
+        const entry = this.mapCache.get(mapName)!;
+        return entry.defaultSpawn ?? {
+          x: (entry.widthTiles * entry.tileWidthPx) / 2,
+          y: (entry.heightTiles * entry.tileHeightPx) / 2,
+        };
+      }
+      const fallback = this.defaultSpawn ?? this.getMapCenter();
+      return fallback ?? { x: 200, y: 200 };
+    }
+    const bounds = this.getBoundsPxForMap(mapName);
+    if (!bounds) return { x, y };
+    if (x < bounds.minX || x > bounds.maxX || y < bounds.minY || y > bounds.maxY) {
+      if (mapName && this.mapCache.has(mapName)) {
+        const entry = this.mapCache.get(mapName)!;
+        const fallback = entry.defaultSpawn ?? {
+          x: (entry.widthTiles * entry.tileWidthPx) / 2,
+          y: (entry.heightTiles * entry.tileHeightPx) / 2,
+        };
+        return {
+          x: Math.max(bounds.minX, Math.min(bounds.maxX, fallback.x)),
+          y: Math.max(bounds.minY, Math.min(bounds.maxY, fallback.y)),
+        };
+      }
+      const fallback = this.defaultSpawn ?? this.getMapCenter();
+      if (fallback) {
+        return {
+          x: Math.max(bounds.minX, Math.min(bounds.maxX, fallback.x)),
+          y: Math.max(bounds.minY, Math.min(bounds.maxY, fallback.y)),
+        };
+      }
+      return {
+        x: Math.max(bounds.minX, Math.min(bounds.maxX, x)),
+        y: Math.max(bounds.minY, Math.min(bounds.maxY, y)),
+      };
+    }
+    return { x, y };
   }
 
   override onCreate(options?: RoomOptions) {
@@ -105,6 +193,16 @@ export class WorldRoom extends Room<WorldState> {
             this.mapHeightTiles = map.height ?? null;
             this.tileWidthPx = map.tileWidth ?? null;
             this.tileHeightPx = map.tileHeight ?? null;
+            // Also store in multi-map cache
+            const meta: MapMeta = (map.meta as MapMeta) || {};
+            const sp = meta?.spawn;
+            this.mapCache.set(mapName, {
+              widthTiles: map.width ?? 32,
+              heightTiles: map.height ?? 32,
+              tileWidthPx: map.tileWidth ?? 16,
+              tileHeightPx: map.tileHeight ?? 16,
+              defaultSpawn: (sp && typeof sp.x === 'number' && typeof sp.y === 'number') ? { x: sp.x, y: sp.y } : null,
+            });
           } catch (e) { logger.debug('[WorldRoom] Failed to cache map metadata', e); }
         }
         const meta = (map?.meta as MapMeta) || {};
@@ -140,7 +238,8 @@ export class WorldRoom extends Room<WorldState> {
         id: client.sessionId,
         x: data.x,
         y: data.y,
-        direction: data.direction
+        direction: data.direction,
+        mapName: player.mapName,
       }, { except: client });
     });
 
@@ -209,6 +308,82 @@ export class WorldRoom extends Room<WorldState> {
 
     // NPC command handler (no-op: commands are broadcast from API, NPC service listens)
     this.onMessage('npc_command', () => {});
+
+    // Handle map change requests
+    this.onMessage('change_map', async (client, data: { mapName: string }) => {
+      const player = this.state.players.get(client.sessionId);
+      if (!player) return;
+
+      const targetMapName = data?.mapName;
+      if (!targetMapName || typeof targetMapName !== 'string') {
+        client.send('change_map_error', { error: 'invalid_map_name' });
+        return;
+      }
+
+      const tenantSlug = (this.metadata as RoomMetadata)?.tenant || process.env.DEFAULT_TENANT_SLUG || 'default';
+      const mapMeta = await this.ensureMapMeta(targetMapName, tenantSlug);
+      if (!mapMeta) {
+        client.send('change_map_error', { error: 'map_not_found', mapName: targetMapName });
+        return;
+      }
+
+      const oldMapName = player.mapName;
+
+      // Remove from bubble groups
+      let bubbleChanged = false;
+      for (const [gid, members] of Object.entries(this.bubbleGroups)) {
+        if (members.includes(client.sessionId)) {
+          this.bubbleGroups[gid] = members.filter(m => m !== client.sessionId);
+          bubbleChanged = true;
+        }
+      }
+      for (const [gid, members] of Object.entries(this.bubbleGroups)) {
+        if (!Array.isArray(members) || members.length < 2) {
+          delete this.bubbleGroups[gid];
+          bubbleChanged = true;
+        }
+      }
+      if (bubbleChanged) this.broadcastBubbleState();
+
+      // Set new map and spawn position
+      player.mapName = targetMapName;
+      const spawn = mapMeta.defaultSpawn || {
+        x: (mapMeta.widthTiles * mapMeta.tileWidthPx) / 2,
+        y: (mapMeta.heightTiles * mapMeta.tileHeightPx) / 2,
+      };
+      player.x = spawn.x;
+      player.y = spawn.y;
+
+      // Notify the changing client
+      client.send('map_changed', {
+        mapName: targetMapName,
+        x: player.x,
+        y: player.y,
+      });
+
+      // Notify all other clients
+      this.broadcast('player_map_changed', {
+        id: client.sessionId,
+        oldMapName,
+        newMapName: targetMapName,
+        x: player.x,
+        y: player.y,
+      }, { except: client });
+
+      // Update presence in DB (best-effort)
+      try {
+        if (this.prismaForPresence) {
+          await this.prismaForPresence.presence.updateMany({
+            where: { userId: player.identity },
+            data: { mapName: targetMapName },
+          });
+        }
+      } catch (e) {
+        logger.debug('[WorldRoom] Failed to update presence mapName', e);
+      }
+
+      logger.info('[WorldRoom] Player', client.sessionId, 'changed map:', oldMapName, '->', targetMapName);
+    });
 
     // Subscribe to map updates via Presence (works across processes if Redis is used, or locally)
     try {
@@ -436,8 +611,23 @@ export class WorldRoom extends Room<WorldState> {
       }
     } catch (e) { logger.debug('[WorldRoom] Failed to ensure map metadata on join', e); }
 
+    // Determine initial mapName for the joining player
+    let initialMapName = options?.mapName || '';
+    if (!initialMapName) {
+      try {
+        const tenantSlug = options?.tenant || (this.metadata as RoomMetadata)?.tenant || process.env.DEFAULT_TENANT_SLUG || 'default';
+        const prismaForMap = this.prismaForPresence ?? new PrismaClient();
+        const tenantForMap = await prismaForMap.tenant.findUnique({ where: { slug: tenantSlug }, select: { defaultMapName: true } });
+        initialMapName = tenantForMap?.defaultMapName || 'office';
+      } catch (e) {
+        logger.debug('[WorldRoom] Failed to determine initial mapName', e);
+        initialMapName = 'office';
+      }
+    }
+
     const player = new Player();
     player.id = client.sessionId;
+    player.mapName = initialMapName;
     // Robuste Positionswahl:
     // 1) Wenn Client Koordinaten liefert: validieren/klammern
     // 2) Sonst: Default-Spawn (aus DB), geklammert
@@ -445,9 +635,9 @@ export class WorldRoom extends Room<WorldState> {
     // 4) Notfalls: konservatives (200,200)
     let initial: { x: number; y: number } | null = null;
     if (options && typeof options.x === 'number' && typeof options.y === 'number') {
-      initial = this.sanitizePosition(options.x, options.y);
+      initial = this.sanitizePositionForMap(options.x, options.y, initialMapName);
     } else if (this.defaultSpawn) {
-      initial = this.sanitizePosition(this.defaultSpawn.x, this.defaultSpawn.y);
+      initial = this.sanitizePositionForMap(this.defaultSpawn.x, this.defaultSpawn.y, initialMapName);
     } else {
       initial = this.getMapCenter() ?? { x: 200, y: 200 };
     }
@@ -460,7 +650,7 @@ export class WorldRoom extends Room<WorldState> {
     player.isNpc = (joiningIdentity || '').startsWith('npc-');
     this.state.players.set(client.sessionId, player);
     try { colyseusPlayers.inc(); } catch (e) { logger.debug('[WorldRoom] Failed to increment colyseusPlayers metric', e); }
-    logger.info('[WorldRoom] Player joined:', client.sessionId, 'identity:', player.identity, 'name:', player.name, 'at', player.x, player.y);
+    logger.info('[WorldRoom] Player joined:', client.sessionId, 'identity:', player.identity, 'name:', player.name, 'map:', player.mapName, 'at', player.x, player.y);
     logger.debug('[WorldRoom] Current players:', this.state.players.size);
 
     // Debug: Log all players
@@ -481,7 +671,8 @@ export class WorldRoom extends Room<WorldState> {
             name: p.name,
             dnd: p.dnd,
             avatarId: p.avatarId,
-            isNpc: p.isNpc
+            isNpc: p.isNpc,
+            mapName: p.mapName,
           }))
         });
         // Aktuellen Bubble-Status (mit Gruppen) mitschicken
@@ -504,7 +695,8 @@ export class WorldRoom extends Room<WorldState> {
       name: player.name,
       dnd: player.dnd,
       avatarId: player.avatarId,
-      isNpc: player.isNpc
+      isNpc: player.isNpc,
+      mapName: player.mapName,
     }, { except: client });
 
     // Seed: recent presence list via WS (best-effort, tenant-scoped)

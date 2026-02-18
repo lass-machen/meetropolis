@@ -16,6 +16,10 @@ export type EditorCategory = 'general' | 'terrain' | 'structures' | 'objects' | 
 export type Zone = {
   name: string;
   points: { x: number; y: number }[];
+  type?: 'default' | 'portal';
+  portalTarget?: string;
+  portalSpawnX?: number;
+  portalSpawnY?: number;
 };
 
 export type Asset = {
@@ -140,6 +144,10 @@ export type EditorAction =
   | { type: 'TOGGLE_GRID' }
   | { type: 'LOAD_STATE'; state: Partial<EditorState> }
   | { type: 'CLEAR_DRAG' }
+
+  // Zone Portal Actions
+  | { type: 'UPDATE_ZONE_TYPE'; index: number; zoneType: 'default' | 'portal' }
+  | { type: 'UPDATE_ZONE_PORTAL'; index: number; portalTarget?: string; portalSpawnX?: number; portalSpawnY?: number }
 
   // Autotile Actions
   | { type: 'SELECT_WALL_TYPE'; wallTypeId: number };
@@ -497,6 +505,36 @@ class EditorServiceClass {
       case 'CLEAR_DRAG':
         this.updateState({ dragState: null });
         break;
+
+      case 'UPDATE_ZONE_TYPE': {
+        if (action.index < 0 || action.index >= this.state.zones.length) {
+          throw new Error(`Invalid zone index: ${action.index}`);
+        }
+        const zones = [...this.state.zones];
+        if (action.zoneType === 'default') {
+          // Clear portal fields when switching to default
+          const { portalTarget: _pt, portalSpawnX: _px, portalSpawnY: _py, ...rest } = zones[action.index];
+          zones[action.index] = { ...rest, type: 'default' };
+        } else {
+          zones[action.index] = { ...zones[action.index], type: action.zoneType };
+        }
+        this.updateState({ zones });
+        break;
+      }
+
+      case 'UPDATE_ZONE_PORTAL': {
+        if (action.index < 0 || action.index >= this.state.zones.length) {
+          throw new Error(`Invalid zone index: ${action.index}`);
+        }
+        const zones = [...this.state.zones];
+        const updated = { ...zones[action.index] };
+        if ('portalTarget' in action) updated.portalTarget = action.portalTarget;
+        if ('portalSpawnX' in action) updated.portalSpawnX = action.portalSpawnX;
+        if ('portalSpawnY' in action) updated.portalSpawnY = action.portalSpawnY;
+        zones[action.index] = updated;
+        this.updateState({ zones });
+        break;
+      }
 
       case 'SELECT_WALL_TYPE':
         this.updateState({

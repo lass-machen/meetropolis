@@ -11,6 +11,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Toast } from '../system';
 import { EditorService, PackItem } from '../../services/EditorService';
+import { useMapStore } from '../../state/mapStore';
 import { logger } from '../../lib/logger';
 
 export function EditorPanel(props: {
@@ -374,69 +375,170 @@ export function EditorPanel(props: {
             {state.zones.length === 0 && (
               <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>{t('editor.noZones')}</div>
             )}
-            {state.zones.map((zone, idx) => (
-              <div
-                key={idx}
-                style={{
-                  display: 'grid',
-                  gap: 6,
-                  padding: 8,
-                  borderRadius: 8,
-                  border: '1px solid var(--border)',
-                  background: state.editingZoneIndex === idx ? 'rgba(59,130,246,0.08)' : 'var(--glass)',
-                }}
-              >
-                <div style={{ display: 'grid', gap: 4 }}>
-                  <label style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>{t('editor.name')}</label>
-                  <input
-                    value={zone.name}
-                    onChange={(e) => EditorService.dispatch({ type: 'UPDATE_ZONE_NAME', index: idx, name: e.target.value })}
-                    style={{
-                      padding: 6,
-                      borderRadius: 6,
-                      border: '1px solid var(--border)',
-                      background: 'var(--glass)',
-                      color: 'var(--fg)',
-                      fontSize: 12,
-                    }}
-                  />
+            {state.zones.map((zone, idx) => {
+              const availableMaps = useMapStore.getState().availableMaps;
+              return (
+                <div
+                  key={idx}
+                  style={{
+                    display: 'grid',
+                    gap: 6,
+                    padding: 8,
+                    borderRadius: 8,
+                    border: '1px solid var(--border)',
+                    background: state.editingZoneIndex === idx ? 'rgba(59,130,246,0.08)' : 'var(--glass)',
+                  }}
+                >
+                  <div style={{ display: 'grid', gap: 4 }}>
+                    <label style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>{t('editor.name')}</label>
+                    <input
+                      value={zone.name}
+                      onChange={(e) => EditorService.dispatch({ type: 'UPDATE_ZONE_NAME', index: idx, name: e.target.value })}
+                      style={{
+                        padding: 6,
+                        borderRadius: 6,
+                        border: '1px solid var(--border)',
+                        background: 'var(--glass)',
+                        color: 'var(--fg)',
+                        fontSize: 12,
+                      }}
+                    />
+                  </div>
+                  {/* Zone Type */}
+                  <div style={{ display: 'grid', gap: 4 }}>
+                    <label style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>Typ</label>
+                    <select
+                      value={zone.type || 'default'}
+                      onChange={(e) => EditorService.dispatch({ type: 'UPDATE_ZONE_TYPE', index: idx, zoneType: e.target.value as 'default' | 'portal' })}
+                      style={{
+                        padding: 6,
+                        borderRadius: 6,
+                        border: '1px solid var(--border)',
+                        background: 'var(--glass)',
+                        color: 'var(--fg)',
+                        fontSize: 12,
+                      }}
+                    >
+                      <option value="default">Normal</option>
+                      <option value="portal">Portal</option>
+                    </select>
+                  </div>
+                  {/* Portal fields */}
+                  {zone.type === 'portal' && (
+                    <div style={{ display: 'grid', gap: 4, padding: '6px 0 0' }}>
+                      <label style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>Ziel-Map</label>
+                      <select
+                        value={zone.portalTarget || ''}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          const action: Parameters<typeof EditorService.dispatch>[0] = val
+                            ? { type: 'UPDATE_ZONE_PORTAL', index: idx, portalTarget: val }
+                            : { type: 'UPDATE_ZONE_PORTAL', index: idx };
+                          EditorService.dispatch(action);
+                        }}
+                        style={{
+                          padding: 6,
+                          borderRadius: 6,
+                          border: '1px solid var(--border)',
+                          background: 'var(--glass)',
+                          color: 'var(--fg)',
+                          fontSize: 12,
+                        }}
+                      >
+                        <option value="">-- Ziel wählen --</option>
+                        {availableMaps.map(m => (
+                          <option key={m.name} value={m.name}>{m.name}</option>
+                        ))}
+                      </select>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <div style={{ flex: 1, display: 'grid', gap: 2 }}>
+                          <label style={{ fontSize: 10, color: 'var(--fg-subtle)' }}>Spawn X</label>
+                          <input
+                            type="number"
+                            value={zone.portalSpawnX ?? ''}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              const action: Parameters<typeof EditorService.dispatch>[0] = val
+                                ? { type: 'UPDATE_ZONE_PORTAL', index: idx, portalSpawnX: Number(val) }
+                                : { type: 'UPDATE_ZONE_PORTAL', index: idx };
+                              EditorService.dispatch(action);
+                            }}
+                            placeholder="auto"
+                            style={{
+                              padding: 4,
+                              borderRadius: 6,
+                              border: '1px solid var(--border)',
+                              background: 'var(--glass)',
+                              color: 'var(--fg)',
+                              fontSize: 11,
+                              width: '100%',
+                            }}
+                          />
+                        </div>
+                        <div style={{ flex: 1, display: 'grid', gap: 2 }}>
+                          <label style={{ fontSize: 10, color: 'var(--fg-subtle)' }}>Spawn Y</label>
+                          <input
+                            type="number"
+                            value={zone.portalSpawnY ?? ''}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              const action: Parameters<typeof EditorService.dispatch>[0] = val
+                                ? { type: 'UPDATE_ZONE_PORTAL', index: idx, portalSpawnY: Number(val) }
+                                : { type: 'UPDATE_ZONE_PORTAL', index: idx };
+                              EditorService.dispatch(action);
+                            }}
+                            placeholder="auto"
+                            style={{
+                              padding: 4,
+                              borderRadius: 6,
+                              border: '1px solid var(--border)',
+                              background: 'var(--glass)',
+                              color: 'var(--fg)',
+                              fontSize: 11,
+                              width: '100%',
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button
+                      onClick={() => EditorService.dispatch({ type: 'START_EDIT_ZONE', index: idx })}
+                      style={{
+                        padding: '6px 10px',
+                        borderRadius: 6,
+                        border: '1px solid var(--border)',
+                        background: 'var(--glass)',
+                        color: 'var(--fg)',
+                        fontSize: 12,
+                      }}
+                    >
+                      Bearbeiten
+                    </button>
+                    <button
+                      onClick={async () => {
+                        EditorService.dispatch({ type: 'DELETE_ZONE', index: idx });
+                        // Auto-save nach Löschen, damit Server-State synchron bleibt
+                        if (props.onSave) {
+                          await props.onSave();
+                        }
+                      }}
+                      style={{
+                        padding: '6px 10px',
+                        borderRadius: 6,
+                        border: '1px solid var(--border)',
+                        background: 'rgba(239,68,68,0.12)',
+                        color: 'var(--fg)',
+                        fontSize: 12,
+                      }}
+                    >
+                      {t('editor.remove')}
+                    </button>
+                  </div>
                 </div>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <button
-                    onClick={() => EditorService.dispatch({ type: 'START_EDIT_ZONE', index: idx })}
-                    style={{
-                      padding: '6px 10px',
-                      borderRadius: 6,
-                      border: '1px solid var(--border)',
-                      background: 'var(--glass)',
-                      color: 'var(--fg)',
-                      fontSize: 12,
-                    }}
-                  >
-                    Bearbeiten
-                  </button>
-                  <button
-                    onClick={async () => {
-                      EditorService.dispatch({ type: 'DELETE_ZONE', index: idx });
-                      // Auto-save nach Löschen, damit Server-State synchron bleibt
-                      if (props.onSave) {
-                        await props.onSave();
-                      }
-                    }}
-                    style={{
-                      padding: '6px 10px',
-                      borderRadius: 6,
-                      border: '1px solid var(--border)',
-                      background: 'rgba(239,68,68,0.12)',
-                      color: 'var(--fg)',
-                      fontSize: 12,
-                    }}
-                  >
-                    {t('editor.remove')}
-                  </button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </>
       )}

@@ -456,6 +456,7 @@ let currentMapName = '';
 let currentTool = 'select';
 let currentCat = 'terrain';
 let assetPacks = [];
+let availableMapNames = [];     // Populated on connect()
 let selectedPackIdx = -1;
 let selectedAssetItem = null;   // { pack, item, cat }
 let selectedTileIndex = -1;     // For terrain tile picker
@@ -608,6 +609,7 @@ async function connect() {
   try {
     // Test connection by fetching maps list
     const maps = await apiFetch('/maps');
+    availableMapNames = maps.map(m => m.name);
     CFG.connected = true;
     dot.className = 'conn-dot ok';
     label.textContent = 'Connected';
@@ -1169,8 +1171,14 @@ function renderZones() {
     if (!Array.isArray(points) || points.length < 2) continue;
 
     const isSelected = selectedZoneId === zone.id;
-    ctx.fillStyle = isSelected ? 'rgba(88, 101, 242, 0.25)' : 'rgba(88, 101, 242, 0.12)';
-    ctx.strokeStyle = isSelected ? 'rgba(88, 101, 242, 1.0)' : 'rgba(88, 101, 242, 0.6)';
+    const isPortal = zone.type === 'portal';
+    if (isPortal) {
+      ctx.fillStyle = isSelected ? 'rgba(168, 85, 247, 0.25)' : 'rgba(168, 85, 247, 0.12)';
+      ctx.strokeStyle = isSelected ? 'rgba(168, 85, 247, 1.0)' : 'rgba(168, 85, 247, 0.6)';
+    } else {
+      ctx.fillStyle = isSelected ? 'rgba(88, 101, 242, 0.25)' : 'rgba(88, 101, 242, 0.12)';
+      ctx.strokeStyle = isSelected ? 'rgba(88, 101, 242, 1.0)' : 'rgba(88, 101, 242, 0.6)';
+    }
     ctx.lineWidth = isSelected ? 3 / camera.zoom : 2 / camera.zoom;
 
     ctx.beginPath();
@@ -1198,9 +1206,14 @@ function renderZones() {
     if (points.length > 0) {
       const lx = (points[0].x || 0) + 4;
       const ly = (points[0].y || 0) + 12 / camera.zoom;
-      ctx.fillStyle = isSelected ? 'rgba(88, 101, 242, 1.0)' : 'rgba(88, 101, 242, 0.9)';
+      if (isPortal) {
+        ctx.fillStyle = isSelected ? 'rgba(168, 85, 247, 1.0)' : 'rgba(168, 85, 247, 0.9)';
+      } else {
+        ctx.fillStyle = isSelected ? 'rgba(88, 101, 242, 1.0)' : 'rgba(88, 101, 242, 0.9)';
+      }
       ctx.font = `${10 / camera.zoom}px 'JetBrains Mono', monospace`;
-      ctx.fillText(zone.name || 'Zone', lx, ly);
+      const label = isPortal ? ('Portal \u2192 ' + (zone.portalTarget || '?')) : (zone.name || 'Zone');
+      ctx.fillText(label, lx, ly);
     }
   }
 }
@@ -2449,17 +2462,35 @@ function createZone(x0, y0, x1, y1) {
     { x: x0 * tw, y: (y1 + 1) * th },
   ];
 
+  const zoneType = prompt('Zone type (default/portal):', 'default') || 'default';
+  let portalTarget = null;
+  let portalSpawnX = null;
+  let portalSpawnY = null;
+
   const tempId = 'temp-' + Date.now();
-  const newZone = { id: tempId, name, capacity: parseInt(capacity) || null, polygon };
+  const newZone = {
+    id: tempId,
+    name,
+    capacity: parseInt(capacity) || null,
+    polygon,
+    type: zoneType === 'portal' ? 'portal' : 'default',
+    portalTarget,
+    portalSpawnX,
+    portalSpawnY,
+  };
 
   if (!editorState) editorState = { zones: [], spawn: null, backgroundColor: null };
   editorState.zones.push(newZone);
   pendingChanges.zonesModified = true;
 
+  if (zoneType === 'portal') {
+    selectedZoneId = tempId;
+  }
   updateZoneList();
+  updatePropsPanel();
   markDirty();
   updateSaveButton();
-  toast('ok', `Zone created: ${name} — unsaved`);
+  toast('ok', `Zone created: ${name}${zoneType === 'portal' ? ' (Portal — set target in Properties panel)' : ''} — unsaved`);
 }
 
 function extendZone(zoneId, x0, y0, x1, y1) {
@@ -2510,6 +2541,18 @@ function extendZone(zoneId, x0, y0, x1, y1) {
   updateSaveButton();
   updatePropsPanel();
   toast('ok', `Zone "${zone.name}" extended — unsaved`);
+}
+
+function updateZonePortalProp(zoneId, field, value) {
+  if (!editorState || !editorState.zones) return;
+  const zone = editorState.zones.find(z => z.id === zoneId);
+  if (!zone) return;
+  zone[field] = value;
+  pendingChanges.zonesModified = true;
+  markDirty();
+  updateSaveButton();
+  updateZoneList();
+  updatePropsPanel();
 }
 
 function selectZone(zoneId) {
@@ -2580,15 +2623,24 @@ function updateZoneList() {
     el.innerHTML = '<div class="empty-state">No zones defined.</div>';
     return;
   }
-  el.innerHTML = zones.map(z => `
+  el.innerHTML = zones.map(z => {
+    const isPortal = z.type === 'portal';
+    const dotColor = isPortal ? '#a855f7' : 'var(--accent)';
+    const metaText = isPortal
+      ? 'Portal \u2192 ' + esc(z.portalTarget || '?')
+      : ('Cap: ' + (z.capacity || 'unlimited'));
+    return `
     <div class="zone-item${selectedZoneId === z.id ? ' selected' : ''}" onclick="selectZone('${escAttr(z.id)}')" style="cursor:pointer${selectedZoneId === z.id ? ';border-color:var(--accent);background:var(--accent-glow)' : ''}">
-      <div>
-        <div class="zone-name">${esc(z.name || 'Zone')}</div>
-        <div class="zone-meta">Cap: ${z.capacity || 'unlimited'}</div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${dotColor};flex-shrink:0"></span>
+        <div>
+          <div class="zone-name">${esc(z.name || 'Zone')}</div>
+          <div class="zone-meta">${metaText}</div>
+        </div>
       </div>
       <button class="btn btn-sm btn-danger" onclick="event.stopPropagation();deleteZone('${escAttr(z.id)}')">Del</button>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
 }
 
 function updateSpawnDisplay() {
@@ -2617,13 +2669,55 @@ function updatePropsPanel() {
       }
       const tw = mapMeta ? (mapMeta.tileWidth || 16) : 16;
       const th = mapMeta ? (mapMeta.tileHeight || 16) : 16;
+      const zoneType = zone.type || 'default';
+      const isPortal = zoneType === 'portal';
+      const typeColor = isPortal ? '#a855f7' : 'var(--accent)';
+      const typeLabel = isPortal ? 'Portal' : 'Zone';
+      const mapOptions = availableMapNames
+        .filter(n => n !== currentMapName)
+        .map(n => `<option value="${escAttr(n)}"${zone.portalTarget === n ? ' selected' : ''}>${esc(n)}</option>`)
+        .join('');
+      const portalFieldsHtml = `
+        <div id="portalFields" style="display:${isPortal ? 'block' : 'none'};margin-top:8px">
+          <div class="field">
+            <label>Portal Target</label>
+            <select id="propPortalTarget"
+              onchange="updateZonePortalProp('${escAttr(zone.id)}', 'portalTarget', this.value || null)">
+              <option value="">-- Ziel wählen --</option>
+              ${mapOptions}
+            </select>
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label>Spawn X</label>
+              <input type="number" id="propPortalSpawnX" value="${zone.portalSpawnX != null ? zone.portalSpawnX : ''}" placeholder="opt"
+                onchange="updateZonePortalProp('${escAttr(zone.id)}', 'portalSpawnX', this.value !== '' ? parseInt(this.value,10) : null)">
+            </div>
+            <div class="field">
+              <label>Spawn Y</label>
+              <input type="number" id="propPortalSpawnY" value="${zone.portalSpawnY != null ? zone.portalSpawnY : ''}" placeholder="opt"
+                onchange="updateZonePortalProp('${escAttr(zone.id)}', 'portalSpawnY', this.value !== '' ? parseInt(this.value,10) : null)">
+            </div>
+          </div>
+        </div>`;
       el.innerHTML = `
-        <div class="prop-row"><span class="prop-label">Type</span><span class="prop-value" style="color:var(--accent)">Zone</span></div>
+        <div class="prop-row"><span class="prop-label">Type</span><span class="prop-value" style="color:${typeColor}">${typeLabel}</span></div>
         <div class="prop-row"><span class="prop-label">ID</span><span class="prop-value">${esc(zone.id)}</span></div>
         <div class="prop-row"><span class="prop-label">Name</span><span class="prop-value">${esc(zone.name || 'Zone')}</span></div>
         <div class="prop-row"><span class="prop-label">Capacity</span><span class="prop-value">${zone.capacity || 'unlimited'}</span></div>
-        <div class="prop-row"><span class="prop-label">Bounds (px)</span><span class="prop-value">${Math.round(minX)}, ${Math.round(minY)} → ${Math.round(maxX)}, ${Math.round(maxY)}</span></div>
+        <div class="prop-row"><span class="prop-label">Bounds (px)</span><span class="prop-value">${Math.round(minX)}, ${Math.round(minY)} \u2192 ${Math.round(maxX)}, ${Math.round(maxY)}</span></div>
         <div class="prop-row"><span class="prop-label">Size (tiles)</span><span class="prop-value">${Math.round((maxX - minX) / tw)} x ${Math.round((maxY - minY) / th)}</span></div>
+        <div style="margin-top:8px">
+          <div class="section-label" style="margin-bottom:6px">Zone Settings</div>
+          <div class="field">
+            <label>Zone Type</label>
+            <select id="propZoneType" onchange="updateZonePortalProp('${escAttr(zone.id)}', 'type', this.value); var pf=document.getElementById('portalFields'); if(pf) pf.style.display=this.value==='portal'?'block':'none';">
+              <option value="default"${zoneType === 'default' ? ' selected' : ''}>default</option>
+              <option value="portal"${zoneType === 'portal' ? ' selected' : ''}>portal</option>
+            </select>
+          </div>
+          ${portalFieldsHtml}
+        </div>
         <div style="margin-top:8px">
           <div class="section-label" style="margin-bottom:6px">Actions</div>
           <div class="btn-row">
@@ -2808,6 +2902,10 @@ async function saveAllChanges() {
               name: z.name,
               capacity: z.capacity,
               points: z.polygon || z.points,
+              type: z.type || null,
+              portalTarget: z.portalTarget || null,
+              portalSpawnX: z.portalSpawnX != null ? z.portalSpawnX : null,
+              portalSpawnY: z.portalSpawnY != null ? z.portalSpawnY : null,
             })),
             replaceZones: true,
           },

@@ -1,5 +1,6 @@
 import { EditorService } from '../services/EditorService';
 import { logger } from '../lib/logger';
+import { useMapStore } from '../state/mapStore';
 
 export type Direction = 'up' | 'down' | 'left' | 'right';
 
@@ -121,7 +122,7 @@ async function processTilesetQueue(): Promise<void> {
     || anyWin.VITE_API_BASE as string
     || (import.meta as { env?: { VITE_API_BASE?: string } }).env?.VITE_API_BASE
     || `${window.location.protocol}//${window.location.hostname}:2567`;
-  const mapName = (anyWin.__map_name as string) || (anyWin.MAP_NAME as string) || 'office';
+  const mapName = useMapStore.getState().currentMapName || 'office';
 
   while (tilesetQueue.length > 0) {
     const ts = tilesetQueue.shift()!;

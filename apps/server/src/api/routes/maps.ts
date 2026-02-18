@@ -391,7 +391,7 @@ export function registerMapRoutes(app: express.Application, prisma: PrismaClient
     res.json({
       tilesets: meta.tilesets ?? [],
       assets: meta.assets ?? [],
-      zones: await prisma.zone.findMany({ where: { mapId: map.id }, select: { id: true, name: true, capacity: true, polygon: true } }),
+      zones: await prisma.zone.findMany({ where: { mapId: map.id }, select: { id: true, name: true, capacity: true, polygon: true, type: true, portalTarget: true, portalSpawnX: true, portalSpawnY: true } }),
       backgroundColor: typeof meta.backgroundColor === 'string' ? meta.backgroundColor : null,
       spawn: (meta.spawn && typeof (meta.spawn as any).x === 'number' && typeof (meta.spawn as any).y === 'number') ? meta.spawn : null,
     });
@@ -448,13 +448,17 @@ export function registerMapRoutes(app: express.Application, prisma: PrismaClient
     });
 
     if (Array.isArray(zones)) {
-      const prepared = [] as Array<{ name: string; capacity: number | null; polygon: any[] }>;
+      const prepared = [] as Array<{ name: string; capacity: number | null; polygon: any[]; type: string | null; portalTarget: string | null; portalSpawnX: number | null; portalSpawnY: number | null }>;
       for (const z of zones) {
         const zoneName = (z?.name || 'Zone').toString();
-        const capacity = typeof (z as any)?.capacity === 'number' ? (z as any).capacity : null;
+        const anyZ: any = z as any;
+        const capacity = typeof anyZ?.capacity === 'number' ? anyZ.capacity : null;
+        const zoneType = typeof anyZ?.type === 'string' ? anyZ.type : null;
+        const portalTarget = typeof anyZ?.portalTarget === 'string' ? anyZ.portalTarget : null;
+        const portalSpawnX = typeof anyZ?.portalSpawnX === 'number' ? anyZ.portalSpawnX : null;
+        const portalSpawnY = typeof anyZ?.portalSpawnY === 'number' ? anyZ.portalSpawnY : null;
         let polygon: any = undefined;
         try {
-          const anyZ: any = z as any;
           if (Array.isArray(anyZ?.points)) {
             polygon = anyZ.points;
           } else if (Array.isArray(anyZ?.polygon)) {
@@ -464,14 +468,14 @@ export function registerMapRoutes(app: express.Application, prisma: PrismaClient
           }
         } catch { }
         if (Array.isArray(polygon) && polygon.length > 0) {
-          prepared.push({ name: zoneName, capacity, polygon });
+          prepared.push({ name: zoneName, capacity, polygon, type: zoneType, portalTarget, portalSpawnX, portalSpawnY });
         }
       }
       const shouldUpdate = (zones.length === 0) || (prepared.length > 0) || (replaceZones === true);
       if (shouldUpdate) {
         await prisma.zone.deleteMany({ where: { mapId: map.id } });
         for (const z of prepared) {
-          await prisma.zone.create({ data: { name: z.name, capacity: z.capacity ?? undefined, polygon: z.polygon, mapId: map.id, roomId: roomForZones?.id as string, tenantId: tenant.id } as any });
+          await prisma.zone.create({ data: { name: z.name, capacity: z.capacity ?? undefined, polygon: z.polygon, type: z.type || null, portalTarget: z.portalTarget || null, portalSpawnX: z.portalSpawnX ?? null, portalSpawnY: z.portalSpawnY ?? null, mapId: map.id, roomId: roomForZones?.id as string, tenantId: tenant.id } as any });
         }
       }
     }
@@ -543,7 +547,7 @@ export function registerMapRoutes(app: express.Application, prisma: PrismaClient
       if (!map) return res.status(404).json({ error: 'map not found' });
 
       const zones = await prisma.zone.findMany({ where: { mapId: map.id } });
-      res.json(zones.map(z => ({ id: z.id, name: z.name, capacity: z.capacity, polygon: z.polygon })));
+      res.json(zones.map(z => ({ id: z.id, name: z.name, capacity: z.capacity, polygon: z.polygon, type: z.type, portalTarget: z.portalTarget, portalSpawnX: z.portalSpawnX, portalSpawnY: z.portalSpawnY })));
     } catch (e) {
       logger.error('[Zones] List failed', e);
       res.status(500).json({ error: 'list failed' });

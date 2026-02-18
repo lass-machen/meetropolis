@@ -21,12 +21,15 @@ import { onAudioTracksChanged } from '../../lib/avEvents';
 import { useParticipants } from '../../features/participants/useParticipants';
 import { useRosterPresence } from '../../features/roster/useRosterPresence';
 import { EditorService } from '../../services/EditorService';
+import { useMapStore } from '../../state/mapStore';
 import { Overlays } from '../layout/Overlays';
 import { RosterPanel } from '../../ui/user/RosterPanel';
 import { BubbleBanner } from '../../ui/user/BubbleBanner';
 import { EditorWindow } from '../../features/editor/EditorWindow';
 import { AdminOverlay } from '../../ui/admin/AdminOverlay';
 import { PackStore } from '../../ui/packstore/PackStore';
+import { MapSwitcher } from '../../ui/hud/MapSwitcher';
+import { MapChangeOverlay } from '../../ui/hud/MapChangeOverlay';
 import { AuthLoadingScreen } from './components/AuthLoadingScreen';
 import { WorldContextMenu } from './components/WorldContextMenu';
 import { WorldModals } from './components/WorldModals';
@@ -216,6 +219,19 @@ export function WorldApp() {
 
   // Fetch user & position (extracted to hook)
   useFetchMe({ apiBase, localPosRef, setMe, setIsInternalOwner, setPositionReady, setAuthChecked, refetchTrigger: authRefetchTrigger });
+
+  // Load available maps
+  React.useEffect(() => {
+    if (!me) return;
+    fetch(`${apiBase}/maps`, { credentials: 'include' })
+      .then(res => res.json())
+      .then(maps => {
+        if (Array.isArray(maps)) {
+          useMapStore.getState().setAvailableMaps(maps.map((m: Record<string, unknown>) => ({ name: m.name as string })));
+        }
+      })
+      .catch(e => logger.debug('[WorldApp] Failed to load available maps', e));
+  }, [me, apiBase]);
 
   // Load editor state (extracted to hook)
   useEditorLoader({ me, apiBase, setEditor });
@@ -474,6 +490,7 @@ export function WorldApp() {
 
   return (
     <div style={{ width: '100vw', height: '100vh', display: 'grid', gridTemplateColumns: '1fr auto' }}>
+      <MapChangeOverlay />
       <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
         {page === 'world' && (
           <>
@@ -525,6 +542,12 @@ export function WorldApp() {
             )}
 
             <PackStore apiBase={apiBase} open={packStoreOpen} onOpenChange={setPackStoreOpen} />
+
+            {!editor.active && (
+              <div style={{ position: 'absolute', bottom: 70, left: 12, zIndex: 30 }}>
+                <MapSwitcher room={colyseusRef.current} />
+              </div>
+            )}
 
             <AVControlBar
               editorActive={editor.active}

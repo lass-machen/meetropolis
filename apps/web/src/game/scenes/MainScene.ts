@@ -14,6 +14,7 @@ import { registerTileset } from '../map/tilesets';
 import { EditorService } from '../../services/EditorService';
 import { AutotileGrid, AutotileRenderer } from '../autotile';
 import { avatarRegistry } from '../avatarRegistry';
+import { useMapStore } from '../../state/mapStore';
 import {
   PlayerManager,
   RemotePlayersManager,
@@ -58,7 +59,9 @@ export class MainScene extends Phaser.Scene {
   private spaceKey?: Phaser.Input.Keyboard.Key;
   private _lastCamSig: string | null = null;
 
-  public currentMapName: string = (typeof window !== 'undefined' && (((window as any).__map_name) || (window as any).MAP_NAME)) || 'office';
+  public currentMapName: string = (() => {
+    try { return useMapStore.getState().currentMapName || 'office'; } catch { return 'office'; }
+  })();
   public terrainTilesetSources: Map<string, string> = new Map();
   public collisionVisible: boolean = false;
   public collisionOverlay?: Phaser.GameObjects.Graphics;

@@ -200,18 +200,22 @@ model Room {
 }
 
 model Zone {
-  id         String   @id @default(cuid())
-  name       String
-  capacity   Int?
-  polygon    Json
-  room       Room     @relation(fields: [roomId], references: [id])
-  roomId     String
-  map        Map      @relation(fields: [mapId], references: [id])
-  mapId      String
-  tenant     Tenant   @relation(fields: [tenantId], references: [id])
-  tenantId   String
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id            String   @id @default(cuid())
+  name          String
+  capacity      Int?
+  polygon       Json
+  type          String?   // 'default' | 'portal'
+  portalTarget  String?   // target map name (for portal zones)
+  portalSpawnX  Int?      // optional target X coordinate
+  portalSpawnY  Int?      // optional target Y coordinate
+  room          Room     @relation(fields: [roomId], references: [id])
+  roomId        String
+  map           Map      @relation(fields: [mapId], references: [id])
+  mapId         String
+  tenant        Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId      String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }
 
 model Presence {
@@ -225,9 +229,10 @@ model Presence {
   x          Int
   y          Int
   direction  String
+  mapName    String?
   updatedAt  DateTime @updatedAt
   createdAt  DateTime @default(now())
-  
+
   @@index([userId, roomId])
 }
 

@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { fetchStateV2, preloadTilesetImages } from '../../lib/mapV2';
 import { logger } from '../../lib/logger';
 import { avatarRegistry } from '../avatarRegistry';
+import { useMapStore } from '../../state/mapStore';
 
 export class BootScene extends Phaser.Scene {
   constructor() {
@@ -66,7 +67,8 @@ export class BootScene extends Phaser.Scene {
     // v2 Boot: prefetch state-v2
     (async () => {
       try {
-        const state = await fetchStateV2('office');
+        const mapName = useMapStore.getState().currentMapName || 'office';
+        const state = await fetchStateV2(mapName);
         const metaOk = !!(state && state.mapMeta && state.mapMeta.width && state.mapMeta.height && state.mapMeta.tileWidth && state.mapMeta.tileHeight);
         if (metaOk) {
           // Tileset-Images für Registry laden (Schlüssel = key)
