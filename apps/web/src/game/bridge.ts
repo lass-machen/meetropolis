@@ -122,7 +122,11 @@ async function processTilesetQueue(): Promise<void> {
     || anyWin.VITE_API_BASE as string
     || (import.meta as { env?: { VITE_API_BASE?: string } }).env?.VITE_API_BASE
     || `${window.location.protocol}//${window.location.hostname}:2567`;
-  const mapName = useMapStore.getState().currentMapName || 'office';
+  const mapId = useMapStore.getState().currentMapId;
+  if (!mapId) {
+    isProcessingTilesets = false;
+    return;
+  }
 
   while (tilesetQueue.length > 0) {
     const ts = tilesetQueue.shift()!;
@@ -141,7 +145,7 @@ async function processTilesetQueue(): Promise<void> {
     };
 
     try {
-      const res = await fetch(`${base}/maps/${encodeURIComponent(mapName)}/tilesets`, {
+      const res = await fetch(`${base}/maps/${encodeURIComponent(mapId)}/tilesets`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },

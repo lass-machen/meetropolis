@@ -30,7 +30,7 @@ export interface ObjectsUpdatedPayload {
 }
 
 export interface ObjectManagerConfig {
-  scene: Phaser.Scene & { mapRef?: Phaser.Tilemaps.Tilemap; currentMapName: string; v2?: { chunkSize: number } };
+  scene: Phaser.Scene & { mapRef?: Phaser.Tilemaps.Tilemap; currentMapId: string; v2?: { chunkSize: number } };
 }
 
 export class ObjectManager {
@@ -191,10 +191,10 @@ export class ObjectManager {
 
   private async fetchObjectsByChunks(keys: string[]): Promise<MapObjectData[]> {
     if (keys.length === 0) return [];
-    const mapName = this.scene.currentMapName;
+    const mapId = this.scene.currentMapId;
     const qs = keys.join(',');
     const ts = Date.now();
-    const url = `${baseUrl()}/maps/${encodeURIComponent(mapName)}/objects?chunks=${encodeURIComponent(qs)}&t=${ts}`;
+    const url = `${baseUrl()}/maps/${encodeURIComponent(mapId)}/objects?chunks=${encodeURIComponent(qs)}&t=${ts}`;
     const res = await fetch(url, { credentials: 'include' });
     if (!res.ok) throw new Error(`Failed to fetch objects: ${res.status}`);
     return (await res.json()) as MapObjectData[];

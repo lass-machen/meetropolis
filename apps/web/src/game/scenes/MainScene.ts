@@ -59,6 +59,9 @@ export class MainScene extends Phaser.Scene {
   private spaceKey?: Phaser.Input.Keyboard.Key;
   private _lastCamSig: string | null = null;
 
+  public currentMapId: string = (() => {
+    try { return useMapStore.getState().currentMapId || ''; } catch { return ''; }
+  })();
   public currentMapName: string = (() => {
     try { return useMapStore.getState().currentMapName || 'office'; } catch { return 'office'; }
   })();
@@ -73,7 +76,8 @@ export class MainScene extends Phaser.Scene {
   }
 
   create() {
-    // Re-read currentMapName on every create() since Phaser reuses scene instances
+    // Re-read currentMapId/Name on every create() since Phaser reuses scene instances
+    this.currentMapId = useMapStore.getState().currentMapId || '';
     this.currentMapName = useMapStore.getState().currentMapName || 'office';
 
     // Clear stale chunk cache from previous map (Phaser reuses scene instances)
@@ -285,7 +289,7 @@ export class MainScene extends Phaser.Scene {
   setEditorAssets(assets: { id: string; key: string; dataUrl: string; x: number; y: number }[]) { setEditorAssets(this, assets); }
   setAssetPreview(preview: { dataUrl: string; width?: number | undefined; height?: number | undefined } | null) { setAssetPreview(this, preview); }
   async applyTerrainPaint(edit: { rect: { startX: number; startY: number; endX: number; endY: number }; dataUrl: string; attempt?: number }) { void edit; }
-  eraseTerrainRect(rect: { startX: number; startY: number; endX: number; endY: number }) { this.tileManager.eraseTerrainRect(rect, this.currentMapName); }
+  eraseTerrainRect(rect: { startX: number; startY: number; endX: number; endY: number }) { this.tileManager.eraseTerrainRect(rect, this.currentMapId); }
   applyWallPaint(edit: { rect: { startX: number; startY: number; endX: number; endY: number }; wallTypeId: number }) {
     if (!this.autotileGrid || !this.autotileRenderer) return;
     const { rect, wallTypeId } = edit;
@@ -313,7 +317,7 @@ export class MainScene extends Phaser.Scene {
   }
   setSelectionRect(rect: { x: number; y: number; w: number; h: number } | null) { this.editorInputHandler.setSelectionGraphics(this.selectionG); }
   applyTilePaint(edit: { layer: 'EditorGround' | 'EditorWalls' | 'Collision'; tilesetKey: string; tileIndex: number; rect: { startX: number; startY: number; endX: number; endY: number } }) {
-    this.tileManager.applyTilePaint(edit, this.currentMapName, this.collisionVisible, () => {
+    this.tileManager.applyTilePaint(edit, this.currentMapId, this.collisionVisible, () => {
       this.collisionManager.ensureCollisionCollider();
       this.collisionManager.rebuildStaticColliders();
       if (this.collisionVisible) updateCollisionOverlay(this as any);

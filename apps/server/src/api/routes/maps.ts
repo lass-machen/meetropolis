@@ -6,6 +6,11 @@ import { requireAuth, getTenantFromReq, requireMembership, requireApiToken } fro
 import { broadcastMapUpdate, broadcastSpawnUpdate } from '../utils/broadcast.js';
 import { applyCollisionSideEffect } from '../utils/collisionSideEffect.js';
 
+async function findMapById(prisma: PrismaClient, mapId: string, tenantId: string) {
+  const map = await prisma.map.findFirst({ where: { id: mapId, tenantId } });
+  return map;
+}
+
 export function registerMapRoutes(app: express.Application, prisma: PrismaClient) {
   // Maps list
   app.get('/maps', async (req: express.Request, res: express.Response) => {
@@ -16,37 +21,28 @@ export function registerMapRoutes(app: express.Application, prisma: PrismaClient
   });
 
   // v2 Map State (READ-ONLY)
-  app.get('/maps/:name/state-v2', async (req: express.Request, res: express.Response) => {
+  app.get('/maps/:id/state-v2', async (req: express.Request, res: express.Response) => {
     try {
-      const name = req.params.name;
       const tenant = getTenantFromReq(req);
       if (!tenant) return res.status(400).json({ error: 'tenant_required' });
-      let map = await prisma.map.findFirst({ where: { name, tenantId: tenant.id } });
+      let map = await findMapById(prisma, req.params.id, tenant.id);
+      if (!map) return res.status(404).json({ error: 'map not found' });
 
       const defaults = { width: 32, height: 32, tileWidth: 16, tileHeight: 16, chunkSize: 32 };
 
-      if (!map) {
+      if (!map.width || !map.height || !map.tileWidth || !map.tileHeight) {
         try {
-          map = await prisma.map.create({ data: { name, meta: {}, tenantId: tenant.id, ...defaults } });
-          logger.info('[Map] Auto-created map on state-v2 fetch', { name, tenant: tenant.slug });
-        } catch (e) {
-          return res.status(500).json({ error: 'failed to create map' });
-        }
-      } else {
-        if (!map.width || !map.height || !map.tileWidth || !map.tileHeight) {
-          try {
-            map = await prisma.map.update({
-              where: { id: map.id },
-              data: {
-                width: map.width ?? defaults.width,
-                height: map.height ?? defaults.height,
-                tileWidth: map.tileWidth ?? defaults.tileWidth,
-                tileHeight: map.tileHeight ?? defaults.tileHeight,
-              }
-            });
-            logger.info('[Map] Auto-patched map dimensions on state-v2 fetch', { name, tenant: tenant.slug });
-          } catch { }
-        }
+          map = await prisma.map.update({
+            where: { id: map.id },
+            data: {
+              width: map.width ?? defaults.width,
+              height: map.height ?? defaults.height,
+              tileWidth: map.tileWidth ?? defaults.tileWidth,
+              tileHeight: map.tileHeight ?? defaults.tileHeight,
+            }
+          });
+          logger.info('[Map] Auto-patched map dimensions on state-v2 fetch', { mapId: map.id, tenant: tenant.slug });
+        } catch { }
       }
 
       const tilesets = await prisma.mapTileset.findMany({
@@ -80,17 +76,16 @@ export function registerMapRoutes(app: express.Application, prisma: PrismaClient
   });
 
   // Chunks fetch
-  app.get('/maps/:name/chunks', async (req: express.Request, res: express.Response) => {
+  app.get('/maps/:id/chunks', async (req: express.Request, res: express.Response) => {
     try {
       const schema = z.object({ layer: z.string().min(1), keys: z.string().min(1) });
       const parse = schema.safeParse(req.query || {});
       if (!parse.success) return res.status(400).json({ error: 'layer and keys required' });
 
-      const name = req.params.name;
       const tenant = getTenantFromReq(req);
       if (!tenant) return res.status(400).json({ error: 'tenant_required' });
       const { layer: layerName, keys } = parse.data;
-      const map = await prisma.map.findFirst({ where: { name, tenantId: tenant.id } });
+      const map = await findMapById(prisma, req.params.id, tenant.id);
       if (!map) return res.status(404).json({ error: 'map not found' });
       const layer = await prisma.mapLayer.findUnique({ where: { mapId_name: { mapId: map.id, name: layerName } } });
       if (!layer) {
@@ -126,7 +121,7 @@ export function registerMapRoutes(app: express.Application, prisma: PrismaClient
   });
 
   // Paint-rect (v2 WRITE)
-  app.patch('/maps/:name/paint-rect', async (req: express.Request, res: express.Response) => {
+  app.patch('/maps/:id/paint-rect', async (req: express.Request, res: express.Response) => {
     try {
       const schema = z.object({
         layer: z.enum(['editor_ground', 'editor_walls', 'collision', 'ground', 'walls', 'walls_auto']),
@@ -141,18 +136,17 @@ export function registerMapRoutes(app: express.Application, prisma: PrismaClient
         return res.status(400).json({ error: 'invalid payload' });
       }
 
-      const name = req.params.name;
       const tenant = getTenantFromReq(req);
       if (!tenant) return res.status(400).json({ error: 'tenant_required' });
       const { layer: layerName, rect, tileRefId, values: rawValues, erase } = parse.data;
 
-      logger.info('[Paint] Request', { map: name, layer: layerName, rect, erase, hasValues: !!rawValues, tileRefId });
-
-      const map = await prisma.map.findFirst({ where: { name, tenantId: tenant.id } });
+      const map = await findMapById(prisma, req.params.id, tenant.id);
       if (!map) {
-        logger.warn('[Paint] map not found', { name, tenant: tenant.slug });
+        logger.warn('[Paint] map not found', { mapId: req.params.id, tenant: tenant.slug });
         return res.status(404).json({ error: 'map not found' });
       }
+
+      logger.info('[Paint] Request', { mapId: map.id, mapName: map.name, layer: layerName, rect, erase, hasValues: !!rawValues, tileRefId });
 
       if (!erase && tileRefId === undefined && (!rawValues || rawValues.length === 0)) {
         return res.status(400).json({ error: 'invalid payload: missing tileRefId or values' });
@@ -286,7 +280,7 @@ export function registerMapRoutes(app: express.Application, prisma: PrismaClient
       }
 
       if (updates.length > 0) {
-        broadcastMapUpdate(tenant.slug, 'chunks_updated', { map: name, layer: layerName, updates });
+        broadcastMapUpdate(tenant.slug, 'chunks_updated', { mapId: map.id, mapName: map.name, layer: layerName, updates });
       }
 
       // Collision side-effect for walls_auto: set collision=1 where wall>0, collision=0 where wall=0
@@ -301,7 +295,7 @@ export function registerMapRoutes(app: express.Application, prisma: PrismaClient
           wallChunkUpdates: chunkUpdates,
         });
         if (collisionUpdates.length > 0) {
-          broadcastMapUpdate(tenant.slug, 'chunks_updated', { map: name, layer: 'collision', updates: collisionUpdates });
+          broadcastMapUpdate(tenant.slug, 'chunks_updated', { mapId: map.id, mapName: map.name, layer: 'collision', updates: collisionUpdates });
         }
       }
 
@@ -313,21 +307,20 @@ export function registerMapRoutes(app: express.Application, prisma: PrismaClient
   });
 
   // Tileset registration
-  app.post('/maps/:name/tilesets', async (req: express.Request, res: express.Response) => {
+  app.post('/maps/:id/tilesets', async (req: express.Request, res: express.Response) => {
     try {
       const schema = z.object({ key: z.string().min(1), imageUrl: z.string().min(1), tileWidth: z.number().int().positive(), tileHeight: z.number().int().positive(), margin: z.number().int().nonnegative().optional(), spacing: z.number().int().nonnegative().optional(), hash: z.string().optional() });
       const parse = schema.safeParse(req.body || {});
       if (!parse.success) return res.status(400).json({ error: 'invalid payload' });
 
-      const name = req.params.name;
       const tenant = getTenantFromReq(req);
       if (!tenant) return res.status(400).json({ error: 'tenant_required' });
-      const map = await prisma.map.findFirst({ where: { name, tenantId: tenant.id } });
+      const map = await findMapById(prisma, req.params.id, tenant.id);
       if (!map) return res.status(404).json({ error: 'map not found' });
 
       const existing = await prisma.mapTileset.findFirst({ where: { mapId: map.id, key: parse.data.key } });
       if (existing) {
-        try { logger.debug('[Tilesets] already registered, skipping', { map: name, key: parse.data.key }); } catch { }
+        try { logger.debug('[Tilesets] already registered, skipping', { mapId: map.id, key: parse.data.key }); } catch { }
         const tilesets = await prisma.mapTileset.findMany({ where: { mapId: map.id }, orderBy: { slot: 'asc' } });
         return res.json(tilesets);
       }
@@ -335,21 +328,20 @@ export function registerMapRoutes(app: express.Application, prisma: PrismaClient
       const last = await prisma.mapTileset.findFirst({ where: { mapId: map.id }, orderBy: { slot: 'desc' } });
       const newSlot = last ? last.slot + 1 : 0;
       await prisma.mapTileset.create({ data: { mapId: map.id, slot: newSlot, ...parse.data } });
-      try { logger.info('[Tilesets] registry add', { map: name, slot: newSlot, key: parse.data.key, url: parse.data.imageUrl }); } catch { }
+      try { logger.info('[Tilesets] registry add', { mapId: map.id, slot: newSlot, key: parse.data.key, url: parse.data.imageUrl }); } catch { }
 
       const tilesets = await prisma.mapTileset.findMany({ where: { mapId: map.id }, orderBy: { slot: 'asc' } });
 
-      broadcastMapUpdate(tenant.slug, 'tileset_registry_updated', { map: name, tilesetRegistry: tilesets });
+      broadcastMapUpdate(tenant.slug, 'tileset_registry_updated', { mapId: map.id, mapName: map.name, tilesetRegistry: tilesets });
 
       res.json({ tilesetRegistry: tilesets });
     } catch (e: unknown) {
       if (e && typeof e === 'object' && 'code' in e && e.code === 'P2002') {
         try { logger.warn('[Tilesets] duplicate slot (race condition), returning current registry'); } catch { }
         try {
-          const name = req.params.name;
           const tenant = getTenantFromReq(req);
           if (tenant) {
-            const map = await prisma.map.findFirst({ where: { name, tenantId: tenant.id } });
+            const map = await findMapById(prisma, req.params.id, tenant.id);
             if (map) {
               const tilesets = await prisma.mapTileset.findMany({ where: { mapId: map.id }, orderBy: { slot: 'asc' } });
               return res.json({ tilesetRegistry: tilesets });
@@ -371,22 +363,17 @@ export function registerMapRoutes(app: express.Application, prisma: PrismaClient
   });
 
   // Editor state GET
-  app.get('/maps/:name/editor-state', async (req: express.Request, res: express.Response) => {
+  app.get('/maps/:id/editor-state', async (req: express.Request, res: express.Response) => {
     const sessionAuth = requireAuth(req);
     const tokenAuth = await requireApiToken(req, prisma);
     const auth = sessionAuth || tokenAuth;
     if (!auth) return res.status(401).json({ error: 'unauthorized' });
-    const name = req.params.name;
     const tenant = getTenantFromReq(req);
     if (!tenant) return res.status(400).json({ error: 'tenant_required' });
-    let map = await prisma.map.findFirst({ where: { name, tenantId: tenant.id } });
-    if (!map) {
-      map = await prisma.map.create({
-        data: { name, meta: {}, tenantId: tenant.id, width: 32, height: 32, tileWidth: 16, tileHeight: 16, chunkSize: 32 }
-      });
-    }
+    const map = await findMapById(prisma, req.params.id, tenant.id);
+    if (!map) return res.status(404).json({ error: 'map not found' });
     const meta = (map.meta as any) || {};
-    try { logger.debug('[EditorState] GET', { map: name, tilesets: Array.isArray(meta.tilesets) ? meta.tilesets.length : 0, assets: Array.isArray(meta.assets) ? meta.assets.length : 0 }); } catch { }
+    try { logger.debug('[EditorState] GET', { mapId: map.id, tilesets: Array.isArray(meta.tilesets) ? meta.tilesets.length : 0, assets: Array.isArray(meta.assets) ? meta.assets.length : 0 }); } catch { }
     res.set('Cache-Control', 'no-store, max-age=0');
     res.json({
       tilesets: meta.tilesets ?? [],
@@ -398,12 +385,11 @@ export function registerMapRoutes(app: express.Application, prisma: PrismaClient
   });
 
   // Editor state PUT
-  app.put('/maps/:name/editor-state', async (req: express.Request, res: express.Response) => {
+  app.put('/maps/:id/editor-state', async (req: express.Request, res: express.Response) => {
     const sessionAuth = requireAuth(req);
     const tokenAuth = await requireApiToken(req, prisma);
     const auth = sessionAuth || tokenAuth;
     if (!auth) return res.status(401).json({ error: 'unauthorized' });
-    const name = req.params.name;
     const tenant = getTenantFromReq(req);
     if (!tenant) return res.status(400).json({ error: 'tenant_required' });
     const editorSchema = z.object({
@@ -417,11 +403,9 @@ export function registerMapRoutes(app: express.Application, prisma: PrismaClient
     const parse = editorSchema.safeParse(req.body || {});
     if (!parse.success) return res.status(400).json({ error: 'invalid editor payload' });
     const { tilesets, assets, zones, backgroundColor, replaceZones, spawn } = parse.data;
-    try { logger.debug('[EditorState] PUT', { map: name, tilesets: Array.isArray(tilesets) ? tilesets.length : undefined, assets: Array.isArray(assets) ? assets.length : undefined, zones: Array.isArray(zones) ? zones.length : undefined, spawn: !!spawn }); } catch { }
-    const found = await prisma.map.findFirst({ where: { name, tenantId: tenant.id }, include: { rooms: true } });
-    const map = found ?? await prisma.map.create({
-      data: { name, meta: {}, tenantId: tenant.id, width: 32, height: 32, tileWidth: 16, tileHeight: 16, chunkSize: 32 }
-    });
+    const map = await findMapById(prisma, req.params.id, tenant.id);
+    if (!map) return res.status(404).json({ error: 'map not found' });
+    try { logger.debug('[EditorState] PUT', { mapId: map.id, mapName: map.name, tilesets: Array.isArray(tilesets) ? tilesets.length : undefined, assets: Array.isArray(assets) ? assets.length : undefined, zones: Array.isArray(zones) ? zones.length : undefined, spawn: !!spawn }); } catch { }
 
     let roomForZones = await prisma.room.findFirst({ where: { mapId: map.id }, orderBy: { createdAt: 'asc' } });
     if (!roomForZones) {
@@ -486,19 +470,18 @@ export function registerMapRoutes(app: express.Application, prisma: PrismaClient
     }
 
     if (tilesets || assets || zones || backgroundColor || replaceZones) {
-      broadcastMapUpdate(tenant.slug, 'editor_update', { type: 'all', map: name });
+      broadcastMapUpdate(tenant.slug, 'editor_update', { type: 'all', mapId: map.id, mapName: map.name });
     }
 
     res.json({ ok: true });
   });
 
   // Resize map
-  app.patch('/maps/:name/resize', async (req: express.Request, res: express.Response) => {
+  app.patch('/maps/:id/resize', async (req: express.Request, res: express.Response) => {
     const sessionAuth = requireAuth(req);
     const tokenAuth = await requireApiToken(req, prisma);
     const auth = sessionAuth || tokenAuth;
     if (!auth) return res.status(401).json({ error: 'unauthorized' });
-    const name = req.params.name;
     const tenant = getTenantFromReq(req);
     if (!tenant) return res.status(400).json({ error: 'tenant_required' });
 
@@ -512,7 +495,7 @@ export function registerMapRoutes(app: express.Application, prisma: PrismaClient
     const { width, height, dryRun } = parse.data;
 
     try {
-      const map = await prisma.map.findFirst({ where: { name, tenantId: tenant.id } });
+      const map = await findMapById(prisma, req.params.id, tenant.id);
       if (!map) return res.status(404).json({ error: 'map not found' });
 
       const oldWidth = map.width ?? 32;
@@ -570,8 +553,8 @@ export function registerMapRoutes(app: express.Application, prisma: PrismaClient
       }
 
       await prisma.map.update({ where: { id: map.id }, data: { width, height } });
-      broadcastMapUpdate(tenant.slug, 'map_resized', { map: name, oldWidth, oldHeight, newWidth: width, newHeight: height });
-      logger.info('[Map] Resized', { map: name, oldWidth, oldHeight, newWidth: width, newHeight: height });
+      broadcastMapUpdate(tenant.slug, 'map_resized', { mapId: map.id, mapName: map.name, oldWidth, oldHeight, newWidth: width, newHeight: height });
+      logger.info('[Map] Resized', { mapId: map.id, mapName: map.name, oldWidth, oldHeight, newWidth: width, newHeight: height });
 
       res.json({ ok: true, warnings, oldWidth, oldHeight, newWidth: width, newHeight: height });
     } catch (e) {
@@ -581,12 +564,11 @@ export function registerMapRoutes(app: express.Application, prisma: PrismaClient
   });
 
   // Rename map
-  app.patch('/maps/:name/rename', async (req: express.Request, res: express.Response) => {
+  app.patch('/maps/:id/rename', async (req: express.Request, res: express.Response) => {
     const sessionAuth = requireAuth(req);
     const tokenAuth = await requireApiToken(req, prisma);
     const auth = sessionAuth || tokenAuth;
     if (!auth) return res.status(401).json({ error: 'unauthorized' });
-    const oldName = req.params.name;
     const tenant = getTenantFromReq(req);
     if (!tenant) return res.status(400).json({ error: 'tenant_required' });
 
@@ -597,12 +579,14 @@ export function registerMapRoutes(app: express.Application, prisma: PrismaClient
     if (!parse.success) return res.status(400).json({ error: 'invalid payload' });
     const { newName } = parse.data;
 
-    if (newName === oldName) return res.json({ ok: true, oldName, newName });
-
     try {
+      let oldName = '';
       await prisma.$transaction(async (tx) => {
-        const map = await tx.map.findFirst({ where: { name: oldName, tenantId: tenant.id } });
+        const map = await tx.map.findFirst({ where: { id: req.params.id, tenantId: tenant.id } });
         if (!map) throw new Error('MAP_NOT_FOUND');
+        oldName = map.name;
+
+        if (newName === oldName) return;
 
         const existing = await tx.map.findFirst({ where: { name: newName, tenantId: tenant.id } });
         if (existing) throw new Error('NAME_CONFLICT');
@@ -634,8 +618,10 @@ export function registerMapRoutes(app: express.Application, prisma: PrismaClient
         });
       });
 
-      broadcastMapUpdate(tenant.slug, 'map_renamed', { oldName, newName });
-      logger.info('[Map] Renamed', { oldName, newName, tenant: tenant.slug });
+      if (newName !== oldName) {
+        broadcastMapUpdate(tenant.slug, 'map_renamed', { mapId: req.params.id, oldName, newName });
+        logger.info('[Map] Renamed', { mapId: req.params.id, oldName, newName, tenant: tenant.slug });
+      }
 
       res.json({ ok: true, oldName, newName });
     } catch (e: any) {
@@ -647,7 +633,7 @@ export function registerMapRoutes(app: express.Application, prisma: PrismaClient
   });
 
   // Admin: Zones delete
-  app.delete('/maps/:name/zones', async (req: express.Request, res: express.Response) => {
+  app.delete('/maps/:id/zones', async (req: express.Request, res: express.Response) => {
     const sessionAuth = requireAuth(req);
     const tokenAuth = await requireApiToken(req, prisma);
     const auth = sessionAuth || tokenAuth;
@@ -658,12 +644,11 @@ export function registerMapRoutes(app: express.Application, prisma: PrismaClient
     if (!membership || (membership.role !== 'admin' && membership.role !== 'owner')) {
       return res.status(403).json({ error: 'forbidden - admin required' });
     }
-    const mapName = req.params.name || 'office';
     const zoneName = req.query.name as string | undefined;
     const zoneId = req.query.id as string | undefined;
 
     try {
-      const map = await prisma.map.findFirst({ where: { name: mapName, tenantId: tenant.id } });
+      const map = await findMapById(prisma, req.params.id, tenant.id);
       if (!map) return res.status(404).json({ error: 'map not found' });
 
       let deleted = 0;
@@ -678,7 +663,7 @@ export function registerMapRoutes(app: express.Application, prisma: PrismaClient
         deleted = result.count;
       }
 
-      logger.info('[Zones] Deleted zones', { map: mapName, zoneName, zoneId, deleted });
+      logger.info('[Zones] Deleted zones', { mapId: map.id, mapName: map.name, zoneName, zoneId, deleted });
       res.json({ ok: true, deleted });
     } catch (e) {
       logger.error('[Zones] Delete failed', e);
@@ -687,17 +672,16 @@ export function registerMapRoutes(app: express.Application, prisma: PrismaClient
   });
 
   // Admin: Zones list
-  app.get('/maps/:name/zones', async (req: express.Request, res: express.Response) => {
+  app.get('/maps/:id/zones', async (req: express.Request, res: express.Response) => {
     const sessionAuth = requireAuth(req);
     const tokenAuth = await requireApiToken(req, prisma);
     const auth = sessionAuth || tokenAuth;
     if (!auth) return res.status(401).json({ error: 'unauthorized' });
     const tenant = getTenantFromReq(req);
     if (!tenant) return res.status(400).json({ error: 'tenant_required' });
-    const mapName = req.params.name || 'office';
 
     try {
-      const map = await prisma.map.findFirst({ where: { name: mapName, tenantId: tenant.id } });
+      const map = await findMapById(prisma, req.params.id, tenant.id);
       if (!map) return res.status(404).json({ error: 'map not found' });
 
       const zones = await prisma.zone.findMany({ where: { mapId: map.id } });

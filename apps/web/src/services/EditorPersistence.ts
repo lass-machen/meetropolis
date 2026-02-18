@@ -41,10 +41,10 @@ export class EditorPersistenceService {
    * 
    * @throws EditorPersistenceError bei Fehlern
    */
-  public async save(mapName: string, state: EditorState): Promise<void> {
+  public async save(mapId: string, state: EditorState): Promise<void> {
     const payload = this.stateToPayload(state);
 
-    const url = `${this.apiBase}/maps/${encodeURIComponent(mapName)}/editor-state`;
+    const url = `${this.apiBase}/maps/${encodeURIComponent(mapId)}/editor-state`;
 
     const response = await fetch(url, {
       method: 'PUT',
@@ -72,8 +72,8 @@ export class EditorPersistenceService {
    * 
    * @throws EditorPersistenceError bei Fehlern
    */
-  public async load(mapName: string): Promise<Partial<EditorState>> {
-    const url = `${this.apiBase}/maps/${encodeURIComponent(mapName)}/editor-state`;
+  public async load(mapId: string): Promise<Partial<EditorState>> {
+    const url = `${this.apiBase}/maps/${encodeURIComponent(mapId)}/editor-state`;
 
     const response = await fetch(url, {
       method: 'GET',
@@ -144,8 +144,8 @@ export class EditorPersistenceService {
   /**
    * Speichert Zones separat (für Live-Updates während Bearbeitung)
    */
-  public async saveZones(mapName: string, zones: EditorState['zones']): Promise<void> {
-    const url = `${this.apiBase}/maps/${encodeURIComponent(mapName)}/editor-state`;
+  public async saveZones(mapId: string, zones: EditorState['zones']): Promise<void> {
+    const url = `${this.apiBase}/maps/${encodeURIComponent(mapId)}/editor-state`;
 
     const response = await fetch(url, {
       method: 'PUT',
@@ -167,8 +167,8 @@ export class EditorPersistenceService {
   /**
    * Speichert Assets separat
    */
-  public async saveAssets(mapName: string, assets: EditorState['assets']): Promise<void> {
-    const url = `${this.apiBase}/maps/${encodeURIComponent(mapName)}/editor-state`;
+  public async saveAssets(mapId: string, assets: EditorState['assets']): Promise<void> {
+    const url = `${this.apiBase}/maps/${encodeURIComponent(mapId)}/editor-state`;
 
     const response = await fetch(url, {
       method: 'PUT',
@@ -190,8 +190,8 @@ export class EditorPersistenceService {
   /**
    * Speichert Spawn separat
    */
-  public async saveSpawn(mapName: string, spawn: EditorState['spawn']): Promise<void> {
-    const url = `${this.apiBase}/maps/${encodeURIComponent(mapName)}/editor-state`;
+  public async saveSpawn(mapId: string, spawn: EditorState['spawn']): Promise<void> {
+    const url = `${this.apiBase}/maps/${encodeURIComponent(mapId)}/editor-state`;
 
     const response = await fetch(url, {
       method: 'PUT',
@@ -214,7 +214,7 @@ export class EditorPersistenceService {
    * Registriert ein Tileset auf dem Server
    */
   public async registerTileset(
-    mapName: string,
+    mapId: string,
     tileset: {
       key: string;
       dataUrl: string;
@@ -224,7 +224,7 @@ export class EditorPersistenceService {
       spacing?: number;
     }
   ): Promise<void> {
-    const url = `${this.apiBase}/maps/${encodeURIComponent(mapName)}/tilesets`;
+    const url = `${this.apiBase}/maps/${encodeURIComponent(mapId)}/tilesets`;
 
     const payload = {
       key: tileset.key,

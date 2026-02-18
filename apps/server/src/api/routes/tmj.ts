@@ -6,6 +6,7 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { logger } from '../../logger.js';
 import { requireAuth, getTenantFromReq } from '../utils/authHelpers.js';
+import { broadcastMapUpdate } from '../utils/broadcast.js';
 import {
   TmjSchema,
   buildGidToSlotMapping,
@@ -33,25 +34,6 @@ const importUpload = upload.fields([
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function broadcastMapUpdate(tenantSlug: string, mapName: string): void {
-  const gameServer = (global as any).gameServer;
-  if (gameServer && gameServer.presence) {
-    try {
-      gameServer.presence.publish(`map_update:${tenantSlug}`, {
-        type: 'editor_update',
-        payload: { type: 'all', map: mapName },
-      });
-    } catch (e: any) {
-      logger.error('[TMJ] broadcast failed', { error: e?.message || String(e) });
-    }
-  } else {
-    const rooms: any[] = Array.from(((global as any).activeWorldRooms || new Set()).values());
-    for (const room of rooms) {
-      try { room.broadcast('editor_update', { type: 'all', map: mapName }); } catch { /* ignore */ }
-    }
-  }
-}
 
 function computeTileCount(t: { tilecount?: number; imagewidth?: number; imageheight?: number; tilewidth: number; tileheight: number; margin?: number; spacing?: number }): number | null {
   if (t.tilecount) return t.tilecount;
@@ -82,15 +64,14 @@ function saveTilesetImage(images: Array<{ originalname: string; buffer: Buffer }
 
 export function registerTmjRoutes(app: express.Application, prisma: PrismaClient) {
 
-  // POST /maps/:name/import-tmj
-  app.post('/maps/:name/import-tmj', importUpload, async (req: express.Request, res: express.Response) => {
+  // POST /maps/:id/import-tmj
+  app.post('/maps/:id/import-tmj', importUpload, async (req: express.Request, res: express.Response) => {
     try {
       const auth = requireAuth(req);
       if (!auth) return res.status(401).json({ error: 'unauthorized' });
       const tenant = getTenantFromReq(req);
       if (!tenant) return res.status(400).json({ error: 'tenant_required' });
 
-      const name = req.params.name;
       const fileBuffer = ((req as any).files as any)?.file?.[0]?.buffer as Buffer | undefined;
       if (!fileBuffer) return res.status(400).json({ error: 'file_required' });
 
@@ -106,17 +87,14 @@ export function registerTmjRoutes(app: express.Application, prisma: PrismaClient
       const mode = (req.query.mode as string) === 'merge' ? 'merge' : 'replace';
       const chunkSize = 32;
 
-      // Upsert map
-      const map = await prisma.map.upsert({
-        where: { tenantId_name: { tenantId: tenant.id, name } as any },
-        create: {
-          name, meta: {},
-          width: tmj.width, height: tmj.height,
-          tileWidth: tmj.tilewidth, tileHeight: tmj.tileheight,
-          chunkSize,
-          tenant: { connect: { id: tenant.id } } as any,
-        },
-        update: {
+      // Lookup map by ID — must already exist
+      const map = await prisma.map.findFirst({ where: { id: req.params.id, tenantId: tenant.id } });
+      if (!map) return res.status(404).json({ error: 'map not found' });
+
+      // Update dimensions from TMJ
+      await prisma.map.update({
+        where: { id: map.id },
+        data: {
           width: tmj.width, height: tmj.height,
           tileWidth: tmj.tilewidth, tileHeight: tmj.tileheight,
           chunkSize,
@@ -226,12 +204,12 @@ export function registerTmjRoutes(app: express.Application, prisma: PrismaClient
         });
       }
 
-      broadcastMapUpdate(tenant.slug, name);
+      broadcastMapUpdate(tenant.slug, 'editor_update', { type: 'all', mapId: map.id, mapName: map.name });
 
-      logger.info('[TMJ] import complete', { map: name, tilesets: tmj.tilesets.length, layers: layerCounts, zones: zoneCount });
+      logger.info('[TMJ] import complete', { mapId: map.id, mapName: map.name, tilesets: tmj.tilesets.length, layers: layerCounts, zones: zoneCount });
       res.json({
         ok: true,
-        map: { name, width: tmj.width, height: tmj.height },
+        map: { id: map.id, name: map.name, width: tmj.width, height: tmj.height },
         tilesets: tmj.tilesets.length,
         layers: layerCounts,
         zones: zoneCount,
@@ -244,19 +222,18 @@ export function registerTmjRoutes(app: express.Application, prisma: PrismaClient
     }
   });
 
-  // GET /maps/:name/export-tmj
-  app.get('/maps/:name/export-tmj', async (req: express.Request, res: express.Response) => {
+  // GET /maps/:id/export-tmj
+  app.get('/maps/:id/export-tmj', async (req: express.Request, res: express.Response) => {
     try {
       const auth = requireAuth(req);
       if (!auth) return res.status(401).json({ error: 'unauthorized' });
       const tenant = getTenantFromReq(req);
       if (!tenant) return res.status(400).json({ error: 'tenant_required' });
 
-      const name = req.params.name;
       const includeZones = req.query.includeZones === 'true';
       const includeSpawn = req.query.includeSpawn === 'true';
 
-      const map = await prisma.map.findFirst({ where: { name, tenantId: tenant.id } });
+      const map = await prisma.map.findFirst({ where: { id: req.params.id, tenantId: tenant.id } });
       if (!map) return res.status(404).json({ error: 'map_not_found' });
 
       const mapWidth = map.width ?? 32;
@@ -326,7 +303,7 @@ export function registerTmjRoutes(app: express.Application, prisma: PrismaClient
       });
 
       res.setHeader('Content-Type', 'application/json');
-      res.setHeader('Content-Disposition', `attachment; filename="${name}.tmj"`);
+      res.setHeader('Content-Disposition', `attachment; filename="${map.name}.tmj"`);
       res.json(tmj);
     } catch (e: any) {
       logger.error('[TMJ] export failed', e);

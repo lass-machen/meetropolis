@@ -4,7 +4,7 @@ import { gameBridge } from '../bridge';
 import { logger } from '../../lib/logger';
 import { EditorService } from '../../services/EditorService';
 
-export async function changeMap(targetMapName: string, room: { send: (type: string, data: unknown) => void; onMessage: (type: string, handler: (data: unknown) => void) => (() => void) }): Promise<void> {
+export async function changeMap(targetMapId: string, targetMapName: string, room: { send: (type: string, data: unknown) => void; onMessage: (type: string, handler: (data: unknown) => void) => (() => void) }): Promise<void> {
   const store = useMapStore.getState();
 
   if (store.isChangingMap) {
@@ -12,8 +12,8 @@ export async function changeMap(targetMapName: string, room: { send: (type: stri
     return;
   }
 
-  if (targetMapName === store.currentMapName) {
-    logger.debug('[changeMap] Already on target map:', targetMapName);
+  if (targetMapId === store.currentMapId) {
+    logger.debug('[changeMap] Already on target map:', targetMapId);
     return;
   }
 
@@ -21,7 +21,7 @@ export async function changeMap(targetMapName: string, room: { send: (type: stri
 
   try {
     // 1. Tell server to change map
-    room.send('change_map', { mapName: targetMapName });
+    room.send('change_map', { mapId: targetMapId });
 
     // 2. Wait for server confirmation
     const confirmed = await new Promise<{ mapName: string; x: number; y: number } | null>((resolve) => {
@@ -42,9 +42,9 @@ export async function changeMap(targetMapName: string, room: { send: (type: stri
     }
 
     // 3. Fetch new map state
-    const newState = await fetchStateV2(targetMapName);
+    const newState = await fetchStateV2(targetMapId);
     if (!newState || !newState.mapMeta?.width || !newState.mapMeta?.height) {
-      throw new Error('Failed to load map state for: ' + targetMapName);
+      throw new Error('Failed to load map state for: ' + targetMapId);
     }
 
     // 4. Get Phaser game instance and stop MainScene
@@ -52,8 +52,8 @@ export async function changeMap(targetMapName: string, room: { send: (type: stri
     const game = anyWin.__PHASER_GAME__ as Phaser.Game | undefined;
     if (!game) throw new Error('Phaser game not found');
 
-    // Update store FIRST so scene code reads the correct map name
-    store.setCurrentMapName(targetMapName);
+    // Update store FIRST so scene code reads the correct map id/name
+    store.setCurrentMap(targetMapId, targetMapName);
 
     // Clear stale state from previous map
     gameBridge.setEditorAssets([]);
@@ -78,7 +78,7 @@ export async function changeMap(targetMapName: string, room: { send: (type: stri
     game.scene.start('Main');
 
     // Notify React to reload zones for the new map
-    window.dispatchEvent(new CustomEvent('map_zones_reload', { detail: { mapName: targetMapName } }));
+    window.dispatchEvent(new CustomEvent('map_zones_reload', { detail: { mapId: targetMapId, mapName: targetMapName } }));
 
     // Immediately persist map change to server
     try {

@@ -227,7 +227,7 @@ export function WorldApp() {
       .then(res => res.json())
       .then(maps => {
         if (Array.isArray(maps)) {
-          useMapStore.getState().setAvailableMaps(maps.map((m: Record<string, unknown>) => ({ name: m.name as string })));
+          useMapStore.getState().setAvailableMaps(maps.map((m: Record<string, unknown>) => ({ id: m.id as string, name: m.name as string })));
         }
       })
       .catch(e => logger.debug('[WorldApp] Failed to load available maps', e));
@@ -237,10 +237,10 @@ export function WorldApp() {
   React.useEffect(() => {
     if (!me) return;
     const handler = async (e: Event) => {
-      const mapName = (e as CustomEvent).detail?.mapName;
-      if (!mapName) return;
+      const mapId = (e as CustomEvent).detail?.mapId;
+      if (!mapId) return;
       try {
-        const res = await fetch(`${apiBase}/maps/${encodeURIComponent(mapName)}/editor-state?t=${Date.now()}`, { credentials: 'include' });
+        const res = await fetch(`${apiBase}/maps/${encodeURIComponent(mapId)}/editor-state?t=${Date.now()}`, { credentials: 'include' });
         if (!res.ok) return;
         const data = await res.json();
         if (Array.isArray(data?.zones)) {
@@ -326,12 +326,13 @@ export function WorldApp() {
       const zones = currentState.zones || editor.zones;
       const backgroundColor = currentState.backgroundColor || editor.backgroundColor || '#202020';
       const spawn = currentState.spawn || editor.spawn || undefined;
-      const mapName = (typeof window !== 'undefined' && (((window as any).__map_name) || (window as any).MAP_NAME)) || 'office';
+      const mapId = useMapStore.getState().currentMapId;
+      if (!mapId) return false;
       const payload: any = { tilesets, assets, zones, backgroundColor };
       if (spawn && typeof spawn.x === 'number' && typeof spawn.y === 'number') {
         payload.spawn = spawn;
       }
-      const res = await fetch(`${apiBase}/maps/${encodeURIComponent(mapName)}/editor-state`, {
+      const res = await fetch(`${apiBase}/maps/${encodeURIComponent(mapId)}/editor-state`, {
         method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });

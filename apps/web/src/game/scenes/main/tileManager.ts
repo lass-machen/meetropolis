@@ -96,7 +96,7 @@ export class TileManager {
     this.gridGraphics.strokePath();
   }
 
-  eraseTerrainRect(rect: { startX: number; startY: number; endX: number; endY: number }, currentMapName: string) {
+  eraseTerrainRect(rect: { startX: number; startY: number; endX: number; endY: number }, currentMapId: string) {
     try {
       const x0 = Math.min(rect.startX, rect.endX);
       const y0 = Math.min(rect.startY, rect.endY);
@@ -106,13 +106,12 @@ export class TileManager {
       const apiBase = (window as any).VITE_API_BASE ||
                      (import.meta as any).env?.VITE_API_BASE ||
                      `${window.location.protocol}//${window.location.hostname}:2567`;
-      const mapName = currentMapName || 'office';
 
       const body = (layer: 'ground' | 'walls') =>
         JSON.stringify({ layer, rect: { x0, y0, x1, y1 }, erase: true });
 
       const req = (layer: 'ground' | 'walls') =>
-        fetch(`${apiBase}/maps/${encodeURIComponent(mapName)}/paint-rect`, {
+        fetch(`${apiBase}/maps/${encodeURIComponent(currentMapId)}/paint-rect`, {
           method: 'PATCH',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
@@ -157,7 +156,7 @@ export class TileManager {
       tileIndex: number;
       rect: { startX: number; startY: number; endX: number; endY: number };
     },
-    currentMapName: string,
+    currentMapId: string,
     collisionVisible: boolean,
     onCollisionUpdate?: () => void
   ) {
@@ -192,7 +191,6 @@ export class TileManager {
       const apiBase = (window as any).VITE_API_BASE ||
                      (import.meta as any).env?.VITE_API_BASE ||
                      `${window.location.protocol}//${window.location.hostname}:2567`;
-      const mapName = currentMapName || 'office';
 
       const payload: any = {
         layer: layerName,
@@ -205,7 +203,7 @@ export class TileManager {
         payload.tileRefId = edit.tileIndex | 0;
       }
 
-      fetch(`${apiBase}/maps/${encodeURIComponent(mapName)}/paint-rect`, {
+      fetch(`${apiBase}/maps/${encodeURIComponent(currentMapId)}/paint-rect`, {
         method: 'PATCH',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },

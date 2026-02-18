@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { logger } from '../../../lib/logger';
 import { splitTilesetImage } from '../../../lib/tilesetUtils';
 import { gameBridge } from '../../../game/bridge';
+import { useMapStore } from '../../../state/mapStore';
 
 interface UseEditorLoaderParams {
   me: { id: string; email: string; name?: string } | null;
@@ -117,8 +118,9 @@ export function useEditorLoader({ me, apiBase, setEditor }: UseEditorLoaderParam
 
     (async () => {
       try {
-        const mapName = (typeof window !== 'undefined' && (((window as any).__map_name) || (window as any).MAP_NAME)) || 'office';
-        const res = await fetch(`${apiBase}/maps/${encodeURIComponent(mapName)}/editor-state`, { credentials: 'include' });
+        const mapId = useMapStore.getState().currentMapId;
+        if (!mapId) return;
+        const res = await fetch(`${apiBase}/maps/${encodeURIComponent(mapId)}/editor-state`, { credentials: 'include' });
         if (res.ok) {
           const data = await res.json();
           if (data?.zones) try {

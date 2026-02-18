@@ -1,4 +1,5 @@
 import { AVManager } from '../av/avManager';
+import { useMapStore } from '../state/mapStore';
 
 export type Polygon = {
   name: string;
@@ -36,11 +37,18 @@ export class ZoneManager {
         const now = Date.now();
         if (now > this.portalCooldownUntil) {
           this.portalCooldownUntil = now + 2000; // 2s cooldown
-          import('./map/changeMap').then(mod => {
-            mod.changeMap(inside.portalTarget!, this.room!);
-          }).catch(e => {
-            console.error('[ZoneManager] Failed to trigger portal:', e);
-          });
+          const targetName = inside.portalTarget;
+          const maps = useMapStore.getState().availableMaps;
+          const targetMap = maps.find(m => m.name === targetName);
+          if (targetMap) {
+            import('./map/changeMap').then(mod => {
+              mod.changeMap(targetMap.id, targetMap.name, this.room!);
+            }).catch(e => {
+              console.error('[ZoneManager] Failed to trigger portal:', e);
+            });
+          } else {
+            console.error('[ZoneManager] Portal target map not found:', targetName);
+          }
         }
       }
     } else if (!inside && this.current) {

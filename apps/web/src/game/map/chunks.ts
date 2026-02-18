@@ -24,7 +24,7 @@ export async function loadVisibleChunks(scene: Phaser.Scene & any, layerName: Ch
     if (!scene.loadedChunks.has(`${layerName}:${k}`)) keys.push(k);
   }
   if (keys.length === 0) return;
-  const chunks = await fetchChunks(scene.currentMapName, layerName, keys);
+  const chunks = await fetchChunks(scene.currentMapId, layerName, keys);
   const updates = Object.entries(chunks).map(([key, val]: any) => ({ key, version: val.version, encoding: val.encoding, data: val.data }));
   if (layerName === 'collision' && updates.length > 0) {
     logger.debug(`[Chunks] Applying ${updates.length} collision updates for keys: ${updates.map(u => u.key).join(', ')}`);

@@ -13,6 +13,7 @@ interface RoomOptions {
   identity?: string;
   name?: string;
   avatarId?: string;
+  mapId?: string;
   mapName?: string;
 }
 
@@ -36,6 +37,7 @@ class Player extends Schema {
   @type('boolean') dnd: boolean = false; // Do Not Disturb status
   @type('string') avatarId: string = '';
   @type('boolean') isNpc: boolean = false;
+  @type('string') mapId: string = '';
   @type('string') mapName: string = '';
 }
 
@@ -85,11 +87,15 @@ export class WorldRoom extends Room<WorldState> {
     this.broadcast('bubble_state', { groups, members });
   }
 
-  private async ensureMapMeta(mapName: string, tenantSlug: string): Promise<MapCacheEntry | null> {
-    if (this.mapCache.has(mapName)) return this.mapCache.get(mapName)!;
+  private async ensureMapMeta(mapId: string, tenantSlug: string): Promise<MapCacheEntry | null> {
+    if (this.mapCache.has(mapId)) return this.mapCache.get(mapId)!;
     const prisma = this.prismaForPresence ?? new PrismaClient();
     try {
-      const map = await prisma.map.findFirst({ where: { name: mapName, tenant: { slug: tenantSlug } } });
+      // Look up by ID first, fall back to name for backward compat
+      let map = await prisma.map.findFirst({ where: { id: mapId, tenant: { slug: tenantSlug } } });
+      if (!map) {
+        map = await prisma.map.findFirst({ where: { name: mapId, tenant: { slug: tenantSlug } } });
+      }
       if (!map) return null;
       const meta: MapMeta = (map.meta as MapMeta) || {};
       const sp = meta?.spawn;
@@ -100,17 +106,17 @@ export class WorldRoom extends Room<WorldState> {
         tileHeightPx: map.tileHeight ?? 16,
         defaultSpawn: (sp && typeof sp.x === 'number' && typeof sp.y === 'number') ? { x: sp.x, y: sp.y } : null,
       };
-      this.mapCache.set(mapName, entry);
+      this.mapCache.set(mapId, entry);
       return entry;
     } catch (e) {
-      logger.debug('[WorldRoom] ensureMapMeta failed for', mapName, e);
+      logger.debug('[WorldRoom] ensureMapMeta failed for', mapId, e);
       return null;
     }
   }
 
-  private getBoundsPxForMap(mapName?: string): { minX: number; minY: number; maxX: number; maxY: number } | null {
-    if (mapName && this.mapCache.has(mapName)) {
-      const entry = this.mapCache.get(mapName)!;
+  private getBoundsPxForMap(mapId?: string): { minX: number; minY: number; maxX: number; maxY: number } | null {
+    if (mapId && this.mapCache.has(mapId)) {
+      const entry = this.mapCache.get(mapId)!;
       const minX = entry.tileWidthPx / 2;
       const minY = entry.tileHeightPx / 2;
       const maxX = entry.widthTiles * entry.tileWidthPx - entry.tileWidthPx / 2;
@@ -120,10 +126,10 @@ export class WorldRoom extends Room<WorldState> {
     return this.getBoundsPx();
   }
 
-  private sanitizePositionForMap(x: number, y: number, mapName?: string): { x: number; y: number } {
+  private sanitizePositionForMap(x: number, y: number, mapId?: string): { x: number; y: number } {
     if (!Number.isFinite(x) || !Number.isFinite(y)) {
-      if (mapName && this.mapCache.has(mapName)) {
-        const entry = this.mapCache.get(mapName)!;
+      if (mapId && this.mapCache.has(mapId)) {
+        const entry = this.mapCache.get(mapId)!;
         return entry.defaultSpawn ?? {
           x: (entry.widthTiles * entry.tileWidthPx) / 2,
           y: (entry.heightTiles * entry.tileHeightPx) / 2,
@@ -132,11 +138,11 @@ export class WorldRoom extends Room<WorldState> {
       const fallback = this.defaultSpawn ?? this.getMapCenter();
       return fallback ?? { x: 200, y: 200 };
     }
-    const bounds = this.getBoundsPxForMap(mapName);
+    const bounds = this.getBoundsPxForMap(mapId);
     if (!bounds) return { x, y };
     if (x < bounds.minX || x > bounds.maxX || y < bounds.minY || y > bounds.maxY) {
-      if (mapName && this.mapCache.has(mapName)) {
-        const entry = this.mapCache.get(mapName)!;
+      if (mapId && this.mapCache.has(mapId)) {
+        const entry = this.mapCache.get(mapId)!;
         const fallback = entry.defaultSpawn ?? {
           x: (entry.widthTiles * entry.tileWidthPx) / 2,
           y: (entry.heightTiles * entry.tileHeightPx) / 2,
@@ -193,10 +199,10 @@ export class WorldRoom extends Room<WorldState> {
             this.mapHeightTiles = map.height ?? null;
             this.tileWidthPx = map.tileWidth ?? null;
             this.tileHeightPx = map.tileHeight ?? null;
-            // Also store in multi-map cache
+            // Also store in multi-map cache (keyed by mapId)
             const meta: MapMeta = (map.meta as MapMeta) || {};
             const sp = meta?.spawn;
-            this.mapCache.set(mapName, {
+            this.mapCache.set(map.id, {
               widthTiles: map.width ?? 32,
               heightTiles: map.height ?? 32,
               tileWidthPx: map.tileWidth ?? 16,
@@ -239,6 +245,7 @@ export class WorldRoom extends Room<WorldState> {
         x: data.x,
         y: data.y,
         direction: data.direction,
+        mapId: player.mapId,
         mapName: player.mapName,
       }, { except: client });
     });
@@ -310,23 +317,32 @@ export class WorldRoom extends Room<WorldState> {
     this.onMessage('npc_command', () => {});
 
     // Handle map change requests
-    this.onMessage('change_map', async (client, data: { mapName: string }) => {
+    this.onMessage('change_map', async (client, data: { mapId: string }) => {
       const player = this.state.players.get(client.sessionId);
       if (!player) return;
 
-      const targetMapName = data?.mapName;
-      if (!targetMapName || typeof targetMapName !== 'string') {
-        client.send('change_map_error', { error: 'invalid_map_name' });
+      const targetMapId = data?.mapId;
+      if (!targetMapId || typeof targetMapId !== 'string') {
+        client.send('change_map_error', { error: 'invalid_map_id' });
         return;
       }
 
       const tenantSlug = (this.metadata as RoomMetadata)?.tenant || process.env.DEFAULT_TENANT_SLUG || 'default';
-      const mapMeta = await this.ensureMapMeta(targetMapName, tenantSlug);
-      if (!mapMeta) {
-        client.send('change_map_error', { error: 'map_not_found', mapName: targetMapName });
+
+      // Look up map by ID from DB
+      const prisma = this.prismaForPresence ?? new PrismaClient();
+      const map = await prisma.map.findFirst({
+        where: { id: targetMapId, tenant: { slug: tenantSlug } },
+      });
+      if (!map) {
+        client.send('change_map_error', { error: 'map_not_found', mapId: targetMapId });
         return;
       }
 
+      // Ensure map meta is cached (keyed by mapId)
+      const mapMeta = await this.ensureMapMeta(map.id, tenantSlug);
+
+      const oldMapId = player.mapId;
       const oldMapName = player.mapName;
 
       // Remove from bubble groups
@@ -346,17 +362,19 @@ export class WorldRoom extends Room<WorldState> {
       if (bubbleChanged) this.broadcastBubbleState();
 
       // Set new map and spawn position
-      player.mapName = targetMapName;
-      const spawn = mapMeta.defaultSpawn || {
-        x: (mapMeta.widthTiles * mapMeta.tileWidthPx) / 2,
-        y: (mapMeta.heightTiles * mapMeta.tileHeightPx) / 2,
+      player.mapId = map.id;
+      player.mapName = map.name;
+      const spawn = mapMeta?.defaultSpawn || {
+        x: ((mapMeta?.widthTiles ?? 32) * (mapMeta?.tileWidthPx ?? 16)) / 2,
+        y: ((mapMeta?.heightTiles ?? 32) * (mapMeta?.tileHeightPx ?? 16)) / 2,
       };
       player.x = spawn.x;
       player.y = spawn.y;
 
       // Notify the changing client
       client.send('map_changed', {
-        mapName: targetMapName,
+        mapId: map.id,
+        mapName: map.name,
         x: player.x,
         y: player.y,
       });
@@ -364,8 +382,12 @@ export class WorldRoom extends Room<WorldState> {
       // Notify all other clients
       this.broadcast('player_map_changed', {
         id: client.sessionId,
+        oldMapId,
+        newMapId: map.id,
         oldMapName,
-        newMapName: targetMapName,
+        newMapName: map.name,
+        mapId: map.id,
+        mapName: map.name,
         x: player.x,
         y: player.y,
       }, { except: client });
@@ -376,7 +398,7 @@ export class WorldRoom extends Room<WorldState> {
           await this.prismaForPresence.presence.updateMany({
             where: { userId: player.identity },
             data: {
-              mapName: targetMapName,
+              mapName: map.name,
               x: Math.round(player.x),
               y: Math.round(player.y),
             },
@@ -386,7 +408,7 @@ export class WorldRoom extends Room<WorldState> {
         logger.debug('[WorldRoom] Failed to update presence mapName', e);
       }
 
-      logger.info('[WorldRoom] Player', client.sessionId, 'changed map:', oldMapName, '->', targetMapName);
+      logger.info('[WorldRoom] Player', client.sessionId, 'changed map:', oldMapId, '->', map.id, `(${map.name})`);
     });
 
     // Subscribe to map updates via Presence (works across processes if Redis is used, or locally)
@@ -615,22 +637,51 @@ export class WorldRoom extends Room<WorldState> {
       }
     } catch (e) { logger.debug('[WorldRoom] Failed to ensure map metadata on join', e); }
 
-    // Determine initial mapName for the joining player
+    // Determine initial mapId and mapName for the joining player
+    let initialMapId = options?.mapId || '';
     let initialMapName = options?.mapName || '';
-    if (!initialMapName) {
+    if (!initialMapId) {
       try {
         const tenantSlug = options?.tenant || (this.metadata as RoomMetadata)?.tenant || process.env.DEFAULT_TENANT_SLUG || 'default';
         const prismaForMap = this.prismaForPresence ?? new PrismaClient();
-        const tenantForMap = await prismaForMap.tenant.findUnique({ where: { slug: tenantSlug }, select: { defaultMapName: true } });
-        initialMapName = tenantForMap?.defaultMapName || 'office';
+        if (initialMapName) {
+          // Resolve mapName to mapId
+          const mapByName = await prismaForMap.map.findFirst({
+            where: { name: initialMapName, tenant: { slug: tenantSlug } },
+            select: { id: true, name: true },
+          });
+          if (mapByName) {
+            initialMapId = mapByName.id;
+            initialMapName = mapByName.name;
+          }
+        }
+        if (!initialMapId) {
+          // Fall back to tenant default
+          const tenantForMap = await prismaForMap.tenant.findUnique({
+            where: { slug: tenantSlug },
+            select: { defaultMapName: true },
+          });
+          const defaultMapName = tenantForMap?.defaultMapName || 'office';
+          const defaultMap = await prismaForMap.map.findFirst({
+            where: { name: defaultMapName, tenant: { slug: tenantSlug } },
+            select: { id: true, name: true },
+          });
+          if (defaultMap) {
+            initialMapId = defaultMap.id;
+            initialMapName = defaultMap.name;
+          } else {
+            initialMapName = defaultMapName;
+          }
+        }
       } catch (e) {
-        logger.debug('[WorldRoom] Failed to determine initial mapName', e);
-        initialMapName = 'office';
+        logger.debug('[WorldRoom] Failed to determine initial map', e);
+        if (!initialMapName) initialMapName = 'office';
       }
     }
 
     const player = new Player();
     player.id = client.sessionId;
+    player.mapId = initialMapId;
     player.mapName = initialMapName;
     // Robuste Positionswahl:
     // 1) Wenn Client Koordinaten liefert: validieren/klammern
@@ -639,9 +690,9 @@ export class WorldRoom extends Room<WorldState> {
     // 4) Notfalls: konservatives (200,200)
     let initial: { x: number; y: number } | null = null;
     if (options && typeof options.x === 'number' && typeof options.y === 'number') {
-      initial = this.sanitizePositionForMap(options.x, options.y, initialMapName);
+      initial = this.sanitizePositionForMap(options.x, options.y, initialMapId);
     } else if (this.defaultSpawn) {
-      initial = this.sanitizePositionForMap(this.defaultSpawn.x, this.defaultSpawn.y, initialMapName);
+      initial = this.sanitizePositionForMap(this.defaultSpawn.x, this.defaultSpawn.y, initialMapId);
     } else {
       initial = this.getMapCenter() ?? { x: 200, y: 200 };
     }
@@ -654,7 +705,7 @@ export class WorldRoom extends Room<WorldState> {
     player.isNpc = (joiningIdentity || '').startsWith('npc-');
     this.state.players.set(client.sessionId, player);
     try { colyseusPlayers.inc(); } catch (e) { logger.debug('[WorldRoom] Failed to increment colyseusPlayers metric', e); }
-    logger.info('[WorldRoom] Player joined:', client.sessionId, 'identity:', player.identity, 'name:', player.name, 'map:', player.mapName, 'at', player.x, player.y);
+    logger.info('[WorldRoom] Player joined:', client.sessionId, 'identity:', player.identity, 'name:', player.name, 'mapId:', player.mapId, 'map:', player.mapName, 'at', player.x, player.y);
     logger.debug('[WorldRoom] Current players:', this.state.players.size);
 
     // Debug: Log all players
@@ -676,6 +727,7 @@ export class WorldRoom extends Room<WorldState> {
             dnd: p.dnd,
             avatarId: p.avatarId,
             isNpc: p.isNpc,
+            mapId: p.mapId,
             mapName: p.mapName,
           }))
         });
@@ -700,6 +752,7 @@ export class WorldRoom extends Room<WorldState> {
       dnd: player.dnd,
       avatarId: player.avatarId,
       isNpc: player.isNpc,
+      mapId: player.mapId,
       mapName: player.mapName,
     }, { except: client });
 

@@ -67,8 +67,12 @@ export class BootScene extends Phaser.Scene {
     // v2 Boot: prefetch state-v2
     (async () => {
       try {
-        const mapName = useMapStore.getState().currentMapName || 'office';
-        const state = await fetchStateV2(mapName);
+        const mapId = useMapStore.getState().currentMapId;
+        if (!mapId) {
+          logger.error('[Boot] No currentMapId set — cannot load map');
+          return;
+        }
+        const state = await fetchStateV2(mapId);
         const metaOk = !!(state && state.mapMeta && state.mapMeta.width && state.mapMeta.height && state.mapMeta.tileWidth && state.mapMeta.tileHeight);
         if (metaOk) {
           // Tileset-Images für Registry laden (Schlüssel = key)

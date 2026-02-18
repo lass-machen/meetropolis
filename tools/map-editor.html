@@ -452,11 +452,12 @@ body::after{
 // STATE
 // ============================================================================
 const CFG = { server: '', token: '', connected: false };
+let currentMapId = '';
 let currentMapName = '';
 let currentTool = 'select';
 let currentCat = 'terrain';
 let assetPacks = [];
-let availableMapNames = [];     // Populated on connect()
+let availableMaps = [];         // Array of { id, name } — Populated on connect()
 let selectedPackIdx = -1;
 let selectedAssetItem = null;   // { pack, item, cat }
 let selectedTileIndex = -1;     // For terrain tile picker
@@ -609,7 +610,7 @@ async function connect() {
   try {
     // Test connection by fetching maps list
     const maps = await apiFetch('/maps');
-    availableMapNames = maps.map(m => m.name);
+    availableMaps = maps.map(m => ({ id: m.id, name: m.name }));
     CFG.connected = true;
     dot.className = 'conn-dot ok';
     label.textContent = 'Connected';
@@ -620,7 +621,7 @@ async function connect() {
     sel.innerHTML = '<option value="">-- select map --</option>';
     for (const m of maps) {
       const opt = document.createElement('option');
-      opt.value = m.name;
+      opt.value = m.id;
       opt.textContent = m.name;
       sel.appendChild(opt);
     }
@@ -655,18 +656,20 @@ function populatePackSelect() {
 }
 
 async function onMapSelect() {
-  const name = document.getElementById('mapSelect').value;
-  if (!name) return;
-  currentMapName = name;
-  await loadMap(name);
+  const id = document.getElementById('mapSelect').value;
+  if (!id) return;
+  const found = availableMaps.find(m => m.id === id);
+  currentMapId = id;
+  currentMapName = found ? found.name : '';
+  await loadMap(currentMapId);
 }
 
 async function reloadMap() {
-  if (!currentMapName) return;
-  await loadMap(currentMapName);
+  if (!currentMapId) return;
+  await loadMap(currentMapId);
 }
 
-async function loadMap(name) {
+async function loadMap(mapId) {
   if (hasPendingChanges()) {
     if (!confirm('You have unsaved changes. Discard them?')) return;
     clearPendingChanges();
@@ -680,7 +683,7 @@ async function loadMap(name) {
     selectedZoneId = null;
 
     // Fetch map state
-    const state = await apiFetch(`/maps/${encodeURIComponent(name)}/state-v2`);
+    const state = await apiFetch(`/maps/${encodeURIComponent(mapId)}/state-v2`);
     mapMeta = state.mapMeta;
     tilesetRegistry = state.tilesetRegistry || [];
     layerIndex = state.layerIndex || {};
@@ -688,7 +691,7 @@ async function loadMap(name) {
     // Load editor state
     let editorStateLoadFailed = false;
     try {
-      editorState = await apiFetch(`/maps/${encodeURIComponent(name)}/editor-state`);
+      editorState = await apiFetch(`/maps/${encodeURIComponent(mapId)}/editor-state`);
     } catch (e) {
       console.warn('Failed to load editor-state (auth required?):', e.message || e);
       editorState = { zones: [], spawn: null, backgroundColor: null };
@@ -702,7 +705,7 @@ async function loadMap(name) {
 
     // Load all objects
     try {
-      mapObjects = await apiFetch(`/maps/${encodeURIComponent(name)}/objects`);
+      mapObjects = await apiFetch(`/maps/${encodeURIComponent(mapId)}/objects`);
     } catch {
       mapObjects = [];
     }
@@ -820,7 +823,7 @@ async function _doLoadVisibleChunks() {
     if (keysToFetch.length === 0) continue;
 
     try {
-      const result = await apiFetch(`/maps/${encodeURIComponent(currentMapName)}/chunks?layer=${encodeURIComponent(layerName)}&keys=${encodeURIComponent(keysToFetch.join(','))}`);
+      const result = await apiFetch(`/maps/${encodeURIComponent(currentMapId)}/chunks?layer=${encodeURIComponent(layerName)}&keys=${encodeURIComponent(keysToFetch.join(','))}`);
       const chunks = result.chunks || {};
       const total = cs * cs;
       for (const [key, chunk] of Object.entries(chunks)) {
@@ -1637,11 +1640,11 @@ async function showTilePicker(pack, item) {
   const tsKey = `${pack.uuid}:${item.id}`;
   let ts = tilesetRegistry.find(t => t.key === tsKey);
 
-  if (!ts && currentMapName) {
+  if (!ts && currentMapId) {
     try {
       const imgUrl = (item.dataURL || item.dataUrl);
       const fullUrl = imgUrl.startsWith('/') ? imgUrl : imgUrl;
-      const result = await apiFetch(`/maps/${encodeURIComponent(currentMapName)}/tilesets`, {
+      const result = await apiFetch(`/maps/${encodeURIComponent(currentMapId)}/tilesets`, {
         method: 'POST',
         body: {
           key: tsKey,
@@ -2052,7 +2055,7 @@ function findObjectAt(wx, wy) {
 }
 
 function placeObject(tileX, tileY) {
-  if (!selectedAssetItem || !currentMapName) return;
+  if (!selectedAssetItem || !currentMapId) return;
   const { pack, item, cat } = selectedAssetItem;
 
   // Create a temporary local object with negative ID
@@ -2091,7 +2094,7 @@ function placeObject(tileX, tileY) {
 }
 
 function deleteObject(obj) {
-  if (!currentMapName) return;
+  if (!currentMapId) return;
 
   // If it's a pending add, just remove from pending
   if (obj._pending === 'add') {
@@ -2113,7 +2116,7 @@ function deleteObject(obj) {
 }
 
 function updateObject(id, updates) {
-  if (!currentMapName) return;
+  if (!currentMapId) return;
 
   const idx = mapObjects.findIndex(o => o.id === id);
   if (idx >= 0) {
@@ -2141,7 +2144,7 @@ function updateObject(id, updates) {
 // PAINT OPERATIONS
 // ============================================================================
 function eraseTerrain(x0, y0, x1, y1) {
-  if (!currentMapName) return;
+  if (!currentMapId) return;
   const cs = mapMeta.chunkSize || 32;
   let modified = false;
   for (let y = y0; y <= y1; y++) {
@@ -2170,7 +2173,7 @@ function eraseTerrain(x0, y0, x1, y1) {
 }
 
 function paintTerrain(x0, y0, x1, y1) {
-  if (!selectedTileRefId || !currentMapName) {
+  if (!selectedTileRefId || !currentMapId) {
     toast('warn', 'Select a tile from the tileset picker first');
     return;
   }
@@ -2207,7 +2210,7 @@ function paintTerrain(x0, y0, x1, y1) {
 }
 
 function paintCollision(x0, y0, x1, y1, set) {
-  if (!currentMapName) return;
+  if (!currentMapId) return;
 
   // Buffer the paint operation
   const op = {
@@ -2246,7 +2249,7 @@ function paintCollision(x0, y0, x1, y1, set) {
 }
 
 function eraseRect(x0, y0, x1, y1) {
-  if (!currentMapName) return;
+  if (!currentMapId) return;
 
   let erased = { terrain: 0, objects: 0, collision: 0 };
 
@@ -2361,7 +2364,7 @@ function eraseRect(x0, y0, x1, y1) {
 }
 
 function paintWall(x0, y0, x1, y1) {
-  if (!selectedWallTypeId || !currentMapName) {
+  if (!selectedWallTypeId || !currentMapId) {
     toast('warn', 'Select a wall type from the autotiles tab first');
     return;
   }
@@ -2395,7 +2398,7 @@ function paintWall(x0, y0, x1, y1) {
 }
 
 function eraseWall(x0, y0, x1, y1) {
-  if (!currentMapName) return;
+  if (!currentMapId) return;
 
   const cs = mapMeta.chunkSize || 32;
   let modified = false;
@@ -2427,7 +2430,7 @@ function eraseWall(x0, y0, x1, y1) {
 async function refreshCollisionChunks() {
   // Refresh layerIndex (collision layer may have been created)
   try {
-    const state = await apiFetch(`/maps/${encodeURIComponent(currentMapName)}/state-v2`);
+    const state = await apiFetch(`/maps/${encodeURIComponent(currentMapId)}/state-v2`);
     layerIndex = state.layerIndex || {};
   } catch { /* ignore */ }
   // Clear collision cache and reload
@@ -2444,7 +2447,7 @@ async function refreshCollisionChunks() {
 // ZONE OPERATIONS
 // ============================================================================
 function createZone(x0, y0, x1, y1) {
-  if (!currentMapName) return;
+  if (!currentMapId) return;
   const name = prompt('Zone name:', 'Zone');
   if (!name) return;
   const capacity = prompt('Capacity (0 = unlimited):', '0');
@@ -2490,7 +2493,7 @@ function createZone(x0, y0, x1, y1) {
 }
 
 function extendZone(zoneId, x0, y0, x1, y1) {
-  if (!currentMapName || !editorState) return;
+  if (!currentMapId || !editorState) return;
   const tw = mapMeta ? (mapMeta.tileWidth || 16) : 16;
   const th = mapMeta ? (mapMeta.tileHeight || 16) : 16;
 
@@ -2560,7 +2563,7 @@ function selectZone(zoneId) {
 }
 
 function deleteZone(zoneId) {
-  if (!currentMapName) return;
+  if (!currentMapId) return;
 
   // Clear selection if deleted zone is selected
   if (selectedZoneId === zoneId) selectedZoneId = null;
@@ -2580,7 +2583,7 @@ function deleteZone(zoneId) {
 // SPAWN OPERATIONS
 // ============================================================================
 function setSpawn(tx, ty) {
-  if (!currentMapName) return;
+  if (!currentMapId) return;
 
   pendingChanges.spawnUpdate = { x: tx, y: ty };
 
@@ -2715,9 +2718,9 @@ function updatePropsPanel() {
       const isPortal = zoneType === 'portal';
       const typeColor = isPortal ? '#a855f7' : 'var(--accent)';
       const typeLabel = isPortal ? 'Portal' : 'Zone';
-      const mapOptions = availableMapNames
-        .filter(n => n !== currentMapName)
-        .map(n => `<option value="${escAttr(n)}"${zone.portalTarget === n ? ' selected' : ''}>${esc(n)}</option>`)
+      const mapOptions = availableMaps
+        .filter(m => m.name !== currentMapName)
+        .map(m => `<option value="${escAttr(m.name)}"${zone.portalTarget === m.name ? ' selected' : ''}>${esc(m.name)}</option>`)
         .join('');
       const portalFieldsHtml = `
         <div id="portalFields" style="display:${isPortal ? 'block' : 'none'};margin-top:8px">
@@ -2851,20 +2854,20 @@ function applyPropChanges() {
 // SAVE ALL CHANGES
 // ============================================================================
 async function saveAllChanges() {
-  if (!hasPendingChanges() || !currentMapName) return;
+  if (!hasPendingChanges() || !currentMapId) return;
 
   const btn = document.getElementById('saveBtn');
   btn.disabled = true;
   btn.textContent = 'Saving...';
 
   let errors = [];
-  const mapName = encodeURIComponent(currentMapName);
+  const mapId = encodeURIComponent(currentMapId);
 
   try {
     // 1. Send terrain/collision paint operations
     for (const paint of pendingChanges.terrainPaints) {
       try {
-        const result = await apiFetch(`/maps/${mapName}/paint-rect`, {
+        const result = await apiFetch(`/maps/${mapId}/paint-rect`, {
           method: 'PATCH',
           body: paint,
         });
@@ -2886,7 +2889,7 @@ async function saveAllChanges() {
     // 2. Delete objects
     for (const objId of pendingChanges.objectsToDelete) {
       try {
-        await apiFetch(`/maps/${mapName}/objects/${objId}`, { method: 'DELETE' });
+        await apiFetch(`/maps/${mapId}/objects/${objId}`, { method: 'DELETE' });
       } catch (e) {
         errors.push(`Delete object #${objId}: ${e.message}`);
       }
@@ -2895,7 +2898,7 @@ async function saveAllChanges() {
     // 3. Add objects
     for (const obj of pendingChanges.objectsToAdd) {
       try {
-        const created = await apiFetch(`/maps/${mapName}/objects`, {
+        const created = await apiFetch(`/maps/${mapId}/objects`, {
           method: 'POST',
           body: {
             assetPackUuid: obj.assetPackUuid,
@@ -2922,7 +2925,7 @@ async function saveAllChanges() {
     // 4. Update objects
     for (const { id, updates } of pendingChanges.objectUpdates) {
       try {
-        const updated = await apiFetch(`/maps/${mapName}/objects/${id}`, {
+        const updated = await apiFetch(`/maps/${mapId}/objects/${id}`, {
           method: 'PATCH',
           body: updates,
         });
@@ -2937,7 +2940,7 @@ async function saveAllChanges() {
     if (pendingChanges.zonesModified) {
       try {
         const allZones = editorState ? (editorState.zones || []) : [];
-        await apiFetch(`/maps/${mapName}/editor-state`, {
+        await apiFetch(`/maps/${mapId}/editor-state`, {
           method: 'PUT',
           body: {
             zones: allZones.map(z => ({
@@ -2953,7 +2956,7 @@ async function saveAllChanges() {
           },
         });
         // Refresh editor state from server to get authoritative IDs
-        editorState = await apiFetch(`/maps/${mapName}/editor-state`);
+        editorState = await apiFetch(`/maps/${mapId}/editor-state`);
         selectedZoneId = null;
         updateZoneList();
       } catch (e) {
@@ -2964,7 +2967,7 @@ async function saveAllChanges() {
     // 6. Save spawn
     if (pendingChanges.spawnUpdate) {
       try {
-        await apiFetch(`/maps/${mapName}/editor-state`, {
+        await apiFetch(`/maps/${mapId}/editor-state`, {
           method: 'PUT',
           body: { spawn: pendingChanges.spawnUpdate },
         });
@@ -3018,7 +3021,7 @@ async function resizeMap() {
   // If shrinking, do a dry run first to check warnings
   if (newWidth < oldWidth || newHeight < oldHeight) {
     try {
-      const dryResult = await apiFetch(`/maps/${encodeURIComponent(currentMapName)}/resize`, {
+      const dryResult = await apiFetch(`/maps/${encodeURIComponent(currentMapId)}/resize`, {
         method: 'PATCH',
         body: { width: newWidth, height: newHeight, dryRun: true },
       });
@@ -3036,7 +3039,7 @@ async function resizeMap() {
   btn.disabled = true;
   btn.textContent = '...';
   try {
-    await apiFetch(`/maps/${encodeURIComponent(currentMapName)}/resize`, {
+    await apiFetch(`/maps/${encodeURIComponent(currentMapId)}/resize`, {
       method: 'PATCH',
       body: { width: newWidth, height: newHeight, dryRun: false },
     });
@@ -3060,22 +3063,21 @@ async function renameMap() {
   btn.disabled = true;
   btn.textContent = '...';
   try {
-    await apiFetch(`/maps/${encodeURIComponent(currentMapName)}/rename`, {
+    await apiFetch(`/maps/${encodeURIComponent(currentMapId)}/rename`, {
       method: 'PATCH',
       body: { newName },
     });
     const oldName = currentMapName;
     currentMapName = newName;
 
-    // Update availableMapNames
-    const idx = availableMapNames.indexOf(oldName);
-    if (idx >= 0) availableMapNames[idx] = newName;
+    // Update availableMaps
+    const entry = availableMaps.find(m => m.id === currentMapId);
+    if (entry) entry.name = newName;
 
-    // Update map dropdown
+    // Update map dropdown text (keep ID as value)
     const sel = document.getElementById('mapSelect');
     for (const opt of sel.options) {
-      if (opt.value === oldName) {
-        opt.value = newName;
+      if (opt.value === currentMapId) {
         opt.textContent = newName;
         break;
       }

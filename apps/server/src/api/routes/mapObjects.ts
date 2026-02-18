@@ -60,8 +60,8 @@ function getMapDimensions(map: { chunkSize: number | null; tileWidth: number | n
 async function applyCollisionForObject(
   prisma: PrismaClient,
   tenantSlug: string,
-  mapName: string,
   mapId: string,
+  mapName: string,
   dims: { chunkSize: number; tileWidth: number; tileHeight: number },
   obj: { tileX: number; tileY: number; width: number; height: number; scaleFactor?: number },
 ) {
@@ -73,7 +73,7 @@ async function applyCollisionForObject(
   const updates = await updateCollisionChunks(prisma, mapId, dims.chunkSize, tiles, true);
   if (updates.length > 0) {
     broadcastMapUpdate(tenantSlug, 'chunks_updated', {
-      map: mapName, layer: 'collision', updates,
+      mapId, mapName, layer: 'collision', updates,
     });
   }
 }
@@ -81,8 +81,8 @@ async function applyCollisionForObject(
 async function removeCollisionForObject(
   prisma: PrismaClient,
   tenantSlug: string,
-  mapName: string,
   mapId: string,
+  mapName: string,
   dims: { chunkSize: number; tileWidth: number; tileHeight: number },
   obj: { tileX: number; tileY: number; width: number; height: number; scaleFactor?: number },
 ) {
@@ -93,7 +93,7 @@ async function removeCollisionForObject(
   );
   if (updates.length > 0) {
     broadcastMapUpdate(tenantSlug, 'chunks_updated', {
-      map: mapName, layer: 'collision', updates,
+      mapId, mapName, layer: 'collision', updates,
     });
   }
 }
@@ -104,16 +104,15 @@ async function removeCollisionForObject(
 
 export function registerMapObjectRoutes(app: express.Application, prisma: PrismaClient) {
 
-  // GET /maps/:name/objects — fetch objects by chunk keys
-  app.get('/maps/:name/objects', async (req: express.Request, res: express.Response) => {
+  // GET /maps/:id/objects — fetch objects by chunk keys
+  app.get('/maps/:id/objects', async (req: express.Request, res: express.Response) => {
     try {
       const tenant = getTenantFromReq(req);
       if (!tenant) return res.status(400).json({ error: 'tenant_required' });
 
-      const name = req.params.name;
       const chunksParam = (req.query.chunks as string) || '';
 
-      const map = await prisma.map.findFirst({ where: { name, tenantId: tenant.id } });
+      const map = await prisma.map.findFirst({ where: { id: req.params.id, tenantId: tenant.id } });
       if (!map) return res.status(404).json({ error: 'map not found' });
 
       if (!chunksParam) {
@@ -143,8 +142,8 @@ export function registerMapObjectRoutes(app: express.Application, prisma: Prisma
     }
   });
 
-  // POST /maps/:name/objects — create single object
-  app.post('/maps/:name/objects', async (req: express.Request, res: express.Response) => {
+  // POST /maps/:id/objects — create single object
+  app.post('/maps/:id/objects', async (req: express.Request, res: express.Response) => {
     try {
       const sessionAuth = requireAuth(req);
       const tokenAuth = await requireApiToken(req, prisma);
@@ -156,10 +155,9 @@ export function registerMapObjectRoutes(app: express.Application, prisma: Prisma
       const parse = createObjectSchema.safeParse(req.body);
       if (!parse.success) return res.status(400).json({ error: 'invalid payload', details: parse.error.errors });
 
-      const name = req.params.name;
       const data = parse.data;
 
-      const map = await prisma.map.findFirst({ where: { name, tenantId: tenant.id } });
+      const map = await prisma.map.findFirst({ where: { id: req.params.id, tenantId: tenant.id } });
       if (!map) return res.status(404).json({ error: 'map not found' });
 
       const pack = await prisma.assetPack.findUnique({ where: { uuid: data.assetPackUuid } });
@@ -196,11 +194,11 @@ export function registerMapObjectRoutes(app: express.Application, prisma: Prisma
       });
 
       if (data.collide) {
-        await applyCollisionForObject(prisma, tenant.slug, name, map.id, dims, data);
+        await applyCollisionForObject(prisma, tenant.slug, map.id, map.name, dims, data);
       }
 
       broadcastMapUpdate(tenant.slug, 'objects_updated', {
-        map: name, action: 'add', objects: [obj],
+        mapId: map.id, mapName: map.name, action: 'add', objects: [obj],
       });
 
       res.json(obj);
@@ -210,8 +208,8 @@ export function registerMapObjectRoutes(app: express.Application, prisma: Prisma
     }
   });
 
-  // PATCH /maps/:name/objects/:id — update object
-  app.patch('/maps/:name/objects/:id', async (req: express.Request, res: express.Response) => {
+  // PATCH /maps/:id/objects/:objId — update object
+  app.patch('/maps/:id/objects/:objId', async (req: express.Request, res: express.Response) => {
     try {
       const sessionAuth = requireAuth(req);
       const tokenAuth = await requireApiToken(req, prisma);
@@ -223,11 +221,10 @@ export function registerMapObjectRoutes(app: express.Application, prisma: Prisma
       const parse = updateObjectSchema.safeParse(req.body);
       if (!parse.success) return res.status(400).json({ error: 'invalid payload', details: parse.error.errors });
 
-      const name = req.params.name;
-      const objId = Number(req.params.id);
+      const objId = Number(req.params.objId);
       if (!Number.isFinite(objId)) return res.status(400).json({ error: 'invalid id' });
 
-      const map = await prisma.map.findFirst({ where: { name, tenantId: tenant.id } });
+      const map = await prisma.map.findFirst({ where: { id: req.params.id, tenantId: tenant.id } });
       if (!map) return res.status(404).json({ error: 'map not found' });
 
       const existing = await prisma.mapObject.findFirst({ where: { id: objId, mapId: map.id } });
@@ -240,7 +237,7 @@ export function registerMapObjectRoutes(app: express.Application, prisma: Prisma
         || (updateData.tileY !== undefined && updateData.tileY !== existing.tileY);
 
       if (existing.collide && positionChanged) {
-        await removeCollisionForObject(prisma, tenant.slug, name, map.id, dims, existing);
+        await removeCollisionForObject(prisma, tenant.slug, map.id, map.name, dims, existing);
       }
 
       const newTileX = updateData.tileX ?? existing.tileX;
@@ -255,13 +252,13 @@ export function registerMapObjectRoutes(app: express.Application, prisma: Prisma
 
       if (existing.collide && positionChanged) {
         await applyCollisionForObject(
-          prisma, tenant.slug, name, map.id, dims,
+          prisma, tenant.slug, map.id, map.name, dims,
           { tileX: newTileX, tileY: newTileY, width: existing.width, height: existing.height, scaleFactor: existing.scaleFactor },
         );
       }
 
       broadcastMapUpdate(tenant.slug, 'objects_updated', {
-        map: name, action: 'update', objects: [updated],
+        mapId: map.id, mapName: map.name, action: 'update', objects: [updated],
       });
 
       res.json(updated);
@@ -271,8 +268,8 @@ export function registerMapObjectRoutes(app: express.Application, prisma: Prisma
     }
   });
 
-  // DELETE /maps/:name/objects/:id — remove object
-  app.delete('/maps/:name/objects/:id', async (req: express.Request, res: express.Response) => {
+  // DELETE /maps/:id/objects/:objId — remove object
+  app.delete('/maps/:id/objects/:objId', async (req: express.Request, res: express.Response) => {
     try {
       const sessionAuth = requireAuth(req);
       const tokenAuth = await requireApiToken(req, prisma);
@@ -281,11 +278,10 @@ export function registerMapObjectRoutes(app: express.Application, prisma: Prisma
       const tenant = getTenantFromReq(req);
       if (!tenant) return res.status(400).json({ error: 'tenant_required' });
 
-      const name = req.params.name;
-      const objId = Number(req.params.id);
+      const objId = Number(req.params.objId);
       if (!Number.isFinite(objId)) return res.status(400).json({ error: 'invalid id' });
 
-      const map = await prisma.map.findFirst({ where: { name, tenantId: tenant.id } });
+      const map = await prisma.map.findFirst({ where: { id: req.params.id, tenantId: tenant.id } });
       if (!map) return res.status(404).json({ error: 'map not found' });
 
       const existing = await prisma.mapObject.findFirst({ where: { id: objId, mapId: map.id } });
@@ -295,11 +291,11 @@ export function registerMapObjectRoutes(app: express.Application, prisma: Prisma
 
       if (existing.collide) {
         const dims = getMapDimensions(map);
-        await removeCollisionForObject(prisma, tenant.slug, name, map.id, dims, existing);
+        await removeCollisionForObject(prisma, tenant.slug, map.id, map.name, dims, existing);
       }
 
       broadcastMapUpdate(tenant.slug, 'objects_updated', {
-        map: name, action: 'remove', objectIds: [objId],
+        mapId: map.id, mapName: map.name, action: 'remove', objectIds: [objId],
       });
 
       res.json({ ok: true });
@@ -309,8 +305,8 @@ export function registerMapObjectRoutes(app: express.Application, prisma: Prisma
     }
   });
 
-  // POST /maps/:name/objects/bulk — bulk create
-  app.post('/maps/:name/objects/bulk', async (req: express.Request, res: express.Response) => {
+  // POST /maps/:id/objects/bulk — bulk create
+  app.post('/maps/:id/objects/bulk', async (req: express.Request, res: express.Response) => {
     try {
       const sessionAuth = requireAuth(req);
       const tokenAuth = await requireApiToken(req, prisma);
@@ -322,8 +318,7 @@ export function registerMapObjectRoutes(app: express.Application, prisma: Prisma
       const parse = bulkCreateSchema.safeParse(req.body);
       if (!parse.success) return res.status(400).json({ error: 'invalid payload', details: parse.error.errors });
 
-      const name = req.params.name;
-      const map = await prisma.map.findFirst({ where: { name, tenantId: tenant.id } });
+      const map = await prisma.map.findFirst({ where: { id: req.params.id, tenantId: tenant.id } });
       if (!map) return res.status(404).json({ error: 'map not found' });
 
       const dims = getMapDimensions(map);
@@ -393,13 +388,13 @@ export function registerMapObjectRoutes(app: express.Application, prisma: Prisma
         );
         if (collisionUpdates.length > 0) {
           broadcastMapUpdate(tenant.slug, 'chunks_updated', {
-            map: name, layer: 'collision', updates: collisionUpdates,
+            mapId: map.id, mapName: map.name, layer: 'collision', updates: collisionUpdates,
           });
         }
       }
 
       broadcastMapUpdate(tenant.slug, 'objects_updated', {
-        map: name, action: 'add', objects: created,
+        mapId: map.id, mapName: map.name, action: 'add', objects: created,
       });
 
       res.json({ ok: true, objects: created });

@@ -37,19 +37,19 @@ export function baseUrl(): string {
   return 'http://localhost:2567';
 }
 
-export async function fetchStateV2(mapName: string): Promise<V2State | null> {
-  const res = await fetch(`${baseUrl()}/maps/${encodeURIComponent(mapName)}/state-v2`, { credentials: 'include' });
+export async function fetchStateV2(mapId: string): Promise<V2State | null> {
+  const res = await fetch(`${baseUrl()}/maps/${encodeURIComponent(mapId)}/state-v2`, { credentials: 'include' });
   if (res.status === 404) return null;
   if (!res.ok) throw new Error('failed to fetch state-v2');
   return (await res.json()) as V2State;
 }
 
-export async function fetchChunks(mapName: string, layer: string, keys: string[]): Promise<Record<string, V2ChunkPayload>> {
+export async function fetchChunks(mapId: string, layer: string, keys: string[]): Promise<Record<string, V2ChunkPayload>> {
   if (keys.length === 0) return {};
   const qs = keys.join(',');
   // Prevent aggressive webview/browser caching with timestamp
   const ts = Date.now();
-  const res = await fetch(`${baseUrl()}/maps/${encodeURIComponent(mapName)}/chunks?layer=${encodeURIComponent(layer)}&keys=${encodeURIComponent(qs)}&t=${ts}`, { credentials: 'include' });
+  const res = await fetch(`${baseUrl()}/maps/${encodeURIComponent(mapId)}/chunks?layer=${encodeURIComponent(layer)}&keys=${encodeURIComponent(qs)}&t=${ts}`, { credentials: 'include' });
   if (!res.ok) throw new Error('failed to fetch chunks');
   const json = await res.json();
   return (json?.chunks ?? {}) as Record<string, V2ChunkPayload>;

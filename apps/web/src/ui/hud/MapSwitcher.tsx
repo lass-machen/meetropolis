@@ -7,20 +7,21 @@ interface MapSwitcherProps {
 }
 
 export function MapSwitcher({ room }: MapSwitcherProps) {
-  const { currentMapName, availableMaps, isChangingMap } = useMapStore();
+  const { currentMapId, availableMaps, isChangingMap } = useMapStore();
 
   if (availableMaps.length <= 1 || !room) return null;
 
   const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const target = e.target.value;
-    if (target && target !== currentMapName) {
-      changeMap(target, room);
+    const targetId = e.target.value;
+    const targetMap = availableMaps.find(m => m.id === targetId);
+    if (targetMap && targetId !== currentMapId) {
+      changeMap(targetMap.id, targetMap.name, room);
     }
   };
 
   return (
     <select
-      value={currentMapName}
+      value={currentMapId}
       onChange={handleChange}
       disabled={isChangingMap}
       style={{
@@ -38,7 +39,7 @@ export function MapSwitcher({ room }: MapSwitcherProps) {
       title="Map wechseln"
     >
       {availableMaps.map(m => (
-        <option key={m.name} value={m.name}>{m.name}</option>
+        <option key={m.id} value={m.id}>{m.name}</option>
       ))}
     </select>
   );
