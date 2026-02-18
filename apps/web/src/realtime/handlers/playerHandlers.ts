@@ -106,7 +106,7 @@ export function setupPlayerHandlers(
   });
 
   // Player map changed
-  room.onMessage('player_map_changed', (data: { id: string; oldMapName: string; newMapName: string; x: number; y: number }) => {
+  room.onMessage('player_map_changed', (data: { id: string; oldMapName: string; newMapName: string; x: number; y: number; name?: string; identity?: string; avatarId?: string; dnd?: boolean; isNpc?: boolean }) => {
     const currentMap = useMapStore.getState().currentMapName;
 
     if (data.oldMapName === currentMap) {
@@ -122,9 +122,16 @@ export function setupPlayerHandlers(
 
     if (data.newMapName === currentMap) {
       // Player entered our map - add them
-      remotesRef.current[data.id] = { x: data.x, y: data.y };
+      remotesRef.current[data.id] = { x: data.x, y: data.y, ...(data.dnd != null ? { dnd: data.dnd } : {}) };
+      if (data.identity) {
+        colyseusToLivekitMap.current[data.id] = data.identity;
+        if (data.name) identityToNameMap.current[data.identity] = data.name;
+      }
       if (gameBridge && typeof (gameBridge as any).addRemotePlayer === 'function') {
-        (gameBridge as any).addRemotePlayer(data.id, { x: data.x, y: data.y, direction: 'down' });
+        (gameBridge as any).addRemotePlayer(data.id, {
+          x: data.x, y: data.y, direction: 'down',
+          name: data.name, avatarId: data.avatarId, isNpc: data.isNpc,
+        });
       }
       scheduleBuildParticipantList(50);
       scheduleRefreshRosterFromRemotes(0);
@@ -138,21 +145,30 @@ export function setupPlayerHandlers(
     if (state.players) {
       if (typeof state.players.forEach === 'function') {
         state.players.forEach((value: any, key: string) => {
-          // Always update name map for roster (even for players on other maps)
-          if (value.identity && value.name) identityToNameMap.current[value.identity] = value.name;
+          // Always update name/identity maps for roster (even for players on other maps)
+          if (value.identity) {
+            colyseusToLivekitMap.current[key] = value.identity;
+            if (value.name) identityToNameMap.current[value.identity] = value.name;
+          }
           // Only include players on the same map
           if (value.mapName && value.mapName !== currentMap) return;
           players[key] = { x: value.x, y: value.y, direction: value.direction, dnd: value.dnd, identity: value.identity, name: value.name, avatarId: value.avatarId, isNpc: value.isNpc };
         });
       } else if (typeof state.players.entries === 'function') {
         for (const [key, value] of state.players.entries()) {
-          if (value.identity && value.name) identityToNameMap.current[value.identity] = value.name;
+          if (value.identity) {
+            colyseusToLivekitMap.current[key] = value.identity;
+            if (value.name) identityToNameMap.current[value.identity] = value.name;
+          }
           if (value.mapName && value.mapName !== currentMap) continue;
           players[key] = { x: value.x, y: value.y, direction: value.direction, dnd: value.dnd, identity: value.identity, name: value.name, avatarId: value.avatarId, isNpc: value.isNpc };
         }
       } else if ((state.players as any)[Symbol.iterator]) {
         for (const [key, value] of (state.players as any)) {
-          if (value.identity && value.name) identityToNameMap.current[value.identity] = value.name;
+          if (value.identity) {
+            colyseusToLivekitMap.current[key] = value.identity;
+            if (value.name) identityToNameMap.current[value.identity] = value.name;
+          }
           if (value.mapName && value.mapName !== currentMap) continue;
           players[key] = { x: value.x, y: value.y, direction: value.direction, dnd: value.dnd, identity: value.identity, name: value.name, avatarId: value.avatarId, isNpc: value.isNpc };
         }

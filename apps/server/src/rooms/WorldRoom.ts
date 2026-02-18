@@ -396,6 +396,11 @@ export class WorldRoom extends Room<WorldState> {
         mapName: map.name,
         x: player.x,
         y: player.y,
+        name: player.name,
+        identity: player.identity,
+        avatarId: player.avatarId,
+        dnd: player.dnd,
+        isNpc: player.isNpc,
       }, { except: client });
 
       // Update presence in DB (best-effort)
@@ -711,7 +716,23 @@ export class WorldRoom extends Room<WorldState> {
     player.y = initial.y;
     player.direction = options?.direction || 'down';
     player.identity = joiningIdentity; // Use provided identity or fallback
-    player.name = options?.name || joiningIdentity; // Use provided name or fallback
+    // Prefer client-provided name, but verify it's not just the UUID
+    let resolvedName = options?.name;
+    if (!resolvedName || resolvedName === joiningIdentity) {
+      // Client sent no name or sent the UUID as name - look up from DB
+      try {
+        const prisma = this.prismaForPresence ?? new PrismaClient();
+        const user = await prisma.user.findUnique({
+          where: { id: joiningIdentity },
+          select: { name: true, email: true },
+        });
+        resolvedName = user?.name || user?.email || joiningIdentity;
+      } catch (e) {
+        logger.debug('[WorldRoom] Failed to look up user name from DB', e);
+        resolvedName = joiningIdentity;
+      }
+    }
+    player.name = resolvedName;
     player.avatarId = options?.avatarId || 'default-characters:businessman1';
     player.isNpc = (joiningIdentity || '').startsWith('npc-');
     this.state.players.set(client.sessionId, player);
