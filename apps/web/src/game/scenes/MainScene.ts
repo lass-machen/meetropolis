@@ -76,6 +76,10 @@ export class MainScene extends Phaser.Scene {
     // Re-read currentMapName on every create() since Phaser reuses scene instances
     this.currentMapName = useMapStore.getState().currentMapName || 'office';
 
+    // Clear stale chunk cache from previous map (Phaser reuses scene instances)
+    this.loadedChunks.clear();
+    this._lastCamSig = null;
+
     const mapData = SceneInitializer.initializeMap(this);
     Object.assign(this, mapData);
 
