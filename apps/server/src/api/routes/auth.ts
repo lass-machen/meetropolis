@@ -197,7 +197,7 @@ export function registerAuthRoutes(app: express.Application, prisma: PrismaClien
       email: user.email,
       name: user.name,
       isInternalOwner,
-      lastPosition: lastPosition ? { x: lastPosition.x, y: lastPosition.y, direction: lastPosition.direction } : null
+      lastPosition: lastPosition ? { x: lastPosition.x, y: lastPosition.y, direction: lastPosition.direction, mapName: lastPosition.mapName || null } : null
     });
   });
 
@@ -212,7 +212,8 @@ export function registerAuthRoutes(app: express.Application, prisma: PrismaClien
         x: z.number(),
         y: z.number(),
         direction: z.enum(['up', 'down', 'left', 'right']),
-        roomId: z.string().optional()
+        roomId: z.string().optional(),
+        mapName: z.string().optional(),
       });
       const parse = schema.safeParse(req.body || {});
       if (!parse.success) return res.status(400).json({ error: 'invalid position data' });
@@ -253,11 +254,11 @@ export function registerAuthRoutes(app: express.Application, prisma: PrismaClien
       if (existingPresence) {
         await prisma.presence.update({
           where: { id: existingPresence.id },
-          data: { x, y, direction }
+          data: { x, y, direction, ...(parse.data.mapName ? { mapName: parse.data.mapName } : {}) }
         });
       } else {
         await prisma.presence.create({
-          data: { userId: auth.userId, roomId: room.id, tenantId: tenant.id, x, y, direction }
+          data: { userId: auth.userId, roomId: room.id, tenantId: tenant.id, x, y, direction, ...(parse.data.mapName ? { mapName: parse.data.mapName } : {}) }
         });
       }
 

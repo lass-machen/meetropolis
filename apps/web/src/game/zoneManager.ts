@@ -14,7 +14,7 @@ export class ZoneManager {
   private av: AVManager | null;
   private zones: Polygon[];
   private current: string | undefined;
-  private room: { send: (type: string, data: unknown) => void; onMessage: (type: string, handler: (data: unknown) => void) => void } | null = null;
+  private room: { send: (type: string, data: unknown) => void; onMessage: (type: string, handler: (data: unknown) => void) => (() => void) } | null = null;
   private portalCooldownUntil: number = 0;
 
   constructor(zones: Polygon[], av: AVManager | null) {
@@ -22,7 +22,7 @@ export class ZoneManager {
     this.av = av;
   }
 
-  setRoom(room: { send: (type: string, data: unknown) => void; onMessage: (type: string, handler: (data: unknown) => void) => void } | null) {
+  setRoom(room: { send: (type: string, data: unknown) => void; onMessage: (type: string, handler: (data: unknown) => void) => (() => void) } | null) {
     this.room = room;
   }
 

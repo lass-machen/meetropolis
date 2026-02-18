@@ -90,6 +90,9 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
       localPosRef.current.id = colyseusSessionId;
       if (typeof window !== 'undefined') { (window as any).__localSessionId = colyseusSessionId; }
 
+      // Connect ZoneManager to Colyseus room for portal support
+      try { args.zoneRef?.current?.setRoom?.(room); } catch (e) { logger.error('Failed to set room on ZoneManager', e); }
+
       // Force full map reload on join/reconnect to ensure consistency
       try { gameBridge.forceReloadMap?.(); } catch (e) { logger.error('Failed to force reload map on join', e); }
 

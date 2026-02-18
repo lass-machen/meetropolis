@@ -1,6 +1,7 @@
 import React from 'react';
 import { joinWorld } from '../../lib/colyseus';
 import { logger } from '../../lib/logger';
+import { useMapStore } from '../../state/mapStore';
 import type { UseWorldRoomArgs, ConnectionRefs } from '../types';
 
 export function useColyseusConnection(
@@ -70,11 +71,13 @@ export function useColyseusConnection(
       if (positionToUse) {
         logger.debug('[useWorldRoom] Joining with saved position:', positionToUse.x, positionToUse.y);
       }
+      const currentMapName = useMapStore.getState().currentMapName;
       const room = await joinWorld(
         apiBase,
         me.id,
         me.name || me.email || me.id,
-        positionToUse
+        positionToUse,
+        currentMapName !== 'office' ? currentMapName : undefined
       );
       if (disposed) { try { room.leave(); } catch {} return null; }
       colyseusRef.current = room;

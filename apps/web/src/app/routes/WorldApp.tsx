@@ -233,6 +233,49 @@ export function WorldApp() {
       .catch(e => logger.debug('[WorldApp] Failed to load available maps', e));
   }, [me, apiBase]);
 
+  // Reload zones after map change
+  React.useEffect(() => {
+    if (!me) return;
+    const handler = async (e: Event) => {
+      const mapName = (e as CustomEvent).detail?.mapName;
+      if (!mapName) return;
+      try {
+        const res = await fetch(`${apiBase}/maps/${encodeURIComponent(mapName)}/editor-state?t=${Date.now()}`, { credentials: 'include' });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (Array.isArray(data?.zones)) {
+          const zones = data.zones.map((z: any) => ({
+            name: z.name,
+            points: Array.isArray(z.points) ? z.points : Array.isArray(z.polygon) ? z.polygon : [],
+            capacity: z.capacity ?? undefined,
+            type: z.type ?? undefined,
+            portalTarget: z.portalTarget ?? undefined,
+            portalSpawnX: z.portalSpawnX ?? undefined,
+            portalSpawnY: z.portalSpawnY ?? undefined,
+          }));
+          setEditor((s: any) => ({ ...s, zones }));
+          zoneRef.current?.setZones?.(zones);
+        }
+      } catch (e) {
+        logger.debug('[WorldApp] Failed to reload zones after map change', e);
+      }
+    };
+    window.addEventListener('map_zones_reload', handler);
+    return () => window.removeEventListener('map_zones_reload', handler);
+  }, [me, apiBase]);
+
+  // Update ZoneManager when server loads zones (play mode - zones aren't in editor state)
+  React.useEffect(() => {
+    const handler = (e: Event) => {
+      const zones = (e as CustomEvent).detail?.zones;
+      if (Array.isArray(zones) && zones.length > 0) {
+        zoneRef.current?.setZones?.(zones);
+      }
+    };
+    window.addEventListener('server_zones_loaded', handler);
+    return () => window.removeEventListener('server_zones_loaded', handler);
+  }, []);
+
   // Load editor state (extracted to hook)
   useEditorLoader({ me, apiBase, setEditor });
 
@@ -545,7 +588,7 @@ export function WorldApp() {
 
             {!editor.active && (
               <div style={{ position: 'absolute', bottom: 70, left: 12, zIndex: 30 }}>
-                <MapSwitcher room={colyseusRef.current} />
+                <MapSwitcher room={connStatus.reconnecting ? null : colyseusRef.current} />
               </div>
             )}
 

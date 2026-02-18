@@ -16,7 +16,9 @@ export function useZones(params: {
   React.useEffect(() => {
     const zonesToShow = editor.active ? editor.zones : [];
     try { gameBridge.setZoneOverlay(zonesToShow); } catch {}
-    try { zoneRef.current?.setZones?.(editor.zones as any); } catch {}
+    if (editor.active) {
+      try { zoneRef.current?.setZones?.(editor.zones as any); } catch {}
+    }
 
     if (suppressZoneBroadcastRef.current) return;
 

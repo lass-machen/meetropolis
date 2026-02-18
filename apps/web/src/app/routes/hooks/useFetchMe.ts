@@ -67,6 +67,15 @@ export function useFetchMe({
           }
         }
 
+        // Restore saved map name before game initialization
+        try {
+          const lastMap = user.lastPosition?.mapName;
+          if (lastMap && typeof lastMap === 'string') {
+            const { useMapStore } = await import('../../../state/mapStore');
+            useMapStore.getState().setCurrentMapName(lastMap);
+          }
+        } catch {}
+
         setMe(user);
         setPositionReady(true);
       } catch {

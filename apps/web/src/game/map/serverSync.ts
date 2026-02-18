@@ -43,10 +43,20 @@ export async function fetchAndApplyServerLayers(scene: Phaser.Scene & any): Prom
       const zones = Array.isArray((data as any)?.zones) ? (data as any).zones.map((z: any) => {
         const anyZ = z || {};
         const pts = Array.isArray(anyZ.points) ? anyZ.points : Array.isArray(anyZ.polygon) ? anyZ.polygon : (anyZ.polygon && Array.isArray(anyZ.polygon.points)) ? anyZ.polygon.points : [];
-        return { name: anyZ.name, points: pts };
+        return {
+          name: anyZ.name,
+          points: pts,
+          capacity: anyZ.capacity ?? undefined,
+          type: anyZ.type ?? undefined,
+          portalTarget: anyZ.portalTarget ?? undefined,
+          portalSpawnX: anyZ.portalSpawnX ?? undefined,
+          portalSpawnY: anyZ.portalSpawnY ?? undefined,
+        };
       }) : [];
       if (zones.length > 0) {
         try { scene.setZoneOverlay(zones); } catch {}
+        // Dispatch event so ZoneManager gets updated with server-loaded zones (including portal metadata)
+        try { window.dispatchEvent(new CustomEvent('server_zones_loaded', { detail: { zones } })); } catch {}
       }
     } catch {}
     try { await scene.waitForTilesetsReady(requiredTsKeys, 1500); } catch {}

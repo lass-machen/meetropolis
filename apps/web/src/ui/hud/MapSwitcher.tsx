@@ -3,7 +3,7 @@ import { useMapStore } from '../../state/mapStore';
 import { changeMap } from '../../game/map/changeMap';
 
 interface MapSwitcherProps {
-  room: { send: (type: string, data: unknown) => void; onMessage: (type: string, handler: (data: unknown) => void) => void } | null;
+  room: { send: (type: string, data: unknown) => void; onMessage: (type: string, handler: (data: unknown) => void) => (() => void) } | null;
 }
 
 export function MapSwitcher({ room }: MapSwitcherProps) {

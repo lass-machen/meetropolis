@@ -8,6 +8,7 @@ import { ZoneManager } from '../../../game/zoneManager';
 import { VolumeManager } from '../../../game/volumeManager';
 import { pointInPolygon } from '../../../lib/geom';
 import { avatarRegistry } from '../../../game/avatarRegistry';
+import { useMapStore } from '../../../state/mapStore';
 
 interface UseGameInitializationParams {
   authChecked: boolean;
@@ -64,10 +65,11 @@ export function useGameInitialization(params: UseGameInitializationParams) {
       const currentPos = localPosRef.current;
       const currentDirection = (gameBridge as any).lastDirection || 'down';
       const last = lastSavedPositionRef.current;
-      const hasMoved = currentPos.x && currentPos.y && (Math.abs(currentPos.x - last.x) > 10 || Math.abs(currentPos.y - last.y) > 10 || currentDirection !== last.direction);
+      const hasMoved = typeof currentPos.x === 'number' && typeof currentPos.y === 'number' && (Math.abs(currentPos.x - last.x) > 10 || Math.abs(currentPos.y - last.y) > 10 || currentDirection !== last.direction);
       if (!hasMoved && !opts?.immediate) return;
       lastSavedPositionRef.current = { x: currentPos.x || last.x, y: currentPos.y || last.y, direction: currentDirection };
-      const payload = JSON.stringify({ x: Math.round(lastSavedPositionRef.current.x), y: Math.round(lastSavedPositionRef.current.y), direction: lastSavedPositionRef.current.direction });
+      const currentMapName = useMapStore.getState().currentMapName;
+      const payload = JSON.stringify({ x: Math.round(lastSavedPositionRef.current.x), y: Math.round(lastSavedPositionRef.current.y), direction: lastSavedPositionRef.current.direction, mapName: currentMapName });
       try {
         if (opts?.immediate && 'sendBeacon' in navigator) {
           const blob = new Blob([payload], { type: 'application/json' });
@@ -77,6 +79,11 @@ export function useGameInitialization(params: UseGameInitializationParams) {
         }
       } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
     };
+
+    const handleBeforeUnload = () => {
+      savePosition({ immediate: true });
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
 
     let lastZone: string | null = null;
     gameBridge.onLocalMove = (p) => {
@@ -228,6 +235,7 @@ export function useGameInitialization(params: UseGameInitializationParams) {
     initGame();
 
     return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
       try { gameBridge.setSceneApi?.(null); } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
       if (game) destroyPhaserGame(game);
       try { const el = containerRef.current; while (el && el.firstChild) { el.removeChild(el.firstChild); } } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
