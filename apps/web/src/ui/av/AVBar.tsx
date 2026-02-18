@@ -160,7 +160,7 @@ export function AVBar(props: {
       {showSettings && (
         <>
           <Separator variant="vertical" />
-          <Button onClick={() => setSettingsOpen(true)} icon="gear" iconPosition="only" title={t('av.audioSettings')} />
+          <Button onClick={() => setSettingsOpen(true)} icon="gear" iconPosition="only" title={t('settings.title')} />
           <AudioSettingsModal open={settingsOpen} onOpenChange={setSettingsOpen} />
         </>
       )}

@@ -1,5 +1,6 @@
 import { Modal, Select, Checkbox, Slider, FieldRow } from '../system';
 import { useAvSettingsStore } from '../../state/avSettings';
+import { useCameraSettingsStore } from '../../state/cameraSettings';
 import { useTranslation } from 'react-i18next';
 
 export function AudioSettingsModal(props: { open: boolean; onOpenChange: (v: boolean) => void; }) {
@@ -7,11 +8,24 @@ export function AudioSettingsModal(props: { open: boolean; onOpenChange: (v: boo
   const settings = useAvSettingsStore(s => s.settings);
   const setSetting = useAvSettingsStore(s => s.setSetting);
   const applyPreset = useAvSettingsStore(s => s.applyPreset);
+  const cameraSettings = useCameraSettingsStore(s => s.settings);
+  const setCameraSetting = useCameraSettingsStore(s => s.setSetting);
   const { t } = useTranslation();
 
   return (
-    <Modal open={open} onOpenChange={onOpenChange} title={t('av.audioSettings')} description={t('av.audioSettingsDesc')} maxWidth={560}>
+    <Modal open={open} onOpenChange={onOpenChange} title={t('settings.title')} description={t('settings.desc')} maxWidth={560}>
       <div style={{ display: 'grid', gap: 14 }}>
+        {/* Camera section */}
+        <FieldRow
+          label={t('settings.centerCamera')}
+          control={
+            <Checkbox
+              checked={cameraSettings.centerCamera}
+              onChange={e => setCameraSetting('centerCamera', (e.target as HTMLInputElement).checked)}
+            />
+          }
+        />
+        <div style={{ height: 1, background: 'var(--border)' }} />
         <FieldRow label={t('av.noiseSuppression')} control={<Checkbox checked={settings.noiseSuppression} onChange={e => setSetting('noiseSuppression', (e.target as HTMLInputElement).checked)} />} />
         <FieldRow label={t('av.echoCancellation')} control={<Checkbox checked={settings.echoCancellation} onChange={e => setSetting('echoCancellation', (e.target as HTMLInputElement).checked)} />} />
         <FieldRow label={t('av.autoGainControl')} control={<Checkbox checked={settings.autoGainControl} onChange={e => setSetting('autoGainControl', (e.target as HTMLInputElement).checked)} />} />

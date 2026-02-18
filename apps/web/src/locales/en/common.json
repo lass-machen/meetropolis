@@ -196,7 +196,11 @@
   "time.hour": "{{count}} hr ago",
   "time.yesterday": "yesterday",
   "time.day": "{{count}} days ago",
-  "time.moreDays": "> {{count}} days"
+  "time.moreDays": "> {{count}} days",
+
+  "settings.title": "Settings",
+  "settings.desc": "Camera, audio & display",
+  "settings.centerCamera": "Center camera on player"
 }
 
 

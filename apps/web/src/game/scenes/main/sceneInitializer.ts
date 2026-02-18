@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { V2State, computeFirstGids } from '../../../lib/mapV2';
+import { useCameraSettingsStore } from '../../../state/cameraSettings';
 
 export class SceneInitializer {
   static initializeMap(scene: Phaser.Scene): {
@@ -97,6 +98,12 @@ export class SceneInitializer {
     cam.setZoom(3);
     cam.setBounds(0, 0, mapRef.widthInPixels, mapRef.heightInPixels);
 
+    // Apply center-camera setting
+    const cameraSettings = useCameraSettingsStore.getState().settings;
+    if (cameraSettings.centerCamera) {
+      cam.removeBounds();
+    }
+
     const labelLayer = scene.add.layer();
     labelLayer.setDepth(10000);
     cam.ignore(labelLayer);
@@ -118,9 +125,21 @@ export class SceneInitializer {
     scene.events.on(Phaser.Scenes.Events.POST_UPDATE, refreshLabelCamIgnore);
 
     scene.scale.on('resize', () => {
-      cam.setBounds(0, 0, mapRef.widthInPixels, mapRef.heightInPixels);
+      const cs = useCameraSettingsStore.getState().settings;
+      if (!cs.centerCamera) {
+        cam.setBounds(0, 0, mapRef.widthInPixels, mapRef.heightInPixels);
+      }
       if (labelCam) labelCam.setSize(scene.scale.width, scene.scale.height);
     });
+
+    const unsubCameraSettings = useCameraSettingsStore.subscribe((state) => {
+      if (state.settings.centerCamera) {
+        cam.removeBounds();
+      } else {
+        cam.setBounds(0, 0, mapRef.widthInPixels, mapRef.heightInPixels);
+      }
+    });
+    scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => unsubCameraSettings());
 
     return { labelCamera: labelCam, labelLayer };
   }

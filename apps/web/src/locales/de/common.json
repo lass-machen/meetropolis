@@ -212,7 +212,11 @@
   "time.hour": "vor {{count}} Std",
   "time.yesterday": "gestern",
   "time.day": "vor {{count}} Tagen",
-  "time.moreDays": "> {{count}} Tagen"
+  "time.moreDays": "> {{count}} Tagen",
+
+  "settings.title": "Einstellungen",
+  "settings.desc": "Kamera, Audio & Anzeige",
+  "settings.centerCamera": "Kamera auf Spieler zentrieren"
 }
 
 
