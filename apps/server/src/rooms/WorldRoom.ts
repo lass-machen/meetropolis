@@ -317,7 +317,7 @@ export class WorldRoom extends Room<WorldState> {
     this.onMessage('npc_command', () => {});
 
     // Handle map change requests
-    this.onMessage('change_map', async (client, data: { mapId: string }) => {
+    this.onMessage('change_map', async (client, data: { mapId: string; spawnX?: number; spawnY?: number }) => {
       const player = this.state.players.get(client.sessionId);
       if (!player) return;
 
@@ -364,10 +364,16 @@ export class WorldRoom extends Room<WorldState> {
       // Set new map and spawn position
       player.mapId = map.id;
       player.mapName = map.name;
-      const spawn = mapMeta?.defaultSpawn || {
-        x: ((mapMeta?.widthTiles ?? 32) * (mapMeta?.tileWidthPx ?? 16)) / 2,
-        y: ((mapMeta?.heightTiles ?? 32) * (mapMeta?.tileHeightPx ?? 16)) / 2,
-      };
+      // Use portal spawn override if provided, otherwise fall back to map default spawn
+      let spawn: { x: number; y: number };
+      if (typeof data.spawnX === 'number' && typeof data.spawnY === 'number') {
+        spawn = this.sanitizePositionForMap(data.spawnX, data.spawnY, map.id);
+      } else {
+        spawn = mapMeta?.defaultSpawn || {
+          x: ((mapMeta?.widthTiles ?? 32) * (mapMeta?.tileWidthPx ?? 16)) / 2,
+          y: ((mapMeta?.heightTiles ?? 32) * (mapMeta?.tileHeightPx ?? 16)) / 2,
+        };
+      }
       player.x = spawn.x;
       player.y = spawn.y;
 
@@ -435,10 +441,15 @@ export class WorldRoom extends Room<WorldState> {
   }
 
   // Editor-Updates können das Default-Spawn live setzen
-  public setDefaultSpawn(pos: { x: number; y: number }) {
-    const s = this.sanitizePosition(pos.x, pos.y);
+  public setDefaultSpawn(mapId: string, pos: { x: number; y: number }) {
+    const s = this.sanitizePositionForMap(pos.x, pos.y, mapId);
     this.defaultSpawn = s;
-    try { logger.info('[WorldRoom] Default spawn updated to:', s); } catch (e) { logger.debug('[WorldRoom] Failed to log default spawn update', e); }
+    // Update mapCache entry for the affected map
+    const cached = this.mapCache.get(mapId);
+    if (cached) {
+      cached.defaultSpawn = s;
+    }
+    try { logger.info('[WorldRoom] Default spawn updated for map', mapId, 'to:', s); } catch (e) { logger.debug('[WorldRoom] Failed to log default spawn update', e); }
   }
 
   private getBoundsPx(): { minX: number; minY: number; maxX: number; maxY: number } | null {

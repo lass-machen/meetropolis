@@ -4,7 +4,7 @@ import { gameBridge } from '../bridge';
 import { logger } from '../../lib/logger';
 import { EditorService } from '../../services/EditorService';
 
-export async function changeMap(targetMapId: string, targetMapName: string, room: { send: (type: string, data: unknown) => void; onMessage: (type: string, handler: (data: unknown) => void) => (() => void) }): Promise<void> {
+export async function changeMap(targetMapId: string, targetMapName: string, room: { send: (type: string, data: unknown) => void; onMessage: (type: string, handler: (data: unknown) => void) => (() => void) }, spawnOverride?: { x: number; y: number }): Promise<void> {
   const store = useMapStore.getState();
 
   if (store.isChangingMap) {
@@ -21,7 +21,7 @@ export async function changeMap(targetMapId: string, targetMapName: string, room
 
   try {
     // 1. Tell server to change map
-    room.send('change_map', { mapId: targetMapId });
+    room.send('change_map', { mapId: targetMapId, ...(spawnOverride ? { spawnX: spawnOverride.x, spawnY: spawnOverride.y } : {}) });
 
     // 2. Wait for server confirmation
     const confirmed = await new Promise<{ mapName: string; x: number; y: number } | null>((resolve) => {

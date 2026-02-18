@@ -466,7 +466,7 @@ export function registerMapRoutes(app: express.Application, prisma: PrismaClient
 
     if (spawn && typeof spawn.x === 'number' && typeof spawn.y === 'number') {
       broadcastMapUpdate(tenant.slug, 'editor_update', { type: 'spawn', pos: spawn });
-      broadcastSpawnUpdate(spawn);
+      broadcastSpawnUpdate(map.id, spawn);
     }
 
     if (tilesets || assets || zones || backgroundColor || replaceZones) {

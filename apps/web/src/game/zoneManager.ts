@@ -41,8 +41,11 @@ export class ZoneManager {
           const maps = useMapStore.getState().availableMaps;
           const targetMap = maps.find(m => m.name === targetName);
           if (targetMap) {
+            const spawnOverride = (typeof inside.portalSpawnX === 'number' && typeof inside.portalSpawnY === 'number')
+              ? { x: inside.portalSpawnX, y: inside.portalSpawnY }
+              : undefined;
             import('./map/changeMap').then(mod => {
-              mod.changeMap(targetMap.id, targetMap.name, this.room!);
+              mod.changeMap(targetMap.id, targetMap.name, this.room!, spawnOverride);
             }).catch(e => {
               console.error('[ZoneManager] Failed to trigger portal:', e);
             });

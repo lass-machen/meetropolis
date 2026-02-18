@@ -2,7 +2,7 @@ import { logger } from '../../logger.js';
 
 interface WorldRoom {
   broadcast?: (event: string, data: unknown) => void;
-  setDefaultSpawn?: (pos: { x: number; y: number }) => void;
+  setDefaultSpawn?: (mapId: string, pos: { x: number; y: number }) => void;
 }
 
 interface GameServer {
@@ -44,11 +44,11 @@ export function broadcastMapUpdate(
   }
 }
 
-export function broadcastSpawnUpdate(spawn: { x: number; y: number }): void {
+export function broadcastSpawnUpdate(mapId: string, spawn: { x: number; y: number }): void {
   const rooms = Array.from((global.activeWorldRooms || new Set()).values());
   for (const room of rooms) {
     try {
-      room.setDefaultSpawn?.(spawn);
+      room.setDefaultSpawn?.(mapId, spawn);
     } catch { }
   }
 }
