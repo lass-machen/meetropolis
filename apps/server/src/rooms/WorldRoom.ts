@@ -375,7 +375,11 @@ export class WorldRoom extends Room<WorldState> {
         if (this.prismaForPresence) {
           await this.prismaForPresence.presence.updateMany({
             where: { userId: player.identity },
-            data: { mapName: targetMapName },
+            data: {
+              mapName: targetMapName,
+              x: Math.round(player.x),
+              y: Math.round(player.y),
+            },
           });
         }
       } catch (e) {
@@ -749,6 +753,28 @@ export class WorldRoom extends Room<WorldState> {
   }
 
   override onLeave(client: Client) {
+    // Persist position + mapName before removing player (fire-and-forget)
+    const player = this.state.players.get(client.sessionId);
+    if (player && player.identity && this.prismaForPresence) {
+      const tenantSlug = (this.metadata as RoomMetadata)?.tenant
+        || process.env.DEFAULT_TENANT_SLUG || 'default';
+      const prisma = this.prismaForPresence;
+      const { identity, x, y, direction, mapName } = player;
+
+      prisma.tenant.findUnique({ where: { slug: tenantSlug } })
+        .then((tenant) => {
+          if (!tenant) return;
+          return prisma.presence.updateMany({
+            where: { userId: identity, tenantId: tenant.id },
+            data: {
+              x: Math.round(x), y: Math.round(y), direction,
+              ...(mapName ? { mapName } : {}),
+            },
+          });
+        })
+        .catch((e) => logger.debug('[WorldRoom] Failed to persist position on leave', e));
+    }
+
     this.state.players.delete(client.sessionId);
     try { colyseusPlayers.dec(); } catch (e) { logger.debug('[WorldRoom] Failed to decrement colyseusPlayers metric', e); }
     logger.info('[WorldRoom] Player left:', client.sessionId);

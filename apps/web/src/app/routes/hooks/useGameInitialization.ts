@@ -71,11 +71,14 @@ export function useGameInitialization(params: UseGameInitializationParams) {
       const currentMapName = useMapStore.getState().currentMapName;
       const payload = JSON.stringify({ x: Math.round(lastSavedPositionRef.current.x), y: Math.round(lastSavedPositionRef.current.y), direction: lastSavedPositionRef.current.direction, mapName: currentMapName });
       try {
-        if (opts?.immediate && 'sendBeacon' in navigator) {
-          const blob = new Blob([payload], { type: 'application/json' });
-          (navigator as any).sendBeacon?.(`${apiBase}/auth/position`, blob);
+        if (opts?.immediate) {
+          fetch(`${apiBase}/auth/position`, {
+            method: 'POST', credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            keepalive: true, body: payload,
+          }).catch(() => {});
         } else {
-          await fetch(`${apiBase}/auth/position`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, keepalive: !!opts?.immediate, body: payload });
+          await fetch(`${apiBase}/auth/position`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: payload });
         }
       } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
     };

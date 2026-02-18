@@ -77,7 +77,7 @@ export function useColyseusConnection(
         me.id,
         me.name || me.email || me.id,
         positionToUse,
-        currentMapName !== 'office' ? currentMapName : undefined
+        currentMapName || undefined
       );
       if (disposed) { try { room.leave(); } catch {} return null; }
       colyseusRef.current = room;
