@@ -203,6 +203,8 @@ async function setupRoomEventListeners(
     room.on(RoomEvent.TrackPublished, () => scheduleBuild(100));
     room.on(RoomEvent.TrackUnpublished, () => scheduleBuild(100));
     room.on(RoomEvent.TrackSubscribed, () => scheduleBuild(200));
+    room.on(RoomEvent.TrackMuted, () => scheduleBuild(100));
+    room.on(RoomEvent.TrackUnmuted, () => scheduleBuild(100));
     room.on(RoomEvent.ActiveSpeakersChanged, () => scheduleBuild(100));
   } catch {
     // Fallback without specific events

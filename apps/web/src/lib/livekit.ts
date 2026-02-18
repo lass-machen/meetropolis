@@ -151,7 +151,8 @@ async function connectLivekitRoom(args: {
   } catch {}
 
   // Build rtcConfig for ICE gathering
-  const isLocalDev = args.serverUrl.includes('localhost') || args.serverUrl.includes('127.0.0.1');
+  // Detect local/LAN development: localhost, loopback, .local mDNS, private IP ranges
+  const isLocalDev = /localhost|127\.0\.0\.1|\.local[:/]|^wss?:\/\/10\.|^wss?:\/\/192\.168\.|^wss?:\/\/172\.(1[6-9]|2\d|3[01])\./.test(args.serverUrl);
 
   const rtcConfig: RTCConfiguration = {
     // For local Docker development, DON'T use STUN servers

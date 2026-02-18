@@ -368,6 +368,18 @@ export class ConnectionManager implements Disposable {
           emitAudioTracksChanged();
         });
 
+        register(RoomEvent.TrackMuted as any, (_pub: any, participant: any) => {
+          AVLogger.debug('room.track_muted', { participant: participant?.identity });
+          this.deps.subscriptionManager.forceApply();
+          emitAudioTracksChanged();
+        });
+
+        register(RoomEvent.TrackUnmuted as any, (_pub: any, participant: any) => {
+          AVLogger.debug('room.track_unmuted', { participant: participant?.identity });
+          this.deps.subscriptionManager.forceApply();
+          emitAudioTracksChanged();
+        });
+
         register(RoomEvent.ParticipantConnected as any, (participant: any) => {
           AVLogger.debug('room.participant_connected', {
             identity: participant?.identity,

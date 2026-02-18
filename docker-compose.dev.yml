@@ -43,18 +43,19 @@ services:
       DATABASE_URL: postgresql://postgres:postgres@db:5432/meetropolis
       PORT: 2567
       LIVEKIT_URL: http://livekit:7880
-      LIVEKIT_EXTERNAL_URL: ws://localhost:7880
+      LIVEKIT_EXTERNAL_URL: ws://${HOST_IP:-localhost}:7880
       LIVEKIT_API_KEY: devkey
       LIVEKIT_API_SECRET: secret
       NODE_ENV: development
       TRUST_PROXY: "false"
-      CORS_ORIGIN: http://localhost:5174,http://localhost:5173
+      COOKIE_SECURE: "false"
+      CORS_ORIGIN: http://localhost:5174,http://localhost:5173,http://Razor-Crest.local:5173
       # Stabilisiere Tokens in Dev: gleicher Pepper/Secret über Neustarts
       API_TOKEN_PEPPER: dev-pepper-change-me
       JWT_SECRET: dev-jwt-secret-change-me
-      NPC_SERVICE_URL: http://npc-service:3100
+      NPC_SERVICE_URL: http://host.docker.internal:3100
       NPC_SERVICE_SECRET: dev-npc-secret
-      NPC_SERVER_URL: http://server:2567
+      NPC_SERVER_URL: http://localhost:2567
       NPC_MEDIA_DIR: /data/npc-media
     command: sh -c "cd /workspace && npm install && npx prisma generate --schema=./apps/server/prisma/schema.prisma && npx prisma db push --schema=./apps/server/prisma/schema.prisma && npx prisma db seed --schema=./apps/server/prisma/schema.prisma && npm run -w @meetropolis/server start:dev"
     ports:
@@ -76,16 +77,15 @@ services:
       - meetropolis-dev
     volumes:
       - ./:/workspace
-      - npc_media_dev:/data/npc-media
+      - ./npc-media:/data/npc-media
 
   web:
     image: node:20
     container_name: meetropolis-web-dev
     working_dir: /workspace/apps/web
     environment:
-      VITE_API_BASE: http://localhost:2567
-      VITE_LIVEKIT_URL: ws://localhost:7880
-      VITE_HMR_HOST: localhost
+      VITE_LIVEKIT_URL: ws://Razor-Crest.local:7880
+      VITE_HMR_HOST: Razor-Crest.local
       VITE_HMR_PROTOCOL: ws
       VITE_DEBUG_LOGS: "true"
       VITE_FEATURE_AV_SETTINGS: "true"
@@ -116,14 +116,14 @@ services:
   livekit:
     image: livekit/livekit-server:latest
     container_name: meetropolis-livekit-dev
-    command: ["--dev", "--bind", "0.0.0.0"]
+    # --node-ip: IP advertised in WebRTC ICE candidates (LAN-Test: HOST_IP=<LAN-IP>)
+    command: ["--dev", "--bind", "0.0.0.0", "--node-ip", "${HOST_IP:-127.0.0.1}"]
     environment:
       LK_LOG_LEVEL: info
       LK_API_KEY: devkey
       LK_API_SECRET: secret
-      LK_NODE_IP: 0.0.0.0
-      LK_NAT_1_TO_1_IPS: 127.0.0.1
-      LK_RTC_USE_EXTERNAL_IP: "true"
+      LK_NODE_IP: ${HOST_IP:-127.0.0.1}
+      LK_RTC_USE_EXTERNAL_IP: "false"
       LK_RTC_TCP_PORT: 7881
       LK_RTC_UDP_PORT: 7882
       LK_PROMETHEUS_PORT: 9090
@@ -169,6 +169,7 @@ services:
       - livekit
 
   loadtest:
+    profiles: ["loadtest"]
     build:
       context: .
       dockerfile: apps/loadtest/Dockerfile
@@ -228,4 +229,4 @@ services:
       - meetropolis-dev
     volumes:
       - ./:/workspace
-      - npc_media_dev:/data/npc-media
+      - ./npc-media:/data/npc-media
