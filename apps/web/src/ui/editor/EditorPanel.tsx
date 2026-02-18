@@ -452,7 +452,7 @@ export function EditorPanel(props: {
                       </select>
                       <div style={{ display: 'flex', gap: 6 }}>
                         <div style={{ flex: 1, display: 'grid', gap: 2 }}>
-                          <label style={{ fontSize: 10, color: 'var(--fg-subtle)' }}>Spawn X</label>
+                          <label style={{ fontSize: 10, color: 'var(--fg-subtle)' }}>Spawn X (Tile)</label>
                           <input
                             type="number"
                             value={zone.portalSpawnX ?? ''}
@@ -476,7 +476,7 @@ export function EditorPanel(props: {
                           />
                         </div>
                         <div style={{ flex: 1, display: 'grid', gap: 2 }}>
-                          <label style={{ fontSize: 10, color: 'var(--fg-subtle)' }}>Spawn Y</label>
+                          <label style={{ fontSize: 10, color: 'var(--fg-subtle)' }}>Spawn Y (Tile)</label>
                           <input
                             type="number"
                             value={zone.portalSpawnY ?? ''}

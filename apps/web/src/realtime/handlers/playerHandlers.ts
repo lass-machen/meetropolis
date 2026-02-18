@@ -133,22 +133,28 @@ export function setupPlayerHandlers(
 
   // State change (full state sync via onStateChange)
   room.onStateChange((state: any) => {
+    const currentMap = useMapStore.getState().currentMapName;
     const players: Record<string, { x: number; y: number; direction: any; dnd?: boolean; identity?: string; name?: string; avatarId?: string; isNpc?: boolean }> = {};
     if (state.players) {
       if (typeof state.players.forEach === 'function') {
         state.players.forEach((value: any, key: string) => {
-          players[key] = { x: value.x, y: value.y, direction: value.direction, dnd: value.dnd, identity: value.identity, name: value.name, avatarId: value.avatarId, isNpc: value.isNpc };
+          // Always update name map for roster (even for players on other maps)
           if (value.identity && value.name) identityToNameMap.current[value.identity] = value.name;
+          // Only include players on the same map
+          if (value.mapName && value.mapName !== currentMap) return;
+          players[key] = { x: value.x, y: value.y, direction: value.direction, dnd: value.dnd, identity: value.identity, name: value.name, avatarId: value.avatarId, isNpc: value.isNpc };
         });
       } else if (typeof state.players.entries === 'function') {
         for (const [key, value] of state.players.entries()) {
-          players[key] = { x: value.x, y: value.y, direction: value.direction, dnd: value.dnd, identity: value.identity, name: value.name, avatarId: value.avatarId, isNpc: value.isNpc };
           if (value.identity && value.name) identityToNameMap.current[value.identity] = value.name;
+          if (value.mapName && value.mapName !== currentMap) continue;
+          players[key] = { x: value.x, y: value.y, direction: value.direction, dnd: value.dnd, identity: value.identity, name: value.name, avatarId: value.avatarId, isNpc: value.isNpc };
         }
       } else if ((state.players as any)[Symbol.iterator]) {
         for (const [key, value] of (state.players as any)) {
-          players[key] = { x: value.x, y: value.y, direction: value.direction, dnd: value.dnd, identity: value.identity, name: value.name, avatarId: value.avatarId, isNpc: value.isNpc };
           if (value.identity && value.name) identityToNameMap.current[value.identity] = value.name;
+          if (value.mapName && value.mapName !== currentMap) continue;
+          players[key] = { x: value.x, y: value.y, direction: value.direction, dnd: value.dnd, identity: value.identity, name: value.name, avatarId: value.avatarId, isNpc: value.isNpc };
         }
       }
     }

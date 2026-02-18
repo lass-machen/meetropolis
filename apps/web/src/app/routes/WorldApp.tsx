@@ -147,6 +147,15 @@ export function WorldApp() {
     disposedRef, getDisplayName, gameBridge, dndRef,
   });
 
+  // Rebuild participant list when me changes to ensure UserCard shows display name, not UUID
+  React.useEffect(() => {
+    if (me) {
+      const localIdentity = avRef.current?.room?.localParticipant?.identity || me.id;
+      identityToNameMap.current[localIdentity] = me.name || me.email || me.id;
+      buildParticipantList();
+    }
+  }, [me, buildParticipantList]);
+
   // Cleanup build list timers
   React.useEffect(() => {
     return () => {

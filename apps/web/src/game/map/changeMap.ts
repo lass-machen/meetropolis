@@ -74,7 +74,10 @@ export async function changeMap(targetMapId: string, targetMapName: string, room
     // 7. Clear remote players cache
     gameBridge.syncRemotePlayers({});
 
-    // 8. Restart MainScene
+    // 8. Set confirmed spawn position BEFORE restarting scene
+    (window as any).initialPlayerPosition = { x: confirmed.x, y: confirmed.y };
+
+    // 9. Restart MainScene
     game.scene.start('Main');
 
     // Notify React to reload zones for the new map

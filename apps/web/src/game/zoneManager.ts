@@ -41,8 +41,10 @@ export class ZoneManager {
           const maps = useMapStore.getState().availableMaps;
           const targetMap = maps.find(m => m.name === targetName);
           if (targetMap) {
+            // portalSpawnX/Y are stored as tile coordinates; convert to pixel (tile * 16 + 8 = center of tile)
+            const tileSize = 16;
             const spawnOverride = (typeof inside.portalSpawnX === 'number' && typeof inside.portalSpawnY === 'number')
-              ? { x: inside.portalSpawnX, y: inside.portalSpawnY }
+              ? { x: inside.portalSpawnX * tileSize + tileSize / 2, y: inside.portalSpawnY * tileSize + tileSize / 2 }
               : undefined;
             import('./map/changeMap').then(mod => {
               mod.changeMap(targetMap.id, targetMap.name, this.room!, spawnOverride);

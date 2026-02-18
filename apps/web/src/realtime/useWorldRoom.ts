@@ -87,6 +87,8 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
       const localLivekitIdentity = avRef.current?.room?.localParticipant?.identity || me.id;
       const colyseusSessionId = room.sessionId;
       colyseusToLivekitMap.current[colyseusSessionId] = localLivekitIdentity;
+      // Ensure local user's display name is in identityToNameMap so UserCard shows name, not UUID
+      identityToNameMap.current[localLivekitIdentity] = me.name || me.email || me.id;
       localPosRef.current.id = colyseusSessionId;
       if (typeof window !== 'undefined') { (window as any).__localSessionId = colyseusSessionId; }
 

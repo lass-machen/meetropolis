@@ -93,6 +93,11 @@ export class RemotePlayersManager {
       if (this.scene.textures.exists(newTextureKey)) {
         (s as any).avatarId = newAvatarId;
         avatarRegistry.createAnimations(this.scene.anims, newAvatarId);
+        // Immediately apply the new avatar's idle texture
+        const dir = (s as any).prevDirection || p.direction || 'down';
+        const { texture, frame } = avatarRegistry.getIdleFrame(newAvatarId, dir);
+        s.setTexture(texture, frame);
+        (s as any).isStanding = false; // Reset to allow animation system to take over
       } else {
         this.ensureAvatarLoaded(newAvatarId, s);
       }
