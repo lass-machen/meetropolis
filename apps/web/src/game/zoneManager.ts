@@ -61,6 +61,13 @@ export class ZoneManager {
     }
   }
 
+  /** Reset portal state for map changes. Clears current zone and sets a fresh cooldown
+   *  to prevent immediate re-triggering when spawning inside a portal zone on the new map. */
+  resetForMapChange() {
+    this.current = undefined;
+    this.portalCooldownUntil = Date.now() + 2000;
+  }
+
   setZones(zones: Polygon[]) {
     this.zones = zones;
     if (this.current && !this.zones.find(z => z.name === this.current)) {

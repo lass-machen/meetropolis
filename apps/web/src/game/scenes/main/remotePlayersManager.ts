@@ -178,6 +178,21 @@ export class RemotePlayersManager {
     }
   }
 
+  update() {
+    for (const [_id, s] of this.remotes) {
+      if (!s.active) continue;
+      const timeSinceLastMove = Date.now() - ((s as any).lastMoveTime || 0);
+      if (timeSinceLastMove >= 100 && !(s as any).isStanding) {
+        const spriteAvatarId = (s as any).avatarId || avatarRegistry.getDefaultAvatarId();
+        const direction = (s as any).prevDirection || 'down';
+        const { texture, frame } = avatarRegistry.getIdleFrame(spriteAvatarId, direction);
+        s.anims.stop();
+        s.setTexture(texture, frame);
+        (s as any).isStanding = true;
+      }
+    }
+  }
+
   getRemoteSprite(id: string): Phaser.GameObjects.Sprite | undefined {
     return this.remotes.get(id);
   }

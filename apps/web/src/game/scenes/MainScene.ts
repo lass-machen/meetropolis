@@ -170,6 +170,7 @@ export class MainScene extends Phaser.Scene {
       const hero = this.playerManager.getHero();
       this.nameLabelManager.updateHeroLabel(hero.x, hero.y);
       this.nameLabelManager.updateAllRemoteLabels(this.remotePlayersManager.getAllRemotes());
+      this.remotePlayersManager.update();
       this.cameraController?.autoFollowIfHeroOutOfView?.();
       updateRecenterUiVisibility(this as any);
       if (this.editorMode) this.cameraController.updateEditorPan(this.input.keyboard!.createCursorKeys(), this.game.loop.delta);

@@ -77,13 +77,13 @@ export function useParticipants(deps: {
         }
       }
       if (!isLocal) {
-        // Wenn keine Position bekannt ist, Teilnehmer dennoch aufnehmen (tolerant gegenüber Race-Conditions);
-        // Zonenfilter nur anwenden, wenn wir eine Position haben.
-        if (participantPos) {
-          const remoteZone = zones.find((z: Zone) => pointInPolygon(participantPos!, z.points));
-          if ((localZone && !remoteZone) || (!localZone && remoteZone) || (localZone && remoteZone && localZone.name !== remoteZone.name)) {
-            return;
-          }
+        // If we have no position data for this participant, they're likely on another map
+        if (!participantPos) {
+          return; // Don't show participants without position (different map)
+        }
+        const remoteZone = zones.find((z: Zone) => pointInPolygon(participantPos!, z.points));
+        if ((localZone && !remoteZone) || (!localZone && remoteZone) || (localZone && remoteZone && localZone.name !== remoteZone.name)) {
+          return;
         }
       }
       try {
@@ -144,7 +144,7 @@ export function useParticipants(deps: {
           }
         } catch {}
         const dnd = isLocal ? !!dndRef?.current : remoteDnd;
-        list.push({ sid: p.sid, identity, hasVideo: !!hasV, hasMic: !!hasMic, isSpeaking: activeSet.has(p.sid), media: 'camera', volume, dnd });
+        list.push({ sid: p.sid, identity, hasVideo: !!hasV, hasMic: !!hasMic, isSpeaking: !!hasMic && activeSet.has(p.sid), media: 'camera', volume, dnd });
         if (hasScreen) {
           list.push({ sid: p.sid + ':screen', identity: `${identity} – Bildschirm`, hasVideo: true, hasMic: false, isSpeaking: false, media: 'screen', volume, dnd });
         }

@@ -248,6 +248,9 @@ export function WorldApp() {
     const handler = async (e: Event) => {
       const mapId = (e as CustomEvent).detail?.mapId;
       if (!mapId) return;
+      // Reset ZoneManager state immediately (before async fetch) so stale
+      // portal-zone tracking from the previous map doesn't block re-entry.
+      zoneRef.current?.resetForMapChange?.();
       try {
         const res = await fetch(`${apiBase}/maps/${encodeURIComponent(mapId)}/editor-state?t=${Date.now()}`, { credentials: 'include' });
         if (!res.ok) return;

@@ -8,6 +8,7 @@ import { setupBubbleHandlers } from './handlers/bubbleHandlers';
 import { setupEditorHandlers } from './handlers/editorHandlers';
 import { setupRemoteControlHandlers } from './handlers/remoteControlHandlers';
 import { setupPresenceHandlers, createRosterRefresher } from './handlers/presenceHandlers';
+import { useMapStore } from '../state/mapStore';
 
 export type { UseWorldRoomArgs } from './types';
 
@@ -115,9 +116,12 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
       // and full_state message might arrive before handlers are registered
       try {
         if (room.state?.players) {
+          const currentMap = useMapStore.getState().currentMapName;
           const players: Record<string, any> = {};
           const iteratePlayers = (value: any, key: string) => {
             if (key === room.sessionId) return; // skip local player
+            // Only render players on the same map (matches playerHandlers filter)
+            if (value.mapName && value.mapName !== currentMap) return;
             players[key] = {
               x: value.x, y: value.y, direction: value.direction,
               name: value.name, dnd: value.dnd, avatarId: value.avatarId,
