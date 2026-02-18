@@ -1,5 +1,8 @@
 import Phaser from 'phaser';
 
+/** Monotonic counter used for unique texture keys. */
+let labelTexId = 0;
+
 export function createNameLabel(
   scene: Phaser.Scene & any,
   name: string,
@@ -8,7 +11,6 @@ export function createNameLabel(
 ): Phaser.GameObjects.Container {
   const container = scene.add.container(0, 0);
 
-  const bg = scene.add.graphics();
   const paddingX = 10;
   const paddingY = 6;
   const textStyle = {
@@ -19,8 +21,9 @@ export function createNameLabel(
     fontWeight: '500'
   } as const;
   const text = scene.add.text(0, 0, name, textStyle as any);
-  try { (text as any).setResolution?.((window as any).devicePixelRatio || 2); } catch {}
-  try { (text as any).setPadding?.(0, 0, 0, 1); } catch {}
+  const dpr = window.devicePixelRatio || 1;
+  try { (text as any).setResolution?.(dpr); } catch { /* noop */ }
+  try { (text as any).setPadding?.(0, 0, 0, 1); } catch { /* noop */ }
   text.setOrigin(0.5, 0.5);
 
   let badgeText: Phaser.GameObjects.Text | null = null;
@@ -32,7 +35,7 @@ export function createNameLabel(
       fontStyle: 'bold',
     } as const;
     badgeText = scene.add.text(0, 0, 'BOT', badgeStyle as any);
-    try { (badgeText as any).setResolution?.((window as any).devicePixelRatio || 2); } catch {}
+    try { (badgeText as any).setResolution?.(dpr); } catch { /* noop */ }
     badgeText!.setOrigin(0.5, 0.5);
   }
 
@@ -46,7 +49,6 @@ export function createNameLabel(
     badgeText.setX(-totalContentWidth / 2 + (text as any).width + 4 + (badgeText as any).width / 2);
   }
 
-  (container as any).bg = bg;
   (container as any).text = text;
   (container as any).playerId = playerId;
   (container as any).isNpc = !!isNpc;
@@ -55,50 +57,95 @@ export function createNameLabel(
   (container as any).paddingX = paddingX;
   (container as any).paddingY = paddingY;
 
-  drawNameLabel(scene, container, false);
-
-  container.add(bg);
+  // Create high-DPI background sprite (inserted at index 0, behind text)
+  const bgSprite = renderBgTexture(scene, container, false);
+  container.add(bgSprite);
   container.add(text);
   if (badgeText) container.add(badgeText);
   container.setDepth(12);
-  try { scene.labelLayer?.add(container); } catch {}
+  try { scene.labelLayer?.add(container); } catch { /* noop */ }
 
   return container;
 }
 
+/**
+ * Render the label background into a high-DPI texture and return an Image.
+ * The Graphics object is drawn at DPR-scaled resolution, captured via
+ * `generateTexture`, then displayed at 1/DPR scale so it appears pixel-
+ * perfect on Retina displays.
+ */
+function renderBgTexture(
+  scene: Phaser.Scene & any,
+  container: Phaser.GameObjects.Container,
+  isSpeaking: boolean
+): Phaser.GameObjects.Image {
+  const dpr = window.devicePixelRatio || 1;
+  const width = (container as any).width as number;
+  const height = (container as any).height as number;
+
+  const w = Math.round(width);
+  const h = Math.round(height);
+  const sw = Math.ceil(w * dpr);
+  const sh = Math.ceil(h * dpr);
+  const radius = Math.floor(h / 2);
+  const sRadius = Math.floor(radius * dpr);
+
+  // Draw into a temporary Graphics at DPR scale (origin at 0,0)
+  const gfx = scene.add.graphics();
+
+  if (isSpeaking) {
+    gfx.fillStyle(0x111114, 0.85);
+    gfx.fillRoundedRect(0, 0, sw, sh, sRadius);
+    gfx.lineStyle(Math.max(1, Math.round(1 * dpr)), 0x22d3ee, 1);
+    gfx.strokeRoundedRect(0, 0, sw, sh, sRadius);
+    gfx.lineStyle(Math.max(1, Math.round(2 * dpr)), 0x22d3ee, 0.3);
+    gfx.strokeRoundedRect(0, 0, sw, sh, sRadius);
+    gfx.lineStyle(Math.max(1, Math.round(3 * dpr)), 0x22d3ee, 0.15);
+    gfx.strokeRoundedRect(0, 0, sw, sh, sRadius);
+  } else {
+    gfx.fillStyle(0x111114, 0.75);
+    gfx.fillRoundedRect(0, 0, sw, sh, sRadius);
+    gfx.lineStyle(Math.max(1, Math.round(1 * dpr)), 0xffffff, 0.1);
+    gfx.strokeRoundedRect(0, 0, sw, sh, sRadius);
+  }
+
+  // Remove old texture if it exists
+  const prevKey = (container as any).bgTexKey as string | undefined;
+  if (prevKey && scene.textures.exists(prevKey)) {
+    scene.textures.remove(prevKey);
+  }
+
+  const texKey = `nlbl_${++labelTexId}`;
+  gfx.generateTexture(texKey, sw, sh);
+  gfx.destroy();
+
+  (container as any).bgTexKey = texKey;
+
+  // Reuse existing bgSprite or create a new one
+  let bgSprite = (container as any).bgSprite as Phaser.GameObjects.Image | undefined;
+  if (bgSprite) {
+    bgSprite.setTexture(texKey);
+  } else {
+    bgSprite = scene.add.image(0, 0, texKey);
+    (container as any).bgSprite = bgSprite;
+  }
+
+  bgSprite!.setOrigin(0.5, 0.5);
+  bgSprite!.setScale(1 / dpr);
+
+  return bgSprite!;
+}
+
 export function drawNameLabel(
-  _scene: Phaser.Scene & any,
+  scene: Phaser.Scene & any,
   container: Phaser.GameObjects.Container,
   isSpeaking: boolean
 ): void {
-  const bg = (container as any).bg as Phaser.GameObjects.Graphics;
-  const width = (container as any).width;
-  const height = (container as any).height;
+  const bgSprite = renderBgTexture(scene, container, isSpeaking);
 
-  bg.clear();
-
-  if (isSpeaking) {
-    const w = Math.round(width);
-    const h = Math.round(height);
-    const rx = -Math.floor(w / 2);
-    const ry = -Math.floor(h / 2);
-    bg.fillStyle(0x111114, 0.85);
-    bg.fillRoundedRect(rx, ry, w, h, Math.floor(h / 2));
-    bg.lineStyle(1, 0x22d3ee, 1);
-    bg.strokeRoundedRect(rx, ry, w, h, Math.floor(h / 2));
-    bg.lineStyle(2, 0x22d3ee, 0.3);
-    bg.strokeRoundedRect(rx, ry, w, h, Math.floor(h / 2));
-    bg.lineStyle(3, 0x22d3ee, 0.15);
-    bg.strokeRoundedRect(rx, ry, w, h, Math.floor(h / 2));
-  } else {
-    const w = Math.round(width);
-    const h = Math.round(height);
-    const rx = -Math.floor(w / 2);
-    const ry = -Math.floor(h / 2);
-    bg.fillStyle(0x111114, 0.75);
-    bg.fillRoundedRect(rx, ry, w, h, Math.floor(h / 2));
-    bg.lineStyle(1, 0xffffff, 0.1);
-    bg.strokeRoundedRect(rx, ry, w, h, Math.floor(h / 2));
+  // Ensure the bgSprite is in the container at index 0 (behind text)
+  if (container.getIndex(bgSprite) === -1) {
+    container.addAt(bgSprite, 0);
   }
 }
 

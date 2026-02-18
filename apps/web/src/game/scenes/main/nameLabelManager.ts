@@ -3,8 +3,6 @@ import {
   createNameLabel as uiCreateNameLabel,
   drawNameLabel as uiDrawNameLabel,
   updateNameLabel as uiUpdateNameLabel,
-  setHeroName as uiSetHeroName,
-  updateSpeakingStates as uiUpdateSpeakingStates,
 } from '../../ui/nameLabels';
 
 export class NameLabelManager {
@@ -39,7 +37,11 @@ export class NameLabelManager {
   }
 
   setHeroName(name: string) {
-    uiSetHeroName(this.scene, name);
+    if (this.heroNameLabel) {
+      try { this.heroNameLabel.destroy(); } catch { /* noop */ }
+    }
+    this.heroNameLabel = uiCreateNameLabel(this.scene, name, 'local');
+    // Position will be updated on next frame by updateHeroLabel()
   }
 
   createRemoteLabel(id: string, name: string, x: number, y: number, isNpc?: boolean): Phaser.GameObjects.Container {
@@ -110,7 +112,12 @@ export class NameLabelManager {
   }
 
   updateSpeakingStates(speakingIds: Set<string>) {
-    uiUpdateSpeakingStates(this.scene, speakingIds);
+    this.nameLabels.forEach((label, id) => {
+      uiDrawNameLabel(this.scene, label, speakingIds.has(id));
+    });
+    if (this.heroNameLabel) {
+      uiDrawNameLabel(this.scene, this.heroNameLabel, speakingIds.has('local'));
+    }
   }
 
   getAllRemoteLabels(): Map<string, Phaser.GameObjects.Container> {
