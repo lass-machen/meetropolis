@@ -492,6 +492,160 @@ export function registerMapRoutes(app: express.Application, prisma: PrismaClient
     res.json({ ok: true });
   });
 
+  // Resize map
+  app.patch('/maps/:name/resize', async (req: express.Request, res: express.Response) => {
+    const sessionAuth = requireAuth(req);
+    const tokenAuth = await requireApiToken(req, prisma);
+    const auth = sessionAuth || tokenAuth;
+    if (!auth) return res.status(401).json({ error: 'unauthorized' });
+    const name = req.params.name;
+    const tenant = getTenantFromReq(req);
+    if (!tenant) return res.status(400).json({ error: 'tenant_required' });
+
+    const schema = z.object({
+      width: z.number().int().min(8).max(512),
+      height: z.number().int().min(8).max(512),
+      dryRun: z.boolean().optional(),
+    });
+    const parse = schema.safeParse(req.body || {});
+    if (!parse.success) return res.status(400).json({ error: 'invalid payload' });
+    const { width, height, dryRun } = parse.data;
+
+    try {
+      const map = await prisma.map.findFirst({ where: { name, tenantId: tenant.id } });
+      if (!map) return res.status(404).json({ error: 'map not found' });
+
+      const oldWidth = map.width ?? 32;
+      const oldHeight = map.height ?? 32;
+      const warnings: string[] = [];
+
+      // Check for data loss when shrinking
+      if (width < oldWidth || height < oldHeight) {
+        // Count objects outside new bounds
+        const objectsOutside = await prisma.mapObject.count({
+          where: {
+            mapId: map.id,
+            OR: [
+              { tileX: { gte: width } },
+              { tileY: { gte: height } },
+            ],
+          },
+        });
+        if (objectsOutside > 0) {
+          warnings.push(`${objectsOutside} object(s) will be outside the new map bounds`);
+        }
+
+        // Check spawn point
+        const meta = (map.meta as any) || {};
+        if (meta.spawn) {
+          const tileWidth = map.tileWidth || 16;
+          const tileHeight = map.tileHeight || 16;
+          const spawnTileX = Math.floor(meta.spawn.x / tileWidth);
+          const spawnTileY = Math.floor(meta.spawn.y / tileHeight);
+          if (spawnTileX >= width || spawnTileY >= height) {
+            warnings.push('Spawn point will be outside the new map bounds');
+          }
+        }
+
+        // Check zones
+        const zones = await prisma.zone.findMany({ where: { mapId: map.id } });
+        const pixelMaxX = width * (map.tileWidth || 16);
+        const pixelMaxY = height * (map.tileHeight || 16);
+        for (const zone of zones) {
+          const polygon = zone.polygon as any[];
+          if (!Array.isArray(polygon)) continue;
+          for (const point of polygon) {
+            const px = typeof point.x === 'number' ? point.x : 0;
+            const py = typeof point.y === 'number' ? point.y : 0;
+            if (px >= pixelMaxX || py >= pixelMaxY) {
+              warnings.push(`Zone "${zone.name}" has vertices outside the new map bounds`);
+              break;
+            }
+          }
+        }
+      }
+
+      if (dryRun) {
+        return res.json({ ok: true, warnings, oldWidth, oldHeight, newWidth: width, newHeight: height });
+      }
+
+      await prisma.map.update({ where: { id: map.id }, data: { width, height } });
+      broadcastMapUpdate(tenant.slug, 'map_resized', { map: name, oldWidth, oldHeight, newWidth: width, newHeight: height });
+      logger.info('[Map] Resized', { map: name, oldWidth, oldHeight, newWidth: width, newHeight: height });
+
+      res.json({ ok: true, warnings, oldWidth, oldHeight, newWidth: width, newHeight: height });
+    } catch (e) {
+      logger.error('[Map] resize failed', e);
+      res.status(500).json({ error: 'internal_error' });
+    }
+  });
+
+  // Rename map
+  app.patch('/maps/:name/rename', async (req: express.Request, res: express.Response) => {
+    const sessionAuth = requireAuth(req);
+    const tokenAuth = await requireApiToken(req, prisma);
+    const auth = sessionAuth || tokenAuth;
+    if (!auth) return res.status(401).json({ error: 'unauthorized' });
+    const oldName = req.params.name;
+    const tenant = getTenantFromReq(req);
+    if (!tenant) return res.status(400).json({ error: 'tenant_required' });
+
+    const schema = z.object({
+      newName: z.string().min(1).max(100).trim(),
+    });
+    const parse = schema.safeParse(req.body || {});
+    if (!parse.success) return res.status(400).json({ error: 'invalid payload' });
+    const { newName } = parse.data;
+
+    if (newName === oldName) return res.json({ ok: true, oldName, newName });
+
+    try {
+      await prisma.$transaction(async (tx) => {
+        const map = await tx.map.findFirst({ where: { name: oldName, tenantId: tenant.id } });
+        if (!map) throw new Error('MAP_NOT_FOUND');
+
+        const existing = await tx.map.findFirst({ where: { name: newName, tenantId: tenant.id } });
+        if (existing) throw new Error('NAME_CONFLICT');
+
+        await tx.map.update({ where: { id: map.id }, data: { name: newName } });
+
+        // Cascade: tenant defaultMapName
+        const currentTenant = await tx.tenant.findUnique({ where: { id: tenant.id } });
+        if (currentTenant?.defaultMapName === oldName) {
+          await tx.tenant.update({ where: { id: tenant.id }, data: { defaultMapName: newName } });
+        }
+
+        // Cascade: portal targets
+        await tx.zone.updateMany({
+          where: { tenantId: tenant.id, portalTarget: oldName },
+          data: { portalTarget: newName },
+        });
+
+        // Cascade: presence mapName
+        await tx.presence.updateMany({
+          where: { tenantId: tenant.id, mapName: oldName },
+          data: { mapName: newName },
+        });
+
+        // Cascade: NPC mapName
+        await tx.npc.updateMany({
+          where: { tenantId: tenant.id, mapName: oldName },
+          data: { mapName: newName },
+        });
+      });
+
+      broadcastMapUpdate(tenant.slug, 'map_renamed', { oldName, newName });
+      logger.info('[Map] Renamed', { oldName, newName, tenant: tenant.slug });
+
+      res.json({ ok: true, oldName, newName });
+    } catch (e: any) {
+      if (e?.message === 'MAP_NOT_FOUND') return res.status(404).json({ error: 'map not found' });
+      if (e?.message === 'NAME_CONFLICT') return res.status(409).json({ error: 'A map with that name already exists' });
+      logger.error('[Map] rename failed', e);
+      res.status(500).json({ error: 'internal_error' });
+    }
+  });
+
   // Admin: Zones delete
   app.delete('/maps/:name/zones', async (req: express.Request, res: express.Response) => {
     const sessionAuth = requireAuth(req);

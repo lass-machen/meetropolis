@@ -682,10 +682,6 @@ async function loadMap(name) {
     // Fetch map state
     const state = await apiFetch(`/maps/${encodeURIComponent(name)}/state-v2`);
     mapMeta = state.mapMeta;
-    // Match BootScene override: 32x32 maps are actually 64x32
-    if (mapMeta && mapMeta.width === 32 && mapMeta.height === 32) {
-      mapMeta.width = 64;
-    }
     tilesetRegistry = state.tilesetRegistry || [];
     layerIndex = state.layerIndex || {};
 
@@ -2607,13 +2603,59 @@ function updateMapInfo() {
     return;
   }
   el.innerHTML = `
-    <div class="prop-row"><span class="prop-label">Name</span><span class="prop-value">${esc(currentMapName)}</span></div>
-    <div class="prop-row"><span class="prop-label">Size</span><span class="prop-value">${mapMeta.width || '?'} x ${mapMeta.height || '?'} tiles</span></div>
+    <div class="prop-row" style="align-items:center">
+      <span class="prop-label">Name</span>
+      <div style="display:flex;gap:4px;flex:1;min-width:0">
+        <input type="text" id="mapNameInput" value="${escAttr(currentMapName)}"
+          style="flex:1;padding:3px 6px;background:var(--bg-deep);border:1px solid var(--border);border-radius:var(--radius);color:var(--fg);font-family:var(--font-mono);font-size:12px;outline:none;min-width:0"
+          oninput="onMapNameInputChange()">
+        <button id="renameBtn" class="btn btn-sm" disabled onclick="renameMap()"
+          style="white-space:nowrap;font-size:11px">Rename</button>
+      </div>
+    </div>
+    <div class="prop-row" style="align-items:center">
+      <span class="prop-label">Size</span>
+      <div style="display:flex;gap:4px;align-items:center;flex:1;min-width:0">
+        <input type="number" id="mapWidthInput" value="${mapMeta.width || 32}" min="8" max="512" step="1"
+          style="width:60px;padding:3px 6px;background:var(--bg-deep);border:1px solid var(--border);border-radius:var(--radius);color:var(--fg);font-family:var(--font-mono);font-size:12px;outline:none"
+          oninput="onMapSizeInputChange()">
+        <span style="color:var(--fg-dim);font-size:11px">x</span>
+        <input type="number" id="mapHeightInput" value="${mapMeta.height || 32}" min="8" max="512" step="1"
+          style="width:60px;padding:3px 6px;background:var(--bg-deep);border:1px solid var(--border);border-radius:var(--radius);color:var(--fg);font-family:var(--font-mono);font-size:12px;outline:none"
+          oninput="onMapSizeInputChange()">
+        <button id="resizeBtn" class="btn btn-sm" disabled onclick="resizeMap()"
+          style="white-space:nowrap;font-size:11px">Resize</button>
+      </div>
+    </div>
     <div class="prop-row"><span class="prop-label">Tile Size</span><span class="prop-value">${mapMeta.tileWidth || '?'} x ${mapMeta.tileHeight || '?'} px</span></div>
     <div class="prop-row"><span class="prop-label">Chunk Size</span><span class="prop-value">${mapMeta.chunkSize || 32}</span></div>
     <div class="prop-row"><span class="prop-label">Tilesets</span><span class="prop-value">${tilesetRegistry.length}</span></div>
     <div class="prop-row"><span class="prop-label">Objects</span><span class="prop-value">${mapObjects.length}</span></div>
   `;
+}
+
+function onMapNameInputChange() {
+  const input = document.getElementById('mapNameInput');
+  const btn = document.getElementById('renameBtn');
+  const newName = (input.value || '').trim();
+  const changed = newName.length > 0 && newName !== currentMapName;
+  btn.disabled = !changed;
+  btn.style.background = changed ? 'var(--accent)' : '';
+  btn.style.color = changed ? 'white' : '';
+}
+
+function onMapSizeInputChange() {
+  const wInput = document.getElementById('mapWidthInput');
+  const hInput = document.getElementById('mapHeightInput');
+  const btn = document.getElementById('resizeBtn');
+  const w = parseInt(wInput.value, 10);
+  const h = parseInt(hInput.value, 10);
+  const validW = Number.isInteger(w) && w >= 8 && w <= 512;
+  const validH = Number.isInteger(h) && h >= 8 && h <= 512;
+  const changed = validW && validH && (w !== (mapMeta.width || 32) || h !== (mapMeta.height || 32));
+  btn.disabled = !changed;
+  btn.style.background = changed ? 'var(--accent)' : '';
+  btn.style.color = changed ? 'white' : '';
 }
 
 function updateZoneList() {
@@ -2954,6 +2996,97 @@ async function saveAllChanges() {
     btn.innerHTML = 'Save <span id="saveBadge" style="background:var(--accent);color:#fff;border-radius:8px;padding:0 5px;font-size:9px;margin-left:4px"></span>';
     updateSaveButton();
   }
+}
+
+// ============================================================================
+// MAP RESIZE & RENAME
+// ============================================================================
+async function resizeMap() {
+  const wInput = document.getElementById('mapWidthInput');
+  const hInput = document.getElementById('mapHeightInput');
+  const btn = document.getElementById('resizeBtn');
+  const newWidth = parseInt(wInput.value, 10);
+  const newHeight = parseInt(hInput.value, 10);
+  if (!Number.isInteger(newWidth) || !Number.isInteger(newHeight) || newWidth < 8 || newHeight < 8 || newWidth > 512 || newHeight > 512) {
+    toast('err', 'Invalid dimensions (8-512)');
+    return;
+  }
+
+  const oldWidth = mapMeta.width || 32;
+  const oldHeight = mapMeta.height || 32;
+
+  // If shrinking, do a dry run first to check warnings
+  if (newWidth < oldWidth || newHeight < oldHeight) {
+    try {
+      const dryResult = await apiFetch(`/maps/${encodeURIComponent(currentMapName)}/resize`, {
+        method: 'PATCH',
+        body: { width: newWidth, height: newHeight, dryRun: true },
+      });
+      if (dryResult.warnings && dryResult.warnings.length > 0) {
+        const msg = 'Warning — shrinking this map may affect:\n\n' + dryResult.warnings.join('\n') + '\n\nProceed?';
+        if (!confirm(msg)) return;
+      }
+    } catch (e) {
+      toast('err', 'Resize dry-run failed: ' + (e.message || e));
+      return;
+    }
+  }
+
+  // Execute the actual resize
+  btn.disabled = true;
+  btn.textContent = '...';
+  try {
+    await apiFetch(`/maps/${encodeURIComponent(currentMapName)}/resize`, {
+      method: 'PATCH',
+      body: { width: newWidth, height: newHeight, dryRun: false },
+    });
+    mapMeta.width = newWidth;
+    mapMeta.height = newHeight;
+    updateMapInfo();
+    markDirty();
+    toast('ok', `Map resized to ${newWidth} x ${newHeight}`);
+  } catch (e) {
+    toast('err', 'Resize failed: ' + (e.message || e));
+  }
+  btn.textContent = 'Resize';
+}
+
+async function renameMap() {
+  const input = document.getElementById('mapNameInput');
+  const btn = document.getElementById('renameBtn');
+  const newName = (input.value || '').trim();
+  if (!newName || newName === currentMapName) return;
+
+  btn.disabled = true;
+  btn.textContent = '...';
+  try {
+    await apiFetch(`/maps/${encodeURIComponent(currentMapName)}/rename`, {
+      method: 'PATCH',
+      body: { newName },
+    });
+    const oldName = currentMapName;
+    currentMapName = newName;
+
+    // Update availableMapNames
+    const idx = availableMapNames.indexOf(oldName);
+    if (idx >= 0) availableMapNames[idx] = newName;
+
+    // Update map dropdown
+    const sel = document.getElementById('mapSelect');
+    for (const opt of sel.options) {
+      if (opt.value === oldName) {
+        opt.value = newName;
+        opt.textContent = newName;
+        break;
+      }
+    }
+
+    updateMapInfo();
+    toast('ok', `Map renamed to "${newName}"`);
+  } catch (e) {
+    toast('err', 'Rename failed: ' + (e.message || e));
+  }
+  btn.textContent = 'Rename';
 }
 
 // ============================================================================
