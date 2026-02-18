@@ -10,6 +10,7 @@
 
 import Phaser from 'phaser';
 import { Zone, Asset } from '../../services/EditorService';
+import { lookupDirectionalImage } from '../../lib/directionalImageRegistry';
 
 export class EditorRenderer {
   private scene: Phaser.Scene;
@@ -155,10 +156,28 @@ export class EditorRenderer {
   /**
    * Rendert Ghost-Sprite (Preview für Asset-Tool)
    */
-  public renderGhost(preview: { dataUrl: string; width?: number | undefined; height?: number | undefined } | null): void {
+  public renderGhost(preview: {
+    dataUrl: string;
+    width?: number | undefined;
+    height?: number | undefined;
+    rotation?: number | undefined;
+    packUuid?: string | undefined;
+    itemId?: string | undefined;
+  } | null): void {
     if (!preview) {
       this.clearGhost();
       return;
+    }
+
+    const rotation = preview.rotation ?? 0;
+    let useDirectionalImage = false;
+    let resolvedUrl = preview.dataUrl;
+    if (preview.packUuid && preview.itemId) {
+      const dirUrl = lookupDirectionalImage(preview.packUuid, preview.itemId, rotation);
+      if (dirUrl) {
+        resolvedUrl = dirUrl;
+        useDirectionalImage = true;
+      }
     }
 
     const newKey = `ghost_${Date.now()}_${Math.floor(Math.random() * 1000000)}`;
@@ -174,6 +193,13 @@ export class EditorRenderer {
       }
 
       this.ghostSprite.setVisible(true);
+
+      // Directional image = no rotation, else programmatic rotation
+      if (useDirectionalImage) {
+        this.ghostSprite.setRotation(0);
+      } else {
+        this.ghostSprite.setRotation(Phaser.Math.DegToRad(rotation));
+      }
 
       // Position auf Kamera-Center setzen
       const cam = this.scene.cameras.main;
@@ -202,10 +228,10 @@ export class EditorRenderer {
         }
       });
 
-      if (preview.dataUrl.startsWith('data:')) {
-        this.scene.textures.addBase64(newKey, preview.dataUrl);
+      if (resolvedUrl.startsWith('data:')) {
+        this.scene.textures.addBase64(newKey, resolvedUrl);
       } else {
-        this.scene.load.image(newKey, preview.dataUrl);
+        this.scene.load.image(newKey, resolvedUrl);
         this.scene.load.start();
       }
     }
@@ -242,7 +268,21 @@ export class EditorRenderer {
 
     // Rendere/Update Assets
     for (const asset of assets) {
-      const textureKey = `asset_${asset.id}`;
+      const rotation = asset.rotation ?? 0;
+      let useDirectionalImage = false;
+      let resolvedUrl = asset.dataUrl;
+
+      if (asset.packUuid && asset.itemId) {
+        const dirUrl = lookupDirectionalImage(asset.packUuid, asset.itemId, rotation);
+        if (dirUrl) {
+          resolvedUrl = dirUrl;
+          useDirectionalImage = true;
+        }
+      }
+
+      const textureKey = useDirectionalImage
+        ? `asset_${asset.id}_dir${rotation}`
+        : `asset_${asset.id}`;
       let sprite = this.assetSprites.get(asset.id);
 
       if (!sprite) {
@@ -257,25 +297,36 @@ export class EditorRenderer {
               const newSprite = this.scene.add.image(asset.x, asset.y, textureKey);
               newSprite.setDepth(6);
               newSprite.setInteractive();
+              if (!useDirectionalImage && rotation) {
+                newSprite.setRotation(Phaser.Math.DegToRad(rotation));
+              }
               this.assetSprites.set(asset.id, newSprite);
             }
           });
 
-          if (asset.dataUrl.startsWith('data:')) {
-            this.scene.textures.addBase64(textureKey, asset.dataUrl);
+          if (resolvedUrl.startsWith('data:')) {
+            this.scene.textures.addBase64(textureKey, resolvedUrl);
           } else {
-            this.scene.load.image(textureKey, asset.dataUrl);
+            this.scene.load.image(textureKey, resolvedUrl);
             this.scene.load.start();
           }
         } else if (this.scene.textures.exists(textureKey)) {
           sprite = this.scene.add.image(asset.x, asset.y, textureKey);
           sprite.setDepth(6);
           sprite.setInteractive();
+          if (!useDirectionalImage && rotation) {
+            sprite.setRotation(Phaser.Math.DegToRad(rotation));
+          }
           this.assetSprites.set(asset.id, sprite);
         }
       } else {
         // Sprite existiert, Position updaten
         sprite.setPosition(asset.x, asset.y);
+        if (useDirectionalImage) {
+          sprite.setRotation(0);
+        } else if (rotation) {
+          sprite.setRotation(Phaser.Math.DegToRad(rotation));
+        }
       }
     }
   }

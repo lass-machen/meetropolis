@@ -75,6 +75,20 @@ Gemeinsame Item-Felder:
 - `scaleFactor` (number, optional, default 1.0) — rendering scale factor for the asset (e.g. 0.5 for 2x assets)
 - optional: `anchor` {x,y}, `offset` {x,y}, `zIndex` (int), `rotationAllowed` (bool), `flipAllowed` (bool)
 
+### Directional Images (nur Objects)
+
+Objects können optionale richtungsspezifische Bilder für Rotationswinkel bereitstellen:
+
+| Feld | Typ | Pflicht | Beschreibung |
+|---|---|---|---|
+| `directionalImages` | Array | nein | Bis zu 4 Bilder für Rotationen |
+| `directionalImages[].rotation` | `0\|90\|180\|270` | ja | Rotationswinkel in Grad |
+| `directionalImages[].dataURL` | string | ja | Pfad relativ zu `assets/` |
+
+Wenn ein Object mit `rotationAllowed: true` und einer bestimmten `rotation` platziert wird,
+verwendet der Renderer das passende `directionalImages`-Bild. Fehlt ein Eintrag für die
+aktuelle Rotation, wird das Standardbild (`dataURL`) programmatisch rotiert.
+
 Terrain-spezifisch (Tileset):
 - `tileWidth` (int, Pflicht), `tileHeight` (int, Pflicht)
 - `margin` (int, default 0), `spacing` (int, default 0)
@@ -124,7 +138,14 @@ Terrain-spezifisch (Tileset):
       "width": 16,
       "height": 16,
       "placement": "floor",
-      "collide": false
+      "collide": false,
+      "rotationAllowed": true,
+      "directionalImages": [
+        { "rotation": 0, "dataURL": "assets/objects/chair_blue_0.png" },
+        { "rotation": 90, "dataURL": "assets/objects/chair_blue_90.png" },
+        { "rotation": 180, "dataURL": "assets/objects/chair_blue_180.png" },
+        { "rotation": 270, "dataURL": "assets/objects/chair_blue_270.png" }
+      ]
     }
   ]
 }
@@ -242,10 +263,16 @@ const TerrainItem = BaseItem.extend({
   spacing: z.number().int().nonnegative().default(0),
 }).strict();
 
+const DirectionalImage = z.object({
+  rotation: z.union([z.literal(0), z.literal(90), z.literal(180), z.literal(270)]),
+  dataURL: relPath,
+}).strict();
+
 const SpriteItem = BaseItem.extend({
   category: z.enum(['structure', 'objects']),
   width: z.number().int().positive(),
   height: z.number().int().positive(),
+  directionalImages: z.array(DirectionalImage).max(4).optional(),
 }).strict();
 
 export const ConfigSchema = z.object({

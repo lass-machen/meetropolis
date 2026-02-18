@@ -30,6 +30,13 @@ export class EditorInputHandler {
     this.scene.input.on('pointerdown', this.handlePointerDown.bind(this));
     this.scene.input.on('pointermove', this.handlePointerMove.bind(this));
     this.scene.input.on('pointerup', this.handlePointerUp.bind(this));
+
+    this.scene.input.keyboard?.on('keydown-R', () => {
+      const state = EditorService.getState();
+      if (state.active && state.pendingAsset?.rotationAllowed) {
+        EditorService.dispatch({ type: 'ROTATE_PENDING_ASSET' });
+      }
+    });
   }
 
   private worldToTile(worldX: number, worldY: number): { tileX: number; tileY: number } {

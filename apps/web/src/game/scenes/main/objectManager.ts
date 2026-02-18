@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { baseUrl } from '../../../lib/mapV2';
 import { logger } from '../../../lib/logger';
+import { lookupDirectionalImage } from '../../../lib/directionalImageRegistry';
 
 export interface MapObjectData {
   id: number;
@@ -93,11 +94,18 @@ export class ObjectManager {
       return;
     }
 
-    const textureKey = `mapobj_${obj.id}`;
+    // Check for directional image override
+    const dirUrl = lookupDirectionalImage(obj.assetPackUuid, obj.itemId, obj.rotation);
+    const useDirectionalImage = !!dirUrl;
+    const resolvedUrl = dirUrl ?? obj.dataUrl;
+    const textureKey = useDirectionalImage
+      ? `mapobj_${obj.id}_dir${obj.rotation}`
+      : `mapobj_${obj.id}`;
+
     if (this.scene.textures.exists(textureKey)) {
-      this.createSprite(obj, textureKey);
+      this.createSprite(obj, textureKey, useDirectionalImage);
     } else {
-      this.loadTexture(textureKey, obj.dataUrl, () => this.createSprite(obj, textureKey));
+      this.loadTexture(textureKey, resolvedUrl, () => this.createSprite(obj, textureKey, useDirectionalImage));
     }
   }
 
@@ -119,7 +127,26 @@ export class ObjectManager {
     const tileH = this.scene.mapRef?.tileHeight ?? 16;
     sprite.setPosition(obj.tileX * tileW, obj.tileY * tileH);
     sprite.setOrigin(0, 0);
-    sprite.setRotation(Phaser.Math.DegToRad(obj.rotation));
+
+    // Check for directional image on rotation change
+    const dirUrl = lookupDirectionalImage(obj.assetPackUuid, obj.itemId, obj.rotation);
+    if (dirUrl) {
+      const dirKey = `mapobj_${obj.id}_dir${obj.rotation}`;
+      if (this.scene.textures.exists(dirKey)) {
+        sprite.setTexture(dirKey);
+        sprite.setRotation(0);
+      } else {
+        this.loadTexture(dirKey, dirUrl, () => {
+          if (this.sprites.has(obj.id)) {
+            sprite.setTexture(dirKey);
+            sprite.setRotation(0);
+          }
+        });
+      }
+    } else {
+      sprite.setRotation(Phaser.Math.DegToRad(obj.rotation));
+    }
+
     sprite.setFlip(obj.flipX, obj.flipY);
     sprite.setDepth(obj.zIndex);
     const sf = obj.scaleFactor ?? 1;
@@ -156,7 +183,7 @@ export class ObjectManager {
     this.pendingTextureLoads.clear();
   }
 
-  private createSprite(obj: MapObjectData, textureKey: string): void {
+  private createSprite(obj: MapObjectData, textureKey: string, useDirectionalImage = false): void {
     if (this.sprites.has(obj.id)) return;
     if (!this.scene.textures.exists(textureKey)) return;
 
@@ -164,7 +191,9 @@ export class ObjectManager {
     const tileH = this.scene.mapRef?.tileHeight ?? 16;
     const image = this.scene.add.image(obj.tileX * tileW, obj.tileY * tileH, textureKey);
     image.setOrigin(0, 0);
-    image.setRotation(Phaser.Math.DegToRad(obj.rotation));
+    if (!useDirectionalImage) {
+      image.setRotation(Phaser.Math.DegToRad(obj.rotation));
+    }
     image.setFlip(obj.flipX, obj.flipY);
     image.setDepth(obj.zIndex);
     const sf = obj.scaleFactor ?? 1;

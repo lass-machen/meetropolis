@@ -3,6 +3,7 @@ import { logger } from '../../../lib/logger';
 import { splitTilesetImage } from '../../../lib/tilesetUtils';
 import { gameBridge } from '../../../game/bridge';
 import { useMapStore } from '../../../state/mapStore';
+import { loadFromPacks } from '../../../lib/directionalImageRegistry';
 
 interface UseEditorLoaderParams {
   me: { id: string; email: string; name?: string } | null;
@@ -25,6 +26,7 @@ export function useEditorLoader({ me, apiBase, setEditor }: UseEditorLoaderParam
         const res = await fetch(`${apiBase}/asset-packs`, { credentials: 'include' });
         if (res.ok) {
           const packs = await res.json();
+          loadFromPacks(packs || []);
           const packTilesets: any[] = [];
           const packItems: any[] = [];
           for (const p of packs || []) {
@@ -51,7 +53,12 @@ export function useEditorLoader({ me, apiBase, setEditor }: UseEditorLoaderParam
               packItems.push({ packUuid: uuid, itemId: s.id, key: s.key, category: 'structures', dataUrl: s.dataURL, width: s.width, height: s.height, collide: !!s.collide });
             }
             for (const o of (p.objects || [])) {
-              packItems.push({ packUuid: uuid, itemId: o.id, key: o.key, category: 'objects', dataUrl: o.dataURL, width: o.width, height: o.height, collide: !!o.collide });
+              packItems.push({
+                packUuid: uuid, itemId: o.id, key: o.key, category: 'objects',
+                dataUrl: o.dataURL, width: o.width, height: o.height, collide: !!o.collide,
+                rotationAllowed: !!o.rotationAllowed,
+                hasDirectionalImages: Array.isArray(o.directionalImages) && o.directionalImages.length > 0,
+              });
             }
           }
           if (packTilesets.length > 0) {

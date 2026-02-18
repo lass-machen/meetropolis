@@ -34,6 +34,7 @@ export type Asset = {
   collide?: boolean | undefined;
   width?: number | undefined;
   height?: number | undefined;
+  rotation?: number | undefined;
 };
 
 export type PackItem = {
@@ -45,6 +46,8 @@ export type PackItem = {
   width: number;
   height: number;
   collide: boolean;
+  rotationAllowed?: boolean | undefined;
+  hasDirectionalImages?: boolean | undefined;
 };
 
 export type Tileset = {
@@ -81,6 +84,8 @@ export type EditorState = {
     collide?: boolean | undefined;
     width?: number | undefined;
     height?: number | undefined;
+    rotation?: number | undefined;
+    rotationAllowed?: boolean | undefined;
   } | null;
   packItems: PackItem[];
 
@@ -148,6 +153,9 @@ export type EditorAction =
   // Zone Portal Actions
   | { type: 'UPDATE_ZONE_TYPE'; index: number; zoneType: 'default' | 'portal' }
   | { type: 'UPDATE_ZONE_PORTAL'; index: number; portalTarget?: string; portalSpawnX?: number; portalSpawnY?: number }
+
+  // Rotation Actions
+  | { type: 'ROTATE_PENDING_ASSET' }
 
   // Autotile Actions
   | { type: 'SELECT_WALL_TYPE'; wallTypeId: number };
@@ -339,6 +347,8 @@ class EditorServiceClass {
             collide: action.asset.collide,
             width: action.asset.width,
             height: action.asset.height,
+            rotation: 0,
+            rotationAllowed: action.asset.rotationAllowed,
           },
           tool: 'asset',
         });
@@ -366,6 +376,7 @@ class EditorServiceClass {
           collide: this.state.pendingAsset.collide,
           width: this.state.pendingAsset.width,
           height: this.state.pendingAsset.height,
+          rotation: this.state.pendingAsset.rotation,
         };
 
         this.updateState({
@@ -430,6 +441,7 @@ class EditorServiceClass {
               collide: this.state.pendingAsset.collide,
               width: this.state.pendingAsset.width,
               height: this.state.pendingAsset.height,
+              rotation: this.state.pendingAsset.rotation,
             });
           }
         }
@@ -533,6 +545,16 @@ class EditorServiceClass {
         if ('portalSpawnY' in action) updated.portalSpawnY = action.portalSpawnY;
         zones[action.index] = updated;
         this.updateState({ zones });
+        break;
+      }
+
+      case 'ROTATE_PENDING_ASSET': {
+        if (!this.state.pendingAsset || !this.state.pendingAsset.rotationAllowed) break;
+        const currentRotation = this.state.pendingAsset.rotation ?? 0;
+        const nextRotation = (currentRotation + 90) % 360;
+        this.updateState({
+          pendingAsset: { ...this.state.pendingAsset, rotation: nextRotation },
+        });
         break;
       }
 

@@ -32,7 +32,7 @@ type Bridge = {
   updateSpeakingStates: (speakingIds: Set<string>) => void;
   setDoNotDisturb: (enabled: boolean) => void;
   // Asset-Preview im Editor (Ghost-Sprite unter Cursor)
-  setAssetPreview: (preview: { dataUrl: string; width?: number | undefined; height?: number | undefined } | null) => void;
+  setAssetPreview: (preview: { dataUrl: string; width?: number | undefined; height?: number | undefined; rotation?: number | undefined; packUuid?: string | undefined; itemId?: string | undefined } | null) => void;
   // New: lock movement and find free spot near a sprite
   setMovementLocked: (locked: boolean) => void;
   findFreeSpotNear: (targetId: string, options?: { radius?: number; step?: number }) => { x: number; y: number } | null;
@@ -79,7 +79,7 @@ export type SceneApi = {
   setHeroName?: (name: string) => void;
   updateSpeakingStates?: (speakingIds: Set<string>) => void;
   setDoNotDisturb?: (enabled: boolean) => void;
-  setAssetPreview?: (preview: { dataUrl: string; width?: number | undefined; height?: number | undefined } | null) => void;
+  setAssetPreview?: (preview: { dataUrl: string; width?: number | undefined; height?: number | undefined; rotation?: number | undefined; packUuid?: string | undefined; itemId?: string | undefined } | null) => void;
   // New hooks
   setMovementLocked?: (locked: boolean) => void;
   findFreeSpotNear?: (targetId: string, options?: { radius?: number; step?: number }) => { x: number; y: number } | null;
@@ -565,6 +565,9 @@ EditorService.subscribe((state) => {
         dataUrl: state.pendingAsset.dataUrl,
         width: state.pendingAsset.width,
         height: state.pendingAsset.height,
+        rotation: state.pendingAsset.rotation,
+        packUuid: state.pendingAsset.packUuid,
+        itemId: state.pendingAsset.itemId,
       });
     } else {
       gameBridge.setAssetPreview(null);

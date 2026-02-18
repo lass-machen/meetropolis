@@ -19,6 +19,11 @@ const __dirname = path.dirname(__filename);
 const idStr = z.string().min(1).max(200);
 const relPath = z.string().min(1).regex(/^assets\/[A-Za-z0-9_\-\/.]+$/);
 
+const DirectionalImage = z.object({
+  rotation: z.union([z.literal(0), z.literal(90), z.literal(180), z.literal(270)]),
+  dataURL: relPath,
+}).strict();
+
 const BaseItem = z.object({
   id: idStr,
   key: z.string().min(1).max(200),
@@ -46,6 +51,7 @@ const SpriteItem = BaseItem.extend({
   category: z.enum(['structure', 'objects']),
   width: z.number().int().positive(),
   height: z.number().int().positive(),
+  directionalImages: z.array(DirectionalImage).max(4).optional(),
 }).strict();
 
 const AutotileVariant = z.object({
@@ -258,6 +264,15 @@ export function registerAssetPackRoutes(app: express.Application, prisma: Prisma
             return res.status(400).json({ error: 'missing or invalid asset for item', itemId: it.id, dataURL: it.dataURL });
           }
           referenced.push(r.norm);
+          if (Array.isArray(it.directionalImages)) {
+            for (const di of it.directionalImages) {
+              const dr = validateItemPath(di.dataURL);
+              if (!dr.ok) {
+                return res.status(400).json({ error: 'missing or invalid asset for directionalImage', itemId: it.id, dataURL: di.dataURL });
+              }
+              referenced.push(dr.norm);
+            }
+          }
         }
       }
 
@@ -293,6 +308,14 @@ export function registerAssetPackRoutes(app: express.Application, prisma: Prisma
         const out = { ...it } as any;
         out.originalPath = it.dataURL;
         out.dataURL = `/packs/${uuid}/${mapped}`;
+        if (Array.isArray(it.directionalImages)) {
+          out.directionalImages = it.directionalImages.map((di: any) => {
+            const diOriginal = normalizeZipPath(di.dataURL);
+            const diMapped = assetMap.get(diOriginal);
+            if (!diMapped) return di;
+            return { ...di, dataURL: `/packs/${uuid}/${diMapped}` };
+          });
+        }
         return out;
       };
       const rewritten = {

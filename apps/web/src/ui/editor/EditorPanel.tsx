@@ -603,6 +603,29 @@ export function EditorPanel(props: {
               {state.category === 'terrain' ? t('editor.hintTerrain') : t('editor.placeHint')}
             </div>
           </div>
+
+          {/* Rotation Control */}
+          {state.pendingAsset?.rotationAllowed && (
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 4 }}>
+              <button
+                onClick={() => EditorService.dispatch({ type: 'ROTATE_PENDING_ASSET' })}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: 6,
+                  border: '1px solid var(--border)',
+                  background: 'var(--glass)',
+                  color: 'var(--fg)',
+                  fontSize: 13,
+                  cursor: 'pointer',
+                }}
+              >
+                Rotieren (R)
+              </button>
+              <span style={{ fontSize: 12, color: 'var(--fg-subtle)', fontFamily: 'monospace' }}>
+                {state.pendingAsset.rotation ?? 0}°
+              </span>
+            </div>
+          )}
         </>
       )}
 
