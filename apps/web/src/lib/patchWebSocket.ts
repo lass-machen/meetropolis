@@ -1,5 +1,5 @@
 /**
- * WebSocket Patch for WKWebView/Safari (Tauri)
+ * WebSocket Patch for Safari/WKWebView
  *
  * WICHTIG: Dieses Modul MUSS als ERSTES in main.tsx importiert werden!
  *
@@ -19,10 +19,11 @@
 
 import { logger } from './logger';
 
-// Nur in Tauri-Umgebung patchen
-const isTauri = typeof window !== 'undefined' && !!(window as any).__TAURI__;
+// Patch for all browsers: Safari/WKWebView silently converts object protocols to "[object Object]"
+// The inner guard only intervenes when protocols is incorrectly passed as an object
+const needsPatch = typeof window !== 'undefined' && typeof globalThis.WebSocket !== 'undefined';
 
-if (isTauri) {
+if (needsPatch) {
   const OriginalWebSocket = globalThis.WebSocket;
 
   if (OriginalWebSocket) {
@@ -55,7 +56,7 @@ if (isTauri) {
     // Preserve prototype for instanceof checks
     globalThis.WebSocket.prototype = OriginalWebSocket.prototype;
 
-    logger.debug('[WebSocket Patch] Patched globalThis.WebSocket for WKWebView compatibility');
+    logger.debug('[WebSocket Patch] Patched globalThis.WebSocket for Safari/WKWebView compatibility');
   }
 }
 

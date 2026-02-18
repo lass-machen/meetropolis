@@ -46,6 +46,12 @@ export function ProfileSettings({ onClose: _onClose }: { onClose: () => void }) 
           setProfile(data.user || data);
           setName(data.user?.name || data.name || '');
           setEmail(data.user?.email || data.email || '');
+          // Sync avatar from server response
+          const serverAvatarId = data.user?.avatarId || data.avatarId;
+          if (serverAvatarId) {
+            setAvatarId(serverAvatarId);
+            localStorage.setItem('avatarId', serverAvatarId);
+          }
         } else {
           setError('Failed to load profile');
         }

@@ -196,6 +196,7 @@ export function registerAuthRoutes(app: express.Application, prisma: PrismaClien
       id: user.id,
       email: user.email,
       name: user.name,
+      avatarId: user.avatarId || null,
       isInternalOwner,
       lastPosition: lastPosition ? { x: lastPosition.x, y: lastPosition.y, direction: lastPosition.direction, mapName: lastPosition.mapName || null } : null
     });

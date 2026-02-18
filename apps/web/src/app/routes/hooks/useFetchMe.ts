@@ -37,6 +37,11 @@ export function useFetchMe({
         if (!user) { setMe(null); return; }
         try { setIsInternalOwner(!!user.isInternalOwner); } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
 
+        // Sync server avatarId to localStorage (server is source of truth)
+        if (user.avatarId) {
+          localStorage.setItem('avatarId', user.avatarId);
+        }
+
         const applyPosition = (pos: { x: number; y: number } | null) => {
           if (pos && Number.isFinite(pos.x) && Number.isFinite(pos.y)) {
             try { localPosRef.current = { id: user.id, x: pos.x, y: pos.y }; } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
