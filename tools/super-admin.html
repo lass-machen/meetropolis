@@ -1586,7 +1586,15 @@ async function uploadAssetPack() {
       await loadAssetPacks();
     } else {
       const err = await res.json().catch(() => ({}));
-      toast('err', `Upload-Fehler: ${err.error || res.statusText}`);
+      let msg = err.error || res.statusText;
+      if (err.reason) {
+        msg += ' — ' + err.reason;
+        if (err.itemId) msg += ` (Item: ${err.itemId})`;
+      } else if (Array.isArray(err.details)) {
+        const detail = err.details.map(d => `${d.path?.join('.') || '?'}: ${d.message}`).join('; ');
+        msg += ' — ' + detail;
+      }
+      toast('err', `Upload-Fehler: ${msg}`);
     }
   } catch (e) {
     toast('err', `Upload-Fehler: ${e.message}`);

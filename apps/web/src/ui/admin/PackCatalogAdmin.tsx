@@ -67,7 +67,15 @@ export function PackCatalogAdmin({ apiBase }: PackCatalogAdminProps) {
         void load();
       } else {
         const data = await res.json().catch(() => null);
-        setUploadStatus({ type: 'error', message: data?.error || t('admin.packCatalog.uploadError') });
+        let msg = data?.error || t('admin.packCatalog.uploadError');
+        if (data?.reason) {
+          msg += ' — ' + data.reason;
+          if (data.itemId) msg += ` (Item: ${data.itemId})`;
+        } else if (Array.isArray(data?.details)) {
+          const detail = data.details.map((d: any) => `${d.path?.join('.') || '?'}: ${d.message}`).slice(0, 5).join('; ');
+          msg += ' — ' + detail;
+        }
+        setUploadStatus({ type: 'error', message: msg });
       }
     } catch {
       setUploadStatus({ type: 'error', message: t('admin.packCatalog.uploadError') });
@@ -91,7 +99,7 @@ export function PackCatalogAdmin({ apiBase }: PackCatalogAdminProps) {
         <input
           ref={fileInputRef}
           type="file"
-          accept=".mepack,.zip"
+          accept=".mepack,.zip,application/zip,application/x-zip-compressed,application/octet-stream"
           style={{ display: 'none' }}
           onChange={handleUpload}
         />

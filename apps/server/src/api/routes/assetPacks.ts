@@ -127,32 +127,33 @@ function buildDimensionMaps(cfg: any) {
 function dimensionsStable(oldCfg: any, newCfg: any): { ok: true } | { ok: false; reason: string; offendingId?: string } {
   const oldMaps = buildDimensionMaps(oldCfg);
   const newMaps = buildDimensionMaps(newCfg);
+  const num = (v: any) => (v == null ? 0 : Number(v));
   for (const [id, oldT] of oldMaps.terrainMap) {
     const n = newMaps.terrainMap.get(id);
     if (!n) continue;
-    if (oldT.tileWidth !== n.tileWidth || oldT.tileHeight !== n.tileHeight || (oldT.margin ?? 0) !== (n.margin ?? 0) || (oldT.spacing ?? 0) !== (n.spacing ?? 0)) {
-      return { ok: false, reason: 'terrain dimensions changed', offendingId: id };
+    if (num(oldT.tileWidth) !== num(n.tileWidth) || num(oldT.tileHeight) !== num(n.tileHeight) || num(oldT.margin) !== num(n.margin) || num(oldT.spacing) !== num(n.spacing)) {
+      return { ok: false, reason: `terrain dimensions changed: was ${oldT.tileWidth}x${oldT.tileHeight}, now ${n.tileWidth}x${n.tileHeight}`, offendingId: id };
     }
   }
   for (const [id, oldS] of oldMaps.structMap) {
     const n = newMaps.structMap.get(id);
     if (!n) continue;
-    if (oldS.width !== n.width || oldS.height !== n.height) {
-      return { ok: false, reason: 'structure sprite dimensions changed', offendingId: id };
+    if (num(oldS.width) !== num(n.width) || num(oldS.height) !== num(n.height)) {
+      return { ok: false, reason: `structure dimensions changed: was ${oldS.width}x${oldS.height}, now ${n.width}x${n.height}`, offendingId: id };
     }
   }
   for (const [id, oldO] of oldMaps.objMap) {
     const n = newMaps.objMap.get(id);
     if (!n) continue;
-    if (oldO.width !== n.width || oldO.height !== n.height) {
-      return { ok: false, reason: 'object sprite dimensions changed', offendingId: id };
+    if (num(oldO.width) !== num(n.width) || num(oldO.height) !== num(n.height)) {
+      return { ok: false, reason: `object dimensions changed: was ${oldO.width}x${oldO.height}, now ${n.width}x${n.height}`, offendingId: id };
     }
   }
   for (const [id, oldA] of oldMaps.autotileMap) {
     const n = newMaps.autotileMap.get(id);
     if (!n) continue;
-    if (oldA.tileWidth !== n.tileWidth || oldA.tileHeight !== n.tileHeight) {
-      return { ok: false, reason: 'autotile dimensions changed', offendingId: id };
+    if (num(oldA.tileWidth) !== num(n.tileWidth) || num(oldA.tileHeight) !== num(n.tileHeight)) {
+      return { ok: false, reason: `autotile dimensions changed: was ${oldA.tileWidth}x${oldA.tileHeight}, now ${n.tileWidth}x${n.tileHeight}`, offendingId: id };
     }
   }
   return { ok: true };

@@ -83,7 +83,7 @@ Objects können optionale richtungsspezifische Bilder für Rotationswinkel berei
 |---|---|---|---|
 | `directionalImages` | Array | nein | Bis zu 4 Bilder für Rotationen |
 | `directionalImages[].rotation` | `0\|90\|180\|270` | ja | Rotationswinkel in Grad |
-| `directionalImages[].dataURL` | string | ja | Pfad relativ zu `assets/` |
+| `directionalImages[].dataURL` | string | ja | Pfad mit `assets/`-Prefix (wie `dataURL`, z.B. `assets/objects/chair_90.png`) |
 
 Wenn ein Object mit `rotationAllowed: true` und einer bestimmten `rotation` platziert wird,
 verwendet der Renderer das passende `directionalImages`-Bild. Fehlt ein Eintrag für die

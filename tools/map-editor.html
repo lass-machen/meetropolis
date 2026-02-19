@@ -504,6 +504,7 @@ let isRightClickDrag = false;
 let selectedWallTypeId = 0;       // Currently selected wall type for painting
 let autotileDefinitions = [];     // Array of loaded autotile definitions from packs
 let autotileImages = {};          // { key: HTMLImageElement } — loaded spritesheet images
+const directionalImageLookup = new Map(); // key: "packUuid:itemId:rotation" → dataURL
 
 // Pending changes (buffered until explicit save)
 const pendingChanges = {
@@ -532,6 +533,19 @@ function clearPendingChanges() {
   pendingChanges.zonesModified = false;
   pendingChanges.spawnUpdate = null;
   updateSaveButton();
+}
+
+function buildDirectionalImageLookup() {
+  directionalImageLookup.clear();
+  for (const pack of assetPacks) {
+    for (const obj of (pack.objects || [])) {
+      if (Array.isArray(obj.directionalImages)) {
+        for (const di of obj.directionalImages) {
+          directionalImageLookup.set(`${pack.uuid}:${obj.id}:${di.rotation}`, di.dataURL);
+        }
+      }
+    }
+  }
 }
 
 function updateSaveButton() {
@@ -630,6 +644,7 @@ async function connect() {
     try {
       assetPacks = await apiFetch('/asset-packs');
       populatePackSelect();
+      buildDirectionalImageLookup();
     } catch (e) {
       console.warn('Failed to load asset packs:', e);
     }
@@ -761,6 +776,15 @@ async function loadTilesetImages() {
 
 async function loadObjectImages() {
   const urls = new Set(mapObjects.map(o => o.dataUrl).filter(Boolean));
+  // Also preload directional images for objects on the map
+  for (const obj of mapObjects) {
+    if (obj.assetPackUuid && obj.itemId) {
+      for (const rot of [0, 90, 180, 270]) {
+        const diUrl = directionalImageLookup.get(`${obj.assetPackUuid}:${obj.itemId}:${rot}`);
+        if (diUrl) urls.add(diUrl);
+      }
+    }
+  }
   const promises = [];
   for (const url of urls) {
     if (objectImages[url]) continue;
@@ -1090,7 +1114,16 @@ function renderObjects() {
   });
 
   for (const obj of sorted) {
-    const img = objectImages[obj.dataUrl];
+    // Check for directional image
+    let useDirectional = false;
+    let img = objectImages[obj.dataUrl];
+    if (obj.rotation && obj.assetPackUuid && obj.itemId) {
+      const diUrl = directionalImageLookup.get(`${obj.assetPackUuid}:${obj.itemId}:${obj.rotation}`);
+      if (diUrl && objectImages[diUrl]) {
+        img = objectImages[diUrl];
+        useDirectional = true;
+      }
+    }
     if (!img) continue;
 
     const oscale = obj.scaleFactor || 1;
@@ -1101,14 +1134,17 @@ function renderObjects() {
 
     ctx.save();
 
-    if (obj.rotation || obj.flipX || obj.flipY) {
+    const needsFlip = obj.flipX || obj.flipY;
+    const needsRotation = !useDirectional && obj.rotation;
+
+    if (needsRotation || needsFlip) {
       const cxw = wx + dw / 2;
       const cyw = wy + dh / 2;
       ctx.translate(cxw, cyw);
-      if (obj.rotation) ctx.rotate((obj.rotation * Math.PI) / 180);
+      if (needsRotation) ctx.rotate((obj.rotation * Math.PI) / 180);
       const sx = obj.flipX ? -1 : 1;
       const sy = obj.flipY ? -1 : 1;
-      ctx.scale(sx, sy);
+      if (needsFlip) ctx.scale(sx, sy);
       ctx.drawImage(img, -dw / 2, -dh / 2, dw, dh);
     } else {
       ctx.drawImage(img, wx, wy, dw, dh);
