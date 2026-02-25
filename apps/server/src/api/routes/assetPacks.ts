@@ -9,8 +9,7 @@ import fsp from 'fs/promises';
 import multer from 'multer';
 import unzipper from 'unzipper';
 import { logger } from '../../logger.js';
-import { requireAuth, requireApiToken, getTenantFromReq, requireInternalOwner } from '../utils/authHelpers.js';
-import { parseMajorVersion } from '../utils/packAccess.js';
+import { requireAuth, requireApiToken, requireInternalOwner } from '../utils/authHelpers.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -383,29 +382,6 @@ export function registerAssetPackRoutes(app: express.Application, prisma: Prisma
       }
       try { logger.info('[AssetPacks] upload success', { id: rec.id, uuid: rec.uuid, version: rec.version }); } catch { }
 
-      // Auto-grant if this is a free, published pack
-      try {
-        const catalog = await prisma.assetPackCatalog.findUnique({ where: { assetPackId: rec.id } });
-        if (catalog && catalog.pricingModel === 'free' && catalog.published) {
-          const tenants = await prisma.tenant.findMany({ select: { id: true } });
-          for (const t of tenants) {
-            await prisma.tenantAssetPack.upsert({
-              where: { tenantId_assetPackId: { tenantId: t.id, assetPackId: rec.id } },
-              update: { purchasedMajorVersion: parseMajorVersion(rec.version) },
-              create: {
-                tenantId: t.id,
-                assetPackId: rec.id,
-                grantSource: 'free',
-                purchasedMajorVersion: parseMajorVersion(rec.version),
-              },
-            });
-          }
-          logger.info('[AssetPacks] free pack auto-granted', { uuid: rec.uuid, tenantCount: tenants.length });
-        }
-      } catch (grantErr) {
-        logger.error('[AssetPacks] auto-grant failed (non-fatal)', grantErr);
-      }
-
       return res.json({ ok: true, id: rec.id, uuid: rec.uuid, version: rec.version });
     } catch (e: unknown) {
       logger.error('[AssetPacks] upload failed', e);
@@ -413,25 +389,8 @@ export function registerAssetPackRoutes(app: express.Application, prisma: Prisma
     }
   });
 
-  // List (tenant-scoped if tenant context exists)
-  app.get('/asset-packs', async (req: express.Request, res: express.Response) => {
-    const tenant = getTenantFromReq(req);
-    if (tenant) {
-      const now = new Date();
-      const accessRecords = await prisma.tenantAssetPack.findMany({
-        where: {
-          tenantId: tenant.id,
-          revokedAt: null,
-          OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
-        },
-        include: { assetPack: true },
-      });
-      const list = accessRecords
-        .filter(a => a.purchasedMajorVersion >= parseMajorVersion(a.assetPack.version))
-        .map(a => a.assetPack);
-      return res.json(list);
-    }
-    // No tenant context (admin/API) — return all
+  // List all asset packs
+  app.get('/asset-packs', async (_req: express.Request, res: express.Response) => {
     const list = await prisma.assetPack.findMany({ orderBy: { createdAt: 'desc' } });
     res.json(list);
   });

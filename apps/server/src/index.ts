@@ -23,7 +23,6 @@ if (sentryDsn) {
 
 import express from 'express';
 import cookieParser from 'cookie-parser';
-import bodyParser from 'body-parser';
 import helmet from 'helmet';
 import compression from 'compression';
 import rateLimit from 'express-rate-limit';
@@ -114,9 +113,9 @@ app.use((req: express.Request, res: express.Response, next: express.NextFunction
   }
 });
 
-// Stripe Webhook requires raw body for signature verification; mount before json parser
-app.use('/billing/webhook', bodyParser.raw({ type: 'application/json' }) as any);
 app.use(cookieParser() as any);
+// Raw body for billing webhook (needed if enterprise billing is loaded)
+app.use('/billing/webhook', express.raw({ type: 'application/json' }) as any);
 app.use(express.json({ limit: '4mb' }) as any);
 app.use(express.urlencoded({ extended: true, limit: '4mb' }) as any);
 
@@ -154,7 +153,7 @@ const authLimiter = rateLimit({
   message: { error: 'too_many_auth_attempts', retryAfter: 900 },
 });
 
-// Strict rate limiter for signup/billing: 5 per hour
+// Strict rate limiter for signup: 5 per hour
 const signupLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   max: isProd ? 5 : 50,
@@ -179,7 +178,7 @@ app.use(globalLimiter as any);
 
 // Apply strict limiters to specific paths
 const authPaths = new Set(['/auth/login', '/auth/register', '/auth/forgot', '/auth/reset', '/livekit/token']);
-const signupPaths = new Set(['/public/tenants', '/billing/checkout-session']);
+const signupPaths = new Set(['/public/tenants']);
 const apiTokenPaths = new Set(['/controls']);
 
 app.use((req: express.Request, res: express.Response, next: express.NextFunction) => {

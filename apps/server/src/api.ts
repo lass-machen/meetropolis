@@ -6,7 +6,6 @@ import { registerAuthRoutes } from './api/routes/auth.js';
 import { registerMapRoutes } from './api/routes/maps.js';
 import { registerAssetPackRoutes } from './api/routes/assetPacks.js';
 import { registerAvatarPackRoutes } from './api/routes/avatarPacks.js';
-import { registerBillingRoutes } from './api/routes/billing.js';
 import { registerAdminRoutes } from './api/routes/admin.js';
 import { registerAdminUserRoutes } from './api/routes/adminUsers.js';
 import { registerHealthRoutes } from './api/routes/health.js';
@@ -15,8 +14,6 @@ import { registerTmjRoutes } from './api/routes/tmj.js';
 import { registerMapObjectRoutes } from './api/routes/mapObjects.js';
 import { registerNpcRoutes } from './api/routes/npcs.js';
 import { registerNpcMediaRoutes } from './api/routes/npcMedia.js';
-import { registerPackCatalogAdminRoutes } from './api/routes/packCatalogAdmin.js';
-import { registerPackStoreRoutes } from './api/routes/packStore.js';
 import { registerAdminMapRoutes } from './api/routes/adminMaps.js';
 
 // Existing modular routes (already extracted)
@@ -26,7 +23,12 @@ import { registerUserRoutes } from './api/routes/users.js';
 import { registerControlRoutes } from './api/routes/controls.js';
 
 // Auth utilities for existing modular routes
-import { requireAuth, requireApiToken, getApiTokenPepper } from './api/utils/authHelpers.js';
+import { requireAuth, requireApiToken, getApiTokenPepper, requireSuperAdmin, getTenantFromReq, requireMembership, getUserIdFromReq } from './api/utils/authHelpers.js';
+
+// Enterprise module loaders
+import { getAdminEnterpriseModule } from './adminLoader.js';
+import { getBillingModule } from './billingLoader.js';
+import { logger } from './logger.js';
 
 const prisma = new PrismaClient();
 
@@ -58,9 +60,6 @@ export async function registerApi(app: express.Express) {
   // Avatar packs management
   registerAvatarPackRoutes(app, prisma);
 
-  // Billing (Stripe) - async to allow enterprise module loading
-  await registerBillingRoutes(app, prisma);
-
   // Admin routes (tenants, billing management)
   registerAdminRoutes(app, prisma);
 
@@ -69,6 +68,84 @@ export async function registerApi(app: express.Express) {
 
   // Admin map management routes
   registerAdminMapRoutes(app, prisma);
+
+  // Enterprise admin routes (billing management, pack marketplace) — loaded dynamically
+  const adminEnterprise = await getAdminEnterpriseModule();
+  if (adminEnterprise) {
+    adminEnterprise.setupAdminRoutes(app, { prisma, logger, requireSuperAdmin });
+    adminEnterprise.setupPackMarketplaceRoutes(app, {
+      prisma,
+      logger,
+      requireAuth,
+      getTenantFromReq,
+      requireMembership,
+      requireSuperAdmin,
+    });
+  }
+
+  // Enterprise billing routes (Stripe webhook, trial, dunning, etc.)
+  const billingModule = await getBillingModule();
+  if (billingModule && process.env.STRIPE_SECRET_KEY && process.env.STRIPE_WEBHOOK_SECRET) {
+    const Stripe = (await import('stripe')).default;
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2023-10-16' });
+    const { getEmailService } = await import('./services/email.js');
+    const emailServiceImpl = getEmailService();
+    const emailService = {
+      async send(email: { to: string; subject: string; text: string; html: string }): Promise<void> {
+        await emailServiceImpl.send(email);
+      }
+    };
+
+    const billingPortalUrl = process.env.BILLING_PORTAL_URL || process.env.BILLING_PUBLIC_URL || '';
+    const pricingUrl = process.env.PRICING_URL || process.env.BILLING_PUBLIC_URL || '';
+
+    const getOwnerEmail = async (tenantId: string): Promise<string | null> => {
+      try {
+        const membership = await prisma.membership.findFirst({
+          where: { tenantId, role: 'owner' },
+          include: { user: { select: { email: true } } },
+        });
+        return membership?.user?.email ?? null;
+      } catch {
+        return null;
+      }
+    };
+
+    const requireTenantAdmin = (req: any, res: any, next: any) => {
+      const auth = requireAuth(req);
+      if (!auth) { res.status(401).json({ error: 'unauthorized' }); return; }
+      const tenant = getTenantFromReq(req);
+      if (!tenant) { res.status(400).json({ error: 'tenant_required' }); return; }
+      next();
+    };
+
+    const getTenantId = (req: any): string | null => {
+      const tenant = getTenantFromReq(req);
+      return tenant?.id ?? null;
+    };
+
+    const getUserId = (req: any): string | null => {
+      return getUserIdFromReq(req);
+    };
+
+    const { default: express } = await import('express');
+    const router = express.Router();
+    billingModule.setupBillingRoutes(router, {
+      prisma,
+      stripe,
+      webhookSecret: process.env.STRIPE_WEBHOOK_SECRET,
+      emailService,
+      logger,
+      billingPortalUrl,
+      pricingUrl,
+      getOwnerEmail,
+      requireTenantAdmin,
+      getTenantId,
+      getUserId,
+    });
+    app.use(router);
+    logger.info({ event: 'billing.enterprise_routes_registered' });
+  }
 
   // Existing modular routes (already extracted before this refactoring)
   registerPresenceRoutes(app, prisma, requireAuth, (req) => {
@@ -83,10 +160,6 @@ export async function registerApi(app: express.Express) {
   });
   registerApiTokenRoutes(app, prisma, requireAuth, getApiTokenPepper());
   registerControlRoutes(app, requireAuth, (req) => requireApiToken(req, prisma));
-
-  // Pack catalog admin + pack store routes
-  registerPackCatalogAdminRoutes(app, prisma);
-  registerPackStoreRoutes(app, prisma);
 
   // NPC management routes
   registerNpcRoutes(app, prisma);

@@ -1,7 +1,6 @@
 import type express from 'express';
 import { PrismaClient } from '../../generated/prisma/index.js';
 import { z } from 'zod';
-import Stripe from 'stripe';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { logger } from '../../logger.js';
@@ -12,7 +11,6 @@ import {
   setAuthCookie,
   normalizeEmailForStorage,
 } from '../utils/authHelpers.js';
-import { grantFreePacksToTenant } from '../utils/packAccess.js';
 import { getEmailService, emailTemplates } from '../../services/email.js';
 
 async function getDefaultFreeSeats(prisma: PrismaClient): Promise<number> {
@@ -41,19 +39,6 @@ export function registerAdminRoutes(app: express.Application, prisma: PrismaClie
       freeSeats: t.freeSeats ?? 0,
       bypassLimits: !!t.bypassLimits,
       isInternal: !!t.isInternal,
-      status: t.status || null,
-      stripeCustomerId: t.stripeCustomerId || null,
-      stripeSubscriptionId: t.stripeSubscriptionId || null,
-      trialStartedAt: t.trialStartedAt,
-      trialEndsAt: t.trialEndsAt,
-      trialConvertedAt: t.trialConvertedAt,
-      paymentFailedAt: t.paymentFailedAt,
-      gracePeriodEndsAt: t.gracePeriodEndsAt,
-      dunningStep: t.dunningStep ?? 0,
-      lastDunningEmailAt: t.lastDunningEmailAt,
-      pausedAt: t.pausedAt,
-      pauseEndsAt: t.pauseEndsAt,
-      pauseReason: t.pauseReason,
       createdAt: t.createdAt,
       updatedAt: t.updatedAt,
       online: usage[t.slug] || 0,
@@ -71,8 +56,6 @@ export function registerAdminRoutes(app: express.Application, prisma: PrismaClie
     try {
       const freeDefault = typeof parse.data.freeSeats === 'number' ? parse.data.freeSeats : await getDefaultFreeSeats(prisma);
       const t = await prisma.tenant.create({ data: { slug: parse.data.slug.toLowerCase(), name: parse.data.name, concurrentLimit: parse.data.concurrentLimit, freeSeats: freeDefault, bypassLimits: !!parse.data.bypassLimits } });
-      // Grant free packs to new tenant
-      await grantFreePacksToTenant(prisma, t.id).catch(e => logger.error({ event: 'admin.tenant_create.free_packs_failed', error: String(e) }));
       res.json({ id: t.id });
     } catch (e: unknown) {
       if (e && typeof e === 'object' && 'code' in e && e.code === 'P2002') return res.status(400).json({ error: 'slug_exists' });
@@ -85,7 +68,7 @@ export function registerAdminRoutes(app: express.Application, prisma: PrismaClie
     const admin = await requireSuperAdmin(req, prisma);
     if (!admin) return res.status(403).json({ error: 'forbidden' });
     const id = req.params.id;
-    const schema = z.object({ name: z.string().min(1).optional(), concurrentLimit: z.number().int().nonnegative().optional(), freeSeats: z.number().int().nonnegative().optional(), bypassLimits: z.boolean().optional(), status: z.string().optional(), defaultMapName: z.string().optional() });
+    const schema = z.object({ name: z.string().min(1).optional(), concurrentLimit: z.number().int().nonnegative().optional(), freeSeats: z.number().int().nonnegative().optional(), bypassLimits: z.boolean().optional(), defaultMapName: z.string().optional() });
     const parse = schema.safeParse(req.body || {});
     if (!parse.success) return res.status(400).json({ error: 'invalid payload' });
     try {
@@ -94,7 +77,7 @@ export function registerAdminRoutes(app: express.Application, prisma: PrismaClie
         const mapExists = await prisma.map.findFirst({ where: { tenantId: id, name: parse.data.defaultMapName } });
         if (!mapExists) return res.status(400).json({ error: 'map_not_found', message: `No map named "${parse.data.defaultMapName}" exists for this tenant.` });
       }
-      const t = await prisma.tenant.update({ where: { id }, data: { name: parse.data.name ?? undefined, concurrentLimit: parse.data.concurrentLimit ?? undefined, freeSeats: parse.data.freeSeats ?? undefined, bypassLimits: parse.data.bypassLimits ?? undefined, status: parse.data.status ?? undefined, defaultMapName: parse.data.defaultMapName ?? undefined } });
+      const t = await prisma.tenant.update({ where: { id }, data: { name: parse.data.name ?? undefined, concurrentLimit: parse.data.concurrentLimit ?? undefined, freeSeats: parse.data.freeSeats ?? undefined, bypassLimits: parse.data.bypassLimits ?? undefined, defaultMapName: parse.data.defaultMapName ?? undefined } });
       res.json({ ok: true, id: t.id });
     } catch (e) {
       res.status(400).json({ error: 'update_failed' });
@@ -116,8 +99,6 @@ export function registerAdminRoutes(app: express.Application, prisma: PrismaClie
       // Cascade deletion
       await prisma.presence.deleteMany({ where: { tenantId: id } });
       await prisma.invite.deleteMany({ where: { tenantId: id } });
-      await prisma.tenantAssetPack.deleteMany({ where: { tenantId: id } });
-      await prisma.tenantAvatarPack.deleteMany({ where: { tenantId: id } });
       await prisma.membership.deleteMany({ where: { tenantId: id } });
       await prisma.tenant.delete({ where: { id } });
 
@@ -126,149 +107,6 @@ export function registerAdminRoutes(app: express.Application, prisma: PrismaClie
     } catch (e: unknown) {
       logger.error({ event: 'admin.tenant_delete.error', error: e instanceof Error ? e.message : String(e) });
       res.status(500).json({ error: 'delete_failed' });
-    }
-  });
-
-  // Billing products list
-  app.get('/admin/billing/products', async (req: express.Request, res: express.Response) => {
-    const admin = await requireSuperAdmin(req, prisma);
-    if (!admin) return res.status(403).json({ error: 'forbidden' });
-    if (!process.env.STRIPE_SECRET_KEY) return res.status(501).json({ error: 'billing_not_configured' });
-    try {
-      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2023-10-16' });
-      const prods = await stripe.products.list({ limit: 100, expand: ['data.default_price'] });
-      const prices = await stripe.prices.list({ limit: 100, expand: ['data.product'] });
-      const priceByProduct = new Map<string, Array<{ id: string; unitAmount: number | null; currency: string; recurring: unknown; active: boolean; metadata: Record<string, string> }>>();
-      for (const p of prices.data) {
-        const pid = (typeof p.product === 'string') ? p.product : (p.product as any).id;
-        const arr = priceByProduct.get(pid) || [];
-        arr.push({
-          id: p.id,
-          unitAmount: p.unit_amount,
-          currency: p.currency,
-          recurring: (p.recurring || null),
-          active: p.active,
-          metadata: p.metadata || {},
-        });
-        priceByProduct.set(pid, arr);
-      }
-      const out = prods.data.map(pr => ({
-        id: pr.id,
-        name: pr.name,
-        description: pr.description || null,
-        active: pr.active,
-        metadata: pr.metadata || {},
-        prices: priceByProduct.get(pr.id) || [],
-      }));
-      res.json(out);
-    } catch (e: unknown) {
-      logger.error({ event: 'admin.billing.products.error', error: e instanceof Error ? e.message : String(e) });
-      res.status(500).json({ error: 'failed_to_list_products' });
-    }
-  });
-
-  // Create billing product
-  app.post('/admin/billing/products', async (req: express.Request, res: express.Response) => {
-    const admin = await requireSuperAdmin(req, prisma);
-    if (!admin) return res.status(403).json({ error: 'forbidden' });
-    if (!process.env.STRIPE_SECRET_KEY) return res.status(501).json({ error: 'billing_not_configured' });
-    const schema = z.object({ name: z.string().min(1), description: z.string().optional(), amount: z.number().int().nonnegative(), currency: z.string().default('eur'), interval: z.enum(['month', 'year']).default('month'), concurrentLimit: z.number().int().positive() });
-    const parse = schema.safeParse(req.body || {});
-    if (!parse.success) return res.status(400).json({ error: 'invalid payload' });
-    try {
-      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2023-10-16' });
-      const product = await stripe.products.create({ name: parse.data.name, description: parse.data.description, metadata: { concurrent_limit: String(parse.data.concurrentLimit) } });
-      const price = await stripe.prices.create({ product: product.id, unit_amount: parse.data.amount, currency: parse.data.currency, recurring: { interval: parse.data.interval }, metadata: { concurrent_limit: String(parse.data.concurrentLimit) } });
-      res.json({ id: product.id, priceId: price.id });
-    } catch (e: unknown) {
-      logger.error({ event: 'admin.billing.products.create.error', error: e instanceof Error ? e.message : String(e) });
-      res.status(500).json({ error: 'create_failed' });
-    }
-  });
-
-  // Create price for product
-  app.post('/admin/billing/products/:id/prices', async (req: express.Request, res: express.Response) => {
-    const admin = await requireSuperAdmin(req, prisma);
-    if (!admin) return res.status(403).json({ error: 'forbidden' });
-    if (!process.env.STRIPE_SECRET_KEY) return res.status(501).json({ error: 'billing_not_configured' });
-    const schema = z.object({ amount: z.number().int().nonnegative(), currency: z.string().default('eur'), interval: z.enum(['month', 'year']).default('month'), concurrentLimit: z.number().int().positive() });
-    const parse = schema.safeParse(req.body || {});
-    if (!parse.success) return res.status(400).json({ error: 'invalid payload' });
-    try {
-      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2023-10-16' });
-      const price = await stripe.prices.create({ product: req.params.id, unit_amount: parse.data.amount, currency: parse.data.currency, recurring: { interval: parse.data.interval }, metadata: { concurrent_limit: String(parse.data.concurrentLimit) } });
-      res.json({ id: price.id });
-    } catch (e: unknown) {
-      logger.error({ event: 'admin.billing.price.create.error', error: e instanceof Error ? e.message : String(e) });
-      res.status(500).json({ error: 'create_failed' });
-    }
-  });
-
-  // Update product
-  app.patch('/admin/billing/products/:id', async (req: express.Request, res: express.Response) => {
-    const admin = await requireSuperAdmin(req, prisma);
-    if (!admin) return res.status(403).json({ error: 'forbidden' });
-    if (!process.env.STRIPE_SECRET_KEY) return res.status(501).json({ error: 'billing_not_configured' });
-    const schema = z.object({ name: z.string().min(1).optional(), description: z.string().optional(), active: z.boolean().optional() });
-    const parse = schema.safeParse(req.body || {});
-    if (!parse.success) return res.status(400).json({ error: 'invalid payload' });
-    try {
-      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2023-10-16' });
-      const pr = await stripe.products.update(req.params.id, { name: parse.data.name ?? undefined, description: parse.data.description ?? undefined, active: parse.data.active ?? undefined });
-      res.json({ id: pr.id, active: pr.active });
-    } catch (e: unknown) {
-      logger.error({ event: 'admin.billing.product.update.error', error: e instanceof Error ? e.message : String(e) });
-      res.status(500).json({ error: 'update_failed' });
-    }
-  });
-
-  // Update price
-  app.patch('/admin/billing/prices/:id', async (req: express.Request, res: express.Response) => {
-    const admin = await requireSuperAdmin(req, prisma);
-    if (!admin) return res.status(403).json({ error: 'forbidden' });
-    if (!process.env.STRIPE_SECRET_KEY) return res.status(501).json({ error: 'billing_not_configured' });
-    const schema = z.object({ active: z.boolean().optional() });
-    const parse = schema.safeParse(req.body || {});
-    if (!parse.success) return res.status(400).json({ error: 'invalid payload' });
-    try {
-      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2023-10-16' });
-      const price = await stripe.prices.update(req.params.id, { active: parse.data.active ?? undefined });
-      res.json({ id: price.id, active: price.active });
-    } catch (e: unknown) {
-      logger.error({ event: 'admin.billing.price.update.error', error: e instanceof Error ? e.message : String(e) });
-      res.status(500).json({ error: 'update_failed' });
-    }
-  });
-
-  // Billing metrics
-  app.get('/admin/billing/metrics', async (req: express.Request, res: express.Response) => {
-    const admin = await requireSuperAdmin(req, prisma);
-    if (!admin) return res.status(403).json({ error: 'forbidden' });
-    if (!process.env.STRIPE_SECRET_KEY) return res.status(501).json({ error: 'billing_not_configured' });
-    try {
-      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2023-10-16' });
-      const subs = await stripe.subscriptions.list({ status: 'all', limit: 100, expand: ['data.items.data.price.product'] });
-      const now = Date.now();
-      const last30 = now - 30 * 24 * 60 * 60 * 1000;
-      let activeCount = 0;
-      let mrrCents = 0;
-      let revenue30dCents = 0;
-      for (const s of subs.data) {
-        const isActive = ['active', 'trialing', 'past_due', 'unpaid'].includes(s.status);
-        if (isActive) activeCount++;
-        const it = s.items?.data?.[0];
-        const price = it?.price as { unit_amount?: number | null; recurring?: { interval?: string } } | undefined;
-        const amount = Number(price?.unit_amount || 0);
-        const interval = price?.recurring?.interval || 'month';
-        if (interval === 'month') mrrCents += amount;
-        if (s.current_period_start && s.status === 'active' && s.current_period_start * 1000 >= last30) {
-          revenue30dCents += amount;
-        }
-      }
-      res.json({ activeSubscriptions: activeCount, mrrCents, revenue30dCents });
-    } catch (e: unknown) {
-      logger.error({ event: 'admin.billing.metrics.error', error: e instanceof Error ? e.message : String(e) });
-      res.status(500).json({ error: 'metrics_failed' });
     }
   });
 
@@ -283,8 +121,6 @@ export function registerAdminRoutes(app: express.Application, prisma: PrismaClie
       if (exists) return res.status(400).json({ error: 'slug_exists' });
       const freeDefault = await getDefaultFreeSeats(prisma);
       const tenant = await prisma.tenant.create({ data: { slug, name: parse.data.name, concurrentLimit: 0, freeSeats: freeDefault, bypassLimits: false } });
-      // Grant free packs to new tenant
-      await grantFreePacksToTenant(prisma, tenant.id).catch(e => logger.error({ event: 'public.signup.free_packs_failed', error: String(e) }));
       const email = normalizeEmailForStorage(parse.data.email);
       const hash = await bcrypt.hash(parse.data.password, 10);
       let user = await prisma.user.findUnique({ where: { email } }).catch(() => null);
@@ -467,22 +303,6 @@ export function registerAdminRoutes(app: express.Application, prisma: PrismaClie
       }
     } catch {
       health.livekit = { status: 'error' };
-    }
-
-    // Stripe status
-    try {
-      if (process.env.STRIPE_SECRET_KEY) {
-        health.stripe = {
-          status: 'configured',
-          webhookConfigured: !!process.env.STRIPE_WEBHOOK_SECRET,
-        };
-      } else {
-        health.stripe = {
-          status: 'not_configured',
-        };
-      }
-    } catch {
-      health.stripe = { status: 'error' };
     }
 
     // Email service status

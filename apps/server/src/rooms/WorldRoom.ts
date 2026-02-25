@@ -4,6 +4,7 @@ import { colyseusRooms, colyseusPlayers } from '../metrics.js';
 import { Schema, type, MapSchema } from '@colyseus/schema';
 import { PrismaClient } from '../generated/prisma/index.js';
 import { getTenancyModule, OSS_USER_LIMIT } from '../tenancyLoader.js';
+import { getBillingModuleSync } from '../billingLoader.js';
 
 interface RoomOptions {
   tenant?: string;
@@ -535,34 +536,27 @@ export class WorldRoom extends Room<WorldState> {
       const prisma = new PrismaClient();
       const tenant = await prisma.tenant.findUnique({ where: { slug: tenantSlug } });
 
-      // Check subscription status - block if payment failed or subscription inactive
-      if (tenant && !tenant.bypassLimits) {
-        const status = tenant.status as string | undefined;
+      // Check subscription status via enterprise billing module (if available)
+      const billingMod = getBillingModuleSync();
+      if (billingMod && tenant && !tenant.bypassLimits) {
+        try {
+          const trialStatus = await billingMod.getTrialStatus(prisma, tenant.id);
+          if (trialStatus.status === 'expired') {
+            try { logger.warn('[WorldRoom] Tenant trial expired', { tenant: tenantSlug }); } catch (e) { logger.debug('[WorldRoom] Failed to log trial expiry', e); }
+            try { client.error(4005, 'trial_expired'); } catch (e) { logger.debug('[WorldRoom] Failed to send trial_expired error', e); }
+            try { await prisma.$disconnect().catch(() => { }); } catch (e) { logger.debug('[WorldRoom] Failed to disconnect prisma', e); }
+            return client.leave(1000);
+          }
 
-        // Trial expired - user needs to subscribe
-        if (status === 'trial_expired') {
-          try { logger.warn('[WorldRoom] Tenant trial expired', { tenant: tenantSlug, status }); } catch (e) { logger.debug('[WorldRoom] Failed to log trial expiry', e); }
-          try { client.error(4005, 'trial_expired'); } catch (e) { logger.debug('[WorldRoom] Failed to send trial_expired error', e); }
-          try { await prisma.$disconnect().catch(() => { }); } catch (e) { logger.debug('[WorldRoom] Failed to disconnect prisma', e); }
-          return client.leave(1000);
-        }
-
-        // Subscription suspended (dunning step 4+, after 7 days non-payment)
-        if (status === 'suspended') {
-          try { logger.warn('[WorldRoom] Tenant subscription suspended', { tenant: tenantSlug, status }); } catch (e) { logger.debug('[WorldRoom] Failed to log subscription suspension', e); }
-          try { client.error(4004, 'subscription_suspended'); } catch (e) { logger.debug('[WorldRoom] Failed to send subscription_suspended error', e); }
-          try { await prisma.$disconnect().catch(() => { }); } catch (e) { logger.debug('[WorldRoom] Failed to disconnect prisma', e); }
-          return client.leave(1000);
-        }
-
-        // Other inactive statuses (canceled, incomplete, etc.)
-        // Note: past_due is NOT blocked - users retain access during dunning period
-        const blockedStatuses = ['canceled', 'incomplete_expired', 'incomplete'];
-        if (status && blockedStatuses.includes(status)) {
-          try { logger.warn('[WorldRoom] Tenant subscription inactive', { tenant: tenantSlug, status }); } catch (e) { logger.debug('[WorldRoom] Failed to log subscription inactive', e); }
-          try { client.error(4003, 'subscription_inactive'); } catch (e) { logger.debug('[WorldRoom] Failed to send subscription_inactive error', e); }
-          try { await prisma.$disconnect().catch(() => { }); } catch (e) { logger.debug('[WorldRoom] Failed to disconnect prisma', e); }
-          return client.leave(1000);
+          const dunningStatus = await billingMod.getDunningStatus(prisma, tenant.id);
+          if (dunningStatus.status === 'suspended') {
+            try { logger.warn('[WorldRoom] Tenant subscription suspended', { tenant: tenantSlug }); } catch (e) { logger.debug('[WorldRoom] Failed to log subscription suspension', e); }
+            try { client.error(4004, 'subscription_suspended'); } catch (e) { logger.debug('[WorldRoom] Failed to send subscription_suspended error', e); }
+            try { await prisma.$disconnect().catch(() => { }); } catch (e) { logger.debug('[WorldRoom] Failed to disconnect prisma', e); }
+            return client.leave(1000);
+          }
+        } catch (e) {
+          logger.debug('[WorldRoom] Billing status check failed (non-blocking)', e);
         }
       }
 
