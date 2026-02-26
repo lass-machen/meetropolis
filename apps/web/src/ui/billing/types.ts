@@ -63,3 +63,11 @@ export interface AvailablePlan {
   concurrentLimit: number;
   features: string[];
 }
+
+export interface PaymentStatus {
+  status: 'ok' | 'failing' | 'grace_period' | 'suspended';
+  failedAt: string | null;
+  gracePeriodEndsAt: string | null;
+  dunningStep: number;
+  daysUntilCancellation: number | null;
+}

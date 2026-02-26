@@ -1,10 +1,12 @@
 import React from 'react';
 import { useBillingData } from './hooks/useBillingData';
+import { usePaymentStatus } from './hooks/usePaymentStatus';
 import { CurrentPlanCard } from './components/CurrentPlanCard';
 import { UsageDisplay } from './components/UsageDisplay';
 import { BillingActions } from './components/BillingActions';
 import { InvoiceHistory } from './components/InvoiceHistory';
 import { PlanSelector } from './components/PlanSelector';
+import { PaymentStatusBanner } from './components/PaymentStatusBanner';
 import { styles } from './styles';
 
 export function BillingDashboard({ onClose: _onClose }: { onClose: () => void }) {
@@ -23,6 +25,8 @@ export function BillingDashboard({ onClose: _onClose }: { onClose: () => void })
     handleReactivate,
   } = useBillingData();
 
+  const { paymentStatus, handleManageBilling: handlePaymentBilling } = usePaymentStatus({ enabled: true });
+
   if (loading) {
     return <div style={styles.loading}>Loading billing information...</div>;
   }
@@ -33,6 +37,10 @@ export function BillingDashboard({ onClose: _onClose }: { onClose: () => void })
 
   return (
     <>
+      {paymentStatus && paymentStatus.status !== 'ok' && (
+        <PaymentStatusBanner paymentStatus={paymentStatus} onManageBilling={handlePaymentBilling} />
+      )}
+
       <div style={styles.tabs}>
         <button
           onClick={() => setActiveTab('overview')}

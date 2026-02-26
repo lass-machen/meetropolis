@@ -35,6 +35,8 @@ import { WorldContextMenu } from './components/WorldContextMenu';
 import { WorldModals } from './components/WorldModals';
 import { GameCanvas } from './components/GameCanvas';
 import { ConnectionBanners } from './components/ConnectionBanners';
+import { usePaymentStatus } from '../../ui/billing/hooks/usePaymentStatus';
+import { PaymentStatusBanner } from '../../ui/billing/components/PaymentStatusBanner';
 import { AVControlBar } from './components/AVControlBar';
 import { useWorldEventHandlers } from './hooks/useWorldEventHandlers';
 import { useFetchMe } from './hooks/useFetchMe';
@@ -80,6 +82,7 @@ export function WorldApp() {
   const [authChecked, setAuthChecked] = React.useState(false);
   const [me, setMe] = React.useState<{ id: string; email: string; name?: string } | null>(null);
   const [isInternalOwner, setIsInternalOwner] = React.useState(false);
+  const { paymentStatus, handleManageBilling } = usePaymentStatus({ enabled: isInternalOwner });
   const [authRefetchTrigger, setAuthRefetchTrigger] = React.useState(0);
   const [editor, setEditor] = useEditor();
 
@@ -590,6 +593,10 @@ export function WorldApp() {
               onReload={eventHandlers.handleConnectionReloadClick}
               onDismissBanner={eventHandlers.handleDismissBanner}
             />
+
+            {isInternalOwner && paymentStatus && paymentStatus.status !== 'ok' && (
+              <PaymentStatusBanner paymentStatus={paymentStatus} onManageBilling={handleManageBilling} />
+            )}
 
             <GameCanvas containerRef={containerRef} positionReady={positionReady} avDnd={avState.dnd} />
 
