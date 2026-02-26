@@ -57,6 +57,11 @@ services:
       NPC_SERVICE_SECRET: dev-npc-secret
       NPC_SERVER_URL: http://localhost:2567
       NPC_MEDIA_DIR: /data/npc-media
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      BILLING_PUBLIC_URL: http://localhost:5174
+      PRICING_URL: http://localhost:5174/#/pricing
+      TEMPLATE_TENANT_SLUG: default
     command: sh -c "cd /workspace && npm install && npx prisma generate --schema=./apps/server/prisma/schema.prisma && npx prisma db push --schema=./apps/server/prisma/schema.prisma && npx prisma db seed --schema=./apps/server/prisma/schema.prisma && npm run -w @meetropolis/server start:dev"
     ports:
       - "2567:2567"
@@ -90,7 +95,7 @@ services:
       VITE_DEBUG_LOGS: "true"
       VITE_FEATURE_AV_SETTINGS: "true"
       VITE_FEATURE_VOICE_ISOLATION: client
-      VITE_DEBUG_AUTOLOGIN: "true"
+      VITE_DEBUG_AUTOLOGIN: "false"
       # Proxy-Ziel im Container: spreche den Server-Dienst direkt an
       VITE_PROXY_TARGET: http://server:2567
     command: sh -c "cd /workspace && npm install && npm -w @meetropolis/web run dev -- --host 0.0.0.0"
@@ -198,6 +203,29 @@ services:
           echo waiting for server...; sleep 2;
         done;
         npm run dev
+
+  stripe-cli:
+    profiles: ["stripe"]
+    image: stripe/stripe-cli:latest
+    container_name: meetropolis-stripe-cli
+    command: >-
+      listen
+        --api-key ${STRIPE_SECRET_KEY}
+        --forward-to http://server:2567/billing/webhook
+        --log-level info
+    environment:
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY}
+    networks:
+      - meetropolis-dev
+    depends_on:
+      server:
+        condition: service_healthy
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   npc-service:
     image: node:20

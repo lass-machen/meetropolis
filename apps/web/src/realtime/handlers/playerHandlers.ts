@@ -22,6 +22,14 @@ export function setupPlayerHandlers(
   room.onMessage('full_state', (data: any) => {
     if (!gameBridge?.syncRemotePlayers) return;
     if (data?.players) {
+      // Sync local player's mapId/mapName from server (most reliable source)
+      const localPlayer = data.players?.find((p: any) => p.id === localPosRef.current.id);
+      if (localPlayer?.mapId) {
+        const mapState = useMapStore.getState();
+        if (!mapState.currentMapId || mapState.currentMapId !== localPlayer.mapId) {
+          useMapStore.getState().setCurrentMap(localPlayer.mapId, localPlayer.mapName || '');
+        }
+      }
       const currentMap = useMapStore.getState().currentMapName;
       const players: Record<string, { x: number; y: number; direction: any; name?: string; dnd?: boolean; avatarId?: string; isNpc?: boolean }> = {};
       for (const p of data.players) {

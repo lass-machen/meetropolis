@@ -12,6 +12,7 @@ import {
   normalizeEmailForStorage,
 } from '../utils/authHelpers.js';
 import { getEmailService, emailTemplates } from '../../services/email.js';
+import { getTenancyModule } from '../../tenancyLoader.js';
 
 async function getDefaultFreeSeats(prisma: PrismaClient): Promise<number> {
   try {
@@ -115,12 +116,47 @@ export function registerAdminRoutes(app: express.Application, prisma: PrismaClie
     const schema = z.object({ slug: z.string().min(2).max(64).regex(/^[a-z0-9-]+$/), name: z.string().min(1).max(100), email: z.string().email(), password: z.string().min(8) });
     const parse = schema.safeParse(req.body || {});
     if (!parse.success) return res.status(400).json({ error: 'invalid payload' });
+
+    // Multi-tenant gate: only allow signup when multi-tenant is enabled
+    const tenancy = await getTenancyModule();
+    if (!tenancy.isMultiTenantEnabled()) {
+      return res.status(403).json({ error: 'multi_tenant_required' });
+    }
+
     const slug = parse.data.slug.toLowerCase();
     try {
       const exists = await prisma.tenant.findUnique({ where: { slug } });
       if (exists) return res.status(400).json({ error: 'slug_exists' });
       const freeDefault = await getDefaultFreeSeats(prisma);
       const tenant = await prisma.tenant.create({ data: { slug, name: parse.data.name, concurrentLimit: 0, freeSeats: freeDefault, bypassLimits: false } });
+
+      // Copy maps from template tenant if configured
+      const templateSlug = process.env.TEMPLATE_TENANT_SLUG;
+      if (templateSlug) {
+        try {
+          const templateTenant = await prisma.tenant.findUnique({
+            where: { slug: templateSlug },
+            include: { maps: true },
+          });
+          if (templateTenant?.maps?.length) {
+            const { copyMapToTenant } = await import('./adminMaps.js');
+            for (const tplMap of templateTenant.maps) {
+              await copyMapToTenant(prisma, tplMap.id, tenant.id, tplMap.name);
+            }
+            // Adopt defaultMapName from template tenant
+            if (templateTenant.defaultMapName) {
+              await prisma.tenant.update({
+                where: { id: tenant.id },
+                data: { defaultMapName: templateTenant.defaultMapName },
+              });
+            }
+          }
+        } catch (e) {
+          logger.error({ event: 'signup.template_copy_failed', tenantId: tenant.id, error: String(e) });
+          // Non-blocking: Tenant exists, maps are just missing
+        }
+      }
+
       const email = normalizeEmailForStorage(parse.data.email);
       const hash = await bcrypt.hash(parse.data.password, 10);
       let user = await prisma.user.findUnique({ where: { email } }).catch(() => null);

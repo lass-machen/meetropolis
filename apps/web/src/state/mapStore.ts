@@ -56,8 +56,17 @@ export const useMapStore = create<MapState>((set, get) => ({
       const found = maps.find(m => m.id === state.currentMapId);
       if (found) updates.currentMapName = found.name;
     }
+    // Resolve currentMapName to ID if we have a name but no ID yet
+    if (!state.currentMapId && state.currentMapName) {
+      const found = maps.find(m => m.name === state.currentMapName);
+      if (found) {
+        updates.currentMapId = found.id;
+        updates.currentMapName = found.name;
+        saveMapId(found.id);
+      }
+    }
     // If we have no ID yet, pick the first map as default
-    if (!state.currentMapId && maps.length > 0) {
+    if (!state.currentMapId && !updates.currentMapId && maps.length > 0) {
       updates.currentMapId = maps[0].id;
       updates.currentMapName = maps[0].name;
       saveMapId(maps[0].id);

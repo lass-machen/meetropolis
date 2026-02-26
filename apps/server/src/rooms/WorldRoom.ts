@@ -191,28 +191,35 @@ export class WorldRoom extends Room<WorldState> {
         const tenantSlug = options?.tenant || process.env.DEFAULT_TENANT_SLUG || 'default';
         const tenantRecord = await prisma.tenant.findUnique({ where: { slug: tenantSlug }, select: { defaultMapName: true } });
         const mapName = tenantRecord?.defaultMapName || process.env.DEFAULT_MAP_NAME || 'office';
-        const map = await prisma.map.findFirst({ where: { name: mapName, tenant: { slug: tenantSlug } } });
+        let resolvedMap = await prisma.map.findFirst({ where: { name: mapName, tenant: { slug: tenantSlug } } });
+        if (!resolvedMap) {
+          // Default map not found — try first available map for this tenant
+          resolvedMap = await prisma.map.findFirst({
+            where: { tenant: { slug: tenantSlug } },
+            orderBy: { createdAt: 'asc' },
+          });
+        }
         // Map-Metadaten cachen (für Bounds/Clamping)
-        if (map) {
+        if (resolvedMap) {
           try {
             // width/height in Tiles, tileWidth/tileHeight in Pixel
-            this.mapWidthTiles = map.width ?? null;
-            this.mapHeightTiles = map.height ?? null;
-            this.tileWidthPx = map.tileWidth ?? null;
-            this.tileHeightPx = map.tileHeight ?? null;
+            this.mapWidthTiles = resolvedMap.width ?? null;
+            this.mapHeightTiles = resolvedMap.height ?? null;
+            this.tileWidthPx = resolvedMap.tileWidth ?? null;
+            this.tileHeightPx = resolvedMap.tileHeight ?? null;
             // Also store in multi-map cache (keyed by mapId)
-            const meta: MapMeta = (map.meta as MapMeta) || {};
+            const meta: MapMeta = (resolvedMap.meta as MapMeta) || {};
             const sp = meta?.spawn;
-            this.mapCache.set(map.id, {
-              widthTiles: map.width ?? 32,
-              heightTiles: map.height ?? 32,
-              tileWidthPx: map.tileWidth ?? 16,
-              tileHeightPx: map.tileHeight ?? 16,
+            this.mapCache.set(resolvedMap.id, {
+              widthTiles: resolvedMap.width ?? 32,
+              heightTiles: resolvedMap.height ?? 32,
+              tileWidthPx: resolvedMap.tileWidth ?? 16,
+              tileHeightPx: resolvedMap.tileHeight ?? 16,
               defaultSpawn: (sp && typeof sp.x === 'number' && typeof sp.y === 'number') ? { x: sp.x, y: sp.y } : null,
             });
           } catch (e) { logger.debug('[WorldRoom] Failed to cache map metadata', e); }
         }
-        const meta = (map?.meta as MapMeta) || {};
+        const meta = (resolvedMap?.meta as MapMeta) || {};
         const sp = meta?.spawn;
         if (sp && typeof sp.x === 'number' && typeof sp.y === 'number') {
           const clamped = this.sanitizePosition(sp.x, sp.y);
@@ -629,7 +636,14 @@ export class WorldRoom extends Room<WorldState> {
         const tenantSlug = options?.tenant || (this.metadata as RoomMetadata)?.tenant || process.env.DEFAULT_TENANT_SLUG || 'default';
         const tenantRec = await prisma.tenant.findUnique({ where: { slug: tenantSlug }, select: { defaultMapName: true } });
         const mapName = tenantRec?.defaultMapName || process.env.DEFAULT_MAP_NAME || 'office';
-        const map = await prisma.map.findFirst({ where: { name: mapName, tenant: { slug: tenantSlug } } });
+        let map = await prisma.map.findFirst({ where: { name: mapName, tenant: { slug: tenantSlug } } });
+        if (!map) {
+          // Default map not found — fall back to first available map for this tenant
+          map = await prisma.map.findFirst({
+            where: { tenant: { slug: tenantSlug } },
+            orderBy: { createdAt: 'asc' },
+          });
+        }
         try { await prisma.$disconnect().catch(() => { }); } catch (e) { logger.debug('[WorldRoom] Failed to disconnect prisma', e); }
         if (map) {
           try {
@@ -680,7 +694,18 @@ export class WorldRoom extends Room<WorldState> {
             initialMapId = defaultMap.id;
             initialMapName = defaultMap.name;
           } else {
-            initialMapName = defaultMapName;
+            // Default map not found — fall back to first available map for this tenant
+            const firstMap = await prismaForMap.map.findFirst({
+              where: { tenant: { slug: tenantSlug } },
+              orderBy: { createdAt: 'asc' },
+              select: { id: true, name: true },
+            });
+            if (firstMap) {
+              initialMapId = firstMap.id;
+              initialMapName = firstMap.name;
+            } else {
+              initialMapName = defaultMapName;
+            }
           }
         }
       } catch (e) {

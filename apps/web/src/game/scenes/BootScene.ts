@@ -67,20 +67,41 @@ export class BootScene extends Phaser.Scene {
     // v2 Boot: prefetch state-v2
     (async () => {
       try {
-        const mapId = useMapStore.getState().currentMapId;
-        if (!mapId) {
-          logger.error('[Boot] No currentMapId set — cannot load map');
-          return;
-        }
-        const state = await fetchStateV2(mapId);
-        const metaOk = !!(state && state.mapMeta && state.mapMeta.width && state.mapMeta.height && state.mapMeta.tileWidth && state.mapMeta.tileHeight);
-        if (metaOk) {
-          // Tileset-Images für Registry laden (Schlüssel = key)
-          await preloadTilesetImages(this, state!.tilesetRegistry);
-          (window as any).__v2_state = state;
-          this.scene.start('Main');
+        const loadMap = async (id: string) => {
+          const state = await fetchStateV2(id);
+          const metaOk = !!(state && state.mapMeta && state.mapMeta.width && state.mapMeta.height && state.mapMeta.tileWidth && state.mapMeta.tileHeight);
+          if (metaOk) {
+            await preloadTilesetImages(this, state!.tilesetRegistry);
+            (window as any).__v2_state = state;
+            this.scene.start('Main');
+          } else {
+            logger.error('[Boot] Invalid V2 state received');
+          }
+        };
+
+        let mapId = useMapStore.getState().currentMapId;
+        if (mapId) {
+          await loadMap(mapId);
         } else {
-          logger.error('[Boot] Invalid V2 state received');
+          // Wait for mapStore to resolve currentMapId (race with setAvailableMaps / full_state)
+          logger.debug('[Boot] Waiting for currentMapId...');
+          await new Promise<void>((resolve) => {
+            const timeout = setTimeout(() => {
+              unsubscribe();
+              logger.error('[Boot] No currentMapId after 10s — cannot load map');
+              resolve();
+            }, 10_000);
+            const unsubscribe = useMapStore.subscribe((state) => {
+              if (state.currentMapId) {
+                clearTimeout(timeout);
+                unsubscribe();
+                loadMap(state.currentMapId).then(resolve).catch(() => {
+                  logger.error('[Boot] Failed to load map after waiting');
+                  resolve();
+                });
+              }
+            });
+          });
         }
       } catch (e) {
         logger.error('[Boot] Failed to load V2 state', e);

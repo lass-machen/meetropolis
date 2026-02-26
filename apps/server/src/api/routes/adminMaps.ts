@@ -6,6 +6,143 @@ import { logger } from '../../logger.js';
 import { requireSuperAdmin } from '../utils/authHelpers.js';
 import { rleEncodeNumbers, encodeRlePairsToBuffer } from '../../mapEncoding.js';
 
+/**
+ * Deep-copy a map (with all tilesets, layers, chunks, objects, rooms, zones)
+ * to a target tenant. Resolves name collisions by appending `-2`, `-3`, etc.
+ */
+export async function copyMapToTenant(
+  prisma: PrismaClient,
+  sourceMapId: string,
+  targetTenantId: string,
+  newName?: string,
+): Promise<{ id: string; name: string }> {
+  // Load original map with all relations
+  const original = await prisma.map.findUnique({
+    where: { id: sourceMapId },
+    include: {
+      tilesets: { orderBy: { slot: 'asc' } },
+      layers: { include: { chunks: true } },
+      objects: true,
+      rooms: { include: { zones: true } },
+    },
+  });
+  if (!original) throw new Error('source_map_not_found');
+
+  // Determine copy name with uniqueness check
+  const baseName = newName || `${original.name}-copy`;
+  let copyName = baseName;
+  let suffix = 1;
+  while (await prisma.map.findUnique({ where: { tenantId_name: { tenantId: targetTenantId, name: copyName } } })) {
+    suffix++;
+    copyName = `${baseName}-${suffix}`;
+  }
+
+  const result = await prisma.$transaction(async (tx) => {
+    // 1. Create new map
+    const newMap = await tx.map.create({
+      data: {
+        tenantId: targetTenantId,
+        name: copyName,
+        width: original.width,
+        height: original.height,
+        tileWidth: original.tileWidth,
+        tileHeight: original.tileHeight,
+        chunkSize: original.chunkSize,
+        meta: original.meta as object,
+      },
+    });
+
+    // 2. Copy MapTilesets
+    for (const ts of original.tilesets) {
+      await tx.mapTileset.create({
+        data: {
+          mapId: newMap.id,
+          slot: ts.slot,
+          key: ts.key,
+          imageUrl: ts.imageUrl,
+          tileWidth: ts.tileWidth,
+          tileHeight: ts.tileHeight,
+          margin: ts.margin,
+          spacing: ts.spacing,
+          hash: ts.hash,
+          tileCount: ts.tileCount,
+        },
+      });
+    }
+
+    // 3. Copy MapLayers + MapChunks
+    for (const layer of original.layers) {
+      const newLayer = await tx.mapLayer.create({
+        data: { mapId: newMap.id, name: layer.name, chunkSize: layer.chunkSize },
+      });
+      for (const chunk of layer.chunks) {
+        await tx.mapChunk.create({
+          data: {
+            layerId: newLayer.id,
+            x: chunk.x,
+            y: chunk.y,
+            version: chunk.version,
+            encoding: chunk.encoding,
+            data: chunk.data,
+          },
+        });
+      }
+    }
+
+    // 4. Copy MapObjects
+    for (const obj of original.objects) {
+      await tx.mapObject.create({
+        data: {
+          mapId: newMap.id,
+          assetPackUuid: obj.assetPackUuid,
+          itemId: obj.itemId,
+          category: obj.category,
+          tileX: obj.tileX,
+          tileY: obj.tileY,
+          chunkX: obj.chunkX,
+          chunkY: obj.chunkY,
+          width: obj.width,
+          height: obj.height,
+          collide: obj.collide,
+          zIndex: obj.zIndex,
+          rotation: obj.rotation,
+          flipX: obj.flipX,
+          flipY: obj.flipY,
+          scaleFactor: obj.scaleFactor,
+          dataUrl: obj.dataUrl,
+        },
+      });
+    }
+
+    // 5. Copy Rooms + Zones (NOT presences)
+    for (const room of original.rooms) {
+      const newRoom = await tx.room.create({
+        data: { name: room.name, tenantId: targetTenantId, mapId: newMap.id },
+      });
+      for (const zone of room.zones) {
+        await tx.zone.create({
+          data: {
+            name: zone.name,
+            capacity: zone.capacity,
+            polygon: zone.polygon as object,
+            type: zone.type,
+            portalTarget: zone.portalTarget,
+            portalSpawnX: zone.portalSpawnX,
+            portalSpawnY: zone.portalSpawnY,
+            roomId: newRoom.id,
+            mapId: newMap.id,
+            tenantId: targetTenantId,
+          },
+        });
+      }
+    }
+
+    return newMap;
+  });
+
+  return { id: result.id, name: result.name };
+}
+
 const createMapSchema = z.object({
   tenantId: z.string().min(1),
   name: z.string().min(1),
@@ -191,127 +328,14 @@ export function registerAdminMapRoutes(app: express.Application, prisma: PrismaC
       const targetTenant = await prisma.tenant.findUnique({ where: { id: targetTenantId } });
       if (!targetTenant) return res.status(404).json({ error: 'target_tenant_not_found' });
 
-      // Load original map with all relations
-      const original = await prisma.map.findUnique({
-        where: { id: req.params.id },
-        include: {
-          tilesets: { orderBy: { slot: 'asc' } },
-          layers: { include: { chunks: true } },
-          objects: true,
-          rooms: { include: { zones: true } },
-        },
-      });
-      if (!original) return res.status(404).json({ error: 'map_not_found' });
-
-      const copyName = newName || `${original.name}-copy`;
-
-      // Check name uniqueness
-      const existing = await prisma.map.findUnique({ where: { tenantId_name: { tenantId: targetTenantId, name: copyName } } });
-      if (existing) return res.status(400).json({ error: 'map_name_exists' });
-
-      const result = await prisma.$transaction(async (tx) => {
-        // 1. Create new map
-        const newMap = await tx.map.create({
-          data: {
-            tenantId: targetTenantId,
-            name: copyName,
-            width: original.width,
-            height: original.height,
-            tileWidth: original.tileWidth,
-            tileHeight: original.tileHeight,
-            chunkSize: original.chunkSize,
-            meta: original.meta as object,
-          },
-        });
-
-        // 2. Copy MapTilesets
-        for (const ts of original.tilesets) {
-          await tx.mapTileset.create({
-            data: {
-              mapId: newMap.id,
-              slot: ts.slot,
-              key: ts.key,
-              imageUrl: ts.imageUrl,
-              tileWidth: ts.tileWidth,
-              tileHeight: ts.tileHeight,
-              margin: ts.margin,
-              spacing: ts.spacing,
-              hash: ts.hash,
-              tileCount: ts.tileCount,
-            },
-          });
-        }
-
-        // 3. Copy MapLayers + MapChunks
-        for (const layer of original.layers) {
-          const newLayer = await tx.mapLayer.create({
-            data: { mapId: newMap.id, name: layer.name, chunkSize: layer.chunkSize },
-          });
-          for (const chunk of layer.chunks) {
-            await tx.mapChunk.create({
-              data: {
-                layerId: newLayer.id,
-                x: chunk.x,
-                y: chunk.y,
-                version: chunk.version,
-                encoding: chunk.encoding,
-                data: chunk.data,
-              },
-            });
-          }
-        }
-
-        // 4. Copy MapObjects
-        for (const obj of original.objects) {
-          await tx.mapObject.create({
-            data: {
-              mapId: newMap.id,
-              assetPackUuid: obj.assetPackUuid,
-              itemId: obj.itemId,
-              category: obj.category,
-              tileX: obj.tileX,
-              tileY: obj.tileY,
-              chunkX: obj.chunkX,
-              chunkY: obj.chunkY,
-              width: obj.width,
-              height: obj.height,
-              collide: obj.collide,
-              zIndex: obj.zIndex,
-              rotation: obj.rotation,
-              flipX: obj.flipX,
-              flipY: obj.flipY,
-              scaleFactor: obj.scaleFactor,
-              dataUrl: obj.dataUrl,
-            },
-          });
-        }
-
-        // 5. Copy Rooms + Zones (NOT presences)
-        for (const room of original.rooms) {
-          const newRoom = await tx.room.create({
-            data: { name: room.name, tenantId: targetTenantId, mapId: newMap.id },
-          });
-          for (const zone of room.zones) {
-            await tx.zone.create({
-              data: {
-                name: zone.name,
-                capacity: zone.capacity,
-                polygon: zone.polygon as object,
-                roomId: newRoom.id,
-                mapId: newMap.id,
-                tenantId: targetTenantId,
-              },
-            });
-          }
-        }
-
-        return newMap;
-      });
+      const result = await copyMapToTenant(prisma, req.params.id, targetTenantId, newName);
 
       logger.info({ event: 'admin_maps.copied', sourceId: req.params.id, newMapId: result.id, targetTenantId });
-      res.json({ id: result.id, name: result.name });
+      res.json(result);
     } catch (e: unknown) {
-      logger.error({ event: 'admin_maps.copy.error', error: e instanceof Error ? e.message : String(e) });
+      const msg = e instanceof Error ? e.message : String(e);
+      if (msg === 'source_map_not_found') return res.status(404).json({ error: 'map_not_found' });
+      logger.error({ event: 'admin_maps.copy.error', error: msg });
       res.status(500).json({ error: 'internal_error' });
     }
   });
