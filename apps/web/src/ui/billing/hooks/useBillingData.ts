@@ -40,7 +40,7 @@ export function useBillingData() {
         setPlans(data.plans || []);
       }
     } catch (e: unknown) {
-      setError(e.message || 'Network error');
+      setError(e instanceof Error ? e.message : 'Network error');
     } finally {
       setLoading(false);
     }
@@ -62,7 +62,7 @@ export function useBillingData() {
         const { url } = await res.json();
         if (url) window.open(url, '_blank');
       }
-    } catch { }
+    } catch (e: unknown) { setError(e instanceof Error ? e.message : 'Failed to open billing portal'); }
     setActionLoading(false);
   };
 
@@ -79,7 +79,7 @@ export function useBillingData() {
         const { url } = await res.json();
         if (url) window.location.href = url;
       }
-    } catch { }
+    } catch (e: unknown) { setError(e instanceof Error ? e.message : 'Failed to start checkout'); }
     setActionLoading(false);
   };
 
@@ -95,7 +95,7 @@ export function useBillingData() {
       if (res.ok) {
         await fetchData();
       }
-    } catch { }
+    } catch (e: unknown) { setError(e instanceof Error ? e.message : 'Failed to cancel subscription'); }
     setActionLoading(false);
   };
 
@@ -110,7 +110,7 @@ export function useBillingData() {
       if (res.ok) {
         await fetchData();
       }
-    } catch { }
+    } catch (e: unknown) { setError(e instanceof Error ? e.message : 'Failed to reactivate subscription'); }
     setActionLoading(false);
   };
 

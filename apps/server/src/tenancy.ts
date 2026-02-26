@@ -2,6 +2,8 @@ import type { Request, Response, NextFunction } from 'express';
 import type { Tenant } from './generated/prisma/index.js';
 import { PrismaClient } from './generated/prisma/index.js';
 import { getTenancyModule } from './tenancyLoader.js';
+import jwt from 'jsonwebtoken';
+import { getJwtSecret } from './api/utils/authHelpers.js';
 
 // Extended request with tenant properties
 interface TenantRequest extends Request {
@@ -36,6 +38,25 @@ function sanitizeSlug(s: string): string {
   return s.trim().toLowerCase().replace(/[^a-z0-9-_]/g, '');
 }
 
+/**
+ * Try to resolve a tenant from the JWT auth token's `tid` claim.
+ * Used as fallback when no tenant can be determined from host/header/query
+ * (typically in development on localhost without subdomains).
+ */
+async function resolveTokenTenant(req: Request): Promise<Tenant | null> {
+  try {
+    const token = (req as any).cookies?.auth_token
+      || req.headers['authorization']?.toString()?.replace('Bearer ', '');
+    if (!token) return null;
+    const payload = jwt.verify(token, getJwtSecret()) as any;
+    const tenantId = payload?.tid;
+    if (!tenantId) return null;
+    return await prisma.tenant.findUnique({ where: { id: tenantId } });
+  } catch {
+    return null;
+  }
+}
+
 export async function tenantMiddleware(req: TenantRequest, res: Response, next: NextFunction) {
   try {
     // Feature-Gate: In OSS-Only Builds ohne Enterprise-Package strikt Single-Tenant fahren
@@ -60,6 +81,20 @@ export async function tenantMiddleware(req: TenantRequest, res: Response, next: 
     const fromQuery = (req.query?.tenant || '').toString();
     const fromHost = extractTenantSlugFromHost(extractHost(req) || null) || '';
     const raw = fromHeader || fromQuery || fromHost || '';
+
+    // JWT-based tenant fallback: When no tenant can be determined from host/header/query
+    // (e.g. localhost in development), use the tenant ID from the user's auth token.
+    // In production, subdomain always provides the tenant, so this fallback is never reached.
+    if (!raw) {
+      const tokenTenant = await resolveTokenTenant(req);
+      if (tokenTenant) {
+        req.tenantSlug = tokenTenant.slug;
+        req.tenant = tokenTenant;
+        req.tenantId = tokenTenant.id;
+        return next();
+      }
+    }
+
     const fallback = process.env.DEFAULT_TENANT_SLUG || 'default';
     const slug = sanitizeSlug(raw || fallback) || 'default';
 

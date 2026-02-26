@@ -2,6 +2,8 @@ import React from 'react';
 import { TableContainer, Table, THead, TBody, Tr, Th, Td, Button, Input } from '../system';
 import { logger } from '../../lib/logger';
 
+type AvailablePlan = { priceId: string; name: string; amount: number; currency: string; interval: string; concurrentLimit: number };
+
 type TenantRow = {
   id: string;
   slug: string;
@@ -25,12 +27,15 @@ export function TenantsAdmin(props: { apiBase: string }) {
   const [createSlug, setCreateSlug] = React.useState('');
   const [createName, setCreateName] = React.useState('');
   const [deletingId, setDeletingId] = React.useState<string | null>(null);
+  const [plans, setPlans] = React.useState<AvailablePlan[]>([]);
 
   const load = React.useCallback(async () => {
     try {
       setLoading(true);
       const res = await fetch(`${apiBase}/admin/tenants`, { credentials: 'include' });
       if (res.ok) setRows(await res.json());
+      const plansRes = await fetch(`${apiBase}/billing/plans`, { credentials: 'include' });
+      if (plansRes.ok) { const data = await plansRes.json(); setPlans(data.plans || []); }
     } catch (err) { logger.warn('[TenantsAdmin] Failed to load tenants', err); }
     setLoading(false);
   }, [apiBase]);
@@ -133,12 +138,33 @@ export function TenantsAdmin(props: { apiBase: string }) {
                 </Td>
                 <Td>
                   <div style={{ display:'flex', gap:6, alignItems:'center' }}>
-                    <Button onClick={async ()=>{
-                      try {
-                        const res = await fetch(`${apiBase}/billing/checkout-session`, { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body: JSON.stringify({ plan: 'BASIC' }) });
-                        if (res.ok) { const { url } = await res.json(); window.open(url, '_blank'); }
-                      } catch (err) { logger.warn('[TenantsAdmin] Failed to start checkout', err); }
-                    }}>Checkout</Button>
+                    {plans.length > 0 ? (
+                      <>
+                        <select
+                          id={`plan-${r.id}`}
+                          defaultValue=""
+                          style={{ padding: '4px 6px', fontSize: 13, borderRadius: 4, border: '1px solid var(--border, #ccc)' }}
+                        >
+                          <option value="" disabled>Plan…</option>
+                          {plans.map(p => (
+                            <option key={p.priceId} value={p.priceId}>
+                              {p.name} ({p.amount} {p.currency}/{p.interval})
+                            </option>
+                          ))}
+                        </select>
+                        <Button onClick={async () => {
+                          const select = document.getElementById(`plan-${r.id}`) as HTMLSelectElement | null;
+                          const priceId = select?.value;
+                          if (!priceId) return;
+                          try {
+                            const res = await fetch(`${apiBase}/billing/checkout-session`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ priceId }) });
+                            if (res.ok) { const { url } = await res.json(); window.open(url, '_blank'); }
+                          } catch (err) { logger.warn('[TenantsAdmin] Failed to start checkout', err); }
+                        }}>Checkout</Button>
+                      </>
+                    ) : (
+                      <span style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>Keine Pläne</span>
+                    )}
                     <Button onClick={async ()=>{
                       try {
                         const res = await fetch(`${apiBase}/billing/portal-session`, { method:'POST', credentials:'include' });

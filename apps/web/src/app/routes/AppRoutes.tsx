@@ -5,8 +5,10 @@ import { PrivacyPolicy } from '../../ui/legal/PrivacyPolicy';
 import { TermsOfService } from '../../ui/legal/TermsOfService';
 import { Impressum } from '../../ui/legal/Impressum';
 import { getApiBaseFromWindow } from '../../lib/runtimeConfig';
+import { BillingSuccessPage } from '../../ui/billing/BillingSuccessPage';
+import { BillingCancelPage } from '../../ui/billing/BillingCancelPage';
 
-type Route = 'landing' | 'pricing' | 'signup' | 'app' | 'privacy' | 'terms' | 'impressum' | 'verify';
+type Route = 'landing' | 'pricing' | 'signup' | 'app' | 'privacy' | 'terms' | 'impressum' | 'verify' | 'billing-success' | 'billing-cancel';
 
 /**
  * Simple hash-based routing for public pages and the main app.
@@ -45,6 +47,10 @@ export function AppRoutes() {
         const params = new URLSearchParams(hash.split('?')[1] || '');
         setVerifyToken(params.get('token') || undefined);
         setRoute('verify');
+      } else if (hash.startsWith('/billing/success')) {
+        setRoute('billing-success');
+      } else if (hash.startsWith('/billing/cancel')) {
+        setRoute('billing-cancel');
       } else if (hash === '/app' || hash.startsWith('/app')) {
         setRoute('app');
       } else {
@@ -139,6 +145,11 @@ export function AppRoutes() {
           onBack={() => navigate('landing')}
         />
       );
+
+    case 'billing-success':
+      return <BillingSuccessPage onNavigate={() => { window.location.hash = '#/app'; }} />;
+    case 'billing-cancel':
+      return <BillingCancelPage onNavigate={() => { window.location.hash = '#/app'; }} />;
 
     case 'app':
     default:
