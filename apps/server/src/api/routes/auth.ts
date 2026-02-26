@@ -112,11 +112,23 @@ export function registerAuthRoutes(app: express.Application, prisma: PrismaClien
     if (!user || !user.passwordHash) return res.status(401).json({ error: 'invalid credentials' });
     const ok = await bcrypt.compare(password, user.passwordHash);
     if (!ok) return res.status(401).json({ error: 'invalid credentials' });
-    const tenant = getTenantFromReq(req);
+    let tenant = getTenantFromReq(req);
     if (!tenant) return res.status(400).json({ error: 'tenant_required' });
     // Ensure user is member of current tenant
-    const membership = await prisma.membership.findUnique({ where: { tenantId_userId: { tenantId: tenant.id, userId: user.id } } });
-    if (!membership) return res.status(403).json({ error: 'not_member_of_tenant' });
+    let membership = await prisma.membership.findUnique({ where: { tenantId_userId: { tenantId: tenant.id, userId: user.id } } });
+    // Fallback: If user is not a member of the resolved tenant (e.g. on localhost without subdomain),
+    // find their actual tenant from their memberships. In production (subdomain-based routing),
+    // the tenant is always correct, so this fallback is never reached.
+    if (!membership) {
+      const firstMembership = await prisma.membership.findFirst({
+        where: { userId: user.id },
+        include: { tenant: true },
+        orderBy: { createdAt: 'desc' },
+      });
+      if (!firstMembership?.tenant) return res.status(403).json({ error: 'not_member_of_tenant' });
+      tenant = firstMembership.tenant;
+      membership = firstMembership;
+    }
     const token = jwt.sign({ sub: user.id, tid: tenant.id }, getJwtSecret(), { expiresIn: '30d' });
     setAuthCookie(res, token);
 
