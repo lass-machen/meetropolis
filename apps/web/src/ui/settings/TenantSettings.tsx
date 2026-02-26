@@ -3,7 +3,7 @@ import { useTenantSettings } from './hooks/useTenantSettings';
 import { GeneralSettings } from './tenant/GeneralSettings';
 import { MemberSettings } from './tenant/MemberSettings';
 
-export function TenantSettings({ onClose }: { onClose: () => void }) {
+export function TenantSettings({ onClose: _onClose }: { onClose: () => void }) {
   const [activeTab, setActiveTab] = React.useState<'general' | 'members'>('general');
 
   const {
@@ -25,109 +25,53 @@ export function TenantSettings({ onClose }: { onClose: () => void }) {
   }, [fetchData]);
 
   if (loading) {
-    return (
-      <div style={styles.overlay}>
-        <div style={styles.modal}>
-          <div style={styles.loading}>Loading organization settings...</div>
-        </div>
-      </div>
-    );
+    return <div style={styles.loading}>Loading organization settings...</div>;
   }
 
   return (
-    <div style={styles.overlay}>
-      <div style={styles.modal}>
-        <div style={styles.header}>
-          <h2 style={styles.title}>Organization Settings</h2>
-          <button onClick={onClose} style={styles.closeBtn}>&times;</button>
-        </div>
-
-        <div style={styles.tabs}>
-          <button
-            onClick={() => setActiveTab('general')}
-            style={{ ...styles.tab, ...(activeTab === 'general' ? styles.tabActive : {}) }}
-          >
-            General
-          </button>
-          <button
-            onClick={() => setActiveTab('members')}
-            style={{ ...styles.tab, ...(activeTab === 'members' ? styles.tabActive : {}) }}
-          >
-            Members ({members.length})
-          </button>
-        </div>
-
-        <div style={styles.content}>
-          {error && <div style={styles.error}>{error}</div>}
-          {success && <div style={styles.success}>{success}</div>}
-
-          {activeTab === 'general' && tenant && (
-            <GeneralSettings
-              tenant={tenant}
-              onNavigateToMembers={() => setActiveTab('members')}
-            />
-          )}
-
-          {activeTab === 'members' && (
-            <MemberSettings
-              members={members}
-              saving={saving}
-              onChangeRole={handleChangeRole}
-              onRemoveMember={handleRemoveMember}
-              onInvite={handleInvite}
-              onSuccess={setSuccess}
-            />
-          )}
-        </div>
+    <>
+      <div style={styles.tabs}>
+        <button
+          onClick={() => setActiveTab('general')}
+          style={{ ...styles.tab, ...(activeTab === 'general' ? styles.tabActive : {}) }}
+        >
+          General
+        </button>
+        <button
+          onClick={() => setActiveTab('members')}
+          style={{ ...styles.tab, ...(activeTab === 'members' ? styles.tabActive : {}) }}
+        >
+          Members ({members.length})
+        </button>
       </div>
-    </div>
+
+      <div style={styles.content}>
+        {error && <div style={styles.error}>{error}</div>}
+        {success && <div style={styles.success}>{success}</div>}
+
+        {activeTab === 'general' && tenant && (
+          <GeneralSettings
+            tenant={tenant}
+            onNavigateToMembers={() => setActiveTab('members')}
+          />
+        )}
+
+        {activeTab === 'members' && (
+          <MemberSettings
+            members={members}
+            saving={saving}
+            onChangeRole={handleChangeRole}
+            onRemoveMember={handleRemoveMember}
+            onInvite={handleInvite}
+            onSuccess={setSuccess}
+          />
+        )}
+      </div>
+    </>
   );
 }
 
 const styles: Record<string, React.CSSProperties> = {
-  overlay: {
-    position: 'fixed',
-    inset: 0,
-    background: 'rgba(0,0,0,0.6)',
-    backdropFilter: 'blur(4px)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 9999,
-  },
-  modal: {
-    background: 'var(--glass, rgba(30,30,30,0.95))',
-    borderRadius: 16,
-    border: '1px solid var(--border, rgba(255,255,255,0.1))',
-    width: '90%',
-    maxWidth: 600,
-    maxHeight: '85vh',
-    display: 'flex',
-    flexDirection: 'column',
-    overflow: 'hidden',
-  },
-  header: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: '16px 20px',
-    borderBottom: '1px solid var(--border, rgba(255,255,255,0.1))',
-  },
-  title: {
-    margin: 0,
-    fontSize: 18,
-    fontWeight: 600,
-    color: 'var(--fg, #fff)',
-  },
-  closeBtn: {
-    background: 'none',
-    border: 'none',
-    fontSize: 24,
-    cursor: 'pointer',
-    color: 'var(--fg-subtle, #888)',
-    padding: 0,
-    lineHeight: 1,
-  },
   tabs: {
     display: 'flex',
     gap: 4,
