@@ -229,12 +229,14 @@ export class MainScene extends Phaser.Scene {
       this.nameLabelManager.setHeroLabelVisibility(false);
       this.nameLabelManager.setAllRemoteLabelsVisibility(false);
       try { this.bubbleOutlines.forEach(g => g.setVisible(false)); } catch { }
+      try { this.objectManager.setAllSpritesVisible(false); } catch { }
       try { this.fetchAndApplyServerLayers(); } catch { }
       this.uiManager.loadZonesFromLocalStorage();
     } else {
       this.nameLabelManager.setHeroLabelVisibility(true);
       this.nameLabelManager.setAllRemoteLabelsVisibility(true);
       try { this.bubbleOutlines.forEach(g => g.setVisible(true)); } catch { }
+      try { this.objectManager.setAllSpritesVisible(true); } catch { }
       this.uiManager.hideEditorOverlays();
       if (this.v2) try { this.collisionLayer?.setVisible(false); } catch { }
     }

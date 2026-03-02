@@ -233,10 +233,57 @@ export class EditorInputHandler {
         window.dispatchEvent(new CustomEvent('editor:tileUp', { detail: { tileX, tileY } }));
       } catch { }
       gameBridge.onPointerUpTile({ tileX, tileY });
+
+      // Asset placement (stamp mode) for objects & structures — must run before
+      // applyEditorAction() because asset tool doesn't use drag selection.
+      if (this.handleAssetPlacement(tileX, tileY)) {
+        this.cleanupDragSelection();
+        return;
+      }
     }
 
     this.applyEditorAction(tileX, tileY);
     this.cleanupDragSelection();
+  }
+
+  /**
+   * Handle asset tool placement for objects & structures (stamp mode).
+   * Returns true if the placement was handled and no further action is needed.
+   */
+  private handleAssetPlacement(tileX: number, tileY: number): boolean {
+    const editorState = EditorService.getState();
+    if (editorState.tool !== 'asset' || !editorState.pendingAsset) {
+      return false;
+    }
+
+    // Only stamp-place non-terrain assets (objects / structures)
+    if (editorState.pendingAsset.category === 'terrain') {
+      return false;
+    }
+
+    EditorService.dispatch({ type: 'PLACE_ASSET', tileX, tileY });
+
+    EditorService.dispatch({
+      type: 'ADD_PENDING_OBJECT_CREATE',
+      object: {
+        id: -(Date.now()),
+        assetPackUuid: editorState.pendingAsset.packUuid || '',
+        itemId: editorState.pendingAsset.itemId || '',
+        category: editorState.pendingAsset.category || 'objects',
+        tileX,
+        tileY,
+        width: editorState.pendingAsset.width || 16,
+        height: editorState.pendingAsset.height || 16,
+        collide: editorState.pendingAsset.collide || false,
+        zIndex: 0,
+        scaleFactor: editorState.pendingAsset.scaleFactor || 1,
+        rotation: editorState.pendingAsset.rotation || 0,
+        dataUrl: editorState.pendingAsset.dataUrl,
+        _pending: 'add',
+      },
+    });
+
+    return true;
   }
 
   private applyEditorAction(tileX: number, tileY: number) {

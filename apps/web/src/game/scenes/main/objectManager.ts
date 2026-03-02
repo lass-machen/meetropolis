@@ -40,6 +40,7 @@ export class ObjectManager {
   private loadedChunks: Set<string> = new Set();
   private loadingChunks: Set<string> = new Set();
   private pendingTextureLoads: Map<string, Array<() => void>> = new Map();
+  private spritesVisible = true;
 
   constructor(config: ObjectManagerConfig) {
     this.scene = config.scene;
@@ -183,6 +184,13 @@ export class ObjectManager {
     this.pendingTextureLoads.clear();
   }
 
+  setAllSpritesVisible(visible: boolean): void {
+    this.spritesVisible = visible;
+    for (const sprite of this.sprites.values()) {
+      sprite.setVisible(visible);
+    }
+  }
+
   private createSprite(obj: MapObjectData, textureKey: string, useDirectionalImage = false): void {
     if (this.sprites.has(obj.id)) return;
     if (!this.scene.textures.exists(textureKey)) return;
@@ -198,6 +206,7 @@ export class ObjectManager {
     image.setDepth(obj.zIndex);
     const sf = obj.scaleFactor ?? 1;
     if (sf !== 1) image.setScale(sf);
+    image.setVisible(this.spritesVisible);
     this.sprites.set(obj.id, image);
   }
 
