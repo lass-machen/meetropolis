@@ -291,6 +291,9 @@ export class MainScene extends Phaser.Scene {
   setAssetPreview(preview: { dataUrl: string; width?: number | undefined; height?: number | undefined } | null) { setAssetPreview(this, preview); }
   async applyTerrainPaint(edit: { rect: { startX: number; startY: number; endX: number; endY: number }; dataUrl: string; attempt?: number }) { void edit; }
   eraseTerrainRect(rect: { startX: number; startY: number; endX: number; endY: number }) { this.tileManager.eraseTerrainRect(rect, this.currentMapId); }
+  paintTerrainRect(layer: string, rect: { x0: number; y0: number; x1: number; y1: number }, tileRefId: number) {
+    this.tileManager?.paintTerrainRect(layer, rect, tileRefId);
+  }
   applyWallPaint(edit: { rect: { startX: number; startY: number; endX: number; endY: number }; wallTypeId: number }) {
     if (!this.autotileGrid || !this.autotileRenderer) return;
     const { rect, wallTypeId } = edit;
@@ -316,7 +319,18 @@ export class MainScene extends Phaser.Scene {
     }
     this.autotileRenderer.updateArea(affected);
   }
-  setSelectionRect(rect: { x: number; y: number; w: number; h: number } | null) { this.editorInputHandler.setSelectionGraphics(this.selectionG); }
+  setSelectionRect(rect: { x: number; y: number; w: number; h: number } | null) {
+    if (!this.selectionG) {
+      this.selectionG = this.add.graphics();
+      this.selectionG.setDepth(7);
+    }
+    this.selectionG.clear();
+    if (!rect) return;
+    this.selectionG.lineStyle(1, 0x22d3ee, 1);
+    this.selectionG.fillStyle(0x22d3ee, 0.12);
+    this.selectionG.fillRect(rect.x, rect.y, rect.w, rect.h);
+    this.selectionG.strokeRect(rect.x, rect.y, rect.w, rect.h);
+  }
   applyTilePaint(edit: { layer: 'EditorGround' | 'EditorWalls' | 'Collision'; tilesetKey: string; tileIndex: number; rect: { startX: number; startY: number; endX: number; endY: number } }) {
     this.tileManager.applyTilePaint(edit, this.currentMapId, this.collisionVisible, () => {
       this.collisionManager.ensureCollisionCollider();

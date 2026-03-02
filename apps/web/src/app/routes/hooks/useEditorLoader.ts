@@ -135,7 +135,7 @@ export function useEditorLoader({ me, apiBase, setEditor }: UseEditorLoaderParam
             const zones = Array.isArray(data.zones) ? data.zones.map((z: any) => {
               const anyZ = z || {};
               const pts = Array.isArray(anyZ.points) ? anyZ.points : Array.isArray(anyZ.polygon) ? anyZ.polygon : (anyZ.polygon && Array.isArray(anyZ.polygon.points)) ? anyZ.polygon.points : [];
-              return { name: anyZ.name, points: pts };
+              return { name: anyZ.name, points: pts, type: anyZ.type, portalTarget: anyZ.portalTarget, portalSpawnX: anyZ.portalSpawnX, portalSpawnY: anyZ.portalSpawnY };
             }) : [];
             setEditorRef.current((s: any) => ({ ...s, zones }));
             try { gameBridge.setZoneOverlay(zones); } catch (e) { logger.debug('[WorldApp] Operation failed', e); }

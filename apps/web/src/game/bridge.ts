@@ -1,6 +1,7 @@
 import { EditorService } from '../services/EditorService';
 import { logger } from '../lib/logger';
 import { useMapStore } from '../state/mapStore';
+import { splitTileRefId, fetchStateV2, baseUrl as mapV2BaseUrl } from '../lib/mapV2';
 
 export type Direction = 'up' | 'down' | 'left' | 'right';
 
@@ -182,6 +183,16 @@ let lastDesiredPosition: { x: number; y: number } | null = null;
 
 // Editor-State-Caching ENTFERNT - EditorService ist jetzt Single Source of Truth
 // cachedZones, cachedAssets, cachedSpawnMarker, cachedTilesets, cachedBackgroundColor -> GELÖSCHT
+
+// V2 tileset cache for terrain ghost preview (populated via updateTilesetRegistry or lazy fetch)
+let v2TilesetCache: Array<{ slot: number; key: string; imageUrl: string; tileWidth: number; tileHeight: number; margin?: number | null; spacing?: number | null }> = [];
+let terrainPreviewGeneration = 0;
+
+function resolveImageUrl(url: string): string {
+  if (url.startsWith('data:')) return url;
+  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  return `${mapV2BaseUrl()}${url}`;
+}
 
 export const gameBridge: Bridge = {
   onLocalMove: () => { },
@@ -504,6 +515,7 @@ export const gameBridge: Bridge = {
     // DEPRECATED: Caching entfernt
   },
   updateTilesetRegistry: (registry) => {
+    v2TilesetCache = Array.isArray(registry) ? registry : [];
     try { sceneApi?.updateTilesetRegistry?.(registry); } catch (e) { logger.error('Failed to update tileset registry', e); }
   },
   handleObjectsUpdated: (data) => {
@@ -522,12 +534,16 @@ let lastSyncedState: {
   spawn: any;
   pendingAsset: any;
   active: boolean;
+  selectedTileRefId: number;
+  tool: string;
 } = {
   zonesLength: 0,
   assetsLength: 0,
   spawn: null,
   pendingAsset: null,
   active: false,
+  selectedTileRefId: 0,
+  tool: '',
 };
 
 // Debounce für Asset-Updates um initiale Multi-Calls zu vermeiden
@@ -580,6 +596,72 @@ EditorService.subscribe((state) => {
       gameBridge.setAssetPreview(null);
     }
     lastSyncedState.pendingAsset = state.pendingAsset;
+  }
+
+  // Sync Terrain Ghost Preview
+  const tileRefChanged = state.selectedTileRefId !== lastSyncedState.selectedTileRefId || state.tool !== lastSyncedState.tool;
+  if (tileRefChanged) {
+    lastSyncedState.selectedTileRefId = state.selectedTileRefId;
+    lastSyncedState.tool = state.tool;
+
+    if (state.tool === 'terrain' && state.selectedTileRefId > 0) {
+      const gen = ++terrainPreviewGeneration;
+      void (async () => {
+        try {
+          // Lazy-load V2 tileset cache if empty
+          if (v2TilesetCache.length === 0) {
+            const mapId = useMapStore.getState().currentMapId;
+            if (mapId) {
+              const v2State = await fetchStateV2(mapId);
+              if (v2State?.tilesetRegistry) {
+                v2TilesetCache = v2State.tilesetRegistry;
+              }
+            }
+          }
+
+          if (gen !== terrainPreviewGeneration) return;
+
+          const { slot, tileIndex } = splitTileRefId(state.selectedTileRefId);
+          const ts = v2TilesetCache.find(t => t.slot === slot);
+          if (!ts || !ts.imageUrl) return;
+
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          await new Promise<void>((resolve, reject) => {
+            img.onload = () => resolve();
+            img.onerror = () => reject(new Error('Image load failed'));
+            img.src = resolveImageUrl(ts.imageUrl);
+          });
+
+          if (gen !== terrainPreviewGeneration) return;
+
+          const tw = ts.tileWidth || 16;
+          const th = ts.tileHeight || 16;
+          const margin = ts.margin ?? 0;
+          const spacing = ts.spacing ?? 0;
+          const cols = Math.max(1, Math.floor((img.width - 2 * margin + spacing) / (tw + spacing)));
+          const col = tileIndex % cols;
+          const row = Math.floor(tileIndex / cols);
+          const sx = margin + col * (tw + spacing);
+          const sy = margin + row * (th + spacing);
+
+          const canvas = document.createElement('canvas');
+          canvas.width = tw;
+          canvas.height = th;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, sx, sy, tw, th, 0, 0, tw, th);
+            const dataUrl = canvas.toDataURL('image/png');
+            gameBridge.setAssetPreview({ dataUrl, width: tw, height: th });
+          }
+        } catch (e) {
+          logger.debug('[Bridge] Failed to create terrain ghost preview', e);
+        }
+      })();
+    } else if (state.tool !== 'asset' && !state.pendingAsset) {
+      ++terrainPreviewGeneration;
+      gameBridge.setAssetPreview(null);
+    }
   }
 
   // Sync Editor Mode & Collision Visibility (nur wenn geändert)
