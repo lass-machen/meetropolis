@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import type { Direction } from '../../bridge';
 import { logger } from '../../../lib/logger';
 import { avatarRegistry } from '../../avatarRegistry';
 
@@ -20,7 +21,7 @@ export class PlayerManager {
   private currentDirection: 'up' | 'down' | 'left' | 'right' = 'down';
   private lastReportedX = 0;
   private lastReportedY = 0;
-  private lastReportedDirection = 'down';
+  private lastReportedDirection: Direction = 'down';
   private mapRef: Phaser.Tilemaps.Tilemap;
   private avatarId: string;
 
@@ -97,7 +98,7 @@ export class PlayerManager {
     if (this.hero) this.hero.setAlpha(alpha);
   }
 
-  update(cursors: Phaser.Types.Input.Keyboard.CursorKeys, onMove?: (data: { x: number; y: number; direction: string }) => void) {
+  update(cursors: Phaser.Types.Input.Keyboard.CursorKeys, onMove?: (data: { x: number; y: number; direction: Direction }) => void) {
     const speed = 80;
     const body = this.hero.body;
     body.setVelocity(0);
@@ -171,7 +172,7 @@ export class PlayerManager {
     this.hero.setTexture(texture, frame);
   }
 
-  private reportMovement(onMove?: (data: { x: number; y: number; direction: string }) => void) {
+  private reportMovement(onMove?: (data: { x: number; y: number; direction: Direction }) => void) {
     const positionChanged = Math.abs(this.hero.x - this.lastReportedX) > 0.5 ||
                            Math.abs(this.hero.y - this.lastReportedY) > 0.5;
     const directionChanged = this.currentDirection !== this.lastReportedDirection;
@@ -184,7 +185,7 @@ export class PlayerManager {
     }
   }
 
-  getCurrentDirection(): string {
+  getCurrentDirection(): Direction {
     return this.currentDirection;
   }
 

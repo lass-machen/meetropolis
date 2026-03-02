@@ -3,16 +3,16 @@ import Phaser from 'phaser';
 export interface CollisionManagerConfig {
   scene: Phaser.Scene;
   hero: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
-  collisionLayer?: Phaser.Tilemaps.TilemapLayer;
+  collisionLayer?: Phaser.Tilemaps.TilemapLayer | undefined;
   mapRef: Phaser.Tilemaps.Tilemap;
 }
 
 export class CollisionManager {
   private scene: Phaser.Scene;
   private hero: Phaser.Types.Physics.Arcade.SpriteWithDynamicBody;
-  private collisionLayer?: Phaser.Tilemaps.TilemapLayer;
+  private collisionLayer: Phaser.Tilemaps.TilemapLayer | undefined;
   private mapRef: Phaser.Tilemaps.Tilemap;
-  private collisionCollider?: Phaser.Physics.Arcade.Collider;
+  private collisionCollider: Phaser.Physics.Arcade.Collider | undefined;
   private remotes: Map<string, Phaser.GameObjects.Sprite> = new Map();
 
   constructor(config: CollisionManagerConfig) {
@@ -22,7 +22,7 @@ export class CollisionManager {
     this.mapRef = config.mapRef;
   }
 
-  setCollisionLayer(layer?: Phaser.Tilemaps.TilemapLayer) {
+  setCollisionLayer(layer: Phaser.Tilemaps.TilemapLayer | undefined) {
     this.collisionLayer = layer;
   }
 

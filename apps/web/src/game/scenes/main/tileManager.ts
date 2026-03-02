@@ -6,20 +6,20 @@ import { V2State, computeFirstGids, tileRefIdToGid } from '../../../lib/mapV2';
 export interface TileManagerConfig {
   scene: Phaser.Scene;
   mapRef: Phaser.Tilemaps.Tilemap;
-  v2?: { state: V2State; firstGids: number[]; chunkSize: number };
-  editorGround?: Phaser.Tilemaps.TilemapLayer;
-  wallsLayer?: Phaser.Tilemaps.TilemapLayer;
-  collisionLayer?: Phaser.Tilemaps.TilemapLayer;
+  v2?: { state: V2State; firstGids: number[]; chunkSize: number } | undefined;
+  editorGround?: Phaser.Tilemaps.TilemapLayer | undefined;
+  wallsLayer?: Phaser.Tilemaps.TilemapLayer | undefined;
+  collisionLayer?: Phaser.Tilemaps.TilemapLayer | undefined;
   dynamicTilesets: Map<string, Phaser.Tilemaps.Tileset>;
 }
 
 export class TileManager {
   private scene: Phaser.Scene;
   private mapRef: Phaser.Tilemaps.Tilemap;
-  private v2?: { state: V2State; firstGids: number[]; chunkSize: number };
-  private editorGround?: Phaser.Tilemaps.TilemapLayer;
-  private wallsLayer?: Phaser.Tilemaps.TilemapLayer;
-  private collisionLayer?: Phaser.Tilemaps.TilemapLayer;
+  private v2: { state: V2State; firstGids: number[]; chunkSize: number } | undefined;
+  private editorGround: Phaser.Tilemaps.TilemapLayer | undefined;
+  private wallsLayer: Phaser.Tilemaps.TilemapLayer | undefined;
+  private collisionLayer: Phaser.Tilemaps.TilemapLayer | undefined;
   private dynamicTilesets: Map<string, Phaser.Tilemaps.Tileset>;
   private backgroundGraphics?: Phaser.GameObjects.Graphics;
   private borderGraphics?: Phaser.GameObjects.Graphics;
@@ -210,7 +210,7 @@ export class TileManager {
         body: JSON.stringify(payload),
       })
       .then(res => res.json().catch(() => ({})))
-      .then((data: any) => {
+      .then((_data: any) => {
         try {
           if (layerName === 'collision' && onCollisionUpdate && collisionVisible) {
             onCollisionUpdate();
@@ -285,7 +285,7 @@ export class TileManager {
     }
   }
 
-  setCollisionLayer(layer?: Phaser.Tilemaps.TilemapLayer) {
+  setCollisionLayer(layer: Phaser.Tilemaps.TilemapLayer | undefined) {
     this.collisionLayer = layer;
   }
 

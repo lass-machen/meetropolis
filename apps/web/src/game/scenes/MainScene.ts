@@ -6,12 +6,13 @@ import { logger } from '../../lib/logger';
 import { setBubbleMembers as uiSetBubbleMembers } from '../ui/bubbles';
 import { ensureRecenterUi, updateRecenterUiVisibility } from '../camera/recenterUi';
 import { setCollisionVisible, updateCollisionOverlay } from '../collision/overlay';
-import { setEditorAssets, setAssetPreview } from '../editor/editorAssets';
+import { setAssetPreview } from '../editor/editorAssets';
 import { fetchAndApplyServerLayers } from '../map/serverSync';
 import { loadVisibleChunks, applyChunkUpdates } from '../map/chunks';
 import type { ChunkLayerName } from '../map/chunks';
 import { registerTileset } from '../map/tilesets';
 import { EditorService } from '../../services/EditorService';
+import { EditorIntegration } from '../editor/integration';
 import { AutotileGrid, AutotileRenderer } from '../autotile';
 import { avatarRegistry } from '../avatarRegistry';
 import { useMapStore } from '../../state/mapStore';
@@ -47,8 +48,6 @@ export class MainScene extends Phaser.Scene {
   private collisionLayer?: Phaser.Tilemaps.TilemapLayer;
   private dynamicTilesets: Map<string, Phaser.Tilemaps.Tileset> = new Map();
   private bubbleOutlines: Map<string, Phaser.GameObjects.Graphics> = new Map();
-  private labelCamera?: Phaser.Cameras.Scene2D.Camera;
-  private labelLayer?: Phaser.GameObjects.Layer;
   private ghostSprite?: Phaser.GameObjects.Image;
   private v2?: { state: V2State; firstGids: number[]; chunkSize: number };
   private loadedChunks: Set<string> = new Set();
@@ -70,6 +69,7 @@ export class MainScene extends Phaser.Scene {
   public collisionOverlay?: Phaser.GameObjects.Graphics;
   public editorSprites: Map<string, Phaser.GameObjects.Image> = new Map();
   public pendingTextures: Set<string> = new Set();
+  private editorIntegration?: EditorIntegration;
 
   constructor() {
     super('Main');
@@ -88,8 +88,9 @@ export class MainScene extends Phaser.Scene {
     Object.assign(this, mapData);
 
     const cameraData = SceneInitializer.initializeCamera(this, this.mapRef!);
-    this.labelCamera = cameraData.labelCamera;
-    this.labelLayer = cameraData.labelLayer;
+    // Camera data is initialized by SceneInitializer (labelCamera/labelLayer are
+    // managed internally and don't need to be stored on MainScene).
+    void cameraData;
 
     this.autotileGrid = new AutotileGrid();
     this.autotileRenderer = new AutotileRenderer(this, this.autotileGrid, this.mapRef?.tileWidth ?? 16);
@@ -104,6 +105,9 @@ export class MainScene extends Phaser.Scene {
     this.setupEditorSubscriptions();
     this.loadServerData();
     this.setupCleanup();
+
+    // Initialize EditorIntegration in rendererOnly mode (input handling stays in MainScene)
+    this.editorIntegration = new EditorIntegration(this, this.mapRef?.tileWidth ?? 16, { rendererOnly: true });
   }
 
   private initializeManagers() {
@@ -127,7 +131,7 @@ export class MainScene extends Phaser.Scene {
     this.uiManager = new UIManager({ scene: this, getEditorMode: () => this.editorMode });
     this.uiManager.init();
     this.objectManager = new ObjectManager({ scene: this as any });
-    this.editorInputHandler = new EditorInputHandler({ scene: this, mapRef: this.mapRef!, getEditorMode: () => this.editorMode, isPanning: () => this.cameraController?.isPanning() || false, isSpaceHeld: () => this.cameraController?.isSpaceHeld() || false, getSpaceKey: () => this.spaceKey, ghostSprite: this.ghostSprite, selectionG: this.selectionG });
+    this.editorInputHandler = new EditorInputHandler({ scene: this, mapRef: this.mapRef!, getEditorMode: () => this.editorMode, isPanning: () => this.cameraController?.isPanning() || false, isSpaceHeld: () => this.cameraController?.isSpaceHeld() || false, getSpaceKey: () => this.spaceKey, ghostSprite: this.ghostSprite, selectionG: this.selectionG, getEditorRenderer: () => this.getEditorRenderer() });
     this.editorInputHandler.init();
   }
 
@@ -182,7 +186,7 @@ export class MainScene extends Phaser.Scene {
       this.tileManager.updateBackgrounds();
       this.tileManager.updateGrid();
       this.uiManager.updateCursor(this.cameraController?.isPanning() || false, this.cameraController?.isSpaceHeld() || false);
-      this.uiManager.setSpawnMarker(EditorService.getState().spawn || null);
+      // Spawn rendering is now handled by EditorRenderer via EditorIntegration
     });
   }
 
@@ -204,8 +208,8 @@ export class MainScene extends Phaser.Scene {
   private setupCleanup() {
     gameBridge.setSceneApi(this);
     (window as any).currentPhaserScene = this;
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => { try { this.objectManager.destroy(); } catch { } try { gameBridge.setSceneApi(null); } catch { } });
-    this.events.once(Phaser.Scenes.Events.DESTROY, () => { try { this.objectManager.destroy(); } catch { } try { gameBridge.setSceneApi(null); } catch { } });
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => { try { this.editorIntegration?.destroy(); } catch { } try { this.objectManager.destroy(); } catch { } try { gameBridge.setSceneApi(null); } catch { } });
+    this.events.once(Phaser.Scenes.Events.DESTROY, () => { try { this.editorIntegration?.destroy(); } catch { } try { this.objectManager.destroy(); } catch { } try { gameBridge.setSceneApi(null); } catch { } });
   }
 
   recenterCamera() {
@@ -284,11 +288,19 @@ export class MainScene extends Phaser.Scene {
   setDesiredPosition(pos: { x: number; y: number } | null) { this.playerManager.setDesiredPosition(pos); }
   setMovementLocked(locked: boolean) { this.playerManager.setMovementLocked(locked); }
   findFreeSpotNear(targetId: string, options?: { radius?: number; step?: number }): { x: number; y: number } | null { return this.collisionManager.findFreeSpotNear(targetId, options); }
-  setZoneOverlay(polys: { name: string; points: any[] }[]) { this.uiManager.setZoneOverlay(polys); }
+  setZoneOverlay(_polys: { name: string; points: any[] }[]) { /* Handled by EditorRenderer */ }
   setZonesVisible(visible: boolean) { this.uiManager.setZonesVisible(visible); }
-  setSpawnMarker(pos: { x: number; y: number } | null) { this.uiManager.setSpawnMarker(pos); }
-  setEditorAssets(assets: { id: string; key: string; dataUrl: string; x: number; y: number }[]) { setEditorAssets(this, assets); }
-  setAssetPreview(preview: { dataUrl: string; width?: number | undefined; height?: number | undefined } | null) { setAssetPreview(this, preview); }
+  setSpawnMarker(_pos: { x: number; y: number } | null) { /* Handled by EditorRenderer */ }
+  setEditorAssets(_assets: { id: string; key: string; dataUrl: string; x: number; y: number }[]) { /* Handled by EditorRenderer */ }
+  setAssetPreview(preview: { dataUrl: string; width?: number | undefined; height?: number | undefined; rotation?: number | undefined; packUuid?: string | undefined; itemId?: string | undefined } | null) {
+    if (this.editorIntegration) {
+      this.editorIntegration.getRenderer().renderGhost(preview);
+    } else {
+      // Fallback auf alte Implementierung
+      setAssetPreview(this, preview);
+    }
+  }
+  public getEditorRenderer() { return this.editorIntegration?.getRenderer() ?? null; }
   async applyTerrainPaint(edit: { rect: { startX: number; startY: number; endX: number; endY: number }; dataUrl: string; attempt?: number }) { void edit; }
   eraseTerrainRect(rect: { startX: number; startY: number; endX: number; endY: number }) { this.tileManager.eraseTerrainRect(rect, this.currentMapId); }
   paintTerrainRect(layer: string, rect: { x0: number; y0: number; x1: number; y1: number }, tileRefId: number) {
@@ -319,17 +331,8 @@ export class MainScene extends Phaser.Scene {
     }
     this.autotileRenderer.updateArea(affected);
   }
-  setSelectionRect(rect: { x: number; y: number; w: number; h: number } | null) {
-    if (!this.selectionG) {
-      this.selectionG = this.add.graphics();
-      this.selectionG.setDepth(7);
-    }
-    this.selectionG.clear();
-    if (!rect) return;
-    this.selectionG.lineStyle(1, 0x22d3ee, 1);
-    this.selectionG.fillStyle(0x22d3ee, 0.12);
-    this.selectionG.fillRect(rect.x, rect.y, rect.w, rect.h);
-    this.selectionG.strokeRect(rect.x, rect.y, rect.w, rect.h);
+  setSelectionRect(_rect: { x: number; y: number; w: number; h: number } | null) {
+    // Handled by EditorRenderer via subscription and EditorInputHandler via its own selectionG
   }
   applyTilePaint(edit: { layer: 'EditorGround' | 'EditorWalls' | 'Collision'; tilesetKey: string; tileIndex: number; rect: { startX: number; startY: number; endX: number; endY: number } }) {
     this.tileManager.applyTilePaint(edit, this.currentMapId, this.collisionVisible, () => {

@@ -44,7 +44,7 @@ type Bridge = {
   setEditorMode: (enabled: boolean) => void;
   handleEditorUpdate?: (data: any) => void;
   // MapObject live updates
-  handleObjectsUpdated: (data: { action: string; objects?: any[]; objectIds?: number[] }) => void;
+  handleObjectsUpdated: (data: { action: 'add' | 'remove' | 'update'; objects?: any[] | undefined; objectIds?: number[] | undefined }) => void;
   // Background color
   setBackgroundColor: (hex: string) => void;
   // Spawn-Marker Overlay (Editor)
@@ -94,7 +94,7 @@ export type SceneApi = {
   forceReloadMap?: () => void;
   updateTilesetRegistry?: (registry: any[]) => void;
   changeHeroAvatar?: (avatarId: string) => void;
-  handleObjectsUpdated?: (data: { action: string; objects?: any[]; objectIds?: number[] }) => void;
+  handleObjectsUpdated?: (data: { action: 'add' | 'remove' | 'update'; objects?: any[] | undefined; objectIds?: number[] | undefined }) => void;
   applyTerrainPaint?: (edit: { rect: { startX: number; startY: number; endX: number; endY: number }; dataUrl: string }) => void;
   paintTerrainRect?: (layer: string, rect: { x0: number; y0: number; x1: number; y1: number }, tileRefId: number) => void;
   eraseTerrainRect?: (rect: { startX: number; startY: number; endX: number; endY: number }) => void;
@@ -119,7 +119,7 @@ async function processTilesetQueue(): Promise<void> {
   if (isProcessingTilesets || tilesetQueue.length === 0) return;
   isProcessingTilesets = true;
 
-  const anyWin = window as Record<string, unknown>;
+  const anyWin = window as unknown as Record<string, unknown>;
   const base = (anyWin.desktop as { apiBase?: string })?.apiBase
     || anyWin.__MEETROPOLIS_API_BASE__ as string
     || anyWin.VITE_API_BASE as string
@@ -529,76 +529,20 @@ export const gameBridge: Bridge = {
 // Subscribe EditorService zu gameBridge für automatische Synchronisation
 // WICHTIG: Nur bei tatsächlichen Änderungen updaten, um Render-Loops zu vermeiden
 let lastSyncedState: {
-  zonesLength: number;
-  assetsLength: number;
-  spawn: any;
-  pendingAsset: any;
   active: boolean;
   selectedTileRefId: number;
   tool: string;
 } = {
-  zonesLength: 0,
-  assetsLength: 0,
-  spawn: null,
-  pendingAsset: null,
   active: false,
   selectedTileRefId: 0,
   tool: '',
 };
 
-// Debounce für Asset-Updates um initiale Multi-Calls zu vermeiden
-let assetUpdateTimeout: ReturnType<typeof setTimeout> | null = null;
-
 EditorService.subscribe((state) => {
-  // Sync Zones (nur wenn Anzahl geändert - schneller als JSON.stringify)
-  if (state.zones.length !== lastSyncedState.zonesLength) {
-    gameBridge.setZoneOverlay(state.zones);
-    lastSyncedState.zonesLength = state.zones.length;
-  }
+  // Zone, Asset, Spawn, and Asset-Preview sync are now handled by EditorRenderer via EditorIntegration.
+  // Only Terrain Ghost Preview and Editor Mode toggling remain here.
 
-  // Sync Assets (debounced um initiale Multi-Calls zu vermeiden)
-  const assetsChanged = state.assets.length !== lastSyncedState.assetsLength;
-  if (assetsChanged) {
-    lastSyncedState.assetsLength = state.assets.length;
-
-    // Clear existing timeout
-    if (assetUpdateTimeout) {
-      clearTimeout(assetUpdateTimeout);
-    }
-
-    // Debounce Asset-Updates (50ms)
-    assetUpdateTimeout = setTimeout(() => {
-      gameBridge.setEditorAssets(state.assets);
-      assetUpdateTimeout = null;
-    }, 50);
-  }
-
-  // Sync Spawn (nur wenn geändert)
-  const spawnChanged = JSON.stringify(state.spawn) !== JSON.stringify(lastSyncedState.spawn);
-  if (spawnChanged) {
-    gameBridge.setSpawnMarker(state.spawn);
-    lastSyncedState.spawn = state.spawn;
-  }
-
-  // Sync Asset Preview (nur wenn geändert)
-  const pendingAssetChanged = JSON.stringify(state.pendingAsset) !== JSON.stringify(lastSyncedState.pendingAsset);
-  if (pendingAssetChanged) {
-    if (state.pendingAsset) {
-      gameBridge.setAssetPreview({
-        dataUrl: state.pendingAsset.dataUrl,
-        width: state.pendingAsset.width,
-        height: state.pendingAsset.height,
-        rotation: state.pendingAsset.rotation,
-        packUuid: state.pendingAsset.packUuid,
-        itemId: state.pendingAsset.itemId,
-      });
-    } else {
-      gameBridge.setAssetPreview(null);
-    }
-    lastSyncedState.pendingAsset = state.pendingAsset;
-  }
-
-  // Sync Terrain Ghost Preview
+  // Sync Terrain Ghost Preview (EditorRenderer does NOT handle terrain ghost)
   const tileRefChanged = state.selectedTileRefId !== lastSyncedState.selectedTileRefId || state.tool !== lastSyncedState.tool;
   if (tileRefChanged) {
     lastSyncedState.selectedTileRefId = state.selectedTileRefId;
@@ -652,7 +596,7 @@ EditorService.subscribe((state) => {
           if (ctx) {
             ctx.drawImage(img, sx, sy, tw, th, 0, 0, tw, th);
             const dataUrl = canvas.toDataURL('image/png');
-            gameBridge.setAssetPreview({ dataUrl, width: tw, height: th });
+            sceneApi?.setAssetPreview?.({ dataUrl, width: tw, height: th });
           }
         } catch (e) {
           logger.debug('[Bridge] Failed to create terrain ghost preview', e);
@@ -660,7 +604,7 @@ EditorService.subscribe((state) => {
       })();
     } else if (state.tool !== 'asset' && !state.pendingAsset) {
       ++terrainPreviewGeneration;
-      gameBridge.setAssetPreview(null);
+      sceneApi?.setAssetPreview?.(null);
     }
   }
 

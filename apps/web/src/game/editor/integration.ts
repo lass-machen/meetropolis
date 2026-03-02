@@ -1,7 +1,9 @@
 /**
  * Editor Integration - Verbindet MainScene mit neuem Editor-System
  *
- * Initialisiert EditorRenderer und EditorInputHandler für eine Phaser Scene
+ * Initialisiert EditorRenderer und EditorInputHandler für eine Phaser Scene.
+ * Im `rendererOnly` Modus wird kein EditorInputHandler erstellt – das ist für
+ * die MainScene gedacht, in der der bestehende Input-Code weiterhin greift.
  */
 
 import Phaser from 'phaser';
@@ -9,14 +11,21 @@ import { EditorRenderer } from './EditorRenderer';
 import { EditorInputHandler } from './EditorInputHandler';
 import { EditorService } from '../../services/EditorService';
 
+export interface EditorIntegrationOptions {
+  rendererOnly?: boolean;
+}
+
 export class EditorIntegration {
   private renderer: EditorRenderer;
-  private inputHandler: EditorInputHandler;
+  private inputHandler: EditorInputHandler | null = null;
   private stateUnsubscribe?: () => void;
 
-  constructor(scene: Phaser.Scene, tileSize: number = 16) {
+  constructor(scene: Phaser.Scene, tileSize: number = 16, options?: EditorIntegrationOptions) {
     this.renderer = new EditorRenderer(scene);
-    this.inputHandler = new EditorInputHandler(scene, this.renderer, tileSize);
+
+    if (!options?.rendererOnly) {
+      this.inputHandler = new EditorInputHandler(scene, this.renderer, tileSize);
+    }
 
     this.subscribeToState();
   }
@@ -33,6 +42,8 @@ export class EditorIntegration {
       this.renderer.renderSpawn(state.spawn);
 
       // Render Ghost Preview für Asset-Tool
+      // Terrain-Ghost wird über bridge.ts / setAssetPreview gehandhabt,
+      // daher nur Asset-Ghost hier rendern.
       if (state.tool === 'asset' && state.pendingAsset) {
         const ghostPreview: { dataUrl: string; width?: number | undefined; height?: number | undefined } = {
           dataUrl: state.pendingAsset.dataUrl,
@@ -74,7 +85,7 @@ export class EditorIntegration {
       this.stateUnsubscribe();
     }
 
-    this.inputHandler.destroy();
+    this.inputHandler?.destroy();
     this.renderer.destroy();
   }
 
@@ -88,7 +99,7 @@ export class EditorIntegration {
   /**
    * Gibt den InputHandler zurück
    */
-  public getInputHandler(): EditorInputHandler {
+  public getInputHandler(): EditorInputHandler | null {
     return this.inputHandler;
   }
 }
@@ -100,4 +111,3 @@ export class EditorIntegration {
 export function initializeEditorSystem(scene: Phaser.Scene, tileSize: number = 16): EditorIntegration {
   return new EditorIntegration(scene, tileSize);
 }
-

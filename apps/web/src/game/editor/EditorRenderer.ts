@@ -16,17 +16,17 @@ export class EditorRenderer {
   private scene: Phaser.Scene;
   
   // Graphics Objects
-  private zonesGraphics?: Phaser.GameObjects.Graphics;
-  private spawnGraphics?: Phaser.GameObjects.Graphics;
-  private selectionGraphics?: Phaser.GameObjects.Graphics;
-  private ghostSprite?: Phaser.GameObjects.Image;
-  
+  private zonesGraphics: Phaser.GameObjects.Graphics | undefined;
+  private spawnGraphics: Phaser.GameObjects.Graphics | undefined;
+  private selectionGraphics: Phaser.GameObjects.Graphics | undefined;
+  private ghostSprite: Phaser.GameObjects.Image | undefined;
+
   // Asset Sprites
   private assetSprites: Map<string, Phaser.GameObjects.Image> = new Map();
   private pendingTextures: Set<string> = new Set();
-  
+
   // Ghost state
-  private ghostTextureKey?: string;
+  private ghostTextureKey: string | undefined;
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
@@ -243,14 +243,14 @@ export class EditorRenderer {
   private clearGhost(): void {
     if (this.ghostSprite) {
       this.ghostSprite.destroy();
-      delete this.ghostSprite;
+      this.ghostSprite = undefined;
     }
 
     if (this.ghostTextureKey && this.scene.textures.exists(this.ghostTextureKey)) {
       this.scene.textures.remove(this.ghostTextureKey);
     }
 
-    delete this.ghostTextureKey;
+    this.ghostTextureKey = undefined;
   }
 
   /**
@@ -365,9 +365,9 @@ export class EditorRenderer {
     this.spawnGraphics?.destroy();
     this.selectionGraphics?.destroy();
 
-    delete this.zonesGraphics;
-    delete this.spawnGraphics;
-    delete this.selectionGraphics;
+    this.zonesGraphics = undefined;
+    this.spawnGraphics = undefined;
+    this.selectionGraphics = undefined;
   }
 }
 

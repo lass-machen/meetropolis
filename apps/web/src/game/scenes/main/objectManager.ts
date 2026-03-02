@@ -26,8 +26,8 @@ export interface MapObjectData {
 
 export interface ObjectsUpdatedPayload {
   action: 'add' | 'remove' | 'update';
-  objects?: MapObjectData[];
-  objectIds?: number[];
+  objects?: MapObjectData[] | undefined;
+  objectIds?: number[] | undefined;
 }
 
 export interface ObjectManagerConfig {

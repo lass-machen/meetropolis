@@ -10,8 +10,9 @@ export interface EditorInputConfig {
   isPanning: () => boolean;
   isSpaceHeld: () => boolean;
   getSpaceKey: () => Phaser.Input.Keyboard.Key | undefined;
-  ghostSprite?: Phaser.GameObjects.Image;
-  selectionG?: Phaser.GameObjects.Graphics;
+  ghostSprite?: Phaser.GameObjects.Image | undefined;
+  selectionG?: Phaser.GameObjects.Graphics | undefined;
+  getEditorRenderer?: (() => import('../../editor/EditorRenderer').EditorRenderer | null) | undefined;
 }
 
 export class EditorInputHandler {
@@ -21,10 +22,11 @@ export class EditorInputHandler {
   private isPanning: () => boolean;
   private isSpaceHeld: () => boolean;
   private getSpaceKey: () => Phaser.Input.Keyboard.Key | undefined;
-  private ghostSprite?: Phaser.GameObjects.Image;
-  private selectionG?: Phaser.GameObjects.Graphics;
-  private dragStartTile?: { x: number; y: number };
-  private ghostDataUrl?: string;
+  private ghostSprite: Phaser.GameObjects.Image | undefined;
+  private selectionG: Phaser.GameObjects.Graphics | undefined;
+  private dragStartTile: { x: number; y: number } | undefined;
+  private ghostDataUrl: string | undefined;
+  private getEditorRendererFn: (() => import('../../editor/EditorRenderer').EditorRenderer | null) | null;
 
   constructor(config: EditorInputConfig) {
     this.scene = config.scene;
@@ -35,6 +37,7 @@ export class EditorInputHandler {
     this.getSpaceKey = config.getSpaceKey;
     this.ghostSprite = config.ghostSprite;
     this.selectionG = config.selectionG;
+    this.getEditorRendererFn = config.getEditorRenderer ?? null;
   }
 
   init() {
@@ -180,10 +183,13 @@ export class EditorInputHandler {
   }
 
   private updateGhostSprite(tileX: number, tileY: number) {
-    if (this.ghostSprite) {
-      const x = tileX * this.mapRef.tileWidth + this.mapRef.tileWidth / 2;
-      const y = tileY * this.mapRef.tileHeight + this.mapRef.tileHeight / 2;
+    const x = tileX * this.mapRef.tileWidth + this.mapRef.tileWidth / 2;
+    const y = tileY * this.mapRef.tileHeight + this.mapRef.tileHeight / 2;
 
+    const renderer = this.getEditorRendererFn?.();
+    if (renderer) {
+      renderer.updateGhostPosition(x, y);
+    } else if (this.ghostSprite) {
       if (Math.abs(this.ghostSprite.x - x) > 0.01 || Math.abs(this.ghostSprite.y - y) > 0.01) {
         this.ghostSprite.setPosition(x, y);
       }
@@ -342,6 +348,13 @@ export class EditorInputHandler {
   }
 
   private setSelectionRect(rect: { x: number; y: number; w: number; h: number } | null) {
+    const renderer = this.getEditorRendererFn?.();
+    if (renderer) {
+      renderer.renderSelection(rect);
+      return;
+    }
+
+    // Fallback: direct Phaser graphics rendering when no EditorRenderer is available
     if (!rect) {
       if (this.selectionG) {
         this.selectionG.clear();
@@ -362,15 +375,15 @@ export class EditorInputHandler {
     g.strokeRect(rect.x, rect.y, rect.w, rect.h);
   }
 
-  setGhostSprite(sprite?: Phaser.GameObjects.Image) {
+  setGhostSprite(sprite: Phaser.GameObjects.Image | undefined) {
     this.ghostSprite = sprite;
   }
 
-  setGhostDataUrl(dataUrl?: string) {
+  setGhostDataUrl(dataUrl: string | undefined) {
     this.ghostDataUrl = dataUrl;
   }
 
-  setSelectionGraphics(graphics?: Phaser.GameObjects.Graphics) {
+  setSelectionGraphics(graphics: Phaser.GameObjects.Graphics | undefined) {
     this.selectionG = graphics;
   }
 }

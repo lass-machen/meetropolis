@@ -14,12 +14,12 @@ export class SceneInitializer {
     const pre = (window as any).__v2_state as V2State | undefined;
     if (!pre || !pre.mapMeta.width) throw new Error('Missing V2 state in MainScene');
 
-    const map = scene.make.tilemap({
-      width: pre.mapMeta.width,
-      height: pre.mapMeta.height,
-      tileWidth: pre.mapMeta.tileWidth,
-      tileHeight: pre.mapMeta.tileHeight,
-    });
+    const tilemapConfig: Phaser.Types.Tilemaps.TilemapConfig = {};
+    if (pre.mapMeta.width != null) tilemapConfig.width = pre.mapMeta.width;
+    if (pre.mapMeta.height != null) tilemapConfig.height = pre.mapMeta.height;
+    if (pre.mapMeta.tileWidth != null) tilemapConfig.tileWidth = pre.mapMeta.tileWidth;
+    if (pre.mapMeta.tileHeight != null) tilemapConfig.tileHeight = pre.mapMeta.tileHeight;
+    const map = scene.make.tilemap(tilemapConfig);
 
     // Compute firstGids based on texture dimensions BEFORE registering tilesets,
     // so we can pass them explicitly to addTilesetImage for GID alignment.
@@ -42,30 +42,30 @@ export class SceneInitializer {
       tilesets,
       0,
       0,
-      pre.mapMeta.width,
-      pre.mapMeta.height,
-      pre.mapMeta.tileWidth,
-      pre.mapMeta.tileHeight
+      pre.mapMeta.width ?? undefined,
+      pre.mapMeta.height ?? undefined,
+      pre.mapMeta.tileWidth ?? undefined,
+      pre.mapMeta.tileHeight ?? undefined
     ) as any;
     const wallsLayer = map.createBlankLayer(
       'Walls',
       tilesets,
       0,
       0,
-      pre.mapMeta.width,
-      pre.mapMeta.height,
-      pre.mapMeta.tileWidth,
-      pre.mapMeta.tileHeight
+      pre.mapMeta.width ?? undefined,
+      pre.mapMeta.height ?? undefined,
+      pre.mapMeta.tileWidth ?? undefined,
+      pre.mapMeta.tileHeight ?? undefined
     ) as any;
     const collisionLayer = map.createBlankLayer(
       'Collision',
       tilesets,
       0,
       0,
-      pre.mapMeta.width,
-      pre.mapMeta.height,
-      pre.mapMeta.tileWidth,
-      pre.mapMeta.tileHeight
+      pre.mapMeta.width ?? undefined,
+      pre.mapMeta.height ?? undefined,
+      pre.mapMeta.tileWidth ?? undefined,
+      pre.mapMeta.tileHeight ?? undefined
     ) as any;
 
     editorGround?.setDepth(0);
