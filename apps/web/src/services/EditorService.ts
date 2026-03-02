@@ -144,6 +144,7 @@ class EditorServiceClass {
             { x: x1, y: y1 },
             { x: x0, y: y1 },
           ],
+          type: 'default',
         };
 
         const zones = [...this.state.zones];

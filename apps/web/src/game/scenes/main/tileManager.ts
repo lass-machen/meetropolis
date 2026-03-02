@@ -96,54 +96,29 @@ export class TileManager {
     this.gridGraphics.strokePath();
   }
 
-  eraseTerrainRect(rect: { startX: number; startY: number; endX: number; endY: number }, currentMapId: string) {
+  eraseTerrainRect(rect: { startX: number; startY: number; endX: number; endY: number }) {
     try {
       const x0 = Math.min(rect.startX, rect.endX);
       const y0 = Math.min(rect.startY, rect.endY);
       const x1 = Math.max(rect.startX, rect.endX);
       const y1 = Math.max(rect.startY, rect.endY);
 
-      const apiBase = (window as any).VITE_API_BASE ||
-                     (import.meta as any).env?.VITE_API_BASE ||
-                     `${window.location.protocol}//${window.location.hostname}:2567`;
-
-      const body = (layer: 'ground' | 'walls') =>
-        JSON.stringify({ layer, rect: { x0, y0, x1, y1 }, erase: true });
-
-      const req = (layer: 'ground' | 'walls') =>
-        fetch(`${apiBase}/maps/${encodeURIComponent(currentMapId)}/paint-rect`, {
-          method: 'PATCH',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: body(layer),
-        })
-        .then(r => r.json().catch(() => ({} as any)))
-        .catch(() => ({} as any));
-
-      Promise.all([req('ground'), req('walls')]).then(([g, w]) => {
-        try {
-          const gUpdates = Array.isArray(g?.updates) ? g.updates : [];
-          const wUpdates = Array.isArray(w?.updates) ? w.updates : [];
-
-          if (gUpdates.length === 0 && this.editorGround) {
-            for (let ty = y0; ty <= y1; ty++) {
-              for (let tx = x0; tx <= x1; tx++) {
-                try { this.editorGround.removeTileAt(tx, ty); } catch { }
-              }
-            }
+      // Only modify local tilemap - server persistence happens via EditorPersistence on save
+      if (this.editorGround) {
+        for (let ty = y0; ty <= y1; ty++) {
+          for (let tx = x0; tx <= x1; tx++) {
+            try { this.editorGround.removeTileAt(tx, ty); } catch { }
           }
-
-          if (wUpdates.length === 0 && this.wallsLayer) {
-            for (let ty = y0; ty <= y1; ty++) {
-              for (let tx = x0; tx <= x1; tx++) {
-                try { this.wallsLayer.removeTileAt(tx, ty); } catch { }
-              }
-            }
-          }
-        } catch (e) {
-          logger.error('[TileManager] eraseTerrainRect local update failed', e);
         }
-      });
+      }
+
+      if (this.wallsLayer) {
+        for (let ty = y0; ty <= y1; ty++) {
+          for (let tx = x0; tx <= x1; tx++) {
+            try { this.wallsLayer.removeTileAt(tx, ty); } catch { }
+          }
+        }
+      }
     } catch (e) {
       logger.error('[TileManager] eraseTerrainRect failed', e);
     }
@@ -156,7 +131,6 @@ export class TileManager {
       tileIndex: number;
       rect: { startX: number; startY: number; endX: number; endY: number };
     },
-    currentMapId: string,
     collisionVisible: boolean,
     onCollisionUpdate?: () => void
   ) {
@@ -165,11 +139,9 @@ export class TileManager {
       const y0 = Math.min(edit.rect.startY, edit.rect.endY);
       const x1 = Math.max(edit.rect.startX, edit.rect.endX);
       const y1 = Math.max(edit.rect.startY, edit.rect.endY);
-      const layerName = edit.layer === 'Collision' ? 'collision' :
-                       (edit.layer === 'EditorWalls' ? 'walls' : 'ground');
       const erase = typeof edit.tileIndex === 'number' && edit.tileIndex <= 0;
 
-      if (layerName === 'collision' && this.collisionLayer) {
+      if (edit.layer === 'Collision' && this.collisionLayer) {
         for (let ty = y0; ty <= y1; ty++) {
           for (let tx = x0; tx <= x1; tx++) {
             if (erase) {
@@ -182,46 +154,11 @@ export class TileManager {
             }
           }
         }
-
         if (onCollisionUpdate && collisionVisible) {
           onCollisionUpdate();
         }
       }
-
-      const apiBase = (window as any).VITE_API_BASE ||
-                     (import.meta as any).env?.VITE_API_BASE ||
-                     `${window.location.protocol}//${window.location.hostname}:2567`;
-
-      const payload: any = {
-        layer: layerName,
-        rect: { x0, y0, x1, y1 },
-      };
-
-      if (erase) {
-        payload.erase = true;
-      } else {
-        payload.tileRefId = edit.tileIndex | 0;
-      }
-
-      fetch(`${apiBase}/maps/${encodeURIComponent(currentMapId)}/paint-rect`, {
-        method: 'PATCH',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-      .then(res => res.json().catch(() => ({})))
-      .then((_data: any) => {
-        try {
-          if (layerName === 'collision' && onCollisionUpdate && collisionVisible) {
-            onCollisionUpdate();
-          }
-        } catch (e) {
-          logger.error('[TileManager] applyTilePaint local update failed', e);
-        }
-      })
-      .catch((e) => {
-        logger.error('[TileManager] paint-rect failed', e);
-      });
+      // Server persistence happens via EditorPersistence.saveAllChanges on save
     } catch (e) {
       logger.error('[TileManager] applyTilePaint failed', e);
     }

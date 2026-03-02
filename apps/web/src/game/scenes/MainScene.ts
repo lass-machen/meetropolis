@@ -235,7 +235,6 @@ export class MainScene extends Phaser.Scene {
       try { this.remotePlayersManager.setVisibility(false); } catch { }
       try { this.playerManager.setVisible(false); } catch { }
       try { this.fetchAndApplyServerLayers(); } catch { }
-      this.uiManager.loadZonesFromLocalStorage();
     } else {
       this.nameLabelManager.setHeroLabelVisibility(true);
       this.nameLabelManager.setAllRemoteLabelsVisibility(true);
@@ -329,7 +328,7 @@ export class MainScene extends Phaser.Scene {
   }
   public getEditorRenderer() { return this.editorIntegration?.getRenderer() ?? null; }
   async applyTerrainPaint(edit: { rect: { startX: number; startY: number; endX: number; endY: number }; dataUrl: string; attempt?: number }) { void edit; }
-  eraseTerrainRect(rect: { startX: number; startY: number; endX: number; endY: number }) { this.tileManager.eraseTerrainRect(rect, this.currentMapId); }
+  eraseTerrainRect(rect: { startX: number; startY: number; endX: number; endY: number }) { this.tileManager.eraseTerrainRect(rect); }
   paintTerrainRect(layer: string, rect: { x0: number; y0: number; x1: number; y1: number }, tileRefId: number) {
     this.tileManager?.paintTerrainRect(layer, rect, tileRefId);
   }
@@ -362,7 +361,7 @@ export class MainScene extends Phaser.Scene {
     // Handled by EditorRenderer via subscription and EditorInputHandler via its own selectionG
   }
   applyTilePaint(edit: { layer: 'EditorGround' | 'EditorWalls' | 'Collision'; tilesetKey: string; tileIndex: number; rect: { startX: number; startY: number; endX: number; endY: number } }) {
-    this.tileManager.applyTilePaint(edit, this.currentMapId, this.collisionVisible, () => {
+    this.tileManager.applyTilePaint(edit, this.collisionVisible, () => {
       this.collisionManager.ensureCollisionCollider();
       this.collisionManager.rebuildStaticColliders();
       if (this.collisionVisible) updateCollisionOverlay(this as any);

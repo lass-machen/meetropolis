@@ -116,11 +116,11 @@ export class EditorRenderer {
       const minY = Math.min(...zone.points.map(p => p.y)) + 5;
 
       const text = this.scene.add.text(0, 0, zone.name, {
-        fontSize: '14px',
+        fontSize: '11px',
         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
         color: '#ffffff',
         backgroundColor: '#000000aa',
-        padding: { x: 6, y: 4 },
+        padding: { x: 3, y: 2 },
       });
       text.setOrigin(0, 0);
       text.setDepth(10);

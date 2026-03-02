@@ -13,7 +13,6 @@ export function setupEditorHandlers(
       // WICHTIG: EditorService als Single Source of Truth updaten!
       EditorService.dispatch({ type: 'LOAD_STATE', state: { zones: data.polys } });
       // useState wird durch EditorService-Subscription automatisch aktualisiert
-      try { localStorage.setItem('meetropolis.zones', JSON.stringify(data.polys)); } catch {}
       if (gameBridge && typeof gameBridge.setZoneOverlay === 'function') gameBridge.setZoneOverlay(data.polys);
       if (zoneRef.current && typeof zoneRef.current.setZones === 'function') zoneRef.current.setZones(data.polys);
       scheduleBuildParticipantList(0);
@@ -21,7 +20,6 @@ export function setupEditorHandlers(
     }
     if (data?.type === 'spawn' && data.pos && typeof data.pos.x === 'number' && typeof data.pos.y === 'number') {
       try { gameBridge?.setSpawnMarker?.({ x: data.pos.x, y: data.pos.y }); } catch {}
-      try { localStorage.setItem('meetropolis.spawn', JSON.stringify({ x: data.pos.x, y: data.pos.y })); } catch {}
       try { setEditor((s: any) => ({ ...s, spawn: { x: data.pos.x, y: data.pos.y } })); } catch {}
       return;
     }

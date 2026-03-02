@@ -174,11 +174,4 @@ export class UIManager {
     } catch { }
   }
 
-  loadZonesFromLocalStorage() {
-    try {
-      const raw = typeof window !== 'undefined' ? localStorage.getItem('meetropolis.zones') : null;
-      const stored = raw ? JSON.parse(raw) : null;
-      if (Array.isArray(stored)) this.setZoneOverlay(stored);
-    } catch { }
-  }
 }

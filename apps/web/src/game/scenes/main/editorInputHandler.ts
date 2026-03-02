@@ -337,7 +337,7 @@ export class EditorInputHandler {
   ) {
     if (editorState.category === 'terrain' && editorTool === 'erase') {
       gameBridge.eraseTerrainRect(rect);
-      // Also register pending change for V2
+      // Register pending changes for V2 (ground + walls erase)
       const x0 = Math.min(rect.startX, rect.endX);
       const y0 = Math.min(rect.startY, rect.endY);
       const x1 = Math.max(rect.startX, rect.endX);
@@ -345,6 +345,10 @@ export class EditorInputHandler {
       EditorService.dispatch({
         type: 'ADD_PENDING_TERRAIN_PAINT',
         paint: { layer: 'ground', rect: { x0, y0, x1, y1 }, tileRefId: 0 },
+      });
+      EditorService.dispatch({
+        type: 'ADD_PENDING_TERRAIN_PAINT',
+        paint: { layer: 'walls', rect: { x0, y0, x1, y1 }, tileRefId: 0, erase: true },
       });
     } else if (editorState.category === 'collisions') {
       const tileIndex = editorTool === 'erase' ? -1 : 1;
@@ -355,6 +359,22 @@ export class EditorInputHandler {
         rect
       };
       gameBridge.applyTilePaint(edit);
+      // Register pending collision change
+      const x0c = Math.min(rect.startX, rect.endX);
+      const y0c = Math.min(rect.startY, rect.endY);
+      const x1c = Math.max(rect.startX, rect.endX);
+      const y1c = Math.max(rect.startY, rect.endY);
+      if (editorTool === 'erase') {
+        EditorService.dispatch({
+          type: 'ADD_PENDING_TERRAIN_PAINT',
+          paint: { layer: 'collision', rect: { x0: x0c, y0: y0c, x1: x1c, y1: y1c }, tileRefId: 0, erase: true },
+        });
+      } else {
+        EditorService.dispatch({
+          type: 'ADD_PENDING_TERRAIN_PAINT',
+          paint: { layer: 'collision', rect: { x0: x0c, y0: y0c, x1: x1c, y1: y1c }, tileRefId: 1 },
+        });
+      }
     } else if (editorState.category === 'terrain' && editorTool === 'collision') {
       const edit = {
         layer: 'Collision' as const,
@@ -363,6 +383,15 @@ export class EditorInputHandler {
         rect
       };
       gameBridge.applyTilePaint(edit);
+      // Register pending collision change
+      const x0c = Math.min(rect.startX, rect.endX);
+      const y0c = Math.min(rect.startY, rect.endY);
+      const x1c = Math.max(rect.startX, rect.endX);
+      const y1c = Math.max(rect.startY, rect.endY);
+      EditorService.dispatch({
+        type: 'ADD_PENDING_TERRAIN_PAINT',
+        paint: { layer: 'collision', rect: { x0: x0c, y0: y0c, x1: x1c, y1: y1c }, tileRefId: 1 },
+      });
     }
 
     // Enhanced erase: also delete objects in rect area
