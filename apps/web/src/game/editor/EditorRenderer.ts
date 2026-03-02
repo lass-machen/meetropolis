@@ -33,6 +33,7 @@ export class EditorRenderer {
 
   // Ghost state
   private ghostTextureKey: string | undefined;
+  private lastCursorPos: { x: number; y: number } | null = null;
 
   private hashString(str: string): string {
     let hash = 0;
@@ -265,7 +266,9 @@ export class EditorRenderer {
       }
     }
 
-    const newKey = `ghost_${this.hashString(resolvedUrl)}`;
+    const newKey = (preview.packUuid && preview.itemId)
+      ? `ghost_${preview.packUuid}_${preview.itemId}_${rotation}`
+      : `ghost_${this.hashString(resolvedUrl)}_${rotation}`;
 
     // If key matches current ghost, just update properties without reloading texture
     if (this.ghostTextureKey === newKey && this.ghostSprite) {
@@ -300,9 +303,13 @@ export class EditorRenderer {
 
       this.ghostSprite.setScale(preview.scaleFactor ?? 1);
 
-      // Position auf Kamera-Center setzen
-      const cam = this.scene.cameras.main;
-      this.ghostSprite.setPosition(cam.worldView.centerX, cam.worldView.centerY);
+      // Position auf letzte Cursor-Position oder Kamera-Center als Fallback
+      if (this.lastCursorPos) {
+        this.ghostSprite.setPosition(this.lastCursorPos.x, this.lastCursorPos.y);
+      } else {
+        const cam = this.scene.cameras.main;
+        this.ghostSprite.setPosition(cam.worldView.centerX, cam.worldView.centerY);
+      }
 
       // Alte Texture aufräumen
       if (this.ghostTextureKey && this.ghostTextureKey !== newKey) {
@@ -317,11 +324,13 @@ export class EditorRenderer {
     if (this.scene.textures.exists(newKey)) {
       place();
     } else {
-      this.scene.textures.once('addtexture', (key: string) => {
+      const handler = (key: string) => {
         if (key === newKey) {
+          this.scene.textures.off('addtexture', handler);
           place();
         }
-      });
+      };
+      this.scene.textures.on('addtexture', handler);
 
       if (resolvedUrl.startsWith('data:')) {
         this.scene.textures.addBase64(newKey, resolvedUrl);
@@ -385,8 +394,9 @@ export class EditorRenderer {
         if (!this.scene.textures.exists(textureKey) && !this.pendingTextures.has(textureKey)) {
           this.pendingTextures.add(textureKey);
 
-          this.scene.textures.once('addtexture', (key: string) => {
+          const assetHandler = (key: string) => {
             if (key === textureKey) {
+              this.scene.textures.off('addtexture', assetHandler);
               this.pendingTextures.delete(textureKey);
 
               const newSprite = this.scene.add.image(asset.x, asset.y, textureKey);
@@ -398,7 +408,8 @@ export class EditorRenderer {
               newSprite.setScale(asset.scaleFactor ?? 1);
               this.assetSprites.set(asset.id, newSprite);
             }
-          });
+          };
+          this.scene.textures.on('addtexture', assetHandler);
 
           if (resolvedUrl.startsWith('data:')) {
             this.scene.textures.addBase64(textureKey, resolvedUrl);
@@ -433,6 +444,7 @@ export class EditorRenderer {
    * Update Ghost-Position (wird bei Pointer-Move aufgerufen)
    */
   public updateGhostPosition(x: number, y: number): void {
+    this.lastCursorPos = { x, y };
     if (this.ghostSprite) {
       this.ghostSprite.setPosition(x, y);
     }

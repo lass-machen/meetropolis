@@ -296,31 +296,11 @@ export const gameBridge: Bridge = {
 
     const { tileX, tileY } = p;
 
+    // Note: 'asset', 'spawn', 'erase' tools are handled by EditorInputHandler (new system).
+    // Only zone and legacy tools are still dispatched through the bridge.
     switch (state.tool) {
       case 'zone':
         EditorService.dispatch({ type: 'START_ZONE_DRAG', tileX, tileY });
-        break;
-      case 'asset':
-        if (state.pendingAsset) {
-          EditorService.dispatch({ type: 'START_ASSET_DRAG', tileX, tileY });
-        }
-        break;
-      case 'spawn':
-        // Spawn wird bei PointerUp gesetzt
-        break;
-      case 'erase':
-        // Check if clicking on an asset to delete
-        const tileSize = 16; // TODO: Get from map
-        const worldX = tileX * tileSize + tileSize / 2;
-        const worldY = tileY * tileSize + tileSize / 2;
-        const asset = state.assets.find(a => {
-          const dx = Math.abs(a.x - worldX);
-          const dy = Math.abs(a.y - worldY);
-          return dx < tileSize && dy < tileSize;
-        });
-        if (asset) {
-          EditorService.dispatch({ type: 'DELETE_ASSET', id: asset.id });
-        }
         break;
     }
   },
@@ -330,6 +310,7 @@ export const gameBridge: Bridge = {
 
     const { tileX, tileY } = p;
 
+    // Note: 'asset' drag is handled by EditorInputHandler (new system).
     switch (state.tool) {
       case 'zone':
         EditorService.dispatch({ type: 'UPDATE_ZONE_DRAG', tileX, tileY });
@@ -344,21 +325,6 @@ export const gameBridge: Bridge = {
           gameBridge.setSelectionRect({ x: x0, y: y0, w: x1 - x0, h: y1 - y0 });
         }
         break;
-      case 'asset':
-        if (state.pendingAsset) {
-          EditorService.dispatch({ type: 'UPDATE_ASSET_DRAG', tileX, tileY });
-          // Update visual selection
-          if (state.dragState) {
-            const drag = state.dragState;
-            const tileSize = 16;
-            const x0 = Math.min(drag.startTileX, tileX) * tileSize;
-            const y0 = Math.min(drag.startTileY, tileY) * tileSize;
-            const x1 = (Math.max(drag.startTileX, tileX) + 1) * tileSize;
-            const y1 = (Math.max(drag.startTileY, tileY) + 1) * tileSize;
-            gameBridge.setSelectionRect({ x: x0, y: y0, w: x1 - x0, h: y1 - y0 });
-          }
-        }
-        break;
     }
   },
   onPointerUpTile: (p) => {
@@ -368,6 +334,7 @@ export const gameBridge: Bridge = {
 
     const { tileX, tileY } = p;
 
+    // Note: 'asset' and 'spawn' tools are handled by EditorInputHandler (new system).
     switch (state.tool) {
       case 'zone':
         if (state.dragState) {
@@ -376,44 +343,6 @@ export const gameBridge: Bridge = {
           gameBridge.setSelectionRect(null);
         }
         break;
-      case 'asset':
-        if (state.pendingAsset) {
-          if (state.dragState) {
-            EditorService.dispatch({ type: 'COMPLETE_ASSET_DRAG', tileX, tileY });
-          } else {
-            EditorService.dispatch({ type: 'PLACE_ASSET', tileX, tileY });
-            // Create MapObjectRecord for persistence
-            EditorService.dispatch({
-              type: 'ADD_PENDING_OBJECT_CREATE',
-              object: {
-                id: -(Date.now()),
-                assetPackUuid: state.pendingAsset.packUuid || '',
-                itemId: state.pendingAsset.itemId || '',
-                category: state.pendingAsset.category || 'objects',
-                tileX,
-                tileY,
-                width: state.pendingAsset.width || 16,
-                height: state.pendingAsset.height || 16,
-                collide: state.pendingAsset.collide || false,
-                zIndex: 0,
-                scaleFactor: state.pendingAsset.scaleFactor || 1,
-                rotation: state.pendingAsset.rotation || 0,
-                dataUrl: state.pendingAsset.dataUrl,
-                _pending: 'add',
-              },
-            });
-          }
-          gameBridge.setSelectionRect(null);
-        }
-        break;
-      case 'spawn': {
-        const tileSize = 16;
-        const x = tileX * tileSize + tileSize / 2;
-        const y = tileY * tileSize + tileSize / 2;
-        logger.debug('[Bridge] Dispatching SET_PENDING_SPAWN', { x, y });
-        EditorService.dispatch({ type: 'SET_PENDING_SPAWN', x, y });
-        break;
-      }
     }
   },
   setSelectionRect: (rect) => {

@@ -45,7 +45,7 @@ export class EditorIntegration {
 
       // Ghost: NUR bei Änderung re-rendern
       const ghostKey = (state.tool === 'asset' && state.pendingAsset)
-        ? `${state.pendingAsset.dataUrl.slice(0, 50)}|${state.pendingAsset.rotation ?? 0}|${state.pendingAsset.scaleFactor ?? 1}`
+        ? `${state.pendingAsset.packUuid || ''}:${state.pendingAsset.itemId || ''}:${state.pendingAsset.key}|${state.pendingAsset.rotation ?? 0}|${state.pendingAsset.scaleFactor ?? 1}`
         : null;
 
       if (ghostKey !== lastGhostKey) {

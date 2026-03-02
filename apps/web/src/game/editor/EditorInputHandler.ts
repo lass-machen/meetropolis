@@ -102,8 +102,8 @@ export class EditorInputHandler {
       }
     }
 
-    // Update Selection Preview
-    if (state.tool !== 'select') {
+    // Update Selection Preview (not for asset stamp mode — ghost serves as preview)
+    if (state.tool !== 'select' && !(state.tool === 'asset' && state.pendingAsset)) {
       const x = tileX * this.tileSize;
       const y = tileY * this.tileSize;
       this.renderer.renderSelection({
@@ -204,12 +204,42 @@ export class EditorInputHandler {
       return;
     }
 
+    // Objects & structures: stamp mode (click to place, no drag)
+    if (state.pendingAsset.category !== 'terrain') {
+      if (phase === 'up') {
+        EditorService.dispatch({ type: 'PLACE_ASSET', tileX, tileY });
+
+        // Queue for DB persistence
+        EditorService.dispatch({
+          type: 'ADD_PENDING_OBJECT_CREATE',
+          object: {
+            id: -(Date.now()),
+            assetPackUuid: state.pendingAsset.packUuid || '',
+            itemId: state.pendingAsset.itemId || '',
+            category: state.pendingAsset.category || 'objects',
+            tileX,
+            tileY,
+            width: state.pendingAsset.width || 16,
+            height: state.pendingAsset.height || 16,
+            collide: state.pendingAsset.collide || false,
+            zIndex: 0,
+            scaleFactor: state.pendingAsset.scaleFactor || 1,
+            rotation: state.pendingAsset.rotation || 0,
+            dataUrl: state.pendingAsset.dataUrl,
+            _pending: 'add',
+          },
+        });
+      }
+      return;
+    }
+
+    // Terrain: drag logic (START_ASSET_DRAG → UPDATE_ASSET_DRAG → COMPLETE_ASSET_DRAG)
     if (phase === 'down') {
       EditorService.dispatch({ type: 'START_ASSET_DRAG', tileX, tileY });
     } else if (phase === 'move' && state.dragState) {
       EditorService.dispatch({ type: 'UPDATE_ASSET_DRAG', tileX, tileY });
 
-      // Update Selection Preview für Drag-Bereich
+      // Update Selection Preview for drag area
       const drag = state.dragState;
       const x0 = Math.min(drag.startTileX, tileX) * this.tileSize;
       const y0 = Math.min(drag.startTileY, tileY) * this.tileSize;
@@ -222,12 +252,38 @@ export class EditorInputHandler {
         w: x1 - x0,
         h: y1 - y0,
       });
-    } else if (phase === 'up') {
-      if (state.dragState) {
-        EditorService.dispatch({ type: 'COMPLETE_ASSET_DRAG', tileX, tileY });
-      } else {
-        // Einzelner Click
-        EditorService.dispatch({ type: 'PLACE_ASSET', tileX, tileY });
+    } else if (phase === 'up' && state.dragState) {
+      const drag = state.dragState;
+      EditorService.dispatch({ type: 'COMPLETE_ASSET_DRAG', tileX, tileY });
+
+      // Queue each tile in the drag rectangle for DB persistence
+      const minX = Math.min(drag.startTileX, tileX);
+      const minY = Math.min(drag.startTileY, tileY);
+      const maxX = Math.max(drag.startTileX, tileX);
+      const maxY = Math.max(drag.startTileY, tileY);
+
+      for (let ty = minY; ty <= maxY; ty++) {
+        for (let tx = minX; tx <= maxX; tx++) {
+          EditorService.dispatch({
+            type: 'ADD_PENDING_OBJECT_CREATE',
+            object: {
+              id: -(Date.now() + ty * 1000 + tx),
+              assetPackUuid: state.pendingAsset.packUuid || '',
+              itemId: state.pendingAsset.itemId || '',
+              category: state.pendingAsset.category || 'terrain',
+              tileX: tx,
+              tileY: ty,
+              width: state.pendingAsset.width || 16,
+              height: state.pendingAsset.height || 16,
+              collide: state.pendingAsset.collide || false,
+              zIndex: 0,
+              scaleFactor: state.pendingAsset.scaleFactor || 1,
+              rotation: state.pendingAsset.rotation || 0,
+              dataUrl: state.pendingAsset.dataUrl,
+              _pending: 'add',
+            },
+          });
+        }
       }
     }
   }
