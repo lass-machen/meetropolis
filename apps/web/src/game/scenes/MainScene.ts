@@ -89,9 +89,8 @@ export class MainScene extends Phaser.Scene {
     Object.assign(this, mapData);
 
     const cameraData = SceneInitializer.initializeCamera(this, this.mapRef!);
-    // Camera data is initialized by SceneInitializer (labelCamera/labelLayer are
-    // managed internally and don't need to be stored on MainScene).
-    void cameraData;
+    (this as any).labelLayer = cameraData.labelLayer;
+    (this as any).labelCamera = cameraData.labelCamera;
 
     this.autotileGrid = new AutotileGrid();
     this.autotileRenderer = new AutotileRenderer(this, this.autotileGrid, this.mapRef?.tileWidth ?? 16);
@@ -140,6 +139,11 @@ export class MainScene extends Phaser.Scene {
     this.spaceKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
 
     this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
+      if (this.editorMode) {
+        if (this.uiManager.getHoveredSprite()) this.uiManager.setHoveredSprite(null);
+        this.uiManager.updateCursor(this.cameraController?.isPanning() || false, this.cameraController?.isSpaceHeld() || false);
+        return;
+      }
       const worldPoint = pointer.positionToCamera(this.cameras.main) as Phaser.Math.Vector2;
       let foundHover = false;
       for (const [_id, sprite] of this.remotePlayersManager.getAllRemotes()) {
@@ -154,6 +158,7 @@ export class MainScene extends Phaser.Scene {
     });
 
     this.input.on(Phaser.Input.Events.POINTER_DOWN, (p: Phaser.Input.Pointer) => {
+      if (this.editorMode) return;
       if (p.rightButtonDown()) {
         try { (p.event as any)?.preventDefault?.(); } catch { }
         const worldPoint = p.positionToCamera(this.cameras.main) as Phaser.Math.Vector2;
@@ -224,6 +229,7 @@ export class MainScene extends Phaser.Scene {
     this.playerManager.setMovementLocked(enabled);
 
     if (enabled) {
+      this.uiManager.setHoveredSprite(null);
       this.captureEditorSnapshot();
       try { setCollisionVisible(this as any, true); } catch { }
       try { this.collisionLayer?.setVisible(false); } catch { }

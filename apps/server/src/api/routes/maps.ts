@@ -456,7 +456,7 @@ export function registerMapRoutes(app: express.Application, prisma: PrismaClient
       if (shouldUpdate) {
         await prisma.zone.deleteMany({ where: { mapId: map.id } });
         for (const z of prepared) {
-          await prisma.zone.create({ data: { name: z.name, capacity: z.capacity ?? undefined, polygon: z.polygon, type: z.type || null, portalTarget: z.portalTarget || null, portalSpawnX: z.portalSpawnX ?? null, portalSpawnY: z.portalSpawnY ?? null, mapId: map.id, roomId: roomForZones?.id as string, tenantId: tenant.id } as any });
+          await prisma.zone.create({ data: { name: z.name, capacity: z.capacity ?? undefined, polygon: z.polygon, type: z.type ?? null, portalTarget: z.portalTarget ?? null, portalSpawnX: z.portalSpawnX ?? null, portalSpawnY: z.portalSpawnY ?? null, mapId: map.id, roomId: roomForZones?.id as string, tenantId: tenant.id } as any });
         }
       }
     }

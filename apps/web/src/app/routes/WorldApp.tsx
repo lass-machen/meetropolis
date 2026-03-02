@@ -311,7 +311,7 @@ export function WorldApp() {
       const spawn = currentState.spawn || editor.spawn || undefined;
       const mapId = useMapStore.getState().currentMapId;
       if (!mapId) return false;
-      const payload: any = { tilesets, zones, backgroundColor };
+      const payload: any = { tilesets, zones, backgroundColor, replaceZones: true };
       if (spawn && typeof spawn.x === 'number' && typeof spawn.y === 'number') {
         payload.spawn = spawn;
       }

@@ -399,6 +399,11 @@ export function initMainScene(scene: Phaser.Scene & any): void {
   scene.hoverOutline = scene.add.graphics();
   scene.hoverOutline.setDepth(11);
   scene.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
+    if (scene.editorMode) {
+      if (scene.hoveredSprite) { scene.hoveredSprite = null; scene.updateHoverOutline(); }
+      scene.updateCursor();
+      return;
+    }
     const worldPoint = pointer.positionToCamera(scene.cameras.main) as Phaser.Math.Vector2;
     let foundHover = false;
     for (const [_id, sprite] of scene.remotes) {

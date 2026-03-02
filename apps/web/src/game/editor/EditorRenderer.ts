@@ -126,7 +126,10 @@ export class EditorRenderer {
       text.setDepth(10);
 
       // Add to labelLayer if available (zoom-independent rendering)
-      try { (this.scene as any).labelLayer?.add(text); } catch { /* noop */ }
+      const labelLayer = (this.scene as any).labelLayer;
+      if (labelLayer) {
+        labelLayer.add(text);
+      }
 
       this.zoneLabels.push(text);
       this.zoneLabelWorldPositions.push({ x: minX, y: minY });
