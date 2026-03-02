@@ -295,17 +295,12 @@ export function WorldApp() {
   // Reset selection on category change
   React.useEffect(() => {
     setEditor(s => {
-      try { (window as any).currentPhaserScene?.setAssetPreview?.(null); } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
       return { ...s, pendingAsset: null, tool: 'select' };
     });
   }, [editor.category]);
 
-  // Tool change: remove ghost
-  React.useEffect(() => {
-    if (editor.tool !== 'asset') {
-      try { (window as any).currentPhaserScene?.setAssetPreview?.(null); } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
-    }
-  }, [editor.tool]);
+  // Tool change: ghost cleanup is handled by EditorRenderer via EditorIntegration
+  // No need to call setAssetPreview(null) here as it interferes with ghost management
 
   async function saveAllToServer() {
     try {

@@ -125,7 +125,8 @@ export class EditorInputHandler {
       return;
     }
 
-    const assetPreviewActive = !!this.ghostSprite;
+    const editorState = EditorService.getState();
+    const assetPreviewActive = editorState.tool === 'asset' && !!editorState.pendingAsset;
     if (!isPanStart && this.getEditorMode()) {
       if (!assetPreviewActive) {
         gameBridge.onPointerDown({ x: worldPoint.x, y: worldPoint.y });

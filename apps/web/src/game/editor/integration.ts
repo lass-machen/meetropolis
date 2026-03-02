@@ -31,6 +31,8 @@ export class EditorIntegration {
   }
 
   private subscribeToState(): void {
+    let lastGhostKey: string | null = null;
+
     this.stateUnsubscribe = EditorService.subscribe((state) => {
       // Render Zones
       this.renderer.renderZones(state.zones, true);
@@ -41,25 +43,26 @@ export class EditorIntegration {
       // Render Spawn
       this.renderer.renderSpawn(state.spawn);
 
-      // Render Ghost Preview für Asset-Tool
-      // Terrain-Ghost wird über bridge.ts / setAssetPreview gehandhabt,
-      // daher nur Asset-Ghost hier rendern.
-      if (state.tool === 'asset' && state.pendingAsset) {
-        const ghostPreview: { dataUrl: string; width?: number | undefined; height?: number | undefined; scaleFactor?: number | undefined } = {
-          dataUrl: state.pendingAsset.dataUrl,
-        };
-        if (state.pendingAsset.width !== undefined) {
-          ghostPreview.width = state.pendingAsset.width;
+      // Ghost: NUR bei Änderung re-rendern
+      const ghostKey = (state.tool === 'asset' && state.pendingAsset)
+        ? `${state.pendingAsset.dataUrl.slice(0, 50)}|${state.pendingAsset.rotation ?? 0}|${state.pendingAsset.scaleFactor ?? 1}`
+        : null;
+
+      if (ghostKey !== lastGhostKey) {
+        lastGhostKey = ghostKey;
+        if (ghostKey && state.pendingAsset) {
+          this.renderer.renderGhost({
+            dataUrl: state.pendingAsset.dataUrl,
+            width: state.pendingAsset.width,
+            height: state.pendingAsset.height,
+            scaleFactor: state.pendingAsset.scaleFactor,
+            rotation: state.pendingAsset.rotation,
+            packUuid: state.pendingAsset.packUuid,
+            itemId: state.pendingAsset.itemId,
+          });
+        } else {
+          this.renderer.renderGhost(null);
         }
-        if (state.pendingAsset.height !== undefined) {
-          ghostPreview.height = state.pendingAsset.height;
-        }
-        if (state.pendingAsset.scaleFactor !== undefined) {
-          ghostPreview.scaleFactor = state.pendingAsset.scaleFactor;
-        }
-        this.renderer.renderGhost(ghostPreview);
-      } else {
-        this.renderer.renderGhost(null);
       }
 
       // Render Selection basierend auf Drag-State

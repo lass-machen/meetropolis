@@ -22,12 +22,26 @@ export class EditorRenderer {
   private cursorHighlight: Phaser.GameObjects.Graphics | undefined;
   private ghostSprite: Phaser.GameObjects.Image | undefined;
 
+  // Zone Labels
+  private zoneLabels: Phaser.GameObjects.Text[] = [];
+  private zoneLabelWorldPositions: { x: number; y: number }[] = [];
+  private postUpdateListener: (() => void) | undefined;
+
   // Asset Sprites
   private assetSprites: Map<string, Phaser.GameObjects.Image> = new Map();
   private pendingTextures: Set<string> = new Set();
 
   // Ghost state
   private ghostTextureKey: string | undefined;
+
+  private hashString(str: string): string {
+    let hash = 0;
+    for (let i = 0; i < Math.min(str.length, 200); i++) {
+      hash = ((hash << 5) - hash) + str.charCodeAt(i);
+      hash |= 0;
+    }
+    return String(Math.abs(hash));
+  }
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
@@ -50,6 +64,10 @@ export class EditorRenderer {
     // Cursor Highlight Graphics
     this.cursorHighlight = this.scene.add.graphics();
     this.cursorHighlight.setDepth(7);
+
+    // Hook POST_UPDATE for zone label position updates
+    this.postUpdateListener = () => this.updateZoneLabelPositions();
+    this.scene.events.on(Phaser.Scenes.Events.POST_UPDATE, this.postUpdateListener);
   }
 
   /**
@@ -61,6 +79,9 @@ export class EditorRenderer {
     }
 
     this.zonesGraphics.clear();
+
+    // Destroy old zone labels to prevent memory leak
+    this.clearZoneLabels();
 
     if (!visible || zones.length === 0) {
       return;
@@ -89,19 +110,60 @@ export class EditorRenderer {
       this.zonesGraphics!.fillPath();
       this.zonesGraphics!.strokePath();
 
-      // Zone-Name rendern
+      // Zone-Name rendern (in labelLayer for zoom-independent sizing)
       const centerX = zone.points.reduce((sum, p) => sum + p.x, 0) / zone.points.length;
       const centerY = zone.points.reduce((sum, p) => sum + p.y, 0) / zone.points.length;
 
-      const text = this.scene.add.text(centerX, centerY, zone.name, {
+      const text = this.scene.add.text(0, 0, zone.name, {
         fontSize: '14px',
+        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
         color: '#ffffff',
         backgroundColor: '#000000aa',
         padding: { x: 6, y: 4 },
       });
       text.setOrigin(0.5);
       text.setDepth(10);
+
+      // Add to labelLayer if available (zoom-independent rendering)
+      try { (this.scene as any).labelLayer?.add(text); } catch { /* noop */ }
+
+      this.zoneLabels.push(text);
+      this.zoneLabelWorldPositions.push({ x: centerX, y: centerY });
     });
+
+    // Immediately update label positions
+    this.updateZoneLabelPositions();
+  }
+
+  /**
+   * Updates zone label positions from world to screen coordinates (for labelLayer/labelCamera)
+   */
+  private updateZoneLabelPositions(): void {
+    if (this.zoneLabels.length === 0) return;
+
+    const cam = this.scene.cameras.main;
+    const view = cam.worldView;
+
+    for (let i = 0; i < this.zoneLabels.length; i++) {
+      const label = this.zoneLabels[i];
+      const worldPos = this.zoneLabelWorldPositions[i];
+      if (!label || !worldPos) continue;
+
+      const screenX = (worldPos.x - view.x) * cam.zoom;
+      const screenY = (worldPos.y - view.y) * cam.zoom;
+      label.setPosition(Math.round(screenX), Math.round(screenY));
+    }
+  }
+
+  /**
+   * Destroys all zone label objects
+   */
+  private clearZoneLabels(): void {
+    for (const label of this.zoneLabels) {
+      label.destroy();
+    }
+    this.zoneLabels = [];
+    this.zoneLabelWorldPositions = [];
   }
 
   /**
@@ -203,7 +265,19 @@ export class EditorRenderer {
       }
     }
 
-    const newKey = `ghost_${Date.now()}_${Math.floor(Math.random() * 1000000)}`;
+    const newKey = `ghost_${this.hashString(resolvedUrl)}`;
+
+    // If key matches current ghost, just update properties without reloading texture
+    if (this.ghostTextureKey === newKey && this.ghostSprite) {
+      this.ghostSprite.setVisible(true);
+      if (useDirectionalImage) {
+        this.ghostSprite.setRotation(0);
+      } else {
+        this.ghostSprite.setRotation(Phaser.Math.DegToRad(rotation));
+      }
+      this.ghostSprite.setScale(preview.scaleFactor ?? 1);
+      return;
+    }
 
     const place = () => {
       if (!this.ghostSprite) {
@@ -243,10 +317,6 @@ export class EditorRenderer {
     if (this.scene.textures.exists(newKey)) {
       place();
     } else {
-      if (this.ghostSprite) {
-        this.ghostSprite.setVisible(false);
-      }
-
       this.scene.textures.once('addtexture', (key: string) => {
         if (key === newKey) {
           place();
@@ -377,6 +447,7 @@ export class EditorRenderer {
     this.selectionGraphics?.clear();
     this.cursorHighlight?.clear();
     this.clearGhost();
+    this.clearZoneLabels();
 
     for (const sprite of this.assetSprites.values()) {
       sprite.destroy();
@@ -388,6 +459,12 @@ export class EditorRenderer {
    * Zerstört den Renderer und gibt Ressourcen frei
    */
   public destroy(): void {
+    // Remove POST_UPDATE listener
+    if (this.postUpdateListener) {
+      this.scene.events.off(Phaser.Scenes.Events.POST_UPDATE, this.postUpdateListener);
+      this.postUpdateListener = undefined;
+    }
+
     this.clearAll();
 
     this.zonesGraphics?.destroy();

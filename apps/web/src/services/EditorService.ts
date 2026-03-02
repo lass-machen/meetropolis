@@ -303,6 +303,7 @@ class EditorServiceClass {
               width: this.state.pendingAsset.width,
               height: this.state.pendingAsset.height,
               rotation: this.state.pendingAsset.rotation,
+              scaleFactor: this.state.pendingAsset.scaleFactor,
             });
           }
         }

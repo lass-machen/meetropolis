@@ -271,10 +271,13 @@ export function EditorPanel(props: {
             </div>
           </div>
 
-          {/* V2 Terrain Tile Grid */}
-          {v2Tilesets.length > 0 && (
-            <TerrainTileGrid v2Tilesets={v2Tilesets} selectedTileRefId={state.selectedTileRefId} />
-          )}
+          {/* V2 Terrain Tile Grid + Pack Terrain Items */}
+          <TerrainTileGrid
+            v2Tilesets={v2Tilesets}
+            selectedTileRefId={state.selectedTileRefId}
+            packTerrainItems={state.packItems.filter(it => it.category === 'terrain')}
+            pendingAsset={state.pendingAsset}
+          />
         </div>
       )}
 
@@ -358,18 +361,18 @@ export function EditorPanel(props: {
       )}
 
       {/* Asset-Palette */}
-      {(state.category === 'terrain' || state.category === 'structures' || state.category === 'objects') && (
+      {(state.category === 'structures' || state.category === 'objects') && (
         <>
           <div style={{ display: 'grid', gap: 8 }}>
             <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg)' }}>
-              {state.category === 'terrain' ? t('editor.terrain') : t('editor.packs')}
+              {t('editor.packs')}
             </div>
             {(() => {
               const list = state.packItems.filter(it => it.category === state.category);
               if (list.length === 0) {
                 return (
                   <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>
-                    {state.category === 'terrain' ? t('editor.noTerrain') : t('editor.noPacks')}
+                    {t('editor.noPacks')}
                   </div>
                 );
               }
@@ -414,7 +417,7 @@ export function EditorPanel(props: {
               );
             })()}
             <div style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>
-              {state.category === 'terrain' ? t('editor.hintTerrain') : t('editor.placeHint')}
+              {t('editor.placeHint')}
             </div>
           </div>
 

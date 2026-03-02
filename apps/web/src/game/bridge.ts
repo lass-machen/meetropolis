@@ -382,6 +382,26 @@ export const gameBridge: Bridge = {
             EditorService.dispatch({ type: 'COMPLETE_ASSET_DRAG', tileX, tileY });
           } else {
             EditorService.dispatch({ type: 'PLACE_ASSET', tileX, tileY });
+            // Create MapObjectRecord for persistence
+            EditorService.dispatch({
+              type: 'ADD_PENDING_OBJECT_CREATE',
+              object: {
+                id: -(Date.now()),
+                assetPackUuid: state.pendingAsset.packUuid || '',
+                itemId: state.pendingAsset.itemId || '',
+                category: state.pendingAsset.category || 'objects',
+                tileX,
+                tileY,
+                width: state.pendingAsset.width || 16,
+                height: state.pendingAsset.height || 16,
+                collide: state.pendingAsset.collide || false,
+                zIndex: 0,
+                scaleFactor: state.pendingAsset.scaleFactor || 1,
+                rotation: state.pendingAsset.rotation || 0,
+                dataUrl: state.pendingAsset.dataUrl,
+                _pending: 'add',
+              },
+            });
           }
           gameBridge.setSelectionRect(null);
         }
