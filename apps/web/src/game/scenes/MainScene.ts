@@ -53,6 +53,7 @@ export class MainScene extends Phaser.Scene {
   private loadedChunks: Set<string> = new Set();
   private systems: GameSystem[] = [];
   private editorMode = false;
+  private editorMapObjectsSnapshot: import('../../services/EditorTypes').MapObjectRecord[] | null = null;
   public autotileGrid?: AutotileGrid;
   public autotileRenderer?: AutotileRenderer;
   private spaceKey?: Phaser.Input.Keyboard.Key;
@@ -223,6 +224,7 @@ export class MainScene extends Phaser.Scene {
     this.playerManager.setMovementLocked(enabled);
 
     if (enabled) {
+      this.captureEditorSnapshot();
       try { setCollisionVisible(this as any, true); } catch { }
       try { this.collisionLayer?.setVisible(false); } catch { }
       updateRecenterUiVisibility(this as any);
@@ -230,6 +232,8 @@ export class MainScene extends Phaser.Scene {
       this.nameLabelManager.setAllRemoteLabelsVisibility(false);
       try { this.bubbleOutlines.forEach(g => g.setVisible(false)); } catch { }
       try { this.objectManager.setAllSpritesVisible(false); } catch { }
+      try { this.remotePlayersManager.setVisibility(false); } catch { }
+      try { this.playerManager.setVisible(false); } catch { }
       try { this.fetchAndApplyServerLayers(); } catch { }
       this.uiManager.loadZonesFromLocalStorage();
     } else {
@@ -237,6 +241,8 @@ export class MainScene extends Phaser.Scene {
       this.nameLabelManager.setAllRemoteLabelsVisibility(true);
       try { this.bubbleOutlines.forEach(g => g.setVisible(true)); } catch { }
       try { this.objectManager.setAllSpritesVisible(true); } catch { }
+      try { this.remotePlayersManager.setVisibility(true); } catch { }
+      try { this.playerManager.setVisible(true); } catch { }
       this.uiManager.hideEditorOverlays();
       if (this.v2) try { this.collisionLayer?.setVisible(false); } catch { }
     }
@@ -245,6 +251,26 @@ export class MainScene extends Phaser.Scene {
       this.systems.forEach((s) => s.init());
       this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => { try { this.systems.forEach((s) => s.destroy()); } catch { } });
     } catch { }
+  }
+
+  captureEditorSnapshot() {
+    const currentObjects = EditorService.getState().mapObjects;
+    this.editorMapObjectsSnapshot = JSON.parse(JSON.stringify(currentObjects));
+    logger.debug('[MainScene] Editor snapshot captured', { objectCount: currentObjects.length });
+  }
+
+  restoreEditorSnapshot() {
+    if (!this.editorMapObjectsSnapshot) return;
+
+    // Restore mapObjects in EditorService
+    EditorService.dispatch({ type: 'LOAD_MAP_OBJECTS', objects: this.editorMapObjectsSnapshot });
+    EditorService.dispatch({ type: 'CLEAR_PENDING_CHANGES' });
+
+    // Force reload map from server to restore terrain/collision/walls state
+    this.forceReloadMap();
+
+    logger.debug('[MainScene] Editor snapshot restored', { objectCount: this.editorMapObjectsSnapshot.length });
+    this.editorMapObjectsSnapshot = null;
   }
 
   syncRemotePlayers(players: Record<string, { x: number; y: number; direction: 'up' | 'down' | 'left' | 'right'; prevX?: number; prevY?: number; name?: string | undefined; dnd?: boolean | undefined; avatarId?: string | undefined; isNpc?: boolean | undefined }>) {

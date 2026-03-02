@@ -632,7 +632,12 @@ export function WorldApp() {
 
       <EditorWindow
         onSave={saveAllToServer}
-        onClose={() => { EditorService.dispatch({ type: 'DEACTIVATE_EDITOR' }); }}
+        onClose={() => {
+          if (EditorService.hasPendingChanges()) {
+            gameBridge.restoreEditorSnapshot();
+          }
+          EditorService.dispatch({ type: 'DEACTIVATE_EDITOR' });
+        }}
       />
 
       <BubbleBanner

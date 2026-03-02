@@ -112,8 +112,8 @@ export class EditorRenderer {
       this.zonesGraphics!.strokePath();
 
       // Zone-Name rendern (in labelLayer for zoom-independent sizing)
-      const centerX = zone.points.reduce((sum, p) => sum + p.x, 0) / zone.points.length;
-      const centerY = zone.points.reduce((sum, p) => sum + p.y, 0) / zone.points.length;
+      const minX = Math.min(...zone.points.map(p => p.x)) + 5;
+      const minY = Math.min(...zone.points.map(p => p.y)) + 5;
 
       const text = this.scene.add.text(0, 0, zone.name, {
         fontSize: '14px',
@@ -122,14 +122,14 @@ export class EditorRenderer {
         backgroundColor: '#000000aa',
         padding: { x: 6, y: 4 },
       });
-      text.setOrigin(0.5);
+      text.setOrigin(0, 0);
       text.setDepth(10);
 
       // Add to labelLayer if available (zoom-independent rendering)
       try { (this.scene as any).labelLayer?.add(text); } catch { /* noop */ }
 
       this.zoneLabels.push(text);
-      this.zoneLabelWorldPositions.push({ x: centerX, y: centerY });
+      this.zoneLabelWorldPositions.push({ x: minX, y: minY });
     });
 
     // Immediately update label positions
@@ -400,6 +400,7 @@ export class EditorRenderer {
               this.pendingTextures.delete(textureKey);
 
               const newSprite = this.scene.add.image(asset.x, asset.y, textureKey);
+              newSprite.setOrigin(0, 0);
               newSprite.setDepth(6);
               newSprite.setInteractive();
               if (!useDirectionalImage && rotation) {
@@ -419,6 +420,7 @@ export class EditorRenderer {
           }
         } else if (this.scene.textures.exists(textureKey)) {
           sprite = this.scene.add.image(asset.x, asset.y, textureKey);
+          sprite.setOrigin(0, 0);
           sprite.setDepth(6);
           sprite.setInteractive();
           if (!useDirectionalImage && rotation) {

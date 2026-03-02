@@ -189,6 +189,10 @@ export class PlayerManager {
     return this.currentDirection;
   }
 
+  setVisible(visible: boolean) {
+    if (this.hero) this.hero.setVisible(visible);
+  }
+
   changeAvatar(avatarId: string) {
     this.avatarId = avatarId;
     this.createAnimations(this.scene.anims);

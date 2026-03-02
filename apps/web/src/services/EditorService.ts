@@ -148,7 +148,13 @@ class EditorServiceClass {
 
         const zones = [...this.state.zones];
         if (this.state.editingZoneIndex !== null) {
-          zones[this.state.editingZoneIndex] = zone;
+          // Preserve existing zone properties (type, portal settings) when redrawing
+          const existing = zones[this.state.editingZoneIndex];
+          zones[this.state.editingZoneIndex] = {
+            ...existing,
+            name: zone.name,
+            points: zone.points,
+          };
         } else {
           zones.push(zone);
         }
@@ -220,8 +226,8 @@ class EditorServiceClass {
         }
 
         const tileSize = 16;
-        const x = action.tileX * tileSize + tileSize / 2;
-        const y = action.tileY * tileSize + tileSize / 2;
+        const x = action.tileX * tileSize;
+        const y = action.tileY * tileSize;
         const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
         const asset: Asset = {
@@ -286,8 +292,8 @@ class EditorServiceClass {
 
         for (let ty = minY; ty <= maxY; ty++) {
           for (let tx = minX; tx <= maxX; tx++) {
-            const x = tx * tileSize + tileSize / 2;
-            const y = ty * tileSize + tileSize / 2;
+            const x = tx * tileSize;
+            const y = ty * tileSize;
             const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
             newAssets.push({
@@ -392,7 +398,10 @@ class EditorServiceClass {
         } else {
           zones[action.index] = { ...zones[action.index], type: action.zoneType };
         }
-        this.updateState({ zones });
+        this.updateState({
+          zones,
+          pendingChanges: { ...this.state.pendingChanges, zonesModified: true },
+        });
         break;
       }
 
@@ -406,7 +415,10 @@ class EditorServiceClass {
         if ('portalSpawnX' in action) updated.portalSpawnX = action.portalSpawnX;
         if ('portalSpawnY' in action) updated.portalSpawnY = action.portalSpawnY;
         zones[action.index] = updated;
-        this.updateState({ zones });
+        this.updateState({
+          zones,
+          pendingChanges: { ...this.state.pendingChanges, zonesModified: true },
+        });
         break;
       }
 

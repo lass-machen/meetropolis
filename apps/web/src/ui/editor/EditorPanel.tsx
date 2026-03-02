@@ -12,6 +12,7 @@ import { useTranslation } from 'react-i18next';
 import { Toast } from '../system';
 import { EditorService, PackItem } from '../../services/EditorService';
 import { EditorPersistence } from '../../services/EditorPersistence';
+import { gameBridge } from '../../game/bridge';
 import { useMapStore } from '../../state/mapStore';
 import { logger } from '../../lib/logger';
 import { TerrainTileGrid } from './TerrainTileGrid';
@@ -151,6 +152,9 @@ export function EditorPanel(props: {
         await EditorPersistence.saveAllChanges(mapId, currentState.pendingChanges, currentState);
         EditorService.dispatch({ type: 'CLEAR_PENDING_CHANGES' });
       }
+
+      // Capture new snapshot of the now-saved state
+      gameBridge.captureEditorSnapshot();
 
       setLastSavedAt(Date.now());
       setToast({ title: t('editor.savedTitle'), description: t('editor.changesSaved'), intent: 'success' });

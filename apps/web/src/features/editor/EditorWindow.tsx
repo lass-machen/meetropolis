@@ -52,6 +52,9 @@ export function EditorWindow({
     return () => {
       // Nur deaktivieren wenn der Editor beim Unmount noch aktiv ist
       if (EditorService.getState().active) {
+        if (EditorService.hasPendingChanges()) {
+          gameBridge.restoreEditorSnapshot();
+        }
         EditorService.dispatch({ type: 'DEACTIVATE_EDITOR' });
       }
     };
