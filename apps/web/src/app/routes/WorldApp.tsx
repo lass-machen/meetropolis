@@ -306,13 +306,12 @@ export function WorldApp() {
     try {
       const currentState = EditorService.getState();
       const tilesets = currentState.tilesets || editor.tilesets || [];
-      const assets = currentState.assets || editor.assets || [];
       const zones = currentState.zones || editor.zones;
       const backgroundColor = currentState.backgroundColor || editor.backgroundColor || '#202020';
       const spawn = currentState.spawn || editor.spawn || undefined;
       const mapId = useMapStore.getState().currentMapId;
       if (!mapId) return false;
-      const payload: any = { tilesets, assets, zones, backgroundColor };
+      const payload: any = { tilesets, zones, backgroundColor };
       if (spawn && typeof spawn.x === 'number' && typeof spawn.y === 'number') {
         payload.spawn = spawn;
       }

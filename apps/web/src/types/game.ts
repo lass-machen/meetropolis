@@ -30,7 +30,6 @@ export interface GameBridge {
   setSpawnMarker?(pos: Position): void;
   applyTilePaint?(edit: unknown): void;
   fetchAndApplyServerLayers?(): void;
-  setEditorAssets?(assets: unknown[]): void;
   handleEditorUpdate?(data: unknown): void;
   applyChunkUpdates?(layer: string, updates: unknown[]): void;
   updateTilesetRegistry?(registry: unknown[]): void;

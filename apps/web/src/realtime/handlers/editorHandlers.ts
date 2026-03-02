@@ -33,10 +33,6 @@ export function setupEditorHandlers(
       if (gameBridge && typeof (gameBridge as any).fetchAndApplyServerLayers === 'function') (gameBridge as any).fetchAndApplyServerLayers();
       return;
     }
-    if (data?.type === 'asset' && Array.isArray(data.assets)) {
-      if (gameBridge && typeof (gameBridge as any).setEditorAssets === 'function') (gameBridge as any).setEditorAssets(data.assets);
-      return;
-    }
     if (gameBridge && typeof (gameBridge as any).handleEditorUpdate === 'function') (gameBridge as any).handleEditorUpdate(data);
   });
 

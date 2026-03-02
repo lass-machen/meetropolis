@@ -373,11 +373,10 @@ export function registerMapRoutes(app: express.Application, prisma: PrismaClient
     const map = await findMapById(prisma, req.params.id, tenant.id);
     if (!map) return res.status(404).json({ error: 'map not found' });
     const meta = (map.meta as any) || {};
-    try { logger.debug('[EditorState] GET', { mapId: map.id, tilesets: Array.isArray(meta.tilesets) ? meta.tilesets.length : 0, assets: Array.isArray(meta.assets) ? meta.assets.length : 0 }); } catch { }
+    try { logger.debug('[EditorState] GET', { mapId: map.id, tilesets: Array.isArray(meta.tilesets) ? meta.tilesets.length : 0 }); } catch { }
     res.set('Cache-Control', 'no-store, max-age=0');
     res.json({
       tilesets: meta.tilesets ?? [],
-      assets: meta.assets ?? [],
       zones: await prisma.zone.findMany({ where: { mapId: map.id }, select: { id: true, name: true, capacity: true, polygon: true, type: true, portalTarget: true, portalSpawnX: true, portalSpawnY: true } }),
       backgroundColor: typeof meta.backgroundColor === 'string' ? meta.backgroundColor : null,
       spawn: (meta.spawn && typeof (meta.spawn as any).x === 'number' && typeof (meta.spawn as any).y === 'number') ? meta.spawn : null,
@@ -394,7 +393,6 @@ export function registerMapRoutes(app: express.Application, prisma: PrismaClient
     if (!tenant) return res.status(400).json({ error: 'tenant_required' });
     const editorSchema = z.object({
       tilesets: z.array(z.any()).optional(),
-      assets: z.array(z.any()).optional(),
       zones: z.array(z.any()).optional(),
       backgroundColor: z.string().regex(/^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/).optional(),
       replaceZones: z.boolean().optional(),
@@ -402,10 +400,10 @@ export function registerMapRoutes(app: express.Application, prisma: PrismaClient
     });
     const parse = editorSchema.safeParse(req.body || {});
     if (!parse.success) return res.status(400).json({ error: 'invalid editor payload' });
-    const { tilesets, assets, zones, backgroundColor, replaceZones, spawn } = parse.data;
+    const { tilesets, zones, backgroundColor, replaceZones, spawn } = parse.data;
     const map = await findMapById(prisma, req.params.id, tenant.id);
     if (!map) return res.status(404).json({ error: 'map not found' });
-    try { logger.debug('[EditorState] PUT', { mapId: map.id, mapName: map.name, tilesets: Array.isArray(tilesets) ? tilesets.length : undefined, assets: Array.isArray(assets) ? assets.length : undefined, zones: Array.isArray(zones) ? zones.length : undefined, spawn: !!spawn }); } catch { }
+    try { logger.debug('[EditorState] PUT', { mapId: map.id, mapName: map.name, tilesets: Array.isArray(tilesets) ? tilesets.length : undefined, zones: Array.isArray(zones) ? zones.length : undefined, spawn: !!spawn }); } catch { }
 
     let roomForZones = await prisma.room.findFirst({ where: { mapId: map.id }, orderBy: { createdAt: 'asc' } });
     if (!roomForZones) {
@@ -424,7 +422,6 @@ export function registerMapRoutes(app: express.Application, prisma: PrismaClient
         meta: {
           ...currentMeta,
           tilesets: tilesets ?? currentMeta.tilesets ?? [],
-          assets: assets ?? currentMeta.assets ?? [],
           backgroundColor: backgroundColor ?? currentMeta.backgroundColor ?? undefined,
           spawn: spawn ?? currentMeta.spawn ?? undefined,
         } as any
@@ -469,7 +466,7 @@ export function registerMapRoutes(app: express.Application, prisma: PrismaClient
       broadcastSpawnUpdate(map.id, spawn);
     }
 
-    if (tilesets || assets || zones || backgroundColor || replaceZones) {
+    if (tilesets || zones || backgroundColor || replaceZones) {
       broadcastMapUpdate(tenant.slug, 'editor_update', { type: 'all', mapId: map.id, mapName: map.name });
     }
 

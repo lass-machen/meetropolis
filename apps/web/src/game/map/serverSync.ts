@@ -123,12 +123,6 @@ export async function fetchAndApplyServerLayers(scene: Phaser.Scene & any): Prom
       scene.ensureCollisionCollider();
     }
     if (scene.collisionVisible) scene.updateCollisionOverlay();
-    try {
-      if (Array.isArray((data as any)?.assets)) {
-        const assets = (data as any).assets;
-        scene.setEditorAssets(assets);
-      }
-    } catch {}
   } catch (e) {
     logger.error('Load', 'Failed to fetch/apply server layers', e);
   }

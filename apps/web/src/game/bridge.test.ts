@@ -7,7 +7,7 @@ describe('gameBridge delegiert an SceneApi', () => {
       syncRemotePlayers: vi.fn(),
       setDesiredPosition: vi.fn(),
       setZoneOverlay: vi.fn(),
-      setEditorAssets: vi.fn(),
+
       setSelectionRect: vi.fn(),
       applyTilePaint: vi.fn(),
       registerTileset: vi.fn(),
@@ -28,7 +28,7 @@ describe('gameBridge delegiert an SceneApi', () => {
       syncRemotePlayers: vi.fn(),
       setDesiredPosition: vi.fn(),
       setZoneOverlay: vi.fn(),
-      setEditorAssets: vi.fn(),
+
       setSelectionRect: vi.fn(),
       applyTilePaint: vi.fn(),
       registerTileset: vi.fn(),

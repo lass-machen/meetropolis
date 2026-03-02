@@ -291,7 +291,6 @@ export class MainScene extends Phaser.Scene {
   setZoneOverlay(_polys: { name: string; points: any[] }[]) { /* Handled by EditorRenderer */ }
   setZonesVisible(visible: boolean) { this.uiManager.setZonesVisible(visible); }
   setSpawnMarker(_pos: { x: number; y: number } | null) { /* Handled by EditorRenderer */ }
-  setEditorAssets(_assets: { id: string; key: string; dataUrl: string; x: number; y: number }[]) { /* Handled by EditorRenderer */ }
   setAssetPreview(preview: { dataUrl: string; width?: number | undefined; height?: number | undefined; rotation?: number | undefined; packUuid?: string | undefined; itemId?: string | undefined } | null) {
     if (this.editorIntegration) {
       this.editorIntegration.getRenderer().renderGhost(preview);

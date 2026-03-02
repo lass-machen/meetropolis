@@ -306,6 +306,14 @@ export class EditorInputHandler {
         const asset = this.findAssetAtPosition(worldPos.x, worldPos.y);
         if (asset) {
           EditorService.dispatch({ type: 'DELETE_ASSET', id: asset.id });
+
+          // DB persistence: find matching mapObject by tile position
+          const mapObject = state.mapObjects.find(
+            (o: any) => o.tileX === tileX && o.tileY === tileY
+          );
+          if (mapObject) {
+            EditorService.dispatch({ type: 'ADD_PENDING_OBJECT_DELETE', objectId: mapObject.id });
+          }
         }
       }
     }

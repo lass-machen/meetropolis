@@ -148,9 +148,6 @@ export function useEditorLoader({ me, apiBase, setEditor }: UseEditorLoaderParam
           if (Array.isArray(data?.editorGround) || Array.isArray(data?.editorWalls) || Array.isArray(data?.collision)) {
             try { gameBridge.reloadEditorLayers(); } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
           }
-          if (Array.isArray(data?.assets) && data.assets.length > 0) {
-            setEditorRef.current((s: any) => ({ ...s, assets: data.assets }));
-          }
           if (data?.spawn && typeof data.spawn.x === 'number') {
             setEditorRef.current((s: any) => ({ ...s, spawn: { x: data.spawn.x, y: data.spawn.y } }));
             try { gameBridge.setSpawnMarker({ x: data.spawn.x, y: data.spawn.y }); } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
@@ -167,6 +164,25 @@ export function useEditorLoader({ me, apiBase, setEditor }: UseEditorLoaderParam
             const objects = await objRes.json();
             if (Array.isArray(objects)) {
               EditorService.dispatch({ type: 'LOAD_MAP_OBJECTS', objects });
+
+              // mapObjects → visual assets for EditorRenderer
+              const TILE_SIZE = 16;
+              const derivedAssets = objects.map((obj: any) => ({
+                id: String(obj.id),
+                key: `${obj.assetPackUuid}:${obj.itemId}`,
+                dataUrl: obj.dataUrl || '',
+                x: obj.tileX * TILE_SIZE + TILE_SIZE / 2,
+                y: obj.tileY * TILE_SIZE + TILE_SIZE / 2,
+                packUuid: obj.assetPackUuid,
+                itemId: obj.itemId,
+                category: obj.category,
+                collide: obj.collide,
+                width: obj.width,
+                height: obj.height,
+                rotation: obj.rotation ?? 0,
+                scaleFactor: obj.scaleFactor ?? 1,
+              }));
+              setEditorRef.current((s: any) => ({ ...s, assets: derivedAssets }));
             }
           }
         } catch (e) {

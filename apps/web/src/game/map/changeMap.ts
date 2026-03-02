@@ -56,7 +56,6 @@ export async function changeMap(targetMapId: string, targetMapName: string, room
     store.setCurrentMap(targetMapId, targetMapName);
 
     // Clear stale state from previous map
-    gameBridge.setEditorAssets([]);
     gameBridge.setZoneOverlay([]);
     EditorService.reset();
 

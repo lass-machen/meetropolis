@@ -18,7 +18,6 @@ type Bridge = {
   setZonesVisible: (visible: boolean) => void;
   onPointerDown: (p: { x: number; y: number }) => void;
   onRightClick: (p: { x: number; y: number; playerId?: string }) => void;
-  setEditorAssets: (assets: { id: string; key: string; dataUrl: string; x: number; y: number }[]) => void;
   onPointerDownTile: (p: { tileX: number; tileY: number }) => void;
   onPointerMoveTile: (p: { tileX: number; tileY: number }) => void;
   onPointerUpTile: (p: { tileX: number; tileY: number }) => void;
@@ -70,7 +69,6 @@ export type SceneApi = {
   setDesiredPosition: (pos: { x: number; y: number } | null) => void;
   setZoneOverlay: (polys: { name: string; points: { x: number; y: number }[] }[]) => void;
   setZonesVisible?: (visible: boolean) => void;
-  setEditorAssets: (assets: { id: string; key: string; dataUrl: string; x: number; y: number }[]) => void;
   setSelectionRect: (rect: { x: number; y: number; w: number; h: number } | null) => void;
   applyTilePaint: (edit: { layer: 'EditorGround' | 'EditorWalls' | 'Collision'; tilesetKey: string; tileIndex: number; rect: { startX: number; startY: number; endX: number; endY: number } }) => void;
   registerTileset: (ts: { key: string; dataUrl: string; tileWidth: number; tileHeight: number; margin?: number | undefined; spacing?: number | undefined }) => void;
@@ -286,9 +284,6 @@ export const gameBridge: Bridge = {
   setZonesVisible: (visible) => {
     sceneApi?.setZonesVisible?.(visible);
   },
-  setEditorAssets: (assets) => {
-    sceneApi?.setEditorAssets(assets);
-  },
   // Optional: dedizierter Weg um Bubble-Mitglieder zu cachen (UI steuert dieses Set)
   onPointerDownTile: (p) => {
     const state = EditorService.getState();
@@ -433,10 +428,6 @@ export const gameBridge: Bridge = {
       if (data.type === 'layers' || data.type === 'all') {
         // Lade Server-Layer neu
         sceneApi?.fetchAndApplyServerLayers?.();
-        return;
-      }
-      if (data.type === 'asset' && Array.isArray(data.assets)) {
-        sceneApi?.setEditorAssets?.(data.assets);
         return;
       }
       if (data.type === 'zone' && Array.isArray(data.polys)) {

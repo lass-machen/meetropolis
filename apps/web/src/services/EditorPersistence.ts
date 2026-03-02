@@ -19,7 +19,6 @@ export class EditorPersistenceError extends Error {
 
 type SaveableState = {
   zones: EditorState['zones'];
-  assets: EditorState['assets'];
   spawn: EditorState['spawn'];
   backgroundColor: EditorState['backgroundColor'];
   tilesets: EditorState['tilesets'];
@@ -105,7 +104,6 @@ export class EditorPersistenceService {
   private stateToPayload(state: EditorState): SaveableState {
     return {
       zones: state.zones,
-      assets: state.assets,
       spawn: state.spawn,
       backgroundColor: state.backgroundColor,
       tilesets: state.tilesets,
@@ -120,10 +118,6 @@ export class EditorPersistenceService {
 
     if (Array.isArray(data.zones)) {
       state.zones = data.zones;
-    }
-
-    if (Array.isArray(data.assets)) {
-      state.assets = data.assets;
     }
 
     if (data.spawn && typeof data.spawn.x === 'number' && typeof data.spawn.y === 'number') {
@@ -160,29 +154,6 @@ export class EditorPersistenceService {
       const text = await response.text();
       throw new EditorPersistenceError(
         `Failed to save zones: ${response.status} ${text}`,
-      );
-    }
-  }
-
-  /**
-   * Speichert Assets separat
-   */
-  public async saveAssets(mapId: string, assets: EditorState['assets']): Promise<void> {
-    const url = `${this.apiBase}/maps/${encodeURIComponent(mapId)}/editor-state`;
-
-    const response = await fetch(url, {
-      method: 'PUT',
-      credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ assets }),
-    });
-
-    if (!response.ok) {
-      const text = await response.text();
-      throw new EditorPersistenceError(
-        `Failed to save assets: ${response.status} ${text}`,
       );
     }
   }
