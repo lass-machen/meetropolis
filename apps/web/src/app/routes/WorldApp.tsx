@@ -74,8 +74,6 @@ export function WorldApp() {
   const buildListRafRef = useRef<number | null>(null);
   const lastAutoFullscreenRef = useRef<number>(0);
   const editorActiveRef = useRef(false);
-  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const prevZonesHashRef = useRef<string>('');
   const activateBubbleNowRef = useRef<(id: string) => void>(() => { });
 
   // State
@@ -308,30 +306,6 @@ export function WorldApp() {
       try { (window as any).currentPhaserScene?.setAssetPreview?.(null); } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
     }
   }, [editor.tool]);
-
-  // Auto-save zones
-  React.useEffect(() => {
-    if (!me) return;
-    const unsubscribe = EditorService.subscribe((state) => {
-      if (!state.active) return;
-      const currentHash = JSON.stringify(state.zones || []);
-      const hasChanged = currentHash !== prevZonesHashRef.current;
-      if (hasChanged && prevZonesHashRef.current !== '') {
-        if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
-        autoSaveTimerRef.current = setTimeout(() => {
-          logger.debug('[EDITOR] Auto-saving zones...', { count: (state.zones || []).length });
-          saveAllToServer().then(saved => {
-            if (saved) {
-              logger.debug('[EDITOR] Zones auto-saved successfully');
-              try { window.dispatchEvent(new CustomEvent('editor:toast', { detail: { title: 'Auto-Speichern', description: 'Zonen wurden automatisch gespeichert', intent: 'success' } })); } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
-            }
-          });
-        }, 800);
-      }
-      prevZonesHashRef.current = currentHash;
-    });
-    return () => unsubscribe();
-  }, [me]);
 
   async function saveAllToServer() {
     try {

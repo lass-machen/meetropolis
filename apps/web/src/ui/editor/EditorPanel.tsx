@@ -14,7 +14,7 @@ import { EditorService, PackItem } from '../../services/EditorService';
 import { EditorPersistence } from '../../services/EditorPersistence';
 import { useMapStore } from '../../state/mapStore';
 import { logger } from '../../lib/logger';
-import { TilesetPicker } from './TilesetPicker';
+import { TerrainTileGrid } from './TerrainTileGrid';
 import { ObjectPropertiesPanel } from './ObjectPropertiesPanel';
 import { ZoneEditor } from './ZoneEditor';
 import { fetchStateV2 } from '../../lib/mapV2';
@@ -32,7 +32,6 @@ export function EditorPanel(props: {
 
   // V2 Tilesets state
   const [v2Tilesets, setV2Tilesets] = React.useState<V2Tileset[]>([]);
-  const [activeTilesetKey, setActiveTilesetKey] = React.useState<string | null>(null);
 
   // Subscribe zu EditorService
   React.useEffect(() => {
@@ -272,34 +271,9 @@ export function EditorPanel(props: {
             </div>
           </div>
 
-          {/* V2 Tileset Picker */}
+          {/* V2 Terrain Tile Grid */}
           {v2Tilesets.length > 0 && (
-            <div style={{ display: 'grid', gap: 6 }}>
-              <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>Tileset wählen</div>
-              <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                {v2Tilesets.map(ts => (
-                  <button
-                    key={ts.key}
-                    onClick={() => setActiveTilesetKey(ts.key === activeTilesetKey ? null : ts.key)}
-                    style={{
-                      padding: '4px 8px',
-                      borderRadius: 6,
-                      border: `1px solid ${activeTilesetKey === ts.key ? '#3b82f6' : 'var(--border)'}`,
-                      background: activeTilesetKey === ts.key ? 'rgba(59,130,246,0.18)' : 'var(--glass)',
-                      color: 'var(--fg)',
-                      fontSize: 11,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    {ts.key.split(':').pop() || ts.key}
-                  </button>
-                ))}
-              </div>
-              {activeTilesetKey && (() => {
-                const ts = v2Tilesets.find(t => t.key === activeTilesetKey);
-                return ts ? <TilesetPicker tileset={ts} selectedTileRefId={state.selectedTileRefId} /> : null;
-              })()}
-            </div>
+            <TerrainTileGrid v2Tilesets={v2Tilesets} selectedTileRefId={state.selectedTileRefId} />
           )}
         </div>
       )}

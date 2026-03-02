@@ -208,6 +208,7 @@ class EditorServiceClass {
             height: action.asset.height,
             rotation: 0,
             rotationAllowed: action.asset.rotationAllowed,
+            scaleFactor: action.asset.scaleFactor,
           },
           tool: 'asset',
         });
@@ -236,6 +237,7 @@ class EditorServiceClass {
           width: this.state.pendingAsset.width,
           height: this.state.pendingAsset.height,
           rotation: this.state.pendingAsset.rotation,
+          scaleFactor: this.state.pendingAsset.scaleFactor,
         };
 
         this.updateState({

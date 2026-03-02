@@ -51,7 +51,7 @@ export function useEditorLoader({ me, apiBase, setEditor }: UseEditorLoaderParam
               }
             }
             for (const s of (p.structures || [])) {
-              packItems.push({ packUuid: uuid, itemId: s.id, key: s.key, category: 'structures', dataUrl: s.dataURL, width: s.width, height: s.height, collide: !!s.collide });
+              packItems.push({ packUuid: uuid, itemId: s.id, key: s.key, category: 'structures', dataUrl: s.dataURL, width: s.width, height: s.height, collide: !!s.collide, scaleFactor: s.scaleFactor || 1 });
             }
             for (const o of (p.objects || [])) {
               packItems.push({
@@ -59,6 +59,7 @@ export function useEditorLoader({ me, apiBase, setEditor }: UseEditorLoaderParam
                 dataUrl: o.dataURL, width: o.width, height: o.height, collide: !!o.collide,
                 rotationAllowed: !!o.rotationAllowed,
                 hasDirectionalImages: Array.isArray(o.directionalImages) && o.directionalImages.length > 0,
+                scaleFactor: o.scaleFactor || 1,
               });
             }
           }

@@ -29,6 +29,7 @@ export type Asset = {
   width?: number | undefined;
   height?: number | undefined;
   rotation?: number | undefined;
+  scaleFactor?: number | undefined;
 };
 
 export type PackItem = {
@@ -42,6 +43,7 @@ export type PackItem = {
   collide: boolean;
   rotationAllowed?: boolean | undefined;
   hasDirectionalImages?: boolean | undefined;
+  scaleFactor?: number | undefined;
 };
 
 export type Tileset = {
@@ -122,6 +124,7 @@ export type EditorState = {
     height?: number | undefined;
     rotation?: number | undefined;
     rotationAllowed?: boolean | undefined;
+    scaleFactor?: number | undefined;
   } | null;
   packItems: PackItem[];
 

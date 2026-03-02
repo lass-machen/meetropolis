@@ -19,6 +19,7 @@ export class EditorRenderer {
   private zonesGraphics: Phaser.GameObjects.Graphics | undefined;
   private spawnGraphics: Phaser.GameObjects.Graphics | undefined;
   private selectionGraphics: Phaser.GameObjects.Graphics | undefined;
+  private cursorHighlight: Phaser.GameObjects.Graphics | undefined;
   private ghostSprite: Phaser.GameObjects.Image | undefined;
 
   // Asset Sprites
@@ -45,6 +46,10 @@ export class EditorRenderer {
     // Selection Graphics
     this.selectionGraphics = this.scene.add.graphics();
     this.selectionGraphics.setDepth(8);
+
+    // Cursor Highlight Graphics
+    this.cursorHighlight = this.scene.add.graphics();
+    this.cursorHighlight.setDepth(7);
   }
 
   /**
@@ -154,6 +159,23 @@ export class EditorRenderer {
   }
 
   /**
+   * Rendert Cursor-Highlight (Tile-Outline bei Hover)
+   */
+  public renderCursorHighlight(tileX: number, tileY: number, tileSize: number): void {
+    if (!this.cursorHighlight) return;
+    this.cursorHighlight.clear();
+    this.cursorHighlight.lineStyle(1, 0xffffff, 0.4);
+    this.cursorHighlight.strokeRect(tileX * tileSize, tileY * tileSize, tileSize, tileSize);
+  }
+
+  /**
+   * Entfernt Cursor-Highlight
+   */
+  public clearCursorHighlight(): void {
+    this.cursorHighlight?.clear();
+  }
+
+  /**
    * Rendert Ghost-Sprite (Preview für Asset-Tool)
    */
   public renderGhost(preview: {
@@ -163,6 +185,7 @@ export class EditorRenderer {
     rotation?: number | undefined;
     packUuid?: string | undefined;
     itemId?: string | undefined;
+    scaleFactor?: number | undefined;
   } | null): void {
     if (!preview) {
       this.clearGhost();
@@ -200,6 +223,8 @@ export class EditorRenderer {
       } else {
         this.ghostSprite.setRotation(Phaser.Math.DegToRad(rotation));
       }
+
+      this.ghostSprite.setScale(preview.scaleFactor ?? 1);
 
       // Position auf Kamera-Center setzen
       const cam = this.scene.cameras.main;
@@ -300,6 +325,7 @@ export class EditorRenderer {
               if (!useDirectionalImage && rotation) {
                 newSprite.setRotation(Phaser.Math.DegToRad(rotation));
               }
+              newSprite.setScale(asset.scaleFactor ?? 1);
               this.assetSprites.set(asset.id, newSprite);
             }
           });
@@ -317,6 +343,7 @@ export class EditorRenderer {
           if (!useDirectionalImage && rotation) {
             sprite.setRotation(Phaser.Math.DegToRad(rotation));
           }
+          sprite.setScale(asset.scaleFactor ?? 1);
           this.assetSprites.set(asset.id, sprite);
         }
       } else {
@@ -327,6 +354,7 @@ export class EditorRenderer {
         } else if (rotation) {
           sprite.setRotation(Phaser.Math.DegToRad(rotation));
         }
+        sprite.setScale(asset.scaleFactor ?? 1);
       }
     }
   }
@@ -347,6 +375,7 @@ export class EditorRenderer {
     this.zonesGraphics?.clear();
     this.spawnGraphics?.clear();
     this.selectionGraphics?.clear();
+    this.cursorHighlight?.clear();
     this.clearGhost();
 
     for (const sprite of this.assetSprites.values()) {
@@ -364,10 +393,12 @@ export class EditorRenderer {
     this.zonesGraphics?.destroy();
     this.spawnGraphics?.destroy();
     this.selectionGraphics?.destroy();
+    this.cursorHighlight?.destroy();
 
     this.zonesGraphics = undefined;
     this.spawnGraphics = undefined;
     this.selectionGraphics = undefined;
+    this.cursorHighlight = undefined;
   }
 }
 

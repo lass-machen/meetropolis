@@ -176,6 +176,11 @@ export class EditorInputHandler {
 
     if (this.getEditorMode() && !this.isPanning()) {
       gameBridge.onPointerMoveTile({ tileX, tileY });
+
+      const renderer = this.getEditorRendererFn?.();
+      if (renderer) {
+        renderer.renderCursorHighlight(tileX, tileY, this.mapRef.tileWidth);
+      }
     }
 
     this.updateGhostSprite(tileX, tileY);

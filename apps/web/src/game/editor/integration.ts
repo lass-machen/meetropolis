@@ -45,7 +45,7 @@ export class EditorIntegration {
       // Terrain-Ghost wird über bridge.ts / setAssetPreview gehandhabt,
       // daher nur Asset-Ghost hier rendern.
       if (state.tool === 'asset' && state.pendingAsset) {
-        const ghostPreview: { dataUrl: string; width?: number | undefined; height?: number | undefined } = {
+        const ghostPreview: { dataUrl: string; width?: number | undefined; height?: number | undefined; scaleFactor?: number | undefined } = {
           dataUrl: state.pendingAsset.dataUrl,
         };
         if (state.pendingAsset.width !== undefined) {
@@ -53,6 +53,9 @@ export class EditorIntegration {
         }
         if (state.pendingAsset.height !== undefined) {
           ghostPreview.height = state.pendingAsset.height;
+        }
+        if (state.pendingAsset.scaleFactor !== undefined) {
+          ghostPreview.scaleFactor = state.pendingAsset.scaleFactor;
         }
         this.renderer.renderGhost(ghostPreview);
       } else {
@@ -101,6 +104,20 @@ export class EditorIntegration {
    */
   public getInputHandler(): EditorInputHandler | null {
     return this.inputHandler;
+  }
+
+  /**
+   * Updates cursor highlight to the given tile position
+   */
+  public updateCursorTile(tileX: number, tileY: number, tileSize: number): void {
+    this.renderer.renderCursorHighlight(tileX, tileY, tileSize);
+  }
+
+  /**
+   * Clears the cursor highlight
+   */
+  public clearCursorHighlight(): void {
+    this.renderer.clearCursorHighlight();
   }
 }
 

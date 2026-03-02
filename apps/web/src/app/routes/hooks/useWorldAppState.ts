@@ -36,8 +36,6 @@ export interface WorldAppState {
   buildListRafRef: React.RefObject<number | null>;
   lastAutoFullscreenRef: React.RefObject<number>;
   editorActiveRef: React.RefObject<boolean>;
-  autoSaveTimerRef: React.RefObject<ReturnType<typeof setTimeout> | null>;
-  prevZonesHashRef: React.RefObject<string>;
   activateBubbleNowRef: React.RefObject<(id: string) => void>;
 
   // State
@@ -171,8 +169,6 @@ export function useWorldAppState(): WorldAppState {
   const buildListRafRef = useRef<number | null>(null);
   const lastAutoFullscreenRef = useRef<number>(0);
   const editorActiveRef = useRef(false);
-  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const prevZonesHashRef = useRef<string>('');
   const activateBubbleNowRef = useRef<(id: string) => void>(() => { });
 
   // State
@@ -242,8 +238,6 @@ export function useWorldAppState(): WorldAppState {
     buildListRafRef,
     lastAutoFullscreenRef,
     editorActiveRef,
-    autoSaveTimerRef,
-    prevZonesHashRef,
     activateBubbleNowRef,
     hud,
     setHud,
