@@ -1,6 +1,6 @@
 /**
  * EditorService - Single Source of Truth für den Map-Editor
- * 
+ *
  * Architektur-Prinzipien:
  * - Immutable State Pattern
  * - Explizite Actions für alle Operationen
@@ -9,158 +9,10 @@
  */
 
 import { logger } from '../lib/logger';
+import type { EditorState, EditorAction, EditorListener, Zone, Asset, MapObjectRecord } from './EditorTypes';
 
-export type EditorTool = 'zone' | 'asset' | 'terrain' | 'collision' | 'spawn' | 'select' | 'erase' | 'wall';
-export type EditorCategory = 'general' | 'terrain' | 'structures' | 'objects' | 'zones' | 'collisions' | 'autotiles';
-
-export type Zone = {
-  name: string;
-  points: { x: number; y: number }[];
-  type?: 'default' | 'portal';
-  portalTarget?: string;
-  portalSpawnX?: number;
-  portalSpawnY?: number;
-};
-
-export type Asset = {
-  id: string;
-  key: string;
-  dataUrl: string;
-  x: number;
-  y: number;
-  packUuid?: string | undefined;
-  itemId?: string | undefined;
-  category?: 'structures' | 'objects' | 'terrain' | undefined;
-  collide?: boolean | undefined;
-  width?: number | undefined;
-  height?: number | undefined;
-  rotation?: number | undefined;
-};
-
-export type PackItem = {
-  packUuid: string;
-  itemId: string;
-  key: string;
-  category: 'terrain' | 'structures' | 'objects';
-  dataUrl: string;
-  width: number;
-  height: number;
-  collide: boolean;
-  rotationAllowed?: boolean | undefined;
-  hasDirectionalImages?: boolean | undefined;
-};
-
-export type Tileset = {
-  key: string;
-  dataUrl: string;
-  tileWidth: number;
-  tileHeight: number;
-  margin?: number | undefined;
-  spacing?: number | undefined;
-  category?: string | undefined;
-};
-
-export type EditorState = {
-  active: boolean;
-  tool: EditorTool;
-  category: EditorCategory;
-  selectedAsset?: Asset | undefined;
-  terrainColor?: string | undefined;
-  gridVisible: boolean;
-
-  // Zone-Daten
-  zones: Zone[];
-  editingZoneIndex: number | null;
-  zoneName: string;
-
-  // Asset-Daten
-  assets: Asset[];
-  pendingAsset: {
-    key: string;
-    dataUrl: string;
-    packUuid?: string | undefined;
-    itemId?: string | undefined;
-    category?: 'structures' | 'objects' | 'terrain' | undefined;
-    collide?: boolean | undefined;
-    width?: number | undefined;
-    height?: number | undefined;
-    rotation?: number | undefined;
-    rotationAllowed?: boolean | undefined;
-  } | null;
-  packItems: PackItem[];
-
-  // Terrain-Daten
-  tilesets: Tileset[];
-
-  // Spawn-Daten
-  spawn: { x: number; y: number } | null;
-
-  // UI-State
-  backgroundColor?: string | undefined;
-
-  // Autotile wall state
-  selectedWallTypeId: number;
-
-  // Drag-State (für Tools)
-  dragState: {
-    startTileX: number;
-    startTileY: number;
-    endTileX: number;
-    endTileY: number;
-  } | null;
-};
-
-// Actions
-export type EditorAction =
-  | { type: 'ACTIVATE_EDITOR'; category?: EditorCategory }
-  | { type: 'DEACTIVATE_EDITOR' }
-  | { type: 'SET_TOOL'; tool: EditorTool }
-  | { type: 'SET_CATEGORY'; category: EditorCategory }
-
-  // Zone Actions
-  | { type: 'START_ZONE_DRAG'; tileX: number; tileY: number }
-  | { type: 'UPDATE_ZONE_DRAG'; tileX: number; tileY: number }
-  | { type: 'COMPLETE_ZONE'; tileX: number; tileY: number; name?: string }
-  | { type: 'DELETE_ZONE'; index: number }
-  | { type: 'START_EDIT_ZONE'; index: number }
-  | { type: 'UPDATE_ZONE_NAME'; index: number; name: string }
-  | { type: 'SET_ZONE_NAME'; name: string }
-
-  // Asset Actions
-  | { type: 'SELECT_ASSET'; asset: PackItem }
-  | { type: 'PLACE_ASSET'; tileX: number; tileY: number }
-  | { type: 'START_ASSET_DRAG'; tileX: number; tileY: number }
-  | { type: 'UPDATE_ASSET_DRAG'; tileX: number; tileY: number }
-  | { type: 'COMPLETE_ASSET_DRAG'; tileX: number; tileY: number }
-  | { type: 'DELETE_ASSET'; id: string }
-  | { type: 'ADD_PACK_ITEMS'; items: PackItem[] }
-
-  // Tileset Actions
-  | { type: 'REGISTER_TILESET'; tileset: Tileset }
-  | { type: 'LOAD_TILESETS'; tilesets: Tileset[] }
-
-  // Spawn Actions
-  | { type: 'SET_SPAWN'; x: number; y: number }
-  | { type: 'CLEAR_SPAWN' }
-
-  // State Actions
-  | { type: 'SET_BACKGROUND_COLOR'; color: string }
-  | { type: 'SET_TERRAIN_COLOR'; color: string }
-  | { type: 'TOGGLE_GRID' }
-  | { type: 'LOAD_STATE'; state: Partial<EditorState> }
-  | { type: 'CLEAR_DRAG' }
-
-  // Zone Portal Actions
-  | { type: 'UPDATE_ZONE_TYPE'; index: number; zoneType: 'default' | 'portal' }
-  | { type: 'UPDATE_ZONE_PORTAL'; index: number; portalTarget?: string; portalSpawnX?: number; portalSpawnY?: number }
-
-  // Rotation Actions
-  | { type: 'ROTATE_PENDING_ASSET' }
-
-  // Autotile Actions
-  | { type: 'SELECT_WALL_TYPE'; wallTypeId: number };
-
-export type EditorListener = (state: EditorState) => void;
+// Re-export all types so existing imports from './EditorService' keep working
+export type { EditorTool, EditorCategory, Zone, Asset, PackItem, Tileset, MapObjectRecord, TerrainPaintOp, PendingChanges, ViewToggles, EditorState, EditorAction, EditorListener } from './EditorTypes';
 
 class EditorServiceClass {
   private state: EditorState;
@@ -186,6 +38,12 @@ class EditorServiceClass {
       gridVisible: false,
       selectedWallTypeId: 0,
       dragState: null,
+      selectedTileRefId: 0,
+      selectedTilesetSlot: 0,
+      selectedObjectId: null,
+      mapObjects: [],
+      pendingChanges: { terrainPaints: [], objectsToAdd: [], objectsToDelete: [], objectUpdates: [], zonesModified: false, spawnUpdate: null },
+      viewToggles: { collision: false, zones: false, objects: true, grid: false },
     };
   }
 
@@ -225,6 +83,7 @@ class EditorServiceClass {
           active: false,
           dragState: null,
           pendingAsset: null,
+          selectedObjectId: null,
         });
         break;
 
@@ -566,11 +425,145 @@ class EditorServiceClass {
         });
         break;
 
+      case 'SELECT_TILE_REF':
+        this.updateState({
+          selectedTileRefId: action.tileRefId,
+          selectedTilesetSlot: action.slot,
+          tool: 'terrain',
+        });
+        break;
+
+      case 'SELECT_MAP_OBJECT':
+        this.updateState({ selectedObjectId: action.objectId });
+        break;
+
+      case 'UPDATE_MAP_OBJECT': {
+        const objects = this.state.mapObjects.map(o =>
+          (String(o.id) === String(action.objectId)) ? { ...o, ...action.updates } : o
+        );
+        this.updateState({ mapObjects: objects });
+        break;
+      }
+
+      case 'ADD_PENDING_TERRAIN_PAINT':
+        this.updateState({
+          pendingChanges: {
+            ...this.state.pendingChanges,
+            terrainPaints: [...this.state.pendingChanges.terrainPaints, action.paint],
+          },
+        });
+        break;
+
+      case 'ADD_PENDING_OBJECT_CREATE':
+        this.updateState({
+          mapObjects: [...this.state.mapObjects, action.object],
+          pendingChanges: {
+            ...this.state.pendingChanges,
+            objectsToAdd: [...this.state.pendingChanges.objectsToAdd, action.object],
+          },
+        });
+        break;
+
+      case 'ADD_PENDING_OBJECT_DELETE': {
+        const objToDelete = this.state.mapObjects.find(o => String(o.id) === String(action.objectId));
+        const updatedMapObjects = this.state.mapObjects.filter(o => String(o.id) !== String(action.objectId));
+        let updatedPending = { ...this.state.pendingChanges };
+        if (objToDelete?._pending === 'add') {
+          // Never reached server, remove from pending adds
+          updatedPending = {
+            ...updatedPending,
+            objectsToAdd: updatedPending.objectsToAdd.filter(o => String(o.id) !== String(action.objectId)),
+          };
+        } else {
+          updatedPending = {
+            ...updatedPending,
+            objectsToDelete: [...updatedPending.objectsToDelete, action.objectId],
+          };
+        }
+        // Also remove any pending updates for this object
+        updatedPending = {
+          ...updatedPending,
+          objectUpdates: updatedPending.objectUpdates.filter(u => String(u.id) !== String(action.objectId)),
+        };
+        this.updateState({ mapObjects: updatedMapObjects, pendingChanges: updatedPending });
+        break;
+      }
+
+      case 'ADD_PENDING_OBJECT_UPDATE': {
+        const existing = this.state.pendingChanges.objectUpdates.find(u => String(u.id) === String(action.objectId));
+        let objectUpdates: Array<{ id: number | string; updates: Partial<MapObjectRecord> }>;
+        if (existing) {
+          objectUpdates = this.state.pendingChanges.objectUpdates.map(u =>
+            String(u.id) === String(action.objectId) ? { ...u, updates: { ...u.updates, ...action.updates } } : u
+          );
+        } else {
+          objectUpdates = [...this.state.pendingChanges.objectUpdates, { id: action.objectId, updates: action.updates }];
+        }
+        // Also update local mapObjects for immediate visual feedback
+        const updatedObjects = this.state.mapObjects.map(o =>
+          (String(o.id) === String(action.objectId)) ? { ...o, ...action.updates } : o
+        );
+        this.updateState({
+          mapObjects: updatedObjects,
+          pendingChanges: { ...this.state.pendingChanges, objectUpdates },
+        });
+        break;
+      }
+
+      case 'MARK_ZONES_MODIFIED':
+        this.updateState({
+          pendingChanges: { ...this.state.pendingChanges, zonesModified: true },
+        });
+        break;
+
+      case 'SET_PENDING_SPAWN':
+        this.updateState({
+          spawn: { x: action.x, y: action.y },
+          pendingChanges: { ...this.state.pendingChanges, spawnUpdate: { x: action.x, y: action.y } },
+        });
+        break;
+
+      case 'CLEAR_PENDING_CHANGES':
+        this.updateState({
+          pendingChanges: { terrainPaints: [], objectsToAdd: [], objectsToDelete: [], objectUpdates: [], zonesModified: false, spawnUpdate: null },
+        });
+        break;
+
+      case 'LOAD_MAP_OBJECTS':
+        this.updateState({ mapObjects: action.objects });
+        break;
+
+      case 'TOGGLE_VIEW':
+        this.updateState({
+          viewToggles: { ...this.state.viewToggles, [action.key]: !this.state.viewToggles[action.key] },
+        });
+        break;
+
       default:
         // TypeScript exhaustiveness check
         const _exhaustive: never = action;
         throw new Error(`Unknown action type: ${(_exhaustive as any).type}`);
     }
+  }
+
+  public hasPendingChanges(): boolean {
+    const p = this.state.pendingChanges;
+    return p.terrainPaints.length > 0 ||
+      p.objectsToAdd.length > 0 ||
+      p.objectsToDelete.length > 0 ||
+      p.objectUpdates.length > 0 ||
+      p.zonesModified ||
+      p.spawnUpdate !== null;
+  }
+
+  public getPendingChangesCount(): number {
+    const p = this.state.pendingChanges;
+    return p.terrainPaints.length +
+      p.objectsToAdd.length +
+      p.objectsToDelete.length +
+      p.objectUpdates.length +
+      (p.zonesModified ? 1 : 0) +
+      (p.spawnUpdate ? 1 : 0);
   }
 
   public reset(): void {

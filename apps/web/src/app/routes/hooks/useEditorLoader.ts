@@ -4,6 +4,7 @@ import { splitTilesetImage } from '../../../lib/tilesetUtils';
 import { gameBridge } from '../../../game/bridge';
 import { useMapStore } from '../../../state/mapStore';
 import { loadFromPacks } from '../../../lib/directionalImageRegistry';
+import { EditorService } from '../../../services/EditorService';
 
 interface UseEditorLoaderParams {
   me: { id: string; email: string; name?: string } | null;
@@ -153,6 +154,22 @@ export function useEditorLoader({ me, apiBase, setEditor }: UseEditorLoaderParam
             setEditorRef.current((s: any) => ({ ...s, spawn: { x: data.spawn.x, y: data.spawn.y } }));
             try { gameBridge.setSpawnMarker({ x: data.spawn.x, y: data.spawn.y }); } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
           }
+        }
+
+        // Load map objects via REST API
+        try {
+          const objRes = await fetch(
+            `${apiBase}/maps/${encodeURIComponent(mapId)}/objects`,
+            { credentials: 'include' },
+          );
+          if (objRes.ok) {
+            const objects = await objRes.json();
+            if (Array.isArray(objects)) {
+              EditorService.dispatch({ type: 'LOAD_MAP_OBJECTS', objects });
+            }
+          }
+        } catch (e) {
+          logger.debug('[WorldApp] Failed to load map objects', e);
         }
       } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
     })();

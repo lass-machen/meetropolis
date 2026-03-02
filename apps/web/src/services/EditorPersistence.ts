@@ -8,7 +8,7 @@
  * - Klare Interfaces
  */
 
-import { EditorState } from './EditorService';
+import { EditorState, PendingChanges, MapObjectRecord } from './EditorService';
 
 export class EditorPersistenceError extends Error {
   constructor(message: string, public readonly cause?: Error) {
@@ -207,6 +207,176 @@ export class EditorPersistenceService {
       throw new EditorPersistenceError(
         `Failed to save spawn: ${response.status} ${text}`,
       );
+    }
+  }
+
+  /**
+   * Speichert alle pending changes atomar zum Server.
+   * Reihenfolge: Terrain -> Delete Objects -> Create Objects -> Update Objects -> Zones -> Spawn
+   */
+  public async saveAllChanges(
+    mapId: string,
+    pendingChanges: PendingChanges,
+    editorState: EditorState,
+  ): Promise<void> {
+    const encodedId = encodeURIComponent(mapId);
+
+    await this.saveTerrainPaints(encodedId, pendingChanges.terrainPaints);
+    await this.deleteObjects(encodedId, pendingChanges.objectsToDelete);
+    await this.createObjects(encodedId, pendingChanges.objectsToAdd);
+    await this.updateObjects(encodedId, pendingChanges.objectUpdates);
+    await this.saveZonesIfModified(encodedId, pendingChanges, editorState);
+    await this.saveSpawnIfUpdated(encodedId, pendingChanges);
+  }
+
+  /**
+   * Laedt Map Objects via REST API
+   */
+  public async loadMapObjects(mapId: string): Promise<MapObjectRecord[]> {
+    const url = `${this.apiBase}/maps/${encodeURIComponent(mapId)}/objects`;
+    const res = await fetch(url, {
+      method: 'GET',
+      credentials: 'include',
+      headers: { 'Accept': 'application/json' },
+    });
+    if (!res.ok) {
+      if (res.status === 404) return [];
+      const text = await res.text();
+      throw new EditorPersistenceError(`Load objects failed: ${res.status} ${text}`);
+    }
+    const data = await res.json();
+    return Array.isArray(data) ? data : [];
+  }
+
+  /* --- Private helpers for saveAllChanges --- */
+
+  private async saveTerrainPaints(
+    encodedId: string,
+    paints: PendingChanges['terrainPaints'],
+  ): Promise<void> {
+    for (const paint of paints) {
+      const payload: Record<string, unknown> = {
+        layer: paint.layer,
+        rect: paint.rect,
+      };
+      if (paint.erase) {
+        payload.erase = true;
+      } else {
+        payload.tileRefId = paint.tileRefId;
+      }
+      const res = await fetch(`${this.apiBase}/maps/${encodedId}/paint-rect`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new EditorPersistenceError(`paint-rect failed: ${res.status} ${text}`);
+      }
+    }
+  }
+
+  private async deleteObjects(
+    encodedId: string,
+    objectIds: (number | string)[],
+  ): Promise<void> {
+    for (const objId of objectIds) {
+      const res = await fetch(`${this.apiBase}/maps/${encodedId}/objects/${objId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (!res.ok && res.status !== 404) {
+        const text = await res.text();
+        throw new EditorPersistenceError(`Delete object ${objId} failed: ${res.status} ${text}`);
+      }
+    }
+  }
+
+  private async createObjects(
+    encodedId: string,
+    objects: MapObjectRecord[],
+  ): Promise<void> {
+    for (const obj of objects) {
+      const payload = {
+        assetPackUuid: obj.assetPackUuid,
+        itemId: obj.itemId,
+        category: obj.category,
+        tileX: obj.tileX,
+        tileY: obj.tileY,
+        width: obj.width,
+        height: obj.height,
+        collide: obj.collide,
+        zIndex: obj.zIndex,
+        scaleFactor: obj.scaleFactor || 1,
+        dataUrl: obj.dataUrl,
+        rotation: obj.rotation || 0,
+        flipX: obj.flipX || false,
+        flipY: obj.flipY || false,
+      };
+      const res = await fetch(`${this.apiBase}/maps/${encodedId}/objects`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new EditorPersistenceError(`Create object failed: ${res.status} ${text}`);
+      }
+    }
+  }
+
+  private async updateObjects(
+    encodedId: string,
+    objectUpdates: PendingChanges['objectUpdates'],
+  ): Promise<void> {
+    for (const { id, updates } of objectUpdates) {
+      const res = await fetch(`${this.apiBase}/maps/${encodedId}/objects/${id}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new EditorPersistenceError(`Update object ${id} failed: ${res.status} ${text}`);
+      }
+    }
+  }
+
+  private async saveZonesIfModified(
+    encodedId: string,
+    pendingChanges: PendingChanges,
+    editorState: EditorState,
+  ): Promise<void> {
+    if (!pendingChanges.zonesModified) return;
+    const res = await fetch(`${this.apiBase}/maps/${encodedId}/editor-state`, {
+      method: 'PUT',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ zones: editorState.zones, replaceZones: true }),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new EditorPersistenceError(`Save zones failed: ${res.status} ${text}`);
+    }
+  }
+
+  private async saveSpawnIfUpdated(
+    encodedId: string,
+    pendingChanges: PendingChanges,
+  ): Promise<void> {
+    if (!pendingChanges.spawnUpdate) return;
+    const res = await fetch(`${this.apiBase}/maps/${encodedId}/editor-state`, {
+      method: 'PUT',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ spawn: pendingChanges.spawnUpdate }),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new EditorPersistenceError(`Save spawn failed: ${res.status} ${text}`);
     }
   }
 

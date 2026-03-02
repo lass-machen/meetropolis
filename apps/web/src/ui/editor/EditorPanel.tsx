@@ -11,8 +11,14 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Toast } from '../system';
 import { EditorService, PackItem } from '../../services/EditorService';
+import { EditorPersistence } from '../../services/EditorPersistence';
 import { useMapStore } from '../../state/mapStore';
 import { logger } from '../../lib/logger';
+import { TilesetPicker } from './TilesetPicker';
+import { ObjectPropertiesPanel } from './ObjectPropertiesPanel';
+import { ZoneEditor } from './ZoneEditor';
+import { fetchStateV2 } from '../../lib/mapV2';
+import type { V2Tileset } from '../../lib/mapV2';
 
 export function EditorPanel(props: {
   onSave?: () => Promise<boolean>;
@@ -23,6 +29,10 @@ export function EditorPanel(props: {
   const [lastSavedAt, setLastSavedAt] = React.useState<number | null>(null);
   const [toastOpen, setToastOpen] = React.useState(false);
   const [toast, setToast] = React.useState<{ title?: string; description?: string; intent?: 'info' | 'success' | 'error' }>({});
+
+  // V2 Tilesets state
+  const [v2Tilesets, setV2Tilesets] = React.useState<V2Tileset[]>([]);
+  const [activeTilesetKey, setActiveTilesetKey] = React.useState<string | null>(null);
 
   // Subscribe zu EditorService
   React.useEffect(() => {
@@ -108,26 +118,48 @@ export function EditorPanel(props: {
     return () => window.removeEventListener('editor:toast', onToast);
   }, []);
 
+  // V2 Tilesets laden
+  React.useEffect(() => {
+    const mapId = useMapStore.getState().currentMapId;
+    if (!mapId) return;
+    fetchStateV2(mapId).then(v2 => {
+      if (v2?.tilesetRegistry) setV2Tilesets(v2.tilesetRegistry);
+    }).catch(() => {});
+  }, []);
+
+  // Keyboard shortcut listener for Ctrl/Cmd+S
+  React.useEffect(() => {
+    const onSaveShortcut = () => { handleSaveClick(); };
+    window.addEventListener('editor:save', onSaveShortcut);
+    return () => window.removeEventListener('editor:save', onSaveShortcut);
+  }, [saving]);
+
   const handleSaveClick = async () => {
     if (saving) return;
     setSaving(true);
 
     try {
-      const saveHandler = props.onSave;
-      if (saveHandler) {
-        const result = await saveHandler();
-        if (result) {
-          setLastSavedAt(Date.now());
-          setToast({ title: t('editor.savedTitle'), description: t('editor.changesSaved'), intent: 'success' });
-          setToastOpen(true);
-        } else {
-          setToast({ title: t('editor.saveFailedTitle'), description: t('editor.saveFailedDesc'), intent: 'error' });
-          setToastOpen(true);
-        }
+      const mapId = useMapStore.getState().currentMapId;
+
+      // Legacy save (zones, assets, spawn via editor-state)
+      if (props.onSave) {
+        await props.onSave();
       }
+
+      // V2 save (pending changes via REST API)
+      if (mapId && EditorService.hasPendingChanges()) {
+        const currentState = EditorService.getState();
+        await EditorPersistence.saveAllChanges(mapId, currentState.pendingChanges, currentState);
+        EditorService.dispatch({ type: 'CLEAR_PENDING_CHANGES' });
+      }
+
+      setLastSavedAt(Date.now());
+      setToast({ title: t('editor.savedTitle'), description: t('editor.changesSaved'), intent: 'success' });
+      setToastOpen(true);
     } catch (e: unknown) {
       logger.error('Save failed', e);
-      setToast({ title: t('editor.saveFailedTitle'), description: e.message || 'Unknown error', intent: 'error' });
+      const msg = e instanceof Error ? e.message : 'Unknown error';
+      setToast({ title: t('editor.saveFailedTitle'), description: msg, intent: 'error' });
       setToastOpen(true);
     } finally {
       setSaving(false);
@@ -239,6 +271,36 @@ export function EditorPanel(props: {
               </span>
             </div>
           </div>
+
+          {/* V2 Tileset Picker */}
+          {v2Tilesets.length > 0 && (
+            <div style={{ display: 'grid', gap: 6 }}>
+              <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>Tileset wählen</div>
+              <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                {v2Tilesets.map(ts => (
+                  <button
+                    key={ts.key}
+                    onClick={() => setActiveTilesetKey(ts.key === activeTilesetKey ? null : ts.key)}
+                    style={{
+                      padding: '4px 8px',
+                      borderRadius: 6,
+                      border: `1px solid ${activeTilesetKey === ts.key ? '#3b82f6' : 'var(--border)'}`,
+                      background: activeTilesetKey === ts.key ? 'rgba(59,130,246,0.18)' : 'var(--glass)',
+                      color: 'var(--fg)',
+                      fontSize: 11,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {ts.key.split(':').pop() || ts.key}
+                  </button>
+                ))}
+              </div>
+              {activeTilesetKey && (() => {
+                const ts = v2Tilesets.find(t => t.key === activeTilesetKey);
+                return ts ? <TilesetPicker tileset={ts} selectedTileRefId={state.selectedTileRefId} /> : null;
+              })()}
+            </div>
+          )}
         </div>
       )}
 
@@ -312,235 +374,13 @@ export function EditorPanel(props: {
 
       {/* Zone-spezifisches UI */}
       {state.category === 'zones' && (
-        <>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg)' }}>{t('editor.zones')}</div>
-            <button
-              onClick={async () => {
-                if (props.onSave) {
-                  const saved = await props.onSave();
-                  if (saved) {
-                    try { window.dispatchEvent(new CustomEvent('editor:toast', { detail: { title: 'Gespeichert', description: 'Zonen wurden gespeichert', intent: 'success' } })); } catch { }
-                  }
-                }
-              }}
-              style={{
-                padding: '6px 12px',
-                borderRadius: 6,
-                border: '1px solid var(--border)',
-                background: 'rgba(34,197,94,0.12)',
-                color: 'var(--fg)',
-                fontSize: 12,
-                fontWeight: 500,
-              }}
-            >
-              💾 Speichern
-            </button>
-          </div>
-          <div style={{ display: 'grid', gap: 6 }}>
-            <label style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>{t('editor.zoneName')}</label>
-            <input
-              value={state.zoneName}
-              onChange={(e) => EditorService.dispatch({ type: 'SET_ZONE_NAME', name: e.target.value })}
-              placeholder={t('editor.exampleRoomName')}
-              style={{
-                padding: 8,
-                borderRadius: 6,
-                border: '1px solid var(--border)',
-                background: 'var(--glass)',
-                color: 'var(--fg)',
-                fontSize: 13,
-              }}
-            />
-            <div style={{ display: 'flex', gap: 6 }}>
-              <button
-                onClick={() => EditorService.dispatch({ type: 'SET_TOOL', tool: 'zone' })}
-                style={{
-                  padding: '6px 12px',
-                  borderRadius: 6,
-                  border: '1px solid var(--border)',
-                  background: state.tool === 'zone' ? 'rgba(59,130,246,0.18)' : 'var(--glass)',
-                  color: 'var(--fg)',
-                  fontSize: 13,
-                }}
-              >
-                {t('editor.drawNew')}
-              </button>
-            </div>
-          </div>
-
-          {/* Existierende Zonen */}
-          <div style={{ marginTop: 10, display: 'grid', gap: 8 }}>
-            <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>{t('editor.existingZones')}</div>
-            {state.zones.length === 0 && (
-              <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>{t('editor.noZones')}</div>
-            )}
-            {state.zones.map((zone, idx) => {
-              const availableMaps = useMapStore.getState().availableMaps;
-              return (
-                <div
-                  key={idx}
-                  style={{
-                    display: 'grid',
-                    gap: 6,
-                    padding: 8,
-                    borderRadius: 8,
-                    border: '1px solid var(--border)',
-                    background: state.editingZoneIndex === idx ? 'rgba(59,130,246,0.08)' : 'var(--glass)',
-                  }}
-                >
-                  <div style={{ display: 'grid', gap: 4 }}>
-                    <label style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>{t('editor.name')}</label>
-                    <input
-                      value={zone.name}
-                      onChange={(e) => EditorService.dispatch({ type: 'UPDATE_ZONE_NAME', index: idx, name: e.target.value })}
-                      style={{
-                        padding: 6,
-                        borderRadius: 6,
-                        border: '1px solid var(--border)',
-                        background: 'var(--glass)',
-                        color: 'var(--fg)',
-                        fontSize: 12,
-                      }}
-                    />
-                  </div>
-                  {/* Zone Type */}
-                  <div style={{ display: 'grid', gap: 4 }}>
-                    <label style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>Typ</label>
-                    <select
-                      value={zone.type || 'default'}
-                      onChange={(e) => EditorService.dispatch({ type: 'UPDATE_ZONE_TYPE', index: idx, zoneType: e.target.value as 'default' | 'portal' })}
-                      style={{
-                        padding: 6,
-                        borderRadius: 6,
-                        border: '1px solid var(--border)',
-                        background: 'var(--glass)',
-                        color: 'var(--fg)',
-                        fontSize: 12,
-                      }}
-                    >
-                      <option value="default">Normal</option>
-                      <option value="portal">Portal</option>
-                    </select>
-                  </div>
-                  {/* Portal fields */}
-                  {zone.type === 'portal' && (
-                    <div style={{ display: 'grid', gap: 4, padding: '6px 0 0' }}>
-                      <label style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>Ziel-Map</label>
-                      <select
-                        value={zone.portalTarget || ''}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          const action: Parameters<typeof EditorService.dispatch>[0] = val
-                            ? { type: 'UPDATE_ZONE_PORTAL', index: idx, portalTarget: val }
-                            : { type: 'UPDATE_ZONE_PORTAL', index: idx };
-                          EditorService.dispatch(action);
-                        }}
-                        style={{
-                          padding: 6,
-                          borderRadius: 6,
-                          border: '1px solid var(--border)',
-                          background: 'var(--glass)',
-                          color: 'var(--fg)',
-                          fontSize: 12,
-                        }}
-                      >
-                        <option value="">-- Ziel wählen --</option>
-                        {availableMaps.map(m => (
-                          <option key={m.name} value={m.name}>{m.name}</option>
-                        ))}
-                      </select>
-                      <div style={{ display: 'flex', gap: 6 }}>
-                        <div style={{ flex: 1, display: 'grid', gap: 2 }}>
-                          <label style={{ fontSize: 10, color: 'var(--fg-subtle)' }}>Spawn X (Tile)</label>
-                          <input
-                            type="number"
-                            value={zone.portalSpawnX ?? ''}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              const action: Parameters<typeof EditorService.dispatch>[0] = val
-                                ? { type: 'UPDATE_ZONE_PORTAL', index: idx, portalSpawnX: Number(val) }
-                                : { type: 'UPDATE_ZONE_PORTAL', index: idx };
-                              EditorService.dispatch(action);
-                            }}
-                            placeholder="auto"
-                            style={{
-                              padding: 4,
-                              borderRadius: 6,
-                              border: '1px solid var(--border)',
-                              background: 'var(--glass)',
-                              color: 'var(--fg)',
-                              fontSize: 11,
-                              width: '100%',
-                            }}
-                          />
-                        </div>
-                        <div style={{ flex: 1, display: 'grid', gap: 2 }}>
-                          <label style={{ fontSize: 10, color: 'var(--fg-subtle)' }}>Spawn Y (Tile)</label>
-                          <input
-                            type="number"
-                            value={zone.portalSpawnY ?? ''}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              const action: Parameters<typeof EditorService.dispatch>[0] = val
-                                ? { type: 'UPDATE_ZONE_PORTAL', index: idx, portalSpawnY: Number(val) }
-                                : { type: 'UPDATE_ZONE_PORTAL', index: idx };
-                              EditorService.dispatch(action);
-                            }}
-                            placeholder="auto"
-                            style={{
-                              padding: 4,
-                              borderRadius: 6,
-                              border: '1px solid var(--border)',
-                              background: 'var(--glass)',
-                              color: 'var(--fg)',
-                              fontSize: 11,
-                              width: '100%',
-                            }}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <button
-                      onClick={() => EditorService.dispatch({ type: 'START_EDIT_ZONE', index: idx })}
-                      style={{
-                        padding: '6px 10px',
-                        borderRadius: 6,
-                        border: '1px solid var(--border)',
-                        background: 'var(--glass)',
-                        color: 'var(--fg)',
-                        fontSize: 12,
-                      }}
-                    >
-                      Bearbeiten
-                    </button>
-                    <button
-                      onClick={async () => {
-                        EditorService.dispatch({ type: 'DELETE_ZONE', index: idx });
-                        // Auto-save nach Löschen, damit Server-State synchron bleibt
-                        if (props.onSave) {
-                          await props.onSave();
-                        }
-                      }}
-                      style={{
-                        padding: '6px 10px',
-                        borderRadius: 6,
-                        border: '1px solid var(--border)',
-                        background: 'rgba(239,68,68,0.12)',
-                        color: 'var(--fg)',
-                        fontSize: 12,
-                      }}
-                    >
-                      {t('editor.remove')}
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </>
+        <ZoneEditor
+          zones={state.zones}
+          zoneName={state.zoneName}
+          editingZoneIndex={state.editingZoneIndex}
+          tool={state.tool}
+          onSave={props.onSave}
+        />
       )}
 
       {/* Asset-Palette */}
@@ -629,6 +469,12 @@ export function EditorPanel(props: {
         </>
       )}
 
+      {/* Object Properties Panel */}
+      {(state.category === 'objects' || state.category === 'structures') && state.selectedObjectId && (() => {
+        const obj = state.mapObjects.find(o => String(o.id) === state.selectedObjectId);
+        return obj ? <ObjectPropertiesPanel object={obj} /> : null;
+      })()}
+
       {/* Footer */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
         <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>
@@ -650,7 +496,7 @@ export function EditorPanel(props: {
             cursor: saving ? 'default' : 'pointer',
           }}
         >
-          {saving ? t('editor.saving') : t('editor.save')}
+          {saving ? t('editor.saving') : `${t('editor.save')}${EditorService.getPendingChangesCount() > 0 ? ` (${EditorService.getPendingChangesCount()})` : ''}`}
         </button>
       </div>
 

@@ -46,7 +46,7 @@ export function setupEditorHandlers(
       const layer = (payload && typeof payload.layer === 'string') ? payload.layer : null;
       const updates = Array.isArray(payload?.updates) ? payload.updates : [];
       if (!layer || updates.length === 0) return;
-      const layerName = (layer === 'collision' || layer === 'walls' || layer === 'ground') ? layer : null;
+      const layerName = (layer === 'collision' || layer === 'walls' || layer === 'ground' || layer === 'walls_auto') ? layer : null;
       if (!layerName) return;
       if (gameBridge && typeof (gameBridge as any).applyChunkUpdates === 'function') {
         (gameBridge as any).applyChunkUpdates(layerName, updates);

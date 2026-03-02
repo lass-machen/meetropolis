@@ -59,6 +59,7 @@ type Bridge = {
   // Live avatar switching
   changeHeroAvatar: (avatarId: string) => void;
   applyTerrainPaint: (edit: { rect: { startX: number; startY: number; endX: number; endY: number }; dataUrl: string }) => void;
+  applyTerrainPaintV2: (edit: { rect: { x0: number; y0: number; x1: number; y1: number }; tileRefId: number; layer: string }) => void;
   eraseTerrainRect: (rect: { startX: number; startY: number; endX: number; endY: number }) => void;
   applyWallPaint: (edit: { rect: { startX: number; startY: number; endX: number; endY: number }; wallTypeId: number }) => void;
 };
@@ -94,6 +95,7 @@ export type SceneApi = {
   changeHeroAvatar?: (avatarId: string) => void;
   handleObjectsUpdated?: (data: { action: string; objects?: any[]; objectIds?: number[] }) => void;
   applyTerrainPaint?: (edit: { rect: { startX: number; startY: number; endX: number; endY: number }; dataUrl: string }) => void;
+  paintTerrainRect?: (layer: string, rect: { x0: number; y0: number; x1: number; y1: number }, tileRefId: number) => void;
   eraseTerrainRect?: (rect: { startX: number; startY: number; endX: number; endY: number }) => void;
   applyWallPaint?: (edit: { rect: { startX: number; startY: number; endX: number; endY: number }; wallTypeId: number }) => void;
 };
@@ -359,6 +361,7 @@ export const gameBridge: Bridge = {
       case 'zone':
         if (state.dragState) {
           EditorService.dispatch({ type: 'COMPLETE_ZONE', tileX, tileY });
+          EditorService.dispatch({ type: 'MARK_ZONES_MODIFIED' });
           gameBridge.setSelectionRect(null);
         }
         break;
@@ -372,13 +375,14 @@ export const gameBridge: Bridge = {
           gameBridge.setSelectionRect(null);
         }
         break;
-      case 'spawn':
+      case 'spawn': {
         const tileSize = 16;
         const x = tileX * tileSize + tileSize / 2;
         const y = tileY * tileSize + tileSize / 2;
-        logger.debug('[Bridge] Dispatching SET_SPAWN', { x, y });
-        EditorService.dispatch({ type: 'SET_SPAWN', x, y });
+        logger.debug('[Bridge] Dispatching SET_PENDING_SPAWN', { x, y });
+        EditorService.dispatch({ type: 'SET_PENDING_SPAWN', x, y });
         break;
+      }
     }
   },
   setSelectionRect: (rect) => {
@@ -389,6 +393,9 @@ export const gameBridge: Bridge = {
   },
   applyTerrainPaint: (edit) => {
     sceneApi?.applyTerrainPaint?.(edit);
+  },
+  applyTerrainPaintV2: (edit) => {
+    sceneApi?.paintTerrainRect?.(edit.layer, edit.rect, edit.tileRefId);
   },
   eraseTerrainRect: (rect) => {
     sceneApi?.eraseTerrainRect?.(rect);

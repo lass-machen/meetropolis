@@ -80,6 +80,10 @@ export function splitTileRefId(id: number): { slot: number; tileIndex: number } 
   return { slot, tileIndex };
 }
 
+export function makeTileRefId(slot: number, tileIndex: number): number {
+  return (((slot & 0xffff) << 16) | (tileIndex & 0xffff)) + 1;
+}
+
 export async function preloadTilesetImages(scene: Phaser.Scene, tilesets: V2Tileset[]): Promise<void> {
   const toLoad: Array<{ key: string; url: string }> = [];
 

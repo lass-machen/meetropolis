@@ -39,6 +39,7 @@ export class EditorInputHandler {
 
   init() {
     this.setupPointerHandlers();
+    this.setupKeyboardShortcuts();
   }
 
   private toTile(p: Phaser.Input.Pointer): { tileX: number; tileY: number } {
@@ -60,6 +61,55 @@ export class EditorInputHandler {
     this.scene.input.on('pointerup', (pointer: Phaser.Input.Pointer) => {
       this.handlePointerUp(pointer);
     });
+  }
+
+  private setupKeyboardShortcuts() {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!this.getEditorMode()) return;
+
+      // Ctrl/Cmd+S: Save
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent('editor:save'));
+        return;
+      }
+
+      // Skip shortcuts when focused on form elements
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+
+      this.handleEditorShortcut(e);
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+  }
+
+  private handleEditorShortcut(e: KeyboardEvent) {
+    switch (e.key) {
+      case '1': EditorService.dispatch({ type: 'SET_TOOL', tool: 'select' }); break;
+      case '2': EditorService.dispatch({ type: 'SET_TOOL', tool: 'terrain' }); break;
+      case '3': EditorService.dispatch({ type: 'SET_TOOL', tool: 'asset' }); break;
+      case '4': EditorService.dispatch({ type: 'SET_TOOL', tool: 'collision' }); break;
+      case '5': EditorService.dispatch({ type: 'SET_TOOL', tool: 'zone' }); break;
+      case '6': EditorService.dispatch({ type: 'SET_TOOL', tool: 'spawn' }); break;
+      case '7': EditorService.dispatch({ type: 'SET_TOOL', tool: 'erase' }); break;
+      case 'g': EditorService.dispatch({ type: 'TOGGLE_GRID' }); break;
+      case 'c': EditorService.dispatch({ type: 'TOGGLE_VIEW', key: 'collision' }); break;
+      case 'Delete':
+      case 'Backspace':
+        this.handleDeleteShortcut();
+        break;
+    }
+  }
+
+  private handleDeleteShortcut() {
+    const selectedId = EditorService.getState().selectedObjectId;
+    if (!selectedId) return;
+    const obj = EditorService.getState().mapObjects.find(o => String(o.id) === selectedId);
+    if (obj) {
+      EditorService.dispatch({ type: 'ADD_PENDING_OBJECT_DELETE', objectId: obj.id });
+      EditorService.dispatch({ type: 'SELECT_MAP_OBJECT', objectId: null });
+    }
   }
 
   private handlePointerDown(pointer: Phaser.Input.Pointer) {
@@ -186,6 +236,30 @@ export class EditorInputHandler {
       if (this.getEditorMode() && ds) {
         const rect = { startX: ds.x, startY: ds.y, endX: tileX, endY: tileY };
 
+        // V2 terrain painting with tileRefId
+        if (editorTool === 'terrain' && editorState.selectedTileRefId > 0) {
+          const x0 = Math.min(rect.startX, rect.endX);
+          const y0 = Math.min(rect.startY, rect.endY);
+          const x1 = Math.max(rect.startX, rect.endX);
+          const y1 = Math.max(rect.startY, rect.endY);
+
+          gameBridge.applyTerrainPaintV2({
+            rect: { x0, y0, x1, y1 },
+            tileRefId: editorState.selectedTileRefId,
+            layer: 'ground',
+          });
+
+          EditorService.dispatch({
+            type: 'ADD_PENDING_TERRAIN_PAINT',
+            paint: {
+              layer: 'ground',
+              rect: { x0, y0, x1, y1 },
+              tileRefId: editorState.selectedTileRefId,
+            },
+          });
+          return;
+        }
+
         if (this.ghostSprite && this.ghostDataUrl && editorTool === 'terrain') {
           gameBridge.applyTerrainPaint({ rect, dataUrl: this.ghostDataUrl });
         } else if (editorTool === 'collision' || editorTool === 'erase') {
@@ -198,12 +272,21 @@ export class EditorInputHandler {
   }
 
   private handleCollisionOrErase(
-    editorState: any,
+    editorState: ReturnType<typeof EditorService.getState>,
     editorTool: string,
     rect: { startX: number; startY: number; endX: number; endY: number }
   ) {
     if (editorState.category === 'terrain' && editorTool === 'erase') {
       gameBridge.eraseTerrainRect(rect);
+      // Also register pending change for V2
+      const x0 = Math.min(rect.startX, rect.endX);
+      const y0 = Math.min(rect.startY, rect.endY);
+      const x1 = Math.max(rect.startX, rect.endX);
+      const y1 = Math.max(rect.startY, rect.endY);
+      EditorService.dispatch({
+        type: 'ADD_PENDING_TERRAIN_PAINT',
+        paint: { layer: 'ground', rect: { x0, y0, x1, y1 }, tileRefId: 0 },
+      });
     } else if (editorState.category === 'collisions') {
       const tileIndex = editorTool === 'erase' ? -1 : 1;
       const edit = {
@@ -221,6 +304,27 @@ export class EditorInputHandler {
         rect
       };
       gameBridge.applyTilePaint(edit);
+    }
+
+    // Enhanced erase: also delete objects in rect area
+    if (editorTool === 'erase') {
+      this.eraseObjectsInRect(rect);
+    }
+  }
+
+  private eraseObjectsInRect(
+    rect: { startX: number; startY: number; endX: number; endY: number }
+  ) {
+    const x0 = Math.min(rect.startX, rect.endX);
+    const y0 = Math.min(rect.startY, rect.endY);
+    const x1 = Math.max(rect.startX, rect.endX);
+    const y1 = Math.max(rect.startY, rect.endY);
+    const currentState = EditorService.getState();
+    const objectsInRect = currentState.mapObjects.filter(obj =>
+      obj.tileX >= x0 && obj.tileX <= x1 && obj.tileY >= y0 && obj.tileY <= y1
+    );
+    for (const obj of objectsInRect) {
+      EditorService.dispatch({ type: 'ADD_PENDING_OBJECT_DELETE', objectId: obj.id });
     }
   }
 

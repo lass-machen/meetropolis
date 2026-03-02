@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { EditorService } from '../../../services/EditorService';
 import { logger } from '../../../lib/logger';
-import { V2State, computeFirstGids } from '../../../lib/mapV2';
+import { V2State, computeFirstGids, tileRefIdToGid } from '../../../lib/mapV2';
 
 export interface TileManagerConfig {
   scene: Phaser.Scene;
@@ -291,6 +291,37 @@ export class TileManager {
 
   getCollisionLayer(): Phaser.Tilemaps.TilemapLayer | undefined {
     return this.collisionLayer;
+  }
+
+  paintTerrainRect(
+    layer: string,
+    rect: { x0: number; y0: number; x1: number; y1: number },
+    tileRefId: number,
+  ): void {
+    if (!this.v2) {
+      logger.warn('[TileManager] paintTerrainRect: no V2 state');
+      return;
+    }
+
+    const targetLayer = layer === 'ground' ? this.editorGround : this.wallsLayer;
+    if (!targetLayer) {
+      logger.warn(`[TileManager] paintTerrainRect: no layer "${layer}"`);
+      return;
+    }
+
+    const { x0, y0, x1, y1 } = rect;
+    for (let ty = y0; ty <= y1; ty++) {
+      for (let tx = x0; tx <= x1; tx++) {
+        if (tileRefId === 0) {
+          try { targetLayer.removeTileAt(tx, ty); } catch { /* ignore */ }
+        } else {
+          const gid = tileRefIdToGid(tileRefId, this.v2.firstGids);
+          if (gid > 0) {
+            try { targetLayer.putTileAt(gid, tx, ty); } catch { /* ignore */ }
+          }
+        }
+      }
+    }
   }
 
   getEditorGround(): Phaser.Tilemaps.TilemapLayer | undefined {

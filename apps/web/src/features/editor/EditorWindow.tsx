@@ -11,6 +11,7 @@ import { TilesetUploadDialog, UploadDialogState } from '../../ui/editor/TilesetU
 import { EditorService } from '../../services/EditorService';
 import { uploadTilesetAsAssetPack } from '../../lib/assetPackUpload';
 import { logger } from '../../lib/logger';
+import { gameBridge } from '../../game/bridge';
 
 export function EditorWindow({
   onSave,
@@ -236,6 +237,44 @@ export function EditorWindow({
                 }}
               >
                 Grid
+              </button>
+              <button
+                onClick={() => {
+                  EditorService.dispatch({ type: 'TOGGLE_VIEW', key: 'collision' });
+                  gameBridge.setCollisionVisible(!state.viewToggles.collision);
+                }}
+                title="Kollisionen anzeigen"
+                style={{
+                  padding: '6px 10px',
+                  background: state.viewToggles.collision ? 'rgba(244,63,94,0.2)' : 'transparent',
+                  border: state.viewToggles.collision ? '1px solid #f43f5e' : '1px solid transparent',
+                  borderRadius: 6,
+                  color: state.viewToggles.collision ? '#f43f5e' : '#9ca3af',
+                  cursor: 'pointer',
+                  fontSize: 12,
+                  fontWeight: 500,
+                }}
+              >
+                Collision
+              </button>
+              <button
+                onClick={() => {
+                  EditorService.dispatch({ type: 'TOGGLE_VIEW', key: 'zones' });
+                  gameBridge.setZonesVisible(!state.viewToggles.zones);
+                }}
+                title="Zonen anzeigen"
+                style={{
+                  padding: '6px 10px',
+                  background: state.viewToggles.zones ? 'rgba(59,130,246,0.2)' : 'transparent',
+                  border: state.viewToggles.zones ? '1px solid #3b82f6' : '1px solid transparent',
+                  borderRadius: 6,
+                  color: state.viewToggles.zones ? '#3b82f6' : '#9ca3af',
+                  cursor: 'pointer',
+                  fontSize: 12,
+                  fontWeight: 500,
+                }}
+              >
+                Zones
               </button>
               <button
                 onClick={onClose}
