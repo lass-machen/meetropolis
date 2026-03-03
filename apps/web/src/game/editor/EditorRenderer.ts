@@ -210,7 +210,7 @@ export class EditorRenderer {
   /**
    * Rendert Selektion-Rechteck
    */
-  public renderSelection(rect: { x: number; y: number; w: number; h: number } | null): void {
+  public renderSelection(rect: { x: number; y: number; w: number; h: number } | null, color: number = 0x3b82f6): void {
     if (!this.selectionGraphics) {
       throw new Error('SelectionGraphics not initialized');
     }
@@ -221,11 +221,11 @@ export class EditorRenderer {
       return;
     }
 
-    this.selectionGraphics.lineStyle(2, 0x3b82f6, 1);
+    this.selectionGraphics.lineStyle(2, color, 1);
     this.selectionGraphics.strokeRect(rect.x, rect.y, rect.w, rect.h);
 
     // Gestrichelte Ecken für bessere Sichtbarkeit
-    this.selectionGraphics.fillStyle(0x3b82f6, 0.1);
+    this.selectionGraphics.fillStyle(color, 0.1);
     this.selectionGraphics.fillRect(rect.x, rect.y, rect.w, rect.h);
   }
 
@@ -251,7 +251,7 @@ export class EditorRenderer {
    */
   public renderPendingDeletes(
     objectsToDelete: (number | string)[],
-    mapObjects: Array<{ id: number | string; tileX: number; tileY: number; width: number; height: number }>
+    mapObjects: Array<{ id: number | string; tileX: number; tileY: number; width: number; height: number; scaleFactor?: number }>
   ): void {
     if (!this.pendingDeleteGraphics) return;
     this.pendingDeleteGraphics.clear();
@@ -264,10 +264,11 @@ export class EditorRenderer {
     for (const obj of mapObjects) {
       if (!deleteSet.has(String(obj.id))) continue;
 
+      const scaleFactor = obj.scaleFactor ?? 1;
       const x = obj.tileX * tileSize;
       const y = obj.tileY * tileSize;
-      const w = obj.width;
-      const h = obj.height;
+      const w = obj.width * scaleFactor;
+      const h = obj.height * scaleFactor;
 
       // Red semi-transparent overlay
       this.pendingDeleteGraphics.fillStyle(0xff0000, 0.25);

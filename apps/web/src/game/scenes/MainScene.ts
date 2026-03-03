@@ -20,7 +20,6 @@ import {
   PlayerManager,
   RemotePlayersManager,
   CameraController,
-  EditorInputHandler,
   CollisionManager,
   TileManager,
   UIManager,
@@ -34,21 +33,18 @@ export class MainScene extends Phaser.Scene {
   private playerManager!: PlayerManager;
   private remotePlayersManager!: RemotePlayersManager;
   private cameraController!: CameraController;
-  private editorInputHandler!: EditorInputHandler;
   private collisionManager!: CollisionManager;
   private tileManager!: TileManager;
   private uiManager!: UIManager;
   private nameLabelManager!: NameLabelManager;
   private objectManager!: ObjectManager;
 
-  private selectionG?: Phaser.GameObjects.Graphics;
   private mapRef?: Phaser.Tilemaps.Tilemap;
   private editorGround?: Phaser.Tilemaps.TilemapLayer;
   private wallsLayer?: Phaser.Tilemaps.TilemapLayer;
   private collisionLayer?: Phaser.Tilemaps.TilemapLayer;
   private dynamicTilesets: Map<string, Phaser.Tilemaps.Tileset> = new Map();
   private bubbleOutlines: Map<string, Phaser.GameObjects.Graphics> = new Map();
-  private ghostSprite?: Phaser.GameObjects.Image;
   private v2?: { state: V2State; firstGids: number[]; chunkSize: number };
   private loadedChunks: Set<string> = new Set();
   private systems: GameSystem[] = [];
@@ -56,7 +52,6 @@ export class MainScene extends Phaser.Scene {
   private editorMapObjectsSnapshot: import('../../services/EditorTypes').MapObjectRecord[] | null = null;
   public autotileGrid?: AutotileGrid;
   public autotileRenderer?: AutotileRenderer;
-  private spaceKey?: Phaser.Input.Keyboard.Key;
   private _lastCamSig: string | null = null;
 
   public currentMapId: string = (() => {
@@ -106,8 +101,13 @@ export class MainScene extends Phaser.Scene {
     this.loadServerData();
     this.setupCleanup();
 
-    // Initialize EditorIntegration in rendererOnly mode (input handling stays in MainScene)
-    this.editorIntegration = new EditorIntegration(this, this.mapRef?.tileWidth ?? 16, { rendererOnly: true });
+    // Initialize EditorIntegration with tilemap references for local paint application
+    this.editorIntegration = new EditorIntegration(this, this.mapRef?.tileWidth ?? 16, {
+      tileManager: this.tileManager,
+      autotileGrid: this.autotileGrid,
+      autotileRenderer: this.autotileRenderer,
+      collisionManager: this.collisionManager,
+    });
   }
 
   private initializeManagers() {
@@ -131,12 +131,11 @@ export class MainScene extends Phaser.Scene {
     this.uiManager = new UIManager({ scene: this, getEditorMode: () => this.editorMode });
     this.uiManager.init();
     this.objectManager = new ObjectManager({ scene: this as any });
-    this.editorInputHandler = new EditorInputHandler({ scene: this, mapRef: this.mapRef!, getEditorMode: () => this.editorMode, isPanning: () => this.cameraController?.isPanning() || false, isSpaceHeld: () => this.cameraController?.isSpaceHeld() || false, getSpaceKey: () => this.spaceKey, ghostSprite: this.ghostSprite, selectionG: this.selectionG, getEditorRenderer: () => this.getEditorRenderer() });
-    this.editorInputHandler.init();
   }
 
   private setupInputHandlers() {
-    this.spaceKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+    // Register SPACE key to prevent default browser behavior (scrolling)
+    this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
 
     this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
       if (this.editorMode) {
@@ -364,7 +363,7 @@ export class MainScene extends Phaser.Scene {
     this.autotileRenderer.updateArea(affected);
   }
   setSelectionRect(_rect: { x: number; y: number; w: number; h: number } | null) {
-    // Handled by EditorRenderer via subscription and EditorInputHandler via its own selectionG
+    // Handled by EditorRenderer via EditorIntegration
   }
   applyTilePaint(edit: { layer: 'EditorGround' | 'EditorWalls' | 'Collision'; tilesetKey: string; tileIndex: number; rect: { startX: number; startY: number; endX: number; endY: number } }) {
     this.tileManager.applyTilePaint(edit, this.collisionVisible, () => {

@@ -604,6 +604,91 @@ class EditorServiceClass {
         });
         break;
 
+      case 'START_TILE_DRAG':
+        this.updateState({
+          dragState: {
+            startTileX: action.tileX,
+            startTileY: action.tileY,
+            endTileX: action.tileX,
+            endTileY: action.tileY,
+            tileDragMode: action.mode,
+          },
+        });
+        break;
+
+      case 'UPDATE_TILE_DRAG':
+        if (!this.state.dragState) {
+          throw new Error('Cannot update tile drag: no drag in progress');
+        }
+        this.updateState({
+          dragState: {
+            ...this.state.dragState,
+            endTileX: action.tileX,
+            endTileY: action.tileY,
+          },
+        });
+        break;
+
+      case 'COMPLETE_TILE_DRAG': {
+        if (!this.state.dragState) {
+          throw new Error('Cannot complete tile drag: no drag in progress');
+        }
+
+        const { startTileX, startTileY, tileDragMode } = this.state.dragState;
+        const x0 = Math.min(startTileX, action.tileX);
+        const y0 = Math.min(startTileY, action.tileY);
+        const x1 = Math.max(startTileX, action.tileX);
+        const y1 = Math.max(startTileY, action.tileY);
+        const rect = { x0, y0, x1, y1 };
+
+        // Clear drag state first
+        this.updateState({ dragState: null });
+
+        // Now dispatch the appropriate terrain paint based on mode
+        switch (tileDragMode) {
+          case 'terrain':
+            this.dispatch({
+              type: 'ADD_PENDING_TERRAIN_PAINT',
+              paint: { layer: 'ground', rect, tileRefId: this.state.selectedTileRefId },
+            });
+            break;
+          case 'wall':
+            this.dispatch({
+              type: 'ADD_PENDING_TERRAIN_PAINT',
+              paint: { layer: 'walls_auto', rect, tileRefId: this.state.selectedWallTypeId },
+            });
+            break;
+          case 'collision':
+            this.dispatch({
+              type: 'ADD_PENDING_TERRAIN_PAINT',
+              paint: { layer: 'collision', rect, tileRefId: 1 },
+            });
+            break;
+          case 'erase': {
+            const cat = this.state.category;
+            if (cat === 'terrain' || cat === 'autotiles') {
+              // Erase ground + walls
+              this.dispatch({
+                type: 'ADD_PENDING_TERRAIN_PAINT',
+                paint: { layer: 'ground', rect, tileRefId: 0 },
+              });
+              this.dispatch({
+                type: 'ADD_PENDING_TERRAIN_PAINT',
+                paint: { layer: 'walls', rect, tileRefId: 0, erase: true },
+              });
+            } else if (cat === 'collisions') {
+              // Erase collision
+              this.dispatch({
+                type: 'ADD_PENDING_TERRAIN_PAINT',
+                paint: { layer: 'collision', rect, tileRefId: 0, erase: true },
+              });
+            }
+            break;
+          }
+        }
+        break;
+      }
+
       default:
         // TypeScript exhaustiveness check
         const _exhaustive: never = action;

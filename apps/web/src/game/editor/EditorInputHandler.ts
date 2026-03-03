@@ -18,12 +18,22 @@ export class EditorInputHandler {
   private renderer: EditorRenderer;
   private tileSize: number;
 
+  // Selection-Rect colors per tool
+  private static readonly TOOL_COLORS: Record<string, number> = {
+    terrain: 0x3b82f6,  // blue
+    wall: 0x8b5a2b,     // brown
+    collision: 0xed4245, // red
+    erase: 0xed4245,    // red
+    zone: 0x3b82f6,     // blue (default)
+  };
+
   constructor(scene: Phaser.Scene, renderer: EditorRenderer, tileSize: number = 16) {
     this.scene = scene;
     this.renderer = renderer;
     this.tileSize = tileSize;
 
     this.setupInputHandlers();
+    this.setupKeyboardShortcuts();
   }
 
   private setupInputHandlers(): void {
@@ -86,8 +96,11 @@ export class EditorInputHandler {
     const worldPoint = pointer.positionToCamera(this.scene.cameras.main) as Phaser.Math.Vector2;
     const { tileX, tileY } = this.worldToTile(worldPoint.x, worldPoint.y);
 
-    // Update Ghost-Position wenn Asset-Tool aktiv
+    // Update Ghost-Position wenn Asset-Tool oder Terrain-Tool aktiv
     if (state.tool === 'asset' && state.pendingAsset) {
+      const worldPos = this.tileToWorld(tileX, tileY);
+      this.renderer.updateGhostPosition(worldPos.x, worldPos.y);
+    } else if (state.tool === 'terrain' && !state.dragState) {
       const worldPos = this.tileToWorld(tileX, tileY);
       this.renderer.updateGhostPosition(worldPos.x, worldPos.y);
     }
@@ -102,8 +115,9 @@ export class EditorInputHandler {
       }
     }
 
-    // Update Selection Preview (not for asset stamp mode — ghost serves as preview)
-    if (state.tool !== 'select' && !(state.tool === 'asset' && state.pendingAsset)) {
+    // Update Selection Preview: show single-tile cursor when no drag is active
+    // (during drag, the tool handler renders the drag selection rectangle)
+    if (!state.dragState && state.tool !== 'select' && !(state.tool === 'asset' && state.pendingAsset)) {
       const x = tileX * this.tileSize;
       const y = tileY * this.tileSize;
       this.renderer.renderSelection({
@@ -165,8 +179,19 @@ export class EditorInputHandler {
         // Select hat keine Tile-Actions
         break;
 
+      case 'terrain':
+        this.handleTerrainTool(phase, tileX, tileY);
+        break;
+
+      case 'wall':
+        this.handleWallTool(phase, tileX, tileY);
+        break;
+
+      case 'collision':
+        this.handleCollisionTool(phase, tileX, tileY);
+        break;
+
       default:
-        // Andere Tools (terrain, collision) werden direkt in Phaser Scene behandelt
         break;
     }
   }
@@ -191,7 +216,7 @@ export class EditorInputHandler {
         y: y0,
         w: x1 - x0,
         h: y1 - y0,
-      });
+      }, EditorInputHandler.TOOL_COLORS['zone']);
     } else if (phase === 'up' && state.dragState) {
       EditorService.dispatch({ type: 'COMPLETE_ZONE', tileX, tileY });
     }
@@ -251,7 +276,7 @@ export class EditorInputHandler {
         y: y0,
         w: x1 - x0,
         h: y1 - y0,
-      });
+      }, EditorInputHandler.TOOL_COLORS['terrain']); // Asset terrain drag uses blue
     } else if (phase === 'up' && state.dragState) {
       const drag = state.dragState;
       EditorService.dispatch({ type: 'COMPLETE_ASSET_DRAG', tileX, tileY });
@@ -297,11 +322,26 @@ export class EditorInputHandler {
   }
 
   private handleEraseTool(phase: 'down' | 'move' | 'up', tileX: number, tileY: number): void {
-    if (phase !== 'down') return;
     const state = EditorService.getState();
-    if (state.category !== 'objects' && state.category !== 'structures') return;
+    const cat = state.category;
 
-    // Find map object at clicked tile (reverse for z-order)
+    // Terrain / Autotiles / Collisions: drag-based erase via TILE_DRAG
+    if (cat === 'terrain' || cat === 'autotiles' || cat === 'collisions') {
+      if (phase === 'down') {
+        EditorService.dispatch({ type: 'START_TILE_DRAG', tileX, tileY, mode: 'erase' });
+      } else if (phase === 'move' && state.dragState) {
+        EditorService.dispatch({ type: 'UPDATE_TILE_DRAG', tileX, tileY });
+        this.renderDragSelection(state.dragState.startTileX, state.dragState.startTileY, tileX, tileY, 'erase');
+      } else if (phase === 'up' && state.dragState) {
+        EditorService.dispatch({ type: 'COMPLETE_TILE_DRAG', tileX, tileY });
+      }
+      return;
+    }
+
+    // Objects / Structures: single-click toggle mark-for-delete (unchanged)
+    if (phase !== 'down') return;
+    if (cat !== 'objects' && cat !== 'structures') return;
+
     const hit = [...state.mapObjects].reverse().find(o => o.tileX === tileX && o.tileY === tileY);
     if (!hit) return;
 
@@ -310,12 +350,104 @@ export class EditorInputHandler {
     );
 
     if (alreadyMarked) {
-      // Un-mark: remove from objectsToDelete
       EditorService.dispatch({ type: 'REMOVE_PENDING_OBJECT_DELETE', objectId: hit.id });
     } else {
-      // Mark for deletion
       EditorService.dispatch({ type: 'ADD_PENDING_OBJECT_DELETE', objectId: hit.id });
     }
+  }
+
+  private handleTerrainTool(phase: 'down' | 'move' | 'up', tileX: number, tileY: number): void {
+    const state = EditorService.getState();
+
+    if (phase === 'down') {
+      EditorService.dispatch({ type: 'START_TILE_DRAG', tileX, tileY, mode: 'terrain' });
+    } else if (phase === 'move' && state.dragState) {
+      EditorService.dispatch({ type: 'UPDATE_TILE_DRAG', tileX, tileY });
+      this.renderDragSelection(state.dragState.startTileX, state.dragState.startTileY, tileX, tileY, 'terrain');
+    } else if (phase === 'up' && state.dragState) {
+      EditorService.dispatch({ type: 'COMPLETE_TILE_DRAG', tileX, tileY });
+    }
+  }
+
+  private handleWallTool(phase: 'down' | 'move' | 'up', tileX: number, tileY: number): void {
+    const state = EditorService.getState();
+
+    if (phase === 'down') {
+      EditorService.dispatch({ type: 'START_TILE_DRAG', tileX, tileY, mode: 'wall' });
+    } else if (phase === 'move' && state.dragState) {
+      EditorService.dispatch({ type: 'UPDATE_TILE_DRAG', tileX, tileY });
+      this.renderDragSelection(state.dragState.startTileX, state.dragState.startTileY, tileX, tileY, 'wall');
+    } else if (phase === 'up' && state.dragState) {
+      EditorService.dispatch({ type: 'COMPLETE_TILE_DRAG', tileX, tileY });
+    }
+  }
+
+  private handleCollisionTool(phase: 'down' | 'move' | 'up', tileX: number, tileY: number): void {
+    const state = EditorService.getState();
+
+    if (phase === 'down') {
+      EditorService.dispatch({ type: 'START_TILE_DRAG', tileX, tileY, mode: 'collision' });
+    } else if (phase === 'move' && state.dragState) {
+      EditorService.dispatch({ type: 'UPDATE_TILE_DRAG', tileX, tileY });
+      this.renderDragSelection(state.dragState.startTileX, state.dragState.startTileY, tileX, tileY, 'collision');
+    } else if (phase === 'up' && state.dragState) {
+      EditorService.dispatch({ type: 'COMPLETE_TILE_DRAG', tileX, tileY });
+    }
+  }
+
+  private renderDragSelection(startTileX: number, startTileY: number, endTileX: number, endTileY: number, tool: string): void {
+    const x0 = Math.min(startTileX, endTileX) * this.tileSize;
+    const y0 = Math.min(startTileY, endTileY) * this.tileSize;
+    const x1 = (Math.max(startTileX, endTileX) + 1) * this.tileSize;
+    const y1 = (Math.max(startTileY, endTileY) + 1) * this.tileSize;
+    const color = EditorInputHandler.TOOL_COLORS[tool] ?? 0x3b82f6;
+
+    this.renderer.renderSelection({ x: x0, y: y0, w: x1 - x0, h: y1 - y0 }, color);
+  }
+
+  private setupKeyboardShortcuts(): void {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const state = EditorService.getState();
+      if (!state.active) return;
+
+      // Ctrl/Cmd+S: Save
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent('editor:save'));
+        return;
+      }
+
+      // Skip shortcuts when focused on form elements
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+
+      switch (e.key) {
+        case '1': EditorService.dispatch({ type: 'SET_TOOL', tool: 'select' }); break;
+        case '2': EditorService.dispatch({ type: 'SET_TOOL', tool: 'terrain' }); break;
+        case '3': EditorService.dispatch({ type: 'SET_TOOL', tool: 'asset' }); break;
+        case '4': EditorService.dispatch({ type: 'SET_TOOL', tool: 'collision' }); break;
+        case '5': EditorService.dispatch({ type: 'SET_TOOL', tool: 'zone' }); break;
+        case '6': EditorService.dispatch({ type: 'SET_TOOL', tool: 'spawn' }); break;
+        case '7': EditorService.dispatch({ type: 'SET_TOOL', tool: 'erase' }); break;
+        case 'g': EditorService.dispatch({ type: 'TOGGLE_GRID' }); break;
+        case 'c': EditorService.dispatch({ type: 'TOGGLE_VIEW', key: 'collision' }); break;
+        case 'Delete':
+        case 'Backspace': {
+          const selectedId = state.selectedObjectId;
+          if (!selectedId) break;
+          const obj = state.mapObjects.find(o => String(o.id) === selectedId);
+          if (obj) {
+            EditorService.dispatch({ type: 'ADD_PENDING_OBJECT_DELETE', objectId: obj.id });
+            EditorService.dispatch({ type: 'SELECT_MAP_OBJECT', objectId: null });
+          }
+          break;
+        }
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    // Store reference for cleanup
+    (this as any)._keydownHandler = onKeyDown;
   }
 
   private isSpaceHeld(): boolean {
@@ -327,5 +459,8 @@ export class EditorInputHandler {
     this.scene.input.off('pointerdown', this.handlePointerDown);
     this.scene.input.off('pointermove', this.handlePointerMove);
     this.scene.input.off('pointerup', this.handlePointerUp);
+    if ((this as any)._keydownHandler) {
+      window.removeEventListener('keydown', (this as any)._keydownHandler);
+    }
   }
 }

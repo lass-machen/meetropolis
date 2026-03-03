@@ -146,6 +146,7 @@ export type EditorState = {
     startTileY: number;
     endTileX: number;
     endTileY: number;
+    tileDragMode?: 'terrain' | 'wall' | 'collision' | 'erase';
   } | null;
 
   // V2 Terrain State
@@ -236,6 +237,11 @@ export type EditorAction =
   | { type: 'LOAD_MAP_OBJECTS'; objects: MapObjectRecord[] }
 
   // View Toggles
-  | { type: 'TOGGLE_VIEW'; key: keyof ViewToggles };
+  | { type: 'TOGGLE_VIEW'; key: keyof ViewToggles }
+
+  // Tile Drag Actions (terrain/wall/collision painting)
+  | { type: 'START_TILE_DRAG'; tileX: number; tileY: number; mode: 'terrain' | 'wall' | 'collision' | 'erase' }
+  | { type: 'UPDATE_TILE_DRAG'; tileX: number; tileY: number }
+  | { type: 'COMPLETE_TILE_DRAG'; tileX: number; tileY: number };
 
 export type EditorListener = (state: EditorState) => void;

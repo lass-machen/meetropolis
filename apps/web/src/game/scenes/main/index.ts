@@ -7,9 +7,6 @@ export type { RemotePlayer } from './remotePlayersManager';
 export { CameraController } from './cameraController';
 export type { CameraControllerConfig } from './cameraController';
 
-export { EditorInputHandler } from './editorInputHandler';
-export type { EditorInputConfig } from './editorInputHandler';
-
 export { CollisionManager } from './collisionManager';
 export type { CollisionManagerConfig } from './collisionManager';
 

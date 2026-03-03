@@ -1,7 +1,6 @@
 import { EditorService } from '../services/EditorService';
 import { logger } from '../lib/logger';
 import { useMapStore } from '../state/mapStore';
-import { splitTileRefId, fetchStateV2, baseUrl as mapV2BaseUrl } from '../lib/mapV2';
 
 export type Direction = 'up' | 'down' | 'left' | 'right';
 
@@ -18,6 +17,7 @@ type Bridge = {
   setZonesVisible: (visible: boolean) => void;
   onPointerDown: (p: { x: number; y: number }) => void;
   onRightClick: (p: { x: number; y: number; playerId?: string }) => void;
+  // Legacy pointer tile callbacks (no-op, kept for init.ts compat)
   onPointerDownTile: (p: { tileX: number; tileY: number }) => void;
   onPointerMoveTile: (p: { tileX: number; tileY: number }) => void;
   onPointerUpTile: (p: { tileX: number; tileY: number }) => void;
@@ -31,33 +31,24 @@ type Bridge = {
   setHeroName: (name: string) => void;
   updateSpeakingStates: (speakingIds: Set<string>) => void;
   setDoNotDisturb: (enabled: boolean) => void;
-  // Asset-Preview im Editor (Ghost-Sprite unter Cursor)
+  // Asset-Preview im Editor (Ghost-Sprite unter Cursor) — no-op, handled by EditorIntegration
   setAssetPreview: (preview: { dataUrl: string; width?: number | undefined; height?: number | undefined; rotation?: number | undefined; packUuid?: string | undefined; itemId?: string | undefined } | null) => void;
-  // New: lock movement and find free spot near a sprite
   setMovementLocked: (locked: boolean) => void;
   findFreeSpotNear: (targetId: string, options?: { radius?: number; step?: number }) => { x: number; y: number } | null;
-  // Camera helpers for UI
   recenterCamera: () => void;
   onCameraManualChange?: (active: boolean) => void;
-  // Editor mode: disable normal interactions in scene
   setEditorMode: (enabled: boolean) => void;
   handleEditorUpdate?: (data: any) => void;
-  // MapObject live updates
   handleObjectsUpdated: (data: { action: 'add' | 'remove' | 'update'; objects?: any[] | undefined; objectIds?: number[] | undefined }) => void;
-  // Background color
   setBackgroundColor: (hex: string) => void;
-  // Spawn-Marker Overlay (Editor)
   setSpawnMarker: (pos: { x: number; y: number } | null) => void;
-  // Force-persist editor layers to server (no size guard)
   saveEditorLayersHard?: () => void;
   applyChunkUpdates?: (layerName: 'ground' | 'walls' | 'collision' | 'walls_auto', updates: Array<{ key: string; version: number; encoding: string; data: string }>) => void;
   forceReloadMap?: () => void;
-  // Expose method to hydrate tileset cache from outside (e.g. serverSync)
   hydrateTilesetsCache: (tilesets: { key: string; dataUrl: string; tileWidth: number; tileHeight: number; margin?: number | undefined; spacing?: number | undefined }[]) => void;
-  // Update tileset registry in scene
   updateTilesetRegistry: (registry: any[]) => void;
-  // Live avatar switching
   changeHeroAvatar: (avatarId: string) => void;
+  // Legacy paint methods (no-op, painting handled by EditorIntegration.applyLocalPaint)
   applyTerrainPaint: (edit: { rect: { startX: number; startY: number; endX: number; endY: number }; dataUrl: string }) => void;
   applyTerrainPaintV2: (edit: { rect: { x0: number; y0: number; x1: number; y1: number }; tileRefId: number; layer: string }) => void;
   eraseTerrainRect: (rect: { startX: number; startY: number; endX: number; endY: number }) => void;
@@ -183,19 +174,6 @@ let cachedDoNotDisturb = false;
 let remotePlayersCache: Record<string, { x: number; y: number; direction: Direction; name?: string | undefined; dnd?: boolean | undefined; avatarId?: string | undefined; isNpc?: boolean | undefined }> = {};
 let lastDesiredPosition: { x: number; y: number } | null = null;
 
-// Editor-State-Caching ENTFERNT - EditorService ist jetzt Single Source of Truth
-// cachedZones, cachedAssets, cachedSpawnMarker, cachedTilesets, cachedBackgroundColor -> GELÖSCHT
-
-// V2 tileset cache for terrain ghost preview (populated via updateTilesetRegistry or lazy fetch)
-let v2TilesetCache: Array<{ slot: number; key: string; imageUrl: string; tileWidth: number; tileHeight: number; margin?: number | null; spacing?: number | null }> = [];
-let terrainPreviewGeneration = 0;
-
-function resolveImageUrl(url: string): string {
-  if (url.startsWith('data:')) return url;
-  if (url.startsWith('http://') || url.startsWith('https://')) return url;
-  return `${mapV2BaseUrl()}${url}`;
-}
-
 export const gameBridge: Bridge = {
   onLocalMove: () => { },
   onPointerDown: () => { },
@@ -288,80 +266,21 @@ export const gameBridge: Bridge = {
   setZonesVisible: (visible) => {
     sceneApi?.setZonesVisible?.(visible);
   },
-  // Optional: dedizierter Weg um Bubble-Mitglieder zu cachen (UI steuert dieses Set)
-  onPointerDownTile: (p) => {
-    const state = EditorService.getState();
-    if (!state.active) return;
-
-    const { tileX, tileY } = p;
-
-    // Note: 'asset', 'spawn', 'erase' tools are handled by EditorInputHandler (new system).
-    // Only zone and legacy tools are still dispatched through the bridge.
-    switch (state.tool) {
-      case 'zone':
-        EditorService.dispatch({ type: 'START_ZONE_DRAG', tileX, tileY });
-        break;
-    }
-  },
-  onPointerMoveTile: (p) => {
-    const state = EditorService.getState();
-    if (!state.active || !state.dragState) return;
-
-    const { tileX, tileY } = p;
-
-    // Note: 'asset' drag is handled by EditorInputHandler (new system).
-    switch (state.tool) {
-      case 'zone':
-        EditorService.dispatch({ type: 'UPDATE_ZONE_DRAG', tileX, tileY });
-        // Update visual selection via setSelectionRect
-        if (state.dragState) {
-          const drag = state.dragState;
-          const tileSize = 16;
-          const x0 = Math.min(drag.startTileX, tileX) * tileSize;
-          const y0 = Math.min(drag.startTileY, tileY) * tileSize;
-          const x1 = (Math.max(drag.startTileX, tileX) + 1) * tileSize;
-          const y1 = (Math.max(drag.startTileY, tileY) + 1) * tileSize;
-          gameBridge.setSelectionRect({ x: x0, y: y0, w: x1 - x0, h: y1 - y0 });
-        }
-        break;
-    }
-  },
-  onPointerUpTile: (p) => {
-    const state = EditorService.getState();
-    logger.debug('[Bridge] onPointerUpTile', p, state.tool);
-    if (!state.active) return;
-
-    const { tileX, tileY } = p;
-
-    // Note: 'asset' and 'spawn' tools are handled by EditorInputHandler (new system).
-    switch (state.tool) {
-      case 'zone':
-        if (state.dragState) {
-          EditorService.dispatch({ type: 'COMPLETE_ZONE', tileX, tileY });
-          EditorService.dispatch({ type: 'MARK_ZONES_MODIFIED' });
-          gameBridge.setSelectionRect(null);
-        }
-        break;
-    }
-  },
+  // Legacy pointer tile callbacks (no-op, all tools handled by EditorInputHandler in EditorIntegration)
+  onPointerDownTile: () => { },
+  onPointerMoveTile: () => { },
+  onPointerUpTile: () => { },
   setSelectionRect: (rect) => {
     sceneApi?.setSelectionRect(rect);
   },
   applyTilePaint: (edit) => {
     sceneApi?.applyTilePaint(edit);
   },
-  applyTerrainPaint: (edit) => {
-    sceneApi?.applyTerrainPaint?.(edit);
-  },
-  applyTerrainPaintV2: (edit) => {
-    sceneApi?.paintTerrainRect?.(edit.layer, edit.rect, edit.tileRefId);
-  },
-  eraseTerrainRect: (rect) => {
-    sceneApi?.eraseTerrainRect?.(rect);
-  },
-  applyWallPaint: (edit) => {
-    sceneApi?.applyWallPaint?.(edit);
-  },
+  // Legacy paint methods (no-op, painting handled by EditorIntegration.applyLocalPaint)
+  applyTerrainPaint: () => { },
+  applyTerrainPaintV2: () => { },
+  eraseTerrainRect: () => { },
+  applyWallPaint: () => { },
   captureEditorSnapshot: () => {
     sceneApi?.captureEditorSnapshot?.();
   },
@@ -419,9 +338,8 @@ export const gameBridge: Bridge = {
     cachedDoNotDisturb = !!enabled;
     sceneApi?.setDoNotDisturb?.(enabled);
   },
-  setAssetPreview: (preview) => {
-    sceneApi?.setAssetPreview?.(preview);
-  },
+  // Legacy: ghost preview now handled by EditorIntegration
+  setAssetPreview: () => { },
   setMovementLocked: (locked) => {
     sceneApi?.setMovementLocked?.(locked);
   },
@@ -465,7 +383,6 @@ export const gameBridge: Bridge = {
     // DEPRECATED: Caching entfernt
   },
   updateTilesetRegistry: (registry) => {
-    v2TilesetCache = Array.isArray(registry) ? registry : [];
     try { sceneApi?.updateTilesetRegistry?.(registry); } catch (e) { logger.error('Failed to update tileset registry', e); }
   },
   handleObjectsUpdated: (data) => {
@@ -476,88 +393,14 @@ export const gameBridge: Bridge = {
   },
 };
 
-// Subscribe EditorService zu gameBridge für automatische Synchronisation
-// WICHTIG: Nur bei tatsächlichen Änderungen updaten, um Render-Loops zu vermeiden
+// Subscribe EditorService to gameBridge for Editor Mode & Collision Visibility sync
 let lastSyncedState: {
   active: boolean;
-  selectedTileRefId: number;
-  tool: string;
 } = {
   active: false,
-  selectedTileRefId: 0,
-  tool: '',
 };
 
 EditorService.subscribe((state) => {
-  // Zone, Asset, Spawn, and Asset-Preview sync are now handled by EditorRenderer via EditorIntegration.
-  // Only Terrain Ghost Preview and Editor Mode toggling remain here.
-
-  // Sync Terrain Ghost Preview (EditorRenderer does NOT handle terrain ghost)
-  const tileRefChanged = state.selectedTileRefId !== lastSyncedState.selectedTileRefId || state.tool !== lastSyncedState.tool;
-  if (tileRefChanged) {
-    lastSyncedState.selectedTileRefId = state.selectedTileRefId;
-    lastSyncedState.tool = state.tool;
-
-    if (state.tool === 'terrain' && state.selectedTileRefId > 0) {
-      const gen = ++terrainPreviewGeneration;
-      void (async () => {
-        try {
-          // Lazy-load V2 tileset cache if empty
-          if (v2TilesetCache.length === 0) {
-            const mapId = useMapStore.getState().currentMapId;
-            if (mapId) {
-              const v2State = await fetchStateV2(mapId);
-              if (v2State?.tilesetRegistry) {
-                v2TilesetCache = v2State.tilesetRegistry;
-              }
-            }
-          }
-
-          if (gen !== terrainPreviewGeneration) return;
-
-          const { slot, tileIndex } = splitTileRefId(state.selectedTileRefId);
-          const ts = v2TilesetCache.find(t => t.slot === slot);
-          if (!ts || !ts.imageUrl) return;
-
-          const img = new Image();
-          img.crossOrigin = 'anonymous';
-          await new Promise<void>((resolve, reject) => {
-            img.onload = () => resolve();
-            img.onerror = () => reject(new Error('Image load failed'));
-            img.src = resolveImageUrl(ts.imageUrl);
-          });
-
-          if (gen !== terrainPreviewGeneration) return;
-
-          const tw = ts.tileWidth || 16;
-          const th = ts.tileHeight || 16;
-          const margin = ts.margin ?? 0;
-          const spacing = ts.spacing ?? 0;
-          const cols = Math.max(1, Math.floor((img.width - 2 * margin + spacing) / (tw + spacing)));
-          const col = tileIndex % cols;
-          const row = Math.floor(tileIndex / cols);
-          const sx = margin + col * (tw + spacing);
-          const sy = margin + row * (th + spacing);
-
-          const canvas = document.createElement('canvas');
-          canvas.width = tw;
-          canvas.height = th;
-          const ctx = canvas.getContext('2d');
-          if (ctx) {
-            ctx.drawImage(img, sx, sy, tw, th, 0, 0, tw, th);
-            const dataUrl = canvas.toDataURL('image/png');
-            sceneApi?.setAssetPreview?.({ dataUrl, width: tw, height: th });
-          }
-        } catch (e) {
-          logger.debug('[Bridge] Failed to create terrain ghost preview', e);
-        }
-      })();
-    } else if (state.tool !== 'asset' && !state.pendingAsset) {
-      ++terrainPreviewGeneration;
-      sceneApi?.setAssetPreview?.(null);
-    }
-  }
-
   // Sync Editor Mode & Collision Visibility (nur wenn geändert)
   if (state.active !== lastSyncedState.active) {
     gameBridge.setEditorMode(state.active);
