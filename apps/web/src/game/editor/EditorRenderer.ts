@@ -20,6 +20,7 @@ export class EditorRenderer {
   private spawnGraphics: Phaser.GameObjects.Graphics | undefined;
   private selectionGraphics: Phaser.GameObjects.Graphics | undefined;
   private cursorHighlight: Phaser.GameObjects.Graphics | undefined;
+  private selectedObjectGraphics: Phaser.GameObjects.Graphics | undefined;
   private ghostSprite: Phaser.GameObjects.Image | undefined;
 
   // Zone Labels
@@ -65,6 +66,10 @@ export class EditorRenderer {
     // Cursor Highlight Graphics
     this.cursorHighlight = this.scene.add.graphics();
     this.cursorHighlight.setDepth(7);
+
+    // Selected Object Highlight Graphics
+    this.selectedObjectGraphics = this.scene.add.graphics();
+    this.selectedObjectGraphics.setDepth(10);
 
     // Hook POST_UPDATE for zone label position updates
     this.postUpdateListener = () => this.updateZoneLabelPositions();
@@ -239,6 +244,31 @@ export class EditorRenderer {
    */
   public clearCursorHighlight(): void {
     this.cursorHighlight?.clear();
+  }
+
+  /**
+   * Renders a highlight outline around the currently selected map object
+   */
+  public renderSelectedObject(objectId: string | null, mapObjects: Array<{ id: number | string; tileX: number; tileY: number; width: number; height: number }>): void {
+    if (!this.selectedObjectGraphics) return;
+    this.selectedObjectGraphics.clear();
+
+    if (!objectId) return;
+
+    const obj = mapObjects.find(o => String(o.id) === objectId);
+    if (!obj) return;
+
+    const tileSize = 16;
+    const x = obj.tileX * tileSize;
+    const y = obj.tileY * tileSize;
+
+    // Blue highlight outline
+    this.selectedObjectGraphics.lineStyle(2, 0x3b82f6, 1);
+    this.selectedObjectGraphics.strokeRect(x - 1, y - 1, obj.width + 2, obj.height + 2);
+
+    // Subtle fill
+    this.selectedObjectGraphics.fillStyle(0x3b82f6, 0.15);
+    this.selectedObjectGraphics.fillRect(x, y, obj.width, obj.height);
   }
 
   /**
@@ -463,6 +493,7 @@ export class EditorRenderer {
     this.spawnGraphics?.clear();
     this.selectionGraphics?.clear();
     this.cursorHighlight?.clear();
+    this.selectedObjectGraphics?.clear();
     this.clearGhost();
     this.clearZoneLabels();
 
@@ -488,11 +519,13 @@ export class EditorRenderer {
     this.spawnGraphics?.destroy();
     this.selectionGraphics?.destroy();
     this.cursorHighlight?.destroy();
+    this.selectedObjectGraphics?.destroy();
 
     this.zonesGraphics = undefined;
     this.spawnGraphics = undefined;
     this.selectionGraphics = undefined;
     this.cursorHighlight = undefined;
+    this.selectedObjectGraphics = undefined;
   }
 }
 

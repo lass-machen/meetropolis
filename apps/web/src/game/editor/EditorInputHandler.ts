@@ -162,7 +162,9 @@ export class EditorInputHandler {
         break;
 
       case 'select':
-        // Select hat keine Tile-Actions
+        if (phase === 'down') {
+          this.handleSelectTool(tileX, tileY);
+        }
         break;
 
       default:
@@ -318,6 +320,16 @@ export class EditorInputHandler {
       }
     }
     // Terrain/Collision Erase wird direkt in Scene behandelt
+  }
+
+  private handleSelectTool(tileX: number, tileY: number): void {
+    const state = EditorService.getState();
+    // Search mapObjects in reverse for z-order (last placed = top)
+    const hit = [...state.mapObjects].reverse().find(o => o.tileX === tileX && o.tileY === tileY);
+    EditorService.dispatch({
+      type: 'SELECT_MAP_OBJECT',
+      objectId: hit ? String(hit.id) : null,
+    });
   }
 
   private findAssetAtPosition(x: number, y: number): { id: string } | null {

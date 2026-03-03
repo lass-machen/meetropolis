@@ -65,6 +65,9 @@ export class EditorIntegration {
         }
       }
 
+      // Render Selected Object Highlight
+      this.renderer.renderSelectedObject(state.selectedObjectId, state.mapObjects);
+
       // Render Selection basierend auf Drag-State
       if (state.dragState) {
         const tileSize = 16;
