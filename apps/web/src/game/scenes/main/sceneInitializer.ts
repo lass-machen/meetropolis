@@ -93,6 +93,18 @@ export class SceneInitializer {
     labelCamera: Phaser.Cameras.Scene2D.Camera;
     labelLayer: Phaser.GameObjects.Layer;
   } {
+    // Clean up stale label state from previous scene run (Phaser reuses scene instances)
+    const staleLayer = (scene as any).labelLayer as Phaser.GameObjects.Layer | undefined;
+    const staleCam = (scene as any).labelCamera as Phaser.Cameras.Scene2D.Camera | undefined;
+    if (staleCam) {
+      try { scene.cameras.remove(staleCam, true); } catch { /* already destroyed */ }
+    }
+    if (staleLayer) {
+      try { staleLayer.destroy(); } catch { /* already destroyed */ }
+    }
+    (scene as any).labelLayer = null;
+    (scene as any).labelCamera = null;
+
     const cam = scene.cameras.main;
     cam.setBackgroundColor('#202020');
     cam.setZoom(3);
@@ -124,13 +136,14 @@ export class SceneInitializer {
     refreshLabelCamIgnore();
     scene.events.on(Phaser.Scenes.Events.POST_UPDATE, refreshLabelCamIgnore);
 
-    scene.scale.on('resize', () => {
+    const onResize = () => {
       const cs = useCameraSettingsStore.getState().settings;
       if (!cs.centerCamera) {
         cam.setBounds(0, 0, mapRef.widthInPixels, mapRef.heightInPixels);
       }
       if (labelCam) labelCam.setSize(scene.scale.width, scene.scale.height);
-    });
+    };
+    scene.scale.on('resize', onResize);
 
     const unsubCameraSettings = useCameraSettingsStore.subscribe((state) => {
       if (state.settings.centerCamera) {
@@ -139,7 +152,25 @@ export class SceneInitializer {
         cam.setBounds(0, 0, mapRef.widthInPixels, mapRef.heightInPixels);
       }
     });
-    scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => unsubCameraSettings());
+
+    scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      unsubCameraSettings();
+      // Remove POST_UPDATE listener
+      scene.events.off(Phaser.Scenes.Events.POST_UPDATE, refreshLabelCamIgnore);
+      // Remove scale resize listener (game-level, not cleaned up by scene shutdown)
+      scene.scale.off('resize', onResize);
+      // Destroy label camera
+      try { scene.cameras.remove(labelCam, true); } catch { /* noop */ }
+      // Destroy label layer (and its children)
+      try { labelLayer.destroy(); } catch { /* noop */ }
+      // Clear references on scene instance
+      (scene as any).labelLayer = null;
+      (scene as any).labelCamera = null;
+    });
+
+    // Store references on scene instance for defensive cleanup on next run
+    (scene as any).labelLayer = labelLayer;
+    (scene as any).labelCamera = labelCam;
 
     return { labelCamera: labelCam, labelLayer };
   }
