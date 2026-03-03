@@ -4,7 +4,7 @@ import { ParticipantCard } from './ParticipantCard';
 import { FAIcon } from '../FAIcon';
 import { useTranslation } from 'react-i18next';
 
-export type UIParticipant = { sid: string; identity: string; hasVideo: boolean; hasMic: boolean; isSpeaking: boolean; media: 'camera' | 'screen'; volume?: number; dnd?: boolean };
+export type UIParticipant = { sid: string; identity: string; hasVideo: boolean; hasMic: boolean; isSpeaking: boolean; media: 'camera' | 'screen'; volume?: number; dnd?: boolean; avatarId?: string };
 
 export function ParticipantsGrid(props: {
   participants: UIParticipant[];
@@ -45,7 +45,7 @@ export function ParticipantsGrid(props: {
     >
       {participants.map(p => (
         <div key={p.sid} onClick={() => onSelect(selectedSid === p.sid ? null : p.sid)} style={{ cursor: 'pointer', transition: 'transform 180ms ease' }}>
-          <ParticipantCard part={p} roomGetter={roomGetter} compact={!expanded} />
+          <ParticipantCard part={p} roomGetter={roomGetter} compact={!expanded} collapsed={!expanded} />
         </div>
       ))}
     </UserCardContainer>

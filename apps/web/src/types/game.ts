@@ -7,6 +7,7 @@ export interface Position {
 
 export interface RemotePlayer extends Position {
   dnd?: boolean;
+  avatarId?: string;
 }
 
 export interface Zone {

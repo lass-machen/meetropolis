@@ -4,7 +4,7 @@ import type { Room, Participant, TrackPublication } from 'livekit-client';
 import type { Zone, ZoneManager, GameBridge, VolumeManager, Position, RemotePlayer } from '../../types/game';
 import type { AVManager } from '../../types/av';
 
-export type UIParticipant = { sid: string; identity: string; hasVideo: boolean; hasMic: boolean; isSpeaking: boolean; media: 'camera' | 'screen'; volume?: number; dnd?: boolean };
+export type UIParticipant = { sid: string; identity: string; hasVideo: boolean; hasMic: boolean; isSpeaking: boolean; media: 'camera' | 'screen'; volume?: number; dnd?: boolean; avatarId?: string };
 
 type Mutable<T> = { current: T };
 
@@ -33,7 +33,8 @@ export function useParticipants(deps: {
       try {
         // Local
         const localIdentity = me?.name || me?.email || me?.id || 'You';
-        list.push({ sid: 'local', identity: localIdentity, hasVideo: false, hasMic: false, isSpeaking: false, media: 'camera', volume: 1, dnd: !!dndRef?.current });
+        const localAvatarId = localStorage.getItem('avatarId') || '';
+        list.push({ sid: 'local', identity: localIdentity, hasVideo: false, hasMic: false, isSpeaking: false, media: 'camera', volume: 1, dnd: !!dndRef?.current, ...(localAvatarId ? { avatarId: localAvatarId } : {}) });
         const zones = (zoneRef.current?.getZones?.() || []).map((z: Zone) => ({ ...z, points: (Array.isArray(z.points) ? z.points : []).map((p: unknown)=> Array.isArray(p) ? { x: p[0], y: p[1] } : p as Position).filter((p: Position | unknown): p is Position => p !== null && typeof p === 'object' && 'x' in p && 'y' in p && typeof (p as Position).x === 'number' && typeof (p as Position).y === 'number') }));
         const localPos: Position = { x: localPosRef.current.x ?? 0, y: localPosRef.current.y ?? 0 };
         const localZone = zones.find((z: Zone) => pointInPolygon(localPos, z.points));
@@ -47,7 +48,8 @@ export function useParticipants(deps: {
           } catch {}
           const livekitIdentity = colyseusToLivekitMap.current[colyseusId] || colyseusId;
           const name = identityToNameMap.current[livekitIdentity] || getDisplayName(livekitIdentity);
-          list.push({ sid: `col:${colyseusId}`, identity: name, hasVideo: false, hasMic: false, isSpeaking: false, media: 'camera', volume: 1, dnd: !!pos.dnd });
+          const remAvId = remotesRef.current[colyseusId]?.avatarId;
+          list.push({ sid: `col:${colyseusId}`, identity: name, hasVideo: false, hasMic: false, isSpeaking: false, media: 'camera', volume: 1, dnd: !!pos.dnd, ...(remAvId ? { avatarId: remAvId } : {}) });
         }
       } catch {}
       setUiParticipants(list);
@@ -65,6 +67,7 @@ export function useParticipants(deps: {
       if (!p) return;
       let participantPos: Position | null = null;
       let remoteDnd = false;
+      let remoteAvatarId: string | undefined;
       if (isLocal) {
         participantPos = localPos;
       } else {
@@ -74,6 +77,7 @@ export function useParticipants(deps: {
         if (colyseusId && remotesRef.current[colyseusId]) {
           participantPos = remotesRef.current[colyseusId];
           remoteDnd = !!remotesRef.current[colyseusId].dnd;
+          remoteAvatarId = remotesRef.current[colyseusId].avatarId;
         }
       }
       if (!isLocal) {
@@ -144,7 +148,8 @@ export function useParticipants(deps: {
           }
         } catch {}
         const dnd = isLocal ? !!dndRef?.current : remoteDnd;
-        list.push({ sid: p.sid, identity, hasVideo: !!hasV, hasMic: !!hasMic, isSpeaking: !!hasMic && activeSet.has(p.sid), media: 'camera', volume, dnd });
+        const pAvatarId = isLocal ? (localStorage.getItem('avatarId') || '') : (remoteAvatarId || '');
+        list.push({ sid: p.sid, identity, hasVideo: !!hasV, hasMic: !!hasMic, isSpeaking: !!hasMic && activeSet.has(p.sid), media: 'camera', volume, dnd, ...(pAvatarId ? { avatarId: pAvatarId } : {}) });
         if (hasScreen) {
           list.push({ sid: p.sid + ':screen', identity: `${identity} – Bildschirm`, hasVideo: true, hasMic: false, isSpeaking: false, media: 'screen', volume, dnd });
         }
@@ -170,7 +175,8 @@ export function useParticipants(deps: {
         } catch {}
         if (!presentIdentities.has(name) && !presentIdentities.has(livekitIdentity)) {
           const pos = remotesRef.current[colyseusId];
-          list.push({ sid: `col:${colyseusId}`, identity: name, hasVideo: false, hasMic: false, isSpeaking: false, media: 'camera', volume: 1, dnd: !!pos?.dnd });
+          const colAvId = remotesRef.current[colyseusId]?.avatarId;
+          list.push({ sid: `col:${colyseusId}`, identity: name, hasVideo: false, hasMic: false, isSpeaking: false, media: 'camera', volume: 1, dnd: !!pos?.dnd, ...(colAvId ? { avatarId: colAvId } : {}) });
           presentIdentities.add(name);
         }
       }

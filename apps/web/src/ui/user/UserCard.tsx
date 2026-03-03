@@ -8,6 +8,7 @@ export type UserCardParticipant = {
   isSpeaking: boolean;
   media: 'camera' | 'screen';
   volume?: number;
+  avatarId?: string;
 };
 
 export function UserCardContainer(props: {
@@ -27,12 +28,12 @@ export function UserCardContainer(props: {
   };
   return (
     <div className={classes} style={style}>
-      <button className="uc-expand-btn" onClick={onToggleExpand} title={expanded ? 'Verkleinern' : 'Vergrößern'}>
-        {expandButton}
-      </button>
       <div className="uc-grid" style={{ gap, ...gridStyle }}>
         {children}
       </div>
+      <button className="uc-expand-btn" onClick={onToggleExpand} title={expanded ? 'Verkleinern' : 'Vergrößern'}>
+        {expandButton}
+      </button>
     </div>
   );
 }

@@ -2,10 +2,11 @@ import React from 'react';
 import { FAIcon } from '../FAIcon';
 import { useTranslation } from 'react-i18next';
 import { Button } from '../system/Button';
+import { AvatarSprite } from './AvatarSprite';
 
-export function ParticipantCard(props: { part: { sid: string; identity: string; hasVideo: boolean; hasMic: boolean; isSpeaking: boolean; media: 'camera'|'screen'; volume?: number; dnd?: boolean }, roomGetter: () => any | undefined, compact?: boolean, full?: boolean, zoom?: number }) {
+export function ParticipantCard(props: { part: { sid: string; identity: string; hasVideo: boolean; hasMic: boolean; isSpeaking: boolean; media: 'camera'|'screen'; volume?: number; dnd?: boolean; avatarId?: string }, roomGetter: () => any | undefined, compact?: boolean, full?: boolean, zoom?: number, collapsed?: boolean }) {
   const videoRef = React.useRef<HTMLVideoElement | null>(null);
-  const { part, roomGetter, compact, full, zoom = 1 } = props;
+  const { part, roomGetter, compact, full, zoom = 1, collapsed } = props;
   const [isVideoRendering, setIsVideoRendering] = React.useState(false);
   const [isLocal, setIsLocal] = React.useState(false);
   const [hover, setHover] = React.useState(false);
@@ -277,9 +278,9 @@ export function ParticipantCard(props: { part: { sid: string; identity: string; 
   const opacity = isLocal ? 1 : (0.4 + (volume * 0.6));
   
   // Konsistente Farben via CSS-Variablen
-  const speakingColor = 'var(--speaking-color, #22d3ee)';
+  const speakingColor = 'var(--speaking-color, #10b981)';
   const borderColor = part.isSpeaking ? speakingColor : 'var(--border)';
-  const glow = part.isSpeaking ? `0 0 0 2px var(--speaking-glow, rgba(34,211,238,0.35)), var(--shadow)` : 'var(--shadow)';
+  const glow = part.isSpeaking ? `0 0 0 2px var(--speaking-glow, rgba(16,185,129,0.35)), var(--shadow)` : 'var(--shadow)';
   const isScreen = part.media === 'screen';
   const aspect = full ? undefined : (isScreen ? '16 / 9' : '16 / 9');
   const targetSize = full ? undefined : (compact ? '100%' : '36vh');
@@ -315,18 +316,86 @@ export function ParticipantCard(props: { part: { sid: string; identity: string; 
     } catch {}
   };
 
+  // Collapsed pill mode
+  if (collapsed) {
+    const pillBorder = part.isSpeaking
+      ? '1px solid rgba(16,185,129,0.75)'
+      : '1px solid rgba(255,255,255,0.22)';
+    const pillBg = part.isSpeaking
+      ? 'rgba(50,255,187,0.20)'
+      : 'rgba(255,255,255,0.1)';
+    const pillShadow = part.isSpeaking
+      ? '0 0 8px -1px rgba(16,185,129,0.80), 0 1px 3px 0 rgba(0,0,0,0.10)'
+      : '0 1px 3px rgba(0,0,0,0.1)';
+    const pillRadius = 25;
+
+    return (
+      <div className="uc-pill" style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: 6,
+        borderRadius: pillRadius,
+        border: pillBorder,
+        background: pillBg,
+        boxShadow: pillShadow,
+        opacity,
+        transition: 'opacity 0.3s ease-in-out, background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease',
+        pointerEvents: 'auto',
+        filter: disabled ? 'grayscale(90%) brightness(0.8)' : undefined,
+      }}>
+        {/* Hidden video element to maintain LiveKit track attachment */}
+        <video ref={videoRef} autoPlay playsInline muted style={{ display: 'none' }} />
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 4,
+          fontSize: 11,
+          lineHeight: '12px',
+          fontWeight: 600,
+          textShadow: '0 0 1px rgba(0,0,0,0.5)',
+          padding: '5px 8px',
+          border: '1px solid rgba(255,255,255,0.15)',
+          borderRadius: 25,
+          background: 'rgba(255,255,255,0.1)',
+          color: 'var(--fg)',
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+        }}>
+          <span className="uc-pill-avatar"><AvatarSprite {...(part.avatarId ? { avatarId: part.avatarId } : {})} size={12} /></span>
+          {part.identity}
+        </div>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          {isDnd && (
+            <div title={t('participant.dnd')} style={{ display: 'grid', placeItems: 'center', width: 26, height: 26, borderRadius: 999, background: 'var(--uc-badge-off)', border: '1px solid var(--uc-badge-border-off)' }}>
+              <FAIcon size="xs" name="moon" variant="solid" ariaLabel={t('participant.dnd')} />
+            </div>
+          )}
+          <div title={part.hasMic ? t('participant.micOn') : t('participant.micOff')} style={{ display: 'grid', placeItems: 'center', width: 26, height: 26, borderRadius: 999, background: part.hasMic ? 'var(--uc-badge-on)' : 'var(--uc-badge-off)', border: `1px solid ${part.hasMic ? 'var(--uc-badge-border-on)' : 'var(--uc-badge-border-off)'}` }}>
+            <FAIcon size="xs" name={part.hasMic ? 'microphone' : 'microphone-slash'} variant="solid" ariaLabel={part.hasMic ? t('participant.micOn') : t('participant.micOff')} />
+          </div>
+          <div title={(part.hasVideo || isVideoRendering) ? t('participant.camOn') : t('participant.camOff')} style={{ display: 'grid', placeItems: 'center', width: 26, height: 26, borderRadius: 999, background: (part.hasVideo || isVideoRendering) ? 'var(--uc-badge-on)' : 'var(--uc-badge-off)', border: `1px solid ${(part.hasVideo || isVideoRendering) ? 'var(--uc-badge-border-on)' : 'var(--uc-badge-border-off)'}` }}>
+            <FAIcon size="xs" name={(part.hasVideo || isVideoRendering) ? 'video' : 'video-slash'} variant="solid" ariaLabel={(part.hasVideo || isVideoRendering) ? t('participant.camOn') : t('participant.camOff')} />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Expanded mode (existing layout with AvatarSprite in name badge)
   return (
     <div onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)} style={{
-      width: full ? 'min(calc(100vw - 64px), 1920px)' : `min(${targetSize}, 100%)`,
-      minWidth: minW as any,
-      maxHeight: full ? 'calc(100vh - 64px)' : (targetSize as any),
-      aspectRatio: aspect as any,
+      width: full ? 'min(calc(100vw - 64px), 1920px)' : '100%',
+      maxWidth: full ? undefined : 200,
+      maxHeight: full ? 'calc(100vh - 64px)' : undefined,
+      aspectRatio: full ? undefined : '16 / 9',
       position: 'relative', borderRadius: 14, overflow: 'hidden', background: 'var(--uc-glass)', border: `1px solid ${borderColor}`, boxShadow: glow,
       opacity: opacity,
       transition: 'opacity 0.3s ease-in-out',
       pointerEvents: 'auto',
       filter: disabled ? 'grayscale(90%) brightness(0.8)' : undefined,
-      height: full ? 'auto' : 'min(140px, 30vh)'
+      height: full ? 'auto' : undefined,
     }}>
       <video ref={videoRef} autoPlay playsInline muted style={{ width: '100%', height: full ? 'auto' : '100%', maxHeight: full ? 'calc(100vh - 64px)' : undefined, objectFit: isScreen ? 'contain' : (full ? 'contain' : 'cover'), background: 'transparent', transform: (isLocal && part.media==='camera') ? `scaleX(-1) scale(${zoom})` : `scale(${zoom})`, transformOrigin: 'center center', pointerEvents: full ? 'none' : undefined }} />
       {!(part.hasVideo || isVideoRendering) && (
@@ -334,7 +403,8 @@ export function ParticipantCard(props: { part: { sid: string; identity: string; 
           {part.identity}
         </div>
       )}
-      <div style={{ position: 'absolute', top: 6, left: 6, display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', background: 'var(--bg-btn-bg, var(--glass))', borderRadius: 10, border: '1px solid rgba(255,255,255,0.08)' }}>
+      <div style={{ position: 'absolute', top: 6, left: 6, display: 'flex', alignItems: 'center', gap: 4, padding: '6px 8px', background: 'var(--bg-btn-bg, var(--glass))', borderRadius: 10, border: '1px solid rgba(255,255,255,0.08)' }}>
+        <AvatarSprite {...(part.avatarId ? { avatarId: part.avatarId } : {})} size={12} />
         <div style={{ fontSize: 12, color: 'var(--fg)', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{part.identity}</div>
       </div>
       <div style={{ position: 'absolute', top: 6, right: 6, display: 'flex', gap: 6 }}>
@@ -352,7 +422,7 @@ export function ParticipantCard(props: { part: { sid: string; identity: string; 
       </div>
       {!isLocal && hover && part.media === 'camera' && (
         <div style={{ position: 'absolute', left: '50%', bottom: 10, transform: 'translateX(-50%)', display: 'flex', gap: 8, zIndex: 5 }}>
-          <Button 
+          <Button
             onMouseDown={(e)=>{ e.preventDefault(); e.stopPropagation(); }}
             onClick={(e)=>{ e.preventDefault(); e.stopPropagation(); handleForceMute(); }}
             onDoubleClick={(e)=>{ e.preventDefault(); e.stopPropagation(); }}

@@ -265,7 +265,7 @@ body {
 /* Responsive: Stack vertically on small screens */
 @media (max-width: 700px) {
   .top-header-bar {
-    flex-direction: column;
+    flex-direction: row-reverse;
     align-items: stretch;
   }
   .top-header-spacer { display: none; }
@@ -275,6 +275,7 @@ body {
     display: flex;
     justify-content: flex-end;
   }
+  .bg-button-content span { display: none; }
 }
 
 /* ===================== */
@@ -291,44 +292,42 @@ body {
   --uc-badge-off: color-mix(in oklab, #f43f5e 25%, transparent);
   --uc-badge-border-on: color-mix(in oklab, #10b981 50%, transparent);
   --uc-badge-border-off: color-mix(in oklab, #f43f5e 50%, transparent);
-  --speaking-color: #22d3ee;
-  --speaking-glow: rgba(34,211,238,0.35);
+  --speaking-color: #10b981;
+  --speaking-glow: rgba(16,185,129,0.35);
 }
 
 .uc-container {
   /* Flow-based layout instead of absolute positioning */
   position: relative;
-  display: inline-flex;
-  flex-direction: column;
+  display: flex;
+  align-items: center;
   max-width: 100%;
   background: var(--uc-bg);
   backdrop-filter: blur(16px);
   color: var(--fg);
   border: 1px solid var(--uc-border);
-  border-radius: 14px;
-  padding: var(--uc-padding);
-  padding-right: calc(var(--uc-padding) + 44px);
+  border-radius: 18px;
+  padding: 8px;
+  gap: 8px;
   box-shadow: var(--uc-shadow);
 }
 
 .uc-container.uc-expanded { --uc-gap: 18px; }
-.uc-container.uc-collapsed { --uc-gap: 12px; }
+.uc-container.uc-collapsed { --uc-gap: 8px; }
 
 .uc-expand-btn {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  padding: 6px;
-  width: 28px;
-  height: 28px;
+  flex-shrink: 0;
+  padding: 0;
+  width: 26px;
+  height: 26px;
   display: grid;
   place-items: center;
-  border-radius: 8px;
+  border-radius: 999px;
   border: 1px solid var(--border);
   background: var(--bg-btn-bg, var(--glass));
   color: var(--fg);
   cursor: pointer;
-  z-index: 2;
+  font-size: 11px;
 }
 
 .uc-grid {
@@ -351,8 +350,8 @@ body {
 }
 
 .uc-card.uc-speaking {
-  border-color: #22d3ee;
-  box-shadow: 0 0 0 2px rgba(34,211,238,0.35), var(--shadow);
+  border-color: var(--speaking-color);
+  box-shadow: 0 0 0 2px var(--speaking-glow), var(--shadow);
 }
 
 .uc-video {
@@ -447,9 +446,20 @@ body {
   --uc-video-fit: cover;
 }
 
-/* When the container is collapsed, stretch items in the grid */
+/* When the container is collapsed, use flex wrap layout */
 .uc-container.uc-collapsed .uc-grid {
-  justify-items: stretch;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  width: 100%;
+}
+
+/* Collapsed pill card */
+.uc-pill { min-width: 200px; gap: 6px; }
+
+@media (max-width: 978px) {
+  .uc-pill { min-width: 0; }
+  .uc-pill-avatar { display: none; }
 }
 
 /* ===================== */
