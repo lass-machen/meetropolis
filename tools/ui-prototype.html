@@ -1,0 +1,1175 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Meetropolis UI Prototype – UserCards + Toolbar</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<style>
+/* ── Reset ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+
+/* ── Design Tokens (from codebase) ── */
+:root {
+  --brand-primary: #450db3;
+  --brand-accent: #f3a814;
+  --bg: #0f1115;
+  --fg: #e5e7eb;
+  --fg-subtle: #9ca3af;
+  --border: rgba(255,255,255,0.08);
+  --glass: rgba(255,255,255,0.06);
+  --glass-hover: rgba(255,255,255,0.12);
+  --shadow: 0 12px 30px rgba(0,0,0,0.35);
+  --modal-bg: rgba(17,17,20,0.98);
+  --modal-fg: #e5e7eb;
+  --panel-bg: rgba(17,17,20,0.92);
+  --panel-fg: var(--fg);
+  --chip-bg: rgba(17,17,20,0.70);
+  --bar-bg: rgba(0,0,0,0.5);
+  --bar-fg: #e5e7eb;
+  --bar-chip-bg: rgba(255,255,255,0.06);
+  --bar-divider: rgba(255,255,255,0.12);
+  --focus: rgba(243,168,20,0.45);
+  --uc-glass: rgba(255, 255, 255, 0.1);
+  --radius: 14px;
+  --radius-sm: 10px;
+  --radius-xs: 8px;
+  --gradient: linear-gradient(135deg, #450db3 0%, #f3a814 100%);
+  --btn-text-shadow: 0 1px 1px rgba(0,0,0,.3);
+}
+
+/* ── ButtonGroup sizes ── */
+.bg-item-sm { --bg-item-height: 28px; --bg-item-padding-x: 8px; --bg-item-font: 12px; }
+.bg-item-md { --bg-item-height: 32px; --bg-item-padding-x: 10px; --bg-item-font: 13px; }
+.bg-item-lg { --bg-item-height: 36px; --bg-item-padding-x: 12px; --bg-item-font: 14px; }
+.bg-item-icon { --bg-item-height: 36px; --bg-item-padding-x: 8px; --bg-item-font: 14px; }
+
+/* ── ButtonGroup variants ── */
+.bg-btn-default { --bg-btn-bg: var(--glass); --bg-btn-border: var(--border); --bg-btn-fg: var(--fg); }
+.bg-btn-primary { --bg-btn-bg: linear-gradient(135deg, #10b981 0%, #059669 100%); --bg-btn-border: rgba(0,0,0,0.0); --bg-btn-fg: #fff; }
+.bg-btn-active  { --bg-btn-bg: rgba(16,185,129,0.20); --bg-btn-border: rgba(16,185,129,0.45); --bg-btn-fg: var(--fg); }
+
+/* ── ButtonGroup container ── */
+.bg-container {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: var(--bg-container-gap, 12px);
+  padding: var(--bg-container-padding-y, 10px) var(--bg-container-padding-x, 14px);
+  background: var(--bar-bg);
+  backdrop-filter: blur(16px);
+  color: var(--bar-fg);
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow), inset 0 1px 1px rgba(255,255,255,.2);
+}
+.bg-horizontal { flex-direction: row; }
+.bg-container-pad-md { --bg-container-padding-y: 10px; --bg-container-padding-x: 14px; --bg-container-gap: 12px; }
+
+/* ── ButtonGroup button ── */
+.bg-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--bg-item-height, 32px);
+  padding: 0 var(--bg-item-padding-x, 10px);
+  font-size: var(--bg-item-font, 13px);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--bg-btn-border, var(--border));
+  background: var(--bg-btn-bg, var(--glass));
+  color: var(--bg-btn-fg, var(--fg));
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease, opacity 120ms ease;
+  outline: none;
+}
+.bg-button[disabled] { cursor: not-allowed; opacity: 0.6; }
+.bg-button:hover { filter: brightness(1.05); }
+.bg-button .bg-button-content { display: inline-flex; align-items: center; gap: 8px; }
+.bg-button.bg-icon-only { width: var(--bg-item-height, 32px); padding: 0; }
+.bg-button:focus-visible { box-shadow: 0 0 0 2px var(--focus); }
+.bg-button-content, .bg-button-content span { white-space: nowrap; }
+.bg-container .bg-button .bg-button-content { text-shadow: var(--btn-text-shadow); }
+
+/* ── Separator ── */
+.bg-sep-vertical { width: 1px; height: 24px; background: var(--bar-divider); }
+
+/* ── UserCard container ── */
+.uc-container {
+  --uc-padding: 12px;
+  --uc-gap: 12px;
+  --uc-border: var(--border);
+  --uc-bg: var(--bar-bg);
+  --uc-shadow: var(--shadow);
+  --uc-name-bg: color-mix(in oklab, var(--bg) 60%, transparent);
+  --uc-badge-on: color-mix(in oklab, #10b981 25%, transparent);
+  --uc-badge-off: color-mix(in oklab, #f43f5e 25%, transparent);
+  --uc-badge-border-on: color-mix(in oklab, #10b981 50%, transparent);
+  --uc-badge-border-off: color-mix(in oklab, #f43f5e 50%, transparent);
+  --speaking-color: #22d3ee;
+  --speaking-glow: rgba(34,211,238,0.35);
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  max-width: 100%;
+  background: var(--uc-bg);
+  backdrop-filter: blur(16px);
+  color: var(--fg);
+  border: 1px solid var(--uc-border);
+  border-radius: 14px;
+  padding: var(--uc-padding);
+  padding-right: calc(var(--uc-padding) + 44px);
+  box-shadow: var(--uc-shadow);
+}
+.uc-container.uc-expanded { --uc-gap: 18px; }
+.uc-container.uc-collapsed { --uc-gap: 12px; }
+
+.uc-expand-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  padding: 6px;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-btn-bg, var(--glass));
+  color: var(--fg);
+  cursor: pointer;
+  z-index: 2;
+}
+
+.uc-grid {
+  position: relative;
+  display: grid;
+  gap: var(--uc-gap);
+  justify-items: center;
+  align-content: start;
+}
+
+/* ── UserCard card ── */
+.uc-card {
+  position: relative;
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--glass);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  transition: opacity 0.3s ease-in-out, box-shadow 0.2s ease;
+  opacity: var(--uc-opacity, 1);
+}
+.uc-card.uc-speaking {
+  border-color: #22d3ee;
+  box-shadow: 0 0 0 2px rgba(34,211,238,0.35), var(--shadow);
+}
+
+/* Card sizes */
+.uc-card.uc-size-default {
+  width: min(36vh, 100%);
+  min-width: 420px;
+  max-height: 36vh;
+  height: auto;
+}
+@media (max-width: 1400px) { .uc-card.uc-size-default { min-width: 340px; } }
+@media (max-width: 1000px) { .uc-card.uc-size-default { min-width: 280px; } }
+@media (max-width: 600px)  { .uc-card.uc-size-default { min-width: 100%; width: 100%; } }
+
+.uc-card.uc-size-compact {
+  width: 100%;
+  min-width: 260px;
+  height: auto;
+}
+.uc-card.uc-size-full {
+  width: min(calc(100vw - 64px), 1920px);
+  max-height: calc(100vh - 64px);
+  height: auto;
+}
+
+/* Aspect ratios */
+.uc-card.uc-aspect-169    { aspect-ratio: 16 / 9; }
+.uc-card.uc-aspect-square  { aspect-ratio: 1 / 1; }
+.uc-card.uc-aspect-auto    { aspect-ratio: initial; }
+
+/* Disabled */
+.uc-card.uc-disabled {
+  pointer-events: none;
+  filter: grayscale(90%) brightness(0.8);
+}
+
+.uc-fallback-name {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--fg);
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.uc-name-badge {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  background: var(--uc-name-bg);
+  border-radius: 10px;
+  border: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
+}
+.uc-name-text { font-size: 12px; color: var(--fg); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.uc-right-badges {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: flex;
+  gap: 8px;
+}
+
+/* ── Top Header Bar ── */
+.top-header-bar {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 12px;
+  gap: 12px;
+  pointer-events: none;
+  z-index: 20;
+}
+.top-header-spacer { flex: 0 0 auto; width: 0; }
+.top-header-center {
+  flex: 1 1 auto;
+  display: flex;
+  justify-content: center;
+  min-width: 0;
+  pointer-events: auto;
+}
+.top-header-right { flex: 0 0 auto; pointer-events: auto; }
+
+@media (max-width: 700px) {
+  .top-header-bar { flex-direction: column; align-items: stretch; }
+  .top-header-spacer { display: none; }
+  .top-header-center { order: 2; }
+  .top-header-right { order: 1; display: flex; justify-content: flex-end; }
+}
+
+/* ── Game Background ── */
+body {
+  background: var(--bg);
+  color: var(--fg);
+  overflow: hidden;
+}
+#game-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background-color: #0a0c10;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+
+/* ── Bottom AVBar positioning ── */
+#av-bar-wrapper {
+  position: fixed;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 25;
+  pointer-events: auto;
+}
+
+/* ── Device selector dropdown ── */
+.device-selector-wrap {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  position: relative;
+}
+.device-selector-dropdown {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-bottom: 8px;
+  background: var(--panel-bg);
+  color: var(--panel-fg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 4px;
+  display: grid;
+  gap: 2px;
+  min-width: 220px;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(12px);
+  z-index: 1000;
+}
+.device-selector-dropdown .ds-label {
+  padding: 4px 8px;
+  font-size: 11px;
+  color: var(--fg-subtle);
+  font-weight: 600;
+}
+.device-selector-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fg);
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+}
+.device-selector-item:hover { background: var(--glass-hover); }
+.device-selector-item.selected { background: rgba(34,211,238,0.08); }
+
+/* ── Badge (mic/cam/dnd on UserCard) ── */
+.uc-badge {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  font-size: 11px;
+  border: 1px solid;
+}
+.uc-badge.badge-on  { background: var(--uc-badge-on);  border-color: var(--uc-badge-border-on);  color: #10b981; }
+.uc-badge.badge-off { background: var(--uc-badge-off); border-color: var(--uc-badge-border-off); color: #f43f5e; }
+.uc-badge.badge-dnd { background: rgba(168,85,247,0.20); border-color: rgba(168,85,247,0.45); color: #a855f7; }
+
+/* ── State Panel (left side) ── */
+#state-panel-toggle {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 50;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bar-bg);
+  backdrop-filter: blur(16px);
+  color: var(--fg);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  font-size: 16px;
+}
+#state-panel {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 320px;
+  z-index: 40;
+  background: var(--panel-bg);
+  backdrop-filter: blur(20px);
+  border-right: 1px solid var(--border);
+  color: var(--fg);
+  overflow-y: auto;
+  transform: translateX(-100%);
+  transition: transform 250ms ease;
+  padding: 56px 16px 16px;
+}
+#state-panel.open { transform: translateX(0); }
+
+.sp-section { margin-bottom: 20px; }
+.sp-section h3 {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--fg-subtle);
+  margin-bottom: 8px;
+  font-weight: 700;
+}
+.sp-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 0;
+}
+.sp-row label { font-size: 13px; flex: 1; }
+.sp-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 26px;
+  min-width: 26px;
+  padding: 0 8px;
+  font-size: 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--glass);
+  color: var(--fg);
+  cursor: pointer;
+}
+.sp-btn:hover { background: var(--glass-hover); }
+.sp-btn.sp-active { background: rgba(16,185,129,0.20); border-color: rgba(16,185,129,0.45); color: #10b981; }
+.sp-user-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+.sp-user-name { font-size: 13px; font-weight: 600; }
+.sp-user-controls { display: flex; gap: 4px; }
+.sp-slider-row { display: flex; align-items: center; gap: 8px; }
+.sp-slider-row input[type=range] { flex: 1; accent-color: var(--brand-accent); }
+.sp-slider-row .sp-val { font-size: 12px; color: var(--fg-subtle); min-width: 24px; text-align: center; }
+
+/* ── Fullscreen Overlay ── */
+#fullscreen-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.85);
+  backdrop-filter: blur(4px);
+  z-index: 30;
+  display: none;
+}
+#fullscreen-overlay.visible { display: flex; align-items: center; justify-content: center; }
+
+.fs-card-container {
+  position: absolute;
+  top: 24px; bottom: 24px; left: 24px; right: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 12px;
+}
+
+/* Zoom controls */
+.fs-zoom-controls {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  display: flex;
+  flex-direction: row;
+  gap: 6px;
+  align-items: center;
+  padding: 6px 8px;
+  border-radius: 10px;
+  background: rgba(0,0,0,0.65);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255,255,255,0.12);
+  z-index: 35;
+}
+.fs-ctrl-btn {
+  padding: 4px;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.08);
+  color: #fff;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  font-size: 14px;
+  font-weight: 300;
+}
+.fs-ctrl-btn:hover { background: rgba(255,255,255,0.16); }
+.fs-zoom-level {
+  padding: 2px 6px;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+  min-width: 40px;
+}
+.fs-zoom-sep { width: 1px; height: 20px; background: rgba(255,255,255,0.15); margin: 0 2px; }
+.fs-close-btn {
+  padding: 4px;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.1);
+  color: #fff;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  font-size: 14px;
+  font-weight: 300;
+}
+.fs-close-btn:hover { background: rgba(255,255,255,0.2); }
+
+/* Keyboard hint bar */
+.fs-hints {
+  position: absolute;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 16px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  background: rgba(0,0,0,0.6);
+  border: 1px solid rgba(255,255,255,0.08);
+  color: rgba(255,255,255,0.7);
+  font-size: 11px;
+  z-index: 35;
+}
+
+/* Screen share badge */
+.fs-screen-badge {
+  position: absolute;
+  top: 24px;
+  left: 24px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: rgba(34,197,94,0.2);
+  border: 1px solid rgba(34,197,94,0.4);
+  color: #22c55e;
+  font-size: 13px;
+  font-weight: 500;
+  z-index: 35;
+}
+</style>
+</head>
+<body>
+
+<!-- Game background grid -->
+<div id="game-bg"></div>
+
+<!-- Top header bar with UserCards -->
+<div class="top-header-bar" id="top-header-bar">
+  <div class="top-header-spacer"></div>
+  <div class="top-header-center">
+    <div id="user-cards-container" class="uc-container uc-expanded">
+      <button class="uc-expand-btn" id="expand-btn" title="Verkleinern">
+        <i class="fa-solid fa-down-left-and-up-right-to-center"></i>
+      </button>
+      <div class="uc-grid" id="user-cards-grid" style="grid-template-columns: repeat(2, 1fr);">
+        <!-- Cards rendered by JS -->
+      </div>
+    </div>
+  </div>
+  <div class="top-header-right"></div>
+</div>
+
+<!-- AVBar (bottom center) -->
+<div id="av-bar-wrapper">
+  <div class="bg-container bg-horizontal bg-item-md bg-container-pad-md">
+    <!-- Mic -->
+    <div class="device-selector-wrap" id="mic-selector">
+      <button class="bg-button bg-btn-primary" id="btn-mic" title="Mikrofon">
+        <span class="bg-button-content"><i class="fa-solid fa-microphone"></i></span>
+      </button>
+      <button class="bg-button bg-btn-primary" id="btn-mic-caret" style="border-top-left-radius:0;border-bottom-left-radius:0;padding-left:4px;padding-right:4px;min-width:24px;margin-left:-1px;">
+        <span class="bg-button-content"><i class="fa-solid fa-caret-up"></i></span>
+      </button>
+      <div class="device-selector-dropdown" id="mic-dropdown" style="display:none;">
+        <div class="ds-label">Mikrofon auswählen</div>
+        <button class="device-selector-item selected"><i class="fa-solid fa-check" style="color:var(--speaking-color);font-size:10px;"></i><span>Standard-Mikrofon</span></button>
+        <button class="device-selector-item"><span style="width:14px;"></span><span>USB Headset Mic</span></button>
+        <button class="device-selector-item"><span style="width:14px;"></span><span>Bluetooth Audio</span></button>
+      </div>
+    </div>
+
+    <div class="bg-sep-vertical"></div>
+
+    <!-- Cam -->
+    <div class="device-selector-wrap" id="cam-selector">
+      <button class="bg-button bg-btn-default" id="btn-cam" title="Kamera">
+        <span class="bg-button-content"><i class="fa-solid fa-video-slash"></i></span>
+      </button>
+      <button class="bg-button bg-btn-default" id="btn-cam-caret" style="border-top-left-radius:0;border-bottom-left-radius:0;padding-left:4px;padding-right:4px;min-width:24px;margin-left:-1px;">
+        <span class="bg-button-content"><i class="fa-solid fa-caret-up"></i></span>
+      </button>
+      <div class="device-selector-dropdown" id="cam-dropdown" style="display:none;">
+        <div class="ds-label">Kamera auswählen</div>
+        <button class="device-selector-item selected"><i class="fa-solid fa-check" style="color:var(--speaking-color);font-size:10px;"></i><span>FaceTime HD Camera</span></button>
+        <button class="device-selector-item"><span style="width:14px;"></span><span>USB Webcam</span></button>
+      </div>
+    </div>
+
+    <div class="bg-sep-vertical"></div>
+
+    <!-- Screen share -->
+    <button class="bg-button bg-btn-default" id="btn-share">
+      <span class="bg-button-content">
+        <i class="fa-solid fa-display"></i>
+        <span>Bildschirm teilen</span>
+      </span>
+    </button>
+
+    <div class="bg-sep-vertical"></div>
+
+    <!-- DND -->
+    <button class="bg-button bg-btn-default" id="btn-dnd" title="Bitte nicht stören">
+      <span class="bg-button-content"><i class="fa-solid fa-bell-slash"></i></span>
+    </button>
+
+    <div class="bg-sep-vertical"></div>
+
+    <!-- Settings -->
+    <button class="bg-button bg-btn-default bg-icon-only" id="btn-settings" title="Einstellungen">
+      <span class="bg-button-content"><i class="fa-solid fa-gear"></i></span>
+    </button>
+  </div>
+</div>
+
+<!-- State Panel toggle -->
+<button id="state-panel-toggle" title="State Panel öffnen">
+  <i class="fa-solid fa-sliders"></i>
+</button>
+
+<!-- State Panel -->
+<div id="state-panel">
+  <div class="sp-section">
+    <h3>Teilnehmer</h3>
+    <div class="sp-slider-row">
+      <label style="font-size:13px;">Anzahl:</label>
+      <input type="range" id="user-count-slider" min="1" max="8" value="4">
+      <span class="sp-val" id="user-count-val">4</span>
+    </div>
+  </div>
+
+  <div class="sp-section">
+    <h3>Pro User</h3>
+    <div id="per-user-controls">
+      <!-- Generated by JS -->
+    </div>
+  </div>
+
+  <div class="sp-section">
+    <h3>Globale Zustände</h3>
+    <div class="sp-row">
+      <label>Expanded Grid</label>
+      <button class="sp-btn sp-active" id="sp-expanded">An</button>
+    </div>
+    <div class="sp-row">
+      <label>DND Modus</label>
+      <button class="sp-btn" id="sp-dnd">Aus</button>
+    </div>
+    <div class="sp-row">
+      <label>Screen Fullscreen</label>
+      <button class="sp-btn" id="sp-screen-fs">Aus</button>
+    </div>
+    <div class="sp-row">
+      <label>Video Fullscreen</label>
+      <button class="sp-btn" id="sp-video-fs">Aus</button>
+    </div>
+  </div>
+</div>
+
+<!-- Fullscreen Overlay -->
+<div id="fullscreen-overlay">
+  <div class="fs-card-container" id="fs-card-container">
+    <!-- Card rendered here -->
+  </div>
+  <div class="fs-zoom-controls" id="fs-zoom-controls">
+    <button class="fs-ctrl-btn" id="fs-zoom-out" title="Verkleinern (-)">&#8722;</button>
+    <div class="fs-zoom-level" id="fs-zoom-level">100%</div>
+    <button class="fs-ctrl-btn" id="fs-zoom-in" title="Vergrößern (+)">+</button>
+    <button class="fs-ctrl-btn" id="fs-zoom-reset" title="Zurücksetzen (0)" style="font-size:9px;font-weight:600;">1:1</button>
+    <div class="fs-zoom-sep"></div>
+    <button class="fs-close-btn" id="fs-close" title="Schließen (Esc)">&#10005;</button>
+  </div>
+  <div class="fs-hints" id="fs-hints">
+    <span>Scroll: Zoom</span>
+    <span>Doppelklick: 2x</span>
+    <span>Esc: Schließen</span>
+  </div>
+  <div class="fs-screen-badge" id="fs-screen-badge" style="display:none;">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+      <line x1="8" y1="21" x2="16" y2="21"></line>
+      <line x1="12" y1="17" x2="12" y2="21"></line>
+    </svg>
+    Bildschirmfreigabe
+  </div>
+</div>
+
+<script>
+// ─── Demo Data ───
+const DEMO_USERS = [
+  { name: 'Anna Schmidt',  color: '#7c3aed' },
+  { name: 'Ben Müller',    color: '#2563eb' },
+  { name: 'Clara Weber',   color: '#0891b2' },
+  { name: 'David Fischer', color: '#059669' },
+  { name: 'Elena Bauer',   color: '#d97706' },
+  { name: 'Felix Koch',    color: '#dc2626' },
+  { name: 'Greta Wolf',    color: '#db2777' },
+  { name: 'Hans Meier',    color: '#4f46e5' },
+];
+
+// ─── State ───
+const state = {
+  userCount: 4,
+  expanded: true,
+  dnd: false,
+  screenFullscreen: false,
+  videoFullscreen: false,
+  fsZoom: 1,
+  micOn: true,
+  camOn: false,
+  shareOn: false,
+  micDropdownOpen: false,
+  camDropdownOpen: false,
+  users: DEMO_USERS.map((u) => ({
+    ...u,
+    micOn: true,
+    camOn: false,
+    screenOn: false,
+    speaking: false,
+  })),
+};
+
+// ─── Helpers ───
+function $(sel) { return document.querySelector(sel); }
+function $$(sel) { return document.querySelectorAll(sel); }
+
+function getGridCols(count) {
+  if (count <= 1) return 1;
+  if (count <= 2) return 2;
+  if (count <= 4) return 2;
+  if (count <= 6) return 3;
+  return 4;
+}
+
+// ─── Render UserCards ───
+function renderUserCards() {
+  const grid = $('#user-cards-grid');
+  const visibleUsers = state.users.slice(0, state.userCount);
+  const cols = getGridCols(visibleUsers.length);
+  grid.style.gridTemplateColumns = 'repeat(' + cols + ', 1fr)';
+
+  const container = $('#user-cards-container');
+  container.classList.toggle('uc-expanded', state.expanded);
+  container.classList.toggle('uc-collapsed', !state.expanded);
+
+  const expandBtn = $('#expand-btn');
+  if (state.expanded) {
+    expandBtn.innerHTML = '<i class="fa-solid fa-down-left-and-up-right-to-center"></i>';
+    expandBtn.title = 'Verkleinern';
+  } else {
+    expandBtn.innerHTML = '<i class="fa-solid fa-up-right-and-down-left-from-center"></i>';
+    expandBtn.title = 'Vergrößern';
+  }
+
+  grid.innerHTML = '';
+  visibleUsers.forEach(function(user, i) {
+    var classes = ['uc-card'];
+    if (state.expanded) {
+      classes.push('uc-size-default');
+    } else {
+      classes.push('uc-size-compact');
+    }
+    // Aspect: square for camera, 16:9 for screen
+    if (user.screenOn) {
+      classes.push('uc-aspect-169');
+    } else {
+      classes.push('uc-aspect-square');
+    }
+    if (user.speaking) {
+      classes.push('uc-speaking');
+    }
+
+    var card = document.createElement('div');
+    card.className = classes.join(' ');
+
+    // Background color placeholder
+    var bgColor = user.screenOn ? '#1a1d24' : user.color;
+    var fallbackHTML = '';
+    if (user.screenOn) {
+      fallbackHTML = '<div class="uc-fallback-name" style="background:' + bgColor + ';">' +
+        '<div style="text-align:center;"><i class="fa-solid fa-display" style="font-size:28px;opacity:0.4;margin-bottom:8px;display:block;"></i>' +
+        '<span style="font-size:12px;opacity:0.5;">Bildschirmfreigabe</span></div></div>';
+    } else {
+      fallbackHTML = '<div class="uc-fallback-name" style="background:' + bgColor + ';">' + user.name + '</div>';
+    }
+
+    // Name badge
+    var nameBadge = '<div class="uc-name-badge"><div class="uc-name-text">' + user.name + '</div></div>';
+
+    // Right badges
+    var badges = '<div class="uc-right-badges">';
+    // Mic badge
+    if (user.micOn) {
+      badges += '<div class="uc-badge badge-on"><i class="fa-solid fa-microphone" style="font-size:10px;"></i></div>';
+    } else {
+      badges += '<div class="uc-badge badge-off"><i class="fa-solid fa-microphone-slash" style="font-size:10px;"></i></div>';
+    }
+    // Cam badge
+    if (user.camOn) {
+      badges += '<div class="uc-badge badge-on"><i class="fa-solid fa-video" style="font-size:10px;"></i></div>';
+    } else {
+      badges += '<div class="uc-badge badge-off"><i class="fa-solid fa-video-slash" style="font-size:10px;"></i></div>';
+    }
+    // DND badge
+    if (state.dnd) {
+      badges += '<div class="uc-badge badge-dnd"><i class="fa-solid fa-moon" style="font-size:10px;"></i></div>';
+    }
+    badges += '</div>';
+
+    card.innerHTML = fallbackHTML + nameBadge + badges;
+    grid.appendChild(card);
+  });
+}
+
+// ─── Render Per-User Controls ───
+function renderPerUserControls() {
+  var container = $('#per-user-controls');
+  container.innerHTML = '';
+  state.users.forEach(function(user, i) {
+    if (i >= state.userCount) return;
+    var row = document.createElement('div');
+    row.className = 'sp-user-row';
+    row.innerHTML =
+      '<div class="sp-user-name" style="color:' + user.color + ';">' + user.name + '</div>' +
+      '<div class="sp-user-controls">' +
+        '<button class="sp-btn' + (user.micOn ? ' sp-active' : '') + '" data-user="' + i + '" data-prop="micOn" title="Mikrofon"><i class="fa-solid fa-microphone" style="font-size:10px;"></i></button>' +
+        '<button class="sp-btn' + (user.camOn ? ' sp-active' : '') + '" data-user="' + i + '" data-prop="camOn" title="Kamera"><i class="fa-solid fa-video" style="font-size:10px;"></i></button>' +
+        '<button class="sp-btn' + (user.screenOn ? ' sp-active' : '') + '" data-user="' + i + '" data-prop="screenOn" title="Screen"><i class="fa-solid fa-display" style="font-size:10px;"></i></button>' +
+        '<button class="sp-btn' + (user.speaking ? ' sp-active' : '') + '" data-user="' + i + '" data-prop="speaking" title="Spricht"><i class="fa-solid fa-volume-high" style="font-size:10px;"></i></button>' +
+      '</div>';
+    container.appendChild(row);
+  });
+
+  // Bind per-user toggle buttons
+  container.querySelectorAll('.sp-btn[data-user]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var idx = parseInt(btn.dataset.user);
+      var prop = btn.dataset.prop;
+      state.users[idx][prop] = !state.users[idx][prop];
+      renderAll();
+    });
+  });
+}
+
+// ─── Render AVBar state ───
+function renderAVBar() {
+  var btnMic = $('#btn-mic');
+  var btnMicCaret = $('#btn-mic-caret');
+  var btnCam = $('#btn-cam');
+  var btnCamCaret = $('#btn-cam-caret');
+  var btnShare = $('#btn-share');
+  var btnDnd = $('#btn-dnd');
+
+  // Mic
+  if (state.micOn) {
+    btnMic.className = 'bg-button bg-btn-primary';
+    btnMic.querySelector('i').className = 'fa-solid fa-microphone';
+    btnMicCaret.className = 'bg-button bg-btn-primary';
+  } else {
+    btnMic.className = 'bg-button bg-btn-default';
+    btnMic.querySelector('i').className = 'fa-solid fa-microphone-slash';
+    btnMicCaret.className = 'bg-button bg-btn-default';
+  }
+  btnMicCaret.style.borderTopLeftRadius = '0';
+  btnMicCaret.style.borderBottomLeftRadius = '0';
+  btnMicCaret.style.paddingLeft = '4px';
+  btnMicCaret.style.paddingRight = '4px';
+  btnMicCaret.style.minWidth = '24px';
+  btnMicCaret.style.marginLeft = '-1px';
+
+  // Cam
+  if (state.camOn) {
+    btnCam.className = 'bg-button bg-btn-primary';
+    btnCam.querySelector('i').className = 'fa-solid fa-video';
+    btnCamCaret.className = 'bg-button bg-btn-primary';
+  } else {
+    btnCam.className = 'bg-button bg-btn-default';
+    btnCam.querySelector('i').className = 'fa-solid fa-video-slash';
+    btnCamCaret.className = 'bg-button bg-btn-default';
+  }
+  btnCamCaret.style.borderTopLeftRadius = '0';
+  btnCamCaret.style.borderBottomLeftRadius = '0';
+  btnCamCaret.style.paddingLeft = '4px';
+  btnCamCaret.style.paddingRight = '4px';
+  btnCamCaret.style.minWidth = '24px';
+  btnCamCaret.style.marginLeft = '-1px';
+
+  // Share
+  if (state.shareOn) {
+    btnShare.className = 'bg-button bg-btn-primary';
+    btnShare.querySelector('span').innerHTML = '<i class="fa-solid fa-display"></i><span>Teilen beenden</span>';
+  } else {
+    btnShare.className = 'bg-button bg-btn-default';
+    btnShare.querySelector('span').innerHTML = '<i class="fa-solid fa-display"></i><span>Bildschirm teilen</span>';
+  }
+
+  // DND
+  if (state.dnd) {
+    btnDnd.className = 'bg-button bg-btn-active';
+  } else {
+    btnDnd.className = 'bg-button bg-btn-default';
+  }
+
+  // Disable AV buttons in DND mode
+  var dndDisable = state.dnd;
+  btnMic.disabled = dndDisable;
+  btnMicCaret.disabled = dndDisable;
+  btnCam.disabled = dndDisable;
+  btnCamCaret.disabled = dndDisable;
+  btnShare.disabled = dndDisable;
+
+  // Dropdowns
+  $('#mic-dropdown').style.display = state.micDropdownOpen ? 'grid' : 'none';
+  $('#cam-dropdown').style.display = state.camDropdownOpen ? 'grid' : 'none';
+}
+
+// ─── Render Fullscreen Overlay ───
+function renderFullscreenOverlay() {
+  var overlay = $('#fullscreen-overlay');
+  var isScreen = state.screenFullscreen;
+  var isVideo = state.videoFullscreen;
+
+  if (!isScreen && !isVideo) {
+    overlay.classList.remove('visible');
+    return;
+  }
+
+  overlay.classList.add('visible');
+
+  // Pick the first user as the fullscreen target
+  var user = state.users[0];
+  var container = $('#fs-card-container');
+
+  var cardClass = 'uc-card uc-size-full';
+  var bgColor = isScreen ? '#1a1d24' : user.color;
+  cardClass += isScreen ? ' uc-aspect-169' : ' uc-aspect-square';
+  if (user.speaking) cardClass += ' uc-speaking';
+
+  var inner = '';
+  if (isScreen) {
+    inner = '<div class="uc-fallback-name" style="background:' + bgColor + ';">' +
+      '<div style="text-align:center;"><i class="fa-solid fa-display" style="font-size:48px;opacity:0.4;margin-bottom:12px;display:block;"></i>' +
+      '<span style="font-size:14px;opacity:0.5;">Bildschirmfreigabe von ' + user.name + '</span></div></div>';
+  } else {
+    inner = '<div class="uc-fallback-name" style="background:' + bgColor + ';font-size:24px;">' + user.name + '</div>';
+  }
+
+  inner += '<div class="uc-name-badge"><div class="uc-name-text">' + user.name + '</div></div>';
+
+  container.innerHTML = '<div style="transform:scale(' + state.fsZoom + ');transition:transform 0.1s ease-out;max-width:100%;max-height:100%;"><div class="' + cardClass + '">' + inner + '</div></div>';
+
+  // Zoom level display
+  $('#fs-zoom-level').textContent = Math.round(state.fsZoom * 100) + '%';
+
+  // Screen badge
+  $('#fs-screen-badge').style.display = isScreen ? 'flex' : 'none';
+}
+
+// ─── Render State Panel buttons ───
+function renderStatePanelGlobal() {
+  var spExpanded = $('#sp-expanded');
+  spExpanded.textContent = state.expanded ? 'An' : 'Aus';
+  spExpanded.classList.toggle('sp-active', state.expanded);
+
+  var spDnd = $('#sp-dnd');
+  spDnd.textContent = state.dnd ? 'An' : 'Aus';
+  spDnd.classList.toggle('sp-active', state.dnd);
+
+  var spScreenFs = $('#sp-screen-fs');
+  spScreenFs.textContent = state.screenFullscreen ? 'An' : 'Aus';
+  spScreenFs.classList.toggle('sp-active', state.screenFullscreen);
+
+  var spVideoFs = $('#sp-video-fs');
+  spVideoFs.textContent = state.videoFullscreen ? 'An' : 'Aus';
+  spVideoFs.classList.toggle('sp-active', state.videoFullscreen);
+
+  $('#user-count-val').textContent = state.userCount;
+  $('#user-count-slider').value = state.userCount;
+}
+
+// ─── Master render ───
+function renderAll() {
+  renderUserCards();
+  renderPerUserControls();
+  renderAVBar();
+  renderFullscreenOverlay();
+  renderStatePanelGlobal();
+}
+
+// ─── Event Bindings ───
+
+// State panel toggle
+$('#state-panel-toggle').addEventListener('click', function() {
+  $('#state-panel').classList.toggle('open');
+});
+
+// Close panel when clicking outside
+document.addEventListener('mousedown', function(e) {
+  var panel = $('#state-panel');
+  var toggle = $('#state-panel-toggle');
+  if (panel.classList.contains('open') && !panel.contains(e.target) && !toggle.contains(e.target)) {
+    panel.classList.remove('open');
+  }
+});
+
+// Expand/Collapse
+$('#expand-btn').addEventListener('click', function() {
+  state.expanded = !state.expanded;
+  renderAll();
+});
+
+// User count slider
+$('#user-count-slider').addEventListener('input', function(e) {
+  state.userCount = parseInt(e.target.value);
+  renderAll();
+});
+
+// Global state toggles
+$('#sp-expanded').addEventListener('click', function() {
+  state.expanded = !state.expanded;
+  renderAll();
+});
+$('#sp-dnd').addEventListener('click', function() {
+  state.dnd = !state.dnd;
+  renderAll();
+});
+$('#sp-screen-fs').addEventListener('click', function() {
+  state.screenFullscreen = !state.screenFullscreen;
+  if (state.screenFullscreen) { state.videoFullscreen = false; state.fsZoom = 1; }
+  renderAll();
+});
+$('#sp-video-fs').addEventListener('click', function() {
+  state.videoFullscreen = !state.videoFullscreen;
+  if (state.videoFullscreen) { state.screenFullscreen = false; state.fsZoom = 1; }
+  renderAll();
+});
+
+// AVBar buttons
+$('#btn-mic').addEventListener('click', function() {
+  if (state.dnd) return;
+  state.micOn = !state.micOn;
+  renderAll();
+});
+$('#btn-cam').addEventListener('click', function() {
+  if (state.dnd) return;
+  state.camOn = !state.camOn;
+  renderAll();
+});
+$('#btn-share').addEventListener('click', function() {
+  if (state.dnd) return;
+  state.shareOn = !state.shareOn;
+  renderAll();
+});
+$('#btn-dnd').addEventListener('click', function() {
+  state.dnd = !state.dnd;
+  renderAll();
+});
+
+// Device dropdowns
+$('#btn-mic-caret').addEventListener('click', function(e) {
+  e.stopPropagation();
+  if (state.dnd) return;
+  state.micDropdownOpen = !state.micDropdownOpen;
+  state.camDropdownOpen = false;
+  renderAll();
+});
+$('#btn-cam-caret').addEventListener('click', function(e) {
+  e.stopPropagation();
+  if (state.dnd) return;
+  state.camDropdownOpen = !state.camDropdownOpen;
+  state.micDropdownOpen = false;
+  renderAll();
+});
+
+// Close dropdowns on outside click
+document.addEventListener('click', function(e) {
+  var micSel = $('#mic-selector');
+  var camSel = $('#cam-selector');
+  if (!micSel.contains(e.target)) state.micDropdownOpen = false;
+  if (!camSel.contains(e.target)) state.camDropdownOpen = false;
+  renderAll();
+});
+
+// Fullscreen overlay controls
+$('#fs-close').addEventListener('click', function(e) {
+  e.stopPropagation();
+  state.screenFullscreen = false;
+  state.videoFullscreen = false;
+  state.fsZoom = 1;
+  renderAll();
+});
+$('#fullscreen-overlay').addEventListener('click', function(e) {
+  if (e.target === this || e.target === $('#fs-card-container')) {
+    state.screenFullscreen = false;
+    state.videoFullscreen = false;
+    state.fsZoom = 1;
+    renderAll();
+  }
+});
+$('#fs-zoom-in').addEventListener('click', function(e) {
+  e.stopPropagation();
+  state.fsZoom = Math.min(4, +(state.fsZoom + 0.25).toFixed(2));
+  renderAll();
+});
+$('#fs-zoom-out').addEventListener('click', function(e) {
+  e.stopPropagation();
+  state.fsZoom = Math.max(0.25, +(state.fsZoom - 0.25).toFixed(2));
+  renderAll();
+});
+$('#fs-zoom-reset').addEventListener('click', function(e) {
+  e.stopPropagation();
+  state.fsZoom = 1;
+  renderAll();
+});
+
+// Keyboard shortcuts for fullscreen overlay
+document.addEventListener('keydown', function(e) {
+  if (!state.screenFullscreen && !state.videoFullscreen) return;
+  if (e.key === 'Escape') {
+    state.screenFullscreen = false;
+    state.videoFullscreen = false;
+    state.fsZoom = 1;
+    renderAll();
+  } else if (e.key === '+' || e.key === '=') {
+    state.fsZoom = Math.min(4, +(state.fsZoom + 0.25).toFixed(2));
+    renderAll();
+  } else if (e.key === '-') {
+    state.fsZoom = Math.max(0.25, +(state.fsZoom - 0.25).toFixed(2));
+    renderAll();
+  } else if (e.key === '0' || e.key === '1') {
+    state.fsZoom = 1;
+    renderAll();
+  }
+});
+
+// Scroll zoom on overlay
+$('#fullscreen-overlay').addEventListener('wheel', function(e) {
+  if (!state.screenFullscreen && !state.videoFullscreen) return;
+  e.preventDefault();
+  var delta = e.deltaY > 0 ? -0.15 : 0.15;
+  state.fsZoom = Math.max(0.25, Math.min(4, +(state.fsZoom + delta).toFixed(2)));
+  renderAll();
+}, { passive: false });
+
+// Double-click zoom on overlay
+$('#fs-card-container').addEventListener('dblclick', function(e) {
+  e.stopPropagation();
+  if (state.fsZoom === 1) {
+    state.fsZoom = 2;
+  } else {
+    state.fsZoom = 1;
+  }
+  renderAll();
+});
+
+// ─── Initial Render ───
+renderAll();
+</script>
+</body>
+</html>
