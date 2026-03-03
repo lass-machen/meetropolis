@@ -240,6 +240,12 @@ export class EditorInputHandler {
         this.cleanupDragSelection();
         return;
       }
+
+      // Object erase: single-click toggle mark-for-delete
+      if (this.handleObjectErase(tileX, tileY)) {
+        this.cleanupDragSelection();
+        return;
+      }
     }
 
     this.applyEditorAction(tileX, tileY);
@@ -282,6 +288,34 @@ export class EditorInputHandler {
         _pending: 'add',
       },
     });
+
+    return true;
+  }
+
+  /**
+   * Handle erase tool for objects & structures (single-click toggle mark-for-delete).
+   * Returns true if handled.
+   */
+  private handleObjectErase(tileX: number, tileY: number): boolean {
+    const editorState = EditorService.getState();
+    if (editorState.tool !== 'erase') return false;
+    if (editorState.category !== 'objects' && editorState.category !== 'structures') return false;
+
+    // Find map object at clicked tile (reverse for z-order: last placed = top)
+    const hit = [...editorState.mapObjects].reverse().find(o => o.tileX === tileX && o.tileY === tileY);
+    if (!hit) return false;
+
+    const alreadyMarked = editorState.pendingChanges.objectsToDelete.some(
+      id => String(id) === String(hit.id)
+    );
+
+    if (alreadyMarked) {
+      // Un-mark: remove from objectsToDelete (toggle off)
+      EditorService.dispatch({ type: 'REMOVE_PENDING_OBJECT_DELETE', objectId: hit.id });
+    } else {
+      // Mark for deletion
+      EditorService.dispatch({ type: 'ADD_PENDING_OBJECT_DELETE', objectId: hit.id });
+    }
 
     return true;
   }

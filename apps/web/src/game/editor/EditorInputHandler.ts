@@ -162,9 +162,7 @@ export class EditorInputHandler {
         break;
 
       case 'select':
-        if (phase === 'down') {
-          this.handleSelectTool(tileX, tileY);
-        }
+        // Select hat keine Tile-Actions
         break;
 
       default:
@@ -299,52 +297,25 @@ export class EditorInputHandler {
   }
 
   private handleEraseTool(phase: 'down' | 'move' | 'up', tileX: number, tileY: number): void {
+    if (phase !== 'down') return;
     const state = EditorService.getState();
+    if (state.category !== 'objects' && state.category !== 'structures') return;
 
-    if (state.category === 'objects' || state.category === 'structures') {
-      // Erase Asset
-      if (phase === 'down') {
-        const worldPos = this.tileToWorld(tileX, tileY);
-        const asset = this.findAssetAtPosition(worldPos.x, worldPos.y);
-        if (asset) {
-          EditorService.dispatch({ type: 'DELETE_ASSET', id: asset.id });
-
-          // DB persistence: find matching mapObject by tile position
-          const mapObject = state.mapObjects.find(
-            (o: any) => o.tileX === tileX && o.tileY === tileY
-          );
-          if (mapObject) {
-            EditorService.dispatch({ type: 'ADD_PENDING_OBJECT_DELETE', objectId: mapObject.id });
-          }
-        }
-      }
-    }
-    // Terrain/Collision Erase wird direkt in Scene behandelt
-  }
-
-  private handleSelectTool(tileX: number, tileY: number): void {
-    const state = EditorService.getState();
-    // Search mapObjects in reverse for z-order (last placed = top)
+    // Find map object at clicked tile (reverse for z-order)
     const hit = [...state.mapObjects].reverse().find(o => o.tileX === tileX && o.tileY === tileY);
-    EditorService.dispatch({
-      type: 'SELECT_MAP_OBJECT',
-      objectId: hit ? String(hit.id) : null,
-    });
-  }
+    if (!hit) return;
 
-  private findAssetAtPosition(x: number, y: number): { id: string } | null {
-    const state = EditorService.getState();
-    const radius = this.tileSize / 2;
+    const alreadyMarked = state.pendingChanges.objectsToDelete.some(
+      id => String(id) === String(hit.id)
+    );
 
-    // Reverse search (zuletzt platziertes Asset zuerst)
-    for (let i = state.assets.length - 1; i >= 0; i--) {
-      const asset = state.assets[i];
-      if (Math.abs(asset.x - x) <= radius && Math.abs(asset.y - y) <= radius) {
-        return { id: asset.id };
-      }
+    if (alreadyMarked) {
+      // Un-mark: remove from objectsToDelete
+      EditorService.dispatch({ type: 'REMOVE_PENDING_OBJECT_DELETE', objectId: hit.id });
+    } else {
+      // Mark for deletion
+      EditorService.dispatch({ type: 'ADD_PENDING_OBJECT_DELETE', objectId: hit.id });
     }
-
-    return null;
   }
 
   private isSpaceHeld(): boolean {

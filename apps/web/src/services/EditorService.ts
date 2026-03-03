@@ -482,15 +482,31 @@ class EditorServiceClass {
 
       case 'ADD_PENDING_OBJECT_DELETE': {
         const objToDelete = this.state.mapObjects.find(o => String(o.id) === String(action.objectId));
-        const updatedMapObjects = this.state.mapObjects.filter(o => String(o.id) !== String(action.objectId));
         let updatedPending = { ...this.state.pendingChanges };
+        let updatedMapObjects = this.state.mapObjects;
+
         if (objToDelete?._pending === 'add') {
-          // Never reached server, remove from pending adds
+          // Never reached server → remove from mapObjects and objectsToAdd, delete asset
+          updatedMapObjects = this.state.mapObjects.filter(o => String(o.id) !== String(action.objectId));
           updatedPending = {
             ...updatedPending,
             objectsToAdd: updatedPending.objectsToAdd.filter(o => String(o.id) !== String(action.objectId)),
           };
+          // Also delete the visual asset
+          const tileSize = 16;
+          const targetX = objToDelete.tileX * tileSize;
+          const targetY = objToDelete.tileY * tileSize;
+          const assetToRemove = this.state.assets.find(a => a.x === targetX && a.y === targetY);
+          if (assetToRemove) {
+            this.updateState({
+              assets: this.state.assets.filter(a => a.id !== assetToRemove.id),
+              mapObjects: updatedMapObjects,
+              pendingChanges: updatedPending,
+            });
+            return; // early return since updateState was already called
+          }
         } else {
+          // Server object → just mark for deletion (keep in mapObjects for visual)
           updatedPending = {
             ...updatedPending,
             objectsToDelete: [...updatedPending.objectsToDelete, action.objectId],
@@ -502,6 +518,18 @@ class EditorServiceClass {
           objectUpdates: updatedPending.objectUpdates.filter(u => String(u.id) !== String(action.objectId)),
         };
         this.updateState({ mapObjects: updatedMapObjects, pendingChanges: updatedPending });
+        break;
+      }
+
+      case 'REMOVE_PENDING_OBJECT_DELETE': {
+        this.updateState({
+          pendingChanges: {
+            ...this.state.pendingChanges,
+            objectsToDelete: this.state.pendingChanges.objectsToDelete.filter(
+              id => String(id) !== String(action.objectId)
+            ),
+          },
+        });
         break;
       }
 
@@ -539,11 +567,32 @@ class EditorServiceClass {
         });
         break;
 
-      case 'CLEAR_PENDING_CHANGES':
+      case 'CLEAR_PENDING_CHANGES': {
+        // Remove objects marked for deletion from mapObjects and assets
+        const idsToDelete = new Set(this.state.pendingChanges.objectsToDelete.map(id => String(id)));
+        let clearedMapObjects = this.state.mapObjects;
+        let clearedAssets = this.state.assets;
+
+        if (idsToDelete.size > 0) {
+          clearedMapObjects = this.state.mapObjects.filter(o => !idsToDelete.has(String(o.id)));
+          // Remove corresponding visual assets
+          const tileSize = 16;
+          const deletedPositions = new Set<string>();
+          for (const obj of this.state.mapObjects) {
+            if (idsToDelete.has(String(obj.id))) {
+              deletedPositions.add(`${obj.tileX * tileSize},${obj.tileY * tileSize}`);
+            }
+          }
+          clearedAssets = this.state.assets.filter(a => !deletedPositions.has(`${a.x},${a.y}`));
+        }
+
         this.updateState({
+          mapObjects: clearedMapObjects,
+          assets: clearedAssets,
           pendingChanges: { terrainPaints: [], objectsToAdd: [], objectsToDelete: [], objectUpdates: [], zonesModified: false, spawnUpdate: null },
         });
         break;
+      }
 
       case 'LOAD_MAP_OBJECTS':
         this.updateState({ mapObjects: action.objects });

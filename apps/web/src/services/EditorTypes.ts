@@ -226,6 +226,7 @@ export type EditorAction =
   | { type: 'ADD_PENDING_TERRAIN_PAINT'; paint: TerrainPaintOp }
   | { type: 'ADD_PENDING_OBJECT_CREATE'; object: MapObjectRecord }
   | { type: 'ADD_PENDING_OBJECT_DELETE'; objectId: number | string }
+  | { type: 'REMOVE_PENDING_OBJECT_DELETE'; objectId: number | string }
   | { type: 'ADD_PENDING_OBJECT_UPDATE'; objectId: number | string; updates: Partial<MapObjectRecord> }
   | { type: 'MARK_ZONES_MODIFIED' }
   | { type: 'SET_PENDING_SPAWN'; x: number; y: number }

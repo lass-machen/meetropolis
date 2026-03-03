@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { V2State, computeFirstGids } from '../../../lib/mapV2';
 import { logger } from '../../../lib/logger';
+import { EditorService } from '../../../services/EditorService';
 
 export function initMainScene(scene: Phaser.Scene & any): void {
   const pre = (window as any).__v2_state as V2State | undefined;
@@ -374,6 +375,26 @@ export function initMainScene(scene: Phaser.Scene & any): void {
       try { logger.debug('[SPAWN_DBG][Scene] pointerup->onPointerUpTile', { tileX, tileY }); } catch {}
       try { window.dispatchEvent(new CustomEvent('editor:tileUp', { detail: { tileX, tileY } })); } catch {}
       scene.gameBridge.onPointerUpTile({ tileX, tileY });
+
+      // Object/Structure erase: single-click toggle mark-for-delete
+      const editorState = EditorService.getState();
+      if (editorState.tool === 'erase' && (editorState.category === 'objects' || editorState.category === 'structures')) {
+        const hit = [...editorState.mapObjects].reverse().find(o => o.tileX === tileX && o.tileY === tileY);
+        if (hit) {
+          const alreadyMarked = editorState.pendingChanges.objectsToDelete.some(
+            id => String(id) === String(hit.id)
+          );
+          if (alreadyMarked) {
+            EditorService.dispatch({ type: 'REMOVE_PENDING_OBJECT_DELETE', objectId: hit.id });
+          } else {
+            EditorService.dispatch({ type: 'ADD_PENDING_OBJECT_DELETE', objectId: hit.id });
+          }
+          scene.setSelectionRect(null);
+          (scene as any)._dragStartTile = undefined;
+          scene.updateCursor();
+          return;
+        }
+      }
     }
     try {
       const ds = (scene as any)._dragStartTile as { x: number; y: number } | undefined;

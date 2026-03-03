@@ -20,7 +20,7 @@ export class EditorRenderer {
   private spawnGraphics: Phaser.GameObjects.Graphics | undefined;
   private selectionGraphics: Phaser.GameObjects.Graphics | undefined;
   private cursorHighlight: Phaser.GameObjects.Graphics | undefined;
-  private selectedObjectGraphics: Phaser.GameObjects.Graphics | undefined;
+  private pendingDeleteGraphics: Phaser.GameObjects.Graphics | undefined;
   private ghostSprite: Phaser.GameObjects.Image | undefined;
 
   // Zone Labels
@@ -67,9 +67,9 @@ export class EditorRenderer {
     this.cursorHighlight = this.scene.add.graphics();
     this.cursorHighlight.setDepth(7);
 
-    // Selected Object Highlight Graphics
-    this.selectedObjectGraphics = this.scene.add.graphics();
-    this.selectedObjectGraphics.setDepth(10);
+    // Pending Delete Overlay Graphics
+    this.pendingDeleteGraphics = this.scene.add.graphics();
+    this.pendingDeleteGraphics.setDepth(10);
 
     // Hook POST_UPDATE for zone label position updates
     this.postUpdateListener = () => this.updateZoneLabelPositions();
@@ -247,28 +247,44 @@ export class EditorRenderer {
   }
 
   /**
-   * Renders a highlight outline around the currently selected map object
+   * Renders red overlays with diagonal cross on objects marked for deletion
    */
-  public renderSelectedObject(objectId: string | null, mapObjects: Array<{ id: number | string; tileX: number; tileY: number; width: number; height: number }>): void {
-    if (!this.selectedObjectGraphics) return;
-    this.selectedObjectGraphics.clear();
+  public renderPendingDeletes(
+    objectsToDelete: (number | string)[],
+    mapObjects: Array<{ id: number | string; tileX: number; tileY: number; width: number; height: number }>
+  ): void {
+    if (!this.pendingDeleteGraphics) return;
+    this.pendingDeleteGraphics.clear();
 
-    if (!objectId) return;
+    if (objectsToDelete.length === 0) return;
 
-    const obj = mapObjects.find(o => String(o.id) === objectId);
-    if (!obj) return;
-
+    const deleteSet = new Set(objectsToDelete.map(id => String(id)));
     const tileSize = 16;
-    const x = obj.tileX * tileSize;
-    const y = obj.tileY * tileSize;
 
-    // Blue highlight outline
-    this.selectedObjectGraphics.lineStyle(2, 0x3b82f6, 1);
-    this.selectedObjectGraphics.strokeRect(x - 1, y - 1, obj.width + 2, obj.height + 2);
+    for (const obj of mapObjects) {
+      if (!deleteSet.has(String(obj.id))) continue;
 
-    // Subtle fill
-    this.selectedObjectGraphics.fillStyle(0x3b82f6, 0.15);
-    this.selectedObjectGraphics.fillRect(x, y, obj.width, obj.height);
+      const x = obj.tileX * tileSize;
+      const y = obj.tileY * tileSize;
+      const w = obj.width;
+      const h = obj.height;
+
+      // Red semi-transparent overlay
+      this.pendingDeleteGraphics.fillStyle(0xff0000, 0.25);
+      this.pendingDeleteGraphics.fillRect(x, y, w, h);
+
+      // Red border
+      this.pendingDeleteGraphics.lineStyle(2, 0xff0000, 0.8);
+      this.pendingDeleteGraphics.strokeRect(x, y, w, h);
+
+      // Diagonal cross (X)
+      this.pendingDeleteGraphics.beginPath();
+      this.pendingDeleteGraphics.moveTo(x + 2, y + 2);
+      this.pendingDeleteGraphics.lineTo(x + w - 2, y + h - 2);
+      this.pendingDeleteGraphics.moveTo(x + w - 2, y + 2);
+      this.pendingDeleteGraphics.lineTo(x + 2, y + h - 2);
+      this.pendingDeleteGraphics.strokePath();
+    }
   }
 
   /**
@@ -493,7 +509,7 @@ export class EditorRenderer {
     this.spawnGraphics?.clear();
     this.selectionGraphics?.clear();
     this.cursorHighlight?.clear();
-    this.selectedObjectGraphics?.clear();
+    this.pendingDeleteGraphics?.clear();
     this.clearGhost();
     this.clearZoneLabels();
 
@@ -519,13 +535,13 @@ export class EditorRenderer {
     this.spawnGraphics?.destroy();
     this.selectionGraphics?.destroy();
     this.cursorHighlight?.destroy();
-    this.selectedObjectGraphics?.destroy();
+    this.pendingDeleteGraphics?.destroy();
 
     this.zonesGraphics = undefined;
     this.spawnGraphics = undefined;
     this.selectionGraphics = undefined;
     this.cursorHighlight = undefined;
-    this.selectedObjectGraphics = undefined;
+    this.pendingDeleteGraphics = undefined;
   }
 }
 
