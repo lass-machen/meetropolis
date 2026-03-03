@@ -282,11 +282,22 @@ export class SubscriptionManager implements Disposable {
     const participants = Array.from(room.remoteParticipants.values());
     const participantCount = participants.length;
 
+    // Count video publications to detect track changes (e.g. screen share restart)
+    let videoPublicationCount = 0;
+    for (const p of participants) {
+      const publications = Array.from(p.trackPublications.values());
+      for (const pub of publications) {
+        const kind = (pub as any).kind ?? (pub as any).track?.kind;
+        if (kind === 'video') videoPublicationCount++;
+      }
+    }
+
     // Build deduplication key
     const key = [
       JSON.stringify(this._desiredParticipants),
       JSON.stringify(this._activeSpeakers.slice(0, this.config.maxVideoSubscriptions)),
       participantCount,
+      videoPublicationCount,
     ].join('|');
 
     if (key === this._lastApplyKey) return;
@@ -352,8 +363,6 @@ export class SubscriptionManager implements Disposable {
     const key = `${identity}:${kind}`;
     const current = this._subscriptionStates.get(key);
 
-    if (current?.[kind] === should) return;
-
     // Video hysteresis: don't turn off video too quickly
     if (kind === 'video' && !should) {
       const lastOn = this._lastVideoOnAt.get(identity) || 0;
@@ -366,12 +375,16 @@ export class SubscriptionManager implements Disposable {
       this._lastVideoOnAt.set(identity, Date.now());
     }
 
-    // Update state
-    const state = this._subscriptionStates.get(key) || { audio: false, video: false };
-    state[kind] = should;
-    this._subscriptionStates.set(key, state);
+    // Update state if changed
+    if (current?.[kind] !== should) {
+      const state = this._subscriptionStates.get(key) || { audio: false, video: false };
+      state[kind] = should;
+      this._subscriptionStates.set(key, state);
+    }
 
-    // Apply subscription
+    // Always apply subscription — a new publication for the same identity
+    // (e.g. screen share restart) needs subscribing even when state unchanged.
+    // setSubscribed() has its own guard to avoid redundant operations.
     this.setSubscribed(pub, should);
   }
 

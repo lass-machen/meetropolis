@@ -155,8 +155,15 @@ export function ParticipantCard(props: { part: { sid: string; identity: string; 
     };
     // Run immediately once, then poll
     tryAttach();
-    pollTimer = setInterval(tryAttach, 300);
-    setTimeout(() => { try { clearInterval(pollTimer); } catch {} }, 10000);
+    // Screen shares need persistent polling because the track may be
+    // re-published while this component stays mounted (same part.sid).
+    // Camera tracks only poll for 10s since they don't have this re-publish pattern.
+    const isScreenMedia = part.media === 'screen';
+    const pollInterval = isScreenMedia ? 1000 : 300;
+    pollTimer = setInterval(tryAttach, pollInterval);
+    if (!isScreenMedia) {
+      setTimeout(() => { try { clearInterval(pollTimer); } catch {} }, 10000);
+    }
 
     const onTrackSubscribed = (t: any, _publication: any, participant: any) => {
       try {

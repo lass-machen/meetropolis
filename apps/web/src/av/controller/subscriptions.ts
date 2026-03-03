@@ -20,7 +20,15 @@ export function applySubscriptions(ctx: ApplySubscriptionsContext): void {
   if (!(st === 'connected' || st === 2) || !isSignalOpen()) return;
   const participants: any[] = Array.from((room.remoteParticipants?.values?.() || []) as any);
   const participantCount = participants.length;
-  const key = JSON.stringify(desiredIds) + '|' + JSON.stringify(activeSpeakerIds.slice(0, maxVideoSubs)) + '|' + participantCount;
+  let videoPublicationCount = 0;
+  for (const p of participants) {
+    const pubs: any[] = Array.from((p.trackPublications?.values?.() || []) as any);
+    for (const pub of pubs) {
+      const kind = (pub as any).kind ?? (pub.track as any)?.kind;
+      if (kind === 'video') videoPublicationCount++;
+    }
+  }
+  const key = JSON.stringify(desiredIds) + '|' + JSON.stringify(activeSpeakerIds.slice(0, maxVideoSubs)) + '|' + participantCount + '|' + videoPublicationCount;
   if (key === lastDesiredIdsKeyRef.current) return;
   lastDesiredIdsKeyRef.current = key;
 
