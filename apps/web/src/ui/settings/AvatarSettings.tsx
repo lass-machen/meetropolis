@@ -14,6 +14,7 @@ interface AvatarOption {
   frameWidth: number;
   frameHeight: number;
   idleRow: number;
+  previewUrl?: string;
 }
 
 export function AvatarSettings({ currentAvatarId, onAvatarChange }: AvatarSettingsProps) {
@@ -40,6 +41,7 @@ export function AvatarSettings({ currentAvatarId, onAvatarChange }: AvatarSettin
                   frameWidth: av.frameWidth || 16,
                   frameHeight: av.frameHeight || 24,
                   idleRow: av.states?.idle?.row ?? 0,
+                  previewUrl: av.previewUrl,
                 });
               }
             }
@@ -94,6 +96,7 @@ export function AvatarSettings({ currentAvatarId, onAvatarChange }: AvatarSettin
             frameWidth={av.frameWidth}
             frameHeight={av.frameHeight}
             idleRow={av.idleRow}
+            {...(av.previewUrl != null ? { previewUrl: av.previewUrl } : {})}
           />
           <div style={styles.cardLabel}>{av.displayName}</div>
         </button>
@@ -102,7 +105,39 @@ export function AvatarSettings({ currentAvatarId, onAvatarChange }: AvatarSettin
   );
 }
 
-function AvatarPreview({ spriteUrl, frameWidth, frameHeight, idleRow }: { spriteUrl: string; frameWidth: number; frameHeight: number; idleRow: number }) {
+function AvatarPreview({ spriteUrl, frameWidth, frameHeight, idleRow, previewUrl }: {
+  spriteUrl: string;
+  frameWidth: number;
+  frameHeight: number;
+  idleRow: number;
+  previewUrl?: string;
+}) {
+  if (previewUrl) {
+    return (
+      <img
+        src={previewUrl}
+        alt="Avatar preview"
+        style={styles.preview}
+      />
+    );
+  }
+
+  return (
+    <AvatarPreviewCanvas
+      spriteUrl={spriteUrl}
+      frameWidth={frameWidth}
+      frameHeight={frameHeight}
+      idleRow={idleRow}
+    />
+  );
+}
+
+function AvatarPreviewCanvas({ spriteUrl, frameWidth, frameHeight, idleRow }: {
+  spriteUrl: string;
+  frameWidth: number;
+  frameHeight: number;
+  idleRow: number;
+}) {
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
 
   React.useEffect(() => {
@@ -115,11 +150,10 @@ function AvatarPreview({ spriteUrl, frameWidth, frameHeight, idleRow }: { sprite
       if (!ctx) return;
       ctx.imageSmoothingEnabled = false;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      // Draw first frame of the avatar's idle row
       ctx.drawImage(img, 0, idleRow * frameHeight, frameWidth, frameHeight, 0, 0, canvas.width, canvas.height);
     };
     img.onerror = () => {
-      logger.warn(`[AvatarPreview] Failed to load sprite: ${spriteUrl}`);
+      logger.warn(`[AvatarPreviewCanvas] Failed to load sprite: ${spriteUrl}`);
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -179,6 +213,7 @@ const styles: Record<string, React.CSSProperties> = {
     imageRendering: 'pixelated',
     width: 48,
     height: 72,
+    objectFit: 'contain',
   },
   loading: {
     padding: 20,

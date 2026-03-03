@@ -586,6 +586,7 @@ function loadPack(idx) {
       _id: avatarIdCounter++,
       key: av.key || av.id || '',
       displayName: av.displayName || av.key || '',
+      previewUrl: av.previewUrl || null,
       states,
       collapsed: false,
     });
@@ -835,6 +836,7 @@ function addAvatar() {
     _id: id,
     key: '',
     displayName: '',
+    previewUrl: null,
     states: {
       idle: { directions: ['down','left','right','up'], frameCount: 1, frameRate: 1, row: 0 },
       walk: { directions: ['down','left','right','up'], frameCount: 4, frameRate: 8, row: 4 },
@@ -918,6 +920,17 @@ function renderAvatars() {
         <div class="avatar-card-body${av.collapsed ? ' collapsed' : ''}">
           <div class="field"><label>Key (ID)</label><input type="text" value="${esc(av.key)}" onchange="avatars.find(a=>a._id===${av._id}).key=this.value;renderAvatars()"></div>
           <div class="field"><label>Display Name</label><input type="text" value="${esc(av.displayName)}" onchange="avatars.find(a=>a._id===${av._id}).displayName=this.value;renderAvatars()"></div>
+          <div class="field">
+            <label>Preview Image</label>
+            <div style="display:flex;gap:8px;align-items:center">
+              <button class="btn btn-sm" onclick="document.getElementById('previewFile_${av._id}').click()">Upload Preview</button>
+              <input type="file" id="previewFile_${av._id}" accept="image/png" style="display:none" onchange="handlePreviewFile(${av._id}, this.files[0])">
+              <span style="font-family:var(--font-mono);font-size:10px;color:var(--fg-dim)" id="previewStatus_${av._id}">
+                ${av.previewUrl ? esc(av.previewUrl.split('/').pop()) : 'No preview'}
+              </span>
+            </div>
+            ${av.previewUrl ? '<img src="' + esc(getPreviewFullUrl(av.previewUrl)) + '" style="margin-top:6px;max-width:64px;max-height:96px;image-rendering:pixelated;border:1px solid var(--border);border-radius:3px;background:var(--bg-deep)">' : ''}
+          </div>
           ${statesHtml}
           <button class="btn btn-sm btn-block" onclick="addState(${av._id})" style="margin-top:6px">+ Add State</button>
         </div>
@@ -1084,6 +1097,48 @@ async function uploadSprite() {
   }
 }
 
+// ── Preview Upload ──
+async function handlePreviewFile(avId, file) {
+  if (!file) return;
+  const av = avatars.find(a => a._id === avId);
+  if (!av) return;
+
+  const packUuid = document.getElementById('packUuid').value.trim();
+  if (!packUuid) {
+    toast('err', 'Pack UUID is required before uploading preview');
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append('file', file, file.name);
+  formData.append('packUuid', packUuid);
+
+  try {
+    const res = await apiFetch('/avatar-packs/upload-sprite', {
+      method: 'POST',
+      body: formData,
+    });
+    if (res.ok) {
+      const data = await res.json();
+      av.previewUrl = data.url;
+      toast('ok', 'Preview uploaded: ' + data.url);
+      renderAvatars();
+    } else {
+      const err = await res.json().catch(() => ({}));
+      toast('err', `Preview upload failed: HTTP ${res.status} — ${err.error || res.statusText}`);
+    }
+  } catch (e) {
+    toast('err', 'Preview upload failed: ' + e.message);
+  }
+}
+
+function getPreviewFullUrl(url) {
+  if (!url) return '';
+  if (url.startsWith('http')) return url;
+  const base = document.getElementById('apiUrl').value.replace(/\/+$/, '');
+  return base + url;
+}
+
 // ── Submit ──
 function buildPayload() {
   const filename = document.getElementById('spriteFilename').value || 'sprite.png';
@@ -1100,6 +1155,7 @@ function buildPayload() {
       displayName: av.displayName || av.key,
       type: 'full',
       spriteUrl: uploadedSpriteUrl || `/assets/sprites/${filename}`,
+      previewUrl: av.previewUrl || undefined,
       frameWidth: frameW,
       frameHeight: frameH,
       states: { ...av.states },
