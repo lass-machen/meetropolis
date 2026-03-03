@@ -775,12 +775,8 @@ function renderUserCards() {
     } else {
       classes.push('uc-size-compact');
     }
-    // Aspect: square for camera, 16:9 for screen
-    if (user.screenOn) {
-      classes.push('uc-aspect-169');
-    } else {
-      classes.push('uc-aspect-square');
-    }
+    // Aspect: always 16:9 (matches ParticipantCard.tsx line 284)
+    classes.push('uc-aspect-169');
     if (user.speaking) {
       classes.push('uc-speaking');
     }
@@ -788,15 +784,14 @@ function renderUserCards() {
     var card = document.createElement('div');
     card.className = classes.join(' ');
 
-    // Background color placeholder
-    var bgColor = user.screenOn ? '#1a1d24' : user.color;
+    // Fallback name (no video) - uses glass background like the real app
     var fallbackHTML = '';
     if (user.screenOn) {
-      fallbackHTML = '<div class="uc-fallback-name" style="background:' + bgColor + ';">' +
+      fallbackHTML = '<div class="uc-fallback-name">' +
         '<div style="text-align:center;"><i class="fa-solid fa-display" style="font-size:28px;opacity:0.4;margin-bottom:8px;display:block;"></i>' +
         '<span style="font-size:12px;opacity:0.5;">Bildschirmfreigabe</span></div></div>';
     } else {
-      fallbackHTML = '<div class="uc-fallback-name" style="background:' + bgColor + ';">' + user.name + '</div>';
+      fallbackHTML = '<div class="uc-fallback-name">' + user.name + '</div>';
     }
 
     // Name badge
@@ -947,17 +942,16 @@ function renderFullscreenOverlay() {
   var container = $('#fs-card-container');
 
   var cardClass = 'uc-card uc-size-full';
-  var bgColor = isScreen ? '#1a1d24' : user.color;
-  cardClass += isScreen ? ' uc-aspect-169' : ' uc-aspect-square';
+  cardClass += isScreen ? ' uc-aspect-169' : ' uc-aspect-169';
   if (user.speaking) cardClass += ' uc-speaking';
 
   var inner = '';
   if (isScreen) {
-    inner = '<div class="uc-fallback-name" style="background:' + bgColor + ';">' +
+    inner = '<div class="uc-fallback-name">' +
       '<div style="text-align:center;"><i class="fa-solid fa-display" style="font-size:48px;opacity:0.4;margin-bottom:12px;display:block;"></i>' +
       '<span style="font-size:14px;opacity:0.5;">Bildschirmfreigabe von ' + user.name + '</span></div></div>';
   } else {
-    inner = '<div class="uc-fallback-name" style="background:' + bgColor + ';font-size:24px;">' + user.name + '</div>';
+    inner = '<div class="uc-fallback-name" style="font-size:24px;">' + user.name + '</div>';
   }
 
   inner += '<div class="uc-name-badge"><div class="uc-name-text">' + user.name + '</div></div>';
