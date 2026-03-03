@@ -41,7 +41,10 @@ export function updateRecenterUiVisibility(scene: Phaser.Scene & any): void {
   const isFollowing = (cam as any).follow === scene.hero;
   if (!scene.manualCameraActive && isFollowing) {
     scene.recenterUi.setVisible(false);
-    try { gameBridge.onCameraManualChange?.(false); } catch {}
+    if (scene._lastCameraManualNotified !== false) {
+      scene._lastCameraManualNotified = false;
+      try { gameBridge.onCameraManualChange?.(false); } catch {}
+    }
     return;
   }
   const centerX = cam.worldView.centerX;
@@ -51,7 +54,10 @@ export function updateRecenterUiVisibility(scene: Phaser.Scene & any): void {
   const tolerance = 8;
   const shouldShow = scene.manualCameraActive || dx > tolerance || dy > tolerance;
   scene.recenterUi.setVisible(shouldShow);
-  try { gameBridge.onCameraManualChange?.(shouldShow); } catch {}
+  if (scene._lastCameraManualNotified !== shouldShow) {
+    scene._lastCameraManualNotified = shouldShow;
+    try { gameBridge.onCameraManualChange?.(shouldShow); } catch {}
+  }
 }
 
 export function recenterCamera(scene: Phaser.Scene & any): void {

@@ -144,7 +144,7 @@ export function WorldApp() {
   // Participants hook
   const { buildParticipantList, applyVolumesToUi } = useParticipants({
     avRef, zoneRef, localPosRef, remotesRef, colyseusToLivekitMap, identityToNameMap,
-    volumeRef, me, setUiParticipants: (list) => setUiParticipants(list),
+    volumeRef, me, setUiParticipants,
     disposedRef, getDisplayName, gameBridge, dndRef,
   });
 

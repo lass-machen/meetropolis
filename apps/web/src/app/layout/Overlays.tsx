@@ -6,6 +6,25 @@ import { TopRightMenu } from '../../ui/app/TopRightMenu';
 
 type Participant = { sid: string; identity: string; hasVideo: boolean; hasMic: boolean; isSpeaking: boolean; media: 'camera' | 'screen'; volume?: number };
 
+/** Shallow-compare two participant arrays by length + per-entry SID, hasVideo, hasMic, isSpeaking, volume. */
+function participantsEqual(a: Participant[], b: Participant[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    const pa = a[i];
+    const pb = b[i];
+    if (
+      pa.sid !== pb.sid ||
+      pa.hasVideo !== pb.hasVideo ||
+      pa.hasMic !== pb.hasMic ||
+      pa.isSpeaking !== pb.isSpeaking ||
+      pa.volume !== pb.volume
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
 type TopRightMenuProps = React.ComponentProps<typeof TopRightMenu>;
 
 type Props = {
@@ -29,6 +48,7 @@ export function Overlays({ hud, editorActive, avDnd, participants, gridExpanded,
   // um visuelles Flackern bei kurzzeitigen Verbindungsabbrüchen zu vermeiden.
   const lastNonEmptyRef = React.useRef<Participant[]>(participants);
   const [stableParticipants, setStableParticipants] = React.useState<Participant[]>(participants);
+  const stableRef = React.useRef<Participant[]>(stableParticipants);
   const graceTimerRef = React.useRef<number | null>(null);
   React.useEffect(() => {
     if (graceTimerRef.current) {
@@ -37,14 +57,24 @@ export function Overlays({ hud, editorActive, avDnd, participants, gridExpanded,
     }
     if (participants.length > 0) {
       lastNonEmptyRef.current = participants;
-      setStableParticipants(participants);
+      // Only update state when participants actually changed to avoid render loops.
+      if (!participantsEqual(stableRef.current, participants)) {
+        stableRef.current = participants;
+        setStableParticipants(participants);
+      }
       return;
     }
     // Teilnehmerliste ist leer:  Entprellen für kurze Zeit
     // (z. B. während Colyseus-Reconnects), um UI-Flackern zu verhindern.
-    setStableParticipants(lastNonEmptyRef.current);
+    if (!participantsEqual(stableRef.current, lastNonEmptyRef.current)) {
+      stableRef.current = lastNonEmptyRef.current;
+      setStableParticipants(lastNonEmptyRef.current);
+    }
     graceTimerRef.current = window.setTimeout(() => {
-      setStableParticipants(participants);
+      if (!participantsEqual(stableRef.current, participants)) {
+        stableRef.current = participants;
+        setStableParticipants(participants);
+      }
       graceTimerRef.current = null;
     }, 2000);
     return () => {
