@@ -41,19 +41,33 @@ export async function changeMap(targetMapId: string, targetMapName: string, room
       throw new Error('Map change timed out');
     }
 
-    // 3. Fetch new map state
-    const newState = await fetchStateV2(targetMapId);
+    // 3. Update store EARLY so any Colyseus onStateChange callbacks
+    //    that fire during async operations filter players by the new map.
+    const prevMapId = store.currentMapId;
+    const prevMapName = store.currentMapName;
+    store.setCurrentMap(targetMapId, targetMapName);
+
+    let newState: Awaited<ReturnType<typeof fetchStateV2>>;
+    try {
+      // 4. Fetch new map state
+      newState = await fetchStateV2(targetMapId);
+    } catch (e) {
+      // Revert store on fetch failure
+      store.setCurrentMap(prevMapId, prevMapName);
+      throw e;
+    }
     if (!newState || !newState.mapMeta?.width || !newState.mapMeta?.height) {
+      store.setCurrentMap(prevMapId, prevMapName);
       throw new Error('Failed to load map state for: ' + targetMapId);
     }
 
-    // 4. Get Phaser game instance and stop MainScene
+    // 5. Get Phaser game instance and stop MainScene
     const anyWin = window as unknown as Record<string, unknown>;
     const game = anyWin.__PHASER_GAME__ as Phaser.Game | undefined;
-    if (!game) throw new Error('Phaser game not found');
-
-    // Update store FIRST so scene code reads the correct map id/name
-    store.setCurrentMap(targetMapId, targetMapName);
+    if (!game) {
+      store.setCurrentMap(prevMapId, prevMapName);
+      throw new Error('Phaser game not found');
+    }
 
     // Clear stale state from previous map
     gameBridge.setZoneOverlay([]);
@@ -61,22 +75,25 @@ export async function changeMap(targetMapId: string, targetMapName: string, room
 
     game.scene.stop('Main');
 
-    // 5. Update v2 state
+    // 6. Update v2 state
     anyWin.__v2_state = newState;
 
-    // 6. Preload tileset images in BootScene
+    // 7. Preload tileset images in BootScene
     const bootScene = game.scene.getScene('Boot');
     if (bootScene) {
       await preloadTilesetImages(bootScene, newState.tilesetRegistry);
     }
 
-    // 7. Clear remote players cache
-    gameBridge.syncRemotePlayers({});
-
     // 8. Set confirmed spawn position BEFORE restarting scene
     (window as any).initialPlayerPosition = { x: confirmed.x, y: confirmed.y };
 
     // 9. Restart MainScene
+    // NOTE: Remote players cache is NOT cleared here. The Colyseus onStateChange
+    // callback populates the cache with correct players for the new map during
+    // the async operations above. The old scene is already stopped (sceneApi=null),
+    // so stale players cannot be displayed. When the new scene starts and calls
+    // setSceneApi(this), it restores from the correctly populated cache, creating
+    // sprites AND name labels for all players on the new map.
     game.scene.start('Main');
 
     // Notify React to reload zones for the new map
