@@ -7,6 +7,7 @@ import { TenantSettings } from '../../../ui/settings/TenantSettings';
 import { SessionManagement } from '../../../ui/settings/SessionManagement';
 import { ApiTokensOverlay } from '../../../ui/admin/ApiTokensOverlay';
 import { InvitesModal } from '../../../features/admin/InvitesModal';
+import { TauriPreferencesModal } from '../../../ui/preferences/TauriPreferencesModal';
 
 interface WorldModalsProps {
   apiBase: string;
@@ -44,6 +45,10 @@ interface WorldModalsProps {
   // Invites Modal
   invitesModalOpen: boolean;
   setInvitesModalOpen: (open: boolean) => void;
+
+  // Tauri Preferences Modal
+  tauriPrefsOpen: boolean;
+  setTauriPrefsOpen: (open: boolean) => void;
 }
 
 export function WorldModals({
@@ -68,6 +73,8 @@ export function WorldModals({
   setFreshToken,
   invitesModalOpen,
   setInvitesModalOpen,
+  tauriPrefsOpen,
+  setTauriPrefsOpen,
 }: WorldModalsProps) {
   return (
     <>
@@ -117,6 +124,9 @@ export function WorldModals({
 
       {/* Invites Modal */}
       <InvitesModal open={invitesModalOpen} onOpenChange={setInvitesModalOpen} apiBase={apiBase} />
+
+      {/* Tauri Preferences Modal */}
+      <TauriPreferencesModal open={tauriPrefsOpen} onOpenChange={setTauriPrefsOpen} />
     </>
   );
 }

@@ -216,7 +216,12 @@
 
   "settings.title": "Einstellungen",
   "settings.desc": "Kamera, Audio & Anzeige",
-  "settings.centerCamera": "Kamera auf Spieler zentrieren"
+  "settings.centerCamera": "Kamera auf Spieler zentrieren",
+
+  "tauri.prefs.title": "App-Einstellungen",
+  "tauri.prefs.desc": "macOS-spezifische Einstellungen",
+  "tauri.prefs.audioDucking": "Andere Apps leiser stellen",
+  "tauri.prefs.audioDuckingHint": "Reduziert die Lautstärke anderer Apps, wenn jemand spricht"
 }
 
 

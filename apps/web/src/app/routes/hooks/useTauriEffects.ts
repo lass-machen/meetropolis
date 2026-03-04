@@ -13,12 +13,14 @@ interface UseTauriEffectsParams {
   getDisplayName: (identity: string) => string;
   setAvState: React.Dispatch<React.SetStateAction<{ mic: boolean; cam: boolean; share: boolean; dnd: boolean }>>;
   avRef: React.RefObject<any>;
+  onOpenPreferences: () => void;
 }
 
 export function useTauriEffects(params: UseTauriEffectsParams) {
   const {
     isTauri, isMiniMode, toggleMiniMode, syncAvStatus, onMiniAvAction,
     avState, uiParticipants, getDisplayName, setAvState, avRef,
+    onOpenPreferences,
   } = params;
 
   useEffect(() => {
@@ -77,4 +79,22 @@ export function useTauriEffects(params: UseTauriEffectsParams) {
     });
     return unsubscribe;
   }, [isTauri, avState, onMiniAvAction]);
+
+  // Listen for native menu "open-preferences" event
+  useEffect(() => {
+    if (!isTauri) return;
+    let unlisten: (() => void) | undefined;
+    const setup = async () => {
+      try {
+        const { listen } = await import('@tauri-apps/api/event');
+        unlisten = await listen('open-preferences', () => {
+          onOpenPreferences();
+        });
+      } catch (e) {
+        logger.warn('[Tauri] Failed to setup open-preferences listener:', e);
+      }
+    };
+    setup();
+    return () => { unlisten?.(); };
+  }, [isTauri, onOpenPreferences]);
 }

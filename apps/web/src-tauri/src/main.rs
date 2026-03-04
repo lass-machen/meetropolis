@@ -8,10 +8,13 @@ use tauri::{Emitter, Manager, PhysicalPosition, WebviewUrl, WebviewWindowBuilder
 use tauri::menu::{MenuBuilder, MenuItemBuilder, SubmenuBuilder, PredefinedMenuItem};
 use serde::{Deserialize, Serialize};
 
+mod audio;
+
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 struct AppConfig {
     api_base: Option<String>,
     web_base: Option<String>,
+    audio_ducking: Option<bool>,
 }
 
 // State für Mini-Window-Modus
@@ -50,6 +53,7 @@ fn get_config(handle: tauri::AppHandle) -> AppConfig {
     AppConfig {
         api_base: Some("http://localhost:2567".to_string()),
         web_base: Some("http://localhost:5173".to_string()),
+        audio_ducking: Some(true),
     }
 }
 
@@ -159,6 +163,24 @@ fn hide_main_show_mini(app: &tauri::AppHandle, state: &AppState) {
     }
 }
 
+#[tauri::command]
+fn set_audio_ducking(handle: tauri::AppHandle, enabled: bool) -> bool {
+    if let Err(e) = audio::set_audio_ducking(enabled) {
+        eprintln!("Failed to set audio ducking: {}", e);
+        return false;
+    }
+    // Persist to config
+    let mut config = get_config(handle.clone());
+    config.audio_ducking = Some(enabled);
+    set_config(handle, config)
+}
+
+#[tauri::command]
+fn get_audio_ducking(handle: tauri::AppHandle) -> bool {
+    let config = get_config(handle);
+    config.audio_ducking.unwrap_or(true)
+}
+
 fn close_mini_show_main(app: &tauri::AppHandle, state: &AppState) {
     // Mini-Fenster schließen
     if let Some(mini_window) = app.get_webview_window("mini") {
@@ -245,13 +267,17 @@ fn main() {
 
             app.set_menu(menu)?;
 
+            // Apply audio ducking from config at startup
+            let config = get_config(app.handle().clone());
+            audio::apply_audio_ducking_from_config(&config);
+
             Ok(())
         })
         .on_menu_event(|app, event| {
             match event.id().as_ref() {
                 "preferences" => {
                     if let Some(window) = app.get_webview_window("main") {
-                        let _ = window.eval("window.location.href = 'tauri://localhost/index.html#setup'");
+                        let _ = window.emit("open-preferences", ());
                     }
                 }
                 "reload" => {
@@ -296,7 +322,9 @@ fn main() {
             is_mini_mode,
             sync_av_status,
             mini_av_action,
-            expand_from_mini
+            expand_from_mini,
+            set_audio_ducking,
+            get_audio_ducking
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

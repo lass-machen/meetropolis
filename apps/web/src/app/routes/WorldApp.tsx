@@ -106,6 +106,7 @@ export function WorldApp() {
   const [tenantSettingsOpen, setTenantSettingsOpen] = React.useState(false);
   const [sessionsOpen, setSessionsOpen] = React.useState(false);
   const [packStoreOpen, setPackStoreOpen] = React.useState(false);
+  const [tauriPrefsOpen, setTauriPrefsOpen] = React.useState(false);
   const [gridExpanded, setGridExpanded] = React.useState(false);
   const [selectedSid, setSelectedSid] = React.useState<string | null>(null);
   const [overlayZoom, setOverlayZoom] = React.useState(1);
@@ -205,7 +206,7 @@ export function WorldApp() {
 
   // Tauri integration (extracted to hook)
   const { isTauri, isMiniMode, toggleMiniMode, syncAvStatus, onMiniAvAction } = useTauriApp();
-  useTauriEffects({ isTauri, isMiniMode, toggleMiniMode, syncAvStatus, onMiniAvAction, avState, uiParticipants, getDisplayName, setAvState, avRef });
+  useTauriEffects({ isTauri, isMiniMode, toggleMiniMode, syncAvStatus, onMiniAvAction, avState, uiParticipants, getDisplayName, setAvState, avRef, onOpenPreferences: () => setTauriPrefsOpen(true) });
 
   // Connection Recovery
   const { showReloadBanner, handleReload, dismissBanner } = useConnectionRecovery({
@@ -620,6 +621,8 @@ export function WorldApp() {
           setFreshToken={setFreshToken}
           invitesModalOpen={invitesModalOpen}
           setInvitesModalOpen={setInvitesModalOpen}
+          tauriPrefsOpen={tauriPrefsOpen}
+          setTauriPrefsOpen={setTauriPrefsOpen}
         />
       </div>
 
