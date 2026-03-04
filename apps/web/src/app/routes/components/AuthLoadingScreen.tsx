@@ -33,17 +33,20 @@ export function AuthLoadingScreen({
           <h2 style={{ margin: '8px 0' }}>Registrieren (neuen Mandanten anlegen)</h2>
           <Signup apiBase={apiBase} onSuccess={(slug) => {
             try {
-              const proto = window.location.protocol;
-              const host = window.location.host;
-              const baseHost = host.split(':')[0];
-              const parts = baseHost.split('.');
-              if (parts.length >= 2) {
-                const rest = parts.slice(-2).join('.');
-                const port = host.includes(':') ? (':' + host.split(':')[1]) : '';
-                window.location.href = `${proto}//${slug}.${rest}${port}`;
-              } else {
-                // localhost/dev fallback: reload to keep cookie
+              if ((window as any).__TAURI__) {
                 window.location.reload();
+              } else {
+                const proto = window.location.protocol;
+                const host = window.location.host;
+                const baseHost = host.split(':')[0];
+                const parts = baseHost.split('.');
+                if (parts.length >= 2) {
+                  const rest = parts.slice(-2).join('.');
+                  const port = host.includes(':') ? (':' + host.split(':')[1]) : '';
+                  window.location.href = `${proto}//${slug}.${rest}${port}`;
+                } else {
+                  window.location.reload();
+                }
               }
             } catch { window.location.reload(); }
           }} />

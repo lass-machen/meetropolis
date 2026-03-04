@@ -9,6 +9,7 @@
  */
 
 import { EditorState, PendingChanges, MapObjectRecord } from './EditorService';
+import { getApiBaseFromWindow } from '../lib/apiBase';
 
 export class EditorPersistenceError extends Error {
   constructor(message: string, public readonly cause?: Error) {
@@ -28,11 +29,7 @@ export class EditorPersistenceService {
   private apiBase: string;
 
   constructor(apiBase?: string) {
-    this.apiBase =
-      apiBase ||
-      (window as any).VITE_API_BASE ||
-      (import.meta as any).env?.VITE_API_BASE ||
-      `${window.location.protocol}//${window.location.hostname}:2567`;
+    this.apiBase = apiBase || getApiBaseFromWindow();
   }
 
   /**

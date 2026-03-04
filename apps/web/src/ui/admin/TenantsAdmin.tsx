@@ -1,5 +1,6 @@
 import React from 'react';
 import { TableContainer, Table, THead, TBody, Tr, Th, Td, Button, Input } from '../system';
+import { openExternal } from '../../lib/openExternal';
 import { logger } from '../../lib/logger';
 
 type AvailablePlan = { priceId: string; name: string; amount: number; currency: string; interval: string; concurrentLimit: number };
@@ -158,7 +159,7 @@ export function TenantsAdmin(props: { apiBase: string }) {
                           if (!priceId) return;
                           try {
                             const res = await fetch(`${apiBase}/billing/checkout-session`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ priceId }) });
-                            if (res.ok) { const { url } = await res.json(); window.open(url, '_blank'); }
+                            if (res.ok) { const { url } = await res.json(); await openExternal(url); }
                           } catch (err) { logger.warn('[TenantsAdmin] Failed to start checkout', err); }
                         }}>Checkout</Button>
                       </>
@@ -168,7 +169,7 @@ export function TenantsAdmin(props: { apiBase: string }) {
                     <Button onClick={async ()=>{
                       try {
                         const res = await fetch(`${apiBase}/billing/portal-session`, { method:'POST', credentials:'include' });
-                        if (res.ok) { const { url } = await res.json(); window.open(url, '_blank'); }
+                        if (res.ok) { const { url } = await res.json(); await openExternal(url); }
                       } catch (err) { logger.warn('[TenantsAdmin] Failed to open portal', err); }
                     }}>Portal</Button>
                   </div>

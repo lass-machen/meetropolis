@@ -25,6 +25,7 @@
     "@radix-ui/react-visually-hidden": "1.2.3",
     "@sentry/browser": "^10.22.0",
     "@sentry/tracing": "^7.120.4",
+    "@tauri-apps/plugin-shell": "^2.3.5",
     "aria-hidden": "^1.2.6",
     "colyseus.js": "^0.16.22",
     "detect-node-es": "^1.1.0",

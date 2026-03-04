@@ -58,7 +58,7 @@ export function AppRoutes() {
         // If there's a tenant subdomain, go directly to app
         const hostname = window.location.hostname;
         const isSubdomain = hostname.split('.').length > 2 && !hostname.startsWith('www.');
-        if (isSubdomain) {
+        if (isSubdomain || !!(window as any).__TAURI__) {
           setRoute('app');
         } else {
           setRoute('landing');
@@ -112,13 +112,12 @@ export function AppRoutes() {
           onBack={() => navigate('landing')}
           selectedPlan={selectedPlan}
           onSuccess={(tenantSlug) => {
-            // After signup, redirect to the tenant's subdomain or the app
             const currentHost = window.location.hostname;
-            if (currentHost === 'localhost' || currentHost === '127.0.0.1') {
-              // In development, just go to the app
+            if ((window as any).__TAURI__) {
+              navigate('app');
+            } else if (currentHost === 'localhost' || currentHost === '127.0.0.1') {
               navigate('app');
             } else {
-              // In production, redirect to tenant subdomain
               const protocol = window.location.protocol;
               const baseDomain = currentHost.split('.').slice(-2).join('.');
               window.location.href = `${protocol}//${tenantSlug}.${baseDomain}`;

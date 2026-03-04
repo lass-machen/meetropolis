@@ -1,5 +1,6 @@
 import React from 'react';
 import { getApiBaseFromWindow } from '../../../lib/apiBase';
+import { openExternal } from '../../../lib/openExternal';
 import { PaymentStatus } from '../types';
 
 const POLL_INTERVAL = 60_000;
@@ -39,7 +40,7 @@ export function usePaymentStatus({ enabled }: { enabled: boolean }) {
       });
       if (res.ok) {
         const { url } = await res.json();
-        if (url) window.open(url, '_blank');
+        if (url) await openExternal(url);
       }
     } catch {
       // ignore

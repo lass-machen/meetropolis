@@ -1,5 +1,6 @@
 import React from 'react';
 import { Modal, Button } from '../system';
+import { openExternal } from '../../lib/openExternal';
 import { PackCard } from './PackCard';
 import type { CatalogPack } from './packStoreTypes';
 
@@ -65,7 +66,7 @@ export function PackStore({ apiBase, open, onOpenChange }: PackStoreProps) {
       });
       if (res.ok) {
         const data: { url: string } = await res.json();
-        window.open(data.url, '_blank');
+        await openExternal(data.url);
       }
     } catch { /* handled by UI */ }
   };

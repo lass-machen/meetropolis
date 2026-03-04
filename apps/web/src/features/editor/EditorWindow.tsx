@@ -12,6 +12,7 @@ import { EditorService } from '../../services/EditorService';
 import { uploadTilesetAsAssetPack } from '../../lib/assetPackUpload';
 import { logger } from '../../lib/logger';
 import { gameBridge } from '../../game/bridge';
+import { getApiBaseFromWindow } from '../../lib/apiBase';
 
 export function EditorWindow({
   onSave,
@@ -62,7 +63,7 @@ export function EditorWindow({
 
   // Load installed packs
   React.useEffect(() => {
-    const apiBase = (window as any).VITE_API_BASE || (import.meta as any).env?.VITE_API_BASE || `${window.location.protocol}//${window.location.hostname}:2567`;
+    const apiBase = getApiBaseFromWindow();
     fetch(`${apiBase}/asset-packs`, { credentials: 'include' })
       .then(r => r.json())
       .then(data => {
@@ -144,7 +145,7 @@ export function EditorWindow({
     }
     setUploading(true);
     try {
-      const apiBase = (window as any).VITE_API_BASE || (import.meta as any).env?.VITE_API_BASE || `${window.location.protocol}//${window.location.hostname}:2567`;
+      const apiBase = getApiBaseFromWindow();
       const form = new FormData();
       form.append('file', file);
       const res = await fetch(`${apiBase}/asset-packs/upload`, { method: 'POST', body: form, credentials: 'include' });
@@ -168,7 +169,7 @@ export function EditorWindow({
     if (!window.confirm(`Pack "${name}" wirklich löschen?`)) return;
     setDeleting(id);
     try {
-      const apiBase = (window as any).VITE_API_BASE || (import.meta as any).env?.VITE_API_BASE || `${window.location.protocol}//${window.location.hostname}:2567`;
+      const apiBase = getApiBaseFromWindow();
       const res = await fetch(`${apiBase}/asset-packs/${id}`, { method: 'DELETE', credentials: 'include' });
       if (res.ok) {
         window.dispatchEvent(new CustomEvent('editor:toast', { detail: { title: 'Pack gelöscht', description: `"${name}" wurde entfernt`, intent: 'success' } }));
@@ -471,7 +472,7 @@ export function EditorWindow({
             onConfirm={async (tileset) => {
               // Upload zum Server für persistente Speicherung
               try {
-                const apiBase = (window as any).VITE_API_BASE || (import.meta as any).env?.VITE_API_BASE || `${window.location.protocol}//${window.location.hostname}:2567`;
+                const apiBase = getApiBaseFromWindow();
 
                 logger.debug('[EditorWindow] Uploading tileset as AssetPack...');
 

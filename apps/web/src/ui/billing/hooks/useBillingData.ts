@@ -1,5 +1,6 @@
 import React from 'react';
 import { getApiBaseFromWindow } from '../../../lib/apiBase';
+import { openExternal } from '../../../lib/openExternal';
 import { BillingStatus, Invoice, AvailablePlan } from '../types';
 
 export function useBillingData() {
@@ -60,7 +61,7 @@ export function useBillingData() {
       });
       if (res.ok) {
         const { url } = await res.json();
-        if (url) window.open(url, '_blank');
+        if (url) await openExternal(url);
       }
     } catch (e: unknown) { setError(e instanceof Error ? e.message : 'Failed to open billing portal'); }
     setActionLoading(false);
@@ -77,7 +78,7 @@ export function useBillingData() {
       });
       if (res.ok) {
         const { url } = await res.json();
-        if (url) window.location.href = url;
+        if (url) await openExternal(url);
       }
     } catch (e: unknown) { setError(e instanceof Error ? e.message : 'Failed to start checkout'); }
     setActionLoading(false);
