@@ -98,8 +98,8 @@ export function registerAuthRoutes(app: express.Application, prisma: PrismaClien
 
     // Return token in body for Tauri/native clients that can't use cookies
     const origin = req.headers.origin || '';
-    const isTauri = origin.startsWith('tauri://');
-    res.json({ id: user.id, email: user.email, name: user.name, ...(isTauri && { token }) });
+    const isNativeClient = !origin || origin.startsWith('tauri://');
+    res.json({ id: user.id, email: user.email, name: user.name, ...(isNativeClient && { token }) });
   });
 
   app.post('/auth/login', async (req: express.Request, res: express.Response) => {
@@ -155,8 +155,8 @@ export function registerAuthRoutes(app: express.Application, prisma: PrismaClien
 
     // Return token in body for Tauri/native clients that can't use cookies
     const origin = req.headers.origin || '';
-    const isTauri = origin.startsWith('tauri://');
-    res.json({ id: user.id, email: user.email, name: user.name, ...(isTauri && { token }) });
+    const isNativeClient = !origin || origin.startsWith('tauri://');
+    res.json({ id: user.id, email: user.email, name: user.name, ...(isNativeClient && { token }) });
   });
 
   app.post('/auth/logout', async (req: express.Request, res: express.Response) => {
