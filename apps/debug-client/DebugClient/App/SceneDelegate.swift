@@ -21,6 +21,13 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate, ServerConfigVCDelegate,
         let window = UIWindow(windowScene: windowScene)
         self.window = window
 
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleLogout),
+            name: .didLogout,
+            object: nil
+        )
+
         // Check if we have a saved server config
         if let config = ServerConfig.load(), let baseURL = URL(string: config.apiBaseURL) {
             setupServices(baseURL: baseURL)
@@ -82,6 +89,10 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate, ServerConfigVCDelegate,
         }
     }
 
+    @objc private func handleLogout() {
+        presentLogin()
+    }
+
     private func presentLogin() {
         guard let authService else { return }
 
@@ -135,4 +146,8 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate, ServerConfigVCDelegate,
     func sceneDidEnterBackground(_ scene: UIScene) {
         // Called as the scene transitions from the foreground to the background.
     }
+}
+
+extension Notification.Name {
+    static let didLogout = Notification.Name("didLogout")
 }

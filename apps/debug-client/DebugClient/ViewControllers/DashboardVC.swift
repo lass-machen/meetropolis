@@ -73,6 +73,12 @@ class DashboardVC: UIViewController, LiveKitManagerDelegate {
         statsTimer = nil
     }
 
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        livekitManager.delegate = self
+        updateConnectionUI()
+    }
+
     // MARK: - UI Setup
 
     private func setupUI() {
@@ -304,6 +310,7 @@ class DashboardVC: UIViewController, LiveKitManagerDelegate {
         if isConnected {
             Task {
                 await livekitManager.disconnect()
+                updateConnectionUI()
             }
         } else {
             Task {
@@ -352,6 +359,7 @@ class DashboardVC: UIViewController, LiveKitManagerDelegate {
 
             // 4. Connect
             try await livekitManager.connect(url: livekitURL, token: token)
+            updateConnectionUI()
             roomNameLabel.text = "Room: world"
 
             // Start stats timer

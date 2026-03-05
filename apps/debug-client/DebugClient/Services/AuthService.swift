@@ -93,9 +93,13 @@ final class AuthService: Sendable {
             kSecAttrAccount as String: keychainAccount,
             kSecValueData as String: tokenData,
             kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock,
+            kSecUseDataProtectionKeychain as String: true,
         ]
 
-        SecItemAdd(query as CFDictionary, nil)
+        let status = SecItemAdd(query as CFDictionary, nil)
+        if status != errSecSuccess {
+            print("[AuthService] Keychain save failed: \(status)")
+        }
     }
 
     private static func loadToken() -> String? {
@@ -105,6 +109,7 @@ final class AuthService: Sendable {
             kSecAttrAccount as String: keychainAccount,
             kSecReturnData as String: true,
             kSecMatchLimit as String: kSecMatchLimitOne,
+            kSecUseDataProtectionKeychain as String: true,
         ]
 
         var result: AnyObject?
@@ -124,6 +129,7 @@ final class AuthService: Sendable {
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: keychainService,
             kSecAttrAccount as String: keychainAccount,
+            kSecUseDataProtectionKeychain as String: true,
         ]
 
         SecItemDelete(query as CFDictionary)

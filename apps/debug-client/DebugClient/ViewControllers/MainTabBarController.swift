@@ -41,6 +41,14 @@ class MainTabBarController: UITabBarController {
     override func viewDidLoad() {
         super.viewDidLoad()
         setupTabs()
+
+        // Logout button in the macOS toolbar (alongside tab selectors on Catalyst)
+        navigationItem.rightBarButtonItem = UIBarButtonItem(
+            image: UIImage(systemName: "arrow.right.square"),
+            style: .plain,
+            target: self,
+            action: #selector(logoutTapped)
+        )
     }
 
     // MARK: - Setup
@@ -82,5 +90,25 @@ class MainTabBarController: UITabBarController {
         )
 
         viewControllers = [dashboardNav, positionNav, participantsNav]
+    }
+
+    // MARK: - Actions
+
+    @objc private func logoutTapped() {
+        let alert = UIAlertController(
+            title: "Logout",
+            message: "Are you sure you want to log out?",
+            preferredStyle: .alert
+        )
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Logout", style: .destructive) { [weak self] _ in
+            guard let self else { return }
+            Task {
+                await self.livekitManager.disconnect()
+                await self.authService.logout()
+                NotificationCenter.default.post(name: .didLogout, object: nil)
+            }
+        })
+        present(alert, animated: true)
     }
 }
