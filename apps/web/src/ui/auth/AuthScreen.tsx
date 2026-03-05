@@ -8,7 +8,8 @@ import { logger } from '../../lib/logger';
 export function AuthScreen(props: { baseUrl: string; onDone: () => void }) {
   const { baseUrl, onDone } = props;
   const { t } = useTranslation();
-  const [view, setView] = React.useState<'login'|'register'|'reset'>('login');
+  const [view, setView] = React.useState<'login'|'register'|'reset'|'guest'>('login');
+  const [guestLoading, setGuestLoading] = React.useState(false);
   const [email, setEmail] = React.useState('');
   const [password, setPassword] = React.useState('');
   const [name, setName] = React.useState('');
@@ -58,6 +59,9 @@ export function AuthScreen(props: { baseUrl: string; onDone: () => void }) {
       const enabled = String(env.VITE_DEBUG_AUTOLOGIN || '').toLowerCase() === 'true';
       const isProd = Boolean((import.meta as any).env?.PROD);
       if (!enabled) return;
+      // Nur auf localhost erlauben, nicht im LAN
+      const host = window.location.hostname;
+      if (host !== 'localhost' && host !== '127.0.0.1') return;
       // Sicherheit: in PROD nur wenn explizit erlaubt
       if (isProd && String(env.VITE_DEBUG_AUTOLOGIN_ALLOW_PROD || '').toLowerCase() !== 'true') {
         return;
@@ -77,6 +81,38 @@ export function AuthScreen(props: { baseUrl: string; onDone: () => void }) {
     } catch {}
   }, []);
  
+  // Detect guest magic-link token in URL hash
+  React.useEffect(() => {
+    const hash = window.location.hash;
+    if (!hash.startsWith('#/guest?')) return;
+    const params = new URLSearchParams(hash.slice('#/guest?'.length));
+    const t = params.get('token');
+    if (!t) return;
+    setView('guest');
+    setGuestLoading(true);
+    (async () => {
+      try {
+        const result = await post('/auth/guest', { token: t });
+        if (result.token) {
+          setTauriAuthToken(result.token);
+        }
+        // Clear hash to avoid re-triggering
+        window.location.hash = '';
+        onDone();
+      } catch (e: unknown) {
+        setGuestLoading(false);
+        const errMsg = (e as Error)?.message || '';
+        if (errMsg === 'guest_expired') {
+          setMsg('Dein Gast-Zugang ist abgelaufen.');
+        } else if (errMsg === 'invalid_token') {
+          setMsg('Ungültiger oder abgelaufener Gast-Link.');
+        } else {
+          setMsg(errMsg || 'Gast-Anmeldung fehlgeschlagen.');
+        }
+      }
+    })();
+  }, []);
+
   async function handleLoginSubmit(e: React.FormEvent) {
     e.preventDefault();
     setMsg(null);
@@ -296,11 +332,30 @@ export function AuthScreen(props: { baseUrl: string; onDone: () => void }) {
             <a style={{ cursor:'pointer', color: 'var(--brand-primary)', textDecoration: 'none' }} onClick={()=>setView('login')}>{t('auth.backToLogin')}</a>
           </form>
         )}
+        {view === 'guest' && (
+          <div style={{ display: 'contents' }}>
+            <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: 'var(--fg)' }}>Gast-Zugang</h2>
+            {guestLoading ? (
+              <div style={{ textAlign: 'center', padding: '20px 0', color: 'var(--muted)' }}>
+                Gast-Zugang wird überprüft...
+              </div>
+            ) : (
+              <div style={{ textAlign: 'center' }}>
+                <a
+                  style={{ cursor: 'pointer', color: 'var(--brand-primary)', textDecoration: 'none', fontSize: 13 }}
+                  onClick={() => { setView('login'); setMsg(null); }}
+                >
+                  Zurück zum Login
+                </a>
+              </div>
+            )}
+          </div>
+        )}
         {msg && (
-          <div style={{ 
-            padding: '12px 16px', 
-            borderRadius: 8, 
-            background: 'rgba(239,68,68,0.1)', 
+          <div style={{
+            padding: '12px 16px',
+            borderRadius: 8,
+            background: 'rgba(239,68,68,0.1)',
             border: '1px solid rgba(239,68,68,0.3)',
             color: '#fca5a5',
             fontSize: 14,

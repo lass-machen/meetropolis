@@ -234,7 +234,7 @@ export function registerMiscRoutes(app: express.Application, prisma: PrismaClien
         updatedAt: true,
         memberships: {
           where: { tenantId: tenant.id },
-          select: { role: true }
+          select: { role: true, expiresAt: true }
         }
       }
     });
@@ -244,7 +244,8 @@ export function registerMiscRoutes(app: express.Application, prisma: PrismaClien
       name: u.name,
       createdAt: u.createdAt,
       updatedAt: u.updatedAt,
-      role: u.memberships?.[0]?.role || 'member'
+      role: u.memberships?.[0]?.role || 'member',
+      expiresAt: u.memberships?.[0]?.expiresAt?.toISOString() || null,
     }));
     res.json(result);
   });
@@ -309,6 +310,10 @@ export function registerMiscRoutes(app: express.Application, prisma: PrismaClien
         where: { userId: id, tenantId: tenant.id }
       });
       if (!membership) return res.status(404).json({ error: 'user not found in this tenant' });
+
+      if ((membership as any).role === 'guest') {
+        return res.status(400).json({ error: 'cannot_change_guest_role' });
+      }
 
       if ((membership as any).role === 'owner' && callerMembership.role !== 'owner') {
         return res.status(403).json({ error: 'forbidden - only owners can change owner roles' });

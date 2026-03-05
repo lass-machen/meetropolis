@@ -177,8 +177,8 @@ const apiTokenLimiter = rateLimit({
 app.use(globalLimiter as any);
 
 // Apply strict limiters to specific paths
-const authPaths = new Set(['/auth/login', '/auth/register', '/auth/forgot', '/auth/reset', '/livekit/token']);
-const signupPaths = new Set(['/public/tenants']);
+const authPaths = new Set(['/auth/login', '/auth/register', '/auth/forgot', '/auth/reset', '/auth/guest', '/livekit/token']);
+const signupPaths = new Set(['/public/tenants', '/guests']);
 const apiTokenPaths = new Set(['/controls']);
 
 app.use((req: express.Request, res: express.Response, next: express.NextFunction) => {

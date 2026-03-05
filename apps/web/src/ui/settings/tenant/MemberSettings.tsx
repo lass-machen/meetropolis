@@ -42,12 +42,13 @@ export function MemberSettings({
                 <select
                   value={member.role}
                   onChange={(e) => onChangeRole(member.id, e.target.value as 'admin' | 'member')}
-                  disabled={member.role === 'owner' || saving}
+                  disabled={member.role === 'owner' || member.role === 'guest' || saving}
                   style={styles.roleSelect}
                 >
                   <option value="owner" disabled>Owner</option>
                   <option value="admin">Admin</option>
                   <option value="member">Member</option>
+                  <option value="guest" disabled>Guest</option>
                 </select>
                 {member.role !== 'owner' && (
                   <button

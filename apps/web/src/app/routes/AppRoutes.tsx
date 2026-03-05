@@ -51,6 +51,9 @@ export function AppRoutes() {
         setRoute('billing-success');
       } else if (hash.startsWith('/billing/cancel')) {
         setRoute('billing-cancel');
+      } else if (hash.startsWith('/guest')) {
+        // Guest magic-link: route to app, AuthScreen will handle the token
+        setRoute('app');
       } else if (hash === '/app' || hash.startsWith('/app')) {
         setRoute('app');
       } else {

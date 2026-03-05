@@ -2,13 +2,16 @@ import React from 'react';
 import { useTenantSettings } from './hooks/useTenantSettings';
 import { GeneralSettings } from './tenant/GeneralSettings';
 import { MemberSettings } from './tenant/MemberSettings';
+import { GuestSettings } from './tenant/GuestSettings';
 
 export function TenantSettings({ onClose: _onClose }: { onClose: () => void }) {
-  const [activeTab, setActiveTab] = React.useState<'general' | 'members'>('general');
+  const [activeTab, setActiveTab] = React.useState<'general' | 'members' | 'guests'>('general');
 
   const {
     tenant,
     members,
+    guests,
+    isEnterprise,
     loading,
     saving,
     error,
@@ -18,6 +21,8 @@ export function TenantSettings({ onClose: _onClose }: { onClose: () => void }) {
     handleChangeRole,
     handleRemoveMember,
     handleInvite,
+    handleCreateGuest,
+    handleRevokeGuest,
   } = useTenantSettings();
 
   React.useEffect(() => {
@@ -43,6 +48,14 @@ export function TenantSettings({ onClose: _onClose }: { onClose: () => void }) {
         >
           Members ({members.length})
         </button>
+        {isEnterprise && (
+          <button
+            onClick={() => setActiveTab('guests')}
+            style={{ ...styles.tab, ...(activeTab === 'guests' ? styles.tabActive : {}) }}
+          >
+            Gäste ({guests.length})
+          </button>
+        )}
       </div>
 
       <div style={styles.content}>
@@ -63,6 +76,16 @@ export function TenantSettings({ onClose: _onClose }: { onClose: () => void }) {
             onChangeRole={handleChangeRole}
             onRemoveMember={handleRemoveMember}
             onInvite={handleInvite}
+            onSuccess={setSuccess}
+          />
+        )}
+
+        {activeTab === 'guests' && (
+          <GuestSettings
+            guests={guests}
+            saving={saving}
+            onCreateGuest={handleCreateGuest}
+            onRevokeGuest={handleRevokeGuest}
             onSuccess={setSuccess}
           />
         )}

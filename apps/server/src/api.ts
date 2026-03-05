@@ -15,6 +15,8 @@ import { registerMapObjectRoutes } from './api/routes/mapObjects.js';
 import { registerNpcRoutes } from './api/routes/npcs.js';
 import { registerNpcMediaRoutes } from './api/routes/npcMedia.js';
 import { registerAdminMapRoutes } from './api/routes/adminMaps.js';
+import { registerGuestRoutes } from './api/routes/guests.js';
+import { guestExpiryMiddleware } from './api/middleware/guestExpiry.js';
 
 // Existing modular routes (already extracted)
 import { registerApiTokenRoutes } from './api/routes/tokens.js';
@@ -41,6 +43,12 @@ export async function registerApi(app: express.Express) {
 
   // Authentication routes
   registerAuthRoutes(app, prisma);
+
+  // Guest expiry middleware (after auth, before business routes)
+  app.use(guestExpiryMiddleware);
+
+  // Guest management & guest auth routes
+  registerGuestRoutes(app, prisma);
 
   // User management, invites, profile
   registerMiscRoutes(app, prisma);

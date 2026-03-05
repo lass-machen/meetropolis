@@ -109,7 +109,18 @@ export function registerAuthRoutes(app: express.Application, prisma: PrismaClien
     const { email, password } = parse.data;
     const emailLookup = normalizeEmailForStorage(email);
     const user = await prisma.user.findFirst({ where: { email: { equals: emailLookup, mode: 'insensitive' } } });
-    if (!user || !user.passwordHash) return res.status(401).json({ error: 'invalid credentials' });
+    if (!user || !user.passwordHash) {
+      // Check if this is a guest user (no password, has guest membership)
+      if (user && !user.passwordHash) {
+        const guestMembership = await prisma.membership.findFirst({
+          where: { userId: user.id, role: 'guest' },
+        });
+        if (guestMembership) {
+          return res.status(401).json({ error: 'guest_login_not_allowed', message: 'Guest users must use their magic link to login' });
+        }
+      }
+      return res.status(401).json({ error: 'invalid credentials' });
+    }
     const ok = await bcrypt.compare(password, user.passwordHash);
     if (!ok) return res.status(401).json({ error: 'invalid credentials' });
     let tenant = getTenantFromReq(req);
@@ -181,7 +192,10 @@ export function registerAuthRoutes(app: express.Application, prisma: PrismaClien
     if (!auth) return res.status(401).json({ error: 'unauthorized' });
     const tenant = getTenantFromReq(req);
     if (!tenant) return res.status(400).json({ error: 'tenant_required' });
-    const member = await prisma.membership.findUnique({ where: { tenantId_userId: { tenantId: tenant.id, userId: auth.userId } } });
+    const member = await prisma.membership.findUnique({
+      where: { tenantId_userId: { tenantId: tenant.id, userId: auth.userId } },
+      select: { id: true, role: true, expiresAt: true },
+    });
     if (!member) return res.status(403).json({ error: 'not_member_of_tenant' });
     const user = await prisma.user.findUnique({
       where: { id: auth.userId },
@@ -209,6 +223,9 @@ export function registerAuthRoutes(app: express.Application, prisma: PrismaClien
       email: user.email,
       name: user.name,
       avatarId: user.avatarId || null,
+      role: member.role,
+      isGuest: member.role === 'guest',
+      guestExpiresAt: member.expiresAt?.toISOString() || null,
       isInternalOwner,
       lastPosition: lastPosition ? { x: lastPosition.x, y: lastPosition.y, direction: lastPosition.direction, mapName: lastPosition.mapName || null } : null
     });

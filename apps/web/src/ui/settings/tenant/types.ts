@@ -13,5 +13,14 @@ export interface Member {
   id: string;
   email: string;
   name: string | null;
-  role: 'owner' | 'admin' | 'member';
+  role: 'owner' | 'admin' | 'member' | 'guest';
+  expiresAt?: string | null;
+}
+
+export interface Guest {
+  id: string; // membershipId
+  email: string;
+  name: string | null;
+  expiresAt: string;
+  createdAt: string;
 }

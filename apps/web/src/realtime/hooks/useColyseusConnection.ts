@@ -114,6 +114,35 @@ export function useColyseusConnection(
       }
       lastCloseInfoRef.current = { code, reason };
 
+      // Handle guest expired - redirect to auth screen
+      const isGuestExpired = code === 4006 || text === 'guest_expired';
+      if (isGuestExpired) {
+        try {
+          const host = document.createElement('div');
+          host.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:9999;';
+          host.innerHTML = `
+            <div style="min-width:320px;max-width:480px;padding:24px;border-radius:12px;border:1px solid rgba(239,68,68,0.5);background:rgba(239,68,68,0.15);backdrop-filter:blur(8px);color:var(--fg,#fff);box-shadow:0 8px 32px rgba(0,0,0,0.3);text-align:center;">
+              <div style="font-size:48px;margin-bottom:12px;">⏱️</div>
+              <div style="font-weight:700;font-size:18px;margin-bottom:8px;">Gast-Zugang abgelaufen</div>
+              <div style="font-size:14px;color:var(--fg-subtle,#ccc);margin-bottom:16px;">Dein Gast-Zugang ist abgelaufen. Bitte wende dich an den Administrator.</div>
+              <button data-guest-expired-ok style="padding:10px 20px;border-radius:8px;border:none;background:var(--accent,#3b82f6);color:white;cursor:pointer;font-weight:600;">Zum Login</button>
+            </div>`;
+          document.body.appendChild(host);
+          host.querySelector('[data-guest-expired-ok]')?.addEventListener('click', () => {
+            try { host.remove(); } catch {}
+            try {
+              fetch(apiBase + '/auth/logout', { method: 'POST', credentials: 'include' }).finally(() => {
+                window.location.hash = '#/app';
+                window.location.reload();
+              });
+            } catch { window.location.reload(); }
+          }, { once: true } as any);
+        } catch {}
+        colyseusRef.current = null;
+        connectingRef.current = false;
+        return;
+      }
+
       // Handle user limit and billing errors - show UI feedback and don't auto-reconnect
       const isBillingError = code === 4003 || code === 4004 || code === 4005 ||
         text === 'subscription_inactive' || text === 'subscription_suspended' || text === 'trial_expired';
@@ -164,7 +193,7 @@ export function useColyseusConnection(
     colyseusRef.current = null;
     connectingRef.current = false;
     scheduleReconnect(disposed);
-  }, [coolDownUntilRef, lastCloseInfoRef, colyseusRef, connectingRef, scheduleReconnect]);
+  }, [apiBase, coolDownUntilRef, lastCloseInfoRef, colyseusRef, connectingRef, scheduleReconnect]);
 
   const handleLeave = React.useCallback((code: number | undefined, disposed: boolean) => {
     try {

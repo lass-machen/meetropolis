@@ -67,6 +67,8 @@ export class WorldRoom extends Room<WorldState> {
   private tileHeightPx: number | null = null;
   // Multi-map cache
   private mapCache: Map<string, MapCacheEntry> = new Map();
+  // Guest expiry check interval
+  private guestExpiryInterval: ReturnType<typeof setInterval> | null = null;
   // Persist multiple bubble groups: groupId -> member sessionIds
   private bubbleGroups: Record<string, string[]> = {};
   private getAllBubbleMembers(): string[] {
@@ -430,6 +432,47 @@ export class WorldRoom extends Room<WorldState> {
       logger.info('[WorldRoom] Player', client.sessionId, 'changed map:', oldMapId, '->', map.id, `(${map.name})`);
     });
 
+    // Guest expiry check: every 60 seconds, disconnect expired guest users
+    this.guestExpiryInterval = setInterval(async () => {
+      try {
+        const tenantSlug = (this.metadata as RoomMetadata)?.tenant || process.env.DEFAULT_TENANT_SLUG || 'default';
+        const prisma = this.prismaForPresence ?? new PrismaClient();
+        const tenant = await prisma.tenant.findUnique({ where: { slug: tenantSlug } });
+        if (!tenant) return;
+
+        const expiredGuests = await prisma.membership.findMany({
+          where: {
+            tenantId: tenant.id,
+            role: 'guest',
+            expiresAt: { lt: new Date() },
+          },
+          select: { userId: true },
+        });
+
+        if (expiredGuests.length === 0) return;
+
+        const expiredUserIds = new Set(expiredGuests.map((g) => g.userId));
+
+        // Find connected clients that are expired guests
+        this.state.players.forEach((player, sessionId) => {
+          if (expiredUserIds.has(player.identity)) {
+            const matchedClient = this.clients.find((c) => c.sessionId === sessionId);
+            if (matchedClient) {
+              try { matchedClient.error(4006, 'guest_expired'); } catch { }
+              matchedClient.leave(1000);
+            }
+          }
+        });
+
+        // Delete sessions for expired guests
+        for (const userId of expiredUserIds) {
+          await prisma.session.deleteMany({ where: { userId } }).catch(() => {});
+        }
+      } catch (e) {
+        logger.debug('[WorldRoom] Guest expiry check failed', e);
+      }
+    }, 60_000);
+
     // Subscribe to map updates via Presence (works across processes if Redis is used, or locally)
     try {
       const tenantSlug = options?.tenant || (this.metadata as RoomMetadata)?.tenant || 'default';
@@ -628,6 +671,27 @@ export class WorldRoom extends Room<WorldState> {
         this.broadcast('player_left', { id: oldId });
       }
     } catch (e) { logger.debug('[WorldRoom] Failed to remove duplicate player', e); }
+
+    // Check if joining user is an expired guest
+    try {
+      const tenantSlug = options?.tenant || (this.metadata as RoomMetadata)?.tenant || process.env.DEFAULT_TENANT_SLUG || 'default';
+      const prismaCheck = this.prismaForPresence ?? new PrismaClient();
+      const tenantForGuest = await prismaCheck.tenant.findUnique({ where: { slug: tenantSlug } });
+      if (tenantForGuest) {
+        const guestMembership = await prismaCheck.membership.findFirst({
+          where: {
+            userId: joiningIdentity,
+            tenantId: tenantForGuest.id,
+            role: 'guest',
+            expiresAt: { lt: new Date() },
+          },
+        });
+        if (guestMembership) {
+          try { client.error(4006, 'guest_expired'); } catch { }
+          return client.leave(1000);
+        }
+      }
+    } catch (e) { logger.debug('[WorldRoom] Failed to check guest expiry on join', e); }
 
     // Sicherstellen, dass wir Map-Metadaten haben (Race gegen onCreate-Loader vermeiden)
     try {
@@ -906,6 +970,10 @@ export class WorldRoom extends Room<WorldState> {
   }
 
   override onDispose() {
+    if (this.guestExpiryInterval) {
+      clearInterval(this.guestExpiryInterval);
+      this.guestExpiryInterval = null;
+    }
     activeRooms.delete(this);
     try { colyseusRooms.dec(); } catch (e) { logger.debug('[WorldRoom] Failed to decrement colyseusRooms metric', e); }
     try { this.prismaForPresence && this.prismaForPresence.$disconnect().catch(() => { }); } catch (e) { logger.debug('[WorldRoom] Failed to disconnect prisma', e); }

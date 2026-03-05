@@ -274,6 +274,45 @@ The Meetropolis Team`,
     };
   },
 
+  guestInvite(params: { inviterName: string; tenantName: string; guestName: string; magicLinkUrl: string; expiresAt: string }): EmailOptions & { to: string } {
+    const name = params.guestName || 'there';
+    return {
+      to: '', // Set by caller
+      subject: `${params.inviterName} hat dich als Gast zu ${params.tenantName} eingeladen`,
+      text: `Hallo ${name},
+
+${params.inviterName} hat dich als Gast zu "${params.tenantName}" auf Meetropolis eingeladen.
+
+Klicke auf den folgenden Link, um als Gast beizutreten:
+
+${params.magicLinkUrl}
+
+Dein Zugang ist gültig bis ${params.expiresAt}. Du benötigst kein Passwort – der Link genügt.
+
+Falls du diese Einladung nicht erwartet hast, kannst du diese E-Mail ignorieren.
+
+Viele Grüße,
+Das Meetropolis Team`,
+      html: `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+  <h2 style="color: #1a1a1a;">Du wurdest als Gast eingeladen</h2>
+  <p>Hallo ${name},</p>
+  <p><strong>${params.inviterName}</strong> hat dich als Gast zu <strong>${params.tenantName}</strong> auf Meetropolis eingeladen.</p>
+  <p style="margin: 30px 0;">
+    <a href="${params.magicLinkUrl}" style="background: #3b82f6; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; display: inline-block;">Als Gast beitreten</a>
+  </p>
+  <p style="color: #666; font-size: 14px;">Dein Zugang ist gültig bis <strong>${params.expiresAt}</strong>.</p>
+  <p style="color: #666; font-size: 14px;">Du benötigst kein Passwort – der Link genügt.</p>
+  <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+  <p style="color: #999; font-size: 12px;">Das Meetropolis Team</p>
+</body>
+</html>`,
+    };
+  },
+
   inviteToTenant(params: { inviterName: string; tenantName: string; inviteUrl: string }): EmailOptions & { to: string } {
     return {
       to: '', // Set by caller
