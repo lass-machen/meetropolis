@@ -344,17 +344,14 @@ class DashboardVC: UIViewController, LiveKitManagerDelegate {
                 identity: user.id,
                 name: user.name ?? user.email
             )
-            struct TokenResponse: Decodable {
-                let token: String
-            }
-            let tokenResponse: TokenResponse = try await apiClient.request(
+            let token = try await apiClient.requestText(
                 "POST",
                 path: "/livekit/token",
                 body: tokenBody
             )
 
             // 4. Connect
-            try await livekitManager.connect(url: livekitURL, token: tokenResponse.token)
+            try await livekitManager.connect(url: livekitURL, token: token)
             roomNameLabel.text = "Room: world"
 
             // Start stats timer
