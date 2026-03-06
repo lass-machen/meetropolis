@@ -1,5 +1,5 @@
 FROM node:20-bookworm-slim AS builder
-RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates \
+RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates git \
   && rm -rf /var/lib/apt/lists/*
 
 # 1) Prepare workspace root for npm workspaces
@@ -17,6 +17,12 @@ COPY packages ./packages
 
 # Install all deps from workspace root (with Prisma hoisting fix)
 RUN npm install && cd apps/server && npm install @prisma/client prisma
+
+# Build enterprise packages if submodule is present (no-op for OSS builds)
+RUN if [ -f packages/tenancy-enterprise/packages/tenancy/tsconfig.json ]; then \
+      npx tsc -p packages/tenancy-enterprise/packages/tenancy/tsconfig.json && \
+      npx tsc -p packages/tenancy-enterprise/packages/billing/tsconfig.json; \
+    fi
 
 # 2) Prisma Client generieren (benötigt für Build/Typs)
 WORKDIR /workspace/apps/server
