@@ -37,6 +37,19 @@ async function isPublicRegistrationEnabled(prisma: PrismaClient): Promise<boolea
 }
 
 export function registerAdminRoutes(app: express.Application, prisma: PrismaClient) {
+  // Public config endpoint (no auth required) — exposes non-sensitive system settings
+  app.get('/public/config', async (_req: express.Request, res: express.Response) => {
+    try {
+      const internal = await prisma.tenant.findUnique({ where: { slug: 'internal' } });
+      res.json({
+        publicRegistrationEnabled: internal?.publicRegistrationEnabled ?? true,
+      });
+    } catch {
+      // Fallback: if DB is unreachable, default to true for backwards compatibility
+      res.json({ publicRegistrationEnabled: true });
+    }
+  });
+
   // Tenants list
   app.get('/admin/tenants', async (req: express.Request, res: express.Response) => {
     const admin = await requireSuperAdmin(req, prisma);

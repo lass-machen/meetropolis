@@ -6,6 +6,7 @@ interface PricingPageProps {
   onBack: () => void;
   onSignup: (plan?: string) => void;
   onLogin: () => void;
+  registrationEnabled?: boolean;
 }
 
 interface Plan {
@@ -85,7 +86,7 @@ const plans: Plan[] = [
   },
 ];
 
-export function PricingPage({ onBack, onSignup, onLogin }: PricingPageProps) {
+export function PricingPage({ onBack, onSignup, onLogin, registrationEnabled = true }: PricingPageProps) {
   return (
     <div style={{
       minHeight: '100vh',
@@ -118,7 +119,9 @@ export function PricingPage({ onBack, onSignup, onLogin }: PricingPageProps) {
         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
           <ThemeToggleButton />
           <Button variant="ghost" onClick={onLogin}>Login</Button>
-          <Button variant="brand" onClick={() => onSignup()}>Get Started</Button>
+          {registrationEnabled && (
+            <Button variant="brand" onClick={() => onSignup()}>Get Started</Button>
+          )}
         </div>
       </header>
 
@@ -163,11 +166,18 @@ export function PricingPage({ onBack, onSignup, onLogin }: PricingPageProps) {
             <PricingCard
               key={plan.name}
               plan={plan}
+              ctaOverride={
+                plan.plan === 'enterprise' || registrationEnabled
+                  ? undefined
+                  : 'Login'
+              }
               onSelect={() => {
                 if (plan.plan === 'enterprise') {
                   window.location.href = 'mailto:sales@meetropolis.de?subject=Enterprise%20Inquiry';
-                } else {
+                } else if (registrationEnabled) {
                   onSignup(plan.plan);
+                } else {
+                  onLogin();
                 }
               }}
             />
@@ -218,7 +228,7 @@ export function PricingPage({ onBack, onSignup, onLogin }: PricingPageProps) {
   );
 }
 
-function PricingCard({ plan, onSelect }: { plan: Plan; onSelect: () => void }) {
+function PricingCard({ plan, onSelect, ctaOverride }: { plan: Plan; onSelect: () => void; ctaOverride?: string | undefined }) {
   return (
     <Card style={{
       padding: 24,
@@ -277,7 +287,7 @@ function PricingCard({ plan, onSelect }: { plan: Plan; onSelect: () => void }) {
         onClick={onSelect}
         style={{ width: '100%' }}
       >
-        {plan.cta}
+        {ctaOverride || plan.cta}
       </Button>
     </Card>
   );

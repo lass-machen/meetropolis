@@ -6,6 +6,7 @@ interface LandingPageProps {
   onLogin: () => void;
   onSignup: () => void;
   onPricing: () => void;
+  registrationEnabled?: boolean;
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -103,7 +104,9 @@ const globalStyles = `
 /* ═══════════════════════════════════════════════════════════════
    MAIN COMPONENT
    ═══════════════════════════════════════════════════════════════ */
-export function LandingPage({ onLogin, onSignup, onPricing }: LandingPageProps) {
+export function LandingPage({ onLogin, onSignup, onPricing, registrationEnabled = true }: LandingPageProps) {
+  const handleSignupClick = registrationEnabled ? onSignup : onLogin;
+
   const [scrolled, setScrolled] = useState(false);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
@@ -151,9 +154,11 @@ export function LandingPage({ onLogin, onSignup, onPricing }: LandingPageProps) 
             </div>
             <ThemeToggleButton />
             <Button variant="ghost" onClick={onLogin} style={{ fontSize: 14 }}>Login</Button>
-            <Button variant="brand" onClick={onSignup} style={{ fontSize: 14, padding: '8px 18px' }}>
-              Kostenlos starten
-            </Button>
+            {registrationEnabled && (
+              <Button variant="brand" onClick={onSignup} style={{ fontSize: 14, padding: '8px 18px' }}>
+                Kostenlos starten
+              </Button>
+            )}
           </div>
         </div>
       </header>
@@ -197,8 +202,8 @@ export function LandingPage({ onLogin, onSignup, onPricing }: LandingPageProps) 
 
         {/* CTAs */}
         <div className="lp-stagger lp-stagger-4" style={{ display: 'flex', gap: 14, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 56 }}>
-          <Button variant="brand" onClick={onSignup} style={{ padding: '14px 32px', fontSize: 16, fontWeight: 700 }}>
-            Jetzt kostenlos starten
+          <Button variant="brand" onClick={handleSignupClick} style={{ padding: '14px 32px', fontSize: 16, fontWeight: 700 }}>
+            {registrationEnabled ? 'Jetzt kostenlos starten' : 'Jetzt anmelden'}
             <i className="fa-solid fa-arrow-right" style={{ marginLeft: 8, fontSize: 14 }} />
           </Button>
           <Button variant="secondary" onClick={onPricing} style={{ padding: '14px 32px', fontSize: 16 }}>
@@ -308,8 +313,8 @@ export function LandingPage({ onLogin, onSignup, onPricing }: LandingPageProps) 
             <p style={{ fontSize: 20, fontWeight: 700, marginBottom: 28 }}>
               Genau das macht Meetropolis möglich. Ab heute.
             </p>
-            <Button variant="brand" onClick={onSignup} style={{ padding: '14px 28px', fontSize: 16 }}>
-              Jetzt ausprobieren
+            <Button variant="brand" onClick={handleSignupClick} style={{ padding: '14px 28px', fontSize: 16 }}>
+              {registrationEnabled ? 'Jetzt ausprobieren' : 'Jetzt anmelden'}
               <i className="fa-solid fa-arrow-right" style={{ marginLeft: 8, fontSize: 14 }} />
             </Button>
           </div>
@@ -555,12 +560,12 @@ export function LandingPage({ onLogin, onSignup, onPricing }: LandingPageProps) 
                   if (plan.name === 'Enterprise') {
                     window.location.href = 'mailto:sales@meetropolis.de?subject=Enterprise%20Anfrage';
                   } else {
-                    onSignup();
+                    handleSignupClick();
                   }
                 }}
                 style={{ width: '100%' }}
               >
-                {plan.cta}
+                {plan.name === 'Enterprise' ? plan.cta : (registrationEnabled ? plan.cta : 'Anmelden')}
               </Button>
             </div>
           ))}
@@ -669,8 +674,8 @@ export function LandingPage({ onLogin, onSignup, onPricing }: LandingPageProps) 
           <p style={{ fontSize: 18, color: 'var(--muted)', marginBottom: 36, lineHeight: 1.6 }}>
             Starten Sie in 5 Minuten. Kostenlos. Ohne Risiko.
           </p>
-          <Button variant="brand" onClick={onSignup} style={{ padding: '16px 36px', fontSize: 17, fontWeight: 700 }}>
-            Jetzt Workspace erstellen
+          <Button variant="brand" onClick={handleSignupClick} style={{ padding: '16px 36px', fontSize: 17, fontWeight: 700 }}>
+            {registrationEnabled ? 'Jetzt Workspace erstellen' : 'Jetzt anmelden'}
             <i className="fa-solid fa-arrow-right" style={{ marginLeft: 10, fontSize: 15 }} />
           </Button>
           <p style={{ marginTop: 20, fontSize: 14, color: 'var(--muted)' }}>

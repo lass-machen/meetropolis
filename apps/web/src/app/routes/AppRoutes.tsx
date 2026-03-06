@@ -86,6 +86,19 @@ export function AppRoutes() {
 
   const apiBase = getApiBaseFromWindow();
 
+  const [registrationEnabled, setRegistrationEnabled] = React.useState<boolean>(true);
+
+  React.useEffect(() => {
+    fetch(`${apiBase}/public/config`)
+      .then(r => r.json())
+      .then(data => {
+        if (typeof data.publicRegistrationEnabled === 'boolean') {
+          setRegistrationEnabled(data.publicRegistrationEnabled);
+        }
+      })
+      .catch(() => { /* fallback: true */ });
+  }, [apiBase]);
+
   switch (route) {
     case 'landing':
       return (
@@ -93,6 +106,7 @@ export function AppRoutes() {
           onLogin={() => navigate('app')}
           onSignup={() => navigate('signup')}
           onPricing={() => navigate('pricing')}
+          registrationEnabled={registrationEnabled}
         />
       );
 
@@ -105,6 +119,7 @@ export function AppRoutes() {
             setSelectedPlan(plan);
             navigate('signup', plan ? { plan } : undefined);
           }}
+          registrationEnabled={registrationEnabled}
         />
       );
 
@@ -114,6 +129,7 @@ export function AppRoutes() {
           apiBase={apiBase}
           onBack={() => navigate('landing')}
           selectedPlan={selectedPlan}
+          registrationEnabled={registrationEnabled}
           onSuccess={(tenantSlug) => {
             const currentHost = window.location.hostname;
             if ((window as any).__TAURI__) {

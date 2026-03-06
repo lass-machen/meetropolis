@@ -7,9 +7,10 @@ interface TenantSignupPageProps {
   onBack: () => void;
   onSuccess: (tenantSlug: string) => void;
   selectedPlan?: string | undefined;
+  registrationEnabled?: boolean;
 }
 
-export function TenantSignupPage({ apiBase, onBack, onSuccess, selectedPlan }: TenantSignupPageProps) {
+export function TenantSignupPage({ apiBase, onBack, onSuccess, selectedPlan, registrationEnabled = true }: TenantSignupPageProps) {
   const [step, setStep] = React.useState<'form' | 'success'>('form');
   const [slug, setSlug] = React.useState('');
   const [name, setName] = React.useState('');
@@ -122,7 +123,20 @@ export function TenantSignupPage({ apiBase, onBack, onSuccess, selectedPlan }: T
         justifyContent: 'center',
         padding: '40px 24px',
       }}>
-        {step === 'form' ? (
+        {!registrationEnabled ? (
+          <Card style={{ maxWidth: 480, width: '100%', padding: 32, textAlign: 'center' }}>
+            <h1 style={{ margin: '0 0 8px', fontSize: 28, fontWeight: 800 }}>
+              Registrierung deaktiviert
+            </h1>
+            <p style={{ margin: '0 0 24px', color: 'var(--muted)' }}>
+              Die öffentliche Registrierung ist derzeit nicht verfügbar.
+              Bitte wenden Sie sich an den Administrator.
+            </p>
+            <Button variant="brand" onClick={onBack} style={{ padding: '14px 32px', fontSize: 16 }}>
+              Zurück
+            </Button>
+          </Card>
+        ) : step === 'form' ? (
           <Card style={{ maxWidth: 480, width: '100%', padding: 32 }}>
             <h1 style={{ margin: '0 0 8px', fontSize: 28, fontWeight: 800 }}>
               Create Your Space
