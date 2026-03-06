@@ -18,18 +18,18 @@ COPY packages ./packages
 # Install all deps from workspace root (with Prisma hoisting fix)
 RUN npm install && cd apps/server && npm install @prisma/client prisma
 
+# Build shared package first (server depends on it)
+RUN cd /workspace/packages/shared && npm run build
+
+# 2) Prisma Client generieren (benötigt für Enterprise-Packages und Server-Build)
+WORKDIR /workspace/apps/server
+RUN npx prisma generate --schema ./prisma/schema.prisma
+
 # Build enterprise packages if submodule is present (no-op for OSS builds)
 RUN if [ -f packages/tenancy-enterprise/packages/tenancy/tsconfig.json ]; then \
       npx tsc -p packages/tenancy-enterprise/packages/tenancy/tsconfig.json && \
       npx tsc -p packages/tenancy-enterprise/packages/billing/tsconfig.json; \
     fi
-
-# Build shared package first (server depends on it)
-RUN cd /workspace/packages/shared && npm run build
-
-# 2) Prisma Client generieren (benötigt für Build/Typs)
-WORKDIR /workspace/apps/server
-RUN npx prisma generate --schema ./prisma/schema.prisma
 
 # 3) Build
 RUN npm run build
