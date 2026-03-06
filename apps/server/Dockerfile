@@ -24,6 +24,9 @@ RUN if [ -f packages/tenancy-enterprise/packages/tenancy/tsconfig.json ]; then \
       npx tsc -p packages/tenancy-enterprise/packages/billing/tsconfig.json; \
     fi
 
+# Build shared package first (server depends on it)
+RUN cd /workspace/packages/shared && npm run build
+
 # 2) Prisma Client generieren (benötigt für Build/Typs)
 WORKDIR /workspace/apps/server
 RUN npx prisma generate --schema ./prisma/schema.prisma
