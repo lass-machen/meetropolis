@@ -456,6 +456,7 @@ body {
 
 /* Collapsed pill card */
 .uc-pill { min-width: 200px; gap: 6px; }
+.uc-pill-avatar img { width: 100%; height: 100%; }
 
 @media (max-width: 978px) {
   .uc-pill { min-width: 0; }

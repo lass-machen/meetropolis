@@ -18,8 +18,6 @@ export function AvatarSprite({ avatarId, size = 12 }: { avatarId?: string; size?
         src={manifest.previewUrl}
         alt={avatarId}
         style={{
-          width: displayWidth,
-          height: displayHeight,
           imageRendering: 'pixelated',
           objectFit: 'contain',
           flexShrink: 0,
