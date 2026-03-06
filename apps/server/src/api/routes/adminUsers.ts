@@ -101,13 +101,24 @@ export function registerAdminUserRoutes(app: express.Application, prisma: Prisma
     const schema = z.object({
       email: z.string().email(),
       role: z.enum(['admin', 'member']),
+      name: z.string().optional(),
     });
     const parse = schema.safeParse(req.body || {});
     if (!parse.success) return res.status(400).json({ error: 'invalid payload' });
     try {
       const email = normalizeEmailForStorage(parse.data.email);
-      const user = await prisma.user.findUnique({ where: { email } });
-      if (!user) return res.status(404).json({ error: 'user_not_found' });
+      let created = false;
+      let user = await prisma.user.findUnique({ where: { email } });
+      if (!user) {
+        user = await prisma.user.create({
+          data: {
+            email,
+            name: parse.data.name || null,
+            passwordHash: null,
+          },
+        });
+        created = true;
+      }
 
       const existing = await prisma.membership.findFirst({
         where: { tenantId: req.params.id, userId: user.id },
@@ -128,6 +139,7 @@ export function registerAdminUserRoutes(app: express.Application, prisma: Prisma
         name: user.name,
         role: membership.role,
         memberSince: membership.createdAt,
+        created,
       });
     } catch (e: unknown) {
       logger.error({ event: 'admin.tenant_users.add.error', error: e instanceof Error ? e.message : String(e) });
