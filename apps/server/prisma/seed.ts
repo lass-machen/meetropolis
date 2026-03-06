@@ -7,7 +7,7 @@ async function main() {
   // Ensure tenants exist
   const internal = await prisma.tenant.upsert({
     where: { slug: 'internal' },
-    create: { slug: 'internal', name: 'Internal', concurrentLimit: 999999, bypassLimits: true, isInternal: true },
+    create: { slug: 'internal', name: 'Internal', concurrentLimit: 999999, bypassLimits: true, isInternal: true, publicRegistrationEnabled: true },
     update: {},
   });
   const def = await prisma.tenant.upsert({

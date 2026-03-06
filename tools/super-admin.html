@@ -539,6 +539,10 @@ td select{min-width:80px}
       <div class="nav-icon">&#9829;</div>
       <span>Health</span>
     </div>
+    <div class="nav-item" data-section="settings" onclick="switchSection('settings')">
+      <div class="nav-icon">&#9881;</div>
+      <span>Einstellungen</span>
+    </div>
     <div class="sidebar-footer">
       Super Admin v2.0
     </div>
@@ -985,6 +989,31 @@ td select{min-width:80px}
       </div>
     </div>
 
+    <!-- ════════════ SETTINGS ════════════ -->
+    <div class="content-section" id="sec-settings">
+      <h2>Einstellungen</h2>
+      <p class="subtitle">Globale Systemeinstellungen</p>
+
+      <div class="card" style="max-width:600px">
+        <div class="card-title">Registrierung</div>
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+          <input type="checkbox" id="settingPublicReg" style="width:18px;height:18px;accent-color:var(--accent)">
+          <label for="settingPublicReg" style="cursor:pointer;font-weight:500">Öffentliche Registrierung erlauben</label>
+        </div>
+        <p style="color:var(--fg-dim);font-size:12px;margin-bottom:20px">
+          Wenn aktiviert, können sich neue Mandanten über die öffentliche Registrierungsseite selbst registrieren.
+        </p>
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+          <label for="settingFreeSeats" style="font-weight:500">Standard Free Seats</label>
+          <input type="number" id="settingFreeSeats" min="0" style="width:80px" value="3">
+        </div>
+        <p style="color:var(--fg-dim);font-size:12px;margin-bottom:20px">
+          Anzahl der kostenlosen Plätze, die neue Mandanten standardmäßig erhalten.
+        </p>
+        <button class="btn btn-accent" onclick="saveSettings()">Speichern</button>
+      </div>
+    </div>
+
   </main>
 </div>
 
@@ -1089,6 +1118,7 @@ async function loadAllData() {
     loadMaps(),
     loadHealth(),
     loadStats(),
+    loadSettings(),
   ]);
 }
 
@@ -1193,10 +1223,10 @@ function renderTenants() {
     return `<tr data-tenant-idx="${i}">
       <td><a class="slug-link" onclick="openTenantDetail('${esc(t.id)}')" title="Detail anzeigen">${esc(t.slug)}</a></td>
       <td><input type="text" value="${esc(t.name || '')}" data-field="name" style="min-width:120px"></td>
-      <td style="text-align:center">${t.onlineCount != null ? t.onlineCount : '—'}</td>
+      <td style="text-align:center">${t.online != null ? t.online : '—'}</td>
       <td><input type="number" value="${t.concurrentLimit != null ? t.concurrentLimit : ''}" data-field="concurrentLimit" style="width:70px" min="0"></td>
-      <td><input type="number" value="${t.freeConcurrentLimit != null ? t.freeConcurrentLimit : ''}" data-field="freeConcurrentLimit" style="width:70px" min="0"></td>
-      <td style="text-align:center"><input type="checkbox" ${t.bypassLimit ? 'checked' : ''} data-field="bypassLimit"></td>
+      <td><input type="number" value="${t.freeSeats != null ? t.freeSeats : ''}" data-field="freeSeats" style="width:70px" min="0"></td>
+      <td style="text-align:center"><input type="checkbox" ${t.bypassLimits ? 'checked' : ''} data-field="bypassLimits"></td>
       <td>
         <select data-field="status" style="min-width:80px">
           <option value="active" ${t.status === 'active' ? 'selected' : ''}>active</option>
@@ -1257,15 +1287,15 @@ async function saveTenant(idx) {
   const data = {};
   const nameInput = row.querySelector('[data-field="name"]');
   const limitInput = row.querySelector('[data-field="concurrentLimit"]');
-  const freeLimitInput = row.querySelector('[data-field="freeConcurrentLimit"]');
-  const bypassInput = row.querySelector('[data-field="bypassLimit"]');
+  const freeLimitInput = row.querySelector('[data-field="freeSeats"]');
+  const bypassInput = row.querySelector('[data-field="bypassLimits"]');
   const statusSelect = row.querySelector('[data-field="status"]');
   const defaultMapSelect = row.querySelector('[data-field="defaultMapName"]');
 
   if (nameInput) data.name = nameInput.value;
   if (limitInput) data.concurrentLimit = limitInput.value ? parseInt(limitInput.value) : null;
-  if (freeLimitInput) data.freeConcurrentLimit = freeLimitInput.value ? parseInt(freeLimitInput.value) : null;
-  if (bypassInput) data.bypassLimit = bypassInput.checked;
+  if (freeLimitInput) data.freeSeats = freeLimitInput.value ? parseInt(freeLimitInput.value) : null;
+  if (bypassInput) data.bypassLimits = bypassInput.checked;
   if (statusSelect) data.status = statusSelect.value;
   if (defaultMapSelect) data.defaultMapName = defaultMapSelect.value || null;
 
@@ -2585,6 +2615,40 @@ function formatBytes(bytes) {
   const sizes = ['B', 'KB', 'MB', 'GB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+}
+
+// ═══════════════════════════════════════════
+// SETTINGS
+// ═══════════════════════════════════════════
+async function loadSettings() {
+  try {
+    const res = await apiFetch('/admin/settings');
+    if (!res.ok) return;
+    const data = await res.json();
+    document.getElementById('settingPublicReg').checked = !!data.publicRegistrationEnabled;
+    document.getElementById('settingFreeSeats').value = data.defaultFreeSeats ?? 3;
+  } catch (e) {
+    console.error('loadSettings error', e);
+  }
+}
+
+async function saveSettings() {
+  try {
+    const publicRegistrationEnabled = document.getElementById('settingPublicReg').checked;
+    const defaultFreeSeats = parseInt(document.getElementById('settingFreeSeats').value) || 0;
+    const res = await apiFetch('/admin/settings', {
+      method: 'PATCH',
+      body: JSON.stringify({ publicRegistrationEnabled, defaultFreeSeats }),
+    });
+    if (res.ok) {
+      toast('ok', 'Einstellungen gespeichert');
+    } else {
+      const err = await res.json().catch(() => ({}));
+      toast('err', `Fehler: ${err.error || res.statusText}`);
+    }
+  } catch (e) {
+    toast('err', `Fehler: ${e.message}`);
+  }
 }
 
 // Keyboard navigation

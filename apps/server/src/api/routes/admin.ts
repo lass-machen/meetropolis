@@ -25,6 +25,17 @@ async function getDefaultFreeSeats(prisma: PrismaClient): Promise<number> {
   return 3;
 }
 
+async function isPublicRegistrationEnabled(prisma: PrismaClient): Promise<boolean> {
+  try {
+    const internal = await prisma.tenant.findUnique({ where: { slug: 'internal' } });
+    const v = (internal as any)?.publicRegistrationEnabled;
+    if (typeof v === 'boolean') return v;
+  } catch { }
+  const envV = process.env.PUBLIC_REGISTRATION_ENABLED;
+  if (envV === 'false' || envV === '0') return false;
+  return true;
+}
+
 export function registerAdminRoutes(app: express.Application, prisma: PrismaClient) {
   // Tenants list
   app.get('/admin/tenants', async (req: express.Request, res: express.Response) => {
@@ -40,6 +51,7 @@ export function registerAdminRoutes(app: express.Application, prisma: PrismaClie
       freeSeats: t.freeSeats ?? 0,
       bypassLimits: !!t.bypassLimits,
       isInternal: !!t.isInternal,
+      publicRegistrationEnabled: !!t.publicRegistrationEnabled,
       createdAt: t.createdAt,
       updatedAt: t.updatedAt,
       online: usage[t.slug] || 0,
@@ -123,6 +135,11 @@ export function registerAdminRoutes(app: express.Application, prisma: PrismaClie
       return res.status(403).json({ error: 'multi_tenant_required' });
     }
 
+    // Public registration gate
+    if (!(await isPublicRegistrationEnabled(prisma))) {
+      return res.status(403).json({ error: 'registration_disabled' });
+    }
+
     const slug = parse.data.slug.toLowerCase();
     try {
       const exists = await prisma.tenant.findUnique({ where: { slug } });
@@ -186,6 +203,54 @@ export function registerAdminRoutes(app: express.Application, prisma: PrismaClie
     } catch (e: unknown) {
       logger.error({ event: 'public.signup.error', error: e instanceof Error ? e.message : String(e) });
       return res.status(400).json({ error: 'signup_failed' });
+    }
+  });
+
+  // System settings (read from internal tenant)
+  app.get('/admin/settings', async (req: express.Request, res: express.Response) => {
+    const admin = await requireSuperAdmin(req, prisma);
+    if (!admin) return res.status(403).json({ error: 'forbidden' });
+    try {
+      const internal = await prisma.tenant.findUnique({ where: { slug: 'internal' } });
+      res.json({
+        publicRegistrationEnabled: internal?.publicRegistrationEnabled ?? true,
+        defaultFreeSeats: internal?.freeSeats ?? 3,
+      });
+    } catch (e: unknown) {
+      logger.error({ event: 'admin.settings.read_error', error: e instanceof Error ? e.message : String(e) });
+      res.status(500).json({ error: 'settings_read_failed' });
+    }
+  });
+
+  app.patch('/admin/settings', async (req: express.Request, res: express.Response) => {
+    const admin = await requireSuperAdmin(req, prisma);
+    if (!admin) return res.status(403).json({ error: 'forbidden' });
+    const schema = z.object({
+      publicRegistrationEnabled: z.boolean().optional(),
+      defaultFreeSeats: z.number().int().nonnegative().optional(),
+    });
+    const parse = schema.safeParse(req.body || {});
+    if (!parse.success) return res.status(400).json({ error: 'invalid payload' });
+    try {
+      const data: Record<string, unknown> = {};
+      if (typeof parse.data.publicRegistrationEnabled === 'boolean') {
+        data.publicRegistrationEnabled = parse.data.publicRegistrationEnabled;
+      }
+      if (typeof parse.data.defaultFreeSeats === 'number') {
+        data.freeSeats = parse.data.defaultFreeSeats;
+      }
+      if (Object.keys(data).length === 0) {
+        return res.status(400).json({ error: 'no_changes' });
+      }
+      await prisma.tenant.update({ where: { slug: 'internal' }, data });
+      const updated = await prisma.tenant.findUnique({ where: { slug: 'internal' } });
+      res.json({
+        publicRegistrationEnabled: updated?.publicRegistrationEnabled ?? true,
+        defaultFreeSeats: updated?.freeSeats ?? 3,
+      });
+    } catch (e: unknown) {
+      logger.error({ event: 'admin.settings.update_error', error: e instanceof Error ? e.message : String(e) });
+      res.status(500).json({ error: 'settings_update_failed' });
     }
   });
 
