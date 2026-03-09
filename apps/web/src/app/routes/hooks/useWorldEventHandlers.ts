@@ -161,7 +161,11 @@ export function useWorldEventHandlers(params: UseWorldEventHandlersParams) {
   }, [gameBridge]);
 
   // UI Event Handlers
-  const handleToggleExpand = useCallback(() => setGridExpanded(e => !e), [setGridExpanded]);
+  const handleToggleExpand = useCallback(() => setGridExpanded(e => {
+    const next = !e;
+    localStorage.setItem('uc-container-expanded', String(next));
+    return next;
+  }), [setGridExpanded]);
 
   const handleSelectSid = useCallback((sid: string | null) => setSelectedSid(sid), [setSelectedSid]);
 

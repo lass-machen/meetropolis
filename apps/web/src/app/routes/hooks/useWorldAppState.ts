@@ -195,7 +195,10 @@ export function useWorldAppState(): WorldAppState {
   const [tenantSettingsOpen, setTenantSettingsOpen] = React.useState(false);
   const [sessionsOpen, setSessionsOpen] = React.useState(false);
   const [isInternalOwner, setIsInternalOwner] = React.useState(false);
-  const [gridExpanded, setGridExpanded] = React.useState(false);
+  const [gridExpanded, setGridExpanded] = React.useState(() => {
+    const stored = localStorage.getItem('uc-container-expanded');
+    return stored !== null ? stored === 'true' : true;
+  });
   const [selectedSid, setSelectedSid] = React.useState<string | null>(null);
   const [overlayZoom, setOverlayZoom] = React.useState(1);
   const [connStatus, setConnStatus] = React.useState<{ reconnecting: boolean; lastCode?: number; lastReason?: string }>({ reconnecting: false });
