@@ -71,12 +71,6 @@ app.use((req: express.Request, res: express.Response, next: express.NextFunction
   if (allowedOrigins.length > 0) {
     if (origin && allowedOrigins.includes(origin)) {
       res.setHeader('Access-Control-Allow-Origin', origin);
-    } else if (origin === 'null' && (req.headers.authorization || req.method === 'OPTIONS')) {
-      // Allow file:// origins (which send Origin: "null") when using token auth.
-      // OPTIONS preflight won't carry the Authorization header yet, so we allow it
-      // to let the browser proceed to the actual (authenticated) request.
-      // This enables standalone HTML tools (map-editor, admin, etc.) opened locally.
-      res.setHeader('Access-Control-Allow-Origin', 'null');
     } else if (isProduction && origin) {
       // In production, block requests from non-whitelisted origins
       logger.warn({ event: 'cors.origin_not_allowed', origin, allowedOrigins });
