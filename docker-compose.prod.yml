@@ -91,7 +91,7 @@ services:
       - "traefik.http.middlewares.meetropolis-api-cors.headers.accesscontrolallowmethods=GET,OPTIONS,PUT,POST,DELETE,PATCH"
       - "traefik.http.middlewares.meetropolis-api-cors.headers.accesscontrolallowheaders=Origin,X-Requested-With,Content-Type,Accept,Authorization,x-correlation-id,x-av-identity,x-av-room,x-tenant"
       - "traefik.http.middlewares.meetropolis-api-cors.headers.accesscontrolallowcredentials=true"
-      - "traefik.http.middlewares.meetropolis-api-cors.headers.accesscontrolalloworiginlist=https://${WEB_HOST},tauri://localhost,null"
+      - "traefik.http.middlewares.meetropolis-api-cors.headers.accesscontrolalloworiginlist=https://${WEB_HOST},tauri://localhost"
       - "traefik.http.middlewares.meetropolis-api-cors.headers.accesscontrolmaxage=100"
       - "traefik.http.middlewares.meetropolis-api-cors.headers.addvaryheader=true"
       - "traefik.http.middlewares.meetropolis-api-cors.headers.customResponseHeaders.Access-Control-Allow-Credentials=true"
