@@ -113,6 +113,22 @@ export function AuthScreen(props: { baseUrl: string; onDone: () => void }) {
     })();
   }, []);
 
+  // Detect invite code in URL hash (e.g. /#/?invite=CODE)
+  React.useEffect(() => {
+    const hash = window.location.hash;
+    // Parse query params from hash: could be #/?invite=CODE or #/app?invite=CODE etc.
+    const qIdx = hash.indexOf('?');
+    if (qIdx === -1) return;
+    const params = new URLSearchParams(hash.slice(qIdx));
+    const inviteCode = params.get('invite');
+    if (!inviteCode) return;
+    setView('register');
+    setInvite(inviteCode);
+    // Clean up URL - remove the invite param
+    const hashPath = hash.slice(0, qIdx);
+    window.location.hash = hashPath || '#/';
+  }, []);
+
   async function handleLoginSubmit(e: React.FormEvent) {
     e.preventDefault();
     setMsg(null);

@@ -58,10 +58,15 @@ export function AppRoutes() {
         setRoute('app');
       } else {
         // Default: check if we should show landing or app
-        // If there's a tenant subdomain, go directly to app
+        // If there's a tenant subdomain or invite code, go directly to app
         const hostname = window.location.hostname;
         const isSubdomain = hostname.split('.').length > 2 && !hostname.startsWith('www.');
-        if (isSubdomain || !!(window as any).__TAURI__) {
+
+        // Check for invite code in hash params
+        const hashQIdx = (window.location.hash || '').indexOf('?');
+        const hasInvite = hashQIdx !== -1 && new URLSearchParams((window.location.hash || '').slice(hashQIdx)).has('invite');
+
+        if (isSubdomain || !!(window as any).__TAURI__ || hasInvite) {
           setRoute('app');
         } else {
           setRoute('landing');
