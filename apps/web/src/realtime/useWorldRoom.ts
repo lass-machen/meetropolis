@@ -155,7 +155,7 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
             gameBridge.syncRemotePlayers(filtered);
             // Also update remotesRef
             args.remotesRef.current = Object.fromEntries(
-              Object.entries(filtered).map(([id, p]: [string, any]) => [id, { x: p.x, y: p.y, dnd: p.dnd }])
+              Object.entries(filtered).map(([id, p]: [string, any]) => [id, { x: p.x, y: p.y, dnd: p.dnd, avatarId: p.avatarId }])
             );
             scheduleBuildParticipantList(0);
             scheduleRefreshRosterFromRemotes(0);

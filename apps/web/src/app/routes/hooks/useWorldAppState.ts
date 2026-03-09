@@ -152,7 +152,7 @@ export function useWorldAppState(): WorldAppState {
   const bubbleMembersRef = useRef<Set<string>>(new Set());
   const bubbleGroupsRef = useRef<Record<string, string>>({});
   const localPosRef = useRef<{ id: string; x?: number; y?: number }>({ id: '' });
-  const remotesRef = useRef<Record<string, { x: number; y: number }>>({});
+  const remotesRef = useRef<Record<string, { x: number; y: number; dnd?: boolean; avatarId?: string }>>({});
   const colyseusToLivekitMap = useRef<Record<string, string>>({});
   const identityToNameMap = useRef<Record<string, string>>({});
   const participantVolumesRef = useRef<Record<string, number>>({});

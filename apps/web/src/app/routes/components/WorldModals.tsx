@@ -1,3 +1,4 @@
+import React from 'react';
 import { Modal } from '../../../ui/system';
 import { UserManagement } from '../../../ui/admin/UserManagement';
 import { ThemeToggleButton } from '../../../ui/theme';
@@ -11,6 +12,7 @@ import { TauriPreferencesModal } from '../../../ui/preferences/TauriPreferencesM
 
 interface WorldModalsProps {
   apiBase: string;
+  colyseusRef?: React.RefObject<any>;
 
   // User Management Modal
   userModalOpen: boolean;
@@ -53,6 +55,7 @@ interface WorldModalsProps {
 
 export function WorldModals({
   apiBase,
+  colyseusRef,
   userModalOpen,
   setUserModalOpen,
   profileOpen,
@@ -91,7 +94,7 @@ export function WorldModals({
 
       {/* Profile Settings Modal */}
       <Modal open={profileOpen} onOpenChange={setProfileOpen} title="Profile Settings" maxWidth={700}>
-        <ProfileSettings onClose={() => setProfileOpen(false)} />
+        <ProfileSettings onClose={() => setProfileOpen(false)} colyseusRef={colyseusRef} />
       </Modal>
 
       {/* Billing Dashboard Modal */}

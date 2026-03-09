@@ -43,7 +43,7 @@ export function setupPlayerHandlers(
         players[p.id] = { x: p.x, y: p.y, direction: p.direction, name: p.name, dnd: p.dnd, avatarId: p.avatarId, isNpc: p.isNpc } as any;
       }
       if (gameBridge && typeof gameBridge.syncRemotePlayers === 'function') gameBridge.syncRemotePlayers(players);
-      remotesRef.current = Object.fromEntries(Object.entries(players).map(([id, p]) => [id, { x: (p as any).x, y: (p as any).y, dnd: (p as any).dnd }]));
+      remotesRef.current = Object.fromEntries(Object.entries(players).map(([id, p]) => [id, { x: (p as any).x, y: (p as any).y, dnd: (p as any).dnd, avatarId: (p as any).avatarId }]));
       scheduleBuildParticipantList(0);
       // Roster unmittelbar aus Remotes aktualisieren
       scheduleRefreshRosterFromRemotes(0);
@@ -55,7 +55,7 @@ export function setupPlayerHandlers(
     if (data.id === localPosRef.current.id) return;
     const currentMap = useMapStore.getState().currentMapName;
     if (data.mapName && data.mapName !== currentMap) return;
-    remotesRef.current[data.id] = { x: data.x, y: data.y, dnd: data.dnd };
+    remotesRef.current[data.id] = { x: data.x, y: data.y, dnd: data.dnd, avatarId: data.avatarId };
     if (data.identity) {
       colyseusToLivekitMap.current[data.id] = data.identity;
       if (data.name) identityToNameMap.current[data.identity] = data.name;
@@ -108,9 +108,14 @@ export function setupPlayerHandlers(
   // Player avatar change
   room.onMessage('player_avatar', (data: { id: string; avatarId: string }) => {
     if (data.id === localPosRef.current.id) return;
+    // Update remotesRef so UI cards show the new avatar
+    if (remotesRef.current[data.id]) {
+      remotesRef.current[data.id].avatarId = data.avatarId;
+    }
     if (gameBridge && typeof gameBridge.updateRemotePlayer === 'function') {
       gameBridge.updateRemotePlayer(data.id, { avatarId: data.avatarId });
     }
+    scheduleBuildParticipantList(50);
   });
 
   // Player map changed
@@ -130,7 +135,7 @@ export function setupPlayerHandlers(
 
     if (data.newMapName === currentMap) {
       // Player entered our map - add them
-      remotesRef.current[data.id] = { x: data.x, y: data.y, ...(data.dnd != null ? { dnd: data.dnd } : {}) };
+      remotesRef.current[data.id] = { x: data.x, y: data.y, ...(data.dnd != null ? { dnd: data.dnd } : {}), ...(data.avatarId ? { avatarId: data.avatarId } : {}) };
       if (data.identity) {
         colyseusToLivekitMap.current[data.id] = data.identity;
         if (data.name) identityToNameMap.current[data.identity] = data.name;
@@ -182,7 +187,7 @@ export function setupPlayerHandlers(
         }
       }
     }
-    remotesRef.current = Object.fromEntries(Object.entries(players).filter(([id]) => id !== localPosRef.current.id).map(([id, p]) => [id, { x: (p as any).x, y: (p as any).y, dnd: (p as any).dnd }]));
+    remotesRef.current = Object.fromEntries(Object.entries(players).filter(([id]) => id !== localPosRef.current.id).map(([id, p]) => [id, { x: (p as any).x, y: (p as any).y, dnd: (p as any).dnd, avatarId: (p as any).avatarId }]));
     const filtered = Object.fromEntries(Object.entries(players).filter(([id]) => id !== localPosRef.current.id).map(([id, p]) => {
       const livekitIdentity = (p as any).identity || colyseusToLivekitMap.current[id] || id;
       const name = identityToNameMap.current[livekitIdentity] || (p as any).name || livekitIdentity;

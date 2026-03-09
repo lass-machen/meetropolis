@@ -12,7 +12,7 @@ interface UserProfile {
   createdAt: string;
 }
 
-export function ProfileSettings({ onClose: _onClose }: { onClose: () => void }) {
+export function ProfileSettings({ onClose: _onClose, colyseusRef }: { onClose: () => void; colyseusRef?: React.RefObject<any> | undefined }) {
   const [profile, setProfile] = React.useState<UserProfile | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
@@ -175,6 +175,10 @@ export function ProfileSettings({ onClose: _onClose }: { onClose: () => void }) 
         setAvatarId(newAvatarId);
         localStorage.setItem('avatarId', newAvatarId);
         gameBridge.changeHeroAvatar(newAvatarId);
+        // Notify other clients via Colyseus so their UI updates in real-time
+        try {
+          (colyseusRef as any)?.current?.send?.('avatar_change', { avatarId: newAvatarId });
+        } catch {}
         setSuccess('Avatar updated');
       } else {
         setError('Failed to update avatar');
