@@ -227,8 +227,39 @@ export function registerAuthRoutes(app: express.Application, prisma: PrismaClien
       isGuest: member.role === 'guest',
       guestExpiresAt: member.expiresAt?.toISOString() || null,
       isInternalOwner,
+      onboardingCompleted: user.onboardingCompleted,
       lastPosition: lastPosition ? { x: lastPosition.x, y: lastPosition.y, direction: lastPosition.direction, mapName: lastPosition.mapName || null } : null
     });
+  });
+
+  // Complete onboarding
+  app.post('/auth/onboarding/complete', async (req, res) => {
+    const auth = requireAuth(req);
+    if (!auth) return res.status(401).json({ error: 'unauthorized' });
+
+    const schema = z.object({
+      avatarId: z.string().min(1).max(200).optional(),
+    });
+    const parse = schema.safeParse(req.body || {});
+    if (!parse.success) return res.status(400).json({ error: 'invalid body', details: parse.error.errors });
+
+    try {
+      const updateData: { onboardingCompleted: boolean; avatarId?: string } = { onboardingCompleted: true };
+      if (parse.data.avatarId) {
+        updateData.avatarId = parse.data.avatarId;
+      }
+
+      const updatedUser = await prisma.user.update({
+        where: { id: auth.userId },
+        data: updateData,
+        select: { id: true, email: true, name: true, avatarId: true, onboardingCompleted: true },
+      });
+
+      res.json(updatedUser);
+    } catch (e: unknown) {
+      logger.error({ event: 'auth.onboarding.complete_failed', userId: auth.userId, error: String(e) });
+      return res.status(500).json({ error: 'onboarding completion failed' });
+    }
   });
 
   // Save user position (guarded: never crash on DB errors)

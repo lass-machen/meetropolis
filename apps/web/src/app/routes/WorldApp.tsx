@@ -43,6 +43,7 @@ import { useFetchMe } from './hooks/useFetchMe';
 import { useEditorLoader } from './hooks/useEditorLoader';
 import { useGameInitialization } from './hooks/useGameInitialization';
 import { useTauriEffects } from './hooks/useTauriEffects';
+import { OnboardingWizard } from '../../ui/onboarding/OnboardingWizard';
 
 export function WorldApp() {
   // Refs
@@ -78,7 +79,7 @@ export function WorldApp() {
 
   // State
   const [authChecked, setAuthChecked] = React.useState(false);
-  const [me, setMe] = React.useState<{ id: string; email: string; name?: string } | null>(null);
+  const [me, setMe] = React.useState<{ id: string; email: string; name?: string; onboardingCompleted?: boolean } | null>(null);
   const [isInternalOwner, setIsInternalOwner] = React.useState(false);
   const { paymentStatus, handleManageBilling } = usePaymentStatus({ enabled: isInternalOwner });
   const [authRefetchTrigger, setAuthRefetchTrigger] = React.useState(0);
@@ -521,6 +522,15 @@ export function WorldApp() {
 
   return (
     <div style={{ width: '100vw', height: '100vh', display: 'grid', gridTemplateColumns: '1fr auto' }}>
+      {me.onboardingCompleted === false && (
+        <OnboardingWizard
+          me={me}
+          apiBase={apiBase}
+          onComplete={(updates) => {
+            setMe(prev => prev ? { ...prev, ...updates } : prev);
+          }}
+        />
+      )}
       <MapChangeOverlay />
       <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
         {page === 'world' && (

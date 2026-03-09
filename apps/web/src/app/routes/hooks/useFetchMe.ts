@@ -4,7 +4,7 @@ import { logger } from '../../../lib/logger';
 interface UseFetchMeParams {
   apiBase: string;
   localPosRef: React.MutableRefObject<{ id: string; x?: number; y?: number }>;
-  setMe: React.Dispatch<React.SetStateAction<{ id: string; email: string; name?: string } | null>>;
+  setMe: React.Dispatch<React.SetStateAction<{ id: string; email: string; name?: string; onboardingCompleted?: boolean } | null>>;
   setIsInternalOwner: React.Dispatch<React.SetStateAction<boolean>>;
   setPositionReady: React.Dispatch<React.SetStateAction<boolean>>;
   setAuthChecked: React.Dispatch<React.SetStateAction<boolean>>;

@@ -103,6 +103,7 @@ model User {
   emailVerifiedAt     DateTime?
   createdAt           DateTime            @default(now())
   updatedAt           DateTime            @updatedAt
+  onboardingCompleted Boolean             @default(false)
   presences           Presence[]
   passwordResets      PasswordReset[]
   emailVerifications  EmailVerification[]
