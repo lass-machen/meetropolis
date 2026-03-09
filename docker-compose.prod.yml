@@ -88,22 +88,13 @@ services:
       - "traefik.http.routers.meetropolis-api.tls=true"
       - "traefik.http.routers.meetropolis-api.tls.certresolver=${TRAEFIK_CERT_RESOLVER:-le}"
       - "traefik.http.services.meetropolis-api.loadbalancer.server.port=2567"
-      - "traefik.http.middlewares.meetropolis-api-cors.headers.accesscontrolallowmethods=GET,OPTIONS,PUT,POST,DELETE,PATCH"
-      - "traefik.http.middlewares.meetropolis-api-cors.headers.accesscontrolallowheaders=Origin,X-Requested-With,Content-Type,Accept,Authorization,x-correlation-id,x-av-identity,x-av-room,x-tenant"
-      - "traefik.http.middlewares.meetropolis-api-cors.headers.accesscontrolallowcredentials=true"
-      - "traefik.http.middlewares.meetropolis-api-cors.headers.accesscontrolalloworiginlist=https://${WEB_HOST},tauri://localhost,null"
-      - "traefik.http.middlewares.meetropolis-api-cors.headers.accesscontrolmaxage=100"
-      - "traefik.http.middlewares.meetropolis-api-cors.headers.addvaryheader=true"
-      - "traefik.http.middlewares.meetropolis-api-cors.headers.customResponseHeaders.Access-Control-Allow-Credentials=true"
-      - "traefik.http.middlewares.meetropolis-api-cors.headers.customResponseHeaders.Access-Control-Allow-Headers=Origin,X-Requested-With,Content-Type,Accept,Authorization,x-correlation-id,x-av-identity,x-av-room,x-tenant"
-      - "traefik.http.middlewares.meetropolis-api-cors.headers.customResponseHeaders.Access-Control-Allow-Methods=GET,OPTIONS,PUT,POST,DELETE,PATCH"
-      - "traefik.http.routers.meetropolis-api.middlewares=meetropolis-api-cors@docker"
+      # CORS is handled entirely by Express — no Traefik CORS middleware needed.
+      # This allows Express to dynamically handle origins (incl. null for file:// tools).
       - "traefik.http.routers.meetropolis-packs.rule=Host(`${WEB_HOST}`) && PathPrefix(`/packs`)"
       - "traefik.http.routers.meetropolis-packs.entrypoints=${TRAEFIK_ENTRYPOINT:-websecure}"
       - "traefik.http.routers.meetropolis-packs.tls=true"
       - "traefik.http.routers.meetropolis-packs.tls.certresolver=${TRAEFIK_CERT_RESOLVER:-le}"
       - "traefik.http.routers.meetropolis-packs.service=meetropolis-api"
-      - "traefik.http.routers.meetropolis-packs.middlewares=meetropolis-api-cors@docker"
     networks:
       - meetropolis
       - traefik
