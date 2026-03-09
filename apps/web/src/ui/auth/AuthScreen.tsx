@@ -124,9 +124,9 @@ export function AuthScreen(props: { baseUrl: string; onDone: () => void }) {
     if (!inviteCode) return;
     setView('register');
     setInvite(inviteCode);
-    // Clean up URL - remove the invite param
-    const hashPath = hash.slice(0, qIdx);
-    window.location.hash = hashPath || '#/';
+    // Clean up URL - remove the invite param without triggering hashchange
+    const hashPath = hash.slice(0, qIdx) || '#/';
+    history.replaceState(null, '', hashPath);
   }, []);
 
   async function handleLoginSubmit(e: React.FormEvent) {

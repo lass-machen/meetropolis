@@ -25,14 +25,19 @@ export function useFetchMe({
 
     async function fetchMe() {
       try {
-        const authBackoff = [0, 150, 300, 600, 1200, 2000];
+        const networkRetryBackoff = [0, 300, 1000];
         let user: any | null = null;
-        for (let i = 0; i < authBackoff.length; i++) {
-          if (i > 0) await sleep(authBackoff[i]);
+        for (let i = 0; i < networkRetryBackoff.length; i++) {
+          if (i > 0) await sleep(networkRetryBackoff[i]);
           try {
             const res = await fetch(`${apiBase}/auth/me`, { credentials: 'include' });
             if (res.ok) { user = await res.json(); break; }
-          } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
+            // Definitive auth failure (401/403) — no point retrying
+            if (res.status === 401 || res.status === 403) break;
+          } catch (e) {
+            // Network error — retry makes sense
+            logger.debug('[WorldApp] /auth/me network error, retrying', e);
+          }
         }
         if (!user) { setMe(null); return; }
         try { setIsInternalOwner(!!user.isInternalOwner); } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
