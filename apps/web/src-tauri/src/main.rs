@@ -51,8 +51,8 @@ fn get_config(handle: tauri::AppHandle) -> AppConfig {
         }
     }
     AppConfig {
-        api_base: Some("http://localhost:2567".to_string()),
-        web_base: Some("http://localhost:5173".to_string()),
+        api_base: Some("https://api.meetropolis.me".to_string()),
+        web_base: Some("https://meetropolis.me".to_string()),
         audio_ducking: Some(true),
     }
 }
