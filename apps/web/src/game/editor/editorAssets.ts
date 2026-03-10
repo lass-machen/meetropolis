@@ -79,6 +79,7 @@ export function setAssetPreview(
     if (resolvedUrl.startsWith('data:')) {
       scene.textures.addBase64(newKey, resolvedUrl);
     } else {
+      scene.load.setCORS('anonymous');
       scene.load.image(newKey, resolvedUrl);
       scene.load.start();
     }

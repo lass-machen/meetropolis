@@ -151,7 +151,13 @@ export function registerTileset(scene: Phaser.Scene & any, ts: { key: string; da
     if (isDataUrl) {
       scene.textures.addBase64(safeKey, ts.dataUrl);
     } else {
-      try { scene.load.image(safeKey, ts.dataUrl); scene.load.start(); } catch {}
+      try {
+        if (typeof ts.dataUrl === 'string' && !ts.dataUrl.startsWith('data:')) {
+          scene.load.setCORS('anonymous');
+        }
+        scene.load.image(safeKey, ts.dataUrl);
+        scene.load.start();
+      } catch {}
     }
   } else {
     try {

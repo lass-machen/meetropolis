@@ -80,6 +80,11 @@ export function splitTilesetImage(
             reject(new Error('Failed to load image'));
         };
 
+        // Cross-origin images (e.g. absolute URLs for Tauri) need this
+        // attribute to be drawable on canvas without tainting it.
+        if (dataUrl && !dataUrl.startsWith('data:')) {
+            img.crossOrigin = 'anonymous';
+        }
         img.src = dataUrl;
     });
 }

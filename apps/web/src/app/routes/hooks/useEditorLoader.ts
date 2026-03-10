@@ -6,6 +6,19 @@ import { useMapStore } from '../../../state/mapStore';
 import { loadFromPacks } from '../../../lib/directionalImageRegistry';
 import { EditorService } from '../../../services/EditorService';
 
+/**
+ * Resolves relative pack URLs (e.g. "/packs/{uuid}/file.png") to absolute URLs
+ * using the API base. This is necessary for Tauri/WKWebView where relative URLs
+ * resolve against the internal origin (tauri://localhost) instead of the API server.
+ *
+ * Data URLs, blob URLs, and already-absolute HTTP(S) URLs are returned unchanged.
+ */
+function resolvePackUrl(url: string, apiBase: string): string {
+  if (!url || url.startsWith('data:') || url.startsWith('http://') || url.startsWith('https://') || url.startsWith('blob:')) return url;
+  if (url.startsWith('/')) return `${apiBase}${url}`;
+  return url;
+}
+
 interface UseEditorLoaderParams {
   me: { id: string; email: string; name?: string } | null;
   apiBase: string;
@@ -27,36 +40,37 @@ export function useEditorLoader({ me, apiBase, setEditor }: UseEditorLoaderParam
         const res = await fetch(`${apiBase}/asset-packs`, { credentials: 'include' });
         if (res.ok) {
           const packs = await res.json();
-          loadFromPacks(packs || []);
+          loadFromPacks(packs || [], (url: string) => resolvePackUrl(url, apiBase));
           const packTilesets: any[] = [];
           const packItems: any[] = [];
           for (const p of packs || []) {
             const uuid = p.uuid;
             for (const t of (p.terrain || [])) {
-              packTilesets.push({ key: `${uuid}:${t.key}`, dataUrl: t.dataURL, tileWidth: t.tileWidth, tileHeight: t.tileHeight, margin: t.margin ?? 0, spacing: t.spacing ?? 0, category: 'terrain' });
+              packTilesets.push({ key: `${uuid}:${t.key}`, dataUrl: resolvePackUrl(t.dataURL, apiBase), tileWidth: t.tileWidth, tileHeight: t.tileHeight, margin: t.margin ?? 0, spacing: t.spacing ?? 0, category: 'terrain' });
             }
             for (const t of (p.terrain || [])) {
+              const resolvedTerrainUrl = resolvePackUrl(t.dataURL, apiBase);
               if (t.dataURL) {
                 try {
-                  const tiles = await splitTilesetImage(t.dataURL, { tileWidth: t.tileWidth, tileHeight: t.tileHeight, margin: t.margin, spacing: t.spacing });
+                  const tiles = await splitTilesetImage(resolvedTerrainUrl, { tileWidth: t.tileWidth, tileHeight: t.tileHeight, margin: t.margin, spacing: t.spacing });
                   for (const tile of tiles) {
                     packItems.push({ packUuid: uuid, itemId: `${t.id}:${tile.row}:${tile.col}`, key: `${t.key}-${tile.row}-${tile.col}`, category: 'terrain', dataUrl: tile.dataUrl, width: t.tileWidth, height: t.tileHeight, collide: !!t.collide });
                   }
                 } catch (e) {
                   logger.warn('[WorldApp] Failed to split tileset:', t.key, e);
-                  packItems.push({ packUuid: uuid, itemId: t.id, key: t.key, category: 'terrain', dataUrl: t.dataURL, width: t.tileWidth, height: t.tileHeight, collide: !!t.collide });
+                  packItems.push({ packUuid: uuid, itemId: t.id, key: t.key, category: 'terrain', dataUrl: resolvedTerrainUrl, width: t.tileWidth, height: t.tileHeight, collide: !!t.collide });
                 }
               } else {
-                packItems.push({ packUuid: uuid, itemId: t.id, key: t.key, category: 'terrain', dataUrl: t.dataURL, width: t.tileWidth, height: t.tileHeight, collide: !!t.collide });
+                packItems.push({ packUuid: uuid, itemId: t.id, key: t.key, category: 'terrain', dataUrl: resolvedTerrainUrl, width: t.tileWidth, height: t.tileHeight, collide: !!t.collide });
               }
             }
             for (const s of (p.structures || [])) {
-              packItems.push({ packUuid: uuid, itemId: s.id, key: s.key, category: 'structures', dataUrl: s.dataURL, width: s.width, height: s.height, collide: !!s.collide, scaleFactor: s.scaleFactor || 1 });
+              packItems.push({ packUuid: uuid, itemId: s.id, key: s.key, category: 'structures', dataUrl: resolvePackUrl(s.dataURL, apiBase), width: s.width, height: s.height, collide: !!s.collide, scaleFactor: s.scaleFactor || 1 });
             }
             for (const o of (p.objects || [])) {
               packItems.push({
                 packUuid: uuid, itemId: o.id, key: o.key, category: 'objects',
-                dataUrl: o.dataURL, width: o.width, height: o.height, collide: !!o.collide,
+                dataUrl: resolvePackUrl(o.dataURL, apiBase), width: o.width, height: o.height, collide: !!o.collide,
                 rotationAllowed: !!o.rotationAllowed,
                 hasDirectionalImages: Array.isArray(o.directionalImages) && o.directionalImages.length > 0,
                 scaleFactor: o.scaleFactor || 1,
@@ -170,7 +184,7 @@ export function useEditorLoader({ me, apiBase, setEditor }: UseEditorLoaderParam
               const derivedAssets = objects.map((obj: any) => ({
                 id: String(obj.id),
                 key: `${obj.assetPackUuid}:${obj.itemId}`,
-                dataUrl: obj.dataUrl || '',
+                dataUrl: resolvePackUrl(obj.dataUrl || '', apiBase),
                 x: obj.tileX * TILE_SIZE,
                 y: obj.tileY * TILE_SIZE,
                 packUuid: obj.assetPackUuid,

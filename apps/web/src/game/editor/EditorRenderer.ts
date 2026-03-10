@@ -385,6 +385,7 @@ export class EditorRenderer {
       if (resolvedUrl.startsWith('data:')) {
         this.scene.textures.addBase64(newKey, resolvedUrl);
       } else {
+        this.scene.load.setCORS('anonymous');
         this.scene.load.image(newKey, resolvedUrl);
         this.scene.load.start();
       }
@@ -465,6 +466,7 @@ export class EditorRenderer {
           if (resolvedUrl.startsWith('data:')) {
             this.scene.textures.addBase64(textureKey, resolvedUrl);
           } else {
+            this.scene.load.setCORS('anonymous');
             this.scene.load.image(textureKey, resolvedUrl);
             this.scene.load.start();
           }

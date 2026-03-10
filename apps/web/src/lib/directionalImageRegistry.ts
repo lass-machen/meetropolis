@@ -17,15 +17,20 @@ function makeKey(packUuid: string, itemId: string): string {
 /**
  * Populate the registry from the GET /asset-packs response.
  * Iterates over packs' objects that have a `directionalImages` array.
+ *
+ * @param resolveUrl Optional function to resolve relative URLs (e.g. for Tauri).
  */
-export function loadFromPacks(packs: any[]): void {
+export function loadFromPacks(packs: any[], resolveUrl?: (url: string) => string): void {
   registry.clear();
   for (const p of packs) {
     const uuid = p.uuid;
     if (!uuid) continue;
     for (const obj of (p.objects || [])) {
       if (Array.isArray(obj.directionalImages) && obj.directionalImages.length > 0) {
-        registry.set(makeKey(uuid, obj.id), obj.directionalImages);
+        const entries: DirectionalEntry[] = resolveUrl
+          ? obj.directionalImages.map((di: DirectionalEntry) => ({ rotation: di.rotation, dataURL: resolveUrl(di.dataURL) }))
+          : obj.directionalImages;
+        registry.set(makeKey(uuid, obj.id), entries);
       }
     }
   }

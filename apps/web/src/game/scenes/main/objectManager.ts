@@ -218,6 +218,9 @@ export class ObjectManager {
     this.pendingTextureLoads.set(key, [onReady]);
 
     const resolvedUrl = url.startsWith('/') ? `${baseUrl()}${url}` : url;
+    if (!resolvedUrl.startsWith('data:')) {
+      this.scene.load.setCORS('anonymous');
+    }
     this.scene.load.image(key, resolvedUrl);
     this.scene.load.once('complete', () => {
       const callbacks = this.pendingTextureLoads.get(key);
