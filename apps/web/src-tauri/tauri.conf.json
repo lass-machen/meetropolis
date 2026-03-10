@@ -5,7 +5,7 @@
   "identifier": "com.meetropolis.desktop",
   "build": {
     "beforeDevCommand": "npm run dev",
-    "beforeBuildCommand": "npm run build",
+    "beforeBuildCommand": "VITE_TARGET=desktop VITE_API_BASE=https://api.meetropolis.me npm run build",
     "devUrl": "http://localhost:5173",
     "frontendDist": "../dist"
   },

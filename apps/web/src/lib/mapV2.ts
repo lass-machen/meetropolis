@@ -1,4 +1,5 @@
 import { logger } from './logger';
+import { getApiBaseFromWindow } from './runtimeConfig';
 
 export type V2Tileset = {
   id: string;
@@ -21,20 +22,7 @@ export type V2State = {
 export type V2ChunkPayload = { version: number; encoding: string; data: string };
 
 export function baseUrl(): string {
-  // 1) Check Tauri/Desktop bridge first
-  if (typeof window !== 'undefined') {
-    const anyWin = window as any;
-    const fromDesktop = anyWin.desktop?.apiBase || anyWin.__MEETROPOLIS_API_BASE__;
-    if (typeof fromDesktop === 'string' && fromDesktop) return fromDesktop;
-  }
-  // 2) Build-time Env (Vite)
-  let base: string | undefined = (window as any).VITE_API_BASE || (import.meta as any).env?.VITE_API_BASE;
-  if (base) return base;
-  // 3) Browser-Host Fallback (Dev/Browser)
-  if (typeof window !== 'undefined') {
-    return `${window.location.protocol}//${window.location.hostname}:2567`;
-  }
-  return 'http://localhost:2567';
+  return getApiBaseFromWindow();
 }
 
 export async function fetchStateV2(mapId: string): Promise<V2State | null> {

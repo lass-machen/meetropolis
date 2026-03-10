@@ -1,11 +1,11 @@
 import Phaser from 'phaser';
 import { gameBridge } from '../bridge';
 import { logger } from '../../lib/logger';
+import { getApiBaseFromWindow } from '../../lib/runtimeConfig';
 
 export async function fetchAndApplyServerLayers(scene: Phaser.Scene & any): Promise<void> {
   try {
-    const anyWin = window as any;
-    const base = anyWin.desktop?.apiBase || anyWin.__MEETROPOLIS_API_BASE__ || anyWin.VITE_API_BASE || (import.meta as any).env.VITE_API_BASE || `${window.location.protocol}//${window.location.hostname}:2567`;
+    const base = getApiBaseFromWindow();
     const res = await fetch(`${base}/maps/${encodeURIComponent(scene.currentMapId)}/editor-state?t=${Date.now()}`, { credentials: 'include' });
     if (!res.ok) return;
     const data = await res.json();

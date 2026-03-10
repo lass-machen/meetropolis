@@ -1,6 +1,7 @@
 import { EditorService } from '../services/EditorService';
 import { logger } from '../lib/logger';
 import { useMapStore } from '../state/mapStore';
+import { getApiBaseFromWindow } from '../lib/runtimeConfig';
 
 export type Direction = 'up' | 'down' | 'left' | 'right';
 
@@ -112,12 +113,7 @@ async function processTilesetQueue(): Promise<void> {
   if (isProcessingTilesets || tilesetQueue.length === 0) return;
   isProcessingTilesets = true;
 
-  const anyWin = window as unknown as Record<string, unknown>;
-  const base = (anyWin.desktop as { apiBase?: string })?.apiBase
-    || anyWin.__MEETROPOLIS_API_BASE__ as string
-    || anyWin.VITE_API_BASE as string
-    || (import.meta as { env?: { VITE_API_BASE?: string } }).env?.VITE_API_BASE
-    || `${window.location.protocol}//${window.location.hostname}:2567`;
+  const base = getApiBaseFromWindow();
   const mapId = useMapStore.getState().currentMapId;
   if (!mapId) {
     isProcessingTilesets = false;

@@ -3,6 +3,7 @@ import { fetchStateV2, preloadTilesetImages } from '../../lib/mapV2';
 import { gameBridge } from '../bridge';
 import { logger } from '../../lib/logger';
 import { EditorService } from '../../services/EditorService';
+import { getApiBaseFromWindow } from '../../lib/runtimeConfig';
 
 export async function changeMap(targetMapId: string, targetMapName: string, room: { send: (type: string, data: unknown) => void; onMessage: (type: string, handler: (data: unknown) => void) => (() => void) }, spawnOverride?: { x: number; y: number }): Promise<void> {
   const store = useMapStore.getState();
@@ -101,7 +102,7 @@ export async function changeMap(targetMapId: string, targetMapName: string, room
 
     // Immediately persist map change to server
     try {
-      const apiBase = (window as any).desktop?.apiBase || (window as any).__MEETROPOLIS_API_BASE__ || (window as any).VITE_API_BASE || (import.meta as any).env?.VITE_API_BASE || `${window.location.protocol}//${window.location.hostname}:2567`;
+      const apiBase = getApiBaseFromWindow();
       const payload = JSON.stringify({
         x: Math.round(confirmed.x),
         y: Math.round(confirmed.y),

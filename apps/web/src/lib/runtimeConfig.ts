@@ -15,6 +15,13 @@ export function getApiBaseFromWindow(): string {
     const fromDesktop = anyWin.desktop?.apiBase || anyWin.__MEETROPOLIS_API_BASE__;
     if (typeof fromDesktop === 'string' && fromDesktop) return stripTrailingSlash(fromDesktop);
   } catch {}
+  // 2.5) Tauri Fallback: wenn wir in Tauri sind aber kein apiBase gesetzt ist,
+  //       nutze die Production-Default statt den Browser-Host
+  try {
+    if ((window as any).__TAURI__) {
+      return 'https://api.meetropolis.me';
+    }
+  } catch {}
   // 3) Build-time Env (Vite)
   try {
     const env: any = (import.meta as any).env || {};

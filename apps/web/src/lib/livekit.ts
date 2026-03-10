@@ -45,7 +45,12 @@ function shouldForceRelay(): boolean {
     const lsVal = (ls?.getItem('av.forceRelay') || ls?.getItem('lk.forceRelay') || '').toLowerCase();
     if (lsVal === 'true') return true;
   } catch {}
-  // 4) Heuristic: cellular / constrained networks often require TURN/relay
+  // 4) Tauri/WKWebView: Safari/WKWebView sends only mDNS candidates (.local)
+  //    which LiveKit ignores. Force relay so all traffic goes through TURN.
+  try {
+    if ((window as any).__TAURI__) return true;
+  } catch {}
+  // 5) Heuristic: cellular / constrained networks often require TURN/relay
   try {
     const conn: any = (navigator as any).connection || (navigator as any).mozConnection || (navigator as any).webkitConnection;
     const type = (conn?.type || '').toString().toLowerCase();

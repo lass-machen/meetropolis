@@ -3,6 +3,7 @@ import { FAIcon } from '../FAIcon';
 import { useTranslation } from 'react-i18next';
 import { Button } from '../system/Button';
 import { AvatarSprite } from './AvatarSprite';
+import { getApiBaseFromWindow } from '../../lib/runtimeConfig';
 
 export function ParticipantCard(props: { part: { sid: string; identity: string; hasVideo: boolean; hasMic: boolean; isSpeaking: boolean; media: 'camera'|'screen'; volume?: number; dnd?: boolean; avatarId?: string }, roomGetter: () => any | undefined, compact?: boolean, full?: boolean, zoom?: number, collapsed?: boolean }) {
   const videoRef = React.useRef<HTMLVideoElement | null>(null);
@@ -305,8 +306,7 @@ export function ParticipantCard(props: { part: { sid: string; identity: string; 
           }
         }
       } catch {}
-      const anyWin = window as any;
-      const base = anyWin.desktop?.apiBase || anyWin.__MEETROPOLIS_API_BASE__ || anyWin.VITE_API_BASE || (import.meta as any).env?.VITE_API_BASE || `${window.location.protocol}//${window.location.hostname}:2567`;
+      const base = getApiBaseFromWindow();
       await fetch(`${base}/controls/for/${encodeURIComponent(targetIdentity)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
