@@ -100,11 +100,15 @@ app.use((req: express.Request, res: express.Response, next: express.NextFunction
   const reqHeaders = (req.headers['access-control-request-headers'] as string | undefined)?.toString();
   const allowed = reqHeaders && reqHeaders.length > 0
     ? reqHeaders
-    : 'Origin, X-Requested-With, Content-Type, Accept, Authorization, x-correlation-id, x-av-identity, x-av-room';
+    : 'Origin, X-Requested-With, Content-Type, Accept, Authorization, x-tenant, x-correlation-id, x-av-identity, x-av-room';
   res.setHeader('Access-Control-Allow-Headers', allowed);
-  
+  // Expose custom response headers so browsers can read them in CORS mode
+  res.setHeader('Access-Control-Expose-Headers', 'x-correlation-id');
+
   if (req.method === 'OPTIONS') {
-    return res.sendStatus(200);
+    // Cache preflight responses to reduce roundtrips (24h)
+    res.setHeader('Access-Control-Max-Age', '86400');
+    return res.sendStatus(204);
   } else {
     next();
   }

@@ -88,19 +88,11 @@ services:
       - "traefik.http.routers.meetropolis-api.tls=true"
       - "traefik.http.routers.meetropolis-api.tls.certresolver=${TRAEFIK_CERT_RESOLVER:-le}"
       - "traefik.http.services.meetropolis-api.loadbalancer.server.port=2567"
-      - "traefik.http.middlewares.meetropolis-api-cors.headers.accesscontrolallowmethods=GET,OPTIONS,PUT,POST,DELETE,PATCH"
-      - "traefik.http.middlewares.meetropolis-api-cors.headers.accesscontrolallowheaders=Origin,X-Requested-With,Content-Type,Accept,Authorization,x-correlation-id,x-av-identity,x-av-room,x-tenant"
-      - "traefik.http.middlewares.meetropolis-api-cors.headers.accesscontrolallowcredentials=true"
-      - "traefik.http.middlewares.meetropolis-api-cors.headers.accesscontrolalloworiginlist=https://${WEB_HOST},tauri://localhost,http://tauri.localhost,http://localhost:8900"
-      - "traefik.http.middlewares.meetropolis-api-cors.headers.accesscontrolmaxage=100"
-      - "traefik.http.middlewares.meetropolis-api-cors.headers.addvaryheader=true"
-      - "traefik.http.routers.meetropolis-api.middlewares=meetropolis-api-cors@docker"
       - "traefik.http.routers.meetropolis-packs.rule=Host(`${WEB_HOST}`) && PathPrefix(`/packs`)"
       - "traefik.http.routers.meetropolis-packs.entrypoints=${TRAEFIK_ENTRYPOINT:-websecure}"
       - "traefik.http.routers.meetropolis-packs.tls=true"
       - "traefik.http.routers.meetropolis-packs.tls.certresolver=${TRAEFIK_CERT_RESOLVER:-le}"
       - "traefik.http.routers.meetropolis-packs.service=meetropolis-api"
-      - "traefik.http.routers.meetropolis-packs.middlewares=meetropolis-api-cors@docker"
     networks:
       - meetropolis
       - traefik
