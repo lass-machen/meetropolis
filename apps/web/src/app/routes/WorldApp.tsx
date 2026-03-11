@@ -508,21 +508,6 @@ export function WorldApp() {
     setAuthRefetchTrigger(prev => prev + 1);
   }, []);
 
-  // Early return for loading/auth screens
-  if (!authChecked || !me || !positionReady) {
-    return (
-      <AuthLoadingScreen
-        authChecked={authChecked}
-        me={me}
-        positionReady={positionReady}
-        apiBase={apiBase}
-        onAuthComplete={handleAuthComplete}
-      />
-    );
-  }
-
-  const isMini = isMiniMode && isTauri;
-
   // Zones for mini mode grouping (read from ZoneManager)
   const getMiniZones = useCallback(() => {
     const raw = zoneRef.current?.getZones?.() || [];
@@ -540,6 +525,21 @@ export function WorldApp() {
     setSelectedSid(screenSid);
     setOverlayZoom(1);
   }, [toggleMiniMode, setSelectedSid, setOverlayZoom]);
+
+  // Early return for loading/auth screens
+  if (!authChecked || !me || !positionReady) {
+    return (
+      <AuthLoadingScreen
+        authChecked={authChecked}
+        me={me}
+        positionReady={positionReady}
+        apiBase={apiBase}
+        onAuthComplete={handleAuthComplete}
+      />
+    );
+  }
+
+  const isMini = isMiniMode && isTauri;
 
   return (
     <>
