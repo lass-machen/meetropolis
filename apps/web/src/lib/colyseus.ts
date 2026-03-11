@@ -29,11 +29,16 @@ export async function joinWorld(serverUrl: string, identity?: string, name?: str
   try {
     const anyWin = typeof window !== 'undefined' ? (window as any) : {};
     const webBase = anyWin.__MEETROPOLIS_WEB_BASE__ || '';
-    
-    // Try to extract tenant from web_base first (Tauri)
-    const webBaseMatch = webBase.match(/https?:\/\/([^.]+)\./);
-    if (webBaseMatch?.[1]) {
-      tenant = webBaseMatch[1];
+
+    // Extract tenant from subdomain (≥3 hostname parts)
+    // e.g., "https://demo.meetropolis.me" → "demo"
+    // Apex domains (e.g., "https://meetropolis.me") → keep default
+    if (webBase) {
+      try {
+        const hostname = new URL(webBase).hostname;
+        const parts = hostname.split('.');
+        if (parts.length >= 3) tenant = parts[0];
+      } catch {}
     } else {
       // Fallback: extract from browser hostname (Web)
       const host = typeof window !== 'undefined' ? window.location.hostname : '';

@@ -1,5 +1,11 @@
 import React from 'react';
 import { avatarRegistry } from '../../game/avatarRegistry';
+import { getApiBaseFromWindow } from '../../lib/runtimeConfig';
+
+function resolveUrl(url: string): string {
+  if (url.startsWith('/')) return `${getApiBaseFromWindow()}${url}`;
+  return url;
+}
 
 export function AvatarSprite({ avatarId, size = 12 }: { avatarId?: string; size?: number }) {
   const manifest = avatarId ? avatarRegistry.getManifest(avatarId) : null;
@@ -15,7 +21,7 @@ export function AvatarSprite({ avatarId, size = 12 }: { avatarId?: string; size?
   if (manifest?.previewUrl) {
     return (
       <img
-        src={manifest.previewUrl}
+        src={resolveUrl(manifest.previewUrl)}
         alt={avatarId}
         style={{
           imageRendering: 'pixelated',
@@ -65,7 +71,7 @@ function AvatarSpriteCanvas({ avatarId, frameWidth, frameHeight, displayWidth, d
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(img, 0, idleRow * fh, frameWidth, fh, 0, 0, canvas.width, canvas.height);
     };
-    img.src = spriteUrl;
+    img.src = resolveUrl(spriteUrl);
   }, [avatarId, frameWidth, frameHeight]);
 
   return (

@@ -2,6 +2,12 @@ import React from 'react';
 import { Button } from '../system';
 import type { CatalogPack } from './packStoreTypes';
 import { formatPrice, parseMajorVersion } from './packStoreTypes';
+import { getApiBaseFromWindow } from '../../lib/runtimeConfig';
+
+function resolveUrl(url: string): string {
+  if (url.startsWith('/')) return `${getApiBaseFromWindow()}${url}`;
+  return url;
+}
 
 interface PackCardProps {
   pack: CatalogPack;
@@ -79,7 +85,7 @@ export function PackCard({ pack, onInstall, onBuy }: PackCardProps) {
     <div style={cardStyle}>
       <div style={previewStyle}>
         {pack.catalog.previewImageUrl ? (
-          <img src={pack.catalog.previewImageUrl} alt={pack.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          <img src={resolveUrl(pack.catalog.previewImageUrl)} alt={pack.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
         ) : (
           <div style={placeholderStyle}>
             <span style={{ fontSize: 28, opacity: 0.4 }}>{pack.packType === 'asset' ? '\uD83C\uDFAD' : '\uD83D\uDC64'}</span>

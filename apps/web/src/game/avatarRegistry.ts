@@ -87,12 +87,21 @@ class AvatarRegistry {
     return `avatar_${pack}_${key}_${state}_${direction}`;
   }
 
+  private resolveAssetUrl(url: string): string {
+    // Resolve server-relative URLs (e.g., /packs/avatars/...) to absolute API URLs.
+    // Without this, Tauri resolves them to tauri://localhost/... which doesn't exist.
+    if (url.startsWith('/')) {
+      return `${getApiBaseFromWindow()}${url}`;
+    }
+    return url;
+  }
+
   preloadAvatar(scene: Phaser.Scene, avatarId: string): void {
     const manifest = this.getManifest(avatarId);
     if (!manifest) return;
     const textureKey = this.getTextureKey(avatarId);
     if (this.loadedTextures.has(textureKey)) return;
-    scene.load.spritesheet(textureKey, manifest.spriteUrl, {
+    scene.load.spritesheet(textureKey, this.resolveAssetUrl(manifest.spriteUrl), {
       frameWidth: manifest.frameWidth,
       frameHeight: manifest.frameHeight,
     });

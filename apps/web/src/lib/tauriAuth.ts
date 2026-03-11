@@ -49,12 +49,19 @@ export function getTauriAuthHeaders(): Record<string, string> {
 
   if (!isTauri()) return headers;
 
-  // Add x-tenant header
-  const webBase = window.__MEETROPOLIS_WEB_BASE__ || '';
-  const match = webBase.match(/https?:\/\/([^.]+)\./);
-  if (match?.[1]) {
-    headers['x-tenant'] = match[1];
-  }
+  // Add x-tenant header (only for subdomain-based tenants, not apex domains)
+  try {
+    const webBase = window.__MEETROPOLIS_WEB_BASE__ || '';
+    if (webBase) {
+      const hostname = new URL(webBase).hostname;
+      const parts = hostname.split('.');
+      // Only extract tenant from subdomain (e.g., demo.meetropolis.me → "demo")
+      // Apex domains (e.g., meetropolis.me) have < 3 parts → no x-tenant header
+      if (parts.length >= 3) {
+        headers['x-tenant'] = parts[0];
+      }
+    }
+  } catch {}
 
   // Add Authorization header
   const token = getTauriAuthToken();

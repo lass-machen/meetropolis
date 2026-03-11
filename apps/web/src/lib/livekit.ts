@@ -45,11 +45,12 @@ function shouldForceRelay(): boolean {
     const lsVal = (ls?.getItem('av.forceRelay') || ls?.getItem('lk.forceRelay') || '').toLowerCase();
     if (lsVal === 'true') return true;
   } catch {}
-  // 4) Tauri/WKWebView: Safari/WKWebView sends only mDNS candidates (.local)
-  //    which LiveKit ignores. Force relay so all traffic goes through TURN.
-  try {
-    if ((window as any).__TAURI__) return true;
-  } catch {}
+  // 4) Tauri/WKWebView: Do NOT force relay by default.
+  //    WKWebView masks host candidates as mDNS (.local) but STUN still generates
+  //    server-reflexive candidates with real IPs. Direct ICE via STUN works fine.
+  //    Force relay only breaks things when TURN port config is mismatched
+  //    (e.g. LiveKit advertises port 5349 but Traefik only routes on 443).
+  //    The fallback in joinLivekitRoom() retries with relay if direct ICE fails.
   // 5) Heuristic: cellular / constrained networks often require TURN/relay
   try {
     const conn: any = (navigator as any).connection || (navigator as any).mozConnection || (navigator as any).webkitConnection;

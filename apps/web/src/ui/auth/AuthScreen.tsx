@@ -23,13 +23,19 @@ export function AuthScreen(props: { baseUrl: string; onDone: () => void }) {
     // In Tauri: extract tenant from web_base or current host
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (window.__TAURI__) {
-      // Extract tenant slug from web_base config (e.g., https://tenant.example.com -> tenant)
-      const webBase = (window as any).__MEETROPOLIS_WEB_BASE__ || '';
-      const match = webBase.match(/https?:\/\/([^.]+)\./);
-      if (match?.[1]) {
-        headers['x-tenant'] = match[1];
-        logger.debug('[AuthScreen] Setting x-tenant header:', match[1]);
-      }
+      // Extract tenant slug from subdomain (e.g., https://demo.meetropolis.me -> "demo")
+      // Apex domains (e.g., meetropolis.me) have < 3 parts → no x-tenant header
+      try {
+        const webBase = (window as any).__MEETROPOLIS_WEB_BASE__ || '';
+        if (webBase) {
+          const hostname = new URL(webBase).hostname;
+          const parts = hostname.split('.');
+          if (parts.length >= 3) {
+            headers['x-tenant'] = parts[0];
+            logger.debug('[AuthScreen] Setting x-tenant header:', parts[0]);
+          }
+        }
+      } catch {}
     }
     let lastErr: any = null;
     const attempts = [200, 500, 1000];

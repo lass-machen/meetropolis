@@ -2,6 +2,11 @@ import React from 'react';
 import { getApiBaseFromWindow } from '../../lib/apiBase';
 import { logger } from '../../lib/logger';
 
+function resolveUrl(url: string): string {
+  if (url.startsWith('/')) return `${getApiBaseFromWindow()}${url}`;
+  return url;
+}
+
 interface AvatarSettingsProps {
   currentAvatarId: string;
   onAvatarChange: (avatarId: string) => void;
@@ -115,7 +120,7 @@ function AvatarPreview({ spriteUrl, frameWidth, frameHeight, idleRow, previewUrl
   if (previewUrl) {
     return (
       <img
-        src={previewUrl}
+        src={resolveUrl(previewUrl)}
         alt="Avatar preview"
         style={styles.preview}
       />
@@ -124,7 +129,7 @@ function AvatarPreview({ spriteUrl, frameWidth, frameHeight, idleRow, previewUrl
 
   return (
     <AvatarPreviewCanvas
-      spriteUrl={spriteUrl}
+      spriteUrl={resolveUrl(spriteUrl)}
       frameWidth={frameWidth}
       frameHeight={frameHeight}
       idleRow={idleRow}
