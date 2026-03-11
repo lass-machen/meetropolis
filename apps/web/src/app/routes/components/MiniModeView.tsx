@@ -302,9 +302,16 @@ function MiniCard({ part, roomGetter, position, onJumpTo, onScreenClick }: {
 
     if (!track) return;
 
+    // IMPORTANT: Use raw MediaStreamTrack instead of LiveKit's track.attach/detach.
+    // track.attach/detach modifies LiveKit's internal attachment tracking, and when
+    // MiniCards unmount (exit mini mode), track.detach() corrupts LiveKit state,
+    // causing audio AbortErrors and mic unpublish/republish cycles.
+    const mst = track.mediaStreamTrack;
+    if (!mst) return;
+
     try {
-      track.attach(el);
-      // Check if video is already playing
+      el.srcObject = new MediaStream([mst]);
+      el.play().catch(() => {});
       if (el.readyState >= 2) setIsVideoRendering(true);
     } catch {}
 
@@ -316,7 +323,7 @@ function MiniCard({ part, roomGetter, position, onJumpTo, onScreenClick }: {
     return () => {
       el.removeEventListener('playing', onPlaying);
       el.removeEventListener('emptied', onEmptied);
-      try { track.detach(el); } catch {}
+      try { el.pause(); el.srcObject = null; } catch {}
     };
   }, [part.sid, part.hasVideo, part.media, roomGetter, part.identity, isScreen]);
 
