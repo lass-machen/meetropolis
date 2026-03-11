@@ -4,7 +4,7 @@
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Mutex;
-use tauri::{Emitter, Manager, PhysicalPosition};
+use tauri::{Emitter, Manager, LogicalSize, PhysicalPosition, PhysicalSize};
 use tauri::menu::{MenuBuilder, MenuItemBuilder, SubmenuBuilder, PredefinedMenuItem};
 use serde::{Deserialize, Serialize};
 
@@ -83,19 +83,19 @@ fn do_toggle_mini_mode(app: &tauri::AppHandle, state: &AppState) -> bool {
             if let Some(geo) = state.saved_geometry.lock().unwrap().take() {
                 let _ = main_window.set_resizable(true);
                 let _ = main_window.set_always_on_top(false);
-                let _ = main_window.set_size(tauri::PhysicalSize::new(geo.width, geo.height));
+                let _ = main_window.set_size(PhysicalSize::new(geo.width, geo.height));
                 let _ = main_window.set_position(PhysicalPosition::new(geo.x, geo.y));
             } else {
                 let _ = main_window.set_resizable(true);
                 let _ = main_window.set_always_on_top(false);
-                let _ = main_window.set_size(tauri::PhysicalSize::new(1280, 800));
+                let _ = main_window.set_size(LogicalSize::new(1280.0, 800.0));
                 let _ = main_window.center();
             }
             *state.is_mini_mode.lock().unwrap() = false;
             let _ = main_window.emit("mini-mode-changed", false);
             false
         } else {
-            // Mini-Modus aktivieren: Geometrie speichern
+            // Mini-Modus aktivieren: Geometrie speichern (physische Pixel für exaktes Restore)
             let outer = main_window.outer_position().ok();
             let inner = main_window.inner_size().ok();
             if let (Some(pos), Some(size)) = (outer, inner) {
@@ -107,17 +107,22 @@ fn do_toggle_mini_mode(app: &tauri::AppHandle, state: &AppState) -> bool {
                 });
             }
 
-            // Resize auf 340x520, always-on-top
-            let _ = main_window.set_size(tauri::PhysicalSize::new(340, 520));
+            // Resize auf 340x520 logische Pixel (DPI-unabhängig → immer 340 CSS-px breit)
+            let _ = main_window.set_size(LogicalSize::new(340.0, 520.0));
             let _ = main_window.set_always_on_top(true);
             let _ = main_window.set_resizable(false);
 
-            // Position unten rechts
+            // Position unten rechts (monitor liefert physische Pixel → scale factor berücksichtigen)
             if let Ok(Some(monitor)) = main_window.current_monitor() {
+                let scale = monitor.scale_factor();
                 let screen_size = monitor.size();
                 let screen_pos = monitor.position();
-                let x = screen_pos.x + (screen_size.width as i32) - 340 - 20;
-                let y = screen_pos.y + (screen_size.height as i32) - 520 - 80;
+                let win_w = (340.0 * scale) as i32;
+                let win_h = (520.0 * scale) as i32;
+                let margin = (20.0 * scale) as i32;
+                let bottom_margin = (60.0 * scale) as i32;
+                let x = screen_pos.x + (screen_size.width as i32) - win_w - margin;
+                let y = screen_pos.y + (screen_size.height as i32) - win_h - bottom_margin;
                 let _ = main_window.set_position(PhysicalPosition::new(x, y));
             }
 

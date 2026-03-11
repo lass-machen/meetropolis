@@ -521,25 +521,50 @@ export function WorldApp() {
     );
   }
 
-  // Mini-Modus: Kompakte Team-Call-Ansicht
-  if (isMiniMode && isTauri) {
-    return (
-      <MiniModeView
-        roster={roster}
-        uiParticipants={uiParticipants}
-        avState={avState}
-        getDisplayName={getDisplayName}
-        onJumpTo={eventHandlers.handleJumpTo}
-        onToggleMic={eventHandlers.handleToggleMic}
-        onToggleCam={eventHandlers.handleToggleCam}
-        onToggleDnd={eventHandlers.handleToggleDnd}
-        onExpand={toggleMiniMode}
-      />
-    );
-  }
+  const isMini = isMiniMode && isTauri;
+
+  // Zones for mini mode grouping (read from ZoneManager)
+  const getMiniZones = useCallback(() => {
+    const raw = zoneRef.current?.getZones?.() || [];
+    return raw.map((z: any) => ({
+      name: z.name as string,
+      points: ((z.points || []) as any[])
+        .map((p: any) => Array.isArray(p) ? { x: p[0], y: p[1] } : p)
+        .filter((p: any) => p && typeof p.x === 'number' && typeof p.y === 'number'),
+    }));
+  }, []);
+
+  // Expand from mini mode and immediately show a screenshare fullscreen
+  const handleExpandWithScreen = useCallback((screenSid: string) => {
+    toggleMiniMode();
+    setSelectedSid(screenSid);
+    setOverlayZoom(1);
+  }, [toggleMiniMode, setSelectedSid, setOverlayZoom]);
 
   return (
-    <div style={{ width: '100vw', height: '100vh', display: 'grid', gridTemplateColumns: '1fr auto' }}>
+    <>
+      {/* Mini-Modus: Kompakte Team-Call-Ansicht (rendered on top, hides main UI) */}
+      {isMini && (
+        <MiniModeView
+          roster={roster}
+          uiParticipants={uiParticipants}
+          avState={avState}
+          getDisplayName={getDisplayName}
+          onJumpTo={eventHandlers.handleJumpTo}
+          onToggleMic={eventHandlers.handleToggleMic}
+          onToggleCam={eventHandlers.handleToggleCam}
+          onToggleDnd={eventHandlers.handleToggleDnd}
+          onToggleShare={eventHandlers.handleToggleShare}
+          onExpand={toggleMiniMode}
+          onExpandWithScreen={handleExpandWithScreen}
+          roomGetter={getRoom}
+          getZones={getMiniZones}
+        />
+      )}
+    <div style={{
+      width: '100vw', height: '100vh', display: 'grid', gridTemplateColumns: '1fr auto',
+      ...(isMini ? { visibility: 'hidden' as const, position: 'fixed' as const, inset: 0, pointerEvents: 'none' as const } : {}),
+    }}>
       {me.onboardingCompleted === false && (
         <OnboardingWizard
           me={me}
@@ -692,5 +717,6 @@ export function WorldApp() {
         bubbleStartRef={bubbleStartRef}
       />
     </div>
+    </>
   );
 }
