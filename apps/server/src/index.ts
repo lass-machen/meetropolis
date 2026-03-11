@@ -139,6 +139,7 @@ app.use('/packs', express.static(packsDir, {
   immutable: true,
   setHeaders: (res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
     res.removeHeader('Access-Control-Allow-Credentials');
   }
 }));
@@ -154,6 +155,7 @@ app.use('/npc-media', express.static(npcMediaDir, {
   maxAge: '7d',
   setHeaders: (res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
     res.removeHeader('Access-Control-Allow-Credentials');
   }
 }));

@@ -16,32 +16,6 @@ async function main() {
     update: {},
   });
 
-  // Basic map and room
-  let map = await prisma.map.findFirst({ where: { name: 'office', tenantId: def.id } });
-  if (!map) {
-    map = await prisma.map.create({ data: { name: 'office', meta: {}, tenantId: def.id } });
-  }
-
-  let room = await prisma.room.findUnique({ where: { id: map.id + ':lobby' } });
-  if (!room) {
-    room = await prisma.room.create({ data: { id: map.id + ':lobby', name: 'lobby', mapId: map.id, tenantId: def.id } });
-  }
-
-  // Zones (simple rectangles)
-  const zones = [
-    { name: 'meeting-a', polygon: { points: [ { x: 120, y: 120 }, { x: 200, y: 120 }, { x: 200, y: 180 }, { x: 120, y: 180 } ] } },
-    { name: 'meeting-b', polygon: { points: [ { x: 240, y: 80 }, { x: 300, y: 80 }, { x: 300, y: 140 }, { x: 240, y: 140 } ] } },
-  ];
-
-  for (const z of zones) {
-    const existing = await prisma.zone.findFirst({ where: { name: z.name, roomId: room.id, mapId: map.id } });
-    if (existing) {
-      await prisma.zone.update({ where: { id: existing.id }, data: { polygon: z.polygon as any } });
-    } else {
-      await prisma.zone.create({ data: { name: z.name, polygon: z.polygon as any, roomId: room.id, mapId: map.id, tenantId: def.id } });
-    }
-  }
-
   // Seed Root Admin (env-configurable)
   const adminEmail = process.env.SEED_ADMIN_EMAIL || 'admin@meetropolis.local';
   const adminPass = process.env.SEED_ADMIN_PASSWORD || 'admin123';
