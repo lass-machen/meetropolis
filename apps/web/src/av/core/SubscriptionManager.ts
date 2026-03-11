@@ -419,6 +419,7 @@ export class SubscriptionManager implements Disposable {
   private applyBubbleAttenuation(bubbleIds: string[]): void {
     const room = this.deps.getRoom();
     if (!room) return;
+    if (this.deps.isDND()) return;
 
     try {
       const bubbleSet = new Set(bubbleIds.map((id) => String(id)));

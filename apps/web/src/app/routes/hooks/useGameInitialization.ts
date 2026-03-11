@@ -198,7 +198,7 @@ export function useGameInitialization(params: UseGameInitializationParams) {
           getZones: () => zoneRef.current?.getZones?.() || [],
           getFollowTarget: () => followRef.current?.getTarget?.() || null,
           getBubbleGroups: () => bubbleGroupsRef.current ?? {},
-          getLocalDnd: () => false,
+          getLocalDnd: () => !!(avRef.current as any)?.dndEnabled,
         },
         { nearRadius: 96, farRadius: 384, outsideBubbleAttenuation: 0.05 }
       );
