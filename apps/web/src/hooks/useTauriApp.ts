@@ -2,8 +2,7 @@
  * useTauriApp Hook
  *
  * Integrationshook für Tauri Desktop App Features:
- * - Mini-Fenster-Modus (separates natives Fenster)
- * - IPC zwischen Haupt- und Mini-Fenster
+ * - Mini-Modus (same-window resize + always-on-top)
  * - Reload-Funktionalität
  * - Server-Disconnect-Handling mit Auto-Reload
  */
@@ -11,22 +10,11 @@
 import React from 'react';
 import { logger } from '../lib/logger';
 
-interface AvStatus {
-  mic: boolean;
-  cam: boolean;
-  dnd: boolean;
-  share: boolean;
-  online_count: number;
-  speaking_names: string[];
-}
-
 interface TauriAppState {
   isTauri: boolean;
   isMiniMode: boolean;
   toggleMiniMode: () => Promise<void>;
   reload: () => Promise<void>;
-  syncAvStatus: (status: AvStatus) => Promise<void>;
-  onMiniAvAction: (callback: (action: string) => void) => () => void;
 }
 
 // Prüft ob wir in einer Tauri-App laufen
@@ -99,49 +87,11 @@ export function useTauriApp(): TauriAppState {
     }
   }, [isTauri]);
 
-  // AV-Status an Mini-Fenster senden
-  const syncAvStatus = React.useCallback(async (status: AvStatus) => {
-    if (!isTauri) return;
-
-    try {
-      const { invoke } = await import('@tauri-apps/api/core');
-      await invoke('sync_av_status', { status });
-    } catch (error) {
-      // Mini-Fenster möglicherweise nicht offen - ignorieren
-    }
-  }, [isTauri]);
-
-  // Listener für AV-Aktionen vom Mini-Fenster registrieren
-  const onMiniAvAction = React.useCallback((callback: (action: string) => void) => {
-    if (!isTauri) return () => {};
-
-    let unlisten: (() => void) | undefined;
-
-    const setupListener = async () => {
-      try {
-        const { listen } = await import('@tauri-apps/api/event');
-        unlisten = await listen<string>('mini-av-action', (event) => {
-          callback(event.payload);
-        });
-      } catch (e) {
-        logger.warn('[Tauri] Failed to setup mini-av-action listener:', e);
-      }
-    };
-
-    setupListener();
-
-    return () => {
-      unlisten?.();
-    };
-  }, [isTauri]);
-
   return {
     isTauri,
     isMiniMode,
     toggleMiniMode,
     reload,
-    syncAvStatus,
-    onMiniAvAction,
   };
 }
 

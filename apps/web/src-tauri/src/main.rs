@@ -4,7 +4,7 @@
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Mutex;
-use tauri::{Emitter, Manager, PhysicalPosition, WebviewUrl, WebviewWindowBuilder};
+use tauri::{Emitter, Manager, PhysicalPosition};
 use tauri::menu::{MenuBuilder, MenuItemBuilder, SubmenuBuilder, PredefinedMenuItem};
 use serde::{Deserialize, Serialize};
 
@@ -17,20 +17,18 @@ struct AppConfig {
     audio_ducking: Option<bool>,
 }
 
-// State für Mini-Window-Modus
-struct AppState {
-    is_mini_mode: Mutex<bool>,
+#[derive(Clone, Debug)]
+struct WindowGeometry {
+    x: i32,
+    y: i32,
+    width: u32,
+    height: u32,
 }
 
-// AV-Status der vom Hauptfenster zum Mini-Fenster synchronisiert wird
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
-pub struct AvStatus {
-    pub mic: bool,
-    pub cam: bool,
-    pub dnd: bool,
-    pub share: bool,
-    pub online_count: u32,
-    pub speaking_names: Vec<String>,
+// State für Mini-Modus
+struct AppState {
+    is_mini_mode: Mutex<bool>,
+    saved_geometry: Mutex<Option<WindowGeometry>>,
 }
 
 fn get_config_path(handle: &tauri::AppHandle) -> Option<PathBuf> {
@@ -75,92 +73,71 @@ fn reload_app(webview: tauri::Webview) -> bool {
     true
 }
 
-#[tauri::command]
-fn toggle_mini_mode(app: tauri::AppHandle, state: tauri::State<AppState>) -> bool {
+/// Interne Toggle-Logik, aufrufbar sowohl vom Tauri-Command als auch vom Menu-Event.
+fn do_toggle_mini_mode(app: &tauri::AppHandle, state: &AppState) -> bool {
     let is_mini = *state.is_mini_mode.lock().unwrap();
 
-    if is_mini {
-        // Zurück zum Hauptfenster
-        close_mini_show_main(&app, &state);
-    } else {
-        // Mini-Modus aktivieren
-        hide_main_show_mini(&app, &state);
-    }
+    if let Some(main_window) = app.get_webview_window("main") {
+        if is_mini {
+            // Zurück zum Vollmodus
+            if let Some(geo) = state.saved_geometry.lock().unwrap().take() {
+                let _ = main_window.set_resizable(true);
+                let _ = main_window.set_always_on_top(false);
+                let _ = main_window.set_size(tauri::PhysicalSize::new(geo.width, geo.height));
+                let _ = main_window.set_position(PhysicalPosition::new(geo.x, geo.y));
+            } else {
+                let _ = main_window.set_resizable(true);
+                let _ = main_window.set_always_on_top(false);
+                let _ = main_window.set_size(tauri::PhysicalSize::new(1280, 800));
+                let _ = main_window.center();
+            }
+            *state.is_mini_mode.lock().unwrap() = false;
+            let _ = main_window.emit("mini-mode-changed", false);
+            false
+        } else {
+            // Mini-Modus aktivieren: Geometrie speichern
+            let outer = main_window.outer_position().ok();
+            let inner = main_window.inner_size().ok();
+            if let (Some(pos), Some(size)) = (outer, inner) {
+                *state.saved_geometry.lock().unwrap() = Some(WindowGeometry {
+                    x: pos.x,
+                    y: pos.y,
+                    width: size.width,
+                    height: size.height,
+                });
+            }
 
-    !is_mini
+            // Resize auf 340x520, always-on-top
+            let _ = main_window.set_size(tauri::PhysicalSize::new(340, 520));
+            let _ = main_window.set_always_on_top(true);
+            let _ = main_window.set_resizable(false);
+
+            // Position unten rechts
+            if let Ok(Some(monitor)) = main_window.current_monitor() {
+                let screen_size = monitor.size();
+                let screen_pos = monitor.position();
+                let x = screen_pos.x + (screen_size.width as i32) - 340 - 20;
+                let y = screen_pos.y + (screen_size.height as i32) - 520 - 80;
+                let _ = main_window.set_position(PhysicalPosition::new(x, y));
+            }
+
+            *state.is_mini_mode.lock().unwrap() = true;
+            let _ = main_window.emit("mini-mode-changed", true);
+            true
+        }
+    } else {
+        !is_mini
+    }
+}
+
+#[tauri::command]
+fn toggle_mini_mode(app: tauri::AppHandle, state: tauri::State<AppState>) -> bool {
+    do_toggle_mini_mode(&app, &state)
 }
 
 #[tauri::command]
 fn is_mini_mode(state: tauri::State<AppState>) -> bool {
     *state.is_mini_mode.lock().unwrap()
-}
-
-// Vom Hauptfenster aufgerufen: AV-Status an Mini-Fenster senden
-#[tauri::command]
-fn sync_av_status(app: tauri::AppHandle, status: AvStatus) {
-    if let Some(mini_window) = app.get_webview_window("mini") {
-        let _ = mini_window.emit("av-status-update", status);
-    }
-}
-
-// Vom Mini-Fenster aufgerufen: AV-Aktion an Hauptfenster senden
-#[tauri::command]
-fn mini_av_action(app: tauri::AppHandle, action: String) {
-    if let Some(main_window) = app.get_webview_window("main") {
-        let _ = main_window.emit("mini-av-action", action);
-    }
-}
-
-// Vom Mini-Fenster aufgerufen: Zurück zum Hauptfenster
-#[tauri::command]
-fn expand_from_mini(app: tauri::AppHandle, state: tauri::State<AppState>) {
-    close_mini_show_main(&app, &state);
-}
-
-fn hide_main_show_mini(app: &tauri::AppHandle, state: &AppState) {
-    // Hauptfenster verstecken (nicht schließen!)
-    if let Some(main_window) = app.get_webview_window("main") {
-        let _ = main_window.hide();
-    }
-
-    // Mini-Fenster erstellen falls es noch nicht existiert
-    if app.get_webview_window("mini").is_none() {
-        let mini_window = WebviewWindowBuilder::new(
-            app,
-            "mini",
-            WebviewUrl::App("mini.html".into())
-        )
-        .title("Meetropolis")
-        .inner_size(280.0, 160.0)
-        .min_inner_size(280.0, 160.0)
-        .resizable(false)
-        .decorations(true)  // Normale Titelleiste für Drag!
-        .always_on_top(true)
-        .skip_taskbar(false)
-        .center()
-        .build();
-
-        if let Ok(window) = mini_window {
-            // Positioniere unten rechts
-            if let Ok(Some(monitor)) = window.current_monitor() {
-                let screen_size = monitor.size();
-                let screen_pos = monitor.position();
-                let x = screen_pos.x + (screen_size.width as i32) - 300 - 20;
-                let y = screen_pos.y + (screen_size.height as i32) - 180 - 80;
-                let _ = window.set_position(PhysicalPosition::new(x, y));
-            }
-        }
-    } else if let Some(mini_window) = app.get_webview_window("mini") {
-        let _ = mini_window.show();
-        let _ = mini_window.set_focus();
-    }
-
-    *state.is_mini_mode.lock().unwrap() = true;
-
-    // Hauptfenster informieren
-    if let Some(main_window) = app.get_webview_window("main") {
-        let _ = main_window.emit("mini-mode-changed", true);
-    }
 }
 
 #[tauri::command]
@@ -181,26 +158,6 @@ fn get_audio_ducking(handle: tauri::AppHandle) -> bool {
     config.audio_ducking.unwrap_or(true)
 }
 
-fn close_mini_show_main(app: &tauri::AppHandle, state: &AppState) {
-    // Mini-Fenster schließen
-    if let Some(mini_window) = app.get_webview_window("mini") {
-        let _ = mini_window.close();
-    }
-
-    // Hauptfenster wieder zeigen
-    if let Some(main_window) = app.get_webview_window("main") {
-        let _ = main_window.show();
-        let _ = main_window.set_focus();
-    }
-
-    *state.is_mini_mode.lock().unwrap() = false;
-
-    // Hauptfenster informieren
-    if let Some(main_window) = app.get_webview_window("main") {
-        let _ = main_window.emit("mini-mode-changed", false);
-    }
-}
-
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
@@ -209,6 +166,7 @@ fn main() {
         .plugin(tauri_plugin_fs::init())
         .manage(AppState {
             is_mini_mode: Mutex::new(false),
+            saved_geometry: Mutex::new(None),
         })
         .setup(|app| {
             // Menü erstellen
@@ -287,32 +245,13 @@ fn main() {
                 }
                 "mini_mode" => {
                     let state = app.state::<AppState>();
-                    let is_mini = *state.is_mini_mode.lock().unwrap();
-
-                    if is_mini {
-                        close_mini_show_main(&app, &state);
-                    } else {
-                        hide_main_show_mini(&app, &state);
-                    }
+                    do_toggle_mini_mode(&app, &state);
                 }
                 _ => {}
             }
         })
-        .on_window_event(|window, event| {
-            // Wenn Mini-Fenster geschlossen wird, zurück zum Hauptfenster
-            if window.label() == "mini" {
-                if let tauri::WindowEvent::CloseRequested { .. } = event {
-                    let app = window.app_handle();
-                    let state = app.state::<AppState>();
-                    *state.is_mini_mode.lock().unwrap() = false;
-
-                    if let Some(main_window) = app.get_webview_window("main") {
-                        let _ = main_window.show();
-                        let _ = main_window.set_focus();
-                        let _ = main_window.emit("mini-mode-changed", false);
-                    }
-                }
-            }
+        .on_window_event(|_window, _event| {
+            // Keine speziellen Window-Events mehr nötig
         })
         .invoke_handler(tauri::generate_handler![
             get_config,
@@ -320,9 +259,6 @@ fn main() {
             reload_app,
             toggle_mini_mode,
             is_mini_mode,
-            sync_av_status,
-            mini_av_action,
-            expand_from_mini,
             set_audio_ducking,
             get_audio_ducking
         ])

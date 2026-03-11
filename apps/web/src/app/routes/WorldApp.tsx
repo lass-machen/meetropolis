@@ -31,6 +31,7 @@ import { PackStore } from '../../ui/packstore/PackStore';
 import { MapSwitcher } from '../../ui/hud/MapSwitcher';
 import { MapChangeOverlay } from '../../ui/hud/MapChangeOverlay';
 import { AuthLoadingScreen } from './components/AuthLoadingScreen';
+import { MiniModeView } from './components/MiniModeView';
 import { WorldContextMenu } from './components/WorldContextMenu';
 import { WorldModals } from './components/WorldModals';
 import { GameCanvas } from './components/GameCanvas';
@@ -209,8 +210,8 @@ export function WorldApp() {
   });
 
   // Tauri integration (extracted to hook)
-  const { isTauri, isMiniMode, toggleMiniMode, syncAvStatus, onMiniAvAction } = useTauriApp();
-  useTauriEffects({ isTauri, isMiniMode, toggleMiniMode, syncAvStatus, onMiniAvAction, avState, uiParticipants, getDisplayName, setAvState, avRef, onOpenPreferences: () => setTauriPrefsOpen(true) });
+  const { isTauri, isMiniMode, toggleMiniMode } = useTauriApp();
+  useTauriEffects({ isTauri, isMiniMode, toggleMiniMode, onOpenPreferences: () => setTauriPrefsOpen(true) });
 
   // Connection Recovery
   const { showReloadBanner, handleReload, dismissBanner } = useConnectionRecovery({
@@ -516,6 +517,23 @@ export function WorldApp() {
         positionReady={positionReady}
         apiBase={apiBase}
         onAuthComplete={handleAuthComplete}
+      />
+    );
+  }
+
+  // Mini-Modus: Kompakte Team-Call-Ansicht
+  if (isMiniMode && isTauri) {
+    return (
+      <MiniModeView
+        roster={roster}
+        uiParticipants={uiParticipants}
+        avState={avState}
+        getDisplayName={getDisplayName}
+        onJumpTo={eventHandlers.handleJumpTo}
+        onToggleMic={eventHandlers.handleToggleMic}
+        onToggleCam={eventHandlers.handleToggleCam}
+        onToggleDnd={eventHandlers.handleToggleDnd}
+        onExpand={toggleMiniMode}
       />
     );
   }
