@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from '../system';
 import { ThemeToggleButton } from '../theme';
+import { getApiBaseFromWindow } from '../../lib/runtimeConfig';
 
 interface LandingPageProps {
   onLogin: () => void;
@@ -151,6 +152,7 @@ export function LandingPage({ onLogin, onSignup, onPricing, registrationEnabled 
             <div className="lp-nav-mid" style={{ display: 'flex', gap: 2, alignItems: 'center', marginRight: 8 }}>
               <Button variant="ghost" onClick={() => scrollTo('funktionen')} style={{ fontSize: 14 }}>Funktionen</Button>
               <Button variant="ghost" onClick={onPricing} style={{ fontSize: 14 }}>Preise</Button>
+              <Button variant="ghost" onClick={() => scrollTo('download')} style={{ fontSize: 14 }}>Download</Button>
             </div>
             <ThemeToggleButton />
             <Button variant="ghost" onClick={onLogin} style={{ fontSize: 14 }}>Login</Button>
@@ -614,6 +616,28 @@ export function LandingPage({ onLogin, onSignup, onPricing, registrationEnabled 
         </div>
       </section>
 
+      {/* ═══ DOWNLOAD ═══ */}
+      <section id="download" className="lp-sec" style={{ padding: '100px 24px', maxWidth: 900, margin: '0 auto' }}>
+        <div className="lp-reveal" style={{ textAlign: 'center', marginBottom: 48 }}>
+          <Kicker>Desktop App</Kicker>
+          <h2 style={{ fontSize: 'clamp(28px, 4vw, 42px)', fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.15, marginBottom: 16 }}>
+            Meetropolis für den Desktop
+          </h2>
+          <p style={{ color: 'var(--muted)', maxWidth: 560, margin: '0 auto', lineHeight: 1.65 }}>
+            Alles was der Browser kann — plus Mini-Modus, Systembenachrichtigungen und Auto-Updates.
+          </p>
+        </div>
+
+        <div className="lp-reveal" style={{ display: 'flex', gap: 16, justifyContent: 'center', flexWrap: 'wrap' }}>
+          <DownloadButton platform="macos" />
+          <DownloadButton platform="windows" />
+        </div>
+
+        <div className="lp-reveal" style={{ textAlign: 'center', marginTop: 20, color: 'var(--muted)', fontSize: 13 }}>
+          <DesktopVersionInfo />
+        </div>
+      </section>
+
       {/* ═══ FAQ ═══ */}
       <section className="lp-sec" style={{ padding: '100px 24px', maxWidth: 800, margin: '0 auto' }}>
         <div className="lp-reveal" style={{ textAlign: 'center', marginBottom: 56 }}>
@@ -631,6 +655,7 @@ export function LandingPage({ onLogin, onSignup, onPricing, registrationEnabled 
             { q: 'Gibt es einen kostenlosen Test?', a: 'Alle Bezahlpläne haben 14 Tage kostenlose Testphase. Der Free-Plan ist dauerhaft kostenlos.' },
             { q: 'Wie ist die Audio-/Videoqualität?', a: 'Enterprise-Qualität durch LiveKit (WebRTC). HD Video, räumliches Audio, automatische Rauschunterdrückung.' },
             { q: 'Was passiert, wenn ich kündige?', a: 'Ihre Daten bleiben 30 Tage erhalten. Export jederzeit möglich. Keine Kündigungsfrist.' },
+            { q: 'Brauche ich die Desktop-App?', a: 'Nein, Meetropolis funktioniert vollständig im Browser. Die Desktop-App bietet zusätzlich einen Mini-Modus (always-on-top Fenster), native Benachrichtigungen und automatische Updates.' },
           ].map((faq, i) => (
             <div key={i} style={{ borderBottom: '1px solid var(--border)' }}>
               <button
@@ -706,6 +731,7 @@ export function LandingPage({ onLogin, onSignup, onPricing, registrationEnabled 
                 <div style={{ display: 'grid', gap: 8 }}>
                   <FLink onClick={() => scrollTo('funktionen')}>Funktionen</FLink>
                   <FLink onClick={onPricing}>Preise</FLink>
+                  <FLink onClick={() => scrollTo('download')}>Desktop-App</FLink>
                   <FLink href="https://github.com/lass-machen/meetropolis">GitHub</FLink>
                 </div>
               </div>
@@ -774,4 +800,76 @@ function FLink({ children, href, onClick }: { children: React.ReactNode; href?: 
       {children}
     </a>
   );
+}
+
+function DownloadButton({ platform }: { platform: 'macos' | 'windows' }) {
+  const isCurrent = typeof navigator !== 'undefined' &&
+    (platform === 'macos' ? /Mac/i.test(navigator.userAgent) : /Win/i.test(navigator.userAgent));
+
+  const label = platform === 'macos' ? 'macOS herunterladen' : 'Windows herunterladen';
+  const icon = platform === 'macos' ? 'fa-brands fa-apple' : 'fa-brands fa-windows';
+
+  const handleClick = async () => {
+    try {
+      const res = await fetch(`${getApiBaseFromWindow()}/desktop/latest`);
+      if (!res.ok) return;
+      const data = await res.json();
+      const asset = data.assets?.find((a: any) => a.platform === platform);
+      if (asset?.url) {
+        window.open(`${getApiBaseFromWindow()}${asset.url}`, '_blank');
+      }
+    } catch {
+      // Silent fail — button becomes non-functional
+    }
+  };
+
+  return (
+    <button
+      onClick={handleClick}
+      className="lp-lift"
+      style={{
+        all: 'unset',
+        cursor: 'pointer',
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 10,
+        padding: '14px 28px',
+        borderRadius: 12,
+        fontWeight: 600,
+        fontSize: 15,
+        color: isCurrent ? '#fff' : 'var(--fg)',
+        background: isCurrent ? 'var(--gradient)' : 'var(--glass)',
+        border: isCurrent ? 'none' : '1px solid var(--border)',
+        transition: 'transform 0.2s, box-shadow 0.2s',
+        boxSizing: 'border-box',
+      }}
+    >
+      <i className={icon} style={{ fontSize: 20 }} />
+      {label}
+    </button>
+  );
+}
+
+function DesktopVersionInfo() {
+  const [info, setInfo] = useState<{ version: string; date: string } | null>(null);
+
+  useEffect(() => {
+    fetch(`${getApiBaseFromWindow()}/desktop/latest`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.version) {
+          setInfo({
+            version: data.version,
+            date: new Date(data.date).toLocaleDateString('de-DE', {
+              day: 'numeric', month: 'long', year: 'numeric',
+            }),
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  if (!info) return null;
+
+  return <>Version {info.version} · {info.date}</>;
 }

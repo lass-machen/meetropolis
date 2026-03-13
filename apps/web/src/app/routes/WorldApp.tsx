@@ -749,6 +749,7 @@ export function WorldApp() {
         {desktop?.TauriPreferencesModal && (
           <desktop.TauriPreferencesModal open={tauriPrefsOpen} onOpenChange={setTauriPrefsOpen} />
         )}
+        {desktop?.UpdateBanner && <desktop.UpdateBanner />}
       </div>
 
       <RosterPanel

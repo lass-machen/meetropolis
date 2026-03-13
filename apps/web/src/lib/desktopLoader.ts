@@ -17,6 +17,8 @@ export interface DesktopModule {
   MiniModeView: ComponentType<any>;
   /** Tauri Preferences Modal Component */
   TauriPreferencesModal: ComponentType<{ open: boolean; onOpenChange: (v: boolean) => void }>;
+  /** Update Banner Component (zeigt Update-Benachrichtigungen) */
+  UpdateBanner: ComponentType<Record<string, never>>;
   /** URL in externem Browser öffnen (via Tauri Shell Plugin) */
   openExternal: (url: string) => Promise<void>;
   /** Auth-Token setzen (für Tauri-Clients die keine Cookies nutzen können) */

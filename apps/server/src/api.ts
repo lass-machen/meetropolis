@@ -16,6 +16,7 @@ import { registerNpcRoutes } from './api/routes/npcs.js';
 import { registerNpcMediaRoutes } from './api/routes/npcMedia.js';
 import { registerAdminMapRoutes } from './api/routes/adminMaps.js';
 import { registerGuestRoutes } from './api/routes/guests.js';
+import { registerDesktopRoutes } from './api/routes/desktop.js';
 import { guestExpiryMiddleware } from './api/middleware/guestExpiry.js';
 
 // Existing modular routes (already extracted)
@@ -40,6 +41,9 @@ const prisma = new PrismaClient();
 export async function registerApi(app: express.Express) {
   // Health, config, readiness probes
   registerHealthRoutes(app, prisma);
+
+  // Desktop app update & download endpoints (public, no auth required)
+  registerDesktopRoutes(app);
 
   // Authentication routes
   registerAuthRoutes(app, prisma);
