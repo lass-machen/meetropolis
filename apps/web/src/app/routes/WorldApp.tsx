@@ -18,7 +18,7 @@ import { BubbleManager } from '../../game/bubbleManager';
 import { FollowManager } from '../../game/followManager';
 import { ZoneManager } from '../../game/zoneManager';
 import { VolumeManager } from '../../game/volumeManager';
-import { useTauriApp, useConnectionRecovery } from '../../hooks/useTauriApp';
+import { useConnectionRecovery } from '../../hooks/useConnectionRecovery';
 import { onAudioTracksChanged } from '../../lib/avEvents';
 import { useParticipants } from '../../features/participants/useParticipants';
 import { useRosterPresence } from '../../features/roster/useRosterPresence';
@@ -33,7 +33,6 @@ import { PackStore } from '../../ui/packstore/PackStore';
 import { MapSwitcher } from '../../ui/hud/MapSwitcher';
 import { MapChangeOverlay } from '../../ui/hud/MapChangeOverlay';
 import { AuthLoadingScreen } from './components/AuthLoadingScreen';
-import { MiniModeView } from './components/MiniModeView';
 import { WorldContextMenu } from './components/WorldContextMenu';
 import { WorldModals } from './components/WorldModals';
 import { GameCanvas } from './components/GameCanvas';
@@ -45,8 +44,8 @@ import { useWorldEventHandlers } from './hooks/useWorldEventHandlers';
 import { useFetchMe } from './hooks/useFetchMe';
 import { useEditorLoader } from './hooks/useEditorLoader';
 import { useGameInitialization } from './hooks/useGameInitialization';
-import { useTauriEffects } from './hooks/useTauriEffects';
 import { OnboardingWizard } from '../../ui/onboarding/OnboardingWizard';
+import { useDesktop } from './hooks/useDesktop';
 
 export function WorldApp() {
   // Refs
@@ -110,7 +109,6 @@ export function WorldApp() {
   const [tenantSettingsOpen, setTenantSettingsOpen] = React.useState(false);
   const [sessionsOpen, setSessionsOpen] = React.useState(false);
   const [packStoreOpen, setPackStoreOpen] = React.useState(false);
-  const [tauriPrefsOpen, setTauriPrefsOpen] = React.useState(false);
   const [gridExpanded, setGridExpanded] = React.useState(() => {
     const stored = localStorage.getItem('uc-container-expanded');
     return stored !== null ? stored === 'true' : true;
@@ -211,8 +209,8 @@ export function WorldApp() {
     }, [selectedSid]),
   });
 
-  // Tauri integration (extracted to hook)
-  const { isTauri, isMiniMode, toggleMiniMode } = useTauriApp();
+  // Desktop integration (optional, loaded via desktopLoader)
+  const { isTauri, isMiniMode, toggleMiniMode, tauriPrefsOpen, setTauriPrefsOpen, desktop } = useDesktop();
 
   // Connection Recovery
   const { showReloadBanner, handleReload, dismissBanner } = useConnectionRecovery({
@@ -504,7 +502,44 @@ export function WorldApp() {
     handleConnectionReload: handleReload, dismissBanner,
   });
 
-  useTauriEffects({ isTauri, isMiniMode, toggleMiniMode, onOpenPreferences: () => setTauriPrefsOpen(true), onToggleMic: eventHandlers.handleToggleMic });
+  // Desktop-Effekte: Cmd+M mini-mode, open-preferences
+  // Das Desktop-Modul dispatcht Custom Events; der OSS-Code lauscht nur darauf.
+  useEffect(() => {
+    if (!isTauri) return;
+    // Cmd+M → toggle mini mode (Keyboard-Shortcut bleibt im OSS-Code,
+    // da es keine @tauri-apps Dependency braucht)
+    const handleMiniModeKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === 'm') {
+        e.preventDefault();
+        e.stopPropagation();
+        toggleMiniMode();
+      }
+    };
+    window.addEventListener('keydown', handleMiniModeKey, true);
+
+    // Desktop-Modul dispatcht 'desktop:open-preferences' Custom Event
+    const handleOpenPrefs = () => setTauriPrefsOpen(true);
+    window.addEventListener('desktop:open-preferences', handleOpenPrefs);
+
+    return () => {
+      window.removeEventListener('keydown', handleMiniModeKey, true);
+      window.removeEventListener('desktop:open-preferences', handleOpenPrefs);
+    };
+  }, [isTauri, toggleMiniMode, setTauriPrefsOpen]);
+
+  // Cmd/Ctrl+Shift+M to toggle mic (generisch, funktioniert in allen Umgebungen)
+  useEffect(() => {
+    if (!eventHandlers.handleToggleMic) return;
+    const handleKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'm') {
+        e.preventDefault();
+        e.stopPropagation();
+        eventHandlers.handleToggleMic();
+      }
+    };
+    window.addEventListener('keydown', handleKey, true);
+    return () => window.removeEventListener('keydown', handleKey, true);
+  }, [eventHandlers.handleToggleMic]);
 
   const participantsToRender = useMemo(() =>
     uiParticipants.length > 0
@@ -555,8 +590,8 @@ export function WorldApp() {
   return (
     <>
       {/* Mini-Modus: Kompakte Team-Call-Ansicht (rendered on top, hides main UI) */}
-      {isMini && (
-        <MiniModeView
+      {isMini && desktop?.MiniModeView && (
+        <desktop.MiniModeView
           roster={roster}
           uiParticipants={uiParticipants}
           avState={avState}
@@ -689,9 +724,11 @@ export function WorldApp() {
           setFreshToken={setFreshToken}
           invitesModalOpen={invitesModalOpen}
           setInvitesModalOpen={setInvitesModalOpen}
-          tauriPrefsOpen={tauriPrefsOpen}
-          setTauriPrefsOpen={setTauriPrefsOpen}
         />
+        {/* Desktop Preferences Modal (optional, nur wenn Desktop-Modul geladen) */}
+        {desktop?.TauriPreferencesModal && (
+          <desktop.TauriPreferencesModal open={tauriPrefsOpen} onOpenChange={setTauriPrefsOpen} />
+        )}
       </div>
 
       <RosterPanel

@@ -33,7 +33,7 @@ export function AuthLoadingScreen({
           <h2 style={{ margin: '8px 0' }}>Registrieren (neuen Mandanten anlegen)</h2>
           <Signup apiBase={apiBase} onSuccess={(slug) => {
             try {
-              if ((window as any).__TAURI__) {
+              if ((window as any).__MEETROPOLIS_API_BASE__) {
                 window.location.reload();
               } else {
                 const proto = window.location.protocol;

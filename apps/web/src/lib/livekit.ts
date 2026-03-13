@@ -78,7 +78,7 @@ async function fetchLivekitToken(params: JoinLivekitRoomParams): Promise<string>
   return (await res.text()).trim();
 }
 
-function isTauriEnvironment(): boolean {
+function isDesktopEnvironment(): boolean {
   try {
     const anyWin = window as any;
     return !!(anyWin.__MEETROPOLIS_API_BASE__ || anyWin.desktop?.apiBase);
@@ -117,7 +117,7 @@ async function resolveLivekitServerUrl(params: JoinLivekitRoomParams): Promise<s
   let serverUrl: string | undefined;
 
   // In Tauri, always fetch from API since VITE_LIVEKIT_URL is not available at runtime
-  if (isTauriEnvironment()) {
+  if (isDesktopEnvironment()) {
     serverUrl = await fetchLivekitUrlFromApi(params.baseUrl);
   }
 

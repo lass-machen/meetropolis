@@ -8,18 +8,20 @@ import './styles/theme.css';
 import { createRoot } from 'react-dom/client';
 import { AppRoutes } from './app/routes/AppRoutes';
 import { RootProviders } from './app/providers/RootProviders';
-import { initTauriBridge, waitForTauriConfig } from './lib/tauriBridge';
-// Import tauriAuth to install fetch interceptor early
-import './lib/tauriAuth';
+import { getDesktopModule } from './lib/desktopLoader';
 
-// Initialize Tauri Bridge if available
-initTauriBridge();
+// Desktop-Modul laden und initialisieren (falls vorhanden)
+async function initAndRender() {
+  const desktop = await getDesktopModule();
+  if (desktop) {
+    desktop.initDesktop();
+    await desktop.waitForConfig();
+  }
 
-// Sentry Browser SDK (optional via VITE_SENTRY_DSN)
-try {
-  const dsn = (import.meta as any).env?.VITE_SENTRY_DSN as string | undefined;
-  if (dsn) {
-    (async () => {
+  // Sentry Browser SDK (optional via VITE_SENTRY_DSN)
+  try {
+    const dsn = (import.meta as any).env?.VITE_SENTRY_DSN as string | undefined;
+    if (dsn) {
       const Sentry = await import('@sentry/browser');
       const Tracing = await import('@sentry/tracing');
       Sentry.init({
@@ -28,12 +30,9 @@ try {
         tracesSampleRate: 0.2,
         environment: (import.meta as any).env?.MODE || 'development'
       });
-    })();
-  }
-} catch {}
+    }
+  } catch {}
 
-// Warte auf Tauri Config bevor wir rendern (wichtig für apiBase)
-waitForTauriConfig().then(() => {
   const root = createRoot(document.getElementById('root')!);
   root.render(
     <React.StrictMode>
@@ -42,4 +41,6 @@ waitForTauriConfig().then(() => {
       </RootProviders>
     </React.StrictMode>
   );
-});
+}
+
+initAndRender();

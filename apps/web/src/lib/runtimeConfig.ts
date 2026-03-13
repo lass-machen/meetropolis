@@ -9,18 +9,11 @@ export function getApiBaseFromWindow(): string {
     const qp = sp.get('apiBase');
     if (qp) return stripTrailingSlash(qp);
   } catch {}
-  // 2) Desktop-Bridge (zur Laufzeit gesetzt)
+  // 2) Desktop-Bridge (zur Laufzeit gesetzt, z.B. via @meetropolis/desktop)
   try {
     const anyWin = (window as any) || {};
     const fromDesktop = anyWin.desktop?.apiBase || anyWin.__MEETROPOLIS_API_BASE__;
     if (typeof fromDesktop === 'string' && fromDesktop) return stripTrailingSlash(fromDesktop);
-  } catch {}
-  // 2.5) Tauri Fallback: wenn wir in Tauri sind aber kein apiBase gesetzt ist,
-  //       nutze die Production-Default statt den Browser-Host
-  try {
-    if ((window as any).__TAURI__) {
-      return 'https://api.meetropolis.me';
-    }
   } catch {}
   // 3) Build-time Env (Vite)
   try {

@@ -202,12 +202,7 @@
 
   "settings.title": "Settings",
   "settings.desc": "Camera, audio & display",
-  "settings.centerCamera": "Center camera on player",
-
-  "tauri.prefs.title": "App Preferences",
-  "tauri.prefs.desc": "macOS-specific settings",
-  "tauri.prefs.audioDucking": "Duck other audio",
-  "tauri.prefs.audioDuckingHint": "Reduce volume of other apps when someone is speaking"
+  "settings.centerCamera": "Center camera on player"
 }
 
 

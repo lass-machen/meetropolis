@@ -2,8 +2,16 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Card, Input, Button } from '../../ui/system';
 import { ThemeToggleButton } from '../../ui/theme';
-import { setTauriAuthToken } from '../../lib/tauriAuth';
+import { getDesktopModule } from '../../lib/desktopLoader';
 import { logger } from '../../lib/logger';
+
+/** Store auth token for desktop clients (Tauri can't use cookies) */
+async function storeDesktopAuthToken(token: string) {
+  try {
+    const desktop = await getDesktopModule();
+    if (desktop) desktop.setDesktopAuthToken(token);
+  } catch {}
+}
 
 export function AuthScreen(props: { baseUrl: string; onDone: () => void }) {
   const { baseUrl, onDone } = props;
@@ -20,23 +28,19 @@ export function AuthScreen(props: { baseUrl: string; onDone: () => void }) {
   async function post(path: string, body: any) {
     const url = `${baseUrl}${path}`;
     logger.debug('[AuthScreen] POST to:', url);
-    // In Tauri: extract tenant from web_base or current host
+    // Desktop-Clients (Tauri): x-tenant Header aus web_base extrahieren
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (window.__TAURI__) {
-      // Extract tenant slug from subdomain (e.g., https://demo.meetropolis.me -> "demo")
-      // Apex domains (e.g., meetropolis.me) have < 3 parts → no x-tenant header
-      try {
-        const webBase = (window as any).__MEETROPOLIS_WEB_BASE__ || '';
-        if (webBase) {
-          const hostname = new URL(webBase).hostname;
-          const parts = hostname.split('.');
-          if (parts.length >= 3) {
-            headers['x-tenant'] = parts[0];
-            logger.debug('[AuthScreen] Setting x-tenant header:', parts[0]);
-          }
+    try {
+      const webBase = (window as any).__MEETROPOLIS_WEB_BASE__ || '';
+      if (webBase) {
+        const hostname = new URL(webBase).hostname;
+        const parts = hostname.split('.');
+        if (parts.length >= 3) {
+          headers['x-tenant'] = parts[0];
+          logger.debug('[AuthScreen] Setting x-tenant header:', parts[0]);
         }
-      } catch {}
-    }
+      }
+    } catch {}
     let lastErr: any = null;
     const attempts = [200, 500, 1000];
     for (let i = 0; i < attempts.length; i++) {
@@ -100,7 +104,7 @@ export function AuthScreen(props: { baseUrl: string; onDone: () => void }) {
       try {
         const result = await post('/auth/guest', { token: t });
         if (result.token) {
-          setTauriAuthToken(result.token);
+          storeDesktopAuthToken(result.token);
         }
         // Clear hash to avoid re-triggering
         window.location.hash = '';
@@ -142,7 +146,7 @@ export function AuthScreen(props: { baseUrl: string; onDone: () => void }) {
       const result = await post('/auth/login', { email, password });
       // Store token for Tauri (returned by server for tauri:// origin)
       if (result.token) {
-        setTauriAuthToken(result.token);
+        storeDesktopAuthToken(result.token);
       }
       onDone();
     } catch (e: unknown) {
@@ -157,7 +161,7 @@ export function AuthScreen(props: { baseUrl: string; onDone: () => void }) {
       const result = await post('/auth/register', { code: invite, name, email, password });
       // Store token for Tauri (returned by server for tauri:// origin)
       if (result.token) {
-        setTauriAuthToken(result.token);
+        storeDesktopAuthToken(result.token);
       }
       onDone();
     } catch (e: unknown) {

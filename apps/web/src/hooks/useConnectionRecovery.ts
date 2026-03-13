@@ -1,99 +1,12 @@
 /**
- * useTauriApp Hook
+ * Connection Recovery Hooks
  *
- * Integrationshook für Tauri Desktop App Features:
- * - Mini-Modus (same-window resize + always-on-top)
- * - Reload-Funktionalität
- * - Server-Disconnect-Handling mit Auto-Reload
+ * Generische Hooks für Server-Health-Check und WebSocket/Colyseus-Disconnect-Handling.
+ * Nicht Tauri-spezifisch — funktioniert in jeder Umgebung.
  */
 
 import React from 'react';
 import { logger } from '../lib/logger';
-
-interface TauriAppState {
-  isTauri: boolean;
-  isMiniMode: boolean;
-  toggleMiniMode: () => Promise<void>;
-  reload: () => Promise<void>;
-}
-
-// Prüft ob wir in einer Tauri-App laufen
-function isTauriEnvironment(): boolean {
-  return typeof window !== 'undefined' && !!(window as any).__TAURI__;
-}
-
-export function useTauriApp(): TauriAppState {
-  const [isMiniMode, setIsMiniMode] = React.useState(false);
-  const isTauri = React.useMemo(() => isTauriEnvironment(), []);
-
-  // Listener für Mini-Mode-Änderungen von Rust (via Tauri events)
-  React.useEffect(() => {
-    if (!isTauri) return;
-
-    let unlisten: (() => void) | undefined;
-
-    const setupListener = async () => {
-      try {
-        const { listen } = await import('@tauri-apps/api/event');
-        unlisten = await listen<boolean>('mini-mode-changed', (event) => {
-          setIsMiniMode(event.payload);
-        });
-      } catch (e) {
-        logger.warn('[Tauri] Failed to setup mini-mode listener:', e);
-      }
-    };
-
-    setupListener();
-
-    // Initial check
-    const checkMiniMode = async () => {
-      try {
-        const { invoke } = await import('@tauri-apps/api/core');
-        const miniMode = await invoke<boolean>('is_mini_mode');
-        setIsMiniMode(miniMode);
-      } catch (e) {
-        logger.warn('[Tauri] Failed to check mini mode:', e);
-      }
-    };
-    checkMiniMode();
-
-    return () => {
-      unlisten?.();
-    };
-  }, [isTauri]);
-
-  const toggleMiniMode = React.useCallback(async () => {
-    if (!isTauri) return;
-
-    try {
-      const { invoke } = await import('@tauri-apps/api/core');
-      const newMiniMode = await invoke<boolean>('toggle_mini_mode');
-      setIsMiniMode(newMiniMode);
-    } catch (error) {
-      logger.error('[Tauri] Failed to toggle mini mode:', error);
-    }
-  }, [isTauri]);
-
-  const reload = React.useCallback(async () => {
-    if (isTauri) {
-      try {
-        const { invoke } = await import('@tauri-apps/api/core');
-        await invoke('reload_app');
-      } catch (error) {
-        window.location.reload();
-      }
-    } else {
-      window.location.reload();
-    }
-  }, [isTauri]);
-
-  return {
-    isTauri,
-    isMiniMode,
-    toggleMiniMode,
-    reload,
-  };
-}
 
 /**
  * Hook für Auto-Reload bei Server-Disconnect

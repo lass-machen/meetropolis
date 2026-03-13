@@ -6,39 +6,37 @@
 
 ### Monorepo Structure
 - `apps/server`: Express + Colyseus + Prisma
-- `apps/web`: React + Vite + Phaser + Tauri Desktop
+- `apps/web`: React + Vite + Phaser
 - `packages/shared`: Shared types and utilities
+- `packages/desktop`: (Private Submodule) Tauri Desktop App — optional, OSS funktioniert ohne
 
 ### Key Files for Context
 - `/AGENTS.md` - Development guidelines, quality budgets, architecture rules
 - `/README.md` - Project overview and setup
 - `/docker-compose.prod.yml` - Production deployment config
 
-### Tauri Desktop App
-The web app can be built as a native desktop app using Tauri v2:
-- Config: `apps/web/src-tauri/`
-- Uses `window.__MEETROPOLIS_API_BASE__` for API URL (set by Tauri bridge)
-- Cookies don't work in WKWebView - use token auth with `Authorization` header
-- CORS requires `tauri://localhost` origin
+### Desktop App (Private Submodule)
+Desktop-Features (Tauri) sind in `packages/desktop/` ausgelagert (privates Git-Submodule).
+Die Web-App lädt Desktop-Features per `desktopLoader.ts` via Dynamic Import.
+Ohne Submodule funktioniert alles — der Loader gibt graceful `null` zurück.
 
 ### Common Gotchas
-1. **API Base URL**: In Tauri, always check `window.__MEETROPOLIS_API_BASE__` or `window.desktop?.apiBase` before using env vars
-2. **LiveKit URL**: Tauri apps need external LiveKit URL from server (`/livekit/url` endpoint)
-3. **Auth**: Browser uses cookies, Tauri uses localStorage token + Authorization header
-4. **CORS**: Production needs `tauri://localhost` in allowed origins
+1. **API Base URL**: Desktop-Clients setzen `window.__MEETROPOLIS_API_BASE__` — der Code nutzt dieses Flag für Desktop-Erkennung
+2. **LiveKit URL**: Desktop-Apps brauchen externe LiveKit URL vom Server (`/livekit/url` Endpoint)
+3. **Auth**: Browser nutzt Cookies, Desktop nutzt localStorage Token + Authorization Header (via Desktop-Modul)
+4. **Kein `@tauri-apps` im OSS-Code**: Alle Tauri-Imports gehören ins Desktop-Submodule, nicht in `apps/web/`
 
 ### Build Commands
 ```bash
 # Web development
 npm run dev -w @meetropolis/web
 
-# Tauri desktop (from apps/web)
-npm run tauri dev    # Development
-npm run tauri build  # Production build
-
 # Server
 npm run dev -w @meetropolis/server
 
 # Full Docker stack
 docker compose -f docker-compose.prod.yml up --build
+
+# Desktop (nur mit packages/desktop Submodule)
+# cd packages/desktop && npm run tauri:dev
 ```

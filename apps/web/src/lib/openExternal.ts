@@ -1,10 +1,17 @@
-import { isTauri } from './tauriAuth';
+import { getDesktopModule } from './desktopLoader';
 
+/**
+ * Öffnet eine URL im externen Browser.
+ * Desktop (Tauri): Nutzt Shell Plugin via Desktop-Modul.
+ * Browser: window.open
+ */
 export async function openExternal(url: string): Promise<void> {
-  if (isTauri()) {
-    const { open } = await import('@tauri-apps/plugin-shell');
-    await open(url);
-  } else {
-    window.open(url, '_blank');
-  }
+  try {
+    const desktop = await getDesktopModule();
+    if (desktop) {
+      await desktop.openExternal(url);
+      return;
+    }
+  } catch {}
+  window.open(url, '_blank');
 }

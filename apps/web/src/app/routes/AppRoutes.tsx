@@ -66,7 +66,7 @@ export function AppRoutes() {
         const hashQIdx = (window.location.hash || '').indexOf('?');
         const hasInvite = hashQIdx !== -1 && new URLSearchParams((window.location.hash || '').slice(hashQIdx)).has('invite');
 
-        if (isSubdomain || !!(window as any).__TAURI__ || hasInvite) {
+        if (isSubdomain || !!(window as any).__MEETROPOLIS_API_BASE__ || hasInvite) {
           setRoute('app');
         } else {
           setRoute('landing');
@@ -137,7 +137,7 @@ export function AppRoutes() {
           registrationEnabled={registrationEnabled}
           onSuccess={(tenantSlug) => {
             const currentHost = window.location.hostname;
-            if ((window as any).__TAURI__) {
+            if ((window as any).__MEETROPOLIS_API_BASE__) {
               navigate('app');
             } else if (currentHost === 'localhost' || currentHost === '127.0.0.1') {
               navigate('app');

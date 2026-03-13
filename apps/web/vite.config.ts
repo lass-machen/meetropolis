@@ -1,17 +1,47 @@
-import { defineConfig } from 'vite';
+import { defineConfig, type Plugin } from 'vite';
+import { resolve } from 'path';
 import react from '@vitejs/plugin-react';
 
-const isDesktop = process.env.VITE_TARGET === 'desktop';
+/**
+ * Vite-Plugin: Optional private submodules als leeres Modul auflösen.
+ * Verhindert Fehler wenn @meetropolis/desktop (privates Submodule) nicht installiert ist.
+ * Der desktopLoader.ts fängt den fehlenden Export per try/catch ab.
+ */
+function optionalSubmodules(moduleIds: string[]): Plugin {
+  const set = new Set(moduleIds);
+  return {
+    name: 'optional-submodules',
+    enforce: 'pre',
+    resolveId(source) {
+      if (set.has(source)) return { id: `\0optional:${source}`, moduleSideEffects: false };
+      return null;
+    },
+    load(id) {
+      if (id.startsWith('\0optional:')) {
+        // Leeres Modul — der dynamic import() in desktopLoader schlägt fehl,
+        // weil kein export vorhanden ist. Das try/catch fängt das ab.
+        return 'export default null;';
+      }
+      return null;
+    },
+  };
+}
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    optionalSubmodules(['@meetropolis/desktop']),
+    react(),
+  ],
   // eigener Cache-Ordner, um alte Optimierungen sicher zu umgehen (Docker)
   cacheDir: '/tmp/.vite',
-  base: isDesktop ? './' : '/',
   resolve: {
     // Verhindert doppelte React-Instanzen (Invalid hook call #321)
     dedupe: ['react', 'react-dom'],
-    alias: {}
+    alias: {
+      // Desktop-Submodule (packages/desktop) importiert UI-Components aus der Web-App.
+      // Dieser Alias ermöglicht saubere Imports wie '@app/ui/system' statt langer relativer Pfade.
+      '@app': resolve(__dirname, 'src'),
+    }
   },
   build: {
     sourcemap: true,

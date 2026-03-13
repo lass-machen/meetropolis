@@ -16,19 +16,14 @@
     "build": "npm -w @meetropolis/web run build && npm -w @meetropolis/server run build",
     "generate": "npm -w @meetropolis/server run prisma:generate",
     "prisma:migrate": "npm -w @meetropolis/server run prisma:migrate",
-    "dev:loadtest": "npm -w @meetropolis/loadtest run dev",
-    "dev:desktop": "concurrently -n web,desktop \"npm:dev:web\" \"npm --workspace=@meetropolis/desktop run dev\"",
-    "build:desktop": "npm -w @meetropolis/web run build && npm -w @meetropolis/desktop run build",
-    "dist:desktop": "VITE_TARGET=desktop npm -w @meetropolis/web run build && npm -w @meetropolis/desktop run dist"
+    "dev:loadtest": "npm -w @meetropolis/loadtest run dev"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2.9.4",
     "@types/react": "^19.1.12",
     "concurrently": "^8.2.2"
   },
   "dependencies": {
     "@prisma/client": "^6.19.1",
-    "@tauri-apps/api": "^2.9.0",
     "@types/multer": "^2.0.0",
     "pino": "^10.1.0",
     "unzipper": "^0.12.3"
