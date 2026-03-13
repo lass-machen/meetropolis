@@ -20,6 +20,8 @@
   "topRightMenu.sessions": "Aktive Sitzungen",
   "topRightMenu.packStore": "Pack Store",
 
+  "av.micOn": "Mikrofon einschalten",
+  "av.micOff": "Mikrofon ausschalten",
   "av.selectMic": "Mic wählen…",
   "av.selectCam": "Kamera wählen…",
   "av.share.start": "Screenshare starten",

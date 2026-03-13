@@ -20,6 +20,8 @@
   "topRightMenu.sessions": "Active Sessions",
   "topRightMenu.packStore": "Pack Store",
 
+  "av.micOn": "Unmute microphone",
+  "av.micOff": "Mute microphone",
   "av.selectMic": "Select mic…",
   "av.selectCam": "Select camera…",
   "av.share.start": "Start screenshare",

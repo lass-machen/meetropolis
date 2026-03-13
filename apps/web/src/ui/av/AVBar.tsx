@@ -16,8 +16,9 @@ function DeviceSelector(props: {
   onSelect: (id: string) => void;
   labelSelect: string;
   disabled?: boolean;
+  title?: string;
 }) {
-  const { icon, isOn, onToggle, devices, selectedId, onSelect, labelSelect, disabled } = props;
+  const { icon, isOn, onToggle, devices, selectedId, onSelect, labelSelect, disabled, title } = props;
   const [open, setOpen] = React.useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -39,6 +40,7 @@ function DeviceSelector(props: {
         onClick={onToggle}
         icon={icon}
         iconPosition="only"
+        title={title}
         style={{ borderTopRightRadius: 0, borderBottomRightRadius: 0 }}
       />
       <Button
@@ -83,6 +85,8 @@ function DeviceSelector(props: {
 
 function PushToTalkButton({ disabled }: { disabled?: boolean }) {
   const pttOn = useAvSettingsStore(s => s.settings.pushToTalk);
+  const pttKey = useAvSettingsStore(s => s.settings.pushToTalkKey) || 'Space';
+  const keyLabel = pttKey === 'Space' ? 'Leertaste' : pttKey;
   return (
     <Button
       disabled={disabled}
@@ -90,7 +94,7 @@ function PushToTalkButton({ disabled }: { disabled?: boolean }) {
       onClick={() => useAvSettingsStore.getState().setSetting('pushToTalk', !pttOn)}
       icon="walkie-talkie"
       iconPosition="only"
-      title={pttOn ? 'Push-to-Talk' : 'Push-to-Talk aus'}
+      title={pttOn ? `Push-to-Talk (${keyLabel} halten)` : 'Push-to-Talk aktivieren'}
     />
   );
 }
@@ -127,6 +131,7 @@ export function AVBar(props: {
   // Default: Einstellungen sichtbar, außer explizit deaktiviert
   const showSettings = ((import.meta as any).env?.VITE_FEATURE_AV_SETTINGS !== 'false');
   const { t } = useTranslation();
+  const mod = navigator.platform?.startsWith('Mac') ? '⌘' : 'Ctrl';
 
   return (
     <ButtonGroup size={size} {...(className ? { className } : {})} {...(style ? { style } : {})}>
@@ -139,6 +144,7 @@ export function AVBar(props: {
         onSelect={onSelectMic}
         labelSelect={t('av.selectMic')}
         disabled={dndOn}
+        title={`${micOn ? t('av.micOff') : t('av.micOn')} (${mod}+Shift+M)`}
       />
 
       <Separator variant="vertical" />
@@ -168,7 +174,7 @@ export function AVBar(props: {
 
       <Separator variant="vertical" />
 
-      <Button active={dndOn} onClick={onToggleDnd} icon="bell-slash" iconPosition="only" title={dndOn ? t('av.dnd.on') : t('av.dnd.off')} />
+      <Button active={dndOn} onClick={onToggleDnd} icon="bell-slash" iconPosition="only" title={`${dndOn ? t('av.dnd.on') : t('av.dnd.off')} (${mod}+Shift+U)`} />
       <PushToTalkButton disabled={dndOn} />
       {cameraManual && (
         <Button disabled={dndOn} onClick={onRecenter} icon="location-crosshairs" iconPosition="only" title={t('av.recenter')} />
