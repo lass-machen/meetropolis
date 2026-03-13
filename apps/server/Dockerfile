@@ -57,6 +57,8 @@ ENV NODE_ENV=production
 # 5) Copy entire workspace node_modules (for hoisted deps) and server-specific
 COPY --from=builder /workspace/node_modules /workspace/node_modules
 COPY --from=builder /workspace/apps/server/node_modules ./node_modules
+# Shared package (workspace symlink target, needed at runtime by zoneLockHandler etc.)
+COPY --from=builder /workspace/packages/shared /workspace/packages/shared
 COPY --from=builder /workspace/apps/server/prisma ./prisma
 COPY --from=builder /workspace/apps/server/dist ./dist
 # Copy generated Prisma client to dist/ (compiled code imports from dist/generated)
