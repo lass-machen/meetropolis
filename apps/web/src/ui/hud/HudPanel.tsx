@@ -66,8 +66,9 @@ export const HudPanel = React.memo(function HudPanel(props: HudPanelProps) {
             style={{
               background: 'none',
               border: 'none',
+              color: 'inherit',
               cursor: hasAccess ? 'pointer' : 'default',
-              padding: '0 2px',
+              padding: '2px 4px',
               fontSize: 12,
               opacity: hasAccess ? 1 : 0.5,
               position: 'relative',
