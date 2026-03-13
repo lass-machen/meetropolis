@@ -39,6 +39,7 @@ import { GameCanvas } from './components/GameCanvas';
 import { ConnectionBanners } from './components/ConnectionBanners';
 import { usePaymentStatus } from '../../ui/billing/hooks/usePaymentStatus';
 import { PaymentStatusBanner } from '../../ui/billing/components/PaymentStatusBanner';
+import { ZoneAccessPanel } from '../../ui/hud/ZoneAccessPanel';
 import { AVControlBar } from './components/AVControlBar';
 import { useWorldEventHandlers } from './hooks/useWorldEventHandlers';
 import { useFetchMe } from './hooks/useFetchMe';
@@ -647,6 +648,8 @@ export function WorldApp() {
               getRoom={getRoom}
               overlayZoom={overlayZoom}
               onZoom={(z) => setOverlayZoom(z)}
+              colyseusRef={colyseusRef}
+              mySessionId={localPosRef.current.id}
               topRightMenu={{
                 menuOpen,
                 onToggleMenu: eventHandlers.handleToggleMenu,
@@ -693,6 +696,12 @@ export function WorldApp() {
                 <MapSwitcher room={connStatus.reconnecting ? null : colyseusRef.current} />
               </div>
             )}
+
+            <ZoneAccessPanel
+              colyseusRef={colyseusRef}
+              mySessionId={localPosRef.current.id}
+              currentZone={hud.zone !== '-' ? hud.zone : undefined}
+            />
 
             <AVControlBar
               editorActive={editor.active}

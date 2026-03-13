@@ -17,6 +17,7 @@ export class ZoneManager {
   private current: string | undefined;
   private room: { send: (type: string, data: unknown) => void; onMessage: (type: string, handler: (data: unknown) => void) => (() => void) } | null = null;
   private portalCooldownUntil: number = 0;
+  private lockedZones: Map<string, Set<string>> = new Map(); // zoneName → sessionIds mit Zugang
 
   constructor(zones: Polygon[], av: AVManager | null) {
     this.zones = zones;
@@ -84,6 +85,23 @@ export class ZoneManager {
 
   getCurrent() {
     return this.current;
+  }
+
+  setLockedZones(locks: Array<{ zoneName: string; accessList: string[] }>, _mySessionId: string) {
+    this.lockedZones.clear();
+    for (const lock of locks) {
+      this.lockedZones.set(lock.zoneName, new Set(lock.accessList));
+    }
+  }
+
+  isZoneBlocked(zoneName: string, sessionId: string): boolean {
+    const accessList = this.lockedZones.get(zoneName);
+    if (!accessList) return false; // Not locked
+    return !accessList.has(sessionId);
+  }
+
+  getLockedZones(): Map<string, Set<string>> {
+    return this.lockedZones;
   }
 
   getZones() {

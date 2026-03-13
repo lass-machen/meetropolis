@@ -8,6 +8,7 @@ import { setupBubbleHandlers } from './handlers/bubbleHandlers';
 import { setupEditorHandlers } from './handlers/editorHandlers';
 import { setupRemoteControlHandlers } from './handlers/remoteControlHandlers';
 import { setupPresenceHandlers, createRosterRefresher } from './handlers/presenceHandlers';
+import { setupZoneLockHandlers } from './handlers/zoneLockHandlers';
 import { useMapStore } from '../state/mapStore';
 
 export type { UseWorldRoomArgs } from './types';
@@ -111,6 +112,7 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
       setupEditorHandlers(room, args, scheduleBuildParticipantList);
       setupRemoteControlHandlers(room, args);
       setupPresenceHandlers(room, args, recentPresenceRef);
+      setupZoneLockHandlers(room);
 
       // Force initial state sync - onStateChange doesn't fire for the initial state,
       // and full_state message might arrive before handlers are registered

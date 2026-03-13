@@ -41,9 +41,12 @@ type Props = {
   onZoom: (z: number) => void;
   // TopRightMenu props
   topRightMenu?: TopRightMenuProps;
+  // Zone lock props
+  colyseusRef?: React.RefObject<any>;
+  mySessionId?: string;
 };
 
-export function Overlays({ hud, editorActive, avDnd, participants, gridExpanded, onToggleExpand, selectedSid, onSelectSid, getRoom, overlayZoom, onZoom, topRightMenu }: Props) {
+export function Overlays({ hud, editorActive, avDnd, participants, gridExpanded, onToggleExpand, selectedSid, onSelectSid, getRoom, overlayZoom, onZoom, topRightMenu, colyseusRef, mySessionId }: Props) {
   // Halte die letzte nicht-leere Teilnehmerliste für kurze Zeit (Reconnect-Grace),
   // um visuelles Flackern bei kurzzeitigen Verbindungsabbrüchen zu vermeiden.
   const lastNonEmptyRef = React.useRef<Participant[]>(participants);
@@ -118,7 +121,7 @@ export function Overlays({ hud, editorActive, avDnd, participants, gridExpanded,
       )}
 
       {/* HudPanel hidden when fullscreen overlay is open */}
-      {!selectedSid && <HudPanel hud={hud} />}
+      {!selectedSid && <HudPanel hud={hud} colyseusRef={colyseusRef} mySessionId={mySessionId} />}
 
       {/* Fullscreen Participant Overlay */}
       {!editorActive && !avDnd && selectedSid && (() => {

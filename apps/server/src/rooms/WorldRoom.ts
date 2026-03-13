@@ -5,6 +5,7 @@ import { Schema, type, MapSchema } from '@colyseus/schema';
 import { PrismaClient } from '../generated/prisma/index.js';
 import { getTenancyModule, OSS_USER_LIMIT } from '../tenancyLoader.js';
 import { getBillingModuleSync } from '../billingLoader.js';
+import { createZoneLockState, setupZoneLockHandlers, onPlayerLeaveZoneLock, isMovementBlocked, invalidateZoneCache } from './handlers/zoneLockHandler.js';
 
 interface RoomOptions {
   tenant?: string;
@@ -71,6 +72,7 @@ export class WorldRoom extends Room<WorldState> {
   private guestExpiryInterval: ReturnType<typeof setInterval> | null = null;
   // Persist multiple bubble groups: groupId -> member sessionIds
   private bubbleGroups: Record<string, string[]> = {};
+  private zoneLockState = createZoneLockState();
   private getAllBubbleMembers(): string[] {
     const all: string[] = [];
     for (const members of Object.values(this.bubbleGroups)) {
@@ -245,6 +247,13 @@ export class WorldRoom extends Room<WorldState> {
         logger.warn('[WorldRoom] Move from unknown player:', client.sessionId);
         return;
       }
+      // Zone lock: block movement into locked zones
+      const moveCheck = isMovementBlocked(this.zoneLockState, client.sessionId, player.mapId, { x: data.x, y: data.y });
+      if (moveCheck.blocked) {
+        client.send('zone_move_blocked', { zoneName: moveCheck.zoneName });
+        return;
+      }
+
       player.x = data.x;
       player.y = data.y;
       player.direction = data.direction;
@@ -266,6 +275,8 @@ export class WorldRoom extends Room<WorldState> {
       logger.debug('[WorldRoom] Editor update from:', client.sessionId, 'type:', data.type);
       // Broadcast editor update to all other clients
       this.broadcast('editor_update', data, { except: client });
+      // Invalidate zone cache on editor updates so locks use fresh zone data
+      invalidateZoneCache(this.zoneLockState);
     });
 
     // Handle DND status updates
@@ -494,6 +505,9 @@ export class WorldRoom extends Room<WorldState> {
     } catch (e) {
       logger.error('[WorldRoom] Failed to subscribe to presence', e);
     }
+
+    // Setup zone lock handlers
+    setupZoneLockHandlers(this, this.zoneLockState, this.prismaForPresence ?? new PrismaClient());
   }
 
   // Editor-Updates können das Default-Spawn live setzen
@@ -853,6 +867,11 @@ export class WorldRoom extends Room<WorldState> {
         })).filter(g => Array.isArray(g.members) && g.members.length >= 2);
         const members = this.getAllBubbleMembers();
         client.send('bubble_state', { groups, members });
+        // Zone lock state mitsenden
+        const zoneLocks = Array.from(this.zoneLockState.locks.values());
+        if (zoneLocks.length > 0) {
+          client.send('zone_lock_state', { locks: zoneLocks });
+        }
       } catch (e) { logger.debug('[WorldRoom] Failed to send full_state/bubble_state to client', e); }
     }, 25);
 
@@ -944,6 +963,8 @@ export class WorldRoom extends Room<WorldState> {
     }
 
     this.state.players.delete(client.sessionId);
+    // Zone lock cleanup
+    onPlayerLeaveZoneLock(this, this.zoneLockState, client.sessionId);
     try { colyseusPlayers.dec(); } catch (e) { logger.debug('[WorldRoom] Failed to decrement colyseusPlayers metric', e); }
     logger.info('[WorldRoom] Player left:', client.sessionId);
 
