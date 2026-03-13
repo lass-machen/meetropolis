@@ -527,19 +527,30 @@ export function WorldApp() {
     };
   }, [isTauri, toggleMiniMode, setTauriPrefsOpen]);
 
-  // Cmd/Ctrl+Shift+M to toggle mic (generisch, funktioniert in allen Umgebungen)
+  // PTT-aware mic toggle: wenn PTT aktiv ist, PTT deaktivieren statt Mic umschalten
+  const pttAwareToggleMic = useCallback(async () => {
+    const pttOn = useAvSettingsStore.getState().settings.pushToTalk;
+    if (pttOn) {
+      // PTT deaktivieren → usePushToTalk cleanup setzt track.enabled = true
+      useAvSettingsStore.getState().setSetting('pushToTalk', false);
+      return;
+    }
+    await eventHandlers.handleToggleMic();
+  }, [eventHandlers.handleToggleMic]);
+
+  // Cmd/Ctrl+D to toggle mic (generisch, funktioniert in allen Umgebungen)
   useEffect(() => {
-    if (!eventHandlers.handleToggleMic) return;
+    if (!pttAwareToggleMic) return;
     const handleKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'm') {
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === 'd') {
         e.preventDefault();
         e.stopPropagation();
-        eventHandlers.handleToggleMic();
+        pttAwareToggleMic();
       }
     };
     window.addEventListener('keydown', handleKey, true);
     return () => window.removeEventListener('keydown', handleKey, true);
-  }, [eventHandlers.handleToggleMic]);
+  }, [pttAwareToggleMic]);
 
   const participantsToRender = useMemo(() =>
     uiParticipants.length > 0
@@ -597,7 +608,7 @@ export function WorldApp() {
           avState={avState}
           getDisplayName={getDisplayName}
           onJumpTo={eventHandlers.handleJumpTo}
-          onToggleMic={eventHandlers.handleToggleMic}
+          onToggleMic={pttAwareToggleMic}
           onToggleCam={eventHandlers.handleToggleCam}
           onToggleDnd={eventHandlers.handleToggleDnd}
           onToggleShare={eventHandlers.handleToggleShare}
@@ -690,7 +701,7 @@ export function WorldApp() {
               selectedMicId={selectedMicId}
               selectedCamId={selectedCamId}
               cameraManual={cameraManual}
-              onToggleMic={eventHandlers.handleToggleMic}
+              onToggleMic={pttAwareToggleMic}
               onSelectMic={eventHandlers.handleSelectMic}
               onToggleCam={eventHandlers.handleToggleCam}
               onSelectCam={eventHandlers.handleSelectCam}

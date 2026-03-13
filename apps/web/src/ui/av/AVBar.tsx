@@ -144,7 +144,7 @@ export function AVBar(props: {
         onSelect={onSelectMic}
         labelSelect={t('av.selectMic')}
         disabled={dndOn}
-        title={`${micOn ? t('av.micOff') : t('av.micOn')} (${mod}+Shift+M)`}
+        title={`${micOn ? t('av.micOff') : t('av.micOn')} (${mod}+D)`}
       />
 
       <Separator variant="vertical" />
