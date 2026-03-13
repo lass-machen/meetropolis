@@ -9,6 +9,7 @@ interface UIParticipantMini {
   hasMic: boolean;
   isSpeaking: boolean;
   media?: 'camera' | 'screen';
+  dnd?: boolean;
 }
 
 interface ZoneInfo {
@@ -354,11 +355,12 @@ function MiniCard({ part, roomGetter, position, onJumpTo, onScreenClick }: {
         border: `1px solid ${borderColor}`,
         boxShadow: shadow,
         cursor: (hasPos || isScreen) ? 'pointer' : 'default',
-        transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
+        transition: 'border-color 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease',
         minHeight: isScreen ? 60 : 80,
         display: 'flex',
         flexDirection: 'column',
         ...(isScreen ? { gridColumn: '1 / -1' } : {}),
+        ...(part.dnd ? { filter: 'grayscale(90%) brightness(0.8)' } : {}),
       }}
     >
       {/* Video element (hidden behind content, shown when rendering) */}
@@ -420,6 +422,16 @@ function MiniCard({ part, roomGetter, position, onJumpTo, onScreenClick }: {
             <div style={{ display: 'flex', gap: 3 }}>
               <Badge on={part.hasMic} iconOn="microphone" iconOff="microphone-slash" />
               <Badge on={part.hasVideo} iconOn="video" iconOff="video-slash" />
+              {part.dnd && (
+                <div style={{
+                  width: 22, height: 22, borderRadius: 999,
+                  display: 'grid', placeItems: 'center',
+                  background: 'rgba(244,63,94,0.25)',
+                  border: '1px solid rgba(244,63,94,0.5)',
+                }}>
+                  <FAIcon name="moon" variant="solid" size="xs" style={{ fontSize: 9 }} />
+                </div>
+              )}
             </div>
           )}
           {isScreen && (

@@ -5,6 +5,7 @@ import type { ButtonGroupItemSize } from '../buttonGroup';
 import { FAIcon } from '../FAIcon';
 import { AudioSettingsModal } from './AudioSettingsModal';
 import { useTranslation } from 'react-i18next';
+import { useAvSettingsStore } from '../../state/avSettings';
 
 function DeviceSelector(props: {
   icon: string;
@@ -77,6 +78,20 @@ function DeviceSelector(props: {
         </div>
       )}
     </div>
+  );
+}
+
+function PushToTalkButton({ disabled }: { disabled?: boolean }) {
+  const pttOn = useAvSettingsStore(s => s.settings.pushToTalk);
+  return (
+    <Button
+      disabled={disabled}
+      active={pttOn}
+      onClick={() => useAvSettingsStore.getState().setSetting('pushToTalk', !pttOn)}
+      icon="walkie-talkie"
+      iconPosition="only"
+      title={pttOn ? 'Push-to-Talk' : 'Push-to-Talk aus'}
+    />
   );
 }
 
@@ -154,6 +169,7 @@ export function AVBar(props: {
       <Separator variant="vertical" />
 
       <Button active={dndOn} onClick={onToggleDnd} icon="bell-slash" iconPosition="only" title={dndOn ? t('av.dnd.on') : t('av.dnd.off')} />
+      <PushToTalkButton disabled={dndOn} />
       {cameraManual && (
         <Button disabled={dndOn} onClick={onRecenter} icon="location-crosshairs" iconPosition="only" title={t('av.recenter')} />
       )}

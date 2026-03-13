@@ -23,6 +23,10 @@ export type AvSettings = {
   clientVoiceIsolation: boolean; // RNNoise worklet, if available
   serverVoiceIsolation: boolean; // LiveKit/Krisp (only if server supports it)
 
+  // Push-to-Talk
+  pushToTalk: boolean;
+  pushToTalkKey: string;
+
   // Preset selection
   preset: AvPreset;
 };
@@ -50,6 +54,8 @@ const DEFAULTS: AvSettings = {
   compressor: false,
   clientVoiceIsolation: true,
   serverVoiceIsolation: false,
+  pushToTalk: false,
+  pushToTalkKey: 'Space',
   preset: 'standard',
 };
 

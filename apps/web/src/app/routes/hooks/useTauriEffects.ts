@@ -6,10 +6,11 @@ interface UseTauriEffectsParams {
   isMiniMode: boolean;
   toggleMiniMode: () => void;
   onOpenPreferences: () => void;
+  onToggleMic?: () => void;
 }
 
 export function useTauriEffects(params: UseTauriEffectsParams) {
-  const { isTauri, toggleMiniMode, onOpenPreferences } = params;
+  const { isTauri, toggleMiniMode, onOpenPreferences, onToggleMic } = params;
 
   // Cmd+M keyboard shortcut to toggle mini mode
   useEffect(() => {
@@ -24,6 +25,20 @@ export function useTauriEffects(params: UseTauriEffectsParams) {
     window.addEventListener('keydown', handleKeyDown, true);
     return () => window.removeEventListener('keydown', handleKeyDown, true);
   }, [isTauri, toggleMiniMode]);
+
+  // Cmd/Ctrl+Shift+M to toggle mic (works in both Tauri and web)
+  useEffect(() => {
+    if (!onToggleMic) return;
+    const handleKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'm') {
+        e.preventDefault();
+        e.stopPropagation();
+        onToggleMic();
+      }
+    };
+    window.addEventListener('keydown', handleKey, true);
+    return () => window.removeEventListener('keydown', handleKey, true);
+  }, [onToggleMic]);
 
   // Listen for native menu "open-preferences" event
   useEffect(() => {

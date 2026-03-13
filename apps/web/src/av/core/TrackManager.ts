@@ -126,9 +126,20 @@ export class TrackManager implements Disposable {
 
     await this.enqueueMic(async () => {
       const room = this.deps.getRoom();
-      if (room) {
-        await unpublishMicrophone({ room, state, checkAllTracksUnpublished: () => this.checkAllTracksUnpublished() });
+      if (!room) return;
+
+      // Prefer switchActiveDevice — replaces the underlying track seamlessly
+      // without changing the track SID, so remote clients don't lose audio.
+      try {
+        await room.switchActiveDevice('audioinput', deviceId);
+        AVLogger.info('track.mic.switch_device_seamless', { deviceId });
+        return;
+      } catch (err) {
+        AVLogger.warn('track.mic.switch_device_fallback', { deviceId, error: String(err) });
       }
+
+      // Fallback: unpublish + republish (causes brief audio interruption)
+      await unpublishMicrophone({ room, state, checkAllTracksUnpublished: () => this.checkAllTracksUnpublished() });
       await this.applyMicrophoneDesired();
     });
   }
@@ -153,9 +164,17 @@ export class TrackManager implements Disposable {
 
     await this.enqueueCam(async () => {
       const room = this.deps.getRoom();
-      if (room) {
-        await unpublishCamera({ room, state, checkAllTracksUnpublished: () => this.checkAllTracksUnpublished() });
+      if (!room) return;
+
+      try {
+        await room.switchActiveDevice('videoinput', deviceId);
+        AVLogger.info('track.cam.switch_device_seamless', { deviceId });
+        return;
+      } catch (err) {
+        AVLogger.warn('track.cam.switch_device_fallback', { deviceId, error: String(err) });
       }
+
+      await unpublishCamera({ room, state, checkAllTracksUnpublished: () => this.checkAllTracksUnpublished() });
       await this.applyCameraDesired();
     });
   }

@@ -11,6 +11,8 @@ import { gameBridge } from '../../game/bridge';
 import { getApiBaseFromWindow } from '../../lib/runtimeConfig';
 import { logger } from '../../lib/logger';
 import { useDoNotDisturb } from '../../av/hooks/useDoNotDisturb';
+import { usePushToTalk } from '../../av/hooks/usePushToTalk';
+import { useAvSettingsStore } from '../../state/avSettings';
 import { useScreenshareEvents } from '../../av/hooks/useScreenshareEvents';
 import { BubbleManager } from '../../game/bubbleManager';
 import { FollowManager } from '../../game/followManager';
@@ -211,7 +213,6 @@ export function WorldApp() {
 
   // Tauri integration (extracted to hook)
   const { isTauri, isMiniMode, toggleMiniMode } = useTauriApp();
-  useTauriEffects({ isTauri, isMiniMode, toggleMiniMode, onOpenPreferences: () => setTauriPrefsOpen(true) });
 
   // Connection Recovery
   const { showReloadBanner, handleReload, dismissBanner } = useConnectionRecovery({
@@ -484,6 +485,14 @@ export function WorldApp() {
     };
   }, []);
 
+  // Push-to-Talk
+  usePushToTalk({
+    enabled: useAvSettingsStore(s => s.settings.pushToTalk),
+    pttKey: useAvSettingsStore(s => s.settings.pushToTalkKey),
+    isDnd: avState.dnd,
+    avRef,
+  });
+
   // Event handlers hook
   const eventHandlers = useWorldEventHandlers({
     apiBase, avRef, colyseusRef, localPosRef, remotesRef, bubbleGroupsRef, bubbleMembersRef,
@@ -494,6 +503,8 @@ export function WorldApp() {
     setOverlayZoom, setSelectedMicId, setSelectedCamId, applyVolumesToUi, saveAllToServer,
     handleConnectionReload: handleReload, dismissBanner,
   });
+
+  useTauriEffects({ isTauri, isMiniMode, toggleMiniMode, onOpenPreferences: () => setTauriPrefsOpen(true), onToggleMic: eventHandlers.handleToggleMic });
 
   const participantsToRender = useMemo(() =>
     uiParticipants.length > 0
