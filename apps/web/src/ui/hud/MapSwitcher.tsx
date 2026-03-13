@@ -18,7 +18,7 @@ export function MapSwitcher({ room }: MapSwitcherProps) {
     const targetId = e.target.value;
     const targetMap = availableMaps.find(m => m.id === targetId);
     if (targetMap && targetId !== currentMapId) {
-      changeMap(targetMap.id, targetMap.name, room);
+      changeMap(targetMap.id, targetMap.name, room!);
     }
   };
 

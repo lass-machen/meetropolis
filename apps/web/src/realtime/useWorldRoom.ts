@@ -172,7 +172,7 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
       room.onStateChange((state: any) => {
         // Update roster
         try {
-          const { remotesRef, colyseusToLivekitMap, identityToNameMap, localPosRef } = args;
+          const { colyseusToLivekitMap, localPosRef } = args;
           const online: Record<string, { name: string; x: number; y: number }> = {};
 
           // Build online map from state.players

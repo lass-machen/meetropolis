@@ -356,9 +356,9 @@ export function useWorldEventHandlers(params: UseWorldEventHandlersParams) {
     try {
       const target = contextMenu.playerId;
       if (!target) return false;
-      const targetGroup = bubbleGroupsRef.current[target];
-      const meId = localPosRef.current.id;
-      const myGroup = meId ? (bubbleGroupsRef.current[meId] || null) : null;
+      const targetGroup = bubbleGroupsRef.current?.[target];
+      const meId = localPosRef.current?.id;
+      const myGroup = meId ? (bubbleGroupsRef.current?.[meId] || null) : null;
       return !!targetGroup && targetGroup !== myGroup;
     } catch {
       return false;
@@ -367,8 +367,8 @@ export function useWorldEventHandlers(params: UseWorldEventHandlersParams) {
 
   const showAddToBubbleOption = useMemo(() => {
     try {
-      const meId = localPosRef.current.id;
-      const myGroup = meId ? (bubbleGroupsRef.current[meId] || null) : null;
+      const meId = localPosRef.current?.id;
+      const myGroup = meId ? (bubbleGroupsRef.current?.[meId] || null) : null;
       return !!myGroup;
     } catch {
       return false;

@@ -1,4 +1,3 @@
-import React from 'react';
 import { AvailablePlan, BillingStatus } from '../types';
 import { formatCurrency } from '../utils';
 import { styles } from '../styles';

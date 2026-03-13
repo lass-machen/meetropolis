@@ -33,7 +33,7 @@ export async function getDesktopModule(): Promise<DesktopModule | null> {
   if (cached !== undefined) return cached;
 
   try {
-    // @ts-expect-error — @meetropolis/desktop ist ein optionales privates Submodule.
+    // @meetropolis/desktop ist ein optionales privates Submodule.
     // Im OSS-Build existiert es nicht, der Import schlägt dann fehl → catch.
     const mod: any = await import('@meetropolis/desktop');
     const resolved = mod.default ?? mod;

@@ -56,7 +56,7 @@ export function UserManagement(props: { baseUrl: string; onBack: () => void }) {
         if (myUser?.role) setCurrentUserRole(myUser.role);
       }
     } catch (e: unknown) {
-      setError(e.message || t('common.error'));
+      setError((e instanceof Error ? e.message : String(e)) || t('common.error'));
     } finally {
       setLoading(false);
     }
@@ -74,7 +74,7 @@ export function UserManagement(props: { baseUrl: string; onBack: () => void }) {
       if (!res.ok) throw new Error((await res.json())?.error || t('common.error'));
       await load();
     } catch (e: unknown) {
-      setError(e.message || t('common.error'));
+      setError((e instanceof Error ? e.message : String(e)) || t('common.error'));
     }
   }
 
@@ -96,7 +96,7 @@ export function UserManagement(props: { baseUrl: string; onBack: () => void }) {
       await load();
       setEdit(null);
     } catch (e: unknown) {
-      setError(e.message || 'Fehler');
+      setError((e instanceof Error ? e.message : String(e)) || 'Fehler');
     }
   }
 
@@ -107,7 +107,7 @@ export function UserManagement(props: { baseUrl: string; onBack: () => void }) {
       setConfirmDeleteId(null);
       await load();
     } catch (e: unknown) {
-      setError(e.message || t('common.error'));
+      setError((e instanceof Error ? e.message : String(e)) || t('common.error'));
     }
   }
 
@@ -305,7 +305,7 @@ export function UserManagement(props: { baseUrl: string; onBack: () => void }) {
                             setResetToken(data.token || null);
                             setResetOpen(true);
                           } catch (e: unknown) {
-                            setError(e.message || 'Fehler');
+                            setError((e instanceof Error ? e.message : String(e)) || 'Fehler');
                           }
                         }}
                         style={{ padding: '6px 16px', borderRadius: 6, fontSize: 13 }}
@@ -355,7 +355,7 @@ export function UserManagement(props: { baseUrl: string; onBack: () => void }) {
             setInviteCode(data.code || null);
             try { await (document as any).__userManagementLoad?.(); } catch (err) { logger.warn('[UserManagement] Failed to reload after invite', err); }
           } catch (e: unknown) {
-            setError(e.message || t('common.error'));
+            setError((e instanceof Error ? e.message : String(e)) || t('common.error'));
           }
         }}>{t('admin.users.createInvite')}</Button>
       </>}>

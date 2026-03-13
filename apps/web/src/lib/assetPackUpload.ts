@@ -118,6 +118,6 @@ export async function uploadTilesetAsAssetPack(
     
   } catch (e: unknown) {
     logger.error('[AssetPackUpload] Failed:', e);
-    return { success: false, error: e.message || String(e) };
+    return { success: false, error: (e instanceof Error ? e.message : String(e)) };
   }
 }

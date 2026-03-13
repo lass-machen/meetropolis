@@ -152,7 +152,7 @@ export function WorldApp() {
   const { buildParticipantList, applyVolumesToUi } = useParticipants({
     avRef, zoneRef, localPosRef, remotesRef, colyseusToLivekitMap, identityToNameMap,
     volumeRef, me, setUiParticipants,
-    disposedRef, getDisplayName, gameBridge, dndRef,
+    disposedRef, getDisplayName, gameBridge: gameBridge as any, dndRef,
   });
 
   // Rebuild participant list when me changes to ensure UserCard shows display name, not UUID
@@ -494,12 +494,12 @@ export function WorldApp() {
 
   // Event handlers hook
   const eventHandlers = useWorldEventHandlers({
-    apiBase, avRef, colyseusRef, localPosRef, remotesRef, bubbleGroupsRef, bubbleMembersRef,
+    apiBase, avRef, colyseusRef, localPosRef, bubbleGroupsRef, bubbleMembersRef,
     bubbleStartRef, followRef, manualNavRef, gameBridge, editor, avState, contextMenu,
     setAvState, setMe, setGridExpanded, setSelectedSid, setMenuOpen, setUserModalOpen,
     setInvitesModalOpen, setPage, setAdminOpen, setApiModalOpen, setBillingOpen, setProfileOpen,
     setTenantSettingsOpen, setSessionsOpen, setRosterCollapsed, setBubbleUi, setContextMenu,
-    setOverlayZoom, setSelectedMicId, setSelectedCamId, applyVolumesToUi, saveAllToServer,
+    setSelectedMicId, setSelectedCamId, applyVolumesToUi, saveAllToServer,
     handleConnectionReload: handleReload, dismissBanner,
   });
 

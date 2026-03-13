@@ -79,7 +79,6 @@ export async function getAdminEnterpriseModule(): Promise<AdminEnterpriseModule 
   loadAttempted = true;
 
   try {
-    // @ts-expect-error — enterprise package absent in OSS; caught below
     const modUnknown: unknown = await import('@meetropolis/billing');
     const mod = adminEnterpriseSchema.parse(unwrapDefaultExport(modUnknown));
 

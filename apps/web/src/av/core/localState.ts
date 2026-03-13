@@ -1,4 +1,4 @@
-import type { Room, LocalParticipant, LocalTrackPublication, Track, TrackPublication } from 'livekit-client';
+import type { Room, LocalParticipant, Track, TrackPublication } from 'livekit-client';
 
 interface TrackInfo {
   source?: string | number;
@@ -65,10 +65,8 @@ export function isLocalShareOn(room: Room | null | undefined): boolean {
   try {
     const lp: LocalParticipant | undefined = room?.localParticipant;
     if (!lp) return false;
-    const lpExtended = lp as LocalParticipant & {
-      isScreenShareEnabled?: () => boolean;
-    };
-    if (typeof lpExtended.isScreenShareEnabled === 'function') return !!lpExtended.isScreenShareEnabled();
+    const lpAny = lp as any;
+    if ('isScreenShareEnabled' in lpAny) return !!lpAny.isScreenShareEnabled;
     const pubs: TrackPublication[] = Array.from(lp.trackPublications?.values() || []);
     return pubs.some((pub: TrackPublication) => {
       const pubInfo = pub as unknown as TrackInfo;

@@ -49,7 +49,7 @@ export function AuthScreen(props: { baseUrl: string; onDone: () => void }) {
         if (!res.ok) throw new Error((await res.json())?.error || t('common.error'));
         return await res.json().catch(() => ({}));
       } catch (e: unknown) {
-        logger.warn('[AuthScreen] Fetch error:', e?.message || String(e), 'URL:', url);
+        logger.warn('[AuthScreen] Fetch error:', (e as Error)?.message || String(e), 'URL:', url);
         lastErr = e;
         // Netzwerk-/Verbindungsfehler: kurzer Retry mit Backoff
         if (i < attempts.length - 1) {
@@ -85,7 +85,7 @@ export function AuthScreen(props: { baseUrl: string; onDone: () => void }) {
           await post('/auth/login', { email: autoEmail, password: autoPassword });
           onDone();
         } catch (e: unknown) {
-          setMsg(e?.message || 'Auto-Login fehlgeschlagen');
+          setMsg((e as Error)?.message || 'Auto-Login fehlgeschlagen');
         }
       })();
     } catch {}
@@ -150,7 +150,7 @@ export function AuthScreen(props: { baseUrl: string; onDone: () => void }) {
       }
       onDone();
     } catch (e: unknown) {
-      setMsg(e.message);
+      setMsg(e instanceof Error ? e.message : String(e));
     }
   }
 
@@ -165,7 +165,7 @@ export function AuthScreen(props: { baseUrl: string; onDone: () => void }) {
       }
       onDone();
     } catch (e: unknown) {
-      setMsg(e.message);
+      setMsg(e instanceof Error ? e.message : String(e));
     }
   }
 
@@ -177,7 +177,7 @@ export function AuthScreen(props: { baseUrl: string; onDone: () => void }) {
       setView('login');
       setMsg(t('auth.passwordUpdated'));
     } catch (e: unknown) {
-      setMsg(e.message);
+      setMsg(e instanceof Error ? e.message : String(e));
     }
   }
 

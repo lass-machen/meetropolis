@@ -94,7 +94,7 @@ export function AdminHealthDashboard({ onClose }: { onClose: () => void }) {
         setStats(await statsRes.json());
       }
     } catch (e: unknown) {
-      setError(e.message || 'Network error');
+      setError((e instanceof Error ? e.message : String(e)) || 'Network error');
     } finally {
       setLoading(false);
     }

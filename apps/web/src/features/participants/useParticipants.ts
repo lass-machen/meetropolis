@@ -95,12 +95,12 @@ export function useParticipants(deps: {
         // Keine LiveKit-Subscription-Änderungen hier – AV-Manager steuert Subscriptions & Qualitäten zentral
         const isVideoPub = (pub: TrackPublication) => {
           const source = (pub?.source ?? pub?.track?.source);
-          return (!!pub?.track && (source === 'camera' || source === 1));
+          return (!!pub?.track && (source === 'camera' || (source as unknown) === 1));
         };
         const isMicPub = (pub: TrackPublication) => {
           const source = (pub?.source ?? pub?.track?.source);
           const kind = (pub?.kind ?? pub?.track?.kind);
-          if (!(kind === 'audio' || source === 'microphone' || source === 0)) return false;
+          if (!(kind === 'audio' || source === 'microphone' || (source as unknown) === 0)) return false;
           const t = pub?.track;
           if (!t) return false;
           const tExtended = t as typeof t & {
@@ -120,7 +120,7 @@ export function useParticipants(deps: {
         };
         const isScreenPub = (pub: TrackPublication) => {
           const source = (pub?.source ?? pub?.track?.source);
-          return (source === 'screen_share' || source === 2);
+          return (source === 'screen_share' || (source as unknown) === 2);
         };
         const hasV = publications.some(isVideoPub);
         const hasMic = publications.some(isMicPub);
@@ -156,7 +156,7 @@ export function useParticipants(deps: {
       } catch {}
     };
     pushP(room.localParticipant, true);
-    const remotes = Array.from(room.remoteParticipants?.values() || room.participants?.values() || []);
+    const remotes = Array.from(room.remoteParticipants?.values() || []);
     for (const rp of remotes) pushP(rp, false);
     try {
       const presentIdentities = new Set<string>(list.map(p => p.identity));

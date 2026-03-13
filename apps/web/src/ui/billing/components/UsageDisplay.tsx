@@ -1,4 +1,3 @@
-import React from 'react';
 import { BillingStatus } from '../types';
 import { styles } from '../styles';
 

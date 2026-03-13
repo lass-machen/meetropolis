@@ -1,6 +1,6 @@
 // Audio/Video type definitions
 
-import type { Room as LiveKitRoom, LocalParticipant, RemoteParticipant, Track, TrackPublication } from 'livekit-client';
+import type { Room as LiveKitRoom } from 'livekit-client';
 
 export interface AVManager {
   room: LiveKitRoom | null;

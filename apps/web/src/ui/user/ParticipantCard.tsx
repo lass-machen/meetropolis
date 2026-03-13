@@ -7,7 +7,7 @@ import { getApiBaseFromWindow } from '../../lib/runtimeConfig';
 
 export function ParticipantCard(props: { part: { sid: string; identity: string; hasVideo: boolean; hasMic: boolean; isSpeaking: boolean; media: 'camera'|'screen'; volume?: number; dnd?: boolean; avatarId?: string }, roomGetter: () => any | undefined, compact?: boolean, full?: boolean, zoom?: number, collapsed?: boolean }) {
   const videoRef = React.useRef<HTMLVideoElement | null>(null);
-  const { part, roomGetter, compact, full, zoom = 1, collapsed } = props;
+  const { part, roomGetter, full, zoom = 1, collapsed } = props;
   const [isVideoRendering, setIsVideoRendering] = React.useState(false);
   const [isLocal, setIsLocal] = React.useState(false);
   const [hover, setHover] = React.useState(false);
@@ -283,9 +283,6 @@ export function ParticipantCard(props: { part: { sid: string; identity: string; 
   const borderColor = part.isSpeaking ? speakingColor : 'var(--border)';
   const glow = part.isSpeaking ? `0 0 0 2px var(--speaking-glow, rgba(16,185,129,0.35)), var(--shadow)` : 'var(--shadow)';
   const isScreen = part.media === 'screen';
-  const aspect = full ? undefined : (isScreen ? '16 / 9' : '16 / 9');
-  const targetSize = full ? undefined : (compact ? '100%' : '36vh');
-  const minW = full ? undefined : (compact ? 260 : 420);
   const isDnd = !!part.dnd;
   const disabled = (!isLocal && (volume <= 0.1)) || isDnd;
 

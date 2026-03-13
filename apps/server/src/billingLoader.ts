@@ -107,7 +107,6 @@ export async function getBillingModule(): Promise<BillingModule | null> {
 
   try {
     // Dynamic import on runtime; absent in OSS
-    // @ts-expect-error — enterprise package absent in OSS; caught below
     const modUnknown: unknown = await import('@meetropolis/billing');
     const mod = billingModuleSchema.parse(unwrapDefaultExport(modUnknown));
 

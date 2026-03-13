@@ -74,7 +74,7 @@ export function TenantSignupPage({ apiBase, onBack, onSuccess, selectedPlan, reg
       setCreatedTenant({ slug: data.tenant?.slug || slug, freeSeats: data.tenant?.freeSeats || 3 });
       setStep('success');
     } catch (e: unknown) {
-      setError(e?.message || 'Registration failed');
+      setError((e as Error)?.message || 'Registration failed');
     } finally {
       setBusy(false);
     }

@@ -93,7 +93,7 @@ export async function applyDefaultRemoteQualityImpl(manager: any): Promise<void>
     }
   } catch (e: unknown) {
     manager.remoteQualityTuningDisabled = true;
-    try { avLog('warn', 'av.remote_quality.disabled', { reason: e?.message || String(e) }, { identity: manager.identity, roomName: manager.currentName || undefined as any }); } catch {}
+    try { avLog('warn', 'av.remote_quality.disabled', { reason: (e as Error)?.message || String(e) }, { identity: manager.identity, roomName: manager.currentName || undefined as any }); } catch {}
   }
 }
 
