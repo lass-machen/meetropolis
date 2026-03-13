@@ -1,25 +1,54 @@
 import { defineConfig, type Plugin } from 'vite';
 import { resolve } from 'path';
+import { existsSync, mkdirSync, symlinkSync } from 'fs';
 import react from '@vitejs/plugin-react';
 
 /**
  * Vite-Plugin: Optional private submodules als leeres Modul auflösen.
  * Verhindert Fehler wenn @meetropolis/desktop (privates Submodule) nicht installiert ist.
  * Der desktopLoader.ts fängt den fehlenden Export per try/catch ab.
+ *
+ * Wenn das Submodule vorhanden ist (packages/desktop/package.json existiert),
+ * wird der Import normal aufgelöst — das Plugin greift dann NICHT ein.
+ * Als Fallback wird auch ein node_modules Symlink angelegt, falls npm ihn
+ * nicht automatisch erstellt (bekanntes Problem mit Git Submodules).
  */
 function optionalSubmodules(moduleIds: string[]): Plugin {
   const set = new Set(moduleIds);
+
+  // Prüfe beim Plugin-Init welche Module tatsächlich vorhanden sind
+  // und stelle sicher, dass der Workspace-Symlink existiert
+  const present = new Set<string>();
+  for (const id of moduleIds) {
+    const pkgName = id.replace(/^@meetropolis\//, '');
+    const pkgDir = resolve(__dirname, '../../packages', pkgName);
+    const pkgJson = resolve(pkgDir, 'package.json');
+    if (existsSync(pkgJson)) {
+      present.add(id);
+      // Symlink in node_modules sicherstellen (npm erstellt ihn bei Submodules nicht immer)
+      const scope = id.split('/')[0]; // @meetropolis
+      const linkDir = resolve(__dirname, '../../node_modules', scope);
+      const linkPath = resolve(linkDir, pkgName);
+      if (!existsSync(linkPath)) {
+        try {
+          mkdirSync(linkDir, { recursive: true });
+          symlinkSync(pkgDir, linkPath, 'dir');
+        } catch {}
+      }
+    }
+  }
+
   return {
     name: 'optional-submodules',
     enforce: 'pre',
     resolveId(source) {
-      if (set.has(source)) return { id: `\0optional:${source}`, moduleSideEffects: false };
+      if (set.has(source) && !present.has(source)) {
+        return { id: `\0optional:${source}`, moduleSideEffects: false };
+      }
       return null;
     },
     load(id) {
       if (id.startsWith('\0optional:')) {
-        // Leeres Modul — der dynamic import() in desktopLoader schlägt fehl,
-        // weil kein export vorhanden ist. Das try/catch fängt das ab.
         return 'export default null;';
       }
       return null;
