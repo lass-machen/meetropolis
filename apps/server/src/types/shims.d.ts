@@ -23,4 +23,8 @@ declare module '@meetropolis/tenancy' {
   export default mod;
 }
 
-
+// Optional proprietary billing module. Present only in enterprise builds.
+declare module '@meetropolis/billing' {
+  const mod: any;
+  export default mod;
+}
