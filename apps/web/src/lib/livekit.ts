@@ -156,25 +156,13 @@ async function connectLivekitRoom(args: {
     });
   } catch {}
 
-  // Build rtcConfig for ICE gathering
-  // Detect local/LAN development: localhost, loopback, .local mDNS, private IP ranges
-  const isLocalDev = /localhost|127\.0\.0\.1|\.local[:/]|^wss?:\/\/10\.|^wss?:\/\/192\.168\.|^wss?:\/\/172\.(1[6-9]|2\d|3[01])\./.test(args.serverUrl);
-
-  const rtcConfig: RTCConfiguration = {
-    // For local Docker development, DON'T use STUN servers
-    // STUN causes browser to advertise its public IP which Docker can't reach
-    // For production, use STUN to help with NAT traversal
-    iceServers: isLocalDev ? [] : [
-      { urls: 'stun:stun.l.google.com:19302' },
-      { urls: 'stun:stun1.l.google.com:19302' },
-    ],
-    ...(args.forceRelay ? { iceTransportPolicy: 'relay' as RTCIceTransportPolicy } : {}),
-  };
-
-  // Log ICE config for debugging (only in dev)
-  if (isLocalDev) {
-    console.log('[LiveKit] ICE config for local dev:', { iceServers: rtcConfig.iceServers, isLocalDev });
-  }
+  // rtcConfig: Only pass when forceRelay is needed.
+  // The LiveKit server provides its own ICE/STUN/TURN config via signaling.
+  // Passing a client-side rtcConfig overrides the server config and breaks
+  // PeerConnection establishment with newer LiveKit server versions (v1.8+).
+  const rtcConfig: RTCConfiguration | undefined = args.forceRelay
+    ? { iceTransportPolicy: 'relay' as RTCIceTransportPolicy }
+    : undefined;
 
   await room.connect(args.serverUrl, args.token, {
     autoSubscribe: false,
@@ -209,8 +197,8 @@ async function connectLivekitRoom(args: {
       noiseSuppression: true,
       autoGainControl: true,
     },
-    // RTC configuration with STUN servers
-    rtcConfig,
+    // RTC config only when relay is forced (server provides ICE config via signaling)
+    ...(rtcConfig ? { rtcConfig } : {}),
   } as any);
 
   try {
