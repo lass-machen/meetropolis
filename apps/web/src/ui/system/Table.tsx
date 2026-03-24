@@ -1,45 +1,48 @@
 import * as React from 'react';
 
-export function TableContainer(props: { maxHeight?: number | string; style?: React.CSSProperties; children: React.ReactNode }) {
-  const { maxHeight = 'auto', style, children } = props;
+export function TableContainer(props: { maxHeight?: number | string; style?: React.CSSProperties; className?: string; children: React.ReactNode }) {
+  const { maxHeight, style, className, children } = props;
+  const cls = ['sys-table-container', className].filter(Boolean).join(' ');
   return (
-    <div style={{ overflow: 'auto', maxHeight, ...style }}>
+    <div className={cls} style={{ maxHeight, ...style }}>
       {children}
     </div>
   );
 }
 
-export function Table(props: { children: React.ReactNode; style?: React.CSSProperties }) {
+export function Table(props: { children: React.ReactNode; style?: React.CSSProperties; className?: string }) {
+  const cls = ['sys-table', props.className].filter(Boolean).join(' ');
   return (
-    <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, ...props.style }}>
+    <table className={cls} style={props.style}>
       {props.children}
     </table>
   );
 }
 
-export function THead(props: { sticky?: boolean; children: React.ReactNode; style?: React.CSSProperties }) {
-  const { sticky, children, style } = props;
+export function THead(props: { sticky?: boolean; children: React.ReactNode; style?: React.CSSProperties; className?: string }) {
+  const { sticky, children, style, className } = props;
+  const cls = [sticky ? 'sys-thead--sticky' : undefined, className].filter(Boolean).join(' ') || undefined;
   return (
-    <thead style={sticky ? { position: 'sticky', top: 0, background: 'var(--glass)', zIndex: 1, ...style } : style}>
+    <thead className={cls} style={style}>
       {children}
     </thead>
   );
 }
 
-export function TBody(props: { children: React.ReactNode; style?: React.CSSProperties }) {
-  return <tbody style={props.style}>{props.children}</tbody>;
+export function TBody(props: { children: React.ReactNode; style?: React.CSSProperties; className?: string }) {
+  return <tbody className={props.className} style={props.style}>{props.children}</tbody>;
 }
 
-export function Tr(props: { children: React.ReactNode; style?: React.CSSProperties }) {
-  return <tr style={props.style}>{props.children}</tr>;
+export function Tr(props: { children: React.ReactNode; style?: React.CSSProperties; className?: string }) {
+  return <tr className={props.className} style={props.style}>{props.children}</tr>;
 }
 
-export function Th(props: { children: React.ReactNode; style?: React.CSSProperties }) {
-  return <th style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)', textAlign: 'left', color: 'var(--fg-subtle)', fontSize: 12, ...props.style }}>{props.children}</th>;
+export function Th(props: { children: React.ReactNode; style?: React.CSSProperties; className?: string }) {
+  const cls = ['sys-th', props.className].filter(Boolean).join(' ');
+  return <th className={cls} style={props.style}>{props.children}</th>;
 }
 
-export function Td(props: { children: React.ReactNode; style?: React.CSSProperties }) {
-  return <td style={{ padding: '10px 12px', ...props.style }}>{props.children}</td>;
+export function Td(props: { children: React.ReactNode; style?: React.CSSProperties; className?: string }) {
+  const cls = ['sys-td', props.className].filter(Boolean).join(' ');
+  return <td className={cls} style={props.style}>{props.children}</td>;
 }
-
-

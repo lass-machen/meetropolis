@@ -7,7 +7,7 @@ import { BillingActions } from './components/BillingActions';
 import { InvoiceHistory } from './components/InvoiceHistory';
 import { PlanSelector } from './components/PlanSelector';
 import { PaymentStatusBanner } from './components/PaymentStatusBanner';
-import { styles } from './styles';
+import { Tabs, Alert } from '../system';
 
 export function BillingDashboard({ onClose: _onClose }: { onClose: () => void }) {
   const [activeTab, setActiveTab] = React.useState<'overview' | 'invoices' | 'plans'>('overview');
@@ -28,11 +28,15 @@ export function BillingDashboard({ onClose: _onClose }: { onClose: () => void })
   const { paymentStatus, handleManageBilling: handlePaymentBilling } = usePaymentStatus({ enabled: true });
 
   if (loading) {
-    return <div style={styles.loading}>Loading billing information...</div>;
+    return (
+      <div style={{ padding: 40, textAlign: 'center', color: 'var(--fg-subtle, #888)' }}>
+        Loading billing information...
+      </div>
+    );
   }
 
   if (error) {
-    return <div style={styles.error}>{error}</div>;
+    return <Alert intent="error">{error}</Alert>;
   }
 
   return (
@@ -41,28 +45,17 @@ export function BillingDashboard({ onClose: _onClose }: { onClose: () => void })
         <PaymentStatusBanner paymentStatus={paymentStatus} onManageBilling={handlePaymentBilling} />
       )}
 
-      <div style={styles.tabs}>
-        <button
-          onClick={() => setActiveTab('overview')}
-          style={{ ...styles.tab, ...(activeTab === 'overview' ? styles.tabActive : {}) }}
-        >
-          Overview
-        </button>
-        <button
-          onClick={() => setActiveTab('invoices')}
-          style={{ ...styles.tab, ...(activeTab === 'invoices' ? styles.tabActive : {}) }}
-        >
-          Invoices
-        </button>
-        <button
-          onClick={() => setActiveTab('plans')}
-          style={{ ...styles.tab, ...(activeTab === 'plans' ? styles.tabActive : {}) }}
-        >
-          Plans
-        </button>
-      </div>
+      <Tabs
+        items={[
+          { key: 'overview', label: 'Overview' },
+          { key: 'invoices', label: 'Invoices' },
+          { key: 'plans', label: 'Plans' },
+        ]}
+        activeKey={activeTab}
+        onChange={(key) => setActiveTab(key as 'overview' | 'invoices' | 'plans')}
+      />
 
-      <div style={styles.content}>
+      <div style={{ padding: 20, overflowY: 'auto', flex: 1 }}>
         {activeTab === 'overview' && status && (
           <>
             <CurrentPlanCard

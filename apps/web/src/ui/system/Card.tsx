@@ -5,14 +5,16 @@ export type CardProps = {
   actions?: React.ReactNode;
   children: React.ReactNode;
   style?: React.CSSProperties;
+  className?: string;
 };
 
 export function Card(props: CardProps) {
+  const cls = ['sys-card', props.className].filter(Boolean).join(' ');
   return (
-    <div className="glass-surface" style={{ padding: 16, borderRadius: 'var(--radius)', ...props.style }}>
+    <div className={cls} style={props.style}>
       {(props.title || props.actions) && (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-          {props.title && <div style={{ fontWeight: 700 }}>{props.title}</div>}
+        <div className="sys-card__header">
+          {props.title && <div className="sys-card__title">{props.title}</div>}
           {props.actions}
         </div>
       )}
@@ -20,5 +22,3 @@ export function Card(props: CardProps) {
     </div>
   );
 }
-
-

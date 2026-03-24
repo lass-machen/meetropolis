@@ -3,22 +3,9 @@ import * as React from 'react';
 export type InputProps = React.InputHTMLAttributes<HTMLInputElement>;
 
 export function Input(props: InputProps) {
-  const { style, ...rest } = props;
+  const { className, style, ...rest } = props;
+  const cls = ['sys-input', className].filter(Boolean).join(' ');
   return (
-    <input
-      {...rest}
-      style={{
-        ...(style || {}),
-        boxSizing: 'border-box',
-        width: '100%',
-        padding: '10px 12px',
-        borderRadius: 'var(--radius-xs)',
-        border: '1px solid var(--border)',
-        background: 'var(--glass)',
-        color: 'var(--fg)'
-      }}
-    />
+    <input className={cls} style={style} {...rest} />
   );
 }
-
-

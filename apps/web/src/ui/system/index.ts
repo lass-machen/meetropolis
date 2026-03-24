@@ -9,5 +9,9 @@ export * from './Table';
 export * from './Checkbox';
 export * from './Slider';
 export * from './Field';
-
-
+export * from './Tabs';
+export * from './Alert';
+export * from './Badge';
+export * from './Section';
+export * from './ProgressBar';
+export * from './Divider';

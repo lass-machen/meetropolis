@@ -34,31 +34,13 @@ export function ConnectionBanner(props: {
   if (!show) return null;
   return (
     <div
-      className={className}
-      style={{
-        position: 'absolute',
-        top: 16,
-        left: '50%',
-        transform: 'translateX(-50%)',
-        zIndex: 60,
-        display: 'flex',
-        alignItems: 'center',
-        gap: 10,
-        padding: '8px 12px',
-        borderRadius: 10,
-        border: '1px solid rgba(255,255,255,0.12)',
-        background: 'rgba(17,17,20,0.85)',
-        color: '#fff',
-        boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
-        ...style
-      }}
+      className={`sys-conn-banner ${className}`.trim()}
+      style={style}
       aria-live="polite"
     >
-      <span style={{ width: 10, height: 10, borderRadius: 999, background: '#f59e0b', display: 'inline-block' }} />
-      <div style={{ fontSize: 13, fontWeight: 600 }}>Verbindung wird wiederhergestellt…</div>
-      {reason ? <div style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>({reason})</div> : null}
+      <span className="sys-conn-banner__dot" />
+      <div className="sys-conn-banner__label">Verbindung wird wiederhergestellt…</div>
+      {reason ? <div className="sys-conn-banner__reason">({reason})</div> : null}
     </div>
   );
 }
-
-

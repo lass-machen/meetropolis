@@ -6,25 +6,22 @@ export type ToastProps = {
   title?: string;
   description?: string;
   intent?: 'info' | 'success' | 'error';
+  style?: React.CSSProperties;
 };
 
 export function Toast(props: ToastProps) {
-  const { open, onOpenChange, title, description, intent = 'info' } = props;
+  const { open, onOpenChange, title, description, intent = 'info', style } = props;
   const { t } = useTranslation();
   if (!open) return null;
-  const border = intent === 'success' ? 'rgba(16,185,129,0.45)' : intent === 'error' ? 'rgba(244,63,94,0.45)' : 'var(--border)';
-  const bg = intent === 'success' ? 'rgba(16,185,129,0.15)' : intent === 'error' ? 'rgba(244,63,94,0.15)' : 'var(--glass)';
   return (
-    <div style={{ position: 'fixed', bottom: 16, right: 16, zIndex: 120 }}>
-      <div style={{ display: 'grid', gap: 6, minWidth: 240, maxWidth: 420, padding: 12, borderRadius: 10, border: `1px solid ${border}`, background: bg, color: 'var(--fg)', boxShadow: 'var(--shadow)' }}>
-        {title && <div style={{ fontWeight: 700 }}>{title}</div>}
-        {description && <div style={{ fontSize: 13, color: 'var(--fg-subtle)' }}>{description}</div>}
+    <div className="sys-toast-container" style={style}>
+      <div className={`sys-toast sys-toast--${intent}`}>
+        {title && <div className="sys-toast__title">{title}</div>}
+        {description && <div className="sys-toast__desc">{description}</div>}
         <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <button onClick={() => onOpenChange(false)} style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--glass)', color: 'var(--fg)', cursor: 'pointer' }}>{t('toast.close')}</button>
+          <button className="sys-toast__close" onClick={() => onOpenChange(false)}>{t('toast.close')}</button>
         </div>
       </div>
     </div>
   );
 }
-
-

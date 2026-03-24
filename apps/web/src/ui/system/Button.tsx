@@ -9,45 +9,11 @@ export type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
 };
 
 export function Button(props: ButtonProps) {
-  const { variant = 'ghost', leftIcon, rightIcon, style, ...rest } = props;
-  const base: React.CSSProperties = {
-    boxSizing: 'border-box',
-    padding: '10px 12px',
-    borderRadius: 'var(--radius-sm)',
-    border: '1px solid var(--border)',
-    background: 'var(--glass)',
-    color: 'var(--fg)',
-    cursor: props.disabled ? 'not-allowed' : 'pointer',
-    opacity: props.disabled ? 0.6 : 1,
-  };
-  const styles: Record<ButtonVariant, React.CSSProperties> = {
-    primary: {
-      background: 'linear-gradient(135deg, var(--brand-primary), var(--brand-accent))',
-      color: '#fff',
-      border: 'none',
-    },
-    brand: {
-      background: 'var(--gradient-hero)',
-      color: '#fff',
-      border: 'none',
-    },
-    ghost: {
-      background: 'var(--glass)'
-    },
-    secondary: {
-      background: 'rgba(255,255,255,0.05)',
-      border: '1px solid rgba(255,255,255,0.15)',
-      color: 'var(--fg)'
-    },
-    danger: {
-      background: 'rgba(244,63,94,0.15)',
-      border: '1px solid rgba(244,63,94,0.45)',
-      color: '#fff'
-    }
-  };
+  const { variant = 'ghost', leftIcon, rightIcon, className, style, ...rest } = props;
+  const cls = ['sys-btn', `sys-btn--${variant}`, className].filter(Boolean).join(' ');
   return (
-    <button {...rest} style={{ ...base, ...styles[variant], ...style }}>
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+    <button className={cls} style={style} {...rest}>
+      <span className="sys-btn__icon">
         {leftIcon}
         {props.children}
         {rightIcon}
@@ -55,5 +21,3 @@ export function Button(props: ButtonProps) {
     </button>
   );
 }
-
-

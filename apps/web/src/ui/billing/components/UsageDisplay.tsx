@@ -1,5 +1,5 @@
 import { BillingStatus } from '../types';
-import { styles } from '../styles';
+import { Card, ProgressBar } from '../../system';
 
 interface UsageDisplayProps {
   status: BillingStatus;
@@ -8,28 +8,30 @@ interface UsageDisplayProps {
 export function UsageDisplay({ status }: UsageDisplayProps) {
   const usagePercent = Math.min(100, (status.usage.currentUsers / Math.max(1, status.usage.limit)) * 100);
 
+  const usageLabel = (
+    <>
+      {status.usage.freeSeats > 0 && <span>{status.usage.freeSeats} free seats</span>}
+      {status.usage.paidSeats > 0 && <span> + {status.usage.paidSeats} paid seats</span>}
+    </>
+  );
+
   return (
-    <div style={styles.card}>
-      <h3 style={styles.cardTitle}>Usage</h3>
-      <div style={styles.usageInfo}>
-        <div style={styles.usageNumbers}>
-          <span style={styles.usageCurrent}>{status.usage.currentUsers}</span>
-          <span style={styles.usageLimit}>/ {status.usage.limit} users</span>
+    <Card title="Usage" style={{ marginBottom: 16 }}>
+      <div>
+        <div style={{ marginBottom: 8 }}>
+          <span style={{ fontSize: 32, fontWeight: 700, color: 'var(--fg, #fff)' }}>
+            {status.usage.currentUsers}
+          </span>
+          <span style={{ fontSize: 16, color: 'var(--fg-subtle, #888)', marginLeft: 4 }}>
+            / {status.usage.limit} users
+          </span>
         </div>
-        <div style={styles.usageBar}>
-          <div
-            style={{
-              ...styles.usageFill,
-              width: `${usagePercent}%`,
-              background: usagePercent > 80 ? '#ef4444' : usagePercent > 50 ? '#f59e0b' : '#22c55e',
-            }}
-          />
-        </div>
-        <div style={styles.usageLabel}>
-          {status.usage.freeSeats > 0 && <span>{status.usage.freeSeats} free seats</span>}
-          {status.usage.paidSeats > 0 && <span> + {status.usage.paidSeats} paid seats</span>}
-        </div>
+        <ProgressBar
+          value={usagePercent}
+          intent={usagePercent > 80 ? 'danger' : usagePercent > 50 ? 'warning' : 'success'}
+          label={usageLabel}
+        />
       </div>
-    </div>
+    </Card>
   );
 }

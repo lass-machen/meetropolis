@@ -5,15 +5,15 @@ export type ToolbarProps = {
   right?: React.ReactNode;
   children?: React.ReactNode;
   style?: React.CSSProperties;
+  className?: string;
 };
 
 export function Toolbar(props: ToolbarProps) {
+  const cls = ['sys-toolbar', props.className].filter(Boolean).join(' ');
   return (
-    <div className="glass-surface" style={{ padding: 10, borderRadius: 'var(--radius)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', ...props.style }}>
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>{props.left ?? props.children}</div>
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>{props.right}</div>
+    <div className={cls} style={props.style}>
+      <div className="sys-toolbar__left">{props.left ?? props.children}</div>
+      <div className="sys-toolbar__right">{props.right}</div>
     </div>
   );
 }
-
-

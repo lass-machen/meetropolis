@@ -1,6 +1,8 @@
 import { BillingStatus } from '../types';
 import { formatDate, formatCurrency } from '../utils';
-import { styles } from '../styles';
+import { Card } from '../../system';
+import { Alert } from '../../system';
+import { Button } from '../../system';
 
 interface CurrentPlanCardProps {
   status: BillingStatus;
@@ -10,12 +12,13 @@ interface CurrentPlanCardProps {
 
 export function CurrentPlanCard({ status, onReactivate, actionLoading }: CurrentPlanCardProps) {
   return (
-    <div style={styles.card}>
-      <h3 style={styles.cardTitle}>Current Plan</h3>
-      <div style={styles.planInfo}>
-        <div style={styles.planName}>{status.billing.plan?.name || 'No Plan'}</div>
+    <Card title="Current Plan" style={{ marginBottom: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--fg, #fff)' }}>
+          {status.billing.plan?.name || 'No Plan'}
+        </div>
         {status.billing.plan && (
-          <div style={styles.planPrice}>
+          <div style={{ fontSize: 18, color: 'var(--fg-subtle, #888)' }}>
             {status.billing.plan.amount === 0
               ? 'Free'
               : `${formatCurrency(status.billing.plan.amount, status.billing.plan.currency)}/${status.billing.plan.interval}`}
@@ -23,18 +26,23 @@ export function CurrentPlanCard({ status, onReactivate, actionLoading }: Current
         )}
       </div>
       {status.billing.subscription?.cancelAtPeriodEnd && (
-        <div style={styles.cancelNotice}>
+        <Alert intent="error" style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           Subscription will be cancelled on {formatDate(status.billing.subscription.currentPeriodEnd)}
-          <button onClick={onReactivate} disabled={actionLoading} style={styles.linkBtn}>
+          <Button
+            variant="ghost"
+            onClick={onReactivate}
+            disabled={actionLoading}
+            style={{ textDecoration: 'underline', marginLeft: 8, padding: '4px 8px' }}
+          >
             Reactivate
-          </button>
-        </div>
+          </Button>
+        </Alert>
       )}
       {status.billing.hasSubscription && (
-        <div style={styles.periodInfo}>
+        <div style={{ marginTop: 8, fontSize: 13, color: 'var(--fg-subtle, #888)' }}>
           Current period: {formatDate(status.billing.subscription?.currentPeriodStart)} - {formatDate(status.billing.subscription?.currentPeriodEnd)}
         </div>
       )}
-    </div>
+    </Card>
   );
 }

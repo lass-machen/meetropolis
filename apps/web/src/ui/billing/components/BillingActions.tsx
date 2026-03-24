@@ -1,5 +1,5 @@
 import { BillingStatus } from '../types';
-import { styles } from '../styles';
+import { Button } from '../../system';
 
 interface BillingActionsProps {
   status: BillingStatus;
@@ -17,24 +17,24 @@ export function BillingActions({
   actionLoading
 }: BillingActionsProps) {
   return (
-    <div style={styles.actions}>
+    <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
       {status.billing.enabled && (
         <>
           {status.billing.hasSubscription ? (
             <>
-              <button onClick={onManageBilling} disabled={actionLoading} style={styles.primaryBtn}>
+              <Button variant="primary" onClick={onManageBilling} disabled={actionLoading} style={{ flex: 1 }}>
                 Manage Payment Methods
-              </button>
+              </Button>
               {!status.billing.subscription?.cancelAtPeriodEnd && (
-                <button onClick={onCancel} disabled={actionLoading} style={styles.dangerBtn}>
+                <Button variant="danger" onClick={onCancel} disabled={actionLoading} style={{ flex: 1 }}>
                   Cancel Subscription
-                </button>
+                </Button>
               )}
             </>
           ) : (
-            <button onClick={onUpgrade} style={styles.primaryBtn}>
+            <Button variant="primary" onClick={onUpgrade} style={{ flex: 1 }}>
               Upgrade Plan
-            </button>
+            </Button>
           )}
         </>
       )}

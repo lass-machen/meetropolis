@@ -2,6 +2,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { getApiBaseFromWindow } from '../../lib/apiBase';
 import { translateApiError } from '../../lib/apiErrors';
+import { Button, Alert, Badge, Card, Divider } from '../system';
 
 interface Session {
   id: string;
@@ -131,231 +132,100 @@ export function SessionManagement({ onClose }: { onClose: () => void }) {
 
   if (loading) {
     return (
-      <div style={styles.container}>
-        <div style={styles.loading}>{t('sessions.loading')}</div>
+      <div style={{ padding: '0 8px', color: 'var(--fg, #fff)' }}>
+        <div style={{ padding: 40, textAlign: 'center', color: 'var(--fg-subtle, #888)' }}>
+          {t('sessions.loading')}
+        </div>
       </div>
     );
   }
 
   return (
-    <div style={styles.container}>
-      <div style={styles.header}>
-        <h2 style={styles.title}>{t('sessions.title')}</h2>
-        <p style={styles.subtitle}>
+    <div style={{ padding: '0 8px', color: 'var(--fg, #fff)' }}>
+      <div style={{ marginBottom: 24 }}>
+        <h2 style={{ fontSize: 20, fontWeight: 600, margin: '0 0 8px' }}>{t('sessions.title')}</h2>
+        <p style={{ fontSize: 14, color: 'var(--fg-subtle, #888)', margin: 0, lineHeight: 1.5 }}>
           {t('sessions.subtitle')}
         </p>
       </div>
 
       {error && (
-        <div style={styles.error}>{error}</div>
+        <Alert intent="error" style={{ marginBottom: 16 }}>{error}</Alert>
       )}
 
       {sessions.length === 0 ? (
-        <div style={styles.empty}>{t('sessions.noSessions')}</div>
+        <div style={{ padding: 40, textAlign: 'center', color: 'var(--fg-subtle, #888)' }}>
+          {t('sessions.noSessions')}
+        </div>
       ) : (
         <>
-          <div style={styles.sessionList}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {sessions.map(session => {
               const { device, browser } = parseUserAgent(session.userAgent);
               return (
-                <div key={session.id} style={styles.sessionCard}>
-                  <div style={styles.sessionInfo}>
-                    <div style={styles.deviceRow}>
-                      <span style={styles.deviceIcon}>
+                <Card key={session.id} style={{ padding: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+                      <span style={{ fontSize: 24 }}>
                         {device.includes('Phone') || device === 'iPhone' ? '📱' :
                          device.includes('Tablet') || device === 'iPad' ? '📱' :
                          '💻'}
                       </span>
                       <div>
-                        <div style={styles.deviceName}>
+                        <div style={{ fontSize: 15, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 8 }}>
                           {device}
                           {session.isCurrent && (
-                            <span style={styles.currentBadge}>{t('sessions.current')}</span>
+                            <Badge intent="primary">{t('sessions.current')}</Badge>
                           )}
                         </div>
-                        <div style={styles.browserName}>{browser}</div>
+                        <div style={{ fontSize: 13, color: 'var(--fg-subtle, #888)' }}>{browser}</div>
                       </div>
                     </div>
-                    <div style={styles.sessionMeta}>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 16px', marginLeft: 36 }}>
                       {session.ipAddress && (
-                        <span style={styles.metaItem}>IP: {session.ipAddress}</span>
+                        <span style={{ fontSize: 12, color: 'var(--fg-subtle, #666)' }}>IP: {session.ipAddress}</span>
                       )}
-                      <span style={styles.metaItem}>{t('sessions.lastActive')}: {formatDate(session.lastActiveAt)}</span>
-                      <span style={styles.metaItem}>{t('sessions.loggedIn')}: {formatDate(session.createdAt)}</span>
+                      <span style={{ fontSize: 12, color: 'var(--fg-subtle, #666)' }}>{t('sessions.lastActive')}: {formatDate(session.lastActiveAt)}</span>
+                      <span style={{ fontSize: 12, color: 'var(--fg-subtle, #666)' }}>{t('sessions.loggedIn')}: {formatDate(session.createdAt)}</span>
                     </div>
                   </div>
                   {!session.isCurrent && (
-                    <button
+                    <Button
+                      variant="danger"
                       onClick={() => revokeSession(session.id)}
                       disabled={revoking === session.id || revoking === 'all'}
-                      style={styles.revokeBtn}
+                      style={{ fontSize: 13 }}
                     >
                       {revoking === session.id ? t('sessions.revoking') : t('sessions.revoke')}
-                    </button>
+                    </Button>
                   )}
-                </div>
+                </Card>
               );
             })}
           </div>
 
           {sessions.filter(s => !s.isCurrent).length > 0 && (
-            <div style={styles.actions}>
-              <button
+            <>
+              <Divider />
+              <Button
+                variant="danger"
                 onClick={revokeAllOther}
                 disabled={revoking === 'all'}
-                style={styles.revokeAllBtn}
+                style={{ width: '100%' }}
               >
                 {revoking === 'all' ? t('sessions.loggingOut') : t('sessions.logoutAllOther')}
-              </button>
-            </div>
+              </Button>
+            </>
           )}
         </>
       )}
 
-      <div style={styles.footer}>
-        <button onClick={onClose} style={styles.closeBtn}>{t('modal.close')}</button>
+      <Divider />
+      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <Button variant="secondary" onClick={onClose}>{t('modal.close')}</Button>
       </div>
     </div>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  container: {
-    padding: '0 8px',
-    color: 'var(--fg, #fff)',
-  },
-  header: {
-    marginBottom: 24,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: 600,
-    margin: '0 0 8px',
-  },
-  subtitle: {
-    fontSize: 14,
-    color: 'var(--fg-subtle, #888)',
-    margin: 0,
-    lineHeight: 1.5,
-  },
-  loading: {
-    padding: 40,
-    textAlign: 'center',
-    color: 'var(--fg-subtle, #888)',
-  },
-  error: {
-    padding: 12,
-    marginBottom: 16,
-    background: 'rgba(239, 68, 68, 0.15)',
-    border: '1px solid rgba(239, 68, 68, 0.3)',
-    borderRadius: 8,
-    color: '#ef4444',
-    fontSize: 14,
-  },
-  empty: {
-    padding: 40,
-    textAlign: 'center',
-    color: 'var(--fg-subtle, #888)',
-  },
-  sessionList: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 12,
-  },
-  sessionCard: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 16,
-    background: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 12,
-    border: '1px solid rgba(255, 255, 255, 0.1)',
-  },
-  sessionInfo: {
-    flex: 1,
-  },
-  deviceRow: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 8,
-  },
-  deviceIcon: {
-    fontSize: 24,
-  },
-  deviceName: {
-    fontSize: 15,
-    fontWeight: 500,
-    display: 'flex',
-    alignItems: 'center',
-    gap: 8,
-  },
-  currentBadge: {
-    fontSize: 11,
-    fontWeight: 600,
-    padding: '2px 8px',
-    borderRadius: 4,
-    background: 'var(--accent, #3b82f6)',
-    color: '#fff',
-    textTransform: 'uppercase',
-  },
-  browserName: {
-    fontSize: 13,
-    color: 'var(--fg-subtle, #888)',
-  },
-  sessionMeta: {
-    display: 'flex',
-    flexWrap: 'wrap',
-    gap: '8px 16px',
-    marginLeft: 36,
-  },
-  metaItem: {
-    fontSize: 12,
-    color: 'var(--fg-subtle, #666)',
-  },
-  revokeBtn: {
-    padding: '8px 16px',
-    fontSize: 13,
-    fontWeight: 500,
-    background: 'rgba(239, 68, 68, 0.15)',
-    color: '#ef4444',
-    border: '1px solid rgba(239, 68, 68, 0.3)',
-    borderRadius: 6,
-    cursor: 'pointer',
-  },
-  actions: {
-    marginTop: 20,
-    paddingTop: 20,
-    borderTop: '1px solid rgba(255, 255, 255, 0.1)',
-  },
-  revokeAllBtn: {
-    width: '100%',
-    padding: '12px 20px',
-    fontSize: 14,
-    fontWeight: 500,
-    background: 'rgba(239, 68, 68, 0.1)',
-    color: '#ef4444',
-    border: '1px solid rgba(239, 68, 68, 0.2)',
-    borderRadius: 8,
-    cursor: 'pointer',
-  },
-  footer: {
-    marginTop: 24,
-    paddingTop: 20,
-    borderTop: '1px solid rgba(255, 255, 255, 0.1)',
-    display: 'flex',
-    justifyContent: 'flex-end',
-  },
-  closeBtn: {
-    padding: '10px 24px',
-    fontSize: 14,
-    fontWeight: 500,
-    background: 'rgba(255, 255, 255, 0.1)',
-    color: 'var(--fg, #fff)',
-    border: '1px solid rgba(255, 255, 255, 0.2)',
-    borderRadius: 8,
-    cursor: 'pointer',
-  },
-};
 
 export default SessionManagement;

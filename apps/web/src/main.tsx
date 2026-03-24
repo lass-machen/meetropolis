@@ -5,6 +5,7 @@ import './lib/patchWebSocket';
 
 import React from 'react';
 import './styles/theme.css';
+import './styles/system.css';
 import { createRoot } from 'react-dom/client';
 import { AppRoutes } from './app/routes/AppRoutes';
 import { RootProviders } from './app/providers/RootProviders';
