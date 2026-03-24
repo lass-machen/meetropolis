@@ -1,9 +1,15 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button } from '../system';
+import { Button, Tabs } from '../system';
+import type { TabItem } from '../system';
 import { PackCatalogTable } from './PackCatalogTable';
 import { PackGrantModal } from './PackGrantModal';
 import type { PackWithCatalog } from '../packstore/packStoreTypes';
+
+const catalogTabs: TabItem[] = [
+  { key: 'asset', label: 'Asset Packs' },
+  { key: 'avatar', label: 'Avatar Packs' },
+];
 
 interface PackCatalogAdminProps {
   apiBase: string;
@@ -87,13 +93,9 @@ export function PackCatalogAdmin({ apiBase }: PackCatalogAdminProps) {
 
   return (
     <div style={{ display: 'grid', gap: 12 }}>
+      <Tabs items={catalogTabs} activeKey={activeTab} onChange={(key) => setActiveTab(key as 'asset' | 'avatar')} />
+
       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-        <Button onClick={() => setActiveTab('asset')} variant={activeTab === 'asset' ? 'primary' : 'secondary'}>
-          Asset Packs
-        </Button>
-        <Button onClick={() => setActiveTab('avatar')} variant={activeTab === 'avatar' ? 'primary' : 'secondary'}>
-          Avatar Packs
-        </Button>
         <div style={{ flex: 1 }} />
         <Button onClick={() => load()}>{loading ? 'Loading...' : 'Reload'}</Button>
         <input
