@@ -22,8 +22,7 @@ interface UseWorldEventHandlersParams {
   setGridExpanded: React.Dispatch<React.SetStateAction<boolean>>;
   setSelectedSid: React.Dispatch<React.SetStateAction<string | null>>;
   setMenuOpen: React.Dispatch<React.SetStateAction<boolean>>;
-  setUserModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
-  setInvitesModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  setTenantTab: React.Dispatch<React.SetStateAction<string>>;
   setPage: React.Dispatch<React.SetStateAction<'world' | 'admin' | string>>;
   setAdminOpen: React.Dispatch<React.SetStateAction<boolean>>;
   setApiModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
@@ -63,8 +62,7 @@ export function useWorldEventHandlers(params: UseWorldEventHandlersParams) {
     setGridExpanded,
     setSelectedSid,
     setMenuOpen,
-    setUserModalOpen,
-    setInvitesModalOpen,
+    setTenantTab,
     setPage,
     setAdminOpen,
     setApiModalOpen,
@@ -172,14 +170,16 @@ export function useWorldEventHandlers(params: UseWorldEventHandlersParams) {
   const handleToggleMenu = useCallback(() => setMenuOpen(v => !v), [setMenuOpen]);
 
   const handleOpenUsers = useCallback(() => {
-    setUserModalOpen(true);
+    setTenantSettingsOpen(true);
+    setTenantTab('members');
     setMenuOpen(false);
-  }, [setUserModalOpen, setMenuOpen]);
+  }, [setTenantSettingsOpen, setTenantTab, setMenuOpen]);
 
   const handleOpenInvites = useCallback(() => {
-    setInvitesModalOpen(true);
+    setTenantSettingsOpen(true);
+    setTenantTab('invites');
     setMenuOpen(false);
-  }, [setInvitesModalOpen, setMenuOpen]);
+  }, [setTenantSettingsOpen, setTenantTab, setMenuOpen]);
 
   const handleBackToWorld = useCallback(() => {
     setPage('world');

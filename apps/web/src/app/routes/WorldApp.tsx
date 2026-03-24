@@ -97,8 +97,7 @@ export function WorldApp() {
   const [selectedCamId, setSelectedCamId] = React.useState<string | ''>('');
   const [uiParticipants, setUiParticipants] = React.useState<{ sid: string; identity: string; hasVideo: boolean; hasMic: boolean; isSpeaking: boolean; media: 'camera' | 'screen'; volume?: number }[]>([]);
   const [cameraManual, setCameraManual] = React.useState(false);
-  const [userModalOpen, setUserModalOpen] = React.useState(false);
-  const [invitesModalOpen, setInvitesModalOpen] = React.useState(false);
+  const [tenantTab, setTenantTab] = React.useState('general');
   const [roster, setRoster] = React.useState<Array<{ identity: string; name: string; online: boolean; x?: number; y?: number; lastSeen?: string }>>([]);
   const [positionReady, setPositionReady] = React.useState(false);
   const [apiModalOpen, setApiModalOpen] = React.useState(false);
@@ -497,8 +496,8 @@ export function WorldApp() {
   const eventHandlers = useWorldEventHandlers({
     apiBase, avRef, colyseusRef, localPosRef, bubbleGroupsRef, bubbleMembersRef,
     bubbleStartRef, followRef, manualNavRef, gameBridge, editor, avState, contextMenu,
-    setAvState, setMe, setGridExpanded, setSelectedSid, setMenuOpen, setUserModalOpen,
-    setInvitesModalOpen, setPage, setAdminOpen, setApiModalOpen, setBillingOpen, setProfileOpen,
+    setAvState, setMe, setGridExpanded, setSelectedSid, setMenuOpen,
+    setTenantTab, setPage, setAdminOpen, setApiModalOpen, setBillingOpen, setProfileOpen,
     setTenantSettingsOpen, setSessionsOpen, setRosterCollapsed, setBubbleUi, setContextMenu,
     setSelectedMicId, setSelectedCamId, applyVolumesToUi, saveAllToServer,
     handleConnectionReload: handleReload, dismissBanner,
@@ -725,14 +724,14 @@ export function WorldApp() {
         <WorldModals
           apiBase={apiBase}
           colyseusRef={colyseusRef}
-          userModalOpen={userModalOpen}
-          setUserModalOpen={setUserModalOpen}
           profileOpen={profileOpen}
           setProfileOpen={setProfileOpen}
           billingOpen={billingOpen}
           setBillingOpen={setBillingOpen}
           tenantSettingsOpen={tenantSettingsOpen}
           setTenantSettingsOpen={setTenantSettingsOpen}
+          tenantTab={tenantTab}
+          setTenantTab={setTenantTab}
           sessionsOpen={sessionsOpen}
           setSessionsOpen={setSessionsOpen}
           apiModalOpen={apiModalOpen}
@@ -743,8 +742,6 @@ export function WorldApp() {
           setNewTokenName={setNewTokenName}
           freshToken={freshToken}
           setFreshToken={setFreshToken}
-          invitesModalOpen={invitesModalOpen}
-          setInvitesModalOpen={setInvitesModalOpen}
         />
         {/* Desktop Preferences Modal (optional, nur wenn Desktop-Modul geladen) */}
         {desktop?.TauriPreferencesModal && (

@@ -23,6 +23,8 @@ interface UseTenantSettingsReturn {
   handleInvite: (email: string, role: 'admin' | 'member') => Promise<string | null>;
   handleCreateGuest: (email: string, name: string, expiresAt: string) => Promise<{ magicLink: string } | null>;
   handleRevokeGuest: (membershipId: string) => Promise<void>;
+  handleResetPassword: (email: string) => Promise<string | null>;
+  handleEditMember: (userId: string, data: { email?: string; name?: string }) => Promise<boolean>;
 }
 
 export function useTenantSettings(): UseTenantSettingsReturn {
@@ -229,6 +231,64 @@ export function useTenantSettings(): UseTenantSettingsReturn {
     }
   }, [apiBase, t]);
 
+  const handleResetPassword = React.useCallback(async (email: string): Promise<string | null> => {
+    setSaving(true);
+    setError(null);
+
+    try {
+      const res = await fetch(`${apiBase}/auth/forgot`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setSuccess(t('tenant.resetSuccess'));
+        return data.token ?? data.resetToken ?? null;
+      } else {
+        const err = await res.json().catch(() => ({}));
+        setError(translateApiError(err.error) || t('tenant.resetFailed'));
+        return null;
+      }
+    } catch (e: unknown) {
+      setError((e as Error).message || t('common.networkError'));
+      return null;
+    } finally {
+      setSaving(false);
+    }
+  }, [apiBase, t]);
+
+  const handleEditMember = React.useCallback(async (userId: string, data: { email?: string; name?: string }): Promise<boolean> => {
+    setSaving(true);
+    setError(null);
+
+    try {
+      const res = await fetch(`${apiBase}/users/${userId}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+
+      if (res.ok) {
+        await fetchData();
+        setSuccess(t('tenant.editSuccess'));
+        return true;
+      } else {
+        const err = await res.json().catch(() => ({}));
+        setError(translateApiError(err.error) || t('tenant.editFailed'));
+        return false;
+      }
+    } catch (e: unknown) {
+      setError((e as Error).message || t('common.networkError'));
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  }, [apiBase, t, fetchData]);
+
   return {
     tenant,
     members,
@@ -248,5 +308,7 @@ export function useTenantSettings(): UseTenantSettingsReturn {
     handleInvite,
     handleCreateGuest,
     handleRevokeGuest,
+    handleResetPassword,
+    handleEditMember,
   };
 }

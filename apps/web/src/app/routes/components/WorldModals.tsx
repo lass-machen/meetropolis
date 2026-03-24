@@ -2,23 +2,16 @@ import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Modal, Tabs } from '../../../ui/system';
 import type { TabItem } from '../../../ui/system';
-import { UserManagement } from '../../../ui/admin/UserManagement';
-import { ThemeToggleButton } from '../../../ui/theme';
 import { ProfileSettings } from '../../../ui/settings/ProfileSettings';
 import { BillingDashboard } from '../../../ui/billing/BillingDashboard';
 import { TenantSettings } from '../../../ui/settings/TenantSettings';
 import { useTenantSettings } from '../../../ui/settings/hooks/useTenantSettings';
 import { SessionManagement } from '../../../ui/settings/SessionManagement';
 import { ApiTokensOverlay } from '../../../ui/admin/ApiTokensOverlay';
-import { InvitesModal } from '../../../features/admin/InvitesModal';
 
 interface WorldModalsProps {
   apiBase: string;
   colyseusRef?: React.RefObject<any>;
-
-  // User Management Modal
-  userModalOpen: boolean;
-  setUserModalOpen: (open: boolean) => void;
 
   // Profile Settings Modal
   profileOpen: boolean;
@@ -31,6 +24,8 @@ interface WorldModalsProps {
   // Tenant Settings Modal
   tenantSettingsOpen: boolean;
   setTenantSettingsOpen: (open: boolean) => void;
+  tenantTab: string;
+  setTenantTab: (tab: string) => void;
 
   // Session Management Modal
   sessionsOpen: boolean;
@@ -45,23 +40,19 @@ interface WorldModalsProps {
   setNewTokenName: (name: string) => void;
   freshToken: string | null;
   setFreshToken: (token: string | null) => void;
-
-  // Invites Modal
-  invitesModalOpen: boolean;
-  setInvitesModalOpen: (open: boolean) => void;
 }
 
 export function WorldModals({
   apiBase,
   colyseusRef,
-  userModalOpen,
-  setUserModalOpen,
   profileOpen,
   setProfileOpen,
   billingOpen,
   setBillingOpen,
   tenantSettingsOpen,
   setTenantSettingsOpen,
+  tenantTab,
+  setTenantTab,
   sessionsOpen,
   setSessionsOpen,
   apiModalOpen,
@@ -72,8 +63,6 @@ export function WorldModals({
   setNewTokenName,
   freshToken,
   setFreshToken,
-  invitesModalOpen,
-  setInvitesModalOpen,
 }: WorldModalsProps) {
   const { t } = useTranslation();
 
@@ -85,8 +74,7 @@ export function WorldModals({
     { key: 'plans', label: t('billing.tabPlans') },
   ];
 
-  // Tenant settings tab state + hook for dynamic tab labels
-  const [tenantTab, setTenantTab] = useState('general');
+  // Tenant settings hook for dynamic tab labels
   const tenantSettings = useTenantSettings();
 
   React.useEffect(() => {
@@ -98,23 +86,12 @@ export function WorldModals({
   const tenantTabItems: TabItem[] = [
     { key: 'general', label: t('tenant.tabGeneral') },
     { key: 'members', label: `${t('tenant.tabMembers')} (${tenantSettings.members.length})` },
+    { key: 'invites', label: t('tenant.tabInvites') },
     ...(tenantSettings.isEnterprise ? [{ key: 'guests', label: `${t('tenant.tabGuests')} (${tenantSettings.guests.length})` }] : []),
   ];
 
   return (
     <>
-      {/* User Management Modal */}
-      <Modal
-        open={userModalOpen}
-        onOpenChange={setUserModalOpen}
-        title={t('modal.usersTitle')}
-        maxWidth={900}
-        minHeight={520}
-        actions={<div style={{ display: 'flex', gap: 8 }}><ThemeToggleButton /></div>}
-      >
-        <UserManagement baseUrl={apiBase} onBack={() => setUserModalOpen(false)} />
-      </Modal>
-
       {/* Profile Settings Modal */}
       <Modal open={profileOpen} onOpenChange={setProfileOpen} title={t('modal.profileTitle')} maxWidth={700} minHeight={520}>
         <ProfileSettings onClose={() => setProfileOpen(false)} colyseusRef={colyseusRef} />
@@ -147,7 +124,7 @@ export function WorldModals({
         minHeight={520}
         accessories={<Tabs items={tenantTabItems} activeKey={tenantTab} onChange={setTenantTab} />}
       >
-        <TenantSettings activeTab={tenantTab} onTabChange={setTenantTab} onClose={() => setTenantSettingsOpen(false)} settingsData={tenantSettings} />
+        <TenantSettings activeTab={tenantTab} onTabChange={setTenantTab} onClose={() => setTenantSettingsOpen(false)} apiBase={apiBase} settingsData={tenantSettings} />
       </Modal>
 
       {/* Session Management Modal */}
@@ -174,8 +151,6 @@ export function WorldModals({
         setFreshToken={setFreshToken}
       />
 
-      {/* Invites Modal */}
-      <InvitesModal open={invitesModalOpen} onOpenChange={setInvitesModalOpen} apiBase={apiBase} />
     </>
   );
 }

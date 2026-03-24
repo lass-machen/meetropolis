@@ -3,18 +3,20 @@ import type { useTenantSettings } from './hooks/useTenantSettings';
 import { GeneralSettings } from './tenant/GeneralSettings';
 import { MemberSettings } from './tenant/MemberSettings';
 import { GuestSettings } from './tenant/GuestSettings';
+import { InvitesTab } from './tenant/InvitesTab';
 import { Alert } from '../system';
 
 interface TenantSettingsProps {
   onClose: () => void;
   activeTab?: string;
   onTabChange?: (key: string) => void;
+  apiBase: string;
   settingsData: ReturnType<typeof useTenantSettings>;
 }
 
-export function TenantSettings({ onClose: _onClose, activeTab: activeTabProp, onTabChange: _onTabChange, settingsData }: TenantSettingsProps) {
+export function TenantSettings({ onClose: _onClose, activeTab: activeTabProp, onTabChange: _onTabChange, apiBase, settingsData }: TenantSettingsProps) {
   const { t } = useTranslation();
-  const activeTab = (activeTabProp ?? 'general') as 'general' | 'members' | 'guests';
+  const activeTab = (activeTabProp ?? 'general') as 'general' | 'members' | 'guests' | 'invites';
 
   const {
     tenant,
@@ -30,6 +32,8 @@ export function TenantSettings({ onClose: _onClose, activeTab: activeTabProp, on
     handleInvite,
     handleCreateGuest,
     handleRevokeGuest,
+    handleResetPassword,
+    handleEditMember,
   } = settingsData;
 
   if (loading) {
@@ -54,7 +58,13 @@ export function TenantSettings({ onClose: _onClose, activeTab: activeTabProp, on
             onRemoveMember={handleRemoveMember}
             onInvite={handleInvite}
             onSuccess={setSuccess}
+            onResetPassword={handleResetPassword}
+            onEditMember={handleEditMember}
           />
+        )}
+
+        {activeTab === 'invites' && (
+          <InvitesTab apiBase={apiBase} />
         )}
 
         {activeTab === 'guests' && (
