@@ -7,6 +7,9 @@ export interface TenantInfo {
   bypassLimits: boolean;
   isInternal: boolean;
   createdAt: string;
+  defaultMapName?: string;
+  publicRegistrationEnabled?: boolean;
+  memberCount?: number;
 }
 
 export interface Member {

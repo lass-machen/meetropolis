@@ -22,6 +22,7 @@ export function TenantSettings({ onClose: _onClose, activeTab: activeTabProp, on
     tenant,
     members,
     guests,
+    isEnterprise,
     loading,
     saving,
     error,
@@ -34,6 +35,7 @@ export function TenantSettings({ onClose: _onClose, activeTab: activeTabProp, on
     handleRevokeGuest,
     handleResetPassword,
     handleEditMember,
+    handleUpdateTenant,
   } = settingsData;
 
   if (loading) {
@@ -47,7 +49,15 @@ export function TenantSettings({ onClose: _onClose, activeTab: activeTabProp, on
         {success && <Alert intent="success" style={{ marginBottom: 16 }}>{success}</Alert>}
 
         {activeTab === 'general' && tenant && (
-          <GeneralSettings tenant={tenant} />
+          <GeneralSettings
+            tenant={tenant}
+            saving={saving}
+            apiBase={apiBase}
+            onUpdateTenant={handleUpdateTenant}
+            onSuccess={setSuccess}
+            memberCount={members.length}
+            guestCount={isEnterprise ? guests.length : undefined}
+          />
         )}
 
         {activeTab === 'members' && (

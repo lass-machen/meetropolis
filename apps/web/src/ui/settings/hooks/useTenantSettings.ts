@@ -25,6 +25,7 @@ interface UseTenantSettingsReturn {
   handleRevokeGuest: (membershipId: string) => Promise<void>;
   handleResetPassword: (email: string) => Promise<string | null>;
   handleEditMember: (userId: string, data: { email?: string; name?: string }) => Promise<boolean>;
+  handleUpdateTenant: (data: { name?: string; defaultMapName?: string }) => Promise<boolean>;
 }
 
 export function useTenantSettings(): UseTenantSettingsReturn {
@@ -43,42 +44,59 @@ export function useTenantSettings(): UseTenantSettingsReturn {
   const fetchData = React.useCallback(async () => {
     setLoading(true);
     try {
-      const [statusRes, membersRes] = await Promise.all([
-        fetch(`${apiBase}/billing/status`, { credentials: 'include' }),
+      const [tenantRes, membersRes, statusRes] = await Promise.all([
+        fetch(`${apiBase}/tenant`, { credentials: 'include' }),
         fetch(`${apiBase}/users`, { credentials: 'include' }),
+        fetch(`${apiBase}/billing/status`, { credentials: 'include' }),
       ]);
 
-      let enterprise = false;
-      if (statusRes.ok) {
-        enterprise = true;
-        setIsEnterprise(true);
-        const data = await statusRes.json();
+      // Tenant info from GET /tenant
+      if (tenantRes.ok) {
+        const data = await tenantRes.json();
         setTenant({
-          id: data.tenant.id,
-          slug: data.tenant.slug,
-          name: data.tenant.name,
-          concurrentLimit: data.usage.paidSeats || 0,
-          freeSeats: data.usage.freeSeats || 0,
-          bypassLimits: data.tenant.bypassLimits,
-          isInternal: data.tenant.isInternal,
-          createdAt: data.tenant.createdAt || '',
+          id: data.id,
+          slug: data.slug,
+          name: data.name,
+          concurrentLimit: data.concurrentLimit,
+          freeSeats: data.freeSeats,
+          bypassLimits: data.bypassLimits,
+          isInternal: data.isInternal,
+          createdAt: data.createdAt,
+          defaultMapName: data.defaultMapName ?? undefined,
+          publicRegistrationEnabled: data.publicRegistrationEnabled ?? undefined,
+          memberCount: data.memberCount ?? undefined,
         });
       }
 
-      if (membersRes.ok) {
-        const data = await membersRes.json();
-        setMembers(data || []);
+      // Enterprise check (billing status available = enterprise)
+      if (statusRes.ok) {
+        setIsEnterprise(true);
+        // If tenant wasn't loaded from /tenant, fallback to billing/status
+        if (!tenantRes.ok) {
+          const data = await statusRes.json();
+          setTenant({
+            id: data.tenant.id,
+            slug: data.tenant.slug,
+            name: data.tenant.name,
+            concurrentLimit: data.usage.paidSeats || 0,
+            freeSeats: data.usage.freeSeats || 0,
+            bypassLimits: data.tenant.bypassLimits,
+            isInternal: data.tenant.isInternal,
+            createdAt: data.tenant.createdAt || '',
+          });
+        }
       }
 
-      // Fetch guests only for enterprise tenants
-      if (enterprise) {
+      if (membersRes.ok) {
+        setMembers(await membersRes.json() || []);
+      }
+
+      // Fetch guests for enterprise
+      if (statusRes.ok) {
         try {
           const guestsRes = await fetch(`${apiBase}/guests`, { credentials: 'include' });
-          if (guestsRes.ok) {
-            const guestsData = await guestsRes.json();
-            setGuests(guestsData || []);
-          }
-        } catch { /* guests endpoint may not exist yet */ }
+          if (guestsRes.ok) setGuests(await guestsRes.json() || []);
+        } catch { /* */ }
       }
     } catch (e: unknown) {
       setError((e as Error).message || t('tenant.loadFailed'));
@@ -289,6 +307,33 @@ export function useTenantSettings(): UseTenantSettingsReturn {
     }
   }, [apiBase, t, fetchData]);
 
+  const handleUpdateTenant = React.useCallback(async (data: { name?: string; defaultMapName?: string }): Promise<boolean> => {
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch(`${apiBase}/tenant`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (res.ok) {
+        await fetchData();
+        setSuccess(t('tenant.updateSuccess'));
+        return true;
+      } else {
+        const err = await res.json().catch(() => ({}));
+        setError(translateApiError(err.error) || t('tenant.updateFailed'));
+        return false;
+      }
+    } catch (e: unknown) {
+      setError((e as Error).message || t('common.networkError'));
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  }, [apiBase, t, fetchData]);
+
   return {
     tenant,
     members,
@@ -310,5 +355,6 @@ export function useTenantSettings(): UseTenantSettingsReturn {
     handleRevokeGuest,
     handleResetPassword,
     handleEditMember,
+    handleUpdateTenant,
   };
 }

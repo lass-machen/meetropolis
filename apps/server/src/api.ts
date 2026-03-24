@@ -17,6 +17,7 @@ import { registerNpcMediaRoutes } from './api/routes/npcMedia.js';
 import { registerAdminMapRoutes } from './api/routes/adminMaps.js';
 import { registerGuestRoutes } from './api/routes/guests.js';
 import { registerDesktopRoutes } from './api/routes/desktop.js';
+import { registerTenantRoutes } from './api/routes/tenant.js';
 import { guestExpiryMiddleware } from './api/middleware/guestExpiry.js';
 
 // Existing modular routes (already extracted)
@@ -74,6 +75,9 @@ export async function registerApi(app: express.Express) {
 
   // Admin routes (tenants, billing management)
   registerAdminRoutes(app, prisma);
+
+  // Tenant self-service routes (GET/PATCH /tenant)
+  registerTenantRoutes(app, prisma);
 
   // Admin user management & billing detail routes
   registerAdminUserRoutes(app, prisma);
