@@ -16,3 +16,4 @@ export * from './Section';
 export * from './ProgressBar';
 export * from './Divider';
 export * from './DescriptionList';
+export * from './NavBar';

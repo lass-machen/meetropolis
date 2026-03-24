@@ -588,6 +588,31 @@
   margin: 0;
 }
 
+/* ---------- NavBar ---------- */
+.sys-navbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 16px;
+}
+
+.sys-navbar__left {
+  flex-shrink: 0;
+}
+
+.sys-navbar__title {
+  flex: 1;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.sys-navbar__right {
+  flex-shrink: 0;
+}
+
 /* ---------- Pulse animation (loading skeleton) ---------- */
 @keyframes pulse {
   0%, 100% { opacity: 0.4; }
