@@ -10,6 +10,13 @@ import { createRoot } from 'react-dom/client';
 import { AppRoutes } from './app/routes/AppRoutes';
 import { RootProviders } from './app/providers/RootProviders';
 import { getDesktopModule } from './lib/desktopLoader';
+import { applyAudioDuckingPreference } from './av/audio/audioSessionDucking';
+
+// Audio ducking preference (Tauri desktop only)
+window.addEventListener('desktop:audio-ducking-changed', (e) => {
+  const { enabled } = (e as CustomEvent<{ enabled: boolean }>).detail;
+  applyAudioDuckingPreference(enabled);
+});
 
 // Desktop-Modul laden und initialisieren (falls vorhanden)
 async function initAndRender() {
