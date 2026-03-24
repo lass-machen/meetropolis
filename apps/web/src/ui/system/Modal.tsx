@@ -10,6 +10,7 @@ export type ModalProps = {
   children: React.ReactNode;
   footer?: React.ReactNode;
   maxWidth?: number | string;
+  minHeight?: number | string;
   right?: React.ReactNode;
   zIndexBase?: number;
   draggable?: boolean;
@@ -17,7 +18,7 @@ export type ModalProps = {
 };
 
 export function Modal(props: ModalProps) {
-  const { open, onOpenChange, title, description, right, children, footer, maxWidth = 600, zIndexBase, draggable, style } = props;
+  const { open, onOpenChange, title, description, right, children, footer, maxWidth = 600, minHeight, zIndexBase, draggable, style } = props;
   const baseZ = typeof zIndexBase === 'number' ? zIndexBase : 1000;
   const { t } = useTranslation();
   const tr = (key: string, fallback: string) => {
@@ -80,6 +81,7 @@ export function Modal(props: ModalProps) {
             left: pos ? pos.x : '50%',
             transform: pos ? 'translate(0, 0) translateZ(0)' : 'translate(-50%, -50%) translateZ(0)',
             width: `min(96vw, ${typeof maxWidth === 'number' ? maxWidth + 'px' : maxWidth})`,
+            minHeight: minHeight != null ? (typeof minHeight === 'number' ? `min(90vh, ${minHeight}px)` : minHeight) : undefined,
             zIndex: baseZ + 1,
             ...style
           }}

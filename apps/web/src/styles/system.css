@@ -330,6 +330,8 @@
 
 .sys-modal {
   position: fixed;
+  display: flex;
+  flex-direction: column;
   background: var(--glass);
   color: var(--fg);
   border: 1px solid var(--border);
@@ -337,7 +339,7 @@
   box-shadow: var(--shadow);
   padding: 16px;
   max-height: 90vh;
-  overflow: auto;
+  overflow: hidden;
   will-change: transform, opacity;
   contain: layout paint style;
   -webkit-backface-visibility: hidden;
@@ -376,7 +378,7 @@
 .sys-modal__close:hover { background: var(--glass-hover); }
 .sys-modal__close:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 
-.sys-modal__body { display: grid; gap: 10px; }
+.sys-modal__body { display: grid; gap: 10px; flex: 1; min-height: 0; overflow-y: auto; }
 
 .sys-modal__footer {
   display: flex;

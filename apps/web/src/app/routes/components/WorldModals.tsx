@@ -80,28 +80,29 @@ export function WorldModals({
         onOpenChange={setUserModalOpen}
         title="Benutzerverwaltung"
         maxWidth={900}
+        minHeight={520}
         right={<div style={{ display: 'flex', gap: 8 }}><ThemeToggleButton /></div>}
       >
         <UserManagement baseUrl={apiBase} onBack={() => setUserModalOpen(false)} />
       </Modal>
 
       {/* Profile Settings Modal */}
-      <Modal open={profileOpen} onOpenChange={setProfileOpen} title="Profile Settings" maxWidth={700}>
+      <Modal open={profileOpen} onOpenChange={setProfileOpen} title="Profile Settings" maxWidth={700} minHeight={520}>
         <ProfileSettings onClose={() => setProfileOpen(false)} colyseusRef={colyseusRef} />
       </Modal>
 
       {/* Billing Dashboard Modal */}
-      <Modal open={billingOpen} onOpenChange={setBillingOpen} title="Billing & Subscription" maxWidth={900}>
+      <Modal open={billingOpen} onOpenChange={setBillingOpen} title="Billing & Subscription" maxWidth={900} minHeight={520}>
         <BillingDashboard onClose={() => setBillingOpen(false)} />
       </Modal>
 
       {/* Tenant/Organization Settings Modal */}
-      <Modal open={tenantSettingsOpen} onOpenChange={setTenantSettingsOpen} title="Organization Settings" maxWidth={800}>
+      <Modal open={tenantSettingsOpen} onOpenChange={setTenantSettingsOpen} title="Organization Settings" maxWidth={800} minHeight={520}>
         <TenantSettings onClose={() => setTenantSettingsOpen(false)} />
       </Modal>
 
       {/* Session Management Modal */}
-      <Modal open={sessionsOpen} onOpenChange={setSessionsOpen} title="Active Sessions" maxWidth={700}>
+      <Modal open={sessionsOpen} onOpenChange={setSessionsOpen} title="Active Sessions" maxWidth={700} minHeight={520}>
         <SessionManagement onClose={() => setSessionsOpen(false)} />
       </Modal>
 
