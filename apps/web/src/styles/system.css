@@ -264,7 +264,7 @@
 .sys-select:focus { border-color: var(--brand-accent); outline: none; }
 
 /* ---------- Tabs ---------- */
-.sys-tabs { display: flex; gap: 4px; padding: 8px 16px; border-bottom: 1px solid var(--border); }
+.sys-tabs { display: flex; gap: 4px; padding: 8px 16px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
 .sys-tabs__tab {
   padding: 8px 16px;
   background: transparent;
@@ -350,6 +350,7 @@
   align-items: center;
   justify-content: space-between;
   margin-bottom: 10px;
+  flex-shrink: 0;
 }
 
 .sys-modal__header--draggable {
