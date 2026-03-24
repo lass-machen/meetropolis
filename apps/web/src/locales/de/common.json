@@ -72,6 +72,8 @@
   "auth.backToLogin": "Zurück zum Login",
   "auth.forgot.title": "Passwort vergessen",
   "auth.forgot.submit": "Zurücksetzen anfordern",
+  "auth.forgot.description": "Gib deine E-Mail-Adresse ein und wir senden dir einen Link zum Zurücksetzen deines Passworts.",
+  "auth.forgot.success": "Falls ein Konto mit dieser E-Mail existiert, haben wir dir einen Reset-Link gesendet. Bitte prüfe dein Postfach.",
   "auth.reset.title": "Passwort zurücksetzen",
   "auth.reset.token": "Reset-Token",
   "auth.reset.newPassword": "Neues Passwort",

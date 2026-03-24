@@ -72,6 +72,8 @@
   "auth.backToLogin": "Back to login",
   "auth.forgot.title": "Forgot password",
   "auth.forgot.submit": "Request reset",
+  "auth.forgot.description": "Enter your email address and we'll send you a link to reset your password.",
+  "auth.forgot.success": "If an account exists with this email, we've sent you a reset link. Please check your inbox.",
   "auth.reset.title": "Reset password",
   "auth.reset.token": "Reset token",
   "auth.reset.newPassword": "New password",

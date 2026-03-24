@@ -17,7 +17,7 @@ async function storeDesktopAuthToken(token: string) {
 export function AuthScreen(props: { baseUrl: string; onDone: () => void }) {
   const { baseUrl, onDone } = props;
   const { t } = useTranslation();
-  const [view, setView] = React.useState<'login'|'register'|'reset'|'guest'>('login');
+  const [view, setView] = React.useState<'login'|'register'|'forgot'|'reset'|'guest'>('login');
   const [guestLoading, setGuestLoading] = React.useState(false);
   const [email, setEmail] = React.useState('');
   const [password, setPassword] = React.useState('');
@@ -25,6 +25,7 @@ export function AuthScreen(props: { baseUrl: string; onDone: () => void }) {
   const [invite, setInvite] = React.useState('');
   const [token, setToken] = React.useState('');
   const [msg, setMsg] = React.useState<string | null>(null);
+  const [msgType, setMsgType] = React.useState<'error'|'success'>('error');
 
   async function post(path: string, body: any) {
     const url = `${baseUrl}${path}`;
@@ -140,6 +141,34 @@ export function AuthScreen(props: { baseUrl: string; onDone: () => void }) {
     history.replaceState(null, '', hashPath);
   }, []);
 
+  // Detect password reset token in URL hash
+  React.useEffect(() => {
+    const hash = window.location.hash;
+    if (!hash.startsWith('#/reset?')) return;
+    const params = new URLSearchParams(hash.slice('#/reset?'.length));
+    const resetToken = params.get('token');
+    const resetEmail = params.get('email');
+    if (resetToken) setToken(resetToken);
+    if (resetEmail) setEmail(resetEmail);
+    setView('reset');
+    // Clean up URL
+    history.replaceState(null, '', window.location.pathname + '#/app');
+  }, []);
+
+  async function handleForgotSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setMsg(null);
+    try {
+      await post('/auth/forgot', { email });
+      setMsgType('success');
+      setMsg(t('auth.forgot.success'));
+      setView('reset');
+    } catch (e: unknown) {
+      setMsgType('error');
+      setMsg(e instanceof Error ? e.message : String(e));
+    }
+  }
+
   async function handleLoginSubmit(e: React.FormEvent) {
     e.preventDefault();
     setMsg(null);
@@ -151,6 +180,7 @@ export function AuthScreen(props: { baseUrl: string; onDone: () => void }) {
       }
       onDone();
     } catch (e: unknown) {
+      setMsgType('error');
       setMsg(e instanceof Error ? e.message : String(e));
     }
   }
@@ -166,6 +196,7 @@ export function AuthScreen(props: { baseUrl: string; onDone: () => void }) {
       }
       onDone();
     } catch (e: unknown) {
+      setMsgType('error');
       setMsg(e instanceof Error ? e.message : String(e));
     }
   }
@@ -176,8 +207,10 @@ export function AuthScreen(props: { baseUrl: string; onDone: () => void }) {
     try {
       await post('/auth/reset', { email, token, password });
       setView('login');
+      setMsgType('success');
       setMsg(t('auth.passwordUpdated'));
     } catch (e: unknown) {
+      setMsgType('error');
       setMsg(e instanceof Error ? e.message : String(e));
     }
   }
@@ -277,7 +310,7 @@ export function AuthScreen(props: { baseUrl: string; onDone: () => void }) {
               {t('auth.login.submit')}
             </Button>
             <div style={{ display:'flex', justifyContent:'space-between', fontSize: 13, color:'var(--muted)' }}>
-              <a style={linkStyle} onClick={()=>setView('reset')}>{t('auth.forgotLink')}</a>
+              <a style={linkStyle} onClick={()=>setView('forgot')}>{t('auth.forgotLink')}</a>
               <a style={linkStyle} onClick={()=>setView('register')}>{t('auth.inviteLink')}</a>
             </div>
           </form>
@@ -349,6 +382,39 @@ export function AuthScreen(props: { baseUrl: string; onDone: () => void }) {
             <a style={{ cursor:'pointer', color: 'var(--brand-primary)', textDecoration: 'none', fontSize: 13, textAlign: 'center' }} onClick={()=>setView('login')}>{t('auth.backToLogin')}</a>
           </form>
         )}
+        {view === 'forgot' && (
+          <form onSubmit={handleForgotSubmit} autoComplete="on" style={{ display: 'contents' }}>
+            <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: 'var(--fg)' }}>{t('auth.forgot.title')}</h2>
+            <p style={{ margin: 0, fontSize: 14, color: 'var(--muted)', lineHeight: 1.5 }}>{t('auth.forgot.description')}</p>
+            <div style={{ display: 'grid', gap: 10 }}>
+              <div>
+                <label htmlFor="forgot-email" style={{ fontSize: 12, color: 'var(--muted)', display: 'block', marginBottom: 6 }}>{t('auth.email')}</label>
+                <Input
+                  id="forgot-email"
+                  name="email"
+                  inputMode="email"
+                  autoComplete="username"
+                  placeholder={t('auth.emailExample')}
+                  value={email}
+                  onChange={e=>setEmail(e.target.value)}
+                  style={{ fontSize: 14 }}
+                />
+              </div>
+            </div>
+            <Button
+              type="submit"
+              variant="brand"
+              style={{
+                width: '100%',
+                padding: '12px 20px',
+                fontSize: 15
+              }}
+            >
+              {t('auth.forgot.submit')}
+            </Button>
+            <a style={{ cursor:'pointer', color: 'var(--brand-primary)', textDecoration: 'none', fontSize: 13, textAlign: 'center' }} onClick={()=>setView('login')}>{t('auth.backToLogin')}</a>
+          </form>
+        )}
         {view === 'reset' && (
           <form onSubmit={handleResetSubmit} autoComplete="on" style={{ display: 'contents' }}>
             <h3 style={{ margin: 0 }}>{t('auth.reset.title')}</h3>
@@ -382,9 +448,9 @@ export function AuthScreen(props: { baseUrl: string; onDone: () => void }) {
           <div style={{
             padding: '12px 16px',
             borderRadius: 8,
-            background: 'rgba(239,68,68,0.1)',
-            border: '1px solid rgba(239,68,68,0.3)',
-            color: '#fca5a5',
+            background: msgType === 'success' ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)',
+            border: msgType === 'success' ? '1px solid rgba(34,197,94,0.3)' : '1px solid rgba(239,68,68,0.3)',
+            color: msgType === 'success' ? '#86efac' : '#fca5a5',
             fontSize: 14,
             marginTop: 8
           }}>
