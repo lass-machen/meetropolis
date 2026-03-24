@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { AvailablePlan, BillingStatus } from '../types';
 import { formatCurrency } from '../utils';
 import { Card, Button } from '../../system';
@@ -10,10 +11,12 @@ interface PlanSelectorProps {
 }
 
 export function PlanSelector({ plans, status, onSelectPlan, actionLoading }: PlanSelectorProps) {
+  const { t } = useTranslation();
+
   if (plans.length === 0) {
     return (
       <div style={{ padding: 40, textAlign: 'center', color: 'var(--fg-subtle, #888)' }}>
-        No plans available
+        {t('billing.noPlans')}
       </div>
     );
   }
@@ -30,7 +33,7 @@ export function PlanSelector({ plans, status, onSelectPlan, actionLoading }: Pla
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
               <div style={{ fontSize: 18, fontWeight: 600, color: 'var(--fg, #fff)' }}>{plan.name}</div>
               <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--accent, #3b82f6)' }}>
-                {plan.amount === 0 ? 'Free' : `${formatCurrency(plan.amount, plan.currency)}/${plan.interval}`}
+                {plan.amount === 0 ? t('billing.free') : `${formatCurrency(plan.amount, plan.currency)}/${plan.interval}`}
               </div>
             </div>
             {plan.description && (
@@ -39,7 +42,7 @@ export function PlanSelector({ plans, status, onSelectPlan, actionLoading }: Pla
               </div>
             )}
             <div style={{ fontSize: 14, color: 'var(--fg, #fff)', marginBottom: 12 }}>
-              {plan.concurrentLimit} concurrent users
+              {plan.concurrentLimit} {t('billing.concurrentUsers')}
             </div>
             {plan.features.length > 0 && (
               <ul style={{ margin: '0 0 12px', paddingLeft: 20, fontSize: 13, color: 'var(--fg-subtle, #888)' }}>
@@ -50,7 +53,7 @@ export function PlanSelector({ plans, status, onSelectPlan, actionLoading }: Pla
             )}
             {isCurrent ? (
               <Button variant="ghost" disabled style={{ width: '100%' }}>
-                Current Plan
+                {t('billing.currentPlanLabel')}
               </Button>
             ) : (
               <Button
@@ -59,7 +62,7 @@ export function PlanSelector({ plans, status, onSelectPlan, actionLoading }: Pla
                 disabled={actionLoading}
                 style={{ width: '100%' }}
               >
-                Select Plan
+                {t('billing.selectPlan')}
               </Button>
             )}
           </Card>

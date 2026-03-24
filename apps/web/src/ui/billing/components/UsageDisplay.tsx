@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { BillingStatus } from '../types';
 import { Card, ProgressBar } from '../../system';
 
@@ -6,24 +7,25 @@ interface UsageDisplayProps {
 }
 
 export function UsageDisplay({ status }: UsageDisplayProps) {
+  const { t } = useTranslation();
   const usagePercent = Math.min(100, (status.usage.currentUsers / Math.max(1, status.usage.limit)) * 100);
 
   const usageLabel = (
     <>
-      {status.usage.freeSeats > 0 && <span>{status.usage.freeSeats} free seats</span>}
-      {status.usage.paidSeats > 0 && <span> + {status.usage.paidSeats} paid seats</span>}
+      {status.usage.freeSeats > 0 && <span>{status.usage.freeSeats} {t('billing.freeSeats')}</span>}
+      {status.usage.paidSeats > 0 && <span> + {status.usage.paidSeats} {t('billing.paidSeats')}</span>}
     </>
   );
 
   return (
-    <Card title="Usage" style={{ marginBottom: 16 }}>
+    <Card title={t('billing.usage')} style={{ marginBottom: 16 }}>
       <div>
         <div style={{ marginBottom: 8 }}>
           <span style={{ fontSize: 32, fontWeight: 700, color: 'var(--fg, #fff)' }}>
             {status.usage.currentUsers}
           </span>
           <span style={{ fontSize: 16, color: 'var(--fg-subtle, #888)', marginLeft: 4 }}>
-            / {status.usage.limit} users
+            {t('billing.usageOf', { limit: status.usage.limit })}
           </span>
         </div>
         <ProgressBar

@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { BillingStatus } from '../types';
 import { Button } from '../../system';
 
@@ -16,6 +17,8 @@ export function BillingActions({
   onUpgrade,
   actionLoading
 }: BillingActionsProps) {
+  const { t } = useTranslation();
+
   return (
     <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
       {status.billing.enabled && (
@@ -23,17 +26,17 @@ export function BillingActions({
           {status.billing.hasSubscription ? (
             <>
               <Button variant="primary" onClick={onManageBilling} disabled={actionLoading} style={{ flex: 1 }}>
-                Manage Payment Methods
+                {t('billing.managePayment')}
               </Button>
               {!status.billing.subscription?.cancelAtPeriodEnd && (
                 <Button variant="danger" onClick={onCancel} disabled={actionLoading} style={{ flex: 1 }}>
-                  Cancel Subscription
+                  {t('billing.cancelSubscription')}
                 </Button>
               )}
             </>
           ) : (
             <Button variant="primary" onClick={onUpgrade} style={{ flex: 1 }}>
-              Upgrade Plan
+              {t('billing.upgradePlan')}
             </Button>
           )}
         </>

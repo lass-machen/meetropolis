@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { Invoice } from '../types';
 import { formatDate, formatCurrency } from '../utils';
 import { Card, Badge } from '../../system';
@@ -7,10 +8,12 @@ interface InvoiceHistoryProps {
 }
 
 export function InvoiceHistory({ invoices }: InvoiceHistoryProps) {
+  const { t } = useTranslation();
+
   if (invoices.length === 0) {
     return (
       <div style={{ padding: 40, textAlign: 'center', color: 'var(--fg-subtle, #888)' }}>
-        No invoices yet
+        {t('billing.noInvoices')}
       </div>
     );
   }
@@ -46,7 +49,7 @@ export function InvoiceHistory({ invoices }: InvoiceHistoryProps) {
                   rel="noopener noreferrer"
                   style={{ color: 'var(--accent, #3b82f6)', textDecoration: 'none', fontSize: 13 }}
                 >
-                  View
+                  {t('billing.view')}
                 </a>
               )}
               {inv.pdfUrl && (
@@ -56,7 +59,7 @@ export function InvoiceHistory({ invoices }: InvoiceHistoryProps) {
                   rel="noopener noreferrer"
                   style={{ color: 'var(--accent, #3b82f6)', textDecoration: 'none', fontSize: 13 }}
                 >
-                  PDF
+                  {t('billing.pdf')}
                 </a>
               )}
             </div>

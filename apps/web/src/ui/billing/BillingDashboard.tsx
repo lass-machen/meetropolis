@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { useBillingData } from './hooks/useBillingData';
 import { usePaymentStatus } from './hooks/usePaymentStatus';
 import { CurrentPlanCard } from './components/CurrentPlanCard';
@@ -10,6 +11,7 @@ import { PaymentStatusBanner } from './components/PaymentStatusBanner';
 import { Tabs, Alert } from '../system';
 
 export function BillingDashboard({ onClose: _onClose }: { onClose: () => void }) {
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = React.useState<'overview' | 'invoices' | 'plans'>('overview');
 
   const {
@@ -30,7 +32,7 @@ export function BillingDashboard({ onClose: _onClose }: { onClose: () => void })
   if (loading) {
     return (
       <div style={{ padding: 40, textAlign: 'center', color: 'var(--fg-subtle, #888)' }}>
-        Loading billing information...
+        {t('billing.loading')}
       </div>
     );
   }
@@ -47,9 +49,9 @@ export function BillingDashboard({ onClose: _onClose }: { onClose: () => void })
 
       <Tabs
         items={[
-          { key: 'overview', label: 'Overview' },
-          { key: 'invoices', label: 'Invoices' },
-          { key: 'plans', label: 'Plans' },
+          { key: 'overview', label: t('billing.tabOverview') },
+          { key: 'invoices', label: t('billing.tabInvoices') },
+          { key: 'plans', label: t('billing.tabPlans') },
         ]}
         activeKey={activeTab}
         onChange={(key) => setActiveTab(key as 'overview' | 'invoices' | 'plans')}

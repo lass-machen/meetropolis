@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { useTenantSettings } from './hooks/useTenantSettings';
 import { GeneralSettings } from './tenant/GeneralSettings';
 import { MemberSettings } from './tenant/MemberSettings';
@@ -7,6 +8,7 @@ import { Tabs, Alert } from '../system';
 import type { TabItem } from '../system';
 
 export function TenantSettings({ onClose: _onClose }: { onClose: () => void }) {
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = React.useState<'general' | 'members' | 'guests'>('general');
 
   const {
@@ -32,13 +34,13 @@ export function TenantSettings({ onClose: _onClose }: { onClose: () => void }) {
   }, [fetchData]);
 
   if (loading) {
-    return <div style={{ padding: 40, textAlign: 'center', color: 'var(--fg-subtle, #888)' }}>Loading organization settings...</div>;
+    return <div style={{ padding: 40, textAlign: 'center', color: 'var(--fg-subtle, #888)' }}>{t('tenant.loading')}</div>;
   }
 
   const tabItems: TabItem[] = [
-    { key: 'general', label: 'General' },
-    { key: 'members', label: `Members (${members.length})` },
-    ...(isEnterprise ? [{ key: 'guests', label: `Gäste (${guests.length})` }] : []),
+    { key: 'general', label: t('tenant.tabGeneral') },
+    { key: 'members', label: `${t('tenant.tabMembers')} (${members.length})` },
+    ...(isEnterprise ? [{ key: 'guests', label: `${t('tenant.tabGuests')} (${guests.length})` }] : []),
   ];
 
   return (

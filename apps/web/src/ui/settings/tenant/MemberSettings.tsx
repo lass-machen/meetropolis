@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import type { Member } from './types';
 import { InviteMember } from './InviteMember';
 import { Section, Button, Select } from '../../system';
@@ -20,15 +21,16 @@ export function MemberSettings({
   onInvite,
   onSuccess,
 }: MemberSettingsProps) {
+  const { t } = useTranslation();
   const [showInvite, setShowInvite] = React.useState(false);
 
   return (
     <>
       <Section
-        title="Team Members"
+        title={t('tenant.teamMembers')}
         actions={
           <Button variant="primary" onClick={() => setShowInvite(true)}>
-            Invite Member
+            {t('tenant.inviteMember')}
           </Button>
         }
       >
@@ -46,17 +48,17 @@ export function MemberSettings({
                   disabled={member.role === 'owner' || member.role === 'guest' || saving}
                   style={{ width: 'auto' }}
                 >
-                  <option value="owner" disabled>Owner</option>
-                  <option value="admin">Admin</option>
-                  <option value="member">Member</option>
-                  <option value="guest" disabled>Guest</option>
+                  <option value="owner" disabled>{t('tenant.roleOwner')}</option>
+                  <option value="admin">{t('tenant.roleAdmin')}</option>
+                  <option value="member">{t('tenant.roleMember')}</option>
+                  <option value="guest" disabled>{t('tenant.roleGuest')}</option>
                 </Select>
                 {member.role !== 'owner' && (
                   <Button
                     variant="danger"
                     onClick={() => onRemoveMember(member.id)}
                     disabled={saving}
-                    title="Remove member"
+                    title={t('tenant.removeMember')}
                     style={{ width: 28, height: 28, padding: 0 }}
                   >
                     &times;
