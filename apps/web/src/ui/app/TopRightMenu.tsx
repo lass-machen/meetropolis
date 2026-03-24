@@ -10,10 +10,10 @@ export function TopRightMenu(props: {
   onOpenInvites?: () => void;
   onOpenAdmin?: () => void;
   isAdmin?: boolean;
-  onBackToWorld: () => void;
-  onOpenApi: () => void;
-  onToggleEditor: () => void | Promise<void>;
-  editorActive: boolean;
+  onBackToWorld?: () => void;
+  onOpenApi?: () => void;
+  onToggleEditor?: () => void | Promise<void>;
+  editorActive?: boolean;
   onLogout: () => void | Promise<void>;
   onResetApp?: () => void;
   onOpenBilling?: () => void;
@@ -22,7 +22,7 @@ export function TopRightMenu(props: {
   onOpenSessions?: () => void;
   onOpenPackStore?: () => void;
 }) {
-  const { menuOpen, onToggleMenu, onOpenUsers, onOpenInvites, onOpenAdmin, isAdmin, onBackToWorld, onOpenApi, onToggleEditor, editorActive, onLogout, onResetApp, onOpenBilling, onOpenProfile, onOpenTenantSettings, onOpenSessions, onOpenPackStore } = props;
+  const { menuOpen, onToggleMenu, onOpenUsers, onOpenInvites, onOpenAdmin, isAdmin, /* onBackToWorld, onOpenApi, */ onToggleEditor, editorActive, onLogout, onResetApp, onOpenBilling, onOpenProfile, onOpenTenantSettings, onOpenSessions, onOpenPackStore } = props;
   const { override, setOverride } = useTheme();
   const { t } = useTranslation();
   const menuRef = React.useRef<HTMLDivElement>(null);
@@ -178,18 +178,28 @@ export function TopRightMenu(props: {
           )}
 
           {/* World & Tools */}
-          <button role="menuitem" onClick={() => handleItemClick(onBackToWorld)} className="menu-item">
-            <FAIcon name="earth-europe" variant="solid" fixedWidth />
-            <span>{t('topRightMenu.backToWorld')}</span>
-          </button>
-          <button role="menuitem" onClick={() => handleItemClick(onOpenApi)} className="menu-item">
-            <FAIcon name="key" variant="solid" fixedWidth />
-            <span>{t('topRightMenu.api')}</span>
-          </button>
-          <button role="menuitem" onClick={() => handleItemClick(onToggleEditor)} className={`menu-item ${editorActive ? 'active' : ''}`}>
-            <FAIcon name={editorActive ? 'pen-to-square' : 'pen-ruler'} variant="solid" fixedWidth />
-            <span>{editorActive ? t('topRightMenu.editorOff') : t('topRightMenu.editorOn')}</span>
-          </button>
+          {/* Back to World – temporarily disabled, no function yet
+          {onBackToWorld && (
+            <button role="menuitem" onClick={() => handleItemClick(onBackToWorld)} className="menu-item">
+              <FAIcon name="earth-europe" variant="solid" fixedWidth />
+              <span>{t('topRightMenu.backToWorld')}</span>
+            </button>
+          )}
+          */}
+          {/* API Tokens – temporarily disabled
+          {onOpenApi && (
+            <button role="menuitem" onClick={() => handleItemClick(onOpenApi)} className="menu-item">
+              <FAIcon name="key" variant="solid" fixedWidth />
+              <span>{t('topRightMenu.api')}</span>
+            </button>
+          )}
+          */}
+          {onToggleEditor && (
+            <button role="menuitem" onClick={() => handleItemClick(onToggleEditor)} className={`menu-item ${editorActive ? 'active' : ''}`}>
+              <FAIcon name={editorActive ? 'pen-to-square' : 'pen-ruler'} variant="solid" fixedWidth />
+              <span>{editorActive ? t('topRightMenu.editorOff') : t('topRightMenu.editorOn')}</span>
+            </button>
+          )}
 
           <div style={{ height: 1, background: 'rgba(255,255,255,0.1)', margin: '4px 8px' }} />
 

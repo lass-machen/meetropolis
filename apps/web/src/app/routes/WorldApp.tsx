@@ -656,17 +656,17 @@ export function WorldApp() {
                 onToggleMenu: eventHandlers.handleToggleMenu,
                 ...(isTenantAdmin ? { onOpenUsers: eventHandlers.handleOpenUsers } : {}),
                 ...(isTenantAdmin ? { onOpenInvites: eventHandlers.handleOpenInvites } : {}),
-                onBackToWorld: eventHandlers.handleBackToWorld,
+                // onBackToWorld: eventHandlers.handleBackToWorld, // temporarily disabled – no function yet
                 onOpenAdmin: eventHandlers.handleOpenAdmin,
                 isAdmin: isInternalOwner,
-                onOpenApi: eventHandlers.handleOpenApi,
+                // onOpenApi: eventHandlers.handleOpenApi, // temporarily disabled
                 ...(isTenantAdmin ? { onOpenBilling: eventHandlers.handleOpenBilling } : {}),
                 onOpenProfile: eventHandlers.handleOpenProfile,
                 ...(isTenantAdmin ? { onOpenTenantSettings: eventHandlers.handleOpenTenantSettings } : {}),
                 ...(isTenantAdmin ? { onOpenSessions: eventHandlers.handleOpenSessions } : {}),
-                onOpenPackStore: () => setPackStoreOpen(true),
+                ...(isTenantAdmin ? { onOpenPackStore: () => setPackStoreOpen(true) } : {}),
                 onResetApp: eventHandlers.handleResetApp,
-                onToggleEditor: eventHandlers.handleToggleEditor,
+                ...(isTenantAdmin ? { onToggleEditor: eventHandlers.handleToggleEditor } : {}),
                 editorActive: editor.active,
                 onLogout: eventHandlers.handleLogout,
               }}

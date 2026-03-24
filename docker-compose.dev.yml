@@ -62,7 +62,7 @@ services:
       BILLING_PUBLIC_URL: http://localhost:5174
       PRICING_URL: http://localhost:5174/#/pricing
       TEMPLATE_TENANT_SLUG: default
-    command: sh -c "cd /workspace && npm install && npx prisma generate --schema=./apps/server/prisma/schema.prisma && npx prisma db push --schema=./apps/server/prisma/schema.prisma && npx prisma db seed --schema=./apps/server/prisma/schema.prisma && npm run -w @meetropolis/server start:dev"
+    command: sh -c "cd /workspace && npm install && npm run -w @meetropolis/shared build && npx prisma generate --schema=./apps/server/prisma/schema.prisma && npx prisma db push --schema=./apps/server/prisma/schema.prisma && npx prisma db seed --schema=./apps/server/prisma/schema.prisma && npm run -w @meetropolis/server start:dev"
     ports:
       - "2567:2567"
     logging:
