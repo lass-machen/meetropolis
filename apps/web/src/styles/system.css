@@ -379,7 +379,7 @@
 .sys-modal__close:hover { background: var(--glass-hover); }
 .sys-modal__close:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 
-.sys-modal__body { display: grid; gap: 10px; flex: 1; min-height: 0; overflow-y: auto; }
+.sys-modal__body { display: grid; gap: 10px; flex: 1; min-height: 0; overflow-y: auto; align-items: start; }
 
 .sys-modal__footer {
   display: flex;
