@@ -214,8 +214,6 @@
 /* ---------- Button ---------- */
 .sys-btn {
   box-sizing: border-box;
-  padding: 10px 12px;
-  border-radius: var(--radius-sm);
   border: 1px solid var(--border);
   background: var(--glass);
   color: var(--fg);
@@ -226,6 +224,14 @@
 .sys-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 .sys-btn:hover:not(:disabled) { background: var(--glass-hover); }
 .sys-btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+/* Size variants */
+.sys-btn--xs { padding: 4px 8px; font-size: 12px; border-radius: 6px; }
+.sys-btn--sm { padding: 6px 12px; font-size: 13px; border-radius: 8px; }
+.sys-btn--md { padding: 10px 16px; font-size: 14px; border-radius: 10px; }
+.sys-btn--lg { padding: 12px 20px; font-size: 15px; border-radius: 12px; }
+.sys-btn--xl { padding: 14px 28px; font-size: 16px; border-radius: 14px; }
+
 .sys-btn--primary { background: linear-gradient(135deg, var(--brand-primary), var(--brand-accent)); color: #fff; border: none; }
 .sys-btn--primary:hover:not(:disabled) { filter: brightness(1.1); }
 .sys-btn--brand { background: var(--gradient-hero); color: #fff; border: none; }
@@ -235,6 +241,10 @@
 .sys-btn--danger { background: rgba(244,63,94,0.15); border: 1px solid rgba(244,63,94,0.45); color: #fff; }
 .sys-btn--danger:hover:not(:disabled) { background: rgba(244,63,94,0.25); }
 .sys-btn__icon { display: inline-flex; align-items: center; gap: 8px; }
+.sys-btn--xs .sys-btn__icon { gap: 4px; }
+.sys-btn--sm .sys-btn__icon { gap: 6px; }
+.sys-btn--lg .sys-btn__icon { gap: 10px; }
+.sys-btn--xl .sys-btn__icon { gap: 10px; }
 
 /* ---------- Input ---------- */
 .sys-input {
