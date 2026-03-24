@@ -73,11 +73,14 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      livekit:
+        condition: service_started
     healthcheck:
       test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:2567/readyz',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))\" "]
       interval: 15s
       timeout: 5s
       retries: 5
+      start_period: 180s
     networks:
       - meetropolis-dev
     volumes:
@@ -113,6 +116,7 @@ services:
       interval: 15s
       timeout: 5s
       retries: 5
+      start_period: 120s
     networks:
       - meetropolis-dev
     volumes:
