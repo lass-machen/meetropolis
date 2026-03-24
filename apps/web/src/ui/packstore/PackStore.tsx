@@ -1,8 +1,14 @@
 import React from 'react';
-import { Modal, Button } from '../system';
+import { Modal, Button, Tabs } from '../system';
+import type { TabItem } from '../system';
 import { openExternal } from '../../lib/openExternal';
 import { PackCard } from './PackCard';
 import type { CatalogPack } from './packStoreTypes';
+
+const storeTabs: TabItem[] = [
+  { key: 'store', label: 'Store' },
+  { key: 'my-packs', label: 'My Packs' },
+];
 
 interface PackStoreProps {
   apiBase: string;
@@ -82,33 +88,27 @@ export function PackStore({ apiBase, open, onOpenChange }: PackStoreProps) {
   const activePacks = tab === 'store' ? sortedCatalog : myPacks;
 
   return (
-    <Modal open={open} onOpenChange={onOpenChange} title="Pack Store" maxWidth={900}>
-      <div style={{ display: 'grid', gap: 12 }}>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <Button onClick={() => setTab('store')} variant={tab === 'store' ? 'primary' : 'secondary'}>
-            Store
-          </Button>
-          <Button onClick={() => setTab('my-packs')} variant={tab === 'my-packs' ? 'primary' : 'secondary'}>
-            My Packs
-          </Button>
-          <div style={{ flex: 1 }} />
-          <Button onClick={reload}>{loading ? 'Loading...' : 'Reload'}</Button>
+    <Modal
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Pack Store"
+      maxWidth={900}
+      actions={<Button onClick={reload}>{loading ? 'Loading...' : 'Reload'}</Button>}
+      accessories={<Tabs items={storeTabs} activeKey={tab} onChange={setTab as (key: string) => void} />}
+    >
+      {loading && activePacks.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: 40, color: 'var(--fg-subtle)' }}>Loading packs...</div>
+      ) : activePacks.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: 40, color: 'var(--fg-subtle)' }}>
+          {tab === 'store' ? 'No packs available yet.' : 'No packs installed yet.'}
         </div>
-
-        {loading && activePacks.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: 40, color: 'var(--fg-subtle)' }}>Loading packs...</div>
-        ) : activePacks.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: 40, color: 'var(--fg-subtle)' }}>
-            {tab === 'store' ? 'No packs available yet.' : 'No packs installed yet.'}
-          </div>
-        ) : (
-          <div style={gridStyle}>
-            {activePacks.map(p => (
-              <PackCard key={`${p.packType}-${p.uuid}`} pack={p} onInstall={handleInstall} onBuy={handleBuy} />
-            ))}
-          </div>
-        )}
-      </div>
+      ) : (
+        <div style={gridStyle}>
+          {activePacks.map(p => (
+            <PackCard key={`${p.packType}-${p.uuid}`} pack={p} onInstall={handleInstall} onBuy={handleBuy} />
+          ))}
+        </div>
+      )}
     </Modal>
   );
 }

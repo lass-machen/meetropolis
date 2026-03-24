@@ -1,4 +1,3 @@
-import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useBillingData } from './hooks/useBillingData';
 import { usePaymentStatus } from './hooks/usePaymentStatus';
@@ -8,11 +7,17 @@ import { BillingActions } from './components/BillingActions';
 import { InvoiceHistory } from './components/InvoiceHistory';
 import { PlanSelector } from './components/PlanSelector';
 import { PaymentStatusBanner } from './components/PaymentStatusBanner';
-import { Tabs, Alert } from '../system';
+import { Alert } from '../system';
 
-export function BillingDashboard({ onClose: _onClose }: { onClose: () => void }) {
+interface BillingDashboardProps {
+  onClose: () => void;
+  activeTab?: string;
+  onTabChange?: (key: string) => void;
+}
+
+export function BillingDashboard({ onClose: _onClose, activeTab: activeTabProp, onTabChange }: BillingDashboardProps) {
   const { t } = useTranslation();
-  const [activeTab, setActiveTab] = React.useState<'overview' | 'invoices' | 'plans'>('overview');
+  const activeTab = (activeTabProp ?? 'overview') as 'overview' | 'invoices' | 'plans';
 
   const {
     status,
@@ -47,16 +52,6 @@ export function BillingDashboard({ onClose: _onClose }: { onClose: () => void })
         <PaymentStatusBanner paymentStatus={paymentStatus} onManageBilling={handlePaymentBilling} />
       )}
 
-      <Tabs
-        items={[
-          { key: 'overview', label: t('billing.tabOverview') },
-          { key: 'invoices', label: t('billing.tabInvoices') },
-          { key: 'plans', label: t('billing.tabPlans') },
-        ]}
-        activeKey={activeTab}
-        onChange={(key) => setActiveTab(key as 'overview' | 'invoices' | 'plans')}
-      />
-
       <div style={{ padding: 20, overflowY: 'auto', flex: 1 }}>
         {activeTab === 'overview' && status && (
           <>
@@ -72,7 +67,7 @@ export function BillingDashboard({ onClose: _onClose }: { onClose: () => void })
               status={status}
               onManageBilling={handleManageBilling}
               onCancel={handleCancel}
-              onUpgrade={() => setActiveTab('plans')}
+              onUpgrade={() => onTabChange?.('plans')}
               actionLoading={actionLoading}
             />
           </>

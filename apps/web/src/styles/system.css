@@ -345,16 +345,36 @@
   -webkit-backface-visibility: hidden;
 }
 
+/* Header - fixed at top, does not shrink */
 .sys-modal__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
   margin-bottom: 10px;
   flex-shrink: 0;
 }
 
 .sys-modal__header--draggable {
   cursor: move;
+}
+
+/* Header Row: title left, actions+close right */
+.sys-modal__header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 32px;
+}
+
+/* Header Actions container (right side) */
+.sys-modal__header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* Accessories slot (below header row, e.g. tabs) */
+.sys-modal__header-accessories {
+  margin-top: 8px;
 }
 
 .sys-modal__title { font-weight: 800; }
@@ -379,12 +399,17 @@
 .sys-modal__close:hover { background: var(--glass-hover); }
 .sys-modal__close:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 
+/* Body - takes available space, scrolls vertically */
 .sys-modal__body { display: grid; gap: 10px; flex: 1; min-height: 0; overflow-y: auto; align-items: start; }
 
+/* Footer - fixed at bottom, does not shrink */
 .sys-modal__footer {
+  flex-shrink: 0;
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
   margin-top: 14px;
 }
 

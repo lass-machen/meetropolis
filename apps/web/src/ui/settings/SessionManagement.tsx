@@ -13,7 +13,7 @@ interface Session {
   isCurrent: boolean;
 }
 
-export function SessionManagement({ onClose }: { onClose: () => void }) {
+export function SessionManagement({ onClose: _onClose }: { onClose: () => void }) {
   const { t } = useTranslation();
   const [sessions, setSessions] = React.useState<Session[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -220,10 +220,6 @@ export function SessionManagement({ onClose }: { onClose: () => void }) {
         </>
       )}
 
-      <Divider />
-      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-        <Button variant="secondary" onClick={onClose}>{t('modal.close')}</Button>
-      </div>
     </div>
   );
 }
