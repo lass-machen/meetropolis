@@ -2,6 +2,7 @@ import * as React from 'react';
 import { DialogRoot, DialogPortal, DialogOverlay, DialogContent, DialogTitle, DialogDescription } from '../primitives/Dialog';
 import { VisuallyHidden } from '../primitives/VisuallyHidden';
 import { useTranslation } from 'react-i18next';
+import { Button } from './Button';
 
 export type ModalProps = {
   open: boolean;
@@ -109,13 +110,16 @@ export function Modal(props: ModalProps) {
   const isStringTitle = typeof title === 'string';
 
   const closeButton = (
-    <button
-      className="sys-modal__close"
-      title={tr('modal.close', 'Schließen')}
+    <Button
+      iconOnly
+      size="sm"
+      variant="ghost"
       onClick={() => onOpenChange(false)}
+      title={tr('modal.close', 'Schließen')}
+      aria-label={tr('modal.close', 'Schließen')}
     >
       ×
-    </button>
+    </Button>
   );
 
   return (

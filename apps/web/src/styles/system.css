@@ -39,15 +39,6 @@
   align-items: center;
 }
 
-.sys-alert__dismiss {
-  background: none;
-  border: none;
-  color: inherit;
-  cursor: pointer;
-  padding: 0 0 0 12px;
-  font-size: inherit;
-}
-
 /* ---------- Badge ---------- */
 .sys-badge {
   display: inline-block;
@@ -233,9 +224,9 @@
 .sys-btn--xl { padding: 14px 28px; font-size: 16px; border-radius: 14px; }
 
 .sys-btn--primary { background: linear-gradient(135deg, var(--brand-primary), var(--brand-accent)); color: #fff; border: none; }
-.sys-btn--primary:hover:not(:disabled) { filter: brightness(1.1); }
+.sys-btn--primary:hover:not(:disabled) { background: linear-gradient(135deg, var(--brand-primary), var(--brand-accent)); box-shadow: 0 4px 12px rgba(69, 13, 179, 0.4); }
 .sys-btn--brand { background: var(--gradient-hero); color: #fff; border: none; }
-.sys-btn--brand:hover:not(:disabled) { filter: brightness(1.1); }
+.sys-btn--brand:hover:not(:disabled) { background: var(--gradient-hero); box-shadow: 0 4px 12px rgba(69, 13, 179, 0.4); }
 .sys-btn--ghost { background: var(--glass); }
 .sys-btn--secondary { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.15); color: var(--fg); }
 .sys-btn--danger { background: rgba(244,63,94,0.15); border: 1px solid rgba(244,63,94,0.45); color: #fff; }
@@ -245,6 +236,22 @@
 .sys-btn--sm .sys-btn__icon { gap: 6px; }
 .sys-btn--lg .sys-btn__icon { gap: 10px; }
 .sys-btn--xl .sys-btn__icon { gap: 10px; }
+
+/* Icon-only: square aspect ratio, centered content */
+.sys-btn--icon-only {
+  aspect-ratio: 1;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Override padding per size for icon-only — use fixed dimensions */
+.sys-btn--icon-only.sys-btn--xs { width: 24px; height: 24px; font-size: 12px; }
+.sys-btn--icon-only.sys-btn--sm { width: 30px; height: 30px; font-size: 13px; }
+.sys-btn--icon-only.sys-btn--md { width: 36px; height: 36px; font-size: 14px; }
+.sys-btn--icon-only.sys-btn--lg { width: 42px; height: 42px; font-size: 16px; }
+.sys-btn--icon-only.sys-btn--xl { width: 48px; height: 48px; font-size: 18px; }
 
 /* ---------- Input ---------- */
 .sys-input {
@@ -414,21 +421,6 @@
   color: var(--fg-subtle);
   font-size: 12px;
 }
-
-.sys-modal__close {
-  border: 1px solid var(--border);
-  background: var(--glass);
-  border-radius: var(--radius-xs);
-  width: 32px;
-  height: 32px;
-  display: grid;
-  place-items: center;
-  cursor: pointer;
-  color: var(--fg);
-  font-size: 14px;
-}
-.sys-modal__close:hover { background: var(--glass-hover); }
-.sys-modal__close:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 
 /* Body - takes available space, scrolls vertically */
 .sys-modal__body { display: grid; gap: 10px; flex: 1; min-height: 0; overflow-y: auto; align-items: start; }

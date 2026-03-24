@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { Button } from './Button';
 
 export type AlertIntent = 'success' | 'error' | 'warning' | 'info';
 
@@ -16,9 +17,15 @@ export function Alert({ intent, children, onDismiss, style }: AlertProps) {
     <div className={className} style={style}>
       <span>{children}</span>
       {onDismiss && (
-        <button type="button" className="sys-alert__dismiss" onClick={onDismiss}>
+        <Button
+          iconOnly
+          size="xs"
+          variant="ghost"
+          onClick={onDismiss}
+          aria-label="Dismiss"
+        >
           ×
-        </button>
+        </Button>
       )}
     </div>
   );

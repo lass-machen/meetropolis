@@ -94,13 +94,14 @@ export function GuestSettings({
                     {expired ? t('guest.expired') : t('guest.active')}
                   </Badge>
                   <Button
+                    iconOnly
+                    size="xs"
                     variant="danger"
                     onClick={() => handleRevoke(guest.id)}
                     disabled={saving}
                     title={t('guest.revoke')}
-                    style={{ width: 28, height: 28, padding: 0 }}
                   >
-                    &times;
+                    ×
                   </Button>
                 </div>
               </div>

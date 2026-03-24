@@ -55,13 +55,14 @@ export function MemberSettings({
                 </Select>
                 {member.role !== 'owner' && (
                   <Button
+                    iconOnly
+                    size="xs"
                     variant="danger"
                     onClick={() => onRemoveMember(member.id)}
                     disabled={saving}
                     title={t('tenant.removeMember')}
-                    style={{ width: 28, height: 28, padding: 0 }}
                   >
-                    &times;
+                    ×
                   </Button>
                 )}
               </div>
