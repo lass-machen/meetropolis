@@ -1,6 +1,5 @@
 import React from 'react';
-import { Toolbar, Button, Card, Input, Modal, Tr, Td, Select } from '../../ui/system';
-import { AdminTable } from './AdminTable';
+import { Toolbar, Button, Card, Input, Modal, Table, THead, TBody, Tr, Th, Td, TableContainer, Select } from '../../ui/system';
 import { useTranslation } from 'react-i18next';
 import { logger } from '../../lib/logger';
 import { translateApiError } from '../../lib/apiErrors';
@@ -146,185 +145,207 @@ export function UserManagement(props: { baseUrl: string; onBack: () => void }) {
           <div style={{ color: '#fca5a5' }}>{error}</div>
         </Card>
       )}
-      {loading ? (
-        <Card style={{ textAlign: 'center', padding: 40 }}>
-          <div style={{ color: 'rgba(255,255,255,0.6)' }}>{t('admin.users.loading')}</div>
-        </Card>
-      ) : (
-        <Card style={{ padding: 0, overflow: 'hidden' }}>
-          <AdminTable
-            headers={[
-              t('admin.users.email'),
-              t('admin.users.name'),
-              t('admin.users.role') || 'Rolle',
-              <span key="actions" style={{ display: 'inline-block', width: 220 }}>{t('admin.users.actions')}</span>
-            ]}
-          >
-            {users.length === 0 && (
-              <tr>
-                <td colSpan={4} style={{ padding: 24, textAlign: 'center', color: 'rgba(255,255,255,0.4)' }}>{t('admin.users.none')}</td>
-              </tr>
-            )}
-            {users.map(u => (
-              <Tr key={u.id} style={{ borderBottom: '1px solid var(--border)', background: edit?.id === u.id ? 'rgba(59,130,246,0.1)' : 'transparent' }}>
-                {edit?.id === u.id ? (
-                  <>
-                    <Td>
-                      <Input 
-                        value={edit.email} 
-                        onChange={e => setEdit({ ...(edit as any), email: e.target.value })}
-                        style={{ padding: '8px 12px', fontSize: 14 }}
-                      />
-                    </Td>
-                    <Td>
-                      <Input 
-                        value={edit.name ?? ''} 
-                        onChange={e => setEdit({ ...(edit as any), name: e.target.value })}
-                        style={{ padding: '8px 12px', fontSize: 14 }}
-                      />
-                    </Td>
-                    <Td>
-                      {edit.role === 'owner' ? (
-                        <span style={{ 
-                          padding: '4px 10px', 
-                          borderRadius: 12, 
-                          background: 'rgba(234, 179, 8, 0.2)', 
-                          color: '#fbbf24', 
-                          fontSize: 12, 
-                          fontWeight: 600 
-                        }}>
-                          Owner
-                        </span>
-                      ) : canChangeRoles && edit.id !== currentUserId ? (
-                        <Select
-                          value={edit.role || 'member'}
-                          onChange={(val) => setEdit({ ...edit, role: val as Role })}
-                          style={{ width: 'auto' }}
-                          options={[
-                            { value: 'admin', label: 'Admin' },
-                            { value: 'member', label: 'Member' },
-                          ]}
-                        />
-                      ) : (
-                        <span style={{ 
-                          padding: '4px 10px', 
-                          borderRadius: 12, 
-                          background: edit.role === 'admin' ? 'rgba(59, 130, 246, 0.2)' : 'rgba(107, 114, 128, 0.2)', 
-                          color: edit.role === 'admin' ? '#60a5fa' : '#9ca3af', 
-                          fontSize: 12, 
-                          fontWeight: 600 
-                        }}>
-                          {edit.role === 'admin' ? 'Admin' : 'Member'}
-                        </span>
-                      )}
-                    </Td>
-                    <Td style={{ display: 'flex', gap: 8 }}>
-                      <Button 
-                        variant="brand" 
-                        onClick={() => save(edit!)}
-                        style={{ padding: '6px 16px', borderRadius: 6, fontSize: 13 }}
-                      >
-                        ✓
-                      </Button>
-                      <Button 
-                        onClick={() => setEdit(null)}
-                        style={{ padding: '6px 16px', borderRadius: 6, fontSize: 13 }}
-                      >
-                        ✕
-                      </Button>
-                    </Td>
-                  </>
-                ) : (
-                  <>
-                    <Td><div style={{ display: 'flex', alignItems: 'center', color: 'var(--fg)', fontSize: 14 }}>{u.email}</div></Td>
-                    <Td><div style={{ display: 'flex', alignItems: 'center', color: u.name ? 'var(--fg)' : 'var(--fg-subtle)', fontSize: 14 }}>{u.name ?? '—'}</div></Td>
-                    <Td>
-                      {u.role === 'owner' ? (
-                        <span style={{ 
-                          padding: '4px 10px', 
-                          borderRadius: 12, 
-                          background: 'rgba(234, 179, 8, 0.2)', 
-                          color: '#fbbf24', 
-                          fontSize: 12, 
-                          fontWeight: 600 
-                        }}>
-                          Owner
-                        </span>
-                      ) : canChangeRoles && u.id !== currentUserId ? (
-                        <Select
-                          value={u.role || 'member'}
-                          onChange={(val) => changeRole(u.id, val as 'admin' | 'member')}
-                          style={{ width: 'auto' }}
-                          options={[
-                            { value: 'admin', label: 'Admin' },
-                            { value: 'member', label: 'Member' },
-                          ]}
-                        />
-                      ) : (
-                        <span style={{ 
-                          padding: '4px 10px', 
-                          borderRadius: 12, 
-                          background: u.role === 'admin' ? 'rgba(59, 130, 246, 0.2)' : 'rgba(107, 114, 128, 0.2)', 
-                          color: u.role === 'admin' ? '#60a5fa' : '#9ca3af', 
-                          fontSize: 12, 
-                          fontWeight: 600 
-                        }}>
-                          {u.role === 'admin' ? 'Admin' : 'Member'}
-                        </span>
-                      )}
-                    </Td>
-                    <Td style={{ display: 'flex', gap: 8 }}>
-                      <Button 
-                        onClick={() => setEdit({ id: u.id, email: u.email, name: u.name ?? '', role: u.role })}
-                        style={{ padding: '6px 16px', borderRadius: 6, fontSize: 13 }}
-                      >
-                        {t('admin.users.edit')}
-                      </Button>
-                      <Button
-                        onClick={async () => {
-                          try {
-                            setError(null);
-                            setResetFor({ id: u.id, email: u.email });
-                            setResetToken(null);
-                            const res = await fetch(`${baseUrl}/auth/forgot`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ email: u.email }) });
-                            const data = await res.json();
-                            if (!res.ok) throw new Error(translateApiError(data?.error) || 'Failed');
-                            setResetToken(data.token || null);
-                            setResetOpen(true);
-                          } catch (e: unknown) {
-                            setError((e instanceof Error ? e.message : String(e)) || 'Fehler');
-                          }
-                        }}
-                        style={{ padding: '6px 16px', borderRadius: 6, fontSize: 13 }}
-                      >
-                        {t('admin.users.generateReset')}
-                      </Button>
-                      {confirmDeleteId === u.id ? (
-                        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                          <Button variant="danger" onClick={() => remove(u.id)} style={{ padding: '6px 16px', borderRadius: 6, fontSize: 13 }}>
-                            {t('admin.users.confirmDelete')}
-                          </Button>
-                          <Button onClick={() => setConfirmDeleteId(null)} style={{ padding: '6px 16px', borderRadius: 6, fontSize: 13 }}>
-                            &#x2715;
-                          </Button>
-                        </div>
-                      ) : (
-                        <Button
-                          variant="danger"
-                          onClick={() => setConfirmDeleteId(u.id)}
-                          style={{ padding: '6px 16px', borderRadius: 6, fontSize: 13 }}
-                        >
-                          {t('admin.users.delete')}
-                        </Button>
-                      )}
-                    </Td>
-                  </>
-                )}
+      <Card style={{ padding: 0, overflow: 'hidden' }}>
+        <TableContainer maxHeight="60vh">
+          <Table>
+            <THead sticky>
+              <Tr>
+                <Th style={{ paddingLeft: 0 }}>{t('admin.users.email')}</Th>
+                <Th>{t('admin.users.name')}</Th>
+                <Th>{t('admin.users.role') || 'Rolle'}</Th>
+                <Th style={{ paddingRight: 0 }}>{null}</Th>
               </Tr>
-            ))}
-          </AdminTable>
-        </Card>
-      )}
+            </THead>
+            {loading && (
+              <TBody>
+                {[1, 2, 3].map(i => (
+                  <Tr key={i}>
+                    <Td colSpan={4} style={{ paddingLeft: 0 }}>
+                      <div style={{
+                        height: 16,
+                        borderRadius: 4,
+                        background: 'var(--glass-hover)',
+                        animation: 'pulse 1.5s ease-in-out infinite',
+                        width: `${60 + i * 10}%`
+                      }} />
+                    </Td>
+                  </Tr>
+                ))}
+              </TBody>
+            )}
+            {!loading && users.length === 0 && (
+              <TBody>
+                <Tr>
+                  <Td colSpan={4} style={{ paddingLeft: 0, textAlign: 'center', color: 'var(--fg-subtle)', padding: '32px 0' }}>
+                    {t('admin.users.none')}
+                  </Td>
+                </Tr>
+              </TBody>
+            )}
+            {!loading && users.length > 0 && (
+              <TBody>
+                {users.map(u => (
+                  <Tr key={u.id} style={{ borderBottom: '1px solid var(--border)', background: edit?.id === u.id ? 'rgba(59,130,246,0.1)' : 'transparent' }}>
+                    {edit?.id === u.id ? (
+                      <>
+                        <Td style={{ paddingLeft: 0 }}>
+                          <Input
+                            value={edit.email}
+                            onChange={e => setEdit({ ...(edit as any), email: e.target.value })}
+                            style={{ padding: '8px 12px', fontSize: 14 }}
+                          />
+                        </Td>
+                        <Td>
+                          <Input
+                            value={edit.name ?? ''}
+                            onChange={e => setEdit({ ...(edit as any), name: e.target.value })}
+                            style={{ padding: '8px 12px', fontSize: 14 }}
+                          />
+                        </Td>
+                        <Td>
+                          {edit.role === 'owner' ? (
+                            <span style={{
+                              padding: '4px 10px',
+                              borderRadius: 12,
+                              background: 'rgba(234, 179, 8, 0.2)',
+                              color: '#fbbf24',
+                              fontSize: 12,
+                              fontWeight: 600
+                            }}>
+                              Owner
+                            </span>
+                          ) : canChangeRoles && edit.id !== currentUserId ? (
+                            <Select
+                              value={edit.role || 'member'}
+                              onChange={(val) => setEdit({ ...edit, role: val as Role })}
+                              style={{ width: 'auto' }}
+                              options={[
+                                { value: 'admin', label: 'Admin' },
+                                { value: 'member', label: 'Member' },
+                              ]}
+                            />
+                          ) : (
+                            <span style={{
+                              padding: '4px 10px',
+                              borderRadius: 12,
+                              background: edit.role === 'admin' ? 'rgba(59, 130, 246, 0.2)' : 'rgba(107, 114, 128, 0.2)',
+                              color: edit.role === 'admin' ? '#60a5fa' : '#9ca3af',
+                              fontSize: 12,
+                              fontWeight: 600
+                            }}>
+                              {edit.role === 'admin' ? 'Admin' : 'Member'}
+                            </span>
+                          )}
+                        </Td>
+                        <Td style={{ paddingRight: 0, textAlign: 'right', display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                          <Button
+                            size="sm"
+                            variant="brand"
+                            onClick={() => save(edit!)}
+                          >
+                            ✓
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={() => setEdit(null)}
+                          >
+                            ✕
+                          </Button>
+                        </Td>
+                      </>
+                    ) : (
+                      <>
+                        <Td style={{ paddingLeft: 0 }}><div style={{ display: 'flex', alignItems: 'center', color: 'var(--fg)', fontSize: 14 }}>{u.email}</div></Td>
+                        <Td><div style={{ display: 'flex', alignItems: 'center', color: u.name ? 'var(--fg)' : 'var(--fg-subtle)', fontSize: 14 }}>{u.name ?? '—'}</div></Td>
+                        <Td>
+                          {u.role === 'owner' ? (
+                            <span style={{
+                              padding: '4px 10px',
+                              borderRadius: 12,
+                              background: 'rgba(234, 179, 8, 0.2)',
+                              color: '#fbbf24',
+                              fontSize: 12,
+                              fontWeight: 600
+                            }}>
+                              Owner
+                            </span>
+                          ) : canChangeRoles && u.id !== currentUserId ? (
+                            <Select
+                              value={u.role || 'member'}
+                              onChange={(val) => changeRole(u.id, val as 'admin' | 'member')}
+                              style={{ width: 'auto' }}
+                              options={[
+                                { value: 'admin', label: 'Admin' },
+                                { value: 'member', label: 'Member' },
+                              ]}
+                            />
+                          ) : (
+                            <span style={{
+                              padding: '4px 10px',
+                              borderRadius: 12,
+                              background: u.role === 'admin' ? 'rgba(59, 130, 246, 0.2)' : 'rgba(107, 114, 128, 0.2)',
+                              color: u.role === 'admin' ? '#60a5fa' : '#9ca3af',
+                              fontSize: 12,
+                              fontWeight: 600
+                            }}>
+                              {u.role === 'admin' ? 'Admin' : 'Member'}
+                            </span>
+                          )}
+                        </Td>
+                        <Td style={{ paddingRight: 0, textAlign: 'right', display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                          <Button
+                            size="sm"
+                            onClick={() => setEdit({ id: u.id, email: u.email, name: u.name ?? '', role: u.role })}
+                          >
+                            {t('admin.users.edit')}
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={async () => {
+                              try {
+                                setError(null);
+                                setResetFor({ id: u.id, email: u.email });
+                                setResetToken(null);
+                                const res = await fetch(`${baseUrl}/auth/forgot`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ email: u.email }) });
+                                const data = await res.json();
+                                if (!res.ok) throw new Error(translateApiError(data?.error) || 'Failed');
+                                setResetToken(data.token || null);
+                                setResetOpen(true);
+                              } catch (e: unknown) {
+                                setError((e instanceof Error ? e.message : String(e)) || 'Fehler');
+                              }
+                            }}
+                          >
+                            {t('admin.users.generateReset')}
+                          </Button>
+                          {confirmDeleteId === u.id ? (
+                            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                              <Button size="sm" variant="danger" onClick={() => remove(u.id)}>
+                                {t('admin.users.confirmDelete')}
+                              </Button>
+                              <Button size="sm" onClick={() => setConfirmDeleteId(null)}>
+                                &#x2715;
+                              </Button>
+                            </div>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="danger"
+                              onClick={() => setConfirmDeleteId(u.id)}
+                            >
+                              {t('admin.users.delete')}
+                            </Button>
+                          )}
+                        </Td>
+                      </>
+                    )}
+                  </Tr>
+                ))}
+              </TBody>
+            )}
+          </Table>
+        </TableContainer>
+      </Card>
 
       <Modal zIndexBase={1100} open={createOpen} onOpenChange={(o)=> { setCreateOpen(o); if (!o) { setNewRole('member'); } }} title={t('admin.users.inviteTitle')} maxWidth={520} footer={<> 
         <Button onClick={() => setCreateOpen(false)}>{t('admin.users.cancel')}</Button>

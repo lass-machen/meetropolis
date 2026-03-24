@@ -24,6 +24,7 @@ export function AdminOverlay(props: { apiBase: string; open: boolean; onOpenChan
       onOpenChange={onOpenChange}
       title="Administration"
       maxWidth={1100}
+      minHeight={520}
       accessories={<Tabs items={adminTabs} activeKey={tab} onChange={setTab as (key: string) => void} />}
     >
       {tab === 'tenants' && <TenantsAdmin apiBase={apiBase} />}

@@ -42,7 +42,7 @@ export function Th(props: { children: React.ReactNode; style?: React.CSSProperti
   return <th className={cls} style={props.style}>{props.children}</th>;
 }
 
-export function Td(props: { children: React.ReactNode; style?: React.CSSProperties; className?: string }) {
+export function Td(props: { children: React.ReactNode; style?: React.CSSProperties; className?: string; colSpan?: number }) {
   const cls = ['sys-td', props.className].filter(Boolean).join(' ');
-  return <td className={cls} style={props.style}>{props.children}</td>;
+  return <td className={cls} style={props.style} colSpan={props.colSpan}>{props.children}</td>;
 }

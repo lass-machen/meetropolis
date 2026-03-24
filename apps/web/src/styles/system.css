@@ -557,3 +557,9 @@
 }
 .sys-conn-banner__label { font-size: 13px; font-weight: 600; }
 .sys-conn-banner__reason { font-size: 11px; color: var(--fg-subtle); }
+
+/* ---------- Pulse animation (loading skeleton) ---------- */
+@keyframes pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}

@@ -43,6 +43,13 @@ export function MemberSettings({
             </Tr>
           </THead>
           <TBody>
+            {members.length === 0 && (
+              <Tr>
+                <Td colSpan={3} style={{ paddingLeft: 0, textAlign: 'center', color: 'var(--fg-subtle)', padding: '32px 0' }}>
+                  Keine Einträge vorhanden
+                </Td>
+              </Tr>
+            )}
             {members.map((member) => (
               <Tr key={member.id}>
                 <Td style={{ paddingLeft: 0 }}>

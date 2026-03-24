@@ -1,6 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, Tabs } from '../system';
+import { Button, Tabs, Table, THead, TBody, Tr, Th, Td, TableContainer } from '../system';
 import type { TabItem } from '../system';
 import { PackCatalogTable } from './PackCatalogTable';
 import { PackGrantModal } from './PackGrantModal';
@@ -121,9 +121,61 @@ export function PackCatalogAdmin({ apiBase }: PackCatalogAdminProps) {
       )}
 
       {loading && packs.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: 32, color: 'var(--fg-subtle)' }}>Loading packs...</div>
+        <TableContainer style={{ maxHeight: '55vh' }}>
+          <Table>
+            <THead sticky style={{ background: 'transparent' }}>
+              <Tr>
+                <Th style={{ paddingLeft: 0 }}>Name</Th>
+                <Th>Author</Th>
+                <Th>Version</Th>
+                <Th>Pricing</Th>
+                <Th style={{ width: 60 }}>Published</Th>
+                <Th style={{ width: 60 }}>Featured</Th>
+                <Th>Price (Cents)</Th>
+                <Th style={{ paddingRight: 0 }}>{null}</Th>
+              </Tr>
+            </THead>
+            <TBody>
+              {[1, 2, 3].map(i => (
+                <Tr key={i}>
+                  <Td colSpan={8} style={{ paddingLeft: 0 }}>
+                    <div style={{
+                      height: 16,
+                      borderRadius: 4,
+                      background: 'var(--glass-hover)',
+                      animation: 'pulse 1.5s ease-in-out infinite',
+                      width: `${60 + i * 10}%`
+                    }} />
+                  </Td>
+                </Tr>
+              ))}
+            </TBody>
+          </Table>
+        </TableContainer>
       ) : packs.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: 32, color: 'var(--fg-subtle)' }}>No {activeTab} packs found.</div>
+        <TableContainer style={{ maxHeight: '55vh' }}>
+          <Table>
+            <THead sticky style={{ background: 'transparent' }}>
+              <Tr>
+                <Th style={{ paddingLeft: 0 }}>Name</Th>
+                <Th>Author</Th>
+                <Th>Version</Th>
+                <Th>Pricing</Th>
+                <Th style={{ width: 60 }}>Published</Th>
+                <Th style={{ width: 60 }}>Featured</Th>
+                <Th>Price (Cents)</Th>
+                <Th style={{ paddingRight: 0 }}>{null}</Th>
+              </Tr>
+            </THead>
+            <TBody>
+              <Tr>
+                <Td colSpan={8} style={{ paddingLeft: 0, textAlign: 'center', color: 'var(--fg-subtle)', padding: '32px 0' }}>
+                  No {activeTab} packs found.
+                </Td>
+              </Tr>
+            </TBody>
+          </Table>
+        </TableContainer>
       ) : (
         <PackCatalogTable
           apiBase={apiBase}

@@ -153,6 +153,33 @@ export function BillingAdmin(props: { apiBase: string }) {
               <Th>Aktionen</Th>
             </Tr>
           </THead>
+          {loading && (
+            <TBody>
+              {[1, 2, 3].map(i => (
+                <Tr key={i}>
+                  <Td colSpan={4} style={{ paddingLeft: 0 }}>
+                    <div style={{
+                      height: 16,
+                      borderRadius: 4,
+                      background: 'var(--glass-hover)',
+                      animation: 'pulse 1.5s ease-in-out infinite',
+                      width: `${60 + i * 10}%`
+                    }} />
+                  </Td>
+                </Tr>
+              ))}
+            </TBody>
+          )}
+          {!loading && rows.length === 0 && (
+            <TBody>
+              <Tr>
+                <Td colSpan={4} style={{ paddingLeft: 0, textAlign: 'center', color: 'var(--fg-subtle)', padding: '32px 0' }}>
+                  Keine Einträge vorhanden
+                </Td>
+              </Tr>
+            </TBody>
+          )}
+          {!loading && rows.length > 0 && (
           <TBody>
             {rows.map(p => (
               <Tr key={p.id}>
@@ -183,16 +210,17 @@ export function BillingAdmin(props: { apiBase: string }) {
                     <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
                       <Input type="number" placeholder="Betrag (Cent)" value={addPriceAmount} onChange={(e: any) => setAddPriceAmount(Number(e.target.value) || 0)} style={{ width: 120 }} />
                       <Input type="number" placeholder="Limit" value={addPriceConcurrent} onChange={(e: any) => setAddPriceConcurrent(Number(e.target.value) || 0)} style={{ width: 80 }} />
-                      <Button onClick={submitAddPrice}>OK</Button>
-                      <Button onClick={() => setAddPriceTarget(null)}>&#x2715;</Button>
+                      <Button size="sm" onClick={submitAddPrice}>OK</Button>
+                      <Button size="sm" onClick={() => setAddPriceTarget(null)}>&#x2715;</Button>
                     </div>
                   ) : (
-                    <Button onClick={() => setAddPriceTarget(p.id)}>Preis hinzufügen</Button>
+                    <Button size="sm" onClick={() => setAddPriceTarget(p.id)}>Preis hinzufügen</Button>
                   )}
                 </Td>
               </Tr>
             ))}
           </TBody>
+          )}
         </Table>
       </TableContainer>
     </div>

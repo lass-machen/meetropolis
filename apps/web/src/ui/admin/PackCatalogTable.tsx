@@ -90,16 +90,16 @@ export function PackCatalogTable({ apiBase, packType, packs, onReload, onGrant }
   return (
     <TableContainer style={{ maxHeight: '55vh' }}>
       <Table>
-        <THead sticky>
+        <THead sticky style={{ background: 'transparent' }}>
           <Tr>
-            <Th>Name</Th>
+            <Th style={{ paddingLeft: 0 }}>Name</Th>
             <Th>Author</Th>
             <Th>Version</Th>
             <Th>Pricing</Th>
             <Th style={{ width: 60 }}>Published</Th>
             <Th style={{ width: 60 }}>Featured</Th>
             <Th>Price (Cents)</Th>
-            <Th>Actions</Th>
+            <Th style={{ paddingRight: 0 }}>{null}</Th>
           </Tr>
         </THead>
         <TBody>
@@ -138,7 +138,7 @@ function PackRow({ pack, getField, setField, hasEdits, saving, onSave, onGrant }
 
   return (
     <Tr>
-      <Td>
+      <Td style={{ paddingLeft: 0 }}>
         <div style={{ fontWeight: 600, fontSize: 13 }}>{pack.name}</div>
         <div style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>{pack.uuid.slice(0, 8)}...</div>
       </Td>
@@ -178,12 +178,12 @@ function PackRow({ pack, getField, setField, hasEdits, saving, onSave, onGrant }
           style={{ width: 100, padding: '6px 8px', fontSize: 12 }}
         />
       </Td>
-      <Td>
-        <div style={{ display: 'flex', gap: 4 }}>
-          <Button onClick={onSave} disabled={!hasEdits || saving} variant={hasEdits ? 'primary' : 'secondary'}>
+      <Td style={{ paddingRight: 0, textAlign: 'right' }}>
+        <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
+          <Button size="sm" onClick={onSave} disabled={!hasEdits || saving} variant={hasEdits ? 'primary' : 'secondary'}>
             {saving ? 'Saving...' : 'Save'}
           </Button>
-          <Button onClick={onGrant} variant="secondary">Grant</Button>
+          <Button size="sm" onClick={onGrant} variant="secondary">Grant</Button>
         </div>
       </Td>
     </Tr>

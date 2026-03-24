@@ -109,7 +109,7 @@ export function TenantsAdmin(props: { apiBase: string }) {
         <Table>
           <THead>
             <Tr>
-              <Th>Slug</Th>
+              <Th style={{ paddingLeft: 0 }}>Slug</Th>
               <Th>Name</Th>
               <Th>Online</Th>
               <Th>Limit</Th>
@@ -117,13 +117,40 @@ export function TenantsAdmin(props: { apiBase: string }) {
               <Th>Bypass</Th>
               <Th>Abo</Th>
               <Th>Status</Th>
-              <Th>Aktionen</Th>
+              <Th style={{ paddingRight: 0 }}>{null}</Th>
             </Tr>
           </THead>
+          {loading && (
+            <TBody>
+              {[1, 2, 3].map(i => (
+                <Tr key={i}>
+                  <Td colSpan={9} style={{ paddingLeft: 0 }}>
+                    <div style={{
+                      height: 16,
+                      borderRadius: 4,
+                      background: 'var(--glass-hover)',
+                      animation: 'pulse 1.5s ease-in-out infinite',
+                      width: `${60 + i * 10}%`
+                    }} />
+                  </Td>
+                </Tr>
+              ))}
+            </TBody>
+          )}
+          {!loading && rows.length === 0 && (
+            <TBody>
+              <Tr>
+                <Td colSpan={9} style={{ paddingLeft: 0, textAlign: 'center', color: 'var(--fg-subtle)', padding: '32px 0' }}>
+                  Keine Einträge vorhanden
+                </Td>
+              </Tr>
+            </TBody>
+          )}
+          {!loading && rows.length > 0 && (
           <TBody>
             {rows.map((r) => (
               <Tr key={r.id}>
-                <Td>{r.slug}</Td>
+                <Td style={{ paddingLeft: 0 }}>{r.slug}</Td>
                 <Td>
                   <Input value={r.name} onChange={(e: any) => updateRow(r.id, { name: e.target.value })} />
                 </Td>
@@ -163,7 +190,7 @@ export function TenantsAdmin(props: { apiBase: string }) {
                     ) : (
                       <span style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>Keine Pläne</span>
                     )}
-                    <Button onClick={async ()=>{
+                    <Button size="sm" onClick={async ()=>{
                       try {
                         const res = await fetch(`${apiBase}/billing/portal-session`, { method:'POST', credentials:'include' });
                         if (res.ok) { const { url } = await res.json(); await openExternal(url); }
@@ -180,16 +207,14 @@ export function TenantsAdmin(props: { apiBase: string }) {
                 <Td>
                   <Input value={r.status || ''} onChange={(e: any) => updateRow(r.id, { status: e.target.value || null })} />
                 </Td>
-                <Td>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <Button onClick={() => saveRow(r)}>Speichern</Button>
+                <Td style={{ paddingRight: 0, textAlign: 'right' }}>
+                  <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                    <Button size="sm" variant="primary" onClick={() => saveRow(r)}>Speichern</Button>
                     {!r.isInternal && (
                       <Button
+                        size="sm"
+                        variant="danger"
                         onClick={() => deletingId === r.id ? deleteTenant(r.id) : setDeletingId(r.id)}
-                        style={{
-                          background: deletingId === r.id ? 'var(--red, #ed4245)' : undefined,
-                          color: deletingId === r.id ? '#fff' : undefined,
-                        }}
                       >
                         {deletingId === r.id ? 'Wirklich löschen?' : 'Löschen'}
                       </Button>
@@ -199,6 +224,7 @@ export function TenantsAdmin(props: { apiBase: string }) {
               </Tr>
             ))}
           </TBody>
+          )}
         </Table>
       </TableContainer>
     </div>
