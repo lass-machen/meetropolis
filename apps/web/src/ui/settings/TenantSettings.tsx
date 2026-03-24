@@ -12,7 +12,7 @@ interface TenantSettingsProps {
   settingsData: ReturnType<typeof useTenantSettings>;
 }
 
-export function TenantSettings({ onClose: _onClose, activeTab: activeTabProp, onTabChange, settingsData }: TenantSettingsProps) {
+export function TenantSettings({ onClose: _onClose, activeTab: activeTabProp, onTabChange: _onTabChange, settingsData }: TenantSettingsProps) {
   const { t } = useTranslation();
   const activeTab = (activeTabProp ?? 'general') as 'general' | 'members' | 'guests';
 
@@ -43,10 +43,7 @@ export function TenantSettings({ onClose: _onClose, activeTab: activeTabProp, on
         {success && <Alert intent="success" style={{ marginBottom: 16 }}>{success}</Alert>}
 
         {activeTab === 'general' && tenant && (
-          <GeneralSettings
-            tenant={tenant}
-            onNavigateToMembers={() => onTabChange?.('members')}
-          />
+          <GeneralSettings tenant={tenant} />
         )}
 
         {activeTab === 'members' && (

@@ -558,6 +558,36 @@
 .sys-conn-banner__label { font-size: 13px; font-weight: 600; }
 .sys-conn-banner__reason { font-size: 11px; color: var(--fg-subtle); }
 
+/* ---------- DescriptionList ---------- */
+.sys-dl {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  margin: 0;
+  padding: 0;
+}
+
+.sys-dl__item {
+  padding: 16px 0;
+  border-top: 1px solid var(--border);
+}
+
+.sys-dl__item--full {
+  grid-column: 1 / -1;
+}
+
+.sys-dl__label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--fg);
+  margin-bottom: 4px;
+}
+
+.sys-dl__value {
+  font-size: 14px;
+  color: var(--fg-subtle);
+  margin: 0;
+}
+
 /* ---------- Pulse animation (loading skeleton) ---------- */
 @keyframes pulse {
   0%, 100% { opacity: 0.4; }
