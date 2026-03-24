@@ -1,5 +1,5 @@
 import React from 'react';
-import { TableContainer, Table, THead, TBody, Tr, Th, Td, Button, Input, Card } from '../system';
+import { TableContainer, Table, THead, TBody, Tr, Th, Td, Button, Input, Card, Select } from '../system';
 import { logger } from '../../lib/logger';
 
 type PriceRow = {
@@ -130,10 +130,14 @@ export function BillingAdmin(props: { apiBase: string }) {
           <Input placeholder="Beschreibung" value={newDesc} onChange={(e: any)=>setNewDesc(e.target.value)} style={{ width: 260 }} />
           <Input type="number" placeholder="Betrag (Cent)" value={newAmount} onChange={(e: any)=>setNewAmount(Number(e.target.value)||0)} style={{ width: 140 }} />
           <Input placeholder="Währung" value={newCurrency} onChange={(e: any)=>setNewCurrency(e.target.value)} style={{ width: 90 }} />
-          <select value={newInterval} onChange={(e)=>setNewInterval((e.target.value as any))}>
-            <option value="month">monatlich</option>
-            <option value="year">jährlich</option>
-          </select>
+          <Select
+            value={newInterval}
+            onChange={(val) => setNewInterval(val as any)}
+            options={[
+              { value: 'month', label: 'monatlich' },
+              { value: 'year', label: 'jährlich' },
+            ]}
+          />
           <Input type="number" placeholder="Concurrent-Limit" value={newConcurrent} onChange={(e: any)=>setNewConcurrent(Number(e.target.value)||0)} style={{ width: 140 }} />
           <Button onClick={createProduct}>Paket anlegen</Button>
         </div>

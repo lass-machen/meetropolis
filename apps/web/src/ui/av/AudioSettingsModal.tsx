@@ -54,12 +54,16 @@ export function AudioSettingsModal(props: { open: boolean; onOpenChange: (v: boo
         <FieldRow
           label={t('av.preset')}
           control={
-            <Select value={settings.preset} onChange={e => applyPreset((e.target as HTMLSelectElement).value as any)}>
-              <option value="standard">{t('av.preset.standard')}</option>
-              <option value="quiet">{t('av.preset.quiet')}</option>
-              <option value="loud">{t('av.preset.loud')}</option>
-              <option value="studio">{t('av.preset.studio')}</option>
-            </Select>
+            <Select
+              value={settings.preset}
+              onChange={(val) => applyPreset(val as any)}
+              options={[
+                { value: 'standard', label: t('av.preset.standard') },
+                { value: 'quiet', label: t('av.preset.quiet') },
+                { value: 'loud', label: t('av.preset.loud') },
+                { value: 'studio', label: t('av.preset.studio') },
+              ]}
+            />
           }
         />
       </div>

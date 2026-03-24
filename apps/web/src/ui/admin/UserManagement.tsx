@@ -1,5 +1,5 @@
 import React from 'react';
-import { Toolbar, Button, Card, Input, Modal, Tr, Td } from '../../ui/system';
+import { Toolbar, Button, Card, Input, Modal, Tr, Td, Select } from '../../ui/system';
 import { AdminTable } from './AdminTable';
 import { useTranslation } from 'react-i18next';
 import { logger } from '../../lib/logger';
@@ -196,22 +196,15 @@ export function UserManagement(props: { baseUrl: string; onBack: () => void }) {
                           Owner
                         </span>
                       ) : canChangeRoles && edit.id !== currentUserId ? (
-                        <select
+                        <Select
                           value={edit.role || 'member'}
-                          onChange={(e) => setEdit({ ...edit, role: e.target.value as Role })}
-                          style={{
-                            padding: '4px 8px',
-                            borderRadius: 6,
-                            border: '1px solid var(--border)',
-                            background: 'var(--glass)',
-                            color: 'var(--fg)',
-                            fontSize: 12,
-                            cursor: 'pointer'
-                          }}
-                        >
-                          <option value="admin">Admin</option>
-                          <option value="member">Member</option>
-                        </select>
+                          onChange={(val) => setEdit({ ...edit, role: val as Role })}
+                          style={{ width: 'auto' }}
+                          options={[
+                            { value: 'admin', label: 'Admin' },
+                            { value: 'member', label: 'Member' },
+                          ]}
+                        />
                       ) : (
                         <span style={{ 
                           padding: '4px 10px', 
@@ -258,22 +251,15 @@ export function UserManagement(props: { baseUrl: string; onBack: () => void }) {
                           Owner
                         </span>
                       ) : canChangeRoles && u.id !== currentUserId ? (
-                        <select
+                        <Select
                           value={u.role || 'member'}
-                          onChange={(e) => changeRole(u.id, e.target.value as 'admin' | 'member')}
-                          style={{
-                            padding: '4px 8px',
-                            borderRadius: 6,
-                            border: '1px solid var(--border)',
-                            background: 'var(--glass)',
-                            color: 'var(--fg)',
-                            fontSize: 12,
-                            cursor: 'pointer'
-                          }}
-                        >
-                          <option value="admin">Admin</option>
-                          <option value="member">Member</option>
-                        </select>
+                          onChange={(val) => changeRole(u.id, val as 'admin' | 'member')}
+                          style={{ width: 'auto' }}
+                          options={[
+                            { value: 'admin', label: 'Admin' },
+                            { value: 'member', label: 'Member' },
+                          ]}
+                        />
                       ) : (
                         <span style={{ 
                           padding: '4px 10px', 
@@ -366,22 +352,14 @@ export function UserManagement(props: { baseUrl: string; onBack: () => void }) {
           {isOwner && (
             <div style={{ display: 'grid', gap: 4 }}>
               <label style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>{t('admin.users.role') || 'Rolle'}</label>
-              <select
+              <Select
                 value={newRole}
-                onChange={(e) => setNewRole(e.target.value as 'admin' | 'member')}
-                style={{
-                  padding: '10px 12px',
-                  borderRadius: 'var(--radius-xs)',
-                  border: '1px solid var(--border)',
-                  background: 'var(--glass)',
-                  color: 'var(--fg)',
-                  fontSize: 14,
-                  cursor: 'pointer'
-                }}
-              >
-                <option value="member">Member</option>
-                <option value="admin">Admin</option>
-              </select>
+                onChange={(val) => setNewRole(val as 'admin' | 'member')}
+                options={[
+                  { value: 'member', label: 'Member' },
+                  { value: 'admin', label: 'Admin' },
+                ]}
+              />
               <div style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>
                 Admins können weitere Member einladen und User verwalten.
               </div>

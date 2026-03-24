@@ -61,11 +61,11 @@ export function PackGrantModal({ apiBase, open, onOpenChange, packUuid, packType
         ) : (
           <>
             <label style={{ fontSize: 13, color: 'var(--fg-subtle)' }}>Select Tenant</label>
-            <Select value={selectedTenantId} onChange={e => setSelectedTenantId(e.target.value)}>
-              {tenants.map(t => (
-                <option key={t.id} value={t.id}>{t.name} ({t.slug})</option>
-              ))}
-            </Select>
+            <Select
+              value={selectedTenantId}
+              onChange={setSelectedTenantId}
+              options={tenants.map(t => ({ value: t.id, label: `${t.name} (${t.slug})` }))}
+            />
             <Button variant="primary" onClick={handleGrant} disabled={granting || !selectedTenantId}>
               {granting ? 'Granting...' : 'Grant Access'}
             </Button>

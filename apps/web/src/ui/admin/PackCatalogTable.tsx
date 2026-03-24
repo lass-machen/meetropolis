@@ -147,13 +147,14 @@ function PackRow({ pack, getField, setField, hasEdits, saving, onSave, onGrant }
       <Td>
         <Select
           value={getField(uuid, 'pricingModel', catalog)}
-          onChange={e => setField(uuid, 'pricingModel', e.target.value as PricingModel)}
-          style={{ width: 130, padding: '6px 8px', fontSize: 12 }}
-        >
-          <option value="free">Free</option>
-          <option value="one_time">One-time</option>
-          <option value="subscription">Subscription</option>
-        </Select>
+          onChange={(val) => setField(uuid, 'pricingModel', val as PricingModel)}
+          style={{ width: 130 }}
+          options={[
+            { value: 'free', label: 'Free' },
+            { value: 'one_time', label: 'One-time' },
+            { value: 'subscription', label: 'Subscription' },
+          ]}
+        />
       </Td>
       <Td>
         <input

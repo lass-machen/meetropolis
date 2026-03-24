@@ -44,15 +44,16 @@ export function MemberSettings({
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Select
                   value={member.role}
-                  onChange={(e) => onChangeRole(member.id, e.target.value as 'admin' | 'member')}
+                  onChange={(val) => onChangeRole(member.id, val as 'admin' | 'member')}
                   disabled={member.role === 'owner' || member.role === 'guest' || saving}
                   style={{ width: 'auto' }}
-                >
-                  <option value="owner" disabled>{t('tenant.roleOwner')}</option>
-                  <option value="admin">{t('tenant.roleAdmin')}</option>
-                  <option value="member">{t('tenant.roleMember')}</option>
-                  <option value="guest" disabled>{t('tenant.roleGuest')}</option>
-                </Select>
+                  options={[
+                    { value: 'owner', label: t('tenant.roleOwner'), disabled: true },
+                    { value: 'admin', label: t('tenant.roleAdmin') },
+                    { value: 'member', label: t('tenant.roleMember') },
+                    { value: 'guest', label: t('tenant.roleGuest'), disabled: true },
+                  ]}
+                />
                 {member.role !== 'owner' && (
                   <Button
                     iconOnly

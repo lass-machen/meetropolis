@@ -82,11 +82,15 @@ export function TilesetUploadDialog(props: {
             <div style={{ fontSize: 11, color: 'var(--fg-subtle)', marginTop: 8 }}>{t('tileset.hint')}</div>
             <div style={{ display: 'grid', gap: 8, marginTop: 12 }}>
               <label style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>{t('tileset.category')}</label>
-              <Select value={d.category || 'terrain'} onChange={(e) => props.setDialog({ ...d, category: (e.target as HTMLSelectElement).value as any })} style={{ padding: '8px 12px', fontSize: 13 }}>
-                <option value="terrain">{t('tileset.cat.terrain')}</option>
-                <option value="structures">{t('tileset.cat.structures')}</option>
-                <option value="objects">{t('tileset.cat.objects')}</option>
-              </Select>
+              <Select
+                value={d.category || 'terrain'}
+                onChange={(val) => props.setDialog({ ...d, category: val as any })}
+                options={[
+                  { value: 'terrain', label: t('tileset.cat.terrain') },
+                  { value: 'structures', label: t('tileset.cat.structures') },
+                  { value: 'objects', label: t('tileset.cat.objects') },
+                ]}
+              />
               <div style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>{t('tileset.categoryHint')}</div>
             </div>
           </div>

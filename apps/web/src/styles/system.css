@@ -268,7 +268,11 @@
 .sys-input::placeholder { color: var(--fg-subtle); }
 
 /* ---------- Select ---------- */
-.sys-select {
+.sys-select__trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   box-sizing: border-box;
   width: 100%;
   padding: 10px 12px;
@@ -277,8 +281,62 @@
   background: var(--glass);
   color: var(--fg);
   font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  transition: border-color 0.15s;
 }
-.sys-select:focus { border-color: var(--brand-accent); outline: none; }
+.sys-select__trigger:focus { outline: none; }
+.sys-select__trigger[data-disabled] { opacity: 0.6; cursor: not-allowed; }
+
+.sys-select__chevron { color: var(--fg-subtle); flex-shrink: 0; display: flex; }
+
+.sys-select__content {
+  background: var(--modal-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  z-index: 1200;
+  min-width: var(--radix-select-trigger-width);
+}
+
+.sys-select__viewport { padding: 4px; }
+
+.sys-select__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--fg);
+  font-size: 14px;
+  outline: none;
+  user-select: none;
+  transition: background 0.1s;
+}
+
+.sys-select__item[data-highlighted],
+.sys-select__item:hover:not([data-disabled]) {
+  background: var(--brand-primary);
+  color: #fff;
+}
+
+.sys-select__item[data-disabled] {
+  color: var(--fg-subtle);
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.sys-select__check {
+  color: var(--brand-primary);
+  flex-shrink: 0;
+  font-size: 14px;
+}
+.sys-select__item[data-highlighted] .sys-select__check,
+.sys-select__item:hover:not([data-disabled]) .sys-select__check {
+  color: #fff;
+}
 
 /* ---------- Tabs ---------- */
 .sys-tabs {

@@ -66,11 +66,12 @@ export function InviteMember({ saving, onInvite, onClose, onSuccess }: InviteMem
             <label style={{ display: 'block', marginBottom: 6, fontSize: 13, fontWeight: 500, color: 'var(--fg, #fff)' }}>{t('tenant.role')}</label>
             <Select
               value={inviteRole}
-              onChange={(e) => setInviteRole(e.target.value as 'admin' | 'member')}
-            >
-              <option value="member">{t('tenant.roleMember')}</option>
-              <option value="admin">{t('tenant.roleAdmin')}</option>
-            </Select>
+              onChange={(val) => setInviteRole(val as 'admin' | 'member')}
+              options={[
+                { value: 'member', label: t('tenant.roleMember') },
+                { value: 'admin', label: t('tenant.roleAdmin') },
+              ]}
+            />
           </div>
           <div style={{ display: 'flex', gap: 12, marginTop: 12 }}>
             <Button variant="ghost" type="button" onClick={handleClose}>
