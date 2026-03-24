@@ -6,8 +6,8 @@ import { useTranslation } from 'react-i18next';
 export function TopRightMenu(props: {
   menuOpen: boolean;
   onToggleMenu: () => void;
-  onOpenUsers: () => void;
-  onOpenInvites: () => void;
+  onOpenUsers?: () => void;
+  onOpenInvites?: () => void;
   onOpenAdmin?: () => void;
   isAdmin?: boolean;
   onBackToWorld: () => void;
@@ -154,14 +154,18 @@ export function TopRightMenu(props: {
           <div style={{ height: 1, background: 'rgba(255,255,255,0.1)', margin: '4px 8px' }} />
 
           {/* Team & Management */}
-          <button role="menuitem" onClick={() => handleItemClick(onOpenUsers)} className="menu-item">
-            <FAIcon name="users" variant="solid" fixedWidth />
-            <span>{t('topRightMenu.users')}</span>
-          </button>
-          <button role="menuitem" onClick={() => handleItemClick(onOpenInvites)} className="menu-item">
-            <FAIcon name="envelope" variant="solid" fixedWidth />
-            <span>{t('topRightMenu.invites')}</span>
-          </button>
+          {onOpenUsers && (
+            <button role="menuitem" onClick={() => handleItemClick(onOpenUsers)} className="menu-item">
+              <FAIcon name="users" variant="solid" fixedWidth />
+              <span>{t('topRightMenu.users')}</span>
+            </button>
+          )}
+          {onOpenInvites && (
+            <button role="menuitem" onClick={() => handleItemClick(onOpenInvites)} className="menu-item">
+              <FAIcon name="envelope" variant="solid" fixedWidth />
+              <span>{t('topRightMenu.invites')}</span>
+            </button>
+          )}
           {isAdmin && onOpenAdmin && (
             <button role="menuitem" onClick={() => handleItemClick(onOpenAdmin)} className="menu-item">
               <FAIcon name="shield" variant="solid" fixedWidth />
@@ -169,7 +173,9 @@ export function TopRightMenu(props: {
             </button>
           )}
 
-          <div style={{ height: 1, background: 'rgba(255,255,255,0.1)', margin: '4px 8px' }} />
+          {(onOpenUsers || onOpenInvites || (isAdmin && onOpenAdmin)) && (
+            <div style={{ height: 1, background: 'rgba(255,255,255,0.1)', margin: '4px 8px' }} />
+          )}
 
           {/* World & Tools */}
           <button role="menuitem" onClick={() => handleItemClick(onBackToWorld)} className="menu-item">

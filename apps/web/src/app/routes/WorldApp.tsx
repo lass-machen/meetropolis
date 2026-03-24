@@ -82,7 +82,8 @@ export function WorldApp() {
 
   // State
   const [authChecked, setAuthChecked] = React.useState(false);
-  const [me, setMe] = React.useState<{ id: string; email: string; name?: string; onboardingCompleted?: boolean } | null>(null);
+  const [me, setMe] = React.useState<{ id: string; email: string; name?: string; onboardingCompleted?: boolean; role?: string } | null>(null);
+  const isTenantAdmin = me?.role === 'owner' || me?.role === 'admin';
   const [isInternalOwner, setIsInternalOwner] = React.useState(false);
   const { paymentStatus, handleManageBilling } = usePaymentStatus({ enabled: isInternalOwner });
   const [authRefetchTrigger, setAuthRefetchTrigger] = React.useState(0);
@@ -653,16 +654,16 @@ export function WorldApp() {
               topRightMenu={{
                 menuOpen,
                 onToggleMenu: eventHandlers.handleToggleMenu,
-                onOpenUsers: eventHandlers.handleOpenUsers,
-                onOpenInvites: eventHandlers.handleOpenInvites,
+                ...(isTenantAdmin ? { onOpenUsers: eventHandlers.handleOpenUsers } : {}),
+                ...(isTenantAdmin ? { onOpenInvites: eventHandlers.handleOpenInvites } : {}),
                 onBackToWorld: eventHandlers.handleBackToWorld,
                 onOpenAdmin: eventHandlers.handleOpenAdmin,
                 isAdmin: isInternalOwner,
                 onOpenApi: eventHandlers.handleOpenApi,
-                onOpenBilling: eventHandlers.handleOpenBilling,
+                ...(isTenantAdmin ? { onOpenBilling: eventHandlers.handleOpenBilling } : {}),
                 onOpenProfile: eventHandlers.handleOpenProfile,
-                onOpenTenantSettings: eventHandlers.handleOpenTenantSettings,
-                onOpenSessions: eventHandlers.handleOpenSessions,
+                ...(isTenantAdmin ? { onOpenTenantSettings: eventHandlers.handleOpenTenantSettings } : {}),
+                ...(isTenantAdmin ? { onOpenSessions: eventHandlers.handleOpenSessions } : {}),
                 onOpenPackStore: () => setPackStoreOpen(true),
                 onResetApp: eventHandlers.handleResetApp,
                 onToggleEditor: eventHandlers.handleToggleEditor,
