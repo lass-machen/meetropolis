@@ -1,4 +1,5 @@
 import { useZoneLockStore } from '../../state/zoneLockStore';
+import i18n from '../../app/providers/i18n';
 
 export function setupZoneLockHandlers(room: any): void {
   room.onMessage('zone_lock_state', (payload: { locks?: any[] }) => {
@@ -11,10 +12,10 @@ export function setupZoneLockHandlers(room: any): void {
     try {
       window.dispatchEvent(new CustomEvent('editor:toast', {
         detail: {
-          title: 'Zone gesperrt',
+          title: i18n.t('zone.lockedTitle'),
           description: payload?.zoneName
-            ? `Die Zone "${payload.zoneName}" ist gesperrt`
-            : 'Diese Zone ist gesperrt',
+            ? i18n.t('zone.lockedDesc', { name: payload.zoneName })
+            : i18n.t('zone.lockedDescGeneric'),
           intent: 'warning',
         },
       }));
@@ -25,10 +26,10 @@ export function setupZoneLockHandlers(room: any): void {
     try {
       window.dispatchEvent(new CustomEvent('editor:toast', {
         detail: {
-          title: 'Zugang verweigert',
+          title: i18n.t('zone.deniedTitle'),
           description: payload?.zoneName
-            ? `Dein Zugang zu "${payload.zoneName}" wurde abgelehnt`
-            : 'Dein Zugriffsantrag wurde abgelehnt',
+            ? i18n.t('zone.deniedDesc', { name: payload.zoneName })
+            : i18n.t('zone.deniedDescGeneric'),
           intent: 'error',
         },
       }));

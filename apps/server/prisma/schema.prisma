@@ -104,6 +104,7 @@ model User {
   createdAt           DateTime            @default(now())
   updatedAt           DateTime            @updatedAt
   onboardingCompleted Boolean             @default(false)
+  locale              String              @default("de")
   presences           Presence[]
   passwordResets      PasswordReset[]
   emailVerifications  EmailVerification[]

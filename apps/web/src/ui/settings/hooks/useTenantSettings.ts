@@ -1,6 +1,8 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { getApiBaseFromWindow } from '../../../lib/apiBase';
 import type { TenantInfo, Member, Guest } from '../tenant/types';
+import { translateApiError } from '../../../lib/apiErrors';
 
 interface UseTenantSettingsReturn {
   tenant: TenantInfo | null;
@@ -24,6 +26,7 @@ interface UseTenantSettingsReturn {
 }
 
 export function useTenantSettings(): UseTenantSettingsReturn {
+  const { t } = useTranslation();
   const [tenant, setTenant] = React.useState<TenantInfo | null>(null);
   const [members, setMembers] = React.useState<Member[]>([]);
   const [guests, setGuests] = React.useState<Guest[]>([]);
@@ -76,11 +79,11 @@ export function useTenantSettings(): UseTenantSettingsReturn {
         } catch { /* guests endpoint may not exist yet */ }
       }
     } catch (e: unknown) {
-      setError((e as Error).message || 'Failed to load data');
+      setError((e as Error).message || t('tenant.loadFailed'));
     } finally {
       setLoading(false);
     }
-  }, [apiBase]);
+  }, [apiBase, t]);
 
   const handleChangeRole = React.useCallback(async (userId: string, newRole: 'admin' | 'member') => {
     setSaving(true);
@@ -96,20 +99,20 @@ export function useTenantSettings(): UseTenantSettingsReturn {
 
       if (res.ok) {
         setMembers(prev => prev.map(m => m.id === userId ? { ...m, role: newRole } : m));
-        setSuccess('Role updated');
+        setSuccess(t('tenant.roleUpdated'));
       } else {
         const err = await res.json().catch(() => ({}));
-        setError(err.error || 'Failed to update role');
+        setError(translateApiError(err.error) || t('tenant.roleUpdateFailed'));
       }
     } catch (e: unknown) {
-      setError((e as Error).message || 'Network error');
+      setError((e as Error).message || t('common.networkError'));
     } finally {
       setSaving(false);
     }
-  }, [apiBase]);
+  }, [apiBase, t]);
 
   const handleRemoveMember = React.useCallback(async (userId: string) => {
-    if (!confirm('Are you sure you want to remove this member?')) return;
+    if (!confirm(t('tenant.confirmRemoveMember'))) return;
 
     setSaving(true);
     setError(null);
@@ -122,17 +125,17 @@ export function useTenantSettings(): UseTenantSettingsReturn {
 
       if (res.ok) {
         setMembers(prev => prev.filter(m => m.id !== userId));
-        setSuccess('Member removed');
+        setSuccess(t('tenant.memberRemoved'));
       } else {
         const err = await res.json().catch(() => ({}));
-        setError(err.error || 'Failed to remove member');
+        setError(translateApiError(err.error) || t('tenant.removeFailed'));
       }
     } catch (e: unknown) {
-      setError((e as Error).message || 'Network error');
+      setError((e as Error).message || t('common.networkError'));
     } finally {
       setSaving(false);
     }
-  }, [apiBase]);
+  }, [apiBase, t]);
 
   const handleInvite = React.useCallback(async (email: string, role: 'admin' | 'member'): Promise<string | null> => {
     setSaving(true);
@@ -148,20 +151,20 @@ export function useTenantSettings(): UseTenantSettingsReturn {
 
       if (res.ok) {
         const data = await res.json();
-        setSuccess('Invitation created');
+        setSuccess(t('tenant.inviteCreated'));
         return data.code;
       } else {
         const err = await res.json().catch(() => ({}));
-        setError(err.error || 'Failed to create invitation');
+        setError(translateApiError(err.error) || t('tenant.inviteFailed'));
         return null;
       }
     } catch (e: unknown) {
-      setError((e as Error).message || 'Network error');
+      setError((e as Error).message || t('common.networkError'));
       return null;
     } finally {
       setSaving(false);
     }
-  }, [apiBase]);
+  }, [apiBase, t]);
 
   const handleCreateGuest = React.useCallback(async (
     email: string,
@@ -191,16 +194,16 @@ export function useTenantSettings(): UseTenantSettingsReturn {
         return { magicLink: data.magicLink };
       } else {
         const err = await res.json().catch(() => ({}));
-        setError(err.error || 'Gast konnte nicht erstellt werden');
+        setError(translateApiError(err.error) || t('tenant.guestCreateFailed'));
         return null;
       }
     } catch (e: unknown) {
-      setError((e as Error).message || 'Netzwerkfehler');
+      setError((e as Error).message || t('common.networkError'));
       return null;
     } finally {
       setSaving(false);
     }
-  }, [apiBase]);
+  }, [apiBase, t]);
 
   const handleRevokeGuest = React.useCallback(async (membershipId: string): Promise<void> => {
     setSaving(true);
@@ -214,17 +217,17 @@ export function useTenantSettings(): UseTenantSettingsReturn {
 
       if (res.ok) {
         setGuests(prev => prev.filter(g => g.id !== membershipId));
-        setSuccess('Gast-Zugang widerrufen');
+        setSuccess(t('tenant.guestRevoked'));
       } else {
         const err = await res.json().catch(() => ({}));
-        setError(err.error || 'Gast konnte nicht entfernt werden');
+        setError(translateApiError(err.error) || t('tenant.guestRemoveFailed'));
       }
     } catch (e: unknown) {
-      setError((e as Error).message || 'Netzwerkfehler');
+      setError((e as Error).message || t('common.networkError'));
     } finally {
       setSaving(false);
     }
-  }, [apiBase]);
+  }, [apiBase, t]);
 
   return {
     tenant,

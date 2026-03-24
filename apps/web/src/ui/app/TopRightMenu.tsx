@@ -24,7 +24,7 @@ export function TopRightMenu(props: {
 }) {
   const { menuOpen, onToggleMenu, onOpenUsers, onOpenInvites, onOpenAdmin, isAdmin, /* onBackToWorld, onOpenApi, */ onToggleEditor, editorActive, onLogout, onResetApp, onOpenBilling, onOpenProfile, onOpenTenantSettings, onOpenSessions, onOpenPackStore } = props;
   const { override, setOverride } = useTheme();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const menuRef = React.useRef<HTMLDivElement>(null);
 
   // Close menu when clicking outside
@@ -147,6 +147,52 @@ export function TopRightMenu(props: {
                 }}
               >
                 <FAIcon name="desktop" variant="solid" size="xs" ariaLabel={t('theme.system')} />
+              </button>
+            </div>
+          </div>
+
+          {/* Language Toggle - Inline */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px' }}>
+            <FAIcon name="globe" variant="solid" fixedWidth style={{ opacity: 0.6 }} />
+            <span style={{ fontSize: 13, opacity: 0.8, flex: 1 }}>{t('topRightMenu.language') || 'Language'}</span>
+            <div style={{ display: 'flex', gap: 2, background: 'rgba(255,255,255,0.08)', borderRadius: 6, padding: 2 }}>
+              <button
+                onClick={() => i18n.changeLanguage('de')}
+                title="Deutsch"
+                style={{
+                  width: 28,
+                  height: 26,
+                  borderRadius: 5,
+                  border: 'none',
+                  background: i18n.language.startsWith('de') ? 'rgba(255,255,255,0.2)' : 'transparent',
+                  color: '#fff',
+                  cursor: 'pointer',
+                  display: 'grid',
+                  placeItems: 'center',
+                  fontSize: 11,
+                  fontWeight: i18n.language.startsWith('de') ? 700 : 500,
+                }}
+              >
+                DE
+              </button>
+              <button
+                onClick={() => i18n.changeLanguage('en')}
+                title="English"
+                style={{
+                  width: 28,
+                  height: 26,
+                  borderRadius: 5,
+                  border: 'none',
+                  background: i18n.language.startsWith('en') ? 'rgba(255,255,255,0.2)' : 'transparent',
+                  color: '#fff',
+                  cursor: 'pointer',
+                  display: 'grid',
+                  placeItems: 'center',
+                  fontSize: 11,
+                  fontWeight: i18n.language.startsWith('en') ? 700 : 500,
+                }}
+              >
+                EN
               </button>
             </div>
           </div>

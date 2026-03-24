@@ -3,6 +3,7 @@ import { Toolbar, Button, Card, Input, Modal, Tr, Td } from '../../ui/system';
 import { AdminTable } from './AdminTable';
 import { useTranslation } from 'react-i18next';
 import { logger } from '../../lib/logger';
+import { translateApiError } from '../../lib/apiErrors';
 
 type Role = 'owner' | 'admin' | 'member';
 type User = { id: string; email: string; name?: string; createdAt?: string; role?: Role };
@@ -71,7 +72,7 @@ export function UserManagement(props: { baseUrl: string; onBack: () => void }) {
         credentials: 'include',
         body: JSON.stringify({ role: newRole })
       });
-      if (!res.ok) throw new Error((await res.json())?.error || t('common.error'));
+      if (!res.ok) throw new Error(translateApiError((await res.json())?.error) || t('common.error'));
       await load();
     } catch (e: unknown) {
       setError((e instanceof Error ? e.message : String(e)) || t('common.error'));
@@ -82,7 +83,7 @@ export function UserManagement(props: { baseUrl: string; onBack: () => void }) {
     try {
       // Speichere Email/Name
       const res = await fetch(`${baseUrl}/users/${u.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ email: u.email, name: u.name }) });
-      if (!res.ok) throw new Error((await res.json())?.error || 'Update fehlgeschlagen');
+      if (!res.ok) throw new Error(translateApiError((await res.json())?.error) || 'Update fehlgeschlagen');
       
       // Speichere Rolle separat (nur wenn Owner und Rolle geändert)
       if (canChangeRoles && u.role && u.id !== currentUserId) {
@@ -103,7 +104,7 @@ export function UserManagement(props: { baseUrl: string; onBack: () => void }) {
   async function remove(id: string) {
     try {
       const res = await fetch(`${baseUrl}/users/${id}`, { method: 'DELETE', credentials: 'include' });
-      if (!res.ok) throw new Error((await res.json())?.error || t('common.error'));
+      if (!res.ok) throw new Error(translateApiError((await res.json())?.error) || t('common.error'));
       setConfirmDeleteId(null);
       await load();
     } catch (e: unknown) {
@@ -301,7 +302,7 @@ export function UserManagement(props: { baseUrl: string; onBack: () => void }) {
                             setResetToken(null);
                             const res = await fetch(`${baseUrl}/auth/forgot`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ email: u.email }) });
                             const data = await res.json();
-                            if (!res.ok) throw new Error(data?.error || 'Failed');
+                            if (!res.ok) throw new Error(translateApiError(data?.error) || 'Failed');
                             setResetToken(data.token || null);
                             setResetOpen(true);
                           } catch (e: unknown) {
@@ -350,7 +351,7 @@ export function UserManagement(props: { baseUrl: string; onBack: () => void }) {
               credentials: 'include', 
               body: JSON.stringify({ email: newEmail, name: newName || undefined, role: newRole }) 
             });
-            if (!res.ok) throw new Error((await res.json())?.error || t('common.error'));
+            if (!res.ok) throw new Error(translateApiError((await res.json())?.error) || t('common.error'));
             const data = await res.json();
             setInviteCode(data.code || null);
             try { await (document as any).__userManagementLoad?.(); } catch (err) { logger.warn('[UserManagement] Failed to reload after invite', err); }

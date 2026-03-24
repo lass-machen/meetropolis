@@ -28,7 +28,7 @@ export function ZoneEditor(props: {
             if (onSave) {
               const saved = await onSave();
               if (saved) {
-                try { window.dispatchEvent(new CustomEvent('editor:toast', { detail: { title: 'Gespeichert', description: 'Zonen wurden gespeichert', intent: 'success' } })); } catch { }
+                try { window.dispatchEvent(new CustomEvent('editor:toast', { detail: { title: t('editor.savedTitle'), description: t('editor.zonesSaved'), intent: 'success' } })); } catch { }
               }
             }
           }}

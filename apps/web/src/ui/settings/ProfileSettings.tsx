@@ -1,7 +1,9 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { getApiBaseFromWindow } from '../../lib/apiBase';
 import { AvatarSettings } from './AvatarSettings';
 import { gameBridge } from '../../game/bridge';
+import { translateApiError } from '../../lib/apiErrors';
 
 interface UserProfile {
   id: string;
@@ -13,6 +15,7 @@ interface UserProfile {
 }
 
 export function ProfileSettings({ onClose: _onClose, colyseusRef }: { onClose: () => void; colyseusRef?: React.RefObject<any> | undefined }) {
+  const { t } = useTranslation();
   const [profile, setProfile] = React.useState<UserProfile | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
@@ -53,10 +56,10 @@ export function ProfileSettings({ onClose: _onClose, colyseusRef }: { onClose: (
             localStorage.setItem('avatarId', serverAvatarId);
           }
         } else {
-          setError('Failed to load profile');
+          setError(t('profile.loadFailed'));
         }
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Network error');
+        setError(e instanceof Error ? e.message : t('common.networkError'));
       } finally {
         setLoading(false);
       }
@@ -81,13 +84,13 @@ export function ProfileSettings({ onClose: _onClose, colyseusRef }: { onClose: (
       if (res.ok) {
         const data = await res.json();
         setProfile(data.user || data);
-        setSuccess('Profile updated successfully');
+        setSuccess(t('profile.updateSuccess'));
       } else {
         const err = await res.json().catch(() => ({}));
-        setError(err.error || 'Failed to update profile');
+        setError(translateApiError(err.error) || t('profile.updateFailed'));
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Network error');
+      setError(e instanceof Error ? e.message : t('common.networkError'));
     } finally {
       setSaving(false);
     }
@@ -96,11 +99,11 @@ export function ProfileSettings({ onClose: _onClose, colyseusRef }: { onClose: (
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (newPassword !== confirmPassword) {
-      setError('Passwords do not match');
+      setError(t('profile.passwordMismatch'));
       return;
     }
     if (newPassword.length < 8) {
-      setError('Password must be at least 8 characters');
+      setError(t('profile.passwordTooShort'));
       return;
     }
 
@@ -117,17 +120,17 @@ export function ProfileSettings({ onClose: _onClose, colyseusRef }: { onClose: (
       });
 
       if (res.ok) {
-        setSuccess('Password changed successfully');
+        setSuccess(t('profile.passwordChangeSuccess'));
         setShowPasswordChange(false);
         setCurrentPassword('');
         setNewPassword('');
         setConfirmPassword('');
       } else {
         const err = await res.json().catch(() => ({}));
-        setError(err.error || 'Failed to change password');
+        setError(translateApiError(err.error) || t('profile.passwordChangeFailed'));
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Network error');
+      setError(e instanceof Error ? e.message : t('common.networkError'));
     } finally {
       setSaving(false);
     }
@@ -135,7 +138,7 @@ export function ProfileSettings({ onClose: _onClose, colyseusRef }: { onClose: (
 
   const handleDeleteAccount = async () => {
     if (deleteConfirmText !== 'DELETE') {
-      setError('Please type DELETE to confirm');
+      setError(t('profile.typeDeleteConfirm'));
       return;
     }
 
@@ -154,10 +157,10 @@ export function ProfileSettings({ onClose: _onClose, colyseusRef }: { onClose: (
         window.location.href = '/#/';
       } else {
         const err = await res.json().catch(() => ({}));
-        setError(err.error || 'Failed to delete account');
+        setError(translateApiError(err.error) || t('profile.deleteFailed'));
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Network error');
+      setError(e instanceof Error ? e.message : t('common.networkError'));
     } finally {
       setSaving(false);
     }
@@ -179,12 +182,12 @@ export function ProfileSettings({ onClose: _onClose, colyseusRef }: { onClose: (
         try {
           (colyseusRef as any)?.current?.send?.('avatar_change', { avatarId: newAvatarId });
         } catch {}
-        setSuccess('Avatar updated');
+        setSuccess(t('profile.avatarUpdated'));
       } else {
-        setError('Failed to update avatar');
+        setError(t('profile.avatarFailed'));
       }
     } catch {
-      setError('Failed to update avatar');
+      setError(t('profile.avatarFailed'));
     }
   };
 
@@ -198,7 +201,7 @@ export function ProfileSettings({ onClose: _onClose, colyseusRef }: { onClose: (
   };
 
   if (loading) {
-    return <div style={styles.loading}>Loading profile...</div>;
+    return <div style={styles.loading}>{t('profile.loading')}</div>;
   }
 
   return (
@@ -208,21 +211,21 @@ export function ProfileSettings({ onClose: _onClose, colyseusRef }: { onClose: (
 
       {/* Profile Form */}
       <form onSubmit={handleSaveProfile} style={styles.section}>
-        <h3 style={styles.sectionTitle}>Personal Information</h3>
+        <h3 style={styles.sectionTitle}>{t('profile.personalInfo')}</h3>
 
         <div style={styles.field}>
-          <label style={styles.label}>Display Name</label>
+          <label style={styles.label}>{t('profile.displayName')}</label>
           <input
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
             style={styles.input}
-            placeholder="Your name"
+            placeholder={t('profile.namePlaceholder')}
           />
         </div>
 
         <div style={styles.field}>
-          <label style={styles.label}>Email Address</label>
+          <label style={styles.label}>{t('profile.emailAddress')}</label>
           <input
             type="email"
             value={email}
@@ -231,40 +234,40 @@ export function ProfileSettings({ onClose: _onClose, colyseusRef }: { onClose: (
             placeholder="your@email.com"
           />
           {profile?.emailVerifiedAt ? (
-            <div style={styles.verified}>Verified on {formatDate(profile.emailVerifiedAt)}</div>
+            <div style={styles.verified}>{t('profile.verifiedOn', { date: formatDate(profile.emailVerifiedAt) })}</div>
           ) : (
-            <div style={styles.unverified}>Not verified</div>
+            <div style={styles.unverified}>{t('profile.notVerified')}</div>
           )}
         </div>
 
         <div style={styles.info}>
-          <span style={styles.infoLabel}>Member since:</span>
+          <span style={styles.infoLabel}>{t('profile.memberSince')}:</span>
           <span>{formatDate(profile?.createdAt || null)}</span>
         </div>
 
         <button type="submit" disabled={saving} style={styles.primaryBtn}>
-          {saving ? 'Saving...' : 'Save Changes'}
+          {saving ? t('profile.saving') : t('profile.saveChanges')}
         </button>
       </form>
 
       {/* Avatar */}
       <div style={styles.section}>
-        <h3 style={styles.sectionTitle}>Avatar</h3>
+        <h3 style={styles.sectionTitle}>{t('profile.avatar')}</h3>
         <AvatarSettings currentAvatarId={avatarId} onAvatarChange={handleAvatarChange} />
       </div>
 
       {/* Password Change */}
       <div style={styles.section}>
-        <h3 style={styles.sectionTitle}>Security</h3>
+        <h3 style={styles.sectionTitle}>{t('profile.security')}</h3>
 
         {!showPasswordChange ? (
           <button onClick={() => setShowPasswordChange(true)} style={styles.secondaryBtn}>
-            Change Password
+            {t('profile.changePassword')}
           </button>
         ) : (
           <form onSubmit={handleChangePassword} style={styles.passwordForm}>
             <div style={styles.field}>
-              <label style={styles.label}>Current Password</label>
+              <label style={styles.label}>{t('profile.currentPassword')}</label>
               <input
                 type="password"
                 value={currentPassword}
@@ -274,7 +277,7 @@ export function ProfileSettings({ onClose: _onClose, colyseusRef }: { onClose: (
               />
             </div>
             <div style={styles.field}>
-              <label style={styles.label}>New Password</label>
+              <label style={styles.label}>{t('profile.newPassword')}</label>
               <input
                 type="password"
                 value={newPassword}
@@ -285,7 +288,7 @@ export function ProfileSettings({ onClose: _onClose, colyseusRef }: { onClose: (
               />
             </div>
             <div style={styles.field}>
-              <label style={styles.label}>Confirm New Password</label>
+              <label style={styles.label}>{t('profile.confirmNewPassword')}</label>
               <input
                 type="password"
                 value={confirmPassword}
@@ -297,10 +300,10 @@ export function ProfileSettings({ onClose: _onClose, colyseusRef }: { onClose: (
             </div>
             <div style={styles.buttonRow}>
               <button type="button" onClick={() => setShowPasswordChange(false)} style={styles.cancelBtn}>
-                Cancel
+                {t('profile.cancel')}
               </button>
               <button type="submit" disabled={saving} style={styles.primaryBtn}>
-                {saving ? 'Changing...' : 'Change Password'}
+                {saving ? t('profile.changing') : t('profile.changePassword')}
               </button>
             </div>
           </form>
@@ -309,9 +312,9 @@ export function ProfileSettings({ onClose: _onClose, colyseusRef }: { onClose: (
 
       {/* Data Export (GDPR) */}
       <div style={styles.section}>
-        <h3 style={styles.sectionTitle}>Your Data (GDPR)</h3>
+        <h3 style={styles.sectionTitle}>{t('profile.gdprTitle')}</h3>
         <p style={styles.infoText}>
-          Download a copy of all your personal data stored in Meetropolis.
+          {t('profile.gdprDesc')}
         </p>
         <button
           onClick={async () => {
@@ -325,42 +328,42 @@ export function ProfileSettings({ onClose: _onClose, colyseusRef }: { onClose: (
                 a.download = `meetropolis-data-export-${Date.now()}.json`;
                 a.click();
                 window.URL.revokeObjectURL(url);
-                setSuccess('Data exported successfully');
+                setSuccess(t('profile.exportSuccess'));
               } else {
-                setError('Failed to export data');
+                setError(t('profile.exportDataFailed'));
               }
             } catch (e) {
-              setError('Export failed');
+              setError(t('profile.exportFailed'));
             }
           }}
           style={styles.secondaryBtn}
         >
-          Export My Data
+          {t('profile.exportData')}
         </button>
       </div>
 
       {/* Danger Zone */}
       <div style={styles.dangerSection}>
-        <h3 style={styles.sectionTitle}>Danger Zone</h3>
+        <h3 style={styles.sectionTitle}>{t('profile.dangerZone')}</h3>
         <p style={styles.dangerText}>
-          Deleting your account is permanent and cannot be undone. All your data will be removed.
+          {t('profile.deleteWarning')}
         </p>
 
         {!showDeleteConfirm ? (
           <button onClick={() => setShowDeleteConfirm(true)} style={styles.dangerBtn}>
-            Delete Account
+            {t('profile.deleteAccount')}
           </button>
         ) : (
           <div style={styles.deleteConfirm}>
             <p style={styles.deleteWarning}>
-              Type <strong>DELETE</strong> to confirm account deletion:
+              {t('profile.typeDeletePrompt')}
             </p>
             <input
               type="text"
               value={deleteConfirmText}
               onChange={(e) => setDeleteConfirmText(e.target.value)}
               style={styles.input}
-              placeholder="Type DELETE"
+              placeholder={t('profile.typeDeletePlaceholder')}
             />
             <div style={styles.buttonRow}>
               <button
@@ -371,14 +374,14 @@ export function ProfileSettings({ onClose: _onClose, colyseusRef }: { onClose: (
                 }}
                 style={styles.cancelBtn}
               >
-                Cancel
+                {t('profile.cancel')}
               </button>
               <button
                 onClick={handleDeleteAccount}
                 disabled={saving || deleteConfirmText !== 'DELETE'}
                 style={styles.dangerBtn}
               >
-                {saving ? 'Deleting...' : 'Permanently Delete'}
+                {saving ? t('profile.deleting') : t('profile.permanentlyDelete')}
               </button>
             </div>
           </div>

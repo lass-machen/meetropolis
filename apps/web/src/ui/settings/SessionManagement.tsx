@@ -1,5 +1,7 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { getApiBaseFromWindow } from '../../lib/apiBase';
+import { translateApiError } from '../../lib/apiErrors';
 
 interface Session {
   id: string;
@@ -11,6 +13,7 @@ interface Session {
 }
 
 export function SessionManagement({ onClose }: { onClose: () => void }) {
+  const { t } = useTranslation();
   const [sessions, setSessions] = React.useState<Session[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
@@ -27,10 +30,10 @@ export function SessionManagement({ onClose }: { onClose: () => void }) {
         const data = await res.json();
         setSessions(data.sessions || []);
       } else {
-        setError('Failed to load sessions');
+        setError(t('sessions.loadFailed'));
       }
     } catch (e: unknown) {
-      setError((e instanceof Error ? e.message : String(e)) ||'Network error');
+      setError((e instanceof Error ? e.message : String(e)) || t('common.networkError'));
     } finally {
       setLoading(false);
     }
@@ -41,7 +44,7 @@ export function SessionManagement({ onClose }: { onClose: () => void }) {
   }, []);
 
   const revokeSession = async (sessionId: string) => {
-    if (!confirm('Are you sure you want to revoke this session? The device will be logged out.')) return;
+    if (!confirm(t('sessions.confirmRevoke'))) return;
 
     try {
       setRevoking(sessionId);
@@ -53,17 +56,17 @@ export function SessionManagement({ onClose }: { onClose: () => void }) {
         setSessions(s => s.filter(sess => sess.id !== sessionId));
       } else {
         const data = await res.json().catch(() => ({}));
-        setError(data.error || 'Failed to revoke session');
+        setError(translateApiError(data.error) || t('sessions.revokeFailed'));
       }
     } catch (e: unknown) {
-      setError((e instanceof Error ? e.message : String(e)) ||'Network error');
+      setError((e instanceof Error ? e.message : String(e)) || t('common.networkError'));
     } finally {
       setRevoking(null);
     }
   };
 
   const revokeAllOther = async () => {
-    if (!confirm('Are you sure you want to log out all other devices? Only your current session will remain active.')) return;
+    if (!confirm(t('sessions.confirmRevokeAll'))) return;
 
     try {
       setRevoking('all');
@@ -75,23 +78,23 @@ export function SessionManagement({ onClose }: { onClose: () => void }) {
         const data = await res.json();
         // Keep only current session
         setSessions(s => s.filter(sess => sess.isCurrent));
-        alert(`Successfully logged out ${data.revokedCount || 0} other device(s).`);
+        alert(t('sessions.revokedSuccess', { count: data.revokedCount || 0 }));
       } else {
         const data = await res.json().catch(() => ({}));
-        setError(data.error || 'Failed to revoke sessions');
+        setError(translateApiError(data.error) || t('sessions.revokeAllFailed'));
       }
     } catch (e: unknown) {
-      setError((e instanceof Error ? e.message : String(e)) ||'Network error');
+      setError((e instanceof Error ? e.message : String(e)) || t('common.networkError'));
     } finally {
       setRevoking(null);
     }
   };
 
   const parseUserAgent = (ua: string | null): { device: string; browser: string } => {
-    if (!ua) return { device: 'Unknown Device', browser: 'Unknown Browser' };
+    if (!ua) return { device: t('sessions.unknownDevice'), browser: t('sessions.unknownBrowser') };
 
     let device = 'Desktop';
-    let browser = 'Unknown Browser';
+    let browser = t('sessions.unknownBrowser');
 
     // Device detection
     if (/iPhone/i.test(ua)) device = 'iPhone';
@@ -118,10 +121,10 @@ export function SessionManagement({ onClose }: { onClose: () => void }) {
     const now = new Date();
     const diff = now.getTime() - date.getTime();
 
-    if (diff < 60000) return 'Just now';
-    if (diff < 3600000) return `${Math.floor(diff / 60000)} minutes ago`;
-    if (diff < 86400000) return `${Math.floor(diff / 3600000)} hours ago`;
-    if (diff < 604800000) return `${Math.floor(diff / 86400000)} days ago`;
+    if (diff < 60000) return t('time.justNow');
+    if (diff < 3600000) return t('time.minute', { count: Math.floor(diff / 60000) });
+    if (diff < 86400000) return t('time.hour', { count: Math.floor(diff / 3600000) });
+    if (diff < 604800000) return t('time.day', { count: Math.floor(diff / 86400000) });
 
     return date.toLocaleDateString();
   };
@@ -129,7 +132,7 @@ export function SessionManagement({ onClose }: { onClose: () => void }) {
   if (loading) {
     return (
       <div style={styles.container}>
-        <div style={styles.loading}>Loading sessions...</div>
+        <div style={styles.loading}>{t('sessions.loading')}</div>
       </div>
     );
   }
@@ -137,9 +140,9 @@ export function SessionManagement({ onClose }: { onClose: () => void }) {
   return (
     <div style={styles.container}>
       <div style={styles.header}>
-        <h2 style={styles.title}>Active Sessions</h2>
+        <h2 style={styles.title}>{t('sessions.title')}</h2>
         <p style={styles.subtitle}>
-          Manage devices where you're currently logged in. Revoke access from devices you no longer use.
+          {t('sessions.subtitle')}
         </p>
       </div>
 
@@ -148,7 +151,7 @@ export function SessionManagement({ onClose }: { onClose: () => void }) {
       )}
 
       {sessions.length === 0 ? (
-        <div style={styles.empty}>No active sessions found.</div>
+        <div style={styles.empty}>{t('sessions.noSessions')}</div>
       ) : (
         <>
           <div style={styles.sessionList}>
@@ -167,7 +170,7 @@ export function SessionManagement({ onClose }: { onClose: () => void }) {
                         <div style={styles.deviceName}>
                           {device}
                           {session.isCurrent && (
-                            <span style={styles.currentBadge}>Current</span>
+                            <span style={styles.currentBadge}>{t('sessions.current')}</span>
                           )}
                         </div>
                         <div style={styles.browserName}>{browser}</div>
@@ -177,8 +180,8 @@ export function SessionManagement({ onClose }: { onClose: () => void }) {
                       {session.ipAddress && (
                         <span style={styles.metaItem}>IP: {session.ipAddress}</span>
                       )}
-                      <span style={styles.metaItem}>Last active: {formatDate(session.lastActiveAt)}</span>
-                      <span style={styles.metaItem}>Logged in: {formatDate(session.createdAt)}</span>
+                      <span style={styles.metaItem}>{t('sessions.lastActive')}: {formatDate(session.lastActiveAt)}</span>
+                      <span style={styles.metaItem}>{t('sessions.loggedIn')}: {formatDate(session.createdAt)}</span>
                     </div>
                   </div>
                   {!session.isCurrent && (
@@ -187,7 +190,7 @@ export function SessionManagement({ onClose }: { onClose: () => void }) {
                       disabled={revoking === session.id || revoking === 'all'}
                       style={styles.revokeBtn}
                     >
-                      {revoking === session.id ? 'Revoking...' : 'Revoke'}
+                      {revoking === session.id ? t('sessions.revoking') : t('sessions.revoke')}
                     </button>
                   )}
                 </div>
@@ -202,7 +205,7 @@ export function SessionManagement({ onClose }: { onClose: () => void }) {
                 disabled={revoking === 'all'}
                 style={styles.revokeAllBtn}
               >
-                {revoking === 'all' ? 'Logging out...' : 'Log out all other devices'}
+                {revoking === 'all' ? t('sessions.loggingOut') : t('sessions.logoutAllOther')}
               </button>
             </div>
           )}
@@ -210,7 +213,7 @@ export function SessionManagement({ onClose }: { onClose: () => void }) {
       )}
 
       <div style={styles.footer}>
-        <button onClick={onClose} style={styles.closeBtn}>Close</button>
+        <button onClick={onClose} style={styles.closeBtn}>{t('modal.close')}</button>
       </div>
     </div>
   );

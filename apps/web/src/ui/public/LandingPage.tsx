@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '../system';
 import { ThemeToggleButton } from '../theme';
 import { getApiBaseFromWindow } from '../../lib/runtimeConfig';
@@ -106,6 +107,7 @@ const globalStyles = `
    MAIN COMPONENT
    ═══════════════════════════════════════════════════════════════ */
 export function LandingPage({ onLogin, onSignup, onPricing, registrationEnabled = true }: LandingPageProps) {
+  const { t } = useTranslation();
   const handleSignupClick = registrationEnabled ? onSignup : onLogin;
 
   const [scrolled, setScrolled] = useState(false);
@@ -150,15 +152,15 @@ export function LandingPage({ onLogin, onSignup, onPricing, registrationEnabled 
           </div>
           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
             <div className="lp-nav-mid" style={{ display: 'flex', gap: 2, alignItems: 'center', marginRight: 8 }}>
-              <Button variant="ghost" onClick={() => scrollTo('funktionen')} style={{ fontSize: 14 }}>Funktionen</Button>
-              <Button variant="ghost" onClick={onPricing} style={{ fontSize: 14 }}>Preise</Button>
-              <Button variant="ghost" onClick={() => scrollTo('download')} style={{ fontSize: 14 }}>Download</Button>
+              <Button variant="ghost" onClick={() => scrollTo('funktionen')} style={{ fontSize: 14 }}>{t('landing.nav.features')}</Button>
+              <Button variant="ghost" onClick={onPricing} style={{ fontSize: 14 }}>{t('landing.nav.pricing')}</Button>
+              <Button variant="ghost" onClick={() => scrollTo('download')} style={{ fontSize: 14 }}>{t('landing.nav.download')}</Button>
             </div>
             <ThemeToggleButton />
             <Button variant="ghost" onClick={onLogin} style={{ fontSize: 14 }}>Login</Button>
             {registrationEnabled && (
               <Button variant="brand" onClick={onSignup} style={{ fontSize: 14, padding: '8px 18px' }}>
-                Kostenlos starten
+                {t('landing.nav.cta')}
               </Button>
             )}
           </div>
@@ -180,7 +182,7 @@ export function LandingPage({ onLogin, onSignup, onPricing, registrationEnabled 
           marginBottom: 28, letterSpacing: '0.02em',
         }}>
           <i className="fa-solid fa-building" style={{ color: 'var(--brand-primary)', fontSize: 12 }} />
-          Virtuelles Büro für Remote Teams
+          {t('landing.hero.badge')}
         </div>
 
         {/* Headline */}
@@ -188,9 +190,9 @@ export function LandingPage({ onLogin, onSignup, onPricing, registrationEnabled 
           fontSize: 'clamp(32px, 5.5vw, 58px)', fontWeight: 900,
           lineHeight: 1.08, letterSpacing: '-0.03em', marginBottom: 24,
         }}>
-          Ihr Team arbeitet remote.{' '}
+          {t('landing.hero.titleLine1')}{' '}
           <span style={{ background: 'var(--gradient-hero)', WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-            Aber fühlt es sich noch wie ein Team an?
+            {t('landing.hero.titleLine2')}
           </span>
         </h1>
 
@@ -199,31 +201,31 @@ export function LandingPage({ onLogin, onSignup, onPricing, registrationEnabled 
           fontSize: 'clamp(16px, 2vw, 19px)', color: 'var(--muted)',
           maxWidth: 640, margin: '0 auto 40px', lineHeight: 1.65,
         }}>
-          Meetropolis gibt verteilten Teams das zurück, was Videocalls nicht können: spontane Gespräche, echte Präsenz und das Gefühl, gemeinsam an einem Ort zu sein.
+          {t('landing.hero.subtitle')}
         </p>
 
         {/* CTAs */}
         <div className="lp-stagger lp-stagger-4" style={{ display: 'flex', gap: 14, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 56 }}>
           <Button variant="brand" onClick={handleSignupClick} style={{ padding: '14px 32px', fontSize: 16, fontWeight: 700 }}>
-            {registrationEnabled ? 'Jetzt kostenlos starten' : 'Jetzt anmelden'}
+            {registrationEnabled ? t('landing.hero.cta') : t('landing.hero.ctaLogin')}
             <i className="fa-solid fa-arrow-right" style={{ marginLeft: 8, fontSize: 14 }} />
           </Button>
           <Button variant="secondary" onClick={onPricing} style={{ padding: '14px 32px', fontSize: 16 }}>
-            Preise ansehen
+            {t('landing.hero.ctaSecondary')}
           </Button>
         </div>
 
         {/* Trust Bar */}
         <div className="lp-stagger lp-stagger-4 lp-trust" style={{ display: 'flex', justifyContent: 'center', gap: 32, flexWrap: 'wrap' }}>
           {[
-            { icon: 'fa-flag', text: 'Hosting in Deutschland', color: 'var(--success, #22c55e)' },
-            { icon: 'fa-shield-halved', text: 'DSGVO-konform', color: 'var(--brand-primary)' },
-            { icon: 'fa-clock', text: '14 Tage kostenlos', color: 'var(--brand-accent)' },
-            { icon: 'fa-credit-card', text: 'Keine Kreditkarte nötig', color: 'var(--muted)' },
-          ].map((t) => (
-            <div key={t.text} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--muted)' }}>
-              <i className={`fa-solid ${t.icon}`} style={{ color: t.color, fontSize: 14 }} />
-              {t.text}
+            { icon: 'fa-flag', textKey: 'landing.trust.hosting', color: 'var(--success, #22c55e)' },
+            { icon: 'fa-shield-halved', textKey: 'landing.trust.gdpr', color: 'var(--brand-primary)' },
+            { icon: 'fa-clock', textKey: 'landing.trust.trial', color: 'var(--brand-accent)' },
+            { icon: 'fa-credit-card', textKey: 'landing.trust.noCreditCard', color: 'var(--muted)' },
+          ].map((tb) => (
+            <div key={tb.textKey} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--muted)' }}>
+              <i className={`fa-solid ${tb.icon}`} style={{ color: tb.color, fontSize: 14 }} />
+              {t(tb.textKey)}
             </div>
           ))}
         </div>
@@ -232,20 +234,20 @@ export function LandingPage({ onLogin, onSignup, onPricing, registrationEnabled 
       {/* ═══ PROBLEM ═══ */}
       <section className="lp-sec" style={{ padding: '88px 24px', maxWidth: 1200, margin: '0 auto' }}>
         <div className="lp-reveal" style={{ textAlign: 'center', marginBottom: 56 }}>
-          <Kicker>Das Problem</Kicker>
+          <Kicker>{t('landing.problem.kicker')}</Kicker>
           <h2 style={{ fontSize: 'clamp(28px, 4vw, 42px)', fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.15 }}>
-            Remote-Arbeit hat eine Schattenseite.
+            {t('landing.problem.title')}
           </h2>
         </div>
 
         <div className="lp-g2 lp-reveal" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
           {[
-            { icon: 'fa-calendar-xmark', title: 'Meeting-Müdigkeit', text: 'Jedes Gespräch braucht einen Termin, einen Link, eine Einladung. Spontanität? Fehlanzeige.' },
-            { icon: 'fa-eye-slash', title: 'Unsichtbare Kollegen', text: 'Wer ist gerade da? Wer ist ansprechbar? Niemand weiß es — bis man den Status checkt.' },
-            { icon: 'fa-people-arrows', title: 'Teamkultur erodiert', text: 'Neue Mitarbeiter finden keinen Anschluss. Die Kaffeepause am Bildschirm funktioniert nicht.' },
-            { icon: 'fa-puzzle-piece', title: 'Tool-Chaos', text: 'Slack, Zoom, Teams, Google Meet — für jeden Anlass ein anderes Tool. Keines ersetzt echte Nähe.' },
+            { icon: 'fa-calendar-xmark', titleKey: 'landing.problem.meetingFatigue', textKey: 'landing.problem.meetingFatigueDesc' },
+            { icon: 'fa-eye-slash', titleKey: 'landing.problem.invisibleColleagues', textKey: 'landing.problem.invisibleColleaguesDesc' },
+            { icon: 'fa-people-arrows', titleKey: 'landing.problem.teamCulture', textKey: 'landing.problem.teamCultureDesc' },
+            { icon: 'fa-puzzle-piece', titleKey: 'landing.problem.toolChaos', textKey: 'landing.problem.toolChaosDesc' },
           ].map((p) => (
-            <div key={p.title} className="lp-lift lp-warn" style={{
+            <div key={p.titleKey} className="lp-lift lp-warn" style={{
               padding: 28, borderRadius: 'var(--radius)',
               border: '1px solid var(--border)', background: 'var(--glass)',
             }}>
@@ -257,8 +259,8 @@ export function LandingPage({ onLogin, onSignup, onPricing, registrationEnabled 
               }}>
                 <i className={`fa-solid ${p.icon}`} />
               </div>
-              <h3 style={{ margin: '0 0 8px', fontSize: 17, fontWeight: 700 }}>{p.title}</h3>
-              <p style={{ margin: 0, color: 'var(--muted)', fontSize: 14, lineHeight: 1.6 }}>{p.text}</p>
+              <h3 style={{ margin: '0 0 8px', fontSize: 17, fontWeight: 700 }}>{t(p.titleKey)}</h3>
+              <p style={{ margin: 0, color: 'var(--muted)', fontSize: 14, lineHeight: 1.6 }}>{t(p.textKey)}</p>
             </div>
           ))}
         </div>
@@ -268,7 +270,7 @@ export function LandingPage({ onLogin, onSignup, onPricing, registrationEnabled 
           color: 'var(--error, #ef4444)', opacity: 0.75,
           maxWidth: 680, marginLeft: 'auto', marginRight: 'auto', lineHeight: 1.6,
         }}>
-          Jede Woche ohne Lösung kostet nicht nur Produktivität — sie kostet Zusammenhalt, Innovation und gute Mitarbeiter.
+          {t('landing.problem.closing')}
         </p>
       </section>
 
@@ -279,18 +281,18 @@ export function LandingPage({ onLogin, onSignup, onPricing, registrationEnabled 
       }}>
         <div style={{ maxWidth: 800, margin: '0 auto' }}>
           <div className="lp-reveal" style={{ marginBottom: 48 }}>
-            <Kicker>Die Lösung</Kicker>
+            <Kicker>{t('landing.solution.kicker')}</Kicker>
             <h2 style={{ fontSize: 'clamp(28px, 4vw, 42px)', fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.15 }}>
-              Stellen Sie sich vor...
+              {t('landing.solution.title')}
             </h2>
           </div>
 
           <div style={{ display: 'grid', gap: 20 }}>
             {[
-              { icon: 'fa-comments', text: 'Sie laufen zu einem Kollegen und fragen kurz etwas — ohne Meeting-Link.' },
-              { icon: 'fa-hand-wave', text: 'Neue Mitarbeiter werden am Empfang begrüßt und finden sofort Anschluss.' },
-              { icon: 'fa-eye', text: 'Ihr Team sieht auf einen Blick, wer da ist und wer nicht gestört werden will.' },
-              { icon: 'fa-building', text: 'Das Büro-Gefühl ist zurück — ohne Pendeln, ohne Großraumbüro-Lärm.' },
+              { icon: 'fa-comments', textKey: 'landing.solution.item1' },
+              { icon: 'fa-hand-wave', textKey: 'landing.solution.item2' },
+              { icon: 'fa-eye', textKey: 'landing.solution.item3' },
+              { icon: 'fa-building', textKey: 'landing.solution.item4' },
             ].map((item, i) => (
               <div key={i} className="lp-reveal" style={{
                 display: 'flex', alignItems: 'flex-start', gap: 20,
@@ -306,17 +308,17 @@ export function LandingPage({ onLogin, onSignup, onPricing, registrationEnabled 
                 }}>
                   <i className={`fa-solid ${item.icon}`} />
                 </div>
-                <p style={{ margin: 0, fontSize: 17, lineHeight: 1.6, paddingTop: 10 }}>{item.text}</p>
+                <p style={{ margin: 0, fontSize: 17, lineHeight: 1.6, paddingTop: 10 }}>{t(item.textKey)}</p>
               </div>
             ))}
           </div>
 
           <div className="lp-reveal" style={{ marginTop: 44, textAlign: 'center' }}>
             <p style={{ fontSize: 20, fontWeight: 700, marginBottom: 28 }}>
-              Genau das macht Meetropolis möglich. Ab heute.
+              {t('landing.solution.closing')}
             </p>
             <Button variant="brand" onClick={handleSignupClick} style={{ padding: '14px 28px', fontSize: 16 }}>
-              {registrationEnabled ? 'Jetzt ausprobieren' : 'Jetzt anmelden'}
+              {registrationEnabled ? t('landing.solution.cta') : t('landing.hero.ctaLogin')}
               <i className="fa-solid fa-arrow-right" style={{ marginLeft: 8, fontSize: 14 }} />
             </Button>
           </div>
@@ -326,20 +328,20 @@ export function LandingPage({ onLogin, onSignup, onPricing, registrationEnabled 
       {/* ═══ USPs ═══ */}
       <section className="lp-sec" style={{ padding: '100px 24px', maxWidth: 1200, margin: '0 auto' }}>
         <div className="lp-reveal" style={{ textAlign: 'center', marginBottom: 56 }}>
-          <Kicker>Unsere Vorteile</Kicker>
+          <Kicker>{t('landing.usps.kicker')}</Kicker>
           <h2 style={{ fontSize: 'clamp(28px, 4vw, 42px)', fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.15 }}>
-            4 Gründe, warum Teams zu Meetropolis wechseln.
+            {t('landing.usps.title')}
           </h2>
         </div>
 
         <div className="lp-g2 lp-reveal" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
           {[
-            { icon: 'fa-shield-halved', title: 'Daten bleiben in Deutschland', text: 'Hosting in Deutschland, DSGVO-konform. Kein US-Cloud-Anbieter im Hintergrund. Ihre Daten gehören Ihnen.', color: '#22c55e' },
-            { icon: 'fa-rocket', title: 'Kein IT-Projekt', text: 'Registrieren, Team einladen, loslegen. In 5 Minuten betriebsbereit. Kein Docker, kein DevOps.', color: 'var(--brand-accent)' },
-            { icon: 'fa-desktop', title: 'Desktop-App mit Mini-Modus', text: 'Immer erreichbar, ohne Browsertab. Schwebendes Mini-Fenster für Mikrofon, Kamera und Status.', color: '#60a5fa' },
-            { icon: 'fa-layer-group', title: 'Alles aus einer Hand', text: 'Karteneditor, Kommunikation, Verwaltung, Marketplace — kein Flickwerk aus Drittanbieter-Tools.', color: 'var(--brand-primary)' },
+            { icon: 'fa-shield-halved', titleKey: 'landing.usps.dataInGermany', textKey: 'landing.usps.dataInGermanyDesc', color: '#22c55e' },
+            { icon: 'fa-rocket', titleKey: 'landing.usps.noItProject', textKey: 'landing.usps.noItProjectDesc', color: 'var(--brand-accent)' },
+            { icon: 'fa-desktop', titleKey: 'landing.usps.desktopApp', textKey: 'landing.usps.desktopAppDesc', color: '#60a5fa' },
+            { icon: 'fa-layer-group', titleKey: 'landing.usps.allInOne', textKey: 'landing.usps.allInOneDesc', color: 'var(--brand-primary)' },
           ].map((u) => (
-            <div key={u.title} className="lp-gcard lp-lift" style={{ padding: 32, borderRadius: 'var(--radius)', background: 'var(--bg)' }}>
+            <div key={u.titleKey} className="lp-gcard lp-lift" style={{ padding: 32, borderRadius: 'var(--radius)', background: 'var(--bg)' }}>
               <div style={{
                 width: 52, height: 52, borderRadius: 14,
                 background: `color-mix(in srgb, ${u.color} 12%, transparent)`,
@@ -348,8 +350,8 @@ export function LandingPage({ onLogin, onSignup, onPricing, registrationEnabled 
               }}>
                 <i className={`fa-solid ${u.icon}`} />
               </div>
-              <h3 style={{ margin: '0 0 10px', fontSize: 19, fontWeight: 700 }}>{u.title}</h3>
-              <p style={{ margin: 0, color: 'var(--muted)', fontSize: 15, lineHeight: 1.6 }}>{u.text}</p>
+              <h3 style={{ margin: '0 0 10px', fontSize: 19, fontWeight: 700 }}>{t(u.titleKey)}</h3>
+              <p style={{ margin: 0, color: 'var(--muted)', fontSize: 15, lineHeight: 1.6 }}>{t(u.textKey)}</p>
             </div>
           ))}
         </div>
@@ -362,30 +364,30 @@ export function LandingPage({ onLogin, onSignup, onPricing, registrationEnabled 
       }}>
         <div style={{ maxWidth: 1200, margin: '0 auto' }}>
           <div className="lp-reveal" style={{ textAlign: 'center', marginBottom: 56 }}>
-            <Kicker>Funktionen</Kicker>
+            <Kicker>{t('landing.features.kicker')}</Kicker>
             <h2 style={{ fontSize: 'clamp(28px, 4vw, 42px)', fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.15 }}>
-              Alles, was Ihr virtuelles Büro braucht.
+              {t('landing.features.title')}
             </h2>
           </div>
 
           <div className="lp-g4 lp-reveal" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
             {[
-              { icon: 'fa-volume-high', title: 'Räumliches Audio', text: 'Näherkommen = Hören. Weggehen = Stille. Wie im echten Büro.' },
-              { icon: 'fa-video', title: 'HD Video & Screenshare', text: 'Kristallklare Qualität. Ein Klick für Bildschirmfreigabe.' },
-              { icon: 'fa-pen-ruler', title: 'Karteneditor', text: 'Gestalten Sie Ihr Büro selbst. Räume, Möbel, Zonen — direkt im Browser.' },
-              { icon: 'fa-lock', title: 'Private Zonen', text: 'Meeting-Räume mit Schallschutz und optionaler Kapazitätsbegrenzung.' },
-              { icon: 'fa-robot', title: 'Virtuelle Assistenten', text: 'Empfangs-Bots, Info-Stationen, automatische Ankündigungen.' },
-              { icon: 'fa-users', title: 'Team-Übersicht', text: 'Wer ist online? Ein Klick — sofort beim Kollegen.' },
-              { icon: 'fa-store', title: 'Marketplace', text: 'Möbel, Avatare, Themes. Ihr Büro wächst mit Ihnen.' },
-              { icon: 'fa-sliders', title: 'Fernsteuerung', text: 'Mikrofon, Kamera, Status per API steuerbar (Stream Deck, Kalender).' },
+              { icon: 'fa-volume-high', titleKey: 'landing.features.spatialAudio', textKey: 'landing.features.spatialAudioDesc' },
+              { icon: 'fa-video', titleKey: 'landing.features.hdVideo', textKey: 'landing.features.hdVideoDesc' },
+              { icon: 'fa-pen-ruler', titleKey: 'landing.features.mapEditor', textKey: 'landing.features.mapEditorDesc' },
+              { icon: 'fa-lock', titleKey: 'landing.features.privateZones', textKey: 'landing.features.privateZonesDesc' },
+              { icon: 'fa-robot', titleKey: 'landing.features.virtualAssistants', textKey: 'landing.features.virtualAssistantsDesc' },
+              { icon: 'fa-users', titleKey: 'landing.features.teamOverview', textKey: 'landing.features.teamOverviewDesc' },
+              { icon: 'fa-store', titleKey: 'landing.features.marketplace', textKey: 'landing.features.marketplaceDesc' },
+              { icon: 'fa-sliders', titleKey: 'landing.features.remoteControl', textKey: 'landing.features.remoteControlDesc' },
             ].map((f) => (
-              <div key={f.title} className="lp-lift" style={{
+              <div key={f.titleKey} className="lp-lift" style={{
                 padding: 24, borderRadius: 'var(--radius-sm)',
                 border: '1px solid var(--border)', background: 'var(--bg)',
               }}>
                 <i className={`fa-solid ${f.icon}`} style={{ color: 'var(--brand-primary)', fontSize: 20, marginBottom: 14, display: 'block' }} />
-                <h3 style={{ margin: '0 0 6px', fontSize: 15, fontWeight: 700 }}>{f.title}</h3>
-                <p style={{ margin: 0, color: 'var(--muted)', fontSize: 13, lineHeight: 1.55 }}>{f.text}</p>
+                <h3 style={{ margin: '0 0 6px', fontSize: 15, fontWeight: 700 }}>{t(f.titleKey)}</h3>
+                <p style={{ margin: 0, color: 'var(--muted)', fontSize: 13, lineHeight: 1.55 }}>{t(f.textKey)}</p>
               </div>
             ))}
           </div>
@@ -395,9 +397,9 @@ export function LandingPage({ onLogin, onSignup, onPricing, registrationEnabled 
       {/* ═══ COMPARISON ═══ */}
       <section className="lp-sec" style={{ padding: '100px 24px', maxWidth: 1000, margin: '0 auto' }}>
         <div className="lp-reveal" style={{ textAlign: 'center', marginBottom: 56 }}>
-          <Kicker>Vergleich</Kicker>
+          <Kicker>{t('landing.comparison.kicker')}</Kicker>
           <h2 style={{ fontSize: 'clamp(28px, 4vw, 42px)', fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.15 }}>
-            Meetropolis vs. Alternativen
+            {t('landing.comparison.title')}
           </h2>
         </div>
 
@@ -418,14 +420,14 @@ export function LandingPage({ onLogin, onSignup, onPricing, registrationEnabled 
 
             {/* Rows */}
             {([
-              ['Hosting in Deutschland', '\u2705', '\u274C US-Server', '\u274C Self-Host'],
-              ['Sofort nutzbar', '\u2705 5 Min.', '\u2705', '\u274C IT-Projekt'],
-              ['Desktop-App', '\u2705 Mini-Modus', '\u274C', '\u274C'],
-              ['DSGVO-konform', '\u2705', '\u274C', 'Eigenverantwortung'],
-              ['Integrierter Editor', '\u2705 Autotile', '\u2705', '\u274C Extern'],
-              ['Virtuelle Assistenten', '\u2705', '\u274C', '\u274C'],
-              ['Deutscher Support', '\u2705 Direkt', '\u274C Enterprise', '\u274C Community'],
-            ] as const).map((row, i, arr) => (
+              [t('landing.comparison.hostingDE'), '\u2705', '\u274C US-Server', '\u274C Self-Host'],
+              [t('landing.comparison.instantUse'), '\u2705 5 Min.', '\u2705', '\u274C IT-Projekt'],
+              [t('landing.comparison.desktopApp'), '\u2705 Mini-Modus', '\u274C', '\u274C'],
+              [t('landing.comparison.gdpr'), '\u2705', '\u274C', t('landing.comparison.selfResponsibility')],
+              [t('landing.comparison.integratedEditor'), '\u2705 Autotile', '\u2705', '\u274C Extern'],
+              [t('landing.comparison.virtualAssistants'), '\u2705', '\u274C', '\u274C'],
+              [t('landing.comparison.germanSupport'), '\u2705 ' + t('landing.comparison.direct'), '\u274C Enterprise', '\u274C Community'],
+            ]).map((row, i, arr) => (
               <div key={i} style={{
                 display: 'grid', gridTemplateColumns: '200px 1fr 1fr 1fr',
                 borderBottom: i < arr.length - 1 ? '1px solid var(--border)' : 'none',
@@ -458,28 +460,28 @@ export function LandingPage({ onLogin, onSignup, onPricing, registrationEnabled 
         <div style={{ maxWidth: 1200, margin: '0 auto' }}>
           <div className="lp-reveal" style={{ textAlign: 'center', marginBottom: 56 }}>
             <h2 style={{ fontSize: 'clamp(28px, 4vw, 42px)', fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.15 }}>
-              Teams vertrauen auf Meetropolis
+              {t('landing.socialProof.title')}
             </h2>
           </div>
 
           {/* Testimonials */}
           <div className="lp-g3 lp-reveal" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20, marginBottom: 56 }}>
             {[
-              { quote: 'Seit wir Meetropolis nutzen, fühlt sich Remote-Arbeit nicht mehr einsam an. Die spontanen Gespräche sind Gold wert.', name: 'Sarah K.', role: 'Head of People', company: 'SaaS-Startup, 42 Mitarbeiter' },
-              { quote: 'Wir haben Gather, WorkAdventure und Teams ausprobiert. Meetropolis war das einzige Tool, bei dem Datenschutz kein Kompromiss war.', name: 'Marcus W.', role: 'CTO', company: 'FinTech-Unternehmen' },
-              { quote: 'Unsere Onboarding-Zeit hat sich halbiert. Neue Mitarbeiter finden durch das virtuelle Büro sofort Anschluss.', name: 'Julia M.', role: 'COO', company: 'Beratungsgesellschaft' },
-            ].map((t) => (
-              <div key={t.name} className="lp-lift" style={{
+              { quoteKey: 'landing.socialProof.testimonial1', name: 'Sarah K.', role: 'Head of People', companyKey: 'landing.socialProof.company1' },
+              { quoteKey: 'landing.socialProof.testimonial2', name: 'Marcus W.', role: 'CTO', companyKey: 'landing.socialProof.company2' },
+              { quoteKey: 'landing.socialProof.testimonial3', name: 'Julia M.', role: 'COO', companyKey: 'landing.socialProof.company3' },
+            ].map((tm) => (
+              <div key={tm.name} className="lp-lift" style={{
                 padding: 28, borderRadius: 'var(--radius)',
                 border: '1px solid var(--border)', background: 'var(--bg)',
               }}>
                 <div style={{ fontSize: 52, lineHeight: 1, color: 'var(--brand-primary)', opacity: 0.18, fontFamily: 'Georgia, serif', marginBottom: -4 }}>
                   &ldquo;
                 </div>
-                <p style={{ margin: '0 0 20px', fontSize: 15, lineHeight: 1.65, fontStyle: 'italic' }}>{t.quote}</p>
+                <p style={{ margin: '0 0 20px', fontSize: 15, lineHeight: 1.65, fontStyle: 'italic' }}>{t(tm.quoteKey)}</p>
                 <div>
-                  <div style={{ fontWeight: 700, fontSize: 14 }}>{t.name}</div>
-                  <div style={{ fontSize: 13, color: 'var(--muted)' }}>{t.role}, {t.company}</div>
+                  <div style={{ fontWeight: 700, fontSize: 14 }}>{tm.name}</div>
+                  <div style={{ fontSize: 13, color: 'var(--muted)' }}>{tm.role}, {t(tm.companyKey)}</div>
                 </div>
               </div>
             ))}
@@ -491,14 +493,14 @@ export function LandingPage({ onLogin, onSignup, onPricing, registrationEnabled 
             padding: 32, borderRadius: 'var(--radius)', background: 'var(--gradient)',
           }}>
             {[
-              { value: '500+', label: 'Aktive Nutzer' },
-              { value: '4.8/5', label: 'Bewertung' },
-              { value: '<50ms', label: 'Latenz' },
-              { value: '99.9%', label: 'Uptime' },
+              { value: '500+', labelKey: 'landing.stats.activeUsers' },
+              { value: '4.8/5', labelKey: 'landing.stats.rating' },
+              { value: '<50ms', labelKey: 'landing.stats.latency' },
+              { value: '99.9%', labelKey: 'landing.stats.uptime' },
             ].map((s) => (
-              <div key={s.label} style={{ textAlign: 'center', color: 'white' }}>
+              <div key={s.labelKey} style={{ textAlign: 'center', color: 'white' }}>
                 <div style={{ fontSize: 28, fontWeight: 900, letterSpacing: '-0.02em' }}>{s.value}</div>
-                <div style={{ fontSize: 13, opacity: 0.85, marginTop: 4 }}>{s.label}</div>
+                <div style={{ fontSize: 13, opacity: 0.85, marginTop: 4 }}>{t(s.labelKey)}</div>
               </div>
             ))}
           </div>
@@ -508,19 +510,19 @@ export function LandingPage({ onLogin, onSignup, onPricing, registrationEnabled 
       {/* ═══ PRICING PREVIEW ═══ */}
       <section id="preise" className="lp-sec" style={{ padding: '100px 24px', maxWidth: 1200, margin: '0 auto' }}>
         <div className="lp-reveal" style={{ textAlign: 'center', marginBottom: 56 }}>
-          <Kicker>Preise</Kicker>
+          <Kicker>{t('landing.pricing.kicker')}</Kicker>
           <h2 style={{ fontSize: 'clamp(28px, 4vw, 42px)', fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.15 }}>
-            Transparent. Fair. Ohne Überraschungen.
+            {t('landing.pricing.title')}
           </h2>
         </div>
 
         <div className="lp-pricing-g lp-reveal" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, alignItems: 'stretch' }}>
           {([
-            { name: 'Free', price: '0', period: 'für immer', desc: '3 Nutzer, perfekt zum Testen', features: ['3 gleichzeitige Nutzer', 'Basis Audio/Video', 'Standard-Map', 'Community Support'], cta: 'Kostenlos starten', hl: false },
-            { name: 'Starter', price: '29', period: '/Monat', desc: '10 Nutzer, HD Video, Custom Maps', features: ['10 gleichzeitige Nutzer', 'HD Audio/Video', 'Eigene Maps', 'Bildschirmfreigabe', 'E-Mail Support'], cta: '14 Tage testen', hl: true },
-            { name: 'Team', price: '79', period: '/Monat', desc: '50 Nutzer, Private Zonen, Admin', features: ['50 gleichzeitige Nutzer', 'HD Audio/Video', 'Unbegrenzte Maps', 'Private Zonen', 'Admin-Kontrolle', 'Prioritäts-Support'], cta: '14 Tage testen', hl: false },
-            { name: 'Enterprise', price: 'Individuell', period: '', desc: 'Unbegrenzt, SSO, On-Premise', features: ['Unbegrenzte Nutzer', '4K Video', 'SSO / SAML', 'Custom Branding', 'SLA-Garantie', 'Dedizierter Support', 'On-Premise Option'], cta: 'Kontakt aufnehmen', hl: false },
-          ] as const).map((plan) => (
+            { name: 'Free', price: '0', periodKey: 'landing.pricing.forever', descKey: 'landing.pricing.freeDesc', featureKeys: ['landing.pricing.free3Users', 'landing.pricing.freeBasicAv', 'landing.pricing.freeStandardMap', 'landing.pricing.freeCommunitySupport'], ctaKey: 'landing.pricing.freeStartCta', hl: false },
+            { name: 'Starter', price: '29', periodKey: 'landing.pricing.perMonth', descKey: 'landing.pricing.starterDesc', featureKeys: ['landing.pricing.starter10Users', 'landing.pricing.starterHdAv', 'landing.pricing.starterCustomMaps', 'landing.pricing.starterScreenshare', 'landing.pricing.starterEmailSupport'], ctaKey: 'landing.pricing.trialCta', hl: true },
+            { name: 'Team', price: '79', periodKey: 'landing.pricing.perMonth', descKey: 'landing.pricing.teamDesc', featureKeys: ['landing.pricing.team50Users', 'landing.pricing.teamHdAv', 'landing.pricing.teamUnlimitedMaps', 'landing.pricing.teamPrivateZones', 'landing.pricing.teamAdminControl', 'landing.pricing.teamPrioritySupport'], ctaKey: 'landing.pricing.trialCta', hl: false },
+            { name: 'Enterprise', price: t('landing.pricing.custom'), periodKey: '', descKey: 'landing.pricing.enterpriseDesc', featureKeys: ['landing.pricing.enterpriseUnlimitedUsers', 'landing.pricing.enterprise4k', 'landing.pricing.enterpriseSso', 'landing.pricing.enterpriseBranding', 'landing.pricing.enterpriseSla', 'landing.pricing.enterpriseDedicatedSupport', 'landing.pricing.enterpriseOnPremise'], ctaKey: 'landing.pricing.contactCta', hl: false },
+          ]).map((plan) => (
             <div key={plan.name} style={{
               padding: 28, borderRadius: 'var(--radius)',
               border: plan.hl ? '2px solid var(--brand-primary)' : '1px solid var(--border)',
@@ -533,26 +535,26 @@ export function LandingPage({ onLogin, onSignup, onPricing, registrationEnabled 
                   background: 'var(--gradient)', color: 'white',
                   padding: '4px 14px', borderRadius: 12, fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap',
                 }}>
-                  Beliebtester Plan
+                  {t('landing.pricing.mostPopular')}
                 </div>
               )}
               <h3 style={{ margin: '0 0 8px', fontSize: 18, fontWeight: 700 }}>{plan.name}</h3>
               <div style={{ marginBottom: 8 }}>
-                {plan.price !== 'Individuell' ? (
+                {plan.name !== 'Enterprise' ? (
                   <>
                     <span style={{ fontSize: 36, fontWeight: 900, letterSpacing: '-0.02em' }}>{plan.price}€</span>
-                    <span style={{ color: 'var(--muted)', fontSize: 14 }}>{plan.period}</span>
+                    <span style={{ color: 'var(--muted)', fontSize: 14 }}>{t(plan.periodKey)}</span>
                   </>
                 ) : (
-                  <span style={{ fontSize: 24, fontWeight: 700 }}>Individuell</span>
+                  <span style={{ fontSize: 24, fontWeight: 700 }}>{t('landing.pricing.custom')}</span>
                 )}
               </div>
-              <p style={{ color: 'var(--muted)', fontSize: 13, marginBottom: 20 }}>{plan.desc}</p>
+              <p style={{ color: 'var(--muted)', fontSize: 13, marginBottom: 20 }}>{t(plan.descKey)}</p>
               <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 24px', flex: 1 }}>
-                {plan.features.map((f) => (
-                  <li key={f} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, fontSize: 13 }}>
+                {plan.featureKeys.map((fk) => (
+                  <li key={fk} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, fontSize: 13 }}>
                     <i className="fa-solid fa-check" style={{ color: 'var(--success, #22c55e)', fontSize: 11 }} />
-                    {f}
+                    {t(fk)}
                   </li>
                 ))}
               </ul>
@@ -567,7 +569,7 @@ export function LandingPage({ onLogin, onSignup, onPricing, registrationEnabled 
                 }}
                 style={{ width: '100%' }}
               >
-                {plan.name === 'Enterprise' ? plan.cta : (registrationEnabled ? plan.cta : 'Anmelden')}
+                {plan.name === 'Enterprise' ? t(plan.ctaKey) : (registrationEnabled ? t(plan.ctaKey) : t('landing.pricing.loginCta'))}
               </Button>
             </div>
           ))}
@@ -575,10 +577,10 @@ export function LandingPage({ onLogin, onSignup, onPricing, registrationEnabled 
 
         <div className="lp-reveal" style={{ textAlign: 'center', marginTop: 32 }}>
           <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 16 }}>
-            14 Tage kostenlos testen. Keine Kreditkarte nötig. Jederzeit kündbar.
+            {t('landing.pricing.trialNote')}
           </p>
           <Button variant="ghost" onClick={onPricing} style={{ fontSize: 14 }}>
-            Alle Preise im Detail
+            {t('landing.pricing.allPricesDetail')}
             <i className="fa-solid fa-arrow-right" style={{ marginLeft: 8, fontSize: 12 }} />
           </Button>
         </div>
@@ -591,17 +593,17 @@ export function LandingPage({ onLogin, onSignup, onPricing, registrationEnabled 
       }}>
         <div className="lp-reveal" style={{ maxWidth: 700, margin: '0 auto', textAlign: 'center' }}>
           <h2 style={{ fontSize: 28, fontWeight: 800, marginBottom: 32, letterSpacing: '-0.02em' }}>
-            Kein Risiko. Versprochen.
+            {t('landing.riskReversal.title')}
           </h2>
           <div style={{ display: 'grid', gap: 16, textAlign: 'left' }}>
             {[
-              '14 Tage kostenlos — voller Funktionsumfang',
-              'Keine Kreditkarte zum Start',
-              'Jederzeit kündbar — monatlich, keine Bindung',
-              'Datenexport garantiert — Ihre Daten gehören Ihnen',
-              'Deutscher Support — echte Menschen, keine Chatbots',
-            ].map((txt) => (
-              <div key={txt} style={{ display: 'flex', alignItems: 'center', gap: 14, fontSize: 16 }}>
+              'landing.riskReversal.freeTrial',
+              'landing.riskReversal.noCreditCard',
+              'landing.riskReversal.cancelAnytime',
+              'landing.riskReversal.dataExport',
+              'landing.riskReversal.germanSupport',
+            ].map((key) => (
+              <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 14, fontSize: 16 }}>
                 <div style={{
                   width: 28, height: 28, borderRadius: 8,
                   background: 'rgba(34, 197, 94, 0.1)',
@@ -609,7 +611,7 @@ export function LandingPage({ onLogin, onSignup, onPricing, registrationEnabled 
                 }}>
                   <i className="fa-solid fa-check" style={{ color: '#22c55e', fontSize: 13 }} />
                 </div>
-                {txt}
+                {t(key)}
               </div>
             ))}
           </div>
@@ -619,12 +621,12 @@ export function LandingPage({ onLogin, onSignup, onPricing, registrationEnabled 
       {/* ═══ DOWNLOAD ═══ */}
       <section id="download" className="lp-sec" style={{ padding: '100px 24px', maxWidth: 900, margin: '0 auto' }}>
         <div className="lp-reveal" style={{ textAlign: 'center', marginBottom: 48 }}>
-          <Kicker>Desktop App</Kicker>
+          <Kicker>{t('landing.download.kicker')}</Kicker>
           <h2 style={{ fontSize: 'clamp(28px, 4vw, 42px)', fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.15, marginBottom: 16 }}>
-            Meetropolis für den Desktop
+            {t('landing.download.title')}
           </h2>
           <p style={{ color: 'var(--muted)', maxWidth: 560, margin: '0 auto', lineHeight: 1.65 }}>
-            Alles was der Browser kann — plus Mini-Modus, Systembenachrichtigungen und Auto-Updates.
+            {t('landing.download.subtitle')}
           </p>
         </div>
 
@@ -642,20 +644,20 @@ export function LandingPage({ onLogin, onSignup, onPricing, registrationEnabled 
       <section className="lp-sec" style={{ padding: '100px 24px', maxWidth: 800, margin: '0 auto' }}>
         <div className="lp-reveal" style={{ textAlign: 'center', marginBottom: 56 }}>
           <h2 style={{ fontSize: 'clamp(28px, 4vw, 42px)', fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.15 }}>
-            Häufige Fragen
+            {t('landing.faq.title')}
           </h2>
         </div>
 
         <div className="lp-reveal">
           {[
-            { q: 'Was zählt als "gleichzeitiger Nutzer"?', a: 'Nur wer gerade online ist. 10 Teammitglieder, aber nur 5 gleichzeitig online? Dann reicht Kapazität für 5.' },
-            { q: 'Brauche ich IT-Ressourcen für die Einrichtung?', a: 'Nein. Registrieren, Team einladen, fertig. Kein Server, kein Docker, kein DevOps.' },
-            { q: 'Wo werden meine Daten gespeichert?', a: 'In Deutschland. DSGVO-konform, mit Datenexport und Account-Löschung auf Knopfdruck.' },
-            { q: 'Kann ich jederzeit den Plan wechseln?', a: 'Ja, hoch- und runterstufen ist jederzeit möglich. Anteilige Abrechnung beim Upgrade.' },
-            { q: 'Gibt es einen kostenlosen Test?', a: 'Alle Bezahlpläne haben 14 Tage kostenlose Testphase. Der Free-Plan ist dauerhaft kostenlos.' },
-            { q: 'Wie ist die Audio-/Videoqualität?', a: 'Enterprise-Qualität durch LiveKit (WebRTC). HD Video, räumliches Audio, automatische Rauschunterdrückung.' },
-            { q: 'Was passiert, wenn ich kündige?', a: 'Ihre Daten bleiben 30 Tage erhalten. Export jederzeit möglich. Keine Kündigungsfrist.' },
-            { q: 'Brauche ich die Desktop-App?', a: 'Nein, Meetropolis funktioniert vollständig im Browser. Die Desktop-App bietet zusätzlich einen Mini-Modus (always-on-top Fenster), native Benachrichtigungen und automatische Updates.' },
+            { qKey: 'landing.faq.q1', aKey: 'landing.faq.a1' },
+            { qKey: 'landing.faq.q2', aKey: 'landing.faq.a2' },
+            { qKey: 'landing.faq.q3', aKey: 'landing.faq.a3' },
+            { qKey: 'landing.faq.q4', aKey: 'landing.faq.a4' },
+            { qKey: 'landing.faq.q5', aKey: 'landing.faq.a5' },
+            { qKey: 'landing.faq.q6', aKey: 'landing.faq.a6' },
+            { qKey: 'landing.faq.q7', aKey: 'landing.faq.a7' },
+            { qKey: 'landing.faq.q8', aKey: 'landing.faq.a8' },
           ].map((faq, i) => (
             <div key={i} style={{ borderBottom: '1px solid var(--border)' }}>
               <button
@@ -668,12 +670,12 @@ export function LandingPage({ onLogin, onSignup, onPricing, registrationEnabled 
                   fontWeight: 600, fontSize: 16, color: 'var(--fg)', boxSizing: 'border-box',
                 }}
               >
-                {faq.q}
+                {t(faq.qKey)}
                 <i className={`fa-solid fa-chevron-${openFaq === i ? 'up' : 'down'}`} style={{ fontSize: 12, color: 'var(--muted)', flexShrink: 0, marginLeft: 16 }} />
               </button>
               {openFaq === i && (
                 <p style={{ margin: '0 0 20px', color: 'var(--muted)', lineHeight: 1.65, fontSize: 15, paddingRight: 40 }}>
-                  {faq.a}
+                  {t(faq.aKey)}
                 </p>
               )}
             </div>
@@ -694,23 +696,23 @@ export function LandingPage({ onLogin, onSignup, onPricing, registrationEnabled 
 
         <div className="lp-reveal" style={{ position: 'relative', maxWidth: 600, margin: '0 auto' }}>
           <h2 style={{ fontSize: 'clamp(32px, 5vw, 48px)', fontWeight: 900, letterSpacing: '-0.03em', lineHeight: 1.1, marginBottom: 16 }}>
-            Ihr virtuelles Büro wartet.
+            {t('landing.finalCta.title')}
           </h2>
           <p style={{ fontSize: 18, color: 'var(--muted)', marginBottom: 36, lineHeight: 1.6 }}>
-            Starten Sie in 5 Minuten. Kostenlos. Ohne Risiko.
+            {t('landing.finalCta.subtitle')}
           </p>
           <Button variant="brand" onClick={handleSignupClick} style={{ padding: '16px 36px', fontSize: 17, fontWeight: 700 }}>
-            {registrationEnabled ? 'Jetzt Workspace erstellen' : 'Jetzt anmelden'}
+            {registrationEnabled ? t('landing.finalCta.cta') : t('landing.hero.ctaLogin')}
             <i className="fa-solid fa-arrow-right" style={{ marginLeft: 10, fontSize: 15 }} />
           </Button>
           <p style={{ marginTop: 20, fontSize: 14, color: 'var(--muted)' }}>
-            oder schreiben Sie uns für eine Demo:{' '}
+            {t('landing.finalCta.demoText')}{' '}
             <a href="mailto:info@meetropolis.de" style={{ color: 'var(--brand-primary)', textDecoration: 'none' }}>
               info@meetropolis.de
             </a>
           </p>
           <p style={{ marginTop: 40, fontSize: 13, color: 'var(--muted)', opacity: 0.65, fontStyle: 'italic' }}>
-            P.S. Starten Sie noch heute — bevor Ihre besten Leute das nächste &ldquo;Sind alle im Call?&rdquo;-Meeting satt haben.
+            {t('landing.finalCta.ps')}
           </p>
         </div>
       </section>
@@ -723,37 +725,37 @@ export function LandingPage({ onLogin, onSignup, onPricing, registrationEnabled 
               <div style={{ fontSize: 20, fontWeight: 800, background: 'var(--gradient)', WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent', marginBottom: 8 }}>
                 Meetropolis
               </div>
-              <p style={{ margin: 0, color: 'var(--muted)', fontSize: 13 }}>Das virtuelle Büro für Remote Teams.</p>
+              <p style={{ margin: 0, color: 'var(--muted)', fontSize: 13 }}>{t('landing.footer.tagline')}</p>
             </div>
             <div style={{ display: 'flex', gap: 40, flexWrap: 'wrap' }}>
               <div>
-                <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 12 }}>Produkt</div>
+                <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 12 }}>{t('landing.footer.product')}</div>
                 <div style={{ display: 'grid', gap: 8 }}>
-                  <FLink onClick={() => scrollTo('funktionen')}>Funktionen</FLink>
-                  <FLink onClick={onPricing}>Preise</FLink>
-                  <FLink onClick={() => scrollTo('download')}>Desktop-App</FLink>
+                  <FLink onClick={() => scrollTo('funktionen')}>{t('landing.nav.features')}</FLink>
+                  <FLink onClick={onPricing}>{t('landing.nav.pricing')}</FLink>
+                  <FLink onClick={() => scrollTo('download')}>{t('landing.footer.desktopApp')}</FLink>
                   <FLink href="https://github.com/lass-machen/meetropolis">GitHub</FLink>
                 </div>
               </div>
               <div>
-                <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 12 }}>Rechtliches</div>
+                <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 12 }}>{t('landing.footer.legal')}</div>
                 <div style={{ display: 'grid', gap: 8 }}>
-                  <FLink href="#/privacy">Datenschutz</FLink>
-                  <FLink href="#/terms">AGB</FLink>
-                  <FLink href="#/impressum">Impressum</FLink>
+                  <FLink href="#/privacy">{t('landing.footer.privacy')}</FLink>
+                  <FLink href="#/terms">{t('landing.footer.terms')}</FLink>
+                  <FLink href="#/impressum">{t('landing.footer.imprint')}</FLink>
                 </div>
               </div>
               <div>
-                <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 12 }}>Kontakt</div>
+                <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 12 }}>{t('landing.footer.contact')}</div>
                 <div style={{ display: 'grid', gap: 8 }}>
-                  <FLink href="mailto:support@meetropolis.de">Support</FLink>
-                  <FLink href="mailto:sales@meetropolis.de">Vertrieb</FLink>
+                  <FLink href="mailto:support@meetropolis.de">{t('landing.footer.support')}</FLink>
+                  <FLink href="mailto:sales@meetropolis.de">{t('landing.footer.sales')}</FLink>
                 </div>
               </div>
             </div>
           </div>
           <div style={{ paddingTop: 24, borderTop: '1px solid var(--border)', textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>
-            Open Source unter Apache-2.0 | Copyright 2025 Meetropolis Contributors
+            {t('landing.footer.copyright')}
           </div>
         </div>
       </footer>
@@ -803,10 +805,11 @@ function FLink({ children, href, onClick }: { children: React.ReactNode; href?: 
 }
 
 function DownloadButton({ platform }: { platform: 'macos' | 'windows' }) {
+  const { t } = useTranslation();
   const isCurrent = typeof navigator !== 'undefined' &&
     (platform === 'macos' ? /Mac/i.test(navigator.userAgent) : /Win/i.test(navigator.userAgent));
 
-  const label = platform === 'macos' ? 'macOS herunterladen' : 'Windows herunterladen';
+  const label = platform === 'macos' ? t('landing.download.macos') : t('landing.download.windows');
   const icon = platform === 'macos' ? 'fa-brands fa-apple' : 'fa-brands fa-windows';
 
   const handleClick = async () => {

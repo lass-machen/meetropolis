@@ -4,6 +4,7 @@ import { Card, Input, Button } from '../../ui/system';
 import { ThemeToggleButton } from '../../ui/theme';
 import { getDesktopModule } from '../../lib/desktopLoader';
 import { logger } from '../../lib/logger';
+import { translateApiError } from '../../lib/apiErrors';
 
 /** Store auth token for desktop clients (Tauri can't use cookies) */
 async function storeDesktopAuthToken(token: string) {
@@ -46,7 +47,7 @@ export function AuthScreen(props: { baseUrl: string; onDone: () => void }) {
     for (let i = 0; i < attempts.length; i++) {
       try {
         const res = await fetch(url, { method: 'POST', headers, credentials: 'include', body: JSON.stringify(body) });
-        if (!res.ok) throw new Error((await res.json())?.error || t('common.error'));
+        if (!res.ok) throw new Error(translateApiError((await res.json())?.error) || t('common.error'));
         return await res.json().catch(() => ({}));
       } catch (e: unknown) {
         logger.warn('[AuthScreen] Fetch error:', (e as Error)?.message || String(e), 'URL:', url);
@@ -85,7 +86,7 @@ export function AuthScreen(props: { baseUrl: string; onDone: () => void }) {
           await post('/auth/login', { email: autoEmail, password: autoPassword });
           onDone();
         } catch (e: unknown) {
-          setMsg((e as Error)?.message || 'Auto-Login fehlgeschlagen');
+          setMsg((e as Error)?.message || t('auth.autoLoginFailed'));
         }
       })();
     } catch {}
@@ -96,13 +97,13 @@ export function AuthScreen(props: { baseUrl: string; onDone: () => void }) {
     const hash = window.location.hash;
     if (!hash.startsWith('#/guest?')) return;
     const params = new URLSearchParams(hash.slice('#/guest?'.length));
-    const t = params.get('token');
-    if (!t) return;
+    const guestToken = params.get('token');
+    if (!guestToken) return;
     setView('guest');
     setGuestLoading(true);
     (async () => {
       try {
-        const result = await post('/auth/guest', { token: t });
+        const result = await post('/auth/guest', { token: guestToken });
         if (result.token) {
           storeDesktopAuthToken(result.token);
         }
@@ -113,11 +114,11 @@ export function AuthScreen(props: { baseUrl: string; onDone: () => void }) {
         setGuestLoading(false);
         const errMsg = (e as Error)?.message || '';
         if (errMsg === 'guest_expired') {
-          setMsg('Dein Gast-Zugang ist abgelaufen.');
+          setMsg(t('auth.guestExpired'));
         } else if (errMsg === 'invalid_token') {
-          setMsg('Ungültiger oder abgelaufener Gast-Link.');
+          setMsg(t('auth.guestInvalid'));
         } else {
-          setMsg(errMsg || 'Gast-Anmeldung fehlgeschlagen.');
+          setMsg(errMsg || t('auth.guestFailed'));
         }
       }
     })();
@@ -360,10 +361,10 @@ export function AuthScreen(props: { baseUrl: string; onDone: () => void }) {
         )}
         {view === 'guest' && (
           <div style={{ display: 'contents' }}>
-            <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: 'var(--fg)' }}>Gast-Zugang</h2>
+            <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: 'var(--fg)' }}>{t('auth.guestTitle')}</h2>
             {guestLoading ? (
               <div style={{ textAlign: 'center', padding: '20px 0', color: 'var(--muted)' }}>
-                Gast-Zugang wird überprüft...
+                {t('auth.guestLoading')}
               </div>
             ) : (
               <div style={{ textAlign: 'center' }}>
@@ -371,7 +372,7 @@ export function AuthScreen(props: { baseUrl: string; onDone: () => void }) {
                   style={{ cursor: 'pointer', color: 'var(--brand-primary)', textDecoration: 'none', fontSize: 13 }}
                   onClick={() => { setView('login'); setMsg(null); }}
                 >
-                  Zurück zum Login
+                  {t('auth.backToLogin')}
                 </a>
               </div>
             )}

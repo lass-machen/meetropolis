@@ -139,7 +139,7 @@ export function EditorWindow({
     const file = e.target.files?.[0];
     if (!file) return;
     if (!file.name.endsWith('.mepack') && !file.name.endsWith('.zip')) {
-      window.dispatchEvent(new CustomEvent('editor:toast', { detail: { title: 'Ungültige Datei', description: 'Nur .mepack oder .zip erlaubt', intent: 'error' } }));
+      window.dispatchEvent(new CustomEvent('editor:toast', { detail: { title: t('editor.invalidFile'), description: t('editor.invalidFileDesc'), intent: 'error' } }));
       e.target.value = '';
       return;
     }
@@ -150,14 +150,14 @@ export function EditorWindow({
       form.append('file', file);
       const res = await fetch(`${apiBase}/asset-packs/upload`, { method: 'POST', body: form, credentials: 'include' });
       if (res.ok) {
-        window.dispatchEvent(new CustomEvent('editor:toast', { detail: { title: 'Upload erfolgreich', description: 'Pack wurde importiert', intent: 'success' } }));
+        window.dispatchEvent(new CustomEvent('editor:toast', { detail: { title: t('editor.uploadSuccess'), description: t('editor.uploadSuccessDesc'), intent: 'success' } }));
         setTimeout(() => window.location.reload(), 1000);
       } else {
-        const data = await res.json().catch(() => ({ error: 'Unbekannter Fehler' }));
-        window.dispatchEvent(new CustomEvent('editor:toast', { detail: { title: 'Upload fehlgeschlagen', description: data.error || 'Unbekannter Fehler', intent: 'error' } }));
+        const data = await res.json().catch(() => ({ error: t('common.error') }));
+        window.dispatchEvent(new CustomEvent('editor:toast', { detail: { title: t('editor.uploadFailed'), description: data.error || t('common.error'), intent: 'error' } }));
       }
     } catch {
-      window.dispatchEvent(new CustomEvent('editor:toast', { detail: { title: 'Upload fehlgeschlagen', description: 'Netzwerkfehler', intent: 'error' } }));
+      window.dispatchEvent(new CustomEvent('editor:toast', { detail: { title: t('editor.uploadFailed'), description: t('common.networkError'), intent: 'error' } }));
     } finally {
       setUploading(false);
       e.target.value = '';
@@ -166,20 +166,20 @@ export function EditorWindow({
 
   // Pack loeschen
   const handleDeletePack = async (id: number, name: string) => {
-    if (!window.confirm(`Pack "${name}" wirklich löschen?`)) return;
+    if (!window.confirm(t('editor.confirmDeletePack', { name }))) return;
     setDeleting(id);
     try {
       const apiBase = getApiBaseFromWindow();
       const res = await fetch(`${apiBase}/asset-packs/${id}`, { method: 'DELETE', credentials: 'include' });
       if (res.ok) {
-        window.dispatchEvent(new CustomEvent('editor:toast', { detail: { title: 'Pack gelöscht', description: `"${name}" wurde entfernt`, intent: 'success' } }));
+        window.dispatchEvent(new CustomEvent('editor:toast', { detail: { title: t('editor.packDeleted'), description: t('editor.packDeletedDesc', { name }), intent: 'success' } }));
         setTimeout(() => window.location.reload(), 1000);
       } else {
-        const data = await res.json().catch(() => ({ error: 'Unbekannter Fehler' }));
-        window.dispatchEvent(new CustomEvent('editor:toast', { detail: { title: 'Löschen fehlgeschlagen', description: data.error || 'Unbekannter Fehler', intent: 'error' } }));
+        const data = await res.json().catch(() => ({ error: t('common.error') }));
+        window.dispatchEvent(new CustomEvent('editor:toast', { detail: { title: t('editor.deleteFailed'), description: data.error || t('common.error'), intent: 'error' } }));
       }
     } catch {
-      window.dispatchEvent(new CustomEvent('editor:toast', { detail: { title: 'Löschen fehlgeschlagen', description: 'Netzwerkfehler', intent: 'error' } }));
+      window.dispatchEvent(new CustomEvent('editor:toast', { detail: { title: t('editor.deleteFailed'), description: t('common.networkError'), intent: 'error' } }));
     } finally {
       setDeleting(null);
     }
@@ -425,16 +425,16 @@ export function EditorWindow({
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--glass)', cursor: uploading ? 'wait' : 'pointer', opacity: uploading ? 0.6 : 1 }}>
                   <label style={{ cursor: uploading ? 'wait' : 'pointer', flex: 1, display: 'flex', alignItems: 'center', gap: 8, color: 'var(--fg)' }}>
                     <span style={{ fontSize: 16 }}>📦</span>
-                    <span style={{ fontSize: 13 }}>{uploading ? 'Wird hochgeladen...' : '.mepack importieren'}</span>
+                    <span style={{ fontSize: 13 }}>{uploading ? t('editor.uploading') : t('editor.importMepack')}</span>
                     <input type="file" accept=".mepack,.zip" style={{ display: 'none' }} onChange={handleMepackUpload} disabled={uploading} />
                   </label>
                 </div>
               </div>
               {/* Installierte Packs */}
               <div style={{ marginTop: 16 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg)', marginBottom: 8 }}>Installierte Packs</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg)', marginBottom: 8 }}>{t('editor.installedPacks')}</div>
                 {packs.length === 0 ? (
-                  <div style={{ fontSize: 12, color: '#6b7280', fontStyle: 'italic' }}>Keine Packs installiert</div>
+                  <div style={{ fontSize: 12, color: '#6b7280', fontStyle: 'italic' }}>{t('editor.noPacksInstalled')}</div>
                 ) : (
                   <div style={{ display: 'grid', gap: 4 }}>
                     {packs.map(pack => (
@@ -447,7 +447,7 @@ export function EditorWindow({
                           onClick={() => handleDeletePack(pack.id, pack.name)}
                           disabled={deleting === pack.id}
                           style={{ background: 'none', border: 'none', cursor: deleting === pack.id ? 'wait' : 'pointer', color: '#ef4444', opacity: deleting === pack.id ? 0.5 : 0.7, fontSize: 14, padding: '2px 6px', borderRadius: 4 }}
-                          title="Pack löschen"
+                          title={t('editor.deletePack')}
                         >
                           🗑️
                         </button>
@@ -483,8 +483,8 @@ export function EditorWindow({
                   try {
                     window.dispatchEvent(new CustomEvent('editor:toast', {
                       detail: {
-                        title: 'Upload erfolgreich',
-                        description: 'Tileset wurde permanent gespeichert',
+                        title: t('editor.uploadSuccess'),
+                        description: t('editor.tilesetSaved'),
                         intent: 'success'
                       }
                     }));
@@ -497,8 +497,8 @@ export function EditorWindow({
                   try {
                     window.dispatchEvent(new CustomEvent('editor:toast', {
                       detail: {
-                        title: 'Upload fehlgeschlagen',
-                        description: result.error || 'Unbekannter Fehler',
+                        title: t('editor.uploadFailed'),
+                        description: result.error || t('common.error'),
                         intent: 'error'
                       }
                     }));
@@ -514,8 +514,8 @@ export function EditorWindow({
                 try {
                   window.dispatchEvent(new CustomEvent('editor:toast', {
                     detail: {
-                      title: 'Upload fehlgeschlagen',
-                      description: (e instanceof Error ? e.message : null) || 'Unbekannter Fehler',
+                      title: t('editor.uploadFailed'),
+                      description: (e instanceof Error ? e.message : null) || t('common.error'),
                       intent: 'error'
                     }
                   }));

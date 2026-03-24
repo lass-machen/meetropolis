@@ -1,9 +1,12 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { getApiBaseFromWindow } from '../../../lib/apiBase';
 import { openExternal } from '../../../lib/openExternal';
 import { BillingStatus, Invoice, AvailablePlan } from '../types';
+import { translateApiError } from '../../../lib/apiErrors';
 
 export function useBillingData() {
+  const { t } = useTranslation();
   const [status, setStatus] = React.useState<BillingStatus | null>(null);
   const [invoices, setInvoices] = React.useState<Invoice[]>([]);
   const [plans, setPlans] = React.useState<AvailablePlan[]>([]);
@@ -28,7 +31,7 @@ export function useBillingData() {
         setStatus(data);
       } else {
         const err = await statusRes.json().catch(() => ({}));
-        setError(err.error || 'Failed to load billing status');
+        setError(translateApiError(err.error) || t('billing.loadFailed'));
       }
 
       if (invoicesRes.ok) {
@@ -41,11 +44,11 @@ export function useBillingData() {
         setPlans(data.plans || []);
       }
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Network error');
+      setError(e instanceof Error ? e.message : t('common.networkError'));
     } finally {
       setLoading(false);
     }
-  }, [apiBase]);
+  }, [apiBase, t]);
 
   React.useEffect(() => {
     fetchData();
@@ -63,7 +66,7 @@ export function useBillingData() {
         const { url } = await res.json();
         if (url) await openExternal(url);
       }
-    } catch (e: unknown) { setError(e instanceof Error ? e.message : 'Failed to open billing portal'); }
+    } catch (e: unknown) { setError(e instanceof Error ? e.message : t('billing.portalFailed')); }
     setActionLoading(false);
   };
 
@@ -80,12 +83,12 @@ export function useBillingData() {
         const { url } = await res.json();
         if (url) await openExternal(url);
       }
-    } catch (e: unknown) { setError(e instanceof Error ? e.message : 'Failed to start checkout'); }
+    } catch (e: unknown) { setError(e instanceof Error ? e.message : t('billing.checkoutFailed')); }
     setActionLoading(false);
   };
 
   const handleCancel = async () => {
-    if (!confirm('Are you sure you want to cancel your subscription? You will retain access until the end of the billing period.')) return;
+    if (!confirm(t('billing.confirmCancel'))) return;
     setActionLoading(true);
     try {
       const res = await fetch(`${apiBase}/billing/cancel`, {
@@ -96,7 +99,7 @@ export function useBillingData() {
       if (res.ok) {
         await fetchData();
       }
-    } catch (e: unknown) { setError(e instanceof Error ? e.message : 'Failed to cancel subscription'); }
+    } catch (e: unknown) { setError(e instanceof Error ? e.message : t('billing.cancelFailed')); }
     setActionLoading(false);
   };
 
@@ -111,7 +114,7 @@ export function useBillingData() {
       if (res.ok) {
         await fetchData();
       }
-    } catch (e: unknown) { setError(e instanceof Error ? e.message : 'Failed to reactivate subscription'); }
+    } catch (e: unknown) { setError(e instanceof Error ? e.message : t('billing.reactivateFailed')); }
     setActionLoading(false);
   };
 

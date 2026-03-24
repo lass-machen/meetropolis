@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import type { Guest } from './types';
 
 interface GuestSettingsProps {
@@ -26,6 +27,7 @@ export function GuestSettings({
   onRevokeGuest,
   onSuccess,
 }: GuestSettingsProps) {
+  const { t } = useTranslation();
   const [showForm, setShowForm] = React.useState(false);
   const [email, setEmail] = React.useState('');
   const [name, setName] = React.useState('');
@@ -42,7 +44,7 @@ export function GuestSettings({
       setEmail('');
       setName('');
       setExpiresAt('');
-      onSuccess('Gast-Einladung erstellt');
+      onSuccess(t('guest.inviteCreated'));
     }
   };
 
@@ -63,18 +65,18 @@ export function GuestSettings({
     <>
       <div style={styles.section}>
         <div style={styles.sectionHeader}>
-          <h3 style={styles.sectionTitle}>Gast-Zugänge</h3>
+          <h3 style={styles.sectionTitle}>{t('guest.title')}</h3>
           <button
             onClick={() => { setShowForm(true); setMagicLink(null); }}
             style={styles.primaryBtn}
           >
-            Gast einladen
+            {t('guest.invite')}
           </button>
         </div>
 
         <div style={styles.memberList}>
           {guests.length === 0 && (
-            <div style={styles.emptyText}>Keine Gäste vorhanden.</div>
+            <div style={styles.emptyText}>{t('guest.noGuests')}</div>
           )}
           {guests.map((guest) => {
             const expired = isExpired(guest.expiresAt);
@@ -83,7 +85,7 @@ export function GuestSettings({
                 <div style={styles.memberInfo}>
                   <div style={styles.memberName}>{guest.name || guest.email}</div>
                   <div style={styles.memberEmail}>
-                    {guest.email} &middot; Ablauf: {new Date(guest.expiresAt).toLocaleString('de-DE')}
+                    {guest.email} &middot; {t('guest.expires')}: {new Date(guest.expiresAt).toLocaleString()}
                   </div>
                 </div>
                 <div style={styles.memberActions}>
@@ -92,13 +94,13 @@ export function GuestSettings({
                     background: expired ? 'rgba(239,68,68,0.2)' : 'rgba(34,197,94,0.2)',
                     color: expired ? '#ef4444' : '#22c55e',
                   }}>
-                    {expired ? 'Abgelaufen' : 'Aktiv'}
+                    {expired ? t('guest.expired') : t('guest.active')}
                   </span>
                   <button
                     onClick={() => handleRevoke(guest.id)}
                     disabled={saving}
                     style={styles.removeBtn}
-                    title="Widerrufen"
+                    title={t('guest.revoke')}
                   >
                     &times;
                   </button>
@@ -111,11 +113,11 @@ export function GuestSettings({
 
       {showForm && (
         <div style={styles.formSection}>
-          <h4 style={styles.formTitle}>Neuen Gast einladen</h4>
+          <h4 style={styles.formTitle}>{t('guest.inviteNew')}</h4>
           <form onSubmit={handleCreate} style={styles.form}>
             <input
               type="email"
-              placeholder="E-Mail (erforderlich)"
+              placeholder={t('guest.emailRequired')}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
@@ -123,7 +125,7 @@ export function GuestSettings({
             />
             <input
               type="text"
-              placeholder="Name (optional)"
+              placeholder={t('guest.nameOptional')}
               value={name}
               onChange={(e) => setName(e.target.value)}
               style={styles.input}
@@ -138,25 +140,25 @@ export function GuestSettings({
             />
             <div style={styles.formActions}>
               <button type="submit" disabled={saving} style={styles.primaryBtn}>
-                Einladen
+                {t('guest.sendInvite')}
               </button>
               <button
                 type="button"
                 onClick={() => { setShowForm(false); setMagicLink(null); }}
                 style={styles.cancelBtn}
               >
-                Abbrechen
+                {t('guest.cancel')}
               </button>
             </div>
           </form>
 
           {magicLink && (
             <div style={styles.magicLinkBox}>
-              <div style={styles.magicLinkLabel}>Magic Link (einmalig kopieren!):</div>
+              <div style={styles.magicLinkLabel}>{t('guest.magicLinkLabel')}</div>
               <div style={styles.magicLinkRow}>
                 <code style={styles.magicLinkCode}>{magicLink}</code>
                 <button onClick={handleCopy} style={styles.copyBtn}>
-                  {copied ? 'Kopiert!' : 'Link kopieren'}
+                  {copied ? t('guest.copied') : t('guest.copyLink')}
                 </button>
               </div>
             </div>

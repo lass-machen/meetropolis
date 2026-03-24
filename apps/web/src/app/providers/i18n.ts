@@ -16,7 +16,7 @@ i18n
     fallbackLng: 'en',
     defaultNS: 'common',
     interpolation: { escapeValue: false },
-    detection: { order: ['navigator'], caches: [] }
+    detection: { order: ['localStorage', 'navigator'], caches: ['localStorage'], lookupLocalStorage: 'i18nextLng' }
   })
   .catch(() => {
     // Initialization failures should not break the app; fall back silently.
