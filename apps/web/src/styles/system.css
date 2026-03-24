@@ -332,8 +332,8 @@
   position: fixed;
   display: flex;
   flex-direction: column;
-  background: var(--glass);
-  color: var(--fg);
+  background: var(--modal-bg);
+  color: var(--modal-fg);
   border: 1px solid var(--border);
   border-radius: 12px;
   box-shadow: var(--shadow);

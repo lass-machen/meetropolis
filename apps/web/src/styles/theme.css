@@ -39,8 +39,8 @@
     --glass: rgba(255,255,255,0.92);
     --glass-hover: rgba(0,0,0,0.06);
     --shadow: 0 12px 30px rgba(0,0,0,0.14);
-    --modal-bg: rgba(17,17,20,0.98);
-    --modal-fg: #e5e7eb;
+    --modal-bg: rgba(255,255,255,0.98);
+    --modal-fg: #0f1115;
     --panel-bg: rgba(17,17,20,0.92);
     --panel-fg: #e5e7eb;
     --chip-bg: rgba(17,17,20,0.70);
@@ -91,8 +91,8 @@
   --glass: rgba(255,255,255,0.92);
   --glass-hover: rgba(0,0,0,0.06);
   --shadow: 0 12px 30px rgba(0,0,0,0.14);
-  --modal-bg: rgba(17,17,20,0.98);
-  --modal-fg: #e5e7eb;
+  --modal-bg: rgba(255,255,255,0.98);
+  --modal-fg: #0f1115;
   --panel-bg: rgba(17,17,20,0.92);
   --panel-fg: #e5e7eb;
   --chip-bg: rgba(17,17,20,0.70);
