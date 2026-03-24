@@ -380,8 +380,10 @@
 .sys-table-container { overflow: auto; }
 .sys-table { width: 100%; border-collapse: separate; border-spacing: 0; }
 .sys-thead--sticky { position: sticky; top: 0; background: var(--glass); z-index: 1; }
-.sys-th { padding: 10px 12px; border-bottom: 1px solid var(--border); text-align: left; color: var(--fg-subtle); font-size: 12px; }
-.sys-td { padding: 10px 12px; }
+.sys-th { padding: 10px 12px; border-bottom: 1px solid var(--border); text-align: left; color: var(--fg-subtle); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+.sys-td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.sys-tr { transition: background 0.1s; }
+.sys-tr:hover { background: var(--glass-hover); }
 
 /* ---------- Toolbar ---------- */
 .sys-toolbar {

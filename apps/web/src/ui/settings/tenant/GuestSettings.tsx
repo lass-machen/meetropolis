@@ -1,7 +1,7 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Guest } from './types';
-import { Section, Button, Badge, Input, Card, Alert } from '../../system';
+import { Section, Button, Badge, Input, Card, Alert, Table, THead, TBody, Tr, Th, Td } from '../../system';
 
 interface GuestSettingsProps {
   guests: Guest[];
@@ -75,39 +75,53 @@ export function GuestSettings({
           </Button>
         }
       >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {guests.length === 0 && (
-            <div style={{ color: 'var(--fg-subtle, #888)', fontSize: 14, padding: '12px 0' }}>{t('guest.noGuests')}</div>
-          )}
-          {guests.map((guest) => {
-            const expired = isExpired(guest.expiresAt);
-            return (
-              <div key={guest.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: 'rgba(255,255,255,0.05)', borderRadius: 8 }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 600, color: 'var(--fg, #fff)', fontSize: 14 }}>{guest.name || guest.email}</div>
-                  <div style={{ fontSize: 12, color: 'var(--fg-subtle, #888)' }}>
-                    {guest.email} &middot; {t('guest.expires')}: {new Date(guest.expiresAt).toLocaleString()}
-                  </div>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Badge intent={expired ? 'danger' : 'success'}>
-                    {expired ? t('guest.expired') : t('guest.active')}
-                  </Badge>
-                  <Button
-                    iconOnly
-                    size="xs"
-                    variant="danger"
-                    onClick={() => handleRevoke(guest.id)}
-                    disabled={saving}
-                    title={t('guest.revoke')}
-                  >
-                    ×
-                  </Button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+        {guests.length === 0 ? (
+          <div style={{ color: 'var(--fg-subtle, #888)', fontSize: 14, padding: '12px 0' }}>{t('guest.noGuests')}</div>
+        ) : (
+          <Table>
+            <THead>
+              <Tr>
+                <Th style={{ paddingLeft: 0 }}>Name</Th>
+                <Th>{t('guest.expires')}</Th>
+                <Th>Status</Th>
+                <Th style={{ paddingRight: 0, textAlign: 'right' }}>{null}</Th>
+              </Tr>
+            </THead>
+            <TBody>
+              {guests.map((guest) => {
+                const expired = isExpired(guest.expiresAt);
+                return (
+                  <Tr key={guest.id}>
+                    <Td style={{ paddingLeft: 0 }}>
+                      <div style={{ fontWeight: 600, fontSize: 14 }}>{guest.name || guest.email}</div>
+                      {guest.name && <div style={{ fontSize: 12, color: 'var(--fg-subtle)', marginTop: 4 }}>{guest.email}</div>}
+                    </Td>
+                    <Td style={{ fontSize: 13, color: 'var(--fg-subtle)' }}>
+                      {new Date(guest.expiresAt).toLocaleDateString()}
+                    </Td>
+                    <Td>
+                      <Badge intent={expired ? 'danger' : 'success'}>
+                        {expired ? t('guest.expired') : t('guest.active')}
+                      </Badge>
+                    </Td>
+                    <Td style={{ paddingRight: 0, textAlign: 'right' }}>
+                      <Button
+                        iconOnly
+                        size="xs"
+                        variant="danger"
+                        onClick={() => handleRevoke(guest.id)}
+                        disabled={saving}
+                        title={t('guest.revoke')}
+                      >
+                        ×
+                      </Button>
+                    </Td>
+                  </Tr>
+                );
+              })}
+            </TBody>
+          </Table>
+        )}
       </Section>
 
       {showForm && (
