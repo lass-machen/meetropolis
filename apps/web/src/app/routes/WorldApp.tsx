@@ -80,6 +80,9 @@ export function WorldApp() {
   const editorActiveRef = useRef(false);
   const activateBubbleNowRef = useRef<(id: string) => void>(() => { });
 
+  // Enterprise feature detection
+  const [billingAvailable, setBillingAvailable] = React.useState(false);
+
   // State
   const [authChecked, setAuthChecked] = React.useState(false);
   const [me, setMe] = React.useState<{ id: string; email: string; name?: string; onboardingCompleted?: boolean; role?: string } | null>(null);
@@ -124,6 +127,13 @@ export function WorldApp() {
   const [menuOpen, setMenuOpen] = React.useState(false);
 
   const apiBase = getApiBaseFromWindow();
+
+  // Detect enterprise billing availability once on mount
+  React.useEffect(() => {
+    fetch(`${apiBase}/billing/status`, { method: 'HEAD', credentials: 'include' })
+      .then(res => setBillingAvailable(res.ok))
+      .catch(() => setBillingAvailable(false));
+  }, [apiBase]);
 
   const getDisplayName = useCallback((identity: string): string => {
     const name = identityToNameMap.current[identity];
@@ -659,7 +669,7 @@ export function WorldApp() {
                 onOpenAdmin: eventHandlers.handleOpenAdmin,
                 isAdmin: isInternalOwner,
                 // onOpenApi: eventHandlers.handleOpenApi, // temporarily disabled
-                ...(isTenantAdmin ? { onOpenBilling: eventHandlers.handleOpenBilling } : {}),
+                ...(isTenantAdmin && billingAvailable ? { onOpenBilling: eventHandlers.handleOpenBilling } : {}),
                 onOpenProfile: eventHandlers.handleOpenProfile,
                 ...(isTenantAdmin ? { onOpenTenantSettings: eventHandlers.handleOpenTenantSettings } : {}),
                 ...(isTenantAdmin ? { onOpenSessions: eventHandlers.handleOpenSessions } : {}),

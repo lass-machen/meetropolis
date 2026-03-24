@@ -77,7 +77,7 @@ export function TenantSettings({ onClose: _onClose, activeTab: activeTabProp, on
           <InvitesTab apiBase={apiBase} />
         )}
 
-        {activeTab === 'guests' && (
+        {activeTab === 'guests' && isEnterprise && (
           <GuestSettings
             guests={guests}
             saving={saving}
