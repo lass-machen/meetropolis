@@ -21,8 +21,11 @@ export interface ScreenshareDeps {
 export class Screenshare implements Disposable {
   private _isSharing = false;
   private _isPending = false;
+  private _desiredSharing = false;
   private _tracks: LocalTrack[] = [];
   private _trackEndedCleanups: Array<() => void> = [];
+  private _reacquireTimer: ReturnType<typeof setTimeout> | null = null;
+  private _visibilityHandler: (() => void) | null = null;
   private _disposed = false;
 
   constructor(private readonly deps: ScreenshareDeps) {}
@@ -39,6 +42,10 @@ export class Screenshare implements Disposable {
     return this._isPending;
   }
 
+  get desiredSharing(): boolean {
+    return this._desiredSharing;
+  }
+
   /**
    * Start screen sharing
    * Returns true if sharing started successfully
@@ -52,6 +59,8 @@ export class Screenshare implements Disposable {
       return true;
     }
 
+    this._desiredSharing = true;
+    this._clearReacquire();
     this._isPending = true;
     AVLogger.info('screenshare.start');
 
@@ -118,6 +127,7 @@ export class Screenshare implements Disposable {
       this._tracks = tracks;
       this._isSharing = true;
       this._isPending = false;
+      this._beginAppNapPrevention();
 
       AVLogger.info('screenshare.started');
       return true;
@@ -131,9 +141,18 @@ export class Screenshare implements Disposable {
 
   /**
    * Stop screen sharing
+   * @param options.preserveDesired - If true, keep _desiredSharing so screenshare
+   *   can be restored after reconnect or system interruption.
    */
-  async stop(): Promise<void> {
+  async stop(options?: { preserveDesired?: boolean }): Promise<void> {
     if (this._disposed) return;
+
+    this._clearReacquire();
+
+    if (!options?.preserveDesired) {
+      this._desiredSharing = false;
+    }
+
     if (!this._isSharing && this._tracks.length === 0) {
       // Best-effort cleanup for desync cases where we didn't create the tracks locally
       const room = this.deps.getRoom();
@@ -142,17 +161,12 @@ export class Screenshare implements Disposable {
       return;
     }
 
-    AVLogger.info('screenshare.stop');
+    AVLogger.info('screenshare.stop', { preserveDesired: !!options?.preserveDesired });
 
     const room = this.deps.getRoom();
 
     // Cleanup ended handlers
-    for (const cleanup of this._trackEndedCleanups) {
-      try {
-        cleanup();
-      } catch {}
-    }
-    this._trackEndedCleanups = [];
+    this._cleanupTrackEndedHandlers();
 
     // Unpublish and stop all tracks we created
     for (const track of this._tracks) {
@@ -168,6 +182,7 @@ export class Screenshare implements Disposable {
 
     this._tracks = [];
     this._isSharing = false;
+    this._endAppNapPrevention();
 
     // Also ensure any currently published screenshare tracks are cleaned up
     if (room) {
@@ -199,12 +214,39 @@ export class Screenshare implements Disposable {
     if (this._disposed) return;
     this._disposed = true;
 
+    this._clearReacquire();
     this.stop().catch(() => {});
   }
 
   // ============================================================================
   // Private
   // ============================================================================
+
+  /**
+   * Prevent macOS App Nap while screen sharing (Tauri desktop only).
+   */
+  private async _beginAppNapPrevention(): Promise<void> {
+    try {
+      const win = window as any;
+      if (typeof win.desktop?.beginActivityAssertion === 'function') {
+        await win.desktop.beginActivityAssertion('Screen sharing active');
+        AVLogger.debug('screenshare.app_nap_prevention.started');
+      }
+    } catch {}
+  }
+
+  /**
+   * Allow App Nap again after screen sharing stops.
+   */
+  private async _endAppNapPrevention(): Promise<void> {
+    try {
+      const win = window as any;
+      if (typeof win.desktop?.endActivityAssertion === 'function') {
+        await win.desktop.endActivityAssertion();
+        AVLogger.debug('screenshare.app_nap_prevention.ended');
+      }
+    } catch {}
+  }
 
   private async captureTracks(): Promise<LocalTrack[]> {
     const isElectron = this.isElectronEnvironment();
@@ -321,12 +363,37 @@ export class Screenshare implements Disposable {
   }
 
   private watchTrackEnded(track: LocalTrack): void {
-    const mst = (track as any).mediaStreamTrack;
+    const mst = (track as any).mediaStreamTrack as MediaStreamTrack | undefined;
     if (!mst) return;
 
     const handler = () => {
-      AVLogger.info('screenshare.ended_by_user');
-      this.stop().catch(() => {});
+      // Determine if this was a user action or system/WebKit killing the track
+      const isPageVisible =
+        typeof document !== 'undefined' && document.visibilityState === 'visible';
+      const isSystemEnded = !isPageVisible;
+
+      AVLogger.warn('screenshare.track_ended', {
+        isPageVisible,
+        isSystemEnded,
+        readyState: mst.readyState,
+      });
+
+      if (isSystemEnded) {
+        // System killed the track (App Nap, Stage Manager, etc.)
+        // Don't clear _desiredSharing — we want to restore when possible
+        AVLogger.warn('screenshare.ended_by_system');
+        this._isSharing = false;
+        this._endAppNapPrevention();
+        this._tracks = [];
+        this._cleanupTrackEndedHandlers();
+        // Try to re-acquire after a short delay when page becomes visible
+        this._scheduleReacquire();
+      } else {
+        // User explicitly stopped sharing via browser UI
+        AVLogger.info('screenshare.ended_by_user');
+        this._desiredSharing = false;
+        this.stop().catch(() => {});
+      }
     };
 
     mst.addEventListener('ended', handler, { once: true });
@@ -334,6 +401,68 @@ export class Screenshare implements Disposable {
     this._trackEndedCleanups.push(() => {
       mst.removeEventListener('ended', handler);
     });
+  }
+
+  /**
+   * Remove all track-ended event listeners.
+   */
+  private _cleanupTrackEndedHandlers(): void {
+    for (const cleanup of this._trackEndedCleanups) {
+      try {
+        cleanup();
+      } catch {}
+    }
+    this._trackEndedCleanups = [];
+  }
+
+  /**
+   * Schedule re-acquisition of screenshare when the page becomes visible again.
+   * This handles macOS killing the capture track when the app goes to the background
+   * (e.g. Stage Manager, App Nap).
+   */
+  private _scheduleReacquire(): void {
+    // Clean up any existing listener
+    this._clearReacquire();
+
+    if (!this._desiredSharing || this._disposed) return;
+
+    const handler = () => {
+      if (
+        document.visibilityState === 'visible' &&
+        this._desiredSharing &&
+        !this._isSharing &&
+        !this._isPending
+      ) {
+        AVLogger.info('screenshare.reacquire_on_visible');
+        this._clearReacquire();
+        // Small delay to let the system settle
+        this._reacquireTimer = setTimeout(() => {
+          this._reacquireTimer = null;
+          if (this._desiredSharing && !this._isSharing && !this._isPending) {
+            this.start().catch((err) => {
+              AVLogger.warn('screenshare.reacquire_failed', { error: String(err) });
+            });
+          }
+        }, 500);
+      }
+    };
+
+    this._visibilityHandler = handler;
+    document.addEventListener('visibilitychange', handler);
+  }
+
+  /**
+   * Clear any pending reacquire timer and visibility listener.
+   */
+  private _clearReacquire(): void {
+    if (this._reacquireTimer) {
+      clearTimeout(this._reacquireTimer);
+      this._reacquireTimer = null;
+    }
+    if (this._visibilityHandler) {
+      document.removeEventListener('visibilitychange', this._visibilityHandler);
+      this._visibilityHandler = null;
+    }
   }
 
   private cleanupTracks(tracks: LocalTrack[]): void {

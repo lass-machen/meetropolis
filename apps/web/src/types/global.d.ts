@@ -32,6 +32,8 @@ declare global {
     // Desktop Integration (Tauri)
     desktop?: {
       apiBase?: string;
+      beginActivityAssertion?: (reason: string) => Promise<boolean>;
+      endActivityAssertion?: () => Promise<boolean>;
     };
 
     // Player Position Management

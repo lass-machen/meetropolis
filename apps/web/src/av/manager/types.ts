@@ -76,7 +76,9 @@ export interface DoNotDisturbInterface {
  * Screenshare interface for managers
  */
 export interface ScreenshareInterface {
+  readonly isSharing: boolean;
+  readonly desiredSharing: boolean;
   start(): Promise<boolean>;
-  stop(): Promise<void>;
+  stop(options?: { preserveDesired?: boolean }): Promise<void>;
   dispose(): void;
 }

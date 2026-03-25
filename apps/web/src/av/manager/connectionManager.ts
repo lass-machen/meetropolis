@@ -143,7 +143,7 @@ export class ConnectionManager implements Disposable {
 
     // Stop all local tracks
     await this.deps.trackManager.stopAllTracks();
-    await this.deps.screenshare.stop();
+    await this.deps.screenshare.stop({ preserveDesired: true });
 
     // Cleanup room events
     this._roomEventCleanup?.();
@@ -245,6 +245,13 @@ export class ConnectionManager implements Disposable {
       if (!this.deps.dnd.enabled) {
         this.deps.trackManager.publishPendingTracks().catch(() => {});
       }
+      // Restore screenshare if it was active before disconnect
+      if (this.deps.screenshare.desiredSharing && !this.deps.screenshare.isSharing) {
+        AVLogger.info('screenshare.restore_after_reconnect');
+        this.deps.screenshare.start().catch((err) => {
+          AVLogger.warn('screenshare.restore_failed', { error: String(err) });
+        });
+      }
     });
 
     register('disconnected', () => {
@@ -309,6 +316,13 @@ export class ConnectionManager implements Disposable {
           this.deps.subscriptionManager.ensureAudioSubscriptions(64);
           if (!this.deps.dnd.enabled) {
             this.deps.trackManager.publishPendingTracks().catch(() => {});
+          }
+          // Restore screenshare if it was active before disconnect
+          if (this.deps.screenshare.desiredSharing && !this.deps.screenshare.isSharing) {
+            AVLogger.info('screenshare.restore_after_reconnect');
+            this.deps.screenshare.start().catch((err) => {
+              AVLogger.warn('screenshare.restore_failed', { error: String(err) });
+            });
           }
         });
 
