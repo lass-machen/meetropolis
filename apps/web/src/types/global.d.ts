@@ -42,6 +42,7 @@ declare global {
     // Session Management
     __localSessionId?: string;
     __wsReconnects?: number;
+    __sessionConflictPending?: boolean;
 
     // Editor State
     pendingTilesets?: Array<{

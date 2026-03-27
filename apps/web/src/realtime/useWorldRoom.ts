@@ -10,6 +10,7 @@ import { setupRemoteControlHandlers } from './handlers/remoteControlHandlers';
 import { setupPresenceHandlers, createRosterRefresher } from './handlers/presenceHandlers';
 import { setupZoneLockHandlers } from './handlers/zoneLockHandlers';
 import { useMapStore } from '../state/mapStore';
+import i18n from '../app/providers/i18n';
 
 export type { UseWorldRoomArgs } from './types';
 
@@ -86,6 +87,40 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
     const refreshRosterFromRemotes = createRosterRefresher(args);
 
     const setupRoomHandlers = (room: any) => {
+      // Session conflict detection — registered first so the message is caught before any other setup
+      room.onMessage('session_conflict', () => {
+        logger.info('[useWorldRoom] Session conflict detected — showing takeover dialog');
+        if (typeof window !== 'undefined') {
+          (window as any).__sessionConflictPending = true;
+        }
+
+        const host = document.createElement('div');
+        host.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.5);';
+        host.innerHTML = `
+          <div style="min-width:320px;max-width:480px;padding:24px;border-radius:12px;border:1px solid rgba(59,130,246,0.5);background:rgba(30,41,59,0.95);backdrop-filter:blur(8px);color:#fff;box-shadow:0 8px 32px rgba(0,0,0,0.4);text-align:center;">
+            <div style="font-size:48px;margin-bottom:12px;">🔄</div>
+            <div style="font-weight:700;font-size:18px;margin-bottom:8px;">${i18n.t('sessionConflict.title')}</div>
+            <div style="font-size:14px;color:#94a3b8;margin-bottom:20px;">${i18n.t('sessionConflict.description')}</div>
+            <div style="display:flex;gap:12px;justify-content:center;">
+              <button data-session-cancel style="padding:10px 20px;border-radius:8px;border:1px solid rgba(255,255,255,0.2);background:transparent;color:white;cursor:pointer;font-weight:600;font-size:14px;">${i18n.t('sessionConflict.cancel')}</button>
+              <button data-session-takeover style="padding:10px 20px;border-radius:8px;border:none;background:#3b82f6;color:white;cursor:pointer;font-weight:600;font-size:14px;">${i18n.t('sessionConflict.takeover')}</button>
+            </div>
+          </div>`;
+        document.body.appendChild(host);
+
+        host.querySelector('[data-session-takeover]')?.addEventListener('click', () => {
+          try { host.remove(); } catch {}
+          try { delete (window as any).__sessionConflictPending; } catch {}
+          room.send('session_takeover', { identity: me.id });
+        }, { once: true });
+
+        host.querySelector('[data-session-cancel]')?.addEventListener('click', () => {
+          try { host.remove(); } catch {}
+          try { delete (window as any).__sessionConflictPending; } catch {}
+          room.send('session_takeover_cancel', {});
+        }, { once: true });
+      });
+
       const localLivekitIdentity = avRef.current?.room?.localParticipant?.identity || me.id;
       const colyseusSessionId = room.sessionId;
       colyseusToLivekitMap.current[colyseusSessionId] = localLivekitIdentity;

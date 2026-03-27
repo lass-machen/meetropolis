@@ -29,6 +29,13 @@ interface RoomMetadata {
   [key: string]: unknown;
 }
 
+interface PendingClient {
+  client: Client;
+  options: RoomOptions;
+  identity: string;
+  timestamp: number;
+}
+
 class Player extends Schema {
   @type('string') id: string = '';
   @type('number') x: number = 0;
@@ -73,6 +80,9 @@ export class WorldRoom extends Room<WorldState> {
   // Persist multiple bubble groups: groupId -> member sessionIds
   private bubbleGroups: Record<string, string[]> = {};
   private zoneLockState = createZoneLockState();
+  private pendingClients: Map<string, PendingClient> = new Map();
+  private static readonly PENDING_TIMEOUT_MS = 30_000;
+  private pendingCleanupInterval: ReturnType<typeof setInterval> | null = null;
   private getAllBubbleMembers(): string[] {
     const all: string[] = [];
     for (const members of Object.values(this.bubbleGroups)) {
@@ -90,6 +100,24 @@ export class WorldRoom extends Room<WorldState> {
     })).filter(g => Array.isArray(g.members) && g.members.length >= 2);
     const members = this.getAllBubbleMembers();
     this.broadcast('bubble_state', { groups, members });
+  }
+
+  private findExistingSession(identity: string): { room: WorldRoom; sessionId: string; client: Client } | null {
+    for (const room of activeRooms) {
+      const worldRoom = room as WorldRoom;
+      let foundSessionId: string | null = null;
+      worldRoom.state.players.forEach((p, sid) => {
+        if (p.identity === identity) foundSessionId = sid;
+      });
+      if (foundSessionId !== null) {
+        const sid = foundSessionId as string;
+        const matchedClient = worldRoom.clients.find((c: Client) => c.sessionId === sid);
+        if (matchedClient) {
+          return { room: worldRoom, sessionId: sid, client: matchedClient };
+        }
+      }
+    }
+    return null;
   }
 
   private async ensureMapMeta(mapId: string, tenantSlug: string): Promise<MapCacheEntry | null> {
@@ -508,6 +536,67 @@ export class WorldRoom extends Room<WorldState> {
 
     // Setup zone lock handlers
     setupZoneLockHandlers(this, this.zoneLockState, this.prismaForPresence ?? new PrismaClient());
+
+    // Session takeover: new client confirms it wants to replace the existing session
+    this.onMessage('session_takeover', async (client, data?: { identity?: string }) => {
+      const identity = data?.identity;
+      if (!identity) return;
+
+      const pending = this.pendingClients.get(identity);
+      if (!pending || pending.client.sessionId !== client.sessionId) {
+        logger.warn('[WorldRoom] Invalid session_takeover attempt from', client.sessionId);
+        return;
+      }
+
+      this.pendingClients.delete(identity);
+
+      // Kick old client across all rooms
+      for (const room of activeRooms) {
+        const worldRoom = room as WorldRoom;
+        const toRemove: string[] = [];
+        worldRoom.state.players.forEach((p, sid) => {
+          if (p.identity === identity) toRemove.push(sid);
+        });
+        for (const oldSid of toRemove) {
+          worldRoom.state.players.delete(oldSid);
+          try { colyseusPlayers.dec(); } catch {}
+          worldRoom.broadcast('player_left', { id: oldSid });
+          const oldClient = worldRoom.clients.find((c: Client) => c.sessionId === oldSid);
+          if (oldClient) {
+            try { oldClient.error(4007, 'session_taken_over'); } catch {}
+            try { oldClient.leave(1000); } catch {}
+          }
+        }
+      }
+
+      // Complete the join for the pending client
+      logger.info('[WorldRoom] Session takeover completed for identity:', identity);
+      await this.completePendingJoin(pending.client, pending.options, pending.identity);
+    });
+
+    // Session takeover cancel: new client decides not to take over
+    this.onMessage('session_takeover_cancel', (client) => {
+      for (const [identity, pending] of this.pendingClients.entries()) {
+        if (pending.client.sessionId === client.sessionId) {
+          this.pendingClients.delete(identity);
+          logger.info('[WorldRoom] Session takeover cancelled for identity:', identity);
+          break;
+        }
+      }
+      try { client.leave(1000); } catch {}
+    });
+
+    // Pending client timeout check
+    this.pendingCleanupInterval = setInterval(() => {
+      const now = Date.now();
+      for (const [identity, pending] of this.pendingClients.entries()) {
+        if (now - pending.timestamp > WorldRoom.PENDING_TIMEOUT_MS) {
+          this.pendingClients.delete(identity);
+          try { pending.client.leave(1000); } catch {}
+          logger.info('[WorldRoom] Pending client timed out:', identity);
+        }
+      }
+    }, 10_000);
   }
 
   // Editor-Updates können das Default-Spawn live setzen
@@ -669,23 +758,39 @@ export class WorldRoom extends Room<WorldState> {
       }
       try { await prisma.$disconnect().catch(() => { }); } catch (e) { logger.debug('[WorldRoom] Failed to disconnect prisma', e); }
     } catch (e) { logger.debug('[WorldRoom] Failed to enforce tenant/user limits', e); }
-    // Vor Anlage eines neuen Spielers: Duplikate anhand Identity bereinigen
+    // Duplicate session detection (Two-Phase Join)
     const joiningIdentity = options?.identity || client.sessionId;
-    try {
-      const toRemove: string[] = [];
-      this.state.players.forEach((p, id) => {
-        if (p.identity && p.identity === joiningIdentity) {
-          toRemove.push(id);
-        }
-      });
-      for (const oldId of toRemove) {
-        this.state.players.delete(oldId);
-        try { colyseusPlayers.dec(); } catch (e) { logger.debug('[WorldRoom] Failed to decrement colyseusPlayers metric', e); }
-        // Andere Clients über Entfernen informieren (Geist-Avatare vermeiden)
-        this.broadcast('player_left', { id: oldId });
-      }
-    } catch (e) { logger.debug('[WorldRoom] Failed to remove duplicate player', e); }
+    if (!joiningIdentity.startsWith('npc-')) {
+      try {
+        const existing = this.findExistingSession(joiningIdentity);
+        if (existing) {
+          // If there's already a pending client for this identity (3rd tab case), kick it
+          const prevPending = this.pendingClients.get(joiningIdentity);
+          if (prevPending) {
+            try { prevPending.client.leave(1000); } catch {}
+            this.pendingClients.delete(joiningIdentity);
+          }
 
+          // Store new client as pending — no player creation yet
+          this.pendingClients.set(joiningIdentity, {
+            client,
+            options: options || {},
+            identity: joiningIdentity,
+            timestamp: Date.now(),
+          });
+
+          // Notify new client about conflict (message is queued and delivered after JOIN_ROOM handshake)
+          client.send('session_conflict', { code: 4007, message: 'session_conflict' });
+          logger.info('[WorldRoom] Session conflict detected for identity:', joiningIdentity, '- client pending');
+          return; // No player creation, no full_state, no broadcasts
+        }
+      } catch (e) { logger.debug('[WorldRoom] Failed to check duplicate session', e); }
+    }
+
+    await this.completePendingJoin(client, options || {}, joiningIdentity);
+  }
+
+  private async completePendingJoin(client: Client, options: RoomOptions, joiningIdentity: string): Promise<void> {
     // Check if joining user is an expired guest
     try {
       const tenantSlug = options?.tenant || (this.metadata as RoomMetadata)?.tenant || process.env.DEFAULT_TENANT_SLUG || 'default';
@@ -940,6 +1045,15 @@ export class WorldRoom extends Room<WorldState> {
   }
 
   override onLeave(client: Client) {
+    // Clean up pending client if it disconnects before resolving
+    for (const [identity, pending] of this.pendingClients.entries()) {
+      if (pending.client.sessionId === client.sessionId) {
+        this.pendingClients.delete(identity);
+        logger.info('[WorldRoom] Pending client left before resolving conflict:', identity);
+        return; // No player state to clean up
+      }
+    }
+
     // Persist position + mapName before removing player (fire-and-forget)
     const player = this.state.players.get(client.sessionId);
     if (player && player.identity && this.prismaForPresence) {
@@ -994,6 +1108,10 @@ export class WorldRoom extends Room<WorldState> {
     if (this.guestExpiryInterval) {
       clearInterval(this.guestExpiryInterval);
       this.guestExpiryInterval = null;
+    }
+    if (this.pendingCleanupInterval) {
+      clearInterval(this.pendingCleanupInterval);
+      this.pendingCleanupInterval = null;
     }
     activeRooms.delete(this);
     try { colyseusRooms.dec(); } catch (e) { logger.debug('[WorldRoom] Failed to decrement colyseusRooms metric', e); }

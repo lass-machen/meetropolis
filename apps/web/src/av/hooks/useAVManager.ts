@@ -87,6 +87,7 @@ export function useAVManager({
     if (editorActiveRef.current) return;
     if (isConnectingRef.current) return;
     if (avRef.current?.room) return;
+    if (typeof window !== 'undefined' && (window as any).__sessionConflictPending) return;
 
     isConnectingRef.current = true;
 
@@ -136,7 +137,7 @@ export function useAVManager({
     if (!hasAutoConnectedRef.current) {
       hasAutoConnectedRef.current = true;
       setTimeout(() => {
-        if (!editorActiveRef.current && !avRef.current?.room && !isConnectingRef.current) {
+        if (!editorActiveRef.current && !avRef.current?.room && !isConnectingRef.current && !(typeof window !== 'undefined' && (window as any).__sessionConflictPending)) {
           connect();
         }
       }, 300);
@@ -146,7 +147,7 @@ export function useAVManager({
   // Connect on first user interaction
   React.useEffect(() => {
     const handleFirstInteraction = () => {
-      if (!avRef.current?.room) {
+      if (!avRef.current?.room && !(typeof window !== 'undefined' && (window as any).__sessionConflictPending)) {
         connect();
       }
       // Refresh devices after interaction (permissions may now be granted)

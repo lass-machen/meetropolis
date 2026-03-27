@@ -3,6 +3,7 @@ import { joinWorld } from '../../lib/colyseus';
 import { logger } from '../../lib/logger';
 import { useMapStore } from '../../state/mapStore';
 import type { UseWorldRoomArgs, ConnectionRefs } from '../types';
+import i18n from '../../app/providers/i18n';
 
 export function useColyseusConnection(
   args: UseWorldRoomArgs,
@@ -140,6 +141,31 @@ export function useColyseusConnection(
         } catch {}
         colyseusRef.current = null;
         connectingRef.current = false;
+        return;
+      }
+
+      // Handle session taken over — old client gets kicked when new client takes over
+      const isSessionTakenOver = code === 4007 || text === 'session_taken_over';
+      if (isSessionTakenOver) {
+        try {
+          const host = document.createElement('div');
+          host.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.5);';
+          host.innerHTML = `
+            <div style="min-width:320px;max-width:480px;padding:24px;border-radius:12px;border:1px solid rgba(234,88,12,0.5);background:rgba(30,41,59,0.95);backdrop-filter:blur(8px);color:#fff;box-shadow:0 8px 32px rgba(0,0,0,0.4);text-align:center;">
+              <div style="font-size:48px;margin-bottom:12px;">🔌</div>
+              <div style="font-weight:700;font-size:18px;margin-bottom:8px;">${i18n.t('sessionConflict.takenOver.title')}</div>
+              <div style="font-size:14px;color:#94a3b8;margin-bottom:20px;">${i18n.t('sessionConflict.takenOver.description')}</div>
+              <button data-session-reload style="padding:10px 20px;border-radius:8px;border:none;background:#3b82f6;color:white;cursor:pointer;font-weight:600;font-size:14px;">${i18n.t('sessionConflict.takenOver.reconnect')}</button>
+            </div>`;
+          document.body.appendChild(host);
+          host.querySelector('[data-session-reload]')?.addEventListener('click', () => {
+            try { host.remove(); } catch {}
+            window.location.reload();
+          }, { once: true });
+        } catch {}
+        colyseusRef.current = null;
+        connectingRef.current = false;
+        // Do NOT auto-reconnect — user must explicitly click reconnect
         return;
       }
 

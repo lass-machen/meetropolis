@@ -709,7 +709,15 @@
   "apiError.no_file": "Keine Datei ausgewählt",
   "apiError.missing_tenantId_or_name": "Mandant-ID oder Name fehlt",
   "apiError.import_failed": "Import fehlgeschlagen",
-  "apiError.cannot_delete_default_map": "Standard-Karte kann nicht gelöscht werden"
+  "apiError.cannot_delete_default_map": "Standard-Karte kann nicht gelöscht werden",
+
+  "sessionConflict.title": "Bereits mit einem anderen Gerät verbunden",
+  "sessionConflict.description": "Möchtest du die bestehende Session übernehmen? Die andere Verbindung wird dabei getrennt.",
+  "sessionConflict.takeover": "Session übernehmen",
+  "sessionConflict.cancel": "Abbrechen",
+  "sessionConflict.takenOver.title": "Session übernommen",
+  "sessionConflict.takenOver.description": "Diese Session wurde von einem anderen Gerät übernommen.",
+  "sessionConflict.takenOver.reconnect": "Neu verbinden"
 }
 
 

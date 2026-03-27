@@ -709,7 +709,15 @@
   "apiError.no_file": "No file selected",
   "apiError.missing_tenantId_or_name": "Tenant ID or name is missing",
   "apiError.import_failed": "Import failed",
-  "apiError.cannot_delete_default_map": "Default map cannot be deleted"
+  "apiError.cannot_delete_default_map": "Default map cannot be deleted",
+
+  "sessionConflict.title": "Already connected on another device",
+  "sessionConflict.description": "Would you like to take over the existing session? The other connection will be disconnected.",
+  "sessionConflict.takeover": "Take over session",
+  "sessionConflict.cancel": "Cancel",
+  "sessionConflict.takenOver.title": "Session taken over",
+  "sessionConflict.takenOver.description": "This session was taken over by another device.",
+  "sessionConflict.takenOver.reconnect": "Reconnect"
 }
 
 
