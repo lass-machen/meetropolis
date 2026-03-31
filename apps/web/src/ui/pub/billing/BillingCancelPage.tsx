@@ -38,7 +38,7 @@ export function BillingCancelPage({ onNavigate }: BillingCancelPageProps) {
   return (
     <PublicLayout
       onLogin={() => navigate('app')}
-      onSignup={() => navigate('signup')}
+      onSignup={() => navigate('register')}
       navigate={navigate}
     >
       <div

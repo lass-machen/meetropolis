@@ -47,13 +47,14 @@ interface LoginViewProps {
   onSubmit: (email: string, password: string) => Promise<void>;
   onForgot: () => void;
   onRegister: () => void;
+  onInvite: () => void;
   error?: string | null;
   successMessage?: string | null;
 }
 
 /* ---------- Component ---------- */
 
-export function LoginView({ onSubmit, onForgot, onRegister, error, successMessage }: LoginViewProps) {
+export function LoginView({ onSubmit, onForgot, onRegister, onInvite, error, successMessage }: LoginViewProps) {
   const { t } = useTranslation('public');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -198,6 +199,25 @@ export function LoginView({ onSubmit, onForgot, onRegister, error, successMessag
           }}
         >
           {t('auth.loginRegisterLink')}
+        </a>
+      </p>
+
+      {/* Invite link */}
+      <p
+        className="pub-text-body-sm"
+        style={{ margin: 0, textAlign: 'center', color: 'var(--pub-text-secondary)' }}
+      >
+        {t('auth.loginHasInvite')}{' '}
+        <a
+          onClick={onInvite}
+          style={{
+            cursor: 'pointer',
+            color: 'var(--pub-accent-purple)',
+            textDecoration: 'none',
+            fontWeight: 600,
+          }}
+        >
+          {t('auth.loginInviteLink')}
         </a>
       </p>
     </form>

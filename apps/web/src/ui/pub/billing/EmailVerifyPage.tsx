@@ -133,7 +133,7 @@ export function EmailVerifyPage({
   return (
     <PublicLayout
       onLogin={() => navigate('app')}
-      onSignup={() => navigate('signup')}
+      onSignup={() => navigate('register')}
       navigate={navigate}
     >
       <style>{`

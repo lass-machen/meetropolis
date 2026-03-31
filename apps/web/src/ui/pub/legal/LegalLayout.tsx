@@ -118,7 +118,7 @@ export function LegalLayout({
   return (
     <PublicLayout
       onLogin={() => navigate('app')}
-      onSignup={() => navigate('signup')}
+      onSignup={() => navigate('register')}
       navigate={navigate}
     >
       {/* Page Hero */}

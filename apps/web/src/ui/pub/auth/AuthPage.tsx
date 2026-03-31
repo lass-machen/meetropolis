@@ -4,6 +4,8 @@ import { AuthLayout } from '../layout/AuthLayout';
 import { useAuthApi } from './hooks/useAuthApi';
 import { LoginView } from './LoginView';
 import { RegisterView } from './RegisterView';
+import { RegisterStep2View } from './RegisterStep2View';
+import { RegisterStep3View } from './RegisterStep3View';
 import { InviteCodeView } from './InviteCodeView';
 import { ForgotPasswordView } from './ForgotPasswordView';
 import { ResetPasswordView } from './ResetPasswordView';
@@ -41,6 +43,30 @@ export function AuthPage({
   const [messageType, setMessageType] = useState<'error' | 'success'>('error');
   const [invite, setInvite] = useState(initialInvite || '');
   const [guestLoading, setGuestLoading] = useState(false);
+
+  /* ---------- Registration wizard state ---------- */
+  const [regStep, setRegStep] = useState(1);
+  const [regData, setRegData] = useState<{
+    firstName: string;
+    lastName: string;
+    email: string;
+    password: string;
+    teamName: string;
+    teamSize: string;
+    slug: string;
+    plan: string;
+  }>({
+    firstName: '',
+    lastName: '',
+    email: '',
+    password: '',
+    teamName: '',
+    teamSize: '1-10',
+    slug: '',
+    plan: 'team',
+  });
+  const [slugError, setSlugError] = useState<string | null>(null);
+  const [submitLoading, setSubmitLoading] = useState(false);
 
   /* ---------- Debug Auto-Login ---------- */
   useEffect(() => {
@@ -184,6 +210,57 @@ export function AuthPage({
     }
   }
 
+  /* ---------- Tenant creation (3-step wizard) ---------- */
+
+  async function handleCreateTenant(plan: string) {
+    setSlugError(null);
+    setError(null);
+    setSubmitLoading(true);
+    try {
+      const res = await fetch(`${apiBase}/public/tenants`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          slug: regData.slug,
+          name: regData.teamName,
+          email: regData.email,
+          password: regData.password,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        if (data.error === 'slug_exists') {
+          setSlugError(t('auth.slugExists'));
+          setRegStep(2);
+          return;
+        }
+        throw new Error(data.error || t('common.error'));
+      }
+      // Store token for Desktop clients
+      if (data.token) {
+        await storeDesktopAuthToken(data.token);
+      }
+      // Redirect to tenant subdomain (same logic as old TenantSignupPage)
+      const currentHost = window.location.hostname;
+      if ((window as unknown as Record<string, string>).__MEETROPOLIS_API_BASE__) {
+        window.location.hash = '#/app';
+      } else if (currentHost === 'localhost' || currentHost === '127.0.0.1') {
+        window.location.hash = '#/app';
+      } else {
+        const protocol = window.location.protocol;
+        const baseDomain = currentHost.split('.').slice(-2).join('.');
+        window.location.href = `${protocol}//${regData.slug}.${baseDomain}`;
+      }
+    } catch (e: unknown) {
+      setError((e as Error).message);
+    } finally {
+      setSubmitLoading(false);
+      // Save chosen plan in state for potential future use
+      setRegData((prev) => ({ ...prev, plan }));
+    }
+  }
+
   /* ---------- View switching helpers ---------- */
 
   function switchView(next: AuthView) {
@@ -202,20 +279,74 @@ export function AuthPage({
             onSubmit={handleLogin}
             onForgot={() => switchView('forgot')}
             onRegister={() => switchView('register')}
+            onInvite={() => switchView('invite')}
             error={error}
             successMessage={messageType === 'success' ? message : null}
           />
         );
 
       case 'register':
-        return (
-          <RegisterView
-            onSubmit={handleRegister}
-            onLogin={() => switchView('login')}
-            initialInvite={invite}
-            error={error}
-          />
-        );
+        // Invite-based registration (existing team member joining)
+        if (invite) {
+          return (
+            <RegisterView
+              onSubmit={handleRegister}
+              onLogin={() => switchView('login')}
+              initialInvite={invite}
+              error={error}
+            />
+          );
+        }
+        // 3-Step Wizard (new tenant creation)
+        if (regStep === 1) {
+          return (
+            <RegisterView
+              onSubmit={async (data) => {
+                const nameParts = data.name.split(' ');
+                setRegData((prev) => ({
+                  ...prev,
+                  firstName: nameParts[0] || '',
+                  lastName: nameParts.slice(1).join(' ') || '',
+                  email: data.email,
+                  password: data.password,
+                }));
+                setRegStep(2);
+              }}
+              onLogin={() => switchView('login')}
+              error={error}
+            />
+          );
+        }
+        if (regStep === 2) {
+          return (
+            <RegisterStep2View
+              onNext={(data) => {
+                setRegData((prev) => ({ ...prev, ...data }));
+                setSlugError(null);
+                setRegStep(3);
+              }}
+              onBack={() => setRegStep(1)}
+              initialData={{
+                teamName: regData.teamName,
+                teamSize: regData.teamSize,
+                slug: regData.slug,
+              }}
+              slugError={slugError}
+            />
+          );
+        }
+        if (regStep === 3) {
+          return (
+            <RegisterStep3View
+              onSubmit={handleCreateTenant}
+              onBack={() => setRegStep(2)}
+              initialPlan={regData.plan}
+              error={error}
+              loading={submitLoading}
+            />
+          );
+        }
+        return null;
 
       case 'invite':
         return (

@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { WorldScreen } from './WorldScreen';
 import { LandingPage } from '../../ui/pub/landing/LandingPage';
-import { TenantSignupPage } from '../../ui/public/TenantSignupPage';
+
 import { ImpressumPage } from '../../ui/pub/legal/ImpressumPage';
 import { PrivacyPolicyPage } from '../../ui/pub/legal/PrivacyPolicyPage';
 import { TermsOfServicePage } from '../../ui/pub/legal/TermsOfServicePage';
@@ -11,7 +11,7 @@ import { BillingCancelPage } from '../../ui/pub/billing/BillingCancelPage';
 import { EmailVerifyPage } from '../../ui/pub/billing/EmailVerifyPage';
 import { AuthPage } from '../../ui/pub/auth/AuthPage';
 
-type Route = 'landing' | 'pricing' | 'signup' | 'app' | 'privacy' | 'terms' | 'impressum' | 'verify' | 'billing-success' | 'billing-cancel' | 'login' | 'register' | 'invite' | 'guest-auth' | 'reset-pw';
+type Route = 'landing' | 'pricing' | 'app' | 'privacy' | 'terms' | 'impressum' | 'verify' | 'billing-success' | 'billing-cancel' | 'login' | 'register' | 'invite' | 'guest-auth' | 'reset-pw';
 
 /**
  * Simple hash-based routing for public pages and the main app.
@@ -19,19 +19,19 @@ type Route = 'landing' | 'pricing' | 'signup' | 'app' | 'privacy' | 'terms' | 'i
  * Routes:
  * - #/         or no hash -> landing page (if not authenticated)
  * - #/pricing  -> pricing page
- * - #/signup   -> tenant signup page
+ * - #/register -> 3-step registration wizard
  * - #/app      -> main application (WorldScreen)
  *
  * The WorldScreen handles its own auth flow internally.
  */
 export function AppRoutes() {
   const [route, setRoute] = React.useState<Route>('landing');
-  const [selectedPlan, setSelectedPlan] = React.useState<string | undefined>();
 
   const [verifyToken, setVerifyToken] = React.useState<string | undefined>();
   const [resetToken, setResetToken] = React.useState<string | undefined>();
   const [resetEmail, setResetEmail] = React.useState<string | undefined>();
   const [guestToken, setGuestToken] = React.useState<string | undefined>();
+  const [inviteCode, setInviteCode] = React.useState<string | undefined>();
 
   // Parse initial route from hash
   React.useEffect(() => {
@@ -39,10 +39,6 @@ export function AppRoutes() {
       const hash = window.location.hash.slice(1) || '/';
       if (hash === '/pricing') {
         setRoute('pricing');
-      } else if (hash.startsWith('/signup')) {
-        const params = new URLSearchParams(hash.split('?')[1] || '');
-        setSelectedPlan(params.get('plan') || undefined);
-        setRoute('signup');
       } else if (hash === '/privacy') {
         setRoute('privacy');
       } else if (hash === '/terms') {
@@ -85,7 +81,9 @@ export function AppRoutes() {
         const hasInvite = hashQIdx !== -1 && new URLSearchParams((window.location.hash || '').slice(hashQIdx)).has('invite');
 
         if (hasInvite) {
-          setRoute('register');
+          const code = new URLSearchParams((window.location.hash || '').slice(hashQIdx)).get('invite') || undefined;
+          setInviteCode(code);
+          setRoute('invite');
         } else if (isSubdomain || !!(window as any).__MEETROPOLIS_API_BASE__) {
           setRoute('app');
         } else {
@@ -162,28 +160,6 @@ export function AppRoutes() {
         />
       );
 
-    case 'signup':
-      return (
-        <TenantSignupPage
-          apiBase={apiBase}
-          onBack={() => navigate('landing')}
-          selectedPlan={selectedPlan}
-          registrationEnabled={registrationEnabled}
-          onSuccess={(tenantSlug) => {
-            const currentHost = window.location.hostname;
-            if ((window as any).__MEETROPOLIS_API_BASE__) {
-              navigate('app');
-            } else if (currentHost === 'localhost' || currentHost === '127.0.0.1') {
-              navigate('app');
-            } else {
-              const protocol = window.location.protocol;
-              const baseDomain = currentHost.split('.').slice(-2).join('.');
-              window.location.href = `${protocol}//${tenantSlug}.${baseDomain}`;
-            }
-          }}
-        />
-      );
-
     case 'privacy':
       return <PrivacyPolicyPage onBack={() => navigate('landing')} />;
 
@@ -213,7 +189,7 @@ export function AppRoutes() {
     case 'register':
       return <AuthPage apiBase={apiBase} initialView="register" />;
     case 'invite':
-      return <AuthPage apiBase={apiBase} initialView="invite" />;
+      return <AuthPage apiBase={apiBase} initialView="invite" initialInvite={inviteCode} />;
     case 'reset-pw':
       return <AuthPage apiBase={apiBase} initialView="reset" initialResetToken={resetToken} initialResetEmail={resetEmail} />;
     case 'guest-auth':
