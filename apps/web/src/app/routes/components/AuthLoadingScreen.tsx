@@ -1,5 +1,3 @@
-import { AuthScreen } from '../../../ui/auth/AuthScreen';
-
 interface AuthLoadingScreenProps {
   authChecked: boolean;
   me: { id: string; email: string; name?: string } | null;
@@ -12,8 +10,6 @@ export function AuthLoadingScreen({
   authChecked,
   me,
   positionReady,
-  apiBase,
-  onAuthComplete,
 }: AuthLoadingScreenProps) {
   if (!authChecked) {
     return (
@@ -22,7 +18,13 @@ export function AuthLoadingScreen({
   }
 
   if (!me) {
-    return <AuthScreen baseUrl={apiBase} onDone={onAuthComplete} />;
+    // Redirect to standalone login page instead of rendering inline AuthScreen
+    window.location.hash = '#/login';
+    return (
+      <div style={{ display: 'grid', placeItems: 'center', height: '100vh' }}>
+        Weiterleitung…
+      </div>
+    );
   }
 
   if (!positionReady) {

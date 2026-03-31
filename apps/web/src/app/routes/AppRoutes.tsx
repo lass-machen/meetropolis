@@ -1,14 +1,17 @@
 import * as React from 'react';
 import { WorldScreen } from './WorldScreen';
-import { LandingPage, PricingPage, TenantSignupPage } from '../../ui/public';
-import { PrivacyPolicy } from '../../ui/legal/PrivacyPolicy';
-import { TermsOfService } from '../../ui/legal/TermsOfService';
-import { Impressum } from '../../ui/legal/Impressum';
+import { LandingPage } from '../../ui/pub/landing/LandingPage';
+import { TenantSignupPage } from '../../ui/public/TenantSignupPage';
+import { ImpressumPage } from '../../ui/pub/legal/ImpressumPage';
+import { PrivacyPolicyPage } from '../../ui/pub/legal/PrivacyPolicyPage';
+import { TermsOfServicePage } from '../../ui/pub/legal/TermsOfServicePage';
 import { getApiBaseFromWindow } from '../../lib/runtimeConfig';
-import { BillingSuccessPage } from '../../ui/billing/BillingSuccessPage';
-import { BillingCancelPage } from '../../ui/billing/BillingCancelPage';
+import { BillingSuccessPage } from '../../ui/pub/billing/BillingSuccessPage';
+import { BillingCancelPage } from '../../ui/pub/billing/BillingCancelPage';
+import { EmailVerifyPage } from '../../ui/pub/billing/EmailVerifyPage';
+import { AuthPage } from '../../ui/pub/auth/AuthPage';
 
-type Route = 'landing' | 'pricing' | 'signup' | 'app' | 'privacy' | 'terms' | 'impressum' | 'verify' | 'billing-success' | 'billing-cancel';
+type Route = 'landing' | 'pricing' | 'signup' | 'app' | 'privacy' | 'terms' | 'impressum' | 'verify' | 'billing-success' | 'billing-cancel' | 'login' | 'register' | 'invite' | 'guest-auth' | 'reset-pw';
 
 /**
  * Simple hash-based routing for public pages and the main app.
@@ -26,6 +29,9 @@ export function AppRoutes() {
   const [selectedPlan, setSelectedPlan] = React.useState<string | undefined>();
 
   const [verifyToken, setVerifyToken] = React.useState<string | undefined>();
+  const [resetToken, setResetToken] = React.useState<string | undefined>();
+  const [resetEmail, setResetEmail] = React.useState<string | undefined>();
+  const [guestToken, setGuestToken] = React.useState<string | undefined>();
 
   // Parse initial route from hash
   React.useEffect(() => {
@@ -51,12 +57,21 @@ export function AppRoutes() {
         setRoute('billing-success');
       } else if (hash.startsWith('/billing/cancel')) {
         setRoute('billing-cancel');
+      } else if (hash === '/login') {
+        setRoute('login');
+      } else if (hash === '/register') {
+        setRoute('register');
+      } else if (hash === '/invite') {
+        setRoute('invite');
       } else if (hash.startsWith('/reset')) {
-        // Password reset link: route to app, AuthScreen will handle the token
-        setRoute('app');
+        const params = new URLSearchParams(hash.split('?')[1] || '');
+        setResetToken(params.get('token') || undefined);
+        setResetEmail(params.get('email') || undefined);
+        setRoute('reset-pw');
       } else if (hash.startsWith('/guest')) {
-        // Guest magic-link: route to app, AuthScreen will handle the token
-        setRoute('app');
+        const params = new URLSearchParams(hash.split('?')[1] || '');
+        setGuestToken(params.get('token') || undefined);
+        setRoute('guest-auth');
       } else if (hash === '/app' || hash.startsWith('/app')) {
         setRoute('app');
       } else {
@@ -69,7 +84,9 @@ export function AppRoutes() {
         const hashQIdx = (window.location.hash || '').indexOf('?');
         const hasInvite = hashQIdx !== -1 && new URLSearchParams((window.location.hash || '').slice(hashQIdx)).has('invite');
 
-        if (isSubdomain || !!(window as any).__MEETROPOLIS_API_BASE__ || hasInvite) {
+        if (hasInvite) {
+          setRoute('register');
+        } else if (isSubdomain || !!(window as any).__MEETROPOLIS_API_BASE__) {
           setRoute('app');
         } else {
           setRoute('landing');
@@ -107,26 +124,40 @@ export function AppRoutes() {
       .catch(() => { /* fallback: true */ });
   }, [apiBase]);
 
+  // Scroll to top on route change
+  React.useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [route]);
+
+  // Scroll to pricing section when route is 'pricing'
+  React.useEffect(() => {
+    if (route === 'pricing') {
+      // Allow DOM to render first, then scroll
+      const timer = setTimeout(() => {
+        document.getElementById('pricing')?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [route]);
+
   switch (route) {
     case 'landing':
       return (
         <LandingPage
-          onLogin={() => navigate('app')}
-          onSignup={() => navigate('signup')}
+          onLogin={() => navigate('login')}
+          onSignup={() => navigate('register')}
           onPricing={() => navigate('pricing')}
           registrationEnabled={registrationEnabled}
         />
       );
 
     case 'pricing':
+      // Pricing is now a section on the landing page — render landing and scroll to #pricing
       return (
-        <PricingPage
-          onBack={() => navigate('landing')}
-          onLogin={() => navigate('app')}
-          onSignup={(plan) => {
-            setSelectedPlan(plan);
-            navigate('signup', plan ? { plan } : undefined);
-          }}
+        <LandingPage
+          onLogin={() => navigate('login')}
+          onSignup={() => navigate('register')}
+          onPricing={() => {}}
           registrationEnabled={registrationEnabled}
         />
       );
@@ -154,13 +185,13 @@ export function AppRoutes() {
       );
 
     case 'privacy':
-      return <PrivacyPolicy onBack={() => navigate('landing')} />;
+      return <PrivacyPolicyPage onBack={() => navigate('landing')} />;
 
     case 'terms':
-      return <TermsOfService onBack={() => navigate('landing')} />;
+      return <TermsOfServicePage onBack={() => navigate('landing')} />;
 
     case 'impressum':
-      return <Impressum onBack={() => navigate('landing')} />;
+      return <ImpressumPage onBack={() => navigate('landing')} />;
 
     case 'verify':
       return (
@@ -177,112 +208,20 @@ export function AppRoutes() {
     case 'billing-cancel':
       return <BillingCancelPage onNavigate={() => { window.location.hash = '#/app'; }} />;
 
+    case 'login':
+      return <AuthPage apiBase={apiBase} initialView="login" />;
+    case 'register':
+      return <AuthPage apiBase={apiBase} initialView="register" />;
+    case 'invite':
+      return <AuthPage apiBase={apiBase} initialView="invite" />;
+    case 'reset-pw':
+      return <AuthPage apiBase={apiBase} initialView="reset" initialResetToken={resetToken} initialResetEmail={resetEmail} />;
+    case 'guest-auth':
+      return <AuthPage apiBase={apiBase} initialView="guest" initialGuestToken={guestToken} />;
+
     case 'app':
     default:
       return <WorldScreen />;
   }
 }
 
-// Simple email verification page
-function EmailVerifyPage({
-  token,
-  apiBase,
-  onSuccess,
-  onBack,
-}: {
-  token?: string | undefined;
-  apiBase: string;
-  onSuccess: () => void;
-  onBack: () => void;
-}) {
-  const [status, setStatus] = React.useState<'verifying' | 'success' | 'error'>('verifying');
-  const [message, setMessage] = React.useState('');
-
-  React.useEffect(() => {
-    if (!token) {
-      setStatus('error');
-      setMessage('No verification token provided');
-      return;
-    }
-
-    const verify = async () => {
-      try {
-        const res = await fetch(`${apiBase}/auth/verify`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ token }),
-        });
-
-        if (res.ok) {
-          setStatus('success');
-          setMessage('Email verified successfully!');
-          setTimeout(onSuccess, 2000);
-        } else {
-          const data = await res.json().catch(() => ({}));
-          setStatus('error');
-          setMessage(data.error || 'Verification failed');
-        }
-      } catch (e: unknown) {
-        setStatus('error');
-        setMessage((e as Error)?.message || 'Network error');
-      }
-    };
-
-    verify();
-  }, [token, apiBase, onSuccess]);
-
-  return (
-    <div style={{
-      minHeight: '100vh',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      background: 'var(--bg, #0a0a0a)',
-      color: 'var(--fg, #fff)',
-    }}>
-      <div style={{
-        textAlign: 'center',
-        padding: 40,
-        background: 'rgba(255,255,255,0.05)',
-        borderRadius: 16,
-        maxWidth: 400,
-      }}>
-        {status === 'verifying' && (
-          <>
-            <div style={{ fontSize: 48, marginBottom: 16 }}>Loading...</div>
-            <p>Verifying your email...</p>
-          </>
-        )}
-        {status === 'success' && (
-          <>
-            <div style={{ fontSize: 48, marginBottom: 16, color: '#22c55e' }}>check_circle</div>
-            <h2 style={{ marginBottom: 8 }}>Email Verified!</h2>
-            <p style={{ color: 'var(--fg-subtle, #888)' }}>{message}</p>
-            <p style={{ color: 'var(--fg-subtle, #888)', fontSize: 14 }}>Redirecting...</p>
-          </>
-        )}
-        {status === 'error' && (
-          <>
-            <div style={{ fontSize: 48, marginBottom: 16, color: '#ef4444' }}>error</div>
-            <h2 style={{ marginBottom: 8 }}>Verification Failed</h2>
-            <p style={{ color: 'var(--fg-subtle, #888)', marginBottom: 24 }}>{message}</p>
-            <button
-              onClick={onBack}
-              style={{
-                padding: '10px 24px',
-                background: 'var(--accent, #3b82f6)',
-                border: 'none',
-                borderRadius: 8,
-                color: '#fff',
-                cursor: 'pointer',
-              }}
-            >
-              Go Back
-            </button>
-          </>
-        )}
-      </div>
-    </div>
-  );
-}

@@ -3,14 +3,16 @@ import { initReactI18next } from 'react-i18next';
 import LanguageDetector from 'i18next-browser-languagedetector';
 import en from '../../locales/en/common.json';
 import de from '../../locales/de/common.json';
+import enPublic from '../../locales/en/public.json';
+import dePublic from '../../locales/de/public.json';
 
 i18n
   .use(LanguageDetector)
   .use(initReactI18next)
   .init({
     resources: {
-      en: { common: en as Record<string, string> },
-      de: { common: de as Record<string, string> }
+      en: { common: en as Record<string, string>, public: enPublic },
+      de: { common: de as Record<string, string>, public: dePublic }
     },
     supportedLngs: ['en', 'de'],
     fallbackLng: 'en',
