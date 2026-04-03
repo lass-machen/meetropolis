@@ -67,6 +67,7 @@ interface InviteCodeViewProps {
   onRegister: () => void;
   initialCode?: string | undefined;
   error?: string | null;
+  registrationEnabled?: boolean;
 }
 
 /* ---------- Component ---------- */
@@ -77,6 +78,7 @@ export function InviteCodeView({
   onRegister,
   initialCode = '',
   error,
+  registrationEnabled = true,
 }: InviteCodeViewProps) {
   const { t } = useTranslation('public');
   const [code, setCode] = useState(initialCode);
@@ -196,23 +198,25 @@ export function InviteCodeView({
             {t('auth.inviteLoginLink')}
           </a>
         </p>
-        <p
-          className="pub-text-body-sm"
-          style={{ margin: 0, color: 'var(--pub-text-secondary)' }}
-        >
-          {t('auth.inviteNoAccount')}{' '}
-          <a
-            onClick={onRegister}
-            style={{
-              cursor: 'pointer',
-              color: 'var(--pub-accent-purple)',
-              textDecoration: 'none',
-              fontWeight: 600,
-            }}
+        {registrationEnabled && (
+          <p
+            className="pub-text-body-sm"
+            style={{ margin: 0, color: 'var(--pub-text-secondary)' }}
           >
-            {t('auth.inviteRegisterLink')}
-          </a>
-        </p>
+            {t('auth.inviteNoAccount')}{' '}
+            <a
+              onClick={onRegister}
+              style={{
+                cursor: 'pointer',
+                color: 'var(--pub-accent-purple)',
+                textDecoration: 'none',
+                fontWeight: 600,
+              }}
+            >
+              {t('auth.inviteRegisterLink')}
+            </a>
+          </p>
+        )}
       </div>
     </form>
   );

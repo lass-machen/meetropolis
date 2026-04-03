@@ -7,6 +7,7 @@ import { useReveal } from '../hooks/useReveal';
 
 interface PricingSectionProps {
   onSignup: () => void;
+  registrationEnabled?: boolean;
 }
 
 const CheckIcon = () => (
@@ -35,7 +36,7 @@ function FeatureItem({ text, white }: FeatureItemProps) {
   );
 }
 
-export function PricingSection({ onSignup }: PricingSectionProps) {
+export function PricingSection({ onSignup, registrationEnabled = true }: PricingSectionProps) {
   const { t } = useTranslation('public');
   const sectionRef = useRef<HTMLElement>(null);
   useReveal(sectionRef);
@@ -93,9 +94,11 @@ export function PricingSection({ onSignup }: PricingSectionProps) {
                 <FeatureItem text={t('pricing.starterFeature3')} />
                 <FeatureItem text={t('pricing.starterFeature4')} />
               </ul>
-              <PubButton variant="secondary" onClick={onSignup} style={{ width: '100%' }}>
-                {t('pricing.starterCta')}
-              </PubButton>
+              {registrationEnabled && (
+                <PubButton variant="secondary" onClick={onSignup} style={{ width: '100%' }}>
+                  {t('pricing.starterCta')}
+                </PubButton>
+              )}
             </div>
           </PubCard>
 
@@ -144,9 +147,11 @@ export function PricingSection({ onSignup }: PricingSectionProps) {
                 <FeatureItem text={t('pricing.teamFeature3')} white />
                 <FeatureItem text={t('pricing.teamFeature4')} white />
               </ul>
-              <PubButton variant="cta-white" onClick={onSignup} style={{ width: '100%' }}>
-                {t('pricing.teamCta')}
-              </PubButton>
+              {registrationEnabled && (
+                <PubButton variant="cta-white" onClick={onSignup} style={{ width: '100%' }}>
+                  {t('pricing.teamCta')}
+                </PubButton>
+              )}
             </div>
           </PubCard>
 
@@ -170,9 +175,11 @@ export function PricingSection({ onSignup }: PricingSectionProps) {
                 <FeatureItem text={t('pricing.enterpriseFeature3')} />
                 <FeatureItem text={t('pricing.enterpriseFeature4')} />
               </ul>
-              <PubButton variant="secondary" onClick={onSignup} style={{ width: '100%' }}>
-                {t('pricing.enterpriseCta')}
-              </PubButton>
+              {registrationEnabled && (
+                <PubButton variant="secondary" onClick={onSignup} style={{ width: '100%' }}>
+                  {t('pricing.enterpriseCta')}
+                </PubButton>
+              )}
             </div>
           </PubCard>
         </div>

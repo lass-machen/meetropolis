@@ -7,6 +7,7 @@ import { useReveal } from '../hooks/useReveal';
 interface HeroSectionProps {
   onSignup: () => void;
   onLogin: () => void;
+  registrationEnabled?: boolean;
 }
 
 const ArrowRightIcon = () => (
@@ -18,7 +19,7 @@ const ArrowRightIcon = () => (
 
 const TRUST_LOGOS = ['TechStartup', 'RemoteFirst', 'DigitalHQ', 'CloudTeam', 'Founders'];
 
-export function HeroSection({ onSignup, onLogin }: HeroSectionProps) {
+export function HeroSection({ onSignup, onLogin, registrationEnabled = true }: HeroSectionProps) {
   const { t } = useTranslation('public');
   const sectionRef = useRef<HTMLElement>(null);
   useReveal(sectionRef);
@@ -81,30 +82,35 @@ export function HeroSection({ onSignup, onLogin }: HeroSectionProps) {
           marginBottom: 16,
         }}
       >
-        <PubButton
-          variant="primary"
-          size="lg"
-          rightIcon={<ArrowRightIcon />}
-          onClick={onSignup}
-        >
-          {t('hero.ctaPrimary')}
-        </PubButton>
+        {registrationEnabled && (
+          <PubButton
+            variant="primary"
+            size="lg"
+            rightIcon={<ArrowRightIcon />}
+            onClick={onSignup}
+          >
+            {t('hero.ctaPrimary')}
+          </PubButton>
+        )}
         <PubButton variant="secondary" size="lg" onClick={onLogin}>
           {t('hero.ctaSecondary')}
         </PubButton>
       </div>
 
       {/* Trust Text */}
-      <p
-        style={{
-          fontFamily: 'var(--pub-font-body)',
-          fontSize: 14,
-          color: 'rgba(255,255,255,0.5)',
-          marginBottom: 56,
-        }}
-      >
-        {t('hero.trustNoCreditCard')} &middot; {t('hero.trustQuickSetup')}
-      </p>
+      {registrationEnabled && (
+        <p
+          style={{
+            fontFamily: 'var(--pub-font-body)',
+            fontSize: 14,
+            color: 'rgba(255,255,255,0.5)',
+            marginBottom: 56,
+          }}
+        >
+          {t('hero.trustNoCreditCard')} &middot; {t('hero.trustQuickSetup')}
+        </p>
+      )}
+      {!registrationEnabled && <div style={{ marginBottom: 56 }} />}
 
       {/* Product Visual */}
       <div
