@@ -5,6 +5,7 @@ import { useReveal } from '../hooks/useReveal';
 
 interface FinalCtaSectionProps {
   onSignup: () => void;
+  registrationEnabled?: boolean;
 }
 
 const ArrowRightIcon = () => (
@@ -43,7 +44,7 @@ function TrustItem({ text }: TrustItemProps) {
   );
 }
 
-export function FinalCtaSection({ onSignup }: FinalCtaSectionProps) {
+export function FinalCtaSection({ onSignup, registrationEnabled = true }: FinalCtaSectionProps) {
   const { t } = useTranslation('public');
   const sectionRef = useRef<HTMLElement>(null);
   useReveal(sectionRef);
@@ -102,14 +103,16 @@ export function FinalCtaSection({ onSignup }: FinalCtaSectionProps) {
             marginBottom: 32,
           }}
         >
-          <PubButton
-            variant="primary"
-            size="lg"
-            rightIcon={<ArrowRightIcon />}
-            onClick={onSignup}
-          >
-            {t('cta.ctaPrimary')}
-          </PubButton>
+          {registrationEnabled && (
+            <PubButton
+              variant="primary"
+              size="lg"
+              rightIcon={<ArrowRightIcon />}
+              onClick={onSignup}
+            >
+              {t('cta.ctaPrimary')}
+            </PubButton>
+          )}
           <PubButton variant="secondary" size="lg">
             {t('cta.ctaSecondary')}
           </PubButton>

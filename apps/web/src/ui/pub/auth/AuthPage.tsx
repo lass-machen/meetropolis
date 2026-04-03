@@ -22,6 +22,7 @@ interface AuthPageProps {
   initialResetToken?: string | undefined;
   initialResetEmail?: string | undefined;
   initialGuestToken?: string | undefined;
+  registrationEnabled?: boolean;
 }
 
 /* ---------- Component ---------- */
@@ -33,6 +34,7 @@ export function AuthPage({
   initialResetToken,
   initialResetEmail,
   initialGuestToken,
+  registrationEnabled = true,
 }: AuthPageProps) {
   const { t } = useTranslation('public');
   const { post, storeDesktopAuthToken } = useAuthApi(apiBase);
@@ -67,6 +69,13 @@ export function AuthPage({
   });
   const [slugError, setSlugError] = useState<string | null>(null);
   const [submitLoading, setSubmitLoading] = useState(false);
+
+  /* ---------- Redirect when registration disabled ---------- */
+  useEffect(() => {
+    if (!registrationEnabled && view === 'register' && !invite && !initialInvite) {
+      setView('login');
+    }
+  }, [registrationEnabled, view, invite, initialInvite]);
 
   /* ---------- Debug Auto-Login ---------- */
   useEffect(() => {
@@ -282,6 +291,7 @@ export function AuthPage({
             onInvite={() => switchView('invite')}
             error={error}
             successMessage={messageType === 'success' ? message : null}
+            registrationEnabled={registrationEnabled}
           />
         );
 
@@ -356,6 +366,7 @@ export function AuthPage({
             onRegister={() => switchView('register')}
             initialCode={initialInvite}
             error={error}
+            registrationEnabled={registrationEnabled}
           />
         );
 

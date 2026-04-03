@@ -50,11 +50,12 @@ interface LoginViewProps {
   onInvite: () => void;
   error?: string | null;
   successMessage?: string | null;
+  registrationEnabled?: boolean;
 }
 
 /* ---------- Component ---------- */
 
-export function LoginView({ onSubmit, onForgot, onRegister, onInvite, error, successMessage }: LoginViewProps) {
+export function LoginView({ onSubmit, onForgot, onRegister, onInvite, error, successMessage, registrationEnabled = true }: LoginViewProps) {
   const { t } = useTranslation('public');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -184,23 +185,25 @@ export function LoginView({ onSubmit, onForgot, onRegister, onInvite, error, suc
       </PubButton>
 
       {/* Register link */}
-      <p
-        className="pub-text-body-sm"
-        style={{ margin: 0, textAlign: 'center', color: 'var(--pub-text-secondary)' }}
-      >
-        {t('auth.loginNoAccount')}{' '}
-        <a
-          onClick={onRegister}
-          style={{
-            cursor: 'pointer',
-            color: 'var(--pub-accent-purple)',
-            textDecoration: 'none',
-            fontWeight: 600,
-          }}
+      {registrationEnabled && (
+        <p
+          className="pub-text-body-sm"
+          style={{ margin: 0, textAlign: 'center', color: 'var(--pub-text-secondary)' }}
         >
-          {t('auth.loginRegisterLink')}
-        </a>
-      </p>
+          {t('auth.loginNoAccount')}{' '}
+          <a
+            onClick={onRegister}
+            style={{
+              cursor: 'pointer',
+              color: 'var(--pub-accent-purple)',
+              textDecoration: 'none',
+              fontWeight: 600,
+            }}
+          >
+            {t('auth.loginRegisterLink')}
+          </a>
+        </p>
+      )}
 
       {/* Invite link */}
       <p
