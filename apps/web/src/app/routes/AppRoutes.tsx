@@ -122,6 +122,13 @@ export function AppRoutes() {
       .catch(() => { /* fallback: true */ });
   }, [apiBase]);
 
+  // Redirect to login when registration is disabled and route is 'register' (without invite)
+  React.useEffect(() => {
+    if (!registrationEnabled && route === 'register') {
+      navigate('login');
+    }
+  }, [registrationEnabled, route]);
+
   // Scroll to top on route change
   React.useEffect(() => {
     window.scrollTo(0, 0);
@@ -187,7 +194,7 @@ export function AppRoutes() {
     case 'login':
       return <AuthPage apiBase={apiBase} initialView="login" />;
     case 'register':
-      return <AuthPage apiBase={apiBase} initialView="register" />;
+      return <AuthPage apiBase={apiBase} initialView="register" registrationEnabled={registrationEnabled} />;
     case 'invite':
       return <AuthPage apiBase={apiBase} initialView="invite" initialInvite={inviteCode} />;
     case 'reset-pw':

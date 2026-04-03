@@ -7,6 +7,7 @@ interface PublicLayoutProps {
   onLogin: () => void;
   onSignup: () => void;
   navigate: (route: string) => void;
+  registrationEnabled?: boolean;
 }
 
 export function PublicLayout({
@@ -14,6 +15,7 @@ export function PublicLayout({
   onLogin,
   onSignup,
   navigate,
+  registrationEnabled = true,
 }: PublicLayoutProps) {
   return (
     <div
@@ -22,7 +24,7 @@ export function PublicLayout({
         background: 'var(--pub-bg-primary)',
       }}
     >
-      <PublicHeader onLogin={onLogin} onSignup={onSignup} />
+      <PublicHeader onLogin={onLogin} onSignup={onSignup} registrationEnabled={registrationEnabled} />
       <main>{children}</main>
       <PublicFooter navigate={navigate} />
     </div>

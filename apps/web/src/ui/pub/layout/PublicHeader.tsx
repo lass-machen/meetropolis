@@ -5,6 +5,7 @@ import { PubButton } from '../components/PubButton';
 interface PublicHeaderProps {
   onLogin: () => void;
   onSignup: () => void;
+  registrationEnabled?: boolean;
 }
 
 interface NavItem {
@@ -43,7 +44,7 @@ function CloseIcon() {
   );
 }
 
-export function PublicHeader({ onLogin, onSignup }: PublicHeaderProps) {
+export function PublicHeader({ onLogin, onSignup, registrationEnabled = true }: PublicHeaderProps) {
   const { t } = useTranslation('public');
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -164,9 +165,11 @@ export function PublicHeader({ onLogin, onSignup }: PublicHeaderProps) {
           >
             {t('header.login')}
           </button>
-          <PubButton variant="primary" size="sm" onClick={onSignup}>
-            {t('header.trialCta')}
-          </PubButton>
+          {registrationEnabled && (
+            <PubButton variant="primary" size="sm" onClick={onSignup}>
+              {t('header.trialCta')}
+            </PubButton>
+          )}
         </div>
 
         {/* Mobile Hamburger */}
@@ -254,16 +257,18 @@ export function PublicHeader({ onLogin, onSignup }: PublicHeaderProps) {
             >
               {t('header.login')}
             </button>
-            <PubButton
-              variant="primary"
-              onClick={() => {
-                setMenuOpen(false);
-                onSignup();
-              }}
-              style={{ width: '100%' }}
-            >
-              {t('header.trialCta')}
-            </PubButton>
+            {registrationEnabled && (
+              <PubButton
+                variant="primary"
+                onClick={() => {
+                  setMenuOpen(false);
+                  onSignup();
+                }}
+                style={{ width: '100%' }}
+              >
+                {t('header.trialCta')}
+              </PubButton>
+            )}
           </div>
         </div>
       )}

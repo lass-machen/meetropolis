@@ -15,21 +15,24 @@ interface LandingPageProps {
   registrationEnabled: boolean;
 }
 
-export function LandingPage({ onLogin, onSignup, onPricing: _onPricing, registrationEnabled: _registrationEnabled }: LandingPageProps) {
+export function LandingPage({ onLogin, onSignup, onPricing: _onPricing, registrationEnabled }: LandingPageProps) {
   const navigate = (route: string) => {
     window.location.hash = `#/${route}`;
   };
 
+  // When registration is disabled, CTA buttons redirect to login instead
+  const effectiveSignup = registrationEnabled ? onSignup : onLogin;
+
   return (
-    <PublicLayout onLogin={onLogin} onSignup={onSignup} navigate={navigate}>
-      <HeroSection onSignup={onSignup} onLogin={onLogin} />
+    <PublicLayout onLogin={onLogin} onSignup={effectiveSignup} navigate={navigate} registrationEnabled={registrationEnabled}>
+      <HeroSection onSignup={effectiveSignup} onLogin={onLogin} registrationEnabled={registrationEnabled} />
       <ProblemSolutionSection />
       <FeatureShowcaseSection />
       <SecondaryFeaturesSection />
-      <PricingSection onSignup={onSignup} />
+      <PricingSection onSignup={effectiveSignup} registrationEnabled={registrationEnabled} />
       <SocialProofSection />
       <OpenSourceSection />
-      <FinalCtaSection onSignup={onSignup} />
+      <FinalCtaSection onSignup={effectiveSignup} registrationEnabled={registrationEnabled} />
     </PublicLayout>
   );
 }
