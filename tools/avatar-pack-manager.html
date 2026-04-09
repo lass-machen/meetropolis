@@ -344,7 +344,7 @@ body::after{
       <div class="section-label">Connection</div>
       <div class="field">
         <label>API Base URL</label>
-        <input type="text" id="apiUrl" value="https://api.meetropolis.me" placeholder="https://api.meetropolis.me">
+        <input type="text" id="apiUrl" value="" placeholder="API URL">
       </div>
       <div class="field">
         <label>Auth Token (optional)</label>
@@ -496,9 +496,15 @@ let previewState = null;
 let connectedApi = null;
 let existingPacks = [];
 
+// Default API URL to current origin (tools are served from the same server)
+document.addEventListener('DOMContentLoaded', () => {
+  const el = document.getElementById('apiUrl');
+  if (el && !el.value) el.value = window.location.origin;
+});
+
 // ── Connection ──
 async function apiFetch(path, opts = {}) {
-  const base = document.getElementById('apiUrl').value.replace(/\/+$/, '');
+  const base = (document.getElementById('apiUrl').value || window.location.origin).replace(/\/+$/, '');
   const token = document.getElementById('authToken').value.trim();
   const headers = { ...(opts.headers || {}) };
   if (token) headers['Authorization'] = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
@@ -516,7 +522,7 @@ async function testConnection() {
     if (res.ok) {
       const data = await res.json();
       existingPacks = Array.isArray(data) ? data : [];
-      connectedApi = document.getElementById('apiUrl').value.replace(/\/+$/, '');
+      connectedApi = (document.getElementById('apiUrl').value || window.location.origin).replace(/\/+$/, '');
       dot.className = 'conn-dot ok';
       label.textContent = 'Connected';
       showMsg(msg, 'ok', `Connected — ${existingPacks.length} pack(s) found`);
@@ -1135,7 +1141,7 @@ async function handlePreviewFile(avId, file) {
 function getPreviewFullUrl(url) {
   if (!url) return '';
   if (url.startsWith('http')) return url;
-  const base = document.getElementById('apiUrl').value.replace(/\/+$/, '');
+  const base = (document.getElementById('apiUrl').value || window.location.origin).replace(/\/+$/, '');
   return base + url;
 }
 

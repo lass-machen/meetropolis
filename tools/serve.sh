@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+# DEPRECATED: Tools are now served via the Express server at /tools (Basic Auth protected).
+# Set TOOLS_USER and TOOLS_PASSWORD in your .env to enable.
+# This script is kept as a fallback for local development without the server running.
+#
 # Serve the Meetropolis standalone tools via a local HTTP server.
 # This avoids file:// CORS issues when connecting to the production API.
 #

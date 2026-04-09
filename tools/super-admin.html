@@ -501,7 +501,7 @@ td select{min-width:80px}
   </div>
   <span class="tag">Meetropolis</span>
   <div class="conn-bar">
-    <input type="text" id="apiUrl" value="https://api.meetropolis.me" placeholder="API URL">
+    <input type="text" id="apiUrl" value="" placeholder="API URL">
     <input type="text" id="authToken" placeholder="Auth Token (optional)">
     <button class="test-btn" onclick="testConnection()">
       <div class="conn-dot" id="connDot"></div>
@@ -1056,7 +1056,7 @@ let confirmCallback = null;
 (function init() {
   const savedUrl = localStorage.getItem('sa_apiUrl');
   const savedToken = localStorage.getItem('sa_authToken');
-  if (savedUrl) document.getElementById('apiUrl').value = savedUrl;
+  document.getElementById('apiUrl').value = savedUrl || window.location.origin;
   if (savedToken) document.getElementById('authToken').value = savedToken;
 })();
 

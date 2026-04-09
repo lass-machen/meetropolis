@@ -35,6 +35,7 @@ const { WebSocketTransport } = require('@colyseus/ws-transport');
 import { createServer } from 'http';
 import path from 'path';
 import fs from 'fs';
+import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -159,6 +160,41 @@ app.use('/npc-media', express.static(npcMediaDir, {
     res.removeHeader('Access-Control-Allow-Credentials');
   }
 }));
+
+// ── Basic Auth Middleware for Admin Tools ──
+function basicAuthMiddleware(
+  user: string,
+  password: string,
+): (req: express.Request, res: express.Response, next: express.NextFunction) => void {
+  const expected = Buffer.from(`${user}:${password}`);
+  return (req, res, next) => {
+    const header = req.headers.authorization;
+    if (!header || !header.startsWith('Basic ')) {
+      res.setHeader('WWW-Authenticate', 'Basic realm="Meetropolis Tools"');
+      return res.status(401).send('Authentication required');
+    }
+    const decoded = Buffer.from(header.slice(6), 'base64');
+    if (
+      expected.length !== decoded.length ||
+      !crypto.timingSafeEqual(expected, decoded)
+    ) {
+      res.setHeader('WWW-Authenticate', 'Basic realm="Meetropolis Tools"');
+      return res.status(401).send('Invalid credentials');
+    }
+    next();
+  };
+}
+
+// Static serving for Admin Tools (Basic Auth protected)
+const toolsUser = process.env.TOOLS_USER;
+const toolsPassword = process.env.TOOLS_PASSWORD;
+if (toolsUser && toolsPassword) {
+  const toolsDir = path.resolve(__dirname, '../../../tools');
+  app.use('/tools', basicAuthMiddleware(toolsUser, toolsPassword), express.static(toolsDir));
+  logger.info({ event: 'tools.route_enabled', path: '/tools' });
+} else {
+  logger.info({ event: 'tools.route_disabled', reason: 'TOOLS_USER or TOOLS_PASSWORD not set' });
+}
 
 await registerApi(app);
 
