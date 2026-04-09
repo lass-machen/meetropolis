@@ -71,8 +71,12 @@ app.use((req: express.Request, res: express.Response, next: express.NextFunction
 
   const isProduction = process.env.NODE_ENV === 'production';
 
+  // Same-origin requests (e.g. from /tools pages) are always allowed
+  const host = req.headers.host;
+  const isSameOrigin = origin && host && (origin === `https://${host}` || origin === `http://${host}`);
+
   if (allowedOrigins.length > 0) {
-    if (origin && allowedOrigins.includes(origin)) {
+    if (isSameOrigin || (origin && allowedOrigins.includes(origin))) {
       res.setHeader('Access-Control-Allow-Origin', origin);
     } else if (isProduction && origin) {
       // In production, block requests from non-whitelisted origins
