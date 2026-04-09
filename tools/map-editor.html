@@ -1483,11 +1483,36 @@ function renderDragPreview() {
 
 function renderSelection() {
   if (!mapMeta) return;
-  // Hover tile highlight for terrain/collision/spawn tools
   if (!isDragging && dragCurrent && (currentTool === 'terrain' || currentTool === 'collision' || currentTool === 'spawn' || currentTool === 'objects' || currentTool === 'erase' || currentTool === 'wall')) {
     const tw = mapMeta.tileWidth || 16;
     const th = mapMeta.tileHeight || 16;
     const t = worldToTile(dragCurrent.wx, dragCurrent.wy);
+
+    // Ghost preview for objects tool
+    if (currentTool === 'objects' && selectedAssetItem && selectedAssetItem.cat !== 'terrain') {
+      const item = selectedAssetItem.item;
+      const url = item.dataURL || item.dataUrl;
+      const img = url ? objectImages[url] : null;
+      if (img) {
+        const oscale = item.scaleFactor || 1;
+        const dw = (item.width || img.width) * oscale;
+        const dh = (item.height || img.height) * oscale;
+        ctx.save();
+        ctx.globalAlpha = 0.5;
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(img, t.tx * tw, t.ty * th, dw, dh);
+        ctx.globalAlpha = 1;
+        ctx.strokeStyle = 'rgba(88,101,242,0.6)';
+        ctx.lineWidth = 1 / camera.zoom;
+        ctx.setLineDash([4 / camera.zoom, 3 / camera.zoom]);
+        ctx.strokeRect(t.tx * tw, t.ty * th, dw, dh);
+        ctx.setLineDash([]);
+        ctx.restore();
+        return;
+      }
+    }
+
+    // Default: single tile outline
     ctx.strokeStyle = 'rgba(255,255,255,0.3)';
     ctx.lineWidth = 1 / camera.zoom;
     ctx.strokeRect(t.tx * tw, t.ty * th, tw, th);
