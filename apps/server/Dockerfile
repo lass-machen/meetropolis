@@ -64,6 +64,9 @@ COPY --from=builder /workspace/apps/server/dist ./dist
 # Copy generated Prisma client to dist/ (compiled code imports from dist/generated)
 COPY --from=builder /workspace/apps/server/src/generated ./dist/generated
 
+# Admin tools (HTML only, served at /tools with Basic Auth)
+COPY tools /workspace/tools
+
 # 6) Entrypoint (Migration optional) + Start
 COPY apps/server/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
