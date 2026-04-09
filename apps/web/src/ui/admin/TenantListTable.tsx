@@ -12,8 +12,9 @@ import {
 } from '../system';
 import type { TenantRow, AvailablePlan } from './TenantsAdmin';
 
+const STATUS_NONE = '__none__';
 const STATUS_OPTIONS = [
-  { value: '', label: '— (kein Status)' },
+  { value: STATUS_NONE, label: '— (kein Status)' },
   { value: 'active', label: 'active' },
   { value: 'suspended', label: 'suspended' },
   { value: 'trial', label: 'trial' },
@@ -196,8 +197,8 @@ function TenantRowView({
       </Td>
       <Td>
         <Select
-          value={row.status ?? ''}
-          onChange={(val) => onUpdate(row.id, { status: val ? val : null })}
+          value={row.status ?? STATUS_NONE}
+          onChange={(val) => onUpdate(row.id, { status: val === STATUS_NONE ? null : val })}
           options={STATUS_OPTIONS}
           placeholder="—"
           style={{ width: 140 }}
