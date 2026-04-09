@@ -15,6 +15,9 @@ import {
   normalizeEmailForMatching,
 } from '../utils/authHelpers.js';
 import { getEmailService, emailTemplates } from '../../services/email.js';
+import { hasBillingModule } from '../../billingLoader.js';
+import { hasAdminEnterpriseModule } from '../../adminLoader.js';
+import { getTenancyModule } from '../../tenancyLoader.js';
 
 export function registerAuthRoutes(app: express.Application, prisma: PrismaClient) {
   // Auth Endpoints
@@ -218,6 +221,12 @@ export function registerAuthRoutes(app: express.Application, prisma: PrismaClien
       }
     } catch { }
     const lastPosition = user.presences[0];
+    const tenancyModule = await getTenancyModule();
+    const capabilities = {
+      hasBilling: await hasBillingModule(),
+      hasAdminEnterprise: await hasAdminEnterpriseModule(),
+      isMultiTenant: tenancyModule.isMultiTenantEnabled(),
+    };
     res.json({
       id: user.id,
       email: user.email,
@@ -227,6 +236,7 @@ export function registerAuthRoutes(app: express.Application, prisma: PrismaClien
       isGuest: member.role === 'guest',
       guestExpiresAt: member.expiresAt?.toISOString() || null,
       isInternalOwner,
+      capabilities,
       onboardingCompleted: user.onboardingCompleted,
       lastPosition: lastPosition ? { x: lastPosition.x, y: lastPosition.y, direction: lastPosition.direction, mapName: lastPosition.mapName || null } : null
     });

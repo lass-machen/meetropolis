@@ -1,11 +1,24 @@
 import { useEffect } from 'react';
 import { logger } from '../../../lib/logger';
 
+export type AdminCapabilities = {
+  hasBilling: boolean;
+  hasAdminEnterprise: boolean;
+  isMultiTenant: boolean;
+};
+
+export const DEFAULT_CAPABILITIES: AdminCapabilities = {
+  hasBilling: false,
+  hasAdminEnterprise: false,
+  isMultiTenant: false,
+};
+
 interface UseFetchMeParams {
   apiBase: string;
   localPosRef: React.MutableRefObject<{ id: string; x?: number; y?: number }>;
   setMe: React.Dispatch<React.SetStateAction<{ id: string; email: string; name?: string; onboardingCompleted?: boolean; role?: string } | null>>;
   setIsInternalOwner: React.Dispatch<React.SetStateAction<boolean>>;
+  setCapabilities: React.Dispatch<React.SetStateAction<AdminCapabilities>>;
   setPositionReady: React.Dispatch<React.SetStateAction<boolean>>;
   setAuthChecked: React.Dispatch<React.SetStateAction<boolean>>;
   refetchTrigger?: number;
@@ -16,6 +29,7 @@ export function useFetchMe({
   localPosRef,
   setMe,
   setIsInternalOwner,
+  setCapabilities,
   setPositionReady,
   setAuthChecked,
   refetchTrigger = 0,
@@ -41,6 +55,18 @@ export function useFetchMe({
         }
         if (!user) { setMe(null); return; }
         try { setIsInternalOwner(!!user.isInternalOwner); } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
+        try {
+          const caps = user.capabilities;
+          if (caps && typeof caps === 'object') {
+            setCapabilities({
+              hasBilling: !!caps.hasBilling,
+              hasAdminEnterprise: !!caps.hasAdminEnterprise,
+              isMultiTenant: !!caps.isMultiTenant,
+            });
+          } else {
+            setCapabilities(DEFAULT_CAPABILITIES);
+          }
+        } catch (e) { logger.debug('[WorldApp] Failed to set capabilities', e); }
 
         // Sync server avatarId to localStorage (server is source of truth)
         if (user.avatarId) {

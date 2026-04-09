@@ -42,7 +42,8 @@ import { PaymentStatusBanner } from '../../ui/billing/components/PaymentStatusBa
 import { ZoneAccessPanel } from '../../ui/hud/ZoneAccessPanel';
 import { AVControlBar } from './components/AVControlBar';
 import { useWorldEventHandlers } from './hooks/useWorldEventHandlers';
-import { useFetchMe } from './hooks/useFetchMe';
+import { useFetchMe, DEFAULT_CAPABILITIES } from './hooks/useFetchMe';
+import type { AdminCapabilities } from './hooks/useFetchMe';
 import { useEditorLoader } from './hooks/useEditorLoader';
 import { useGameInitialization } from './hooks/useGameInitialization';
 import { OnboardingWizard } from '../../ui/onboarding/OnboardingWizard';
@@ -88,6 +89,7 @@ export function WorldApp() {
   const [me, setMe] = React.useState<{ id: string; email: string; name?: string; onboardingCompleted?: boolean; role?: string } | null>(null);
   const isTenantAdmin = me?.role === 'owner' || me?.role === 'admin';
   const [isInternalOwner, setIsInternalOwner] = React.useState(false);
+  const [capabilities, setCapabilities] = React.useState<AdminCapabilities>(DEFAULT_CAPABILITIES);
   const { paymentStatus, handleManageBilling } = usePaymentStatus({ enabled: isInternalOwner });
   const [authRefetchTrigger, setAuthRefetchTrigger] = React.useState(0);
   const [editor, setEditor] = useEditor();
@@ -244,7 +246,7 @@ export function WorldApp() {
   const getRoom = useCallback(() => avRef.current?.room, []);
 
   // Fetch user & position (extracted to hook)
-  useFetchMe({ apiBase, localPosRef, setMe, setIsInternalOwner, setPositionReady, setAuthChecked, refetchTrigger: authRefetchTrigger });
+  useFetchMe({ apiBase, localPosRef, setMe, setIsInternalOwner, setCapabilities, setPositionReady, setAuthChecked, refetchTrigger: authRefetchTrigger });
 
   // Load available maps
   React.useEffect(() => {
@@ -696,7 +698,7 @@ export function WorldApp() {
             <GameCanvas containerRef={containerRef} positionReady={positionReady} avDnd={avState.dnd} />
 
             {isInternalOwner && (
-              <AdminOverlay apiBase={apiBase} open={adminOpen} onOpenChange={setAdminOpen} />
+              <AdminOverlay apiBase={apiBase} open={adminOpen} onOpenChange={setAdminOpen} capabilities={capabilities} />
             )}
 
             <PackStore apiBase={apiBase} open={packStoreOpen} onOpenChange={setPackStoreOpen} />

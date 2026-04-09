@@ -1,11 +1,30 @@
 import React from 'react';
-import { TableContainer, Table, THead, TBody, Tr, Th, Td, Button, Input, Select } from '../system';
+import {
+  Button,
+  Input,
+  NavBar,
+  Tabs,
+  ChevronLeftIcon,
+} from '../system';
+import type { TabItem } from '../system';
+import type { AdminCapabilities } from '../../app/routes/hooks/useFetchMe';
 import { openExternal } from '../../lib/openExternal';
 import { logger } from '../../lib/logger';
+import { TenantUsersPanel } from './TenantUsersPanel';
+import { TenantBillingPanel } from './TenantBillingPanel';
+import { TenantPacksPanel } from './TenantPacksPanel';
+import { TenantListTable } from './TenantListTable';
 
-type AvailablePlan = { priceId: string; name: string; amount: number; currency: string; interval: string; concurrentLimit: number };
+export type AvailablePlan = {
+  priceId: string;
+  name: string;
+  amount: number;
+  currency: string;
+  interval: string;
+  concurrentLimit: number;
+};
 
-type TenantRow = {
+export type TenantRow = {
   id: string;
   slug: string;
   name: string;
@@ -14,6 +33,7 @@ type TenantRow = {
   bypassLimits: boolean;
   isInternal: boolean;
   status: string | null;
+  defaultMapName?: string | null;
   stripeCustomerId?: string | null;
   stripeSubscriptionId?: string | null;
   createdAt: string;
@@ -21,27 +41,279 @@ type TenantRow = {
   online: number;
 };
 
-export function TenantsAdmin(props: { apiBase: string }) {
-  const { apiBase } = props;
+type Screen =
+  | { type: 'list' }
+  | { type: 'detail'; tenant: TenantRow };
+
+type DetailTab = 'users' | 'billing' | 'packs';
+
+export function TenantsAdmin(props: { apiBase: string; capabilities: AdminCapabilities }) {
+  const { apiBase, capabilities } = props;
+  const data = useTenantsData(apiBase);
+  const [screen, setScreen] = React.useState<Screen>({ type: 'list' });
+  const [detailTab, setDetailTab] = React.useState<DetailTab>('users');
+
+  const openDetail = React.useCallback((tenant: TenantRow) => {
+    setDetailTab('users');
+    setScreen({ type: 'detail', tenant });
+  }, []);
+
+  if (screen.type === 'detail') {
+    return (
+      <TenantDetailScreen
+        apiBase={apiBase}
+        tenant={screen.tenant}
+        activeTab={detailTab}
+        onChangeTab={setDetailTab}
+        onBack={() => setScreen({ type: 'list' })}
+        capabilities={capabilities}
+      />
+    );
+  }
+
+  return <TenantListScreen apiBase={apiBase} data={data} onOpenDetail={openDetail} />;
+}
+
+interface TenantsData {
+  rows: TenantRow[];
+  loading: boolean;
+  plans: AvailablePlan[];
+  load: () => Promise<void>;
+  updateRow: (id: string, patch: Partial<TenantRow>) => void;
+  saveRow: (row: TenantRow) => Promise<void>;
+  createTenant: (slug: string, name: string) => Promise<boolean>;
+  deleteTenant: (id: string) => Promise<void>;
+}
+
+async function fetchTenants(apiBase: string): Promise<TenantRow[] | null> {
+  try {
+    const res = await fetch(`${apiBase}/admin/tenants`, { credentials: 'include' });
+    if (res.ok) return (await res.json()) as TenantRow[];
+  } catch (err) {
+    logger.warn('[TenantsAdmin] Failed to load tenants', err);
+  }
+  return null;
+}
+
+async function fetchPlans(apiBase: string): Promise<AvailablePlan[] | null> {
+  try {
+    const res = await fetch(`${apiBase}/billing/plans`, { credentials: 'include' });
+    if (res.ok) {
+      const data = await res.json();
+      return (data.plans || []) as AvailablePlan[];
+    }
+  } catch (err) {
+    logger.warn('[TenantsAdmin] Failed to load plans', err);
+  }
+  return null;
+}
+
+async function patchTenant(apiBase: string, r: TenantRow): Promise<boolean> {
+  try {
+    const res = await fetch(`${apiBase}/admin/tenants/${r.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({
+        name: r.name,
+        concurrentLimit: r.concurrentLimit,
+        freeSeats: r.freeSeats ?? 0,
+        bypassLimits: r.bypassLimits,
+        status: r.status ?? undefined,
+        defaultMapName: r.defaultMapName ?? undefined,
+      }),
+    });
+    return res.ok;
+  } catch (err) {
+    logger.warn('[TenantsAdmin] Failed to save tenant', err);
+    return false;
+  }
+}
+
+async function postTenant(apiBase: string, slug: string, name: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${apiBase}/admin/tenants`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ slug, name, freeSeats: 3 }),
+    });
+    return res.ok;
+  } catch (err) {
+    logger.warn('[TenantsAdmin] Failed to create tenant', err);
+    return false;
+  }
+}
+
+async function deleteTenantRequest(apiBase: string, id: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${apiBase}/admin/tenants/${id}`, {
+      method: 'DELETE',
+      credentials: 'include',
+    });
+    return res.ok;
+  } catch (err) {
+    logger.warn('[TenantsAdmin] Failed to delete tenant', err);
+    return false;
+  }
+}
+
+function useTenantsData(apiBase: string): TenantsData {
   const [rows, setRows] = React.useState<TenantRow[]>([]);
   const [loading, setLoading] = React.useState(false);
-  const [createSlug, setCreateSlug] = React.useState('');
-  const [createName, setCreateName] = React.useState('');
-  const [deletingId, setDeletingId] = React.useState<string | null>(null);
   const [plans, setPlans] = React.useState<AvailablePlan[]>([]);
 
   const load = React.useCallback(async () => {
-    try {
-      setLoading(true);
-      const res = await fetch(`${apiBase}/admin/tenants`, { credentials: 'include' });
-      if (res.ok) setRows(await res.json());
-      const plansRes = await fetch(`${apiBase}/billing/plans`, { credentials: 'include' });
-      if (plansRes.ok) { const data = await plansRes.json(); setPlans(data.plans || []); }
-    } catch (err) { logger.warn('[TenantsAdmin] Failed to load tenants', err); }
+    setLoading(true);
+    const [nextRows, nextPlans] = await Promise.all([fetchTenants(apiBase), fetchPlans(apiBase)]);
+    if (nextRows) setRows(nextRows);
+    if (nextPlans) setPlans(nextPlans);
     setLoading(false);
   }, [apiBase]);
 
-  React.useEffect(() => { void load(); }, [load]);
+  React.useEffect(() => {
+    void load();
+  }, [load]);
+
+  const updateRow = React.useCallback((id: string, patch: Partial<TenantRow>) => {
+    setRows((prev) => prev.map((r) => (r.id === id ? ({ ...r, ...patch } as TenantRow) : r)));
+  }, []);
+
+  const saveRow = React.useCallback(
+    async (r: TenantRow) => {
+      if (await patchTenant(apiBase, r)) await load();
+    },
+    [apiBase, load],
+  );
+
+  const createTenant = React.useCallback(
+    async (slug: string, name: string): Promise<boolean> => {
+      const cleanSlug = slug.trim().toLowerCase();
+      const cleanName = name.trim();
+      if (!cleanSlug || !cleanName) return false;
+      const ok = await postTenant(apiBase, cleanSlug, cleanName);
+      if (ok) await load();
+      return ok;
+    },
+    [apiBase, load],
+  );
+
+  const deleteTenant = React.useCallback(
+    async (id: string) => {
+      if (await deleteTenantRequest(apiBase, id)) await load();
+    },
+    [apiBase, load],
+  );
+
+  return { rows, loading, plans, load, updateRow, saveRow, createTenant, deleteTenant };
+}
+
+interface TenantDetailScreenProps {
+  apiBase: string;
+  tenant: TenantRow;
+  activeTab: DetailTab;
+  onChangeTab: (tab: DetailTab) => void;
+  onBack: () => void;
+  capabilities: AdminCapabilities;
+}
+
+function TenantDetailScreen({
+  apiBase,
+  tenant,
+  activeTab,
+  onChangeTab,
+  onBack,
+  capabilities,
+}: TenantDetailScreenProps) {
+  const detailTabs = React.useMemo<TabItem[]>(() => {
+    const tabs: TabItem[] = [{ key: 'users', label: 'Benutzer' }];
+    if (capabilities.hasBilling) {
+      tabs.push({ key: 'billing', label: 'Billing' });
+    }
+    if (capabilities.hasAdminEnterprise) {
+      tabs.push({ key: 'packs', label: 'Packs' });
+    }
+    return tabs;
+  }, [capabilities]);
+
+  // Fallback: wenn aktiver Tab durch Capability-Change verschwindet
+  React.useEffect(() => {
+    if (!detailTabs.some((t) => t.key === activeTab)) {
+      onChangeTab((detailTabs[0]?.key as DetailTab) || 'users');
+    }
+  }, [detailTabs, activeTab, onChangeTab]);
+
+  return (
+    <div style={{ display: 'grid', gap: 12 }}>
+      <NavBar
+        left={
+          <Button iconOnly size="sm" variant="ghost" onClick={onBack} aria-label="Zurück">
+            <ChevronLeftIcon />
+          </Button>
+        }
+        title={
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+            <span style={{ fontWeight: 600 }}>{tenant.name}</span>
+            <span style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>{tenant.slug}</span>
+          </div>
+        }
+      />
+      <Tabs
+        items={detailTabs}
+        activeKey={activeTab}
+        onChange={(key) => onChangeTab(key as DetailTab)}
+      />
+      {activeTab === 'users' && <TenantUsersPanel apiBase={apiBase} tenantId={tenant.id} />}
+      {activeTab === 'billing' && <TenantBillingPanel apiBase={apiBase} tenantId={tenant.id} />}
+      {activeTab === 'packs' && <TenantPacksPanel apiBase={apiBase} tenantId={tenant.id} />}
+    </div>
+  );
+}
+
+interface TenantListScreenProps {
+  apiBase: string;
+  data: TenantsData;
+  onOpenDetail: (tenant: TenantRow) => void;
+}
+
+async function openCheckoutSession(apiBase: string, priceId: string): Promise<void> {
+  if (!priceId) return;
+  try {
+    const res = await fetch(`${apiBase}/billing/checkout-session`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ priceId }),
+    });
+    if (res.ok) {
+      const { url } = await res.json();
+      await openExternal(url);
+    }
+  } catch (err) {
+    logger.warn('[TenantsAdmin] Failed to start checkout', err);
+  }
+}
+
+async function openPortalSession(apiBase: string): Promise<void> {
+  try {
+    const res = await fetch(`${apiBase}/billing/portal-session`, {
+      method: 'POST',
+      credentials: 'include',
+    });
+    if (res.ok) {
+      const { url } = await res.json();
+      await openExternal(url);
+    }
+  } catch (err) {
+    logger.warn('[TenantsAdmin] Failed to open portal', err);
+  }
+}
+
+function TenantListScreen({ apiBase, data, onOpenDetail }: TenantListScreenProps) {
+  const { rows, loading, plans, load, updateRow, saveRow, createTenant, deleteTenant } = data;
+  const [createSlug, setCreateSlug] = React.useState('');
+  const [createName, setCreateName] = React.useState('');
+  const [deletingId, setDeletingId] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     if (!deletingId) return;
@@ -49,186 +321,86 @@ export function TenantsAdmin(props: { apiBase: string }) {
     return () => clearTimeout(timer);
   }, [deletingId]);
 
-  const deleteTenant = async (id: string) => {
-    try {
-      const res = await fetch(`${apiBase}/admin/tenants/${id}`, {
-        method: 'DELETE',
-        credentials: 'include',
-      });
-      if (res.ok) await load();
-    } catch (err) { logger.warn('[TenantsAdmin] Failed to delete tenant', err); }
+  const handleCreate = async () => {
+    const ok = await createTenant(createSlug, createName);
+    if (ok) {
+      setCreateSlug('');
+      setCreateName('');
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    await deleteTenant(id);
     setDeletingId(null);
   };
 
-  const updateRow = (id: string, patch: Partial<TenantRow>) => {
-    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } as TenantRow : r)));
-  };
-
-  const saveRow = async (r: TenantRow) => {
-    try {
-      const res = await fetch(`${apiBase}/admin/tenants/${r.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ name: r.name, concurrentLimit: r.concurrentLimit, freeSeats: r.freeSeats ?? 0, bypassLimits: r.bypassLimits, status: r.status ?? undefined }),
-      });
-      if (res.ok) await load();
-    } catch (err) { logger.warn('[TenantsAdmin] Failed to save tenant', err); }
-  };
-
-  const createTenant = async () => {
-    const slug = (createSlug || '').trim().toLowerCase();
-    const name = (createName || '').trim();
-    if (!slug || !name) return;
-    try {
-      const res = await fetch(`${apiBase}/admin/tenants`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ slug, name, freeSeats: 3 }),
-      });
-      if (res.ok) {
-        setCreateSlug('');
-        setCreateName('');
-        await load();
-      }
-    } catch (err) { logger.warn('[TenantsAdmin] Failed to create tenant', err); }
-  };
+  const onCheckout = (priceId: string) => void openCheckoutSession(apiBase, priceId);
+  const onPortal = () => void openPortalSession(apiBase);
 
   return (
     <div style={{ display: 'grid', gap: 12 }}>
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-        <Input value={createSlug} onChange={(e: any) => setCreateSlug(e.target.value)} placeholder="slug" style={{ width: 180 }} />
-        <Input value={createName} onChange={(e: any) => setCreateName(e.target.value)} placeholder="name" style={{ width: 220 }} />
-        <Button onClick={createTenant}>Neu anlegen</Button>
-        <div style={{ flex: 1 }} />
-        <Button onClick={() => load()}>{loading ? 'Lade…' : 'Neu laden'}</Button>
-      </div>
-
-      <TableContainer style={{ maxHeight: '60vh' }}>
-        <Table>
-          <THead>
-            <Tr>
-              <Th style={{ paddingLeft: 0 }}>Slug</Th>
-              <Th>Name</Th>
-              <Th>Online</Th>
-              <Th>Limit</Th>
-              <Th>Free-Limit</Th>
-              <Th>Bypass</Th>
-              <Th>Abo</Th>
-              <Th>Status</Th>
-              <Th style={{ paddingRight: 0 }}>{null}</Th>
-            </Tr>
-          </THead>
-          {loading && (
-            <TBody>
-              {[1, 2, 3].map(i => (
-                <Tr key={i}>
-                  <Td colSpan={9} style={{ paddingLeft: 0 }}>
-                    <div style={{
-                      height: 16,
-                      borderRadius: 4,
-                      background: 'var(--glass-hover)',
-                      animation: 'pulse 1.5s ease-in-out infinite',
-                      width: `${60 + i * 10}%`
-                    }} />
-                  </Td>
-                </Tr>
-              ))}
-            </TBody>
-          )}
-          {!loading && rows.length === 0 && (
-            <TBody>
-              <Tr>
-                <Td colSpan={9} style={{ paddingLeft: 0, textAlign: 'center', color: 'var(--fg-subtle)', padding: '32px 0' }}>
-                  Keine Einträge vorhanden
-                </Td>
-              </Tr>
-            </TBody>
-          )}
-          {!loading && rows.length > 0 && (
-          <TBody>
-            {rows.map((r) => (
-              <Tr key={r.id}>
-                <Td style={{ paddingLeft: 0 }}>{r.slug}</Td>
-                <Td>
-                  <Input value={r.name} onChange={(e: any) => updateRow(r.id, { name: e.target.value })} />
-                </Td>
-                <Td>{r.online}</Td>
-                <Td>
-                  <Input type="number" value={r.concurrentLimit} onChange={(e: any) => updateRow(r.id, { concurrentLimit: Number(e.target.value) || 0 })} style={{ width: 100 }} />
-                </Td>
-                <Td>
-                  <Input type="number" value={r.freeSeats ?? 0} onChange={(e: any) => updateRow(r.id, { freeSeats: Number(e.target.value) || 0 })} style={{ width: 100 }} />
-                </Td>
-                <Td>
-                  <input type="checkbox" checked={r.bypassLimits} onChange={(e) => updateRow(r.id, { bypassLimits: e.target.checked })} />
-                </Td>
-                <Td>
-                  <div style={{ display:'flex', gap:6, alignItems:'center' }}>
-                    {plans.length > 0 ? (
-                      <>
-                        <Select
-                          value=""
-                          onChange={(val) => {
-                            if (!val) return;
-                            (async () => {
-                              try {
-                                const res = await fetch(`${apiBase}/billing/checkout-session`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ priceId: val }) });
-                                if (res.ok) { const { url } = await res.json(); await openExternal(url); }
-                              } catch (err) { logger.warn('[TenantsAdmin] Failed to start checkout', err); }
-                            })();
-                          }}
-                          placeholder="Plan…"
-                          style={{ width: 'auto' }}
-                          options={plans.map(p => ({
-                            value: p.priceId,
-                            label: `${p.name} (${p.amount} ${p.currency}/${p.interval})`,
-                          }))}
-                        />
-                      </>
-                    ) : (
-                      <span style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>Keine Pläne</span>
-                    )}
-                    <Button size="sm" onClick={async ()=>{
-                      try {
-                        const res = await fetch(`${apiBase}/billing/portal-session`, { method:'POST', credentials:'include' });
-                        if (res.ok) { const { url } = await res.json(); await openExternal(url); }
-                      } catch (err) { logger.warn('[TenantsAdmin] Failed to open portal', err); }
-                    }}>Portal</Button>
-                  </div>
-                  {r.stripeCustomerId ? (
-                    <div style={{ marginTop: 6, fontSize: 12, color: 'var(--fg-subtle)' }}>
-                      Cust: <code>{(r.stripeCustomerId || '').slice(0,10)}…</code>{' '}
-                      {r.stripeSubscriptionId ? <>Sub: <code>{(r.stripeSubscriptionId || '').slice(0,10)}…</code></> : null}
-                    </div>
-                  ) : null}
-                </Td>
-                <Td>
-                  <Input value={r.status || ''} onChange={(e: any) => updateRow(r.id, { status: e.target.value || null })} />
-                </Td>
-                <Td style={{ paddingRight: 0, textAlign: 'right' }}>
-                  <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-                    <Button size="sm" variant="primary" onClick={() => saveRow(r)}>Speichern</Button>
-                    {!r.isInternal && (
-                      <Button
-                        size="sm"
-                        variant="danger"
-                        onClick={() => deletingId === r.id ? deleteTenant(r.id) : setDeletingId(r.id)}
-                      >
-                        {deletingId === r.id ? 'Wirklich löschen?' : 'Löschen'}
-                      </Button>
-                    )}
-                  </div>
-                </Td>
-              </Tr>
-            ))}
-          </TBody>
-          )}
-        </Table>
-      </TableContainer>
+      <TenantCreateBar
+        createSlug={createSlug}
+        createName={createName}
+        loading={loading}
+        onChangeSlug={setCreateSlug}
+        onChangeName={setCreateName}
+        onCreate={handleCreate}
+        onReload={load}
+      />
+      <TenantListTable
+        rows={rows}
+        loading={loading}
+        plans={plans}
+        deletingId={deletingId}
+        onArmDelete={setDeletingId}
+        onConfirmDelete={handleDelete}
+        onUpdate={updateRow}
+        onSave={saveRow}
+        onOpenDetail={onOpenDetail}
+        onCheckout={onCheckout}
+        onPortal={onPortal}
+      />
     </div>
   );
 }
 
+interface TenantCreateBarProps {
+  createSlug: string;
+  createName: string;
+  loading: boolean;
+  onChangeSlug: (value: string) => void;
+  onChangeName: (value: string) => void;
+  onCreate: () => void;
+  onReload: () => void;
+}
 
+function TenantCreateBar({
+  createSlug,
+  createName,
+  loading,
+  onChangeSlug,
+  onChangeName,
+  onCreate,
+  onReload,
+}: TenantCreateBarProps) {
+  return (
+    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+      <Input
+        value={createSlug}
+        onChange={(e) => onChangeSlug(e.target.value)}
+        placeholder="slug"
+        style={{ width: 180 }}
+      />
+      <Input
+        value={createName}
+        onChange={(e) => onChangeName(e.target.value)}
+        placeholder="name"
+        style={{ width: 220 }}
+      />
+      <Button onClick={() => onCreate()}>Neu anlegen</Button>
+      <div style={{ flex: 1 }} />
+      <Button onClick={() => onReload()}>{loading ? 'Lade…' : 'Neu laden'}</Button>
+    </div>
+  );
+}
