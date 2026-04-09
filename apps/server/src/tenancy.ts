@@ -57,8 +57,16 @@ async function resolveTokenTenant(req: Request): Promise<Tenant | null> {
   }
 }
 
+// Paths that do not require tenant context (static files, health checks, tools)
+const TENANT_BYPASS_PREFIXES = ['/tools', '/packs', '/assets', '/npc-media', '/metrics', '/healthz'];
+
 export async function tenantMiddleware(req: TenantRequest, res: Response, next: NextFunction) {
   try {
+    // Bypass tenant resolution for routes that don't need it
+    if (req.path === '/' || TENANT_BYPASS_PREFIXES.some(p => req.path === p || req.path.startsWith(p + '/'))) {
+      return next();
+    }
+
     // Feature-Gate: In OSS-Only Builds ohne Enterprise-Package strikt Single-Tenant fahren
     const tenancy = await getTenancyModule();
     if (!tenancy.isMultiTenantEnabled()) {
@@ -80,11 +88,11 @@ export async function tenantMiddleware(req: TenantRequest, res: Response, next: 
     const fromHeader = (req.headers['x-tenant'] || '').toString();
     const fromQuery = (req.query?.tenant || '').toString();
     const fromHost = extractTenantSlugFromHost(extractHost(req) || null) || '';
-    const raw = fromHeader || fromQuery || fromHost || '';
+    const explicitSlug = fromHeader || fromQuery;
+    const raw = explicitSlug || fromHost || '';
 
     // JWT-based tenant fallback: When no tenant can be determined from host/header/query
     // (e.g. localhost in development), use the tenant ID from the user's auth token.
-    // In production, subdomain always provides the tenant, so this fallback is never reached.
     if (!raw) {
       const tokenTenant = await resolveTokenTenant(req);
       if (tokenTenant) {
@@ -103,15 +111,26 @@ export async function tenantMiddleware(req: TenantRequest, res: Response, next: 
 
     // Load tenant; in development, create on demand for convenience
     let tenant = await prisma.tenant.findUnique({ where: { slug } });
+
+    // If slug came from hostname (not explicit header/query) and didn't match,
+    // fall back to the default tenant (e.g. api.meetropolis.me extracts "api"
+    // which is not a tenant — use "default" instead)
+    if (!tenant && !explicitSlug && slug !== fallback) {
+      tenant = await prisma.tenant.findUnique({ where: { slug: fallback } });
+      if (tenant) req.tenantSlug = fallback;
+    }
+
     if (!tenant) {
       const isDev = process.env.NODE_ENV !== 'production';
       if (isDev) {
         // Auto-create known special slugs in dev to avoid bootstrapping steps
-        if (slug === 'internal') {
-          tenant = await prisma.tenant.create({ data: { slug, name: 'Internal', concurrentLimit: 999999, bypassLimits: true, isInternal: true } });
+        const targetSlug = req.tenantSlug || 'default';
+        if (targetSlug === 'internal') {
+          tenant = await prisma.tenant.create({ data: { slug: targetSlug, name: 'Internal', concurrentLimit: 999999, bypassLimits: true, isInternal: true } });
         } else {
-          tenant = await prisma.tenant.create({ data: { slug, name: slug, concurrentLimit: 50 } });
+          tenant = await prisma.tenant.create({ data: { slug: targetSlug, name: targetSlug, concurrentLimit: 50 } });
         }
+        req.tenantSlug = targetSlug;
       }
     }
     if (!tenant) return res.status(404).json({ error: 'tenant_not_found' });
