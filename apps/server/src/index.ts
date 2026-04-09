@@ -190,7 +190,13 @@ const toolsUser = process.env.TOOLS_USER;
 const toolsPassword = process.env.TOOLS_PASSWORD;
 if (toolsUser && toolsPassword) {
   const toolsDir = path.resolve(__dirname, '../../../tools');
-  app.use('/tools', basicAuthMiddleware(toolsUser, toolsPassword), express.static(toolsDir));
+  const htmlOnly = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    if (req.path !== '/' && !req.path.endsWith('.html')) {
+      return res.status(404).send('Not found');
+    }
+    next();
+  };
+  app.use('/tools', basicAuthMiddleware(toolsUser, toolsPassword), htmlOnly, express.static(toolsDir));
   logger.info({ event: 'tools.route_enabled', path: '/tools' });
 } else {
   logger.info({ event: 'tools.route_disabled', reason: 'TOOLS_USER or TOOLS_PASSWORD not set' });
