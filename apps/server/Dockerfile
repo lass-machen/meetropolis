@@ -26,9 +26,9 @@ WORKDIR /workspace/apps/server
 RUN npx prisma generate --schema ./prisma/schema.prisma
 
 # Build enterprise packages if submodule is present (no-op for OSS builds)
-RUN if [ -f packages/tenancy-enterprise/packages/tenancy/tsconfig.json ]; then \
-      npx tsc -p packages/tenancy-enterprise/packages/tenancy/tsconfig.json && \
-      npx tsc -p packages/tenancy-enterprise/packages/billing/tsconfig.json; \
+RUN if [ -f /workspace/packages/tenancy-enterprise/packages/tenancy/tsconfig.json ]; then \
+      npx tsc -p /workspace/packages/tenancy-enterprise/packages/tenancy/tsconfig.json && \
+      npx tsc -p /workspace/packages/tenancy-enterprise/packages/billing/tsconfig.json; \
     fi
 
 # 3) Build
@@ -59,6 +59,9 @@ COPY --from=builder /workspace/node_modules /workspace/node_modules
 COPY --from=builder /workspace/apps/server/node_modules ./node_modules
 # Shared package (workspace symlink target, needed at runtime by zoneLockHandler etc.)
 COPY --from=builder /workspace/packages/shared /workspace/packages/shared
+# Enterprise packages (workspace symlink targets for @meetropolis/tenancy and @meetropolis/billing)
+# Only the dist/ dirs are needed at runtime; if submodule was absent, dirs won't exist and COPY is a no-op
+COPY --from=builder /workspace/packages/tenancy-enterprise /workspace/packages/tenancy-enterprise
 COPY --from=builder /workspace/apps/server/prisma ./prisma
 COPY --from=builder /workspace/apps/server/dist ./dist
 # Copy generated Prisma client to dist/ (compiled code imports from dist/generated)
