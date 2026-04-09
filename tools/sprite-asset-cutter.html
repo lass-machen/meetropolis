@@ -1890,7 +1890,7 @@ async function exportMepack() {
 
       const folder = a.category === 'structure' ? 'structures' : 'objects';
       const filePath = 'assets/' + folder + '/' + a.key + '.png';
-      const dataURL = folder + '/' + a.key + '.png';
+      const dataURL = filePath;
 
       const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
       zip.file(filePath, blob);
