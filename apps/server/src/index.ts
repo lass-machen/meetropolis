@@ -62,8 +62,13 @@ app.use(metricsMiddleware() as any);
 
 // CORS middleware with explicit OPTIONS handling
 app.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
+  // Static asset routes handle their own CORS headers — skip global check
+  if (req.path.startsWith('/packs') || req.path.startsWith('/assets') || req.path.startsWith('/npc-media') || req.path.startsWith('/tools')) {
+    return next();
+  }
+
   const origin = req.headers.origin as string;
-  
+
   const isProduction = process.env.NODE_ENV === 'production';
 
   if (allowedOrigins.length > 0) {
@@ -136,6 +141,18 @@ try {
   logger.error({ event: 'filesystem.mkdir_failed', path: packsDir, error });
 }
 app.use('/packs', express.static(packsDir, {
+  maxAge: '365d',
+  immutable: true,
+  setHeaders: (res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    res.removeHeader('Access-Control-Allow-Credentials');
+  }
+}));
+
+// Static serving for default tilesets (referenced by seed maps as /assets/tilesets/...)
+const assetsDir = path.resolve(__dirname, '../../../apps/web/public/assets');
+app.use('/assets', express.static(assetsDir, {
   maxAge: '365d',
   immutable: true,
   setHeaders: (res) => {

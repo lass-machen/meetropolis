@@ -64,6 +64,9 @@ COPY --from=builder /workspace/apps/server/dist ./dist
 # Copy generated Prisma client to dist/ (compiled code imports from dist/generated)
 COPY --from=builder /workspace/apps/server/src/generated ./dist/generated
 
+# Default tilesets (referenced by seed maps as /assets/tilesets/...)
+COPY apps/web/public/assets /workspace/apps/web/public/assets
+
 # Admin tools (HTML only, served at /tools with Basic Auth)
 COPY tools /workspace/tools
 
