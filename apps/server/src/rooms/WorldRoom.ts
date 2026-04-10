@@ -200,6 +200,16 @@ export class WorldRoom extends Room<WorldState> {
     return { x, y };
   }
 
+  private broadcastToMap(mapId: string, event: string, data: unknown, except?: Client) {
+    for (const client of this.clients) {
+      if (except && client === except) continue;
+      const player = this.state.players.get(client.sessionId);
+      if (player && player.mapId === mapId) {
+        client.send(event, data);
+      }
+    }
+  }
+
   override onCreate(options?: RoomOptions) {
     this.setState(new WorldState());
     logger.info('[WorldRoom] Room created with initial state');
@@ -301,8 +311,13 @@ export class WorldRoom extends Room<WorldState> {
     // Handle editor updates
     this.onMessage('editor_update', (client, data: { type: string; [key: string]: unknown }) => {
       logger.debug('[WorldRoom] Editor update from:', client.sessionId, 'type:', data.type);
-      // Broadcast editor update to all other clients
-      this.broadcast('editor_update', data, { except: client });
+      const player = this.state.players.get(client.sessionId);
+      const mapId = typeof data.mapId === 'string' ? data.mapId : player?.mapId;
+      if (mapId) {
+        this.broadcastToMap(mapId, 'editor_update', data, client);
+      } else {
+        this.broadcast('editor_update', data, { except: client });
+      }
       // Invalidate zone cache on editor updates so locks use fresh zone data
       invalidateZoneCache(this.zoneLockState);
     });
@@ -517,14 +532,21 @@ export class WorldRoom extends Room<WorldState> {
       const tenantSlug = options?.tenant || (this.metadata as RoomMetadata)?.tenant || 'default';
       this.presence.subscribe(`map_update:${tenantSlug}`, (message: { type: string; payload: unknown }) => {
         try {
+          const payload = message.payload as Record<string, unknown> | undefined;
+          const mapId = typeof payload?.mapId === 'string' ? payload.mapId : null;
+
           if (message.type === 'chunks_updated') {
-            this.broadcast('chunks_updated', message.payload);
+            if (mapId) this.broadcastToMap(mapId, 'chunks_updated', payload);
+            else this.broadcast('chunks_updated', payload);
           } else if (message.type === 'tileset_registry_updated') {
-            this.broadcast('tileset_registry_updated', message.payload);
+            if (mapId) this.broadcastToMap(mapId, 'tileset_registry_updated', payload);
+            else this.broadcast('tileset_registry_updated', payload);
           } else if (message.type === 'objects_updated') {
-            this.broadcast('objects_updated', message.payload);
+            if (mapId) this.broadcastToMap(mapId, 'objects_updated', payload);
+            else this.broadcast('objects_updated', payload);
           } else if (message.type === 'editor_update') {
-            this.broadcast('editor_update', message.payload);
+            if (mapId) this.broadcastToMap(mapId, 'editor_update', payload);
+            else this.broadcast('editor_update', payload);
           }
         } catch (e) {
           logger.error('[WorldRoom] Failed to handle presence map_update', e);
