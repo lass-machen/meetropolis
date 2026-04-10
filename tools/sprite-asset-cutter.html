@@ -744,31 +744,83 @@ function loadFile(file) {
     return;
   }
 
-  // Reset state from any previous .mepack import
-  loadedPackUuid = null;
-  assets = [];
-  selectedId = null;
-  placedObjects = [];
-  selectedPlacedId = null;
-  nextAssetNum = 1;
-  Object.keys(assetImageCache).forEach(k => delete assetImageCache[k]);
-
   const reader = new FileReader();
   reader.onload = e => {
     const img = new Image();
     img.onload = () => {
-      spriteImg = img;
-      spriteDims.textContent = img.width + ' x ' + img.height + 'px';
-      spriteInfo.style.display = 'flex';
-      cursorInfo.style.display = '';
-      $('scaleField').style.display = '';
-      zoomToFit();
-      dirty = true;
-      toast('Sprite sheet loaded: ' + file.name);
+      if (assets.length > 0 && spriteImg) {
+        // Append new sprite below existing one (composite)
+        appendSpriteToComposite(img, file.name);
+      } else {
+        // First load — fresh start
+        loadedPackUuid = null;
+        assets = [];
+        selectedId = null;
+        placedObjects = [];
+        selectedPlacedId = null;
+        nextAssetNum = 1;
+        Object.keys(assetImageCache).forEach(k => delete assetImageCache[k]);
+        spriteImg = img;
+        spriteDims.textContent = img.width + ' x ' + img.height + 'px';
+        spriteInfo.style.display = 'flex';
+        cursorInfo.style.display = '';
+        $('scaleField').style.display = '';
+        zoomToFit();
+        dirty = true;
+        toast('Sprite sheet loaded: ' + file.name);
+      }
     };
     img.src = e.target.result;
   };
   reader.readAsDataURL(file);
+}
+
+/**
+ * Appends a new sprite image below the current spriteImg.
+ * Existing asset coordinates stay valid because the old sprite
+ * occupies the same position (0,0) in the composite.
+ */
+function appendSpriteToComposite(newImg, fileName) {
+  const GAP = 8;
+  const oldW = spriteImg.width;
+  const oldH = spriteImg.height;
+  const compositeW = Math.max(oldW, newImg.width);
+  const compositeH = oldH + GAP + newImg.height;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = compositeW;
+  canvas.height = compositeH;
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+
+  // Draw old sprite at original position (0,0) — existing coordinates remain valid
+  ctx.drawImage(spriteImg, 0, 0);
+
+  // Separator line
+  ctx.fillStyle = 'rgba(88,101,242,0.3)';
+  ctx.fillRect(0, oldH, compositeW, GAP);
+
+  // Draw new sprite below
+  ctx.drawImage(newImg, 0, oldH + GAP);
+
+  // Update autotile variants that use absolute sx/sy — they still point to the old
+  // sprite area, so no coordinate updates needed.
+
+  // Invalidate asset image cache (composite changed)
+  Object.keys(assetImageCache).forEach(k => delete assetImageCache[k]);
+
+  // Replace spriteImg with composite
+  const compositeImg = new Image();
+  compositeImg.onload = () => {
+    spriteImg = compositeImg;
+    spriteDims.textContent = compositeImg.width + ' x ' + compositeImg.height + 'px';
+    spriteInfo.style.display = 'flex';
+    cursorInfo.style.display = '';
+    $('scaleField').style.display = '';
+    dirty = true;
+    toast('Sprite added to composite: ' + fileName + ' (below existing)');
+  };
+  compositeImg.src = canvas.toDataURL('image/png');
 }
 
 /* ---- .mepack Import ---- */
