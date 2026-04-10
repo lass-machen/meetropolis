@@ -1,7 +1,6 @@
 import { ConnectionBanner } from '../../../ui/system/ConnectionBanner';
 
 interface ConnectionBannersProps {
-  isDev: boolean;
   connStatus: { reconnecting: boolean; lastCode?: number; lastReason?: string };
   showReloadBanner: boolean;
   onReload: () => void;
@@ -9,7 +8,6 @@ interface ConnectionBannersProps {
 }
 
 export function ConnectionBanners({
-  isDev,
   connStatus,
   showReloadBanner,
   onReload,
@@ -17,12 +15,10 @@ export function ConnectionBanners({
 }: ConnectionBannersProps) {
   return (
     <>
-      {isDev && (
-        <ConnectionBanner
-          reconnecting={connStatus.reconnecting}
-          reason={connStatus.lastReason ?? (typeof connStatus.lastCode === 'number' ? String(connStatus.lastCode) : '')}
-        />
-      )}
+      <ConnectionBanner
+        reconnecting={connStatus.reconnecting}
+        reason={connStatus.lastReason ?? (typeof connStatus.lastCode === 'number' ? String(connStatus.lastCode) : '')}
+      />
 
       {showReloadBanner && (
         <div

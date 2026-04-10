@@ -262,3 +262,44 @@ httpServer.listen(port, '0.0.0.0', () => {
 
 // Central error handler last
 app.use(errorHandler as any);
+
+// ── Graceful Shutdown ────────────────────────────────────────────────────────
+let shuttingDown = false;
+
+async function gracefulShutdown(signal: string) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+
+  logger.info(`[Server] ${signal} received, initiating graceful shutdown...`);
+
+  const rooms = (globalThis as any).activeWorldRooms as Set<any> | undefined;
+  let clientCount = 0;
+
+  if (rooms) {
+    for (const room of rooms) {
+      try {
+        room.broadcast('server_restart', { reason: 'update' });
+        clientCount += room.clients?.length ?? 0;
+      } catch (e) {
+        logger.error('[Server] Failed to broadcast server_restart to room', e);
+      }
+    }
+  }
+
+  logger.info(
+    `[Server] Notified ${clientCount} clients across ${rooms?.size ?? 0} rooms. Waiting 5s...`,
+  );
+
+  await new Promise((resolve) => setTimeout(resolve, 5000));
+
+  try {
+    await gameServer.gracefullyShutdown(false);
+  } catch (e) {
+    logger.error('[Server] Error during graceful shutdown', e);
+  }
+
+  process.exit(0);
+}
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));

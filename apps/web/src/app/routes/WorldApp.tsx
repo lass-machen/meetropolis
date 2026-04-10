@@ -684,7 +684,6 @@ export function WorldApp() {
             />
 
             <ConnectionBanners
-              isDev={(import.meta as any).env?.DEV}
               connStatus={connStatus}
               showReloadBanner={showReloadBanner}
               onReload={eventHandlers.handleConnectionReloadClick}

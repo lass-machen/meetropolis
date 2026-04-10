@@ -717,7 +717,11 @@
   "sessionConflict.cancel": "Abbrechen",
   "sessionConflict.takenOver.title": "Session übernommen",
   "sessionConflict.takenOver.description": "Diese Session wurde von einem anderen Gerät übernommen.",
-  "sessionConflict.takenOver.reconnect": "Neu verbinden"
+  "sessionConflict.takenOver.reconnect": "Neu verbinden",
+  "serverRestart.title": "Server wird aktualisiert",
+  "serverRestart.description": "Die Verbindung wird automatisch wiederhergestellt...",
+  "serverRestart.manualReload": "Automatische Verbindung fehlgeschlagen. Bitte Seite manuell neu laden.",
+  "serverRestart.reloadButton": "Seite neu laden"
 }
 
 

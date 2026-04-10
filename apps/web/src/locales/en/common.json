@@ -717,7 +717,11 @@
   "sessionConflict.cancel": "Cancel",
   "sessionConflict.takenOver.title": "Session taken over",
   "sessionConflict.takenOver.description": "This session was taken over by another device.",
-  "sessionConflict.takenOver.reconnect": "Reconnect"
+  "sessionConflict.takenOver.reconnect": "Reconnect",
+  "serverRestart.title": "Server is updating",
+  "serverRestart.description": "Connection will be restored automatically...",
+  "serverRestart.manualReload": "Automatic reconnection failed. Please reload the page manually.",
+  "serverRestart.reloadButton": "Reload page"
 }
 
 

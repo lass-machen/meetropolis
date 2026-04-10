@@ -12,7 +12,7 @@ export function useColyseusConnection(
   const { reconnectAttemptsRef, reconnectTimerRef, lastCloseInfoRef, connectingRef, coolDownUntilRef } = connectionRefs;
   const { apiBase, me, localPosRef, colyseusRef, setConnectionStatus } = args;
 
-  const scheduleReconnect = React.useCallback((disposed: boolean) => {
+  const scheduleReconnect = React.useCallback((disposed: boolean, onReconnect?: () => void) => {
     if (disposed) return;
     try {
       const { code, reason } = lastCloseInfoRef.current;
@@ -41,7 +41,7 @@ export function useColyseusConnection(
     if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
     reconnectTimerRef.current = setTimeout(() => {
       reconnectTimerRef.current = null;
-      // This will be set by the caller
+      if (onReconnect) onReconnect();
     }, delay);
     return delay;
   }, [reconnectAttemptsRef, reconnectTimerRef, lastCloseInfoRef, connectingRef, coolDownUntilRef, setConnectionStatus]);
@@ -218,10 +218,10 @@ export function useColyseusConnection(
     } catch {}
     colyseusRef.current = null;
     connectingRef.current = false;
-    scheduleReconnect(disposed);
+    scheduleReconnect(disposed, onReconnect);
   }, [apiBase, coolDownUntilRef, lastCloseInfoRef, colyseusRef, connectingRef, scheduleReconnect]);
 
-  const handleLeave = React.useCallback((code: number | undefined, disposed: boolean) => {
+  const handleLeave = React.useCallback((code: number | undefined, disposed: boolean, onReconnect?: () => void) => {
     try {
       const info: { code?: number; reason?: string } = {};
       if (code !== undefined) info.code = code;
@@ -229,7 +229,7 @@ export function useColyseusConnection(
     } catch {}
     colyseusRef.current = null;
     connectingRef.current = false;
-    scheduleReconnect(disposed);
+    scheduleReconnect(disposed, onReconnect);
   }, [lastCloseInfoRef, colyseusRef, connectingRef, scheduleReconnect]);
 
   return {
