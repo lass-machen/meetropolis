@@ -27,4 +27,18 @@ export function emitAudioTracksChanged(): void {
   bus.dispatchEvent(new Event(EVT_AUDIO_TRACKS_CHANGED));
 }
 
+export const EVT_SAME_MAP = 'same-map-identities-update';
 
+export function emitSameMapIdentities(ids: string[]): void {
+  bus.dispatchEvent(new CustomEvent<string[]>(EVT_SAME_MAP, { detail: ids }));
+}
+
+export function onSameMapIdentitiesUpdate(handler: (ids: string[]) => void): () => void {
+  const wrapped = (e: Event) => {
+    const ce = e as CustomEvent<string[]>;
+    const ids = Array.isArray(ce.detail) ? ce.detail : [];
+    handler(ids);
+  };
+  bus.addEventListener(EVT_SAME_MAP, wrapped as EventListener);
+  return () => bus.removeEventListener(EVT_SAME_MAP, wrapped as EventListener);
+}

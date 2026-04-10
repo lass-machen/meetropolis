@@ -1,5 +1,6 @@
 import type { UseWorldRoomArgs } from '../types';
 import { useMapStore } from '../../state/mapStore';
+import { emitSameMapIdentities } from '../../lib/avEvents';
 
 export function setupPlayerHandlers(
   room: any,
@@ -17,6 +18,22 @@ export function setupPlayerHandlers(
     editor,
     colyseusRef,
   } = args;
+
+  /** Emit the set of LiveKit identities for players on the same map */
+  const emitCurrentMapIdentities = () => {
+    const ids: string[] = [];
+    // Add own identity
+    const selfId = localPosRef.current.id;
+    if (selfId && colyseusToLivekitMap.current[selfId]) {
+      ids.push(colyseusToLivekitMap.current[selfId]);
+    }
+    // Add same-map remote identities
+    for (const colyseusId of Object.keys(remotesRef.current)) {
+      const livekitIdentity = colyseusToLivekitMap.current[colyseusId];
+      if (livekitIdentity) ids.push(livekitIdentity);
+    }
+    emitSameMapIdentities(ids);
+  };
 
   // Full state sync
   room.onMessage('full_state', (data: any) => {
@@ -45,6 +62,7 @@ export function setupPlayerHandlers(
       if (gameBridge && typeof gameBridge.syncRemotePlayers === 'function') gameBridge.syncRemotePlayers(players);
       remotesRef.current = Object.fromEntries(Object.entries(players).map(([id, p]) => [id, { x: (p as any).x, y: (p as any).y, dnd: (p as any).dnd, avatarId: (p as any).avatarId }]));
       scheduleBuildParticipantList(0);
+      emitCurrentMapIdentities();
       // Roster unmittelbar aus Remotes aktualisieren
       scheduleRefreshRosterFromRemotes(0);
     }
@@ -62,6 +80,7 @@ export function setupPlayerHandlers(
     }
     if (gameBridge && typeof (gameBridge as any).addRemotePlayer === 'function') (gameBridge as any).addRemotePlayer(data.id, { x: data.x, y: data.y, direction: data.direction, name: data.name, dnd: data.dnd, avatarId: data.avatarId, isNpc: data.isNpc });
     scheduleBuildParticipantList(50);
+    emitCurrentMapIdentities();
     scheduleRefreshRosterFromRemotes(0);
     applyVolumesToUi();
     try {
@@ -92,6 +111,7 @@ export function setupPlayerHandlers(
     delete colyseusToLivekitMap.current[data.id];
     if (gameBridge && typeof gameBridge.removeRemotePlayer === 'function') gameBridge.removeRemotePlayer(data.id);
     scheduleBuildParticipantList(50);
+    emitCurrentMapIdentities();
     scheduleRefreshRosterFromRemotes(0);
     applyVolumesToUi();
   });
@@ -130,6 +150,7 @@ export function setupPlayerHandlers(
         gameBridge.removeRemotePlayer(data.id);
       }
       scheduleBuildParticipantList(50);
+      emitCurrentMapIdentities();
       scheduleRefreshRosterFromRemotes(0);
     }
 
@@ -147,6 +168,7 @@ export function setupPlayerHandlers(
         });
       }
       scheduleBuildParticipantList(50);
+      emitCurrentMapIdentities();
       scheduleRefreshRosterFromRemotes(0);
     }
   });
@@ -194,5 +216,6 @@ export function setupPlayerHandlers(
       return [id, { ...p, name, identity: livekitIdentity }];
     }));
     if (gameBridge && typeof gameBridge.syncRemotePlayers === 'function') gameBridge.syncRemotePlayers(filtered);
+    emitCurrentMapIdentities();
   });
 }

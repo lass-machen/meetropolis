@@ -13,7 +13,7 @@
 import type { Room, RemoteParticipant, RemoteTrackPublication } from 'livekit-client';
 import type { Disposable, Unsubscribe } from './types';
 import { AVLogger } from '../AVLogger';
-import { onBubbleMembersUpdate, emitAudioTracksChanged } from '../../lib/avEvents';
+import { onBubbleMembersUpdate, emitAudioTracksChanged, onSameMapIdentitiesUpdate } from '../../lib/avEvents';
 
 export interface SubscriptionManagerConfig {
   maxVideoSubscriptions: number;
@@ -43,7 +43,11 @@ export class SubscriptionManager implements Disposable {
 
   // Cleanup
   private _unsubscribeBubble: Unsubscribe | null = null;
+  private _unsubscribeSameMap: Unsubscribe | null = null;
   private _disposed = false;
+
+  // Map-aware filtering
+  private _sameMapIdentities: Set<string> = new Set();
 
   // Computed config
   private readonly _bubbleAttenuation: number;
@@ -84,6 +88,12 @@ export class SubscriptionManager implements Disposable {
       this.applyBubbleAttenuation(ids);
     });
 
+    // Listen for same-map identity updates
+    this._unsubscribeSameMap = onSameMapIdentitiesUpdate((ids: string[]) => {
+      this._sameMapIdentities = new Set(ids);
+      this.applySubscriptions();
+    });
+
     // Fallback: Subscribe to some audio if no proximity data
     this.startFallbackTimer();
 
@@ -96,6 +106,10 @@ export class SubscriptionManager implements Disposable {
   stop(): void {
     this._unsubscribeBubble?.();
     this._unsubscribeBubble = null;
+
+    this._unsubscribeSameMap?.();
+    this._unsubscribeSameMap = null;
+    this._sameMapIdentities.clear();
 
     this.stopFallbackTimer();
     this.clearDebounceTimer();
@@ -229,6 +243,8 @@ export class SubscriptionManager implements Disposable {
 
       for (const p of participants) {
         if (count >= maxCount) break;
+        const identity = String(p.identity || '');
+        if (!this.isOnSameMap(identity)) continue;
 
         const publications = Array.from(p.trackPublications.values());
         for (const pub of publications) {
@@ -331,8 +347,8 @@ export class SubscriptionManager implements Disposable {
           const source = (pub as any).source ?? (pub as any).track?.source;
 
           if (kind === 'audio') {
-            // Always subscribe to audio if in desired set
-            this.setDesired(pub as RemoteTrackPublication, identity, 'audio', true);
+            const onSameMap = this.isOnSameMap(identity);
+            this.setDesired(pub as RemoteTrackPublication, identity, 'audio', onSameMap);
           }
 
           if (kind === 'video') {
@@ -428,6 +444,7 @@ export class SubscriptionManager implements Disposable {
       for (const p of participants) {
         const identity = String(p.identity || '');
         const inBubble = bubbleSet.has(identity);
+        const onSameMap = this.isOnSameMap(identity);
         const publications = Array.from(p.trackPublications.values());
 
         for (const pub of publications) {
@@ -437,8 +454,8 @@ export class SubscriptionManager implements Disposable {
           const track = (pub as any).track;
           if (!track) continue;
 
-          // Bubble members at full volume, others attenuated
-          const volume = inBubble ? 1 : this._bubbleAttenuation;
+          // Cross-map participants: mute. Bubble members: full. Others: attenuated.
+          const volume = !onSameMap ? 0 : inBubble ? 1 : this._bubbleAttenuation;
           if (typeof track.setVolume === 'function') {
             track.setVolume(volume);
           }
@@ -482,7 +499,8 @@ export class SubscriptionManager implements Disposable {
 
     try {
       const participants = Array.from(room.remoteParticipants.values());
-      const chosen = participants.slice(0, this.config.maxAudioSubscriptions);
+      const sameMapParticipants = participants.filter(p => this.isOnSameMap(String(p.identity || '')));
+      const chosen = sameMapParticipants.slice(0, this.config.maxAudioSubscriptions);
 
       for (const p of participants) {
         const identity = String(p.identity || '');
@@ -511,6 +529,11 @@ export class SubscriptionManager implements Disposable {
   // ============================================================================
   // Private: Helpers
   // ============================================================================
+
+  private isOnSameMap(identity: string): boolean {
+    if (this._sameMapIdentities.size === 0) return true; // No map context → allow all (fallback)
+    return this._sameMapIdentities.has(identity);
+  }
 
   private findParticipantByIdentity(room: Room, identity: string): RemoteParticipant | null {
     const participants = Array.from(room.remoteParticipants.values());

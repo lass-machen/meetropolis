@@ -1,4 +1,5 @@
 import { EditorService } from '../../services/EditorService';
+import { useMapStore } from '../../state/mapStore';
 import type { UseWorldRoomArgs } from '../types';
 
 export function setupEditorHandlers(
@@ -8,7 +9,16 @@ export function setupEditorHandlers(
 ) {
   const { gameBridge, zoneRef, setEditor } = args;
 
+  /** Returns true if this update is for a different map (should be skipped). */
+  const isWrongMap = (payload: any): boolean => {
+    const payloadMapId = payload?.mapId;
+    if (!payloadMapId) return false; // no mapId in payload → can't filter, allow through
+    const currentMapId = useMapStore.getState().currentMapId;
+    return currentMapId !== '' && payloadMapId !== currentMapId;
+  };
+
   room.onMessage('editor_update', (data: any) => {
+    if (isWrongMap(data)) return;
     if (data?.type === 'zone' && Array.isArray(data.polys)) {
       // WICHTIG: EditorService als Single Source of Truth updaten!
       EditorService.dispatch({ type: 'LOAD_STATE', state: { zones: data.polys } });
@@ -37,6 +47,7 @@ export function setupEditorHandlers(
   // v2: Chunks-Updates direkt anwenden
   room.onMessage('chunks_updated', (payload: any) => {
     try {
+      if (isWrongMap(payload)) return;
       const layer = (payload && typeof payload.layer === 'string') ? payload.layer : null;
       const updates = Array.isArray(payload?.updates) ? payload.updates : [];
       if (!layer || updates.length === 0) return;
@@ -51,6 +62,7 @@ export function setupEditorHandlers(
   // MapObject live updates
   room.onMessage('objects_updated', (payload: any) => {
     try {
+      if (isWrongMap(payload)) return;
       if (gameBridge && typeof gameBridge.handleObjectsUpdated === 'function') {
         gameBridge.handleObjectsUpdated(payload);
       }
@@ -60,6 +72,7 @@ export function setupEditorHandlers(
   // Tileset Registry Sync (v2)
   room.onMessage('tileset_registry_updated', (payload: any) => {
     try {
+      if (isWrongMap(payload)) return;
       const registry = Array.isArray(payload?.tilesetRegistry) ? payload.tilesetRegistry : null;
       if (registry && gameBridge && typeof (gameBridge as any).updateTilesetRegistry === 'function') {
         (gameBridge as any).updateTilesetRegistry(registry);

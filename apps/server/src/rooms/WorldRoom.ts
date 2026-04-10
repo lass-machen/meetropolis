@@ -94,12 +94,34 @@ export class WorldRoom extends Room<WorldState> {
     return Array.from(new Set(members)).sort().join('|');
   }
   private broadcastBubbleState(): void {
-    const groups = Object.entries(this.bubbleGroups).map(([id, members]) => ({
+    // Build valid groups (filter out disconnected players)
+    const validGroups = Object.entries(this.bubbleGroups).map(([id, members]) => ({
       id,
       members: members.filter((m) => this.state.players.has(m)),
     })).filter(g => Array.isArray(g.members) && g.members.length >= 2);
-    const members = this.getAllBubbleMembers();
-    this.broadcast('bubble_state', { groups, members });
+
+    // Collect all distinct mapIds that have players
+    const mapIds = new Set<string>();
+    this.state.players.forEach((player) => {
+      if (player.mapId) mapIds.add(player.mapId);
+    });
+
+    // For each map, broadcast only the bubble groups where ALL members are on that map
+    for (const mapId of mapIds) {
+      const mapGroups = validGroups.filter(g =>
+        g.members.every(m => {
+          const p = this.state.players.get(m);
+          return p && p.mapId === mapId;
+        })
+      );
+      const mapMembers: string[] = [];
+      for (const g of mapGroups) {
+        for (const m of g.members) {
+          if (!mapMembers.includes(m)) mapMembers.push(m);
+        }
+      }
+      this.broadcastToMap(mapId, 'bubble_state', { groups: mapGroups, members: mapMembers });
+    }
   }
 
   private findExistingSession(identity: string): { room: WorldRoom; sessionId: string; client: Client } | null {
@@ -200,6 +222,16 @@ export class WorldRoom extends Room<WorldState> {
     return { x, y };
   }
 
+  private broadcastToMap(mapId: string, event: string, data: unknown, except?: Client) {
+    for (const client of this.clients) {
+      if (except && client === except) continue;
+      const player = this.state.players.get(client.sessionId);
+      if (player && player.mapId === mapId) {
+        client.send(event, data);
+      }
+    }
+  }
+
   override onCreate(options?: RoomOptions) {
     this.setState(new WorldState());
     logger.info('[WorldRoom] Room created with initial state');
@@ -286,23 +318,28 @@ export class WorldRoom extends Room<WorldState> {
       player.y = data.y;
       player.direction = data.direction;
 
-      // Broadcast movement to all other clients
-      this.broadcast('player_moved', {
+      // Broadcast movement to players on the same map
+      this.broadcastToMap(player.mapId, 'player_moved', {
         id: client.sessionId,
         x: data.x,
         y: data.y,
         direction: data.direction,
         mapId: player.mapId,
         mapName: player.mapName,
-      }, { except: client });
+      }, client);
     });
 
 
     // Handle editor updates
     this.onMessage('editor_update', (client, data: { type: string; [key: string]: unknown }) => {
       logger.debug('[WorldRoom] Editor update from:', client.sessionId, 'type:', data.type);
-      // Broadcast editor update to all other clients
-      this.broadcast('editor_update', data, { except: client });
+      const player = this.state.players.get(client.sessionId);
+      const mapId = typeof data.mapId === 'string' ? data.mapId : player?.mapId;
+      if (mapId) {
+        this.broadcastToMap(mapId, 'editor_update', data, client);
+      } else {
+        this.broadcast('editor_update', data, { except: client });
+      }
       // Invalidate zone cache on editor updates so locks use fresh zone data
       invalidateZoneCache(this.zoneLockState);
     });
@@ -317,11 +354,11 @@ export class WorldRoom extends Room<WorldState> {
       player.dnd = data.dnd;
       logger.info('[WorldRoom] Player', client.sessionId, 'DND status:', data.dnd);
 
-      // Broadcast DND status to all other clients
-      this.broadcast('player_dnd', {
+      // Broadcast DND status to players on the same map
+      this.broadcastToMap(player.mapId, 'player_dnd', {
         id: client.sessionId,
         dnd: data.dnd
-      }, { except: client });
+      }, client);
     });
 
     // Handle avatar change
@@ -329,7 +366,7 @@ export class WorldRoom extends Room<WorldState> {
       const player = this.state.players.get(client.sessionId);
       if (!player) return;
       player.avatarId = data.avatarId;
-      this.broadcast('player_avatar', { id: client.sessionId, avatarId: data.avatarId }, { except: client });
+      this.broadcastToMap(player.mapId, 'player_avatar', { id: client.sessionId, avatarId: data.avatarId }, client);
     });
 
     // Handle remote control messages from API
@@ -517,14 +554,21 @@ export class WorldRoom extends Room<WorldState> {
       const tenantSlug = options?.tenant || (this.metadata as RoomMetadata)?.tenant || 'default';
       this.presence.subscribe(`map_update:${tenantSlug}`, (message: { type: string; payload: unknown }) => {
         try {
+          const payload = message.payload as Record<string, unknown> | undefined;
+          const mapId = typeof payload?.mapId === 'string' ? payload.mapId : null;
+
           if (message.type === 'chunks_updated') {
-            this.broadcast('chunks_updated', message.payload);
+            if (mapId) this.broadcastToMap(mapId, 'chunks_updated', payload);
+            else this.broadcast('chunks_updated', payload);
           } else if (message.type === 'tileset_registry_updated') {
-            this.broadcast('tileset_registry_updated', message.payload);
+            if (mapId) this.broadcastToMap(mapId, 'tileset_registry_updated', payload);
+            else this.broadcast('tileset_registry_updated', payload);
           } else if (message.type === 'objects_updated') {
-            this.broadcast('objects_updated', message.payload);
+            if (mapId) this.broadcastToMap(mapId, 'objects_updated', payload);
+            else this.broadcast('objects_updated', payload);
           } else if (message.type === 'editor_update') {
-            this.broadcast('editor_update', message.payload);
+            if (mapId) this.broadcastToMap(mapId, 'editor_update', payload);
+            else this.broadcast('editor_update', payload);
           }
         } catch (e) {
           logger.error('[WorldRoom] Failed to handle presence map_update', e);
@@ -980,8 +1024,8 @@ export class WorldRoom extends Room<WorldState> {
       } catch (e) { logger.debug('[WorldRoom] Failed to send full_state/bubble_state to client', e); }
     }, 25);
 
-    // Broadcast new player to all other clients
-    this.broadcast('player_joined', {
+    // Broadcast new player to other clients on the same map
+    this.broadcastToMap(player.mapId, 'player_joined', {
       id: client.sessionId,
       x: player.x,
       y: player.y,
@@ -993,7 +1037,7 @@ export class WorldRoom extends Room<WorldState> {
       isNpc: player.isNpc,
       mapId: player.mapId,
       mapName: player.mapName,
-    }, { except: client });
+    }, client);
 
     // Seed: recent presence list via WS (best-effort, tenant-scoped)
     // Now includes ALL tenant members, even those who never logged in

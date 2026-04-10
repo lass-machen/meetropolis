@@ -6,6 +6,7 @@ export function setupBubbleHandlers(
 ) {
   const {
     localPosRef,
+    remotesRef,
     colyseusToLivekitMap,
     identityToNameMap,
     gameBridge,
@@ -34,6 +35,12 @@ export function setupBubbleHandlers(
     }
     try { bubbleGroupsRef.current = mapping; } catch {}
     const incoming = new Set<string>(membersArr);
+    // Filter out members not on the same map (defense-in-depth)
+    const localId = localPosRef.current.id;
+    for (const id of incoming) {
+      if (id === localId) continue; // keep self
+      if (!remotesRef.current[id]) incoming.delete(id); // not on same map
+    }
     // Sync bubbleMembersRef used by VolumeManager providers
     try {
       bubbleMembersRef.current.clear();
