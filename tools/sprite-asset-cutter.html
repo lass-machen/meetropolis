@@ -779,13 +779,18 @@ function loadFile(file) {
  * Appends a new sprite image below the current spriteImg.
  * Existing asset coordinates stay valid because the old sprite
  * occupies the same position (0,0) in the composite.
+ * The new sprite's top edge is aligned to the 16px grid so
+ * tile selection works correctly.
  */
 function appendSpriteToComposite(newImg, fileName) {
-  const GAP = 8;
+  const MIN_GAP = 8;
   const oldW = spriteImg.width;
   const oldH = spriteImg.height;
+  // Align new sprite's Y to the nearest TILE boundary so the grid lines up.
+  // This guarantees the new sprite's (0,0) sits on a grid corner.
+  const newSpriteY = Math.ceil((oldH + MIN_GAP) / TILE) * TILE;
   const compositeW = Math.max(oldW, newImg.width);
-  const compositeH = oldH + GAP + newImg.height;
+  const compositeH = newSpriteY + newImg.height;
 
   const canvas = document.createElement('canvas');
   canvas.width = compositeW;
@@ -796,12 +801,12 @@ function appendSpriteToComposite(newImg, fileName) {
   // Draw old sprite at original position (0,0) — existing coordinates remain valid
   ctx.drawImage(spriteImg, 0, 0);
 
-  // Separator line
+  // Separator band (fills the gap between old sprite and new sprite)
   ctx.fillStyle = 'rgba(88,101,242,0.3)';
-  ctx.fillRect(0, oldH, compositeW, GAP);
+  ctx.fillRect(0, oldH, compositeW, newSpriteY - oldH);
 
-  // Draw new sprite below
-  ctx.drawImage(newImg, 0, oldH + GAP);
+  // Draw new sprite at grid-aligned Y
+  ctx.drawImage(newImg, 0, newSpriteY);
 
   // Update autotile variants that use absolute sx/sy — they still point to the old
   // sprite area, so no coordinate updates needed.
