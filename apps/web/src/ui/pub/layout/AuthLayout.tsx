@@ -100,7 +100,7 @@ export function AuthLayout({ children }: AuthLayoutProps) {
 
           {/* Pixel-art visual */}
           <img
-            src="/images/pub/auth-branding-pixel-art-lobby.png"
+            src="/images/pub/meetropolis-screen-hero.webp"
             alt="Meetropolis virtuelles Büro"
             style={{
               width: '100%',
