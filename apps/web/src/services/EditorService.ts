@@ -12,7 +12,7 @@ import { logger } from '../lib/logger';
 import type { EditorState, EditorAction, EditorListener, Zone, Asset, MapObjectRecord } from './EditorTypes';
 
 // Re-export all types so existing imports from './EditorService' keep working
-export type { EditorTool, EditorCategory, Zone, Asset, PackItem, Tileset, MapObjectRecord, TerrainPaintOp, PendingChanges, ViewToggles, EditorState, EditorAction, EditorListener } from './EditorTypes';
+export type { EditorTool, EditorCategory, Zone, Asset, PackItem, AutotilePackItem, Tileset, MapObjectRecord, TerrainPaintOp, PendingChanges, ViewToggles, EditorState, EditorAction, EditorListener } from './EditorTypes';
 
 class EditorServiceClass {
   private state: EditorState;
@@ -33,6 +33,7 @@ class EditorServiceClass {
       assets: [],
       pendingAsset: null,
       packItems: [],
+      autotileItems: [],
       tilesets: [],
       spawn: null,
       gridVisible: false,
@@ -439,6 +440,10 @@ class EditorServiceClass {
           tool: 'wall',
           category: 'autotiles',
         });
+        break;
+
+      case 'SET_AUTOTILE_ITEMS':
+        this.updateState({ autotileItems: action.items });
         break;
 
       case 'SELECT_TILE_REF':

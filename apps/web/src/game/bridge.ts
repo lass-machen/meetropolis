@@ -56,6 +56,15 @@ type Bridge = {
   applyWallPaint: (edit: { rect: { startX: number; startY: number; endX: number; endY: number }; wallTypeId: number }) => void;
   captureEditorSnapshot: () => void;
   restoreEditorSnapshot: () => void;
+  registerAutotiles: (items: Array<{
+    wallTypeId: number;
+    key: string;
+    textureUrl: string;
+    tileWidth: number;
+    tileHeight: number;
+    variants: Record<string, { col: number; row: number }>;
+    packUuid: string;
+  }>) => void;
 };
 
 export type SceneApi = {
@@ -93,6 +102,15 @@ export type SceneApi = {
   applyWallPaint?: (edit: { rect: { startX: number; startY: number; endX: number; endY: number }; wallTypeId: number }) => void;
   captureEditorSnapshot?: () => void;
   restoreEditorSnapshot?: () => void;
+  registerAutotileDefinitions?: (items: Array<{
+    wallTypeId: number;
+    key: string;
+    textureUrl: string;
+    tileWidth: number;
+    tileHeight: number;
+    variants: Record<string, { col: number; row: number }>;
+    packUuid: string;
+  }>) => void;
 };
 
 let sceneApi: SceneApi | null = null;
@@ -282,6 +300,14 @@ export const gameBridge: Bridge = {
   },
   restoreEditorSnapshot: () => {
     sceneApi?.restoreEditorSnapshot?.();
+  },
+  registerAutotiles: (items) => {
+    if (sceneApi?.registerAutotileDefinitions) {
+      sceneApi.registerAutotileDefinitions(items);
+    } else {
+      // Scene not ready - store for later
+      (gameBridge as any)._pendingAutotiles = items;
+    }
   },
   registerTileset: (ts) => {
     sceneApi?.registerTileset(ts);

@@ -250,6 +250,39 @@ body::after{
 .offset-controls{display:flex;gap:6px;align-items:flex-end}
 .offset-controls .field{flex:1;margin-bottom:0}
 
+/* Bitmask Mapper */
+.bitmask-grid{
+  display:grid;grid-template-columns:repeat(4,1fr);gap:4px;
+}
+.bitmask-cell{
+  position:relative;border:1px solid var(--border);
+  border-radius:var(--radius);background:var(--bg-deep);
+  cursor:pointer;transition:border-color 0.15s,box-shadow 0.15s;
+  aspect-ratio:1;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;overflow:hidden;
+}
+.bitmask-cell:hover{border-color:var(--border-active);background:var(--bg-raised)}
+.bitmask-cell.active{border-color:var(--accent);box-shadow:0 0 8px var(--accent-glow)}
+.bitmask-cell.assigned{border-color:rgba(59,165,93,0.5)}
+.bitmask-cell.active.assigned{border-color:var(--accent);box-shadow:0 0 8px var(--accent-glow)}
+.bitmask-num{
+  position:absolute;top:2px;left:4px;
+  font-family:var(--font-mono);font-size:8px;color:var(--fg-muted);
+  z-index:1;
+}
+.bitmask-icon{width:20px;height:20px;flex-shrink:0;margin-bottom:2px}
+.bitmask-thumb{
+  width:100%;height:100%;position:absolute;top:0;left:0;
+  display:flex;align-items:center;justify-content:center;
+}
+.bitmask-thumb canvas{
+  image-rendering:pixelated;image-rendering:crisp-edges;
+  max-width:85%;max-height:85%;
+}
+.bitmask-placeholder{
+  font-family:var(--font-mono);font-size:14px;color:var(--fg-muted);opacity:0.4;
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar{width:6px;height:6px}
 ::-webkit-scrollbar-track{background:transparent}
@@ -347,6 +380,7 @@ body::after{
       <div class="asset-list" id="assetList">
         <div class="empty-msg" id="assetListEmpty">No assets defined yet. Draw rectangles on the sprite sheet to create assets.</div>
       </div>
+      <button id="btnNewAutotile" class="btn btn-secondary" style="width:100%;margin-top:8px">+ Neues Autotile</button>
     </div>
 
     <div class="panel-section">
@@ -423,6 +457,7 @@ body::after{
             <option value="objects">objects</option>
             <option value="structure">structure</option>
             <option value="terrain">terrain</option>
+            <option value="autotile">Autotile (Wand/Zaun)</option>
           </select>
         </div>
         <div class="field">
@@ -518,6 +553,45 @@ body::after{
       </div>
     </div>
 
+    <div class="panel-section" id="autotilePropsSection" style="display:none">
+      <div class="section-label">Autotile Properties</div>
+      <div class="field-row">
+        <div class="field">
+          <label>Tile Width</label>
+          <input type="number" id="propAutoTileWidth" value="32" min="1" step="1">
+        </div>
+        <div class="field">
+          <label>Tile Height</label>
+          <input type="number" id="propAutoTileHeight" value="32" min="1" step="1">
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Placement</label>
+          <select id="propAutoPlacement">
+            <option value="wall">wall</option>
+            <option value="floor">floor</option>
+            <option value="any">any</option>
+          </select>
+        </div>
+      </div>
+      <div class="field-checkbox">
+        <input type="checkbox" id="propAutoCollide" checked>
+        <label for="propAutoCollide">Collide</label>
+      </div>
+    </div>
+
+    <div class="panel-section" id="bitmaskMapperSection" style="display:none">
+      <div class="section-label">Bitmask Mapper (4-bit)</div>
+      <div class="shortcut-hint" style="margin-bottom:8px">
+        Click a cell, then drag a rectangle on the spritesheet to assign it.
+      </div>
+      <div class="bitmask-grid" id="bitmaskGrid"></div>
+      <div class="shortcut-hint" style="margin-top:8px">
+        Assigned: <span id="bitmaskAssignedCount">0</span>/16
+      </div>
+    </div>
+
     <div class="panel-section" id="previewSection" style="display:none">
       <div class="section-label">Preview</div>
       <div class="preview-tabs">
@@ -597,6 +671,9 @@ let isPanning = false;
 let isSpaceHeld = false;
 let selStart = null;
 let selCurrent = null;
+
+/* Autotile Bitmask State */
+let activeBitmaskCell = null; // currently selected bitmask index (0-15)
 let dragStart = null;
 let camStart = null;
 let gridVisible = true;
@@ -626,6 +703,9 @@ const offsetSection = $('offsetSection');
 const previewSection = $('previewSection');
 const emptyRight = $('emptyRight');
 const terrainPropsSection = $('terrainPropsSection');
+const autotilePropsSection = $('autotilePropsSection');
+const bitmaskMapperSection = $('bitmaskMapperSection');
+const bitmaskGrid = $('bitmaskGrid');
 const previewWrap = $('previewWrap');
 
 /* ---- Toast ---- */
@@ -715,6 +795,9 @@ async function loadMepack(file) {
     }
     for (const item of (config.objects || [])) {
       allItems.push({ ...item, _category: 'objects' });
+    }
+    for (const item of (config.autotiles || [])) {
+      allItems.push({ ...item, _category: 'autotile' });
     }
 
     if (allItems.length === 0) {
@@ -847,6 +930,22 @@ async function loadMepack(file) {
         margin: item.margin || 0,
         spacing: item.spacing || 0
       };
+
+      // Autotile-specific fields
+      if (item._category === 'autotile') {
+        asset.autotileType = item.autotileType || '4bit';
+        asset.tileWidth = item.tileWidth || 32;
+        asset.tileHeight = item.tileHeight || 32;
+        // Convert {col, row} from exported 4x4 grid to {sx, sy} in composite image
+        const tw = asset.tileWidth;
+        const th = asset.tileHeight;
+        asset.variants = {};
+        if (item.variants) {
+          for (const [bStr, v] of Object.entries(item.variants)) {
+            asset.variants[bStr] = { sx: asset.sx + v.col * tw, sy: asset.sy + v.row * th };
+          }
+        }
+      }
 
       assets.push(asset);
 
@@ -1033,6 +1132,7 @@ function renderSprite() {
 
   /* Asset selection rectangles */
   for (const a of assets) {
+    if (a.category === 'autotile' && a.sw <= 0) continue;  // Autotile-Assets ohne Rechteck nicht zeichnen
     const isSelected = a.id === selectedId;
     ctx.strokeStyle = isSelected ? '#5865f2' : 'rgba(88,101,242,0.6)';
     ctx.lineWidth = (isSelected ? 2 : 1) / cam.zoom;
@@ -1054,6 +1154,61 @@ function renderSprite() {
       ctx.fillText(a.key, a.sx, a.sy + a.sh + fontSize + 2 / cam.zoom);
     }
     ctx.setLineDash([]);
+  }
+
+  /* Autotile grid overlay for selected autotile asset */
+  const selAssetForOverlay = assets.find(a => a.id === selectedId);
+  if (selAssetForOverlay && selAssetForOverlay.category === 'autotile') {
+    const atw = selAssetForOverlay.tileWidth || 32;
+    const ath = selAssetForOverlay.tileHeight || 32;
+
+    // Draw tile grid over entire sprite
+    if (spriteImg) {
+      const cols = Math.ceil(spriteImg.width / atw);
+      const rows = Math.ceil(spriteImg.height / ath);
+      ctx.strokeStyle = 'rgba(88,101,242,0.2)';
+      ctx.lineWidth = 1 / cam.zoom;
+      ctx.beginPath();
+      for (let c = 0; c <= cols; c++) {
+        ctx.moveTo(c * atw, 0);
+        ctx.lineTo(c * atw, spriteImg.height);
+      }
+      for (let r = 0; r <= rows; r++) {
+        ctx.moveTo(0, r * ath);
+        ctx.lineTo(spriteImg.width, r * ath);
+      }
+      ctx.stroke();
+    }
+
+    // Overlay bitmask numbers on assigned tiles (absolute sx, sy)
+    const variants = selAssetForOverlay.variants || {};
+    for (const [bStr, v] of Object.entries(variants)) {
+      const bNum = parseInt(bStr, 10);
+      const tx = v.sx;
+      const ty = v.sy;
+      // Semi-transparent overlay
+      ctx.fillStyle = 'rgba(88,101,242,0.2)';
+      ctx.fillRect(tx, ty, atw, ath);
+      // Bitmask number label
+      const fontSize = Math.max(10, Math.min(atw * 0.4, 18)) / cam.zoom * Math.min(cam.zoom, 2);
+      ctx.font = 'bold ' + fontSize + 'px JetBrains Mono';
+      ctx.fillStyle = '#c5ccff';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(String(bNum), tx + atw / 2, ty + ath / 2);
+      ctx.textAlign = 'start';
+      ctx.textBaseline = 'alphabetic';
+    }
+
+    // Highlight currently active bitmask cell's tile if assigned
+    if (activeBitmaskCell !== null && variants[String(activeBitmaskCell)]) {
+      const av = variants[String(activeBitmaskCell)];
+      const hx = av.sx;
+      const hy = av.sy;
+      ctx.strokeStyle = '#5865f2';
+      ctx.lineWidth = 2 / cam.zoom;
+      ctx.strokeRect(hx, hy, atw, ath);
+    }
   }
 
   /* Active selection rectangle (being drawn) */
@@ -1151,7 +1306,7 @@ function renderMapTest() {
   /* Ghost preview at cursor */
   if (ghostAssetId && mtMouseTileX > -999) {
     const ga = assets.find(a => a.id === ghostAssetId);
-    if (ga && ga.category !== 'terrain') {
+    if (ga && ga.category !== 'terrain' && ga.category !== 'autotile') {
       const img = getAssetImage(ghostAssetId);
       if (img) {
         const allocW = Math.ceil(ga.sw / TILE) * TILE;
@@ -1237,7 +1392,7 @@ function onSpriteMouseDown(e) {
   }
 
   if (e.button === 0) {
-    /* Check if clicking on an existing asset */
+    /* Check if clicking on an existing asset (skip autotile assets with no rect) */
     const sp = screenToSprite(mx, my);
     const clicked = findAssetAt(sp.x, sp.y);
     if (clicked) {
@@ -1246,7 +1401,7 @@ function onSpriteMouseDown(e) {
       return;
     }
 
-    /* Start selection */
+    /* Start selection (also used for autotile bitmask drag assignment) */
     isDraggingSelection = true;
     const raw = screenToSprite(mx, my);
     selStart = { x: snapVal(raw.x), y: snapVal(raw.y) };
@@ -1311,6 +1466,43 @@ window.addEventListener('mouseup', e => {
       rh = Math.min(rh, spriteImg.height - y);
     }
 
+    /* Autotile bitmask assignment via drag */
+    const selAsset = getSelectedAsset();
+    if (selAsset && selAsset.category === 'autotile' && activeBitmaskCell !== null && rw >= 2 && rh >= 2) {
+      // Snap to tile grid
+      const tw = selAsset.tileWidth || 32;
+      const th = selAsset.tileHeight || 32;
+      const snappedX = Math.round(x / tw) * tw;
+      const snappedY = Math.round(y / th) * th;
+
+      // Assign the snapped tile position to the active bitmask cell
+      assignBitmaskTile(selAsset, activeBitmaskCell, snappedX, snappedY);
+
+      // Auto-advance to next unassigned bitmask cell
+      let nextCell = null;
+      for (let i = 1; i <= 16; i++) {
+        const candidate = (activeBitmaskCell + i) % 16;
+        if (!selAsset.variants[String(candidate)]) {
+          nextCell = candidate;
+          break;
+        }
+      }
+      activeBitmaskCell = nextCell;
+      // Update grid UI to show new active cell
+      document.querySelectorAll('.bitmask-cell').forEach(c => {
+        c.classList.remove('active');
+        if (nextCell !== null && parseInt(c.dataset.bitmask) === nextCell) {
+          c.classList.add('active');
+        }
+      });
+
+      selStart = null;
+      selCurrent = null;
+      dirty = true;
+      return;  // Don't create a new asset
+    }
+
+    /* Normal: create new asset */
     if (rw >= 2 && rh >= 2) {
       createAsset(x, y, rw, rh);
     }
@@ -1336,6 +1528,7 @@ function findAssetAt(px, py) {
   /* Check in reverse order (top-most first) */
   for (let i = assets.length - 1; i >= 0; i--) {
     const a = assets[i];
+    if (a.sw <= 0 || a.sh <= 0) continue;  // Autotile-Assets haben kein Rechteck
     if (px >= a.sx && px <= a.sx + a.sw && py >= a.sy && py <= a.sy + a.sh) {
       return a;
     }
@@ -1362,8 +1555,8 @@ function onMapTestMouseDown(e) {
     const tile = screenToMapTile(mx, my);
     if (ghostAssetId) {
       const ga = assets.find(a => a.id === ghostAssetId);
-      if (ga && ga.category === 'terrain') {
-        toast('Terrain tilesets cannot be placed in Map Test', 'warn');
+      if (ga && (ga.category === 'terrain' || ga.category === 'autotile')) {
+        toast(ga.category === 'terrain' ? 'Terrain tilesets cannot be placed in Map Test' : 'Autotile assets cannot be placed in Map Test', 'warn');
         return;
       }
       placeAssetOnMap(ghostAssetId, tile.tileX, tile.tileY);
@@ -1496,6 +1689,8 @@ function setAppMode(mode) {
     propsSection.style.display = 'none';
     offsetSection.style.display = 'none';
     terrainPropsSection.style.display = 'none';
+    autotilePropsSection.style.display = 'none';
+    bitmaskMapperSection.style.display = 'none';
     previewSection.style.display = 'none';
     emptyRight.style.display = 'none';
   } else if (selectedId) {
@@ -1508,6 +1703,8 @@ function setAppMode(mode) {
     propsSection.style.display = 'none';
     offsetSection.style.display = 'none';
     terrainPropsSection.style.display = 'none';
+    autotilePropsSection.style.display = 'none';
+    bitmaskMapperSection.style.display = 'none';
     previewSection.style.display = 'none';
     emptyRight.style.display = '';
   }
@@ -1536,8 +1733,8 @@ function setAppMode(mode) {
 function updateMapTestStatus() {
   if (appMode !== 'maptest') return;
   const a = assets.find(a => a.id === selectedId);
-  if (a && a.category === 'terrain') {
-    $('mapTestStatus').textContent = 'Terrain tilesets cannot be placed in Map Test.';
+  if (a && (a.category === 'terrain' || a.category === 'autotile')) {
+    $('mapTestStatus').textContent = a.category === 'terrain' ? 'Terrain tilesets cannot be placed in Map Test.' : 'Autotile assets cannot be placed in Map Test.';
   } else {
     $('mapTestStatus').textContent = a
       ? 'Placing: ' + a.key + ' — click map to place'
@@ -1626,6 +1823,31 @@ function toggleSnap() {
   toast(snapToGrid ? 'Snap to 16px grid enabled' : 'Snap disabled');
 }
 
+/* Neues Autotile Button */
+$('btnNewAutotile').addEventListener('click', () => {
+  if (!spriteImg) { toast('Zuerst ein Spritesheet laden', 'warn'); return; }
+  const id = crypto.randomUUID();
+  const key = 'autotile_' + nextAssetNum++;
+  const asset = {
+    id, key,
+    category: 'autotile',
+    placement: 'wall',
+    collide: true,
+    scaleFactor: 1,
+    zIndex: 0,
+    sx: 0, sy: 0, sw: 0, sh: 0,
+    offsetX: 0, offsetY: 0,
+    tileWidth: 32, tileHeight: 32,
+    margin: 0, spacing: 0,
+    autotileType: '4bit',
+    variants: {}
+  };
+  assets.push(asset);
+  selectAsset(id);
+  rebuildAssetList();
+  toast('Autotile erstellt: ' + key);
+});
+
 /* Init toolbar states */
 $('btnGridToggle').classList.add('btn-accent');
 $('btnSnapToggle').classList.add('btn-accent');
@@ -1695,9 +1917,20 @@ function selectAsset(id) {
 }
 
 function updatePanelVisibility(a) {
-  if (a.category === 'terrain') {
+  if (a.category === 'autotile') {
+    propsSection.style.display = '';
+    autotilePropsSection.style.display = '';
+    bitmaskMapperSection.style.display = '';
+    terrainPropsSection.style.display = 'none';
+    offsetSection.style.display = 'none';
+    previewSection.style.display = 'none';
+    $('propZIndex').parentElement.style.display = 'none';
+    $('propSpriteSize').closest('.field-row').style.display = 'none';
+  } else if (a.category === 'terrain') {
     propsSection.style.display = '';
     terrainPropsSection.style.display = '';
+    autotilePropsSection.style.display = 'none';
+    bitmaskMapperSection.style.display = 'none';
     offsetSection.style.display = 'none';
     previewSection.style.display = '';
     /* Hide zIndex, Sprite Size, Export Size for terrain */
@@ -1706,6 +1939,8 @@ function updatePanelVisibility(a) {
   } else {
     propsSection.style.display = '';
     terrainPropsSection.style.display = 'none';
+    autotilePropsSection.style.display = 'none';
+    bitmaskMapperSection.style.display = 'none';
     offsetSection.style.display = '';
     previewSection.style.display = '';
     $('propZIndex').parentElement.style.display = '';
@@ -1734,6 +1969,8 @@ function hideRightPanel() {
   propsSection.style.display = 'none';
   offsetSection.style.display = 'none';
   terrainPropsSection.style.display = 'none';
+  autotilePropsSection.style.display = 'none';
+  bitmaskMapperSection.style.display = 'none';
   previewSection.style.display = 'none';
   emptyRight.style.display = '';
   updateExportButtons();
@@ -1766,6 +2003,118 @@ function populateProperties(a) {
   $('propMargin').value = a.margin;
   $('propSpacing').value = a.spacing;
   updateTileGridInfo(a);
+
+  /* Autotile properties */
+  if (a.category === 'autotile') {
+    $('propAutoTileWidth').value = a.tileWidth || 32;
+    $('propAutoTileHeight').value = a.tileHeight || 32;
+    $('propAutoPlacement').value = a.placement || 'wall';
+    $('propAutoCollide').checked = a.collide !== false;
+    buildBitmaskGrid(a);
+  }
+}
+
+/* ---- Bitmask Grid Builder ---- */
+const BITMASK_LABELS = [
+  'isolated','N','E','N+E','S','N+S','E+S','N+E+S',
+  'W','N+W','E+W','N+E+W','S+W','N+S+W','E+S+W','N+E+S+W'
+];
+
+function drawBitmaskIcon(canvas, bitmask) {
+  const s = canvas.width;
+  const ctx2 = canvas.getContext('2d');
+  ctx2.clearRect(0, 0, s, s);
+  const cx = s / 2, cy = s / 2, len = s * 0.38;
+  // Center dot
+  ctx2.fillStyle = '#9ca3af';
+  ctx2.beginPath();
+  ctx2.arc(cx, cy, 2, 0, Math.PI * 2);
+  ctx2.fill();
+  // Direction lines
+  ctx2.strokeStyle = '#5865f2';
+  ctx2.lineWidth = 1.5;
+  ctx2.lineCap = 'round';
+  if (bitmask & 1) { ctx2.beginPath(); ctx2.moveTo(cx, cy); ctx2.lineTo(cx, cy - len); ctx2.stroke(); } // N
+  if (bitmask & 2) { ctx2.beginPath(); ctx2.moveTo(cx, cy); ctx2.lineTo(cx + len, cy); ctx2.stroke(); } // E
+  if (bitmask & 4) { ctx2.beginPath(); ctx2.moveTo(cx, cy); ctx2.lineTo(cx, cy + len); ctx2.stroke(); } // S
+  if (bitmask & 8) { ctx2.beginPath(); ctx2.moveTo(cx, cy); ctx2.lineTo(cx - len, cy); ctx2.stroke(); } // W
+}
+
+function buildBitmaskGrid(a) {
+  bitmaskGrid.innerHTML = '';
+  activeBitmaskCell = null;
+  const variants = a.variants || {};
+  let assignedCount = 0;
+
+  for (let b = 0; b < 16; b++) {
+    const cell = document.createElement('div');
+    cell.className = 'bitmask-cell' + (variants[String(b)] ? ' assigned' : '');
+    cell.dataset.bitmask = b;
+    cell.title = BITMASK_LABELS[b];
+
+    // Bitmask number
+    const num = document.createElement('span');
+    num.className = 'bitmask-num';
+    num.textContent = b;
+    cell.appendChild(num);
+
+    // Icon canvas
+    const iconCanvas = document.createElement('canvas');
+    iconCanvas.className = 'bitmask-icon';
+    iconCanvas.width = 20;
+    iconCanvas.height = 20;
+    drawBitmaskIcon(iconCanvas, b);
+    cell.appendChild(iconCanvas);
+
+    // Thumbnail or placeholder
+    const thumbDiv = document.createElement('div');
+    thumbDiv.className = 'bitmask-thumb';
+    if (variants[String(b)] && spriteImg) {
+      const tw = a.tileWidth || 32;
+      const th = a.tileHeight || 32;
+      const v = variants[String(b)];
+      const tc = document.createElement('canvas');
+      const scale = Math.min(48 / tw, 48 / th, 2);
+      tc.width = Math.max(1, Math.round(tw * scale));
+      tc.height = Math.max(1, Math.round(th * scale));
+      const tctx = tc.getContext('2d');
+      tctx.imageSmoothingEnabled = false;
+      const srcX = v.sx;
+      const srcY = v.sy;
+      tctx.drawImage(spriteImg, srcX, srcY, tw, th, 0, 0, tc.width, tc.height);
+      thumbDiv.appendChild(tc);
+      assignedCount++;
+    } else {
+      const ph = document.createElement('span');
+      ph.className = 'bitmask-placeholder';
+      ph.textContent = '?';
+      thumbDiv.appendChild(ph);
+    }
+    cell.appendChild(thumbDiv);
+
+    cell.addEventListener('click', () => {
+      // Toggle active cell
+      document.querySelectorAll('.bitmask-cell').forEach(c => c.classList.remove('active'));
+      if (activeBitmaskCell === b) {
+        activeBitmaskCell = null;
+      } else {
+        activeBitmaskCell = b;
+        cell.classList.add('active');
+      }
+    });
+
+    bitmaskGrid.appendChild(cell);
+  }
+
+  $('bitmaskAssignedCount').textContent = assignedCount;
+}
+
+function assignBitmaskTile(asset, bitmask, sx, sy) {
+  if (!asset.variants) asset.variants = {};
+  asset.variants[String(bitmask)] = { sx, sy };
+  buildBitmaskGrid(asset);
+  dirty = true;
+  toast('Bitmask ' + bitmask + ' (' + BITMASK_LABELS[bitmask] + ') \u2192 Position ' + sx + ',' + sy);
 }
 
 /* ---- Property change listeners ---- */
@@ -1785,7 +2134,19 @@ $('propCategory').addEventListener('change', e => {
   const a = getSelectedAsset();
   if (!a) return;
   a.category = e.target.value;
+  if (a.category === 'autotile') {
+    if (!a.autotileType) a.autotileType = '4bit';
+    if (!a.variants) a.variants = {};
+    if (!a.tileWidth || a.tileWidth === 16) a.tileWidth = 32;
+    if (!a.tileHeight || a.tileHeight === 16) a.tileHeight = 32;
+    a.placement = a.placement || 'wall';
+    a.collide = a.collide !== false;
+    activeBitmaskCell = null;
+  }
   updatePanelVisibility(a);
+  if (a.category === 'autotile') {
+    populateProperties(a);
+  }
   invalidateAssetImage(a.id);
   rebuildAssetList();
   renderPreview();
@@ -1866,6 +2227,30 @@ $('btnResetOffset').addEventListener('click', () => {
   });
 });
 
+/* Autotile property listeners */
+$('propAutoTileWidth').addEventListener('input', e => {
+  const a = getSelectedAsset();
+  if (!a || a.category !== 'autotile') return;
+  const v = parseInt(e.target.value, 10);
+  if (!isNaN(v) && v > 0) { a.tileWidth = v; a.variants = {}; buildBitmaskGrid(a); dirty = true; }
+});
+$('propAutoTileHeight').addEventListener('input', e => {
+  const a = getSelectedAsset();
+  if (!a || a.category !== 'autotile') return;
+  const v = parseInt(e.target.value, 10);
+  if (!isNaN(v) && v > 0) { a.tileHeight = v; a.variants = {}; buildBitmaskGrid(a); dirty = true; }
+});
+$('propAutoPlacement').addEventListener('change', e => {
+  const a = getSelectedAsset();
+  if (!a || a.category !== 'autotile') return;
+  a.placement = e.target.value;
+});
+$('propAutoCollide').addEventListener('change', e => {
+  const a = getSelectedAsset();
+  if (!a || a.category !== 'autotile') return;
+  a.collide = e.target.checked;
+});
+
 /* ---- Asset List Rendering ---- */
 function rebuildAssetList() {
   assetList.innerHTML = '';
@@ -1886,16 +2271,38 @@ function rebuildAssetList() {
     /* Thumbnail */
     const thumbWrap = document.createElement('div');
     thumbWrap.className = 'thumb';
-    const thumbCanvas = document.createElement('canvas');
-    const scale = Math.min(34 / a.sw, 34 / a.sh, 2);
-    thumbCanvas.width = Math.max(1, Math.round(a.sw * scale));
-    thumbCanvas.height = Math.max(1, Math.round(a.sh * scale));
-    const tctx = thumbCanvas.getContext('2d');
-    tctx.imageSmoothingEnabled = false;
-    if (spriteImg) {
-      tctx.drawImage(spriteImg, a.sx, a.sy, a.sw, a.sh, 0, 0, thumbCanvas.width, thumbCanvas.height);
+    if (a.category === 'autotile' && a.sw <= 0) {
+      // Autotile without rect: show bitmask-0 tile or placeholder
+      const tw = a.tileWidth || 32;
+      const th = a.tileHeight || 32;
+      const v0 = a.variants && a.variants['0'];
+      if (v0 && spriteImg) {
+        const thumbCanvas = document.createElement('canvas');
+        const tscale = Math.min(34 / tw, 34 / th, 2);
+        thumbCanvas.width = Math.max(1, Math.round(tw * tscale));
+        thumbCanvas.height = Math.max(1, Math.round(th * tscale));
+        const tctx = thumbCanvas.getContext('2d');
+        tctx.imageSmoothingEnabled = false;
+        tctx.drawImage(spriteImg, v0.sx, v0.sy, tw, th, 0, 0, thumbCanvas.width, thumbCanvas.height);
+        thumbWrap.appendChild(thumbCanvas);
+      } else {
+        const ph = document.createElement('span');
+        ph.style.cssText = 'font-family:var(--font-mono);font-size:10px;color:var(--fg-muted);';
+        ph.textContent = 'AT';
+        thumbWrap.appendChild(ph);
+      }
+    } else {
+      const thumbCanvas = document.createElement('canvas');
+      const scale = Math.min(34 / a.sw, 34 / a.sh, 2);
+      thumbCanvas.width = Math.max(1, Math.round(a.sw * scale));
+      thumbCanvas.height = Math.max(1, Math.round(a.sh * scale));
+      const tctx = thumbCanvas.getContext('2d');
+      tctx.imageSmoothingEnabled = false;
+      if (spriteImg) {
+        tctx.drawImage(spriteImg, a.sx, a.sy, a.sw, a.sh, 0, 0, thumbCanvas.width, thumbCanvas.height);
+      }
+      thumbWrap.appendChild(thumbCanvas);
     }
-    thumbWrap.appendChild(thumbCanvas);
     el.appendChild(thumbWrap);
 
     /* Info */
@@ -1906,7 +2313,12 @@ function rebuildAssetList() {
     keySpan.textContent = a.key;
     const dimSpan = document.createElement('div');
     dimSpan.className = 'asset-dims';
-    dimSpan.textContent = a.sw + ' x ' + a.sh + 'px · ' + a.category;
+    if (a.category === 'autotile' && a.sw <= 0) {
+      const assignedCount = a.variants ? Object.keys(a.variants).length : 0;
+      dimSpan.textContent = assignedCount + '/16 tiles · ' + a.category;
+    } else {
+      dimSpan.textContent = a.sw + ' x ' + a.sh + 'px · ' + a.category;
+    }
     info.appendChild(keySpan);
     info.appendChild(dimSpan);
     el.appendChild(info);
@@ -2184,7 +2596,8 @@ async function exportZip() {
 
   try {
     const zip = new JSZip();
-    const config = { terrain: [], objects: [], structures: [] };
+    const config = { terrain: [], objects: [], structures: [], autotiles: [] };
+    const slugZip = str => str.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
     for (const a of assets) {
       const canvas = document.createElement('canvas');
@@ -2193,7 +2606,31 @@ async function exportZip() {
 
       let filePath, entry;
 
-      if (a.category === 'terrain') {
+      if (a.category === 'autotile') {
+        const tw = a.tileWidth || 32;
+        const th = a.tileHeight || 32;
+        canvas.width = tw * 4;
+        canvas.height = th * 4;
+        for (let bitmask = 0; bitmask < 16; bitmask++) {
+          const variant = a.variants?.[String(bitmask)];
+          if (variant) {
+            const srcX = variant.sx;
+            const srcY = variant.sy;
+            tctx.drawImage(spriteImg, srcX, srcY, tw, th, (bitmask % 4) * tw, Math.floor(bitmask / 4) * th, tw, th);
+          }
+        }
+        const exportVariants = {};
+        for (let b = 0; b < 16; b++) {
+          if (a.variants?.[String(b)]) exportVariants[String(b)] = { col: b % 4, row: Math.floor(b / 4) };
+        }
+        filePath = 'assets/tilesets/' + slugZip(a.key) + '.png';
+        config.autotiles.push({
+          id: a.id, key: a.key, category: 'autotile', dataURL: filePath,
+          placement: a.placement || 'wall', collide: a.collide !== false,
+          tileWidth: tw, tileHeight: th, gridHeight: 4, autotileType: '4bit',
+          variants: exportVariants, scaleFactor: a.scaleFactor || 1,
+        });
+      } else if (a.category === 'terrain') {
         // Terrain: export raw selection (no offset, no tile allocation)
         canvas.width = a.sw;
         canvas.height = a.sh;
@@ -2280,8 +2717,11 @@ async function exportMepack() {
       version: packVersion,
       terrain: [],
       structures: [],
-      objects: []
+      objects: [],
+      autotiles: []
     };
+
+    const slug = str => str.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
     for (const a of assets) {
       const canvas = document.createElement('canvas');
@@ -2290,7 +2730,50 @@ async function exportMepack() {
 
       let filePath, entry;
 
-      if (a.category === 'terrain') {
+      if (a.category === 'autotile') {
+        // Autotile: create 4x4 spritesheet from assigned bitmask tiles
+        const tw = a.tileWidth || 32;
+        const th = a.tileHeight || 32;
+        const outW = tw * 4;
+        const outH = th * 4;
+        canvas.width = outW;
+        canvas.height = outH;
+
+        for (let bitmask = 0; bitmask < 16; bitmask++) {
+          const variant = a.variants?.[String(bitmask)];
+          if (variant) {
+            const srcX = variant.sx;
+            const srcY = variant.sy;
+            const destCol = bitmask % 4;
+            const destRow = Math.floor(bitmask / 4);
+            tctx.drawImage(spriteImg, srcX, srcY, tw, th, destCol * tw, destRow * th, tw, th);
+          }
+        }
+
+        // Normalized variants map (positions in the exported 4x4 grid)
+        const exportVariants = {};
+        for (let b = 0; b < 16; b++) {
+          if (a.variants?.[String(b)]) {
+            exportVariants[String(b)] = { col: b % 4, row: Math.floor(b / 4) };
+          }
+        }
+
+        filePath = 'assets/tilesets/' + slug(a.key) + '.png';
+        config.autotiles.push({
+          id: a.id,
+          key: a.key,
+          category: 'autotile',
+          dataURL: filePath,
+          placement: a.placement || 'wall',
+          collide: a.collide !== false,
+          tileWidth: tw,
+          tileHeight: th,
+          gridHeight: 4,
+          autotileType: '4bit',
+          variants: exportVariants,
+          scaleFactor: a.scaleFactor || 1,
+        });
+      } else if (a.category === 'terrain') {
         // Terrain: export raw selection (no offset, no tile allocation)
         canvas.width = a.sw;
         canvas.height = a.sh;

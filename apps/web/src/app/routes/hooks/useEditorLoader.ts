@@ -95,6 +95,54 @@ export function useEditorLoader({ me, apiBase, setEditor }: UseEditorLoaderParam
             } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
           }
           setEditorRef.current((s: any) => ({ ...s, packItems }));
+
+          // Autotile definitions - deterministic wallTypeId assignment
+          const autotileItems: Array<{
+            wallTypeId: number;
+            packUuid: string;
+            autotileId: string;
+            key: string;
+            textureUrl: string;
+            tileWidth: number;
+            tileHeight: number;
+            variants: Record<string, { col: number; row: number }>;
+            collide: boolean;
+            placement: string;
+          }> = [];
+
+          let nextWallTypeId = 1;
+          const sortedPacksForAutotiles = [...(packs || [])].sort((a: any, b: any) =>
+            (a.uuid || '').localeCompare(b.uuid || '')
+          );
+          for (const p of sortedPacksForAutotiles) {
+            const sortedAutotiles = [...(p.autotiles || [])].sort((a: any, b: any) =>
+              (a.id || '').localeCompare(b.id || '')
+            );
+            for (const at of sortedAutotiles) {
+              autotileItems.push({
+                wallTypeId: nextWallTypeId++,
+                packUuid: p.uuid,
+                autotileId: at.id,
+                key: at.key,
+                textureUrl: resolvePackUrl(at.dataURL, apiBase),
+                tileWidth: at.tileWidth,
+                tileHeight: at.tileHeight,
+                variants: at.variants || {},
+                collide: at.collide ?? true,
+                placement: at.placement ?? 'wall',
+              });
+            }
+          }
+
+          if (autotileItems.length > 0) {
+            EditorService.dispatch({ type: 'SET_AUTOTILE_ITEMS', items: autotileItems });
+            // Register autotile textures with game engine
+            try {
+              gameBridge.registerAutotiles(autotileItems);
+            } catch (e) {
+              logger.debug('[EditorLoader] Autotile registration deferred', e);
+            }
+          }
         }
         try {
           const raw = localStorage.getItem('meetropolis.packItems');

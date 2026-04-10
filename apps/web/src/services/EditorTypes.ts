@@ -46,6 +46,19 @@ export type PackItem = {
   scaleFactor?: number | undefined;
 };
 
+export type AutotilePackItem = {
+  wallTypeId: number;
+  packUuid: string;
+  autotileId: string;
+  key: string;
+  textureUrl: string;
+  tileWidth: number;
+  tileHeight: number;
+  variants: Record<string, { col: number; row: number }>;
+  collide: boolean;
+  placement: string;
+};
+
 export type Tileset = {
   key: string;
   dataUrl: string;
@@ -127,6 +140,7 @@ export type EditorState = {
     scaleFactor?: number | undefined;
   } | null;
   packItems: PackItem[];
+  autotileItems: AutotilePackItem[];
 
   // Terrain-Daten
   tilesets: Tileset[];
@@ -215,6 +229,7 @@ export type EditorAction =
 
   // Autotile Actions
   | { type: 'SELECT_WALL_TYPE'; wallTypeId: number }
+  | { type: 'SET_AUTOTILE_ITEMS'; items: AutotilePackItem[] }
 
   // V2 Tile Selection
   | { type: 'SELECT_TILE_REF'; tileRefId: number; slot: number; tileIndex: number }

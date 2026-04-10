@@ -108,6 +108,13 @@ export class MainScene extends Phaser.Scene {
       autotileRenderer: this.autotileRenderer,
       collisionManager: this.collisionManager,
     });
+
+    // Check for pending autotile registrations (deferred from bridge before scene was ready)
+    const pending = (gameBridge as any)._pendingAutotiles;
+    if (pending) {
+      this.registerAutotileDefinitions(pending);
+      delete (gameBridge as any)._pendingAutotiles;
+    }
   }
 
   private initializeManagers() {
@@ -443,4 +450,40 @@ export class MainScene extends Phaser.Scene {
   }
 
   public updateTilesetRegistry(registry: any[]) { this.tileManager.updateTilesetRegistry(registry); }
+
+  registerAutotileDefinitions(items: Array<{
+    wallTypeId: number;
+    key: string;
+    textureUrl: string;
+    tileWidth: number;
+    tileHeight: number;
+    variants: Record<string, { col: number; row: number }>;
+    packUuid: string;
+  }>): void {
+    for (const item of items) {
+      const textureKey = `autotile_${item.packUuid}_${item.key}`;
+
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        if (!this.textures.exists(textureKey)) {
+          this.textures.addSpriteSheet(textureKey, img, {
+            frameWidth: item.tileWidth,
+            frameHeight: item.tileHeight,
+          });
+        }
+        this.autotileRenderer?.registerDefinition(item.wallTypeId, {
+          key: item.key,
+          tileWidth: item.tileWidth,
+          tileHeight: item.tileHeight,
+          gridHeight: 4,
+          variants: item.variants,
+          textureKey,
+        });
+        // Re-render all visible autotiles with the new definition
+        this.autotileRenderer?.updateAllVisible();
+      };
+      img.src = item.textureUrl;
+    }
+  }
 }

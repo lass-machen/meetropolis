@@ -15,6 +15,7 @@ import { EditorPersistence } from '../../services/EditorPersistence';
 import { gameBridge } from '../../game/bridge';
 import { useMapStore } from '../../state/mapStore';
 import { logger } from '../../lib/logger';
+import { AutotilePicker } from './AutotilePicker';
 import { TerrainTileGrid } from './TerrainTileGrid';
 import { ObjectPropertiesPanel } from './ObjectPropertiesPanel';
 import { ZoneEditor } from './ZoneEditor';
@@ -285,6 +286,14 @@ export function EditorPanel(props: {
         </div>
       )}
 
+      {/* Autotile Picker */}
+      {state.category === 'autotiles' && (
+        <AutotilePicker
+          autotileItems={state.autotileItems}
+          selectedWallTypeId={state.selectedWallTypeId}
+        />
+      )}
+
       {/* Tools */}
       <div style={{ display: 'flex', gap: 6 }}>
         {state.category === 'terrain' && (
@@ -321,7 +330,22 @@ export function EditorPanel(props: {
             </button>
           </>
         )}
-        {state.category !== 'terrain' && state.category !== 'collisions' && state.category !== 'general' && (
+        {state.category === 'autotiles' && (
+          <button
+            onClick={() => EditorService.dispatch({ type: 'SET_TOOL', tool: 'wall' })}
+            style={{
+              padding: '6px 12px',
+              borderRadius: 6,
+              border: '1px solid var(--border)',
+              background: state.tool === 'wall' ? 'rgba(139,90,43,0.18)' : 'var(--glass)',
+              color: 'var(--fg)',
+              fontSize: 13,
+            }}
+          >
+            Wand zeichnen
+          </button>
+        )}
+        {state.category !== 'terrain' && state.category !== 'collisions' && state.category !== 'general' && state.category !== 'autotiles' && (
           <button
             onClick={() => EditorService.dispatch({ type: 'SET_TOOL', tool: 'select' })}
             style={{

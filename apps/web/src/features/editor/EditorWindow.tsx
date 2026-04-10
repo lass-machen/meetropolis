@@ -370,6 +370,22 @@ export function EditorWindow({
               Objekte
             </button>
             <button
+              onClick={() => EditorService.dispatch({ type: 'SET_CATEGORY', category: 'autotiles' })}
+              style={{
+                flex: 1,
+                padding: '10px 12px',
+                border: 'none',
+                borderBottom: state.category === 'autotiles' ? '2px solid #3b82f6' : '2px solid transparent',
+                background: 'transparent',
+                color: state.category === 'autotiles' ? '#3b82f6' : '#9ca3af',
+                fontSize: 14,
+                fontWeight: 500,
+                cursor: 'pointer',
+              }}
+            >
+              Waende
+            </button>
+            <button
               onClick={() => EditorService.dispatch({ type: 'SET_CATEGORY', category: 'collisions' })}
               style={{
                 flex: 1,
