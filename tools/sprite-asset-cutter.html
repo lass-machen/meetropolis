@@ -328,10 +328,10 @@ body::after{
     <div class="panel-section">
       <div class="section-label">Upload Sprite Sheet</div>
       <div class="drop-zone" id="dropZone">
-        <h3>Drop PNG / WEBP</h3>
+        <h3>Drop PNG / WEBP / .mepack</h3>
         <p>or click to browse</p>
       </div>
-      <input type="file" id="fileInput" accept=".png,.webp,image/png,image/webp" hidden>
+      <input type="file" id="fileInput" accept=".png,.webp,.mepack,image/png,image/webp" hidden>
       <div class="field" id="scaleField" style="display:none;margin-top:10px">
         <label>Sprite Scale Factor</label>
         <select id="spriteScale">
@@ -569,6 +569,7 @@ let selectedId = null;
 let nextAssetNum = 1;
 let previewMode = 'grid';
 let spriteScaleFactor = 1;
+let loadedPackUuid = null;  // preserved UUID when importing .mepack
 
 /* App Mode */
 let appMode = 'sprite'; // 'sprite' | 'maptest'
@@ -652,10 +653,26 @@ fileInput.addEventListener('change', () => {
 });
 
 function loadFile(file) {
-  if (!file.type.match(/^image\/(png|webp)$/)) {
-    toast('Only PNG and WEBP files are supported', 'err');
+  // Route .mepack files to dedicated handler
+  if (file.name.endsWith('.mepack') || file.name.endsWith('.zip')) {
+    loadMepack(file);
     return;
   }
+
+  if (!file.type.match(/^image\/(png|webp)$/)) {
+    toast('Supported formats: PNG, WEBP, .mepack', 'err');
+    return;
+  }
+
+  // Reset state from any previous .mepack import
+  loadedPackUuid = null;
+  assets = [];
+  selectedId = null;
+  placedObjects = [];
+  selectedPlacedId = null;
+  nextAssetNum = 1;
+  Object.keys(assetImageCache).forEach(k => delete assetImageCache[k]);
+
   const reader = new FileReader();
   reader.onload = e => {
     const img = new Image();
@@ -672,6 +689,203 @@ function loadFile(file) {
     img.src = e.target.result;
   };
   reader.readAsDataURL(file);
+}
+
+/* ---- .mepack Import ---- */
+async function loadMepack(file) {
+  try {
+    const buffer = await file.arrayBuffer();
+    const zip = await JSZip.loadAsync(buffer);
+
+    // Parse config.json
+    const configFile = zip.file('config.json');
+    if (!configFile) {
+      toast('Invalid .mepack: no config.json found', 'err');
+      return;
+    }
+    const config = JSON.parse(await configFile.async('string'));
+
+    // Collect all asset entries from config
+    const allItems = [];
+    for (const item of (config.terrain || [])) {
+      allItems.push({ ...item, _category: 'terrain' });
+    }
+    for (const item of (config.structures || [])) {
+      allItems.push({ ...item, _category: 'structure' });
+    }
+    for (const item of (config.objects || [])) {
+      allItems.push({ ...item, _category: 'objects' });
+    }
+
+    if (allItems.length === 0) {
+      toast('Pack contains no assets', 'warn');
+      return;
+    }
+
+    // Load all PNG images from the ZIP
+    const loadedImages = [];
+    for (const item of allItems) {
+      let imgPath = item.dataURL;
+      let imgFile = zip.file(imgPath);
+      // Try with assets/ prefix if not found
+      if (!imgFile && !imgPath.startsWith('assets/')) {
+        imgFile = zip.file('assets/' + imgPath);
+      }
+      // Try without assets/ prefix if not found
+      if (!imgFile && imgPath.startsWith('assets/')) {
+        imgFile = zip.file(imgPath.substring(7));
+      }
+
+      if (!imgFile) {
+        console.warn('Missing image in pack:', imgPath);
+        loadedImages.push({ item, img: null, w: 0, h: 0 });
+        continue;
+      }
+
+      const blob = await imgFile.async('blob');
+      const url = URL.createObjectURL(blob);
+      const img = await new Promise((resolve, reject) => {
+        const i = new Image();
+        i.onload = () => resolve(i);
+        i.onerror = () => reject(new Error('Failed to load: ' + imgPath));
+        i.src = url;
+      });
+      URL.revokeObjectURL(url);
+
+      loadedImages.push({ item, img, w: img.width, h: img.height });
+    }
+
+    // Filter out failed images
+    const validImages = loadedImages.filter(li => li.img !== null);
+    if (validImages.length === 0) {
+      toast('No valid images found in pack', 'err');
+      return;
+    }
+
+    // Build composite sprite sheet
+    // Grid layout: arrange images with 4px gap, max row width 1024px
+    const GAP = 4;
+    const MAX_ROW_WIDTH = 1024;
+
+    // Calculate layout positions
+    let cx = GAP, cy = GAP, rowHeight = 0;
+    const positions = [];
+    for (const li of validImages) {
+      if (cx + li.w + GAP > MAX_ROW_WIDTH && cx > GAP) {
+        // New row
+        cx = GAP;
+        cy += rowHeight + GAP;
+        rowHeight = 0;
+      }
+      positions.push({ x: cx, y: cy, w: li.w, h: li.h });
+      cx += li.w + GAP;
+      rowHeight = Math.max(rowHeight, li.h);
+    }
+    const compositeWidth = MAX_ROW_WIDTH;
+    const compositeHeight = cy + rowHeight + GAP;
+
+    // Draw composite
+    const compositeCanvas = document.createElement('canvas');
+    compositeCanvas.width = compositeWidth;
+    compositeCanvas.height = compositeHeight;
+    const cctx = compositeCanvas.getContext('2d');
+    cctx.imageSmoothingEnabled = false;
+
+    // Light background so transparent areas are visible
+    cctx.fillStyle = '#18192240';
+    cctx.fillRect(0, 0, compositeWidth, compositeHeight);
+
+    for (let i = 0; i < validImages.length; i++) {
+      cctx.drawImage(validImages[i].img, positions[i].x, positions[i].y);
+    }
+
+    // Convert composite to Image
+    const compositeImg = new Image();
+    await new Promise((resolve, reject) => {
+      compositeImg.onload = resolve;
+      compositeImg.onerror = reject;
+      compositeImg.src = compositeCanvas.toDataURL('image/png');
+    });
+
+    // Reset state
+    assets = [];
+    selectedId = null;
+    placedObjects = [];
+    selectedPlacedId = null;
+    Object.keys(assetImageCache).forEach(k => delete assetImageCache[k]);
+
+    // Set sprite
+    spriteImg = compositeImg;
+    spriteDims.textContent = compositeWidth + ' x ' + compositeHeight + 'px (composite)';
+    spriteInfo.style.display = 'flex';
+    cursorInfo.style.display = '';
+    $('scaleField').style.display = '';
+
+    // Reconstruct assets
+    let maxAssetNum = 0;
+    for (let i = 0; i < validImages.length; i++) {
+      const li = validImages[i];
+      const item = li.item;
+      const pos = positions[i];
+
+      const asset = {
+        id: item.id || crypto.randomUUID(),
+        key: item.key || ('asset_' + (i + 1)),
+        category: item._category,
+        placement: item.placement || 'any',
+        collide: item.collide || false,
+        scaleFactor: item.scaleFactor || 1,
+        zIndex: item.zIndex || 0,
+        sx: pos.x,
+        sy: pos.y,
+        sw: pos.w,
+        sh: pos.h,
+        offsetX: 0,
+        offsetY: 0,
+        tileWidth: item.tileWidth || 16,
+        tileHeight: item.tileHeight || 16,
+        margin: item.margin || 0,
+        spacing: item.spacing || 0
+      };
+
+      assets.push(asset);
+
+      // Track highest asset number for nextAssetNum
+      const numMatch = (item.key || '').match(/^asset_(\d+)$/);
+      if (numMatch) maxAssetNum = Math.max(maxAssetNum, parseInt(numMatch[1], 10));
+    }
+    nextAssetNum = maxAssetNum + 1;
+
+    // Set scale factor from first object/structure asset if available
+    const firstSprite = assets.find(a => a.category !== 'terrain');
+    if (firstSprite && firstSprite.scaleFactor !== 1) {
+      spriteScaleFactor = firstSprite.scaleFactor;
+      $('spriteScale').value = String(spriteScaleFactor);
+    }
+
+    // Populate pack metadata
+    loadedPackUuid = config.uuid || null;
+    $('packName').value = config.name || '';
+    $('packAuthor').value = config.author || '';
+    $('packVersion').value = config.version || '';
+    $('packDescription').value = config.description || '';
+
+    // Update UI
+    rebuildAssetList();
+    if (assets.length > 0) {
+      selectAsset(assets[0].id);
+    }
+    hideRightPanel();
+    updateExportButtons();
+    zoomToFit();
+    dirty = true;
+
+    toast('Loaded pack: ' + (config.name || file.name) + ' (' + assets.length + ' assets)');
+
+  } catch (err) {
+    toast('Failed to load .mepack: ' + err.message, 'err');
+    console.error(err);
+  }
 }
 
 /* ---- Camera ---- */
@@ -2057,7 +2271,7 @@ async function exportMepack() {
 
   try {
     const zip = new JSZip();
-    const packUuid = crypto.randomUUID();
+    const packUuid = loadedPackUuid || crypto.randomUUID();
     const config = {
       uuid: packUuid,
       name: packName,
