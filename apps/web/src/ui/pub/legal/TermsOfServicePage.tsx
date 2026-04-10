@@ -3,9 +3,10 @@ import { LegalLayout } from './LegalLayout';
 
 interface TermsOfServicePageProps {
   onBack: () => void;
+  registrationEnabled?: boolean;
 }
 
-export function TermsOfServicePage({ onBack }: TermsOfServicePageProps) {
+export function TermsOfServicePage({ onBack, registrationEnabled }: TermsOfServicePageProps) {
   const { t } = useTranslation('public');
   const navigate = (route: string) => {
     window.location.hash = `#/${route}`;
@@ -320,6 +321,7 @@ export function TermsOfServicePage({ onBack }: TermsOfServicePageProps) {
       sections={sections}
       onBack={onBack}
       navigate={navigate}
+      {...(registrationEnabled !== undefined && { registrationEnabled })}
     />
   );
 }

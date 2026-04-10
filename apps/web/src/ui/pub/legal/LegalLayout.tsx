@@ -16,6 +16,7 @@ interface LegalLayoutProps {
   sections: LegalSection[];
   onBack: () => void;
   navigate: (route: string) => void;
+  registrationEnabled?: boolean;
 }
 
 function CalendarIcon() {
@@ -47,6 +48,7 @@ export function LegalLayout({
   sections,
   onBack,
   navigate,
+  registrationEnabled,
 }: LegalLayoutProps) {
   const { t } = useTranslation('public');
   const [activeId, setActiveId] = useState<string>(sections[0]?.id ?? '');
@@ -120,6 +122,7 @@ export function LegalLayout({
       onLogin={() => navigate('app')}
       onSignup={() => navigate('register')}
       navigate={navigate}
+      {...(registrationEnabled !== undefined && { registrationEnabled })}
     >
       {/* Page Hero */}
       <div

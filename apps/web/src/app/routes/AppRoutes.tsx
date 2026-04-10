@@ -168,13 +168,13 @@ export function AppRoutes() {
       );
 
     case 'privacy':
-      return <PrivacyPolicyPage onBack={() => navigate('landing')} />;
+      return <PrivacyPolicyPage onBack={() => navigate('landing')} registrationEnabled={registrationEnabled} />;
 
     case 'terms':
-      return <TermsOfServicePage onBack={() => navigate('landing')} />;
+      return <TermsOfServicePage onBack={() => navigate('landing')} registrationEnabled={registrationEnabled} />;
 
     case 'impressum':
-      return <ImpressumPage onBack={() => navigate('landing')} />;
+      return <ImpressumPage onBack={() => navigate('landing')} registrationEnabled={registrationEnabled} />;
 
     case 'verify':
       return (

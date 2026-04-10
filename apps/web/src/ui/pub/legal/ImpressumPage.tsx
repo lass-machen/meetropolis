@@ -3,9 +3,10 @@ import { LegalLayout } from './LegalLayout';
 
 interface ImpressumPageProps {
   onBack: () => void;
+  registrationEnabled?: boolean;
 }
 
-export function ImpressumPage({ onBack }: ImpressumPageProps) {
+export function ImpressumPage({ onBack, registrationEnabled }: ImpressumPageProps) {
   const { t } = useTranslation('public');
   const navigate = (route: string) => {
     window.location.hash = `#/${route}`;
@@ -183,6 +184,7 @@ export function ImpressumPage({ onBack }: ImpressumPageProps) {
       sections={sections}
       onBack={onBack}
       navigate={navigate}
+      {...(registrationEnabled !== undefined && { registrationEnabled })}
     />
   );
 }

@@ -3,9 +3,10 @@ import { LegalLayout } from './LegalLayout';
 
 interface PrivacyPolicyPageProps {
   onBack: () => void;
+  registrationEnabled?: boolean;
 }
 
-export function PrivacyPolicyPage({ onBack }: PrivacyPolicyPageProps) {
+export function PrivacyPolicyPage({ onBack, registrationEnabled }: PrivacyPolicyPageProps) {
   const { t } = useTranslation('public');
   const navigate = (route: string) => {
     window.location.hash = `#/${route}`;
@@ -268,6 +269,7 @@ export function PrivacyPolicyPage({ onBack }: PrivacyPolicyPageProps) {
       sections={sections}
       onBack={onBack}
       navigate={navigate}
+      {...(registrationEnabled !== undefined && { registrationEnabled })}
     />
   );
 }
