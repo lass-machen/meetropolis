@@ -125,7 +125,7 @@ export function HeroSection({ onSignup, onLogin, registrationEnabled = true }: H
         }}
       >
         <img
-          src="/images/pub/hero-product-visual-1.png"
+          src="/images/pub/meetropolis-screen-hero.webp"
           alt="Meetropolis product screenshot"
           style={{
             width: '100%',

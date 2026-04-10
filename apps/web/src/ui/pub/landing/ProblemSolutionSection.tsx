@@ -201,7 +201,7 @@ export function ProblemSolutionSection() {
           </div>
           <div className="pub-solution-box__image">
             <img
-              src="/images/pub/solution-pixel-art-conversation.png"
+              src="/images/pub/meetropolis-screen-2.webp"
               alt="Meetropolis pixel art conversation"
               style={{
                 width: '100%',

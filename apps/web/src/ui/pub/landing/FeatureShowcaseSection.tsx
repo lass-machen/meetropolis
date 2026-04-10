@@ -11,6 +11,7 @@ interface FeatureRowData {
   textKey: string;
   tagKeys: string[];
   image: string;
+  isVideo?: boolean;
   accentColor: string;
   numberOpacity: string;
   imageBg: string;
@@ -23,7 +24,7 @@ const FEATURE_ROWS: FeatureRowData[] = [
     titleKey: 'features.feature1Title',
     textKey: 'features.feature1Text',
     tagKeys: ['features.feature1Tag1', 'features.feature1Tag2'],
-    image: '/images/pub/feature-01-spatial-audio.png',
+    image: '/images/pub/meetropolis-screen-3.webp',
     accentColor: 'var(--pub-accent-purple)',
     numberOpacity: 'rgba(139,92,246,0.19)',
     imageBg: '#EDE9FE',
@@ -34,7 +35,8 @@ const FEATURE_ROWS: FeatureRowData[] = [
     titleKey: 'features.feature2Title',
     textKey: 'features.feature2Text',
     tagKeys: ['features.feature2Tag1', 'features.feature2Tag2', 'features.feature2Tag3'],
-    image: '/images/pub/feature-02-interactive-worlds.png',
+    image: '/images/pub/meetropolis-editor.webm',
+    isVideo: true,
     accentColor: 'var(--pub-accent-teal)',
     numberOpacity: 'rgba(20,184,166,0.19)',
     imageBg: '#CCFBF1',
@@ -45,7 +47,7 @@ const FEATURE_ROWS: FeatureRowData[] = [
     titleKey: 'features.feature3Title',
     textKey: 'features.feature3Text',
     tagKeys: ['features.feature3Tag1', 'features.feature3Tag2'],
-    image: '/images/pub/feature-03-screen-sharing.png',
+    image: '/images/pub/meetropolis-screen-4.webp',
     accentColor: 'var(--pub-accent-pink)',
     numberOpacity: 'rgba(244,114,182,0.19)',
     imageBg: '#FCE7F3',
@@ -56,7 +58,7 @@ const FEATURE_ROWS: FeatureRowData[] = [
     titleKey: 'features.feature4Title',
     textKey: 'features.feature4Text',
     tagKeys: ['features.feature4Tag1', 'features.feature4Tag2', 'features.feature4Tag3'],
-    image: '/images/pub/feature-04-avatars.png',
+    image: '/images/pub/meetropolis-screen-5.webp',
     accentColor: 'var(--pub-accent-amber)',
     numberOpacity: 'rgba(245,158,11,0.19)',
     imageBg: '#FEF3C7',
@@ -131,16 +133,32 @@ function FeatureRow({ row }: { row: FeatureRowData }) {
         background: row.imageBg,
       }}
     >
-      <img
-        src={row.image}
-        alt={t(row.titleKey)}
-        style={{
-          width: '100%',
-          height: '100%',
-          objectFit: 'cover',
-          display: 'block',
-        }}
-      />
+      {row.isVideo ? (
+        <video
+          src={row.image}
+          autoPlay
+          loop
+          muted
+          playsInline
+          style={{
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+            display: 'block',
+          }}
+        />
+      ) : (
+        <img
+          src={row.image}
+          alt={t(row.titleKey)}
+          style={{
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+            display: 'block',
+          }}
+        />
+      )}
     </div>
   );
 
