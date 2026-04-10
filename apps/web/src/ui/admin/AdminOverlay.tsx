@@ -9,8 +9,9 @@ import { PackCatalogAdmin } from './PackCatalogAdmin';
 import { MapsAdmin } from './MapsAdmin';
 import { AuditLogAdmin } from './AuditLogAdmin';
 import { SettingsAdmin } from './SettingsAdmin';
+import { PricingPlansAdmin } from './PricingPlansAdmin';
 
-type AdminTabKey = 'tenants' | 'billing' | 'packs' | 'maps' | 'health' | 'audit' | 'settings';
+type AdminTabKey = 'tenants' | 'billing' | 'pricing' | 'packs' | 'maps' | 'health' | 'audit' | 'settings';
 
 export function AdminOverlay(props: {
   apiBase: string;
@@ -25,6 +26,7 @@ export function AdminOverlay(props: {
     tabs.push({ key: 'tenants', label: 'Mandanten' });
     if (capabilities.hasBilling) {
       tabs.push({ key: 'billing', label: 'Pakete & Billing' });
+      tabs.push({ key: 'pricing', label: 'Pricing Page' });
     }
     if (capabilities.hasAdminEnterprise) {
       tabs.push({ key: 'packs', label: 'Pack Catalog' });
@@ -60,6 +62,7 @@ export function AdminOverlay(props: {
     >
       {tab === 'tenants' && <TenantsAdmin apiBase={apiBase} capabilities={capabilities} />}
       {tab === 'billing' && <BillingAdmin apiBase={apiBase} />}
+      {tab === 'pricing' && <PricingPlansAdmin apiBase={apiBase} />}
       {tab === 'packs' && <PackCatalogAdmin apiBase={apiBase} />}
       {tab === 'maps' && <MapsAdmin apiBase={apiBase} />}
       {tab === 'health' && <AdminHealthDashboard onClose={() => onOpenChange(false)} />}

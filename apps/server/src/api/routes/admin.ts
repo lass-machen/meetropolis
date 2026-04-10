@@ -1,5 +1,5 @@
 import type express from 'express';
-import { PrismaClient } from '../../generated/prisma/index.js';
+import { Prisma, PrismaClient } from '../../generated/prisma/index.js';
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
@@ -508,6 +508,113 @@ export function registerAdminRoutes(app: express.Application, prisma: PrismaClie
     } catch (e: unknown) {
       logger.error({ event: 'admin.stats.error', error: e instanceof Error ? e.message : String(e) });
       return res.status(500).json({ error: 'stats_failed' });
+    }
+  });
+
+  // ── Pricing Plans ──────────────────────────────────────────────────────
+
+  // Prisma JSON fields reject raw `null`; they require Prisma.JsonNull instead.
+  const JSON_NULLABLE_KEYS: ReadonlySet<string> = new Set([
+    'description', 'priceLabel', 'unitLabel', 'badgeLabel',
+  ]);
+  function sanitiseJsonNulls<T extends Record<string, unknown>>(data: T): T {
+    const out = { ...data };
+    for (const key of JSON_NULLABLE_KEYS) {
+      if (key in out && out[key] === null) {
+        (out as Record<string, unknown>)[key] = Prisma.JsonNull;
+      }
+    }
+    return out;
+  }
+
+  const i18nTextSchema = z.object({ en: z.string(), de: z.string() });
+
+  const pricingPlanCreateSchema = z.object({
+    name: i18nTextSchema,
+    description: i18nTextSchema.optional().nullable(),
+    stripeProductId: z.string().optional().nullable(),
+    stripePriceId: z.string().optional().nullable(),
+    priceAmount: z.number().int().nonnegative().optional().nullable(),
+    priceCurrency: z.string().default('EUR'),
+    priceInterval: z.enum(['month', 'year']).optional().nullable(),
+    priceLabel: i18nTextSchema.optional().nullable(),
+    unitLabel: i18nTextSchema.optional().nullable(),
+    features: z.array(i18nTextSchema).default([]),
+    ctaLabel: i18nTextSchema,
+    ctaUrl: z.string().optional().nullable(),
+    highlighted: z.boolean().default(false),
+    badgeLabel: i18nTextSchema.optional().nullable(),
+    customPricing: z.boolean().default(false),
+    sortOrder: z.number().int().default(0),
+    visible: z.boolean().default(true),
+  });
+
+  // Public pricing plans (no auth required) — serves landing page
+  app.get('/public/pricing-plans', async (_req: express.Request, res: express.Response) => {
+    try {
+      const plans = await prisma.pricingPlan.findMany({
+        where: { visible: true },
+        orderBy: { sortOrder: 'asc' },
+      });
+      res.json({
+        plans: plans.map(({ stripeProductId, stripePriceId, visible, createdAt, updatedAt, ...rest }) => rest),
+      });
+    } catch (e: unknown) {
+      logger.error({ event: 'public.pricing_plans.error', error: e instanceof Error ? e.message : String(e) });
+      res.json({ plans: [] });
+    }
+  });
+
+  // Admin: list all pricing plans (including invisible)
+  app.get('/admin/pricing-plans', async (req: express.Request, res: express.Response) => {
+    const admin = await requireSuperAdmin(req, prisma);
+    if (!admin) return res.status(403).json({ error: 'forbidden' });
+    const plans = await prisma.pricingPlan.findMany({ orderBy: { sortOrder: 'asc' } });
+    res.json({ plans });
+  });
+
+  // Admin: create pricing plan
+  app.post('/admin/pricing-plans', async (req: express.Request, res: express.Response) => {
+    const admin = await requireSuperAdmin(req, prisma);
+    if (!admin) return res.status(403).json({ error: 'forbidden' });
+    const parse = pricingPlanCreateSchema.safeParse(req.body || {});
+    if (!parse.success) return res.status(400).json({ error: 'invalid payload', details: parse.error.flatten() });
+    try {
+      const plan = await prisma.pricingPlan.create({ data: sanitiseJsonNulls(parse.data) as any });
+      res.json(plan);
+    } catch (e: unknown) {
+      logger.error({ event: 'admin.pricing_plan.create_error', error: e instanceof Error ? e.message : String(e) });
+      res.status(400).json({ error: 'create_failed' });
+    }
+  });
+
+  // Admin: update pricing plan
+  app.patch('/admin/pricing-plans/:id', async (req: express.Request, res: express.Response) => {
+    const admin = await requireSuperAdmin(req, prisma);
+    if (!admin) return res.status(403).json({ error: 'forbidden' });
+    const { id } = req.params;
+    const parse = pricingPlanCreateSchema.partial().safeParse(req.body || {});
+    if (!parse.success) return res.status(400).json({ error: 'invalid payload', details: parse.error.flatten() });
+    try {
+      const plan = await prisma.pricingPlan.update({ where: { id }, data: sanitiseJsonNulls(parse.data) as any });
+      res.json(plan);
+    } catch (e: unknown) {
+      logger.error({ event: 'admin.pricing_plan.update_error', error: e instanceof Error ? e.message : String(e) });
+      res.status(400).json({ error: 'update_failed' });
+    }
+  });
+
+  // Admin: delete pricing plan
+  app.delete('/admin/pricing-plans/:id', async (req: express.Request, res: express.Response) => {
+    const admin = await requireSuperAdmin(req, prisma);
+    if (!admin) return res.status(403).json({ error: 'forbidden' });
+    const { id } = req.params;
+    try {
+      await prisma.pricingPlan.delete({ where: { id } });
+      res.json({ ok: true });
+    } catch (e: unknown) {
+      logger.error({ event: 'admin.pricing_plan.delete_error', error: e instanceof Error ? e.message : String(e) });
+      res.status(400).json({ error: 'delete_failed' });
     }
   });
 }

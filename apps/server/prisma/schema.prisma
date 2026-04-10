@@ -503,3 +503,28 @@ model BillingAuditLog {
   @@index([createdAt])
   @@index([stripeEventId])
 }
+
+model PricingPlan {
+  id              String   @id @default(cuid())
+  stripeProductId String?  @unique
+  stripePriceId   String?
+  name            Json
+  description     Json?
+  priceAmount     Int?
+  priceCurrency   String   @default("EUR")
+  priceInterval   String?
+  priceLabel      Json?
+  unitLabel       Json?
+  features        Json     @default("[]")
+  ctaLabel        Json
+  ctaUrl          String?
+  highlighted     Boolean  @default(false)
+  badgeLabel      Json?
+  customPricing   Boolean  @default(false)
+  sortOrder       Int      @default(0)
+  visible         Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([sortOrder])
+}

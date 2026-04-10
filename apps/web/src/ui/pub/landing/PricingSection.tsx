@@ -1,9 +1,16 @@
-import { useRef } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { PubBadge } from '../components/PubBadge';
 import { PubButton } from '../components/PubButton';
 import { PubCard } from '../components/PubCard';
 import { useReveal } from '../hooks/useReveal';
+import { getApiBaseFromWindow } from '../../../lib/apiBase';
+import type { PublicPricingPlan, I18nText } from '../../billing/types';
+
+function t18n(obj: I18nText | null | undefined, locale: string): string {
+  if (!obj) return '';
+  return obj[locale] || obj.en || '';
+}
 
 interface PricingSectionProps {
   onSignup: () => void;
@@ -36,20 +43,139 @@ function FeatureItem({ text, white }: FeatureItemProps) {
   );
 }
 
+function PriceDisplay({ plan, locale }: { plan: PublicPricingPlan; locale: string }) {
+  if (plan.customPricing) {
+    return (
+      <div style={{ marginBottom: 4 }}>
+        <span style={{ fontFamily: 'var(--pub-font-display)', fontSize: 40, fontWeight: 800, color: '#FFFFFF', lineHeight: 1 }}>
+          {t18n(plan.priceLabel, locale)}
+        </span>
+      </div>
+    );
+  }
+
+  const amount = plan.priceAmount != null ? Math.round(plan.priceAmount / 100) : 0;
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 4 }}>
+      <span style={{ fontFamily: 'var(--pub-font-display)', fontSize: 24, fontWeight: 800, color: '#FFFFFF' }}>&euro;</span>
+      <span style={{ fontFamily: 'var(--pub-font-display)', fontSize: 56, fontWeight: 800, color: '#FFFFFF', lineHeight: 1 }}>
+        {amount}
+      </span>
+    </div>
+  );
+}
+
+function PlanCard({ plan, locale, onSignup, registrationEnabled }: {
+  plan: PublicPricingPlan;
+  locale: string;
+  onSignup: () => void;
+  registrationEnabled: boolean;
+}) {
+  const isHighlighted = plan.highlighted;
+  const variant = isHighlighted ? 'purple' : 'dark';
+  const className = isHighlighted ? 'pricing-card pricing-card--featured' : 'pricing-card pricing-card--side';
+  const textColor = isHighlighted ? 'rgba(255,255,255,0.8)' : 'var(--pub-text-on-dark-secondary)';
+  const unitColor = isHighlighted ? 'rgba(255,255,255,0.7)' : 'var(--pub-text-on-dark-secondary)';
+
+  const handleCtaClick = () => {
+    if (plan.ctaUrl && (plan.ctaUrl.startsWith('http') || plan.ctaUrl.startsWith('mailto:'))) {
+      window.open(plan.ctaUrl, '_blank');
+    } else {
+      onSignup();
+    }
+  };
+
+  const showCta = registrationEnabled || !!plan.ctaUrl;
+
+  return (
+    <PubCard
+      variant={variant}
+      className={className}
+      style={isHighlighted ? { boxShadow: '0 0 40px rgba(139,92,246,0.3)' } : {}}
+    >
+      <div style={{ textAlign: 'left' }}>
+        {/* Plan name + badge row */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+          <p style={{ fontFamily: 'var(--pub-font-body)', fontSize: 15, fontWeight: 500, color: textColor, margin: 0 }}>
+            {t18n(plan.name, locale)}
+          </p>
+          {isHighlighted && plan.badgeLabel && (
+            <span style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '6px 16px',
+              borderRadius: 'var(--pub-radius-pill)',
+              fontFamily: 'var(--pub-font-body)',
+              fontSize: 13,
+              fontWeight: 500,
+              background: '#FFFFFF',
+              color: 'var(--pub-accent-purple)',
+            }}>
+              {t18n(plan.badgeLabel, locale)}
+            </span>
+          )}
+        </div>
+
+        <PriceDisplay plan={plan} locale={locale} />
+
+        {/* Unit label — hide for custom pricing */}
+        {!plan.customPricing ? (
+          <p style={{ fontFamily: 'var(--pub-font-body)', fontSize: 14, color: unitColor, marginBottom: 32 }}>
+            {t18n(plan.unitLabel, locale)}
+          </p>
+        ) : (
+          <p style={{ fontFamily: 'var(--pub-font-body)', fontSize: 14, color: unitColor, marginBottom: 32, visibility: 'hidden' }}>
+            &nbsp;
+          </p>
+        )}
+
+        {/* Features */}
+        <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 32px 0', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {plan.features.map((f, idx) => (
+            <FeatureItem key={idx} text={t18n(f, locale)} white={isHighlighted} />
+          ))}
+        </ul>
+
+        {/* CTA */}
+        {showCta && (
+          <PubButton
+            variant={isHighlighted ? 'cta-white' : 'secondary'}
+            onClick={handleCtaClick}
+            style={{ width: '100%' }}
+          >
+            {t18n(plan.ctaLabel, locale)}
+          </PubButton>
+        )}
+      </div>
+    </PubCard>
+  );
+}
+
 export function PricingSection({ onSignup, registrationEnabled = true }: PricingSectionProps) {
-  const { t } = useTranslation('public');
+  const { t, i18n } = useTranslation('public');
+  const locale = i18n.language?.split('-')[0] || 'en';
   const sectionRef = useRef<HTMLElement>(null);
   useReveal(sectionRef);
+
+  const [plans, setPlans] = useState<PublicPricingPlan[]>([]);
+
+  useEffect(() => {
+    fetch(`${getApiBaseFromWindow()}/public/pricing-plans`)
+      .then((r) => r.json())
+      .then((data: { plans?: PublicPricingPlan[] }) => setPlans(data.plans ?? []))
+      .catch(() => setPlans([]));
+  }, []);
+
+  if (plans.length === 0) return null;
 
   return (
     <section
       id="pricing"
       ref={sectionRef}
       className="pub-reveal"
-      style={{
-        background: 'var(--pub-bg-dark)',
-        padding: 'var(--pub-section-padding)',
-      }}
+      style={{ background: 'var(--pub-bg-dark)', padding: 'var(--pub-section-padding)' }}
     >
       <div className="pub-container" style={{ textAlign: 'center' }}>
         {/* Header */}
@@ -58,10 +184,7 @@ export function PricingSection({ onSignup, registrationEnabled = true }: Pricing
             {t('pricing.badge')}
           </PubBadge>
         </div>
-        <h2
-          className="pub-text-h2"
-          style={{ color: 'var(--pub-text-on-dark)', marginBottom: 16 }}
-        >
+        <h2 className="pub-text-h2" style={{ color: 'var(--pub-text-on-dark)', marginBottom: 16 }}>
           {t('pricing.title')}
         </h2>
         <p
@@ -73,115 +196,15 @@ export function PricingSection({ onSignup, registrationEnabled = true }: Pricing
 
         {/* Pricing Cards */}
         <div className="pricing-cards-row">
-          {/* Starter Card */}
-          <PubCard variant="dark" className="pricing-card pricing-card--side">
-            <div style={{ textAlign: 'left' }}>
-              <p style={{ fontFamily: 'var(--pub-font-body)', fontSize: 15, fontWeight: 500, color: 'var(--pub-text-on-dark-secondary)', marginBottom: 16 }}>
-                {t('pricing.starterName')}
-              </p>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 4 }}>
-                <span style={{ fontFamily: 'var(--pub-font-display)', fontSize: 24, fontWeight: 800, color: '#FFFFFF' }}>€</span>
-                <span style={{ fontFamily: 'var(--pub-font-display)', fontSize: 56, fontWeight: 800, color: '#FFFFFF', lineHeight: 1 }}>
-                  {t('pricing.starterPrice')}
-                </span>
-              </div>
-              <p style={{ fontFamily: 'var(--pub-font-body)', fontSize: 14, color: 'var(--pub-text-on-dark-secondary)', marginBottom: 32 }}>
-                {t('pricing.starterUnit')}
-              </p>
-              <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 32px 0', display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <FeatureItem text={t('pricing.starterFeature1')} />
-                <FeatureItem text={t('pricing.starterFeature2')} />
-                <FeatureItem text={t('pricing.starterFeature3')} />
-                <FeatureItem text={t('pricing.starterFeature4')} />
-              </ul>
-              {registrationEnabled && (
-                <PubButton variant="secondary" onClick={onSignup} style={{ width: '100%' }}>
-                  {t('pricing.starterCta')}
-                </PubButton>
-              )}
-            </div>
-          </PubCard>
-
-          {/* Team Card (highlighted) */}
-          <PubCard
-            variant="purple"
-            className="pricing-card pricing-card--featured"
-            style={{
-              boxShadow: '0 0 40px rgba(139,92,246,0.3)',
-            }}
-          >
-            <div style={{ textAlign: 'left' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-                <p style={{ fontFamily: 'var(--pub-font-body)', fontSize: 15, fontWeight: 500, color: 'rgba(255,255,255,0.8)', margin: 0 }}>
-                  {t('pricing.teamName')}
-                </p>
-                <span
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    padding: '6px 16px',
-                    borderRadius: 'var(--pub-radius-pill)',
-                    fontFamily: 'var(--pub-font-body)',
-                    fontSize: 13,
-                    fontWeight: 500,
-                    background: '#FFFFFF',
-                    color: 'var(--pub-accent-purple)',
-                  }}
-                >
-                  {t('pricing.teamBadge')}
-                </span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 4 }}>
-                <span style={{ fontFamily: 'var(--pub-font-display)', fontSize: 24, fontWeight: 800, color: '#FFFFFF' }}>€</span>
-                <span style={{ fontFamily: 'var(--pub-font-display)', fontSize: 56, fontWeight: 800, color: '#FFFFFF', lineHeight: 1 }}>
-                  {t('pricing.teamPrice')}
-                </span>
-              </div>
-              <p style={{ fontFamily: 'var(--pub-font-body)', fontSize: 14, color: 'rgba(255,255,255,0.7)', marginBottom: 32 }}>
-                {t('pricing.teamUnit')}
-              </p>
-              <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 32px 0', display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <FeatureItem text={t('pricing.teamFeature1')} white />
-                <FeatureItem text={t('pricing.teamFeature2')} white />
-                <FeatureItem text={t('pricing.teamFeature3')} white />
-                <FeatureItem text={t('pricing.teamFeature4')} white />
-              </ul>
-              {registrationEnabled && (
-                <PubButton variant="cta-white" onClick={onSignup} style={{ width: '100%' }}>
-                  {t('pricing.teamCta')}
-                </PubButton>
-              )}
-            </div>
-          </PubCard>
-
-          {/* Enterprise Card */}
-          <PubCard variant="dark" className="pricing-card pricing-card--side">
-            <div style={{ textAlign: 'left' }}>
-              <p style={{ fontFamily: 'var(--pub-font-body)', fontSize: 15, fontWeight: 500, color: 'var(--pub-text-on-dark-secondary)', marginBottom: 16 }}>
-                {t('pricing.enterpriseName')}
-              </p>
-              <div style={{ marginBottom: 4 }}>
-                <span style={{ fontFamily: 'var(--pub-font-display)', fontSize: 40, fontWeight: 800, color: '#FFFFFF', lineHeight: 1 }}>
-                  {t('pricing.enterprisePrice')}
-                </span>
-              </div>
-              <p style={{ fontFamily: 'var(--pub-font-body)', fontSize: 14, color: 'var(--pub-text-on-dark-secondary)', marginBottom: 32, visibility: 'hidden' }}>
-                &nbsp;
-              </p>
-              <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 32px 0', display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <FeatureItem text={t('pricing.enterpriseFeature1')} />
-                <FeatureItem text={t('pricing.enterpriseFeature2')} />
-                <FeatureItem text={t('pricing.enterpriseFeature3')} />
-                <FeatureItem text={t('pricing.enterpriseFeature4')} />
-              </ul>
-              {registrationEnabled && (
-                <PubButton variant="secondary" onClick={onSignup} style={{ width: '100%' }}>
-                  {t('pricing.enterpriseCta')}
-                </PubButton>
-              )}
-            </div>
-          </PubCard>
+          {plans.map((plan) => (
+            <PlanCard
+              key={plan.id}
+              plan={plan}
+              locale={locale}
+              onSignup={onSignup}
+              registrationEnabled={registrationEnabled}
+            />
+          ))}
         </div>
       </div>
     </section>

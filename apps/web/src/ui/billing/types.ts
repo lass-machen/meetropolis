@@ -71,3 +71,36 @@ export interface PaymentStatus {
   dunningStep: number;
   daysUntilCancellation: number | null;
 }
+
+export interface I18nText {
+  en: string;
+  de: string;
+  [key: string]: string;
+}
+
+export interface PublicPricingPlan {
+  id: string;
+  name: I18nText;
+  description: I18nText | null;
+  priceAmount: number | null;
+  priceCurrency: string;
+  priceInterval: string | null;
+  priceLabel: I18nText | null;
+  unitLabel: I18nText | null;
+  features: I18nText[];
+  ctaLabel: I18nText;
+  ctaUrl: string | null;
+  highlighted: boolean;
+  badgeLabel: I18nText | null;
+  customPricing: boolean;
+  sortOrder: number;
+}
+
+// Admin version includes additional fields
+export interface AdminPricingPlan extends PublicPricingPlan {
+  stripeProductId: string | null;
+  stripePriceId: string | null;
+  visible: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
