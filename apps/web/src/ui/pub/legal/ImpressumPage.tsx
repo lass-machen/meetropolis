@@ -15,17 +15,17 @@ export function ImpressumPage({ onBack, registrationEnabled }: ImpressumPageProp
   const sections = [
     {
       id: 'angaben',
-      title: 'Angaben gem\u00e4\u00df \u00a7 5 TMG',
+      title: 'Angaben gemäß § 5 TMG',
       content: (
         <div>
           <p>
-            Tiamat UG (haftungsbeschr\u00e4nkt)<br />
+            Tiamat UG (haftungsbeschränkt)<br />
             An der Strusbek 12<br />
             22926 Ahrensburg
           </p>
           <p>
             Handelsregister: HRB 25322 HL<br />
-            Registergericht: Amtsgericht L\u00fcbeck
+            Registergericht: Amtsgericht Lübeck
           </p>
           <p>
             <strong>Vertreten durch:</strong><br />
@@ -64,19 +64,12 @@ export function ImpressumPage({ onBack, registrationEnabled }: ImpressumPageProp
     },
     {
       id: 'open-source',
-      title: 'Open Source Hinweis',
+      title: 'Open Source (Coming Soon)',
       content: (
         <div>
           <p>
-            Meetropolis ist ein Open-Source-Projekt, lizenziert unter der
-            Apache License 2.0. Der Quellcode ist verf\u00fcgbar unter:{' '}
-            <a
-              href="https://github.com/lass-machen/meetropolis"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              https://github.com/lass-machen/meetropolis
-            </a>
+            Meetropolis wird in Kürze als Open-Source-Projekt verfügbar sein.
+            Volle Datensouveränität, DSGVO-konform, auf euren eigenen Servern.
           </p>
         </div>
       ),

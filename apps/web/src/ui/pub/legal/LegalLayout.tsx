@@ -242,6 +242,7 @@ export function LegalLayout({
                   cursor: 'pointer',
                   transition: 'all 0.15s ease',
                   lineHeight: 1.4,
+                  overflowWrap: 'break-word',
                 }}
                 onMouseEnter={(e) => {
                   if (!isActive) {
