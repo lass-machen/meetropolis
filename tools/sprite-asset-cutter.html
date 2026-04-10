@@ -422,6 +422,7 @@ body::after{
           <select id="propCategory">
             <option value="objects">objects</option>
             <option value="structure">structure</option>
+            <option value="terrain">terrain</option>
           </select>
         </div>
         <div class="field">
@@ -487,6 +488,33 @@ body::after{
       </div>
       <div class="shortcut-hint" style="margin-top:6px">
         Tile allocation: <span id="tileAllocInfo">-</span>
+      </div>
+    </div>
+
+    <div class="panel-section" id="terrainPropsSection" style="display:none">
+      <div class="section-label">Tileset Properties</div>
+      <div class="field-row">
+        <div class="field">
+          <label>Tile Width</label>
+          <input type="number" id="propTileWidth" value="16" min="1" step="1">
+        </div>
+        <div class="field">
+          <label>Tile Height</label>
+          <input type="number" id="propTileHeight" value="16" min="1" step="1">
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Margin</label>
+          <input type="number" id="propMargin" value="0" min="0" step="1">
+        </div>
+        <div class="field">
+          <label>Spacing</label>
+          <input type="number" id="propSpacing" value="0" min="0" step="1">
+        </div>
+      </div>
+      <div class="shortcut-hint" style="margin-top:6px">
+        Tiles: <span id="tileGridInfo">-</span>
       </div>
     </div>
 
@@ -596,6 +624,7 @@ const propsSection = $('propsSection');
 const offsetSection = $('offsetSection');
 const previewSection = $('previewSection');
 const emptyRight = $('emptyRight');
+const terrainPropsSection = $('terrainPropsSection');
 const previewWrap = $('previewWrap');
 
 /* ---- Toast ---- */
@@ -908,7 +937,7 @@ function renderMapTest() {
   /* Ghost preview at cursor */
   if (ghostAssetId && mtMouseTileX > -999) {
     const ga = assets.find(a => a.id === ghostAssetId);
-    if (ga) {
+    if (ga && ga.category !== 'terrain') {
       const img = getAssetImage(ghostAssetId);
       if (img) {
         const allocW = Math.ceil(ga.sw / TILE) * TILE;
@@ -1118,6 +1147,11 @@ function onMapTestMouseDown(e) {
   if (e.button === 0) {
     const tile = screenToMapTile(mx, my);
     if (ghostAssetId) {
+      const ga = assets.find(a => a.id === ghostAssetId);
+      if (ga && ga.category === 'terrain') {
+        toast('Terrain tilesets cannot be placed in Map Test', 'warn');
+        return;
+      }
       placeAssetOnMap(ghostAssetId, tile.tileX, tile.tileY);
     } else {
       const hit = findPlacedObjectAt(mx, my);
@@ -1244,10 +1278,25 @@ function setAppMode(mode) {
   modeIndicator.textContent = isMap ? 'MAP TEST' : 'SELECT';
 
   /* Right panel */
-  propsSection.style.display = isMap ? 'none' : (selectedId ? '' : 'none');
-  offsetSection.style.display = isMap ? 'none' : (selectedId ? '' : 'none');
-  previewSection.style.display = isMap ? 'none' : (selectedId ? '' : 'none');
-  emptyRight.style.display = isMap ? 'none' : (selectedId ? 'none' : '');
+  if (isMap) {
+    propsSection.style.display = 'none';
+    offsetSection.style.display = 'none';
+    terrainPropsSection.style.display = 'none';
+    previewSection.style.display = 'none';
+    emptyRight.style.display = 'none';
+  } else if (selectedId) {
+    const a = assets.find(a => a.id === selectedId);
+    if (a) {
+      updatePanelVisibility(a);
+    }
+    emptyRight.style.display = 'none';
+  } else {
+    propsSection.style.display = 'none';
+    offsetSection.style.display = 'none';
+    terrainPropsSection.style.display = 'none';
+    previewSection.style.display = 'none';
+    emptyRight.style.display = '';
+  }
   $('mapTestSection').style.display = isMap ? '' : 'none';
 
   /* Cursor info */
@@ -1273,9 +1322,13 @@ function setAppMode(mode) {
 function updateMapTestStatus() {
   if (appMode !== 'maptest') return;
   const a = assets.find(a => a.id === selectedId);
-  $('mapTestStatus').textContent = a
-    ? 'Placing: ' + a.key + ' — click map to place'
-    : 'Select an asset from the list to place.';
+  if (a && a.category === 'terrain') {
+    $('mapTestStatus').textContent = 'Terrain tilesets cannot be placed in Map Test.';
+  } else {
+    $('mapTestStatus').textContent = a
+      ? 'Placing: ' + a.key + ' — click map to place'
+      : 'Select an asset from the list to place.';
+  }
 }
 
 /* ---- Keyboard ---- */
@@ -1380,7 +1433,11 @@ function createAsset(sx, sy, sw, sh) {
     sw: Math.round(sw),
     sh: Math.round(sh),
     offsetX: 0,
-    offsetY: 0
+    offsetY: 0,
+    tileWidth: 16,
+    tileHeight: 16,
+    margin: 0,
+    spacing: 0
   };
   assets.push(asset);
   selectAsset(id);
@@ -1423,11 +1480,38 @@ function selectAsset(id) {
   }
 }
 
+function updatePanelVisibility(a) {
+  if (a.category === 'terrain') {
+    propsSection.style.display = '';
+    terrainPropsSection.style.display = '';
+    offsetSection.style.display = 'none';
+    previewSection.style.display = '';
+    /* Hide zIndex, Sprite Size, Export Size for terrain */
+    $('propZIndex').parentElement.style.display = 'none';
+    $('propSpriteSize').closest('.field-row').style.display = 'none';
+  } else {
+    propsSection.style.display = '';
+    terrainPropsSection.style.display = 'none';
+    offsetSection.style.display = '';
+    previewSection.style.display = '';
+    $('propZIndex').parentElement.style.display = '';
+    $('propSpriteSize').closest('.field-row').style.display = '';
+  }
+}
+
+function updateTileGridInfo(a) {
+  const tw = a.tileWidth || 16;
+  const th = a.tileHeight || 16;
+  const margin = a.margin || 0;
+  const spacing = a.spacing || 0;
+  const cols = Math.max(1, Math.floor((a.sw - margin * 2 + spacing) / (tw + spacing)));
+  const rows = Math.max(1, Math.floor((a.sh - margin * 2 + spacing) / (th + spacing)));
+  $('tileGridInfo').textContent = cols + ' x ' + rows + ' = ' + (cols * rows) + ' tiles (' + tw + 'x' + th + 'px)';
+}
+
 function showRightPanel(a) {
-  propsSection.style.display = '';
-  offsetSection.style.display = '';
-  previewSection.style.display = '';
   emptyRight.style.display = 'none';
+  updatePanelVisibility(a);
   populateProperties(a);
   updateExportButtons();
 }
@@ -1435,6 +1519,7 @@ function showRightPanel(a) {
 function hideRightPanel() {
   propsSection.style.display = 'none';
   offsetSection.style.display = 'none';
+  terrainPropsSection.style.display = 'none';
   previewSection.style.display = 'none';
   emptyRight.style.display = '';
   updateExportButtons();
@@ -1460,6 +1545,13 @@ function populateProperties(a) {
   $('propOffsetY').value = a.offsetY;
 
   $('tileAllocInfo').textContent = tw + ' x ' + th + 'px (' + (tw / TILE) + ' x ' + (th / TILE) + ' tiles) | scale: ' + a.scaleFactor + 'x → ' + Math.round(displayW) + 'x' + Math.round(displayH) + 'px display';
+
+  /* Terrain properties */
+  $('propTileWidth').value = a.tileWidth;
+  $('propTileHeight').value = a.tileHeight;
+  $('propMargin').value = a.margin;
+  $('propSpacing').value = a.spacing;
+  updateTileGridInfo(a);
 }
 
 /* ---- Property change listeners ---- */
@@ -1477,7 +1569,13 @@ $('propKey').addEventListener('input', e => {
 
 $('propCategory').addEventListener('change', e => {
   const a = getSelectedAsset();
-  if (a) a.category = e.target.value;
+  if (!a) return;
+  a.category = e.target.value;
+  updatePanelVisibility(a);
+  invalidateAssetImage(a.id);
+  rebuildAssetList();
+  renderPreview();
+  if (appMode === 'maptest') updateMapTestStatus();
 });
 
 $('propPlacement').addEventListener('change', e => {
@@ -1540,6 +1638,20 @@ $('btnResetOffset').addEventListener('click', () => {
   toast('Offset reset');
 });
 
+/* Terrain property listeners */
+['propTileWidth', 'propTileHeight', 'propMargin', 'propSpacing'].forEach(id => {
+  $(id).addEventListener('input', e => {
+    const a = getSelectedAsset();
+    if (!a) return;
+    const v = parseInt(e.target.value, 10);
+    if (isNaN(v) || v < 0) return;
+    const field = { propTileWidth: 'tileWidth', propTileHeight: 'tileHeight', propMargin: 'margin', propSpacing: 'spacing' }[id];
+    a[field] = v;
+    updateTileGridInfo(a);
+    renderPreview();
+  });
+});
+
 /* ---- Asset List Rendering ---- */
 function rebuildAssetList() {
   assetList.innerHTML = '';
@@ -1580,7 +1692,7 @@ function rebuildAssetList() {
     keySpan.textContent = a.key;
     const dimSpan = document.createElement('div');
     dimSpan.className = 'asset-dims';
-    dimSpan.textContent = a.sw + ' x ' + a.sh + 'px';
+    dimSpan.textContent = a.sw + ' x ' + a.sh + 'px · ' + a.category;
     info.appendChild(keySpan);
     info.appendChild(dimSpan);
     el.appendChild(info);
@@ -1630,6 +1742,11 @@ function renderPreview() {
   previewCanvas.height = ch;
   pctx.clearRect(0, 0, cw, ch);
   pctx.imageSmoothingEnabled = false;
+
+  if (a.category === 'terrain') {
+    renderTerrainPreview(a, cw, ch);
+    return;
+  }
 
   if (previewMode === 'grid') {
     renderGridPreview(a, cw, ch);
@@ -1789,6 +1906,60 @@ function renderMapPreview(a, cw, ch) {
   pctx.fillText(labelText, ox + 4, oy - 4);
 }
 
+function renderTerrainPreview(a, cw, ch) {
+  if (!spriteImg) return;
+  const tw = a.tileWidth || 16;
+  const th = a.tileHeight || 16;
+  const margin = a.margin || 0;
+  const spacing = a.spacing || 0;
+
+  // Scale to fit
+  const pad = 16;
+  const scale = Math.min((cw - pad * 2) / a.sw, (ch - pad * 2) / a.sh, 8);
+  const ox = (cw - a.sw * scale) / 2;
+  const oy = (ch - a.sh * scale) / 2;
+
+  // Draw the tileset image
+  pctx.imageSmoothingEnabled = false;
+  pctx.drawImage(spriteImg, a.sx, a.sy, a.sw, a.sh, ox, oy, a.sw * scale, a.sh * scale);
+
+  // Tile grid overlay
+  const cols = Math.max(1, Math.floor((a.sw - margin * 2 + spacing) / (tw + spacing)));
+  const rows = Math.max(1, Math.floor((a.sh - margin * 2 + spacing) / (th + spacing)));
+
+  // Draw alternating colored tile cells
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const tx = margin + c * (tw + spacing);
+      const ty = margin + r * (th + spacing);
+      if ((r + c) % 2 === 0) {
+        pctx.fillStyle = 'rgba(88,101,242,0.1)';
+        pctx.fillRect(ox + tx * scale, oy + ty * scale, tw * scale, th * scale);
+      }
+    }
+  }
+
+  // Draw grid lines
+  pctx.strokeStyle = 'rgba(88,101,242,0.5)';
+  pctx.lineWidth = 1;
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const tx = margin + c * (tw + spacing);
+      const ty = margin + r * (th + spacing);
+      pctx.strokeRect(ox + tx * scale, oy + ty * scale, tw * scale, th * scale);
+    }
+  }
+
+  // Outer border
+  pctx.strokeStyle = 'rgba(88,101,242,0.3)';
+  pctx.strokeRect(ox, oy, a.sw * scale, a.sh * scale);
+
+  // Labels
+  pctx.font = '9px JetBrains Mono';
+  pctx.fillStyle = '#4a4c58';
+  pctx.fillText(cols + 'x' + rows + ' tiles (' + tw + 'x' + th + 'px)', ox, oy - 5);
+}
+
 /* ---- Export ---- */
 $('btnExportZip').addEventListener('click', exportZip);
 $('btnExportMepack').addEventListener('click', exportMepack);
@@ -1799,45 +1970,66 @@ async function exportZip() {
 
   try {
     const zip = new JSZip();
-    const config = { objects: [], structures: [] };
+    const config = { terrain: [], objects: [], structures: [] };
 
     for (const a of assets) {
-      /* Tile allocation size (rounded up to 16px multiples) */
-      const allocW = Math.ceil(a.sw / 16) * 16;
-      const allocH = Math.ceil(a.sh / 16) * 16;
-
       const canvas = document.createElement('canvas');
-      canvas.width = allocW;
-      canvas.height = allocH;
       const tctx = canvas.getContext('2d');
       tctx.imageSmoothingEnabled = false;
-      /* Bake offset into the PNG — draw at offset position within allocation */
-      tctx.drawImage(spriteImg, a.sx, a.sy, a.sw, a.sh, a.offsetX, a.offsetY, a.sw, a.sh);
 
-      const folder = a.category === 'structure' ? 'structures' : 'objects';
-      const path = 'assets/' + folder + '/' + a.key + '.png';
+      let filePath, entry;
+
+      if (a.category === 'terrain') {
+        // Terrain: export raw selection (no offset, no tile allocation)
+        canvas.width = a.sw;
+        canvas.height = a.sh;
+        tctx.drawImage(spriteImg, a.sx, a.sy, a.sw, a.sh, 0, 0, a.sw, a.sh);
+
+        filePath = 'assets/tilesets/' + a.key + '.png';
+        entry = {
+          id: a.id,
+          key: a.key,
+          category: 'terrain',
+          dataURL: filePath,
+          tileWidth: a.tileWidth || 16,
+          tileHeight: a.tileHeight || 16,
+          margin: a.margin || 0,
+          spacing: a.spacing || 0,
+          collide: a.collide,
+          placement: a.placement
+        };
+        config.terrain.push(entry);
+      } else {
+        // Objects/Structures: existing logic with offset baking
+        const allocW = Math.ceil(a.sw / 16) * 16;
+        const allocH = Math.ceil(a.sh / 16) * 16;
+        canvas.width = allocW;
+        canvas.height = allocH;
+        tctx.drawImage(spriteImg, a.sx, a.sy, a.sw, a.sh, a.offsetX, a.offsetY, a.sw, a.sh);
+
+        const folder = a.category === 'structure' ? 'structures' : 'objects';
+        filePath = 'assets/' + folder + '/' + a.key + '.png';
+        entry = {
+          id: a.id,
+          key: a.key,
+          category: a.category,
+          dataURL: filePath,
+          width: allocW,
+          height: allocH,
+          collide: a.collide,
+          placement: a.placement,
+          scaleFactor: a.scaleFactor,
+          zIndex: a.zIndex
+        };
+        if (a.category === 'structure') {
+          config.structures.push(entry);
+        } else {
+          config.objects.push(entry);
+        }
+      }
 
       const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
-      zip.file(path, blob);
-
-      const entry = {
-        id: a.id,
-        key: a.key,
-        category: a.category,
-        dataURL: path,
-        width: allocW,
-        height: allocH,
-        collide: a.collide,
-        placement: a.placement,
-        scaleFactor: a.scaleFactor,
-        zIndex: a.zIndex
-      };
-
-      if (a.category === 'structure') {
-        config.structures.push(entry);
-      } else {
-        config.objects.push(entry);
-      }
+      zip.file(filePath, blob);
     }
 
     zip.file('config.json', JSON.stringify(config, null, 2));
@@ -1878,41 +2070,63 @@ async function exportMepack() {
     };
 
     for (const a of assets) {
-      const allocW = Math.ceil(a.sw / 16) * 16;
-      const allocH = Math.ceil(a.sh / 16) * 16;
-
       const canvas = document.createElement('canvas');
-      canvas.width = allocW;
-      canvas.height = allocH;
       const tctx = canvas.getContext('2d');
       tctx.imageSmoothingEnabled = false;
-      tctx.drawImage(spriteImg, a.sx, a.sy, a.sw, a.sh, a.offsetX, a.offsetY, a.sw, a.sh);
 
-      const folder = a.category === 'structure' ? 'structures' : 'objects';
-      const filePath = 'assets/' + folder + '/' + a.key + '.png';
-      const dataURL = filePath;
+      let filePath, entry;
+
+      if (a.category === 'terrain') {
+        // Terrain: export raw selection (no offset, no tile allocation)
+        canvas.width = a.sw;
+        canvas.height = a.sh;
+        tctx.drawImage(spriteImg, a.sx, a.sy, a.sw, a.sh, 0, 0, a.sw, a.sh);
+
+        filePath = 'assets/tilesets/' + a.key + '.png';
+        entry = {
+          id: a.id,
+          key: a.key,
+          category: 'terrain',
+          dataURL: filePath,
+          tileWidth: a.tileWidth || 16,
+          tileHeight: a.tileHeight || 16,
+          margin: a.margin || 0,
+          spacing: a.spacing || 0,
+          collide: a.collide,
+          placement: a.placement
+        };
+        config.terrain.push(entry);
+      } else {
+        // Objects/Structures: existing logic with offset baking
+        const allocW = Math.ceil(a.sw / 16) * 16;
+        const allocH = Math.ceil(a.sh / 16) * 16;
+        canvas.width = allocW;
+        canvas.height = allocH;
+        tctx.drawImage(spriteImg, a.sx, a.sy, a.sw, a.sh, a.offsetX, a.offsetY, a.sw, a.sh);
+
+        const folder = a.category === 'structure' ? 'structures' : 'objects';
+        filePath = 'assets/' + folder + '/' + a.key + '.png';
+        entry = {
+          id: a.id,
+          key: a.key,
+          category: a.category,
+          dataURL: filePath,
+          width: allocW,
+          height: allocH,
+          collide: a.collide,
+          placement: a.placement,
+          scaleFactor: a.scaleFactor,
+          zIndex: a.zIndex
+        };
+        if (a.category === 'structure') {
+          config.structures.push(entry);
+        } else {
+          config.objects.push(entry);
+        }
+      }
 
       const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
       zip.file(filePath, blob);
-
-      const entry = {
-        id: a.id,
-        key: a.key,
-        category: a.category,
-        dataURL: dataURL,
-        width: allocW,
-        height: allocH,
-        collide: a.collide,
-        placement: a.placement,
-        scaleFactor: a.scaleFactor,
-        zIndex: a.zIndex
-      };
-
-      if (a.category === 'structure') {
-        config.structures.push(entry);
-      } else {
-        config.objects.push(entry);
-      }
     }
 
     zip.file('config.json', JSON.stringify(config, null, 2));
@@ -1931,17 +2145,23 @@ function exportSelectedPng() {
   const a = getSelectedAsset();
   if (!a || !spriteImg) return;
 
-  /* Tile allocation size (rounded up to 16px multiples) */
-  const allocW = Math.ceil(a.sw / 16) * 16;
-  const allocH = Math.ceil(a.sh / 16) * 16;
-
   const canvas = document.createElement('canvas');
-  canvas.width = allocW;
-  canvas.height = allocH;
   const tctx = canvas.getContext('2d');
   tctx.imageSmoothingEnabled = false;
-  /* Bake offset into the PNG — draw at offset position within allocation */
-  tctx.drawImage(spriteImg, a.sx, a.sy, a.sw, a.sh, a.offsetX, a.offsetY, a.sw, a.sh);
+
+  if (a.category === 'terrain') {
+    canvas.width = a.sw;
+    canvas.height = a.sh;
+    tctx.drawImage(spriteImg, a.sx, a.sy, a.sw, a.sh, 0, 0, a.sw, a.sh);
+  } else {
+    /* Tile allocation size (rounded up to 16px multiples) */
+    const allocW = Math.ceil(a.sw / 16) * 16;
+    const allocH = Math.ceil(a.sh / 16) * 16;
+    canvas.width = allocW;
+    canvas.height = allocH;
+    /* Bake offset into the PNG — draw at offset position within allocation */
+    tctx.drawImage(spriteImg, a.sx, a.sy, a.sw, a.sh, a.offsetX, a.offsetY, a.sw, a.sh);
+  }
 
   canvas.toBlob(blob => {
     downloadBlob(blob, a.key + '.png');
