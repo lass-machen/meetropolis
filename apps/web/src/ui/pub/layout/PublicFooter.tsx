@@ -44,7 +44,7 @@ const FOOTER_COLUMNS: FooterColumn[] = [
     links: [
       { i18nKey: 'footer.legalPrivacy', action: { type: 'navigate', route: 'privacy' } },
       { i18nKey: 'footer.legalImprint', action: { type: 'navigate', route: 'impressum' } },
-      { i18nKey: 'footer.legalTerms', action: { type: 'navigate', route: 'terms' } },
+      { i18nKey: 'footer.legalTerms', action: { type: 'disabled' } },
       { i18nKey: 'footer.legalCookies', action: { type: 'disabled' } },
     ],
   },
