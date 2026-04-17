@@ -51,6 +51,12 @@ export interface ConnectionRefs {
   lastCloseInfoRef: React.MutableRefObject<{ code?: number; reason?: string }>;
   connectingRef: React.MutableRefObject<boolean>;
   coolDownUntilRef: React.MutableRefObject<number>;
+  /**
+   * Tracks whether the client has received the server's full_state message after a fresh connect.
+   * Reset to false on handleLeave (before reconnect) and set to true when full_state arrives.
+   * Consumers can use this to avoid flashing an empty roster during the reconnect gap.
+   */
+  hasReceivedFullStateRef: React.MutableRefObject<boolean>;
 }
 
 export interface SchedulerRefs {

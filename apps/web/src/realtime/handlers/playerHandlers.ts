@@ -2,11 +2,17 @@ import type { UseWorldRoomArgs } from '../types';
 import { useMapStore } from '../../state/mapStore';
 import { emitSameMapIdentities } from '../../lib/avEvents';
 
+export interface SetupPlayerHandlersOptions {
+  /** Called once when the server's initial 'full_state' message arrives for this session. */
+  onFullStateReceived?: () => void;
+}
+
 export function setupPlayerHandlers(
   room: any,
   args: UseWorldRoomArgs,
   scheduleBuildParticipantList: (delay: number) => void,
-  scheduleRefreshRosterFromRemotes: (delay: number) => void
+  scheduleRefreshRosterFromRemotes: (delay: number) => void,
+  options?: SetupPlayerHandlersOptions
 ) {
   const {
     localPosRef,
@@ -37,6 +43,8 @@ export function setupPlayerHandlers(
 
   // Full state sync
   room.onMessage('full_state', (data: any) => {
+    // Signal to consumers (e.g. reconnect gate) that initial state has arrived.
+    try { options?.onFullStateReceived?.(); } catch {}
     if (!gameBridge?.syncRemotePlayers) return;
     if (data?.players) {
       // Sync local player's mapId/mapName from server (most reliable source)
@@ -107,8 +115,12 @@ export function setupPlayerHandlers(
 
   // Player left
   room.onMessage('player_left', (data: any) => {
+    // Idempotent: skip if we don't track this player (already removed or never on our map)
+    if (!remotesRef.current[data.id]) return;
     delete remotesRef.current[data.id];
-    delete colyseusToLivekitMap.current[data.id];
+    if (colyseusToLivekitMap.current[data.id]) {
+      delete colyseusToLivekitMap.current[data.id];
+    }
     if (gameBridge && typeof gameBridge.removeRemotePlayer === 'function') gameBridge.removeRemotePlayer(data.id);
     scheduleBuildParticipantList(50);
     emitCurrentMapIdentities();

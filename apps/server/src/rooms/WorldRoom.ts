@@ -83,6 +83,14 @@ export class WorldRoom extends Room<WorldState> {
   private pendingClients: Map<string, PendingClient> = new Map();
   private static readonly PENDING_TIMEOUT_MS = 30_000;
   private pendingCleanupInterval: ReturnType<typeof setInterval> | null = null;
+  // Session-Hygiene: letzte Aktivität je sessionId (kein Schema-Broadcast, nur Server-Memory)
+  private lastSeen: Map<string, number> = new Map();
+  // Ghost-Threshold: session ohne lastSeen-Update ueber dieser Dauer wird als Ghost aufgeraeumt
+  private static readonly GHOST_THRESHOLD_MS = Number(process.env.GHOST_THRESHOLD_MS ?? 60_000);
+  // Graceful-Leave: pending delete-Timer pro sessionId, fuer Reconnect-Heal (siehe onLeave)
+  private pendingLeaves: Map<string, ReturnType<typeof setTimeout>> = new Map();
+  // Grace-Period vor finalem player-delete (ms) — glaettet kurze Disconnects/Reconnects
+  private static readonly LEAVE_GRACE_MS = Number(process.env.LEAVE_GRACE_MS ?? 300);
   private getAllBubbleMembers(): string[] {
     const all: string[] = [];
     for (const members of Object.values(this.bubbleGroups)) {
@@ -133,6 +141,31 @@ export class WorldRoom extends Room<WorldState> {
       });
       if (foundSessionId !== null) {
         const sid = foundSessionId as string;
+        // Ghost-Detection: wenn lastSeen zu alt ist, Session direkt aufraeumen statt Takeover-Flow
+        const lastSeen = worldRoom.lastSeen.get(sid) ?? 0;
+        const age = Date.now() - lastSeen;
+        if (lastSeen === 0 || age > WorldRoom.GHOST_THRESHOLD_MS) {
+          const ghostPlayer = worldRoom.state.players.get(sid);
+          const mapIdForGhost = ghostPlayer?.mapId;
+          worldRoom.state.players.delete(sid);
+          worldRoom.lastSeen.delete(sid);
+          // Falls noch ein pending Graceful-Leave-Timer laeuft, abbrechen (wird direkt gecleant)
+          const pendingTimer = worldRoom.pendingLeaves.get(sid);
+          if (pendingTimer) {
+            clearTimeout(pendingTimer);
+            worldRoom.pendingLeaves.delete(sid);
+          }
+          try { colyseusPlayers.dec(); } catch { /* metric best-effort */ }
+          // Direkter Broadcast (kein Grace) — user war eh schon weg
+          if (mapIdForGhost) {
+            worldRoom.broadcastToMap(mapIdForGhost, 'player_left', { id: sid });
+          } else {
+            worldRoom.broadcast('player_left', { id: sid });
+          }
+          logger.info('[WorldRoom] Ghost session cleaned for identity:', identity, 'sid:', sid, 'age(ms):', age);
+          // Kein Takeover noetig — neuer Client joined normal
+          return null;
+        }
         const matchedClient = worldRoom.clients.find((c: Client) => c.sessionId === sid);
         if (matchedClient) {
           return { room: worldRoom, sessionId: sid, client: matchedClient };
@@ -234,6 +267,10 @@ export class WorldRoom extends Room<WorldState> {
 
   override onCreate(options?: RoomOptions) {
     this.setState(new WorldState());
+    // Room wird automatisch disposed wenn leer (Colyseus default; explizit dokumentiert)
+    this.autoDispose = true;
+    // Flooding-Schutz: harter Client-Deckel pro Room (env override möglich)
+    this.maxClients = Number(process.env.MAX_CLIENTS_PER_ROOM ?? 200);
     logger.info('[WorldRoom] Room created with initial state');
     activeRooms.add(this);
     try { colyseusRooms.inc(); } catch (e) { logger.debug('[WorldRoom] Failed to increment colyseusRooms metric', e); }
@@ -297,6 +334,8 @@ export class WorldRoom extends Room<WorldState> {
     const lastMove: Map<string, number> = new Map();
     this.onMessage('move', (client, data: { x: number; y: number; direction: string }) => {
       const now = Date.now();
+      // Aktivitaet registrieren — reicht als impliziter Heartbeat
+      this.lastSeen.set(client.sessionId, now);
       const prev = lastMove.get(client.sessionId) || 0;
       if (now - prev < 80) {
         return; // drosseln ~12.5 Hz
@@ -401,6 +440,11 @@ export class WorldRoom extends Room<WorldState> {
 
     // NPC command handler (no-op: commands are broadcast from API, NPC service listens)
     this.onMessage('npc_command', () => {});
+
+    // Heartbeat: Client pingt periodisch, Server aktualisiert lastSeen fuer Ghost-Detection
+    this.onMessage('heartbeat', (client) => {
+      this.lastSeen.set(client.sessionId, Date.now());
+    });
 
     // Handle map change requests
     this.onMessage('change_map', async (client, data: { mapId: string; spawnX?: number; spawnY?: number }) => {
@@ -592,30 +636,50 @@ export class WorldRoom extends Room<WorldState> {
         return;
       }
 
+      // WICHTIG: pending zuerst loeschen, damit completePendingJoin den neuen Client
+      // nicht selbst wieder als pending erkennt (Duplicate-Check in onJoin).
       this.pendingClients.delete(identity);
 
-      // Kick old client across all rooms
+      // Race-Fix: ZUERST den neuen Player in den State setzen, DANACH den alten entfernen.
+      // Effekt: Andere Clients sehen nie eine Luecke (atomarer Swap aus Client-Sicht).
+      logger.info('[WorldRoom] Session takeover: completing join for identity:', identity);
+      await this.completePendingJoin(pending.client, pending.options, pending.identity);
+
+      // Jetzt alten Eintrag aus allen Rooms raeumen
+      const newSid = pending.client.sessionId;
       for (const room of activeRooms) {
         const worldRoom = room as WorldRoom;
         const toRemove: string[] = [];
         worldRoom.state.players.forEach((p, sid) => {
-          if (p.identity === identity) toRemove.push(sid);
+          // Neue Session NICHT entfernen (gleiche identity, aber andere sid)
+          if (p.identity === identity && sid !== newSid) toRemove.push(sid);
         });
         for (const oldSid of toRemove) {
+          const oldPlayer = worldRoom.state.players.get(oldSid);
+          const oldMapId = oldPlayer?.mapId;
+          // Falls Graceful-Timer laeuft, cancelen (wir gehen sofort)
+          const pendingTimer = worldRoom.pendingLeaves.get(oldSid);
+          if (pendingTimer) {
+            clearTimeout(pendingTimer);
+            worldRoom.pendingLeaves.delete(oldSid);
+          }
           worldRoom.state.players.delete(oldSid);
-          try { colyseusPlayers.dec(); } catch {}
-          worldRoom.broadcast('player_left', { id: oldSid });
+          worldRoom.lastSeen.delete(oldSid);
+          try { colyseusPlayers.dec(); } catch { /* metric best-effort */ }
+          // Symmetrie zu player_joined: Broadcast auf derselben Map
+          if (oldMapId) {
+            worldRoom.broadcastToMap(oldMapId, 'player_left', { id: oldSid });
+          } else {
+            worldRoom.broadcast('player_left', { id: oldSid });
+          }
           const oldClient = worldRoom.clients.find((c: Client) => c.sessionId === oldSid);
           if (oldClient) {
-            try { oldClient.error(4007, 'session_taken_over'); } catch {}
-            try { oldClient.leave(1000); } catch {}
+            try { oldClient.error(4007, 'session_taken_over'); } catch { /* best-effort */ }
+            try { oldClient.leave(1000); } catch { /* best-effort */ }
           }
         }
       }
-
-      // Complete the join for the pending client
       logger.info('[WorldRoom] Session takeover completed for identity:', identity);
-      await this.completePendingJoin(pending.client, pending.options, pending.identity);
     });
 
     // Session takeover cancel: new client decides not to take over
@@ -805,6 +869,32 @@ export class WorldRoom extends Room<WorldState> {
     // Duplicate session detection (Two-Phase Join)
     const joiningIdentity = options?.identity || client.sessionId;
     if (!joiningIdentity.startsWith('npc-')) {
+      // Graceful-Reconnect-Cancel: falls fuer diese identity noch ein pending Graceful-Leave
+      // laeuft (kurzer Disconnect + Reconnect), den Timer stoppen und den alten Eintrag
+      // still entfernen. completePendingJoin legt dann einen frischen Eintrag an.
+      try {
+        for (const room of activeRooms) {
+          const worldRoom = room as WorldRoom;
+          const sidsToCancel: string[] = [];
+          for (const sid of worldRoom.pendingLeaves.keys()) {
+            const p = worldRoom.state.players.get(sid);
+            if (p && p.identity === joiningIdentity) {
+              sidsToCancel.push(sid);
+            }
+          }
+          for (const sid of sidsToCancel) {
+            const timer = worldRoom.pendingLeaves.get(sid);
+            if (timer) clearTimeout(timer);
+            worldRoom.pendingLeaves.delete(sid);
+            // Stille Entfernung: KEIN broadcast, damit es keinen Flicker gibt.
+            worldRoom.state.players.delete(sid);
+            worldRoom.lastSeen.delete(sid);
+            try { colyseusPlayers.dec(); } catch { /* metric best-effort */ }
+            logger.info('[WorldRoom] Graceful reconnect: cancelled pending leave for identity', joiningIdentity, 'oldSid:', sid);
+          }
+        }
+      } catch (e) { logger.debug('[WorldRoom] Failed to cancel pending leaves on reconnect', e); }
+
       try {
         const existing = this.findExistingSession(joiningIdentity);
         if (existing) {
@@ -982,6 +1072,8 @@ export class WorldRoom extends Room<WorldState> {
     player.avatarId = options?.avatarId || 'default-characters:businessman1';
     player.isNpc = (joiningIdentity || '').startsWith('npc-');
     this.state.players.set(client.sessionId, player);
+    // Initial lastSeen setzen, damit Ghost-Check erst nach Threshold-Ablauf greift
+    this.lastSeen.set(client.sessionId, Date.now());
     try { colyseusPlayers.inc(); } catch (e) { logger.debug('[WorldRoom] Failed to increment colyseusPlayers metric', e); }
     logger.info('[WorldRoom] Player joined:', client.sessionId, 'identity:', player.identity, 'name:', player.name, 'mapId:', player.mapId, 'map:', player.mapName, 'at', player.x, player.y);
     logger.debug('[WorldRoom] Current players:', this.state.players.size);
@@ -1099,6 +1191,8 @@ export class WorldRoom extends Room<WorldState> {
     }
 
     // Persist position + mapName before removing player (fire-and-forget)
+    // WICHTIG: Synchron auslösen (vor Graceful-Timer), damit bei Crash innerhalb der
+    // Grace-Period die Position trotzdem persistiert ist.
     const player = this.state.players.get(client.sessionId);
     if (player && player.identity && this.prismaForPresence) {
       const tenantSlug = (this.metadata as RoomMetadata)?.tenant
@@ -1120,32 +1214,51 @@ export class WorldRoom extends Room<WorldState> {
         .catch((e) => logger.debug('[WorldRoom] Failed to persist position on leave', e));
     }
 
-    this.state.players.delete(client.sessionId);
-    // Zone lock cleanup
-    onPlayerLeaveZoneLock(this, this.zoneLockState, client.sessionId);
-    try { colyseusPlayers.dec(); } catch (e) { logger.debug('[WorldRoom] Failed to decrement colyseusPlayers metric', e); }
-    logger.info('[WorldRoom] Player left:', client.sessionId);
+    // Idempotenz: falls bereits ein pending Leave für diese sid existiert, ersetzen.
+    const prevTimer = this.pendingLeaves.get(client.sessionId);
+    if (prevTimer) {
+      clearTimeout(prevTimer);
+      this.pendingLeaves.delete(client.sessionId);
+    }
 
-    // Broadcast player left to all other clients
-    this.broadcast('player_left', {
-      id: client.sessionId
-    });
-    // Spieler aus evtl. Bubble-Gruppen entfernen
-    let changed = false;
-    for (const [gid, members] of Object.entries(this.bubbleGroups)) {
-      if (members.includes(client.sessionId)) {
-        this.bubbleGroups[gid] = members.filter(m => m !== client.sessionId);
-        changed = true;
+    const sessionId = client.sessionId;
+    const mapIdForLeave = player?.mapId;
+    logger.info('[WorldRoom] Player leave queued (grace):', sessionId);
+
+    const timer = setTimeout(() => {
+      // Cleanup state + auxiliary maps
+      this.state.players.delete(sessionId);
+      this.lastSeen.delete(sessionId);
+      this.pendingLeaves.delete(sessionId);
+      try { colyseusPlayers.dec(); } catch (e) { logger.debug('[WorldRoom] Failed to decrement colyseusPlayers metric', e); }
+      // Zone lock cleanup
+      onPlayerLeaveZoneLock(this, this.zoneLockState, sessionId);
+      // Symmetrie zu player_joined: Broadcast auf derselben Map (Fallback: global)
+      if (mapIdForLeave) {
+        this.broadcastToMap(mapIdForLeave, 'player_left', { id: sessionId });
+      } else {
+        this.broadcast('player_left', { id: sessionId });
       }
-    }
-    // Gruppen mit <2 Mitgliedern entfernen
-    for (const [gid, members] of Object.entries(this.bubbleGroups)) {
-      if (!Array.isArray(members) || members.length < 2) {
-        delete this.bubbleGroups[gid];
-        changed = true;
+      // Spieler aus evtl. Bubble-Gruppen entfernen
+      let changed = false;
+      for (const [gid, members] of Object.entries(this.bubbleGroups)) {
+        if (members.includes(sessionId)) {
+          this.bubbleGroups[gid] = members.filter(m => m !== sessionId);
+          changed = true;
+        }
       }
-    }
-    if (changed) this.broadcastBubbleState();
+      // Gruppen mit <2 Mitgliedern entfernen
+      for (const [gid, members] of Object.entries(this.bubbleGroups)) {
+        if (!Array.isArray(members) || members.length < 2) {
+          delete this.bubbleGroups[gid];
+          changed = true;
+        }
+      }
+      if (changed) this.broadcastBubbleState();
+      logger.info('[WorldRoom] Player left (graceful committed):', sessionId);
+    }, WorldRoom.LEAVE_GRACE_MS);
+
+    this.pendingLeaves.set(sessionId, timer);
   }
 
   override onDispose() {
@@ -1157,6 +1270,12 @@ export class WorldRoom extends Room<WorldState> {
       clearInterval(this.pendingCleanupInterval);
       this.pendingCleanupInterval = null;
     }
+    // Alle pending Graceful-Leave-Timer abbrechen
+    for (const timer of this.pendingLeaves.values()) {
+      try { clearTimeout(timer); } catch { /* best-effort */ }
+    }
+    this.pendingLeaves.clear();
+    this.lastSeen.clear();
     activeRooms.delete(this);
     try { colyseusRooms.dec(); } catch (e) { logger.debug('[WorldRoom] Failed to decrement colyseusRooms metric', e); }
     try { this.prismaForPresence && this.prismaForPresence.$disconnect().catch(() => { }); } catch (e) { logger.debug('[WorldRoom] Failed to disconnect prisma', e); }

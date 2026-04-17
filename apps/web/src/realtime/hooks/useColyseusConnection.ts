@@ -9,8 +9,19 @@ export function useColyseusConnection(
   args: UseWorldRoomArgs,
   connectionRefs: ConnectionRefs
 ) {
-  const { reconnectAttemptsRef, reconnectTimerRef, lastCloseInfoRef, connectingRef, coolDownUntilRef } = connectionRefs;
-  const { apiBase, me, localPosRef, colyseusRef, setConnectionStatus } = args;
+  const { reconnectAttemptsRef, reconnectTimerRef, lastCloseInfoRef, connectingRef, coolDownUntilRef, hasReceivedFullStateRef } = connectionRefs;
+  const { apiBase, me, localPosRef, colyseusRef, remotesRef, colyseusToLivekitMap, setConnectionStatus } = args;
+
+  /**
+   * Reset Colyseus-tied refs before reconnect so stale remote-player data from the previous
+   * session doesn't leak into the new one. identityToNameMap is intentionally kept as a cache
+   * (name→identity lookups are stable across sessions).
+   */
+  const resetRefsBeforeReconnect = React.useCallback(() => {
+    try { remotesRef.current = {}; } catch {}
+    try { colyseusToLivekitMap.current = {}; } catch {}
+    try { hasReceivedFullStateRef.current = false; } catch {}
+  }, [remotesRef, colyseusToLivekitMap, hasReceivedFullStateRef]);
 
   const scheduleReconnect = React.useCallback((disposed: boolean, onReconnect?: () => void) => {
     if (disposed) return;
@@ -91,9 +102,18 @@ export function useColyseusConnection(
     } catch (err: any) {
       try {
         const msg = (err && (err.message || err.toString?.())) || '';
-        if (String(msg).toLowerCase().includes('insufficient resources')) {
+        const msgLower = String(msg).toLowerCase();
+        if (msgLower.includes('insufficient resources')) {
           coolDownUntilRef.current = Date.now() + 60_000;
           lastCloseInfoRef.current = { reason: 'Insufficient resources' };
+        } else if (
+          msgLower.includes('colyseus_join_timeout') ||
+          msgLower.includes('colyseus_state_timeout') ||
+          msgLower.includes('livekit_token_timeout') ||
+          msgLower.includes('livekit_connect_timeout')
+        ) {
+          lastCloseInfoRef.current = { reason: 'connect_timeout' };
+          logger.warn('[useColyseusConnection] connect timeout', { reason: msg });
         }
       } catch {}
       connectingRef.current = false;
@@ -218,8 +238,9 @@ export function useColyseusConnection(
     } catch {}
     colyseusRef.current = null;
     connectingRef.current = false;
+    resetRefsBeforeReconnect();
     scheduleReconnect(disposed, onReconnect);
-  }, [apiBase, coolDownUntilRef, lastCloseInfoRef, colyseusRef, connectingRef, scheduleReconnect]);
+  }, [apiBase, coolDownUntilRef, lastCloseInfoRef, colyseusRef, connectingRef, scheduleReconnect, resetRefsBeforeReconnect]);
 
   const handleLeave = React.useCallback((code: number | undefined, disposed: boolean, onReconnect?: () => void) => {
     try {
@@ -229,8 +250,9 @@ export function useColyseusConnection(
     } catch {}
     colyseusRef.current = null;
     connectingRef.current = false;
+    resetRefsBeforeReconnect();
     scheduleReconnect(disposed, onReconnect);
-  }, [lastCloseInfoRef, colyseusRef, connectingRef, scheduleReconnect]);
+  }, [lastCloseInfoRef, colyseusRef, connectingRef, scheduleReconnect, resetRefsBeforeReconnect]);
 
   return {
     connect,
