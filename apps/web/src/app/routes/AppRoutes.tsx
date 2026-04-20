@@ -10,6 +10,7 @@ import { BillingSuccessPage } from '../../ui/pub/billing/BillingSuccessPage';
 import { BillingCancelPage } from '../../ui/pub/billing/BillingCancelPage';
 import { EmailVerifyPage } from '../../ui/pub/billing/EmailVerifyPage';
 import { AuthPage } from '../../ui/pub/auth/AuthPage';
+import { PublicConsentGate } from '../../ui/pub/consent/PublicConsentGate';
 
 type Route = 'landing' | 'pricing' | 'app' | 'privacy' | 'terms' | 'impressum' | 'verify' | 'billing-success' | 'billing-cancel' | 'login' | 'register' | 'invite' | 'guest-auth' | 'reset-pw';
 
@@ -145,66 +146,75 @@ export function AppRoutes() {
     }
   }, [route]);
 
-  switch (route) {
-    case 'landing':
-      return (
-        <LandingPage
-          onLogin={() => navigate('login')}
-          onSignup={() => navigate('register')}
-          onPricing={() => navigate('pricing')}
-          registrationEnabled={registrationEnabled}
-        />
-      );
+  const renderRoute = (): React.ReactNode => {
+    switch (route) {
+      case 'landing':
+        return (
+          <LandingPage
+            onLogin={() => navigate('login')}
+            onSignup={() => navigate('register')}
+            onPricing={() => navigate('pricing')}
+            registrationEnabled={registrationEnabled}
+          />
+        );
 
-    case 'pricing':
-      // Pricing is now a section on the landing page — render landing and scroll to #pricing
-      return (
-        <LandingPage
-          onLogin={() => navigate('login')}
-          onSignup={() => navigate('register')}
-          onPricing={() => {}}
-          registrationEnabled={registrationEnabled}
-        />
-      );
+      case 'pricing':
+        // Pricing is now a section on the landing page — render landing and scroll to #pricing
+        return (
+          <LandingPage
+            onLogin={() => navigate('login')}
+            onSignup={() => navigate('register')}
+            onPricing={() => {}}
+            registrationEnabled={registrationEnabled}
+          />
+        );
 
-    case 'privacy':
-      return <PrivacyPolicyPage onBack={() => navigate('landing')} registrationEnabled={registrationEnabled} />;
+      case 'privacy':
+        return <PrivacyPolicyPage onBack={() => navigate('landing')} registrationEnabled={registrationEnabled} />;
 
-    case 'terms':
-      return <TermsOfServicePage onBack={() => navigate('landing')} registrationEnabled={registrationEnabled} />;
+      case 'terms':
+        return <TermsOfServicePage onBack={() => navigate('landing')} registrationEnabled={registrationEnabled} />;
 
-    case 'impressum':
-      return <ImpressumPage onBack={() => navigate('landing')} registrationEnabled={registrationEnabled} />;
+      case 'impressum':
+        return <ImpressumPage onBack={() => navigate('landing')} registrationEnabled={registrationEnabled} />;
 
-    case 'verify':
-      return (
-        <EmailVerifyPage
-          token={verifyToken}
-          apiBase={apiBase}
-          onSuccess={() => navigate('app')}
-          onBack={() => navigate('landing')}
-        />
-      );
+      case 'verify':
+        return (
+          <EmailVerifyPage
+            token={verifyToken}
+            apiBase={apiBase}
+            onSuccess={() => navigate('app')}
+            onBack={() => navigate('landing')}
+          />
+        );
 
-    case 'billing-success':
-      return <BillingSuccessPage onNavigate={() => { window.location.hash = '#/app'; }} />;
-    case 'billing-cancel':
-      return <BillingCancelPage onNavigate={() => { window.location.hash = '#/app'; }} />;
+      case 'billing-success':
+        return <BillingSuccessPage onNavigate={() => { window.location.hash = '#/app'; }} />;
+      case 'billing-cancel':
+        return <BillingCancelPage onNavigate={() => { window.location.hash = '#/app'; }} />;
 
-    case 'login':
-      return <AuthPage apiBase={apiBase} initialView="login" registrationEnabled={registrationEnabled} />;
-    case 'register':
-      return <AuthPage apiBase={apiBase} initialView="register" registrationEnabled={registrationEnabled} />;
-    case 'invite':
-      return <AuthPage apiBase={apiBase} initialView="invite" initialInvite={inviteCode} registrationEnabled={registrationEnabled} />;
-    case 'reset-pw':
-      return <AuthPage apiBase={apiBase} initialView="reset" initialResetToken={resetToken} initialResetEmail={resetEmail} />;
-    case 'guest-auth':
-      return <AuthPage apiBase={apiBase} initialView="guest" initialGuestToken={guestToken} />;
+      case 'login':
+        return <AuthPage apiBase={apiBase} initialView="login" registrationEnabled={registrationEnabled} />;
+      case 'register':
+        return <AuthPage apiBase={apiBase} initialView="register" registrationEnabled={registrationEnabled} />;
+      case 'invite':
+        return <AuthPage apiBase={apiBase} initialView="invite" initialInvite={inviteCode} registrationEnabled={registrationEnabled} />;
+      case 'reset-pw':
+        return <AuthPage apiBase={apiBase} initialView="reset" initialResetToken={resetToken} initialResetEmail={resetEmail} />;
+      case 'guest-auth':
+        return <AuthPage apiBase={apiBase} initialView="guest" initialGuestToken={guestToken} />;
 
-    case 'app':
-    default:
-      return <WorldScreen />;
-  }
+      case 'app':
+      default:
+        return <WorldScreen />;
+    }
+  };
+
+  return (
+    <>
+      {renderRoute()}
+      <PublicConsentGate />
+    </>
+  );
 }
 

@@ -1,5 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import { clearMarketingConsent } from '../../../lib/marketingConsent';
 
 interface PublicFooterProps {
   navigate: (route: string) => void;
@@ -8,6 +9,7 @@ interface PublicFooterProps {
 type FooterLinkAction =
   | { type: 'scroll'; anchorId: string }
   | { type: 'navigate'; route: string }
+  | { type: 'cookie-settings' }
   | { type: 'disabled' };
 
 interface FooterLink {
@@ -45,7 +47,7 @@ const FOOTER_COLUMNS: FooterColumn[] = [
       { i18nKey: 'footer.legalPrivacy', action: { type: 'navigate', route: 'privacy' } },
       { i18nKey: 'footer.legalImprint', action: { type: 'navigate', route: 'impressum' } },
       { i18nKey: 'footer.legalTerms', action: { type: 'disabled' } },
-      { i18nKey: 'footer.legalCookies', action: { type: 'disabled' } },
+      { i18nKey: 'footer.cookieSettings', action: { type: 'cookie-settings' } },
     ],
   },
 ];
@@ -82,6 +84,11 @@ export function PublicFooter({ navigate }: PublicFooterProps) {
         break;
       case 'navigate':
         navigate(action.route);
+        break;
+      case 'cookie-settings':
+        // Reset the stored decision so the banner reappears and users can
+        // revise their choice.
+        clearMarketingConsent();
         break;
       case 'disabled':
         // no-op
@@ -219,7 +226,9 @@ export function PublicFooter({ navigate }: PublicFooterProps) {
                         ? `#${link.action.anchorId}`
                         : link.action.type === 'navigate'
                           ? `#/${link.action.route}`
-                          : '#';
+                          : link.action.type === 'cookie-settings'
+                            ? '#'
+                            : '#';
                     return (
                       <li key={link.i18nKey}>
                         <a

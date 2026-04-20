@@ -166,7 +166,16 @@
     "legalCookies": "Cookie-Einstellungen",
     "copyright": "© 2026 Meetropolis. Alle Rechte vorbehalten.",
     "langDe": "Deutsch",
-    "langEn": "English"
+    "langEn": "English",
+    "cookieSettings": "Cookie-Einstellungen"
+  },
+  "consent": {
+    "title": "Wir nutzen Meta Pixel",
+    "description": "Wir nutzen Meta Pixel, um unser Angebot zu verbessern und relevante Werbung auszuspielen. Deine Zustimmung ist freiwillig und du kannst sie jederzeit über den Link „Cookie-Einstellungen“ im Footer widerrufen.",
+    "privacyLink": "Mehr in der Datenschutzerklärung",
+    "accept": "Akzeptieren",
+    "decline": "Ablehnen",
+    "ariaLabel": "Cookie- und Tracking-Einwilligung"
   },
   "legal": {
     "breadcrumbHome": "Startseite",
