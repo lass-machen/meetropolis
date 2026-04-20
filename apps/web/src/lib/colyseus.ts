@@ -1,5 +1,6 @@
 import { Client, Room } from 'colyseus.js';
 import { logger } from './logger';
+import { readTimeoutMs } from './runtimeConfig';
 
 export async function joinWorld(serverUrl: string, identity?: string, name?: string, position?: { x: number; y: number; direction?: string }, mapName?: string) {
   let baseUrl = serverUrl;
@@ -53,7 +54,10 @@ export async function joinWorld(serverUrl: string, identity?: string, name?: str
     const client = new Client(wsUrl);
     logger.debug('[Colyseus] Client created, joining room...');
     const avatarId = typeof window !== 'undefined' ? localStorage.getItem('avatarId') || undefined : undefined;
-    const room = await client.joinOrCreate('world', {
+
+    const joinTimeoutMs = readTimeoutMs('VITE_COLYSEUS_JOIN_TIMEOUT_MS', 15_000);
+    const JOIN_TIMEOUT_SENTINEL = Symbol('colyseus_join_timeout');
+    const joinPromise = client.joinOrCreate('world', {
       identity,
       name,
       x: position?.x,
@@ -63,20 +67,44 @@ export async function joinWorld(serverUrl: string, identity?: string, name?: str
       avatarId,
       mapName,
     });
-    // Wait for initial state sync
-    await new Promise<void>((resolve) => {
+    let joinTimeoutId: ReturnType<typeof setTimeout> | undefined;
+    const joinTimeoutPromise = new Promise<typeof JOIN_TIMEOUT_SENTINEL>((resolve) => {
+      joinTimeoutId = setTimeout(() => resolve(JOIN_TIMEOUT_SENTINEL), joinTimeoutMs);
+    });
+
+    let room: Room<any>;
+    try {
+      const result = await Promise.race([joinPromise, joinTimeoutPromise]);
+      if (result === JOIN_TIMEOUT_SENTINEL) {
+        // Best-effort: if the join eventually succeeds, make sure we leave.
+        joinPromise.then((r) => { try { (r as any).leave?.(); } catch {} }).catch(() => {});
+        throw new Error('colyseus_join_timeout');
+      }
+      room = result as Room<any>;
+    } finally {
+      if (joinTimeoutId !== undefined) clearTimeout(joinTimeoutId);
+    }
+
+    // Wait for initial state sync — but bound the wait so we never hang forever.
+    const stateTimeoutMs = readTimeoutMs('VITE_COLYSEUS_STATE_TIMEOUT_MS', 5_000);
+    const stopAt = Date.now() + stateTimeoutMs;
+    await new Promise<void>((resolve, reject) => {
       const checkState = () => {
         if (room.state && (room.state as any).players) {
           resolve();
-        } else {
-          setTimeout(checkState, 100);
+          return;
         }
+        if (Date.now() >= stopAt) {
+          reject(new Error('colyseus_state_timeout'));
+          return;
+        }
+        setTimeout(checkState, 100);
       };
       // Give it one tick to potentially sync
       setTimeout(checkState, 0);
     });
-    
-    return room as Room<any>;
+
+    return room;
   } catch (error) {
     throw error;
   }

@@ -10,7 +10,10 @@ import { setupRemoteControlHandlers } from './handlers/remoteControlHandlers';
 import { setupPresenceHandlers, createRosterRefresher } from './handlers/presenceHandlers';
 import { setupZoneLockHandlers } from './handlers/zoneLockHandlers';
 import { useMapStore } from '../state/mapStore';
+import { readTimeoutMs } from '../lib/runtimeConfig';
 import i18n from '../app/providers/i18n';
+
+const HEARTBEAT_INTERVAL_MS = readTimeoutMs('VITE_HEARTBEAT_INTERVAL_MS', 15_000);
 
 export type { UseWorldRoomArgs } from './types';
 
@@ -34,6 +37,10 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
   const lastCloseInfoRef = React.useRef<{ code?: number; reason?: string }>({});
   const connectingRef = React.useRef<boolean>(false);
   const coolDownUntilRef = React.useRef<number>(0);
+  // true ab dem ersten 'full_state' der aktuellen Session; wird auf false zurueckgesetzt,
+  // wenn die Verbindung verloren geht (siehe useColyseusConnection.handleLeave/handleError).
+  // Dient als Lade-Gate gegen „Flash of Empty Roster" waehrend Reconnects.
+  const hasReceivedFullStateRef = React.useRef<boolean>(false);
 
   const connectionRefs: ConnectionRefs = {
     reconnectAttemptsRef,
@@ -41,6 +48,7 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
     lastCloseInfoRef,
     connectingRef,
     coolDownUntilRef,
+    hasReceivedFullStateRef,
   };
 
   // Use connection hook
@@ -56,6 +64,7 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
     let buildListRaf: number | null = null;
     let rosterTimer: any = null;
     let rosterRaf: number | null = null;
+    let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
 
     // Debounce: Teilnehmerliste/Roster nur 1x pro kurzem Intervall aktualisieren (rAF + Delay)
     const scheduleBuildParticipantList = (delay: number = 100) => {
@@ -194,9 +203,22 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
       if (buildListRaf !== null) { try { cancelAnimationFrame(buildListRaf); } catch {} buildListRaf = null; }
       if (rosterTimer) { try { clearTimeout(rosterTimer); } catch {} rosterTimer = null; }
       if (rosterRaf !== null) { try { cancelAnimationFrame(rosterRaf); } catch {} rosterRaf = null; }
+      if (heartbeatInterval) { try { clearInterval(heartbeatInterval); } catch {} heartbeatInterval = null; }
+
+      // Heartbeat: Server-side Ghost-Detection braucht periodische Lebenszeichen.
+      // Idle-Clients ohne move würden sonst nach GHOST_THRESHOLD_MS (60s) als Ghost gekickt.
+      heartbeatInterval = setInterval(() => {
+        try {
+          const activeRoom: any = colyseusRef.current;
+          if (!activeRoom || activeRoom !== room) return;
+          activeRoom.send?.('heartbeat');
+        } catch {}
+      }, HEARTBEAT_INTERVAL_MS);
 
       // Setup all message handlers
-      setupPlayerHandlers(room, args, scheduleBuildParticipantList, scheduleRefreshRosterFromRemotes);
+      setupPlayerHandlers(room, args, scheduleBuildParticipantList, scheduleRefreshRosterFromRemotes, {
+        onFullStateReceived: () => { hasReceivedFullStateRef.current = true; },
+      });
       setupBubbleHandlers(room, args);
       setupEditorHandlers(room, args, scheduleBuildParticipantList);
       setupRemoteControlHandlers(room, args);
@@ -256,51 +278,38 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
         // Non-critical - full_state or onStateChange will handle it eventually
       }
 
-      // Add roster update as additional onStateChange callback
-      // In modern Colyseus, onStateChange is a method that registers callbacks, not a property
+      // Roster-only onStateChange handler.
+      // Einzige Verantwortung: rosterByIdentityRef + setRoster aktualisieren (inkl. cross-map Sichtbarkeit).
+      // Mutation von remotesRef / colyseusToLivekitMap / identityToNameMap passiert ausschliesslich
+      // im primary onStateChange in playerHandlers.ts. buildParticipantList wird von den Message-Handlers
+      // (full_state/player_joined/player_moved/player_left/player_map_changed) getriggert.
       room.onStateChange((state: any) => {
-        // Update roster
         try {
-          const { colyseusToLivekitMap, localPosRef } = args;
+          const { colyseusToLivekitMap, identityToNameMap, localPosRef } = args;
           const online: Record<string, { name: string; x: number; y: number }> = {};
 
-          // Build online map from state.players
-          const players: Record<string, { x: number; y: number; identity?: string; name?: string }> = {};
+          const iterateForRoster = (value: any, key: string) => {
+            if (key === localPosRef.current.id) return;
+            const livekitIdentity = value.identity || colyseusToLivekitMap.current[key] || key;
+            const name = identityToNameMap.current[livekitIdentity] || value.name || livekitIdentity;
+            online[livekitIdentity] = { name, x: value.x, y: value.y };
+          };
+
           if (state.players) {
             if (typeof state.players.forEach === 'function') {
-              state.players.forEach((value: any, key: string) => {
-                if (key !== localPosRef.current.id) {
-                  players[key] = { x: value.x, y: value.y, identity: value.identity, name: value.name };
-                }
-              });
+              state.players.forEach(iterateForRoster);
             } else if (typeof state.players.entries === 'function') {
-              for (const [key, value] of state.players.entries()) {
-                if (key !== localPosRef.current.id) {
-                  players[key] = { x: value.x, y: value.y, identity: value.identity, name: value.name };
-                }
-              }
+              for (const [key, value] of state.players.entries()) iterateForRoster(value, key);
             } else if ((state.players as any)[Symbol.iterator]) {
-              for (const [key, value] of (state.players as any)) {
-                if (key !== localPosRef.current.id) {
-                  players[key] = { x: value.x, y: value.y, identity: value.identity, name: value.name };
-                }
-              }
+              for (const [key, value] of (state.players as any)) iterateForRoster(value, key);
             }
-          }
-
-          for (const [sid, p] of Object.entries(players) as any) {
-            const livekitIdentity = (p as any).identity || (colyseusToLivekitMap.current as any)[sid] || sid;
-            const name = (p as any).name || livekitIdentity;
-            online[livekitIdentity] = { name, x: (p as any).x, y: (p as any).y };
           }
 
           // Include local user via stable userId so presence merge marks self online
-          try {
-            if (me?.id) {
-              const lp = localPosRef.current as any;
-              online[me.id] = { name: me.name || me.email || me.id, x: lp?.x ?? 0, y: lp?.y ?? 0 };
-            }
-          } catch {}
+          if (me?.id) {
+            const lp = localPosRef.current;
+            online[me.id] = { name: me.name || me.email || me.id, x: lp?.x ?? 0, y: lp?.y ?? 0 };
+          }
 
           args.rosterByIdentityRef.current = online;
           setRoster(prev => {
@@ -325,7 +334,6 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
             return Array.from(map.values()).sort((a, b) => Number(b.online) - Number(a.online) || a.name.localeCompare(b.name));
           });
         } catch {}
-        setTimeout(buildParticipantList, 0);
       });
 
       // Setup error and leave handlers
@@ -366,6 +374,7 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
       try { if (rosterTimer) { clearTimeout(rosterTimer); rosterTimer = null; } } catch {}
       try { if (buildListRaf !== null) { cancelAnimationFrame(buildListRaf); buildListRaf = null; } } catch {}
       try { if (rosterRaf !== null) { cancelAnimationFrame(rosterRaf); rosterRaf = null; } } catch {}
+      try { if (heartbeatInterval) { clearInterval(heartbeatInterval); heartbeatInterval = null; } } catch {}
       if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
     };
   }, [apiBase, me?.id]);

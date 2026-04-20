@@ -1,7 +1,25 @@
 import type { LocalAudioTrack, Room } from 'livekit-client';
 import { AVLogger } from '../AVLogger';
 import { useAvSettingsStore } from '../../state/avSettings';
+import { readTimeoutMs } from '../../lib/runtimeConfig';
 import type { LocalTrackState } from './types';
+
+async function withPublishTimeout<T>(op: Promise<T>, timeoutMs: number): Promise<T> {
+  const TIMEOUT_SENTINEL = Symbol('mic_publish_timeout');
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const timeoutPromise = new Promise<typeof TIMEOUT_SENTINEL>((resolve) => {
+    timeoutId = setTimeout(() => resolve(TIMEOUT_SENTINEL), timeoutMs);
+  });
+  try {
+    const result = await Promise.race([op, timeoutPromise]);
+    if (result === TIMEOUT_SENTINEL) {
+      throw new Error('mic_publish_timeout');
+    }
+    return result as T;
+  } finally {
+    if (timeoutId !== undefined) clearTimeout(timeoutId);
+  }
+}
 
 function getLocalTrackPublications(room: Room): any[] {
   try {
@@ -128,11 +146,13 @@ export async function publishMicrophone({
     return;
   }
 
+  const publishTimeoutMs = readTimeoutMs('VITE_MIC_PUBLISH_TIMEOUT_MS', 10_000);
+
   try {
     await unpublishNonLiveMicrophoneTracks(room);
     if (state.track) await unpublishMicrophone({ room, state, checkAllTracksUnpublished: () => {} });
 
-    const track = await buildAndPublishMicrophoneTrack(room, state);
+    const track = await withPublishTimeout(buildAndPublishMicrophoneTrack(room, state), publishTimeoutMs);
     state.track = track;
     state.published = true;
 
@@ -147,12 +167,18 @@ export async function publishMicrophone({
   } catch (error) {
     AVLogger.error('track.mic.publish_failed', { error: String(error) });
 
+    // On timeout: rethrow immediately so upstream UI can react.
+    // Don't attempt the fallback path — it would just stack another 10s wait on a stuck signal.
+    if ((error as Error)?.message === 'mic_publish_timeout') {
+      throw error;
+    }
+
     // Try to recover with permissions
     const hasPermission = await ensureAudioPermissions();
     if (hasPermission) {
       // Retry once
       try {
-        const fallbackTrack = await publishFallbackMicrophoneTrack(room, state);
+        const fallbackTrack = await withPublishTimeout(publishFallbackMicrophoneTrack(room, state), publishTimeoutMs);
         state.track = fallbackTrack;
         state.published = true;
 

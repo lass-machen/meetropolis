@@ -2,6 +2,23 @@ function stripTrailingSlash(u: string): string {
   return u.replace(/\/+$/g, '');
 }
 
+/**
+ * Read a numeric Vite env value (milliseconds) with a guaranteed fallback.
+ * Accepts both string (from `.env`) and numeric values (from `import.meta.env` overrides in tests).
+ * Rejects non-finite or non-positive inputs and returns the fallback in that case.
+ */
+export function readTimeoutMs(envKey: string, fallbackMs: number): number {
+  try {
+    const raw = (import.meta as any).env?.[envKey];
+    if (typeof raw === 'string' && raw.trim().length > 0) {
+      const n = Number(raw);
+      if (Number.isFinite(n) && n > 0) return n;
+    }
+    if (typeof raw === 'number' && Number.isFinite(raw) && raw > 0) return raw;
+  } catch {}
+  return fallbackMs;
+}
+
 export function getApiBaseFromWindow(): string {
   // 1) Query-Parameter (von Electron gesetzt)
   try {

@@ -1,6 +1,7 @@
 import { createLocalScreenTracks, Room } from 'livekit-client';
 import { logger } from './logger';
 import { buildCorrelationHeaders } from './avLog';
+import { readTimeoutMs } from './runtimeConfig';
 
 export type JoinLivekitRoomParams = {
   baseUrl: string;
@@ -63,19 +64,32 @@ function shouldForceRelay(): boolean {
 }
 
 async function fetchLivekitToken(params: JoinLivekitRoomParams): Promise<string> {
-  const res = await fetch(`${params.baseUrl}/livekit/token`, {
-    method: 'POST',
-    headers: { 
-      'Content-Type': 'application/json',
-      ...buildCorrelationHeaders({ identity: params.identity, roomName: params.roomName }),
-    },
-    credentials: 'include',
-    body: JSON.stringify({ roomName: params.roomName, identity: params.identity, name: params.displayName || params.identity })
-  });
-  if (!res.ok) {
-    throw new Error('LiveKit Token konnte nicht geholt werden');
+  const timeoutMs = readTimeoutMs('VITE_LIVEKIT_TOKEN_TIMEOUT_MS', 10_000);
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(`${params.baseUrl}/livekit/token`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...buildCorrelationHeaders({ identity: params.identity, roomName: params.roomName }),
+      },
+      credentials: 'include',
+      body: JSON.stringify({ roomName: params.roomName, identity: params.identity, name: params.displayName || params.identity }),
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      throw new Error('LiveKit Token konnte nicht geholt werden');
+    }
+    return (await res.text()).trim();
+  } catch (err) {
+    if ((err as any)?.name === 'AbortError') {
+      throw new Error('livekit_token_timeout');
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
   }
-  return (await res.text()).trim();
 }
 
 function isDesktopEnvironment(): boolean {
@@ -88,14 +102,27 @@ function isDesktopEnvironment(): boolean {
 }
 
 async function fetchLivekitUrlFromApi(baseUrl: string): Promise<string | undefined> {
+  const timeoutMs = readTimeoutMs('VITE_LIVEKIT_URL_TIMEOUT_MS', 5_000);
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const urlRes = await fetch(`${baseUrl}/livekit/url`, { credentials: 'include' });
+    const urlRes = await fetch(`${baseUrl}/livekit/url`, {
+      credentials: 'include',
+      signal: controller.signal,
+    });
     if (!urlRes.ok) return undefined;
     const data = await urlRes.json();
     if (data.url && typeof data.url === 'string') {
       return normalizeLivekitUrl(data.url);
     }
-  } catch {}
+  } catch (err) {
+    if ((err as any)?.name === 'AbortError') {
+      // Timeout – let resolveLivekitServerUrl fall back gracefully
+      return undefined;
+    }
+  } finally {
+    clearTimeout(timeoutId);
+  }
   return undefined;
 }
 
@@ -164,7 +191,7 @@ async function connectLivekitRoom(args: {
     ? { iceTransportPolicy: 'relay' as RTCIceTransportPolicy }
     : undefined;
 
-  await room.connect(args.serverUrl, args.token, {
+  const connectPromise = room.connect(args.serverUrl, args.token, {
     autoSubscribe: false,
     // Lokale Tracks werden nicht automatisch erzeugt; Remote-Subscribe erfolgt gezielt
     video: false,
@@ -200,6 +227,23 @@ async function connectLivekitRoom(args: {
     // RTC config only when relay is forced (server provides ICE config via signaling)
     ...(rtcConfig ? { rtcConfig } : {}),
   } as any);
+
+  const timeoutMs = readTimeoutMs('VITE_LIVEKIT_CONNECT_TIMEOUT_MS', 10_000);
+  const TIMEOUT_SENTINEL = Symbol('livekit_connect_timeout');
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const timeoutPromise = new Promise<typeof TIMEOUT_SENTINEL>((resolve) => {
+    timeoutId = setTimeout(() => resolve(TIMEOUT_SENTINEL), timeoutMs);
+  });
+
+  try {
+    const result = await Promise.race([connectPromise, timeoutPromise]);
+    if (result === TIMEOUT_SENTINEL) {
+      try { await room.disconnect(true); } catch {}
+      throw new Error('livekit_connect_timeout');
+    }
+  } finally {
+    if (timeoutId !== undefined) clearTimeout(timeoutId);
+  }
 
   try {
     const anyRoom: any = room as any;
