@@ -1,5 +1,5 @@
 import React from 'react';
-import { emitAudioTracksChanged } from '../lib/avEvents';
+import { emitAudioTracksChanged, onAudioTracksChanged } from '../lib/avEvents';
 
 export function useGlobalAudioTracks(params: { avRef: React.MutableRefObject<any> }) {
   const { avRef } = params;
@@ -112,7 +112,23 @@ export function useGlobalAudioTracks(params: { avRef: React.MutableRefObject<any
       } catch {}
     })();
 
+    // Defensive: React to audio-topology change events (emitted e.g. by
+    // SubscriptionManager.restoreAllRemote() after DND exit). If DND is
+    // currently OFF, ensure all managed <audio> elements have muted=false
+    // and volume=1 — the flag may have been set to muted while DND was on.
+    const unsubscribeAudioChanged = onAudioTracksChanged(() => {
+      try {
+        const dndOn = !!(((avRef.current as any)?.dndEnabled) ?? ((avRef.current as any)?.dnd));
+        if (dndOn) return;
+        audioElements.forEach((audio) => {
+          try { audio.muted = false; } catch {}
+          try { audio.volume = 1; } catch {}
+        });
+      } catch {}
+    });
+
     return () => {
+      try { unsubscribeAudioChanged(); } catch {}
       audioElements.forEach((audio) => {
         try { audio.pause(); } catch {}
         try { (audio as any).srcObject = null; } catch {}

@@ -219,10 +219,15 @@ export class SubscriptionManager implements Disposable {
         }
       }
 
-      // Re-apply bubble attenuation
-      if (this._desiredParticipants.length > 0) {
-        this.applyBubbleAttenuation(this._desiredParticipants);
-      }
+      // Re-apply bubble attenuation unconditionally: Even when the local user
+      // has no bubble members (empty desiredParticipants), cross-map or
+      // out-of-bubble users still need correct volume levels (mute / attenuated).
+      this.applyBubbleAttenuation(this._desiredParticipants);
+
+      // Notify listeners (UI, useGlobalAudioTracks) that the audio-track
+      // topology/volume may have changed — so participant mute indicators
+      // and DOM audio elements can re-sync.
+      emitAudioTracksChanged();
     } catch (error) {
       AVLogger.warn('subscription.restore_all.error', { error: String(error) });
     }

@@ -27,6 +27,29 @@ export interface DNDDeps {
   // Remote audio control
   muteAllRemote: () => void;
   restoreAllRemote: () => void;
+
+  /**
+   * Force re-application of LiveKit remote subscription states after DND exit.
+   *
+   * Required because `applySubscriptions()`/`applyBubbleAttenuation()` return
+   * early while DND is active (via `isDND()` guards) and `_lastApplyKey`
+   * dedupes otherwise-identical states. Without this, the subscription
+   * state can stay stale — leading to users appearing "muted" in the UI
+   * even though they aren't.
+   *
+   * Optional: May be omitted in tests / consumers that don't need it.
+   */
+  forceResubscribe?: () => void;
+
+  /**
+   * Re-sync DOM audio elements (muted flag, volume) of remote participants
+   * after DND exit. `useGlobalAudioTracks` sets `muted=true` while DND is
+   * enabled; this callback ensures the flag is cleared once DND is disabled
+   * again.
+   *
+   * Optional: May be omitted in tests / environments without a DOM.
+   */
+  refreshRemoteAudioElements?: () => void;
 }
 
 export class DoNotDisturb implements Disposable {
@@ -165,6 +188,21 @@ export class DoNotDisturb implements Disposable {
 
     // Restore remote audio first
     this.deps.restoreAllRemote();
+
+    // Re-sync DOM audio elements & LiveKit subscription state.
+    // Order: DOM first (cheap, synchronous), then force re-subscribe so the
+    // subsequent subscription events land on freshly restored <audio> nodes.
+    try {
+      this.deps.refreshRemoteAudioElements?.();
+    } catch (error) {
+      AVLogger.warn('dnd.refresh_audio_elements.error', { error: String(error) });
+    }
+
+    try {
+      this.deps.forceResubscribe?.();
+    } catch (error) {
+      AVLogger.warn('dnd.force_resubscribe.error', { error: String(error) });
+    }
 
     // Restore local tracks based on saved state
     if (this._state.micBeforeDND) {

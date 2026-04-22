@@ -137,6 +137,38 @@ export class AVManager implements Disposable {
       isCameraEnabled: () => this.trackManager.isCameraEnabled,
       muteAllRemote: () => this.subscriptionManager.muteAllRemote(),
       restoreAllRemote: () => this.subscriptionManager.restoreAllRemote(),
+      forceResubscribe: () => {
+        // After DND exit: force full re-evaluation of subscription state
+        // and ensure audio for same-map participants is subscribed again.
+        // The `_lastApplyKey` dedupe inside applySubscriptions() would
+        // otherwise treat post-DND state as unchanged.
+        try {
+          this.subscriptionManager.forceApply();
+        } catch (error) {
+          AVLogger.warn('manager.dnd.force_resubscribe.error', { error: String(error) });
+        }
+        try {
+          this.subscriptionManager.ensureAudioSubscriptions();
+        } catch (error) {
+          AVLogger.warn('manager.dnd.ensure_audio.error', { error: String(error) });
+        }
+      },
+      refreshRemoteAudioElements: () => {
+        // After DND exit: clear the `muted` flag / restore volume on all
+        // remote <audio data-av-remote> elements. useGlobalAudioTracks sets
+        // muted=true while DND is active; without this step the flag would
+        // persist until the next track re-subscribe.
+        if (typeof document === 'undefined') return;
+        try {
+          const nodes = document.querySelectorAll<HTMLAudioElement>('audio[data-av-remote]');
+          nodes.forEach((audio) => {
+            try { audio.muted = false; } catch { /* noop */ }
+            try { audio.volume = 1; } catch { /* noop */ }
+          });
+        } catch (error) {
+          AVLogger.warn('manager.dnd.refresh_audio_elements.error', { error: String(error) });
+        }
+      },
     });
 
     // Initialize screenshare
