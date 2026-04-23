@@ -640,6 +640,11 @@ export function WorldApp() {
           me={me}
           apiBase={apiBase}
           onComplete={(updates) => {
+            try {
+              if (updates.avatarId) {
+                colyseusRef.current?.send?.('avatar_change', { avatarId: updates.avatarId });
+              }
+            } catch (e) { logger.debug('[WorldApp] onboarding avatar sync failed', e); }
             setMe(prev => prev ? { ...prev, ...updates } : prev);
           }}
         />

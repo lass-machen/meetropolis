@@ -1053,23 +1053,32 @@ export class WorldRoom extends Room<WorldState> {
     player.direction = options?.direction || 'down';
     player.identity = joiningIdentity; // Use provided identity or fallback
     // Prefer client-provided name, but verify it's not just the UUID
-    let resolvedName = options?.name;
-    if (!resolvedName || resolvedName === joiningIdentity) {
-      // Client sent no name or sent the UUID as name - look up from DB
+    let resolvedName: string | undefined = options?.name;
+    let resolvedAvatarId: string | undefined = undefined;
+    const isNpcIdentity = (joiningIdentity || '').startsWith('npc-');
+    const needsNameLookup = !resolvedName || resolvedName === joiningIdentity;
+    // Always load avatarId from DB for non-NPC users (source of truth), and name if needed
+    if (!isNpcIdentity && (needsNameLookup || !options?.avatarId)) {
       try {
         const prisma = this.prismaForPresence ?? new PrismaClient();
         const user = await prisma.user.findUnique({
           where: { id: joiningIdentity },
-          select: { name: true, email: true },
+          select: { name: true, email: true, avatarId: true },
         });
-        resolvedName = user?.name || user?.email || joiningIdentity;
+        if (needsNameLookup) {
+          resolvedName = user?.name || user?.email || joiningIdentity;
+        }
+        resolvedAvatarId = user?.avatarId ?? undefined;
       } catch (e) {
-        logger.debug('[WorldRoom] Failed to look up user name from DB', e);
-        resolvedName = joiningIdentity;
+        logger.debug('[WorldRoom] Failed to look up user name/avatar from DB', e);
+        if (needsNameLookup) {
+          resolvedName = joiningIdentity;
+        }
       }
     }
-    player.name = resolvedName;
-    player.avatarId = options?.avatarId || 'default-characters:businessman1';
+    player.name = resolvedName || joiningIdentity;
+    // Priority: explicit options.avatarId (active session update) > DB value (source of truth) > default
+    player.avatarId = options?.avatarId || resolvedAvatarId || 'default-characters:businessman1';
     player.isNpc = (joiningIdentity || '').startsWith('npc-');
     this.state.players.set(client.sessionId, player);
     // Initial lastSeen setzen, damit Ghost-Check erst nach Threshold-Ablauf greift
