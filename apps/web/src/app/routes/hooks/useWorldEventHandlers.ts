@@ -42,77 +42,40 @@ interface UseWorldEventHandlersParams {
   dismissBanner: () => void;
 }
 
-export function useWorldEventHandlers(params: UseWorldEventHandlersParams) {
-  const {
-    apiBase,
-    avRef,
-    colyseusRef,
-    localPosRef,
-    bubbleGroupsRef,
-    bubbleMembersRef,
-    bubbleStartRef,
-    followRef,
-    manualNavRef,
-    gameBridge,
-    editor,
-    avState,
-    contextMenu,
-    setAvState,
-    setMe,
-    setGridExpanded,
-    setSelectedSid,
-    setMenuOpen,
-    setTenantTab,
-    setPage,
-    setAdminOpen,
-    setApiModalOpen,
-    setBillingOpen,
-    setProfileOpen,
-    setTenantSettingsOpen,
-    setSessionsOpen,
-    setRosterCollapsed,
-    setBubbleUi,
-    setContextMenu,
-    setSelectedMicId,
-    setSelectedCamId,
-    applyVolumesToUi,
-    saveAllToServer,
-    handleConnectionReload,
-    dismissBanner,
-  } = params;
+async function ensureMicAudioContext(avRef: React.RefObject<any>) {
+  try {
+    const anyRoom: any = avRef.current?.room;
+    if (anyRoom?.startAudio) await anyRoom.startAudio().catch(() => {});
+    const ctx = anyRoom?.engine?.client?.audioContext || anyRoom?.engine?.audioContext;
+    if (ctx?.state === 'suspended') await ctx.resume().catch(() => {});
+  } catch {}
+}
 
-  // AV Event Handlers
+async function reconcileMicState(avRef: React.RefObject<any>, enabled: boolean, setAvState: React.Dispatch<React.SetStateAction<{ mic: boolean; cam: boolean; share: boolean; dnd: boolean }>>) {
+  try {
+    const mod: any = await import('../../../av/core/localState');
+    const roomAny: any = avRef.current?.room as any;
+    const realOn = mod.isLocalMicOn(roomAny);
+    if (realOn !== enabled) setAvState(s => ({ ...s, mic: realOn }));
+    setTimeout(() => {
+      try {
+        const again = mod.isLocalMicOn(avRef.current?.room as any);
+        if (again !== realOn) setAvState(s => ({ ...s, mic: again }));
+      } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
+    }, 400);
+  } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
+}
+
+function useAvHandlers(params: UseWorldEventHandlersParams) {
+  const { avRef, avState, setAvState, setSelectedMicId, setSelectedCamId, gameBridge } = params;
+
   const handleToggleMic = useCallback(async () => {
     const enabled = !avState.mic;
-    try {
-      const anyRoom: any = avRef.current?.room;
-      if (anyRoom?.startAudio) await anyRoom.startAudio().catch(() => {});
-      const ctx = anyRoom?.engine?.client?.audioContext || anyRoom?.engine?.audioContext;
-      if (ctx?.state === 'suspended') await ctx.resume().catch(() => {});
-    } catch {}
+    await ensureMicAudioContext(avRef);
     setAvState(s => ({ ...s, mic: enabled }));
-    try {
-      await avRef.current?.setMicrophoneEnabled(enabled);
-    } catch (e) {
-      setAvState(s => ({ ...s, mic: !enabled }));
-      return;
-    }
-    try {
-      const mod: any = await import('../../../av/core/localState');
-      const roomAny: any = avRef.current?.room as any;
-      const realOn = mod.isLocalMicOn(roomAny);
-      if (realOn !== enabled) {
-        setAvState(s => ({ ...s, mic: realOn }));
-      }
-      setTimeout(() => {
-        try {
-          const again = mod.isLocalMicOn(avRef.current?.room as any);
-          if (again !== realOn) {
-            setAvState(s => ({ ...s, mic: again }));
-          }
-        } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
-      }, 400);
-    } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
+    try { await avRef.current?.setMicrophoneEnabled(enabled); }
+    catch { setAvState(s => ({ ...s, mic: !enabled })); return; }
+    await reconcileMicState(avRef, enabled, setAvState);
   }, [avState.mic, avRef, setAvState]);
 
   const handleSelectMic = useCallback(async (id: string) => {
@@ -158,7 +121,12 @@ export function useWorldEventHandlers(params: UseWorldEventHandlersParams) {
     try { gameBridge.recenterCamera(); } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
   }, [gameBridge]);
 
-  // UI Event Handlers
+  return { handleToggleMic, handleSelectMic, handleToggleCam, handleSelectCam, handleToggleShare, handleToggleDnd, handleRecenter };
+}
+
+function useUiHandlers(params: UseWorldEventHandlersParams) {
+  const { setGridExpanded, setSelectedSid, setMenuOpen, setTenantSettingsOpen, setTenantTab, setPage, setAdminOpen, setApiModalOpen, setBillingOpen, setProfileOpen, setSessionsOpen, setRosterCollapsed } = params;
+
   const handleToggleExpand = useCallback(() => setGridExpanded(e => {
     const next = !e;
     localStorage.setItem('uc-container-expanded', String(next));
@@ -216,6 +184,14 @@ export function useWorldEventHandlers(params: UseWorldEventHandlersParams) {
     setMenuOpen(false);
   }, [setSessionsOpen, setMenuOpen]);
 
+  const handleToggleRosterCollapse = useCallback(() => setRosterCollapsed(v => !v), [setRosterCollapsed]);
+
+  return { handleToggleExpand, handleSelectSid, handleToggleMenu, handleOpenUsers, handleOpenInvites, handleBackToWorld, handleOpenAdmin, handleOpenApi, handleOpenBilling, handleOpenProfile, handleOpenTenantSettings, handleOpenSessions, handleToggleRosterCollapse };
+}
+
+function useResetAndLogoutHandlers(params: UseWorldEventHandlersParams) {
+  const { apiBase, avRef, colyseusRef, setMenuOpen, setMe, setPage, editor, saveAllToServer } = params;
+
   const handleResetApp = useCallback(async () => {
     setMenuOpen(false);
     try { await avRef.current?.leave?.(); } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
@@ -241,14 +217,9 @@ export function useWorldEventHandlers(params: UseWorldEventHandlersParams) {
 
   const handleToggleEditor = useCallback(async () => {
     const isCurrentlyActive = editor.active;
-    if (isCurrentlyActive) {
-      await saveAllToServer().catch(() => { });
-    }
-    if (isCurrentlyActive) {
-      EditorService.dispatch({ type: 'DEACTIVATE_EDITOR' });
-    } else {
-      EditorService.dispatch({ type: 'ACTIVATE_EDITOR' });
-    }
+    if (isCurrentlyActive) await saveAllToServer().catch(() => { });
+    if (isCurrentlyActive) EditorService.dispatch({ type: 'DEACTIVATE_EDITOR' });
+    else EditorService.dispatch({ type: 'ACTIVATE_EDITOR' });
     setMenuOpen(false);
   }, [editor.active, saveAllToServer, setMenuOpen]);
 
@@ -256,7 +227,11 @@ export function useWorldEventHandlers(params: UseWorldEventHandlersParams) {
     try { await fetch(`${apiBase}/auth/logout`, { method: 'POST', credentials: 'include' }); } finally { setMe(null); setMenuOpen(false); setPage('world'); }
   }, [apiBase, setMe, setMenuOpen, setPage]);
 
-  const handleToggleRosterCollapse = useCallback(() => setRosterCollapsed(v => !v), [setRosterCollapsed]);
+  return { handleResetApp, handleToggleEditor, handleLogout };
+}
+
+function useNavAndBubbleHandlers(params: UseWorldEventHandlersParams) {
+  const { manualNavRef, gameBridge, bubbleMembersRef, bubbleGroupsRef, colyseusRef, localPosRef, setBubbleUi, applyVolumesToUi, handleConnectionReload, dismissBanner } = params;
 
   const handleJumpTo = useCallback((r: { x?: number; y?: number }) => {
     try {
@@ -296,6 +271,12 @@ export function useWorldEventHandlers(params: UseWorldEventHandlersParams) {
   const handleDismissBanner = useCallback(() => {
     dismissBanner();
   }, [dismissBanner]);
+
+  return { handleJumpTo, handleBubbleLeave, handleConnectionReloadClick, handleDismissBanner };
+}
+
+function useContextMenuHandlers(params: UseWorldEventHandlersParams) {
+  const { contextMenu, setContextMenu, followRef, gameBridge, bubbleGroupsRef, colyseusRef, localPosRef, bubbleStartRef } = params;
 
   const handleCloseContextMenu = useCallback(() => {
     setContextMenu({ open: false, x: 0, y: 0, playerId: null });
@@ -351,7 +332,6 @@ export function useWorldEventHandlers(params: UseWorldEventHandlersParams) {
     bubbleStartRef.current?.(id);
   }, [contextMenu.playerId, bubbleStartRef, setContextMenu]);
 
-  // Computed values
   const showJoinBubbleOption = useMemo(() => {
     try {
       const target = contextMenu.playerId;
@@ -360,9 +340,7 @@ export function useWorldEventHandlers(params: UseWorldEventHandlersParams) {
       const meId = localPosRef.current?.id;
       const myGroup = meId ? (bubbleGroupsRef.current?.[meId] || null) : null;
       return !!targetGroup && targetGroup !== myGroup;
-    } catch {
-      return false;
-    }
+    } catch { return false; }
   }, [contextMenu.playerId, bubbleGroupsRef, localPosRef]);
 
   const showAddToBubbleOption = useMemo(() => {
@@ -370,50 +348,17 @@ export function useWorldEventHandlers(params: UseWorldEventHandlersParams) {
       const meId = localPosRef.current?.id;
       const myGroup = meId ? (bubbleGroupsRef.current?.[meId] || null) : null;
       return !!myGroup;
-    } catch {
-      return false;
-    }
+    } catch { return false; }
   }, [bubbleGroupsRef, localPosRef]);
 
-  return {
-    // AV Handlers
-    handleToggleMic,
-    handleSelectMic,
-    handleToggleCam,
-    handleSelectCam,
-    handleToggleShare,
-    handleToggleDnd,
-    handleRecenter,
+  return { handleCloseContextMenu, handleContextMenuFollow, handleContextMenuJoinBubble, handleContextMenuAddToBubble, handleContextMenuStartBubble, showJoinBubbleOption, showAddToBubbleOption };
+}
 
-    // UI Handlers
-    handleToggleExpand,
-    handleSelectSid,
-    handleToggleMenu,
-    handleOpenUsers,
-    handleOpenInvites,
-    handleBackToWorld,
-    handleOpenAdmin,
-    handleOpenApi,
-    handleOpenBilling,
-    handleOpenProfile,
-    handleOpenTenantSettings,
-    handleOpenSessions,
-    handleResetApp,
-    handleToggleEditor,
-    handleLogout,
-    handleToggleRosterCollapse,
-    handleJumpTo,
-    handleBubbleLeave,
-    handleConnectionReloadClick,
-    handleDismissBanner,
-
-    // Context Menu Handlers
-    handleCloseContextMenu,
-    handleContextMenuFollow,
-    handleContextMenuJoinBubble,
-    handleContextMenuAddToBubble,
-    handleContextMenuStartBubble,
-    showJoinBubbleOption,
-    showAddToBubbleOption,
-  };
+export function useWorldEventHandlers(params: UseWorldEventHandlersParams) {
+  const av = useAvHandlers(params);
+  const ui = useUiHandlers(params);
+  const reset = useResetAndLogoutHandlers(params);
+  const nav = useNavAndBubbleHandlers(params);
+  const ctx = useContextMenuHandlers(params);
+  return { ...av, ...ui, ...reset, ...nav, ...ctx };
 }
