@@ -199,14 +199,241 @@ const PILLARS: PillarData[] = [
   },
 ];
 
+const SOCIAL_PROOF_STYLES = `
+  .pub-stats-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 32px;
+    padding: 32px 24px;
+    margin-bottom: 72px;
+    background: var(--pub-bg-surface);
+    border-radius: var(--pub-radius-card-lg);
+    align-items: center;
+    justify-content: space-between;
+  }
+  .pub-quotes-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 24px;
+    margin-bottom: 0;
+    align-items: stretch;
+  }
+  .pub-quote-card {
+    width: calc(33.333% - 16px);
+    min-width: 0;
+    box-sizing: border-box;
+  }
+  .pub-pillars-divider {
+    height: 1px;
+    background: var(--pub-border-light);
+    margin: 80px 0 56px;
+    max-width: 480px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .pub-pillars-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 24px;
+  }
+  .pub-pillar-card {
+    width: calc(33.333% - 16px);
+    min-width: 0;
+    box-sizing: border-box;
+  }
+  @media (max-width: 1024px) {
+    .pub-quote-card {
+      width: calc(50% - 12px);
+    }
+    .pub-pillar-card {
+      width: calc(50% - 12px);
+    }
+  }
+  @media (max-width: 768px) {
+    .pub-stats-row {
+      padding: 24px 16px;
+      gap: 24px;
+    }
+    .pub-quote-card {
+      width: 100%;
+    }
+    .pub-pillar-card {
+      width: 100%;
+    }
+  }
+`;
+
+const SUBHEAD_TITLE_STYLE: React.CSSProperties = {
+  fontFamily: 'var(--pub-font-display)',
+  fontSize: 24,
+  fontWeight: 700,
+  color: 'var(--pub-text-primary)',
+  marginBottom: 8,
+  letterSpacing: '-0.01em',
+};
+
+const SUBHEAD_SUBTITLE_STYLE: React.CSSProperties = {
+  fontFamily: 'var(--pub-font-body)',
+  fontSize: 14,
+  color: 'var(--pub-text-secondary)',
+  maxWidth: 560,
+  margin: '0 auto',
+  lineHeight: 1.6,
+};
+
+/* ---------- Sub-Components ---------- */
+
+function SocialProofHeader() {
+  const { t } = useTranslation('public');
+  return (
+    <div style={{ textAlign: 'center', marginBottom: 56 }}>
+      <div style={{ marginBottom: 24 }}>
+        <PubBadge variant="amber" dot>
+          {t('social.badge')}
+        </PubBadge>
+      </div>
+      <h2
+        className="pub-text-h2"
+        style={{ color: 'var(--pub-text-primary)', maxWidth: 720, margin: '0 auto 16px' }}
+      >
+        {t('social.title')}
+      </h2>
+      <p className="pub-text-subline" style={{ maxWidth: 700, margin: '0 auto' }}>
+        {t('social.subtitle')}
+      </p>
+    </div>
+  );
+}
+
+function StatsRow() {
+  const { t } = useTranslation('public');
+  return (
+    <div className="pub-stats-row">
+      <StatItem
+        value={t('social.stat1Value')}
+        label={t('social.stat1Label')}
+        color="var(--pub-accent-purple)"
+      />
+      <StatItem
+        value={t('social.stat2Value')}
+        label={t('social.stat2Label')}
+        color="var(--pub-accent-teal)"
+      />
+      <StatItem
+        value={t('social.stat3Value')}
+        label={t('social.stat3Label')}
+        color="var(--pub-accent-pink)"
+      />
+      <StatItem
+        value={t('social.stat4Value')}
+        label={t('social.stat4Label')}
+        color="var(--pub-accent-amber)"
+      />
+    </div>
+  );
+}
+
+function SubHead({ titleKey, subtitleKey }: { titleKey: string; subtitleKey: string }) {
+  const { t } = useTranslation('public');
+  return (
+    <div style={{ textAlign: 'center', marginBottom: 32 }}>
+      <h3 style={SUBHEAD_TITLE_STYLE}>
+        {t(titleKey)}
+      </h3>
+      <p style={SUBHEAD_SUBTITLE_STYLE}>
+        {t(subtitleKey)}
+      </p>
+    </div>
+  );
+}
+
+function QuotesRow() {
+  const { t } = useTranslation('public');
+  const verifiedLabel = t('social.quoteVerifiedLabel');
+  return (
+    <div className="pub-quotes-row">
+      <QuoteCard
+        text={t('social.quote1Text')}
+        role={t('social.quote1Role')}
+        meta={t('social.quote1Meta')}
+        verifiedLabel={verifiedLabel}
+        accentColor="var(--pub-accent-purple)"
+      />
+      <QuoteCard
+        text={t('social.quote2Text')}
+        role={t('social.quote2Role')}
+        meta={t('social.quote2Meta')}
+        verifiedLabel={verifiedLabel}
+        accentColor="var(--pub-accent-teal)"
+      />
+      <QuoteCard
+        text={t('social.quote3Text')}
+        role={t('social.quote3Role')}
+        meta={t('social.quote3Meta')}
+        verifiedLabel={verifiedLabel}
+        accentColor="var(--pub-accent-pink)"
+      />
+    </div>
+  );
+}
+
+function PillarCardItem({ pillar }: { pillar: PillarData }) {
+  const { t } = useTranslation('public');
+  const { Icon, iconBg, iconColor, titleKey, textKey } = pillar;
+  return (
+    <PubCard variant="surface" hover className="pub-pillar-card">
+      <div
+        style={{
+          width: 44,
+          height: 44,
+          borderRadius: 'var(--pub-radius-icon)',
+          background: iconBg,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: iconColor,
+          marginBottom: 20,
+        }}
+      >
+        <Icon />
+      </div>
+      <h4
+        style={{
+          fontFamily: 'var(--pub-font-display)',
+          fontWeight: 700,
+          fontSize: 18,
+          color: 'var(--pub-text-primary)',
+          marginBottom: 8,
+          lineHeight: 1.3,
+        }}
+      >
+        {t(titleKey)}
+      </h4>
+      <p
+        className="pub-text-body-sm"
+        style={{ color: 'var(--pub-text-secondary)' }}
+      >
+        {t(textKey)}
+      </p>
+    </PubCard>
+  );
+}
+
+function PillarsRow() {
+  return (
+    <div className="pub-pillars-row">
+      {PILLARS.map((pillar) => (
+        <PillarCardItem key={pillar.titleKey} pillar={pillar} />
+      ))}
+    </div>
+  );
+}
+
 /* ---------- Component ---------- */
 
 export function SocialProofSection() {
-  const { t } = useTranslation('public');
   const sectionRef = useRef<HTMLElement>(null);
   useReveal(sectionRef);
-
-  const verifiedLabel = t('social.quoteVerifiedLabel');
 
   return (
     <section
@@ -219,237 +446,15 @@ export function SocialProofSection() {
       }}
     >
       <div className="pub-container">
-        {/* === Section header === */}
-        <div style={{ textAlign: 'center', marginBottom: 56 }}>
-          <div style={{ marginBottom: 24 }}>
-            <PubBadge variant="amber" dot>
-              {t('social.badge')}
-            </PubBadge>
-          </div>
-          <h2
-            className="pub-text-h2"
-            style={{ color: 'var(--pub-text-primary)', maxWidth: 720, margin: '0 auto 16px' }}
-          >
-            {t('social.title')}
-          </h2>
-          <p className="pub-text-subline" style={{ maxWidth: 700, margin: '0 auto' }}>
-            {t('social.subtitle')}
-          </p>
-        </div>
-
-        {/* === Stats row === */}
-        <div className="pub-stats-row">
-          <StatItem
-            value={t('social.stat1Value')}
-            label={t('social.stat1Label')}
-            color="var(--pub-accent-purple)"
-          />
-          <StatItem
-            value={t('social.stat2Value')}
-            label={t('social.stat2Label')}
-            color="var(--pub-accent-teal)"
-          />
-          <StatItem
-            value={t('social.stat3Value')}
-            label={t('social.stat3Label')}
-            color="var(--pub-accent-pink)"
-          />
-          <StatItem
-            value={t('social.stat4Value')}
-            label={t('social.stat4Label')}
-            color="var(--pub-accent-amber)"
-          />
-        </div>
-
-        {/* === Pilot quotes === */}
-        <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          <h3
-            style={{
-              fontFamily: 'var(--pub-font-display)',
-              fontSize: 24,
-              fontWeight: 700,
-              color: 'var(--pub-text-primary)',
-              marginBottom: 8,
-              letterSpacing: '-0.01em',
-            }}
-          >
-            {t('social.quotesTitle')}
-          </h3>
-          <p
-            style={{
-              fontFamily: 'var(--pub-font-body)',
-              fontSize: 14,
-              color: 'var(--pub-text-secondary)',
-              maxWidth: 560,
-              margin: '0 auto',
-              lineHeight: 1.6,
-            }}
-          >
-            {t('social.quotesSubtitle')}
-          </p>
-        </div>
-
-        <div className="pub-quotes-row">
-          <QuoteCard
-            text={t('social.quote1Text')}
-            role={t('social.quote1Role')}
-            meta={t('social.quote1Meta')}
-            verifiedLabel={verifiedLabel}
-            accentColor="var(--pub-accent-purple)"
-          />
-          <QuoteCard
-            text={t('social.quote2Text')}
-            role={t('social.quote2Role')}
-            meta={t('social.quote2Meta')}
-            verifiedLabel={verifiedLabel}
-            accentColor="var(--pub-accent-teal)"
-          />
-          <QuoteCard
-            text={t('social.quote3Text')}
-            role={t('social.quote3Role')}
-            meta={t('social.quote3Meta')}
-            verifiedLabel={verifiedLabel}
-            accentColor="var(--pub-accent-pink)"
-          />
-        </div>
-
-        {/* === Pillars === */}
-        <div
-          className="pub-pillars-divider"
-          aria-hidden="true"
-        />
-
-        <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          <h3
-            style={{
-              fontFamily: 'var(--pub-font-display)',
-              fontSize: 24,
-              fontWeight: 700,
-              color: 'var(--pub-text-primary)',
-              marginBottom: 8,
-              letterSpacing: '-0.01em',
-            }}
-          >
-            {t('social.pillarsTitle')}
-          </h3>
-          <p
-            style={{
-              fontFamily: 'var(--pub-font-body)',
-              fontSize: 14,
-              color: 'var(--pub-text-secondary)',
-              maxWidth: 560,
-              margin: '0 auto',
-              lineHeight: 1.6,
-            }}
-          >
-            {t('social.pillarsSubtitle')}
-          </p>
-        </div>
-
-        <div className="pub-pillars-row">
-          {PILLARS.map(({ Icon, iconBg, iconColor, titleKey, textKey }) => (
-            <PubCard key={titleKey} variant="surface" hover className="pub-pillar-card">
-              <div
-                style={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: 'var(--pub-radius-icon)',
-                  background: iconBg,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: iconColor,
-                  marginBottom: 20,
-                }}
-              >
-                <Icon />
-              </div>
-              <h4
-                style={{
-                  fontFamily: 'var(--pub-font-display)',
-                  fontWeight: 700,
-                  fontSize: 18,
-                  color: 'var(--pub-text-primary)',
-                  marginBottom: 8,
-                  lineHeight: 1.3,
-                }}
-              >
-                {t(titleKey)}
-              </h4>
-              <p
-                className="pub-text-body-sm"
-                style={{ color: 'var(--pub-text-secondary)' }}
-              >
-                {t(textKey)}
-              </p>
-            </PubCard>
-          ))}
-        </div>
+        <SocialProofHeader />
+        <StatsRow />
+        <SubHead titleKey="social.quotesTitle" subtitleKey="social.quotesSubtitle" />
+        <QuotesRow />
+        <div className="pub-pillars-divider" aria-hidden="true" />
+        <SubHead titleKey="social.pillarsTitle" subtitleKey="social.pillarsSubtitle" />
+        <PillarsRow />
       </div>
-
-      <style>{`
-        .pub-stats-row {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 32px;
-          padding: 32px 24px;
-          margin-bottom: 72px;
-          background: var(--pub-bg-surface);
-          border-radius: var(--pub-radius-card-lg);
-          align-items: center;
-          justify-content: space-between;
-        }
-        .pub-quotes-row {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 24px;
-          margin-bottom: 0;
-          align-items: stretch;
-        }
-        .pub-quote-card {
-          width: calc(33.333% - 16px);
-          min-width: 0;
-          box-sizing: border-box;
-        }
-        .pub-pillars-divider {
-          height: 1px;
-          background: var(--pub-border-light);
-          margin: 80px 0 56px;
-          max-width: 480px;
-          margin-left: auto;
-          margin-right: auto;
-        }
-        .pub-pillars-row {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 24px;
-        }
-        .pub-pillar-card {
-          width: calc(33.333% - 16px);
-          min-width: 0;
-          box-sizing: border-box;
-        }
-        @media (max-width: 1024px) {
-          .pub-quote-card {
-            width: calc(50% - 12px);
-          }
-          .pub-pillar-card {
-            width: calc(50% - 12px);
-          }
-        }
-        @media (max-width: 768px) {
-          .pub-stats-row {
-            padding: 24px 16px;
-            gap: 24px;
-          }
-          .pub-quote-card {
-            width: 100%;
-          }
-          .pub-pillar-card {
-            width: 100%;
-          }
-        }
-      `}</style>
+      <style>{SOCIAL_PROOF_STYLES}</style>
     </section>
   );
 }
