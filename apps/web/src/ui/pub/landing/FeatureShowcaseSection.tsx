@@ -68,12 +68,9 @@ const FEATURE_ROWS: FeatureRowData[] = [
 
 /* ---------- Single Feature Row ---------- */
 
-function FeatureRow({ row }: { row: FeatureRowData }) {
+function FeatureRowText({ row }: { row: FeatureRowData }) {
   const { t } = useTranslation('public');
-  const rowRef = useRef<HTMLDivElement>(null);
-  useReveal(rowRef);
-
-  const textBlock = (
+  return (
     <div style={{ flex: 1, minWidth: 0 }}>
       <span
         style={{
@@ -120,8 +117,11 @@ function FeatureRow({ row }: { row: FeatureRowData }) {
       </div>
     </div>
   );
+}
 
-  const imageBlock = (
+function FeatureRowImage({ row }: { row: FeatureRowData }) {
+  const { t } = useTranslation('public');
+  return (
     <div
       style={{
         flex: 1,
@@ -161,6 +161,11 @@ function FeatureRow({ row }: { row: FeatureRowData }) {
       )}
     </div>
   );
+}
+
+function FeatureRow({ row }: { row: FeatureRowData }) {
+  const rowRef = useRef<HTMLDivElement>(null);
+  useReveal(rowRef);
 
   return (
     <div
@@ -170,13 +175,13 @@ function FeatureRow({ row }: { row: FeatureRowData }) {
     >
       {row.imageFirst ? (
         <>
-          <div className="pub-feature-row__image">{imageBlock}</div>
-          <div className="pub-feature-row__text">{textBlock}</div>
+          <div className="pub-feature-row__image"><FeatureRowImage row={row} /></div>
+          <div className="pub-feature-row__text"><FeatureRowText row={row} /></div>
         </>
       ) : (
         <>
-          <div className="pub-feature-row__text">{textBlock}</div>
-          <div className="pub-feature-row__image">{imageBlock}</div>
+          <div className="pub-feature-row__text"><FeatureRowText row={row} /></div>
+          <div className="pub-feature-row__image"><FeatureRowImage row={row} /></div>
         </>
       )}
     </div>
