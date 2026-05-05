@@ -183,10 +183,78 @@ function FeatureRow({ row }: { row: FeatureRowData }) {
   );
 }
 
+const FEATURE_SHOWCASE_STYLES = `
+  .pub-feature-row {
+    display: flex;
+    gap: 48px;
+    align-items: center;
+  }
+  .pub-feature-row__text {
+    flex: 1;
+    min-width: 0;
+  }
+  .pub-feature-row__image {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    justify-content: center;
+  }
+  @media (max-width: 1024px) {
+    .pub-feature-row {
+      flex-direction: column !important;
+      gap: 32px;
+    }
+    .pub-feature-row__text {
+      order: 1;
+    }
+    .pub-feature-row__image {
+      order: 2;
+      width: 100%;
+    }
+    .pub-feature-row__image > div {
+      max-width: 100% !important;
+      width: 100%;
+    }
+  }
+`;
+
+/* ---------- Sub-Components ---------- */
+
+function FeatureShowcaseHeader() {
+  const { t } = useTranslation('public');
+  return (
+    <div style={{ textAlign: 'center', marginBottom: 64 }}>
+      <div style={{ marginBottom: 24 }}>
+        <PubBadge variant="purple">
+          {t('features.badge')}
+        </PubBadge>
+      </div>
+      <h2 className="pub-text-h2" style={{ marginBottom: 16 }}>
+        {t('features.title')}
+      </h2>
+      <p
+        className="pub-text-subline"
+        style={{ maxWidth: 600, margin: '0 auto' }}
+      >
+        {t('features.subtitle')}
+      </p>
+    </div>
+  );
+}
+
+function FeatureRowList() {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 80 }}>
+      {FEATURE_ROWS.map((row) => (
+        <FeatureRow key={row.numKey} row={row} />
+      ))}
+    </div>
+  );
+}
+
 /* ---------- Section ---------- */
 
 export function FeatureShowcaseSection() {
-  const { t } = useTranslation('public');
   const sectionRef = useRef<HTMLElement>(null);
   useReveal(sectionRef);
 
@@ -201,67 +269,10 @@ export function FeatureShowcaseSection() {
       }}
     >
       <div className="pub-container">
-        {/* Header */}
-        <div style={{ textAlign: 'center', marginBottom: 64 }}>
-          <div style={{ marginBottom: 24 }}>
-            <PubBadge variant="purple">
-              {t('features.badge')}
-            </PubBadge>
-          </div>
-          <h2 className="pub-text-h2" style={{ marginBottom: 16 }}>
-            {t('features.title')}
-          </h2>
-          <p
-            className="pub-text-subline"
-            style={{ maxWidth: 600, margin: '0 auto' }}
-          >
-            {t('features.subtitle')}
-          </p>
-        </div>
-
-        {/* Feature Rows */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 80 }}>
-          {FEATURE_ROWS.map((row) => (
-            <FeatureRow key={row.numKey} row={row} />
-          ))}
-        </div>
+        <FeatureShowcaseHeader />
+        <FeatureRowList />
       </div>
-
-      {/* Section-specific responsive styles */}
-      <style>{`
-        .pub-feature-row {
-          display: flex;
-          gap: 48px;
-          align-items: center;
-        }
-        .pub-feature-row__text {
-          flex: 1;
-          min-width: 0;
-        }
-        .pub-feature-row__image {
-          flex: 1;
-          min-width: 0;
-          display: flex;
-          justify-content: center;
-        }
-        @media (max-width: 1024px) {
-          .pub-feature-row {
-            flex-direction: column !important;
-            gap: 32px;
-          }
-          .pub-feature-row__text {
-            order: 1;
-          }
-          .pub-feature-row__image {
-            order: 2;
-            width: 100%;
-          }
-          .pub-feature-row__image > div {
-            max-width: 100% !important;
-            width: 100%;
-          }
-        }
-      `}</style>
+      <style>{FEATURE_SHOWCASE_STYLES}</style>
     </section>
   );
 }
