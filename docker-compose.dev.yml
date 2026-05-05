@@ -49,7 +49,10 @@ services:
       NODE_ENV: development
       TRUST_PROXY: "false"
       COOKIE_SECURE: "false"
-      CORS_ORIGIN: http://localhost:5174,http://localhost:5173,http://Razor-Crest.local:5173
+      # CORS-Origin: localhost-Default fuer jeden Dev. Per env DEV_HOST=foo.local
+      # ueberschreibbar, falls man den Stack vom Telefon o. AE. ueber den
+      # Bonjour/mDNS-Hostnamen aufruft.
+      CORS_ORIGIN: http://localhost:5174,http://localhost:5173,http://${DEV_HOST:-localhost}:5173,http://${DEV_HOST:-localhost}:5174
       # Stabilisiere Tokens in Dev: gleicher Pepper/Secret über Neustarts
       API_TOKEN_PEPPER: dev-pepper-change-me
       JWT_SECRET: dev-jwt-secret-change-me
@@ -92,8 +95,10 @@ services:
     container_name: meetropolis-web-dev
     working_dir: /workspace/apps/web
     environment:
-      VITE_LIVEKIT_URL: ws://Razor-Crest.local:7880
-      VITE_HMR_HOST: Razor-Crest.local
+      # Browser muss LiveKit erreichen koennen — nimmt die Host-Adresse, die
+      # der Browser kennt (Default localhost; ueber env DEV_HOST=… ueberschreibbar).
+      VITE_LIVEKIT_URL: ws://${DEV_HOST:-localhost}:7880
+      VITE_HMR_HOST: ${DEV_HOST:-localhost}
       VITE_HMR_PROTOCOL: ws
       VITE_DEBUG_LOGS: "true"
       VITE_FEATURE_AV_SETTINGS: "true"
