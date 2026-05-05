@@ -38,12 +38,10 @@ function PlanSummary({ plan }: { plan: AdminPricingPlan }) {
   );
 }
 
-export function PricingPlansAdmin({ apiBase }: PricingPlansAdminProps) {
+function usePricingPlansAdmin(apiBase: string) {
   const [plans, setPlans] = React.useState<AdminPricingPlan[]>([]);
   const [loading, setLoading] = React.useState(false);
-  const [expandedId, setExpandedId] = React.useState<string | null>(null);
   const [saving, setSaving] = React.useState(false);
-  const [newPlan, setNewPlan] = React.useState(false);
 
   const load = React.useCallback(async () => {
     setLoading(true);
@@ -59,56 +57,89 @@ export function PricingPlansAdmin({ apiBase }: PricingPlansAdminProps) {
     setLoading(false);
   }, [apiBase]);
 
-  React.useEffect(() => {
-    void load();
-  }, [load]);
+  React.useEffect(() => { void load(); }, [load]);
 
-  const handleSave = async (planId: string | undefined, data: Partial<AdminPricingPlan>) => {
+  const save = async (planId: string | undefined, data: Partial<AdminPricingPlan>) => {
     setSaving(true);
     try {
       const isNew = !planId;
       const url = isNew ? `${apiBase}/admin/pricing-plans` : `${apiBase}/admin/pricing-plans/${planId}`;
       const method = isNew ? 'POST' : 'PATCH';
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(data),
-      });
+      const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(data) });
       if (res.ok) {
-        setNewPlan(false);
-        setExpandedId(null);
         await load();
-      } else {
-        const err = await res.text();
-        logger.warn('[PricingPlansAdmin] Save failed', err);
+        setSaving(false);
+        return true;
       }
+      const err = await res.text();
+      logger.warn('[PricingPlansAdmin] Save failed', err);
     } catch (err) {
       logger.warn('[PricingPlansAdmin] Save error', err);
     }
     setSaving(false);
+    return false;
   };
 
-  const handleDelete = async (planId: string) => {
+  const remove = async (planId: string) => {
     setSaving(true);
     try {
-      const res = await fetch(`${apiBase}/admin/pricing-plans/${planId}`, {
-        method: 'DELETE',
-        credentials: 'include',
-      });
+      const res = await fetch(`${apiBase}/admin/pricing-plans/${planId}`, { method: 'DELETE', credentials: 'include' });
       if (res.ok) {
-        setExpandedId(null);
         await load();
+        setSaving(false);
+        return true;
       }
     } catch (err) {
       logger.warn('[PricingPlansAdmin] Delete error', err);
     }
     setSaving(false);
+    return false;
   };
+
+  return { plans, loading, saving, load, save, remove };
+}
+
+function PlanRow({ plan, expanded, onToggle, onSave, onDelete, saving }: { plan: AdminPricingPlan; expanded: boolean; onToggle: (id: string) => void; onSave: (id: string, data: Partial<AdminPricingPlan>) => void | Promise<unknown>; onDelete: (id: string) => void | Promise<unknown>; saving: boolean }) {
+  return (
+    <div>
+      <div role="button" tabIndex={0} onClick={() => onToggle(plan.id)} onKeyDown={(e) => { if (e.key === 'Enter') onToggle(plan.id); }} style={{ cursor: 'pointer' }}>
+        <Card style={{ padding: '10px 14px' }}>
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            <span style={{ marginRight: 8, fontSize: 12, color: 'var(--fg-subtle)' }}>
+              {expanded ? '▼' : '▶'}
+            </span>
+            <PlanSummary plan={plan} />
+          </div>
+        </Card>
+      </div>
+      {expanded && (
+        <PricingPlanForm plan={plan} onSave={async (data) => { await onSave(plan.id, data); }} onDelete={async () => { await onDelete(plan.id); }} saving={saving} />
+      )}
+    </div>
+  );
+}
+
+export function PricingPlansAdmin({ apiBase }: PricingPlansAdminProps) {
+  const [expandedId, setExpandedId] = React.useState<string | null>(null);
+  const [newPlan, setNewPlan] = React.useState(false);
+  const { plans, loading, saving, load, save, remove } = usePricingPlansAdmin(apiBase);
 
   const toggle = (id: string) => {
     setExpandedId((prev) => (prev === id ? null : id));
     setNewPlan(false);
+  };
+
+  const handleSave = async (planId: string | undefined, data: Partial<AdminPricingPlan>) => {
+    const ok = await save(planId, data);
+    if (ok) {
+      setNewPlan(false);
+      setExpandedId(null);
+    }
+  };
+
+  const handleDelete = async (planId: string) => {
+    const ok = await remove(planId);
+    if (ok) setExpandedId(null);
   };
 
   return (
@@ -132,32 +163,7 @@ export function PricingPlansAdmin({ apiBase }: PricingPlansAdminProps) {
       )}
 
       {plans.map((plan) => (
-        <div key={plan.id}>
-          <div
-            role="button"
-            tabIndex={0}
-            onClick={() => toggle(plan.id)}
-            onKeyDown={(e) => { if (e.key === 'Enter') toggle(plan.id); }}
-            style={{ cursor: 'pointer' }}
-          >
-            <Card style={{ padding: '10px 14px' }}>
-              <div style={{ display: 'flex', alignItems: 'center' }}>
-                <span style={{ marginRight: 8, fontSize: 12, color: 'var(--fg-subtle)' }}>
-                  {expandedId === plan.id ? '▼' : '▶'}
-                </span>
-                <PlanSummary plan={plan} />
-              </div>
-            </Card>
-          </div>
-          {expandedId === plan.id && (
-            <PricingPlanForm
-              plan={plan}
-              onSave={(data) => handleSave(plan.id, data)}
-              onDelete={() => handleDelete(plan.id)}
-              saving={saving}
-            />
-          )}
-        </div>
+        <PlanRow key={plan.id} plan={plan} expanded={expandedId === plan.id} onToggle={toggle} onSave={handleSave} onDelete={handleDelete} saving={saving} />
       ))}
 
       {newPlan && (
@@ -165,11 +171,7 @@ export function PricingPlansAdmin({ apiBase }: PricingPlansAdminProps) {
           <Card style={{ padding: '10px 14px' }}>
             <span style={{ fontWeight: 600 }}>New Plan</span>
           </Card>
-          <PricingPlanForm
-            plan={null}
-            onSave={(data) => handleSave(undefined, data)}
-            saving={saving}
-          />
+          <PricingPlanForm plan={null} onSave={(data) => handleSave(undefined, data)} saving={saving} />
         </div>
       )}
     </div>
