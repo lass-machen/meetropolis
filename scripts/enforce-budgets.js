@@ -27,6 +27,39 @@ const HARD_LIMIT_FUNCTION_LINES = 80;
 
 const TS_LIKE_EXTENSIONS = new Set(['.ts', '.tsx']);
 
+// Pfad-Praefixe, die immer uebersprungen werden:
+// - generated/: Prisma-Client + Runtime, autogeneriert, keine Refactor-Kandidaten
+// - .test./.spec.: Tests duerfen laenger sein als Produktivcode
+const ALWAYS_EXCLUDE_PREFIXES = [
+  'apps/server/src/generated/',
+];
+const ALWAYS_EXCLUDE_REGEX = /\.(test|spec)\.(ts|tsx)$/;
+
+// Optionale Allowlist fuer preexistente, geplante-Refactor-Files. Format pro
+// Zeile: "<relativer-pfad>  <reason>". Lines mit '#' am Anfang sind Kommentare.
+function loadIgnoreList() {
+  const ignorePath = path.join(PROJECT_ROOT, '.budgetignore');
+  if (!fs.existsSync(ignorePath)) return new Set();
+  const raw = fs.readFileSync(ignorePath, 'utf8');
+  const set = new Set();
+  for (const line of raw.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const filePart = trimmed.split(/\s+/)[0];
+    if (filePart) set.add(filePart);
+  }
+  return set;
+}
+
+function isExcluded(relPath, ignoreList) {
+  for (const prefix of ALWAYS_EXCLUDE_PREFIXES) {
+    if (relPath.startsWith(prefix)) return true;
+  }
+  if (ALWAYS_EXCLUDE_REGEX.test(relPath)) return true;
+  if (ignoreList.has(relPath)) return true;
+  return false;
+}
+
 function listFilesRecursive(startDir) {
   const collected = [];
   function walk(dir) {
@@ -168,10 +201,16 @@ function main() {
     files.push(...listFilesRecursive(dir));
   }
 
+  const ignoreList = loadIgnoreList();
   const errors = [];
+  let skippedCount = 0;
 
   for (const file of files) {
     const rel = path.relative(PROJECT_ROOT, file);
+    if (isExcluded(rel, ignoreList)) {
+      skippedCount += 1;
+      continue;
+    }
     const lines = readFileLines(file);
     if (lines.length > HARD_LIMIT_FILE_LINES) {
       errors.push({
@@ -193,9 +232,12 @@ function main() {
     for (const err of errors) {
       console.error(`- ${err.file}: ${err.message}`);
     }
+    if (skippedCount > 0) {
+      console.error(`(${skippedCount} Files via generated/, *.test.* oder .budgetignore uebersprungen)`);
+    }
     process.exit(1);
   } else {
-    console.log('OK: Keine Budget-Verstöße gefunden.');
+    console.log(`OK: Keine Budget-Verstöße gefunden. (${skippedCount} Files uebersprungen)`);
   }
 }
 
