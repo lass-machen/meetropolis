@@ -25,13 +25,17 @@ import express from 'express';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import compression from 'compression';
-import { createRequire } from 'module';
-const require = createRequire(import.meta.url);
-// Use CJS require for Colyseus to avoid ESM interop issues
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const Colyseus = require('colyseus');
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const { WebSocketTransport } = require('@colyseus/ws-transport');
+// IMPORTANT: Colyseus and WorldRoom must come from the same module instance.
+// Mixing `createRequire('colyseus')` (CJS) with `import 'colyseus'` (ESM) in
+// WorldRoom.ts causes the matchmaker to compare WorldRoom.prototype.onAuth
+// against the CJS Room.prototype.onAuth — they are different Function objects
+// even though the source is identical. Result: Colyseus prints
+//   ❌ "world"'s onAuth() defined at the instance level will be ignored.
+// Worse, it then enforces auth via the (CJS) static onAuth, bypassing any
+// instance-level checks. Using ESM imports everywhere keeps both sides on the
+// same Room class identity, so the heuristic passes and instance hooks work.
+import { Server as ColyseusServer } from 'colyseus';
+import { WebSocketTransport } from '@colyseus/ws-transport';
 import { createServer } from 'http';
 import path from 'path';
 import fs from 'fs';
@@ -255,7 +259,7 @@ httpServer.on('error', (err) => {
 
 // Attach to existing HTTP server; compatible with Colyseus 0.15+
 // Colyseus Server with WebSocketTransport
-const gameServer = new Colyseus.Server({
+const gameServer = new ColyseusServer({
   transport: new WebSocketTransport({
     server: httpServer,
   }),
