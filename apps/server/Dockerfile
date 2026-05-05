@@ -25,9 +25,12 @@ RUN npm install && cd apps/server && npm install @prisma/client prisma
 # Build shared package first (server depends on it)
 RUN cd /workspace/packages/shared && npm run build
 
-# 2) Prisma Client generieren (benötigt für Enterprise-Packages und Server-Build)
+# 2) Compose OSS + (optional) enterprise schema, then generate the Prisma
+#    Client against the composed schema. The composer no-ops to a verbatim
+#    copy of the OSS schema when no enterprise fragment is present.
 WORKDIR /workspace/apps/server
-RUN npx prisma generate --schema ./prisma/schema.prisma
+RUN node ./prisma/compose-schema.cjs && \
+    npx prisma generate --schema ./prisma/schema.composed.prisma
 
 # Build enterprise packages if submodule is present (no-op for OSS builds)
 RUN if [ -f /workspace/packages/tenancy-enterprise/packages/tenancy/tsconfig.json ]; then \

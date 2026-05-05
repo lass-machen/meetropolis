@@ -87,8 +87,13 @@ export function isMultiTenantEnabledSync(): boolean {
 }
 
 /**
- * Apply enterprise SQL migrations if the enterprise submodule is present.
- * No-op in OSS-only installs.
+ * Legacy hook: apply the enterprise raw-SQL migrations if the submodule
+ * exposes them. As of the schema-composition pipeline (compose-schema.cjs +
+ * schema.composed.prisma), `prisma db push`/`migrate deploy` already creates
+ * the enterprise tables and columns from the merged schema. The raw-SQL files
+ * remain in the submodule as an idempotent safety net for legacy databases
+ * that were created before the composed schema existed — `IF NOT EXISTS`
+ * guards make them no-ops against an already-migrated database.
  */
 export async function applyEnterpriseMigrationsIfPresent(prisma: PrismaClient): Promise<void> {
   const tenancy = await getTenancyModule();

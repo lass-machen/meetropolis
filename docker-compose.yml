@@ -33,7 +33,7 @@ services:
       API_TOKEN_PEPPER: ${API_TOKEN_PEPPER:-dev-pepper-change-me}
       JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-me}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173,http://localhost:5174}
-    command: sh -c "npm ci --include=dev && apps/server/node_modules/.bin/prisma generate --schema=apps/server/prisma/schema.prisma && apps/server/node_modules/.bin/prisma db push --schema=apps/server/prisma/schema.prisma && npm run -w @meetropolis/server prisma:seed && npm run -w @meetropolis/server start:dev"
+    command: sh -c "npm ci --include=dev && node apps/server/prisma/compose-schema.cjs && apps/server/node_modules/.bin/prisma generate --schema=apps/server/prisma/schema.composed.prisma && apps/server/node_modules/.bin/prisma db push --schema=apps/server/prisma/schema.composed.prisma && npm run -w @meetropolis/server prisma:seed && npm run -w @meetropolis/server start:dev"
     ports:
       - "2567:2567"
     labels:

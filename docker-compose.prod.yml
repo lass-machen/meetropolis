@@ -26,12 +26,12 @@ services:
     environment:
       NODE_ENV: production
       DATABASE_URL: ${DATABASE_URL}
-      PRISMA_SCHEMA: /workspace/apps/server/prisma/schema.prisma
+      PRISMA_SCHEMA: /workspace/apps/server/prisma/schema.composed.prisma
     depends_on:
       db:
         condition: service_healthy
     command: >-
-      sh -lc "npx prisma migrate deploy --schema \"$${PRISMA_SCHEMA}\" && (npx prisma db seed --schema \"$${PRISMA_SCHEMA}\" || true)"
+      sh -lc "node /workspace/apps/server/prisma/compose-schema.cjs && npx prisma migrate deploy --schema \"$${PRISMA_SCHEMA}\" && (npx prisma db seed --schema \"$${PRISMA_SCHEMA}\" || true)"
     networks:
       - meetropolis
     restart: 'no'

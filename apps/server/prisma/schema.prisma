@@ -1,7 +1,20 @@
+// Two generators on purpose:
+// - `client` (custom output): consumed by apps/server/src code via the
+//   `import ... from './generated/prisma'` path. Server-internal.
+// - `clientDefault` (no output, → node_modules/.prisma/client): consumed by
+//   the enterprise submodule packages (`packages/tenancy-enterprise/...`)
+//   that import from `@prisma/client`. The runtime then sees the same model
+//   delegates that the OSS server uses, so `prisma.pricingPlan` etc. are
+//   real on both sides without type augmentation hacks.
 generator client {
   provider      = "prisma-client-js"
   binaryTargets = ["native", "debian-openssl-3.0.x", "linux-arm64-openssl-3.0.x"]
   output        = "../src/generated/prisma"
+}
+
+generator clientDefault {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x", "linux-arm64-openssl-3.0.x"]
 }
 
 datasource db {

@@ -10,6 +10,7 @@ apps/web/node_modules/
 packages/shared/node_modules/
 .npm-cache/
 apps/server/prisma/dev.db*
+apps/server/prisma/schema.composed.prisma
 apps/server/src/generated/
 coverage/
 *.log
