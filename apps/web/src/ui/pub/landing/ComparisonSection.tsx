@@ -101,10 +101,249 @@ const CARDS: CardData[] = [
   },
 ];
 
+const COMPARISON_STYLES = `
+  .pub-comparison-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 24px;
+    align-items: stretch;
+  }
+  .pub-comparison-card {
+    width: calc(33.333% - 16px);
+    min-width: 0;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+  }
+  @media (max-width: 768px) {
+    .pub-comparison-card {
+      width: 100%;
+    }
+  }
+`;
+
+interface ComparisonColors {
+  title: string;
+  subtitle: string;
+  label: string;
+  item: string;
+  check: string;
+  dash: string;
+}
+
+function getComparisonColors(highlighted: boolean): ComparisonColors {
+  return {
+    title: highlighted ? '#FFFFFF' : 'var(--pub-text-primary)',
+    subtitle: highlighted ? 'rgba(255,255,255,0.8)' : 'var(--pub-text-secondary)',
+    label: highlighted ? 'rgba(255,255,255,0.7)' : 'var(--pub-text-secondary)',
+    item: highlighted ? 'rgba(255,255,255,0.92)' : 'var(--pub-text-primary)',
+    check: highlighted ? '#FFFFFF' : 'var(--pub-accent-teal)',
+    dash: highlighted ? 'rgba(255,255,255,0.6)' : 'var(--pub-text-secondary)',
+  };
+}
+
+/* ---------- Sub-Components ---------- */
+
+function ComparisonHeader() {
+  const { t } = useTranslation('public');
+  return (
+    <div style={{ textAlign: 'center', marginBottom: 48 }}>
+      <div style={{ marginBottom: 24 }}>
+        <PubBadge variant="teal">
+          {t('comparison.badge')}
+        </PubBadge>
+      </div>
+      <h2 className="pub-text-h2" style={{ marginBottom: 16 }}>
+        {t('comparison.title')}
+      </h2>
+      <p
+        className="pub-text-subline"
+        style={{ maxWidth: 640, margin: '0 auto' }}
+      >
+        {t('comparison.subtitle')}
+      </p>
+    </div>
+  );
+}
+
+function RecommendedBadge() {
+  const { t } = useTranslation('public');
+  return (
+    <span
+      style={{
+        position: 'absolute',
+        top: 16,
+        right: 16,
+        display: 'inline-flex',
+        alignItems: 'center',
+        padding: '5px 12px',
+        borderRadius: 'var(--pub-radius-pill)',
+        fontFamily: 'var(--pub-font-body)',
+        fontSize: 11,
+        fontWeight: 600,
+        letterSpacing: 0.4,
+        textTransform: 'uppercase',
+        background: '#FFFFFF',
+        color: 'var(--pub-accent-purple)',
+      }}
+    >
+      {t('comparison.recommendedLabel')}
+    </span>
+  );
+}
+
+function ComparisonCardHeader({ card, colors }: { card: CardData; colors: ComparisonColors }) {
+  const { t } = useTranslation('public');
+  return (
+    <>
+      <div
+        style={{
+          width: 44,
+          height: 44,
+          borderRadius: 'var(--pub-radius-icon)',
+          background: card.iconBg,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: card.iconColor,
+          marginBottom: 20,
+        }}
+      >
+        <card.Icon />
+      </div>
+      <h3
+        style={{
+          fontFamily: 'var(--pub-font-display)',
+          fontWeight: 700,
+          fontSize: 20,
+          color: colors.title,
+          marginBottom: 4,
+        }}
+      >
+        {t(card.titleKey)}
+      </h3>
+      <p
+        className="pub-text-body-sm"
+        style={{ color: colors.subtitle, marginBottom: 24 }}
+      >
+        {t(card.subtitleKey)}
+      </p>
+    </>
+  );
+}
+
+interface BulletListProps {
+  labelKey: string;
+  itemKeys: string[];
+  colors: ComparisonColors;
+  variant: 'check' | 'dash';
+  marginBottom?: number;
+}
+
+function BulletList({ labelKey, itemKeys, colors, variant, marginBottom = 0 }: BulletListProps) {
+  const { t } = useTranslation('public');
+  const itemColor = variant === 'check' ? colors.item : 'var(--pub-text-secondary)';
+  return (
+    <div style={{ marginBottom }}>
+      <p
+        style={{
+          fontFamily: 'var(--pub-font-body)',
+          fontWeight: 600,
+          fontSize: 13,
+          color: colors.label,
+          textTransform: 'uppercase',
+          letterSpacing: 0.4,
+          margin: '0 0 12px 0',
+        }}
+      >
+        {t(labelKey)}
+      </p>
+      <ul
+        style={{
+          listStyle: 'none',
+          padding: 0,
+          margin: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 10,
+        }}
+      >
+        {itemKeys.map((key) => (
+          <li
+            key={key}
+            style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: 10,
+              fontFamily: 'var(--pub-font-body)',
+              fontSize: 14,
+              lineHeight: 1.5,
+              color: itemColor,
+            }}
+          >
+            <span style={{ flexShrink: 0, marginTop: 2 }}>
+              {variant === 'check'
+                ? <CheckMarkIcon color={colors.check} />
+                : <DashIcon color={colors.dash} />}
+            </span>
+            <span>{t(key)}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function ComparisonCardItem({ card }: { card: CardData }) {
+  const colors = getComparisonColors(card.highlighted);
+  const strengthLabelKey = card.highlighted
+    ? 'comparison.plusLabel'
+    : 'comparison.strengthLabel';
+
+  return (
+    <PubCard
+      variant={card.highlighted ? 'purple' : 'surface'}
+      className="pub-comparison-card"
+      style={
+        card.highlighted
+          ? { boxShadow: '0 0 40px rgba(139,92,246,0.3)', position: 'relative' }
+          : {}
+      }
+    >
+      {card.highlighted && <RecommendedBadge />}
+      <ComparisonCardHeader card={card} colors={colors} />
+      <BulletList
+        labelKey={strengthLabelKey}
+        itemKeys={card.strengthKeys}
+        colors={colors}
+        variant="check"
+        marginBottom={card.gapKeys.length ? 20 : 0}
+      />
+      {card.gapKeys.length > 0 && (
+        <BulletList
+          labelKey={card.gapLabelKey}
+          itemKeys={card.gapKeys}
+          colors={colors}
+          variant="dash"
+        />
+      )}
+    </PubCard>
+  );
+}
+
+function ComparisonGrid() {
+  return (
+    <div className="pub-comparison-grid">
+      {CARDS.map((card) => (
+        <ComparisonCardItem key={card.titleKey} card={card} />
+      ))}
+    </div>
+  );
+}
+
 /* ---------- Component ---------- */
 
 export function ComparisonSection() {
-  const { t } = useTranslation('public');
   const sectionRef = useRef<HTMLElement>(null);
   useReveal(sectionRef);
 
@@ -119,238 +358,10 @@ export function ComparisonSection() {
       }}
     >
       <div className="pub-container">
-        {/* Header */}
-        <div style={{ textAlign: 'center', marginBottom: 48 }}>
-          <div style={{ marginBottom: 24 }}>
-            <PubBadge variant="teal">
-              {t('comparison.badge')}
-            </PubBadge>
-          </div>
-          <h2 className="pub-text-h2" style={{ marginBottom: 16 }}>
-            {t('comparison.title')}
-          </h2>
-          <p
-            className="pub-text-subline"
-            style={{ maxWidth: 640, margin: '0 auto' }}
-          >
-            {t('comparison.subtitle')}
-          </p>
-        </div>
-
-        {/* Card Grid */}
-        <div className="pub-comparison-grid">
-          {CARDS.map((card) => {
-            const titleColor = card.highlighted
-              ? '#FFFFFF'
-              : 'var(--pub-text-primary)';
-            const subtitleColor = card.highlighted
-              ? 'rgba(255,255,255,0.8)'
-              : 'var(--pub-text-secondary)';
-            const labelColor = card.highlighted
-              ? 'rgba(255,255,255,0.7)'
-              : 'var(--pub-text-secondary)';
-            const itemColor = card.highlighted
-              ? 'rgba(255,255,255,0.92)'
-              : 'var(--pub-text-primary)';
-            const checkColor = card.highlighted
-              ? '#FFFFFF'
-              : 'var(--pub-accent-teal)';
-            const dashColor = card.highlighted
-              ? 'rgba(255,255,255,0.6)'
-              : 'var(--pub-text-secondary)';
-
-            return (
-              <PubCard
-                key={card.titleKey}
-                variant={card.highlighted ? 'purple' : 'surface'}
-                className="pub-comparison-card"
-                style={
-                  card.highlighted
-                    ? { boxShadow: '0 0 40px rgba(139,92,246,0.3)', position: 'relative' }
-                    : {}
-                }
-              >
-                {card.highlighted && (
-                  <span
-                    style={{
-                      position: 'absolute',
-                      top: 16,
-                      right: 16,
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      padding: '5px 12px',
-                      borderRadius: 'var(--pub-radius-pill)',
-                      fontFamily: 'var(--pub-font-body)',
-                      fontSize: 11,
-                      fontWeight: 600,
-                      letterSpacing: 0.4,
-                      textTransform: 'uppercase',
-                      background: '#FFFFFF',
-                      color: 'var(--pub-accent-purple)',
-                    }}
-                  >
-                    {t('comparison.recommendedLabel')}
-                  </span>
-                )}
-                <div
-                  style={{
-                    width: 44,
-                    height: 44,
-                    borderRadius: 'var(--pub-radius-icon)',
-                    background: card.iconBg,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: card.iconColor,
-                    marginBottom: 20,
-                  }}
-                >
-                  <card.Icon />
-                </div>
-                <h3
-                  style={{
-                    fontFamily: 'var(--pub-font-display)',
-                    fontWeight: 700,
-                    fontSize: 20,
-                    color: titleColor,
-                    marginBottom: 4,
-                  }}
-                >
-                  {t(card.titleKey)}
-                </h3>
-                <p
-                  className="pub-text-body-sm"
-                  style={{ color: subtitleColor, marginBottom: 24 }}
-                >
-                  {t(card.subtitleKey)}
-                </p>
-
-                {/* Strength block */}
-                <div style={{ marginBottom: card.gapKeys.length ? 20 : 0 }}>
-                  <p
-                    style={{
-                      fontFamily: 'var(--pub-font-body)',
-                      fontWeight: 600,
-                      fontSize: 13,
-                      color: labelColor,
-                      textTransform: 'uppercase',
-                      letterSpacing: 0.4,
-                      margin: '0 0 12px 0',
-                    }}
-                  >
-                    {t(
-                      card.highlighted
-                        ? 'comparison.plusLabel'
-                        : 'comparison.strengthLabel'
-                    )}
-                  </p>
-                  <ul
-                    style={{
-                      listStyle: 'none',
-                      padding: 0,
-                      margin: 0,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: 10,
-                    }}
-                  >
-                    {card.strengthKeys.map((key) => (
-                      <li
-                        key={key}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'flex-start',
-                          gap: 10,
-                          fontFamily: 'var(--pub-font-body)',
-                          fontSize: 14,
-                          lineHeight: 1.5,
-                          color: itemColor,
-                        }}
-                      >
-                        <span style={{ flexShrink: 0, marginTop: 2 }}>
-                          <CheckMarkIcon color={checkColor} />
-                        </span>
-                        <span>{t(key)}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-
-                {/* Gap block (only on neutral cards) */}
-                {card.gapKeys.length > 0 && (
-                  <div>
-                    <p
-                      style={{
-                        fontFamily: 'var(--pub-font-body)',
-                        fontWeight: 600,
-                        fontSize: 13,
-                        color: labelColor,
-                        textTransform: 'uppercase',
-                        letterSpacing: 0.4,
-                        margin: '0 0 12px 0',
-                      }}
-                    >
-                      {t(card.gapLabelKey)}
-                    </p>
-                    <ul
-                      style={{
-                        listStyle: 'none',
-                        padding: 0,
-                        margin: 0,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: 10,
-                      }}
-                    >
-                      {card.gapKeys.map((key) => (
-                        <li
-                          key={key}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'flex-start',
-                            gap: 10,
-                            fontFamily: 'var(--pub-font-body)',
-                            fontSize: 14,
-                            lineHeight: 1.5,
-                            color: 'var(--pub-text-secondary)',
-                          }}
-                        >
-                          <span style={{ flexShrink: 0, marginTop: 2 }}>
-                            <DashIcon color={dashColor} />
-                          </span>
-                          <span>{t(key)}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </PubCard>
-            );
-          })}
-        </div>
+        <ComparisonHeader />
+        <ComparisonGrid />
       </div>
-
-      {/* Section-specific responsive styles */}
-      <style>{`
-        .pub-comparison-grid {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 24px;
-          align-items: stretch;
-        }
-        .pub-comparison-card {
-          width: calc(33.333% - 16px);
-          min-width: 0;
-          box-sizing: border-box;
-          display: flex;
-          flex-direction: column;
-        }
-        @media (max-width: 768px) {
-          .pub-comparison-card {
-            width: 100%;
-          }
-        }
-      `}</style>
+      <style>{COMPARISON_STYLES}</style>
     </section>
   );
 }
