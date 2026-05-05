@@ -228,16 +228,7 @@ export function useAVManager({
   useAutoConnectOnMount(me, editorActiveRef, avRef, isConnectingRef, hasAutoConnectedRef, connect);
   useConnectOnFirstInteraction(avRef, connect, refreshDevices);
   useDeviceChangeWatcher(refreshDevices);
-
-  // Cleanup on unmount
-  React.useEffect(() => {
-    return () => {
-      try {
-        avRef.current?.dispose();
-        avRef.current = null;
-      } catch {}
-    };
-  }, [avRef]);
+  useAVManagerCleanup(avRef);
 
   return { connect, refreshDevices };
 }
