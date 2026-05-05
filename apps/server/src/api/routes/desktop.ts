@@ -74,183 +74,180 @@ function getExternalProtocol(req: express.Request): string {
   return req.protocol;
 }
 
-export function registerDesktopRoutes(app: express.Application) {
-  /**
-   * GET /desktop/update/:target/:arch/:version
-   *
-   * Tauri Updater endpoint. Returns update manifest if a newer version exists.
-   * Returns 204 No Content if already up-to-date.
-   */
-  app.get('/desktop/update/:target/:arch/:version', async (req: express.Request, res: express.Response) => {
-    if (!process.env.GITHUB_DESKTOP_PAT) {
-      return res.status(503).json({ error: 'Update service not configured' });
+async function fetchSignature(sigAssetUrl: string): Promise<string> {
+  try {
+    const sigResponse = await fetch(sigAssetUrl, {
+      headers: {
+        Authorization: `token ${process.env.GITHUB_DESKTOP_PAT}`,
+        Accept: 'application/octet-stream',
+        'User-Agent': 'meetropolis-server',
+      },
+    });
+    return await sigResponse.text();
+  } catch (e) {
+    logger.warn({ event: 'desktop.update.sig_fetch_failed', error: String(e) });
+    return '';
+  }
+}
+
+async function handleDesktopUpdate(req: express.Request, res: express.Response): Promise<void> {
+  if (!process.env.GITHUB_DESKTOP_PAT) {
+    res.status(503).json({ error: 'Update service not configured' });
+    return;
+  }
+
+  try {
+    const { target, arch, version } = req.params;
+    const release = await getLatestRelease();
+    const latestVersion = (release.tag_name || '').replace(/^v/, '');
+
+    if (compareVersions(latestVersion, version) <= 0) {
+      res.status(204).end();
+      return;
     }
 
-    try {
-      const { target, arch, version } = req.params;
+    const updatePattern = getPlatformAssetPattern(target, arch);
+    const updateAsset = release.assets?.find((a: any) => updatePattern.test(a.name));
 
-      const release = await getLatestRelease();
-      const latestVersion = (release.tag_name || '').replace(/^v/, '');
+    if (!updateAsset) {
+      logger.warn({ event: 'desktop.update.no_asset', target, arch, version });
+      res.status(204).end();
+      return;
+    }
 
-      if (compareVersions(latestVersion, version) <= 0) {
-        return res.status(204).end();
+    const sigAsset = release.assets?.find((a: any) => a.name === `${updateAsset.name}.sig`);
+    const signature = sigAsset ? await fetchSignature(sigAsset.url) : '';
+
+    const proto = getExternalProtocol(req);
+    const manifest = {
+      version: latestVersion,
+      pub_date: release.published_at || release.created_at,
+      url: `${proto}://${req.get('host')}/desktop/download/${updateAsset.id}/${sanitizeFilename(updateAsset.name)}`,
+      signature,
+      notes: release.body || '',
+    };
+
+    res.json(manifest);
+  } catch (error) {
+    logger.error({ event: 'desktop.update.error', error: error instanceof Error ? error.message : String(error) });
+    res.status(500).json({ error: 'Failed to check for updates' });
+  }
+}
+
+async function streamAssetToResponse(reader: ReadableStreamDefaultReader<Uint8Array>, res: express.Response): Promise<void> {
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      res.write(value);
+    }
+    res.end();
+  } catch (streamError) {
+    logger.error({ event: 'desktop.download.stream_error', error: String(streamError) });
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Stream interrupted' });
+    } else {
+      res.end();
+    }
+  }
+}
+
+async function handleDesktopDownload(req: express.Request, res: express.Response): Promise<void> {
+  const token = process.env.GITHUB_DESKTOP_PAT;
+  if (!token) {
+    res.status(503).json({ error: 'Download service not configured' });
+    return;
+  }
+
+  const { asset_id, filename } = req.params;
+  if (!/^\d+$/.test(asset_id)) {
+    res.status(400).json({ error: 'Invalid asset ID' });
+    return;
+  }
+
+  try {
+    const response = await fetch(
+      `https://api.github.com/repos/${GITHUB_REPO}/releases/assets/${asset_id}`,
+      {
+        headers: {
+          Authorization: `token ${token}`,
+          Accept: 'application/octet-stream',
+          'User-Agent': 'meetropolis-server',
+        },
       }
+    );
 
-      const updatePattern = getPlatformAssetPattern(target, arch);
-      const updateAsset = release.assets?.find((a: any) => updatePattern.test(a.name));
+    if (!response.ok) {
+      res.status(404).json({ error: 'Asset not found' });
+      return;
+    }
 
-      if (!updateAsset) {
-        logger.warn({ event: 'desktop.update.no_asset', target, arch, version });
-        return res.status(204).end();
+    res.setHeader('Content-Type', 'application/octet-stream');
+    res.setHeader('Content-Disposition', `attachment; filename="${sanitizeFilename(filename)}"`);
+
+    if (response.headers.get('content-length')) {
+      res.setHeader('Content-Length', response.headers.get('content-length')!);
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) {
+      res.status(500).json({ error: 'Failed to stream asset' });
+      return;
+    }
+
+    await streamAssetToResponse(reader, res);
+  } catch (error) {
+    logger.error({ event: 'desktop.download.error', error: error instanceof Error ? error.message : String(error) });
+    res.status(500).json({ error: 'Download failed' });
+  }
+}
+
+function buildLatestAssets(assets: any[]): any[] {
+  return assets
+    .filter((a: any) => /\.(dmg|msi)$/i.test(a.name))
+    .map((a: any) => {
+      let platform = 'unknown';
+      let arch = 'x64';
+      if (/\.dmg$/i.test(a.name)) {
+        platform = 'macos';
+        arch = /aarch64/.test(a.name) ? 'aarch64' : 'x64';
+      } else if (/\.msi$/i.test(a.name)) {
+        platform = 'windows';
       }
-
-      const sigAsset = release.assets?.find((a: any) =>
-        a.name === `${updateAsset.name}.sig`
-      );
-
-      let signature = '';
-      if (sigAsset) {
-        try {
-          const sigResponse = await fetch(sigAsset.url, {
-            headers: {
-              Authorization: `token ${process.env.GITHUB_DESKTOP_PAT}`,
-              Accept: 'application/octet-stream',
-              'User-Agent': 'meetropolis-server',
-            },
-          });
-          signature = await sigResponse.text();
-        } catch (e) {
-          logger.warn({ event: 'desktop.update.sig_fetch_failed', error: String(e) });
-        }
-      }
-
-      const proto = getExternalProtocol(req);
-      const manifest = {
-        version: latestVersion,
-        pub_date: release.published_at || release.created_at,
-        url: `${proto}://${req.get('host')}/desktop/download/${updateAsset.id}/${sanitizeFilename(updateAsset.name)}`,
-        signature,
-        notes: release.body || '',
+      return {
+        platform,
+        arch,
+        filename: a.name,
+        url: `/desktop/download/${a.id}/${sanitizeFilename(a.name)}`,
+        size: a.size,
       };
+    });
+}
 
-      res.json(manifest);
-    } catch (error) {
-      logger.error({ event: 'desktop.update.error', error: error instanceof Error ? error.message : String(error) });
-      res.status(500).json({ error: 'Failed to check for updates' });
-    }
-  });
+async function handleDesktopLatest(_req: express.Request, res: express.Response): Promise<void> {
+  if (!process.env.GITHUB_DESKTOP_PAT) {
+    res.status(503).json({ error: 'Download service not configured' });
+    return;
+  }
 
-  /**
-   * GET /desktop/download/:asset_id/:filename
-   *
-   * Proxies a GitHub Release asset binary stream.
-   * The :filename parameter is for readability only (browser download name).
-   */
-  app.get('/desktop/download/:asset_id/:filename', async (req: express.Request, res: express.Response) => {
-    const token = process.env.GITHUB_DESKTOP_PAT;
-    if (!token) {
-      return res.status(503).json({ error: 'Download service not configured' });
-    }
+  try {
+    const release = await getLatestRelease();
+    const assets = buildLatestAssets(release.assets || []);
 
-    const { asset_id, filename } = req.params;
+    res.json({
+      version: (release.tag_name || '').replace(/^v/, ''),
+      date: release.published_at || release.created_at,
+      notes: release.body || '',
+      assets,
+    });
+  } catch (error) {
+    logger.error({ event: 'desktop.latest.error', error: error instanceof Error ? error.message : String(error) });
+    res.status(500).json({ error: 'Failed to fetch latest release info' });
+  }
+}
 
-    // Validate asset_id is numeric (GitHub asset IDs are integers)
-    if (!/^\d+$/.test(asset_id)) {
-      return res.status(400).json({ error: 'Invalid asset ID' });
-    }
-
-    try {
-      const response = await fetch(
-        `https://api.github.com/repos/${GITHUB_REPO}/releases/assets/${asset_id}`,
-        {
-          headers: {
-            Authorization: `token ${token}`,
-            Accept: 'application/octet-stream',
-            'User-Agent': 'meetropolis-server',
-          },
-        }
-      );
-
-      if (!response.ok) {
-        return res.status(404).json({ error: 'Asset not found' });
-      }
-
-      res.setHeader('Content-Type', 'application/octet-stream');
-      res.setHeader('Content-Disposition', `attachment; filename="${sanitizeFilename(filename)}"`);
-
-      if (response.headers.get('content-length')) {
-        res.setHeader('Content-Length', response.headers.get('content-length')!);
-      }
-
-      const reader = response.body?.getReader();
-      if (!reader) {
-        return res.status(500).json({ error: 'Failed to stream asset' });
-      }
-
-      try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          res.write(value);
-        }
-        res.end();
-      } catch (streamError) {
-        logger.error({ event: 'desktop.download.stream_error', error: String(streamError) });
-        if (!res.headersSent) {
-          res.status(500).json({ error: 'Stream interrupted' });
-        } else {
-          res.end();
-        }
-      }
-    } catch (error) {
-      logger.error({ event: 'desktop.download.error', error: error instanceof Error ? error.message : String(error) });
-      res.status(500).json({ error: 'Download failed' });
-    }
-  });
-
-  /**
-   * GET /desktop/latest
-   *
-   * Public metadata endpoint for the landing page.
-   * Returns version info and download URLs for each platform.
-   */
-  app.get('/desktop/latest', async (_req: express.Request, res: express.Response) => {
-    if (!process.env.GITHUB_DESKTOP_PAT) {
-      return res.status(503).json({ error: 'Download service not configured' });
-    }
-
-    try {
-      const release = await getLatestRelease();
-
-      const assets = (release.assets || [])
-        .filter((a: any) => /\.(dmg|msi)$/i.test(a.name))
-        .map((a: any) => {
-          let platform = 'unknown';
-          let arch = 'x64';
-          if (/\.dmg$/i.test(a.name)) {
-            platform = 'macos';
-            arch = /aarch64/.test(a.name) ? 'aarch64' : 'x64';
-          } else if (/\.msi$/i.test(a.name)) {
-            platform = 'windows';
-          }
-          return {
-            platform,
-            arch,
-            filename: a.name,
-            url: `/desktop/download/${a.id}/${sanitizeFilename(a.name)}`,
-            size: a.size,
-          };
-        });
-
-      res.json({
-        version: (release.tag_name || '').replace(/^v/, ''),
-        date: release.published_at || release.created_at,
-        notes: release.body || '',
-        assets,
-      });
-    } catch (error) {
-      logger.error({ event: 'desktop.latest.error', error: error instanceof Error ? error.message : String(error) });
-      res.status(500).json({ error: 'Failed to fetch latest release info' });
-    }
-  });
+export function registerDesktopRoutes(app: express.Application) {
+  app.get('/desktop/update/:target/:arch/:version', handleDesktopUpdate);
+  app.get('/desktop/download/:asset_id/:filename', handleDesktopDownload);
+  app.get('/desktop/latest', handleDesktopLatest);
 }

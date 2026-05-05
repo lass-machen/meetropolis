@@ -46,13 +46,16 @@ type Props = {
   mySessionId?: string;
 };
 
-export function Overlays({ hud, editorActive, avDnd, participants, gridExpanded, onToggleExpand, selectedSid, onSelectSid, getRoom, overlayZoom, onZoom, topRightMenu, colyseusRef, mySessionId }: Props) {
-  // Halte die letzte nicht-leere Teilnehmerliste für kurze Zeit (Reconnect-Grace),
-  // um visuelles Flackern bei kurzzeitigen Verbindungsabbrüchen zu vermeiden.
+/**
+ * Hält die letzte nicht-leere Teilnehmerliste für kurze Zeit (Reconnect-Grace),
+ * um visuelles Flackern bei kurzzeitigen Verbindungsabbrüchen zu vermeiden.
+ */
+function useStableParticipants(participants: Participant[]): Participant[] {
   const lastNonEmptyRef = React.useRef<Participant[]>(participants);
   const [stableParticipants, setStableParticipants] = React.useState<Participant[]>(participants);
   const stableRef = React.useRef<Participant[]>(stableParticipants);
   const graceTimerRef = React.useRef<number | null>(null);
+
   React.useEffect(() => {
     if (graceTimerRef.current) {
       clearTimeout(graceTimerRef.current);
@@ -60,15 +63,12 @@ export function Overlays({ hud, editorActive, avDnd, participants, gridExpanded,
     }
     if (participants.length > 0) {
       lastNonEmptyRef.current = participants;
-      // Only update state when participants actually changed to avoid render loops.
       if (!participantsEqual(stableRef.current, participants)) {
         stableRef.current = participants;
         setStableParticipants(participants);
       }
       return;
     }
-    // Teilnehmerliste ist leer:  Entprellen für kurze Zeit
-    // (z. B. während Colyseus-Reconnects), um UI-Flackern zu verhindern.
     if (!participantsEqual(stableRef.current, lastNonEmptyRef.current)) {
       stableRef.current = lastNonEmptyRef.current;
       setStableParticipants(lastNonEmptyRef.current);
@@ -88,18 +88,34 @@ export function Overlays({ hud, editorActive, avDnd, participants, gridExpanded,
     };
   }, [participants]);
 
+  return stableParticipants;
+}
+
+function FullscreenOverlay({ participants, selectedSid, getRoom, overlayZoom, onZoom, onSelectSid }: { participants: Participant[]; selectedSid: string; getRoom: () => any; overlayZoom: number; onZoom: (z: number) => void; onSelectSid: (sid: string | null) => void }) {
+  const pick = participants.find(p => p.sid === selectedSid);
+  if (!pick) return null;
+  return (
+    <ParticipantOverlay
+      participant={pick}
+      roomGetter={getRoom}
+      zoom={overlayZoom}
+      onZoom={onZoom}
+      onClose={() => { onSelectSid(null); onZoom(1); }}
+    />
+  );
+}
+
+export function Overlays({ hud, editorActive, avDnd, participants, gridExpanded, onToggleExpand, selectedSid, onSelectSid, getRoom, overlayZoom, onZoom, topRightMenu, colyseusRef, mySessionId }: Props) {
+  const stableParticipants = useStableParticipants(participants);
+
   const showParticipants = !editorActive && !avDnd;
   const showTopRightMenu = topRightMenu && !selectedSid; // Hide menu when overlay is open
 
   return (
     <>
-      {/* Top Header Bar - flex layout for participants + menu */}
       {(showParticipants || showTopRightMenu) && (
         <div className="top-header-bar">
-          {/* Left spacer for symmetry */}
           <div className="top-header-spacer" />
-
-          {/* Center: Participants Grid */}
           <div className="top-header-center">
             {showParticipants && (
               <ParticipantsGrid
@@ -112,31 +128,24 @@ export function Overlays({ hud, editorActive, avDnd, participants, gridExpanded,
               />
             )}
           </div>
-
-          {/* Right: TopRightMenu */}
           <div className="top-header-right">
             {showTopRightMenu && <TopRightMenu {...topRightMenu} />}
           </div>
         </div>
       )}
 
-      {/* HudPanel hidden when fullscreen overlay is open */}
       {!selectedSid && <HudPanel hud={hud} colyseusRef={colyseusRef} mySessionId={mySessionId} />}
 
-      {/* Fullscreen Participant Overlay */}
-      {!editorActive && !avDnd && selectedSid && (() => {
-        const pick = participants.find(p => p.sid === selectedSid);
-        if (!pick) return null;
-        return (
-          <ParticipantOverlay
-            participant={pick}
-            roomGetter={getRoom}
-            zoom={overlayZoom}
-            onZoom={onZoom}
-            onClose={() => { onSelectSid(null); onZoom(1); }}
-          />
-        );
-      })()}
+      {!editorActive && !avDnd && selectedSid && (
+        <FullscreenOverlay
+          participants={participants}
+          selectedSid={selectedSid}
+          getRoom={getRoom}
+          overlayZoom={overlayZoom}
+          onZoom={onZoom}
+          onSelectSid={onSelectSid}
+        />
+      )}
     </>
   );
 }

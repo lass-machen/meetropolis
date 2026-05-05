@@ -15,6 +15,208 @@ interface RoomMetadata {
   [key: string]: unknown;
 }
 
+// Count all active players across all rooms (global OSS limit).
+function countTotalActivePlayers(activeRooms: Set<WorldRoom>): number {
+  let totalActive = 0;
+  try {
+    const rooms = Array.from(activeRooms.values());
+    for (const r of rooms) {
+      try { totalActive += (r.state?.players?.size) || 0; } catch (e) { logger.debug('[WorldRoom] Failed to get player count from room', e); }
+    }
+  } catch (e) { logger.debug('[WorldRoom] Failed to count total active users', e); }
+  return totalActive;
+}
+
+// Enforce OSS user limit (25 concurrent users for self-hosted OSS).
+// Returns true if the join was aborted (and the client was kicked).
+async function enforceOssLimit(activeRooms: Set<WorldRoom>, client: Client): Promise<boolean> {
+  try {
+    const tenancyModule = await getTenancyModule();
+    const hasEnterpriseLicense = tenancyModule.bypassOssLimit?.() ?? false;
+    if (hasEnterpriseLicense) return false;
+
+    const totalActive = countTotalActivePlayers(activeRooms);
+    if (totalActive >= OSS_USER_LIMIT) {
+      try { logger.warn('[WorldRoom] OSS user limit reached', { totalActive, limit: OSS_USER_LIMIT }); } catch (e) { logger.debug('[WorldRoom] Failed to log OSS limit warning', e); }
+      try { client.error(4002, 'oss_limit_reached'); } catch (e) { logger.debug('[WorldRoom] Failed to send error to client', e); }
+      client.leave(1000);
+      return true;
+    }
+  } catch (e) { logger.debug('[WorldRoom] Failed to check OSS user limit in onJoin', e); }
+  return false;
+}
+
+// Check trial + dunning state via the enterprise billing module.
+// Returns true if the join was aborted (and the client was kicked).
+async function checkBillingStatus(
+  client: Client,
+  prisma: PrismaClient,
+  tenant: { id: string; bypassLimits: boolean } | null,
+  tenantSlug: string,
+): Promise<boolean> {
+  const billingMod = getBillingModuleSync();
+  if (!billingMod || !tenant || tenant.bypassLimits) return false;
+  try {
+    const trialStatus = await billingMod.getTrialStatus(prisma, tenant.id);
+    if (trialStatus.status === 'expired') {
+      try { logger.warn('[WorldRoom] Tenant trial expired', { tenant: tenantSlug }); } catch (e) { logger.debug('[WorldRoom] Failed to log trial expiry', e); }
+      try { client.error(4005, 'trial_expired'); } catch (e) { logger.debug('[WorldRoom] Failed to send trial_expired error', e); }
+      try { await prisma.$disconnect().catch(() => { }); } catch (e) { logger.debug('[WorldRoom] Failed to disconnect prisma', e); }
+      client.leave(1000);
+      return true;
+    }
+    const dunningStatus = await billingMod.getDunningStatus(prisma, tenant.id);
+    if (dunningStatus.status === 'suspended') {
+      try { logger.warn('[WorldRoom] Tenant subscription suspended', { tenant: tenantSlug }); } catch (e) { logger.debug('[WorldRoom] Failed to log subscription suspension', e); }
+      try { client.error(4004, 'subscription_suspended'); } catch (e) { logger.debug('[WorldRoom] Failed to send subscription_suspended error', e); }
+      try { await prisma.$disconnect().catch(() => { }); } catch (e) { logger.debug('[WorldRoom] Failed to disconnect prisma', e); }
+      client.leave(1000);
+      return true;
+    }
+  } catch (e) {
+    logger.debug('[WorldRoom] Billing status check failed (non-blocking)', e);
+  }
+  return false;
+}
+
+// Count active players for a specific tenant slug.
+function countActiveForTenant(activeRooms: Set<WorldRoom>, tenantSlug: string): number {
+  let active = 0;
+  try {
+    const rooms = Array.from(activeRooms.values());
+    for (const r of rooms) {
+      const meta = (r.metadata as RoomMetadata) || {};
+      if (meta && meta.tenant === tenantSlug) {
+        try { active += (r.state?.players?.size) || 0; } catch (e) { logger.debug('[WorldRoom] Failed to get active count from room', e); }
+      }
+    }
+  } catch (e) { logger.debug('[WorldRoom] Failed to count active users for tenant', e); }
+  return active;
+}
+
+// Enforce per-tenant seat limit. Returns true if the join was aborted
+// (and the client was kicked).
+async function enforceTenantSeatLimit(
+  client: Client,
+  prisma: PrismaClient,
+  activeRooms: Set<WorldRoom>,
+  tenant: { concurrentLimit: number | null; freeSeats: number | null },
+  tenantSlug: string,
+): Promise<boolean> {
+  const active = countActiveForTenant(activeRooms, tenantSlug);
+  const tenancy = await getTenancyModule();
+  const bypassOssLimit = tenancy.bypassOssLimit?.() ?? false;
+
+  if (!bypassOssLimit) {
+    const totalActive = countTotalActivePlayers(activeRooms);
+    if (totalActive >= OSS_USER_LIMIT) {
+      try { logger.warn('[WorldRoom] OSS user limit reached', { totalActive, limit: OSS_USER_LIMIT }); } catch (e) { logger.debug('[WorldRoom] Failed to log OSS limit', e); }
+      try { client.error(4002, 'oss_limit_reached'); } catch (e) { logger.debug('[WorldRoom] Failed to send oss_limit_reached error', e); }
+      try { await prisma.$disconnect().catch(() => { }); } catch (e) { logger.debug('[WorldRoom] Failed to disconnect prisma', e); }
+      client.leave(1000);
+      return true;
+    }
+  }
+
+  const paidSeats = Math.max(0, tenant.concurrentLimit || 0);
+  const freeSeats = Math.max(0, tenant.freeSeats || 0);
+  const effectiveLimit = Math.max(paidSeats, freeSeats);
+  if (active >= effectiveLimit) {
+    try { logger.warn('[WorldRoom] Tenant limit reached', { tenant: tenantSlug, active, limit: effectiveLimit, paidSeats, freeSeats }); } catch (e) { logger.debug('[WorldRoom] Failed to log tenant limit', e); }
+    try { client.error(4001, 'tenant_limit_reached'); } catch (e) { logger.debug('[WorldRoom] Failed to send tenant_limit_reached error', e); }
+    try { await prisma.$disconnect().catch(() => { }); } catch (e) { logger.debug('[WorldRoom] Failed to disconnect prisma', e); }
+    client.leave(1000);
+    return true;
+  }
+  return false;
+}
+
+// Combined per-tenant limits: billing status + seat limit. Returns
+// true if the join was aborted.
+async function enforceTenantLimits(
+  room: WorldRoom,
+  activeRooms: Set<WorldRoom>,
+  options: RoomOptions | undefined,
+  client: Client,
+): Promise<boolean> {
+  try {
+    const tenantSlug: string = options?.tenant || (room.metadata as RoomMetadata)?.tenant || process.env.DEFAULT_TENANT_SLUG || 'default';
+    const prisma = new PrismaClient();
+    const tenant = await prisma.tenant.findUnique({ where: { slug: tenantSlug } });
+
+    if (await checkBillingStatus(client, prisma, tenant, tenantSlug)) return true;
+
+    if (tenant && !tenant.bypassLimits) {
+      if (await enforceTenantSeatLimit(client, prisma, activeRooms, tenant, tenantSlug)) return true;
+    }
+    try { await prisma.$disconnect().catch(() => { }); } catch (e) { logger.debug('[WorldRoom] Failed to disconnect prisma', e); }
+  } catch (e) { logger.debug('[WorldRoom] Failed to enforce tenant/user limits', e); }
+  return false;
+}
+
+// Cancel any pending Graceful-Leave timers for the joining identity
+// (short disconnect + reconnect). Quietly drops the old player entries
+// so completePendingJoin can build a fresh one without flicker.
+function cancelPendingLeavesForIdentity(activeRooms: Set<WorldRoom>, joiningIdentity: string): void {
+  try {
+    for (const r of activeRooms) {
+      const worldRoom = r;
+      const sidsToCancel: string[] = [];
+      for (const sid of worldRoom.pendingLeaves.keys()) {
+        const p = worldRoom.state.players.get(sid);
+        if (p && p.identity === joiningIdentity) {
+          sidsToCancel.push(sid);
+        }
+      }
+      for (const sid of sidsToCancel) {
+        const timer = worldRoom.pendingLeaves.get(sid);
+        if (timer) clearTimeout(timer);
+        worldRoom.pendingLeaves.delete(sid);
+        worldRoom.state.players.delete(sid);
+        worldRoom.lastSeen.delete(sid);
+        try { colyseusPlayers.dec(); } catch { /* metric best-effort */ }
+        logger.info('[WorldRoom] Graceful reconnect: cancelled pending leave for identity', joiningIdentity, 'oldSid:', sid);
+      }
+    }
+  } catch (e) { logger.debug('[WorldRoom] Failed to cancel pending leaves on reconnect', e); }
+}
+
+// If a duplicate session exists (and isn't a ghost), enqueue this client
+// as pending and notify it. Returns true if pending — caller must skip
+// player creation. Returns false if no conflict (caller proceeds).
+function tryRegisterAsPending(
+  room: WorldRoom,
+  activeRooms: Set<WorldRoom>,
+  client: Client,
+  options: RoomOptions | undefined,
+  joiningIdentity: string,
+): boolean {
+  try {
+    const existing = findExistingSession(activeRooms, room.ghostThresholdMs, joiningIdentity);
+    if (existing) {
+      // If there's already a pending client for this identity (3rd tab case), kick it
+      const prevPending = room.pendingClients.get(joiningIdentity);
+      if (prevPending) {
+        try { prevPending.client.leave(1000); } catch { /* best-effort */ }
+        room.pendingClients.delete(joiningIdentity);
+      }
+
+      // Store new client as pending — no player creation yet
+      room.pendingClients.set(joiningIdentity, {
+        client,
+        options: options || {},
+        identity: joiningIdentity,
+        timestamp: Date.now(),
+      });
+
+      client.send('session_conflict', { code: 4007, message: 'session_conflict' });
+      logger.info('[WorldRoom] Session conflict detected for identity:', joiningIdentity, '- client pending');
+      return true;
+    }
+  } catch (e) { logger.debug('[WorldRoom] Failed to check duplicate session', e); }
+  return false;
+}
+
 // onJoin: enforce OSS/tenant limits, then either pend or complete the
 // join. Returns void; the caller (WorldRoom.onJoin) just awaits this.
 //
@@ -28,154 +230,15 @@ export async function performOnJoin(
   options: RoomOptions | undefined,
   PlayerClass: typeof PlayerCtor,
 ): Promise<void> {
-  // Check OSS user limit (25 concurrent users for self-hosted OSS)
-  // Enterprise license holders bypass this limit via bypassOssLimit()
-  try {
-    const tenancyModule = await getTenancyModule();
-    const hasEnterpriseLicense = tenancyModule.bypassOssLimit?.() ?? false;
+  if (await enforceOssLimit(activeRooms, client)) return;
+  if (await enforceTenantLimits(room, activeRooms, options, client)) return;
 
-    if (!hasEnterpriseLicense) {
-      let totalActive = 0;
-      try {
-        const rooms = Array.from(activeRooms.values());
-        for (const r of rooms) {
-          try { totalActive += (r.state?.players?.size) || 0; } catch (e) { logger.debug('[WorldRoom] Failed to get player count from room', e); }
-        }
-      } catch (e) { logger.debug('[WorldRoom] Failed to count total active users', e); }
-
-      if (totalActive >= OSS_USER_LIMIT) {
-        try { logger.warn('[WorldRoom] OSS user limit reached', { totalActive, limit: OSS_USER_LIMIT }); } catch (e) { logger.debug('[WorldRoom] Failed to log OSS limit warning', e); }
-        try { client.error(4002, 'oss_limit_reached'); } catch (e) { logger.debug('[WorldRoom] Failed to send error to client', e); }
-        return client.leave(1000);
-      }
-    }
-  } catch (e) { logger.debug('[WorldRoom] Failed to check OSS user limit in onJoin', e); }
-
-  // Enforce concurrent user limit per tenant (unless bypassed)
-  try {
-    const tenantSlug: string = options?.tenant || (room.metadata as RoomMetadata)?.tenant || process.env.DEFAULT_TENANT_SLUG || 'default';
-    const prisma = new PrismaClient();
-    const tenant = await prisma.tenant.findUnique({ where: { slug: tenantSlug } });
-
-    const billingMod = getBillingModuleSync();
-    if (billingMod && tenant && !tenant.bypassLimits) {
-      try {
-        const trialStatus = await billingMod.getTrialStatus(prisma, tenant.id);
-        if (trialStatus.status === 'expired') {
-          try { logger.warn('[WorldRoom] Tenant trial expired', { tenant: tenantSlug }); } catch (e) { logger.debug('[WorldRoom] Failed to log trial expiry', e); }
-          try { client.error(4005, 'trial_expired'); } catch (e) { logger.debug('[WorldRoom] Failed to send trial_expired error', e); }
-          try { await prisma.$disconnect().catch(() => { }); } catch (e) { logger.debug('[WorldRoom] Failed to disconnect prisma', e); }
-          return client.leave(1000);
-        }
-
-        const dunningStatus = await billingMod.getDunningStatus(prisma, tenant.id);
-        if (dunningStatus.status === 'suspended') {
-          try { logger.warn('[WorldRoom] Tenant subscription suspended', { tenant: tenantSlug }); } catch (e) { logger.debug('[WorldRoom] Failed to log subscription suspension', e); }
-          try { client.error(4004, 'subscription_suspended'); } catch (e) { logger.debug('[WorldRoom] Failed to send subscription_suspended error', e); }
-          try { await prisma.$disconnect().catch(() => { }); } catch (e) { logger.debug('[WorldRoom] Failed to disconnect prisma', e); }
-          return client.leave(1000);
-        }
-      } catch (e) {
-        logger.debug('[WorldRoom] Billing status check failed (non-blocking)', e);
-      }
-    }
-
-    if (tenant && !tenant.bypassLimits) {
-      let active = 0;
-      try {
-        const rooms = Array.from(activeRooms.values());
-        for (const r of rooms) {
-          const meta = (r.metadata as RoomMetadata) || {};
-          if (meta && meta.tenant === tenantSlug) {
-            try { active += (r.state?.players?.size) || 0; } catch (e) { logger.debug('[WorldRoom] Failed to get active count from room', e); }
-          }
-        }
-      } catch (e) { logger.debug('[WorldRoom] Failed to count active users for tenant', e); }
-      const tenancy = await getTenancyModule();
-      const bypassOssLimit = tenancy.bypassOssLimit?.() ?? false;
-
-      if (!bypassOssLimit) {
-        let totalActive = 0;
-        try {
-          const rooms = Array.from(activeRooms.values());
-          for (const r of rooms) {
-            try { totalActive += (r.state?.players?.size) || 0; } catch (e) { logger.debug('[WorldRoom] Failed to get player count from room', e); }
-          }
-        } catch (e) { logger.debug('[WorldRoom] Failed to count total active for OSS limit', e); }
-        if (totalActive >= OSS_USER_LIMIT) {
-          try { logger.warn('[WorldRoom] OSS user limit reached', { totalActive, limit: OSS_USER_LIMIT }); } catch (e) { logger.debug('[WorldRoom] Failed to log OSS limit', e); }
-          try { client.error(4002, 'oss_limit_reached'); } catch (e) { logger.debug('[WorldRoom] Failed to send oss_limit_reached error', e); }
-          try { await prisma.$disconnect().catch(() => { }); } catch (e) { logger.debug('[WorldRoom] Failed to disconnect prisma', e); }
-          return client.leave(1000);
-        }
-      }
-
-      const paidSeats = Math.max(0, tenant.concurrentLimit || 0);
-      const freeSeats = Math.max(0, tenant.freeSeats || 0);
-      const effectiveLimit = Math.max(paidSeats, freeSeats);
-      if (active >= effectiveLimit) {
-        try { logger.warn('[WorldRoom] Tenant limit reached', { tenant: tenantSlug, active, limit: effectiveLimit, paidSeats, freeSeats }); } catch (e) { logger.debug('[WorldRoom] Failed to log tenant limit', e); }
-        try { client.error(4001, 'tenant_limit_reached'); } catch (e) { logger.debug('[WorldRoom] Failed to send tenant_limit_reached error', e); }
-        try { await prisma.$disconnect().catch(() => { }); } catch (e) { logger.debug('[WorldRoom] Failed to disconnect prisma', e); }
-        return client.leave(1000);
-      }
-    }
-    try { await prisma.$disconnect().catch(() => { }); } catch (e) { logger.debug('[WorldRoom] Failed to disconnect prisma', e); }
-  } catch (e) { logger.debug('[WorldRoom] Failed to enforce tenant/user limits', e); }
-
-  // Duplicate session detection (Two-Phase Join)
   const joiningIdentity = options?.identity || client.sessionId;
   if (!joiningIdentity.startsWith('npc-')) {
-    // Graceful-Reconnect-Cancel: falls fuer diese identity noch ein pending Graceful-Leave
-    // laeuft (kurzer Disconnect + Reconnect), den Timer stoppen und den alten Eintrag
-    // still entfernen. completePendingJoin legt dann einen frischen Eintrag an.
-    try {
-      for (const r of activeRooms) {
-        const worldRoom = r;
-        const sidsToCancel: string[] = [];
-        for (const sid of worldRoom.pendingLeaves.keys()) {
-          const p = worldRoom.state.players.get(sid);
-          if (p && p.identity === joiningIdentity) {
-            sidsToCancel.push(sid);
-          }
-        }
-        for (const sid of sidsToCancel) {
-          const timer = worldRoom.pendingLeaves.get(sid);
-          if (timer) clearTimeout(timer);
-          worldRoom.pendingLeaves.delete(sid);
-          // Stille Entfernung: KEIN broadcast, damit es keinen Flicker gibt.
-          worldRoom.state.players.delete(sid);
-          worldRoom.lastSeen.delete(sid);
-          try { colyseusPlayers.dec(); } catch { /* metric best-effort */ }
-          logger.info('[WorldRoom] Graceful reconnect: cancelled pending leave for identity', joiningIdentity, 'oldSid:', sid);
-        }
-      }
-    } catch (e) { logger.debug('[WorldRoom] Failed to cancel pending leaves on reconnect', e); }
-
-    try {
-      const existing = findExistingSession(activeRooms, room.ghostThresholdMs, joiningIdentity);
-      if (existing) {
-        // If there's already a pending client for this identity (3rd tab case), kick it
-        const prevPending = room.pendingClients.get(joiningIdentity);
-        if (prevPending) {
-          try { prevPending.client.leave(1000); } catch { /* best-effort */ }
-          room.pendingClients.delete(joiningIdentity);
-        }
-
-        // Store new client as pending — no player creation yet
-        room.pendingClients.set(joiningIdentity, {
-          client,
-          options: options || {},
-          identity: joiningIdentity,
-          timestamp: Date.now(),
-        });
-
-        // Notify new client about conflict (message is queued and delivered after JOIN_ROOM handshake)
-        client.send('session_conflict', { code: 4007, message: 'session_conflict' });
-        logger.info('[WorldRoom] Session conflict detected for identity:', joiningIdentity, '- client pending');
-        return; // No player creation, no full_state, no broadcasts
-      }
-    } catch (e) { logger.debug('[WorldRoom] Failed to check duplicate session', e); }
+    cancelPendingLeavesForIdentity(activeRooms, joiningIdentity);
+    if (tryRegisterAsPending(room, activeRooms, client, options, joiningIdentity)) {
+      return; // No player creation, no full_state, no broadcasts
+    }
   }
 
   await completePendingJoin(room, client, options || {}, joiningIdentity, PlayerClass);
