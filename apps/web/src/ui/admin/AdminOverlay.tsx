@@ -2,16 +2,27 @@ import React from 'react';
 import { Modal, Tabs } from '../system';
 import type { TabItem } from '../system';
 import type { AdminCapabilities } from '../../app/routes/hooks/useFetchMe';
-import { TenantsAdmin } from './TenantsAdmin';
-import { BillingAdmin } from './BillingAdmin';
 import { AdminHealthDashboard } from './AdminHealthDashboard';
-import { PackCatalogAdmin } from './PackCatalogAdmin';
 import { MapsAdmin } from './MapsAdmin';
-import { AuditLogAdmin } from './AuditLogAdmin';
 import { SettingsAdmin } from './SettingsAdmin';
-import { PricingPlansAdmin } from './PricingPlansAdmin';
+import { getEnterpriseWebModule } from '../../lib/enterpriseWebLoader';
 
-type AdminTabKey = 'tenants' | 'billing' | 'pricing' | 'packs' | 'maps' | 'health' | 'audit' | 'settings';
+type OssTabKey = 'maps' | 'health' | 'settings' | 'enterprise';
+
+type EnterpriseTabsProps = { apiBase: string; capabilities: AdminCapabilities };
+
+const EnterpriseFallback: React.ComponentType<EnterpriseTabsProps> = () => (
+  <div style={{ padding: 24, color: '#666' }}>
+    Enterprise admin features (Mandanten, Billing, Pricing, Pack Catalog,
+    Audit Log) are not available in the OSS edition.
+  </div>
+);
+
+const EnterpriseTabsLazy = React.lazy<React.ComponentType<EnterpriseTabsProps>>(async () => {
+  const mod = await getEnterpriseWebModule();
+  if (!mod) return { default: EnterpriseFallback };
+  return { default: mod.AdminEnterpriseTabs as React.ComponentType<EnterpriseTabsProps> };
+});
 
 export function AdminOverlay(props: {
   apiBase: string;
@@ -21,35 +32,26 @@ export function AdminOverlay(props: {
 }) {
   const { apiBase, open, onOpenChange, capabilities } = props;
 
-  const adminTabs = React.useMemo<TabItem[]>(() => {
-    const tabs: TabItem[] = [];
-    tabs.push({ key: 'tenants', label: 'Mandanten' });
-    if (capabilities.hasBilling) {
-      tabs.push({ key: 'billing', label: 'Pakete & Billing' });
-      tabs.push({ key: 'pricing', label: 'Pricing Page' });
-    }
-    if (capabilities.hasAdminEnterprise) {
-      tabs.push({ key: 'packs', label: 'Pack Catalog' });
-    }
-    tabs.push({ key: 'maps', label: 'Maps' });
-    tabs.push({ key: 'health', label: 'System Health' });
-    if (capabilities.hasBilling) {
-      tabs.push({ key: 'audit', label: 'Audit Log' });
-    }
-    tabs.push({ key: 'settings', label: 'Einstellungen' });
-    return tabs;
-  }, [capabilities]);
+  const showEnterprise = capabilities.hasBilling || capabilities.hasAdminEnterprise;
 
-  const [tab, setTab] = React.useState<AdminTabKey>(
-    (adminTabs[0]?.key as AdminTabKey) || 'tenants',
+  const tabs = React.useMemo<TabItem[]>(() => {
+    const items: TabItem[] = [];
+    if (showEnterprise) items.push({ key: 'enterprise', label: 'Enterprise' });
+    items.push({ key: 'maps', label: 'Maps' });
+    items.push({ key: 'health', label: 'System Health' });
+    items.push({ key: 'settings', label: 'Einstellungen' });
+    return items;
+  }, [showEnterprise]);
+
+  const [tab, setTab] = React.useState<OssTabKey>(
+    (tabs[0]?.key as OssTabKey) || 'maps',
   );
 
-  // Fallback: wenn aktiver Tab durch Capability-Change verschwindet
   React.useEffect(() => {
-    if (!adminTabs.some((t) => t.key === tab)) {
-      setTab((adminTabs[0]?.key as AdminTabKey) || 'tenants');
+    if (!tabs.some((t) => t.key === tab)) {
+      setTab((tabs[0]?.key as OssTabKey) || 'maps');
     }
-  }, [adminTabs, tab]);
+  }, [tabs, tab]);
 
   return (
     <Modal
@@ -58,15 +60,15 @@ export function AdminOverlay(props: {
       title="Administration"
       maxWidth={1100}
       minHeight={520}
-      accessories={<Tabs items={adminTabs} activeKey={tab} onChange={setTab as (key: string) => void} />}
+      accessories={<Tabs items={tabs} activeKey={tab} onChange={setTab as (key: string) => void} />}
     >
-      {tab === 'tenants' && <TenantsAdmin apiBase={apiBase} capabilities={capabilities} />}
-      {tab === 'billing' && <BillingAdmin apiBase={apiBase} />}
-      {tab === 'pricing' && <PricingPlansAdmin apiBase={apiBase} />}
-      {tab === 'packs' && <PackCatalogAdmin apiBase={apiBase} />}
+      {tab === 'enterprise' && (
+        <React.Suspense fallback={<div style={{ padding: 24 }}>Loading…</div>}>
+          <EnterpriseTabsLazy apiBase={apiBase} capabilities={capabilities} />
+        </React.Suspense>
+      )}
       {tab === 'maps' && <MapsAdmin apiBase={apiBase} />}
       {tab === 'health' && <AdminHealthDashboard onClose={() => onOpenChange(false)} />}
-      {tab === 'audit' && <AuditLogAdmin apiBase={apiBase} />}
       {tab === 'settings' && <SettingsAdmin apiBase={apiBase} />}
     </Modal>
   );

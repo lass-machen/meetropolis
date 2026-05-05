@@ -3,8 +3,18 @@ import { Overlays } from '../../layout/Overlays';
 import { GameCanvas } from './GameCanvas';
 import { ConnectionBanners } from './ConnectionBanners';
 import { AdminOverlay } from '../../../ui/admin/AdminOverlay';
-import { PackStore } from '../../../ui/packstore/PackStore';
 import { MapSwitcher } from '../../../ui/hud/MapSwitcher';
+import { getEnterpriseWebModule } from '../../../lib/enterpriseWebLoader';
+
+type PackStoreProps = { apiBase: string; open: boolean; onOpenChange: (v: boolean) => void };
+
+const PackStoreFallback: React.ComponentType<PackStoreProps> = () => null;
+
+const PackStoreLazy = React.lazy<React.ComponentType<PackStoreProps>>(async () => {
+  const mod = await getEnterpriseWebModule();
+  if (!mod) return { default: PackStoreFallback };
+  return { default: mod.PackStore as React.ComponentType<PackStoreProps> };
+});
 import { ZoneAccessPanel } from '../../../ui/hud/ZoneAccessPanel';
 import { AVControlBar } from './AVControlBar';
 import { PaymentStatusBanner } from '../../../ui/billing/components/PaymentStatusBanner';
@@ -137,7 +147,9 @@ export function WorldMainView(props: WorldMainViewProps) {
       {isInternalOwner && (
         <AdminOverlay apiBase={apiBase} open={adminOpen} onOpenChange={setAdminOpen} capabilities={capabilities} />
       )}
-      <PackStore apiBase={apiBase} open={packStoreOpen} onOpenChange={setPackStoreOpen} />
+      <React.Suspense fallback={null}>
+        <PackStoreLazy apiBase={apiBase} open={packStoreOpen} onOpenChange={setPackStoreOpen} />
+      </React.Suspense>
       {!editor.active && (
         <div style={{ position: 'absolute', bottom: 70, left: 12, zIndex: 30 }}>
           <MapSwitcher room={connStatus.reconnecting ? null : colyseusRef.current} />

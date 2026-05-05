@@ -3,11 +3,25 @@ import { useTranslation } from 'react-i18next';
 import { Modal, Tabs } from '../../../ui/system';
 import type { TabItem } from '../../../ui/system';
 import { ProfileSettings } from '../../../ui/settings/ProfileSettings';
-import { BillingDashboard } from '../../../ui/billing/BillingDashboard';
 import { TenantSettings } from '../../../ui/settings/TenantSettings';
 import { useTenantSettings } from '../../../ui/settings/hooks/useTenantSettings';
 import { SessionManagement } from '../../../ui/settings/SessionManagement';
 import { ApiTokensOverlay } from '../../../ui/admin/ApiTokensOverlay';
+import { getEnterpriseWebModule } from '../../../lib/enterpriseWebLoader';
+
+type BillingDashboardProps = { activeTab: string; onTabChange: (k: string) => void; onClose: () => void };
+
+const BillingFallback: React.ComponentType<BillingDashboardProps> = () => (
+  <div style={{ padding: 24, color: '#666' }}>
+    Billing is an enterprise feature and is not available in the OSS edition.
+  </div>
+);
+
+const BillingDashboardLazy = React.lazy<React.ComponentType<BillingDashboardProps>>(async () => {
+  const mod = await getEnterpriseWebModule();
+  if (!mod) return { default: BillingFallback };
+  return { default: mod.BillingDashboard as React.ComponentType<BillingDashboardProps> };
+});
 
 interface WorldModalsProps {
   apiBase: string;
@@ -52,7 +66,9 @@ function BillingModal({ open, setOpen, t, billingTab, setBillingTab, items }: { 
       minHeight={520}
       accessories={<Tabs items={items} activeKey={billingTab} onChange={setBillingTab} />}
     >
-      <BillingDashboard activeTab={billingTab} onTabChange={setBillingTab} onClose={() => setOpen(false)} />
+      <React.Suspense fallback={<div style={{ padding: 24 }}>Loading…</div>}>
+        <BillingDashboardLazy activeTab={billingTab} onTabChange={setBillingTab} onClose={() => setOpen(false)} />
+      </React.Suspense>
     </Modal>
   );
 }

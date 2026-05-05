@@ -13,15 +13,31 @@ import react from '@vitejs/plugin-react';
  * Als Fallback wird auch ein node_modules Symlink angelegt, falls npm ihn
  * nicht automatisch erstellt (bekanntes Problem mit Git Submodules).
  */
-function optionalSubmodules(moduleIds: string[]): Plugin {
-  const set = new Set(moduleIds);
+type OptionalSubmoduleSpec = string | { id: string; path: string };
+
+/**
+ * Default repo-relative path for an optional submodule package.
+ * E.g. `@meetropolis/desktop` → `packages/desktop`.
+ */
+function defaultPathFor(id: string): string {
+  const pkgName = id.replace(/^@meetropolis\//, '');
+  return `packages/${pkgName}`;
+}
+
+function normalizeSpec(spec: OptionalSubmoduleSpec): { id: string; path: string } {
+  return typeof spec === 'string' ? { id: spec, path: defaultPathFor(spec) } : spec;
+}
+
+function optionalSubmodules(specs: OptionalSubmoduleSpec[]): Plugin {
+  const normalized = specs.map(normalizeSpec);
+  const set = new Set(normalized.map((s) => s.id));
 
   // Prüfe beim Plugin-Init welche Module tatsächlich vorhanden sind
   // und stelle sicher, dass der Workspace-Symlink existiert
   const present = new Set<string>();
-  for (const id of moduleIds) {
+  for (const { id, path: relPath } of normalized) {
     const pkgName = id.replace(/^@meetropolis\//, '');
-    const pkgDir = resolve(__dirname, '../../packages', pkgName);
+    const pkgDir = resolve(__dirname, '../..', relPath);
     const pkgJson = resolve(pkgDir, 'package.json');
     if (existsSync(pkgJson)) {
       present.add(id);
@@ -58,7 +74,10 @@ function optionalSubmodules(moduleIds: string[]): Plugin {
 
 export default defineConfig({
   plugins: [
-    optionalSubmodules(['@meetropolis/desktop']),
+    optionalSubmodules([
+      '@meetropolis/desktop',
+      { id: '@meetropolis/enterprise-web', path: 'packages/tenancy-enterprise/packages/enterprise-web' },
+    ]),
     // Two vite versions coexist (root 5.x as transitive, apps/web 6.x direct).
     // The plugin-react types resolve against root's vite — runtime is fine,
     // tsc just sees mismatching nominal types. Double-cast keeps the check clean.
