@@ -11,24 +11,16 @@ interface WorldContextMenuProps {
   bubbleStartRef: React.RefObject<null | ((id: string) => void)>;
 }
 
-export function WorldContextMenu({
-  contextMenu,
-  onClose,
-  localPosRef,
-  bubbleGroupsRef,
-  followRef,
-  gameBridge,
-  colyseusRef,
-  bubbleStartRef,
-}: WorldContextMenuProps) {
-  if (!contextMenu.open || !contextMenu.playerId) {
-    return null;
-  }
+function getMembersOfGroup(groupId: string, bubbleGroups: Record<string, string>): string[] {
+  return Object.entries(bubbleGroups).filter(([, gid]) => gid === groupId).map(([sid]) => sid);
+}
+
+function buildContextMenuActions(props: WorldContextMenuProps) {
+  const { contextMenu, onClose, localPosRef, bubbleGroupsRef, followRef, gameBridge, colyseusRef, bubbleStartRef } = props;
 
   const handleFollowClick = () => {
     onClose();
     const id = contextMenu.playerId!;
-    // Toggle follow
     if (followRef.current?.getTarget?.() === id) {
       followRef.current.stop();
       gameBridge.setDesiredPosition(null);
@@ -44,10 +36,7 @@ export function WorldContextMenu({
       const targetGroup = bubbleGroupsRef.current?.[target];
       const meId = localPosRef.current?.id;
       if (!target || !targetGroup || !meId) return;
-      // Mitglieder der Ziel-Bubble + mich
-      const currentMembers = Object.entries(bubbleGroupsRef.current || {})
-        .filter(([, _gid]) => _gid === targetGroup)
-        .map(([sid]) => sid);
+      const currentMembers = getMembersOfGroup(targetGroup, bubbleGroupsRef.current || {});
       const next = Array.from(new Set([...currentMembers, meId]));
       colyseusRef.current?.send?.('bubble_update', { id: targetGroup, members: next });
     } catch { }
@@ -61,10 +50,7 @@ export function WorldContextMenu({
       if (!meId || !id || meId === id) return;
       const myGroup = bubbleGroupsRef.current?.[meId];
       if (!myGroup) return;
-      // Bilde neue Menge: bestehende Gruppenmitglieder + Zielspieler
-      const currentMembers = Object.entries(bubbleGroupsRef.current || {})
-        .filter(([, _gid]) => _gid === myGroup)
-        .map(([sid]) => sid);
+      const currentMembers = getMembersOfGroup(myGroup, bubbleGroupsRef.current || {});
       const next = Array.from(new Set([...currentMembers, id]));
       colyseusRef.current?.send?.('bubble_update', { id: myGroup, members: next });
     } catch { }
@@ -76,7 +62,6 @@ export function WorldContextMenu({
     bubbleStartRef.current?.(id);
   };
 
-  // Check if we should show "Join Bubble" button
   const shouldShowJoinBubble = (() => {
     try {
       const target = contextMenu.playerId!;
@@ -89,7 +74,6 @@ export function WorldContextMenu({
     }
   })();
 
-  // Check if we should show "Add to Bubble" button
   const shouldShowAddToBubble = (() => {
     try {
       const meId = localPosRef.current?.id;
@@ -100,12 +84,39 @@ export function WorldContextMenu({
     }
   })();
 
+  return { handleFollowClick, handleJoinBubbleClick, handleAddToBubbleClick, handleStartBubbleClick, shouldShowJoinBubble, shouldShowAddToBubble };
+}
+
+function MenuButton({ onClick, label, withBorder = true }: { onClick: () => void; label: string; withBorder?: boolean }) {
   return (
-    <div
-      onClick={onClose}
-      onContextMenu={(e) => e.preventDefault()}
-      style={{ position: 'absolute', inset: 0, zIndex: 60 }}
+    <button
+      onClick={onClick}
+      style={{
+        display: 'block',
+        padding: '8px 12px',
+        background: 'transparent',
+        color: '#fff',
+        border: 'none',
+        ...(withBorder ? { borderBottom: '1px solid rgba(255,255,255,0.08)' } : {}),
+        width: 180,
+        textAlign: 'left',
+        cursor: 'pointer',
+      }}
     >
+      {label}
+    </button>
+  );
+}
+
+export function WorldContextMenu(props: WorldContextMenuProps) {
+  const { contextMenu, onClose } = props;
+  if (!contextMenu.open || !contextMenu.playerId) return null;
+
+  const actions = buildContextMenuActions(props);
+  const { handleFollowClick, handleJoinBubbleClick, handleAddToBubbleClick, handleStartBubbleClick, shouldShowJoinBubble, shouldShowAddToBubble } = actions;
+
+  return (
+    <div onClick={onClose} onContextMenu={(e) => e.preventDefault()} style={{ position: 'absolute', inset: 0, zIndex: 60 }}>
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
@@ -116,79 +127,13 @@ export function WorldContextMenu({
           color: '#fff',
           border: '1px solid rgba(255,255,255,0.12)',
           borderRadius: 8,
-          boxShadow: '0 12px 40px rgba(0,0,0,0.5)'
+          boxShadow: '0 12px 40px rgba(0,0,0,0.5)',
         }}
       >
-        <button
-          onClick={handleFollowClick}
-          style={{
-            display: 'block',
-            padding: '8px 12px',
-            background: 'transparent',
-            color: '#fff',
-            border: 'none',
-            borderBottom: '1px solid rgba(255,255,255,0.08)',
-            width: 180,
-            textAlign: 'left',
-            cursor: 'pointer'
-          }}
-        >
-          Folgen
-        </button>
-
-        {shouldShowJoinBubble && (
-          <button
-            onClick={handleJoinBubbleClick}
-            style={{
-              display: 'block',
-              padding: '8px 12px',
-              background: 'transparent',
-              color: '#fff',
-              border: 'none',
-              borderBottom: '1px solid rgba(255,255,255,0.08)',
-              width: 180,
-              textAlign: 'left',
-              cursor: 'pointer'
-            }}
-          >
-            Bubble beitreten
-          </button>
-        )}
-
-        {shouldShowAddToBubble && (
-          <button
-            onClick={handleAddToBubbleClick}
-            style={{
-              display: 'block',
-              padding: '8px 12px',
-              background: 'transparent',
-              color: '#fff',
-              border: 'none',
-              borderBottom: '1px solid rgba(255,255,255,0.08)',
-              width: 180,
-              textAlign: 'left',
-              cursor: 'pointer'
-            }}
-          >
-            Zur Bubble hinzufügen
-          </button>
-        )}
-
-        <button
-          onClick={handleStartBubbleClick}
-          style={{
-            display: 'block',
-            padding: '8px 12px',
-            background: 'transparent',
-            color: '#fff',
-            border: 'none',
-            width: 180,
-            textAlign: 'left',
-            cursor: 'pointer'
-          }}
-        >
-          Bubble starten
-        </button>
+        <MenuButton onClick={handleFollowClick} label="Folgen" />
+        {shouldShowJoinBubble && <MenuButton onClick={handleJoinBubbleClick} label="Bubble beitreten" />}
+        {shouldShowAddToBubble && <MenuButton onClick={handleAddToBubbleClick} label="Zur Bubble hinzufügen" />}
+        <MenuButton onClick={handleStartBubbleClick} label="Bubble starten" withBorder={false} />
       </div>
     </div>
   );
