@@ -139,41 +139,49 @@ export interface WorldAppState {
   getDisplayName: (identity: string) => string;
 }
 
-export function useWorldAppState(): WorldAppState {
-  // Refs
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const colyseusRef = useRef<any>(null);
-  const colyseusReconnectTimerRef = useRef<any>(null);
-  const avRef = useRef<AVManager | null>(null);
-  const bubbleRef = useRef<BubbleManager | null>(null);
-  const zoneRef = useRef<ZoneManager | null>(null);
-  const followRef = useRef<FollowManager | null>(null);
-  const volumeRef = useRef<VolumeManager | null>(null);
-  const bubbleMembersRef = useRef<Set<string>>(new Set());
-  const bubbleGroupsRef = useRef<Record<string, string>>({});
-  const localPosRef = useRef<{ id: string; x?: number; y?: number }>({ id: '' });
-  const remotesRef = useRef<Record<string, { x: number; y: number; dnd?: boolean; avatarId?: string }>>({});
-  const colyseusToLivekitMap = useRef<Record<string, string>>({});
-  const identityToNameMap = useRef<Record<string, string>>({});
-  const participantVolumesRef = useRef<Record<string, number>>({});
-  const dndRef = useRef<boolean>(false);
-  const rosterByIdentityRef = useRef<Record<string, { name: string; x: number; y: number }>>({});
-  const bubblePendingRef = useRef<{ targetId: string; dest?: { x: number; y: number } } | null>(null);
-  const bubbleStartRef = useRef<null | ((id: string) => void)>(null);
-  const manualNavRef = useRef<{ x: number; y: number } | null>(null);
-  const disposedRef = useRef(false);
-  const gameCreatedRef = useRef(false);
-  const lastSavedPositionRef = useRef({ x: 0, y: 0, direction: 'down' });
-  const moveTimeoutRef = useRef<any>(null);
-  const buildListTimerRef = useRef<any>(null);
-  const buildListRafRef = useRef<number | null>(null);
-  const lastAutoFullscreenRef = useRef<number>(0);
-  const editorActiveRef = useRef(false);
-  const activateBubbleNowRef = useRef<(id: string) => void>(() => { });
+function useWorldRefs() {
+  return {
+    containerRef: useRef<HTMLDivElement | null>(null),
+    colyseusRef: useRef<any>(null),
+    colyseusReconnectTimerRef: useRef<any>(null),
+    avRef: useRef<AVManager | null>(null),
+    bubbleRef: useRef<BubbleManager | null>(null),
+    zoneRef: useRef<ZoneManager | null>(null),
+    followRef: useRef<FollowManager | null>(null),
+    volumeRef: useRef<VolumeManager | null>(null),
+    bubbleMembersRef: useRef<Set<string>>(new Set()),
+    bubbleGroupsRef: useRef<Record<string, string>>({}),
+    localPosRef: useRef<{ id: string; x?: number; y?: number }>({ id: '' }),
+    remotesRef: useRef<Record<string, { x: number; y: number; dnd?: boolean; avatarId?: string }>>({}),
+    colyseusToLivekitMap: useRef<Record<string, string>>({}),
+    identityToNameMap: useRef<Record<string, string>>({}),
+    participantVolumesRef: useRef<Record<string, number>>({}),
+    dndRef: useRef<boolean>(false),
+    rosterByIdentityRef: useRef<Record<string, { name: string; x: number; y: number }>>({}),
+    bubblePendingRef: useRef<{ targetId: string; dest?: { x: number; y: number } } | null>(null),
+    bubbleStartRef: useRef<null | ((id: string) => void)>(null),
+    manualNavRef: useRef<{ x: number; y: number } | null>(null),
+    disposedRef: useRef(false),
+    gameCreatedRef: useRef(false),
+    lastSavedPositionRef: useRef({ x: 0, y: 0, direction: 'down' }),
+    moveTimeoutRef: useRef<any>(null),
+    buildListTimerRef: useRef<any>(null),
+    buildListRafRef: useRef<number | null>(null),
+    lastAutoFullscreenRef: useRef<number>(0),
+    editorActiveRef: useRef(false),
+    activateBubbleNowRef: useRef<(id: string) => void>(() => { }),
+  };
+}
 
-  // State
+function useWorldUserState() {
   const [authChecked, setAuthChecked] = React.useState(false);
   const [me, setMe] = React.useState<{ id: string; email: string; name?: string } | null>(null);
+  const [isInternalOwner, setIsInternalOwner] = React.useState(false);
+  const [positionReady, setPositionReady] = React.useState(false);
+  return { authChecked, setAuthChecked, me, setMe, isInternalOwner, setIsInternalOwner, positionReady, setPositionReady };
+}
+
+function useWorldAvState() {
   const [hud, setHud] = React.useState<{ zone?: string; follow?: string | null; avRoom?: string | null }>({});
   const [devices, setDevices] = React.useState<{ mics: { id: string; label: string }[]; cams: { id: string; label: string }[] }>({ mics: [], cams: [] });
   const [avState, setAvState] = React.useState<{ mic: boolean; cam: boolean; share: boolean; dnd: boolean }>({ mic: false, cam: false, share: false, dnd: false });
@@ -181,10 +189,12 @@ export function useWorldAppState(): WorldAppState {
   const [selectedCamId, setSelectedCamId] = React.useState<string | ''>('');
   const [uiParticipants, setUiParticipants] = React.useState<{ sid: string; identity: string; hasVideo: boolean; hasMic: boolean; isSpeaking: boolean; media: 'camera' | 'screen'; volume?: number }[]>([]);
   const [cameraManual, setCameraManual] = React.useState(false);
+  return { hud, setHud, devices, setDevices, avState, setAvState, selectedMicId, setSelectedMicId, selectedCamId, setSelectedCamId, uiParticipants, setUiParticipants, cameraManual, setCameraManual };
+}
+
+function useWorldModalState() {
   const [userModalOpen, setUserModalOpen] = React.useState(false);
   const [invitesModalOpen, setInvitesModalOpen] = React.useState(false);
-  const [roster, setRoster] = React.useState<Array<{ identity: string; name: string; online: boolean; x?: number; y?: number; lastSeen?: string }>>([]);
-  const [positionReady, setPositionReady] = React.useState(false);
   const [apiModalOpen, setApiModalOpen] = React.useState(false);
   const [apiTokens, setApiTokens] = React.useState<{ id: string; name?: string | null; createdAt: string; lastUsedAt?: string | null }[]>([]);
   const [newTokenName, setNewTokenName] = React.useState('');
@@ -194,7 +204,11 @@ export function useWorldAppState(): WorldAppState {
   const [profileOpen, setProfileOpen] = React.useState(false);
   const [tenantSettingsOpen, setTenantSettingsOpen] = React.useState(false);
   const [sessionsOpen, setSessionsOpen] = React.useState(false);
-  const [isInternalOwner, setIsInternalOwner] = React.useState(false);
+  return { userModalOpen, setUserModalOpen, invitesModalOpen, setInvitesModalOpen, apiModalOpen, setApiModalOpen, apiTokens, setApiTokens, newTokenName, setNewTokenName, freshToken, setFreshToken, adminOpen, setAdminOpen, billingOpen, setBillingOpen, profileOpen, setProfileOpen, tenantSettingsOpen, setTenantSettingsOpen, sessionsOpen, setSessionsOpen };
+}
+
+function useWorldUiState() {
+  const [roster, setRoster] = React.useState<Array<{ identity: string; name: string; online: boolean; x?: number; y?: number; lastSeen?: string }>>([]);
   const [gridExpanded, setGridExpanded] = React.useState(() => {
     const stored = localStorage.getItem('uc-container-expanded');
     return stored !== null ? stored === 'true' : true;
@@ -207,105 +221,18 @@ export function useWorldAppState(): WorldAppState {
   const [contextMenu, setContextMenu] = React.useState<{ open: boolean; x: number; y: number; playerId: string | null }>({ open: false, x: 0, y: 0, playerId: null });
   const [page, setPage] = React.useState<'world' | 'admin' | string>('world');
   const [menuOpen, setMenuOpen] = React.useState(false);
+  return { roster, setRoster, gridExpanded, setGridExpanded, selectedSid, setSelectedSid, overlayZoom, setOverlayZoom, connStatus, setConnStatus, rosterCollapsed, setRosterCollapsed, bubbleUi, setBubbleUi, contextMenu, setContextMenu, page, setPage, menuOpen, setMenuOpen };
+}
 
-  // Helper function
+export function useWorldAppState(): WorldAppState {
+  const refs = useWorldRefs();
+  const user = useWorldUserState();
+  const av = useWorldAvState();
+  const modals = useWorldModalState();
+  const ui = useWorldUiState();
+
   const getDisplayName = (identity: string): string =>
-    getDisplayNameLib(identity, identityToNameMap.current, me);
+    getDisplayNameLib(identity, refs.identityToNameMap.current, user.me);
 
-  return {
-    containerRef,
-    colyseusRef,
-    colyseusReconnectTimerRef,
-    avRef,
-    bubbleRef,
-    zoneRef,
-    followRef,
-    volumeRef,
-    bubbleMembersRef,
-    bubbleGroupsRef,
-    localPosRef,
-    remotesRef,
-    colyseusToLivekitMap,
-    identityToNameMap,
-    participantVolumesRef,
-    dndRef,
-    rosterByIdentityRef,
-    bubblePendingRef,
-    bubbleStartRef,
-    manualNavRef,
-    disposedRef,
-    gameCreatedRef,
-    lastSavedPositionRef,
-    moveTimeoutRef,
-    buildListTimerRef,
-    buildListRafRef,
-    lastAutoFullscreenRef,
-    editorActiveRef,
-    activateBubbleNowRef,
-    hud,
-    setHud,
-    devices,
-    setDevices,
-    avState,
-    setAvState,
-    selectedMicId,
-    setSelectedMicId,
-    selectedCamId,
-    setSelectedCamId,
-    uiParticipants,
-    setUiParticipants,
-    cameraManual,
-    setCameraManual,
-    userModalOpen,
-    setUserModalOpen,
-    invitesModalOpen,
-    setInvitesModalOpen,
-    roster,
-    setRoster,
-    positionReady,
-    setPositionReady,
-    apiModalOpen,
-    setApiModalOpen,
-    apiTokens,
-    setApiTokens,
-    newTokenName,
-    setNewTokenName,
-    freshToken,
-    setFreshToken,
-    adminOpen,
-    setAdminOpen,
-    billingOpen,
-    setBillingOpen,
-    profileOpen,
-    setProfileOpen,
-    tenantSettingsOpen,
-    setTenantSettingsOpen,
-    sessionsOpen,
-    setSessionsOpen,
-    isInternalOwner,
-    setIsInternalOwner,
-    gridExpanded,
-    setGridExpanded,
-    selectedSid,
-    setSelectedSid,
-    overlayZoom,
-    setOverlayZoom,
-    connStatus,
-    setConnStatus,
-    rosterCollapsed,
-    setRosterCollapsed,
-    bubbleUi,
-    setBubbleUi,
-    contextMenu,
-    setContextMenu,
-    page,
-    setPage,
-    menuOpen,
-    setMenuOpen,
-    authChecked,
-    setAuthChecked,
-    me,
-    setMe,
-    getDisplayName,
-  };
+  return { ...refs, ...user, ...av, ...modals, ...ui, getDisplayName };
 }

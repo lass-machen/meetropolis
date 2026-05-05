@@ -33,35 +33,7 @@ export type ModalProps = {
   right?: React.ReactNode;
 };
 
-export function Modal(props: ModalProps) {
-  const {
-    open,
-    onOpenChange,
-    title,
-    description,
-    actions,
-    accessories,
-    closable = true,
-    children,
-    footer,
-    maxWidth = 600,
-    minHeight,
-    zIndexBase,
-    draggable,
-    style,
-    right,
-  } = props;
-
-  const baseZ = typeof zIndexBase === 'number' ? zIndexBase : 1000;
-  const { t } = useTranslation();
-  const tr = (key: string, fallback: string) => {
-    const v = t(key);
-    return v && v !== key ? v : fallback;
-  };
-
-  // Backward compatibility: right -> actions
-  const resolvedActions = actions ?? right;
-
+function useDraggableModal(open: boolean, draggable?: boolean) {
   const contentRef = React.useRef<HTMLDivElement | null>(null);
   const [dragging, setDragging] = React.useState(false);
   const dragOriginRef = React.useRef<{ x: number; y: number } | null>(null);
@@ -106,18 +78,69 @@ export function Modal(props: ModalProps) {
     e.preventDefault();
   };
 
-  const hasHeader = !!(title || description || resolvedActions || accessories);
+  return { contentRef, pos, beginDrag };
+}
+
+function ModalHeader({ title, description, accessories, resolvedActions, closable, closeButton, draggable, beginDrag }: { title: string | React.ReactNode | undefined; description: string | undefined; accessories: React.ReactNode | undefined; resolvedActions: React.ReactNode | undefined; closable: boolean; closeButton: React.ReactNode; draggable: boolean | undefined; beginDrag: (e: React.MouseEvent) => void }) {
   const isStringTitle = typeof title === 'string';
+  return (
+    <div onMouseDown={beginDrag} className={`sys-modal__header${draggable ? ' sys-modal__header--draggable' : ''}`}>
+      <div className="sys-modal__header-row">
+        <div>
+          {title && (
+            isStringTitle
+              ? <DialogTitle className="sys-modal__title">{title}</DialogTitle>
+              : <>
+                  <VisuallyHidden><DialogTitle>Modal</DialogTitle></VisuallyHidden>
+                  {title}
+                </>
+          )}
+          {!title && <VisuallyHidden><DialogTitle>Modal</DialogTitle></VisuallyHidden>}
+        </div>
+        <div className="sys-modal__header-actions">
+          {resolvedActions}
+          {closable && closeButton}
+        </div>
+      </div>
+      {description && (<DialogDescription className="sys-modal__desc">{description}</DialogDescription>)}
+      {accessories && (<div className="sys-modal__header-accessories">{accessories}</div>)}
+    </div>
+  );
+}
+
+function CloseOnlyHeader({ closeButton, draggable, beginDrag }: { closeButton: React.ReactNode; draggable: boolean | undefined; beginDrag: (e: React.MouseEvent) => void }) {
+  return (
+    <div className={`sys-modal__header${draggable ? ' sys-modal__header--draggable' : ''}`} onMouseDown={beginDrag}>
+      <VisuallyHidden><DialogTitle>Modal</DialogTitle></VisuallyHidden>
+      <div className="sys-modal__header-row">
+        <div />
+        <div className="sys-modal__header-actions">{closeButton}</div>
+      </div>
+    </div>
+  );
+}
+
+export function Modal(props: ModalProps) {
+  const {
+    open, onOpenChange, title, description, actions, accessories,
+    closable = true, children, footer, maxWidth = 600, minHeight,
+    zIndexBase, draggable, style, right,
+  } = props;
+
+  const baseZ = typeof zIndexBase === 'number' ? zIndexBase : 1000;
+  const { t } = useTranslation();
+  const tr = (key: string, fallback: string) => {
+    const v = t(key);
+    return v && v !== key ? v : fallback;
+  };
+
+  const resolvedActions = actions ?? right;
+  const { contentRef, pos, beginDrag } = useDraggableModal(open, draggable);
+
+  const hasHeader = !!(title || description || resolvedActions || accessories);
 
   const closeButton = (
-    <Button
-      iconOnly
-      size="sm"
-      variant="ghost"
-      onClick={() => onOpenChange(false)}
-      title={tr('modal.close', 'Schließen')}
-      aria-label={tr('modal.close', 'Schließen')}
-    >
+    <Button iconOnly size="sm" variant="ghost" onClick={() => onOpenChange(false)} title={tr('modal.close', 'Schließen')} aria-label={tr('modal.close', 'Schließen')}>
       ×
     </Button>
   );
@@ -139,74 +162,11 @@ export function Modal(props: ModalProps) {
             ...style,
           }}
         >
-          {/* Accessibility: always render a DialogTitle for Radix */}
-          {hasHeader && (
-            <div
-              onMouseDown={beginDrag}
-              className={`sys-modal__header${draggable ? ' sys-modal__header--draggable' : ''}`}
-            >
-              {/* Title row: title left, actions + close right */}
-              <div className="sys-modal__header-row">
-                <div>
-                  {title && (
-                    isStringTitle
-                      ? <DialogTitle className="sys-modal__title">{title}</DialogTitle>
-                      : <>
-                          <VisuallyHidden><DialogTitle>Modal</DialogTitle></VisuallyHidden>
-                          {title}
-                        </>
-                  )}
-                  {!title && (
-                    <VisuallyHidden><DialogTitle>Modal</DialogTitle></VisuallyHidden>
-                  )}
-                </div>
-                <div className="sys-modal__header-actions">
-                  {resolvedActions}
-                  {closable && closeButton}
-                </div>
-              </div>
-
-              {/* Description */}
-              {description && (
-                <DialogDescription className="sys-modal__desc">{description}</DialogDescription>
-              )}
-
-              {/* Accessories (e.g. tabs, search field) */}
-              {accessories && (
-                <div className="sys-modal__header-accessories">{accessories}</div>
-              )}
-            </div>
-          )}
-
-          {/* No header but closable: render only close button */}
-          {!hasHeader && closable && (
-            <div className={`sys-modal__header${draggable ? ' sys-modal__header--draggable' : ''}`} onMouseDown={beginDrag}>
-              <VisuallyHidden><DialogTitle>Modal</DialogTitle></VisuallyHidden>
-              <div className="sys-modal__header-row">
-                <div />
-                <div className="sys-modal__header-actions">
-                  {closeButton}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* No header and not closable: still need DialogTitle for accessibility */}
-          {!hasHeader && !closable && (
-            <VisuallyHidden><DialogTitle>Modal</DialogTitle></VisuallyHidden>
-          )}
-
-          {/* Body - scrollable */}
-          <div className="sys-modal__body">
-            {children}
-          </div>
-
-          {/* Footer - fixed at bottom, only when present */}
-          {footer && (
-            <div className="sys-modal__footer">
-              {footer}
-            </div>
-          )}
+          {hasHeader && <ModalHeader title={title} description={description} accessories={accessories} resolvedActions={resolvedActions} closable={closable} closeButton={closeButton} draggable={draggable} beginDrag={beginDrag} />}
+          {!hasHeader && closable && <CloseOnlyHeader closeButton={closeButton} draggable={draggable} beginDrag={beginDrag} />}
+          {!hasHeader && !closable && (<VisuallyHidden><DialogTitle>Modal</DialogTitle></VisuallyHidden>)}
+          <div className="sys-modal__body">{children}</div>
+          {footer && (<div className="sys-modal__footer">{footer}</div>)}
         </DialogContent>
       </DialogPortal>
     </DialogRoot>
