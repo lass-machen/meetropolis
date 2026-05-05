@@ -80,16 +80,17 @@ function Spinner() {
   );
 }
 
-export function EmailVerifyPage({
-  token,
-  apiBase,
-  onSuccess,
-  onBack,
-}: EmailVerifyPageProps) {
+type VerifyStatus = 'verifying' | 'success' | 'error';
+
+interface UseEmailVerifyArgs {
+  token: string | undefined;
+  apiBase: string;
+  onSuccess: () => void;
+}
+
+function useEmailVerify({ token, apiBase, onSuccess }: UseEmailVerifyArgs) {
   const { t } = useTranslation('public');
-  const [status, setStatus] = React.useState<'verifying' | 'success' | 'error'>(
-    'verifying',
-  );
+  const [status, setStatus] = React.useState<VerifyStatus>('verifying');
   const [message, setMessage] = React.useState('');
 
   React.useEffect(() => {
@@ -126,6 +127,87 @@ export function EmailVerifyPage({
     verify();
   }, [token, apiBase, onSuccess, t]);
 
+  return { status, message };
+}
+
+function VerifyingState() {
+  const { t } = useTranslation('public');
+  return (
+    <>
+      <Spinner />
+      <h2 className="pub-text-h4" style={{ margin: 0 }}>
+        {t('verify.verifyingTitle')}
+      </h2>
+    </>
+  );
+}
+
+function SuccessState() {
+  const { t } = useTranslation('public');
+  return (
+    <>
+      <CheckCircleIcon />
+      <h2 className="pub-text-h4" style={{ margin: 0 }}>
+        {t('verify.successTitle')}
+      </h2>
+      <p
+        className="pub-text-body"
+        style={{ color: 'var(--pub-text-secondary)', margin: 0 }}
+      >
+        {t('verify.successText')}
+      </p>
+    </>
+  );
+}
+
+function ErrorState({ message, onBack }: { message: string; onBack: () => void }) {
+  const { t } = useTranslation('public');
+  return (
+    <>
+      <XCircleIcon />
+      <h2 className="pub-text-h4" style={{ margin: 0 }}>
+        {t('verify.errorTitle')}
+      </h2>
+      <p
+        className="pub-text-body"
+        style={{ color: 'var(--pub-text-secondary)', margin: 0 }}
+      >
+        {message}
+      </p>
+      <PubButton variant="primary" onClick={onBack} style={{ marginTop: 8 }}>
+        {t('verify.backButton')}
+      </PubButton>
+    </>
+  );
+}
+
+const VERIFY_CARD_STYLE: React.CSSProperties = {
+  maxWidth: 480,
+  width: '100%',
+  textAlign: 'center',
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  gap: 16,
+  padding: '48px 40px',
+};
+
+const VERIFY_WRAPPER_STYLE: React.CSSProperties = {
+  minHeight: 'calc(100vh - 160px)',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: 'var(--pub-section-padding)',
+};
+
+export function EmailVerifyPage({
+  token,
+  apiBase,
+  onSuccess,
+  onBack,
+}: EmailVerifyPageProps) {
+  const { status, message } = useEmailVerify({ token, apiBase, onSuccess });
+
   const navigate = (route: string) => {
     window.location.hash = `#/${route}`;
   };
@@ -142,69 +224,11 @@ export function EmailVerifyPage({
           to { transform: rotate(360deg); }
         }
       `}</style>
-      <div
-        style={{
-          minHeight: 'calc(100vh - 160px)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: 'var(--pub-section-padding)',
-        }}
-      >
-        <PubCard
-          variant="surface"
-          style={{
-            maxWidth: 480,
-            width: '100%',
-            textAlign: 'center',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: 16,
-            padding: '48px 40px',
-          }}
-        >
-          {status === 'verifying' && (
-            <>
-              <Spinner />
-              <h2 className="pub-text-h4" style={{ margin: 0 }}>
-                {t('verify.verifyingTitle')}
-              </h2>
-            </>
-          )}
-
-          {status === 'success' && (
-            <>
-              <CheckCircleIcon />
-              <h2 className="pub-text-h4" style={{ margin: 0 }}>
-                {t('verify.successTitle')}
-              </h2>
-              <p
-                className="pub-text-body"
-                style={{ color: 'var(--pub-text-secondary)', margin: 0 }}
-              >
-                {t('verify.successText')}
-              </p>
-            </>
-          )}
-
-          {status === 'error' && (
-            <>
-              <XCircleIcon />
-              <h2 className="pub-text-h4" style={{ margin: 0 }}>
-                {t('verify.errorTitle')}
-              </h2>
-              <p
-                className="pub-text-body"
-                style={{ color: 'var(--pub-text-secondary)', margin: 0 }}
-              >
-                {message}
-              </p>
-              <PubButton variant="primary" onClick={onBack} style={{ marginTop: 8 }}>
-                {t('verify.backButton')}
-              </PubButton>
-            </>
-          )}
+      <div style={VERIFY_WRAPPER_STYLE}>
+        <PubCard variant="surface" style={VERIFY_CARD_STYLE}>
+          {status === 'verifying' && <VerifyingState />}
+          {status === 'success' && <SuccessState />}
+          {status === 'error' && <ErrorState message={message} onBack={onBack} />}
         </PubCard>
       </div>
     </PublicLayout>
