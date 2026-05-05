@@ -22,11 +22,38 @@ interface AvatarOption {
   previewUrl?: string;
 }
 
-export function AvatarSettings({ currentAvatarId, onAvatarChange }: AvatarSettingsProps) {
+const DEFAULT_AVATAR: AvatarOption = {
+  id: 'default-characters:businessman1',
+  displayName: 'Businessman',
+  spriteUrl: 'assets/sprites/default-avatars.png',
+  frameWidth: 16,
+  frameHeight: 24,
+  idleRow: 0,
+};
+
+function mapPackToAvatars(packs: any): AvatarOption[] {
+  const list: AvatarOption[] = [];
+  if (!Array.isArray(packs)) return list;
+  for (const pack of packs) {
+    const packAvatars = Array.isArray(pack.avatars) ? pack.avatars : [];
+    for (const av of packAvatars) {
+      list.push({
+        id: `${pack.uuid}:${av.key}`,
+        displayName: av.displayName || av.key,
+        spriteUrl: av.spriteUrl || `assets/sprites/${av.key}.png`,
+        frameWidth: av.frameWidth || 16,
+        frameHeight: av.frameHeight || 24,
+        idleRow: av.states?.idle?.row ?? 0,
+        previewUrl: av.previewUrl,
+      });
+    }
+  }
+  return list;
+}
+
+function useAvatarOptions(apiBase: string) {
   const [avatars, setAvatars] = React.useState<AvatarOption[]>([]);
   const [loading, setLoading] = React.useState(true);
-
-  const apiBase = getApiBaseFromWindow();
 
   React.useEffect(() => {
     const fetchAvatars = async () => {
@@ -34,51 +61,26 @@ export function AvatarSettings({ currentAvatarId, onAvatarChange }: AvatarSettin
         const res = await fetch(`${apiBase}/avatar-packs`, { credentials: 'include' });
         if (res.ok) {
           const packs = await res.json();
-          const list: AvatarOption[] = [];
-          if (Array.isArray(packs)) {
-            for (const pack of packs) {
-              const packAvatars = Array.isArray(pack.avatars) ? pack.avatars : [];
-              for (const av of packAvatars) {
-                list.push({
-                  id: `${pack.uuid}:${av.key}`,
-                  displayName: av.displayName || av.key,
-                  spriteUrl: av.spriteUrl || `assets/sprites/${av.key}.png`,
-                  frameWidth: av.frameWidth || 16,
-                  frameHeight: av.frameHeight || 24,
-                  idleRow: av.states?.idle?.row ?? 0,
-                  previewUrl: av.previewUrl,
-                });
-              }
-            }
-          }
-          if (list.length === 0) {
-            list.push({
-              id: 'default-characters:businessman1',
-              displayName: 'Businessman',
-              spriteUrl: 'assets/sprites/default-avatars.png',
-              frameWidth: 16,
-              frameHeight: 24,
-              idleRow: 0,
-            });
-          }
+          const list = mapPackToAvatars(packs);
+          if (list.length === 0) list.push(DEFAULT_AVATAR);
           setAvatars(list);
         }
       } catch (err) {
         logger.warn('[AvatarSettings] Failed to fetch avatar packs:', err);
-        setAvatars([{
-          id: 'default-characters:businessman1',
-          displayName: 'Businessman',
-          spriteUrl: 'assets/sprites/default-avatars.png',
-          frameWidth: 16,
-          frameHeight: 24,
-          idleRow: 0,
-        }]);
+        setAvatars([DEFAULT_AVATAR]);
       } finally {
         setLoading(false);
       }
     };
     fetchAvatars();
   }, [apiBase]);
+
+  return { avatars, loading };
+}
+
+export function AvatarSettings({ currentAvatarId, onAvatarChange }: AvatarSettingsProps) {
+  const apiBase = getApiBaseFromWindow();
+  const { avatars, loading } = useAvatarOptions(apiBase);
 
   if (loading) {
     return <div style={styles.loading}>Loading avatars...</div>;

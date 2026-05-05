@@ -8,6 +8,65 @@
 import React from 'react';
 import { logger } from '../lib/logger';
 
+interface HealthCheckContext {
+  apiBase: string;
+  isServerHealthy: boolean;
+  setIsServerHealthy: React.Dispatch<React.SetStateAction<boolean>>;
+  setDisconnectCount: React.Dispatch<React.SetStateAction<number>>;
+  lastHealthyRef: React.MutableRefObject<number>;
+  reloadScheduledRef: React.MutableRefObject<boolean>;
+  onDisconnect?: () => void;
+  onReconnect?: () => void;
+}
+
+function handleHealthyResponse(ctx: HealthCheckContext) {
+  if (!ctx.isServerHealthy) {
+    logger.debug('[HealthCheck] Server is back online');
+    ctx.setIsServerHealthy(true);
+    ctx.setDisconnectCount(0);
+    ctx.onReconnect?.();
+
+    // Wenn wir einen Reload geplant hatten, führen wir ihn jetzt aus
+    if (ctx.reloadScheduledRef.current) {
+      ctx.reloadScheduledRef.current = false;
+      logger.debug('[HealthCheck] Reloading after reconnect...');
+      setTimeout(() => window.location.reload(), 500);
+    }
+  }
+  ctx.lastHealthyRef.current = Date.now();
+}
+
+function handleUnhealthyResponse(ctx: HealthCheckContext) {
+  if (ctx.isServerHealthy) {
+    logger.warn('[HealthCheck] Server appears to be down');
+    ctx.setIsServerHealthy(false);
+    ctx.onDisconnect?.();
+  }
+  ctx.setDisconnectCount(c => c + 1);
+}
+
+async function performHealthCheck(ctx: HealthCheckContext) {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+
+    const response = await fetch(`${ctx.apiBase}/health`, {
+      signal: controller.signal,
+      credentials: 'include',
+    });
+
+    clearTimeout(timeout);
+
+    if (response.ok) {
+      handleHealthyResponse(ctx);
+    } else {
+      handleUnhealthyResponse(ctx);
+    }
+  } catch (error) {
+    handleUnhealthyResponse(ctx);
+  }
+}
+
 /**
  * Hook für Auto-Reload bei Server-Disconnect
  *
@@ -29,49 +88,18 @@ export function useServerHealthCheck(options: {
   React.useEffect(() => {
     if (!enabled) return;
 
-    const checkHealth = async () => {
-      try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 5000);
-
-        const response = await fetch(`${apiBase}/health`, {
-          signal: controller.signal,
-          credentials: 'include',
-        });
-
-        clearTimeout(timeout);
-
-        if (response.ok) {
-          if (!isServerHealthy) {
-            logger.debug('[HealthCheck] Server is back online');
-            setIsServerHealthy(true);
-            setDisconnectCount(0);
-            onReconnect?.();
-
-            // Wenn wir einen Reload geplant hatten, führen wir ihn jetzt aus
-            if (reloadScheduledRef.current) {
-              reloadScheduledRef.current = false;
-              logger.debug('[HealthCheck] Reloading after reconnect...');
-              setTimeout(() => window.location.reload(), 500);
-            }
-          }
-          lastHealthyRef.current = Date.now();
-        } else {
-          handleUnhealthy();
-        }
-      } catch (error) {
-        handleUnhealthy();
-      }
+    const ctx: HealthCheckContext = {
+      apiBase,
+      isServerHealthy,
+      setIsServerHealthy,
+      setDisconnectCount,
+      lastHealthyRef,
+      reloadScheduledRef,
+      onDisconnect,
+      onReconnect,
     };
 
-    const handleUnhealthy = () => {
-      if (isServerHealthy) {
-        logger.warn('[HealthCheck] Server appears to be down');
-        setIsServerHealthy(false);
-        onDisconnect?.();
-      }
-      setDisconnectCount(c => c + 1);
-    };
+    const checkHealth = () => performHealthCheck(ctx);
 
     // Führe Health-Check alle 10 Sekunden durch
     const interval = setInterval(checkHealth, 10000);

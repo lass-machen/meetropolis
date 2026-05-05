@@ -7,8 +7,7 @@ type Settings = {
   defaultFreeSeats: number;
 };
 
-export function SettingsAdmin(props: { apiBase: string }) {
-  const { apiBase } = props;
+function useSettingsAdminState(apiBase: string) {
   const [settings, setSettings] = React.useState<Settings | null>(null);
   const [loading, setLoading] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
@@ -55,6 +54,12 @@ export function SettingsAdmin(props: { apiBase: string }) {
       setSaving(false);
     }
   }, [apiBase, settings]);
+
+  return { settings, setSettings, loading, saving, error, success, save };
+}
+
+export function SettingsAdmin(props: { apiBase: string }) {
+  const { settings, setSettings, loading, saving, error, success, save } = useSettingsAdminState(props.apiBase);
 
   if (loading) return <div>Lade Einstellungen…</div>;
   if (!settings) return <div>{error || 'Keine Einstellungen verfügbar.'}</div>;

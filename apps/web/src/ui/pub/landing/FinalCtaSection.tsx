@@ -44,8 +44,102 @@ function TrustItem({ text }: TrustItemProps) {
   );
 }
 
-export function FinalCtaSection({ onSignup, registrationEnabled = true }: FinalCtaSectionProps) {
+function CtaHeading() {
   const { t } = useTranslation('public');
+  return (
+    <>
+      <h2
+        style={{
+          fontFamily: 'var(--pub-font-display)',
+          fontSize: 52,
+          fontWeight: 800,
+          lineHeight: 1.1,
+          color: '#FFFFFF',
+          maxWidth: 800,
+          marginBottom: 20,
+        }}
+      >
+        {t('cta.title')}
+      </h2>
+      <p
+        className="pub-text-subline"
+        style={{
+          color: 'rgba(255,255,255,0.7)',
+          maxWidth: 600,
+          marginBottom: 40,
+        }}
+      >
+        {t('cta.subtitle')}
+      </p>
+    </>
+  );
+}
+
+interface CtaButtonsProps {
+  onSignup: () => void;
+  registrationEnabled: boolean;
+}
+
+function CtaButtons({ onSignup, registrationEnabled }: CtaButtonsProps) {
+  const { t } = useTranslation('public');
+  return (
+    <div
+      style={{
+        display: 'flex',
+        gap: 16,
+        justifyContent: 'center',
+        flexWrap: 'wrap',
+        marginBottom: 32,
+      }}
+    >
+      {registrationEnabled && (
+        <PubButton
+          variant="primary"
+          size="lg"
+          rightIcon={<ArrowRightIcon />}
+          onClick={onSignup}
+        >
+          {t('cta.ctaPrimary')}
+        </PubButton>
+      )}
+      <PubButton
+        variant="secondary"
+        size="lg"
+        onClick={() => document.getElementById('pricing')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+      >
+        {t('cta.ctaSecondary')}
+      </PubButton>
+    </div>
+  );
+}
+
+function CtaTrustAndDisclaimer() {
+  const { t } = useTranslation('public');
+  return (
+    <>
+      <div className="final-cta-trust-row">
+        <TrustItem text={t('cta.check1')} />
+        <TrustItem text={t('cta.check2')} />
+        <TrustItem text={t('cta.check3')} />
+      </div>
+      <p
+        style={{
+          fontFamily: 'var(--pub-font-body)',
+          fontSize: 12,
+          fontStyle: 'italic',
+          color: 'rgba(255,255,255,0.32)',
+          maxWidth: 520,
+          marginTop: 40,
+          lineHeight: 1.6,
+        }}
+      >
+        {t('cta.honest')}
+      </p>
+    </>
+  );
+}
+
+export function FinalCtaSection({ onSignup, registrationEnabled = true }: FinalCtaSectionProps) {
   const sectionRef = useRef<HTMLElement>(null);
   useReveal(sectionRef);
 
@@ -68,81 +162,9 @@ export function FinalCtaSection({ onSignup, registrationEnabled = true }: FinalC
           textAlign: 'center',
         }}
       >
-        <h2
-          style={{
-            fontFamily: 'var(--pub-font-display)',
-            fontSize: 52,
-            fontWeight: 800,
-            lineHeight: 1.1,
-            color: '#FFFFFF',
-            maxWidth: 800,
-            marginBottom: 20,
-          }}
-        >
-          {t('cta.title')}
-        </h2>
-
-        <p
-          className="pub-text-subline"
-          style={{
-            color: 'rgba(255,255,255,0.7)',
-            maxWidth: 600,
-            marginBottom: 40,
-          }}
-        >
-          {t('cta.subtitle')}
-        </p>
-
-        {/* CTA Row */}
-        <div
-          style={{
-            display: 'flex',
-            gap: 16,
-            justifyContent: 'center',
-            flexWrap: 'wrap',
-            marginBottom: 32,
-          }}
-        >
-          {registrationEnabled && (
-            <PubButton
-              variant="primary"
-              size="lg"
-              rightIcon={<ArrowRightIcon />}
-              onClick={onSignup}
-            >
-              {t('cta.ctaPrimary')}
-            </PubButton>
-          )}
-          <PubButton
-            variant="secondary"
-            size="lg"
-            onClick={() => document.getElementById('pricing')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-          >
-            {t('cta.ctaSecondary')}
-          </PubButton>
-        </div>
-
-        {/* Trust Checkmarks */}
-        <div className="final-cta-trust-row">
-          <TrustItem text={t('cta.check1')} />
-          <TrustItem text={t('cta.check2')} />
-          <TrustItem text={t('cta.check3')} />
-        </div>
-
-        {/* Honest anti-persona disclaimer — small, low contrast on purpose */}
-        <p
-          style={{
-            fontFamily: 'var(--pub-font-body)',
-            fontSize: 12,
-            fontStyle: 'italic',
-            color: 'rgba(255,255,255,0.32)',
-            maxWidth: 520,
-            marginTop: 40,
-            lineHeight: 1.6,
-          }}
-        >
-          {t('cta.honest')}
-        </p>
+        <CtaHeading />
+        <CtaButtons onSignup={onSignup} registrationEnabled={registrationEnabled} />
+        <CtaTrustAndDisclaimer />
       </div>
     </section>
   );
