@@ -335,6 +335,53 @@ async function persistAssetPackRecord(prisma: PrismaClient, cfg: any, rewritten:
   return prisma.assetPack.create({ data: dataRecord as any });
 }
 
+function readUploadedZipBuffer(req: express.Request): { ok: true; buf: Buffer } | { ok: false; status: number; error: string } {
+  const file = (req as any).file as any as { buffer?: Buffer; size?: number } | undefined;
+  if (!file || !file.buffer || !file.size || file.size <= 0) {
+    return { ok: false, status: 400, error: 'file required' };
+  }
+  const buf = file.buffer as Buffer;
+  if (!(buf[0] === 0x50 && buf[1] === 0x4b)) {
+    return { ok: false, status: 400, error: 'invalid zip' };
+  }
+  return { ok: true, buf };
+}
+
+async function parseUploadedConfig(configEntry: any): Promise<{ ok: true; cfg: any } | { ok: false; status: number; error: string; details?: any }> {
+  const configRaw = await configEntry.buffer();
+  let configJson: any;
+  try { configJson = JSON.parse(configRaw.toString('utf8')); }
+  catch { return { ok: false, status: 400, error: 'invalid config.json' }; }
+
+  const parsed = ConfigSchema.safeParse(configJson);
+  if (!parsed.success) {
+    return { ok: false, status: 400, error: 'invalid config schema', details: parsed.error.errors };
+  }
+  return { ok: true, cfg: parsed.data as any };
+}
+
+async function checkExistingPackDimensions(
+  prisma: PrismaClient,
+  uuid: string,
+  cfg: any,
+  tmpDir: string,
+): Promise<{ ok: true; existing: any } | { ok: false; status: number; error: string; reason?: any; itemId?: any }> {
+  const existing = await prisma.assetPack.findUnique({ where: { uuid } as any });
+  if (existing && existing.version !== cfg.version) {
+    const check = dimensionsStable({
+      terrain: (existing.terrain as any) || [],
+      structures: (existing.structures as any) || [],
+      objects: (existing.objects as any) || [],
+      autotiles: (existing.autotiles as any) || [],
+    }, cfg);
+    if (!check.ok) {
+      try { await fsp.rm(tmpDir, { recursive: true, force: true }); } catch { }
+      return { ok: false, status: 409, error: 'dimension mismatch', reason: (check as any).reason, itemId: (check as any).offendingId };
+    }
+  }
+  return { ok: true, existing };
+}
+
 async function handleAssetPackUpload(
   prisma: PrismaClient,
   packsDir: string,
@@ -345,18 +392,11 @@ async function handleAssetPackUpload(
   if (!auth.ok) { res.status(auth.status!).json({ error: auth.error! }); return; }
   try {
     try { logger.info('[AssetPacks] upload request received'); } catch { }
-    const file = (req as any).file as any as { buffer?: Buffer; size?: number } | undefined;
-    if (!file || !file.buffer || !file.size || file.size <= 0) {
-      res.status(400).json({ error: 'file required' });
-      return;
-    }
-    const buf = file.buffer as Buffer;
-    if (!(buf[0] === 0x50 && buf[1] === 0x4b)) {
-      res.status(400).json({ error: 'invalid zip' });
-      return;
-    }
 
-    const zip = await unzipper.Open.buffer(buf);
+    const zipResult = readUploadedZipBuffer(req);
+    if (!zipResult.ok) { res.status(zipResult.status).json({ error: zipResult.error }); return; }
+
+    const zip = await unzipper.Open.buffer(zipResult.buf);
     if (!zip || !Array.isArray((zip as any).files)) {
       res.status(400).json({ error: 'invalid zip structure' });
       return;
@@ -366,17 +406,9 @@ async function handleAssetPackUpload(
     if (!scan.ok) { res.status(scan.status).json({ error: scan.error }); return; }
     const { configEntry, assetEntries } = scan;
 
-    const configRaw = await configEntry.buffer();
-    let configJson: any;
-    try { configJson = JSON.parse(configRaw.toString('utf8')); }
-    catch { res.status(400).json({ error: 'invalid config.json' }); return; }
-
-    const parsed = ConfigSchema.safeParse(configJson);
-    if (!parsed.success) {
-      res.status(400).json({ error: 'invalid config schema', details: parsed.error.errors });
-      return;
-    }
-    const cfg = parsed.data as any;
+    const cfgResult = await parseUploadedConfig(configEntry);
+    if (!cfgResult.ok) { res.status(cfgResult.status).json({ error: cfgResult.error, details: cfgResult.details }); return; }
+    const cfg = cfgResult.cfg;
     try { logger.info('[AssetPacks] parsed config.json', { uuid: cfg?.uuid, name: cfg?.name, v: cfg?.version, nTerrain: (cfg?.terrain || []).length, nStruct: (cfg?.structures || []).length, nObjects: (cfg?.objects || []).length, nAutotiles: (cfg?.autotiles || []).length }); } catch { }
 
     const assetSet = buildAssetSet(assetEntries);
@@ -395,25 +427,16 @@ async function handleAssetPackUpload(
 
     const rewritten = rewriteConfig(cfg, uuid, extracted.assetMap);
 
-    const existing = await prisma.assetPack.findUnique({ where: { uuid: uuid } as any });
-    if (existing && existing.version !== cfg.version) {
-      const check = dimensionsStable({
-        terrain: (existing.terrain as any) || [],
-        structures: (existing.structures as any) || [],
-        objects: (existing.objects as any) || [],
-        autotiles: (existing.autotiles as any) || [],
-      }, cfg);
-      if (!check.ok) {
-        try { await fsp.rm(tmpDir, { recursive: true, force: true }); } catch { }
-        res.status(409).json({ error: 'dimension mismatch', reason: (check as any).reason, itemId: (check as any).offendingId });
-        return;
-      }
+    const existCheck = await checkExistingPackDimensions(prisma, uuid, cfg, tmpDir);
+    if (!existCheck.ok) {
+      res.status(existCheck.status).json({ error: existCheck.error, reason: existCheck.reason, itemId: existCheck.itemId });
+      return;
     }
 
     const finalDir = path.resolve(packsDir, uuid);
     await moveTmpToFinal(tmpDir, finalDir);
 
-    const rec = await persistAssetPackRecord(prisma, cfg, rewritten, existing);
+    const rec = await persistAssetPackRecord(prisma, cfg, rewritten, existCheck.existing);
     try { logger.info('[AssetPacks] upload success', { id: rec.id, uuid: rec.uuid, version: rec.version }); } catch { }
 
     res.json({ ok: true, id: rec.id, uuid: rec.uuid, version: rec.version });

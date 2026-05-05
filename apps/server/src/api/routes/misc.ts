@@ -18,8 +18,8 @@ async function handleUpdateMe(prisma: PrismaClient, req: express.Request, res: e
   }
 }
 
-async function buildExportData(prisma: PrismaClient, userId: string) {
-  const user = await prisma.user.findUnique({
+async function loadExportUser(prisma: PrismaClient, userId: string) {
+  return prisma.user.findUnique({
     where: { id: userId },
     select: {
       id: true,
@@ -29,20 +29,19 @@ async function buildExportData(prisma: PrismaClient, userId: string) {
       emailVerifiedAt: true,
       createdAt: true,
       updatedAt: true,
-    }
+    },
   });
-  if (!user) return null;
+}
 
+async function loadExportRelations(prisma: PrismaClient, userId: string) {
   const memberships = await prisma.membership.findMany({
     where: { userId },
-    include: { tenant: { select: { id: true, slug: true, name: true } } }
+    include: { tenant: { select: { id: true, slug: true, name: true } } },
   });
-
   const sessions = await prisma.session.findMany({
     where: { userId },
-    select: { id: true, userAgent: true, ipAddress: true, lastActiveAt: true, createdAt: true }
+    select: { id: true, userAgent: true, ipAddress: true, lastActiveAt: true, createdAt: true },
   });
-
   const presences = await prisma.presence.findMany({
     where: { userId },
     select: {
@@ -52,14 +51,20 @@ async function buildExportData(prisma: PrismaClient, userId: string) {
       direction: true,
       updatedAt: true,
       room: { select: { name: true } },
-      tenant: { select: { slug: true } }
-    }
+      tenant: { select: { slug: true } },
+    },
   });
-
   const apiTokens = await prisma.apiToken.findMany({
     where: { userId },
-    select: { id: true, name: true, lastUsedAt: true, createdAt: true }
+    select: { id: true, name: true, lastUsedAt: true, createdAt: true },
   });
+  return { memberships, sessions, presences, apiTokens };
+}
+
+async function buildExportData(prisma: PrismaClient, userId: string) {
+  const user = await loadExportUser(prisma, userId);
+  if (!user) return null;
+  const { memberships, sessions, presences, apiTokens } = await loadExportRelations(prisma, userId);
 
   return {
     exportedAt: new Date().toISOString(),

@@ -36,148 +36,122 @@ import { logger } from './logger.js';
 
 const prisma = new PrismaClient();
 
+function tenantContextFromReq(req: express.Request) {
+  const t: any = (req as any).tenant;
+  if (t && t.id && t.slug) {
+    return { id: t.id, slug: t.slug, bypassLimits: !!t.bypassLimits, isInternal: !!t.isInternal };
+  }
+  return null;
+}
+
+async function registerEnterpriseAdminRoutes(app: express.Express) {
+  const adminEnterprise = await getAdminEnterpriseModule();
+  if (!adminEnterprise) return;
+  adminEnterprise.setupAdminRoutes(app, { prisma, logger, requireSuperAdmin });
+  adminEnterprise.setupPackMarketplaceRoutes(app, {
+    prisma,
+    logger,
+    requireAuth,
+    getTenantFromReq,
+    requireMembership,
+    requireSuperAdmin,
+  });
+}
+
+async function getBillingOwnerEmail(tenantId: string): Promise<string | null> {
+  try {
+    const membership = await prisma.membership.findFirst({
+      where: { tenantId, role: 'owner' },
+      include: { user: { select: { email: true } } },
+    });
+    return membership?.user?.email ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function requireTenantAdminMiddleware(req: any, res: any, next: any): void {
+  const auth = requireAuth(req);
+  if (!auth) { res.status(401).json({ error: 'unauthorized' }); return; }
+  const tenant = getTenantFromReq(req);
+  if (!tenant) { res.status(400).json({ error: 'tenant_required' }); return; }
+  next();
+}
+
+async function buildBillingRouter(billingModule: NonNullable<Awaited<ReturnType<typeof getBillingModule>>>) {
+  const Stripe = (await import('stripe')).default;
+  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2023-10-16' });
+  const { getEmailService } = await import('./services/email.js');
+  const emailServiceImpl = getEmailService();
+  const emailService = {
+    async send(email: { to: string; subject: string; text: string; html: string }): Promise<void> {
+      await emailServiceImpl.send(email);
+    },
+  };
+
+  const billingPortalUrl = process.env.BILLING_PORTAL_URL || process.env.BILLING_PUBLIC_URL || '';
+  const pricingUrl = process.env.PRICING_URL || process.env.BILLING_PUBLIC_URL || '';
+
+  const { default: express } = await import('express');
+  const router = express.Router();
+  billingModule.setupBillingRoutes(router, {
+    prisma,
+    stripe,
+    webhookSecret: process.env.STRIPE_WEBHOOK_SECRET!,
+    emailService,
+    logger,
+    billingPortalUrl,
+    pricingUrl,
+    getOwnerEmail: getBillingOwnerEmail,
+    requireTenantAdmin: requireTenantAdminMiddleware,
+    getTenantId: (req: any) => getTenantFromReq(req)?.id ?? null,
+    getUserId: (req: any) => getUserIdFromReq(req),
+  });
+  return router;
+}
+
+async function registerEnterpriseBillingRoutes(app: express.Express) {
+  const billingModule = await getBillingModule();
+  if (!billingModule || !process.env.STRIPE_SECRET_KEY || !process.env.STRIPE_WEBHOOK_SECRET) return;
+  const router = await buildBillingRouter(billingModule);
+  app.use(router);
+  logger.info({ event: 'billing.enterprise_routes_registered' });
+}
+
+function registerLegacyModularRoutes(app: express.Express) {
+  registerPresenceRoutes(app, prisma, requireAuth, tenantContextFromReq);
+  registerUserRoutes(app, prisma, requireAuth, tenantContextFromReq);
+  registerApiTokenRoutes(app, prisma, requireAuth, getApiTokenPepper());
+  registerControlRoutes(app, requireAuth, (req) => requireApiToken(req, prisma));
+
+  registerNpcRoutes(app, prisma);
+  registerNpcMediaRoutes(app, prisma);
+}
+
 /**
  * Register all API routes on the Express app
  */
 export async function registerApi(app: express.Express) {
-  // Health, config, readiness probes
   registerHealthRoutes(app, prisma);
-
-  // Desktop app update & download endpoints (public, no auth required)
   registerDesktopRoutes(app);
-
-  // Authentication routes
   registerAuthRoutes(app, prisma);
 
-  // Guest expiry middleware (after auth, before business routes)
   app.use(guestExpiryMiddleware);
 
-  // Guest management & guest auth routes
   registerGuestRoutes(app, prisma);
-
-  // User management, invites, profile
   registerMiscRoutes(app, prisma);
-
-  // Map routes (v2 state, chunks, editor, zones)
   registerMapRoutes(app, prisma);
-
-  // TMJ import/export
   registerTmjRoutes(app, prisma);
-
-  // Map object routes (placement, collision)
   registerMapObjectRoutes(app, prisma);
-
-  // Asset packs upload/management
   registerAssetPackRoutes(app, prisma);
-
-  // Avatar packs management
   registerAvatarPackRoutes(app, prisma);
-
-  // Admin routes (tenants, billing management)
   registerAdminRoutes(app, prisma);
-
-  // Tenant self-service routes (GET/PATCH /tenant)
   registerTenantRoutes(app, prisma);
-
-  // Admin user management & billing detail routes
   registerAdminUserRoutes(app, prisma);
-
-  // Admin map management routes
   registerAdminMapRoutes(app, prisma);
 
-  // Enterprise admin routes (billing management, pack marketplace) — loaded dynamically
-  const adminEnterprise = await getAdminEnterpriseModule();
-  if (adminEnterprise) {
-    adminEnterprise.setupAdminRoutes(app, { prisma, logger, requireSuperAdmin });
-    adminEnterprise.setupPackMarketplaceRoutes(app, {
-      prisma,
-      logger,
-      requireAuth,
-      getTenantFromReq,
-      requireMembership,
-      requireSuperAdmin,
-    });
-  }
+  await registerEnterpriseAdminRoutes(app);
+  await registerEnterpriseBillingRoutes(app);
 
-  // Enterprise billing routes (Stripe webhook, trial, dunning, etc.)
-  const billingModule = await getBillingModule();
-  if (billingModule && process.env.STRIPE_SECRET_KEY && process.env.STRIPE_WEBHOOK_SECRET) {
-    const Stripe = (await import('stripe')).default;
-    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2023-10-16' });
-    const { getEmailService } = await import('./services/email.js');
-    const emailServiceImpl = getEmailService();
-    const emailService = {
-      async send(email: { to: string; subject: string; text: string; html: string }): Promise<void> {
-        await emailServiceImpl.send(email);
-      }
-    };
-
-    const billingPortalUrl = process.env.BILLING_PORTAL_URL || process.env.BILLING_PUBLIC_URL || '';
-    const pricingUrl = process.env.PRICING_URL || process.env.BILLING_PUBLIC_URL || '';
-
-    const getOwnerEmail = async (tenantId: string): Promise<string | null> => {
-      try {
-        const membership = await prisma.membership.findFirst({
-          where: { tenantId, role: 'owner' },
-          include: { user: { select: { email: true } } },
-        });
-        return membership?.user?.email ?? null;
-      } catch {
-        return null;
-      }
-    };
-
-    const requireTenantAdmin = (req: any, res: any, next: any) => {
-      const auth = requireAuth(req);
-      if (!auth) { res.status(401).json({ error: 'unauthorized' }); return; }
-      const tenant = getTenantFromReq(req);
-      if (!tenant) { res.status(400).json({ error: 'tenant_required' }); return; }
-      next();
-    };
-
-    const getTenantId = (req: any): string | null => {
-      const tenant = getTenantFromReq(req);
-      return tenant?.id ?? null;
-    };
-
-    const getUserId = (req: any): string | null => {
-      return getUserIdFromReq(req);
-    };
-
-    const { default: express } = await import('express');
-    const router = express.Router();
-    billingModule.setupBillingRoutes(router, {
-      prisma,
-      stripe,
-      webhookSecret: process.env.STRIPE_WEBHOOK_SECRET,
-      emailService,
-      logger,
-      billingPortalUrl,
-      pricingUrl,
-      getOwnerEmail,
-      requireTenantAdmin,
-      getTenantId,
-      getUserId,
-    });
-    app.use(router);
-    logger.info({ event: 'billing.enterprise_routes_registered' });
-  }
-
-  // Existing modular routes (already extracted before this refactoring)
-  registerPresenceRoutes(app, prisma, requireAuth, (req) => {
-    const t: any = (req as any).tenant;
-    if (t && t.id && t.slug) return { id: t.id, slug: t.slug, bypassLimits: !!t.bypassLimits, isInternal: !!t.isInternal };
-    return null;
-  });
-  registerUserRoutes(app, prisma, requireAuth, (req) => {
-    const t: any = (req as any).tenant;
-    if (t && t.id && t.slug) return { id: t.id, slug: t.slug, bypassLimits: !!t.bypassLimits, isInternal: !!t.isInternal };
-    return null;
-  });
-  registerApiTokenRoutes(app, prisma, requireAuth, getApiTokenPepper());
-  registerControlRoutes(app, requireAuth, (req) => requireApiToken(req, prisma));
-
-  // NPC management routes
-  registerNpcRoutes(app, prisma);
-  registerNpcMediaRoutes(app, prisma);
+  registerLegacyModularRoutes(app);
 }
