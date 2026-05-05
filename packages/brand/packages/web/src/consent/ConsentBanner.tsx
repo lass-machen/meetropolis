@@ -1,12 +1,12 @@
 import * as React from 'react';
 import { useTranslation } from 'react-i18next';
-import { PubButton } from '../components/PubButton';
+import { PubButton } from '@app/ui/pub/components/PubButton';
 import {
   getMarketingConsent,
   onMarketingConsentChange,
   setMarketingConsent,
   type MarketingConsent,
-} from '../../../lib/marketingConsent';
+} from '../tracking/marketingConsent';
 
 interface ConsentBannerProps {
   /** When false the banner never renders (e.g. on the authenticated `/app` route). */

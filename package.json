@@ -6,7 +6,8 @@
   "workspaces": [
     "apps/*",
     "packages/*",
-    "packages/tenancy-enterprise/packages/*"
+    "packages/tenancy-enterprise/packages/*",
+    "packages/brand/packages/*"
   ],
   "scripts": {
     "dev": "concurrently -n server,web \"npm:dev:server\" \"npm:dev:web\"",

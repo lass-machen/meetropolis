@@ -1,7 +1,7 @@
 import { useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { PubButton } from '../components/PubButton';
-import { useReveal } from '../hooks/useReveal';
+import { PubButton } from '@app/ui/pub/components/PubButton';
+import { useReveal } from '@app/ui/pub/hooks/useReveal';
 
 interface FinalCtaSectionProps {
   onSignup: () => void;

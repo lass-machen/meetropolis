@@ -1,11 +1,11 @@
 import { useRef, useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { PubBadge } from '../components/PubBadge';
-import { PubButton } from '../components/PubButton';
-import { PubCard } from '../components/PubCard';
-import { useReveal } from '../hooks/useReveal';
-import { getApiBaseFromWindow } from '../../../lib/apiBase';
-import type { PublicPricingPlan, I18nText } from '../../billing/types';
+import { PubBadge } from '@app/ui/pub/components/PubBadge';
+import { PubButton } from '@app/ui/pub/components/PubButton';
+import { PubCard } from '@app/ui/pub/components/PubCard';
+import { useReveal } from '@app/ui/pub/hooks/useReveal';
+import { getApiBaseFromWindow } from '@app/lib/apiBase';
+import type { PublicPricingPlan, I18nText } from '@app/ui/billing/types';
 
 function t18n(obj: I18nText | null | undefined, locale: string): string {
   if (!obj) return '';

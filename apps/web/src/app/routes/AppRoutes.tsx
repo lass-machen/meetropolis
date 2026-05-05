@@ -2,15 +2,46 @@ import * as React from 'react';
 import { WorldScreen } from './WorldScreen';
 import { LandingPage } from '../../ui/pub/landing/LandingPage';
 
-import { ImpressumPage } from '../../ui/pub/legal/ImpressumPage';
-import { PrivacyPolicyPage } from '../../ui/pub/legal/PrivacyPolicyPage';
-import { TermsOfServicePage } from '../../ui/pub/legal/TermsOfServicePage';
 import { getApiBaseFromWindow } from '../../lib/runtimeConfig';
 import { BillingSuccessPage } from '../../ui/pub/billing/BillingSuccessPage';
 import { BillingCancelPage } from '../../ui/pub/billing/BillingCancelPage';
 import { EmailVerifyPage } from '../../ui/pub/billing/EmailVerifyPage';
 import { AuthPage } from '../../ui/pub/auth/AuthPage';
-import { PublicConsentGate } from '../../ui/pub/consent/PublicConsentGate';
+import { getBrandModule } from '../../lib/brandLoader';
+
+type LegalPageProps = { onBack: () => void; registrationEnabled?: boolean };
+
+const LegalUnavailable: React.ComponentType<LegalPageProps> = ({ onBack }) => (
+  <div style={{ padding: 40, textAlign: 'center', color: 'var(--fg-subtle, #888)' }}>
+    <p>Legal pages (Terms, Privacy, Impressum) are not bundled with the OSS edition.</p>
+    <p>Self-hosters must provide their own legal documents.</p>
+    <button onClick={onBack} style={{ marginTop: 16 }}>Back</button>
+  </div>
+);
+
+const TermsOfServicePageLazy = React.lazy<React.ComponentType<LegalPageProps>>(async () => {
+  const mod = await getBrandModule();
+  if (!mod) return { default: LegalUnavailable };
+  return { default: mod.TermsOfServicePage };
+});
+
+const PrivacyPolicyPageLazy = React.lazy<React.ComponentType<LegalPageProps>>(async () => {
+  const mod = await getBrandModule();
+  if (!mod) return { default: LegalUnavailable };
+  return { default: mod.PrivacyPolicyPage };
+});
+
+const ImpressumPageLazy = React.lazy<React.ComponentType<LegalPageProps>>(async () => {
+  const mod = await getBrandModule();
+  if (!mod) return { default: LegalUnavailable };
+  return { default: mod.ImpressumPage };
+});
+
+const PublicConsentGateLazy = React.lazy<React.ComponentType<Record<string, never>>>(async () => {
+  const mod = await getBrandModule();
+  if (!mod) return { default: () => null };
+  return { default: mod.PublicConsentGate };
+});
 
 type Route = 'landing' | 'pricing' | 'app' | 'privacy' | 'terms' | 'impressum' | 'verify' | 'billing-success' | 'billing-cancel' | 'login' | 'register' | 'invite' | 'guest-auth' | 'reset-pw';
 
@@ -143,11 +174,23 @@ function RouteContent({ route, params, apiBase, registrationEnabled, navigate }:
     case 'pricing':
       return <LandingPage onLogin={() => navigate('login')} onSignup={() => navigate('register')} onPricing={() => {}} registrationEnabled={registrationEnabled} />;
     case 'privacy':
-      return <PrivacyPolicyPage onBack={() => navigate('landing')} registrationEnabled={registrationEnabled} />;
+      return (
+        <React.Suspense fallback={<div style={{ padding: 40 }}>Loading…</div>}>
+          <PrivacyPolicyPageLazy onBack={() => navigate('landing')} registrationEnabled={registrationEnabled} />
+        </React.Suspense>
+      );
     case 'terms':
-      return <TermsOfServicePage onBack={() => navigate('landing')} registrationEnabled={registrationEnabled} />;
+      return (
+        <React.Suspense fallback={<div style={{ padding: 40 }}>Loading…</div>}>
+          <TermsOfServicePageLazy onBack={() => navigate('landing')} registrationEnabled={registrationEnabled} />
+        </React.Suspense>
+      );
     case 'impressum':
-      return <ImpressumPage onBack={() => navigate('landing')} registrationEnabled={registrationEnabled} />;
+      return (
+        <React.Suspense fallback={<div style={{ padding: 40 }}>Loading…</div>}>
+          <ImpressumPageLazy onBack={() => navigate('landing')} registrationEnabled={registrationEnabled} />
+        </React.Suspense>
+      );
     case 'verify':
       return <EmailVerifyPage token={params.verifyToken} apiBase={apiBase} onSuccess={() => navigate('app')} onBack={() => navigate('landing')} />;
     case 'billing-success':
@@ -190,7 +233,9 @@ export function AppRoutes() {
   return (
     <>
       <RouteContent route={route} params={params} apiBase={apiBase} registrationEnabled={registrationEnabled} navigate={navigate} />
-      <PublicConsentGate />
+      <React.Suspense fallback={null}>
+        <PublicConsentGateLazy />
+      </React.Suspense>
     </>
   );
 }

@@ -1,8 +1,8 @@
 import React, { useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { PubBadge } from '../components/PubBadge';
-import { PubCard } from '../components/PubCard';
-import { useReveal } from '../hooks/useReveal';
+import { PubBadge } from '@app/ui/pub/components/PubBadge';
+import { PubCard } from '@app/ui/pub/components/PubCard';
+import { useReveal } from '@app/ui/pub/hooks/useReveal';
 
 /* ---------- Icons ---------- */
 

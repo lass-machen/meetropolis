@@ -1,8 +1,8 @@
 import { useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { PubBadge } from '../components/PubBadge';
-import { PubButton } from '../components/PubButton';
-import { useReveal } from '../hooks/useReveal';
+import { PubBadge } from '@app/ui/pub/components/PubBadge';
+import { PubButton } from '@app/ui/pub/components/PubButton';
+import { useReveal } from '@app/ui/pub/hooks/useReveal';
 
 interface HeroSectionProps {
   onSignup: () => void;

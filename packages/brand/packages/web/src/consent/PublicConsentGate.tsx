@@ -3,12 +3,12 @@ import { ConsentBanner } from './ConsentBanner';
 import {
   getMarketingConsent,
   onMarketingConsentChange,
-} from '../../../lib/marketingConsent';
+} from '../tracking/marketingConsent';
 import {
   isDesktopRuntime,
   loadMetaPixel,
   trackMetaPageView,
-} from '../../../lib/metaPixel';
+} from '../tracking/metaPixel';
 
 const META_PIXEL_ID = '1878721026864311';
 

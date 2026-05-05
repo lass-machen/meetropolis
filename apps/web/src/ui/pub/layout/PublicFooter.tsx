@@ -1,6 +1,11 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { clearMarketingConsent } from '../../../lib/marketingConsent';
+import { getBrandModule } from '../../../lib/brandLoader';
+
+async function clearMarketingConsent(): Promise<void> {
+  const mod = await getBrandModule();
+  mod?.clearMarketingConsent();
+}
 
 interface PublicFooterProps {
   navigate: (route: string) => void;

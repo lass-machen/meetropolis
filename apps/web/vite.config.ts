@@ -77,6 +77,7 @@ export default defineConfig({
     optionalSubmodules([
       '@meetropolis/desktop',
       { id: '@meetropolis/enterprise-web', path: 'packages/tenancy-enterprise/packages/enterprise-web' },
+      { id: '@meetropolis/brand-web', path: 'packages/brand/packages/web' },
     ]),
     // Two vite versions coexist (root 5.x as transitive, apps/web 6.x direct).
     // The plugin-react types resolve against root's vite — runtime is fine,

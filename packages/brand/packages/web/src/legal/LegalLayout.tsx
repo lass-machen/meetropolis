@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { PublicLayout } from '../layout/PublicLayout';
+import { PublicLayout } from '@app/ui/pub/layout/PublicLayout';
 
 interface LegalSection {
   id: string;
