@@ -30,6 +30,13 @@ const BRAND_DESCRIPTION_DE = process.env.BRAND_DESCRIPTION_DE
 const BRAND_DESCRIPTION_EN = process.env.BRAND_DESCRIPTION_EN
   || 'a virtual office platform where you can work alongside your team in a spatial environment';
 
+/**
+ * Optional support contact email used in welcome/invite mails. When unset
+ * (default for OSS self-hosters), the support paragraphs are omitted from
+ * the templates entirely instead of leaking a brand address.
+ */
+const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || '';
+
 export interface EmailService {
   send(options: EmailOptions): Promise<boolean>;
 }
@@ -319,8 +326,12 @@ ${t.team}`,
           'Erkunde dein virtuelles Büro',
           'Lade dein Team ein',
         ],
-        support: 'Bei Fragen erreichst du uns jederzeit unter <a href="mailto:support@meetropolis.de">support@meetropolis.de</a>.',
-        supportText: 'Bei Fragen erreichst du uns jederzeit unter support@meetropolis.de.',
+        support: SUPPORT_EMAIL
+          ? `Bei Fragen erreichst du uns jederzeit unter <a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a>.`
+          : '',
+        supportText: SUPPORT_EMAIL
+          ? `Bei Fragen erreichst du uns jederzeit unter ${SUPPORT_EMAIL}.`
+          : '',
         signoff: 'Viele Grüße,',
         team: `Das ${BRAND_NAME} Team`,
       },
@@ -338,8 +349,12 @@ ${t.team}`,
           'Explore your virtual office',
           'Invite your team members',
         ],
-        support: 'If you have any questions, feel free to reach out to <a href="mailto:support@meetropolis.de">support@meetropolis.de</a>.',
-        supportText: 'If you have any questions, feel free to reach out to support@meetropolis.de.',
+        support: SUPPORT_EMAIL
+          ? `If you have any questions, feel free to reach out to <a href="mailto:${SUPPORT_EMAIL}">${SUPPORT_EMAIL}</a>.`
+          : '',
+        supportText: SUPPORT_EMAIL
+          ? `If you have any questions, feel free to reach out to ${SUPPORT_EMAIL}.`
+          : '',
         signoff: 'Best,',
         team: `The ${BRAND_NAME} Team`,
       },

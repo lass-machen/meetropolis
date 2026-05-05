@@ -217,7 +217,14 @@ export function MapsAdmin(props: { apiBase: string }) {
     try {
       state.setTenants(await jsonFetch<TenantOption[]>(`${apiBase}/admin/tenants`));
     } catch (err) {
-      logger.warn('[MapsAdmin] Failed to load tenants', err);
+      // OSS-Mode: /admin/tenants ist nur in der Enterprise-Edition registriert.
+      // Fallback: lade den Single-Tenant via /tenant (Self-Service-Route).
+      try {
+        const own = await jsonFetch<TenantOption>(`${apiBase}/tenant`);
+        if (own && own.id) state.setTenants([own]);
+      } catch (fallbackErr) {
+        logger.warn('[MapsAdmin] Failed to load tenants', err, fallbackErr);
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [apiBase]);

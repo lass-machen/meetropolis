@@ -112,7 +112,13 @@ async function sendGuestInviteEmail(
 ): Promise<string> {
   const tenantRecord = await prisma.tenant.findUnique({ where: { id: tenantId } });
   const slug = tenantRecord?.slug || tenantSlug;
-  const magicLink = `https://${slug}.meetropolis.de/#/guest?token=${rawToken}`;
+  // Public base URL: Self-Hoster setzen `PUBLIC_BASE_URL` oder
+  // `BILLING_PUBLIC_URL`. Brand-Domain (`*.meetropolis.de`) ist nur im
+  // Enterprise-Brand-Setup gesetzt — kein Fallback im OSS.
+  const baseUrl = process.env.PUBLIC_BASE_URL || process.env.BILLING_PUBLIC_URL || '';
+  const magicLink = baseUrl
+    ? `${baseUrl.replace(/\/$/, '')}/#/guest?token=${rawToken}`
+    : `/#/guest?token=${rawToken}`;
 
   const inviter = await prisma.user.findUnique({ where: { id: inviterId }, select: { name: true, email: true } });
   const inviterName = inviter?.name || inviter?.email || 'Someone';

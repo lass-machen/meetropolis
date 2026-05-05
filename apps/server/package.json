@@ -45,9 +45,11 @@
     "pino": "^9.14.0",
     "prom-client": "^15.1.2",
     "pure-rand": "^7.0.1",
-    "stripe": "^14.0.0",
     "unzipper": "^0.12.3",
     "zod": "^3.23.8"
+  },
+  "optionalDependencies": {
+    "stripe": "^14.0.0"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",

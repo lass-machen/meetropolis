@@ -23,8 +23,8 @@ function detectDevice(ua: string): string {
   return 'Desktop';
 }
 
-function detectBrowser(ua: string, fallback: string): string {
-  if (/Tauri/i.test(ua)) return 'Meetropolis Desktop';
+function detectBrowser(ua: string, fallback: string, desktopAppLabel: string): string {
+  if (/Tauri/i.test(ua)) return desktopAppLabel;
   if (/Edg/i.test(ua)) return 'Edge';
   if (/Chrome/i.test(ua)) return 'Chrome';
   if (/Safari/i.test(ua)) return 'Safari';
@@ -34,7 +34,13 @@ function detectBrowser(ua: string, fallback: string): string {
 
 function parseUserAgent(ua: string | null, t: (k: string) => string): { device: string; browser: string } {
   if (!ua) return { device: t('sessions.unknownDevice'), browser: t('sessions.unknownBrowser') };
-  return { device: detectDevice(ua), browser: detectBrowser(ua, t('sessions.unknownBrowser')) };
+  // Brand-Name fürs Desktop-App-Label kommt aus i18n (`header.brandName`),
+  // mit OSS-Default "Workspace". Ergibt z.B. "Workspace Desktop" im OSS,
+  // "Meetropolis Desktop" wenn das Brand-Submodule den Key überschreibt.
+  const brandRaw = t('header.brandName');
+  const brandName = brandRaw && brandRaw !== 'header.brandName' ? brandRaw : 'Workspace';
+  const desktopAppLabel = `${brandName} Desktop`;
+  return { device: detectDevice(ua), browser: detectBrowser(ua, t('sessions.unknownBrowser'), desktopAppLabel) };
 }
 
 function formatRelativeDate(dateStr: string, t: (k: string, opts?: any) => string): string {

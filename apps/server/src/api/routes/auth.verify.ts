@@ -3,7 +3,7 @@ import { PrismaClient } from '../../generated/prisma/index.js';
 import crypto from 'crypto';
 import { z } from 'zod';
 import { logger } from '../../logger.js';
-import { requireAuth, getTenantFromReq } from '../utils/authHelpers.js';
+import { requireAuth } from '../utils/authHelpers.js';
 import { getEmailService, emailTemplates } from '../../services/email.js';
 
 export async function handleVerifyRequest(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
@@ -37,9 +37,13 @@ export async function handleVerifyRequest(prisma: PrismaClient, req: express.Req
       data: { token, userId: user.id, email: user.email, expiresAt },
     });
 
-    const tenant = getTenantFromReq(req);
-    const baseUrl = process.env.BILLING_PUBLIC_URL || req.headers.origin || `https://${tenant?.slug || 'app'}.meetropolis.de`;
-    const verifyUrl = `${baseUrl}/#/verify?token=${token}`;
+    // Public base URL für Verify-Link. Reihenfolge:
+    // 1. PUBLIC_BASE_URL / BILLING_PUBLIC_URL (Self-Hoster setzen das)
+    // 2. Origin-Header der Request (klappt für Web-getriggerte Verifies)
+    // 3. Host-Header als Fallback (verhindert Brand-Domain-Leak)
+    const fallbackHost = req.headers.host ? `https://${req.headers.host}` : '';
+    const baseUrl = process.env.PUBLIC_BASE_URL || process.env.BILLING_PUBLIC_URL || req.headers.origin || fallbackHost;
+    const verifyUrl = baseUrl ? `${baseUrl}/#/verify?token=${token}` : '';
 
     const emailService = getEmailService();
     const emailContent = emailTemplates.verifyEmail({

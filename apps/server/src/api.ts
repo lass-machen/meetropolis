@@ -77,10 +77,14 @@ async function copyTemplateMapsForSignup(prismaClient: PrismaClient, tenantId: s
 }
 
 function sendSignupWelcomeEmail(params: { email: string; name: string; slug: string; tenantId: string }): void {
-  const { email, name, slug, tenantId } = params;
-  const loginUrl = process.env.BILLING_PUBLIC_URL
-    ? `${process.env.BILLING_PUBLIC_URL.replace(/\/$/, '')}/#/app`
-    : `https://${slug}.meetropolis.de`;
+  const { email, name, slug: _slug, tenantId } = params;
+  // Self-Hoster setzen `PUBLIC_BASE_URL` (oder das ältere `BILLING_PUBLIC_URL`)
+  // auf ihre öffentliche Domain. Ohne Setzung bleibt der Link leer und das
+  // Welcome-Mail enthält keinen Direkt-Link; der Empfänger muss manuell
+  // navigieren. Brand-Domains (`*.meetropolis.de`) sind ausschließlich im
+  // Enterprise-Brand-Setup gesetzt.
+  const baseUrl = process.env.PUBLIC_BASE_URL || process.env.BILLING_PUBLIC_URL || '';
+  const loginUrl = baseUrl ? `${baseUrl.replace(/\/$/, '')}/#/app` : '';
   const emailService = getEmailService();
   const emailContent = emailTemplates.welcomeTenant({
     name,

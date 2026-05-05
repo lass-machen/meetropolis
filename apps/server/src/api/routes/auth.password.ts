@@ -6,7 +6,6 @@ import { z } from 'zod';
 import { logger } from '../../logger.js';
 import {
   requireAuth,
-  getTenantFromReq,
   normalizeEmailForStorage,
   normalizeEmailForMatching,
 } from '../utils/authHelpers.js';
@@ -26,9 +25,13 @@ export async function handleAuthForgot(prisma: PrismaClient, req: express.Reques
   const expiresAt = new Date(Date.now() + 1000 * 60 * 30);
   await prisma.passwordReset.create({ data: { token, userId: user.id, expiresAt } });
 
-  const tenant = getTenantFromReq(req);
-  const baseUrl = process.env.BILLING_PUBLIC_URL || req.headers.origin || `https://${tenant?.slug || 'app'}.meetropolis.de`;
-  const resetUrl = `${baseUrl}/#/reset?token=${token}&email=${encodeURIComponent(email)}`;
+  // Public base URL für Reset-Link. Reihenfolge:
+  // 1. PUBLIC_BASE_URL / BILLING_PUBLIC_URL (Self-Hoster setzen das)
+  // 2. Origin-Header der Request (klappt für Web-getriggerte Resets)
+  // 3. Host-Header als Fallback (verhindert Brand-Domain-Leak)
+  const fallbackHost = req.headers.host ? `https://${req.headers.host}` : '';
+  const baseUrl = process.env.PUBLIC_BASE_URL || process.env.BILLING_PUBLIC_URL || req.headers.origin || fallbackHost;
+  const resetUrl = baseUrl ? `${baseUrl}/#/reset?token=${token}&email=${encodeURIComponent(email)}` : '';
 
   const emailService = getEmailService();
   const emailContent = emailTemplates.resetPassword({
