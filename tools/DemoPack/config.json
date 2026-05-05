@@ -1,0 +1,25 @@
+{
+  "version" : "1.0",
+  "name" : "Mein erstes Packs",
+  "objects" : [
+    {
+      "id" : "objects_1",
+      "key" : "objects_1",
+      "category" : "objects",
+      "height" : 35,
+      "dataURL" : "assets/objects/objects_1.png",
+      "width" : 32,
+      "placement" : "any",
+      "collide" : false
+    }
+  ],
+  "author" : "Vincent Rothe",
+  "description" : "Ich bin eine Beschreibung",
+  "structures" : [
+
+  ],
+  "terrain" : [
+
+  ],
+  "uuid" : "a41042b0-e2bf-4619-8cd3-1d3204b12d61"
+}
