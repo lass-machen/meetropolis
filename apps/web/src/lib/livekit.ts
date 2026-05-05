@@ -166,6 +166,73 @@ async function resolveLivekitServerUrl(params: JoinLivekitRoomParams): Promise<s
   return serverUrl;
 }
 
+function buildConnectOptions(forceRelay: boolean): any {
+  // rtcConfig: Only pass when forceRelay is needed.
+  // The LiveKit server provides its own ICE/STUN/TURN config via signaling.
+  // Passing a client-side rtcConfig overrides the server config and breaks
+  // PeerConnection establishment with newer LiveKit server versions (v1.8+).
+  const rtcConfig: RTCConfiguration | undefined = forceRelay
+    ? { iceTransportPolicy: 'relay' as RTCIceTransportPolicy }
+    : undefined;
+
+  return {
+    autoSubscribe: false,
+    // Lokale Tracks werden nicht automatisch erzeugt; Remote-Subscribe erfolgt gezielt
+    video: false,
+    audio: false,
+    // Nicht automatisch trennen bei pagehide/visibilitychange (wir managen Resume selbst)
+    disconnectOnPageLeave: false,
+    // Adaptive Stream: liefert nur benötigte Layer
+    adaptiveStream: true,
+    // Simulcast/Dynacast für effiziente Layer-Nutzung
+    dynacast: true,
+    // Publishing-Defaults inkl. DTX für Sprache
+    publishDefaults: {
+      dtx: true,
+      simulcast: true,
+      videoEncoding: { maxBitrate: 1_200_000, maxFramerate: 30 },
+      screenShareEncoding: { maxBitrate: 2_500_000, maxFramerate: 30 },
+    },
+    // Audio-Capture Defaults (für Browser-Track-Erzeugung)
+    audioCaptureDefaults: {
+      echoCancellation: true,
+      noiseSuppression: true,
+      autoGainControl: true,
+    },
+    // RTC config only when relay is forced (server provides ICE config via signaling)
+    ...(rtcConfig ? { rtcConfig } : {}),
+  };
+}
+
+async function awaitConnectWithTimeout(room: Room, connectPromise: Promise<void>): Promise<void> {
+  const timeoutMs = readTimeoutMs('VITE_LIVEKIT_CONNECT_TIMEOUT_MS', 10_000);
+  const TIMEOUT_SENTINEL = Symbol('livekit_connect_timeout');
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const timeoutPromise = new Promise<typeof TIMEOUT_SENTINEL>((resolve) => {
+    timeoutId = setTimeout(() => resolve(TIMEOUT_SENTINEL), timeoutMs);
+  });
+
+  try {
+    const result = await Promise.race([connectPromise, timeoutPromise]);
+    if (result === TIMEOUT_SENTINEL) {
+      try { await room.disconnect(true); } catch {}
+      throw new Error('livekit_connect_timeout');
+    }
+  } finally {
+    if (timeoutId !== undefined) clearTimeout(timeoutId);
+  }
+}
+
+function logConnected(room: Room, forceRelay: boolean): void {
+  try {
+    const anyRoom: any = room as any;
+    const roomID = anyRoom?.roomID || anyRoom?.sid || anyRoom?.name;
+    const localSid = anyRoom?.localParticipant?.sid;
+    const nRem = Array.from((anyRoom?.remoteParticipants?.values?.() || []) as any).length;
+    logger.debug('[AV][debug] livekit.connected', { roomID, localSid, nRemote: nRem, forceRelay });
+  } catch {}
+}
+
 async function connectLivekitRoom(args: {
   serverUrl: string;
   token: string;
@@ -183,75 +250,9 @@ async function connectLivekitRoom(args: {
     });
   } catch {}
 
-  // rtcConfig: Only pass when forceRelay is needed.
-  // The LiveKit server provides its own ICE/STUN/TURN config via signaling.
-  // Passing a client-side rtcConfig overrides the server config and breaks
-  // PeerConnection establishment with newer LiveKit server versions (v1.8+).
-  const rtcConfig: RTCConfiguration | undefined = args.forceRelay
-    ? { iceTransportPolicy: 'relay' as RTCIceTransportPolicy }
-    : undefined;
-
-  const connectPromise = room.connect(args.serverUrl, args.token, {
-    autoSubscribe: false,
-    // Lokale Tracks werden nicht automatisch erzeugt; Remote-Subscribe erfolgt gezielt
-    video: false,
-    audio: false,
-    // Nicht automatisch trennen bei pagehide/visibilitychange (wir managen Resume selbst)
-    // @ts-ignore
-    disconnectOnPageLeave: false,
-    // Adaptive Stream: liefert nur benötigte Layer
-    // @ts-ignore
-    adaptiveStream: true,
-    // Simulcast/Dynacast für effiziente Layer-Nutzung
-    // @ts-ignore
-    dynacast: true,
-    // Publishing-Defaults inkl. DTX für Sprache
-    // @ts-ignore
-    publishDefaults: {
-      // @ts-ignore
-      dtx: true,
-      // @ts-ignore
-      simulcast: true,
-      // @ts-ignore
-      videoEncoding: { maxBitrate: 1_200_000, maxFramerate: 30 },
-      // @ts-ignore
-      screenShareEncoding: { maxBitrate: 2_500_000, maxFramerate: 30 },
-    },
-    // Audio-Capture Defaults (für Browser-Track-Erzeugung)
-    // @ts-ignore
-    audioCaptureDefaults: {
-      echoCancellation: true,
-      noiseSuppression: true,
-      autoGainControl: true,
-    },
-    // RTC config only when relay is forced (server provides ICE config via signaling)
-    ...(rtcConfig ? { rtcConfig } : {}),
-  } as any);
-
-  const timeoutMs = readTimeoutMs('VITE_LIVEKIT_CONNECT_TIMEOUT_MS', 10_000);
-  const TIMEOUT_SENTINEL = Symbol('livekit_connect_timeout');
-  let timeoutId: ReturnType<typeof setTimeout> | undefined;
-  const timeoutPromise = new Promise<typeof TIMEOUT_SENTINEL>((resolve) => {
-    timeoutId = setTimeout(() => resolve(TIMEOUT_SENTINEL), timeoutMs);
-  });
-
-  try {
-    const result = await Promise.race([connectPromise, timeoutPromise]);
-    if (result === TIMEOUT_SENTINEL) {
-      try { await room.disconnect(true); } catch {}
-      throw new Error('livekit_connect_timeout');
-    }
-  } finally {
-    if (timeoutId !== undefined) clearTimeout(timeoutId);
-  }
-
-  try {
-    const anyRoom: any = room as any;
-    const roomID = anyRoom?.roomID || anyRoom?.sid || anyRoom?.name;
-    const localSid = anyRoom?.localParticipant?.sid;
-    const nRem = Array.from((anyRoom?.remoteParticipants?.values?.() || []) as any).length;
-    logger.debug('[AV][debug] livekit.connected', { roomID, localSid, nRemote: nRem, forceRelay: args.forceRelay });
-  } catch {}
+  const connectPromise = room.connect(args.serverUrl, args.token, buildConnectOptions(args.forceRelay));
+  await awaitConnectWithTimeout(room, connectPromise);
+  logConnected(room, args.forceRelay);
 
   // Absicherung: explizit Auto-Disconnect bei Page-Leave deaktivieren (falls vom SDK unterstützt)
   try { (room as any).setDisconnectOnPageLeave?.(false); } catch {}
