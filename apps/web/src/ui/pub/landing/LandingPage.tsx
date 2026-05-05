@@ -3,8 +3,11 @@ import { HeroSection } from './HeroSection';
 import { ProblemSolutionSection } from './ProblemSolutionSection';
 import { FeatureShowcaseSection } from './FeatureShowcaseSection';
 import { SecondaryFeaturesSection } from './SecondaryFeaturesSection';
-import { PricingSection } from './PricingSection';
+import { HowItWorksSection } from './HowItWorksSection';
 import { SocialProofSection } from './SocialProofSection';
+import { ComparisonSection } from './ComparisonSection';
+import { PricingSection } from './PricingSection';
+import { FaqSection } from './FaqSection';
 import { OpenSourceSection } from './OpenSourceSection';
 import { FinalCtaSection } from './FinalCtaSection';
 
@@ -29,8 +32,11 @@ export function LandingPage({ onLogin, onSignup, onPricing: _onPricing, registra
       <ProblemSolutionSection />
       <FeatureShowcaseSection />
       <SecondaryFeaturesSection />
+      <HowItWorksSection />
       <SocialProofSection />
+      <ComparisonSection />
       <PricingSection onSignup={effectiveSignup} registrationEnabled={registrationEnabled} />
+      <FaqSection />
       <OpenSourceSection />
       <FinalCtaSection onSignup={effectiveSignup} registrationEnabled={registrationEnabled} />
     </PublicLayout>
