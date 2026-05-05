@@ -80,7 +80,7 @@ export function HeroSection({ onSignup, onLogin, registrationEnabled = true }: H
           marginBottom: 16,
         }}
       >
-        {registrationEnabled && (
+        {registrationEnabled ? (
           <PubButton
             variant="primary"
             size="lg"
@@ -89,10 +89,11 @@ export function HeroSection({ onSignup, onLogin, registrationEnabled = true }: H
           >
             {t('hero.ctaPrimary')}
           </PubButton>
+        ) : (
+          <PubButton variant="primary" size="lg" onClick={onLogin}>
+            {t('hero.ctaLoginInstead')}
+          </PubButton>
         )}
-        <PubButton variant="secondary" size="lg" onClick={onLogin}>
-          {t('hero.ctaSecondary')}
-        </PubButton>
       </div>
 
       {/* Trust Text */}
