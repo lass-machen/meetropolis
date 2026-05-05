@@ -1,4 +1,4 @@
-import { defineConfig, type Plugin } from 'vite';
+import { defineConfig, type Plugin, type PluginOption } from 'vite';
 import { resolve } from 'path';
 import { existsSync, mkdirSync, symlinkSync } from 'fs';
 import react from '@vitejs/plugin-react';
@@ -59,7 +59,10 @@ function optionalSubmodules(moduleIds: string[]): Plugin {
 export default defineConfig({
   plugins: [
     optionalSubmodules(['@meetropolis/desktop']),
-    react(),
+    // Two vite versions coexist (root 5.x as transitive, apps/web 6.x direct).
+    // The plugin-react types resolve against root's vite — runtime is fine,
+    // tsc just sees mismatching nominal types. Double-cast keeps the check clean.
+    react() as unknown as PluginOption,
   ],
   // eigener Cache-Ordner, um alte Optimierungen sicher zu umgehen (Docker)
   cacheDir: '/tmp/.vite',
