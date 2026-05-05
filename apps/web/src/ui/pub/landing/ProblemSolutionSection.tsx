@@ -87,10 +87,181 @@ const PAIN_CARDS: PainCard[] = [
   },
 ];
 
+const PROBLEM_SOLUTION_STYLES = `
+  .pub-problem__cards {
+    display: flex;
+    gap: 24px;
+  }
+  .pub-problem__cards > * {
+    flex: 1;
+    min-width: 0;
+  }
+  .pub-solution-box {
+    background: var(--pub-gradient-purple);
+    border-radius: var(--pub-radius-card-lg);
+    padding: 48px;
+    display: flex;
+    gap: 48px;
+    align-items: center;
+  }
+  .pub-solution-box__text {
+    flex: 1;
+    min-width: 0;
+  }
+  .pub-solution-box__image {
+    width: 440px;
+    height: 300px;
+    flex-shrink: 0;
+    border-radius: var(--pub-radius-image);
+    overflow: hidden;
+  }
+  @media (max-width: 768px) {
+    .pub-problem__cards {
+      flex-direction: column;
+    }
+    .pub-solution-box {
+      flex-direction: column;
+      padding: 32px 24px;
+    }
+    .pub-solution-box__image {
+      width: 100%;
+      height: auto;
+      aspect-ratio: 440 / 300;
+    }
+  }
+`;
+
+/* ---------- Sub-Components ---------- */
+
+function ProblemHeader() {
+  const { t } = useTranslation('public');
+  return (
+    <div style={{ textAlign: 'center', marginBottom: 48 }}>
+      <div style={{ marginBottom: 24 }}>
+        <PubBadge variant="pink" dot>
+          {t('problem.badge')}
+        </PubBadge>
+      </div>
+      <h2 className="pub-text-h2" style={{ marginBottom: 16 }}>
+        {t('problem.title')}
+      </h2>
+      <p
+        className="pub-text-subline"
+        style={{ maxWidth: 600, margin: '0 auto' }}
+      >
+        {t('problem.subtitle')}
+      </p>
+    </div>
+  );
+}
+
+function PainCardItem({ card }: { card: PainCard }) {
+  const { t } = useTranslation('public');
+  const { iconBg, iconColor, Icon, titleKey, textKey } = card;
+  return (
+    <PubCard variant="surface" hover>
+      <div
+        style={{
+          width: 44,
+          height: 44,
+          borderRadius: 'var(--pub-radius-icon)',
+          background: iconBg,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: iconColor,
+          marginBottom: 20,
+        }}
+      >
+        <Icon />
+      </div>
+      <h3
+        style={{
+          fontFamily: 'var(--pub-font-display)',
+          fontWeight: 700,
+          fontSize: 17,
+          lineHeight: 1.3,
+          color: 'var(--pub-text-primary)',
+          marginBottom: 8,
+        }}
+      >
+        {t(titleKey)}
+      </h3>
+      <p
+        className="pub-text-body-sm"
+        style={{ color: 'var(--pub-text-secondary)' }}
+      >
+        {t(textKey)}
+      </p>
+    </PubCard>
+  );
+}
+
+function PainCardsGrid() {
+  return (
+    <div className="pub-problem__cards">
+      {PAIN_CARDS.map((card) => (
+        <PainCardItem key={card.titleKey} card={card} />
+      ))}
+    </div>
+  );
+}
+
+function SolutionBox() {
+  const { t } = useTranslation('public');
+  return (
+    <div className="pub-solution-box">
+      <div className="pub-solution-box__text">
+        <h3
+          style={{
+            fontFamily: 'var(--pub-font-display)',
+            fontWeight: 800,
+            fontSize: 32,
+            lineHeight: 1.2,
+            color: '#FFFFFF',
+            marginBottom: 16,
+          }}
+        >
+          {t('solution.title')}
+        </h3>
+        <p
+          style={{
+            fontFamily: 'var(--pub-font-body)',
+            fontSize: 15,
+            lineHeight: 1.7,
+            color: 'rgba(255,255,255,0.8)',
+            marginBottom: 32,
+          }}
+        >
+          {t('solution.text')}
+        </p>
+        <PubButton
+          variant="cta-white"
+          rightIcon={<ArrowRightIcon />}
+          onClick={() => document.getElementById('features')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+        >
+          {t('solution.cta')}
+        </PubButton>
+      </div>
+      <div className="pub-solution-box__image">
+        <img
+          src="/images/pub/meetropolis-screen-2.webp"
+          alt="Meetropolis pixel art conversation"
+          style={{
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+            display: 'block',
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
 /* ---------- Component ---------- */
 
 export function ProblemSolutionSection() {
-  const { t } = useTranslation('public');
   const sectionRef = useRef<HTMLElement>(null);
   useReveal(sectionRef);
 
@@ -105,163 +276,14 @@ export function ProblemSolutionSection() {
       }}
     >
       <div className="pub-container">
-        {/* --- Problem Header --- */}
-        <div style={{ textAlign: 'center', marginBottom: 48 }}>
-          <div style={{ marginBottom: 24 }}>
-            <PubBadge variant="pink" dot>
-              {t('problem.badge')}
-            </PubBadge>
-          </div>
-          <h2 className="pub-text-h2" style={{ marginBottom: 16 }}>
-            {t('problem.title')}
-          </h2>
-          <p
-            className="pub-text-subline"
-            style={{ maxWidth: 600, margin: '0 auto' }}
-          >
-            {t('problem.subtitle')}
-          </p>
-        </div>
-
-        {/* --- Pain Cards --- */}
-        <div className="pub-problem__cards">
-          {PAIN_CARDS.map(({ iconBg, iconColor, Icon, titleKey, textKey }) => (
-            <PubCard key={titleKey} variant="surface" hover>
-              <div
-                style={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: 'var(--pub-radius-icon)',
-                  background: iconBg,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: iconColor,
-                  marginBottom: 20,
-                }}
-              >
-                <Icon />
-              </div>
-              <h3
-                style={{
-                  fontFamily: 'var(--pub-font-display)',
-                  fontWeight: 700,
-                  fontSize: 17,
-                  lineHeight: 1.3,
-                  color: 'var(--pub-text-primary)',
-                  marginBottom: 8,
-                }}
-              >
-                {t(titleKey)}
-              </h3>
-              <p
-                className="pub-text-body-sm"
-                style={{ color: 'var(--pub-text-secondary)' }}
-              >
-                {t(textKey)}
-              </p>
-            </PubCard>
-          ))}
-        </div>
-
-        {/* --- Divider Arrow --- */}
+        <ProblemHeader />
+        <PainCardsGrid />
         <div style={{ textAlign: 'center', margin: '32px 0' }}>
           <ArrowDownIcon />
         </div>
-
-        {/* --- Solution Box --- */}
-        <div className="pub-solution-box">
-          <div className="pub-solution-box__text">
-            <h3
-              style={{
-                fontFamily: 'var(--pub-font-display)',
-                fontWeight: 800,
-                fontSize: 32,
-                lineHeight: 1.2,
-                color: '#FFFFFF',
-                marginBottom: 16,
-              }}
-            >
-              {t('solution.title')}
-            </h3>
-            <p
-              style={{
-                fontFamily: 'var(--pub-font-body)',
-                fontSize: 15,
-                lineHeight: 1.7,
-                color: 'rgba(255,255,255,0.8)',
-                marginBottom: 32,
-              }}
-            >
-              {t('solution.text')}
-            </p>
-            <PubButton
-              variant="cta-white"
-              rightIcon={<ArrowRightIcon />}
-              onClick={() => document.getElementById('features')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-            >
-              {t('solution.cta')}
-            </PubButton>
-          </div>
-          <div className="pub-solution-box__image">
-            <img
-              src="/images/pub/meetropolis-screen-2.webp"
-              alt="Meetropolis pixel art conversation"
-              style={{
-                width: '100%',
-                height: '100%',
-                objectFit: 'cover',
-                display: 'block',
-              }}
-            />
-          </div>
-        </div>
+        <SolutionBox />
       </div>
-
-      {/* --- Section-specific responsive styles --- */}
-      <style>{`
-        .pub-problem__cards {
-          display: flex;
-          gap: 24px;
-        }
-        .pub-problem__cards > * {
-          flex: 1;
-          min-width: 0;
-        }
-        .pub-solution-box {
-          background: var(--pub-gradient-purple);
-          border-radius: var(--pub-radius-card-lg);
-          padding: 48px;
-          display: flex;
-          gap: 48px;
-          align-items: center;
-        }
-        .pub-solution-box__text {
-          flex: 1;
-          min-width: 0;
-        }
-        .pub-solution-box__image {
-          width: 440px;
-          height: 300px;
-          flex-shrink: 0;
-          border-radius: var(--pub-radius-image);
-          overflow: hidden;
-        }
-        @media (max-width: 768px) {
-          .pub-problem__cards {
-            flex-direction: column;
-          }
-          .pub-solution-box {
-            flex-direction: column;
-            padding: 32px 24px;
-          }
-          .pub-solution-box__image {
-            width: 100%;
-            height: auto;
-            aspect-ratio: 440 / 300;
-          }
-        }
-      `}</style>
+      <style>{PROBLEM_SOLUTION_STYLES}</style>
     </section>
   );
 }
