@@ -9,10 +9,10 @@ import { setupEditorHandlers } from './handlers/editorHandlers';
 import { setupRemoteControlHandlers } from './handlers/remoteControlHandlers';
 import { setupPresenceHandlers, createRosterRefresher } from './handlers/presenceHandlers';
 import { setupZoneLockHandlers } from './handlers/zoneLockHandlers';
-import { passesMapFilter } from './handlers/mapFilter';
-import { useMapStore } from '../state/mapStore';
+import { showSessionConflictDialog, showServerRestartDialog } from './handlers/sessionDialogs';
+import { forceInitialPlayerSync } from './handlers/initialSync';
+import { setupRosterOnStateChange } from './handlers/rosterStateChange';
 import { readTimeoutMs } from '../lib/runtimeConfig';
-import i18n from '../app/providers/i18n';
 
 const HEARTBEAT_INTERVAL_MS = readTimeoutMs('VITE_HEARTBEAT_INTERVAL_MS', 15_000);
 
@@ -97,92 +97,14 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
     const refreshRosterFromRemotes = createRosterRefresher(args);
 
     const setupRoomHandlers = (room: any) => {
-      // Session conflict detection — registered first so the message is caught before any other setup
+      // Session conflict detection — registered first so the message is caught before any other setup.
       room.onMessage('session_conflict', () => {
-        logger.info('[useWorldRoom] Session conflict detected — showing takeover dialog');
-        if (typeof window !== 'undefined') {
-          (window as any).__sessionConflictPending = true;
-        }
-
-        const host = document.createElement('div');
-        host.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.5);';
-        host.innerHTML = `
-          <div style="min-width:320px;max-width:480px;padding:24px;border-radius:12px;border:1px solid rgba(59,130,246,0.5);background:rgba(30,41,59,0.95);backdrop-filter:blur(8px);color:#fff;box-shadow:0 8px 32px rgba(0,0,0,0.4);text-align:center;">
-            <div style="font-size:48px;margin-bottom:12px;">🔄</div>
-            <div style="font-weight:700;font-size:18px;margin-bottom:8px;">${i18n.t('sessionConflict.title')}</div>
-            <div style="font-size:14px;color:#94a3b8;margin-bottom:20px;">${i18n.t('sessionConflict.description')}</div>
-            <div style="display:flex;gap:12px;justify-content:center;">
-              <button data-session-cancel style="padding:10px 20px;border-radius:8px;border:1px solid rgba(255,255,255,0.2);background:transparent;color:white;cursor:pointer;font-weight:600;font-size:14px;">${i18n.t('sessionConflict.cancel')}</button>
-              <button data-session-takeover style="padding:10px 20px;border-radius:8px;border:none;background:#3b82f6;color:white;cursor:pointer;font-weight:600;font-size:14px;">${i18n.t('sessionConflict.takeover')}</button>
-            </div>
-          </div>`;
-        document.body.appendChild(host);
-
-        host.querySelector('[data-session-takeover]')?.addEventListener('click', () => {
-          try { host.remove(); } catch {}
-          try { delete (window as any).__sessionConflictPending; } catch {}
-          room.send('session_takeover', { identity: me.id });
-        }, { once: true });
-
-        host.querySelector('[data-session-cancel]')?.addEventListener('click', () => {
-          try { host.remove(); } catch {}
-          try { delete (window as any).__sessionConflictPending; } catch {}
-          room.send('session_takeover_cancel', {});
-        }, { once: true });
+        showSessionConflictDialog({ room, meId: me.id });
       });
 
-      // Server restart notification — show overlay and auto-reload when server is back
+      // Server restart notification — show overlay and auto-reload when server is back.
       room.onMessage('server_restart', () => {
-        logger.info('[useWorldRoom] Server restart notification received');
-
-        // Prevent reconnect attempts during restart
-        disposed = true;
-
-        const host = document.createElement('div');
-        host.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);';
-        host.innerHTML = `
-          <div style="min-width:320px;max-width:480px;padding:32px;border-radius:16px;border:1px solid rgba(59,130,246,0.4);background:rgba(15,23,42,0.97);backdrop-filter:blur(12px);color:#fff;box-shadow:0 8px 32px rgba(0,0,0,0.5);text-align:center;">
-            <div style="margin-bottom:16px;">
-              <div style="width:48px;height:48px;margin:0 auto;border:3px solid rgba(59,130,246,0.3);border-top-color:#3b82f6;border-radius:50%;animation:spin 1s linear infinite;"></div>
-              <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
-            </div>
-            <div style="font-weight:700;font-size:18px;margin-bottom:8px;">${i18n.t('serverRestart.title')}</div>
-            <div data-restart-desc style="font-size:14px;color:#94a3b8;margin-bottom:20px;">${i18n.t('serverRestart.description')}</div>
-            <button data-restart-reload style="display:none;padding:10px 24px;border-radius:8px;border:none;background:#3b82f6;color:white;cursor:pointer;font-weight:600;font-size:14px;">${i18n.t('serverRestart.reloadButton')}</button>
-          </div>`;
-        document.body.appendChild(host);
-
-        // Poll health endpoint until server is back
-        let attempts = 0;
-        const maxAttempts = 30; // 30 * 2s = 60s max wait
-        const pollHealth = setInterval(async () => {
-          attempts++;
-          try {
-            const controller = new AbortController();
-            const timeout = setTimeout(() => controller.abort(), 3000);
-            const res = await fetch(apiBase + '/health', { signal: controller.signal });
-            clearTimeout(timeout);
-            if (res.ok) {
-              clearInterval(pollHealth);
-              window.location.reload();
-              return;
-            }
-          } catch { /* server not yet back */ }
-
-          if (attempts >= maxAttempts) {
-            clearInterval(pollHealth);
-            // Show manual reload button and update description
-            const desc = host.querySelector('[data-restart-desc]');
-            const btn = host.querySelector('[data-restart-reload]') as HTMLElement;
-            if (desc) desc.textContent = i18n.t('serverRestart.manualReload');
-            if (btn) btn.style.display = 'inline-block';
-          }
-        }, 2000);
-
-        // Manual reload button
-        host.querySelector('[data-restart-reload]')?.addEventListener('click', () => {
-          window.location.reload();
-        }, { once: true });
+        showServerRestartDialog({ apiBase, onRestartDetected: () => { disposed = true; } });
       });
 
       const localLivekitIdentity = avRef.current?.room?.localParticipant?.identity || me.id;
@@ -226,130 +148,9 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
       setupPresenceHandlers(room, args, recentPresenceRef);
       setupZoneLockHandlers(room);
 
-      // Force initial state sync - onStateChange doesn't fire for the initial state,
-      // and full_state message might arrive before handlers are registered
-      try {
-        if (room.state?.players) {
-          // Symmetrie zu playerHandlers.full_state: erst lokalen Player aus dem
-          // State synchronisieren, damit der Map-Filter danach auf dem korrekten
-          // currentMap arbeitet — sonst filtern wir alles raus, wenn der Store
-          // beim Cold-Start noch leer ist.
-          try {
-            const local = typeof room.state.players.get === 'function'
-              ? room.state.players.get(room.sessionId)
-              : undefined;
-            if (local?.mapId && local.mapName) {
-              const mapState = useMapStore.getState();
-              if (!mapState.currentMapId || mapState.currentMapId !== local.mapId) {
-                mapState.setCurrentMap(local.mapId, local.mapName);
-              }
-            }
-          } catch {}
-          const currentMap = useMapStore.getState().currentMapName;
-          const players: Record<string, any> = {};
-          const iteratePlayers = (value: any, key: string) => {
-            if (key === room.sessionId) return; // skip local player
-            if (!passesMapFilter(value.mapName, currentMap)) return;
-            players[key] = {
-              x: value.x, y: value.y, direction: value.direction,
-              name: value.name, dnd: value.dnd, avatarId: value.avatarId,
-              isNpc: value.isNpc, identity: value.identity
-            };
-            if (value.identity && value.name) {
-              identityToNameMap.current[value.identity] = value.name;
-            }
-            if (value.identity) {
-              colyseusToLivekitMap.current[key] = value.identity;
-            }
-          };
-          if (typeof room.state.players.forEach === 'function') {
-            room.state.players.forEach(iteratePlayers);
-          } else if (typeof room.state.players.entries === 'function') {
-            for (const [key, value] of room.state.players.entries()) {
-              iteratePlayers(value, key);
-            }
-          }
+      forceInitialPlayerSync({ room, args, scheduleBuildParticipantList, scheduleRefreshRosterFromRemotes });
 
-          // Build the filtered map with proper name resolution
-          const filtered = Object.fromEntries(
-            Object.entries(players).map(([id, p]: [string, any]) => {
-              const livekitIdentity = p.identity || colyseusToLivekitMap.current[id] || id;
-              const name = identityToNameMap.current[livekitIdentity] || p.name || livekitIdentity;
-              return [id, { ...p, name, identity: livekitIdentity }];
-            })
-          );
-
-          if (Object.keys(filtered).length > 0) {
-            gameBridge.syncRemotePlayers(filtered);
-            // Also update remotesRef
-            args.remotesRef.current = Object.fromEntries(
-              Object.entries(filtered).map(([id, p]: [string, any]) => [id, { x: p.x, y: p.y, dnd: p.dnd, avatarId: p.avatarId }])
-            );
-            scheduleBuildParticipantList(0);
-            scheduleRefreshRosterFromRemotes(0);
-          }
-        }
-      } catch (e) {
-        // Non-critical - full_state or onStateChange will handle it eventually
-      }
-
-      // Roster-only onStateChange handler.
-      // Einzige Verantwortung: rosterByIdentityRef + setRoster aktualisieren (inkl. cross-map Sichtbarkeit).
-      // Mutation von remotesRef / colyseusToLivekitMap / identityToNameMap passiert ausschliesslich
-      // im primary onStateChange in playerHandlers.ts. buildParticipantList wird von den Message-Handlers
-      // (full_state/player_joined/player_moved/player_left/player_map_changed) getriggert.
-      room.onStateChange((state: any) => {
-        try {
-          const { colyseusToLivekitMap, identityToNameMap, localPosRef } = args;
-          const online: Record<string, { name: string; x: number; y: number }> = {};
-
-          const iterateForRoster = (value: any, key: string) => {
-            if (key === localPosRef.current.id) return;
-            const livekitIdentity = value.identity || colyseusToLivekitMap.current[key] || key;
-            const name = identityToNameMap.current[livekitIdentity] || value.name || livekitIdentity;
-            online[livekitIdentity] = { name, x: value.x, y: value.y };
-          };
-
-          if (state.players) {
-            if (typeof state.players.forEach === 'function') {
-              state.players.forEach(iterateForRoster);
-            } else if (typeof state.players.entries === 'function') {
-              for (const [key, value] of state.players.entries()) iterateForRoster(value, key);
-            } else if ((state.players as any)[Symbol.iterator]) {
-              for (const [key, value] of (state.players as any)) iterateForRoster(value, key);
-            }
-          }
-
-          // Include local user via stable userId so presence merge marks self online
-          if (me?.id) {
-            const lp = localPosRef.current;
-            online[me.id] = { name: me.name || me.email || me.id, x: lp?.x ?? 0, y: lp?.y ?? 0 };
-          }
-
-          args.rosterByIdentityRef.current = online;
-          setRoster(prev => {
-            const map = new Map<string, { identity: string; name: string; online: boolean; x?: number; y?: number; lastSeen?: string }>();
-            for (const r of prev) map.set(r.identity, { ...r, online: false });
-            for (const [ident, v] of Object.entries(online)) {
-              if (map.has(ident)) {
-                map.set(ident, { ...(map.get(ident) as any), name: v.name, online: true, x: v.x, y: v.y });
-              } else {
-                let matchedKey: string | undefined;
-                for (const [k, val] of map.entries()) {
-                  if ((val.name || '').toLowerCase() === (v.name || '').toLowerCase()) { matchedKey = k; break; }
-                }
-                if (matchedKey) {
-                  const cur = map.get(matchedKey)!;
-                  map.set(matchedKey, { ...cur, online: true, x: v.x, y: v.y });
-                } else {
-                  map.set(ident, { identity: ident, name: v.name, online: true, x: v.x, y: v.y });
-                }
-              }
-            }
-            return Array.from(map.values()).sort((a, b) => Number(b.online) - Number(a.online) || a.name.localeCompare(b.name));
-          });
-        } catch {}
-      });
+      setupRosterOnStateChange(room, args, setRoster, me);
 
       // Setup error and leave handlers
       room.onError?.((...ev: any[]) => {
