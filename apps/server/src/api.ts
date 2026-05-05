@@ -9,7 +9,6 @@ import { registerMapRoutes } from './api/routes/maps.js';
 import { registerAssetPackRoutes } from './api/routes/assetPacks.js';
 import { registerAvatarPackRoutes } from './api/routes/avatarPacks.js';
 import { registerAdminRoutes } from './api/routes/admin.js';
-import { registerAdminUserRoutes } from './api/routes/adminUsers.js';
 import { registerHealthRoutes } from './api/routes/health.js';
 import { registerMiscRoutes } from './api/routes/misc.js';
 import { registerTmjRoutes } from './api/routes/tmj.js';
@@ -120,6 +119,13 @@ async function registerEnterpriseAdminRoutes(app: express.Express) {
     prisma: prisma as any,
     logger,
     requireSuperAdmin: requireSuperAdmin as any,
+  });
+
+  adminEnterprise.setupTenantUserRoutes(app, {
+    prisma: prisma as any,
+    logger,
+    requireSuperAdmin: requireSuperAdmin as any,
+    normalizeEmail: normalizeEmailForStorage,
   });
 
   adminEnterprise.setupPackMarketplaceRoutes(app, {
@@ -233,7 +239,6 @@ export async function registerApi(app: express.Express) {
   // OSS fallback admin routes (only health/stats/debug + minimal /public/config).
   registerAdminRoutes(app, prisma);
   registerTenantRoutes(app, prisma);
-  registerAdminUserRoutes(app, prisma);
   registerAdminMapRoutes(app, prisma);
 
   registerLegacyModularRoutes(app);

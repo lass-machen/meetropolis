@@ -58,6 +58,20 @@ export interface AdminEnterpriseModule {
     }
   ): void;
 
+  setupTenantUserRoutes(
+    app: Application,
+    config: {
+      prisma: PrismaClient;
+      logger: {
+        info(obj: object): void;
+        error(obj: object): void;
+        warn(obj: object): void;
+      };
+      requireSuperAdmin: (req: Request, prisma: PrismaClient) => Promise<{ userId: string } | null>;
+      normalizeEmail: (email: string) => string;
+    }
+  ): void;
+
   setupPackMarketplaceRoutes(
     app: Application,
     config: {
@@ -80,6 +94,7 @@ const adminEnterpriseSchema = z.object({
   setupAdminRoutes: z.function(),
   setupTenantAdminRoutes: z.function(),
   setupPricingPlanRoutes: z.function(),
+  setupTenantUserRoutes: z.function(),
   setupPackMarketplaceRoutes: z.function(),
 });
 
@@ -124,6 +139,7 @@ export async function getAdminEnterpriseModule(): Promise<AdminEnterpriseModule 
       setupAdminRoutes: mod.setupAdminRoutes as AdminEnterpriseModule['setupAdminRoutes'],
       setupTenantAdminRoutes: mod.setupTenantAdminRoutes as AdminEnterpriseModule['setupTenantAdminRoutes'],
       setupPricingPlanRoutes: mod.setupPricingPlanRoutes as AdminEnterpriseModule['setupPricingPlanRoutes'],
+      setupTenantUserRoutes: mod.setupTenantUserRoutes as AdminEnterpriseModule['setupTenantUserRoutes'],
       setupPackMarketplaceRoutes: mod.setupPackMarketplaceRoutes as AdminEnterpriseModule['setupPackMarketplaceRoutes'],
     };
 

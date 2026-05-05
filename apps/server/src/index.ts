@@ -46,6 +46,8 @@ import { registry, metricsMiddleware } from './metrics.js';
 import { tenantMiddleware } from './tenancy.js';
 import { requestLogger } from './api/requestLogger.js';
 import { errorHandler } from './api/errorHandler.js';
+import { applyEnterpriseMigrationsIfPresent } from './tenancyLoader.js';
+import { PrismaClient } from './generated/prisma/index.js';
 
 const app = express();
 const allowedOrigins = (process.env.CORS_ORIGIN || '')
@@ -221,6 +223,16 @@ if (toolsUser && toolsPassword) {
   logger.info({ event: 'tools.route_enabled', path: '/tools' });
 } else {
   logger.info({ event: 'tools.route_disabled', reason: 'TOOLS_USER or TOOLS_PASSWORD not set' });
+}
+
+// Apply enterprise schema migrations (no-op without enterprise submodule)
+try {
+  const migrationPrisma = new PrismaClient();
+  await applyEnterpriseMigrationsIfPresent(migrationPrisma);
+  await migrationPrisma.$disconnect();
+} catch (e) {
+  logger.error({ event: 'enterprise.migrations.failed', error: e instanceof Error ? e.message : String(e) });
+  throw e;
 }
 
 await registerApi(app);
