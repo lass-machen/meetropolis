@@ -123,119 +123,134 @@ export function isMovementBlocked(
   return { blocked: true, zoneName: targetZone };
 }
 
-export function setupZoneLockHandlers(room: Room, state: ZoneLockState, prisma: PrismaClient): void {
-  const getTenantSlug = () => (room.metadata as any)?.tenant || process.env.DEFAULT_TENANT_SLUG || 'default';
+function getRoomTenantSlug(room: Room): string {
+  return (room.metadata as any)?.tenant || process.env.DEFAULT_TENANT_SLUG || 'default';
+}
 
-  // Zone sperren
-  room.onMessage('zone_lock', async (client, data: { zoneName?: string }) => {
-    const player = room.state.players.get(client.sessionId) as any;
-    if (!player || !data?.zoneName) return;
+async function handleZoneLock(
+  room: Room,
+  state: ZoneLockState,
+  prisma: PrismaClient,
+  client: { sessionId: string },
+  data: { zoneName?: string },
+): Promise<void> {
+  const player = room.state.players.get(client.sessionId) as any;
+  if (!player || !data?.zoneName) return;
 
-    const mapId = player.mapId;
-    const tenantSlug = getTenantSlug();
-    const zones = await loadZones(state, mapId, tenantSlug, prisma);
-    const playerZone = getPlayerZone(zones, { x: player.x, y: player.y });
+  const mapId = player.mapId;
+  const tenantSlug = getRoomTenantSlug(room);
+  const zones = await loadZones(state, mapId, tenantSlug, prisma);
+  const playerZone = getPlayerZone(zones, { x: player.x, y: player.y });
 
-    // Spieler muss in der Zone sein
-    if (playerZone !== data.zoneName) return;
+  if (playerZone !== data.zoneName) return;
 
-    const key = lockKey(mapId, data.zoneName);
-    if (state.locks.has(key)) return; // Already locked
+  const key = lockKey(mapId, data.zoneName);
+  if (state.locks.has(key)) return;
 
-    // Alle Spieler die aktuell in der Zone sind → accessList
-    const accessList: string[] = [];
-    room.state.players.forEach((p: any, sessionId: string) => {
-      if (p.mapId !== mapId) return;
-      const zone = getPlayerZone(zones, { x: p.x, y: p.y });
-      if (zone === data.zoneName) accessList.push(sessionId);
-    });
-
-    state.locks.set(key, {
-      zoneName: data.zoneName,
-      mapId,
-      lockedBy: client.sessionId,
-      accessList,
-      pendingRequests: [],
-    });
-
-    broadcastLockState(room, state);
-    logger.info('[ZoneLock] Zone locked:', data.zoneName, 'by', client.sessionId, 'access:', accessList.length);
+  const accessList: string[] = [];
+  room.state.players.forEach((p: any, sessionId: string) => {
+    if (p.mapId !== mapId) return;
+    const zone = getPlayerZone(zones, { x: p.x, y: p.y });
+    if (zone === data.zoneName) accessList.push(sessionId);
   });
 
-  // Zone entsperren
-  room.onMessage('zone_unlock', (client, data: { zoneName?: string }) => {
-    if (!data?.zoneName) return;
-    const player = room.state.players.get(client.sessionId) as any;
-    if (!player) return;
-
-    const key = lockKey(player.mapId, data.zoneName);
-    const lock = state.locks.get(key);
-    if (!lock) return;
-
-    // Nur Spieler mit Zugang dürfen entsperren
-    if (!lock.accessList.includes(client.sessionId)) return;
-
-    state.locks.delete(key);
-    broadcastLockState(room, state);
-    logger.info('[ZoneLock] Zone unlocked:', data.zoneName, 'by', client.sessionId);
+  state.locks.set(key, {
+    zoneName: data.zoneName,
+    mapId,
+    lockedBy: client.sessionId,
+    accessList,
+    pendingRequests: [],
   });
 
-  // Zugriffsanfrage von außen
-  room.onMessage('zone_access_request', (client, data: { zoneName?: string; mapId?: string }) => {
-    if (!data?.zoneName || !data?.mapId) return;
-    const player = room.state.players.get(client.sessionId) as any;
-    if (!player) return;
+  broadcastLockState(room, state);
+  logger.info('[ZoneLock] Zone locked:', data.zoneName, 'by', client.sessionId, 'access:', accessList.length);
+}
 
-    const key = lockKey(data.mapId, data.zoneName);
-    const lock = state.locks.get(key);
-    if (!lock) return;
+function handleZoneUnlock(
+  room: Room,
+  state: ZoneLockState,
+  client: { sessionId: string },
+  data: { zoneName?: string },
+): void {
+  if (!data?.zoneName) return;
+  const player = room.state.players.get(client.sessionId) as any;
+  if (!player) return;
 
-    // Spieler darf nicht bereits Zugang haben
-    if (lock.accessList.includes(client.sessionId)) return;
+  const key = lockKey(player.mapId, data.zoneName);
+  const lock = state.locks.get(key);
+  if (!lock) return;
 
-    // Nicht doppelt anfragen
-    if (lock.pendingRequests.some((r: { sessionId: string }) => r.sessionId === client.sessionId)) return;
+  if (!lock.accessList.includes(client.sessionId)) return;
 
-    lock.pendingRequests.push({
-      sessionId: client.sessionId,
-      identity: player.identity || client.sessionId,
-      name: player.name || player.identity || client.sessionId,
-    });
+  state.locks.delete(key);
+  broadcastLockState(room, state);
+  logger.info('[ZoneLock] Zone unlocked:', data.zoneName, 'by', client.sessionId);
+}
 
-    broadcastLockState(room, state);
-    logger.info('[ZoneLock] Access request for', data.zoneName, 'from', client.sessionId);
+function handleZoneAccessRequest(
+  room: Room,
+  state: ZoneLockState,
+  client: { sessionId: string },
+  data: { zoneName?: string; mapId?: string },
+): void {
+  if (!data?.zoneName || !data?.mapId) return;
+  const player = room.state.players.get(client.sessionId) as any;
+  if (!player) return;
+
+  const key = lockKey(data.mapId, data.zoneName);
+  const lock = state.locks.get(key);
+  if (!lock) return;
+
+  if (lock.accessList.includes(client.sessionId)) return;
+  if (lock.pendingRequests.some((r: { sessionId: string }) => r.sessionId === client.sessionId)) return;
+
+  lock.pendingRequests.push({
+    sessionId: client.sessionId,
+    identity: player.identity || client.sessionId,
+    name: player.name || player.identity || client.sessionId,
   });
 
-  // Zugriffsanfrage beantworten
-  room.onMessage('zone_access_response', (client, data: { zoneName?: string; sessionId?: string; approved?: boolean }) => {
-    if (!data?.zoneName || !data?.sessionId) return;
-    const player = room.state.players.get(client.sessionId) as any;
-    if (!player) return;
+  broadcastLockState(room, state);
+  logger.info('[ZoneLock] Access request for', data.zoneName, 'from', client.sessionId);
+}
 
-    const key = lockKey(player.mapId, data.zoneName);
-    const lock = state.locks.get(key);
-    if (!lock) return;
+function handleZoneAccessResponse(
+  room: Room,
+  state: ZoneLockState,
+  client: { sessionId: string },
+  data: { zoneName?: string; sessionId?: string; approved?: boolean },
+): void {
+  if (!data?.zoneName || !data?.sessionId) return;
+  const player = room.state.players.get(client.sessionId) as any;
+  if (!player) return;
 
-    // Nur Spieler mit Zugang dürfen antworten
-    if (!lock.accessList.includes(client.sessionId)) return;
+  const key = lockKey(player.mapId, data.zoneName);
+  const lock = state.locks.get(key);
+  if (!lock) return;
 
-    // Request entfernen
-    lock.pendingRequests = lock.pendingRequests.filter((r: { sessionId: string }) => r.sessionId !== data.sessionId);
+  if (!lock.accessList.includes(client.sessionId)) return;
 
-    if (data.approved) {
-      lock.accessList.push(data.sessionId);
-      logger.info('[ZoneLock] Access approved for', data.sessionId, 'to', data.zoneName);
-    } else {
-      // Requester benachrichtigen
-      const requesterClient = room.clients.find(c => c.sessionId === data.sessionId);
-      if (requesterClient) {
-        requesterClient.send('zone_access_denied', { zoneName: data.zoneName });
-      }
-      logger.info('[ZoneLock] Access denied for', data.sessionId, 'to', data.zoneName);
+  lock.pendingRequests = lock.pendingRequests.filter((r: { sessionId: string }) => r.sessionId !== data.sessionId);
+
+  if (data.approved) {
+    lock.accessList.push(data.sessionId);
+    logger.info('[ZoneLock] Access approved for', data.sessionId, 'to', data.zoneName);
+  } else {
+    const requesterClient = room.clients.find(c => c.sessionId === data.sessionId);
+    if (requesterClient) {
+      requesterClient.send('zone_access_denied', { zoneName: data.zoneName });
     }
+    logger.info('[ZoneLock] Access denied for', data.sessionId, 'to', data.zoneName);
+  }
 
-    broadcastLockState(room, state);
-  });
+  broadcastLockState(room, state);
+}
+
+export function setupZoneLockHandlers(room: Room, state: ZoneLockState, prisma: PrismaClient): void {
+  room.onMessage('zone_lock', (client, data) => handleZoneLock(room, state, prisma, client, data));
+  room.onMessage('zone_unlock', (client, data) => handleZoneUnlock(room, state, client, data));
+  room.onMessage('zone_access_request', (client, data) => handleZoneAccessRequest(room, state, client, data));
+  room.onMessage('zone_access_response', (client, data) => handleZoneAccessResponse(room, state, client, data));
 }
 
 // Spieler verlässt: aus allen Listen entfernen

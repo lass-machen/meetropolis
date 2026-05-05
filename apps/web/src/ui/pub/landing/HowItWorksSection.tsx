@@ -38,10 +38,107 @@ const STEPS: StepData[] = [
   },
 ];
 
+const HOW_IT_WORKS_STYLES = `
+  .pub-howitworks-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 24px;
+  }
+  .pub-howitworks-card {
+    width: calc(33.333% - 16px);
+    min-width: 0;
+    box-sizing: border-box;
+  }
+  @media (max-width: 768px) {
+    .pub-howitworks-card {
+      width: 100%;
+    }
+  }
+`;
+
+/* ---------- Sub-Components ---------- */
+
+function HowItWorksHeader() {
+  const { t } = useTranslation('public');
+  return (
+    <div style={{ textAlign: 'center', marginBottom: 48 }}>
+      <div style={{ marginBottom: 24 }}>
+        <PubBadge variant="purple">
+          {t('howItWorks.badge')}
+        </PubBadge>
+      </div>
+      <h2 className="pub-text-h2" style={{ marginBottom: 16 }}>
+        {t('howItWorks.title')}
+      </h2>
+      <p
+        className="pub-text-subline"
+        style={{ maxWidth: 560, margin: '0 auto' }}
+      >
+        {t('howItWorks.subtitle')}
+      </p>
+    </div>
+  );
+}
+
+interface StepCardProps {
+  step: StepData;
+}
+
+function StepCard({ step }: StepCardProps) {
+  const { t } = useTranslation('public');
+  return (
+    <PubCard
+      variant="surface"
+      hover
+      className="pub-howitworks-card"
+    >
+      <span
+        style={{
+          fontFamily: 'var(--pub-font-display)',
+          fontWeight: 800,
+          fontSize: 56,
+          lineHeight: 1,
+          color: step.numberColor,
+          display: 'block',
+          marginBottom: 16,
+        }}
+      >
+        {t(step.numKey)}
+      </span>
+      <h3
+        style={{
+          fontFamily: 'var(--pub-font-display)',
+          fontWeight: 700,
+          fontSize: 20,
+          color: 'var(--pub-text-primary)',
+          marginBottom: 8,
+        }}
+      >
+        {t(step.titleKey)}
+      </h3>
+      <p
+        className="pub-text-body-sm"
+        style={{ color: 'var(--pub-text-secondary)' }}
+      >
+        {t(step.textKey)}
+      </p>
+    </PubCard>
+  );
+}
+
+function StepGrid() {
+  return (
+    <div className="pub-howitworks-grid">
+      {STEPS.map((step) => (
+        <StepCard key={step.numKey} step={step} />
+      ))}
+    </div>
+  );
+}
+
 /* ---------- Component ---------- */
 
 export function HowItWorksSection() {
-  const { t } = useTranslation('public');
   const sectionRef = useRef<HTMLElement>(null);
   useReveal(sectionRef);
 
@@ -56,86 +153,10 @@ export function HowItWorksSection() {
       }}
     >
       <div className="pub-container">
-        {/* Header */}
-        <div style={{ textAlign: 'center', marginBottom: 48 }}>
-          <div style={{ marginBottom: 24 }}>
-            <PubBadge variant="purple">
-              {t('howItWorks.badge')}
-            </PubBadge>
-          </div>
-          <h2 className="pub-text-h2" style={{ marginBottom: 16 }}>
-            {t('howItWorks.title')}
-          </h2>
-          <p
-            className="pub-text-subline"
-            style={{ maxWidth: 560, margin: '0 auto' }}
-          >
-            {t('howItWorks.subtitle')}
-          </p>
-        </div>
-
-        {/* Step Grid */}
-        <div className="pub-howitworks-grid">
-          {STEPS.map((step) => (
-            <PubCard
-              key={step.numKey}
-              variant="surface"
-              hover
-              className="pub-howitworks-card"
-            >
-              <span
-                style={{
-                  fontFamily: 'var(--pub-font-display)',
-                  fontWeight: 800,
-                  fontSize: 56,
-                  lineHeight: 1,
-                  color: step.numberColor,
-                  display: 'block',
-                  marginBottom: 16,
-                }}
-              >
-                {t(step.numKey)}
-              </span>
-              <h3
-                style={{
-                  fontFamily: 'var(--pub-font-display)',
-                  fontWeight: 700,
-                  fontSize: 20,
-                  color: 'var(--pub-text-primary)',
-                  marginBottom: 8,
-                }}
-              >
-                {t(step.titleKey)}
-              </h3>
-              <p
-                className="pub-text-body-sm"
-                style={{ color: 'var(--pub-text-secondary)' }}
-              >
-                {t(step.textKey)}
-              </p>
-            </PubCard>
-          ))}
-        </div>
+        <HowItWorksHeader />
+        <StepGrid />
       </div>
-
-      {/* Section-specific responsive styles */}
-      <style>{`
-        .pub-howitworks-grid {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 24px;
-        }
-        .pub-howitworks-card {
-          width: calc(33.333% - 16px);
-          min-width: 0;
-          box-sizing: border-box;
-        }
-        @media (max-width: 768px) {
-          .pub-howitworks-card {
-            width: 100%;
-          }
-        }
-      `}</style>
+      <style>{HOW_IT_WORKS_STYLES}</style>
     </section>
   );
 }
