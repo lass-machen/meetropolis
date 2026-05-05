@@ -113,7 +113,11 @@ export function FinalCtaSection({ onSignup, registrationEnabled = true }: FinalC
               {t('cta.ctaPrimary')}
             </PubButton>
           )}
-          <PubButton variant="secondary" size="lg">
+          <PubButton
+            variant="secondary"
+            size="lg"
+            onClick={() => document.getElementById('pricing')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+          >
             {t('cta.ctaSecondary')}
           </PubButton>
         </div>
