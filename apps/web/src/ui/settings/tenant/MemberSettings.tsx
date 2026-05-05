@@ -95,8 +95,45 @@ function ResetTokenAlert({ token, onDismiss }: { token: string; onDismiss: () =>
   );
 }
 
-export function MemberSettings({ members, saving, onChangeRole, onRemoveMember, onInvite, onSuccess, onResetPassword, onEditMember }: MemberSettingsProps) {
+function MemberListView({ members, saving, onChangeRole, onRemoveMember, onEdit, onReset, onInvite, resetToken, onDismissReset }: { members: Member[]; saving: boolean; onChangeRole: MemberSettingsProps['onChangeRole']; onRemoveMember: MemberSettingsProps['onRemoveMember']; onEdit: (m: Member) => void; onReset: (m: Member) => void; onInvite: () => void; resetToken: { userId: string; token: string } | null; onDismissReset: () => void }) {
   const { t } = useTranslation();
+  return (
+    <Section title={t('tenant.teamMembers')} actions={<Button variant="primary" onClick={onInvite}>{t('tenant.inviteMember')}</Button>}>
+      <Table>
+        <THead>
+          <Tr>
+            <Th style={{ paddingLeft: 0 }}>Name</Th>
+            <Th style={{ width: 140 }}>{t('tenant.role')}</Th>
+            <Th style={{ paddingRight: 0, textAlign: 'right' }}>{null}</Th>
+          </Tr>
+        </THead>
+        <TBody>
+          {members.length === 0 && (
+            <Tr>
+              <Td colSpan={3} style={{ paddingLeft: 0, textAlign: 'center', color: 'var(--fg-subtle)', padding: '32px 0' }}>Keine Einträge vorhanden</Td>
+            </Tr>
+          )}
+          {members.map((member) => (
+            <MemberRow
+              key={member.id}
+              member={member}
+              saving={saving}
+              onChangeRole={onChangeRole}
+              onRemoveMember={onRemoveMember}
+              onEdit={onEdit}
+              onReset={onReset}
+            />
+          ))}
+        </TBody>
+      </Table>
+      {resetToken && (<ResetTokenAlert token={resetToken.token} onDismiss={onDismissReset} />)}
+    </Section>
+  );
+}
+
+function useMemberSettingsState(props: MemberSettingsProps) {
+  const { t } = useTranslation();
+  const { onEditMember, onSuccess, onResetPassword } = props;
   const [screen, setScreen] = React.useState<Screen>({ type: 'list' });
   const [editName, setEditName] = React.useState('');
   const [editEmail, setEditEmail] = React.useState('');
@@ -122,10 +159,17 @@ export function MemberSettings({ members, saving, onChangeRole, onRemoveMember, 
   const handleReset = async (member: Member) => {
     setResetToken(null);
     const token = await onResetPassword(member.email);
-    if (token) {
-      setResetToken({ userId: member.id, token });
-    }
+    if (token) setResetToken({ userId: member.id, token });
   };
+
+  return { screen, setScreen, editName, setEditName, editEmail, setEditEmail, resetToken, setResetToken, startEdit, saveEdit, handleReset };
+}
+
+export function MemberSettings(props: MemberSettingsProps) {
+  const { t } = useTranslation();
+  const { members, saving, onChangeRole, onRemoveMember, onInvite, onSuccess } = props;
+  const state = useMemberSettingsState(props);
+  const { screen, setScreen, editName, setEditName, editEmail, setEditEmail, resetToken, setResetToken, startEdit, saveEdit, handleReset } = state;
 
   if (screen.type === 'invite') {
     return (
@@ -153,38 +197,16 @@ export function MemberSettings({ members, saving, onChangeRole, onRemoveMember, 
   }
 
   return (
-    <Section title={t('tenant.teamMembers')} actions={<Button variant="primary" onClick={() => setScreen({ type: 'invite' })}>{t('tenant.inviteMember')}</Button>}>
-      <Table>
-        <THead>
-          <Tr>
-            <Th style={{ paddingLeft: 0 }}>Name</Th>
-            <Th style={{ width: 140 }}>{t('tenant.role')}</Th>
-            <Th style={{ paddingRight: 0, textAlign: 'right' }}>{null}</Th>
-          </Tr>
-        </THead>
-        <TBody>
-          {members.length === 0 && (
-            <Tr>
-              <Td colSpan={3} style={{ paddingLeft: 0, textAlign: 'center', color: 'var(--fg-subtle)', padding: '32px 0' }}>Keine Einträge vorhanden</Td>
-            </Tr>
-          )}
-          {members.map((member) => (
-            <MemberRow
-              key={member.id}
-              member={member}
-              saving={saving}
-              onChangeRole={onChangeRole}
-              onRemoveMember={onRemoveMember}
-              onEdit={startEdit}
-              onReset={handleReset}
-            />
-          ))}
-        </TBody>
-      </Table>
-
-      {resetToken && (
-        <ResetTokenAlert token={resetToken.token} onDismiss={() => setResetToken(null)} />
-      )}
-    </Section>
+    <MemberListView
+      members={members}
+      saving={saving}
+      onChangeRole={onChangeRole}
+      onRemoveMember={onRemoveMember}
+      onEdit={startEdit}
+      onReset={handleReset}
+      onInvite={() => setScreen({ type: 'invite' })}
+      resetToken={resetToken}
+      onDismissReset={() => setResetToken(null)}
+    />
   );
 }
