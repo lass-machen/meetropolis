@@ -195,7 +195,11 @@ export function ProblemSolutionSection() {
             >
               {t('solution.text')}
             </p>
-            <PubButton variant="cta-white" rightIcon={<ArrowRightIcon />}>
+            <PubButton
+              variant="cta-white"
+              rightIcon={<ArrowRightIcon />}
+              onClick={() => document.getElementById('features')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+            >
               {t('solution.cta')}
             </PubButton>
           </div>
