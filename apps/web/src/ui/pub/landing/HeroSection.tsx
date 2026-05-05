@@ -17,8 +17,6 @@ const ArrowRightIcon = () => (
   </svg>
 );
 
-const TRUST_LOGOS = ['TechStartup', 'RemoteFirst', 'DigitalHQ', 'CloudTeam', 'Founders'];
-
 export function HeroSection({ onSignup, onLogin, registrationEnabled = true }: HeroSectionProps) {
   const { t } = useTranslation('public');
   const sectionRef = useRef<HTMLElement>(null);
@@ -134,32 +132,6 @@ export function HeroSection({ onSignup, onLogin, registrationEnabled = true }: H
             display: 'block',
           }}
         />
-      </div>
-
-      {/* Trust Logos */}
-      <div
-        style={{
-          display: 'flex',
-          gap: 48,
-          justifyContent: 'center',
-          flexWrap: 'wrap',
-          alignItems: 'center',
-        }}
-      >
-        {TRUST_LOGOS.map((name) => (
-          <span
-            key={name}
-            style={{
-              fontFamily: 'var(--pub-font-display)',
-              fontWeight: 700,
-              fontSize: 20,
-              color: 'rgba(255,255,255,0.15)',
-              userSelect: 'none',
-            }}
-          >
-            {name}
-          </span>
-        ))}
       </div>
     </section>
   );
