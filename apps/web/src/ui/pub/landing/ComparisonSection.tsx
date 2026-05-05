@@ -166,10 +166,32 @@ export function ComparisonSection() {
                 className="pub-comparison-card"
                 style={
                   card.highlighted
-                    ? { boxShadow: '0 0 40px rgba(139,92,246,0.3)' }
+                    ? { boxShadow: '0 0 40px rgba(139,92,246,0.3)', position: 'relative' }
                     : {}
                 }
               >
+                {card.highlighted && (
+                  <span
+                    style={{
+                      position: 'absolute',
+                      top: 16,
+                      right: 16,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      padding: '5px 12px',
+                      borderRadius: 'var(--pub-radius-pill)',
+                      fontFamily: 'var(--pub-font-body)',
+                      fontSize: 11,
+                      fontWeight: 600,
+                      letterSpacing: 0.4,
+                      textTransform: 'uppercase',
+                      background: '#FFFFFF',
+                      color: 'var(--pub-accent-purple)',
+                    }}
+                  >
+                    {t('comparison.recommendedLabel')}
+                  </span>
+                )}
                 <div
                   style={{
                     width: 44,

@@ -98,16 +98,28 @@ export function HeroSection({ onSignup, onLogin, registrationEnabled = true }: H
 
       {/* Trust Text */}
       {registrationEnabled && (
-        <p
-          style={{
-            fontFamily: 'var(--pub-font-body)',
-            fontSize: 14,
-            color: 'rgba(255,255,255,0.5)',
-            marginBottom: 56,
-          }}
-        >
-          {t('hero.trustNoCreditCard')} &middot; {t('hero.trustQuickSetup')}
-        </p>
+        <div style={{ marginBottom: 56, textAlign: 'center' }}>
+          <p
+            style={{
+              fontFamily: 'var(--pub-font-body)',
+              fontSize: 14,
+              color: 'rgba(255,255,255,0.5)',
+              marginBottom: 8,
+            }}
+          >
+            {t('hero.trustNoCreditCard')} &middot; {t('hero.trustQuickSetup')} &middot; {t('hero.trustGdpr')}
+          </p>
+          <p
+            style={{
+              fontFamily: 'var(--pub-font-body)',
+              fontSize: 13,
+              fontStyle: 'italic',
+              color: 'rgba(255,255,255,0.7)',
+            }}
+          >
+            {t('hero.urgency')}
+          </p>
+        </div>
       )}
       {!registrationEnabled && <div style={{ marginBottom: 56 }} />}
 

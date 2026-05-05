@@ -1,5 +1,6 @@
 import { PublicLayout } from '../layout/PublicLayout';
 import { HeroSection } from './HeroSection';
+import { TrustBarSection } from './TrustBarSection';
 import { ProblemSolutionSection } from './ProblemSolutionSection';
 import { FeatureShowcaseSection } from './FeatureShowcaseSection';
 import { SecondaryFeaturesSection } from './SecondaryFeaturesSection';
@@ -29,15 +30,16 @@ export function LandingPage({ onLogin, onSignup, onPricing: _onPricing, registra
   return (
     <PublicLayout onLogin={onLogin} onSignup={effectiveSignup} navigate={navigate} registrationEnabled={registrationEnabled}>
       <HeroSection onSignup={effectiveSignup} onLogin={onLogin} registrationEnabled={registrationEnabled} />
+      <TrustBarSection />
       <ProblemSolutionSection />
+      <HowItWorksSection />
       <FeatureShowcaseSection />
       <SecondaryFeaturesSection />
-      <HowItWorksSection />
-      <SocialProofSection />
       <ComparisonSection />
+      <SocialProofSection />
+      <OpenSourceSection />
       <PricingSection onSignup={effectiveSignup} registrationEnabled={registrationEnabled} />
       <FaqSection />
-      <OpenSourceSection />
       <FinalCtaSection onSignup={effectiveSignup} registrationEnabled={registrationEnabled} />
     </PublicLayout>
   );

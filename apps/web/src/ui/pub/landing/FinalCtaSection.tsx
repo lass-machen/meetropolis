@@ -128,6 +128,21 @@ export function FinalCtaSection({ onSignup, registrationEnabled = true }: FinalC
           <TrustItem text={t('cta.check2')} />
           <TrustItem text={t('cta.check3')} />
         </div>
+
+        {/* Honest anti-persona disclaimer — small, low contrast on purpose */}
+        <p
+          style={{
+            fontFamily: 'var(--pub-font-body)',
+            fontSize: 12,
+            fontStyle: 'italic',
+            color: 'rgba(255,255,255,0.32)',
+            maxWidth: 520,
+            marginTop: 40,
+            lineHeight: 1.6,
+          }}
+        >
+          {t('cta.honest')}
+        </p>
       </div>
     </section>
   );
