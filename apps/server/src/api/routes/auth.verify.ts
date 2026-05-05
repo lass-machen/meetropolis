@@ -4,7 +4,7 @@ import crypto from 'crypto';
 import { z } from 'zod';
 import { logger } from '../../logger.js';
 import { requireAuth } from '../utils/authHelpers.js';
-import { getEmailService, emailTemplates } from '../../services/email.js';
+import { sendIfAvailable } from '../../emailLoader.js';
 
 export async function handleVerifyRequest(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
   const auth = requireAuth(req);
@@ -45,19 +45,17 @@ export async function handleVerifyRequest(prisma: PrismaClient, req: express.Req
     const baseUrl = process.env.PUBLIC_BASE_URL || process.env.BILLING_PUBLIC_URL || req.headers.origin || fallbackHost;
     const verifyUrl = baseUrl ? `${baseUrl}/#/verify?token=${token}` : '';
 
-    const emailService = getEmailService();
-    const emailContent = emailTemplates.verifyEmail({
-      name: user.name || '',
-      verifyUrl,
-    });
-    emailContent.to = user.email;
+    const sent = await sendIfAvailable(
+      (mod) => mod.sendVerify({ to: user.email, name: user.name || '', verifyUrl }),
+      'auth.verify.email_failed',
+      { userId: user.id },
+    );
 
-    emailService.send(emailContent).catch((e) => {
-      logger.error({ event: 'auth.verify.email_failed', userId: user.id, error: String(e) });
-    });
-
+    // Wenn keine Mail rausging (OSS ohne Tenancy-Mail-Modul) liefern wir
+    // Token+Link direkt im Response, damit der User/Admin den Verify-Schritt
+    // out-of-band durchfuehren kann.
     const isDev = process.env.NODE_ENV !== 'production';
-    res.json({ ok: true, ...(isDev && { token }) });
+    res.json({ ok: true, sent, ...((!sent || isDev) && { token, verifyUrl }) });
   } catch (e: unknown) {
     logger.error({ event: 'auth.verify.request_failed', error: String(e) });
     res.status(500).json({ error: 'verification request failed' });

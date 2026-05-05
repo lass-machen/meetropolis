@@ -132,7 +132,7 @@ function RoleCell({ user, edit, canChangeRoles, currentUserId, onChange }: { use
   return <RoleBadge role={role} />;
 }
 
-function ResetTokenButton({ user, baseUrl, setError, openReset }: { user: User; baseUrl: string; setError: (e: string | null) => void; openReset: (data: { for: { id: string; email: string }; token: string | null }) => void }) {
+function ResetTokenButton({ user, baseUrl, setError, openReset }: { user: User; baseUrl: string; setError: (e: string | null) => void; openReset: (data: { for: { id: string; email: string }; token: string | null; resetUrl?: string | null }) => void }) {
   const { t } = useTranslation();
   return (
     <Button
@@ -140,10 +140,10 @@ function ResetTokenButton({ user, baseUrl, setError, openReset }: { user: User; 
       onClick={async () => {
         try {
           setError(null);
-          const res = await fetch(`${baseUrl}/auth/forgot`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ email: user.email }) });
+          const res = await fetch(`${baseUrl}/admin/users/${user.id}/reset-token`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include' });
           const data = await res.json();
           if (!res.ok) throw new Error(translateApiError(data?.error) || 'Failed');
-          openReset({ for: { id: user.id, email: user.email }, token: data.token || null });
+          openReset({ for: { id: user.id, email: user.email }, token: data.token || null, resetUrl: data.resetUrl || null });
         } catch (e: unknown) {
           setError((e instanceof Error ? e.message : String(e)) || 'Fehler');
         }
@@ -302,24 +302,36 @@ function CreateUserModal({ open, onOpenChange, baseUrl, isOwner, setError }: { o
   );
 }
 
-function ResetModal({ open, onOpenChange, resetFor, resetToken }: { open: boolean; onOpenChange: (v: boolean) => void; resetFor: { id: string; email: string } | null; resetToken: string | null }) {
+function ResetModal({ open, onOpenChange, resetFor, resetToken, resetUrl }: { open: boolean; onOpenChange: (v: boolean) => void; resetFor: { id: string; email: string } | null; resetToken: string | null; resetUrl: string | null }) {
   const { t } = useTranslation();
   const copyToken = () => { try { if (resetToken) navigator.clipboard?.writeText(resetToken); } catch {} };
+  const copyUrl = () => { try { if (resetUrl) navigator.clipboard?.writeText(resetUrl); } catch {} };
   return (
     <Modal zIndexBase={1100} open={open} onOpenChange={onOpenChange} title={t('admin.users.resetTitle')} maxWidth={520} footer={<>
       <Button onClick={() => onOpenChange(false)}>{t('admin.users.close')}</Button>
-      {resetToken && (<Button onClick={copyToken}>{t('admin.users.copy')}</Button>)}
     </>}>
       <div style={{ display: 'grid', gap: 10 }}>
         <div className="glass-surface" style={{ padding: 12, borderRadius: 'var(--radius-sm)', display: 'grid', gap: 8 }}>
           <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>{t('admin.users.resetToken')}</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ flex: 1, padding: '10px 12px', borderRadius: 'var(--radius-xs)', border: '1px solid var(--border)', background: 'var(--glass)', color: 'var(--fg)', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontWeight: 700, letterSpacing: '0.06em' }}>{resetToken || '—'}</div>
+            <div style={{ flex: 1, padding: '10px 12px', borderRadius: 'var(--radius-xs)', border: '1px solid var(--border)', background: 'var(--glass)', color: 'var(--fg)', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontWeight: 700, letterSpacing: '0.06em', wordBreak: 'break-all' }}>{resetToken || '—'}</div>
             {resetToken && (<Button onClick={copyToken}>{t('admin.users.copy')}</Button>)}
           </div>
         </div>
+        {resetUrl && (
+          <div className="glass-surface" style={{ padding: 12, borderRadius: 'var(--radius-sm)', display: 'grid', gap: 8 }}>
+            <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>Reset-Link</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ flex: 1, padding: '10px 12px', borderRadius: 'var(--radius-xs)', border: '1px solid var(--border)', background: 'var(--glass)', color: 'var(--fg)', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 12, wordBreak: 'break-all' }}>{resetUrl}</div>
+              <Button onClick={copyUrl}>{t('admin.users.copy')}</Button>
+            </div>
+          </div>
+        )}
         <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>
           {t('admin.users.resetHint')}{resetFor?.email ? ` (${resetFor.email})` : ''}
+        </div>
+        <div style={{ fontSize: 11, color: 'var(--fg-subtle)', borderLeft: '2px solid var(--accent)', paddingLeft: 8 }}>
+          Wird nicht erneut angezeigt — jetzt kopieren und out-of-band weitergeben (gültig 30 Min).
         </div>
       </div>
     </Modal>
@@ -335,11 +347,13 @@ export function UserManagement(props: { baseUrl: string; onBack: () => void }) {
   const [resetOpen, setResetOpen] = React.useState(false);
   const [resetFor, setResetFor] = React.useState<{ id: string; email: string } | null>(null);
   const [resetToken, setResetToken] = React.useState<string | null>(null);
+  const [resetUrl, setResetUrl] = React.useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = React.useState<string | null>(null);
 
-  const openReset = (data: { for: { id: string; email: string }; token: string | null }) => {
+  const openReset = (data: { for: { id: string; email: string }; token: string | null; resetUrl?: string | null }) => {
     setResetFor(data.for);
     setResetToken(data.token);
+    setResetUrl(data.resetUrl || null);
     setResetOpen(true);
   };
   const handleDelete = async (id: string) => { setConfirmDeleteId(null); await remove(id); };
@@ -392,7 +406,7 @@ export function UserManagement(props: { baseUrl: string; onBack: () => void }) {
       </Card>
 
       <CreateUserModal open={createOpen} onOpenChange={setCreateOpen} baseUrl={baseUrl} isOwner={isOwner} setError={setError} />
-      <ResetModal open={resetOpen} onOpenChange={setResetOpen} resetFor={resetFor} resetToken={resetToken} />
+      <ResetModal open={resetOpen} onOpenChange={setResetOpen} resetFor={resetFor} resetToken={resetToken} resetUrl={resetUrl} />
     </div>
   );
 }

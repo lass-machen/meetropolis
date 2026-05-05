@@ -16,6 +16,7 @@ import { registerMapObjectRoutes } from './api/routes/mapObjects.js';
 import { registerNpcRoutes } from './api/routes/npcs.js';
 import { registerNpcMediaRoutes } from './api/routes/npcMedia.js';
 import { registerAdminMapRoutes } from './api/routes/adminMaps.js';
+import { registerAdminPasswordResetRoutes } from './api/routes/admin.passwordReset.js';
 import { copyMapToTenant } from './api/routes/adminMaps.js';
 import { registerGuestRoutes } from './api/routes/guests.js';
 import { registerDesktopRoutes } from './api/routes/desktop.js';
@@ -41,7 +42,7 @@ import { getAdminEnterpriseModule } from './adminLoader.js';
 import { getBillingModule } from './billingLoader.js';
 import { getTenancyModule } from './tenancyLoader.js';
 import { logger } from './logger.js';
-import { getEmailService, emailTemplates } from './services/email.js';
+import { getEmailModule, sendIfAvailable } from './emailLoader.js';
 
 const prisma = new PrismaClient();
 
@@ -77,24 +78,16 @@ async function copyTemplateMapsForSignup(prismaClient: PrismaClient, tenantId: s
 }
 
 function sendSignupWelcomeEmail(params: { email: string; name: string; slug: string; tenantId: string }): void {
-  const { email, name, slug: _slug, tenantId } = params;
-  // Self-Hoster setzen `PUBLIC_BASE_URL` (oder das ältere `BILLING_PUBLIC_URL`)
-  // auf ihre öffentliche Domain. Ohne Setzung bleibt der Link leer und das
-  // Welcome-Mail enthält keinen Direkt-Link; der Empfänger muss manuell
-  // navigieren. Brand-Domains (`*.meetropolis.de`) sind ausschließlich im
-  // Enterprise-Brand-Setup gesetzt.
+  const { email, name, tenantId } = params;
   const baseUrl = process.env.PUBLIC_BASE_URL || process.env.BILLING_PUBLIC_URL || '';
   const loginUrl = baseUrl ? `${baseUrl.replace(/\/$/, '')}/#/app` : '';
-  const emailService = getEmailService();
-  const emailContent = emailTemplates.welcomeTenant({
-    name,
-    tenantName: name,
-    loginUrl,
-  });
-  emailContent.to = email;
-  emailService.send(emailContent).catch((e: unknown) => {
-    logger.error({ event: 'signup.welcome_email_failed', tenantId, error: String(e) });
-  });
+  // OSS-Build ohne Tenancy-Submodul: stiller No-Op (RootAdmin sieht den
+  // Tenant ohnehin direkt im UI). Mit Tenancy + RESEND_API_KEY: Mail raus.
+  void sendIfAvailable(
+    (mod) => mod.sendWelcome({ to: email, name, tenantName: name, loginUrl }),
+    'signup.welcome_email_failed',
+    { tenantId },
+  );
 }
 
 async function registerEnterpriseAdminRoutes(app: express.Express) {
@@ -165,10 +158,17 @@ function requireTenantAdminMiddleware(req: any, res: any, next: any): void {
 async function buildBillingRouter(billingModule: NonNullable<Awaited<ReturnType<typeof getBillingModule>>>) {
   const Stripe = (await import('stripe')).default;
   const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2023-10-16' });
-  const emailServiceImpl = getEmailService();
+  // Billing-DI: delegiert an das (optionale) Tenancy-Mail-Modul. Wenn keines
+  // geladen ist, ist `send` ein stiller No-Op — Billing-Webhooks/Cron laufen
+  // weiter, schicken aber nichts. (Im Enterprise-Build ist tenancy immer da.)
+  const emailModule = await getEmailModule();
   const emailService = {
     async send(email: { to: string; subject: string; text: string; html: string }): Promise<void> {
-      await emailServiceImpl.send(email);
+      if (!emailModule) {
+        logger.warn({ event: 'billing.email_module_unavailable', to: email.to, subject: email.subject });
+        return;
+      }
+      await emailModule.sendRaw(email);
     },
   };
 
@@ -244,6 +244,7 @@ export async function registerApi(app: express.Express) {
   registerAdminRoutes(app, prisma);
   registerTenantRoutes(app, prisma);
   registerAdminMapRoutes(app, prisma);
+  registerAdminPasswordResetRoutes(app, prisma);
 
   registerLegacyModularRoutes(app);
 }

@@ -13,7 +13,7 @@ import {
   normalizeEmailForStorage,
 } from '../utils/authHelpers.js';
 import { getTenancyModule } from '../../tenancyLoader.js';
-import { getEmailService, emailTemplates } from '../../services/email.js';
+import { sendIfAvailable } from '../../emailLoader.js';
 
 type GuestAdminGate = {
   ok: true;
@@ -124,19 +124,18 @@ async function sendGuestInviteEmail(
   const inviterName = inviter?.name || inviter?.email || 'Someone';
   const tenantName = tenantRecord?.name || slug;
 
-  const emailContent = emailTemplates.guestInvite({
-    inviterName,
-    tenantName,
-    guestName: name || user.name || '',
-    magicLinkUrl: magicLink,
-    expiresAt: expiresAt.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
-  });
-  emailContent.to = normalizedEmail;
-
-  const emailService = getEmailService();
-  emailService.send(emailContent).catch((e) => {
-    logger.error({ event: 'guest.invite.email_failed', email: normalizedEmail, error: String(e) });
-  });
+  void sendIfAvailable(
+    (mod) => mod.sendGuestInvite({
+      to: normalizedEmail,
+      inviterName,
+      tenantName,
+      guestName: name || user.name || '',
+      magicLinkUrl: magicLink,
+      expiresAt: expiresAt.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+    }),
+    'guest.invite.email_failed',
+    { email: normalizedEmail },
+  );
 
   return magicLink;
 }

@@ -17,6 +17,7 @@ import {
 import { hasBillingModule } from '../../billingLoader.js';
 import { hasAdminEnterpriseModule } from '../../adminLoader.js';
 import { getTenancyModule } from '../../tenancyLoader.js';
+import { sendIfAvailable } from '../../emailLoader.js';
 import { recordSession, isNativeClientRequest, getRequestToken } from './auth.helpers.js';
 
 const inviteSchema = z.object({
@@ -43,7 +44,31 @@ export async function handleAuthInvite(prisma: PrismaClient, req: express.Reques
   const inv = await prisma.invite.create({
     data: { code, email: normalizedEmail, createdBy: auth.userId, tenantId: tenant.id, role: allowedRole },
   });
-  res.json({ code: inv.code, role: allowedRole });
+
+  // Best-effort Mail-Versand wenn Tenancy-Mail-Modul geladen ist. Im OSS-Build
+  // ohne Submodul: stiller No-Op — der Code wird unten im JSON-Response zurueckgegeben
+  // und der Admin teilt ihn manuell mit.
+  const inviter = await prisma.user.findUnique({
+    where: { id: auth.userId },
+    select: { name: true, email: true },
+  });
+  const inviterName = inviter?.name || inviter?.email || 'Someone';
+  const baseUrl = process.env.PUBLIC_BASE_URL || process.env.BILLING_PUBLIC_URL || '';
+  const inviteUrl = baseUrl
+    ? `${baseUrl.replace(/\/$/, '')}/#/?invite=${inv.code}`
+    : `/#/?invite=${inv.code}`;
+  void sendIfAvailable(
+    (mod) => mod.sendInvite({
+      to: normalizedEmail,
+      inviterName,
+      tenantName: tenant.slug,
+      inviteUrl,
+    }),
+    'invite.email_failed',
+    { tenantId: tenant.id, inviteCode: inv.code },
+  );
+
+  res.json({ code: inv.code, role: allowedRole, inviteUrl });
 }
 
 const registerSchema = z.object({

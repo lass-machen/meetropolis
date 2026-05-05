@@ -1,51 +1,27 @@
 import type express from 'express';
 import { PrismaClient } from '../../generated/prisma/index.js';
 import bcrypt from 'bcryptjs';
-import crypto from 'crypto';
 import { z } from 'zod';
 import { logger } from '../../logger.js';
 import {
   requireAuth,
-  normalizeEmailForStorage,
   normalizeEmailForMatching,
 } from '../utils/authHelpers.js';
-import { getEmailService, emailTemplates } from '../../services/email.js';
 
 const forgotSchema = z.object({ email: z.string().email() });
 
-export async function handleAuthForgot(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
+/**
+ * Self-Service-Forgot ist deaktiviert. Reset-Tokens fuer sensible Aktionen
+ * werden NIE per Mail verschickt — auch nicht im Tenancy-Setup. Stattdessen
+ * erzeugt ein Admin Reset-Tokens ueber die Admin-UI und gibt sie
+ * out-of-band an den User weiter. Endpoint antwortet still 200, um keine
+ * User-Enumerierung zu erlauben.
+ */
+export async function handleAuthForgot(_prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
   const parse = forgotSchema.safeParse(req.body || {});
   if (!parse.success) { res.status(400).json({ error: 'email required' }); return; }
-  const email = parse.data.email;
-  const emailLookup = normalizeEmailForStorage(email);
-  const user = await prisma.user.findFirst({ where: { email: { equals: emailLookup, mode: 'insensitive' } } });
-  if (!user) { res.json({ ok: true }); return; }
-
-  const token = crypto.randomBytes(24).toString('hex');
-  const expiresAt = new Date(Date.now() + 1000 * 60 * 30);
-  await prisma.passwordReset.create({ data: { token, userId: user.id, expiresAt } });
-
-  // Public base URL für Reset-Link. Reihenfolge:
-  // 1. PUBLIC_BASE_URL / BILLING_PUBLIC_URL (Self-Hoster setzen das)
-  // 2. Origin-Header der Request (klappt für Web-getriggerte Resets)
-  // 3. Host-Header als Fallback (verhindert Brand-Domain-Leak)
-  const fallbackHost = req.headers.host ? `https://${req.headers.host}` : '';
-  const baseUrl = process.env.PUBLIC_BASE_URL || process.env.BILLING_PUBLIC_URL || req.headers.origin || fallbackHost;
-  const resetUrl = baseUrl ? `${baseUrl}/#/reset?token=${token}&email=${encodeURIComponent(email)}` : '';
-
-  const emailService = getEmailService();
-  const emailContent = emailTemplates.resetPassword({
-    name: user.name || '',
-    resetUrl,
-  });
-  emailContent.to = email;
-
-  emailService.send(emailContent).catch((e) => {
-    logger.error({ event: 'auth.forgot.email_failed', userId: user.id, error: String(e) });
-  });
-
-  const isDev = process.env.NODE_ENV !== 'production';
-  res.json({ ok: true, ...(isDev && { token }) });
+  logger.warn({ event: 'auth.forgot.disabled', email: parse.data.email });
+  res.json({ ok: true });
 }
 
 const resetSchema = z.object({
