@@ -15,24 +15,90 @@
  * Submodule grün durchlaufen.
  */
 import type { Plugin } from 'vite';
-import { resolve } from 'path';
-import { existsSync, mkdirSync, symlinkSync } from 'fs';
+import { resolve, dirname, join } from 'path';
+import { existsSync, mkdirSync, symlinkSync, readdirSync, lstatSync, readlinkSync, statSync } from 'fs';
 
-type OptionalSubmoduleSpec = string | { id: string; path: string };
+type OptionalSubmoduleSpec =
+  | string
+  | { id: string; path: string; publicDir?: string };
 
 function defaultPathFor(id: string): string {
   const pkgName = id.replace(/^@meetropolis\//, '');
   return `packages/${pkgName}`;
 }
 
-function normalizeSpec(spec: OptionalSubmoduleSpec): { id: string; path: string } {
+function normalizeSpec(
+  spec: OptionalSubmoduleSpec,
+): { id: string; path: string; publicDir?: string } {
   return typeof spec === 'string' ? { id: spec, path: defaultPathFor(spec) } : spec;
+}
+
+/**
+ * Symlinkt alle Files aus `submodulePublicDir` rekursiv nach `targetPublicDir`.
+ * - Pro Datei (nicht pro Top-Level-Folder), damit OSS-Folder wie `images/`
+ *   nicht durch einen einzelnen Submodule-Symlink überschrieben werden.
+ * - Existierende Dateien in `targetPublicDir` werden NICHT überschrieben
+ *   (OSS-eigene Assets gewinnen).
+ * - Existierende Symlinks zum gleichen Ziel sind OK (idempotent).
+ * - Fail silently bei Symlink-Fehlern.
+ */
+function linkPublicAssets(submodulePublicDir: string, targetPublicDir: string): void {
+  if (!existsSync(submodulePublicDir)) return;
+
+  const walk = (srcDir: string, dstDir: string) => {
+    let entries: string[] = [];
+    try {
+      entries = readdirSync(srcDir);
+    } catch {
+      return;
+    }
+    for (const name of entries) {
+      const srcPath = join(srcDir, name);
+      const dstPath = join(dstDir, name);
+      let srcStat;
+      try {
+        srcStat = statSync(srcPath);
+      } catch {
+        continue;
+      }
+      if (srcStat.isDirectory()) {
+        try {
+          mkdirSync(dstDir, { recursive: true });
+        } catch {}
+        walk(srcPath, dstPath);
+        continue;
+      }
+      // File: symlink anlegen falls Ziel noch nicht existiert
+      if (existsSync(dstPath)) {
+        // Existierender Symlink zum gleichen Ziel? -> OK, sonst überspringen.
+        try {
+          const lst = lstatSync(dstPath);
+          if (lst.isSymbolicLink()) {
+            const current = readlinkSync(dstPath);
+            const resolvedCurrent = resolve(dirname(dstPath), current);
+            if (resolvedCurrent === srcPath) continue;
+          }
+        } catch {}
+        continue;
+      }
+      try {
+        mkdirSync(dirname(dstPath), { recursive: true });
+        symlinkSync(srcPath, dstPath, 'file');
+      } catch {}
+    }
+  };
+
+  walk(submodulePublicDir, targetPublicDir);
 }
 
 export const OPTIONAL_SUBMODULES: OptionalSubmoduleSpec[] = [
   '@meetropolis/desktop',
   { id: '@meetropolis/enterprise-web', path: 'packages/tenancy-enterprise/packages/enterprise-web' },
-  { id: '@meetropolis/brand-web', path: 'packages/brand/packages/web' },
+  {
+    id: '@meetropolis/brand-web',
+    path: 'packages/brand/packages/web',
+    publicDir: 'packages/brand/packages/web/public',
+  },
 ];
 
 export function optionalSubmodules(specs: OptionalSubmoduleSpec[] = OPTIONAL_SUBMODULES, repoRoot = resolve(__dirname, '../..')): Plugin {
@@ -40,7 +106,9 @@ export function optionalSubmodules(specs: OptionalSubmoduleSpec[] = OPTIONAL_SUB
   const set = new Set(normalized.map((s) => s.id));
 
   const present = new Set<string>();
-  for (const { id, path: relPath } of normalized) {
+  const targetPublicDir = resolve(repoRoot, 'apps/web/public');
+  for (const spec of normalized) {
+    const { id, path: relPath, publicDir } = spec;
     const pkgName = id.replace(/^@meetropolis\//, '');
     const pkgDir = resolve(repoRoot, relPath);
     const pkgJson = resolve(pkgDir, 'package.json');
@@ -54,6 +122,15 @@ export function optionalSubmodules(specs: OptionalSubmoduleSpec[] = OPTIONAL_SUB
           mkdirSync(linkDir, { recursive: true });
           symlinkSync(pkgDir, linkPath, 'dir');
         } catch {}
+      }
+
+      // Public-Assets aus dem Submodule nach apps/web/public/ symlinken.
+      // Default: <path>/public falls vorhanden, sonst expliziter publicDir.
+      const submodulePublicDir = publicDir
+        ? resolve(repoRoot, publicDir)
+        : resolve(pkgDir, 'public');
+      if (existsSync(submodulePublicDir)) {
+        linkPublicAssets(submodulePublicDir, targetPublicDir);
       }
     }
   }

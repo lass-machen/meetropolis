@@ -98,3 +98,22 @@ tools/*.mepack
 tools/DemoPack/
 tools/interior_tiles.png
 tools/wall-1.png
+
+# === Brand-Submodule-Symlinks ===
+# apps/web/optional-submodules.ts symlinkt Public-Assets aus
+# packages/brand/packages/web/public/ rekursiv nach apps/web/public/.
+# Diese Symlinks sind Runtime-Artefakte und gehören nicht ins OSS-Repo.
+# OSS-eigene Files in apps/web/public/ bleiben getrackt; nur die vom Brand-
+# Submodule beigesteuerten Pfade werden hier ignoriert.
+/apps/web/public/favicon.ico
+/apps/web/public/brand/README.md
+/apps/web/public/brand/favicon.png
+/apps/web/public/brand/logo.png
+/apps/web/public/images/pub/auth-branding-pixel-art-lobby.png
+/apps/web/public/images/pub/hero-product-visual-2.png
+/apps/web/public/images/pub/meetropolis-editor.webm
+/apps/web/public/images/pub/meetropolis-screen-2.webp
+/apps/web/public/images/pub/meetropolis-screen-3.webp
+/apps/web/public/images/pub/meetropolis-screen-4.webp
+/apps/web/public/images/pub/meetropolis-screen-5.webp
+/apps/web/public/images/pub/meetropolis-screen-hero.webp
