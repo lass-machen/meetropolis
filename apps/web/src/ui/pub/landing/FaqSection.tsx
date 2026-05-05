@@ -27,10 +27,90 @@ const FAQ_ITEMS: FaqItem[] = [
   { questionKey: 'faq.q6Question', answerKey: 'faq.q6Answer' },
 ];
 
+const FAQ_STYLES = `
+  .pub-faq-item {
+    border: 1px solid var(--pub-bg-surface-hover);
+    border-radius: 12px;
+    margin-bottom: 12px;
+    background: var(--pub-bg-primary);
+  }
+  .pub-faq-item summary {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    padding: 20px 24px;
+    cursor: pointer;
+    list-style: none;
+    font-family: var(--pub-font-display);
+    font-weight: 600;
+    font-size: 16px;
+    color: var(--pub-text-primary);
+  }
+  .pub-faq-item summary::-webkit-details-marker {
+    display: none;
+  }
+  .pub-faq-item summary svg {
+    transition: transform 0.2s;
+    flex-shrink: 0;
+    color: var(--pub-text-secondary);
+  }
+  .pub-faq-item[open] summary svg {
+    transform: rotate(180deg);
+  }
+  .pub-faq-answer {
+    padding: 0 24px 20px;
+    font-family: var(--pub-font-body);
+    font-size: 15px;
+    line-height: 1.7;
+    color: var(--pub-text-secondary);
+  }
+`;
+
+/* ---------- Sub-Components ---------- */
+
+function FaqHeader() {
+  const { t } = useTranslation('public');
+  return (
+    <div style={{ textAlign: 'center', marginBottom: 48 }}>
+      <div style={{ marginBottom: 24 }}>
+        <PubBadge variant="purple">
+          {t('faq.badge')}
+        </PubBadge>
+      </div>
+      <h2 className="pub-text-h2" style={{ marginBottom: 16 }}>
+        {t('faq.title')}
+      </h2>
+      <p
+        className="pub-text-subline"
+        style={{ maxWidth: 560, margin: '0 auto' }}
+      >
+        {t('faq.subtitle')}
+      </p>
+    </div>
+  );
+}
+
+function FaqList() {
+  const { t } = useTranslation('public');
+  return (
+    <div style={{ maxWidth: 720, margin: '0 auto' }}>
+      {FAQ_ITEMS.map((item) => (
+        <details key={item.questionKey} className="pub-faq-item">
+          <summary>
+            <span>{t(item.questionKey)}</span>
+            <ChevronDownIcon />
+          </summary>
+          <div className="pub-faq-answer">{t(item.answerKey)}</div>
+        </details>
+      ))}
+    </div>
+  );
+}
+
 /* ---------- Component ---------- */
 
 export function FaqSection() {
-  const { t } = useTranslation('public');
   const sectionRef = useRef<HTMLElement>(null);
   useReveal(sectionRef);
 
@@ -45,78 +125,10 @@ export function FaqSection() {
       }}
     >
       <div className="pub-container">
-        {/* Header */}
-        <div style={{ textAlign: 'center', marginBottom: 48 }}>
-          <div style={{ marginBottom: 24 }}>
-            <PubBadge variant="purple">
-              {t('faq.badge')}
-            </PubBadge>
-          </div>
-          <h2 className="pub-text-h2" style={{ marginBottom: 16 }}>
-            {t('faq.title')}
-          </h2>
-          <p
-            className="pub-text-subline"
-            style={{ maxWidth: 560, margin: '0 auto' }}
-          >
-            {t('faq.subtitle')}
-          </p>
-        </div>
-
-        {/* FAQ List */}
-        <div style={{ maxWidth: 720, margin: '0 auto' }}>
-          {FAQ_ITEMS.map((item) => (
-            <details key={item.questionKey} className="pub-faq-item">
-              <summary>
-                <span>{t(item.questionKey)}</span>
-                <ChevronDownIcon />
-              </summary>
-              <div className="pub-faq-answer">{t(item.answerKey)}</div>
-            </details>
-          ))}
-        </div>
+        <FaqHeader />
+        <FaqList />
       </div>
-
-      {/* Section-specific styles */}
-      <style>{`
-        .pub-faq-item {
-          border: 1px solid var(--pub-bg-surface-hover);
-          border-radius: 12px;
-          margin-bottom: 12px;
-          background: var(--pub-bg-primary);
-        }
-        .pub-faq-item summary {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          gap: 16px;
-          padding: 20px 24px;
-          cursor: pointer;
-          list-style: none;
-          font-family: var(--pub-font-display);
-          font-weight: 600;
-          font-size: 16px;
-          color: var(--pub-text-primary);
-        }
-        .pub-faq-item summary::-webkit-details-marker {
-          display: none;
-        }
-        .pub-faq-item summary svg {
-          transition: transform 0.2s;
-          flex-shrink: 0;
-          color: var(--pub-text-secondary);
-        }
-        .pub-faq-item[open] summary svg {
-          transform: rotate(180deg);
-        }
-        .pub-faq-answer {
-          padding: 0 24px 20px;
-          font-family: var(--pub-font-body);
-          font-size: 15px;
-          line-height: 1.7;
-          color: var(--pub-text-secondary);
-        }
-      `}</style>
+      <style>{FAQ_STYLES}</style>
     </section>
   );
 }

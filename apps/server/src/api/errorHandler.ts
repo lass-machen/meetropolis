@@ -42,46 +42,38 @@ function getUserContext(req: Request): { userId?: string; userEmail?: string } {
   return {};
 }
 
-/**
- * Central error handler middleware
- * Should be the last middleware in the chain
- *
- * Handles both operational errors (AppError) and unexpected errors
- * Logs all errors with full context and stack traces
- * Returns structured JSON error responses
- */
-export function errorHandler(err: unknown, req: Request, res: Response, _next: NextFunction) {
-  const isProd = process.env.NODE_ENV === 'production';
-  const correlationId = getCorrelationId(req);
+type NormalizedError = {
+  statusCode: number;
+  code: string;
+  message: string;
+  isOperational: boolean;
+};
 
-  // Set correlation ID in response header for debugging
-  res.setHeader('X-Correlation-Id', correlationId);
-
-  // Default error values
-  let statusCode = 500;
-  let code = 'INTERNAL_ERROR';
-  let message = 'Internal Server Error';
-  let isOperational = false;
-
-  // Determine if this is an operational (known) error
+function normalizeError(err: unknown): NormalizedError {
   if (err instanceof AppError) {
-    statusCode = err.statusCode;
-    code = err.code;
-    message = err.message;
-    isOperational = err.isOperational;
-  } else if (err instanceof Error) {
-    message = err.message;
-  } else if (typeof err === 'string') {
-    message = err;
+    return {
+      statusCode: err.statusCode,
+      code: err.code,
+      message: err.message,
+      isOperational: err.isOperational,
+    };
   }
+  if (err instanceof Error) {
+    return { statusCode: 500, code: 'INTERNAL_ERROR', message: err.message, isOperational: false };
+  }
+  if (typeof err === 'string') {
+    return { statusCode: 500, code: 'INTERNAL_ERROR', message: err, isOperational: false };
+  }
+  return { statusCode: 500, code: 'INTERNAL_ERROR', message: 'Internal Server Error', isOperational: false };
+}
 
-  // Build logging context
+function logErrorWithContext(err: unknown, req: Request, normalized: NormalizedError, correlationId: string) {
   const logContext = {
     event: 'http.error',
     correlationId,
-    statusCode,
-    code,
-    isOperational,
+    statusCode: normalized.statusCode,
+    code: normalized.code,
+    isOperational: normalized.isOperational,
     method: req.method,
     path: req.path,
     url: req.url,
@@ -91,19 +83,16 @@ export function errorHandler(err: unknown, req: Request, res: Response, _next: N
     ...getUserContext(req),
   };
 
-  // Log error with full stack trace
-  if (isOperational) {
-    // Operational errors are expected, log at warn level
+  if (normalized.isOperational) {
     logger.warn({
       ...logContext,
-      message: message,
+      message: normalized.message,
       stack: err instanceof Error ? err.stack : undefined,
     });
   } else {
-    // Unexpected errors are critical, log at error level with full details
     logger.error({
       ...logContext,
-      message: message,
+      message: normalized.message,
       stack: err instanceof Error ? err.stack : undefined,
       error: err instanceof Error ? {
         name: err.name,
@@ -112,8 +101,14 @@ export function errorHandler(err: unknown, req: Request, res: Response, _next: N
       } : String(err),
     });
   }
+}
 
-  // Send structured error response
+function buildErrorResponse(
+  err: unknown,
+  normalized: NormalizedError,
+  correlationId: string,
+  isProd: boolean,
+) {
   const response: {
     success: boolean;
     error: {
@@ -125,20 +120,37 @@ export function errorHandler(err: unknown, req: Request, res: Response, _next: N
   } = {
     success: false,
     error: {
-      code,
-      message: isProd && !isOperational ? 'Internal Server Error' : message,
+      code: normalized.code,
+      message: isProd && !normalized.isOperational ? 'Internal Server Error' : normalized.message,
     },
   };
 
-  // Include correlation ID in response for debugging
-  if (!isProd || isOperational) {
+  if (!isProd || normalized.isOperational) {
     response.error.correlationId = correlationId;
   }
 
-  // Include stack trace in development for debugging
   if (!isProd && err instanceof Error && err.stack) {
     response.error.stack = err.stack;
   }
 
-  res.status(statusCode).json(response);
+  return response;
+}
+
+/**
+ * Central error handler middleware
+ * Should be the last middleware in the chain
+ *
+ * Handles both operational errors (AppError) and unexpected errors
+ * Logs all errors with full context and stack traces
+ * Returns structured JSON error responses
+ */
+export function errorHandler(err: unknown, req: Request, res: Response, _next: NextFunction) {
+  const isProd = process.env.NODE_ENV === 'production';
+  const correlationId = getCorrelationId(req);
+  res.setHeader('X-Correlation-Id', correlationId);
+
+  const normalized = normalizeError(err);
+  logErrorWithContext(err, req, normalized, correlationId);
+  const response = buildErrorResponse(err, normalized, correlationId, isProd);
+  res.status(normalized.statusCode).json(response);
 }

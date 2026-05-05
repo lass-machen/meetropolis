@@ -46,43 +46,53 @@ interface CollisionSideEffectParams {
   wallChunkUpdates: Map<string, { _decoded: number[] }>;
 }
 
-/**
- * After painting walls_auto, sync collision layer:
- * collision=1 where wall>0, collision=0 where wall=0.
- */
-export async function applyCollisionSideEffect(params: CollisionSideEffectParams): Promise<ChunkUpdateResult[]> {
-  const { prisma, mapId, defaultChunkSize, rect, wallChunkSize, wallChunkUpdates } = params;
-
-  let collisionLayer = await prisma.mapLayer.findUnique({
+async function getOrCreateCollisionLayer(prisma: PrismaClient, mapId: string, defaultChunkSize: number) {
+  let layer = await prisma.mapLayer.findUnique({
     where: { mapId_name: { mapId, name: 'collision' } },
   });
-  if (!collisionLayer) {
-    collisionLayer = await prisma.mapLayer.create({
+  if (!layer) {
+    layer = await prisma.mapLayer.create({
       data: { mapId, name: 'collision', chunkSize: defaultChunkSize },
     });
   }
+  return layer;
+}
 
-  const colChunkSize = collisionLayer.chunkSize || 32;
-  const colCoordsSet = new Set<string>();
+function collectChunkCoords(rect: Rect, chunkSize: number): Array<{ x: number; y: number }> {
+  const set = new Set<string>();
   for (let y = rect.y0; y <= rect.y1; y++) {
     for (let x = rect.x0; x <= rect.x1; x++) {
-      colCoordsSet.add(`${Math.floor(x / colChunkSize)}:${Math.floor(y / colChunkSize)}`);
+      set.add(`${Math.floor(x / chunkSize)}:${Math.floor(y / chunkSize)}`);
     }
   }
-  const colCoords = [...colCoordsSet].map(k => {
+  return [...set].map(k => {
     const [cx, cy] = k.split(':');
     return { x: Number(cx), y: Number(cy) };
   });
+}
 
-  const existingColChunks = await prisma.mapChunk.findMany({
-    where: { layerId: collisionLayer.id, OR: colCoords },
-  });
-  const colChunks = new Map<string, ChunkData>();
-  for (const c of existingColChunks) {
-    colChunks.set(`${c.x}:${c.y}`, c as ChunkData);
+function ensureDecoded(cd: ChunkUpdate, colChunkSize: number) {
+  if (cd._decoded.length !== 0) return;
+  const c = cd.chunk;
+  if (c) {
+    const dataBuffer = c.data instanceof Buffer ? c.data : Buffer.from(c.data);
+    const pairs = decodeRlePairsFromBuffer(dataBuffer);
+    cd._decoded = rleDecodeToBooleans(pairs, colChunkSize * colChunkSize).map(b => b ? 1 : 0);
+  } else {
+    cd._decoded = new Array(colChunkSize * colChunkSize).fill(0);
   }
+}
 
+function computeCollisionUpdates(params: {
+  rect: Rect;
+  colChunkSize: number;
+  wallChunkSize: number;
+  wallChunkUpdates: Map<string, { _decoded: number[] }>;
+  existingColChunks: Map<string, ChunkData>;
+}): Map<string, ChunkUpdate> {
+  const { rect, colChunkSize, wallChunkSize, wallChunkUpdates, existingColChunks } = params;
   const colUpdates = new Map<string, ChunkUpdate>();
+
   for (let y = rect.y0; y <= rect.y1; y++) {
     for (let x = rect.x0; x <= rect.x1; x++) {
       const cx = Math.floor(x / colChunkSize);
@@ -91,27 +101,17 @@ export async function applyCollisionSideEffect(params: CollisionSideEffectParams
 
       let cd = colUpdates.get(chunkKey);
       if (!cd) {
-        const existing = colChunks.get(chunkKey);
+        const existing = existingColChunks.get(chunkKey);
         cd = { chunk: existing, cx, cy, modified: false, _decoded: [] };
         colUpdates.set(chunkKey, cd);
       }
 
-      if (cd._decoded.length === 0) {
-        const c = cd.chunk;
-        if (c) {
-          const dataBuffer = c.data instanceof Buffer ? c.data : Buffer.from(c.data);
-          const pairs = decodeRlePairsFromBuffer(dataBuffer);
-          cd._decoded = rleDecodeToBooleans(pairs, colChunkSize * colChunkSize).map(b => b ? 1 : 0);
-        } else {
-          cd._decoded = new Array(colChunkSize * colChunkSize).fill(0);
-        }
-      }
+      ensureDecoded(cd, colChunkSize);
 
       const rx = x % colChunkSize;
       const ry = y % colChunkSize;
       const idx = ry * colChunkSize + rx;
 
-      // Determine wall value from the already-computed wall chunk updates
       const wallCx = Math.floor(x / wallChunkSize);
       const wallCy = Math.floor(y / wallChunkSize);
       const wallChunkData = wallChunkUpdates.get(`${wallCx}:${wallCy}`);
@@ -127,17 +127,25 @@ export async function applyCollisionSideEffect(params: CollisionSideEffectParams
       }
     }
   }
+  return colUpdates;
+}
 
+async function persistCollisionUpdates(
+  prisma: PrismaClient,
+  layerId: string,
+  colUpdates: Map<string, ChunkUpdate>,
+  existingColChunks: Map<string, ChunkData>,
+): Promise<ChunkUpdateResult[]> {
   const results: ChunkUpdateResult[] = [];
   for (const [key, data] of colUpdates.entries()) {
     if (!data.modified) continue;
     const pairs = rleEncodeBooleans(data._decoded.map((v: number) => v !== 0));
     const buf = encodeRlePairsToBuffer(pairs);
     const u8 = new Uint8Array(buf);
-    let chunk = colChunks.get(key);
+    let chunk = existingColChunks.get(key);
     if (!chunk) {
       chunk = await prisma.mapChunk.create({
-        data: { layerId: collisionLayer.id, x: data.cx, y: data.cy, version: 1, encoding: 'rle-bool', data: u8 },
+        data: { layerId, x: data.cx, y: data.cy, version: 1, encoding: 'rle-bool', data: u8 },
       }) as ChunkData;
     } else {
       chunk = await prisma.mapChunk.update({
@@ -147,6 +155,35 @@ export async function applyCollisionSideEffect(params: CollisionSideEffectParams
     }
     results.push({ key, version: chunk.version, encoding: chunk.encoding, data: buf.toString('base64') });
   }
-
   return results;
+}
+
+/**
+ * After painting walls_auto, sync collision layer:
+ * collision=1 where wall>0, collision=0 where wall=0.
+ */
+export async function applyCollisionSideEffect(params: CollisionSideEffectParams): Promise<ChunkUpdateResult[]> {
+  const { prisma, mapId, defaultChunkSize, rect, wallChunkSize, wallChunkUpdates } = params;
+
+  const collisionLayer = await getOrCreateCollisionLayer(prisma, mapId, defaultChunkSize);
+  const colChunkSize = collisionLayer.chunkSize || 32;
+
+  const colCoords = collectChunkCoords(rect, colChunkSize);
+  const existingColChunksList = await prisma.mapChunk.findMany({
+    where: { layerId: collisionLayer.id, OR: colCoords },
+  });
+  const existingColChunks = new Map<string, ChunkData>();
+  for (const c of existingColChunksList) {
+    existingColChunks.set(`${c.x}:${c.y}`, c as ChunkData);
+  }
+
+  const colUpdates = computeCollisionUpdates({
+    rect,
+    colChunkSize,
+    wallChunkSize,
+    wallChunkUpdates,
+    existingColChunks,
+  });
+
+  return persistCollisionUpdates(prisma, collisionLayer.id, colUpdates, existingColChunks);
 }
