@@ -70,7 +70,10 @@ const AUTH_LAYOUT_STYLES = `
   }
 `;
 
-function AuthLogo() {
+function AuthLogo({ t }: { t: (k: string) => string }) {
+  const raw = t('header.brandName');
+  const brandName = raw && raw !== 'header.brandName' ? raw : 'Workspace';
+  const brandInitial = brandName.trim().charAt(0).toUpperCase() || 'W';
   return (
     <a
       href="#/"
@@ -82,16 +85,24 @@ function AuthLogo() {
         background: 'rgba(255, 255, 255, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center',
         color: '#FFFFFF', fontFamily: 'var(--pub-font-display)', fontWeight: 800, fontSize: 18,
       }}>
-        M
+        {brandInitial}
       </div>
       <span style={{ fontFamily: 'var(--pub-font-display)', fontWeight: 700, fontSize: 18, color: '#FFFFFF' }}>
-        Meetropolis
+        {brandName}
       </span>
     </a>
   );
 }
 
 function AuthBrandingCenter({ t }: { t: (k: string) => string }) {
+  // Auth-Hero-Image kommt aus dem Brand-Submodule. Im OSS-Build ist der Pfad
+  // leer und das <img>-Element rendert ohne Bild (alt-text bleibt erhalten).
+  const heroSrcRaw = t('auth.heroImageSrc');
+  const heroSrc = heroSrcRaw && heroSrcRaw !== 'auth.heroImageSrc' ? heroSrcRaw : '';
+  const brandRaw = t('header.brandName');
+  const brandName = brandRaw && brandRaw !== 'header.brandName' ? brandRaw : 'Workspace';
+  const heroAltRaw = t('auth.heroImageAlt');
+  const heroAlt = heroAltRaw && heroAltRaw !== 'auth.heroImageAlt' ? heroAltRaw : brandName;
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 24 }}>
       <h1 style={{ fontFamily: 'var(--pub-font-display)', fontWeight: 800, fontSize: 32, lineHeight: 1.2, color: '#FFFFFF', margin: 0 }}>
@@ -100,11 +111,13 @@ function AuthBrandingCenter({ t }: { t: (k: string) => string }) {
       <p style={{ fontFamily: 'var(--pub-font-body)', fontSize: 16, lineHeight: 1.6, color: 'rgba(255, 255, 255, 0.75)', margin: 0 }}>
         {t('auth.brandingSubline')}
       </p>
-      <img
-        src="/images/pub/meetropolis-screen-hero.webp"
-        alt="Meetropolis virtuelles Büro"
-        style={{ width: '100%', maxWidth: 440, height: 'auto', borderRadius: 'var(--pub-radius-image)', objectFit: 'cover' }}
-      />
+      {heroSrc && (
+        <img
+          src={heroSrc}
+          alt={heroAlt}
+          style={{ width: '100%', maxWidth: 440, height: 'auto', borderRadius: 'var(--pub-radius-image)', objectFit: 'cover' }}
+        />
+      )}
     </div>
   );
 }
@@ -134,7 +147,7 @@ export function AuthLayout({ children }: AuthLayoutProps) {
   return (
     <div className="pub-auth-layout">
       <div className="pub-auth-layout__branding">
-        <AuthLogo />
+        <AuthLogo t={t} />
         <AuthBrandingCenter t={t} />
         <AuthTrustChecks t={t} />
       </div>

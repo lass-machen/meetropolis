@@ -56,7 +56,10 @@ function CloseIcon() {
   );
 }
 
-function HeaderLogo() {
+function HeaderLogo({ t }: { t: (k: string) => string }) {
+  const raw = t('header.brandName');
+  const brandName = raw && raw !== 'header.brandName' ? raw : 'Workspace';
+  const brandInitial = brandName.trim().charAt(0).toUpperCase() || 'W';
   return (
     <a
       href="#/"
@@ -68,10 +71,10 @@ function HeaderLogo() {
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         color: '#FFFFFF', fontFamily: 'var(--pub-font-display)', fontWeight: 800, fontSize: 18,
       }}>
-        M
+        {brandInitial}
       </div>
       <span style={{ fontFamily: 'var(--pub-font-display)', fontWeight: 700, fontSize: 18, color: 'var(--pub-text-primary)' }}>
-        Meetropolis
+        {brandName}
       </span>
     </a>
   );
@@ -178,7 +181,7 @@ export function PublicHeader({ onLogin, onSignup, registrationEnabled = true }: 
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         padding: 'var(--pub-header-padding)', maxWidth: 'var(--pub-max-width)', margin: '0 auto',
       }}>
-        <HeaderLogo />
+        <HeaderLogo t={t} />
         <DesktopNav t={t} />
         <DesktopActions t={t} onLogin={onLogin} onSignup={onSignup} registrationEnabled={registrationEnabled} />
         <button

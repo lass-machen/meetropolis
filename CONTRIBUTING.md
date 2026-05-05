@@ -139,9 +139,21 @@ Please read `AGENTS.md` for detailed quality guidelines. Key points:
 3. Documentation must be updated if applicable
 4. Screenshots/recordings for UI changes
 
-## License
+## License & Developer Certificate of Origin (DCO)
 
-By contributing, you agree that your contributions will be licensed under the Apache-2.0 License.
+By contributing, you agree that your contributions will be licensed under the
+Apache-2.0 License, and you certify the [Developer Certificate of Origin](https://developercertificate.org/) (DCO) — i.e. that you wrote the contribution
+yourself or have the right to submit it under the open-source license.
+
+If your PR depends on adding a new dependency, please call this out explicitly
+in the PR description and justify the choice.
+
+### Trademarks
+
+The Meetropolis name and logo are trademarks (see [TRADEMARKS.md](TRADEMARKS.md)).
+The Apache-2.0 license does **not** grant any trademark rights. Forks that
+intend to commercialize the codebase must replace all branding with their own
+(see TRADEMARKS.md → "Beim Forken/Self-Hosting").
 
 ## Questions?
 

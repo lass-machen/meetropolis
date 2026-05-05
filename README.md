@@ -230,9 +230,47 @@ lsof -i :5173
 
 ## OSS Edition Limits
 
-The open source edition includes a **25 concurrent user limit** per instance. This limit ensures fair use while keeping the core platform freely available.
+The open source edition includes a **25 concurrent user limit** per instance
+by default (configurable via `OSS_USER_LIMIT` env var). This limit ensures
+fair use while keeping the core platform freely available.
 
 For unlimited users and multi-tenant features, see [Enterprise Edition](docs/enterprise.md).
+
+## Self-Hosting Your Own Branded Instance
+
+The OSS edition contains **no** Meetropolis-specific marketing, legal pages,
+brand assets, or tracking pixels. Before deploying for your team or customers,
+you must:
+
+1. **Replace branding assets** in `apps/web/public/brand/` (logo, favicon).
+2. **Provide your own legal pages** (Privacy, Terms, Imprint). The OSS routes
+   `/privacy`, `/terms`, `/impressum` show a placeholder when the brand
+   submodule is not installed.
+3. **Update the HTML title and meta description** in `apps/web/index.html`.
+4. **Configure your own marketing tracking** (set `VITE_META_PIXEL_ID`) or
+   leave tracking disabled.
+5. **Adjust source-code strings** that still reference "Meetropolis" if you
+   intend to publish a derivative product (see [TRADEMARKS.md](TRADEMARKS.md)).
+
+## Editions & Architecture
+
+The codebase is split across three repositories that are pulled together at
+build time:
+
+| Edition | Repo / Submodule | License | Contents |
+|---|---|---|---|
+| **Open Source** | `meetropolis` (this repo) | Apache-2.0 | Single-tenant virtual office, spatial AV, map editor, generic OSS landing |
+| **Enterprise** | `packages/tenancy-enterprise` (private submodule) | Commercial | Multi-tenancy, Stripe billing, pricing-plan & tenant CRUD, pack marketplace, billing audit log, admin/billing/audit UI |
+| **Brand** | `packages/brand` (private submodule) | Commercial | Meetropolis marketing landing, legal pages, brand assets, Meta-Pixel tracking |
+
+Optional submodules are loaded at runtime via dynamic imports
+(`apps/server/src/{tenancyLoader,billingLoader,adminLoader}.ts` on the server
+and `apps/web/src/lib/{enterpriseWebLoader,brandLoader,desktopLoader}.ts` on
+the web). Without the private submodules, the OSS edition runs single-tenant
+and shows a generic, unbranded landing.
+
+See [docs/enterprise.md](docs/enterprise.md) and [docs/brand.md](docs/brand.md)
+for the integration details.
 
 ## Contributing
 
@@ -244,22 +282,32 @@ We welcome contributions! Please read our [Contributing Guide](CONTRIBUTING.md) 
 ## License & Editions
 
 - **Open Source**: Apache 2.0 (see [LICENSE](LICENSE), [NOTICE](NOTICE))
-- **Enterprise**: Multi-tenant features available separately
-- **Trademarks**: See [TRADEMARKS.md](TRADEMARKS.md)
+- **Enterprise / Brand**: Commercial license, separate private submodules
+- **Trademarks**: See [TRADEMARKS.md](TRADEMARKS.md) — Apache 2.0 does **not**
+  grant rights to use the Meetropolis name or logo.
 
 ### What's Included (OSS)
 
-- Full virtual office functionality
+- Full virtual office functionality (spatial audio/video, 2D world, map editor)
 - Spatial audio/video with LiveKit
 - Map editor and custom worlds
 - Single-tenant deployment
-- 25 concurrent user limit
+- 25 concurrent user limit (configurable via `OSS_USER_LIMIT`)
+- Generic, unbranded landing page
 
-### Enterprise Features
+### Enterprise Features (separate submodule)
 
 - Multi-tenant architecture
-- Stripe billing integration
+- Stripe billing integration (subscriptions, trials, dunning, invoices)
+- Pricing-plan and pack-marketplace CRUD with admin UI
+- Tenant-scoped billing audit log
 - Unlimited concurrent users
-- Priority support
+
+### Brand Features (separate submodule)
+
+- Meetropolis-specific marketing landing page (Hero, Comparison, Social Proof, Pricing CTA)
+- Legal pages (Privacy, Terms of Service, Impressum)
+- Meta-Pixel marketing tracking + cookie-consent banner
+- Brand logos, wordmark, screenshots, editor showcase video
 
 For commercial licensing, contact us at [info@meetropolis.de](mailto:info@meetropolis.de).

@@ -18,6 +18,18 @@ export interface EmailOptions {
   html?: string;
 }
 
+/**
+ * Brand name used in email templates. Falls back to a neutral default for
+ * OSS self-hosters who haven't installed the brand submodule. Override via
+ * the `BRAND_NAME` env var. Operators of branded deployments should set this
+ * to match their public brand string (e.g. `${BRAND_NAME}`).
+ */
+const BRAND_NAME = process.env.BRAND_NAME || 'Workspace';
+const BRAND_DESCRIPTION_DE = process.env.BRAND_DESCRIPTION_DE
+  || 'eine virtuelle Büro-Plattform, auf der du gemeinsam mit deinem Team in einer räumlichen Umgebung arbeiten kannst';
+const BRAND_DESCRIPTION_EN = process.env.BRAND_DESCRIPTION_EN
+  || 'a virtual office platform where you can work alongside your team in a spatial environment';
+
 export interface EmailService {
   send(options: EmailOptions): Promise<boolean>;
 }
@@ -54,7 +66,7 @@ class SmtpEmailService implements EmailService {
   private retryDelay: number = 1000; // 1 second
 
   constructor() {
-    this.from = process.env.SMTP_FROM || 'noreply@meetropolis.de';
+    this.from = process.env.SMTP_FROM || 'noreply@example.com';
   }
 
   private async getTransporter() {
@@ -164,26 +176,26 @@ export const emailTemplates = {
 
     const templates = {
       de: {
-        subject: 'E-Mail-Adresse bei Meetropolis bestätigen',
+        subject: `E-Mail-Adresse bei ${BRAND_NAME} bestätigen`,
         heading: 'E-Mail bestätigen',
         greeting: `Hallo ${nameOrFallback},`,
         body: 'bitte bestätige deine E-Mail-Adresse, indem du auf den folgenden Button klickst:',
         buttonLabel: 'E-Mail bestätigen',
         expiry: 'Dieser Link ist 24 Stunden gültig.',
-        ignore: 'Falls du kein Meetropolis-Konto erstellt hast, kannst du diese E-Mail ignorieren.',
+        ignore: `Falls du kein ${BRAND_NAME}-Konto erstellt hast, kannst du diese E-Mail ignorieren.`,
         signoff: 'Viele Grüße,',
-        team: 'Das Meetropolis Team',
+        team: `Das ${BRAND_NAME} Team`,
       },
       en: {
-        subject: 'Verify your Meetropolis email',
+        subject: `Verify your ${BRAND_NAME} email`,
         heading: 'Verify your email',
         greeting: `Hi ${nameOrFallback},`,
         body: 'Please verify your email address by clicking the button below:',
         buttonLabel: 'Verify Email',
         expiry: 'This link will expire in 24 hours.',
-        ignore: "If you didn't create a Meetropolis account, you can safely ignore this email.",
+        ignore: `If you didn't create a ${BRAND_NAME} account, you can safely ignore this email.`,
         signoff: 'Best,',
-        team: 'The Meetropolis Team',
+        team: `The ${BRAND_NAME} Team`,
       },
     };
 
@@ -229,7 +241,7 @@ ${t.team}`,
 
     const templates = {
       de: {
-        subject: 'Meetropolis – Passwort zurücksetzen',
+        subject: `${BRAND_NAME} – Passwort zurücksetzen`,
         heading: 'Passwort zurücksetzen',
         greeting: `Hallo ${nameOrFallback},`,
         body: 'du hast angefordert, dein Passwort zurückzusetzen. Klicke auf den folgenden Button, um ein neues Passwort festzulegen:',
@@ -237,10 +249,10 @@ ${t.team}`,
         expiry: 'Dieser Link ist 30 Minuten gültig.',
         ignore: 'Falls du kein Zurücksetzen angefordert hast, kannst du diese E-Mail ignorieren.',
         signoff: 'Viele Grüße,',
-        team: 'Das Meetropolis Team',
+        team: `Das ${BRAND_NAME} Team`,
       },
       en: {
-        subject: 'Reset your Meetropolis password',
+        subject: `Reset your ${BRAND_NAME} password`,
         heading: 'Reset your password',
         greeting: `Hi ${nameOrFallback},`,
         body: 'You requested to reset your password. Click the button below to set a new password:',
@@ -248,7 +260,7 @@ ${t.team}`,
         expiry: 'This link will expire in 30 minutes.',
         ignore: "If you didn't request a password reset, you can safely ignore this email.",
         signoff: 'Best,',
-        team: 'The Meetropolis Team',
+        team: `The ${BRAND_NAME} Team`,
       },
     };
 
@@ -294,8 +306,8 @@ ${t.team}`,
 
     const templates = {
       de: {
-        subject: `Willkommen bei Meetropolis – ${params.tenantName} ist bereit!`,
-        heading: 'Willkommen bei Meetropolis!',
+        subject: `Willkommen bei ${BRAND_NAME} – ${params.tenantName} ist bereit!`,
+        heading: `Willkommen bei ${BRAND_NAME}!`,
         greeting: `Hallo ${nameOrFallback},`,
         body: `Dein virtuelles Büro <strong>${params.tenantName}</strong> ist jetzt bereit.`,
         bodyText: `Dein virtuelles Büro "${params.tenantName}" ist jetzt bereit.`,
@@ -310,11 +322,11 @@ ${t.team}`,
         support: 'Bei Fragen erreichst du uns jederzeit unter <a href="mailto:support@meetropolis.de">support@meetropolis.de</a>.',
         supportText: 'Bei Fragen erreichst du uns jederzeit unter support@meetropolis.de.',
         signoff: 'Viele Grüße,',
-        team: 'Das Meetropolis Team',
+        team: `Das ${BRAND_NAME} Team`,
       },
       en: {
-        subject: `Welcome to Meetropolis - ${params.tenantName} is ready!`,
-        heading: 'Welcome to Meetropolis!',
+        subject: `Welcome to ${BRAND_NAME} - ${params.tenantName} is ready!`,
+        heading: `Welcome to ${BRAND_NAME}!`,
         greeting: `Hi ${nameOrFallback},`,
         body: `Your virtual office <strong>${params.tenantName}</strong> is now ready.`,
         bodyText: `Your virtual office "${params.tenantName}" is now ready.`,
@@ -329,7 +341,7 @@ ${t.team}`,
         support: 'If you have any questions, feel free to reach out to <a href="mailto:support@meetropolis.de">support@meetropolis.de</a>.',
         supportText: 'If you have any questions, feel free to reach out to support@meetropolis.de.',
         signoff: 'Best,',
-        team: 'The Meetropolis Team',
+        team: `The ${BRAND_NAME} Team`,
       },
     };
 
@@ -382,29 +394,29 @@ ${t.team}`,
         subject: `${params.inviterName} hat dich als Gast zu ${params.tenantName} eingeladen`,
         heading: 'Du wurdest als Gast eingeladen',
         greeting: `Hallo ${name},`,
-        body: `<strong>${params.inviterName}</strong> hat dich als Gast zu <strong>${params.tenantName}</strong> auf Meetropolis eingeladen.`,
-        bodyText: `${params.inviterName} hat dich als Gast zu "${params.tenantName}" auf Meetropolis eingeladen.`,
+        body: `<strong>${params.inviterName}</strong> hat dich als Gast zu <strong>${params.tenantName}</strong> auf ${BRAND_NAME} eingeladen.`,
+        bodyText: `${params.inviterName} hat dich als Gast zu "${params.tenantName}" auf ${BRAND_NAME} eingeladen.`,
         buttonLabel: 'Als Gast beitreten',
         expiry: `Dein Zugang ist gültig bis <strong>${params.expiresAt}</strong>.`,
         expiryText: `Dein Zugang ist gültig bis ${params.expiresAt}.`,
         noPassword: 'Du benötigst kein Passwort \u2013 der Link genügt.',
         ignore: 'Falls du diese Einladung nicht erwartet hast, kannst du diese E-Mail ignorieren.',
         signoff: 'Viele Grüße,',
-        team: 'Das Meetropolis Team',
+        team: `Das ${BRAND_NAME} Team`,
       },
       en: {
         subject: `${params.inviterName} invited you as a guest to ${params.tenantName}`,
         heading: "You've been invited as a guest",
         greeting: `Hi ${name},`,
-        body: `<strong>${params.inviterName}</strong> has invited you as a guest to <strong>${params.tenantName}</strong> on Meetropolis.`,
-        bodyText: `${params.inviterName} has invited you as a guest to "${params.tenantName}" on Meetropolis.`,
+        body: `<strong>${params.inviterName}</strong> has invited you as a guest to <strong>${params.tenantName}</strong> on ${BRAND_NAME}.`,
+        bodyText: `${params.inviterName} has invited you as a guest to "${params.tenantName}" on ${BRAND_NAME}.`,
         buttonLabel: 'Join as Guest',
         expiry: `Your access is valid until <strong>${params.expiresAt}</strong>.`,
         expiryText: `Your access is valid until ${params.expiresAt}.`,
         noPassword: 'No password required \u2013 the link is all you need.',
         ignore: "If you didn't expect this invitation, you can safely ignore this email.",
         signoff: 'Best,',
-        team: 'The Meetropolis Team',
+        team: `The ${BRAND_NAME} Team`,
       },
     };
 
@@ -449,24 +461,24 @@ ${t.team}`,
 
     const templates = {
       de: {
-        subject: `${params.inviterName} hat dich zu ${params.tenantName} auf Meetropolis eingeladen`,
-        heading: 'Du wurdest zu Meetropolis eingeladen',
-        body: `<strong>${params.inviterName}</strong> hat dich eingeladen, <strong>${params.tenantName}</strong> auf Meetropolis beizutreten.`,
-        bodyText: `${params.inviterName} hat dich eingeladen, "${params.tenantName}" auf Meetropolis beizutreten.`,
+        subject: `${params.inviterName} hat dich zu ${params.tenantName} auf ${BRAND_NAME} eingeladen`,
+        heading: `Du wurdest zu ${BRAND_NAME} eingeladen`,
+        body: `<strong>${params.inviterName}</strong> hat dich eingeladen, <strong>${params.tenantName}</strong> auf ${BRAND_NAME} beizutreten.`,
+        bodyText: `${params.inviterName} hat dich eingeladen, "${params.tenantName}" auf ${BRAND_NAME} beizutreten.`,
         buttonLabel: 'Einladung annehmen',
-        description: 'Meetropolis ist eine virtuelle Büro-Plattform, auf der du gemeinsam mit deinem Team in einer räumlichen Umgebung arbeiten kannst.',
+        description: `${BRAND_NAME} ist ${BRAND_DESCRIPTION_DE}.`,
         signoff: 'Viele Grüße,',
-        team: 'Das Meetropolis Team',
+        team: `Das ${BRAND_NAME} Team`,
       },
       en: {
-        subject: `${params.inviterName} invited you to join ${params.tenantName} on Meetropolis`,
-        heading: "You're invited to Meetropolis",
-        body: `<strong>${params.inviterName}</strong> has invited you to join <strong>${params.tenantName}</strong> on Meetropolis.`,
-        bodyText: `${params.inviterName} has invited you to join "${params.tenantName}" on Meetropolis.`,
+        subject: `${params.inviterName} invited you to join ${params.tenantName} on ${BRAND_NAME}`,
+        heading: `You're invited to ${BRAND_NAME}`,
+        body: `<strong>${params.inviterName}</strong> has invited you to join <strong>${params.tenantName}</strong> on ${BRAND_NAME}.`,
+        bodyText: `${params.inviterName} has invited you to join "${params.tenantName}" on ${BRAND_NAME}.`,
         buttonLabel: 'Accept Invitation',
-        description: 'Meetropolis is a virtual office platform where you can work alongside your team in a spatial environment.',
+        description: `${BRAND_NAME} is ${BRAND_DESCRIPTION_EN}.`,
         signoff: 'Best,',
-        team: 'The Meetropolis Team',
+        team: `The ${BRAND_NAME} Team`,
       },
     };
 

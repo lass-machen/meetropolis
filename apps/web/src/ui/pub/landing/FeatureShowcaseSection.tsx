@@ -10,7 +10,12 @@ interface FeatureRowData {
   titleKey: string;
   textKey: string;
   tagKeys: string[];
-  image: string;
+  /**
+   * i18n key for the optional Feature-Showcase asset path. Brand-locale
+   * supplies the actual `/images/pub/...`-URL; OSS-locale leaves it empty,
+   * which causes the row to render text-only without a media element.
+   */
+  imageKey: string;
   isVideo?: boolean;
   accentColor: string;
   numberOpacity: string;
@@ -24,7 +29,7 @@ const FEATURE_ROWS: FeatureRowData[] = [
     titleKey: 'features.feature1Title',
     textKey: 'features.feature1Text',
     tagKeys: ['features.feature1Tag1', 'features.feature1Tag2'],
-    image: '/images/pub/meetropolis-screen-3.webp',
+    imageKey: 'features.feature1Image',
     accentColor: 'var(--pub-accent-purple)',
     numberOpacity: 'rgba(139,92,246,0.19)',
     imageBg: '#EDE9FE',
@@ -35,7 +40,7 @@ const FEATURE_ROWS: FeatureRowData[] = [
     titleKey: 'features.feature2Title',
     textKey: 'features.feature2Text',
     tagKeys: ['features.feature2Tag1', 'features.feature2Tag2', 'features.feature2Tag3'],
-    image: '/images/pub/meetropolis-editor.webm',
+    imageKey: 'features.feature2Image',
     isVideo: true,
     accentColor: 'var(--pub-accent-teal)',
     numberOpacity: 'rgba(20,184,166,0.19)',
@@ -47,7 +52,7 @@ const FEATURE_ROWS: FeatureRowData[] = [
     titleKey: 'features.feature3Title',
     textKey: 'features.feature3Text',
     tagKeys: ['features.feature3Tag1', 'features.feature3Tag2'],
-    image: '/images/pub/meetropolis-screen-4.webp',
+    imageKey: 'features.feature3Image',
     accentColor: 'var(--pub-accent-pink)',
     numberOpacity: 'rgba(244,114,182,0.19)',
     imageBg: '#FCE7F3',
@@ -58,7 +63,7 @@ const FEATURE_ROWS: FeatureRowData[] = [
     titleKey: 'features.feature4Title',
     textKey: 'features.feature4Text',
     tagKeys: ['features.feature4Tag1', 'features.feature4Tag2', 'features.feature4Tag3'],
-    image: '/images/pub/meetropolis-screen-5.webp',
+    imageKey: 'features.feature4Image',
     accentColor: 'var(--pub-accent-amber)',
     numberOpacity: 'rgba(245,158,11,0.19)',
     imageBg: '#FEF3C7',
@@ -121,6 +126,10 @@ function FeatureRowText({ row }: { row: FeatureRowData }) {
 
 function FeatureRowImage({ row }: { row: FeatureRowData }) {
   const { t } = useTranslation('public');
+  const rawSrc = t(row.imageKey);
+  // i18next returns the key itself when no translation exists, so guard
+  // against that — without a real path we render the placeholder background.
+  const src = rawSrc && rawSrc !== row.imageKey ? rawSrc : '';
   return (
     <div
       style={{
@@ -133,9 +142,9 @@ function FeatureRowImage({ row }: { row: FeatureRowData }) {
         background: row.imageBg,
       }}
     >
-      {row.isVideo ? (
+      {!src ? null : row.isVideo ? (
         <video
-          src={row.image}
+          src={src}
           autoPlay
           loop
           muted
@@ -149,7 +158,7 @@ function FeatureRowImage({ row }: { row: FeatureRowData }) {
         />
       ) : (
         <img
-          src={row.image}
+          src={src}
           alt={t(row.titleKey)}
           style={{
             width: '100%',

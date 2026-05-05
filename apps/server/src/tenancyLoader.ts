@@ -19,8 +19,22 @@ export interface EnterpriseMigrationConfig {
   };
 }
 
-/** Default concurrent user limit for OSS self-hosted installations */
-export const OSS_USER_LIMIT = 25;
+/**
+ * Concurrent-user limit for OSS self-hosted installations.
+ *
+ * Default: 25. Can be overridden at runtime via the `OSS_USER_LIMIT` env var
+ * (positive integer). The enterprise tenancy module bypasses this entirely
+ * via `bypassOssLimit()`.
+ */
+function readOssUserLimitFromEnv(): number {
+  const raw = process.env.OSS_USER_LIMIT;
+  if (!raw) return 25;
+  const n = Number.parseInt(raw, 10);
+  if (!Number.isFinite(n) || n <= 0) return 25;
+  return n;
+}
+
+export const OSS_USER_LIMIT = readOssUserLimitFromEnv();
 
 const tenancyModuleSchema = z.object({
   version: z.literal(1),

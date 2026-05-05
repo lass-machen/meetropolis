@@ -5,7 +5,8 @@
     "pricing": "Pricing",
     "openSource": "Open Source",
     "login": "Sign In",
-    "trialCta": "Start Free Trial"
+    "trialCta": "Start Free Trial",
+    "brandName": "Workspace"
   },
   "trustBar": {
     "item1Title": "Servers in Germany",
@@ -20,7 +21,7 @@
   "features": {
     "badge": "Features",
     "title": "Everything your team needs. In one place.",
-    "subtitle": "From spatial audio to custom avatars — Meetropolis brings everything together in one platform.",
+    "subtitle": "From spatial audio to custom avatars — everything in one self-hosted platform.",
     "feature1Num": "01",
     "feature1Title": "Spatial Audio & Video",
     "feature1Text": "Hear and see only those nearby — just like in a real office. Proximity-based communication makes conversations natural and meetings unnecessary.",
@@ -89,12 +90,12 @@
     "q5Question": "What happens to our custom maps if we cancel?",
     "q5Answer": "You can export all maps as files anytime — even during the read-only period after cancellation. Your worlds belong to you.",
     "q6Question": "Do we need the desktop app?",
-    "q6Answer": "No. Meetropolis runs fully in the browser. The desktop app is optional and adds a floating mini mode for background use."
+    "q6Answer": "No. The app runs fully in the browser. The desktop app is optional and adds a floating mini mode for background use."
   },
   "openSource": {
     "badge": "Coming Soon",
     "title": "Soon available as Open Source & Self-Hosted.",
-    "text": "Full data sovereignty, GDPR-compliant, on your own servers. Meetropolis will soon be available as a self-hosted open-source edition.",
+    "text": "Full data sovereignty, GDPR-compliant, on your own servers. Open source under Apache 2.0.",
     "check1": "Self-hosting on your own infrastructure",
     "check2": "100% GDPR-compliant",
     "check3": "Community-driven development"
@@ -116,7 +117,7 @@
     "legalImprint": "Imprint",
     "legalTerms": "Terms of Service",
     "legalCookies": "Cookie Settings",
-    "copyright": "© 2026 Meetropolis. All rights reserved.",
+    "copyright": "© 2026 Self-Hosted Workspace. Open source under Apache 2.0.",
     "langDe": "Deutsch",
     "langEn": "English",
     "cookieSettings": "Cookie Settings"

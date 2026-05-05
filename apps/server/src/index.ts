@@ -193,7 +193,7 @@ function basicAuthMiddleware(
   return (req, res, next) => {
     const header = req.headers.authorization;
     if (!header || !header.startsWith('Basic ')) {
-      res.setHeader('WWW-Authenticate', 'Basic realm="Meetropolis Tools"');
+      res.setHeader('WWW-Authenticate', 'Basic realm="Admin Tools"');
       return res.status(401).send('Authentication required');
     }
     const decoded = Buffer.from(header.slice(6), 'base64');
@@ -201,7 +201,7 @@ function basicAuthMiddleware(
       expected.length !== decoded.length ||
       !crypto.timingSafeEqual(expected, decoded)
     ) {
-      res.setHeader('WWW-Authenticate', 'Basic realm="Meetropolis Tools"');
+      res.setHeader('WWW-Authenticate', 'Basic realm="Admin Tools"');
       return res.status(401).send('Invalid credentials');
     }
     next();

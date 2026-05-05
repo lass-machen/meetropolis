@@ -1,6 +1,19 @@
 import { defineConfig } from 'vitest/config';
+import { resolve } from 'path';
+import { optionalSubmodules } from './optional-submodules';
 
 export default defineConfig({
+  plugins: [
+    // Same plugin as vite.config.ts so OSS-only test runs (without the
+    // private submodules) resolve `@meetropolis/{enterprise-web,brand-web,
+    // desktop}` to a null-export instead of failing to resolve.
+    optionalSubmodules(),
+  ],
+  resolve: {
+    alias: {
+      '@app': resolve(__dirname, 'src'),
+    }
+  },
   test: {
     environment: 'jsdom',
     globals: true,

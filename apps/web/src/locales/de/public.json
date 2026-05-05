@@ -5,7 +5,8 @@
     "pricing": "Preise",
     "openSource": "Open Source",
     "login": "Anmelden",
-    "trialCta": "Kostenlos testen"
+    "trialCta": "Kostenlos testen",
+    "brandName": "Workspace"
   },
   "trustBar": {
     "item1Title": "Server in Deutschland",
@@ -20,7 +21,7 @@
   "features": {
     "badge": "Features",
     "title": "Alles, was dein Team braucht. An einem Ort.",
-    "subtitle": "Von räumlichem Audio bis zum eigenen Avatar — Meetropolis vereint alles in einer Plattform.",
+    "subtitle": "Von räumlichem Audio bis zum eigenen Avatar — alles in einer Self-Hosted-Plattform vereint.",
     "feature1Num": "01",
     "feature1Title": "Spatial Audio & Video",
     "feature1Text": "Hör und sieh nur, wer in deiner Nähe steht — genau wie im echten Büro. Proximity-basierte Kommunikation macht Gespräche natürlich und Meetings überflüssig.",
@@ -89,12 +90,12 @@
     "q5Question": "Was passiert mit unseren Custom Maps, wenn wir kündigen?",
     "q5Answer": "Du kannst alle Maps jederzeit als Datei exportieren — auch nach der Kündigung im read-only-Zeitraum. Eure Welten gehören euch.",
     "q6Question": "Brauchen wir die Desktop-App?",
-    "q6Answer": "Nein. Meetropolis läuft komplett im Browser. Die Desktop-App ist optional und bietet zusätzlich einen Floating Mini-Modus für nebenher."
+    "q6Answer": "Nein. Die Anwendung läuft komplett im Browser. Die Desktop-App ist optional und bietet zusätzlich einen Floating Mini-Modus für nebenher."
   },
   "openSource": {
     "badge": "Coming Soon",
     "title": "Bald auch Open Source & Self-Hosted.",
-    "text": "Volle Datensouveränität, DSGVO-konform, auf euren eigenen Servern. Meetropolis wird bald als Self-Hosted Open-Source-Version verfügbar sein.",
+    "text": "Volle Datensouveränität, DSGVO-konform, auf euren eigenen Servern. Open-Source unter Apache 2.0.",
     "check1": "Self-Hosting auf eigener Infrastruktur",
     "check2": "100% DSGVO-konform",
     "check3": "Community-getriebene Entwicklung"
@@ -116,7 +117,7 @@
     "legalImprint": "Impressum",
     "legalTerms": "AGB",
     "legalCookies": "Cookie-Einstellungen",
-    "copyright": "© 2026 Meetropolis. Alle Rechte vorbehalten.",
+    "copyright": "© 2026 Self-Hosted Workspace. Open Source unter Apache 2.0.",
     "langDe": "Deutsch",
     "langEn": "English",
     "cookieSettings": "Cookie-Einstellungen"

@@ -77,7 +77,8 @@ function scrollToSectionFromFooter(anchorId: string) {
   }
 }
 
-function FooterLogo({ tagline }: { tagline: string }) {
+function FooterLogo({ tagline, brandName }: { tagline: string; brandName: string }) {
+  const brandInitial = brandName.trim().charAt(0).toUpperCase() || 'W';
   return (
     <div style={{ maxWidth: 320, flex: '1 1 280px' }}>
       <a
@@ -90,9 +91,9 @@ function FooterLogo({ tagline }: { tagline: string }) {
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           color: '#FFFFFF', fontFamily: 'var(--pub-font-display)', fontWeight: 800, fontSize: 18,
         }}>
-          M
+          {brandInitial}
         </div>
-        <span style={{ fontFamily: 'var(--pub-font-display)', fontWeight: 700, fontSize: 18 }}>Meetropolis</span>
+        <span style={{ fontFamily: 'var(--pub-font-display)', fontWeight: 700, fontSize: 18 }}>{brandName}</span>
       </a>
       <p style={{
         fontFamily: 'var(--pub-font-body)', fontSize: 14, lineHeight: 1.7,
@@ -199,7 +200,7 @@ export function PublicFooter({ navigate }: PublicFooterProps) {
     <footer style={{ background: 'var(--pub-bg-dark)', color: 'var(--pub-text-on-dark)' }}>
       <div style={{ padding: 'var(--pub-footer-padding)', maxWidth: 'var(--pub-max-width)', margin: '0 auto' }}>
         <div className="pub-footer__upper" style={{ display: 'flex', justifyContent: 'space-between', gap: 64, flexWrap: 'wrap' }}>
-          <FooterLogo tagline={t('footer.tagline')} />
+          <FooterLogo tagline={t('footer.tagline')} brandName={(() => { const r = t('header.brandName'); return r && r !== 'header.brandName' ? r : 'Workspace'; })()} />
           <FooterColumns t={t} onLinkClick={handleLinkClick} />
         </div>
         <div style={{ height: 1, background: 'var(--pub-border-dark)', margin: '40px 0 24px 0' }} />
