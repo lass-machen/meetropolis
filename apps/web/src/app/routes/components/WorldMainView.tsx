@@ -47,23 +47,14 @@ export type WorldMainViewProps = {
   selectedMicId: string | '';
   selectedCamId: string | '';
   cameraManual: boolean;
-  pttAwareToggleMic: () => void | Promise<void>;
+  pttAwareToggleMic: () => Promise<void>;
   eventHandlers: any;
   getRoom: () => any;
 };
 
-export function WorldMainView(props: WorldMainViewProps) {
-  const {
-    apiBase, containerRef, colyseusRef, localPosRef, hud, editor, avState,
-    participantsToRender, gridExpanded, selectedSid, overlayZoom, setOverlayZoom, menuOpen,
-    isInternalOwner, isTenantAdmin, billingAvailable, capabilities, paymentStatus,
-    handleManageBilling, positionReady, showReloadBanner, connStatus,
-    adminOpen, setAdminOpen, packStoreOpen, setPackStoreOpen,
-    devices, selectedMicId, selectedCamId, cameraManual, pttAwareToggleMic,
-    eventHandlers, getRoom,
-  } = props;
-
-  const topRightMenu = {
+function buildTopRightMenu(props: WorldMainViewProps) {
+  const { menuOpen, isInternalOwner, isTenantAdmin, billingAvailable, eventHandlers, setPackStoreOpen, editor } = props;
+  return {
     menuOpen,
     onToggleMenu: eventHandlers.handleToggleMenu,
     ...(isTenantAdmin ? { onOpenUsers: eventHandlers.handleOpenUsers } : {}),
@@ -80,25 +71,59 @@ export function WorldMainView(props: WorldMainViewProps) {
     editorActive: editor.active,
     onLogout: eventHandlers.handleLogout,
   };
+}
+
+function HeaderOverlays(props: WorldMainViewProps & { mySessionId: string | undefined; topRightMenu: any }) {
+  const { hud, editor, avState, participantsToRender, gridExpanded, selectedSid, overlayZoom, setOverlayZoom, eventHandlers, colyseusRef, getRoom, mySessionId, topRightMenu } = props;
+  return (
+    <Overlays
+      hud={hud}
+      editorActive={editor.active}
+      avDnd={avState.dnd}
+      participants={participantsToRender}
+      gridExpanded={gridExpanded}
+      onToggleExpand={eventHandlers.handleToggleExpand}
+      selectedSid={selectedSid}
+      onSelectSid={eventHandlers.handleSelectSid}
+      getRoom={getRoom}
+      overlayZoom={overlayZoom}
+      onZoom={(z) => setOverlayZoom(z)}
+      colyseusRef={colyseusRef}
+      {...(mySessionId !== undefined ? { mySessionId } : {})}
+      topRightMenu={topRightMenu}
+    />
+  );
+}
+
+function ControlBar(props: WorldMainViewProps) {
+  const { editor, avState, devices, selectedMicId, selectedCamId, cameraManual, pttAwareToggleMic, eventHandlers } = props;
+  return (
+    <AVControlBar
+      editorActive={editor.active}
+      avState={avState}
+      devices={devices}
+      selectedMicId={selectedMicId}
+      selectedCamId={selectedCamId}
+      cameraManual={cameraManual}
+      onToggleMic={pttAwareToggleMic}
+      onSelectMic={eventHandlers.handleSelectMic}
+      onToggleCam={eventHandlers.handleToggleCam}
+      onSelectCam={eventHandlers.handleSelectCam}
+      onToggleShare={eventHandlers.handleToggleShare}
+      onToggleDnd={eventHandlers.handleToggleDnd}
+      onRecenter={eventHandlers.handleRecenter}
+    />
+  );
+}
+
+export function WorldMainView(props: WorldMainViewProps) {
+  const { apiBase, containerRef, colyseusRef, localPosRef, hud, editor, avState, isInternalOwner, capabilities, paymentStatus, handleManageBilling, positionReady, showReloadBanner, connStatus, adminOpen, setAdminOpen, packStoreOpen, setPackStoreOpen, eventHandlers } = props;
+  const topRightMenu = buildTopRightMenu(props);
+  const mySessionId = localPosRef.current?.id;
 
   return (
     <>
-      <Overlays
-        hud={hud}
-        editorActive={editor.active}
-        avDnd={avState.dnd}
-        participants={participantsToRender}
-        gridExpanded={gridExpanded}
-        onToggleExpand={eventHandlers.handleToggleExpand}
-        selectedSid={selectedSid}
-        onSelectSid={eventHandlers.handleSelectSid}
-        getRoom={getRoom}
-        overlayZoom={overlayZoom}
-        onZoom={(z) => setOverlayZoom(z)}
-        colyseusRef={colyseusRef}
-        mySessionId={localPosRef.current?.id}
-        topRightMenu={topRightMenu}
-      />
+      <HeaderOverlays {...props} mySessionId={mySessionId} topRightMenu={topRightMenu} />
       <ConnectionBanners
         connStatus={connStatus}
         showReloadBanner={showReloadBanner}
@@ -120,24 +145,10 @@ export function WorldMainView(props: WorldMainViewProps) {
       )}
       <ZoneAccessPanel
         colyseusRef={colyseusRef}
-        mySessionId={localPosRef.current?.id}
-        currentZone={hud.zone !== '-' ? hud.zone : undefined}
+        mySessionId={mySessionId || ''}
+        {...(hud.zone && hud.zone !== '-' ? { currentZone: hud.zone } : {})}
       />
-      <AVControlBar
-        editorActive={editor.active}
-        avState={avState}
-        devices={devices}
-        selectedMicId={selectedMicId}
-        selectedCamId={selectedCamId}
-        cameraManual={cameraManual}
-        onToggleMic={pttAwareToggleMic}
-        onSelectMic={eventHandlers.handleSelectMic}
-        onToggleCam={eventHandlers.handleToggleCam}
-        onSelectCam={eventHandlers.handleSelectCam}
-        onToggleShare={eventHandlers.handleToggleShare}
-        onToggleDnd={eventHandlers.handleToggleDnd}
-        onRecenter={eventHandlers.handleRecenter}
-      />
+      <ControlBar {...props} />
     </>
   );
 }

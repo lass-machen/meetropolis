@@ -1,4 +1,3 @@
-import React from 'react';
 import { gameBridge } from '../../../game/bridge';
 import { logger } from '../../../lib/logger';
 import { EditorService } from '../../../services/EditorService';
@@ -29,7 +28,7 @@ export type WorldShellProps = {
   getRoom: () => any;
   saveAllToServer: () => Promise<boolean>;
   handleAuthComplete: () => void;
-  pttAwareToggleMic: () => void | Promise<void>;
+  pttAwareToggleMic: () => Promise<void>;
   participantsToRender: any[];
   isTenantAdmin: boolean;
   paymentStatus: any;

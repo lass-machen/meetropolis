@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import { useCallback } from 'react';
 import { gameBridge } from '../../../game/bridge';
 import { useAvSettingsStore } from '../../../state/avSettings';
 import { useWorldEventHandlers } from './useWorldEventHandlers';
