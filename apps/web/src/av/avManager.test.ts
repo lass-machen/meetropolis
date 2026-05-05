@@ -96,7 +96,7 @@ describe('AVManager', () => {
     expect(setVolume).toHaveBeenNthCalledWith(3, 0.5);
   });
 
-  it('setMicrophoneEnabled(true) publiziert Audio-Track, false unpubliziert', async () => {
+  it('setMicrophoneEnabled(true) publiziert Audio-Track; false soft-muted ohne Unpublish', async () => {
     const mgr = makeManager() as any;
     const room = makeFakeRoom();
     mgr.current = room;
@@ -105,11 +105,9 @@ describe('AVManager', () => {
     await mgr.setMicrophoneEnabled(true);
     expect(room.localParticipant.publishTrack).toHaveBeenCalled();
 
-    // Simuliere vorhandene Mic-Publikation
-    room.localParticipant.trackPublications.set('mic', { track: { kind: 'audio' }, source: 'microphone', kind: 'audio' });
-
+    // Soft-Mute: Track-Publication bleibt erhalten, kein unpublishTrack-Aufruf.
     await mgr.setMicrophoneEnabled(false);
-    expect(room.localParticipant.unpublishTrack).toHaveBeenCalled();
+    expect(room.localParticipant.unpublishTrack).not.toHaveBeenCalled();
   });
 
   it('setMicrophoneEnabled(true) bei bereits aktivem Mic republished nicht erneut', async () => {
@@ -212,18 +210,18 @@ describe('AVManager', () => {
     expect(room.localParticipant.publishTrack).toHaveBeenCalled();
   });
 
-  it('Mute deaktiviert Track sofort lokal und triggert Unpublish', async () => {
+  it('Mute deaktiviert Track sofort lokal via Soft-Mute (kein Unpublish)', async () => {
     const mgr = makeManager() as any;
     const room = makeFakeRoom();
     mgr.current = room;
 
-    const track: any = { kind: 'audio', mediaStreamTrack: { enabled: true }, setEnabled: vi.fn((v: boolean) => { track.mediaStreamTrack.enabled = v; }) };
-    room.localParticipant.trackPublications.set('mic', { track, source: 'microphone', kind: 'audio' });
+    // Erst publishen, damit TrackManager._state.microphone.track gesetzt ist.
+    await mgr.setMicrophoneEnabled(true);
+    expect(room.localParticipant.publishTrack).toHaveBeenCalled();
 
     await mgr.setMicrophoneEnabled(false);
-
-    expect(track.mediaStreamTrack.enabled).toBe(false);
-    expect(room.localParticipant.unpublishTrack).toHaveBeenCalledWith(track);
+    // Soft-Mute: Track bleibt publiziert, nur RTP-Mute (bzw. mediaStreamTrack.enabled=false).
+    expect(room.localParticipant.unpublishTrack).not.toHaveBeenCalled();
   });
 
   it('re-publiziert Kamera, wenn vorhandener Track beendet/disabled ist', async () => {

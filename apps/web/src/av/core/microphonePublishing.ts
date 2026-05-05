@@ -269,3 +269,43 @@ export async function ensureAudioPermissions(): Promise<boolean> {
     return false;
   }
 }
+
+// Sendet einen RTP-Mute-Frame ueber LiveKit ohne SDP-Renegotiation.
+// Latenz im Bereich von Millisekunden statt Sekunden (vs. Unpublish/Republish).
+export async function softMuteMicrophone(track: LocalAudioTrack): Promise<void> {
+  try {
+    const t = track as any;
+    if (typeof t.mute === 'function') {
+      await t.mute();
+    }
+    const mst = t.mediaStreamTrack as MediaStreamTrack | undefined;
+    if (mst) mst.enabled = false;
+    AVLogger.info('track.mic.soft_muted');
+  } catch (error) {
+    AVLogger.warn('track.mic.soft_mute_error', { error: String(error) });
+    throw error;
+  }
+}
+
+// Hebt den Mute auf. Liefert false zurueck, wenn der zugrundeliegende
+// MediaStreamTrack nicht mehr live ist — der Aufrufer faellt dann auf den
+// vollen Republish-Pfad zurueck.
+export async function softUnmuteMicrophone(track: LocalAudioTrack): Promise<boolean> {
+  const t = track as any;
+  const mst = t.mediaStreamTrack as MediaStreamTrack | undefined;
+  if (mst && mst.readyState !== 'live') {
+    AVLogger.info('track.mic.soft_unmute_skipped', { reason: 'track_not_live' });
+    return false;
+  }
+  try {
+    if (typeof t.unmute === 'function') {
+      await t.unmute();
+    }
+    if (mst) mst.enabled = true;
+    AVLogger.info('track.mic.soft_unmuted');
+    return true;
+  } catch (error) {
+    AVLogger.warn('track.mic.soft_unmute_error', { error: String(error) });
+    return false;
+  }
+}

@@ -13,7 +13,7 @@
 import type { Room, LocalAudioTrack, LocalVideoTrack } from 'livekit-client';
 import type { LocalTrackState, TrackManagerState, Disposable } from './types';
 import { AVLogger } from '../AVLogger';
-import { publishMicrophone, unpublishMicrophone, ensureAudioPermissions } from './microphonePublishing';
+import { publishMicrophone, unpublishMicrophone, ensureAudioPermissions, softMuteMicrophone, softUnmuteMicrophone } from './microphonePublishing';
 import { publishCamera, unpublishCamera, ensureVideoPermissions } from './cameraPublishing';
 
 export interface TrackManagerDeps {
@@ -67,10 +67,17 @@ export class TrackManager implements Disposable {
         const kind = pub?.kind ?? pub?.track?.kind;
         const track = pub?.track;
         if (!track) return false;
+        if (kind !== 'audio' || (src !== 'microphone' && src !== 0)) return false;
         const mst = track.mediaStreamTrack;
         const readyState = mst?.readyState;
         const isLive = readyState === undefined || readyState === 'live';
-        return kind === 'audio' && (src === 'microphone' || src === 0) && isLive;
+        if (!isLive) return false;
+        // Soft-mute: Publication bleibt, aber pub.muted/track.enabled signalisiert "aus".
+        const pubMuted = pub?.muted === true || pub?.isMuted === true;
+        if (pubMuted) return false;
+        const enabledFlag = track.isEnabled ?? track.enabled ?? mst?.enabled;
+        if (enabledFlag === false) return false;
+        return true;
       });
       return hasMic;
     } catch {
@@ -206,10 +213,10 @@ export class TrackManager implements Disposable {
    * Restore previously saved state
    */
   async restoreState(saved: { mic: boolean; cam: boolean }): Promise<void> {
-    if (saved.mic && !this._state.microphone.published) {
+    if (saved.mic && !this.isMicrophoneEnabled) {
       await this.setMicrophoneEnabled(true);
     }
-    if (saved.cam && !this._state.camera.published) {
+    if (saved.cam && !this.isCameraEnabled) {
       await this.setCameraEnabled(true);
     }
   }
@@ -281,7 +288,11 @@ export class TrackManager implements Disposable {
     const actual = room ? this.isMicrophoneEnabled : state.published;
 
     if (actual === enabled && !state.pending) {
-      state.published = actual;
+      // published spiegelt "Publication existiert", nicht "ist hörbar".
+      // Bei vorhandenem (ggf. gemutetem) Track bleibt published=true.
+      const mst = (state.track as any)?.mediaStreamTrack as MediaStreamTrack | undefined;
+      const trackIsLive = !!state.track && (!mst || mst.readyState === 'live');
+      state.published = trackIsLive || actual;
       AVLogger.debug('track.mic.already_in_state', { enabled });
       return;
     }
@@ -316,7 +327,23 @@ export class TrackManager implements Disposable {
 
     state.pending = false;
 
+    // Soft-Mute-Pfad: Track-Publication bleibt erhalten, wir toggeln nur den
+    // RTP-Mute-Frame. Spart 2-4 Sek SDP-Renegotiation pro Toggle.
+    const existingTrack = state.track as LocalAudioTrack | null;
+    const mst = (existingTrack as any)?.mediaStreamTrack as MediaStreamTrack | undefined;
+    const trackIsLive = !!existingTrack && (!mst || mst.readyState === 'live');
+
     if (enabled) {
+      if (trackIsLive && existingTrack) {
+        const ok = await softUnmuteMicrophone(existingTrack);
+        if (ok) {
+          state.published = true;
+          this.deps.onTrackPublished();
+          return;
+        }
+        // Fallback: Track ist nicht mehr brauchbar — kompletter Republish.
+        AVLogger.info('track.mic.soft_unmute_fallback_publish');
+      }
       await publishMicrophone({
         room,
         state,
@@ -332,6 +359,12 @@ export class TrackManager implements Disposable {
         },
       });
     } else {
+      if (trackIsLive && existingTrack) {
+        await softMuteMicrophone(existingTrack);
+        // Publication bleibt bestehen; published-Flag spiegelt "Track existiert".
+        state.published = true;
+        return;
+      }
       await unpublishMicrophone({ room, state, checkAllTracksUnpublished: () => this.checkAllTracksUnpublished() });
     }
   }

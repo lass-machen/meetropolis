@@ -15,6 +15,8 @@ interface TrackInfo {
   };
   isEnabled?: boolean;
   enabled?: boolean;
+  muted?: boolean;
+  isMuted?: boolean;
 }
 
 export function isLocalMicOn(room: Room | null | undefined): boolean {
@@ -31,8 +33,9 @@ export function isLocalMicOn(room: Room | null | undefined): boolean {
       const mst = t.mediaStreamTrack || t;
       const enabled: boolean | undefined = t.isEnabled ?? t.enabled ?? mst?.enabled;
       const ready: string | undefined = mst?.readyState;
+      const muted = pubInfo.muted === true || pubInfo.isMuted === true;
       const isMic = kind === 'audio' || src === 'microphone' || src === 0;
-      return isMic && enabled !== false && (ready === undefined || ready === 'live');
+      return isMic && !muted && enabled !== false && (ready === undefined || ready === 'live');
     });
   } catch {
     return false;
@@ -53,8 +56,9 @@ export function isLocalCamOn(room: Room | null | undefined): boolean {
       const mst = t.mediaStreamTrack || t;
       const enabled: boolean | undefined = t.isEnabled ?? t.enabled ?? mst?.enabled;
       const ready: string | undefined = mst?.readyState;
+      const muted = pubInfo.muted === true || pubInfo.isMuted === true;
       const isCam = src === 'camera' || src === 1 || (kind === 'video' && src !== 'screen_share');
-      return isCam && enabled !== false && (ready === undefined || ready === 'live');
+      return isCam && !muted && enabled !== false && (ready === undefined || ready === 'live');
     });
   } catch {
     return false;
