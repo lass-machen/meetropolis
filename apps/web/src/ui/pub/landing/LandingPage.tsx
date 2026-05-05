@@ -29,8 +29,8 @@ export function LandingPage({ onLogin, onSignup, onPricing: _onPricing, registra
       <ProblemSolutionSection />
       <FeatureShowcaseSection />
       <SecondaryFeaturesSection />
-      <PricingSection onSignup={effectiveSignup} registrationEnabled={registrationEnabled} />
       <SocialProofSection />
+      <PricingSection onSignup={effectiveSignup} registrationEnabled={registrationEnabled} />
       <OpenSourceSection />
       <FinalCtaSection onSignup={effectiveSignup} registrationEnabled={registrationEnabled} />
     </PublicLayout>
