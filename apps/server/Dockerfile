@@ -15,6 +15,10 @@ COPY apps/server ./apps/server
 # Copy packages if they exist (for shared deps)
 COPY packages ./packages
 
+# Ensure enterprise submodule directory exists even when not cloned
+# This makes the runner-stage COPY (line ~64) safe in OSS builds without packages/tenancy-enterprise
+RUN mkdir -p /workspace/packages/tenancy-enterprise
+
 # Install all deps from workspace root (with Prisma hoisting fix)
 RUN npm install && cd apps/server && npm install @prisma/client prisma
 
@@ -60,7 +64,7 @@ COPY --from=builder /workspace/apps/server/node_modules ./node_modules
 # Shared package (workspace symlink target, needed at runtime by zoneLockHandler etc.)
 COPY --from=builder /workspace/packages/shared /workspace/packages/shared
 # Enterprise packages (workspace symlink targets for @meetropolis/tenancy and @meetropolis/billing)
-# Only the dist/ dirs are needed at runtime; if submodule was absent, dirs won't exist and COPY is a no-op
+# Only the dist/ dirs are needed at runtime. The builder stage guarantees this directory exists (mkdir -p above), so the COPY is safe even in OSS builds without the submodule (then it copies an empty dir).
 COPY --from=builder /workspace/packages/tenancy-enterprise /workspace/packages/tenancy-enterprise
 COPY --from=builder /workspace/apps/server/prisma ./prisma
 COPY --from=builder /workspace/apps/server/dist ./dist
