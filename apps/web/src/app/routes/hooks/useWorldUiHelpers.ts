@@ -26,7 +26,7 @@ export function useWorldUiHelpers(params: {
     [ui.uiParticipants, auth.me?.name, auth.me?.email, ui.avState.mic, refs.avRef]
   );
 
-  const handleAuthComplete = useCallback(async () => { auth.setAuthRefetchTrigger((prev: number) => prev + 1); }, [auth]);
+  const handleAuthComplete = useCallback(async () => { auth.setAuthRefetchTrigger((prev: number) => prev + 1); }, [auth.setAuthRefetchTrigger]);
 
   const getMiniZones = useCallback(() => {
     const raw = refs.zoneRef.current?.getZones?.() || [];
@@ -57,13 +57,17 @@ export function useParticipantListEffects(params: {
   buildParticipantList: () => void;
 }) {
   const { refs, me, buildParticipantList } = params;
+  // me?.id reicht als dep — me selbst kann durch jeden auth-Refresh neue
+  // Object-Identitaet bekommen, was eine Render-Loop ausloest. Die einzige
+  // semantisch relevante Aenderung ist die userId.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   React.useEffect(() => {
     if (me) {
       const localIdentity = refs.avRef.current?.room?.localParticipant?.identity || me.id;
       refs.identityToNameMap.current[localIdentity] = me.name || me.email || me.id;
       buildParticipantList();
     }
-  }, [me, buildParticipantList, refs.avRef, refs.identityToNameMap]);
+  }, [me?.id]);
 
   React.useEffect(() => {
     return () => {
