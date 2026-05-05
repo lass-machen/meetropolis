@@ -4,6 +4,21 @@ import { z } from 'zod';
 import { logger } from '../../logger.js';
 import { requireSuperAdmin, computeOnlineUsageByTenantSlug } from '../utils/authHelpers.js';
 
+/**
+ * OSS public config — exposed without auth. Returns the public-registration
+ * flag, defaulting to the PUBLIC_REGISTRATION_ENABLED env (defaults to true).
+ *
+ * The enterprise module overrides this endpoint to read the flag from the
+ * `internal` tenant in DB. Express dispatches to the first registered handler,
+ * so the OSS variant only serves when the enterprise module is absent —
+ * registerAdminRoutes is called BEFORE registerEnterpriseAdminRoutes.
+ */
+export function handleOssPublicConfig(_req: express.Request, res: express.Response): void {
+  const env = process.env.PUBLIC_REGISTRATION_ENABLED;
+  const enabled = env === 'false' || env === '0' ? false : true;
+  res.json({ publicRegistrationEnabled: enabled });
+}
+
 export async function handleGetSettings(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
   const admin = await requireSuperAdmin(req, prisma);
   if (!admin) { res.status(403).json({ error: 'forbidden' }); return; }

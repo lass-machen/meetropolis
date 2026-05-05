@@ -1,16 +1,51 @@
-import type { Application, Request } from 'express';
+import type { Application, Request, Response } from 'express';
 import type { PrismaClient } from './generated/prisma/index.js';
 import { z } from 'zod';
 import { logger } from './logger.js';
 
 /**
  * Enterprise Admin Module interface
- * Provides admin billing routes and pack marketplace when enterprise package is available
+ * Provides admin billing routes, tenant CRUD, pricing plans, pack marketplace
+ * when enterprise package is available.
  */
 export interface AdminEnterpriseModule {
   readonly version: 1;
 
   setupAdminRoutes(
+    app: Application,
+    config: {
+      prisma: PrismaClient;
+      logger: {
+        info(obj: object): void;
+        error(obj: object): void;
+        warn(obj: object): void;
+      };
+      requireSuperAdmin: (req: Request, prisma: PrismaClient) => Promise<{ userId: string } | null>;
+    }
+  ): void;
+
+  setupTenantAdminRoutes(
+    app: Application,
+    config: {
+      prisma: PrismaClient;
+      logger: {
+        info(obj: object): void;
+        error(obj: object): void;
+        warn(obj: object): void;
+      };
+      requireSuperAdmin: (req: Request, prisma: PrismaClient) => Promise<{ userId: string } | null>;
+      computeOnlineUsageByTenantSlug: () => Record<string, number>;
+      isMultiTenantEnabled: () => boolean;
+      hashPassword: (password: string) => Promise<string>;
+      signSessionJwt: (payload: { sub: string; tid: string }) => string;
+      setAuthCookie: (res: Response, token: string) => void;
+      normalizeEmail: (email: string) => string;
+      copyTemplateMaps: (prisma: PrismaClient, tenantId: string) => Promise<void>;
+      sendWelcomeEmail: (params: { email: string; name: string; slug: string; tenantId: string }) => void;
+    }
+  ): void;
+
+  setupPricingPlanRoutes(
     app: Application,
     config: {
       prisma: PrismaClient;
@@ -43,6 +78,8 @@ export interface AdminEnterpriseModule {
 const adminEnterpriseSchema = z.object({
   version: z.literal(1),
   setupAdminRoutes: z.function(),
+  setupTenantAdminRoutes: z.function(),
+  setupPricingPlanRoutes: z.function(),
   setupPackMarketplaceRoutes: z.function(),
 });
 
@@ -85,6 +122,8 @@ export async function getAdminEnterpriseModule(): Promise<AdminEnterpriseModule 
     cached = {
       version: 1,
       setupAdminRoutes: mod.setupAdminRoutes as AdminEnterpriseModule['setupAdminRoutes'],
+      setupTenantAdminRoutes: mod.setupTenantAdminRoutes as AdminEnterpriseModule['setupTenantAdminRoutes'],
+      setupPricingPlanRoutes: mod.setupPricingPlanRoutes as AdminEnterpriseModule['setupPricingPlanRoutes'],
       setupPackMarketplaceRoutes: mod.setupPackMarketplaceRoutes as AdminEnterpriseModule['setupPackMarketplaceRoutes'],
     };
 
