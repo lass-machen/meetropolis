@@ -60,79 +60,89 @@ async function resolveTokenTenant(req: Request): Promise<Tenant | null> {
 // Paths that do not require tenant context (static files, health checks, tools)
 const TENANT_BYPASS_PREFIXES = ['/tools', '/packs', '/assets', '/npc-media', '/metrics', '/healthz'];
 
+function isTenantBypassPath(path: string): boolean {
+  if (path === '/') return true;
+  return TENANT_BYPASS_PREFIXES.some(p => path === p || path.startsWith(p + '/'));
+}
+
+async function applySingleTenantFallback(req: TenantRequest, res: Response): Promise<boolean> {
+  const fallback = process.env.DEFAULT_TENANT_SLUG || 'default';
+  req.tenantSlug = fallback;
+
+  let tenant = await prisma.tenant.findUnique({ where: { slug: fallback } });
+  if (!tenant) {
+    const isProd = process.env.NODE_ENV === 'production';
+    if (isProd) {
+      res.status(404).json({ error: 'tenant_not_found' });
+      return false;
+    }
+    tenant = await prisma.tenant.create({ data: { slug: fallback, name: fallback, concurrentLimit: 50 } });
+  }
+
+  req.tenant = tenant;
+  req.tenantId = tenant.id;
+  return true;
+}
+
+async function autoCreateDevTenant(slug: string): Promise<Tenant> {
+  if (slug === 'internal') {
+    return prisma.tenant.create({ data: { slug, name: 'Internal', concurrentLimit: 999999, bypassLimits: true, isInternal: true } });
+  }
+  return prisma.tenant.create({ data: { slug, name: slug, concurrentLimit: 50 } });
+}
+
+async function resolveTenantBySlug(req: TenantRequest): Promise<Tenant | null> {
+  const fromHeader = (req.headers['x-tenant'] || '').toString();
+  const fromQuery = (req.query?.tenant || '').toString();
+  const fromHost = extractTenantSlugFromHost(extractHost(req) || null) || '';
+  const explicitSlug = fromHeader || fromQuery;
+  const raw = explicitSlug || fromHost || '';
+
+  if (!raw) {
+    const tokenTenant = await resolveTokenTenant(req);
+    if (tokenTenant) {
+      req.tenantSlug = tokenTenant.slug;
+      return tokenTenant;
+    }
+  }
+
+  const fallback = process.env.DEFAULT_TENANT_SLUG || 'default';
+  const slug = sanitizeSlug(raw || fallback) || 'default';
+  req.tenantSlug = slug;
+
+  let tenant = await prisma.tenant.findUnique({ where: { slug } });
+
+  if (!tenant && !explicitSlug && slug !== fallback) {
+    tenant = await prisma.tenant.findUnique({ where: { slug: fallback } });
+    if (tenant) req.tenantSlug = fallback;
+  }
+
+  if (!tenant) {
+    const isDev = process.env.NODE_ENV !== 'production';
+    if (isDev) {
+      const targetSlug = req.tenantSlug || 'default';
+      tenant = await autoCreateDevTenant(targetSlug);
+      req.tenantSlug = targetSlug;
+    }
+  }
+
+  return tenant;
+}
+
 export async function tenantMiddleware(req: TenantRequest, res: Response, next: NextFunction) {
   try {
-    // Bypass tenant resolution for routes that don't need it
-    if (req.path === '/' || TENANT_BYPASS_PREFIXES.some(p => req.path === p || req.path.startsWith(p + '/'))) {
+    if (isTenantBypassPath(req.path)) {
       return next();
     }
 
-    // Feature-Gate: In OSS-Only Builds ohne Enterprise-Package strikt Single-Tenant fahren
     const tenancy = await getTenancyModule();
     if (!tenancy.isMultiTenantEnabled()) {
-      const fallback = process.env.DEFAULT_TENANT_SLUG || 'default';
-      req.tenantSlug = fallback;
-
-      let tenant = await prisma.tenant.findUnique({ where: { slug: fallback } });
-      if (!tenant) {
-        const isProd = process.env.NODE_ENV === 'production';
-        if (isProd) return res.status(404).json({ error: 'tenant_not_found' });
-        tenant = await prisma.tenant.create({ data: { slug: fallback, name: fallback, concurrentLimit: 50 } });
-      }
-
-      req.tenant = tenant;
-      req.tenantId = tenant.id;
+      const ok = await applySingleTenantFallback(req, res);
+      if (!ok) return;
       return next();
     }
 
-    const fromHeader = (req.headers['x-tenant'] || '').toString();
-    const fromQuery = (req.query?.tenant || '').toString();
-    const fromHost = extractTenantSlugFromHost(extractHost(req) || null) || '';
-    const explicitSlug = fromHeader || fromQuery;
-    const raw = explicitSlug || fromHost || '';
-
-    // JWT-based tenant fallback: When no tenant can be determined from host/header/query
-    // (e.g. localhost in development), use the tenant ID from the user's auth token.
-    if (!raw) {
-      const tokenTenant = await resolveTokenTenant(req);
-      if (tokenTenant) {
-        req.tenantSlug = tokenTenant.slug;
-        req.tenant = tokenTenant;
-        req.tenantId = tokenTenant.id;
-        return next();
-      }
-    }
-
-    const fallback = process.env.DEFAULT_TENANT_SLUG || 'default';
-    const slug = sanitizeSlug(raw || fallback) || 'default';
-
-    // Cache on request for downstream handlers
-    req.tenantSlug = slug;
-
-    // Load tenant; in development, create on demand for convenience
-    let tenant = await prisma.tenant.findUnique({ where: { slug } });
-
-    // If slug came from hostname (not explicit header/query) and didn't match,
-    // fall back to the default tenant (e.g. api.meetropolis.me extracts "api"
-    // which is not a tenant — use "default" instead)
-    if (!tenant && !explicitSlug && slug !== fallback) {
-      tenant = await prisma.tenant.findUnique({ where: { slug: fallback } });
-      if (tenant) req.tenantSlug = fallback;
-    }
-
-    if (!tenant) {
-      const isDev = process.env.NODE_ENV !== 'production';
-      if (isDev) {
-        // Auto-create known special slugs in dev to avoid bootstrapping steps
-        const targetSlug = req.tenantSlug || 'default';
-        if (targetSlug === 'internal') {
-          tenant = await prisma.tenant.create({ data: { slug: targetSlug, name: 'Internal', concurrentLimit: 999999, bypassLimits: true, isInternal: true } });
-        } else {
-          tenant = await prisma.tenant.create({ data: { slug: targetSlug, name: targetSlug, concurrentLimit: 50 } });
-        }
-        req.tenantSlug = targetSlug;
-      }
-    }
+    const tenant = await resolveTenantBySlug(req);
     if (!tenant) return res.status(404).json({ error: 'tenant_not_found' });
 
     req.tenant = tenant;

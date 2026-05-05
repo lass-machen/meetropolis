@@ -3,7 +3,9 @@ import { PrismaClient } from '../generated/prisma/index.js';
 
 const prisma = new PrismaClient();
 
-async function main() {
+type TenantRef = { id: string };
+
+async function ensureBaseTenants() {
   const internal = await prisma.tenant.upsert({
     where: { slug: 'internal' },
     create: { slug: 'internal', name: 'Internal', concurrentLimit: 999999, bypassLimits: true, isInternal: true },
@@ -14,32 +16,30 @@ async function main() {
     create: { slug: 'default', name: 'Default', concurrentLimit: 50 },
     update: {},
   });
-  // Target tenant for migration - defaults to 'default', can be overridden via MIGRATE_EXISTING_TO_SLUG
+  return { internal, def };
+}
+
+async function resolveTargetTenant(internal: TenantRef, def: TenantRef): Promise<TenantRef> {
   const targetSlug = (process.env.MIGRATE_EXISTING_TO_SLUG || 'default').toLowerCase();
+  if (targetSlug === 'internal') return internal;
+  if (targetSlug === 'default') return def;
+  return prisma.tenant.upsert({
+    where: { slug: targetSlug },
+    create: { slug: targetSlug, name: targetSlug, concurrentLimit: 999999, bypassLimits: true },
+    update: {},
+  });
+}
 
-  let target;
-  if (targetSlug === 'internal') {
-    target = internal;
-  } else if (targetSlug === 'default') {
-    target = def;
-  } else {
-    // Create custom tenant with high limits (typically for enterprise/self-hosted)
-    target = await prisma.tenant.upsert({
-      where: { slug: targetSlug },
-      create: { slug: targetSlug, name: targetSlug, concurrentLimit: 999999, bypassLimits: true },
-      update: {},
-    });
-  }
-
-  // Backfill maps
+async function backfillMaps(target: TenantRef) {
   const maps = await prisma.map.findMany();
   for (const m of maps) {
     if (!(m as any).tenantId) {
       await prisma.map.update({ where: { id: m.id }, data: { tenantId: target.id } as any });
     }
   }
+}
 
-  // Backfill rooms with their map tenant
+async function backfillRooms(target: TenantRef) {
   const rooms = await prisma.room.findMany();
   for (const r of rooms) {
     if (!(r as any).tenantId) {
@@ -47,8 +47,9 @@ async function main() {
       await prisma.room.update({ where: { id: r.id }, data: { tenantId: (map as any)?.tenantId || target.id } as any });
     }
   }
+}
 
-  // Backfill zones with their map tenant
+async function backfillZones(target: TenantRef) {
   const zones = await prisma.zone.findMany();
   for (const z of zones) {
     if (!(z as any).tenantId) {
@@ -56,8 +57,9 @@ async function main() {
       await prisma.zone.update({ where: { id: z.id }, data: { tenantId: (map as any)?.tenantId || target.id } as any });
     }
   }
+}
 
-  // Backfill presences with their room tenant
+async function backfillPresences(target: TenantRef) {
   const presences = await prisma.presence.findMany();
   for (const p of presences) {
     if (!(p as any).tenantId) {
@@ -65,16 +67,18 @@ async function main() {
       await prisma.presence.update({ where: { id: p.id }, data: { tenantId: (room as any)?.tenantId || target.id } as any });
     }
   }
+}
 
-  // Backfill invites to default
+async function backfillInvites(target: TenantRef) {
   const invites = await prisma.invite.findMany();
   for (const inv of invites) {
     if (!(inv as any).tenantId) {
       await prisma.invite.update({ where: { id: inv.id }, data: { tenantId: target.id } as any });
     }
   }
+}
 
-  // Ensure all users are members of default
+async function ensureUserMemberships(target: TenantRef) {
   const users = await prisma.user.findMany();
   for (const u of users) {
     try {
@@ -85,6 +89,18 @@ async function main() {
       });
     } catch {}
   }
+}
+
+async function main() {
+  const { internal, def } = await ensureBaseTenants();
+  const target = await resolveTargetTenant(internal, def);
+
+  await backfillMaps(target);
+  await backfillRooms(target);
+  await backfillZones(target);
+  await backfillPresences(target);
+  await backfillInvites(target);
+  await ensureUserMemberships(target);
 
   // eslint-disable-next-line no-console
   console.log('Tenant migration complete');
@@ -97,5 +113,3 @@ main().catch((e) => {
 }).finally(async () => {
   await prisma.$disconnect();
 });
-
-

@@ -313,15 +313,12 @@ export type BuildTmjParams = {
   spawn?: { x: number; y: number } | null;
 };
 
-export function buildTmjFromV2(params: BuildTmjParams): Tmj {
-  const { mapWidth, mapHeight, tileWidth, tileHeight, tilesets, layers, zones, spawn } = params;
-
-  const firstGids = computeFirstGidsFromTileCounts(
-    tilesets.map(ts => ({ slot: ts.slot, tileCount: ts.tileCount }))
-  );
-
+function buildTmjTilesets(
+  tilesets: BuildTmjParams['tilesets'],
+  firstGids: number[],
+): TmjTileset[] {
   const sortedTilesets = [...tilesets].sort((a, b) => a.slot - b.slot);
-  const tmjTilesets: TmjTileset[] = sortedTilesets.map(ts => ({
+  return sortedTilesets.map(ts => ({
     firstgid: firstGids[ts.slot] ?? 1,
     name: ts.key,
     image: ts.imageUrl,
@@ -334,7 +331,14 @@ export function buildTmjFromV2(params: BuildTmjParams): Tmj {
     imagewidth: undefined,
     imageheight: undefined,
   }));
+}
 
+function buildTmjTileLayers(
+  layers: BuildTmjParams['layers'],
+  mapWidth: number,
+  mapHeight: number,
+  firstGids: number[],
+): TmjLayer[] {
   const tmjLayers: TmjLayer[] = [];
   for (const layer of layers) {
     const flat = decodeChunksToFlat(layer.chunks, mapWidth, mapHeight, layer.chunkSize);
@@ -350,44 +354,64 @@ export function buildTmjFromV2(params: BuildTmjParams): Tmj {
       height: mapHeight,
     });
   }
+  return tmjLayers;
+}
+
+function appendZoneObjectLayer(tmjLayers: TmjLayer[], zones: ExtractedZone[]) {
+  const objects: TmjObject[] = zones.map((z, i) => ({
+    id: i + 1,
+    name: z.name,
+    type: 'zone',
+    x: z.polygon[0]?.x ?? 0,
+    y: z.polygon[0]?.y ?? 0,
+    polygon: z.polygon.map(p => ({
+      x: p.x - (z.polygon[0]?.x ?? 0),
+      y: p.y - (z.polygon[0]?.y ?? 0),
+    })),
+  }));
+  tmjLayers.push({
+    name: 'zones',
+    type: 'objectgroup',
+    objects,
+  });
+}
+
+function appendSpawnObject(tmjLayers: TmjLayer[], spawn: { x: number; y: number }) {
+  const existingObjLayer = tmjLayers.find(l => l.type === 'objectgroup');
+  const spawnObj: TmjObject = {
+    id: 9999,
+    name: 'spawn',
+    type: 'spawn',
+    x: spawn.x,
+    y: spawn.y,
+  };
+  if (existingObjLayer && existingObjLayer.objects) {
+    existingObjLayer.objects.push(spawnObj);
+  } else {
+    tmjLayers.push({
+      name: 'objects',
+      type: 'objectgroup',
+      objects: [spawnObj],
+    });
+  }
+}
+
+export function buildTmjFromV2(params: BuildTmjParams): Tmj {
+  const { mapWidth, mapHeight, tileWidth, tileHeight, tilesets, layers, zones, spawn } = params;
+
+  const firstGids = computeFirstGidsFromTileCounts(
+    tilesets.map(ts => ({ slot: ts.slot, tileCount: ts.tileCount }))
+  );
+
+  const tmjTilesets = buildTmjTilesets(tilesets, firstGids);
+  const tmjLayers = buildTmjTileLayers(layers, mapWidth, mapHeight, firstGids);
 
   if (zones && zones.length > 0) {
-    const objects: TmjObject[] = zones.map((z, i) => ({
-      id: i + 1,
-      name: z.name,
-      type: 'zone',
-      x: z.polygon[0]?.x ?? 0,
-      y: z.polygon[0]?.y ?? 0,
-      polygon: z.polygon.map(p => ({
-        x: p.x - (z.polygon[0]?.x ?? 0),
-        y: p.y - (z.polygon[0]?.y ?? 0),
-      })),
-    }));
-    tmjLayers.push({
-      name: 'zones',
-      type: 'objectgroup',
-      objects,
-    });
+    appendZoneObjectLayer(tmjLayers, zones);
   }
 
   if (spawn) {
-    const existingObjLayer = tmjLayers.find(l => l.type === 'objectgroup');
-    const spawnObj: TmjObject = {
-      id: 9999,
-      name: 'spawn',
-      type: 'spawn',
-      x: spawn.x,
-      y: spawn.y,
-    };
-    if (existingObjLayer && existingObjLayer.objects) {
-      existingObjLayer.objects.push(spawnObj);
-    } else {
-      tmjLayers.push({
-        name: 'objects',
-        type: 'objectgroup',
-        objects: [spawnObj],
-      });
-    }
+    appendSpawnObject(tmjLayers, spawn);
   }
 
   return {

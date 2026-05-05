@@ -40,81 +40,146 @@ function CalendarIcon() {
   );
 }
 
-export function LegalLayout({
-  title,
-  subtitle,
-  breadcrumbLabel,
-  lastUpdated,
-  sections,
-  onBack,
-  navigate,
-  registrationEnabled,
-}: LegalLayoutProps) {
-  const { t } = useTranslation('public');
+function useActiveSection(
+  sections: LegalSection[],
+  refRegistry: React.MutableRefObject<Map<string, HTMLElement>>,
+): string {
   const [activeId, setActiveId] = useState<string>(sections[0]?.id ?? '');
-  const sectionRefs = useRef<Map<string, HTMLElement>>(new Map());
-  const observerRef = useRef<IntersectionObserver | null>(null);
-
-  const registerRef = useCallback(
-    (id: string, el: HTMLElement | null) => {
-      if (el) {
-        sectionRefs.current.set(id, el);
-      } else {
-        sectionRefs.current.delete(id);
-      }
-    },
-    [],
-  );
-
-  // IntersectionObserver for active section detection
   useEffect(() => {
-    if (observerRef.current) {
-      observerRef.current.disconnect();
-    }
-
-    const visibleSections = new Set<string>();
-
-    observerRef.current = new IntersectionObserver(
+    const visible = new Set<string>();
+    const observer = new IntersectionObserver(
       (entries) => {
-        entries.forEach((entry) => {
+        for (const entry of entries) {
           const id = entry.target.getAttribute('data-section-id');
-          if (!id) return;
-          if (entry.isIntersecting) {
-            visibleSections.add(id);
-          } else {
-            visibleSections.delete(id);
-          }
-        });
-
-        // Pick the first visible section in document order
+          if (!id) continue;
+          if (entry.isIntersecting) visible.add(id);
+          else visible.delete(id);
+        }
         for (const section of sections) {
-          if (visibleSections.has(section.id)) {
+          if (visible.has(section.id)) {
             setActiveId(section.id);
             break;
           }
         }
       },
-      {
-        rootMargin: '-120px 0px -40% 0px',
-        threshold: 0,
-      },
+      { rootMargin: '-120px 0px -40% 0px', threshold: 0 },
     );
+    refRegistry.current.forEach((el) => observer.observe(el));
+    return () => observer.disconnect();
+  }, [sections, refRegistry]);
+  return activeId;
+}
 
-    // Observe all sections
-    sectionRefs.current.forEach((el) => {
-      observerRef.current?.observe(el);
-    });
+function LegalHero({ title, subtitle, breadcrumbLabel, onBack, t }: { title: string; subtitle: string; breadcrumbLabel: string; onBack: () => void; t: (k: string) => string }) {
+  return (
+    <div style={{ background: 'var(--pub-bg-surface)', padding: '48px 120px 56px' }} className="legal-hero">
+      <div style={{ maxWidth: 1000, margin: '0 auto' }}>
+        <div style={{ fontFamily: 'var(--pub-font-body)', fontSize: 13, fontWeight: 500, color: 'var(--pub-text-secondary)', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <button
+            onClick={onBack}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--pub-font-body)', fontSize: 13, fontWeight: 500, color: 'var(--pub-accent-purple)', padding: 0 }}
+          >
+            {t('legal.breadcrumbHome')}
+          </button>
+          <span style={{ color: 'var(--pub-text-tertiary)' }}>/</span>
+          <span>{breadcrumbLabel}</span>
+        </div>
+        <h1 className="pub-text-h3" style={{ color: 'var(--pub-text-primary)', margin: 0, marginBottom: 12 }}>{title}</h1>
+        <p className="pub-text-subline" style={{ margin: 0 }}>{subtitle}</p>
+      </div>
+    </div>
+  );
+}
 
-    return () => {
-      observerRef.current?.disconnect();
-    };
-  }, [sections]);
+function LegalSidebarItem({ section, isActive, onClick }: { section: LegalSection; isActive: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        background: isActive ? 'var(--pub-accent-purple-soft)' : 'transparent',
+        color: isActive ? 'var(--pub-accent-purple)' : 'var(--pub-text-secondary)',
+        border: 'none', borderRadius: 8, padding: '10px 16px',
+        fontFamily: 'var(--pub-font-body)', fontSize: 14, fontWeight: 500,
+        textAlign: 'left', cursor: 'pointer', transition: 'all 0.15s ease',
+        lineHeight: 1.4, overflowWrap: 'break-word',
+      }}
+      onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.color = 'var(--pub-text-primary)'; }}
+      onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.color = 'var(--pub-text-secondary)'; }}
+    >
+      {section.title}
+    </button>
+  );
+}
+
+function LegalSidebar({ sections, activeId, onSelect }: { sections: LegalSection[]; activeId: string; onSelect: (id: string) => void }) {
+  return (
+    <nav className="legal-sidebar" style={{ width: 240, flexShrink: 0, position: 'sticky', top: 120, alignSelf: 'flex-start', display: 'flex', flexDirection: 'column', gap: 2 }}>
+      {sections.map((s) => (
+        <LegalSidebarItem key={s.id} section={s} isActive={activeId === s.id} onClick={() => onSelect(s.id)} />
+      ))}
+    </nav>
+  );
+}
+
+function LegalContent({ sections, lastUpdated, registerRef, t }: { sections: LegalSection[]; lastUpdated: string; registerRef: (id: string, el: HTMLElement | null) => void; t: (k: string) => string }) {
+  return (
+    <div style={{ flex: 1, minWidth: 0 }}>
+      {sections.map((section) => (
+        <section
+          key={section.id}
+          id={section.id}
+          data-section-id={section.id}
+          ref={(el) => registerRef(section.id, el)}
+          style={{ marginBottom: 48, scrollMarginTop: 120 }}
+        >
+          <h2 className="pub-text-h5" style={{ color: 'var(--pub-text-primary)', margin: 0 }}>{section.title}</h2>
+          <div style={{ height: 1, background: 'var(--pub-border-light)', margin: '16px 0 24px' }} />
+          <div className="pub-text-body legal-body-content" style={{ color: 'var(--pub-text-primary)' }}>
+            {section.content}
+          </div>
+        </section>
+      ))}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'var(--pub-font-body)', fontSize: 13, color: 'var(--pub-text-tertiary)', marginTop: 32, paddingTop: 24, borderTop: '1px solid var(--pub-border-light)' }}>
+        <CalendarIcon />
+        <span>{t('legal.lastUpdated')} {lastUpdated}</span>
+      </div>
+    </div>
+  );
+}
+
+const LEGAL_LAYOUT_STYLES = `
+  @media (max-width: 1024px) {
+    .legal-hero { padding: 40px 40px 48px !important; }
+    .legal-content-area { padding: 40px 40px 64px !important; }
+  }
+  @media (max-width: 768px) {
+    .legal-hero { padding: 32px 24px 40px !important; }
+    .legal-content-area { padding: 32px 24px 56px !important; flex-direction: column !important; }
+    .legal-sidebar { display: none !important; }
+  }
+  .legal-body-content p { margin: 0 0 12px 0; line-height: 1.7; }
+  .legal-body-content ul { padding-left: 24px; margin: 0 0 12px 0; line-height: 1.8; }
+  .legal-body-content li { margin-bottom: 4px; }
+  .legal-body-content a { color: var(--pub-accent-purple); text-decoration: underline; }
+  .legal-body-content a:hover { color: var(--pub-accent-purple-dark); }
+  .legal-body-content h3 { font-family: var(--pub-font-display); font-size: 18px; font-weight: 600; line-height: 1.3; color: var(--pub-text-primary); margin: 24px 0 12px 0; }
+  .legal-body-content h3:first-child { margin-top: 0; }
+  .legal-body-content strong { font-weight: 600; }
+  .legal-body-content em { font-style: italic; color: var(--pub-text-secondary); }
+`;
+
+export function LegalLayout({ title, subtitle, breadcrumbLabel, lastUpdated, sections, onBack, navigate, registrationEnabled }: LegalLayoutProps) {
+  const { t } = useTranslation('public');
+  const sectionRefs = useRef<Map<string, HTMLElement>>(new Map());
+  const activeId = useActiveSection(sections, sectionRefs);
+
+  const registerRef = useCallback((id: string, el: HTMLElement | null) => {
+    if (el) sectionRefs.current.set(id, el);
+    else sectionRefs.current.delete(id);
+  }, []);
 
   const scrollToSection = (id: string) => {
-    const el = document.getElementById(id);
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
   return (
@@ -124,262 +189,12 @@ export function LegalLayout({
       navigate={navigate}
       {...(registrationEnabled !== undefined && { registrationEnabled })}
     >
-      {/* Page Hero */}
-      <div
-        style={{
-          background: 'var(--pub-bg-surface)',
-          padding: '48px 120px 56px',
-        }}
-        className="legal-hero"
-      >
-        <div
-          style={{
-            maxWidth: 1000,
-            margin: '0 auto',
-          }}
-        >
-          {/* Breadcrumb */}
-          <div
-            style={{
-              fontFamily: 'var(--pub-font-body)',
-              fontSize: 13,
-              fontWeight: 500,
-              color: 'var(--pub-text-secondary)',
-              marginBottom: 20,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-            }}
-          >
-            <button
-              onClick={onBack}
-              style={{
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                fontFamily: 'var(--pub-font-body)',
-                fontSize: 13,
-                fontWeight: 500,
-                color: 'var(--pub-accent-purple)',
-                padding: 0,
-              }}
-            >
-              {t('legal.breadcrumbHome')}
-            </button>
-            <span style={{ color: 'var(--pub-text-tertiary)' }}>/</span>
-            <span>{breadcrumbLabel}</span>
-          </div>
-
-          {/* Title */}
-          <h1
-            className="pub-text-h3"
-            style={{
-              color: 'var(--pub-text-primary)',
-              margin: 0,
-              marginBottom: 12,
-            }}
-          >
-            {title}
-          </h1>
-
-          {/* Subtitle */}
-          <p
-            className="pub-text-subline"
-            style={{
-              margin: 0,
-            }}
-          >
-            {subtitle}
-          </p>
-        </div>
+      <LegalHero title={title} subtitle={subtitle} breadcrumbLabel={breadcrumbLabel} onBack={onBack} t={t} />
+      <div className="legal-content-area" style={{ maxWidth: 1000, margin: '0 auto', padding: '48px 120px 80px', display: 'flex', gap: 48 }}>
+        <LegalSidebar sections={sections} activeId={activeId} onSelect={scrollToSection} />
+        <LegalContent sections={sections} lastUpdated={lastUpdated} registerRef={registerRef} t={t} />
       </div>
-
-      {/* Content Area */}
-      <div
-        className="legal-content-area"
-        style={{
-          maxWidth: 1000,
-          margin: '0 auto',
-          padding: '48px 120px 80px',
-          display: 'flex',
-          gap: 48,
-        }}
-      >
-        {/* Sidebar */}
-        <nav
-          className="legal-sidebar"
-          style={{
-            width: 240,
-            flexShrink: 0,
-            position: 'sticky',
-            top: 120,
-            alignSelf: 'flex-start',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 2,
-          }}
-        >
-          {sections.map((section) => {
-            const isActive = activeId === section.id;
-            return (
-              <button
-                key={section.id}
-                onClick={() => scrollToSection(section.id)}
-                style={{
-                  background: isActive
-                    ? 'var(--pub-accent-purple-soft)'
-                    : 'transparent',
-                  color: isActive
-                    ? 'var(--pub-accent-purple)'
-                    : 'var(--pub-text-secondary)',
-                  border: 'none',
-                  borderRadius: 8,
-                  padding: '10px 16px',
-                  fontFamily: 'var(--pub-font-body)',
-                  fontSize: 14,
-                  fontWeight: 500,
-                  textAlign: 'left',
-                  cursor: 'pointer',
-                  transition: 'all 0.15s ease',
-                  lineHeight: 1.4,
-                  overflowWrap: 'break-word',
-                }}
-                onMouseEnter={(e) => {
-                  if (!isActive) {
-                    e.currentTarget.style.color = 'var(--pub-text-primary)';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!isActive) {
-                    e.currentTarget.style.color = 'var(--pub-text-secondary)';
-                  }
-                }}
-              >
-                {section.title}
-              </button>
-            );
-          })}
-        </nav>
-
-        {/* Main Content */}
-        <div style={{ flex: 1, minWidth: 0 }}>
-          {sections.map((section) => (
-            <section
-              key={section.id}
-              id={section.id}
-              data-section-id={section.id}
-              ref={(el) => registerRef(section.id, el)}
-              style={{ marginBottom: 48, scrollMarginTop: 120 }}
-            >
-              <h2
-                className="pub-text-h5"
-                style={{
-                  color: 'var(--pub-text-primary)',
-                  margin: 0,
-                }}
-              >
-                {section.title}
-              </h2>
-              <div
-                style={{
-                  height: 1,
-                  background: 'var(--pub-border-light)',
-                  margin: '16px 0 24px',
-                }}
-              />
-              <div
-                className="pub-text-body legal-body-content"
-                style={{
-                  color: 'var(--pub-text-primary)',
-                }}
-              >
-                {section.content}
-              </div>
-            </section>
-          ))}
-
-          {/* Last Updated */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              fontFamily: 'var(--pub-font-body)',
-              fontSize: 13,
-              color: 'var(--pub-text-tertiary)',
-              marginTop: 32,
-              paddingTop: 24,
-              borderTop: '1px solid var(--pub-border-light)',
-            }}
-          >
-            <CalendarIcon />
-            <span>
-              {t('legal.lastUpdated')} {lastUpdated}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* Responsive Styles */}
-      <style>{`
-        @media (max-width: 1024px) {
-          .legal-hero {
-            padding: 40px 40px 48px !important;
-          }
-          .legal-content-area {
-            padding: 40px 40px 64px !important;
-          }
-        }
-        @media (max-width: 768px) {
-          .legal-hero {
-            padding: 32px 24px 40px !important;
-          }
-          .legal-content-area {
-            padding: 32px 24px 56px !important;
-            flex-direction: column !important;
-          }
-          .legal-sidebar {
-            display: none !important;
-          }
-        }
-        .legal-body-content p {
-          margin: 0 0 12px 0;
-          line-height: 1.7;
-        }
-        .legal-body-content ul {
-          padding-left: 24px;
-          margin: 0 0 12px 0;
-          line-height: 1.8;
-        }
-        .legal-body-content li {
-          margin-bottom: 4px;
-        }
-        .legal-body-content a {
-          color: var(--pub-accent-purple);
-          text-decoration: underline;
-        }
-        .legal-body-content a:hover {
-          color: var(--pub-accent-purple-dark);
-        }
-        .legal-body-content h3 {
-          font-family: var(--pub-font-display);
-          font-size: 18px;
-          font-weight: 600;
-          line-height: 1.3;
-          color: var(--pub-text-primary);
-          margin: 24px 0 12px 0;
-        }
-        .legal-body-content h3:first-child {
-          margin-top: 0;
-        }
-        .legal-body-content strong {
-          font-weight: 600;
-        }
-        .legal-body-content em {
-          font-style: italic;
-          color: var(--pub-text-secondary);
-        }
-      `}</style>
+      <style>{LEGAL_LAYOUT_STYLES}</style>
     </PublicLayout>
   );
 }

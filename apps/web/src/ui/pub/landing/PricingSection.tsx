@@ -66,18 +66,33 @@ function PriceDisplay({ plan, locale }: { plan: PublicPricingPlan; locale: strin
   );
 }
 
-function PlanCard({ plan, locale, onSignup, registrationEnabled }: {
+interface PlanCardProps {
   plan: PublicPricingPlan;
   locale: string;
   onSignup: () => void;
   registrationEnabled: boolean;
-}) {
-  const isHighlighted = plan.highlighted;
-  const variant = isHighlighted ? 'purple' : 'dark';
-  const className = isHighlighted ? 'pricing-card pricing-card--featured' : 'pricing-card pricing-card--side';
-  const textColor = isHighlighted ? 'rgba(255,255,255,0.8)' : 'var(--pub-text-on-dark-secondary)';
-  const unitColor = isHighlighted ? 'rgba(255,255,255,0.7)' : 'var(--pub-text-on-dark-secondary)';
+}
 
+function PlanCardHeader({ plan, locale, isHighlighted, textColor }: { plan: PublicPricingPlan; locale: string; isHighlighted: boolean; textColor: string }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+      <p style={{ fontFamily: 'var(--pub-font-body)', fontSize: 15, fontWeight: 500, color: textColor, margin: 0 }}>
+        {t18n(plan.name, locale)}
+      </p>
+      {isHighlighted && plan.badgeLabel && (
+        <span style={{
+          display: 'inline-flex', alignItems: 'center', gap: 8, padding: '6px 16px',
+          borderRadius: 'var(--pub-radius-pill)', fontFamily: 'var(--pub-font-body)',
+          fontSize: 13, fontWeight: 500, background: '#FFFFFF', color: 'var(--pub-accent-purple)',
+        }}>
+          {t18n(plan.badgeLabel, locale)}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function PlanCardCta({ plan, locale, onSignup, isHighlighted, registrationEnabled }: PlanCardProps & { isHighlighted: boolean }) {
   const handleCtaClick = () => {
     if (plan.ctaUrl && (plan.ctaUrl.startsWith('http') || plan.ctaUrl.startsWith('mailto:'))) {
       window.open(plan.ctaUrl, '_blank');
@@ -85,72 +100,69 @@ function PlanCard({ plan, locale, onSignup, registrationEnabled }: {
       onSignup();
     }
   };
-
   const showCta = registrationEnabled || !!plan.ctaUrl;
+  if (!showCta) return null;
+  return (
+    <PubButton variant={isHighlighted ? 'cta-white' : 'secondary'} onClick={handleCtaClick} style={{ width: '100%' }}>
+      {t18n(plan.ctaLabel, locale)}
+    </PubButton>
+  );
+}
+
+function PlanCard({ plan, locale, onSignup, registrationEnabled }: PlanCardProps) {
+  const isHighlighted = !!plan.highlighted;
+  const variant = isHighlighted ? 'purple' : 'dark';
+  const className = isHighlighted ? 'pricing-card pricing-card--featured' : 'pricing-card pricing-card--side';
+  const textColor = isHighlighted ? 'rgba(255,255,255,0.8)' : 'var(--pub-text-on-dark-secondary)';
+  const unitColor = isHighlighted ? 'rgba(255,255,255,0.7)' : 'var(--pub-text-on-dark-secondary)';
 
   return (
-    <PubCard
-      variant={variant}
-      className={className}
-      style={isHighlighted ? { boxShadow: '0 0 40px rgba(139,92,246,0.3)' } : {}}
-    >
+    <PubCard variant={variant} className={className} style={isHighlighted ? { boxShadow: '0 0 40px rgba(139,92,246,0.3)' } : {}}>
       <div style={{ textAlign: 'left' }}>
-        {/* Plan name + badge row */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-          <p style={{ fontFamily: 'var(--pub-font-body)', fontSize: 15, fontWeight: 500, color: textColor, margin: 0 }}>
-            {t18n(plan.name, locale)}
-          </p>
-          {isHighlighted && plan.badgeLabel && (
-            <span style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 8,
-              padding: '6px 16px',
-              borderRadius: 'var(--pub-radius-pill)',
-              fontFamily: 'var(--pub-font-body)',
-              fontSize: 13,
-              fontWeight: 500,
-              background: '#FFFFFF',
-              color: 'var(--pub-accent-purple)',
-            }}>
-              {t18n(plan.badgeLabel, locale)}
-            </span>
-          )}
-        </div>
-
+        <PlanCardHeader plan={plan} locale={locale} isHighlighted={isHighlighted} textColor={textColor} />
         <PriceDisplay plan={plan} locale={locale} />
-
-        {/* Unit label — hide for custom pricing */}
-        {!plan.customPricing ? (
-          <p style={{ fontFamily: 'var(--pub-font-body)', fontSize: 14, color: unitColor, marginBottom: 32 }}>
-            {t18n(plan.unitLabel, locale)}
-          </p>
-        ) : (
-          <p style={{ fontFamily: 'var(--pub-font-body)', fontSize: 14, color: unitColor, marginBottom: 32, visibility: 'hidden' }}>
-            &nbsp;
-          </p>
-        )}
-
-        {/* Features */}
+        <p style={{ fontFamily: 'var(--pub-font-body)', fontSize: 14, color: unitColor, marginBottom: 32, ...(plan.customPricing ? { visibility: 'hidden' as const } : {}) }}>
+          {plan.customPricing ? ' ' : t18n(plan.unitLabel, locale)}
+        </p>
         <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 32px 0', display: 'flex', flexDirection: 'column', gap: 12 }}>
           {plan.features.map((f, idx) => (
             <FeatureItem key={idx} text={t18n(f, locale)} white={isHighlighted} />
           ))}
         </ul>
-
-        {/* CTA */}
-        {showCta && (
-          <PubButton
-            variant={isHighlighted ? 'cta-white' : 'secondary'}
-            onClick={handleCtaClick}
-            style={{ width: '100%' }}
-          >
-            {t18n(plan.ctaLabel, locale)}
-          </PubButton>
-        )}
+        <PlanCardCta plan={plan} locale={locale} onSignup={onSignup} isHighlighted={isHighlighted} registrationEnabled={registrationEnabled} />
       </div>
     </PubCard>
   );
+}
+
+function PricingHeader({ t }: { t: (k: string) => string }) {
+  return (
+    <>
+      <div style={{ marginBottom: 16 }}>
+        <PubBadge variant="teal" dot>{t('pricing.badge')}</PubBadge>
+      </div>
+      <h2 className="pub-text-h2" style={{ color: 'var(--pub-text-on-dark)', marginBottom: 16 }}>
+        {t('pricing.title')}
+      </h2>
+      <p
+        className="pub-text-subline"
+        style={{ color: 'var(--pub-text-on-dark-secondary)', marginBottom: 56, maxWidth: 600, marginLeft: 'auto', marginRight: 'auto' }}
+      >
+        {t('pricing.subtitle')}
+      </p>
+    </>
+  );
+}
+
+function usePublicPricingPlans(): PublicPricingPlan[] {
+  const [plans, setPlans] = useState<PublicPricingPlan[]>([]);
+  useEffect(() => {
+    fetch(`${getApiBaseFromWindow()}/public/pricing-plans`)
+      .then((r) => r.json())
+      .then((data: { plans?: PublicPricingPlan[] }) => setPlans(data.plans ?? []))
+      .catch(() => setPlans([]));
+  }, []);
+  return plans;
 }
 
 export function PricingSection({ onSignup, registrationEnabled = true }: PricingSectionProps) {
@@ -158,15 +170,7 @@ export function PricingSection({ onSignup, registrationEnabled = true }: Pricing
   const locale = i18n.language?.split('-')[0] || 'en';
   const sectionRef = useRef<HTMLElement>(null);
   useReveal(sectionRef);
-
-  const [plans, setPlans] = useState<PublicPricingPlan[]>([]);
-
-  useEffect(() => {
-    fetch(`${getApiBaseFromWindow()}/public/pricing-plans`)
-      .then((r) => r.json())
-      .then((data: { plans?: PublicPricingPlan[] }) => setPlans(data.plans ?? []))
-      .catch(() => setPlans([]));
-  }, []);
+  const plans = usePublicPricingPlans();
 
   if (plans.length === 0) return null;
 
@@ -178,23 +182,7 @@ export function PricingSection({ onSignup, registrationEnabled = true }: Pricing
       style={{ background: 'var(--pub-bg-dark)', padding: 'var(--pub-section-padding)' }}
     >
       <div className="pub-container" style={{ textAlign: 'center' }}>
-        {/* Header */}
-        <div style={{ marginBottom: 16 }}>
-          <PubBadge variant="teal" dot>
-            {t('pricing.badge')}
-          </PubBadge>
-        </div>
-        <h2 className="pub-text-h2" style={{ color: 'var(--pub-text-on-dark)', marginBottom: 16 }}>
-          {t('pricing.title')}
-        </h2>
-        <p
-          className="pub-text-subline"
-          style={{ color: 'var(--pub-text-on-dark-secondary)', marginBottom: 56, maxWidth: 600, marginLeft: 'auto', marginRight: 'auto' }}
-        >
-          {t('pricing.subtitle')}
-        </p>
-
-        {/* Pricing Cards */}
+        <PricingHeader t={t} />
         <div className="pricing-cards-row">
           {plans.map((plan) => (
             <PlanCard
