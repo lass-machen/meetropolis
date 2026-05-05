@@ -1,26 +1,9 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { PubButton, PubInput } from '../components';
+import { AuthMailIcon } from './AuthFormPartials';
 
 /* ---------- Inline SVG icons ---------- */
-
-function MailIcon() {
-  return (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <rect x="2" y="4" width="20" height="16" rx="2" />
-      <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
-    </svg>
-  );
-}
 
 function LogInIcon() {
   return (
@@ -53,6 +36,172 @@ interface LoginViewProps {
   registrationEnabled?: boolean;
 }
 
+/* ---------- Sub-Components ---------- */
+
+function LoginTitle() {
+  const { t } = useTranslation('public');
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <h1 className="pub-text-h3" style={{ margin: 0 }}>
+        {t('auth.loginTitle')}
+      </h1>
+      <p
+        className="pub-text-body"
+        style={{ margin: 0, color: 'var(--pub-text-secondary)' }}
+      >
+        {t('auth.loginSubtitle')}
+      </p>
+    </div>
+  );
+}
+
+interface PasswordFieldProps {
+  password: string;
+  onChange: (v: string) => void;
+  onForgot: () => void;
+}
+
+function PasswordField({ password, onChange, onForgot }: PasswordFieldProps) {
+  const { t } = useTranslation('public');
+  return (
+    <div>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'baseline',
+          marginBottom: 6,
+        }}
+      >
+        <label className="pub-input-label" style={{ margin: 0 }}>
+          {t('auth.passwordLabel')}
+        </label>
+        <a
+          onClick={onForgot}
+          style={{
+            cursor: 'pointer',
+            fontSize: 13,
+            color: 'var(--pub-accent-purple)',
+            textDecoration: 'none',
+          }}
+        >
+          {t('auth.forgotPasswordLink')}
+        </a>
+      </div>
+      <div className="pub-input-wrapper">
+        <input
+          className="pub-input"
+          type="password"
+          name="password"
+          autoComplete="current-password"
+          placeholder="••••••••"
+          value={password}
+          onChange={(e) => onChange(e.target.value)}
+          required
+        />
+      </div>
+    </div>
+  );
+}
+
+interface LoginFieldsProps {
+  email: string;
+  password: string;
+  onEmail: (v: string) => void;
+  onPassword: (v: string) => void;
+  onForgot: () => void;
+}
+
+function LoginFields({ email, password, onEmail, onPassword, onForgot }: LoginFieldsProps) {
+  const { t } = useTranslation('public');
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <PubInput
+        label={t('auth.emailLabel')}
+        icon={<AuthMailIcon />}
+        placeholder={t('auth.registerEmailPlaceholder')}
+        name="email"
+        inputMode="email"
+        autoComplete="username"
+        value={email}
+        onChange={(e) => onEmail(e.target.value)}
+        required
+      />
+      <PasswordField password={password} onChange={onPassword} onForgot={onForgot} />
+    </div>
+  );
+}
+
+function LoginAlert({ kind, text }: { kind: 'success' | 'error'; text: string }) {
+  const styles = kind === 'success'
+    ? { bg: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', color: '#22C55E' }
+    : { bg: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#EF4444' };
+  return (
+    <div
+      style={{
+        padding: '12px 16px',
+        borderRadius: 8,
+        background: styles.bg,
+        border: styles.border,
+        color: styles.color,
+        fontSize: 14,
+      }}
+    >
+      {text}
+    </div>
+  );
+}
+
+interface LoginFooterProps {
+  onRegister: () => void;
+  onInvite: () => void;
+  registrationEnabled: boolean;
+}
+
+function LoginFooter({ onRegister, onInvite, registrationEnabled }: LoginFooterProps) {
+  const { t } = useTranslation('public');
+  return (
+    <>
+      {registrationEnabled && (
+        <p
+          className="pub-text-body-sm"
+          style={{ margin: 0, textAlign: 'center', color: 'var(--pub-text-secondary)' }}
+        >
+          {t('auth.loginNoAccount')}{' '}
+          <a
+            onClick={onRegister}
+            style={{
+              cursor: 'pointer',
+              color: 'var(--pub-accent-purple)',
+              textDecoration: 'none',
+              fontWeight: 600,
+            }}
+          >
+            {t('auth.loginRegisterLink')}
+          </a>
+        </p>
+      )}
+      <p
+        className="pub-text-body-sm"
+        style={{ margin: 0, textAlign: 'center', color: 'var(--pub-text-secondary)' }}
+      >
+        {t('auth.loginHasInvite')}{' '}
+        <a
+          onClick={onInvite}
+          style={{
+            cursor: 'pointer',
+            color: 'var(--pub-accent-purple)',
+            textDecoration: 'none',
+            fontWeight: 600,
+          }}
+        >
+          {t('auth.loginInviteLink')}
+        </a>
+      </p>
+    </>
+  );
+}
+
 /* ---------- Component ---------- */
 
 export function LoginView({ onSubmit, onForgot, onRegister, onInvite, error, successMessage, registrationEnabled = true }: LoginViewProps) {
@@ -73,106 +222,16 @@ export function LoginView({ onSubmit, onForgot, onRegister, onInvite, error, suc
 
   return (
     <form onSubmit={handleSubmit} autoComplete="on" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-      {/* Title */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <h1 className="pub-text-h3" style={{ margin: 0 }}>
-          {t('auth.loginTitle')}
-        </h1>
-        <p
-          className="pub-text-body"
-          style={{ margin: 0, color: 'var(--pub-text-secondary)' }}
-        >
-          {t('auth.loginSubtitle')}
-        </p>
-      </div>
-
-      {/* Form fields */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        <PubInput
-          label={t('auth.emailLabel')}
-          icon={<MailIcon />}
-          placeholder={t('auth.registerEmailPlaceholder')}
-          name="email"
-          inputMode="email"
-          autoComplete="username"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-        />
-
-        <div>
-          {/* Label row with forgot-password link */}
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'baseline',
-              marginBottom: 6,
-            }}
-          >
-            <label className="pub-input-label" style={{ margin: 0 }}>
-              {t('auth.passwordLabel')}
-            </label>
-            <a
-              onClick={onForgot}
-              style={{
-                cursor: 'pointer',
-                fontSize: 13,
-                color: 'var(--pub-accent-purple)',
-                textDecoration: 'none',
-              }}
-            >
-              {t('auth.forgotPasswordLink')}
-            </a>
-          </div>
-          <div className="pub-input-wrapper">
-            <input
-              className="pub-input"
-              type="password"
-              name="password"
-              autoComplete="current-password"
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Success message (e.g. after password reset) */}
-      {successMessage && (
-        <div
-          style={{
-            padding: '12px 16px',
-            borderRadius: 8,
-            background: 'rgba(34,197,94,0.1)',
-            border: '1px solid rgba(34,197,94,0.3)',
-            color: '#22C55E',
-            fontSize: 14,
-          }}
-        >
-          {successMessage}
-        </div>
-      )}
-
-      {/* Error */}
-      {error && (
-        <div
-          style={{
-            padding: '12px 16px',
-            borderRadius: 8,
-            background: 'rgba(239,68,68,0.1)',
-            border: '1px solid rgba(239,68,68,0.3)',
-            color: '#EF4444',
-            fontSize: 14,
-          }}
-        >
-          {error}
-        </div>
-      )}
-
-      {/* Submit */}
+      <LoginTitle />
+      <LoginFields
+        email={email}
+        password={password}
+        onEmail={setEmail}
+        onPassword={setPassword}
+        onForgot={onForgot}
+      />
+      {successMessage && <LoginAlert kind="success" text={successMessage} />}
+      {error && <LoginAlert kind="error" text={error} />}
       <PubButton
         type="submit"
         variant="primary"
@@ -183,46 +242,7 @@ export function LoginView({ onSubmit, onForgot, onRegister, onInvite, error, suc
       >
         {t('auth.loginSubmit')}
       </PubButton>
-
-      {/* Register link */}
-      {registrationEnabled && (
-        <p
-          className="pub-text-body-sm"
-          style={{ margin: 0, textAlign: 'center', color: 'var(--pub-text-secondary)' }}
-        >
-          {t('auth.loginNoAccount')}{' '}
-          <a
-            onClick={onRegister}
-            style={{
-              cursor: 'pointer',
-              color: 'var(--pub-accent-purple)',
-              textDecoration: 'none',
-              fontWeight: 600,
-            }}
-          >
-            {t('auth.loginRegisterLink')}
-          </a>
-        </p>
-      )}
-
-      {/* Invite link */}
-      <p
-        className="pub-text-body-sm"
-        style={{ margin: 0, textAlign: 'center', color: 'var(--pub-text-secondary)' }}
-      >
-        {t('auth.loginHasInvite')}{' '}
-        <a
-          onClick={onInvite}
-          style={{
-            cursor: 'pointer',
-            color: 'var(--pub-accent-purple)',
-            textDecoration: 'none',
-            fontWeight: 600,
-          }}
-        >
-          {t('auth.loginInviteLink')}
-        </a>
-      </p>
+      <LoginFooter onRegister={onRegister} onInvite={onInvite} registrationEnabled={registrationEnabled} />
     </form>
   );
 }
