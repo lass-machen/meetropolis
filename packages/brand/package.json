@@ -1,9 +1,0 @@
-{
-  "name": "@meetropolis/brand",
-  "private": true,
-  "version": "0.1.0",
-  "license": "Commercial",
-  "workspaces": [
-    "packages/*"
-  ]
-}
