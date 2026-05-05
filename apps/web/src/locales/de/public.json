@@ -144,6 +144,23 @@
     "testimonial3Role": "HR Manager, DigitalHQ",
     "testimonial3Initials": "LW"
   },
+  "faq": {
+    "badge": "Häufige Fragen",
+    "title": "Du hast Fragen? Wir haben Antworten.",
+    "subtitle": "Die häufigsten Fragen aus der Praxis.",
+    "q1Question": "Wo werden unsere Daten gespeichert?",
+    "q1Answer": "Alle Daten liegen auf Servern in Deutschland (Hetzner). Damit bist du DSGVO-konform — ohne Auftragsverarbeitungsvertrag mit US-Anbietern.",
+    "q2Question": "Wie aufwendig ist das Setup?",
+    "q2Answer": "Konto erstellen, Welt wählen, Team einladen — meistens unter 10 Minuten. Es gibt fertige Vorlagen, oder ihr gestaltet euer eigenes Büro mit dem Editor.",
+    "q3Question": "Was passiert nach dem 14-Tage-Trial?",
+    "q3Answer": "Wenn du nichts tust, läuft der Trial automatisch aus und der Account ist read-only — keine Abbuchung. Erst wenn du aktiv einen Plan wählst, startet die Bezahlung.",
+    "q4Question": "Können wir jederzeit kündigen?",
+    "q4Answer": "Ja. Monatliche Pläne kündbar zum Monatsende, jährliche zum Jahresende. Keine Mindestlaufzeit, kein Lock-in.",
+    "q5Question": "Was passiert mit unseren Custom Maps, wenn wir kündigen?",
+    "q5Answer": "Du kannst alle Maps jederzeit als Datei exportieren — auch nach der Kündigung im read-only-Zeitraum. Eure Welten gehören euch.",
+    "q6Question": "Brauchen wir die Desktop-App?",
+    "q6Answer": "Nein. Meetropolis läuft komplett im Browser. Die Desktop-App ist optional und bietet zusätzlich einen Floating Mini-Modus für nebenher."
+  },
   "openSource": {
     "badge": "Coming Soon",
     "title": "Bald auch Open Source & Self-Hosted.",
