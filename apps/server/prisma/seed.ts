@@ -48,6 +48,42 @@ async function main() {
     });
   }
 
+  // Seed default Map for the `default` tenant. Without this the frontend's
+  // initial /maps/<id>/{editor-state,tilesets,objects,state-v2} calls all 404
+  // because the tenant has `defaultMapName='office'` but no Map row exists.
+  // Idempotent via @@unique([tenantId, name]).
+  const defaultMapName = def.defaultMapName || 'office';
+  const existingMap = await prisma.map.findUnique({
+    where: { tenantId_name: { tenantId: def.id, name: defaultMapName } },
+  });
+  let defaultMap = existingMap;
+  if (!defaultMap) {
+    defaultMap = await prisma.map.create({
+      data: {
+        tenantId: def.id,
+        name: defaultMapName,
+        meta: {},
+        width: 32,
+        height: 32,
+        tileWidth: 16,
+        tileHeight: 16,
+        chunkSize: 32,
+      },
+    });
+    // eslint-disable-next-line no-console
+    console.log('Seeded default map:', defaultMapName, 'for tenant', def.slug);
+  }
+
+  // Ensure a lobby room exists for the default map (matches adminMaps create flow).
+  const existingLobby = await prisma.room.findFirst({ where: { mapId: defaultMap.id, name: 'lobby' } });
+  if (!existingLobby) {
+    await prisma.room.create({
+      data: { name: 'lobby', mapId: defaultMap.id, tenantId: def.id },
+    });
+    // eslint-disable-next-line no-console
+    console.log('Seeded lobby room for map:', defaultMapName);
+  }
+
   // Seed default avatar pack
   await prisma.avatarPack.upsert({
     where: { uuid: 'default-characters' },
