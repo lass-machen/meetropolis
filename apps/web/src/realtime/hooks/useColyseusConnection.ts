@@ -243,7 +243,10 @@ function performHandleError(
       // Setze Cooldown um Session-ID-Flut zu verhindern
       refs.coolDownUntilRef.current = Date.now() + 60_000;
     }
-    refs.lastCloseInfoRef.current = { code, reason };
+    const closeInfo: { code?: number; reason?: string } = {};
+    if (code !== undefined) closeInfo.code = code;
+    if (reason !== undefined) closeInfo.reason = reason;
+    refs.lastCloseInfoRef.current = closeInfo;
 
     // Handle guest expired - redirect to auth screen
     const isGuestExpired = code === 4006 || text === 'guest_expired';
@@ -287,7 +290,7 @@ export function useColyseusConnection(
   args: UseWorldRoomArgs,
   connectionRefs: ConnectionRefs
 ) {
-  const { reconnectAttemptsRef, reconnectTimerRef, lastCloseInfoRef, connectingRef, coolDownUntilRef, hasReceivedFullStateRef } = connectionRefs;
+  const { lastCloseInfoRef, connectingRef, coolDownUntilRef, hasReceivedFullStateRef } = connectionRefs;
   const { apiBase, me, localPosRef, colyseusRef, remotesRef, colyseusToLivekitMap, setConnectionStatus } = args;
 
   /**
