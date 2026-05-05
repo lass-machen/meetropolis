@@ -93,12 +93,5 @@ export function useAuthHandlers({
     }
   }, [post, setError, setMessage, setMessageType, setView, t]);
 
-  return {
-    handleLogin,
-    handleRegister,
-    handleForgot,
-    handleReset,
-    storeDesktopAuthToken,
-    postRaw: post,
-  };
+  return { handleLogin, handleRegister, handleForgot, handleReset, storeDesktopAuthToken, postRaw: post };
 }
