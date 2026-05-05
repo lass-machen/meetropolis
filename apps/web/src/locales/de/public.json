@@ -60,6 +60,20 @@
     "feature4Tag2": "Mini-Modus",
     "feature4Tag3": "Webversion"
   },
+  "howItWorks": {
+    "badge": "So funktioniert's",
+    "title": "In 3 Schritten zum virtuellen Büro.",
+    "subtitle": "Vom Account zur ersten Kaffee-Runde — meistens in unter 10 Minuten.",
+    "step1Num": "01",
+    "step1Title": "Account erstellen",
+    "step1Text": "E-Mail eingeben, Teamnamen wählen — und du bist drin. Keine Kreditkarte nötig.",
+    "step2Num": "02",
+    "step2Title": "Welt einrichten",
+    "step2Text": "Starte mit einer fertigen Vorlage oder gestalte mit dem Editor euer eigenes Büro.",
+    "step3Num": "03",
+    "step3Title": "Team einladen",
+    "step3Text": "Teile einen Einladungslink oder verschicke E-Mails. Jedes Teammitglied erstellt seinen Avatar — und kann loslegen."
+  },
   "secondaryFeatures": {
     "title": "Und noch viel mehr.",
     "subtitle": "Enterprise-Features, die euer IT-Team lieben wird.",

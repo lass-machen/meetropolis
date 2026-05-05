@@ -60,6 +60,20 @@
     "feature4Tag2": "Mini Mode",
     "feature4Tag3": "Web Version"
   },
+  "howItWorks": {
+    "badge": "How it works",
+    "title": "Your virtual office in 3 steps.",
+    "subtitle": "From signup to first coffee break — usually in under 10 minutes.",
+    "step1Num": "01",
+    "step1Title": "Create your account",
+    "step1Text": "Enter your email, pick a team name — you're in. No credit card needed.",
+    "step2Num": "02",
+    "step2Title": "Set up your world",
+    "step2Text": "Pick a ready-made template or design your own office in the editor.",
+    "step3Num": "03",
+    "step3Title": "Invite your team",
+    "step3Text": "Share an invite link or send emails. Each teammate creates their avatar and is ready to go."
+  },
   "secondaryFeatures": {
     "title": "And so much more.",
     "subtitle": "Enterprise features your IT team will love.",
