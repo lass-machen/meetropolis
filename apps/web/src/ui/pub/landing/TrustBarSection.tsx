@@ -73,8 +73,93 @@ const ITEMS: ItemData[] = [
   },
 ];
 
-export function TrustBarSection() {
+const TRUST_BAR_STYLES = `
+  .pub-trustbar-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  .pub-trustbar-card {
+    width: calc(25% - 12px);
+    min-width: 0;
+    box-sizing: border-box;
+  }
+  .pub-trustbar-card__inner {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  @media (max-width: 1024px) {
+    .pub-trustbar-card {
+      width: calc(50% - 8px);
+    }
+  }
+  @media (max-width: 600px) {
+    .pub-trustbar-card {
+      width: 100%;
+    }
+  }
+`;
+
+interface TrustItemCardProps {
+  item: ItemData;
+}
+
+function TrustItemCard({ item }: TrustItemCardProps) {
   const { t } = useTranslation('public');
+  const { Icon, iconBg, iconColor, titleKey, textKey } = item;
+  return (
+    <PubCard
+      variant="surface"
+      className="pub-trustbar-card"
+      style={{ padding: 16 }}
+    >
+      <div className="pub-trustbar-card__inner">
+        <div
+          style={{
+            width: 40,
+            height: 40,
+            borderRadius: 'var(--pub-radius-icon)',
+            background: iconBg,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: iconColor,
+            flexShrink: 0,
+          }}
+        >
+          <Icon />
+        </div>
+        <div style={{ minWidth: 0 }}>
+          <div
+            style={{
+              fontFamily: 'var(--pub-font-display)',
+              fontWeight: 700,
+              fontSize: 14,
+              color: 'var(--pub-text-primary)',
+              marginBottom: 2,
+              lineHeight: 1.3,
+            }}
+          >
+            {t(titleKey)}
+          </div>
+          <div
+            style={{
+              fontFamily: 'var(--pub-font-body)',
+              fontSize: 13,
+              color: 'var(--pub-text-secondary)',
+              lineHeight: 1.4,
+            }}
+          >
+            {t(textKey)}
+          </div>
+        </div>
+      </div>
+    </PubCard>
+  );
+}
+
+export function TrustBarSection() {
   const sectionRef = useRef<HTMLElement>(null);
   useReveal(sectionRef);
 
@@ -91,86 +176,12 @@ export function TrustBarSection() {
     >
       <div className="pub-container">
         <div className="pub-trustbar-grid">
-          {ITEMS.map(({ Icon, iconBg, iconColor, titleKey, textKey }) => (
-            <PubCard
-              key={titleKey}
-              variant="surface"
-              className="pub-trustbar-card"
-              style={{ padding: 16 }}
-            >
-              <div className="pub-trustbar-card__inner">
-                <div
-                  style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: 'var(--pub-radius-icon)',
-                    background: iconBg,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: iconColor,
-                    flexShrink: 0,
-                  }}
-                >
-                  <Icon />
-                </div>
-                <div style={{ minWidth: 0 }}>
-                  <div
-                    style={{
-                      fontFamily: 'var(--pub-font-display)',
-                      fontWeight: 700,
-                      fontSize: 14,
-                      color: 'var(--pub-text-primary)',
-                      marginBottom: 2,
-                      lineHeight: 1.3,
-                    }}
-                  >
-                    {t(titleKey)}
-                  </div>
-                  <div
-                    style={{
-                      fontFamily: 'var(--pub-font-body)',
-                      fontSize: 13,
-                      color: 'var(--pub-text-secondary)',
-                      lineHeight: 1.4,
-                    }}
-                  >
-                    {t(textKey)}
-                  </div>
-                </div>
-              </div>
-            </PubCard>
+          {ITEMS.map((item) => (
+            <TrustItemCard key={item.titleKey} item={item} />
           ))}
         </div>
       </div>
-
-      <style>{`
-        .pub-trustbar-grid {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 16px;
-        }
-        .pub-trustbar-card {
-          width: calc(25% - 12px);
-          min-width: 0;
-          box-sizing: border-box;
-        }
-        .pub-trustbar-card__inner {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-        }
-        @media (max-width: 1024px) {
-          .pub-trustbar-card {
-            width: calc(50% - 8px);
-          }
-        }
-        @media (max-width: 600px) {
-          .pub-trustbar-card {
-            width: 100%;
-          }
-        }
-      `}</style>
+      <style>{TRUST_BAR_STYLES}</style>
     </section>
   );
 }
