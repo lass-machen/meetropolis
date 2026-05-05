@@ -3,6 +3,7 @@ import { WorldScreen } from './WorldScreen';
 import { LandingPage } from '../../ui/pub/landing/LandingPage';
 
 import { getApiBaseFromWindow } from '../../lib/runtimeConfig';
+import { usePublicConfigStore } from '../../state/publicConfigStore';
 import { BillingSuccessPage } from '../../ui/pub/billing/BillingSuccessPage';
 import { BillingCancelPage } from '../../ui/pub/billing/BillingCancelPage';
 import { EmailVerifyPage } from '../../ui/pub/billing/EmailVerifyPage';
@@ -130,18 +131,12 @@ function useHashRoute() {
   return { route, params, navigate, setRoute };
 }
 
-function usePublicConfig(apiBase: string) {
-  const [registrationEnabled, setRegistrationEnabled] = React.useState<boolean>(true);
+function usePublicConfig(apiBase: string): boolean {
+  const registrationEnabled = usePublicConfigStore(s => s.registrationEnabled);
+  const load = usePublicConfigStore(s => s.load);
   React.useEffect(() => {
-    fetch(`${apiBase}/public/config`)
-      .then(r => r.json())
-      .then(data => {
-        if (typeof data.publicRegistrationEnabled === 'boolean') {
-          setRegistrationEnabled(data.publicRegistrationEnabled);
-        }
-      })
-      .catch(() => { /* fallback: true */ });
-  }, [apiBase]);
+    void load(apiBase);
+  }, [apiBase, load]);
   return registrationEnabled;
 }
 

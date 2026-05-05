@@ -3,20 +3,34 @@ import { PrismaClient } from '../../generated/prisma/index.js';
 import { z } from 'zod';
 import { logger } from '../../logger.js';
 import { requireSuperAdmin, computeOnlineUsageByTenantSlug } from '../utils/authHelpers.js';
+import { hasBillingModule } from '../../billingLoader.js';
+
+/**
+ * Returns true when the enterprise billing routes are mounted AND a Stripe
+ * secret key is configured. The web client uses this capability flag to skip
+ * `/billing/*` calls in OSS-only deployments where those endpoints are not
+ * registered (and would otherwise produce 404 console noise).
+ */
+export async function computeBillingEnabled(): Promise<boolean> {
+  if (!process.env.STRIPE_SECRET_KEY) return false;
+  return await hasBillingModule();
+}
 
 /**
  * OSS public config — exposed without auth. Returns the public-registration
- * flag, defaulting to the PUBLIC_REGISTRATION_ENABLED env (defaults to true).
+ * flag, defaulting to the PUBLIC_REGISTRATION_ENABLED env (defaults to true),
+ * plus the `billingEnabled` capability flag.
  *
- * The enterprise module overrides this endpoint to read the flag from the
- * `internal` tenant in DB. Express dispatches to the first registered handler,
- * so the OSS variant only serves when the enterprise module is absent —
- * registerAdminRoutes is called BEFORE registerEnterpriseAdminRoutes.
+ * The enterprise module overrides this endpoint to read the registration flag
+ * from the `internal` tenant in DB. Express dispatches to the first registered
+ * handler, so the OSS variant only serves when the enterprise module is
+ * absent — registerAdminRoutes is called BEFORE registerEnterpriseAdminRoutes.
  */
-export function handleOssPublicConfig(_req: express.Request, res: express.Response): void {
+export async function handleOssPublicConfig(_req: express.Request, res: express.Response): Promise<void> {
   const env = process.env.PUBLIC_REGISTRATION_ENABLED;
   const enabled = env === 'false' || env === '0' ? false : true;
-  res.json({ publicRegistrationEnabled: enabled });
+  const billingEnabled = await computeBillingEnabled();
+  res.json({ publicRegistrationEnabled: enabled, billingEnabled });
 }
 
 export async function handleGetSettings(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {

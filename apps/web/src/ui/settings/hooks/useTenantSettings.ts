@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { getApiBaseFromWindow } from '../../../lib/apiBase';
 import type { TenantInfo, Member, Guest } from '../tenant/types';
 import { translateApiError } from '../../../lib/apiErrors';
+import { usePublicConfigStore } from '../../../state/publicConfigStore';
 
 interface UseTenantSettingsReturn {
   tenant: TenantInfo | null;
@@ -80,10 +81,13 @@ function useTenantFetch(state: TenantState, apiBase: string, t: (k: string) => s
   return React.useCallback(async () => {
     setLoading(true);
     try {
+      const billingEnabled = usePublicConfigStore.getState().billingEnabled;
       const [tenantRes, membersRes, statusRes] = await Promise.all([
         fetch(`${apiBase}/tenant`, { credentials: 'include' }),
         fetch(`${apiBase}/users`, { credentials: 'include' }),
-        fetch(`${apiBase}/billing/status`, { credentials: 'include' }),
+        billingEnabled
+          ? fetch(`${apiBase}/billing/status`, { credentials: 'include' })
+          : Promise.resolve(new Response(null, { status: 404 })),
       ]);
       if (tenantRes.ok) {
         const data = await tenantRes.json();

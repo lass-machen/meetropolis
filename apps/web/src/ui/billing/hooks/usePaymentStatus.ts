@@ -1,6 +1,7 @@
 import React from 'react';
 import { getApiBaseFromWindow } from '../../../lib/apiBase';
 import { openExternal } from '../../../lib/openExternal';
+import { usePublicConfigStore } from '../../../state/publicConfigStore';
 import { PaymentStatus } from '../types';
 
 const POLL_INTERVAL = 60_000;
@@ -9,6 +10,8 @@ export function usePaymentStatus({ enabled }: { enabled: boolean }) {
   const [paymentStatus, setPaymentStatus] = React.useState<PaymentStatus | null>(null);
   const [loading, setLoading] = React.useState(false);
   const apiBase = getApiBaseFromWindow();
+  const billingEnabled = usePublicConfigStore(s => s.billingEnabled);
+  const publicConfigLoaded = usePublicConfigStore(s => s.loaded);
 
   const fetchStatus = React.useCallback(async () => {
     try {
@@ -25,11 +28,13 @@ export function usePaymentStatus({ enabled }: { enabled: boolean }) {
 
   React.useEffect(() => {
     if (!enabled) return;
+    if (!publicConfigLoaded) return;
+    if (!billingEnabled) return;
     setLoading(true);
     fetchStatus();
     const id = setInterval(fetchStatus, POLL_INTERVAL);
     return () => clearInterval(id);
-  }, [enabled, fetchStatus]);
+  }, [enabled, billingEnabled, publicConfigLoaded, fetchStatus]);
 
   const handleManageBilling = React.useCallback(async () => {
     try {

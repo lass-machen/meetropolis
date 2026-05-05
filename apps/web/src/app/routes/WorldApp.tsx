@@ -8,6 +8,7 @@ import { ZoneManager } from '../../game/zoneManager';
 import { VolumeManager } from '../../game/volumeManager';
 import { EditorService } from '../../services/EditorService';
 import { useMapStore } from '../../state/mapStore';
+import { usePublicConfigStore } from '../../state/publicConfigStore';
 import { AuthLoadingScreen } from './components/AuthLoadingScreen';
 import { WorldShell } from './components/WorldShell';
 import { DEFAULT_CAPABILITIES } from './hooks/useFetchMe';
@@ -94,12 +95,13 @@ function useUiPanels() {
   return { hud, setHud, devices, setDevices, avState, setAvState, selectedMicId, setSelectedMicId, selectedCamId, setSelectedCamId, uiParticipants, setUiParticipants, cameraManual, setCameraManual, tenantTab, setTenantTab, roster, setRoster, apiModalOpen, setApiModalOpen, apiTokens, setApiTokens, newTokenName, setNewTokenName, freshToken, setFreshToken, adminOpen, setAdminOpen, billingOpen, setBillingOpen, profileOpen, setProfileOpen, tenantSettingsOpen, setTenantSettingsOpen, sessionsOpen, setSessionsOpen, packStoreOpen, setPackStoreOpen, gridExpanded, setGridExpanded, selectedSid, setSelectedSid, overlayZoom, setOverlayZoom, connStatus, setConnStatus, rosterCollapsed, setRosterCollapsed, bubbleUi, setBubbleUi, contextMenu, setContextMenu, page, setPage, menuOpen, setMenuOpen };
 }
 
-function useBillingAvailability(apiBase: string, setBillingAvailable: (v: boolean) => void) {
+function useBillingAvailability(_apiBase: string, setBillingAvailable: (v: boolean) => void) {
+  const billingEnabled = usePublicConfigStore(s => s.billingEnabled);
+  const loaded = usePublicConfigStore(s => s.loaded);
   React.useEffect(() => {
-    fetch(`${apiBase}/billing/status`, { method: 'HEAD', credentials: 'include' })
-      .then(res => setBillingAvailable(res.ok))
-      .catch(() => setBillingAvailable(false));
-  }, [apiBase, setBillingAvailable]);
+    if (!loaded) return;
+    setBillingAvailable(billingEnabled);
+  }, [billingEnabled, loaded, setBillingAvailable]);
 }
 
 function useCameraManualSync(setCameraManual: React.Dispatch<React.SetStateAction<boolean>>) {
