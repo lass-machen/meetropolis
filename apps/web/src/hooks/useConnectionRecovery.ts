@@ -15,8 +15,8 @@ interface HealthCheckContext {
   setDisconnectCount: React.Dispatch<React.SetStateAction<number>>;
   lastHealthyRef: React.MutableRefObject<number>;
   reloadScheduledRef: React.MutableRefObject<boolean>;
-  onDisconnect?: () => void;
-  onReconnect?: () => void;
+  onDisconnect: (() => void) | undefined;
+  onReconnect: (() => void) | undefined;
 }
 
 function handleHealthyResponse(ctx: HealthCheckContext) {
