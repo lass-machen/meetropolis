@@ -70,6 +70,118 @@ interface InviteCodeViewProps {
   registrationEnabled?: boolean;
 }
 
+/* ---------- Sub-Components ---------- */
+
+function InviteTitle() {
+  const { t } = useTranslation('public');
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <h1 className="pub-text-h3" style={{ margin: 0 }}>
+        {t('auth.inviteTitle')}
+      </h1>
+      <p
+        className="pub-text-body"
+        style={{ margin: 0, color: 'var(--pub-text-secondary)' }}
+      >
+        {t('auth.inviteSubtitle')}
+      </p>
+    </div>
+  );
+}
+
+function InviteError({ error }: { error: string }) {
+  return (
+    <div
+      style={{
+        padding: '12px 16px',
+        borderRadius: 8,
+        background: 'rgba(239,68,68,0.1)',
+        border: '1px solid rgba(239,68,68,0.3)',
+        color: '#EF4444',
+        fontSize: 14,
+      }}
+    >
+      {error}
+    </div>
+  );
+}
+
+function InviteDivider() {
+  const { t } = useTranslation('public');
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 16,
+        color: 'var(--pub-text-secondary)',
+        fontSize: 13,
+      }}
+    >
+      <div style={{ flex: 1, height: 1, background: 'var(--pub-border-light)' }} />
+      {t('auth.dividerOr')}
+      <div style={{ flex: 1, height: 1, background: 'var(--pub-border-light)' }} />
+    </div>
+  );
+}
+
+interface InviteFooterProps {
+  onLogin: () => void;
+  onRegister: () => void;
+  registrationEnabled: boolean;
+}
+
+function InviteFooter({ onLogin, onRegister, registrationEnabled }: InviteFooterProps) {
+  const { t } = useTranslation('public');
+  return (
+    <div
+      style={{
+        display: 'flex',
+        justifyContent: 'center',
+        gap: 24,
+        flexWrap: 'wrap',
+      }}
+    >
+      <p
+        className="pub-text-body-sm"
+        style={{ margin: 0, color: 'var(--pub-text-secondary)' }}
+      >
+        {t('auth.inviteHasAccount')}{' '}
+        <a
+          onClick={onLogin}
+          style={{
+            cursor: 'pointer',
+            color: 'var(--pub-accent-purple)',
+            textDecoration: 'none',
+            fontWeight: 600,
+          }}
+        >
+          {t('auth.inviteLoginLink')}
+        </a>
+      </p>
+      {registrationEnabled && (
+        <p
+          className="pub-text-body-sm"
+          style={{ margin: 0, color: 'var(--pub-text-secondary)' }}
+        >
+          {t('auth.inviteNoAccount')}{' '}
+          <a
+            onClick={onRegister}
+            style={{
+              cursor: 'pointer',
+              color: 'var(--pub-accent-purple)',
+              textDecoration: 'none',
+              fontWeight: 600,
+            }}
+          >
+            {t('auth.inviteRegisterLink')}
+          </a>
+        </p>
+      )}
+    </div>
+  );
+}
+
 /* ---------- Component ---------- */
 
 export function InviteCodeView({
@@ -100,25 +212,10 @@ export function InviteCodeView({
       autoComplete="off"
       style={{ display: 'flex', flexDirection: 'column', gap: 24 }}
     >
-      {/* Badge */}
       <PubBadge variant="teal" icon={<TicketIcon />}>
         {t('auth.inviteBadge')}
       </PubBadge>
-
-      {/* Title */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <h1 className="pub-text-h3" style={{ margin: 0 }}>
-          {t('auth.inviteTitle')}
-        </h1>
-        <p
-          className="pub-text-body"
-          style={{ margin: 0, color: 'var(--pub-text-secondary)' }}
-        >
-          {t('auth.inviteSubtitle')}
-        </p>
-      </div>
-
-      {/* Invite code input */}
+      <InviteTitle />
       <PubInput
         label={t('auth.inviteCodeLabel')}
         icon={<KeyIcon />}
@@ -129,24 +226,7 @@ export function InviteCodeView({
         style={{ letterSpacing: '1px' }}
         required
       />
-
-      {/* Error */}
-      {error && (
-        <div
-          style={{
-            padding: '12px 16px',
-            borderRadius: 8,
-            background: 'rgba(239,68,68,0.1)',
-            border: '1px solid rgba(239,68,68,0.3)',
-            color: '#EF4444',
-            fontSize: 14,
-          }}
-        >
-          {error}
-        </div>
-      )}
-
-      {/* Submit */}
+      {error && <InviteError error={error} />}
       <PubButton
         type="submit"
         variant="primary"
@@ -156,68 +236,8 @@ export function InviteCodeView({
       >
         {t('auth.inviteSubmit')}
       </PubButton>
-
-      {/* Divider */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 16,
-          color: 'var(--pub-text-secondary)',
-          fontSize: 13,
-        }}
-      >
-        <div style={{ flex: 1, height: 1, background: 'var(--pub-border-light)' }} />
-        {t('auth.dividerOr')}
-        <div style={{ flex: 1, height: 1, background: 'var(--pub-border-light)' }} />
-      </div>
-
-      {/* Links */}
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'center',
-          gap: 24,
-          flexWrap: 'wrap',
-        }}
-      >
-        <p
-          className="pub-text-body-sm"
-          style={{ margin: 0, color: 'var(--pub-text-secondary)' }}
-        >
-          {t('auth.inviteHasAccount')}{' '}
-          <a
-            onClick={onLogin}
-            style={{
-              cursor: 'pointer',
-              color: 'var(--pub-accent-purple)',
-              textDecoration: 'none',
-              fontWeight: 600,
-            }}
-          >
-            {t('auth.inviteLoginLink')}
-          </a>
-        </p>
-        {registrationEnabled && (
-          <p
-            className="pub-text-body-sm"
-            style={{ margin: 0, color: 'var(--pub-text-secondary)' }}
-          >
-            {t('auth.inviteNoAccount')}{' '}
-            <a
-              onClick={onRegister}
-              style={{
-                cursor: 'pointer',
-                color: 'var(--pub-accent-purple)',
-                textDecoration: 'none',
-                fontWeight: 600,
-              }}
-            >
-              {t('auth.inviteRegisterLink')}
-            </a>
-          </p>
-        )}
-      </div>
+      <InviteDivider />
+      <InviteFooter onLogin={onLogin} onRegister={onRegister} registrationEnabled={registrationEnabled} />
     </form>
   );
 }
