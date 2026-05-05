@@ -15,15 +15,54 @@ interface PackCatalogAdminProps {
   apiBase: string;
 }
 
-export function PackCatalogAdmin({ apiBase }: PackCatalogAdminProps) {
-  const { t } = useTranslation();
-  const [activeTab, setActiveTab] = React.useState<'asset' | 'avatar'>('asset');
+type UploadStatus = { type: 'success' | 'error'; message: string };
+
+function CatalogTableHeader() {
+  return (
+    <THead sticky style={{ background: 'transparent' }}>
+      <Tr>
+        <Th style={{ paddingLeft: 0 }}>Name</Th>
+        <Th>Author</Th>
+        <Th>Version</Th>
+        <Th>Pricing</Th>
+        <Th style={{ width: 60 }}>Published</Th>
+        <Th style={{ width: 60 }}>Featured</Th>
+        <Th>Price (Cents)</Th>
+        <Th style={{ paddingRight: 0 }}>{null}</Th>
+      </Tr>
+    </THead>
+  );
+}
+
+function LoadingRows() {
+  return (
+    <TBody>
+      {[1, 2, 3].map(i => (
+        <Tr key={i}>
+          <Td colSpan={8} style={{ paddingLeft: 0 }}>
+            <div style={{ height: 16, borderRadius: 4, background: 'var(--glass-hover)', animation: 'pulse 1.5s ease-in-out infinite', width: `${60 + i * 10}%` }} />
+          </Td>
+        </Tr>
+      ))}
+    </TBody>
+  );
+}
+
+function buildUploadErrorMessage(data: any, fallback: string): string {
+  let msg = data?.error || fallback;
+  if (data?.reason) {
+    msg += ' — ' + data.reason;
+    if (data.itemId) msg += ` (Item: ${data.itemId})`;
+  } else if (Array.isArray(data?.details)) {
+    const detail = data.details.map((d: any) => `${d.path?.join('.') || '?'}: ${d.message}`).slice(0, 5).join('; ');
+    msg += ' — ' + detail;
+  }
+  return msg;
+}
+
+function usePackCatalog(apiBase: string, activeTab: 'asset' | 'avatar') {
   const [packs, setPacks] = React.useState<PackWithCatalog[]>([]);
   const [loading, setLoading] = React.useState(true);
-  const [grantTarget, setGrantTarget] = React.useState<string | null>(null);
-  const [uploading, setUploading] = React.useState(false);
-  const [uploadStatus, setUploadStatus] = React.useState<{ type: 'success' | 'error'; message: string } | null>(null);
-  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const load = React.useCallback(async () => {
     setLoading(true);
@@ -36,6 +75,13 @@ export function PackCatalogAdmin({ apiBase }: PackCatalogAdminProps) {
 
   React.useEffect(() => { void load(); }, [load]);
 
+  return { packs, loading, load };
+}
+
+function usePackUpload(apiBase: string, t: (k: string) => string, reload: () => Promise<void> | void) {
+  const [uploading, setUploading] = React.useState(false);
+  const [uploadStatus, setUploadStatus] = React.useState<UploadStatus | null>(null);
+
   React.useEffect(() => {
     if (uploadStatus?.type !== 'success') return;
     const timer = setTimeout(() => setUploadStatus(null), 5000);
@@ -45,43 +91,28 @@ export function PackCatalogAdmin({ apiBase }: PackCatalogAdminProps) {
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     if (!file.name.endsWith('.mepack') && !file.name.endsWith('.zip')) {
       setUploadStatus({ type: 'error', message: t('admin.packCatalog.invalidFile') });
       e.target.value = '';
       return;
     }
-
     if (file.size > 50 * 1024 * 1024) {
       setUploadStatus({ type: 'error', message: t('admin.packCatalog.fileTooLarge') });
       e.target.value = '';
       return;
     }
-
     setUploading(true);
     setUploadStatus(null);
     try {
       const form = new FormData();
       form.append('file', file);
-      const res = await fetch(`${apiBase}/asset-packs/upload`, {
-        method: 'POST',
-        body: form,
-        credentials: 'include',
-      });
+      const res = await fetch(`${apiBase}/asset-packs/upload`, { method: 'POST', body: form, credentials: 'include' });
       if (res.ok) {
         setUploadStatus({ type: 'success', message: t('admin.packCatalog.uploadSuccess') });
-        void load();
+        void reload();
       } else {
         const data = await res.json().catch(() => null);
-        let msg = data?.error || t('admin.packCatalog.uploadError');
-        if (data?.reason) {
-          msg += ' — ' + data.reason;
-          if (data.itemId) msg += ` (Item: ${data.itemId})`;
-        } else if (Array.isArray(data?.details)) {
-          const detail = data.details.map((d: any) => `${d.path?.join('.') || '?'}: ${d.message}`).slice(0, 5).join('; ');
-          msg += ' — ' + detail;
-        }
-        setUploadStatus({ type: 'error', message: msg });
+        setUploadStatus({ type: 'error', message: buildUploadErrorMessage(data, t('admin.packCatalog.uploadError')) });
       }
     } catch {
       setUploadStatus({ type: 'error', message: t('admin.packCatalog.uploadError') });
@@ -90,6 +121,18 @@ export function PackCatalogAdmin({ apiBase }: PackCatalogAdminProps) {
       e.target.value = '';
     }
   };
+
+  return { uploading, uploadStatus, handleUpload };
+}
+
+export function PackCatalogAdmin({ apiBase }: PackCatalogAdminProps) {
+  const { t } = useTranslation();
+  const [activeTab, setActiveTab] = React.useState<'asset' | 'avatar'>('asset');
+  const [grantTarget, setGrantTarget] = React.useState<string | null>(null);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const { packs, loading, load } = usePackCatalog(apiBase, activeTab);
+  const { uploading, uploadStatus, handleUpload } = usePackUpload(apiBase, t, load);
 
   return (
     <div style={{ display: 'grid', gap: 12 }}>
@@ -105,11 +148,7 @@ export function PackCatalogAdmin({ apiBase }: PackCatalogAdminProps) {
           style={{ display: 'none' }}
           onChange={handleUpload}
         />
-        <Button
-          variant="primary"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={uploading}
-        >
+        <Button variant="primary" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
           {uploading ? t('admin.packCatalog.uploading') : t('admin.packCatalog.upload')}
         </Button>
       </div>
@@ -123,50 +162,14 @@ export function PackCatalogAdmin({ apiBase }: PackCatalogAdminProps) {
       {loading && packs.length === 0 ? (
         <TableContainer style={{ maxHeight: '55vh' }}>
           <Table>
-            <THead sticky style={{ background: 'transparent' }}>
-              <Tr>
-                <Th style={{ paddingLeft: 0 }}>Name</Th>
-                <Th>Author</Th>
-                <Th>Version</Th>
-                <Th>Pricing</Th>
-                <Th style={{ width: 60 }}>Published</Th>
-                <Th style={{ width: 60 }}>Featured</Th>
-                <Th>Price (Cents)</Th>
-                <Th style={{ paddingRight: 0 }}>{null}</Th>
-              </Tr>
-            </THead>
-            <TBody>
-              {[1, 2, 3].map(i => (
-                <Tr key={i}>
-                  <Td colSpan={8} style={{ paddingLeft: 0 }}>
-                    <div style={{
-                      height: 16,
-                      borderRadius: 4,
-                      background: 'var(--glass-hover)',
-                      animation: 'pulse 1.5s ease-in-out infinite',
-                      width: `${60 + i * 10}%`
-                    }} />
-                  </Td>
-                </Tr>
-              ))}
-            </TBody>
+            <CatalogTableHeader />
+            <LoadingRows />
           </Table>
         </TableContainer>
       ) : packs.length === 0 ? (
         <TableContainer style={{ maxHeight: '55vh' }}>
           <Table>
-            <THead sticky style={{ background: 'transparent' }}>
-              <Tr>
-                <Th style={{ paddingLeft: 0 }}>Name</Th>
-                <Th>Author</Th>
-                <Th>Version</Th>
-                <Th>Pricing</Th>
-                <Th style={{ width: 60 }}>Published</Th>
-                <Th style={{ width: 60 }}>Featured</Th>
-                <Th>Price (Cents)</Th>
-                <Th style={{ paddingRight: 0 }}>{null}</Th>
-              </Tr>
-            </THead>
+            <CatalogTableHeader />
             <TBody>
               <Tr>
                 <Td colSpan={8} style={{ paddingLeft: 0, textAlign: 'center', color: 'var(--fg-subtle)', padding: '32px 0' }}>
@@ -177,13 +180,7 @@ export function PackCatalogAdmin({ apiBase }: PackCatalogAdminProps) {
           </Table>
         </TableContainer>
       ) : (
-        <PackCatalogTable
-          apiBase={apiBase}
-          packType={activeTab}
-          packs={packs}
-          onReload={load}
-          onGrant={(uuid) => setGrantTarget(uuid)}
-        />
+        <PackCatalogTable apiBase={apiBase} packType={activeTab} packs={packs} onReload={load} onGrant={(uuid) => setGrantTarget(uuid)} />
       )}
 
       <PackGrantModal

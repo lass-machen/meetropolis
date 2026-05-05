@@ -100,15 +100,85 @@ function ToggleField(props: {
   );
 }
 
-export function PricingPlanForm({ plan, onSave, onDelete, saving }: PricingPlanFormProps) {
-  const initial = React.useMemo(() => {
-    if (plan) return { ...plan };
-    return defaultFormData();
-  }, [plan]);
+function PriceFields({ data, set }: { data: Partial<AdminPricingPlan>; set: <K extends keyof AdminPricingPlan>(k: K, v: AdminPricingPlan[K]) => void }) {
+  if (data.customPricing) {
+    return <I18nField label="Price Label" value={(data.priceLabel as I18nText) ?? emptyI18n()} onChange={(v) => set('priceLabel', v)} />;
+  }
+  return (
+    <div style={{ ...rowStyle, gridTemplateColumns: '1fr 1fr 1fr' }}>
+      <div>
+        <div style={labelStyle}>Price Amount (cents)</div>
+        <input type="number" style={inputStyle} value={data.priceAmount ?? 0} onChange={(e) => set('priceAmount', Number(e.target.value) || 0)} />
+      </div>
+      <div>
+        <div style={labelStyle}>Currency</div>
+        <input style={inputStyle} value={data.priceCurrency ?? 'eur'} onChange={(e) => set('priceCurrency', e.target.value)} />
+      </div>
+      <div>
+        <div style={labelStyle}>Interval</div>
+        <select style={inputStyle} value={data.priceInterval ?? 'month'} onChange={(e) => set('priceInterval', e.target.value)}>
+          <option value="month">month</option>
+          <option value="year">year</option>
+        </select>
+      </div>
+    </div>
+  );
+}
 
+function StripeFields({ data, set }: { data: Partial<AdminPricingPlan>; set: <K extends keyof AdminPricingPlan>(k: K, v: AdminPricingPlan[K]) => void }) {
+  return (
+    <div style={{ ...rowStyle, gridTemplateColumns: '1fr 1fr 1fr' }}>
+      <div>
+        <div style={labelStyle}>Sort Order</div>
+        <input type="number" style={inputStyle} value={data.sortOrder ?? 0} onChange={(e) => set('sortOrder', Number(e.target.value) || 0)} />
+      </div>
+      <div>
+        <div style={labelStyle}>Stripe Product ID</div>
+        <input style={inputStyle} value={data.stripeProductId ?? ''} onChange={(e) => set('stripeProductId', e.target.value || null)} />
+      </div>
+      <div>
+        <div style={labelStyle}>Stripe Price ID</div>
+        <input style={inputStyle} value={data.stripePriceId ?? ''} onChange={(e) => set('stripePriceId', e.target.value || null)} />
+      </div>
+    </div>
+  );
+}
+
+function FeaturesList({ features, addFeature, updateFeature, removeFeature }: { features: I18nText[]; addFeature: () => void; updateFeature: (i: number, v: I18nText) => void; removeFeature: (i: number) => void }) {
+  return (
+    <div style={{ marginBottom: 10 }}>
+      <div style={{ ...labelStyle, marginBottom: 6 }}>Features</div>
+      {features.map((f, idx) => (
+        <div key={idx} style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6 }}>
+          <input style={{ ...inputStyle, flex: 1 }} placeholder="EN" value={f.en} onChange={(e) => updateFeature(idx, { ...f, en: e.target.value })} />
+          <input style={{ ...inputStyle, flex: 1 }} placeholder="DE" value={f.de} onChange={(e) => updateFeature(idx, { ...f, de: e.target.value })} />
+          <button type="button" onClick={() => removeFeature(idx)} style={{ background: 'none', border: 'none', color: 'var(--fg-subtle)', cursor: 'pointer', fontSize: 16, padding: '2px 6px' }}>&#x2715;</button>
+        </div>
+      ))}
+      <Button size="sm" onClick={addFeature}>+ Feature</Button>
+    </div>
+  );
+}
+
+function FormActions({ plan, data, saving, onSave, onDelete }: { plan: AdminPricingPlan | null; data: Partial<AdminPricingPlan>; saving: boolean; onSave: PricingPlanFormProps['onSave']; onDelete?: () => Promise<void> }) {
+  return (
+    <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+      <Button onClick={() => onSave(data)} disabled={saving}>
+        {saving ? 'Saving...' : plan ? 'Save Changes' : 'Create Plan'}
+      </Button>
+      {plan && onDelete && (
+        <Button onClick={() => { if (window.confirm(`Delete plan "${plan.name.en}"?`)) void onDelete(); }} style={{ background: 'var(--danger, #e53e3e)', color: '#fff' }}>
+          Delete
+        </Button>
+      )}
+    </div>
+  );
+}
+
+function usePlanFormState(plan: AdminPricingPlan | null) {
+  const initial = React.useMemo(() => (plan ? { ...plan } : defaultFormData()), [plan]);
   const [data, setData] = React.useState<Partial<AdminPricingPlan>>(initial);
 
-  // Reset when plan prop changes
   React.useEffect(() => {
     setData(plan ? { ...plan } : defaultFormData());
   }, [plan]);
@@ -117,67 +187,36 @@ export function PricingPlanForm({ plan, onSave, onDelete, saving }: PricingPlanF
     setData((prev) => ({ ...prev, [key]: val }));
 
   const features = (data.features ?? []) as I18nText[];
-
   const addFeature = () => set('features', [...features, emptyI18n()]);
-
   const updateFeature = (idx: number, val: I18nText) => {
     const next = [...features];
     next[idx] = val;
     set('features', next);
   };
+  const removeFeature = (idx: number) => set('features', features.filter((_, i) => i !== idx));
 
-  const removeFeature = (idx: number) => {
-    set('features', features.filter((_, i) => i !== idx));
-  };
+  return { data, set, features, addFeature, updateFeature, removeFeature };
+}
+
+export function PricingPlanForm({ plan, onSave, onDelete, saving }: PricingPlanFormProps) {
+  const { data, set, features, addFeature, updateFeature, removeFeature } = usePlanFormState(plan);
 
   return (
     <Card style={{ padding: 12, marginTop: 8 }}>
       <I18nField label="Name" value={(data.name as I18nText) ?? emptyI18n()} onChange={(v) => set('name', v)} />
       <I18nField label="Description" value={(data.description as I18nText) ?? emptyI18n()} onChange={(v) => set('description', v)} multiline />
 
-      {/* Toggles */}
       <div style={{ display: 'flex', gap: 20, marginBottom: 12, flexWrap: 'wrap' }}>
         <ToggleField label="Highlighted" checked={!!data.highlighted} onChange={(v) => set('highlighted', v)} />
         <ToggleField label="Custom Pricing" checked={!!data.customPricing} onChange={(v) => set('customPricing', v)} />
         <ToggleField label="Visible" checked={data.visible !== false} onChange={(v) => set('visible', v)} />
       </div>
 
-      {/* Badge label (only when highlighted) */}
       {data.highlighted && (
         <I18nField label="Badge Label" value={(data.badgeLabel as I18nText) ?? emptyI18n()} onChange={(v) => set('badgeLabel', v)} />
       )}
 
-      {/* Price fields */}
-      {data.customPricing ? (
-        <I18nField label="Price Label" value={(data.priceLabel as I18nText) ?? emptyI18n()} onChange={(v) => set('priceLabel', v)} />
-      ) : (
-        <div style={{ ...rowStyle, gridTemplateColumns: '1fr 1fr 1fr' }}>
-          <div>
-            <div style={labelStyle}>Price Amount (cents)</div>
-            <input
-              type="number"
-              style={inputStyle}
-              value={data.priceAmount ?? 0}
-              onChange={(e) => set('priceAmount', Number(e.target.value) || 0)}
-            />
-          </div>
-          <div>
-            <div style={labelStyle}>Currency</div>
-            <input style={inputStyle} value={data.priceCurrency ?? 'eur'} onChange={(e) => set('priceCurrency', e.target.value)} />
-          </div>
-          <div>
-            <div style={labelStyle}>Interval</div>
-            <select
-              style={inputStyle}
-              value={data.priceInterval ?? 'month'}
-              onChange={(e) => set('priceInterval', e.target.value)}
-            >
-              <option value="month">month</option>
-              <option value="year">year</option>
-            </select>
-          </div>
-        </div>
-      )}
+      <PriceFields data={data} set={set} />
 
       <I18nField label="Unit Label" value={(data.unitLabel as I18nText) ?? emptyI18n()} onChange={(v) => set('unitLabel', v)} />
       <I18nField label="CTA Label" value={(data.ctaLabel as I18nText) ?? emptyI18n()} onChange={(v) => set('ctaLabel', v)} />
@@ -187,69 +226,11 @@ export function PricingPlanForm({ plan, onSave, onDelete, saving }: PricingPlanF
         <input style={{ ...inputStyle, maxWidth: 400 }} value={data.ctaUrl ?? ''} onChange={(e) => set('ctaUrl', e.target.value)} />
       </div>
 
-      {/* Sort order + Stripe IDs */}
-      <div style={{ ...rowStyle, gridTemplateColumns: '1fr 1fr 1fr' }}>
-        <div>
-          <div style={labelStyle}>Sort Order</div>
-          <input type="number" style={inputStyle} value={data.sortOrder ?? 0} onChange={(e) => set('sortOrder', Number(e.target.value) || 0)} />
-        </div>
-        <div>
-          <div style={labelStyle}>Stripe Product ID</div>
-          <input style={inputStyle} value={data.stripeProductId ?? ''} onChange={(e) => set('stripeProductId', e.target.value || null)} />
-        </div>
-        <div>
-          <div style={labelStyle}>Stripe Price ID</div>
-          <input style={inputStyle} value={data.stripePriceId ?? ''} onChange={(e) => set('stripePriceId', e.target.value || null)} />
-        </div>
-      </div>
+      <StripeFields data={data} set={set} />
 
-      {/* Features */}
-      <div style={{ marginBottom: 10 }}>
-        <div style={{ ...labelStyle, marginBottom: 6 }}>Features</div>
-        {features.map((f, idx) => (
-          <div key={idx} style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6 }}>
-            <input
-              style={{ ...inputStyle, flex: 1 }}
-              placeholder="EN"
-              value={f.en}
-              onChange={(e) => updateFeature(idx, { ...f, en: e.target.value })}
-            />
-            <input
-              style={{ ...inputStyle, flex: 1 }}
-              placeholder="DE"
-              value={f.de}
-              onChange={(e) => updateFeature(idx, { ...f, de: e.target.value })}
-            />
-            <button
-              type="button"
-              onClick={() => removeFeature(idx)}
-              style={{ background: 'none', border: 'none', color: 'var(--fg-subtle)', cursor: 'pointer', fontSize: 16, padding: '2px 6px' }}
-            >
-              &#x2715;
-            </button>
-          </div>
-        ))}
-        <Button size="sm" onClick={addFeature}>+ Feature</Button>
-      </div>
+      <FeaturesList features={features} addFeature={addFeature} updateFeature={updateFeature} removeFeature={removeFeature} />
 
-      {/* Actions */}
-      <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-        <Button onClick={() => onSave(data)} disabled={saving}>
-          {saving ? 'Saving...' : plan ? 'Save Changes' : 'Create Plan'}
-        </Button>
-        {plan && onDelete && (
-          <Button
-            onClick={() => {
-              if (window.confirm(`Delete plan "${plan.name.en}"?`)) {
-                void onDelete();
-              }
-            }}
-            style={{ background: 'var(--danger, #e53e3e)', color: '#fff' }}
-          >
-            Delete
-          </Button>
-        )}
-      </div>
+      <FormActions plan={plan} data={data} saving={saving} onSave={onSave} {...(onDelete ? { onDelete } : {})} />
     </Card>
   );
 }
