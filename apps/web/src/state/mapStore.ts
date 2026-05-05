@@ -35,8 +35,14 @@ export const useMapStore = create<MapState>((set, get) => ({
   availableMaps: [],
   isChangingMap: false,
   setCurrentMap: (id, name) => {
-    saveMapId(id);
-    set({ currentMapId: id, currentMapName: name });
+    // Guard gegen Race-Resets: ein leeres name darf einen vorher gesetzten,
+    // korrekten Wert nicht ueberschreiben (z. B. wenn der Server bei DB-Race
+    // einen Player mit leerem mapName liefert).
+    const prev = get();
+    const nextName = name === '' && prev.currentMapName !== '' ? prev.currentMapName : name;
+    const nextId = id === '' && prev.currentMapId !== '' ? prev.currentMapId : id;
+    if (nextId) saveMapId(nextId);
+    set({ currentMapId: nextId, currentMapName: nextName });
   },
   setCurrentMapName: (name) => {
     const { availableMaps } = get();

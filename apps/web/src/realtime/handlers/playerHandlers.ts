@@ -1,6 +1,7 @@
 import type { UseWorldRoomArgs } from '../types';
 import { useMapStore } from '../../state/mapStore';
 import { emitSameMapIdentities } from '../../lib/avEvents';
+import { passesMapFilter } from './mapFilter';
 
 export interface SetupPlayerHandlersOptions {
   /** Called once when the server's initial 'full_state' message arrives for this session. */
@@ -47,20 +48,24 @@ export function setupPlayerHandlers(
     try { options?.onFullStateReceived?.(); } catch {}
     if (!gameBridge?.syncRemotePlayers) return;
     if (data?.players) {
-      // Sync local player's mapId/mapName from server (most reliable source)
+      // Sync local player's mapId/mapName from server (most reliable source).
+      // Nur setzen, wenn beide Werte vorhanden sind — sonst koennten wir einen
+      // korrekten Store-Wert mit '' ueberschreiben (mapStore-Guard greift zwar,
+      // aber wir reichen lieber gar nicht erst Muell rein).
       const localPlayer = data.players?.find((p: any) => p.id === localPosRef.current.id);
-      if (localPlayer?.mapId) {
+      if (localPlayer?.mapId && localPlayer.mapName) {
         const mapState = useMapStore.getState();
         if (!mapState.currentMapId || mapState.currentMapId !== localPlayer.mapId) {
-          useMapStore.getState().setCurrentMap(localPlayer.mapId, localPlayer.mapName || '');
+          useMapStore.getState().setCurrentMap(localPlayer.mapId, localPlayer.mapName);
         }
       }
       const currentMap = useMapStore.getState().currentMapName;
       const players: Record<string, { x: number; y: number; direction: any; name?: string; dnd?: boolean; avatarId?: string; isNpc?: boolean }> = {};
       for (const p of data.players) {
         if (p.id === localPosRef.current.id) continue;
-        // Only render players on the same map
-        if (p.mapName && p.mapName !== currentMap) continue;
+        // Only render players on the same map (defensiv: leerer Store oder
+        // leerer Player-mapName laesst durch — siehe passesMapFilter).
+        if (!passesMapFilter(p.mapName, currentMap)) continue;
         if (p.identity) {
           colyseusToLivekitMap.current[p.id] = p.identity;
           if (p.name) identityToNameMap.current[p.identity] = p.name;
@@ -80,7 +85,7 @@ export function setupPlayerHandlers(
   room.onMessage('player_joined', (data: any) => {
     if (data.id === localPosRef.current.id) return;
     const currentMap = useMapStore.getState().currentMapName;
-    if (data.mapName && data.mapName !== currentMap) return;
+    if (!passesMapFilter(data.mapName, currentMap)) return;
     remotesRef.current[data.id] = { x: data.x, y: data.y, dnd: data.dnd, avatarId: data.avatarId };
     if (data.identity) {
       colyseusToLivekitMap.current[data.id] = data.identity;
@@ -103,7 +108,7 @@ export function setupPlayerHandlers(
   room.onMessage('player_moved', (data: any) => {
     if (data.id === localPosRef.current.id) return;
     const currentMap = useMapStore.getState().currentMapName;
-    if (data.mapName && data.mapName !== currentMap) return;
+    if (!passesMapFilter(data.mapName, currentMap)) return;
     // keep existing dnd state
     const prev = remotesRef.current[data.id] || {};
     remotesRef.current[data.id] = { ...prev, x: data.x, y: data.y };
@@ -185,40 +190,38 @@ export function setupPlayerHandlers(
     }
   });
 
-  // State change (full state sync via onStateChange)
-  room.onStateChange((state: any) => {
+  const handleStateChange = (state: any) => {
+    // Symmetrie zum full_state-Handler: lokalen Player aus dem State extrahieren
+    // und mapStore aktualisieren BEVOR der Filter angewendet wird.
+    try {
+      const localId = localPosRef.current.id;
+      if (localId && state.players) {
+        const local = typeof state.players.get === 'function' ? state.players.get(localId) : undefined;
+        if (local?.mapId && local.mapName) {
+          const mapState = useMapStore.getState();
+          if (!mapState.currentMapId || mapState.currentMapId !== local.mapId) {
+            mapState.setCurrentMap(local.mapId, local.mapName);
+          }
+        }
+      }
+    } catch {}
     const currentMap = useMapStore.getState().currentMapName;
     const players: Record<string, { x: number; y: number; direction: any; dnd?: boolean; identity?: string; name?: string; avatarId?: string; isNpc?: boolean }> = {};
+    const collect = (value: any, key: string) => {
+      if (value.identity) {
+        colyseusToLivekitMap.current[key] = value.identity;
+        if (value.name) identityToNameMap.current[value.identity] = value.name;
+      }
+      if (!passesMapFilter(value.mapName, currentMap)) return;
+      players[key] = { x: value.x, y: value.y, direction: value.direction, dnd: value.dnd, identity: value.identity, name: value.name, avatarId: value.avatarId, isNpc: value.isNpc };
+    };
     if (state.players) {
       if (typeof state.players.forEach === 'function') {
-        state.players.forEach((value: any, key: string) => {
-          // Always update name/identity maps for roster (even for players on other maps)
-          if (value.identity) {
-            colyseusToLivekitMap.current[key] = value.identity;
-            if (value.name) identityToNameMap.current[value.identity] = value.name;
-          }
-          // Only include players on the same map
-          if (value.mapName && value.mapName !== currentMap) return;
-          players[key] = { x: value.x, y: value.y, direction: value.direction, dnd: value.dnd, identity: value.identity, name: value.name, avatarId: value.avatarId, isNpc: value.isNpc };
-        });
+        state.players.forEach((value: any, key: string) => collect(value, key));
       } else if (typeof state.players.entries === 'function') {
-        for (const [key, value] of state.players.entries()) {
-          if (value.identity) {
-            colyseusToLivekitMap.current[key] = value.identity;
-            if (value.name) identityToNameMap.current[value.identity] = value.name;
-          }
-          if (value.mapName && value.mapName !== currentMap) continue;
-          players[key] = { x: value.x, y: value.y, direction: value.direction, dnd: value.dnd, identity: value.identity, name: value.name, avatarId: value.avatarId, isNpc: value.isNpc };
-        }
+        for (const [key, value] of state.players.entries()) collect(value, key);
       } else if ((state.players as any)[Symbol.iterator]) {
-        for (const [key, value] of (state.players as any)) {
-          if (value.identity) {
-            colyseusToLivekitMap.current[key] = value.identity;
-            if (value.name) identityToNameMap.current[value.identity] = value.name;
-          }
-          if (value.mapName && value.mapName !== currentMap) continue;
-          players[key] = { x: value.x, y: value.y, direction: value.direction, dnd: value.dnd, identity: value.identity, name: value.name, avatarId: value.avatarId, isNpc: value.isNpc };
-        }
+        for (const [key, value] of (state.players as any)) collect(value, key);
       }
     }
     remotesRef.current = Object.fromEntries(Object.entries(players).filter(([id]) => id !== localPosRef.current.id).map(([id, p]) => [id, { x: (p as any).x, y: (p as any).y, dnd: (p as any).dnd, avatarId: (p as any).avatarId }]));
@@ -229,5 +232,6 @@ export function setupPlayerHandlers(
     }));
     if (gameBridge && typeof gameBridge.syncRemotePlayers === 'function') gameBridge.syncRemotePlayers(filtered);
     emitCurrentMapIdentities();
-  });
+  };
+  room.onStateChange(handleStateChange);
 }

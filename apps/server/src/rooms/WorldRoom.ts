@@ -1031,6 +1031,9 @@ export class WorldRoom extends Room<WorldState> {
       }
     }
 
+    // Final-Guard: player.mapName darf NIE leer sein, sonst raced der Client
+    // den Map-Filter (siehe playerHandlers.ts / mapFilter.ts).
+    if (!initialMapName) initialMapName = process.env.DEFAULT_MAP_NAME || 'office';
     const player = new Player();
     player.id = client.sessionId;
     player.mapId = initialMapId;

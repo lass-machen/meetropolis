@@ -9,6 +9,7 @@ import { setupEditorHandlers } from './handlers/editorHandlers';
 import { setupRemoteControlHandlers } from './handlers/remoteControlHandlers';
 import { setupPresenceHandlers, createRosterRefresher } from './handlers/presenceHandlers';
 import { setupZoneLockHandlers } from './handlers/zoneLockHandlers';
+import { passesMapFilter } from './handlers/mapFilter';
 import { useMapStore } from '../state/mapStore';
 import { readTimeoutMs } from '../lib/runtimeConfig';
 import i18n from '../app/providers/i18n';
@@ -229,12 +230,26 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
       // and full_state message might arrive before handlers are registered
       try {
         if (room.state?.players) {
+          // Symmetrie zu playerHandlers.full_state: erst lokalen Player aus dem
+          // State synchronisieren, damit der Map-Filter danach auf dem korrekten
+          // currentMap arbeitet — sonst filtern wir alles raus, wenn der Store
+          // beim Cold-Start noch leer ist.
+          try {
+            const local = typeof room.state.players.get === 'function'
+              ? room.state.players.get(room.sessionId)
+              : undefined;
+            if (local?.mapId && local.mapName) {
+              const mapState = useMapStore.getState();
+              if (!mapState.currentMapId || mapState.currentMapId !== local.mapId) {
+                mapState.setCurrentMap(local.mapId, local.mapName);
+              }
+            }
+          } catch {}
           const currentMap = useMapStore.getState().currentMapName;
           const players: Record<string, any> = {};
           const iteratePlayers = (value: any, key: string) => {
             if (key === room.sessionId) return; // skip local player
-            // Only render players on the same map (matches playerHandlers filter)
-            if (value.mapName && value.mapName !== currentMap) return;
+            if (!passesMapFilter(value.mapName, currentMap)) return;
             players[key] = {
               x: value.x, y: value.y, direction: value.direction,
               name: value.name, dnd: value.dnd, avatarId: value.avatarId,
