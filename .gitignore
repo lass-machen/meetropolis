@@ -83,3 +83,11 @@ tools/DemoPack Kopie/
 tools/DemoPack Kopie.zip
 tools/*verschoben*
 tools/example-uc-container.html
+
+# === Xcode (apps/debug-client) ===
+**/xcuserdata/
+**/*.xcuserstate
+
+# === macOS-Duplikate (versehentliche "copy"-Files) ===
+tools/*copy*.mepack
+tools/* copy*
