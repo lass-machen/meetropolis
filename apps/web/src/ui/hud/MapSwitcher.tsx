@@ -9,16 +9,13 @@ interface MapSwitcherProps {
 export function MapSwitcher({ room }: MapSwitcherProps) {
   const { currentMapId, availableMaps, isChangingMap } = useMapStore();
 
-  // TODO: temporarily hidden until proper UI is implemented
-  return null;
-
   if (availableMaps.length <= 1 || !room) return null;
 
   const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const targetId = e.target.value;
     const targetMap = availableMaps.find(m => m.id === targetId);
     if (targetMap && targetId !== currentMapId) {
-      changeMap(targetMap.id, targetMap.name, room!);
+      changeMap(targetMap.id, targetMap.name, room);
     }
   };
 
