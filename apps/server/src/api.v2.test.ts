@@ -17,11 +17,17 @@ const mem = {
   zones: [] as any[],
 };
 
-vi.mock('@prisma/client', () => {
+// api.ts importiert PrismaClient aus './generated/prisma/index.js'.
+vi.mock('./generated/prisma/index.js', () => {
   class PrismaClientMock {
     map = {
       async findFirst({ where }: any) {
-        return mem.maps.find(m => m.name === where.name && m.tenantId === where.tenantId) || null;
+        return mem.maps.find(m => {
+          if (where.tenantId && m.tenantId !== where.tenantId) return false;
+          if (where.id !== undefined && m.id !== where.id) return false;
+          if (where.name !== undefined && m.name !== where.name) return false;
+          return true;
+        }) || null;
       },
       async create({ data }: any) {
         const rec: MapRec = { id: `m_${Math.random().toString(36).slice(2,8)}`, meta: {}, ...data };
@@ -111,8 +117,9 @@ async function createApp() {
   app.use((req, _res, next) => { (req as any).tenant = { id: 't1', slug: 'default' }; next(); });
   await registerApi(app as any);
   // Seed one map and tileset registry entry
-  if (!mem.maps.find(m => m.name === 'test')) mem.maps.push({ id: 'm_test', name: 'test', tenantId: 't1', meta: {}, chunkSize: 32, width: 64, height: 64, tileWidth: 16, tileHeight: 16 });
-  if (!mem.tilesets.find(t => t.mapId === 'm_test')) mem.tilesets.push({ id: 'ts1', mapId: 'm_test', slot: 0, key: 'office_tiles', imageUrl: '/tiles.png', tileWidth: 16, tileHeight: 16 });
+  // Map-id matcht route param (req.params.id), damit findMapById() greift.
+  if (!mem.maps.find(m => m.id === 'test')) mem.maps.push({ id: 'test', name: 'test', tenantId: 't1', meta: {}, chunkSize: 32, width: 64, height: 64, tileWidth: 16, tileHeight: 16 });
+  if (!mem.tilesets.find(t => t.mapId === 'test')) mem.tilesets.push({ id: 'ts1', mapId: 'test', slot: 0, key: 'office_tiles', imageUrl: '/tiles.png', tileWidth: 16, tileHeight: 16 });
   return app;
 }
 
