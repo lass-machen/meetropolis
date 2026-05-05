@@ -1,26 +1,9 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { PubButton, PubInput, PubStepIndicator } from '../components';
+import { AuthMailIcon } from './AuthFormPartials';
 
 /* ---------- Inline SVG icons ---------- */
-
-function MailIcon() {
-  return (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <rect x="2" y="4" width="20" height="16" rx="2" />
-      <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
-    </svg>
-  );
-}
 
 function ArrowRightIcon() {
   return (
@@ -52,6 +35,153 @@ interface RegisterViewProps {
   onLogin: () => void;
   initialInvite?: string | undefined;
   error?: string | null;
+}
+
+/* ---------- Sub-Components ---------- */
+
+function RegisterTitle() {
+  const { t } = useTranslation('public');
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <h1 className="pub-text-h3" style={{ margin: 0 }}>
+        {t('auth.registerTitle')}
+      </h1>
+      <p
+        className="pub-text-body-sm"
+        style={{ margin: 0, color: 'var(--pub-text-secondary)' }}
+      >
+        {t('auth.registerSubtitle')}
+      </p>
+    </div>
+  );
+}
+
+interface RegisterFieldsProps {
+  firstName: string;
+  lastName: string;
+  email: string;
+  password: string;
+  onFirstName: (v: string) => void;
+  onLastName: (v: string) => void;
+  onEmail: (v: string) => void;
+  onPassword: (v: string) => void;
+}
+
+function RegisterNameRow({ firstName, lastName, onFirstName, onLastName }: Pick<RegisterFieldsProps, 'firstName' | 'lastName' | 'onFirstName' | 'onLastName'>) {
+  const { t } = useTranslation('public');
+  return (
+    <div style={{ display: 'flex', gap: 16 }}>
+      <div style={{ flex: 1 }}>
+        <PubInput
+          label={t('auth.registerFirstName')}
+          placeholder={t('auth.registerFirstNamePlaceholder')}
+          name="given-name"
+          autoComplete="given-name"
+          value={firstName}
+          onChange={(e) => onFirstName(e.target.value)}
+          required
+        />
+      </div>
+      <div style={{ flex: 1 }}>
+        <PubInput
+          label={t('auth.registerLastName')}
+          placeholder={t('auth.registerLastNamePlaceholder')}
+          name="family-name"
+          autoComplete="family-name"
+          value={lastName}
+          onChange={(e) => onLastName(e.target.value)}
+        />
+      </div>
+    </div>
+  );
+}
+
+function RegisterFields(props: RegisterFieldsProps) {
+  const { t } = useTranslation('public');
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <RegisterNameRow
+        firstName={props.firstName}
+        lastName={props.lastName}
+        onFirstName={props.onFirstName}
+        onLastName={props.onLastName}
+      />
+      <PubInput
+        label={t('auth.registerEmail')}
+        icon={<AuthMailIcon />}
+        placeholder={t('auth.registerEmailPlaceholder')}
+        name="email"
+        inputMode="email"
+        autoComplete="username"
+        value={props.email}
+        onChange={(e) => props.onEmail(e.target.value)}
+        required
+      />
+      <PubInput
+        label={t('auth.registerPassword')}
+        placeholder={t('auth.registerPasswordPlaceholder')}
+        type="password"
+        name="password"
+        autoComplete="new-password"
+        value={props.password}
+        onChange={(e) => props.onPassword(e.target.value)}
+        required
+      />
+    </div>
+  );
+}
+
+function RegisterError({ error }: { error: string }) {
+  return (
+    <div
+      style={{
+        padding: '12px 16px',
+        borderRadius: 8,
+        background: 'rgba(239,68,68,0.1)',
+        border: '1px solid rgba(239,68,68,0.3)',
+        color: '#EF4444',
+        fontSize: 14,
+      }}
+    >
+      {error}
+    </div>
+  );
+}
+
+function RegisterFooter({ onLogin }: { onLogin: () => void }) {
+  const { t } = useTranslation('public');
+  return (
+    <>
+      <p
+        className="pub-text-body-sm"
+        style={{
+          margin: 0,
+          textAlign: 'center',
+          color: 'var(--pub-text-secondary)',
+          fontSize: 12,
+        }}
+      >
+        {t('auth.registerTermsHint')}
+      </p>
+      <p
+        className="pub-text-body-sm"
+        style={{ margin: 0, textAlign: 'center', color: 'var(--pub-text-secondary)' }}
+      >
+        {t('auth.registerHasAccount')}{' '}
+        <a
+          onClick={onLogin}
+          style={{
+            cursor: 'pointer',
+            color: 'var(--pub-accent-purple)',
+            textDecoration: 'none',
+            fontWeight: 600,
+          }}
+        >
+          {t('auth.registerLoginLink')}
+        </a>
+      </p>
+    </>
+  );
 }
 
 /* ---------- Component ---------- */
@@ -86,92 +216,19 @@ export function RegisterView({
       autoComplete="on"
       style={{ display: 'flex', flexDirection: 'column', gap: 24 }}
     >
-      {/* Step indicator */}
       <PubStepIndicator steps={3} currentStep={1} />
-
-      {/* Title */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <h1 className="pub-text-h3" style={{ margin: 0 }}>
-          {t('auth.registerTitle')}
-        </h1>
-        <p
-          className="pub-text-body-sm"
-          style={{ margin: 0, color: 'var(--pub-text-secondary)' }}
-        >
-          {t('auth.registerSubtitle')}
-        </p>
-      </div>
-
-      {/* Form fields */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        {/* First + Last name row */}
-        <div style={{ display: 'flex', gap: 16 }}>
-          <div style={{ flex: 1 }}>
-            <PubInput
-              label={t('auth.registerFirstName')}
-              placeholder={t('auth.registerFirstNamePlaceholder')}
-              name="given-name"
-              autoComplete="given-name"
-              value={firstName}
-              onChange={(e) => setFirstName(e.target.value)}
-              required
-            />
-          </div>
-          <div style={{ flex: 1 }}>
-            <PubInput
-              label={t('auth.registerLastName')}
-              placeholder={t('auth.registerLastNamePlaceholder')}
-              name="family-name"
-              autoComplete="family-name"
-              value={lastName}
-              onChange={(e) => setLastName(e.target.value)}
-            />
-          </div>
-        </div>
-
-        {/* Email */}
-        <PubInput
-          label={t('auth.registerEmail')}
-          icon={<MailIcon />}
-          placeholder={t('auth.registerEmailPlaceholder')}
-          name="email"
-          inputMode="email"
-          autoComplete="username"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-        />
-
-        {/* Password */}
-        <PubInput
-          label={t('auth.registerPassword')}
-          placeholder={t('auth.registerPasswordPlaceholder')}
-          type="password"
-          name="password"
-          autoComplete="new-password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-        />
-      </div>
-
-      {/* Error */}
-      {error && (
-        <div
-          style={{
-            padding: '12px 16px',
-            borderRadius: 8,
-            background: 'rgba(239,68,68,0.1)',
-            border: '1px solid rgba(239,68,68,0.3)',
-            color: '#EF4444',
-            fontSize: 14,
-          }}
-        >
-          {error}
-        </div>
-      )}
-
-      {/* Submit */}
+      <RegisterTitle />
+      <RegisterFields
+        firstName={firstName}
+        lastName={lastName}
+        email={email}
+        password={password}
+        onFirstName={setFirstName}
+        onLastName={setLastName}
+        onEmail={setEmail}
+        onPassword={setPassword}
+      />
+      {error && <RegisterError error={error} />}
       <PubButton
         type="submit"
         variant="primary"
@@ -181,38 +238,7 @@ export function RegisterView({
       >
         {t('auth.registerSubmit')}
       </PubButton>
-
-      {/* Terms hint */}
-      <p
-        className="pub-text-body-sm"
-        style={{
-          margin: 0,
-          textAlign: 'center',
-          color: 'var(--pub-text-secondary)',
-          fontSize: 12,
-        }}
-      >
-        {t('auth.registerTermsHint')}
-      </p>
-
-      {/* Login link */}
-      <p
-        className="pub-text-body-sm"
-        style={{ margin: 0, textAlign: 'center', color: 'var(--pub-text-secondary)' }}
-      >
-        {t('auth.registerHasAccount')}{' '}
-        <a
-          onClick={onLogin}
-          style={{
-            cursor: 'pointer',
-            color: 'var(--pub-accent-purple)',
-            textDecoration: 'none',
-            fontWeight: 600,
-          }}
-        >
-          {t('auth.registerLoginLink')}
-        </a>
-      </p>
+      <RegisterFooter onLogin={onLogin} />
     </form>
   );
 }
