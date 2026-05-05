@@ -114,10 +114,93 @@ const CARDS: CardData[] = [
   },
 ];
 
+const SECONDARY_FEATURES_STYLES = `
+  .pub-secondary-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 24px;
+  }
+  .pub-secondary-card {
+    width: calc(33.333% - 16px);
+    min-width: 0;
+    box-sizing: border-box;
+  }
+  @media (max-width: 768px) {
+    .pub-secondary-card {
+      width: 100%;
+    }
+  }
+`;
+
+/* ---------- Sub-Components ---------- */
+
+function SecondaryFeaturesHeader() {
+  const { t } = useTranslation('public');
+  return (
+    <div style={{ textAlign: 'center', marginBottom: 48 }}>
+      <h2 className="pub-text-h2" style={{ marginBottom: 16 }}>
+        {t('secondaryFeatures.title')}
+      </h2>
+      <p
+        className="pub-text-subline"
+        style={{ maxWidth: 560, margin: '0 auto' }}
+      >
+        {t('secondaryFeatures.subtitle')}
+      </p>
+    </div>
+  );
+}
+
+interface SecondaryCardProps {
+  card: CardData;
+}
+
+function SecondaryCard({ card }: SecondaryCardProps) {
+  const { t } = useTranslation('public');
+  const { Icon, iconBg, iconColor, titleKey, textKey } = card;
+  return (
+    <PubCard variant="surface" hover className="pub-secondary-card">
+      <div
+        style={{
+          width: 44,
+          height: 44,
+          borderRadius: 'var(--pub-radius-icon)',
+          background: iconBg,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: iconColor,
+          marginBottom: 20,
+        }}
+      >
+        <Icon />
+      </div>
+      <h3 className="pub-text-h6" style={{ marginBottom: 8 }}>
+        {t(titleKey)}
+      </h3>
+      <p
+        className="pub-text-body-sm"
+        style={{ color: 'var(--pub-text-secondary)' }}
+      >
+        {t(textKey)}
+      </p>
+    </PubCard>
+  );
+}
+
+function SecondaryCardGrid() {
+  return (
+    <div className="pub-secondary-grid">
+      {CARDS.map((card) => (
+        <SecondaryCard key={card.titleKey} card={card} />
+      ))}
+    </div>
+  );
+}
+
 /* ---------- Component ---------- */
 
 export function SecondaryFeaturesSection() {
-  const { t } = useTranslation('public');
   const sectionRef = useRef<HTMLElement>(null);
   useReveal(sectionRef);
 
@@ -131,70 +214,10 @@ export function SecondaryFeaturesSection() {
       }}
     >
       <div className="pub-container">
-        {/* Header */}
-        <div style={{ textAlign: 'center', marginBottom: 48 }}>
-          <h2 className="pub-text-h2" style={{ marginBottom: 16 }}>
-            {t('secondaryFeatures.title')}
-          </h2>
-          <p
-            className="pub-text-subline"
-            style={{ maxWidth: 560, margin: '0 auto' }}
-          >
-            {t('secondaryFeatures.subtitle')}
-          </p>
-        </div>
-
-        {/* Card Grid */}
-        <div className="pub-secondary-grid">
-          {CARDS.map(({ Icon, iconBg, iconColor, titleKey, textKey }) => (
-            <PubCard key={titleKey} variant="surface" hover className="pub-secondary-card">
-              <div
-                style={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: 'var(--pub-radius-icon)',
-                  background: iconBg,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: iconColor,
-                  marginBottom: 20,
-                }}
-              >
-                <Icon />
-              </div>
-              <h3 className="pub-text-h6" style={{ marginBottom: 8 }}>
-                {t(titleKey)}
-              </h3>
-              <p
-                className="pub-text-body-sm"
-                style={{ color: 'var(--pub-text-secondary)' }}
-              >
-                {t(textKey)}
-              </p>
-            </PubCard>
-          ))}
-        </div>
+        <SecondaryFeaturesHeader />
+        <SecondaryCardGrid />
       </div>
-
-      {/* Section-specific responsive styles */}
-      <style>{`
-        .pub-secondary-grid {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 24px;
-        }
-        .pub-secondary-card {
-          width: calc(33.333% - 16px);
-          min-width: 0;
-          box-sizing: border-box;
-        }
-        @media (max-width: 768px) {
-          .pub-secondary-card {
-            width: 100%;
-          }
-        }
-      `}</style>
+      <style>{SECONDARY_FEATURES_STYLES}</style>
     </section>
   );
 }
