@@ -3,7 +3,6 @@ import { logger } from '../../logger.js';
 import { colyseusPlayers } from '../../metrics.js';
 import type { WorldRoom } from '../WorldRoom.js';
 import { broadcastToMap } from '../utils/broadcastHelpers.js';
-import { completePendingJoin } from '../lifecycle/onJoin.js';
 
 export async function handleSessionTakeover(
   room: WorldRoom,
@@ -27,7 +26,7 @@ export async function handleSessionTakeover(
   // Race-Fix: ZUERST den neuen Player in den State setzen, DANACH den alten entfernen.
   // Effekt: Andere Clients sehen nie eine Luecke (atomarer Swap aus Client-Sicht).
   logger.info('[WorldRoom] Session takeover: completing join for identity:', identity);
-  await completePendingJoin(room, pending.client, pending.options, pending.identity);
+  await room.completePendingJoin(pending.client, pending.options, pending.identity);
 
   // Jetzt alten Eintrag aus allen Rooms raeumen
   const newSid = pending.client.sessionId;

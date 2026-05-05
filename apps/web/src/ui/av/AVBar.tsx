@@ -99,7 +99,7 @@ function PushToTalkButton({ disabled }: { disabled?: boolean }) {
   );
 }
 
-export function AVBar(props: {
+type AVBarProps = {
   size?: ButtonGroupItemSize;
   micOn: boolean;
   camOn: boolean;
@@ -118,7 +118,18 @@ export function AVBar(props: {
   onRecenter?: () => void;
   className?: string;
   style?: React.CSSProperties;
-}) {
+};
+
+function ShareButton({ shareOn, dndOn, onToggleShare, t }: { shareOn: boolean; dndOn: boolean; onToggleShare: () => void | Promise<void>; t: (k: string) => string }) {
+  return (
+    <Button disabled={dndOn} variant={shareOn ? 'primary' : 'default'} onClick={onToggleShare} iconPosition="left">
+      <FAIcon name="screencast" variant="solid" />
+      <span>{shareOn ? t('av.share.stop') : t('av.share.start')}</span>
+    </Button>
+  );
+}
+
+export function AVBar(props: AVBarProps) {
   const {
     size = 'md', micOn, camOn, shareOn, dndOn,
     devices, selectedMicId, selectedCamId,
@@ -128,7 +139,6 @@ export function AVBar(props: {
   } = props;
 
   const [settingsOpen, setSettingsOpen] = React.useState(false);
-  // Default: Einstellungen sichtbar, außer explizit deaktiviert
   const showSettings = ((import.meta as any).env?.VITE_FEATURE_AV_SETTINGS !== 'false');
   const { t } = useTranslation();
   const mod = navigator.platform?.startsWith('Mac') ? '⌘' : 'Ctrl';
@@ -146,9 +156,7 @@ export function AVBar(props: {
         disabled={dndOn}
         title={`${micOn ? t('av.micOff') : t('av.micOn')} (${mod}+D)`}
       />
-
       <Separator variant="vertical" />
-
       <DeviceSelector
         icon={camOn ? 'video' : 'video-slash'}
         isOn={camOn}
@@ -159,21 +167,9 @@ export function AVBar(props: {
         labelSelect={t('av.selectCam')}
         disabled={dndOn}
       />
-
       <Separator variant="vertical" />
-
-      <Button
-        disabled={dndOn}
-        variant={shareOn ? 'primary' : 'default'}
-        onClick={onToggleShare}
-        iconPosition="left"
-      >
-        <FAIcon name="screencast" variant="solid" />
-        <span>{shareOn ? t('av.share.stop') : t('av.share.start')}</span>
-      </Button>
-
+      <ShareButton shareOn={shareOn} dndOn={dndOn} onToggleShare={onToggleShare} t={t} />
       <Separator variant="vertical" />
-
       <Button active={dndOn} onClick={onToggleDnd} icon="bell-slash" iconPosition="only" title={`${dndOn ? t('av.dnd.on') : t('av.dnd.off')} (${mod}+Shift+U)`} />
       <PushToTalkButton disabled={dndOn} />
       {cameraManual && (

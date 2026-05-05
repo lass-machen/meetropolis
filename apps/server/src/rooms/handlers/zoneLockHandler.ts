@@ -9,7 +9,7 @@ interface ZonePolygon {
   polygon: { x: number; y: number }[];
 }
 
-interface ZoneLockState {
+export interface ZoneLockState {
   locks: Map<string, ZoneLockInfo>;        // key: mapId:zoneName
   zoneCache: Map<string, ZonePolygon[]>;   // zones per mapId
   lastAutoUnlockCheck: number;

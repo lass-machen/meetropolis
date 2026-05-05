@@ -13,16 +13,72 @@ export type UploadDialogState = {
   category?: 'terrain' | 'structures' | 'objects';
 };
 
-export function TilesetUploadDialog(props: {
+type ConfirmedTileset = { key: string; dataUrl: string; tileWidth: number; tileHeight: number; margin: number; spacing: number; category?: 'terrain' | 'structures' | 'objects' };
+
+type Props = {
   open: boolean;
   dialog: UploadDialogState;
   onCancel: () => void;
-  onConfirm: (tileset: { key: string; dataUrl: string; tileWidth: number; tileHeight: number; margin: number; spacing: number; category?: 'terrain' | 'structures' | 'objects' }) => void;
+  onConfirm: (tileset: ConfirmedTileset) => void;
   setDialog: (next: UploadDialogState | null) => void;
-}) {
+};
+
+function buildConfirmedTileset(d: UploadDialogState): ConfirmedTileset {
+  const base = { key: `tileset-${Date.now()}`, dataUrl: d.dataUrl, tileWidth: d.tileWidth, tileHeight: d.tileHeight, margin: d.margin, spacing: d.spacing };
+  return d.category ? { ...base, category: d.category } : base;
+}
+
+function TilesetSettingsForm({ d, setDialog, t }: { d: UploadDialogState; setDialog: (next: UploadDialogState | null) => void; t: (k: string) => string }) {
+  return (
+    <div style={{ display: 'grid', gap: 12 }}>
+      <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg)' }}>{t('tileset.settings')}</div>
+      <div style={{ display: 'grid', gap: 8 }}>
+        <label style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>{t('tileset.width')}</label>
+        <Input type="number" min={8} max={256} value={d.tileWidth} onChange={(e) => setDialog({ ...d, tileWidth: parseInt((e.target as HTMLInputElement).value) || 16 })} style={{ padding: '8px 12px', fontSize: 13 }} />
+      </div>
+      <div style={{ display: 'grid', gap: 8 }}>
+        <label style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>{t('tileset.height')}</label>
+        <Input type="number" min={8} max={256} value={d.tileHeight} onChange={(e) => setDialog({ ...d, tileHeight: parseInt((e.target as HTMLInputElement).value) || 16 })} style={{ padding: '8px 12px', fontSize: 13 }} />
+      </div>
+      <div style={{ display: 'grid', gap: 8 }}>
+        <label style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>{t('tileset.margin')}</label>
+        <Input type="number" min={0} max={64} value={d.margin} onChange={(e) => setDialog({ ...d, margin: parseInt((e.target as HTMLInputElement).value) || 0 })} style={{ padding: '8px 12px', fontSize: 13 }} />
+      </div>
+      <div style={{ display: 'grid', gap: 8 }}>
+        <label style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>{t('tileset.spacing')}</label>
+        <Input type="number" min={0} max={64} value={d.spacing} onChange={(e) => setDialog({ ...d, spacing: parseInt((e.target as HTMLInputElement).value) || 0 })} style={{ padding: '8px 12px', fontSize: 13 }} />
+      </div>
+      <div style={{ fontSize: 11, color: 'var(--fg-subtle)', marginTop: 8 }}>{t('tileset.hint')}</div>
+      <div style={{ display: 'grid', gap: 8, marginTop: 12 }}>
+        <label style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>{t('tileset.category')}</label>
+        <Select
+          value={d.category || 'terrain'}
+          onChange={(val) => setDialog({ ...d, category: val as any })}
+          options={[
+            { value: 'terrain', label: t('tileset.cat.terrain') },
+            { value: 'structures', label: t('tileset.cat.structures') },
+            { value: 'objects', label: t('tileset.cat.objects') },
+          ]}
+        />
+        <div style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>{t('tileset.categoryHint')}</div>
+      </div>
+    </div>
+  );
+}
+
+export function TilesetUploadDialog(props: Props) {
   const d = props.dialog;
   const { t } = useTranslation();
   const previewTileset = { key: 'uploading', dataUrl: d.dataUrl, tileWidth: d.tileWidth, tileHeight: d.tileHeight, margin: d.margin, spacing: d.spacing };
+
+  const handleConfirm = () => {
+    const tileset = buildConfirmedTileset(d);
+    try {
+      const ev = new CustomEvent('editor:tileset-confirm', { detail: tileset });
+      window.dispatchEvent(ev);
+    } catch {}
+    props.onConfirm(tileset);
+  };
 
   return (
     <Modal
@@ -34,22 +90,7 @@ export function TilesetUploadDialog(props: {
       footer={(
         <>
           <Button onClick={props.onCancel}>{t('tileset.cancel')}</Button>
-          <Button variant="brand" onClick={() => {
-            const base = {
-              key: `tileset-${Date.now()}`,
-              dataUrl: d.dataUrl,
-              tileWidth: d.tileWidth,
-              tileHeight: d.tileHeight,
-              margin: d.margin,
-              spacing: d.spacing,
-            } as const;
-            const tileset = (d.category ? { ...base, category: d.category } : base);
-            try {
-              const ev = new CustomEvent('editor:tileset-confirm', { detail: tileset });
-              window.dispatchEvent(ev);
-            } catch {}
-            props.onConfirm(tileset as { key: string; dataUrl: string; tileWidth: number; tileHeight: number; margin: number; spacing: number; category?: 'terrain' | 'structures' | 'objects' });
-          }}>{t('tileset.add')}</Button>
+          <Button variant="brand" onClick={handleConfirm}>{t('tileset.add')}</Button>
         </>
       )}
     >
@@ -61,39 +102,7 @@ export function TilesetUploadDialog(props: {
               <TilesetPreview tileset={previewTileset} selectedIndex={-1} onSelect={() => {}} />
             </div>
           </div>
-          <div style={{ display: 'grid', gap: 12 }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg)' }}>{t('tileset.settings')}</div>
-            <div style={{ display: 'grid', gap: 8 }}>
-              <label style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>{t('tileset.width')}</label>
-              <Input type="number" min={8} max={256} value={d.tileWidth} onChange={(e) => props.setDialog({ ...d, tileWidth: parseInt((e.target as HTMLInputElement).value) || 16 })} style={{ padding: '8px 12px', fontSize: 13 }} />
-            </div>
-            <div style={{ display: 'grid', gap: 8 }}>
-              <label style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>{t('tileset.height')}</label>
-              <Input type="number" min={8} max={256} value={d.tileHeight} onChange={(e) => props.setDialog({ ...d, tileHeight: parseInt((e.target as HTMLInputElement).value) || 16 })} style={{ padding: '8px 12px', fontSize: 13 }} />
-            </div>
-            <div style={{ display: 'grid', gap: 8 }}>
-              <label style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>{t('tileset.margin')}</label>
-              <Input type="number" min={0} max={64} value={d.margin} onChange={(e) => props.setDialog({ ...d, margin: parseInt((e.target as HTMLInputElement).value) || 0 })} style={{ padding: '8px 12px', fontSize: 13 }} />
-            </div>
-            <div style={{ display: 'grid', gap: 8 }}>
-              <label style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>{t('tileset.spacing')}</label>
-              <Input type="number" min={0} max={64} value={d.spacing} onChange={(e) => props.setDialog({ ...d, spacing: parseInt((e.target as HTMLInputElement).value) || 0 })} style={{ padding: '8px 12px', fontSize: 13 }} />
-            </div>
-            <div style={{ fontSize: 11, color: 'var(--fg-subtle)', marginTop: 8 }}>{t('tileset.hint')}</div>
-            <div style={{ display: 'grid', gap: 8, marginTop: 12 }}>
-              <label style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>{t('tileset.category')}</label>
-              <Select
-                value={d.category || 'terrain'}
-                onChange={(val) => props.setDialog({ ...d, category: val as any })}
-                options={[
-                  { value: 'terrain', label: t('tileset.cat.terrain') },
-                  { value: 'structures', label: t('tileset.cat.structures') },
-                  { value: 'objects', label: t('tileset.cat.objects') },
-                ]}
-              />
-              <div style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>{t('tileset.categoryHint')}</div>
-            </div>
-          </div>
+          <TilesetSettingsForm d={d} setDialog={props.setDialog} t={t} />
         </div>
       </div>
     </Modal>
