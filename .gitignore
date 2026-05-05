@@ -41,3 +41,45 @@ tmp_extract/
 # Build output logs
 build_output.txt
 **/build_output.txt
+
+# === OSS-Release Hygiene ===
+
+# Private Architektur-/Migrations-Dokumente (sollen lokal bleiben, nicht im Public-Repo)
+ENTERPRISE_MIGRATION_CONTEXT.md
+NATIVE_APP_SPECIFICATION.md
+
+# Datenbank-Dumps und Backups
+backup_*.sql
+db_data_*.tar.gz
+*.backup.sql
+
+# Lokale Tool-Caches (Claude Code, Playwright MCP)
+.claude/
+.playwright-mcp/
+
+# Debug-/Verifikations-Skripte (Entwickler-lokal, nicht committen)
+apps/server/reproduce_crash*.ts
+apps/server/verify_*.ts
+apps/server/cleanup_map.js
+apps/server/src/scripts/test_persistence.ts
+apps/web/verify_*.ts
+
+# Tauri-Build-Artefakte gehören nicht in apps/web/ (Architekturfehler)
+# Tauri-Code lebt ausschließlich in packages/desktop/ (privates Submodule)
+apps/web/src-tauri/
+
+# Lokale Screenshots im Repo-Root (Dev-Workflow, nicht für Public-Repo)
+/*.png
+
+# Lokale Pack-/Avatar-/NPC-Media (User-Uploads, Runtime-Daten)
+npc-media/
+public/packs/avatars/
+public/packs/.tmp-*/
+# Achtung: public/packs/<uuid>/ Pack-Inhalte sind Runtime-Daten — nicht committen
+public/packs/[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]-*/
+
+# Tools-Duplikate / Verschoben-Marker
+tools/DemoPack Kopie/
+tools/DemoPack Kopie.zip
+tools/*verschoben*
+tools/example-uc-container.html
