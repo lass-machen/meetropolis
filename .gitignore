@@ -91,3 +91,9 @@ tools/example-uc-container.html
 # === macOS-Duplikate (versehentliche "copy"-Files) ===
 tools/*copy*.mepack
 tools/* copy*
+
+# === Tools — lokale Asset-Pack-Test-Daten (nicht ins Repo) ===
+tools/*.mepack
+tools/DemoPack/
+tools/interior_tiles.png
+tools/wall-1.png
