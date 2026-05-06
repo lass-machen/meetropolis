@@ -1,70 +1,104 @@
-import { Room } from 'livekit-client';
+import {
+  AudioFrame,
+  AudioSource,
+  LocalAudioTrack,
+  Room,
+  TrackKind,
+  TrackPublishOptions,
+  TrackSource,
+  type RemoteParticipant,
+  type RemoteTrackPublication,
+} from '@livekit/rtc-node';
 import { AccessToken } from 'livekit-server-sdk';
 
-export async function spawnLivekitBot(opts: { apiBase: string; livekitUrl: string; roomName: string; identity: string }) {
-  // Generate server-side token
+const SAMPLE_RATE = 48_000;
+const NUM_CHANNELS = 1;
+const FRAME_DURATION_MS = 20;
+const SAMPLES_PER_FRAME = Math.floor((SAMPLE_RATE * FRAME_DURATION_MS) / 1000); // 960
+
+export async function spawnLivekitBot(opts: {
+  apiBase: string;
+  livekitUrl: string;
+  roomName: string;
+  identity: string;
+}): Promise<{ stop: () => Promise<void> }> {
+  // Generate server-side token (same flow as before, livekit-server-sdk stays).
   const apiKey = process.env.LIVEKIT_API_KEY || 'devkey';
   const apiSecret = process.env.LIVEKIT_API_SECRET || 'secret';
-  const at = new AccessToken(apiKey, apiSecret, { identity: opts.identity } as any);
-  at.addGrant({ room: opts.roomName, roomJoin: true, canPublish: true, canSubscribe: true });
+  const at = new AccessToken(apiKey, apiSecret, { identity: opts.identity });
+  at.addGrant({
+    room: opts.roomName,
+    roomJoin: true,
+    canPublish: true,
+    canSubscribe: true,
+  });
   const token = await at.toJwt();
 
   const t0 = Date.now();
-  const room: Room = new Room({
-    adaptiveStream: true,
-    dynacast: true,
-    publishDefaults: { dtx: true }
-  } as any);
-  await room.connect(opts.livekitUrl, token, { autoSubscribe: false });
+  const room = new Room();
+  await room.connect(opts.livekitUrl, token, {
+    autoSubscribe: false,
+    dynacast: false,
+  });
   const timeToConnectMs = Date.now() - t0;
 
-  // Publish silence audio
-  try {
-    const { createLocalTracks } = await import('livekit-client');
-    const tracks = await createLocalTracks({
-      audio: {
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true
-      } as any
-    } as any);
-    for (const t of tracks) {
-      if ((t as any).kind === 'audio') {
-        try { await room.localParticipant.publishTrack(t); } catch {}
+  // Publish silence audio so the bot looks like a normal participant with a mic track.
+  const audioSource = new AudioSource(SAMPLE_RATE, NUM_CHANNELS);
+  const audioTrack = LocalAudioTrack.createAudioTrack('loadtest-audio', audioSource);
+  const publishOptions = new TrackPublishOptions({ source: TrackSource.SOURCE_MICROPHONE });
+  const publication = await room.localParticipant!.publishTrack(audioTrack, publishOptions);
+  const trackSid = publication.sid;
+
+  // Periodically push silent frames (zero PCM) — keeps the publication alive
+  // and provides realistic upstream traffic for SFU stress testing.
+  let alive = true;
+  const silenceFramePromise = (async () => {
+    const silentSamples = new Int16Array(SAMPLES_PER_FRAME * NUM_CHANNELS); // initialised to 0
+    while (alive) {
+      try {
+        const frame = new AudioFrame(silentSamples, SAMPLE_RATE, NUM_CHANNELS, SAMPLES_PER_FRAME);
+        await audioSource.captureFrame(frame);
+      } catch {
+        // If capture fails (e.g. track was unpublished), stop.
+        break;
       }
     }
-  } catch {}
+  })();
 
-  let alive = true;
   let samples = 0;
   let lastInboundAudio = 0;
   let lastRemoteParticipants = 0;
-  // Periodically subscribe to a few participants (simulate proximity)
-  (async () => {
+
+  // Periodically subscribe to a few participants (simulate proximity) and
+  // sample basic metrics. rtc-node exposes `room.remoteParticipants` as a Map
+  // and each RemoteTrackPublication has `setSubscribed(boolean)`.
+  const samplerPromise = (async () => {
     while (alive) {
       try {
-        const parts: any[] = Array.from((room as any).remoteParticipants?.values?.() || []);
+        const parts: RemoteParticipant[] = Array.from(room.remoteParticipants.values());
         const firstN = parts.slice(0, 5);
         for (const p of firstN) {
-          const pubs: any[] = Array.from((p.trackPublications?.values?.() || []) as any);
+          const pubs: RemoteTrackPublication[] = Array.from(p.trackPublications.values());
           for (const pub of pubs) {
-            const kind = (pub as any).kind ?? (pub.track as any)?.kind;
-            if (kind === 'audio') { try { pub.setSubscribed?.(true); } catch {} }
+            if (pub.kind === TrackKind.KIND_AUDIO) {
+              try { pub.setSubscribed(true); } catch { /* ignore */ }
+            }
           }
         }
         // Basic metrics
         lastRemoteParticipants = parts.length;
         let inboundAudio = 0;
         for (const p of parts) {
-          const pubs: any[] = Array.from((p.trackPublications?.values?.() || []) as any);
+          const pubs: RemoteTrackPublication[] = Array.from(p.trackPublications.values());
           for (const pub of pubs) {
-            const kind = (pub as any).kind ?? (pub.track as any)?.kind;
-            if (kind === 'audio') inboundAudio++;
+            if (pub.kind === TrackKind.KIND_AUDIO) inboundAudio++;
           }
         }
         lastInboundAudio = inboundAudio;
         samples++;
-      } catch {}
+      } catch {
+        // ignore sampling errors — they should not abort the bot
+      }
       await new Promise((r) => setTimeout(r, 1000));
     }
   })();
@@ -72,7 +106,15 @@ export async function spawnLivekitBot(opts: { apiBase: string; livekitUrl: strin
   return {
     async stop() {
       alive = false;
-      try { await room.disconnect(); } catch {}
+      // Wait for background loops so we don't capture frames after disconnect.
+      await Promise.allSettled([silenceFramePromise, samplerPromise]);
+      try {
+        if (trackSid) {
+          await room.localParticipant?.unpublishTrack(trackSid);
+        }
+      } catch { /* ignore */ }
+      try { await audioSource.close(); } catch { /* ignore */ }
+      try { await room.disconnect(); } catch { /* ignore */ }
       // Emit summary line for ingestion
       try {
         // eslint-disable-next-line no-console
@@ -85,9 +127,7 @@ export async function spawnLivekitBot(opts: { apiBase: string; livekitUrl: strin
           lastRemoteParticipants,
           lastInboundAudio,
         }));
-      } catch {}
-    }
+      } catch { /* ignore */ }
+    },
   };
 }
-
-
