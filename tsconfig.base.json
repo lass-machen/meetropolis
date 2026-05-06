@@ -15,6 +15,7 @@
     "useDefineForClassFields": false,
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
+    "ignoreDeprecations": "6.0",
     "lib": ["ES2021", "DOM" ],
     "types": []
   }

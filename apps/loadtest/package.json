@@ -12,8 +12,8 @@
   "dependencies": {
     "colyseus.js": "^0.16.22",
     "dotenv": "^16.4.5",
-    "livekit-client": "^2.3.0",
-    "livekit-server-sdk": "^2.7.1"
+    "livekit-client": "^2.18.9",
+    "livekit-server-sdk": "^2.15.2"
   },
   "optionalDependencies": {
     "wrtc": "^0.4.7",
