@@ -1,5 +1,6 @@
 import type express from 'express';
-import { PrismaClient } from './generated/prisma/index.js';
+import type { PrismaClient } from './generated/prisma/index.js';
+import { createPrismaClient } from './db.js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 
@@ -44,7 +45,7 @@ import { getTenancyModule } from './tenancyLoader.js';
 import { logger } from './logger.js';
 import { getEmailModule, sendIfAvailable } from './emailLoader.js';
 
-const prisma = new PrismaClient();
+const prisma = createPrismaClient();
 
 function tenantContextFromReq(req: express.Request) {
   const t: any = (req as any).tenant;

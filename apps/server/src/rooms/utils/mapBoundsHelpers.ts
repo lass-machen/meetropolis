@@ -1,5 +1,5 @@
 import { logger } from '../../logger.js';
-import { PrismaClient } from '../../generated/prisma/index.js';
+import { createPrismaClient } from '../../db.js';
 import type { WorldRoom } from '../WorldRoom.js';
 
 export interface MapMeta {
@@ -146,7 +146,7 @@ export async function ensureMapMeta(
   tenantSlug: string,
 ): Promise<MapCacheEntry | null> {
   if (room.mapCache.has(mapId)) return room.mapCache.get(mapId)!;
-  const prisma = room.prismaForPresence ?? new PrismaClient();
+  const prisma = room.prismaForPresence ?? createPrismaClient();
   try {
     let map = await prisma.map.findFirst({ where: { id: mapId, tenant: { slug: tenantSlug } } });
     if (!map) {

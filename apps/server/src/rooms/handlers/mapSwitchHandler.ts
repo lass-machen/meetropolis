@@ -1,6 +1,6 @@
 import type { Client } from 'colyseus';
 import { logger } from '../../logger.js';
-import { PrismaClient } from '../../generated/prisma/index.js';
+import { createPrismaClient } from '../../db.js';
 import type { WorldRoom } from '../WorldRoom.js';
 import { ensureMapMeta, sanitizePositionForMap, type MapCacheEntry } from '../utils/mapBoundsHelpers.js';
 import { broadcastBubbleState } from '../utils/bubbleHelpers.js';
@@ -94,7 +94,7 @@ export async function handleChangeMap(
   }
 
   const tenantSlug = (room.metadata as RoomMetadata)?.tenant || process.env.DEFAULT_TENANT_SLUG || 'default';
-  const prisma = room.prismaForPresence ?? new PrismaClient();
+  const prisma = room.prismaForPresence ?? createPrismaClient();
   const map = await prisma.map.findFirst({
     where: { id: targetMapId, tenant: { slug: tenantSlug } },
   });

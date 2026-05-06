@@ -1,7 +1,11 @@
 import { PrismaClient } from '../src/generated/prisma/index.js';
+import { PrismaPg } from '@prisma/adapter-pg';
 import bcrypt from 'bcryptjs';
 
-const prisma = new PrismaClient();
+// Prisma 7 requires a driver-adapter. The seed runs via `prisma db seed`
+// (outside the application's normal entrypoint) so we construct one here.
+const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
+const prisma = new PrismaClient({ adapter });
 
 async function main() {
   // Ensure tenants exist

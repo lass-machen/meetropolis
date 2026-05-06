@@ -1,7 +1,7 @@
 import 'dotenv/config';
-import { PrismaClient } from '../generated/prisma/index.js';
+import { createPrismaClient } from '../db.js';
 
-const prisma = new PrismaClient();
+const prisma = createPrismaClient();
 
 type TenantRef = { id: string };
 

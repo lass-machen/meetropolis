@@ -1,5 +1,5 @@
 import { logger } from '../../logger.js';
-import { PrismaClient } from '../../generated/prisma/index.js';
+import { createPrismaClient } from '../../db.js';
 import type { WorldRoom } from '../WorldRoom.js';
 import { sanitizePosition, type MapMeta } from '../utils/mapBoundsHelpers.js';
 
@@ -8,7 +8,7 @@ import { sanitizePosition, type MapMeta } from '../utils/mapBoundsHelpers.js';
 // per-mapId cache. Best-effort; failure is logged at debug level.
 export async function loadInitialSpawn(room: WorldRoom, tenantSlug: string): Promise<void> {
   try {
-    const prisma = new PrismaClient();
+    const prisma = createPrismaClient();
     room.prismaForPresence = prisma;
     const tenantRecord = await prisma.tenant.findUnique({ where: { slug: tenantSlug }, select: { defaultMapName: true } });
     const mapName = tenantRecord?.defaultMapName || process.env.DEFAULT_MAP_NAME || 'office';

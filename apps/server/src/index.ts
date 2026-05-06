@@ -48,7 +48,7 @@ import { tenantMiddleware } from './tenancy.js';
 import { requestLogger } from './api/requestLogger.js';
 import { errorHandler } from './api/errorHandler.js';
 import { applyEnterpriseMigrationsIfPresent } from './tenancyLoader.js';
-import { PrismaClient } from './generated/prisma/index.js';
+import { createPrismaClient } from './db.js';
 
 const app = express();
 const allowedOrigins = (process.env.CORS_ORIGIN || '')
@@ -228,7 +228,7 @@ if (toolsUser && toolsPassword) {
 
 // Apply enterprise schema migrations (no-op without enterprise submodule)
 try {
-  const migrationPrisma = new PrismaClient();
+  const migrationPrisma = createPrismaClient();
   await applyEnterpriseMigrationsIfPresent(migrationPrisma);
   await migrationPrisma.$disconnect();
 } catch (e) {

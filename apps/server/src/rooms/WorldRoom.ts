@@ -2,7 +2,8 @@ import { Room, type Client } from 'colyseus';
 import { Schema, type, MapSchema } from '@colyseus/schema';
 import { logger } from '../logger.js';
 import { colyseusRooms } from '../metrics.js';
-import { PrismaClient } from '../generated/prisma/index.js';
+import type { PrismaClient } from '../generated/prisma/index.js';
+import { createPrismaClient } from '../db.js';
 import {
   createZoneLockState,
   setupZoneLockHandlers,
@@ -167,7 +168,7 @@ export class WorldRoom extends Room<{ state: WorldState }> {
     subscribeMapUpdates(this, tenantSlugForPresence);
 
     // Setup zone lock handlers
-    setupZoneLockHandlers(this, this.zoneLockState, this.prismaForPresence ?? new PrismaClient());
+    setupZoneLockHandlers(this, this.zoneLockState, this.prismaForPresence ?? createPrismaClient());
   }
 
   // Editor-Updates können das Default-Spawn live setzen.

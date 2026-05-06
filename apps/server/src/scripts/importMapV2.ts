@@ -1,4 +1,4 @@
-import { PrismaClient } from '../generated/prisma/index.js';
+import { createPrismaClient } from '../db.js';
 import fs from 'fs/promises';
 import path from 'path';
 import { encodeRlePairsToBuffer, rleEncodeBooleans, rleEncodeNumbers, tileRefIdFrom } from '../mapEncoding.js';
@@ -12,7 +12,7 @@ type Tmj = {
   layers: Array<{ name: string; type: string; data?: number[]; width?: number; height?: number; }>
 };
 
-const prisma = new PrismaClient();
+const prisma = createPrismaClient();
 
 async function upsertMap(tenantId: string, mapName: string, tmj: Tmj, chunkSize: number) {
   return prisma.map.upsert({

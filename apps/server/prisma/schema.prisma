@@ -19,7 +19,9 @@ generator clientDefault {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  // Prisma 7: connection URL is sourced from `prisma.config.ts` (CLI/migrate)
+  // and from the runtime driver-adapter (see `apps/server/src/db.ts`).
+  // The `url` property is no longer permitted in the schema file.
 }
 
 // Prisma seed configuration (uses TS seed file)

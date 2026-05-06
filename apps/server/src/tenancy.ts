@@ -1,6 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 import type { Tenant } from './generated/prisma/index.js';
-import { PrismaClient } from './generated/prisma/index.js';
+import { createPrismaClient } from './db.js';
 import { getTenancyModule } from './tenancyLoader.js';
 import jwt from 'jsonwebtoken';
 import { getJwtSecret } from './api/utils/authHelpers.js';
@@ -12,7 +12,7 @@ interface TenantRequest extends Request {
   tenant?: Tenant;
 }
 
-const prisma = new PrismaClient();
+const prisma = createPrismaClient();
 
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;

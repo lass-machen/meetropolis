@@ -1,7 +1,8 @@
 import type { Client } from 'colyseus';
 import { logger } from '../../logger.js';
 import { colyseusPlayers } from '../../metrics.js';
-import { PrismaClient } from '../../generated/prisma/index.js';
+import type { PrismaClient } from '../../generated/prisma/index.js';
+import { createPrismaClient } from '../../db.js';
 import { getTenancyModule, OSS_USER_LIMIT } from '../../tenancyLoader.js';
 import { getBillingModuleSync } from '../../billingLoader.js';
 import type { WorldRoom, RoomOptions, Player as PlayerCtor } from '../WorldRoom.js';
@@ -141,7 +142,7 @@ async function enforceTenantLimits(
 ): Promise<boolean> {
   try {
     const tenantSlug: string = options?.tenant || (room.metadata as RoomMetadata)?.tenant || process.env.DEFAULT_TENANT_SLUG || 'default';
-    const prisma = new PrismaClient();
+    const prisma = createPrismaClient();
     const tenant = await prisma.tenant.findUnique({ where: { slug: tenantSlug } });
 
     if (await checkBillingStatus(client, prisma, tenant, tenantSlug)) return true;
@@ -258,7 +259,7 @@ async function resolveInitialMap(
 
   try {
     const tenantSlug = options?.tenant || (room.metadata as RoomMetadata)?.tenant || process.env.DEFAULT_TENANT_SLUG || 'default';
-    const prismaForMap = room.prismaForPresence ?? new PrismaClient();
+    const prismaForMap = room.prismaForPresence ?? createPrismaClient();
     if (initialMapName) {
       const mapByName = await prismaForMap.map.findFirst({
         where: { name: initialMapName, tenant: { slug: tenantSlug } },
@@ -307,7 +308,7 @@ async function resolveInitialMap(
 async function ensureRoomMapMetadata(room: WorldRoom, options: RoomOptions): Promise<void> {
   try {
     if (!room.mapWidthTiles || !room.mapHeightTiles || !room.tileWidthPx || !room.tileHeightPx || !room.defaultSpawn) {
-      const prisma = new PrismaClient();
+      const prisma = createPrismaClient();
       const tenantSlug = options?.tenant || (room.metadata as RoomMetadata)?.tenant || process.env.DEFAULT_TENANT_SLUG || 'default';
       const tenantRec = await prisma.tenant.findUnique({ where: { slug: tenantSlug }, select: { defaultMapName: true } });
       const mapName = tenantRec?.defaultMapName || process.env.DEFAULT_MAP_NAME || 'office';
@@ -348,7 +349,7 @@ async function resolveNameAndAvatar(
   const needsNameLookup = !resolvedName || resolvedName === joiningIdentity;
   if (!isNpcIdentity && (needsNameLookup || !options?.avatarId)) {
     try {
-      const prisma = room.prismaForPresence ?? new PrismaClient();
+      const prisma = room.prismaForPresence ?? createPrismaClient();
       const user = await prisma.user.findUnique({
         where: { id: joiningIdentity },
         select: { name: true, email: true, avatarId: true },
@@ -370,7 +371,7 @@ async function resolveNameAndAvatar(
 // Send seed presence_recent to the new client. Best-effort, tenant-scoped.
 async function seedPresenceRecent(room: WorldRoom, client: Client, options: RoomOptions): Promise<void> {
   try {
-    const prisma = room.prismaForPresence ?? new PrismaClient();
+    const prisma = room.prismaForPresence ?? createPrismaClient();
     const tenantSlug: string = options?.tenant || (room.metadata as RoomMetadata)?.tenant || process.env.DEFAULT_TENANT_SLUG || 'default';
     const tenant = await prisma.tenant.findUnique({ where: { slug: tenantSlug } });
     if (!tenant) return;
@@ -422,7 +423,7 @@ async function checkGuestExpired(
 ): Promise<boolean> {
   try {
     const tenantSlug = options?.tenant || (room.metadata as RoomMetadata)?.tenant || process.env.DEFAULT_TENANT_SLUG || 'default';
-    const prismaCheck = room.prismaForPresence ?? new PrismaClient();
+    const prismaCheck = room.prismaForPresence ?? createPrismaClient();
     const tenantForGuest = await prismaCheck.tenant.findUnique({ where: { slug: tenantSlug } });
     if (tenantForGuest) {
       const guestMembership = await prismaCheck.membership.findFirst({

@@ -1,8 +1,8 @@
 import type express from 'express';
-import { PrismaClient } from '../../generated/prisma/index.js';
+import { createPrismaClient } from '../../db.js';
 import { requireAuth, getTenantFromReq } from '../utils/authHelpers.js';
 
-const prisma = new PrismaClient();
+const prisma = createPrismaClient();
 
 /**
  * Middleware that checks if the authenticated user is an expired guest.

@@ -1,5 +1,5 @@
 import { logger } from '../../logger.js';
-import { PrismaClient } from '../../generated/prisma/index.js';
+import { createPrismaClient } from '../../db.js';
 import type { WorldRoom } from '../WorldRoom.js';
 
 interface RoomMetadata {
@@ -13,7 +13,7 @@ export function startGuestExpiryInterval(room: WorldRoom): ReturnType<typeof set
   return setInterval(async () => {
     try {
       const tenantSlug = (room.metadata as RoomMetadata)?.tenant || process.env.DEFAULT_TENANT_SLUG || 'default';
-      const prisma = room.prismaForPresence ?? new PrismaClient();
+      const prisma = room.prismaForPresence ?? createPrismaClient();
       const tenant = await prisma.tenant.findUnique({ where: { slug: tenantSlug } });
       if (!tenant) return;
 

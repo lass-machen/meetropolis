@@ -1,7 +1,7 @@
 
-import { PrismaClient } from '../generated/prisma/index.js';
+import { createPrismaClient } from '../db.js';
 
-const prisma = new PrismaClient();
+const prisma = createPrismaClient();
 
 async function main() {
   const mapName = process.argv[2] || 'office';
