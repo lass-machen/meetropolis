@@ -31,7 +31,7 @@ const createNpcSchema = z.object({
   enabled: z.boolean().optional(),
   showBadge: z.boolean().optional(),
   mapName: z.string().optional(),
-  config: z.record(z.unknown()).optional(),
+  config: z.record(z.string(), z.unknown()).optional(),
 });
 
 const updateNpcSchema = z.object({
@@ -43,7 +43,7 @@ const updateNpcSchema = z.object({
   enabled: z.boolean().optional(),
   showBadge: z.boolean().optional(),
   mapName: z.string().nullable().optional(),
-  config: z.record(z.unknown()).nullable().optional(),
+  config: z.record(z.string(), z.unknown()).nullable().optional(),
 });
 
 const commandSchema = z.discriminatedUnion('action', [
@@ -97,7 +97,7 @@ async function handleCreateNpc(req: express.Request, res: express.Response, pris
   if (!await isAdminOrOwner(req, auth.userId, prisma)) return res.status(403).json({ error: 'forbidden' });
 
   const parse = createNpcSchema.safeParse(req.body);
-  if (!parse.success) return res.status(400).json({ error: 'invalid_payload', details: parse.error.errors });
+  if (!parse.success) return res.status(400).json({ error: 'invalid_payload', details: parse.error.issues });
 
   const data = parse.data;
   const existing = await prisma.npc.findUnique({
@@ -145,7 +145,7 @@ async function handleUpdateNpc(req: express.Request, res: express.Response, pris
   if (!await isAdminOrOwner(req, auth.userId, prisma)) return res.status(403).json({ error: 'forbidden' });
 
   const parse = updateNpcSchema.safeParse(req.body);
-  if (!parse.success) return res.status(400).json({ error: 'invalid_payload', details: parse.error.errors });
+  if (!parse.success) return res.status(400).json({ error: 'invalid_payload', details: parse.error.issues });
 
   const npc = await prisma.npc.findFirst({ where: { id: pathParam(req, 'id'), tenantId: tenant.id } });
   if (!npc) return res.status(404).json({ error: 'not_found' });
@@ -254,7 +254,7 @@ async function handleNpcCommand(req: express.Request, res: express.Response, pri
   if (!npc) return res.status(404).json({ error: 'not_found' });
 
   const parse = commandSchema.safeParse(req.body);
-  if (!parse.success) return res.status(400).json({ error: 'invalid_command', details: parse.error.errors });
+  if (!parse.success) return res.status(400).json({ error: 'invalid_command', details: parse.error.issues });
 
   // For media commands, verify media file exists
   const cmd = parse.data;

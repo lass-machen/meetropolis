@@ -195,7 +195,7 @@ async function handleCreateObject(prisma: PrismaClient, req: express.Request, re
     const { tenant } = gate;
 
     const parse = createObjectSchema.safeParse(req.body);
-    if (!parse.success) { res.status(400).json({ error: 'invalid payload', details: parse.error.errors }); return; }
+    if (!parse.success) { res.status(400).json({ error: 'invalid payload', details: parse.error.issues }); return; }
     const data = parse.data;
 
     const map = await prisma.map.findFirst({ where: { id: pathParam(req, 'id'), tenantId: tenant.id } });
@@ -229,7 +229,7 @@ async function handleUpdateObject(prisma: PrismaClient, req: express.Request, re
     const { tenant } = gate;
 
     const parse = updateObjectSchema.safeParse(req.body);
-    if (!parse.success) { res.status(400).json({ error: 'invalid payload', details: parse.error.errors }); return; }
+    if (!parse.success) { res.status(400).json({ error: 'invalid payload', details: parse.error.issues }); return; }
 
     const objId = Number(req.params.objId);
     if (!Number.isFinite(objId)) { res.status(400).json({ error: 'invalid id' }); return; }
@@ -343,7 +343,7 @@ async function handleBulkCreateObjects(prisma: PrismaClient, req: express.Reques
     const { tenant } = gate;
 
     const parse = bulkCreateSchema.safeParse(req.body);
-    if (!parse.success) { res.status(400).json({ error: 'invalid payload', details: parse.error.errors }); return; }
+    if (!parse.success) { res.status(400).json({ error: 'invalid payload', details: parse.error.issues }); return; }
 
     const map = await prisma.map.findFirst({ where: { id: pathParam(req, 'id'), tenantId: tenant.id } });
     if (!map) { res.status(404).json({ error: 'map not found' }); return; }

@@ -23,7 +23,7 @@ const AvatarPackCreateSchema = z.object({
   author: z.string().min(1),
   version: z.string().min(1),
   type: z.string().default('full'),
-  avatars: z.array(z.record(z.unknown())).min(1),
+  avatars: z.array(z.record(z.string(), z.unknown())).min(1),
 });
 
 async function authenticateMixed(
@@ -149,7 +149,7 @@ async function handleCreateAvatarPack(prisma: PrismaClient, req: express.Request
   try {
     const parsed = AvatarPackCreateSchema.safeParse(req.body);
     if (!parsed.success) {
-      res.status(400).json({ error: 'invalid body', details: parsed.error.errors });
+      res.status(400).json({ error: 'invalid body', details: parsed.error.issues });
       return;
     }
     const rec = await upsertAvatarPack(prisma, parsed.data);

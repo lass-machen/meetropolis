@@ -13,7 +13,7 @@ export async function handleOnboardingComplete(prisma: PrismaClient, req: expres
   if (!auth) { res.status(401).json({ error: 'unauthorized' }); return; }
 
   const parse = onboardingSchema.safeParse(req.body || {});
-  if (!parse.success) { res.status(400).json({ error: 'invalid body', details: parse.error.errors }); return; }
+  if (!parse.success) { res.status(400).json({ error: 'invalid body', details: parse.error.issues }); return; }
 
   try {
     const updateData: { onboardingCompleted: boolean; avatarId?: string } = { onboardingCompleted: true };

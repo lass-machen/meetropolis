@@ -231,7 +231,7 @@ async function handleCreateAdminMap(prisma: PrismaClient, req: express.Request, 
   if (!admin) { res.status(403).json({ error: 'forbidden' }); return; }
 
   const parse = createMapSchema.safeParse(req.body);
-  if (!parse.success) { res.status(400).json({ error: 'invalid payload', details: parse.error.errors }); return; }
+  if (!parse.success) { res.status(400).json({ error: 'invalid payload', details: parse.error.issues }); return; }
 
   try {
     const { tenantId, name, width, height, tileWidth, tileHeight } = parse.data;
@@ -308,7 +308,7 @@ async function handleCopyAdminMap(prisma: PrismaClient, req: express.Request, re
   if (!admin) { res.status(403).json({ error: 'forbidden' }); return; }
 
   const parse = copyMapSchema.safeParse(req.body);
-  if (!parse.success) { res.status(400).json({ error: 'invalid payload', details: parse.error.errors }); return; }
+  if (!parse.success) { res.status(400).json({ error: 'invalid payload', details: parse.error.issues }); return; }
 
   try {
     const { targetTenantId, newName } = parse.data;

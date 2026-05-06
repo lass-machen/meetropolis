@@ -194,7 +194,7 @@ async function handleTmjImport(prisma: PrismaClient, req: express.Request, res: 
     }
 
     const parse = TmjSchema.safeParse(json);
-    if (!parse.success) { res.status(400).json({ error: 'invalid_tmj', details: parse.error.errors }); return; }
+    if (!parse.success) { res.status(400).json({ error: 'invalid_tmj', details: parse.error.issues }); return; }
     const tmj = parse.data;
 
     const mode = (req.query.mode as string) === 'merge' ? 'merge' : 'replace';

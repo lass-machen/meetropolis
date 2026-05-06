@@ -36,11 +36,19 @@ function readOssUserLimitFromEnv(): number {
 
 export const OSS_USER_LIMIT = readOssUserLimitFromEnv();
 
+// zod 4 hat die `z.function()`-API komplett umgebaut (Function-Factory mit
+// `.implement()`). Für reine Shape-Validierung importierter Module reicht ein
+// `typeof === "function"`-Check via `z.custom`.
+const fnSchema = z.custom<(...args: unknown[]) => unknown>(
+  (val) => typeof val === 'function',
+  { message: 'expected function' },
+);
+
 const tenancyModuleSchema = z.object({
   version: z.literal(1),
-  isMultiTenantEnabled: z.function().args().returns(z.boolean()),
-  bypassOssLimit: z.function().args().returns(z.boolean()).optional(),
-  runEnterpriseMigrations: z.function().optional(),
+  isMultiTenantEnabled: fnSchema,
+  bypassOssLimit: fnSchema.optional(),
+  runEnterpriseMigrations: fnSchema.optional(),
 });
 
 let cached: TenancyModule | null = null;

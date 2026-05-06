@@ -31,7 +31,7 @@ export function registerUserRoutes(
 
     const parsed = AvatarUpdateSchema.safeParse(req.body);
     if (!parsed.success) {
-      return res.status(400).json({ error: 'invalid body', details: parsed.error.errors });
+      return res.status(400).json({ error: 'invalid body', details: parsed.error.issues });
     }
 
     try {

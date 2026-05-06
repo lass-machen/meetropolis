@@ -355,7 +355,7 @@ async function parseUploadedConfig(configEntry: any): Promise<{ ok: true; cfg: a
 
   const parsed = ConfigSchema.safeParse(configJson);
   if (!parsed.success) {
-    return { ok: false, status: 400, error: 'invalid config schema', details: parsed.error.errors };
+    return { ok: false, status: 400, error: 'invalid config schema', details: parsed.error.issues };
   }
   return { ok: true, cfg: parsed.data as any };
 }
