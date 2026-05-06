@@ -32,10 +32,9 @@ async function initAndRender() {
     const dsn = (import.meta as any).env?.VITE_SENTRY_DSN as string | undefined;
     if (dsn) {
       const Sentry = await import('@sentry/browser');
-      const Tracing = await import('@sentry/tracing');
       Sentry.init({
         dsn,
-        integrations: [new (Tracing as any).BrowserTracing()],
+        integrations: [Sentry.browserTracingIntegration()],
         tracesSampleRate: 0.2,
         environment: (import.meta as any).env?.MODE || 'development'
       });

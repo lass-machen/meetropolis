@@ -24,7 +24,6 @@
     "@radix-ui/react-tooltip": "1.2.8",
     "@radix-ui/react-visually-hidden": "1.2.3",
     "@sentry/browser": "^10.22.0",
-    "@sentry/tracing": "^7.120.4",
     "aria-hidden": "^1.2.6",
     "colyseus.js": "^0.16.22",
     "detect-node-es": "^1.1.0",
@@ -51,7 +50,7 @@
     "@vitest/coverage-v8": "^3.2.4",
     "es-module-lexer": "^1.7.0",
     "jsdom": "^27.3.0",
-    "typescript": "^5.5.4",
+    "typescript": "^6.0.3",
     "vite": "^6.3.5",
     "vitest": "^3.2.4"
   }

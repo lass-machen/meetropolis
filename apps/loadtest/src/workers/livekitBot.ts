@@ -1,4 +1,4 @@
-import { connect, Room } from 'livekit-client';
+import { Room } from 'livekit-client';
 import { AccessToken } from 'livekit-server-sdk';
 
 export async function spawnLivekitBot(opts: { apiBase: string; livekitUrl: string; roomName: string; identity: string }) {
@@ -10,15 +10,12 @@ export async function spawnLivekitBot(opts: { apiBase: string; livekitUrl: strin
   const token = await at.toJwt();
 
   const t0 = Date.now();
-  const room: Room = await connect(opts.livekitUrl, token, {
-    autoSubscribe: false,
-    // @ts-ignore
+  const room: Room = new Room({
     adaptiveStream: true,
-    // @ts-ignore
     dynacast: true,
-    // @ts-ignore
     publishDefaults: { dtx: true }
   } as any);
+  await room.connect(opts.livekitUrl, token, { autoSubscribe: false });
   const timeToConnectMs = Date.now() - t0;
 
   // Publish silence audio
