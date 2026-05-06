@@ -19,12 +19,12 @@
     "start:dev": "tsx watch src/index.ts"
   },
   "dependencies": {
-    "@colyseus/schema": "^3.0.75",
+    "@colyseus/schema": "^4.0.23",
     "@prisma/client": "^6.19.3",
     "@sentry/node": "^10.51.0",
     "bcryptjs": "^2.4.3",
     "c12": "^3.3.4",
-    "colyseus": "^0.16.5",
+    "colyseus": "^0.17.10",
     "compression": "^1.8.1",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",

@@ -67,7 +67,7 @@ export class WorldState extends Schema {
 // Store all active rooms globally for API access
 const activeRooms = new Set<WorldRoom>();
 
-export class WorldRoom extends Room<WorldState> {
+export class WorldRoom extends Room<{ state: WorldState }> {
   // Map metadata (room-level, used for bounds clamping)
   public defaultSpawn: { x: number; y: number } | null = null;
   public prismaForPresence: PrismaClient | null = null;
@@ -200,8 +200,8 @@ export class WorldRoom extends Room<WorldState> {
     await performOnJoin(this, activeRooms, client, options, Player);
   }
 
-  override onLeave(client: Client): void {
-    performOnLeave(this, client);
+  override onLeave(client: Client, code?: number): void {
+    performOnLeave(this, client, code);
   }
 
   override onDispose(): void {

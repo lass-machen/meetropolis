@@ -1,6 +1,3 @@
-// Polyfill must be first import - sets Symbol.metadata for @colyseus/schema v3.x
-import './polyfills.js';
-
 import 'dotenv/config';
 
 // express-async-errors must be imported first to catch async errors in route handlers

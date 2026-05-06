@@ -21,7 +21,7 @@ interface RoomMetadata {
 // - replace any existing pending leave timer for the same sid
 // - on commit: broadcast `player_left` on the player's mapId (or globally)
 // - dissolve bubble groups losing members, drop groups < 2 members
-export function performOnLeave(room: WorldRoom, client: Client): void {
+export function performOnLeave(room: WorldRoom, client: Client, _code?: number): void {
   // Clean up pending client if it disconnects before resolving
   for (const [identity, pending] of room.pendingClients.entries()) {
     if (pending.client.sessionId === client.sessionId) {

@@ -1,7 +1,7 @@
 // Global type definitions for the Meetropolis web application
 
 import type { Room as LiveKitRoom, LocalParticipant, RemoteParticipant, Track } from 'livekit-client';
-import type { Room as ColyseusRoom } from 'colyseus.js';
+import type { Room as ColyseusRoom } from '@colyseus/sdk';
 
 // W3C Audio Session API (Safari 16.4+ / WKWebView)
 // https://w3c.github.io/audio-session/

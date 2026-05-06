@@ -1,4 +1,4 @@
-import * as Colyseus from 'colyseus.js';
+import { Client, Room } from '@colyseus/sdk';
 import type { NpcSpawnCommand } from '@meetropolis/shared';
 import { logger } from '../index.js';
 
@@ -7,8 +7,8 @@ type NpcCommandCallback = (data: NpcCommandData) => void;
 
 export class ColyseusClient {
   private command: NpcSpawnCommand;
-  private room: Colyseus.Room | null = null;
-  private client: Colyseus.Client;
+  private room: Room | null = null;
+  private client: Client;
   private connected = false;
   private commandCallbacks: NpcCommandCallback[] = [];
   private alive = false;
@@ -20,7 +20,7 @@ export class ColyseusClient {
   constructor(command: NpcSpawnCommand) {
     this.command = command;
     const wsUrl = command.serverUrl.replace(/^http(s?):\/\//, 'ws$1://');
-    this.client = new Colyseus.Client(wsUrl);
+    this.client = new Client(wsUrl);
   }
 
   async connect(): Promise<void> {
@@ -81,7 +81,7 @@ export class ColyseusClient {
     }, delay);
   }
 
-  private async joinWithRetry(maxAttempts: number, baseDelayMs: number): Promise<Colyseus.Room> {
+  private async joinWithRetry(maxAttempts: number, baseDelayMs: number): Promise<Room> {
     const { npc, tenantSlug } = this.command;
     let attempt = 0;
     while (true) {

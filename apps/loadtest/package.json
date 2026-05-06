@@ -10,7 +10,7 @@
     "build": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "colyseus.js": "^0.16.22",
+    "@colyseus/sdk": "^0.17.42",
     "dotenv": "^16.4.5",
     "livekit-client": "^2.18.9",
     "livekit-server-sdk": "^2.15.2"

@@ -1,4 +1,4 @@
-import * as Colyseus from 'colyseus.js';
+import { Client } from '@colyseus/sdk';
 
 type Zone = { id: string; name: string; polygon: Array<{ x: number; y: number }> };
 
@@ -15,7 +15,7 @@ export async function spawnColyseusBot(opts: { apiBase: string; identity: string
   const wsEndpoint = toWs(opts.apiBase);
   const httpEndpoint = toHttp(opts.apiBase);
 
-  const client = new Colyseus.Client(wsEndpoint);
+  const client = new Client(wsEndpoint);
 
   // Retry matchmaking a few times to avoid transient "connection refused" during warmup
   async function joinWithRetry(maxAttempts: number, baseDelayMs: number) {

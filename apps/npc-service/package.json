@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "@meetropolis/shared": "*",
-    "colyseus.js": "^0.16.22",
+    "@colyseus/sdk": "^0.17.42",
     "@livekit/rtc-node": "^0.13.27",
     "livekit-server-sdk": "^2.15.2",
     "express": "^4.21.0",

@@ -1,8 +1,8 @@
-import { Room } from 'colyseus';
 import { pointInPolygon } from '@meetropolis/shared';
 import type { ZoneLockInfo } from '@meetropolis/shared';
 import { PrismaClient } from '../../generated/prisma/index.js';
 import { logger } from '../../logger.js';
+import type { WorldRoom } from '../WorldRoom.js';
 
 interface ZonePolygon {
   name: string;
@@ -70,13 +70,13 @@ function lockKey(mapId: string, zoneName: string): string {
 }
 
 // Lock-State an alle broadcasten
-function broadcastLockState(room: Room, state: ZoneLockState): void {
+function broadcastLockState(room: WorldRoom, state: ZoneLockState): void {
   const locks: ZoneLockInfo[] = Array.from(state.locks.values());
   room.broadcast('zone_lock_state', { locks });
 }
 
 // Auto-unlock prüfen: Wenn keine Spieler mit Zugang mehr in der Zone sind
-function checkAutoUnlock(room: Room, state: ZoneLockState): void {
+function checkAutoUnlock(room: WorldRoom, state: ZoneLockState): void {
   const now = Date.now();
   if (now - state.lastAutoUnlockCheck < 500) return;
   state.lastAutoUnlockCheck = now;
@@ -123,12 +123,12 @@ export function isMovementBlocked(
   return { blocked: true, zoneName: targetZone };
 }
 
-function getRoomTenantSlug(room: Room): string {
+function getRoomTenantSlug(room: WorldRoom): string {
   return (room.metadata as any)?.tenant || process.env.DEFAULT_TENANT_SLUG || 'default';
 }
 
 async function handleZoneLock(
-  room: Room,
+  room: WorldRoom,
   state: ZoneLockState,
   prisma: PrismaClient,
   client: { sessionId: string },
@@ -167,7 +167,7 @@ async function handleZoneLock(
 }
 
 function handleZoneUnlock(
-  room: Room,
+  room: WorldRoom,
   state: ZoneLockState,
   client: { sessionId: string },
   data: { zoneName?: string },
@@ -188,7 +188,7 @@ function handleZoneUnlock(
 }
 
 function handleZoneAccessRequest(
-  room: Room,
+  room: WorldRoom,
   state: ZoneLockState,
   client: { sessionId: string },
   data: { zoneName?: string; mapId?: string },
@@ -215,7 +215,7 @@ function handleZoneAccessRequest(
 }
 
 function handleZoneAccessResponse(
-  room: Room,
+  room: WorldRoom,
   state: ZoneLockState,
   client: { sessionId: string },
   data: { zoneName?: string; sessionId?: string; approved?: boolean },
@@ -246,7 +246,7 @@ function handleZoneAccessResponse(
   broadcastLockState(room, state);
 }
 
-export function setupZoneLockHandlers(room: Room, state: ZoneLockState, prisma: PrismaClient): void {
+export function setupZoneLockHandlers(room: WorldRoom, state: ZoneLockState, prisma: PrismaClient): void {
   room.onMessage('zone_lock', (client, data) => handleZoneLock(room, state, prisma, client, data));
   room.onMessage('zone_unlock', (client, data) => handleZoneUnlock(room, state, client, data));
   room.onMessage('zone_access_request', (client, data) => handleZoneAccessRequest(room, state, client, data));
@@ -254,7 +254,7 @@ export function setupZoneLockHandlers(room: Room, state: ZoneLockState, prisma: 
 }
 
 // Spieler verlässt: aus allen Listen entfernen
-export function onPlayerLeaveZoneLock(room: Room, state: ZoneLockState, sessionId: string): void {
+export function onPlayerLeaveZoneLock(room: WorldRoom, state: ZoneLockState, sessionId: string): void {
   let changed = false;
   for (const [_key, lock] of state.locks) {
     if (lock.accessList.includes(sessionId)) {
