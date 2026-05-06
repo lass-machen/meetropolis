@@ -1,4 +1,13 @@
-import '@testing-library/jest-dom/vitest';
+// jest-dom@6.9's `/vitest` entry does `import { expect } from 'vitest'`, which
+// fails in npm-workspace setups where vitest is hoisted to a workspace package
+// (apps/web/node_modules/vitest) rather than the repo root, while jest-dom is
+// hoisted to the root. Vitest 4's stricter resolution surfaces this — vitest 3
+// silently let it through. Wire the matchers ourselves via the framework-
+// neutral `/matchers` entry to side-step the resolution mismatch.
+import * as jestDomMatchers from '@testing-library/jest-dom/matchers';
+import { expect } from 'vitest';
+
+expect.extend(jestDomMatchers);
 
 // Polyfill matchMedia for jsdom
 if (typeof window !== 'undefined' && !('matchMedia' in window)) {

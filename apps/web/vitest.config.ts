@@ -27,6 +27,9 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html', 'lcov'],
+      // Vitest 4 removed `coverage.all`; default is now only covered files.
+      // Explicit `include` keeps reports comprehensive across all source files.
+      include: ['src/**/*.{ts,tsx}'],
       exclude: [
         'node_modules/',
         'dist/',
