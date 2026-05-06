@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "@colyseus/sdk": "^0.17.42",
-    "dotenv": "^16.4.5",
+    "dotenv": "^17.4.2",
     "livekit-client": "^2.18.9",
     "livekit-server-sdk": "^2.15.2"
   },

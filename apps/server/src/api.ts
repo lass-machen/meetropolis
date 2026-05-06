@@ -158,7 +158,7 @@ function requireTenantAdminMiddleware(req: any, res: any, next: any): void {
 
 async function buildBillingRouter(billingModule: NonNullable<Awaited<ReturnType<typeof getBillingModule>>>) {
   const Stripe = (await import('stripe')).default;
-  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2023-10-16' });
+  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-04-22.dahlia' });
   // Billing-DI: delegiert an das (optionale) Tenancy-Mail-Modul. Wenn keines
   // geladen ist, ist `send` ein stiller No-Op — Billing-Webhooks/Cron laufen
   // weiter, schicken aber nichts. (Im Enterprise-Build ist tenancy immer da.)

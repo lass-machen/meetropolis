@@ -30,12 +30,12 @@
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "deepmerge-ts": "^7.1.5",
-    "dotenv": "^16.4.5",
+    "dotenv": "^17.4.2",
     "effect": "^3.21.2",
     "empathic": "^2.0.0",
     "express": "^5.2.1",
     "express-rate-limit": "^8.5.0",
-    "fast-check": "^3.23.2",
+    "fast-check": "^4.7.0",
     "helmet": "^8.1.0",
     "jiti": "^2.7.0",
     "jsonwebtoken": "^9.0.3",
@@ -45,12 +45,12 @@
     "pg": "^8.16.3",
     "pino": "^10.3.1",
     "prom-client": "^15.1.3",
-    "pure-rand": "^7.0.1",
+    "pure-rand": "^8.4.0",
     "unzipper": "^0.12.3",
     "zod": "^4.4.3"
   },
   "optionalDependencies": {
-    "stripe": "^14.0.0"
+    "stripe": "^22.1.0"
   },
   "devDependencies": {
     "@types/compression": "^1.8.1",
