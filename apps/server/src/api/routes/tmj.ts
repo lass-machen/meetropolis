@@ -6,6 +6,7 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { logger } from '../../logger.js';
 import { requireAuth, getTenantFromReq } from '../utils/authHelpers.js';
+import { pathParam } from '../utils/requestHelpers.js';
 import { broadcastMapUpdate } from '../utils/broadcast.js';
 import {
   TmjSchema,
@@ -199,7 +200,7 @@ async function handleTmjImport(prisma: PrismaClient, req: express.Request, res: 
     const mode = (req.query.mode as string) === 'merge' ? 'merge' : 'replace';
     const chunkSize = 32;
 
-    const map = await prisma.map.findFirst({ where: { id: req.params.id, tenantId: tenant.id } });
+    const map = await prisma.map.findFirst({ where: { id: pathParam(req, 'id'), tenantId: tenant.id } });
     if (!map) { res.status(404).json({ error: 'map not found' }); return; }
 
     await prisma.map.update({
@@ -277,7 +278,7 @@ async function handleTmjExport(prisma: PrismaClient, req: express.Request, res: 
     const includeZones = req.query.includeZones === 'true';
     const includeSpawn = req.query.includeSpawn === 'true';
 
-    const map = await prisma.map.findFirst({ where: { id: req.params.id, tenantId: tenant.id } });
+    const map = await prisma.map.findFirst({ where: { id: pathParam(req, 'id'), tenantId: tenant.id } });
     if (!map) { res.status(404).json({ error: 'map_not_found' }); return; }
 
     const mapWidth = map.width ?? 32;

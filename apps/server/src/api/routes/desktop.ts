@@ -1,5 +1,6 @@
 import type express from 'express';
 import { logger } from '../../logger.js';
+import { pathParam } from '../utils/requestHelpers.js';
 
 const GITHUB_REPO = 'lass-machen/meetropolis-desktop';
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 Minuten
@@ -97,7 +98,9 @@ async function handleDesktopUpdate(req: express.Request, res: express.Response):
   }
 
   try {
-    const { target, arch, version } = req.params;
+    const target = pathParam(req, 'target');
+    const arch = pathParam(req, 'arch');
+    const version = pathParam(req, 'version');
     const release = await getLatestRelease();
     const latestVersion = (release.tag_name || '').replace(/^v/, '');
 
@@ -159,7 +162,8 @@ async function handleDesktopDownload(req: express.Request, res: express.Response
     return;
   }
 
-  const { asset_id, filename } = req.params;
+  const asset_id = pathParam(req, 'asset_id');
+  const filename = pathParam(req, 'filename');
   if (!/^\d+$/.test(asset_id)) {
     res.status(400).json({ error: 'Invalid asset ID' });
     return;

@@ -3,6 +3,7 @@ import { PrismaClient } from '../../generated/prisma/index.js';
 import { z } from 'zod';
 import { logger } from '../../logger.js';
 import { requireAuth, getTenantFromReq, requireMembership, requireApiToken } from '../utils/authHelpers.js';
+import { pathParam } from '../utils/requestHelpers.js';
 import { broadcastMapUpdate, broadcastSpawnUpdate } from '../utils/broadcast.js';
 import { findMapById } from './maps.read.js';
 
@@ -34,7 +35,7 @@ export async function handleAddTileset(prisma: PrismaClient, req: express.Reques
 
     const tenant = getTenantFromReq(req);
     if (!tenant) { res.status(400).json({ error: 'tenant_required' }); return; }
-    const map = await findMapById(prisma, req.params.id, tenant.id);
+    const map = await findMapById(prisma, pathParam(req, 'id'), tenant.id);
     if (!map) { res.status(404).json({ error: 'map not found' }); return; }
 
     const existing = await prisma.mapTileset.findFirst({ where: { mapId: map.id, key: parse.data.key } });
@@ -59,7 +60,7 @@ export async function handleAddTileset(prisma: PrismaClient, req: express.Reques
       try {
         const tenant = getTenantFromReq(req);
         if (tenant) {
-          const map = await findMapById(prisma, req.params.id, tenant.id);
+          const map = await findMapById(prisma, pathParam(req, 'id'), tenant.id);
           if (map) {
             const tilesets = await prisma.mapTileset.findMany({ where: { mapId: map.id }, orderBy: { slot: 'asc' } });
             res.json({ tilesetRegistry: tilesets });
@@ -78,7 +79,7 @@ export async function handleEditorStateGet(prisma: PrismaClient, req: express.Re
   if (!auth.ok) { res.status(401).json({ error: 'unauthorized' }); return; }
   const tenant = getTenantFromReq(req);
   if (!tenant) { res.status(400).json({ error: 'tenant_required' }); return; }
-  const map = await findMapById(prisma, req.params.id, tenant.id);
+  const map = await findMapById(prisma, pathParam(req, 'id'), tenant.id);
   if (!map) { res.status(404).json({ error: 'map not found' }); return; }
   const meta = (map.meta as any) || {};
   try { logger.debug('[EditorState] GET', { mapId: map.id, tilesets: Array.isArray(meta.tilesets) ? meta.tilesets.length : 0 }); } catch { }
@@ -162,7 +163,7 @@ export async function handleEditorStatePut(prisma: PrismaClient, req: express.Re
   const parse = editorStateSchema.safeParse(req.body || {});
   if (!parse.success) { res.status(400).json({ error: 'invalid editor payload' }); return; }
   const { tilesets, zones, backgroundColor, replaceZones, spawn } = parse.data;
-  const map = await findMapById(prisma, req.params.id, tenant.id);
+  const map = await findMapById(prisma, pathParam(req, 'id'), tenant.id);
   if (!map) { res.status(404).json({ error: 'map not found' }); return; }
   try { logger.debug('[EditorState] PUT', { mapId: map.id, mapName: map.name, tilesets: Array.isArray(tilesets) ? tilesets.length : undefined, zones: Array.isArray(zones) ? zones.length : undefined, spawn: !!spawn }); } catch { }
 
@@ -264,7 +265,7 @@ export async function handleResize(prisma: PrismaClient, req: express.Request, r
   const { width, height, dryRun } = parse.data;
 
   try {
-    const map = await findMapById(prisma, req.params.id, tenant.id);
+    const map = await findMapById(prisma, pathParam(req, 'id'), tenant.id);
     if (!map) { res.status(404).json({ error: 'map not found' }); return; }
 
     const oldWidth = map.width ?? 32;
@@ -302,7 +303,7 @@ export async function handleRename(prisma: PrismaClient, req: express.Request, r
   try {
     let oldName = '';
     await prisma.$transaction(async (tx) => {
-      const map = await tx.map.findFirst({ where: { id: req.params.id, tenantId: tenant.id } });
+      const map = await tx.map.findFirst({ where: { id: pathParam(req, 'id'), tenantId: tenant.id } });
       if (!map) throw new Error('MAP_NOT_FOUND');
       oldName = map.name;
 
@@ -362,7 +363,7 @@ export async function handleDeleteZones(prisma: PrismaClient, req: express.Reque
   const zoneId = req.query.id as string | undefined;
 
   try {
-    const map = await findMapById(prisma, req.params.id, tenant.id);
+    const map = await findMapById(prisma, pathParam(req, 'id'), tenant.id);
     if (!map) { res.status(404).json({ error: 'map not found' }); return; }
 
     let deleted = 0;
@@ -392,7 +393,7 @@ export async function handleListMapZones(prisma: PrismaClient, req: express.Requ
   if (!tenant) { res.status(400).json({ error: 'tenant_required' }); return; }
 
   try {
-    const map = await findMapById(prisma, req.params.id, tenant.id);
+    const map = await findMapById(prisma, pathParam(req, 'id'), tenant.id);
     if (!map) { res.status(404).json({ error: 'map not found' }); return; }
 
     const zones = await prisma.zone.findMany({ where: { mapId: map.id } });

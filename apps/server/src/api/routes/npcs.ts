@@ -2,6 +2,7 @@ import type express from 'express';
 import type { PrismaClient } from '../../generated/prisma/index.js';
 import { z } from 'zod';
 import { requireAuth, requireApiToken, getTenantFromReq, requireMembership } from '../utils/authHelpers.js';
+import { pathParam } from '../utils/requestHelpers.js';
 import { logger } from '../../logger.js';
 import { npcServiceSpawn, npcServiceDespawn } from '../utils/npcServiceClient.js';
 import type { Room } from 'colyseus';
@@ -129,7 +130,7 @@ async function handleGetNpc(req: express.Request, res: express.Response, prisma:
   if (!tenant) return res.status(400).json({ error: 'tenant_required' });
 
   const npc = await prisma.npc.findFirst({
-    where: { id: req.params.id, tenantId: tenant.id },
+    where: { id: pathParam(req, 'id'), tenantId: tenant.id },
     include: { mediaFiles: true },
   });
   if (!npc) return res.status(404).json({ error: 'not_found' });
@@ -146,7 +147,7 @@ async function handleUpdateNpc(req: express.Request, res: express.Response, pris
   const parse = updateNpcSchema.safeParse(req.body);
   if (!parse.success) return res.status(400).json({ error: 'invalid_payload', details: parse.error.errors });
 
-  const npc = await prisma.npc.findFirst({ where: { id: req.params.id, tenantId: tenant.id } });
+  const npc = await prisma.npc.findFirst({ where: { id: pathParam(req, 'id'), tenantId: tenant.id } });
   if (!npc) return res.status(404).json({ error: 'not_found' });
 
   const updateData = { ...parse.data } as Parameters<typeof prisma.npc.update>[0]['data'];
@@ -161,7 +162,7 @@ async function handleDeleteNpc(req: express.Request, res: express.Response, pris
   if (!tenant) return res.status(400).json({ error: 'tenant_required' });
   if (!await isAdminOrOwner(req, auth.userId, prisma)) return res.status(403).json({ error: 'forbidden' });
 
-  const npc = await prisma.npc.findFirst({ where: { id: req.params.id, tenantId: tenant.id } });
+  const npc = await prisma.npc.findFirst({ where: { id: pathParam(req, 'id'), tenantId: tenant.id } });
   if (!npc) return res.status(404).json({ error: 'not_found' });
 
   // Try to despawn first (best-effort)
@@ -192,7 +193,7 @@ async function handleSpawnNpc(req: express.Request, res: express.Response, prism
   if (!tenant) return res.status(400).json({ error: 'tenant_required' });
   if (!await isAdminOrOwner(req, auth.userId, prisma)) return res.status(403).json({ error: 'forbidden' });
 
-  const npc = await prisma.npc.findFirst({ where: { id: req.params.id, tenantId: tenant.id } });
+  const npc = await prisma.npc.findFirst({ where: { id: pathParam(req, 'id'), tenantId: tenant.id } });
   if (!npc) return res.status(404).json({ error: 'not_found' });
 
   try {
@@ -231,7 +232,7 @@ async function handleDespawnNpc(req: express.Request, res: express.Response, pri
   if (!tenant) return res.status(400).json({ error: 'tenant_required' });
   if (!await isAdminOrOwner(req, auth.userId, prisma)) return res.status(403).json({ error: 'forbidden' });
 
-  const npc = await prisma.npc.findFirst({ where: { id: req.params.id, tenantId: tenant.id } });
+  const npc = await prisma.npc.findFirst({ where: { id: pathParam(req, 'id'), tenantId: tenant.id } });
   if (!npc) return res.status(404).json({ error: 'not_found' });
 
   try {
@@ -249,7 +250,7 @@ async function handleNpcCommand(req: express.Request, res: express.Response, pri
   const tenant = getTenantFromReq(req);
   if (!tenant) return res.status(400).json({ error: 'tenant_required' });
 
-  const npc = await prisma.npc.findFirst({ where: { id: req.params.id, tenantId: tenant.id } });
+  const npc = await prisma.npc.findFirst({ where: { id: pathParam(req, 'id'), tenantId: tenant.id } });
   if (!npc) return res.status(404).json({ error: 'not_found' });
 
   const parse = commandSchema.safeParse(req.body);

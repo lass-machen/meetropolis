@@ -3,6 +3,7 @@ import { PrismaClient } from '../../generated/prisma/index.js';
 import { z } from 'zod';
 import { logger } from '../../logger.js';
 import { requireAuth, getTenantFromReq, requireApiToken } from '../utils/authHelpers.js';
+import { pathParam } from '../utils/requestHelpers.js';
 import { broadcastMapUpdate } from '../utils/broadcast.js';
 import {
   computeFootprintTiles,
@@ -125,7 +126,7 @@ async function handleListObjects(prisma: PrismaClient, req: express.Request, res
 
     const chunksParam = (req.query.chunks as string) || '';
 
-    const map = await prisma.map.findFirst({ where: { id: req.params.id, tenantId: tenant.id } });
+    const map = await prisma.map.findFirst({ where: { id: pathParam(req, 'id'), tenantId: tenant.id } });
     if (!map) { res.status(404).json({ error: 'map not found' }); return; }
 
     if (!chunksParam) {
@@ -197,7 +198,7 @@ async function handleCreateObject(prisma: PrismaClient, req: express.Request, re
     if (!parse.success) { res.status(400).json({ error: 'invalid payload', details: parse.error.errors }); return; }
     const data = parse.data;
 
-    const map = await prisma.map.findFirst({ where: { id: req.params.id, tenantId: tenant.id } });
+    const map = await prisma.map.findFirst({ where: { id: pathParam(req, 'id'), tenantId: tenant.id } });
     if (!map) { res.status(404).json({ error: 'map not found' }); return; }
 
     const pack = await prisma.assetPack.findUnique({ where: { uuid: data.assetPackUuid } });
@@ -233,7 +234,7 @@ async function handleUpdateObject(prisma: PrismaClient, req: express.Request, re
     const objId = Number(req.params.objId);
     if (!Number.isFinite(objId)) { res.status(400).json({ error: 'invalid id' }); return; }
 
-    const map = await prisma.map.findFirst({ where: { id: req.params.id, tenantId: tenant.id } });
+    const map = await prisma.map.findFirst({ where: { id: pathParam(req, 'id'), tenantId: tenant.id } });
     if (!map) { res.status(404).json({ error: 'map not found' }); return; }
 
     const existing = await prisma.mapObject.findFirst({ where: { id: objId, mapId: map.id } });
@@ -286,7 +287,7 @@ async function handleDeleteObject(prisma: PrismaClient, req: express.Request, re
     const objId = Number(req.params.objId);
     if (!Number.isFinite(objId)) { res.status(400).json({ error: 'invalid id' }); return; }
 
-    const map = await prisma.map.findFirst({ where: { id: req.params.id, tenantId: tenant.id } });
+    const map = await prisma.map.findFirst({ where: { id: pathParam(req, 'id'), tenantId: tenant.id } });
     if (!map) { res.status(404).json({ error: 'map not found' }); return; }
 
     const existing = await prisma.mapObject.findFirst({ where: { id: objId, mapId: map.id } });
@@ -344,7 +345,7 @@ async function handleBulkCreateObjects(prisma: PrismaClient, req: express.Reques
     const parse = bulkCreateSchema.safeParse(req.body);
     if (!parse.success) { res.status(400).json({ error: 'invalid payload', details: parse.error.errors }); return; }
 
-    const map = await prisma.map.findFirst({ where: { id: req.params.id, tenantId: tenant.id } });
+    const map = await prisma.map.findFirst({ where: { id: pathParam(req, 'id'), tenantId: tenant.id } });
     if (!map) { res.status(404).json({ error: 'map not found' }); return; }
 
     const dims = getMapDimensions(map);

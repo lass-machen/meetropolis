@@ -4,6 +4,7 @@ import { z } from 'zod';
 import multer from 'multer';
 import { logger } from '../../logger.js';
 import { requireSuperAdmin } from '../utils/authHelpers.js';
+import { pathParam } from '../utils/requestHelpers.js';
 import { rleEncodeNumbers, encodeRlePairsToBuffer } from '../../mapEncoding.js';
 
 async function resolveCopyName(prisma: PrismaClient, targetTenantId: string, baseName: string): Promise<string> {
@@ -208,7 +209,7 @@ async function handleGetAdminMap(prisma: PrismaClient, req: express.Request, res
 
   try {
     const map = await prisma.map.findUnique({
-      where: { id: req.params.id },
+      where: { id: pathParam(req, 'id') },
       include: {
         tenant: { select: { id: true, slug: true, name: true } },
         rooms: { include: { zones: true } },
@@ -283,7 +284,7 @@ async function handleDeleteAdminMap(prisma: PrismaClient, req: express.Request, 
   if (!admin) { res.status(403).json({ error: 'forbidden' }); return; }
 
   try {
-    const map = await prisma.map.findUnique({ where: { id: req.params.id } });
+    const map = await prisma.map.findUnique({ where: { id: pathParam(req, 'id') } });
     if (!map) { res.status(404).json({ error: 'map_not_found' }); return; }
 
     const tenant = await prisma.tenant.findUnique({ where: { id: map.tenantId } });
@@ -314,9 +315,10 @@ async function handleCopyAdminMap(prisma: PrismaClient, req: express.Request, re
     const targetTenant = await prisma.tenant.findUnique({ where: { id: targetTenantId } });
     if (!targetTenant) { res.status(404).json({ error: 'target_tenant_not_found' }); return; }
 
-    const result = await copyMapToTenant(prisma, req.params.id, targetTenantId, newName);
+    const sourceId = pathParam(req, 'id');
+    const result = await copyMapToTenant(prisma, sourceId, targetTenantId, newName);
 
-    logger.info({ event: 'admin_maps.copied', sourceId: req.params.id, newMapId: result.id, targetTenantId });
+    logger.info({ event: 'admin_maps.copied', sourceId, newMapId: result.id, targetTenantId });
     res.json(result);
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);

@@ -1,7 +1,6 @@
 import 'dotenv/config';
 
-// express-async-errors must be imported first to catch async errors in route handlers
-import 'express-async-errors';
+// Express 5 catches async route handler rejections natively — no extra polyfill needed.
 
 // Sentry must be initialized before other imports
 const sentryDsn = process.env.SENTRY_DSN;

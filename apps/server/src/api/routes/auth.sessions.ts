@@ -3,6 +3,7 @@ import { PrismaClient } from '../../generated/prisma/index.js';
 import crypto from 'crypto';
 import { logger } from '../../logger.js';
 import { requireAuth } from '../utils/authHelpers.js';
+import { pathParam } from '../utils/requestHelpers.js';
 import { getRequestToken } from './auth.helpers.js';
 
 export async function handleListSessions(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
@@ -56,7 +57,7 @@ export async function handleRevokeSession(prisma: PrismaClient, req: express.Req
   const auth = requireAuth(req);
   if (!auth) { res.status(401).json({ error: 'unauthorized' }); return; }
 
-  const sessionId = req.params.id;
+  const sessionId = pathParam(req, 'id');
 
   try {
     const session = await prisma.session.findUnique({ where: { id: sessionId } });

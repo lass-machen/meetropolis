@@ -6,6 +6,7 @@ import fs from 'fs';
 import fsp from 'fs/promises';
 import multer from 'multer';
 import { requireAuth, requireApiToken, getTenantFromReq, requireMembership } from '../utils/authHelpers.js';
+import { pathParam } from '../utils/requestHelpers.js';
 import { logger } from '../../logger.js';
 
 // --- Allowed MIME types and their extensions ---
@@ -84,7 +85,7 @@ async function handleUploadMedia(req: express.Request, res: express.Response, pr
   if (!tenant) return res.status(400).json({ error: 'tenant_required' });
   if (!await isAdminOrOwner(req, auth.userId, prisma)) return res.status(403).json({ error: 'forbidden' });
 
-  const npc = await prisma.npc.findFirst({ where: { id: req.params.id, tenantId: tenant.id } });
+  const npc = await prisma.npc.findFirst({ where: { id: pathParam(req, 'id'), tenantId: tenant.id } });
   if (!npc) return res.status(404).json({ error: 'not_found' });
 
   const file = (req as unknown as { file?: MulterFile }).file;
@@ -131,7 +132,7 @@ async function handleListMedia(req: express.Request, res: express.Response, pris
   const tenant = getTenantFromReq(req);
   if (!tenant) return res.status(400).json({ error: 'tenant_required' });
 
-  const npc = await prisma.npc.findFirst({ where: { id: req.params.id, tenantId: tenant.id } });
+  const npc = await prisma.npc.findFirst({ where: { id: pathParam(req, 'id'), tenantId: tenant.id } });
   if (!npc) return res.status(404).json({ error: 'not_found' });
 
   const files = await prisma.npcMediaFile.findMany({ where: { npcId: npc.id }, orderBy: { createdAt: 'desc' } });
@@ -145,10 +146,10 @@ async function handleDeleteMedia(req: express.Request, res: express.Response, pr
   if (!tenant) return res.status(400).json({ error: 'tenant_required' });
   if (!await isAdminOrOwner(req, auth.userId, prisma)) return res.status(403).json({ error: 'forbidden' });
 
-  const npc = await prisma.npc.findFirst({ where: { id: req.params.id, tenantId: tenant.id } });
+  const npc = await prisma.npc.findFirst({ where: { id: pathParam(req, 'id'), tenantId: tenant.id } });
   if (!npc) return res.status(404).json({ error: 'not_found' });
 
-  const mf = await prisma.npcMediaFile.findFirst({ where: { id: req.params.mediaId, npcId: npc.id } });
+  const mf = await prisma.npcMediaFile.findFirst({ where: { id: pathParam(req, 'mediaId'), npcId: npc.id } });
   if (!mf) return res.status(404).json({ error: 'media_not_found' });
 
   // Delete from disk

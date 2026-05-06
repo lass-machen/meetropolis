@@ -12,6 +12,7 @@ import {
   requireMembership,
   normalizeEmailForStorage,
 } from '../utils/authHelpers.js';
+import { pathParam } from '../utils/requestHelpers.js';
 import { getTenancyModule } from '../../tenancyLoader.js';
 import { sendIfAvailable } from '../../emailLoader.js';
 
@@ -208,7 +209,7 @@ async function handleRevokeGuest(prisma: PrismaClient, req: express.Request, res
   if (!gate.ok) { res.status(gate.status).json({ error: gate.error }); return; }
   const { tenant } = gate;
 
-  const membershipId = req.params.membershipId;
+  const membershipId = pathParam(req, 'membershipId');
   const guestMembership = await prisma.membership.findFirst({
     where: { id: membershipId, tenantId: tenant.id, role: 'guest' },
   });

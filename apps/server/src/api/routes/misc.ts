@@ -3,6 +3,7 @@ import { PrismaClient } from '../../generated/prisma/index.js';
 import { z } from 'zod';
 import { logger } from '../../logger.js';
 import { requireAuth, getTenantFromReq, requireMembership } from '../utils/authHelpers.js';
+import { pathParam } from '../utils/requestHelpers.js';
 
 async function handleUpdateMe(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
   const auth = requireAuth(req);
@@ -198,7 +199,7 @@ async function handleDeleteInvite(prisma: PrismaClient, req: express.Request, re
   if (!auth) { res.status(401).json({ error: 'unauthorized' }); return; }
   const tenant = getTenantFromReq(req);
   if (!tenant) { res.status(400).json({ error: 'tenant_required' }); return; }
-  const code = req.params.code;
+  const code = pathParam(req, 'code');
   try {
     const inv = await prisma.invite.findUnique({ where: { code } });
     if (!inv || (inv as any).tenantId !== tenant.id) { res.status(404).json({ error: 'not found' }); return; }
@@ -250,7 +251,7 @@ async function handleUpdateUser(prisma: PrismaClient, req: express.Request, res:
   const tenant = getTenantFromReq(req);
   if (!tenant) { res.status(400).json({ error: 'tenant_required' }); return; }
 
-  const id = req.params.id;
+  const id = pathParam(req, 'id');
   if (id !== auth.userId) {
     const callerMembership = await requireMembership(req, auth.userId, prisma);
     if (!callerMembership || (callerMembership.role !== 'owner' && callerMembership.role !== 'admin')) {
@@ -291,7 +292,7 @@ async function handleChangeRole(prisma: PrismaClient, req: express.Request, res:
     return;
   }
 
-  const id = req.params.id;
+  const id = pathParam(req, 'id');
   const parse = changeRoleSchema.safeParse(req.body || {});
   if (!parse.success) { res.status(400).json({ error: 'valid role required (admin or member)' }); return; }
 
@@ -338,7 +339,7 @@ async function purgeUserMembershipData(prisma: PrismaClient, id: string): Promis
 async function handleDeleteUser(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
   const auth = requireAuth(req);
   if (!auth) { res.status(401).json({ error: 'unauthorized' }); return; }
-  const id = req.params.id;
+  const id = pathParam(req, 'id');
   if (id === auth.userId) { res.status(400).json({ error: 'cannot delete self' }); return; }
 
   const tenant = getTenantFromReq(req);

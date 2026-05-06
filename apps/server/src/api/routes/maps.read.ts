@@ -3,6 +3,7 @@ import { PrismaClient } from '../../generated/prisma/index.js';
 import { z } from 'zod';
 import { logger } from '../../logger.js';
 import { getTenantFromReq } from '../utils/authHelpers.js';
+import { pathParam } from '../utils/requestHelpers.js';
 
 export async function findMapById(prisma: PrismaClient, mapId: string, tenantId: string) {
   return prisma.map.findFirst({ where: { id: mapId, tenantId } });
@@ -54,7 +55,7 @@ export async function handleStateV2(prisma: PrismaClient, req: express.Request, 
   try {
     const tenant = getTenantFromReq(req);
     if (!tenant) { res.status(400).json({ error: 'tenant_required' }); return; }
-    let map = await findMapById(prisma, req.params.id, tenant.id);
+    let map = await findMapById(prisma, pathParam(req, 'id'), tenant.id);
     if (!map) { res.status(404).json({ error: 'map not found' }); return; }
 
     map = await autoPatchMapDimensions(prisma, map, tenant.slug);
@@ -93,7 +94,7 @@ export async function handleChunksFetch(prisma: PrismaClient, req: express.Reque
     const tenant = getTenantFromReq(req);
     if (!tenant) { res.status(400).json({ error: 'tenant_required' }); return; }
     const { layer: layerName, keys } = parse.data;
-    const map = await findMapById(prisma, req.params.id, tenant.id);
+    const map = await findMapById(prisma, pathParam(req, 'id'), tenant.id);
     if (!map) { res.status(404).json({ error: 'map not found' }); return; }
     const layer = await prisma.mapLayer.findUnique({ where: { mapId_name: { mapId: map.id, name: layerName } } });
     if (!layer) { res.json({ chunks: {} }); return; }

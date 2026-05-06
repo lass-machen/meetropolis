@@ -2,6 +2,7 @@ import express from 'express';
 import { PrismaClient } from '../../generated/prisma/index.js';
 import { z } from 'zod';
 import crypto from 'crypto';
+import { pathParam } from '../utils/requestHelpers.js';
 
 export function registerApiTokenRoutes(
   app: express.Application,
@@ -34,7 +35,7 @@ export function registerApiTokenRoutes(
   app.delete('/api-tokens/:id', async (req: express.Request, res: express.Response) => {
     const auth = requireAuth(req);
     if (!auth) return res.status(401).json({ error: 'unauthorized' });
-    const id = req.params.id;
+    const id = pathParam(req, 'id');
     try {
       const tok = await prisma.apiToken.findUnique({ where: { id } });
       if (!tok || tok.userId !== auth.userId) return res.status(404).json({ error: 'not found' });

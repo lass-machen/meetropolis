@@ -3,6 +3,7 @@ import { PrismaClient } from '../../generated/prisma/index.js';
 import { z } from 'zod';
 import { logger } from '../../logger.js';
 import { getTenantFromReq } from '../utils/authHelpers.js';
+import { pathParam } from '../utils/requestHelpers.js';
 import { broadcastMapUpdate } from '../utils/broadcast.js';
 import { applyCollisionSideEffect } from '../utils/collisionSideEffect.js';
 import { findMapById } from './maps.read.js';
@@ -174,7 +175,7 @@ export async function handlePaintRect(prisma: PrismaClient, req: express.Request
     if (!tenant) { res.status(400).json({ error: 'tenant_required' }); return; }
     const { layer: layerName, rect, tileRefId, values: rawValues, erase } = parse.data;
 
-    const map = await findMapById(prisma, req.params.id, tenant.id);
+    const map = await findMapById(prisma, pathParam(req, 'id'), tenant.id);
     if (!map) {
       logger.warn('[Paint] map not found', { mapId: req.params.id, tenant: tenant.slug });
       res.status(404).json({ error: 'map not found' });

@@ -53,7 +53,8 @@ function handleDespawn(req: Request, res: Response): void {
 }
 
 function handleCommand(req: Request, res: Response): void {
-  const { identity } = req.params;
+  const identityParam = req.params.identity;
+  const identity = Array.isArray(identityParam) ? identityParam[0] ?? '' : identityParam ?? '';
   const tenantSlug = (req.query.tenant as string) || req.body?.tenantSlug;
   if (!tenantSlug) {
     res.status(400).json({ error: 'tenantSlug required' });
