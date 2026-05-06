@@ -30,7 +30,7 @@ import compression from 'compression';
 // Worse, it then enforces auth via the (CJS) static onAuth, bypassing any
 // instance-level checks. Using ESM imports everywhere keeps both sides on the
 // same Room class identity, so the heuristic passes and instance hooks work.
-import { Server as ColyseusServer } from 'colyseus';
+import { Server as ColyseusServer, matchMaker } from 'colyseus';
 import { WebSocketTransport } from '@colyseus/ws-transport';
 import { createServer } from 'http';
 import path from 'path';
@@ -48,6 +48,26 @@ import { requestLogger } from './api/requestLogger.js';
 import { errorHandler } from './api/errorHandler.js';
 import { applyEnterpriseMigrationsIfPresent } from './tenancyLoader.js';
 import { createPrismaClient } from './db.js';
+
+// Colyseus 0.17 bindet einen prependListener('request', …) am HTTP-Server,
+// der CORS-Preflights direkt mit DEFAULT_CORS_HEADERS beantwortet — _bevor_
+// unser Express-Middleware drankommt. Dadurch greifen unsere Custom-Header
+// (x-correlation-id, x-tenant, x-av-identity, x-av-room) auf OPTIONS nicht.
+// Wir überschreiben getCorsHeaders, damit Custom-Header in den Preflight-Headern
+// landen und der Origin korrekt zurückgespiegelt wird.
+const ALLOWED_REQUEST_HEADERS = 'Origin, X-Requested-With, Content-Type, Accept, Authorization, x-tenant, x-correlation-id, x-av-identity, x-av-room';
+matchMaker.controller.getCorsHeaders = (headers) => {
+  const origin = headers.get('origin') || '*';
+  const requested = headers.get('access-control-request-headers');
+  return {
+    'Access-Control-Allow-Origin': origin,
+    'Access-Control-Allow-Credentials': 'true',
+    'Access-Control-Allow-Headers': requested && requested.length > 0 ? requested : ALLOWED_REQUEST_HEADERS,
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
+    'Access-Control-Expose-Headers': 'x-correlation-id',
+    'Vary': 'Origin',
+  };
+};
 
 const app = express();
 const allowedOrigins = (process.env.CORS_ORIGIN || '')

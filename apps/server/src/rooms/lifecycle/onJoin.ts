@@ -11,6 +11,14 @@ import { sanitizePosition, sanitizePositionForMap, getMapCenter, type MapMeta } 
 import { getAllBubbleMembers } from '../utils/bubbleHelpers.js';
 import { findExistingSession } from './ghostDetection.js';
 
+// Wait until the client's onMessage handlers are likely registered before
+// sending one-shot messages. Colyseus 0.17 resolves joinOrCreate faster than
+// 0.15, which exposed a pre-existing race: the server raced the client's
+// setupPlayerHandlers() and triggered "@colyseus/sdk: onMessage() not
+// registered for type 'full_state'/'bubble_state'/'presence_recent'" warnings,
+// so the client never received the initial state and the roster stayed empty.
+const HANDLER_REGISTRATION_DELAY_MS = 200;
+
 interface RoomMetadata {
   tenant?: string;
   [key: string]: unknown;
@@ -407,7 +415,9 @@ async function seedPresenceRecent(room: WorldRoom, client: Client, options: Room
       };
     });
 
-    try { client.send('presence_recent', out); } catch (e) { logger.debug('[WorldRoom] Failed to send presence_recent', e); }
+    setTimeout(() => {
+      try { client.send('presence_recent', out); } catch (e) { logger.debug('[WorldRoom] Failed to send presence_recent', e); }
+    }, HANDLER_REGISTRATION_DELAY_MS);
   } catch (e) {
     try { logger.debug('[WorldRoom] presence_recent seed failed', e); } catch (e2) { logger.debug('[WorldRoom] Failed to log presence_recent error', e2); }
   }
@@ -490,7 +500,7 @@ function scheduleFullStateSend(room: WorldRoom, client: Client): void {
         client.send('zone_lock_state', { locks: zoneLocks });
       }
     } catch (e) { logger.debug('[WorldRoom] Failed to send full_state/bubble_state to client', e); }
-  }, 25);
+  }, HANDLER_REGISTRATION_DELAY_MS);
 }
 
 // completePendingJoin: actually create the player, broadcast, and seed
