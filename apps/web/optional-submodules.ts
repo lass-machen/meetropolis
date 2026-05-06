@@ -15,8 +15,8 @@
  * Submodule grün durchlaufen.
  */
 import type { Plugin } from 'vite';
-import { resolve, dirname, join } from 'path';
-import { existsSync, mkdirSync, symlinkSync, readdirSync, lstatSync, readlinkSync, statSync } from 'fs';
+import { resolve, dirname, join, relative } from 'path';
+import { existsSync, mkdirSync, symlinkSync, readdirSync, lstatSync, readlinkSync, statSync, unlinkSync } from 'fs';
 
 type OptionalSubmoduleSpec =
   | string
@@ -42,6 +42,13 @@ function normalizeSpec(
  * - Existierende Symlinks zum gleichen Ziel sind OK (idempotent).
  * - Fail silently bei Symlink-Fehlern.
  */
+// existsSync folgt Symlinks → broken Symlink (z.B. absoluter Host-Pfad
+// im Container) returnt false, obwohl der Link selbst da ist. Wir
+// brauchen lstat, um broken Symlinks zu erkennen und ersetzen zu können.
+function lstatSyncSafe(p: string): ReturnType<typeof lstatSync> | null {
+  try { return lstatSync(p); } catch { return null; }
+}
+
 function linkPublicAssets(submodulePublicDir: string, targetPublicDir: string): void {
   if (!existsSync(submodulePublicDir)) return;
 
@@ -68,22 +75,29 @@ function linkPublicAssets(submodulePublicDir: string, targetPublicDir: string): 
         walk(srcPath, dstPath);
         continue;
       }
-      // File: symlink anlegen falls Ziel noch nicht existiert
-      if (existsSync(dstPath)) {
-        // Existierender Symlink zum gleichen Ziel? -> OK, sonst überspringen.
+      // Symlink-Ziel relativ zum Quelldateipfad — sonst zeigt der Link
+      // auf den absoluten Host-Pfad und bricht im Docker-Container, wo
+      // /Users/... nicht existiert.
+      const relSrc = relative(dirname(dstPath), srcPath);
+      if (existsSync(dstPath) || lstatSyncSafe(dstPath)) {
         try {
           const lst = lstatSync(dstPath);
           if (lst.isSymbolicLink()) {
             const current = readlinkSync(dstPath);
-            const resolvedCurrent = resolve(dirname(dstPath), current);
-            if (resolvedCurrent === srcPath) continue;
+            // Bereits relativer Symlink zum richtigen Ziel? -> OK.
+            if (current === relSrc) continue;
+            // Alter absoluter Symlink — neu anlegen, damit er auch im
+            // Container auflöst.
+            unlinkSync(dstPath);
+          } else {
+            // Echte Datei (OSS-Asset gewinnt) — nicht überschreiben.
+            continue;
           }
         } catch {}
-        continue;
       }
       try {
         mkdirSync(dirname(dstPath), { recursive: true });
-        symlinkSync(srcPath, dstPath, 'file');
+        symlinkSync(relSrc, dstPath, 'file');
       } catch {}
     }
   };
