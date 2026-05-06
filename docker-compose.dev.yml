@@ -35,7 +35,7 @@ services:
       retries: 5
 
   server:
-    image: node:20
+    image: node:24-bookworm-slim
     container_name: meetropolis-server-dev
     working_dir: /workspace/apps/server
     environment:
@@ -65,7 +65,7 @@ services:
       BILLING_PUBLIC_URL: http://localhost:5174
       PRICING_URL: http://localhost:5174/#/pricing
       TEMPLATE_TENANT_SLUG: default
-    command: sh -c "cd /workspace && npm install && npm run -w @meetropolis/shared build && npm run -w @meetropolis/server prisma:compose && npx prisma generate --schema=./apps/server/prisma/schema.composed.prisma && npx prisma db push --schema=./apps/server/prisma/schema.composed.prisma && npm run -w @meetropolis/server prisma:seed && npm run -w @meetropolis/server start:dev"
+    command: sh -c "cd /workspace && npm install && npm run -w @meetropolis/shared build && cd /workspace/apps/server && npm run prisma:compose && npx prisma generate && npx prisma db push && npm run prisma:seed && npm run start:dev"
     ports:
       - "2567:2567"
     logging:
@@ -91,7 +91,7 @@ services:
       - ./npc-media:/data/npc-media
 
   web:
-    image: node:20
+    image: node:24-bookworm-slim
     container_name: meetropolis-web-dev
     working_dir: /workspace/apps/web
     environment:
@@ -237,7 +237,7 @@ services:
         max-file: "3"
 
   npc-service:
-    image: node:20
+    image: node:24-bookworm-slim
     container_name: meetropolis-npc-service
     working_dir: /workspace/apps/npc-service
     environment:

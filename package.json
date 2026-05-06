@@ -24,7 +24,8 @@
     "dev:loadtest": "npm -w @meetropolis/loadtest run dev"
   },
   "devDependencies": {
-    "concurrently": "^9.2.1"
+    "concurrently": "^9.2.1",
+    "esbuild": "^0.28.0"
   },
   "overrides": {
     "react": "^19.2.5",

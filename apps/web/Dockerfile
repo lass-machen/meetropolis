@@ -28,6 +28,13 @@ ENV VITE_FEATURE_VOICE_ISOLATION=${VITE_FEATURE_VOICE_ISOLATION}
 WORKDIR /workspace
 RUN npm install
 
+# Clean stale host-machine symlinks in apps/web/public/.
+# These point to absolute /Users/... paths from the host and are dangling
+# inside the container. The optional-submodules vite plugin recreates them
+# with valid container paths during the build, sourcing assets from
+# packages/brand/packages/web/public when the submodule is present.
+RUN find /workspace/apps/web/public -type l -delete
+
 # Build web app
 WORKDIR /workspace/apps/web
 RUN npm run build

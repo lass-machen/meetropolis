@@ -268,9 +268,19 @@ gameServer.define('world', WorldRoom as any).filterBy(['tenant']);
 // Make gameServer available globally for debugging
 (globalThis as any).gameServer = gameServer;
 
-httpServer.listen(port, '0.0.0.0', () => {
-  logger.info(`Server listening on :${port}`);
-});
+// In Colyseus 0.17 the matchmake HTTP routes (/matchmake/joinOrCreate/...)
+// are registered lazily inside `gameServer.listen()` via bindRouterToTransport.
+// Calling httpServer.listen() directly would skip that wiring and leave clients
+// with 404s on the matchmake endpoint. The transport shares our httpServer, so
+// the bind targets the same port we configured above.
+gameServer
+  .listen(port, '0.0.0.0', undefined, () => {
+    logger.info(`Server listening on :${port}`);
+  })
+  .catch((err) => {
+    logger.error('Colyseus listen failed', err);
+    process.exit(1);
+  });
 
 // Central error handler last
 app.use(errorHandler as any);

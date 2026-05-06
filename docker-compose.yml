@@ -16,7 +16,7 @@ services:
       - db_data:/var/lib/postgresql/data
 
   server:
-    image: node:20
+    image: node:24-bookworm-slim
     working_dir: /workspace
     env_file:
       - .env
@@ -63,7 +63,7 @@ services:
       - server_node_modules:/workspace/node_modules
 
   web:
-    image: node:20
+    image: node:24-bookworm-slim
     working_dir: /workspace
     env_file:
       - .env
