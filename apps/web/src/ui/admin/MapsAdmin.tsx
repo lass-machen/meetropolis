@@ -267,7 +267,7 @@ type ViewProps = {
   filteredMaps: MapRow[];
   filterOptions: TenantSelectOption[];
   tenantSelectOptions: TenantSelectOption[];
-  fileInputRef: React.RefObject<HTMLInputElement>;
+  fileInputRef: React.RefObject<HTMLInputElement | null>;
   onReload: () => void;
   onCreate: () => void;
   onDelete: (id: string, name: string) => void;

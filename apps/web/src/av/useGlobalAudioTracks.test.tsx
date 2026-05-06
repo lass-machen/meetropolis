@@ -1,7 +1,7 @@
 import React from 'react';
 import { describe, it, expect } from 'vitest';
 import { createRoot } from 'react-dom/client';
-import { act } from 'react-dom/test-utils';
+import { act } from 'react';
 import { useGlobalAudioTracks } from './useGlobalAudioTracks';
 
 function TestHarness({ avRef }: { avRef: React.MutableRefObject<any> }) {
