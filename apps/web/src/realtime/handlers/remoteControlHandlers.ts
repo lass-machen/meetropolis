@@ -1,7 +1,15 @@
+import type { Room as LiveKitRoom } from 'livekit-client';
 import type { UseWorldRoomArgs } from '../types';
-import type { WorldRoom } from '../../types/colyseus';
+import type {
+  RemoteControlMessage,
+  RemoteControlsForMessage,
+  RemoteControlsMessage,
+  WorldRoom,
+} from '../../types/colyseus';
 
-type RemoteControlPayload = { mic?: boolean; cam?: boolean; share?: boolean; dnd?: boolean };
+// Local alias used throughout the file. Matches the server-side payload
+// emitted by API broadcasts (apps/server/src/api/utils/broadcast.ts).
+type RemoteControlPayload = RemoteControlMessage;
 
 function showForceMutedToast(): Promise<void> {
   return import('../../lib/i18n')
@@ -38,7 +46,7 @@ function showForceMutedToast(): Promise<void> {
 
 async function applyMicControl(target: boolean, args: UseWorldRoomArgs): Promise<void> {
   const { avRef, setAvState } = args;
-  const roomRef: any = avRef.current?.room;
+  const roomRef = (avRef.current?.room ?? null) as LiveKitRoom | null;
   const { isLocalMicOn } = await import('../../av/core/localState');
   const current = isLocalMicOn(roomRef);
   if (current === target) return;
@@ -51,7 +59,7 @@ async function applyMicControl(target: boolean, args: UseWorldRoomArgs): Promise
   // Kurzer Re-Check (Pending/Signaling)
   setTimeout(() => {
     try {
-      const again = isLocalMicOn(avRef.current?.room);
+      const again = isLocalMicOn((avRef.current?.room ?? null) as LiveKitRoom | null);
       setAvState((s) => ({ ...s, mic: again }));
     } catch {}
   }, 400);
@@ -64,7 +72,7 @@ async function applyMicControl(target: boolean, args: UseWorldRoomArgs): Promise
 
 async function applyCamControl(target: boolean, args: UseWorldRoomArgs): Promise<void> {
   const { avRef, setAvState } = args;
-  const roomRef: any = avRef.current?.room;
+  const roomRef = (avRef.current?.room ?? null) as LiveKitRoom | null;
   const { isLocalCamOn } = await import('../../av/core/localState');
   const current = isLocalCamOn(roomRef);
   if (current === target) return;
@@ -76,7 +84,7 @@ async function applyCamControl(target: boolean, args: UseWorldRoomArgs): Promise
   } catch {}
   setTimeout(() => {
     try {
-      const again = isLocalCamOn(avRef.current?.room);
+      const again = isLocalCamOn((avRef.current?.room ?? null) as LiveKitRoom | null);
       setAvState((s) => ({ ...s, cam: again }));
     } catch {}
   }, 400);
@@ -84,7 +92,7 @@ async function applyCamControl(target: boolean, args: UseWorldRoomArgs): Promise
 
 async function applyShareControl(target: boolean, args: UseWorldRoomArgs): Promise<void> {
   const { avRef, setAvState } = args;
-  const roomRef: any = avRef.current?.room;
+  const roomRef = (avRef.current?.room ?? null) as LiveKitRoom | null;
   const { isLocalShareOn } = await import('../../av/core/localState');
   const current = isLocalShareOn(roomRef);
   if (target && !current) {
@@ -97,7 +105,7 @@ async function applyShareControl(target: boolean, args: UseWorldRoomArgs): Promi
   // Kurzer Re-Check für Share
   setTimeout(() => {
     try {
-      const again = isLocalShareOn(avRef.current?.room);
+      const again = isLocalShareOn((avRef.current?.room ?? null) as LiveKitRoom | null);
       setAvState((s) => ({ ...s, share: again }));
     } catch {}
   }, 400);
@@ -139,8 +147,8 @@ async function applyDndControl(target: boolean, args: UseWorldRoomArgs): Promise
   setTimeout(() => {
     void (async () => {
       try {
-        const mod: any = await import('../../av/core/localState');
-        const r: any = avRef.current?.room;
+        const mod = await import('../../av/core/localState');
+        const r = (avRef.current?.room ?? null) as LiveKitRoom | null;
         const realMic = mod.isLocalMicOn(r);
         const realCam = mod.isLocalCamOn(r);
         const realShare = mod.isLocalShareOn(r);
@@ -179,17 +187,17 @@ async function applyRemoteControl(payload: RemoteControlPayload, args: UseWorldR
 export function setupRemoteControlHandlers(room: WorldRoom, args: UseWorldRoomArgs) {
   const { avRef, me } = args;
 
-  room.onMessage('remote_control', (payload: any) => {
+  room.onMessage('remote_control', (payload: RemoteControlMessage) => {
     void applyRemoteControl(payload || {}, args);
   });
 
-  room.onMessage('remote_controls', (msg: any) => {
+  room.onMessage('remote_controls', (msg: RemoteControlsMessage) => {
     if (msg?.payload) {
       void applyRemoteControl(msg.payload, args);
     }
   });
 
-  room.onMessage('remote_controls_for', (msg: any) => {
+  room.onMessage('remote_controls_for', (msg: RemoteControlsForMessage) => {
     const localIdentity = avRef.current?.room?.localParticipant?.identity || me?.id;
     if (!msg?.forIdentity || String(localIdentity || '') !== String(msg.forIdentity || '')) return;
     if (msg?.payload) {

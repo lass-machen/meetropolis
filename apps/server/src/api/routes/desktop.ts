@@ -10,9 +10,25 @@ interface CacheEntry<T> {
   expiresAt: number;
 }
 
-let releasesCache: CacheEntry<any> | null = null;
+// Subset of the GitHub Releases API we consume.
+interface GitHubReleaseAsset {
+  id: number;
+  name: string;
+  size: number;
+  url: string;
+}
 
-async function fetchGitHubApi(path: string): Promise<any> {
+interface GitHubRelease {
+  tag_name?: string;
+  published_at?: string;
+  created_at?: string;
+  body?: string;
+  assets?: GitHubReleaseAsset[];
+}
+
+let releasesCache: CacheEntry<GitHubRelease> | null = null;
+
+async function fetchGitHubApi(path: string): Promise<unknown> {
   const token = process.env.GITHUB_DESKTOP_PAT;
   if (!token) {
     throw new Error('GITHUB_DESKTOP_PAT not configured');
@@ -33,12 +49,12 @@ async function fetchGitHubApi(path: string): Promise<any> {
   return response.json();
 }
 
-async function getLatestRelease(): Promise<any> {
+async function getLatestRelease(): Promise<GitHubRelease> {
   if (releasesCache && Date.now() < releasesCache.expiresAt) {
     return releasesCache.data;
   }
 
-  const release = await fetchGitHubApi('releases/latest');
+  const release = (await fetchGitHubApi('releases/latest')) as GitHubRelease;
   releasesCache = { data: release, expiresAt: Date.now() + CACHE_TTL_MS };
   return release;
 }
@@ -110,7 +126,7 @@ async function handleDesktopUpdate(req: express.Request, res: express.Response):
     }
 
     const updatePattern = getPlatformAssetPattern(target, arch);
-    const updateAsset = release.assets?.find((a: any) => updatePattern.test(a.name));
+    const updateAsset = release.assets?.find((a) => updatePattern.test(a.name));
 
     if (!updateAsset) {
       logger.warn({ event: 'desktop.update.no_asset', target, arch, version });
@@ -118,7 +134,7 @@ async function handleDesktopUpdate(req: express.Request, res: express.Response):
       return;
     }
 
-    const sigAsset = release.assets?.find((a: any) => a.name === `${updateAsset.name}.sig`);
+    const sigAsset = release.assets?.find((a) => a.name === `${updateAsset.name}.sig`);
     const signature = sigAsset ? await fetchSignature(sigAsset.url) : '';
 
     const proto = getExternalProtocol(req);
@@ -137,7 +153,10 @@ async function handleDesktopUpdate(req: express.Request, res: express.Response):
   }
 }
 
-async function streamAssetToResponse(reader: ReadableStreamDefaultReader<Uint8Array>, res: express.Response): Promise<void> {
+async function streamAssetToResponse(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  res: express.Response,
+): Promise<void> {
   try {
     while (true) {
       const { done, value } = await reader.read();
@@ -170,16 +189,13 @@ async function handleDesktopDownload(req: express.Request, res: express.Response
   }
 
   try {
-    const response = await fetch(
-      `https://api.github.com/repos/${GITHUB_REPO}/releases/assets/${asset_id}`,
-      {
-        headers: {
-          Authorization: `token ${token}`,
-          Accept: 'application/octet-stream',
-          'User-Agent': 'meetropolis-server',
-        },
-      }
-    );
+    const response = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases/assets/${asset_id}`, {
+      headers: {
+        Authorization: `token ${token}`,
+        Accept: 'application/octet-stream',
+        'User-Agent': 'meetropolis-server',
+      },
+    });
 
     if (!response.ok) {
       res.status(404).json({ error: 'Asset not found' });
@@ -206,11 +222,19 @@ async function handleDesktopDownload(req: express.Request, res: express.Response
   }
 }
 
-function buildLatestAssets(assets: any[]): any[] {
+interface LatestAssetEntry {
+  platform: 'macos' | 'windows' | 'unknown';
+  arch: string;
+  filename: string;
+  url: string;
+  size: number;
+}
+
+function buildLatestAssets(assets: GitHubReleaseAsset[]): LatestAssetEntry[] {
   return assets
-    .filter((a: any) => /\.(dmg|msi)$/i.test(a.name))
-    .map((a: any) => {
-      let platform = 'unknown';
+    .filter((a) => /\.(dmg|msi)$/i.test(a.name))
+    .map((a) => {
+      let platform: LatestAssetEntry['platform'] = 'unknown';
       let arch = 'x64';
       if (/\.dmg$/i.test(a.name)) {
         platform = 'macos';

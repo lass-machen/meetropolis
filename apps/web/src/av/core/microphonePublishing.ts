@@ -1,8 +1,15 @@
-import type { LocalAudioTrack, Room } from 'livekit-client';
+import type { LocalAudioTrack, LocalTrack, Room } from 'livekit-client';
 import { AVLogger } from '../AVLogger';
 import { useAvSettingsStore } from '../../state/avSettings';
 import { readTimeoutMs } from '../../lib/runtimeConfig';
 import type { LocalTrackState } from './types';
+import {
+  listPublications,
+  readPubKind,
+  readPubSource,
+  type TrackLike,
+  type TrackPublicationLike,
+} from '../../types/livekit';
 
 async function withPublishTimeout<T>(op: Promise<T>, timeoutMs: number): Promise<T> {
   const TIMEOUT_SENTINEL = Symbol('mic_publish_timeout');
@@ -21,11 +28,9 @@ async function withPublishTimeout<T>(op: Promise<T>, timeoutMs: number): Promise
   }
 }
 
-function getLocalTrackPublications(room: Room): any[] {
+function getLocalTrackPublications(room: Room): TrackPublicationLike[] {
   try {
-    const iter = (room as any)?.localParticipant?.trackPublications?.values?.();
-    if (!iter) return [];
-    return Array.from(iter);
+    return listPublications(room.localParticipant);
   } catch {
     return [];
   }
@@ -42,23 +47,24 @@ type PublishMicrophoneParams = {
 function findLiveMicrophonePublication(room: Room): LocalAudioTrack | null {
   try {
     const pubs = getLocalTrackPublications(room);
-    const livePub = pubs.find((pub: any) => {
-      const src = pub?.source ?? pub?.track?.source;
-      const kind = pub?.kind ?? pub?.track?.kind;
-      const t = pub?.track;
+    const livePub = pubs.find((pub) => {
+      const src = readPubSource(pub);
+      const kind = readPubKind(pub);
+      const t = pub.track;
       const mst = t?.mediaStreamTrack;
       const readyState = mst?.readyState;
       const isLive = readyState === undefined || readyState === 'live';
-      return kind === 'audio' && (src === 'microphone' || src === 0) && isLive;
+      return kind === 'audio' && src === 'microphone' && isLive;
     });
-    return (livePub?.track as LocalAudioTrack) ?? null;
+    return (livePub?.track as unknown as LocalAudioTrack) ?? null;
   } catch {
     return null;
   }
 }
 
 function isTrackLive(track: unknown): boolean {
-  const mst = (track as any)?.mediaStreamTrack;
+  if (!track || typeof track !== 'object') return false;
+  const mst = (track as TrackLike).mediaStreamTrack;
   return mst?.readyState === 'live';
 }
 
@@ -66,11 +72,11 @@ async function unpublishNonLiveMicrophoneTracks(room: Room): Promise<void> {
   try {
     const pubs = getLocalTrackPublications(room);
     for (const pub of pubs) {
-      const src = pub?.source ?? pub?.track?.source;
-      const kind = pub?.kind ?? pub?.track?.kind;
-      const t = pub?.track;
+      const src = readPubSource(pub);
+      const kind = readPubKind(pub);
+      const t = pub.track;
       if (!t) continue;
-      if (kind !== 'audio' || (src !== 'microphone' && src !== 0)) continue;
+      if (kind !== 'audio' || src !== 'microphone') continue;
       const mst = t.mediaStreamTrack;
       if (mst?.readyState === 'live') continue;
 
@@ -83,7 +89,7 @@ async function unpublishNonLiveMicrophoneTracks(room: Room): Promise<void> {
       } catch {}
 
       try {
-        await room.localParticipant.unpublishTrack(t);
+        await room.localParticipant.unpublishTrack(t as unknown as LocalTrack);
       } catch {}
       try {
         t.stop?.();
@@ -96,26 +102,33 @@ async function buildAndPublishMicrophoneTrack(room: Room, state: LocalTrackState
   const settings = useAvSettingsStore.getState().settings;
   const { buildAudioPipeline } = await import('../audio/buildAudioPipeline');
 
-  const track = await buildAudioPipeline({
-    deviceId: state.preferredDeviceId,
-    settings,
-  } as any);
+  const pipelineArgs: { deviceId?: string; settings: typeof settings } = { settings };
+  if (state.preferredDeviceId) pipelineArgs.deviceId = state.preferredDeviceId;
+  const track = (await buildAudioPipeline(pipelineArgs)) as LocalAudioTrack;
 
   // Set content hint for speech
   try {
-    const mst = track.mediaStreamTrack;
+    const mst = (track as TrackLike).mediaStreamTrack;
     if (mst && 'contentHint' in mst) {
       mst.contentHint = 'speech';
     }
   } catch {}
 
-  await room.localParticipant.publishTrack(track, { source: 'microphone' } as any);
-  return track as LocalAudioTrack;
+  await room.localParticipant.publishTrack(
+    track as unknown as LocalTrack,
+    { source: 'microphone' } as unknown as Parameters<Room['localParticipant']['publishTrack']>[1],
+  );
+  return track;
 }
 
 async function publishFallbackMicrophoneTrack(room: Room, state: LocalTrackState): Promise<LocalAudioTrack> {
   const { createLocalAudioTrack } = await import('livekit-client');
-  const audioOpts: any = {
+  const audioOpts: {
+    echoCancellation: boolean;
+    noiseSuppression: boolean;
+    autoGainControl: boolean;
+    deviceId?: string;
+  } = {
     echoCancellation: true,
     noiseSuppression: true,
     autoGainControl: true,
@@ -124,7 +137,10 @@ async function publishFallbackMicrophoneTrack(room: Room, state: LocalTrackState
     audioOpts.deviceId = state.preferredDeviceId;
   }
   const fallbackTrack = await createLocalAudioTrack(audioOpts);
-  await room.localParticipant.publishTrack(fallbackTrack as any, { source: 'microphone' } as any);
+  await room.localParticipant.publishTrack(
+    fallbackTrack as unknown as LocalTrack,
+    { source: 'microphone' } as unknown as Parameters<Room['localParticipant']['publishTrack']>[1],
+  );
   return fallbackTrack;
 }
 
@@ -212,11 +228,11 @@ export async function unpublishMicrophone({
     try {
       const pubs = getLocalTrackPublications(room);
       for (const pub of pubs) {
-        const src = pub?.source ?? pub?.track?.source;
-        const kind = pub?.kind ?? pub?.track?.kind;
-        const t = pub?.track;
+        const src = readPubSource(pub);
+        const kind = readPubKind(pub);
+        const t = pub.track;
         if (!t) continue;
-        if (kind === 'audio' && (src === 'microphone' || src === 0)) {
+        if (kind === 'audio' && src === 'microphone') {
           try {
             const mst = t.mediaStreamTrack;
             if (typeof t.setEnabled === 'function') {
@@ -225,7 +241,7 @@ export async function unpublishMicrophone({
               mst.enabled = false;
             }
           } catch {}
-          await room.localParticipant.unpublishTrack(t);
+          await room.localParticipant.unpublishTrack(t as unknown as LocalTrack);
           try {
             t.stop?.();
           } catch {}
@@ -240,7 +256,7 @@ export async function unpublishMicrophone({
   try {
     // Disable track immediately for snappy UI
     try {
-      const t = state.track as any;
+      const t = state.track as unknown as TrackLike;
       if (typeof t.setEnabled === 'function') {
         t.setEnabled(false);
       } else if (t.mediaStreamTrack) {
@@ -248,8 +264,8 @@ export async function unpublishMicrophone({
       }
     } catch {}
 
-    await room.localParticipant.unpublishTrack(state.track as any);
-    (state.track as any).stop?.();
+    await room.localParticipant.unpublishTrack(state.track as unknown as LocalTrack);
+    (state.track as unknown as TrackLike).stop?.();
   } catch (error) {
     AVLogger.warn('track.mic.unpublish_error', { error: String(error) });
   }
@@ -278,11 +294,11 @@ export async function ensureAudioPermissions(): Promise<boolean> {
 // Latenz im Bereich von Millisekunden statt Sekunden (vs. Unpublish/Republish).
 export async function softMuteMicrophone(track: LocalAudioTrack): Promise<void> {
   try {
-    const t = track as any;
+    const t = track as unknown as TrackLike;
     if (typeof t.mute === 'function') {
       await t.mute();
     }
-    const mst = t.mediaStreamTrack as MediaStreamTrack | undefined;
+    const mst = t.mediaStreamTrack;
     if (mst) mst.enabled = false;
     AVLogger.info('track.mic.soft_muted');
   } catch (error) {
@@ -295,8 +311,8 @@ export async function softMuteMicrophone(track: LocalAudioTrack): Promise<void> 
 // MediaStreamTrack nicht mehr live ist — der Aufrufer faellt dann auf den
 // vollen Republish-Pfad zurueck.
 export async function softUnmuteMicrophone(track: LocalAudioTrack): Promise<boolean> {
-  const t = track as any;
-  const mst = t.mediaStreamTrack as MediaStreamTrack | undefined;
+  const t = track as unknown as TrackLike;
+  const mst = t.mediaStreamTrack;
   if (mst && mst.readyState !== 'live') {
     AVLogger.info('track.mic.soft_unmute_skipped', { reason: 'track_not_live' });
     return false;

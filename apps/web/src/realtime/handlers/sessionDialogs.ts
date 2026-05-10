@@ -9,7 +9,7 @@ import i18n from '../../app/providers/i18n';
 import { logger } from '../../lib/logger';
 
 interface SessionConflictDeps {
-  room: { send: (event: string, payload?: any) => void };
+  room: { send: (event: string, payload?: unknown) => void };
   meId: string;
 }
 

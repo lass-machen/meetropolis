@@ -8,6 +8,7 @@ import { logger } from '../../logger.js';
 import { requireAuth, getTenantFromReq } from '../utils/authHelpers.js';
 import { pathParam } from '../utils/requestHelpers.js';
 import { broadcastMapUpdate } from '../utils/broadcast.js';
+import type { MulterFile, RequestWithMulterFields } from '../../types/multer.js';
 import {
   TmjSchema,
   buildGidToSlotMapping,
@@ -56,10 +57,7 @@ function computeTileCount(t: {
   return null;
 }
 
-function saveTilesetImage(
-  images: Array<{ originalname: string; buffer: Buffer }>,
-  tilesetImage: string,
-): string | null {
+function saveTilesetImage(images: MulterFile[], tilesetImage: string): string | null {
   const baseName = path.basename(tilesetImage);
   const file = images.find((f) => f.originalname === baseName);
   if (!file) return null;
@@ -87,7 +85,7 @@ async function registerImportedTilesets(
   prisma: PrismaClient,
   mapId: string,
   tmjTilesets: import('../../services/tmjService.js').Tmj['tilesets'],
-  images: Array<{ originalname: string; buffer: Buffer }>,
+  images: MulterFile[],
 ): Promise<void> {
   for (let i = 0; i < tmjTilesets.length; i++) {
     const t = tmjTilesets[i];
@@ -192,7 +190,7 @@ async function processZones(
         mapId,
         roomId: roomForZones.id,
         tenantId,
-      } as any,
+      },
     });
     zoneCount++;
   }
@@ -212,7 +210,8 @@ async function handleTmjImport(prisma: PrismaClient, req: express.Request, res: 
       return;
     }
 
-    const fileBuffer = (req as any).files?.file?.[0]?.buffer as Buffer | undefined;
+    const reqWithFiles = req as unknown as RequestWithMulterFields;
+    const fileBuffer = reqWithFiles.files?.file?.[0]?.buffer;
     if (!fileBuffer) {
       res.status(400).json({ error: 'file_required' });
       return;
@@ -257,7 +256,7 @@ async function handleTmjImport(prisma: PrismaClient, req: express.Request, res: 
       await clearExistingMapData(prisma, map.id);
     }
 
-    const images = ((req as any).files?.images ?? []) as Array<{ originalname: string; buffer: Buffer }>;
+    const images: MulterFile[] = reqWithFiles.files?.images ?? [];
     await registerImportedTilesets(prisma, map.id, tmj.tilesets, images);
 
     const { warnings, layerCounts } = await processTileLayers(prisma, map.id, tmj, chunkSize);
@@ -265,7 +264,7 @@ async function handleTmjImport(prisma: PrismaClient, req: express.Request, res: 
 
     const spawnPoint = extractSpawnFromObjectLayers(tmj.layers);
     if (spawnPoint) {
-      const currentMeta = (map.meta as any) || {};
+      const currentMeta = (map.meta as Record<string, unknown>) || {};
       await prisma.map.update({
         where: { id: map.id },
         data: { meta: { ...currentMeta, spawn: spawnPoint } },
@@ -290,7 +289,7 @@ async function handleTmjImport(prisma: PrismaClient, req: express.Request, res: 
       spawn: spawnPoint,
       warnings,
     });
-  } catch (e: any) {
+  } catch (e: unknown) {
     logger.error('[TMJ] import failed', e);
     res.status(500).json({ error: 'internal_error' });
   }
@@ -309,7 +308,7 @@ async function loadLayersWithChunks(prisma: PrismaClient, mapId: string) {
     layersWithChunks.push({
       name: layer.name,
       encoding: chunks[0]?.encoding ?? 'rle',
-      chunks: chunks.map((c: any) => ({
+      chunks: chunks.map((c) => ({
         x: c.x,
         y: c.y,
         encoding: c.encoding,
@@ -363,7 +362,7 @@ async function handleTmjExport(prisma: PrismaClient, req: express.Request, res: 
     let zones: Array<{ name: string; capacity: number | null; polygon: Array<{ x: number; y: number }> }> | undefined;
     if (includeZones) {
       const dbZones = await prisma.zone.findMany({ where: { mapId: map.id } });
-      zones = dbZones.map((z: any) => ({
+      zones = dbZones.map((z) => ({
         name: z.name,
         capacity: z.capacity,
         polygon: z.polygon as Array<{ x: number; y: number }>,
@@ -372,7 +371,7 @@ async function handleTmjExport(prisma: PrismaClient, req: express.Request, res: 
 
     let spawn: { x: number; y: number } | null = null;
     if (includeSpawn) {
-      const meta = (map.meta as any) || {};
+      const meta = (map.meta as { spawn?: { x?: unknown; y?: unknown } } | null) || {};
       if (meta.spawn && typeof meta.spawn.x === 'number' && typeof meta.spawn.y === 'number') {
         spawn = { x: meta.spawn.x, y: meta.spawn.y };
       }
@@ -383,7 +382,7 @@ async function handleTmjExport(prisma: PrismaClient, req: express.Request, res: 
       mapHeight,
       tileWidth,
       tileHeight,
-      tilesets: tilesets.map((ts: any) => ({
+      tilesets: tilesets.map((ts) => ({
         slot: ts.slot,
         key: ts.key,
         imageUrl: ts.imageUrl,
@@ -401,7 +400,7 @@ async function handleTmjExport(prisma: PrismaClient, req: express.Request, res: 
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Content-Disposition', `attachment; filename="${map.name}.tmj"`);
     res.json(tmj);
-  } catch (e: any) {
+  } catch (e: unknown) {
     logger.error('[TMJ] export failed', e);
     res.status(500).json({ error: 'internal_error' });
   }

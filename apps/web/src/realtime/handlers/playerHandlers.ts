@@ -2,7 +2,19 @@ import type { UseWorldRoomArgs } from '../types';
 import { useMapStore } from '../../state/mapStore';
 import { emitSameMapIdentities } from '../../lib/avEvents';
 import { passesMapFilter } from './mapFilter';
-import type { WorldRoom } from '../../types/colyseus';
+import type {
+  FullStateMessage,
+  PlayerAvatarMessage,
+  PlayerDndMessage,
+  PlayerJoinedMessage,
+  PlayerLeftMessage,
+  PlayerMapChangedMessage,
+  PlayerMovedMessage,
+  PlayerSchema,
+  PlayerStateData,
+  WorldRoom,
+  WorldRoomState,
+} from '../../types/colyseus';
 
 export interface SetupPlayerHandlersOptions {
   /** Called once when the server's initial 'full_state' message arrives for this session. */
@@ -14,6 +26,21 @@ interface HandlerCtx {
   scheduleBuildParticipantList: (delay: number) => void;
   scheduleRefreshRosterFromRemotes: (delay: number) => void;
   emitCurrentMapIdentities: () => void;
+}
+
+// Local-only player snapshot used to feed gameBridge / remotesRef.
+// `direction` is widened to `string` because the server-side schema declares
+// `direction: string` (PlayerSchema), even though the typed message variants
+// narrow it to PlayerDirection.
+interface RemotePlayerSnapshot {
+  x: number;
+  y: number;
+  direction: string;
+  name?: string;
+  dnd?: boolean;
+  identity?: string;
+  avatarId?: string;
+  isNpc?: boolean;
 }
 
 /** Emit the set of LiveKit identities for players on the same map. */
@@ -41,7 +68,25 @@ function syncLocalMapFromServer(localPlayer: { mapId?: string; mapName?: string 
   }
 }
 
-function handleFullState(ctx: HandlerCtx, options: SetupPlayerHandlersOptions | undefined, data: any): void {
+// Build a minimal entry for remotesRef from a snapshot. Respects
+// exactOptionalPropertyTypes by omitting undefined fields.
+function toRemotesEntry(p: { x: number; y: number; dnd?: boolean; avatarId?: string }): {
+  x: number;
+  y: number;
+  dnd?: boolean;
+  avatarId?: string;
+} {
+  const entry: { x: number; y: number; dnd?: boolean; avatarId?: string } = { x: p.x, y: p.y };
+  if (p.dnd !== undefined) entry.dnd = p.dnd;
+  if (p.avatarId !== undefined) entry.avatarId = p.avatarId;
+  return entry;
+}
+
+function handleFullState(
+  ctx: HandlerCtx,
+  options: SetupPlayerHandlersOptions | undefined,
+  data: FullStateMessage,
+): void {
   try {
     options?.onFullStateReceived?.();
   } catch {}
@@ -49,14 +94,11 @@ function handleFullState(ctx: HandlerCtx, options: SetupPlayerHandlersOptions | 
   const { localPosRef, remotesRef, colyseusToLivekitMap, identityToNameMap, gameBridge } = args;
   if (!gameBridge?.syncRemotePlayers || !data?.players) return;
 
-  const localPlayer = data.players.find((p: any) => p.id === localPosRef.current.id);
+  const localPlayer = data.players.find((p: PlayerStateData) => p.id === localPosRef.current.id);
   syncLocalMapFromServer(localPlayer);
 
   const currentMap = useMapStore.getState().currentMapName;
-  const players: Record<
-    string,
-    { x: number; y: number; direction: any; name?: string; dnd?: boolean; avatarId?: string; isNpc?: boolean }
-  > = {};
+  const players: Record<string, RemotePlayerSnapshot> = {};
   for (const p of data.players) {
     if (p.id === localPosRef.current.id) continue;
     if (!passesMapFilter(p.mapName, currentMap)) continue;
@@ -64,29 +106,25 @@ function handleFullState(ctx: HandlerCtx, options: SetupPlayerHandlersOptions | 
       colyseusToLivekitMap.current[p.id] = p.identity;
       if (p.name) identityToNameMap.current[p.identity] = p.name;
     }
-    players[p.id] = {
+    const snapshot: RemotePlayerSnapshot = {
       x: p.x,
       y: p.y,
       direction: p.direction,
-      name: p.name,
-      dnd: p.dnd,
-      avatarId: p.avatarId,
-      isNpc: p.isNpc,
     };
+    if (p.name !== undefined) snapshot.name = p.name;
+    if (p.dnd !== undefined) snapshot.dnd = p.dnd;
+    if (p.avatarId !== undefined) snapshot.avatarId = p.avatarId;
+    if (p.isNpc !== undefined) snapshot.isNpc = p.isNpc;
+    players[p.id] = snapshot;
   }
   if (typeof gameBridge.syncRemotePlayers === 'function') gameBridge.syncRemotePlayers(players);
-  remotesRef.current = Object.fromEntries(
-    Object.entries(players).map(([id, p]) => [
-      id,
-      { x: (p as any).x, y: (p as any).y, dnd: (p as any).dnd, avatarId: (p as any).avatarId },
-    ]),
-  );
+  remotesRef.current = Object.fromEntries(Object.entries(players).map(([id, p]) => [id, toRemotesEntry(p)]));
   scheduleBuildParticipantList(0);
   emitCurrentMapIdentities();
   scheduleRefreshRosterFromRemotes(0);
 }
 
-function handlePlayerJoined(ctx: HandlerCtx, data: any): void {
+function handlePlayerJoined(ctx: HandlerCtx, data: PlayerJoinedMessage): void {
   const { args, scheduleBuildParticipantList, scheduleRefreshRosterFromRemotes, emitCurrentMapIdentities } = ctx;
   const {
     localPosRef,
@@ -101,7 +139,10 @@ function handlePlayerJoined(ctx: HandlerCtx, data: any): void {
   if (data.id === localPosRef.current.id) return;
   const currentMap = useMapStore.getState().currentMapName;
   if (!passesMapFilter(data.mapName, currentMap)) return;
-  remotesRef.current[data.id] = { x: data.x, y: data.y, dnd: data.dnd, avatarId: data.avatarId };
+  const joinEntry: { x: number; y: number; dnd?: boolean; avatarId?: string } = { x: data.x, y: data.y };
+  if (data.dnd !== undefined) joinEntry.dnd = data.dnd;
+  if (data.avatarId !== undefined) joinEntry.avatarId = data.avatarId;
+  remotesRef.current[data.id] = toRemotesEntry(joinEntry);
   if (data.identity) {
     colyseusToLivekitMap.current[data.id] = data.identity;
     if (data.name) identityToNameMap.current[data.identity] = data.name;
@@ -129,13 +170,13 @@ function handlePlayerJoined(ctx: HandlerCtx, data: any): void {
   } catch {}
 }
 
-function handlePlayerMoved(ctx: HandlerCtx, data: any): void {
+function handlePlayerMoved(ctx: HandlerCtx, data: PlayerMovedMessage): void {
   const { args, scheduleBuildParticipantList, scheduleRefreshRosterFromRemotes } = ctx;
   const { localPosRef, remotesRef, gameBridge, applyVolumesToUi } = args;
   if (data.id === localPosRef.current.id) return;
   const currentMap = useMapStore.getState().currentMapName;
   if (!passesMapFilter(data.mapName, currentMap)) return;
-  const prev = remotesRef.current[data.id] || {};
+  const prev = remotesRef.current[data.id] || { x: 0, y: 0 };
   remotesRef.current[data.id] = { ...prev, x: data.x, y: data.y };
   if (gameBridge && typeof gameBridge.updateRemotePlayer === 'function')
     gameBridge.updateRemotePlayer(data.id, { x: data.x, y: data.y, direction: data.direction });
@@ -144,7 +185,7 @@ function handlePlayerMoved(ctx: HandlerCtx, data: any): void {
   applyVolumesToUi();
 }
 
-function handlePlayerLeft(ctx: HandlerCtx, data: any): void {
+function handlePlayerLeft(ctx: HandlerCtx, data: PlayerLeftMessage): void {
   const { args, scheduleBuildParticipantList, scheduleRefreshRosterFromRemotes, emitCurrentMapIdentities } = ctx;
   const { remotesRef, colyseusToLivekitMap, gameBridge, applyVolumesToUi } = args;
   if (!remotesRef.current[data.id]) return;
@@ -157,41 +198,29 @@ function handlePlayerLeft(ctx: HandlerCtx, data: any): void {
   applyVolumesToUi();
 }
 
-function handlePlayerDnd(ctx: HandlerCtx, data: { id: string; dnd: boolean }): void {
+function handlePlayerDnd(ctx: HandlerCtx, data: PlayerDndMessage): void {
   const { args, scheduleBuildParticipantList } = ctx;
   const { remotesRef, gameBridge } = args;
-  if (remotesRef.current[data.id]) remotesRef.current[data.id].dnd = data.dnd;
+  const entry = remotesRef.current[data.id];
+  if (entry) entry.dnd = data.dnd;
   if (gameBridge && typeof gameBridge.updateRemotePlayerDnd === 'function')
     gameBridge.updateRemotePlayerDnd(data.id, data.dnd);
   scheduleBuildParticipantList(50);
 }
 
-function handlePlayerAvatar(ctx: HandlerCtx, data: { id: string; avatarId: string }): void {
+function handlePlayerAvatar(ctx: HandlerCtx, data: PlayerAvatarMessage): void {
   const { args, scheduleBuildParticipantList } = ctx;
   const { localPosRef, remotesRef, gameBridge } = args;
   if (data.id === localPosRef.current.id) return;
-  if (remotesRef.current[data.id]) remotesRef.current[data.id].avatarId = data.avatarId;
+  const entry = remotesRef.current[data.id];
+  if (entry) entry.avatarId = data.avatarId;
   if (gameBridge && typeof gameBridge.updateRemotePlayer === 'function') {
     gameBridge.updateRemotePlayer(data.id, { avatarId: data.avatarId });
   }
   scheduleBuildParticipantList(50);
 }
 
-function handlePlayerMapChanged(
-  ctx: HandlerCtx,
-  data: {
-    id: string;
-    oldMapName: string;
-    newMapName: string;
-    x: number;
-    y: number;
-    name?: string;
-    identity?: string;
-    avatarId?: string;
-    dnd?: boolean;
-    isNpc?: boolean;
-  },
-): void {
+function handlePlayerMapChanged(ctx: HandlerCtx, data: PlayerMapChangedMessage): void {
   const { args, scheduleBuildParticipantList, scheduleRefreshRosterFromRemotes, emitCurrentMapIdentities } = ctx;
   const { remotesRef, colyseusToLivekitMap, identityToNameMap, gameBridge } = args;
   const currentMap = useMapStore.getState().currentMapName;
@@ -206,12 +235,10 @@ function handlePlayerMapChanged(
   }
 
   if (data.newMapName === currentMap) {
-    remotesRef.current[data.id] = {
-      x: data.x,
-      y: data.y,
-      ...(data.dnd != null ? { dnd: data.dnd } : {}),
-      ...(data.avatarId ? { avatarId: data.avatarId } : {}),
-    };
+    const next: { x: number; y: number; dnd?: boolean; avatarId?: string } = { x: data.x, y: data.y };
+    if (data.dnd != null) next.dnd = data.dnd;
+    if (data.avatarId) next.avatarId = data.avatarId;
+    remotesRef.current[data.id] = next;
     if (data.identity) {
       colyseusToLivekitMap.current[data.id] = data.identity;
       if (data.name) identityToNameMap.current[data.identity] = data.name;
@@ -232,69 +259,49 @@ function handlePlayerMapChanged(
   }
 }
 
-function iteratePlayersFromState(state: any, collect: (value: any, key: string) => void): void {
-  if (!state.players) return;
-  if (typeof state.players.forEach === 'function') {
-    state.players.forEach((value: any, key: string) => collect(value, key));
-  } else if (typeof state.players.entries === 'function') {
-    for (const [key, value] of state.players.entries()) collect(value, key);
-  } else if (state.players[Symbol.iterator]) {
-    for (const [key, value] of state.players) collect(value, key);
-  }
-}
-
-function handleStateChange(ctx: HandlerCtx, state: any): void {
+function handleStateChange(ctx: HandlerCtx, state: WorldRoomState): void {
   const { args, emitCurrentMapIdentities } = ctx;
   const { localPosRef, remotesRef, colyseusToLivekitMap, identityToNameMap, gameBridge } = args;
   try {
     const localId = localPosRef.current.id;
     if (localId && state.players) {
-      const local = typeof state.players.get === 'function' ? state.players.get(localId) : undefined;
+      const local = state.players.get(localId);
       syncLocalMapFromServer(local);
     }
   } catch {}
   const currentMap = useMapStore.getState().currentMapName;
-  const players: Record<
-    string,
-    {
-      x: number;
-      y: number;
-      direction: any;
-      dnd?: boolean;
-      identity?: string;
-      name?: string;
-      avatarId?: string;
-      isNpc?: boolean;
-    }
-  > = {};
-  iteratePlayersFromState(state, (value, key) => {
-    if (value.identity) {
-      colyseusToLivekitMap.current[key] = value.identity;
-      if (value.name) identityToNameMap.current[value.identity] = value.name;
-    }
-    if (!passesMapFilter(value.mapName, currentMap)) return;
-    players[key] = {
-      x: value.x,
-      y: value.y,
-      direction: value.direction,
-      dnd: value.dnd,
-      identity: value.identity,
-      name: value.name,
-      avatarId: value.avatarId,
-      isNpc: value.isNpc,
-    };
-  });
+  const players: Record<string, RemotePlayerSnapshot> = {};
+  if (state.players) {
+    state.players.forEach((value: PlayerSchema, key: string) => {
+      if (value.identity) {
+        colyseusToLivekitMap.current[key] = value.identity;
+        if (value.name) identityToNameMap.current[value.identity] = value.name;
+      }
+      if (!passesMapFilter(value.mapName, currentMap)) return;
+      const snapshot: RemotePlayerSnapshot = {
+        x: value.x,
+        y: value.y,
+        direction: value.direction,
+      };
+      if (value.dnd !== undefined) snapshot.dnd = value.dnd;
+      if (value.identity !== undefined) snapshot.identity = value.identity;
+      if (value.name !== undefined) snapshot.name = value.name;
+      if (value.avatarId !== undefined) snapshot.avatarId = value.avatarId;
+      if (value.isNpc !== undefined) snapshot.isNpc = value.isNpc;
+      players[key] = snapshot;
+    });
+  }
   remotesRef.current = Object.fromEntries(
     Object.entries(players)
       .filter(([id]) => id !== localPosRef.current.id)
-      .map(([id, p]) => [id, { x: (p as any).x, y: (p as any).y, dnd: (p as any).dnd, avatarId: (p as any).avatarId }]),
+      .map(([id, p]) => [id, toRemotesEntry(p)]),
   );
   const filtered = Object.fromEntries(
     Object.entries(players)
       .filter(([id]) => id !== localPosRef.current.id)
       .map(([id, p]) => {
-        const livekitIdentity = (p as any).identity || colyseusToLivekitMap.current[id] || id;
-        const name = identityToNameMap.current[livekitIdentity] || (p as any).name || livekitIdentity;
+        const livekitIdentity = p.identity || colyseusToLivekitMap.current[id] || id;
+        const name = identityToNameMap.current[livekitIdentity] || p.name || livekitIdentity;
         return [id, { ...p, name, identity: livekitIdentity }];
       }),
   );
@@ -315,12 +322,12 @@ export function setupPlayerHandlers(
     scheduleRefreshRosterFromRemotes,
     emitCurrentMapIdentities: makeEmitMapIdentities(args),
   };
-  room.onMessage('full_state', (data: any) => handleFullState(ctx, options, data));
-  room.onMessage('player_joined', (data: any) => handlePlayerJoined(ctx, data));
-  room.onMessage('player_moved', (data: any) => handlePlayerMoved(ctx, data));
-  room.onMessage('player_left', (data: any) => handlePlayerLeft(ctx, data));
-  room.onMessage('player_dnd', (data: { id: string; dnd: boolean }) => handlePlayerDnd(ctx, data));
-  room.onMessage('player_avatar', (data: { id: string; avatarId: string }) => handlePlayerAvatar(ctx, data));
-  room.onMessage('player_map_changed', (data: any) => handlePlayerMapChanged(ctx, data));
-  room.onStateChange((state: any) => handleStateChange(ctx, state));
+  room.onMessage('full_state', (data: FullStateMessage) => handleFullState(ctx, options, data));
+  room.onMessage('player_joined', (data: PlayerJoinedMessage) => handlePlayerJoined(ctx, data));
+  room.onMessage('player_moved', (data: PlayerMovedMessage) => handlePlayerMoved(ctx, data));
+  room.onMessage('player_left', (data: PlayerLeftMessage) => handlePlayerLeft(ctx, data));
+  room.onMessage('player_dnd', (data: PlayerDndMessage) => handlePlayerDnd(ctx, data));
+  room.onMessage('player_avatar', (data: PlayerAvatarMessage) => handlePlayerAvatar(ctx, data));
+  room.onMessage('player_map_changed', (data: PlayerMapChangedMessage) => handlePlayerMapChanged(ctx, data));
+  room.onStateChange((state: WorldRoomState) => handleStateChange(ctx, state));
 }

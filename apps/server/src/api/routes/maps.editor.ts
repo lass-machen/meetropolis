@@ -1,5 +1,5 @@
 import type express from 'express';
-import { PrismaClient } from '../../generated/prisma/index.js';
+import { PrismaClient, Prisma } from '../../generated/prisma/index.js';
 import { z } from 'zod';
 import { logger } from '../../logger.js';
 import { requireAuth, getTenantFromReq, requireMembership, requireApiToken } from '../utils/authHelpers.js';
@@ -7,7 +7,42 @@ import { pathParam } from '../utils/requestHelpers.js';
 import { broadcastMapUpdate, broadcastSpawnUpdate } from '../utils/broadcast.js';
 import { findMapById } from './maps.read.js';
 
-async function authenticateEditor(prisma: PrismaClient, req: express.Request): Promise<{ ok: boolean; auth?: any }> {
+interface EditorAuthInfo {
+  userId: string;
+  tokenId?: string;
+}
+
+interface MapMeta {
+  tilesets?: unknown[];
+  backgroundColor?: string;
+  spawn?: { x: number; y: number };
+  [key: string]: unknown;
+}
+
+interface ZoneInput {
+  name?: string;
+  capacity?: number;
+  type?: string;
+  portalTarget?: string;
+  portalSpawnX?: number;
+  portalSpawnY?: number;
+  points?: Array<{ x: number; y: number }>;
+  polygon?: Array<{ x: number; y: number }> | { points?: Array<{ x: number; y: number }> };
+}
+
+interface PreparedZone {
+  name: string;
+  capacity: number | null;
+  polygon: Array<{ x: number; y: number }>;
+  type: string | null;
+  portalTarget: string | null;
+  portalSpawnX: number | null;
+  portalSpawnY: number | null;
+}
+
+type AuthenticateResult = { ok: true; auth: EditorAuthInfo } | { ok: false };
+
+async function authenticateEditor(prisma: PrismaClient, req: express.Request): Promise<AuthenticateResult> {
   const sessionAuth = requireAuth(req);
   const tokenAuth = await requireApiToken(req, prisma);
   const auth = sessionAuth || tokenAuth;
@@ -119,7 +154,7 @@ export async function handleEditorStateGet(
     res.status(404).json({ error: 'map not found' });
     return;
   }
-  const meta = (map.meta as any) || {};
+  const meta: MapMeta = (map.meta as MapMeta | null) || {};
   try {
     logger.debug('[EditorState] GET', {
       mapId: map.id,
@@ -169,19 +204,19 @@ async function ensureLobbyRoom(prisma: PrismaClient, mapId: string, tenantId: st
   }
 }
 
-function preparedZoneFromInput(z: any) {
-  const zoneName = (z?.name || 'Zone').toString();
-  const anyZ: any = z;
-  const capacity = typeof anyZ?.capacity === 'number' ? anyZ.capacity : null;
-  const zoneType = typeof anyZ?.type === 'string' ? anyZ.type : null;
-  const portalTarget = typeof anyZ?.portalTarget === 'string' ? anyZ.portalTarget : null;
-  const portalSpawnX = typeof anyZ?.portalSpawnX === 'number' ? anyZ.portalSpawnX : null;
-  const portalSpawnY = typeof anyZ?.portalSpawnY === 'number' ? anyZ.portalSpawnY : null;
-  let polygon: any = undefined;
+function preparedZoneFromInput(z: ZoneInput | null | undefined): PreparedZone | null {
+  if (!z) return null;
+  const zoneName = (z.name || 'Zone').toString();
+  const capacity = typeof z.capacity === 'number' ? z.capacity : null;
+  const zoneType = typeof z.type === 'string' ? z.type : null;
+  const portalTarget = typeof z.portalTarget === 'string' ? z.portalTarget : null;
+  const portalSpawnX = typeof z.portalSpawnX === 'number' ? z.portalSpawnX : null;
+  const portalSpawnY = typeof z.portalSpawnY === 'number' ? z.portalSpawnY : null;
+  let polygon: Array<{ x: number; y: number }> | undefined;
   try {
-    if (Array.isArray(anyZ?.points)) polygon = anyZ.points;
-    else if (Array.isArray(anyZ?.polygon)) polygon = anyZ.polygon;
-    else if (anyZ?.polygon && Array.isArray(anyZ.polygon.points)) polygon = anyZ.polygon.points;
+    if (Array.isArray(z.points)) polygon = z.points;
+    else if (Array.isArray(z.polygon)) polygon = z.polygon;
+    else if (z.polygon && !Array.isArray(z.polygon) && Array.isArray(z.polygon.points)) polygon = z.polygon.points;
   } catch {}
   if (Array.isArray(polygon) && polygon.length > 0) {
     return { name: zoneName, capacity, polygon, type: zoneType, portalTarget, portalSpawnX, portalSpawnY };
@@ -194,10 +229,10 @@ async function rebuildZones(
   mapId: string,
   tenantId: string,
   roomId: string,
-  zones: any[],
+  zones: ZoneInput[],
   replaceZones: boolean | undefined,
 ) {
-  const prepared: NonNullable<ReturnType<typeof preparedZoneFromInput>>[] = [];
+  const prepared: PreparedZone[] = [];
   for (const z of zones) {
     const p = preparedZoneFromInput(z);
     if (p) prepared.push(p);
@@ -218,7 +253,7 @@ async function rebuildZones(
         mapId,
         roomId,
         tenantId,
-      } as any,
+      },
     });
   }
 }
@@ -261,7 +296,7 @@ export async function handleEditorStatePut(
 
   const roomForZones = await ensureLobbyRoom(prisma, map.id, tenant.id);
 
-  const currentMeta = (map.meta as any) || {};
+  const currentMeta: MapMeta = (map.meta as MapMeta | null) || {};
   await prisma.map.update({
     where: { id: map.id },
     data: {
@@ -274,8 +309,8 @@ export async function handleEditorStatePut(
     },
   });
 
-  if (Array.isArray(zones)) {
-    await rebuildZones(prisma, map.id, tenant.id, roomForZones?.id as string, zones, replaceZones);
+  if (Array.isArray(zones) && roomForZones) {
+    await rebuildZones(prisma, map.id, tenant.id, roomForZones.id, zones as ZoneInput[], replaceZones);
   }
 
   if (spawn && typeof spawn.x === 'number' && typeof spawn.y === 'number') {
@@ -296,7 +331,14 @@ const resizeSchema = z.object({
   dryRun: z.boolean().optional(),
 });
 
-async function evaluateResizeImpact(prisma: PrismaClient, map: any, width: number, height: number): Promise<string[]> {
+type MapRow = Prisma.MapGetPayload<Record<string, never>>;
+
+async function evaluateResizeImpact(
+  prisma: PrismaClient,
+  map: MapRow,
+  width: number,
+  height: number,
+): Promise<string[]> {
   const warnings: string[] = [];
   const oldWidth = map.width ?? 32;
   const oldHeight = map.height ?? 32;
@@ -312,7 +354,7 @@ async function evaluateResizeImpact(prisma: PrismaClient, map: any, width: numbe
     warnings.push(`${objectsOutside} object(s) will be outside the new map bounds`);
   }
 
-  const meta = map.meta || {};
+  const meta: MapMeta = (map.meta as MapMeta | null) || {};
   if (meta.spawn) {
     const tileWidth = map.tileWidth || 16;
     const tileHeight = map.tileHeight || 16;
@@ -327,9 +369,10 @@ async function evaluateResizeImpact(prisma: PrismaClient, map: any, width: numbe
   const pixelMaxX = width * (map.tileWidth || 16);
   const pixelMaxY = height * (map.tileHeight || 16);
   for (const zone of zones) {
-    const polygon = zone.polygon as any[];
+    const polygon = zone.polygon;
     if (!Array.isArray(polygon)) continue;
-    for (const point of polygon) {
+    for (const rawPoint of polygon) {
+      const point = (rawPoint && typeof rawPoint === 'object' ? rawPoint : {}) as { x?: unknown; y?: unknown };
       const px = typeof point.x === 'number' ? point.x : 0;
       const py = typeof point.y === 'number' ? point.y : 0;
       if (px >= pixelMaxX || py >= pixelMaxY) {
@@ -463,12 +506,13 @@ export async function handleRename(prisma: PrismaClient, req: express.Request, r
     }
 
     res.json({ ok: true, oldName, newName });
-  } catch (e: any) {
-    if (e?.message === 'MAP_NOT_FOUND') {
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : '';
+    if (msg === 'MAP_NOT_FOUND') {
       res.status(404).json({ error: 'map not found' });
       return;
     }
-    if (e?.message === 'NAME_CONFLICT') {
+    if (msg === 'NAME_CONFLICT') {
       res.status(409).json({ error: 'A map with that name already exists' });
       return;
     }

@@ -1,10 +1,11 @@
 import React from 'react';
-import type { Room } from 'livekit-client';
+import type { Room, RemoteParticipant, LocalParticipant, Participant } from 'livekit-client';
 import { Icon } from '../Icon';
 import { useTranslation } from 'react-i18next';
 import { Button } from '../system/Button';
 import { AvatarSprite } from './AvatarSprite';
 import { getApiBaseFromWindow } from '../../lib/runtimeConfig';
+import { listPublications, readPubSource, type TrackLike, type TrackPublicationLike } from '../../types/livekit';
 
 type PartType = {
   sid: string;
@@ -18,93 +19,108 @@ type PartType = {
   avatarId?: string;
 };
 
-const getTrackId = (t: any) => t?.sid || t?.mediaStreamTrack?.id || t?.id || null;
+// Legacy room shape: older code paths still use `participants` instead of `remoteParticipants`.
+interface LegacyRoom extends Room {
+  participants?: Map<string, RemoteParticipant>;
+}
 
-function findParticipant(room: any, baseSid: string, part: PartType): { p: any; baseSid: string } {
+type AnyParticipant = (Participant | RemoteParticipant | LocalParticipant) & { name?: string };
+
+const getTrackId = (t: TrackLike | null | undefined): string | null =>
+  t?.sid || t?.mediaStreamTrack?.id || (t as { id?: string } | null | undefined)?.id || null;
+
+function findParticipant(
+  room: LegacyRoom,
+  baseSid: string,
+  part: PartType,
+): { p: AnyParticipant | null; baseSid: string } {
   const isLocalNow = room.localParticipant?.sid === baseSid;
-  let p: any = isLocalNow
+  let p: AnyParticipant | null | undefined = isLocalNow
     ? room.localParticipant
     : room.participants?.get?.(baseSid) || room.remoteParticipants?.get?.(baseSid);
-  if (p || isLocalNow) return { p, baseSid };
-  const allParticipants = Array.from(room.remoteParticipants?.values() || []);
+  if (p || isLocalNow) return { p: p ?? null, baseSid };
+  const allParticipants: AnyParticipant[] = Array.from(room.remoteParticipants?.values() || []);
   const searchIdentity =
     part.media === 'screen' && part.identity.endsWith(' – Bildschirm') ? part.identity.slice(0, -14) : part.identity;
   p =
-    allParticipants.find((participant: any) => (participant.name || participant.identity) === searchIdentity) ||
-    allParticipants.find((participant: any) => participant.identity === searchIdentity);
+    allParticipants.find((participant) => (participant.name || participant.identity) === searchIdentity) ||
+    allParticipants.find((participant) => participant.identity === searchIdentity);
   if (p) return { p, baseSid: p.sid };
   if (part.media === 'screen') {
-    p = allParticipants.find((participant: any) =>
-      part.identity.startsWith(((participant.name || participant.identity) as string) + ' –'),
+    p = allParticipants.find((participant) =>
+      part.identity.startsWith((participant.name || participant.identity) + ' –'),
     );
     if (p) return { p, baseSid: p.sid };
   }
   return { p: null, baseSid };
 }
 
-function findScreenParticipant(room: any, part: PartType, currentP: any): any {
-  const allParticipants = Array.from(room.remoteParticipants?.values() || []);
+function findScreenParticipant(
+  room: LegacyRoom,
+  part: PartType,
+  currentP: AnyParticipant | null,
+): AnyParticipant | null {
+  const allParticipants: AnyParticipant[] = Array.from(room.remoteParticipants?.values() || []);
   const searchIdentity = part.identity.endsWith(' – Bildschirm') ? part.identity.slice(0, -14) : part.identity;
-  let next = allParticipants.find((participant: any) => {
+  let next = allParticipants.find((participant) => {
     const pName = participant.name || participant.identity;
     return pName === searchIdentity || part.identity.startsWith(pName + ' –');
   });
   if (!next) {
     next = allParticipants.find(
-      (participant: any) =>
-        participant.identity === searchIdentity || part.identity.startsWith(participant.identity + ' –'),
+      (participant) => participant.identity === searchIdentity || part.identity.startsWith(participant.identity + ' –'),
     );
   }
   return next || currentP;
 }
 
 function attachInitialTrack(
-  p: any,
+  p: AnyParticipant,
   part: PartType,
   el: HTMLVideoElement,
   attachedRef: React.MutableRefObject<string | null>,
 ): (() => void) | undefined {
-  if (!p?.trackPublications) return undefined;
-  const pubs: any[] = Array.from(p.trackPublications?.values?.() || []);
-  const track =
-    part.media === 'screen'
-      ? pubs.find((pub) => (pub?.source || pub?.track?.source) === 'screen_share')?.track
-      : pubs.find((pub) => (pub?.source || pub?.track?.source) === 'camera')?.track;
+  const pubs = listPublications(p);
+  if (pubs.length === 0 && !p.trackPublications) return undefined;
+  const target = part.media === 'screen' ? 'screen_share' : 'camera';
+  const track = pubs.find((pub) => readPubSource(pub) === target)?.track ?? null;
   if (track && el) {
     try {
       el.muted = true;
-      track.attach(el);
+      track.attach?.(el);
       attachedRef.current = getTrackId(track);
       return () => {
         try {
-          track.detach(el);
+          track.detach?.(el);
         } catch {}
       };
     } catch {}
   } else {
     try {
-      (el as any).srcObject = null;
+      (el as HTMLVideoElement & { srcObject?: MediaStream | null }).srcObject = null;
       el.load?.();
     } catch {}
   }
   return undefined;
 }
 
-function buildTryAttach(state: {
-  p: any;
+interface TryAttachState {
+  p: AnyParticipant | null;
   baseSid: string;
   isLocalNow: boolean;
   el: HTMLVideoElement;
-  room: any;
+  room: LegacyRoom;
   part: PartType;
   attachedRef: React.MutableRefObject<string | null>;
   setIsVideoRendering: (v: boolean) => void;
-  pollTimerRef: { current: any };
-}) {
+  pollTimerRef: { current: ReturnType<typeof setInterval> | null };
+}
+
+function buildTryAttach(state: TryAttachState) {
   return () => {
     try {
       const { p, isLocalNow } = state;
-      let currentP = p;
+      let currentP: AnyParticipant | null = p;
       if (!currentP && state.part.media === 'screen' && !isLocalNow) {
         currentP = findScreenParticipant(state.room, state.part, currentP);
         if (currentP && currentP !== p) {
@@ -114,11 +130,9 @@ function buildTryAttach(state: {
       }
       if (isLocalNow) currentP = state.room.localParticipant;
       if (!currentP) return;
-      const pubsNow: any[] = Array.from(currentP.trackPublications?.values?.() || []);
-      const pub = pubsNow.find((pub: any) => {
-        const src = pub?.source || pub?.track?.source;
-        return state.part.media === 'screen' ? src === 'screen_share' : src === 'camera';
-      });
+      const pubsNow = listPublications(currentP);
+      const target = state.part.media === 'screen' ? 'screen_share' : 'camera';
+      const pub = pubsNow.find((p2) => readPubSource(p2) === target);
       if (pub && !isLocalNow && state.part.media === 'screen') {
         const isSubscribed = pub.isSubscribed ?? pub.subscribed ?? !!pub.track;
         if (!isSubscribed && typeof pub.setSubscribed === 'function') {
@@ -127,87 +141,98 @@ function buildTryAttach(state: {
           } catch {}
         }
       }
-      const trackObj = pub?.track;
+      const trackObj = pub?.track ?? null;
       const trackId = getTrackId(trackObj);
       if (trackObj && state.el && trackId && state.attachedRef.current !== trackId) {
         try {
           if (state.el.srcObject) {
             try {
-              (state.el as any).srcObject = null;
+              (state.el as HTMLVideoElement & { srcObject?: MediaStream | null }).srcObject = null;
             } catch {}
           }
           state.el.muted = true;
-          trackObj.attach(state.el);
+          trackObj.attach?.(state.el);
           state.attachedRef.current = trackId;
           state.setIsVideoRendering(false);
-          clearInterval(state.pollTimerRef.current);
+          if (state.pollTimerRef.current) clearInterval(state.pollTimerRef.current);
         } catch {}
       }
     } catch {}
   };
 }
 
+interface RoomEventBus {
+  on?: (event: string, handler: (...args: unknown[]) => void) => void;
+  off?: (event: string, handler: (...args: unknown[]) => void) => void;
+}
+
 function setupRoomEvents(
-  room: any,
+  room: LegacyRoom,
   baseSid: string,
   part: PartType,
   el: HTMLVideoElement,
   isLocalNow: boolean,
   setIsVideoRendering: (v: boolean) => void,
 ): () => void {
-  const onTrackSubscribed = (t: any, _publication: any, participant: any) => {
+  const onTrackSubscribed = (...args: unknown[]) => {
+    const t = args[0] as TrackLike | undefined;
+    const participant = args[2] as { sid?: string } | undefined;
     try {
-      const src = (t?.source || t?.mediaStreamTrack?.kind) as string | undefined;
+      const src = (t?.source ?? t?.mediaStreamTrack?.kind) ? String(t?.source ?? t?.mediaStreamTrack?.kind) : undefined;
       const isDesired = part.media === 'screen' ? src === 'screen_share' : src === 'camera';
       if (participant?.sid === baseSid && isDesired && el) {
         try {
           el.muted = true;
-          t.attach(el);
+          t?.attach?.(el);
           setIsVideoRendering(false);
         } catch {}
       }
     } catch {}
   };
-  const onTrackUnsubscribed = (t: any, _publication: any, participant: any) => {
+  const onTrackUnsubscribed = (...args: unknown[]) => {
+    const t = args[0] as TrackLike | undefined;
+    const participant = args[2] as { sid?: string } | undefined;
     try {
-      const src = (t?.source || t?.mediaStreamTrack?.kind) as string | undefined;
+      const src = (t?.source ?? t?.mediaStreamTrack?.kind) ? String(t?.source ?? t?.mediaStreamTrack?.kind) : undefined;
       const want = part.media === 'screen' ? 'screen_share' : 'camera';
       if (participant?.sid === baseSid && src === want && el) {
         try {
-          t.detach?.(el);
+          t?.detach?.(el);
         } catch {}
         try {
-          (el as any).srcObject = null;
+          (el as HTMLVideoElement & { srcObject?: MediaStream | null }).srcObject = null;
           el.load?.();
         } catch {}
         setIsVideoRendering(false);
       }
     } catch {}
   };
-  const onLocalTrackPublished = (publication: any) => {
+  const onLocalTrackPublished = (...args: unknown[]) => {
+    const publication = args[0] as TrackPublicationLike | undefined;
     try {
-      const src = (publication?.source || publication?.track?.source) as string | undefined;
+      const src = readPubSource(publication);
       const wantCamera = part.media === 'camera' && src === 'camera';
       const wantScreen = part.media === 'screen' && src === 'screen_share';
       if (isLocalNow && (wantCamera || wantScreen) && publication?.track && el) {
         try {
           el.muted = true;
-          publication.track.attach(el);
+          publication.track.attach?.(el);
           setIsVideoRendering(false);
         } catch {}
       }
     } catch {}
   };
-  const onLocalTrackUnpublished = (publication: any) => {
+  const onLocalTrackUnpublished = (...args: unknown[]) => {
+    const publication = args[0] as TrackPublicationLike | undefined;
     try {
-      const src = (publication?.source || publication?.track?.source) as string | undefined;
+      const src = readPubSource(publication);
       const want = part.media === 'screen' ? 'screen_share' : 'camera';
       if (isLocalNow && src === want && el) {
         try {
           publication?.track?.detach?.(el);
         } catch {}
         try {
-          (el as any).srcObject = null;
+          (el as HTMLVideoElement & { srcObject?: MediaStream | null }).srcObject = null;
           el.load?.();
         } catch {}
         setIsVideoRendering(false);
@@ -215,34 +240,35 @@ function setupRoomEvents(
     } catch {}
   };
   let off: () => void = () => {};
+  const r = room as unknown as RoomEventBus;
   void (async () => {
     try {
       const mod = await import('livekit-client');
-      const RoomEvent = (mod as any).RoomEvent;
+      const RoomEvent = mod.RoomEvent;
       if (RoomEvent) {
-        room.on?.(RoomEvent.TrackSubscribed, onTrackSubscribed);
-        room.on?.(RoomEvent.TrackUnsubscribed, onTrackUnsubscribed);
-        room.on?.(RoomEvent.LocalTrackPublished, onLocalTrackPublished as any);
-        room.on?.(RoomEvent.LocalTrackUnpublished, onLocalTrackUnpublished as any);
+        r.on?.(RoomEvent.TrackSubscribed, onTrackSubscribed);
+        r.on?.(RoomEvent.TrackUnsubscribed, onTrackUnsubscribed);
+        r.on?.(RoomEvent.LocalTrackPublished, onLocalTrackPublished);
+        r.on?.(RoomEvent.LocalTrackUnpublished, onLocalTrackUnpublished);
         off = () => {
           try {
-            room.off?.(RoomEvent.TrackSubscribed, onTrackSubscribed);
-            room.off?.(RoomEvent.TrackUnsubscribed, onTrackUnsubscribed);
-            room.off?.(RoomEvent.LocalTrackPublished, onLocalTrackPublished as any);
-            room.off?.(RoomEvent.LocalTrackUnpublished, onLocalTrackUnpublished as any);
+            r.off?.(RoomEvent.TrackSubscribed, onTrackSubscribed);
+            r.off?.(RoomEvent.TrackUnsubscribed, onTrackUnsubscribed);
+            r.off?.(RoomEvent.LocalTrackPublished, onLocalTrackPublished);
+            r.off?.(RoomEvent.LocalTrackUnpublished, onLocalTrackUnpublished);
           } catch {}
         };
       } else {
-        room.on?.('trackSubscribed', onTrackSubscribed);
-        room.on?.('trackUnsubscribed', onTrackUnsubscribed);
-        room.on?.('localTrackPublished', onLocalTrackPublished);
-        room.on?.('localTrackUnpublished', onLocalTrackUnpublished);
+        r.on?.('trackSubscribed', onTrackSubscribed);
+        r.on?.('trackUnsubscribed', onTrackUnsubscribed);
+        r.on?.('localTrackPublished', onLocalTrackPublished);
+        r.on?.('localTrackUnpublished', onLocalTrackUnpublished);
         off = () => {
           try {
-            room.off?.('trackSubscribed', onTrackSubscribed);
-            room.off?.('trackUnsubscribed', onTrackUnsubscribed);
-            room.off?.('localTrackPublished', onLocalTrackPublished);
-            room.off?.('localTrackUnpublished', onLocalTrackUnpublished);
+            r.off?.('trackSubscribed', onTrackSubscribed);
+            r.off?.('trackUnsubscribed', onTrackUnsubscribed);
+            r.off?.('localTrackPublished', onLocalTrackPublished);
+            r.off?.('localTrackUnpublished', onLocalTrackUnpublished);
           } catch {}
         };
       }
@@ -261,12 +287,12 @@ function useVideoTrackAttachment(
   const attachedTrackIdRef = React.useRef<string | null>(null);
 
   React.useEffect(() => {
-    const room: any = roomGetter();
+    const room = roomGetter() as LegacyRoom | undefined;
     const el = videoRef.current;
     if (!room || !room.localParticipant || !el) return;
 
     try {
-      (el as any).srcObject = null;
+      (el as HTMLVideoElement & { srcObject?: MediaStream | null }).srcObject = null;
     } catch {}
     attachedTrackIdRef.current = null;
     setIsVideoRendering(false);
@@ -291,8 +317,8 @@ function useVideoTrackAttachment(
     el.addEventListener('playing', onPlaying);
     el.addEventListener('emptied', onEmptied);
 
-    const pollTimerRef = { current: null as any };
-    const sharedState = {
+    const pollTimerRef: { current: ReturnType<typeof setInterval> | null } = { current: null };
+    const sharedState: TryAttachState = {
       p,
       baseSid,
       isLocalNow,
@@ -311,7 +337,7 @@ function useVideoTrackAttachment(
     if (!isScreenMedia)
       setTimeout(() => {
         try {
-          clearInterval(pollTimerRef.current);
+          if (pollTimerRef.current) clearInterval(pollTimerRef.current);
         } catch {}
       }, 10000);
 
@@ -329,14 +355,14 @@ function useVideoTrackAttachment(
         node?.removeEventListener('emptied', onEmptied);
       } catch {}
       try {
-        clearInterval(pollTimerRef.current);
+        if (pollTimerRef.current) clearInterval(pollTimerRef.current);
       } catch {}
       initialCleanup?.();
       offEvents();
       attachedTrackIdRef.current = null;
       try {
         if (node) {
-          (node as any).srcObject = null;
+          (node as HTMLVideoElement & { srcObject?: MediaStream | null }).srcObject = null;
         }
       } catch {}
     };
@@ -418,18 +444,17 @@ async function performForceMute(part: PartType, roomGetter: () => Room | undefin
     const label = (part.identity || '').replace(/\s+–\s*Bildschirm$/, '');
     let targetIdentity = label;
     try {
-      const room: any = roomGetter?.();
+      const room = roomGetter?.() as LegacyRoom | undefined;
       if (room) {
-        const local = room.localParticipant;
+        const local = room.localParticipant as (LocalParticipant & { name?: string }) | undefined;
         if (local && (local.name === label || local.identity === label)) {
           targetIdentity = local.identity;
         } else {
-          const allRemotes: any[] = Array.from(
+          const allRemotes: AnyParticipant[] = Array.from(
             room.remoteParticipants?.values?.() || room.participants?.values?.() || [],
           );
           const found =
-            allRemotes.find((p: any) => (p?.name || p?.identity) === label) ||
-            allRemotes.find((p: any) => p?.identity === label);
+            allRemotes.find((p) => (p?.name || p?.identity) === label) || allRemotes.find((p) => p?.identity === label);
           if (found?.identity) targetIdentity = found.identity;
         }
       }

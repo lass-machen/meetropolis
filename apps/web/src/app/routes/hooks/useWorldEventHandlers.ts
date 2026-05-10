@@ -3,6 +3,12 @@ import { logger } from '../../../lib/logger';
 import { EditorService } from '../../../services/EditorService';
 import type { WorldRoom } from '../../../types/colyseus';
 import type { AVManager } from '../../../av/avManager';
+import type { FollowManager } from '../../../game/followManager';
+import { gameBridge as _gameBridgeForType } from '../../../game/bridge';
+import type { EditorState } from '../../../services/EditorService';
+import type { WorldUi, WorldAuth, AvStateShape, ContextMenuShape } from './useWorldAppState';
+
+type GameBridge = typeof _gameBridgeForType;
 
 interface UseWorldEventHandlersParams {
   apiBase: string;
@@ -12,33 +18,31 @@ interface UseWorldEventHandlersParams {
   bubbleGroupsRef: React.RefObject<Record<string, string>>;
   bubbleMembersRef: React.RefObject<Set<string>>;
   bubbleStartRef: React.RefObject<null | ((id: string) => void)>;
-  followRef: React.RefObject<any>;
+  followRef: React.RefObject<FollowManager | null>;
   manualNavRef: React.MutableRefObject<{ x: number; y: number } | null>;
-  gameBridge: any;
-  editor: any;
-  avState: { mic: boolean; cam: boolean; share: boolean; dnd: boolean };
-  contextMenu: { open: boolean; x: number; y: number; playerId: string | null };
+  gameBridge: GameBridge;
+  editor: EditorState;
+  avState: AvStateShape;
+  contextMenu: ContextMenuShape;
 
-  setAvState: React.Dispatch<React.SetStateAction<{ mic: boolean; cam: boolean; share: boolean; dnd: boolean }>>;
-  setMe: React.Dispatch<React.SetStateAction<{ id: string; email: string; name?: string } | null>>;
-  setGridExpanded: React.Dispatch<React.SetStateAction<boolean>>;
-  setSelectedSid: React.Dispatch<React.SetStateAction<string | null>>;
-  setMenuOpen: React.Dispatch<React.SetStateAction<boolean>>;
-  setTenantTab: React.Dispatch<React.SetStateAction<string>>;
-  setPage: React.Dispatch<React.SetStateAction<string>>;
-  setAdminOpen: React.Dispatch<React.SetStateAction<boolean>>;
-  setApiModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
-  setBillingOpen: React.Dispatch<React.SetStateAction<boolean>>;
-  setProfileOpen: React.Dispatch<React.SetStateAction<boolean>>;
-  setTenantSettingsOpen: React.Dispatch<React.SetStateAction<boolean>>;
-  setSessionsOpen: React.Dispatch<React.SetStateAction<boolean>>;
-  setRosterCollapsed: React.Dispatch<React.SetStateAction<boolean>>;
-  setBubbleUi: React.Dispatch<React.SetStateAction<{ active: boolean; members: string[] }>>;
-  setContextMenu: React.Dispatch<
-    React.SetStateAction<{ open: boolean; x: number; y: number; playerId: string | null }>
-  >;
-  setSelectedMicId: React.Dispatch<React.SetStateAction<string>>;
-  setSelectedCamId: React.Dispatch<React.SetStateAction<string>>;
+  setAvState: WorldUi['setAvState'];
+  setMe: WorldAuth['setMe'];
+  setGridExpanded: WorldUi['setGridExpanded'];
+  setSelectedSid: WorldUi['setSelectedSid'];
+  setMenuOpen: WorldUi['setMenuOpen'];
+  setTenantTab: WorldUi['setTenantTab'];
+  setPage: WorldUi['setPage'];
+  setAdminOpen: WorldUi['setAdminOpen'];
+  setApiModalOpen: WorldUi['setApiModalOpen'];
+  setBillingOpen: WorldUi['setBillingOpen'];
+  setProfileOpen: WorldUi['setProfileOpen'];
+  setTenantSettingsOpen: WorldUi['setTenantSettingsOpen'];
+  setSessionsOpen: WorldUi['setSessionsOpen'];
+  setRosterCollapsed: WorldUi['setRosterCollapsed'];
+  setBubbleUi: WorldUi['setBubbleUi'];
+  setContextMenu: WorldUi['setContextMenu'];
+  setSelectedMicId: WorldUi['setSelectedMicId'];
+  setSelectedCamId: WorldUi['setSelectedCamId'];
 
   applyVolumesToUi: () => void;
   saveAllToServer: () => Promise<boolean>;
@@ -46,11 +50,28 @@ interface UseWorldEventHandlersParams {
   dismissBanner: () => void;
 }
 
+// Shape of the LiveKit Room as touched by ensureMicAudioContext. The
+// internal engine/audioContext members are not part of the public Room type
+// but are stable across LiveKit versions we depend on.
+type RoomWithAudio = {
+  startAudio?: () => Promise<void>;
+  engine?: {
+    client?: { audioContext?: AudioContext };
+    audioContext?: AudioContext;
+  };
+};
+
+type LocalStateModule = {
+  isLocalMicOn: (room: unknown) => boolean;
+  isLocalCamOn: (room: unknown) => boolean;
+  isLocalShareOn: (room: unknown) => boolean;
+};
+
 async function ensureMicAudioContext(avRef: React.RefObject<AVManager | null>) {
   try {
-    const anyRoom: any = avRef.current?.room;
-    if (anyRoom?.startAudio) await anyRoom.startAudio().catch(() => {});
-    const ctx = anyRoom?.engine?.client?.audioContext || anyRoom?.engine?.audioContext;
+    const room = avRef.current?.room as RoomWithAudio | undefined;
+    if (room?.startAudio) await room.startAudio().catch(() => {});
+    const ctx = room?.engine?.client?.audioContext || room?.engine?.audioContext;
     if (ctx?.state === 'suspended') await ctx.resume().catch(() => {});
   } catch {}
 }
@@ -58,12 +79,12 @@ async function ensureMicAudioContext(avRef: React.RefObject<AVManager | null>) {
 async function reconcileMicState(
   avRef: React.RefObject<AVManager | null>,
   enabled: boolean,
-  setAvState: React.Dispatch<React.SetStateAction<{ mic: boolean; cam: boolean; share: boolean; dnd: boolean }>>,
+  setAvState: React.Dispatch<React.SetStateAction<AvStateShape>>,
 ) {
   try {
-    const mod: any = await import('../../../av/core/localState');
-    const roomAny: any = avRef.current?.room;
-    const realOn = mod.isLocalMicOn(roomAny);
+    const mod = (await import('../../../av/core/localState')) as unknown as LocalStateModule;
+    const room = avRef.current?.room;
+    const realOn = mod.isLocalMicOn(room);
     if (realOn !== enabled) setAvState((s) => ({ ...s, mic: realOn }));
     setTimeout(() => {
       try {
@@ -275,13 +296,19 @@ function useResetAndLogoutHandlers(params: UseWorldEventHandlersParams) {
       logger.debug('[WorldApp] Operation failed', e);
     }
     try {
-      const room: any = colyseusRef.current;
-      const wsReadyState =
-        room?.connection?.ws?.readyState ??
-        room?.connection?.transport?.ws?.readyState ??
-        room?.connection?._transport?.ws?.readyState;
-      const isOpen = room?.connection?.isOpen === true || wsReadyState === 1;
-      if (isOpen) await room.leave();
+      const room = colyseusRef.current;
+      // Colyseus internals: connection.ws/transport/_transport are not in the
+      // public typings.
+      type ConnectionInternals = {
+        ws?: WebSocket;
+        transport?: { ws?: WebSocket };
+        _transport?: { ws?: WebSocket };
+        isOpen?: boolean;
+      };
+      const conn = room?.connection as unknown as ConnectionInternals | undefined;
+      const wsReadyState = conn?.ws?.readyState ?? conn?.transport?.ws?.readyState ?? conn?._transport?.ws?.readyState;
+      const isOpen = conn?.isOpen === true || wsReadyState === 1;
+      if (room && isOpen) await room.leave();
     } catch (e) {
       logger.debug('[WorldApp] Operation failed', e);
     }

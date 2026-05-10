@@ -33,9 +33,16 @@ export async function handleOssPublicConfig(_req: express.Request, res: express.
   res.json({ publicRegistrationEnabled: enabled, billingEnabled });
 }
 
-export async function handleGetSettings(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
+export async function handleGetSettings(
+  prisma: PrismaClient,
+  req: express.Request,
+  res: express.Response,
+): Promise<void> {
   const admin = await requireSuperAdmin(req, prisma);
-  if (!admin) { res.status(403).json({ error: 'forbidden' }); return; }
+  if (!admin) {
+    res.status(403).json({ error: 'forbidden' });
+    return;
+  }
   try {
     const internal = await prisma.tenant.findUnique({ where: { slug: 'internal' } });
     res.json({
@@ -53,11 +60,21 @@ const settingsSchema = z.object({
   defaultFreeSeats: z.number().int().nonnegative().optional(),
 });
 
-export async function handleUpdateSettings(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
+export async function handleUpdateSettings(
+  prisma: PrismaClient,
+  req: express.Request,
+  res: express.Response,
+): Promise<void> {
   const admin = await requireSuperAdmin(req, prisma);
-  if (!admin) { res.status(403).json({ error: 'forbidden' }); return; }
+  if (!admin) {
+    res.status(403).json({ error: 'forbidden' });
+    return;
+  }
   const parse = settingsSchema.safeParse(req.body || {});
-  if (!parse.success) { res.status(400).json({ error: 'invalid payload' }); return; }
+  if (!parse.success) {
+    res.status(400).json({ error: 'invalid payload' });
+    return;
+  }
   try {
     const data: Record<string, unknown> = {};
     if (typeof parse.data.publicRegistrationEnabled === 'boolean') {
@@ -66,7 +83,10 @@ export async function handleUpdateSettings(prisma: PrismaClient, req: express.Re
     if (typeof parse.data.defaultFreeSeats === 'number') {
       data.freeSeats = parse.data.defaultFreeSeats;
     }
-    if (Object.keys(data).length === 0) { res.status(400).json({ error: 'no_changes' }); return; }
+    if (Object.keys(data).length === 0) {
+      res.status(400).json({ error: 'no_changes' });
+      return;
+    }
     await prisma.tenant.update({ where: { slug: 'internal' }, data });
     const updated = await prisma.tenant.findUnique({ where: { slug: 'internal' } });
     res.json({
@@ -79,10 +99,37 @@ export async function handleUpdateSettings(prisma: PrismaClient, req: express.Re
   }
 }
 
-function collectRoomPlayers(room: any): any[] {
-  const players: any[] = [];
+interface RoomPlayer {
+  identity?: string;
+  name?: string;
+  x?: number;
+  y?: number;
+  dnd?: boolean;
+}
+
+interface RoomLike {
+  roomId?: string;
+  roomName?: string;
+  clients?: { size?: number; length?: number };
+  locked?: boolean;
+  maxClients?: number;
+  metadata?: Record<string, unknown>;
+  state?: { players?: Map<string, RoomPlayer> };
+}
+
+interface RoomPlayerOut {
+  sessionId: string;
+  identity?: string;
+  name?: string;
+  x?: number;
+  y?: number;
+  dnd?: boolean;
+}
+
+function collectRoomPlayers(room: RoomLike): RoomPlayerOut[] {
+  const players: RoomPlayerOut[] = [];
   if (room.state && room.state.players) {
-    room.state.players.forEach((p: any, sid: string) => {
+    room.state.players.forEach((p: RoomPlayer, sid: string) => {
       players.push({
         sessionId: sid,
         identity: p.identity,
@@ -96,9 +143,14 @@ function collectRoomPlayers(room: any): any[] {
   return players;
 }
 
-async function loadRoomList(gameServer: any): Promise<any[]> {
+interface GameServerLike {
+  matchMaker?: { query: (q: Record<string, unknown>) => Promise<RoomLike[]> };
+  rooms?: Map<string, RoomLike> | RoomLike[];
+}
+
+async function loadRoomList(gameServer: GameServerLike): Promise<RoomLike[]> {
   const activeWorldRooms = global.activeWorldRooms;
-  if (activeWorldRooms && activeWorldRooms.size > 0) return Array.from(activeWorldRooms);
+  if (activeWorldRooms && activeWorldRooms.size > 0) return Array.from(activeWorldRooms) as unknown as RoomLike[];
   if (gameServer.matchMaker) return (await gameServer.matchMaker.query({})) || [];
   if (gameServer.rooms) {
     const gameRooms = gameServer.rooms;
@@ -107,21 +159,39 @@ async function loadRoomList(gameServer: any): Promise<any[]> {
   return [];
 }
 
-export async function handleDebugRooms(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
+export async function handleDebugRooms(
+  prisma: PrismaClient,
+  req: express.Request,
+  res: express.Response,
+): Promise<void> {
   const admin = await requireSuperAdmin(req, prisma);
-  if (!admin) { res.status(403).json({ error: 'forbidden' }); return; }
-  const gameServer = global.gameServer;
-  if (!gameServer) { res.json({ error: 'Game server not initialized' }); return; }
+  if (!admin) {
+    res.status(403).json({ error: 'forbidden' });
+    return;
+  }
+  const gameServer = global.gameServer as GameServerLike | undefined;
+  if (!gameServer) {
+    res.json({ error: 'Game server not initialized' });
+    return;
+  }
 
-  const rooms: any[] = [];
+  const rooms: Array<{
+    roomId?: string;
+    roomName: string;
+    clients: number;
+    locked: boolean;
+    maxClients: number;
+    metadata: Record<string, unknown>;
+    players: RoomPlayerOut[];
+  }> = [];
   try {
     const roomArray = await loadRoomList(gameServer);
 
-    roomArray.forEach((room: any) => {
+    roomArray.forEach((room) => {
       rooms.push({
         roomId: room.roomId,
         roomName: room.roomName || 'world',
-        clients: room.clients ? room.clients.size || room.clients.length : 0,
+        clients: room.clients ? room.clients.size || room.clients.length || 0 : 0,
         locked: room.locked || false,
         maxClients: room.maxClients || 0,
         metadata: room.metadata || {},
@@ -136,7 +206,9 @@ export async function handleDebugRooms(prisma: PrismaClient, req: express.Reques
   res.json({ rooms, total: rooms.length });
 }
 
-function buildSystemSnapshot(): Record<string, any> {
+type ProbeResult = Record<string, unknown>;
+
+function buildSystemSnapshot(): ProbeResult {
   return {
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
@@ -151,7 +223,7 @@ function buildSystemSnapshot(): Record<string, any> {
   };
 }
 
-async function probeDatabase(prisma: PrismaClient): Promise<Record<string, any>> {
+async function probeDatabase(prisma: PrismaClient): Promise<ProbeResult> {
   try {
     const dbStart = Date.now();
     await prisma.$queryRaw`SELECT 1`;
@@ -161,7 +233,7 @@ async function probeDatabase(prisma: PrismaClient): Promise<Record<string, any>>
   }
 }
 
-async function probeCounts(prisma: PrismaClient): Promise<Record<string, any>> {
+async function probeCounts(prisma: PrismaClient): Promise<ProbeResult> {
   try {
     const [userCount, tenantCount, sessionCount, membershipCount] = await Promise.all([
       prisma.user.count(),
@@ -175,23 +247,33 @@ async function probeCounts(prisma: PrismaClient): Promise<Record<string, any>> {
   }
 }
 
-async function probeWebsocket(): Promise<Record<string, any>> {
+interface ActiveRoomCount {
+  clients?: { size?: number; length?: number } | number;
+}
+
+async function probeWebsocket(): Promise<ProbeResult> {
   try {
-    const gameServer = global.gameServer;
+    const gameServer = global.gameServer as GameServerLike | undefined;
     const activeWorldRooms = global.activeWorldRooms;
     let activeConnections = 0;
     let roomCount = 0;
 
     if (activeWorldRooms && activeWorldRooms.size > 0) {
       roomCount = activeWorldRooms.size;
-      activeWorldRooms.forEach((room: any) => {
-        activeConnections += room.clients?.size || room.clients?.length || 0;
+      activeWorldRooms.forEach((room) => {
+        const r = room as ActiveRoomCount;
+        const c = r.clients;
+        if (typeof c === 'object' && c !== null) {
+          activeConnections += c.size || c.length || 0;
+        }
       });
     } else if (gameServer?.matchMaker) {
       const allRooms = await gameServer.matchMaker.query({});
       roomCount = allRooms?.length || 0;
-      (allRooms || []).forEach((r: any) => {
-        activeConnections += r.clients || 0;
+      (allRooms || []).forEach((r) => {
+        const c = (r as ActiveRoomCount).clients;
+        if (typeof c === 'number') activeConnections += c;
+        else if (c && typeof c === 'object') activeConnections += c.size || c.length || 0;
       });
     }
     return { status: 'ok', activeRooms: roomCount, activeConnections };
@@ -200,7 +282,7 @@ async function probeWebsocket(): Promise<Record<string, any>> {
   }
 }
 
-function probeLivekit(): Record<string, any> {
+function probeLivekit(): ProbeResult {
   try {
     if (process.env.LIVEKIT_API_KEY && process.env.LIVEKIT_API_SECRET) {
       return {
@@ -214,12 +296,12 @@ function probeLivekit(): Record<string, any> {
   }
 }
 
-function probeEmail(): Record<string, any> {
+function probeEmail(): ProbeResult {
   try {
     const emailConfig = process.env.SMTP_HOST || process.env.RESEND_API_KEY;
     return {
       status: emailConfig ? 'configured' : 'not_configured',
-      provider: process.env.RESEND_API_KEY ? 'resend' : (process.env.SMTP_HOST ? 'smtp' : 'none'),
+      provider: process.env.RESEND_API_KEY ? 'resend' : process.env.SMTP_HOST ? 'smtp' : 'none',
     };
   } catch {
     return { status: 'error' };
@@ -238,12 +320,19 @@ function probeOnlineUsage(): { onlineByTenant: Record<string, number>; totalOnli
   }
 }
 
-export async function handleAdminHealth(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
+export async function handleAdminHealth(
+  prisma: PrismaClient,
+  req: express.Request,
+  res: express.Response,
+): Promise<void> {
   const admin = await requireSuperAdmin(req, prisma);
-  if (!admin) { res.status(403).json({ error: 'forbidden' }); return; }
+  if (!admin) {
+    res.status(403).json({ error: 'forbidden' });
+    return;
+  }
 
   const startTime = Date.now();
-  const health: Record<string, any> = buildSystemSnapshot();
+  const health: Record<string, unknown> = buildSystemSnapshot();
 
   health.database = await probeDatabase(prisma);
   health.counts = await probeCounts(prisma);
@@ -258,9 +347,16 @@ export async function handleAdminHealth(prisma: PrismaClient, req: express.Reque
   res.json(health);
 }
 
-export async function handleAdminStats(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
+export async function handleAdminStats(
+  prisma: PrismaClient,
+  req: express.Request,
+  res: express.Response,
+): Promise<void> {
   const admin = await requireSuperAdmin(req, prisma);
-  if (!admin) { res.status(403).json({ error: 'forbidden' }); return; }
+  if (!admin) {
+    res.status(403).json({ error: 'forbidden' });
+    return;
+  }
 
   try {
     const now = new Date();

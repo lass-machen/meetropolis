@@ -1,8 +1,13 @@
 import React from 'react';
 import { logger } from '../../../lib/logger';
 import type { AVManager } from '../../../av/avManager';
+import type { Room } from 'livekit-client';
 
 type AvState = { mic: boolean; cam: boolean; share: boolean; dnd: boolean };
+
+// livekit-client is dynamically imported; we only need the RoomEvent enum
+// for typed access. RoomEvent is a string-valued enum at runtime.
+type LiveKitModule = { RoomEvent?: Record<string, string> };
 
 /**
  * Mirrors the LiveKit room's local mic/cam/share state into React state.
@@ -14,19 +19,19 @@ export function useAvStateSync(
 ) {
   React.useEffect(() => {
     let removeHandlers: (() => void) | null = null;
-    let pollTimer: any = null;
-    let watcher: any = null;
+    let pollTimer: ReturnType<typeof setInterval> | null = null;
+    let watcher: ReturnType<typeof setInterval> | null = null;
 
     const applyNow = async () => {
       try {
-        const mod: any = await import('../../../av/core/localState');
-        const roomAny: any = avRef.current?.room;
-        if (!roomAny) return;
-        const mic = mod.isLocalMicOn(roomAny);
-        const cam = mod.isLocalCamOn(roomAny);
+        const mod = await import('../../../av/core/localState');
+        const room = avRef.current?.room ?? null;
+        if (!room) return;
+        const mic = mod.isLocalMicOn(room);
+        const cam = mod.isLocalCamOn(room);
         let share = false;
         try {
-          share = mod.isLocalShareOn(roomAny);
+          share = mod.isLocalShareOn(room);
         } catch (e) {
           logger.debug('[WorldApp] Operation failed', e);
         }
@@ -36,43 +41,51 @@ export function useAvStateSync(
       }
     };
 
-    const installHandlersForRoom = async (room: any) => {
+    const installHandlersForRoom = async (room: Room) => {
+      // LiveKit's Room.on / off are strongly typed against `keyof RoomEventCallbacks`,
+      // but we resolve event names dynamically from the runtime RoomEvent enum.
+      // A loosened local view avoids fighting the generated overloads.
+      type EventBus = {
+        on?: (event: string, listener: () => void) => unknown;
+        off?: (event: string, listener: () => void) => unknown;
+      };
+      const bus = room as unknown as EventBus;
       try {
-        const lk: any = await import('livekit-client');
+        const lk = (await import('livekit-client')) as unknown as LiveKitModule;
         const RoomEvent = lk.RoomEvent;
         const onAny = () => {
           void applyNow();
         };
         if (RoomEvent) {
-          room.on?.(RoomEvent.LocalTrackPublished, onAny);
-          room.on?.(RoomEvent.LocalTrackUnpublished, onAny);
-          room.on?.(RoomEvent.TrackMuted, onAny);
-          room.on?.(RoomEvent.TrackUnmuted, onAny);
-          room.on?.(RoomEvent.ConnectionStateChanged, onAny);
+          bus.on?.(RoomEvent.LocalTrackPublished, onAny);
+          bus.on?.(RoomEvent.LocalTrackUnpublished, onAny);
+          bus.on?.(RoomEvent.TrackMuted, onAny);
+          bus.on?.(RoomEvent.TrackUnmuted, onAny);
+          bus.on?.(RoomEvent.ConnectionStateChanged, onAny);
           removeHandlers = () => {
             try {
-              room.off?.(RoomEvent.LocalTrackPublished, onAny);
-              room.off?.(RoomEvent.LocalTrackUnpublished, onAny);
-              room.off?.(RoomEvent.TrackMuted, onAny);
-              room.off?.(RoomEvent.TrackUnmuted, onAny);
-              room.off?.(RoomEvent.ConnectionStateChanged, onAny);
+              bus.off?.(RoomEvent.LocalTrackPublished, onAny);
+              bus.off?.(RoomEvent.LocalTrackUnpublished, onAny);
+              bus.off?.(RoomEvent.TrackMuted, onAny);
+              bus.off?.(RoomEvent.TrackUnmuted, onAny);
+              bus.off?.(RoomEvent.ConnectionStateChanged, onAny);
             } catch (e) {
               logger.debug('[WorldApp] Operation failed', e);
             }
           };
         } else {
-          room.on?.('localTrackPublished', onAny);
-          room.on?.('localTrackUnpublished', onAny);
-          room.on?.('trackMuted', onAny);
-          room.on?.('trackUnmuted', onAny);
-          room.on?.('connectionStateChanged', onAny);
+          bus.on?.('localTrackPublished', onAny);
+          bus.on?.('localTrackUnpublished', onAny);
+          bus.on?.('trackMuted', onAny);
+          bus.on?.('trackUnmuted', onAny);
+          bus.on?.('connectionStateChanged', onAny);
           removeHandlers = () => {
             try {
-              room.off?.('localTrackPublished', onAny);
-              room.off?.('localTrackUnpublished', onAny);
-              room.off?.('trackMuted', onAny);
-              room.off?.('trackUnmuted', onAny);
-              room.off?.('connectionStateChanged', onAny);
+              bus.off?.('localTrackPublished', onAny);
+              bus.off?.('localTrackUnpublished', onAny);
+              bus.off?.('trackMuted', onAny);
+              bus.off?.('trackUnmuted', onAny);
+              bus.off?.('connectionStateChanged', onAny);
             } catch (e) {
               logger.debug('[WorldApp] Operation failed', e);
             }
@@ -85,7 +98,7 @@ export function useAvStateSync(
     };
 
     watcher = setInterval(() => {
-      const room: any = avRef.current?.room;
+      const room = avRef.current?.room;
       if (!room) {
         if (!pollTimer)
           pollTimer = setInterval(() => {
@@ -101,7 +114,7 @@ export function useAvStateSync(
       } catch (e) {
         logger.debug('[WorldApp] Operation failed', e);
       }
-      clearInterval(watcher);
+      if (watcher) clearInterval(watcher);
       watcher = null;
       void installHandlersForRoom(room);
     }, 500);
@@ -114,7 +127,7 @@ export function useAvStateSync(
         logger.debug('[WorldApp] Operation failed', e);
       }
       try {
-        clearInterval(pollTimer);
+        if (pollTimer) clearInterval(pollTimer);
       } catch (e) {
         logger.debug('[WorldApp] Operation failed', e);
       }

@@ -1,14 +1,25 @@
 import React from 'react';
 import { logger } from '../../../lib/logger';
 import type { ZoneManager } from '../../../game/zoneManager';
-
-type MeUser = { id: string; email: string; name?: string } | null;
+import type { EditorState, Zone } from '../../../services/EditorService';
+import type { WorldMe } from './useWorldAppState';
 
 type Params = {
-  me: MeUser;
+  me: WorldMe;
   apiBase: string;
   zoneRef: React.MutableRefObject<ZoneManager | null>;
-  setEditor: (updater: any) => void;
+  setEditor: React.Dispatch<React.SetStateAction<EditorState>>;
+};
+
+type RemoteZone = {
+  name?: unknown;
+  points?: unknown;
+  polygon?: unknown;
+  capacity?: unknown;
+  type?: unknown;
+  portalTarget?: unknown;
+  portalSpawnX?: unknown;
+  portalSpawnY?: unknown;
 };
 
 /**
@@ -21,7 +32,8 @@ export function useMapZonesSync({ me, apiBase, zoneRef, setEditor }: Params) {
     if (!me) return;
     const handler = (e: Event) => {
       void (async (e: Event) => {
-        const mapId = (e as CustomEvent).detail?.mapId;
+        const detail = (e as CustomEvent<{ mapId?: string }>).detail;
+        const mapId = detail?.mapId;
         if (!mapId) return;
         zoneRef.current?.resetForMapChange?.();
         try {
@@ -29,18 +41,24 @@ export function useMapZonesSync({ me, apiBase, zoneRef, setEditor }: Params) {
             credentials: 'include',
           });
           if (!res.ok) return;
-          const data = await res.json();
-          if (Array.isArray(data?.zones)) {
-            const zones = data.zones.map((z: any) => ({
-              name: z.name,
-              points: Array.isArray(z.points) ? z.points : Array.isArray(z.polygon) ? z.polygon : [],
-              capacity: z.capacity ?? undefined,
-              type: z.type ?? undefined,
-              portalTarget: z.portalTarget ?? undefined,
-              portalSpawnX: z.portalSpawnX ?? undefined,
-              portalSpawnY: z.portalSpawnY ?? undefined,
-            }));
-            setEditor((s: any) => ({ ...s, zones }));
+          const data = (await res.json()) as { zones?: RemoteZone[] } | null;
+          if (data && Array.isArray(data.zones)) {
+            const zones: Zone[] = data.zones.map((z) => {
+              const zone: Zone = {
+                name: typeof z.name === 'string' ? z.name : '',
+                points: Array.isArray(z.points)
+                  ? (z.points as Zone['points'])
+                  : Array.isArray(z.polygon)
+                    ? (z.polygon as Zone['points'])
+                    : [],
+              };
+              if (z.type === 'default' || z.type === 'portal') zone.type = z.type;
+              if (typeof z.portalTarget === 'string') zone.portalTarget = z.portalTarget;
+              if (typeof z.portalSpawnX === 'number') zone.portalSpawnX = z.portalSpawnX;
+              if (typeof z.portalSpawnY === 'number') zone.portalSpawnY = z.portalSpawnY;
+              return zone;
+            });
+            setEditor((s) => ({ ...s, zones }));
             zoneRef.current?.setZones?.(zones);
           }
         } catch (err) {
@@ -54,7 +72,8 @@ export function useMapZonesSync({ me, apiBase, zoneRef, setEditor }: Params) {
 
   React.useEffect(() => {
     const handler = (e: Event) => {
-      const zones = (e as CustomEvent).detail?.zones;
+      const detail = (e as CustomEvent<{ zones?: Zone[] }>).detail;
+      const zones = detail?.zones;
       if (Array.isArray(zones) && zones.length > 0) {
         zoneRef.current?.setZones?.(zones);
       }

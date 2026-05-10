@@ -10,6 +10,16 @@ import multer from 'multer';
 import unzipper from 'unzipper';
 import { logger } from '../../logger.js';
 import { requireAuth, requireApiToken, requireInternalOwner } from '../utils/authHelpers.js';
+import type {
+  AssetPackConfig,
+  AssetPackConfigRewritten,
+  AssetPackTerrainItem,
+  AssetPackSpriteItem,
+  AssetPackAutotileItem,
+  AssetPackItemBase,
+  ZipEntry,
+} from '../../types/assetPack.js';
+import type { RequestWithMulterFile } from '../../types/multer.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -124,11 +134,18 @@ function withoutAssetsPrefix(p: string): string {
   return p.replace(/^assets\//, '');
 }
 
-function buildDimensionMaps(cfg: any) {
-  const terrainMap = new Map<string, any>();
-  const structMap = new Map<string, any>();
-  const objMap = new Map<string, any>();
-  const autotileMap = new Map<string, any>();
+interface DimensionMaps {
+  terrainMap: Map<string, AssetPackTerrainItem>;
+  structMap: Map<string, AssetPackSpriteItem>;
+  objMap: Map<string, AssetPackSpriteItem>;
+  autotileMap: Map<string, AssetPackAutotileItem>;
+}
+
+function buildDimensionMaps(cfg: AssetPackConfig): DimensionMaps {
+  const terrainMap = new Map<string, AssetPackTerrainItem>();
+  const structMap = new Map<string, AssetPackSpriteItem>();
+  const objMap = new Map<string, AssetPackSpriteItem>();
+  const autotileMap = new Map<string, AssetPackAutotileItem>();
   for (const t of cfg.terrain || []) terrainMap.set(t.id, t);
   for (const s of cfg.structures || []) structMap.set(s.id, s);
   for (const o of cfg.objects || []) objMap.set(o.id, o);
@@ -137,12 +154,12 @@ function buildDimensionMaps(cfg: any) {
 }
 
 function dimensionsStable(
-  oldCfg: any,
-  newCfg: any,
+  oldCfg: AssetPackConfig,
+  newCfg: AssetPackConfig,
 ): { ok: true } | { ok: false; reason: string; offendingId?: string } {
   const oldMaps = buildDimensionMaps(oldCfg);
   const newMaps = buildDimensionMaps(newCfg);
-  const num = (v: any) => (v == null ? 0 : Number(v));
+  const num = (v: number | undefined | null): number => (v == null ? 0 : Number(v));
   for (const [id, oldT] of oldMaps.terrainMap) {
     const n = newMaps.terrainMap.get(id);
     if (!n) continue;
@@ -208,12 +225,14 @@ async function authenticateAssetPackAdmin(
   return { ok: true };
 }
 
-type ZipScanResult = { ok: true; configEntry: any; assetEntries: any[] } | { ok: false; status: number; error: string };
+type ZipScanResult =
+  | { ok: true; configEntry: ZipEntry; assetEntries: ZipEntry[] }
+  | { ok: false; status: number; error: string };
 
-function scanZipEntries(files: any[]): ZipScanResult {
+function scanZipEntries(files: ZipEntry[]): ZipScanResult {
   const allowedRoot = new Set(['config.json']);
-  let configEntry: any = null;
-  const assetEntries: any[] = [];
+  let configEntry: ZipEntry | null = null;
+  const assetEntries: ZipEntry[] = [];
 
   for (const entry of files) {
     const rawPath: string = entry.path || entry.fileName || '';
@@ -239,19 +258,19 @@ function scanZipEntries(files: any[]): ZipScanResult {
   return { ok: true, configEntry, assetEntries };
 }
 
-function buildAssetSet(assetEntries: any[]): Set<string> {
+function buildAssetSet(assetEntries: ZipEntry[]): Set<string> {
   const assetSet = new Set<string>();
   for (const e of assetEntries) {
-    const p = normalizeZipPath(e.path || e.fileName);
+    const p = normalizeZipPath(e.path || e.fileName || '');
     if (p.endsWith('/')) continue;
     assetSet.add(p);
   }
   return assetSet;
 }
 
-type ItemValidationError = { error: string; itemId: any; dataURL: any };
+type ItemValidationError = { error: string; itemId: string; dataURL: string };
 
-function validateConfigAssetReferences(cfg: any, assetSet: Set<string>): ItemValidationError | null {
+function validateConfigAssetReferences(cfg: AssetPackConfig, assetSet: Set<string>): ItemValidationError | null {
   const validateItemPath = (p: string): { ok: true; norm: string } | { ok: false } => {
     const norm = normalizeZipPath(p);
     if (!norm.startsWith('assets/')) return { ok: false };
@@ -261,12 +280,19 @@ function validateConfigAssetReferences(cfg: any, assetSet: Set<string>): ItemVal
     return { ok: true, norm };
   };
 
-  for (const arrName of ['terrain', 'structures', 'objects', 'autotiles'] as const) {
-    for (const it of (cfg[arrName] as any[]) || []) {
+  const arrays: Array<AssetPackItemBase[]> = [
+    cfg.terrain ?? [],
+    cfg.structures ?? [],
+    cfg.objects ?? [],
+    cfg.autotiles ?? [],
+  ];
+  for (const arr of arrays) {
+    for (const it of arr) {
       const r = validateItemPath(it.dataURL);
       if (!r.ok) return { error: 'missing or invalid asset for item', itemId: it.id, dataURL: it.dataURL };
-      if (Array.isArray(it.directionalImages)) {
-        for (const di of it.directionalImages) {
+      const directional = (it as AssetPackSpriteItem).directionalImages;
+      if (Array.isArray(directional)) {
+        for (const di of directional) {
           const dr = validateItemPath(di.dataURL);
           if (!dr.ok)
             return { error: 'missing or invalid asset for directionalImage', itemId: it.id, dataURL: di.dataURL };
@@ -278,12 +304,12 @@ function validateConfigAssetReferences(cfg: any, assetSet: Set<string>): ItemVal
 }
 
 async function extractAssetsToTmpDir(
-  assetEntries: any[],
+  assetEntries: ZipEntry[],
   tmpDir: string,
 ): Promise<{ ok: true; assetMap: Map<string, string> } | { ok: false; status: number; error: string; path?: string }> {
   const assetMap = new Map<string, string>();
   for (const entry of assetEntries) {
-    const p = normalizeZipPath(entry.path || entry.fileName);
+    const p = normalizeZipPath(entry.path || entry.fileName || '');
     if (p.endsWith('/')) continue;
     if (!isAllowedAssetExt(p)) {
       return { ok: false, status: 400, error: 'unsupported asset extension', path: p };
@@ -304,16 +330,16 @@ async function extractAssetsToTmpDir(
   return { ok: true, assetMap };
 }
 
-function rewriteConfig(cfg: any, uuid: string, assetMap: Map<string, string>) {
-  const rewriteItem = (it: any) => {
+function rewriteConfig(cfg: AssetPackConfig, uuid: string, assetMap: Map<string, string>): AssetPackConfigRewritten {
+  const rewriteItem = <T extends AssetPackItemBase>(it: T): T & { originalPath?: string } => {
     const original = normalizeZipPath(it.dataURL);
     const mapped = assetMap.get(original);
     if (!mapped) return it;
-    const out = { ...it };
-    out.originalPath = it.dataURL;
+    const out: T & { originalPath?: string } = { ...it, originalPath: it.dataURL };
     out.dataURL = `/packs/${uuid}/${mapped}`;
-    if (Array.isArray(it.directionalImages)) {
-      out.directionalImages = it.directionalImages.map((di: any) => {
+    const directional = (it as unknown as AssetPackSpriteItem).directionalImages;
+    if (Array.isArray(directional)) {
+      (out as unknown as AssetPackSpriteItem).directionalImages = directional.map((di) => {
         const diOriginal = normalizeZipPath(di.dataURL);
         const diMapped = assetMap.get(diOriginal);
         if (!diMapped) return di;
@@ -323,11 +349,15 @@ function rewriteConfig(cfg: any, uuid: string, assetMap: Map<string, string>) {
     return out;
   };
   return {
-    ...cfg,
-    terrain: (cfg.terrain || []).map(rewriteItem),
-    structures: (cfg.structures || []).map(rewriteItem),
-    objects: (cfg.objects || []).map(rewriteItem),
-    autotiles: (cfg.autotiles || []).map(rewriteItem),
+    uuid: cfg.uuid,
+    name: cfg.name,
+    description: cfg.description,
+    author: cfg.author,
+    version: cfg.version,
+    terrain: (cfg.terrain || []).map((t) => rewriteItem(t)),
+    structures: (cfg.structures || []).map((s) => rewriteItem(s)),
+    objects: (cfg.objects || []).map((o) => rewriteItem(o)),
+    autotiles: (cfg.autotiles || []).map((a) => rewriteItem(a)),
   };
 }
 
@@ -356,29 +386,34 @@ async function moveTmpToFinal(tmpDir: string, finalDir: string): Promise<void> {
   }
 }
 
-function persistAssetPackRecord(prisma: PrismaClient, cfg: any, rewritten: any, existing: any) {
+function persistAssetPackRecord(
+  prisma: PrismaClient,
+  cfg: AssetPackConfig,
+  rewritten: AssetPackConfigRewritten,
+  existing: { id: number } | null,
+) {
   const dataRecord = {
     uuid: cfg.uuid,
     name: cfg.name,
     description: cfg.description,
     author: cfg.author,
     version: cfg.version,
-    terrain: rewritten.terrain,
-    structures: rewritten.structures,
-    objects: rewritten.objects,
-    autotiles: rewritten.autotiles,
-  } as const;
+    terrain: rewritten.terrain as unknown as object,
+    structures: rewritten.structures as unknown as object,
+    objects: rewritten.objects as unknown as object,
+    autotiles: rewritten.autotiles as unknown as object,
+  };
 
   if (existing) {
-    return prisma.assetPack.update({ where: { uuid: cfg.uuid } as any, data: dataRecord as any });
+    return prisma.assetPack.update({ where: { uuid: cfg.uuid }, data: dataRecord });
   }
-  return prisma.assetPack.create({ data: dataRecord as any });
+  return prisma.assetPack.create({ data: dataRecord });
 }
 
 function readUploadedZipBuffer(
   req: express.Request,
 ): { ok: true; buf: Buffer } | { ok: false; status: number; error: string } {
-  const file = (req as any).file as { buffer?: Buffer; size?: number } | undefined;
+  const file = (req as RequestWithMulterFile).file;
   if (!file || !file.buffer || !file.size || file.size <= 0) {
     return { ok: false, status: 400, error: 'file required' };
   }
@@ -390,10 +425,10 @@ function readUploadedZipBuffer(
 }
 
 async function parseUploadedConfig(
-  configEntry: any,
-): Promise<{ ok: true; cfg: any } | { ok: false; status: number; error: string; details?: any }> {
+  configEntry: ZipEntry,
+): Promise<{ ok: true; cfg: AssetPackConfig } | { ok: false; status: number; error: string; details?: unknown }> {
   const configRaw = await configEntry.buffer();
-  let configJson: any;
+  let configJson: unknown;
   try {
     configJson = JSON.parse(configRaw.toString('utf8'));
   } catch {
@@ -404,37 +439,53 @@ async function parseUploadedConfig(
   if (!parsed.success) {
     return { ok: false, status: 400, error: 'invalid config schema', details: parsed.error.issues };
   }
-  return { ok: true, cfg: parsed.data as any };
+  return { ok: true, cfg: parsed.data as unknown as AssetPackConfig };
+}
+
+interface ExistingAssetPackRow {
+  id: number;
+  version: string;
+  terrain: unknown;
+  structures: unknown;
+  objects: unknown;
+  autotiles: unknown;
 }
 
 async function checkExistingPackDimensions(
   prisma: PrismaClient,
   uuid: string,
-  cfg: any,
+  cfg: AssetPackConfig,
   tmpDir: string,
-): Promise<{ ok: true; existing: any } | { ok: false; status: number; error: string; reason?: any; itemId?: any }> {
-  const existing = await prisma.assetPack.findUnique({ where: { uuid } as any });
+): Promise<
+  | { ok: true; existing: ExistingAssetPackRow | null }
+  | { ok: false; status: number; error: string; reason?: string; itemId?: string }
+> {
+  const existing = (await prisma.assetPack.findUnique({ where: { uuid } })) as ExistingAssetPackRow | null;
   if (existing && existing.version !== cfg.version) {
-    const check = dimensionsStable(
-      {
-        terrain: (existing.terrain as any) || [],
-        structures: (existing.structures as any) || [],
-        objects: (existing.objects as any) || [],
-        autotiles: (existing.autotiles as any) || [],
-      },
-      cfg,
-    );
+    const oldCfg: AssetPackConfig = {
+      uuid: cfg.uuid,
+      name: cfg.name,
+      description: cfg.description,
+      author: cfg.author,
+      version: existing.version,
+      terrain: (existing.terrain as AssetPackTerrainItem[]) || [],
+      structures: (existing.structures as AssetPackSpriteItem[]) || [],
+      objects: (existing.objects as AssetPackSpriteItem[]) || [],
+      autotiles: (existing.autotiles as AssetPackAutotileItem[]) || [],
+    };
+    const check = dimensionsStable(oldCfg, cfg);
     if (!check.ok) {
       try {
         await fsp.rm(tmpDir, { recursive: true, force: true });
       } catch {}
-      return {
+      const failure: { ok: false; status: number; error: string; reason?: string; itemId?: string } = {
         ok: false,
         status: 409,
         error: 'dimension mismatch',
-        reason: (check as any).reason,
-        itemId: (check as any).offendingId,
+        reason: check.reason,
       };
+      if (check.offendingId !== undefined) failure.itemId = check.offendingId;
+      return failure;
     }
   }
   return { ok: true, existing };
@@ -468,7 +519,7 @@ async function handleAssetPackUpload(
       return;
     }
 
-    const scan = scanZipEntries(zip.files as any[]);
+    const scan = scanZipEntries(zip.files);
     if (!scan.ok) {
       res.status(scan.status).json({ error: scan.error });
       return;
@@ -483,13 +534,13 @@ async function handleAssetPackUpload(
     const cfg = cfgResult.cfg;
     try {
       logger.info('[AssetPacks] parsed config.json', {
-        uuid: cfg?.uuid,
-        name: cfg?.name,
-        v: cfg?.version,
-        nTerrain: (cfg?.terrain || []).length,
-        nStruct: (cfg?.structures || []).length,
-        nObjects: (cfg?.objects || []).length,
-        nAutotiles: (cfg?.autotiles || []).length,
+        uuid: cfg.uuid,
+        name: cfg.name,
+        v: cfg.version,
+        nTerrain: (cfg.terrain || []).length,
+        nStruct: (cfg.structures || []).length,
+        nObjects: (cfg.objects || []).length,
+        nAutotiles: (cfg.autotiles || []).length,
       });
     } catch {}
 
@@ -500,7 +551,7 @@ async function handleAssetPackUpload(
       return;
     }
 
-    const uuid = cfg.uuid as string;
+    const uuid = cfg.uuid;
     const tmpDir = path.resolve(packsDir, `.tmp-${uuid}-${Date.now()}`);
     await fsp.mkdir(tmpDir, { recursive: true });
 

@@ -1,7 +1,14 @@
 import { EditorService } from '../../services/EditorService';
+import type { Zone } from '../../services/EditorTypes';
 import { useMapStore } from '../../state/mapStore';
 import type { UseWorldRoomArgs } from '../types';
-import type { WorldRoom } from '../../types/colyseus';
+import type {
+  ChunksUpdatedMessage,
+  EditorUpdateMessage,
+  ObjectsUpdatedMessage,
+  TilesetRegistryUpdatedMessage,
+  WorldRoom,
+} from '../../types/colyseus';
 
 export function setupEditorHandlers(
   room: WorldRoom,
@@ -11,30 +18,35 @@ export function setupEditorHandlers(
   const { gameBridge, zoneRef, setEditor } = args;
 
   /** Returns true if this update is for a different map (should be skipped). */
-  const isWrongMap = (payload: any): boolean => {
+  const isWrongMap = (payload: { mapId?: string } | null | undefined): boolean => {
     const payloadMapId = payload?.mapId;
     if (!payloadMapId) return false; // no mapId in payload → can't filter, allow through
     const currentMapId = useMapStore.getState().currentMapId;
     return currentMapId !== '' && payloadMapId !== currentMapId;
   };
 
-  room.onMessage('editor_update', (data: any) => {
+  room.onMessage('editor_update', (data: EditorUpdateMessage) => {
     if (isWrongMap(data)) return;
     if (data?.type === 'zone' && Array.isArray(data.polys)) {
+      // Server delivers zone polys as opaque unknown[]; cast to Zone[] for
+      // EditorService consumption (shape mirrored from EditorTypes.Zone).
+      const polys = data.polys as Zone[];
       // WICHTIG: EditorService als Single Source of Truth updaten!
-      EditorService.dispatch({ type: 'LOAD_STATE', state: { zones: data.polys } });
+      EditorService.dispatch({ type: 'LOAD_STATE', state: { zones: polys } });
       // useState wird durch EditorService-Subscription automatisch aktualisiert
-      if (gameBridge && typeof gameBridge.setZoneOverlay === 'function') gameBridge.setZoneOverlay(data.polys);
-      if (zoneRef.current && typeof zoneRef.current.setZones === 'function') zoneRef.current.setZones(data.polys);
+      if (gameBridge && typeof gameBridge.setZoneOverlay === 'function') gameBridge.setZoneOverlay(polys);
+      if (zoneRef.current && typeof zoneRef.current.setZones === 'function') zoneRef.current.setZones(polys);
       scheduleBuildParticipantList(0);
       return;
     }
     if (data?.type === 'spawn' && data.pos && typeof data.pos.x === 'number' && typeof data.pos.y === 'number') {
+      const pos = data.pos;
       try {
-        gameBridge?.setSpawnMarker?.({ x: data.pos.x, y: data.pos.y });
+        gameBridge?.setSpawnMarker?.({ x: pos.x, y: pos.y });
       } catch {}
       try {
-        setEditor((s: any) => ({ ...s, spawn: { x: data.pos.x, y: data.pos.y } }));
+        // TODO: type once editor state shape is stable
+        setEditor((s: any) => ({ ...s, spawn: { x: pos.x, y: pos.y } }));
       } catch {}
       return;
     }
@@ -51,7 +63,7 @@ export function setupEditorHandlers(
   });
 
   // v2: Chunks-Updates direkt anwenden
-  room.onMessage('chunks_updated', (payload: any) => {
+  room.onMessage('chunks_updated', (payload: ChunksUpdatedMessage) => {
     try {
       if (isWrongMap(payload)) return;
       const layer = payload && typeof payload.layer === 'string' ? payload.layer : null;
@@ -67,7 +79,7 @@ export function setupEditorHandlers(
   });
 
   // MapObject live updates
-  room.onMessage('objects_updated', (payload: any) => {
+  room.onMessage('objects_updated', (payload: ObjectsUpdatedMessage) => {
     try {
       if (isWrongMap(payload)) return;
       if (gameBridge && typeof gameBridge.handleObjectsUpdated === 'function') {
@@ -79,7 +91,7 @@ export function setupEditorHandlers(
   });
 
   // Tileset Registry Sync (v2)
-  room.onMessage('tileset_registry_updated', (payload: any) => {
+  room.onMessage('tileset_registry_updated', (payload: TilesetRegistryUpdatedMessage) => {
     try {
       if (isWrongMap(payload)) return;
       const registry = Array.isArray(payload?.tilesetRegistry) ? payload.tilesetRegistry : null;

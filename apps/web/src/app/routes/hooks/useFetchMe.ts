@@ -13,6 +13,28 @@ export const DEFAULT_CAPABILITIES: AdminCapabilities = {
   isMultiTenant: false,
 };
 
+// Shape of the `/auth/me` response we rely on. Server returns more fields
+// but we only consume these.
+export type MeResponse = {
+  id: string;
+  email: string;
+  name?: string;
+  onboardingCompleted?: boolean;
+  role?: string;
+  isInternalOwner?: boolean;
+  avatarId?: string;
+  capabilities?: {
+    hasBilling?: unknown;
+    hasAdminEnterprise?: unknown;
+    isMultiTenant?: unknown;
+  };
+  lastPosition?: {
+    x?: unknown;
+    y?: unknown;
+    mapName?: unknown;
+  };
+};
+
 interface UseFetchMeParams {
   apiBase: string;
   localPosRef: React.MutableRefObject<{ id: string; x?: number; y?: number }>;
@@ -34,13 +56,13 @@ interface UseFetchMeParams {
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
-async function fetchMeWithRetry(apiBase: string): Promise<any> {
+async function fetchMeWithRetry(apiBase: string): Promise<MeResponse | null> {
   const networkRetryBackoff = [0, 300, 1000];
   for (let i = 0; i < networkRetryBackoff.length; i++) {
     if (i > 0) await sleep(networkRetryBackoff[i]);
     try {
       const res = await fetch(`${apiBase}/auth/me`, { credentials: 'include' });
-      if (res.ok) return await res.json();
+      if (res.ok) return (await res.json()) as MeResponse;
       if (res.status === 401 || res.status === 403) return null;
     } catch (e) {
       logger.debug('[WorldApp] /auth/me network error, retrying', e);
@@ -49,7 +71,7 @@ async function fetchMeWithRetry(apiBase: string): Promise<any> {
   return null;
 }
 
-function applyCapabilities(user: any, setCapabilities: UseFetchMeParams['setCapabilities']) {
+function applyCapabilities(user: MeResponse, setCapabilities: UseFetchMeParams['setCapabilities']) {
   try {
     const caps = user.capabilities;
     if (caps && typeof caps === 'object') {
@@ -66,7 +88,11 @@ function applyCapabilities(user: any, setCapabilities: UseFetchMeParams['setCapa
   }
 }
 
-function applyPosition(user: any, pos: { x: number; y: number } | null, localPosRef: UseFetchMeParams['localPosRef']) {
+function applyPosition(
+  user: MeResponse,
+  pos: { x: number; y: number } | null,
+  localPosRef: UseFetchMeParams['localPosRef'],
+) {
   if (pos && Number.isFinite(pos.x) && Number.isFinite(pos.y)) {
     try {
       localPosRef.current = { id: user.id, x: pos.x, y: pos.y };
@@ -81,9 +107,14 @@ function applyPosition(user: any, pos: { x: number; y: number } | null, localPos
   }
 }
 
-async function resolvePosition(user: any, apiBase: string, localPosRef: UseFetchMeParams['localPosRef']): Promise<any> {
-  if (user.lastPosition && typeof user.lastPosition.x === 'number' && typeof user.lastPosition.y === 'number') {
-    applyPosition(user, { x: user.lastPosition.x, y: user.lastPosition.y }, localPosRef);
+async function resolvePosition(
+  user: MeResponse,
+  apiBase: string,
+  localPosRef: UseFetchMeParams['localPosRef'],
+): Promise<MeResponse> {
+  const lp = user.lastPosition;
+  if (lp && typeof lp.x === 'number' && typeof lp.y === 'number') {
+    applyPosition(user, { x: lp.x, y: lp.y }, localPosRef);
     return user;
   }
   const posBackoff = [150, 300, 600, 1200];
@@ -93,10 +124,11 @@ async function resolvePosition(user: any, apiBase: string, localPosRef: UseFetch
     try {
       const res = await fetch(`${apiBase}/auth/me`, { credentials: 'include' });
       if (res.ok) {
-        const next = await res.json();
+        const next = (await res.json()) as MeResponse;
         current = next;
-        if (next.lastPosition && typeof next.lastPosition.x === 'number' && typeof next.lastPosition.y === 'number') {
-          applyPosition(next, { x: next.lastPosition.x, y: next.lastPosition.y }, localPosRef);
+        const nlp = next.lastPosition;
+        if (nlp && typeof nlp.x === 'number' && typeof nlp.y === 'number') {
+          applyPosition(next, { x: nlp.x, y: nlp.y }, localPosRef);
           return current;
         }
       }
@@ -107,7 +139,7 @@ async function resolvePosition(user: any, apiBase: string, localPosRef: UseFetch
   return current;
 }
 
-async function restoreMapName(user: any) {
+async function restoreMapName(user: MeResponse) {
   try {
     const lastMap = user.lastPosition?.mapName;
     if (lastMap && typeof lastMap === 'string') {
@@ -136,7 +168,13 @@ async function runFetchMe(params: UseFetchMeParams) {
     }
     user = await resolvePosition(user, apiBase, localPosRef);
     await restoreMapName(user);
-    setMe(user);
+    setMe({
+      id: user.id,
+      email: user.email,
+      ...(user.name !== undefined && { name: user.name }),
+      ...(user.onboardingCompleted !== undefined && { onboardingCompleted: user.onboardingCompleted }),
+      ...(user.role !== undefined && { role: user.role }),
+    });
     setPositionReady(true);
   } catch {
     setMe(null);

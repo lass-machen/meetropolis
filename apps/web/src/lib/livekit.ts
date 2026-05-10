@@ -26,8 +26,8 @@ function normalizeLivekitUrl(input: string | undefined): string {
 
 function shouldForceRelay(): boolean {
   // 1) Build-time env flags take precedence when explicitly set
-  const env: any = (import.meta as any).env || {};
-  const envRaw = env?.VITE_AV_FORCE_RELAY ?? env?.VITE_LK_FORCE_RELAY;
+  const env = (import.meta as unknown as { env?: Record<string, string | undefined> }).env ?? {};
+  const envRaw = env.VITE_AV_FORCE_RELAY ?? env.VITE_LK_FORCE_RELAY;
   if (typeof envRaw === 'string') {
     const v = envRaw.trim().toLowerCase();
     if (v === 'true') return true;
@@ -47,17 +47,16 @@ function shouldForceRelay(): boolean {
     if (lsVal === 'true') return true;
   } catch {}
   // 4) Tauri/WKWebView: Do NOT force relay by default.
-  //    WKWebView masks host candidates as mDNS (.local) but STUN still generates
-  //    server-reflexive candidates with real IPs. Direct ICE via STUN works fine.
-  //    Force relay only breaks things when TURN port config is mismatched
-  //    (e.g. LiveKit advertises port 5349 but Traefik only routes on 443).
-  //    The fallback in joinLivekitRoom() retries with relay if direct ICE fails.
   // 5) Heuristic: cellular / constrained networks often require TURN/relay
   try {
-    const conn: any =
-      (navigator as any).connection || (navigator as any).mozConnection || (navigator as any).webkitConnection;
-    const type = (conn?.type || '').toString().toLowerCase();
-    const eff = (conn?.effectiveType || '').toString().toLowerCase();
+    const nav = navigator as Navigator & {
+      connection?: { type?: string; effectiveType?: string };
+      mozConnection?: { type?: string; effectiveType?: string };
+      webkitConnection?: { type?: string; effectiveType?: string };
+    };
+    const conn = nav.connection || nav.mozConnection || nav.webkitConnection;
+    const type = (conn?.type || '').toLowerCase();
+    const eff = (conn?.effectiveType || '').toLowerCase();
     if (type === 'cellular') return true;
     if (eff.includes('slow-2g') || eff.includes('2g')) return true;
   } catch {}
@@ -88,7 +87,7 @@ async function fetchLivekitToken(params: JoinLivekitRoomParams): Promise<string>
     }
     return (await res.text()).trim();
   } catch (err) {
-    if ((err as any)?.name === 'AbortError') {
+    if ((err as { name?: string })?.name === 'AbortError') {
       throw new Error('livekit_token_timeout');
     }
     throw err;
@@ -99,8 +98,8 @@ async function fetchLivekitToken(params: JoinLivekitRoomParams): Promise<string>
 
 function isDesktopEnvironment(): boolean {
   try {
-    const anyWin = window as any;
-    return !!(anyWin.__MEETROPOLIS_API_BASE__ || anyWin.desktop?.apiBase);
+    const w = window as Window & { __MEETROPOLIS_API_BASE__?: string; desktop?: { apiBase?: string } };
+    return !!(w.__MEETROPOLIS_API_BASE__ || w.desktop?.apiBase);
   } catch {
     return false;
   }
@@ -116,12 +115,12 @@ async function fetchLivekitUrlFromApi(baseUrl: string): Promise<string | undefin
       signal: controller.signal,
     });
     if (!urlRes.ok) return undefined;
-    const data = await urlRes.json();
+    const data = (await urlRes.json()) as { url?: unknown };
     if (data.url && typeof data.url === 'string') {
       return normalizeLivekitUrl(data.url);
     }
   } catch (err) {
-    if ((err as any)?.name === 'AbortError') {
+    if ((err as { name?: string })?.name === 'AbortError') {
       // Timeout – let resolveLivekitServerUrl fall back gracefully
       return undefined;
     }
@@ -132,7 +131,8 @@ async function fetchLivekitUrlFromApi(baseUrl: string): Promise<string | undefin
 }
 
 function readLivekitUrlFromEnv(): string | undefined {
-  const envUrl = (import.meta as any).env?.VITE_LIVEKIT_URL;
+  const env = (import.meta as unknown as { env?: { VITE_LIVEKIT_URL?: string } }).env;
+  const envUrl = env?.VITE_LIVEKIT_URL;
   if (typeof envUrl === 'string' && envUrl) {
     return normalizeLivekitUrl(envUrl);
   }
@@ -171,7 +171,28 @@ async function resolveLivekitServerUrl(params: JoinLivekitRoomParams): Promise<s
   return serverUrl;
 }
 
-function buildConnectOptions(forceRelay: boolean): any {
+interface LivekitConnectOptions {
+  autoSubscribe: boolean;
+  video: boolean;
+  audio: boolean;
+  disconnectOnPageLeave: boolean;
+  adaptiveStream: boolean;
+  dynacast: boolean;
+  publishDefaults: {
+    dtx: boolean;
+    simulcast: boolean;
+    videoEncoding: { maxBitrate: number; maxFramerate: number };
+    screenShareEncoding: { maxBitrate: number; maxFramerate: number };
+  };
+  audioCaptureDefaults: {
+    echoCancellation: boolean;
+    noiseSuppression: boolean;
+    autoGainControl: boolean;
+  };
+  rtcConfig?: RTCConfiguration;
+}
+
+function buildConnectOptions(forceRelay: boolean): LivekitConnectOptions {
   // rtcConfig: Only pass when forceRelay is needed.
   // The LiveKit server provides its own ICE/STUN/TURN config via signaling.
   // Passing a client-side rtcConfig overrides the server config and breaks
@@ -232,10 +253,10 @@ async function awaitConnectWithTimeout(room: Room, connectPromise: Promise<void>
 
 function logConnected(room: Room, forceRelay: boolean): void {
   try {
-    const anyRoom: any = room as any;
-    const roomID = anyRoom?.roomID || anyRoom?.sid || anyRoom?.name;
-    const localSid = anyRoom?.localParticipant?.sid;
-    const nRem = Array.from(anyRoom?.remoteParticipants?.values?.() || []).length;
+    const r = room as Room & { roomID?: string; sid?: string };
+    const roomID = r.roomID || r.sid || r.name;
+    const localSid = r.localParticipant?.sid;
+    const nRem = Array.from(r.remoteParticipants?.values?.() || []).length;
     logger.debug('[AV][debug] livekit.connected', { roomID, localSid, nRemote: nRem, forceRelay });
   } catch {}
 }
@@ -263,7 +284,7 @@ async function connectLivekitRoom(args: {
 
   // Absicherung: explizit Auto-Disconnect bei Page-Leave deaktivieren (falls vom SDK unterstützt)
   try {
-    (room as any).setDisconnectOnPageLeave?.(false);
+    (room as Room & { setDisconnectOnPageLeave?: (v: boolean) => void }).setDisconnectOnPageLeave?.(false);
   } catch {}
   return room;
 }
@@ -316,12 +337,9 @@ export async function joinLivekitRoom(params: JoinLivekitRoomParams): Promise<Ro
 }
 
 export async function startScreenshare(room: Room) {
-  const tracks = await createLocalScreenTracks({
-    video: {
-      frameRate: 30,
-      resolution: { width: 1920, height: 1080 },
-    } as any,
-    audio: true,
-  });
+  const videoOpts = { frameRate: 30, resolution: { width: 1920, height: 1080 } };
+  const tracks = await createLocalScreenTracks({ video: videoOpts, audio: true } as unknown as Parameters<
+    typeof createLocalScreenTracks
+  >[0]);
   for (const t of tracks) await room.localParticipant.publishTrack(t);
 }

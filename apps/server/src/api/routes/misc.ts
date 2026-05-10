@@ -1,9 +1,21 @@
 import type express from 'express';
-import { PrismaClient } from '../../generated/prisma/index.js';
+import { PrismaClient, Prisma } from '../../generated/prisma/index.js';
 import { z } from 'zod';
 import { logger } from '../../logger.js';
 import { requireAuth, getTenantFromReq, requireMembership } from '../utils/authHelpers.js';
 import { pathParam } from '../utils/requestHelpers.js';
+
+type MembershipRow = Prisma.MembershipGetPayload<Record<string, never>>;
+type UserListRow = Prisma.UserGetPayload<{
+  select: {
+    id: true;
+    email: true;
+    name: true;
+    createdAt: true;
+    updatedAt: true;
+    memberships: { select: { role: true; expiresAt: true } };
+  };
+}>;
 
 async function handleUpdateMe(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
   const auth = requireAuth(req);
@@ -149,13 +161,17 @@ async function handleExportMyData(prisma: PrismaClient, req: express.Request, re
   }
 }
 
-async function checkSoleOwnership(prisma: PrismaClient, userId: string, memberships: any[]): Promise<boolean> {
+async function checkSoleOwnership(
+  prisma: PrismaClient,
+  userId: string,
+  memberships: MembershipRow[],
+): Promise<boolean> {
   for (const membership of memberships) {
     if (membership.role === 'owner') {
       const otherOwners = await prisma.membership.count({
         where: {
           tenantId: membership.tenantId,
-          role: 'owner' as any,
+          role: 'owner',
           userId: { not: userId },
         },
       });
@@ -254,7 +270,7 @@ async function handleDeleteInvite(prisma: PrismaClient, req: express.Request, re
   const code = pathParam(req, 'code');
   try {
     const inv = await prisma.invite.findUnique({ where: { code } });
-    if (!inv || (inv as any).tenantId !== tenant.id) {
+    if (!inv || inv.tenantId !== tenant.id) {
       res.status(404).json({ error: 'not found' });
       return;
     }
@@ -281,7 +297,7 @@ async function handleListUsers(prisma: PrismaClient, req: express.Request, res: 
     return;
   }
   const users = await prisma.user.findMany({
-    where: { memberships: { some: { tenantId: tenant.id } } } as any,
+    where: { memberships: { some: { tenantId: tenant.id } } },
     select: {
       id: true,
       email: true,
@@ -294,14 +310,14 @@ async function handleListUsers(prisma: PrismaClient, req: express.Request, res: 
       },
     },
   });
-  const result = users.map((u: any) => ({
+  const result = users.map((u: UserListRow) => ({
     id: u.id,
     email: u.email,
     name: u.name,
     createdAt: u.createdAt,
     updatedAt: u.updatedAt,
-    role: u.memberships?.[0]?.role || 'member',
-    expiresAt: u.memberships?.[0]?.expiresAt?.toISOString() || null,
+    role: u.memberships[0]?.role || 'member',
+    expiresAt: u.memberships[0]?.expiresAt?.toISOString() || null,
   }));
   res.json(result);
 }
@@ -398,19 +414,19 @@ async function handleChangeRole(prisma: PrismaClient, req: express.Request, res:
       return;
     }
 
-    if ((membership as any).role === 'guest') {
+    if (membership.role === 'guest') {
       res.status(400).json({ error: 'cannot_change_guest_role' });
       return;
     }
 
-    if ((membership as any).role === 'owner' && callerMembership.role !== 'owner') {
+    if (membership.role === 'owner' && callerMembership.role !== 'owner') {
       res.status(403).json({ error: 'forbidden - only owners can change owner roles' });
       return;
     }
 
     await prisma.membership.update({
       where: { id: membership.id },
-      data: { role: parse.data.role as any },
+      data: { role: parse.data.role },
     });
 
     logger.info('[Users] Role changed', { userId: id, newRole: parse.data.role, changedBy: auth.userId });
@@ -470,7 +486,7 @@ async function handleDeleteUser(prisma: PrismaClient, req: express.Request, res:
     return;
   }
 
-  if ((targetMembership as any).role === 'owner' && callerMembership.role !== 'owner') {
+  if (targetMembership.role === 'owner' && callerMembership.role !== 'owner') {
     res.status(403).json({ error: 'cannot delete owner' });
     return;
   }

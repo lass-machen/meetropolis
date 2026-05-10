@@ -2,7 +2,7 @@
  * ConnectionManager - Handles room connection lifecycle
  */
 
-import type { Room } from 'livekit-client';
+import type { Room, RemoteParticipant, RemoteTrack } from 'livekit-client';
 import type { AVManagerConfig, Disposable } from '../core/types';
 import type {
   AVStateMachineInterface,
@@ -16,6 +16,7 @@ import { joinLivekitRoom } from '../../lib/livekit';
 import { waitForRoomConnected } from '../core/SignalMonitor';
 import { useAvSettingsStore } from '../../state/avSettings';
 import { emitAudioTracksChanged } from '../../lib/avEvents';
+import { readPubKind, readPubSource, type TrackLike, type TrackPublicationLike } from '../../types/livekit';
 
 export interface ConnectionManagerDeps {
   stateMachine: AVStateMachineInterface;
@@ -88,7 +89,9 @@ export class ConnectionManager implements Disposable {
       // Apply audio settings
       try {
         const settings = useAvSettingsStore.getState().settings;
-        (room as any).setTrackPublishDefaults?.({ dtx: !!settings.useDtx, red: !!settings.useFec });
+        (
+          room as Room & { setTrackPublishDefaults?: (opts: { dtx: boolean; red: boolean }) => void }
+        ).setTrackPublishDefaults?.({ dtx: !!settings.useDtx, red: !!settings.useFec });
       } catch {}
 
       // Update state
@@ -166,20 +169,30 @@ export class ConnectionManager implements Disposable {
     if (typeof window === 'undefined') return;
     if (this.audioUnlockHandlersAttached) return;
 
-    const roomAny = this.deps.stateMachine.room as any;
-    if (!roomAny || typeof roomAny.startAudio !== 'function') return;
+    interface AudioUnlockRoom {
+      startAudio?: () => Promise<void>;
+      canPlaybackAudio?: boolean;
+    }
+    const roomCheck: AudioUnlockRoom | null = this.deps.stateMachine.room;
+    if (!roomCheck || typeof roomCheck.startAudio !== 'function') return;
 
     this.audioUnlockHandlersAttached = true;
 
     const tryUnlock = () => {
-      const room = this.deps.stateMachine.room as any;
+      const room: AudioUnlockRoom | null = this.deps.stateMachine.room;
       if (!room || typeof room.startAudio !== 'function') return;
-      if (room.canPlaybackAudio) return cleanup();
+      if (room.canPlaybackAudio) {
+        cleanup();
+        return;
+      }
 
       try {
-        const p = room.startAudio();
-        if (room.canPlaybackAudio) return cleanup();
-        if (p && typeof p.then === 'function') {
+        const p: Promise<void> | undefined = room.startAudio();
+        if (room.canPlaybackAudio) {
+          cleanup();
+          return;
+        }
+        if (p !== undefined && typeof (p as { then?: unknown }).then === 'function') {
           p.then(() => {
             if (room.canPlaybackAudio) cleanup();
           }).catch(() => {});
@@ -195,19 +208,19 @@ export class ConnectionManager implements Disposable {
       if (!this.audioUnlockHandlersAttached) return;
       this.audioUnlockHandlersAttached = false;
       try {
-        window.removeEventListener('pointerdown', onGesture as any);
+        window.removeEventListener('pointerdown', onGesture);
       } catch {}
       try {
-        window.removeEventListener('click', onGesture as any);
+        window.removeEventListener('click', onGesture);
       } catch {}
       this.audioUnlockCleanup = null;
     };
 
     try {
-      window.addEventListener('pointerdown', onGesture as any);
+      window.addEventListener('pointerdown', onGesture);
     } catch {}
     try {
-      window.addEventListener('click', onGesture as any);
+      window.addEventListener('click', onGesture);
     } catch {}
 
     this.audioUnlockCleanup = cleanup;
@@ -235,13 +248,18 @@ export class ConnectionManager implements Disposable {
     if (!r) return;
     this._roomEventCleanup?.();
 
-    const handlers: Array<[string, (...args: any[]) => void]> = [];
+    type RoomEventHandler = (...args: unknown[]) => void;
+    const handlers: Array<[string, RoomEventHandler]> = [];
     const registered = new Set<string>();
+    const roomLike = r as Room & {
+      on?: (event: string, handler: RoomEventHandler) => void;
+      off?: (event: string, handler: RoomEventHandler) => void;
+    };
 
-    const register = (event: string, handler: (...args: any[]) => void) => {
+    const register = (event: string, handler: RoomEventHandler) => {
       if (registered.has(event)) return;
       registered.add(event);
-      (r as any).on?.(event, handler);
+      roomLike.on?.(event, handler);
       handlers.push([event, handler]);
     };
 
@@ -271,7 +289,7 @@ export class ConnectionManager implements Disposable {
       }
     });
 
-    register('trackPublished', (_pub: any, _participant: any) => {
+    register('trackPublished', () => {
       if (!this.deps.dnd.enabled) {
         this.deps.subscriptionManager.ensureAudioSubscriptions(64);
       }
@@ -279,8 +297,11 @@ export class ConnectionManager implements Disposable {
       emitAudioTracksChanged();
     });
 
-    register('trackSubscribed', (track: any, pub: any, participant: any) => {
-      const kind = pub?.kind ?? track?.kind;
+    register('trackSubscribed', (...args) => {
+      const track = args[0] as TrackLike | undefined;
+      const pub = args[1] as TrackPublicationLike | undefined;
+      const participant = args[2] as RemoteParticipant | undefined;
+      const kind = readPubKind(pub) ?? track?.kind;
       AVLogger.debug('room.track_subscribed', { kind, participant: participant?.identity });
       if (kind === 'audio') {
         try {
@@ -309,7 +330,8 @@ export class ConnectionManager implements Disposable {
       this.deps.subscriptionManager.forceApply();
     });
 
-    register('activeSpeakersChanged', (speakers: any[]) => {
+    register('activeSpeakersChanged', (...args) => {
+      const speakers = (args[0] as RemoteParticipant[]) ?? [];
       this.deps.subscriptionManager.setActiveSpeakers(speakers);
     });
 
@@ -343,9 +365,11 @@ export class ConnectionManager implements Disposable {
           }
         });
 
-        register(RoomEvent.TrackPublished, (pub: any, participant: any) => {
-          const kind = pub?.kind ?? pub?.track?.kind;
-          const source = pub?.source ?? pub?.track?.source;
+        register(RoomEvent.TrackPublished, (...args) => {
+          const pub = args[0] as TrackPublicationLike | undefined;
+          const participant = args[1] as RemoteParticipant | undefined;
+          const kind = readPubKind(pub);
+          const source = readPubSource(pub);
 
           AVLogger.debug('room.track_published', {
             kind,
@@ -363,8 +387,11 @@ export class ConnectionManager implements Disposable {
           emitAudioTracksChanged();
         });
 
-        register(RoomEvent.TrackSubscribed, (track: any, pub: any, participant: any) => {
-          const kind = pub?.kind ?? track?.kind;
+        register(RoomEvent.TrackSubscribed, (...args) => {
+          const track = args[0] as (RemoteTrack & TrackLike) | undefined;
+          const pub = args[1] as TrackPublicationLike | undefined;
+          const participant = args[2] as RemoteParticipant | undefined;
+          const kind = readPubKind(pub) ?? track?.kind;
 
           AVLogger.debug('room.track_subscribed', {
             kind,
@@ -391,19 +418,22 @@ export class ConnectionManager implements Disposable {
           emitAudioTracksChanged();
         });
 
-        register(RoomEvent.TrackMuted, (_pub: any, participant: any) => {
+        register(RoomEvent.TrackMuted, (...args) => {
+          const participant = args[1] as RemoteParticipant | undefined;
           AVLogger.debug('room.track_muted', { participant: participant?.identity });
           this.deps.subscriptionManager.forceApply();
           emitAudioTracksChanged();
         });
 
-        register(RoomEvent.TrackUnmuted, (_pub: any, participant: any) => {
+        register(RoomEvent.TrackUnmuted, (...args) => {
+          const participant = args[1] as RemoteParticipant | undefined;
           AVLogger.debug('room.track_unmuted', { participant: participant?.identity });
           this.deps.subscriptionManager.forceApply();
           emitAudioTracksChanged();
         });
 
-        register(RoomEvent.ParticipantConnected, (participant: any) => {
+        register(RoomEvent.ParticipantConnected, (...args) => {
+          const participant = args[0] as RemoteParticipant | undefined;
           AVLogger.debug('room.participant_connected', {
             identity: participant?.identity,
           });
@@ -411,20 +441,24 @@ export class ConnectionManager implements Disposable {
           this.deps.subscriptionManager.forceApply();
         });
 
-        register(RoomEvent.ParticipantDisconnected, (participant: any) => {
+        register(RoomEvent.ParticipantDisconnected, (...args) => {
+          const participant = args[0] as RemoteParticipant | undefined;
           AVLogger.debug('room.participant_disconnected', {
             identity: participant?.identity,
           });
           this.deps.subscriptionManager.forceApply();
         });
 
-        register(RoomEvent.ActiveSpeakersChanged, (speakers: any[]) => {
+        register(RoomEvent.ActiveSpeakersChanged, (...args) => {
+          const speakers = (args[0] as RemoteParticipant[]) ?? [];
           this.deps.subscriptionManager.setActiveSpeakers(speakers);
         });
 
-        register(RoomEvent.ConnectionQualityChanged, (participant: any, quality: any) => {
+        register(RoomEvent.ConnectionQualityChanged, (...args) => {
+          const participant = args[0] as { identity?: string } | undefined;
+          const quality = args[1];
           if (participant?.identity === this.config.identity) {
-            AVLogger.debug('room.quality_changed', { quality });
+            AVLogger.debug('room.quality_changed', { quality: String(quality) });
           }
         });
       } catch {
@@ -436,7 +470,7 @@ export class ConnectionManager implements Disposable {
     this._roomEventCleanup = () => {
       for (const [event, handler] of handlers) {
         try {
-          (r as any).off?.(event, handler);
+          roomLike.off?.(event, handler);
         } catch {}
       }
     };

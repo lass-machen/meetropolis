@@ -6,7 +6,9 @@
  */
 
 import React from 'react';
+import type { Room, RemoteParticipant, LocalParticipant } from 'livekit-client';
 import type { AVManager } from '../avManager';
+import { listPublications, readPubSource } from '../../types/livekit';
 
 interface UseScreenshareEventsArgs {
   avRef: React.MutableRefObject<AVManager | null>;
@@ -27,13 +29,10 @@ type ScreenshareCheckCtx = {
   onLocalScreenshareStop: (() => void) | undefined;
 };
 
-function checkLocalScreenshare(localParticipant: any, ctx: ScreenshareCheckCtx): void {
+function checkLocalScreenshare(localParticipant: LocalParticipant | null | undefined, ctx: ScreenshareCheckCtx): void {
   if (!localParticipant) return;
-  const localPubs = Array.from(localParticipant.trackPublications?.values?.() || []);
-  const hasLocalScreen = localPubs.some((pub: any) => {
-    const source = pub?.source || pub?.track?.source;
-    return source === 'screen_share';
-  });
+  const localPubs = listPublications(localParticipant);
+  const hasLocalScreen = localPubs.some((pub) => readPubSource(pub) === 'screen_share');
 
   if (hasLocalScreen && !ctx.localScreenshareRef.current) {
     ctx.localScreenshareRef.current = true;
@@ -44,16 +43,13 @@ function checkLocalScreenshare(localParticipant: any, ctx: ScreenshareCheckCtx):
   }
 }
 
-function checkRemoteScreenshares(room: any, ctx: ScreenshareCheckCtx): void {
+function checkRemoteScreenshares(room: Room, ctx: ScreenshareCheckCtx): void {
   const currentScreenshares = new Set<string>();
-  const remotes = Array.from(room.remoteParticipants?.values?.() || []);
+  const remotes: RemoteParticipant[] = Array.from(room.remoteParticipants?.values?.() || []);
   for (const remote of remotes) {
-    const p = remote as any;
-    const pubs = Array.from(p.trackPublications?.values?.() || []);
-    const hasScreen = pubs.some((pub: any) => {
-      const source = pub?.source || pub?.track?.source;
-      return source === 'screen_share';
-    });
+    const p = remote;
+    const pubs = listPublications(p);
+    const hasScreen = pubs.some((pub) => readPubSource(pub) === 'screen_share');
 
     if (hasScreen) {
       currentScreenshares.add(p.sid);
@@ -75,14 +71,19 @@ function checkRemoteScreenshares(room: any, ctx: ScreenshareCheckCtx): void {
 
 function buildCheckForNewScreenshares(ctx: ScreenshareCheckCtx) {
   return () => {
-    const room = ctx.avRef.current?.room as any;
+    const room = ctx.avRef.current?.room;
     if (!room) return;
     checkLocalScreenshare(room.localParticipant, ctx);
     checkRemoteScreenshares(room, ctx);
   };
 }
 
-async function attachLivekitListeners(room: any, checkForNewScreenshares: () => void): Promise<() => void> {
+interface RoomWithEvents {
+  on: (event: string, handler: (...args: unknown[]) => void) => void;
+  off: (event: string, handler: (...args: unknown[]) => void) => void;
+}
+
+async function attachLivekitListeners(room: Room, checkForNewScreenshares: () => void): Promise<() => void> {
   try {
     const { RoomEvent } = await import('livekit-client');
     const onTrackPublished = () => {
@@ -95,19 +96,20 @@ async function attachLivekitListeners(room: any, checkForNewScreenshares: () => 
       setTimeout(checkForNewScreenshares, 100);
     };
 
-    room.on(RoomEvent.TrackPublished, onTrackPublished);
-    room.on(RoomEvent.TrackUnpublished, onTrackUnpublished);
-    room.on(RoomEvent.TrackSubscribed, onTrackSubscribed);
-    room.on(RoomEvent.LocalTrackPublished, onTrackPublished);
-    room.on(RoomEvent.LocalTrackUnpublished, onTrackUnpublished);
+    const r = room as unknown as RoomWithEvents;
+    r.on(RoomEvent.TrackPublished, onTrackPublished);
+    r.on(RoomEvent.TrackUnpublished, onTrackUnpublished);
+    r.on(RoomEvent.TrackSubscribed, onTrackSubscribed);
+    r.on(RoomEvent.LocalTrackPublished, onTrackPublished);
+    r.on(RoomEvent.LocalTrackUnpublished, onTrackUnpublished);
 
     return () => {
       try {
-        room.off(RoomEvent.TrackPublished, onTrackPublished);
-        room.off(RoomEvent.TrackUnpublished, onTrackUnpublished);
-        room.off(RoomEvent.TrackSubscribed, onTrackSubscribed);
-        room.off(RoomEvent.LocalTrackPublished, onTrackPublished);
-        room.off(RoomEvent.LocalTrackUnpublished, onTrackUnpublished);
+        r.off(RoomEvent.TrackPublished, onTrackPublished);
+        r.off(RoomEvent.TrackUnpublished, onTrackUnpublished);
+        r.off(RoomEvent.TrackSubscribed, onTrackSubscribed);
+        r.off(RoomEvent.LocalTrackPublished, onTrackPublished);
+        r.off(RoomEvent.LocalTrackUnpublished, onTrackUnpublished);
       } catch {}
     };
   } catch {
@@ -118,7 +120,7 @@ async function attachLivekitListeners(room: any, checkForNewScreenshares: () => 
 }
 
 function setupScreenshareEffect(ctx: ScreenshareCheckCtx): (() => void) | undefined {
-  const room = ctx.avRef.current?.room as any;
+  const room = ctx.avRef.current?.room;
   if (!room) return undefined;
 
   let cleanup: (() => void) | null = null;
@@ -176,17 +178,14 @@ export function useScreenshareEvents({
 
   // Return helper to manually trigger a check (useful after connection)
   const forceCheck = React.useCallback(() => {
-    const room = avRef.current?.room as any;
+    const room = avRef.current?.room;
     if (!room) return;
 
-    const remotes = Array.from(room.remoteParticipants?.values?.() || []);
+    const remotes: RemoteParticipant[] = Array.from(room.remoteParticipants?.values?.() || []);
     for (const remote of remotes) {
-      const p = remote as any;
-      const pubs = Array.from(p.trackPublications?.values?.() || []);
-      const hasScreen = pubs.some((pub: any) => {
-        const source = pub?.source || pub?.track?.source;
-        return source === 'screen_share';
-      });
+      const p = remote;
+      const pubs = listPublications(p);
+      const hasScreen = pubs.some((pub) => readPubSource(pub) === 'screen_share');
 
       if (hasScreen && !knownScreensharesRef.current.has(p.sid)) {
         knownScreensharesRef.current.add(p.sid);

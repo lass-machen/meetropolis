@@ -5,6 +5,14 @@ import { gameBridge } from '../../../game/bridge';
 import { useMapStore } from '../../../state/mapStore';
 import { loadFromPacks } from '../../../lib/directionalImageRegistry';
 import { EditorService } from '../../../services/EditorService';
+import type {
+  AssetPackJson,
+  AutotileEditorItem,
+  EditorStatePayload,
+  MapObjectPayload,
+  PackItem,
+  PackTileset,
+} from '../../../types/assetPack';
 
 /**
  * Resolves relative pack URLs (e.g. "/packs/{uuid}/file.png") to absolute URLs
@@ -26,24 +34,29 @@ function resolvePackUrl(url: string, apiBase: string): string {
   return url;
 }
 
+// Setter is loosely typed because the editor store is typed as `any` at the
+// caller (see useWorldHooksComposite.ts). We preserve that contract here.
+type EditorSetter = (updater: unknown) => void;
+
 interface UseEditorLoaderParams {
   me: { id: string; email: string; name?: string } | null;
   apiBase: string;
-  setEditor: (editor: any) => void;
+  setEditor: EditorSetter;
 }
 
-async function buildPackItemsFromTerrain(p: any, apiBase: string, packItems: any[]) {
+async function buildPackItemsFromTerrain(p: AssetPackJson, apiBase: string, packItems: PackItem[]) {
   const uuid = p.uuid;
   for (const t of p.terrain || []) {
     const resolvedTerrainUrl = resolvePackUrl(t.dataURL, apiBase);
     if (t.dataURL) {
       try {
-        const tiles = await splitTilesetImage(resolvedTerrainUrl, {
+        const splitOpts: { tileWidth: number; tileHeight: number; margin?: number; spacing?: number } = {
           tileWidth: t.tileWidth,
           tileHeight: t.tileHeight,
-          margin: t.margin,
-          spacing: t.spacing,
-        });
+        };
+        if (t.margin !== undefined) splitOpts.margin = t.margin;
+        if (t.spacing !== undefined) splitOpts.spacing = t.spacing;
+        const tiles = await splitTilesetImage(resolvedTerrainUrl, splitOpts);
         for (const tile of tiles) {
           packItems.push({
             packUuid: uuid,
@@ -84,9 +97,12 @@ async function buildPackItemsFromTerrain(p: any, apiBase: string, packItems: any
   }
 }
 
-async function processPacks(packs: any[], apiBase: string): Promise<{ packTilesets: any[]; packItems: any[] }> {
-  const packTilesets: any[] = [];
-  const packItems: any[] = [];
+async function processPacks(
+  packs: AssetPackJson[],
+  apiBase: string,
+): Promise<{ packTilesets: PackTileset[]; packItems: PackItem[] }> {
+  const packTilesets: PackTileset[] = [];
+  const packItems: PackItem[] = [];
   for (const p of packs || []) {
     const uuid = p.uuid;
     for (const t of p.terrain || []) {
@@ -133,14 +149,12 @@ async function processPacks(packs: any[], apiBase: string): Promise<{ packTilese
   return { packTilesets, packItems };
 }
 
-function buildAutotileItems(packs: any[], apiBase: string) {
-  const autotileItems: Array<any> = [];
+function buildAutotileItems(packs: AssetPackJson[], apiBase: string): AutotileEditorItem[] {
+  const autotileItems: AutotileEditorItem[] = [];
   let nextWallTypeId = 1;
-  const sortedPacksForAutotiles = [...(packs || [])].sort((a: any, b: any) =>
-    (a.uuid || '').localeCompare(b.uuid || ''),
-  );
+  const sortedPacksForAutotiles = [...(packs || [])].sort((a, b) => (a.uuid || '').localeCompare(b.uuid || ''));
   for (const p of sortedPacksForAutotiles) {
-    const sortedAutotiles = [...(p.autotiles || [])].sort((a: any, b: any) => (a.id || '').localeCompare(b.id || ''));
+    const sortedAutotiles = [...(p.autotiles || [])].sort((a, b) => (a.id || '').localeCompare(b.id || ''));
     for (const at of sortedAutotiles) {
       autotileItems.push({
         wallTypeId: nextWallTypeId++,
@@ -159,17 +173,24 @@ function buildAutotileItems(packs: any[], apiBase: string) {
   return autotileItems;
 }
 
-function applyPackTilesetsToEditor(setEditor: any, packTilesets: any[]) {
-  setEditor((s: any) => {
-    const existing = s.tilesets || [];
-    const merged = [...existing];
+interface EditorStateWithTilesets {
+  tilesets?: PackTileset[];
+  packItems?: PackItem[];
+  [k: string]: unknown;
+}
+
+function applyPackTilesetsToEditor(setEditor: EditorSetter, packTilesets: PackTileset[]) {
+  setEditor((s: unknown) => {
+    const state = (s as EditorStateWithTilesets) || {};
+    const existing = state.tilesets || [];
+    const merged: PackTileset[] = [...existing];
     for (const ts of packTilesets) {
-      const idx = merged.findIndex((m: any) => m.key === ts.key);
+      const idx = merged.findIndex((m) => m.key === ts.key);
       if (idx >= 0) merged[idx] = ts;
       else merged.push(ts);
     }
     window.pendingTilesets = merged;
-    return { ...s, tilesets: merged };
+    return { ...state, tilesets: merged };
   });
   try {
     for (const ts of packTilesets) {
@@ -187,39 +208,41 @@ function applyPackTilesetsToEditor(setEditor: any, packTilesets: any[]) {
   }
 }
 
-function applyLocalPackItems(setEditor: any) {
+function applyLocalPackItems(setEditor: EditorSetter) {
   try {
     const raw = localStorage.getItem('meetropolis.packItems');
     if (!raw) return;
-    const local = JSON.parse(raw);
+    const local: unknown = JSON.parse(raw);
     if (!Array.isArray(local)) return;
-    setEditor((s: any) => {
-      const current = s.packItems || [];
-      const seen = new Set(current.map((p: any) => p.key));
-      const next = [...current];
-      for (const li of local) {
-        if (!seen.has(li.key)) {
+    const localItems = local as PackItem[];
+    setEditor((s: unknown) => {
+      const state = (s as EditorStateWithTilesets) || {};
+      const current: PackItem[] = state.packItems || [];
+      const seen = new Set(current.map((p) => p.key));
+      const next: PackItem[] = [...current];
+      for (const li of localItems) {
+        if (li && !seen.has(li.key)) {
           next.push(li);
           seen.add(li.key);
         }
       }
-      return { ...s, packItems: next };
+      return { ...state, packItems: next };
     });
   } catch (e) {
     logger.debug('[WorldApp] Operation failed', e);
   }
 }
 
-async function loadAssetPacks(apiBase: string, setEditor: any) {
+async function loadAssetPacks(apiBase: string, setEditor: EditorSetter) {
   try {
     const res = await fetch(`${apiBase}/asset-packs`, { credentials: 'include' });
     if (res.ok) {
-      const packs = await res.json();
-      loadFromPacks(packs || [], (url: string) => resolvePackUrl(url, apiBase));
-      const { packTilesets, packItems } = await processPacks(packs || [], apiBase);
+      const packs = ((await res.json()) as AssetPackJson[]) || [];
+      loadFromPacks(packs, (url: string) => resolvePackUrl(url, apiBase));
+      const { packTilesets, packItems } = await processPacks(packs, apiBase);
       if (packTilesets.length > 0) applyPackTilesetsToEditor(setEditor, packTilesets);
-      setEditor((s: any) => ({ ...s, packItems }));
-      const autotileItems = buildAutotileItems(packs || [], apiBase);
+      setEditor((s: unknown) => ({ ...((s as EditorStateWithTilesets) || {}), packItems }));
+      const autotileItems = buildAutotileItems(packs, apiBase);
       if (autotileItems.length > 0) {
         EditorService.dispatch({ type: 'SET_AUTOTILE_ITEMS', items: autotileItems });
         try {
@@ -235,8 +258,14 @@ async function loadAssetPacks(apiBase: string, setEditor: any) {
   }
 }
 
-function loadDefaultTilesets(setEditor: any) {
-  const defaultTs = [
+function loadDefaultTilesets(setEditor: EditorSetter) {
+  const defaultTs: Array<{
+    key: string;
+    dataUrl: string;
+    tileWidth: number;
+    tileHeight: number;
+    category: 'terrain' | 'objects';
+  }> = [
     {
       key: 'office_tiles',
       dataUrl: '/assets/tilesets/office_tiles.png',
@@ -260,7 +289,7 @@ function loadDefaultTilesets(setEditor: any) {
     },
   ];
   window.pendingTilesets = defaultTs;
-  setEditor((s: any) => ({ ...s, tilesets: defaultTs }));
+  setEditor((s: unknown) => ({ ...((s as EditorStateWithTilesets) || {}), tilesets: defaultTs }));
   // registerTileset ist sync (returns void), kein await nötig — aber wir wrappen
   // in try/catch, weil die interne Pipeline Promise-spawning Side-Effects hat.
   try {
@@ -279,72 +308,80 @@ function loadDefaultTilesets(setEditor: any) {
   }
 }
 
-function applyEditorState(data: any, setEditor: any) {
-  if (data?.zones)
+type EditorStateZone = NonNullable<EditorStatePayload['zones']>[number];
+
+function extractZonePoints(poly: EditorStateZone): Array<{ x: number; y: number }> {
+  if (Array.isArray(poly.points)) return poly.points;
+  if (Array.isArray(poly.polygon)) return poly.polygon;
+  if (poly.polygon && typeof poly.polygon === 'object' && 'points' in poly.polygon) {
+    const inner = poly.polygon.points;
+    if (Array.isArray(inner)) return inner;
+  }
+  return [];
+}
+
+function applyEditorState(data: EditorStatePayload | null | undefined, setEditor: EditorSetter) {
+  if (!data) return;
+  if (data.zones)
     try {
       const zones = Array.isArray(data.zones)
-        ? data.zones.map((z: any) => {
-            const anyZ = z || {};
-            const pts = Array.isArray(anyZ.points)
-              ? anyZ.points
-              : Array.isArray(anyZ.polygon)
-                ? anyZ.polygon
-                : anyZ.polygon && Array.isArray(anyZ.polygon.points)
-                  ? anyZ.polygon.points
-                  : [];
+        ? data.zones.map((z) => {
+            const pts = extractZonePoints(z);
             return {
-              name: anyZ.name,
+              name: z.name,
               points: pts,
-              type: anyZ.type,
-              portalTarget: anyZ.portalTarget,
-              portalSpawnX: anyZ.portalSpawnX,
-              portalSpawnY: anyZ.portalSpawnY,
+              type: z.type,
+              portalTarget: z.portalTarget,
+              portalSpawnX: z.portalSpawnX,
+              portalSpawnY: z.portalSpawnY,
             };
           })
         : [];
-      setEditor((s: any) => ({ ...s, zones }));
+      setEditor((s: unknown) => ({ ...((s as EditorStateWithTilesets) || {}), zones }));
       try {
-        gameBridge.setZoneOverlay(zones);
+        gameBridge.setZoneOverlay(zones.map((z) => ({ name: z.name ?? '', points: z.points })));
       } catch (e) {
         logger.debug('[WorldApp] Operation failed', e);
       }
     } catch (e) {
       logger.debug('[WorldApp] Operation failed', e);
     }
-  if (typeof data?.backgroundColor === 'string') {
-    setEditor((s: any) => ({ ...s, backgroundColor: data.backgroundColor }));
+  if (typeof data.backgroundColor === 'string') {
+    const backgroundColor = data.backgroundColor;
+    setEditor((s: unknown) => ({ ...((s as EditorStateWithTilesets) || {}), backgroundColor }));
     try {
-      gameBridge.setBackgroundColor(data.backgroundColor);
+      gameBridge.setBackgroundColor(backgroundColor);
     } catch (e) {
       logger.debug('[WorldApp] Operation failed', e);
     }
   }
-  if (Array.isArray(data?.editorGround) || Array.isArray(data?.editorWalls) || Array.isArray(data?.collision)) {
+  if (Array.isArray(data.editorGround) || Array.isArray(data.editorWalls) || Array.isArray(data.collision)) {
     try {
       gameBridge.reloadEditorLayers();
     } catch (e) {
       logger.debug('[WorldApp] Operation failed', e);
     }
   }
-  if (data?.spawn && typeof data.spawn.x === 'number') {
-    setEditor((s: any) => ({ ...s, spawn: { x: data.spawn.x, y: data.spawn.y } }));
+  if (data.spawn && typeof data.spawn.x === 'number') {
+    const spawn = { x: data.spawn.x, y: data.spawn.y };
+    setEditor((s: unknown) => ({ ...((s as EditorStateWithTilesets) || {}), spawn }));
     try {
-      gameBridge.setSpawnMarker({ x: data.spawn.x, y: data.spawn.y });
+      gameBridge.setSpawnMarker(spawn);
     } catch (e) {
       logger.debug('[WorldApp] Operation failed', e);
     }
   }
 }
 
-async function loadMapObjects(apiBase: string, mapId: string, setEditor: any) {
+async function loadMapObjects(apiBase: string, mapId: string, setEditor: EditorSetter) {
   try {
     const objRes = await fetch(`${apiBase}/maps/${encodeURIComponent(mapId)}/objects`, { credentials: 'include' });
     if (!objRes.ok) return;
-    const objects = await objRes.json();
+    const objects = (await objRes.json()) as MapObjectPayload[];
     if (!Array.isArray(objects)) return;
     EditorService.dispatch({ type: 'LOAD_MAP_OBJECTS', objects });
     const TILE_SIZE = 16;
-    const derivedAssets = objects.map((obj: any) => ({
+    const derivedAssets = objects.map((obj) => ({
       id: String(obj.id),
       key: `${obj.assetPackUuid}:${obj.itemId}`,
       dataUrl: resolvePackUrl(obj.dataUrl || '', apiBase),
@@ -359,19 +396,19 @@ async function loadMapObjects(apiBase: string, mapId: string, setEditor: any) {
       rotation: obj.rotation ?? 0,
       scaleFactor: obj.scaleFactor ?? 1,
     }));
-    setEditor((s: any) => ({ ...s, assets: derivedAssets }));
+    setEditor((s: unknown) => ({ ...((s as EditorStateWithTilesets) || {}), assets: derivedAssets }));
   } catch (e) {
     logger.debug('[WorldApp] Failed to load map objects', e);
   }
 }
 
-async function loadMapEditorData(apiBase: string, setEditor: any) {
+async function loadMapEditorData(apiBase: string, setEditor: EditorSetter) {
   try {
     const mapId = useMapStore.getState().currentMapId;
     if (!mapId) return;
     const res = await fetch(`${apiBase}/maps/${encodeURIComponent(mapId)}/editor-state`, { credentials: 'include' });
     if (res.ok) {
-      const data = await res.json();
+      const data = (await res.json()) as EditorStatePayload;
       applyEditorState(data, setEditor);
     }
     await loadMapObjects(apiBase, mapId, setEditor);
@@ -390,18 +427,18 @@ export function useEditorLoader({ me, apiBase, setEditor }: UseEditorLoaderParam
     if (hasLoadedRef.current) return;
     hasLoadedRef.current = true;
 
-    void loadAssetPacks(apiBase, (updater: any) => setEditorRef.current(updater));
+    void loadAssetPacks(apiBase, (updater: unknown) => setEditorRef.current(updater));
     try {
       gameBridge.fetchAndApplyServerLayers();
     } catch {
       /* */
     }
-    loadDefaultTilesets((updater: any) => setEditorRef.current(updater));
+    loadDefaultTilesets((updater: unknown) => setEditorRef.current(updater));
     try {
       gameBridge.reloadEditorLayers();
     } catch (e) {
       logger.debug('[WorldApp] Operation failed', e);
     }
-    void loadMapEditorData(apiBase, (updater: any) => setEditorRef.current(updater));
+    void loadMapEditorData(apiBase, (updater: unknown) => setEditorRef.current(updater));
   }, [me, apiBase]);
 }

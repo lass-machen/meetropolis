@@ -14,6 +14,13 @@ import type { Room, RemoteParticipant, RemoteTrackPublication } from 'livekit-cl
 import type { Disposable, Unsubscribe } from './types';
 import { AVLogger } from '../AVLogger';
 import { onBubbleMembersUpdate, emitAudioTracksChanged, onSameMapIdentitiesUpdate } from '../../lib/avEvents';
+import {
+  listPublications,
+  readPubKind,
+  readPubSource,
+  type TrackPublicationLike,
+  type TrackLike,
+} from '../../types/livekit';
 
 export interface SubscriptionManagerConfig {
   maxVideoSubscriptions: number;
@@ -150,12 +157,12 @@ export class SubscriptionManager implements Disposable {
       const participant = this.findParticipantByIdentity(room, identity);
       if (!participant) return;
 
-      const publications = Array.from(participant.trackPublications.values());
+      const publications = listPublications(participant);
       for (const pub of publications) {
-        const track = (pub as any).track;
+        const track = pub.track as TrackLike | undefined | null;
         if (!track) continue;
 
-        const kind = (pub as any).kind ?? track.kind;
+        const kind = readPubKind(pub);
         const isAudio = kind === 'audio' || (kind == null && typeof track.setVolume === 'function');
         if (!isAudio) continue;
         if (typeof track.setVolume !== 'function') continue;
@@ -174,14 +181,14 @@ export class SubscriptionManager implements Disposable {
     if (!room) return;
 
     try {
-      const participants = Array.from(room.remoteParticipants.values());
+      const participants: RemoteParticipant[] = Array.from(room.remoteParticipants.values());
       for (const p of participants) {
-        const publications = Array.from(p.trackPublications.values());
+        const publications = listPublications(p);
         for (const pub of publications) {
-          const track = (pub as any).track;
+          const track = pub.track as TrackLike | undefined | null;
           if (!track) continue;
 
-          const kind = (pub as any).kind ?? track.kind;
+          const kind = readPubKind(pub);
           const isAudio = kind === 'audio' || (kind == null && typeof track.setVolume === 'function');
           if (isAudio && typeof track.setVolume === 'function') {
             track.setVolume(0);
@@ -201,14 +208,14 @@ export class SubscriptionManager implements Disposable {
     if (!room) return;
 
     try {
-      const participants = Array.from(room.remoteParticipants.values());
+      const participants: RemoteParticipant[] = Array.from(room.remoteParticipants.values());
       for (const p of participants) {
-        const publications = Array.from(p.trackPublications.values());
+        const publications = listPublications(p);
         for (const pub of publications) {
-          const track = (pub as any).track;
+          const track = pub.track as TrackLike | undefined | null;
           if (!track) continue;
 
-          const kind = (pub as any).kind ?? track.kind;
+          const kind = readPubKind(pub);
           const isAudio = kind === 'audio' || (kind == null && typeof track.setVolume === 'function');
           if (isAudio && typeof track.setVolume === 'function') {
             track.setVolume(1);
@@ -240,7 +247,7 @@ export class SubscriptionManager implements Disposable {
     if (!this.deps.isSignalOpen()) return;
 
     try {
-      const participants = Array.from(room.remoteParticipants.values());
+      const participants: RemoteParticipant[] = Array.from(room.remoteParticipants.values());
       let count = 0;
 
       for (const p of participants) {
@@ -248,11 +255,11 @@ export class SubscriptionManager implements Disposable {
         const identity = String(p.identity || '');
         if (!this.isOnSameMap(identity)) continue;
 
-        const publications = Array.from(p.trackPublications.values());
+        const publications = listPublications(p);
         for (const pub of publications) {
-          const kind = (pub as any).kind ?? (pub as any).track?.kind;
+          const kind = readPubKind(pub);
           if (kind === 'audio') {
-            this.setSubscribed(pub, true);
+            this.setSubscribed(pub as unknown as RemoteTrackPublication, true);
             count++;
           }
         }
@@ -297,15 +304,15 @@ export class SubscriptionManager implements Disposable {
     if (this.deps.isDND()) return;
     if (!this.deps.isSignalOpen()) return;
 
-    const participants = Array.from(room.remoteParticipants.values());
+    const participants: RemoteParticipant[] = Array.from(room.remoteParticipants.values());
     const participantCount = participants.length;
 
     // Count video publications to detect track changes (e.g. screen share restart)
     let videoPublicationCount = 0;
     for (const p of participants) {
-      const publications = Array.from(p.trackPublications.values());
+      const publications = listPublications(p);
       for (const pub of publications) {
-        const kind = (pub as any).kind ?? (pub as any).track?.kind;
+        const kind = readPubKind(pub);
         if (kind === 'video') videoPublicationCount++;
       }
     }
@@ -337,15 +344,15 @@ export class SubscriptionManager implements Disposable {
       for (const p of participants) {
         const identity = String(p.identity || '');
         const shouldSubscribe = desiredSet.has(identity);
-        const publications = Array.from(p.trackPublications.values());
+        const publications = listPublications(p);
 
         for (const pub of publications) {
-          const kind = (pub as any).kind ?? (pub as any).track?.kind;
-          const source = (pub as any).source ?? (pub as any).track?.source;
+          const kind = readPubKind(pub);
+          const source = readPubSource(pub);
 
           if (kind === 'audio') {
             const onSameMap = this.isOnSameMap(identity);
-            this.setDesired(pub, identity, 'audio', onSameMap);
+            this.setDesired(pub as unknown as RemoteTrackPublication, identity, 'audio', onSameMap);
           }
 
           if (kind === 'video') {
@@ -356,7 +363,7 @@ export class SubscriptionManager implements Disposable {
             const shouldHaveVideo =
               isScreenShare || fewParticipants || isPriority || isActiveSpeaker || shouldSubscribe;
 
-            this.setDesired(pub, identity, 'video', shouldHaveVideo);
+            this.setDesired(pub as unknown as RemoteTrackPublication, identity, 'video', shouldHaveVideo);
           }
         }
       }
@@ -402,8 +409,9 @@ export class SubscriptionManager implements Disposable {
       if (isCurrentlySubscribed === should) return;
       if (!this.deps.isSignalOpen()) return;
 
-      if (typeof (pub as any).setSubscribed === 'function') {
-        (pub as any).setSubscribed(should);
+      const pubLike = pub as unknown as TrackPublicationLike;
+      if (typeof pubLike.setSubscribed === 'function') {
+        pubLike.setSubscribed(should);
       }
     } catch (error) {
       AVLogger.warn('subscription.set.error', { error: String(error) });
@@ -412,9 +420,10 @@ export class SubscriptionManager implements Disposable {
 
   private isSubscribed(pub: RemoteTrackPublication): boolean {
     try {
-      if (typeof (pub as any).isSubscribed === 'boolean') return (pub as any).isSubscribed;
-      if (typeof (pub as any).subscribed === 'boolean') return (pub as any).subscribed;
-      return !!(pub as any).track;
+      const pubLike = pub as unknown as TrackPublicationLike;
+      if (typeof pubLike.isSubscribed === 'boolean') return pubLike.isSubscribed;
+      if (typeof pubLike.subscribed === 'boolean') return pubLike.subscribed;
+      return !!pubLike.track;
     } catch {
       return false;
     }
@@ -431,19 +440,19 @@ export class SubscriptionManager implements Disposable {
 
     try {
       const bubbleSet = new Set(bubbleIds.map((id) => String(id)));
-      const participants = Array.from(room.remoteParticipants.values());
+      const participants: RemoteParticipant[] = Array.from(room.remoteParticipants.values());
 
       for (const p of participants) {
         const identity = String(p.identity || '');
         const inBubble = bubbleSet.has(identity);
         const onSameMap = this.isOnSameMap(identity);
-        const publications = Array.from(p.trackPublications.values());
+        const publications = listPublications(p);
 
         for (const pub of publications) {
-          const kind = (pub as any).kind ?? (pub as any).track?.kind;
+          const kind = readPubKind(pub);
           if (kind !== 'audio') continue;
 
-          const track = (pub as any).track;
+          const track = pub.track as TrackLike | undefined | null;
           if (!track) continue;
 
           // Cross-map participants: mute. Bubble members: full. Others: attenuated.
@@ -490,19 +499,19 @@ export class SubscriptionManager implements Disposable {
     if (!this.deps.isSignalOpen()) return;
 
     try {
-      const participants = Array.from(room.remoteParticipants.values());
+      const participants: RemoteParticipant[] = Array.from(room.remoteParticipants.values());
       const sameMapParticipants = participants.filter((p) => this.isOnSameMap(String(p.identity || '')));
       const chosen = sameMapParticipants.slice(0, this.config.maxAudioSubscriptions);
 
       for (const p of participants) {
         const identity = String(p.identity || '');
         const shouldSubscribe = chosen.includes(p);
-        const publications = Array.from(p.trackPublications.values());
+        const publications = listPublications(p);
 
         for (const pub of publications) {
-          const kind = (pub as any).kind ?? (pub as any).track?.kind;
+          const kind = readPubKind(pub);
           if (kind === 'audio') {
-            this.setDesired(pub, identity, 'audio', shouldSubscribe);
+            this.setDesired(pub as unknown as RemoteTrackPublication, identity, 'audio', shouldSubscribe);
           }
         }
       }
@@ -528,7 +537,7 @@ export class SubscriptionManager implements Disposable {
   }
 
   private findParticipantByIdentity(room: Room, identity: string): RemoteParticipant | null {
-    const participants = Array.from(room.remoteParticipants.values());
+    const participants: RemoteParticipant[] = Array.from(room.remoteParticipants.values());
     return participants.find((p) => p.identity === identity) || room.remoteParticipants.get(identity) || null;
   }
 }

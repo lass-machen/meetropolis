@@ -7,9 +7,24 @@
  * - Auto-stop when user ends share via browser UI
  */
 
-import type { Room, LocalTrack } from 'livekit-client';
+import type { Room, LocalTrack, LocalVideoTrack as LocalVideoTrackType, Track as TrackNs } from 'livekit-client';
 import type { Disposable } from '../core/types';
 import { AVLogger } from '../AVLogger';
+import { listPublications, readPubSource, type TrackLike } from '../../types/livekit';
+
+interface DesktopBridge {
+  pickDisplaySource?: (opts: { types: string[] }) => Promise<{ id?: string } | null>;
+  beginActivityAssertion?: (reason: string) => Promise<unknown>;
+  endActivityAssertion?: () => Promise<unknown>;
+}
+
+interface ChromeMediaConstraints {
+  mandatory: {
+    chromeMediaSource: 'desktop';
+    chromeMediaSourceId: string;
+    maxFrameRate?: number;
+  };
+}
 
 export interface ScreenshareDeps {
   getRoom: () => Room | null;
@@ -109,7 +124,7 @@ export class Screenshare implements Disposable {
 
         // Set content hint for screen content
         try {
-          const mst = (track as any).mediaStreamTrack;
+          const mst = (track as TrackLike).mediaStreamTrack;
           if (mst && 'contentHint' in mst) {
             mst.contentHint = 'detail';
           }
@@ -119,8 +134,8 @@ export class Screenshare implements Disposable {
         this.watchTrackEnded(track);
 
         AVLogger.debug('screenshare.track_published', {
-          kind: (track as any).kind,
-          source: (track as any).source,
+          kind: String((track as TrackLike).kind),
+          source: String((track as TrackLike).source),
         });
       }
 
@@ -199,9 +214,9 @@ export class Screenshare implements Disposable {
     if (!room) return false;
 
     try {
-      const publications = Array.from(room.localParticipant.trackPublications.values());
-      return publications.some((pub: any) => {
-        const source = pub.source ?? pub.track?.source;
+      const publications = listPublications(room.localParticipant);
+      return publications.some((pub) => {
+        const source = readPubSource(pub);
         return source === 'screen_share' || source === 'screen_share_audio';
       });
     } catch {
@@ -226,7 +241,7 @@ export class Screenshare implements Disposable {
    */
   private async _beginAppNapPrevention(): Promise<void> {
     try {
-      const win = window as any;
+      const win = window as Window & { desktop?: DesktopBridge };
       if (typeof win.desktop?.beginActivityAssertion === 'function') {
         await win.desktop.beginActivityAssertion('Screen sharing active');
         AVLogger.debug('screenshare.app_nap_prevention.started');
@@ -239,7 +254,7 @@ export class Screenshare implements Disposable {
    */
   private async _endAppNapPrevention(): Promise<void> {
     try {
-      const win = window as any;
+      const win = window as Window & { desktop?: DesktopBridge };
       if (typeof win.desktop?.endActivityAssertion === 'function') {
         await win.desktop.endActivityAssertion();
         AVLogger.debug('screenshare.app_nap_prevention.ended');
@@ -259,7 +274,7 @@ export class Screenshare implements Disposable {
 
   private isElectronEnvironment(): boolean {
     try {
-      const win = window as any;
+      const win = window as Window & { desktop?: DesktopBridge };
       // Tauri doesn't have pickDisplaySource
       return !!(win.desktop && typeof win.desktop.pickDisplaySource === 'function');
     } catch {
@@ -269,23 +284,24 @@ export class Screenshare implements Disposable {
 
   private async captureElectron(): Promise<LocalTrack[]> {
     try {
-      const win = window as any;
-      const choice = await win.desktop.pickDisplaySource({ types: ['screen', 'window'] });
+      const win = window as Window & { desktop?: DesktopBridge };
+      const choice = await win.desktop?.pickDisplaySource?.({ types: ['screen', 'window'] });
 
       if (!choice || !choice.id) {
         return [];
       }
 
       // Get stream using Electron's desktop capturer
+      const videoConstraint: ChromeMediaConstraints = {
+        mandatory: {
+          chromeMediaSource: 'desktop',
+          chromeMediaSourceId: choice.id,
+          maxFrameRate: 30,
+        },
+      };
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: false,
-        video: {
-          mandatory: {
-            chromeMediaSource: 'desktop',
-            chromeMediaSourceId: choice.id,
-            maxFrameRate: 30,
-          },
-        } as any,
+        video: videoConstraint as unknown as MediaTrackConstraints,
       });
 
       const videoTrack = stream.getVideoTracks()[0];
@@ -296,7 +312,7 @@ export class Screenshare implements Disposable {
       // Create LiveKit track with correct source
       const { LocalVideoTrack, Track } = await import('livekit-client');
       const lkTrack = new LocalVideoTrack(videoTrack, undefined, false);
-      (lkTrack as any).source = Track.Source.ScreenShare;
+      (lkTrack as LocalVideoTrackType & { source?: TrackNs.Source }).source = Track.Source.ScreenShare;
 
       return [lkTrack];
     } catch (error) {
@@ -307,15 +323,15 @@ export class Screenshare implements Disposable {
 
   private async unpublishPublishedTracks(room: Room): Promise<void> {
     try {
-      const publications = Array.from(room.localParticipant.trackPublications.values()) as any[];
+      const publications = listPublications(room.localParticipant);
       for (const pub of publications) {
-        const source = pub?.source ?? pub?.track?.source;
-        const track = pub?.track;
+        const source = readPubSource(pub);
+        const track = pub.track;
         if (!track) continue;
         if (source !== 'screen_share' && source !== 'screen_share_audio') continue;
 
         try {
-          await room.localParticipant.unpublishTrack(track);
+          await room.localParticipant.unpublishTrack(track as unknown as LocalTrack);
         } catch {}
         try {
           track.stop?.();
@@ -329,26 +345,17 @@ export class Screenshare implements Disposable {
       const { createLocalScreenTracks } = await import('livekit-client');
 
       // Try with audio first
+      const videoOpts = { frameRate: 30, resolution: { width: 1920, height: 1080 } };
       try {
-        const tracks = await createLocalScreenTracks({
-          video: {
-            frameRate: 30,
-            resolution: { width: 1920, height: 1080 },
-          } as any,
-          audio: true,
-        });
-
+        const tracks = await createLocalScreenTracks({ video: videoOpts, audio: true } as unknown as Parameters<
+          typeof createLocalScreenTracks
+        >[0]);
         return tracks;
       } catch {
         // Fallback without audio
-        const tracks = await createLocalScreenTracks({
-          video: {
-            frameRate: 30,
-            resolution: { width: 1920, height: 1080 },
-          } as any,
-          audio: false,
-        });
-
+        const tracks = await createLocalScreenTracks({ video: videoOpts, audio: false } as unknown as Parameters<
+          typeof createLocalScreenTracks
+        >[0]);
         return tracks;
       }
     } catch (error) {
@@ -359,7 +366,7 @@ export class Screenshare implements Disposable {
   }
 
   private watchTrackEnded(track: LocalTrack): void {
-    const mst = (track as any).mediaStreamTrack as MediaStreamTrack | undefined;
+    const mst = (track as TrackLike).mediaStreamTrack;
     if (!mst) return;
 
     const handler = () => {

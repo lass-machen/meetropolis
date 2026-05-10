@@ -6,12 +6,62 @@ import { ZoneManager } from '../../../game/zoneManager';
 import { VolumeManager } from '../../../game/volumeManager';
 import { getDisplayName as getDisplayNameLib } from '../../../lib/displayName';
 import type { WorldRoom } from '../../../types/colyseus';
+import type { AdminCapabilities } from './useFetchMe';
+
+export type WorldMe = {
+  id: string;
+  email: string;
+  name?: string;
+  onboardingCompleted?: boolean;
+  role?: string;
+} | null;
+
+export type AvStateShape = { mic: boolean; cam: boolean; share: boolean; dnd: boolean };
+
+export type DeviceListShape = {
+  mics: { id: string; label: string }[];
+  cams: { id: string; label: string }[];
+};
+
+export type UiParticipantShape = {
+  sid: string;
+  identity: string;
+  hasVideo: boolean;
+  hasMic: boolean;
+  isSpeaking: boolean;
+  media: 'camera' | 'screen';
+  volume?: number;
+};
+
+export type RosterEntryShape = {
+  identity: string;
+  name: string;
+  online: boolean;
+  x?: number;
+  y?: number;
+  lastSeen?: string;
+};
+
+export type ApiTokenShape = {
+  id: string;
+  name?: string | null;
+  createdAt: string;
+  lastUsedAt?: string | null;
+};
+
+export type ConnStatusShape = { reconnecting: boolean; lastCode?: number; lastReason?: string };
+
+export type BubbleUiShape = { active: boolean; members: string[] };
+
+export type ContextMenuShape = { open: boolean; x: number; y: number; playerId: string | null };
+
+export type HudShape = { zone?: string; follow?: string | null; avRoom?: string | null };
 
 export interface WorldAppState {
   // Refs
   containerRef: React.RefObject<HTMLDivElement | null>;
   colyseusRef: React.RefObject<WorldRoom | null>;
-  colyseusReconnectTimerRef: React.RefObject<any>;
+  colyseusReconnectTimerRef: React.RefObject<ReturnType<typeof setTimeout> | null>;
   avRef: React.RefObject<AVManager | null>;
   bubbleRef: React.RefObject<BubbleManager | null>;
   zoneRef: React.RefObject<ZoneManager | null>;
@@ -32,8 +82,8 @@ export interface WorldAppState {
   disposedRef: React.RefObject<boolean>;
   gameCreatedRef: React.RefObject<boolean>;
   lastSavedPositionRef: React.RefObject<{ x: number; y: number; direction: string }>;
-  moveTimeoutRef: React.RefObject<any>;
-  buildListTimerRef: React.RefObject<any>;
+  moveTimeoutRef: React.RefObject<ReturnType<typeof setTimeout> | null>;
+  buildListTimerRef: React.RefObject<ReturnType<typeof setTimeout> | null>;
   buildListRafRef: React.RefObject<number | null>;
   lastAutoFullscreenRef: React.RefObject<number>;
   editorActiveRef: React.RefObject<boolean>;
@@ -165,18 +215,153 @@ export interface WorldAppState {
   authChecked: boolean;
   setAuthChecked: React.Dispatch<React.SetStateAction<boolean>>;
 
-  me: { id: string; email: string; name?: string } | null;
-  setMe: React.Dispatch<React.SetStateAction<{ id: string; email: string; name?: string } | null>>;
+  me: WorldMe;
+  setMe: React.Dispatch<React.SetStateAction<WorldMe>>;
+
+  // Capabilities and auth refetch trigger (used by WorldApp shell)
+  capabilities: AdminCapabilities;
+  setCapabilities: React.Dispatch<React.SetStateAction<AdminCapabilities>>;
+  authRefetchTrigger: number;
+  setAuthRefetchTrigger: React.Dispatch<React.SetStateAction<number>>;
+  billingAvailable: boolean;
+  setBillingAvailable: React.Dispatch<React.SetStateAction<boolean>>;
+
+  // Additional UI panels used by WorldApp shell
+  tenantTab: string;
+  setTenantTab: React.Dispatch<React.SetStateAction<string>>;
+  packStoreOpen: boolean;
+  setPackStoreOpen: React.Dispatch<React.SetStateAction<boolean>>;
 
   // Helper functions
   getDisplayName: (identity: string) => string;
 }
 
+/**
+ * Refs sub-shape of WorldAppState — everything that ends in `Ref` or maps.
+ * Use this for composite hooks that only need ref access.
+ */
+export type WorldRefs = Pick<
+  WorldAppState,
+  | 'containerRef'
+  | 'colyseusRef'
+  | 'colyseusReconnectTimerRef'
+  | 'avRef'
+  | 'bubbleRef'
+  | 'zoneRef'
+  | 'followRef'
+  | 'volumeRef'
+  | 'bubbleMembersRef'
+  | 'bubbleGroupsRef'
+  | 'localPosRef'
+  | 'remotesRef'
+  | 'colyseusToLivekitMap'
+  | 'identityToNameMap'
+  | 'participantVolumesRef'
+  | 'dndRef'
+  | 'rosterByIdentityRef'
+  | 'bubblePendingRef'
+  | 'bubbleStartRef'
+  | 'manualNavRef'
+  | 'disposedRef'
+  | 'gameCreatedRef'
+  | 'lastSavedPositionRef'
+  | 'moveTimeoutRef'
+  | 'buildListTimerRef'
+  | 'buildListRafRef'
+  | 'lastAutoFullscreenRef'
+  | 'editorActiveRef'
+  | 'activateBubbleNowRef'
+>;
+
+/**
+ * Auth sub-shape of WorldAppState used by WorldApp.tsx and composite hooks.
+ */
+export type WorldAuth = Pick<
+  WorldAppState,
+  | 'authChecked'
+  | 'setAuthChecked'
+  | 'me'
+  | 'setMe'
+  | 'isInternalOwner'
+  | 'setIsInternalOwner'
+  | 'capabilities'
+  | 'setCapabilities'
+  | 'authRefetchTrigger'
+  | 'setAuthRefetchTrigger'
+  | 'positionReady'
+  | 'setPositionReady'
+  | 'billingAvailable'
+  | 'setBillingAvailable'
+>;
+
+/**
+ * UI sub-shape of WorldAppState — UI panels, modals, AV state and roster.
+ */
+export type WorldUi = Pick<
+  WorldAppState,
+  | 'hud'
+  | 'setHud'
+  | 'devices'
+  | 'setDevices'
+  | 'avState'
+  | 'setAvState'
+  | 'selectedMicId'
+  | 'setSelectedMicId'
+  | 'selectedCamId'
+  | 'setSelectedCamId'
+  | 'uiParticipants'
+  | 'setUiParticipants'
+  | 'cameraManual'
+  | 'setCameraManual'
+  | 'tenantTab'
+  | 'setTenantTab'
+  | 'roster'
+  | 'setRoster'
+  | 'apiModalOpen'
+  | 'setApiModalOpen'
+  | 'apiTokens'
+  | 'setApiTokens'
+  | 'newTokenName'
+  | 'setNewTokenName'
+  | 'freshToken'
+  | 'setFreshToken'
+  | 'adminOpen'
+  | 'setAdminOpen'
+  | 'billingOpen'
+  | 'setBillingOpen'
+  | 'profileOpen'
+  | 'setProfileOpen'
+  | 'tenantSettingsOpen'
+  | 'setTenantSettingsOpen'
+  | 'sessionsOpen'
+  | 'setSessionsOpen'
+  | 'packStoreOpen'
+  | 'setPackStoreOpen'
+  | 'gridExpanded'
+  | 'setGridExpanded'
+  | 'selectedSid'
+  | 'setSelectedSid'
+  | 'overlayZoom'
+  | 'setOverlayZoom'
+  | 'connStatus'
+  | 'setConnStatus'
+  | 'rosterCollapsed'
+  | 'setRosterCollapsed'
+  | 'bubbleUi'
+  | 'setBubbleUi'
+  | 'contextMenu'
+  | 'setContextMenu'
+  | 'page'
+  | 'setPage'
+  | 'menuOpen'
+  | 'setMenuOpen'
+>;
+
 function useWorldRefs() {
   return {
     containerRef: useRef<HTMLDivElement | null>(null),
     colyseusRef: useRef<WorldRoom | null>(null),
-    colyseusReconnectTimerRef: useRef<any>(null),
+    colyseusReconnectTimerRef: useRef<ReturnType<typeof setTimeout> | null>(null),
     avRef: useRef<AVManager | null>(null),
     bubbleRef: useRef<BubbleManager | null>(null),
     zoneRef: useRef<ZoneManager | null>(null),
@@ -197,8 +382,8 @@ function useWorldRefs() {
     disposedRef: useRef(false),
     gameCreatedRef: useRef(false),
     lastSavedPositionRef: useRef({ x: 0, y: 0, direction: 'down' }),
-    moveTimeoutRef: useRef<any>(null),
-    buildListTimerRef: useRef<any>(null),
+    moveTimeoutRef: useRef<ReturnType<typeof setTimeout> | null>(null),
+    buildListTimerRef: useRef<ReturnType<typeof setTimeout> | null>(null),
     buildListRafRef: useRef<number | null>(null),
     lastAutoFullscreenRef: useRef<number>(0),
     editorActiveRef: useRef(false),
@@ -208,9 +393,13 @@ function useWorldRefs() {
 
 function useWorldUserState() {
   const [authChecked, setAuthChecked] = React.useState(false);
-  const [me, setMe] = React.useState<{ id: string; email: string; name?: string } | null>(null);
+  const [me, setMe] = React.useState<WorldMe>(null);
   const [isInternalOwner, setIsInternalOwner] = React.useState(false);
   const [positionReady, setPositionReady] = React.useState(false);
+  const DEFAULT_CAPS: AdminCapabilities = { hasBilling: false, hasAdminEnterprise: false, isMultiTenant: false };
+  const [capabilities, setCapabilities] = React.useState<AdminCapabilities>(DEFAULT_CAPS);
+  const [authRefetchTrigger, setAuthRefetchTrigger] = React.useState(0);
+  const [billingAvailable, setBillingAvailable] = React.useState(false);
   return {
     authChecked,
     setAuthChecked,
@@ -220,6 +409,12 @@ function useWorldUserState() {
     setIsInternalOwner,
     positionReady,
     setPositionReady,
+    capabilities,
+    setCapabilities,
+    authRefetchTrigger,
+    setAuthRefetchTrigger,
+    billingAvailable,
+    setBillingAvailable,
   };
 }
 
@@ -281,6 +476,8 @@ function useWorldModalState() {
   const [profileOpen, setProfileOpen] = React.useState(false);
   const [tenantSettingsOpen, setTenantSettingsOpen] = React.useState(false);
   const [sessionsOpen, setSessionsOpen] = React.useState(false);
+  const [packStoreOpen, setPackStoreOpen] = React.useState(false);
+  const [tenantTab, setTenantTab] = React.useState('general');
   return {
     userModalOpen,
     setUserModalOpen,
@@ -304,6 +501,10 @@ function useWorldModalState() {
     setTenantSettingsOpen,
     sessionsOpen,
     setSessionsOpen,
+    packStoreOpen,
+    setPackStoreOpen,
+    tenantTab,
+    setTenantTab,
   };
 }
 

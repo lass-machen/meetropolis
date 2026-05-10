@@ -1,11 +1,23 @@
 import type express from 'express';
-import { PrismaClient } from '../../generated/prisma/index.js';
+import { PrismaClient, Prisma } from '../../generated/prisma/index.js';
 import { z } from 'zod';
 import multer from 'multer';
 import { logger } from '../../logger.js';
 import { requireSuperAdmin } from '../utils/authHelpers.js';
 import { pathParam } from '../utils/requestHelpers.js';
 import { rleEncodeNumbers, encodeRlePairsToBuffer } from '../../mapEncoding.js';
+import type { RequestWithMulterFile } from '../../types/multer.js';
+
+type TxClient = Prisma.TransactionClient;
+
+type OriginalMapWithRelations = Prisma.MapGetPayload<{
+  include: {
+    tilesets: { orderBy: { slot: 'asc' } };
+    layers: { include: { chunks: true } };
+    objects: true;
+    rooms: { include: { zones: true } };
+  };
+}>;
 
 async function resolveCopyName(prisma: PrismaClient, targetTenantId: string, baseName: string): Promise<string> {
   let copyName = baseName;
@@ -17,7 +29,7 @@ async function resolveCopyName(prisma: PrismaClient, targetTenantId: string, bas
   return copyName;
 }
 
-async function copyTilesets(tx: any, original: any, newMapId: string): Promise<void> {
+async function copyTilesets(tx: TxClient, original: OriginalMapWithRelations, newMapId: string): Promise<void> {
   for (const ts of original.tilesets) {
     await tx.mapTileset.create({
       data: {
@@ -36,7 +48,7 @@ async function copyTilesets(tx: any, original: any, newMapId: string): Promise<v
   }
 }
 
-async function copyLayersAndChunks(tx: any, original: any, newMapId: string): Promise<void> {
+async function copyLayersAndChunks(tx: TxClient, original: OriginalMapWithRelations, newMapId: string): Promise<void> {
   for (const layer of original.layers) {
     const newLayer = await tx.mapLayer.create({
       data: { mapId: newMapId, name: layer.name, chunkSize: layer.chunkSize },
@@ -56,7 +68,7 @@ async function copyLayersAndChunks(tx: any, original: any, newMapId: string): Pr
   }
 }
 
-async function copyObjects(tx: any, original: any, newMapId: string): Promise<void> {
+async function copyObjects(tx: TxClient, original: OriginalMapWithRelations, newMapId: string): Promise<void> {
   for (const obj of original.objects) {
     await tx.mapObject.create({
       data: {
@@ -82,7 +94,12 @@ async function copyObjects(tx: any, original: any, newMapId: string): Promise<vo
   }
 }
 
-async function copyRoomsAndZones(tx: any, original: any, newMapId: string, targetTenantId: string): Promise<void> {
+async function copyRoomsAndZones(
+  tx: TxClient,
+  original: OriginalMapWithRelations,
+  newMapId: string,
+  targetTenantId: string,
+): Promise<void> {
   for (const room of original.rooms) {
     const newRoom = await tx.room.create({
       data: { name: room.name, tenantId: targetTenantId, mapId: newMapId },
@@ -92,7 +109,7 @@ async function copyRoomsAndZones(tx: any, original: any, newMapId: string, targe
         data: {
           name: zone.name,
           capacity: zone.capacity,
-          polygon: zone.polygon as object,
+          polygon: zone.polygon as Prisma.InputJsonValue,
           type: zone.type,
           portalTarget: zone.portalTarget,
           portalSpawnX: zone.portalSpawnX,
@@ -140,7 +157,7 @@ export async function copyMapToTenant(
         tileWidth: original.tileWidth,
         tileHeight: original.tileHeight,
         chunkSize: original.chunkSize,
-        meta: original.meta as object,
+        meta: original.meta as Prisma.InputJsonValue,
       },
     });
 
@@ -370,13 +387,23 @@ async function handleCopyAdminMap(prisma: PrismaClient, req: express.Request, re
   }
 }
 
+interface TiledObject {
+  id?: number | string;
+  name?: unknown;
+  type?: unknown;
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+}
+
 type TiledLayer = {
   type: string;
   name: string;
   data?: number[];
   width?: number;
   height?: number;
-  objects?: Array<Record<string, unknown>>;
+  objects?: TiledObject[];
 };
 type TiledTileset = {
   firstgid: number;
@@ -389,8 +416,17 @@ type TiledTileset = {
   tilecount?: number;
 };
 
+interface TiledMapJson {
+  width?: number;
+  height?: number;
+  tilewidth?: number;
+  tileheight?: number;
+  layers?: TiledLayer[];
+  tilesets?: TiledTileset[];
+}
+
 async function importTilesetsFromTiled(
-  tx: any,
+  tx: TxClient,
   mapId: string,
   tilesets: TiledTileset[],
   tileWidth: number,
@@ -438,7 +474,7 @@ function extractChunkData(
 }
 
 async function importTileLayers(
-  tx: any,
+  tx: TxClient,
   mapId: string,
   layers: TiledLayer[],
   chunkSize: number,
@@ -475,7 +511,7 @@ async function importTileLayers(
 }
 
 async function importObjectLayers(
-  tx: any,
+  tx: TxClient,
   mapId: string,
   layers: TiledLayer[],
   tileWidth: number,
@@ -515,7 +551,7 @@ async function importObjectLayers(
   }
 }
 
-function importTiledMap(prisma: PrismaClient, tenantId: string, mapName: string, json: any) {
+function importTiledMap(prisma: PrismaClient, tenantId: string, mapName: string, json: TiledMapJson) {
   const mapWidth: number = json.width || 32;
   const mapHeight: number = json.height || 32;
   const tileWidth: number = json.tilewidth || 16;
@@ -547,14 +583,15 @@ async function handleImportAdminMap(prisma: PrismaClient, req: express.Request, 
     return;
   }
 
-  const file = req.file;
+  const file = (req as RequestWithMulterFile).file;
   if (!file) {
     res.status(400).json({ error: 'no_file' });
     return;
   }
 
-  const tenantId = req.body?.tenantId;
-  const mapName = req.body?.name;
+  const body = (req.body ?? {}) as { tenantId?: string; name?: string };
+  const tenantId = body.tenantId;
+  const mapName = body.name;
   if (!tenantId || !mapName) {
     res.status(400).json({ error: 'missing_tenantId_or_name' });
     return;
@@ -573,7 +610,7 @@ async function handleImportAdminMap(prisma: PrismaClient, req: express.Request, 
       return;
     }
 
-    const json = JSON.parse(file.buffer.toString('utf-8'));
+    const json = JSON.parse(file.buffer.toString('utf-8')) as TiledMapJson;
     const result = await importTiledMap(prisma, tenantId, mapName, json);
 
     logger.info({ event: 'admin_maps.imported', mapId: result.id, tenantId, name: mapName });

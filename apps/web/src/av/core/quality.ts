@@ -1,22 +1,53 @@
+import type { LocalTrack, Room, RemoteParticipant, RemoteTrackPublication } from 'livekit-client';
 import { avLog } from '../../lib/avLog';
+import {
+  listPublications,
+  readPubKind,
+  readPubSource,
+  type TrackPublicationLike,
+  type TrackLike,
+} from '../../types/livekit';
 
-export async function republishCameraProfileImpl(manager: any, profile: 'low' | 'med' | 'high'): Promise<void> {
+interface QualityManagerView {
+  current: Room | null;
+  camQuality: 'low' | 'med' | 'high';
+  qualityCooldownUntil: number;
+  preferredCam?: string;
+  identity?: string;
+  currentName?: string | null;
+  remoteQualityTuningDisabled?: boolean;
+  lastApplyDefaultRemoteQualityAt?: number;
+  isSignalOpen?: () => boolean;
+}
+
+interface VideoConstraintsLike {
+  facingMode?: string;
+  width?: { ideal: number };
+  height?: { ideal: number };
+  frameRate?: { ideal: number };
+  deviceId?: string;
+}
+
+export async function republishCameraProfileImpl(
+  manager: QualityManagerView,
+  profile: 'low' | 'med' | 'high',
+): Promise<void> {
   const room = manager.current;
   if (!room) return;
   try {
-    const pubs: any[] = Array.from(room.localParticipant.trackPublications.values());
-    const camPubs: any[] = pubs.filter((pub: any) => {
-      const src = pub.source ?? pub.track?.source;
-      const kind = pub.kind ?? pub.track?.kind;
-      return src === 'camera' || src === 1 || (kind === 'video' && src !== 'screen_share');
+    const pubs = listPublications(room.localParticipant);
+    const camPubs = pubs.filter((pub) => {
+      const src = readPubSource(pub);
+      const kind = readPubKind(pub);
+      return src === 'camera' || (kind === 'video' && src !== 'screen_share');
     });
-    if (!camPubs.some((p: any) => !!p.track)) {
+    if (!camPubs.some((p) => !!p.track)) {
       manager.camQuality = profile;
       return;
     }
     for (const pub of camPubs) {
       try {
-        await room.localParticipant.unpublishTrack(pub.track);
+        if (pub.track) await room.localParticipant.unpublishTrack(pub.track as LocalTrack);
       } catch {}
     }
     const presets: Record<
@@ -29,27 +60,29 @@ export async function republishCameraProfileImpl(manager: any, profile: 'low' | 
     };
     const c = presets[profile];
     const { createLocalTracks } = await import('livekit-client');
-    const videoConstraints: any = {
+    const videoConstraints: VideoConstraintsLike = {
       facingMode: 'user',
       width: { ideal: c.width },
       height: { ideal: c.height },
       frameRate: { ideal: c.frameRate },
     };
     if (manager.preferredCam) videoConstraints.deviceId = manager.preferredCam;
-    const tracks = await createLocalTracks({ video: videoConstraints });
+    const tracks = await createLocalTracks({ video: videoConstraints } as unknown as Parameters<
+      typeof createLocalTracks
+    >[0]);
     for (const t of tracks) {
-      const tAny = t as any;
-      if (tAny.kind === 'video') {
+      const trackLike = t as TrackLike;
+      if (String(trackLike.kind) === 'video') {
         try {
           try {
-            const mst = tAny.mediaStreamTrack;
+            const mst = trackLike.mediaStreamTrack;
             if (mst && 'contentHint' in mst) {
               try {
                 mst.contentHint = 'motion';
               } catch {}
             }
           } catch {}
-          await room.localParticipant.publishTrack(tAny, {
+          await room.localParticipant.publishTrack(t, {
             videoEncoding: { maxBitrate: c.bitrate, maxFramerate: c.frameRate },
             simulcast: true,
           });
@@ -60,14 +93,21 @@ export async function republishCameraProfileImpl(manager: any, profile: 'low' | 
   } catch {}
 }
 
-export function onConnectionQualityChangedImpl(manager: any, participant: any, quality: any): void {
+export function onConnectionQualityChangedImpl(
+  manager: QualityManagerView,
+  participant: { isLocal?: boolean; sid?: string } | null | undefined,
+  quality: unknown,
+): void {
   const room = manager.current;
   if (!room) return;
   const isLocal = !!participant?.isLocal || participant?.sid === room?.localParticipant?.sid;
   if (!isLocal) return;
   const now = Date.now();
   if (now < manager.qualityCooldownUntil) return;
-  const q = typeof quality === 'string' ? quality : quality?.toString?.().toLowerCase?.() || String(quality);
+  const q =
+    typeof quality === 'string'
+      ? quality
+      : (quality as { toString?: () => string })?.toString?.().toLowerCase?.() || String(quality);
   let desired: 'low' | 'med' | 'high' = manager.camQuality;
   if (q.includes('poor') || q.includes('lost') || q.includes('bad') || q.includes('0')) desired = 'low';
   else if (q.includes('good') || q.includes('2')) desired = 'med';
@@ -78,7 +118,7 @@ export function onConnectionQualityChangedImpl(manager: any, participant: any, q
   void republishCameraProfileImpl(manager, desired).catch(() => {});
 }
 
-export async function applyDefaultRemoteQualityImpl(manager: any): Promise<void> {
+export async function applyDefaultRemoteQualityImpl(manager: QualityManagerView): Promise<void> {
   const room = manager.current;
   if (!room) return;
   if (manager.remoteQualityTuningDisabled) return;
@@ -89,14 +129,14 @@ export async function applyDefaultRemoteQualityImpl(manager: any): Promise<void>
     if (now - (manager.lastApplyDefaultRemoteQualityAt || 0) < 5000) return;
     manager.lastApplyDefaultRemoteQualityAt = now;
     const mod = await import('livekit-client');
-    const VideoQualityEnum = (mod as any).VideoQuality;
+    const VideoQualityEnum = (mod as unknown as { VideoQuality?: Record<string, unknown> }).VideoQuality;
     const Q_MED = (VideoQualityEnum && (VideoQualityEnum.Medium ?? VideoQualityEnum.MEDIUM)) ?? 1;
-    const participants: any[] = Array.from(room.remoteParticipants?.values?.() || []);
+    const participants: RemoteParticipant[] = Array.from(room.remoteParticipants?.values?.() || []);
     for (const p of participants) {
-      const pubs: any[] = Array.from(p.trackPublications?.values?.() || []);
+      const pubs = listPublications(p) as Array<TrackPublicationLike & RemoteTrackPublication>;
       for (const pub of pubs) {
-        const kind = pub.kind ?? pub.track?.kind;
-        const src = pub.source ?? pub.track?.source;
+        const kind = readPubKind(pub);
+        const src = readPubSource(pub);
         // Nur Qualität setzen, wenn wir tatsächlich subscribed sind
         const isSubscribed = (() => {
           try {
@@ -121,12 +161,10 @@ export async function applyDefaultRemoteQualityImpl(manager: any): Promise<void>
   } catch (e: unknown) {
     manager.remoteQualityTuningDisabled = true;
     try {
-      avLog(
-        'warn',
-        'av.remote_quality.disabled',
-        { reason: (e as Error)?.message || String(e) },
-        { identity: manager.identity, roomName: manager.currentName || undefined },
-      );
+      const extra: { identity?: string; roomName?: string } = {};
+      if (manager.identity) extra.identity = manager.identity;
+      if (manager.currentName) extra.roomName = manager.currentName;
+      avLog('warn', 'av.remote_quality.disabled', { reason: (e as Error)?.message || String(e) }, extra);
     } catch {}
   }
 }

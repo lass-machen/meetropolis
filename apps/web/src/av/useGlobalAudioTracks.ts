@@ -1,32 +1,38 @@
 import React from 'react';
+import type { Room, RemoteTrack, RemoteTrackPublication, RemoteParticipant } from 'livekit-client';
 import { emitAudioTracksChanged, onAudioTracksChanged } from '../lib/avEvents';
 import type { AVManager } from './avManager';
+import { listPublications, readPubKind, readPubSource, type TrackLike } from '../types/livekit';
+
+type AttachableTrack = TrackLike & {
+  attach?: (element?: HTMLMediaElement) => HTMLMediaElement;
+};
 
 function buildAttachAudioTrack(
   audioElements: Map<string, HTMLAudioElement>,
   avRef: React.MutableRefObject<AVManager | null>,
 ) {
-  return (track: any, participantId: string) => {
+  return (track: AttachableTrack, participantId: string) => {
     try {
       // Verhindere Duplikate pro Participant-ID über Tests/Render hinweg
       const existing: HTMLAudioElement | null =
         typeof document !== 'undefined' ? document.querySelector(`audio[data-av-remote="${participantId}"]`) : null;
       const audio = existing || document.createElement('audio');
       audio.autoplay = true;
-      (audio as any).playsInline = true;
+      (audio as HTMLAudioElement & { playsInline?: boolean }).playsInline = true;
       // Respektiere DND bereits beim Attach, um kurze Audio-Leaks zu vermeiden
       const dnd = !!avRef.current?.dndEnabled;
       try {
-        (audio as any).muted = dnd;
+        audio.muted = dnd;
       } catch {}
       audio.volume = dnd ? 0 : 1.0;
       audio.style.display = 'none';
       try {
-        (audio as any).dataset.avRemote = participantId;
+        audio.dataset.avRemote = participantId;
       } catch {}
       if (!existing) document.body.appendChild(audio);
       try {
-        track.attach(audio);
+        track.attach?.(audio);
       } catch (_err) {
         // Autoplay block fallback
         window.pendingAudioTracks = window.pendingAudioTracks || [];
@@ -45,7 +51,7 @@ function buildDetachAudioTrack(audioElements: Map<string, HTMLAudioElement>) {
         audio.pause();
       } catch {}
       try {
-        (audio as any).srcObject = null;
+        (audio as HTMLAudioElement & { srcObject?: MediaStream | null }).srcObject = null;
       } catch {}
       try {
         audio.parentNode?.removeChild(audio);
@@ -55,33 +61,40 @@ function buildDetachAudioTrack(audioElements: Map<string, HTMLAudioElement>) {
   };
 }
 
-function shouldDetachOnUnsubscribe(track: any, participant: any): boolean {
+function shouldDetachOnUnsubscribe(track: TrackLike, participant: RemoteParticipant | undefined): boolean {
   // Prüfe ob der Teilnehmer noch einen anderen Mikrofon-Audio-Track hat
   // (z.B. wenn nur der Screen-Share-Audio deabonniert wird, aber das Mikrofon noch aktiv ist)
-  const otherAudioTracks = Array.from(participant?.trackPublications?.values?.() || []).filter((pub: any) => {
-    const pubTrack = pub?.track;
+  const otherAudioTracks = listPublications(participant).filter((pub) => {
+    const pubTrack = pub.track;
     if (!pubTrack || pubTrack === track) return false;
-    const kind = pub?.kind ?? pubTrack?.kind;
-    const source = pub?.source ?? pubTrack?.source;
+    const kind = readPubKind(pub);
+    const source = readPubSource(pub);
     // Nur Mikrofon-Tracks zählen (nicht screen_share_audio)
     return kind === 'audio' && source !== 'screen_share_audio';
   });
   return otherAudioTracks.length === 0;
 }
 
+interface RoomWithLegacyParticipants extends Room {
+  participants?: Map<string, RemoteParticipant>;
+}
+
 function attachInitialAudioTracks(
-  room: any,
+  room: RoomWithLegacyParticipants,
   audioElements: Map<string, HTMLAudioElement>,
-  attachAudioTrack: (track: any, participantId: string) => void,
+  attachAudioTrack: (track: AttachableTrack, participantId: string) => void,
 ): void {
-  const participants = Array.from(room.remoteParticipants?.values?.() || room.participants?.values?.() || []);
-  participants.forEach((participant: any) => {
+  const participants: RemoteParticipant[] = Array.from(
+    room.remoteParticipants?.values?.() || room.participants?.values?.() || [],
+  );
+  participants.forEach((participant) => {
     if (participant?.sid === room?.localParticipant?.sid) return;
     try {
-      const audioTracks = Array.from(participant.trackPublications?.values?.() || [])
-        .filter((pub: any) => (pub?.kind === 'audio' || pub?.track?.kind === 'audio') && pub?.track)
-        .map((pub: any) => pub.track);
-      audioTracks.forEach((track: any) => attachAudioTrack(track, participant.sid));
+      const pubs = listPublications(participant);
+      const audioTracks = pubs
+        .filter((pub) => readPubKind(pub) === 'audio' && !!pub.track)
+        .map((pub) => pub.track as AttachableTrack);
+      audioTracks.forEach((track) => attachAudioTrack(track, participant.sid));
     } catch {}
   });
   // Fallback: wenn initial keine Audio-Elemente angelegt wurden, versuche mindestens eins anzulegen
@@ -89,9 +102,9 @@ function attachInitialAudioTracks(
     if (audioElements.size === 0) {
       const dummy = document.createElement('audio');
       dummy.autoplay = true;
-      (dummy as any).playsInline = true;
+      (dummy as HTMLAudioElement & { playsInline?: boolean }).playsInline = true;
       try {
-        (dummy as any).muted = true;
+        dummy.muted = true;
       } catch {}
       dummy.volume = 0;
       dummy.style.display = 'none';
@@ -101,14 +114,18 @@ function attachInitialAudioTracks(
   } catch {}
 }
 
+interface RoomWithEvents {
+  on: (event: string, handler: (...args: unknown[]) => void) => void;
+}
+
 async function registerLivekitListeners(
-  room: any,
-  handleTrackSubscribed: (...args: any[]) => void,
-  handleTrackUnsubscribed: (...args: any[]) => void,
+  room: RoomWithEvents,
+  handleTrackSubscribed: (...args: unknown[]) => void,
+  handleTrackUnsubscribed: (...args: unknown[]) => void,
 ): Promise<void> {
   try {
     const mod = await import('livekit-client');
-    const RoomEvent = (mod as any).RoomEvent;
+    const RoomEvent = mod.RoomEvent;
     if (RoomEvent) {
       room.on(RoomEvent.TrackSubscribed, handleTrackSubscribed);
       room.on(RoomEvent.TrackUnsubscribed, handleTrackUnsubscribed);
@@ -117,16 +134,18 @@ async function registerLivekitListeners(
 }
 
 function setupGlobalAudioTracksEffect(avRef: React.MutableRefObject<AVManager | null>): (() => void) | undefined {
-  const room = avRef.current?.room;
+  const room = avRef.current?.room as RoomWithLegacyParticipants | undefined;
   if (!room) return undefined;
 
   const audioElements = new Map<string, HTMLAudioElement>();
   const attachAudioTrack = buildAttachAudioTrack(audioElements, avRef);
   const detachAudioTrack = buildDetachAudioTrack(audioElements);
 
-  const handleTrackSubscribed = (track: any, _publication: any, participant: any) => {
-    if (track?.kind === 'audio' && participant?.sid !== room?.localParticipant?.sid) {
-      attachAudioTrack(track, participant.sid);
+  const handleTrackSubscribed = (...args: unknown[]) => {
+    const track = args[0] as (RemoteTrack & TrackLike) | undefined;
+    const participant = args[2] as RemoteParticipant | undefined;
+    if (String(track?.kind) === 'audio' && participant && participant.sid !== room?.localParticipant?.sid) {
+      if (track) attachAudioTrack(track, participant.sid);
       // Signalisiere, dass sich die Audio-Topologie geändert hat
       try {
         emitAudioTracksChanged();
@@ -134,12 +153,14 @@ function setupGlobalAudioTracksEffect(avRef: React.MutableRefObject<AVManager | 
     }
   };
 
-  const handleTrackUnsubscribed = (track: any, _publication: any, participant: any) => {
+  const handleTrackUnsubscribed = (...args: unknown[]) => {
+    const track = args[0] as (RemoteTrack & TrackLike) | undefined;
+    const participant = args[2] as RemoteParticipant | undefined;
     // Nur Audio-Tracks behandeln - Screen-Share-Video-Tracks dürfen nicht das
     // Mikrofon-Audio des Teilnehmers entfernen!
-    if (track?.kind !== 'audio') return;
-    if (shouldDetachOnUnsubscribe(track, participant)) {
-      detachAudioTrack(participant?.sid);
+    if (String(track?.kind) !== 'audio') return;
+    if (track && shouldDetachOnUnsubscribe(track, participant)) {
+      if (participant?.sid) detachAudioTrack(participant.sid);
     }
     try {
       emitAudioTracksChanged();
@@ -147,7 +168,7 @@ function setupGlobalAudioTracksEffect(avRef: React.MutableRefObject<AVManager | 
   };
 
   attachInitialAudioTracks(room, audioElements, attachAudioTrack);
-  void registerLivekitListeners(room, handleTrackSubscribed, handleTrackUnsubscribed);
+  void registerLivekitListeners(room as unknown as RoomWithEvents, handleTrackSubscribed, handleTrackUnsubscribed);
 
   // Defensive: React to audio-topology change events (emitted e.g. by
   // SubscriptionManager.restoreAllRemote() after DND exit). If DND is
@@ -177,7 +198,7 @@ function setupGlobalAudioTracksEffect(avRef: React.MutableRefObject<AVManager | 
         audio.pause();
       } catch {}
       try {
-        (audio as any).srcObject = null;
+        (audio as HTMLAudioElement & { srcObject?: MediaStream | null }).srcObject = null;
       } catch {}
       try {
         audio.parentNode?.removeChild(audio);
@@ -186,6 +207,9 @@ function setupGlobalAudioTracksEffect(avRef: React.MutableRefObject<AVManager | 
     audioElements.clear();
   };
 }
+
+// Expose unused for parameter shape — used internally
+export type { RemoteTrackPublication };
 
 export function useGlobalAudioTracks(params: { avRef: React.MutableRefObject<AVManager | null> }) {
   const { avRef } = params;

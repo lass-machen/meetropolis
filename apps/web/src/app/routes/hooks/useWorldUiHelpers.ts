@@ -1,13 +1,23 @@
 import React, { useCallback, useMemo } from 'react';
+import type { WorldRefs, WorldUi, WorldAuth, UiParticipantShape, WorldMe } from './useWorldAppState';
+
+type MiniZonePoint = { x: number; y: number };
+type RawZonePoint = MiniZonePoint | [number, number] | { x?: unknown; y?: unknown };
+type RawZone = { name?: unknown; points?: RawZonePoint[] };
 
 /**
  * Computes derived UI helpers (participantsToRender, mini-zones,
  * handleExpandWithScreen, handleAuthComplete) used by the WorldApp shell.
  */
-export function useWorldUiHelpers(params: { refs: any; ui: any; auth: any; toggleMiniMode: () => void }) {
+export function useWorldUiHelpers(params: {
+  refs: WorldRefs;
+  ui: WorldUi;
+  auth: WorldAuth;
+  toggleMiniMode: () => void;
+}) {
   const { refs, ui, auth, toggleMiniMode } = params;
 
-  const participantsToRender = useMemo(
+  const participantsToRender = useMemo<UiParticipantShape[]>(
     () =>
       ui.uiParticipants.length > 0
         ? ui.uiParticipants
@@ -25,16 +35,22 @@ export function useWorldUiHelpers(params: { refs: any; ui: any; auth: any; toggl
   );
 
   const handleAuthComplete = useCallback(() => {
-    auth.setAuthRefetchTrigger((prev: number) => prev + 1);
+    auth.setAuthRefetchTrigger((prev) => prev + 1);
   }, [auth.setAuthRefetchTrigger]);
 
   const getMiniZones = useCallback(() => {
-    const raw = refs.zoneRef.current?.getZones?.() || [];
-    return raw.map((z: any) => ({
-      name: z.name as string,
-      points: ((z.points || []) as any[])
-        .map((p: any) => (Array.isArray(p) ? { x: p[0], y: p[1] } : p))
-        .filter((p: any) => p && typeof p.x === 'number' && typeof p.y === 'number'),
+    const raw = (refs.zoneRef.current?.getZones?.() || []) as RawZone[];
+    return raw.map((z) => ({
+      name: typeof z.name === 'string' ? z.name : '',
+      points: (z.points || [])
+        .map<MiniZonePoint | null>((p) => {
+          if (Array.isArray(p)) return { x: p[0], y: p[1] };
+          const px = (p as { x?: unknown }).x;
+          const py = (p as { y?: unknown }).y;
+          if (typeof px === 'number' && typeof py === 'number') return { x: px, y: py };
+          return null;
+        })
+        .filter((p): p is MiniZonePoint => p !== null),
     }));
   }, [refs.zoneRef]);
 
@@ -54,7 +70,7 @@ export function useWorldUiHelpers(params: { refs: any; ui: any; auth: any; toggl
  * Wires the participant list rebuild whenever `me` changes and the buildList
  * timer cleanup on unmount.
  */
-export function useParticipantListEffects(params: { refs: any; me: any; buildParticipantList: () => void }) {
+export function useParticipantListEffects(params: { refs: WorldRefs; me: WorldMe; buildParticipantList: () => void }) {
   const { refs, me, buildParticipantList } = params;
   // me?.id reicht als dep — me selbst kann durch jeden auth-Refresh neue
   // Object-Identitaet bekommen, was eine Render-Loop ausloest. Die einzige

@@ -1,12 +1,17 @@
-import type { LocalVideoTrack, Room } from 'livekit-client';
+import type { LocalTrack, LocalVideoTrack, Room } from 'livekit-client';
 import { AVLogger } from '../AVLogger';
 import type { LocalTrackState } from './types';
+import {
+  listPublications,
+  readPubKind,
+  readPubSource,
+  type TrackLike,
+  type TrackPublicationLike,
+} from '../../types/livekit';
 
-function getLocalTrackPublications(room: Room): any[] {
+function getLocalTrackPublications(room: Room): TrackPublicationLike[] {
   try {
-    const iter = (room as any)?.localParticipant?.trackPublications?.values?.();
-    if (!iter) return [];
-    return Array.from(iter);
+    return listPublications(room.localParticipant);
   } catch {
     return [];
   }
@@ -16,13 +21,13 @@ async function unpublishNonLiveCameraTracks(room: Room): Promise<void> {
   try {
     const pubs = getLocalTrackPublications(room);
     for (const pub of pubs) {
-      const src = pub?.source ?? pub?.track?.source;
-      const kind = pub?.kind ?? pub?.track?.kind;
-      const t = pub?.track;
+      const src = readPubSource(pub);
+      const kind = readPubKind(pub);
+      const t = pub.track;
       if (!t) continue;
       if (kind !== 'video') continue;
       if (src === 'screen_share') continue;
-      if (!(src === 'camera' || src === 1 || src == null)) continue;
+      if (!(src === 'camera' || src == null)) continue;
 
       const mst = t.mediaStreamTrack;
       if (mst?.readyState === 'live') continue;
@@ -36,7 +41,7 @@ async function unpublishNonLiveCameraTracks(room: Room): Promise<void> {
       } catch {}
 
       try {
-        await room.localParticipant.unpublishTrack(t);
+        await room.localParticipant.unpublishTrack(t as unknown as LocalTrack);
       } catch {}
       try {
         t.stop?.();
@@ -63,19 +68,19 @@ export async function publishCamera({
   // Prefer an existing, live camera publication to avoid duplicates after reconnect/desync
   try {
     const pubs = getLocalTrackPublications(room);
-    const livePub = pubs.find((pub: any) => {
-      const src = pub?.source ?? pub?.track?.source;
-      const kind = pub?.kind ?? pub?.track?.kind;
-      const t = pub?.track;
+    const livePub = pubs.find((pub) => {
+      const src = readPubSource(pub);
+      const kind = readPubKind(pub);
+      const t = pub.track;
       const mst = t?.mediaStreamTrack;
       if (kind !== 'video') return false;
       if (src === 'screen_share') return false;
       const readyState = mst?.readyState;
       const isLive = readyState === undefined || readyState === 'live';
-      return (src === 'camera' || src === 1 || src == null) && isLive;
+      return (src === 'camera' || src == null) && isLive;
     });
     if (livePub?.track) {
-      state.track = livePub.track as LocalVideoTrack;
+      state.track = livePub.track as unknown as LocalVideoTrack;
       state.published = true;
       AVLogger.debug('track.cam.already_published');
       return;
@@ -84,7 +89,7 @@ export async function publishCamera({
 
   // Check if already published with a live track
   if (state.published && state.track) {
-    const mst = (state.track as any).mediaStreamTrack;
+    const mst = (state.track as unknown as TrackLike).mediaStreamTrack;
     if (mst?.readyState === 'live') {
       AVLogger.debug('track.cam.already_published');
       return;
@@ -96,14 +101,14 @@ export async function publishCamera({
     await unpublishNonLiveCameraTracks(room);
     const { createLocalTracks } = await import('livekit-client');
 
-    const constraints: any = {
-      video: state.preferredDeviceId
-        ? { deviceId: state.preferredDeviceId, facingMode: 'user' }
-        : { facingMode: 'user' },
-    };
+    const videoConstraints: { deviceId?: string; facingMode: string } = state.preferredDeviceId
+      ? { deviceId: state.preferredDeviceId, facingMode: 'user' }
+      : { facingMode: 'user' };
 
-    const tracks = await createLocalTracks(constraints);
-    const videoTrack = tracks.find((t: any) => t.kind === 'video') as LocalVideoTrack | undefined;
+    const tracks = await createLocalTracks({ video: videoConstraints } as unknown as Parameters<
+      typeof createLocalTracks
+    >[0]);
+    const videoTrack = tracks.find((t) => String((t as TrackLike).kind) === 'video') as LocalVideoTrack | undefined;
 
     if (!videoTrack) {
       throw new Error('No video track created');
@@ -143,12 +148,11 @@ export async function unpublishCamera({
     try {
       const pubs = getLocalTrackPublications(room);
       for (const pub of pubs) {
-        const src = pub?.source ?? pub?.track?.source;
-        const kind = pub?.kind ?? pub?.track?.kind;
-        const t = pub?.track;
+        const src = readPubSource(pub);
+        const kind = readPubKind(pub);
+        const t = pub.track;
         if (!t) continue;
-        if (kind === 'video' && (src === 'camera' || src === 1 || src == null)) {
-          if (src === 'screen_share') continue;
+        if (kind === 'video' && (src === 'camera' || src == null)) {
           try {
             const mst = t.mediaStreamTrack;
             if (typeof t.setEnabled === 'function') {
@@ -157,7 +161,7 @@ export async function unpublishCamera({
               mst.enabled = false;
             }
           } catch {}
-          await room.localParticipant.unpublishTrack(t);
+          await room.localParticipant.unpublishTrack(t as unknown as LocalTrack);
           try {
             t.stop?.();
           } catch {}
@@ -172,7 +176,7 @@ export async function unpublishCamera({
   try {
     // Disable track immediately for snappy UI
     try {
-      const t = state.track as any;
+      const t = state.track as unknown as TrackLike;
       if (typeof t.setEnabled === 'function') {
         t.setEnabled(false);
       } else if (t.mediaStreamTrack) {
@@ -180,8 +184,8 @@ export async function unpublishCamera({
       }
     } catch {}
 
-    await room.localParticipant.unpublishTrack(state.track as any);
-    (state.track as any).stop?.();
+    await room.localParticipant.unpublishTrack(state.track as unknown as LocalTrack);
+    (state.track as unknown as TrackLike).stop?.();
   } catch (error) {
     AVLogger.warn('track.cam.unpublish_error', { error: String(error) });
   }

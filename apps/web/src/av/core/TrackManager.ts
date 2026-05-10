@@ -21,6 +21,7 @@ import {
   softUnmuteMicrophone,
 } from './microphonePublishing';
 import { publishCamera, unpublishCamera, ensureVideoPermissions } from './cameraPublishing';
+import { listPublications, readPubKind, readPubSource, type TrackLike } from '../../types/livekit';
 
 export interface TrackManagerDeps {
   getRoom: () => Room | null;
@@ -67,19 +68,19 @@ export class TrackManager implements Disposable {
     if (!room) return this._state.microphone.published;
 
     try {
-      const pubs = Array.from((room.localParticipant?.trackPublications?.values() || []) as any);
-      const hasMic = pubs.some((pub: any) => {
-        const src = pub?.source ?? pub?.track?.source;
-        const kind = pub?.kind ?? pub?.track?.kind;
-        const track = pub?.track;
+      const pubs = listPublications(room.localParticipant);
+      const hasMic = pubs.some((pub) => {
+        const src = readPubSource(pub);
+        const kind = readPubKind(pub);
+        const track = pub.track;
         if (!track) return false;
-        if (kind !== 'audio' || (src !== 'microphone' && src !== 0)) return false;
+        if (kind !== 'audio' || src !== 'microphone') return false;
         const mst = track.mediaStreamTrack;
         const readyState = mst?.readyState;
         const isLive = readyState === undefined || readyState === 'live';
         if (!isLive) return false;
         // Soft-mute: Publication bleibt, aber pub.muted/track.enabled signalisiert "aus".
-        const pubMuted = pub?.muted === true || pub?.isMuted === true;
+        const pubMuted = pub.muted === true || pub.isMuted === true;
         if (pubMuted) return false;
         const enabledFlag = track.isEnabled ?? track.enabled ?? mst?.enabled;
         if (enabledFlag === false) return false;
@@ -96,16 +97,16 @@ export class TrackManager implements Disposable {
     if (!room) return this._state.camera.published;
 
     try {
-      const pubs = Array.from((room.localParticipant?.trackPublications?.values() || []) as any);
-      const hasCam = pubs.some((pub: any) => {
-        const src = pub?.source ?? pub?.track?.source;
-        const kind = pub?.kind ?? pub?.track?.kind;
-        const track = pub?.track;
+      const pubs = listPublications(room.localParticipant);
+      const hasCam = pubs.some((pub) => {
+        const src = readPubSource(pub);
+        const kind = readPubKind(pub);
+        const track = pub.track;
         if (!track) return false;
         const mst = track.mediaStreamTrack;
         if (kind !== 'video') return false;
         if (src === 'screen_share') return false;
-        const isCam = src === 'camera' || src === 1 || src == null;
+        const isCam = src === 'camera' || src == null;
         const readyState = mst?.readyState;
         const isLive = readyState === undefined || readyState === 'live';
         return isCam && isLive;
@@ -306,7 +307,7 @@ export class TrackManager implements Disposable {
     if (actual === enabled && !state.pending) {
       // published spiegelt "Publication existiert", nicht "ist hörbar".
       // Bei vorhandenem (ggf. gemutetem) Track bleibt published=true.
-      const mst = (state.track as any)?.mediaStreamTrack as MediaStreamTrack | undefined;
+      const mst = (state.track as TrackLike | null)?.mediaStreamTrack;
       const trackIsLive = !!state.track && (!mst || mst.readyState === 'live');
       state.published = trackIsLive || actual;
       AVLogger.debug('track.mic.already_in_state', { enabled });
@@ -346,7 +347,7 @@ export class TrackManager implements Disposable {
     // Soft-Mute-Pfad: Track-Publication bleibt erhalten, wir toggeln nur den
     // RTP-Mute-Frame. Spart 2-4 Sek SDP-Renegotiation pro Toggle.
     const existingTrack = state.track as LocalAudioTrack | null;
-    const mst = (existingTrack as any)?.mediaStreamTrack as MediaStreamTrack | undefined;
+    const mst = (existingTrack as TrackLike | null)?.mediaStreamTrack;
     const trackIsLive = !!existingTrack && (!mst || mst.readyState === 'live');
 
     if (enabled) {
@@ -465,7 +466,7 @@ export class TrackManager implements Disposable {
     _source: 'microphone' | 'camera',
     onEnded: () => void,
   ): void {
-    const mst = (track as any).mediaStreamTrack;
+    const mst = (track as TrackLike).mediaStreamTrack;
     if (!mst) return;
 
     const handler = () => {
@@ -495,15 +496,18 @@ export class TrackManager implements Disposable {
     this._lastAudioContextResume = now;
 
     try {
-      const roomAny = room as any;
+      const roomLike = room as Room & {
+        startAudio?: () => Promise<unknown>;
+        engine?: { client?: { audioContext?: AudioContext }; audioContext?: AudioContext };
+      };
 
       // Try LiveKit's startAudio
-      if (typeof roomAny.startAudio === 'function') {
-        await roomAny.startAudio();
+      if (typeof roomLike.startAudio === 'function') {
+        await roomLike.startAudio();
       }
 
       // Also try to resume AudioContext directly
-      const ctx = roomAny.engine?.client?.audioContext ?? roomAny.engine?.audioContext;
+      const ctx = roomLike.engine?.client?.audioContext ?? roomLike.engine?.audioContext;
       if (ctx && ctx.state === 'suspended') {
         await ctx.resume();
       }
@@ -513,7 +517,7 @@ export class TrackManager implements Disposable {
       });
     } catch (error) {
       // NotAllowedError is expected if no user gesture
-      if ((error as any)?.name !== 'NotAllowedError') {
+      if ((error as { name?: string })?.name !== 'NotAllowedError') {
         AVLogger.warn('audio.unlock.error', { error: String(error) });
       }
     }

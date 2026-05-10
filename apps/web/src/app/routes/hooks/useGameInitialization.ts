@@ -11,12 +11,14 @@ import { avatarRegistry } from '../../../game/avatarRegistry';
 import { useMapStore } from '../../../state/mapStore';
 import type { WorldRoom } from '../../../types/colyseus';
 import type { AVManager } from '../../../av/avManager';
+import type { EditorState, Asset } from '../../../services/EditorService';
+import type { WorldUi } from './useWorldAppState';
 
 interface UseGameInitializationParams {
   authChecked: boolean;
   me: { id: string; email: string; name?: string } | null;
   apiBase: string;
-  containerRef: React.RefObject<HTMLDivElement>;
+  containerRef: React.RefObject<HTMLDivElement | null>;
   bubbleRef: React.MutableRefObject<BubbleManager | null>;
   followRef: React.MutableRefObject<FollowManager | null>;
   zoneRef: React.MutableRefObject<ZoneManager | null>;
@@ -29,22 +31,20 @@ interface UseGameInitializationParams {
   activateBubbleNowRef: React.RefObject<(id: string) => void>;
   manualNavRef: React.MutableRefObject<{ x: number; y: number } | null>;
   lastSavedPositionRef: React.MutableRefObject<{ x: number; y: number; direction: string }>;
-  moveTimeoutRef: React.MutableRefObject<any>;
+  moveTimeoutRef: React.MutableRefObject<ReturnType<typeof setTimeout> | null>;
   colyseusRef: React.RefObject<WorldRoom | null>;
   avRef: React.RefObject<AVManager | null>;
   colyseusToLivekitMap: React.RefObject<Record<string, string>>;
-  colyseusReconnectTimerRef: React.MutableRefObject<any>;
+  colyseusReconnectTimerRef: React.MutableRefObject<ReturnType<typeof setTimeout> | null>;
   bubbleGroupsRef: React.RefObject<Record<string, string>>;
-  editor: any;
-  setEditor: (editor: any) => void;
-  setContextMenu: React.Dispatch<
-    React.SetStateAction<{ open: boolean; x: number; y: number; playerId: string | null }>
-  >;
+  editor: EditorState;
+  setEditor: React.Dispatch<React.SetStateAction<EditorState>>;
+  setContextMenu: WorldUi['setContextMenu'];
   buildParticipantList: () => void;
   applyVolumesToUi: () => void;
 }
 
-function clearContainer(containerRef: React.RefObject<HTMLDivElement>) {
+function clearContainer(containerRef: React.RefObject<HTMLDivElement | null>) {
   try {
     const el = containerRef.current;
     while (el && el.firstChild) {
@@ -59,7 +59,7 @@ function buildSavePosition(params: UseGameInitializationParams) {
   const { localPosRef, lastSavedPositionRef, apiBase } = params;
   return async (opts?: { immediate?: boolean }) => {
     const currentPos = localPosRef.current;
-    const currentDirection = (gameBridge as any).lastDirection || 'down';
+    const currentDirection = (gameBridge as unknown as { lastDirection?: string }).lastDirection || 'down';
     const last = lastSavedPositionRef.current;
     const hasMoved =
       typeof currentPos.x === 'number' &&
@@ -204,11 +204,11 @@ function buildLocalMoveHandler(
   return (p: { x: number; y: number; direction: string }) => {
     localPosRef.current.x = p.x;
     localPosRef.current.y = p.y;
-    (gameBridge as any).lastDirection = p.direction;
+    (gameBridge as unknown as { lastDirection?: string }).lastDirection = p.direction;
     zoneRef.current?.update({ x: p.x, y: p.y });
     checkBubbleArrival(p, params);
     const zones = zoneRef.current?.getZones?.() || [];
-    const currentZone = zones.find((z) => pointInPolygon({ x: p.x, y: p.y }, z.points));
+    const currentZone = zones.find((z) => pointInPolygon({ x: p.x, y: p.y }, z.points as { x: number; y: number }[]));
     const currentZoneName = currentZone?.name || null;
     if (currentZoneName !== lastZone) {
       lastZone = currentZoneName;
@@ -256,15 +256,15 @@ function bindGameBridgeHandlers(params: UseGameInitializationParams) {
   const { editorActiveRef, setEditor, setContextMenu } = params;
   gameBridge.onPointerDown = ({ x, y }) => {
     if (editorActiveRef.current) return;
-    setEditor((prev: any) => {
+    setEditor((prev) => {
       if (!prev.active) return prev;
       if (prev.tool === 'erase' && prev.category === 'objects') {
         const clickRadius = 16;
         const clickedAsset = prev.assets.find(
-          (a: any) => Math.abs(a.x - x) < clickRadius && Math.abs(a.y - y) < clickRadius,
+          (a: Asset) => Math.abs(a.x - x) < clickRadius && Math.abs(a.y - y) < clickRadius,
         );
         if (clickedAsset) {
-          const assets = prev.assets.filter((a: any) => a.id !== clickedAsset.id);
+          const assets = prev.assets.filter((a: Asset) => a.id !== clickedAsset.id);
           return { ...prev, assets };
         }
         return prev;

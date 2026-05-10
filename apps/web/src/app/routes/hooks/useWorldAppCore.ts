@@ -11,8 +11,26 @@ import { useWorldUiHelpers, useParticipantListEffects } from './useWorldUiHelper
 import { useDesktopShortcuts, useMicShortcut } from './useDesktopShortcuts';
 import { useAvSettingsStore } from '../../../state/avSettings';
 import { usePushToTalk } from '../../../av/hooks/usePushToTalk';
+import type { WorldRefs, WorldUi, WorldAuth, WorldAppState } from './useWorldAppState';
+import type { EditorState } from '../../../services/EditorService';
+import type { WorldRoom } from '../../../types/colyseus';
+import type { AVManager as AVManagerInterface } from '../../../types/av';
+import type { AVManager as AVManagerClass } from '../../../av/avManager';
+import type { GameBridge } from '../../../types/game';
 
-function useWorldEditorActiveSync(refs: any, editorActive: boolean) {
+type SetEditor = React.Dispatch<React.SetStateAction<EditorState>>;
+
+// useParticipants uses the interface from `types/av` (room: Room | null),
+// while WorldAppState.avRef holds the concrete class from `av/avManager`
+// (room: Room | undefined). The structural difference is benign at runtime so
+// we widen the ref type via a cast at the boundary.
+function asInterfaceAvRef(
+  ref: React.RefObject<AVManagerClass | null>,
+): React.MutableRefObject<AVManagerInterface | null> {
+  return ref as unknown as React.MutableRefObject<AVManagerInterface | null>;
+}
+
+function useWorldEditorActiveSync(refs: WorldRefs, editorActive: boolean) {
   React.useEffect(() => {
     refs.editorActiveRef.current = editorActive;
   }, [editorActive, refs.editorActiveRef]);
@@ -22,17 +40,17 @@ function useWorldEditorActiveSync(refs: any, editorActive: boolean) {
 }
 
 function useWorldParticipantsAndRealtime(params: {
-  refs: any;
-  auth: any;
-  ui: any;
+  refs: WorldRefs;
+  auth: WorldAuth;
+  ui: WorldUi;
   apiBase: string;
-  editor: any;
-  setEditor: any;
+  editor: EditorState;
+  setEditor: SetEditor;
   getDisplayName: (id: string) => string;
 }) {
   const { refs, auth, ui, apiBase, editor, setEditor, getDisplayName } = params;
   const { buildParticipantList, applyVolumesToUi } = useParticipants({
-    avRef: refs.avRef,
+    avRef: asInterfaceAvRef(refs.avRef),
     zoneRef: refs.zoneRef,
     localPosRef: refs.localPosRef,
     remotesRef: refs.remotesRef,
@@ -43,7 +61,8 @@ function useWorldParticipantsAndRealtime(params: {
     setUiParticipants: ui.setUiParticipants,
     disposedRef: refs.disposedRef,
     getDisplayName,
-    gameBridge: gameBridge as any,
+    // gameBridge concrete impl is wider than the consumer's GameBridge view.
+    gameBridge: gameBridge as unknown as GameBridge,
     dndRef: refs.dndRef,
   });
   useParticipantListEffects({ refs, me: auth.me, buildParticipantList });
@@ -61,7 +80,26 @@ function useWorldParticipantsAndRealtime(params: {
   return { buildParticipantList, applyVolumesToUi, recovery };
 }
 
-function useWorldFlows(params: any) {
+interface UseWorldFlowsParams {
+  apiBase: string;
+  refs: WorldRefs;
+  ui: WorldUi;
+  auth: WorldAuth;
+  editor: EditorState;
+  setEditor: SetEditor;
+  recovery: { handleReload: () => void; dismissBanner: () => void };
+  saveAllToServer: () => Promise<boolean>;
+  useEscapeHandlers: (
+    setContextMenu: WorldUi['setContextMenu'],
+    selectedSid: string | null,
+    setSelectedSid: WorldUi['setSelectedSid'],
+    setOverlayZoom: WorldUi['setOverlayZoom'],
+  ) => void;
+  buildParticipantList: () => void;
+  applyVolumesToUi: () => void;
+}
+
+function useWorldFlows(params: UseWorldFlowsParams) {
   const {
     apiBase,
     refs,
@@ -130,21 +168,25 @@ function useWorldFlows(params: any) {
 }
 
 export function useWorldAppCore(params: {
-  refs: any;
-  auth: any;
-  ui: any;
+  refs: WorldRefs;
+  auth: WorldAuth;
+  ui: WorldUi;
   apiBase: string;
   useBillingAvailability: (apiBase: string, setBillingAvailable: (v: boolean) => void) => void;
-  useCameraManualSync: (setCameraManual: any) => void;
-  useDisposedFlag: (disposedRef: any) => void;
-  useAvailableMaps: (me: any, apiBase: string) => void;
+  useCameraManualSync: (setCameraManual: WorldUi['setCameraManual']) => void;
+  useDisposedFlag: (disposedRef: WorldRefs['disposedRef']) => void;
+  useAvailableMaps: (me: WorldAppState['me'], apiBase: string) => void;
   useEscapeHandlers: (
-    setContextMenu: any,
+    setContextMenu: WorldUi['setContextMenu'],
     selectedSid: string | null,
-    setSelectedSid: any,
-    setOverlayZoom: any,
+    setSelectedSid: WorldUi['setSelectedSid'],
+    setOverlayZoom: WorldUi['setOverlayZoom'],
   ) => void;
-  saveAllToServerImpl: (apiBase: string, editor: any, colyseusRef: any) => Promise<boolean>;
+  saveAllToServerImpl: (
+    apiBase: string,
+    editor: EditorState,
+    colyseusRef: React.RefObject<WorldRoom | null>,
+  ) => Promise<boolean>;
 }) {
   const {
     refs,

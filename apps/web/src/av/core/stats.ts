@@ -1,3 +1,6 @@
+import type { Room, RemoteParticipant } from 'livekit-client';
+import { listPublications, readPubKind, readPubSource } from '../../types/livekit';
+
 export type AVDebugPayload = {
   roomName: string;
   identity: string;
@@ -10,8 +13,16 @@ export type AVDebugPayload = {
   nLocalVideo?: number;
 };
 
-// Manager wird absichtlich als any getypt, um enge Kopplung an die interne Klasse zu vermeiden
-export function startStatsLoopImpl(manager: any): void {
+interface StatsManagerView {
+  current: Room | null;
+  currentName?: string | null;
+  identity: string;
+  baseUrl: string;
+  statsTimer?: ReturnType<typeof setInterval>;
+}
+
+// Manager wird absichtlich nur strukturell getypt, um enge Kopplung an die interne Klasse zu vermeiden.
+export function startStatsLoopImpl(manager: StatsManagerView): void {
   try {
     if (manager.statsTimer) clearInterval(manager.statsTimer);
   } catch {}
@@ -21,27 +32,33 @@ export function startStatsLoopImpl(manager: any): void {
 
   const collectOnce = async () => {
     try {
-      const room: any = manager.current;
+      const room = manager.current;
       if (!room) return;
-      const connectionState = (room.connectionState || room.state || '').toString();
+      const roomLike = room as unknown as {
+        connectionState?: string;
+        state?: string;
+        engine?: { pcManager?: { publisher?: { pc?: RTCPeerConnection } } };
+        pc?: RTCPeerConnection;
+      };
+      const connectionState = roomLike.connectionState ?? roomLike.state ?? '';
       let nRemoteAudio = 0,
         nRemoteVideo = 0,
         nLocalAudio = 0,
         nLocalVideo = 0;
       try {
-        const participants: any[] = Array.from(room.remoteParticipants?.values?.() || []);
+        const participants: RemoteParticipant[] = Array.from(room.remoteParticipants?.values?.() || []);
         for (const p of participants) {
-          const pubs: any[] = Array.from(p.trackPublications?.values?.() || []);
+          const pubs = listPublications(p);
           for (const pub of pubs) {
-            const kind = pub.kind ?? pub.track?.kind;
+            const kind = readPubKind(pub);
             if (kind === 'audio') nRemoteAudio++;
             if (kind === 'video') nRemoteVideo++;
           }
         }
-        const pubsLocal: any[] = Array.from(room.localParticipant?.trackPublications?.values?.() || []);
+        const pubsLocal = listPublications(room.localParticipant);
         for (const pub of pubsLocal) {
-          const kind = pub.kind ?? pub.track?.kind;
-          const src = pub.source ?? pub.track?.source;
+          const kind = readPubKind(pub);
+          const src = readPubSource(pub);
           if (kind === 'audio' || src === 'microphone') nLocalAudio++;
           if ((kind === 'video' && src !== 'screen_share') || src === 'camera') nLocalVideo++;
         }
@@ -49,10 +66,10 @@ export function startStatsLoopImpl(manager: any): void {
       let iceState: string | undefined;
       let dtlsState: string | undefined;
       try {
-        const pc = room?.engine?.pcManager?.publisher?.pc || room?.pc;
+        const pc = roomLike.engine?.pcManager?.publisher?.pc || roomLike.pc;
         if (pc) {
-          iceState = (pc.iceConnectionState || pc.connectionState || '').toString();
-          dtlsState = (pc.connectionState || '').toString();
+          iceState = String(pc.iceConnectionState || pc.connectionState || '');
+          dtlsState = String(pc.connectionState || '');
         }
       } catch {}
       const payload: AVDebugPayload = {
@@ -83,8 +100,8 @@ export function startStatsLoopImpl(manager: any): void {
   void collectOnce();
 }
 
-export function updateDebugHudImpl(_manager: any, p: AVDebugPayload): void {
-  const w: any = window as any;
+export function updateDebugHudImpl(_manager: StatsManagerView, p: AVDebugPayload): void {
+  const w = window as unknown as { __avDebugOn?: boolean };
   if (!w.__avDebugOn) return;
   let el = document.getElementById('av-debug-hud');
   if (!el) {
