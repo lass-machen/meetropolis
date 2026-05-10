@@ -5,6 +5,7 @@ import { act } from 'react';
 import { useGlobalAudioTracks } from './useGlobalAudioTracks';
 
 function TestHarness({ avRef }: { avRef: React.MutableRefObject<any> }) {
+  // test harness uses untyped avRef intentionally — mocked room shape only
   useGlobalAudioTracks({ avRef });
   return <div />;
 }
@@ -31,7 +32,7 @@ describe('useGlobalAudioTracks', () => {
     const root = createRoot(container);
 
     const room = makeRoom();
-    const avRef = { current: { room, dnd: true } } as React.MutableRefObject<any>;
+    const avRef = { current: { room, dndEnabled: true } } as React.MutableRefObject<any>;
 
     act(() => {
       root.render(<TestHarness avRef={avRef} />);
@@ -57,7 +58,7 @@ describe('useGlobalAudioTracks', () => {
     const root = createRoot(container);
 
     const room = makeRoom();
-    const avRef = { current: { room, dnd: false } } as React.MutableRefObject<any>;
+    const avRef = { current: { room, dndEnabled: false } } as React.MutableRefObject<any>;
 
     act(() => {
       root.render(<TestHarness avRef={avRef} />);

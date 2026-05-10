@@ -10,6 +10,7 @@ import { pointInPolygon } from '../../../lib/geom';
 import { avatarRegistry } from '../../../game/avatarRegistry';
 import { useMapStore } from '../../../state/mapStore';
 import type { WorldRoom } from '../../../types/colyseus';
+import type { AVManager } from '../../../av/avManager';
 
 interface UseGameInitializationParams {
   authChecked: boolean;
@@ -30,7 +31,7 @@ interface UseGameInitializationParams {
   lastSavedPositionRef: React.MutableRefObject<{ x: number; y: number; direction: string }>;
   moveTimeoutRef: React.MutableRefObject<any>;
   colyseusRef: React.RefObject<WorldRoom | null>;
-  avRef: React.RefObject<any>;
+  avRef: React.RefObject<AVManager | null>;
   colyseusToLivekitMap: React.RefObject<Record<string, string>>;
   colyseusReconnectTimerRef: React.MutableRefObject<any>;
   bubbleGroupsRef: React.RefObject<Record<string, string>>;
@@ -176,11 +177,16 @@ function sendMoveToServer(
 ) {
   try {
     const room = colyseusRef.current;
-    const wsReadyState =
-      room?.connection?.ws?.readyState ??
-      room?.connection?.transport?.ws?.readyState ??
-      room?.connection?._transport?.ws?.readyState;
-    const isOpen = room?.connection?.isOpen === true || wsReadyState === 1;
+    // Colyseus-Interna: connection.ws/transport/_transport sind nicht im public typing.
+    type ConnectionInternals = {
+      ws?: WebSocket;
+      transport?: { ws?: WebSocket };
+      _transport?: { ws?: WebSocket };
+      isOpen?: boolean;
+    };
+    const conn = room?.connection as unknown as ConnectionInternals | undefined;
+    const wsReadyState = conn?.ws?.readyState ?? conn?.transport?.ws?.readyState ?? conn?._transport?.ws?.readyState;
+    const isOpen = conn?.isOpen === true || wsReadyState === 1;
     if (room && isOpen) {
       room.send('move', p);
     }
@@ -319,18 +325,22 @@ function buildCleanup(
     if (game) destroyPhaserGame(game);
     clearContainer(containerRef);
     try {
-      const room: any = colyseusRef.current;
-      const wsReadyState =
-        room?.connection?.ws?.readyState ??
-        room?.connection?.transport?.ws?.readyState ??
-        room?.connection?._transport?.ws?.readyState;
-      const isOpen = room?.connection?.isOpen === true || wsReadyState === 1;
-      if (isOpen) room.leave();
+      const room = colyseusRef.current;
+      type ConnectionInternals = {
+        ws?: WebSocket;
+        transport?: { ws?: WebSocket };
+        _transport?: { ws?: WebSocket };
+        isOpen?: boolean;
+      };
+      const conn = room?.connection as unknown as ConnectionInternals | undefined;
+      const wsReadyState = conn?.ws?.readyState ?? conn?.transport?.ws?.readyState ?? conn?._transport?.ws?.readyState;
+      const isOpen = conn?.isOpen === true || wsReadyState === 1;
+      if (isOpen && room) void room.leave();
     } catch (e) {
       logger.debug('[WorldApp] Operation failed', e);
     }
     try {
-      avRef.current?.leave?.();
+      void avRef.current?.leave?.();
     } catch (e) {
       logger.debug('[WorldApp] Operation failed', e);
     }

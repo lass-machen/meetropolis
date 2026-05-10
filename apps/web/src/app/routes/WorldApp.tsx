@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import type { WorldRoom } from '../../types/colyseus';
+import type { AVManager } from '../../av/avManager';
 import { gameBridge } from '../../game/bridge';
 import { getApiBaseFromWindow } from '../../lib/runtimeConfig';
 import { logger } from '../../lib/logger';
@@ -21,7 +22,7 @@ function useWorldRefs() {
     containerRef: useRef<HTMLDivElement>(null!),
     colyseusRef: useRef<WorldRoom | null>(null),
     colyseusReconnectTimerRef: useRef<any>(null),
-    avRef: useRef<any>(null),
+    avRef: useRef<AVManager | null>(null),
     bubbleRef: useRef<BubbleManager | null>(null),
     zoneRef: useRef<ZoneManager | null>(null),
     followRef: useRef<FollowManager | null>(null),

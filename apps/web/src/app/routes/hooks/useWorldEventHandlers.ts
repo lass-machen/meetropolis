@@ -2,10 +2,11 @@ import { useCallback, useMemo } from 'react';
 import { logger } from '../../../lib/logger';
 import { EditorService } from '../../../services/EditorService';
 import type { WorldRoom } from '../../../types/colyseus';
+import type { AVManager } from '../../../av/avManager';
 
 interface UseWorldEventHandlersParams {
   apiBase: string;
-  avRef: React.RefObject<any>;
+  avRef: React.RefObject<AVManager | null>;
   colyseusRef: React.RefObject<WorldRoom | null>;
   localPosRef: React.RefObject<{ id: string; x?: number; y?: number }>;
   bubbleGroupsRef: React.RefObject<Record<string, string>>;
@@ -45,7 +46,7 @@ interface UseWorldEventHandlersParams {
   dismissBanner: () => void;
 }
 
-async function ensureMicAudioContext(avRef: React.RefObject<any>) {
+async function ensureMicAudioContext(avRef: React.RefObject<AVManager | null>) {
   try {
     const anyRoom: any = avRef.current?.room;
     if (anyRoom?.startAudio) await anyRoom.startAudio().catch(() => {});
@@ -55,7 +56,7 @@ async function ensureMicAudioContext(avRef: React.RefObject<any>) {
 }
 
 async function reconcileMicState(
-  avRef: React.RefObject<any>,
+  avRef: React.RefObject<AVManager | null>,
   enabled: boolean,
   setAvState: React.Dispatch<React.SetStateAction<{ mic: boolean; cam: boolean; share: boolean; dnd: boolean }>>,
 ) {

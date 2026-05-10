@@ -1,7 +1,11 @@
 import React from 'react';
 import { emitAudioTracksChanged, onAudioTracksChanged } from '../lib/avEvents';
+import type { AVManager } from './avManager';
 
-function buildAttachAudioTrack(audioElements: Map<string, HTMLAudioElement>, avRef: React.MutableRefObject<any>) {
+function buildAttachAudioTrack(
+  audioElements: Map<string, HTMLAudioElement>,
+  avRef: React.MutableRefObject<AVManager | null>,
+) {
   return (track: any, participantId: string) => {
     try {
       // Verhindere Duplikate pro Participant-ID über Tests/Render hinweg
@@ -11,7 +15,7 @@ function buildAttachAudioTrack(audioElements: Map<string, HTMLAudioElement>, avR
       audio.autoplay = true;
       (audio as any).playsInline = true;
       // Respektiere DND bereits beim Attach, um kurze Audio-Leaks zu vermeiden
-      const dnd = !!(avRef.current?.dndEnabled ?? avRef.current?.dnd);
+      const dnd = !!avRef.current?.dndEnabled;
       try {
         (audio as any).muted = dnd;
       } catch {}
@@ -112,7 +116,7 @@ async function registerLivekitListeners(
   } catch {}
 }
 
-function setupGlobalAudioTracksEffect(avRef: React.MutableRefObject<any>): (() => void) | undefined {
+function setupGlobalAudioTracksEffect(avRef: React.MutableRefObject<AVManager | null>): (() => void) | undefined {
   const room = avRef.current?.room;
   if (!room) return undefined;
 
@@ -151,7 +155,7 @@ function setupGlobalAudioTracksEffect(avRef: React.MutableRefObject<any>): (() =
   // and volume=1 — the flag may have been set to muted while DND was on.
   const unsubscribeAudioChanged = onAudioTracksChanged(() => {
     try {
-      const dndOn = !!(avRef.current?.dndEnabled ?? avRef.current?.dnd);
+      const dndOn = !!avRef.current?.dndEnabled;
       if (dndOn) return;
       audioElements.forEach((audio) => {
         try {
@@ -183,7 +187,7 @@ function setupGlobalAudioTracksEffect(avRef: React.MutableRefObject<any>): (() =
   };
 }
 
-export function useGlobalAudioTracks(params: { avRef: React.MutableRefObject<any> }) {
+export function useGlobalAudioTracks(params: { avRef: React.MutableRefObject<AVManager | null> }) {
   const { avRef } = params;
 
   React.useEffect(() => {

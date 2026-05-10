@@ -1,5 +1,6 @@
 import React from 'react';
 import { logger } from '../../../lib/logger';
+import type { AVManager } from '../../../av/avManager';
 
 type AvState = { mic: boolean; cam: boolean; share: boolean; dnd: boolean };
 
@@ -7,7 +8,10 @@ type AvState = { mic: boolean; cam: boolean; share: boolean; dnd: boolean };
  * Mirrors the LiveKit room's local mic/cam/share state into React state.
  * Listens for RoomEvent changes and polls until a room becomes available.
  */
-export function useAvStateSync(avRef: React.RefObject<any>, setAvState: React.Dispatch<React.SetStateAction<AvState>>) {
+export function useAvStateSync(
+  avRef: React.RefObject<AVManager | null>,
+  setAvState: React.Dispatch<React.SetStateAction<AvState>>,
+) {
   React.useEffect(() => {
     let removeHandlers: (() => void) | null = null;
     let pollTimer: any = null;
