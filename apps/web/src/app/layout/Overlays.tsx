@@ -1,10 +1,19 @@
 import * as React from 'react';
+import type { Room } from 'livekit-client';
 import { ParticipantsGrid } from '../../ui/user/ParticipantsGrid';
 import { ParticipantOverlay } from '../../ui/user/ParticipantOverlay';
 import { HudPanel } from '../../ui/hud/HudPanel';
 import { TopRightMenu } from '../../ui/app/TopRightMenu';
 
-type Participant = { sid: string; identity: string; hasVideo: boolean; hasMic: boolean; isSpeaking: boolean; media: 'camera' | 'screen'; volume?: number };
+type Participant = {
+  sid: string;
+  identity: string;
+  hasVideo: boolean;
+  hasMic: boolean;
+  isSpeaking: boolean;
+  media: 'camera' | 'screen';
+  volume?: number;
+};
 
 /** Shallow-compare two participant arrays by length + per-entry SID, hasVideo, hasMic, isSpeaking, volume. */
 function participantsEqual(a: Participant[], b: Participant[]): boolean {
@@ -36,7 +45,7 @@ type Props = {
   onToggleExpand: () => void;
   selectedSid: string | null;
   onSelectSid: (sid: string | null) => void;
-  getRoom: () => any;
+  getRoom: () => Room | undefined;
   overlayZoom: number;
   onZoom: (z: number) => void;
   // TopRightMenu props
@@ -91,8 +100,22 @@ function useStableParticipants(participants: Participant[]): Participant[] {
   return stableParticipants;
 }
 
-function FullscreenOverlay({ participants, selectedSid, getRoom, overlayZoom, onZoom, onSelectSid }: { participants: Participant[]; selectedSid: string; getRoom: () => any; overlayZoom: number; onZoom: (z: number) => void; onSelectSid: (sid: string | null) => void }) {
-  const pick = participants.find(p => p.sid === selectedSid);
+function FullscreenOverlay({
+  participants,
+  selectedSid,
+  getRoom,
+  overlayZoom,
+  onZoom,
+  onSelectSid,
+}: {
+  participants: Participant[];
+  selectedSid: string;
+  getRoom: () => Room | undefined;
+  overlayZoom: number;
+  onZoom: (z: number) => void;
+  onSelectSid: (sid: string | null) => void;
+}) {
+  const pick = participants.find((p) => p.sid === selectedSid);
   if (!pick) return null;
   return (
     <ParticipantOverlay
@@ -100,12 +123,30 @@ function FullscreenOverlay({ participants, selectedSid, getRoom, overlayZoom, on
       roomGetter={getRoom}
       zoom={overlayZoom}
       onZoom={onZoom}
-      onClose={() => { onSelectSid(null); onZoom(1); }}
+      onClose={() => {
+        onSelectSid(null);
+        onZoom(1);
+      }}
     />
   );
 }
 
-export function Overlays({ hud, editorActive, avDnd, participants, gridExpanded, onToggleExpand, selectedSid, onSelectSid, getRoom, overlayZoom, onZoom, topRightMenu, colyseusRef, mySessionId }: Props) {
+export function Overlays({
+  hud,
+  editorActive,
+  avDnd,
+  participants,
+  gridExpanded,
+  onToggleExpand,
+  selectedSid,
+  onSelectSid,
+  getRoom,
+  overlayZoom,
+  onZoom,
+  topRightMenu,
+  colyseusRef,
+  mySessionId,
+}: Props) {
   const stableParticipants = useStableParticipants(participants);
 
   const showParticipants = !editorActive && !avDnd;
@@ -128,9 +169,7 @@ export function Overlays({ hud, editorActive, avDnd, participants, gridExpanded,
               />
             )}
           </div>
-          <div className="top-header-right">
-            {showTopRightMenu && <TopRightMenu {...topRightMenu} />}
-          </div>
+          <div className="top-header-right">{showTopRightMenu && <TopRightMenu {...topRightMenu} />}</div>
         </div>
       )}
 
@@ -149,5 +188,3 @@ export function Overlays({ hud, editorActive, avDnd, participants, gridExpanded,
     </>
   );
 }
-
-

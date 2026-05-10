@@ -1,4 +1,5 @@
 import React from 'react';
+import type { Room } from 'livekit-client';
 import { Icon } from '../Icon';
 import { useTranslation } from 'react-i18next';
 import { Button } from '../system/Button';
@@ -252,7 +253,7 @@ function setupRoomEvents(
 
 function useVideoTrackAttachment(
   part: PartType,
-  roomGetter: () => any,
+  roomGetter: () => Room | undefined,
   videoRef: React.RefObject<HTMLVideoElement | null>,
 ) {
   const [isVideoRendering, setIsVideoRendering] = React.useState(false);
@@ -412,7 +413,7 @@ function StatusBadges({
   );
 }
 
-async function performForceMute(part: PartType, roomGetter: () => any) {
+async function performForceMute(part: PartType, roomGetter: () => Room | undefined) {
   try {
     const label = (part.identity || '').replace(/\s+–\s*Bildschirm$/, '');
     let targetIdentity = label;
@@ -538,7 +539,7 @@ function ExpandedCard({
   full: boolean | undefined;
   zoom: number;
   videoRef: React.MutableRefObject<HTMLVideoElement | null>;
-  roomGetter: () => any;
+  roomGetter: () => Room | undefined;
   t: (k: string) => string;
 }) {
   const speakingColor = 'var(--speaking-color, #10b981)';
@@ -673,7 +674,7 @@ function ExpandedCard({
 
 export function ParticipantCard(props: {
   part: PartType;
-  roomGetter: () => any;
+  roomGetter: () => Room | undefined;
   compact?: boolean;
   full?: boolean;
   zoom?: number;

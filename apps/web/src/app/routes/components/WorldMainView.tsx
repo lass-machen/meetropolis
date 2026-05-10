@@ -1,4 +1,5 @@
 import React from 'react';
+import type { Room } from 'livekit-client';
 import { Overlays } from '../../layout/Overlays';
 import { GameCanvas } from './GameCanvas';
 import { ConnectionBanners } from './ConnectionBanners';
@@ -67,7 +68,7 @@ export type WorldMainViewProps = {
   cameraManual: boolean;
   pttAwareToggleMic: () => Promise<void>;
   eventHandlers: any;
-  getRoom: () => any;
+  getRoom: () => Room | undefined;
 };
 
 function buildTopRightMenu(props: WorldMainViewProps) {

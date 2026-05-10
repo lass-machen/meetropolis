@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import type { Room } from 'livekit-client';
 import { UserCardContainer } from './UserCard';
 import { ParticipantCard } from './ParticipantCard';
 import { Icon } from '../Icon';
@@ -22,7 +23,7 @@ export function ParticipantsGrid(props: {
   onToggleExpand: () => void;
   selectedSid: string | null;
   onSelect: (sid: string | null) => void;
-  roomGetter: () => any;
+  roomGetter: () => Room | undefined;
 }) {
   const { participants, expanded, onToggleExpand, selectedSid, onSelect, roomGetter } = props;
   const { t } = useTranslation();

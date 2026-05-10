@@ -1,4 +1,5 @@
 import React from 'react';
+import type { Room } from 'livekit-client';
 import { useTranslation } from 'react-i18next';
 import { ParticipantCard } from './ParticipantCard';
 
@@ -282,7 +283,7 @@ function ScreenshareBadge() {
 
 export function ParticipantOverlay(props: {
   participant: UIParticipant;
-  roomGetter: () => any;
+  roomGetter: () => Room | undefined;
   zoom: number;
   onZoom: (next: number) => void;
   onClose: () => void;
