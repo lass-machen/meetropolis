@@ -4,13 +4,14 @@ import {
   drawNameLabel as uiDrawNameLabel,
   updateNameLabel as uiUpdateNameLabel,
 } from '../../ui/nameLabels';
+import type { MainSceneLike } from '../../types/scene';
 
 export class NameLabelManager {
-  private scene: any;
+  private scene: MainSceneLike;
   private nameLabels: Map<string, Phaser.GameObjects.Container> = new Map();
   private heroNameLabel?: Phaser.GameObjects.Container;
 
-  constructor(scene: any) {
+  constructor(scene: MainSceneLike) {
     this.scene = scene;
   }
 
@@ -29,7 +30,7 @@ export class NameLabelManager {
   setHeroLabelVisibility(visible: boolean) {
     try {
       if (this.heroNameLabel) this.heroNameLabel.setVisible(visible);
-    } catch { }
+    } catch {}
   }
 
   setHeroLabelAlpha(alpha: number) {
@@ -38,7 +39,11 @@ export class NameLabelManager {
 
   setHeroName(name: string) {
     if (this.heroNameLabel) {
-      try { this.heroNameLabel.destroy(); } catch { /* noop */ }
+      try {
+        this.heroNameLabel.destroy();
+      } catch {
+        /* noop */
+      }
     }
     this.heroNameLabel = uiCreateNameLabel(this.scene, name, 'local');
     // Position will be updated on next frame by updateHeroLabel()
@@ -76,7 +81,7 @@ export class NameLabelManager {
         (nameLabel as any).height = textObj.height + padY * 2;
         uiDrawNameLabel(this.scene, nameLabel, false);
       }
-    } catch { }
+    } catch {}
   }
 
   setRemoteLabelAlpha(id: string, alpha: number) {
@@ -104,7 +109,7 @@ export class NameLabelManager {
   setAllRemoteLabelsVisibility(visible: boolean) {
     try {
       this.nameLabels.forEach((lbl) => lbl.setVisible(visible));
-    } catch { }
+    } catch {}
   }
 
   private updateLabel(container: Phaser.GameObjects.Container, x: number, y: number) {

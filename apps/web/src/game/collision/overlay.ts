@@ -1,25 +1,31 @@
 import Phaser from 'phaser';
 import { logger } from '../../lib/logger';
+import type { MainSceneLike } from '../types/scene';
 
-export function setCollisionVisible(scene: Phaser.Scene & any, visible: boolean): void {
+export function setCollisionVisible(scene: MainSceneLike, visible: boolean): void {
   logger.debug('[Collision]', `Setting visibility to ${visible}`);
   scene.collisionVisible = !!visible;
   updateCollisionOverlay(scene);
-  try { localStorage.setItem('meetropolis.collisionVisible', visible.toString()); } catch {}
+  try {
+    localStorage.setItem('meetropolis.collisionVisible', visible.toString());
+  } catch {}
 }
 
-export function updateCollisionOverlay(scene: Phaser.Scene & any): void {
+export function updateCollisionOverlay(scene: MainSceneLike): void {
   if (!scene.mapRef) return;
   scene.collisionOverlay?.destroy();
   if (!scene.collisionVisible || !scene.collisionLayer) {
-    logger.debug('[Collision]', `Not showing overlay: visible=${scene.collisionVisible}, hasLayer=${!!scene.collisionLayer}`);
+    logger.debug(
+      '[Collision]',
+      `Not showing overlay: visible=${scene.collisionVisible}, hasLayer=${!!scene.collisionLayer}`,
+    );
     return;
   }
   const g = scene.add.graphics();
   g.fillStyle(0xff4757, 0.18);
   g.lineStyle(1, 0xff4757, 0.8);
   const layer: any = scene.collisionLayer;
-  const data = (layer as any)?.layer?.data as Phaser.Tilemaps.Tile[][] | undefined;
+  const data = layer?.layer?.data as Phaser.Tilemaps.Tile[][] | undefined;
   if (data) {
     let tileCount = 0;
     for (let y = 0; y < data.length; y++) {
@@ -41,5 +47,3 @@ export function updateCollisionOverlay(scene: Phaser.Scene & any): void {
   g.setDepth(8);
   scene.collisionOverlay = g;
 }
-
-

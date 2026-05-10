@@ -2,30 +2,44 @@ import Phaser from 'phaser';
 import { gameBridge } from '../bridge';
 import { logger } from '../../lib/logger';
 import { getApiBaseFromWindow } from '../../lib/runtimeConfig';
+import type { MainSceneLike } from '../types/scene';
 
 type LayerName = 'editorGround' | 'editorWalls' | 'collision';
 
-function applyTilesetsFromServer(scene: any, data: any): string[] {
+function applyTilesetsFromServer(scene: MainSceneLike, data: any): string[] {
   const requiredTsKeys: string[] = [];
   try {
     const arr = Array.isArray(data?.tilesets) ? data.tilesets : [];
     // Hydrate bridge cache so subsequent uploads don't overwrite existing tilesets
-    try { gameBridge.hydrateTilesetsCache(arr); } catch (e) { logger.error('Failed to hydrate tileset cache', e); }
+    try {
+      gameBridge.hydrateTilesetsCache(arr);
+    } catch (e) {
+      logger.error('Failed to hydrate tileset cache', e);
+    }
 
     for (const ts of arr) {
       if (ts && ts.key && ts.dataUrl && ts.tileWidth && ts.tileHeight) {
-        scene.registerTileset({ key: ts.key, dataUrl: ts.dataUrl, tileWidth: ts.tileWidth, tileHeight: ts.tileHeight, margin: (ts as any).margin ?? 0, spacing: (ts as any).spacing ?? 0 });
+        scene.registerTileset({
+          key: ts.key,
+          dataUrl: ts.dataUrl,
+          tileWidth: ts.tileWidth,
+          tileHeight: ts.tileHeight,
+          margin: ts.margin ?? 0,
+          spacing: ts.spacing ?? 0,
+        });
         if (typeof ts.key === 'string' && typeof ts.dataUrl === 'string' && ts.key.startsWith('terrain:')) {
           scene.terrainTilesetSources.set(ts.key, ts.dataUrl);
         }
-        try { requiredTsKeys.push(ts.key); } catch {}
+        try {
+          requiredTsKeys.push(ts.key);
+        } catch {}
       }
     }
   } catch {}
   return requiredTsKeys;
 }
 
-function applyBackgroundAndSpawn(scene: any, data: any): void {
+function applyBackgroundAndSpawn(scene: MainSceneLike, data: any): void {
   try {
     const bg = typeof data?.backgroundColor === 'string' ? data.backgroundColor : null;
     if (bg) {
@@ -33,35 +47,49 @@ function applyBackgroundAndSpawn(scene: any, data: any): void {
     }
     const sp = data?.spawn;
     if (sp && typeof sp.x === 'number' && typeof sp.y === 'number') {
-      try { scene.setSpawnMarker(sp); } catch {}
+      try {
+        scene.setSpawnMarker(sp);
+      } catch {}
     }
   } catch {}
 }
 
-function applyZonesFromServer(scene: any, data: any): void {
+function applyZonesFromServer(scene: MainSceneLike, data: any): void {
   try {
-    const zones = Array.isArray(data?.zones) ? data.zones.map((z: any) => {
-      const anyZ = z || {};
-      const pts = Array.isArray(anyZ.points) ? anyZ.points : Array.isArray(anyZ.polygon) ? anyZ.polygon : (anyZ.polygon && Array.isArray(anyZ.polygon.points)) ? anyZ.polygon.points : [];
-      return {
-        name: anyZ.name,
-        points: pts,
-        capacity: anyZ.capacity ?? undefined,
-        type: anyZ.type ?? undefined,
-        portalTarget: anyZ.portalTarget ?? undefined,
-        portalSpawnX: anyZ.portalSpawnX ?? undefined,
-        portalSpawnY: anyZ.portalSpawnY ?? undefined,
-      };
-    }) : [];
+    const zones = Array.isArray(data?.zones)
+      ? data.zones.map((z: any) => {
+          const anyZ = z || {};
+          const pts = Array.isArray(anyZ.points)
+            ? anyZ.points
+            : Array.isArray(anyZ.polygon)
+              ? anyZ.polygon
+              : anyZ.polygon && Array.isArray(anyZ.polygon.points)
+                ? anyZ.polygon.points
+                : [];
+          return {
+            name: anyZ.name,
+            points: pts,
+            capacity: anyZ.capacity ?? undefined,
+            type: anyZ.type ?? undefined,
+            portalTarget: anyZ.portalTarget ?? undefined,
+            portalSpawnX: anyZ.portalSpawnX ?? undefined,
+            portalSpawnY: anyZ.portalSpawnY ?? undefined,
+          };
+        })
+      : [];
     if (zones.length > 0) {
-      try { scene.setZoneOverlay(zones); } catch {}
+      try {
+        scene.setZoneOverlay(zones);
+      } catch {}
       // Dispatch event so ZoneManager gets updated with server-loaded zones (including portal metadata)
-      try { window.dispatchEvent(new CustomEvent('server_zones_loaded', { detail: { zones } })); } catch {}
+      try {
+        window.dispatchEvent(new CustomEvent('server_zones_loaded', { detail: { zones } }));
+      } catch {}
     }
   } catch {}
 }
 
-function fixCollisionLayerDimensions(scene: any, layer: Phaser.Tilemaps.TilemapLayer): void {
+function fixCollisionLayerDimensions(scene: MainSceneLike, layer: Phaser.Tilemaps.TilemapLayer): void {
   const layerData = (layer as any).layer;
   if (!layerData?.data) return;
   logger.debug('Load', `Collision layer actual size: ${layerData.data.length}x${layerData.data[0]?.length || 0}`);
@@ -72,7 +100,16 @@ function fixCollisionLayerDimensions(scene: any, layer: Phaser.Tilemaps.TilemapL
     while (layerData.data.length < expectedRows) {
       const newRow = new Array(scene.mapRef!.width);
       for (let x = 0; x < scene.mapRef!.width; x++) {
-        newRow[x] = new Phaser.Tilemaps.Tile(layerData, -1, x, layerData.data.length, scene.mapRef!.tileWidth, scene.mapRef!.tileHeight, scene.mapRef!.tileWidth, scene.mapRef!.tileHeight);
+        newRow[x] = new Phaser.Tilemaps.Tile(
+          layerData,
+          -1,
+          x,
+          layerData.data.length,
+          scene.mapRef!.tileWidth,
+          scene.mapRef!.tileHeight,
+          scene.mapRef!.tileWidth,
+          scene.mapRef!.tileHeight,
+        );
       }
       layerData.data.push(newRow);
     }
@@ -82,7 +119,7 @@ function fixCollisionLayerDimensions(scene: any, layer: Phaser.Tilemaps.TilemapL
 }
 
 function applyTilesToLayer(
-  scene: any,
+  scene: MainSceneLike,
   arr: number[] | null | undefined,
   layer: Phaser.Tilemaps.TilemapLayer | undefined,
   layerName: LayerName | undefined,
@@ -106,13 +143,20 @@ function applyTilesToLayer(
   }
   let appliedCount = 0;
   let validTileCount = 0;
-  for (const idx of arr) { if (typeof idx === 'number' && idx >= 0) validTileCount++; }
-  if (layerName === 'collision') { logger.debug('Load', `Found ${validTileCount} valid collision tiles`); }
+  for (const idx of arr) {
+    if (typeof idx === 'number' && idx >= 0) validTileCount++;
+  }
+  if (layerName === 'collision') {
+    logger.debug('Load', `Found ${validTileCount} valid collision tiles`);
+  }
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       const idx = arr[y * storedW + x];
       if (typeof idx === 'number' && idx >= 0) {
-        try { layer.putTileAt(idx, x, y); appliedCount++; } catch (e) {
+        try {
+          layer.putTileAt(idx, x, y);
+          appliedCount++;
+        } catch (e) {
           if (layerName === 'collision' && appliedCount === 0) {
             logger.error('Load', `First collision tile failed at ${x},${y} with index ${idx}`, e);
           }
@@ -120,11 +164,15 @@ function applyTilesToLayer(
       }
     }
   }
-  if (layerName === 'collision') { logger.debug('Load', `Applied ${appliedCount} collision tiles`); }
+  if (layerName === 'collision') {
+    logger.debug('Load', `Applied ${appliedCount} collision tiles`);
+  }
 }
 
-async function applyLayerData(scene: any, data: any, requiredTsKeys: string[]): Promise<void> {
-  try { await scene.waitForTilesetsReady(requiredTsKeys, 1500); } catch {}
+async function applyLayerData(scene: MainSceneLike, data: any, requiredTsKeys: string[]): Promise<void> {
+  try {
+    await scene.waitForTilesetsReady(requiredTsKeys, 1500);
+  } catch {}
   if (!scene.mapRef) return;
   const storedW = scene.mapRef.width;
   const width = scene.mapRef.width;
@@ -140,10 +188,12 @@ async function applyLayerData(scene: any, data: any, requiredTsKeys: string[]): 
   if (scene.collisionVisible) scene.updateCollisionOverlay();
 }
 
-export async function fetchAndApplyServerLayers(scene: Phaser.Scene & any): Promise<void> {
+export async function fetchAndApplyServerLayers(scene: MainSceneLike): Promise<void> {
   try {
     const base = getApiBaseFromWindow();
-    const res = await fetch(`${base}/maps/${encodeURIComponent(scene.currentMapId)}/editor-state?t=${Date.now()}`, { credentials: 'include' });
+    const res = await fetch(`${base}/maps/${encodeURIComponent(scene.currentMapId)}/editor-state?t=${Date.now()}`, {
+      credentials: 'include',
+    });
     if (!res.ok) return;
     const data = await res.json();
     const requiredTsKeys = applyTilesetsFromServer(scene, data);
@@ -158,4 +208,3 @@ export async function fetchAndApplyServerLayers(scene: Phaser.Scene & any): Prom
     logger.error('Load', 'Failed to fetch/apply server layers', e);
   }
 }
-

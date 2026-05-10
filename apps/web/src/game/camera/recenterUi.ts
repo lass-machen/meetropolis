@@ -1,7 +1,8 @@
 import Phaser from 'phaser';
 import { gameBridge } from '../bridge';
+import type { MainSceneLike } from '../types/scene';
 
-export function ensureRecenterUi(scene: Phaser.Scene & any): void {
+export function ensureRecenterUi(scene: MainSceneLike): void {
   if (scene.recenterUi && scene.recenterUi.scene) return;
   const container = scene.add.container(0, 0);
   container.setDepth(1000);
@@ -29,7 +30,7 @@ export function ensureRecenterUi(scene: Phaser.Scene & any): void {
     (rect: Phaser.Geom.Rectangle, x: number, y: number) => Phaser.Geom.Rectangle.Contains(rect, x, y),
   );
   container.on(Phaser.Input.Events.POINTER_DOWN, () => {
-    scene.cameras.main.startFollow(scene.hero, true, 0.1, 0.1);
+    if (scene.hero) scene.cameras.main.startFollow(scene.hero, true, 0.1, 0.1);
     scene.manualCameraActive = false;
     updateRecenterUiVisibility(scene);
   });
@@ -38,10 +39,12 @@ export function ensureRecenterUi(scene: Phaser.Scene & any): void {
   scene.recenterUi.setVisible(false);
 }
 
-export function updateRecenterUiVisibility(scene: Phaser.Scene & any): void {
+export function updateRecenterUiVisibility(scene: MainSceneLike): void {
   if (!scene.recenterUi) return;
   const cam = scene.cameras.main;
-  const isFollowing = cam.follow === scene.hero;
+  // Phaser-internal: `follow` ist auf Camera vorhanden, aber nicht typisiert.
+  const camFollow = (cam as unknown as { follow?: Phaser.GameObjects.GameObject }).follow;
+  const isFollowing = !!scene.hero && camFollow === scene.hero;
   if (!scene.manualCameraActive && isFollowing) {
     scene.recenterUi.setVisible(false);
     if (scene._lastCameraManualNotified !== false) {
@@ -54,10 +57,10 @@ export function updateRecenterUiVisibility(scene: Phaser.Scene & any): void {
   }
   const centerX = cam.worldView.centerX;
   const centerY = cam.worldView.centerY;
-  const dx = Math.abs(scene.hero.x - centerX);
-  const dy = Math.abs(scene.hero.y - centerY);
+  const dx = scene.hero ? Math.abs(scene.hero.x - centerX) : 0;
+  const dy = scene.hero ? Math.abs(scene.hero.y - centerY) : 0;
   const tolerance = 8;
-  const shouldShow = scene.manualCameraActive || dx > tolerance || dy > tolerance;
+  const shouldShow = !!scene.manualCameraActive || dx > tolerance || dy > tolerance;
   scene.recenterUi.setVisible(shouldShow);
   if (scene._lastCameraManualNotified !== shouldShow) {
     scene._lastCameraManualNotified = shouldShow;
@@ -67,8 +70,8 @@ export function updateRecenterUiVisibility(scene: Phaser.Scene & any): void {
   }
 }
 
-export function recenterCamera(scene: Phaser.Scene & any): void {
-  scene.cameras.main.startFollow(scene.hero, true, 0.1, 0.1);
+export function recenterCamera(scene: MainSceneLike): void {
+  if (scene.hero) scene.cameras.main.startFollow(scene.hero, true, 0.1, 0.1);
   scene.manualCameraActive = false;
   updateRecenterUiVisibility(scene);
 }

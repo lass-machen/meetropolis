@@ -4,20 +4,28 @@
 
 import Phaser from 'phaser';
 import { lookupDirectionalImage } from '../../lib/directionalImageRegistry';
+import type { MainSceneLike } from '../types/scene';
 
 export function setAssetPreview(
-  scene: Phaser.Scene & any,
-  preview: { dataUrl: string; width?: number | undefined; height?: number | undefined; rotation?: number | undefined; packUuid?: string | undefined; itemId?: string | undefined } | null,
+  scene: MainSceneLike,
+  preview: {
+    dataUrl: string;
+    width?: number | undefined;
+    height?: number | undefined;
+    rotation?: number | undefined;
+    packUuid?: string | undefined;
+    itemId?: string | undefined;
+  } | null,
 ): void {
   if (!preview) {
     if (scene.ghostSprite) {
       scene.ghostSprite.destroy();
-      delete (scene as any).ghostSprite;
+      scene.ghostSprite = undefined;
     }
     if (scene.ghostTextureKey && scene.textures.exists(scene.ghostTextureKey)) {
       scene.textures.remove(scene.ghostTextureKey);
     }
-    delete (scene as any).ghostTextureKey;
+    scene.ghostTextureKey = undefined;
     return;
   }
 
@@ -33,8 +41,8 @@ export function setAssetPreview(
     }
   }
 
-  const newKey = `ghost_${Date.now()}_${Math.floor(Math.random()*1000000)}`;
-  const prevKey = scene.ghostTextureKey as string | undefined;
+  const newKey = `ghost_${Date.now()}_${Math.floor(Math.random() * 1000000)}`;
+  const prevKey = scene.ghostTextureKey;
 
   const place = () => {
     if (!scene.ghostSprite) {
@@ -47,7 +55,7 @@ export function setAssetPreview(
     }
 
     scene.ghostSprite.setVisible(true);
-    (scene as any)._ghostDataUrl = preview.dataUrl;
+    scene._ghostDataUrl = preview.dataUrl;
 
     // Apply rotation: directional image = no rotation, else programmatic
     if (useDirectionalImage) {
@@ -57,8 +65,12 @@ export function setAssetPreview(
     }
 
     if (scene.mapRef) {
-      const cx = Math.round((scene.cameras.main.worldView.centerX) / scene.mapRef.tileWidth) * scene.mapRef.tileWidth + scene.mapRef.tileWidth / 2;
-      const cy = Math.round((scene.cameras.main.worldView.centerY) / scene.mapRef.tileHeight) * scene.mapRef.tileHeight + scene.mapRef.tileHeight / 2;
+      const cx =
+        Math.round(scene.cameras.main.worldView.centerX / scene.mapRef.tileWidth) * scene.mapRef.tileWidth +
+        scene.mapRef.tileWidth / 2;
+      const cy =
+        Math.round(scene.cameras.main.worldView.centerY / scene.mapRef.tileHeight) * scene.mapRef.tileHeight +
+        scene.mapRef.tileHeight / 2;
       scene.ghostSprite.setPosition(cx, cy);
     }
 
@@ -75,7 +87,9 @@ export function setAssetPreview(
     if (scene.ghostSprite) {
       scene.ghostSprite.setVisible(false);
     }
-    scene.textures.once('addtexture', (k: string) => { if (k === newKey) place(); });
+    scene.textures.once('addtexture', (k: string) => {
+      if (k === newKey) place();
+    });
     if (resolvedUrl.startsWith('data:')) {
       scene.textures.addBase64(newKey, resolvedUrl);
     } else {
@@ -85,4 +99,3 @@ export function setAssetPreview(
     }
   }
 }
-

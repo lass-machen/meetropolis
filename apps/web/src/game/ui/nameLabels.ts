@@ -1,13 +1,14 @@
 import Phaser from 'phaser';
+import type { MainSceneLike } from '../types/scene';
 
 /** Monotonic counter used for unique texture keys. */
 let labelTexId = 0;
 
 export function createNameLabel(
-  scene: Phaser.Scene & any,
+  scene: MainSceneLike,
   name: string,
   playerId?: string,
-  isNpc?: boolean
+  isNpc?: boolean,
 ): Phaser.GameObjects.Container {
   const container = scene.add.container(0, 0);
 
@@ -18,12 +19,20 @@ export function createNameLabel(
     fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
     color: '#ffffff',
     fontStyle: 'normal',
-    fontWeight: '500'
+    fontWeight: '500',
   } as const;
-  const text = scene.add.text(0, 0, name, textStyle as any);
+  const text = scene.add.text(0, 0, name, textStyle);
   const dpr = window.devicePixelRatio || 1;
-  try { (text as any).setResolution?.(dpr); } catch { /* noop */ }
-  try { (text as any).setPadding?.(0, 0, 0, 1); } catch { /* noop */ }
+  try {
+    (text as any).setResolution?.(dpr);
+  } catch {
+    /* noop */
+  }
+  try {
+    (text as any).setPadding?.(0, 0, 0, 1);
+  } catch {
+    /* noop */
+  }
   text.setOrigin(0.5, 0.5);
 
   let badgeText: Phaser.GameObjects.Text | null = null;
@@ -34,9 +43,13 @@ export function createNameLabel(
       color: '#a78bfa',
       fontStyle: 'bold',
     } as const;
-    badgeText = scene.add.text(0, 0, 'BOT', badgeStyle as any);
-    try { (badgeText as any).setResolution?.(dpr); } catch { /* noop */ }
-    badgeText!.setOrigin(0.5, 0.5);
+    badgeText = scene.add.text(0, 0, 'BOT', badgeStyle);
+    try {
+      (badgeText as any).setResolution?.(dpr);
+    } catch {
+      /* noop */
+    }
+    badgeText.setOrigin(0.5, 0.5);
   }
 
   const badgeWidth = badgeText ? (badgeText as any).width + 8 : 0;
@@ -63,7 +76,11 @@ export function createNameLabel(
   container.add(text);
   if (badgeText) container.add(badgeText);
   container.setDepth(12);
-  try { scene.labelLayer?.add(container); } catch { /* noop */ }
+  try {
+    scene.labelLayer?.add(container);
+  } catch {
+    /* noop */
+  }
 
   return container;
 }
@@ -75,9 +92,9 @@ export function createNameLabel(
  * perfect on Retina displays.
  */
 function renderBgTexture(
-  scene: Phaser.Scene & any,
+  scene: MainSceneLike,
   container: Phaser.GameObjects.Container,
-  isSpeaking: boolean
+  isSpeaking: boolean,
 ): Phaser.GameObjects.Image {
   const dpr = window.devicePixelRatio || 1;
   const width = (container as any).width as number;
@@ -130,16 +147,16 @@ function renderBgTexture(
     (container as any).bgSprite = bgSprite;
   }
 
-  bgSprite!.setOrigin(0.5, 0.5);
-  bgSprite!.setScale(1 / dpr);
+  bgSprite.setOrigin(0.5, 0.5);
+  bgSprite.setScale(1 / dpr);
 
-  return bgSprite!;
+  return bgSprite;
 }
 
 export function drawNameLabel(
-  scene: Phaser.Scene & any,
+  scene: MainSceneLike,
   container: Phaser.GameObjects.Container,
-  isSpeaking: boolean
+  isSpeaking: boolean,
 ): void {
   const bgSprite = renderBgTexture(scene, container, isSpeaking);
 
@@ -150,10 +167,10 @@ export function drawNameLabel(
 }
 
 export function updateNameLabel(
-  scene: Phaser.Scene & any,
+  scene: MainSceneLike,
   container: Phaser.GameObjects.Container,
   x: number,
-  y: number
+  y: number,
 ): void {
   // Labels sind in einem separaten Layer mit eigener Kamera (labelCamera),
   // die NICHT scrollt (setScroll(0,0)). Daher müssen wir Bildschirmkoordinaten berechnen.
@@ -170,15 +187,17 @@ export function updateNameLabel(
   container.setPosition(Math.round(screenX), Math.round(screenY - offsetY));
 }
 
-export function setHeroName(scene: Phaser.Scene & any, name: string): void {
+export function setHeroName(scene: MainSceneLike, name: string): void {
   if (scene.heroNameLabel) {
-    try { scene.heroNameLabel.destroy(); } catch {}
+    try {
+      scene.heroNameLabel.destroy();
+    } catch {}
   }
   scene.heroNameLabel = createNameLabel(scene, name, 'local');
   if (scene.hero) updateNameLabel(scene, scene.heroNameLabel, scene.hero.x, scene.hero.y);
 }
 
-export function updateSpeakingStates(scene: Phaser.Scene & any, speakingIds: Set<string>): void {
+export function updateSpeakingStates(scene: MainSceneLike, speakingIds: Set<string>): void {
   scene.nameLabels?.forEach((label: Phaser.GameObjects.Container, id: string) => {
     const isSpeaking = speakingIds.has(id);
     drawNameLabel(scene, label, isSpeaking);
@@ -189,5 +208,3 @@ export function updateSpeakingStates(scene: Phaser.Scene & any, speakingIds: Set
     drawNameLabel(scene, scene.heroNameLabel, false);
   }
 }
-
-

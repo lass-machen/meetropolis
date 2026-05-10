@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { GameSystem } from '../systems/types';
+import type { MainSceneShape } from '../types/scene';
 import { gameBridge } from '../bridge';
 import { V2State } from '../../lib/mapV2';
 import { logger } from '../../lib/logger';
@@ -29,7 +30,7 @@ import {
 } from './main';
 import type { ObjectsUpdatedPayload } from './main';
 
-export class MainScene extends Phaser.Scene {
+export class MainScene extends Phaser.Scene implements MainSceneShape {
   private playerManager!: PlayerManager;
   private remotePlayersManager!: RemotePlayersManager;
   private cameraController!: CameraController;
@@ -39,20 +40,41 @@ export class MainScene extends Phaser.Scene {
   private nameLabelManager!: NameLabelManager;
   private objectManager!: ObjectManager;
 
-  private mapRef?: Phaser.Tilemaps.Tilemap;
-  private editorGround?: Phaser.Tilemaps.TilemapLayer;
-  private wallsLayer?: Phaser.Tilemaps.TilemapLayer;
-  private collisionLayer?: Phaser.Tilemaps.TilemapLayer;
-  private dynamicTilesets: Map<string, Phaser.Tilemaps.Tileset> = new Map();
-  private bubbleOutlines: Map<string, Phaser.GameObjects.Graphics> = new Map();
-  private v2?: { state: V2State; firstGids: number[]; chunkSize: number };
-  private loadedChunks: Set<string> = new Set();
+  // Tilemap-State: public, weil Helper-Functions in game/map/* darauf zugreifen.
+  public mapRef?: Phaser.Tilemaps.Tilemap;
+  public editorGround?: Phaser.Tilemaps.TilemapLayer;
+  public wallsLayer?: Phaser.Tilemaps.TilemapLayer;
+  public collisionLayer?: Phaser.Tilemaps.TilemapLayer;
+  public dynamicTilesets: Map<string, Phaser.Tilemaps.Tileset> = new Map();
+  public bubbleOutlines: Map<string, Phaser.GameObjects.Graphics> = new Map();
+  public v2?: { state: V2State; firstGids: number[]; chunkSize: number };
+  public loadedChunks: Set<string> = new Set();
   private systems: GameSystem[] = [];
   private editorMode = false;
   private editorMapObjectsSnapshot: import('../../services/EditorTypes').MapObjectRecord[] | null = null;
   public autotileGrid?: AutotileGrid;
   public autotileRenderer?: AutotileRenderer;
   private _lastCamSig: string | null = null;
+
+  // Helper-Function-Boundary: optional, werden teilweise von Helper-Functions
+  // (game/{ui,camera,collision,editor}) gesetzt, nicht von der Scene selbst.
+  // Im aktuellen OSS-Code laufen die Manager-Klassen parallel mit eigener
+  // State-Haltung; das Interface ist Library-Boundary für externe Subclasses.
+  public hero?: Phaser.Physics.Arcade.Sprite;
+  public nameLabels?: Map<string, Phaser.GameObjects.Container>;
+  public heroNameLabel?: Phaser.GameObjects.Container;
+  public remotes?: Map<string, Phaser.GameObjects.Sprite>;
+  public recenterUi?: Phaser.GameObjects.Container;
+  public manualCameraActive?: boolean;
+  public _lastCameraManualNotified?: boolean;
+  public ghostSprite?: Phaser.GameObjects.Image;
+  public ghostTextureKey?: string;
+  public _ghostDataUrl?: string;
+  public staticColliders?: Phaser.Physics.Arcade.StaticGroup;
+  public heroVsStaticCollider?: Phaser.Physics.Arcade.Collider;
+  public heroVsTilesCollider?: Phaser.Physics.Arcade.Collider;
+  public labelLayer?: Phaser.GameObjects.Layer | null;
+  public labelCamera?: Phaser.Cameras.Scene2D.Camera | null;
 
   public currentMapId: string = (() => {
     try {
@@ -92,8 +114,8 @@ export class MainScene extends Phaser.Scene {
     Object.assign(this, mapData);
 
     const cameraData = SceneInitializer.initializeCamera(this, this.mapRef!);
-    (this as any).labelLayer = cameraData.labelLayer;
-    (this as any).labelCamera = cameraData.labelCamera;
+    this.labelLayer = cameraData.labelLayer;
+    this.labelCamera = cameraData.labelCamera;
 
     this.autotileGrid = new AutotileGrid();
     this.autotileRenderer = new AutotileRenderer(this, this.autotileGrid, this.mapRef?.tileWidth ?? 16);
@@ -148,8 +170,8 @@ export class MainScene extends Phaser.Scene {
     });
     this.cameraController.init(this.input);
     this.cameras.main.startFollow(this.playerManager.getHero(), true, 0.1, 0.1);
-    ensureRecenterUi(this as any);
-    updateRecenterUiVisibility(this as any);
+    ensureRecenterUi(this);
+    updateRecenterUiVisibility(this);
     this.collisionManager = new CollisionManager({
       scene: this,
       hero: this.playerManager.getHero(),
@@ -170,7 +192,7 @@ export class MainScene extends Phaser.Scene {
     this.tileManager.updateGrid();
     this.uiManager = new UIManager({ scene: this, getEditorMode: () => this.editorMode });
     this.uiManager.init();
-    this.objectManager = new ObjectManager({ scene: this as any });
+    this.objectManager = new ObjectManager({ scene: this });
   }
 
   private setupInputHandlers() {
@@ -234,7 +256,7 @@ export class MainScene extends Phaser.Scene {
       this.nameLabelManager.updateAllRemoteLabels(this.remotePlayersManager.getAllRemotes());
       this.remotePlayersManager.update();
       this.cameraController?.autoFollowIfHeroOutOfView?.();
-      updateRecenterUiVisibility(this as any);
+      updateRecenterUiVisibility(this);
       if (this.editorMode)
         this.cameraController.updateEditorPan(this.input.keyboard!.createCursorKeys(), this.game.loop.delta);
     });
@@ -308,7 +330,7 @@ export class MainScene extends Phaser.Scene {
 
   recenterCamera() {
     this.cameraController.recenterCamera();
-    updateRecenterUiVisibility(this as any);
+    updateRecenterUiVisibility(this);
   }
 
   setEditorMode(enabled: boolean) {
@@ -320,12 +342,12 @@ export class MainScene extends Phaser.Scene {
       this.uiManager.setHoveredSprite(null);
       this.captureEditorSnapshot();
       try {
-        setCollisionVisible(this as any, true);
+        setCollisionVisible(this, true);
       } catch {}
       try {
         this.collisionLayer?.setVisible(false);
       } catch {}
-      updateRecenterUiVisibility(this as any);
+      updateRecenterUiVisibility(this);
       this.nameLabelManager.setHeroLabelVisibility(false);
       this.nameLabelManager.setAllRemoteLabelsVisibility(false);
       try {
@@ -539,13 +561,13 @@ export class MainScene extends Phaser.Scene {
     this.tileManager.applyTilePaint(edit, this.collisionVisible, () => {
       this.collisionManager.ensureCollisionCollider();
       this.collisionManager.rebuildStaticColliders();
-      if (this.collisionVisible) updateCollisionOverlay(this as any);
+      if (this.collisionVisible) updateCollisionOverlay(this);
     });
   }
   saveEditorLayersHard() {}
   reloadEditorLayers() {}
   async fetchAndApplyServerLayers() {
-    await fetchAndApplyServerLayers(this as any);
+    await fetchAndApplyServerLayers(this);
   }
   registerTileset(ts: {
     key: string;
@@ -555,13 +577,13 @@ export class MainScene extends Phaser.Scene {
     margin?: number | undefined;
     spacing?: number | undefined;
   }) {
-    registerTileset(this as any, ts);
+    registerTileset(this, ts);
   }
   setCollisionVisible(visible: boolean) {
-    setCollisionVisible(this as any, visible);
+    setCollisionVisible(this, visible);
   }
   setBubbleMembers(members: Set<string>) {
-    uiSetBubbleMembers(this as any, members);
+    uiSetBubbleMembers(this, members);
   }
   setHeroName(name: string) {
     this.nameLabelManager.setHeroName(name);
@@ -590,13 +612,13 @@ export class MainScene extends Phaser.Scene {
     } catch {}
   }
   private async loadVisibleChunks(layerName: ChunkLayerName) {
-    await loadVisibleChunks(this as any, layerName);
+    await loadVisibleChunks(this, layerName);
   }
   public applyChunkUpdates(
     layerName: ChunkLayerName,
     updates: Array<{ key: string; version: number; encoding: string; data: string }>,
   ) {
-    applyChunkUpdates(this as any, layerName, updates);
+    applyChunkUpdates(this, layerName, updates);
   }
 
   override update(time: number, delta: number) {
@@ -645,7 +667,7 @@ export class MainScene extends Phaser.Scene {
     this.tileManager.ensureEditorLayers();
   }
   updateCollisionOverlay() {
-    updateCollisionOverlay(this as any);
+    updateCollisionOverlay(this);
   }
 
   async waitForTilesetsReady(keys: string[], timeoutMs: number = 1500): Promise<void> {

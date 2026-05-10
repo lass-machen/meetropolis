@@ -1,9 +1,10 @@
 import Phaser from 'phaser';
 import { V2State, computeFirstGids } from '../../../lib/mapV2';
 import { useCameraSettingsStore } from '../../../state/cameraSettings';
+import type { MainSceneLike } from '../../types/scene';
 
 export class SceneInitializer {
-  static initializeMap(scene: Phaser.Scene): {
+  static initializeMap(scene: MainSceneLike): {
     mapRef: Phaser.Tilemaps.Tilemap;
     editorGround: Phaser.Tilemaps.TilemapLayer;
     wallsLayer: Phaser.Tilemaps.TilemapLayer;
@@ -30,7 +31,15 @@ export class SceneInitializer {
     for (const ts of sorted) {
       try {
         const fg = firstGids[ts.slot];
-        const phTs = map.addTilesetImage(ts.key, ts.key, ts.tileWidth, ts.tileHeight, ts.margin ?? 0, ts.spacing ?? 0, fg);
+        const phTs = map.addTilesetImage(
+          ts.key,
+          ts.key,
+          ts.tileWidth,
+          ts.tileHeight,
+          ts.margin ?? 0,
+          ts.spacing ?? 0,
+          fg,
+        );
         if (phTs) dynamicTilesets.set(ts.key, phTs);
       } catch {}
     }
@@ -45,7 +54,7 @@ export class SceneInitializer {
       pre.mapMeta.width ?? undefined,
       pre.mapMeta.height ?? undefined,
       pre.mapMeta.tileWidth ?? undefined,
-      pre.mapMeta.tileHeight ?? undefined
+      pre.mapMeta.tileHeight ?? undefined,
     ) as any;
     const wallsLayer = map.createBlankLayer(
       'Walls',
@@ -55,7 +64,7 @@ export class SceneInitializer {
       pre.mapMeta.width ?? undefined,
       pre.mapMeta.height ?? undefined,
       pre.mapMeta.tileWidth ?? undefined,
-      pre.mapMeta.tileHeight ?? undefined
+      pre.mapMeta.tileHeight ?? undefined,
     ) as any;
     const collisionLayer = map.createBlankLayer(
       'Collision',
@@ -65,7 +74,7 @@ export class SceneInitializer {
       pre.mapMeta.width ?? undefined,
       pre.mapMeta.height ?? undefined,
       pre.mapMeta.tileWidth ?? undefined,
-      pre.mapMeta.tileHeight ?? undefined
+      pre.mapMeta.tileHeight ?? undefined,
     ) as any;
 
     editorGround?.setDepth(0);
@@ -89,21 +98,32 @@ export class SceneInitializer {
     return { mapRef: map, editorGround, wallsLayer, collisionLayer, dynamicTilesets, v2 };
   }
 
-  static initializeCamera(scene: Phaser.Scene, mapRef: Phaser.Tilemaps.Tilemap): {
+  static initializeCamera(
+    scene: MainSceneLike,
+    mapRef: Phaser.Tilemaps.Tilemap,
+  ): {
     labelCamera: Phaser.Cameras.Scene2D.Camera;
     labelLayer: Phaser.GameObjects.Layer;
   } {
     // Clean up stale label state from previous scene run (Phaser reuses scene instances)
-    const staleLayer = (scene as any).labelLayer as Phaser.GameObjects.Layer | undefined;
-    const staleCam = (scene as any).labelCamera as Phaser.Cameras.Scene2D.Camera | undefined;
+    const staleLayer = scene.labelLayer ?? undefined;
+    const staleCam = scene.labelCamera ?? undefined;
     if (staleCam) {
-      try { scene.cameras.remove(staleCam, true); } catch { /* already destroyed */ }
+      try {
+        scene.cameras.remove(staleCam, true);
+      } catch {
+        /* already destroyed */
+      }
     }
     if (staleLayer) {
-      try { staleLayer.destroy(); } catch { /* already destroyed */ }
+      try {
+        staleLayer.destroy();
+      } catch {
+        /* already destroyed */
+      }
     }
-    (scene as any).labelLayer = null;
-    (scene as any).labelCamera = null;
+    scene.labelLayer = null;
+    scene.labelCamera = null;
 
     const cam = scene.cameras.main;
     cam.setBackgroundColor('#202020');
@@ -127,10 +147,10 @@ export class SceneInitializer {
 
     const refreshLabelCamIgnore = () => {
       if (!labelCam || !labelLayer) return;
-      const labelMembers = new Set(labelLayer.list as Phaser.GameObjects.GameObject[]);
-      labelMembers.add(labelLayer as unknown as Phaser.GameObjects.GameObject);
-      const toIgnore = scene.children.list.filter((o) => !labelMembers.has(o as Phaser.GameObjects.GameObject));
-      labelCam.ignore(toIgnore as any);
+      const labelMembers = new Set(labelLayer.list);
+      labelMembers.add(labelLayer);
+      const toIgnore = scene.children.list.filter((o) => !labelMembers.has(o));
+      labelCam.ignore(toIgnore);
     };
 
     refreshLabelCamIgnore();
@@ -160,17 +180,25 @@ export class SceneInitializer {
       // Remove scale resize listener (game-level, not cleaned up by scene shutdown)
       scene.scale.off('resize', onResize);
       // Destroy label camera
-      try { scene.cameras.remove(labelCam, true); } catch { /* noop */ }
+      try {
+        scene.cameras.remove(labelCam, true);
+      } catch {
+        /* noop */
+      }
       // Destroy label layer (and its children)
-      try { labelLayer.destroy(); } catch { /* noop */ }
+      try {
+        labelLayer.destroy();
+      } catch {
+        /* noop */
+      }
       // Clear references on scene instance
-      (scene as any).labelLayer = null;
-      (scene as any).labelCamera = null;
+      scene.labelLayer = null;
+      scene.labelCamera = null;
     });
 
     // Store references on scene instance for defensive cleanup on next run
-    (scene as any).labelLayer = labelLayer;
-    (scene as any).labelCamera = labelCam;
+    scene.labelLayer = labelLayer;
+    scene.labelCamera = labelCam;
 
     return { labelCamera: labelCam, labelLayer };
   }

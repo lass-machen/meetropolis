@@ -1,10 +1,10 @@
-import Phaser from 'phaser';
 import { fetchChunks, decodeRLE, tileRefIdToGid } from '../../lib/mapV2';
 import { logger } from '../../lib/logger';
+import type { MainSceneLike } from '../types/scene';
 
 export type ChunkLayerName = 'ground' | 'walls' | 'collision' | 'walls_auto';
 
-export async function loadVisibleChunks(scene: Phaser.Scene & any, layerName: ChunkLayerName): Promise<void> {
+export async function loadVisibleChunks(scene: MainSceneLike, layerName: ChunkLayerName): Promise<void> {
   if (!scene.v2 || !scene.mapRef) return;
   const cam = scene.cameras.main;
   const tileW = scene.mapRef.tileWidth;
@@ -19,20 +19,32 @@ export async function loadVisibleChunks(scene: Phaser.Scene & any, layerName: Ch
   const cx1 = Math.floor(x1 / cs);
   const cy1 = Math.floor(y1 / cs);
   const keys: string[] = [];
-  for (let cy = cy0; cy <= cy1; cy++) for (let cx = cx0; cx <= cx1; cx++) {
-    const k = `${cx}:${cy}`;
-    if (!scene.loadedChunks.has(`${layerName}:${k}`)) keys.push(k);
-  }
+  for (let cy = cy0; cy <= cy1; cy++)
+    for (let cx = cx0; cx <= cx1; cx++) {
+      const k = `${cx}:${cy}`;
+      if (!scene.loadedChunks.has(`${layerName}:${k}`)) keys.push(k);
+    }
   if (keys.length === 0) return;
   const chunks = await fetchChunks(scene.currentMapId, layerName, keys);
-  const updates = Object.entries(chunks).map(([key, val]: any) => ({ key, version: val.version, encoding: val.encoding, data: val.data }));
+  const updates = Object.entries(chunks).map(([key, val]: any) => ({
+    key,
+    version: val.version,
+    encoding: val.encoding,
+    data: val.data,
+  }));
   if (layerName === 'collision' && updates.length > 0) {
-    logger.debug(`[Chunks] Applying ${updates.length} collision updates for keys: ${updates.map(u => u.key).join(', ')}`);
+    logger.debug(
+      `[Chunks] Applying ${updates.length} collision updates for keys: ${updates.map((u) => u.key).join(', ')}`,
+    );
   }
   applyChunkUpdates(scene, layerName, updates);
 }
 
-export function applyChunkUpdates(scene: Phaser.Scene & any, layerName: ChunkLayerName, updates: Array<{ key: string; version: number; encoding: string; data: string }>): void {
+export function applyChunkUpdates(
+  scene: MainSceneLike,
+  layerName: ChunkLayerName,
+  updates: Array<{ key: string; version: number; encoding: string; data: string }>,
+): void {
   if (!scene.v2 || !scene.mapRef) return;
 
   // Handle walls_auto separately — populate AutotileGrid instead of tilemap
@@ -42,7 +54,8 @@ export function applyChunkUpdates(scene: Phaser.Scene & any, layerName: ChunkLay
     const total = cs * cs;
     for (const u of updates) {
       const [xs, ys] = u.key.split(':');
-      const cx = Number(xs), cy = Number(ys);
+      const cx = Number(xs),
+        cy = Number(ys);
       if (!Number.isFinite(cx) || !Number.isFinite(cy)) continue;
       const arr = decodeRLE(u.data, total);
       for (let i = 0; i < total; i++) {
@@ -64,16 +77,18 @@ export function applyChunkUpdates(scene: Phaser.Scene & any, layerName: ChunkLay
     return;
   }
 
-  const layer = layerName === 'collision' ? scene.collisionLayer : (layerName === 'walls' ? scene.wallsLayer : scene.editorGround);
+  const layer =
+    layerName === 'collision' ? scene.collisionLayer : layerName === 'walls' ? scene.wallsLayer : scene.editorGround;
   if (!layer) {
-     logger.warn(`[Chunks] Layer ${layerName} not found on scene`);
-     return;
+    logger.warn(`[Chunks] Layer ${layerName} not found on scene`);
+    return;
   }
   const cs = scene.v2.chunkSize;
   const total = cs * cs;
   for (const u of updates) {
     const [xs, ys] = u.key.split(':');
-    const cx = Number(xs), cy = Number(ys);
+    const cx = Number(xs),
+      cy = Number(ys);
     if (!Number.isFinite(cx) || !Number.isFinite(cy)) continue;
     const arr = decodeRLE(u.data, total);
     for (let i = 0; i < total; i++) {
@@ -88,21 +103,40 @@ export function applyChunkUpdates(scene: Phaser.Scene & any, layerName: ChunkLay
           try {
             const t = layer.putTileAt(1, gx, gy);
             if (t) t.setCollision(true, true, true, true);
-          } catch (e) { logger.warn('[Chunks] putTileAt failed', e); }
+          } catch (e) {
+            logger.warn('[Chunks] putTileAt failed', e);
+          }
         } else {
-          try { layer.removeTileAt(gx, gy); } catch {}
+          try {
+            layer.removeTileAt(gx, gy);
+          } catch {}
         }
       } else {
         const gid = tileRefIdToGid(arr[i] | 0, scene.v2.firstGids);
-        if (gid < 0) { try { layer.removeTileAt(gx, gy); } catch {} }
-        else { try { layer.putTileAt(gid, gx, gy); } catch {} }
+        if (gid < 0) {
+          try {
+            layer.removeTileAt(gx, gy);
+          } catch {}
+        } else {
+          try {
+            layer.putTileAt(gid, gx, gy);
+          } catch {}
+        }
       }
     }
     scene.loadedChunks.add(`${layerName}:${cx}:${cy}`);
   }
   if (layerName === 'collision') {
     scene.ensureCollisionCollider();
-    try { scene.rebuildStaticColliders(); } catch (e) { logger.error('[Chunks] Failed to rebuild static colliders', e); }
-    if (scene.v2) { try { scene.collisionLayer?.setVisible(false); } catch {} }
+    try {
+      scene.rebuildStaticColliders();
+    } catch (e) {
+      logger.error('[Chunks] Failed to rebuild static colliders', e);
+    }
+    if (scene.v2) {
+      try {
+        scene.collisionLayer?.setVisible(false);
+      } catch {}
+    }
   }
 }

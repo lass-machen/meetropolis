@@ -1,7 +1,15 @@
 import Phaser from 'phaser';
 import { logger } from '../../lib/logger';
+import type { MainSceneLike } from '../types/scene';
 
-type TilesetSpec = { key: string; dataUrl: string; tileWidth: number; tileHeight: number; margin?: number | undefined; spacing?: number | undefined };
+type TilesetSpec = {
+  key: string;
+  dataUrl: string;
+  tileWidth: number;
+  tileHeight: number;
+  margin?: number | undefined;
+  spacing?: number | undefined;
+};
 
 function computeNameForTileset(key: string): string {
   if (!key || key.length > 64 || key.startsWith('data:') || key.includes('data:image')) {
@@ -10,11 +18,12 @@ function computeNameForTileset(key: string): string {
   return key;
 }
 
-function assignNextDynamicFirstGid(scene: any): number {
+function assignNextDynamicFirstGid(scene: MainSceneLike): number {
   try {
+    if (!scene.mapRef) return 0;
     const mapAny = scene.mapRef as any;
     if (!mapAny._nextDynamicFirstGid) {
-      const maxGid = Math.max(1, ...scene.mapRef.tilesets.map((t: any) => (t as any).firstgid || 1));
+      const maxGid = Math.max(1, ...scene.mapRef.tilesets.map((t: any) => t.firstgid || 1));
       mapAny._nextDynamicFirstGid = Math.ceil((maxGid + 1) / 1024) * 1024;
     }
     const assigned = mapAny._nextDynamicFirstGid;
@@ -26,7 +35,7 @@ function assignNextDynamicFirstGid(scene: any): number {
 }
 
 function pushTilesetIntoMapData(
-  scene: any,
+  scene: MainSceneLike,
   textureKey: string,
   name: string,
   tileW: number,
@@ -49,13 +58,30 @@ function pushTilesetIntoMapData(
       const existsInData = Array.isArray(data.tilesets) && data.tilesets.find((t: any) => t.name === name);
       if (!existsInData) {
         data.tilesets = data.tilesets || [];
-        data.tilesets.push({ firstgid: assignedFirstGid || 1, source: undefined, name, image: textureKey, imagewidth: imgW, imageheight: imgH, tilewidth: tileW, tileheight: tileH, margin, spacing, columns: cols, tilecount });
+        data.tilesets.push({
+          firstgid: assignedFirstGid || 1,
+          source: undefined,
+          name,
+          image: textureKey,
+          imagewidth: imgW,
+          imageheight: imgH,
+          tilewidth: tileW,
+          tileheight: tileH,
+          margin,
+          spacing,
+          columns: cols,
+          tilecount,
+        });
       }
     }
   } catch {}
 }
 
-function maybeCreateScaledTexture(scene: any, ts: TilesetSpec, safeKey: string): { textureKey: string; tileW: number; tileH: number } {
+function maybeCreateScaledTexture(
+  scene: MainSceneLike,
+  ts: TilesetSpec,
+  safeKey: string,
+): { textureKey: string; tileW: number; tileH: number } {
   let textureKeyForMap = safeKey;
   let tileWForMap = ts.tileWidth;
   let tileHForMap = ts.tileHeight;
@@ -75,8 +101,8 @@ function maybeCreateScaledTexture(scene: any, ts: TilesetSpec, safeKey: string):
         if (ctex && ctx) {
           ctx.clearRect(0, 0, cw, ch);
           ctx.imageSmoothingEnabled = true;
-          ctx.imageSmoothingQuality = 'high' as any;
-          ctx.drawImage(src as any, 0, 0, cw, ch);
+          ctx.imageSmoothingQuality = 'high';
+          ctx.drawImage(src, 0, 0, cw, ch);
           ctex.refresh();
         }
       }
@@ -90,7 +116,13 @@ function maybeCreateScaledTexture(scene: any, ts: TilesetSpec, safeKey: string):
   return { textureKey: textureKeyForMap, tileW: tileWForMap, tileH: tileHForMap };
 }
 
-function tilesetFitsArea(scene: any, ts: TilesetSpec, textureKey: string, tileW: number, tileH: number): boolean {
+function tilesetFitsArea(
+  scene: MainSceneLike,
+  ts: TilesetSpec,
+  textureKey: string,
+  tileW: number,
+  tileH: number,
+): boolean {
   try {
     const tex2 = scene.textures.get(textureKey);
     const src2 = tex2?.getSourceImage?.() as HTMLImageElement | HTMLCanvasElement | undefined;
@@ -98,45 +130,108 @@ function tilesetFitsArea(scene: any, ts: TilesetSpec, textureKey: string, tileW:
     const spacing = ts.spacing ?? 0;
     const imgW = (src2 as any)?.width || 0;
     const imgH = (src2 as any)?.height || 0;
-    const fitsW = imgW > 0 ? ((imgW - margin + spacing) % (tileW + spacing) === 0) : true;
-    const fitsH = imgH > 0 ? ((imgH - margin + spacing) % (tileH + spacing) === 0) : true;
+    const fitsW = imgW > 0 ? (imgW - margin + spacing) % (tileW + spacing) === 0 : true;
+    const fitsH = imgH > 0 ? (imgH - margin + spacing) % (tileH + spacing) === 0 : true;
     if (!fitsW || !fitsH) {
-      logger.debug('[ASSETS_DBG][Scene] skip tileset (non-multiple area)', { key: ts.key, imgW, imgH, tileWForMap: tileW, tileHForMap: tileH, margin, spacing });
+      logger.debug('[ASSETS_DBG][Scene] skip tileset (non-multiple area)', {
+        key: ts.key,
+        imgW,
+        imgH,
+        tileWForMap: tileW,
+        tileHForMap: tileH,
+        margin,
+        spacing,
+      });
       return false;
     }
   } catch {}
   return true;
 }
 
-function applyTilesetsToAllLayers(scene: any, tileset: Phaser.Tilemaps.Tileset): void {
+function applyTilesetsToAllLayers(scene: MainSceneLike, tileset: Phaser.Tilemaps.Tileset): void {
   const allTilesets = Array.from(scene.dynamicTilesets.values());
-  const extra = scene.mapRef ? scene.mapRef.tilesets.filter((t: any) => !scene.dynamicTilesets.has(t.name)) : [] as Phaser.Tilemaps.Tileset[];
+  const extra = scene.mapRef
+    ? scene.mapRef.tilesets.filter((t: any) => !scene.dynamicTilesets.has(t.name))
+    : ([] as Phaser.Tilemaps.Tileset[]);
   allTilesets.push(...extra);
-  if (scene.editorGround) { try { (scene.editorGround as any).setTilesets?.(allTilesets); } catch {} try { (scene.editorGround as any).tileset = allTilesets; } catch {} }
-  if (scene.wallsLayer) { try { (scene.wallsLayer as any).setTilesets?.(allTilesets); } catch {} try { (scene.wallsLayer as any).tileset = allTilesets; } catch {} }
-  if (scene.collisionLayer) { (scene.collisionLayer as any).setTilesets(allTilesets); }
+  if (scene.editorGround) {
+    try {
+      (scene.editorGround as any).setTilesets?.(allTilesets);
+    } catch {}
+    try {
+      (scene.editorGround as any).tileset = allTilesets;
+    } catch {}
+  }
+  if (scene.wallsLayer) {
+    try {
+      (scene.wallsLayer as any).setTilesets?.(allTilesets);
+    } catch {}
+    try {
+      (scene.wallsLayer as any).tileset = allTilesets;
+    } catch {}
+  }
+  if (scene.collisionLayer) {
+    (scene.collisionLayer as any).setTilesets(allTilesets);
+  }
   if (!scene.editorGround && scene.mapRef) {
     try {
-      const tmp = scene.mapRef.createBlankLayer('EditorGround', tileset, 0, 0, scene.mapRef.width, scene.mapRef.height, scene.mapRef.tileWidth, scene.mapRef.tileHeight);
+      const tmp = scene.mapRef.createBlankLayer(
+        'EditorGround',
+        tileset,
+        0,
+        0,
+        scene.mapRef.width,
+        scene.mapRef.height,
+        scene.mapRef.tileWidth,
+        scene.mapRef.tileHeight,
+      );
       scene.editorGround = tmp as any;
       if (scene.editorGround) scene.editorGround.setDepth(1);
     } catch {}
   }
 }
 
-function createTilesetOnMap(scene: any, ts: TilesetSpec, name: string, textureKey: string, tileW: number, tileH: number): Phaser.Tilemaps.Tileset | null {
+function createTilesetOnMap(
+  scene: MainSceneLike,
+  ts: TilesetSpec,
+  name: string,
+  textureKey: string,
+  tileW: number,
+  tileH: number,
+): Phaser.Tilemaps.Tileset | null {
   try {
+    if (!scene.mapRef) return null;
+    const map = scene.mapRef;
     const assignedFirstGid = assignNextDynamicFirstGid(scene);
     pushTilesetIntoMapData(scene, textureKey, name, tileW, tileH, ts.margin ?? 0, ts.spacing ?? 0, assignedFirstGid);
     try {
-      if (!scene.mapRef.tilesets.find((t: any) => t.name === name)) {
-        const meta = new Phaser.Tilemaps.Tileset(name, assignedFirstGid || 1, tileW, tileH, ts.margin ?? 0, ts.spacing ?? 0);
-        (scene.mapRef.tilesets as any).push(meta);
+      if (!map.tilesets.find((t: any) => t.name === name)) {
+        const meta = new Phaser.Tilemaps.Tileset(
+          name,
+          assignedFirstGid || 1,
+          tileW,
+          tileH,
+          ts.margin ?? 0,
+          ts.spacing ?? 0,
+        );
+        (map.tilesets as any).push(meta);
       }
     } catch {}
-    const tileset = scene.mapRef.addTilesetImage(name, textureKey, tileW, tileH, ts.margin ?? 0, ts.spacing ?? 0, assignedFirstGid || (undefined as any));
+    const tileset = map.addTilesetImage(
+      name,
+      textureKey,
+      tileW,
+      tileH,
+      ts.margin ?? 0,
+      ts.spacing ?? 0,
+      assignedFirstGid || (undefined as any),
+    );
     if (tileset) {
-      try { if (!scene.mapRef.tilesets.find((t: any) => t.name === (tileset as any).name)) { (scene.mapRef.tilesets as any).push(tileset); } } catch {}
+      try {
+        if (!map.tilesets.find((t: any) => t.name === (tileset as any).name)) {
+          (map.tilesets as any).push(tileset);
+        }
+      } catch {}
       scene.dynamicTilesets.set(name, tileset);
       logger.debug('Tileset', `Successfully added tileset ${name}`);
     }
@@ -147,9 +242,10 @@ function createTilesetOnMap(scene: any, ts: TilesetSpec, name: string, textureKe
   }
 }
 
-function handleTextureLoaded(scene: any, ts: TilesetSpec, safeKey: string, nameForTileset: string): void {
+function handleTextureLoaded(scene: MainSceneLike, ts: TilesetSpec, safeKey: string, nameForTileset: string): void {
   let tileset: Phaser.Tilemaps.Tileset | null = null;
   try {
+    if (!scene.mapRef) return;
     const { textureKey, tileW, tileH } = maybeCreateScaledTexture(scene, ts, safeKey);
     if (!tilesetFitsArea(scene, ts, textureKey, tileW, tileH)) return;
 
@@ -168,7 +264,7 @@ function handleTextureLoaded(scene: any, ts: TilesetSpec, safeKey: string, nameF
   }
 }
 
-function loadTextureForTileset(scene: any, ts: TilesetSpec, safeKey: string): void {
+function loadTextureForTileset(scene: MainSceneLike, ts: TilesetSpec, safeKey: string): void {
   const isDataUrl = typeof ts.dataUrl === 'string' && ts.dataUrl.startsWith('data:');
   if (isDataUrl) {
     scene.textures.addBase64(safeKey, ts.dataUrl);
@@ -183,33 +279,82 @@ function loadTextureForTileset(scene: any, ts: TilesetSpec, safeKey: string): vo
   }
 }
 
-function handleTilesetWithExistingTexture(scene: any, ts: TilesetSpec): void {
+function handleTilesetWithExistingTexture(scene: MainSceneLike, ts: TilesetSpec): void {
   try {
+    if (!scene.mapRef) return;
+    const map = scene.mapRef;
     const assignedFirstGid = assignNextDynamicFirstGid(scene);
-    pushTilesetIntoMapData(scene, ts.key, ts.key, ts.tileWidth || 16, ts.tileHeight || 16, ts.margin ?? 0, ts.spacing ?? 0, assignedFirstGid);
+    pushTilesetIntoMapData(
+      scene,
+      ts.key,
+      ts.key,
+      ts.tileWidth || 16,
+      ts.tileHeight || 16,
+      ts.margin ?? 0,
+      ts.spacing ?? 0,
+      assignedFirstGid,
+    );
     try {
-      if (!scene.mapRef.tilesets.find((t: any) => t.name === ts.key)) {
-        const meta = new Phaser.Tilemaps.Tileset(ts.key, assignedFirstGid || 1, ts.tileWidth, ts.tileHeight, ts.margin ?? 0, ts.spacing ?? 0);
-        (scene.mapRef.tilesets as any).push(meta);
+      if (!map.tilesets.find((t: any) => t.name === ts.key)) {
+        const meta = new Phaser.Tilemaps.Tileset(
+          ts.key,
+          assignedFirstGid || 1,
+          ts.tileWidth,
+          ts.tileHeight,
+          ts.margin ?? 0,
+          ts.spacing ?? 0,
+        );
+        (map.tilesets as any).push(meta);
       }
     } catch {}
-    const tileset = scene.mapRef.addTilesetImage(ts.key, ts.key, ts.tileWidth, ts.tileHeight, ts.margin ?? 0, ts.spacing ?? 0, assignedFirstGid || (undefined as any));
+    const tileset = map.addTilesetImage(
+      ts.key,
+      ts.key,
+      ts.tileWidth,
+      ts.tileHeight,
+      ts.margin ?? 0,
+      ts.spacing ?? 0,
+      assignedFirstGid || (undefined as any),
+    );
     if (tileset) {
       scene.dynamicTilesets.set(ts.key, tileset);
       const allTilesets = Array.from(scene.dynamicTilesets.values());
       allTilesets.push(...scene.mapRef.tilesets.filter((t: any) => !scene.dynamicTilesets.has(t.name)));
-      if (scene.editorGround) { try { (scene.editorGround as any).setTilesets?.(allTilesets); } catch {} try { (scene.editorGround as any).tileset = allTilesets; } catch {} }
-      if (scene.wallsLayer) { try { (scene.wallsLayer as any).setTilesets?.(allTilesets); } catch {} try { (scene.wallsLayer as any).tileset = allTilesets; } catch {} }
-      if (scene.collisionLayer) { (scene.collisionLayer as any).setTilesets(allTilesets); }
+      if (scene.editorGround) {
+        try {
+          (scene.editorGround as any).setTilesets?.(allTilesets);
+        } catch {}
+        try {
+          (scene.editorGround as any).tileset = allTilesets;
+        } catch {}
+      }
+      if (scene.wallsLayer) {
+        try {
+          (scene.wallsLayer as any).setTilesets?.(allTilesets);
+        } catch {}
+        try {
+          (scene.wallsLayer as any).tileset = allTilesets;
+        } catch {}
+      }
+      if (scene.collisionLayer) {
+        (scene.collisionLayer as any).setTilesets(allTilesets);
+      }
     }
   } catch (error) {
     logger.warn('Tileset', `Failed to add existing tileset ${ts.key}:`, error);
   }
 }
 
-export function registerTileset(scene: Phaser.Scene & any, ts: TilesetSpec): void {
+export function registerTileset(scene: MainSceneLike, ts: TilesetSpec): void {
   const nameForTileset = computeNameForTileset(ts.key || '');
-  logger.debug('[ASSETS_DBG][Scene] registerTileset', { key: nameForTileset, url: ts.dataUrl?.slice?.(0, 32) || typeof ts.dataUrl, tw: ts.tileWidth, th: ts.tileHeight, m: ts.margin ?? 0, s: ts.spacing ?? 0 });
+  logger.debug('[ASSETS_DBG][Scene] registerTileset', {
+    key: nameForTileset,
+    url: ts.dataUrl?.slice?.(0, 32) || typeof ts.dataUrl,
+    tw: ts.tileWidth,
+    th: ts.tileHeight,
+    m: ts.margin ?? 0,
+    s: ts.spacing ?? 0,
+  });
   if (!scene.mapRef || !scene.game || !(scene.game as any).renderer) return;
 
   const existingTileset = scene.mapRef.tilesets.find((t: any) => t.name === nameForTileset);
@@ -217,10 +362,14 @@ export function registerTileset(scene: Phaser.Scene & any, ts: TilesetSpec): voi
     scene.dynamicTilesets.set(nameForTileset, existingTileset);
     return;
   }
-  try { if (scene.dynamicTilesets.has(ts.key)) return; } catch {}
+  try {
+    if (scene.dynamicTilesets.has(ts.key)) return;
+  } catch {}
   if (!scene.textures.exists(ts.key)) {
     let key = nameForTileset;
-    while (scene.textures.exists(key)) { key = `${nameForTileset}-${Date.now()}`; }
+    while (scene.textures.exists(key)) {
+      key = `${nameForTileset}-${Date.now()}`;
+    }
     const safeKey = key;
     scene.textures.once('addtexture', (eventKey: string) => {
       logger.debug('[ASSETS_DBG][Scene] addtexture event', { key: eventKey, safeKey });
@@ -233,4 +382,3 @@ export function registerTileset(scene: Phaser.Scene & any, ts: TilesetSpec): voi
     handleTilesetWithExistingTexture(scene, ts);
   }
 }
-

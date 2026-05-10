@@ -1,18 +1,23 @@
 import Phaser from 'phaser';
 import { emitBubbleMembers } from '../../lib/avEvents';
+import type { MainSceneLike } from '../types/scene';
 
-export function setBubbleMembers(scene: Phaser.Scene & any, members: Set<string>): void {
+export function setBubbleMembers(scene: MainSceneLike, members: Set<string>): void {
   try {
     emitBubbleMembers(Array.from(members));
   } catch {}
 
   for (const outline of (scene.bubbleOutlines?.values?.() || []) as Iterable<Phaser.GameObjects.Graphics>) {
-    try { outline.destroy(); } catch {}
+    try {
+      outline.destroy();
+    } catch {}
   }
-  try { scene.bubbleOutlines?.clear?.(); } catch {}
+  try {
+    scene.bubbleOutlines?.clear?.();
+  } catch {}
 
   for (const id of members) {
-    const sprite = scene.remotes?.get?.(id) as Phaser.GameObjects.Sprite | undefined;
+    const sprite = scene.remotes?.get?.(id);
     if (sprite) {
       const g = scene.add.graphics();
       g.setDepth(9);
@@ -26,25 +31,22 @@ export function setBubbleMembers(scene: Phaser.Scene & any, members: Set<string>
     }
   }
 
-  if (members.has('__local__')) {
+  if (members.has('__local__') && scene.hero) {
     const g = scene.add.graphics();
     g.setDepth(9);
     scene.bubbleOutlines.set('local', g);
+    const localHero = scene.hero;
     const updateFunc = () => {
       if (scene.bubbleOutlines.has('local')) {
-        updateBubbleOutline(scene, 'local', scene.hero);
+        updateBubbleOutline(scene, 'local', localHero);
       }
     };
     scene.time.addEvent({ delay: 50, callback: updateFunc, loop: true });
   }
 }
 
-export function updateBubbleOutline(
-  scene: Phaser.Scene & any,
-  id: string,
-  sprite: Phaser.GameObjects.Sprite
-): void {
-  const g = scene.bubbleOutlines.get(id) as Phaser.GameObjects.Graphics | undefined;
+export function updateBubbleOutline(scene: MainSceneLike, id: string, sprite: Phaser.GameObjects.Sprite): void {
+  const g = scene.bubbleOutlines.get(id);
   if (!g) return;
   g.clear();
   const x = sprite.x;
@@ -57,5 +59,3 @@ export function updateBubbleOutline(
   g.fillStyle(color, alpha);
   g.fillCircle(x, y, radius);
 }
-
-
