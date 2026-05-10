@@ -1,6 +1,6 @@
 import React from 'react';
 import { useTheme } from '../theme';
-import { FAIcon } from '../FAIcon';
+import { Icon, type IconName } from '../Icon';
 import { useTranslation } from 'react-i18next';
 
 type TopRightMenuProps = {
@@ -39,17 +39,17 @@ function ThemeToggle({ override, setOverride, label }: { override: string; setOv
   const { t } = useTranslation();
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px' }}>
-      <FAIcon name="palette" variant="solid" fixedWidth style={{ opacity: 0.6 }} />
+      <Icon name="palette" style={{ opacity: 0.6 }} />
       <span style={{ fontSize: 13, opacity: 0.8, flex: 1 }}>{label}</span>
       <div style={{ display: 'flex', gap: 2, background: 'rgba(255,255,255,0.08)', borderRadius: 6, padding: 2 }}>
         <button onClick={() => setOverride('light')} title={t('theme.light')} style={{ ...SEGMENT_BTN_BASE, background: override === 'light' ? 'rgba(255,255,255,0.2)' : 'transparent', fontSize: 12 }}>
-          <FAIcon name="sun" variant="solid" size="xs" ariaLabel={t('theme.light')} />
+          <Icon name="sun" size="xs" ariaLabel={t('theme.light')} />
         </button>
         <button onClick={() => setOverride('dark')} title={t('theme.dark')} style={{ ...SEGMENT_BTN_BASE, background: override === 'dark' ? 'rgba(255,255,255,0.2)' : 'transparent', fontSize: 12 }}>
-          <FAIcon name="moon" variant="solid" size="xs" ariaLabel={t('theme.dark')} />
+          <Icon name="moon" size="xs" ariaLabel={t('theme.dark')} />
         </button>
         <button onClick={() => setOverride('system')} title={t('theme.system')} style={{ ...SEGMENT_BTN_BASE, background: override === 'system' ? 'rgba(255,255,255,0.2)' : 'transparent', fontSize: 12 }}>
-          <FAIcon name="desktop" variant="solid" size="xs" ariaLabel={t('theme.system')} />
+          <Icon name="monitor" size="xs" ariaLabel={t('theme.system')} />
         </button>
       </div>
     </div>
@@ -59,7 +59,7 @@ function ThemeToggle({ override, setOverride, label }: { override: string; setOv
 function LanguageToggle({ language, changeLanguage, label }: { language: string; changeLanguage: (l: string) => void; label: string }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px' }}>
-      <FAIcon name="globe" variant="solid" fixedWidth style={{ opacity: 0.6 }} />
+      <Icon name="globe" style={{ opacity: 0.6 }} />
       <span style={{ fontSize: 13, opacity: 0.8, flex: 1 }}>{label}</span>
       <div style={{ display: 'flex', gap: 2, background: 'rgba(255,255,255,0.08)', borderRadius: 6, padding: 2 }}>
         <button onClick={() => changeLanguage('de')} title="Deutsch" style={{ ...SEGMENT_BTN_BASE, background: language.startsWith('de') ? 'rgba(255,255,255,0.2)' : 'transparent', fontSize: 11, fontWeight: language.startsWith('de') ? 700 : 500 }}>DE</button>
@@ -69,10 +69,10 @@ function LanguageToggle({ language, changeLanguage, label }: { language: string;
   );
 }
 
-function MenuItem({ icon, label, onClick, className }: { icon: string; label: string; onClick: () => void; className?: string }) {
+function MenuItem({ icon, label, onClick, className }: { icon: IconName; label: string; onClick: () => void; className?: string }) {
   return (
     <button role="menuitem" onClick={onClick} className={className || 'menu-item'}>
-      <FAIcon name={icon} variant="solid" fixedWidth />
+      <Icon name={icon} />
       <span>{label}</span>
     </button>
   );
@@ -84,7 +84,7 @@ function TeamSection({ props, handleItemClick, t }: { props: TopRightMenuProps; 
   return (
     <>
       {onOpenUsers && <MenuItem icon="users" label={t('topRightMenu.users')} onClick={() => handleItemClick(onOpenUsers)} />}
-      {onOpenInvites && <MenuItem icon="envelope" label={t('topRightMenu.invites')} onClick={() => handleItemClick(onOpenInvites)} />}
+      {onOpenInvites && <MenuItem icon="mail" label={t('topRightMenu.invites')} onClick={() => handleItemClick(onOpenInvites)} />}
       {isAdmin && onOpenAdmin && <MenuItem icon="shield" label="Admin" onClick={() => handleItemClick(onOpenAdmin)} />}
       {hasAny && <div style={DIVIDER} />}
     </>
@@ -95,11 +95,11 @@ function AccountSection({ props, handleItemClick, t }: { props: TopRightMenuProp
   const { onOpenProfile, onOpenTenantSettings, onOpenBilling, onOpenSessions, onOpenPackStore } = props;
   return (
     <>
-      {onOpenProfile && <MenuItem icon="user-gear" label={t('topRightMenu.profile') || 'Profile Settings'} onClick={() => handleItemClick(onOpenProfile)} />}
+      {onOpenProfile && <MenuItem icon="user-cog" label={t('topRightMenu.profile') || 'Profile Settings'} onClick={() => handleItemClick(onOpenProfile)} />}
       {onOpenTenantSettings && <MenuItem icon="building" label={t('topRightMenu.orgSettings') || 'Organization'} onClick={() => handleItemClick(onOpenTenantSettings)} />}
       {onOpenBilling && <MenuItem icon="credit-card" label={t('topRightMenu.billing') || 'Billing'} onClick={() => handleItemClick(onOpenBilling)} />}
       {onOpenSessions && <MenuItem icon="laptop" label={t('topRightMenu.sessions') || 'Active Sessions'} onClick={() => handleItemClick(onOpenSessions)} />}
-      {onOpenPackStore && <MenuItem icon="box-open" label={t('topRightMenu.packStore') || 'Pack Store'} onClick={() => handleItemClick(onOpenPackStore)} />}
+      {onOpenPackStore && <MenuItem icon="package-open" label={t('topRightMenu.packStore') || 'Pack Store'} onClick={() => handleItemClick(onOpenPackStore)} />}
     </>
   );
 }
@@ -117,15 +117,15 @@ function MenuContent({ props, handleItemClick }: { props: TopRightMenuProps; han
       <TeamSection props={props} handleItemClick={handleItemClick} t={t} />
       {onToggleEditor && (
         <button role="menuitem" onClick={() => handleItemClick(onToggleEditor)} className={`menu-item ${editorActive ? 'active' : ''}`}>
-          <FAIcon name={editorActive ? 'pen-to-square' : 'pen-ruler'} variant="solid" fixedWidth />
+          <Icon name={editorActive ? 'pen-square' : 'pen-ruler'} />
           <span>{editorActive ? t('topRightMenu.editorOff') : t('topRightMenu.editorOn')}</span>
         </button>
       )}
       <div style={DIVIDER} />
       <AccountSection props={props} handleItemClick={handleItemClick} t={t} />
       <div style={DIVIDER} />
-      {onResetApp && <MenuItem icon="broom" label={t('topRightMenu.resetApp') || 'App zurücksetzen'} onClick={() => handleItemClick(onResetApp)} className="menu-item danger" />}
-      <MenuItem icon="right-from-bracket" label={t('topRightMenu.logout')} onClick={() => handleItemClick(onLogout)} />
+      {onResetApp && <MenuItem icon="reset" label={t('topRightMenu.resetApp') || 'App zurücksetzen'} onClick={() => handleItemClick(onResetApp)} className="menu-item danger" />}
+      <MenuItem icon="logout" label={t('topRightMenu.logout')} onClick={() => handleItemClick(onLogout)} />
     </div>
   );
 }
@@ -160,7 +160,7 @@ export function TopRightMenu(props: TopRightMenuProps) {
         aria-expanded={menuOpen}
         style={{ display: 'grid', placeItems: 'center', width: 36, height: 36, borderRadius: 10, border: '1px solid var(--border)', background: menuOpen ? 'var(--bg-btn-active)' : 'var(--bg-btn-bg)', color: 'var(--fg)', cursor: 'pointer', transition: 'background 0.15s ease' }}
       >
-        <FAIcon name={menuOpen ? 'xmark' : 'bars'} variant="solid" size="sm" ariaLabel="" />
+        <Icon name={menuOpen ? 'xmark' : 'menu'} size="sm" ariaLabel="" />
       </button>
       {menuOpen && <MenuContent props={props} handleItemClick={handleItemClick} />}
     </div>

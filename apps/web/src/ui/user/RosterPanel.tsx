@@ -1,6 +1,6 @@
 // React JSX runtime is configured via tsconfig
 import React from 'react';
-import { FAIcon } from '../FAIcon';
+import { Icon } from '../Icon';
 export type RosterItem = { identity: string; name: string; online: boolean; x?: number; y?: number; lastSeen?: string };
 import { useTranslation } from 'react-i18next';
 
@@ -85,7 +85,7 @@ function CollapsedRoster({ online, onJumpTo, onToggleCollapse }: { online: Roste
         onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.12)'; }}
         onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
       >
-        <FAIcon name="users" variant="solid" size="sm" ariaLabel={t('roster.team')} />
+        <Icon name="users" size="sm" ariaLabel={t('roster.team')} />
       </button>
       <div style={{ padding: '3px 6px', borderRadius: 10, background: online.length > 0 ? 'rgba(34,197,94,0.12)' : 'rgba(255,255,255,0.06)', border: `1px solid ${online.length > 0 ? 'rgba(34,197,94,0.25)' : 'rgba(255,255,255,0.08)'}`, fontSize: 10, fontWeight: 600, color: online.length > 0 ? '#4ade80' : 'rgba(229,231,235,0.6)' }}>
         {online.length}
@@ -119,7 +119,7 @@ function RosterHeader({ onlineCount, totalCount, onToggleCollapse }: { onlineCou
           onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.12)'; }}
           onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
         >
-          <FAIcon name="chevron-right" variant="solid" size="sm" ariaLabel={t('common.collapse')} />
+          <Icon name="chevron-right" size="sm" ariaLabel={t('common.collapse')} />
         </button>
         <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--panel-fg, #e5e7eb)' }}>{t('roster.team')}</span>
       </div>
@@ -135,7 +135,7 @@ function SectionToggle({ label, expanded, onToggle, marginTop }: { label: string
   return (
     <div onClick={onToggle} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 12px', cursor: 'pointer', userSelect: 'none', marginTop }}>
       <span style={{ fontSize: 10, fontWeight: 600, color: 'rgba(229,231,235,0.6)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</span>
-      <FAIcon name={expanded ? 'chevron-down' : 'chevron-right'} variant="solid" size="sm" ariaLabel="" style={{ color: 'rgba(229,231,235,0.6)' }} />
+      <Icon name={expanded ? 'chevron-down' : 'chevron-right'} size="sm" style={{ color: 'rgba(229,231,235,0.6)' }} />
     </div>
   );
 }
@@ -169,7 +169,7 @@ function EmptyState() {
   const { t } = useTranslation();
   return (
     <div style={{ padding: '30px 16px', textAlign: 'center', color: 'rgba(229,231,235,0.6)' }}>
-      <FAIcon name="users" variant="regular" size="lg" ariaLabel="" style={{ marginBottom: 8, opacity: 0.4 }} />
+      <Icon name="users" size="lg" style={{ marginBottom: 8, opacity: 0.4 }} />
       <div style={{ fontSize: 12 }}>{t('roster.noMembers')}</div>
     </div>
   );

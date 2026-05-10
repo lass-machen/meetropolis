@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { UserCardContainer } from './UserCard';
 import { ParticipantCard } from './ParticipantCard';
-import { FAIcon } from '../FAIcon';
+import { Icon } from '../Icon';
 import { useTranslation } from 'react-i18next';
 
 export type UIParticipant = { sid: string; identity: string; hasVideo: boolean; hasMic: boolean; isSpeaking: boolean; media: 'camera' | 'screen'; volume?: number; dnd?: boolean; avatarId?: string };
@@ -41,7 +41,7 @@ export function ParticipantsGrid(props: {
       columns={cols}
       gap={gap}
       onToggleExpand={onToggleExpand}
-      expandButton={expanded ? <FAIcon size="sm" name="down-left-and-up-right-to-center" variant="solid" ariaLabel={t('participantsGrid.collapse')} /> : <FAIcon size="sm" name="up-right-and-down-left-from-center" variant="solid" ariaLabel={t('participantsGrid.expand')} />}
+      expandButton={expanded ? <Icon size="sm" name="minimize" ariaLabel={t('participantsGrid.collapse')} /> : <Icon size="sm" name="maximize" ariaLabel={t('participantsGrid.expand')} />}
     >
       {participants.map(p => (
         <div key={p.sid} onClick={() => onSelect(selectedSid === p.sid ? null : p.sid)} style={{ cursor: 'pointer', transition: 'transform 180ms ease' }}>

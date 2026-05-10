@@ -91,7 +91,7 @@ export function ThemeToggleButton() {
         onClick={() => setOverride('dark')}
       />
       <Button
-        icon="desktop"
+        icon="monitor"
         iconPosition="only"
         active={override === 'system'}
         title={tr('theme.system', 'Systemeinstellung')}

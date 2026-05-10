@@ -1,12 +1,11 @@
 import React from 'react';
-import { FAIcon } from '../FAIcon';
+import { Icon, type IconName } from '../Icon';
 import type { ButtonGroupItemSize, ButtonIconPosition, ButtonVariant } from './types';
 
 export const BGButton = React.forwardRef<HTMLButtonElement, React.ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: ButtonVariant;
   size?: ButtonGroupItemSize;
-  icon?: string;
-  iconVariant?: 'solid' | 'regular' | 'brands';
+  icon?: IconName;
   iconPosition?: ButtonIconPosition;
   active?: boolean;
 }>((props, ref) => {
@@ -14,7 +13,6 @@ export const BGButton = React.forwardRef<HTMLButtonElement, React.ButtonHTMLAttr
     variant = 'default',
     size,
     icon,
-    iconVariant = 'solid',
     iconPosition = 'left',
     active,
     children,
@@ -30,15 +28,17 @@ export const BGButton = React.forwardRef<HTMLButtonElement, React.ButtonHTMLAttr
 
   const classes = ['bg-button', variantClass, activeClass, sizeClass, iconOnlyClass, className].filter(Boolean).join(' ');
 
+  const iconAriaLabel = typeof children === 'string' ? String(children) : undefined;
+
   return (
     <button ref={ref} className={classes} {...rest}>
       <span className="bg-button-content">
         {icon && (iconPosition === 'left' || iconPosition === 'only') && (
-          <FAIcon name={icon} variant={iconVariant} ariaLabel={typeof children === 'string' ? String(children) : undefined} />
+          <Icon name={icon} ariaLabel={iconAriaLabel} />
         )}
         {iconPosition !== 'only' && children}
         {icon && iconPosition === 'right' && (
-          <FAIcon name={icon} variant={iconVariant} ariaLabel={typeof children === 'string' ? String(children) : undefined} />
+          <Icon name={icon} ariaLabel={iconAriaLabel} />
         )}
       </span>
     </button>
@@ -46,5 +46,3 @@ export const BGButton = React.forwardRef<HTMLButtonElement, React.ButtonHTMLAttr
 });
 
 BGButton.displayName = 'BGButton';
-
-

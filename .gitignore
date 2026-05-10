@@ -99,6 +99,11 @@ tools/DemoPack/
 tools/interior_tiles.png
 tools/wall-1.png
 
+# === Defensiv: kein Font Awesome Pro mehr ins Repo ===
+# Wir nutzen lucide-react. FA Pro wäre kommerziell lizenziert und darf
+# nicht im OSS-Tree landen. Eintrag verhindert versehentliches Re-Adden.
+apps/web/public/vendor/fontawesome/
+
 # === Brand-Submodule-Symlinks ===
 # apps/web/optional-submodules.ts symlinkt Public-Assets aus
 # packages/brand/packages/web/public/ rekursiv nach apps/web/public/.

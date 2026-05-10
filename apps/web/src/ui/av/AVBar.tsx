@@ -2,13 +2,13 @@ import React, { useEffect, useRef } from 'react';
 import { ButtonGroup } from '../buttonGroup/ButtonGroup';
 import { Button, Separator } from '../buttonGroup';
 import type { ButtonGroupItemSize } from '../buttonGroup';
-import { FAIcon } from '../FAIcon';
+import { Icon, type IconName } from '../Icon';
 import { AudioSettingsModal } from './AudioSettingsModal';
 import { useTranslation } from 'react-i18next';
 import { useAvSettingsStore } from '../../state/avSettings';
 
 function DeviceSelector(props: {
-  icon: string;
+  icon: IconName;
   isOn: boolean;
   onToggle: () => void;
   devices: { id: string; label: string }[];
@@ -46,7 +46,7 @@ function DeviceSelector(props: {
       <Button
         disabled={disabled}
         variant={isOn ? 'primary' : 'default'}
-        icon="caret-up"
+        icon="chevron-up"
         iconPosition="only"
         onClick={() => setOpen(!open)}
         style={{ borderTopLeftRadius: 0, borderBottomLeftRadius: 0, paddingLeft: 4, paddingRight: 4, minWidth: 24 }}
@@ -73,7 +73,7 @@ function DeviceSelector(props: {
               onClick={() => { onSelect(d.id); setOpen(false); }}
               className={`device-selector-item ${d.id === selectedId ? 'selected' : ''}`}
             >
-              {d.id === selectedId && <FAIcon name="check" size="xs" style={{ color: 'var(--speaking-color)' }} />}
+              {d.id === selectedId && <Icon name="check" size="xs" style={{ color: 'var(--speaking-color)' }} />}
               <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.label}</span>
             </button>
           ))}
@@ -92,7 +92,7 @@ function PushToTalkButton({ disabled }: { disabled?: boolean }) {
       disabled={disabled}
       active={pttOn}
       onClick={() => useAvSettingsStore.getState().setSetting('pushToTalk', !pttOn)}
-      icon="walkie-talkie"
+      icon="radio"
       iconPosition="only"
       title={pttOn ? `Push-to-Talk (${keyLabel} halten)` : 'Push-to-Talk aktivieren'}
     />
@@ -123,7 +123,7 @@ type AVBarProps = {
 function ShareButton({ shareOn, dndOn, onToggleShare, t }: { shareOn: boolean; dndOn: boolean; onToggleShare: () => void | Promise<void>; t: (k: string) => string }) {
   return (
     <Button disabled={dndOn} variant={shareOn ? 'primary' : 'default'} onClick={onToggleShare} iconPosition="left">
-      <FAIcon name="screencast" variant="solid" />
+      <Icon name="screen-share" />
       <span>{shareOn ? t('av.share.stop') : t('av.share.start')}</span>
     </Button>
   );
@@ -146,7 +146,7 @@ export function AVBar(props: AVBarProps) {
   return (
     <ButtonGroup size={size} {...(className ? { className } : {})} {...(style ? { style } : {})}>
       <DeviceSelector
-        icon={micOn ? 'microphone' : 'microphone-slash'}
+        icon={micOn ? 'microphone' : 'microphone-off'}
         isOn={micOn}
         onToggle={onToggleMic}
         devices={devices.mics}
@@ -158,7 +158,7 @@ export function AVBar(props: AVBarProps) {
       />
       <Separator variant="vertical" />
       <DeviceSelector
-        icon={camOn ? 'video' : 'video-slash'}
+        icon={camOn ? 'video' : 'video-off'}
         isOn={camOn}
         onToggle={onToggleCam}
         devices={devices.cams}
@@ -170,20 +170,18 @@ export function AVBar(props: AVBarProps) {
       <Separator variant="vertical" />
       <ShareButton shareOn={shareOn} dndOn={dndOn} onToggleShare={onToggleShare} t={t} />
       <Separator variant="vertical" />
-      <Button active={dndOn} onClick={onToggleDnd} icon="bell-slash" iconPosition="only" title={`${dndOn ? t('av.dnd.on') : t('av.dnd.off')} (${mod}+Shift+U)`} />
+      <Button active={dndOn} onClick={onToggleDnd} icon="bell-off" iconPosition="only" title={`${dndOn ? t('av.dnd.on') : t('av.dnd.off')} (${mod}+Shift+U)`} />
       <PushToTalkButton disabled={dndOn} />
       {cameraManual && (
-        <Button disabled={dndOn} onClick={onRecenter} icon="location-crosshairs" iconPosition="only" title={t('av.recenter')} />
+        <Button disabled={dndOn} onClick={onRecenter} icon="recenter" iconPosition="only" title={t('av.recenter')} />
       )}
       {showSettings && (
         <>
           <Separator variant="vertical" />
-          <Button onClick={() => setSettingsOpen(true)} icon="gear" iconPosition="only" title={t('settings.title')} />
+          <Button onClick={() => setSettingsOpen(true)} icon="settings" iconPosition="only" title={t('settings.title')} />
           <AudioSettingsModal open={settingsOpen} onOpenChange={setSettingsOpen} />
         </>
       )}
     </ButtonGroup>
   );
 }
-
-
