@@ -17,15 +17,31 @@
     "dev": "concurrently -n server,web \"npm:dev:server\" \"npm:dev:web\"",
     "dev:web": "npm --workspace=@meetropolis/web run dev",
     "dev:server": "npm --workspace=@meetropolis/server run dev",
-    "lint": "node scripts/enforce-budgets.js",
+    "lint": "npm run lint:eslint && npm run lint:budgets",
+    "lint:eslint": "eslint .",
+    "lint:budgets": "node scripts/enforce-budgets.js",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "npm run -ws --if-present typecheck",
     "build": "npm -w @meetropolis/web run build && npm -w @meetropolis/server run build",
     "generate": "npm -w @meetropolis/server run prisma:generate",
     "prisma:migrate": "npm -w @meetropolis/server run prisma:migrate",
-    "dev:loadtest": "npm -w @meetropolis/loadtest run dev"
+    "dev:loadtest": "npm -w @meetropolis/loadtest run dev",
+    "prepare": "husky"
   },
   "devDependencies": {
+    "@commitlint/cli": "^19.8.1",
+    "@commitlint/config-conventional": "^19.8.1",
     "concurrently": "^9.2.1",
-    "esbuild": "^0.28.0"
+    "esbuild": "^0.28.0",
+    "eslint": "^9.39.4",
+    "eslint-config-prettier": "^9.1.2",
+    "globals": "^15.15.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0",
+    "prettier": "^3.8.3",
+    "typescript-eslint": "^8.59.2"
   },
   "overrides": {
     "react": "^19.2.5",

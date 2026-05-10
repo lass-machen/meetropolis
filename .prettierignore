@@ -1,0 +1,48 @@
+# Build outputs
+**/dist/
+**/build/
+**/coverage/
+**/.vite/
+**/target/
+
+# Generated code
+apps/server/src/generated/
+apps/server/prisma/migrations/
+apps/server/prisma/schema.composed.prisma
+
+# Vendor / third-party assets
+apps/web/public/
+apps/web/src-tauri/
+
+# Standalone HTML editors (haben eigenes inline-JS-Format, nicht prettier-tauglich)
+tools/
+
+# Scratch + ephemeral
+scratch/
+tmp/
+tmp_extract/
+
+# Lockfiles + package-managed
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+
+# Git
+.git/
+
+# Logs
+*.log
+build_output.txt
+**/build_output.txt
+
+# OS
+.DS_Store
+
+# Environment
+.env
+.env.local
+
+# Submodule-mounted assets (laufen an eigener Toolchain)
+packages/brand/
+packages/desktop/
+packages/tenancy-enterprise/

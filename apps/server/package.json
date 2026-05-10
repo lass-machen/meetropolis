@@ -8,6 +8,7 @@
     "predev": "npm run prisma:compose && prisma generate --schema=./prisma/schema.composed.prisma && prisma db push --schema=./prisma/schema.composed.prisma && prisma db seed --schema=./prisma/schema.composed.prisma",
     "dev": "tsx watch src/index.ts",
     "build": "tsc -p tsconfig.json && node ./scripts/copy-generated.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
     "start": "node dist/index.js",
     "test": "vitest run",
     "map:import:v2": "tsx src/scripts/importMapV2.ts",

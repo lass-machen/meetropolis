@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0 --port 5173 --strictPort",
     "build": "vite build",
+    "typecheck": "tsc --noEmit",
     "preview": "vite preview --host 0.0.0.0 --port 5173",
     "test": "vitest run --reporter=verbose",
     "check:av": "vite build && vitest run --reporter=verbose src/lib/livekit.test.ts src/av/core/TrackManager.concurrency.test.ts src/av/core/TrackManager.signalClosed.test.ts src/av/features/DoNotDisturb.test.ts",
@@ -49,6 +50,9 @@
     "@vitejs/plugin-react": "^6.0.1",
     "@vitest/coverage-v8": "^4.1.5",
     "es-module-lexer": "^2.1.0",
+    "eslint-plugin-jsx-a11y": "^6.10.2",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^5.2.0",
     "jsdom": "^29.1.1",
     "typescript": "^6.0.3",
     "vite": "^8.0.10",
