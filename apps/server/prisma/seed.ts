@@ -11,7 +11,14 @@ async function main() {
   // Ensure tenants exist
   const internal = await prisma.tenant.upsert({
     where: { slug: 'internal' },
-    create: { slug: 'internal', name: 'Internal', concurrentLimit: 999999, bypassLimits: true, isInternal: true, publicRegistrationEnabled: true },
+    create: {
+      slug: 'internal',
+      name: 'Internal',
+      concurrentLimit: 999999,
+      bypassLimits: true,
+      isInternal: true,
+      publicRegistrationEnabled: true,
+    },
     update: {},
   });
   const def = await prisma.tenant.upsert({
@@ -28,13 +35,15 @@ async function main() {
   let admin = await prisma.user.findUnique({ where: { email: adminEmail } });
   const hash = await bcrypt.hash(adminPass, 10);
   if (!admin) {
-    admin = await prisma.user.create({ data: { email: adminEmail, name: adminName, passwordHash: hash, emailVerifiedAt: new Date() } });
-    // eslint-disable-next-line no-console
+    admin = await prisma.user.create({
+      data: { email: adminEmail, name: adminName, passwordHash: hash, emailVerifiedAt: new Date() },
+    });
+
     console.log('Seeded admin user:', adminEmail);
   } else {
     // Update password hash (damit Seed immer das erwartete Passwort setzt)
     admin = await prisma.user.update({ where: { email: adminEmail }, data: { passwordHash: hash } });
-    // eslint-disable-next-line no-console
+
     console.log('Admin user exists, password updated:', adminEmail);
   }
 
@@ -74,7 +83,7 @@ async function main() {
         chunkSize: 32,
       },
     });
-    // eslint-disable-next-line no-console
+
     console.log('Seeded default map:', defaultMapName, 'for tenant', def.slug);
   }
 
@@ -84,7 +93,7 @@ async function main() {
     await prisma.room.create({
       data: { name: 'lobby', mapId: defaultMap.id, tenantId: def.id },
     });
-    // eslint-disable-next-line no-console
+
     console.log('Seeded lobby room for map:', defaultMapName);
   }
 
@@ -98,19 +107,21 @@ async function main() {
       author: 'Meetropolis',
       version: '1.0.0',
       type: 'full',
-      avatars: [{
-        id: 'businessman1',
-        key: 'businessman1',
-        displayName: 'Businessman',
-        type: 'full',
-        spriteUrl: '/assets/sprites/default-avatars.png',
-        frameWidth: 16,
-        frameHeight: 24,
-        states: {
-          idle: { directions: ['down', 'left', 'right', 'up'], frameCount: 1, frameRate: 1, row: 0 },
-          walk: { directions: ['down', 'left', 'right', 'up'], frameCount: 4, frameRate: 8, row: 4 },
+      avatars: [
+        {
+          id: 'businessman1',
+          key: 'businessman1',
+          displayName: 'Businessman',
+          type: 'full',
+          spriteUrl: '/assets/sprites/default-avatars.png',
+          frameWidth: 16,
+          frameHeight: 24,
+          states: {
+            idle: { directions: ['down', 'left', 'right', 'up'], frameCount: 1, frameRate: 1, row: 0 },
+            walk: { directions: ['down', 'left', 'right', 'up'], frameCount: 4, frameRate: 8, row: 4 },
+          },
         },
-      }],
+      ],
     },
     update: { version: '1.0.0' },
   });
@@ -119,16 +130,19 @@ async function main() {
   const existingInvite = await prisma.invite.findFirst({ where: { email: adminEmail, tenantId: def.id } });
   if (!existingInvite) {
     const code = Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 10);
-    await prisma.invite.create({ data: { code, email: adminEmail, createdBy: admin!.id, tenantId: def.id, role: 'admin' as any } });
-    // eslint-disable-next-line no-console
+    await prisma.invite.create({
+      data: { code, email: adminEmail, createdBy: admin.id, tenantId: def.id, role: 'admin' as any },
+    });
+
     console.log('Seeded invite for admin email (can be shared to teammates):', code);
   }
 }
 
-main().catch((e) => {
-  // eslint-disable-next-line no-console
-  console.error(e);
-  process.exit(1);
-}).finally(async () => {
-  await prisma.$disconnect();
-});
+main()
+  .catch((e) => {
+    console.error(e);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });

@@ -53,7 +53,7 @@ export class UIManager {
         cursor = 'pointer';
       }
       input.setDefaultCursor(cursor);
-    } catch { }
+    } catch {}
   }
 
   private updateHoverOutline() {
@@ -93,8 +93,8 @@ export class UIManager {
         if (typeof v.x === 'number' && typeof v.y === 'number') return { x: v.x, y: v.y };
         if (Array.isArray(v) && v.length >= 2 && typeof v[0] === 'number' && typeof v[1] === 'number')
           return { x: v[0], y: v[1] };
-        const px = (v as any).x,
-          py = (v as any).y;
+        const px = v.x,
+          py = v.y;
         if ((typeof px === 'string' || typeof px === 'number') && (typeof py === 'string' || typeof py === 'number')) {
           const nx = Number(px);
           const ny = Number(py);
@@ -105,9 +105,10 @@ export class UIManager {
 
       for (const poly of Array.isArray(polys) ? polys : []) {
         const raw = Array.isArray(poly?.points) ? poly.points : [];
-        const pts = raw
-          .map(toPoint)
-          .filter((p: any) => p && typeof p.x === 'number' && typeof p.y === 'number') as { x: number; y: number }[];
+        const pts = raw.map(toPoint).filter((p: any) => p && typeof p.x === 'number' && typeof p.y === 'number') as {
+          x: number;
+          y: number;
+        }[];
         if (!pts || pts.length < 3) continue;
         g.beginPath();
         g.moveTo(pts[0].x, pts[0].y);
@@ -116,7 +117,7 @@ export class UIManager {
         g.fillPath();
         g.strokePath();
       }
-    } catch { }
+    } catch {}
   }
 
   setZonesVisible(visible: boolean) {
@@ -126,7 +127,7 @@ export class UIManager {
         this.zoneG.clear();
         this.zoneG.setVisible(false);
       }
-    } catch { }
+    } catch {}
   }
 
   setSpawnMarker(pos: { x: number; y: number } | null) {
@@ -156,7 +157,7 @@ export class UIManager {
       g.moveTo(pos.x, pos.y - r - 2);
       g.lineTo(pos.x, pos.y + r + 2);
       g.strokePath();
-    } catch { }
+    } catch {}
   }
 
   hideEditorOverlays() {
@@ -165,13 +166,12 @@ export class UIManager {
         this.zoneG.clear();
         this.zoneG.setVisible(false);
       }
-    } catch { }
+    } catch {}
     try {
       if (this.spawnG) {
         this.spawnG.clear();
         this.spawnG.setVisible(false);
       }
-    } catch { }
+    } catch {}
   }
-
 }

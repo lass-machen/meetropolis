@@ -54,13 +54,10 @@ export class SubscriptionManager implements Disposable {
 
   constructor(
     private readonly config: SubscriptionManagerConfig,
-    private readonly deps: SubscriptionManagerDeps
+    private readonly deps: SubscriptionManagerDeps,
   ) {
     // Convert dB to linear gain
-    this._bubbleAttenuation = Math.max(
-      0,
-      Math.min(1, Math.pow(10, config.bubbleAttenuationDb / 20))
-    );
+    this._bubbleAttenuation = Math.max(0, Math.min(1, Math.pow(10, config.bubbleAttenuationDb / 20)));
   }
 
   // ============================================================================
@@ -255,7 +252,7 @@ export class SubscriptionManager implements Disposable {
         for (const pub of publications) {
           const kind = (pub as any).kind ?? (pub as any).track?.kind;
           if (kind === 'audio') {
-            this.setSubscribed(pub as RemoteTrackPublication, true);
+            this.setSubscribed(pub, true);
             count++;
           }
         }
@@ -332,15 +329,10 @@ export class SubscriptionManager implements Disposable {
 
     try {
       const desiredSet = new Set(this._desiredParticipants);
-      const priorityVideoSet = new Set(
-        this._desiredParticipants.slice(0, this.config.maxVideoSubscriptions)
-      );
-      const activeSpeakerSet = new Set(
-        this._activeSpeakers.slice(0, this.config.maxVideoSubscriptions)
-      );
+      const priorityVideoSet = new Set(this._desiredParticipants.slice(0, this.config.maxVideoSubscriptions));
+      const activeSpeakerSet = new Set(this._activeSpeakers.slice(0, this.config.maxVideoSubscriptions));
       const fewParticipants =
-        participantCount <= this.config.maxVideoSubscriptions ||
-        this.config.maxVideoSubscriptions === 0;
+        participantCount <= this.config.maxVideoSubscriptions || this.config.maxVideoSubscriptions === 0;
 
       for (const p of participants) {
         const identity = String(p.identity || '');
@@ -353,7 +345,7 @@ export class SubscriptionManager implements Disposable {
 
           if (kind === 'audio') {
             const onSameMap = this.isOnSameMap(identity);
-            this.setDesired(pub as RemoteTrackPublication, identity, 'audio', onSameMap);
+            this.setDesired(pub, identity, 'audio', onSameMap);
           }
 
           if (kind === 'video') {
@@ -364,7 +356,7 @@ export class SubscriptionManager implements Disposable {
             const shouldHaveVideo =
               isScreenShare || fewParticipants || isPriority || isActiveSpeaker || shouldSubscribe;
 
-            this.setDesired(pub as RemoteTrackPublication, identity, 'video', shouldHaveVideo);
+            this.setDesired(pub, identity, 'video', shouldHaveVideo);
           }
         }
       }
@@ -375,12 +367,7 @@ export class SubscriptionManager implements Disposable {
     }
   }
 
-  private setDesired(
-    pub: RemoteTrackPublication,
-    identity: string,
-    kind: 'audio' | 'video',
-    should: boolean
-  ): void {
+  private setDesired(pub: RemoteTrackPublication, identity: string, kind: 'audio' | 'video', should: boolean): void {
     const key = `${identity}:${kind}`;
     const current = this._subscriptionStates.get(key);
 
@@ -504,7 +491,7 @@ export class SubscriptionManager implements Disposable {
 
     try {
       const participants = Array.from(room.remoteParticipants.values());
-      const sameMapParticipants = participants.filter(p => this.isOnSameMap(String(p.identity || '')));
+      const sameMapParticipants = participants.filter((p) => this.isOnSameMap(String(p.identity || '')));
       const chosen = sameMapParticipants.slice(0, this.config.maxAudioSubscriptions);
 
       for (const p of participants) {
@@ -515,7 +502,7 @@ export class SubscriptionManager implements Disposable {
         for (const pub of publications) {
           const kind = (pub as any).kind ?? (pub as any).track?.kind;
           if (kind === 'audio') {
-            this.setDesired(pub as RemoteTrackPublication, identity, 'audio', shouldSubscribe);
+            this.setDesired(pub, identity, 'audio', shouldSubscribe);
           }
         }
       }
@@ -542,10 +529,6 @@ export class SubscriptionManager implements Disposable {
 
   private findParticipantByIdentity(room: Room, identity: string): RemoteParticipant | null {
     const participants = Array.from(room.remoteParticipants.values());
-    return (
-      participants.find((p) => p.identity === identity) ||
-      (room.remoteParticipants.get(identity) as RemoteParticipant | undefined) ||
-      null
-    );
+    return participants.find((p) => p.identity === identity) || room.remoteParticipants.get(identity) || null;
   }
 }

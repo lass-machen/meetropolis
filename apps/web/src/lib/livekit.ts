@@ -13,8 +13,8 @@ export type JoinLivekitRoomParams = {
 };
 
 function normalizeLivekitUrl(input: string | undefined): string {
-  const host = (typeof window !== 'undefined') ? window.location.hostname : 'localhost';
-  const scheme = (typeof window !== 'undefined' && window.location.protocol === 'https:') ? 'wss' : 'ws';
+  const host = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
+  const scheme = typeof window !== 'undefined' && window.location.protocol === 'https:' ? 'wss' : 'ws';
   const fallback = `${scheme}://${host}:7880`;
   if (!input) return fallback;
   const u = input.trim();
@@ -27,7 +27,7 @@ function normalizeLivekitUrl(input: string | undefined): string {
 function shouldForceRelay(): boolean {
   // 1) Build-time env flags take precedence when explicitly set
   const env: any = (import.meta as any).env || {};
-  const envRaw = (env?.VITE_AV_FORCE_RELAY ?? env?.VITE_LK_FORCE_RELAY);
+  const envRaw = env?.VITE_AV_FORCE_RELAY ?? env?.VITE_LK_FORCE_RELAY;
   if (typeof envRaw === 'string') {
     const v = envRaw.trim().toLowerCase();
     if (v === 'true') return true;
@@ -35,14 +35,14 @@ function shouldForceRelay(): boolean {
   }
   // 2) URL overrides (runtime): ?relay=1 / ?lkrelay=1 / ?forceRelay=1
   try {
-    const search = (typeof window !== 'undefined') ? window.location.search : '';
+    const search = typeof window !== 'undefined' ? window.location.search : '';
     const qp = new URLSearchParams(search);
     const relayParam = (qp.get('relay') || qp.get('lkrelay') || qp.get('forceRelay') || '').toLowerCase();
-    if (['1','true','yes','on'].includes(relayParam)) return true;
+    if (['1', 'true', 'yes', 'on'].includes(relayParam)) return true;
   } catch {}
   // 3) LocalStorage override (runtime persistent)
   try {
-    const ls = (typeof window !== 'undefined') ? window.localStorage : null;
+    const ls = typeof window !== 'undefined' ? window.localStorage : null;
     const lsVal = (ls?.getItem('av.forceRelay') || ls?.getItem('lk.forceRelay') || '').toLowerCase();
     if (lsVal === 'true') return true;
   } catch {}
@@ -54,7 +54,8 @@ function shouldForceRelay(): boolean {
   //    The fallback in joinLivekitRoom() retries with relay if direct ICE fails.
   // 5) Heuristic: cellular / constrained networks often require TURN/relay
   try {
-    const conn: any = (navigator as any).connection || (navigator as any).mozConnection || (navigator as any).webkitConnection;
+    const conn: any =
+      (navigator as any).connection || (navigator as any).mozConnection || (navigator as any).webkitConnection;
     const type = (conn?.type || '').toString().toLowerCase();
     const eff = (conn?.effectiveType || '').toString().toLowerCase();
     if (type === 'cellular') return true;
@@ -75,7 +76,11 @@ async function fetchLivekitToken(params: JoinLivekitRoomParams): Promise<string>
         ...buildCorrelationHeaders({ identity: params.identity, roomName: params.roomName }),
       },
       credentials: 'include',
-      body: JSON.stringify({ roomName: params.roomName, identity: params.identity, name: params.displayName || params.identity }),
+      body: JSON.stringify({
+        roomName: params.roomName,
+        identity: params.identity,
+        name: params.displayName || params.identity,
+      }),
       signal: controller.signal,
     });
     if (!res.ok) {
@@ -135,8 +140,8 @@ function readLivekitUrlFromEnv(): string | undefined {
 }
 
 function computeFallbackLivekitUrl(): string {
-  const host = (typeof window !== 'undefined') ? window.location.hostname : 'localhost';
-  const scheme = (typeof window !== 'undefined' && window.location.protocol === 'https:') ? 'wss' : 'ws';
+  const host = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
+  const scheme = typeof window !== 'undefined' && window.location.protocol === 'https:' ? 'wss' : 'ws';
   return `${scheme}://${host}:7880`;
 }
 
@@ -215,7 +220,9 @@ async function awaitConnectWithTimeout(room: Room, connectPromise: Promise<void>
   try {
     const result = await Promise.race([connectPromise, timeoutPromise]);
     if (result === TIMEOUT_SENTINEL) {
-      try { await room.disconnect(true); } catch {}
+      try {
+        await room.disconnect(true);
+      } catch {}
       throw new Error('livekit_connect_timeout');
     }
   } finally {
@@ -228,7 +235,7 @@ function logConnected(room: Room, forceRelay: boolean): void {
     const anyRoom: any = room as any;
     const roomID = anyRoom?.roomID || anyRoom?.sid || anyRoom?.name;
     const localSid = anyRoom?.localParticipant?.sid;
-    const nRem = Array.from((anyRoom?.remoteParticipants?.values?.() || []) as any).length;
+    const nRem = Array.from(anyRoom?.remoteParticipants?.values?.() || []).length;
     logger.debug('[AV][debug] livekit.connected', { roomID, localSid, nRemote: nRem, forceRelay });
   } catch {}
 }
@@ -255,7 +262,9 @@ async function connectLivekitRoom(args: {
   logConnected(room, args.forceRelay);
 
   // Absicherung: explizit Auto-Disconnect bei Page-Leave deaktivieren (falls vom SDK unterstützt)
-  try { (room as any).setDisconnectOnPageLeave?.(false); } catch {}
+  try {
+    (room as any).setDisconnectOnPageLeave?.(false);
+  } catch {}
   return room;
 }
 
@@ -313,6 +322,6 @@ export async function startScreenshare(room: Room) {
       resolution: { width: 1920, height: 1080 },
     } as any,
     audio: true,
-  } as any);
+  });
   for (const t of tracks) await room.localParticipant.publishTrack(t);
 }

@@ -16,22 +16,20 @@ describe('mergeRecentPresence', () => {
       { userId: 'u3', user: { name: 'Carol' }, updatedAt: '2024-01-02T00:00:00Z' },
     ];
 
-    const out = mergeRecentPresence(prev, online as any, api);
+    const out = mergeRecentPresence(prev, online, api);
     expect(out[0].identity).toBe('u2');
     expect(out[0].online).toBe(true);
     expect(out[1].identity).toBe('u3');
     expect(out[1].online).toBe(true);
-    expect(out.some(x => x.identity === 'u1')).toBe(true);
+    expect(out.some((x) => x.identity === 'u1')).toBe(true);
   });
 
   it('matches online entries by name if identity differs', () => {
-    const prev: RosterItem[] = [ { identity: 'legacy-1', name: 'Dave', online: false } ];
+    const prev: RosterItem[] = [{ identity: 'legacy-1', name: 'Dave', online: false }];
     const online = { x1: { name: 'Dave', x: 0, y: 0 } } as const;
     const api: ApiPresence[] = [];
-    const out = mergeRecentPresence(prev, online as any, api);
-    const d = out.find(x => x.name === 'Dave');
+    const out = mergeRecentPresence(prev, online, api);
+    const d = out.find((x) => x.name === 'Dave');
     expect(d?.online).toBe(true);
   });
 });
-
-

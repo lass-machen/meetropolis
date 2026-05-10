@@ -15,7 +15,7 @@ async function withPublishTimeout<T>(op: Promise<T>, timeoutMs: number): Promise
     if (result === TIMEOUT_SENTINEL) {
       throw new Error('mic_publish_timeout');
     }
-    return result as T;
+    return result;
   } finally {
     if (timeoutId !== undefined) clearTimeout(timeoutId);
   }
@@ -25,7 +25,7 @@ function getLocalTrackPublications(room: Room): any[] {
   try {
     const iter = (room as any)?.localParticipant?.trackPublications?.values?.();
     if (!iter) return [];
-    return Array.from(iter as any) as any[];
+    return Array.from(iter);
   } catch {
     return [];
   }
@@ -71,21 +71,23 @@ async function unpublishNonLiveMicrophoneTracks(room: Room): Promise<void> {
       const t = pub?.track;
       if (!t) continue;
       if (kind !== 'audio' || (src !== 'microphone' && src !== 0)) continue;
-      const mst = (t as any).mediaStreamTrack;
+      const mst = t.mediaStreamTrack;
       if (mst?.readyState === 'live') continue;
 
       try {
-        if (typeof (t as any).setEnabled === 'function') {
-          (t as any).setEnabled(false);
+        if (typeof t.setEnabled === 'function') {
+          t.setEnabled(false);
         } else if (mst) {
           mst.enabled = false;
         }
       } catch {}
 
       try {
-        await room.localParticipant.unpublishTrack(t as any);
+        await room.localParticipant.unpublishTrack(t);
       } catch {}
-      try { (t as any).stop?.(); } catch {}
+      try {
+        t.stop?.();
+      } catch {}
     }
   } catch {}
 }
@@ -101,7 +103,7 @@ async function buildAndPublishMicrophoneTrack(room: Room, state: LocalTrackState
 
   // Set content hint for speech
   try {
-    const mst = (track as any).mediaStreamTrack;
+    const mst = track.mediaStreamTrack;
     if (mst && 'contentHint' in mst) {
       mst.contentHint = 'speech';
     }
@@ -123,7 +125,7 @@ async function publishFallbackMicrophoneTrack(room: Room, state: LocalTrackState
   }
   const fallbackTrack = await createLocalAudioTrack(audioOpts);
   await room.localParticipant.publishTrack(fallbackTrack as any, { source: 'microphone' } as any);
-  return fallbackTrack as LocalAudioTrack;
+  return fallbackTrack;
 }
 
 export async function publishMicrophone({
@@ -216,15 +218,17 @@ export async function unpublishMicrophone({
         if (!t) continue;
         if (kind === 'audio' && (src === 'microphone' || src === 0)) {
           try {
-            const mst = (t as any).mediaStreamTrack;
-            if (typeof (t as any).setEnabled === 'function') {
-              (t as any).setEnabled(false);
+            const mst = t.mediaStreamTrack;
+            if (typeof t.setEnabled === 'function') {
+              t.setEnabled(false);
             } else if (mst) {
               mst.enabled = false;
             }
           } catch {}
-          await room.localParticipant.unpublishTrack(t as any);
-          try { t.stop?.(); } catch {}
+          await room.localParticipant.unpublishTrack(t);
+          try {
+            t.stop?.();
+          } catch {}
         }
       }
     } catch {}

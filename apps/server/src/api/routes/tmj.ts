@@ -36,7 +36,15 @@ const importUpload = upload.fields([
 // Helpers
 // ---------------------------------------------------------------------------
 
-function computeTileCount(t: { tilecount?: number; imagewidth?: number; imageheight?: number; tilewidth: number; tileheight: number; margin?: number; spacing?: number }): number | null {
+function computeTileCount(t: {
+  tilecount?: number;
+  imagewidth?: number;
+  imageheight?: number;
+  tilewidth: number;
+  tileheight: number;
+  margin?: number;
+  spacing?: number;
+}): number | null {
   if (t.tilecount) return t.tilecount;
   if (t.imagewidth && t.imageheight) {
     const m = t.margin ?? 0;
@@ -48,9 +56,12 @@ function computeTileCount(t: { tilecount?: number; imagewidth?: number; imagehei
   return null;
 }
 
-function saveTilesetImage(images: Array<{ originalname: string; buffer: Buffer }>, tilesetImage: string): string | null {
+function saveTilesetImage(
+  images: Array<{ originalname: string; buffer: Buffer }>,
+  tilesetImage: string,
+): string | null {
   const baseName = path.basename(tilesetImage);
-  const file = images.find(f => f.originalname === baseName);
+  const file = images.find((f) => f.originalname === baseName);
   if (!file) return null;
   const tilesetsDir = path.resolve(__dirname, '../../../../public/assets/tilesets');
   if (!fs.existsSync(tilesetsDir)) fs.mkdirSync(tilesetsDir, { recursive: true });
@@ -83,10 +94,14 @@ async function registerImportedTilesets(
     const uploadedUrl = saveTilesetImage(images, t.image);
     await prisma.mapTileset.create({
       data: {
-        mapId, slot: i, key: t.name,
+        mapId,
+        slot: i,
+        key: t.name,
         imageUrl: uploadedUrl ?? t.image,
-        tileWidth: t.tilewidth, tileHeight: t.tileheight,
-        margin: t.margin ?? 0, spacing: t.spacing ?? 0,
+        tileWidth: t.tilewidth,
+        tileHeight: t.tileheight,
+        margin: t.margin ?? 0,
+        spacing: t.spacing ?? 0,
         tileCount: computeTileCount(t),
       },
     });
@@ -123,8 +138,11 @@ async function processTileLayers(
     for (const chunk of chunks) {
       await prisma.mapChunk.create({
         data: {
-          layerId: layer.id, x: chunk.cx, y: chunk.cy,
-          version: 1, encoding: chunk.encoding,
+          layerId: layer.id,
+          x: chunk.cx,
+          y: chunk.cy,
+          version: 1,
+          encoding: chunk.encoding,
           data: new Uint8Array(chunk.data),
         },
       });
@@ -146,7 +164,8 @@ async function processZones(
   if (extractedZones.length === 0) return 0;
 
   let roomForZones = await prisma.room.findFirst({
-    where: { mapId }, orderBy: { createdAt: 'asc' },
+    where: { mapId },
+    orderBy: { createdAt: 'asc' },
   });
   if (!roomForZones) {
     const lobbyId = `${mapId}:lobby`;
@@ -167,9 +186,12 @@ async function processZones(
   for (const z of extractedZones) {
     await prisma.zone.create({
       data: {
-        name: z.name, capacity: z.capacity ?? undefined,
-        polygon: z.polygon, mapId,
-        roomId: roomForZones.id, tenantId,
+        name: z.name,
+        capacity: z.capacity ?? undefined,
+        polygon: z.polygon,
+        mapId,
+        roomId: roomForZones.id,
+        tenantId,
       } as any,
     });
     zoneCount++;
@@ -180,34 +202,53 @@ async function processZones(
 async function handleTmjImport(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
   try {
     const auth = requireAuth(req);
-    if (!auth) { res.status(401).json({ error: 'unauthorized' }); return; }
+    if (!auth) {
+      res.status(401).json({ error: 'unauthorized' });
+      return;
+    }
     const tenant = getTenantFromReq(req);
-    if (!tenant) { res.status(400).json({ error: 'tenant_required' }); return; }
+    if (!tenant) {
+      res.status(400).json({ error: 'tenant_required' });
+      return;
+    }
 
-    const fileBuffer = ((req as any).files as any)?.file?.[0]?.buffer as Buffer | undefined;
-    if (!fileBuffer) { res.status(400).json({ error: 'file_required' }); return; }
+    const fileBuffer = (req as any).files?.file?.[0]?.buffer as Buffer | undefined;
+    if (!fileBuffer) {
+      res.status(400).json({ error: 'file_required' });
+      return;
+    }
 
     let json: unknown;
-    try { json = JSON.parse(fileBuffer.toString('utf8')); } catch {
+    try {
+      json = JSON.parse(fileBuffer.toString('utf8'));
+    } catch {
       res.status(400).json({ error: 'invalid_json' });
       return;
     }
 
     const parse = TmjSchema.safeParse(json);
-    if (!parse.success) { res.status(400).json({ error: 'invalid_tmj', details: parse.error.issues }); return; }
+    if (!parse.success) {
+      res.status(400).json({ error: 'invalid_tmj', details: parse.error.issues });
+      return;
+    }
     const tmj = parse.data;
 
     const mode = (req.query.mode as string) === 'merge' ? 'merge' : 'replace';
     const chunkSize = 32;
 
     const map = await prisma.map.findFirst({ where: { id: pathParam(req, 'id'), tenantId: tenant.id } });
-    if (!map) { res.status(404).json({ error: 'map not found' }); return; }
+    if (!map) {
+      res.status(404).json({ error: 'map not found' });
+      return;
+    }
 
     await prisma.map.update({
       where: { id: map.id },
       data: {
-        width: tmj.width, height: tmj.height,
-        tileWidth: tmj.tilewidth, tileHeight: tmj.tileheight,
+        width: tmj.width,
+        height: tmj.height,
+        tileWidth: tmj.tilewidth,
+        tileHeight: tmj.tileheight,
         chunkSize,
       },
     });
@@ -216,7 +257,7 @@ async function handleTmjImport(prisma: PrismaClient, req: express.Request, res: 
       await clearExistingMapData(prisma, map.id);
     }
 
-    const images = (((req as any).files as any)?.images ?? []) as Array<{ originalname: string; buffer: Buffer }>;
+    const images = ((req as any).files?.images ?? []) as Array<{ originalname: string; buffer: Buffer }>;
     await registerImportedTilesets(prisma, map.id, tmj.tilesets, images);
 
     const { warnings, layerCounts } = await processTileLayers(prisma, map.id, tmj, chunkSize);
@@ -227,13 +268,19 @@ async function handleTmjImport(prisma: PrismaClient, req: express.Request, res: 
       const currentMeta = (map.meta as any) || {};
       await prisma.map.update({
         where: { id: map.id },
-        data: { meta: { ...currentMeta, spawn: spawnPoint } as any },
+        data: { meta: { ...currentMeta, spawn: spawnPoint } },
       });
     }
 
     broadcastMapUpdate(tenant.slug, 'editor_update', { type: 'all', mapId: map.id, mapName: map.name });
 
-    logger.info('[TMJ] import complete', { mapId: map.id, mapName: map.name, tilesets: tmj.tilesets.length, layers: layerCounts, zones: zoneCount });
+    logger.info('[TMJ] import complete', {
+      mapId: map.id,
+      mapName: map.name,
+      tilesets: tmj.tilesets.length,
+      layers: layerCounts,
+      zones: zoneCount,
+    });
     res.json({
       ok: true,
       map: { id: map.id, name: map.name, width: tmj.width, height: tmj.height },
@@ -251,16 +298,22 @@ async function handleTmjImport(prisma: PrismaClient, req: express.Request, res: 
 
 async function loadLayersWithChunks(prisma: PrismaClient, mapId: string) {
   const dbLayers = await prisma.mapLayer.findMany({ where: { mapId } });
-  const layersWithChunks: Array<{ name: string; encoding: string; chunks: Array<{ x: number; y: number; encoding: string; data: Buffer }>; chunkSize: number }> = [];
+  const layersWithChunks: Array<{
+    name: string;
+    encoding: string;
+    chunks: Array<{ x: number; y: number; encoding: string; data: Buffer }>;
+    chunkSize: number;
+  }> = [];
   for (const layer of dbLayers) {
     const chunks = await prisma.mapChunk.findMany({ where: { layerId: layer.id } });
     layersWithChunks.push({
       name: layer.name,
       encoding: chunks[0]?.encoding ?? 'rle',
       chunks: chunks.map((c: any) => ({
-        x: c.x, y: c.y,
+        x: c.x,
+        y: c.y,
         encoding: c.encoding,
-        data: Buffer.from(c.data as any),
+        data: Buffer.from(c.data),
       })),
       chunkSize: layer.chunkSize,
     });
@@ -271,15 +324,24 @@ async function loadLayersWithChunks(prisma: PrismaClient, mapId: string) {
 async function handleTmjExport(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
   try {
     const auth = requireAuth(req);
-    if (!auth) { res.status(401).json({ error: 'unauthorized' }); return; }
+    if (!auth) {
+      res.status(401).json({ error: 'unauthorized' });
+      return;
+    }
     const tenant = getTenantFromReq(req);
-    if (!tenant) { res.status(400).json({ error: 'tenant_required' }); return; }
+    if (!tenant) {
+      res.status(400).json({ error: 'tenant_required' });
+      return;
+    }
 
     const includeZones = req.query.includeZones === 'true';
     const includeSpawn = req.query.includeSpawn === 'true';
 
     const map = await prisma.map.findFirst({ where: { id: pathParam(req, 'id'), tenantId: tenant.id } });
-    if (!map) { res.status(404).json({ error: 'map_not_found' }); return; }
+    if (!map) {
+      res.status(404).json({ error: 'map_not_found' });
+      return;
+    }
 
     const mapWidth = map.width ?? 32;
     const mapHeight = map.height ?? 32;
@@ -287,7 +349,8 @@ async function handleTmjExport(prisma: PrismaClient, req: express.Request, res: 
     const tileHeight = map.tileHeight ?? 16;
 
     const tilesets = await prisma.mapTileset.findMany({
-      where: { mapId: map.id }, orderBy: { slot: 'asc' },
+      where: { mapId: map.id },
+      orderBy: { slot: 'asc' },
     });
     for (const ts of tilesets) {
       if (!ts.tileCount) {
@@ -316,12 +379,18 @@ async function handleTmjExport(prisma: PrismaClient, req: express.Request, res: 
     }
 
     const tmj = buildTmjFromV2({
-      mapWidth, mapHeight, tileWidth, tileHeight,
+      mapWidth,
+      mapHeight,
+      tileWidth,
+      tileHeight,
       tilesets: tilesets.map((ts: any) => ({
-        slot: ts.slot, key: ts.key,
+        slot: ts.slot,
+        key: ts.key,
         imageUrl: ts.imageUrl,
-        tileWidth: ts.tileWidth, tileHeight: ts.tileHeight,
-        margin: ts.margin, spacing: ts.spacing,
+        tileWidth: ts.tileWidth,
+        tileHeight: ts.tileHeight,
+        margin: ts.margin,
+        spacing: ts.spacing,
         tileCount: ts.tileCount,
       })),
       layers: layersWithChunks,

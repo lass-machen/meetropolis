@@ -3,7 +3,7 @@ export type Polygon = { name: string; points: Array<Point | [number, number]> };
 
 export type VolumeRules = {
   nearRadius: number; // Distanz, bis zu der volle Lautstärke gilt
-  farRadius: number;  // Distanz, ab der stumm gilt
+  farRadius: number; // Distanz, ab der stumm gilt
   outsideBubbleAttenuation: number; // Lautstärke für Außen-vs-Bubble
   differentBubbleMute?: boolean; // Unterschiedliche Bubble-IDs vollständig trennen (default: true)
 };
@@ -38,8 +38,9 @@ function pointInPolygon(p: Point, poly: Array<Point | [number, number]>): boolea
   }
   let c = false;
   for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
-    const pi = pts[i], pj = pts[j];
-    if (((pi.y > p.y) !== (pj.y > p.y)) && (p.x < (pj.x - pi.x) * (p.y - pi.y) / (pj.y - pi.y + 1e-9) + pi.x)) {
+    const pi = pts[i],
+      pj = pts[j];
+    if (pi.y > p.y !== pj.y > p.y && p.x < ((pj.x - pi.x) * (p.y - pi.y)) / (pj.y - pi.y + 1e-9) + pi.x) {
       c = !c;
     }
   }
@@ -52,7 +53,7 @@ export function computePairVolume(
   zones: Polygon[],
   followTarget: string | null,
   bubbleGroups: Record<string, string> | Set<string>,
-  rules: VolumeRules
+  rules: VolumeRules,
 ): number {
   // Follow hat höchste Priorität (darf Zonenregeln außer Kraft setzen)
   if (followTarget && followTarget === remote.id) {
@@ -60,8 +61,8 @@ export function computePairVolume(
   }
 
   // Zuerst Zonen-Berechtigung bestimmen (Schallschutz zwischen Zonen)
-  const localZone = zones.find(z => pointInPolygon(local, z.points));
-  const remoteZone = zones.find(z => pointInPolygon(remote, z.points));
+  const localZone = zones.find((z) => pointInPolygon(local, z.points));
+  const remoteZone = zones.find((z) => pointInPolygon(remote, z.points));
 
   // Wenn einer in einer Zone ist und der andere nicht: stumm
   if ((localZone && !remoteZone) || (!localZone && remoteZone)) return 0;
@@ -104,7 +105,7 @@ export function computePairVolume(
   const d = Math.hypot(dx, dy);
   if (d <= rules.nearRadius) return 1;
   if (d >= rules.farRadius) return 0;
-  const t = (d - rules.nearRadius) / Math.max(1, (rules.farRadius - rules.nearRadius));
+  const t = (d - rules.nearRadius) / Math.max(1, rules.farRadius - rules.nearRadius);
   return Math.max(0, Math.min(1, 1 - t));
 }
 
@@ -122,14 +123,14 @@ export class VolumeManager {
       farRadius: 384,
       outsideBubbleAttenuation: 0.2,
       differentBubbleMute: true,
-      ...(rules || {})
-    } as VolumeRules;
+      ...(rules || {}),
+    };
   }
 
   update(): Record<string, number> {
     const local = this.providers.getLocal();
     if (!local) return this.lastVolumes;
-    
+
     // If local user has DND, set all volumes to 0
     const localDnd = this.providers.getLocalDnd?.() || false;
     if (localDnd) {
@@ -140,27 +141,32 @@ export class VolumeManager {
       this.lastVolumes = {};
       return {};
     }
-    
+
     const remotes = this.providers.getRemotes();
     const zones = this.providers.getZones();
     const followTarget = this.providers.getFollowTarget();
     const bubbleGroups = this.providers.getBubbleGroups();
-    
-    
+
     const volumes: Record<string, number> = {};
-    
+
     for (const [sid, pos] of Object.entries(remotes)) {
-      const vol = computePairVolume(local, { id: sid, x: pos.x, y: pos.y }, zones, followTarget, bubbleGroups, this.rules);
+      const vol = computePairVolume(
+        local,
+        { id: sid, x: pos.x, y: pos.y },
+        zones,
+        followTarget,
+        bubbleGroups,
+        this.rules,
+      );
       this.av.setParticipantVolume(sid, vol);
       volumes[sid] = vol;
     }
-    
+
     this.lastVolumes = volumes;
     return volumes;
   }
-  
+
   getLastVolumes(): Record<string, number> {
     return this.lastVolumes;
   }
 }
-

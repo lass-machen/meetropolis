@@ -14,7 +14,14 @@ export type V2Tileset = {
 };
 
 export type V2State = {
-  mapMeta: { width: number | null; height: number | null; tileWidth: number | null; tileHeight: number | null; chunkSize: number; version: number | null };
+  mapMeta: {
+    width: number | null;
+    height: number | null;
+    tileWidth: number | null;
+    tileHeight: number | null;
+    chunkSize: number;
+    version: number | null;
+  };
   tilesetRegistry: V2Tileset[];
   layerIndex: Record<string, { keys: string[]; chunkSize: number }>;
 };
@@ -32,12 +39,19 @@ export async function fetchStateV2(mapId: string): Promise<V2State | null> {
   return (await res.json()) as V2State;
 }
 
-export async function fetchChunks(mapId: string, layer: string, keys: string[]): Promise<Record<string, V2ChunkPayload>> {
+export async function fetchChunks(
+  mapId: string,
+  layer: string,
+  keys: string[],
+): Promise<Record<string, V2ChunkPayload>> {
   if (keys.length === 0) return {};
   const qs = keys.join(',');
   // Prevent aggressive webview/browser caching with timestamp
   const ts = Date.now();
-  const res = await fetch(`${baseUrl()}/maps/${encodeURIComponent(mapId)}/chunks?layer=${encodeURIComponent(layer)}&keys=${encodeURIComponent(qs)}&t=${ts}`, { credentials: 'include' });
+  const res = await fetch(
+    `${baseUrl()}/maps/${encodeURIComponent(mapId)}/chunks?layer=${encodeURIComponent(layer)}&keys=${encodeURIComponent(qs)}&t=${ts}`,
+    { credentials: 'include' },
+  );
   if (!res.ok) throw new Error('failed to fetch chunks');
   const json = await res.json();
   return (json?.chunks ?? {}) as Record<string, V2ChunkPayload>;
@@ -110,14 +124,15 @@ export function computeFirstGids(tilesets: V2Tileset[], scene: Phaser.Scene): nu
   for (const ts of sorted) {
     const tex = scene.textures.get(ts.key);
     const src: any = tex?.getSourceImage?.();
-    let cols = 1, rows = 1;
+    let cols = 1,
+      rows = 1;
     const tw = ts.tileWidth;
     const th = ts.tileHeight;
-    const spacing = (ts.spacing ?? 0) as number;
-    const margin = (ts.margin ?? 0) as number;
-    if (src && typeof (src as any).width === 'number' && typeof (src as any).height === 'number' && (src as any).width > 0 && (src as any).height > 0) {
-      const w = (src as any).width;
-      const h = (src as any).height;
+    const spacing = ts.spacing ?? 0;
+    const margin = ts.margin ?? 0;
+    if (src && typeof src.width === 'number' && typeof src.height === 'number' && src.width > 0 && src.height > 0) {
+      const w = src.width;
+      const h = src.height;
       cols = Math.max(1, Math.floor((w - margin * 2 + spacing) / (tw + spacing)));
       rows = Math.max(1, Math.floor((h - margin * 2 + spacing) / (th + spacing)));
     } else {
@@ -139,4 +154,3 @@ export function tileRefIdToGid(tileRefId: number, firstGids: number[]): number {
   const fg = firstGids[slot] ?? 1;
   return fg + tileIndex;
 }
-

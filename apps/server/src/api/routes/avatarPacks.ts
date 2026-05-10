@@ -26,10 +26,7 @@ const AvatarPackCreateSchema = z.object({
   avatars: z.array(z.record(z.string(), z.unknown())).min(1),
 });
 
-async function authenticateMixed(
-  req: express.Request,
-  prisma: PrismaClient,
-): Promise<{ ok: boolean }> {
+async function authenticateMixed(req: express.Request, prisma: PrismaClient): Promise<{ ok: boolean }> {
   const sessionAuth = requireAuth(req);
   const tokenAuth = await requireApiToken(req, prisma);
   return { ok: Boolean(sessionAuth || tokenAuth) };
@@ -60,7 +57,7 @@ async function handleSpriteUpload(
       return;
     }
 
-    const buf = file.buffer as Buffer;
+    const buf = file.buffer;
     if (buf.length < 4 || buf[0] !== 0x89 || buf[1] !== 0x50 || buf[2] !== 0x4e || buf[3] !== 0x47) {
       res.status(400).json({ error: 'invalid png' });
       return;
@@ -83,7 +80,11 @@ async function handleSpriteUpload(
   }
 }
 
-async function handleListAvatarPacks(prisma: PrismaClient, _req: express.Request, res: express.Response): Promise<void> {
+async function handleListAvatarPacks(
+  prisma: PrismaClient,
+  _req: express.Request,
+  res: express.Response,
+): Promise<void> {
   try {
     const list = await prisma.avatarPack.findMany({ orderBy: { createdAt: 'desc' } });
     res.json(list);
@@ -140,7 +141,11 @@ async function upsertAvatarPack(prisma: PrismaClient, data: z.infer<typeof Avata
   });
 }
 
-async function handleCreateAvatarPack(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
+async function handleCreateAvatarPack(
+  prisma: PrismaClient,
+  req: express.Request,
+  res: express.Response,
+): Promise<void> {
   const auth = await authenticateMixed(req, prisma);
   if (!auth.ok) {
     res.status(401).json({ error: 'unauthorized' });
@@ -210,7 +215,9 @@ export function registerAvatarPackRoutes(app: express.Application, prisma: Prism
     limits: { fileSize: 5 * 1024 * 1024 },
   });
 
-  app.post('/avatar-packs/upload-sprite', upload.single('file'), (req, res) => handleSpriteUpload(prisma, packsDir, req, res));
+  app.post('/avatar-packs/upload-sprite', upload.single('file'), (req, res) =>
+    handleSpriteUpload(prisma, packsDir, req, res),
+  );
   app.get('/avatar-packs', (req, res) => handleListAvatarPacks(prisma, req, res));
   app.get('/avatar-packs/:id', (req, res) => handleGetAvatarPack(prisma, req, res));
   app.post('/avatar-packs', (req, res) => handleCreateAvatarPack(prisma, req, res));

@@ -17,7 +17,16 @@ describe('gameBridge delegiert an SceneApi', () => {
     };
     gameBridge.setSceneApi(api);
     gameBridge.setDesiredPosition({ x: 1, y: 2 });
-    gameBridge.setZoneOverlay([{ name: 'Z', points: [{x:0,y:0},{x:1,y:0},{x:1,y:1}] } as any]);
+    gameBridge.setZoneOverlay([
+      {
+        name: 'Z',
+        points: [
+          { x: 0, y: 0 },
+          { x: 1, y: 0 },
+          { x: 1, y: 1 },
+        ],
+      },
+    ]);
     expect(api.setDesiredPosition).toHaveBeenCalledOnce();
     // setZoneOverlay wird einmal beim expliziten Call und ggf. einmal beim setSceneApi (Cache-Reapply) aufgerufen
     expect((api.setZoneOverlay as any).mock.calls.length).toBeGreaterThanOrEqual(1);
@@ -37,11 +46,14 @@ describe('gameBridge delegiert an SceneApi', () => {
       setBubbleMembers: vi.fn(),
     };
     gameBridge.setSceneApi(api);
-    gameBridge.applyTilePaint({ layer: 'EditorGround', tilesetKey: 't', tileIndex: 1, rect: { startX: 0, startY: 0, endX: 1, endY: 1 } });
+    gameBridge.applyTilePaint({
+      layer: 'EditorGround',
+      tilesetKey: 't',
+      tileIndex: 1,
+      rect: { startX: 0, startY: 0, endX: 1, endY: 1 },
+    });
     gameBridge.registerTileset({ key: 'k', dataUrl: 'data:image/png;base64,AAA', tileWidth: 16, tileHeight: 16 });
     expect(api.applyTilePaint).toHaveBeenCalledOnce();
     expect(api.registerTileset).toHaveBeenCalledOnce();
   });
 });
-
-

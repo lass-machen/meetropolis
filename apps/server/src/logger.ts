@@ -28,7 +28,7 @@ function asRecord(args: unknown[]): Record<string, unknown> | null {
   // If first is string and second is object -> include msg + context
   if (typeof first === 'string' && rest.length > 0 && rest[0] && typeof rest[0] === 'object') {
     const obj = { ...(rest[0] as Record<string, unknown>) };
-    (obj as any).msg = first as string;
+    (obj as any).msg = first;
     return obj;
   }
   // Fallback: join to msg
@@ -42,5 +42,3 @@ export const logger = {
   warn: (...args: unknown[]) => pinoLogger.warn(asRecord(args) as any),
   error: (...args: unknown[]) => pinoLogger.error(asRecord(args) as any),
 };
-
-

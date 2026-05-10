@@ -15,7 +15,7 @@ export class CameraController {
   private panState: { isPanning: boolean; lastX: number; lastY: number } = {
     isPanning: false,
     lastX: 0,
-    lastY: 0
+    lastY: 0,
   };
   private spaceHeld = false;
   private leftDragCandidate: { active: boolean; startX: number; startY: number } | null = null;
@@ -62,7 +62,13 @@ export class CameraController {
 
     window.addEventListener('keydown', keyBlocker, true);
     window.addEventListener('keyup', keyBlocker, true);
-    window.addEventListener('blur', () => { this.spaceHeld = false; }, true);
+    window.addEventListener(
+      'blur',
+      () => {
+        this.spaceHeld = false;
+      },
+      true,
+    );
   }
 
   private setupInputHandlers(input: Phaser.Input.InputPlugin) {
@@ -72,8 +78,8 @@ export class CameraController {
         left: Phaser.Input.Keyboard.KeyCodes.A,
         down: Phaser.Input.Keyboard.KeyCodes.S,
         right: Phaser.Input.Keyboard.KeyCodes.D,
-      }) as any;
-    } catch { }
+      });
+    } catch {}
   }
 
   private setupZoom() {
@@ -109,8 +115,12 @@ export class CameraController {
         this.camera.stopFollow();
         this.manualCameraActive = true;
 
-        try { (p.event as any)?.preventDefault?.(); } catch { }
-        try { (p.event as any)?.stopPropagation?.(); } catch { }
+        try {
+          (p.event as any)?.preventDefault?.();
+        } catch {}
+        try {
+          (p.event as any)?.stopPropagation?.();
+        } catch {}
       }
     });
 
@@ -129,8 +139,12 @@ export class CameraController {
         const mdx = Math.abs(p.x - this.leftDragCandidate.startX);
         const mdy = Math.abs(p.y - this.leftDragCandidate.startY);
         if (mdx + mdy > 3) {
-          try { (p.event as any)?.preventDefault?.(); } catch { }
-          try { (p.event as any)?.stopPropagation?.(); } catch { }
+          try {
+            (p.event as any)?.preventDefault?.();
+          } catch {}
+          try {
+            (p.event as any)?.stopPropagation?.();
+          } catch {}
         }
       }
     });
@@ -141,15 +155,19 @@ export class CameraController {
         const mdx = Math.abs(p.x - this.leftDragCandidate.startX);
         const mdy = Math.abs(p.y - this.leftDragCandidate.startY);
         if (mdx + mdy > 3) {
-          try { (p.event as any)?.preventDefault?.(); } catch { }
-          try { (p.event as any)?.stopPropagation?.(); } catch { }
+          try {
+            (p.event as any)?.preventDefault?.();
+          } catch {}
+          try {
+            (p.event as any)?.stopPropagation?.();
+          } catch {}
         }
       }
       this.leftDragCandidate = null;
     };
 
     this.scene.input.on(Phaser.Input.Events.POINTER_UP, stopPan);
-    this.scene.input.on(Phaser.Input.Events.POINTER_UP_OUTSIDE, stopPan as any);
+    this.scene.input.on(Phaser.Input.Events.POINTER_UP_OUTSIDE, stopPan);
   }
 
   autoFollowIfHeroOutOfView() {
@@ -168,17 +186,19 @@ export class CameraController {
       const isOutside = outLeft || outRight || outTop || outBottom;
 
       if (isOutside && !this.editorMode && !this.panState.isPanning) {
-        try { this.camera.startFollow(this.hero, true, 0.1, 0.1); } catch { }
+        try {
+          this.camera.startFollow(this.hero, true, 0.1, 0.1);
+        } catch {}
         this.manualCameraActive = false;
       }
-    } catch { }
+    } catch {}
   }
 
   recenterCamera() {
     try {
       this.camera.startFollow(this.hero, true, 0.1, 0.1);
       this.manualCameraActive = false;
-    } catch { }
+    } catch {}
   }
 
   updateEditorPan(cursors: Phaser.Types.Input.Keyboard.CursorKeys, delta: number) {
@@ -188,7 +208,7 @@ export class CameraController {
     const base = 600;
     const step = (base * dt) / Math.max(this.camera.zoom, 0.001);
     const anyCursors: any = cursors;
-    const keys = this.editorPanKeys || {} as any;
+    const keys = this.editorPanKeys || ({} as any);
 
     let moved = false;
 
@@ -210,7 +230,9 @@ export class CameraController {
     }
 
     if (moved) {
-      try { this.camera.stopFollow(); } catch { }
+      try {
+        this.camera.stopFollow();
+      } catch {}
       this.manualCameraActive = true;
     }
   }
@@ -218,10 +240,14 @@ export class CameraController {
   setEditorMode(enabled: boolean) {
     this.editorMode = enabled;
     if (enabled) {
-      try { this.camera.stopFollow(); } catch { }
+      try {
+        this.camera.stopFollow();
+      } catch {}
       this.manualCameraActive = true;
     } else {
-      try { this.camera.startFollow(this.hero, true, 0.1, 0.1); } catch { }
+      try {
+        this.camera.startFollow(this.hero, true, 0.1, 0.1);
+      } catch {}
       this.manualCameraActive = false;
     }
   }

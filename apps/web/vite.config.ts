@@ -1,4 +1,4 @@
-import { defineConfig, type PluginOption } from 'vite';
+import { defineConfig } from 'vite';
 import { resolve } from 'path';
 import react from '@vitejs/plugin-react';
 import { optionalSubmodules } from './optional-submodules';
@@ -9,7 +9,7 @@ export default defineConfig({
     // Two vite versions coexist (root 5.x as transitive, apps/web 6.x direct).
     // The plugin-react types resolve against root's vite — runtime is fine,
     // tsc just sees mismatching nominal types. Double-cast keeps the check clean.
-    react() as unknown as PluginOption,
+    react(),
   ],
   // eigener Cache-Ordner, um alte Optimierungen sicher zu umgehen (Docker)
   cacheDir: '/tmp/.vite',
@@ -20,7 +20,7 @@ export default defineConfig({
       // Desktop-Submodule (packages/desktop) importiert UI-Components aus der Web-App.
       // Dieser Alias ermöglicht saubere Imports wie '@app/ui/system' statt langer relativer Pfade.
       '@app': resolve(__dirname, 'src'),
-    }
+    },
   },
   build: {
     sourcemap: true,
@@ -50,7 +50,7 @@ export default defineConfig({
     host: true,
     hmr: {
       host: process.env.VITE_HMR_HOST || 'localhost',
-      protocol: process.env.VITE_HMR_PROTOCOL || 'ws'
+      protocol: process.env.VITE_HMR_PROTOCOL || 'ws',
     },
     allowedHosts: ['localhost'],
     proxy: {
@@ -61,7 +61,7 @@ export default defineConfig({
         target: process.env.VITE_PROXY_TARGET || process.env.VITE_API_BASE || 'http://localhost:2567',
         changeOrigin: true,
         secure: false,
-      }
-    }
-  }
+      },
+    },
+  },
 });

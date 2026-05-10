@@ -12,31 +12,36 @@ export type AVDebugPayload = {
 
 // Manager wird absichtlich als any getypt, um enge Kopplung an die interne Klasse zu vermeiden
 export function startStatsLoopImpl(manager: any): void {
-  try { if (manager.statsTimer) clearInterval(manager.statsTimer); } catch {}
+  try {
+    if (manager.statsTimer) clearInterval(manager.statsTimer);
+  } catch {}
   const roomName: string = manager.currentName || 'world';
   const identity: string = manager.identity;
   const baseUrl: string = manager.baseUrl;
 
   const collectOnce = async () => {
     try {
-      const room: any = manager.current as any;
+      const room: any = manager.current;
       if (!room) return;
       const connectionState = (room.connectionState || room.state || '').toString();
-      let nRemoteAudio = 0, nRemoteVideo = 0, nLocalAudio = 0, nLocalVideo = 0;
+      let nRemoteAudio = 0,
+        nRemoteVideo = 0,
+        nLocalAudio = 0,
+        nLocalVideo = 0;
       try {
-        const participants: any[] = Array.from((room.remoteParticipants?.values?.() || []) as any);
+        const participants: any[] = Array.from(room.remoteParticipants?.values?.() || []);
         for (const p of participants) {
-          const pubs: any[] = Array.from((p.trackPublications?.values?.() || []) as any);
+          const pubs: any[] = Array.from(p.trackPublications?.values?.() || []);
           for (const pub of pubs) {
-            const kind = (pub as any).kind ?? (pub.track as any)?.kind;
+            const kind = pub.kind ?? pub.track?.kind;
             if (kind === 'audio') nRemoteAudio++;
             if (kind === 'video') nRemoteVideo++;
           }
         }
-        const pubsLocal: any[] = Array.from((room.localParticipant?.trackPublications?.values?.() || []) as any);
+        const pubsLocal: any[] = Array.from(room.localParticipant?.trackPublications?.values?.() || []);
         for (const pub of pubsLocal) {
-          const kind = (pub as any).kind ?? (pub.track as any)?.kind;
-          const src = (pub as any).source ?? (pub.track as any)?.source;
+          const kind = pub.kind ?? pub.track?.kind;
+          const src = pub.source ?? pub.track?.source;
           if (kind === 'audio' || src === 'microphone') nLocalAudio++;
           if ((kind === 'video' && src !== 'screen_share') || src === 'camera') nLocalVideo++;
         }
@@ -44,7 +49,7 @@ export function startStatsLoopImpl(manager: any): void {
       let iceState: string | undefined;
       let dtlsState: string | undefined;
       try {
-        const pc = (room as any)?.engine?.pcManager?.publisher?.pc || (room as any)?.pc;
+        const pc = room?.engine?.pcManager?.publisher?.pc || room?.pc;
         if (pc) {
           iceState = (pc.iceConnectionState || pc.connectionState || '').toString();
           dtlsState = (pc.connectionState || '').toString();
@@ -61,7 +66,9 @@ export function startStatsLoopImpl(manager: any): void {
         nLocalAudio,
         nLocalVideo,
       };
-      try { updateDebugHudImpl(manager, payload); } catch {}
+      try {
+        updateDebugHudImpl(manager, payload);
+      } catch {}
       await fetch(`${baseUrl}/av/stats`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -70,7 +77,9 @@ export function startStatsLoopImpl(manager: any): void {
       }).catch(() => {});
     } catch {}
   };
-  manager.statsTimer = setInterval(() => { void collectOnce(); }, 5000);
+  manager.statsTimer = setInterval(() => {
+    void collectOnce();
+  }, 5000);
   void collectOnce();
 }
 
@@ -101,5 +110,3 @@ export function updateDebugHudImpl(_manager: any, p: AVDebugPayload): void {
   ];
   el.textContent = lines.join('\n');
 }
-
-

@@ -65,7 +65,7 @@ function collectChunkCoords(rect: Rect, chunkSize: number): Array<{ x: number; y
       set.add(`${Math.floor(x / chunkSize)}:${Math.floor(y / chunkSize)}`);
     }
   }
-  return [...set].map(k => {
+  return [...set].map((k) => {
     const [cx, cy] = k.split(':');
     return { x: Number(cx), y: Number(cy) };
   });
@@ -77,7 +77,7 @@ function ensureDecoded(cd: ChunkUpdate, colChunkSize: number) {
   if (c) {
     const dataBuffer = c.data instanceof Buffer ? c.data : Buffer.from(c.data);
     const pairs = decodeRlePairsFromBuffer(dataBuffer);
-    cd._decoded = rleDecodeToBooleans(pairs, colChunkSize * colChunkSize).map(b => b ? 1 : 0);
+    cd._decoded = rleDecodeToBooleans(pairs, colChunkSize * colChunkSize).map((b) => (b ? 1 : 0));
   } else {
     cd._decoded = new Array(colChunkSize * colChunkSize).fill(0);
   }
@@ -146,12 +146,12 @@ async function persistCollisionUpdates(
     if (!chunk) {
       chunk = await prisma.mapChunk.create({
         data: { layerId, x: data.cx, y: data.cy, version: 1, encoding: 'rle-bool', data: u8 },
-      }) as ChunkData;
+      });
     } else {
       chunk = await prisma.mapChunk.update({
         where: { id: chunk.id },
         data: { version: chunk.version + 1, encoding: 'rle-bool', data: u8 },
-      }) as ChunkData;
+      });
     }
     results.push({ key, version: chunk.version, encoding: chunk.encoding, data: buf.toString('base64') });
   }
@@ -174,7 +174,7 @@ export async function applyCollisionSideEffect(params: CollisionSideEffectParams
   });
   const existingColChunks = new Map<string, ChunkData>();
   for (const c of existingColChunksList) {
-    existingColChunks.set(`${c.x}:${c.y}`, c as ChunkData);
+    existingColChunks.set(`${c.x}:${c.y}`, c);
   }
 
   const colUpdates = computeCollisionUpdates({

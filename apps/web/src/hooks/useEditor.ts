@@ -1,6 +1,6 @@
 /**
  * useEditor - React Hook für EditorService
- * 
+ *
  * Dünner Wrapper um EditorService mit React Observer Pattern
  * BACKWARDS COMPATIBLE: Gibt Array zurück wie alter Hook
  */
@@ -41,7 +41,7 @@ export function useEditor(): [EditorState, React.Dispatch<React.SetStateAction<E
     if (typeof update === 'function') {
       // Funktionales Update: Führe die Funktion mit aktuellem State aus
       const currentState = EditorService.getState();
-      const newState = (update as (s: EditorState) => EditorState)(currentState);
+      const newState = update(currentState);
       // Überschreibe via LOAD_STATE action
       EditorService.dispatch({ type: 'LOAD_STATE', state: newState });
     } else {
@@ -50,7 +50,5 @@ export function useEditor(): [EditorState, React.Dispatch<React.SetStateAction<E
     }
   }, []);
 
-  return [state, setStateWrapper as React.Dispatch<React.SetStateAction<EditorState>>];
+  return [state, setStateWrapper];
 }
-
-

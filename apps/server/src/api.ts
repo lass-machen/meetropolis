@@ -32,9 +32,16 @@ import { registerControlRoutes } from './api/routes/controls.js';
 
 // Auth utilities for existing modular routes
 import {
-  requireAuth, requireApiToken, getApiTokenPepper, requireSuperAdmin,
-  getTenantFromReq, requireMembership, getUserIdFromReq,
-  computeOnlineUsageByTenantSlug, getJwtSecret, setAuthCookie,
+  requireAuth,
+  requireApiToken,
+  getApiTokenPepper,
+  requireSuperAdmin,
+  getTenantFromReq,
+  requireMembership,
+  getUserIdFromReq,
+  computeOnlineUsageByTenantSlug,
+  getJwtSecret,
+  setAuthCookie,
   normalizeEmailForStorage,
 } from './api/utils/authHelpers.js';
 
@@ -100,39 +107,39 @@ async function registerEnterpriseAdminRoutes(app: express.Express) {
   adminEnterprise.setupAdminRoutes(app, { prisma, logger, requireSuperAdmin });
 
   adminEnterprise.setupTenantAdminRoutes(app, {
-    prisma: prisma as any,
+    prisma,
     logger,
-    requireSuperAdmin: requireSuperAdmin as any,
+    requireSuperAdmin,
     computeOnlineUsageByTenantSlug,
     isMultiTenantEnabled: () => tenancy.isMultiTenantEnabled(),
     hashPassword: (password: string) => bcrypt.hash(password, 10),
     signSessionJwt: (payload) => jwt.sign(payload, getJwtSecret(), { expiresIn: '30d' }),
     setAuthCookie,
     normalizeEmail: normalizeEmailForStorage,
-    copyTemplateMaps: (p, tenantId) => copyTemplateMapsForSignup(p as any, tenantId),
+    copyTemplateMaps: (p, tenantId) => copyTemplateMapsForSignup(p, tenantId),
     sendWelcomeEmail: sendSignupWelcomeEmail,
   });
 
   adminEnterprise.setupPricingPlanRoutes(app, {
-    prisma: prisma as any,
+    prisma,
     logger,
-    requireSuperAdmin: requireSuperAdmin as any,
+    requireSuperAdmin,
   });
 
   adminEnterprise.setupTenantUserRoutes(app, {
-    prisma: prisma as any,
+    prisma,
     logger,
-    requireSuperAdmin: requireSuperAdmin as any,
+    requireSuperAdmin,
     normalizeEmail: normalizeEmailForStorage,
   });
 
   adminEnterprise.setupPackMarketplaceRoutes(app, {
-    prisma: prisma as any,
+    prisma,
     logger,
     requireAuth,
     getTenantFromReq,
-    requireMembership: requireMembership as any,
-    requireSuperAdmin: requireSuperAdmin as any,
+    requireMembership,
+    requireSuperAdmin,
   });
 }
 
@@ -150,9 +157,15 @@ async function getBillingOwnerEmail(tenantId: string): Promise<string | null> {
 
 function requireTenantAdminMiddleware(req: any, res: any, next: any): void {
   const auth = requireAuth(req);
-  if (!auth) { res.status(401).json({ error: 'unauthorized' }); return; }
+  if (!auth) {
+    res.status(401).json({ error: 'unauthorized' });
+    return;
+  }
   const tenant = getTenantFromReq(req);
-  if (!tenant) { res.status(400).json({ error: 'tenant_required' }); return; }
+  if (!tenant) {
+    res.status(400).json({ error: 'tenant_required' });
+    return;
+  }
   next();
 }
 

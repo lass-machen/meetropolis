@@ -41,9 +41,9 @@ export function useHudTicker(params: UseHudTickerParams) {
         const next: { zone?: string; follow?: string | null; avRoom?: string | null } = {
           follow: null,
           avRoom: avRef.current?.activeRoom ?? null,
-        } as any;
+        };
         if (typeof z === 'string') next.zone = z;
-        setHud(prev => {
+        setHud((prev) => {
           const sameZone = (prev.zone ?? undefined) === next.zone;
           const sameFollow = (prev.follow ?? null) === next.follow;
           const sameAv = (prev.avRoom ?? null) === next.avRoom;
@@ -58,12 +58,12 @@ export function useHudTicker(params: UseHudTickerParams) {
           if (dest) {
             const dx = (localPosRef.current.x || 0) - dest.x;
             const dy = (localPosRef.current.y || 0) - dest.y;
-            arrived = (dx * dx + dy * dy) < 12 * 12;
+            arrived = dx * dx + dy * dy < 12 * 12;
           }
           if (!arrived && targetPos) {
             const dx = (localPosRef.current.x || 0) - targetPos.x;
             const dy = (localPosRef.current.y || 0) - targetPos.y;
-            arrived = (dx * dx + dy * dy) < 20 * 20;
+            arrived = dx * dx + dy * dy < 20 * 20;
           }
           if (arrived) {
             onArrivedAtBubbleTarget(targetId);
@@ -73,12 +73,12 @@ export function useHudTicker(params: UseHudTickerParams) {
 
         const zoneName = zoneRef.current?.getCurrent?.() ?? null;
         if (zoneName !== participantListLastZone || Date.now() - lastParticipantUpdate > 2000) {
-          participantListLastZone = (zoneName ?? null) as any;
+          participantListLastZone = zoneName ?? null;
           lastParticipantUpdate = Date.now();
           onZoneParticipantRefresh();
         }
 
-        const room: any = avRef.current?.room as any;
+        const room: any = avRef.current?.room;
         if (room && room.localParticipant && room.localParticipant.trackPublications) {
           // AV-State Mirror wird außerhalb gepflegt
         }
@@ -90,7 +90,16 @@ export function useHudTicker(params: UseHudTickerParams) {
     return () => {
       clearInterval(hudTimer);
     };
-  }, [enabled, avRef, bubblePendingRef, localPosRef, onArrivedAtBubbleTarget, onZoneParticipantRefresh, setHud, setParticipantVolumesRef, volumeRef, zoneRef]);
+  }, [
+    enabled,
+    avRef,
+    bubblePendingRef,
+    localPosRef,
+    onArrivedAtBubbleTarget,
+    onZoneParticipantRefresh,
+    setHud,
+    setParticipantVolumesRef,
+    volumeRef,
+    zoneRef,
+  ]);
 }
-
-

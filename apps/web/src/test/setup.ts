@@ -22,7 +22,7 @@ if (typeof window !== 'undefined' && !('matchMedia' in window)) {
       addEventListener: () => {},
       removeEventListener: () => {},
       dispatchEvent: () => false,
-    } as any;
+    };
     return mql;
   };
 }
@@ -48,4 +48,3 @@ if (typeof window !== 'undefined' && typeof window.HTMLCanvasElement !== 'undefi
     return existingGetContext ? existingGetContext.call(this, type) : null;
   };
 }
-

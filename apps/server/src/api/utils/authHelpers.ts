@@ -23,7 +23,9 @@ export function getJwtSecret(): string {
   const key = (globalThis as any).__DEV_JWT_SECRET__ as string | undefined;
   if (key && key.length > 0) return key;
   const devSecret = crypto.randomBytes(32).toString('hex');
-  try { logger.warn('[SECURITY] JWT_SECRET fehlt – verwende ephemeres DEV-Secret.'); } catch { }
+  try {
+    logger.warn('[SECURITY] JWT_SECRET fehlt – verwende ephemeres DEV-Secret.');
+  } catch {}
   (globalThis as any).__DEV_JWT_SECRET__ = devSecret;
   cachedJwtSecret = devSecret;
   return devSecret;
@@ -40,7 +42,9 @@ export function getApiTokenPepper(): string {
     throw new Error('[SECURITY] API_TOKEN_PEPPER fehlt in Produktion');
   }
   const devPepper = crypto.randomBytes(32).toString('hex');
-  logger.warn('[SECURITY] API_TOKEN_PEPPER fehlt – verwende ephemeres DEV-Pepper. Tokens verlieren Gültigkeit bei Neustart.');
+  logger.warn(
+    '[SECURITY] API_TOKEN_PEPPER fehlt – verwende ephemeres DEV-Pepper. Tokens verlieren Gültigkeit bei Neustart.',
+  );
   cachedApiTokenPepper = devPepper;
   return devPepper;
 }
@@ -56,7 +60,7 @@ export function setAuthCookie(res: express.Response, token: string) {
   const sameSite = isProduction ? 'strict' : 'lax';
   res.cookie(COOKIE_NAME, token, {
     httpOnly: true,
-    sameSite: sameSite as any,
+    sameSite: sameSite,
     secure,
     path: '/',
     maxAge: 1000 * 60 * 60 * 24 * 30,
@@ -82,16 +86,22 @@ export async function requireApiToken(req: express.Request, prisma: PrismaClient
     // Sieht nach JWT aus → nicht als API-Token behandeln
     return null;
   }
-  const hash = crypto.createHash('sha256').update(getApiTokenPepper() + token).digest('hex');
+  const hash = crypto
+    .createHash('sha256')
+    .update(getApiTokenPepper() + token)
+    .digest('hex');
   const found = await prisma.apiToken.findUnique({ where: { hash } });
   if (!found) return null;
   await prisma.apiToken.update({ where: { hash }, data: { lastUsedAt: new Date() } });
   return { userId: found.userId };
 }
 
-export function getTenantFromReq(req: express.Request): { id: string; slug: string; bypassLimits?: boolean; isInternal?: boolean } | null {
+export function getTenantFromReq(
+  req: express.Request,
+): { id: string; slug: string; bypassLimits?: boolean; isInternal?: boolean } | null {
   const t: any = (req as any).tenant;
-  if (t && t.id && t.slug) return { id: t.id, slug: t.slug, bypassLimits: !!t.bypassLimits, isInternal: !!t.isInternal };
+  if (t && t.id && t.slug)
+    return { id: t.id, slug: t.slug, bypassLimits: !!t.bypassLimits, isInternal: !!t.isInternal };
   return null;
 }
 
@@ -100,7 +110,11 @@ export function getUserIdFromReq(req: express.Request): string | null {
   return auth?.userId ?? null;
 }
 
-export async function requireMembership(req: express.Request, userId: string, prisma: PrismaClient): Promise<{ role: string } | null> {
+export async function requireMembership(
+  req: express.Request,
+  userId: string,
+  prisma: PrismaClient,
+): Promise<{ role: string } | null> {
   const tenant = getTenantFromReq(req);
   if (!tenant) return null;
   const m = await prisma.membership.findUnique({ where: { tenantId_userId: { tenantId: tenant.id, userId } } as any });
@@ -110,20 +124,26 @@ export async function requireMembership(req: express.Request, userId: string, pr
 
 export async function requireSuperAdmin(
   req: express.Request,
-  prisma: PrismaClient
+  prisma: PrismaClient,
 ): Promise<{ userId: string } | null> {
-  const auth = requireAuth(req) || await requireApiToken(req, prisma);
+  const auth = requireAuth(req) || (await requireApiToken(req, prisma));
   if (!auth) return null;
   const ok = await requireInternalOwner(req, auth.userId, prisma);
   if (!ok) return null;
   return auth;
 }
 
-export async function requireInternalOwner(_req: express.Request, userId: string, prisma: PrismaClient): Promise<boolean> {
+export async function requireInternalOwner(
+  _req: express.Request,
+  userId: string,
+  prisma: PrismaClient,
+): Promise<boolean> {
   try {
     const internal = await prisma.tenant.findUnique({ where: { slug: 'internal' } });
     if (!internal) return false;
-    const member = await prisma.membership.findUnique({ where: { tenantId_userId: { tenantId: internal.id, userId } } as any });
+    const member = await prisma.membership.findUnique({
+      where: { tenantId_userId: { tenantId: internal.id, userId } } as any,
+    });
     if (!member) return false;
     return (member as any).role === 'owner';
   } catch {
@@ -152,10 +172,10 @@ export function computeOnlineUsageByTenantSlug(): Record<string, number> {
     const activeWorldRooms: any = global.activeWorldRooms;
     const rooms: any[] = activeWorldRooms ? Array.from(activeWorldRooms.values()) : [];
     for (const r of rooms) {
-      const slug = (r as any).metadata?.tenant || 'default';
-      const n = (r as any).state?.players?.size || 0;
+      const slug = r.metadata?.tenant || 'default';
+      const n = r.state?.players?.size || 0;
       usage[slug] = (usage[slug] || 0) + n;
     }
-  } catch { }
+  } catch {}
   return usage;
 }

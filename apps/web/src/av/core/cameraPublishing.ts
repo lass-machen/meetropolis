@@ -6,7 +6,7 @@ function getLocalTrackPublications(room: Room): any[] {
   try {
     const iter = (room as any)?.localParticipant?.trackPublications?.values?.();
     if (!iter) return [];
-    return Array.from(iter as any) as any[];
+    return Array.from(iter);
   } catch {
     return [];
   }
@@ -24,21 +24,23 @@ async function unpublishNonLiveCameraTracks(room: Room): Promise<void> {
       if (src === 'screen_share') continue;
       if (!(src === 'camera' || src === 1 || src == null)) continue;
 
-      const mst = (t as any).mediaStreamTrack;
+      const mst = t.mediaStreamTrack;
       if (mst?.readyState === 'live') continue;
 
       try {
-        if (typeof (t as any).setEnabled === 'function') {
-          (t as any).setEnabled(false);
+        if (typeof t.setEnabled === 'function') {
+          t.setEnabled(false);
         } else if (mst) {
           mst.enabled = false;
         }
       } catch {}
 
       try {
-        await room.localParticipant.unpublishTrack(t as any);
+        await room.localParticipant.unpublishTrack(t);
       } catch {}
-      try { (t as any).stop?.(); } catch {}
+      try {
+        t.stop?.();
+      } catch {}
     }
   } catch {}
 }
@@ -148,15 +150,17 @@ export async function unpublishCamera({
         if (kind === 'video' && (src === 'camera' || src === 1 || src == null)) {
           if (src === 'screen_share') continue;
           try {
-            const mst = (t as any).mediaStreamTrack;
-            if (typeof (t as any).setEnabled === 'function') {
-              (t as any).setEnabled(false);
+            const mst = t.mediaStreamTrack;
+            if (typeof t.setEnabled === 'function') {
+              t.setEnabled(false);
             } else if (mst) {
               mst.enabled = false;
             }
           } catch {}
-          await room.localParticipant.unpublishTrack(t as any);
-          try { t.stop?.(); } catch {}
+          await room.localParticipant.unpublishTrack(t);
+          try {
+            t.stop?.();
+          } catch {}
         }
       }
     } catch {}
