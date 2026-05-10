@@ -15,7 +15,7 @@ export function ensureRecenterUi(scene: Phaser.Scene & any): void {
   const label = scene.add.text(10, 6, (window as any).i18next?.t?.('av.recenter') || 'Recenter', {
     fontSize: '13px',
     fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-    color: '#ffffff'
+    color: '#ffffff',
   });
   label.setScrollFactor(0);
 
@@ -24,7 +24,10 @@ export function ensureRecenterUi(scene: Phaser.Scene & any): void {
   container.setPosition(12, 12);
 
   container.setSize(120, 28);
-  container.setInteractive(new Phaser.Geom.Rectangle(0, 0, 120, 28), Phaser.Geom.Rectangle.Contains);
+  container.setInteractive(
+    new Phaser.Geom.Rectangle(0, 0, 120, 28),
+    (rect: Phaser.Geom.Rectangle, x: number, y: number) => Phaser.Geom.Rectangle.Contains(rect, x, y),
+  );
   container.on(Phaser.Input.Events.POINTER_DOWN, () => {
     scene.cameras.main.startFollow(scene.hero, true, 0.1, 0.1);
     scene.manualCameraActive = false;
@@ -38,12 +41,14 @@ export function ensureRecenterUi(scene: Phaser.Scene & any): void {
 export function updateRecenterUiVisibility(scene: Phaser.Scene & any): void {
   if (!scene.recenterUi) return;
   const cam = scene.cameras.main;
-  const isFollowing = (cam as any).follow === scene.hero;
+  const isFollowing = cam.follow === scene.hero;
   if (!scene.manualCameraActive && isFollowing) {
     scene.recenterUi.setVisible(false);
     if (scene._lastCameraManualNotified !== false) {
       scene._lastCameraManualNotified = false;
-      try { gameBridge.onCameraManualChange?.(false); } catch {}
+      try {
+        gameBridge.onCameraManualChange?.(false);
+      } catch {}
     }
     return;
   }
@@ -56,7 +61,9 @@ export function updateRecenterUiVisibility(scene: Phaser.Scene & any): void {
   scene.recenterUi.setVisible(shouldShow);
   if (scene._lastCameraManualNotified !== shouldShow) {
     scene._lastCameraManualNotified = shouldShow;
-    try { gameBridge.onCameraManualChange?.(shouldShow); } catch {}
+    try {
+      gameBridge.onCameraManualChange?.(shouldShow);
+    } catch {}
   }
 }
 
@@ -65,5 +72,3 @@ export function recenterCamera(scene: Phaser.Scene & any): void {
   scene.manualCameraActive = false;
   updateRecenterUiVisibility(scene);
 }
-
-

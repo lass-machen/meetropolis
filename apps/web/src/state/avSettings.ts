@@ -33,10 +33,10 @@ export type AvSettings = {
 
 type AvSettingsStore = {
   settings: AvSettings;
-  setSetting<K extends keyof AvSettings>(key: K, value: AvSettings[K]): void;
-  setSettings(next: Partial<AvSettings>): void;
-  applyPreset(preset: AvPreset): void;
-  reset(): void;
+  setSetting: <K extends keyof AvSettings>(key: K, value: AvSettings[K]) => void;
+  setSettings: (next: Partial<AvSettings>) => void;
+  applyPreset: (preset: AvPreset) => void;
+  reset: () => void;
 };
 
 const STORAGE_KEY = 'meetropolis.av.settings.v1';
@@ -80,22 +80,62 @@ function saveToStorage(settings: AvSettings): void {
 
 function buildPreset(preset: AvPreset): Partial<AvSettings> {
   if (preset === 'standard') {
-    return { preset, noiseSuppression: true, echoCancellation: true, autoGainControl: true, highpassFilter: true, compressor: false, opusBitrateKbps: 28, useDtx: true, useFec: true };
+    return {
+      preset,
+      noiseSuppression: true,
+      echoCancellation: true,
+      autoGainControl: true,
+      highpassFilter: true,
+      compressor: false,
+      opusBitrateKbps: 28,
+      useDtx: true,
+      useFec: true,
+    };
   }
   if (preset === 'quiet') {
-    return { preset, noiseSuppression: true, echoCancellation: true, autoGainControl: true, highpassFilter: true, compressor: false, opusBitrateKbps: 24, useDtx: true, useFec: true };
+    return {
+      preset,
+      noiseSuppression: true,
+      echoCancellation: true,
+      autoGainControl: true,
+      highpassFilter: true,
+      compressor: false,
+      opusBitrateKbps: 24,
+      useDtx: true,
+      useFec: true,
+    };
   }
   if (preset === 'loud') {
     // aggressiver: eher niedrigere Bitrate + DTX, HPF + leichter Kompressor an
-    return { preset, noiseSuppression: true, echoCancellation: true, autoGainControl: true, highpassFilter: true, compressor: true, opusBitrateKbps: 24, useDtx: true, useFec: true };
+    return {
+      preset,
+      noiseSuppression: true,
+      echoCancellation: true,
+      autoGainControl: true,
+      highpassFilter: true,
+      compressor: true,
+      opusBitrateKbps: 24,
+      useDtx: true,
+      useFec: true,
+    };
   }
   // studio
-  return { preset, noiseSuppression: true, echoCancellation: false, autoGainControl: false, highpassFilter: false, compressor: false, opusBitrateKbps: 40, useDtx: false, useFec: true };
+  return {
+    preset,
+    noiseSuppression: true,
+    echoCancellation: false,
+    autoGainControl: false,
+    highpassFilter: false,
+    compressor: false,
+    opusBitrateKbps: 40,
+    useDtx: false,
+    useFec: true,
+  };
 }
 
 export const useAvSettingsStore = create<AvSettingsStore>((set, get) => {
   const persisted = loadFromStorage();
-  const initial: AvSettings = { ...DEFAULTS, ...persisted } as AvSettings;
+  const initial: AvSettings = { ...DEFAULTS, ...persisted };
   return {
     settings: initial,
     setSetting: (key, value) => {
@@ -120,5 +160,3 @@ export const useAvSettingsStore = create<AvSettingsStore>((set, get) => {
     },
   };
 });
-
-

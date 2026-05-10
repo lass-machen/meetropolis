@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { Track } from 'livekit-client';
 import type { AVManager } from '../avManager';
 
 interface UsePushToTalkParams {
@@ -12,7 +13,7 @@ function getAudioTrack(avRef: React.MutableRefObject<AVManager | null>) {
   const room = avRef.current?.room;
   if (!room) return null;
   for (const pub of room.localParticipant.trackPublications.values()) {
-    if (pub.track?.source === 'microphone' && pub.track.mediaStreamTrack) {
+    if (pub.track?.source === Track.Source.Microphone && pub.track.mediaStreamTrack) {
       return pub.track.mediaStreamTrack;
     }
   }
@@ -32,7 +33,9 @@ export function usePushToTalk({ enabled, pttKey, isDnd, avRef }: UsePushToTalkPa
     } else {
       track.enabled = true;
     }
-    return () => { isPressedRef.current = false; };
+    return () => {
+      isPressedRef.current = false;
+    };
   }, [enabled, isDnd, avRef]);
 
   useEffect(() => {

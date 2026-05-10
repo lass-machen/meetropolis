@@ -1,6 +1,6 @@
 /**
  * EditorInputHandler - Übersetzt Phaser Input-Events in Editor-Actions
- * 
+ *
  * Prinzipien:
  * - Keine Business-Logik
  * - Keine State-Verwaltung
@@ -17,14 +17,19 @@ export class EditorInputHandler {
   private scene: Phaser.Scene;
   private renderer: EditorRenderer;
   private tileSize: number;
+  // Bound handler-Refs müssen identisch zwischen on()/off() bleiben,
+  // sonst kann Phaser den Listener nicht entfernen.
+  private boundHandlePointerDown!: (pointer: Phaser.Input.Pointer) => void;
+  private boundHandlePointerMove!: (pointer: Phaser.Input.Pointer) => void;
+  private boundHandlePointerUp!: (pointer: Phaser.Input.Pointer) => void;
 
   // Selection-Rect colors per tool
   private static readonly TOOL_COLORS: Record<string, number> = {
-    terrain: 0x3b82f6,  // blue
-    wall: 0x8b5a2b,     // brown
+    terrain: 0x3b82f6, // blue
+    wall: 0x8b5a2b, // brown
     collision: 0xed4245, // red
-    erase: 0xed4245,    // red
-    zone: 0x3b82f6,     // blue (default)
+    erase: 0xed4245, // red
+    zone: 0x3b82f6, // blue (default)
   };
 
   constructor(scene: Phaser.Scene, renderer: EditorRenderer, tileSize: number = 16) {
@@ -37,9 +42,12 @@ export class EditorInputHandler {
   }
 
   private setupInputHandlers(): void {
-    this.scene.input.on('pointerdown', this.handlePointerDown.bind(this));
-    this.scene.input.on('pointermove', this.handlePointerMove.bind(this));
-    this.scene.input.on('pointerup', this.handlePointerUp.bind(this));
+    this.boundHandlePointerDown = this.handlePointerDown.bind(this);
+    this.boundHandlePointerMove = this.handlePointerMove.bind(this);
+    this.boundHandlePointerUp = this.handlePointerUp.bind(this);
+    this.scene.input.on('pointerdown', this.boundHandlePointerDown);
+    this.scene.input.on('pointermove', this.boundHandlePointerMove);
+    this.scene.input.on('pointerup', this.boundHandlePointerUp);
 
     this.scene.input.keyboard?.on('keydown-R', () => {
       const state = EditorService.getState();
@@ -211,12 +219,15 @@ export class EditorInputHandler {
       const x1 = (Math.max(drag.startTileX, tileX) + 1) * this.tileSize;
       const y1 = (Math.max(drag.startTileY, tileY) + 1) * this.tileSize;
 
-      this.renderer.renderSelection({
-        x: x0,
-        y: y0,
-        w: x1 - x0,
-        h: y1 - y0,
-      }, EditorInputHandler.TOOL_COLORS['zone']);
+      this.renderer.renderSelection(
+        {
+          x: x0,
+          y: y0,
+          w: x1 - x0,
+          h: y1 - y0,
+        },
+        EditorInputHandler.TOOL_COLORS['zone'],
+      );
     } else if (phase === 'up' && state.dragState) {
       EditorService.dispatch({ type: 'COMPLETE_ZONE', tileX, tileY });
     }
@@ -238,7 +249,7 @@ export class EditorInputHandler {
         EditorService.dispatch({
           type: 'ADD_PENDING_OBJECT_CREATE',
           object: {
-            id: -(Date.now()),
+            id: -Date.now(),
             assetPackUuid: state.pendingAsset.packUuid || '',
             itemId: state.pendingAsset.itemId || '',
             category: state.pendingAsset.category || 'objects',
@@ -271,12 +282,15 @@ export class EditorInputHandler {
       const x1 = (Math.max(drag.startTileX, tileX) + 1) * this.tileSize;
       const y1 = (Math.max(drag.startTileY, tileY) + 1) * this.tileSize;
 
-      this.renderer.renderSelection({
-        x: x0,
-        y: y0,
-        w: x1 - x0,
-        h: y1 - y0,
-      }, EditorInputHandler.TOOL_COLORS['terrain']); // Asset terrain drag uses blue
+      this.renderer.renderSelection(
+        {
+          x: x0,
+          y: y0,
+          w: x1 - x0,
+          h: y1 - y0,
+        },
+        EditorInputHandler.TOOL_COLORS['terrain'],
+      ); // Asset terrain drag uses blue
     } else if (phase === 'up' && state.dragState) {
       const drag = state.dragState;
       EditorService.dispatch({ type: 'COMPLETE_ASSET_DRAG', tileX, tileY });
@@ -342,12 +356,10 @@ export class EditorInputHandler {
     if (phase !== 'down') return;
     if (cat !== 'objects' && cat !== 'structures') return;
 
-    const hit = [...state.mapObjects].reverse().find(o => o.tileX === tileX && o.tileY === tileY);
+    const hit = [...state.mapObjects].reverse().find((o) => o.tileX === tileX && o.tileY === tileY);
     if (!hit) return;
 
-    const alreadyMarked = state.pendingChanges.objectsToDelete.some(
-      id => String(id) === String(hit.id)
-    );
+    const alreadyMarked = state.pendingChanges.objectsToDelete.some((id) => String(id) === String(hit.id));
 
     if (alreadyMarked) {
       EditorService.dispatch({ type: 'REMOVE_PENDING_OBJECT_DELETE', objectId: hit.id });
@@ -395,7 +407,13 @@ export class EditorInputHandler {
     }
   }
 
-  private renderDragSelection(startTileX: number, startTileY: number, endTileX: number, endTileY: number, tool: string): void {
+  private renderDragSelection(
+    startTileX: number,
+    startTileY: number,
+    endTileX: number,
+    endTileY: number,
+    tool: string,
+  ): void {
     const x0 = Math.min(startTileX, endTileX) * this.tileSize;
     const y0 = Math.min(startTileY, endTileY) * this.tileSize;
     const x1 = (Math.max(startTileX, endTileX) + 1) * this.tileSize;
@@ -422,20 +440,38 @@ export class EditorInputHandler {
       if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
 
       switch (e.key) {
-        case '1': EditorService.dispatch({ type: 'SET_TOOL', tool: 'select' }); break;
-        case '2': EditorService.dispatch({ type: 'SET_TOOL', tool: 'terrain' }); break;
-        case '3': EditorService.dispatch({ type: 'SET_TOOL', tool: 'asset' }); break;
-        case '4': EditorService.dispatch({ type: 'SET_TOOL', tool: 'collision' }); break;
-        case '5': EditorService.dispatch({ type: 'SET_TOOL', tool: 'zone' }); break;
-        case '6': EditorService.dispatch({ type: 'SET_TOOL', tool: 'spawn' }); break;
-        case '7': EditorService.dispatch({ type: 'SET_TOOL', tool: 'erase' }); break;
-        case 'g': EditorService.dispatch({ type: 'TOGGLE_GRID' }); break;
-        case 'c': EditorService.dispatch({ type: 'TOGGLE_VIEW', key: 'collision' }); break;
+        case '1':
+          EditorService.dispatch({ type: 'SET_TOOL', tool: 'select' });
+          break;
+        case '2':
+          EditorService.dispatch({ type: 'SET_TOOL', tool: 'terrain' });
+          break;
+        case '3':
+          EditorService.dispatch({ type: 'SET_TOOL', tool: 'asset' });
+          break;
+        case '4':
+          EditorService.dispatch({ type: 'SET_TOOL', tool: 'collision' });
+          break;
+        case '5':
+          EditorService.dispatch({ type: 'SET_TOOL', tool: 'zone' });
+          break;
+        case '6':
+          EditorService.dispatch({ type: 'SET_TOOL', tool: 'spawn' });
+          break;
+        case '7':
+          EditorService.dispatch({ type: 'SET_TOOL', tool: 'erase' });
+          break;
+        case 'g':
+          EditorService.dispatch({ type: 'TOGGLE_GRID' });
+          break;
+        case 'c':
+          EditorService.dispatch({ type: 'TOGGLE_VIEW', key: 'collision' });
+          break;
         case 'Delete':
         case 'Backspace': {
           const selectedId = state.selectedObjectId;
           if (!selectedId) break;
-          const obj = state.mapObjects.find(o => String(o.id) === selectedId);
+          const obj = state.mapObjects.find((o) => String(o.id) === selectedId);
           if (obj) {
             EditorService.dispatch({ type: 'ADD_PENDING_OBJECT_DELETE', objectId: obj.id });
             EditorService.dispatch({ type: 'SELECT_MAP_OBJECT', objectId: null });
@@ -456,9 +492,9 @@ export class EditorInputHandler {
   }
 
   public destroy(): void {
-    this.scene.input.off('pointerdown', this.handlePointerDown);
-    this.scene.input.off('pointermove', this.handlePointerMove);
-    this.scene.input.off('pointerup', this.handlePointerUp);
+    this.scene.input.off('pointerdown', this.boundHandlePointerDown);
+    this.scene.input.off('pointermove', this.boundHandlePointerMove);
+    this.scene.input.off('pointerup', this.boundHandlePointerUp);
     if ((this as any)._keydownHandler) {
       window.removeEventListener('keydown', (this as any)._keydownHandler);
     }

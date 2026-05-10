@@ -40,7 +40,7 @@ describe('useGlobalAudioTracks', () => {
       await new Promise((r) => setTimeout(r, 0));
     });
 
-    const audio = document.querySelector('audio[data-av-remote="remote1"]');
+    const audio: HTMLAudioElement | null = document.querySelector('audio[data-av-remote="remote1"]');
     expect(audio).toBeTruthy();
     expect(audio!.muted).toBe(true);
     expect(audio!.volume).toBe(0);
@@ -66,7 +66,7 @@ describe('useGlobalAudioTracks', () => {
       await new Promise((r) => setTimeout(r, 0));
     });
 
-    const audio = document.querySelector('audio[data-av-remote="remote1"]');
+    const audio: HTMLAudioElement | null = document.querySelector('audio[data-av-remote="remote1"]');
     expect(audio).toBeTruthy();
     expect(audio!.muted).toBe(false);
     expect(audio!.volume).toBeCloseTo(1);

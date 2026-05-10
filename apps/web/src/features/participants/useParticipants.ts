@@ -1,10 +1,21 @@
 import { useCallback } from 'react';
 import { pointInPolygon } from '../../lib/geom';
+import { Track } from 'livekit-client';
 import type { Room, Participant, TrackPublication } from 'livekit-client';
 import type { Zone, ZoneManager, GameBridge, VolumeManager, Position, RemotePlayer } from '../../types/game';
 import type { AVManager } from '../../types/av';
 
-export type UIParticipant = { sid: string; identity: string; hasVideo: boolean; hasMic: boolean; isSpeaking: boolean; media: 'camera' | 'screen'; volume?: number; dnd?: boolean; avatarId?: string };
+export type UIParticipant = {
+  sid: string;
+  identity: string;
+  hasVideo: boolean;
+  hasMic: boolean;
+  isSpeaking: boolean;
+  media: 'camera' | 'screen';
+  volume?: number;
+  dnd?: boolean;
+  avatarId?: string;
+};
 
 type Mutable<T> = { current: T };
 
@@ -25,13 +36,22 @@ type ParticipantsDeps = {
 };
 
 function isPosition(p: unknown): p is Position {
-  return p !== null && typeof p === 'object' && 'x' in p && 'y' in p && typeof (p as Position).x === 'number' && typeof (p as Position).y === 'number';
+  return (
+    p !== null &&
+    typeof p === 'object' &&
+    'x' in p &&
+    'y' in p &&
+    typeof (p as Position).x === 'number' &&
+    typeof (p as Position).y === 'number'
+  );
 }
 
 function getZonesNormalized(zoneRef: Mutable<ZoneManager | null>): Zone[] {
   return (zoneRef.current?.getZones?.() || []).map((z: Zone) => ({
     ...z,
-    points: (Array.isArray(z.points) ? z.points : []).map((p: unknown) => Array.isArray(p) ? { x: p[0], y: p[1] } : p as Position).filter(isPosition),
+    points: (Array.isArray(z.points) ? z.points : [])
+      .map((p: unknown) => (Array.isArray(p) ? { x: p[0], y: p[1] } : (p as Position)))
+      .filter(isPosition),
   }));
 }
 
@@ -44,12 +64,23 @@ function zonesDiffer(localZone: Zone | undefined, remoteZone: Zone | undefined):
 }
 
 function buildFallbackList(deps: ParticipantsDeps): UIParticipant[] {
-  const { localPosRef, remotesRef, colyseusToLivekitMap, identityToNameMap, getDisplayName, dndRef, me, zoneRef } = deps;
+  const { localPosRef, remotesRef, colyseusToLivekitMap, identityToNameMap, getDisplayName, dndRef, me, zoneRef } =
+    deps;
   const list: UIParticipant[] = [];
   try {
     const localIdentity = me?.name || me?.email || me?.id || 'You';
     const localAvatarId = localStorage.getItem('avatarId') || '';
-    list.push({ sid: 'local', identity: localIdentity, hasVideo: false, hasMic: false, isSpeaking: false, media: 'camera', volume: 1, dnd: !!dndRef?.current, ...(localAvatarId ? { avatarId: localAvatarId } : {}) });
+    list.push({
+      sid: 'local',
+      identity: localIdentity,
+      hasVideo: false,
+      hasMic: false,
+      isSpeaking: false,
+      media: 'camera',
+      volume: 1,
+      dnd: !!dndRef?.current,
+      ...(localAvatarId ? { avatarId: localAvatarId } : {}),
+    });
     const zones = getZonesNormalized(zoneRef);
     const localPos: Position = { x: localPosRef.current.x ?? 0, y: localPosRef.current.y ?? 0 };
     const localZone = zones.find((z: Zone) => pointInPolygon(localPos, z.points));
@@ -61,21 +92,31 @@ function buildFallbackList(deps: ParticipantsDeps): UIParticipant[] {
       const livekitIdentity = colyseusToLivekitMap.current[colyseusId] || colyseusId;
       const name = identityToNameMap.current[livekitIdentity] || getDisplayName(livekitIdentity);
       const remAvId = remotesRef.current[colyseusId]?.avatarId;
-      list.push({ sid: `col:${colyseusId}`, identity: name, hasVideo: false, hasMic: false, isSpeaking: false, media: 'camera', volume: 1, dnd: !!pos.dnd, ...(remAvId ? { avatarId: remAvId } : {}) });
+      list.push({
+        sid: `col:${colyseusId}`,
+        identity: name,
+        hasVideo: false,
+        hasMic: false,
+        isSpeaking: false,
+        media: 'camera',
+        volume: 1,
+        dnd: !!pos.dnd,
+        ...(remAvId ? { avatarId: remAvId } : {}),
+      });
     }
   } catch {}
   return list;
 }
 
 const isVideoPub = (pub: TrackPublication) => {
-  const source = (pub?.source ?? pub?.track?.source);
-  return (!!pub?.track && (source === 'camera' || (source as unknown) === 1));
+  const source = pub?.source ?? pub?.track?.source;
+  return !!pub?.track && source === Track.Source.Camera;
 };
 
 const isMicPub = (pub: TrackPublication) => {
-  const source = (pub?.source ?? pub?.track?.source);
-  const kind = (pub?.kind ?? pub?.track?.kind);
-  if (!(kind === 'audio' || source === 'microphone' || (source as unknown) === 0)) return false;
+  const source = pub?.source ?? pub?.track?.source;
+  const kind = pub?.kind ?? pub?.track?.kind;
+  if (!(kind === Track.Kind.Audio || source === Track.Source.Microphone)) return false;
   const t = pub?.track;
   if (!t) return false;
   const tExtended = t as typeof t & {
@@ -84,16 +125,16 @@ const isMicPub = (pub: TrackPublication) => {
     mediaStreamTrack?: MediaStreamTrack & { enabled?: boolean; readyState?: string };
   };
   const mst = tExtended.mediaStreamTrack || tExtended;
-  const enabled: boolean | undefined = (tExtended.isEnabled ?? tExtended.enabled ?? mst?.enabled);
+  const enabled: boolean | undefined = tExtended.isEnabled ?? tExtended.enabled ?? mst?.enabled;
   const ready: string | undefined = mst?.readyState;
   const pubExtended = pub as TrackPublication & { muted?: boolean; isMuted?: boolean };
-  const pubMuted: boolean = (pubExtended?.muted === true || pubExtended?.isMuted === true);
+  const pubMuted: boolean = pubExtended?.muted === true || pubExtended?.isMuted === true;
   return enabled !== false && !pubMuted && (ready === undefined || ready === 'live');
 };
 
 const isScreenPub = (pub: TrackPublication) => {
-  const source = (pub?.source ?? pub?.track?.source);
-  return (source === 'screen_share' || (source as unknown) === 2);
+  const source = pub?.source ?? pub?.track?.source;
+  return source === Track.Source.ScreenShare;
 };
 
 function resolveDisplayName(p: Participant, room: Room, deps: ParticipantsDeps): string {
@@ -110,11 +151,16 @@ function resolveDisplayName(p: Participant, room: Room, deps: ParticipantsDeps):
   return displayName;
 }
 
-function resolveParticipantPos(p: Participant, isLocal: boolean, deps: ParticipantsDeps, localPos: Position): { pos: Position | null; remoteDnd: boolean; remoteAvatarId: string | undefined } {
+function resolveParticipantPos(
+  p: Participant,
+  isLocal: boolean,
+  deps: ParticipantsDeps,
+  localPos: Position,
+): { pos: Position | null; remoteDnd: boolean; remoteAvatarId: string | undefined } {
   if (isLocal) return { pos: localPos, remoteDnd: false, remoteAvatarId: undefined };
   const { colyseusToLivekitMap, remotesRef } = deps;
   const colyseusId = Object.keys(colyseusToLivekitMap.current).find(
-    key => colyseusToLivekitMap.current[key] === p.identity
+    (key) => colyseusToLivekitMap.current[key] === p.identity,
   );
   if (colyseusId && remotesRef.current[colyseusId]) {
     const r = remotesRef.current[colyseusId];
@@ -130,7 +176,7 @@ function resolveVolumeForParticipant(p: Participant, isLocal: boolean, deps: Par
     const last = volumeRef.current?.getLastVolumes?.() || {};
     if (!isLocal) {
       const colyseusIdForIdentity = Object.keys(colyseusToLivekitMap.current).find(
-        key => colyseusToLivekitMap.current[key] === p.identity
+        (key) => colyseusToLivekitMap.current[key] === p.identity,
       );
       if (colyseusIdForIdentity && typeof last[colyseusIdForIdentity] === 'number') {
         volume = last[colyseusIdForIdentity];
@@ -144,7 +190,14 @@ function pushParticipant(
   list: UIParticipant[],
   p: Participant,
   isLocal: boolean,
-  ctx: { room: Room; zones: Zone[]; localZone: Zone | undefined; localPos: Position; activeSet: Set<string>; deps: ParticipantsDeps },
+  ctx: {
+    room: Room;
+    zones: Zone[];
+    localZone: Zone | undefined;
+    localPos: Position;
+    activeSet: Set<string>;
+    deps: ParticipantsDeps;
+  },
 ): void {
   if (!p) return;
   const { room, zones, localZone, localPos, activeSet, deps } = ctx;
@@ -163,10 +216,29 @@ function pushParticipant(
     const identity = resolveDisplayName(p, room, deps);
     const volume = resolveVolumeForParticipant(p, isLocal, deps);
     const dnd = isLocal ? !!dndRef?.current : remoteDnd;
-    const pAvatarId = isLocal ? (localStorage.getItem('avatarId') || '') : (remoteAvatarId || '');
-    list.push({ sid: p.sid, identity, hasVideo: !!hasV, hasMic: !!hasMic, isSpeaking: !!hasMic && activeSet.has(p.sid), media: 'camera', volume, dnd, ...(pAvatarId ? { avatarId: pAvatarId } : {}) });
+    const pAvatarId = isLocal ? localStorage.getItem('avatarId') || '' : remoteAvatarId || '';
+    list.push({
+      sid: p.sid,
+      identity,
+      hasVideo: !!hasV,
+      hasMic: !!hasMic,
+      isSpeaking: !!hasMic && activeSet.has(p.sid),
+      media: 'camera',
+      volume,
+      dnd,
+      ...(pAvatarId ? { avatarId: pAvatarId } : {}),
+    });
     if (hasScreen) {
-      list.push({ sid: p.sid + ':screen', identity: `${identity} – Bildschirm`, hasVideo: true, hasMic: false, isSpeaking: false, media: 'screen', volume, dnd });
+      list.push({
+        sid: p.sid + ':screen',
+        identity: `${identity} – Bildschirm`,
+        hasVideo: true,
+        hasMic: false,
+        isSpeaking: false,
+        media: 'screen',
+        volume,
+        dnd,
+      });
     }
   } catch {}
 }
@@ -174,7 +246,7 @@ function pushParticipant(
 function appendOrphanColyseusRemotes(list: UIParticipant[], deps: ParticipantsDeps): void {
   const { remotesRef, colyseusToLivekitMap, identityToNameMap, getDisplayName, zoneRef, localPosRef } = deps;
   try {
-    const presentIdentities = new Set<string>(list.map(p => p.identity));
+    const presentIdentities = new Set<string>(list.map((p) => p.identity));
     for (const [colyseusId] of Object.entries(remotesRef.current || {})) {
       const livekitIdentity = colyseusToLivekitMap.current[colyseusId] || colyseusId;
       const name = identityToNameMap.current[livekitIdentity] || getDisplayName(livekitIdentity);
@@ -189,7 +261,17 @@ function appendOrphanColyseusRemotes(list: UIParticipant[], deps: ParticipantsDe
       if (!presentIdentities.has(name) && !presentIdentities.has(livekitIdentity)) {
         const pos = remotesRef.current[colyseusId];
         const colAvId = remotesRef.current[colyseusId]?.avatarId;
-        list.push({ sid: `col:${colyseusId}`, identity: name, hasVideo: false, hasMic: false, isSpeaking: false, media: 'camera', volume: 1, dnd: !!pos?.dnd, ...(colAvId ? { avatarId: colAvId } : {}) });
+        list.push({
+          sid: `col:${colyseusId}`,
+          identity: name,
+          hasVideo: false,
+          hasMic: false,
+          isSpeaking: false,
+          media: 'camera',
+          volume: 1,
+          dnd: !!pos?.dnd,
+          ...(colAvId ? { avatarId: colAvId } : {}),
+        });
         presentIdentities.add(name);
       }
     }
@@ -208,12 +290,14 @@ function notifyGameOfSpeakingStates(room: Room, deps: ParticipantsDeps): void {
         .filter(([_, livekitIdentity]) => livekitIdentity === speaker.identity)
         .map(([colyseusId]) => colyseusId);
       if (matchingColyseusIds.length > 0) {
-        const activeColyseusId = matchingColyseusIds.find(id => id in remotesRef.current);
+        const activeColyseusId = matchingColyseusIds.find((id) => id in remotesRef.current);
         if (activeColyseusId) speakingIds.add(activeColyseusId);
       }
     }
   });
-  try { gameBridge?.updateSpeakingStates?.(speakingIds); } catch {}
+  try {
+    gameBridge?.updateSpeakingStates?.(speakingIds);
+  } catch {}
 }
 
 function buildLivekitParticipantList(room: Room, deps: ParticipantsDeps): UIParticipant[] {
@@ -233,7 +317,20 @@ function buildLivekitParticipantList(room: Room, deps: ParticipantsDeps): UIPart
 }
 
 export function useParticipants(deps: ParticipantsDeps) {
-  const { avRef, zoneRef, localPosRef, remotesRef, colyseusToLivekitMap, identityToNameMap, volumeRef, me, setUiParticipants, disposedRef, getDisplayName, gameBridge } = deps;
+  const {
+    avRef,
+    zoneRef,
+    localPosRef,
+    remotesRef,
+    colyseusToLivekitMap,
+    identityToNameMap,
+    volumeRef,
+    me,
+    setUiParticipants,
+    disposedRef,
+    getDisplayName,
+    gameBridge,
+  } = deps;
 
   const buildParticipantList = useCallback(() => {
     const room: Room | null | undefined = avRef.current?.room;
@@ -244,7 +341,20 @@ export function useParticipants(deps: ParticipantsDeps) {
     const list = buildLivekitParticipantList(room, deps);
     setUiParticipants(list);
     notifyGameOfSpeakingStates(room, deps);
-  }, [avRef, zoneRef, localPosRef, remotesRef, colyseusToLivekitMap, identityToNameMap, volumeRef, me, setUiParticipants, disposedRef, getDisplayName, gameBridge]);
+  }, [
+    avRef,
+    zoneRef,
+    localPosRef,
+    remotesRef,
+    colyseusToLivekitMap,
+    identityToNameMap,
+    volumeRef,
+    me,
+    setUiParticipants,
+    disposedRef,
+    getDisplayName,
+    gameBridge,
+  ]);
 
   const applyVolumesToUi = useCallback(() => {
     const vols = volumeRef.current?.update() || {};
@@ -262,10 +372,10 @@ export function useParticipants(deps: ParticipantsDeps) {
       }
     }
     // Die UI-Volumes werden in App verwaltet – hier nur list rebuild anstoßen
-    try { buildParticipantList(); } catch {}
+    try {
+      buildParticipantList();
+    } catch {}
   }, [volumeRef, colyseusToLivekitMap, getDisplayName, buildParticipantList]);
 
   return { buildParticipantList, applyVolumesToUi };
 }
-
-

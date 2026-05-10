@@ -5,7 +5,7 @@ function buildAttachAudioTrack(audioElements: Map<string, HTMLAudioElement>, avR
   return (track: any, participantId: string) => {
     try {
       // Verhindere Duplikate pro Participant-ID über Tests/Render hinweg
-      const existing =
+      const existing: HTMLAudioElement | null =
         typeof document !== 'undefined' ? document.querySelector(`audio[data-av-remote="${participantId}"]`) : null;
       const audio = existing || document.createElement('audio');
       audio.autoplay = true;

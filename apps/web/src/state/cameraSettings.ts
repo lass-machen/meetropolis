@@ -6,7 +6,7 @@ export type CameraSettings = {
 
 type CameraSettingsStore = {
   settings: CameraSettings;
-  setSetting<K extends keyof CameraSettings>(key: K, value: CameraSettings[K]): void;
+  setSetting: <K extends keyof CameraSettings>(key: K, value: CameraSettings[K]) => void;
 };
 
 const STORAGE_KEY = 'meetropolis.camera.settings.v1';

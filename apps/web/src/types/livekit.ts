@@ -1,7 +1,7 @@
-import { 
-  Room, 
-  RemoteParticipant, 
-  LocalParticipant, 
+import {
+  Room,
+  RemoteParticipant,
+  LocalParticipant,
   Participant,
   Track,
   RemoteTrack,
@@ -14,7 +14,7 @@ import {
   TrackEvent,
   RoomEvent,
   ParticipantEvent,
-  ConnectionState
+  ConnectionState,
 } from 'livekit-client';
 
 // Re-export commonly used types
@@ -34,7 +34,7 @@ export {
   TrackEvent,
   RoomEvent,
   ParticipantEvent,
-  ConnectionState
+  ConnectionState,
 };
 
 // Custom UI participant type
@@ -52,36 +52,30 @@ export interface UIParticipant {
 export type TrackSubscribedHandler = (
   track: RemoteTrack,
   publication: RemoteTrackPublication,
-  participant: RemoteParticipant
+  participant: RemoteParticipant,
 ) => void;
 
 export type TrackUnsubscribedHandler = (
   track: RemoteTrack,
   publication: RemoteTrackPublication,
-  participant: RemoteParticipant
+  participant: RemoteParticipant,
 ) => void;
 
-export type TrackPublishedHandler = (
-  publication: RemoteTrackPublication,
-  participant: RemoteParticipant
-) => void;
+export type TrackPublishedHandler = (publication: RemoteTrackPublication, participant: RemoteParticipant) => void;
 
-export type LocalTrackPublishedHandler = (
-  publication: LocalTrackPublication,
-  participant: LocalParticipant
-) => void;
+export type LocalTrackPublishedHandler = (publication: LocalTrackPublication, participant: LocalParticipant) => void;
 
 // Helper function to check track types
 export function isVideoPublication(pub: TrackPublication): boolean {
-  return pub.kind === 'video' && pub.trackName !== 'screen';
+  return pub.kind === Track.Kind.Video && pub.trackName !== 'screen';
 }
 
 export function isMicPublication(pub: TrackPublication): boolean {
-  return pub.kind === 'audio' && pub.source === 'microphone';
+  return pub.kind === Track.Kind.Audio && pub.source === Track.Source.Microphone;
 }
 
 export function isScreenPublication(pub: TrackPublication): boolean {
-  return pub.kind === 'video' && pub.source === 'screen_share';
+  return pub.kind === Track.Kind.Video && pub.source === Track.Source.ScreenShare;
 }
 
 // Type guard for checking if participant has tracks

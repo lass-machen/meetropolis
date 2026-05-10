@@ -110,7 +110,7 @@ export function showServerRestartDialog(deps: ServerRestartDeps): void {
       if (attempts >= maxAttempts) {
         clearInterval(pollHealth);
         const desc = host.querySelector('[data-restart-desc]');
-        const btn = host.querySelector('[data-restart-reload]');
+        const btn: HTMLElement | null = host.querySelector('[data-restart-reload]');
         if (desc) desc.textContent = i18n.t('serverRestart.manualReload');
         if (btn) btn.style.display = 'inline-block';
       }
