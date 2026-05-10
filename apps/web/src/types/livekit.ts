@@ -79,8 +79,10 @@ export function isScreenPublication(pub: TrackPublication): boolean {
 }
 
 // Type guard for checking if participant has tracks
-export function hasTrackPublications(participant: any): participant is any & {
+export function hasTrackPublications(participant: unknown): participant is {
   trackPublications: Map<string, TrackPublication>;
 } {
-  return participant.trackPublications !== undefined && participant.trackPublications.size > 0;
+  if (!participant || typeof participant !== 'object') return false;
+  const p = participant as { trackPublications?: Map<string, TrackPublication> };
+  return p.trackPublications !== undefined && p.trackPublications.size > 0;
 }

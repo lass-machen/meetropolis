@@ -75,12 +75,26 @@ export default tseslint.config(
     },
   },
 
-  // 3a) Stufenweise-Übergang: die `no-unsafe-*`-Familie und `no-explicit-any`
-  //     produzieren in der aktuellen Codebase ~9.500 Treffer, fast alle an
-  //     untyped Library-Boundaries (Phaser-Bridge `(scene as any).player`,
-  //     Colyseus-State, raw fetch). Sie bleiben aktiv, aber als `warn`.
-  //     ZIEL: Diese Regeln zurück auf `error` setzen, sobald die
-  //     untyped Boundaries typisiert sind. Tracking: project_oss_release_blockers.md.
+  // 3a) Library-Boundary-Regeln: `no-unsafe-*` und `no-explicit-any` bleiben
+  //     als `warn` aktiv, weil `any` an den verbliebenen Boundaries eine
+  //     bewusste Entscheidung ist und keine Tech-Debt im klassischen Sinn:
+  //
+  //     • Phaser-Bridge: scene-properties die von Manager-Klassen oder
+  //       externen Subclasses gesetzt werden (siehe game/types/scene.ts).
+  //     • LiveKit-Internals: Connection-State, Track.Source/Kind-Vergleich
+  //       mit Strings (LiveKit deklariert Track-Source als String-Enum, aber
+  //       die Library typisiert Track-Publications loose).
+  //     • Colyseus-Internals: connection.ws/transport (nicht-public typing),
+  //       state-Object-Trees beim Player-Sync.
+  //     • Enterprise-Submodule-Boundaries: prisma/auth-Helper-Übergaben
+  //       an die Submodule mit eigenem Type-Universum.
+  //
+  //     Die Warnings sind Sichtbarkeit, kein Blocker. Wenn jemand neue
+  //     `any`-Patterns einführt, sollte er kurz prüfen, ob die Boundary
+  //     dahinter wirklich untyped ist — oder ob ein konkreter Type
+  //     existiert. Pro-Stelle-Disables (`eslint-disable-next-line`) sind
+  //     ausdrücklich nicht nötig, weil die warn-Schwelle bereits genau das
+  //     leistet: sichtbar markieren ohne den Build zu brechen.
   {
     rules: {
       '@typescript-eslint/no-unsafe-member-access': 'warn',
@@ -89,22 +103,6 @@ export default tseslint.config(
       '@typescript-eslint/no-unsafe-argument': 'warn',
       '@typescript-eslint/no-unsafe-return': 'warn',
       '@typescript-eslint/no-explicit-any': 'warn',
-      // no-unnecessary-type-assertion meldet aktuell ~340 Treffer, fast alle
-      // von `prisma as any` bzw. `(scene as any).x`-Casts an den untyped
-      // Boundaries (Phaser-Bridge, Colyseus-State, Enterprise-Submodule).
-      // Auto-fix ist UNGEFÄHRLICH NICHT zu nutzen: typescript-eslint v8 hat
-      // einen bekannten Auto-Fix-Bug, der valide Casts wie
-      // `querySelector(...) as HTMLAudioElement | null` mit-entfernt und
-      // damit Type-Errors einführt. ZIEL: zurück auf 'error', sobald die
-      // Phaser-Bridge typisiert ist (Task #9) und no-unsafe-* erhöht wird.
-      '@typescript-eslint/no-unnecessary-type-assertion': 'warn',
-      // no-redundant-type-constituents meldet aktuell ~20 Treffer, alle
-      // mit dem Pattern `Phaser.Scene & any` bzw. `LiveKitRoom | any`.
-      // Das `& any` / `| any` ist redundant (any subsumiert alle Types),
-      // aber semantisch markiert es bewusst untyped Boundaries. Wenn die
-      // Phaser-Scene und der LiveKit-Room richtig typisiert sind (Tasks #9, #10),
-      // entfällt das Pattern komplett. Bis dahin als 'warn'.
-      '@typescript-eslint/no-redundant-type-constituents': 'warn',
       // Konvention: führender Underscore = absichtlich ungenutzt
       // (Funktionssignaturen, Discards in Destructuring, catch-Clauses).
       '@typescript-eslint/no-unused-vars': [

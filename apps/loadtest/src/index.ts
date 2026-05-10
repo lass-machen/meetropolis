@@ -11,7 +11,9 @@ async function main() {
   try {
     const { existsSync } = await import('node:fs');
     runningInDocker = existsSync('/.dockerenv');
-  } catch { runningInDocker = false; }
+  } catch {
+    runningInDocker = false;
+  }
   const apiBase = process.env.API_BASE || (runningInDocker ? 'http://server:2567' : 'http://localhost:2567');
   const livekitUrl = process.env.LIVEKIT_URL || 'ws://localhost:7880';
   const room = process.env.ROOM || 'world';
@@ -20,9 +22,6 @@ async function main() {
 }
 
 main().catch((e) => {
-  // eslint-disable-next-line no-console
   console.error('Loadtest failed:', e);
   process.exit(1);
 });
-
-

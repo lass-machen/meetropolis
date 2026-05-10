@@ -81,7 +81,11 @@ export async function spawnLivekitBot(opts: {
           const pubs: RemoteTrackPublication[] = Array.from(p.trackPublications.values());
           for (const pub of pubs) {
             if (pub.kind === TrackKind.KIND_AUDIO) {
-              try { pub.setSubscribed(true); } catch { /* ignore */ }
+              try {
+                pub.setSubscribed(true);
+              } catch {
+                /* ignore */
+              }
             }
           }
         }
@@ -112,22 +116,35 @@ export async function spawnLivekitBot(opts: {
         if (trackSid) {
           await room.localParticipant?.unpublishTrack(trackSid);
         }
-      } catch { /* ignore */ }
-      try { await audioSource.close(); } catch { /* ignore */ }
-      try { await room.disconnect(); } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
+      try {
+        await audioSource.close();
+      } catch {
+        /* ignore */
+      }
+      try {
+        await room.disconnect();
+      } catch {
+        /* ignore */
+      }
       // Emit summary line for ingestion
       try {
-        // eslint-disable-next-line no-console
-        console.log(JSON.stringify({
-          event: 'livekit_bot_summary',
-          identity: opts.identity,
-          room: opts.roomName,
-          timeToConnectMs,
-          samples,
-          lastRemoteParticipants,
-          lastInboundAudio,
-        }));
-      } catch { /* ignore */ }
+        console.log(
+          JSON.stringify({
+            event: 'livekit_bot_summary',
+            identity: opts.identity,
+            room: opts.roomName,
+            timeToConnectMs,
+            samples,
+            lastRemoteParticipants,
+            lastInboundAudio,
+          }),
+        );
+      } catch {
+        /* ignore */
+      }
     },
   };
 }
