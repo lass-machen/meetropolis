@@ -49,8 +49,9 @@ describe('DoNotDisturb', () => {
       const forceResubscribe = vi.fn(() => {
         order.push('forceResubscribe');
       });
-      const setMicrophoneEnabled = vi.fn(async (enabled: boolean) => {
+      const setMicrophoneEnabled = vi.fn((enabled: boolean): Promise<void> => {
         order.push(`setMicrophoneEnabled:${enabled}`);
+        return Promise.resolve();
       });
 
       const dnd = new DoNotDisturb({

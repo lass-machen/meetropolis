@@ -19,10 +19,10 @@ async function ensureBaseTenants() {
   return { internal, def };
 }
 
-async function resolveTargetTenant(internal: TenantRef, def: TenantRef): Promise<TenantRef> {
+function resolveTargetTenant(internal: TenantRef, def: TenantRef): Promise<TenantRef> {
   const targetSlug = (process.env.MIGRATE_EXISTING_TO_SLUG || 'default').toLowerCase();
-  if (targetSlug === 'internal') return internal;
-  if (targetSlug === 'default') return def;
+  if (targetSlug === 'internal') return Promise.resolve(internal);
+  if (targetSlug === 'default') return Promise.resolve(def);
   return prisma.tenant.upsert({
     where: { slug: targetSlug },
     create: { slug: targetSlug, name: targetSlug, concurrentLimit: 999999, bypassLimits: true },
@@ -64,7 +64,10 @@ async function backfillPresences(target: TenantRef) {
   for (const p of presences) {
     if (!(p as any).tenantId) {
       const room = await prisma.room.findUnique({ where: { id: p.roomId } });
-      await prisma.presence.update({ where: { id: p.id }, data: { tenantId: (room as any)?.tenantId || target.id } as any });
+      await prisma.presence.update({
+        where: { id: p.id },
+        data: { tenantId: (room as any)?.tenantId || target.id } as any,
+      });
     }
   }
 }
@@ -102,14 +105,14 @@ async function main() {
   await backfillInvites(target);
   await ensureUserMemberships(target);
 
-  // eslint-disable-next-line no-console
   console.log('Tenant migration complete');
 }
 
-main().catch((e) => {
-  // eslint-disable-next-line no-console
-  console.error(e);
-  process.exit(1);
-}).finally(async () => {
-  await prisma.$disconnect();
-});
+main()
+  .catch((e) => {
+    console.error(e);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });

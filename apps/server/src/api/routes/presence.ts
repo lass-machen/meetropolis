@@ -5,7 +5,9 @@ export function registerPresenceRoutes(
   app: express.Application,
   prisma: PrismaClient,
   requireAuth: (req: express.Request) => { userId: string; tenantId?: string } | null,
-  getTenantFromReq: (req: express.Request) => { id: string; slug: string; bypassLimits?: boolean; isInternal?: boolean } | null
+  getTenantFromReq: (
+    req: express.Request,
+  ) => { id: string; slug: string; bypassLimits?: boolean; isInternal?: boolean } | null,
 ) {
   // Presence: recent per user (latest entry), for roster UI
   // Returns ALL tenant members, even those who never logged in
@@ -50,10 +52,8 @@ export function registerPresenceRoutes(
       });
 
       res.json(out);
-    } catch (e) {
+    } catch (_e) {
       res.status(500).json({ error: 'failed to load presence' });
     }
   });
 }
-
-

@@ -4,11 +4,7 @@ import { logger } from '../logger.js';
 import { colyseusRooms } from '../metrics.js';
 import type { PrismaClient } from '../generated/prisma/index.js';
 import { createPrismaClient } from '../db.js';
-import {
-  createZoneLockState,
-  setupZoneLockHandlers,
-  type ZoneLockState,
-} from './handlers/zoneLockHandler.js';
+import { createZoneLockState, setupZoneLockHandlers, type ZoneLockState } from './handlers/zoneLockHandler.js';
 import { broadcastToMap } from './utils/broadcastHelpers.js';
 import { sanitizePositionForMap, type MapCacheEntry } from './utils/mapBoundsHelpers.js';
 import { createMoveHandler, handleHeartbeat } from './handlers/playerHandlers.js';
@@ -107,7 +103,11 @@ export class WorldRoom extends Room<{ state: WorldState }> {
     this.maxClients = Number(process.env.MAX_CLIENTS_PER_ROOM ?? 200);
     logger.info('[WorldRoom] Room created with initial state');
     activeRooms.add(this);
-    try { colyseusRooms.inc(); } catch (e) { logger.debug('[WorldRoom] Failed to increment colyseusRooms metric', e); }
+    try {
+      colyseusRooms.inc();
+    } catch (e) {
+      logger.debug('[WorldRoom] Failed to increment colyseusRooms metric', e);
+    }
 
     // Make rooms accessible globally
     (global as Record<string, unknown>).activeWorldRooms = activeRooms;
@@ -115,11 +115,15 @@ export class WorldRoom extends Room<{ state: WorldState }> {
     // Attach tenant metadata for filterBy and accounting
     const tenantSlug = options?.tenant || process.env.DEFAULT_TENANT_SLUG || 'default';
     try {
-      this.setMetadata({ tenant: tenantSlug });
-    } catch (e) { logger.debug('[WorldRoom] Failed to set metadata', e); }
+      void this.setMetadata({ tenant: tenantSlug });
+    } catch (e) {
+      logger.debug('[WorldRoom] Failed to set metadata', e);
+    }
 
     // Load default spawn and map metadata from DB (best-effort, fire-and-forget)
-    loadInitialSpawn(this, tenantSlug).catch(() => { /* logged inside */ });
+    loadInitialSpawn(this, tenantSlug).catch(() => {
+      /* logged inside */
+    });
 
     // Player movement + heartbeat
     this.onMessage('move', createMoveHandler(this));
@@ -127,15 +131,14 @@ export class WorldRoom extends Room<{ state: WorldState }> {
 
     // Editor updates (live geometry/zone changes)
     this.onMessage('editor_update', (client, data: { type: string; [key: string]: unknown }) =>
-      handleEditorUpdate(this, client, data));
+      handleEditorUpdate(this, client, data),
+    );
 
     // DND
-    this.onMessage('dnd_status', (client, data: { dnd: boolean }) =>
-      handleDndStatus(this, client, data));
+    this.onMessage('dnd_status', (client, data: { dnd: boolean }) => handleDndStatus(this, client, data));
 
     // Avatar change
-    this.onMessage('avatar_change', (client, data: { avatarId: string }) =>
-      handleAvatarChange(this, client, data));
+    this.onMessage('avatar_change', (client, data: { avatarId: string }) => handleAvatarChange(this, client, data));
 
     // Remote control (forwarded to specific client)
     this.onMessage('remote_control', (client, data: Record<string, unknown>) => {
@@ -145,18 +148,23 @@ export class WorldRoom extends Room<{ state: WorldState }> {
 
     // Bubble groups
     this.onMessage('bubble_update', (_client, data: { id?: string; members?: string[] }) =>
-      handleBubbleUpdate(this, data));
+      handleBubbleUpdate(this, data),
+    );
 
     // NPC command (no-op: NPC service listens to broadcasts from API)
-    this.onMessage('npc_command', () => { /* no-op */ });
+    this.onMessage('npc_command', () => {
+      /* no-op */
+    });
 
     // Map change
-    this.onMessage('change_map', (client, data: { mapId: string; spawnX?: number; spawnY?: number }) =>
-      handleChangeMap(this, client, data));
+    this.onMessage('change_map', (client, data: { mapId: string; spawnX?: number; spawnY?: number }) => {
+      void handleChangeMap(this, client, data);
+    });
 
     // Session takeover (Two-Phase Join)
-    this.onMessage('session_takeover', (client, data?: { identity?: string }) =>
-      handleSessionTakeover(this, activeRooms, client, data));
+    this.onMessage('session_takeover', (client, data?: { identity?: string }) => {
+      void handleSessionTakeover(this, activeRooms, client, data);
+    });
     this.onMessage('session_takeover_cancel', (client) => handleSessionTakeoverCancel(this, client));
 
     // Periodic: guest expiry + pending cleanup
@@ -180,7 +188,11 @@ export class WorldRoom extends Room<{ state: WorldState }> {
     if (cached) {
       cached.defaultSpawn = s;
     }
-    try { logger.info('[WorldRoom] Default spawn updated for map', mapId, 'to:', s); } catch (e) { logger.debug('[WorldRoom] Failed to log default spawn update', e); }
+    try {
+      logger.info('[WorldRoom] Default spawn updated for map', mapId, 'to:', s);
+    } catch (e) {
+      logger.debug('[WorldRoom] Failed to log default spawn update', e);
+    }
   }
 
   // Map-scoped broadcast. Public so handlers/lifecycle modules can call
@@ -216,13 +228,29 @@ export class WorldRoom extends Room<{ state: WorldState }> {
     }
     // Alle pending Graceful-Leave-Timer abbrechen
     for (const timer of this.pendingLeaves.values()) {
-      try { clearTimeout(timer); } catch { /* best-effort */ }
+      try {
+        clearTimeout(timer);
+      } catch {
+        /* best-effort */
+      }
     }
     this.pendingLeaves.clear();
     this.lastSeen.clear();
     activeRooms.delete(this);
-    try { colyseusRooms.dec(); } catch (e) { logger.debug('[WorldRoom] Failed to decrement colyseusRooms metric', e); }
-    try { this.prismaForPresence && this.prismaForPresence.$disconnect().catch(() => { }); } catch (e) { logger.debug('[WorldRoom] Failed to disconnect prisma', e); }
+    try {
+      colyseusRooms.dec();
+    } catch (e) {
+      logger.debug('[WorldRoom] Failed to decrement colyseusRooms metric', e);
+    }
+    try {
+      if (this.prismaForPresence) {
+        void this.prismaForPresence.$disconnect().catch(() => {
+          /* silent: disposal */
+        });
+      }
+    } catch (e) {
+      logger.debug('[WorldRoom] Failed to disconnect prisma', e);
+    }
     logger.info('[WorldRoom] Room disposed');
   }
 }

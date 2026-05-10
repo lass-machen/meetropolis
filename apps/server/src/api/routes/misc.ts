@@ -7,19 +7,31 @@ import { pathParam } from '../utils/requestHelpers.js';
 
 async function handleUpdateMe(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
   const auth = requireAuth(req);
-  if (!auth) { res.status(401).json({ error: 'unauthorized' }); return; }
+  if (!auth) {
+    res.status(401).json({ error: 'unauthorized' });
+    return;
+  }
   const { name, email } = (req.body ?? {}) as { name?: string; email?: string };
-  if (!name && !email) { res.status(400).json({ error: 'nothing to update' }); return; }
+  if (!name && !email) {
+    res.status(400).json({ error: 'nothing to update' });
+    return;
+  }
   try {
-    const u = await prisma.user.update({ where: { id: auth.userId }, data: { name: name ?? undefined, email: email ?? undefined } });
+    const u = await prisma.user.update({
+      where: { id: auth.userId },
+      data: { name: name ?? undefined, email: email ?? undefined },
+    });
     res.json({ id: u.id, email: u.email, name: u.name });
   } catch (e: unknown) {
-    if (e && typeof e === 'object' && 'code' in e && e.code === 'P2002') { res.status(400).json({ error: 'email already in use' }); return; }
+    if (e && typeof e === 'object' && 'code' in e && e.code === 'P2002') {
+      res.status(400).json({ error: 'email already in use' });
+      return;
+    }
     res.status(400).json({ error: 'update failed' });
   }
 }
 
-async function loadExportUser(prisma: PrismaClient, userId: string) {
+function loadExportUser(prisma: PrismaClient, userId: string) {
   return prisma.user.findUnique({
     where: { id: userId },
     select: {
@@ -76,27 +88,27 @@ async function buildExportData(prisma: PrismaClient, userId: string) {
       updatedAt: user.updatedAt.toISOString(),
       emailVerifiedAt: user.emailVerifiedAt?.toISOString() || null,
     },
-    memberships: memberships.map(m => ({
+    memberships: memberships.map((m) => ({
       tenantId: m.tenant.id,
       tenantSlug: m.tenant.slug,
       tenantName: m.tenant.name,
       role: m.role,
       joinedAt: m.createdAt.toISOString(),
     })),
-    sessions: sessions.map(s => ({
+    sessions: sessions.map((s) => ({
       id: s.id,
       userAgent: s.userAgent,
       ipAddress: s.ipAddress,
       lastActiveAt: s.lastActiveAt.toISOString(),
       createdAt: s.createdAt.toISOString(),
     })),
-    presences: presences.map(p => ({
+    presences: presences.map((p) => ({
       tenant: p.tenant.slug,
       room: p.room.name,
       position: { x: p.x, y: p.y, direction: p.direction },
       updatedAt: p.updatedAt.toISOString(),
     })),
-    apiTokens: apiTokens.map(t => ({
+    apiTokens: apiTokens.map((t) => ({
       id: t.id,
       name: t.name,
       lastUsedAt: t.lastUsedAt?.toISOString() || null,
@@ -108,11 +120,17 @@ async function buildExportData(prisma: PrismaClient, userId: string) {
 
 async function handleExportMyData(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
   const auth = requireAuth(req);
-  if (!auth) { res.status(401).json({ error: 'unauthorized' }); return; }
+  if (!auth) {
+    res.status(401).json({ error: 'unauthorized' });
+    return;
+  }
 
   try {
     const exportData = await buildExportData(prisma, auth.userId);
-    if (!exportData) { res.status(404).json({ error: 'user not found' }); return; }
+    if (!exportData) {
+      res.status(404).json({ error: 'user not found' });
+      return;
+    }
 
     const filename = `meetropolis-data-export-${exportData._userMeta.id}-${Date.now()}.json`;
     res.setHeader('Content-Type', 'application/json');
@@ -122,20 +140,24 @@ async function handleExportMyData(prisma: PrismaClient, req: express.Request, re
     const { _userMeta: _, ...payload } = exportData;
     res.json(payload);
   } catch (e: unknown) {
-    logger.error({ event: 'gdpr.data_export.failed', userId: auth.userId, error: e instanceof Error ? e.message : String(e) });
+    logger.error({
+      event: 'gdpr.data_export.failed',
+      userId: auth.userId,
+      error: e instanceof Error ? e.message : String(e),
+    });
     res.status(500).json({ error: 'export failed' });
   }
 }
 
 async function checkSoleOwnership(prisma: PrismaClient, userId: string, memberships: any[]): Promise<boolean> {
   for (const membership of memberships) {
-    if ((membership as any).role === 'owner') {
+    if (membership.role === 'owner') {
       const otherOwners = await prisma.membership.count({
         where: {
           tenantId: membership.tenantId,
           role: 'owner' as any,
-          userId: { not: userId }
-        }
+          userId: { not: userId },
+        },
       });
       if (otherOwners === 0) return true;
     }
@@ -144,31 +166,49 @@ async function checkSoleOwnership(prisma: PrismaClient, userId: string, membersh
 }
 
 async function purgeUserAndRelated(prisma: PrismaClient, userId: string): Promise<void> {
-  try { await prisma.presence.deleteMany({ where: { userId } }); } catch { }
-  try { await prisma.passwordReset.deleteMany({ where: { userId } }); } catch { }
-  try { await prisma.apiToken.deleteMany({ where: { userId } }); } catch { }
-  try { await prisma.invite.updateMany({ where: { usedById: userId }, data: { usedById: null } }); } catch { }
-  try { await prisma.invite.updateMany({ where: { createdBy: userId }, data: { createdBy: null } }); } catch { }
-  try { await prisma.membership.deleteMany({ where: { userId } }); } catch { }
+  try {
+    await prisma.presence.deleteMany({ where: { userId } });
+  } catch {}
+  try {
+    await prisma.passwordReset.deleteMany({ where: { userId } });
+  } catch {}
+  try {
+    await prisma.apiToken.deleteMany({ where: { userId } });
+  } catch {}
+  try {
+    await prisma.invite.updateMany({ where: { usedById: userId }, data: { usedById: null } });
+  } catch {}
+  try {
+    await prisma.invite.updateMany({ where: { createdBy: userId }, data: { createdBy: null } });
+  } catch {}
+  try {
+    await prisma.membership.deleteMany({ where: { userId } });
+  } catch {}
   await prisma.user.delete({ where: { id: userId } });
 }
 
 async function handleDeleteMe(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
   const auth = requireAuth(req);
-  if (!auth) { res.status(401).json({ error: 'unauthorized' }); return; }
+  if (!auth) {
+    res.status(401).json({ error: 'unauthorized' });
+    return;
+  }
   const userId = auth.userId;
 
   try {
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      include: { memberships: true }
+      include: { memberships: true },
     });
-    if (!user) { res.status(404).json({ error: 'user not found' }); return; }
+    if (!user) {
+      res.status(404).json({ error: 'user not found' });
+      return;
+    }
 
     const isSoleOwner = await checkSoleOwnership(prisma, userId, user.memberships);
     if (isSoleOwner) {
       res.status(400).json({
-        error: 'cannot delete account - you are the sole owner of an organization. Transfer ownership first.'
+        error: 'cannot delete account - you are the sole owner of an organization. Transfer ownership first.',
       });
       return;
     }
@@ -187,23 +227,41 @@ async function handleDeleteMe(prisma: PrismaClient, req: express.Request, res: e
 
 async function handleListInvites(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
   const auth = requireAuth(req);
-  if (!auth) { res.status(401).json({ error: 'unauthorized' }); return; }
+  if (!auth) {
+    res.status(401).json({ error: 'unauthorized' });
+    return;
+  }
   const tenant = getTenantFromReq(req);
-  if (!tenant) { res.status(400).json({ error: 'tenant_required' }); return; }
+  if (!tenant) {
+    res.status(400).json({ error: 'tenant_required' });
+    return;
+  }
   const list = await prisma.invite.findMany({ where: { tenantId: tenant.id }, orderBy: { createdAt: 'desc' } });
   res.json(list);
 }
 
 async function handleDeleteInvite(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
   const auth = requireAuth(req);
-  if (!auth) { res.status(401).json({ error: 'unauthorized' }); return; }
+  if (!auth) {
+    res.status(401).json({ error: 'unauthorized' });
+    return;
+  }
   const tenant = getTenantFromReq(req);
-  if (!tenant) { res.status(400).json({ error: 'tenant_required' }); return; }
+  if (!tenant) {
+    res.status(400).json({ error: 'tenant_required' });
+    return;
+  }
   const code = pathParam(req, 'code');
   try {
     const inv = await prisma.invite.findUnique({ where: { code } });
-    if (!inv || (inv as any).tenantId !== tenant.id) { res.status(404).json({ error: 'not found' }); return; }
-    if (inv.usedAt) { res.status(400).json({ error: 'already used' }); return; }
+    if (!inv || (inv as any).tenantId !== tenant.id) {
+      res.status(404).json({ error: 'not found' });
+      return;
+    }
+    if (inv.usedAt) {
+      res.status(400).json({ error: 'already used' });
+      return;
+    }
     await prisma.invite.delete({ where: { code } });
     res.json({ ok: true });
   } catch {
@@ -213,9 +271,15 @@ async function handleDeleteInvite(prisma: PrismaClient, req: express.Request, re
 
 async function handleListUsers(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
   const auth = requireAuth(req);
-  if (!auth) { res.status(401).json({ error: 'unauthorized' }); return; }
+  if (!auth) {
+    res.status(401).json({ error: 'unauthorized' });
+    return;
+  }
   const tenant = getTenantFromReq(req);
-  if (!tenant) { res.status(400).json({ error: 'tenant_required' }); return; }
+  if (!tenant) {
+    res.status(400).json({ error: 'tenant_required' });
+    return;
+  }
   const users = await prisma.user.findMany({
     where: { memberships: { some: { tenantId: tenant.id } } } as any,
     select: {
@@ -226,9 +290,9 @@ async function handleListUsers(prisma: PrismaClient, req: express.Request, res: 
       updatedAt: true,
       memberships: {
         where: { tenantId: tenant.id },
-        select: { role: true, expiresAt: true }
-      }
-    }
+        select: { role: true, expiresAt: true },
+      },
+    },
   });
   const result = users.map((u: any) => ({
     id: u.id,
@@ -246,10 +310,16 @@ const updateUserSchema = z.object({ email: z.string().email().optional(), name: 
 
 async function handleUpdateUser(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
   const auth = requireAuth(req);
-  if (!auth) { res.status(401).json({ error: 'unauthorized' }); return; }
+  if (!auth) {
+    res.status(401).json({ error: 'unauthorized' });
+    return;
+  }
 
   const tenant = getTenantFromReq(req);
-  if (!tenant) { res.status(400).json({ error: 'tenant_required' }); return; }
+  if (!tenant) {
+    res.status(400).json({ error: 'tenant_required' });
+    return;
+  }
 
   const id = pathParam(req, 'id');
   if (id !== auth.userId) {
@@ -259,7 +329,10 @@ async function handleUpdateUser(prisma: PrismaClient, req: express.Request, res:
       return;
     }
     const targetMembership = await prisma.membership.findFirst({ where: { userId: id, tenantId: tenant.id } });
-    if (!targetMembership) { res.status(404).json({ error: 'user not found in this tenant' }); return; }
+    if (!targetMembership) {
+      res.status(404).json({ error: 'user not found in this tenant' });
+      return;
+    }
   }
 
   const parse = updateUserSchema.safeParse(req.body || {});
@@ -270,10 +343,16 @@ async function handleUpdateUser(prisma: PrismaClient, req: express.Request, res:
   const { email, name } = parse.data;
   try {
     const normalized = email ? email.trim().toLowerCase() : undefined;
-    const user = await prisma.user.update({ where: { id }, data: { email: normalized ?? undefined, name: name ?? undefined } });
+    const user = await prisma.user.update({
+      where: { id },
+      data: { email: normalized ?? undefined, name: name ?? undefined },
+    });
     res.json({ id: user.id, email: user.email, name: user.name });
   } catch (e: unknown) {
-    if (e && typeof e === 'object' && 'code' in e && e.code === 'P2002') { res.status(400).json({ error: 'email already in use' }); return; }
+    if (e && typeof e === 'object' && 'code' in e && e.code === 'P2002') {
+      res.status(400).json({ error: 'email already in use' });
+      return;
+    }
     res.status(400).json({ error: 'update failed' });
   }
 }
@@ -282,9 +361,15 @@ const changeRoleSchema = z.object({ role: z.enum(['admin', 'member']) });
 
 async function handleChangeRole(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
   const auth = requireAuth(req);
-  if (!auth) { res.status(401).json({ error: 'unauthorized' }); return; }
+  if (!auth) {
+    res.status(401).json({ error: 'unauthorized' });
+    return;
+  }
   const tenant = getTenantFromReq(req);
-  if (!tenant) { res.status(400).json({ error: 'tenant_required' }); return; }
+  if (!tenant) {
+    res.status(400).json({ error: 'tenant_required' });
+    return;
+  }
 
   const callerMembership = await requireMembership(req, auth.userId, prisma);
   if (!callerMembership || (callerMembership.role !== 'owner' && callerMembership.role !== 'admin')) {
@@ -294,15 +379,24 @@ async function handleChangeRole(prisma: PrismaClient, req: express.Request, res:
 
   const id = pathParam(req, 'id');
   const parse = changeRoleSchema.safeParse(req.body || {});
-  if (!parse.success) { res.status(400).json({ error: 'valid role required (admin or member)' }); return; }
+  if (!parse.success) {
+    res.status(400).json({ error: 'valid role required (admin or member)' });
+    return;
+  }
 
-  if (id === auth.userId) { res.status(400).json({ error: 'cannot change own role' }); return; }
+  if (id === auth.userId) {
+    res.status(400).json({ error: 'cannot change own role' });
+    return;
+  }
 
   try {
     const membership = await prisma.membership.findFirst({
-      where: { userId: id, tenantId: tenant.id }
+      where: { userId: id, tenantId: tenant.id },
     });
-    if (!membership) { res.status(404).json({ error: 'user not found in this tenant' }); return; }
+    if (!membership) {
+      res.status(404).json({ error: 'user not found in this tenant' });
+      return;
+    }
 
     if ((membership as any).role === 'guest') {
       res.status(400).json({ error: 'cannot_change_guest_role' });
@@ -316,7 +410,7 @@ async function handleChangeRole(prisma: PrismaClient, req: express.Request, res:
 
     await prisma.membership.update({
       where: { id: membership.id },
-      data: { role: parse.data.role as any }
+      data: { role: parse.data.role as any },
     });
 
     logger.info('[Users] Role changed', { userId: id, newRole: parse.data.role, changedBy: auth.userId });
@@ -328,22 +422,41 @@ async function handleChangeRole(prisma: PrismaClient, req: express.Request, res:
 }
 
 async function purgeUserMembershipData(prisma: PrismaClient, id: string): Promise<void> {
-  try { await prisma.presence.deleteMany({ where: { userId: id } }); } catch { }
-  try { await prisma.passwordReset.deleteMany({ where: { userId: id } }); } catch { }
-  try { await prisma.apiToken.deleteMany({ where: { userId: id } }); } catch { }
-  try { await prisma.invite.updateMany({ where: { usedById: id }, data: { usedById: null } }); } catch { }
-  try { await prisma.membership.deleteMany({ where: { userId: id } }); } catch { }
+  try {
+    await prisma.presence.deleteMany({ where: { userId: id } });
+  } catch {}
+  try {
+    await prisma.passwordReset.deleteMany({ where: { userId: id } });
+  } catch {}
+  try {
+    await prisma.apiToken.deleteMany({ where: { userId: id } });
+  } catch {}
+  try {
+    await prisma.invite.updateMany({ where: { usedById: id }, data: { usedById: null } });
+  } catch {}
+  try {
+    await prisma.membership.deleteMany({ where: { userId: id } });
+  } catch {}
   await prisma.user.delete({ where: { id } });
 }
 
 async function handleDeleteUser(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
   const auth = requireAuth(req);
-  if (!auth) { res.status(401).json({ error: 'unauthorized' }); return; }
+  if (!auth) {
+    res.status(401).json({ error: 'unauthorized' });
+    return;
+  }
   const id = pathParam(req, 'id');
-  if (id === auth.userId) { res.status(400).json({ error: 'cannot delete self' }); return; }
+  if (id === auth.userId) {
+    res.status(400).json({ error: 'cannot delete self' });
+    return;
+  }
 
   const tenant = getTenantFromReq(req);
-  if (!tenant) { res.status(400).json({ error: 'tenant_required' }); return; }
+  if (!tenant) {
+    res.status(400).json({ error: 'tenant_required' });
+    return;
+  }
 
   const callerMembership = await requireMembership(req, auth.userId, prisma);
   if (!callerMembership || (callerMembership.role !== 'owner' && callerMembership.role !== 'admin')) {
@@ -352,7 +465,10 @@ async function handleDeleteUser(prisma: PrismaClient, req: express.Request, res:
   }
 
   const targetMembership = await prisma.membership.findFirst({ where: { userId: id, tenantId: tenant.id } });
-  if (!targetMembership) { res.status(404).json({ error: 'user not found in this tenant' }); return; }
+  if (!targetMembership) {
+    res.status(404).json({ error: 'user not found in this tenant' });
+    return;
+  }
 
   if ((targetMembership as any).role === 'owner' && callerMembership.role !== 'owner') {
     res.status(403).json({ error: 'cannot delete owner' });
@@ -361,7 +477,10 @@ async function handleDeleteUser(prisma: PrismaClient, req: express.Request, res:
 
   try {
     const exists = await prisma.user.findUnique({ where: { id } });
-    if (!exists) { res.status(404).json({ error: 'not found' }); return; }
+    if (!exists) {
+      res.status(404).json({ error: 'not found' });
+      return;
+    }
     await purgeUserMembershipData(prisma, id);
     logger.info({ event: 'user.deleted', userId: id, deletedBy: auth.userId, tenantId: tenant.id });
     res.json({ ok: true });

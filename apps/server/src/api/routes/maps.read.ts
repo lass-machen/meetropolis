@@ -5,22 +5,29 @@ import { logger } from '../../logger.js';
 import { getTenantFromReq } from '../utils/authHelpers.js';
 import { pathParam } from '../utils/requestHelpers.js';
 
-export async function findMapById(prisma: PrismaClient, mapId: string, tenantId: string) {
+export function findMapById(prisma: PrismaClient, mapId: string, tenantId: string) {
   return prisma.map.findFirst({ where: { id: mapId, tenantId } });
 }
 
 export async function handleListMaps(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
   const tenant = getTenantFromReq(req);
-  if (!tenant) { res.status(400).json({ error: 'tenant_required' }); return; }
+  if (!tenant) {
+    res.status(400).json({ error: 'tenant_required' });
+    return;
+  }
   const maps = await prisma.map.findMany({ where: { tenantId: tenant.id }, include: { zones: true, rooms: true } });
   res.json(maps);
 }
 
-async function autoPatchMapDimensions<T extends { id: string; width: number | null; height: number | null; tileWidth: number | null; tileHeight: number | null }>(
-  prisma: PrismaClient,
-  map: T,
-  tenantSlug: string,
-): Promise<T> {
+async function autoPatchMapDimensions<
+  T extends {
+    id: string;
+    width: number | null;
+    height: number | null;
+    tileWidth: number | null;
+    tileHeight: number | null;
+  },
+>(prisma: PrismaClient, map: T, tenantSlug: string): Promise<T> {
   const defaults = { width: 32, height: 32, tileWidth: 16, tileHeight: 16 };
   if (map.width && map.height && map.tileWidth && map.tileHeight) return map;
   try {
@@ -41,7 +48,10 @@ async function autoPatchMapDimensions<T extends { id: string; width: number | nu
 }
 
 async function buildLayerIndex(prisma: PrismaClient, mapId: string) {
-  const layers = await prisma.mapLayer.findMany({ where: { mapId }, select: { id: true, name: true, chunkSize: true } });
+  const layers = await prisma.mapLayer.findMany({
+    where: { mapId },
+    select: { id: true, name: true, chunkSize: true },
+  });
   const layerIndex: Record<string, { keys: string[]; chunkSize: number }> = {};
   for (const layer of layers) {
     const chunks = await prisma.mapChunk.findMany({ where: { layerId: layer.id }, select: { x: true, y: true } });
@@ -54,16 +64,32 @@ async function buildLayerIndex(prisma: PrismaClient, mapId: string) {
 export async function handleStateV2(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
   try {
     const tenant = getTenantFromReq(req);
-    if (!tenant) { res.status(400).json({ error: 'tenant_required' }); return; }
+    if (!tenant) {
+      res.status(400).json({ error: 'tenant_required' });
+      return;
+    }
     let map = await findMapById(prisma, pathParam(req, 'id'), tenant.id);
-    if (!map) { res.status(404).json({ error: 'map not found' }); return; }
+    if (!map) {
+      res.status(404).json({ error: 'map not found' });
+      return;
+    }
 
     map = await autoPatchMapDimensions(prisma, map, tenant.slug);
 
     const tilesets = await prisma.mapTileset.findMany({
       where: { mapId: map.id },
       orderBy: { slot: 'asc' },
-      select: { id: true, slot: true, key: true, imageUrl: true, tileWidth: true, tileHeight: true, margin: true, spacing: true, hash: true },
+      select: {
+        id: true,
+        slot: true,
+        key: true,
+        imageUrl: true,
+        tileWidth: true,
+        tileHeight: true,
+        margin: true,
+        spacing: true,
+        hash: true,
+      },
     });
 
     const layerIndex = await buildLayerIndex(prisma, map.id);
@@ -86,20 +112,39 @@ export async function handleStateV2(prisma: PrismaClient, req: express.Request, 
 
 const chunksSchema = z.object({ layer: z.string().min(1), keys: z.string().min(1) });
 
-export async function handleChunksFetch(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
+export async function handleChunksFetch(
+  prisma: PrismaClient,
+  req: express.Request,
+  res: express.Response,
+): Promise<void> {
   try {
     const parse = chunksSchema.safeParse(req.query || {});
-    if (!parse.success) { res.status(400).json({ error: 'layer and keys required' }); return; }
+    if (!parse.success) {
+      res.status(400).json({ error: 'layer and keys required' });
+      return;
+    }
 
     const tenant = getTenantFromReq(req);
-    if (!tenant) { res.status(400).json({ error: 'tenant_required' }); return; }
+    if (!tenant) {
+      res.status(400).json({ error: 'tenant_required' });
+      return;
+    }
     const { layer: layerName, keys } = parse.data;
     const map = await findMapById(prisma, pathParam(req, 'id'), tenant.id);
-    if (!map) { res.status(404).json({ error: 'map not found' }); return; }
+    if (!map) {
+      res.status(404).json({ error: 'map not found' });
+      return;
+    }
     const layer = await prisma.mapLayer.findUnique({ where: { mapId_name: { mapId: map.id, name: layerName } } });
-    if (!layer) { res.json({ chunks: {} }); return; }
+    if (!layer) {
+      res.json({ chunks: {} });
+      return;
+    }
 
-    const keyList = keys.split(',').map((s) => s.trim()).filter((s) => s.length > 0);
+    const keyList = keys
+      .split(',')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
     const wanted: Array<{ x: number; y: number; key: string }> = [];
     for (const k of keyList) {
       const [xs, ys] = k.split(':');
@@ -108,7 +153,10 @@ export async function handleChunksFetch(prisma: PrismaClient, req: express.Reque
       if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
       wanted.push({ x, y, key: k });
     }
-    if (wanted.length === 0) { res.json({ chunks: {} }); return; }
+    if (wanted.length === 0) {
+      res.json({ chunks: {} });
+      return;
+    }
 
     const orList = wanted.map((w) => ({ x: w.x, y: w.y }));
     const found = await prisma.mapChunk.findMany({
@@ -130,9 +178,16 @@ export async function handleChunksFetch(prisma: PrismaClient, req: express.Reque
   }
 }
 
-export async function handleListZonesForTenant(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
+export async function handleListZonesForTenant(
+  prisma: PrismaClient,
+  req: express.Request,
+  res: express.Response,
+): Promise<void> {
   const tenant = getTenantFromReq(req);
-  if (!tenant) { res.status(400).json({ error: 'tenant_required' }); return; }
+  if (!tenant) {
+    res.status(400).json({ error: 'tenant_required' });
+    return;
+  }
   const zones = await prisma.zone.findMany({ where: { tenantId: tenant.id } });
   res.json(zones);
 }

@@ -32,11 +32,14 @@ export interface BillingModule {
       requireTenantAdmin: (req: Request, res: Response, next: NextFunction) => void;
       getTenantId: (req: Request) => string | null;
       getUserId: (req: Request) => string | null;
-    }
+    },
   ): void;
 
   // Trial management
-  getTrialStatus(prisma: PrismaClient, tenantId: string): Promise<{
+  getTrialStatus(
+    prisma: PrismaClient,
+    tenantId: string,
+  ): Promise<{
     status: 'none' | 'active' | 'expired' | 'converted';
     startedAt: Date | null;
     endsAt: Date | null;
@@ -47,7 +50,10 @@ export interface BillingModule {
   startTrial(prisma: PrismaClient, tenantId: string, trialDays?: number): Promise<void>;
 
   // Dunning
-  getDunningStatus(prisma: PrismaClient, tenantId: string): Promise<{
+  getDunningStatus(
+    prisma: PrismaClient,
+    tenantId: string,
+  ): Promise<{
     status: 'ok' | 'failing' | 'grace_period' | 'suspended';
     failedAt: Date | null;
     gracePeriodEndsAt: Date | null;
@@ -124,7 +130,7 @@ export async function getBillingModule(): Promise<BillingModule | null> {
 
     logger.info({ event: 'billing.enterprise_loaded', version: 1 });
     return cached;
-  } catch (e) {
+  } catch (_e) {
     // OSS build without enterprise billing - this is expected
     logger.debug({ event: 'billing.enterprise_not_available', message: 'Using OSS billing' });
     cached = null;

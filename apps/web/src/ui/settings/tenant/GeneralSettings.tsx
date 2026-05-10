@@ -17,7 +17,15 @@ interface GeneralSettingsProps {
 
 type Screen = { type: 'view' } | { type: 'edit' };
 
-export function GeneralSettings({ tenant, saving, apiBase, onUpdateTenant, onSuccess, memberCount, guestCount }: GeneralSettingsProps) {
+export function GeneralSettings({
+  tenant,
+  saving,
+  apiBase,
+  onUpdateTenant,
+  onSuccess,
+  memberCount,
+  guestCount,
+}: GeneralSettingsProps) {
   const { t } = useTranslation();
   const [screen, setScreen] = React.useState<Screen>({ type: 'view' });
   const [editName, setEditName] = React.useState('');
@@ -35,7 +43,9 @@ export function GeneralSettings({ tenant, saving, apiBase, onUpdateTenant, onSuc
         const maps = await res.json();
         setAvailableMaps(maps.map((m: any) => ({ id: m.id, name: m.name })));
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }
 
   async function saveEdit() {
@@ -53,25 +63,43 @@ export function GeneralSettings({ tenant, saving, apiBase, onUpdateTenant, onSuc
     return (
       <>
         <NavBar
-          left={<Button iconOnly size="sm" variant="ghost" onClick={() => setScreen({ type: 'view' })}><ChevronLeftIcon /></Button>}
+          left={
+            <Button iconOnly size="sm" variant="ghost" onClick={() => setScreen({ type: 'view' })}>
+              <ChevronLeftIcon />
+            </Button>
+          }
           title={t('tenant.editOrg')}
         />
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div>
-            <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6, color: 'var(--fg)' }}>{t('tenant.name')}</label>
-            <Input value={editName} onChange={e => setEditName(e.target.value)} />
+            <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6, color: 'var(--fg)' }}>
+              {t('tenant.name')}
+            </label>
+            <Input value={editName} onChange={(e) => setEditName(e.target.value)} />
           </div>
           <div>
-            <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6, color: 'var(--fg)' }}>{t('tenant.defaultMap')}</label>
+            <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6, color: 'var(--fg)' }}>
+              {t('tenant.defaultMap')}
+            </label>
             <Select
               value={editDefaultMap}
               onChange={setEditDefaultMap}
-              options={availableMaps.map(m => ({ value: m.name, label: m.name }))}
+              options={availableMaps.map((m) => ({ value: m.name, label: m.name }))}
             />
           </div>
           <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-            <Button variant="primary" onClick={saveEdit} disabled={saving}>{t('tenant.saveMember')}</Button>
-            <Button variant="ghost" onClick={() => setScreen({ type: 'view' })}>{t('tenant.cancelEdit')}</Button>
+            <Button
+              variant="primary"
+              onClick={() => {
+                void saveEdit();
+              }}
+              disabled={saving}
+            >
+              {t('tenant.saveMember')}
+            </Button>
+            <Button variant="ghost" onClick={() => setScreen({ type: 'view' })}>
+              {t('tenant.cancelEdit')}
+            </Button>
           </div>
         </div>
       </>
@@ -82,7 +110,12 @@ export function GeneralSettings({ tenant, saving, apiBase, onUpdateTenant, onSuc
   const items: DescriptionItem[] = [
     { label: t('tenant.name'), value: tenant.name },
     { label: t('tenant.subdomain'), value: tenant.slug },
-    { label: t('tenant.seatLimit'), value: tenant.bypassLimits ? t('tenant.unlimited') : t('tenant.usersCount', { count: tenant.freeSeats + tenant.concurrentLimit }) },
+    {
+      label: t('tenant.seatLimit'),
+      value: tenant.bypassLimits
+        ? t('tenant.unlimited')
+        : t('tenant.usersCount', { count: tenant.freeSeats + tenant.concurrentLimit }),
+    },
     { label: t('tenant.createdAt'), value: new Date(tenant.createdAt).toLocaleDateString() },
     { label: t('tenant.memberCount'), value: String(memberCount ?? tenant.memberCount ?? 0) },
     ...(guestCount !== undefined ? [{ label: t('tenant.tabGuests'), value: String(guestCount) }] : []),
@@ -90,7 +123,20 @@ export function GeneralSettings({ tenant, saving, apiBase, onUpdateTenant, onSuc
   ];
 
   return (
-    <Section title={t('tenant.orgInfo')} actions={<Button size="sm" variant="secondary" onClick={startEdit}>{t('tenant.editOrg')}</Button>}>
+    <Section
+      title={t('tenant.orgInfo')}
+      actions={
+        <Button
+          size="sm"
+          variant="secondary"
+          onClick={() => {
+            void startEdit();
+          }}
+        >
+          {t('tenant.editOrg')}
+        </Button>
+      }
+    >
       <DescriptionList items={items} />
     </Section>
   );

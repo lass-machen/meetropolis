@@ -173,7 +173,10 @@ const importUpload = multer({ storage: multer.memoryStorage(), limits: { fileSiz
 
 async function handleListAdminMaps(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
   const admin = await requireSuperAdmin(req, prisma);
-  if (!admin) { res.status(403).json({ error: 'forbidden' }); return; }
+  if (!admin) {
+    res.status(403).json({ error: 'forbidden' });
+    return;
+  }
 
   try {
     const maps = await prisma.map.findMany({
@@ -205,7 +208,10 @@ async function handleListAdminMaps(prisma: PrismaClient, req: express.Request, r
 
 async function handleGetAdminMap(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
   const admin = await requireSuperAdmin(req, prisma);
-  if (!admin) { res.status(403).json({ error: 'forbidden' }); return; }
+  if (!admin) {
+    res.status(403).json({ error: 'forbidden' });
+    return;
+  }
 
   try {
     const map = await prisma.map.findUnique({
@@ -218,7 +224,10 @@ async function handleGetAdminMap(prisma: PrismaClient, req: express.Request, res
         _count: { select: { objects: true } },
       },
     });
-    if (!map) { res.status(404).json({ error: 'map_not_found' }); return; }
+    if (!map) {
+      res.status(404).json({ error: 'map_not_found' });
+      return;
+    }
     res.json(map);
   } catch (e: unknown) {
     logger.error({ event: 'admin_maps.get.error', error: e instanceof Error ? e.message : String(e) });
@@ -228,19 +237,31 @@ async function handleGetAdminMap(prisma: PrismaClient, req: express.Request, res
 
 async function handleCreateAdminMap(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
   const admin = await requireSuperAdmin(req, prisma);
-  if (!admin) { res.status(403).json({ error: 'forbidden' }); return; }
+  if (!admin) {
+    res.status(403).json({ error: 'forbidden' });
+    return;
+  }
 
   const parse = createMapSchema.safeParse(req.body);
-  if (!parse.success) { res.status(400).json({ error: 'invalid payload', details: parse.error.issues }); return; }
+  if (!parse.success) {
+    res.status(400).json({ error: 'invalid payload', details: parse.error.issues });
+    return;
+  }
 
   try {
     const { tenantId, name, width, height, tileWidth, tileHeight } = parse.data;
 
     const tenant = await prisma.tenant.findUnique({ where: { id: tenantId } });
-    if (!tenant) { res.status(404).json({ error: 'tenant_not_found' }); return; }
+    if (!tenant) {
+      res.status(404).json({ error: 'tenant_not_found' });
+      return;
+    }
 
     const existing = await prisma.map.findUnique({ where: { tenantId_name: { tenantId, name } } });
-    if (existing) { res.status(400).json({ error: 'map_name_exists' }); return; }
+    if (existing) {
+      res.status(400).json({ error: 'map_name_exists' });
+      return;
+    }
 
     const result = await prisma.$transaction(async (tx) => {
       const map = await tx.map.create({
@@ -281,15 +302,24 @@ async function deleteMapCascade(prisma: PrismaClient, mapId: string): Promise<vo
 
 async function handleDeleteAdminMap(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
   const admin = await requireSuperAdmin(req, prisma);
-  if (!admin) { res.status(403).json({ error: 'forbidden' }); return; }
+  if (!admin) {
+    res.status(403).json({ error: 'forbidden' });
+    return;
+  }
 
   try {
     const map = await prisma.map.findUnique({ where: { id: pathParam(req, 'id') } });
-    if (!map) { res.status(404).json({ error: 'map_not_found' }); return; }
+    if (!map) {
+      res.status(404).json({ error: 'map_not_found' });
+      return;
+    }
 
     const tenant = await prisma.tenant.findUnique({ where: { id: map.tenantId } });
     if (tenant?.defaultMapName === map.name) {
-      res.status(400).json({ error: 'cannot_delete_default_map', message: 'This map is set as the tenant default. Change the default first.' });
+      res.status(400).json({
+        error: 'cannot_delete_default_map',
+        message: 'This map is set as the tenant default. Change the default first.',
+      });
       return;
     }
 
@@ -305,15 +335,24 @@ async function handleDeleteAdminMap(prisma: PrismaClient, req: express.Request, 
 
 async function handleCopyAdminMap(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
   const admin = await requireSuperAdmin(req, prisma);
-  if (!admin) { res.status(403).json({ error: 'forbidden' }); return; }
+  if (!admin) {
+    res.status(403).json({ error: 'forbidden' });
+    return;
+  }
 
   const parse = copyMapSchema.safeParse(req.body);
-  if (!parse.success) { res.status(400).json({ error: 'invalid payload', details: parse.error.issues }); return; }
+  if (!parse.success) {
+    res.status(400).json({ error: 'invalid payload', details: parse.error.issues });
+    return;
+  }
 
   try {
     const { targetTenantId, newName } = parse.data;
     const targetTenant = await prisma.tenant.findUnique({ where: { id: targetTenantId } });
-    if (!targetTenant) { res.status(404).json({ error: 'target_tenant_not_found' }); return; }
+    if (!targetTenant) {
+      res.status(404).json({ error: 'target_tenant_not_found' });
+      return;
+    }
 
     const sourceId = pathParam(req, 'id');
     const result = await copyMapToTenant(prisma, sourceId, targetTenantId, newName);
@@ -322,16 +361,41 @@ async function handleCopyAdminMap(prisma: PrismaClient, req: express.Request, re
     res.json(result);
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    if (msg === 'source_map_not_found') { res.status(404).json({ error: 'map_not_found' }); return; }
+    if (msg === 'source_map_not_found') {
+      res.status(404).json({ error: 'map_not_found' });
+      return;
+    }
     logger.error({ event: 'admin_maps.copy.error', error: msg });
     res.status(500).json({ error: 'internal_error' });
   }
 }
 
-type TiledLayer = { type: string; name: string; data?: number[]; width?: number; height?: number; objects?: Array<Record<string, unknown>> };
-type TiledTileset = { firstgid: number; name: string; image?: string; tilewidth?: number; tileheight?: number; margin?: number; spacing?: number; tilecount?: number };
+type TiledLayer = {
+  type: string;
+  name: string;
+  data?: number[];
+  width?: number;
+  height?: number;
+  objects?: Array<Record<string, unknown>>;
+};
+type TiledTileset = {
+  firstgid: number;
+  name: string;
+  image?: string;
+  tilewidth?: number;
+  tileheight?: number;
+  margin?: number;
+  spacing?: number;
+  tilecount?: number;
+};
 
-async function importTilesetsFromTiled(tx: any, mapId: string, tilesets: TiledTileset[], tileWidth: number, tileHeight: number) {
+async function importTilesetsFromTiled(
+  tx: any,
+  mapId: string,
+  tilesets: TiledTileset[],
+  tileWidth: number,
+  tileHeight: number,
+) {
   for (let i = 0; i < tilesets.length; i++) {
     const ts = tilesets[i];
     await tx.mapTileset.create({
@@ -350,7 +414,14 @@ async function importTilesetsFromTiled(tx: any, mapId: string, tilesets: TiledTi
   }
 }
 
-function extractChunkData(layer: TiledLayer, cx: number, cy: number, chunkSize: number, layerWidth: number, layerHeight: number): number[] {
+function extractChunkData(
+  layer: TiledLayer,
+  cx: number,
+  cy: number,
+  chunkSize: number,
+  layerWidth: number,
+  layerHeight: number,
+): number[] {
   const chunkData: number[] = [];
   for (let ty = 0; ty < chunkSize; ty++) {
     for (let tx2 = 0; tx2 < chunkSize; tx2++) {
@@ -366,7 +437,14 @@ function extractChunkData(layer: TiledLayer, cx: number, cy: number, chunkSize: 
   return chunkData;
 }
 
-async function importTileLayers(tx: any, mapId: string, layers: TiledLayer[], chunkSize: number, mapWidth: number, mapHeight: number) {
+async function importTileLayers(
+  tx: any,
+  mapId: string,
+  layers: TiledLayer[],
+  chunkSize: number,
+  mapWidth: number,
+  mapHeight: number,
+) {
   for (const layer of layers) {
     if (layer.type !== 'tilelayer' || !layer.data) continue;
 
@@ -396,21 +474,31 @@ async function importTileLayers(tx: any, mapId: string, layers: TiledLayer[], ch
   }
 }
 
-async function importObjectLayers(tx: any, mapId: string, layers: TiledLayer[], tileWidth: number, tileHeight: number, chunkSize: number) {
+async function importObjectLayers(
+  tx: any,
+  mapId: string,
+  layers: TiledLayer[],
+  tileWidth: number,
+  tileHeight: number,
+  chunkSize: number,
+) {
   for (const layer of layers) {
     if (layer.type !== 'objectgroup' || !Array.isArray(layer.objects)) continue;
 
     for (const obj of layer.objects) {
-      const ox = typeof obj.x === 'number' ? Math.floor((obj.x as number) / tileWidth) : 0;
-      const oy = typeof obj.y === 'number' ? Math.floor((obj.y as number) / tileHeight) : 0;
-      const ow = typeof obj.width === 'number' ? Math.max(1, Math.ceil((obj.width as number) / tileWidth)) : 1;
-      const oh = typeof obj.height === 'number' ? Math.max(1, Math.ceil((obj.height as number) / tileHeight)) : 1;
+      const ox = typeof obj.x === 'number' ? Math.floor(obj.x / tileWidth) : 0;
+      const oy = typeof obj.y === 'number' ? Math.floor(obj.y / tileHeight) : 0;
+      const ow = typeof obj.width === 'number' ? Math.max(1, Math.ceil(obj.width / tileWidth)) : 1;
+      const oh = typeof obj.height === 'number' ? Math.max(1, Math.ceil(obj.height / tileHeight)) : 1;
 
       await tx.mapObject.create({
         data: {
           mapId,
           assetPackUuid: 'tiled-import',
-          itemId: (typeof obj.name === 'string' ? obj.name : '') || (typeof obj.type === 'string' ? obj.type : '') || `obj-${obj.id || 0}`,
+          itemId:
+            (typeof obj.name === 'string' ? obj.name : '') ||
+            (typeof obj.type === 'string' ? obj.type : '') ||
+            `obj-${typeof obj.id === 'string' || typeof obj.id === 'number' ? obj.id : 0}`,
           category: 'objects',
           tileX: ox,
           tileY: oy,
@@ -427,7 +515,7 @@ async function importObjectLayers(tx: any, mapId: string, layers: TiledLayer[], 
   }
 }
 
-async function importTiledMap(prisma: PrismaClient, tenantId: string, mapName: string, json: any) {
+function importTiledMap(prisma: PrismaClient, tenantId: string, mapName: string, json: any) {
   const mapWidth: number = json.width || 32;
   const mapHeight: number = json.height || 32;
   const tileWidth: number = json.tilewidth || 16;
@@ -454,21 +542,36 @@ async function importTiledMap(prisma: PrismaClient, tenantId: string, mapName: s
 
 async function handleImportAdminMap(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
   const admin = await requireSuperAdmin(req, prisma);
-  if (!admin) { res.status(403).json({ error: 'forbidden' }); return; }
+  if (!admin) {
+    res.status(403).json({ error: 'forbidden' });
+    return;
+  }
 
   const file = req.file;
-  if (!file) { res.status(400).json({ error: 'no_file' }); return; }
+  if (!file) {
+    res.status(400).json({ error: 'no_file' });
+    return;
+  }
 
   const tenantId = req.body?.tenantId;
   const mapName = req.body?.name;
-  if (!tenantId || !mapName) { res.status(400).json({ error: 'missing_tenantId_or_name' }); return; }
+  if (!tenantId || !mapName) {
+    res.status(400).json({ error: 'missing_tenantId_or_name' });
+    return;
+  }
 
   try {
     const tenant = await prisma.tenant.findUnique({ where: { id: tenantId } });
-    if (!tenant) { res.status(404).json({ error: 'tenant_not_found' }); return; }
+    if (!tenant) {
+      res.status(404).json({ error: 'tenant_not_found' });
+      return;
+    }
 
     const existing = await prisma.map.findUnique({ where: { tenantId_name: { tenantId, name: mapName } } });
-    if (existing) { res.status(400).json({ error: 'map_name_exists' }); return; }
+    if (existing) {
+      res.status(400).json({ error: 'map_name_exists' });
+      return;
+    }
 
     const json = JSON.parse(file.buffer.toString('utf-8'));
     const result = await importTiledMap(prisma, tenantId, mapName, json);

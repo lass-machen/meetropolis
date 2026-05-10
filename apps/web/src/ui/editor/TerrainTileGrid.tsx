@@ -17,9 +17,7 @@ function extractTiles(tileset: V2Tileset): Promise<TileEntry[]> {
   return new Promise((resolve) => {
     const img = new Image();
     img.crossOrigin = 'anonymous';
-    const url = tileset.imageUrl.startsWith('/')
-      ? baseUrl() + tileset.imageUrl
-      : tileset.imageUrl;
+    const url = tileset.imageUrl.startsWith('/') ? baseUrl() + tileset.imageUrl : tileset.imageUrl;
     img.onload = () => {
       const tw = tileset.tileWidth;
       const th = tileset.tileHeight;
@@ -58,7 +56,14 @@ function TileButton({ tile, isSelected }: { tile: TileEntry; isSelected: boolean
   const refId = makeTileRefId(tile.slot, tile.tileIndex);
   return (
     <button
-      onClick={() => EditorService.dispatch({ type: 'SELECT_TILE_REF', tileRefId: refId, slot: tile.slot, tileIndex: tile.tileIndex })}
+      onClick={() =>
+        EditorService.dispatch({
+          type: 'SELECT_TILE_REF',
+          tileRefId: refId,
+          slot: tile.slot,
+          tileIndex: tile.tileIndex,
+        })
+      }
       style={{
         padding: 2,
         borderRadius: 4,
@@ -72,7 +77,11 @@ function TileButton({ tile, isSelected }: { tile: TileEntry; isSelected: boolean
         cursor: 'pointer',
       }}
     >
-      <img src={tile.dataUrl} style={{ width: '100%', height: '100%', imageRendering: 'pixelated' }} />
+      <img
+        src={tile.dataUrl}
+        alt={`Tile ${tile.tileIndex}`}
+        style={{ width: '100%', height: '100%', imageRendering: 'pixelated' }}
+      />
     </button>
   );
 }
@@ -94,7 +103,11 @@ function PackItemButton({ item, selected }: { item: PackItem; selected: boolean 
         cursor: 'pointer',
       }}
     >
-      <img src={item.dataUrl} alt={item.key} style={{ maxWidth: '100%', maxHeight: '100%', imageRendering: 'pixelated' }} />
+      <img
+        src={item.dataUrl}
+        alt={item.key}
+        style={{ maxWidth: '100%', maxHeight: '100%', imageRendering: 'pixelated' }}
+      />
     </button>
   );
 }
@@ -104,7 +117,7 @@ function useExtractedTiles(v2Tilesets: V2Tileset[]) {
   const loadedSlotsRef = useRef<string>('');
 
   const loadTiles = useCallback(async (tilesets: V2Tileset[]) => {
-    const key = tilesets.map(t => `${t.slot}:${t.key}`).join(',');
+    const key = tilesets.map((t) => `${t.slot}:${t.key}`).join(',');
     if (key === loadedSlotsRef.current) return;
     loadedSlotsRef.current = key;
     const results = await Promise.all(tilesets.map(extractTiles));
@@ -112,13 +125,18 @@ function useExtractedTiles(v2Tilesets: V2Tileset[]) {
   }, []);
 
   useEffect(() => {
-    if (v2Tilesets.length > 0) loadTiles(v2Tilesets);
+    if (v2Tilesets.length > 0) void loadTiles(v2Tilesets);
   }, [v2Tilesets, loadTiles]);
 
   return tiles;
 }
 
-export function TerrainTileGrid({ v2Tilesets, selectedTileRefId, packTerrainItems, pendingAsset }: TerrainTileGridProps) {
+export function TerrainTileGrid({
+  v2Tilesets,
+  selectedTileRefId,
+  packTerrainItems,
+  pendingAsset,
+}: TerrainTileGridProps) {
   const tiles = useExtractedTiles(v2Tilesets);
   const hasPackItems = packTerrainItems && packTerrainItems.length > 0;
   if (tiles.length === 0 && !hasPackItems) return null;
@@ -126,20 +144,50 @@ export function TerrainTileGrid({ v2Tilesets, selectedTileRefId, packTerrainItem
   return (
     <>
       {tiles.length > 0 && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(36px, 1fr))', gap: 4, maxHeight: 260, overflow: 'auto', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--glass)', padding: 8 }}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(36px, 1fr))',
+            gap: 4,
+            maxHeight: 260,
+            overflow: 'auto',
+            border: '1px solid var(--border)',
+            borderRadius: 8,
+            background: 'var(--glass)',
+            padding: 8,
+          }}
+        >
           {tiles.map((tile) => (
-            <TileButton key={`${tile.slot}:${tile.tileIndex}`} tile={tile} isSelected={makeTileRefId(tile.slot, tile.tileIndex) === selectedTileRefId} />
+            <TileButton
+              key={`${tile.slot}:${tile.tileIndex}`}
+              tile={tile}
+              isSelected={makeTileRefId(tile.slot, tile.tileIndex) === selectedTileRefId}
+            />
           ))}
         </div>
       )}
       {hasPackItems && (
         <>
-          {tiles.length > 0 && (
-            <div style={{ fontSize: 11, color: 'var(--fg-subtle)', marginTop: 4 }}>Pack Tiles</div>
-          )}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(64px, 1fr))', gap: 8, maxHeight: 260, overflow: 'auto', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--glass)', padding: 8 }}>
-            {packTerrainItems!.map(item => (
-              <PackItemButton key={`${item.packUuid}:${item.itemId}`} item={item} selected={pendingAsset?.itemId === item.itemId && pendingAsset?.packUuid === item.packUuid} />
+          {tiles.length > 0 && <div style={{ fontSize: 11, color: 'var(--fg-subtle)', marginTop: 4 }}>Pack Tiles</div>}
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(64px, 1fr))',
+              gap: 8,
+              maxHeight: 260,
+              overflow: 'auto',
+              border: '1px solid var(--border)',
+              borderRadius: 8,
+              background: 'var(--glass)',
+              padding: 8,
+            }}
+          >
+            {packTerrainItems.map((item) => (
+              <PackItemButton
+                key={`${item.packUuid}:${item.itemId}`}
+                item={item}
+                selected={pendingAsset?.itemId === item.itemId && pendingAsset?.packUuid === item.packUuid}
+              />
             ))}
           </div>
         </>

@@ -8,12 +8,22 @@ const onboardingSchema = z.object({
   avatarId: z.string().min(1).max(200).optional(),
 });
 
-export async function handleOnboardingComplete(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
+export async function handleOnboardingComplete(
+  prisma: PrismaClient,
+  req: express.Request,
+  res: express.Response,
+): Promise<void> {
   const auth = requireAuth(req);
-  if (!auth) { res.status(401).json({ error: 'unauthorized' }); return; }
+  if (!auth) {
+    res.status(401).json({ error: 'unauthorized' });
+    return;
+  }
 
   const parse = onboardingSchema.safeParse(req.body || {});
-  if (!parse.success) { res.status(400).json({ error: 'invalid body', details: parse.error.issues }); return; }
+  if (!parse.success) {
+    res.status(400).json({ error: 'invalid body', details: parse.error.issues });
+    return;
+  }
 
   try {
     const updateData: { onboardingCompleted: boolean; avatarId?: string } = { onboardingCompleted: true };
@@ -43,7 +53,7 @@ const positionSchema = z.object({
 });
 
 async function getOrCreateDefaultRoom(prisma: PrismaClient, tenantId: string, roomId: string) {
-  let room = await prisma.room.findFirst({ where: { name: roomId, tenantId } });
+  const room = await prisma.room.findFirst({ where: { name: roomId, tenantId } });
   if (room) return room;
 
   let map = await prisma.map.findFirst({ where: { name: 'office', tenantId } });
@@ -100,9 +110,15 @@ async function upsertPresence(
   }
 }
 
-function broadcastPresenceUpdate(tenantSlug: string, userId: string, data: { x: number; y: number; direction: string }) {
+function broadcastPresenceUpdate(
+  tenantSlug: string,
+  userId: string,
+  data: { x: number; y: number; direction: string },
+) {
   try {
-    const globalScope = global as { activeWorldRooms?: Set<{ metadata?: { tenant?: string }; broadcast?: (event: string, data: unknown) => void }> };
+    const globalScope = global as {
+      activeWorldRooms?: Set<{ metadata?: { tenant?: string }; broadcast?: (event: string, data: unknown) => void }>;
+    };
     const rooms = Array.from((globalScope.activeWorldRooms || new Set()).values());
     for (const r of rooms) {
       const meta = r.metadata || {};
@@ -115,31 +131,49 @@ function broadcastPresenceUpdate(tenantSlug: string, userId: string, data: { x: 
           direction: data.direction,
           updatedAt: new Date().toISOString(),
         });
-      } catch { }
+      } catch {}
     }
-  } catch { }
+  } catch {}
 }
 
-export async function handleAuthPosition(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
+export async function handleAuthPosition(
+  prisma: PrismaClient,
+  req: express.Request,
+  res: express.Response,
+): Promise<void> {
   try {
     const auth = requireAuth(req);
-    if (!auth) { res.status(401).json({ error: 'unauthorized' }); return; }
+    if (!auth) {
+      res.status(401).json({ error: 'unauthorized' });
+      return;
+    }
     const tenant = getTenantFromReq(req);
-    if (!tenant) { res.status(400).json({ error: 'tenant_required' }); return; }
+    if (!tenant) {
+      res.status(400).json({ error: 'tenant_required' });
+      return;
+    }
     const parse = positionSchema.safeParse(req.body || {});
-    if (!parse.success) { res.status(400).json({ error: 'invalid position data' }); return; }
+    if (!parse.success) {
+      res.status(400).json({ error: 'invalid position data' });
+      return;
+    }
 
     const { x, y, direction, roomId = 'world' } = parse.data;
     const room = await getOrCreateDefaultRoom(prisma, tenant.id, roomId);
     await upsertPresence(prisma, auth.userId, tenant.id, room.id, {
-      x, y, direction, mapName: parse.data.mapName,
+      x,
+      y,
+      direction,
+      mapName: parse.data.mapName,
     });
 
     broadcastPresenceUpdate(tenant.slug, auth.userId, { x, y, direction });
 
     res.json({ ok: true });
   } catch (e: unknown) {
-    try { logger.error('[Auth] position update failed', e); } catch { }
+    try {
+      logger.error('[Auth] position update failed', e);
+    } catch {}
     res.status(500).json({ error: 'position update failed' });
   }
 }

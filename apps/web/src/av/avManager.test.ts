@@ -15,39 +15,48 @@ interface CreateLocalTracksOptions {
 vi.mock('livekit-client', () => {
   return {
     // For mic/cam enabling
-    createLocalTracks: vi.fn(async (opts?: CreateLocalTracksOptions): Promise<LocalTrack[]> => {
+    createLocalTracks: vi.fn((opts?: CreateLocalTracksOptions): LocalTrack[] => {
       const tracks: MockTrack[] = [];
       if (opts?.audio) tracks.push({ kind: 'audio' });
       if (opts?.video) tracks.push({ kind: 'video' });
       return tracks as LocalTrack[];
     }),
     // For screenshare
-    createLocalScreenTracks: vi.fn(async (): Promise<LocalTrack[]> => [{ kind: 'video' }, { kind: 'audio' }] as LocalTrack[]),
+    createLocalScreenTracks: vi.fn((): LocalTrack[] => [{ kind: 'video' }, { kind: 'audio' }] as LocalTrack[]),
   };
 });
 
 // Mock joinLivekitRoom to return a minimal fake room
 vi.mock('../lib/livekit', () => {
   return {
-    joinLivekitRoom: vi.fn(async () => {
-      const handlers: Record<string, Function[]> = {};
+    joinLivekitRoom: vi.fn(() => {
+      type Handler = (...args: unknown[]) => unknown;
+      const handlers: Record<string, Handler[]> = {};
       const room: any = {
         localParticipant: {
           trackPublications: new Map<string, any>(),
-          publishTrack: vi.fn(async () => { /* noop */ }),
-          unpublishTrack: vi.fn(async (_t: any) => { /* noop */ }),
+          publishTrack: vi.fn(async () => {
+            /* noop */
+          }),
+          unpublishTrack: vi.fn(async (_t: any) => {
+            /* noop */
+          }),
         },
         remoteParticipants: new Map<string, any>(),
         disconnect: vi.fn(async () => {}),
-        on: (ev: string, cb: Function) => { (handlers[ev] ||= []).push(cb); },
-        off: (ev: string, cb: Function) => {
+        on: (ev: string, cb: Handler) => {
+          (handlers[ev] ||= []).push(cb);
+        },
+        off: (ev: string, cb: Handler) => {
           handlers[ev] = (handlers[ev] || []).filter((f) => f !== cb);
         },
-        __emit: (ev: string, ...args: any[]) => { (handlers[ev] || []).forEach((f) => f(...args)); },
+        __emit: (ev: string, ...args: any[]) => {
+          (handlers[ev] || []).forEach((f) => f(...args));
+        },
       };
       return room;
     }),
-  } as any;
+  };
 });
 
 function makeManager(): AVManager {
@@ -59,8 +68,12 @@ function makeFakeRoom() {
   const unpublished: any[] = [];
   const localParticipant = {
     trackPublications: new Map<string, any>(),
-    publishTrack: vi.fn(async (t: any) => { published.push(t); }),
-    unpublishTrack: vi.fn(async (t: any) => { unpublished.push(t); }),
+    publishTrack: vi.fn((t: any) => {
+      published.push(t);
+    }),
+    unpublishTrack: vi.fn((t: any) => {
+      unpublished.push(t);
+    }),
   };
   const remoteParticipants = new Map<string, any>();
   return { localParticipant, remoteParticipants, __published: published, __unpublished: unpublished } as any;
@@ -77,9 +90,7 @@ describe('AVManager', () => {
     const sid = 'P1';
     const setVolume = vi.fn();
     room.remoteParticipants.set(sid, {
-      trackPublications: new Map([
-        ['audio', { track: { setVolume } }],
-      ]),
+      trackPublications: new Map([['audio', { track: { setVolume } }]]),
     });
     mgr.current = room;
 
@@ -167,8 +178,16 @@ describe('AVManager', () => {
     mgr.current = room;
 
     // Markiere bereits aktive Screen-Share-Pubs
-    room.localParticipant.trackPublications.set('shareV', { track: { kind: 'video' }, source: 'screen_share', kind: 'video' });
-    room.localParticipant.trackPublications.set('shareA', { track: { kind: 'audio' }, source: 'screen_share_audio', kind: 'audio' });
+    room.localParticipant.trackPublications.set('shareV', {
+      track: { kind: 'video' },
+      source: 'screen_share',
+      kind: 'video',
+    });
+    room.localParticipant.trackPublications.set('shareA', {
+      track: { kind: 'audio' },
+      source: 'screen_share_audio',
+      kind: 'audio',
+    });
 
     await mgr.startScreenshare();
 
@@ -243,7 +262,13 @@ describe('AVManager', () => {
     const room = makeFakeRoom();
     mgr.current = room;
 
-    const cam: any = { kind: 'video', mediaStreamTrack: { enabled: true }, setEnabled: vi.fn((v: boolean) => { cam.mediaStreamTrack.enabled = v; }) };
+    const cam: any = {
+      kind: 'video',
+      mediaStreamTrack: { enabled: true },
+      setEnabled: vi.fn((v: boolean) => {
+        cam.mediaStreamTrack.enabled = v;
+      }),
+    };
     room.localParticipant.trackPublications.set('cam', { track: cam, source: 'camera', kind: 'video' });
 
     await mgr.setCameraEnabled(false);
@@ -268,7 +293,7 @@ describe('AVManager', () => {
     await p;
     // Pending-Activation läuft via setTimeout(250)
     vi.advanceTimersByTime(300);
-    const fakeRoom: any = (await (joinLivekitRoom as any).mock.results[0].value);
+    const fakeRoom: any = await (joinLivekitRoom as any).mock.results[0].value;
     expect(fakeRoom.localParticipant.publishTrack).toHaveBeenCalled();
     vi.useRealTimers();
   });
@@ -276,5 +301,3 @@ describe('AVManager', () => {
   // Note: Test for 'Audio-Unlock-Handler' removed after refactor
   // The audioUnlockHandlersAttached flag no longer exists - logic moved to ConnectionManager
 });
-
-

@@ -79,18 +79,13 @@ function renderRegisterFlow(args: AuthRenderArgs) {
 
   if (invite) {
     return (
-      <RegisterView
-        onSubmit={onRegister}
-        onLogin={() => switchView('login')}
-        initialInvite={invite}
-        error={error}
-      />
+      <RegisterView onSubmit={onRegister} onLogin={() => switchView('login')} initialInvite={invite} error={error} />
     );
   }
   if (regStep === 1) {
     return (
       <RegisterView
-        onSubmit={async (data) => {
+        onSubmit={(data) => {
           const nameParts = data.name.split(' ');
           setRegData((prev) => ({
             ...prev,
@@ -100,6 +95,7 @@ function renderRegisterFlow(args: AuthRenderArgs) {
             password: data.password,
           }));
           setRegStep(2);
+          return Promise.resolve();
         }}
         onLogin={() => switchView('login')}
         error={error}
@@ -180,13 +176,7 @@ function renderReset(args: AuthRenderArgs) {
 
 function renderGuest(args: AuthRenderArgs) {
   const { guestLoading, error, switchView } = args;
-  return (
-    <GuestView
-      loading={guestLoading}
-      error={error}
-      onBack={() => switchView('login')}
-    />
-  );
+  return <GuestView loading={guestLoading} error={error} onBack={() => switchView('login')} />;
 }
 
 export function renderAuthView(args: AuthRenderArgs) {

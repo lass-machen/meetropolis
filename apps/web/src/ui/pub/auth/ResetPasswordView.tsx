@@ -105,7 +105,9 @@ export function ResetPasswordView({
 
   return (
     <form
-      onSubmit={handleSubmit}
+      onSubmit={(e) => {
+        void handleSubmit(e);
+      }}
       autoComplete="on"
       style={{ display: 'flex', flexDirection: 'column', gap: 24 }}
     >
@@ -123,12 +125,7 @@ export function ResetPasswordView({
         onPasswordChange={setPassword}
       />
       {message && <AuthMessage message={message} messageType={messageType} />}
-      <PubButton
-        type="submit"
-        variant="primary"
-        disabled={loading}
-        style={{ width: '100%' }}
-      >
+      <PubButton type="submit" variant="primary" disabled={loading} style={{ width: '100%' }}>
         {t('auth.resetSubmit')}
       </PubButton>
       <AuthLink onClick={onBack} labelKey="auth.backToLogin" />

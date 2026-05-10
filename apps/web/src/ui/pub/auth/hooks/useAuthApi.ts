@@ -27,8 +27,7 @@ export function useAuthApi(baseUrl: string) {
 
       // Desktop-Clients (Tauri): x-tenant Header aus web_base extrahieren
       try {
-        const webBase =
-          (window as unknown as Record<string, string>).__MEETROPOLIS_WEB_BASE__ || '';
+        const webBase = (window as unknown as Record<string, string>).__MEETROPOLIS_WEB_BASE__ || '';
         if (webBase) {
           const hostname = new URL(webBase).hostname;
           const parts = hostname.split('.');
@@ -53,18 +52,11 @@ export function useAuthApi(baseUrl: string) {
             body: JSON.stringify(body),
           });
           if (!res.ok) {
-            throw new Error(
-              translateApiError((await res.json())?.error) || t('common.error'),
-            );
+            throw new Error(translateApiError((await res.json())?.error) || t('common.error'));
           }
           return await res.json().catch(() => ({}));
         } catch (e: unknown) {
-          logger.warn(
-            '[Auth] Fetch error:',
-            (e as Error)?.message || String(e),
-            'URL:',
-            url,
-          );
+          logger.warn('[Auth] Fetch error:', (e as Error)?.message || String(e), 'URL:', url);
           lastErr = e;
           // Netzwerk-/Verbindungsfehler: kurzer Retry mit Backoff
           if (i < attempts.length - 1) {
@@ -74,7 +66,7 @@ export function useAuthApi(baseUrl: string) {
           break;
         }
       }
-      throw lastErr || new Error(t('common.networkError'));
+      throw lastErr instanceof Error ? lastErr : new Error(t('common.networkError'));
     },
     [baseUrl, t],
   );

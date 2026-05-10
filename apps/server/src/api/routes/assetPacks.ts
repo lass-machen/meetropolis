@@ -16,27 +16,34 @@ const __dirname = path.dirname(__filename);
 
 // Zod Schemas according to ASSET_PACKS_SPEC.md
 const idStr = z.string().min(1).max(200);
-const relPath = z.string().min(1).regex(/^assets\/[A-Za-z0-9_\-\/.]+$/);
+const relPath = z
+  .string()
+  .min(1)
+  .regex(/^assets\/[A-Za-z0-9_\-\/.]+$/);
 
-const DirectionalImage = z.object({
-  rotation: z.union([z.literal(0), z.literal(90), z.literal(180), z.literal(270)]),
-  dataURL: relPath,
-}).strict();
+const DirectionalImage = z
+  .object({
+    rotation: z.union([z.literal(0), z.literal(90), z.literal(180), z.literal(270)]),
+    dataURL: relPath,
+  })
+  .strict();
 
-const BaseItem = z.object({
-  id: idStr,
-  key: z.string().min(1).max(200),
-  category: z.enum(['terrain', 'structure', 'objects']),
-  dataURL: relPath,
-  collide: z.boolean().default(false),
-  placement: z.enum(['any', 'floor', 'wall']).default('any'),
-  anchor: z.object({ x: z.number(), y: z.number() }).partial().optional(),
-  offset: z.object({ x: z.number(), y: z.number() }).partial().optional(),
-  zIndex: z.number().int().optional(),
-  rotationAllowed: z.boolean().optional(),
-  flipAllowed: z.boolean().optional(),
-  scaleFactor: z.number().positive().optional(),
-}).strict();
+const BaseItem = z
+  .object({
+    id: idStr,
+    key: z.string().min(1).max(200),
+    category: z.enum(['terrain', 'structure', 'objects']),
+    dataURL: relPath,
+    collide: z.boolean().default(false),
+    placement: z.enum(['any', 'floor', 'wall']).default('any'),
+    anchor: z.object({ x: z.number(), y: z.number() }).partial().optional(),
+    offset: z.object({ x: z.number(), y: z.number() }).partial().optional(),
+    zIndex: z.number().int().optional(),
+    rotationAllowed: z.boolean().optional(),
+    flipAllowed: z.boolean().optional(),
+    scaleFactor: z.number().positive().optional(),
+  })
+  .strict();
 
 const TerrainItem = BaseItem.extend({
   category: z.literal('terrain'),
@@ -53,37 +60,43 @@ const SpriteItem = BaseItem.extend({
   directionalImages: z.array(DirectionalImage).max(4).optional(),
 }).strict();
 
-const AutotileVariant = z.object({
-  col: z.number().int().nonnegative(),
-  row: z.number().int().nonnegative(),
-}).strict();
+const AutotileVariant = z
+  .object({
+    col: z.number().int().nonnegative(),
+    row: z.number().int().nonnegative(),
+  })
+  .strict();
 
-const AutotileItem = z.object({
-  id: idStr,
-  key: z.string().min(1).max(200),
-  category: z.literal('autotile'),
-  dataURL: relPath,
-  placement: z.enum(['any', 'floor', 'wall']).default('wall'),
-  collide: z.boolean().default(true),
-  tileWidth: z.number().int().positive(),
-  tileHeight: z.number().int().positive(),
-  gridHeight: z.number().int().positive().default(1),
-  autotileType: z.enum(['4bit', '8bit']).default('4bit'),
-  variants: z.record(z.string(), AutotileVariant),
-  scaleFactor: z.number().positive().optional(),
-}).strict();
+const AutotileItem = z
+  .object({
+    id: idStr,
+    key: z.string().min(1).max(200),
+    category: z.literal('autotile'),
+    dataURL: relPath,
+    placement: z.enum(['any', 'floor', 'wall']).default('wall'),
+    collide: z.boolean().default(true),
+    tileWidth: z.number().int().positive(),
+    tileHeight: z.number().int().positive(),
+    gridHeight: z.number().int().positive().default(1),
+    autotileType: z.enum(['4bit', '8bit']).default('4bit'),
+    variants: z.record(z.string(), AutotileVariant),
+    scaleFactor: z.number().positive().optional(),
+  })
+  .strict();
 
-const ConfigSchema = z.object({
-  uuid: z.string().uuid(),
-  name: z.string().min(1),
-  description: z.string().min(1),
-  author: z.string().min(1),
-  version: z.string().min(1),
-  terrain: z.array(TerrainItem).default([]),
-  structures: z.array(SpriteItem).default([]),
-  objects: z.array(SpriteItem).default([]),
-  autotiles: z.array(AutotileItem).default([]),
-}).strict();
+const ConfigSchema = z
+  .object({
+    uuid: z.string().uuid(),
+    name: z.string().min(1),
+    description: z.string().min(1),
+    author: z.string().min(1),
+    version: z.string().min(1),
+    terrain: z.array(TerrainItem).default([]),
+    structures: z.array(SpriteItem).default([]),
+    objects: z.array(SpriteItem).default([]),
+    autotiles: z.array(AutotileItem).default([]),
+  })
+  .strict();
 
 // Helper functions
 function normalizeZipPath(p: string): string {
@@ -123,36 +136,60 @@ function buildDimensionMaps(cfg: any) {
   return { terrainMap, structMap, objMap, autotileMap };
 }
 
-function dimensionsStable(oldCfg: any, newCfg: any): { ok: true } | { ok: false; reason: string; offendingId?: string } {
+function dimensionsStable(
+  oldCfg: any,
+  newCfg: any,
+): { ok: true } | { ok: false; reason: string; offendingId?: string } {
   const oldMaps = buildDimensionMaps(oldCfg);
   const newMaps = buildDimensionMaps(newCfg);
   const num = (v: any) => (v == null ? 0 : Number(v));
   for (const [id, oldT] of oldMaps.terrainMap) {
     const n = newMaps.terrainMap.get(id);
     if (!n) continue;
-    if (num(oldT.tileWidth) !== num(n.tileWidth) || num(oldT.tileHeight) !== num(n.tileHeight) || num(oldT.margin) !== num(n.margin) || num(oldT.spacing) !== num(n.spacing)) {
-      return { ok: false, reason: `terrain dimensions changed: was ${oldT.tileWidth}x${oldT.tileHeight}, now ${n.tileWidth}x${n.tileHeight}`, offendingId: id };
+    if (
+      num(oldT.tileWidth) !== num(n.tileWidth) ||
+      num(oldT.tileHeight) !== num(n.tileHeight) ||
+      num(oldT.margin) !== num(n.margin) ||
+      num(oldT.spacing) !== num(n.spacing)
+    ) {
+      return {
+        ok: false,
+        reason: `terrain dimensions changed: was ${oldT.tileWidth}x${oldT.tileHeight}, now ${n.tileWidth}x${n.tileHeight}`,
+        offendingId: id,
+      };
     }
   }
   for (const [id, oldS] of oldMaps.structMap) {
     const n = newMaps.structMap.get(id);
     if (!n) continue;
     if (num(oldS.width) !== num(n.width) || num(oldS.height) !== num(n.height)) {
-      return { ok: false, reason: `structure dimensions changed: was ${oldS.width}x${oldS.height}, now ${n.width}x${n.height}`, offendingId: id };
+      return {
+        ok: false,
+        reason: `structure dimensions changed: was ${oldS.width}x${oldS.height}, now ${n.width}x${n.height}`,
+        offendingId: id,
+      };
     }
   }
   for (const [id, oldO] of oldMaps.objMap) {
     const n = newMaps.objMap.get(id);
     if (!n) continue;
     if (num(oldO.width) !== num(n.width) || num(oldO.height) !== num(n.height)) {
-      return { ok: false, reason: `object dimensions changed: was ${oldO.width}x${oldO.height}, now ${n.width}x${n.height}`, offendingId: id };
+      return {
+        ok: false,
+        reason: `object dimensions changed: was ${oldO.width}x${oldO.height}, now ${n.width}x${n.height}`,
+        offendingId: id,
+      };
     }
   }
   for (const [id, oldA] of oldMaps.autotileMap) {
     const n = newMaps.autotileMap.get(id);
     if (!n) continue;
     if (num(oldA.tileWidth) !== num(n.tileWidth) || num(oldA.tileHeight) !== num(n.tileHeight)) {
-      return { ok: false, reason: `autotile dimensions changed: was ${oldA.tileWidth}x${oldA.tileHeight}, now ${n.tileWidth}x${n.tileHeight}`, offendingId: id };
+      return {
+        ok: false,
+        reason: `autotile dimensions changed: was ${oldA.tileWidth}x${oldA.tileHeight}, now ${n.tileWidth}x${n.tileHeight}`,
+        offendingId: id,
+      };
     }
   }
   return { ok: true };
@@ -171,9 +208,7 @@ async function authenticateAssetPackAdmin(
   return { ok: true };
 }
 
-type ZipScanResult =
-  | { ok: true; configEntry: any; assetEntries: any[] }
-  | { ok: false; status: number; error: string };
+type ZipScanResult = { ok: true; configEntry: any; assetEntries: any[] } | { ok: false; status: number; error: string };
 
 function scanZipEntries(files: any[]): ZipScanResult {
   const allowedRoot = new Set(['config.json']);
@@ -233,7 +268,8 @@ function validateConfigAssetReferences(cfg: any, assetSet: Set<string>): ItemVal
       if (Array.isArray(it.directionalImages)) {
         for (const di of it.directionalImages) {
           const dr = validateItemPath(di.dataURL);
-          if (!dr.ok) return { error: 'missing or invalid asset for directionalImage', itemId: it.id, dataURL: di.dataURL };
+          if (!dr.ok)
+            return { error: 'missing or invalid asset for directionalImage', itemId: it.id, dataURL: di.dataURL };
         }
       }
     }
@@ -273,7 +309,7 @@ function rewriteConfig(cfg: any, uuid: string, assetMap: Map<string, string>) {
     const original = normalizeZipPath(it.dataURL);
     const mapped = assetMap.get(original);
     if (!mapped) return it;
-    const out = { ...it } as any;
+    const out = { ...it };
     out.originalPath = it.dataURL;
     out.dataURL = `/packs/${uuid}/${mapped}`;
     if (Array.isArray(it.directionalImages)) {
@@ -296,7 +332,9 @@ function rewriteConfig(cfg: any, uuid: string, assetMap: Map<string, string>) {
 }
 
 async function moveTmpToFinal(tmpDir: string, finalDir: string): Promise<void> {
-  try { await fsp.rm(finalDir, { recursive: true, force: true }); } catch { }
+  try {
+    await fsp.rm(finalDir, { recursive: true, force: true });
+  } catch {}
   await fsp.mkdir(path.dirname(finalDir), { recursive: true });
   try {
     await fsp.rename(tmpDir, finalDir);
@@ -312,21 +350,23 @@ async function moveTmpToFinal(tmpDir: string, finalDir: string): Promise<void> {
       }
     };
     await copyRecursive(tmpDir, finalDir);
-    try { await fsp.rm(tmpDir, { recursive: true, force: true }); } catch { }
+    try {
+      await fsp.rm(tmpDir, { recursive: true, force: true });
+    } catch {}
   }
 }
 
-async function persistAssetPackRecord(prisma: PrismaClient, cfg: any, rewritten: any, existing: any) {
+function persistAssetPackRecord(prisma: PrismaClient, cfg: any, rewritten: any, existing: any) {
   const dataRecord = {
     uuid: cfg.uuid,
     name: cfg.name,
     description: cfg.description,
     author: cfg.author,
     version: cfg.version,
-    terrain: rewritten.terrain as any,
-    structures: rewritten.structures as any,
-    objects: rewritten.objects as any,
-    autotiles: rewritten.autotiles as any,
+    terrain: rewritten.terrain,
+    structures: rewritten.structures,
+    objects: rewritten.objects,
+    autotiles: rewritten.autotiles,
   } as const;
 
   if (existing) {
@@ -335,23 +375,30 @@ async function persistAssetPackRecord(prisma: PrismaClient, cfg: any, rewritten:
   return prisma.assetPack.create({ data: dataRecord as any });
 }
 
-function readUploadedZipBuffer(req: express.Request): { ok: true; buf: Buffer } | { ok: false; status: number; error: string } {
-  const file = (req as any).file as any as { buffer?: Buffer; size?: number } | undefined;
+function readUploadedZipBuffer(
+  req: express.Request,
+): { ok: true; buf: Buffer } | { ok: false; status: number; error: string } {
+  const file = (req as any).file as { buffer?: Buffer; size?: number } | undefined;
   if (!file || !file.buffer || !file.size || file.size <= 0) {
     return { ok: false, status: 400, error: 'file required' };
   }
-  const buf = file.buffer as Buffer;
+  const buf = file.buffer;
   if (!(buf[0] === 0x50 && buf[1] === 0x4b)) {
     return { ok: false, status: 400, error: 'invalid zip' };
   }
   return { ok: true, buf };
 }
 
-async function parseUploadedConfig(configEntry: any): Promise<{ ok: true; cfg: any } | { ok: false; status: number; error: string; details?: any }> {
+async function parseUploadedConfig(
+  configEntry: any,
+): Promise<{ ok: true; cfg: any } | { ok: false; status: number; error: string; details?: any }> {
   const configRaw = await configEntry.buffer();
   let configJson: any;
-  try { configJson = JSON.parse(configRaw.toString('utf8')); }
-  catch { return { ok: false, status: 400, error: 'invalid config.json' }; }
+  try {
+    configJson = JSON.parse(configRaw.toString('utf8'));
+  } catch {
+    return { ok: false, status: 400, error: 'invalid config.json' };
+  }
 
   const parsed = ConfigSchema.safeParse(configJson);
   if (!parsed.success) {
@@ -368,15 +415,26 @@ async function checkExistingPackDimensions(
 ): Promise<{ ok: true; existing: any } | { ok: false; status: number; error: string; reason?: any; itemId?: any }> {
   const existing = await prisma.assetPack.findUnique({ where: { uuid } as any });
   if (existing && existing.version !== cfg.version) {
-    const check = dimensionsStable({
-      terrain: (existing.terrain as any) || [],
-      structures: (existing.structures as any) || [],
-      objects: (existing.objects as any) || [],
-      autotiles: (existing.autotiles as any) || [],
-    }, cfg);
+    const check = dimensionsStable(
+      {
+        terrain: (existing.terrain as any) || [],
+        structures: (existing.structures as any) || [],
+        objects: (existing.objects as any) || [],
+        autotiles: (existing.autotiles as any) || [],
+      },
+      cfg,
+    );
     if (!check.ok) {
-      try { await fsp.rm(tmpDir, { recursive: true, force: true }); } catch { }
-      return { ok: false, status: 409, error: 'dimension mismatch', reason: (check as any).reason, itemId: (check as any).offendingId };
+      try {
+        await fsp.rm(tmpDir, { recursive: true, force: true });
+      } catch {}
+      return {
+        ok: false,
+        status: 409,
+        error: 'dimension mismatch',
+        reason: (check as any).reason,
+        itemId: (check as any).offendingId,
+      };
     }
   }
   return { ok: true, existing };
@@ -389,31 +447,58 @@ async function handleAssetPackUpload(
   res: express.Response,
 ): Promise<void> {
   const auth = await authenticateAssetPackAdmin(prisma, req);
-  if (!auth.ok) { res.status(auth.status!).json({ error: auth.error! }); return; }
+  if (!auth.ok) {
+    res.status(auth.status!).json({ error: auth.error! });
+    return;
+  }
   try {
-    try { logger.info('[AssetPacks] upload request received'); } catch { }
+    try {
+      logger.info('[AssetPacks] upload request received');
+    } catch {}
 
     const zipResult = readUploadedZipBuffer(req);
-    if (!zipResult.ok) { res.status(zipResult.status).json({ error: zipResult.error }); return; }
+    if (!zipResult.ok) {
+      res.status(zipResult.status).json({ error: zipResult.error });
+      return;
+    }
 
     const zip = await unzipper.Open.buffer(zipResult.buf);
-    if (!zip || !Array.isArray((zip as any).files)) {
+    if (!zip || !Array.isArray(zip.files)) {
       res.status(400).json({ error: 'invalid zip structure' });
       return;
     }
 
-    const scan = scanZipEntries((zip as any).files as any[]);
-    if (!scan.ok) { res.status(scan.status).json({ error: scan.error }); return; }
+    const scan = scanZipEntries(zip.files as any[]);
+    if (!scan.ok) {
+      res.status(scan.status).json({ error: scan.error });
+      return;
+    }
     const { configEntry, assetEntries } = scan;
 
     const cfgResult = await parseUploadedConfig(configEntry);
-    if (!cfgResult.ok) { res.status(cfgResult.status).json({ error: cfgResult.error, details: cfgResult.details }); return; }
+    if (!cfgResult.ok) {
+      res.status(cfgResult.status).json({ error: cfgResult.error, details: cfgResult.details });
+      return;
+    }
     const cfg = cfgResult.cfg;
-    try { logger.info('[AssetPacks] parsed config.json', { uuid: cfg?.uuid, name: cfg?.name, v: cfg?.version, nTerrain: (cfg?.terrain || []).length, nStruct: (cfg?.structures || []).length, nObjects: (cfg?.objects || []).length, nAutotiles: (cfg?.autotiles || []).length }); } catch { }
+    try {
+      logger.info('[AssetPacks] parsed config.json', {
+        uuid: cfg?.uuid,
+        name: cfg?.name,
+        v: cfg?.version,
+        nTerrain: (cfg?.terrain || []).length,
+        nStruct: (cfg?.structures || []).length,
+        nObjects: (cfg?.objects || []).length,
+        nAutotiles: (cfg?.autotiles || []).length,
+      });
+    } catch {}
 
     const assetSet = buildAssetSet(assetEntries);
     const validationError = validateConfigAssetReferences(cfg, assetSet);
-    if (validationError) { res.status(400).json(validationError); return; }
+    if (validationError) {
+      res.status(400).json(validationError);
+      return;
+    }
 
     const uuid = cfg.uuid as string;
     const tmpDir = path.resolve(packsDir, `.tmp-${uuid}-${Date.now()}`);
@@ -429,7 +514,9 @@ async function handleAssetPackUpload(
 
     const existCheck = await checkExistingPackDimensions(prisma, uuid, cfg, tmpDir);
     if (!existCheck.ok) {
-      res.status(existCheck.status).json({ error: existCheck.error, reason: existCheck.reason, itemId: existCheck.itemId });
+      res
+        .status(existCheck.status)
+        .json({ error: existCheck.error, reason: existCheck.reason, itemId: existCheck.itemId });
       return;
     }
 
@@ -437,7 +524,9 @@ async function handleAssetPackUpload(
     await moveTmpToFinal(tmpDir, finalDir);
 
     const rec = await persistAssetPackRecord(prisma, cfg, rewritten, existCheck.existing);
-    try { logger.info('[AssetPacks] upload success', { id: rec.id, uuid: rec.uuid, version: rec.version }); } catch { }
+    try {
+      logger.info('[AssetPacks] upload success', { id: rec.id, uuid: rec.uuid, version: rec.version });
+    } catch {}
 
     res.json({ ok: true, id: rec.id, uuid: rec.uuid, version: rec.version });
   } catch (e: unknown) {
@@ -453,9 +542,15 @@ async function handleListAssetPacks(prisma: PrismaClient, _req: express.Request,
 
 async function handleGetAssetPack(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
   const id = Number(req.params.id);
-  if (!Number.isFinite(id)) { res.status(400).json({ error: 'invalid id' }); return; }
+  if (!Number.isFinite(id)) {
+    res.status(400).json({ error: 'invalid id' });
+    return;
+  }
   const pack = await prisma.assetPack.findUnique({ where: { id } });
-  if (!pack) { res.status(404).json({ error: 'not found' }); return; }
+  if (!pack) {
+    res.status(404).json({ error: 'not found' });
+    return;
+  }
   res.json(pack);
 }
 
@@ -467,15 +562,24 @@ async function handleDeleteAssetPack(
   res: express.Response,
 ): Promise<void> {
   const auth = await authenticateAssetPackAdmin(prisma, req);
-  if (!auth.ok) { res.status(auth.status!).json({ error: auth.error! }); return; }
+  if (!auth.ok) {
+    res.status(auth.status!).json({ error: auth.error! });
+    return;
+  }
   const id = Number(req.params.id);
-  if (!Number.isFinite(id)) { res.status(400).json({ error: 'invalid id' }); return; }
+  if (!Number.isFinite(id)) {
+    res.status(400).json({ error: 'invalid id' });
+    return;
+  }
   const pack = await prisma.assetPack.findUnique({ where: { id } });
-  if (!pack) { res.status(404).json({ error: 'not found' }); return; }
+  if (!pack) {
+    res.status(404).json({ error: 'not found' });
+    return;
+  }
   try {
     const dir = path.resolve(packsDir, pack.uuid);
     await fsp.rm(dir, { recursive: true, force: true });
-  } catch { }
+  } catch {}
   await prisma.assetPack.delete({ where: { id } });
   res.json({ ok: true, fallback: fallbackUrl });
 }
@@ -484,7 +588,7 @@ export function registerAssetPackRoutes(app: express.Application, prisma: Prisma
   const packsDir = process.env.ASSET_PACKS_DIR || path.resolve(__dirname, '../../../../../public/packs');
   try {
     fs.mkdirSync(packsDir, { recursive: true });
-  } catch { }
+  } catch {}
   const FALLBACK_ASSET_URL = process.env.FALLBACK_ASSET_URL || '/packs/__fallback__/missing.png';
 
   const upload = multer({
@@ -492,7 +596,9 @@ export function registerAssetPackRoutes(app: express.Application, prisma: Prisma
     limits: { fileSize: 50 * 1024 * 1024 },
   });
 
-  app.post('/asset-packs/upload', upload.single('file'), (req, res) => handleAssetPackUpload(prisma, packsDir, req, res));
+  app.post('/asset-packs/upload', upload.single('file'), (req, res) =>
+    handleAssetPackUpload(prisma, packsDir, req, res),
+  );
   app.get('/asset-packs', (req, res) => handleListAssetPacks(prisma, req, res));
   app.get('/asset-packs/:id', (req, res) => handleGetAssetPack(prisma, req, res));
   app.delete('/asset-packs/:id', (req, res) => handleDeleteAssetPack(prisma, packsDir, FALLBACK_ASSET_URL, req, res));

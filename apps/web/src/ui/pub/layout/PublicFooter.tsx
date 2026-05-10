@@ -83,22 +83,48 @@ function FooterLogo({ tagline, brandName }: { tagline: string; brandName: string
     <div style={{ maxWidth: 320, flex: '1 1 280px' }}>
       <a
         href="#/"
-        onClick={(e) => { e.preventDefault(); window.location.hash = '#/'; }}
-        style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, textDecoration: 'none', color: 'inherit' }}
+        onClick={(e) => {
+          e.preventDefault();
+          window.location.hash = '#/';
+        }}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          marginBottom: 16,
+          textDecoration: 'none',
+          color: 'inherit',
+        }}
       >
-        <div style={{
-          width: 36, height: 36, borderRadius: 'var(--pub-radius-logo)', background: 'var(--pub-gradient-purple)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          color: '#FFFFFF', fontFamily: 'var(--pub-font-display)', fontWeight: 800, fontSize: 18,
-        }}>
+        <div
+          style={{
+            width: 36,
+            height: 36,
+            borderRadius: 'var(--pub-radius-logo)',
+            background: 'var(--pub-gradient-purple)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#FFFFFF',
+            fontFamily: 'var(--pub-font-display)',
+            fontWeight: 800,
+            fontSize: 18,
+          }}
+        >
           {brandInitial}
         </div>
         <span style={{ fontFamily: 'var(--pub-font-display)', fontWeight: 700, fontSize: 18 }}>{brandName}</span>
       </a>
-      <p style={{
-        fontFamily: 'var(--pub-font-body)', fontSize: 14, lineHeight: 1.7,
-        color: 'var(--pub-text-on-dark-secondary)', margin: 0, whiteSpace: 'pre-line',
-      }}>
+      <p
+        style={{
+          fontFamily: 'var(--pub-font-body)',
+          fontSize: 14,
+          lineHeight: 1.7,
+          color: 'var(--pub-text-on-dark-secondary)',
+          margin: 0,
+          whiteSpace: 'pre-line',
+        }}
+      >
         {tagline}
       </p>
     </div>
@@ -111,7 +137,15 @@ function actionToHref(action: FooterLinkAction): string {
   return '#';
 }
 
-function FooterLinkItem({ link, t, onClick }: { link: FooterLink; t: (k: string) => string; onClick: (e: React.MouseEvent<HTMLAnchorElement>, action: FooterLinkAction) => void }) {
+function FooterLinkItem({
+  link,
+  t,
+  onClick,
+}: {
+  link: FooterLink;
+  t: (k: string) => string;
+  onClick: (e: React.MouseEvent<HTMLAnchorElement>, action: FooterLinkAction) => void;
+}) {
   const isDisabled = link.action.type === 'disabled';
   return (
     <li>
@@ -119,13 +153,21 @@ function FooterLinkItem({ link, t, onClick }: { link: FooterLink; t: (k: string)
         href={actionToHref(link.action)}
         onClick={(e) => onClick(e, link.action)}
         style={{
-          fontFamily: 'var(--pub-font-body)', fontSize: 14,
-          color: 'var(--pub-text-on-dark-secondary)', textDecoration: 'none', transition: 'color 0.15s ease',
-          opacity: isDisabled ? 0.5 : 1, cursor: isDisabled ? 'default' : 'pointer',
+          fontFamily: 'var(--pub-font-body)',
+          fontSize: 14,
+          color: 'var(--pub-text-on-dark-secondary)',
+          textDecoration: 'none',
+          transition: 'color 0.15s ease',
+          opacity: isDisabled ? 0.5 : 1,
+          cursor: isDisabled ? 'default' : 'pointer',
           pointerEvents: isDisabled ? 'none' : 'auto',
         }}
-        onMouseEnter={(e) => { if (!isDisabled) e.currentTarget.style.color = 'var(--pub-text-on-dark)'; }}
-        onMouseLeave={(e) => { if (!isDisabled) e.currentTarget.style.color = 'var(--pub-text-on-dark-secondary)'; }}
+        onMouseEnter={(e) => {
+          if (!isDisabled) e.currentTarget.style.color = 'var(--pub-text-on-dark)';
+        }}
+        onMouseLeave={(e) => {
+          if (!isDisabled) e.currentTarget.style.color = 'var(--pub-text-on-dark-secondary)';
+        }}
       >
         {t(link.i18nKey)}
       </a>
@@ -133,16 +175,32 @@ function FooterLinkItem({ link, t, onClick }: { link: FooterLink; t: (k: string)
   );
 }
 
-function FooterColumns({ t, onLinkClick }: { t: (k: string) => string; onLinkClick: (e: React.MouseEvent<HTMLAnchorElement>, action: FooterLinkAction) => void }) {
+function FooterColumns({
+  t,
+  onLinkClick,
+}: {
+  t: (k: string) => string;
+  onLinkClick: (e: React.MouseEvent<HTMLAnchorElement>, action: FooterLinkAction) => void;
+}) {
   return (
-    <div className="pub-footer__columns" style={{ display: 'flex', gap: 64, flexWrap: 'wrap', flex: '1 1 auto', justifyContent: 'flex-end' }}>
+    <div
+      className="pub-footer__columns"
+      style={{ display: 'flex', gap: 64, flexWrap: 'wrap', flex: '1 1 auto', justifyContent: 'flex-end' }}
+    >
       {FOOTER_COLUMNS.map((col) => (
         <div key={col.titleKey} style={{ minWidth: 140 }}>
-          <h4 style={{
-            fontFamily: 'var(--pub-font-body)', fontSize: 13, fontWeight: 600,
-            textTransform: 'uppercase', letterSpacing: '0.06em',
-            color: 'var(--pub-text-on-dark-secondary)', marginBottom: 16, marginTop: 0,
-          }}>
+          <h4
+            style={{
+              fontFamily: 'var(--pub-font-body)',
+              fontSize: 13,
+              fontWeight: 600,
+              textTransform: 'uppercase',
+              letterSpacing: '0.06em',
+              color: 'var(--pub-text-on-dark-secondary)',
+              marginBottom: 16,
+              marginTop: 0,
+            }}
+          >
             {t(col.titleKey)}
           </h4>
           <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -156,23 +214,43 @@ function FooterColumns({ t, onLinkClick }: { t: (k: string) => string; onLinkCli
   );
 }
 
-function LangToggle({ t, currentLang, onChange }: { t: (k: string) => string; currentLang: 'de' | 'en'; onChange: (lang: string) => void }) {
+function LangToggle({
+  t,
+  currentLang,
+  onChange,
+}: {
+  t: (k: string) => string;
+  currentLang: 'de' | 'en';
+  onChange: (lang: string) => void;
+}) {
   const baseStyle: React.CSSProperties = {
-    background: 'none', border: 'none', cursor: 'pointer', padding: '4px 8px',
-    fontFamily: 'var(--pub-font-body)', fontSize: 13,
+    background: 'none',
+    border: 'none',
+    cursor: 'pointer',
+    padding: '4px 8px',
+    fontFamily: 'var(--pub-font-body)',
+    fontSize: 13,
   };
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'var(--pub-font-body)', fontSize: 13 }}>
       <button
         onClick={() => onChange('de')}
-        style={{ ...baseStyle, fontWeight: currentLang === 'de' ? 600 : 400, color: currentLang === 'de' ? 'var(--pub-text-on-dark)' : 'var(--pub-text-on-dark-secondary)' }}
+        style={{
+          ...baseStyle,
+          fontWeight: currentLang === 'de' ? 600 : 400,
+          color: currentLang === 'de' ? 'var(--pub-text-on-dark)' : 'var(--pub-text-on-dark-secondary)',
+        }}
       >
         {t('footer.langDe')}
       </button>
       <span style={{ color: 'var(--pub-border-dark)' }}>|</span>
       <button
         onClick={() => onChange('en')}
-        style={{ ...baseStyle, fontWeight: currentLang === 'en' ? 600 : 400, color: currentLang === 'en' ? 'var(--pub-text-on-dark)' : 'var(--pub-text-on-dark-secondary)' }}
+        style={{
+          ...baseStyle,
+          fontWeight: currentLang === 'en' ? 600 : 400,
+          color: currentLang === 'en' ? 'var(--pub-text-on-dark)' : 'var(--pub-text-on-dark-secondary)',
+        }}
       >
         {t('footer.langEn')}
       </button>
@@ -188,24 +266,46 @@ export function PublicFooter({ navigate }: PublicFooterProps) {
   const handleLinkClick = (e: React.MouseEvent<HTMLAnchorElement>, action: FooterLinkAction) => {
     e.preventDefault();
     switch (action.type) {
-      case 'scroll': scrollToSectionFromFooter(action.anchorId); break;
-      case 'navigate': navigate(action.route); break;
-      case 'cookie-settings': clearMarketingConsent(); break;
-      case 'disabled': break;
+      case 'scroll':
+        scrollToSectionFromFooter(action.anchorId);
+        break;
+      case 'navigate':
+        navigate(action.route);
+        break;
+      case 'cookie-settings':
+        void clearMarketingConsent();
+        break;
+      case 'disabled':
+        break;
     }
   };
-  const handleLanguageChange = (lang: string) => { void i18n.changeLanguage(lang); };
+  const handleLanguageChange = (lang: string) => {
+    void i18n.changeLanguage(lang);
+  };
 
   return (
     <footer style={{ background: 'var(--pub-bg-dark)', color: 'var(--pub-text-on-dark)' }}>
       <div style={{ padding: 'var(--pub-footer-padding)', maxWidth: 'var(--pub-max-width)', margin: '0 auto' }}>
-        <div className="pub-footer__upper" style={{ display: 'flex', justifyContent: 'space-between', gap: 64, flexWrap: 'wrap' }}>
-          <FooterLogo tagline={t('footer.tagline')} brandName={(() => { const r = t('header.brandName'); return r && r !== 'header.brandName' ? r : 'Workspace'; })()} />
+        <div
+          className="pub-footer__upper"
+          style={{ display: 'flex', justifyContent: 'space-between', gap: 64, flexWrap: 'wrap' }}
+        >
+          <FooterLogo
+            tagline={t('footer.tagline')}
+            brandName={(() => {
+              const r = t('header.brandName');
+              return r && r !== 'header.brandName' ? r : 'Workspace';
+            })()}
+          />
           <FooterColumns t={t} onLinkClick={handleLinkClick} />
         </div>
         <div style={{ height: 1, background: 'var(--pub-border-dark)', margin: '40px 0 24px 0' }} />
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
-          <span style={{ fontFamily: 'var(--pub-font-body)', fontSize: 13, color: 'var(--pub-text-on-dark-secondary)' }}>
+        <div
+          style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}
+        >
+          <span
+            style={{ fontFamily: 'var(--pub-font-body)', fontSize: 13, color: 'var(--pub-text-on-dark-secondary)' }}
+          >
             {t('footer.copyright', { year: currentYear })}
           </span>
           <LangToggle t={t} currentLang={currentLang} onChange={handleLanguageChange} />

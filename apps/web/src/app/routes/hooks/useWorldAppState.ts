@@ -43,19 +43,41 @@ export interface WorldAppState {
   setHud: React.Dispatch<React.SetStateAction<{ zone?: string; follow?: string | null; avRoom?: string | null }>>;
 
   devices: { mics: { id: string; label: string }[]; cams: { id: string; label: string }[] };
-  setDevices: React.Dispatch<React.SetStateAction<{ mics: { id: string; label: string }[]; cams: { id: string; label: string }[] }>>;
+  setDevices: React.Dispatch<
+    React.SetStateAction<{ mics: { id: string; label: string }[]; cams: { id: string; label: string }[] }>
+  >;
 
   avState: { mic: boolean; cam: boolean; share: boolean; dnd: boolean };
   setAvState: React.Dispatch<React.SetStateAction<{ mic: boolean; cam: boolean; share: boolean; dnd: boolean }>>;
 
-  selectedMicId: string | '';
-  setSelectedMicId: React.Dispatch<React.SetStateAction<string | ''>>;
+  selectedMicId: string;
+  setSelectedMicId: React.Dispatch<React.SetStateAction<string>>;
 
-  selectedCamId: string | '';
-  setSelectedCamId: React.Dispatch<React.SetStateAction<string | ''>>;
+  selectedCamId: string;
+  setSelectedCamId: React.Dispatch<React.SetStateAction<string>>;
 
-  uiParticipants: { sid: string; identity: string; hasVideo: boolean; hasMic: boolean; isSpeaking: boolean; media: 'camera' | 'screen'; volume?: number }[];
-  setUiParticipants: React.Dispatch<React.SetStateAction<{ sid: string; identity: string; hasVideo: boolean; hasMic: boolean; isSpeaking: boolean; media: 'camera' | 'screen'; volume?: number }[]>>;
+  uiParticipants: {
+    sid: string;
+    identity: string;
+    hasVideo: boolean;
+    hasMic: boolean;
+    isSpeaking: boolean;
+    media: 'camera' | 'screen';
+    volume?: number;
+  }[];
+  setUiParticipants: React.Dispatch<
+    React.SetStateAction<
+      {
+        sid: string;
+        identity: string;
+        hasVideo: boolean;
+        hasMic: boolean;
+        isSpeaking: boolean;
+        media: 'camera' | 'screen';
+        volume?: number;
+      }[]
+    >
+  >;
 
   cameraManual: boolean;
   setCameraManual: React.Dispatch<React.SetStateAction<boolean>>;
@@ -67,7 +89,11 @@ export interface WorldAppState {
   setInvitesModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
 
   roster: Array<{ identity: string; name: string; online: boolean; x?: number; y?: number; lastSeen?: string }>;
-  setRoster: React.Dispatch<React.SetStateAction<Array<{ identity: string; name: string; online: boolean; x?: number; y?: number; lastSeen?: string }>>>;
+  setRoster: React.Dispatch<
+    React.SetStateAction<
+      Array<{ identity: string; name: string; online: boolean; x?: number; y?: number; lastSeen?: string }>
+    >
+  >;
 
   positionReady: boolean;
   setPositionReady: React.Dispatch<React.SetStateAction<boolean>>;
@@ -76,7 +102,9 @@ export interface WorldAppState {
   setApiModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
 
   apiTokens: { id: string; name?: string | null; createdAt: string; lastUsedAt?: string | null }[];
-  setApiTokens: React.Dispatch<React.SetStateAction<{ id: string; name?: string | null; createdAt: string; lastUsedAt?: string | null }[]>>;
+  setApiTokens: React.Dispatch<
+    React.SetStateAction<{ id: string; name?: string | null; createdAt: string; lastUsedAt?: string | null }[]>
+  >;
 
   newTokenName: string;
   setNewTokenName: React.Dispatch<React.SetStateAction<string>>;
@@ -112,7 +140,9 @@ export interface WorldAppState {
   setOverlayZoom: React.Dispatch<React.SetStateAction<number>>;
 
   connStatus: { reconnecting: boolean; lastCode?: number; lastReason?: string };
-  setConnStatus: React.Dispatch<React.SetStateAction<{ reconnecting: boolean; lastCode?: number; lastReason?: string }>>;
+  setConnStatus: React.Dispatch<
+    React.SetStateAction<{ reconnecting: boolean; lastCode?: number; lastReason?: string }>
+  >;
 
   rosterCollapsed: boolean;
   setRosterCollapsed: React.Dispatch<React.SetStateAction<boolean>>;
@@ -121,10 +151,12 @@ export interface WorldAppState {
   setBubbleUi: React.Dispatch<React.SetStateAction<{ active: boolean; members: string[] }>>;
 
   contextMenu: { open: boolean; x: number; y: number; playerId: string | null };
-  setContextMenu: React.Dispatch<React.SetStateAction<{ open: boolean; x: number; y: number; playerId: string | null }>>;
+  setContextMenu: React.Dispatch<
+    React.SetStateAction<{ open: boolean; x: number; y: number; playerId: string | null }>
+  >;
 
-  page: 'world' | 'admin' | string;
-  setPage: React.Dispatch<React.SetStateAction<'world' | 'admin' | string>>;
+  page: string;
+  setPage: React.Dispatch<React.SetStateAction<string>>;
 
   menuOpen: boolean;
   setMenuOpen: React.Dispatch<React.SetStateAction<boolean>>;
@@ -169,7 +201,7 @@ function useWorldRefs() {
     buildListRafRef: useRef<number | null>(null),
     lastAutoFullscreenRef: useRef<number>(0),
     editorActiveRef: useRef(false),
-    activateBubbleNowRef: useRef<(id: string) => void>(() => { }),
+    activateBubbleNowRef: useRef<(id: string) => void>(() => {}),
   };
 }
 
@@ -178,25 +210,69 @@ function useWorldUserState() {
   const [me, setMe] = React.useState<{ id: string; email: string; name?: string } | null>(null);
   const [isInternalOwner, setIsInternalOwner] = React.useState(false);
   const [positionReady, setPositionReady] = React.useState(false);
-  return { authChecked, setAuthChecked, me, setMe, isInternalOwner, setIsInternalOwner, positionReady, setPositionReady };
+  return {
+    authChecked,
+    setAuthChecked,
+    me,
+    setMe,
+    isInternalOwner,
+    setIsInternalOwner,
+    positionReady,
+    setPositionReady,
+  };
 }
 
 function useWorldAvState() {
   const [hud, setHud] = React.useState<{ zone?: string; follow?: string | null; avRoom?: string | null }>({});
-  const [devices, setDevices] = React.useState<{ mics: { id: string; label: string }[]; cams: { id: string; label: string }[] }>({ mics: [], cams: [] });
-  const [avState, setAvState] = React.useState<{ mic: boolean; cam: boolean; share: boolean; dnd: boolean }>({ mic: false, cam: false, share: false, dnd: false });
-  const [selectedMicId, setSelectedMicId] = React.useState<string | ''>('');
-  const [selectedCamId, setSelectedCamId] = React.useState<string | ''>('');
-  const [uiParticipants, setUiParticipants] = React.useState<{ sid: string; identity: string; hasVideo: boolean; hasMic: boolean; isSpeaking: boolean; media: 'camera' | 'screen'; volume?: number }[]>([]);
+  const [devices, setDevices] = React.useState<{
+    mics: { id: string; label: string }[];
+    cams: { id: string; label: string }[];
+  }>({ mics: [], cams: [] });
+  const [avState, setAvState] = React.useState<{ mic: boolean; cam: boolean; share: boolean; dnd: boolean }>({
+    mic: false,
+    cam: false,
+    share: false,
+    dnd: false,
+  });
+  const [selectedMicId, setSelectedMicId] = React.useState<string>('');
+  const [selectedCamId, setSelectedCamId] = React.useState<string>('');
+  const [uiParticipants, setUiParticipants] = React.useState<
+    {
+      sid: string;
+      identity: string;
+      hasVideo: boolean;
+      hasMic: boolean;
+      isSpeaking: boolean;
+      media: 'camera' | 'screen';
+      volume?: number;
+    }[]
+  >([]);
   const [cameraManual, setCameraManual] = React.useState(false);
-  return { hud, setHud, devices, setDevices, avState, setAvState, selectedMicId, setSelectedMicId, selectedCamId, setSelectedCamId, uiParticipants, setUiParticipants, cameraManual, setCameraManual };
+  return {
+    hud,
+    setHud,
+    devices,
+    setDevices,
+    avState,
+    setAvState,
+    selectedMicId,
+    setSelectedMicId,
+    selectedCamId,
+    setSelectedCamId,
+    uiParticipants,
+    setUiParticipants,
+    cameraManual,
+    setCameraManual,
+  };
 }
 
 function useWorldModalState() {
   const [userModalOpen, setUserModalOpen] = React.useState(false);
   const [invitesModalOpen, setInvitesModalOpen] = React.useState(false);
   const [apiModalOpen, setApiModalOpen] = React.useState(false);
-  const [apiTokens, setApiTokens] = React.useState<{ id: string; name?: string | null; createdAt: string; lastUsedAt?: string | null }[]>([]);
+  const [apiTokens, setApiTokens] = React.useState<
+    { id: string; name?: string | null; createdAt: string; lastUsedAt?: string | null }[]
+  >([]);
   const [newTokenName, setNewTokenName] = React.useState('');
   const [freshToken, setFreshToken] = React.useState<string | null>(null);
   const [adminOpen, setAdminOpen] = React.useState(false);
@@ -204,24 +280,80 @@ function useWorldModalState() {
   const [profileOpen, setProfileOpen] = React.useState(false);
   const [tenantSettingsOpen, setTenantSettingsOpen] = React.useState(false);
   const [sessionsOpen, setSessionsOpen] = React.useState(false);
-  return { userModalOpen, setUserModalOpen, invitesModalOpen, setInvitesModalOpen, apiModalOpen, setApiModalOpen, apiTokens, setApiTokens, newTokenName, setNewTokenName, freshToken, setFreshToken, adminOpen, setAdminOpen, billingOpen, setBillingOpen, profileOpen, setProfileOpen, tenantSettingsOpen, setTenantSettingsOpen, sessionsOpen, setSessionsOpen };
+  return {
+    userModalOpen,
+    setUserModalOpen,
+    invitesModalOpen,
+    setInvitesModalOpen,
+    apiModalOpen,
+    setApiModalOpen,
+    apiTokens,
+    setApiTokens,
+    newTokenName,
+    setNewTokenName,
+    freshToken,
+    setFreshToken,
+    adminOpen,
+    setAdminOpen,
+    billingOpen,
+    setBillingOpen,
+    profileOpen,
+    setProfileOpen,
+    tenantSettingsOpen,
+    setTenantSettingsOpen,
+    sessionsOpen,
+    setSessionsOpen,
+  };
 }
 
 function useWorldUiState() {
-  const [roster, setRoster] = React.useState<Array<{ identity: string; name: string; online: boolean; x?: number; y?: number; lastSeen?: string }>>([]);
+  const [roster, setRoster] = React.useState<
+    Array<{ identity: string; name: string; online: boolean; x?: number; y?: number; lastSeen?: string }>
+  >([]);
   const [gridExpanded, setGridExpanded] = React.useState(() => {
     const stored = localStorage.getItem('uc-container-expanded');
     return stored !== null ? stored === 'true' : true;
   });
   const [selectedSid, setSelectedSid] = React.useState<string | null>(null);
   const [overlayZoom, setOverlayZoom] = React.useState(1);
-  const [connStatus, setConnStatus] = React.useState<{ reconnecting: boolean; lastCode?: number; lastReason?: string }>({ reconnecting: false });
+  const [connStatus, setConnStatus] = React.useState<{ reconnecting: boolean; lastCode?: number; lastReason?: string }>(
+    { reconnecting: false },
+  );
   const [rosterCollapsed, setRosterCollapsed] = React.useState(false);
-  const [bubbleUi, setBubbleUi] = React.useState<{ active: boolean; members: string[] }>({ active: false, members: [] });
-  const [contextMenu, setContextMenu] = React.useState<{ open: boolean; x: number; y: number; playerId: string | null }>({ open: false, x: 0, y: 0, playerId: null });
-  const [page, setPage] = React.useState<'world' | 'admin' | string>('world');
+  const [bubbleUi, setBubbleUi] = React.useState<{ active: boolean; members: string[] }>({
+    active: false,
+    members: [],
+  });
+  const [contextMenu, setContextMenu] = React.useState<{
+    open: boolean;
+    x: number;
+    y: number;
+    playerId: string | null;
+  }>({ open: false, x: 0, y: 0, playerId: null });
+  const [page, setPage] = React.useState<string>('world');
   const [menuOpen, setMenuOpen] = React.useState(false);
-  return { roster, setRoster, gridExpanded, setGridExpanded, selectedSid, setSelectedSid, overlayZoom, setOverlayZoom, connStatus, setConnStatus, rosterCollapsed, setRosterCollapsed, bubbleUi, setBubbleUi, contextMenu, setContextMenu, page, setPage, menuOpen, setMenuOpen };
+  return {
+    roster,
+    setRoster,
+    gridExpanded,
+    setGridExpanded,
+    selectedSid,
+    setSelectedSid,
+    overlayZoom,
+    setOverlayZoom,
+    connStatus,
+    setConnStatus,
+    rosterCollapsed,
+    setRosterCollapsed,
+    bubbleUi,
+    setBubbleUi,
+    contextMenu,
+    setContextMenu,
+    page,
+    setPage,
+    menuOpen,
+    setMenuOpen,
+  };
 }
 
 export function useWorldAppState(): WorldAppState {

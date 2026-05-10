@@ -36,7 +36,7 @@ async function initAndRender() {
         dsn,
         integrations: [Sentry.browserTracingIntegration()],
         tracesSampleRate: 0.2,
-        environment: (import.meta as any).env?.MODE || 'development'
+        environment: (import.meta as any).env?.MODE || 'development',
       });
     }
   } catch {}
@@ -47,8 +47,8 @@ async function initAndRender() {
       <RootProviders>
         <AppRoutes />
       </RootProviders>
-    </React.StrictMode>
+    </React.StrictMode>,
   );
 }
 
-initAndRender();
+void initAndRender();

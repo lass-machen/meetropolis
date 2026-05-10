@@ -8,9 +8,43 @@ export type Direction = 'up' | 'down' | 'left' | 'right';
 type Bridge = {
   onLocalMove: (p: { x: number; y: number; direction: Direction }) => void;
   setSceneApi: (api: SceneApi | null) => void;
-  syncRemotePlayers: (players: Record<string, { x: number; y: number; direction: Direction; name?: string | undefined; dnd?: boolean | undefined; avatarId?: string | undefined; isNpc?: boolean | undefined }>) => void;
-  addRemotePlayer: (id: string, p: { x: number; y: number; direction: Direction; name?: string | undefined; dnd?: boolean | undefined; avatarId?: string | undefined; isNpc?: boolean | undefined }) => void;
-  updateRemotePlayer: (id: string, p: Partial<{ x: number; y: number; direction: Direction; name?: string | undefined; dnd?: boolean | undefined; avatarId?: string | undefined }>) => void;
+  syncRemotePlayers: (
+    players: Record<
+      string,
+      {
+        x: number;
+        y: number;
+        direction: Direction;
+        name?: string | undefined;
+        dnd?: boolean | undefined;
+        avatarId?: string | undefined;
+        isNpc?: boolean | undefined;
+      }
+    >,
+  ) => void;
+  addRemotePlayer: (
+    id: string,
+    p: {
+      x: number;
+      y: number;
+      direction: Direction;
+      name?: string | undefined;
+      dnd?: boolean | undefined;
+      avatarId?: string | undefined;
+      isNpc?: boolean | undefined;
+    },
+  ) => void;
+  updateRemotePlayer: (
+    id: string,
+    p: Partial<{
+      x: number;
+      y: number;
+      direction: Direction;
+      name?: string | undefined;
+      dnd?: boolean | undefined;
+      avatarId?: string | undefined;
+    }>,
+  ) => void;
   removeRemotePlayer: (id: string) => void;
   updateRemotePlayerDnd: (id: string, dnd: boolean) => void;
   setDesiredPosition: (pos: { x: number; y: number } | null) => void;
@@ -23,8 +57,20 @@ type Bridge = {
   onPointerMoveTile: (p: { tileX: number; tileY: number }) => void;
   onPointerUpTile: (p: { tileX: number; tileY: number }) => void;
   setSelectionRect: (rect: { x: number; y: number; w: number; h: number } | null) => void;
-  applyTilePaint: (edit: { layer: 'EditorGround' | 'EditorWalls' | 'Collision'; tilesetKey: string; tileIndex: number; rect: { startX: number; startY: number; endX: number; endY: number } }) => void;
-  registerTileset: (ts: { key: string; dataUrl: string; tileWidth: number; tileHeight: number; margin?: number | undefined; spacing?: number | undefined }) => void;
+  applyTilePaint: (edit: {
+    layer: 'EditorGround' | 'EditorWalls' | 'Collision';
+    tilesetKey: string;
+    tileIndex: number;
+    rect: { startX: number; startY: number; endX: number; endY: number };
+  }) => void;
+  registerTileset: (ts: {
+    key: string;
+    dataUrl: string;
+    tileWidth: number;
+    tileHeight: number;
+    margin?: number | undefined;
+    spacing?: number | undefined;
+  }) => void;
   setCollisionVisible: (visible: boolean) => void;
   reloadEditorLayers: () => void;
   fetchAndApplyServerLayers: () => void;
@@ -33,48 +79,110 @@ type Bridge = {
   updateSpeakingStates: (speakingIds: Set<string>) => void;
   setDoNotDisturb: (enabled: boolean) => void;
   // Asset-Preview im Editor (Ghost-Sprite unter Cursor) — no-op, handled by EditorIntegration
-  setAssetPreview: (preview: { dataUrl: string; width?: number | undefined; height?: number | undefined; rotation?: number | undefined; packUuid?: string | undefined; itemId?: string | undefined } | null) => void;
+  setAssetPreview: (
+    preview: {
+      dataUrl: string;
+      width?: number | undefined;
+      height?: number | undefined;
+      rotation?: number | undefined;
+      packUuid?: string | undefined;
+      itemId?: string | undefined;
+    } | null,
+  ) => void;
   setMovementLocked: (locked: boolean) => void;
   findFreeSpotNear: (targetId: string, options?: { radius?: number; step?: number }) => { x: number; y: number } | null;
   recenterCamera: () => void;
   onCameraManualChange?: (active: boolean) => void;
   setEditorMode: (enabled: boolean) => void;
   handleEditorUpdate?: (data: any) => void;
-  handleObjectsUpdated: (data: { action: 'add' | 'remove' | 'update'; objects?: any[] | undefined; objectIds?: number[] | undefined }) => void;
+  handleObjectsUpdated: (data: {
+    action: 'add' | 'remove' | 'update';
+    objects?: any[] | undefined;
+    objectIds?: number[] | undefined;
+  }) => void;
   setBackgroundColor: (hex: string) => void;
   setSpawnMarker: (pos: { x: number; y: number } | null) => void;
   saveEditorLayersHard?: () => void;
-  applyChunkUpdates?: (layerName: 'ground' | 'walls' | 'collision' | 'walls_auto', updates: Array<{ key: string; version: number; encoding: string; data: string }>) => void;
+  applyChunkUpdates?: (
+    layerName: 'ground' | 'walls' | 'collision' | 'walls_auto',
+    updates: Array<{ key: string; version: number; encoding: string; data: string }>,
+  ) => void;
   forceReloadMap?: () => void;
-  hydrateTilesetsCache: (tilesets: { key: string; dataUrl: string; tileWidth: number; tileHeight: number; margin?: number | undefined; spacing?: number | undefined }[]) => void;
+  hydrateTilesetsCache: (
+    tilesets: {
+      key: string;
+      dataUrl: string;
+      tileWidth: number;
+      tileHeight: number;
+      margin?: number | undefined;
+      spacing?: number | undefined;
+    }[],
+  ) => void;
   updateTilesetRegistry: (registry: any[]) => void;
   changeHeroAvatar: (avatarId: string) => void;
   // Legacy paint methods (no-op, painting handled by EditorIntegration.applyLocalPaint)
-  applyTerrainPaint: (edit: { rect: { startX: number; startY: number; endX: number; endY: number }; dataUrl: string }) => void;
-  applyTerrainPaintV2: (edit: { rect: { x0: number; y0: number; x1: number; y1: number }; tileRefId: number; layer: string }) => void;
+  applyTerrainPaint: (edit: {
+    rect: { startX: number; startY: number; endX: number; endY: number };
+    dataUrl: string;
+  }) => void;
+  applyTerrainPaintV2: (edit: {
+    rect: { x0: number; y0: number; x1: number; y1: number };
+    tileRefId: number;
+    layer: string;
+  }) => void;
   eraseTerrainRect: (rect: { startX: number; startY: number; endX: number; endY: number }) => void;
-  applyWallPaint: (edit: { rect: { startX: number; startY: number; endX: number; endY: number }; wallTypeId: number }) => void;
+  applyWallPaint: (edit: {
+    rect: { startX: number; startY: number; endX: number; endY: number };
+    wallTypeId: number;
+  }) => void;
   captureEditorSnapshot: () => void;
   restoreEditorSnapshot: () => void;
-  registerAutotiles: (items: Array<{
-    wallTypeId: number;
-    key: string;
-    textureUrl: string;
-    tileWidth: number;
-    tileHeight: number;
-    variants: Record<string, { col: number; row: number }>;
-    packUuid: string;
-  }>) => void;
+  registerAutotiles: (
+    items: Array<{
+      wallTypeId: number;
+      key: string;
+      textureUrl: string;
+      tileWidth: number;
+      tileHeight: number;
+      variants: Record<string, { col: number; row: number }>;
+      packUuid: string;
+    }>,
+  ) => void;
 };
 
 export type SceneApi = {
-  syncRemotePlayers: (players: Record<string, { x: number; y: number; direction: Direction; name?: string | undefined; dnd?: boolean | undefined; avatarId?: string | undefined; isNpc?: boolean | undefined }>) => void;
+  syncRemotePlayers: (
+    players: Record<
+      string,
+      {
+        x: number;
+        y: number;
+        direction: Direction;
+        name?: string | undefined;
+        dnd?: boolean | undefined;
+        avatarId?: string | undefined;
+        isNpc?: boolean | undefined;
+      }
+    >,
+  ) => void;
   setDesiredPosition: (pos: { x: number; y: number } | null) => void;
   setZoneOverlay: (polys: { name: string; points: { x: number; y: number }[] }[]) => void;
   setZonesVisible?: (visible: boolean) => void;
   setSelectionRect: (rect: { x: number; y: number; w: number; h: number } | null) => void;
-  applyTilePaint: (edit: { layer: 'EditorGround' | 'EditorWalls' | 'Collision'; tilesetKey: string; tileIndex: number; rect: { startX: number; startY: number; endX: number; endY: number } }) => void;
-  registerTileset: (ts: { key: string; dataUrl: string; tileWidth: number; tileHeight: number; margin?: number | undefined; spacing?: number | undefined }) => void;
+  applyTilePaint: (edit: {
+    layer: 'EditorGround' | 'EditorWalls' | 'Collision';
+    tilesetKey: string;
+    tileIndex: number;
+    rect: { startX: number; startY: number; endX: number; endY: number };
+  }) => void;
+  registerTileset: (ts: {
+    key: string;
+    dataUrl: string;
+    tileWidth: number;
+    tileHeight: number;
+    margin?: number | undefined;
+    spacing?: number | undefined;
+  }) => void;
   setCollisionVisible: (visible: boolean) => void;
   reloadEditorLayers: () => void;
   fetchAndApplyServerLayers?: () => void;
@@ -82,35 +190,66 @@ export type SceneApi = {
   setHeroName?: (name: string) => void;
   updateSpeakingStates?: (speakingIds: Set<string>) => void;
   setDoNotDisturb?: (enabled: boolean) => void;
-  setAssetPreview?: (preview: { dataUrl: string; width?: number | undefined; height?: number | undefined; rotation?: number | undefined; packUuid?: string | undefined; itemId?: string | undefined } | null) => void;
+  setAssetPreview?: (
+    preview: {
+      dataUrl: string;
+      width?: number | undefined;
+      height?: number | undefined;
+      rotation?: number | undefined;
+      packUuid?: string | undefined;
+      itemId?: string | undefined;
+    } | null,
+  ) => void;
   // New hooks
   setMovementLocked?: (locked: boolean) => void;
-  findFreeSpotNear?: (targetId: string, options?: { radius?: number; step?: number }) => { x: number; y: number } | null;
+  findFreeSpotNear?: (
+    targetId: string,
+    options?: { radius?: number; step?: number },
+  ) => { x: number; y: number } | null;
   recenterCamera?: () => void;
   setEditorMode?: (enabled: boolean) => void;
   setBackgroundColor?: (hex: string) => void;
   setSpawnMarker?: (pos: { x: number; y: number } | null) => void;
   saveEditorLayersHard?: () => void;
-  applyChunkUpdates?: (layerName: 'ground' | 'walls' | 'collision' | 'walls_auto', updates: Array<{ key: string; version: number; encoding: string; data: string }>) => void;
+  applyChunkUpdates?: (
+    layerName: 'ground' | 'walls' | 'collision' | 'walls_auto',
+    updates: Array<{ key: string; version: number; encoding: string; data: string }>,
+  ) => void;
   forceReloadMap?: () => void;
   updateTilesetRegistry?: (registry: any[]) => void;
   changeHeroAvatar?: (avatarId: string) => void;
-  handleObjectsUpdated?: (data: { action: 'add' | 'remove' | 'update'; objects?: any[] | undefined; objectIds?: number[] | undefined }) => void;
-  applyTerrainPaint?: (edit: { rect: { startX: number; startY: number; endX: number; endY: number }; dataUrl: string }) => void;
-  paintTerrainRect?: (layer: string, rect: { x0: number; y0: number; x1: number; y1: number }, tileRefId: number) => void;
+  handleObjectsUpdated?: (data: {
+    action: 'add' | 'remove' | 'update';
+    objects?: any[] | undefined;
+    objectIds?: number[] | undefined;
+  }) => void;
+  applyTerrainPaint?: (edit: {
+    rect: { startX: number; startY: number; endX: number; endY: number };
+    dataUrl: string;
+  }) => void;
+  paintTerrainRect?: (
+    layer: string,
+    rect: { x0: number; y0: number; x1: number; y1: number },
+    tileRefId: number,
+  ) => void;
   eraseTerrainRect?: (rect: { startX: number; startY: number; endX: number; endY: number }) => void;
-  applyWallPaint?: (edit: { rect: { startX: number; startY: number; endX: number; endY: number }; wallTypeId: number }) => void;
+  applyWallPaint?: (edit: {
+    rect: { startX: number; startY: number; endX: number; endY: number };
+    wallTypeId: number;
+  }) => void;
   captureEditorSnapshot?: () => void;
   restoreEditorSnapshot?: () => void;
-  registerAutotileDefinitions?: (items: Array<{
-    wallTypeId: number;
-    key: string;
-    textureUrl: string;
-    tileWidth: number;
-    tileHeight: number;
-    variants: Record<string, { col: number; row: number }>;
-    packUuid: string;
-  }>) => void;
+  registerAutotileDefinitions?: (
+    items: Array<{
+      wallTypeId: number;
+      key: string;
+      textureUrl: string;
+      tileWidth: number;
+      tileHeight: number;
+      variants: Record<string, { col: number; row: number }>;
+      packUuid: string;
+    }>,
+  ) => void;
 };
 
 let sceneApi: SceneApi | null = null;
@@ -151,7 +290,7 @@ async function processTilesetQueue(): Promise<void> {
       tileWidth: ts.tileWidth,
       tileHeight: ts.tileHeight,
       margin: ts.margin,
-      spacing: ts.spacing
+      spacing: ts.spacing,
     };
 
     try {
@@ -159,7 +298,7 @@ async function processTilesetQueue(): Promise<void> {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
       });
 
       if (res.ok) {
@@ -185,35 +324,64 @@ let isReloadingEditorLayers = false;
 let cachedCollisionVisible = false;
 let cachedHeroName: string | null = null;
 let cachedDoNotDisturb = false;
-let remotePlayersCache: Record<string, { x: number; y: number; direction: Direction; name?: string | undefined; dnd?: boolean | undefined; avatarId?: string | undefined; isNpc?: boolean | undefined }> = {};
+let remotePlayersCache: Record<
+  string,
+  {
+    x: number;
+    y: number;
+    direction: Direction;
+    name?: string | undefined;
+    dnd?: boolean | undefined;
+    avatarId?: string | undefined;
+    isNpc?: boolean | undefined;
+  }
+> = {};
 let lastDesiredPosition: { x: number; y: number } | null = null;
 
 export const gameBridge: Bridge = {
-  onLocalMove: () => { },
-  onPointerDown: () => { },
-  onRightClick: () => { },
-  onCameraManualChange: () => { },
+  onLocalMove: () => {},
+  onPointerDown: () => {},
+  onRightClick: () => {},
+  onCameraManualChange: () => {},
   setSceneApi: (api) => {
     sceneApi = api;
 
     if (sceneApi) {
       // Nicht-Editor State wiederherstellen
-      try { sceneApi.setCollisionVisible(cachedCollisionVisible); } catch (e) { logger.error('Failed to set collision visible', e); }
+      try {
+        sceneApi.setCollisionVisible(cachedCollisionVisible);
+      } catch (e) {
+        logger.error('Failed to set collision visible', e);
+      }
 
       if (cachedHeroName && sceneApi.setHeroName) {
-        try { sceneApi.setHeroName(cachedHeroName); } catch { }
+        try {
+          sceneApi.setHeroName(cachedHeroName);
+        } catch {}
       }
 
       if (typeof sceneApi.setDoNotDisturb === 'function') {
-        try { sceneApi.setDoNotDisturb(cachedDoNotDisturb); } catch { }
+        try {
+          sceneApi.setDoNotDisturb(cachedDoNotDisturb);
+        } catch {}
       }
 
       // Remote-Spieler wiederherstellen
-      try { sceneApi.syncRemotePlayers(remotePlayersCache); } catch { }
+      try {
+        sceneApi.syncRemotePlayers(remotePlayersCache);
+      } catch {}
 
       // Server-Layers laden (für Map-Daten)
-      try { sceneApi.fetchAndApplyServerLayers?.(); } catch (e) { logger.error('Failed to fetch server layers', e); }
-      try { sceneApi.reloadEditorLayers(); } catch (e) { logger.error('Failed to reload editor layers', e); }
+      try {
+        sceneApi.fetchAndApplyServerLayers?.();
+      } catch (e) {
+        logger.error('Failed to fetch server layers', e);
+      }
+      try {
+        sceneApi.reloadEditorLayers();
+      } catch (e) {
+        logger.error('Failed to reload editor layers', e);
+      }
     }
   },
   recenterCamera: () => {
@@ -228,14 +396,29 @@ export const gameBridge: Bridge = {
     sceneApi?.syncRemotePlayers(remotePlayersCache);
   },
   addRemotePlayer: (id, p) => {
-    remotePlayersCache[id] = { x: p.x, y: p.y, direction: p.direction, name: p.name, dnd: p.dnd, avatarId: p.avatarId, isNpc: p.isNpc };
+    remotePlayersCache[id] = {
+      x: p.x,
+      y: p.y,
+      direction: p.direction,
+      name: p.name,
+      dnd: p.dnd,
+      avatarId: p.avatarId,
+      isNpc: p.isNpc,
+    };
     sceneApi?.syncRemotePlayers(remotePlayersCache);
   },
   updateRemotePlayer: (id, p) => {
     if (!remotePlayersCache[id]) {
       // Wenn Spieler nicht existiert, lege ihn nur an, wenn genug Daten vorhanden sind
       if (p.x !== undefined && p.y !== undefined && p.direction) {
-        remotePlayersCache[id] = { x: p.x, y: p.y, direction: p.direction as Direction, name: p.name, dnd: p.dnd, avatarId: p.avatarId };
+        remotePlayersCache[id] = {
+          x: p.x,
+          y: p.y,
+          direction: p.direction,
+          name: p.name,
+          dnd: p.dnd,
+          avatarId: p.avatarId,
+        };
       } else {
         return;
       }
@@ -270,7 +453,11 @@ export const gameBridge: Bridge = {
     const same = (prev === null && pos === null) || (prev && pos && prev.x === pos.x && prev.y === pos.y);
     if (same) return;
     lastDesiredPosition = pos ? { x: pos.x, y: pos.y } : null;
-    try { logger.debug('[Bridge] setDesiredPosition changed to', pos); } catch (e) { logger.error('Log failed', e); }
+    try {
+      logger.debug('[Bridge] setDesiredPosition changed to', pos);
+    } catch (e) {
+      logger.error('Log failed', e);
+    }
     sceneApi?.setDesiredPosition(pos);
   },
   // Editor-Methoden: Kein Caching mehr, direkt an Scene durchreichen
@@ -281,9 +468,9 @@ export const gameBridge: Bridge = {
     sceneApi?.setZonesVisible?.(visible);
   },
   // Legacy pointer tile callbacks (no-op, all tools handled by EditorInputHandler in EditorIntegration)
-  onPointerDownTile: () => { },
-  onPointerMoveTile: () => { },
-  onPointerUpTile: () => { },
+  onPointerDownTile: () => {},
+  onPointerMoveTile: () => {},
+  onPointerUpTile: () => {},
   setSelectionRect: (rect) => {
     sceneApi?.setSelectionRect(rect);
   },
@@ -291,10 +478,10 @@ export const gameBridge: Bridge = {
     sceneApi?.applyTilePaint(edit);
   },
   // Legacy paint methods (no-op, painting handled by EditorIntegration.applyLocalPaint)
-  applyTerrainPaint: () => { },
-  applyTerrainPaintV2: () => { },
-  eraseTerrainRect: () => { },
-  applyWallPaint: () => { },
+  applyTerrainPaint: () => {},
+  applyTerrainPaintV2: () => {},
+  eraseTerrainRect: () => {},
+  applyWallPaint: () => {},
   captureEditorSnapshot: () => {
     sceneApi?.captureEditorSnapshot?.();
   },
@@ -319,7 +506,7 @@ export const gameBridge: Bridge = {
         tileWidth: ts.tileWidth,
         tileHeight: ts.tileHeight,
         margin: ts.margin ?? 0,
-        spacing: ts.spacing ?? 0
+        spacing: ts.spacing ?? 0,
       });
       void processTilesetQueue();
     }
@@ -334,7 +521,9 @@ export const gameBridge: Bridge = {
     try {
       sceneApi?.reloadEditorLayers();
     } finally {
-      setTimeout(() => { isReloadingEditorLayers = false; }, 100);
+      setTimeout(() => {
+        isReloadingEditorLayers = false;
+      }, 100);
     }
   },
   fetchAndApplyServerLayers: () => {
@@ -343,7 +532,9 @@ export const gameBridge: Bridge = {
     try {
       sceneApi?.fetchAndApplyServerLayers?.();
     } finally {
-      setTimeout(() => { isFetchingServerLayers = false; }, 100);
+      setTimeout(() => {
+        isFetchingServerLayers = false;
+      }, 100);
     }
   },
   setBubbleMembers: (members) => {
@@ -361,7 +552,7 @@ export const gameBridge: Bridge = {
     sceneApi?.setDoNotDisturb?.(enabled);
   },
   // Legacy: ghost preview now handled by EditorIntegration
-  setAssetPreview: () => { },
+  setAssetPreview: () => {},
   setMovementLocked: (locked) => {
     sceneApi?.setMovementLocked?.(locked);
   },
@@ -384,7 +575,9 @@ export const gameBridge: Bridge = {
         sceneApi?.setZoneOverlay?.(data.polys);
         return;
       }
-    } catch (e) { logger.error('Failed to handle editor update', e); }
+    } catch (e) {
+      logger.error('Failed to handle editor update', e);
+    }
   },
   // Editor-Methoden: Kein Caching, direkt durchreichen
   setBackgroundColor: (hex: string) => {
@@ -393,22 +586,44 @@ export const gameBridge: Bridge = {
   setSpawnMarker: (pos) => {
     sceneApi?.setSpawnMarker?.(pos);
   },
-  saveEditorLayersHard: () => { try { sceneApi?.saveEditorLayersHard?.(); } catch (e) { logger.error('Failed hard save', e); } },
+  saveEditorLayersHard: () => {
+    try {
+      sceneApi?.saveEditorLayersHard?.();
+    } catch (e) {
+      logger.error('Failed hard save', e);
+    }
+  },
   applyChunkUpdates: (layerName, updates) => {
-    try { sceneApi?.applyChunkUpdates?.(layerName, updates); } catch (e) { logger.error('Failed to apply chunk updates', e); }
+    try {
+      sceneApi?.applyChunkUpdates?.(layerName, updates);
+    } catch (e) {
+      logger.error('Failed to apply chunk updates', e);
+    }
   },
   forceReloadMap: () => {
-    try { sceneApi?.forceReloadMap?.(); } catch (e) { logger.error('Failed to force reload map', e); }
+    try {
+      sceneApi?.forceReloadMap?.();
+    } catch (e) {
+      logger.error('Failed to force reload map', e);
+    }
   },
   // Tileset-Cache entfernt - nicht mehr benötigt
   hydrateTilesetsCache: (_tilesets) => {
     // DEPRECATED: Caching entfernt
   },
   updateTilesetRegistry: (registry) => {
-    try { sceneApi?.updateTilesetRegistry?.(registry); } catch (e) { logger.error('Failed to update tileset registry', e); }
+    try {
+      sceneApi?.updateTilesetRegistry?.(registry);
+    } catch (e) {
+      logger.error('Failed to update tileset registry', e);
+    }
   },
   handleObjectsUpdated: (data) => {
-    try { sceneApi?.handleObjectsUpdated?.(data); } catch (e) { logger.error('Failed to handle objects update', e); }
+    try {
+      sceneApi?.handleObjectsUpdated?.(data);
+    } catch (e) {
+      logger.error('Failed to handle objects update', e);
+    }
   },
   changeHeroAvatar: (avatarId) => {
     sceneApi?.changeHeroAvatar?.(avatarId);
@@ -416,7 +631,7 @@ export const gameBridge: Bridge = {
 };
 
 // Subscribe EditorService to gameBridge for Editor Mode & Collision Visibility sync
-let lastSyncedState: {
+const lastSyncedState: {
   active: boolean;
 } = {
   active: false,

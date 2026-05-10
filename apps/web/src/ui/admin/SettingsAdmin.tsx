@@ -29,7 +29,9 @@ function useSettingsAdminState(apiBase: string) {
     }
   }, [apiBase]);
 
-  React.useEffect(() => { void load(); }, [load]);
+  React.useEffect(() => {
+    void load();
+  }, [load]);
 
   const save = React.useCallback(async () => {
     if (!settings) return;
@@ -93,7 +95,14 @@ export function SettingsAdmin(props: { apiBase: string }) {
       />
 
       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-        <Button onClick={save} variant="primary">{saving ? 'Speichere…' : 'Speichern'}</Button>
+        <Button
+          onClick={() => {
+            void save();
+          }}
+          variant="primary"
+        >
+          {saving ? 'Speichere…' : 'Speichern'}
+        </Button>
         {error && <span style={{ color: 'var(--red, #ed4245)', fontSize: 13 }}>{error}</span>}
         {success && <span style={{ color: 'var(--green, #3ba55d)', fontSize: 13 }}>Gespeichert!</span>}
       </div>

@@ -13,7 +13,13 @@
 import type { Room, LocalAudioTrack, LocalVideoTrack } from 'livekit-client';
 import type { LocalTrackState, TrackManagerState, Disposable } from './types';
 import { AVLogger } from '../AVLogger';
-import { publishMicrophone, unpublishMicrophone, ensureAudioPermissions, softMuteMicrophone, softUnmuteMicrophone } from './microphonePublishing';
+import {
+  publishMicrophone,
+  unpublishMicrophone,
+  ensureAudioPermissions,
+  softMuteMicrophone,
+  softUnmuteMicrophone,
+} from './microphonePublishing';
 import { publishCamera, unpublishCamera, ensureVideoPermissions } from './cameraPublishing';
 
 export interface TrackManagerDeps {
@@ -237,11 +243,21 @@ export class TrackManager implements Disposable {
     await Promise.all([
       this.enqueueMic(async () => {
         const room = this.deps.getRoom();
-        if (room) await unpublishMicrophone({ room, state: this._state.microphone, checkAllTracksUnpublished: () => this.checkAllTracksUnpublished() });
+        if (room)
+          await unpublishMicrophone({
+            room,
+            state: this._state.microphone,
+            checkAllTracksUnpublished: () => this.checkAllTracksUnpublished(),
+          });
       }),
       this.enqueueCam(async () => {
         const room = this.deps.getRoom();
-        if (room) await unpublishCamera({ room, state: this._state.camera, checkAllTracksUnpublished: () => this.checkAllTracksUnpublished() });
+        if (room)
+          await unpublishCamera({
+            room,
+            state: this._state.camera,
+            checkAllTracksUnpublished: () => this.checkAllTracksUnpublished(),
+          });
       }),
     ]);
 
@@ -354,7 +370,9 @@ export class TrackManager implements Disposable {
           state.published = false;
           state.track = null;
           if (state.desired) {
-            setTimeout(() => this.setMicrophoneEnabled(true).catch(() => {}), 200);
+            setTimeout(() => {
+              void this.setMicrophoneEnabled(true).catch(() => {});
+            }, 200);
           }
         },
       });
@@ -421,7 +439,9 @@ export class TrackManager implements Disposable {
           state.published = false;
           state.track = null;
           if (state.desired) {
-            setTimeout(() => this.setCameraEnabled(true).catch(() => {}), 200);
+            setTimeout(() => {
+              void this.setCameraEnabled(true).catch(() => {});
+            }, 200);
           }
         },
       });
@@ -443,7 +463,7 @@ export class TrackManager implements Disposable {
   private watchTrackEnded(
     track: LocalAudioTrack | LocalVideoTrack,
     _source: 'microphone' | 'camera',
-    onEnded: () => void
+    onEnded: () => void,
   ): void {
     const mst = (track as any).mediaStreamTrack;
     if (!mst) return;
@@ -491,7 +511,6 @@ export class TrackManager implements Disposable {
       AVLogger.debug('audio.unlock.success', {
         resumeCount: this._audioContextResumeCount,
       });
-
     } catch (error) {
       // NotAllowedError is expected if no user gesture
       if ((error as any)?.name !== 'NotAllowedError') {

@@ -14,7 +14,13 @@ interface TenantSettingsProps {
   settingsData: ReturnType<typeof useTenantSettings>;
 }
 
-export function TenantSettings({ onClose: _onClose, activeTab: activeTabProp, onTabChange: _onTabChange, apiBase, settingsData }: TenantSettingsProps) {
+export function TenantSettings({
+  onClose: _onClose,
+  activeTab: activeTabProp,
+  onTabChange: _onTabChange,
+  apiBase,
+  settingsData,
+}: TenantSettingsProps) {
   const { t } = useTranslation();
   const activeTab = (activeTabProp ?? 'general') as 'general' | 'members' | 'guests' | 'invites';
 
@@ -39,14 +45,24 @@ export function TenantSettings({ onClose: _onClose, activeTab: activeTabProp, on
   } = settingsData;
 
   if (loading) {
-    return <div style={{ padding: 40, textAlign: 'center', color: 'var(--fg-subtle, #888)' }}>{t('tenant.loading')}</div>;
+    return (
+      <div style={{ padding: 40, textAlign: 'center', color: 'var(--fg-subtle, #888)' }}>{t('tenant.loading')}</div>
+    );
   }
 
   return (
     <>
       <div style={{ padding: 20, overflowY: 'auto', flex: 1 }}>
-        {error && <Alert intent="error" style={{ marginBottom: 16 }}>{error}</Alert>}
-        {success && <Alert intent="success" style={{ marginBottom: 16 }}>{success}</Alert>}
+        {error && (
+          <Alert intent="error" style={{ marginBottom: 16 }}>
+            {error}
+          </Alert>
+        )}
+        {success && (
+          <Alert intent="success" style={{ marginBottom: 16 }}>
+            {success}
+          </Alert>
+        )}
 
         {activeTab === 'general' && tenant && (
           <GeneralSettings
@@ -64,8 +80,12 @@ export function TenantSettings({ onClose: _onClose, activeTab: activeTabProp, on
           <MemberSettings
             members={members}
             saving={saving}
-            onChangeRole={handleChangeRole}
-            onRemoveMember={handleRemoveMember}
+            onChangeRole={(userId, newRole) => {
+              void handleChangeRole(userId, newRole);
+            }}
+            onRemoveMember={(userId) => {
+              void handleRemoveMember(userId);
+            }}
             onInvite={handleInvite}
             onSuccess={setSuccess}
             onResetPassword={handleResetPassword}
@@ -73,9 +93,7 @@ export function TenantSettings({ onClose: _onClose, activeTab: activeTabProp, on
           />
         )}
 
-        {activeTab === 'invites' && (
-          <InvitesTab apiBase={apiBase} />
-        )}
+        {activeTab === 'invites' && <InvitesTab apiBase={apiBase} />}
 
         {activeTab === 'guests' && isEnterprise && (
           <GuestSettings

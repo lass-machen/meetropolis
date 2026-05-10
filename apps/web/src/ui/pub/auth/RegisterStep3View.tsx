@@ -64,22 +64,14 @@ const PLANS: PlanInfo[] = [
     id: 'starter',
     nameKey: 'auth.planStarter',
     priceKey: 'auth.planStarterPrice',
-    features: [
-      'auth.planStarterFeature1',
-      'auth.planStarterFeature2',
-      'auth.planStarterFeature3',
-    ],
+    features: ['auth.planStarterFeature1', 'auth.planStarterFeature2', 'auth.planStarterFeature3'],
     recommended: false,
   },
   {
     id: 'team',
     nameKey: 'auth.planTeam',
     priceKey: 'auth.planTeamPrice',
-    features: [
-      'auth.planTeamFeature1',
-      'auth.planTeamFeature2',
-      'auth.planTeamFeature3',
-    ],
+    features: ['auth.planTeamFeature1', 'auth.planTeamFeature2', 'auth.planTeamFeature3'],
     recommended: true,
   },
 ];
@@ -93,10 +85,7 @@ function Step3Title() {
       <h1 className="pub-text-h3" style={{ margin: 0 }}>
         {t('auth.selectPlanTitle')}
       </h1>
-      <p
-        className="pub-text-body-sm"
-        style={{ margin: 0, color: 'var(--pub-text-secondary)' }}
-      >
+      <p className="pub-text-body-sm" style={{ margin: 0, color: 'var(--pub-text-secondary)' }}>
         {t('auth.selectPlanSubtitle')}
       </p>
     </div>
@@ -116,19 +105,13 @@ function PlanHeader({ plan }: { plan: PlanInfo }) {
       <span
         style={{
           fontSize: 14,
-          color: plan.recommended
-            ? 'var(--pub-accent-purple)'
-            : 'var(--pub-text-secondary)',
+          color: plan.recommended ? 'var(--pub-accent-purple)' : 'var(--pub-text-secondary)',
           fontWeight: 500,
         }}
       >
         {t(plan.nameKey)}
       </span>
-      {plan.recommended && (
-        <PubBadge variant="purple">
-          {t('auth.planRecommended')}
-        </PubBadge>
-      )}
+      {plan.recommended && <PubBadge variant="purple">{t('auth.planRecommended')}</PubBadge>}
     </div>
   );
 }
@@ -212,13 +195,19 @@ function PlanCard({ plan, isSelected, onSelect }: PlanCardProps) {
   const { t } = useTranslation('public');
   return (
     <div
+      role="button"
+      tabIndex={0}
       onClick={onSelect}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onSelect();
+        }
+      }}
       style={{
         flex: '1 1 0',
         minWidth: 200,
-        border: isSelected
-          ? '2px solid var(--pub-accent-purple)'
-          : '1px solid var(--pub-border-light)',
+        border: isSelected ? '2px solid var(--pub-accent-purple)' : '1px solid var(--pub-border-light)',
         borderRadius: 20,
         padding: isSelected ? 31 : 32,
         cursor: 'pointer',
@@ -256,12 +245,7 @@ function PlanCards({ selectedPlan, onSelect }: { selectedPlan: string; onSelect:
       }}
     >
       {PLANS.map((plan) => (
-        <PlanCard
-          key={plan.id}
-          plan={plan}
-          isSelected={selectedPlan === plan.id}
-          onSelect={() => onSelect(plan.id)}
-        />
+        <PlanCard key={plan.id} plan={plan} isSelected={selectedPlan === plan.id} onSelect={() => onSelect(plan.id)} />
       ))}
     </div>
   );
@@ -294,22 +278,10 @@ function Step3Buttons({ onBack, onSubmit, loading }: Step3ButtonsProps) {
   const { t } = useTranslation('public');
   return (
     <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
-      <PubButton
-        type="button"
-        variant="ghost"
-        onClick={onBack}
-        leftIcon={<ArrowLeftIcon />}
-        disabled={loading}
-      >
+      <PubButton type="button" variant="ghost" onClick={onBack} leftIcon={<ArrowLeftIcon />} disabled={loading}>
         {t('auth.back')}
       </PubButton>
-      <PubButton
-        type="button"
-        variant="primary"
-        onClick={onSubmit}
-        disabled={loading}
-        style={{ flex: 1 }}
-      >
+      <PubButton type="button" variant="primary" onClick={onSubmit} disabled={loading} style={{ flex: 1 }}>
         {loading ? '...' : `${t('auth.trialStart')} \u{1F680}`}
       </PubButton>
     </div>
@@ -338,7 +310,13 @@ export function RegisterStep3View({
       <Step3Title />
       <PlanCards selectedPlan={selectedPlan} onSelect={setSelectedPlan} />
       {error && <Step3Error error={error} />}
-      <Step3Buttons onBack={onBack} onSubmit={handleSubmit} loading={loading} />
+      <Step3Buttons
+        onBack={onBack}
+        onSubmit={() => {
+          void handleSubmit();
+        }}
+        loading={loading}
+      />
       <p
         className="pub-text-body-sm"
         style={{

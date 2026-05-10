@@ -20,15 +20,11 @@ declare global {
   var activeWorldRooms: Set<WorldRoom> | undefined;
 }
 
-export function broadcastMapUpdate(
-  tenantSlug: string,
-  type: string,
-  payload: unknown
-): void {
+export function broadcastMapUpdate(tenantSlug: string, type: string, payload: unknown): void {
   const gameServer = global.gameServer;
   if (gameServer?.presence) {
     try {
-      gameServer.presence.publish(`map_update:${tenantSlug}`, { type, payload });
+      void gameServer.presence.publish(`map_update:${tenantSlug}`, { type, payload });
     } catch (e: unknown) {
       logger.error('[Broadcast] presence publish failed', { error: e instanceof Error ? e.message : String(e) });
     }
@@ -49,6 +45,6 @@ export function broadcastSpawnUpdate(mapId: string, spawn: { x: number; y: numbe
   for (const room of rooms) {
     try {
       room.setDefaultSpawn?.(mapId, spawn);
-    } catch { }
+    } catch {}
   }
 }

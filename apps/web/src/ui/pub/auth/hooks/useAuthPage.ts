@@ -1,10 +1,6 @@
 import { useCallback } from 'react';
 import { useAuthHandlers, type AuthViewName } from './useAuthHandlers';
-import {
-  useDebugAutoLogin,
-  useGuestAutoLogin,
-  useRedirectWhenRegistrationDisabled,
-} from './useAuthSideEffects';
+import { useDebugAutoLogin, useGuestAutoLogin, useRedirectWhenRegistrationDisabled } from './useAuthSideEffects';
 import { useAuthPageState } from './useAuthPageState';
 import { useTenantCreation } from './useTenantCreation';
 
@@ -62,17 +58,24 @@ export function useAuthPage(args: UseAuthPageArgs) {
     storeDesktopAuthToken: handlers.storeDesktopAuthToken,
   });
 
-  const handleInvite = useCallback(async (code: string) => {
-    s.setError(null);
-    s.setInvite(code);
-    s.setView('register');
-  }, [s]);
+  const handleInvite = useCallback(
+    (code: string): Promise<void> => {
+      s.setError(null);
+      s.setInvite(code);
+      s.setView('register');
+      return Promise.resolve();
+    },
+    [s],
+  );
 
-  const switchView = useCallback((next: AuthViewName) => {
-    s.setError(null);
-    s.setMessage(null);
-    s.setView(next);
-  }, [s]);
+  const switchView = useCallback(
+    (next: AuthViewName) => {
+      s.setError(null);
+      s.setMessage(null);
+      s.setView(next);
+    },
+    [s],
+  );
 
   return { state: s, handlers, handleCreateTenant, handleInvite, switchView };
 }

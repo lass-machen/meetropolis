@@ -77,7 +77,9 @@ function useSessionsApi(apiBase: string, t: (k: string, opts?: any) => string) {
     }
   };
 
-  React.useEffect(() => { fetchSessions(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  React.useEffect(() => {
+    void fetchSessions();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const revokeSession = async (sessionId: string) => {
     if (!confirm(t('sessions.confirmRevoke'))) return;
@@ -85,7 +87,7 @@ function useSessionsApi(apiBase: string, t: (k: string, opts?: any) => string) {
       setRevoking(sessionId);
       const res = await fetch(`${apiBase}/auth/sessions/${sessionId}`, { method: 'DELETE', credentials: 'include' });
       if (res.ok) {
-        setSessions(s => s.filter(sess => sess.id !== sessionId));
+        setSessions((s) => s.filter((sess) => sess.id !== sessionId));
       } else {
         const data = await res.json().catch(() => ({}));
         setError(translateApiError(data.error) || t('sessions.revokeFailed'));
@@ -104,7 +106,7 @@ function useSessionsApi(apiBase: string, t: (k: string, opts?: any) => string) {
       const res = await fetch(`${apiBase}/auth/sessions`, { method: 'DELETE', credentials: 'include' });
       if (res.ok) {
         const data = await res.json();
-        setSessions(s => s.filter(sess => sess.isCurrent));
+        setSessions((s) => s.filter((sess) => sess.isCurrent));
         alert(t('sessions.revokedSuccess', { count: data.revokedCount || 0 }));
       } else {
         const data = await res.json().catch(() => ({}));
@@ -126,7 +128,17 @@ function deviceEmoji(device: string): string {
   return '💻';
 }
 
-function SessionCard({ session, t, revoking, onRevoke }: { session: Session; t: (k: string, opts?: any) => string; revoking: string | null; onRevoke: (id: string) => void }) {
+function SessionCard({
+  session,
+  t,
+  revoking,
+  onRevoke,
+}: {
+  session: Session;
+  t: (k: string, opts?: any) => string;
+  revoking: string | null;
+  onRevoke: (id: string) => void;
+}) {
   const { device, browser } = parseUserAgent(session.userAgent, t);
   return (
     <Card style={{ padding: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -142,13 +154,24 @@ function SessionCard({ session, t, revoking, onRevoke }: { session: Session; t: 
           </div>
         </div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 16px', marginLeft: 36 }}>
-          {session.ipAddress && (<span style={{ fontSize: 12, color: 'var(--fg-subtle, #666)' }}>IP: {session.ipAddress}</span>)}
-          <span style={{ fontSize: 12, color: 'var(--fg-subtle, #666)' }}>{t('sessions.lastActive')}: {formatRelativeDate(session.lastActiveAt, t)}</span>
-          <span style={{ fontSize: 12, color: 'var(--fg-subtle, #666)' }}>{t('sessions.loggedIn')}: {formatRelativeDate(session.createdAt, t)}</span>
+          {session.ipAddress && (
+            <span style={{ fontSize: 12, color: 'var(--fg-subtle, #666)' }}>IP: {session.ipAddress}</span>
+          )}
+          <span style={{ fontSize: 12, color: 'var(--fg-subtle, #666)' }}>
+            {t('sessions.lastActive')}: {formatRelativeDate(session.lastActiveAt, t)}
+          </span>
+          <span style={{ fontSize: 12, color: 'var(--fg-subtle, #666)' }}>
+            {t('sessions.loggedIn')}: {formatRelativeDate(session.createdAt, t)}
+          </span>
         </div>
       </div>
       {!session.isCurrent && (
-        <Button variant="danger" onClick={() => onRevoke(session.id)} disabled={revoking === session.id || revoking === 'all'} style={{ fontSize: 13 }}>
+        <Button
+          variant="danger"
+          onClick={() => onRevoke(session.id)}
+          disabled={revoking === session.id || revoking === 'all'}
+          style={{ fontSize: 13 }}
+        >
           {revoking === session.id ? t('sessions.revoking') : t('sessions.revoke')}
         </Button>
       )}
@@ -164,9 +187,7 @@ export function SessionManagement({ onClose: _onClose }: { onClose: () => void }
   if (loading) {
     return (
       <div style={{ padding: '0 8px', color: 'var(--fg, #fff)' }}>
-        <div style={{ padding: 40, textAlign: 'center', color: 'var(--fg-subtle, #888)' }}>
-          {t('sessions.loading')}
-        </div>
+        <div style={{ padding: 40, textAlign: 'center', color: 'var(--fg-subtle, #888)' }}>{t('sessions.loading')}</div>
       </div>
     );
   }
@@ -175,25 +196,48 @@ export function SessionManagement({ onClose: _onClose }: { onClose: () => void }
     <div style={{ padding: '0 8px', color: 'var(--fg, #fff)' }}>
       <div style={{ marginBottom: 24 }}>
         <h2 style={{ fontSize: 20, fontWeight: 600, margin: '0 0 8px' }}>{t('sessions.title')}</h2>
-        <p style={{ fontSize: 14, color: 'var(--fg-subtle, #888)', margin: 0, lineHeight: 1.5 }}>{t('sessions.subtitle')}</p>
+        <p style={{ fontSize: 14, color: 'var(--fg-subtle, #888)', margin: 0, lineHeight: 1.5 }}>
+          {t('sessions.subtitle')}
+        </p>
       </div>
 
-      {error && <Alert intent="error" style={{ marginBottom: 16 }}>{error}</Alert>}
+      {error && (
+        <Alert intent="error" style={{ marginBottom: 16 }}>
+          {error}
+        </Alert>
+      )}
 
       {sessions.length === 0 ? (
-        <div style={{ padding: 40, textAlign: 'center', color: 'var(--fg-subtle, #888)' }}>{t('sessions.noSessions')}</div>
+        <div style={{ padding: 40, textAlign: 'center', color: 'var(--fg-subtle, #888)' }}>
+          {t('sessions.noSessions')}
+        </div>
       ) : (
         <>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {sessions.map(session => (
-              <SessionCard key={session.id} session={session} t={t} revoking={revoking} onRevoke={revokeSession} />
+            {sessions.map((session) => (
+              <SessionCard
+                key={session.id}
+                session={session}
+                t={t}
+                revoking={revoking}
+                onRevoke={(id) => {
+                  void revokeSession(id);
+                }}
+              />
             ))}
           </div>
 
-          {sessions.filter(s => !s.isCurrent).length > 0 && (
+          {sessions.filter((s) => !s.isCurrent).length > 0 && (
             <>
               <Divider />
-              <Button variant="danger" onClick={revokeAllOther} disabled={revoking === 'all'} style={{ width: '100%' }}>
+              <Button
+                variant="danger"
+                onClick={() => {
+                  void revokeAllOther();
+                }}
+                disabled={revoking === 'all'}
+                style={{ width: '100%' }}
+              >
                 {revoking === 'all' ? t('sessions.loggingOut') : t('sessions.logoutAllOther')}
               </Button>
             </>

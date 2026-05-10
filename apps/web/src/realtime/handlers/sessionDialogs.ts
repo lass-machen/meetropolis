@@ -20,7 +20,8 @@ export function showSessionConflictDialog(deps: SessionConflictDeps): void {
   }
 
   const host = document.createElement('div');
-  host.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.5);';
+  host.style.cssText =
+    'position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.5);';
   host.innerHTML = `
     <div style="min-width:320px;max-width:480px;padding:24px;border-radius:12px;border:1px solid rgba(59,130,246,0.5);background:rgba(30,41,59,0.95);backdrop-filter:blur(8px);color:#fff;box-shadow:0 8px 32px rgba(0,0,0,0.4);text-align:center;">
       <div style="font-size:48px;margin-bottom:12px;">🔄</div>
@@ -33,17 +34,33 @@ export function showSessionConflictDialog(deps: SessionConflictDeps): void {
     </div>`;
   document.body.appendChild(host);
 
-  host.querySelector('[data-session-takeover]')?.addEventListener('click', () => {
-    try { host.remove(); } catch {}
-    try { delete (window as any).__sessionConflictPending; } catch {}
-    deps.room.send('session_takeover', { identity: deps.meId });
-  }, { once: true });
+  host.querySelector('[data-session-takeover]')?.addEventListener(
+    'click',
+    () => {
+      try {
+        host.remove();
+      } catch {}
+      try {
+        delete (window as any).__sessionConflictPending;
+      } catch {}
+      deps.room.send('session_takeover', { identity: deps.meId });
+    },
+    { once: true },
+  );
 
-  host.querySelector('[data-session-cancel]')?.addEventListener('click', () => {
-    try { host.remove(); } catch {}
-    try { delete (window as any).__sessionConflictPending; } catch {}
-    deps.room.send('session_takeover_cancel', {});
-  }, { once: true });
+  host.querySelector('[data-session-cancel]')?.addEventListener(
+    'click',
+    () => {
+      try {
+        host.remove();
+      } catch {}
+      try {
+        delete (window as any).__sessionConflictPending;
+      } catch {}
+      deps.room.send('session_takeover_cancel', {});
+    },
+    { once: true },
+  );
 }
 
 interface ServerRestartDeps {
@@ -57,7 +74,8 @@ export function showServerRestartDialog(deps: ServerRestartDeps): void {
   deps.onRestartDetected();
 
   const host = document.createElement('div');
-  host.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);';
+  host.style.cssText =
+    'position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);';
   host.innerHTML = `
     <div style="min-width:320px;max-width:480px;padding:32px;border-radius:16px;border:1px solid rgba(59,130,246,0.4);background:rgba(15,23,42,0.97);backdrop-filter:blur(12px);color:#fff;box-shadow:0 8px 32px rgba(0,0,0,0.5);text-align:center;">
       <div style="margin-bottom:16px;">
@@ -72,30 +90,38 @@ export function showServerRestartDialog(deps: ServerRestartDeps): void {
 
   let attempts = 0;
   const maxAttempts = 30;
-  const pollHealth = setInterval(async () => {
-    attempts++;
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 3000);
-      const res = await fetch(deps.apiBase + '/health', { signal: controller.signal });
-      clearTimeout(timeout);
-      if (res.ok) {
-        clearInterval(pollHealth);
-        window.location.reload();
-        return;
+  const pollHealth = setInterval(() => {
+    void (async () => {
+      attempts++;
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 3000);
+        const res = await fetch(deps.apiBase + '/health', { signal: controller.signal });
+        clearTimeout(timeout);
+        if (res.ok) {
+          clearInterval(pollHealth);
+          window.location.reload();
+          return;
+        }
+      } catch {
+        /* server not yet back */
       }
-    } catch { /* server not yet back */ }
 
-    if (attempts >= maxAttempts) {
-      clearInterval(pollHealth);
-      const desc = host.querySelector('[data-restart-desc]');
-      const btn = host.querySelector('[data-restart-reload]') as HTMLElement | null;
-      if (desc) desc.textContent = i18n.t('serverRestart.manualReload');
-      if (btn) btn.style.display = 'inline-block';
-    }
+      if (attempts >= maxAttempts) {
+        clearInterval(pollHealth);
+        const desc = host.querySelector('[data-restart-desc]');
+        const btn = host.querySelector('[data-restart-reload]');
+        if (desc) desc.textContent = i18n.t('serverRestart.manualReload');
+        if (btn) btn.style.display = 'inline-block';
+      }
+    })();
   }, 2000);
 
-  host.querySelector('[data-restart-reload]')?.addEventListener('click', () => {
-    window.location.reload();
-  }, { once: true });
+  host.querySelector('[data-restart-reload]')?.addEventListener(
+    'click',
+    () => {
+      window.location.reload();
+    },
+    { once: true },
+  );
 }

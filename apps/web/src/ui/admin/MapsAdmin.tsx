@@ -63,11 +63,34 @@ function useMapsState() {
     return () => clearTimeout(t);
   }, [status]);
   return {
-    maps, tenants, loading, error, status, filterTenantId, showCreate, showImport,
-    newMap, importData, importing, creating, deletingId, copyDialog,
-    setMaps, setTenants, setLoading, setError, setStatus, setFilterTenantId,
-    setShowCreate, setShowImport, setNewMap, setImportData, setImporting,
-    setCreating, setDeletingId, setCopyDialog,
+    maps,
+    tenants,
+    loading,
+    error,
+    status,
+    filterTenantId,
+    showCreate,
+    showImport,
+    newMap,
+    importData,
+    importing,
+    creating,
+    deletingId,
+    copyDialog,
+    setMaps,
+    setTenants,
+    setLoading,
+    setError,
+    setStatus,
+    setFilterTenantId,
+    setShowCreate,
+    setShowImport,
+    setNewMap,
+    setImportData,
+    setImporting,
+    setCreating,
+    setDeletingId,
+    setCopyDialog,
   };
 }
 type State = ReturnType<typeof useMapsState>;
@@ -188,7 +211,9 @@ function Toolbar(props: ToolbarProps) {
       </div>
       <div style={{ flex: 1 }} />
       <Button onClick={props.onReload}>{props.loading ? 'Lade…' : 'Neu laden'}</Button>
-      <Button variant="primary" onClick={props.onToggleCreate}>+ Neue Map</Button>
+      <Button variant="primary" onClick={props.onToggleCreate}>
+        + Neue Map
+      </Button>
       <Button onClick={props.onToggleImport}>Map importieren</Button>
     </div>
   );
@@ -242,9 +267,15 @@ export function MapsAdmin(props: { apiBase: string }) {
     [state.maps, state.filterTenantId],
   );
 
-  const tenantOptions: TenantSelectOption[] = state.tenants.map((t) => ({ value: t.id, label: `${t.slug} — ${t.name}` }));
+  const tenantOptions: TenantSelectOption[] = state.tenants.map((t) => ({
+    value: t.id,
+    label: `${t.slug} — ${t.name}`,
+  }));
   const filterOptions: TenantSelectOption[] = [{ value: ALL_TENANTS, label: '— Alle Tenants —' }, ...tenantOptions];
-  const tenantSelectOptions: TenantSelectOption[] = [{ value: PICK_TENANT, label: '— Tenant wählen —' }, ...tenantOptions];
+  const tenantSelectOptions: TenantSelectOption[] = [
+    { value: PICK_TENANT, label: '— Tenant wählen —' },
+    ...tenantOptions,
+  ];
 
   return (
     <MapsAdminView
@@ -253,11 +284,21 @@ export function MapsAdmin(props: { apiBase: string }) {
       filterOptions={filterOptions}
       tenantSelectOptions={tenantSelectOptions}
       fileInputRef={fileInputRef}
-      onReload={reloadMaps}
-      onCreate={() => createMap(apiBase, state, reloadMaps)}
-      onDelete={(id, name) => deleteMap(apiBase, state, reloadMaps, id, name)}
-      onCopy={() => copyMap(apiBase, state, reloadMaps)}
-      onImportFile={(e) => importMap(apiBase, state, reloadMaps, e)}
+      onReload={() => {
+        void reloadMaps();
+      }}
+      onCreate={() => {
+        void createMap(apiBase, state, reloadMaps);
+      }}
+      onDelete={(id, name) => {
+        void deleteMap(apiBase, state, reloadMaps, id, name);
+      }}
+      onCopy={() => {
+        void copyMap(apiBase, state, reloadMaps);
+      }}
+      onImportFile={(e) => {
+        void importMap(apiBase, state, reloadMaps, e);
+      }}
     />
   );
 }
@@ -277,8 +318,16 @@ type ViewProps = {
 
 function MapsAdminView(props: ViewProps) {
   const {
-    state, filteredMaps, filterOptions, tenantSelectOptions,
-    fileInputRef, onReload, onCreate, onDelete, onCopy, onImportFile,
+    state,
+    filteredMaps,
+    filterOptions,
+    tenantSelectOptions,
+    fileInputRef,
+    onReload,
+    onCreate,
+    onDelete,
+    onCopy,
+    onImportFile,
   } = props;
   return (
     <div style={{ display: 'grid', gap: 12 }}>
@@ -323,14 +372,18 @@ function MapsAdminView(props: ViewProps) {
           submitting={state.importing}
         />
       )}
-      <input ref={fileInputRef} type="file" accept=".json,application/json" style={{ display: 'none' }} onChange={onImportFile} />
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".json,application/json"
+        style={{ display: 'none' }}
+        onChange={onImportFile}
+      />
       <MapsTable
         maps={filteredMaps}
         loading={state.loading}
         deletingId={state.deletingId}
-        onCopy={(m) =>
-          state.setCopyDialog({ mapId: m.id, mapName: m.name, targetTenantId: m.tenantId, newName: '' })
-        }
+        onCopy={(m) => state.setCopyDialog({ mapId: m.id, mapName: m.name, targetTenantId: m.tenantId, newName: '' })}
         onRequestDelete={(id) => state.setDeletingId(id)}
         onConfirmDelete={onDelete}
         onCancelDelete={() => state.setDeletingId(null)}

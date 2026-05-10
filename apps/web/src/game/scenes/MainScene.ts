@@ -55,10 +55,18 @@ export class MainScene extends Phaser.Scene {
   private _lastCamSig: string | null = null;
 
   public currentMapId: string = (() => {
-    try { return useMapStore.getState().currentMapId || ''; } catch { return ''; }
+    try {
+      return useMapStore.getState().currentMapId || '';
+    } catch {
+      return '';
+    }
   })();
   public currentMapName: string = (() => {
-    try { return useMapStore.getState().currentMapName || 'office'; } catch { return 'office'; }
+    try {
+      return useMapStore.getState().currentMapName || 'office';
+    } catch {
+      return 'office';
+    }
   })();
   public terrainTilesetSources: Map<string, string> = new Map();
   public collisionVisible: boolean = false;
@@ -90,10 +98,10 @@ export class MainScene extends Phaser.Scene {
     this.autotileGrid = new AutotileGrid();
     this.autotileRenderer = new AutotileRenderer(this, this.autotileGrid, this.mapRef?.tileWidth ?? 16);
 
-    this.loadVisibleChunks('ground');
-    this.loadVisibleChunks('walls');
-    this.loadVisibleChunks('collision');
-    this.loadVisibleChunks('walls_auto');
+    void this.loadVisibleChunks('ground');
+    void this.loadVisibleChunks('walls');
+    void this.loadVisibleChunks('collision');
+    void this.loadVisibleChunks('walls_auto');
 
     this.initializeManagers();
     this.setupInputHandlers();
@@ -121,18 +129,43 @@ export class MainScene extends Phaser.Scene {
     const initialPos = (window as any).initialPlayerPosition || { x: 80, y: 120 };
 
     const avatarId = localStorage.getItem('avatarId') || 'default-characters:businessman1';
-    this.playerManager = new PlayerManager({ scene: this, physics: this.physics, anims: this.anims, mapRef: this.mapRef!, initialPos, avatarId });
+    this.playerManager = new PlayerManager({
+      scene: this,
+      physics: this.physics,
+      anims: this.anims,
+      mapRef: this.mapRef!,
+      initialPos,
+      avatarId,
+    });
     this.nameLabelManager = new NameLabelManager(this);
     this.nameLabelManager.createHeroLabel('Loading...', initialPos.x, initialPos.y);
     this.remotePlayersManager = new RemotePlayersManager(this);
-    this.cameraController = new CameraController({ scene: this, camera: this.cameras.main, hero: this.playerManager.getHero(), editorMode: this.editorMode });
+    this.cameraController = new CameraController({
+      scene: this,
+      camera: this.cameras.main,
+      hero: this.playerManager.getHero(),
+      editorMode: this.editorMode,
+    });
     this.cameraController.init(this.input);
     this.cameras.main.startFollow(this.playerManager.getHero(), true, 0.1, 0.1);
     ensureRecenterUi(this as any);
     updateRecenterUiVisibility(this as any);
-    this.collisionManager = new CollisionManager({ scene: this, hero: this.playerManager.getHero(), collisionLayer: this.collisionLayer, mapRef: this.mapRef! });
+    this.collisionManager = new CollisionManager({
+      scene: this,
+      hero: this.playerManager.getHero(),
+      collisionLayer: this.collisionLayer,
+      mapRef: this.mapRef!,
+    });
     this.collisionManager.ensureCollisionCollider();
-    this.tileManager = new TileManager({ scene: this, mapRef: this.mapRef!, v2: this.v2, editorGround: this.editorGround, wallsLayer: this.wallsLayer, collisionLayer: this.collisionLayer, dynamicTilesets: this.dynamicTilesets });
+    this.tileManager = new TileManager({
+      scene: this,
+      mapRef: this.mapRef!,
+      v2: this.v2,
+      editorGround: this.editorGround,
+      wallsLayer: this.wallsLayer,
+      collisionLayer: this.collisionLayer,
+      dynamicTilesets: this.dynamicTilesets,
+    });
     this.tileManager.updateBackgrounds();
     this.tileManager.updateGrid();
     this.uiManager = new UIManager({ scene: this, getEditorMode: () => this.editorMode });
@@ -147,7 +180,10 @@ export class MainScene extends Phaser.Scene {
     this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
       if (this.editorMode) {
         if (this.uiManager.getHoveredSprite()) this.uiManager.setHoveredSprite(null);
-        this.uiManager.updateCursor(this.cameraController?.isPanning() || false, this.cameraController?.isSpaceHeld() || false);
+        this.uiManager.updateCursor(
+          this.cameraController?.isPanning() || false,
+          this.cameraController?.isSpaceHeld() || false,
+        );
         return;
       }
       const worldPoint = pointer.positionToCamera(this.cameras.main) as Phaser.Math.Vector2;
@@ -160,17 +196,22 @@ export class MainScene extends Phaser.Scene {
         }
       }
       if (!foundHover && this.uiManager.getHoveredSprite()) this.uiManager.setHoveredSprite(null);
-      this.uiManager.updateCursor(this.cameraController?.isPanning() || false, this.cameraController?.isSpaceHeld() || false);
+      this.uiManager.updateCursor(
+        this.cameraController?.isPanning() || false,
+        this.cameraController?.isSpaceHeld() || false,
+      );
     });
 
     this.input.on(Phaser.Input.Events.POINTER_DOWN, (p: Phaser.Input.Pointer) => {
       if (this.editorMode) return;
       if (p.rightButtonDown()) {
-        try { (p.event as any)?.preventDefault?.(); } catch { }
+        try {
+          (p.event as any)?.preventDefault?.();
+        } catch {}
         const worldPoint = p.positionToCamera(this.cameras.main) as Phaser.Math.Vector2;
         for (const [id, sprite] of this.remotePlayersManager.getAllRemotes()) {
           if (sprite.getBounds().contains(worldPoint.x, worldPoint.y)) {
-            const evt = (p.event as any) as MouseEvent | undefined;
+            const evt = p.event as any as MouseEvent | undefined;
             gameBridge.onRightClick({ x: evt?.clientX ?? p.x, y: evt?.clientY ?? p.y, playerId: id });
             break;
           }
@@ -178,8 +219,13 @@ export class MainScene extends Phaser.Scene {
       }
     });
 
-    try { this.input.mouse?.disableContextMenu?.(); } catch { }
-    this.game.canvas.addEventListener('contextmenu', (e) => { e.preventDefault(); return false; });
+    try {
+      this.input.mouse?.disableContextMenu?.();
+    } catch {}
+    this.game.canvas.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      return false;
+    });
 
     this.events.on(Phaser.Scenes.Events.UPDATE, () => {
       this.playerManager.update(this.input.keyboard!.createCursorKeys(), (data) => gameBridge.onLocalMove(data));
@@ -189,7 +235,8 @@ export class MainScene extends Phaser.Scene {
       this.remotePlayersManager.update();
       this.cameraController?.autoFollowIfHeroOutOfView?.();
       updateRecenterUiVisibility(this as any);
-      if (this.editorMode) this.cameraController.updateEditorPan(this.input.keyboard!.createCursorKeys(), this.game.loop.delta);
+      if (this.editorMode)
+        this.cameraController.updateEditorPan(this.input.keyboard!.createCursorKeys(), this.game.loop.delta);
     });
   }
 
@@ -197,18 +244,33 @@ export class MainScene extends Phaser.Scene {
     EditorService.subscribe(() => {
       this.tileManager.updateBackgrounds();
       this.tileManager.updateGrid();
-      this.uiManager.updateCursor(this.cameraController?.isPanning() || false, this.cameraController?.isSpaceHeld() || false);
+      this.uiManager.updateCursor(
+        this.cameraController?.isPanning() || false,
+        this.cameraController?.isSpaceHeld() || false,
+      );
       // Spawn rendering is now handled by EditorRenderer via EditorIntegration
     });
   }
 
   private loadServerData() {
     setTimeout(() => {
-      this.fetchAndApplyServerLayers().then(() => {
-        if (!this.editorMode) try { this.collisionLayer?.setVisible(false); } catch (e) { logger.error('[MainScene] Failed to hide collision layer', e); }
-      }).catch(e => logger.error('[MainScene] Failed to load server layers', e));
+      this.fetchAndApplyServerLayers()
+        .then(() => {
+          if (!this.editorMode)
+            try {
+              this.collisionLayer?.setVisible(false);
+            } catch (e) {
+              logger.error('[MainScene] Failed to hide collision layer', e);
+            }
+        })
+        .catch((e) => logger.error('[MainScene] Failed to load server layers', e));
     }, 100);
-    if (this.v2) try { this.collisionLayer?.setVisible(false); } catch (e) { logger.error('[MainScene] Failed to hide collision layer', e); }
+    if (this.v2)
+      try {
+        this.collisionLayer?.setVisible(false);
+      } catch (e) {
+        logger.error('[MainScene] Failed to hide collision layer', e);
+      }
 
     const pendingTilesets = (window as any).pendingTilesets;
     if (pendingTilesets && Array.isArray(pendingTilesets)) {
@@ -220,8 +282,28 @@ export class MainScene extends Phaser.Scene {
   private setupCleanup() {
     gameBridge.setSceneApi(this);
     (window as any).currentPhaserScene = this;
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => { try { this.editorIntegration?.destroy(); } catch { } try { this.objectManager.destroy(); } catch { } try { gameBridge.setSceneApi(null); } catch { } });
-    this.events.once(Phaser.Scenes.Events.DESTROY, () => { try { this.editorIntegration?.destroy(); } catch { } try { this.objectManager.destroy(); } catch { } try { gameBridge.setSceneApi(null); } catch { } });
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      try {
+        this.editorIntegration?.destroy();
+      } catch {}
+      try {
+        this.objectManager.destroy();
+      } catch {}
+      try {
+        gameBridge.setSceneApi(null);
+      } catch {}
+    });
+    this.events.once(Phaser.Scenes.Events.DESTROY, () => {
+      try {
+        this.editorIntegration?.destroy();
+      } catch {}
+      try {
+        this.objectManager.destroy();
+      } catch {}
+      try {
+        gameBridge.setSceneApi(null);
+      } catch {}
+    });
   }
 
   recenterCamera() {
@@ -237,31 +319,60 @@ export class MainScene extends Phaser.Scene {
     if (enabled) {
       this.uiManager.setHoveredSprite(null);
       this.captureEditorSnapshot();
-      try { setCollisionVisible(this as any, true); } catch { }
-      try { this.collisionLayer?.setVisible(false); } catch { }
+      try {
+        setCollisionVisible(this as any, true);
+      } catch {}
+      try {
+        this.collisionLayer?.setVisible(false);
+      } catch {}
       updateRecenterUiVisibility(this as any);
       this.nameLabelManager.setHeroLabelVisibility(false);
       this.nameLabelManager.setAllRemoteLabelsVisibility(false);
-      try { this.bubbleOutlines.forEach(g => g.setVisible(false)); } catch { }
-      try { this.objectManager.setAllSpritesVisible(false); } catch { }
-      try { this.remotePlayersManager.setVisibility(false); } catch { }
-      try { this.playerManager.setVisible(false); } catch { }
-      try { this.fetchAndApplyServerLayers(); } catch { }
+      try {
+        this.bubbleOutlines.forEach((g) => g.setVisible(false));
+      } catch {}
+      try {
+        this.objectManager.setAllSpritesVisible(false);
+      } catch {}
+      try {
+        this.remotePlayersManager.setVisibility(false);
+      } catch {}
+      try {
+        this.playerManager.setVisible(false);
+      } catch {}
+      void this.fetchAndApplyServerLayers().catch(() => {
+        /* ignore: silent reload */
+      });
     } else {
       this.nameLabelManager.setHeroLabelVisibility(true);
       this.nameLabelManager.setAllRemoteLabelsVisibility(true);
-      try { this.bubbleOutlines.forEach(g => g.setVisible(true)); } catch { }
-      try { this.objectManager.setAllSpritesVisible(true); } catch { }
-      try { this.remotePlayersManager.setVisibility(true); } catch { }
-      try { this.playerManager.setVisible(true); } catch { }
+      try {
+        this.bubbleOutlines.forEach((g) => g.setVisible(true));
+      } catch {}
+      try {
+        this.objectManager.setAllSpritesVisible(true);
+      } catch {}
+      try {
+        this.remotePlayersManager.setVisibility(true);
+      } catch {}
+      try {
+        this.playerManager.setVisible(true);
+      } catch {}
       this.uiManager.hideEditorOverlays();
-      if (this.v2) try { this.collisionLayer?.setVisible(false); } catch { }
+      if (this.v2)
+        try {
+          this.collisionLayer?.setVisible(false);
+        } catch {}
     }
 
     try {
       this.systems.forEach((s) => s.init());
-      this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => { try { this.systems.forEach((s) => s.destroy()); } catch { } });
-    } catch { }
+      this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+        try {
+          this.systems.forEach((s) => s.destroy());
+        } catch {}
+      });
+    } catch {}
   }
 
   captureEditorSnapshot() {
@@ -284,8 +395,24 @@ export class MainScene extends Phaser.Scene {
     this.editorMapObjectsSnapshot = null;
   }
 
-  syncRemotePlayers(players: Record<string, { x: number; y: number; direction: 'up' | 'down' | 'left' | 'right'; prevX?: number; prevY?: number; name?: string | undefined; dnd?: boolean | undefined; avatarId?: string | undefined; isNpc?: boolean | undefined }>) {
-    const localSession: string | undefined = (typeof window !== 'undefined' ? (window as any).__localSessionId : undefined);
+  syncRemotePlayers(
+    players: Record<
+      string,
+      {
+        x: number;
+        y: number;
+        direction: 'up' | 'down' | 'left' | 'right';
+        prevX?: number;
+        prevY?: number;
+        name?: string | undefined;
+        dnd?: boolean | undefined;
+        avatarId?: string | undefined;
+        isNpc?: boolean | undefined;
+      }
+    >,
+  ) {
+    const localSession: string | undefined =
+      typeof window !== 'undefined' ? (window as any).__localSessionId : undefined;
     const hero = this.playerManager.getHero();
 
     const filteredPlayers: typeof players = {};
@@ -324,13 +451,34 @@ export class MainScene extends Phaser.Scene {
     this.bubbleOutlines.forEach((g) => g.setVisible(true));
   }
 
-  setDesiredPosition(pos: { x: number; y: number } | null) { this.playerManager.setDesiredPosition(pos); }
-  setMovementLocked(locked: boolean) { this.playerManager.setMovementLocked(locked); }
-  findFreeSpotNear(targetId: string, options?: { radius?: number; step?: number }): { x: number; y: number } | null { return this.collisionManager.findFreeSpotNear(targetId, options); }
-  setZoneOverlay(_polys: { name: string; points: any[] }[]) { /* Handled by EditorRenderer */ }
-  setZonesVisible(visible: boolean) { this.uiManager.setZonesVisible(visible); }
-  setSpawnMarker(_pos: { x: number; y: number } | null) { /* Handled by EditorRenderer */ }
-  setAssetPreview(preview: { dataUrl: string; width?: number | undefined; height?: number | undefined; rotation?: number | undefined; packUuid?: string | undefined; itemId?: string | undefined } | null) {
+  setDesiredPosition(pos: { x: number; y: number } | null) {
+    this.playerManager.setDesiredPosition(pos);
+  }
+  setMovementLocked(locked: boolean) {
+    this.playerManager.setMovementLocked(locked);
+  }
+  findFreeSpotNear(targetId: string, options?: { radius?: number; step?: number }): { x: number; y: number } | null {
+    return this.collisionManager.findFreeSpotNear(targetId, options);
+  }
+  setZoneOverlay(_polys: { name: string; points: any[] }[]) {
+    /* Handled by EditorRenderer */
+  }
+  setZonesVisible(visible: boolean) {
+    this.uiManager.setZonesVisible(visible);
+  }
+  setSpawnMarker(_pos: { x: number; y: number } | null) {
+    /* Handled by EditorRenderer */
+  }
+  setAssetPreview(
+    preview: {
+      dataUrl: string;
+      width?: number | undefined;
+      height?: number | undefined;
+      rotation?: number | undefined;
+      packUuid?: string | undefined;
+      itemId?: string | undefined;
+    } | null,
+  ) {
     if (this.editorIntegration) {
       this.editorIntegration.getRenderer().renderGhost(preview);
     } else {
@@ -338,9 +486,19 @@ export class MainScene extends Phaser.Scene {
       setAssetPreview(this, preview);
     }
   }
-  public getEditorRenderer() { return this.editorIntegration?.getRenderer() ?? null; }
-  async applyTerrainPaint(edit: { rect: { startX: number; startY: number; endX: number; endY: number }; dataUrl: string; attempt?: number }) { void edit; }
-  eraseTerrainRect(rect: { startX: number; startY: number; endX: number; endY: number }) { this.tileManager.eraseTerrainRect(rect); }
+  public getEditorRenderer() {
+    return this.editorIntegration?.getRenderer() ?? null;
+  }
+  applyTerrainPaint(edit: {
+    rect: { startX: number; startY: number; endX: number; endY: number };
+    dataUrl: string;
+    attempt?: number;
+  }): void {
+    void edit;
+  }
+  eraseTerrainRect(rect: { startX: number; startY: number; endX: number; endY: number }) {
+    this.tileManager.eraseTerrainRect(rect);
+  }
   paintTerrainRect(layer: string, rect: { x0: number; y0: number; x1: number; y1: number }, tileRefId: number) {
     this.tileManager?.paintTerrainRect(layer, rect, tileRefId);
   }
@@ -372,21 +530,45 @@ export class MainScene extends Phaser.Scene {
   setSelectionRect(_rect: { x: number; y: number; w: number; h: number } | null) {
     // Handled by EditorRenderer via EditorIntegration
   }
-  applyTilePaint(edit: { layer: 'EditorGround' | 'EditorWalls' | 'Collision'; tilesetKey: string; tileIndex: number; rect: { startX: number; startY: number; endX: number; endY: number } }) {
+  applyTilePaint(edit: {
+    layer: 'EditorGround' | 'EditorWalls' | 'Collision';
+    tilesetKey: string;
+    tileIndex: number;
+    rect: { startX: number; startY: number; endX: number; endY: number };
+  }) {
     this.tileManager.applyTilePaint(edit, this.collisionVisible, () => {
       this.collisionManager.ensureCollisionCollider();
       this.collisionManager.rebuildStaticColliders();
       if (this.collisionVisible) updateCollisionOverlay(this as any);
     });
   }
-  saveEditorLayersHard() { }
-  reloadEditorLayers() { }
-  async fetchAndApplyServerLayers() { await fetchAndApplyServerLayers(this as any); }
-  registerTileset(ts: { key: string; dataUrl: string; tileWidth: number; tileHeight: number; margin?: number | undefined; spacing?: number | undefined }) { registerTileset(this as any, ts); }
-  setCollisionVisible(visible: boolean) { setCollisionVisible(this as any, visible); }
-  setBubbleMembers(members: Set<string>) { uiSetBubbleMembers(this as any, members); }
-  setHeroName(name: string) { this.nameLabelManager.setHeroName(name); }
-  updateSpeakingStates(speakingIds: Set<string>) { this.nameLabelManager.updateSpeakingStates(speakingIds); }
+  saveEditorLayersHard() {}
+  reloadEditorLayers() {}
+  async fetchAndApplyServerLayers() {
+    await fetchAndApplyServerLayers(this as any);
+  }
+  registerTileset(ts: {
+    key: string;
+    dataUrl: string;
+    tileWidth: number;
+    tileHeight: number;
+    margin?: number | undefined;
+    spacing?: number | undefined;
+  }) {
+    registerTileset(this as any, ts);
+  }
+  setCollisionVisible(visible: boolean) {
+    setCollisionVisible(this as any, visible);
+  }
+  setBubbleMembers(members: Set<string>) {
+    uiSetBubbleMembers(this as any, members);
+  }
+  setHeroName(name: string) {
+    this.nameLabelManager.setHeroName(name);
+  }
+  updateSpeakingStates(speakingIds: Set<string>) {
+    this.nameLabelManager.updateSpeakingStates(speakingIds);
+  }
   changeHeroAvatar(avatarId: string) {
     const textureKey = avatarRegistry.getTextureKey(avatarId);
     if (this.textures.exists(textureKey)) {
@@ -399,24 +581,39 @@ export class MainScene extends Phaser.Scene {
       this.load.start();
     }
   }
-  handleObjectsUpdated(data: ObjectsUpdatedPayload) { this.objectManager.handleObjectsUpdated(data); }
-  setBackgroundColor(hex: string) { try { this.cameras.main.setBackgroundColor(hex); } catch { } }
-  private async loadVisibleChunks(layerName: ChunkLayerName) { await loadVisibleChunks(this as any, layerName); }
-  public applyChunkUpdates(layerName: ChunkLayerName, updates: Array<{ key: string; version: number; encoding: string; data: string }>) { applyChunkUpdates(this as any, layerName, updates); }
+  handleObjectsUpdated(data: ObjectsUpdatedPayload) {
+    this.objectManager.handleObjectsUpdated(data);
+  }
+  setBackgroundColor(hex: string) {
+    try {
+      this.cameras.main.setBackgroundColor(hex);
+    } catch {}
+  }
+  private async loadVisibleChunks(layerName: ChunkLayerName) {
+    await loadVisibleChunks(this as any, layerName);
+  }
+  public applyChunkUpdates(
+    layerName: ChunkLayerName,
+    updates: Array<{ key: string; version: number; encoding: string; data: string }>,
+  ) {
+    applyChunkUpdates(this as any, layerName, updates);
+  }
 
   override update(time: number, delta: number) {
     super.update(time, delta);
-    try { this.systems.forEach((s) => s.update(time, delta)); } catch { }
+    try {
+      this.systems.forEach((s) => s.update(time, delta));
+    } catch {}
     if (this.v2) {
       const vw = this.cameras.main.worldView;
       const camSig = `${Math.floor(vw.x)}:${Math.floor(vw.y)}:${Math.floor(vw.width)}:${Math.floor(vw.height)}:${this.cameras.main.zoom.toFixed(2)}`;
       if (camSig !== this._lastCamSig) {
         this._lastCamSig = camSig;
-        this.loadVisibleChunks('ground');
-        this.loadVisibleChunks('walls');
-        this.loadVisibleChunks('collision');
-        this.loadVisibleChunks('walls_auto');
-        this.objectManager.loadVisibleChunks(this.cameras.main);
+        void this.loadVisibleChunks('ground');
+        void this.loadVisibleChunks('walls');
+        void this.loadVisibleChunks('collision');
+        void this.loadVisibleChunks('walls_auto');
+        void this.objectManager.loadVisibleChunks(this.cameras.main);
       }
     }
   }
@@ -425,41 +622,55 @@ export class MainScene extends Phaser.Scene {
     if (this.v2) {
       this.loadedChunks.clear();
       this._lastCamSig = null;
-      try { logger.debug('[MainScene] Forced full map reload (chunks cleared)'); } catch { }
-      this.loadVisibleChunks('ground');
-      this.loadVisibleChunks('walls');
-      this.loadVisibleChunks('collision');
-      this.loadVisibleChunks('walls_auto');
-      this.fetchAndApplyServerLayers().catch(() => { });
+      try {
+        logger.debug('[MainScene] Forced full map reload (chunks cleared)');
+      } catch {}
+      void this.loadVisibleChunks('ground');
+      void this.loadVisibleChunks('walls');
+      void this.loadVisibleChunks('collision');
+      void this.loadVisibleChunks('walls_auto');
+      this.fetchAndApplyServerLayers().catch(() => {});
     } else {
-      this.fetchAndApplyServerLayers().catch(() => { });
+      this.fetchAndApplyServerLayers().catch(() => {});
     }
   }
 
-  rebuildStaticColliders() { this.collisionManager.rebuildStaticColliders(); }
-  ensureCollisionCollider() { this.collisionManager.ensureCollisionCollider(); }
-  ensureEditorLayers() { this.tileManager.ensureEditorLayers(); }
-  updateCollisionOverlay() { updateCollisionOverlay(this as any); }
+  rebuildStaticColliders() {
+    this.collisionManager.rebuildStaticColliders();
+  }
+  ensureCollisionCollider() {
+    this.collisionManager.ensureCollisionCollider();
+  }
+  ensureEditorLayers() {
+    this.tileManager.ensureEditorLayers();
+  }
+  updateCollisionOverlay() {
+    updateCollisionOverlay(this as any);
+  }
 
   async waitForTilesetsReady(keys: string[], timeoutMs: number = 1500): Promise<void> {
     const start = Date.now();
     while (Date.now() - start < timeoutMs) {
-      if (keys.every(key => this.textures.exists(key))) return;
-      await new Promise(r => setTimeout(r, 50));
+      if (keys.every((key) => this.textures.exists(key))) return;
+      await new Promise((r) => setTimeout(r, 50));
     }
   }
 
-  public updateTilesetRegistry(registry: any[]) { this.tileManager.updateTilesetRegistry(registry); }
+  public updateTilesetRegistry(registry: any[]) {
+    this.tileManager.updateTilesetRegistry(registry);
+  }
 
-  registerAutotileDefinitions(items: Array<{
-    wallTypeId: number;
-    key: string;
-    textureUrl: string;
-    tileWidth: number;
-    tileHeight: number;
-    variants: Record<string, { col: number; row: number }>;
-    packUuid: string;
-  }>): void {
+  registerAutotileDefinitions(
+    items: Array<{
+      wallTypeId: number;
+      key: string;
+      textureUrl: string;
+      tileWidth: number;
+      tileHeight: number;
+      variants: Record<string, { col: number; row: number }>;
+      packUuid: string;
+    }>,
+  ): void {
     for (const item of items) {
       const textureKey = `autotile_${item.packUuid}_${item.key}`;
 

@@ -19,7 +19,7 @@ function useInvitesTab(apiBase: string, t: (k: string) => string) {
 
   React.useEffect(() => {
     let cancelled = false;
-    (async () => {
+    void (async () => {
       setLoading(true);
       try {
         const res = await fetch(`${apiBase}/invites`, { credentials: 'include' });
@@ -27,25 +27,33 @@ function useInvitesTab(apiBase: string, t: (k: string) => string) {
           const data = await res.json();
           if (!cancelled) setInvites(data);
         }
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
       if (!cancelled) setLoading(false);
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [apiBase]);
 
   const handleDelete = async (code: string) => {
     if (!confirm(t('tenant.inviteDeleteConfirm'))) return;
     try {
       await fetch(`${apiBase}/invites/${encodeURIComponent(code)}`, { method: 'DELETE', credentials: 'include' });
-      setInvites(prev => prev.filter(i => i.code !== code));
-    } catch { /* ignore */ }
+      setInvites((prev) => prev.filter((i) => i.code !== code));
+    } catch {
+      /* ignore */
+    }
   };
 
   const handleCopy = async (code: string) => {
     const link = `${window.location.origin}/#/?invite=${code}`;
     try {
       await navigator.clipboard.writeText(link);
-    } catch { /* clipboard not available */ }
+    } catch {
+      /* clipboard not available */
+    }
   };
 
   return { invites, loading, handleDelete, handleCopy };
@@ -68,10 +76,18 @@ function InvitesHeader({ t }: { t: (k: string) => string }) {
 function LoadingRows() {
   return (
     <TBody>
-      {[1, 2, 3].map(i => (
+      {[1, 2, 3].map((i) => (
         <Tr key={i}>
           <Td colSpan={5} style={{ paddingLeft: 0 }}>
-            <div style={{ height: 16, borderRadius: 4, background: 'var(--glass-hover)', animation: 'pulse 1.5s ease-in-out infinite', width: `${60 + i * 10}%` }} />
+            <div
+              style={{
+                height: 16,
+                borderRadius: 4,
+                background: 'var(--glass-hover)',
+                animation: 'pulse 1.5s ease-in-out infinite',
+                width: `${60 + i * 10}%`,
+              }}
+            />
           </Td>
         </Tr>
       ))}
@@ -79,21 +95,59 @@ function LoadingRows() {
   );
 }
 
-function InviteRow({ inv, t, onCopy, onDelete }: { inv: Invite; t: (k: string) => string; onCopy: (code: string) => void | Promise<void>; onDelete: (code: string) => void | Promise<void> }) {
+function InviteRow({
+  inv,
+  t,
+  onCopy,
+  onDelete,
+}: {
+  inv: Invite;
+  t: (k: string) => string;
+  onCopy: (code: string) => void | Promise<void>;
+  onDelete: (code: string) => void | Promise<void>;
+}) {
   return (
     <Tr>
       <Td style={{ paddingLeft: 0 }}>
-        <code style={{ display: 'inline-block', padding: '4px 6px', borderRadius: 6, border: '1px solid var(--border)', background: 'rgba(255,255,255,0.06)' }}>{inv.code}</code>
+        <code
+          style={{
+            display: 'inline-block',
+            padding: '4px 6px',
+            borderRadius: 6,
+            border: '1px solid var(--border)',
+            background: 'rgba(255,255,255,0.06)',
+          }}
+        >
+          {inv.code}
+        </code>
       </Td>
       <Td>{inv.email || '\u2014'}</Td>
       <Td>{inv.createdAt ? new Date(inv.createdAt).toLocaleString() : '\u2014'}</Td>
       <Td>
-        <Badge intent={inv.usedAt ? 'danger' : 'success'}>{inv.usedAt ? t('tenant.inviteUsed') : t('tenant.invitePending')}</Badge>
+        <Badge intent={inv.usedAt ? 'danger' : 'success'}>
+          {inv.usedAt ? t('tenant.inviteUsed') : t('tenant.invitePending')}
+        </Badge>
       </Td>
       <Td style={{ paddingRight: 0, textAlign: 'right', display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-        <Button size="sm" variant="secondary" onClick={() => onCopy(inv.code)}>{t('tenant.inviteCopy')}</Button>
+        <Button
+          size="sm"
+          variant="secondary"
+          onClick={() => {
+            void onCopy(inv.code);
+          }}
+        >
+          {t('tenant.inviteCopy')}
+        </Button>
         {!inv.usedAt && (
-          <Button size="sm" variant="danger" onClick={() => onDelete(inv.code)}>{t('tenant.inviteDelete')}</Button>
+          <Button
+            size="sm"
+            variant="danger"
+            onClick={() => {
+              void onDelete(inv.code);
+            }}
+          >
+            {t('tenant.inviteDelete')}
+          </Button>
         )}
       </Td>
     </Tr>
@@ -112,7 +166,10 @@ export function InvitesTab({ apiBase }: InvitesTabProps) {
         {!loading && invites.length === 0 && (
           <TBody>
             <Tr>
-              <Td colSpan={5} style={{ paddingLeft: 0, textAlign: 'center', color: 'var(--fg-subtle)', padding: '32px 0' }}>
+              <Td
+                colSpan={5}
+                style={{ paddingLeft: 0, textAlign: 'center', color: 'var(--fg-subtle)', padding: '32px 0' }}
+              >
                 {t('tenant.noInvites')}
               </Td>
             </Tr>
@@ -120,7 +177,7 @@ export function InvitesTab({ apiBase }: InvitesTabProps) {
         )}
         {!loading && invites.length > 0 && (
           <TBody>
-            {invites.map(inv => (
+            {invites.map((inv) => (
               <InviteRow key={inv.code} inv={inv} t={t} onCopy={handleCopy} onDelete={handleDelete} />
             ))}
           </TBody>

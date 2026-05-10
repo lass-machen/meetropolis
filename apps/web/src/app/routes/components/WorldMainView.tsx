@@ -20,7 +20,15 @@ import { AVControlBar } from './AVControlBar';
 import { PaymentStatusBanner } from '../../../ui/billing/components/PaymentStatusBanner';
 import type { AdminCapabilities } from '../hooks/useFetchMe';
 
-type Participant = { sid: string; identity: string; hasVideo: boolean; hasMic: boolean; isSpeaking: boolean; media: 'camera' | 'screen'; volume?: number };
+type Participant = {
+  sid: string;
+  identity: string;
+  hasVideo: boolean;
+  hasMic: boolean;
+  isSpeaking: boolean;
+  media: 'camera' | 'screen';
+  volume?: number;
+};
 type AvState = { mic: boolean; cam: boolean; share: boolean; dnd: boolean };
 type ConnStatus = { reconnecting: boolean; lastCode?: number; lastReason?: string };
 type Hud = { zone?: string; follow?: string | null; avRoom?: string | null };
@@ -54,8 +62,8 @@ export type WorldMainViewProps = {
   packStoreOpen: boolean;
   setPackStoreOpen: React.Dispatch<React.SetStateAction<boolean>>;
   devices: { mics: { id: string; label: string }[]; cams: { id: string; label: string }[] };
-  selectedMicId: string | '';
-  selectedCamId: string | '';
+  selectedMicId: string;
+  selectedCamId: string;
   cameraManual: boolean;
   pttAwareToggleMic: () => Promise<void>;
   eventHandlers: any;
@@ -84,7 +92,21 @@ function buildTopRightMenu(props: WorldMainViewProps) {
 }
 
 function HeaderOverlays(props: WorldMainViewProps & { mySessionId: string | undefined; topRightMenu: any }) {
-  const { hud, editor, avState, participantsToRender, gridExpanded, selectedSid, overlayZoom, setOverlayZoom, eventHandlers, colyseusRef, getRoom, mySessionId, topRightMenu } = props;
+  const {
+    hud,
+    editor,
+    avState,
+    participantsToRender,
+    gridExpanded,
+    selectedSid,
+    overlayZoom,
+    setOverlayZoom,
+    eventHandlers,
+    colyseusRef,
+    getRoom,
+    mySessionId,
+    topRightMenu,
+  } = props;
   return (
     <Overlays
       hud={hud}
@@ -106,7 +128,8 @@ function HeaderOverlays(props: WorldMainViewProps & { mySessionId: string | unde
 }
 
 function ControlBar(props: WorldMainViewProps) {
-  const { editor, avState, devices, selectedMicId, selectedCamId, cameraManual, pttAwareToggleMic, eventHandlers } = props;
+  const { editor, avState, devices, selectedMicId, selectedCamId, cameraManual, pttAwareToggleMic, eventHandlers } =
+    props;
   return (
     <AVControlBar
       editorActive={editor.active}
@@ -127,7 +150,27 @@ function ControlBar(props: WorldMainViewProps) {
 }
 
 export function WorldMainView(props: WorldMainViewProps) {
-  const { apiBase, containerRef, colyseusRef, localPosRef, hud, editor, avState, isInternalOwner, capabilities, paymentStatus, handleManageBilling, positionReady, showReloadBanner, connStatus, adminOpen, setAdminOpen, packStoreOpen, setPackStoreOpen, eventHandlers } = props;
+  const {
+    apiBase,
+    containerRef,
+    colyseusRef,
+    localPosRef,
+    hud,
+    editor,
+    avState,
+    isInternalOwner,
+    capabilities,
+    paymentStatus,
+    handleManageBilling,
+    positionReady,
+    showReloadBanner,
+    connStatus,
+    adminOpen,
+    setAdminOpen,
+    packStoreOpen,
+    setPackStoreOpen,
+    eventHandlers,
+  } = props;
   const topRightMenu = buildTopRightMenu(props);
   const mySessionId = localPosRef.current?.id;
 
@@ -141,7 +184,12 @@ export function WorldMainView(props: WorldMainViewProps) {
         onDismissBanner={eventHandlers.handleDismissBanner}
       />
       {isInternalOwner && paymentStatus && paymentStatus.status !== 'ok' && (
-        <PaymentStatusBanner paymentStatus={paymentStatus} onManageBilling={handleManageBilling} />
+        <PaymentStatusBanner
+          paymentStatus={paymentStatus}
+          onManageBilling={() => {
+            void handleManageBilling();
+          }}
+        />
       )}
       <GameCanvas containerRef={containerRef} positionReady={positionReady} avDnd={avState.dnd} />
       {isInternalOwner && (

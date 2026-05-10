@@ -3,10 +3,7 @@ import { PrismaClient } from '../../generated/prisma/index.js';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { logger } from '../../logger.js';
-import {
-  requireAuth,
-  normalizeEmailForMatching,
-} from '../utils/authHelpers.js';
+import { requireAuth, normalizeEmailForMatching } from '../utils/authHelpers.js';
 
 const forgotSchema = z.object({ email: z.string().email() });
 
@@ -17,9 +14,12 @@ const forgotSchema = z.object({ email: z.string().email() });
  * out-of-band an den User weiter. Endpoint antwortet still 200, um keine
  * User-Enumerierung zu erlauben.
  */
-export async function handleAuthForgot(_prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
+export function handleAuthForgot(_prisma: PrismaClient, req: express.Request, res: express.Response): void {
   const parse = forgotSchema.safeParse(req.body || {});
-  if (!parse.success) { res.status(400).json({ error: 'email required' }); return; }
+  if (!parse.success) {
+    res.status(400).json({ error: 'email required' });
+    return;
+  }
   logger.warn({ event: 'auth.forgot.disabled', email: parse.data.email });
   res.json({ ok: true });
 }
@@ -30,12 +30,22 @@ const resetSchema = z.object({
   password: z.string().min(8),
 });
 
-export async function handleAuthReset(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
+export async function handleAuthReset(
+  prisma: PrismaClient,
+  req: express.Request,
+  res: express.Response,
+): Promise<void> {
   const parse = resetSchema.safeParse(req.body || {});
-  if (!parse.success) { res.status(400).json({ error: 'token and password required' }); return; }
+  if (!parse.success) {
+    res.status(400).json({ error: 'token and password required' });
+    return;
+  }
   const { email, token, password } = parse.data;
   const pr = await prisma.passwordReset.findUnique({ where: { token } });
-  if (!pr || pr.usedAt || pr.expiresAt < new Date()) { res.status(400).json({ error: 'invalid token' }); return; }
+  if (!pr || pr.usedAt || pr.expiresAt < new Date()) {
+    res.status(400).json({ error: 'invalid token' });
+    return;
+  }
   if (email) {
     const u = await prisma.user.findUnique({ where: { id: pr.userId } });
     if (!u || normalizeEmailForMatching(u.email) !== normalizeEmailForMatching(email)) {
@@ -51,16 +61,32 @@ export async function handleAuthReset(prisma: PrismaClient, req: express.Request
 
 const changeSchema = z.object({ currentPassword: z.string().min(8), newPassword: z.string().min(8) });
 
-export async function handleAuthChange(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
+export async function handleAuthChange(
+  prisma: PrismaClient,
+  req: express.Request,
+  res: express.Response,
+): Promise<void> {
   const auth = requireAuth(req);
-  if (!auth) { res.status(401).json({ error: 'unauthorized' }); return; }
+  if (!auth) {
+    res.status(401).json({ error: 'unauthorized' });
+    return;
+  }
   const parse = changeSchema.safeParse(req.body || {});
-  if (!parse.success) { res.status(400).json({ error: 'currentPassword and newPassword required' }); return; }
+  if (!parse.success) {
+    res.status(400).json({ error: 'currentPassword and newPassword required' });
+    return;
+  }
   const { currentPassword, newPassword } = parse.data;
   const user = await prisma.user.findUnique({ where: { id: auth.userId } });
-  if (!user || !user.passwordHash) { res.status(400).json({ error: 'no password set' }); return; }
+  if (!user || !user.passwordHash) {
+    res.status(400).json({ error: 'no password set' });
+    return;
+  }
   const ok = await bcrypt.compare(currentPassword, user.passwordHash);
-  if (!ok) { res.status(401).json({ error: 'invalid current password' }); return; }
+  if (!ok) {
+    res.status(401).json({ error: 'invalid current password' });
+    return;
+  }
   const hash = await bcrypt.hash(newPassword, 10);
   await prisma.user.update({ where: { id: user.id }, data: { passwordHash: hash } });
   res.json({ ok: true });

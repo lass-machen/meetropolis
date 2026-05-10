@@ -13,27 +13,21 @@ export function useDebugAutoLogin({ post, storeDesktopAuthToken, setError }: Deb
   useEffect(() => {
     try {
       const env: Record<string, string> = (import.meta as unknown as { env: Record<string, string> }).env || {};
-      const enabled =
-        String(env.VITE_DEBUG_AUTOLOGIN || '').toLowerCase() === 'true';
-      const isProd = Boolean(
-        (import.meta as unknown as { env: { PROD?: boolean } }).env?.PROD,
-      );
+      const enabled = String(env.VITE_DEBUG_AUTOLOGIN || '').toLowerCase() === 'true';
+      const isProd = Boolean((import.meta as unknown as { env: { PROD?: boolean } }).env?.PROD);
       if (!enabled) return;
 
       const host = window.location.hostname;
       if (host !== 'localhost' && host !== '127.0.0.1') return;
 
-      if (
-        isProd &&
-        String(env.VITE_DEBUG_AUTOLOGIN_ALLOW_PROD || '').toLowerCase() !== 'true'
-      ) {
+      if (isProd && String(env.VITE_DEBUG_AUTOLOGIN_ALLOW_PROD || '').toLowerCase() !== 'true') {
         return;
       }
 
       const autoEmail = env.VITE_DEBUG_AUTOLOGIN_EMAIL || 'admin@meetropolis.local';
       const autoPassword = env.VITE_DEBUG_AUTOLOGIN_PASSWORD || 'admin123';
 
-      (async () => {
+      void (async () => {
         try {
           const result = await post('/auth/login', {
             email: autoEmail,
@@ -74,7 +68,7 @@ export function useGuestAutoLogin({
     if (!initialGuestToken || view !== 'guest') return;
     setGuestLoading(true);
 
-    (async () => {
+    void (async () => {
       try {
         const result = await post('/auth/guest', { token: initialGuestToken });
         if (result.token) await storeDesktopAuthToken(result.token);

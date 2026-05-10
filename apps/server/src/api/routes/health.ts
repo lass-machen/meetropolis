@@ -3,7 +3,14 @@ import { PrismaClient } from '../../generated/prisma/index.js';
 import { z } from 'zod';
 import { logger } from '../../logger.js';
 import { createLivekitToken } from '../../livekit.js';
-import { livekitSamples, livekitRttSeconds, livekitJitterSeconds, livekitInboundBitrateBps, livekitOutboundBitrateBps, livekitPacketLossRatio } from '../../metrics.js';
+import {
+  livekitSamples,
+  livekitRttSeconds,
+  livekitJitterSeconds,
+  livekitInboundBitrateBps,
+  livekitOutboundBitrateBps,
+  livekitPacketLossRatio,
+} from '../../metrics.js';
 import { requireAuth, getTenantFromReq } from '../utils/authHelpers.js';
 
 function handleHealth(_req: express.Request, res: express.Response): void {
@@ -22,7 +29,13 @@ async function checkDb(prisma: PrismaClient): Promise<'ok' | 'fail'> {
     const p = prisma.$queryRaw`SELECT 1` as unknown as Promise<any>;
     const withTimeout = new Promise((resolve, reject) => {
       const to = setTimeout(() => reject(new Error('db-timeout')), 2000);
-      p.then((v) => { clearTimeout(to); resolve(v); }).catch((e) => { clearTimeout(to); reject(e); });
+      p.then((v) => {
+        clearTimeout(to);
+        resolve(v);
+      }).catch((e: unknown) => {
+        clearTimeout(to);
+        reject(e instanceof Error ? e : new Error(String(e)));
+      });
     });
     await withTimeout;
     return 'ok';
@@ -34,7 +47,13 @@ async function checkDb(prisma: PrismaClient): Promise<'ok' | 'fail'> {
 async function checkLivekit(): Promise<'ok' | 'missing'> {
   if (!process.env.LIVEKIT_API_KEY || !process.env.LIVEKIT_API_SECRET) return 'missing';
   try {
-    await createLivekitToken({ roomName: 'readyz', identity: 'probe', canPublish: false, canSubscribe: false, canPublishData: false });
+    await createLivekitToken({
+      roomName: 'readyz',
+      identity: 'probe',
+      canPublish: false,
+      canSubscribe: false,
+      canPublishData: false,
+    });
     return 'ok';
   } catch {
     return 'missing';
@@ -82,8 +101,14 @@ async function handleLivekitToken(req: express.Request, res: express.Response): 
     const hdrIdentity = (req.headers['x-av-identity'] || '').toString();
     const hdrRoom = (req.headers['x-av-room'] || '').toString();
     try {
-      logger.info({ event: 'livekit.token.request', correlationId: corrId || undefined, roomName: roomName || hdrRoom || undefined, identity: identity || hdrIdentity || undefined, ua: (req.headers['user-agent'] || '').toString() });
-    } catch { }
+      logger.info({
+        event: 'livekit.token.request',
+        correlationId: corrId || undefined,
+        roomName: roomName || hdrRoom || undefined,
+        identity: identity || hdrIdentity || undefined,
+        ua: (req.headers['user-agent'] || '').toString(),
+      });
+    } catch {}
     if (!process.env.LIVEKIT_API_KEY || !process.env.LIVEKIT_API_SECRET) {
       res.status(500).json({ error: 'livekit not configured' });
       return;
@@ -94,7 +119,14 @@ async function handleLivekitToken(req: express.Request, res: express.Response): 
       return;
     }
     const roomNameWithTenant = `${tenant.slug}:${roomName}`;
-    const token = await createLivekitToken({ roomName: roomNameWithTenant, identity, name, canPublish, canPublishData: true, canSubscribe });
+    const token = await createLivekitToken({
+      roomName: roomNameWithTenant,
+      identity,
+      name,
+      canPublish,
+      canPublishData: true,
+      canSubscribe,
+    });
     res.type('text/plain').send(token);
   } catch (e: unknown) {
     logger.error({ event: 'livekit.token.error', error: e instanceof Error ? e.message : String(e) });
@@ -138,7 +170,7 @@ function recordAvStatsMetrics(p: z.infer<typeof avStatsSchema>) {
   }
 }
 
-async function handleAvStats(req: express.Request, res: express.Response): Promise<void> {
+function handleAvStats(req: express.Request, res: express.Response): void {
   const auth = requireAuth(req);
   if (!auth) {
     res.status(401).json({ error: 'unauthorized' });
@@ -152,7 +184,16 @@ async function handleAvStats(req: express.Request, res: express.Response): Promi
   const p = parse.data;
   try {
     recordAvStatsMetrics(p);
-    try { logger.debug({ event: 'av.stats', roomName: p.roomName, identity: p.identity, connectionState: p.connectionState, dtlsState: p.dtlsState, iceState: p.iceState }); } catch { }
+    try {
+      logger.debug({
+        event: 'av.stats',
+        roomName: p.roomName,
+        identity: p.identity,
+        connectionState: p.connectionState,
+        dtlsState: p.dtlsState,
+        iceState: p.iceState,
+      });
+    } catch {}
     res.json({ ok: true });
   } catch (e) {
     logger.error({ event: 'av.stats.error', error: (e as any)?.message || String(e) });

@@ -67,13 +67,21 @@ async function applyCollisionForObject(
 ) {
   const sf = obj.scaleFactor ?? 1;
   const tiles = computeFootprintTiles(
-    obj.tileX, obj.tileY, obj.width * sf, obj.height * sf,
-    dims.tileWidth, dims.tileHeight, dims.chunkSize,
+    obj.tileX,
+    obj.tileY,
+    obj.width * sf,
+    obj.height * sf,
+    dims.tileWidth,
+    dims.tileHeight,
+    dims.chunkSize,
   );
   const updates = await updateCollisionChunks(prisma, mapId, dims.chunkSize, tiles, true);
   if (updates.length > 0) {
     broadcastMapUpdate(tenantSlug, 'chunks_updated', {
-      mapId, mapName, layer: 'collision', updates,
+      mapId,
+      mapName,
+      layer: 'collision',
+      updates,
     });
   }
 }
@@ -87,13 +95,18 @@ async function removeCollisionForObject(
   obj: { tileX: number; tileY: number; width: number; height: number; scaleFactor?: number },
 ) {
   const sf = obj.scaleFactor ?? 1;
-  const updates = await removeCollisionAndReconcile(
-    prisma, mapId, dims.chunkSize, dims.tileWidth, dims.tileHeight,
-    { tileX: obj.tileX, tileY: obj.tileY, width: obj.width * sf, height: obj.height * sf },
-  );
+  const updates = await removeCollisionAndReconcile(prisma, mapId, dims.chunkSize, dims.tileWidth, dims.tileHeight, {
+    tileX: obj.tileX,
+    tileY: obj.tileY,
+    width: obj.width * sf,
+    height: obj.height * sf,
+  });
   if (updates.length > 0) {
     broadcastMapUpdate(tenantSlug, 'chunks_updated', {
-      mapId, mapName, layer: 'collision', updates,
+      mapId,
+      mapName,
+      layer: 'collision',
+      updates,
     });
   }
 }
@@ -102,7 +115,8 @@ async function removeCollisionForObject(
 // Auth helper
 // ---------------------------------------------------------------------------
 
-type AuthGate = { ok: true; tenant: NonNullable<ReturnType<typeof getTenantFromReq>> }
+type AuthGate =
+  | { ok: true; tenant: NonNullable<ReturnType<typeof getTenantFromReq>> }
   | { ok: false; status: number; error: string };
 
 async function gateMutation(prisma: PrismaClient, req: express.Request): Promise<AuthGate> {
@@ -122,12 +136,18 @@ async function gateMutation(prisma: PrismaClient, req: express.Request): Promise
 async function handleListObjects(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
   try {
     const tenant = getTenantFromReq(req);
-    if (!tenant) { res.status(400).json({ error: 'tenant_required' }); return; }
+    if (!tenant) {
+      res.status(400).json({ error: 'tenant_required' });
+      return;
+    }
 
     const chunksParam = (req.query.chunks as string) || '';
 
     const map = await prisma.map.findFirst({ where: { id: pathParam(req, 'id'), tenantId: tenant.id } });
-    if (!map) { res.status(404).json({ error: 'map not found' }); return; }
+    if (!map) {
+      res.status(404).json({ error: 'map not found' });
+      return;
+    }
 
     if (!chunksParam) {
       const objects = await prisma.mapObject.findMany({ where: { mapId: map.id } });
@@ -135,7 +155,10 @@ async function handleListObjects(prisma: PrismaClient, req: express.Request, res
       return;
     }
 
-    const chunkKeys = chunksParam.split(',').map(s => s.trim()).filter(s => s.length > 0);
+    const chunkKeys = chunksParam
+      .split(',')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
     const orClauses: Array<{ chunkX: number; chunkY: number }> = [];
     for (const k of chunkKeys) {
       const [xs, ys] = k.split(':');
@@ -145,7 +168,10 @@ async function handleListObjects(prisma: PrismaClient, req: express.Request, res
       orClauses.push({ chunkX: x, chunkY: y });
     }
 
-    if (orClauses.length === 0) { res.json([]); return; }
+    if (orClauses.length === 0) {
+      res.json([]);
+      return;
+    }
 
     const objects = await prisma.mapObject.findMany({
       where: { mapId: map.id, OR: orClauses },
@@ -157,7 +183,7 @@ async function handleListObjects(prisma: PrismaClient, req: express.Request, res
   }
 }
 
-async function persistMapObject(
+function persistMapObject(
   prisma: PrismaClient,
   mapId: string,
   data: z.infer<typeof createObjectSchema>,
@@ -191,18 +217,30 @@ async function persistMapObject(
 async function handleCreateObject(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
   try {
     const gate = await gateMutation(prisma, req);
-    if (!gate.ok) { res.status(gate.status).json({ error: gate.error }); return; }
+    if (!gate.ok) {
+      res.status(gate.status).json({ error: gate.error });
+      return;
+    }
     const { tenant } = gate;
 
     const parse = createObjectSchema.safeParse(req.body);
-    if (!parse.success) { res.status(400).json({ error: 'invalid payload', details: parse.error.issues }); return; }
+    if (!parse.success) {
+      res.status(400).json({ error: 'invalid payload', details: parse.error.issues });
+      return;
+    }
     const data = parse.data;
 
     const map = await prisma.map.findFirst({ where: { id: pathParam(req, 'id'), tenantId: tenant.id } });
-    if (!map) { res.status(404).json({ error: 'map not found' }); return; }
+    if (!map) {
+      res.status(404).json({ error: 'map not found' });
+      return;
+    }
 
     const pack = await prisma.assetPack.findUnique({ where: { uuid: data.assetPackUuid } });
-    if (!pack) { res.status(400).json({ error: 'asset_pack_not_found' }); return; }
+    if (!pack) {
+      res.status(400).json({ error: 'asset_pack_not_found' });
+      return;
+    }
 
     const dims = getMapDimensions(map);
     const obj = await persistMapObject(prisma, map.id, data, dims.chunkSize);
@@ -212,7 +250,10 @@ async function handleCreateObject(prisma: PrismaClient, req: express.Request, re
     }
 
     broadcastMapUpdate(tenant.slug, 'objects_updated', {
-      mapId: map.id, mapName: map.name, action: 'add', objects: [obj],
+      mapId: map.id,
+      mapName: map.name,
+      action: 'add',
+      objects: [obj],
     });
 
     res.json(obj);
@@ -225,26 +266,42 @@ async function handleCreateObject(prisma: PrismaClient, req: express.Request, re
 async function handleUpdateObject(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
   try {
     const gate = await gateMutation(prisma, req);
-    if (!gate.ok) { res.status(gate.status).json({ error: gate.error }); return; }
+    if (!gate.ok) {
+      res.status(gate.status).json({ error: gate.error });
+      return;
+    }
     const { tenant } = gate;
 
     const parse = updateObjectSchema.safeParse(req.body);
-    if (!parse.success) { res.status(400).json({ error: 'invalid payload', details: parse.error.issues }); return; }
+    if (!parse.success) {
+      res.status(400).json({ error: 'invalid payload', details: parse.error.issues });
+      return;
+    }
 
     const objId = Number(req.params.objId);
-    if (!Number.isFinite(objId)) { res.status(400).json({ error: 'invalid id' }); return; }
+    if (!Number.isFinite(objId)) {
+      res.status(400).json({ error: 'invalid id' });
+      return;
+    }
 
     const map = await prisma.map.findFirst({ where: { id: pathParam(req, 'id'), tenantId: tenant.id } });
-    if (!map) { res.status(404).json({ error: 'map not found' }); return; }
+    if (!map) {
+      res.status(404).json({ error: 'map not found' });
+      return;
+    }
 
     const existing = await prisma.mapObject.findFirst({ where: { id: objId, mapId: map.id } });
-    if (!existing) { res.status(404).json({ error: 'object not found' }); return; }
+    if (!existing) {
+      res.status(404).json({ error: 'object not found' });
+      return;
+    }
 
     const dims = getMapDimensions(map);
     const updateData = parse.data;
 
-    const positionChanged = (updateData.tileX !== undefined && updateData.tileX !== existing.tileX)
-      || (updateData.tileY !== undefined && updateData.tileY !== existing.tileY);
+    const positionChanged =
+      (updateData.tileX !== undefined && updateData.tileX !== existing.tileX) ||
+      (updateData.tileY !== undefined && updateData.tileY !== existing.tileY);
 
     if (existing.collide && positionChanged) {
       await removeCollisionForObject(prisma, tenant.slug, map.id, map.name, dims, existing);
@@ -261,14 +318,20 @@ async function handleUpdateObject(prisma: PrismaClient, req: express.Request, re
     });
 
     if (existing.collide && positionChanged) {
-      await applyCollisionForObject(
-        prisma, tenant.slug, map.id, map.name, dims,
-        { tileX: newTileX, tileY: newTileY, width: existing.width, height: existing.height, scaleFactor: existing.scaleFactor },
-      );
+      await applyCollisionForObject(prisma, tenant.slug, map.id, map.name, dims, {
+        tileX: newTileX,
+        tileY: newTileY,
+        width: existing.width,
+        height: existing.height,
+        scaleFactor: existing.scaleFactor,
+      });
     }
 
     broadcastMapUpdate(tenant.slug, 'objects_updated', {
-      mapId: map.id, mapName: map.name, action: 'update', objects: [updated],
+      mapId: map.id,
+      mapName: map.name,
+      action: 'update',
+      objects: [updated],
     });
 
     res.json(updated);
@@ -281,17 +344,29 @@ async function handleUpdateObject(prisma: PrismaClient, req: express.Request, re
 async function handleDeleteObject(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
   try {
     const gate = await gateMutation(prisma, req);
-    if (!gate.ok) { res.status(gate.status).json({ error: gate.error }); return; }
+    if (!gate.ok) {
+      res.status(gate.status).json({ error: gate.error });
+      return;
+    }
     const { tenant } = gate;
 
     const objId = Number(req.params.objId);
-    if (!Number.isFinite(objId)) { res.status(400).json({ error: 'invalid id' }); return; }
+    if (!Number.isFinite(objId)) {
+      res.status(400).json({ error: 'invalid id' });
+      return;
+    }
 
     const map = await prisma.map.findFirst({ where: { id: pathParam(req, 'id'), tenantId: tenant.id } });
-    if (!map) { res.status(404).json({ error: 'map not found' }); return; }
+    if (!map) {
+      res.status(404).json({ error: 'map not found' });
+      return;
+    }
 
     const existing = await prisma.mapObject.findFirst({ where: { id: objId, mapId: map.id } });
-    if (!existing) { res.status(404).json({ error: 'object not found' }); return; }
+    if (!existing) {
+      res.status(404).json({ error: 'object not found' });
+      return;
+    }
 
     await prisma.mapObject.delete({ where: { id: objId } });
 
@@ -301,7 +376,10 @@ async function handleDeleteObject(prisma: PrismaClient, req: express.Request, re
     }
 
     broadcastMapUpdate(tenant.slug, 'objects_updated', {
-      mapId: map.id, mapName: map.name, action: 'remove', objectIds: [objId],
+      mapId: map.id,
+      mapName: map.name,
+      action: 'remove',
+      objectIds: [objId],
     });
 
     res.json({ ok: true });
@@ -327,8 +405,13 @@ async function bulkInsertObjects(
     if (data.collide) {
       const sf = data.scaleFactor ?? 1;
       const tiles = computeFootprintTiles(
-        data.tileX, data.tileY, data.width * sf, data.height * sf,
-        dims.tileWidth, dims.tileHeight, dims.chunkSize,
+        data.tileX,
+        data.tileY,
+        data.width * sf,
+        data.height * sf,
+        dims.tileWidth,
+        dims.tileHeight,
+        dims.chunkSize,
       );
       allCollisionTiles.push(...tiles);
     }
@@ -336,26 +419,39 @@ async function bulkInsertObjects(
   return { created, allCollisionTiles };
 }
 
-async function handleBulkCreateObjects(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
+async function handleBulkCreateObjects(
+  prisma: PrismaClient,
+  req: express.Request,
+  res: express.Response,
+): Promise<void> {
   try {
     const gate = await gateMutation(prisma, req);
-    if (!gate.ok) { res.status(gate.status).json({ error: gate.error }); return; }
+    if (!gate.ok) {
+      res.status(gate.status).json({ error: gate.error });
+      return;
+    }
     const { tenant } = gate;
 
     const parse = bulkCreateSchema.safeParse(req.body);
-    if (!parse.success) { res.status(400).json({ error: 'invalid payload', details: parse.error.issues }); return; }
+    if (!parse.success) {
+      res.status(400).json({ error: 'invalid payload', details: parse.error.issues });
+      return;
+    }
 
     const map = await prisma.map.findFirst({ where: { id: pathParam(req, 'id'), tenantId: tenant.id } });
-    if (!map) { res.status(404).json({ error: 'map not found' }); return; }
+    if (!map) {
+      res.status(404).json({ error: 'map not found' });
+      return;
+    }
 
     const dims = getMapDimensions(map);
 
-    const uuids = [...new Set(parse.data.objects.map(o => o.assetPackUuid))];
+    const uuids = [...new Set(parse.data.objects.map((o) => o.assetPackUuid))];
     const packs = await prisma.assetPack.findMany({
       where: { uuid: { in: uuids } },
       select: { uuid: true },
     });
-    const validUuids = new Set(packs.map(p => p.uuid));
+    const validUuids = new Set(packs.map((p) => p.uuid));
     for (const obj of parse.data.objects) {
       if (!validUuids.has(obj.assetPackUuid)) {
         res.status(400).json({ error: 'asset_pack_not_found', uuid: obj.assetPackUuid });
@@ -366,18 +462,22 @@ async function handleBulkCreateObjects(prisma: PrismaClient, req: express.Reques
     const { created, allCollisionTiles } = await bulkInsertObjects(prisma, map.id, parse.data.objects, dims);
 
     if (allCollisionTiles.length > 0) {
-      const collisionUpdates = await updateCollisionChunks(
-        prisma, map.id, dims.chunkSize, allCollisionTiles, true,
-      );
+      const collisionUpdates = await updateCollisionChunks(prisma, map.id, dims.chunkSize, allCollisionTiles, true);
       if (collisionUpdates.length > 0) {
         broadcastMapUpdate(tenant.slug, 'chunks_updated', {
-          mapId: map.id, mapName: map.name, layer: 'collision', updates: collisionUpdates,
+          mapId: map.id,
+          mapName: map.name,
+          layer: 'collision',
+          updates: collisionUpdates,
         });
       }
     }
 
     broadcastMapUpdate(tenant.slug, 'objects_updated', {
-      mapId: map.id, mapName: map.name, action: 'add', objects: created,
+      mapId: map.id,
+      mapName: map.name,
+      action: 'add',
+      objects: created,
     });
 
     res.json({ ok: true, objects: created });

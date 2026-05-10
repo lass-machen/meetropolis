@@ -6,7 +6,11 @@ type Params = {
   authChecked: boolean;
   meId?: string | null;
   rosterByIdentityRef: React.MutableRefObject<Record<string, { name: string; x: number; y: number }>>;
-  setRoster: (updater: (prev: Array<{ identity: string; name: string; online: boolean; x?: number; y?: number; lastSeen?: string }>) => Array<{ identity: string; name: string; online: boolean; x?: number; y?: number; lastSeen?: string }>) => void;
+  setRoster: (
+    updater: (
+      prev: Array<{ identity: string; name: string; online: boolean; x?: number; y?: number; lastSeen?: string }>,
+    ) => Array<{ identity: string; name: string; online: boolean; x?: number; y?: number; lastSeen?: string }>,
+  ) => void;
   avRef?: React.MutableRefObject<any>;
 };
 
@@ -38,7 +42,10 @@ export function useRosterPresence({ apiBase, authChecked, meId, rosterByIdentity
         const data = await res.json();
 
         // Build online map from Colyseus state + LiveKit
-        const online = { ...(rosterByIdentityRef.current || {}) } as Record<string, { name: string; x: number; y: number }>;
+        const online = { ...(rosterByIdentityRef.current || {}) } as Record<
+          string,
+          { name: string; x: number; y: number }
+        >;
 
         // Add LiveKit participants to online map
         try {
@@ -53,7 +60,7 @@ export function useRosterPresence({ apiBase, authChecked, meId, rosterByIdentity
               }
             };
             addParticipant(room.localParticipant);
-            const remotes = Array.from((room.remoteParticipants?.values?.() || []) as any);
+            const remotes = Array.from(room.remoteParticipants?.values?.() || []);
             for (const rp of remotes) addParticipant(rp);
           }
         } catch {}
@@ -62,8 +69,6 @@ export function useRosterPresence({ apiBase, authChecked, meId, rosterByIdentity
       } catch {}
     };
 
-    loadAllMembers();
+    void loadAllMembers();
   }, [apiBase, authChecked, meId, rosterByIdentityRef, setRoster, avRef]);
 }
-
-

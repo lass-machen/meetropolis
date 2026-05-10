@@ -42,7 +42,7 @@ function handleUnhealthyResponse(ctx: HealthCheckContext) {
     ctx.setIsServerHealthy(false);
     ctx.onDisconnect?.();
   }
-  ctx.setDisconnectCount(c => c + 1);
+  ctx.setDisconnectCount((c) => c + 1);
 }
 
 async function performHealthCheck(ctx: HealthCheckContext) {
@@ -62,7 +62,7 @@ async function performHealthCheck(ctx: HealthCheckContext) {
     } else {
       handleUnhealthyResponse(ctx);
     }
-  } catch (error) {
+  } catch (_error) {
     handleUnhealthyResponse(ctx);
   }
 }
@@ -99,7 +99,9 @@ export function useServerHealthCheck(options: {
       onReconnect,
     };
 
-    const checkHealth = () => performHealthCheck(ctx);
+    const checkHealth = () => {
+      void performHealthCheck(ctx);
+    };
 
     // Führe Health-Check alle 10 Sekunden durch
     const interval = setInterval(checkHealth, 10000);

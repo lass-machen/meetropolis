@@ -8,13 +8,22 @@ type Tmj = {
   height: number;
   tilewidth: number;
   tileheight: number;
-  tilesets: Array<{ firstgid: number; name: string; image: string; tilewidth: number; tileheight: number; margin?: number; spacing?: number; tilecount?: number }>;
-  layers: Array<{ name: string; type: string; data?: number[]; width?: number; height?: number; }>
+  tilesets: Array<{
+    firstgid: number;
+    name: string;
+    image: string;
+    tilewidth: number;
+    tileheight: number;
+    margin?: number;
+    spacing?: number;
+    tilecount?: number;
+  }>;
+  layers: Array<{ name: string; type: string; data?: number[]; width?: number; height?: number }>;
 };
 
 const prisma = createPrismaClient();
 
-async function upsertMap(tenantId: string, mapName: string, tmj: Tmj, chunkSize: number) {
+function upsertMap(tenantId: string, mapName: string, tmj: Tmj, chunkSize: number) {
   return prisma.map.upsert({
     where: { tenantId_name: { tenantId, name: mapName } as any },
     create: {
@@ -59,10 +68,10 @@ async function rebuildTilesetRegistry(mapId: string, tilesets: Tmj['tilesets']) 
 
 function makeGidConverter(tilesets: Tmj['tilesets']) {
   const sortedByFirstGid = [...tilesets].sort((a, b) => a.firstgid - b.firstgid);
-  const firstGids = sortedByFirstGid.map(ts => ts.firstgid);
-  const toSlot: Array<{ firstgid: number; slot: number }> = sortedByFirstGid.map(ts => ({
+  const firstGids = sortedByFirstGid.map((ts) => ts.firstgid);
+  const toSlot: Array<{ firstgid: number; slot: number }> = sortedByFirstGid.map((ts) => ({
     firstgid: ts.firstgid,
-    slot: tilesets.findIndex(t => t.firstgid === ts.firstgid),
+    slot: tilesets.findIndex((t) => t.firstgid === ts.firstgid),
   }));
 
   return function gidToTileRefId(gid: number): number {
@@ -71,7 +80,10 @@ function makeGidConverter(tilesets: Tmj['tilesets']) {
     for (let i = 0; i < firstGids.length; i++) {
       const fg = firstGids[i];
       const next = firstGids[i + 1] ?? Number.MAX_SAFE_INTEGER;
-      if (gid >= fg && gid < next) { chosen = i; break; }
+      if (gid >= fg && gid < next) {
+        chosen = i;
+        break;
+      }
     }
     if (chosen < 0) return 0;
     const base = firstGids[chosen];
@@ -121,15 +133,21 @@ async function persistChunks(
       const values: number[] = [];
       for (let y = 0; y < chunkSize; y++) {
         const gy = cy * chunkSize + y;
-        if (gy >= height) { for (let x = 0; x < chunkSize; x++) values.push(0); continue; }
+        if (gy >= height) {
+          for (let x = 0; x < chunkSize; x++) values.push(0);
+          continue;
+        }
         for (let x = 0; x < chunkSize; x++) {
           const gx = cx * chunkSize + x;
-          if (gx >= width) { values.push(0); continue; }
+          if (gx >= width) {
+            values.push(0);
+            continue;
+          }
           const idx = gy * width + gx;
           values.push(tileRefs[idx] || 0);
         }
       }
-      const pairs = enc === 'rle' ? rleEncodeNumbers(values) : rleEncodeBooleans(values.map(v => v === 1));
+      const pairs = enc === 'rle' ? rleEncodeNumbers(values) : rleEncodeBooleans(values.map((v) => v === 1));
       const buf = encodeRlePairsToBuffer(pairs);
       const u8 = new Uint8Array(buf);
       await prisma.mapChunk.create({ data: { layerId, x: cx, y: cy, version: 1, encoding: enc, data: u8 } });
@@ -137,12 +155,7 @@ async function persistChunks(
   }
 }
 
-async function importLayers(
-  mapId: string,
-  tmj: Tmj,
-  chunkSize: number,
-  gidToTileRefId: (gid: number) => number,
-) {
+async function importLayers(mapId: string, tmj: Tmj, chunkSize: number, gidToTileRefId: (gid: number) => number) {
   const layersWanted = new Map<string, 'rle' | 'rle-bool'>([
     ['ground', 'rle'],
     ['walls', 'rle'],
@@ -150,7 +163,7 @@ async function importLayers(
   ]);
 
   for (const [layerName, enc] of layersWanted) {
-    const tmjLayer = tmj.layers.find(l => (l.name || '').toLowerCase().includes(layerName));
+    const tmjLayer = tmj.layers.find((l) => (l.name || '').toLowerCase().includes(layerName));
     const layer = await prisma.mapLayer.create({ data: { mapId, name: layerName, chunkSize } });
     if (!tmjLayer || !Array.isArray(tmjLayer.data)) continue;
 
@@ -183,18 +196,14 @@ async function main() {
   await clearExistingLayers(map.id);
   await importLayers(map.id, tmj, chunkSize, gidToTileRefId);
 
-  // eslint-disable-next-line no-console
   console.log('Import v2 complete for map:', mapName);
 }
 
-main().catch((e) => {
-  // eslint-disable-next-line no-console
-  console.error(e);
-  process.exit(1);
-}).finally(async () => {
-  await prisma.$disconnect();
-});
-
-
-
-
+main()
+  .catch((e) => {
+    console.error(e);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });

@@ -4,10 +4,40 @@ import request from 'supertest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Minimal in-memory prisma for v2 endpoints
-type MapRec = { id: string; name: string; tenantId: string; meta: any; chunkSize?: number; width?: number; height?: number; tileWidth?: number; tileHeight?: number; version?: number };
+type MapRec = {
+  id: string;
+  name: string;
+  tenantId: string;
+  meta: any;
+  chunkSize?: number;
+  width?: number;
+  height?: number;
+  tileWidth?: number;
+  tileHeight?: number;
+  version?: number;
+};
 type LayerRec = { id: string; mapId: string; name: string; chunkSize: number };
-type ChunkRec = { id: string; layerId: string; x: number; y: number; version: number; encoding: string; data: Uint8Array };
-type TilesetRec = { id: string; mapId: string; slot: number; key: string; imageUrl: string; tileWidth: number; tileHeight: number; margin?: number; spacing?: number; hash?: string };
+type ChunkRec = {
+  id: string;
+  layerId: string;
+  x: number;
+  y: number;
+  version: number;
+  encoding: string;
+  data: Uint8Array;
+};
+type TilesetRec = {
+  id: string;
+  mapId: string;
+  slot: number;
+  key: string;
+  imageUrl: string;
+  tileWidth: number;
+  tileHeight: number;
+  margin?: number;
+  spacing?: number;
+  hash?: string;
+};
 
 const mem = {
   maps: [] as MapRec[],
@@ -21,87 +51,125 @@ const mem = {
 vi.mock('./generated/prisma/index.js', () => {
   class PrismaClientMock {
     map = {
-      async findFirst({ where }: any) {
-        return mem.maps.find(m => {
-          if (where.tenantId && m.tenantId !== where.tenantId) return false;
-          if (where.id !== undefined && m.id !== where.id) return false;
-          if (where.name !== undefined && m.name !== where.name) return false;
-          return true;
-        }) || null;
+      findFirst({ where }: any) {
+        return (
+          mem.maps.find((m) => {
+            if (where.tenantId && m.tenantId !== where.tenantId) return false;
+            if (where.id !== undefined && m.id !== where.id) return false;
+            if (where.name !== undefined && m.name !== where.name) return false;
+            return true;
+          }) || null
+        );
       },
-      async create({ data }: any) {
-        const rec: MapRec = { id: `m_${Math.random().toString(36).slice(2,8)}`, meta: {}, ...data };
+      create({ data }: any) {
+        const rec: MapRec = { id: `m_${Math.random().toString(36).slice(2, 8)}`, meta: {}, ...data };
         mem.maps.push(rec);
         return rec as any;
       },
-      async update({ where, data }: any) {
-        const m = mem.maps.find(mm => mm.id === where.id);
+      update({ where, data }: any) {
+        const m = mem.maps.find((mm) => mm.id === where.id);
         if (!m) throw new Error('map not found');
         Object.assign(m, data);
         return m as any;
-      }
+      },
     };
     mapLayer = {
-      async findMany({ where }: any) {
-        return mem.layers.filter(l => l.mapId === where.mapId) as any;
+      findMany({ where }: any) {
+        return mem.layers.filter((l) => l.mapId === where.mapId) as any;
       },
-      async findUnique({ where }: any) {
+      findUnique({ where }: any) {
         const { mapId, name } = where.mapId_name;
-        return mem.layers.find(l => l.mapId === mapId && l.name === name) || null;
+        return mem.layers.find((l) => l.mapId === mapId && l.name === name) || null;
       },
-      async create({ data }: any) {
-        const rec: LayerRec = { id: `l_${Math.random().toString(36).slice(2,8)}`, ...data };
+      create({ data }: any) {
+        const rec: LayerRec = { id: `l_${Math.random().toString(36).slice(2, 8)}`, ...data };
         mem.layers.push(rec);
         return rec as any;
       },
     };
     mapChunk = {
-      async findMany({ where, select }: any) {
-        const list = mem.chunks.filter(c => c.layerId === where.layerId && (!where.OR || where.OR.some((k: any) => k.x === c.x && k.y === c.y)));
+      findMany({ where, select }: any) {
+        const list = mem.chunks.filter(
+          (c) => c.layerId === where.layerId && (!where.OR || where.OR.some((k: any) => k.x === c.x && k.y === c.y)),
+        );
         if (!select) return list as any;
-        return list.map(c => ({ x: c.x, y: c.y, version: c.version, encoding: c.encoding, data: c.data })) as any;
+        return list.map((c) => ({ x: c.x, y: c.y, version: c.version, encoding: c.encoding, data: c.data })) as any;
       },
-      async findUnique({ where }: any) {
+      findUnique({ where }: any) {
         const { layerId, x, y } = where.layerId_x_y;
-        return mem.chunks.find(c => c.layerId === layerId && c.x === x && c.y === y) || null;
+        return mem.chunks.find((c) => c.layerId === layerId && c.x === x && c.y === y) || null;
       },
-      async create({ data }: any) {
-        const rec: ChunkRec = { id: `c_${Math.random().toString(36).slice(2,8)}`, ...data };
+      create({ data }: any) {
+        const rec: ChunkRec = { id: `c_${Math.random().toString(36).slice(2, 8)}`, ...data };
         mem.chunks.push(rec);
         return rec as any;
       },
-      async update({ where, data }: any) {
-        const c = mem.chunks.find(cc => cc.id === where.id);
+      update({ where, data }: any) {
+        const c = mem.chunks.find((cc) => cc.id === where.id);
         if (!c) throw new Error('chunk not found');
         Object.assign(c, data);
         return c as any;
       },
     };
     mapTileset = {
-      async findMany({ where, orderBy, select }: any) {
-        const list = mem.tilesets.filter(t => t.mapId === where.mapId);
-        list.sort((a,b) => a.slot - b.slot);
-        return list.map(t => ({ id: t.id, slot: t.slot, key: t.key, imageUrl: t.imageUrl, tileWidth: t.tileWidth, tileHeight: t.tileHeight, margin: t.margin, spacing: t.spacing, hash: t.hash })) as any;
+      findMany({ where, orderBy: _orderBy, select: _select }: any) {
+        const list = mem.tilesets.filter((t) => t.mapId === where.mapId);
+        list.sort((a, b) => a.slot - b.slot);
+        return list.map((t) => ({
+          id: t.id,
+          slot: t.slot,
+          key: t.key,
+          imageUrl: t.imageUrl,
+          tileWidth: t.tileWidth,
+          tileHeight: t.tileHeight,
+          margin: t.margin,
+          spacing: t.spacing,
+          hash: t.hash,
+        })) as any;
       },
-      async findFirst({ where, orderBy }: any) {
-        const list = mem.tilesets.filter(t => t.mapId === where.mapId);
-        list.sort((a,b) => b.slot - a.slot);
+      findFirst({ where, orderBy: _orderBy }: any) {
+        const list = mem.tilesets.filter((t) => t.mapId === where.mapId);
+        list.sort((a, b) => b.slot - a.slot);
         return list[0] || null;
       },
-      async create({ data }: any) {
-        const rec: TilesetRec = { id: `ts_${Math.random().toString(36).slice(2,8)}`, ...data };
+      create({ data }: any) {
+        const rec: TilesetRec = { id: `ts_${Math.random().toString(36).slice(2, 8)}`, ...data };
         mem.tilesets.push(rec);
         return rec as any;
       },
     };
     zone = {
-      async findMany({ where, select }: any) { return [] as any; },
-      async deleteMany() { return; },
-      async create() { return {} as any; },
+      findMany({ where: _where, select: _select }: any) {
+        return [] as any;
+      },
+      deleteMany() {
+        return;
+      },
+      create() {
+        return {} as any;
+      },
     };
-    tenant = { async findUnique() { return { id: 't1', slug: 'default' } as any; }, async create({ data }: any) { return { id: 't1', slug: data.slug } as any; } };
-    membership = { async findUnique() { return null; } };
-    apiToken = { async findUnique() { return null; }, async update() { return; } };
+    tenant = {
+      findUnique() {
+        return { id: 't1', slug: 'default' } as any;
+      },
+      create({ data }: any) {
+        return { id: 't1', slug: data.slug } as any;
+      },
+    };
+    membership = {
+      findUnique() {
+        return null;
+      },
+    };
+    apiToken = {
+      findUnique() {
+        return null;
+      },
+      update() {
+        return;
+      },
+    };
   }
   return { PrismaClient: PrismaClientMock };
 });
@@ -114,12 +182,35 @@ async function createApp() {
   app.use(express.json() as any);
   app.use(express.urlencoded({ extended: true }) as any);
   // Attach a default tenant for tests
-  app.use((req, _res, next) => { (req as any).tenant = { id: 't1', slug: 'default' }; next(); });
+  app.use((req, _res, next) => {
+    (req as any).tenant = { id: 't1', slug: 'default' };
+    next();
+  });
   await registerApi(app as any);
   // Seed one map and tileset registry entry
   // Map-id matcht route param (req.params.id), damit findMapById() greift.
-  if (!mem.maps.find(m => m.id === 'test')) mem.maps.push({ id: 'test', name: 'test', tenantId: 't1', meta: {}, chunkSize: 32, width: 64, height: 64, tileWidth: 16, tileHeight: 16 });
-  if (!mem.tilesets.find(t => t.mapId === 'test')) mem.tilesets.push({ id: 'ts1', mapId: 'test', slot: 0, key: 'office_tiles', imageUrl: '/tiles.png', tileWidth: 16, tileHeight: 16 });
+  if (!mem.maps.find((m) => m.id === 'test'))
+    mem.maps.push({
+      id: 'test',
+      name: 'test',
+      tenantId: 't1',
+      meta: {},
+      chunkSize: 32,
+      width: 64,
+      height: 64,
+      tileWidth: 16,
+      tileHeight: 16,
+    });
+  if (!mem.tilesets.find((t) => t.mapId === 'test'))
+    mem.tilesets.push({
+      id: 'ts1',
+      mapId: 'test',
+      slot: 0,
+      key: 'office_tiles',
+      imageUrl: '/tiles.png',
+      tileWidth: 16,
+      tileHeight: 16,
+    });
   return app;
 }
 
@@ -134,7 +225,7 @@ describe('v2 map editing', () => {
     const patch = await request(app)
       .patch('/maps/test/paint-rect')
       .set('x-tenant', 'default')
-      .send({ layer: 'ground', rect: { x0: 0, y0: 0, x1: 1, y1: 0 }, tileRefId: ((0 << 16) | 2) });
+      .send({ layer: 'ground', rect: { x0: 0, y0: 0, x1: 1, y1: 0 }, tileRefId: (0 << 16) | 2 });
     expect(patch.status).toBe(200);
     const chunks = patch.body.updates;
     expect(Array.isArray(chunks)).toBe(true);
@@ -176,4 +267,3 @@ describe('v2 map editing', () => {
     expect(payload.encoding).toBe('rle-bool');
   });
 });
-

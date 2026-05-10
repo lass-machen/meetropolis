@@ -2,7 +2,7 @@ import type { AvSettings } from '../../state/avSettings';
 import { wrapTrackWithVoiceIsolation } from './voiceIsolation';
 
 type BuildParams = {
-  deviceId?: string | '';
+  deviceId?: string;
   settings: AvSettings;
 };
 
@@ -36,16 +36,24 @@ function detectSupportsNoiseSuppression(): boolean {
 async function createAudioTrack(constraints: any): Promise<any> {
   const mod: any = await getLivekitModule();
   let createLocalAudioTrack: any;
-  try { createLocalAudioTrack = mod?.createLocalAudioTrack; } catch { createLocalAudioTrack = undefined; }
+  try {
+    createLocalAudioTrack = mod?.createLocalAudioTrack;
+  } catch {
+    createLocalAudioTrack = undefined;
+  }
   if (typeof createLocalAudioTrack === 'function') {
     return await createLocalAudioTrack(constraints);
   }
 
   let createLocalTracks: any;
-  try { createLocalTracks = mod?.createLocalTracks; } catch { createLocalTracks = undefined; }
+  try {
+    createLocalTracks = mod?.createLocalTracks;
+  } catch {
+    createLocalTracks = undefined;
+  }
   if (typeof createLocalTracks === 'function') {
     const tracks: any[] = await createLocalTracks({ audio: constraints });
-    return tracks.find((t: any) => (t?.kind === 'audio') || (t?.mediaStreamTrack?.kind === 'audio')) || tracks[0];
+    return tracks.find((t: any) => t?.kind === 'audio' || t?.mediaStreamTrack?.kind === 'audio') || tracks[0];
   }
   throw new Error('No LiveKit audio creation API available');
 }
@@ -60,14 +68,22 @@ function buildAudioConstraints(deviceId: string | undefined, settings: AvSetting
   };
 }
 
-async function applyVoiceIsolationFallback(first: any, deviceId: string | undefined, settings: AvSettings): Promise<any> {
+async function applyVoiceIsolationFallback(
+  first: any,
+  deviceId: string | undefined,
+  settings: AvSettings,
+): Promise<any> {
   try {
-    const mst: any = (first as any)?.mediaStreamTrack;
+    const mst: any = first?.mediaStreamTrack;
     const processed: MediaStreamTrack = await wrapTrackWithVoiceIsolation(mst);
-    try { await (first as any)?.replaceTrack?.(processed); } catch {}
+    try {
+      await first?.replaceTrack?.(processed);
+    } catch {}
     return first;
   } catch {
-    try { (first as any)?.stop?.(); } catch {}
+    try {
+      first?.stop?.();
+    } catch {}
     return await createAudioTrack(buildAudioConstraints(deviceId, settings, true));
   }
 }
@@ -82,8 +98,12 @@ export async function buildAudioPipeline(params: BuildParams): Promise<any> {
   if (wantsNoiseSuppression && isApple && supportsNoiseSuppression) {
     const nativeTrack = await createAudioTrack(buildAudioConstraints(deviceId, settings, true));
     try {
-      const mst: any = (nativeTrack as any)?.mediaStreamTrack;
-      if (mst && 'contentHint' in mst) { try { mst.contentHint = 'speech'; } catch {} }
+      const mst: any = nativeTrack?.mediaStreamTrack;
+      if (mst && 'contentHint' in mst) {
+        try {
+          mst.contentHint = 'speech';
+        } catch {}
+      }
     } catch {}
     return nativeTrack;
   }

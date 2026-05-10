@@ -14,7 +14,14 @@ import { EditorService } from '../../../services/EditorService';
  * Data URLs, blob URLs, and already-absolute HTTP(S) URLs are returned unchanged.
  */
 function resolvePackUrl(url: string, apiBase: string): string {
-  if (!url || url.startsWith('data:') || url.startsWith('http://') || url.startsWith('https://') || url.startsWith('blob:')) return url;
+  if (
+    !url ||
+    url.startsWith('data:') ||
+    url.startsWith('http://') ||
+    url.startsWith('https://') ||
+    url.startsWith('blob:')
+  )
+    return url;
   if (url.startsWith('/')) return `${apiBase}${url}`;
   return url;
 }
@@ -27,20 +34,52 @@ interface UseEditorLoaderParams {
 
 async function buildPackItemsFromTerrain(p: any, apiBase: string, packItems: any[]) {
   const uuid = p.uuid;
-  for (const t of (p.terrain || [])) {
+  for (const t of p.terrain || []) {
     const resolvedTerrainUrl = resolvePackUrl(t.dataURL, apiBase);
     if (t.dataURL) {
       try {
-        const tiles = await splitTilesetImage(resolvedTerrainUrl, { tileWidth: t.tileWidth, tileHeight: t.tileHeight, margin: t.margin, spacing: t.spacing });
+        const tiles = await splitTilesetImage(resolvedTerrainUrl, {
+          tileWidth: t.tileWidth,
+          tileHeight: t.tileHeight,
+          margin: t.margin,
+          spacing: t.spacing,
+        });
         for (const tile of tiles) {
-          packItems.push({ packUuid: uuid, itemId: `${t.id}:${tile.row}:${tile.col}`, key: `${t.key}-${tile.row}-${tile.col}`, category: 'terrain', dataUrl: tile.dataUrl, width: t.tileWidth, height: t.tileHeight, collide: !!t.collide });
+          packItems.push({
+            packUuid: uuid,
+            itemId: `${t.id}:${tile.row}:${tile.col}`,
+            key: `${t.key}-${tile.row}-${tile.col}`,
+            category: 'terrain',
+            dataUrl: tile.dataUrl,
+            width: t.tileWidth,
+            height: t.tileHeight,
+            collide: !!t.collide,
+          });
         }
       } catch (e) {
         logger.warn('[WorldApp] Failed to split tileset:', t.key, e);
-        packItems.push({ packUuid: uuid, itemId: t.id, key: t.key, category: 'terrain', dataUrl: resolvedTerrainUrl, width: t.tileWidth, height: t.tileHeight, collide: !!t.collide });
+        packItems.push({
+          packUuid: uuid,
+          itemId: t.id,
+          key: t.key,
+          category: 'terrain',
+          dataUrl: resolvedTerrainUrl,
+          width: t.tileWidth,
+          height: t.tileHeight,
+          collide: !!t.collide,
+        });
       }
     } else {
-      packItems.push({ packUuid: uuid, itemId: t.id, key: t.key, category: 'terrain', dataUrl: resolvedTerrainUrl, width: t.tileWidth, height: t.tileHeight, collide: !!t.collide });
+      packItems.push({
+        packUuid: uuid,
+        itemId: t.id,
+        key: t.key,
+        category: 'terrain',
+        dataUrl: resolvedTerrainUrl,
+        width: t.tileWidth,
+        height: t.tileHeight,
+        collide: !!t.collide,
+      });
     }
   }
 }
@@ -50,15 +89,45 @@ async function processPacks(packs: any[], apiBase: string): Promise<{ packTilese
   const packItems: any[] = [];
   for (const p of packs || []) {
     const uuid = p.uuid;
-    for (const t of (p.terrain || [])) {
-      packTilesets.push({ key: `${uuid}:${t.key}`, dataUrl: resolvePackUrl(t.dataURL, apiBase), tileWidth: t.tileWidth, tileHeight: t.tileHeight, margin: t.margin ?? 0, spacing: t.spacing ?? 0, category: 'terrain' });
+    for (const t of p.terrain || []) {
+      packTilesets.push({
+        key: `${uuid}:${t.key}`,
+        dataUrl: resolvePackUrl(t.dataURL, apiBase),
+        tileWidth: t.tileWidth,
+        tileHeight: t.tileHeight,
+        margin: t.margin ?? 0,
+        spacing: t.spacing ?? 0,
+        category: 'terrain',
+      });
     }
     await buildPackItemsFromTerrain(p, apiBase, packItems);
-    for (const s of (p.structures || [])) {
-      packItems.push({ packUuid: uuid, itemId: s.id, key: s.key, category: 'structures', dataUrl: resolvePackUrl(s.dataURL, apiBase), width: s.width, height: s.height, collide: !!s.collide, scaleFactor: s.scaleFactor || 1 });
+    for (const s of p.structures || []) {
+      packItems.push({
+        packUuid: uuid,
+        itemId: s.id,
+        key: s.key,
+        category: 'structures',
+        dataUrl: resolvePackUrl(s.dataURL, apiBase),
+        width: s.width,
+        height: s.height,
+        collide: !!s.collide,
+        scaleFactor: s.scaleFactor || 1,
+      });
     }
-    for (const o of (p.objects || [])) {
-      packItems.push({ packUuid: uuid, itemId: o.id, key: o.key, category: 'objects', dataUrl: resolvePackUrl(o.dataURL, apiBase), width: o.width, height: o.height, collide: !!o.collide, rotationAllowed: !!o.rotationAllowed, hasDirectionalImages: Array.isArray(o.directionalImages) && o.directionalImages.length > 0, scaleFactor: o.scaleFactor || 1 });
+    for (const o of p.objects || []) {
+      packItems.push({
+        packUuid: uuid,
+        itemId: o.id,
+        key: o.key,
+        category: 'objects',
+        dataUrl: resolvePackUrl(o.dataURL, apiBase),
+        width: o.width,
+        height: o.height,
+        collide: !!o.collide,
+        rotationAllowed: !!o.rotationAllowed,
+        hasDirectionalImages: Array.isArray(o.directionalImages) && o.directionalImages.length > 0,
+        scaleFactor: o.scaleFactor || 1,
+      });
     }
   }
   return { packTilesets, packItems };
@@ -67,14 +136,23 @@ async function processPacks(packs: any[], apiBase: string): Promise<{ packTilese
 function buildAutotileItems(packs: any[], apiBase: string) {
   const autotileItems: Array<any> = [];
   let nextWallTypeId = 1;
-  const sortedPacksForAutotiles = [...(packs || [])].sort((a: any, b: any) => (a.uuid || '').localeCompare(b.uuid || ''));
+  const sortedPacksForAutotiles = [...(packs || [])].sort((a: any, b: any) =>
+    (a.uuid || '').localeCompare(b.uuid || ''),
+  );
   for (const p of sortedPacksForAutotiles) {
     const sortedAutotiles = [...(p.autotiles || [])].sort((a: any, b: any) => (a.id || '').localeCompare(b.id || ''));
     for (const at of sortedAutotiles) {
       autotileItems.push({
-        wallTypeId: nextWallTypeId++, packUuid: p.uuid, autotileId: at.id, key: at.key,
-        textureUrl: resolvePackUrl(at.dataURL, apiBase), tileWidth: at.tileWidth, tileHeight: at.tileHeight,
-        variants: at.variants || {}, collide: at.collide ?? true, placement: at.placement ?? 'wall',
+        wallTypeId: nextWallTypeId++,
+        packUuid: p.uuid,
+        autotileId: at.id,
+        key: at.key,
+        textureUrl: resolvePackUrl(at.dataURL, apiBase),
+        tileWidth: at.tileWidth,
+        tileHeight: at.tileHeight,
+        variants: at.variants || {},
+        collide: at.collide ?? true,
+        placement: at.placement ?? 'wall',
       });
     }
   }
@@ -87,16 +165,26 @@ function applyPackTilesetsToEditor(setEditor: any, packTilesets: any[]) {
     const merged = [...existing];
     for (const ts of packTilesets) {
       const idx = merged.findIndex((m: any) => m.key === ts.key);
-      if (idx >= 0) merged[idx] = ts; else merged.push(ts);
+      if (idx >= 0) merged[idx] = ts;
+      else merged.push(ts);
     }
     (window as any).pendingTilesets = merged;
     return { ...s, tilesets: merged };
   });
   try {
     for (const ts of packTilesets) {
-      gameBridge.registerTileset({ key: ts.key, dataUrl: ts.dataUrl, tileWidth: ts.tileWidth, tileHeight: ts.tileHeight, margin: ts.margin ?? 0, spacing: ts.spacing ?? 0 });
+      gameBridge.registerTileset({
+        key: ts.key,
+        dataUrl: ts.dataUrl,
+        tileWidth: ts.tileWidth,
+        tileHeight: ts.tileHeight,
+        margin: ts.margin ?? 0,
+        spacing: ts.spacing ?? 0,
+      });
     }
-  } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
+  } catch (e) {
+    logger.debug('[WorldApp] Operation failed', e);
+  }
 }
 
 function applyLocalPackItems(setEditor: any) {
@@ -110,11 +198,16 @@ function applyLocalPackItems(setEditor: any) {
       const seen = new Set(current.map((p: any) => p.key));
       const next = [...current];
       for (const li of local) {
-        if (!seen.has(li.key)) { next.push(li); seen.add(li.key); }
+        if (!seen.has(li.key)) {
+          next.push(li);
+          seen.add(li.key);
+        }
       }
       return { ...s, packItems: next };
     });
-  } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
+  } catch (e) {
+    logger.debug('[WorldApp] Operation failed', e);
+  }
 }
 
 async function loadAssetPacks(apiBase: string, setEditor: any) {
@@ -129,50 +222,117 @@ async function loadAssetPacks(apiBase: string, setEditor: any) {
       const autotileItems = buildAutotileItems(packs || [], apiBase);
       if (autotileItems.length > 0) {
         EditorService.dispatch({ type: 'SET_AUTOTILE_ITEMS', items: autotileItems });
-        try { gameBridge.registerAutotiles(autotileItems); } catch (e) { logger.debug('[EditorLoader] Autotile registration deferred', e); }
+        try {
+          gameBridge.registerAutotiles(autotileItems);
+        } catch (e) {
+          logger.debug('[EditorLoader] Autotile registration deferred', e);
+        }
       }
     }
     applyLocalPackItems(setEditor);
-  } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
+  } catch (e) {
+    logger.debug('[WorldApp] Operation failed', e);
+  }
 }
 
 function loadDefaultTilesets(setEditor: any) {
   const defaultTs = [
-    { key: 'office_tiles', dataUrl: '/assets/tilesets/office_tiles.png', tileWidth: 16, tileHeight: 16, category: 'terrain' },
-    { key: 'furniture_tiles', dataUrl: '/assets/tilesets/furniture_tiles.png', tileWidth: 16, tileHeight: 16, category: 'objects' },
-    { key: 'decor_tiles', dataUrl: '/assets/tilesets/decor_tiles.png', tileWidth: 16, tileHeight: 16, category: 'objects' },
+    {
+      key: 'office_tiles',
+      dataUrl: '/assets/tilesets/office_tiles.png',
+      tileWidth: 16,
+      tileHeight: 16,
+      category: 'terrain',
+    },
+    {
+      key: 'furniture_tiles',
+      dataUrl: '/assets/tilesets/furniture_tiles.png',
+      tileWidth: 16,
+      tileHeight: 16,
+      category: 'objects',
+    },
+    {
+      key: 'decor_tiles',
+      dataUrl: '/assets/tilesets/decor_tiles.png',
+      tileWidth: 16,
+      tileHeight: 16,
+      category: 'objects',
+    },
   ];
   (window as any).pendingTilesets = defaultTs;
   setEditor((s: any) => ({ ...s, tilesets: defaultTs }));
-  (async () => {
-    try {
-      for (const ts of defaultTs) {
-        await gameBridge.registerTileset({ key: ts.key, dataUrl: ts.dataUrl, tileWidth: ts.tileWidth, tileHeight: ts.tileHeight, margin: 0, spacing: 0 });
-      }
-    } catch (e) { logger.warn('[EDITOR] Tileset registration failed (non-critical):', e); }
-  })();
+  // registerTileset ist sync (returns void), kein await nötig — aber wir wrappen
+  // in try/catch, weil die interne Pipeline Promise-spawning Side-Effects hat.
+  try {
+    for (const ts of defaultTs) {
+      gameBridge.registerTileset({
+        key: ts.key,
+        dataUrl: ts.dataUrl,
+        tileWidth: ts.tileWidth,
+        tileHeight: ts.tileHeight,
+        margin: 0,
+        spacing: 0,
+      });
+    }
+  } catch (e) {
+    logger.warn('[EDITOR] Tileset registration failed (non-critical):', e);
+  }
 }
 
 function applyEditorState(data: any, setEditor: any) {
-  if (data?.zones) try {
-    const zones = Array.isArray(data.zones) ? data.zones.map((z: any) => {
-      const anyZ = z || {};
-      const pts = Array.isArray(anyZ.points) ? anyZ.points : Array.isArray(anyZ.polygon) ? anyZ.polygon : (anyZ.polygon && Array.isArray(anyZ.polygon.points)) ? anyZ.polygon.points : [];
-      return { name: anyZ.name, points: pts, type: anyZ.type, portalTarget: anyZ.portalTarget, portalSpawnX: anyZ.portalSpawnX, portalSpawnY: anyZ.portalSpawnY };
-    }) : [];
-    setEditor((s: any) => ({ ...s, zones }));
-    try { gameBridge.setZoneOverlay(zones); } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
-  } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
+  if (data?.zones)
+    try {
+      const zones = Array.isArray(data.zones)
+        ? data.zones.map((z: any) => {
+            const anyZ = z || {};
+            const pts = Array.isArray(anyZ.points)
+              ? anyZ.points
+              : Array.isArray(anyZ.polygon)
+                ? anyZ.polygon
+                : anyZ.polygon && Array.isArray(anyZ.polygon.points)
+                  ? anyZ.polygon.points
+                  : [];
+            return {
+              name: anyZ.name,
+              points: pts,
+              type: anyZ.type,
+              portalTarget: anyZ.portalTarget,
+              portalSpawnX: anyZ.portalSpawnX,
+              portalSpawnY: anyZ.portalSpawnY,
+            };
+          })
+        : [];
+      setEditor((s: any) => ({ ...s, zones }));
+      try {
+        gameBridge.setZoneOverlay(zones);
+      } catch (e) {
+        logger.debug('[WorldApp] Operation failed', e);
+      }
+    } catch (e) {
+      logger.debug('[WorldApp] Operation failed', e);
+    }
   if (typeof data?.backgroundColor === 'string') {
     setEditor((s: any) => ({ ...s, backgroundColor: data.backgroundColor }));
-    try { gameBridge.setBackgroundColor(data.backgroundColor); } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
+    try {
+      gameBridge.setBackgroundColor(data.backgroundColor);
+    } catch (e) {
+      logger.debug('[WorldApp] Operation failed', e);
+    }
   }
   if (Array.isArray(data?.editorGround) || Array.isArray(data?.editorWalls) || Array.isArray(data?.collision)) {
-    try { gameBridge.reloadEditorLayers(); } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
+    try {
+      gameBridge.reloadEditorLayers();
+    } catch (e) {
+      logger.debug('[WorldApp] Operation failed', e);
+    }
   }
   if (data?.spawn && typeof data.spawn.x === 'number') {
     setEditor((s: any) => ({ ...s, spawn: { x: data.spawn.x, y: data.spawn.y } }));
-    try { gameBridge.setSpawnMarker({ x: data.spawn.x, y: data.spawn.y }); } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
+    try {
+      gameBridge.setSpawnMarker({ x: data.spawn.x, y: data.spawn.y });
+    } catch (e) {
+      logger.debug('[WorldApp] Operation failed', e);
+    }
   }
 }
 
@@ -215,7 +375,9 @@ async function loadMapEditorData(apiBase: string, setEditor: any) {
       applyEditorState(data, setEditor);
     }
     await loadMapObjects(apiBase, mapId, setEditor);
-  } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
+  } catch (e) {
+    logger.debug('[WorldApp] Operation failed', e);
+  }
 }
 
 export function useEditorLoader({ me, apiBase, setEditor }: UseEditorLoaderParams) {
@@ -229,9 +391,17 @@ export function useEditorLoader({ me, apiBase, setEditor }: UseEditorLoaderParam
     hasLoadedRef.current = true;
 
     void loadAssetPacks(apiBase, (updater: any) => setEditorRef.current(updater));
-    try { gameBridge.fetchAndApplyServerLayers(); } catch { /* */ }
+    try {
+      gameBridge.fetchAndApplyServerLayers();
+    } catch {
+      /* */
+    }
     loadDefaultTilesets((updater: any) => setEditorRef.current(updater));
-    try { gameBridge.reloadEditorLayers(); } catch (e) { logger.debug('[WorldApp] Operation failed', e); }
+    try {
+      gameBridge.reloadEditorLayers();
+    } catch (e) {
+      logger.debug('[WorldApp] Operation failed', e);
+    }
     void loadMapEditorData(apiBase, (updater: any) => setEditorRef.current(updater));
   }, [me, apiBase]);
 }

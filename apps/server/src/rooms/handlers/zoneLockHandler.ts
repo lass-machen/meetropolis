@@ -10,8 +10,8 @@ interface ZonePolygon {
 }
 
 export interface ZoneLockState {
-  locks: Map<string, ZoneLockInfo>;        // key: mapId:zoneName
-  zoneCache: Map<string, ZonePolygon[]>;   // zones per mapId
+  locks: Map<string, ZoneLockInfo>; // key: mapId:zoneName
+  zoneCache: Map<string, ZonePolygon[]>; // zones per mapId
   lastAutoUnlockCheck: number;
 }
 
@@ -24,7 +24,12 @@ export function createZoneLockState(): ZoneLockState {
 }
 
 // Zones aus DB laden + cachen
-async function loadZones(state: ZoneLockState, mapId: string, tenantSlug: string, prisma: PrismaClient): Promise<ZonePolygon[]> {
+async function loadZones(
+  state: ZoneLockState,
+  mapId: string,
+  tenantSlug: string,
+  prisma: PrismaClient,
+): Promise<ZonePolygon[]> {
   if (state.zoneCache.has(mapId)) return state.zoneCache.get(mapId)!;
   try {
     const map = await prisma.map.findFirst({
@@ -106,7 +111,7 @@ export function isMovementBlocked(
   state: ZoneLockState,
   sessionId: string,
   mapId: string,
-  newPos: { x: number; y: number }
+  newPos: { x: number; y: number },
 ): { blocked: boolean; zoneName?: string } {
   const zones = state.zoneCache.get(mapId);
   if (!zones) return { blocked: false };
@@ -124,7 +129,7 @@ export function isMovementBlocked(
 }
 
 function getRoomTenantSlug(room: WorldRoom): string {
-  return (room.metadata as any)?.tenant || process.env.DEFAULT_TENANT_SLUG || 'default';
+  return room.metadata?.tenant || process.env.DEFAULT_TENANT_SLUG || 'default';
 }
 
 async function handleZoneLock(
@@ -236,7 +241,7 @@ function handleZoneAccessResponse(
     lock.accessList.push(data.sessionId);
     logger.info('[ZoneLock] Access approved for', data.sessionId, 'to', data.zoneName);
   } else {
-    const requesterClient = room.clients.find(c => c.sessionId === data.sessionId);
+    const requesterClient = room.clients.find((c) => c.sessionId === data.sessionId);
     if (requesterClient) {
       requesterClient.send('zone_access_denied', { zoneName: data.zoneName });
     }
@@ -247,7 +252,9 @@ function handleZoneAccessResponse(
 }
 
 export function setupZoneLockHandlers(room: WorldRoom, state: ZoneLockState, prisma: PrismaClient): void {
-  room.onMessage('zone_lock', (client, data) => handleZoneLock(room, state, prisma, client, data));
+  room.onMessage('zone_lock', (client, data) => {
+    void handleZoneLock(room, state, prisma, client, data);
+  });
   room.onMessage('zone_unlock', (client, data) => handleZoneUnlock(room, state, client, data));
   room.onMessage('zone_access_request', (client, data) => handleZoneAccessRequest(room, state, client, data));
   room.onMessage('zone_access_response', (client, data) => handleZoneAccessResponse(room, state, client, data));

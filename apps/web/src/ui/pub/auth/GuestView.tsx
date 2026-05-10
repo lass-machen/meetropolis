@@ -67,9 +67,11 @@ export function GuestView({ loading, error, onBack }: GuestViewProps) {
 
       {!loading && (
         <p className="pub-text-body-sm" style={{ margin: 0, textAlign: 'center' }}>
-          <a
+          <button
+            type="button"
             onClick={onBack}
             style={{
+              all: 'unset',
               cursor: 'pointer',
               color: 'var(--pub-accent-purple)',
               textDecoration: 'none',
@@ -77,7 +79,7 @@ export function GuestView({ loading, error, onBack }: GuestViewProps) {
             }}
           >
             {t('auth.backToLogin')}
-          </a>
+          </button>
         </p>
       )}
     </div>

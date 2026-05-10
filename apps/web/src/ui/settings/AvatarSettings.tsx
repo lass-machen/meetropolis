@@ -72,7 +72,7 @@ function useAvatarOptions(apiBase: string) {
         setLoading(false);
       }
     };
-    fetchAvatars();
+    void fetchAvatars();
   }, [apiBase]);
 
   return { avatars, loading };
@@ -112,7 +112,13 @@ export function AvatarSettings({ currentAvatarId, onAvatarChange }: AvatarSettin
   );
 }
 
-function AvatarPreview({ spriteUrl, frameWidth, frameHeight, idleRow, previewUrl }: {
+function AvatarPreview({
+  spriteUrl,
+  frameWidth,
+  frameHeight,
+  idleRow,
+  previewUrl,
+}: {
   spriteUrl: string;
   frameWidth: number;
   frameHeight: number;
@@ -120,13 +126,7 @@ function AvatarPreview({ spriteUrl, frameWidth, frameHeight, idleRow, previewUrl
   previewUrl?: string;
 }) {
   if (previewUrl) {
-    return (
-      <img
-        src={resolveUrl(previewUrl)}
-        alt="Avatar preview"
-        style={styles.preview}
-      />
-    );
+    return <img src={resolveUrl(previewUrl)} alt="Avatar preview" style={styles.preview} />;
   }
 
   return (
@@ -139,7 +139,12 @@ function AvatarPreview({ spriteUrl, frameWidth, frameHeight, idleRow, previewUrl
   );
 }
 
-function AvatarPreviewCanvas({ spriteUrl, frameWidth, frameHeight, idleRow }: {
+function AvatarPreviewCanvas({
+  spriteUrl,
+  frameWidth,
+  frameHeight,
+  idleRow,
+}: {
   spriteUrl: string;
   frameWidth: number;
   frameHeight: number;
@@ -175,14 +180,7 @@ function AvatarPreviewCanvas({ spriteUrl, frameWidth, frameHeight, idleRow }: {
     img.src = spriteUrl;
   }, [spriteUrl, frameWidth, frameHeight, idleRow]);
 
-  return (
-    <canvas
-      ref={canvasRef}
-      width={64}
-      height={96}
-      style={styles.preview}
-    />
-  );
+  return <canvas ref={canvasRef} width={64} height={96} style={styles.preview} />;
 }
 
 const styles: Record<string, React.CSSProperties> = {

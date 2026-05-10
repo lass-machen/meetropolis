@@ -85,9 +85,7 @@ export class SignalMonitor implements Disposable {
 
       // Only check WebSocket if room state is ambiguous
       // Try multiple paths to find the WebSocket
-      const ws = roomAny.engine?.signalClient?.ws
-        ?? roomAny.engine?.client?.ws
-        ?? roomAny.engine?.ws;
+      const ws = roomAny.engine?.signalClient?.ws ?? roomAny.engine?.client?.ws ?? roomAny.engine?.ws;
 
       if (ws && typeof ws.readyState === 'number') {
         if (ws.readyState === 1) {
@@ -220,7 +218,6 @@ export class SignalMonitor implements Disposable {
         this._onSignalRestored?.();
       }
       this._wasHealthy = isNowHealthy;
-
     } catch (error) {
       AVLogger.error('signal.check.error', { error: String(error) });
       this._health.isOpen = false;
@@ -237,10 +234,7 @@ export class SignalMonitor implements Disposable {
 /**
  * Utility: Wait for room to reach connected state with timeout
  */
-export async function waitForRoomConnected(
-  room: Room,
-  timeoutMs: number = 10000
-): Promise<boolean> {
+export async function waitForRoomConnected(room: Room, timeoutMs: number = 10000): Promise<boolean> {
   const roomAny = room as any;
 
   const isConnected = () => {
@@ -277,7 +271,7 @@ export async function waitForRoomConnected(
     };
 
     // Try to subscribe to state changes
-    (async () => {
+    void (async () => {
       try {
         const { RoomEvent } = await import('livekit-client');
         const handler = () => checkState();

@@ -3,7 +3,10 @@ import { useMapStore } from '../../state/mapStore';
 import { changeMap } from '../../game/map/changeMap';
 
 interface MapSwitcherProps {
-  room: { send: (type: string, data: unknown) => void; onMessage: (type: string, handler: (data: unknown) => void) => (() => void) } | null;
+  room: {
+    send: (type: string, data: unknown) => void;
+    onMessage: (type: string, handler: (data: unknown) => void) => () => void;
+  } | null;
 }
 
 export function MapSwitcher({ room }: MapSwitcherProps) {
@@ -13,9 +16,9 @@ export function MapSwitcher({ room }: MapSwitcherProps) {
 
   const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const targetId = e.target.value;
-    const targetMap = availableMaps.find(m => m.id === targetId);
+    const targetMap = availableMaps.find((m) => m.id === targetId);
     if (targetMap && targetId !== currentMapId) {
-      changeMap(targetMap.id, targetMap.name, room);
+      void changeMap(targetMap.id, targetMap.name, room);
     }
   };
 
@@ -38,8 +41,10 @@ export function MapSwitcher({ room }: MapSwitcherProps) {
       }}
       title="Map wechseln"
     >
-      {availableMaps.map(m => (
-        <option key={m.id} value={m.id}>{m.name}</option>
+      {availableMaps.map((m) => (
+        <option key={m.id} value={m.id}>
+          {m.name}
+        </option>
       ))}
     </select>
   );

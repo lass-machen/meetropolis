@@ -39,7 +39,9 @@ export class ColyseusClient {
       for (const cb of this.commandCallbacks) {
         try {
           cb(data);
-        } catch { /* callback errors should not crash the client */ }
+        } catch {
+          /* callback errors should not crash the client */
+        }
       }
     });
 
@@ -59,25 +61,31 @@ export class ColyseusClient {
   private scheduleReconnect(): void {
     const identity = this.command.npc.identity;
     if (this.reconnectAttempts >= ColyseusClient.MAX_RECONNECT_ATTEMPTS) {
-      logger.error(`[ColyseusClient ${identity}] Max reconnect attempts (${ColyseusClient.MAX_RECONNECT_ATTEMPTS}) reached, giving up`);
+      logger.error(
+        `[ColyseusClient ${identity}] Max reconnect attempts (${ColyseusClient.MAX_RECONNECT_ATTEMPTS}) reached, giving up`,
+      );
       return;
     }
     const delay = Math.min(30000, ColyseusClient.RECONNECT_BASE_DELAY_MS * Math.pow(2, this.reconnectAttempts));
     this.reconnectAttempts++;
-    logger.info(`[ColyseusClient ${identity}] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${ColyseusClient.MAX_RECONNECT_ATTEMPTS})`);
+    logger.info(
+      `[ColyseusClient ${identity}] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${ColyseusClient.MAX_RECONNECT_ATTEMPTS})`,
+    );
 
-    setTimeout(async () => {
-      if (!this.alive) return;
-      try {
-        this.room = await this.joinWithRetry(3, 500);
-        this.connected = true;
-        this.reconnectAttempts = 0;
-        this.setupRoomListeners();
-        logger.info(`[ColyseusClient ${identity}] Reconnected successfully`);
-      } catch (e) {
-        logger.error({ err: e }, `[ColyseusClient ${identity}] Reconnect attempt ${this.reconnectAttempts} failed`);
-        this.scheduleReconnect();
-      }
+    setTimeout(() => {
+      void (async () => {
+        if (!this.alive) return;
+        try {
+          this.room = await this.joinWithRetry(3, 500);
+          this.connected = true;
+          this.reconnectAttempts = 0;
+          this.setupRoomListeners();
+          logger.info(`[ColyseusClient ${identity}] Reconnected successfully`);
+        } catch (e) {
+          logger.error({ err: e }, `[ColyseusClient ${identity}] Reconnect attempt ${this.reconnectAttempts} failed`);
+          this.scheduleReconnect();
+        }
+      })();
     }, delay);
   }
 
@@ -112,19 +120,25 @@ export class ColyseusClient {
   sendMove(x: number, y: number, direction: string): void {
     try {
       this.room?.send('move', { x, y, direction });
-    } catch { /* silently ignore send errors on disconnected room */ }
+    } catch {
+      /* silently ignore send errors on disconnected room */
+    }
   }
 
   sendDnd(dnd: boolean): void {
     try {
       this.room?.send('dnd_status', { dnd });
-    } catch { /* silently ignore send errors on disconnected room */ }
+    } catch {
+      /* silently ignore send errors on disconnected room */
+    }
   }
 
   sendAvatarChange(avatarId: string): void {
     try {
       this.room?.send('avatar_change', { avatarId });
-    } catch { /* silently ignore send errors on disconnected room */ }
+    } catch {
+      /* silently ignore send errors on disconnected room */
+    }
   }
 
   isConnected(): boolean {
@@ -136,7 +150,9 @@ export class ColyseusClient {
     this.connected = false;
     try {
       await this.room?.leave();
-    } catch { /* room may already be disconnected */ }
+    } catch {
+      /* room may already be disconnected */
+    }
     this.room = null;
   }
 }

@@ -5,16 +5,18 @@ import 'dotenv/config';
 // Sentry must be initialized before other imports
 const sentryDsn = process.env.SENTRY_DSN;
 if (sentryDsn) {
-  import('@sentry/node').then((Sentry) => {
-    Sentry.init({
-      dsn: sentryDsn,
-      environment: process.env.NODE_ENV || 'development',
-      tracesSampleRate: 0.1,
+  import('@sentry/node')
+    .then((Sentry) => {
+      Sentry.init({
+        dsn: sentryDsn,
+        environment: process.env.NODE_ENV || 'development',
+        tracesSampleRate: 0.1,
+      });
+    })
+    .catch((error) => {
+      // Logger not available yet - using console.error for early init failure
+      console.error('[Sentry] Initialization failed:', error?.message || String(error));
     });
-  }).catch((error) => {
-    // Logger not available yet - using console.error for early init failure
-    console.error('[Sentry] Initialization failed:', error?.message || String(error));
-  });
 }
 
 import express from 'express';
@@ -55,7 +57,8 @@ import { createPrismaClient } from './db.js';
 // (x-correlation-id, x-tenant, x-av-identity, x-av-room) auf OPTIONS nicht.
 // Wir überschreiben getCorsHeaders, damit Custom-Header in den Preflight-Headern
 // landen und der Origin korrekt zurückgespiegelt wird.
-const ALLOWED_REQUEST_HEADERS = 'Origin, X-Requested-With, Content-Type, Accept, Authorization, x-tenant, x-correlation-id, x-av-identity, x-av-room';
+const ALLOWED_REQUEST_HEADERS =
+  'Origin, X-Requested-With, Content-Type, Accept, Authorization, x-tenant, x-correlation-id, x-av-identity, x-av-room';
 matchMaker.controller.getCorsHeaders = (headers) => {
   const origin = headers.get('origin') || '*';
   const requested = headers.get('access-control-request-headers');
@@ -65,7 +68,7 @@ matchMaker.controller.getCorsHeaders = (headers) => {
     'Access-Control-Allow-Headers': requested && requested.length > 0 ? requested : ALLOWED_REQUEST_HEADERS,
     'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
     'Access-Control-Expose-Headers': 'x-correlation-id',
-    'Vary': 'Origin',
+    Vary: 'Origin',
   };
 };
 
@@ -85,7 +88,12 @@ app.use(metricsMiddleware() as any);
 // CORS middleware with explicit OPTIONS handling
 app.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
   // Static asset routes handle their own CORS headers — skip global check
-  if (req.path.startsWith('/packs') || req.path.startsWith('/assets') || req.path.startsWith('/npc-media') || req.path.startsWith('/tools')) {
+  if (
+    req.path.startsWith('/packs') ||
+    req.path.startsWith('/assets') ||
+    req.path.startsWith('/npc-media') ||
+    req.path.startsWith('/tools')
+  ) {
     return next();
   }
 
@@ -120,7 +128,7 @@ app.use((req: express.Request, res: express.Response, next: express.NextFunction
       res.setHeader('Access-Control-Allow-Origin', '*');
     }
   }
-  
+
   // Always vary by Origin for proper CDN/proxy caching
   res.setHeader('Vary', 'Origin');
   // Credentials are needed for cookie-based auth
@@ -129,10 +137,11 @@ app.use((req: express.Request, res: express.Response, next: express.NextFunction
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
   // Allow requested headers dynamically, fallback to known list including custom correlation headers
-  const reqHeaders = (req.headers['access-control-request-headers'] as string | undefined)?.toString();
-  const allowed = reqHeaders && reqHeaders.length > 0
-    ? reqHeaders
-    : 'Origin, X-Requested-With, Content-Type, Accept, Authorization, x-tenant, x-correlation-id, x-av-identity, x-av-room';
+  const reqHeaders = req.headers['access-control-request-headers']?.toString();
+  const allowed =
+    reqHeaders && reqHeaders.length > 0
+      ? reqHeaders
+      : 'Origin, X-Requested-With, Content-Type, Accept, Authorization, x-tenant, x-correlation-id, x-av-identity, x-av-room';
   res.setHeader('Access-Control-Allow-Headers', allowed);
   // Expose custom response headers so browsers can read them in CORS mode
   res.setHeader('Access-Control-Expose-Headers', 'x-correlation-id');
@@ -166,27 +175,33 @@ try {
 } catch (error) {
   logger.error({ event: 'filesystem.mkdir_failed', path: packsDir, error });
 }
-app.use('/packs', express.static(packsDir, {
-  maxAge: '365d',
-  immutable: true,
-  setHeaders: (res) => {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
-    res.removeHeader('Access-Control-Allow-Credentials');
-  }
-}));
+app.use(
+  '/packs',
+  express.static(packsDir, {
+    maxAge: '365d',
+    immutable: true,
+    setHeaders: (res) => {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+      res.removeHeader('Access-Control-Allow-Credentials');
+    },
+  }),
+);
 
 // Static serving for default tilesets (referenced by seed maps as /assets/tilesets/...)
 const assetsDir = path.resolve(__dirname, '../../../apps/web/public/assets');
-app.use('/assets', express.static(assetsDir, {
-  maxAge: '365d',
-  immutable: true,
-  setHeaders: (res) => {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
-    res.removeHeader('Access-Control-Allow-Credentials');
-  }
-}));
+app.use(
+  '/assets',
+  express.static(assetsDir, {
+    maxAge: '365d',
+    immutable: true,
+    setHeaders: (res) => {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+      res.removeHeader('Access-Control-Allow-Credentials');
+    },
+  }),
+);
 
 // Static serving for NPC Media
 const npcMediaDir = process.env.NPC_MEDIA_DIR || path.resolve(__dirname, '../../../npc-media');
@@ -195,14 +210,17 @@ try {
 } catch (error) {
   logger.error({ event: 'filesystem.mkdir_failed', path: npcMediaDir, error });
 }
-app.use('/npc-media', express.static(npcMediaDir, {
-  maxAge: '7d',
-  setHeaders: (res) => {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
-    res.removeHeader('Access-Control-Allow-Credentials');
-  }
-}));
+app.use(
+  '/npc-media',
+  express.static(npcMediaDir, {
+    maxAge: '7d',
+    setHeaders: (res) => {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+      res.removeHeader('Access-Control-Allow-Credentials');
+    },
+  }),
+);
 
 // ── Basic Auth Middleware for Admin Tools ──
 function basicAuthMiddleware(
@@ -217,10 +235,7 @@ function basicAuthMiddleware(
       return res.status(401).send('Authentication required');
     }
     const decoded = Buffer.from(header.slice(6), 'base64');
-    if (
-      expected.length !== decoded.length ||
-      !crypto.timingSafeEqual(expected, decoded)
-    ) {
+    if (expected.length !== decoded.length || !crypto.timingSafeEqual(expected, decoded)) {
       res.setHeader('WWW-Authenticate', 'Basic realm="Admin Tools"');
       return res.status(401).send('Invalid credentials');
     }
@@ -262,7 +277,7 @@ app.get('/metrics', async (_req, res) => {
   try {
     res.set('Content-Type', registry.contentType);
     res.end(await registry.metrics());
-  } catch (e) {
+  } catch (_e) {
     res.status(500).send('metrics error');
   }
 });
@@ -328,9 +343,7 @@ async function gracefulShutdown(signal: string) {
     }
   }
 
-  logger.info(
-    `[Server] Notified ${clientCount} clients across ${rooms?.size ?? 0} rooms. Waiting 5s...`,
-  );
+  logger.info(`[Server] Notified ${clientCount} clients across ${rooms?.size ?? 0} rooms. Waiting 5s...`);
 
   await new Promise((resolve) => setTimeout(resolve, 5000));
 
@@ -343,5 +356,9 @@ async function gracefulShutdown(signal: string) {
   process.exit(0);
 }
 
-process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
-process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+process.on('SIGTERM', () => {
+  void gracefulShutdown('SIGTERM');
+});
+process.on('SIGINT', () => {
+  void gracefulShutdown('SIGINT');
+});

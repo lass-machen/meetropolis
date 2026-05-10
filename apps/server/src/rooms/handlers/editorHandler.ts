@@ -26,7 +26,7 @@ export function handleEditorUpdate(
 // to the relevant map (or globally as fallback).
 export function subscribeMapUpdates(room: WorldRoom, tenantSlug: string): void {
   try {
-    room.presence.subscribe(`map_update:${tenantSlug}`, (message: { type: string; payload: unknown }) => {
+    void room.presence.subscribe(`map_update:${tenantSlug}`, (message: { type: string; payload: unknown }) => {
       try {
         const payload = message.payload as Record<string, unknown> | undefined;
         const mapId = typeof payload?.mapId === 'string' ? payload.mapId : null;

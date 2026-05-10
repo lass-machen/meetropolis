@@ -20,10 +20,18 @@ function InvitesTableHeader() {
 function InvitesLoadingRows() {
   return (
     <TBody>
-      {[1, 2, 3].map(i => (
+      {[1, 2, 3].map((i) => (
         <Tr key={i}>
           <Td colSpan={5} style={{ paddingLeft: 0 }}>
-            <div style={{ height: 16, borderRadius: 4, background: 'var(--glass-hover)', animation: 'pulse 1.5s ease-in-out infinite', width: `${60 + i * 10}%` }} />
+            <div
+              style={{
+                height: 16,
+                borderRadius: 4,
+                background: 'var(--glass-hover)',
+                animation: 'pulse 1.5s ease-in-out infinite',
+                width: `${60 + i * 10}%`,
+              }}
+            />
           </Td>
         </Tr>
       ))}
@@ -47,15 +55,44 @@ function InviteRow({ inv, onDelete }: { inv: Invite; onDelete: (code: string) =>
   return (
     <Tr style={{ borderBottom: '1px solid var(--border)' }}>
       <Td style={{ paddingLeft: 0 }}>
-        <code style={{ display:'inline-block', padding:'4px 6px', borderRadius:6, border:'1px solid var(--border)', background:'rgba(255,255,255,0.06)' }}>{inv.code}</code>
+        <code
+          style={{
+            display: 'inline-block',
+            padding: '4px 6px',
+            borderRadius: 6,
+            border: '1px solid var(--border)',
+            background: 'rgba(255,255,255,0.06)',
+          }}
+        >
+          {inv.code}
+        </code>
       </Td>
       <Td>{inv.email || '—'}</Td>
       <Td>{inv.createdAt ? new Date(inv.createdAt).toLocaleString() : '—'}</Td>
       <Td>{inv.usedAt ? 'Eingelöst' : 'Offen'}</Td>
-      <Td style={{ paddingRight: 0, textAlign: 'right', display:'flex', gap: 8, justifyContent: 'flex-end' }}>
-        <Button size="sm" onClick={async ()=>{ try { await navigator.clipboard.writeText(inv.code); } catch {} }}>Kopieren</Button>
+      <Td style={{ paddingRight: 0, textAlign: 'right', display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+        <Button
+          size="sm"
+          onClick={() => {
+            void (async () => {
+              try {
+                await navigator.clipboard.writeText(inv.code);
+              } catch {}
+            })();
+          }}
+        >
+          Kopieren
+        </Button>
         {!inv.usedAt && (
-          <Button size="sm" variant="danger" onClick={() => onDelete(inv.code)}>Löschen</Button>
+          <Button
+            size="sm"
+            variant="danger"
+            onClick={() => {
+              void onDelete(inv.code);
+            }}
+          >
+            Löschen
+          </Button>
         )}
       </Td>
     </Tr>
@@ -68,7 +105,7 @@ function useInvites(open: boolean, apiBase: string) {
 
   React.useEffect(() => {
     if (!open) return;
-    (async () => {
+    void (async () => {
       setLoading(true);
       try {
         const res = await fetch(`${apiBase}/invites`, { credentials: 'include' });
@@ -80,15 +117,26 @@ function useInvites(open: boolean, apiBase: string) {
 
   const deleteInvite = async (code: string) => {
     try {
-      const res = await fetch(`${apiBase}/invites/${encodeURIComponent(code)}`, { method:'DELETE', credentials:'include' });
-      if (res.ok) setInvites(prev => prev.filter(i => i.code !== code));
+      const res = await fetch(`${apiBase}/invites/${encodeURIComponent(code)}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (res.ok) setInvites((prev) => prev.filter((i) => i.code !== code));
     } catch {}
   };
 
   return { invites, loading, deleteInvite };
 }
 
-export function InvitesModal({ open, onOpenChange, apiBase }: { open: boolean; onOpenChange: (v: boolean) => void; apiBase: string }) {
+export function InvitesModal({
+  open,
+  onOpenChange,
+  apiBase,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  apiBase: string;
+}) {
   const { invites, loading, deleteInvite } = useInvites(open, apiBase);
 
   return (
@@ -101,7 +149,7 @@ export function InvitesModal({ open, onOpenChange, apiBase }: { open: boolean; o
             {!loading && invites.length === 0 && <InvitesEmptyRow />}
             {!loading && invites.length > 0 && (
               <TBody>
-                {invites.map(inv => (
+                {invites.map((inv) => (
                   <InviteRow key={inv.code} inv={inv} onDelete={deleteInvite} />
                 ))}
               </TBody>
@@ -112,5 +160,3 @@ export function InvitesModal({ open, onOpenChange, apiBase }: { open: boolean; o
     </Modal>
   );
 }
-
-

@@ -127,11 +127,10 @@ export class Screenshare implements Disposable {
       this._tracks = tracks;
       this._isSharing = true;
       this._isPending = false;
-      this._beginAppNapPrevention();
+      void this._beginAppNapPrevention();
 
       AVLogger.info('screenshare.started');
       return true;
-
     } catch (error) {
       AVLogger.error('screenshare.start.error', { error: String(error) });
       this._isPending = false;
@@ -182,7 +181,7 @@ export class Screenshare implements Disposable {
 
     this._tracks = [];
     this._isSharing = false;
-    this._endAppNapPrevention();
+    void this._endAppNapPrevention();
 
     // Also ensure any currently published screenshare tracks are cleaned up
     if (room) {
@@ -287,7 +286,7 @@ export class Screenshare implements Disposable {
             maxFrameRate: 30,
           },
         } as any,
-      } as any);
+      });
 
       const videoTrack = stream.getVideoTracks()[0];
       if (!videoTrack) {
@@ -300,7 +299,6 @@ export class Screenshare implements Disposable {
       (lkTrack as any).source = Track.Source.ScreenShare;
 
       return [lkTrack];
-
     } catch (error) {
       AVLogger.error('screenshare.electron.error', { error: String(error) });
       return [];
@@ -341,7 +339,6 @@ export class Screenshare implements Disposable {
         });
 
         return tracks;
-
       } catch {
         // Fallback without audio
         const tracks = await createLocalScreenTracks({
@@ -354,7 +351,6 @@ export class Screenshare implements Disposable {
 
         return tracks;
       }
-
     } catch (error) {
       // User cancelled or permission denied
       AVLogger.debug('screenshare.web.cancelled', { error: String(error) });
@@ -368,8 +364,7 @@ export class Screenshare implements Disposable {
 
     const handler = () => {
       // Determine if this was a user action or system/WebKit killing the track
-      const isPageVisible =
-        typeof document !== 'undefined' && document.visibilityState === 'visible';
+      const isPageVisible = typeof document !== 'undefined' && document.visibilityState === 'visible';
       const isSystemEnded = !isPageVisible;
 
       AVLogger.warn('screenshare.track_ended', {
@@ -383,7 +378,7 @@ export class Screenshare implements Disposable {
         // Don't clear _desiredSharing — we want to restore when possible
         AVLogger.warn('screenshare.ended_by_system');
         this._isSharing = false;
-        this._endAppNapPrevention();
+        void this._endAppNapPrevention();
         this._tracks = [];
         this._cleanupTrackEndedHandlers();
         // Try to re-acquire after a short delay when page becomes visible
@@ -427,12 +422,7 @@ export class Screenshare implements Disposable {
     if (!this._desiredSharing || this._disposed) return;
 
     const handler = () => {
-      if (
-        document.visibilityState === 'visible' &&
-        this._desiredSharing &&
-        !this._isSharing &&
-        !this._isPending
-      ) {
+      if (document.visibilityState === 'visible' && this._desiredSharing && !this._isSharing && !this._isPending) {
         AVLogger.info('screenshare.reacquire_on_visible');
         this._clearReacquire();
         // Small delay to let the system settle

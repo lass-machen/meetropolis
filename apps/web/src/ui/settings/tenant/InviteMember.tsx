@@ -26,7 +26,7 @@ export function InviteMember({ saving, onInvite, onClose, onSuccess }: InviteMem
   const copyInviteLink = () => {
     if (!inviteCode) return;
     const link = `${window.location.origin}/#/?invite=${inviteCode}`;
-    navigator.clipboard.writeText(link);
+    void navigator.clipboard.writeText(link);
     onSuccess(t('tenant.linkCopied'));
   };
 
@@ -39,22 +39,53 @@ export function InviteMember({ saving, onInvite, onClose, onSuccess }: InviteMem
 
   return (
     <Card style={{ marginTop: 16 }}>
-      <h4 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 600, color: 'var(--fg, #fff)' }}>{t('tenant.inviteNewMember')}</h4>
+      <h4 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 600, color: 'var(--fg, #fff)' }}>
+        {t('tenant.inviteNewMember')}
+      </h4>
       {inviteCode ? (
         <div style={{ textAlign: 'center' }}>
           <p>{t('tenant.shareInviteCode')}</p>
-          <Card style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, padding: '12px 16px', background: 'rgba(0,0,0,0.3)' }}>
-            <code style={{ flex: 1, fontFamily: 'monospace', fontSize: 14, color: 'var(--accent, #3b82f6)', wordBreak: 'break-all' }}>{inviteCode}</code>
-            <Button variant="primary" onClick={copyInviteLink} style={{ fontSize: 12, padding: '6px 12px' }}>{t('tenant.copyLink')}</Button>
+          <Card
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              marginBottom: 16,
+              padding: '12px 16px',
+              background: 'rgba(0,0,0,0.3)',
+            }}
+          >
+            <code
+              style={{
+                flex: 1,
+                fontFamily: 'monospace',
+                fontSize: 14,
+                color: 'var(--accent, #3b82f6)',
+                wordBreak: 'break-all',
+              }}
+            >
+              {inviteCode}
+            </code>
+            <Button variant="primary" onClick={copyInviteLink} style={{ fontSize: 12, padding: '6px 12px' }}>
+              {t('tenant.copyLink')}
+            </Button>
           </Card>
           <Button variant="secondary" onClick={handleClose}>
             {t('tenant.done')}
           </Button>
         </div>
       ) : (
-        <form onSubmit={handleSubmit}>
+        <form
+          onSubmit={(e) => {
+            void handleSubmit(e);
+          }}
+        >
           <div style={{ marginBottom: 16 }}>
-            <label style={{ display: 'block', marginBottom: 6, fontSize: 13, fontWeight: 500, color: 'var(--fg, #fff)' }}>{t('tenant.emailOptional')}</label>
+            <label
+              style={{ display: 'block', marginBottom: 6, fontSize: 13, fontWeight: 500, color: 'var(--fg, #fff)' }}
+            >
+              {t('tenant.emailOptional')}
+            </label>
             <Input
               type="email"
               value={inviteEmail}
@@ -63,7 +94,11 @@ export function InviteMember({ saving, onInvite, onClose, onSuccess }: InviteMem
             />
           </div>
           <div style={{ marginBottom: 16 }}>
-            <label style={{ display: 'block', marginBottom: 6, fontSize: 13, fontWeight: 500, color: 'var(--fg, #fff)' }}>{t('tenant.role')}</label>
+            <label
+              style={{ display: 'block', marginBottom: 6, fontSize: 13, fontWeight: 500, color: 'var(--fg, #fff)' }}
+            >
+              {t('tenant.role')}
+            </label>
             <Select
               value={inviteRole}
               onChange={(val) => setInviteRole(val as 'admin' | 'member')}

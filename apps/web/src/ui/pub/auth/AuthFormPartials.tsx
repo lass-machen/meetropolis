@@ -11,14 +11,8 @@ export function AuthMessage({ message, messageType }: AuthMessageProps) {
       style={{
         padding: '12px 16px',
         borderRadius: 8,
-        background:
-          messageType === 'success'
-            ? 'rgba(34,197,94,0.1)'
-            : 'rgba(239,68,68,0.1)',
-        border:
-          messageType === 'success'
-            ? '1px solid rgba(34,197,94,0.3)'
-            : '1px solid rgba(239,68,68,0.3)',
+        background: messageType === 'success' ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)',
+        border: messageType === 'success' ? '1px solid rgba(34,197,94,0.3)' : '1px solid rgba(239,68,68,0.3)',
         color: messageType === 'success' ? '#22C55E' : '#EF4444',
         fontSize: 14,
       }}
@@ -37,13 +31,12 @@ interface AuthLinkProps {
 export function AuthLink({ onClick, labelKey, align = 'center' }: AuthLinkProps) {
   const { t } = useTranslation('public');
   return (
-    <p
-      className="pub-text-body-sm"
-      style={{ margin: 0, textAlign: align }}
-    >
-      <a
+    <p className="pub-text-body-sm" style={{ margin: 0, textAlign: align }}>
+      <button
+        type="button"
         onClick={onClick}
         style={{
+          all: 'unset',
           cursor: 'pointer',
           color: 'var(--pub-accent-purple)',
           textDecoration: 'none',
@@ -51,7 +44,7 @@ export function AuthLink({ onClick, labelKey, align = 'center' }: AuthLinkProps)
         }}
       >
         {t(labelKey)}
-      </a>
+      </button>
     </p>
   );
 }

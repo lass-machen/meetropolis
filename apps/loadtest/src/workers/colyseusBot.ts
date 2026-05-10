@@ -4,8 +4,12 @@ type Zone = { id: string; name: string; polygon: Array<{ x: number; y: number }>
 
 function centroid(points: Array<{ x: number; y: number }>): { x: number; y: number } {
   if (!points || points.length === 0) return { x: 0, y: 0 };
-  let sx = 0, sy = 0;
-  for (const p of points) { sx += p.x; sy += p.y; }
+  let sx = 0,
+    sy = 0;
+  for (const p of points) {
+    sx += p.x;
+    sy += p.y;
+  }
   return { x: Math.round(sx / points.length), y: Math.round(sy / points.length) };
 }
 
@@ -20,7 +24,7 @@ export async function spawnColyseusBot(opts: { apiBase: string; identity: string
   // Retry matchmaking a few times to avoid transient "connection refused" during warmup
   async function joinWithRetry(maxAttempts: number, baseDelayMs: number) {
     let attempt = 0;
-    // eslint-disable-next-line no-constant-condition
+
     while (true) {
       try {
         return await client.joinOrCreate('world', { identity: opts.identity, name: opts.identity });
@@ -41,10 +45,12 @@ export async function spawnColyseusBot(opts: { apiBase: string; identity: string
     const mapsRes = await fetch(`${httpEndpoint}/maps`, { method: 'GET' });
     if (mapsRes.ok) {
       const maps = await mapsRes.json();
-      const office = Array.isArray(maps) ? maps.find((m: any) => (m?.name || '').toLowerCase() === 'office') || maps[0] : null;
+      const office = Array.isArray(maps)
+        ? maps.find((m: any) => (m?.name || '').toLowerCase() === 'office') || maps[0]
+        : null;
       const zones: Zone[] = Array.isArray(office?.zones) ? office.zones : [];
       const cs = zones
-        .map((z) => Array.isArray((z as any)?.polygon) ? centroid((z as any).polygon) : null)
+        .map((z) => (Array.isArray((z as any)?.polygon) ? centroid((z as any).polygon) : null))
         .filter((c): c is { x: number; y: number } => !!c);
       if (cs.length > 0) waypoints = cs;
     }
@@ -68,9 +74,11 @@ export async function spawnColyseusBot(opts: { apiBase: string; identity: string
   const speed = 40; // Pixel pro Sekunde
   let lastTs = Date.now();
 
-  (async () => {
+  void (async () => {
     // initiale Position
-    try { room.send('move', { x: pos.x, y: pos.y, direction: 'down' }); } catch {}
+    try {
+      room.send('move', { x: pos.x, y: pos.y, direction: 'down' });
+    } catch {}
     while (alive) {
       const now = Date.now();
       const dt = Math.max(1, now - lastTs) / 1000;
@@ -90,8 +98,10 @@ export async function spawnColyseusBot(opts: { apiBase: string; identity: string
         pos = { x: Math.round(pos.x + (dx / dist) * step), y: Math.round(pos.y + (dy / dist) * step) };
       }
       // Richtung approximieren
-      const dir = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up');
-      try { room.send('move', { x: pos.x, y: pos.y, direction: dir }); } catch {}
+      const dir = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : dy > 0 ? 'down' : 'up';
+      try {
+        room.send('move', { x: pos.x, y: pos.y, direction: dir });
+      } catch {}
       await new Promise((r) => setTimeout(r, 150));
     }
   })();
@@ -99,9 +109,9 @@ export async function spawnColyseusBot(opts: { apiBase: string; identity: string
   return {
     async stop() {
       alive = false;
-      try { await room.leave(); } catch {}
-    }
+      try {
+        await room.leave();
+      } catch {}
+    },
   };
 }
-
-

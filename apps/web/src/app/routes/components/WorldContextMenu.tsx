@@ -12,11 +12,14 @@ interface WorldContextMenuProps {
 }
 
 function getMembersOfGroup(groupId: string, bubbleGroups: Record<string, string>): string[] {
-  return Object.entries(bubbleGroups).filter(([, gid]) => gid === groupId).map(([sid]) => sid);
+  return Object.entries(bubbleGroups)
+    .filter(([, gid]) => gid === groupId)
+    .map(([sid]) => sid);
 }
 
 function buildContextMenuActions(props: WorldContextMenuProps) {
-  const { contextMenu, onClose, localPosRef, bubbleGroupsRef, followRef, gameBridge, colyseusRef, bubbleStartRef } = props;
+  const { contextMenu, onClose, localPosRef, bubbleGroupsRef, followRef, gameBridge, colyseusRef, bubbleStartRef } =
+    props;
 
   const handleFollowClick = () => {
     onClose();
@@ -39,7 +42,7 @@ function buildContextMenuActions(props: WorldContextMenuProps) {
       const currentMembers = getMembersOfGroup(targetGroup, bubbleGroupsRef.current || {});
       const next = Array.from(new Set([...currentMembers, meId]));
       colyseusRef.current?.send?.('bubble_update', { id: targetGroup, members: next });
-    } catch { }
+    } catch {}
   };
 
   const handleAddToBubbleClick = () => {
@@ -53,7 +56,7 @@ function buildContextMenuActions(props: WorldContextMenuProps) {
       const currentMembers = getMembersOfGroup(myGroup, bubbleGroupsRef.current || {});
       const next = Array.from(new Set([...currentMembers, id]));
       colyseusRef.current?.send?.('bubble_update', { id: myGroup, members: next });
-    } catch { }
+    } catch {}
   };
 
   const handleStartBubbleClick = () => {
@@ -65,9 +68,9 @@ function buildContextMenuActions(props: WorldContextMenuProps) {
   const shouldShowJoinBubble = (() => {
     try {
       const target = contextMenu.playerId!;
-      const targetGroup = target ? (bubbleGroupsRef.current?.[target] || null) : null;
+      const targetGroup = target ? bubbleGroupsRef.current?.[target] || null : null;
       const meId = localPosRef.current?.id;
-      const myGroup = meId ? (bubbleGroupsRef.current?.[meId] || null) : null;
+      const myGroup = meId ? bubbleGroupsRef.current?.[meId] || null : null;
       return !!targetGroup && targetGroup !== myGroup;
     } catch {
       return false;
@@ -77,17 +80,32 @@ function buildContextMenuActions(props: WorldContextMenuProps) {
   const shouldShowAddToBubble = (() => {
     try {
       const meId = localPosRef.current?.id;
-      const myGroup = meId ? (bubbleGroupsRef.current?.[meId] || null) : null;
+      const myGroup = meId ? bubbleGroupsRef.current?.[meId] || null : null;
       return !!myGroup;
     } catch {
       return false;
     }
   })();
 
-  return { handleFollowClick, handleJoinBubbleClick, handleAddToBubbleClick, handleStartBubbleClick, shouldShowJoinBubble, shouldShowAddToBubble };
+  return {
+    handleFollowClick,
+    handleJoinBubbleClick,
+    handleAddToBubbleClick,
+    handleStartBubbleClick,
+    shouldShowJoinBubble,
+    shouldShowAddToBubble,
+  };
 }
 
-function MenuButton({ onClick, label, withBorder = true }: { onClick: () => void; label: string; withBorder?: boolean }) {
+function MenuButton({
+  onClick,
+  label,
+  withBorder = true,
+}: {
+  onClick: () => void;
+  label: string;
+  withBorder?: boolean;
+}) {
   return (
     <button
       onClick={onClick}
@@ -113,12 +131,41 @@ export function WorldContextMenu(props: WorldContextMenuProps) {
   if (!contextMenu.open || !contextMenu.playerId) return null;
 
   const actions = buildContextMenuActions(props);
-  const { handleFollowClick, handleJoinBubbleClick, handleAddToBubbleClick, handleStartBubbleClick, shouldShowJoinBubble, shouldShowAddToBubble } = actions;
+  const {
+    handleFollowClick,
+    handleJoinBubbleClick,
+    handleAddToBubbleClick,
+    handleStartBubbleClick,
+    shouldShowJoinBubble,
+    shouldShowAddToBubble,
+  } = actions;
 
   return (
-    <div onClick={onClose} onContextMenu={(e) => e.preventDefault()} style={{ position: 'absolute', inset: 0, zIndex: 60 }}>
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onClose}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ' || e.key === 'Escape') {
+          e.preventDefault();
+          onClose();
+        }
+      }}
+      onContextMenu={(e) => e.preventDefault()}
+      style={{ position: 'absolute', inset: 0, zIndex: 60 }}
+    >
       <div
+        role="menu"
+        tabIndex={0}
         onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') {
+            e.stopPropagation();
+            onClose();
+          } else {
+            e.stopPropagation();
+          }
+        }}
         style={{
           position: 'absolute',
           left: Math.min(Math.max(8, contextMenu.x), window.innerWidth - 196),

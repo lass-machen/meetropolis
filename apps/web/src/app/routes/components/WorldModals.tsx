@@ -56,11 +56,28 @@ interface WorldModalsProps {
   setFreshToken: (token: string | null) => void;
 }
 
-function BillingModal({ open, setOpen, t, billingTab, setBillingTab, items }: { open: boolean; setOpen: (v: boolean) => void; t: (k: string) => string; billingTab: string; setBillingTab: (k: string) => void; items: TabItem[] }) {
+function BillingModal({
+  open,
+  setOpen,
+  t,
+  billingTab,
+  setBillingTab,
+  items,
+}: {
+  open: boolean;
+  setOpen: (v: boolean) => void;
+  t: (k: string) => string;
+  billingTab: string;
+  setBillingTab: (k: string) => void;
+  items: TabItem[];
+}) {
   return (
     <Modal
       open={open}
-      onOpenChange={(o) => { setOpen(o); if (!o) setBillingTab('overview'); }}
+      onOpenChange={(o) => {
+        setOpen(o);
+        if (!o) setBillingTab('overview');
+      }}
       title={t('modal.billingTitle')}
       maxWidth={900}
       minHeight={520}
@@ -73,30 +90,70 @@ function BillingModal({ open, setOpen, t, billingTab, setBillingTab, items }: { 
   );
 }
 
-function TenantSettingsModal({ open, setOpen, t, tab, setTab, items, apiBase, tenantSettings }: { open: boolean; setOpen: (v: boolean) => void; t: (k: string) => string; tab: string; setTab: (k: string) => void; items: TabItem[]; apiBase: string; tenantSettings: ReturnType<typeof useTenantSettings> }) {
+function TenantSettingsModal({
+  open,
+  setOpen,
+  t,
+  tab,
+  setTab,
+  items,
+  apiBase,
+  tenantSettings,
+}: {
+  open: boolean;
+  setOpen: (v: boolean) => void;
+  t: (k: string) => string;
+  tab: string;
+  setTab: (k: string) => void;
+  items: TabItem[];
+  apiBase: string;
+  tenantSettings: ReturnType<typeof useTenantSettings>;
+}) {
   return (
     <Modal
       open={open}
-      onOpenChange={(o) => { setOpen(o); if (!o) setTab('general'); }}
+      onOpenChange={(o) => {
+        setOpen(o);
+        if (!o) setTab('general');
+      }}
       title={t('modal.orgTitle')}
       maxWidth={800}
       minHeight={520}
       accessories={<Tabs items={items} activeKey={tab} onChange={setTab} />}
     >
-      <TenantSettings activeTab={tab} onTabChange={setTab} onClose={() => setOpen(false)} apiBase={apiBase} settingsData={tenantSettings} />
+      <TenantSettings
+        activeTab={tab}
+        onTabChange={setTab}
+        onClose={() => setOpen(false)}
+        apiBase={apiBase}
+        settingsData={tenantSettings}
+      />
     </Modal>
   );
 }
 
 export function WorldModals(props: WorldModalsProps) {
   const {
-    apiBase, colyseusRef,
-    profileOpen, setProfileOpen,
-    billingOpen, setBillingOpen,
-    tenantSettingsOpen, setTenantSettingsOpen, tenantTab, setTenantTab,
-    sessionsOpen, setSessionsOpen,
-    apiModalOpen, setApiModalOpen,
-    apiTokens, setApiTokens, newTokenName, setNewTokenName, freshToken, setFreshToken,
+    apiBase,
+    colyseusRef,
+    profileOpen,
+    setProfileOpen,
+    billingOpen,
+    setBillingOpen,
+    tenantSettingsOpen,
+    setTenantSettingsOpen,
+    tenantTab,
+    setTenantTab,
+    sessionsOpen,
+    setSessionsOpen,
+    apiModalOpen,
+    setApiModalOpen,
+    apiTokens,
+    setApiTokens,
+    newTokenName,
+    setNewTokenName,
+    freshToken,
+    setFreshToken,
   } = props;
   const { t } = useTranslation();
 
@@ -111,7 +168,7 @@ export function WorldModals(props: WorldModalsProps) {
 
   React.useEffect(() => {
     if (tenantSettingsOpen) {
-      tenantSettings.fetchData();
+      void tenantSettings.fetchData();
     }
   }, [tenantSettingsOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -119,20 +176,50 @@ export function WorldModals(props: WorldModalsProps) {
     { key: 'general', label: t('tenant.tabGeneral') },
     { key: 'members', label: `${t('tenant.tabMembers')} (${tenantSettings.members.length})` },
     { key: 'invites', label: t('tenant.tabInvites') },
-    ...(tenantSettings.isEnterprise ? [{ key: 'guests', label: `${t('tenant.tabGuests')} (${tenantSettings.guests.length})` }] : []),
+    ...(tenantSettings.isEnterprise
+      ? [{ key: 'guests', label: `${t('tenant.tabGuests')} (${tenantSettings.guests.length})` }]
+      : []),
   ];
 
   return (
     <>
-      <Modal open={profileOpen} onOpenChange={setProfileOpen} title={t('modal.profileTitle')} maxWidth={700} minHeight={520}>
+      <Modal
+        open={profileOpen}
+        onOpenChange={setProfileOpen}
+        title={t('modal.profileTitle')}
+        maxWidth={700}
+        minHeight={520}
+      >
         <ProfileSettings onClose={() => setProfileOpen(false)} colyseusRef={colyseusRef} />
       </Modal>
 
-      <BillingModal open={billingOpen} setOpen={setBillingOpen} t={t} billingTab={billingTab} setBillingTab={setBillingTab} items={billingTabItems} />
+      <BillingModal
+        open={billingOpen}
+        setOpen={setBillingOpen}
+        t={t}
+        billingTab={billingTab}
+        setBillingTab={setBillingTab}
+        items={billingTabItems}
+      />
 
-      <TenantSettingsModal open={tenantSettingsOpen} setOpen={setTenantSettingsOpen} t={t} tab={tenantTab} setTab={setTenantTab} items={tenantTabItems} apiBase={apiBase} tenantSettings={tenantSettings} />
+      <TenantSettingsModal
+        open={tenantSettingsOpen}
+        setOpen={setTenantSettingsOpen}
+        t={t}
+        tab={tenantTab}
+        setTab={setTenantTab}
+        items={tenantTabItems}
+        apiBase={apiBase}
+        tenantSettings={tenantSettings}
+      />
 
-      <Modal open={sessionsOpen} onOpenChange={setSessionsOpen} title={t('modal.sessionsTitle')} maxWidth={700} minHeight={520}>
+      <Modal
+        open={sessionsOpen}
+        onOpenChange={setSessionsOpen}
+        title={t('modal.sessionsTitle')}
+        maxWidth={700}
+        minHeight={520}
+      >
         <SessionManagement onClose={() => setSessionsOpen(false)} />
       </Modal>
 

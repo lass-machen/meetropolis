@@ -16,16 +16,16 @@ vi.mock('livekit-client', () => {
 describe('joinLivekitRoom', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    global.fetch = vi.fn(async () => {
-      return {
+    global.fetch = vi.fn((): Promise<any> => {
+      return Promise.resolve({
         ok: true,
-        text: async () => 'test-token',
-      } as any;
+        text: () => 'test-token',
+      });
     }) as any;
   });
 
   afterEach(() => {
-    global.fetch = originalFetch as any;
+    global.fetch = originalFetch;
     vi.useRealTimers();
   });
 
@@ -48,8 +48,8 @@ describe('joinLivekitRoom', () => {
     expect(anyRoom.connect).toHaveBeenCalledTimes(1);
 
     // Es wurden keine Gesture-Listener (pointerdown/click/keydown/touchstart) registriert
-    const calls = addSpy.mock.calls.map(args => args[0]);
-    expect(calls.filter((ev) => ['pointerdown','click','keydown','touchstart'].includes(ev as any)).length).toBe(0);
+    const calls = addSpy.mock.calls.map((args) => args[0]);
+    expect(calls.filter((ev) => ['pointerdown', 'click', 'keydown', 'touchstart'].includes(ev as any)).length).toBe(0);
 
     addSpy.mockRestore();
     remSpy.mockRestore();
@@ -64,13 +64,13 @@ describe('joinLivekitRoom', () => {
         const signal: AbortSignal | undefined = init?.signal;
         if (signal) {
           if (signal.aborted) {
-            const err: any = new Error('aborted');
+            const err: Error = new Error('aborted');
             err.name = 'AbortError';
             reject(err);
             return;
           }
           signal.addEventListener('abort', () => {
-            const err: any = new Error('aborted');
+            const err: Error = new Error('aborted');
             err.name = 'AbortError';
             reject(err);
           });
@@ -98,5 +98,3 @@ describe('joinLivekitRoom', () => {
     expect((err as Error).message).toBe('livekit_token_timeout');
   });
 });
-
-

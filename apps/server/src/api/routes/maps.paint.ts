@@ -52,7 +52,7 @@ function collectChunkCoords(rect: { x0: number; y0: number; x1: number; y1: numb
   return out;
 }
 
-async function decodeChunkIntoUpdate(
+function decodeChunkIntoUpdate(
   cd: ChunkUpdate,
   chunkSize: number,
   decodeRlePairsFromBuffer: any,
@@ -64,9 +64,10 @@ async function decodeChunkIntoUpdate(
   if (c) {
     const dataBuffer = c.data instanceof Buffer ? c.data : Buffer.from(c.data);
     const pairs = decodeRlePairsFromBuffer(dataBuffer);
-    cd._decoded = c.encoding === 'rle-bool'
-      ? rleDecodeToBooleans(pairs, chunkSize * chunkSize).map((b: boolean) => (b ? 1 : 0))
-      : rleDecodeToNumbers(pairs, chunkSize * chunkSize);
+    cd._decoded =
+      c.encoding === 'rle-bool'
+        ? rleDecodeToBooleans(pairs, chunkSize * chunkSize).map((b: boolean) => (b ? 1 : 0))
+        : rleDecodeToNumbers(pairs, chunkSize * chunkSize);
   } else {
     cd._decoded = new Array(chunkSize * chunkSize).fill(0);
   }
@@ -102,7 +103,7 @@ async function buildChunkUpdates(params: {
       const ry = y % chunkSize;
       const idx = ry * chunkSize + rx;
 
-      await decodeChunkIntoUpdate(chunkData, chunkSize, decodeRlePairsFromBuffer, rleDecodeToNumbers, rleDecodeToBooleans);
+      decodeChunkIntoUpdate(chunkData, chunkSize, decodeRlePairsFromBuffer, rleDecodeToNumbers, rleDecodeToBooleans);
 
       let val = 0;
       if (erase) {
@@ -139,9 +140,10 @@ async function persistChunkUpdates(
     if (!data.modified) continue;
 
     const chunkValues = data._decoded;
-    const pairs = encoding === 'rle-bool'
-      ? rleEncodeBooleans(chunkValues.map((v: number) => v !== 0))
-      : rleEncodeNumbers(chunkValues);
+    const pairs =
+      encoding === 'rle-bool'
+        ? rleEncodeBooleans(chunkValues.map((v: number) => v !== 0))
+        : rleEncodeNumbers(chunkValues);
     const buf = encodeRlePairsToBuffer(pairs);
     const u8 = new Uint8Array(buf);
 
@@ -149,12 +151,12 @@ async function persistChunkUpdates(
     if (!chunk) {
       chunk = await prisma.mapChunk.create({
         data: { layerId, x: data.cx, y: data.cy, version: 1, encoding, data: u8 },
-      }) as ChunkData;
+      });
     } else {
       chunk = await prisma.mapChunk.update({
         where: { id: chunk.id },
         data: { version: chunk.version + 1, encoding, data: u8 },
-      }) as ChunkData;
+      });
     }
 
     updates.push({ key, version: chunk.version, encoding: chunk.encoding, data: buf.toString('base64') });
@@ -162,7 +164,11 @@ async function persistChunkUpdates(
   return updates;
 }
 
-export async function handlePaintRect(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
+export async function handlePaintRect(
+  prisma: PrismaClient,
+  req: express.Request,
+  res: express.Response,
+): Promise<void> {
   try {
     const parse = paintSchema.safeParse(req.body || {});
     if (!parse.success) {
@@ -172,7 +178,10 @@ export async function handlePaintRect(prisma: PrismaClient, req: express.Request
     }
 
     const tenant = getTenantFromReq(req);
-    if (!tenant) { res.status(400).json({ error: 'tenant_required' }); return; }
+    if (!tenant) {
+      res.status(400).json({ error: 'tenant_required' });
+      return;
+    }
     const { layer: layerName, rect, tileRefId, values: rawValues, erase } = parse.data;
 
     const map = await findMapById(prisma, pathParam(req, 'id'), tenant.id);
@@ -182,7 +191,15 @@ export async function handlePaintRect(prisma: PrismaClient, req: express.Request
       return;
     }
 
-    logger.info('[Paint] Request', { mapId: map.id, mapName: map.name, layer: layerName, rect, erase, hasValues: !!rawValues, tileRefId });
+    logger.info('[Paint] Request', {
+      mapId: map.id,
+      mapName: map.name,
+      layer: layerName,
+      rect,
+      erase,
+      hasValues: !!rawValues,
+      tileRefId,
+    });
 
     if (!erase && tileRefId === undefined && (!rawValues || rawValues.length === 0)) {
       res.status(400).json({ error: 'invalid payload: missing tileRefId or values' });
@@ -191,7 +208,9 @@ export async function handlePaintRect(prisma: PrismaClient, req: express.Request
 
     let layer = await prisma.mapLayer.findUnique({ where: { mapId_name: { mapId: map.id, name: layerName } } });
     if (!layer) {
-      layer = await prisma.mapLayer.create({ data: { mapId: map.id, name: layerName, chunkSize: map.chunkSize ?? 32 } });
+      layer = await prisma.mapLayer.create({
+        data: { mapId: map.id, name: layerName, chunkSize: map.chunkSize ?? 32 },
+      });
       logger.info('[Paint] created layer', { layerId: layer.id, name: layerName });
     }
 
@@ -203,18 +222,28 @@ export async function handlePaintRect(prisma: PrismaClient, req: express.Request
     });
     const existingChunks = new Map<string, ChunkData>();
     for (const c of existingChunksList) {
-      existingChunks.set(`${c.x}:${c.y}`, c as ChunkData);
+      existingChunks.set(`${c.x}:${c.y}`, c);
     }
 
     const chunkUpdates = await buildChunkUpdates({
-      rect, chunkSize, existingChunks, tileRefId, rawValues, erase,
+      rect,
+      chunkSize,
+      existingChunks,
+      tileRefId,
+      rawValues,
+      erase,
     });
 
     const encoding = layerName === 'collision' ? 'rle-bool' : 'rle';
     const updates = await persistChunkUpdates(prisma, layer.id, chunkUpdates, existingChunks, encoding);
 
     if (updates.length > 0) {
-      broadcastMapUpdate(tenant.slug, 'chunks_updated', { mapId: map.id, mapName: map.name, layer: layerName, updates });
+      broadcastMapUpdate(tenant.slug, 'chunks_updated', {
+        mapId: map.id,
+        mapName: map.name,
+        layer: layerName,
+        updates,
+      });
     }
 
     let collisionUpdates: ChunkUpdateResult[] | undefined;
@@ -228,11 +257,19 @@ export async function handlePaintRect(prisma: PrismaClient, req: express.Request
         wallChunkUpdates: chunkUpdates,
       });
       if (collisionUpdates.length > 0) {
-        broadcastMapUpdate(tenant.slug, 'chunks_updated', { mapId: map.id, mapName: map.name, layer: 'collision', updates: collisionUpdates });
+        broadcastMapUpdate(tenant.slug, 'chunks_updated', {
+          mapId: map.id,
+          mapName: map.name,
+          layer: 'collision',
+          updates: collisionUpdates,
+        });
       }
     }
 
-    res.json({ updates, collisionUpdates: collisionUpdates && collisionUpdates.length > 0 ? collisionUpdates : undefined });
+    res.json({
+      updates,
+      collisionUpdates: collisionUpdates && collisionUpdates.length > 0 ? collisionUpdates : undefined,
+    });
   } catch (e: unknown) {
     logger.error('[Map] paint-rect failed', e);
     res.status(500).json({ error: 'internal_error' });

@@ -24,16 +24,18 @@ const MAPS = [
 ];
 
 function makeFetchMock(routes: Record<string, unknown>) {
-  return vi.fn(async (input: RequestInfo | URL) => {
-    const url = typeof input === 'string' ? input : input.toString();
+  return vi.fn((input: RequestInfo | URL): Promise<Response> => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
     const match = Object.keys(routes).find((key) => url.includes(key));
     if (!match) {
-      return new Response(JSON.stringify({ error: 'not_mocked' }), { status: 404 });
+      return Promise.resolve(new Response(JSON.stringify({ error: 'not_mocked' }), { status: 404 }));
     }
-    return new Response(JSON.stringify(routes[match]), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return Promise.resolve(
+      new Response(JSON.stringify(routes[match]), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
   });
 }
 

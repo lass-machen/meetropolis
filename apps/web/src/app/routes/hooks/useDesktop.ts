@@ -35,14 +35,16 @@ export function useDesktop(): DesktopState {
   // Lade Desktop-Modul
   useEffect(() => {
     let cancelled = false;
-    getDesktopModule().then(mod => {
+    void getDesktopModule().then((mod) => {
       if (cancelled || !mod) return;
       setDesktop(mod);
       setIsTauri(true);
       // Initialen Mini-Mode State lesen (wurde in initDesktop() gesetzt)
       setIsMiniMode((window as any).__DESKTOP__?.isMiniMode ?? false);
     });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Lausche auf Mini-Mode Änderungen via Custom DOM Events

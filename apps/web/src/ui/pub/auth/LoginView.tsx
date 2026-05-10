@@ -45,10 +45,7 @@ function LoginTitle() {
       <h1 className="pub-text-h3" style={{ margin: 0 }}>
         {t('auth.loginTitle')}
       </h1>
-      <p
-        className="pub-text-body"
-        style={{ margin: 0, color: 'var(--pub-text-secondary)' }}
-      >
+      <p className="pub-text-body" style={{ margin: 0, color: 'var(--pub-text-secondary)' }}>
         {t('auth.loginSubtitle')}
       </p>
     </div>
@@ -76,9 +73,11 @@ function PasswordField({ password, onChange, onForgot }: PasswordFieldProps) {
         <label className="pub-input-label" style={{ margin: 0 }}>
           {t('auth.passwordLabel')}
         </label>
-        <a
+        <button
+          type="button"
           onClick={onForgot}
           style={{
+            all: 'unset',
             cursor: 'pointer',
             fontSize: 13,
             color: 'var(--pub-accent-purple)',
@@ -86,7 +85,7 @@ function PasswordField({ password, onChange, onForgot }: PasswordFieldProps) {
           }}
         >
           {t('auth.forgotPasswordLink')}
-        </a>
+        </button>
       </div>
       <div className="pub-input-wrapper">
         <input
@@ -133,9 +132,10 @@ function LoginFields({ email, password, onEmail, onPassword, onForgot }: LoginFi
 }
 
 function LoginAlert({ kind, text }: { kind: 'success' | 'error'; text: string }) {
-  const styles = kind === 'success'
-    ? { bg: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', color: '#22C55E' }
-    : { bg: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#EF4444' };
+  const styles =
+    kind === 'success'
+      ? { bg: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', color: '#22C55E' }
+      : { bg: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#EF4444' };
   return (
     <div
       style={{
@@ -163,14 +163,13 @@ function LoginFooter({ onRegister, onInvite, registrationEnabled }: LoginFooterP
   return (
     <>
       {registrationEnabled && (
-        <p
-          className="pub-text-body-sm"
-          style={{ margin: 0, textAlign: 'center', color: 'var(--pub-text-secondary)' }}
-        >
+        <p className="pub-text-body-sm" style={{ margin: 0, textAlign: 'center', color: 'var(--pub-text-secondary)' }}>
           {t('auth.loginNoAccount')}{' '}
-          <a
+          <button
+            type="button"
             onClick={onRegister}
             style={{
+              all: 'unset',
               cursor: 'pointer',
               color: 'var(--pub-accent-purple)',
               textDecoration: 'none',
@@ -178,17 +177,16 @@ function LoginFooter({ onRegister, onInvite, registrationEnabled }: LoginFooterP
             }}
           >
             {t('auth.loginRegisterLink')}
-          </a>
+          </button>
         </p>
       )}
-      <p
-        className="pub-text-body-sm"
-        style={{ margin: 0, textAlign: 'center', color: 'var(--pub-text-secondary)' }}
-      >
+      <p className="pub-text-body-sm" style={{ margin: 0, textAlign: 'center', color: 'var(--pub-text-secondary)' }}>
         {t('auth.loginHasInvite')}{' '}
-        <a
+        <button
+          type="button"
           onClick={onInvite}
           style={{
+            all: 'unset',
             cursor: 'pointer',
             color: 'var(--pub-accent-purple)',
             textDecoration: 'none',
@@ -196,7 +194,7 @@ function LoginFooter({ onRegister, onInvite, registrationEnabled }: LoginFooterP
           }}
         >
           {t('auth.loginInviteLink')}
-        </a>
+        </button>
       </p>
     </>
   );
@@ -204,7 +202,15 @@ function LoginFooter({ onRegister, onInvite, registrationEnabled }: LoginFooterP
 
 /* ---------- Component ---------- */
 
-export function LoginView({ onSubmit, onForgot, onRegister, onInvite, error, successMessage, registrationEnabled = true }: LoginViewProps) {
+export function LoginView({
+  onSubmit,
+  onForgot,
+  onRegister,
+  onInvite,
+  error,
+  successMessage,
+  registrationEnabled = true,
+}: LoginViewProps) {
   const { t } = useTranslation('public');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -221,15 +227,15 @@ export function LoginView({ onSubmit, onForgot, onRegister, onInvite, error, suc
   }
 
   return (
-    <form onSubmit={handleSubmit} autoComplete="on" style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+    <form
+      onSubmit={(e) => {
+        void handleSubmit(e);
+      }}
+      autoComplete="on"
+      style={{ display: 'flex', flexDirection: 'column', gap: 24 }}
+    >
       <LoginTitle />
-      <LoginFields
-        email={email}
-        password={password}
-        onEmail={setEmail}
-        onPassword={setPassword}
-        onForgot={onForgot}
-      />
+      <LoginFields email={email} password={password} onEmail={setEmail} onPassword={setPassword} onForgot={onForgot} />
       {successMessage && <LoginAlert kind="success" text={successMessage} />}
       {error && <LoginAlert kind="error" text={error} />}
       <PubButton

@@ -36,7 +36,7 @@ export class BootScene extends Phaser.Scene {
     const src = this.textures.get('office_tiles_raw')?.getSourceImage() as HTMLImageElement | undefined;
     if (src) {
       const targetW = 192; // 12 cols * 16px
-      const targetH = 48;  // 3 rows * 16px
+      const targetH = 48; // 3 rows * 16px
       const ctex = this.textures.createCanvas('office_tiles', targetW, targetH);
       if (ctex) {
         const ctx = ctex.getContext();
@@ -65,13 +65,20 @@ export class BootScene extends Phaser.Scene {
     }
 
     // v2 Boot: prefetch state-v2
-    (async () => {
+    void (async () => {
       try {
         const loadMap = async (id: string) => {
           const state = await fetchStateV2(id);
-          const metaOk = !!(state && state.mapMeta && state.mapMeta.width && state.mapMeta.height && state.mapMeta.tileWidth && state.mapMeta.tileHeight);
+          const metaOk = !!(
+            state &&
+            state.mapMeta &&
+            state.mapMeta.width &&
+            state.mapMeta.height &&
+            state.mapMeta.tileWidth &&
+            state.mapMeta.tileHeight
+          );
           if (metaOk) {
-            await preloadTilesetImages(this, state!.tilesetRegistry);
+            await preloadTilesetImages(this, state.tilesetRegistry);
             (window as any).__v2_state = state;
             this.scene.start('Main');
           } else {
@@ -79,7 +86,7 @@ export class BootScene extends Phaser.Scene {
           }
         };
 
-        let mapId = useMapStore.getState().currentMapId;
+        const mapId = useMapStore.getState().currentMapId;
         if (mapId) {
           await loadMap(mapId);
         } else {
@@ -95,10 +102,12 @@ export class BootScene extends Phaser.Scene {
               if (state.currentMapId) {
                 clearTimeout(timeout);
                 unsubscribe();
-                loadMap(state.currentMapId).then(resolve).catch(() => {
-                  logger.error('[Boot] Failed to load map after waiting');
-                  resolve();
-                });
+                loadMap(state.currentMapId)
+                  .then(resolve)
+                  .catch(() => {
+                    logger.error('[Boot] Failed to load map after waiting');
+                    resolve();
+                  });
               }
             });
           });

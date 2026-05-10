@@ -3,7 +3,7 @@ import { TrackManager } from './TrackManager';
 
 vi.mock('../audio/buildAudioPipeline', () => {
   return {
-    buildAudioPipeline: vi.fn(async () => {
+    buildAudioPipeline: vi.fn(() => {
       const mst: any = {
         id: 'mst-1',
         kind: 'audio',
@@ -52,7 +52,7 @@ describe('TrackManager (concurrency)', () => {
         publishGate.resolve = () => r();
       });
     });
-    room.localParticipant.unpublishTrack.mockImplementation(async (t: any) => {
+    room.localParticipant.unpublishTrack.mockImplementation((t: any) => {
       for (const [k, pub] of room.localParticipant.trackPublications.entries()) {
         if (pub?.track === t) room.localParticipant.trackPublications.delete(k);
       }
@@ -86,7 +86,7 @@ describe('TrackManager (concurrency)', () => {
 
   it('rapid mute/unmute uses soft-mute (no republish)', async () => {
     const room = makeRoom();
-    room.localParticipant.publishTrack.mockImplementation(async (t: any, opts?: any) => {
+    room.localParticipant.publishTrack.mockImplementation((t: any, opts?: any) => {
       room.localParticipant.trackPublications.set('mic', {
         track: t,
         kind: 'audio',
@@ -94,7 +94,7 @@ describe('TrackManager (concurrency)', () => {
         muted: false,
       });
     });
-    room.localParticipant.unpublishTrack.mockImplementation(async (t: any) => {
+    room.localParticipant.unpublishTrack.mockImplementation((t: any) => {
       for (const [k, pub] of room.localParticipant.trackPublications.entries()) {
         if (pub?.track === t) room.localParticipant.trackPublications.delete(k);
       }

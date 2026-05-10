@@ -4,8 +4,8 @@ interface AVControlBarProps {
   editorActive: boolean;
   avState: { mic: boolean; cam: boolean; share: boolean; dnd: boolean };
   devices: { mics: { id: string; label: string }[]; cams: { id: string; label: string }[] };
-  selectedMicId: string | '';
-  selectedCamId: string | '';
+  selectedMicId: string;
+  selectedCamId: string;
   cameraManual: boolean;
   onToggleMic: () => Promise<void>;
   onSelectMic: (id: string) => Promise<void>;
@@ -36,7 +36,18 @@ export function AVControlBar({
   }
 
   return (
-    <div style={{ position: 'absolute', bottom: 16, left: 0, right: 0, zIndex: 30, display: 'flex', justifyContent: 'center', pointerEvents: 'none' }}>
+    <div
+      style={{
+        position: 'absolute',
+        bottom: 16,
+        left: 0,
+        right: 0,
+        zIndex: 30,
+        display: 'flex',
+        justifyContent: 'center',
+        pointerEvents: 'none',
+      }}
+    >
       <div style={{ pointerEvents: 'auto', maxWidth: 'calc(100vw - 32px)', display: 'flex', justifyContent: 'center' }}>
         <AVBar
           size="md"

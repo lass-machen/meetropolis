@@ -2,7 +2,21 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Member } from './types';
 import { InviteMember } from './InviteMember';
-import { Section, Button, Select, Table, THead, TBody, Tr, Th, Td, Input, Alert, NavBar, ChevronLeftIcon } from '../../system';
+import {
+  Section,
+  Button,
+  Select,
+  Table,
+  THead,
+  TBody,
+  Tr,
+  Th,
+  Td,
+  Input,
+  Alert,
+  NavBar,
+  ChevronLeftIcon,
+} from '../../system';
 
 interface MemberSettingsProps {
   members: Member[];
@@ -15,38 +29,101 @@ interface MemberSettingsProps {
   onEditMember: (userId: string, data: { email?: string; name?: string }) => Promise<boolean>;
 }
 
-type Screen =
-  | { type: 'list' }
-  | { type: 'invite' }
-  | { type: 'edit'; member: Member };
+type Screen = { type: 'list' } | { type: 'invite' } | { type: 'edit'; member: Member };
 
-function EditMemberScreen({ member, editName, setEditName, editEmail, setEditEmail, saving, onSave, onCancel }: { member: Member; editName: string; setEditName: (v: string) => void; editEmail: string; setEditEmail: (v: string) => void; saving: boolean; onSave: (id: string) => Promise<void>; onCancel: () => void }) {
+function EditMemberScreen({
+  member,
+  editName,
+  setEditName,
+  editEmail,
+  setEditEmail,
+  saving,
+  onSave,
+  onCancel,
+}: {
+  member: Member;
+  editName: string;
+  setEditName: (v: string) => void;
+  editEmail: string;
+  setEditEmail: (v: string) => void;
+  saving: boolean;
+  onSave: (id: string) => Promise<void>;
+  onCancel: () => void;
+}) {
   const { t } = useTranslation();
   return (
     <>
       <NavBar
-        left={<Button iconOnly size="sm" variant="ghost" onClick={onCancel}><ChevronLeftIcon /></Button>}
+        left={
+          <Button iconOnly size="sm" variant="ghost" onClick={onCancel}>
+            <ChevronLeftIcon />
+          </Button>
+        }
         title={t('tenant.editMember')}
       />
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div>
-          <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6, color: 'var(--fg)' }}>Name</label>
-          <Input value={editName} onChange={e => setEditName(e.target.value)} placeholder="Name" />
+          <label
+            htmlFor="edit-member-name"
+            style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6, color: 'var(--fg)' }}
+          >
+            Name
+          </label>
+          <Input
+            id="edit-member-name"
+            value={editName}
+            onChange={(e) => setEditName(e.target.value)}
+            placeholder="Name"
+          />
         </div>
         <div>
-          <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6, color: 'var(--fg)' }}>{t('profile.emailAddress')}</label>
-          <Input value={editEmail} onChange={e => setEditEmail(e.target.value)} placeholder="Email" />
+          <label
+            htmlFor="edit-member-email"
+            style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6, color: 'var(--fg)' }}
+          >
+            {t('profile.emailAddress')}
+          </label>
+          <Input
+            id="edit-member-email"
+            value={editEmail}
+            onChange={(e) => setEditEmail(e.target.value)}
+            placeholder="Email"
+          />
         </div>
         <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-          <Button variant="primary" onClick={() => onSave(member.id)} disabled={saving}>{t('tenant.saveMember')}</Button>
-          <Button variant="ghost" onClick={onCancel}>{t('tenant.cancelEdit')}</Button>
+          <Button
+            variant="primary"
+            onClick={() => {
+              void onSave(member.id);
+            }}
+            disabled={saving}
+          >
+            {t('tenant.saveMember')}
+          </Button>
+          <Button variant="ghost" onClick={onCancel}>
+            {t('tenant.cancelEdit')}
+          </Button>
         </div>
       </div>
     </>
   );
 }
 
-function MemberRow({ member, saving, onChangeRole, onRemoveMember, onEdit, onReset }: { member: Member; saving: boolean; onChangeRole: (uid: string, r: 'admin' | 'member') => void; onRemoveMember: (uid: string) => void; onEdit: (m: Member) => void; onReset: (m: Member) => void }) {
+function MemberRow({
+  member,
+  saving,
+  onChangeRole,
+  onRemoveMember,
+  onEdit,
+  onReset,
+}: {
+  member: Member;
+  saving: boolean;
+  onChangeRole: (uid: string, r: 'admin' | 'member') => void;
+  onRemoveMember: (uid: string) => void;
+  onEdit: (m: Member) => void;
+  onReset: (m: Member) => void;
+}) {
   const { t } = useTranslation();
   return (
     <Tr>
@@ -69,10 +146,25 @@ function MemberRow({ member, saving, onChangeRole, onRemoveMember, onEdit, onRes
       </Td>
       <Td style={{ paddingRight: 0, textAlign: 'right' }}>
         <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-          <Button size="sm" variant="secondary" onClick={() => onEdit(member)}>{t('tenant.editMember')}</Button>
-          <Button size="sm" variant="danger" onClick={() => onReset(member)}>{t('tenant.resetPassword')}</Button>
+          <Button size="sm" variant="secondary" onClick={() => onEdit(member)}>
+            {t('tenant.editMember')}
+          </Button>
+          <Button size="sm" variant="danger" onClick={() => onReset(member)}>
+            {t('tenant.resetPassword')}
+          </Button>
           {member.role !== 'owner' && (
-            <Button iconOnly size="xs" variant="danger" onClick={() => { if (confirm(t('tenant.confirmRemoveMember'))) onRemoveMember(member.id); }} disabled={saving} title={t('tenant.removeMember')}>×</Button>
+            <Button
+              iconOnly
+              size="xs"
+              variant="danger"
+              onClick={() => {
+                if (confirm(t('tenant.confirmRemoveMember'))) onRemoveMember(member.id);
+              }}
+              disabled={saving}
+              title={t('tenant.removeMember')}
+            >
+              ×
+            </Button>
           )}
         </div>
       </Td>
@@ -87,18 +179,64 @@ function ResetTokenAlert({ token, onDismiss }: { token: string; onDismiss: () =>
       <div>
         <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4 }}>{t('tenant.resetSuccess')}</div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <code style={{ flex: 1, fontSize: 12, padding: '6px 8px', background: 'rgba(0,0,0,0.3)', borderRadius: 4, wordBreak: 'break-all' }}>{token}</code>
-          <Button size="sm" variant="secondary" onClick={() => { navigator.clipboard.writeText(token); }}>{t('tenant.copyToken')}</Button>
+          <code
+            style={{
+              flex: 1,
+              fontSize: 12,
+              padding: '6px 8px',
+              background: 'rgba(0,0,0,0.3)',
+              borderRadius: 4,
+              wordBreak: 'break-all',
+            }}
+          >
+            {token}
+          </code>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => {
+              void navigator.clipboard.writeText(token);
+            }}
+          >
+            {t('tenant.copyToken')}
+          </Button>
         </div>
       </div>
     </Alert>
   );
 }
 
-function MemberListView({ members, saving, onChangeRole, onRemoveMember, onEdit, onReset, onInvite, resetToken, onDismissReset }: { members: Member[]; saving: boolean; onChangeRole: MemberSettingsProps['onChangeRole']; onRemoveMember: MemberSettingsProps['onRemoveMember']; onEdit: (m: Member) => void; onReset: (m: Member) => void; onInvite: () => void; resetToken: { userId: string; token: string } | null; onDismissReset: () => void }) {
+function MemberListView({
+  members,
+  saving,
+  onChangeRole,
+  onRemoveMember,
+  onEdit,
+  onReset,
+  onInvite,
+  resetToken,
+  onDismissReset,
+}: {
+  members: Member[];
+  saving: boolean;
+  onChangeRole: MemberSettingsProps['onChangeRole'];
+  onRemoveMember: MemberSettingsProps['onRemoveMember'];
+  onEdit: (m: Member) => void;
+  onReset: (m: Member) => void;
+  onInvite: () => void;
+  resetToken: { userId: string; token: string } | null;
+  onDismissReset: () => void;
+}) {
   const { t } = useTranslation();
   return (
-    <Section title={t('tenant.teamMembers')} actions={<Button variant="primary" onClick={onInvite}>{t('tenant.inviteMember')}</Button>}>
+    <Section
+      title={t('tenant.teamMembers')}
+      actions={
+        <Button variant="primary" onClick={onInvite}>
+          {t('tenant.inviteMember')}
+        </Button>
+      }
+    >
       <Table>
         <THead>
           <Tr>
@@ -110,7 +248,12 @@ function MemberListView({ members, saving, onChangeRole, onRemoveMember, onEdit,
         <TBody>
           {members.length === 0 && (
             <Tr>
-              <Td colSpan={3} style={{ paddingLeft: 0, textAlign: 'center', color: 'var(--fg-subtle)', padding: '32px 0' }}>Keine Einträge vorhanden</Td>
+              <Td
+                colSpan={3}
+                style={{ paddingLeft: 0, textAlign: 'center', color: 'var(--fg-subtle)', padding: '32px 0' }}
+              >
+                Keine Einträge vorhanden
+              </Td>
             </Tr>
           )}
           {members.map((member) => (
@@ -126,7 +269,7 @@ function MemberListView({ members, saving, onChangeRole, onRemoveMember, onEdit,
           ))}
         </TBody>
       </Table>
-      {resetToken && (<ResetTokenAlert token={resetToken.token} onDismiss={onDismissReset} />)}
+      {resetToken && <ResetTokenAlert token={resetToken.token} onDismiss={onDismissReset} />}
     </Section>
   );
 }
@@ -162,23 +305,56 @@ function useMemberSettingsState(props: MemberSettingsProps) {
     if (token) setResetToken({ userId: member.id, token });
   };
 
-  return { screen, setScreen, editName, setEditName, editEmail, setEditEmail, resetToken, setResetToken, startEdit, saveEdit, handleReset };
+  return {
+    screen,
+    setScreen,
+    editName,
+    setEditName,
+    editEmail,
+    setEditEmail,
+    resetToken,
+    setResetToken,
+    startEdit,
+    saveEdit,
+    handleReset,
+  };
 }
 
 export function MemberSettings(props: MemberSettingsProps) {
   const { t } = useTranslation();
   const { members, saving, onChangeRole, onRemoveMember, onInvite, onSuccess } = props;
   const state = useMemberSettingsState(props);
-  const { screen, setScreen, editName, setEditName, editEmail, setEditEmail, resetToken, setResetToken, startEdit, saveEdit, handleReset } = state;
+  const {
+    screen,
+    setScreen,
+    editName,
+    setEditName,
+    editEmail,
+    setEditEmail,
+    resetToken,
+    setResetToken,
+    startEdit,
+    saveEdit,
+    handleReset,
+  } = state;
 
   if (screen.type === 'invite') {
     return (
       <>
         <NavBar
-          left={<Button iconOnly size="sm" variant="ghost" onClick={() => setScreen({ type: 'list' })}><ChevronLeftIcon /></Button>}
+          left={
+            <Button iconOnly size="sm" variant="ghost" onClick={() => setScreen({ type: 'list' })}>
+              <ChevronLeftIcon />
+            </Button>
+          }
           title={t('tenant.inviteMember')}
         />
-        <InviteMember saving={saving} onInvite={onInvite} onClose={() => setScreen({ type: 'list' })} onSuccess={onSuccess} />
+        <InviteMember
+          saving={saving}
+          onInvite={onInvite}
+          onClose={() => setScreen({ type: 'list' })}
+          onSuccess={onSuccess}
+        />
       </>
     );
   }
@@ -187,8 +363,10 @@ export function MemberSettings(props: MemberSettingsProps) {
     return (
       <EditMemberScreen
         member={screen.member}
-        editName={editName} setEditName={setEditName}
-        editEmail={editEmail} setEditEmail={setEditEmail}
+        editName={editName}
+        setEditName={setEditName}
+        editEmail={editEmail}
+        setEditEmail={setEditEmail}
         saving={saving}
         onSave={saveEdit}
         onCancel={() => setScreen({ type: 'list' })}
@@ -203,7 +381,9 @@ export function MemberSettings(props: MemberSettingsProps) {
       onChangeRole={onChangeRole}
       onRemoveMember={onRemoveMember}
       onEdit={startEdit}
-      onReset={handleReset}
+      onReset={(m) => {
+        void handleReset(m);
+      }}
       onInvite={() => setScreen({ type: 'invite' })}
       resetToken={resetToken}
       onDismissReset={() => setResetToken(null)}

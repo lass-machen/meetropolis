@@ -25,7 +25,7 @@ export interface AVStateMachineConfig {
 export type StateChangeHandler = (
   newState: AVConnectionState,
   prevState: AVConnectionState,
-  event: AVConnectionEvent
+  event: AVConnectionEvent,
 ) => void;
 
 const VALID_TRANSITIONS: Record<AVConnectionState, AVConnectionState[]> = {
@@ -197,22 +197,24 @@ export class AVStateMachine implements Disposable {
     });
 
     this.clearReconnectTimer();
-    this._reconnectTimer = setTimeout(async () => {
-      this._reconnectTimer = null;
+    this._reconnectTimer = setTimeout(() => {
+      void (async () => {
+        this._reconnectTimer = null;
 
-      if (this._pageLeaving) {
-        AVLogger.info('reconnect.aborted.pageleaving');
-        return;
-      }
+        if (this._pageLeaving) {
+          AVLogger.info('reconnect.aborted.pageleaving');
+          return;
+        }
 
-      this.dispatch({ type: 'RETRY' });
+        this.dispatch({ type: 'RETRY' });
 
-      try {
-        await connectFn();
-      } catch (error) {
-        AVLogger.error('reconnect.failed', { error: String(error) });
-        this.scheduleReconnect(connectFn);
-      }
+        try {
+          await connectFn();
+        } catch (error) {
+          AVLogger.error('reconnect.failed', { error: String(error) });
+          this.scheduleReconnect(connectFn);
+        }
+      })();
     }, delay);
   }
 
@@ -342,7 +344,7 @@ export class AVStateMachine implements Disposable {
   private handleTransition(
     _prevState: AVConnectionState,
     nextState: AVConnectionState,
-    _event: AVConnectionEvent
+    _event: AVConnectionEvent,
   ): void {
     // Handle side effects of transitions
     switch (nextState) {
@@ -374,11 +376,7 @@ export class AVStateMachine implements Disposable {
     }
   }
 
-  private notifyListeners(
-    newState: AVConnectionState,
-    prevState: AVConnectionState,
-    event: AVConnectionEvent
-  ): void {
+  private notifyListeners(newState: AVConnectionState, prevState: AVConnectionState, event: AVConnectionEvent): void {
     for (const handler of this._listeners) {
       try {
         handler(newState, prevState, event);

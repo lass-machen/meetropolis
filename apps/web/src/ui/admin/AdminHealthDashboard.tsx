@@ -84,13 +84,24 @@ function formatUptime(seconds: number): string {
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const color = status === 'connected' || status === 'ok' || status === 'configured'
-    ? '#22c55e'
-    : status === 'not_configured' || status === 'missing'
-      ? '#f59e0b'
-      : '#ef4444';
+  const color =
+    status === 'connected' || status === 'ok' || status === 'configured'
+      ? '#22c55e'
+      : status === 'not_configured' || status === 'missing'
+        ? '#f59e0b'
+        : '#ef4444';
   return (
-    <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, textTransform: 'uppercase', background: `${color}20`, color }}>
+    <span
+      style={{
+        padding: '2px 8px',
+        borderRadius: 4,
+        fontSize: 11,
+        fontWeight: 600,
+        textTransform: 'uppercase',
+        background: `${color}20`,
+        color,
+      }}
+    >
       {status}
     </span>
   );
@@ -130,10 +141,14 @@ function useHealthData(apiBase: string) {
     }
   }, [apiBase]);
 
-  React.useEffect(() => { fetchData(); }, [fetchData]);
+  React.useEffect(() => {
+    void fetchData();
+  }, [fetchData]);
   React.useEffect(() => {
     if (!autoRefresh) return;
-    const interval = setInterval(fetchData, 10000);
+    const interval = setInterval(() => {
+      void fetchData();
+    }, 10000);
     return () => clearInterval(interval);
   }, [autoRefresh, fetchData]);
 
@@ -159,7 +174,11 @@ function MemorySection({ health }: { health: HealthData }) {
     <div style={styles.section}>
       <h3 style={styles.sectionTitle}>Memory Usage</h3>
       <div style={styles.grid}>
-        <StatCard label="Heap Used" value={formatBytes(health.memory.heapUsed)} sub={`of ${formatBytes(health.memory.heapTotal)}`} />
+        <StatCard
+          label="Heap Used"
+          value={formatBytes(health.memory.heapUsed)}
+          sub={`of ${formatBytes(health.memory.heapTotal)}`}
+        />
         <StatCard label="RSS" value={formatBytes(health.memory.rss)} />
         <StatCard label="External" value={formatBytes(health.memory.external)} />
         <StatCard label="Heap %" value={`${Math.round((health.memory.heapUsed / health.memory.heapTotal) * 100)}%`} />
@@ -176,27 +195,31 @@ function ServicesSection({ health }: { health: HealthData }) {
         <div style={styles.serviceCard}>
           <div style={styles.serviceName}>Database</div>
           <StatusBadge status={health.database.status} />
-          {health.database.responseTime && (<div style={styles.serviceDetail}>{health.database.responseTime}ms</div>)}
+          {health.database.responseTime && <div style={styles.serviceDetail}>{health.database.responseTime}ms</div>}
         </div>
         <div style={styles.serviceCard}>
           <div style={styles.serviceName}>WebSocket</div>
           <StatusBadge status={health.websocket.status} />
-          <div style={styles.serviceDetail}>{health.websocket.activeRooms || 0} rooms, {health.websocket.activeConnections || 0} connections</div>
+          <div style={styles.serviceDetail}>
+            {health.websocket.activeRooms || 0} rooms, {health.websocket.activeConnections || 0} connections
+          </div>
         </div>
         <div style={styles.serviceCard}>
           <div style={styles.serviceName}>LiveKit</div>
           <StatusBadge status={health.livekit.status} />
-          {health.livekit.url && (<div style={styles.serviceDetail}>{health.livekit.url}</div>)}
+          {health.livekit.url && <div style={styles.serviceDetail}>{health.livekit.url}</div>}
         </div>
         <div style={styles.serviceCard}>
           <div style={styles.serviceName}>Stripe</div>
           <StatusBadge status={health.stripe.status} />
-          {health.stripe.webhookConfigured !== undefined && (<div style={styles.serviceDetail}>Webhook: {health.stripe.webhookConfigured ? 'yes' : 'no'}</div>)}
+          {health.stripe.webhookConfigured !== undefined && (
+            <div style={styles.serviceDetail}>Webhook: {health.stripe.webhookConfigured ? 'yes' : 'no'}</div>
+          )}
         </div>
         <div style={styles.serviceCard}>
           <div style={styles.serviceName}>Email</div>
           <StatusBadge status={health.email.status} />
-          {health.email.provider && (<div style={styles.serviceDetail}>{health.email.provider}</div>)}
+          {health.email.provider && <div style={styles.serviceDetail}>{health.email.provider}</div>}
         </div>
       </div>
     </div>
@@ -225,43 +248,92 @@ function StatsSection({ stats }: { stats: StatsData }) {
       <div style={styles.statsGrid}>
         <div style={styles.statsCard}>
           <div style={styles.statsTitle}>Users</div>
-          <div style={styles.statsRow}><span>Total</span><span style={styles.statsValue}>{stats.users.total.toLocaleString()}</span></div>
-          <div style={styles.statsRow}><span>Last 24h</span><span style={styles.statsValue}>+{stats.users.last24h}</span></div>
-          <div style={styles.statsRow}><span>Last 7d</span><span style={styles.statsValue}>+{stats.users.last7d}</span></div>
-          <div style={styles.statsRow}><span>Last 30d</span><span style={styles.statsValue}>+{stats.users.last30d}</span></div>
-          <div style={styles.statsRow}><span>Verified</span><span style={styles.statsValue}>{stats.users.verificationRate}%</span></div>
+          <div style={styles.statsRow}>
+            <span>Total</span>
+            <span style={styles.statsValue}>{stats.users.total.toLocaleString()}</span>
+          </div>
+          <div style={styles.statsRow}>
+            <span>Last 24h</span>
+            <span style={styles.statsValue}>+{stats.users.last24h}</span>
+          </div>
+          <div style={styles.statsRow}>
+            <span>Last 7d</span>
+            <span style={styles.statsValue}>+{stats.users.last7d}</span>
+          </div>
+          <div style={styles.statsRow}>
+            <span>Last 30d</span>
+            <span style={styles.statsValue}>+{stats.users.last30d}</span>
+          </div>
+          <div style={styles.statsRow}>
+            <span>Verified</span>
+            <span style={styles.statsValue}>{stats.users.verificationRate}%</span>
+          </div>
         </div>
         <div style={styles.statsCard}>
           <div style={styles.statsTitle}>Tenants</div>
-          <div style={styles.statsRow}><span>Total</span><span style={styles.statsValue}>{stats.tenants.total.toLocaleString()}</span></div>
-          <div style={styles.statsRow}><span>Last 24h</span><span style={styles.statsValue}>+{stats.tenants.last24h}</span></div>
-          <div style={styles.statsRow}><span>Last 7d</span><span style={styles.statsValue}>+{stats.tenants.last7d}</span></div>
-          <div style={styles.statsRow}><span>Last 30d</span><span style={styles.statsValue}>+{stats.tenants.last30d}</span></div>
+          <div style={styles.statsRow}>
+            <span>Total</span>
+            <span style={styles.statsValue}>{stats.tenants.total.toLocaleString()}</span>
+          </div>
+          <div style={styles.statsRow}>
+            <span>Last 24h</span>
+            <span style={styles.statsValue}>+{stats.tenants.last24h}</span>
+          </div>
+          <div style={styles.statsRow}>
+            <span>Last 7d</span>
+            <span style={styles.statsValue}>+{stats.tenants.last7d}</span>
+          </div>
+          <div style={styles.statsRow}>
+            <span>Last 30d</span>
+            <span style={styles.statsValue}>+{stats.tenants.last30d}</span>
+          </div>
         </div>
         <div style={styles.statsCard}>
           <div style={styles.statsTitle}>Sessions</div>
-          <div style={styles.statsRow}><span>Active</span><span style={styles.statsValue}>{stats.sessions.active.toLocaleString()}</span></div>
+          <div style={styles.statsRow}>
+            <span>Active</span>
+            <span style={styles.statsValue}>{stats.sessions.active.toLocaleString()}</span>
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
-function HealthHeader({ health, autoRefresh, setAutoRefresh, onRefresh }: { health: HealthData | null; autoRefresh: boolean; setAutoRefresh: (v: boolean) => void; onRefresh: () => void }) {
+function HealthHeader({
+  health,
+  autoRefresh,
+  setAutoRefresh,
+  onRefresh,
+}: {
+  health: HealthData | null;
+  autoRefresh: boolean;
+  setAutoRefresh: (v: boolean) => void;
+  onRefresh: () => void;
+}) {
   return (
     <div style={styles.header}>
       <div>
         <h2 style={styles.title}>System Health</h2>
         {health && (
-          <p style={styles.subtitle}>Last updated: {new Date(health.timestamp).toLocaleString()} ({health.responseTime}ms)</p>
+          <p style={styles.subtitle}>
+            Last updated: {new Date(health.timestamp).toLocaleString()} ({health.responseTime}ms)
+          </p>
         )}
       </div>
       <div style={styles.headerActions}>
         <label style={styles.autoRefreshLabel}>
-          <input type="checkbox" checked={autoRefresh} onChange={(e) => setAutoRefresh(e.target.checked)} style={styles.checkbox} />
+          <input
+            type="checkbox"
+            checked={autoRefresh}
+            onChange={(e) => setAutoRefresh(e.target.checked)}
+            style={styles.checkbox}
+          />
           Auto-refresh (10s)
         </label>
-        <button onClick={onRefresh} style={styles.refreshBtn}>Refresh</button>
+        <button onClick={onRefresh} style={styles.refreshBtn}>
+          Refresh
+        </button>
       </div>
     </div>
   );
@@ -298,8 +370,15 @@ export function AdminHealthDashboard({ onClose }: { onClose: () => void }) {
 
   return (
     <div style={styles.container}>
-      <HealthHeader health={health} autoRefresh={autoRefresh} setAutoRefresh={setAutoRefresh} onRefresh={fetchData} />
-      {error && (<div style={styles.error}>{error}</div>)}
+      <HealthHeader
+        health={health}
+        autoRefresh={autoRefresh}
+        setAutoRefresh={setAutoRefresh}
+        onRefresh={() => {
+          void fetchData();
+        }}
+      />
+      {error && <div style={styles.error}>{error}</div>}
       {health && (
         <>
           <ServerSection health={health} />
@@ -311,7 +390,9 @@ export function AdminHealthDashboard({ onClose }: { onClose: () => void }) {
       )}
       {stats && <StatsSection stats={stats} />}
       <div style={styles.footer}>
-        <button onClick={onClose} style={styles.closeBtn}>Close</button>
+        <button onClick={onClose} style={styles.closeBtn}>
+          Close
+        </button>
       </div>
     </div>
   );

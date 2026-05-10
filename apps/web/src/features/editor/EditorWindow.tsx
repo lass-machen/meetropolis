@@ -1,6 +1,6 @@
 /**
  * EditorWindow - Container für Editor UI
- * 
+ *
  * Presentation Component mit Drag & Drop Support
  */
 
@@ -17,7 +17,9 @@ import { getApiBaseFromWindow } from '../../lib/apiBase';
 type Pack = { id: number; name: string; version: string; author: string; uuid: string };
 
 function dispatchToast(title: string, description: string, intent: 'success' | 'error' | 'info') {
-  try { window.dispatchEvent(new CustomEvent('editor:toast', { detail: { title, description, intent } })); } catch {}
+  try {
+    window.dispatchEvent(new CustomEvent('editor:toast', { detail: { title, description, intent } }));
+  } catch {}
 }
 
 function useEditorWinDrag() {
@@ -50,7 +52,10 @@ function useEditorWinDrag() {
     const onUp = () => setEditorWinDragging(false);
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp, { once: true });
-    return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
   }, [editorWinDragging]);
 
   return { editorWinRef, editorWinPos, beginEditorDrag };
@@ -75,9 +80,12 @@ function useInstalledPacks() {
   React.useEffect(() => {
     const apiBase = getApiBaseFromWindow();
     fetch(`${apiBase}/asset-packs`, { credentials: 'include' })
-      .then(r => r.json())
-      .then(data => {
-        if (Array.isArray(data)) setPacks(data.map((p: any) => ({ id: p.id, name: p.name, version: p.version, author: p.author, uuid: p.uuid })));
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data))
+          setPacks(
+            data.map((p: any) => ({ id: p.id, name: p.name, version: p.version, author: p.author, uuid: p.uuid })),
+          );
       })
       .catch(() => {});
   }, []);
@@ -101,7 +109,17 @@ function EditorTabs({ activeCategory }: { activeCategory: string }) {
         <button
           key={key}
           onClick={() => EditorService.dispatch({ type: 'SET_CATEGORY', category: key })}
-          style={{ flex: 1, padding: '10px 12px', border: 'none', borderBottom: activeCategory === key ? '2px solid #3b82f6' : '2px solid transparent', background: 'transparent', color: activeCategory === key ? '#3b82f6' : '#9ca3af', fontSize: 14, fontWeight: 500, cursor: 'pointer' }}
+          style={{
+            flex: 1,
+            padding: '10px 12px',
+            border: 'none',
+            borderBottom: activeCategory === key ? '2px solid #3b82f6' : '2px solid transparent',
+            background: 'transparent',
+            color: activeCategory === key ? '#3b82f6' : '#9ca3af',
+            fontSize: 14,
+            fontWeight: 500,
+            cursor: 'pointer',
+          }}
         >
           {label}
         </button>
@@ -110,47 +128,181 @@ function EditorTabs({ activeCategory }: { activeCategory: string }) {
   );
 }
 
-function ToggleButton({ active, label, onColor, onClick, title }: { active: boolean; label: string; onColor: string; onClick: () => void; title: string }) {
+function ToggleButton({
+  active,
+  label,
+  onColor,
+  onClick,
+  title,
+}: {
+  active: boolean;
+  label: string;
+  onColor: string;
+  onClick: () => void;
+  title: string;
+}) {
   return (
     <button
       onClick={onClick}
       title={title}
-      style={{ padding: '6px 10px', background: active ? `rgba(${onColor},0.2)` : 'transparent', border: active ? `1px solid rgb(${onColor})` : '1px solid transparent', borderRadius: 6, color: active ? `rgb(${onColor})` : '#9ca3af', cursor: 'pointer', fontSize: 12, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6 }}
+      style={{
+        padding: '6px 10px',
+        background: active ? `rgba(${onColor},0.2)` : 'transparent',
+        border: active ? `1px solid rgb(${onColor})` : '1px solid transparent',
+        borderRadius: 6,
+        color: active ? `rgb(${onColor})` : '#9ca3af',
+        cursor: 'pointer',
+        fontSize: 12,
+        fontWeight: 500,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+      }}
     >
       {label}
     </button>
   );
 }
 
-function EditorHeader({ state, onClose, beginEditorDrag }: { state: any; onClose: () => void; beginEditorDrag: (e: React.MouseEvent) => void }) {
+function EditorHeader({
+  state,
+  onClose,
+  beginEditorDrag,
+}: {
+  state: any;
+  onClose: () => void;
+  beginEditorDrag: (e: React.MouseEvent) => void;
+}) {
   return (
-    <div onMouseDown={beginEditorDrag} style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.02)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'move' }}>
+    <div
+      role="button"
+      tabIndex={0}
+      aria-label="Editor verschieben"
+      onMouseDown={beginEditorDrag}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') e.preventDefault();
+      }}
+      style={{
+        padding: '12px 16px',
+        borderBottom: '1px solid rgba(255,255,255,0.08)',
+        background: 'rgba(255,255,255,0.02)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        cursor: 'move',
+      }}
+    >
       <div style={{ fontWeight: 700, fontSize: 16 }}>Map-Editor</div>
       <div style={{ display: 'flex', gap: 8 }}>
-        <ToggleButton active={state.gridVisible} label="Grid" onColor="59,130,246" onClick={() => EditorService.dispatch({ type: 'TOGGLE_GRID' })} title="Raster umschalten" />
-        <ToggleButton active={state.viewToggles.collision} label="Collision" onColor="244,63,94" onClick={() => { EditorService.dispatch({ type: 'TOGGLE_VIEW', key: 'collision' }); gameBridge.setCollisionVisible(!state.viewToggles.collision); }} title="Kollisionen anzeigen" />
-        <ToggleButton active={state.viewToggles.zones} label="Zones" onColor="59,130,246" onClick={() => { EditorService.dispatch({ type: 'TOGGLE_VIEW', key: 'zones' }); gameBridge.setZonesVisible(!state.viewToggles.zones); }} title="Zonen anzeigen" />
-        <button onClick={onClose} style={{ border: '1px solid var(--border)', background: 'var(--glass)', color: 'var(--fg)', borderRadius: 8, width: 34, height: 28, cursor: 'pointer', lineHeight: '26px', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>×</button>
+        <ToggleButton
+          active={state.gridVisible}
+          label="Grid"
+          onColor="59,130,246"
+          onClick={() => EditorService.dispatch({ type: 'TOGGLE_GRID' })}
+          title="Raster umschalten"
+        />
+        <ToggleButton
+          active={state.viewToggles.collision}
+          label="Collision"
+          onColor="244,63,94"
+          onClick={() => {
+            EditorService.dispatch({ type: 'TOGGLE_VIEW', key: 'collision' });
+            gameBridge.setCollisionVisible(!state.viewToggles.collision);
+          }}
+          title="Kollisionen anzeigen"
+        />
+        <ToggleButton
+          active={state.viewToggles.zones}
+          label="Zones"
+          onColor="59,130,246"
+          onClick={() => {
+            EditorService.dispatch({ type: 'TOGGLE_VIEW', key: 'zones' });
+            gameBridge.setZonesVisible(!state.viewToggles.zones);
+          }}
+          title="Zonen anzeigen"
+        />
+        <button
+          onClick={onClose}
+          style={{
+            border: '1px solid var(--border)',
+            background: 'var(--glass)',
+            color: 'var(--fg)',
+            borderRadius: 8,
+            width: 34,
+            height: 28,
+            cursor: 'pointer',
+            lineHeight: '26px',
+            fontSize: 18,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 0,
+          }}
+        >
+          ×
+        </button>
       </div>
     </div>
   );
 }
 
-function PacksList({ packs, deleting, onDelete, t }: { packs: Pack[]; deleting: number | null; onDelete: (id: number, name: string) => void; t: (k: string, opts?: any) => string }) {
+function PacksList({
+  packs,
+  deleting,
+  onDelete,
+  t,
+}: {
+  packs: Pack[];
+  deleting: number | null;
+  onDelete: (id: number, name: string) => void;
+  t: (k: string, opts?: any) => string;
+}) {
   return (
     <div style={{ marginTop: 16 }}>
-      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg)', marginBottom: 8 }}>{t('editor.installedPacks')}</div>
+      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg)', marginBottom: 8 }}>
+        {t('editor.installedPacks')}
+      </div>
       {packs.length === 0 ? (
         <div style={{ fontSize: 12, color: '#6b7280', fontStyle: 'italic' }}>{t('editor.noPacksInstalled')}</div>
       ) : (
         <div style={{ display: 'grid', gap: 4 }}>
-          {packs.map(pack => (
-            <div key={pack.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--glass)', fontSize: 12 }}>
+          {packs.map((pack) => (
+            <div
+              key={pack.id}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '6px 10px',
+                borderRadius: 6,
+                border: '1px solid var(--border)',
+                background: 'var(--glass)',
+                fontSize: 12,
+              }}
+            >
               <div style={{ color: 'var(--fg)' }}>
                 <span style={{ fontWeight: 600 }}>{pack.name}</span>
-                <span style={{ color: '#6b7280', marginLeft: 6 }}>v{pack.version} &bull; {pack.author}</span>
+                <span style={{ color: '#6b7280', marginLeft: 6 }}>
+                  v{pack.version} &bull; {pack.author}
+                </span>
               </div>
-              <button onClick={() => onDelete(pack.id, pack.name)} disabled={deleting === pack.id} style={{ background: 'none', border: 'none', cursor: deleting === pack.id ? 'wait' : 'pointer', color: '#ef4444', opacity: deleting === pack.id ? 0.5 : 0.7, fontSize: 14, padding: '2px 6px', borderRadius: 4 }} title={t('editor.deletePack')}>🗑️</button>
+              <button
+                onClick={() => onDelete(pack.id, pack.name)}
+                disabled={deleting === pack.id}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: deleting === pack.id ? 'wait' : 'pointer',
+                  color: '#ef4444',
+                  opacity: deleting === pack.id ? 0.5 : 0.7,
+                  fontSize: 14,
+                  padding: '2px 6px',
+                  borderRadius: 4,
+                }}
+                title={t('editor.deletePack')}
+              >
+                🗑️
+              </button>
             </div>
           ))}
         </div>
@@ -159,23 +311,79 @@ function PacksList({ packs, deleting, onDelete, t }: { packs: Pack[]; deleting: 
   );
 }
 
-function UploadSection({ uploading, packs, deleting, onFileUpload, onMepackUpload, onDelete, t }: { uploading: boolean; packs: Pack[]; deleting: number | null; onFileUpload: (e: React.ChangeEvent<HTMLInputElement>) => void; onMepackUpload: (e: React.ChangeEvent<HTMLInputElement>) => void; onDelete: (id: number, name: string) => void; t: (k: string, opts?: any) => string }) {
+function UploadSection({
+  uploading,
+  packs,
+  deleting,
+  onFileUpload,
+  onMepackUpload,
+  onDelete,
+  t,
+}: {
+  uploading: boolean;
+  packs: Pack[];
+  deleting: number | null;
+  onFileUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onMepackUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onDelete: (id: number, name: string) => void;
+  t: (k: string, opts?: any) => string;
+}) {
   return (
     <div style={{ borderTop: '1px solid var(--border)', padding: 16 }}>
       <div style={{ display: 'grid', gap: 8 }}>
         <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg)' }}>Upload</div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--glass)', cursor: 'pointer' }}>
-          <label style={{ cursor: 'pointer', flex: 1, display: 'flex', alignItems: 'center', gap: 8, color: 'var(--fg)' }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '8px 12px',
+            borderRadius: 8,
+            border: '1px solid var(--border)',
+            background: 'var(--glass)',
+            cursor: 'pointer',
+          }}
+        >
+          <label
+            style={{ cursor: 'pointer', flex: 1, display: 'flex', alignItems: 'center', gap: 8, color: 'var(--fg)' }}
+          >
             <span style={{ fontSize: 16 }}>📁</span>
             <span style={{ fontSize: 13 }}>{t('editor.chooseImage')}</span>
             <input type="file" accept="image/*" style={{ display: 'none' }} onChange={onFileUpload} />
           </label>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--glass)', cursor: uploading ? 'wait' : 'pointer', opacity: uploading ? 0.6 : 1 }}>
-          <label style={{ cursor: uploading ? 'wait' : 'pointer', flex: 1, display: 'flex', alignItems: 'center', gap: 8, color: 'var(--fg)' }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '8px 12px',
+            borderRadius: 8,
+            border: '1px solid var(--border)',
+            background: 'var(--glass)',
+            cursor: uploading ? 'wait' : 'pointer',
+            opacity: uploading ? 0.6 : 1,
+          }}
+        >
+          <label
+            style={{
+              cursor: uploading ? 'wait' : 'pointer',
+              flex: 1,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              color: 'var(--fg)',
+            }}
+          >
             <span style={{ fontSize: 16 }}>📦</span>
             <span style={{ fontSize: 13 }}>{uploading ? t('editor.uploading') : t('editor.importMepack')}</span>
-            <input type="file" accept=".mepack,.zip" style={{ display: 'none' }} onChange={onMepackUpload} disabled={uploading} />
+            <input
+              type="file"
+              accept=".mepack,.zip"
+              style={{ display: 'none' }}
+              onChange={onMepackUpload}
+              disabled={uploading}
+            />
           </label>
         </div>
       </div>
@@ -202,7 +410,10 @@ function buildUploadDialogState(file: File, dataUrl: string, currentCategory: st
     tileHeight: file.name.toLowerCase().includes('little') ? 32 : 16,
     margin: 0,
     spacing: 0,
-    category: currentCategory === 'terrain' || currentCategory === 'structures' || currentCategory === 'objects' ? (currentCategory as any) : 'terrain',
+    category:
+      currentCategory === 'terrain' || currentCategory === 'structures' || currentCategory === 'objects'
+        ? currentCategory
+        : 'terrain',
   };
 }
 
@@ -305,13 +516,44 @@ export function EditorWindow({ onSave, onClose }: { onSave: () => Promise<boolea
 
   return (
     <>
-      <div ref={editorWinRef} style={{ position: 'absolute', zIndex: 35, width: 560, ...(editorWinPos ? { left: editorWinPos.x, top: editorWinPos.y } : { top: 64, right: 12 }) }}>
-        <div style={{ background: 'rgba(17,17,20,0.95)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12, padding: 0, color: '#fff', overflow: 'hidden' }}>
+      <div
+        ref={editorWinRef}
+        style={{
+          position: 'absolute',
+          zIndex: 35,
+          width: 560,
+          ...(editorWinPos ? { left: editorWinPos.x, top: editorWinPos.y } : { top: 64, right: 12 }),
+        }}
+      >
+        <div
+          style={{
+            background: 'rgba(17,17,20,0.95)',
+            border: '1px solid rgba(255,255,255,0.12)',
+            borderRadius: 12,
+            padding: 0,
+            color: '#fff',
+            overflow: 'hidden',
+          }}
+        >
           <EditorHeader state={state} onClose={onClose} beginEditorDrag={beginEditorDrag} />
           <EditorTabs activeCategory={state.category} />
           <EditorPanel onSave={onSave} />
           {(state.category === 'terrain' || state.category === 'structures' || state.category === 'objects') && (
-            <UploadSection uploading={uploading} packs={packs} deleting={deleting} onFileUpload={handleFileUpload} onMepackUpload={handleMepackUpload} onDelete={handleDeletePack} t={t} />
+            <UploadSection
+              uploading={uploading}
+              packs={packs}
+              deleting={deleting}
+              onFileUpload={(e) => {
+                void handleFileUpload(e);
+              }}
+              onMepackUpload={(e) => {
+                void handleMepackUpload(e);
+              }}
+              onDelete={(id, name) => {
+                void handleDeletePack(id, name);
+              }}
+              t={t}
+            />
           )}
         </div>
       </div>
@@ -321,7 +563,9 @@ export function EditorWindow({ onSave, onClose }: { onSave: () => Promise<boolea
           dialog={uploadDialog}
           setDialog={setUploadDialog}
           onCancel={() => setUploadDialog(null)}
-          onConfirm={(tileset) => handleTilesetConfirm(tileset, t, setUploadDialog)}
+          onConfirm={(tileset) => {
+            void handleTilesetConfirm(tileset, t, setUploadDialog);
+          }}
         />
       )}
     </>

@@ -15,7 +15,10 @@ export class ZoneManager {
   private av: AVManager | null;
   private zones: Polygon[];
   private current: string | undefined;
-  private room: { send: (type: string, data: unknown) => void; onMessage: (type: string, handler: (data: unknown) => void) => (() => void) } | null = null;
+  private room: {
+    send: (type: string, data: unknown) => void;
+    onMessage: (type: string, handler: (data: unknown) => void) => () => void;
+  } | null = null;
   private portalCooldownUntil: number = 0;
   private lockedZones: Map<string, Set<string>> = new Map(); // zoneName → sessionIds mit Zugang
 
@@ -24,12 +27,17 @@ export class ZoneManager {
     this.av = av;
   }
 
-  setRoom(room: { send: (type: string, data: unknown) => void; onMessage: (type: string, handler: (data: unknown) => void) => (() => void) } | null) {
+  setRoom(
+    room: {
+      send: (type: string, data: unknown) => void;
+      onMessage: (type: string, handler: (data: unknown) => void) => () => void;
+    } | null,
+  ) {
     this.room = room;
   }
 
   update(pos: { x: number; y: number }) {
-    const inside = this.zones.find(z => pointInPolygon(pos, normalizePoints(z.points)));
+    const inside = this.zones.find((z) => pointInPolygon(pos, normalizePoints(z.points)));
     if (inside && inside.name !== this.current) {
       this.current = inside.name;
 
@@ -40,18 +48,21 @@ export class ZoneManager {
           this.portalCooldownUntil = now + 2000; // 2s cooldown
           const targetName = inside.portalTarget;
           const maps = useMapStore.getState().availableMaps;
-          const targetMap = maps.find(m => m.name === targetName);
+          const targetMap = maps.find((m) => m.name === targetName);
           if (targetMap) {
             // portalSpawnX/Y are stored as tile coordinates; convert to pixel (tile * 16 + 8 = center of tile)
             const tileSize = 16;
-            const spawnOverride = (typeof inside.portalSpawnX === 'number' && typeof inside.portalSpawnY === 'number')
-              ? { x: inside.portalSpawnX * tileSize + tileSize / 2, y: inside.portalSpawnY * tileSize + tileSize / 2 }
-              : undefined;
-            import('./map/changeMap').then(mod => {
-              mod.changeMap(targetMap.id, targetMap.name, this.room!, spawnOverride);
-            }).catch(e => {
-              console.error('[ZoneManager] Failed to trigger portal:', e);
-            });
+            const spawnOverride =
+              typeof inside.portalSpawnX === 'number' && typeof inside.portalSpawnY === 'number'
+                ? { x: inside.portalSpawnX * tileSize + tileSize / 2, y: inside.portalSpawnY * tileSize + tileSize / 2 }
+                : undefined;
+            import('./map/changeMap')
+              .then((mod) => {
+                void mod.changeMap(targetMap.id, targetMap.name, this.room!, spawnOverride);
+              })
+              .catch((e) => {
+                console.error('[ZoneManager] Failed to trigger portal:', e);
+              });
           } else {
             console.error('[ZoneManager] Portal target map not found:', targetName);
           }
@@ -71,11 +82,13 @@ export class ZoneManager {
 
   setZones(zones: Polygon[]) {
     this.zones = zones;
-    if (this.current && !this.zones.find(z => z.name === this.current)) {
+    if (this.current && !this.zones.find((z) => z.name === this.current)) {
       // Single-Room: keine Raumwechsel – nur State zurücksetzen
       this.current = undefined;
       // Legacy-Erwartung in Tests: beim Verlassen in 'lobby' wechseln
-      try { (this.av as any)?.switchTo?.('lobby'); } catch {}
+      try {
+        (this.av as any)?.switchTo?.('lobby');
+      } catch {}
     }
   }
 
@@ -106,12 +119,12 @@ export class ZoneManager {
 
   getZones() {
     // Return zones with normalized points for consumers
-    return this.zones.map(z => ({ ...z, points: normalizePoints(z.points) as any }));
+    return this.zones.map((z) => ({ ...z, points: normalizePoints(z.points) as any }));
   }
 
   getCurrentPolygon(): Polygon | undefined {
     if (!this.current) return undefined;
-    return this.zones.find(z => z.name === this.current);
+    return this.zones.find((z) => z.name === this.current);
   }
 }
 
@@ -139,8 +152,9 @@ function normalizePoints(points: Array<{ x: number; y: number } | [number, numbe
 function pointInPolygon(p: { x: number; y: number }, poly: { x: number; y: number }[]): boolean {
   let c = false;
   for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
-    const pi = poly[i], pj = poly[j];
-    if (((pi.y > p.y) !== (pj.y > p.y)) && (p.x < (pj.x - pi.x) * (p.y - pi.y) / (pj.y - pi.y + 1e-9) + pi.x)) {
+    const pi = poly[i],
+      pj = poly[j];
+    if (pi.y > p.y !== pj.y > p.y && p.x < ((pj.x - pi.x) * (p.y - pi.y)) / (pj.y - pi.y + 1e-9) + pi.x) {
       c = !c;
     }
   }

@@ -89,6 +89,33 @@ export default tseslint.config(
       '@typescript-eslint/no-unsafe-argument': 'warn',
       '@typescript-eslint/no-unsafe-return': 'warn',
       '@typescript-eslint/no-explicit-any': 'warn',
+      // no-unnecessary-type-assertion meldet aktuell ~340 Treffer, fast alle
+      // von `prisma as any` bzw. `(scene as any).x`-Casts an den untyped
+      // Boundaries (Phaser-Bridge, Colyseus-State, Enterprise-Submodule).
+      // Auto-fix ist UNGEFÄHRLICH NICHT zu nutzen: typescript-eslint v8 hat
+      // einen bekannten Auto-Fix-Bug, der valide Casts wie
+      // `querySelector(...) as HTMLAudioElement | null` mit-entfernt und
+      // damit Type-Errors einführt. ZIEL: zurück auf 'error', sobald die
+      // Phaser-Bridge typisiert ist (Task #9) und no-unsafe-* erhöht wird.
+      '@typescript-eslint/no-unnecessary-type-assertion': 'warn',
+      // no-redundant-type-constituents meldet aktuell ~20 Treffer, alle
+      // mit dem Pattern `Phaser.Scene & any` bzw. `LiveKitRoom | any`.
+      // Das `& any` / `| any` ist redundant (any subsumiert alle Types),
+      // aber semantisch markiert es bewusst untyped Boundaries. Wenn die
+      // Phaser-Scene und der LiveKit-Room richtig typisiert sind (Tasks #9, #10),
+      // entfällt das Pattern komplett. Bis dahin als 'warn'.
+      '@typescript-eslint/no-redundant-type-constituents': 'warn',
+      // Konvention: führender Underscore = absichtlich ungenutzt
+      // (Funktionssignaturen, Discards in Destructuring, catch-Clauses).
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
+          destructuredArrayIgnorePattern: '^_',
+        },
+      ],
     },
   },
 
@@ -163,6 +190,29 @@ export default tseslint.config(
   {
     files: ['**/*.{js,cjs,mjs}'],
     extends: [tseslint.configs.disableTypeChecked],
+  },
+
+  // 8a) CommonJS-Files (.cjs): `require()` ist hier semantisch korrekt
+  //     (CJS-by-design), nicht zu verwechseln mit ESM-Migration-Schulden.
+  //     Die `no-require-imports`-Regel ist eine ESM-Empfehlung und greift
+  //     bei .cjs nicht sinnvoll.
+  {
+    files: ['**/*.cjs'],
+    rules: {
+      '@typescript-eslint/no-require-imports': 'off',
+    },
+  },
+
+  // 8b) Declaration-Files (.d.ts): Type-Augmentation via `interface X extends Y {}`
+  //     ist ein etabliertes Pattern (declaration merging), das in den meisten
+  //     `@types/*`-Paketen genutzt wird. `no-empty-object-type` ist hier ein
+  //     False-Positive — wir können declare-module-Augmentation nicht über
+  //     type-aliase machen.
+  {
+    files: ['**/*.d.ts'],
+    rules: {
+      '@typescript-eslint/no-empty-object-type': 'off',
+    },
   },
 
   // 9) Prettier MUSS letzte Config sein: deaktiviert ESLint-Format-Regeln,

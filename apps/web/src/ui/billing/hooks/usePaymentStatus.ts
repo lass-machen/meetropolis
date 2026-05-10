@@ -10,8 +10,8 @@ export function usePaymentStatus({ enabled }: { enabled: boolean }) {
   const [paymentStatus, setPaymentStatus] = React.useState<PaymentStatus | null>(null);
   const [loading, setLoading] = React.useState(false);
   const apiBase = getApiBaseFromWindow();
-  const billingEnabled = usePublicConfigStore(s => s.billingEnabled);
-  const publicConfigLoaded = usePublicConfigStore(s => s.loaded);
+  const billingEnabled = usePublicConfigStore((s) => s.billingEnabled);
+  const publicConfigLoaded = usePublicConfigStore((s) => s.loaded);
 
   const fetchStatus = React.useCallback(async () => {
     try {
@@ -31,8 +31,10 @@ export function usePaymentStatus({ enabled }: { enabled: boolean }) {
     if (!publicConfigLoaded) return;
     if (!billingEnabled) return;
     setLoading(true);
-    fetchStatus();
-    const id = setInterval(fetchStatus, POLL_INTERVAL);
+    void fetchStatus();
+    const id = setInterval(() => {
+      void fetchStatus();
+    }, POLL_INTERVAL);
     return () => clearInterval(id);
   }, [enabled, billingEnabled, publicConfigLoaded, fetchStatus]);
 

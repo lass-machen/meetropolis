@@ -26,7 +26,7 @@ const mem: { tokens: TokenRec[] } = { tokens: [] };
 vi.mock('./generated/prisma/index.js', () => {
   class PrismaClientMock {
     apiToken = {
-      async create({ data }: { data: { userId: string; name?: string; hash: string } }) {
+      create({ data }: { data: { userId: string; name?: string; hash: string } }) {
         const rec: TokenRec = {
           id: `tok_${Math.random().toString(36).slice(2, 10)}`,
           userId: data.userId,
@@ -38,19 +38,19 @@ vi.mock('./generated/prisma/index.js', () => {
         mem.tokens.unshift(rec);
         return rec as any;
       },
-      async findMany({ where, orderBy }: any) {
+      findMany({ where, orderBy }: any) {
         let list = mem.tokens.filter((t) => t.userId === where.userId);
         if (orderBy?.createdAt === 'desc') {
           list = list.slice().sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
         }
         return list as any;
       },
-      async findUnique({ where }: any) {
+      findUnique({ where }: any) {
         if (where?.id) return (mem.tokens.find((t) => t.id === where.id) as any) || null;
         if (where?.hash) return (mem.tokens.find((t) => t.hash === where.hash) as any) || null;
         return null;
       },
-      async delete({ where }: any) {
+      delete({ where }: any) {
         const idx = mem.tokens.findIndex((t) => t.id === where.id);
         if (idx >= 0) {
           const [deleted] = mem.tokens.splice(idx, 1);
@@ -58,7 +58,7 @@ vi.mock('./generated/prisma/index.js', () => {
         }
         throw new Error('not found');
       },
-      async update({ where, data }: any) {
+      update({ where, data }: any) {
         const rec = mem.tokens.find((t) => t.hash === where.hash);
         if (!rec) throw new Error('not found');
         if (data?.lastUsedAt) rec.lastUsedAt = data.lastUsedAt;
@@ -90,7 +90,7 @@ describe('API Tokens & Controls', () => {
   beforeEach(() => {
     mem.tokens = [];
     // Minimal stub so /controls does not 500 "game server not available"
-    (globalThis as any).gameServer = { matchMaker: { query: async () => [] } };
+    (globalThis as any).gameServer = { matchMaker: { query: () => [] } };
   });
 
   it('creates and lists API tokens for a session user', async () => {
@@ -105,9 +105,7 @@ describe('API Tokens & Controls', () => {
     expect(createRes.body.token).toBeTruthy();
     const tokenId = createRes.body.id as string;
 
-    const listRes = await request(app)
-      .get('/api-tokens')
-      .set('Authorization', `Bearer ${jwtToken}`);
+    const listRes = await request(app).get('/api-tokens').set('Authorization', `Bearer ${jwtToken}`);
     expect(listRes.status).toBe(200);
     expect(Array.isArray(listRes.body)).toBe(true);
     expect(listRes.body.find((t: any) => t.id === tokenId)).toBeTruthy();
@@ -148,19 +146,12 @@ describe('API Tokens & Controls', () => {
     const tokenId = createRes.body.id as string;
     const rawToken = createRes.body.token as string;
 
-    const delRes = await request(app)
-      .delete(`/api-tokens/${tokenId}`)
-      .set('Authorization', `Bearer ${jwtToken}`);
+    const delRes = await request(app).delete(`/api-tokens/${tokenId}`).set('Authorization', `Bearer ${jwtToken}`);
     expect(delRes.status).toBe(200);
     expect(delRes.body.ok).toBe(true);
 
-    const ctrlRes = await request(app)
-      .post('/controls')
-      .set('Authorization', `Bearer ${rawToken}`)
-      .send({ dnd: true });
+    const ctrlRes = await request(app).post('/controls').set('Authorization', `Bearer ${rawToken}`).send({ dnd: true });
     // Token no longer valid -> unauthorized
     expect(ctrlRes.status).toBe(401);
   });
 });
-
-

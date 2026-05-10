@@ -38,7 +38,7 @@ export function useMicShortcut(pttAwareToggleMic: (() => void | Promise<void>) |
       if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === 'd') {
         e.preventDefault();
         e.stopPropagation();
-        pttAwareToggleMic();
+        void pttAwareToggleMic();
       }
     };
     window.addEventListener('keydown', handleKey, true);

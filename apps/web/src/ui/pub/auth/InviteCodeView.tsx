@@ -79,10 +79,7 @@ function InviteTitle() {
       <h1 className="pub-text-h3" style={{ margin: 0 }}>
         {t('auth.inviteTitle')}
       </h1>
-      <p
-        className="pub-text-body"
-        style={{ margin: 0, color: 'var(--pub-text-secondary)' }}
-      >
+      <p className="pub-text-body" style={{ margin: 0, color: 'var(--pub-text-secondary)' }}>
         {t('auth.inviteSubtitle')}
       </p>
     </div>
@@ -142,14 +139,13 @@ function InviteFooter({ onLogin, onRegister, registrationEnabled }: InviteFooter
         flexWrap: 'wrap',
       }}
     >
-      <p
-        className="pub-text-body-sm"
-        style={{ margin: 0, color: 'var(--pub-text-secondary)' }}
-      >
+      <p className="pub-text-body-sm" style={{ margin: 0, color: 'var(--pub-text-secondary)' }}>
         {t('auth.inviteHasAccount')}{' '}
-        <a
+        <button
+          type="button"
           onClick={onLogin}
           style={{
+            all: 'unset',
             cursor: 'pointer',
             color: 'var(--pub-accent-purple)',
             textDecoration: 'none',
@@ -157,17 +153,16 @@ function InviteFooter({ onLogin, onRegister, registrationEnabled }: InviteFooter
           }}
         >
           {t('auth.inviteLoginLink')}
-        </a>
+        </button>
       </p>
       {registrationEnabled && (
-        <p
-          className="pub-text-body-sm"
-          style={{ margin: 0, color: 'var(--pub-text-secondary)' }}
-        >
+        <p className="pub-text-body-sm" style={{ margin: 0, color: 'var(--pub-text-secondary)' }}>
           {t('auth.inviteNoAccount')}{' '}
-          <a
+          <button
+            type="button"
             onClick={onRegister}
             style={{
+              all: 'unset',
               cursor: 'pointer',
               color: 'var(--pub-accent-purple)',
               textDecoration: 'none',
@@ -175,7 +170,7 @@ function InviteFooter({ onLogin, onRegister, registrationEnabled }: InviteFooter
             }}
           >
             {t('auth.inviteRegisterLink')}
-          </a>
+          </button>
         </p>
       )}
     </div>
@@ -208,7 +203,9 @@ export function InviteCodeView({
 
   return (
     <form
-      onSubmit={handleSubmit}
+      onSubmit={(e) => {
+        void handleSubmit(e);
+      }}
       autoComplete="off"
       style={{ display: 'flex', flexDirection: 'column', gap: 24 }}
     >

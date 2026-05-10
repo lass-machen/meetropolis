@@ -26,7 +26,11 @@ export function OnboardingWizard({ me, apiBase, onComplete }: OnboardingWizardPr
       });
       if (res.ok) {
         localStorage.setItem('avatarId', selectedAvatarId);
-        try { gameBridge.changeHeroAvatar(selectedAvatarId); } catch (e) { logger.debug('[OnboardingWizard] avatar bridge error', e); }
+        try {
+          gameBridge.changeHeroAvatar(selectedAvatarId);
+        } catch (e) {
+          logger.debug('[OnboardingWizard] avatar bridge error', e);
+        }
         onComplete({ onboardingCompleted: true, avatarId: selectedAvatarId });
       } else {
         logger.warn('[OnboardingWizard] Server responded with', res.status);
@@ -55,14 +59,13 @@ export function OnboardingWizard({ me, apiBase, onComplete }: OnboardingWizardPr
           <p style={styles.subtitle}>Wähle deinen Avatar</p>
 
           <div style={styles.avatarArea}>
-            <AvatarSettings
-              currentAvatarId={selectedAvatarId}
-              onAvatarChange={(id) => setSelectedAvatarId(id)}
-            />
+            <AvatarSettings currentAvatarId={selectedAvatarId} onAvatarChange={(id) => setSelectedAvatarId(id)} />
           </div>
 
           <button
-            onClick={handleConfirm}
+            onClick={() => {
+              void handleConfirm();
+            }}
             disabled={submitting}
             style={{
               ...styles.button,

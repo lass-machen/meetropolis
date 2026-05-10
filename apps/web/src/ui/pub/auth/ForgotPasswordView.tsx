@@ -38,10 +38,7 @@ function ForgotPasswordTitle() {
       <h2 className="pub-text-h4" style={{ margin: 0 }}>
         {t('auth.forgotTitle')}
       </h2>
-      <p
-        className="pub-text-body"
-        style={{ margin: 0, color: 'var(--pub-text-secondary)' }}
-      >
+      <p className="pub-text-body" style={{ margin: 0, color: 'var(--pub-text-secondary)' }}>
         {t('auth.forgotSubtitle')}
       </p>
     </div>
@@ -59,14 +56,8 @@ function AuthMessage({ message, messageType }: AuthMessageProps) {
       style={{
         padding: '12px 16px',
         borderRadius: 8,
-        background:
-          messageType === 'success'
-            ? 'rgba(34,197,94,0.1)'
-            : 'rgba(239,68,68,0.1)',
-        border:
-          messageType === 'success'
-            ? '1px solid rgba(34,197,94,0.3)'
-            : '1px solid rgba(239,68,68,0.3)',
+        background: messageType === 'success' ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)',
+        border: messageType === 'success' ? '1px solid rgba(34,197,94,0.3)' : '1px solid rgba(239,68,68,0.3)',
         color: messageType === 'success' ? '#22C55E' : '#EF4444',
         fontSize: 14,
       }}
@@ -79,13 +70,12 @@ function AuthMessage({ message, messageType }: AuthMessageProps) {
 function BackToLoginLink({ onBack }: { onBack: () => void }) {
   const { t } = useTranslation('public');
   return (
-    <p
-      className="pub-text-body-sm"
-      style={{ margin: 0, textAlign: 'center' }}
-    >
-      <a
+    <p className="pub-text-body-sm" style={{ margin: 0, textAlign: 'center' }}>
+      <button
+        type="button"
         onClick={onBack}
         style={{
+          all: 'unset',
           cursor: 'pointer',
           color: 'var(--pub-accent-purple)',
           textDecoration: 'none',
@@ -93,19 +83,14 @@ function BackToLoginLink({ onBack }: { onBack: () => void }) {
         }}
       >
         {t('auth.backToLogin')}
-      </a>
+      </button>
     </p>
   );
 }
 
 /* ---------- Component ---------- */
 
-export function ForgotPasswordView({
-  onSubmit,
-  onBack,
-  message,
-  messageType = 'error',
-}: ForgotPasswordViewProps) {
+export function ForgotPasswordView({ onSubmit, onBack, message, messageType = 'error' }: ForgotPasswordViewProps) {
   const { t } = useTranslation('public');
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
@@ -122,7 +107,9 @@ export function ForgotPasswordView({
 
   return (
     <form
-      onSubmit={handleSubmit}
+      onSubmit={(e) => {
+        void handleSubmit(e);
+      }}
       autoComplete="on"
       style={{ display: 'flex', flexDirection: 'column', gap: 24 }}
     >
@@ -139,12 +126,7 @@ export function ForgotPasswordView({
         required
       />
       {message && <AuthMessage message={message} messageType={messageType} />}
-      <PubButton
-        type="submit"
-        variant="primary"
-        disabled={loading}
-        style={{ width: '100%' }}
-      >
+      <PubButton type="submit" variant="primary" disabled={loading} style={{ width: '100%' }}>
         {t('auth.forgotSubmit')}
       </PubButton>
       <BackToLoginLink onBack={onBack} />

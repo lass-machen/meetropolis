@@ -5,18 +5,25 @@ function buildAttachAudioTrack(audioElements: Map<string, HTMLAudioElement>, avR
   return (track: any, participantId: string) => {
     try {
       // Verhindere Duplikate pro Participant-ID über Tests/Render hinweg
-      const existing = typeof document !== 'undefined' ? (document.querySelector(`audio[data-av-remote="${participantId}"]`) as HTMLAudioElement | null) : null;
+      const existing =
+        typeof document !== 'undefined' ? document.querySelector(`audio[data-av-remote="${participantId}"]`) : null;
       const audio = existing || document.createElement('audio');
       audio.autoplay = true;
       (audio as any).playsInline = true;
       // Respektiere DND bereits beim Attach, um kurze Audio-Leaks zu vermeiden
-      const dnd = !!(((avRef.current as any)?.dndEnabled) ?? ((avRef.current as any)?.dnd));
-      try { (audio as any).muted = dnd; } catch {}
+      const dnd = !!(avRef.current?.dndEnabled ?? avRef.current?.dnd);
+      try {
+        (audio as any).muted = dnd;
+      } catch {}
       audio.volume = dnd ? 0 : 1.0;
       audio.style.display = 'none';
-      try { (audio as any).dataset.avRemote = participantId; } catch {}
+      try {
+        (audio as any).dataset.avRemote = participantId;
+      } catch {}
       if (!existing) document.body.appendChild(audio);
-      try { track.attach(audio); } catch (err) {
+      try {
+        track.attach(audio);
+      } catch (_err) {
         // Autoplay block fallback
         (window as any).pendingAudioTracks = (window as any).pendingAudioTracks || [];
         (window as any).pendingAudioTracks.push({ track, audio, participantId });
@@ -30,9 +37,15 @@ function buildDetachAudioTrack(audioElements: Map<string, HTMLAudioElement>) {
   return (participantId: string) => {
     const audio = audioElements.get(participantId);
     if (audio) {
-      try { audio.pause(); } catch {}
-      try { (audio as any).srcObject = null; } catch {}
-      try { audio.parentNode?.removeChild(audio); } catch {}
+      try {
+        audio.pause();
+      } catch {}
+      try {
+        (audio as any).srcObject = null;
+      } catch {}
+      try {
+        audio.parentNode?.removeChild(audio);
+      } catch {}
       audioElements.delete(participantId);
     }
   };
@@ -41,15 +54,14 @@ function buildDetachAudioTrack(audioElements: Map<string, HTMLAudioElement>) {
 function shouldDetachOnUnsubscribe(track: any, participant: any): boolean {
   // Prüfe ob der Teilnehmer noch einen anderen Mikrofon-Audio-Track hat
   // (z.B. wenn nur der Screen-Share-Audio deabonniert wird, aber das Mikrofon noch aktiv ist)
-  const otherAudioTracks = Array.from(participant?.trackPublications?.values?.() || [])
-    .filter((pub: any) => {
-      const pubTrack = pub?.track;
-      if (!pubTrack || pubTrack === track) return false;
-      const kind = pub?.kind ?? pubTrack?.kind;
-      const source = pub?.source ?? pubTrack?.source;
-      // Nur Mikrofon-Tracks zählen (nicht screen_share_audio)
-      return kind === 'audio' && source !== 'screen_share_audio';
-    });
+  const otherAudioTracks = Array.from(participant?.trackPublications?.values?.() || []).filter((pub: any) => {
+    const pubTrack = pub?.track;
+    if (!pubTrack || pubTrack === track) return false;
+    const kind = pub?.kind ?? pubTrack?.kind;
+    const source = pub?.source ?? pubTrack?.source;
+    // Nur Mikrofon-Tracks zählen (nicht screen_share_audio)
+    return kind === 'audio' && source !== 'screen_share_audio';
+  });
   return otherAudioTracks.length === 0;
 }
 
@@ -58,7 +70,7 @@ function attachInitialAudioTracks(
   audioElements: Map<string, HTMLAudioElement>,
   attachAudioTrack: (track: any, participantId: string) => void,
 ): void {
-  const participants = Array.from((room as any).remoteParticipants?.values?.() || (room as any).participants?.values?.() || []);
+  const participants = Array.from(room.remoteParticipants?.values?.() || room.participants?.values?.() || []);
   participants.forEach((participant: any) => {
     if (participant?.sid === room?.localParticipant?.sid) return;
     try {
@@ -74,7 +86,9 @@ function attachInitialAudioTracks(
       const dummy = document.createElement('audio');
       dummy.autoplay = true;
       (dummy as any).playsInline = true;
-      try { (dummy as any).muted = true; } catch {}
+      try {
+        (dummy as any).muted = true;
+      } catch {}
       dummy.volume = 0;
       dummy.style.display = 'none';
       document.body.appendChild(dummy);
@@ -99,7 +113,7 @@ async function registerLivekitListeners(
 }
 
 function setupGlobalAudioTracksEffect(avRef: React.MutableRefObject<any>): (() => void) | undefined {
-  const room = avRef.current?.room as any;
+  const room = avRef.current?.room;
   if (!room) return undefined;
 
   const audioElements = new Map<string, HTMLAudioElement>();
@@ -110,7 +124,9 @@ function setupGlobalAudioTracksEffect(avRef: React.MutableRefObject<any>): (() =
     if (track?.kind === 'audio' && participant?.sid !== room?.localParticipant?.sid) {
       attachAudioTrack(track, participant.sid);
       // Signalisiere, dass sich die Audio-Topologie geändert hat
-      try { emitAudioTracksChanged(); } catch {}
+      try {
+        emitAudioTracksChanged();
+      } catch {}
     }
   };
 
@@ -121,7 +137,9 @@ function setupGlobalAudioTracksEffect(avRef: React.MutableRefObject<any>): (() =
     if (shouldDetachOnUnsubscribe(track, participant)) {
       detachAudioTrack(participant?.sid);
     }
-    try { emitAudioTracksChanged(); } catch {}
+    try {
+      emitAudioTracksChanged();
+    } catch {}
   };
 
   attachInitialAudioTracks(room, audioElements, attachAudioTrack);
@@ -133,21 +151,33 @@ function setupGlobalAudioTracksEffect(avRef: React.MutableRefObject<any>): (() =
   // and volume=1 — the flag may have been set to muted while DND was on.
   const unsubscribeAudioChanged = onAudioTracksChanged(() => {
     try {
-      const dndOn = !!(((avRef.current as any)?.dndEnabled) ?? ((avRef.current as any)?.dnd));
+      const dndOn = !!(avRef.current?.dndEnabled ?? avRef.current?.dnd);
       if (dndOn) return;
       audioElements.forEach((audio) => {
-        try { audio.muted = false; } catch {}
-        try { audio.volume = 1; } catch {}
+        try {
+          audio.muted = false;
+        } catch {}
+        try {
+          audio.volume = 1;
+        } catch {}
       });
     } catch {}
   });
 
   return () => {
-    try { unsubscribeAudioChanged(); } catch {}
+    try {
+      unsubscribeAudioChanged();
+    } catch {}
     audioElements.forEach((audio) => {
-      try { audio.pause(); } catch {}
-      try { (audio as any).srcObject = null; } catch {}
-      try { audio.parentNode?.removeChild(audio); } catch {}
+      try {
+        audio.pause();
+      } catch {}
+      try {
+        (audio as any).srcObject = null;
+      } catch {}
+      try {
+        audio.parentNode?.removeChild(audio);
+      } catch {}
     });
     audioElements.clear();
   };

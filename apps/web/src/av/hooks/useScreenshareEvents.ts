@@ -82,15 +82,18 @@ function buildCheckForNewScreenshares(ctx: ScreenshareCheckCtx) {
   };
 }
 
-async function attachLivekitListeners(
-  room: any,
-  checkForNewScreenshares: () => void,
-): Promise<() => void> {
+async function attachLivekitListeners(room: any, checkForNewScreenshares: () => void): Promise<() => void> {
   try {
     const { RoomEvent } = await import('livekit-client');
-    const onTrackPublished = () => { setTimeout(checkForNewScreenshares, 100); };
-    const onTrackUnpublished = () => { setTimeout(checkForNewScreenshares, 100); };
-    const onTrackSubscribed = () => { setTimeout(checkForNewScreenshares, 100); };
+    const onTrackPublished = () => {
+      setTimeout(checkForNewScreenshares, 100);
+    };
+    const onTrackUnpublished = () => {
+      setTimeout(checkForNewScreenshares, 100);
+    };
+    const onTrackSubscribed = () => {
+      setTimeout(checkForNewScreenshares, 100);
+    };
 
     room.on(RoomEvent.TrackPublished, onTrackPublished);
     room.on(RoomEvent.TrackUnpublished, onTrackUnpublished);
@@ -125,7 +128,7 @@ function setupScreenshareEffect(ctx: ScreenshareCheckCtx): (() => void) | undefi
   checkForNewScreenshares();
 
   // Set up event listeners
-  (async () => {
+  void (async () => {
     cleanup = await attachLivekitListeners(room, checkForNewScreenshares);
   })();
 
@@ -162,7 +165,14 @@ export function useScreenshareEvents({
       onLocalScreenshareStop,
     };
     return setupScreenshareEffect(ctx);
-  }, [enabled, avRef, onRemoteScreenshareStart, onRemoteScreenshareStop, onLocalScreenshareStart, onLocalScreenshareStop]);
+  }, [
+    enabled,
+    avRef,
+    onRemoteScreenshareStart,
+    onRemoteScreenshareStop,
+    onLocalScreenshareStart,
+    onLocalScreenshareStop,
+  ]);
 
   // Return helper to manually trigger a check (useful after connection)
   const forceCheck = React.useCallback(() => {

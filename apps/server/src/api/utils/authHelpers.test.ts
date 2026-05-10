@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 
 // Mock-Funktionen werden vor dem Import definiert
@@ -8,18 +7,11 @@ vi.mock('../../logger.js', () => ({
     warn: vi.fn(),
     error: vi.fn(),
     info: vi.fn(),
-  }
+  },
 }));
 
 // Import nach Mocks
-import {
-  getJwtSecret,
-  getApiTokenPepper,
-  setAuthCookie,
-  requireAuth,
-  normalizeEmailForStorage,
-  normalizeEmailForMatching,
-} from './authHelpers.js';
+import { setAuthCookie, requireAuth, normalizeEmailForStorage, normalizeEmailForMatching } from './authHelpers.js';
 
 describe('authHelpers', () => {
   const originalEnv = process.env;
@@ -93,7 +85,7 @@ describe('authHelpers', () => {
       process.env.NODE_ENV = 'production';
 
       const mockResponse = {
-        cookie: vi.fn()
+        cookie: vi.fn(),
       };
 
       setAuthCookie(mockResponse as any, 'test-token');
@@ -106,7 +98,7 @@ describe('authHelpers', () => {
           sameSite: 'strict',
           secure: true,
           path: '/',
-        })
+        }),
       );
     });
 
@@ -114,7 +106,7 @@ describe('authHelpers', () => {
       process.env.NODE_ENV = 'development';
 
       const mockResponse = {
-        cookie: vi.fn()
+        cookie: vi.fn(),
       };
 
       setAuthCookie(mockResponse as any, 'test-token');
@@ -125,7 +117,7 @@ describe('authHelpers', () => {
         expect.objectContaining({
           httpOnly: true,
           sameSite: 'lax',
-        })
+        }),
       );
     });
 
@@ -134,7 +126,7 @@ describe('authHelpers', () => {
       process.env.COOKIE_SECURE = 'true';
 
       const mockResponse = {
-        cookie: vi.fn()
+        cookie: vi.fn(),
       };
 
       setAuthCookie(mockResponse as any, 'test-token');
@@ -144,7 +136,7 @@ describe('authHelpers', () => {
         'test-token',
         expect.objectContaining({
           secure: true,
-        })
+        }),
       );
     });
 
@@ -153,7 +145,7 @@ describe('authHelpers', () => {
       process.env.COOKIE_SECURE = 'false';
 
       const mockResponse = {
-        cookie: vi.fn()
+        cookie: vi.fn(),
       };
 
       setAuthCookie(mockResponse as any, 'test-token');
@@ -163,7 +155,7 @@ describe('authHelpers', () => {
         'test-token',
         expect.objectContaining({
           secure: false,
-        })
+        }),
       );
     });
   });
@@ -185,14 +177,14 @@ describe('authHelpers', () => {
       const token = jwt.sign({ sub: 'user-123', tid: 'tenant-456' }, testSecret);
       const req = {
         cookies: { auth_token: token },
-        headers: {}
+        headers: {},
       };
 
       const result = requireAuth(req as any);
 
       expect(result).toEqual({
         userId: 'user-123',
-        tenantId: 'tenant-456'
+        tenantId: 'tenant-456',
       });
     });
 
@@ -200,21 +192,21 @@ describe('authHelpers', () => {
       const token = jwt.sign({ sub: 'user-789' }, testSecret);
       const req = {
         cookies: {},
-        headers: { authorization: `Bearer ${token}` }
+        headers: { authorization: `Bearer ${token}` },
       };
 
       const result = requireAuth(req as any);
 
       expect(result).toEqual({
         userId: 'user-789',
-        tenantId: undefined
+        tenantId: undefined,
       });
     });
 
     it('should return null for invalid JWT', () => {
       const req = {
         cookies: { auth_token: 'invalid-token' },
-        headers: {}
+        headers: {},
       };
 
       const result = requireAuth(req as any);
@@ -226,7 +218,7 @@ describe('authHelpers', () => {
       const token = jwt.sign({ sub: 'user-123', exp: Math.floor(Date.now() / 1000) - 3600 }, testSecret);
       const req = {
         cookies: { auth_token: token },
-        headers: {}
+        headers: {},
       };
 
       const result = requireAuth(req as any);

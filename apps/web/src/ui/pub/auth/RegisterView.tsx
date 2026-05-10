@@ -26,12 +26,7 @@ function ArrowRightIcon() {
 /* ---------- Props ---------- */
 
 interface RegisterViewProps {
-  onSubmit: (data: {
-    name: string;
-    email: string;
-    password: string;
-    invite?: string | undefined;
-  }) => Promise<void>;
+  onSubmit: (data: { name: string; email: string; password: string; invite?: string | undefined }) => Promise<void>;
   onLogin: () => void;
   initialInvite?: string | undefined;
   error?: string | null;
@@ -46,10 +41,7 @@ function RegisterTitle() {
       <h1 className="pub-text-h3" style={{ margin: 0 }}>
         {t('auth.registerTitle')}
       </h1>
-      <p
-        className="pub-text-body-sm"
-        style={{ margin: 0, color: 'var(--pub-text-secondary)' }}
-      >
+      <p className="pub-text-body-sm" style={{ margin: 0, color: 'var(--pub-text-secondary)' }}>
         {t('auth.registerSubtitle')}
       </p>
     </div>
@@ -67,7 +59,12 @@ interface RegisterFieldsProps {
   onPassword: (v: string) => void;
 }
 
-function RegisterNameRow({ firstName, lastName, onFirstName, onLastName }: Pick<RegisterFieldsProps, 'firstName' | 'lastName' | 'onFirstName' | 'onLastName'>) {
+function RegisterNameRow({
+  firstName,
+  lastName,
+  onFirstName,
+  onLastName,
+}: Pick<RegisterFieldsProps, 'firstName' | 'lastName' | 'onFirstName' | 'onLastName'>) {
   const { t } = useTranslation('public');
   return (
     <div style={{ display: 'flex', gap: 16 }}>
@@ -163,14 +160,13 @@ function RegisterFooter({ onLogin }: { onLogin: () => void }) {
       >
         {t('auth.registerTermsHint')}
       </p>
-      <p
-        className="pub-text-body-sm"
-        style={{ margin: 0, textAlign: 'center', color: 'var(--pub-text-secondary)' }}
-      >
+      <p className="pub-text-body-sm" style={{ margin: 0, textAlign: 'center', color: 'var(--pub-text-secondary)' }}>
         {t('auth.registerHasAccount')}{' '}
-        <a
+        <button
+          type="button"
           onClick={onLogin}
           style={{
+            all: 'unset',
             cursor: 'pointer',
             color: 'var(--pub-accent-purple)',
             textDecoration: 'none',
@@ -178,7 +174,7 @@ function RegisterFooter({ onLogin }: { onLogin: () => void }) {
           }}
         >
           {t('auth.registerLoginLink')}
-        </a>
+        </button>
       </p>
     </>
   );
@@ -186,12 +182,7 @@ function RegisterFooter({ onLogin }: { onLogin: () => void }) {
 
 /* ---------- Component ---------- */
 
-export function RegisterView({
-  onSubmit,
-  onLogin,
-  initialInvite,
-  error,
-}: RegisterViewProps) {
+export function RegisterView({ onSubmit, onLogin, initialInvite, error }: RegisterViewProps) {
   const { t } = useTranslation('public');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -212,7 +203,9 @@ export function RegisterView({
 
   return (
     <form
-      onSubmit={handleSubmit}
+      onSubmit={(e) => {
+        void handleSubmit(e);
+      }}
       autoComplete="on"
       style={{ display: 'flex', flexDirection: 'column', gap: 24 }}
     >

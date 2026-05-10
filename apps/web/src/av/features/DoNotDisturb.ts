@@ -80,9 +80,9 @@ export class DoNotDisturb implements Disposable {
   /**
    * Enable or disable DND
    */
-  async setEnabled(enabled: boolean): Promise<void> {
-    if (this._disposed) return;
-    if (this._state.enabled === enabled) return;
+  setEnabled(enabled: boolean): Promise<void> {
+    if (this._disposed) return Promise.resolve();
+    if (this._state.enabled === enabled) return Promise.resolve();
 
     AVLogger.info('dnd.set', { enabled });
 
@@ -95,6 +95,8 @@ export class DoNotDisturb implements Disposable {
       if (enabled) await this.enableSideEffects();
       else await this.disableSideEffects();
     });
+
+    return Promise.resolve();
   }
 
   /**

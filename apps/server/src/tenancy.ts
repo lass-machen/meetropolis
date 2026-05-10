@@ -35,7 +35,10 @@ function extractTenantSlugFromHost(host: string | null): string | null {
 }
 
 function sanitizeSlug(s: string): string {
-  return s.trim().toLowerCase().replace(/[^a-z0-9-_]/g, '');
+  return s
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9-_]/g, '');
 }
 
 /**
@@ -45,8 +48,7 @@ function sanitizeSlug(s: string): string {
  */
 async function resolveTokenTenant(req: Request): Promise<Tenant | null> {
   try {
-    const token = (req as any).cookies?.auth_token
-      || req.headers['authorization']?.toString()?.replace('Bearer ', '');
+    const token = (req as any).cookies?.auth_token || req.headers['authorization']?.toString()?.replace('Bearer ', '');
     if (!token) return null;
     const payload = jwt.verify(token, getJwtSecret()) as any;
     const tenantId = payload?.tid;
@@ -62,7 +64,7 @@ const TENANT_BYPASS_PREFIXES = ['/tools', '/packs', '/assets', '/npc-media', '/m
 
 function isTenantBypassPath(path: string): boolean {
   if (path === '/') return true;
-  return TENANT_BYPASS_PREFIXES.some(p => path === p || path.startsWith(p + '/'));
+  return TENANT_BYPASS_PREFIXES.some((p) => path === p || path.startsWith(p + '/'));
 }
 
 async function applySingleTenantFallback(req: TenantRequest, res: Response): Promise<boolean> {
@@ -84,16 +86,19 @@ async function applySingleTenantFallback(req: TenantRequest, res: Response): Pro
   return true;
 }
 
-async function autoCreateDevTenant(slug: string): Promise<Tenant> {
+function autoCreateDevTenant(slug: string): Promise<Tenant> {
   if (slug === 'internal') {
-    return prisma.tenant.create({ data: { slug, name: 'Internal', concurrentLimit: 999999, bypassLimits: true, isInternal: true } });
+    return prisma.tenant.create({
+      data: { slug, name: 'Internal', concurrentLimit: 999999, bypassLimits: true, isInternal: true },
+    });
   }
   return prisma.tenant.create({ data: { slug, name: slug, concurrentLimit: 50 } });
 }
 
 async function resolveTenantBySlug(req: TenantRequest): Promise<Tenant | null> {
-  const fromHeader = (req.headers['x-tenant'] || '').toString();
-  const fromQuery = (req.query?.tenant || '').toString();
+  const fromHeader = String(req.headers['x-tenant'] ?? '');
+  const queryTenant = req.query?.tenant;
+  const fromQuery = typeof queryTenant === 'string' ? queryTenant : '';
   const fromHost = extractTenantSlugFromHost(extractHost(req) || null) || '';
   const explicitSlug = fromHeader || fromQuery;
   const raw = explicitSlug || fromHost || '';
@@ -152,4 +157,3 @@ export async function tenantMiddleware(req: TenantRequest, res: Response, next: 
     return res.status(500).json({ error: 'tenant_resolution_failed', details: getErrorMessage(error) });
   }
 }
-

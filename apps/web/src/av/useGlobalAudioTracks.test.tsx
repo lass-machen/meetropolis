@@ -33,19 +33,19 @@ describe('useGlobalAudioTracks', () => {
     const room = makeRoom();
     const avRef = { current: { room, dnd: true } } as React.MutableRefObject<any>;
 
-    await act(async () => {
+    act(() => {
       root.render(<TestHarness avRef={avRef} />);
     });
     await act(async () => {
       await new Promise((r) => setTimeout(r, 0));
     });
 
-    const audio = document.querySelector('audio[data-av-remote="remote1"]') as HTMLAudioElement | null;
+    const audio = document.querySelector('audio[data-av-remote="remote1"]');
     expect(audio).toBeTruthy();
     expect(audio!.muted).toBe(true);
     expect(audio!.volume).toBe(0);
 
-    await act(async () => {
+    act(() => {
       root.unmount();
     });
     container.remove();
@@ -59,19 +59,19 @@ describe('useGlobalAudioTracks', () => {
     const room = makeRoom();
     const avRef = { current: { room, dnd: false } } as React.MutableRefObject<any>;
 
-    await act(async () => {
+    act(() => {
       root.render(<TestHarness avRef={avRef} />);
     });
     await act(async () => {
       await new Promise((r) => setTimeout(r, 0));
     });
 
-    const audio = document.querySelector('audio[data-av-remote="remote1"]') as HTMLAudioElement | null;
+    const audio = document.querySelector('audio[data-av-remote="remote1"]');
     expect(audio).toBeTruthy();
     expect(audio!.muted).toBe(false);
     expect(audio!.volume).toBeCloseTo(1);
 
-    await act(async () => {
+    act(() => {
       root.unmount();
     });
     container.remove();

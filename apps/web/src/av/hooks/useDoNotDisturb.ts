@@ -18,13 +18,7 @@ interface UseDNDArgs {
   colyseusRef?: React.MutableRefObject<any>;
 }
 
-export function useDoNotDisturb({
-  enabled,
-  avRef,
-  dndRef,
-  setAvState,
-  colyseusRef,
-}: UseDNDArgs) {
+export function useDoNotDisturb({ enabled, avRef, dndRef, setAvState, colyseusRef }: UseDNDArgs) {
   // Install gameBridge interceptor
   React.useEffect(() => {
     const gb = gameBridge as any;
@@ -33,9 +27,13 @@ export function useDoNotDisturb({
     if (typeof originalSetDnd !== 'function') return;
 
     // Override gameBridge.setDoNotDisturb to sync with AVManager
-    gb.setDoNotDisturb = async (nextEnabled: boolean) => {
+    // Returns a Promise (Schnittstelle bleibt thenable für ggf. awaitende Caller),
+    // ohne intern await zu nutzen — AV-Sync ist absichtlich Fire-and-forget.
+    gb.setDoNotDisturb = (nextEnabled: boolean): Promise<void> => {
       // 1) Apply game-side effects immediately (movement lock, etc.)
-      try { originalSetDnd?.(!!nextEnabled); } catch {}
+      try {
+        originalSetDnd?.(!!nextEnabled);
+      } catch {}
 
       // 2) Update UI immediately (do not block on AV operations)
       dndRef.current = nextEnabled;
@@ -48,10 +46,15 @@ export function useDoNotDisturb({
       }));
 
       // 3) Notify Colyseus (best-effort)
-      try { colyseusRef?.current?.send?.('dnd_status', { dnd: nextEnabled }); } catch {}
+      try {
+        colyseusRef?.current?.send?.('dnd_status', { dnd: nextEnabled });
+      } catch {}
 
       // 4) Sync with AVManager in background (best-effort)
-      try { void avRef.current?.setDoNotDisturb(nextEnabled); } catch {}
+      try {
+        void avRef.current?.setDoNotDisturb(nextEnabled);
+      } catch {}
+      return Promise.resolve();
     };
 
     return () => {
@@ -65,11 +68,8 @@ export function useDoNotDisturb({
   React.useEffect(() => {
     if (!enabled) return;
 
-    const handleKeydown = async (e: KeyboardEvent) => {
-      const isShortcut =
-        (e.ctrlKey || e.metaKey) &&
-        e.shiftKey &&
-        (e.key === 'U' || e.key === 'u');
+    const handleKeydown = (e: KeyboardEvent) => {
+      const isShortcut = (e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'U' || e.key === 'u');
 
       if (!isShortcut) return;
 
@@ -96,9 +96,7 @@ export function useDoNotDisturb({
 /**
  * Standalone toggle function for use outside React
  */
-export async function toggleDoNotDisturb(
-  avRef: React.MutableRefObject<AVManager | null>
-): Promise<boolean> {
+export async function toggleDoNotDisturb(avRef: React.MutableRefObject<AVManager | null>): Promise<boolean> {
   const av = avRef.current;
   if (!av) return false;
 

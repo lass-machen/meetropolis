@@ -36,7 +36,7 @@ export class ConnectionManager implements Disposable {
 
   constructor(
     private readonly config: Required<AVManagerConfig>,
-    private readonly deps: ConnectionManagerDeps
+    private readonly deps: ConnectionManagerDeps,
   ) {}
 
   get currentRoomName(): string | null {
@@ -121,7 +121,6 @@ export class ConnectionManager implements Disposable {
       // Initial subscriptions
       this.deps.subscriptionManager.ensureAudioSubscriptions(64);
       this.deps.subscriptionManager.forceApply();
-
     } catch (error) {
       AVLogger.error('manager.switchTo.error', { error: String(error) });
       this.deps.stateMachine.dispatch({ type: 'ERROR', error: error as Error });
@@ -181,7 +180,9 @@ export class ConnectionManager implements Disposable {
         const p = room.startAudio();
         if (room.canPlaybackAudio) return cleanup();
         if (p && typeof p.then === 'function') {
-          p.then(() => { if (room.canPlaybackAudio) cleanup(); }).catch(() => {});
+          p.then(() => {
+            if (room.canPlaybackAudio) cleanup();
+          }).catch(() => {});
         }
       } catch {}
     };
@@ -193,13 +194,21 @@ export class ConnectionManager implements Disposable {
     const cleanup = () => {
       if (!this.audioUnlockHandlersAttached) return;
       this.audioUnlockHandlersAttached = false;
-      try { window.removeEventListener('pointerdown', onGesture as any); } catch {}
-      try { window.removeEventListener('click', onGesture as any); } catch {}
+      try {
+        window.removeEventListener('pointerdown', onGesture as any);
+      } catch {}
+      try {
+        window.removeEventListener('click', onGesture as any);
+      } catch {}
       this.audioUnlockCleanup = null;
     };
 
-    try { window.addEventListener('pointerdown', onGesture as any); } catch {}
-    try { window.addEventListener('click', onGesture as any); } catch {}
+    try {
+      window.addEventListener('pointerdown', onGesture as any);
+    } catch {}
+    try {
+      window.addEventListener('click', onGesture as any);
+    } catch {}
 
     this.audioUnlockCleanup = cleanup;
   }
@@ -305,11 +314,11 @@ export class ConnectionManager implements Disposable {
     });
 
     // Import RoomEvent dynamically
-    (async () => {
+    void (async () => {
       try {
         const { RoomEvent } = await import('livekit-client');
 
-        register(RoomEvent.Reconnected as any, () => {
+        register(RoomEvent.Reconnected, () => {
           AVLogger.info('room.reconnected');
           this.deps.stateMachine.resetReconnect();
           this.deps.subscriptionManager.forceApply();
@@ -326,7 +335,7 @@ export class ConnectionManager implements Disposable {
           }
         });
 
-        register(RoomEvent.Disconnected as any, () => {
+        register(RoomEvent.Disconnected, () => {
           AVLogger.warn('room.disconnected');
           if (!this.deps.stateMachine.pageLeaving) {
             this.deps.stateMachine.dispatch({ type: 'SIGNAL_LOST' });
@@ -334,7 +343,7 @@ export class ConnectionManager implements Disposable {
           }
         });
 
-        register(RoomEvent.TrackPublished as any, (pub: any, participant: any) => {
+        register(RoomEvent.TrackPublished, (pub: any, participant: any) => {
           const kind = pub?.kind ?? pub?.track?.kind;
           const source = pub?.source ?? pub?.track?.source;
 
@@ -354,7 +363,7 @@ export class ConnectionManager implements Disposable {
           emitAudioTracksChanged();
         });
 
-        register(RoomEvent.TrackSubscribed as any, (track: any, pub: any, participant: any) => {
+        register(RoomEvent.TrackSubscribed, (track: any, pub: any, participant: any) => {
           const kind = pub?.kind ?? track?.kind;
 
           AVLogger.debug('room.track_subscribed', {
@@ -372,29 +381,29 @@ export class ConnectionManager implements Disposable {
           emitAudioTracksChanged();
         });
 
-        register(RoomEvent.TrackUnsubscribed as any, () => {
+        register(RoomEvent.TrackUnsubscribed, () => {
           this.deps.subscriptionManager.forceApply();
           emitAudioTracksChanged();
         });
 
-        register(RoomEvent.TrackUnpublished as any, () => {
+        register(RoomEvent.TrackUnpublished, () => {
           this.deps.subscriptionManager.forceApply();
           emitAudioTracksChanged();
         });
 
-        register(RoomEvent.TrackMuted as any, (_pub: any, participant: any) => {
+        register(RoomEvent.TrackMuted, (_pub: any, participant: any) => {
           AVLogger.debug('room.track_muted', { participant: participant?.identity });
           this.deps.subscriptionManager.forceApply();
           emitAudioTracksChanged();
         });
 
-        register(RoomEvent.TrackUnmuted as any, (_pub: any, participant: any) => {
+        register(RoomEvent.TrackUnmuted, (_pub: any, participant: any) => {
           AVLogger.debug('room.track_unmuted', { participant: participant?.identity });
           this.deps.subscriptionManager.forceApply();
           emitAudioTracksChanged();
         });
 
-        register(RoomEvent.ParticipantConnected as any, (participant: any) => {
+        register(RoomEvent.ParticipantConnected, (participant: any) => {
           AVLogger.debug('room.participant_connected', {
             identity: participant?.identity,
           });
@@ -402,23 +411,22 @@ export class ConnectionManager implements Disposable {
           this.deps.subscriptionManager.forceApply();
         });
 
-        register(RoomEvent.ParticipantDisconnected as any, (participant: any) => {
+        register(RoomEvent.ParticipantDisconnected, (participant: any) => {
           AVLogger.debug('room.participant_disconnected', {
             identity: participant?.identity,
           });
           this.deps.subscriptionManager.forceApply();
         });
 
-        register(RoomEvent.ActiveSpeakersChanged as any, (speakers: any[]) => {
+        register(RoomEvent.ActiveSpeakersChanged, (speakers: any[]) => {
           this.deps.subscriptionManager.setActiveSpeakers(speakers);
         });
 
-        register(RoomEvent.ConnectionQualityChanged as any, (participant: any, quality: any) => {
+        register(RoomEvent.ConnectionQualityChanged, (participant: any, quality: any) => {
           if (participant?.identity === this.config.identity) {
             AVLogger.debug('room.quality_changed', { quality });
           }
         });
-
       } catch {
         // Fallback to string events
         AVLogger.warn('room.events.fallback');

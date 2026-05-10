@@ -14,7 +14,9 @@ interface UseAVManagerArgs {
   me: { id: string; email: string; name?: string } | null;
   editorActiveRef: React.MutableRefObject<boolean>;
   avRef: React.MutableRefObject<AVManager | null>;
-  setDevices: React.Dispatch<React.SetStateAction<{ mics: { id: string; label: string }[]; cams: { id: string; label: string }[] }>>;
+  setDevices: React.Dispatch<
+    React.SetStateAction<{ mics: { id: string; label: string }[]; cams: { id: string; label: string }[] }>
+  >;
   setSelectedMicId: React.Dispatch<React.SetStateAction<string>>;
   setSelectedCamId: React.Dispatch<React.SetStateAction<string>>;
   buildParticipantList: () => void;
@@ -28,7 +30,10 @@ async function performRefreshDevices(
   setSelectedCamId: UseAVManagerArgs['setSelectedCamId'],
 ): Promise<void> {
   const list = await avRef.current!.listDevices();
-  const micOptions = list.microphones.map((d: { deviceId: string; label: string }) => ({ id: d.deviceId, label: d.label }));
+  const micOptions = list.microphones.map((d: { deviceId: string; label: string }) => ({
+    id: d.deviceId,
+    label: d.label,
+  }));
   const camOptions = list.cameras.map((d: { deviceId: string; label: string }) => ({ id: d.deviceId, label: d.label }));
 
   setDevices({ mics: micOptions, cams: camOptions });
@@ -73,7 +78,7 @@ async function performConnect(args: ConnectArgs): Promise<void> {
   // Subscribe to room events for participant list updates
   const room = avRef.current.room;
   if (room) {
-    setupRoomEventListeners(room, scheduleBuildParticipantList);
+    void setupRoomEventListeners(room, scheduleBuildParticipantList);
   }
 
   // Initial participant list build
@@ -96,8 +101,13 @@ function useAutoConnectOnMount(
     if (!hasAutoConnectedRef.current) {
       hasAutoConnectedRef.current = true;
       setTimeout(() => {
-        if (!editorActiveRef.current && !avRef.current?.room && !isConnectingRef.current && !(typeof window !== 'undefined' && (window as any).__sessionConflictPending)) {
-          connect();
+        if (
+          !editorActiveRef.current &&
+          !avRef.current?.room &&
+          !isConnectingRef.current &&
+          !(typeof window !== 'undefined' && (window as any).__sessionConflictPending)
+        ) {
+          void connect();
         }
       }, 300);
     }
@@ -112,10 +122,12 @@ function useConnectOnFirstInteraction(
   React.useEffect(() => {
     const handleFirstInteraction = () => {
       if (!avRef.current?.room && !(typeof window !== 'undefined' && (window as any).__sessionConflictPending)) {
-        connect();
+        void connect();
       }
       // Refresh devices after interaction (permissions may now be granted)
-      setTimeout(() => refreshDevices(), 100);
+      setTimeout(() => {
+        void refreshDevices();
+      }, 100);
     };
 
     window.addEventListener('pointerdown', handleFirstInteraction, { once: true });
@@ -133,7 +145,9 @@ function useDeviceChangeWatcher(refreshDevices: () => Promise<void>): void {
     const md = navigator.mediaDevices;
     if (!md || typeof md.addEventListener !== 'function') return;
 
-    const handler = () => refreshDevices();
+    const handler = () => {
+      void refreshDevices();
+    };
     md.addEventListener('devicechange', handler);
 
     return () => {
@@ -155,7 +169,9 @@ function useAVManagerCleanup(avRef: React.MutableRefObject<AVManager | null>): v
   }, [avRef]);
 }
 
-function useBuildListTimerCleanup(buildListTimerRef: React.MutableRefObject<ReturnType<typeof setTimeout> | null>): void {
+function useBuildListTimerCleanup(
+  buildListTimerRef: React.MutableRefObject<ReturnType<typeof setTimeout> | null>,
+): void {
   React.useEffect(() => {
     return () => {
       if (buildListTimerRef.current) {
@@ -183,15 +199,18 @@ export function useAVManager({
   // Debounce for participant list rebuilds
   const buildListTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const scheduleBuildParticipantList = React.useCallback((delay: number = 100) => {
-    if (buildListTimerRef.current) return;
-    buildListTimerRef.current = setTimeout(() => {
-      buildListTimerRef.current = null;
-      try {
-        buildParticipantList();
-      } catch {}
-    }, delay);
-  }, [buildParticipantList]);
+  const scheduleBuildParticipantList = React.useCallback(
+    (delay: number = 100) => {
+      if (buildListTimerRef.current) return;
+      buildListTimerRef.current = setTimeout(() => {
+        buildListTimerRef.current = null;
+        try {
+          buildParticipantList();
+        } catch {}
+      }, delay);
+    },
+    [buildParticipantList],
+  );
 
   useBuildListTimerCleanup(buildListTimerRef);
 
@@ -234,10 +253,7 @@ export function useAVManager({
 }
 
 // Helper to set up room event listeners
-async function setupRoomEventListeners(
-  room: any,
-  scheduleBuild: (delay?: number) => void
-): Promise<void> {
+async function setupRoomEventListeners(room: any, scheduleBuild: (delay?: number) => void): Promise<void> {
   try {
     const { RoomEvent } = await import('livekit-client');
 

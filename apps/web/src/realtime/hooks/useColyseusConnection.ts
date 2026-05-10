@@ -17,22 +17,31 @@ function showGuestExpiredOverlay(apiBase: string): void {
         <button data-guest-expired-ok style="padding:10px 20px;border-radius:8px;border:none;background:var(--accent,#3b82f6);color:white;cursor:pointer;font-weight:600;">Zum Login</button>
       </div>`;
     document.body.appendChild(host);
-    host.querySelector('[data-guest-expired-ok]')?.addEventListener('click', () => {
-      try { host.remove(); } catch {}
-      try {
-        fetch(apiBase + '/auth/logout', { method: 'POST', credentials: 'include' }).finally(() => {
-          window.location.hash = '#/app';
+    host.querySelector('[data-guest-expired-ok]')?.addEventListener(
+      'click',
+      () => {
+        try {
+          host.remove();
+        } catch {}
+        try {
+          void fetch(apiBase + '/auth/logout', { method: 'POST', credentials: 'include' }).finally(() => {
+            window.location.hash = '#/app';
+            window.location.reload();
+          });
+        } catch {
           window.location.reload();
-        });
-      } catch { window.location.reload(); }
-    }, { once: true } as any);
+        }
+      },
+      { once: true },
+    );
   } catch {}
 }
 
 function showSessionTakenOverOverlay(): void {
   try {
     const host = document.createElement('div');
-    host.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.5);';
+    host.style.cssText =
+      'position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.5);';
     host.innerHTML = `
       <div style="min-width:320px;max-width:480px;padding:24px;border-radius:12px;border:1px solid rgba(234,88,12,0.5);background:rgba(30,41,59,0.95);backdrop-filter:blur(8px);color:#fff;box-shadow:0 8px 32px rgba(0,0,0,0.4);text-align:center;">
         <div style="font-size:48px;margin-bottom:12px;">🔌</div>
@@ -41,10 +50,16 @@ function showSessionTakenOverOverlay(): void {
         <button data-session-reload style="padding:10px 20px;border-radius:8px;border:none;background:#3b82f6;color:white;cursor:pointer;font-weight:600;font-size:14px;">${i18n.t('sessionConflict.takenOver.reconnect')}</button>
       </div>`;
     document.body.appendChild(host);
-    host.querySelector('[data-session-reload]')?.addEventListener('click', () => {
-      try { host.remove(); } catch {}
-      window.location.reload();
-    }, { once: true });
+    host.querySelector('[data-session-reload]')?.addEventListener(
+      'click',
+      () => {
+        try {
+          host.remove();
+        } catch {}
+        window.location.reload();
+      },
+      { once: true },
+    );
   } catch {}
 }
 
@@ -70,12 +85,14 @@ function resolveLimitTitleAndDesc(code: number | undefined, text: string): { tit
   if (code === 4002 || text === 'oss_limit_reached') {
     return {
       title: 'User Limit Reached',
-      description: 'This instance has reached its maximum user limit (25). Please try again later or contact the administrator.',
+      description:
+        'This instance has reached its maximum user limit (25). Please try again later or contact the administrator.',
     };
   }
   return {
     title: 'Tenant Limit Reached',
-    description: 'Your organization has reached its maximum concurrent user limit. Please upgrade your plan or try again later.',
+    description:
+      'Your organization has reached its maximum concurrent user limit. Please upgrade your plan or try again later.',
   };
 }
 
@@ -92,14 +109,19 @@ function showLimitErrorOverlay(code: number | undefined, text: string, onRetry: 
         <button data-limit-retry style="padding:10px 20px;border-radius:8px;border:none;background:var(--accent,#3b82f6);color:white;cursor:pointer;font-weight:600;">Retry</button>
       </div>`;
     document.body.appendChild(host);
-    const retry = () => { try { host.remove(); } catch {} onRetry(); };
-    host.querySelector('[data-limit-retry]')?.addEventListener('click', retry, { once: true } as any);
+    const retry = () => {
+      try {
+        host.remove();
+      } catch {}
+      onRetry();
+    };
+    host.querySelector('[data-limit-retry]')?.addEventListener('click', retry, { once: true });
   } catch {}
 }
 
 function extractErrorInfo(ev: any[]): { code: number | undefined; reason: string | undefined; text: string } {
-  const code = (ev && ev[0] && typeof ev[0].code === 'number') ? ev[0].code : undefined;
-  const reason = (ev && ev[0] && typeof ev[0].reason === 'string') ? ev[0].reason : undefined;
+  const code = ev && ev[0] && typeof ev[0].code === 'number' ? ev[0].code : undefined;
+  const reason = ev && ev[0] && typeof ev[0].reason === 'string' ? ev[0].reason : undefined;
   const msg = (ev && ev[0] && (ev[0].message || ev[0].toString?.())) || '';
   const text = String(reason || msg || '');
   return { code, reason, text };
@@ -135,7 +157,9 @@ function performScheduleReconnect(
     if (reason !== undefined) status.lastReason = reason;
     setConnectionStatus?.(status);
   } catch {}
-  try { (window as any).__wsReconnects = ((window as any).__wsReconnects || 0) + 1; } catch {}
+  try {
+    (window as any).__wsReconnects = ((window as any).__wsReconnects || 0) + 1;
+  } catch {}
   const now = Date.now();
   if (refs.coolDownUntilRef.current > now) {
     // In Cooldown (z. B. bei 'Insufficient resources') – warte bis Ablauf.
@@ -194,10 +218,17 @@ async function performConnect(
       positionToUse,
       currentMapName || undefined,
     );
-    if (disposed) { try { room.leave(); } catch {} return null; }
+    if (disposed) {
+      try {
+        void room.leave();
+      } catch {}
+      return null;
+    }
     colyseusRef.current = room;
     refs.reconnectAttemptsRef.current = 0;
-    try { setConnectionStatus?.({ reconnecting: false }); } catch {}
+    try {
+      setConnectionStatus?.({ reconnecting: false });
+    } catch {}
     refs.connectingRef.current = false;
 
     onConnected(room);
@@ -230,12 +261,7 @@ type PerformHandleErrorArgs = {
   resetRefsBeforeReconnect: () => void;
 };
 
-function performHandleError(
-  ev: any[],
-  disposed: boolean,
-  onReconnect: () => void,
-  args: PerformHandleErrorArgs,
-): void {
+function performHandleError(ev: any[], disposed: boolean, onReconnect: () => void, args: PerformHandleErrorArgs): void {
   const { apiBase, refs, colyseusRef, scheduleReconnect, resetRefsBeforeReconnect } = args;
   try {
     const { code, reason, text } = extractErrorInfo(ev);
@@ -268,9 +294,15 @@ function performHandleError(
     }
 
     // Handle user limit and billing errors - show UI feedback and don't auto-reconnect
-    const isBillingError = code === 4003 || code === 4004 || code === 4005 ||
-      text === 'subscription_inactive' || text === 'subscription_suspended' || text === 'trial_expired';
-    const isLimitError = code === 4001 || code === 4002 || text === 'tenant_limit_reached' || text === 'oss_limit_reached';
+    const isBillingError =
+      code === 4003 ||
+      code === 4004 ||
+      code === 4005 ||
+      text === 'subscription_inactive' ||
+      text === 'subscription_suspended' ||
+      text === 'trial_expired';
+    const isLimitError =
+      code === 4001 || code === 4002 || text === 'tenant_limit_reached' || text === 'oss_limit_reached';
 
     if (isBillingError || isLimitError) {
       showLimitErrorOverlay(code, text, onReconnect);
@@ -286,10 +318,7 @@ function performHandleError(
   scheduleReconnect(disposed, onReconnect);
 }
 
-export function useColyseusConnection(
-  args: UseWorldRoomArgs,
-  connectionRefs: ConnectionRefs
-) {
+export function useColyseusConnection(args: UseWorldRoomArgs, connectionRefs: ConnectionRefs) {
   const { lastCloseInfoRef, connectingRef, coolDownUntilRef, hasReceivedFullStateRef } = connectionRefs;
   const { apiBase, me, localPosRef, colyseusRef, remotesRef, colyseusToLivekitMap, setConnectionStatus } = args;
 
@@ -299,61 +328,86 @@ export function useColyseusConnection(
    * (name→identity lookups are stable across sessions).
    */
   const resetRefsBeforeReconnect = React.useCallback(() => {
-    try { remotesRef.current = {}; } catch {}
-    try { colyseusToLivekitMap.current = {}; } catch {}
-    try { hasReceivedFullStateRef.current = false; } catch {}
+    try {
+      remotesRef.current = {};
+    } catch {}
+    try {
+      colyseusToLivekitMap.current = {};
+    } catch {}
+    try {
+      hasReceivedFullStateRef.current = false;
+    } catch {}
   }, [remotesRef, colyseusToLivekitMap, hasReceivedFullStateRef]);
 
-  const scheduleReconnect = React.useCallback((disposed: boolean, onReconnect?: () => void) => {
-    return performScheduleReconnect(disposed, onReconnect, connectionRefs, setConnectionStatus);
-  }, [connectionRefs, setConnectionStatus]);
+  const scheduleReconnect = React.useCallback(
+    (disposed: boolean, onReconnect?: () => void) => {
+      return performScheduleReconnect(disposed, onReconnect, connectionRefs, setConnectionStatus);
+    },
+    [connectionRefs, setConnectionStatus],
+  );
 
-  const connect = React.useCallback(async (
-    disposed: boolean,
-    onConnected: (room: any) => void
-  ) => {
-    if (disposed) return null;
-    if (connectingRef.current) return null;
-    if (!me) return null;
+  const connect = React.useCallback(
+    async (disposed: boolean, onConnected: (room: any) => void) => {
+      if (disposed) return null;
+      if (connectingRef.current) return null;
+      if (!me) return null;
 
-    const now = Date.now();
-    if (coolDownUntilRef.current > now) {
-      const delay = scheduleReconnect(disposed);
-      return { needsReconnect: true, delay };
-    }
+      const now = Date.now();
+      if (coolDownUntilRef.current > now) {
+        const delay = scheduleReconnect(disposed);
+        return { needsReconnect: true, delay };
+      }
 
-    return performConnect(disposed, onConnected, {
+      return performConnect(disposed, onConnected, {
+        apiBase,
+        me,
+        localPosRef,
+        colyseusRef,
+        setConnectionStatus,
+        refs: connectionRefs,
+        scheduleReconnect,
+      });
+    },
+    [
       apiBase,
       me,
       localPosRef,
       colyseusRef,
+      connectingRef,
+      coolDownUntilRef,
       setConnectionStatus,
-      refs: connectionRefs,
+      connectionRefs,
       scheduleReconnect,
-    });
-  }, [apiBase, me, localPosRef, colyseusRef, connectingRef, coolDownUntilRef, setConnectionStatus, connectionRefs, scheduleReconnect]);
+    ],
+  );
 
-  const handleError = React.useCallback((ev: any[], disposed: boolean, onReconnect: () => void) => {
-    performHandleError(ev, disposed, onReconnect, {
-      apiBase,
-      refs: connectionRefs,
-      colyseusRef,
-      scheduleReconnect,
-      resetRefsBeforeReconnect,
-    });
-  }, [apiBase, connectionRefs, colyseusRef, scheduleReconnect, resetRefsBeforeReconnect]);
+  const handleError = React.useCallback(
+    (ev: any[], disposed: boolean, onReconnect: () => void) => {
+      performHandleError(ev, disposed, onReconnect, {
+        apiBase,
+        refs: connectionRefs,
+        colyseusRef,
+        scheduleReconnect,
+        resetRefsBeforeReconnect,
+      });
+    },
+    [apiBase, connectionRefs, colyseusRef, scheduleReconnect, resetRefsBeforeReconnect],
+  );
 
-  const handleLeave = React.useCallback((code: number | undefined, disposed: boolean, onReconnect?: () => void) => {
-    try {
-      const info: { code?: number; reason?: string } = {};
-      if (code !== undefined) info.code = code;
-      lastCloseInfoRef.current = info;
-    } catch {}
-    colyseusRef.current = null;
-    connectingRef.current = false;
-    resetRefsBeforeReconnect();
-    scheduleReconnect(disposed, onReconnect);
-  }, [lastCloseInfoRef, colyseusRef, connectingRef, scheduleReconnect, resetRefsBeforeReconnect]);
+  const handleLeave = React.useCallback(
+    (code: number | undefined, disposed: boolean, onReconnect?: () => void) => {
+      try {
+        const info: { code?: number; reason?: string } = {};
+        if (code !== undefined) info.code = code;
+        lastCloseInfoRef.current = info;
+      } catch {}
+      colyseusRef.current = null;
+      connectingRef.current = false;
+      resetRefsBeforeReconnect();
+      scheduleReconnect(disposed, onReconnect);
+    },
+    [lastCloseInfoRef, colyseusRef, connectingRef, scheduleReconnect, resetRefsBeforeReconnect],
+  );
 
   return {
     connect,

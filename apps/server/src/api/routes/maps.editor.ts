@@ -7,10 +7,7 @@ import { pathParam } from '../utils/requestHelpers.js';
 import { broadcastMapUpdate, broadcastSpawnUpdate } from '../utils/broadcast.js';
 import { findMapById } from './maps.read.js';
 
-async function authenticateEditor(
-  prisma: PrismaClient,
-  req: express.Request,
-): Promise<{ ok: boolean; auth?: any }> {
+async function authenticateEditor(prisma: PrismaClient, req: express.Request): Promise<{ ok: boolean; auth?: any }> {
   const sessionAuth = requireAuth(req);
   const tokenAuth = await requireApiToken(req, prisma);
   const auth = sessionAuth || tokenAuth;
@@ -28,19 +25,34 @@ const tilesetSchema = z.object({
   hash: z.string().optional(),
 });
 
-export async function handleAddTileset(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
+export async function handleAddTileset(
+  prisma: PrismaClient,
+  req: express.Request,
+  res: express.Response,
+): Promise<void> {
   try {
     const parse = tilesetSchema.safeParse(req.body || {});
-    if (!parse.success) { res.status(400).json({ error: 'invalid payload' }); return; }
+    if (!parse.success) {
+      res.status(400).json({ error: 'invalid payload' });
+      return;
+    }
 
     const tenant = getTenantFromReq(req);
-    if (!tenant) { res.status(400).json({ error: 'tenant_required' }); return; }
+    if (!tenant) {
+      res.status(400).json({ error: 'tenant_required' });
+      return;
+    }
     const map = await findMapById(prisma, pathParam(req, 'id'), tenant.id);
-    if (!map) { res.status(404).json({ error: 'map not found' }); return; }
+    if (!map) {
+      res.status(404).json({ error: 'map not found' });
+      return;
+    }
 
     const existing = await prisma.mapTileset.findFirst({ where: { mapId: map.id, key: parse.data.key } });
     if (existing) {
-      try { logger.debug('[Tilesets] already registered, skipping', { mapId: map.id, key: parse.data.key }); } catch { }
+      try {
+        logger.debug('[Tilesets] already registered, skipping', { mapId: map.id, key: parse.data.key });
+      } catch {}
       const tilesets = await prisma.mapTileset.findMany({ where: { mapId: map.id }, orderBy: { slot: 'asc' } });
       res.json(tilesets);
       return;
@@ -49,14 +61,27 @@ export async function handleAddTileset(prisma: PrismaClient, req: express.Reques
     const last = await prisma.mapTileset.findFirst({ where: { mapId: map.id }, orderBy: { slot: 'desc' } });
     const newSlot = last ? last.slot + 1 : 0;
     await prisma.mapTileset.create({ data: { mapId: map.id, slot: newSlot, ...parse.data } });
-    try { logger.info('[Tilesets] registry add', { mapId: map.id, slot: newSlot, key: parse.data.key, url: parse.data.imageUrl }); } catch { }
+    try {
+      logger.info('[Tilesets] registry add', {
+        mapId: map.id,
+        slot: newSlot,
+        key: parse.data.key,
+        url: parse.data.imageUrl,
+      });
+    } catch {}
 
     const tilesets = await prisma.mapTileset.findMany({ where: { mapId: map.id }, orderBy: { slot: 'asc' } });
-    broadcastMapUpdate(tenant.slug, 'tileset_registry_updated', { mapId: map.id, mapName: map.name, tilesetRegistry: tilesets });
+    broadcastMapUpdate(tenant.slug, 'tileset_registry_updated', {
+      mapId: map.id,
+      mapName: map.name,
+      tilesetRegistry: tilesets,
+    });
     res.json({ tilesetRegistry: tilesets });
   } catch (e: unknown) {
     if (e && typeof e === 'object' && 'code' in e && e.code === 'P2002') {
-      try { logger.warn('[Tilesets] duplicate slot (race condition), returning current registry'); } catch { }
+      try {
+        logger.warn('[Tilesets] duplicate slot (race condition), returning current registry');
+      } catch {}
       try {
         const tenant = getTenantFromReq(req);
         if (tenant) {
@@ -67,44 +92,74 @@ export async function handleAddTileset(prisma: PrismaClient, req: express.Reques
             return;
           }
         }
-      } catch { }
+      } catch {}
     }
     logger.error('[Tilesets] add failed', e);
     res.status(500).json({ error: 'internal_error' });
   }
 }
 
-export async function handleEditorStateGet(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
+export async function handleEditorStateGet(
+  prisma: PrismaClient,
+  req: express.Request,
+  res: express.Response,
+): Promise<void> {
   const auth = await authenticateEditor(prisma, req);
-  if (!auth.ok) { res.status(401).json({ error: 'unauthorized' }); return; }
+  if (!auth.ok) {
+    res.status(401).json({ error: 'unauthorized' });
+    return;
+  }
   const tenant = getTenantFromReq(req);
-  if (!tenant) { res.status(400).json({ error: 'tenant_required' }); return; }
+  if (!tenant) {
+    res.status(400).json({ error: 'tenant_required' });
+    return;
+  }
   const map = await findMapById(prisma, pathParam(req, 'id'), tenant.id);
-  if (!map) { res.status(404).json({ error: 'map not found' }); return; }
+  if (!map) {
+    res.status(404).json({ error: 'map not found' });
+    return;
+  }
   const meta = (map.meta as any) || {};
-  try { logger.debug('[EditorState] GET', { mapId: map.id, tilesets: Array.isArray(meta.tilesets) ? meta.tilesets.length : 0 }); } catch { }
+  try {
+    logger.debug('[EditorState] GET', {
+      mapId: map.id,
+      tilesets: Array.isArray(meta.tilesets) ? meta.tilesets.length : 0,
+    });
+  } catch {}
   res.set('Cache-Control', 'no-store, max-age=0');
   res.json({
     tilesets: meta.tilesets ?? [],
     zones: await prisma.zone.findMany({
       where: { mapId: map.id },
-      select: { id: true, name: true, capacity: true, polygon: true, type: true, portalTarget: true, portalSpawnX: true, portalSpawnY: true },
+      select: {
+        id: true,
+        name: true,
+        capacity: true,
+        polygon: true,
+        type: true,
+        portalTarget: true,
+        portalSpawnX: true,
+        portalSpawnY: true,
+      },
     }),
     backgroundColor: typeof meta.backgroundColor === 'string' ? meta.backgroundColor : null,
-    spawn: (meta.spawn && typeof (meta.spawn as any).x === 'number' && typeof (meta.spawn as any).y === 'number') ? meta.spawn : null,
+    spawn: meta.spawn && typeof meta.spawn.x === 'number' && typeof meta.spawn.y === 'number' ? meta.spawn : null,
   });
 }
 
 const editorStateSchema = z.object({
   tilesets: z.array(z.any()).optional(),
   zones: z.array(z.any()).optional(),
-  backgroundColor: z.string().regex(/^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/).optional(),
+  backgroundColor: z
+    .string()
+    .regex(/^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/)
+    .optional(),
   replaceZones: z.boolean().optional(),
   spawn: z.object({ x: z.number(), y: z.number() }).optional(),
 });
 
 async function ensureLobbyRoom(prisma: PrismaClient, mapId: string, tenantId: string) {
-  let roomForZones = await prisma.room.findFirst({ where: { mapId }, orderBy: { createdAt: 'asc' } });
+  const roomForZones = await prisma.room.findFirst({ where: { mapId }, orderBy: { createdAt: 'asc' } });
   if (roomForZones) return roomForZones;
   const lobbyId = `${mapId}:lobby`;
   try {
@@ -116,7 +171,7 @@ async function ensureLobbyRoom(prisma: PrismaClient, mapId: string, tenantId: st
 
 function preparedZoneFromInput(z: any) {
   const zoneName = (z?.name || 'Zone').toString();
-  const anyZ: any = z as any;
+  const anyZ: any = z;
   const capacity = typeof anyZ?.capacity === 'number' ? anyZ.capacity : null;
   const zoneType = typeof anyZ?.type === 'string' ? anyZ.type : null;
   const portalTarget = typeof anyZ?.portalTarget === 'string' ? anyZ.portalTarget : null;
@@ -127,45 +182,82 @@ function preparedZoneFromInput(z: any) {
     if (Array.isArray(anyZ?.points)) polygon = anyZ.points;
     else if (Array.isArray(anyZ?.polygon)) polygon = anyZ.polygon;
     else if (anyZ?.polygon && Array.isArray(anyZ.polygon.points)) polygon = anyZ.polygon.points;
-  } catch { }
+  } catch {}
   if (Array.isArray(polygon) && polygon.length > 0) {
     return { name: zoneName, capacity, polygon, type: zoneType, portalTarget, portalSpawnX, portalSpawnY };
   }
   return null;
 }
 
-async function rebuildZones(prisma: PrismaClient, mapId: string, tenantId: string, roomId: string, zones: any[], replaceZones: boolean | undefined) {
+async function rebuildZones(
+  prisma: PrismaClient,
+  mapId: string,
+  tenantId: string,
+  roomId: string,
+  zones: any[],
+  replaceZones: boolean | undefined,
+) {
   const prepared: NonNullable<ReturnType<typeof preparedZoneFromInput>>[] = [];
   for (const z of zones) {
     const p = preparedZoneFromInput(z);
     if (p) prepared.push(p);
   }
-  const shouldUpdate = (zones.length === 0) || (prepared.length > 0) || (replaceZones === true);
+  const shouldUpdate = zones.length === 0 || prepared.length > 0 || replaceZones === true;
   if (!shouldUpdate) return;
   await prisma.zone.deleteMany({ where: { mapId } });
   for (const z of prepared) {
     await prisma.zone.create({
       data: {
-        name: z.name, capacity: z.capacity ?? undefined, polygon: z.polygon,
-        type: z.type ?? null, portalTarget: z.portalTarget ?? null,
-        portalSpawnX: z.portalSpawnX ?? null, portalSpawnY: z.portalSpawnY ?? null,
-        mapId, roomId, tenantId,
+        name: z.name,
+        capacity: z.capacity ?? undefined,
+        polygon: z.polygon,
+        type: z.type ?? null,
+        portalTarget: z.portalTarget ?? null,
+        portalSpawnX: z.portalSpawnX ?? null,
+        portalSpawnY: z.portalSpawnY ?? null,
+        mapId,
+        roomId,
+        tenantId,
       } as any,
     });
   }
 }
 
-export async function handleEditorStatePut(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
+export async function handleEditorStatePut(
+  prisma: PrismaClient,
+  req: express.Request,
+  res: express.Response,
+): Promise<void> {
   const auth = await authenticateEditor(prisma, req);
-  if (!auth.ok) { res.status(401).json({ error: 'unauthorized' }); return; }
+  if (!auth.ok) {
+    res.status(401).json({ error: 'unauthorized' });
+    return;
+  }
   const tenant = getTenantFromReq(req);
-  if (!tenant) { res.status(400).json({ error: 'tenant_required' }); return; }
+  if (!tenant) {
+    res.status(400).json({ error: 'tenant_required' });
+    return;
+  }
   const parse = editorStateSchema.safeParse(req.body || {});
-  if (!parse.success) { res.status(400).json({ error: 'invalid editor payload' }); return; }
+  if (!parse.success) {
+    res.status(400).json({ error: 'invalid editor payload' });
+    return;
+  }
   const { tilesets, zones, backgroundColor, replaceZones, spawn } = parse.data;
   const map = await findMapById(prisma, pathParam(req, 'id'), tenant.id);
-  if (!map) { res.status(404).json({ error: 'map not found' }); return; }
-  try { logger.debug('[EditorState] PUT', { mapId: map.id, mapName: map.name, tilesets: Array.isArray(tilesets) ? tilesets.length : undefined, zones: Array.isArray(zones) ? zones.length : undefined, spawn: !!spawn }); } catch { }
+  if (!map) {
+    res.status(404).json({ error: 'map not found' });
+    return;
+  }
+  try {
+    logger.debug('[EditorState] PUT', {
+      mapId: map.id,
+      mapName: map.name,
+      tilesets: Array.isArray(tilesets) ? tilesets.length : undefined,
+      zones: Array.isArray(zones) ? zones.length : undefined,
+      spawn: !!spawn,
+    });
+  } catch {}
 
   const roomForZones = await ensureLobbyRoom(prisma, map.id, tenant.id);
 
@@ -178,7 +270,7 @@ export async function handleEditorStatePut(prisma: PrismaClient, req: express.Re
         tilesets: tilesets ?? currentMeta.tilesets ?? [],
         backgroundColor: backgroundColor ?? currentMeta.backgroundColor ?? undefined,
         spawn: spawn ?? currentMeta.spawn ?? undefined,
-      } as any,
+      },
     },
   });
 
@@ -204,12 +296,7 @@ const resizeSchema = z.object({
   dryRun: z.boolean().optional(),
 });
 
-async function evaluateResizeImpact(
-  prisma: PrismaClient,
-  map: any,
-  width: number,
-  height: number,
-): Promise<string[]> {
+async function evaluateResizeImpact(prisma: PrismaClient, map: any, width: number, height: number): Promise<string[]> {
   const warnings: string[] = [];
   const oldWidth = map.width ?? 32;
   const oldHeight = map.height ?? 32;
@@ -225,7 +312,7 @@ async function evaluateResizeImpact(
     warnings.push(`${objectsOutside} object(s) will be outside the new map bounds`);
   }
 
-  const meta = (map.meta as any) || {};
+  const meta = map.meta || {};
   if (meta.spawn) {
     const tileWidth = map.tileWidth || 16;
     const tileHeight = map.tileHeight || 16;
@@ -256,17 +343,29 @@ async function evaluateResizeImpact(
 
 export async function handleResize(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
   const auth = await authenticateEditor(prisma, req);
-  if (!auth.ok) { res.status(401).json({ error: 'unauthorized' }); return; }
+  if (!auth.ok) {
+    res.status(401).json({ error: 'unauthorized' });
+    return;
+  }
   const tenant = getTenantFromReq(req);
-  if (!tenant) { res.status(400).json({ error: 'tenant_required' }); return; }
+  if (!tenant) {
+    res.status(400).json({ error: 'tenant_required' });
+    return;
+  }
 
   const parse = resizeSchema.safeParse(req.body || {});
-  if (!parse.success) { res.status(400).json({ error: 'invalid payload' }); return; }
+  if (!parse.success) {
+    res.status(400).json({ error: 'invalid payload' });
+    return;
+  }
   const { width, height, dryRun } = parse.data;
 
   try {
     const map = await findMapById(prisma, pathParam(req, 'id'), tenant.id);
-    if (!map) { res.status(404).json({ error: 'map not found' }); return; }
+    if (!map) {
+      res.status(404).json({ error: 'map not found' });
+      return;
+    }
 
     const oldWidth = map.width ?? 32;
     const oldHeight = map.height ?? 32;
@@ -278,8 +377,22 @@ export async function handleResize(prisma: PrismaClient, req: express.Request, r
     }
 
     await prisma.map.update({ where: { id: map.id }, data: { width, height } });
-    broadcastMapUpdate(tenant.slug, 'map_resized', { mapId: map.id, mapName: map.name, oldWidth, oldHeight, newWidth: width, newHeight: height });
-    logger.info('[Map] Resized', { mapId: map.id, mapName: map.name, oldWidth, oldHeight, newWidth: width, newHeight: height });
+    broadcastMapUpdate(tenant.slug, 'map_resized', {
+      mapId: map.id,
+      mapName: map.name,
+      oldWidth,
+      oldHeight,
+      newWidth: width,
+      newHeight: height,
+    });
+    logger.info('[Map] Resized', {
+      mapId: map.id,
+      mapName: map.name,
+      oldWidth,
+      oldHeight,
+      newWidth: width,
+      newHeight: height,
+    });
 
     res.json({ ok: true, warnings, oldWidth, oldHeight, newWidth: width, newHeight: height });
   } catch (e) {
@@ -292,12 +405,21 @@ const renameSchema = z.object({ newName: z.string().min(1).max(100).trim() });
 
 export async function handleRename(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
   const auth = await authenticateEditor(prisma, req);
-  if (!auth.ok) { res.status(401).json({ error: 'unauthorized' }); return; }
+  if (!auth.ok) {
+    res.status(401).json({ error: 'unauthorized' });
+    return;
+  }
   const tenant = getTenantFromReq(req);
-  if (!tenant) { res.status(400).json({ error: 'tenant_required' }); return; }
+  if (!tenant) {
+    res.status(400).json({ error: 'tenant_required' });
+    return;
+  }
 
   const parse = renameSchema.safeParse(req.body || {});
-  if (!parse.success) { res.status(400).json({ error: 'invalid payload' }); return; }
+  if (!parse.success) {
+    res.status(400).json({ error: 'invalid payload' });
+    return;
+  }
   const { newName } = parse.data;
 
   try {
@@ -342,18 +464,34 @@ export async function handleRename(prisma: PrismaClient, req: express.Request, r
 
     res.json({ ok: true, oldName, newName });
   } catch (e: any) {
-    if (e?.message === 'MAP_NOT_FOUND') { res.status(404).json({ error: 'map not found' }); return; }
-    if (e?.message === 'NAME_CONFLICT') { res.status(409).json({ error: 'A map with that name already exists' }); return; }
+    if (e?.message === 'MAP_NOT_FOUND') {
+      res.status(404).json({ error: 'map not found' });
+      return;
+    }
+    if (e?.message === 'NAME_CONFLICT') {
+      res.status(409).json({ error: 'A map with that name already exists' });
+      return;
+    }
     logger.error('[Map] rename failed', e);
     res.status(500).json({ error: 'internal_error' });
   }
 }
 
-export async function handleDeleteZones(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
+export async function handleDeleteZones(
+  prisma: PrismaClient,
+  req: express.Request,
+  res: express.Response,
+): Promise<void> {
   const authResult = await authenticateEditor(prisma, req);
-  if (!authResult.ok) { res.status(401).json({ error: 'unauthorized' }); return; }
+  if (!authResult.ok) {
+    res.status(401).json({ error: 'unauthorized' });
+    return;
+  }
   const tenant = getTenantFromReq(req);
-  if (!tenant) { res.status(400).json({ error: 'tenant_required' }); return; }
+  if (!tenant) {
+    res.status(400).json({ error: 'tenant_required' });
+    return;
+  }
   const membership = await requireMembership(req, authResult.auth.userId, prisma);
   if (!membership || (membership.role !== 'admin' && membership.role !== 'owner')) {
     res.status(403).json({ error: 'forbidden - admin required' });
@@ -364,7 +502,10 @@ export async function handleDeleteZones(prisma: PrismaClient, req: express.Reque
 
   try {
     const map = await findMapById(prisma, pathParam(req, 'id'), tenant.id);
-    if (!map) { res.status(404).json({ error: 'map not found' }); return; }
+    if (!map) {
+      res.status(404).json({ error: 'map not found' });
+      return;
+    }
 
     let deleted = 0;
     if (zoneId) {
@@ -386,27 +527,42 @@ export async function handleDeleteZones(prisma: PrismaClient, req: express.Reque
   }
 }
 
-export async function handleListMapZones(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
+export async function handleListMapZones(
+  prisma: PrismaClient,
+  req: express.Request,
+  res: express.Response,
+): Promise<void> {
   const auth = await authenticateEditor(prisma, req);
-  if (!auth.ok) { res.status(401).json({ error: 'unauthorized' }); return; }
+  if (!auth.ok) {
+    res.status(401).json({ error: 'unauthorized' });
+    return;
+  }
   const tenant = getTenantFromReq(req);
-  if (!tenant) { res.status(400).json({ error: 'tenant_required' }); return; }
+  if (!tenant) {
+    res.status(400).json({ error: 'tenant_required' });
+    return;
+  }
 
   try {
     const map = await findMapById(prisma, pathParam(req, 'id'), tenant.id);
-    if (!map) { res.status(404).json({ error: 'map not found' }); return; }
+    if (!map) {
+      res.status(404).json({ error: 'map not found' });
+      return;
+    }
 
     const zones = await prisma.zone.findMany({ where: { mapId: map.id } });
-    res.json(zones.map(z => ({
-      id: z.id,
-      name: z.name,
-      capacity: z.capacity,
-      polygon: z.polygon,
-      type: z.type,
-      portalTarget: z.portalTarget,
-      portalSpawnX: z.portalSpawnX,
-      portalSpawnY: z.portalSpawnY,
-    })));
+    res.json(
+      zones.map((z) => ({
+        id: z.id,
+        name: z.name,
+        capacity: z.capacity,
+        polygon: z.polygon,
+        type: z.type,
+        portalTarget: z.portalTarget,
+        portalSpawnX: z.portalSpawnX,
+        portalSpawnY: z.portalSpawnY,
+      })),
+    );
   } catch (e) {
     logger.error('[Zones] List failed', e);
     res.status(500).json({ error: 'list failed' });

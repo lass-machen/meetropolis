@@ -13,13 +13,7 @@ interface EmailVerifyPageProps {
 
 function CheckCircleIcon() {
   return (
-    <svg
-      width="48"
-      height="48"
-      viewBox="0 0 48 48"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-    >
+    <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
       <circle cx="24" cy="24" r="24" fill="var(--pub-icon-bg-teal)" />
       <path
         d="M16 24L22 30L32 18"
@@ -34,13 +28,7 @@ function CheckCircleIcon() {
 
 function XCircleIcon() {
   return (
-    <svg
-      width="48"
-      height="48"
-      viewBox="0 0 48 48"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-    >
+    <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
       <circle cx="24" cy="24" r="24" fill="var(--pub-icon-bg-red)" />
       <path
         d="M18 18L30 30M30 18L18 30"
@@ -63,13 +51,7 @@ function Spinner() {
       xmlns="http://www.w3.org/2000/svg"
       style={{ animation: 'pub-spin 1s linear infinite' }}
     >
-      <circle
-        cx="24"
-        cy="24"
-        r="20"
-        stroke="var(--pub-border-light)"
-        strokeWidth="4"
-      />
+      <circle cx="24" cy="24" r="20" stroke="var(--pub-border-light)" strokeWidth="4" />
       <path
         d="M44 24C44 12.954 35.046 4 24 4"
         stroke="var(--pub-accent-purple)"
@@ -124,7 +106,7 @@ function useEmailVerify({ token, apiBase, onSuccess }: UseEmailVerifyArgs) {
       }
     };
 
-    verify();
+    void verify();
   }, [token, apiBase, onSuccess, t]);
 
   return { status, message };
@@ -150,10 +132,7 @@ function SuccessState() {
       <h2 className="pub-text-h4" style={{ margin: 0 }}>
         {t('verify.successTitle')}
       </h2>
-      <p
-        className="pub-text-body"
-        style={{ color: 'var(--pub-text-secondary)', margin: 0 }}
-      >
+      <p className="pub-text-body" style={{ color: 'var(--pub-text-secondary)', margin: 0 }}>
         {t('verify.successText')}
       </p>
     </>
@@ -168,10 +147,7 @@ function ErrorState({ message, onBack }: { message: string; onBack: () => void }
       <h2 className="pub-text-h4" style={{ margin: 0 }}>
         {t('verify.errorTitle')}
       </h2>
-      <p
-        className="pub-text-body"
-        style={{ color: 'var(--pub-text-secondary)', margin: 0 }}
-      >
+      <p className="pub-text-body" style={{ color: 'var(--pub-text-secondary)', margin: 0 }}>
         {message}
       </p>
       <PubButton variant="primary" onClick={onBack} style={{ marginTop: 8 }}>
@@ -200,12 +176,7 @@ const VERIFY_WRAPPER_STYLE: React.CSSProperties = {
   padding: 'var(--pub-section-padding)',
 };
 
-export function EmailVerifyPage({
-  token,
-  apiBase,
-  onSuccess,
-  onBack,
-}: EmailVerifyPageProps) {
+export function EmailVerifyPage({ token, apiBase, onSuccess, onBack }: EmailVerifyPageProps) {
   const { status, message } = useEmailVerify({ token, apiBase, onSuccess });
 
   const navigate = (route: string) => {
@@ -213,11 +184,7 @@ export function EmailVerifyPage({
   };
 
   return (
-    <PublicLayout
-      onLogin={() => navigate('app')}
-      onSignup={() => navigate('register')}
-      navigate={navigate}
-    >
+    <PublicLayout onLogin={() => navigate('app')} onSignup={() => navigate('register')} navigate={navigate}>
       <style>{`
         @keyframes pub-spin {
           from { transform: rotate(0deg); }

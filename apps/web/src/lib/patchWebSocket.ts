@@ -27,10 +27,11 @@ if (needsPatch) {
   const OriginalWebSocket = globalThis.WebSocket;
 
   if (OriginalWebSocket) {
-    // @ts-ignore - we're patching the global WebSocket
+    // Patch the global WebSocket constructor at runtime. TS sees the assignment
+    // as fine because PatchedWebSocket is structurally compatible.
     globalThis.WebSocket = function PatchedWebSocket(
       url: string,
-      protocols?: string | string[] | Record<string, unknown>
+      protocols?: string | string[] | Record<string, unknown>,
     ): WebSocket {
       // If protocols is an object (not array, not string), handle it
       if (protocols && typeof protocols === 'object' && !Array.isArray(protocols)) {
@@ -44,7 +45,7 @@ if (needsPatch) {
         }
       }
       // Normal case - pass through
-      return new OriginalWebSocket(url, protocols as string | string[] | undefined);
+      return new OriginalWebSocket(url, protocols);
     } as any;
 
     // Copy static properties

@@ -8,10 +8,16 @@ export async function wrapTrackWithVoiceIsolation(inputTrack: MediaStreamTrack):
 
   const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
   const onInputEnded = () => {
-    try { audioContext.close(); } catch {}
-    try { inputTrack.removeEventListener('ended', onInputEnded); } catch {}
+    try {
+      void audioContext.close();
+    } catch {}
+    try {
+      inputTrack.removeEventListener('ended', onInputEnded);
+    } catch {}
   };
-  try { inputTrack.addEventListener('ended', onInputEnded); } catch {}
+  try {
+    inputTrack.addEventListener('ended', onInputEnded);
+  } catch {}
 
   const mediaStream = new MediaStream([inputTrack]);
   const source = audioContext.createMediaStreamSource(mediaStream);
@@ -28,11 +34,11 @@ export async function wrapTrackWithVoiceIsolation(inputTrack: MediaStreamTrack):
 
   const rnnoise = new (window as any).AudioWorkletNode(audioContext, 'rnnoise-processor');
   try {
-    (rnnoise as any).parameters.get('threshold')?.setValueAtTime(-56, audioContext.currentTime);
-    (rnnoise as any).parameters.get('ratio')?.setValueAtTime(0.25, audioContext.currentTime);
-    (rnnoise as any).parameters.get('attackMs')?.setValueAtTime(10, audioContext.currentTime);
-    (rnnoise as any).parameters.get('releaseMs')?.setValueAtTime(100, audioContext.currentTime);
-    (rnnoise as any).parameters.get('makeupGainDb')?.setValueAtTime(0, audioContext.currentTime);
+    rnnoise.parameters.get('threshold')?.setValueAtTime(-56, audioContext.currentTime);
+    rnnoise.parameters.get('ratio')?.setValueAtTime(0.25, audioContext.currentTime);
+    rnnoise.parameters.get('attackMs')?.setValueAtTime(10, audioContext.currentTime);
+    rnnoise.parameters.get('releaseMs')?.setValueAtTime(100, audioContext.currentTime);
+    rnnoise.parameters.get('makeupGainDb')?.setValueAtTime(0, audioContext.currentTime);
   } catch {}
 
   const limiter = audioContext.createDynamicsCompressor();
@@ -46,14 +52,14 @@ export async function wrapTrackWithVoiceIsolation(inputTrack: MediaStreamTrack):
   const destination = audioContext.createMediaStreamDestination();
 
   source.connect(highpass);
-  highpass.connect(rnnoise as any);
-  (rnnoise as any).connect(limiter);
+  highpass.connect(rnnoise);
+  rnnoise.connect(limiter);
   limiter.connect(destination);
 
   const processed = destination.stream.getAudioTracks()[0];
   // Ensure mono speech hint when supported
-  try { if ('contentHint' in processed) (processed as any).contentHint = 'speech'; } catch {}
+  try {
+    if ('contentHint' in processed) (processed as any).contentHint = 'speech';
+  } catch {}
   return processed;
 }
-
-
