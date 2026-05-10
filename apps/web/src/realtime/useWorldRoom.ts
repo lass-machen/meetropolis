@@ -2,6 +2,7 @@ import React from 'react';
 import { logger } from '../lib/logger';
 import type { UseWorldRoomArgs, ConnectionRefs } from './types';
 import type { ApiPresence } from '../features/participants/presence';
+import type { WorldRoom } from '../types/colyseus';
 import { useColyseusConnection } from './hooks/useColyseusConnection';
 import { setupPlayerHandlers } from './handlers/playerHandlers';
 import { setupBubbleHandlers } from './handlers/bubbleHandlers';
@@ -30,39 +31,74 @@ type EffectScope = {
 function makeScheduleBuildParticipantList(scope: EffectScope, buildParticipantList: () => void) {
   return (delay: number = 100) => {
     if (scope.buildListTimer || scope.buildListRaf !== null) return;
-    scope.buildListTimer = setTimeout(() => {
-      scope.buildListTimer = null;
-      scope.buildListRaf = requestAnimationFrame(() => {
-        scope.buildListRaf = null;
-        try { buildParticipantList(); } catch {}
-      });
-    }, Math.max(0, delay));
+    scope.buildListTimer = setTimeout(
+      () => {
+        scope.buildListTimer = null;
+        scope.buildListRaf = requestAnimationFrame(() => {
+          scope.buildListRaf = null;
+          try {
+            buildParticipantList();
+          } catch {}
+        });
+      },
+      Math.max(0, delay),
+    );
   };
 }
 
 function makeScheduleRefreshRosterFromRemotes(scope: EffectScope, refreshRosterFromRemotes: () => void) {
   return (delay: number = 0) => {
     if (scope.rosterTimer || scope.rosterRaf !== null) return;
-    scope.rosterTimer = setTimeout(() => {
-      scope.rosterTimer = null;
-      scope.rosterRaf = requestAnimationFrame(() => {
-        scope.rosterRaf = null;
-        try { refreshRosterFromRemotes(); } catch {}
-      });
-    }, Math.max(0, delay));
+    scope.rosterTimer = setTimeout(
+      () => {
+        scope.rosterTimer = null;
+        scope.rosterRaf = requestAnimationFrame(() => {
+          scope.rosterRaf = null;
+          try {
+            refreshRosterFromRemotes();
+          } catch {}
+        });
+      },
+      Math.max(0, delay),
+    );
   };
 }
 
 function clearEffectScope(scope: EffectScope): void {
-  if (scope.buildListTimer) { try { clearTimeout(scope.buildListTimer); } catch {} scope.buildListTimer = null; }
-  if (scope.buildListRaf !== null) { try { cancelAnimationFrame(scope.buildListRaf); } catch {} scope.buildListRaf = null; }
-  if (scope.rosterTimer) { try { clearTimeout(scope.rosterTimer); } catch {} scope.rosterTimer = null; }
-  if (scope.rosterRaf !== null) { try { cancelAnimationFrame(scope.rosterRaf); } catch {} scope.rosterRaf = null; }
-  if (scope.heartbeatInterval) { try { clearInterval(scope.heartbeatInterval); } catch {} scope.heartbeatInterval = null; }
+  if (scope.buildListTimer) {
+    try {
+      clearTimeout(scope.buildListTimer);
+    } catch {}
+    scope.buildListTimer = null;
+  }
+  if (scope.buildListRaf !== null) {
+    try {
+      cancelAnimationFrame(scope.buildListRaf);
+    } catch {}
+    scope.buildListRaf = null;
+  }
+  if (scope.rosterTimer) {
+    try {
+      clearTimeout(scope.rosterTimer);
+    } catch {}
+    scope.rosterTimer = null;
+  }
+  if (scope.rosterRaf !== null) {
+    try {
+      cancelAnimationFrame(scope.rosterRaf);
+    } catch {}
+    scope.rosterRaf = null;
+  }
+  if (scope.heartbeatInterval) {
+    try {
+      clearInterval(scope.heartbeatInterval);
+    } catch {}
+    scope.heartbeatInterval = null;
+  }
 }
 
 type SetupRoomHandlersArgs = {
-  room: any;
+  room: WorldRoom;
   scope: EffectScope;
   args: UseWorldRoomArgs;
   hasReceivedFullStateRef: React.MutableRefObject<boolean>;
@@ -75,10 +111,29 @@ type SetupRoomHandlersArgs = {
 };
 
 function setupRoomHandlers(setup: SetupRoomHandlersArgs): void {
-  const { room, scope, args, hasReceivedFullStateRef, recentPresenceRef,
-    scheduleBuildParticipantList, scheduleRefreshRosterFromRemotes,
-    handleError, handleLeave, attemptConnect } = setup;
-  const { apiBase, me, avRef, colyseusRef, localPosRef, colyseusToLivekitMap, identityToNameMap, gameBridge, setRoster } = args;
+  const {
+    room,
+    scope,
+    args,
+    hasReceivedFullStateRef,
+    recentPresenceRef,
+    scheduleBuildParticipantList,
+    scheduleRefreshRosterFromRemotes,
+    handleError,
+    handleLeave,
+    attemptConnect,
+  } = setup;
+  const {
+    apiBase,
+    me,
+    avRef,
+    colyseusRef,
+    localPosRef,
+    colyseusToLivekitMap,
+    identityToNameMap,
+    gameBridge,
+    setRoster,
+  } = args;
   if (!me) return;
 
   // Session conflict detection — registered first so the message is caught before any other setup.
@@ -88,7 +143,12 @@ function setupRoomHandlers(setup: SetupRoomHandlersArgs): void {
 
   // Server restart notification — show overlay and auto-reload when server is back.
   room.onMessage('server_restart', () => {
-    showServerRestartDialog({ apiBase, onRestartDetected: () => { scope.disposed = true; } });
+    showServerRestartDialog({
+      apiBase,
+      onRestartDetected: () => {
+        scope.disposed = true;
+      },
+    });
   });
 
   const localLivekitIdentity = avRef.current?.room?.localParticipant?.identity || me.id;
@@ -97,13 +157,23 @@ function setupRoomHandlers(setup: SetupRoomHandlersArgs): void {
   // Ensure local user's display name is in identityToNameMap so UserCard shows name, not UUID
   identityToNameMap.current[localLivekitIdentity] = me.name || me.email || me.id;
   localPosRef.current.id = colyseusSessionId;
-  if (typeof window !== 'undefined') { (window as any).__localSessionId = colyseusSessionId; }
+  if (typeof window !== 'undefined') {
+    (window as any).__localSessionId = colyseusSessionId;
+  }
 
   // Connect ZoneManager to Colyseus room for portal support
-  try { args.zoneRef?.current?.setRoom?.(room); } catch (e) { logger.error('Failed to set room on ZoneManager', e); }
+  try {
+    args.zoneRef?.current?.setRoom?.(room);
+  } catch (e) {
+    logger.error('Failed to set room on ZoneManager', e);
+  }
 
   // Force full map reload on join/reconnect to ensure consistency
-  try { gameBridge.forceReloadMap?.(); } catch (e) { logger.error('Failed to force reload map on join', e); }
+  try {
+    gameBridge.forceReloadMap?.();
+  } catch (e) {
+    logger.error('Failed to force reload map on join', e);
+  }
 
   // Vor neuem Session-Lauf evtl. hängende Handles räumen und zurücksetzen
   clearEffectScope(scope);
@@ -120,7 +190,9 @@ function setupRoomHandlers(setup: SetupRoomHandlersArgs): void {
 
   // Setup all message handlers
   setupPlayerHandlers(room, args, scheduleBuildParticipantList, scheduleRefreshRosterFromRemotes, {
-    onFullStateReceived: () => { hasReceivedFullStateRef.current = true; },
+    onFullStateReceived: () => {
+      hasReceivedFullStateRef.current = true;
+    },
   });
   setupBubbleHandlers(room, args);
   setupEditorHandlers(room, args, scheduleBuildParticipantList);
@@ -142,15 +214,30 @@ function setupRoomHandlers(setup: SetupRoomHandlersArgs): void {
   });
 }
 
-function performCleanup(scope: EffectScope, args: UseWorldRoomArgs, reconnectTimerRef: React.MutableRefObject<ReturnType<typeof setTimeout> | null>): void {
+function performCleanup(
+  scope: EffectScope,
+  args: UseWorldRoomArgs,
+  reconnectTimerRef: React.MutableRefObject<ReturnType<typeof setTimeout> | null>,
+): void {
   scope.disposed = true;
-  try { if (args.disposedRef) args.disposedRef.current = true; } catch {}
-  try { args.setConnectionStatus?.({ reconnecting: false }); } catch {}
   try {
-    const room: any = args.colyseusRef.current;
-    const wsReadyState = room?.connection?.ws?.readyState ?? room?.connection?.transport?.ws?.readyState ?? room?.connection?._transport?.ws?.readyState;
-    const isOpen = room?.connection?.isOpen === true || wsReadyState === 1;
-    if (isOpen) room.leave();
+    if (args.disposedRef) args.disposedRef.current = true;
+  } catch {}
+  try {
+    args.setConnectionStatus?.({ reconnecting: false });
+  } catch {}
+  try {
+    const room = args.colyseusRef.current;
+    type ConnectionInternals = {
+      ws?: WebSocket;
+      transport?: { ws?: WebSocket };
+      _transport?: { ws?: WebSocket };
+      isOpen?: boolean;
+    };
+    const conn = room?.connection as unknown as ConnectionInternals | undefined;
+    const wsReadyState = conn?.ws?.readyState ?? conn?.transport?.ws?.readyState ?? conn?._transport?.ws?.readyState;
+    const isOpen = conn?.isOpen === true || wsReadyState === 1;
+    if (isOpen && room) void room.leave();
   } catch {}
   clearEffectScope(scope);
   if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
@@ -192,7 +279,9 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
       heartbeatInterval: null,
       disposed: false,
     };
-    try { if (args.disposedRef) args.disposedRef.current = false; } catch {}
+    try {
+      if (args.disposedRef) args.disposedRef.current = false;
+    } catch {}
 
     // Präsenz (zuletzt online) – lokaler Cache im Effekt-Scope
     const recentPresenceRef = { current: [] as ApiPresence[] };
@@ -201,7 +290,7 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
     const scheduleRefreshRosterFromRemotes = makeScheduleRefreshRosterFromRemotes(scope, refreshRosterFromRemotes);
 
     const attemptConnect = async () => {
-      const result = await connect(scope.disposed, (room: any) => {
+      const result = await connect(scope.disposed, (room: WorldRoom) => {
         setupRoomHandlers({
           room,
           scope,

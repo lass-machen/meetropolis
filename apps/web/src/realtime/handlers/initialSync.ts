@@ -10,9 +10,10 @@
 import type { UseWorldRoomArgs } from '../types';
 import { useMapStore } from '../../state/mapStore';
 import { passesMapFilter } from './mapFilter';
+import type { WorldRoom } from '../../types/colyseus';
 
 interface ForceInitialSyncDeps {
-  room: any;
+  room: WorldRoom;
   args: UseWorldRoomArgs;
   scheduleBuildParticipantList: (delay: number) => void;
   scheduleRefreshRosterFromRemotes: (delay: number) => void;
@@ -25,9 +26,7 @@ export function forceInitialPlayerSync(deps: ForceInitialSyncDeps): void {
     if (!room.state?.players) return;
 
     try {
-      const local = typeof room.state.players.get === 'function'
-        ? room.state.players.get(room.sessionId)
-        : undefined;
+      const local = typeof room.state.players.get === 'function' ? room.state.players.get(room.sessionId) : undefined;
       if (local?.mapId && local.mapName) {
         const mapState = useMapStore.getState();
         if (!mapState.currentMapId || mapState.currentMapId !== local.mapId) {
@@ -42,9 +41,14 @@ export function forceInitialPlayerSync(deps: ForceInitialSyncDeps): void {
       if (key === room.sessionId) return;
       if (!passesMapFilter(value.mapName, currentMap)) return;
       players[key] = {
-        x: value.x, y: value.y, direction: value.direction,
-        name: value.name, dnd: value.dnd, avatarId: value.avatarId,
-        isNpc: value.isNpc, identity: value.identity
+        x: value.x,
+        y: value.y,
+        direction: value.direction,
+        name: value.name,
+        dnd: value.dnd,
+        avatarId: value.avatarId,
+        isNpc: value.isNpc,
+        identity: value.identity,
       };
       if (value.identity && value.name) identityToNameMap.current[value.identity] = value.name;
       if (value.identity) colyseusToLivekitMap.current[key] = value.identity;
@@ -60,13 +64,16 @@ export function forceInitialPlayerSync(deps: ForceInitialSyncDeps): void {
         const livekitIdentity = p.identity || colyseusToLivekitMap.current[id] || id;
         const name = identityToNameMap.current[livekitIdentity] || p.name || livekitIdentity;
         return [id, { ...p, name, identity: livekitIdentity }];
-      })
+      }),
     );
 
     if (Object.keys(filtered).length > 0) {
       gameBridge.syncRemotePlayers(filtered);
       args.remotesRef.current = Object.fromEntries(
-        Object.entries(filtered).map(([id, p]: [string, any]) => [id, { x: p.x, y: p.y, dnd: p.dnd, avatarId: p.avatarId }])
+        Object.entries(filtered).map(([id, p]: [string, any]) => [
+          id,
+          { x: p.x, y: p.y, dnd: p.dnd, avatarId: p.avatarId },
+        ]),
       );
       scheduleBuildParticipantList(0);
       scheduleRefreshRosterFromRemotes(0);

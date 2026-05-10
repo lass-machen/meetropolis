@@ -1,9 +1,10 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useZoneLockStore } from '../../state/zoneLockStore';
+import type { WorldRoom } from '../../types/colyseus';
 
 interface ZoneAccessPanelProps {
-  colyseusRef: React.RefObject<any>;
+  colyseusRef: React.RefObject<WorldRoom | null>;
   mySessionId: string;
   currentZone?: string | undefined;
 }
@@ -11,11 +12,11 @@ interface ZoneAccessPanelProps {
 export const ZoneAccessPanel = React.memo(function ZoneAccessPanel(props: ZoneAccessPanelProps) {
   const { colyseusRef, mySessionId, currentZone } = props;
   const { t } = useTranslation();
-  const locks = useZoneLockStore(s => s.locks);
+  const locks = useZoneLockStore((s) => s.locks);
 
   // Finde Lock für aktuelle Zone, wo wir Zugang haben
   const currentLock = currentZone
-    ? locks.find(l => l.zoneName === currentZone && l.accessList.includes(mySessionId))
+    ? locks.find((l) => l.zoneName === currentZone && l.accessList.includes(mySessionId))
     : undefined;
 
   const pendingRequests = currentLock?.pendingRequests || [];
@@ -33,34 +34,39 @@ export const ZoneAccessPanel = React.memo(function ZoneAccessPanel(props: ZoneAc
   };
 
   return (
-    <div style={{
-      position: 'absolute',
-      top: 60,
-      left: 12,
-      background: 'var(--panel-bg)',
-      color: 'var(--panel-fg)',
-      padding: '10px 14px',
-      borderRadius: 'var(--radius-sm, 8px)',
-      fontSize: 11,
-      backdropFilter: 'blur(12px)',
-      border: '1px solid rgba(255,255,255,0.12)',
-      boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
-      zIndex: 31,
-      minWidth: 180,
-      maxWidth: 260,
-    }}>
+    <div
+      style={{
+        position: 'absolute',
+        top: 60,
+        left: 12,
+        background: 'var(--panel-bg)',
+        color: 'var(--panel-fg)',
+        padding: '10px 14px',
+        borderRadius: 'var(--radius-sm, 8px)',
+        fontSize: 11,
+        backdropFilter: 'blur(12px)',
+        border: '1px solid rgba(255,255,255,0.12)',
+        boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
+        zIndex: 31,
+        minWidth: 180,
+        maxWidth: 260,
+      }}
+    >
       <div style={{ fontWeight: 600, marginBottom: 6, fontSize: 12 }}>
         {t('zoneLock.accessRequests', 'Zugriffsanfragen')}
       </div>
       {pendingRequests.map((req) => (
-        <div key={req.sessionId} style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 8,
-          padding: '4px 0',
-          borderTop: '1px solid rgba(255,255,255,0.06)',
-        }}>
+        <div
+          key={req.sessionId}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 8,
+            padding: '4px 0',
+            borderTop: '1px solid rgba(255,255,255,0.06)',
+          }}
+        >
           <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {req.name}
           </span>

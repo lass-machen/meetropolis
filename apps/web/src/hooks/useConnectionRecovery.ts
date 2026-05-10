@@ -7,6 +7,7 @@
 
 import React from 'react';
 import { logger } from '../lib/logger';
+import type { WorldRoom } from '../types/colyseus';
 
 interface HealthCheckContext {
   apiBase: string;
@@ -140,7 +141,7 @@ export function useServerHealthCheck(options: {
  */
 export function useConnectionRecovery(options: {
   enabled: boolean;
-  colyseusRef: React.MutableRefObject<any>;
+  colyseusRef: React.MutableRefObject<WorldRoom | null>;
   onConnectionLost?: () => void;
   onConnectionRestored?: () => void;
 }) {
@@ -159,10 +160,18 @@ export function useConnectionRecovery(options: {
         return;
       }
 
-      // Prüfe WebSocket-Status
-      const ws = room?.connection?.ws ?? room?.connection?.transport?.ws ?? room?.connection?._transport?.ws;
+      // Prüfe WebSocket-Status. `connection.ws`/`_transport` sind Colyseus-Interna,
+      // nicht im public Typing — narrow cast statt globalem any.
+      type ConnectionInternals = {
+        ws?: WebSocket;
+        transport?: { ws?: WebSocket };
+        _transport?: { ws?: WebSocket };
+        isOpen?: boolean;
+      };
+      const conn = room.connection as unknown as ConnectionInternals;
+      const ws = conn.ws ?? conn.transport?.ws ?? conn._transport?.ws;
       const wsReady = ws?.readyState;
-      const isOpen = room?.connection?.isOpen === true || wsReady === 1;
+      const isOpen = conn.isOpen === true || wsReady === 1;
 
       if (!isOpen && isConnected) {
         // Verbindung verloren

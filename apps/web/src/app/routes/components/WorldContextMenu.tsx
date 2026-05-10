@@ -1,4 +1,5 @@
 import React from 'react';
+import type { WorldRoom } from '../../../types/colyseus';
 
 interface WorldContextMenuProps {
   contextMenu: { open: boolean; x: number; y: number; playerId: string | null };
@@ -7,7 +8,7 @@ interface WorldContextMenuProps {
   bubbleGroupsRef: React.RefObject<Record<string, string>>;
   followRef: React.RefObject<any>;
   gameBridge: any;
-  colyseusRef: React.RefObject<any>;
+  colyseusRef: React.RefObject<WorldRoom | null>;
   bubbleStartRef: React.RefObject<null | ((id: string) => void)>;
 }
 

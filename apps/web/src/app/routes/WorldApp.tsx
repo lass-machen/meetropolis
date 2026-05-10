@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from 'react';
+import type { WorldRoom } from '../../types/colyseus';
 import { gameBridge } from '../../game/bridge';
 import { getApiBaseFromWindow } from '../../lib/runtimeConfig';
 import { logger } from '../../lib/logger';
@@ -18,7 +19,7 @@ import { useWorldAppCore } from './hooks/useWorldAppCore';
 function useWorldRefs() {
   return {
     containerRef: useRef<HTMLDivElement>(null!),
-    colyseusRef: useRef<any>(null),
+    colyseusRef: useRef<WorldRoom | null>(null),
     colyseusReconnectTimerRef: useRef<any>(null),
     avRef: useRef<any>(null),
     bubbleRef: useRef<BubbleManager | null>(null),
@@ -286,7 +287,7 @@ function useEscapeHandlers(
   }, [selectedSid, setSelectedSid, setOverlayZoom]);
 }
 
-async function saveAllToServerImpl(apiBase: string, editor: any, colyseusRef: React.RefObject<any>) {
+async function saveAllToServerImpl(apiBase: string, editor: any, colyseusRef: React.RefObject<WorldRoom | null>) {
   try {
     const currentState = EditorService.getState();
     const tilesets = currentState.tilesets || editor.tilesets || [];

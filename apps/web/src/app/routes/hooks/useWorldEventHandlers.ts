@@ -1,11 +1,12 @@
 import { useCallback, useMemo } from 'react';
 import { logger } from '../../../lib/logger';
 import { EditorService } from '../../../services/EditorService';
+import type { WorldRoom } from '../../../types/colyseus';
 
 interface UseWorldEventHandlersParams {
   apiBase: string;
   avRef: React.RefObject<any>;
-  colyseusRef: React.RefObject<any>;
+  colyseusRef: React.RefObject<WorldRoom | null>;
   localPosRef: React.RefObject<{ id: string; x?: number; y?: number }>;
   bubbleGroupsRef: React.RefObject<Record<string, string>>;
   bubbleMembersRef: React.RefObject<Set<string>>;

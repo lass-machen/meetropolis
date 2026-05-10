@@ -1,10 +1,11 @@
 import { mergeRecentPresence, type ApiPresence } from '../../features/participants/presence';
 import type { UseWorldRoomArgs } from '../types';
+import type { WorldRoom } from '../../types/colyseus';
 
 export function setupPresenceHandlers(
-  room: any,
+  room: WorldRoom,
   args: UseWorldRoomArgs,
-  recentPresenceRef: { current: ApiPresence[] }
+  recentPresenceRef: { current: ApiPresence[] },
 ) {
   const { rosterByIdentityRef, setRoster } = args;
 
@@ -20,7 +21,7 @@ export function setupPresenceHandlers(
   room.onMessage('presence_update', (p: ApiPresence) => {
     try {
       const list = Array.isArray(recentPresenceRef.current) ? [...recentPresenceRef.current] : [];
-      const idx = list.findIndex(x => String(x.userId) === String((p as any)?.userId));
+      const idx = list.findIndex((x) => String(x.userId) === String((p as any)?.userId));
       if (idx >= 0) list[idx] = { ...list[idx], ...p, updatedAt: p.updatedAt || new Date().toISOString() };
       else list.push({ ...p, updatedAt: p.updatedAt || new Date().toISOString() });
       recentPresenceRef.current = list;
@@ -49,27 +50,47 @@ export function createRosterRefresher(args: UseWorldRoomArgs) {
         }
       } catch {}
       rosterByIdentityRef.current = online;
-      setRoster(prev => {
-        const map = new Map<string, { identity: string; name: string; online: boolean; x?: number; y?: number; lastSeen?: string }>();
+      setRoster((prev) => {
+        const map = new Map<
+          string,
+          { identity: string; name: string; online: boolean; x?: number; y?: number; lastSeen?: string }
+        >();
         for (const r of prev) map.set(r.identity, { ...r, online: false });
         for (const [ident, v] of Object.entries(online)) {
           if (map.has(ident)) {
-            map.set(ident, { ...(map.get(ident) as any), name: (v as any).name, online: true, x: (v as any).x, y: (v as any).y });
+            map.set(ident, {
+              ...(map.get(ident) as any),
+              name: (v as any).name,
+              online: true,
+              x: (v as any).x,
+              y: (v as any).y,
+            });
           } else {
             // Fallback: match by display name to avoid duplicates when identities diverge
             let matchedKey: string | undefined;
             for (const [k, val] of map.entries()) {
-              if ((val.name || '').toLowerCase() === ((v as any).name || '').toLowerCase()) { matchedKey = k; break; }
+              if ((val.name || '').toLowerCase() === ((v as any).name || '').toLowerCase()) {
+                matchedKey = k;
+                break;
+              }
             }
             if (matchedKey) {
               const cur = map.get(matchedKey)!;
               map.set(matchedKey, { ...cur, online: true, x: (v as any).x, y: (v as any).y });
             } else {
-              map.set(ident, { identity: ident, name: (v as any).name, online: true, x: (v as any).x, y: (v as any).y });
+              map.set(ident, {
+                identity: ident,
+                name: (v as any).name,
+                online: true,
+                x: (v as any).x,
+                y: (v as any).y,
+              });
             }
           }
         }
-        return Array.from(map.values()).sort((a, b) => Number(b.online) - Number(a.online) || a.name.localeCompare(b.name));
+        return Array.from(map.values()).sort(
+          (a, b) => Number(b.online) - Number(a.online) || a.name.localeCompare(b.name),
+        );
       });
     } catch {}
   };

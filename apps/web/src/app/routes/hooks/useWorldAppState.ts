@@ -5,11 +5,12 @@ import { FollowManager } from '../../../game/followManager';
 import { ZoneManager } from '../../../game/zoneManager';
 import { VolumeManager } from '../../../game/volumeManager';
 import { getDisplayName as getDisplayNameLib } from '../../../lib/displayName';
+import type { WorldRoom } from '../../../types/colyseus';
 
 export interface WorldAppState {
   // Refs
   containerRef: React.RefObject<HTMLDivElement | null>;
-  colyseusRef: React.RefObject<any>;
+  colyseusRef: React.RefObject<WorldRoom | null>;
   colyseusReconnectTimerRef: React.RefObject<any>;
   avRef: React.RefObject<AVManager | null>;
   bubbleRef: React.RefObject<BubbleManager | null>;
@@ -174,7 +175,7 @@ export interface WorldAppState {
 function useWorldRefs() {
   return {
     containerRef: useRef<HTMLDivElement | null>(null),
-    colyseusRef: useRef<any>(null),
+    colyseusRef: useRef<WorldRoom | null>(null),
     colyseusReconnectTimerRef: useRef<any>(null),
     avRef: useRef<AVManager | null>(null),
     bubbleRef: useRef<BubbleManager | null>(null),

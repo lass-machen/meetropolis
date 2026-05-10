@@ -1,6 +1,7 @@
 import { Client, Room } from '@colyseus/sdk';
 import { logger } from './logger';
 import { readTimeoutMs } from './runtimeConfig';
+import type { WorldRoomState } from '../types/colyseus';
 
 function normalizeServerUrl(serverUrl: string): string {
   let baseUrl = serverUrl;
@@ -47,7 +48,7 @@ function deriveTenant(): string {
   return tenant;
 }
 
-async function joinRoomWithTimeout(client: Client, joinOptions: any): Promise<Room<any>> {
+async function joinRoomWithTimeout(client: Client, joinOptions: any): Promise<Room<WorldRoomState>> {
   const joinTimeoutMs = readTimeoutMs('VITE_COLYSEUS_JOIN_TIMEOUT_MS', 15_000);
   const JOIN_TIMEOUT_SENTINEL = Symbol('colyseus_join_timeout');
   const joinPromise = client.joinOrCreate('world', joinOptions);
@@ -60,22 +61,28 @@ async function joinRoomWithTimeout(client: Client, joinOptions: any): Promise<Ro
     const result = await Promise.race([joinPromise, joinTimeoutPromise]);
     if (result === JOIN_TIMEOUT_SENTINEL) {
       // Best-effort: if the join eventually succeeds, make sure we leave.
-      joinPromise.then((r) => { try { (r as any).leave?.(); } catch {} }).catch(() => {});
+      void joinPromise
+        .then((r) => {
+          try {
+            void r.leave?.();
+          } catch {}
+        })
+        .catch(() => {});
       throw new Error('colyseus_join_timeout');
     }
-    return result as Room<any>;
+    return result as Room<WorldRoomState>;
   } finally {
     if (joinTimeoutId !== undefined) clearTimeout(joinTimeoutId);
   }
 }
 
-async function awaitInitialStateSync(room: Room<any>): Promise<void> {
+async function awaitInitialStateSync(room: Room<WorldRoomState>): Promise<void> {
   // Wait for initial state sync — but bound the wait so we never hang forever.
   const stateTimeoutMs = readTimeoutMs('VITE_COLYSEUS_STATE_TIMEOUT_MS', 5_000);
   const stopAt = Date.now() + stateTimeoutMs;
   await new Promise<void>((resolve, reject) => {
     const checkState = () => {
-      if (room.state && (room.state as any).players) {
+      if (room.state && room.state.players) {
         resolve();
         return;
       }
@@ -90,7 +97,13 @@ async function awaitInitialStateSync(room: Room<any>): Promise<void> {
   });
 }
 
-export async function joinWorld(serverUrl: string, identity?: string, name?: string, position?: { x: number; y: number; direction?: string }, mapName?: string) {
+export async function joinWorld(
+  serverUrl: string,
+  identity?: string,
+  name?: string,
+  position?: { x: number; y: number; direction?: string },
+  mapName?: string,
+) {
   logger.debug('[Colyseus] joinWorld called with serverUrl:', serverUrl);
   const wsUrl = normalizeServerUrl(serverUrl);
   logger.debug('[Colyseus] wsUrl after conversion:', wsUrl, 'type:', typeof wsUrl);

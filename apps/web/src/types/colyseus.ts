@@ -1,15 +1,26 @@
 import type { Room } from '@colyseus/sdk';
 import { Schema, MapSchema } from '@colyseus/schema';
 
-// Player Schema for Colyseus state
+// Player Schema for Colyseus state — Mirror von apps/server/src/rooms/WorldRoom.ts Player.
+// Felder müssen 1:1 mit dem Server übereinstimmen, sonst werden Werte beim
+// State-Decoding ignoriert. Der Web-Client braucht keine @type()-Decorators
+// (das Schema-Binding kommt zur Laufzeit vom Server), aber die Property-Liste
+// muss strukturell passen für getypte Zugriffe wie state.players.get(id).dnd.
 export class PlayerSchema extends Schema {
+  id!: string;
   x!: number;
   y!: number;
-  direction!: 'up' | 'down' | 'left' | 'right';
-  name?: string;
+  direction!: string;
+  identity!: string;
+  name!: string;
+  dnd!: boolean;
+  avatarId!: string;
+  isNpc!: boolean;
+  mapId!: string;
+  mapName!: string;
 }
 
-// World Room State
+// World Room State — Mirror von apps/server/src/rooms/WorldRoom.ts WorldState.
 export class WorldRoomState extends Schema {
   players = new MapSchema<PlayerSchema>();
 }

@@ -9,13 +9,14 @@ import React from 'react';
 import type { AVManager } from '../avManager';
 import { gameBridge } from '../../game/bridge';
 import { logger } from '../../lib/logger';
+import type { WorldRoom } from '../../types/colyseus';
 
 interface UseDNDArgs {
   enabled: boolean;
   avRef: React.MutableRefObject<AVManager | null>;
   dndRef: React.MutableRefObject<boolean>;
   setAvState: React.Dispatch<React.SetStateAction<{ mic: boolean; cam: boolean; share: boolean; dnd: boolean }>>;
-  colyseusRef?: React.MutableRefObject<any>;
+  colyseusRef?: React.MutableRefObject<WorldRoom | null>;
 }
 
 export function useDoNotDisturb({ enabled, avRef, dndRef, setAvState, colyseusRef }: UseDNDArgs) {

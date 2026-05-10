@@ -1,4 +1,5 @@
 import React from 'react';
+import type { WorldRoom } from '../types/colyseus';
 
 export type AnyRef<T> = React.MutableRefObject<T>;
 
@@ -6,7 +7,7 @@ export interface UseWorldRoomArgs {
   apiBase: string;
   me: { id: string; email: string; name?: string } | null;
   avRef: AnyRef<any>;
-  colyseusRef: AnyRef<any>;
+  colyseusRef: AnyRef<WorldRoom | null>;
   localPosRef: AnyRef<{ id: string; x?: number; y?: number }>;
   remotesRef: AnyRef<Record<string, { x: number; y: number; dnd?: boolean; avatarId?: string }>>;
   colyseusToLivekitMap: AnyRef<Record<string, string>>;
@@ -28,11 +29,17 @@ export interface UseWorldRoomArgs {
   setAvState: React.Dispatch<React.SetStateAction<{ mic: boolean; cam: boolean; share: boolean; dnd: boolean }>>;
   // roster
   rosterByIdentityRef: AnyRef<Record<string, { name: string; x: number; y: number }>>;
-  setRoster: React.Dispatch<React.SetStateAction<Array<{ identity: string; name: string; online: boolean; x?: number; y?: number; lastSeen?: string }>>>;
+  setRoster: React.Dispatch<
+    React.SetStateAction<
+      Array<{ identity: string; name: string; online: boolean; x?: number; y?: number; lastSeen?: string }>
+    >
+  >;
   // lifetime
   disposedRef: AnyRef<boolean>;
   // connection monitor (optional)
-  setConnectionStatus?: React.Dispatch<React.SetStateAction<{ reconnecting: boolean; lastCode?: number; lastReason?: string }>>;
+  setConnectionStatus?: React.Dispatch<
+    React.SetStateAction<{ reconnecting: boolean; lastCode?: number; lastReason?: string }>
+  >;
 }
 
 export interface PlayerData {

@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { getApiBaseFromWindow } from '../../lib/apiBase';
 import { AvatarSettings } from './AvatarSettings';
 import { gameBridge } from '../../game/bridge';
+import type { WorldRoom } from '../../types/colyseus';
 import { translateApiError } from '../../lib/apiErrors';
 import { Button, Input, Alert, Section, Badge, Card } from '../system';
 
@@ -349,7 +350,7 @@ export function ProfileSettings({
   colyseusRef,
 }: {
   onClose: () => void;
-  colyseusRef?: React.RefObject<any> | undefined;
+  colyseusRef?: React.RefObject<WorldRoom | null> | undefined;
 }) {
   const { t } = useTranslation();
   const apiBase = getApiBaseFromWindow();

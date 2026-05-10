@@ -3,6 +3,7 @@ import { joinWorld } from '../../lib/colyseus';
 import { logger } from '../../lib/logger';
 import { useMapStore } from '../../state/mapStore';
 import type { UseWorldRoomArgs, ConnectionRefs } from '../types';
+import type { WorldRoom } from '../../types/colyseus';
 import i18n from '../../app/providers/i18n';
 
 function showGuestExpiredOverlay(apiBase: string): void {
@@ -196,9 +197,9 @@ type PerformConnectArgs = {
 
 async function performConnect(
   disposed: boolean,
-  onConnected: (room: any) => void,
+  onConnected: (room: WorldRoom) => void,
   args: PerformConnectArgs,
-): Promise<any> {
+): Promise<WorldRoom | null | { error: unknown; needsReconnect: boolean; delay: number | undefined }> {
   const { apiBase, me, localPosRef, colyseusRef, setConnectionStatus, refs, scheduleReconnect } = args;
   refs.connectingRef.current = true;
   try {
@@ -347,7 +348,7 @@ export function useColyseusConnection(args: UseWorldRoomArgs, connectionRefs: Co
   );
 
   const connect = React.useCallback(
-    async (disposed: boolean, onConnected: (room: any) => void) => {
+    async (disposed: boolean, onConnected: (room: WorldRoom) => void) => {
       if (disposed) return null;
       if (connectingRef.current) return null;
       if (!me) return null;

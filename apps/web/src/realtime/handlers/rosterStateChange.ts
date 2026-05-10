@@ -9,6 +9,7 @@
  * ausschliesslich im primary onStateChange in playerHandlers.ts.
  */
 import type { UseWorldRoomArgs } from '../types';
+import type { WorldRoom } from '../../types/colyseus';
 
 interface RosterEntry {
   identity: string;
@@ -20,7 +21,7 @@ interface RosterEntry {
 }
 
 export function setupRosterOnStateChange(
-  room: any,
+  room: WorldRoom,
   args: UseWorldRoomArgs,
   setRoster: (updater: (prev: RosterEntry[]) => RosterEntry[]) => void,
   me: { id: string; name?: string; email?: string },
@@ -42,8 +43,8 @@ export function setupRosterOnStateChange(
           state.players.forEach(iterateForRoster);
         } else if (typeof state.players.entries === 'function') {
           for (const [key, value] of state.players.entries()) iterateForRoster(value, key);
-        } else if ((state.players as any)[Symbol.iterator]) {
-          for (const [key, value] of (state.players as any)) iterateForRoster(value, key);
+        } else if (state.players[Symbol.iterator]) {
+          for (const [key, value] of state.players) iterateForRoster(value, key);
         }
       }
 
@@ -59,7 +60,10 @@ export function setupRosterOnStateChange(
   });
 }
 
-function mergeRoster(prev: RosterEntry[], online: Record<string, { name: string; x: number; y: number }>): RosterEntry[] {
+function mergeRoster(
+  prev: RosterEntry[],
+  online: Record<string, { name: string; x: number; y: number }>,
+): RosterEntry[] {
   const map = new Map<string, RosterEntry>();
   for (const r of prev) map.set(r.identity, { ...r, online: false });
   for (const [ident, v] of Object.entries(online)) {
@@ -69,7 +73,10 @@ function mergeRoster(prev: RosterEntry[], online: Record<string, { name: string;
     }
     let matchedKey: string | undefined;
     for (const [k, val] of map.entries()) {
-      if ((val.name || '').toLowerCase() === (v.name || '').toLowerCase()) { matchedKey = k; break; }
+      if ((val.name || '').toLowerCase() === (v.name || '').toLowerCase()) {
+        matchedKey = k;
+        break;
+      }
     }
     if (matchedKey) {
       const cur = map.get(matchedKey)!;

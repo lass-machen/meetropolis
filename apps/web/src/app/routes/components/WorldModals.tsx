@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Modal, Tabs } from '../../../ui/system';
 import type { TabItem } from '../../../ui/system';
+import type { WorldRoom } from '../../../types/colyseus';
 import { ProfileSettings } from '../../../ui/settings/ProfileSettings';
 import { TenantSettings } from '../../../ui/settings/TenantSettings';
 import { useTenantSettings } from '../../../ui/settings/hooks/useTenantSettings';
@@ -25,7 +26,7 @@ const BillingDashboardLazy = React.lazy<React.ComponentType<BillingDashboardProp
 
 interface WorldModalsProps {
   apiBase: string;
-  colyseusRef?: React.RefObject<any>;
+  colyseusRef?: React.RefObject<WorldRoom | null>;
 
   // Profile Settings Modal
   profileOpen: boolean;

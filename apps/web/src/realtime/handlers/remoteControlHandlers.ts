@@ -1,4 +1,5 @@
 import type { UseWorldRoomArgs } from '../types';
+import type { WorldRoom } from '../../types/colyseus';
 
 type RemoteControlPayload = { mic?: boolean; cam?: boolean; share?: boolean; dnd?: boolean };
 
@@ -175,24 +176,24 @@ async function applyRemoteControl(payload: RemoteControlPayload, args: UseWorldR
   }
 }
 
-export function setupRemoteControlHandlers(room: any, args: UseWorldRoomArgs) {
+export function setupRemoteControlHandlers(room: WorldRoom, args: UseWorldRoomArgs) {
   const { avRef, me } = args;
 
-  room.onMessage('remote_control', async (payload: any) => {
-    await applyRemoteControl(payload || {}, args);
+  room.onMessage('remote_control', (payload: any) => {
+    void applyRemoteControl(payload || {}, args);
   });
 
-  room.onMessage('remote_controls', async (msg: any) => {
+  room.onMessage('remote_controls', (msg: any) => {
     if (msg?.payload) {
-      await applyRemoteControl(msg.payload, args);
+      void applyRemoteControl(msg.payload, args);
     }
   });
 
-  room.onMessage('remote_controls_for', async (msg: any) => {
+  room.onMessage('remote_controls_for', (msg: any) => {
     const localIdentity = avRef.current?.room?.localParticipant?.identity || me?.id;
     if (!msg?.forIdentity || String(localIdentity || '') !== String(msg.forIdentity || '')) return;
     if (msg?.payload) {
-      await applyRemoteControl(msg.payload, args);
+      void applyRemoteControl(msg.payload, args);
     }
   });
 }

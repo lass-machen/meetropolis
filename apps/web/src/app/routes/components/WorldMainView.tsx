@@ -1,5 +1,6 @@
 import React from 'react';
 import type { Room } from 'livekit-client';
+import type { WorldRoom } from '../../../types/colyseus';
 import { Overlays } from '../../layout/Overlays';
 import { GameCanvas } from './GameCanvas';
 import { ConnectionBanners } from './ConnectionBanners';
@@ -38,7 +39,7 @@ export type WorldMainViewProps = {
   apiBase: string;
   me: { id: string; email: string; name?: string };
   containerRef: React.RefObject<HTMLDivElement>;
-  colyseusRef: React.RefObject<any>;
+  colyseusRef: React.RefObject<WorldRoom | null>;
   localPosRef: React.RefObject<{ id: string; x?: number; y?: number }>;
   hud: Hud;
   editor: any;

@@ -9,6 +9,7 @@ import { VolumeManager } from '../../../game/volumeManager';
 import { pointInPolygon } from '../../../lib/geom';
 import { avatarRegistry } from '../../../game/avatarRegistry';
 import { useMapStore } from '../../../state/mapStore';
+import type { WorldRoom } from '../../../types/colyseus';
 
 interface UseGameInitializationParams {
   authChecked: boolean;
@@ -28,7 +29,7 @@ interface UseGameInitializationParams {
   manualNavRef: React.MutableRefObject<{ x: number; y: number } | null>;
   lastSavedPositionRef: React.MutableRefObject<{ x: number; y: number; direction: string }>;
   moveTimeoutRef: React.MutableRefObject<any>;
-  colyseusRef: React.RefObject<any>;
+  colyseusRef: React.RefObject<WorldRoom | null>;
   avRef: React.RefObject<any>;
   colyseusToLivekitMap: React.RefObject<Record<string, string>>;
   colyseusReconnectTimerRef: React.MutableRefObject<any>;
@@ -169,9 +170,12 @@ function applyFollowOrManualNav(p: { x: number; y: number }, params: UseGameInit
   }
 }
 
-function sendMoveToServer(p: { x: number; y: number; direction: string }, colyseusRef: React.RefObject<any>) {
+function sendMoveToServer(
+  p: { x: number; y: number; direction: string },
+  colyseusRef: React.RefObject<WorldRoom | null>,
+) {
   try {
-    const room: any = colyseusRef.current;
+    const room = colyseusRef.current;
     const wsReadyState =
       room?.connection?.ws?.readyState ??
       room?.connection?.transport?.ws?.readyState ??

@@ -1,5 +1,6 @@
 import * as React from 'react';
 import type { Room } from 'livekit-client';
+import type { WorldRoom } from '../../types/colyseus';
 import { ParticipantsGrid } from '../../ui/user/ParticipantsGrid';
 import { ParticipantOverlay } from '../../ui/user/ParticipantOverlay';
 import { HudPanel } from '../../ui/hud/HudPanel';
@@ -51,7 +52,7 @@ type Props = {
   // TopRightMenu props
   topRightMenu?: TopRightMenuProps;
   // Zone lock props
-  colyseusRef?: React.RefObject<any>;
+  colyseusRef?: React.RefObject<WorldRoom | null>;
   mySessionId?: string;
 };
 

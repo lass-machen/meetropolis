@@ -1,11 +1,12 @@
 import { EditorService } from '../../services/EditorService';
 import { useMapStore } from '../../state/mapStore';
 import type { UseWorldRoomArgs } from '../types';
+import type { WorldRoom } from '../../types/colyseus';
 
 export function setupEditorHandlers(
-  room: any,
+  room: WorldRoom,
   args: UseWorldRoomArgs,
-  scheduleBuildParticipantList: (delay: number) => void
+  scheduleBuildParticipantList: (delay: number) => void,
 ) {
   const { gameBridge, zoneRef, setEditor } = args;
 
@@ -29,8 +30,12 @@ export function setupEditorHandlers(
       return;
     }
     if (data?.type === 'spawn' && data.pos && typeof data.pos.x === 'number' && typeof data.pos.y === 'number') {
-      try { gameBridge?.setSpawnMarker?.({ x: data.pos.x, y: data.pos.y }); } catch {}
-      try { setEditor((s: any) => ({ ...s, spawn: { x: data.pos.x, y: data.pos.y } })); } catch {}
+      try {
+        gameBridge?.setSpawnMarker?.({ x: data.pos.x, y: data.pos.y });
+      } catch {}
+      try {
+        setEditor((s: any) => ({ ...s, spawn: { x: data.pos.x, y: data.pos.y } }));
+      } catch {}
       return;
     }
     if (data?.type === 'tile_paint' && data.edit) {
@@ -38,23 +43,25 @@ export function setupEditorHandlers(
       return;
     }
     if (data?.type === 'layers' || data?.type === 'all') {
-      if (gameBridge && typeof (gameBridge as any).fetchAndApplyServerLayers === 'function') (gameBridge as any).fetchAndApplyServerLayers();
+      if (gameBridge && typeof gameBridge.fetchAndApplyServerLayers === 'function')
+        gameBridge.fetchAndApplyServerLayers();
       return;
     }
-    if (gameBridge && typeof (gameBridge as any).handleEditorUpdate === 'function') (gameBridge as any).handleEditorUpdate(data);
+    if (gameBridge && typeof gameBridge.handleEditorUpdate === 'function') gameBridge.handleEditorUpdate(data);
   });
 
   // v2: Chunks-Updates direkt anwenden
   room.onMessage('chunks_updated', (payload: any) => {
     try {
       if (isWrongMap(payload)) return;
-      const layer = (payload && typeof payload.layer === 'string') ? payload.layer : null;
+      const layer = payload && typeof payload.layer === 'string' ? payload.layer : null;
       const updates = Array.isArray(payload?.updates) ? payload.updates : [];
       if (!layer || updates.length === 0) return;
-      const layerName = (layer === 'collision' || layer === 'walls' || layer === 'ground' || layer === 'walls_auto') ? layer : null;
+      const layerName =
+        layer === 'collision' || layer === 'walls' || layer === 'ground' || layer === 'walls_auto' ? layer : null;
       if (!layerName) return;
-      if (gameBridge && typeof (gameBridge as any).applyChunkUpdates === 'function') {
-        (gameBridge as any).applyChunkUpdates(layerName, updates);
+      if (gameBridge && typeof gameBridge.applyChunkUpdates === 'function') {
+        gameBridge.applyChunkUpdates(layerName, updates);
       }
     } catch {}
   });
@@ -66,7 +73,9 @@ export function setupEditorHandlers(
       if (gameBridge && typeof gameBridge.handleObjectsUpdated === 'function') {
         gameBridge.handleObjectsUpdated(payload);
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   });
 
   // Tileset Registry Sync (v2)
@@ -74,8 +83,8 @@ export function setupEditorHandlers(
     try {
       if (isWrongMap(payload)) return;
       const registry = Array.isArray(payload?.tilesetRegistry) ? payload.tilesetRegistry : null;
-      if (registry && gameBridge && typeof (gameBridge as any).updateTilesetRegistry === 'function') {
-        (gameBridge as any).updateTilesetRegistry(registry);
+      if (registry && gameBridge && typeof gameBridge.updateTilesetRegistry === 'function') {
+        gameBridge.updateTilesetRegistry(registry);
       }
     } catch {}
   });
