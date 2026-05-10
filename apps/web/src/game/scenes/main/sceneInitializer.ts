@@ -12,7 +12,7 @@ export class SceneInitializer {
     dynamicTilesets: Map<string, Phaser.Tilemaps.Tileset>;
     v2: { state: V2State; firstGids: number[]; chunkSize: number };
   } {
-    const pre = (window as any).__v2_state as V2State | undefined;
+    const pre = window.__v2_state;
     if (!pre || !pre.mapMeta.width) throw new Error('Missing V2 state in MainScene');
 
     const tilemapConfig: Phaser.Types.Tilemaps.TilemapConfig = {};

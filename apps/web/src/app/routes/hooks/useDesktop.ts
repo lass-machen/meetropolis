@@ -29,7 +29,7 @@ const noopAsync = async () => {};
 export function useDesktop(): DesktopState {
   const [desktop, setDesktop] = useState<DesktopModule | null>(null);
   const [isTauri, setIsTauri] = useState(false);
-  const [isMiniMode, setIsMiniMode] = useState(() => (window as any).__DESKTOP__?.isMiniMode ?? false);
+  const [isMiniMode, setIsMiniMode] = useState(() => window.__DESKTOP__?.isMiniMode ?? false);
   const [tauriPrefsOpen, setTauriPrefsOpen] = useState(false);
 
   // Lade Desktop-Modul
@@ -40,7 +40,7 @@ export function useDesktop(): DesktopState {
       setDesktop(mod);
       setIsTauri(true);
       // Initialen Mini-Mode State lesen (wurde in initDesktop() gesetzt)
-      setIsMiniMode((window as any).__DESKTOP__?.isMiniMode ?? false);
+      setIsMiniMode(window.__DESKTOP__?.isMiniMode ?? false);
     });
     return () => {
       cancelled = true;
@@ -60,7 +60,7 @@ export function useDesktop(): DesktopState {
   }, []);
 
   const toggleMiniMode = useCallback(async () => {
-    const toggle = (window as any).__DESKTOP__?.toggleMiniMode;
+    const toggle = window.__DESKTOP__?.toggleMiniMode;
     if (typeof toggle === 'function') await toggle();
   }, []);
 

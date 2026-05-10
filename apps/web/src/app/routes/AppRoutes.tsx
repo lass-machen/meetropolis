@@ -16,7 +16,9 @@ const LegalUnavailable: React.ComponentType<LegalPageProps> = ({ onBack }) => (
   <div style={{ padding: 40, textAlign: 'center', color: 'var(--fg-subtle, #888)' }}>
     <p>Legal pages (Terms, Privacy, Impressum) are not bundled with the OSS edition.</p>
     <p>Self-hosters must provide their own legal documents.</p>
-    <button onClick={onBack} style={{ marginTop: 16 }}>Back</button>
+    <button onClick={onBack} style={{ marginTop: 16 }}>
+      Back
+    </button>
   </div>
 );
 
@@ -44,7 +46,21 @@ const PublicConsentGateLazy = React.lazy<React.ComponentType<Record<string, neve
   return { default: mod.PublicConsentGate };
 });
 
-type Route = 'landing' | 'pricing' | 'app' | 'privacy' | 'terms' | 'impressum' | 'verify' | 'billing-success' | 'billing-cancel' | 'login' | 'register' | 'invite' | 'guest-auth' | 'reset-pw';
+type Route =
+  | 'landing'
+  | 'pricing'
+  | 'app'
+  | 'privacy'
+  | 'terms'
+  | 'impressum'
+  | 'verify'
+  | 'billing-success'
+  | 'billing-cancel'
+  | 'login'
+  | 'register'
+  | 'invite'
+  | 'guest-auth'
+  | 'reset-pw';
 
 type RouteParams = {
   verifyToken?: string;
@@ -55,7 +71,7 @@ type RouteParams = {
 };
 
 function setOptional<K extends keyof RouteParams>(p: RouteParams, k: K, v: string | null) {
-  if (v != null && v !== '') p[k] = v as RouteParams[K];
+  if (v != null && v !== '') p[k] = v;
 }
 
 /** Parse hash + search-string → route + params */
@@ -98,7 +114,7 @@ function parseHashRoute(hash: string): { route: Route; params: RouteParams } {
     setOptional(params, 'inviteCode', sp.get('invite'));
     return { route: 'invite', params };
   }
-  if (isSubdomain || !!(window as any).__MEETROPOLIS_API_BASE__) return { route: 'app', params };
+  if (isSubdomain || !!window.__MEETROPOLIS_API_BASE__) return { route: 'app', params };
   return { route: 'landing', params };
 }
 
@@ -132,8 +148,8 @@ function useHashRoute() {
 }
 
 function usePublicConfig(apiBase: string): boolean {
-  const registrationEnabled = usePublicConfigStore(s => s.registrationEnabled);
-  const load = usePublicConfigStore(s => s.load);
+  const registrationEnabled = usePublicConfigStore((s) => s.registrationEnabled);
+  const load = usePublicConfigStore((s) => s.load);
   React.useEffect(() => {
     void load(apiBase);
   }, [apiBase, load]);
@@ -165,9 +181,23 @@ type RouteRenderProps = {
 function RouteContent({ route, params, apiBase, registrationEnabled, navigate }: RouteRenderProps): React.ReactElement {
   switch (route) {
     case 'landing':
-      return <LandingPage onLogin={() => navigate('login')} onSignup={() => navigate('register')} onPricing={() => navigate('pricing')} registrationEnabled={registrationEnabled} />;
+      return (
+        <LandingPage
+          onLogin={() => navigate('login')}
+          onSignup={() => navigate('register')}
+          onPricing={() => navigate('pricing')}
+          registrationEnabled={registrationEnabled}
+        />
+      );
     case 'pricing':
-      return <LandingPage onLogin={() => navigate('login')} onSignup={() => navigate('register')} onPricing={() => {}} registrationEnabled={registrationEnabled} />;
+      return (
+        <LandingPage
+          onLogin={() => navigate('login')}
+          onSignup={() => navigate('register')}
+          onPricing={() => {}}
+          registrationEnabled={registrationEnabled}
+        />
+      );
     case 'privacy':
       return (
         <React.Suspense fallback={<div style={{ padding: 40 }}>Loading…</div>}>
@@ -187,19 +217,52 @@ function RouteContent({ route, params, apiBase, registrationEnabled, navigate }:
         </React.Suspense>
       );
     case 'verify':
-      return <EmailVerifyPage token={params.verifyToken} apiBase={apiBase} onSuccess={() => navigate('app')} onBack={() => navigate('landing')} />;
+      return (
+        <EmailVerifyPage
+          token={params.verifyToken}
+          apiBase={apiBase}
+          onSuccess={() => navigate('app')}
+          onBack={() => navigate('landing')}
+        />
+      );
     case 'billing-success':
-      return <BillingSuccessPage onNavigate={() => { window.location.hash = '#/app'; }} />;
+      return (
+        <BillingSuccessPage
+          onNavigate={() => {
+            window.location.hash = '#/app';
+          }}
+        />
+      );
     case 'billing-cancel':
-      return <BillingCancelPage onNavigate={() => { window.location.hash = '#/app'; }} />;
+      return (
+        <BillingCancelPage
+          onNavigate={() => {
+            window.location.hash = '#/app';
+          }}
+        />
+      );
     case 'login':
       return <AuthPage apiBase={apiBase} initialView="login" registrationEnabled={registrationEnabled} />;
     case 'register':
       return <AuthPage apiBase={apiBase} initialView="register" registrationEnabled={registrationEnabled} />;
     case 'invite':
-      return <AuthPage apiBase={apiBase} initialView="invite" initialInvite={params.inviteCode} registrationEnabled={registrationEnabled} />;
+      return (
+        <AuthPage
+          apiBase={apiBase}
+          initialView="invite"
+          initialInvite={params.inviteCode}
+          registrationEnabled={registrationEnabled}
+        />
+      );
     case 'reset-pw':
-      return <AuthPage apiBase={apiBase} initialView="reset" initialResetToken={params.resetToken} initialResetEmail={params.resetEmail} />;
+      return (
+        <AuthPage
+          apiBase={apiBase}
+          initialView="reset"
+          initialResetToken={params.resetToken}
+          initialResetEmail={params.resetEmail}
+        />
+      );
     case 'guest-auth':
       return <AuthPage apiBase={apiBase} initialView="guest" initialGuestToken={params.guestToken} />;
     case 'app':
@@ -227,11 +290,16 @@ export function AppRoutes() {
 
   return (
     <>
-      <RouteContent route={route} params={params} apiBase={apiBase} registrationEnabled={registrationEnabled} navigate={navigate} />
+      <RouteContent
+        route={route}
+        params={params}
+        apiBase={apiBase}
+        registrationEnabled={registrationEnabled}
+        navigate={navigate}
+      />
       <React.Suspense fallback={null}>
         <PublicConsentGateLazy />
       </React.Suspense>
     </>
   );
 }
-

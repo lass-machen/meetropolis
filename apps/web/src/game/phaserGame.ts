@@ -3,21 +3,30 @@ import { BootScene } from './scenes/BootScene';
 import { MainScene } from './scenes/MainScene';
 
 export function createPhaserGame(parent: HTMLElement) {
-  const allowDebug = (window as any).DEBUG_LOGS || (import.meta as any).env?.VITE_DEBUG_LOGS === 'true';
+  const allowDebug = window.DEBUG_LOGS || (import.meta as any).env?.VITE_DEBUG_LOGS === 'true';
   // Suppress Phaser banner logs unless debug explicitly enabled
   if (!allowDebug) {
     try {
       const prevLog = console.log;
       const prevInfo = console.info;
       console.log = (...args: any[]) => {
-        try { if (typeof args[0] === 'string' && /Phaser v\d/i.test(args[0])) return; } catch {}
+        try {
+          if (typeof args[0] === 'string' && /Phaser v\d/i.test(args[0])) return;
+        } catch {}
         return (prevLog as any).apply(console, args as any);
       };
       console.info = (...args: any[]) => {
-        try { if (typeof args[0] === 'string' && /Phaser v\d/i.test(args[0])) return; } catch {}
+        try {
+          if (typeof args[0] === 'string' && /Phaser v\d/i.test(args[0])) return;
+        } catch {}
         return (prevInfo as any).apply(console, args as any);
       };
-      setTimeout(() => { try { console.log = prevLog; console.info = prevInfo; } catch {} }, 2000);
+      setTimeout(() => {
+        try {
+          console.log = prevLog;
+          console.info = prevInfo;
+        } catch {}
+      }, 2000);
     } catch {}
   }
   const config: Phaser.Types.Core.GameConfig = {
@@ -27,18 +36,18 @@ export function createPhaserGame(parent: HTMLElement) {
     scale: {
       mode: Phaser.Scale.RESIZE,
       autoCenter: Phaser.Scale.CENTER_BOTH,
-      parent
+      parent,
     },
     scene: [BootScene, MainScene],
     physics: {
       default: 'arcade',
-      arcade: { debug: false }
+      arcade: { debug: false },
     },
   };
   const game = new Phaser.Game(config);
 
   // Expose game globally for Tauri mini-mode refresh
-  (window as any).__PHASER_GAME__ = game;
+  window.__PHASER_GAME__ = game;
 
   return game;
 }
@@ -46,4 +55,3 @@ export function createPhaserGame(parent: HTMLElement) {
 export function destroyPhaserGame(game: Phaser.Game) {
   game.destroy(true);
 }
-

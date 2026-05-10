@@ -16,7 +16,7 @@ interface SessionConflictDeps {
 export function showSessionConflictDialog(deps: SessionConflictDeps): void {
   logger.info('[useWorldRoom] Session conflict detected — showing takeover dialog');
   if (typeof window !== 'undefined') {
-    (window as any).__sessionConflictPending = true;
+    window.__sessionConflictPending = true;
   }
 
   const host = document.createElement('div');
@@ -41,7 +41,7 @@ export function showSessionConflictDialog(deps: SessionConflictDeps): void {
         host.remove();
       } catch {}
       try {
-        delete (window as any).__sessionConflictPending;
+        delete window.__sessionConflictPending;
       } catch {}
       deps.room.send('session_takeover', { identity: deps.meId });
     },
@@ -55,7 +55,7 @@ export function showSessionConflictDialog(deps: SessionConflictDeps): void {
         host.remove();
       } catch {}
       try {
-        delete (window as any).__sessionConflictPending;
+        delete window.__sessionConflictPending;
       } catch {}
       deps.room.send('session_takeover_cancel', {});
     },

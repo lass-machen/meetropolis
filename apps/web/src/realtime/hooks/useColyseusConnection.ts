@@ -159,7 +159,7 @@ function performScheduleReconnect(
     setConnectionStatus?.(status);
   } catch {}
   try {
-    (window as any).__wsReconnects = ((window as any).__wsReconnects || 0) + 1;
+    window.__wsReconnects = (window.__wsReconnects || 0) + 1;
   } catch {}
   const now = Date.now();
   if (refs.coolDownUntilRef.current > now) {

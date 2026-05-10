@@ -148,7 +148,7 @@ export class MainScene extends Phaser.Scene implements MainSceneShape {
   }
 
   private initializeManagers() {
-    const initialPos = (window as any).initialPlayerPosition || { x: 80, y: 120 };
+    const initialPos = window.initialPlayerPosition || { x: 80, y: 120 };
 
     const avatarId = localStorage.getItem('avatarId') || 'default-characters:businessman1';
     this.playerManager = new PlayerManager({
@@ -294,16 +294,16 @@ export class MainScene extends Phaser.Scene implements MainSceneShape {
         logger.error('[MainScene] Failed to hide collision layer', e);
       }
 
-    const pendingTilesets = (window as any).pendingTilesets;
+    const pendingTilesets = window.pendingTilesets;
     if (pendingTilesets && Array.isArray(pendingTilesets)) {
-      setTimeout(() => pendingTilesets.forEach((ts: any) => this.registerTileset(ts)), 100);
-      (window as any).pendingTilesets = null;
+      setTimeout(() => pendingTilesets.forEach((ts) => this.registerTileset(ts)), 100);
+      window.pendingTilesets = undefined;
     }
   }
 
   private setupCleanup() {
     gameBridge.setSceneApi(this);
-    (window as any).currentPhaserScene = this;
+    window.currentPhaserScene = this as unknown as Window['currentPhaserScene'];
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       try {
         this.editorIntegration?.destroy();
@@ -433,8 +433,7 @@ export class MainScene extends Phaser.Scene implements MainSceneShape {
       }
     >,
   ) {
-    const localSession: string | undefined =
-      typeof window !== 'undefined' ? (window as any).__localSessionId : undefined;
+    const localSession: string | undefined = typeof window !== 'undefined' ? window.__localSessionId : undefined;
     const hero = this.playerManager.getHero();
 
     const filteredPlayers: typeof players = {};

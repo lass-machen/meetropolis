@@ -12,14 +12,14 @@ i18n
   .use(initReactI18next)
   .init({
     resources: {
-      en: { common: en as Record<string, string>, public: enPublic },
-      de: { common: de as Record<string, string>, public: dePublic }
+      en: { common: en, public: enPublic },
+      de: { common: de, public: dePublic },
     },
     supportedLngs: ['en', 'de'],
     fallbackLng: 'en',
     defaultNS: 'common',
     interpolation: { escapeValue: false },
-    detection: { order: ['localStorage', 'navigator'], caches: ['localStorage'], lookupLocalStorage: 'i18nextLng' }
+    detection: { order: ['localStorage', 'navigator'], caches: ['localStorage'], lookupLocalStorage: 'i18nextLng' },
   })
   .catch(() => {
     // Initialization failures should not break the app; fall back silently.
@@ -54,8 +54,8 @@ async function loadBrandOverrides() {
       }
       // Nicht-override Marketing-Keys (hero, pricing, consent, social, …)
       const merged: Record<string, unknown> = { ...data };
-      delete (merged as Record<string, unknown>).publicOverrides;
-      delete (merged as Record<string, unknown>).commonLanding;
+      delete merged.publicOverrides;
+      delete merged.commonLanding;
       i18n.addResourceBundle(lng, 'public', merged, true, true);
       const commonLanding = (data as { commonLanding?: Record<string, unknown> }).commonLanding;
       if (commonLanding) {
@@ -73,6 +73,6 @@ export default i18n;
 
 try {
   if (typeof window !== 'undefined') {
-    (window as any).i18next = i18n;
+    window.i18next = i18n as unknown as Window['i18next'];
   }
 } catch {}

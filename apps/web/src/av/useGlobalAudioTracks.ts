@@ -29,8 +29,8 @@ function buildAttachAudioTrack(
         track.attach(audio);
       } catch (_err) {
         // Autoplay block fallback
-        (window as any).pendingAudioTracks = (window as any).pendingAudioTracks || [];
-        (window as any).pendingAudioTracks.push({ track, audio, participantId });
+        window.pendingAudioTracks = window.pendingAudioTracks || [];
+        window.pendingAudioTracks.push({ track, audio, participantId });
       }
       audioElements.set(participantId, audio);
     } catch {}

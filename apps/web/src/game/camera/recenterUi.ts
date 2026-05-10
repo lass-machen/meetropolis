@@ -13,7 +13,7 @@ export function ensureRecenterUi(scene: MainSceneLike): void {
   bg.setOrigin(0, 0);
   bg.setScrollFactor(0);
 
-  const label = scene.add.text(10, 6, (window as any).i18next?.t?.('av.recenter') || 'Recenter', {
+  const label = scene.add.text(10, 6, window.i18next?.t?.('av.recenter') || 'Recenter', {
     fontSize: '13px',
     fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
     color: '#ffffff',

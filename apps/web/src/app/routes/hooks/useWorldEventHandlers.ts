@@ -355,7 +355,7 @@ function useNavAndBubbleHandlers(params: UseWorldEventHandlersParams) {
           manualNavRef.current = { x: r.x, y: r.y };
           gameBridge.setDesiredPosition({ x: r.x, y: r.y });
           try {
-            (window as any).currentPhaserScene?.cameras?.main?.pan?.(r.x, r.y, 250, 'Sine.easeInOut');
+            window.currentPhaserScene?.cameras?.main?.pan?.(r.x, r.y, 250, 'Sine.easeInOut');
           } catch (e) {
             logger.debug('[WorldApp] Operation failed', e);
           }

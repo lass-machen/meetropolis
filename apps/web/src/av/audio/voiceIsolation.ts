@@ -2,11 +2,11 @@
 // The actual RNNoise processing is encapsulated in an AudioWorklet processor file.
 
 export async function wrapTrackWithVoiceIsolation(inputTrack: MediaStreamTrack): Promise<MediaStreamTrack> {
-  if (typeof (window as any).AudioWorkletNode === 'undefined') {
+  if (typeof window.AudioWorkletNode === 'undefined') {
     throw new Error('AudioWorklet not supported');
   }
 
-  const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+  const audioContext = new (window.AudioContext || window.webkitAudioContext!)();
   const onInputEnded = () => {
     try {
       void audioContext.close();
@@ -32,7 +32,7 @@ export async function wrapTrackWithVoiceIsolation(inputTrack: MediaStreamTrack):
   highpass.frequency.value = 100; // rumble/low HVAC entfernen
   highpass.Q.value = 0.707;
 
-  const rnnoise = new (window as any).AudioWorkletNode(audioContext, 'rnnoise-processor');
+  const rnnoise = new window.AudioWorkletNode(audioContext, 'rnnoise-processor');
   try {
     rnnoise.parameters.get('threshold')?.setValueAtTime(-56, audioContext.currentTime);
     rnnoise.parameters.get('ratio')?.setValueAtTime(0.25, audioContext.currentTime);

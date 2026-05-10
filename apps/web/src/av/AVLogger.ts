@@ -41,7 +41,7 @@ const isDebugEnabled = (): boolean => {
   try {
     const env = (import.meta as any).env;
     if (env?.VITE_AV_DEBUG === 'true') return true;
-    if (typeof window !== 'undefined' && (window as any).__avDebugOn) return true;
+    if (typeof window !== 'undefined' && window.__avDebugOn) return true;
     return false;
   } catch {
     return false;
@@ -107,10 +107,14 @@ class AVLoggerImpl {
     const contextStr = this.context.identity ? `[${this.context.identity}]` : '';
     const msgStr = message || '';
 
-    const logFn = level === 'error' ? console.error
-      : level === 'warn' ? console.warn
-      : level === 'info' ? console.info
-      : console.debug;
+    const logFn =
+      level === 'error'
+        ? console.error
+        : level === 'warn'
+          ? console.warn
+          : level === 'info'
+            ? console.info
+            : console.debug;
 
     if (data && Object.keys(data).length > 0) {
       logFn(`${prefix}${eventStr}${contextStr}`, msgStr, data);
@@ -136,15 +140,15 @@ class AVLoggerImpl {
     let result = [...this.entries];
 
     if (filter?.level) {
-      result = result.filter(e => e.level === filter.level);
+      result = result.filter((e) => e.level === filter.level);
     }
     if (filter?.event) {
       const eventFilter = filter.event;
-      result = result.filter(e => e.event.includes(eventFilter));
+      result = result.filter((e) => e.event.includes(eventFilter));
     }
     if (filter?.since !== undefined) {
       const sinceTime = filter.since;
-      result = result.filter(e => e.timestamp >= sinceTime);
+      result = result.filter((e) => e.timestamp >= sinceTime);
     }
 
     return result;
@@ -190,13 +194,17 @@ if (typeof window !== 'undefined') {
       (window as any).__avLoggerInstalled = true;
       (window as any).avLogger = AVLogger;
 
-      window.addEventListener('keydown', (e) => {
-        if ((e.altKey || (e.ctrlKey && e.shiftKey)) && e.key.toLowerCase() === 'd') {
-          const w = window as any;
-          w.__avDebugOn = !w.__avDebugOn;
-          console.info(`[AV] Debug mode: ${w.__avDebugOn ? 'ON' : 'OFF'}`);
-        }
-      }, true);
+      window.addEventListener(
+        'keydown',
+        (e) => {
+          if ((e.altKey || (e.ctrlKey && e.shiftKey)) && e.key.toLowerCase() === 'd') {
+            const w = window as any;
+            w.__avDebugOn = !w.__avDebugOn;
+            console.info(`[AV] Debug mode: ${w.__avDebugOn ? 'ON' : 'OFF'}`);
+          }
+        },
+        true,
+      );
     }
   } catch {
     // Ignore errors in non-browser environments

@@ -158,7 +158,7 @@ function setupRoomHandlers(setup: SetupRoomHandlersArgs): void {
   identityToNameMap.current[localLivekitIdentity] = me.name || me.email || me.id;
   localPosRef.current.id = colyseusSessionId;
   if (typeof window !== 'undefined') {
-    (window as any).__localSessionId = colyseusSessionId;
+    window.__localSessionId = colyseusSessionId;
   }
 
   // Connect ZoneManager to Colyseus room for portal support

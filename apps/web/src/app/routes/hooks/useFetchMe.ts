@@ -74,7 +74,7 @@ function applyPosition(user: any, pos: { x: number; y: number } | null, localPos
       logger.debug('[WorldApp] Operation failed', e);
     }
     try {
-      (window as any).initialPlayerPosition = { x: pos.x, y: pos.y };
+      window.initialPlayerPosition = { x: pos.x, y: pos.y };
     } catch (e) {
       logger.debug('[WorldApp] Operation failed', e);
     }

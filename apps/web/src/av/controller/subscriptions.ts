@@ -18,17 +18,24 @@ export function applySubscriptions(ctx: ApplySubscriptionsContext): void {
   if (!room || dnd) return;
   const st = room.connectionState || room.state;
   if (!(st === 'connected' || st === 2) || !isSignalOpen()) return;
-  const participants: any[] = Array.from((room.remoteParticipants?.values?.() || []) as any);
+  const participants: any[] = Array.from(room.remoteParticipants?.values?.() || []);
   const participantCount = participants.length;
   let videoPublicationCount = 0;
   for (const p of participants) {
-    const pubs: any[] = Array.from((p.trackPublications?.values?.() || []) as any);
+    const pubs: any[] = Array.from(p.trackPublications?.values?.() || []);
     for (const pub of pubs) {
-      const kind = (pub as any).kind ?? (pub.track as any)?.kind;
+      const kind = pub.kind ?? pub.track?.kind;
       if (kind === 'video') videoPublicationCount++;
     }
   }
-  const key = JSON.stringify(desiredIds) + '|' + JSON.stringify(activeSpeakerIds.slice(0, maxVideoSubs)) + '|' + participantCount + '|' + videoPublicationCount;
+  const key =
+    JSON.stringify(desiredIds) +
+    '|' +
+    JSON.stringify(activeSpeakerIds.slice(0, maxVideoSubs)) +
+    '|' +
+    participantCount +
+    '|' +
+    videoPublicationCount;
   if (key === lastDesiredIdsKeyRef.current) return;
   lastDesiredIdsKeyRef.current = key;
 
@@ -40,13 +47,18 @@ export function applySubscriptions(ctx: ApplySubscriptionsContext): void {
     for (const p of participants) {
       const identity = String(p.identity || '');
       const shouldSub = desiredSet.has(identity);
-      const pubs: any[] = Array.from((p.trackPublications?.values?.() || []) as any);
+      const pubs: any[] = Array.from(p.trackPublications?.values?.() || []);
       for (const pub of pubs) {
-        const kind = (pub as any).kind ?? (pub.track as any)?.kind;
-        const src = (pub as any).source ?? (pub.track as any)?.source;
+        const kind = pub.kind ?? pub.track?.kind;
+        const src = pub.source ?? pub.track?.source;
         if (kind === 'audio') setDesired(pub, identity, 'audio', true);
         if (kind === 'video') {
-          const near = src === 'screen_share' || few || prioritizedVideoSet.has(identity) || activeVideoSet.has(identity) || shouldSub;
+          const near =
+            src === 'screen_share' ||
+            few ||
+            prioritizedVideoSet.has(identity) ||
+            activeVideoSet.has(identity) ||
+            shouldSub;
           AVLogger.debug('subscriptions.set_desired.video', {
             identity,
             src: src ? String(src) : undefined,
@@ -62,24 +74,29 @@ export function applySubscriptions(ctx: ApplySubscriptionsContext): void {
     // Telemetrie-Hook (optional): Anzahl Teilnehmer und Keys zusammenfassen
     try {
       const env = (import.meta as any).env;
-      const debugOn = env?.VITE_AV_DEBUG === 'true' || (window as any).__avDebugOn;
-      if (debugOn) (window as any).__avLastApply = { n: participants.length, key };
+      const debugOn = env?.VITE_AV_DEBUG === 'true' || window.__avDebugOn;
+      if (debugOn) window.__avLastApply = { n: participants.length, key };
     } catch {}
   } catch {}
 }
 
-export function ensureSubscribeAllAudio(room: any, isSignalOpen: () => boolean, setDesired: (pub: any, identity: string, kind: 'audio' | 'video', should: boolean) => void, maxCount: number = 32): void {
+export function ensureSubscribeAllAudio(
+  room: any,
+  isSignalOpen: () => boolean,
+  setDesired: (pub: any, identity: string, kind: 'audio' | 'video', should: boolean) => void,
+  maxCount: number = 32,
+): void {
   if (!room) return;
   const st = room.connectionState || room.state;
   if (!(st === 'connected' || st === 2) || !isSignalOpen()) return;
   try {
-    const parts: any[] = Array.from((room.remoteParticipants?.values?.() || []) as any);
+    const parts: any[] = Array.from(room.remoteParticipants?.values?.() || []);
     let count = 0;
     for (const p of parts) {
       const identity = String(p.identity || '');
-      const pubs: any[] = Array.from((p.trackPublications?.values?.() || []) as any);
+      const pubs: any[] = Array.from(p.trackPublications?.values?.() || []);
       for (const pub of pubs) {
-        const kind = (pub as any).kind ?? (pub as any)?.track?.kind;
+        const kind = pub.kind ?? pub?.track?.kind;
         if (kind === 'audio') {
           if (count < maxCount) {
             setDesired(pub, identity, 'audio', true);
@@ -90,4 +107,3 @@ export function ensureSubscribeAllAudio(room: any, isSignalOpen: () => boolean, 
     }
   } catch {}
 }
-

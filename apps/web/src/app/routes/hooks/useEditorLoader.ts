@@ -168,7 +168,7 @@ function applyPackTilesetsToEditor(setEditor: any, packTilesets: any[]) {
       if (idx >= 0) merged[idx] = ts;
       else merged.push(ts);
     }
-    (window as any).pendingTilesets = merged;
+    window.pendingTilesets = merged;
     return { ...s, tilesets: merged };
   });
   try {
@@ -259,7 +259,7 @@ function loadDefaultTilesets(setEditor: any) {
       category: 'objects',
     },
   ];
-  (window as any).pendingTilesets = defaultTs;
+  window.pendingTilesets = defaultTs;
   setEditor((s: any) => ({ ...s, tilesets: defaultTs }));
   // registerTileset ist sync (returns void), kein await nötig — aber wir wrappen
   // in try/catch, weil die interne Pipeline Promise-spawning Side-Effects hat.

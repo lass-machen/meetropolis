@@ -105,7 +105,7 @@ function useAutoConnectOnMount(
           !editorActiveRef.current &&
           !avRef.current?.room &&
           !isConnectingRef.current &&
-          !(typeof window !== 'undefined' && (window as any).__sessionConflictPending)
+          !(typeof window !== 'undefined' && window.__sessionConflictPending)
         ) {
           void connect();
         }
@@ -121,7 +121,7 @@ function useConnectOnFirstInteraction(
 ): void {
   React.useEffect(() => {
     const handleFirstInteraction = () => {
-      if (!avRef.current?.room && !(typeof window !== 'undefined' && (window as any).__sessionConflictPending)) {
+      if (!avRef.current?.room && !(typeof window !== 'undefined' && window.__sessionConflictPending)) {
         void connect();
       }
       // Refresh devices after interaction (permissions may now be granted)
@@ -231,7 +231,7 @@ export function useAVManager({
     if (editorActiveRef.current) return;
     if (isConnectingRef.current) return;
     if (avRef.current?.room) return;
-    if (typeof window !== 'undefined' && (window as any).__sessionConflictPending) return;
+    if (typeof window !== 'undefined' && window.__sessionConflictPending) return;
 
     isConnectingRef.current = true;
 

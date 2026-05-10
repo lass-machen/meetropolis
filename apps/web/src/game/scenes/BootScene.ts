@@ -79,7 +79,7 @@ export class BootScene extends Phaser.Scene {
           );
           if (metaOk) {
             await preloadTilesetImages(this, state.tilesetRegistry);
-            (window as any).__v2_state = state;
+            window.__v2_state = state;
             this.scene.start('Main');
           } else {
             logger.error('[Boot] Invalid V2 state received');

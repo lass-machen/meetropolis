@@ -7,7 +7,7 @@ import { getApiBaseFromWindow } from '../../lib/runtimeConfig';
 
 type ChangeMapRoom = {
   send: (type: string, data: unknown) => void;
-  onMessage: (type: string, handler: (data: unknown) => void) => (() => void);
+  onMessage: (type: string, handler: (data: unknown) => void) => () => void;
 };
 
 type MapChangeConfirmation = { mapName: string; x: number; y: number };
@@ -27,7 +27,9 @@ async function awaitMapChangeConfirmation(room: ChangeMapRoom): Promise<MapChang
   });
 }
 
-async function loadAndValidateNewState(targetMapId: string): Promise<NonNullable<Awaited<ReturnType<typeof fetchStateV2>>>> {
+async function loadAndValidateNewState(
+  targetMapId: string,
+): Promise<NonNullable<Awaited<ReturnType<typeof fetchStateV2>>>> {
   const newState = await fetchStateV2(targetMapId);
   if (!newState || !newState.mapMeta?.width || !newState.mapMeta?.height) {
     throw new Error('Failed to load map state for: ' + targetMapId);
@@ -61,7 +63,7 @@ async function restartScenesWithNewState(
   }
 
   // Set confirmed spawn position BEFORE restarting scene
-  (window as any).initialPlayerPosition = { x: confirmed.x, y: confirmed.y };
+  window.initialPlayerPosition = { x: confirmed.x, y: confirmed.y };
 
   // Restart MainScene
   // NOTE: Remote players cache is NOT cleared here. The Colyseus onStateChange
@@ -89,10 +91,17 @@ function persistPositionToServer(confirmed: MapChangeConfirmation, targetMapName
       body: payload,
       keepalive: true,
     }).catch(() => {});
-  } catch { /* ignore persistence errors */ }
+  } catch {
+    /* ignore persistence errors */
+  }
 }
 
-export async function changeMap(targetMapId: string, targetMapName: string, room: ChangeMapRoom, spawnOverride?: { x: number; y: number }): Promise<void> {
+export async function changeMap(
+  targetMapId: string,
+  targetMapName: string,
+  room: ChangeMapRoom,
+  spawnOverride?: { x: number; y: number },
+): Promise<void> {
   const store = useMapStore.getState();
 
   if (store.isChangingMap) {
@@ -109,7 +118,10 @@ export async function changeMap(targetMapId: string, targetMapName: string, room
 
   try {
     // 1. Tell server to change map
-    room.send('change_map', { mapId: targetMapId, ...(spawnOverride ? { spawnX: spawnOverride.x, spawnY: spawnOverride.y } : {}) });
+    room.send('change_map', {
+      mapId: targetMapId,
+      ...(spawnOverride ? { spawnX: spawnOverride.x, spawnY: spawnOverride.y } : {}),
+    });
 
     // 2. Wait for server confirmation
     const confirmed = await awaitMapChangeConfirmation(room);
@@ -141,7 +153,9 @@ export async function changeMap(targetMapId: string, targetMapName: string, room
     }
 
     // Notify React to reload zones for the new map
-    window.dispatchEvent(new CustomEvent('map_zones_reload', { detail: { mapId: targetMapId, mapName: targetMapName } }));
+    window.dispatchEvent(
+      new CustomEvent('map_zones_reload', { detail: { mapId: targetMapId, mapName: targetMapName } }),
+    );
 
     // Immediately persist map change to server
     persistPositionToServer(confirmed, targetMapName);
