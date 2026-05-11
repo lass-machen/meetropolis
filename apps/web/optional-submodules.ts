@@ -1,18 +1,17 @@
 /**
- * Vite-Plugin: Optional private submodules als leeres Modul auflösen.
- * Verhindert Fehler wenn `@meetropolis/desktop`, `@meetropolis/enterprise-web`
- * oder `@meetropolis/brand-web` (privatie Submodules) nicht installiert sind.
- * Die jeweiligen *Loader.ts-Dateien fangen den fehlenden Export per try/catch
- * ab und liefern null zurück; OSS-Code rendert dann generische Fallbacks.
+ * Vite plugin: resolve optional private submodules as an empty module.
+ * Prevents errors when `@meetropolis/desktop`, `@meetropolis/enterprise-web`
+ * or `@meetropolis/brand-web` (private submodules) are not installed.
+ * The corresponding *Loader.ts files catch the missing export via try/catch
+ * and return null; OSS code then renders generic fallbacks.
  *
- * Wenn das Submodule vorhanden ist (package.json existiert), wird der Import
- * normal aufgelöst — das Plugin greift dann NICHT ein. Als Fallback wird auch
- * ein node_modules-Symlink angelegt, falls npm ihn nicht automatisch erstellt
- * (bekanntes Problem mit Git Submodules + Workspaces).
+ * When the submodule is present (package.json exists), the import resolves
+ * normally and the plugin does NOT intervene. As a fallback, a node_modules
+ * symlink is also created when npm does not generate one automatically
+ * (a known issue with git submodules + workspaces).
  *
- * Dieses Plugin wird sowohl in vite.config.ts (build) als auch in
- * vitest.config.ts (tests) eingebunden, damit OSS-only Test-Runs ohne
- * Submodule grün durchlaufen.
+ * This plugin is wired into both vite.config.ts (build) and vitest.config.ts
+ * (tests) so that OSS-only test runs without the submodules stay green.
  */
 import type { Plugin } from 'vite';
 import { resolve, dirname, join, relative } from 'path';
@@ -30,9 +29,10 @@ function normalizeSpec(spec: OptionalSubmoduleSpec): { id: string; path: string;
 }
 
 /**
- * Symlinkt alle Files aus `submodulePublicDir` rekursiv nach `targetPublicDir`.
- * - Pro Datei (nicht pro Top-Level-Folder), damit OSS-Folder wie `images/`
- *   nicht durch einen einzelnen Submodule-Symlink überschrieben werden.
+ * Recursively symlink all files from `submodulePublicDir` into
+ * `targetPublicDir`.
+ * - One symlink per file (not per top-level folder), so OSS folders such as
+ *   `images/` are not shadowed by a single submodule-level symlink.
  * - Existing files in `targetPublicDir` are NOT overwritten (OSS-owned
  *   assets win).
  * - Existing symlinks pointing to the same target are OK (idempotent).
