@@ -1,313 +1,294 @@
-![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)
-![Node](https://img.shields.io/badge/Node-20%2B-green.svg)
-![TypeScript](https://img.shields.io/badge/TypeScript-5.5-blue.svg)
-
 # Meetropolis
 
-A virtual office platform for remote teams - like Gather.town, but open source.
+An open-source virtual office platform for remote teams. Proximity-based
+spatial audio/video, a live 2D world built on Phaser, and a real-time
+multi-user engine powered by Colyseus.
 
-## Features
-
-- **Spatial Audio/Video** - Proximity-based conversations powered by LiveKit
-- **2D Game World** - Interactive maps with Phaser and Tiled editor support
-- **Zone-based Audio** - Isolated conversation areas and meeting rooms
-- **Multi-tenant Architecture** - SaaS-ready with Stripe billing integration
-- **Desktop App** - Native support via Tauri (macOS, Windows, Linux)
-- **GDPR Compliant** - Data export, account deletion, cookie consent
+![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)
+![Node](https://img.shields.io/badge/Node-24-green.svg)
+![TypeScript](https://img.shields.io/badge/TypeScript-6.x-blue.svg)
 
 ## Quick Start
 
-### Prerequisites
+```bash
+git clone https://github.com/lass-machen/meetropolis.git
+cd meetropolis
+cp .env.example .env          # edit with your values
+docker compose up --build     # starts db, server, web, livekit
+```
 
-- Node.js 20+
-- Docker & Docker Compose
+After startup:
 
-### Setup
+| Service                  | URL                   |
+| ------------------------ | --------------------- |
+| Web app                  | http://localhost:5173 |
+| Server (Colyseus + REST) | http://localhost:2567 |
+| LiveKit                  | http://localhost:7880 |
 
-1. **Clone and install dependencies:**
-   ```bash
-   git clone https://github.com/lass-machen/meetropolis.git
-   cd meetropolis
-   npm install
-   ```
+### Local development without Docker
 
-2. **Create environment file:**
-   ```bash
-   cp .env.example .env
-   ```
-
-3. **Start development environment:**
-   ```bash
-   docker compose up --build
-   ```
-
-4. **Access the application:**
-   - Web: http://localhost:5173
-   - API: http://localhost:2567
-   - LiveKit: http://localhost:7880
-
-### Alternative: Local Development (without Docker)
+Requires a running PostgreSQL instance. Configure `DATABASE_URL` in `.env`.
 
 ```bash
-# Generate Prisma client
-npm run generate
-
-# Run database migrations
-npm run prisma:migrate
-
-# Start web and server in parallel
-npm run dev
+npm install
+npm run dev          # starts server + web concurrently
 ```
 
-## Desktop App (Tauri)
+The server's `predev` script runs Prisma schema compose, generate, db push
+and seed automatically before the dev server boots.
 
-Meetropolis includes a native desktop app for macOS, Windows, and Linux built with [Tauri v2](https://v2.tauri.app/).
-
-### Prerequisites
-
-- **Rust 1.70+** ([Install Rust](https://www.rust-lang.org/tools/install))
-- **Node.js 20+**
-- Platform-specific dependencies:
-  - **macOS**: Xcode Command Line Tools (`xcode-select --install`)
-  - **Windows**: Microsoft Visual Studio C++ Build Tools
-  - **Linux**: See [Tauri Linux Prerequisites](https://v2.tauri.app/start/prerequisites/#linux)
-
-### Development
+To run workspaces individually:
 
 ```bash
-# Ensure backend is running (Docker or local)
-docker compose up -d
-
-# Start the desktop app in development mode
-cd apps/web
-npm run tauri dev
+npm run dev:server   # apps/server only
+npm run dev:web      # apps/web only
 ```
 
-This will:
-1. Start the Vite dev server with hot-reload
-2. Compile the Rust backend
-3. Launch the native window pointing to `http://localhost:5173`
+## Requirements
 
-### Building for Production
+| Requirement             | Version                                                  |
+| ----------------------- | -------------------------------------------------------- |
+| Node.js                 | `>=24.0.0 <25` (enforced by `engines` in `package.json`) |
+| npm                     | `11.7.0` (pinned via `packageManager`)                   |
+| Docker + Docker Compose | optional, for the full-stack local setup                 |
+| PostgreSQL 16           | required for local dev without Docker                    |
 
-```bash
-cd apps/web
-npm run tauri build
-```
+> **macOS / Windows + Docker Desktop note:** Chrome filters loopback ICE
+> candidates. Set `LK_NODE_IP` in `.env` to your machine's LAN IP (not
+> `127.0.0.1`) and restart LiveKit: `docker compose restart livekit`.
 
-Build outputs are in `apps/web/src-tauri/target/release/bundle/`:
-- **macOS**: `Meetropolis.app` and `.dmg`
-- **Windows**: `Meetropolis.exe` and `.msi`
-- **Linux**: `.deb`, `.AppImage`, `.rpm`
-
-### Configuration
-
-The desktop app needs to connect to your Meetropolis server. Configure via:
-
-1. **First Launch**: Enter API URL in the setup screen
-2. **Menu**: `Meetropolis → Einstellungen` (or `Cmd+,` / `Ctrl+,`)
-3. **Config File**:
-   - macOS: `~/Library/Application Support/com.meetropolis.desktop/config.json`
-   - Windows: `%APPDATA%\com.meetropolis.desktop\config.json`
-   - Linux: `~/.config/com.meetropolis.desktop/config.json`
-
-Example `config.json`:
-```json
-{
-  "api_base": "https://api.your-domain.com",
-  "web_base": "https://your-domain.com"
-}
-```
-
-### Desktop App Features
-
-- **Native Performance**: Lightweight WebView with minimal resource usage
-- **Mini Mode**: Floating always-on-top window (`Cmd+M` / `Ctrl+M`)
-- **System Integration**: Native menus, keyboard shortcuts, fullscreen
-- **AV Sync**: Mic, camera, screen share status synced with mini window
-
-## Project Structure
+## Repo structure
 
 ```
 meetropolis/
 ├── apps/
-│   ├── server/          # Express + Colyseus + Prisma backend
-│   │   └── prisma/      # Database schema and migrations
-│   └── web/             # React + Vite + Phaser frontend
-│       └── src-tauri/   # Tauri desktop app config
+│   ├── server/              # Express + Colyseus + Prisma
+│   │   └── prisma/          # schema (composed) + migrations
+│   ├── web/                 # React + Vite + Phaser + i18next
+│   │   └── src/locales/     # i18n catalog (en, de)
+│   ├── npc-service/         # NPC automation service
+│   ├── loadtest/            # Load-testing harness
+│   └── debug-client/        # macOS debug client (Swift/Xcode)
 ├── packages/
-│   └── shared/          # Shared types and utilities
-├── docker-compose.yml   # Development environment
-└── docker-compose.prod.yml  # Production deployment
+│   ├── shared/              # Shared types and utilities (OSS)
+│   ├── desktop/             # Tauri desktop app (private submodule, optional)
+│   ├── brand/               # Meetropolis branding + legal pages (private submodule)
+│   └── tenancy-enterprise/  # Multi-tenancy + billing (private submodule)
+├── scripts/
+│   ├── enforce-budgets.js   # LoC budget gate (runs via npm run lint)
+│   └── lint-stats.cjs       # ESLint warning regression gate
+├── docs/                    # Extended docs (enterprise.md, brand.md, ...)
+├── AGENTS.md                # Dev guidelines and quality budgets
+├── LIBRARY_BOUNDARIES.md    # Type-boundary patterns for unsafe library edges
+├── TEST_STRATEGY.md         # Testing approach and coverage expectations
+├── lint-stats.json          # Tracked lint warning baseline (committed)
+├── eslint.config.mjs        # ESLint flat config
+├── commitlint.config.mjs    # Conventional commits enforcement
+├── docker-compose.yml          # Default dev stack
+├── docker-compose.override.yml # Local overrides (auto-applied)
+├── docker-compose.prod.yml     # Production deployment
+└── .env.example             # All available environment variables
 ```
 
-## Configuration
+Private submodules (`desktop`, `brand`, `tenancy-enterprise`) are optional.
+The OSS edition runs fully without them. They are loaded at runtime via
+dynamic imports; absent modules return `null` gracefully.
 
-See `.env.example` for all available configuration options. Key variables:
+## Development
 
-| Variable | Description |
-|----------|-------------|
-| `DATABASE_URL` | PostgreSQL connection string |
-| `JWT_SECRET` | Secret for JWT signing (32+ chars in production) |
-| `LIVEKIT_URL` | LiveKit server URL |
-| `LIVEKIT_API_KEY` | LiveKit API key |
-| `LIVEKIT_API_SECRET` | LiveKit API secret |
-| `CORS_ORIGIN` | Allowed origins (required in production) |
-| `STRIPE_SECRET_KEY` | Stripe API key (for billing) |
+### Root scripts (run from repo root)
 
-## API Tokens
+| Script                      | What it does                                       |
+| --------------------------- | -------------------------------------------------- |
+| `npm run dev`               | Start server + web concurrently                    |
+| `npm run dev:server`        | Server only                                        |
+| `npm run dev:web`           | Web only                                           |
+| `npm run build`             | Build web (Vite) and server (tsc)                  |
+| `npm run typecheck`         | `tsc --noEmit` in all workspaces                   |
+| `npm run lint`              | ESLint + budget gate + lint-stats regression check |
+| `npm run lint:fix`          | ESLint with auto-fix                               |
+| `npm run lint:stats:update` | Update the committed lint warning baseline         |
+| `npm run format`            | Prettier write                                     |
+| `npm run format:check`      | Prettier check (used in CI)                        |
+| `npm run generate`          | Compose Prisma schema and run `prisma generate`    |
+| `npm run prisma:migrate`    | Create and apply a new migration                   |
 
-Control your presence remotely with personal API tokens:
+### Desktop app
 
-1. Open **API Tokens & Docs** from the top-right menu
-2. Create a new token (shown only once - save securely)
-3. Use the token to control mic, camera, screenshare, and DND status:
+The Tauri desktop app lives in `packages/desktop` (private submodule). It is
+not part of the OSS build. Without the submodule, all desktop-dependent code
+paths degrade gracefully via `apps/web/src/lib/desktopLoader.ts`.
+
+### Environment variables
+
+Copy `.env.example` to `.env`. Key variables:
+
+| Variable             | Description                                             |
+| -------------------- | ------------------------------------------------------- |
+| `DATABASE_URL`       | PostgreSQL connection string                            |
+| `JWT_SECRET`         | JWT signing secret (32+ chars in production)            |
+| `LIVEKIT_URL`        | LiveKit server URL                                      |
+| `LIVEKIT_API_KEY`    | LiveKit API key                                         |
+| `LIVEKIT_API_SECRET` | LiveKit API secret                                      |
+| `LK_NODE_IP`         | Host LAN IP for LiveKit ICE (Docker Desktop on macOS)   |
+| `CORS_ORIGIN`        | Allowed CORS origins (required in production)           |
+| `OSS_USER_LIMIT`     | Concurrent user limit for the OSS edition (default: 25) |
+
+See `.env.example` for the full list including optional variables.
+
+## Testing
+
+Tests use [Vitest](https://vitest.dev/).
+
+```bash
+# Web (apps/web)
+npm --workspace=@meetropolis/web run test
+
+# Server (apps/server)
+npm --workspace=@meetropolis/server run test
+```
+
+See [TEST_STRATEGY.md](TEST_STRATEGY.md) for the project's testing
+philosophy, coverage expectations, and guidance on where to place new tests.
+
+## Linting and code style
+
+### ESLint + Prettier
+
+```bash
+npm run lint           # full lint pipeline
+npm run lint:fix       # auto-fix where possible
+npm run format         # Prettier write
+npm run format:check   # Prettier check
+```
+
+### Lint regression gate
+
+`lint-stats.json` records the current warning count baseline. The
+`lint:stats` script fails if the warning count exceeds the baseline. Before
+accepting an intentional suppression or a temporary warning increase, update
+the baseline:
+
+```bash
+npm run lint:stats:update
+```
+
+Commit the updated `lint-stats.json` alongside your change.
+
+### LoC budget enforcement
+
+`scripts/enforce-budgets.js` enforces file-size limits defined in
+[AGENTS.md](AGENTS.md):
+
+- React/TS/server files: target <= 400 LoC, hard limit 600 LoC
+- Phaser scene files: target <= 300 LoC, hard limit 450 LoC (with documented exceptions)
+- Utility modules: target <= 300 LoC, hard limit 450 LoC
+
+Files exceeding the hard limit block the lint step. Refactor before merging.
+Files that are intentional exceptions (Phaser scene classes, composite
+hooks) are listed in `.budgetignore` with a written reason.
+
+### Type-boundary patterns
+
+Third-party libraries, runtime globals and optional submodule boundaries
+require special handling to stay compatible with strict TypeScript and the
+`@typescript-eslint/no-unsafe-*` rules. The project's four-tier approach
+(wrapper types, module augmentation, file-scoped overrides, inline disables
+with written justification) is documented in
+[LIBRARY_BOUNDARIES.md](LIBRARY_BOUNDARIES.md). Read it before adding any
+`as any` or ESLint disable.
+
+### Commit style
+
+Commits follow [Conventional Commits](https://www.conventionalcommits.org/).
+`commitlint` enforces this via a Husky `commit-msg` hook. A `pre-commit`
+hook runs `lint-staged`.
+
+## Editions and architecture
+
+The codebase is split across three repositories combined at build time via
+Git submodules:
+
+| Edition     | Submodule                               | License    | What it adds                                                       |
+| ----------- | --------------------------------------- | ---------- | ------------------------------------------------------------------ |
+| Open Source | this repo                               | Apache 2.0 | Single-tenant virtual office, spatial AV, map editor, i18n (en/de) |
+| Enterprise  | `packages/tenancy-enterprise` (private) | Commercial | Multi-tenancy, Stripe billing, admin UI, billing audit log         |
+| Brand       | `packages/brand` (private)              | Commercial | Meetropolis marketing site, legal pages, analytics, brand assets   |
+
+Server loaders: `apps/server/src/{tenancyLoader,billingLoader,adminLoader}.ts`
+Web loaders: `apps/web/src/lib/{enterpriseWebLoader,brandLoader,desktopLoader}.ts`
+
+Without private submodules the OSS edition runs single-tenant and shows a
+generic unbranded landing page.
+
+**OSS user limit:** 25 concurrent users by default. Configurable via the
+`OSS_USER_LIMIT` environment variable.
+
+## Self-hosting a branded instance
+
+Before deploying for your team or customers:
+
+1. Replace brand assets in `apps/web/public/brand/` (logo, favicon).
+2. Provide your own legal pages (`/privacy`, `/terms`, `/impressum`). Without
+   the brand submodule, these routes show a placeholder.
+3. Update the HTML title and meta description in `apps/web/index.html`.
+4. Configure your own analytics tracking (`VITE_META_PIXEL_ID`) or leave it
+   disabled.
+5. Review and adjust source strings that reference "Meetropolis" if you
+   intend to publish a derivative product (see [TRADEMARKS.md](TRADEMARKS.md)).
+
+## API tokens
+
+Control your presence remotely via personal API tokens:
+
+1. Open "API Tokens and Docs" from the top-right menu.
+2. Create a token. It is shown only once, save it.
+3. Use it to control mic, camera, screenshare and DND status:
 
 ```bash
 curl -X POST "http://localhost:2567/controls" \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{ "mic": false, "dnd": true }'
+  -d '{"mic": false, "dnd": true}'
 ```
 
-## Production Deployment
-
-### Docker Compose (Recommended)
+## Production deployment
 
 ```bash
-# Configure production environment
-cp .env.example .env
-# Edit .env with production values
-
-# Deploy with Traefik reverse proxy
+cp .env.example .env   # configure production values
 docker compose -f docker-compose.prod.yml up -d
 ```
 
-### Required Production Configuration
+Minimum production configuration:
 
-- `NODE_ENV=production`
-- `JWT_SECRET` - Cryptographically random, 32+ characters
-- `API_TOKEN_PEPPER` - Random string for API token hashing
-- `CORS_ORIGIN` - Explicit list of allowed origins
-- `COOKIE_SECURE=true` - Enable secure cookies
-
-## Troubleshooting
-
-### LiveKit Connection Issues
-
-If audio/video doesn't connect in Docker Desktop (macOS/Windows):
-
-1. **Check your host IP** (not 127.0.0.1):
-   ```bash
-   # macOS
-   ipconfig getifaddr en0
-
-   # Linux
-   hostname -I | awk '{print $1}'
-   ```
-
-2. **Update `.env`** with your actual host IP:
-   ```bash
-   LK_NODE_IP=192.168.x.x  # Your IP from step 1
-   ```
-
-3. **Restart LiveKit**:
-   ```bash
-   docker compose restart livekit
-   ```
-
-This is needed because Chrome filters loopback ICE candidates, and Docker Desktop uses a virtual network.
-
-### Port Already in Use
-
-If port 5173 or 2567 is busy:
-```bash
-# Find what's using the port
-lsof -i :5173
-
-# Kill the process or use different ports via .env
-```
-
-## OSS Edition Limits
-
-The open source edition includes a **25 concurrent user limit** per instance
-by default (configurable via `OSS_USER_LIMIT` env var). This limit ensures
-fair use while keeping the core platform freely available.
-
-For unlimited users and multi-tenant features, see [Enterprise Edition](docs/enterprise.md).
-
-## Self-Hosting Your Own Branded Instance
-
-The OSS edition contains **no** Meetropolis-specific marketing, legal pages,
-brand assets, or tracking pixels. Before deploying for your team or customers,
-you must:
-
-1. **Replace branding assets** in `apps/web/public/brand/` (logo, favicon).
-2. **Provide your own legal pages** (Privacy, Terms, Imprint). The OSS routes
-   `/privacy`, `/terms`, `/impressum` show a placeholder when the brand
-   submodule is not installed.
-3. **Update the HTML title and meta description** in `apps/web/index.html`.
-4. **Configure your own marketing tracking** (set `VITE_META_PIXEL_ID`) or
-   leave tracking disabled.
-5. **Adjust source-code strings** that still reference "Meetropolis" if you
-   intend to publish a derivative product (see [TRADEMARKS.md](TRADEMARKS.md)).
-
-## Editions & Architecture
-
-The codebase is split across three repositories that are pulled together at
-build time:
-
-| Edition | Repo / Submodule | License | Contents |
-|---|---|---|---|
-| **Open Source** | `meetropolis` (this repo) | Apache-2.0 | Single-tenant virtual office, spatial AV, map editor, generic OSS landing |
-| **Enterprise** | `packages/tenancy-enterprise` (private submodule) | Commercial | Multi-tenancy, Stripe billing, pricing-plan & tenant CRUD, pack marketplace, billing audit log, admin/billing/audit UI |
-| **Brand** | `packages/brand` (private submodule) | Commercial | Meetropolis marketing landing, legal pages, brand assets, Meta-Pixel tracking |
-
-Optional submodules are loaded at runtime via dynamic imports
-(`apps/server/src/{tenancyLoader,billingLoader,adminLoader}.ts` on the server
-and `apps/web/src/lib/{enterpriseWebLoader,brandLoader,desktopLoader}.ts` on
-the web). Without the private submodules, the OSS edition runs single-tenant
-and shows a generic, unbranded landing.
-
-See [docs/enterprise.md](docs/enterprise.md) and [docs/brand.md](docs/brand.md)
-for the integration details.
+| Variable           | Requirement                              |
+| ------------------ | ---------------------------------------- |
+| `NODE_ENV`         | `production`                             |
+| `JWT_SECRET`       | Cryptographically random, 32+ characters |
+| `API_TOKEN_PEPPER` | Random string for API token hashing      |
+| `CORS_ORIGIN`      | Explicit list of allowed origins         |
+| `COOKIE_SECURE`    | `true`                                   |
 
 ## Contributing
 
-We welcome contributions! Please read our [Contributing Guide](CONTRIBUTING.md) before submitting PRs.
+Read [AGENTS.md](AGENTS.md) before opening a PR. It covers architecture
+rules, quality budgets, naming conventions, commit workflow and PR
+expectations. Most of these are enforced by tooling (Husky, commitlint,
+ESLint, budget scripts).
 
-- [Code of Conduct](CODE_OF_CONDUCT.md)
-- [Security Policy](SECURITY.md)
+Also read:
 
-## License & Editions
+- [CONTRIBUTING.md](CONTRIBUTING.md) - general contribution process
+- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
+- [SECURITY.md](SECURITY.md) - responsible disclosure and known advisories
 
-- **Open Source**: Apache 2.0 (see [LICENSE](LICENSE), [NOTICE](NOTICE))
-- **Enterprise / Brand**: Commercial license, separate private submodules
-- **Trademarks**: See [TRADEMARKS.md](TRADEMARKS.md) — Apache 2.0 does **not**
-  grant rights to use the Meetropolis name or logo.
+## License
 
-### What's Included (OSS)
+The OSS edition is released under the [Apache 2.0 License](LICENSE). See
+[NOTICE](NOTICE) for third-party attributions.
 
-- Full virtual office functionality (spatial audio/video, 2D world, map editor)
-- Spatial audio/video with LiveKit
-- Map editor and custom worlds
-- Single-tenant deployment
-- 25 concurrent user limit (configurable via `OSS_USER_LIMIT`)
-- Generic, unbranded landing page
+Enterprise and Brand editions are available under a commercial license.
+Contact [info@meetropolis.de](mailto:info@meetropolis.de) for details.
 
-### Enterprise Features (separate submodule)
-
-- Multi-tenant architecture
-- Stripe billing integration (subscriptions, trials, dunning, invoices)
-- Pricing-plan and pack-marketplace CRUD with admin UI
-- Tenant-scoped billing audit log
-- Unlimited concurrent users
-
-### Brand Features (separate submodule)
-
-- Meetropolis-specific marketing landing page (Hero, Comparison, Social Proof, Pricing CTA)
-- Legal pages (Privacy, Terms of Service, Impressum)
-- Meta-Pixel marketing tracking + cookie-consent banner
-- Brand logos, wordmark, screenshots, editor showcase video
-
-For commercial licensing, contact us at [info@meetropolis.de](mailto:info@meetropolis.de).
+The "Meetropolis" name and logo are trademarks. Apache 2.0 does not grant
+rights to use them. See [TRADEMARKS.md](TRADEMARKS.md).
