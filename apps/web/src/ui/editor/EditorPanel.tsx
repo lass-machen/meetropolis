@@ -62,7 +62,7 @@ function buildPackItemsFromTileset(
   return items;
 }
 
-function useEditorEvents(setToast: Setter<ToastState>, setToastOpen: Setter<boolean>) {
+function useEditorEvents(setToast: Setter<ToastState>, setToastOpen: Setter<boolean>, t: (k: string) => string) {
   React.useEffect(() => {
     const onTilesetConfirm = (e: Event) => {
       const detail = (e as CustomEvent).detail;
@@ -77,14 +77,18 @@ function useEditorEvents(setToast: Setter<ToastState>, setToastOpen: Setter<bool
         EditorService.dispatch({ type: 'ADD_PACK_ITEMS', items });
       };
       img.onerror = () => {
-        setToast({ title: 'Fehler', description: 'Bild konnte nicht geladen werden', intent: 'error' });
+        setToast({
+          title: t('editor.imageLoadFailedTitle'),
+          description: t('editor.imageLoadFailedDesc'),
+          intent: 'error',
+        });
         setToastOpen(true);
       };
       img.src = detail.dataUrl;
     };
     window.addEventListener('editor:tileset-confirm', onTilesetConfirm);
     return () => window.removeEventListener('editor:tileset-confirm', onTilesetConfirm);
-  }, [setToast, setToastOpen]);
+  }, [setToast, setToastOpen, t]);
 
   React.useEffect(() => {
     const onToast = (e: Event) => {
@@ -111,11 +115,11 @@ function useV2Tilesets() {
   return v2Tilesets;
 }
 
-function GeneralSettings({ state }: { state: ReturnType<typeof EditorService.getState> }) {
+function GeneralSettings({ state, t }: { state: ReturnType<typeof EditorService.getState>; t: (k: string) => string }) {
   return (
     <div style={{ display: 'grid', gap: 12 }}>
       <div style={{ display: 'grid', gap: 6 }}>
-        <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>Spawnpunkt</div>
+        <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>{t('editor.spawnpoint')}</div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           <button
             onClick={() => EditorService.dispatch({ type: 'SET_TOOL', tool: 'spawn' })}
@@ -128,7 +132,7 @@ function GeneralSettings({ state }: { state: ReturnType<typeof EditorService.get
               fontSize: 13,
             }}
           >
-            Spawn setzen
+            {t('editor.setSpawn')}
           </button>
           <button
             onClick={() => EditorService.dispatch({ type: 'CLEAR_SPAWN' })}
@@ -141,15 +145,15 @@ function GeneralSettings({ state }: { state: ReturnType<typeof EditorService.get
               fontSize: 13,
             }}
           >
-            Entfernen
+            {t('editor.removeSpawn')}
           </button>
           <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>
-            {state.spawn ? `(${Math.round(state.spawn.x)}, ${Math.round(state.spawn.y)})` : 'Kein Spawn'}
+            {state.spawn ? `(${Math.round(state.spawn.x)}, ${Math.round(state.spawn.y)})` : t('editor.noSpawn')}
           </div>
         </div>
       </div>
       <div style={{ display: 'grid', gap: 6 }}>
-        <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>Space Hintergrund</div>
+        <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>{t('editor.spaceBackground')}</div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <input
             type="color"
@@ -177,14 +181,16 @@ function GeneralSettings({ state }: { state: ReturnType<typeof EditorService.get
 function TerrainSettings({
   state,
   v2Tilesets,
+  t,
 }: {
   state: ReturnType<typeof EditorService.getState>;
   v2Tilesets: V2Tileset[];
+  t: (k: string) => string;
 }) {
   return (
     <div style={{ display: 'grid', gap: 12 }}>
       <div style={{ display: 'grid', gap: 6 }}>
-        <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>Terrain Hintergrund</div>
+        <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>{t('editor.terrainBackground')}</div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <input
             type="color"
@@ -230,7 +236,7 @@ function ToolButtons({ state, t }: { state: ReturnType<typeof EditorService.getS
             fontSize: 13,
           }}
         >
-          Terrain
+          {t('editor.terrain')}
         </button>
       )}
       {state.category === 'collisions' && (
@@ -245,7 +251,7 @@ function ToolButtons({ state, t }: { state: ReturnType<typeof EditorService.getS
             fontSize: 13,
           }}
         >
-          Kollision zeichnen
+          {t('editor.collisionDraw')}
         </button>
       )}
       {state.category === 'autotiles' && (
@@ -260,7 +266,7 @@ function ToolButtons({ state, t }: { state: ReturnType<typeof EditorService.getS
             fontSize: 13,
           }}
         >
-          Wand zeichnen
+          {t('editor.wallDraw')}
         </button>
       )}
       {state.category !== 'terrain' &&
@@ -368,7 +374,7 @@ function AssetPalette({ state, t }: { state: ReturnType<typeof EditorService.get
               cursor: 'pointer',
             }}
           >
-            Rotieren (R)
+            {t('editor.rotateR')}
           </button>
           <span style={{ fontSize: 12, color: 'var(--fg-subtle)', fontFamily: 'monospace' }}>
             {state.pendingAsset.rotation ?? 0}°
@@ -433,7 +439,7 @@ export function EditorPanel(props: { onSave?: () => Promise<boolean> }) {
   const [toastOpen, setToastOpen] = React.useState(false);
   const [toast, setToast] = React.useState<ToastState>({});
 
-  useEditorEvents(setToast, setToastOpen);
+  useEditorEvents(setToast, setToastOpen, t);
 
   const handleSaveClick = async () => {
     if (saving) return;
@@ -480,8 +486,8 @@ export function EditorPanel(props: { onSave?: () => Promise<boolean> }) {
 
   return (
     <div style={{ padding: 16, display: 'grid', gap: 12 }}>
-      {state.category === 'general' && <GeneralSettings state={state} />}
-      {state.category === 'terrain' && <TerrainSettings state={state} v2Tilesets={v2Tilesets} />}
+      {state.category === 'general' && <GeneralSettings state={state} t={t} />}
+      {state.category === 'terrain' && <TerrainSettings state={state} v2Tilesets={v2Tilesets} t={t} />}
       {state.category === 'autotiles' && (
         <AutotilePicker autotileItems={state.autotileItems} selectedWallTypeId={state.selectedWallTypeId} />
       )}

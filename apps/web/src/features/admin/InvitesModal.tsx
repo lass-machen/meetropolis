@@ -1,16 +1,18 @@
 import * as React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Modal, Button, Card, Table, THead, TBody, Tr, Th, Td, TableContainer } from '../../ui/system';
 
 type Invite = { code: string; email?: string | null; usedAt?: string | null; createdAt?: string };
 
 function InvitesTableHeader() {
+  const { t } = useTranslation();
   return (
     <THead sticky>
       <Tr>
-        <Th style={{ paddingLeft: 0 }}>Code</Th>
-        <Th>E-Mail</Th>
-        <Th>Erstellt</Th>
-        <Th>Status</Th>
+        <Th style={{ paddingLeft: 0 }}>{t('admin.invites.code')}</Th>
+        <Th>{t('admin.invites.email')}</Th>
+        <Th>{t('admin.invites.createdAt')}</Th>
+        <Th>{t('admin.invites.status')}</Th>
         <Th style={{ paddingRight: 0 }}>{null}</Th>
       </Tr>
     </THead>
@@ -40,11 +42,12 @@ function InvitesLoadingRows() {
 }
 
 function InvitesEmptyRow() {
+  const { t } = useTranslation();
   return (
     <TBody>
       <Tr>
         <Td colSpan={5} style={{ paddingLeft: 0, textAlign: 'center', color: 'var(--fg-subtle)', padding: '32px 0' }}>
-          Keine Einladungen vorhanden.
+          {t('admin.invites.empty')}
         </Td>
       </Tr>
     </TBody>
@@ -52,6 +55,8 @@ function InvitesEmptyRow() {
 }
 
 function InviteRow({ inv, onDelete }: { inv: Invite; onDelete: (code: string) => void | Promise<void> }) {
+  const { t } = useTranslation();
+  const placeholder = t('admin.invites.placeholder');
   return (
     <Tr style={{ borderBottom: '1px solid var(--border)' }}>
       <Td style={{ paddingLeft: 0 }}>
@@ -67,9 +72,9 @@ function InviteRow({ inv, onDelete }: { inv: Invite; onDelete: (code: string) =>
           {inv.code}
         </code>
       </Td>
-      <Td>{inv.email || '—'}</Td>
-      <Td>{inv.createdAt ? new Date(inv.createdAt).toLocaleString() : '—'}</Td>
-      <Td>{inv.usedAt ? 'Eingelöst' : 'Offen'}</Td>
+      <Td>{inv.email || placeholder}</Td>
+      <Td>{inv.createdAt ? new Date(inv.createdAt).toLocaleString() : placeholder}</Td>
+      <Td>{inv.usedAt ? t('admin.invites.statusUsed') : t('admin.invites.statusOpen')}</Td>
       <Td style={{ paddingRight: 0, textAlign: 'right', display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
         <Button
           size="sm"
@@ -81,7 +86,7 @@ function InviteRow({ inv, onDelete }: { inv: Invite; onDelete: (code: string) =>
             })();
           }}
         >
-          Kopieren
+          {t('admin.invites.copy')}
         </Button>
         {!inv.usedAt && (
           <Button
@@ -91,7 +96,7 @@ function InviteRow({ inv, onDelete }: { inv: Invite; onDelete: (code: string) =>
               void onDelete(inv.code);
             }}
           >
-            Löschen
+            {t('admin.invites.delete')}
           </Button>
         )}
       </Td>
@@ -137,10 +142,11 @@ export function InvitesModal({
   onOpenChange: (v: boolean) => void;
   apiBase: string;
 }) {
+  const { t } = useTranslation();
   const { invites, loading, deleteInvite } = useInvites(open, apiBase);
 
   return (
-    <Modal open={open} onOpenChange={onOpenChange} title="Einladungen" maxWidth={900}>
+    <Modal open={open} onOpenChange={onOpenChange} title={t('admin.invites.title')} maxWidth={900}>
       <Card style={{ padding: 0, overflow: 'hidden' }}>
         <TableContainer maxHeight="60vh">
           <Table>

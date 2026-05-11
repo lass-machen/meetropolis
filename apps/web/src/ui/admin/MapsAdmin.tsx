@@ -1,6 +1,8 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button, Select, Alert } from '../system';
 import { logger } from '../../lib/logger';
+import i18n from '../../app/providers/i18n';
 import {
   CreateMapForm,
   ImportMapForm,
@@ -95,9 +97,19 @@ function useMapsState() {
 }
 type State = ReturnType<typeof useMapsState>;
 
+function errorMessage(err: unknown): string {
+  const detail = err instanceof Error ? err.message : i18n.t('admin.maps.unknownError');
+  return i18n.t('admin.maps.errorPrefix', { message: detail });
+}
+
+function importErrorMessage(err: unknown): string {
+  const detail = err instanceof Error ? err.message : i18n.t('admin.maps.unknownError');
+  return i18n.t('admin.maps.importErrorPrefix', { message: detail });
+}
+
 async function createMap(apiBase: string, s: State, reload: () => Promise<void>) {
   if (!s.newMap.tenantId || s.newMap.tenantId === PICK_TENANT || !s.newMap.name.trim()) {
-    s.setStatus({ type: 'error', message: 'Tenant und Name sind erforderlich.' });
+    s.setStatus({ type: 'error', message: i18n.t('admin.maps.tenantNameRequired') });
     return;
   }
   s.setCreating(true);
@@ -107,13 +119,13 @@ async function createMap(apiBase: string, s: State, reload: () => Promise<void>)
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(s.newMap),
     });
-    s.setStatus({ type: 'success', message: `Map "${s.newMap.name}" erstellt.` });
+    s.setStatus({ type: 'success', message: i18n.t('admin.maps.mapCreated', { name: s.newMap.name }) });
     s.setNewMap(DEFAULT_NEW_MAP);
     s.setShowCreate(false);
     await reload();
   } catch (err) {
     logger.warn('[MapsAdmin] Failed to create map', err);
-    s.setStatus({ type: 'error', message: `Fehler: ${err instanceof Error ? err.message : 'Unbekannt'}` });
+    s.setStatus({ type: 'error', message: errorMessage(err) });
   } finally {
     s.setCreating(false);
   }
@@ -122,11 +134,11 @@ async function createMap(apiBase: string, s: State, reload: () => Promise<void>)
 async function deleteMap(apiBase: string, s: State, reload: () => Promise<void>, id: string, name: string) {
   try {
     await jsonFetch(`${apiBase}/admin/maps/${id}`, { method: 'DELETE' });
-    s.setStatus({ type: 'success', message: `Map "${name}" gelöscht.` });
+    s.setStatus({ type: 'success', message: i18n.t('admin.maps.mapDeleted', { name }) });
     await reload();
   } catch (err) {
     logger.warn('[MapsAdmin] Failed to delete map', err);
-    s.setStatus({ type: 'error', message: `Fehler: ${err instanceof Error ? err.message : 'Unbekannt'}` });
+    s.setStatus({ type: 'error', message: errorMessage(err) });
   } finally {
     s.setDeletingId(null);
   }
@@ -135,7 +147,7 @@ async function deleteMap(apiBase: string, s: State, reload: () => Promise<void>,
 async function copyMap(apiBase: string, s: State, reload: () => Promise<void>) {
   if (!s.copyDialog) return;
   if (!s.copyDialog.targetTenantId || s.copyDialog.targetTenantId === PICK_TENANT) {
-    s.setStatus({ type: 'error', message: 'Ziel-Tenant erforderlich.' });
+    s.setStatus({ type: 'error', message: i18n.t('admin.maps.targetTenantRequired') });
     return;
   }
   try {
@@ -146,12 +158,12 @@ async function copyMap(apiBase: string, s: State, reload: () => Promise<void>) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
-    s.setStatus({ type: 'success', message: 'Map kopiert.' });
+    s.setStatus({ type: 'success', message: i18n.t('admin.maps.mapCopied') });
     s.setCopyDialog(null);
     await reload();
   } catch (err) {
     logger.warn('[MapsAdmin] Failed to copy map', err);
-    s.setStatus({ type: 'error', message: `Fehler: ${err instanceof Error ? err.message : 'Unbekannt'}` });
+    s.setStatus({ type: 'error', message: errorMessage(err) });
   }
 }
 
@@ -164,7 +176,7 @@ async function importMap(
   const file = e.target.files?.[0];
   if (!file) return;
   if (!s.importData.tenantId || s.importData.tenantId === PICK_TENANT || !s.importData.name.trim()) {
-    s.setStatus({ type: 'error', message: 'Tenant und Map-Name müssen vor dem Upload gesetzt sein.' });
+    s.setStatus({ type: 'error', message: i18n.t('admin.maps.uploadPrereq') });
     e.target.value = '';
     return;
   }
@@ -175,13 +187,13 @@ async function importMap(
     form.append('tenantId', s.importData.tenantId);
     form.append('name', s.importData.name.trim());
     await jsonFetch(`${apiBase}/admin/maps/import`, { method: 'POST', body: form });
-    s.setStatus({ type: 'success', message: `Map "${s.importData.name}" importiert.` });
+    s.setStatus({ type: 'success', message: i18n.t('admin.maps.mapImported', { name: s.importData.name }) });
     s.setImportData(DEFAULT_IMPORT);
     s.setShowImport(false);
     await reload();
   } catch (err) {
     logger.warn('[MapsAdmin] Failed to import map', err);
-    s.setStatus({ type: 'error', message: `Import-Fehler: ${err instanceof Error ? err.message : 'Unbekannt'}` });
+    s.setStatus({ type: 'error', message: importErrorMessage(err) });
   } finally {
     s.setImporting(false);
     e.target.value = '';
@@ -199,6 +211,7 @@ type ToolbarProps = {
 };
 
 function Toolbar(props: ToolbarProps) {
+  const { t } = useTranslation();
   return (
     <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
       <div style={{ minWidth: 240 }}>
@@ -206,21 +219,22 @@ function Toolbar(props: ToolbarProps) {
           options={props.filterOptions}
           value={props.filterTenantId}
           onChange={props.onFilterChange}
-          placeholder="— Alle Tenants —"
+          placeholder={t('admin.maps.allTenants')}
         />
       </div>
       <div style={{ flex: 1 }} />
-      <Button onClick={props.onReload}>{props.loading ? 'Lade…' : 'Neu laden'}</Button>
+      <Button onClick={props.onReload}>{props.loading ? t('admin.maps.loadingShort') : t('admin.maps.reload')}</Button>
       <Button variant="primary" onClick={props.onToggleCreate}>
-        + Neue Map
+        {t('admin.maps.newMap')}
       </Button>
-      <Button onClick={props.onToggleImport}>Map importieren</Button>
+      <Button onClick={props.onToggleImport}>{t('admin.maps.importMap')}</Button>
     </div>
   );
 }
 
 export function MapsAdmin(props: { apiBase: string }) {
   const { apiBase } = props;
+  const { t } = useTranslation();
   const state = useMapsState();
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -231,12 +245,12 @@ export function MapsAdmin(props: { apiBase: string }) {
       state.setMaps(await jsonFetch<MapRow[]>(`${apiBase}/admin/maps`));
     } catch (err) {
       logger.warn('[MapsAdmin] Failed to load maps', err);
-      state.setError('Maps konnten nicht geladen werden.');
+      state.setError(t('admin.maps.loadFailed'));
     } finally {
       state.setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [apiBase]);
+  }, [apiBase, t]);
 
   const reloadTenants = React.useCallback(async () => {
     try {
@@ -267,13 +281,16 @@ export function MapsAdmin(props: { apiBase: string }) {
     [state.maps, state.filterTenantId],
   );
 
-  const tenantOptions: TenantSelectOption[] = state.tenants.map((t) => ({
-    value: t.id,
-    label: `${t.slug} — ${t.name}`,
+  const tenantOptions: TenantSelectOption[] = state.tenants.map((tenant) => ({
+    value: tenant.id,
+    label: `${tenant.slug} — ${tenant.name}`,
   }));
-  const filterOptions: TenantSelectOption[] = [{ value: ALL_TENANTS, label: '— Alle Tenants —' }, ...tenantOptions];
+  const filterOptions: TenantSelectOption[] = [
+    { value: ALL_TENANTS, label: t('admin.maps.allTenants') },
+    ...tenantOptions,
+  ];
   const tenantSelectOptions: TenantSelectOption[] = [
-    { value: PICK_TENANT, label: '— Tenant wählen —' },
+    { value: PICK_TENANT, label: t('admin.maps.pickTenant') },
     ...tenantOptions,
   ];
 

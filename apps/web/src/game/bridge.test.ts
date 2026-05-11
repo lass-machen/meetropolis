@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
 import { gameBridge, type SceneApi } from './bridge';
 
-describe('gameBridge delegiert an SceneApi', () => {
-  it('delegiert setZoneOverlay und setDesiredPosition', () => {
+describe('gameBridge delegates to SceneApi', () => {
+  it('delegates setZoneOverlay and setDesiredPosition', () => {
     const api: SceneApi = {
       syncRemotePlayers: vi.fn(),
       setDesiredPosition: vi.fn(),
@@ -32,7 +32,7 @@ describe('gameBridge delegiert an SceneApi', () => {
     expect((api.setZoneOverlay as any).mock.calls.length).toBeGreaterThanOrEqual(1);
   });
 
-  it('delegiert applyTilePaint und registerTileset', () => {
+  it('delegates applyTilePaint and registerTileset', () => {
     const api: SceneApi = {
       syncRemotePlayers: vi.fn(),
       setDesiredPosition: vi.fn(),

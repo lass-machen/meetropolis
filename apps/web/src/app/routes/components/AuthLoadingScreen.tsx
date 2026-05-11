@@ -1,3 +1,5 @@
+import { useTranslation } from 'react-i18next';
+
 interface AuthLoadingScreenProps {
   authChecked: boolean;
   me: { id: string; email: string; name?: string } | null;
@@ -10,18 +12,20 @@ interface AuthLoadingScreenProps {
 }
 
 export function AuthLoadingScreen({ authChecked, me, positionReady }: AuthLoadingScreenProps) {
+  const { t } = useTranslation();
+
   if (!authChecked) {
-    return <div style={{ display: 'grid', placeItems: 'center', height: '100vh' }}>Lade…</div>;
+    return <div style={{ display: 'grid', placeItems: 'center', height: '100vh' }}>{t('auth.loading')}</div>;
   }
 
   if (!me) {
     // Redirect to standalone login page instead of rendering inline AuthScreen
     window.location.hash = '#/login';
-    return <div style={{ display: 'grid', placeItems: 'center', height: '100vh' }}>Weiterleitung…</div>;
+    return <div style={{ display: 'grid', placeItems: 'center', height: '100vh' }}>{t('auth.redirecting')}</div>;
   }
 
   if (!positionReady) {
-    return <div style={{ display: 'grid', placeItems: 'center', height: '100vh' }}>Position wird geladen…</div>;
+    return <div style={{ display: 'grid', placeItems: 'center', height: '100vh' }}>{t('auth.positionLoading')}</div>;
   }
 
   return null;

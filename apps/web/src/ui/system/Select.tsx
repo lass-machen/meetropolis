@@ -1,5 +1,6 @@
 import * as React from 'react';
 import * as RadixSelect from '@radix-ui/react-select';
+import { Icon } from '../Icon';
 
 export type SelectOption = {
   value: string;
@@ -23,10 +24,7 @@ export function Select({ options, value, onChange, placeholder, disabled, style,
 
   return (
     <RadixSelect.Root {...rootProps}>
-      <RadixSelect.Trigger
-        className={`sys-select__trigger${className ? ` ${className}` : ''}`}
-        style={style}
-      >
+      <RadixSelect.Trigger className={`sys-select__trigger${className ? ` ${className}` : ''}`} style={style}>
         <RadixSelect.Value placeholder={placeholder} />
         <RadixSelect.Icon className="sys-select__chevron">
           <ChevronIcon />
@@ -46,7 +44,7 @@ export function Select({ options, value, onChange, placeholder, disabled, style,
                 <RadixSelect.Item key={opt.value} {...itemProps}>
                   <RadixSelect.ItemText>{opt.label}</RadixSelect.ItemText>
                   <RadixSelect.ItemIndicator className="sys-select__check">
-                    ✓
+                    <Icon name="check" size={12} />
                   </RadixSelect.ItemIndicator>
                 </RadixSelect.Item>
               );
@@ -61,7 +59,13 @@ export function Select({ options, value, onChange, placeholder, disabled, style,
 function ChevronIcon() {
   return (
     <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+      <path
+        d="M3 4.5L6 7.5L9 4.5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }

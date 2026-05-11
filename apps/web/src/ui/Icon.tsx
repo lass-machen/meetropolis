@@ -7,6 +7,7 @@ import {
   ChevronRight,
   ChevronUp,
   CreditCard,
+  Folder,
   Globe,
   Laptop,
   LocateFixed,
@@ -19,16 +20,23 @@ import {
   Minimize2,
   Monitor,
   Moon,
+  Package,
   PackageOpen,
   Palette,
   PenTool,
+  Plug,
   Radio,
+  RefreshCw,
   RotateCcw,
+  Save,
   ScreenShare,
   Settings,
   Shield,
+  Smartphone,
   SquarePen,
   Sun,
+  Trash2,
+  TriangleAlert,
   UserCog,
   Users,
   Video,
@@ -44,6 +52,7 @@ export type IconName =
   | 'chevron-right'
   | 'chevron-up'
   | 'credit-card'
+  | 'folder'
   | 'globe'
   | 'laptop'
   | 'logout'
@@ -55,17 +64,24 @@ export type IconName =
   | 'minimize'
   | 'monitor'
   | 'moon'
+  | 'package'
   | 'package-open'
   | 'palette'
   | 'pen-ruler'
   | 'pen-square'
+  | 'plug'
   | 'radio'
   | 'recenter'
+  | 'refresh-cw'
   | 'reset'
+  | 'save'
   | 'screen-share'
   | 'settings'
   | 'shield'
+  | 'smartphone'
   | 'sun'
+  | 'trash'
+  | 'triangle-alert'
   | 'user-cog'
   | 'users'
   | 'video'
@@ -81,39 +97,47 @@ type LucideComponent = React.ComponentType<{
 
 const ICON_MAP: Record<IconName, LucideComponent> = {
   'bell-off': BellOff,
-  'building': Building2,
-  'check': Check,
+  building: Building2,
+  check: Check,
   'chevron-down': ChevronDown,
   'chevron-right': ChevronRight,
   'chevron-up': ChevronUp,
   'credit-card': CreditCard,
-  'globe': Globe,
-  'laptop': Laptop,
-  'logout': LogOut,
-  'mail': Mail,
-  'maximize': Maximize2,
-  'menu': Menu,
-  'microphone': Mic,
+  folder: Folder,
+  globe: Globe,
+  laptop: Laptop,
+  logout: LogOut,
+  mail: Mail,
+  maximize: Maximize2,
+  menu: Menu,
+  microphone: Mic,
   'microphone-off': MicOff,
-  'minimize': Minimize2,
-  'monitor': Monitor,
-  'moon': Moon,
+  minimize: Minimize2,
+  monitor: Monitor,
+  moon: Moon,
+  package: Package,
   'package-open': PackageOpen,
-  'palette': Palette,
+  palette: Palette,
   'pen-ruler': PenTool,
   'pen-square': SquarePen,
-  'radio': Radio,
-  'recenter': LocateFixed,
-  'reset': RotateCcw,
+  plug: Plug,
+  radio: Radio,
+  recenter: LocateFixed,
+  'refresh-cw': RefreshCw,
+  reset: RotateCcw,
+  save: Save,
   'screen-share': ScreenShare,
-  'settings': Settings,
-  'shield': Shield,
-  'sun': Sun,
+  settings: Settings,
+  shield: Shield,
+  smartphone: Smartphone,
+  sun: Sun,
+  trash: Trash2,
+  'triangle-alert': TriangleAlert,
   'user-cog': UserCog,
-  'users': Users,
-  'video': Video,
+  users: Users,
+  video: Video,
   'video-off': VideoOff,
-  'xmark': X,
+  xmark: X,
 };
 
 export type IconSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl' | '2x' | '3x' | number;

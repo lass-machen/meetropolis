@@ -8,6 +8,7 @@ import { useTranslation } from 'react-i18next';
 import { EditorService } from '../../services/EditorService';
 import { useMapStore } from '../../state/mapStore';
 import type { Zone, EditorTool } from '../../services/EditorTypes';
+import { Icon } from '../Icon';
 
 type SaveFn = (() => Promise<boolean>) | undefined;
 
@@ -40,9 +41,13 @@ function ZoneEditorHeader({ onSave, t }: { onSave: SaveFn; t: (k: string) => str
           color: 'var(--fg)',
           fontSize: 12,
           fontWeight: 500,
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 6,
         }}
       >
-        💾 Speichern
+        <Icon name="save" size={14} />
+        {t('editor.saveZones')}
       </button>
     </div>
   );
@@ -88,11 +93,13 @@ function PortalSpawnInput({
   value,
   idx,
   label,
+  placeholder,
   key,
 }: {
   value: number | undefined;
   idx: number;
   label: string;
+  placeholder: string;
   key: 'portalSpawnX' | 'portalSpawnY';
 }) {
   return (
@@ -108,7 +115,7 @@ function PortalSpawnInput({
             : { type: 'UPDATE_ZONE_PORTAL', index: idx };
           EditorService.dispatch(action);
         }}
-        placeholder="auto"
+        placeholder={placeholder}
         style={{
           padding: 4,
           borderRadius: 6,
@@ -123,12 +130,13 @@ function PortalSpawnInput({
   );
 }
 
-function ZonePortalFields({ zone, idx }: { zone: Zone; idx: number }) {
+function ZonePortalFields({ zone, idx, t }: { zone: Zone; idx: number; t: (k: string) => string }) {
   const availableMaps = useMapStore.getState().availableMaps;
+  const placeholder = t('editor.portalSpawnPlaceholder');
   return (
     <div style={{ display: 'grid', gap: 4, padding: '6px 0 0' }}>
       <label htmlFor={`zone-portal-target-${idx}`} style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>
-        Ziel-Map
+        {t('editor.portalTarget')}
       </label>
       <select
         id={`zone-portal-target-${idx}`}
@@ -149,7 +157,7 @@ function ZonePortalFields({ zone, idx }: { zone: Zone; idx: number }) {
           fontSize: 12,
         }}
       >
-        <option value="">-- Ziel wählen --</option>
+        <option value="">{t('editor.portalTargetPlaceholder')}</option>
         {availableMaps.map((m) => (
           <option key={m.name} value={m.name}>
             {m.name}
@@ -157,8 +165,20 @@ function ZonePortalFields({ zone, idx }: { zone: Zone; idx: number }) {
         ))}
       </select>
       <div style={{ display: 'flex', gap: 6 }}>
-        <PortalSpawnInput value={zone.portalSpawnX} idx={idx} label="Spawn X (Tile)" key="portalSpawnX" />
-        <PortalSpawnInput value={zone.portalSpawnY} idx={idx} label="Spawn Y (Tile)" key="portalSpawnY" />
+        <PortalSpawnInput
+          value={zone.portalSpawnX}
+          idx={idx}
+          label={t('editor.portalSpawnX')}
+          placeholder={placeholder}
+          key="portalSpawnX"
+        />
+        <PortalSpawnInput
+          value={zone.portalSpawnY}
+          idx={idx}
+          label={t('editor.portalSpawnY')}
+          placeholder={placeholder}
+          key="portalSpawnY"
+        />
       </div>
     </div>
   );
@@ -208,7 +228,7 @@ function ZoneCard({
       </div>
       <div style={{ display: 'grid', gap: 4 }}>
         <label htmlFor={`zone-type-${idx}`} style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>
-          Typ
+          {t('editor.zoneType')}
         </label>
         <select
           id={`zone-type-${idx}`}
@@ -229,11 +249,11 @@ function ZoneCard({
             fontSize: 12,
           }}
         >
-          <option value="default">Normal</option>
-          <option value="portal">Portal</option>
+          <option value="default">{t('editor.zoneTypeDefault')}</option>
+          <option value="portal">{t('editor.zoneTypePortal')}</option>
         </select>
       </div>
-      {zone.type === 'portal' && <ZonePortalFields zone={zone} idx={idx} />}
+      {zone.type === 'portal' && <ZonePortalFields zone={zone} idx={idx} t={t} />}
       <div style={{ display: 'flex', gap: 6 }}>
         <button
           onClick={() => EditorService.dispatch({ type: 'START_EDIT_ZONE', index: idx })}
@@ -246,7 +266,7 @@ function ZoneCard({
             fontSize: 12,
           }}
         >
-          Bearbeiten
+          {t('editor.editZone')}
         </button>
         <button
           onClick={() => {

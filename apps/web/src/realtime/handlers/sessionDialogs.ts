@@ -5,8 +5,16 @@
  * Session und muessen unabhaengig von React-Render-Zyklen blocken / unblocken.
  * Wir blasen die useWorldRoom-Effekt nicht weiter mit Inline-HTML auf.
  */
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { RefreshCw } from 'lucide-react';
 import i18n from '../../app/providers/i18n';
 import { logger } from '../../lib/logger';
+
+// Inline SVG markup for the refresh icon, rendered once at module load so it
+// can be injected into innerHTML overlays without React. Matches the previous
+// emoji glyph size (48px).
+const REFRESH_ICON_SVG = renderToStaticMarkup(createElement(RefreshCw, { size: 48 }));
 
 interface SessionConflictDeps {
   room: { send: (event: string, payload?: unknown) => void };
@@ -24,7 +32,7 @@ export function showSessionConflictDialog(deps: SessionConflictDeps): void {
     'position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.5);';
   host.innerHTML = `
     <div style="min-width:320px;max-width:480px;padding:24px;border-radius:12px;border:1px solid rgba(59,130,246,0.5);background:rgba(30,41,59,0.95);backdrop-filter:blur(8px);color:#fff;box-shadow:0 8px 32px rgba(0,0,0,0.4);text-align:center;">
-      <div style="font-size:48px;margin-bottom:12px;">🔄</div>
+      <div style="display:flex;justify-content:center;margin-bottom:12px;">${REFRESH_ICON_SVG}</div>
       <div style="font-weight:700;font-size:18px;margin-bottom:8px;">${i18n.t('sessionConflict.title')}</div>
       <div style="font-size:14px;color:#94a3b8;margin-bottom:20px;">${i18n.t('sessionConflict.description')}</div>
       <div style="display:flex;gap:12px;justify-content:center;">

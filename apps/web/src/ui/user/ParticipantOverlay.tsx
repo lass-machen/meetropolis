@@ -2,6 +2,7 @@ import React from 'react';
 import type { Room } from 'livekit-client';
 import { useTranslation } from 'react-i18next';
 import { ParticipantCard } from './ParticipantCard';
+import { Icon } from '../Icon';
 
 export type UIParticipant = {
   sid: string;
@@ -211,13 +212,14 @@ function ZoomControls({
       <div style={{ width: 1, height: 20, background: 'rgba(255,255,255,0.15)', margin: '0 2px' }} />
       <button
         title={t('common.close') + ' (Esc)'}
+        aria-label={t('common.close')}
         onClick={(e) => {
           e.stopPropagation();
           onClose();
         }}
         style={{ ...CTRL_BTN_BASE, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.1)' }}
       >
-        ✕
+        <Icon name="xmark" size={14} />
       </button>
     </div>
   );

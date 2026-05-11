@@ -26,7 +26,7 @@ function makeRoom({ withAudio = true }: { withAudio?: boolean } = {}) {
 }
 
 describe('useGlobalAudioTracks', () => {
-  it('legt Audiotags bei DND stumm an (muted & volume=0)', async () => {
+  it('creates audio tags muted under DND (muted & volume=0)', async () => {
     const container = document.createElement('div');
     document.body.appendChild(container);
     const root = createRoot(container);
@@ -52,7 +52,7 @@ describe('useGlobalAudioTracks', () => {
     container.remove();
   });
 
-  it('legt Audiotags ohne DND mit volume=1 an', async () => {
+  it('creates audio tags without DND with volume=1', async () => {
     const container = document.createElement('div');
     document.body.appendChild(container);
     const root = createRoot(container);

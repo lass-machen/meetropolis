@@ -9,9 +9,7 @@ function makeCtx(overrides: Partial<Parameters<typeof applySubscriptions>[0]> = 
   p1.trackPublications.set('v1', pub('video', 'camera'));
   const room: any = {
     state: 'connected',
-    remoteParticipants: new Map<string, any>([
-      ['a', p1],
-    ]),
+    remoteParticipants: new Map<string, any>([['a', p1]]),
   };
   const calls: Array<{ id: string; kind: 'audio' | 'video'; should: boolean }> = [];
   const ctx = {
@@ -21,7 +19,8 @@ function makeCtx(overrides: Partial<Parameters<typeof applySubscriptions>[0]> = 
     desiredIds: ['a'],
     activeSpeakerIds: [],
     maxVideoSubs: 6,
-    setDesired: (_pub: any, identity: string, kind: 'audio' | 'video', should: boolean) => calls.push({ id: identity, kind, should }),
+    setDesired: (_pub: any, identity: string, kind: 'audio' | 'video', should: boolean) =>
+      calls.push({ id: identity, kind, should }),
     lastDesiredIdsKeyRef: { current: null as string | null },
     ...overrides,
   } as any;
@@ -29,19 +28,19 @@ function makeCtx(overrides: Partial<Parameters<typeof applySubscriptions>[0]> = 
 }
 
 describe('applySubscriptions', () => {
-  it('abonniert Audio immer (ohne DND)', () => {
+  it('always subscribes to audio (without DND)', () => {
     const { ctx, calls } = makeCtx();
     applySubscriptions(ctx);
     expect(calls.some((c) => c.kind === 'audio' && c.should)).toBe(true);
   });
 
-  it('abonniert Video für wenige Teilnehmer standardmäßig', () => {
+  it('subscribes to video for few participants by default', () => {
     const { ctx, calls } = makeCtx({ maxVideoSubs: 2 });
     applySubscriptions(ctx);
     expect(calls.some((c) => c.kind === 'video' && c.should)).toBe(true);
   });
 
-  it('setzt keinen zweiten Durchlauf, wenn key gleich bleibt', () => {
+  it('skips a second pass when key stays the same', () => {
     const { ctx, calls } = makeCtx();
     applySubscriptions(ctx);
     const first = calls.length;
@@ -49,11 +48,9 @@ describe('applySubscriptions', () => {
     expect(calls.length).toBe(first);
   });
 
-  it('abonniert nichts bei DND', () => {
+  it('subscribes to nothing under DND', () => {
     const { ctx, calls } = makeCtx({ dnd: true });
     applySubscriptions(ctx);
     expect(calls.length).toBe(0);
   });
 });
-
-

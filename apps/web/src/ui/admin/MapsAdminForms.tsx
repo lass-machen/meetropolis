@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button, Input, Select, Card } from '../system';
 
 export type TenantSelectOption = { value: string; label: string };
@@ -32,9 +33,10 @@ type CreateFormProps = {
 
 export function CreateMapForm(props: CreateFormProps) {
   const { tenantOptions, value, onChange, onSubmit, onCancel, submitting } = props;
+  const { t } = useTranslation();
   const num = (e: React.ChangeEvent<HTMLInputElement>) => Number(e.target.value) || 0;
   return (
-    <Card title="Neue Map erstellen" style={{ padding: 12 }}>
+    <Card title={t('admin.maps.createTitle')} style={{ padding: 12 }}>
       <div style={{ display: 'grid', gap: 8 }}>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <div style={{ minWidth: 220 }}>
@@ -42,27 +44,51 @@ export function CreateMapForm(props: CreateFormProps) {
               options={tenantOptions}
               value={value.tenantId}
               onChange={(v) => onChange({ ...value, tenantId: v })}
-              placeholder="— Tenant wählen —"
+              placeholder={t('admin.maps.pickTenant')}
             />
           </div>
           <Input
-            placeholder="Map-Name"
+            placeholder={t('admin.maps.mapNamePlaceholder')}
             value={value.name}
             onChange={(e) => onChange({ ...value, name: e.target.value })}
             style={{ flex: 1, minWidth: 200 }}
           />
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <Input type="number" placeholder="Width" value={value.width} onChange={(e) => onChange({ ...value, width: num(e) })} style={{ width: 110 }} />
-          <Input type="number" placeholder="Height" value={value.height} onChange={(e) => onChange({ ...value, height: num(e) })} style={{ width: 110 }} />
-          <Input type="number" placeholder="TileW" value={value.tileWidth} onChange={(e) => onChange({ ...value, tileWidth: num(e) })} style={{ width: 110 }} />
-          <Input type="number" placeholder="TileH" value={value.tileHeight} onChange={(e) => onChange({ ...value, tileHeight: num(e) })} style={{ width: 110 }} />
+          <Input
+            type="number"
+            placeholder={t('admin.maps.fieldWidth')}
+            value={value.width}
+            onChange={(e) => onChange({ ...value, width: num(e) })}
+            style={{ width: 110 }}
+          />
+          <Input
+            type="number"
+            placeholder={t('admin.maps.fieldHeight')}
+            value={value.height}
+            onChange={(e) => onChange({ ...value, height: num(e) })}
+            style={{ width: 110 }}
+          />
+          <Input
+            type="number"
+            placeholder={t('admin.maps.fieldTileW')}
+            value={value.tileWidth}
+            onChange={(e) => onChange({ ...value, tileWidth: num(e) })}
+            style={{ width: 110 }}
+          />
+          <Input
+            type="number"
+            placeholder={t('admin.maps.fieldTileH')}
+            value={value.tileHeight}
+            onChange={(e) => onChange({ ...value, tileHeight: num(e) })}
+            style={{ width: 110 }}
+          />
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <Button variant="primary" onClick={onSubmit} disabled={submitting}>
-            {submitting ? 'Erstelle…' : 'Map anlegen'}
+            {submitting ? t('admin.maps.creating') : t('admin.maps.createSubmit')}
           </Button>
-          <Button onClick={onCancel}>Abbrechen</Button>
+          <Button onClick={onCancel}>{t('admin.maps.cancel')}</Button>
         </div>
       </div>
     </Card>
@@ -80,8 +106,9 @@ type ImportFormProps = {
 
 export function ImportMapForm(props: ImportFormProps) {
   const { tenantOptions, value, onChange, onPickFile, onCancel, submitting } = props;
+  const { t } = useTranslation();
   return (
-    <Card title="Map importieren (Tiled JSON)" style={{ padding: 12 }}>
+    <Card title={t('admin.maps.importTitle')} style={{ padding: 12 }}>
       <div style={{ display: 'grid', gap: 8 }}>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <div style={{ minWidth: 220 }}>
@@ -89,11 +116,11 @@ export function ImportMapForm(props: ImportFormProps) {
               options={tenantOptions}
               value={value.tenantId}
               onChange={(v) => onChange({ ...value, tenantId: v })}
-              placeholder="— Tenant wählen —"
+              placeholder={t('admin.maps.pickTenant')}
             />
           </div>
           <Input
-            placeholder="Map-Name"
+            placeholder={t('admin.maps.mapNamePlaceholder')}
             value={value.name}
             onChange={(e) => onChange({ ...value, name: e.target.value })}
             style={{ flex: 1, minWidth: 200 }}
@@ -101,9 +128,9 @@ export function ImportMapForm(props: ImportFormProps) {
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <Button variant="primary" onClick={onPickFile} disabled={submitting}>
-            {submitting ? 'Importiere…' : 'Datei wählen & importieren'}
+            {submitting ? t('admin.maps.importing') : t('admin.maps.pickFileAndImport')}
           </Button>
-          <Button onClick={onCancel}>Abbrechen</Button>
+          <Button onClick={onCancel}>{t('admin.maps.cancel')}</Button>
         </div>
       </div>
     </Card>
@@ -120,8 +147,9 @@ type CopyFormProps = {
 
 export function CopyMapForm(props: CopyFormProps) {
   const { tenantOptions, dialog, onChange, onSubmit, onCancel } = props;
+  const { t } = useTranslation();
   return (
-    <Card title={`Map "${dialog.mapName}" kopieren`} style={{ padding: 12 }}>
+    <Card title={t('admin.maps.copyTitle', { name: dialog.mapName })} style={{ padding: 12 }}>
       <div style={{ display: 'grid', gap: 8 }}>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <div style={{ minWidth: 220 }}>
@@ -129,19 +157,21 @@ export function CopyMapForm(props: CopyFormProps) {
               options={tenantOptions}
               value={dialog.targetTenantId}
               onChange={(v) => onChange({ targetTenantId: v })}
-              placeholder="— Ziel-Tenant —"
+              placeholder={t('admin.maps.targetTenantPlaceholder')}
             />
           </div>
           <Input
-            placeholder="Neuer Name (optional)"
+            placeholder={t('admin.maps.newNameOptional')}
             value={dialog.newName}
             onChange={(e) => onChange({ newName: e.target.value })}
             style={{ flex: 1, minWidth: 200 }}
           />
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <Button variant="primary" onClick={onSubmit}>Kopieren</Button>
-          <Button onClick={onCancel}>Abbrechen</Button>
+          <Button variant="primary" onClick={onSubmit}>
+            {t('admin.maps.copySubmit')}
+          </Button>
+          <Button onClick={onCancel}>{t('admin.maps.cancel')}</Button>
         </div>
       </div>
     </Card>

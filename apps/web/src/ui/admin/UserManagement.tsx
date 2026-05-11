@@ -17,6 +17,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { logger } from '../../lib/logger';
 import { translateApiError } from '../../lib/apiErrors';
+import { Icon } from '../Icon';
 
 type Role = 'owner' | 'admin' | 'member';
 type User = { id: string; email: string; name?: string; createdAt?: string; role?: Role };
@@ -95,7 +96,7 @@ function useUserMutations(
         credentials: 'include',
         body: JSON.stringify({ email: u.email, name: u.name }),
       });
-      if (!res.ok) throw new Error(translateApiError((await res.json())?.error) || 'Update fehlgeschlagen');
+      if (!res.ok) throw new Error(translateApiError((await res.json())?.error) || t('admin.users.updateFailed'));
       if (canChangeRoles && u.role && u.id !== currentUserId) {
         const originalUser = users.find((user) => user.id === u.id);
         if (originalUser && originalUser.role !== u.role && u.role !== 'owner') {
@@ -106,7 +107,7 @@ function useUserMutations(
       await load();
       return true;
     } catch (e: unknown) {
-      setError((e instanceof Error ? e.message : String(e)) || 'Fehler');
+      setError((e instanceof Error ? e.message : String(e)) || t('admin.users.genericError'));
       return false;
     }
   };
@@ -150,6 +151,7 @@ function useUserManagement(baseUrl: string, t: (k: string) => string) {
 }
 
 function RoleBadge({ userRole }: { userRole: 'owner' | 'admin' | 'member' | undefined }) {
+  const { t } = useTranslation();
   if (userRole === 'owner') {
     return (
       <span
@@ -162,7 +164,7 @@ function RoleBadge({ userRole }: { userRole: 'owner' | 'admin' | 'member' | unde
           fontWeight: 600,
         }}
       >
-        Owner
+        {t('admin.users.roleOwner')}
       </span>
     );
   }
@@ -177,7 +179,7 @@ function RoleBadge({ userRole }: { userRole: 'owner' | 'admin' | 'member' | unde
         fontWeight: 600,
       }}
     >
-      {userRole === 'admin' ? 'Admin' : 'Member'}
+      {userRole === 'admin' ? t('admin.users.roleAdmin') : t('admin.users.roleMember')}
     </span>
   );
 }
@@ -195,6 +197,7 @@ function RoleCell({
   currentUserId: string | null;
   onChange: (id: string, role: 'admin' | 'member') => void;
 }) {
+  const { t } = useTranslation();
   const role = edit && edit.id === user.id ? edit.role : user.role;
   if (role === 'owner') return <RoleBadge userRole="owner" />;
   if (canChangeRoles && user.id !== currentUserId) {
@@ -204,8 +207,8 @@ function RoleCell({
         onChange={(val) => onChange(user.id, val as 'admin' | 'member')}
         style={{ width: 'auto' }}
         options={[
-          { value: 'admin', label: 'Admin' },
-          { value: 'member', label: 'Member' },
+          { value: 'admin', label: t('admin.users.roleAdmin') },
+          { value: 'member', label: t('admin.users.roleMember') },
         ]}
       />
     );
@@ -238,14 +241,14 @@ function ResetTokenButton({
               credentials: 'include',
             });
             const data = await res.json();
-            if (!res.ok) throw new Error(translateApiError(data?.error) || 'Failed');
+            if (!res.ok) throw new Error(translateApiError(data?.error) || t('admin.users.failed'));
             openReset({
               for: { id: user.id, email: user.email },
               token: data.token || null,
               resetUrl: data.resetUrl || null,
             });
           } catch (e: unknown) {
-            setError((e instanceof Error ? e.message : String(e)) || 'Fehler');
+            setError((e instanceof Error ? e.message : String(e)) || t('admin.users.genericError'));
           }
         })();
       }}
@@ -273,8 +276,8 @@ function DeleteCell({
         <Button size="sm" variant="danger" onClick={() => onDelete(userId)}>
           {t('admin.users.confirmDelete')}
         </Button>
-        <Button size="sm" onClick={() => setConfirmDeleteId(null)}>
-          &#x2715;
+        <Button size="sm" onClick={() => setConfirmDeleteId(null)} aria-label="Cancel">
+          <Icon name="xmark" size="md" />
         </Button>
       </div>
     );
@@ -299,6 +302,7 @@ function EditRow({
   currentUserId: string | null;
   onSave: (u: EditUser) => void;
 }) {
+  const { t } = useTranslation();
   return (
     <>
       <Td style={{ paddingLeft: 0 }}>
@@ -324,8 +328,8 @@ function EditRow({
             onChange={(val) => setEdit({ ...edit, role: val as Role })}
             style={{ width: 'auto' }}
             options={[
-              { value: 'admin', label: 'Admin' },
-              { value: 'member', label: 'Member' },
+              { value: 'admin', label: t('admin.users.roleAdmin') },
+              { value: 'member', label: t('admin.users.roleMember') },
             ]}
           />
         ) : (
@@ -333,11 +337,11 @@ function EditRow({
         )}
       </Td>
       <Td style={{ paddingRight: 0, textAlign: 'right', display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-        <Button size="sm" variant="brand" onClick={() => onSave(edit)}>
-          ✓
+        <Button size="sm" variant="brand" onClick={() => onSave(edit)} aria-label="Save">
+          <Icon name="check" size="md" />
         </Button>
-        <Button size="sm" onClick={() => setEdit(null)}>
-          ✕
+        <Button size="sm" onClick={() => setEdit(null)} aria-label="Cancel">
+          <Icon name="xmark" size="md" />
         </Button>
       </Td>
     </>
@@ -610,18 +614,16 @@ function CreateUserModal({
         />
         {isOwner && (
           <div style={{ display: 'grid', gap: 4 }}>
-            <label style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>{t('admin.users.role') || 'Rolle'}</label>
+            <label style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>{t('admin.users.role')}</label>
             <Select
               value={newRole}
               onChange={(val) => setNewRole(val as 'admin' | 'member')}
               options={[
-                { value: 'member', label: 'Member' },
-                { value: 'admin', label: 'Admin' },
+                { value: 'member', label: t('admin.users.roleMember') },
+                { value: 'admin', label: t('admin.users.roleAdmin') },
               ]}
             />
-            <div style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>
-              Admins können weitere Member einladen und User verwalten.
-            </div>
+            <div style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>{t('admin.users.adminInvitesHint')}</div>
           </div>
         )}
         {inviteCode && (
@@ -730,7 +732,7 @@ function ResetModal({
             className="glass-surface"
             style={{ padding: 12, borderRadius: 'var(--radius-sm)', display: 'grid', gap: 8 }}
           >
-            <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>Reset-Link</div>
+            <div style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>{t('admin.users.resetLink')}</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <div
                 style={{
@@ -756,7 +758,7 @@ function ResetModal({
           {resetFor?.email ? ` (${resetFor.email})` : ''}
         </div>
         <div style={{ fontSize: 11, color: 'var(--fg-subtle)', borderLeft: '2px solid var(--accent)', paddingLeft: 8 }}>
-          Wird nicht erneut angezeigt — jetzt kopieren und out-of-band weitergeben (gültig 30 Min).
+          {t('admin.users.resetWarning')}
         </div>
       </div>
     </Modal>
@@ -830,7 +832,7 @@ export function UserManagement(props: { baseUrl: string; onBack: () => void }) {
               <Tr>
                 <Th style={{ paddingLeft: 0 }}>{t('admin.users.email')}</Th>
                 <Th>{t('admin.users.name')}</Th>
-                <Th>{t('admin.users.role') || 'Rolle'}</Th>
+                <Th>{t('admin.users.role')}</Th>
                 <Th style={{ paddingRight: 0 }}>{null}</Th>
               </Tr>
             </THead>

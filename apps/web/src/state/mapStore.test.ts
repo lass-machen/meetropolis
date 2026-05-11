@@ -3,27 +3,29 @@ import { useMapStore } from './mapStore';
 
 function reset(): void {
   // localStorage clearen, damit loadMapId() einen frischen Wert hat.
-  try { window.localStorage.removeItem('meetropolis.map.currentMapId'); } catch {}
+  try {
+    window.localStorage.removeItem('meetropolis.map.currentMapId');
+  } catch {}
   useMapStore.setState({ currentMapId: '', currentMapName: '', availableMaps: [], isChangingMap: false });
 }
 
 describe('mapStore.setCurrentMap', () => {
   beforeEach(reset);
 
-  it('setzt id + name regulaer', () => {
+  it('sets id + name normally', () => {
     useMapStore.getState().setCurrentMap('id-1', 'office');
     expect(useMapStore.getState().currentMapId).toBe('id-1');
     expect(useMapStore.getState().currentMapName).toBe('office');
   });
 
-  it('ueberschreibt einen vorher gesetzten name NICHT mit leerem string', () => {
+  it('does NOT overwrite a previously set name with an empty string', () => {
     useMapStore.getState().setCurrentMap('id-1', 'office');
     useMapStore.getState().setCurrentMap('', '');
     expect(useMapStore.getState().currentMapId).toBe('id-1');
     expect(useMapStore.getState().currentMapName).toBe('office');
   });
 
-  it('akzeptiert neuen name, wenn vorher ohnehin leer', () => {
+  it('accepts a new name when previously empty anyway', () => {
     useMapStore.getState().setCurrentMap('', '');
     expect(useMapStore.getState().currentMapName).toBe('');
     useMapStore.getState().setCurrentMap('id-2', 'lounge');
@@ -31,7 +33,7 @@ describe('mapStore.setCurrentMap', () => {
     expect(useMapStore.getState().currentMapId).toBe('id-2');
   });
 
-  it('aktualisiert nur den nicht-leeren Teil bei partial-leerer Eingabe', () => {
+  it('updates only the non-empty part on partially empty input', () => {
     useMapStore.getState().setCurrentMap('id-1', 'office');
     // Nur name aktualisieren, id leer → existierende id behalten.
     useMapStore.getState().setCurrentMap('', 'lounge');

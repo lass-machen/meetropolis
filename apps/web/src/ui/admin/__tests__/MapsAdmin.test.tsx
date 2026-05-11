@@ -61,8 +61,8 @@ describe('MapsAdmin', () => {
 
   it('shows the toolbar buttons', async () => {
     render(<MapsAdmin apiBase="http://test" />);
-    expect(await screen.findByText('+ Neue Map')).toBeInTheDocument();
-    expect(screen.getByText('Map importieren')).toBeInTheDocument();
+    expect(await screen.findByText('+ New map')).toBeInTheDocument();
+    expect(screen.getByText('Import map')).toBeInTheDocument();
   });
 
   it('renders empty state when no maps', async () => {
@@ -72,7 +72,7 @@ describe('MapsAdmin', () => {
     });
     render(<MapsAdmin apiBase="http://test" />);
     await waitFor(() => {
-      expect(screen.getByText('Keine Maps gefunden.')).toBeInTheDocument();
+      expect(screen.getByText('No maps found.')).toBeInTheDocument();
     });
   });
 });

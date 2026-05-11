@@ -29,7 +29,7 @@ describe('joinLivekitRoom', () => {
     vi.useRealTimers();
   });
 
-  it('verbindet ohne Nutzer-Gesten-Wartebedingung und registriert keine Gesture-Listener', async () => {
+  it('connects without waiting for a user gesture and registers no gesture listeners', async () => {
     const addSpy = vi.spyOn(window, 'addEventListener');
     const remSpy = vi.spyOn(window, 'removeEventListener');
 
@@ -55,7 +55,7 @@ describe('joinLivekitRoom', () => {
     remSpy.mockRestore();
   });
 
-  it('wirft livekit_token_timeout wenn der Token-Fetch hängt', async () => {
+  it('throws livekit_token_timeout when the token fetch hangs', async () => {
     vi.useFakeTimers();
 
     // fetch that never resolves but honors AbortSignal.

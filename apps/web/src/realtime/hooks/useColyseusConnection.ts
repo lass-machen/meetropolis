@@ -1,4 +1,6 @@
-import React from 'react';
+import React, { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { Plug, Timer, TriangleAlert } from 'lucide-react';
 import { joinWorld } from '../../lib/colyseus';
 import { logger } from '../../lib/logger';
 import { useMapStore } from '../../state/mapStore';
@@ -6,16 +8,23 @@ import type { UseWorldRoomArgs, ConnectionRefs } from '../types';
 import type { WorldRoom } from '../../types/colyseus';
 import i18n from '../../app/providers/i18n';
 
+// Inline SVG markup for lucide icons, rendered once at module load so they can
+// be injected into innerHTML overlays without React. Keeping the icons inline
+// preserves visual parity with the previous emoji glyphs (size 48px).
+const TIMER_ICON_SVG = renderToStaticMarkup(createElement(Timer, { size: 48 }));
+const PLUG_ICON_SVG = renderToStaticMarkup(createElement(Plug, { size: 48 }));
+const ALERT_ICON_SVG = renderToStaticMarkup(createElement(TriangleAlert, { size: 48 }));
+
 function showGuestExpiredOverlay(apiBase: string): void {
   try {
     const host = document.createElement('div');
     host.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:9999;';
     host.innerHTML = `
       <div style="min-width:320px;max-width:480px;padding:24px;border-radius:12px;border:1px solid rgba(239,68,68,0.5);background:rgba(239,68,68,0.15);backdrop-filter:blur(8px);color:var(--fg,#fff);box-shadow:0 8px 32px rgba(0,0,0,0.3);text-align:center;">
-        <div style="font-size:48px;margin-bottom:12px;">⏱️</div>
-        <div style="font-weight:700;font-size:18px;margin-bottom:8px;">Gast-Zugang abgelaufen</div>
-        <div style="font-size:14px;color:var(--fg-subtle,#ccc);margin-bottom:16px;">Dein Gast-Zugang ist abgelaufen. Bitte wende dich an den Administrator.</div>
-        <button data-guest-expired-ok style="padding:10px 20px;border-radius:8px;border:none;background:var(--accent,#3b82f6);color:white;cursor:pointer;font-weight:600;">Zum Login</button>
+        <div style="display:flex;justify-content:center;margin-bottom:12px;">${TIMER_ICON_SVG}</div>
+        <div style="font-weight:700;font-size:18px;margin-bottom:8px;">${i18n.t('realtime.guestExpired.title')}</div>
+        <div style="font-size:14px;color:var(--fg-subtle,#ccc);margin-bottom:16px;">${i18n.t('realtime.guestExpired.description')}</div>
+        <button data-guest-expired-ok style="padding:10px 20px;border-radius:8px;border:none;background:var(--accent,#3b82f6);color:white;cursor:pointer;font-weight:600;">${i18n.t('realtime.guestExpired.button')}</button>
       </div>`;
     document.body.appendChild(host);
     host.querySelector('[data-guest-expired-ok]')?.addEventListener(
@@ -45,7 +54,7 @@ function showSessionTakenOverOverlay(): void {
       'position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.5);';
     host.innerHTML = `
       <div style="min-width:320px;max-width:480px;padding:24px;border-radius:12px;border:1px solid rgba(234,88,12,0.5);background:rgba(30,41,59,0.95);backdrop-filter:blur(8px);color:#fff;box-shadow:0 8px 32px rgba(0,0,0,0.4);text-align:center;">
-        <div style="font-size:48px;margin-bottom:12px;">🔌</div>
+        <div style="display:flex;justify-content:center;margin-bottom:12px;">${PLUG_ICON_SVG}</div>
         <div style="font-weight:700;font-size:18px;margin-bottom:8px;">${i18n.t('sessionConflict.takenOver.title')}</div>
         <div style="font-size:14px;color:#94a3b8;margin-bottom:20px;">${i18n.t('sessionConflict.takenOver.description')}</div>
         <button data-session-reload style="padding:10px 20px;border-radius:8px;border:none;background:#3b82f6;color:white;cursor:pointer;font-weight:600;font-size:14px;">${i18n.t('sessionConflict.takenOver.reconnect')}</button>
@@ -104,10 +113,10 @@ function showLimitErrorOverlay(code: number | undefined, text: string, onRetry: 
     host.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:9999;';
     host.innerHTML = `
       <div style="min-width:320px;max-width:480px;padding:24px;border-radius:12px;border:1px solid rgba(234,88,12,0.5);background:rgba(234,88,12,0.15);backdrop-filter:blur(8px);color:var(--fg,#fff);box-shadow:0 8px 32px rgba(0,0,0,0.3);text-align:center;">
-        <div style="font-size:48px;margin-bottom:12px;">⚠️</div>
+        <div style="display:flex;justify-content:center;margin-bottom:12px;">${ALERT_ICON_SVG}</div>
         <div style="font-weight:700;font-size:18px;margin-bottom:8px;">${title}</div>
         <div style="font-size:14px;color:var(--fg-subtle,#ccc);margin-bottom:16px;">${description}</div>
-        <button data-limit-retry style="padding:10px 20px;border-radius:8px;border:none;background:var(--accent,#3b82f6);color:white;cursor:pointer;font-weight:600;">Retry</button>
+        <button data-limit-retry style="padding:10px 20px;border-radius:8px;border:none;background:var(--accent,#3b82f6);color:white;cursor:pointer;font-weight:600;">${i18n.t('realtime.limit.retry')}</button>
       </div>`;
     document.body.appendChild(host);
     const retry = () => {

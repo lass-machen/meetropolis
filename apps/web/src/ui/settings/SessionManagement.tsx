@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { getApiBaseFromWindow } from '../../lib/apiBase';
 import { translateApiError } from '../../lib/apiErrors';
 import { Button, Alert, Badge, Card, Divider } from '../system';
+import { Icon, type IconName } from '../Icon';
 
 interface Session {
   id: string;
@@ -122,10 +123,10 @@ function useSessionsApi(apiBase: string, t: (k: string, opts?: any) => string) {
   return { sessions, loading, error, revoking, revokeSession, revokeAllOther };
 }
 
-function deviceEmoji(device: string): string {
-  if (device.includes('Phone') || device === 'iPhone') return '📱';
-  if (device.includes('Tablet') || device === 'iPad') return '📱';
-  return '💻';
+function deviceIconName(device: string): IconName {
+  if (device.includes('Phone') || device === 'iPhone') return 'smartphone';
+  if (device.includes('Tablet') || device === 'iPad') return 'smartphone';
+  return 'laptop';
 }
 
 function SessionCard({
@@ -144,7 +145,7 @@ function SessionCard({
     <Card style={{ padding: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
       <div style={{ flex: 1 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
-          <span style={{ fontSize: 24 }}>{deviceEmoji(device)}</span>
+          <Icon name={deviceIconName(device)} size={24} />
           <div>
             <div style={{ fontSize: 15, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 8 }}>
               {device}

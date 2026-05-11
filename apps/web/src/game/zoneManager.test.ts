@@ -9,7 +9,7 @@ class DummyAV {
 }
 
 describe('ZoneManager', () => {
-  it('merkt aktuelle Zone korrekt (Single-Room, kein AV-Switch mehr)', () => {
+  it('tracks the current zone correctly (single-room, no more AV switch)', () => {
     const zones: Polygon[] = [
       {
         name: 'A',
@@ -43,7 +43,7 @@ describe('ZoneManager', () => {
     expect(zm.getCurrent()).toBe('B');
   });
 
-  it('setZones() aktualisiert Liste und verlässt alte Zone wenn entfernt', () => {
+  it('setZones() updates the list and exits the old zone when removed', () => {
     const zones: Polygon[] = [
       {
         name: 'A',

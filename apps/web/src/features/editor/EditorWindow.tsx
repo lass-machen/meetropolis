@@ -13,6 +13,7 @@ import { uploadTilesetAsAssetPack } from '../../lib/assetPackUpload';
 import { logger } from '../../lib/logger';
 import { gameBridge } from '../../game/bridge';
 import { getApiBaseFromWindow } from '../../lib/apiBase';
+import { Icon } from '../../ui/Icon';
 
 type Pack = { id: number; name: string; version: string; author: string; uuid: string };
 
@@ -298,10 +299,14 @@ function PacksList({
                   fontSize: 14,
                   padding: '2px 6px',
                   borderRadius: 4,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
                 }}
                 title={t('editor.deletePack')}
+                aria-label={t('editor.deletePack')}
               >
-                🗑️
+                <Icon name="trash" size={14} />
               </button>
             </div>
           ))}
@@ -347,7 +352,7 @@ function UploadSection({
           <label
             style={{ cursor: 'pointer', flex: 1, display: 'flex', alignItems: 'center', gap: 8, color: 'var(--fg)' }}
           >
-            <span style={{ fontSize: 16 }}>📁</span>
+            <Icon name="folder" size={16} />
             <span style={{ fontSize: 13 }}>{t('editor.chooseImage')}</span>
             <input type="file" accept="image/*" style={{ display: 'none' }} onChange={onFileUpload} />
           </label>
@@ -375,7 +380,7 @@ function UploadSection({
               color: 'var(--fg)',
             }}
           >
-            <span style={{ fontSize: 16 }}>📦</span>
+            <Icon name="package" size={16} />
             <span style={{ fontSize: 13 }}>{uploading ? t('editor.uploading') : t('editor.importMepack')}</span>
             <input
               type="file"

@@ -84,7 +84,7 @@ describe('AVManager', () => {
     vi.clearAllMocks();
   });
 
-  it('setParticipantVolume ruft setVolume der RemoteAudioTracks auf und klemmt Werte in [0,1]', () => {
+  it('setParticipantVolume calls setVolume on RemoteAudioTracks and clamps values to [0,1]', () => {
     const mgr = makeManager() as any;
     const room = makeFakeRoom();
     const sid = 'P1';
@@ -107,7 +107,7 @@ describe('AVManager', () => {
     expect(setVolume).toHaveBeenNthCalledWith(3, 0.5);
   });
 
-  it('setMicrophoneEnabled(true) publiziert Audio-Track; false soft-muted ohne Unpublish', async () => {
+  it('setMicrophoneEnabled(true) publishes audio track; false soft-mutes without unpublish', async () => {
     const mgr = makeManager() as any;
     const room = makeFakeRoom();
     mgr.current = room;
@@ -121,7 +121,7 @@ describe('AVManager', () => {
     expect(room.localParticipant.unpublishTrack).not.toHaveBeenCalled();
   });
 
-  it('setMicrophoneEnabled(true) bei bereits aktivem Mic republished nicht erneut', async () => {
+  it('setMicrophoneEnabled(true) does not republish when mic is already active', async () => {
     const mgr = makeManager() as any;
     const room = makeFakeRoom();
     mgr.current = room;
@@ -135,7 +135,7 @@ describe('AVManager', () => {
     expect(room.localParticipant.publishTrack).not.toHaveBeenCalled();
   });
 
-  it('setCameraEnabled(true) publiziert Video-Track, false unpubliziert', async () => {
+  it('setCameraEnabled(true) publishes video track, false unpublishes', async () => {
     const mgr = makeManager() as any;
     const room = makeFakeRoom();
     mgr.current = room;
@@ -150,7 +150,7 @@ describe('AVManager', () => {
     expect(room.localParticipant.unpublishTrack).toHaveBeenCalled();
   });
 
-  it('setCameraEnabled(true) bei bereits aktiver Kamera republished nicht erneut', async () => {
+  it('setCameraEnabled(true) does not republish when camera is already active', async () => {
     const mgr = makeManager() as any;
     const room = makeFakeRoom();
     mgr.current = room;
@@ -163,7 +163,7 @@ describe('AVManager', () => {
     expect(room.localParticipant.publishTrack).not.toHaveBeenCalled();
   });
 
-  it('startScreenshare publiziert Screen-Tracks', async () => {
+  it('startScreenshare publishes screen tracks', async () => {
     const mgr = makeManager() as any;
     const room = makeFakeRoom();
     mgr.current = room;
@@ -172,7 +172,7 @@ describe('AVManager', () => {
     expect(room.localParticipant.publishTrack).toHaveBeenCalled();
   });
 
-  it('startScreenshare ist idempotent, wenn bereits Screensharing aktiv ist', async () => {
+  it('startScreenshare is idempotent when screensharing is already active', async () => {
     const mgr = makeManager() as any;
     const room = makeFakeRoom();
     mgr.current = room;
@@ -194,7 +194,7 @@ describe('AVManager', () => {
     expect(room.localParticipant.publishTrack).not.toHaveBeenCalled();
   });
 
-  it('stopScreenshare unpubliziert vorhandene Screen-Share-Tracks', async () => {
+  it('stopScreenshare unpublishes existing screen-share tracks', async () => {
     const mgr = makeManager() as any;
     const room = makeFakeRoom();
     mgr.current = room;
@@ -214,7 +214,7 @@ describe('AVManager', () => {
   // refactor. The wireRoomEvents method no longer exists; events are handled
   // by SubscriptionManager.
 
-  it('re-publiziert Mic, wenn vorhandener Track beendet/disabled ist', async () => {
+  it('re-publishes mic when existing track is ended/disabled', async () => {
     const mgr = makeManager() as any;
     const room = makeFakeRoom();
     mgr.current = room;
@@ -230,7 +230,7 @@ describe('AVManager', () => {
     expect(room.localParticipant.publishTrack).toHaveBeenCalled();
   });
 
-  it('Mute deaktiviert Track sofort lokal via Soft-Mute (kein Unpublish)', async () => {
+  it('Mute disables track locally via soft-mute (no unpublish)', async () => {
     const mgr = makeManager() as any;
     const room = makeFakeRoom();
     mgr.current = room;
@@ -244,7 +244,7 @@ describe('AVManager', () => {
     expect(room.localParticipant.unpublishTrack).not.toHaveBeenCalled();
   });
 
-  it('re-publiziert Kamera, wenn vorhandener Track beendet/disabled ist', async () => {
+  it('re-publishes camera when existing track is ended/disabled', async () => {
     const mgr = makeManager() as any;
     const room = makeFakeRoom();
     mgr.current = room;
@@ -258,7 +258,7 @@ describe('AVManager', () => {
     expect(room.localParticipant.publishTrack).toHaveBeenCalled();
   });
 
-  it('Kamera-Deaktivierung setzt Track sofort lokal aus und triggert Unpublish', async () => {
+  it('camera disable turns off track locally and triggers unpublish', async () => {
     const mgr = makeManager() as any;
     const room = makeFakeRoom();
     mgr.current = room;
@@ -282,7 +282,7 @@ describe('AVManager', () => {
   // The internal signal handling has been moved to ConnectionManager and PublishingManager
   // These implementation details are now covered by integration tests
 
-  it('aktiviert Mic nach Join, wenn vorher pending war (Join-Order deterministisch)', async () => {
+  it('enables mic after join when previously pending (deterministic join order)', async () => {
     vi.useFakeTimers();
     const { joinLivekitRoom } = await import('../lib/livekit');
     const mgr = makeManager() as any;

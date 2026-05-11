@@ -52,9 +52,7 @@ export const ZoneAccessPanel = React.memo(function ZoneAccessPanel(props: ZoneAc
         maxWidth: 260,
       }}
     >
-      <div style={{ fontWeight: 600, marginBottom: 6, fontSize: 12 }}>
-        {t('zoneLock.accessRequests', 'Zugriffsanfragen')}
-      </div>
+      <div style={{ fontWeight: 600, marginBottom: 6, fontSize: 12 }}>{t('zoneLock.accessRequests')}</div>
       {pendingRequests.map((req) => (
         <div
           key={req.sessionId}
@@ -84,7 +82,7 @@ export const ZoneAccessPanel = React.memo(function ZoneAccessPanel(props: ZoneAc
                 cursor: 'pointer',
               }}
             >
-              {t('zoneLock.approve', 'OK')}
+              {t('zoneLock.approve')}
             </button>
             <button
               onClick={() => handleResponse(req.sessionId, false)}
@@ -99,7 +97,7 @@ export const ZoneAccessPanel = React.memo(function ZoneAccessPanel(props: ZoneAc
                 cursor: 'pointer',
               }}
             >
-              {t('zoneLock.deny', 'Nein')}
+              {t('zoneLock.deny')}
             </button>
           </div>
         </div>
