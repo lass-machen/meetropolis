@@ -389,13 +389,18 @@ async function handleDeleteObject(prisma: PrismaClient, req: express.Request, re
   }
 }
 
+type PersistedMapObject = Awaited<ReturnType<typeof persistMapObject>>;
+
 async function bulkInsertObjects(
   prisma: PrismaClient,
   mapId: string,
   objects: z.infer<typeof bulkCreateSchema>['objects'],
   dims: { chunkSize: number; tileWidth: number; tileHeight: number },
-): Promise<{ created: any[]; allCollisionTiles: Array<{ cx: number; cy: number; rx: number; ry: number }> }> {
-  const created: any[] = [];
+): Promise<{
+  created: PersistedMapObject[];
+  allCollisionTiles: Array<{ cx: number; cy: number; rx: number; ry: number }>;
+}> {
+  const created: PersistedMapObject[] = [];
   const allCollisionTiles: Array<{ cx: number; cy: number; rx: number; ry: number }> = [];
 
   for (const data of objects) {

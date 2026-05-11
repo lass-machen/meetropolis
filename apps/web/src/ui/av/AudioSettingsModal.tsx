@@ -111,7 +111,11 @@ export function AudioSettingsModal(props: { open: boolean; onOpenChange: (v: boo
           control={
             <Select
               value={settings.preset}
-              onChange={(val) => applyPreset(val as any)}
+              onChange={(val) => {
+                if (val === 'standard' || val === 'quiet' || val === 'loud' || val === 'studio') {
+                  applyPreset(val);
+                }
+              }}
               options={[
                 { value: 'standard', label: t('av.preset.standard') },
                 { value: 'quiet', label: t('av.preset.quiet') },

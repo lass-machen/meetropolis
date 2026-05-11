@@ -209,7 +209,7 @@ class EditorServiceClass {
       return;
     }
     // Exhaustive check: the type system enforces this, but guard at runtime too.
-    throw new Error(`Unknown action type: ${(action as any).type}`);
+    throw new Error(`Unknown action type: ${(action as { type?: string }).type ?? '<missing>'}`);
   }
 
   public hasPendingChanges(): boolean {

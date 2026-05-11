@@ -388,6 +388,6 @@ export function useGameInitialization(params: UseGameInitializationParams) {
     });
 
     return buildCleanup(params, game, handleBeforeUnload);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: game is initialised once per auth/user/api context; params hold stable refs
   }, [authChecked, me?.id, apiBase]);
 }

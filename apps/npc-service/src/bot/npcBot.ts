@@ -119,15 +119,15 @@ export class NpcBot {
           ? this.livekit.publishVideo.bind(this.livekit)
           : this.livekit.publishScreenshare.bind(this.livekit);
 
-    publishFn(filePath, payload.loop, payload.mimeType).catch((e) => {
-      logger.error(`[NpcBot ${identity}] ${action} failed:`, e);
+    publishFn(filePath, payload.loop, payload.mimeType).catch((e: unknown) => {
+      logger.error({ err: e }, `[NpcBot ${identity}] ${action} failed`);
     });
   }
 
   private handleStopMedia(identity: string): void {
     logger.info(`[NpcBot ${identity}] stop_media`);
-    this.livekit.stopAllMedia().catch((e) => {
-      logger.error(`[NpcBot ${identity}] stop_media failed:`, e);
+    this.livekit.stopAllMedia().catch((e: unknown) => {
+      logger.error({ err: e }, `[NpcBot ${identity}] stop_media failed`);
     });
   }
 

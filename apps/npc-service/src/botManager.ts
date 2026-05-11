@@ -61,8 +61,8 @@ class BotManager {
     const promises: Promise<void>[] = [];
     for (const [k, bot] of this.bots) {
       promises.push(
-        bot.stop().catch((e) => {
-          logger.error(`[BotManager] Error stopping ${k}:`, e);
+        bot.stop().catch((e: unknown) => {
+          logger.error({ err: e }, `[BotManager] Error stopping ${k}`);
         }),
       );
     }

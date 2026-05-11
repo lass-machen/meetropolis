@@ -71,7 +71,7 @@ function useDraggableModal(open: boolean, draggable?: boolean) {
     window.addEventListener('mouseup', onUp, { once: true });
     return () => {
       window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp as any);
+      window.removeEventListener('mouseup', onUp);
     };
   }, [dragging]);
 

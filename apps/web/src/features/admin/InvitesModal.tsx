@@ -114,7 +114,7 @@ function useInvites(open: boolean, apiBase: string) {
       setLoading(true);
       try {
         const res = await fetch(`${apiBase}/invites`, { credentials: 'include' });
-        if (res.ok) setInvites(await res.json());
+        if (res.ok) setInvites((await res.json()) as Invite[]);
       } catch {}
       setLoading(false);
     })();

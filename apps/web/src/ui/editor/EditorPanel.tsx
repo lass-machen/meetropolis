@@ -496,7 +496,7 @@ export function EditorPanel(props: { onSave?: () => Promise<boolean> }) {
     };
     window.addEventListener('editor:save', onSaveShortcut);
     return () => window.removeEventListener('editor:save', onSaveShortcut);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: handleSaveClick reads via closure but only the saving flag should re-bind the listener
   }, [saving]);
 
   const lastSavedLabel = React.useMemo(() => {

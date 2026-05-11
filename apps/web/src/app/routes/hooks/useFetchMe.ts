@@ -187,7 +187,7 @@ export function useFetchMe(params: UseFetchMeParams) {
   const { apiBase, refetchTrigger = 0 } = params;
   useEffect(() => {
     void runFetchMe(params);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: refetch only on apiBase or explicit trigger; params shape is stable
   }, [apiBase, refetchTrigger]);
 
   return null;

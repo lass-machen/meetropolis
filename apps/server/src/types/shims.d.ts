@@ -63,13 +63,15 @@ declare module 'multer' {
 }
 
 // Optional proprietary tenancy module. Present only in enterprise builds.
+// Callers narrow at the load site (see tenancyLoader.ts).
 declare module '@meetropolis/tenancy' {
-  const mod: any;
+  const mod: unknown;
   export default mod;
 }
 
 // Optional proprietary billing module. Present only in enterprise builds.
+// Callers narrow at the load site (see billingLoader.ts).
 declare module '@meetropolis/billing' {
-  const mod: any;
+  const mod: unknown;
   export default mod;
 }

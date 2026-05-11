@@ -46,7 +46,7 @@ export function useZones(params: {
       } catch {}
       debounceTimerRef.current = null;
     }, 150);
-  }, [editor.active, editor.zones]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [editor.active, editor.zones]); // eslint-disable-line react-hooks/exhaustive-deps -- intentional: editor refs are stable; only zone data and active state should retrigger
 
   // Handle incoming zone updates (should be called by Colyseus message handler)
   const applyIncomingZones = React.useCallback(

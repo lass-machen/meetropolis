@@ -22,7 +22,7 @@ export const guestExpiryMiddleware: express.RequestHandler = async (req, res, ne
     });
 
     if (!membership) return next();
-    if ((membership as any).role !== 'guest') return next();
+    if (membership.role !== 'guest') return next();
     if (!membership.expiresAt) return next();
 
     if (membership.expiresAt < new Date()) {

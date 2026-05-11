@@ -249,7 +249,7 @@ export function MapsAdmin(props: { apiBase: string }) {
     } finally {
       state.setLoading(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: state setters are stable; only apiBase and t should refresh the callback
   }, [apiBase, t]);
 
   const reloadTenants = React.useCallback(async () => {
@@ -265,7 +265,7 @@ export function MapsAdmin(props: { apiBase: string }) {
         logger.warn('[MapsAdmin] Failed to load tenants', err, fallbackErr);
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: state setters are stable; only apiBase should refresh the callback
   }, [apiBase]);
 
   React.useEffect(() => {

@@ -75,11 +75,15 @@ function ensureDecoded(cd: ChunkUpdate, colChunkSize: number) {
   if (cd._decoded.length !== 0) return;
   const c = cd.chunk;
   if (c) {
-    const dataBuffer = c.data instanceof Buffer ? c.data : Buffer.from(c.data);
+    // Node's Buffer generic carries the underlying ArrayBuffer kind; both
+    // branches yield a usable Buffer at runtime, so the union widens to
+    // `Buffer<ArrayBufferLike>` which decodeRlePairsFromBuffer expects.
+    const dataBuffer: Buffer<ArrayBufferLike> =
+      c.data instanceof Buffer ? (c.data as Buffer<ArrayBufferLike>) : Buffer.from(c.data);
     const pairs = decodeRlePairsFromBuffer(dataBuffer);
     cd._decoded = rleDecodeToBooleans(pairs, colChunkSize * colChunkSize).map((b) => (b ? 1 : 0));
   } else {
-    cd._decoded = new Array(colChunkSize * colChunkSize).fill(0);
+    cd._decoded = new Array<number>(colChunkSize * colChunkSize).fill(0);
   }
 }
 

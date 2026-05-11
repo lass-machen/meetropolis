@@ -163,7 +163,7 @@ function useUserManagement(baseUrl: string, t: (k: string) => string) {
 
   React.useEffect(() => {
     void loader.load();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps -- intentional: run-once on mount; loader is a stable ref-based handle
   React.useEffect(() => {
     (document as unknown as UserManagementWindow).__userManagementLoad = loader.load;
     return () => {

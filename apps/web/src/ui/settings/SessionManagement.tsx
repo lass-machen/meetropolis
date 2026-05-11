@@ -95,7 +95,7 @@ function useSessionsApi(apiBase: string, t: TranslateFn) {
 
   React.useEffect(() => {
     void fetchSessions();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps -- intentional: run-once on mount; fetchSessions is a stable inline closure
 
   const revokeSession = async (sessionId: string) => {
     if (!confirm(t('sessions.confirmRevoke'))) return;

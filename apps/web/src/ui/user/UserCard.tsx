@@ -90,13 +90,15 @@ export function UserCard(props: {
   return (
     <div
       className={classes}
-      style={{
-        width: isCollapsed ? '100%' : undefined,
-        height: isCollapsed ? '100%' : undefined,
-        ['--uc-opacity' as any]: isLocal ? 1 : 0.4 + volume * 0.6,
-        ['--uc-video-zoom' as any]: zoom,
-        ...style,
-      }}
+      style={
+        {
+          width: isCollapsed ? '100%' : undefined,
+          height: isCollapsed ? '100%' : undefined,
+          '--uc-opacity': isLocal ? 1 : 0.4 + volume * 0.6,
+          '--uc-video-zoom': zoom,
+          ...style,
+        } as React.CSSProperties
+      }
     >
       <video
         ref={videoRef}

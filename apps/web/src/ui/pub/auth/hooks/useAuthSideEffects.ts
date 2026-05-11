@@ -46,7 +46,7 @@ export function useDebugAutoLogin({ post, storeDesktopAuthToken, setError }: Deb
     } catch {
       /* ignore */
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: run-once auto-login attempt on mount, deps captured via closure
   }, []);
 }
 
@@ -89,7 +89,7 @@ export function useGuestAutoLogin({
         }
       }
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: only initialGuestToken should retrigger the guest login attempt
   }, [initialGuestToken]);
 }
 

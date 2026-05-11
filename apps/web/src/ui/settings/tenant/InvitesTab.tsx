@@ -24,7 +24,7 @@ function useInvitesTab(apiBase: string, t: (k: string) => string) {
       try {
         const res = await fetch(`${apiBase}/invites`, { credentials: 'include' });
         if (res.ok) {
-          const data = await res.json();
+          const data = (await res.json()) as Invite[];
           if (!cancelled) setInvites(data);
         }
       } catch {

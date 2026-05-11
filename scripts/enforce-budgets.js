@@ -1,4 +1,4 @@
-/* eslint-disable */
+/* eslint-disable -- legacy budget script uses dynamic node fs/path patterns the project lint rules do not benefit from analysing */
 // Lightweight budget enforcement without external deps.
 // Checks:
 // - Max lines per file (error if above hard limit)
@@ -16,11 +16,7 @@ const fs = require('fs');
 const path = require('path');
 
 const PROJECT_ROOT = process.cwd();
-const TARGET_DIRS = [
-  'apps/web/src',
-  'apps/server/src',
-  'packages/shared/src',
-];
+const TARGET_DIRS = ['apps/web/src', 'apps/server/src', 'packages/shared/src'];
 
 const HARD_LIMIT_FILE_LINES = 600;
 const HARD_LIMIT_FUNCTION_LINES = 80;
@@ -30,9 +26,7 @@ const TS_LIKE_EXTENSIONS = new Set(['.ts', '.tsx']);
 // Pfad-Praefixe, die immer uebersprungen werden:
 // - generated/: Prisma-Client + Runtime, autogeneriert, keine Refactor-Kandidaten
 // - .test./.spec.: Tests duerfen laenger sein als Produktivcode
-const ALWAYS_EXCLUDE_PREFIXES = [
-  'apps/server/src/generated/',
-];
+const ALWAYS_EXCLUDE_PREFIXES = ['apps/server/src/generated/'];
 const ALWAYS_EXCLUDE_REGEX = /\.(test|spec)\.(ts|tsx)$/;
 
 // Optionale Allowlist fuer preexistente, geplante-Refactor-Files. Format pro
@@ -99,9 +93,8 @@ function isFunctionStart(line) {
   // Heuristic only.
   const trimmed = line.trim();
   const fnDecl = /^(export\s+)?(async\s+)?function\s+[A-Za-z0-9_$]+\s*\(/.test(trimmed);
-  const arrowAssign = /^(export\s+)?(const|let|var)\s+[A-Za-z0-9_$]+\s*([:<][^=]+)?=\s*(async\s*)?\([^)]*\)\s*=>\s*\{/.test(
-    trimmed
-  );
+  const arrowAssign =
+    /^(export\s+)?(const|let|var)\s+[A-Za-z0-9_$]+\s*([:<][^=]+)?=\s*(async\s*)?\([^)]*\)\s*=>\s*\{/.test(trimmed);
   return fnDecl || arrowAssign;
 }
 
@@ -109,7 +102,7 @@ function isConciseArrowStart(line) {
   // const Name = (...) => expr (no opening brace)
   const trimmed = line.trim();
   return /^(export\s+)?(const|let|var)\s+[A-Za-z0-9_$]+\s*([:<][^=]+)?=\s*(async\s*)?\([^)]*\)\s*=>\s*(?!\{).+/.test(
-    trimmed
+    trimmed,
   );
 }
 
@@ -242,5 +235,3 @@ function main() {
 }
 
 main();
-
-

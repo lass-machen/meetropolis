@@ -110,10 +110,12 @@ function PortalSpawnInput({
         value={value ?? ''}
         onChange={(e) => {
           const val = e.target.value;
-          const action: Parameters<typeof EditorService.dispatch>[0] = val
-            ? ({ type: 'UPDATE_ZONE_PORTAL', index: idx, [key]: Number(val) } as any)
-            : { type: 'UPDATE_ZONE_PORTAL', index: idx };
-          EditorService.dispatch(action);
+          const portalUpdate = val
+            ? key === 'portalSpawnX'
+              ? { portalSpawnX: Number(val) }
+              : { portalSpawnY: Number(val) }
+            : {};
+          EditorService.dispatch({ type: 'UPDATE_ZONE_PORTAL', index: idx, ...portalUpdate });
         }}
         placeholder={placeholder}
         style={{

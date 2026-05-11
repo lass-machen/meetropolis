@@ -104,7 +104,11 @@ function TilesetSettingsForm({
         <label style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>{t('tileset.category')}</label>
         <Select
           value={d.category || 'terrain'}
-          onChange={(val) => setDialog({ ...d, category: val as any })}
+          onChange={(val) => {
+            if (val === 'terrain' || val === 'structures' || val === 'objects') {
+              setDialog({ ...d, category: val });
+            }
+          }}
           options={[
             { value: 'terrain', label: t('tileset.cat.terrain') },
             { value: 'structures', label: t('tileset.cat.structures') },

@@ -171,7 +171,7 @@ export function WorldModals(props: WorldModalsProps) {
     if (tenantSettingsOpen) {
       void tenantSettings.fetchData();
     }
-  }, [tenantSettingsOpen]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [tenantSettingsOpen]); // eslint-disable-line react-hooks/exhaustive-deps -- intentional: only re-run when the modal opens
 
   const tenantTabItems: TabItem[] = [
     { key: 'general', label: t('tenant.tabGeneral') },
