@@ -1,6 +1,7 @@
 import { Client } from '@colyseus/sdk';
 
 type Zone = { id: string; name: string; polygon: Array<{ x: number; y: number }> };
+type MapEntry = { name?: string; zones?: Zone[] };
 
 function centroid(points: Array<{ x: number; y: number }>): { x: number; y: number } {
   if (!points || points.length === 0) return { x: 0, y: 0 };
@@ -44,13 +45,12 @@ export async function spawnColyseusBot(opts: { apiBase: string; identity: string
   try {
     const mapsRes = await fetch(`${httpEndpoint}/maps`, { method: 'GET' });
     if (mapsRes.ok) {
-      const maps = await mapsRes.json();
-      const office = Array.isArray(maps)
-        ? maps.find((m: any) => (m?.name || '').toLowerCase() === 'office') || maps[0]
-        : null;
+      const mapsRaw: unknown = await mapsRes.json();
+      const maps: MapEntry[] = Array.isArray(mapsRaw) ? (mapsRaw as MapEntry[]) : [];
+      const office: MapEntry | null = maps.find((m) => (m?.name || '').toLowerCase() === 'office') || maps[0] || null;
       const zones: Zone[] = Array.isArray(office?.zones) ? office.zones : [];
       const cs = zones
-        .map((z) => (Array.isArray((z as any)?.polygon) ? centroid((z as any).polygon) : null))
+        .map((z) => (Array.isArray(z?.polygon) ? centroid(z.polygon) : null))
         .filter((c): c is { x: number; y: number } => !!c);
       if (cs.length > 0) waypoints = cs;
     }

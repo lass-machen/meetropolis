@@ -10,6 +10,12 @@ interface PublicConfigState extends PublicConfig {
   load: (apiBase: string) => Promise<void>;
 }
 
+/** Shape returned by GET /public/config (only fields this store reads). */
+interface PublicConfigResponse {
+  publicRegistrationEnabled?: boolean;
+  billingEnabled?: boolean;
+}
+
 const DEFAULTS: PublicConfig = {
   registrationEnabled: true,
   billingEnabled: false,
@@ -23,9 +29,10 @@ export const usePublicConfigStore = create<PublicConfigState>((set, get) => ({
     try {
       const res = await fetch(`${apiBase}/public/config`);
       if (!res.ok) throw new Error('public_config_http_' + res.status);
-      const data = await res.json();
+      const data = (await res.json()) as PublicConfigResponse;
       set({
-        registrationEnabled: typeof data.publicRegistrationEnabled === 'boolean' ? data.publicRegistrationEnabled : true,
+        registrationEnabled:
+          typeof data.publicRegistrationEnabled === 'boolean' ? data.publicRegistrationEnabled : true,
         billingEnabled: typeof data.billingEnabled === 'boolean' ? data.billingEnabled : false,
         loaded: true,
       });

@@ -3,8 +3,10 @@
 function generateSessionId(): string {
   try {
     const arr = new Uint8Array(16);
-    (crypto as any).getRandomValues?.(arr);
-    return Array.from(arr).map((b) => b.toString(16).padStart(2, '0')).join('');
+    crypto.getRandomValues?.(arr);
+    return Array.from(arr)
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
   } catch {
     return Math.random().toString(16).slice(2) + Date.now().toString(16);
   }
@@ -15,14 +17,13 @@ let cachedSessionId: string | null = null;
 export function getCorrelationSessionId(): string {
   if (cachedSessionId) return cachedSessionId;
   try {
-    const w: any = window as any;
-    if (w.__corrSessionId && typeof w.__corrSessionId === 'string') {
-      cachedSessionId = w.__corrSessionId;
-      return w.__corrSessionId;
+    if (window.__corrSessionId && typeof window.__corrSessionId === 'string') {
+      cachedSessionId = window.__corrSessionId;
+      return window.__corrSessionId;
     }
     const sessionId = generateSessionId();
     cachedSessionId = sessionId;
-    w.__corrSessionId = sessionId;
+    window.__corrSessionId = sessionId;
     return sessionId;
   } catch {
     const sessionId = generateSessionId();
@@ -39,5 +40,3 @@ export function buildCorrelationHeaders(extra?: { identity?: string; roomName?: 
   if (extra?.roomName) headers['x-av-room'] = String(extra.roomName);
   return headers;
 }
-
-

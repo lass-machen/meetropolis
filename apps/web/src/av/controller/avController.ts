@@ -9,11 +9,19 @@ export type AVControllerOptions = {
 
 export class AVController {
   private _room: Room | undefined;
-  private _state: 'idle' | 'connecting' | 'connected' | 'publishing' | 'subscribed' | 'reconnecting' | 'closed' | 'error' = 'idle';
+  private _state:
+    | 'idle'
+    | 'connecting'
+    | 'connected'
+    | 'publishing'
+    | 'subscribed'
+    | 'reconnecting'
+    | 'closed'
+    | 'error' = 'idle';
   private _pageLeaving = false;
   private _disconnecting = false;
   private _reconnectAttempts = 0;
-  private _reconnectTimer: any = null;
+  private _reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(_options: AVControllerOptions) {
     // options parameter kept for API compatibility
@@ -27,11 +35,25 @@ export class AVController {
     this._room = room;
   }
 
-  get state() { return this._state; }
-  setState(next: typeof this._state) { this._state = next; }
-  setPageLeaving(leaving: boolean) { this._pageLeaving = !!leaving; }
-  setDisconnecting(disconnecting: boolean) { this._disconnecting = !!disconnecting; }
-  resetReconnect() { this._reconnectAttempts = 0; try { if (this._reconnectTimer) clearTimeout(this._reconnectTimer); } catch {}; this._reconnectTimer = null; }
+  get state() {
+    return this._state;
+  }
+  setState(next: typeof this._state) {
+    this._state = next;
+  }
+  setPageLeaving(leaving: boolean) {
+    this._pageLeaving = !!leaving;
+  }
+  setDisconnecting(disconnecting: boolean) {
+    this._disconnecting = !!disconnecting;
+  }
+  resetReconnect() {
+    this._reconnectAttempts = 0;
+    try {
+      if (this._reconnectTimer) clearTimeout(this._reconnectTimer);
+    } catch {}
+    this._reconnectTimer = null;
+  }
 
   shouldScheduleReconnect(): boolean {
     if (this._pageLeaving) return false;
@@ -43,7 +65,9 @@ export class AVController {
     if (!this.shouldScheduleReconnect()) return;
     const attempt = ++this._reconnectAttempts;
     const delay = Math.min(30000, 1000 * Math.pow(2, attempt - 1) + Math.random() * 500);
-    try { if (this._reconnectTimer) clearTimeout(this._reconnectTimer); } catch {}
+    try {
+      if (this._reconnectTimer) clearTimeout(this._reconnectTimer);
+    } catch {}
     this._reconnectTimer = setTimeout(() => {
       this._reconnectTimer = null;
       const name = getCurrentRoomName();
@@ -52,5 +76,3 @@ export class AVController {
     }, delay);
   }
 }
-
-

@@ -26,8 +26,8 @@ function handleConfig(_req: express.Request, res: express.Response): void {
 
 async function checkDb(prisma: PrismaClient): Promise<'ok' | 'fail'> {
   try {
-    const p = prisma.$queryRaw`SELECT 1` as unknown as Promise<any>;
-    const withTimeout = new Promise((resolve, reject) => {
+    const p = prisma.$queryRaw`SELECT 1` as unknown as Promise<unknown>;
+    const withTimeout = new Promise<unknown>((resolve, reject) => {
       const to = setTimeout(() => reject(new Error('db-timeout')), 2000);
       p.then((v) => {
         clearTimeout(to);
@@ -196,7 +196,7 @@ function handleAvStats(req: express.Request, res: express.Response): void {
     } catch {}
     res.json({ ok: true });
   } catch (e) {
-    logger.error({ event: 'av.stats.error', error: (e as any)?.message || String(e) });
+    logger.error({ event: 'av.stats.error', error: e instanceof Error ? e.message : String(e) });
     res.status(500).json({ error: 'stats ingest failed' });
   }
 }

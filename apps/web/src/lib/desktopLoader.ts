@@ -15,7 +15,11 @@ export interface DesktopModule {
   /** Resolve once the desktop config has been loaded. */
   waitForConfig: () => Promise<void>;
   /** Mini-mode view component. */
-  MiniModeView: ComponentType<any>;
+  // The MiniModeView prop surface is owned by the @meetropolis/desktop submodule.
+  // It receives a broad set of A/V and roster props; we type it loosely here at
+  // the boundary so the OSS app can pass through whatever the submodule expects
+  // without coupling the web app to internal desktop types.
+  MiniModeView: ComponentType<Record<string, unknown>>;
   /** Tauri preferences modal component. */
   TauriPreferencesModal: ComponentType<{ open: boolean; onOpenChange: (v: boolean) => void }>;
   /** Update banner component (renders update notifications). */
@@ -38,11 +42,18 @@ export async function getDesktopModule(): Promise<DesktopModule | null> {
   try {
     // @meetropolis/desktop is an optional private submodule.
     // In OSS builds it is absent, so the import throws and lands in catch.
-    const mod: any = await import('@meetropolis/desktop');
-    const resolved = mod.default ?? mod;
+    const mod = (await import('@meetropolis/desktop')) as unknown as {
+      default?: unknown;
+      initDesktop?: unknown;
+    };
+    const resolved: unknown = mod.default ?? mod;
     // Confirm the module actually exposes desktop features.
     // In OSS builds (no submodule) the Vite plugin returns an empty module (null).
-    if (!resolved || typeof resolved.initDesktop !== 'function') {
+    if (
+      !resolved ||
+      typeof resolved !== 'object' ||
+      typeof (resolved as { initDesktop?: unknown }).initDesktop !== 'function'
+    ) {
       cached = null;
       return null;
     }
@@ -61,8 +72,7 @@ export async function getDesktopModule(): Promise<DesktopModule | null> {
  */
 export function isDesktopEnvironment(): boolean {
   try {
-    const w = window as any;
-    return !!(w.__TAURI__ || w.desktop?.apiBase || w.__MEETROPOLIS_API_BASE__);
+    return !!(window.__TAURI__ || window.desktop?.apiBase || window.__MEETROPOLIS_API_BASE__);
   } catch {
     return false;
   }

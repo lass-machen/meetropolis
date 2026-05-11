@@ -7,7 +7,12 @@ type AvLevel = 'debug' | 'info' | 'warn' | 'error';
 const lastLogAtMs = new Map<string, number>();
 const DEBUG_MIN_INTERVAL_MS = 1500;
 
-export function avLog(level: AvLevel, event: string, details?: Record<string, unknown>, extra?: { identity?: string; roomName?: string }) {
+export function avLog(
+  level: AvLevel,
+  event: string,
+  details?: Record<string, unknown>,
+  extra?: { identity?: string; roomName?: string },
+) {
   const corr = {
     correlationId: getCorrelationSessionId(),
     identity: extra?.identity || undefined,
@@ -24,12 +29,15 @@ export function avLog(level: AvLevel, event: string, details?: Record<string, un
     }
   } catch {}
   try {
-    (logger as any)[level]('[AV]', payload);
+    // The shared logger exposes one method per level. Index it through a
+    // narrowed signature instead of `any` so the call stays type-checked.
+    const fn = (logger as Record<AvLevel, (...args: unknown[]) => void>)[level];
+    fn('[AV]', payload);
   } catch {
-    try { logger.info('[AV]', payload); } catch {}
+    try {
+      logger.info('[AV]', payload);
+    } catch {}
   }
 }
 
 export { buildCorrelationHeaders };
-
-

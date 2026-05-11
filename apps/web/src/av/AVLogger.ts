@@ -29,8 +29,8 @@ const lastDebugTime: Map<string, number> = new Map();
 // Check if we're in development mode
 const isDev = (): boolean => {
   try {
-    const env = (import.meta as any).env;
-    return !!env?.DEV || env?.MODE === 'development';
+    const env = import.meta.env;
+    return !!env.DEV || env.MODE === 'development';
   } catch {
     return false;
   }
@@ -39,8 +39,8 @@ const isDev = (): boolean => {
 // Check if debug is explicitly enabled
 const isDebugEnabled = (): boolean => {
   try {
-    const env = (import.meta as any).env;
-    if (env?.VITE_AV_DEBUG === 'true') return true;
+    const env = import.meta.env;
+    if (env.VITE_AV_DEBUG === 'true') return true;
     if (typeof window !== 'undefined' && window.__avDebugOn) return true;
     return false;
   } catch {
@@ -190,17 +190,16 @@ export function buildCorrelationHeaders(ctx: LogContext): Record<string, string>
 // Install global debug toggle
 if (typeof window !== 'undefined') {
   try {
-    if (!(window as any).__avLoggerInstalled) {
-      (window as any).__avLoggerInstalled = true;
-      (window as any).avLogger = AVLogger;
+    if (!window.__avLoggerInstalled) {
+      window.__avLoggerInstalled = true;
+      window.avLogger = AVLogger;
 
       window.addEventListener(
         'keydown',
         (e) => {
           if ((e.altKey || (e.ctrlKey && e.shiftKey)) && e.key.toLowerCase() === 'd') {
-            const w = window as any;
-            w.__avDebugOn = !w.__avDebugOn;
-            console.info(`[AV] Debug mode: ${w.__avDebugOn ? 'ON' : 'OFF'}`);
+            window.__avDebugOn = !window.__avDebugOn;
+            console.info(`[AV] Debug mode: ${window.__avDebugOn ? 'ON' : 'OFF'}`);
           }
         },
         true,

@@ -59,9 +59,9 @@ export class EditorPersistenceService {
       throw new EditorPersistenceError(`Server returned ${response.status}: ${text}`);
     }
 
-    // Success: the server may return updated data.
-    const result = await response.json();
-    return result;
+    // Success: drain the response body but discard it; the public signature
+    // is `Promise<void>` and the saved-state echo is not consumed.
+    await response.json().catch(() => undefined);
   }
 
   /**
@@ -90,7 +90,7 @@ export class EditorPersistenceService {
       throw new EditorPersistenceError(`Server returned ${response.status}: ${text}`);
     }
 
-    const data = await response.json();
+    const data: unknown = await response.json();
     return this.payloadToState(data);
   }
 
@@ -105,23 +105,37 @@ export class EditorPersistenceService {
   }
 
   /** Convert a server payload into a partial editor state. */
-  private payloadToState(data: any): Partial<EditorState> {
+  private payloadToState(data: unknown): Partial<EditorState> {
     const state: Partial<EditorState> = {};
+    if (!data || typeof data !== 'object') return state;
+    const payload = data as {
+      zones?: unknown;
+      spawn?: unknown;
+      backgroundColor?: unknown;
+      tilesets?: unknown;
+    };
 
-    if (Array.isArray(data.zones)) {
-      state.zones = data.zones;
+    if (Array.isArray(payload.zones)) {
+      state.zones = payload.zones as EditorState['zones'];
     }
 
-    if (data.spawn && typeof data.spawn.x === 'number' && typeof data.spawn.y === 'number') {
-      state.spawn = { x: data.spawn.x, y: data.spawn.y };
+    const spawn = payload.spawn;
+    if (
+      spawn &&
+      typeof spawn === 'object' &&
+      typeof (spawn as { x?: unknown }).x === 'number' &&
+      typeof (spawn as { y?: unknown }).y === 'number'
+    ) {
+      const s = spawn as { x: number; y: number };
+      state.spawn = { x: s.x, y: s.y };
     }
 
-    if (typeof data.backgroundColor === 'string') {
-      state.backgroundColor = data.backgroundColor;
+    if (typeof payload.backgroundColor === 'string') {
+      state.backgroundColor = payload.backgroundColor;
     }
 
-    if (Array.isArray(data.tilesets)) {
-      state.tilesets = data.tilesets;
+    if (Array.isArray(payload.tilesets)) {
+      state.tilesets = payload.tilesets as EditorState['tilesets'];
     }
 
     return state;
@@ -193,8 +207,8 @@ export class EditorPersistenceService {
       const text = await res.text();
       throw new EditorPersistenceError(`Load objects failed: ${res.status} ${text}`);
     }
-    const data = await res.json();
-    return Array.isArray(data) ? data : [];
+    const data: unknown = await res.json();
+    return Array.isArray(data) ? (data as MapObjectRecord[]) : [];
   }
 
   /* --- Private helpers for saveAllChanges --- */

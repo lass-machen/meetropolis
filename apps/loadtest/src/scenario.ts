@@ -25,9 +25,9 @@ export async function runScenario(opts: {
     // Start LiveKit bot
     if (!skipLivekit) {
       try {
-        const mod = await import('./workers/livekitBot.js');
+        const mod: typeof import('./workers/livekitBot.js') = await import('./workers/livekitBot.js');
         bots.push(
-          await (mod as any).spawnLivekitBot({
+          await mod.spawnLivekitBot({
             livekitUrl: opts.livekitUrl,
             apiBase: opts.apiBase,
             roomName: opts.room,

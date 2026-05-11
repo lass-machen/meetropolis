@@ -15,12 +15,7 @@
  */
 
 import type { Room } from 'livekit-client';
-import type {
-  AVManagerConfig,
-  AVConnectionState,
-  Disposable,
-  Unsubscribe,
-} from './core/types';
+import type { AVManagerConfig, AVConnectionEvent, AVConnectionState, Disposable, Unsubscribe } from './core/types';
 import { AVStateMachine, type StateChangeHandler } from './core/AVStateMachine';
 import { SignalMonitor, waitForRoomConnected } from './core/SignalMonitor';
 import { TrackManager } from './core/TrackManager';
@@ -37,8 +32,10 @@ import { VolumeController } from './manager/volumeController';
 export type { AVDevices } from './core/types';
 
 // Default configuration with env overrides
-function buildConfig(opts: Partial<AVManagerConfig> & Pick<AVManagerConfig, 'baseUrl' | 'identity' | 'useVideo'>): Required<AVManagerConfig> {
-  const env = (import.meta as any).env ?? {};
+function buildConfig(
+  opts: Partial<AVManagerConfig> & Pick<AVManagerConfig, 'baseUrl' | 'identity' | 'useVideo'>,
+): Required<AVManagerConfig> {
+  const env = import.meta.env;
 
   return {
     baseUrl: opts.baseUrl,
@@ -125,7 +122,7 @@ export class AVManager implements Disposable {
         getRoom: () => this.stateMachine.room,
         isSignalOpen: () => this.isSignalOpen(),
         isDND: () => this.dnd.enabled,
-      }
+      },
     );
 
     // Initialize DND
@@ -162,8 +159,16 @@ export class AVManager implements Disposable {
         try {
           const nodes = document.querySelectorAll<HTMLAudioElement>('audio[data-av-remote]');
           nodes.forEach((audio) => {
-            try { audio.muted = false; } catch { /* noop */ }
-            try { audio.volume = 1; } catch { /* noop */ }
+            try {
+              audio.muted = false;
+            } catch {
+              /* noop */
+            }
+            try {
+              audio.volume = 1;
+            } catch {
+              /* noop */
+            }
           });
         } catch (error) {
           AVLogger.warn('manager.dnd.refresh_audio_elements.error', { error: String(error) });
@@ -337,7 +342,10 @@ export class AVManager implements Disposable {
   // Public API - Devices
   // ============================================================================
 
-  async listDevices(): Promise<{ microphones: { deviceId: string; label: string }[]; cameras: { deviceId: string; label: string }[] }> {
+  async listDevices(): Promise<{
+    microphones: { deviceId: string; label: string }[];
+    cameras: { deviceId: string; label: string }[];
+  }> {
     return this.deviceManager.listDevices();
   }
 
@@ -391,7 +399,11 @@ export class AVManager implements Disposable {
     this.stateMachine.dispatch({ type: 'ALL_TRACKS_UNPUBLISHED' });
   }
 
-  private handleStateChange(newState: AVConnectionState, prevState: AVConnectionState, _event: any): void {
+  private handleStateChange(
+    newState: AVConnectionState,
+    prevState: AVConnectionState,
+    _event: AVConnectionEvent,
+  ): void {
     AVLogger.debug('manager.state', { from: prevState, to: newState });
 
     // Handle reconnecting state

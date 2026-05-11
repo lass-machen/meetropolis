@@ -8,6 +8,17 @@
 
 export type DirectionalEntry = { rotation: number; dataURL: string };
 
+// Minimal consumer view of an asset pack: this registry only needs uuid and
+// the directional-image surface of each object. A narrower local type keeps
+// test fixtures simple while still rejecting clearly wrong shapes.
+export interface DirectionalImagePack {
+  uuid?: string;
+  objects?: Array<{
+    id: string;
+    directionalImages?: DirectionalEntry[];
+  }>;
+}
+
 const registry = new Map<string, DirectionalEntry[]>();
 
 function makeKey(packUuid: string, itemId: string): string {
@@ -20,15 +31,15 @@ function makeKey(packUuid: string, itemId: string): string {
  *
  * @param resolveUrl Optional function to resolve relative URLs (e.g. for Tauri).
  */
-export function loadFromPacks(packs: any[], resolveUrl?: (url: string) => string): void {
+export function loadFromPacks(packs: DirectionalImagePack[], resolveUrl?: (url: string) => string): void {
   registry.clear();
   for (const p of packs) {
     const uuid = p.uuid;
     if (!uuid) continue;
-    for (const obj of (p.objects || [])) {
+    for (const obj of p.objects || []) {
       if (Array.isArray(obj.directionalImages) && obj.directionalImages.length > 0) {
         const entries: DirectionalEntry[] = resolveUrl
-          ? obj.directionalImages.map((di: DirectionalEntry) => ({ rotation: di.rotation, dataURL: resolveUrl(di.dataURL) }))
+          ? obj.directionalImages.map((di) => ({ rotation: di.rotation, dataURL: resolveUrl(di.dataURL) }))
           : obj.directionalImages;
         registry.set(makeKey(uuid, obj.id), entries);
       }
@@ -40,14 +51,10 @@ export function loadFromPacks(packs: any[], resolveUrl?: (url: string) => string
  * Look up a directional image for a specific rotation.
  * Returns the dataURL if found, or null if no directional image exists.
  */
-export function lookupDirectionalImage(
-  packUuid: string,
-  itemId: string,
-  rotation: number,
-): string | null {
+export function lookupDirectionalImage(packUuid: string, itemId: string, rotation: number): string | null {
   const entries = registry.get(makeKey(packUuid, itemId));
   if (!entries) return null;
-  const match = entries.find(e => e.rotation === rotation);
+  const match = entries.find((e) => e.rotation === rotation);
   return match?.dataURL ?? null;
 }
 

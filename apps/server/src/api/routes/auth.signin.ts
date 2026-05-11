@@ -151,7 +151,9 @@ function findLoginUser(prisma: PrismaClient, email: string) {
   return prisma.user.findFirst({ where: { email: { equals: emailLookup, mode: 'insensitive' } } });
 }
 
-async function checkGuestRedirect(prisma: PrismaClient, user: any): Promise<{ guest: boolean }> {
+type LoginUser = Awaited<ReturnType<typeof findLoginUser>>;
+
+async function checkGuestRedirect(prisma: PrismaClient, user: LoginUser): Promise<{ guest: boolean }> {
   if (user && !user.passwordHash) {
     const guestMembership = await prisma.membership.findFirst({
       where: { userId: user.id, role: 'guest' },

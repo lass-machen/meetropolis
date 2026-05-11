@@ -53,8 +53,8 @@ export async function fetchChunks(
     { credentials: 'include' },
   );
   if (!res.ok) throw new Error('failed to fetch chunks');
-  const json = await res.json();
-  return (json?.chunks ?? {}) as Record<string, V2ChunkPayload>;
+  const json = (await res.json()) as unknown as { chunks?: Record<string, V2ChunkPayload> };
+  return json?.chunks ?? {};
 }
 
 export function decodeRLE(base64: string, total: number): number[] {
@@ -123,7 +123,7 @@ export function computeFirstGids(tilesets: V2Tileset[], scene: Phaser.Scene): nu
   const sorted = [...tilesets].sort((a, b) => a.slot - b.slot);
   for (const ts of sorted) {
     const tex = scene.textures.get(ts.key);
-    const src: any = tex?.getSourceImage?.();
+    const src = tex?.getSourceImage?.() as { width?: number; height?: number } | undefined;
     let cols = 1,
       rows = 1;
     const tw = ts.tileWidth;

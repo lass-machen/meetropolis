@@ -9,7 +9,8 @@ function stripTrailingSlash(u: string): string {
  */
 export function readTimeoutMs(envKey: string, fallbackMs: number): number {
   try {
-    const raw = (import.meta as any).env?.[envKey];
+    const env = import.meta.env as unknown as Record<string, unknown>;
+    const raw = env?.[envKey];
     if (typeof raw === 'string' && raw.trim().length > 0) {
       const n = Number(raw);
       if (Number.isFinite(n) && n > 0) return n;
@@ -28,14 +29,13 @@ export function getApiBaseFromWindow(): string {
   } catch {}
   // 2) Desktop-Bridge (zur Laufzeit gesetzt, z.B. via @meetropolis/desktop)
   try {
-    const anyWin = (window as any) || {};
-    const fromDesktop = anyWin.desktop?.apiBase || anyWin.__MEETROPOLIS_API_BASE__;
+    const fromDesktop = window?.desktop?.apiBase || window?.__MEETROPOLIS_API_BASE__;
     if (typeof fromDesktop === 'string' && fromDesktop) return stripTrailingSlash(fromDesktop);
   } catch {}
   // 3) Build-time Env (Vite)
   try {
-    const env: any = (import.meta as any).env || {};
-    if (typeof env.VITE_API_BASE === 'string' && env.VITE_API_BASE) return stripTrailingSlash(String(env.VITE_API_BASE));
+    const env = import.meta.env;
+    if (typeof env.VITE_API_BASE === 'string' && env.VITE_API_BASE) return stripTrailingSlash(env.VITE_API_BASE);
   } catch {}
   // 4) Browser-Host Fallback (Dev/Browser)
   try {
@@ -46,5 +46,3 @@ export function getApiBaseFromWindow(): string {
   // 5) Final Fallback
   return 'http://localhost:2567';
 }
-
-

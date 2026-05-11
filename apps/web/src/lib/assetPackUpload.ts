@@ -99,7 +99,7 @@ export async function uploadTilesetAsAssetPack(
       const text = await response.text();
       let errorMsg = `Upload failed: ${response.status}`;
       try {
-        const json = JSON.parse(text);
+        const json = JSON.parse(text) as { error?: string };
         errorMsg = json.error || errorMsg;
       } catch {
         // Ignore parse error
@@ -107,8 +107,8 @@ export async function uploadTilesetAsAssetPack(
       return { success: false, error: errorMsg };
     }
 
-    const result = await response.json();
-    return { success: true, uuid: result.uuid };
+    const result = (await response.json()) as { uuid?: string };
+    return result.uuid ? { success: true, uuid: result.uuid } : { success: true };
   } catch (e: unknown) {
     logger.error('[AssetPackUpload] Failed:', e);
     return { success: false, error: e instanceof Error ? e.message : String(e) };

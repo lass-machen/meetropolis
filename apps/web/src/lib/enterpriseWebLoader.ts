@@ -27,9 +27,18 @@ export async function getEnterpriseWebModule(): Promise<EnterpriseWebModule | nu
   if (cached !== undefined) return cached;
 
   try {
-    const mod: any = await import('@meetropolis/enterprise-web');
-    const resolved = mod.default ?? mod;
-    if (!resolved || typeof resolved.AdminEnterpriseTabs !== 'function') {
+    // @meetropolis/enterprise-web is an optional private submodule. In OSS
+    // builds the Vite plugin returns an empty module (null).
+    const mod = (await import('@meetropolis/enterprise-web')) as unknown as {
+      default?: unknown;
+      AdminEnterpriseTabs?: unknown;
+    };
+    const resolved: unknown = mod.default ?? mod;
+    if (
+      !resolved ||
+      typeof resolved !== 'object' ||
+      typeof (resolved as { AdminEnterpriseTabs?: unknown }).AdminEnterpriseTabs !== 'function'
+    ) {
       cached = null;
       return null;
     }

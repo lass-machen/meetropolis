@@ -2,8 +2,9 @@
  * Shared types for AVManager modules
  */
 
-import type { Room } from 'livekit-client';
-import type { AVConnectionState } from '../core/types';
+import type { Room, RemoteParticipant } from 'livekit-client';
+import type { AVConnectionState, AVConnectionEvent } from '../core/types';
+import type { StateChangeHandler } from '../core/AVStateMachine';
 
 /**
  * Dependencies injected into managers
@@ -25,10 +26,10 @@ export interface AVStateMachineInterface {
   isConnected: boolean;
   pageLeaving: boolean;
   setRoom(room: Room | null, roomName: string | null): void;
-  dispatch(event: any): void;
+  dispatch(event: AVConnectionEvent): void;
   resetReconnect(): void;
   scheduleReconnect(fn: () => Promise<void>): void;
-  subscribe(handler: any): () => void;
+  subscribe(handler: StateChangeHandler): () => void;
   dispose(): void;
 }
 
@@ -42,7 +43,7 @@ export interface TrackManagerInterface {
   setCameraEnabled(enabled: boolean): Promise<void>;
   useMicrophoneDevice(deviceId: string): Promise<void>;
   useCameraDevice(deviceId: string): Promise<void>;
-  saveState(): any;
+  saveState(): { mic: boolean; cam: boolean };
   publishPendingTracks(): Promise<void>;
   stopAllTracks(): Promise<void>;
   dispose(): void;
@@ -56,7 +57,7 @@ export interface SubscriptionManagerInterface {
   stop(): void;
   forceApply(): void;
   ensureAudioSubscriptions(maxDistance: number): void;
-  setActiveSpeakers(speakers: any[]): void;
+  setActiveSpeakers(speakers: RemoteParticipant[]): void;
   setParticipantVolume(identity: string, volume: number): void;
   muteAllRemote(): void;
   restoreAllRemote(): void;

@@ -22,18 +22,19 @@ interface UseDNDArgs {
 export function useDoNotDisturb({ enabled, avRef, dndRef, setAvState, colyseusRef }: UseDNDArgs) {
   // Install gameBridge interceptor
   React.useEffect(() => {
-    const gb = gameBridge as any;
-    const originalSetDnd = gb.setDoNotDisturb;
+    const originalSetDnd = gameBridge.setDoNotDisturb;
 
     if (typeof originalSetDnd !== 'function') return;
 
     // Override gameBridge.setDoNotDisturb to sync with AVManager.
     // Returns a Promise (keeps the interface thenable for awaiting callers)
     // without using `await` internally: AV sync is intentionally fire-and-forget.
-    gb.setDoNotDisturb = (nextEnabled: boolean): Promise<void> => {
+    // GameBridge declares the method with a `void` return so we widen the
+    // assignment site to accept a thenable shim used as a hook only.
+    const wrapped = (nextEnabled: boolean): void => {
       // 1) Apply game-side effects immediately (movement lock, etc.)
       try {
-        originalSetDnd?.(!!nextEnabled);
+        originalSetDnd(!!nextEnabled);
       } catch {}
 
       // 2) Update UI immediately (do not block on AV operations)
@@ -55,12 +56,12 @@ export function useDoNotDisturb({ enabled, avRef, dndRef, setAvState, colyseusRe
       try {
         void avRef.current?.setDoNotDisturb(nextEnabled);
       } catch {}
-      return Promise.resolve();
     };
+    gameBridge.setDoNotDisturb = wrapped;
 
     return () => {
       try {
-        gb.setDoNotDisturb = originalSetDnd;
+        gameBridge.setDoNotDisturb = originalSetDnd;
       } catch {}
     };
   }, [avRef, dndRef, setAvState, colyseusRef]);
@@ -76,16 +77,16 @@ export function useDoNotDisturb({ enabled, avRef, dndRef, setAvState, colyseusRe
 
       e.preventDefault();
 
-      // Get current DND state from AVManager (single source of truth)
-      const currentDnd = !!(avRef.current as any)?.dndEnabled;
+      // Get current DND state from AVManager (single source of truth).
+      const currentDnd = !!avRef.current?.dndEnabled;
       const nextDnd = !currentDnd;
 
       logger.debug('[DND] Shortcut toggle:', { currentDnd, nextDnd });
 
       // Use gameBridge to trigger the full flow
       try {
-        (gameBridge as any).setDoNotDisturb(nextDnd);
-        (gameBridge as any).setMovementLocked?.(nextDnd);
+        gameBridge.setDoNotDisturb(nextDnd);
+        gameBridge.setMovementLocked?.(nextDnd);
       } catch {}
     };
 
@@ -101,14 +102,14 @@ export async function toggleDoNotDisturb(avRef: React.MutableRefObject<AVManager
   const av = avRef.current;
   if (!av) return false;
 
-  const currentDnd = (av as any).dndEnabled;
+  const currentDnd = av.dndEnabled;
   const nextDnd = !currentDnd;
 
   await av.setDoNotDisturb(nextDnd);
 
   try {
-    (gameBridge as any).setDoNotDisturb?.(nextDnd);
-    (gameBridge as any).setMovementLocked?.(nextDnd);
+    gameBridge.setDoNotDisturb?.(nextDnd);
+    gameBridge.setMovementLocked?.(nextDnd);
   } catch {}
 
   return nextDnd;

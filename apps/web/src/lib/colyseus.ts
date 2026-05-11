@@ -26,8 +26,7 @@ function deriveTenant(): string {
   // In Tauri: Use __MEETROPOLIS_WEB_BASE__ as the hostname is localhost
   let tenant = 'default';
   try {
-    const anyWin = typeof window !== 'undefined' ? (window as any) : {};
-    const webBase = anyWin.__MEETROPOLIS_WEB_BASE__ || '';
+    const webBase = (typeof window !== 'undefined' ? window.__MEETROPOLIS_WEB_BASE__ : '') || '';
 
     // Extract tenant from subdomain (≥3 hostname parts)
     // e.g., "https://demo.meetropolis.me" → "demo"
@@ -48,7 +47,23 @@ function deriveTenant(): string {
   return tenant;
 }
 
-async function joinRoomWithTimeout(client: Client, joinOptions: any): Promise<Room<WorldRoomState>> {
+/**
+ * Concrete join-options shape this app sends to the Colyseus server. The
+ * upstream SDK declares `JoinOptions = any`; we narrow to the fields the
+ * `world` room actually consumes so the call site stays type-safe.
+ */
+interface WorldJoinOptions {
+  identity?: string | undefined;
+  name?: string | undefined;
+  x?: number | undefined;
+  y?: number | undefined;
+  direction?: string | undefined;
+  tenant?: string | undefined;
+  avatarId?: string | undefined;
+  mapName?: string | undefined;
+}
+
+async function joinRoomWithTimeout(client: Client, joinOptions: WorldJoinOptions): Promise<Room<WorldRoomState>> {
   const joinTimeoutMs = readTimeoutMs('VITE_COLYSEUS_JOIN_TIMEOUT_MS', 15_000);
   const JOIN_TIMEOUT_SENTINEL = Symbol('colyseus_join_timeout');
   const joinPromise = client.joinOrCreate('world', joinOptions);

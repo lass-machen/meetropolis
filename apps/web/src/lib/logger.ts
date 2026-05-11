@@ -6,12 +6,11 @@ function getLevelWeight(level: LogLevel): number {
 
 function resolveLogLevel(): LogLevel {
   try {
-    const env = (import.meta as any).env || {};
+    const env = import.meta.env;
     const raw = (env.VITE_LOG_LEVEL || env.MODE)?.toString().toLowerCase() || '';
     if (raw === 'debug' || raw === 'info' || raw === 'warn' || raw === 'error' || raw === 'silent') return raw;
     // Prefer explicit debug flags; otherwise keep dev quiet by default
-    const debugFlag =
-      env.VITE_DEBUG_LOGS === 'true' || (typeof window !== 'undefined' && (window as any).DEBUG_LOGS === true);
+    const debugFlag = env.VITE_DEBUG_LOGS === 'true' || (typeof window !== 'undefined' && window.DEBUG_LOGS === true);
     if (debugFlag) return 'debug';
     return env.PROD ? 'info' : 'warn';
   } catch {

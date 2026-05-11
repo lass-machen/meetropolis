@@ -1,9 +1,14 @@
 import 'dotenv/config';
 import express from 'express';
 import pino from 'pino';
+import type { NpcDefinition } from '@meetropolis/shared';
 import { config } from './config.js';
 import { registerHttpApi } from './httpApi.js';
 import { botManager } from './botManager.js';
+
+interface NpcListEntry extends NpcDefinition {
+  tenant?: { slug: string } | null;
+}
 
 export const logger = pino({ level: config.logLevel });
 
@@ -32,8 +37,9 @@ async function autoRespawn(): Promise<void> {
       logger.warn(`[Boot] Failed to fetch NPCs: ${res.status}`);
       return;
     }
-    const npcs: unknown = await res.json();
-    if (!Array.isArray(npcs)) return;
+    const payload: unknown = await res.json();
+    if (!Array.isArray(payload)) return;
+    const npcs = payload as NpcListEntry[];
     logger.info(`[Boot] Auto-respawning ${npcs.length} enabled NPCs`);
     for (const npc of npcs) {
       try {

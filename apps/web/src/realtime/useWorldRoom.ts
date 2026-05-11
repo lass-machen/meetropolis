@@ -3,7 +3,7 @@ import { logger } from '../lib/logger';
 import type { UseWorldRoomArgs, ConnectionRefs } from './types';
 import type { ApiPresence } from '../features/participants/presence';
 import type { WorldRoom } from '../types/colyseus';
-import { useColyseusConnection } from './hooks/useColyseusConnection';
+import { useColyseusConnection, type ColyseusErrorPayload } from './hooks/useColyseusConnection';
 import { setupPlayerHandlers } from './handlers/playerHandlers';
 import { setupBubbleHandlers } from './handlers/bubbleHandlers';
 import { setupEditorHandlers } from './handlers/editorHandlers';
@@ -20,9 +20,9 @@ const HEARTBEAT_INTERVAL_MS = readTimeoutMs('VITE_HEARTBEAT_INTERVAL_MS', 15_000
 export type { UseWorldRoomArgs } from './types';
 
 type EffectScope = {
-  buildListTimer: any;
+  buildListTimer: ReturnType<typeof setTimeout> | null;
   buildListRaf: number | null;
-  rosterTimer: any;
+  rosterTimer: ReturnType<typeof setTimeout> | null;
   rosterRaf: number | null;
   heartbeatInterval: ReturnType<typeof setInterval> | null;
   disposed: boolean;
@@ -105,7 +105,7 @@ type SetupRoomHandlersArgs = {
   recentPresenceRef: { current: ApiPresence[] };
   scheduleBuildParticipantList: (delay?: number) => void;
   scheduleRefreshRosterFromRemotes: (delay?: number) => void;
-  handleError: (ev: any[], disposed: boolean, onReconnect: () => void) => void;
+  handleError: (ev: readonly ColyseusErrorPayload[], disposed: boolean, onReconnect: () => void) => void;
   handleLeave: (code: number | undefined, disposed: boolean, onReconnect?: () => void) => void;
   attemptConnect: () => Promise<void>;
 };
@@ -183,9 +183,9 @@ function setupRoomHandlers(setup: SetupRoomHandlersArgs): void {
   // GHOST_THRESHOLD_MS (60s).
   scope.heartbeatInterval = setInterval(() => {
     try {
-      const activeRoom: any = colyseusRef.current;
+      const activeRoom = colyseusRef.current;
       if (!activeRoom || activeRoom !== room) return;
-      activeRoom.send?.('heartbeat');
+      activeRoom.send('heartbeat');
     } catch {}
   }, HEARTBEAT_INTERVAL_MS);
 
@@ -205,8 +205,13 @@ function setupRoomHandlers(setup: SetupRoomHandlersArgs): void {
 
   setupRosterOnStateChange(room, args, setRoster, me);
 
-  // Setup error and leave handlers
-  room.onError?.((...ev: any[]) => {
+  // Setup error and leave handlers.
+  // Colyseus invokes the callback as `(code: number, message?: string)`;
+  // see node_modules/@colyseus/sdk/build/Room.d.ts. The payload is forwarded
+  // as a positional tuple; `extractErrorInfo` decodes the `number | object`
+  // first slot so the close-code reaches the billing/limit classifier below.
+  room.onError?.((code: number, message?: string) => {
+    const ev: ColyseusErrorPayload[] = message !== undefined ? [code, message] : [code];
     handleError(ev, scope.disposed, () => void attemptConnect());
   });
 

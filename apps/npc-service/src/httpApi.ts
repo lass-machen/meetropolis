@@ -1,7 +1,15 @@
 import type { Request, Response, NextFunction, Application } from 'express';
+import type { NpcSpawnCommand, NpcRoomCommand } from '@meetropolis/shared';
 import { config } from './config.js';
 import { botManager } from './botManager.js';
 import { logger } from './index.js';
+
+interface DespawnBody {
+  identity?: string;
+  tenantSlug?: string;
+}
+
+type CommandBody = Partial<NpcRoomCommand> & { tenantSlug?: string };
 
 function authMiddleware(req: Request, res: Response, next: NextFunction): void {
   const secret = req.headers['x-npc-secret'] as string;
@@ -13,15 +21,16 @@ function authMiddleware(req: Request, res: Response, next: NextFunction): void {
 }
 
 function handleSpawn(req: Request, res: Response): void {
-  const body = req.body;
+  const body = req.body as Partial<NpcSpawnCommand> | undefined;
   if (!body?.npc?.identity || !body?.tenantSlug) {
     res.status(400).json({ error: 'invalid_payload' });
     return;
   }
+  const command = body as NpcSpawnCommand;
   botManager
-    .spawn(body)
+    .spawn(command)
     .then(() => {
-      res.json({ ok: true, identity: body.npc.identity });
+      res.json({ ok: true, identity: command.npc.identity });
     })
     .catch((e: unknown) => {
       logger.error({ err: e }, '[HTTP] spawn error');
@@ -33,13 +42,14 @@ function handleSpawn(req: Request, res: Response): void {
 }
 
 function handleDespawn(req: Request, res: Response): void {
-  const { identity, tenantSlug } = req.body || {};
+  const body = (req.body || {}) as DespawnBody;
+  const { identity, tenantSlug } = body;
   if (!identity || !tenantSlug) {
     res.status(400).json({ error: 'identity and tenantSlug required' });
     return;
   }
   botManager
-    .despawn(tenantSlug as string, identity as string)
+    .despawn(tenantSlug, identity)
     .then(() => {
       res.json({ ok: true });
     })
@@ -54,14 +64,15 @@ function handleDespawn(req: Request, res: Response): void {
 
 function handleCommand(req: Request, res: Response): void {
   const identityParam = req.params.identity;
-  const identity = Array.isArray(identityParam) ? identityParam[0] ?? '' : identityParam ?? '';
-  const tenantSlug = (req.query.tenant as string) || req.body?.tenantSlug;
+  const identity = Array.isArray(identityParam) ? (identityParam[0] ?? '') : (identityParam ?? '');
+  const body = (req.body || {}) as CommandBody;
+  const tenantSlug = (req.query.tenant as string) || body.tenantSlug;
   if (!tenantSlug) {
     res.status(400).json({ error: 'tenantSlug required' });
     return;
   }
   try {
-    botManager.sendCommand(tenantSlug, identity, req.body);
+    botManager.sendCommand(tenantSlug, identity, body as NpcRoomCommand);
     res.json({ ok: true });
   } catch (e: unknown) {
     logger.error({ err: e }, '[HTTP] command error');

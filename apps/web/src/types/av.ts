@@ -4,6 +4,10 @@ import type { Room as LiveKitRoom } from 'livekit-client';
 
 export interface AVManager {
   room: LiveKitRoom | null;
+  /** Current Do-Not-Disturb state. Read-only on the public interface; the
+   * concrete implementation in `../av/avManager.ts` derives this from the
+   * internal VolumeController. */
+  readonly dndEnabled: boolean;
   setMicrophoneEnabled(enabled: boolean): Promise<void>;
   setCameraEnabled(enabled: boolean): Promise<void>;
   startScreenshare(): Promise<boolean>;

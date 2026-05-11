@@ -29,14 +29,14 @@ async function initAndRender() {
 
   // Sentry Browser SDK (optional via VITE_SENTRY_DSN)
   try {
-    const dsn = (import.meta as any).env?.VITE_SENTRY_DSN as string | undefined;
+    const dsn = import.meta.env.VITE_SENTRY_DSN;
     if (dsn) {
       const Sentry = await import('@sentry/browser');
       Sentry.init({
         dsn,
         integrations: [Sentry.browserTracingIntegration()],
         tracesSampleRate: 0.2,
-        environment: (import.meta as any).env?.MODE || 'development',
+        environment: import.meta.env.MODE || 'development',
       });
     }
   } catch {}

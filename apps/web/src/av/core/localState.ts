@@ -69,8 +69,9 @@ export function isLocalShareOn(room: Room | null | undefined): boolean {
   try {
     const lp: LocalParticipant | undefined = room?.localParticipant;
     if (!lp) return false;
-    const lpAny = lp as any;
-    if ('isScreenShareEnabled' in lpAny) return !!lpAny.isScreenShareEnabled;
+    // `isScreenShareEnabled` is declared on Participant (which LocalParticipant
+    // extends), so we can read it directly without an any-cast.
+    if (typeof lp.isScreenShareEnabled === 'boolean') return lp.isScreenShareEnabled;
     const pubs: TrackPublication[] = Array.from(lp.trackPublications?.values() || []);
     return pubs.some((pub: TrackPublication) => {
       const pubInfo = pub as unknown as TrackInfo;

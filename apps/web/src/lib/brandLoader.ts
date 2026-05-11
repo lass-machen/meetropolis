@@ -47,9 +47,18 @@ export async function getBrandModule(): Promise<BrandModule | null> {
   if (cached !== undefined) return cached;
 
   try {
-    const mod: any = await import('@meetropolis/brand-web');
-    const resolved = mod.default ?? mod;
-    if (!resolved || typeof resolved.HeroSection !== 'function') {
+    // @meetropolis/brand-web is an optional private submodule. In OSS
+    // builds it is absent and the Vite plugin returns an empty module.
+    const mod = (await import('@meetropolis/brand-web')) as unknown as {
+      default?: unknown;
+      HeroSection?: unknown;
+    };
+    const resolved: unknown = mod.default ?? mod;
+    if (
+      !resolved ||
+      typeof resolved !== 'object' ||
+      typeof (resolved as { HeroSection?: unknown }).HeroSection !== 'function'
+    ) {
       cached = null;
       return null;
     }

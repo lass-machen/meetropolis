@@ -78,10 +78,13 @@ declare global {
     __avDebugOn?: boolean;
     __avLoggerInstalled?: boolean;
     __avLastApply?: { n: number; key: string };
-    avLogger?: {
-      buffer?: Array<{ level: string; tag: string; data?: unknown; context?: unknown; ts: number }>;
-      [key: string]: unknown;
-    };
+    // Set by `../av/AVLogger.ts` for runtime debugging from the devtools
+    // console (e.g. `window.avLogger.getEntries({ level: 'warn' })`). The
+    // concrete type is `AVLoggerImpl`, but referencing it here would create
+    // an ambient-vs-module import cycle. Typed as `unknown` because no
+    // production code reads this; tooling that does interact with it casts
+    // at the call site.
+    avLogger?: unknown;
     DEBUG_LOGS?: boolean;
 
     // i18next runtime instance (for legacy non-react access via window)
@@ -97,6 +100,12 @@ declare global {
     // Safari prefix audio context (only set in older WebKit)
     webkitAudioContext?: typeof AudioContext;
     AudioWorkletNode?: typeof AudioWorkletNode;
+
+    // Correlation id cached on the window for AV / API request tracing.
+    __corrSessionId?: string;
+
+    // Tauri runtime presence flag (set by the Tauri webview, absent in browsers).
+    __TAURI__?: unknown;
   }
 }
 

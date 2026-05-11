@@ -6,6 +6,7 @@
  */
 
 import React from 'react';
+import type { Room } from 'livekit-client';
 import { AVManager } from '../avManager';
 import { AVLogger } from '../AVLogger';
 
@@ -59,7 +60,7 @@ async function performConnect(args: ConnectArgs): Promise<void> {
   const { apiBase, me, avRef, refreshDevices, scheduleBuildParticipantList, onConnected } = args;
   const identity = me.id;
   const displayName = me.name || me.email || me.id;
-  const useVideo = (import.meta as any).env?.VITE_FEATURE_VOICE_ONLY !== 'true';
+  const useVideo = import.meta.env.VITE_FEATURE_VOICE_ONLY !== 'true';
 
   // Create AVManager
   avRef.current = new AVManager({
@@ -253,7 +254,7 @@ export function useAVManager({
 }
 
 // Helper to set up room event listeners
-async function setupRoomEventListeners(room: any, scheduleBuild: (delay?: number) => void): Promise<void> {
+async function setupRoomEventListeners(room: Room, scheduleBuild: (delay?: number) => void): Promise<void> {
   try {
     const { RoomEvent } = await import('livekit-client');
 

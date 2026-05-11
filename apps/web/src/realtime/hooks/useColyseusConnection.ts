@@ -129,12 +129,33 @@ function showLimitErrorOverlay(code: number | undefined, text: string, onRetry: 
   } catch {}
 }
 
-function extractErrorInfo(ev: any[]): { code: number | undefined; reason: string | undefined; text: string } {
-  const code = ev && ev[0] && typeof ev[0].code === 'number' ? ev[0].code : undefined;
-  const reason = ev && ev[0] && typeof ev[0].reason === 'string' ? ev[0].reason : undefined;
-  const msg = (ev && ev[0] && (ev[0].message || ev[0].toString?.())) || '';
-  const text = String(reason || msg || '');
-  return { code, reason, text };
+/**
+ * Colyseus' `Room.onError` callback is invoked with `(code: number, message?: string)`
+ * (see node_modules/@colyseus/sdk/build/Room.d.ts). Captured via `(...ev)`
+ * rest args, the elements would be `[number, string?]`. Legacy emitters
+ * (close-frame shims, manual triggers) can also forward a full close-event
+ * object as the sole element. The union accommodates both shapes.
+ */
+export type ColyseusErrorPayload = number | string | { code?: number; reason?: string; message?: string };
+
+function extractErrorInfo(ev: readonly ColyseusErrorPayload[]): {
+  code: number | undefined;
+  reason: string | undefined;
+  text: string;
+} {
+  const first = ev[0];
+  if (typeof first === 'number') {
+    const message = typeof ev[1] === 'string' ? ev[1] : '';
+    return { code: first, reason: message || undefined, text: message };
+  }
+  if (first && typeof first === 'object') {
+    const code = typeof first.code === 'number' ? first.code : undefined;
+    const reason = typeof first.reason === 'string' ? first.reason : undefined;
+    const msg = typeof first.message === 'string' ? first.message : '';
+    const text = reason || msg || '';
+    return { code, reason, text };
+  }
+  return { code: undefined, reason: undefined, text: '' };
 }
 
 function classifyConnectError(msg: string): { reason?: string; cooldown?: boolean } {
@@ -243,9 +264,10 @@ async function performConnect(
 
     onConnected(room);
     return room;
-  } catch (err: any) {
+  } catch (err: unknown) {
     try {
-      const msg = (err && (err.message || err.toString?.())) || '';
+      const errLike = err as { message?: unknown; toString?: () => string } | undefined;
+      const msg = (errLike && (typeof errLike.message === 'string' ? errLike.message : errLike.toString?.())) || '';
       const cls = classifyConnectError(msg);
       if (cls.cooldown) {
         refs.coolDownUntilRef.current = Date.now() + 60_000;
@@ -271,7 +293,12 @@ type PerformHandleErrorArgs = {
   resetRefsBeforeReconnect: () => void;
 };
 
-function performHandleError(ev: any[], disposed: boolean, onReconnect: () => void, args: PerformHandleErrorArgs): void {
+function performHandleError(
+  ev: readonly ColyseusErrorPayload[],
+  disposed: boolean,
+  onReconnect: () => void,
+  args: PerformHandleErrorArgs,
+): void {
   const { apiBase, refs, colyseusRef, scheduleReconnect, resetRefsBeforeReconnect } = args;
   try {
     const { code, reason, text } = extractErrorInfo(ev);
@@ -392,7 +419,7 @@ export function useColyseusConnection(args: UseWorldRoomArgs, connectionRefs: Co
   );
 
   const handleError = React.useCallback(
-    (ev: any[], disposed: boolean, onReconnect: () => void) => {
+    (ev: readonly ColyseusErrorPayload[], disposed: boolean, onReconnect: () => void) => {
       performHandleError(ev, disposed, onReconnect, {
         apiBase,
         refs: connectionRefs,

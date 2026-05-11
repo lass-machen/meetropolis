@@ -11,9 +11,8 @@ export async function createLivekitToken(params: {
 }) {
   const apiKey = process.env.LIVEKIT_API_KEY!;
   const apiSecret = process.env.LIVEKIT_API_SECRET!;
-  const opts: AccessTokenOptions = {};
-  (opts as any).identity = params.identity;
-  if (typeof params.name === 'string') (opts as any).name = params.name;
+  const opts: AccessTokenOptions = { identity: params.identity };
+  if (typeof params.name === 'string') opts.name = params.name;
   const at = new AccessToken(apiKey, apiSecret, opts);
   at.addGrant({
     room: params.roomName,

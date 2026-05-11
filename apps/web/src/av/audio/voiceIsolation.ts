@@ -24,7 +24,7 @@ export async function wrapTrackWithVoiceIsolation(inputTrack: MediaStreamTrack):
 
   // Load worklet module (bundled locally)
   const url = new URL('./worklets/rnnoise-processor.js', import.meta.url).toString();
-  await (audioContext as any).audioWorklet.addModule(url);
+  await audioContext.audioWorklet.addModule(url);
 
   // Graph: source -> highpass -> rnnoise(gate) -> limiter -> destination
   const highpass = audioContext.createBiquadFilter();
@@ -57,9 +57,14 @@ export async function wrapTrackWithVoiceIsolation(inputTrack: MediaStreamTrack):
   limiter.connect(destination);
 
   const processed = destination.stream.getAudioTracks()[0];
-  // Ensure mono speech hint when supported
+  // Ensure mono speech hint when supported. `contentHint` is part of
+  // MediaStreamTrack in the WebRTC spec but is still flagged as
+  // experimental in lib.dom; a typed view of the writable field keeps the
+  // feature-detect intact without an `any` escape hatch.
   try {
-    if ('contentHint' in processed) (processed as any).contentHint = 'speech';
+    if ('contentHint' in processed) {
+      (processed as MediaStreamTrack & { contentHint: string }).contentHint = 'speech';
+    }
   } catch {}
   return processed;
 }
