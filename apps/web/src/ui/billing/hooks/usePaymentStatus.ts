@@ -20,7 +20,7 @@ export function usePaymentStatus({ enabled }: { enabled: boolean }) {
         setPaymentStatus(await res.json());
       }
     } catch {
-      // Silently ignore – banner simply won't show
+      // Silently ignore: the banner simply will not show.
     } finally {
       setLoading(false);
     }

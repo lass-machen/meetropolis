@@ -51,12 +51,12 @@ async function applyMicControl(target: boolean, args: UseWorldRoomArgs): Promise
   const current = isLocalMicOn(roomRef);
   if (current === target) return;
   await avRef.current?.setMicrophoneEnabled(target);
-  // Nachführen UI mit tatsächlichem Zustand
+  // Refresh the UI with the actual state.
   try {
     const real = isLocalMicOn(roomRef);
     setAvState((s) => ({ ...s, mic: real }));
   } catch {}
-  // Kurzer Re-Check (Pending/Signaling)
+  // Brief re-check to catch pending/signaling transitions.
   setTimeout(() => {
     try {
       const again = isLocalMicOn((avRef.current?.room ?? null) as LiveKitRoom | null);
@@ -77,7 +77,7 @@ async function applyCamControl(target: boolean, args: UseWorldRoomArgs): Promise
   const current = isLocalCamOn(roomRef);
   if (current === target) return;
   await avRef.current?.setCameraEnabled(target);
-  // Nachführen UI mit tatsächlichem Zustand
+  // Refresh the UI with the actual state.
   try {
     const real = isLocalCamOn(roomRef);
     setAvState((s) => ({ ...s, cam: real }));
@@ -102,7 +102,7 @@ async function applyShareControl(target: boolean, args: UseWorldRoomArgs): Promi
     await avRef.current?.stopScreenshare();
     setAvState((s) => ({ ...s, share: false }));
   }
-  // Kurzer Re-Check für Share
+  // Brief re-check for screen-share state.
   setTimeout(() => {
     try {
       const again = isLocalShareOn((avRef.current?.room ?? null) as LiveKitRoom | null);
@@ -139,11 +139,11 @@ async function applyDndControl(target: boolean, args: UseWorldRoomArgs): Promise
   try {
     colyseusRef.current?.send?.('dnd_status', { dnd: target });
   } catch {}
-  // DND beeinflusst Lautstärke/Mute – UI-Volumes neu anwenden
+  // DND affects volume and mute state; re-apply the UI volumes.
   try {
     applyVolumesToUi();
   } catch {}
-  // Verifiziere nach kurzer Zeit den echten Zustand (Mic/Cam/Share) und gleiche UI an
+  // Shortly after, verify the real mic/cam/share state and reconcile the UI.
   setTimeout(() => {
     void (async () => {
       try {

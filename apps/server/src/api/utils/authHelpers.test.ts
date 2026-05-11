@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import jwt from 'jsonwebtoken';
 
-// Mock-Funktionen werden vor dem Import definiert
+// Mocks must be defined before the module import.
 vi.mock('../../logger.js', () => ({
   logger: {
     warn: vi.fn(),
@@ -10,7 +10,7 @@ vi.mock('../../logger.js', () => ({
   },
 }));
 
-// Import nach Mocks
+// Import after the mocks are set up.
 import { setAuthCookie, requireAuth, normalizeEmailForStorage, normalizeEmailForMatching } from './authHelpers.js';
 
 describe('authHelpers', () => {
@@ -45,7 +45,7 @@ describe('authHelpers', () => {
 
       const mod = await import('./authHelpers.js');
 
-      expect(() => mod.getJwtSecret()).toThrow('[SECURITY] JWT_SECRET fehlt in Produktion');
+      expect(() => mod.getJwtSecret()).toThrow('[SECURITY] JWT_SECRET missing in production');
     });
 
     it('should generate ephemeral secret in development', async () => {
@@ -76,7 +76,7 @@ describe('authHelpers', () => {
 
       const mod = await import('./authHelpers.js');
 
-      expect(() => mod.getApiTokenPepper()).toThrow('[SECURITY] API_TOKEN_PEPPER fehlt in Produktion');
+      expect(() => mod.getApiTokenPepper()).toThrow('[SECURITY] API_TOKEN_PEPPER missing in production');
     });
   });
 

@@ -106,7 +106,7 @@ function parseHashRoute(hash: string): { route: Route; params: RouteParams } {
     return { route: 'guest-auth', params };
   }
   if (path === '/app' || path.startsWith('/app')) return { route: 'app', params };
-  // Default fallback — check tenant subdomain / invite query
+  // Default fallback: check tenant subdomain or invite query.
   const hostname = window.location.hostname;
   const isSubdomain = hostname.split('.').length > 2 && !hostname.startsWith('www.');
   const sp = new URLSearchParams(searchPart.slice(1));

@@ -1,5 +1,5 @@
-// Multer file shape — kept local because the project does not depend on
-// @types/multer. Matches the subset of `Express.Multer.File` we actually use.
+// Multer file shape kept local because the project does not depend on
+// @types/multer. Matches the subset of `Express.Multer.File` actually used.
 
 export interface MulterFile {
   fieldname: string;

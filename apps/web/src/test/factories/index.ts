@@ -1,8 +1,8 @@
 /**
- * Test Factories for Meetropolis
+ * Test factories for Meetropolis.
  *
- * Zentrale Mock-Factories für konsistente Testdaten.
- * Verwendung: import { createMockUser, createMockTenant } from '@/test/factories';
+ * Central mock factories that keep test data consistent across suites.
+ * Usage: import { createMockUser, createMockTenant } from '@/test/factories';
  */
 
 // User Factory
@@ -26,7 +26,7 @@ export function createMockUser(overrides?: Partial<MockUser>): MockUser {
     emailVerifiedAt: new Date(),
     createdAt: new Date(),
     updatedAt: new Date(),
-    ...overrides
+    ...overrides,
   };
 }
 
@@ -57,7 +57,7 @@ export function createMockTenant(overrides?: Partial<MockTenant>): MockTenant {
     isInternal: false,
     createdAt: new Date(),
     updatedAt: new Date(),
-    ...overrides
+    ...overrides,
   };
 }
 
@@ -80,11 +80,11 @@ export function createMockMembership(overrides?: Partial<MockMembership>): MockM
     tenantId: `tenant-${membershipCounter}`,
     role: 'member',
     createdAt: new Date(),
-    ...overrides
+    ...overrides,
   };
 }
 
-// Player Factory (für Game-Tests)
+// Player factory (for game tests).
 export interface MockPlayer {
   id: string;
   x: number;
@@ -101,7 +101,7 @@ export function createMockPlayer(overrides?: Partial<MockPlayer>): MockPlayer {
     x: Math.floor(Math.random() * 500) + 100,
     y: Math.floor(Math.random() * 500) + 100,
     direction: 'down',
-    ...overrides
+    ...overrides,
   };
 }
 
@@ -122,7 +122,7 @@ export function createMockRoom(overrides?: Partial<MockRoom>): MockRoom {
     name: `Test Room ${roomCounter}`,
     mapId: `map-${roomCounter}`,
     createdAt: new Date(),
-    ...overrides
+    ...overrides,
   };
 }
 
@@ -147,10 +147,10 @@ export function createMockZone(overrides?: Partial<MockZone>): MockZone {
       { x: 0, y: 0 },
       { x: 100, y: 0 },
       { x: 100, y: 100 },
-      { x: 0, y: 100 }
+      { x: 0, y: 100 },
     ],
     roomId: `room-${zoneCounter}`,
-    ...overrides
+    ...overrides,
   };
 }
 
@@ -175,11 +175,11 @@ export function createMockMap(overrides?: Partial<MockMap>): MockMap {
     tileHeight: 32,
     width: 50,
     height: 50,
-    ...overrides
+    ...overrides,
   };
 }
 
-// Bubble Factory (Audio-Gruppen)
+// Bubble factory (audio groups).
 export interface MockBubble {
   id: string;
   members: string[];
@@ -196,7 +196,7 @@ export function createMockBubble(overrides?: Partial<MockBubble>): MockBubble {
     members: [],
     center: { x: 200, y: 200 },
     radius: 100,
-    ...overrides
+    ...overrides,
   };
 }
 
@@ -246,7 +246,7 @@ export function createMockVideoTrack(overrides?: Partial<{ id: string; muted: bo
   };
 }
 
-// Reset alle Counter (für Test-Isolation)
+// Reset all counters to keep tests isolated.
 export function resetFactoryCounters() {
   userCounter = 0;
   tenantCounter = 0;
@@ -258,7 +258,7 @@ export function resetFactoryCounters() {
   bubbleCounter = 0;
 }
 
-// Bulk-Factories
+// Bulk factories.
 export function createMockUsers(count: number, overrides?: Partial<MockUser>): MockUser[] {
   return Array.from({ length: count }, () => createMockUser(overrides));
 }

@@ -1,18 +1,21 @@
 /**
- * EditorPersistence - Persistence-Schicht für Editor-State
- * 
- * Prinzipien:
- * - Atomic Operations (alles oder nichts)
- * - Explizite Error-Propagation
- * - Keine try-catch außer an Boundary
- * - Klare Interfaces
+ * EditorPersistence: persistence layer for editor state.
+ *
+ * Principles:
+ * - Atomic operations (all-or-nothing semantics where feasible).
+ * - Explicit error propagation.
+ * - No try/catch except at the API boundary.
+ * - Clear, narrow interfaces.
  */
 
 import { EditorState, PendingChanges, MapObjectRecord } from './EditorService';
 import { getApiBaseFromWindow } from '../lib/apiBase';
 
 export class EditorPersistenceError extends Error {
-  constructor(message: string, public readonly cause?: Error) {
+  constructor(
+    message: string,
+    public readonly cause?: Error,
+  ) {
     super(message);
     this.name = 'EditorPersistenceError';
   }
@@ -33,9 +36,9 @@ export class EditorPersistenceService {
   }
 
   /**
-   * Speichert Editor-State zum Server
-   * 
-   * @throws EditorPersistenceError bei Fehlern
+   * Persist the editor state to the server.
+   *
+   * @throws EditorPersistenceError on any non-2xx response.
    */
   public async save(mapId: string, state: EditorState): Promise<void> {
     const payload = this.stateToPayload(state);
@@ -53,20 +56,18 @@ export class EditorPersistenceService {
 
     if (!response.ok) {
       const text = await response.text();
-      throw new EditorPersistenceError(
-        `Server returned ${response.status}: ${text}`,
-      );
+      throw new EditorPersistenceError(`Server returned ${response.status}: ${text}`);
     }
 
-    // Erfolg - Server gibt eventuell aktualisierte Daten zurück
+    // Success: the server may return updated data.
     const result = await response.json();
     return result;
   }
 
   /**
-   * Lädt Editor-State vom Server
-   * 
-   * @throws EditorPersistenceError bei Fehlern
+   * Load the editor state from the server.
+   *
+   * @throws EditorPersistenceError on any non-2xx response (404 returns an empty state).
    */
   public async load(mapId: string): Promise<Partial<EditorState>> {
     const url = `${this.apiBase}/maps/${encodeURIComponent(mapId)}/editor-state`;
@@ -75,29 +76,25 @@ export class EditorPersistenceService {
       method: 'GET',
       credentials: 'include',
       headers: {
-        'Accept': 'application/json',
+        Accept: 'application/json',
       },
     });
 
     if (!response.ok) {
       if (response.status === 404) {
-        // Keine gespeicherten Daten - das ist OK
+        // No saved data is a valid empty state.
         return {};
       }
 
       const text = await response.text();
-      throw new EditorPersistenceError(
-        `Server returned ${response.status}: ${text}`,
-      );
+      throw new EditorPersistenceError(`Server returned ${response.status}: ${text}`);
     }
 
     const data = await response.json();
     return this.payloadToState(data);
   }
 
-  /**
-   * Konvertiert State zu Server-Payload
-   */
+  /** Convert the in-memory state to the server payload shape. */
   private stateToPayload(state: EditorState): SaveableState {
     return {
       zones: state.zones,
@@ -107,9 +104,7 @@ export class EditorPersistenceService {
     };
   }
 
-  /**
-   * Konvertiert Server-Payload zu State
-   */
+  /** Convert a server payload into a partial editor state. */
   private payloadToState(data: any): Partial<EditorState> {
     const state: Partial<EditorState> = {};
 
@@ -132,9 +127,7 @@ export class EditorPersistenceService {
     return state;
   }
 
-  /**
-   * Speichert Zones separat (für Live-Updates während Bearbeitung)
-   */
+  /** Save zones separately for live updates during editing. */
   public async saveZones(mapId: string, zones: EditorState['zones']): Promise<void> {
     const url = `${this.apiBase}/maps/${encodeURIComponent(mapId)}/editor-state`;
 
@@ -149,15 +142,11 @@ export class EditorPersistenceService {
 
     if (!response.ok) {
       const text = await response.text();
-      throw new EditorPersistenceError(
-        `Failed to save zones: ${response.status} ${text}`,
-      );
+      throw new EditorPersistenceError(`Failed to save zones: ${response.status} ${text}`);
     }
   }
 
-  /**
-   * Speichert Spawn separat
-   */
+  /** Save the spawn point separately. */
   public async saveSpawn(mapId: string, spawn: EditorState['spawn']): Promise<void> {
     const url = `${this.apiBase}/maps/${encodeURIComponent(mapId)}/editor-state`;
 
@@ -172,21 +161,15 @@ export class EditorPersistenceService {
 
     if (!response.ok) {
       const text = await response.text();
-      throw new EditorPersistenceError(
-        `Failed to save spawn: ${response.status} ${text}`,
-      );
+      throw new EditorPersistenceError(`Failed to save spawn: ${response.status} ${text}`);
     }
   }
 
   /**
-   * Speichert alle pending changes atomar zum Server.
-   * Reihenfolge: Terrain -> Delete Objects -> Create Objects -> Update Objects -> Zones -> Spawn
+   * Save all pending changes to the server atomically.
+   * Order: terrain, delete objects, create objects, update objects, zones, spawn.
    */
-  public async saveAllChanges(
-    mapId: string,
-    pendingChanges: PendingChanges,
-    editorState: EditorState,
-  ): Promise<void> {
+  public async saveAllChanges(mapId: string, pendingChanges: PendingChanges, editorState: EditorState): Promise<void> {
     const encodedId = encodeURIComponent(mapId);
 
     await this.saveTerrainPaints(encodedId, pendingChanges.terrainPaints);
@@ -197,15 +180,13 @@ export class EditorPersistenceService {
     await this.saveSpawnIfUpdated(encodedId, pendingChanges);
   }
 
-  /**
-   * Laedt Map Objects via REST API
-   */
+  /** Load map objects via the REST API. */
   public async loadMapObjects(mapId: string): Promise<MapObjectRecord[]> {
     const url = `${this.apiBase}/maps/${encodeURIComponent(mapId)}/objects`;
     const res = await fetch(url, {
       method: 'GET',
       credentials: 'include',
-      headers: { 'Accept': 'application/json' },
+      headers: { Accept: 'application/json' },
     });
     if (!res.ok) {
       if (res.status === 404) return [];
@@ -218,10 +199,7 @@ export class EditorPersistenceService {
 
   /* --- Private helpers for saveAllChanges --- */
 
-  private async saveTerrainPaints(
-    encodedId: string,
-    paints: PendingChanges['terrainPaints'],
-  ): Promise<void> {
+  private async saveTerrainPaints(encodedId: string, paints: PendingChanges['terrainPaints']): Promise<void> {
     for (const paint of paints) {
       const payload: Record<string, unknown> = {
         layer: paint.layer,
@@ -245,10 +223,7 @@ export class EditorPersistenceService {
     }
   }
 
-  private async deleteObjects(
-    encodedId: string,
-    objectIds: (number | string)[],
-  ): Promise<void> {
+  private async deleteObjects(encodedId: string, objectIds: (number | string)[]): Promise<void> {
     for (const objId of objectIds) {
       const res = await fetch(`${this.apiBase}/maps/${encodedId}/objects/${objId}`, {
         method: 'DELETE',
@@ -261,10 +236,7 @@ export class EditorPersistenceService {
     }
   }
 
-  private async createObjects(
-    encodedId: string,
-    objects: MapObjectRecord[],
-  ): Promise<void> {
+  private async createObjects(encodedId: string, objects: MapObjectRecord[]): Promise<void> {
     for (const obj of objects) {
       const payload = {
         assetPackUuid: obj.assetPackUuid,
@@ -295,10 +267,7 @@ export class EditorPersistenceService {
     }
   }
 
-  private async updateObjects(
-    encodedId: string,
-    objectUpdates: PendingChanges['objectUpdates'],
-  ): Promise<void> {
+  private async updateObjects(encodedId: string, objectUpdates: PendingChanges['objectUpdates']): Promise<void> {
     for (const { id, updates } of objectUpdates) {
       const res = await fetch(`${this.apiBase}/maps/${encodedId}/objects/${id}`, {
         method: 'PATCH',
@@ -331,10 +300,7 @@ export class EditorPersistenceService {
     }
   }
 
-  private async saveSpawnIfUpdated(
-    encodedId: string,
-    pendingChanges: PendingChanges,
-  ): Promise<void> {
+  private async saveSpawnIfUpdated(encodedId: string, pendingChanges: PendingChanges): Promise<void> {
     if (!pendingChanges.spawnUpdate) return;
     const res = await fetch(`${this.apiBase}/maps/${encodedId}/editor-state`, {
       method: 'PUT',
@@ -348,9 +314,7 @@ export class EditorPersistenceService {
     }
   }
 
-  /**
-   * Registriert ein Tileset auf dem Server
-   */
+  /** Register a tileset with the server. */
   public async registerTileset(
     mapId: string,
     tileset: {
@@ -360,7 +324,7 @@ export class EditorPersistenceService {
       tileHeight: number;
       margin?: number;
       spacing?: number;
-    }
+    },
   ): Promise<void> {
     const url = `${this.apiBase}/maps/${encodeURIComponent(mapId)}/tilesets`;
 
@@ -384,13 +348,10 @@ export class EditorPersistenceService {
 
     if (!response.ok) {
       const text = await response.text();
-      throw new EditorPersistenceError(
-        `Failed to register tileset: ${response.status} ${text}`,
-      );
+      throw new EditorPersistenceError(`Failed to register tileset: ${response.status} ${text}`);
     }
   }
 }
 
-// Singleton-Instanz
+// Singleton instance shared across the app.
 export const EditorPersistence = new EditorPersistenceService();
-

@@ -1,20 +1,19 @@
 /**
- * WebSocket Patch for Safari/WKWebView
+ * WebSocket patch for Safari/WKWebView.
  *
- * WICHTIG: Dieses Modul MUSS als ERSTES in main.tsx importiert werden!
+ * Important: this module MUST be imported FIRST in main.tsx.
  *
- * Problem: Colyseus.js cached die WebSocket-Referenz auf Modul-Ebene:
+ * Problem: Colyseus.js caches the WebSocket reference at module scope:
  *   const WebSocket = globalThis.WebSocket || NodeWebSocket;
  *
- * Dann ruft es auf:
+ * It then calls:
  *   new WebSocket(url, { headers, protocols })
  *
- * In Chrome wirft das einen Error und fällt auf protocols-only zurück.
- * In WKWebView (Safari/Tauri) wirft es KEINEN Error, sondern konvertiert
- * das Objekt zu "[object Object]" als Protokoll - was fehlschlägt.
+ * Chrome throws an error and falls back to a protocols-only call.
+ * WKWebView (Safari/Tauri) does NOT throw; it stringifies the object to
+ * "[object Object]" as the protocol, which fails the handshake.
  *
- * Lösung: Wir patchen globalThis.WebSocket BEVOR irgendein anderes Modul
- * geladen wird.
+ * Fix: patch globalThis.WebSocket BEFORE any other module loads.
  */
 
 import { logger } from './logger';

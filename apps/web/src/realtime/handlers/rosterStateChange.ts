@@ -1,12 +1,12 @@
 /**
  * Roster-only onStateChange handler.
  *
- * Einzige Verantwortung: rosterByIdentityRef + setRoster aktualisieren
- * (inklusive cross-map-Sichtbarkeit, daher KEIN passesMapFilter — der Roster
- * zeigt absichtlich auch User auf anderen Maps).
+ * Sole responsibility: update rosterByIdentityRef and setRoster, including
+ * cross-map visibility (no passesMapFilter; the roster intentionally also
+ * shows users on other maps).
  *
- * Mutation von remotesRef / colyseusToLivekitMap / identityToNameMap passiert
- * ausschliesslich im primary onStateChange in playerHandlers.ts.
+ * Mutation of remotesRef, colyseusToLivekitMap, and identityToNameMap
+ * happens exclusively in the primary onStateChange in playerHandlers.ts.
  */
 import type { UseWorldRoomArgs } from '../types';
 import type { PlayerSchema, WorldRoom, WorldRoomState } from '../../types/colyseus';

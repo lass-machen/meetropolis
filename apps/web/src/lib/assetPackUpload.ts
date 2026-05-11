@@ -1,8 +1,8 @@
 /**
- * AssetPack Upload Utility
- * 
- * Erstellt aus Tilesets/Objects ein vollständiges AssetPack-ZIP
- * und lädt es zum Server hoch für persistente Speicherung.
+ * AssetPack upload utility.
+ *
+ * Builds a complete AssetPack ZIP from tilesets/objects and uploads it to
+ * the server for persistent storage.
  */
 
 import JSZip from 'jszip';
@@ -18,9 +18,7 @@ export type TilesetData = {
   category?: 'terrain' | 'structures' | 'objects';
 };
 
-/**
- * Konvertiert Base64 data URL zu Blob
- */
+/** Convert a base64 data URL to a Blob. */
 function dataUrlToBlob(dataUrl: string): Blob {
   const arr = dataUrl.split(',');
   const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/png';
@@ -33,32 +31,28 @@ function dataUrlToBlob(dataUrl: string): Blob {
   return new Blob([u8arr], { type: mime });
 }
 
-/**
- * Generiert eine UUID v4
- */
+/** Generate a UUID v4 string. */
 function generateUUID(): string {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = Math.random() * 16 | 0;
-    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
     return v.toString(16);
   });
 }
 
-/**
- * Erstellt ein AssetPack-ZIP aus einem Tileset und lädt es hoch
- */
+/** Build an AssetPack ZIP from a tileset and upload it to the server. */
 export async function uploadTilesetAsAssetPack(
   tileset: TilesetData,
-  apiBase: string
+  apiBase: string,
 ): Promise<{ success: boolean; uuid?: string; error?: string }> {
   try {
-    // 1. ZIP erstellen
+    // 1. Create the ZIP container.
     const zip = new JSZip();
-    
-    // 2. AssetPack UUID generieren (muss gültige UUID v4 sein!)
+
+    // 2. Generate the AssetPack UUID (must be a valid UUID v4).
     const uuid = generateUUID();
-    
-    // 3. config.json erstellen (Server erwartet "config.json", nicht "asset-pack.json"!)
+
+    // 3. Build config.json (server expects "config.json", not "asset-pack.json").
     const config = {
       uuid,
       name: `Custom Tileset (${tileset.key})`,
@@ -69,38 +63,38 @@ export async function uploadTilesetAsAssetPack(
         {
           id: tileset.key,
           key: tileset.key,
-          category: 'terrain' as const, // PFLICHTFELD für Schema-Validierung
-          dataURL: `assets/tilesets/${tileset.key}.png`, // WICHTIG: "assets/" prefix und "dataURL" (nicht "image")!
+          category: 'terrain' as const, // Required by the schema validator.
+          dataURL: `assets/tilesets/${tileset.key}.png`, // Must use the "assets/" prefix and "dataURL" (not "image").
           tileWidth: tileset.tileWidth,
           tileHeight: tileset.tileHeight,
           margin: tileset.margin || 0,
           spacing: tileset.spacing || 0,
-        }
+        },
       ],
       structures: [],
-      objects: []
+      objects: [],
     };
-    
+
     zip.file('config.json', JSON.stringify(config, null, 2));
-    
-    // 4. Bild-Datei hinzufügen (WICHTIG: "assets/" prefix!)
+
+    // 4. Add the image file (path must include the "assets/" prefix).
     const imageBlob = dataUrlToBlob(tileset.dataUrl);
     zip.file(`assets/tilesets/${tileset.key}.png`, imageBlob);
-    
-    // 5. ZIP als Blob generieren
+
+    // 5. Serialise the ZIP as a Blob.
     const zipBlob = await zip.generateAsync({ type: 'blob' });
-    
-    // 6. FormData für Upload erstellen
+
+    // 6. Build the multipart form data for the upload.
     const formData = new FormData();
     formData.append('file', zipBlob, `${uuid}.zip`);
-    
-    // 7. Upload zum Server
+
+    // 7. POST the archive to the server.
     const response = await fetch(`${apiBase}/asset-packs/upload`, {
       method: 'POST',
       credentials: 'include',
-      body: formData
+      body: formData,
     });
-    
+
     if (!response.ok) {
       const text = await response.text();
       let errorMsg = `Upload failed: ${response.status}`;
@@ -112,12 +106,11 @@ export async function uploadTilesetAsAssetPack(
       }
       return { success: false, error: errorMsg };
     }
-    
+
     const result = await response.json();
     return { success: true, uuid: result.uuid };
-    
   } catch (e: unknown) {
     logger.error('[AssetPackUpload] Failed:', e);
-    return { success: false, error: (e instanceof Error ? e.message : String(e)) };
+    return { success: false, error: e instanceof Error ? e.message : String(e) };
   }
 }

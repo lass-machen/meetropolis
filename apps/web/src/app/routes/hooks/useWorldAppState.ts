@@ -237,7 +237,7 @@ export interface WorldAppState {
 }
 
 /**
- * Refs sub-shape of WorldAppState — everything that ends in `Ref` or maps.
+ * Refs sub-shape of WorldAppState: everything that ends in `Ref` or maps.
  * Use this for composite hooks that only need ref access.
  */
 export type WorldRefs = Pick<
@@ -295,7 +295,7 @@ export type WorldAuth = Pick<
 >;
 
 /**
- * UI sub-shape of WorldAppState — UI panels, modals, AV state and roster.
+ * UI sub-shape of WorldAppState: UI panels, modals, AV state and roster.
  */
 export type WorldUi = Pick<
   WorldAppState,

@@ -172,9 +172,10 @@ function requireTenantAdminMiddleware(req: any, res: any, next: any): void {
 async function buildBillingRouter(billingModule: NonNullable<Awaited<ReturnType<typeof getBillingModule>>>) {
   const Stripe = (await import('stripe')).default;
   const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-04-22.dahlia' });
-  // Billing-DI: delegiert an das (optionale) Tenancy-Mail-Modul. Wenn keines
-  // geladen ist, ist `send` ein stiller No-Op — Billing-Webhooks/Cron laufen
-  // weiter, schicken aber nichts. (Im Enterprise-Build ist tenancy immer da.)
+  // Billing dependency injection: delegate to the optional tenancy mail
+  // module. When none is loaded, `send` is a silent no-op so billing
+  // webhooks and cron keep running but send nothing. In enterprise builds,
+  // tenancy is always present.
   const emailModule = await getEmailModule();
   const emailService = {
     async send(email: { to: string; subject: string; text: string; html: string }): Promise<void> {
@@ -249,7 +250,7 @@ export async function registerApi(app: express.Express) {
   registerAssetPackRoutes(app, prisma);
   registerAvatarPackRoutes(app, prisma);
 
-  // Enterprise admin/tenant/pricing first — Express dispatches to the first match,
+  // Enterprise admin/tenant/pricing first: Express dispatches to the first match,
   // so enterprise variants of /public/config and /admin/settings win when present.
   await registerEnterpriseAdminRoutes(app);
   await registerEnterpriseBillingRoutes(app);

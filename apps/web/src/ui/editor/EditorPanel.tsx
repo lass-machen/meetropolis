@@ -1,10 +1,10 @@
 /**
- * EditorPanel - Presentation Component für Editor UI
+ * EditorPanel: presentation component for the editor UI.
  *
- * Prinzipien:
- * - Nur UI, keine Business-Logik
- * - Dispatcht Actions an EditorService
- * - Nutzt Props vom EditorService State
+ * Principles:
+ * - UI only, no business logic.
+ * - Dispatches actions to the EditorService.
+ * - Reads props from the EditorService state.
  */
 
 import React from 'react';

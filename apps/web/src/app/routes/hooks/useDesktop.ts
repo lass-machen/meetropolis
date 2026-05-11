@@ -1,15 +1,16 @@
 /**
- * useDesktop Hook
+ * useDesktop hook.
  *
- * Bindet Desktop-Features (Tauri) optional ein.
- * Im OSS-Build (ohne @meetropolis/desktop) gibt alles No-Op/false zurück.
+ * Optionally binds desktop features (Tauri). In OSS builds (without
+ * @meetropolis/desktop) every value falls back to a no-op or `false`.
  *
- * State-Sync mit dem Desktop-Modul erfolgt über Custom DOM Events:
- * - desktop:mini-mode-changed  (Detail: { isMiniMode: boolean })
+ * State sync with the desktop module is performed via custom DOM events:
+ * - desktop:mini-mode-changed (detail: { isMiniMode: boolean })
  * - desktop:open-preferences
  *
- * Das Desktop-Modul setzt den State imperativ in initDesktop() auf
- * und dispatcht Events bei Änderungen. Kein React Hook im Desktop-Modul nötig.
+ * The desktop module sets the state imperatively in initDesktop() and
+ * dispatches events on changes, so no React hook is needed inside the
+ * desktop module itself.
  */
 
 import { useState, useEffect, useCallback } from 'react';
@@ -32,14 +33,14 @@ export function useDesktop(): DesktopState {
   const [isMiniMode, setIsMiniMode] = useState(() => window.__DESKTOP__?.isMiniMode ?? false);
   const [tauriPrefsOpen, setTauriPrefsOpen] = useState(false);
 
-  // Lade Desktop-Modul
+  // Load the desktop module.
   useEffect(() => {
     let cancelled = false;
     void getDesktopModule().then((mod) => {
       if (cancelled || !mod) return;
       setDesktop(mod);
       setIsTauri(true);
-      // Initialen Mini-Mode State lesen (wurde in initDesktop() gesetzt)
+      // Read the initial mini-mode state (set by initDesktop()).
       setIsMiniMode(window.__DESKTOP__?.isMiniMode ?? false);
     });
     return () => {
@@ -47,7 +48,7 @@ export function useDesktop(): DesktopState {
     };
   }, []);
 
-  // Lausche auf Mini-Mode Änderungen via Custom DOM Events
+  // Listen for mini-mode changes via custom DOM events.
   useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail;

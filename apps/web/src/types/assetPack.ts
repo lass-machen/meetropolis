@@ -1,4 +1,4 @@
-// Asset Pack JSON shape — mirrors the data returned by GET /asset-packs
+// Asset pack JSON shape; mirrors the data returned by GET /asset-packs
 // and matches the server-side ConfigSchema in apps/server/src/api/routes/assetPacks.ts.
 // These types describe the *consumed* form of asset packs (the dataURL fields
 // have been rewritten by the server to absolute /packs/{uuid}/... paths).

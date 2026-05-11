@@ -24,9 +24,9 @@ import { PrismaClient } from './generated/prisma/index.js';
  *   pair, preserving the previous semantics.
  *
  * The connection string is read from `process.env.DATABASE_URL` at the
- * moment the client is constructed. We do not cache or re-use it — if it's
- * unset, `pg` will throw on the first query, which is the correct fail-loud
- * behaviour.
+ * moment the client is constructed. The string is not cached or reused: if
+ * it is unset, `pg` will throw on the first query, which is the correct
+ * fail-loud behaviour.
  */
 export function createPrismaClient(): PrismaClient {
   const connectionString = process.env.DATABASE_URL;

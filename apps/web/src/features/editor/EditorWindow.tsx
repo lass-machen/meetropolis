@@ -1,7 +1,7 @@
 /**
- * EditorWindow - Container für Editor UI
+ * EditorWindow: container for the editor UI.
  *
- * Presentation Component mit Drag & Drop Support
+ * Presentation component with drag and drop support.
  */
 
 import * as React from 'react';

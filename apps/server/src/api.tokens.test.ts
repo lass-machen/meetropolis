@@ -20,9 +20,9 @@ type TokenRec = {
 
 const mem: { tokens: TokenRec[] } = { tokens: [] };
 
-// Mock PrismaClient used inside api.ts. Achtung: api.ts importiert aus
-// './generated/prisma/index.js' (lokal generierter Client), NICHT aus
-// '@prisma/client' — daher muessen wir genau diesen Specifier mocken.
+// Mock PrismaClient used inside api.ts. Note: api.ts imports from
+// './generated/prisma/index.js' (the locally generated client), NOT from
+// '@prisma/client', so the mock must target that exact specifier.
 vi.mock('./generated/prisma/index.js', () => {
   class PrismaClientMock {
     apiToken = {

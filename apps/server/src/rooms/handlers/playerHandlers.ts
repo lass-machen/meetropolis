@@ -11,7 +11,7 @@ export interface MoveData {
 }
 
 // Move handler with throttling (~12.5 Hz). Updates `lastSeen` on every
-// invocation — moves act as implicit heartbeats.
+// invocation, so moves act as implicit heartbeats.
 export function createMoveHandler(room: WorldRoom) {
   const lastMove: Map<string, number> = new Map();
   return (client: Client, data: MoveData): void => {
@@ -37,14 +37,20 @@ export function createMoveHandler(room: WorldRoom) {
     player.y = data.y;
     player.direction = data.direction;
 
-    broadcastToMap(room, player.mapId, 'player_moved', {
-      id: client.sessionId,
-      x: data.x,
-      y: data.y,
-      direction: data.direction,
-      mapId: player.mapId,
-      mapName: player.mapName,
-    }, client);
+    broadcastToMap(
+      room,
+      player.mapId,
+      'player_moved',
+      {
+        id: client.sessionId,
+        x: data.x,
+        y: data.y,
+        direction: data.direction,
+        mapId: player.mapId,
+        mapName: player.mapName,
+      },
+      client,
+    );
   };
 }
 

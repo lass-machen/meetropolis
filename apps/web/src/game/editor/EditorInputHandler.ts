@@ -1,11 +1,11 @@
 /**
- * EditorInputHandler - Übersetzt Phaser Input-Events in Editor-Actions
+ * EditorInputHandler: translate Phaser input events into editor actions.
  *
- * Prinzipien:
- * - Keine Business-Logik
- * - Keine State-Verwaltung
- * - Nur Input → Action Translation
- * - Koordinaten-Transformation
+ * Principles:
+ * - No business logic.
+ * - No state ownership.
+ * - Pure input to action translation.
+ * - Coordinate transformation.
  */
 
 import Phaser from 'phaser';
@@ -17,8 +17,8 @@ export class EditorInputHandler {
   private scene: Phaser.Scene;
   private renderer: EditorRenderer;
   private tileSize: number;
-  // Bound handler-Refs müssen identisch zwischen on()/off() bleiben,
-  // sonst kann Phaser den Listener nicht entfernen.
+  // Bound handler refs must be identical between on() and off(),
+  // otherwise Phaser cannot remove the listener.
   private boundHandlePointerDown!: (pointer: Phaser.Input.Pointer) => void;
   private boundHandlePointerMove!: (pointer: Phaser.Input.Pointer) => void;
   private boundHandlePointerUp!: (pointer: Phaser.Input.Pointer) => void;

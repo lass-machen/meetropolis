@@ -1,8 +1,8 @@
 /**
- * Connection Recovery Hooks
+ * Connection recovery hooks.
  *
- * Generische Hooks für Server-Health-Check und WebSocket/Colyseus-Disconnect-Handling.
- * Nicht Tauri-spezifisch — funktioniert in jeder Umgebung.
+ * Generic hooks for server health checks and WebSocket/Colyseus disconnect
+ * handling. Not Tauri specific: they work in any runtime.
  */
 
 import React from 'react';
@@ -27,7 +27,7 @@ function handleHealthyResponse(ctx: HealthCheckContext) {
     ctx.setDisconnectCount(0);
     ctx.onReconnect?.();
 
-    // Wenn wir einen Reload geplant hatten, führen wir ihn jetzt aus
+    // Execute a previously scheduled reload now that the server is back.
     if (ctx.reloadScheduledRef.current) {
       ctx.reloadScheduledRef.current = false;
       logger.debug('[HealthCheck] Reloading after reconnect...');
@@ -69,10 +69,10 @@ async function performHealthCheck(ctx: HealthCheckContext) {
 }
 
 /**
- * Hook für Auto-Reload bei Server-Disconnect
+ * Hook that auto-reloads the page after a sustained server disconnect.
  *
- * Erkennt wenn der Server nicht erreichbar ist und initiiert automatisch
- * einen Reload nach einer kurzen Wartezeit.
+ * Detects when the server is unreachable and schedules a reload after a
+ * short delay.
  */
 export function useServerHealthCheck(options: {
   enabled: boolean;
@@ -104,10 +104,10 @@ export function useServerHealthCheck(options: {
       void performHealthCheck(ctx);
     };
 
-    // Führe Health-Check alle 10 Sekunden durch
+    // Poll health every 10 seconds.
     const interval = setInterval(checkHealth, 10000);
 
-    // Initial check nach 2 Sekunden
+    // First check after a 2 second warm-up.
     const initialCheck = setTimeout(checkHealth, 2000);
 
     return () => {
@@ -116,11 +116,11 @@ export function useServerHealthCheck(options: {
     };
   }, [enabled, apiBase, isServerHealthy, onDisconnect, onReconnect]);
 
-  // Auto-Reload nach langem Disconnect
+  // Auto-reload after an extended disconnect.
   React.useEffect(() => {
     if (!enabled || isServerHealthy) return;
 
-    // Nach 5 fehlgeschlagenen Versuchen (ca. 50 Sekunden), plane Reload
+    // After 5 failed attempts (about 50 seconds), schedule a reload.
     if (disconnectCount >= 5 && !reloadScheduledRef.current) {
       logger.debug('[HealthCheck] Scheduling reload after multiple failures');
       reloadScheduledRef.current = true;
@@ -134,10 +134,10 @@ export function useServerHealthCheck(options: {
 }
 
 /**
- * Hook für WebSocket/Colyseus Disconnect-Handling
+ * Hook handling WebSocket/Colyseus disconnects.
  *
- * Erkennt wenn die Colyseus-Verbindung verloren geht und zeigt
- * eine Reload-Option oder lädt automatisch neu.
+ * Detects when the Colyseus connection drops and either shows a reload
+ * banner or triggers an automatic reload.
  */
 export function useConnectionRecovery(options: {
   enabled: boolean;
@@ -156,12 +156,13 @@ export function useConnectionRecovery(options: {
     const checkConnection = () => {
       const room = colyseusRef.current;
       if (!room) {
-        // Noch nicht verbunden - kein Problem
+        // Not connected yet, nothing to recover.
         return;
       }
 
-      // Prüfe WebSocket-Status. `connection.ws`/`_transport` sind Colyseus-Interna,
-      // nicht im public Typing — narrow cast statt globalem any.
+      // Inspect the underlying WebSocket. `connection.ws`/`_transport` are
+      // Colyseus internals not surfaced in the public types, so narrow cast
+      // here instead of falling back to a global `any`.
       type ConnectionInternals = {
         ws?: WebSocket;
         transport?: { ws?: WebSocket };
@@ -174,20 +175,20 @@ export function useConnectionRecovery(options: {
       const isOpen = conn.isOpen === true || wsReady === 1;
 
       if (!isOpen && isConnected) {
-        // Verbindung verloren
+        // Connection lost.
         logger.warn('[ConnectionRecovery] Connection lost');
         setIsConnected(false);
         disconnectTimeRef.current = Date.now();
         onConnectionLost?.();
 
-        // Nach 10 Sekunden Banner zeigen
+        // Surface the reload banner after 10 seconds.
         setTimeout(() => {
           if (!isConnected) {
             setShowReloadBanner(true);
           }
         }, 10000);
       } else if (isOpen && !isConnected) {
-        // Verbindung wiederhergestellt
+        // Connection restored.
         logger.debug('[ConnectionRecovery] Connection restored');
         setIsConnected(true);
         setShowReloadBanner(false);

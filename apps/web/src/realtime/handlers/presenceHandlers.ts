@@ -9,7 +9,7 @@ export function setupPresenceHandlers(
 ) {
   const { rosterByIdentityRef, setRoster } = args;
 
-  // Presence: Seed der letzten Aktivitäten (ohne Polling)
+  // Presence: seed the recent-activity list (no polling).
   room.onMessage('presence_recent', (list: ApiPresence[]) => {
     try {
       recentPresenceRef.current = Array.isArray(list) ? list : [];
@@ -17,7 +17,7 @@ export function setupPresenceHandlers(
     } catch {}
   });
 
-  // Presence: Einzel-Update (z. B. Positions-/Zeitstempelaktualisierung)
+  // Presence: single-entry update (e.g. position or timestamp refresh).
   room.onMessage('presence_update', (p: ApiPresence) => {
     try {
       const list = Array.isArray(recentPresenceRef.current) ? [...recentPresenceRef.current] : [];
@@ -42,13 +42,13 @@ export function createRosterRefresher(args: UseWorldRoomArgs) {
   return () => {
     try {
       const online: Record<string, OnlineEntry> = {};
-      // Remotes (Colyseus SIDs -> LiveKit Identity)
+      // Remotes (Colyseus SIDs to LiveKit identity).
       for (const [sid, pos] of Object.entries(remotesRef.current)) {
         const livekitIdentity = colyseusToLivekitMap.current[sid] || sid;
         const name = identityToNameMap.current[livekitIdentity] || livekitIdentity;
         online[livekitIdentity] = { name, x: pos.x, y: pos.y };
       }
-      // Local (stabile User-ID)
+      // Local participant (stable user id).
       try {
         if (me?.id) {
           const lp = localPosRef.current;

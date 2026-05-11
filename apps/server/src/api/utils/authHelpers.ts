@@ -17,14 +17,14 @@ export function getJwtSecret(): string {
     return fromEnv;
   }
   if (process.env.NODE_ENV === 'production') {
-    throw new Error('[SECURITY] JWT_SECRET fehlt in Produktion');
+    throw new Error('[SECURITY] JWT_SECRET missing in production');
   }
-  // Development: ephemeres Secret, nur für lokale Sessions
+  // Development: ephemeral secret, only used for local sessions.
   const key = (globalThis as any).__DEV_JWT_SECRET__ as string | undefined;
   if (key && key.length > 0) return key;
   const devSecret = crypto.randomBytes(32).toString('hex');
   try {
-    logger.warn('[SECURITY] JWT_SECRET fehlt – verwende ephemeres DEV-Secret.');
+    logger.warn('[SECURITY] JWT_SECRET missing, using an ephemeral dev secret.');
   } catch {}
   (globalThis as any).__DEV_JWT_SECRET__ = devSecret;
   cachedJwtSecret = devSecret;
@@ -39,12 +39,10 @@ export function getApiTokenPepper(): string {
     return fromEnv;
   }
   if (process.env.NODE_ENV === 'production') {
-    throw new Error('[SECURITY] API_TOKEN_PEPPER fehlt in Produktion');
+    throw new Error('[SECURITY] API_TOKEN_PEPPER missing in production');
   }
   const devPepper = crypto.randomBytes(32).toString('hex');
-  logger.warn(
-    '[SECURITY] API_TOKEN_PEPPER fehlt – verwende ephemeres DEV-Pepper. Tokens verlieren Gültigkeit bei Neustart.',
-  );
+  logger.warn('[SECURITY] API_TOKEN_PEPPER missing, using an ephemeral dev pepper. Tokens lose validity on restart.');
   cachedApiTokenPepper = devPepper;
   return devPepper;
 }

@@ -1,12 +1,12 @@
 import { logger } from './logger.js';
 
 /**
- * OSS-Mail-Loader. Lädt das Mail-Modul aus dem privaten Tenancy-Submodul,
- * wenn vorhanden. Im OSS-Build (ohne Submodul) liefert er `null` —
- * die Aufrufer müssen dann mailfrei verfahren (Tokens/Codes via Admin-UI).
+ * OSS mail loader. Loads the mail module from the private tenancy submodule
+ * when available. In OSS builds (without the submodule) it returns `null`,
+ * and callers must operate without email (surface tokens/codes via the admin UI).
  *
- * Sensible Tokens (Password-Reset) werden NIE über dieses Modul versendet,
- * auch nicht im Tenancy-Setup.
+ * Sensitive tokens (e.g. password reset) are never sent through this module,
+ * even when tenancy is configured.
  */
 
 export type EmailLocale = 'de' | 'en';
@@ -83,9 +83,7 @@ function isEmailModule(value: unknown): value is EmailModule {
   );
 }
 
-/**
- * Lädt das optionale Tenancy-Mail-Modul. Liefert `null` im OSS-Build.
- */
+/** Load the optional tenancy mail module. Returns `null` in OSS builds. */
 export async function getEmailModule(): Promise<EmailModule | null> {
   if (loadAttempted) return cached;
   loadAttempted = true;
@@ -93,9 +91,10 @@ export async function getEmailModule(): Promise<EmailModule | null> {
   try {
     const modUnknown: unknown = await import('@meetropolis/tenancy');
     const root = unwrapDefaultExport(modUnknown) as Record<string, unknown> | null;
-    const factory = root && typeof root === 'object' && typeof root.getEmailModule === 'function'
-      ? (root.getEmailModule as () => unknown)
-      : null;
+    const factory =
+      root && typeof root === 'object' && typeof root.getEmailModule === 'function'
+        ? (root.getEmailModule as () => unknown)
+        : null;
     if (!factory) {
       logger.debug({ event: 'email.module_not_available', reason: 'no_factory' });
       cached = null;
@@ -122,8 +121,9 @@ export async function getEmailModule(): Promise<EmailModule | null> {
 }
 
 /**
- * Convenience: führt eine Mail-Aktion best-effort aus. Loggt Fehler,
- * wirft nichts. Liefert `false` wenn kein Modul oder Versand scheiterte.
+ * Convenience helper that runs a mail action best effort.
+ * Logs errors, never throws. Returns `false` when no module is available
+ * or when sending failed.
  */
 export async function sendIfAvailable(
   fn: (mod: EmailModule) => Promise<boolean>,

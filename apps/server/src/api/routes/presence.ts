@@ -17,13 +17,13 @@ export function registerPresenceRoutes(
     const tenant = getTenantFromReq(req);
     if (!tenant) return res.status(400).json({ error: 'tenant_required' });
     try {
-      // 1. Hole alle Tenant-Mitglieder
+      // 1. Fetch all tenant members.
       const memberships = await prisma.membership.findMany({
         where: { tenantId: tenant.id },
         include: { user: { select: { id: true, email: true, name: true } } },
       });
 
-      // 2. Hole Presence-Daten für diese User
+      // 2. Fetch presence data for those users.
       const recent = await prisma.presence.findMany({
         where: { tenantId: tenant.id },
         orderBy: { updatedAt: 'desc' },
@@ -31,13 +31,13 @@ export function registerPresenceRoutes(
         include: { room: { select: { name: true } } },
       } as any);
 
-      // 3. Erstelle Map von userId -> Presence
+      // 3. Build a userId -> presence map.
       const presenceMap = new Map<string, any>();
       for (const p of recent) {
         presenceMap.set(p.userId, p);
       }
 
-      // 4. Kombiniere: Alle Mitglieder mit ihren Presence-Daten (falls vorhanden)
+      // 4. Combine all members with their presence data (if any).
       const out = memberships.map((m: any) => {
         const presence = presenceMap.get(m.userId);
         return {

@@ -26,7 +26,7 @@ export const guestExpiryMiddleware: express.RequestHandler = async (req, res, ne
     if (!membership.expiresAt) return next();
 
     if (membership.expiresAt < new Date()) {
-      // Guest is expired — kill sessions and block
+      // Guest is expired: kill sessions and block.
       await prisma.session.deleteMany({ where: { userId: auth.userId } });
       res.clearCookie('auth_token', { path: '/' });
       return res.status(403).json({ error: 'guest_expired' });

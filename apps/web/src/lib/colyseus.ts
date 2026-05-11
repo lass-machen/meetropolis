@@ -77,7 +77,7 @@ async function joinRoomWithTimeout(client: Client, joinOptions: any): Promise<Ro
 }
 
 async function awaitInitialStateSync(room: Room<WorldRoomState>): Promise<void> {
-  // Wait for initial state sync — but bound the wait so we never hang forever.
+  // Wait for the initial state sync, bounded so the wait cannot hang forever.
   const stateTimeoutMs = readTimeoutMs('VITE_COLYSEUS_STATE_TIMEOUT_MS', 5_000);
   const stopAt = Date.now() + stateTimeoutMs;
   await new Promise<void>((resolve, reject) => {

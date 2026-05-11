@@ -56,10 +56,10 @@ export class MainScene extends Phaser.Scene implements MainSceneShape {
   public autotileRenderer?: AutotileRenderer;
   private _lastCamSig: string | null = null;
 
-  // Helper-Function-Boundary: optional, werden teilweise von Helper-Functions
-  // (game/{ui,camera,collision,editor}) gesetzt, nicht von der Scene selbst.
-  // Im aktuellen OSS-Code laufen die Manager-Klassen parallel mit eigener
-  // State-Haltung; das Interface ist Library-Boundary für externe Subclasses.
+  // Helper-function boundary: optional fields, sometimes set by helper
+  // functions (game/{ui,camera,collision,editor}) rather than by the scene
+  // itself. In current OSS code, manager classes run in parallel with their
+  // own state; this interface is the library boundary for external subclasses.
   public hero?: Phaser.Physics.Arcade.Sprite;
   public nameLabels?: Map<string, Phaser.GameObjects.Container>;
   public heroNameLabel?: Phaser.GameObjects.Container;

@@ -1,5 +1,5 @@
 /**
- * AutotileGrid — Sparse grid data structure for autotile wall data.
+ * AutotileGrid: sparse grid data structure for autotile wall data.
  * Maps (x, y) positions to wall type IDs.
  * Implements AutotileGridLike for use with autotileEngine.
  */

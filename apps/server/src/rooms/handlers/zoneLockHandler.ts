@@ -74,13 +74,13 @@ function lockKey(mapId: string, zoneName: string): string {
   return `${mapId}:${zoneName}`;
 }
 
-// Lock-State an alle broadcasten
+// Broadcast the lock state to every client.
 function broadcastLockState(room: WorldRoom, state: ZoneLockState): void {
   const locks: ZoneLockInfo[] = Array.from(state.locks.values());
   room.broadcast('zone_lock_state', { locks });
 }
 
-// Auto-unlock prüfen: Wenn keine Spieler mit Zugang mehr in der Zone sind
+// Check auto-unlock: if no player with access is still in the zone.
 function checkAutoUnlock(room: WorldRoom, state: ZoneLockState): void {
   const now = Date.now();
   if (now - state.lastAutoUnlockCheck < 500) return;
@@ -90,7 +90,7 @@ function checkAutoUnlock(room: WorldRoom, state: ZoneLockState): void {
   for (const [key, lock] of state.locks) {
     const zones = state.zoneCache.get(lock.mapId) || [];
     let hasAccessPlayerInZone = false;
-    // Prüfe ob mind. 1 Spieler mit Zugang noch in der Zone ist
+    // Confirm at least one player with access is still in the zone.
     room.state.players.forEach((player: any, sessionId: string) => {
       if (!lock.accessList.includes(sessionId)) return;
       if (player.mapId !== lock.mapId) return;
@@ -106,7 +106,7 @@ function checkAutoUnlock(room: WorldRoom, state: ZoneLockState): void {
   }
 }
 
-// Prüfe ob Bewegung in gesperrte Zone geht
+// Check whether the movement target lies inside a locked zone.
 export function isMovementBlocked(
   state: ZoneLockState,
   sessionId: string,
@@ -260,7 +260,7 @@ export function setupZoneLockHandlers(room: WorldRoom, state: ZoneLockState, pri
   room.onMessage('zone_access_response', (client, data) => handleZoneAccessResponse(room, state, client, data));
 }
 
-// Spieler verlässt: aus allen Listen entfernen
+// Player leaves: remove them from every list.
 export function onPlayerLeaveZoneLock(room: WorldRoom, state: ZoneLockState, sessionId: string): void {
   let changed = false;
   for (const [_key, lock] of state.locks) {

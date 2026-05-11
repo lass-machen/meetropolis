@@ -120,8 +120,8 @@ describe('TrackManager (concurrency)', () => {
     await tm.setMicrophoneEnabled(false);
     expect(tm.isMicrophoneEnabled).toBe(false);
 
-    // Drei Toggles nach dem initialen Publish — Track-Publication wurde NICHT
-    // abgebaut, daher nur ein einziger publishTrack/Unpublish-Pair.
+    // Three toggles after the initial publish: the track publication was NOT
+    // torn down, so there is only a single publishTrack/unpublishTrack pair.
     expect(room.localParticipant.publishTrack).toHaveBeenCalledTimes(1);
     expect(room.localParticipant.unpublishTrack).toHaveBeenCalledTimes(0);
     expect(room.localParticipant.trackPublications.size).toBe(1);

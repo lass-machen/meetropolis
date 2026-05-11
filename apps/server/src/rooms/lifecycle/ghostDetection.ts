@@ -6,8 +6,8 @@ import { broadcastToMap } from '../utils/broadcastHelpers.js';
 
 // Look up an existing session for the given identity across all active
 // rooms. If a stale (ghost) session is found (lastSeen too old or never
-// set), it is cleaned up directly and the function returns null — no
-// takeover flow needed for ghosts. Otherwise returns the matching room,
+// set), it is cleaned up directly and the function returns null: ghosts
+// need no takeover flow. Otherwise returns the matching room,
 // session id and client.
 //
 // IMPORTANT: behavior must remain identical to the previous private
@@ -41,7 +41,11 @@ export function findExistingSession(
           clearTimeout(pendingTimer);
           worldRoom.pendingLeaves.delete(sid);
         }
-        try { colyseusPlayers.dec(); } catch { /* metric best-effort */ }
+        try {
+          colyseusPlayers.dec();
+        } catch {
+          /* metric best-effort */
+        }
         if (mapIdForGhost) {
           broadcastToMap(worldRoom, mapIdForGhost, 'player_left', { id: sid });
         } else {

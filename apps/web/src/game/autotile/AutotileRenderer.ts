@@ -1,5 +1,5 @@
 /**
- * AutotileRenderer — Sprite-pool-based renderer for autotile walls.
+ * AutotileRenderer: sprite-pool-based renderer for autotile walls.
  * Uses Phaser sprites (not TilemapLayer) for full frame control.
  */
 

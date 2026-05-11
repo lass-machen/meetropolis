@@ -1,6 +1,6 @@
 import 'dotenv/config';
 
-// Express 5 catches async route handler rejections natively — no extra polyfill needed.
+// Express 5 catches async route handler rejections natively; no extra polyfill needed.
 
 // Sentry must be initialized before other imports
 const sentryDsn = process.env.SENTRY_DSN;
@@ -26,9 +26,9 @@ import compression from 'compression';
 // IMPORTANT: Colyseus and WorldRoom must come from the same module instance.
 // Mixing `createRequire('colyseus')` (CJS) with `import 'colyseus'` (ESM) in
 // WorldRoom.ts causes the matchmaker to compare WorldRoom.prototype.onAuth
-// against the CJS Room.prototype.onAuth — they are different Function objects
+// against the CJS Room.prototype.onAuth; they are different Function objects
 // even though the source is identical. Result: Colyseus prints
-//   ❌ "world"'s onAuth() defined at the instance level will be ignored.
+//   "world"'s onAuth() defined at the instance level will be ignored.
 // Worse, it then enforces auth via the (CJS) static onAuth, bypassing any
 // instance-level checks. Using ESM imports everywhere keeps both sides on the
 // same Room class identity, so the heuristic passes and instance hooks work.
@@ -51,12 +51,12 @@ import { errorHandler } from './api/errorHandler.js';
 import { applyEnterpriseMigrationsIfPresent } from './tenancyLoader.js';
 import { createPrismaClient } from './db.js';
 
-// Colyseus 0.17 bindet einen prependListener('request', …) am HTTP-Server,
-// der CORS-Preflights direkt mit DEFAULT_CORS_HEADERS beantwortet — _bevor_
-// unser Express-Middleware drankommt. Dadurch greifen unsere Custom-Header
-// (x-correlation-id, x-tenant, x-av-identity, x-av-room) auf OPTIONS nicht.
-// Wir überschreiben getCorsHeaders, damit Custom-Header in den Preflight-Headern
-// landen und der Origin korrekt zurückgespiegelt wird.
+// Colyseus 0.17 registers a prependListener('request', ...) on the HTTP server
+// that answers CORS preflights directly with DEFAULT_CORS_HEADERS, before
+// any Express middleware runs. As a result our custom headers
+// (x-correlation-id, x-tenant, x-av-identity, x-av-room) do not appear on
+// OPTIONS responses. Override getCorsHeaders so the custom headers are
+// returned in the preflight response and the Origin is echoed correctly.
 const ALLOWED_REQUEST_HEADERS =
   'Origin, X-Requested-With, Content-Type, Accept, Authorization, x-tenant, x-correlation-id, x-av-identity, x-av-room';
 matchMaker.controller.getCorsHeaders = (headers) => {
@@ -82,12 +82,12 @@ app.set('trust proxy', process.env.TRUST_PROXY === 'true' || process.env.NODE_EN
 
 app.use(helmet({ contentSecurityPolicy: false }) as any);
 app.use(compression() as any);
-// Prometheus HTTP-Metriken
+// Prometheus HTTP metrics.
 app.use(metricsMiddleware() as any);
 
 // CORS middleware with explicit OPTIONS handling
 app.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
-  // Static asset routes handle their own CORS headers — skip global check
+  // Static asset routes handle their own CORS headers; skip the global check.
   if (
     req.path.startsWith('/packs') ||
     req.path.startsWith('/assets') ||

@@ -14,13 +14,13 @@ function buildAttachAudioTrack(
 ) {
   return (track: AttachableTrack, participantId: string) => {
     try {
-      // Verhindere Duplikate pro Participant-ID über Tests/Render hinweg
+      // Prevent duplicate audio elements per participant across tests/renders.
       const existing: HTMLAudioElement | null =
         typeof document !== 'undefined' ? document.querySelector(`audio[data-av-remote="${participantId}"]`) : null;
       const audio = existing || document.createElement('audio');
       audio.autoplay = true;
       (audio as HTMLAudioElement & { playsInline?: boolean }).playsInline = true;
-      // Respektiere DND bereits beim Attach, um kurze Audio-Leaks zu vermeiden
+      // Honour DND at attach time to avoid brief audio leaks during transitions.
       const dnd = !!avRef.current?.dndEnabled;
       try {
         audio.muted = dnd;
@@ -62,14 +62,15 @@ function buildDetachAudioTrack(audioElements: Map<string, HTMLAudioElement>) {
 }
 
 function shouldDetachOnUnsubscribe(track: TrackLike, participant: RemoteParticipant | undefined): boolean {
-  // Prüfe ob der Teilnehmer noch einen anderen Mikrofon-Audio-Track hat
-  // (z.B. wenn nur der Screen-Share-Audio deabonniert wird, aber das Mikrofon noch aktiv ist)
+  // Check whether the participant still has another microphone audio track
+  // (for example, when only screen-share audio is unsubscribed while the mic
+  // is still active).
   const otherAudioTracks = listPublications(participant).filter((pub) => {
     const pubTrack = pub.track;
     if (!pubTrack || pubTrack === track) return false;
     const kind = readPubKind(pub);
     const source = readPubSource(pub);
-    // Nur Mikrofon-Tracks zählen (nicht screen_share_audio)
+    // Count only microphone tracks, not screen_share_audio.
     return kind === 'audio' && source !== 'screen_share_audio';
   });
   return otherAudioTracks.length === 0;
@@ -97,7 +98,7 @@ function attachInitialAudioTracks(
       audioTracks.forEach((track) => attachAudioTrack(track, participant.sid));
     } catch {}
   });
-  // Fallback: wenn initial keine Audio-Elemente angelegt wurden, versuche mindestens eins anzulegen
+  // Fallback: if no audio elements were created initially, create at least one stub.
   try {
     if (audioElements.size === 0) {
       const dummy = document.createElement('audio');
@@ -146,7 +147,7 @@ function setupGlobalAudioTracksEffect(avRef: React.MutableRefObject<AVManager | 
     const participant = args[2] as RemoteParticipant | undefined;
     if (String(track?.kind) === 'audio' && participant && participant.sid !== room?.localParticipant?.sid) {
       if (track) attachAudioTrack(track, participant.sid);
-      // Signalisiere, dass sich die Audio-Topologie geändert hat
+      // Signal that the audio topology has changed.
       try {
         emitAudioTracksChanged();
       } catch {}
@@ -156,8 +157,8 @@ function setupGlobalAudioTracksEffect(avRef: React.MutableRefObject<AVManager | 
   const handleTrackUnsubscribed = (...args: unknown[]) => {
     const track = args[0] as (RemoteTrack & TrackLike) | undefined;
     const participant = args[2] as RemoteParticipant | undefined;
-    // Nur Audio-Tracks behandeln - Screen-Share-Video-Tracks dürfen nicht das
-    // Mikrofon-Audio des Teilnehmers entfernen!
+    // Only handle audio tracks: screen-share video tracks must not remove
+    // a participant's microphone audio.
     if (String(track?.kind) !== 'audio') return;
     if (track && shouldDetachOnUnsubscribe(track, participant)) {
       if (participant?.sid) detachAudioTrack(participant.sid);
@@ -170,10 +171,10 @@ function setupGlobalAudioTracksEffect(avRef: React.MutableRefObject<AVManager | 
   attachInitialAudioTracks(room, audioElements, attachAudioTrack);
   void registerLivekitListeners(room as unknown as RoomWithEvents, handleTrackSubscribed, handleTrackUnsubscribed);
 
-  // Defensive: React to audio-topology change events (emitted e.g. by
-  // SubscriptionManager.restoreAllRemote() after DND exit). If DND is
-  // currently OFF, ensure all managed <audio> elements have muted=false
-  // and volume=1 — the flag may have been set to muted while DND was on.
+  // Defensive: react to audio-topology change events (emitted e.g. by
+  // SubscriptionManager.restoreAllRemote() after DND exit). When DND is
+  // currently OFF, force all managed <audio> elements to muted=false and
+  // volume=1, since the flag may have been muted while DND was on.
   const unsubscribeAudioChanged = onAudioTracksChanged(() => {
     try {
       const dndOn = !!avRef.current?.dndEnabled;
@@ -208,7 +209,7 @@ function setupGlobalAudioTracksEffect(avRef: React.MutableRefObject<AVManager | 
   };
 }
 
-// Expose unused for parameter shape — used internally
+// Re-exported for parameter shape, even though it is used internally.
 export type { RemoteTrackPublication };
 
 export function useGlobalAudioTracks(params: { avRef: React.MutableRefObject<AVManager | null> }) {

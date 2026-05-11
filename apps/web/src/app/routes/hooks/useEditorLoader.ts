@@ -290,8 +290,9 @@ function loadDefaultTilesets(setEditor: EditorSetter) {
   ];
   window.pendingTilesets = defaultTs;
   setEditor((s: unknown) => ({ ...((s as EditorStateWithTilesets) || {}), tilesets: defaultTs }));
-  // registerTileset ist sync (returns void), kein await nötig — aber wir wrappen
-  // in try/catch, weil die interne Pipeline Promise-spawning Side-Effects hat.
+  // registerTileset is synchronous (returns void) so no await is needed,
+  // but it is wrapped in try/catch because the internal pipeline has
+  // promise-spawning side effects.
   try {
     for (const ts of defaultTs) {
       gameBridge.registerTileset({

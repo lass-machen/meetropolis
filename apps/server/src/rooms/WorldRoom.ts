@@ -80,9 +80,9 @@ export class WorldRoom extends Room<{ state: WorldState }> {
   public zoneLockState: ZoneLockState = createZoneLockState();
   // Two-Phase Join: pending clients waiting on session_takeover decision
   public pendingClients: Map<string, PendingClient> = new Map();
-  // Session-Hygiene: letzte Aktivität je sessionId (server-only, no schema broadcast)
+  // Session hygiene: last activity per sessionId (server-only, no schema broadcast).
   public lastSeen: Map<string, number> = new Map();
-  // Graceful-Leave: pending delete-Timer pro sessionId, fuer Reconnect-Heal
+  // Graceful leave: pending delete timer per sessionId, used for reconnect healing.
   public pendingLeaves: Map<string, ReturnType<typeof setTimeout>> = new Map();
 
   // Tunables (env-overridable). Exposed as instance fields so helpers
@@ -99,7 +99,7 @@ export class WorldRoom extends Room<{ state: WorldState }> {
     this.setState(new WorldState());
     // Room is auto-disposed when empty (Colyseus default; explicit for clarity)
     this.autoDispose = true;
-    // Flooding-Schutz: harter Client-Deckel pro Room (env override möglich)
+    // Flood protection: hard client cap per room (env-overridable).
     this.maxClients = Number(process.env.MAX_CLIENTS_PER_ROOM ?? 200);
     logger.info('[WorldRoom] Room created with initial state');
     activeRooms.add(this);
@@ -179,7 +179,7 @@ export class WorldRoom extends Room<{ state: WorldState }> {
     setupZoneLockHandlers(this, this.zoneLockState, this.prismaForPresence ?? createPrismaClient());
   }
 
-  // Editor-Updates können das Default-Spawn live setzen.
+  // Editor updates can set the default spawn live.
   // Public API used by api/utils/broadcast.ts (see types/global.d.ts).
   public setDefaultSpawn(mapId: string, pos: { x: number; y: number }): void {
     const s = sanitizePositionForMap(this, pos.x, pos.y, mapId);
@@ -196,9 +196,9 @@ export class WorldRoom extends Room<{ state: WorldState }> {
   }
 
   // Map-scoped broadcast. Public so handlers/lifecycle modules can call
-  // it without going through the helper import — used externally e.g.
-  // by `setupZoneLockHandlers` indirectly. Implementation lives in
-  // utils/broadcastHelpers.ts.
+  // it without going through the helper import, used externally for
+  // example by `setupZoneLockHandlers` indirectly. Implementation lives
+  // in utils/broadcastHelpers.ts.
   public broadcastToMap(mapId: string, event: string, data: unknown, except?: Client): void {
     broadcastToMap(this, mapId, event, data, except);
   }

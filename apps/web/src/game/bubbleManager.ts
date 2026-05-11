@@ -4,7 +4,7 @@ export type PlayerPos = { id: string; x: number; y: number };
 
 export class BubbleManager {
   private readonly radius: number;
-  // Hinweise: roomPrefix und joinedId werden aktuell nicht genutzt; belasse als Platzhalter für zukünftige Raummodelle
+  // Note: roomPrefix and joinedId are currently unused; they remain as placeholders for future room models.
   // private readonly roomPrefix = 'bubble';
   // private joinedId: string | null = null;
   private timer?: any;
@@ -19,15 +19,18 @@ export class BubbleManager {
   }
 
   private recompute(local: PlayerPos, others: PlayerPos[]) {
-    const inRange = others.filter(o => {
-      const dx = o.x - local.x;
-      const dy = o.y - local.y;
-      return dx * dx + dy * dy <= this.radius * this.radius;
-    }).map(o => o.id).sort();
+    const inRange = others
+      .filter((o) => {
+        const dx = o.x - local.x;
+        const dy = o.y - local.y;
+        return dx * dx + dy * dy <= this.radius * this.radius;
+      })
+      .map((o) => o.id)
+      .sort();
     // mark as used to satisfy TS noUnusedLocals
     void inRange;
-    // Single-Room: Bubble wird nur noch als Mitglieder-Set im App-State geführt
-    // Diese Klasse behält vorerst nur die Nähe-Logik (optional nutzbar), steuert aber keinen Raum mehr.
+    // Single-room model: the bubble is tracked only as a member set in the app state.
+    // This class keeps the proximity logic for optional use but no longer drives a room.
   }
 
   setAV(_av: AVManager | null) {}

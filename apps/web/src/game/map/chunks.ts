@@ -47,7 +47,7 @@ export function applyChunkUpdates(
 ): void {
   if (!scene.v2 || !scene.mapRef) return;
 
-  // Handle walls_auto separately — populate AutotileGrid instead of tilemap
+  // Handle walls_auto separately: populate AutotileGrid instead of the tilemap.
   if (layerName === 'walls_auto') {
     if (!scene.autotileGrid || !scene.autotileRenderer) return;
     const cs = scene.v2.chunkSize;

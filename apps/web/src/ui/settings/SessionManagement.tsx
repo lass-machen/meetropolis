@@ -34,9 +34,9 @@ function detectBrowser(ua: string, fallback: string, desktopAppLabel: string): s
 
 function parseUserAgent(ua: string | null, t: (k: string) => string): { device: string; browser: string } {
   if (!ua) return { device: t('sessions.unknownDevice'), browser: t('sessions.unknownBrowser') };
-  // Brand-Name fürs Desktop-App-Label kommt aus i18n (`header.brandName`),
-  // mit OSS-Default "Workspace". Ergibt z.B. "Workspace Desktop" im OSS,
-  // "Meetropolis Desktop" wenn das Brand-Submodule den Key überschreibt.
+  // Brand name for the desktop-app label comes from i18n (`header.brandName`),
+  // with OSS default "Workspace". For example: "Workspace Desktop" in OSS,
+  // "Meetropolis Desktop" when the brand submodule overrides the key.
   const brandRaw = t('header.brandName');
   const brandName = brandRaw && brandRaw !== 'header.brandName' ? brandRaw : 'Workspace';
   const desktopAppLabel = `${brandName} Desktop`;

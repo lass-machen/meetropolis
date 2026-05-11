@@ -122,7 +122,7 @@ export async function buildAudioPipeline(params: BuildParams): Promise<TrackLike
   const isApple = detectIsApple();
   const supportsNoiseSuppression = detectSupportsNoiseSuppression();
 
-  // Apple priorisieren: native NS/EC/AGC nutzen, wenn verfügbar
+  // Prefer Apple platforms: use native NS/EC/AGC when available.
   if (wantsNoiseSuppression && isApple && supportsNoiseSuppression) {
     const nativeTrack = await createAudioTrack(buildAudioConstraints(deviceId, settings, true));
     try {

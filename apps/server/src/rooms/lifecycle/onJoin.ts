@@ -284,8 +284,8 @@ function cancelPendingLeavesForIdentity(activeRooms: Set<WorldRoom>, joiningIden
   }
 }
 
-// If a duplicate session exists (and isn't a ghost), enqueue this client
-// as pending and notify it. Returns true if pending — caller must skip
+// If a duplicate session exists (and is not a ghost), enqueue this client
+// as pending and notify it. Returns true if pending: the caller must skip
 // player creation. Returns false if no conflict (caller proceeds).
 function tryRegisterAsPending(
   room: WorldRoom,
@@ -308,7 +308,7 @@ function tryRegisterAsPending(
         room.pendingClients.delete(joiningIdentity);
       }
 
-      // Store new client as pending — no player creation yet
+      // Store the new client as pending: no player creation yet.
       room.pendingClients.set(joiningIdentity, {
         client,
         options: options || {},

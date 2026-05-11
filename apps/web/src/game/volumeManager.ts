@@ -2,10 +2,10 @@ export type Point = { x: number; y: number };
 export type Polygon = { name: string; points: Array<Point | [number, number]> };
 
 export type VolumeRules = {
-  nearRadius: number; // Distanz, bis zu der volle Lautstärke gilt
-  farRadius: number; // Distanz, ab der stumm gilt
-  outsideBubbleAttenuation: number; // Lautstärke für Außen-vs-Bubble
-  differentBubbleMute?: boolean; // Unterschiedliche Bubble-IDs vollständig trennen (default: true)
+  nearRadius: number; // Distance under which full volume applies.
+  farRadius: number; // Distance at or beyond which audio is muted.
+  outsideBubbleAttenuation: number; // Attenuation factor for outside-vs-bubble pairs.
+  differentBubbleMute?: boolean; // When true, isolate different bubble groups fully (default: true).
 };
 
 export interface VolumeAV {
@@ -17,7 +17,7 @@ export type Providers = {
   getRemotes: () => Record<string, { x: number; y: number }>;
   getZones: () => Polygon[];
   getFollowTarget: () => string | null;
-  // Map: colyseusId -> bubbleGroupId (gleiche ID = gleiche Bubble)
+  // Map: colyseusId -> bubbleGroupId (same id means same bubble).
   getBubbleGroups: () => Record<string, string>;
   getLocalDnd?: () => boolean;
 };
@@ -55,27 +55,25 @@ export function computePairVolume(
   bubbleGroups: Record<string, string> | Set<string>,
   rules: VolumeRules,
 ): number {
-  // Follow hat höchste Priorität (darf Zonenregeln außer Kraft setzen)
+  // Follow always wins, even over zone rules.
   if (followTarget && followTarget === remote.id) {
     return 1;
   }
 
-  // Zuerst Zonen-Berechtigung bestimmen (Schallschutz zwischen Zonen)
+  // Resolve zone membership first to enforce per-zone audio isolation.
   const localZone = zones.find((z) => pointInPolygon(local, z.points));
   const remoteZone = zones.find((z) => pointInPolygon(remote, z.points));
 
-  // Wenn einer in einer Zone ist und der andere nicht: stumm
+  // One party in a zone and the other outside: mute.
   if ((localZone && !remoteZone) || (!localZone && remoteZone)) return 0;
-  // Wenn beide in Zonen, aber in unterschiedlichen: stumm
+  // Both in zones but different zones: mute.
   if (localZone && remoteZone && localZone.name !== remoteZone.name) return 0;
 
-  // Ab hier sind die beiden grundsätzlich hörbar:
-  // - beide in derselben Zone, oder
-  // - beide außerhalb aller Zonen
+  // From here on the pair is audible: same zone or both outside any zone.
 
-  // Bubble-Logik:
-  // - Legacy: Set<string> = "in bubble" (keine Group-ID verfügbar)
-  // - Current: Record<string, string> = participantId -> bubbleGroupId
+  // Bubble logic.
+  // Legacy: Set<string> = "in bubble" (no group id available).
+  // Current: Record<string, string> = participantId -> bubbleGroupId.
   if (bubbleGroups instanceof Set) {
     const localInBubble = bubbleGroups.has(local.id);
     const remoteInBubble = bubbleGroups.has(remote.id);
@@ -87,19 +85,19 @@ export function computePairVolume(
     const bothInBubble = !!localGroup && !!remoteGroup;
     if (bothInBubble) {
       if (localGroup === remoteGroup) return 1;
-      // Unterschiedliche Bubbles innerhalb derselben Zone isolieren
+      // Isolate distinct bubbles within the same zone.
       return rules.differentBubbleMute === false ? rules.outsideBubbleAttenuation : 0;
     }
-    // genau einer in Bubble → stark abschwächen (hörbar, aber deutlich)
+    // Exactly one party is in a bubble: attenuate but stay audible.
     if (!!localGroup !== !!remoteGroup) {
       return rules.outsideBubbleAttenuation;
     }
   }
 
-  // Wenn in derselben Zone und keine Bubble-Sonderfälle: volle Lautstärke (distanzunabhängig)
+  // Same zone with no bubble specifics: full volume regardless of distance.
   if (localZone && remoteZone && localZone.name === remoteZone.name) return 1;
 
-  // Andernfalls: beide außerhalb von Zonen → Distanzbasierte Abschwächung
+  // Otherwise (both outside any zone): distance based attenuation.
   const dx = remote.x - local.x;
   const dy = remote.y - local.y;
   const d = Math.hypot(dx, dy);

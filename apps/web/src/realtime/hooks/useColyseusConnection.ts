@@ -163,13 +163,13 @@ function performScheduleReconnect(
   } catch {}
   const now = Date.now();
   if (refs.coolDownUntilRef.current > now) {
-    // In Cooldown (z. B. bei 'Insufficient resources') – warte bis Ablauf.
+    // In cooldown (e.g. on 'Insufficient resources'); wait until it expires.
   } else {
-    // Exponentieller Backoff
+    // Exponential backoff.
     const attempt = ++refs.reconnectAttemptsRef.current;
-    // Circuit breaker: nach vielen Fehlversuchen längeren Cooldown setzen
+    // Circuit breaker: extend the cooldown after many failed attempts.
     if (attempt >= 8) {
-      refs.coolDownUntilRef.current = now + 60_000; // 60s Pause
+      refs.coolDownUntilRef.current = now + 60_000; // 60s pause.
       refs.reconnectAttemptsRef.current = 0;
     }
   }
@@ -203,7 +203,7 @@ async function performConnect(
   const { apiBase, me, localPosRef, colyseusRef, setConnectionStatus, refs, scheduleReconnect } = args;
   refs.connectingRef.current = true;
   try {
-    // Server entscheidet über Default-Spawn: keine LocalStorage-Spawninjektion mehr
+    // The server owns the default spawn; no localStorage spawn injection anymore.
     const positionToUse: { x: number; y: number; direction?: string } | undefined =
       localPosRef.current && typeof localPosRef.current.x === 'number' && typeof localPosRef.current.y === 'number'
         ? { x: localPosRef.current.x, y: localPosRef.current.y }
@@ -284,13 +284,13 @@ function performHandleError(ev: any[], disposed: boolean, onReconnect: () => voi
       return;
     }
 
-    // Handle session taken over — old client gets kicked when new client takes over
+    // Handle session takeover: the old client is kicked when a new client takes over.
     const isSessionTakenOver = code === 4007 || text === 'session_taken_over';
     if (isSessionTakenOver) {
       showSessionTakenOverOverlay();
       colyseusRef.current = null;
       refs.connectingRef.current = false;
-      // Do NOT auto-reconnect — user must explicitly click reconnect
+      // Do NOT auto-reconnect: the user must click reconnect explicitly.
       return;
     }
 

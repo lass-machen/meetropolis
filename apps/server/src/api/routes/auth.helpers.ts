@@ -5,7 +5,7 @@ import { logger } from '../../logger.js';
 
 /**
  * Create a session record for a freshly issued JWT.
- * Errors are logged but never thrown — session tracking is non-critical.
+ * Errors are logged but never thrown: session tracking is non-critical.
  */
 export async function recordSession(
   prisma: PrismaClient,
@@ -34,7 +34,5 @@ export function isNativeClientRequest(req: express.Request): boolean {
 }
 
 export function getRequestToken(req: express.Request): string | null {
-  return (req.cookies?.auth_token as string | undefined)
-    || req.headers.authorization?.replace('Bearer ', '')
-    || null;
+  return (req.cookies?.auth_token as string | undefined) || req.headers.authorization?.replace('Bearer ', '') || null;
 }

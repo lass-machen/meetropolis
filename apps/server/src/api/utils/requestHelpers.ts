@@ -1,17 +1,17 @@
 import type { Request } from 'express';
 
 /**
- * Express 5 / @types/express@5 typen `req.params[k]` als `string | string[]`,
- * weil path-to-regexp@8 Wildcard-Splats (`/foo/*splat`) unterstützt, die
- * mehrere Pfadsegmente als Array liefern.
+ * Express 5 / @types/express@5 type `req.params[k]` as `string | string[]`
+ * because path-to-regexp@8 supports wildcard splats (`/foo/*splat`) that
+ * deliver multiple path segments as an array.
  *
- * In diesem Repo werden ausschließlich benannte Single-Segment-Params
- * (`:id`, `:objId`, `:userId`, …) verwendet. Praktisch ist der Wert daher
- * immer ein einzelner String — nie ein Array.
+ * This repo only uses named single-segment params (`:id`, `:objId`,
+ * `:userId`, ...). The value is therefore always a single string, never an
+ * array.
  *
- * Dieser Helper kapselt den Cast an einer Stelle und bewahrt die runtime
- * sicher: falls Express je doch ein Array liefern sollte (z. B. wenn jemand
- * eine Wildcard-Route hinzufügt), wird das erste Segment genommen.
+ * This helper centralises the cast while keeping runtime safety: if Express
+ * ever returns an array (for example after someone adds a wildcard route),
+ * the first segment is used.
  */
 export function pathParam(req: Request, name: string): string {
   const value = req.params[name];

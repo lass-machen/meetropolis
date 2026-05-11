@@ -72,9 +72,9 @@ export function useWorldUiHelpers(params: {
  */
 export function useParticipantListEffects(params: { refs: WorldRefs; me: WorldMe; buildParticipantList: () => void }) {
   const { refs, me, buildParticipantList } = params;
-  // me?.id reicht als dep — me selbst kann durch jeden auth-Refresh neue
-  // Object-Identitaet bekommen, was eine Render-Loop ausloest. Die einzige
-  // semantisch relevante Aenderung ist die userId.
+  // Depend on me?.id rather than me: any auth refresh can give `me` a fresh
+  // object identity and trigger a render loop, even though the only
+  // semantically relevant change is the userId.
 
   React.useEffect(() => {
     if (me) {

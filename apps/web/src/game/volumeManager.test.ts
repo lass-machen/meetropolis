@@ -22,7 +22,7 @@ describe('computePairVolume', () => {
       zones,
       null,
       new Set(),
-      rules
+      rules,
     );
     expect(v).toBe(1);
   });
@@ -34,7 +34,7 @@ describe('computePairVolume', () => {
       zones,
       null,
       new Set(),
-      rules
+      rules,
     );
     const vFar = computePairVolume(
       { id: 'me', x: 250, y: 250 },
@@ -42,7 +42,7 @@ describe('computePairVolume', () => {
       zones,
       null,
       new Set(),
-      rules
+      rules,
     );
     expect(vNear).toBeGreaterThan(0.9);
     expect(vFar).toBe(0);
@@ -50,13 +50,13 @@ describe('computePairVolume', () => {
 
   it('bubble members hear full volume', () => {
     const v = computePairVolume(
-      // Beide außerhalb von Zonen
+      // Both participants outside any zone.
       { id: 'me', x: 250, y: 250 },
       { id: 'u2', x: 260, y: 260 },
       zones,
       null,
       new Set(['me', 'u2']),
-      rules
+      rules,
     );
     expect(v).toBe(1);
   });
@@ -68,7 +68,7 @@ describe('computePairVolume', () => {
       zones,
       null,
       new Set(['me']),
-      rules
+      rules,
     );
     const v2 = computePairVolume(
       { id: 'me', x: 10, y: 10 },
@@ -76,7 +76,7 @@ describe('computePairVolume', () => {
       zones,
       null,
       new Set(['out']),
-      rules
+      rules,
     );
     expect(v1).toBeCloseTo(0.2, 5);
     expect(v2).toBeCloseTo(0.2, 5);
@@ -84,39 +84,30 @@ describe('computePairVolume', () => {
 
   it('mutes when local is in a zone and remote is outside', () => {
     const v = computePairVolume(
-      { id: 'me', x: 50, y: 50 },   // in zone A
-      { id: 'u', x: 250, y: 250 },  // außerhalb
+      { id: 'me', x: 50, y: 50 }, // in zone A
+      { id: 'u', x: 250, y: 250 }, // außerhalb
       zones,
       null,
       new Set(),
-      rules
+      rules,
     );
     expect(v).toBe(0);
   });
 
   it('mutes when both are in different zones', () => {
     const v = computePairVolume(
-      { id: 'me', x: 50, y: 50 },    // in zone A
-      { id: 'u', x: 350, y: 50 },    // in zone B
+      { id: 'me', x: 50, y: 50 }, // in zone A
+      { id: 'u', x: 350, y: 50 }, // in zone B
       zones,
       null,
       new Set(),
-      rules
+      rules,
     );
     expect(v).toBe(0);
   });
 
   it('follow target is always full volume', () => {
-    const v = computePairVolume(
-      { id: 'me', x: 0, y: 0 },
-      { id: 'u', x: 2000, y: 2000 },
-      zones,
-      'u',
-      new Set(),
-      rules
-    );
+    const v = computePairVolume({ id: 'me', x: 0, y: 0 }, { id: 'u', x: 2000, y: 2000 }, zones, 'u', new Set(), rules);
     expect(v).toBe(1);
   });
 });
-
-

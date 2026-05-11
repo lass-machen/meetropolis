@@ -14,7 +14,7 @@ export const ZoneAccessPanel = React.memo(function ZoneAccessPanel(props: ZoneAc
   const { t } = useTranslation();
   const locks = useZoneLockStore((s) => s.locks);
 
-  // Finde Lock für aktuelle Zone, wo wir Zugang haben
+  // Find a lock for the current zone where the local user has access.
   const currentLock = currentZone
     ? locks.find((l) => l.zoneName === currentZone && l.accessList.includes(mySessionId))
     : undefined;

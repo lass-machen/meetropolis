@@ -3,9 +3,9 @@ interface AuthLoadingScreenProps {
   me: { id: string; email: string; name?: string } | null;
   positionReady: boolean;
   apiBase: string;
-  // Caller darf sync oder async Handler übergeben; React-Convention.
-  // Aktuell nicht vom Component selbst aufgerufen (Loading-Screen rendert nur),
-  // bleibt für API-Stabilität dabei.
+  // Callers may pass a sync or async handler, matching the React convention.
+  // The component itself does not invoke this currently (the loading screen
+  // only renders), but the prop is kept for API stability.
   onAuthComplete: () => void | Promise<void>;
 }
 

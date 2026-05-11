@@ -26,18 +26,19 @@ i18n
   });
 
 /**
- * Wenn das Brand-Submodule installiert ist, lädt der Loader die marketing-
- * Bundles (de/en) und mergt sie ins i18next:
- *  - `marketing.publicOverrides.<section>.<key>` → public-namespace (überschreibt
- *    die OSS-Defaults wie `header.brandName`, `features.featureXImage`).
- *  - Alle anderen marketing-Top-Level-Keys (z.B. `hero`, `pricing`, `consent`)
- *    werden in den public-Namespace gemerged, damit Brand-Sections die
- *    Marketing-Strings finden.
+ * When the brand submodule is installed, this loader pulls the marketing
+ * bundles (de/en) and merges them into i18next:
+ *  - `marketing.publicOverrides.<section>.<key>` is merged into the `public`
+ *    namespace and overrides OSS defaults like `header.brandName` or
+ *    `features.featureXImage`.
+ *  - All other marketing top-level keys (e.g. `hero`, `pricing`, `consent`)
+ *    are merged into the `public` namespace so brand sections can find their
+ *    marketing strings.
  *
- * Im OSS-Build (kein Brand) bleibt es bei den OSS-Locales; Brand-spezifische
- * Keys liefern dann den Key-String selbst zurück, was die Komponenten als
- * "leer/abwesend" interpretieren (siehe FeatureShowcaseSection.tsx,
- * AuthLayout.tsx, PublicHeader.tsx, PublicFooter.tsx).
+ * In OSS builds (no brand), only the OSS locales remain. Brand-specific keys
+ * then return their own key string, which the components interpret as
+ * "missing/empty" (see FeatureShowcaseSection.tsx, AuthLayout.tsx,
+ * PublicHeader.tsx, PublicFooter.tsx).
  */
 async function loadBrandOverrides() {
   try {

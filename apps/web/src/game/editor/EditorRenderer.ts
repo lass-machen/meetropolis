@@ -1,11 +1,11 @@
 /**
- * EditorRenderer - Reine Rendering-Schicht für den Editor
- * 
- * Prinzipien:
- * - Keine Business-Logik
- * - Keine State-Verwaltung
- * - Nur "dumb renderer"
- * - Explizite Fehler
+ * EditorRenderer: pure rendering layer for the editor.
+ *
+ * Principles:
+ * - No business logic.
+ * - No state ownership.
+ * - Acts as a dumb renderer driven by external state.
+ * - Fails loudly on misuse.
  */
 
 import Phaser from 'phaser';
@@ -14,7 +14,7 @@ import { lookupDirectionalImage } from '../../lib/directionalImageRegistry';
 
 export class EditorRenderer {
   private scene: Phaser.Scene;
-  
+
   // Graphics Objects
   private zonesGraphics: Phaser.GameObjects.Graphics | undefined;
   private spawnGraphics: Phaser.GameObjects.Graphics | undefined;
@@ -39,7 +39,7 @@ export class EditorRenderer {
   private hashString(str: string): string {
     let hash = 0;
     for (let i = 0; i < Math.min(str.length, 200); i++) {
-      hash = ((hash << 5) - hash) + str.charCodeAt(i);
+      hash = (hash << 5) - hash + str.charCodeAt(i);
       hash |= 0;
     }
     return String(Math.abs(hash));
@@ -76,9 +76,7 @@ export class EditorRenderer {
     this.scene.events.on(Phaser.Scenes.Events.POST_UPDATE, this.postUpdateListener);
   }
 
-  /**
-   * Rendert Zonen-Overlays
-   */
+  /** Render zone overlays. */
   public renderZones(zones: Zone[], visible: boolean = true): void {
     if (!this.zonesGraphics) {
       throw new Error('ZonesGraphics not initialized');
@@ -116,9 +114,9 @@ export class EditorRenderer {
       this.zonesGraphics!.fillPath();
       this.zonesGraphics!.strokePath();
 
-      // Zone-Name rendern (in labelLayer for zoom-independent sizing)
-      const minX = Math.min(...zone.points.map(p => p.x)) + 5;
-      const minY = Math.min(...zone.points.map(p => p.y)) + 5;
+      // Render the zone name (placed in labelLayer for zoom-independent sizing).
+      const minX = Math.min(...zone.points.map((p) => p.x)) + 5;
+      const minY = Math.min(...zone.points.map((p) => p.y)) + 5;
 
       const text = this.scene.add.text(0, 0, zone.name, {
         fontSize: '11px',
@@ -175,9 +173,7 @@ export class EditorRenderer {
     this.zoneLabelWorldPositions = [];
   }
 
-  /**
-   * Rendert Spawn-Marker
-   */
+  /** Render the spawn marker. */
   public renderSpawn(spawn: { x: number; y: number } | null): void {
     if (!this.spawnGraphics) {
       throw new Error('SpawnGraphics not initialized');
@@ -189,15 +185,15 @@ export class EditorRenderer {
       return;
     }
 
-    // Äußerer Kreis
+    // Outer ring.
     this.spawnGraphics.lineStyle(3, 0x22c55e, 1);
     this.spawnGraphics.strokeCircle(spawn.x, spawn.y, 12);
 
-    // Innerer Kreis
+    // Inner disc.
     this.spawnGraphics.fillStyle(0x22c55e, 0.3);
     this.spawnGraphics.fillCircle(spawn.x, spawn.y, 8);
 
-    // Kreuz
+    // Crosshair.
     this.spawnGraphics.lineStyle(2, 0x22c55e, 1);
     this.spawnGraphics.beginPath();
     this.spawnGraphics.moveTo(spawn.x - 6, spawn.y);
@@ -207,9 +203,7 @@ export class EditorRenderer {
     this.spawnGraphics.strokePath();
   }
 
-  /**
-   * Rendert Selektion-Rechteck
-   */
+  /** Render the selection rectangle. */
   public renderSelection(rect: { x: number; y: number; w: number; h: number } | null, color: number = 0x3b82f6): void {
     if (!this.selectionGraphics) {
       throw new Error('SelectionGraphics not initialized');
@@ -224,14 +218,12 @@ export class EditorRenderer {
     this.selectionGraphics.lineStyle(2, color, 1);
     this.selectionGraphics.strokeRect(rect.x, rect.y, rect.w, rect.h);
 
-    // Gestrichelte Ecken für bessere Sichtbarkeit
+    // Translucent fill to improve visibility over busy tiles.
     this.selectionGraphics.fillStyle(color, 0.1);
     this.selectionGraphics.fillRect(rect.x, rect.y, rect.w, rect.h);
   }
 
-  /**
-   * Rendert Cursor-Highlight (Tile-Outline bei Hover)
-   */
+  /** Render the cursor highlight (tile outline on hover). */
   public renderCursorHighlight(tileX: number, tileY: number, tileSize: number): void {
     if (!this.cursorHighlight) return;
     this.cursorHighlight.clear();
@@ -239,9 +231,7 @@ export class EditorRenderer {
     this.cursorHighlight.strokeRect(tileX * tileSize, tileY * tileSize, tileSize, tileSize);
   }
 
-  /**
-   * Entfernt Cursor-Highlight
-   */
+  /** Remove the cursor highlight. */
   public clearCursorHighlight(): void {
     this.cursorHighlight?.clear();
   }
@@ -251,14 +241,21 @@ export class EditorRenderer {
    */
   public renderPendingDeletes(
     objectsToDelete: (number | string)[],
-    mapObjects: Array<{ id: number | string; tileX: number; tileY: number; width: number; height: number; scaleFactor?: number }>
+    mapObjects: Array<{
+      id: number | string;
+      tileX: number;
+      tileY: number;
+      width: number;
+      height: number;
+      scaleFactor?: number;
+    }>,
   ): void {
     if (!this.pendingDeleteGraphics) return;
     this.pendingDeleteGraphics.clear();
 
     if (objectsToDelete.length === 0) return;
 
-    const deleteSet = new Set(objectsToDelete.map(id => String(id)));
+    const deleteSet = new Set(objectsToDelete.map((id) => String(id)));
     const tileSize = 16;
 
     for (const obj of mapObjects) {
@@ -288,18 +285,18 @@ export class EditorRenderer {
     }
   }
 
-  /**
-   * Rendert Ghost-Sprite (Preview für Asset-Tool)
-   */
-  public renderGhost(preview: {
-    dataUrl: string;
-    width?: number | undefined;
-    height?: number | undefined;
-    rotation?: number | undefined;
-    packUuid?: string | undefined;
-    itemId?: string | undefined;
-    scaleFactor?: number | undefined;
-  } | null): void {
+  /** Render the ghost sprite (asset tool preview). */
+  public renderGhost(
+    preview: {
+      dataUrl: string;
+      width?: number | undefined;
+      height?: number | undefined;
+      rotation?: number | undefined;
+      packUuid?: string | undefined;
+      itemId?: string | undefined;
+      scaleFactor?: number | undefined;
+    } | null,
+  ): void {
     if (!preview) {
       this.clearGhost();
       return;
@@ -316,9 +313,10 @@ export class EditorRenderer {
       }
     }
 
-    const newKey = (preview.packUuid && preview.itemId)
-      ? `ghost_${preview.packUuid}_${preview.itemId}_${rotation}`
-      : `ghost_${this.hashString(resolvedUrl)}_${rotation}`;
+    const newKey =
+      preview.packUuid && preview.itemId
+        ? `ghost_${preview.packUuid}_${preview.itemId}_${rotation}`
+        : `ghost_${this.hashString(resolvedUrl)}_${rotation}`;
 
     // If key matches current ghost, just update properties without reloading texture
     if (this.ghostTextureKey === newKey && this.ghostSprite) {
@@ -353,7 +351,7 @@ export class EditorRenderer {
 
       this.ghostSprite.setScale(preview.scaleFactor ?? 1);
 
-      // Position auf letzte Cursor-Position oder Kamera-Center als Fallback
+      // Place at last cursor position, fall back to the camera centre.
       if (this.lastCursorPos) {
         this.ghostSprite.setPosition(this.lastCursorPos.x, this.lastCursorPos.y);
       } else {
@@ -361,7 +359,7 @@ export class EditorRenderer {
         this.ghostSprite.setPosition(cam.worldView.centerX, cam.worldView.centerY);
       }
 
-      // Alte Texture aufräumen
+      // Release the previous texture.
       if (this.ghostTextureKey && this.ghostTextureKey !== newKey) {
         if (this.scene.textures.exists(this.ghostTextureKey)) {
           this.scene.textures.remove(this.ghostTextureKey);
@@ -392,9 +390,7 @@ export class EditorRenderer {
     }
   }
 
-  /**
-   * Entfernt Ghost-Sprite
-   */
+  /** Remove the ghost sprite. */
   private clearGhost(): void {
     if (this.ghostSprite) {
       this.ghostSprite.destroy();
@@ -408,12 +404,10 @@ export class EditorRenderer {
     this.ghostTextureKey = undefined;
   }
 
-  /**
-   * Rendert Assets
-   */
+  /** Render asset sprites, creating, updating, or removing entries as needed. */
   public renderAssets(assets: Asset[]): void {
-    // Entferne nicht mehr existierende Assets
-    const assetIds = new Set(assets.map(a => a.id));
+    // Drop sprites whose asset is no longer present.
+    const assetIds = new Set(assets.map((a) => a.id));
     for (const [id, sprite] of this.assetSprites) {
       if (!assetIds.has(id)) {
         sprite.destroy();
@@ -421,7 +415,7 @@ export class EditorRenderer {
       }
     }
 
-    // Rendere/Update Assets
+    // Create or update sprites for the current asset list.
     for (const asset of assets) {
       const rotation = asset.rotation ?? 0;
       let useDirectionalImage = false;
@@ -435,13 +429,11 @@ export class EditorRenderer {
         }
       }
 
-      const textureKey = useDirectionalImage
-        ? `asset_${asset.id}_dir${rotation}`
-        : `asset_${asset.id}`;
+      const textureKey = useDirectionalImage ? `asset_${asset.id}_dir${rotation}` : `asset_${asset.id}`;
       let sprite = this.assetSprites.get(asset.id);
 
       if (!sprite) {
-        // Sprite muss erstellt werden
+        // Sprite needs to be created.
         if (!this.scene.textures.exists(textureKey) && !this.pendingTextures.has(textureKey)) {
           this.pendingTextures.add(textureKey);
 
@@ -482,7 +474,7 @@ export class EditorRenderer {
           this.assetSprites.set(asset.id, sprite);
         }
       } else {
-        // Sprite existiert, Position updaten
+        // Sprite already exists, just update position and transforms.
         sprite.setPosition(asset.x, asset.y);
         if (useDirectionalImage) {
           sprite.setRotation(0);
@@ -494,9 +486,7 @@ export class EditorRenderer {
     }
   }
 
-  /**
-   * Update Ghost-Position (wird bei Pointer-Move aufgerufen)
-   */
+  /** Update the ghost position (invoked on pointer move). */
   public updateGhostPosition(x: number, y: number): void {
     this.lastCursorPos = { x, y };
     if (this.ghostSprite) {
@@ -504,9 +494,7 @@ export class EditorRenderer {
     }
   }
 
-  /**
-   * Räumt alle Renderer-Objekte auf
-   */
+  /** Clear all renderer objects. */
   public clearAll(): void {
     this.zonesGraphics?.clear();
     this.spawnGraphics?.clear();
@@ -522,9 +510,7 @@ export class EditorRenderer {
     this.assetSprites.clear();
   }
 
-  /**
-   * Zerstört den Renderer und gibt Ressourcen frei
-   */
+  /** Destroy the renderer and release all resources. */
   public destroy(): void {
     // Remove POST_UPDATE listener
     if (this.postUpdateListener) {
@@ -547,4 +533,3 @@ export class EditorRenderer {
     this.pendingDeleteGraphics = undefined;
   }
 }
-

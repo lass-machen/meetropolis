@@ -5,7 +5,7 @@ import { act } from 'react';
 import { useGlobalAudioTracks } from './useGlobalAudioTracks';
 
 function TestHarness({ avRef }: { avRef: React.MutableRefObject<any> }) {
-  // test harness uses untyped avRef intentionally — mocked room shape only
+  // The test harness uses an untyped avRef intentionally: mocked room shape only.
   useGlobalAudioTracks({ avRef });
   return <div />;
 }

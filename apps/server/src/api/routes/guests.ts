@@ -16,11 +16,13 @@ import { pathParam } from '../utils/requestHelpers.js';
 import { getTenancyModule } from '../../tenancyLoader.js';
 import { sendIfAvailable } from '../../emailLoader.js';
 
-type GuestAdminGate = {
-  ok: true;
-  auth: NonNullable<ReturnType<typeof requireAuth>>;
-  tenant: NonNullable<ReturnType<typeof getTenantFromReq>>;
-} | { ok: false; status: number; error: string };
+type GuestAdminGate =
+  | {
+      ok: true;
+      auth: NonNullable<ReturnType<typeof requireAuth>>;
+      tenant: NonNullable<ReturnType<typeof getTenantFromReq>>;
+    }
+  | { ok: false; status: number; error: string };
 
 async function gateGuestAdminRequest(prisma: PrismaClient, req: express.Request): Promise<GuestAdminGate> {
   const auth = requireAuth(req);
@@ -113,27 +115,32 @@ async function sendGuestInviteEmail(
 ): Promise<string> {
   const tenantRecord = await prisma.tenant.findUnique({ where: { id: tenantId } });
   const slug = tenantRecord?.slug || tenantSlug;
-  // Public base URL: Self-Hoster setzen `PUBLIC_BASE_URL` oder
-  // `BILLING_PUBLIC_URL`. Brand-Domain (`*.meetropolis.de`) ist nur im
-  // Enterprise-Brand-Setup gesetzt — kein Fallback im OSS.
+  // Public base URL: self-hosters set `PUBLIC_BASE_URL` or
+  // `BILLING_PUBLIC_URL`. The brand domain (`*.meetropolis.de`) is only set
+  // in enterprise brand setups, with no fallback in OSS.
   const baseUrl = process.env.PUBLIC_BASE_URL || process.env.BILLING_PUBLIC_URL || '';
-  const magicLink = baseUrl
-    ? `${baseUrl.replace(/\/$/, '')}/#/guest?token=${rawToken}`
-    : `/#/guest?token=${rawToken}`;
+  const magicLink = baseUrl ? `${baseUrl.replace(/\/$/, '')}/#/guest?token=${rawToken}` : `/#/guest?token=${rawToken}`;
 
   const inviter = await prisma.user.findUnique({ where: { id: inviterId }, select: { name: true, email: true } });
   const inviterName = inviter?.name || inviter?.email || 'Someone';
   const tenantName = tenantRecord?.name || slug;
 
   void sendIfAvailable(
-    (mod) => mod.sendGuestInvite({
-      to: normalizedEmail,
-      inviterName,
-      tenantName,
-      guestName: name || user.name || '',
-      magicLinkUrl: magicLink,
-      expiresAt: expiresAt.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
-    }),
+    (mod) =>
+      mod.sendGuestInvite({
+        to: normalizedEmail,
+        inviterName,
+        tenantName,
+        guestName: name || user.name || '',
+        magicLinkUrl: magicLink,
+        expiresAt: expiresAt.toLocaleDateString('de-DE', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        }),
+      }),
     'guest.invite.email_failed',
     { email: normalizedEmail },
   );
@@ -143,11 +150,17 @@ async function sendGuestInviteEmail(
 
 async function handleCreateGuest(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
   const gate = await gateGuestAdminRequest(prisma, req);
-  if (!gate.ok) { res.status(gate.status).json({ error: gate.error }); return; }
+  if (!gate.ok) {
+    res.status(gate.status).json({ error: gate.error });
+    return;
+  }
   const { auth, tenant } = gate;
 
   const parse = createGuestSchema.safeParse(req.body || {});
-  if (!parse.success) { res.status(400).json({ error: 'email and expiresAt required' }); return; }
+  if (!parse.success) {
+    res.status(400).json({ error: 'email and expiresAt required' });
+    return;
+  }
 
   const { email, name, expiresAt: expiresAtStr } = parse.data;
   const expiresAt = new Date(expiresAtStr);
@@ -160,7 +173,10 @@ async function handleCreateGuest(prisma: PrismaClient, req: express.Request, res
   const user = await ensureGuestUser(prisma, normalizedEmail, name);
 
   const upsert = await upsertGuestMembership(prisma, tenant.id, user.id, expiresAt);
-  if (!upsert.ok) { res.status(upsert.status).json({ error: upsert.error }); return; }
+  if (!upsert.ok) {
+    res.status(upsert.status).json({ error: upsert.error });
+    return;
+  }
   const guestMembership = upsert.membership;
 
   const rawToken = await issueGuestToken(prisma, guestMembership.id, expiresAt);
@@ -186,7 +202,10 @@ async function handleCreateGuest(prisma: PrismaClient, req: express.Request, res
 
 async function handleListGuests(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
   const gate = await gateGuestAdminRequest(prisma, req);
-  if (!gate.ok) { res.status(gate.status).json({ error: gate.error }); return; }
+  if (!gate.ok) {
+    res.status(gate.status).json({ error: gate.error });
+    return;
+  }
   const { tenant } = gate;
 
   const guests = await prisma.membership.findMany({
@@ -195,25 +214,33 @@ async function handleListGuests(prisma: PrismaClient, req: express.Request, res:
     orderBy: { createdAt: 'desc' },
   });
 
-  res.json(guests.map((g) => ({
-    id: g.id,
-    email: g.user.email,
-    name: g.user.name,
-    expiresAt: g.expiresAt?.toISOString() || null,
-    createdAt: g.createdAt.toISOString(),
-  })));
+  res.json(
+    guests.map((g) => ({
+      id: g.id,
+      email: g.user.email,
+      name: g.user.name,
+      expiresAt: g.expiresAt?.toISOString() || null,
+      createdAt: g.createdAt.toISOString(),
+    })),
+  );
 }
 
 async function handleRevokeGuest(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
   const gate = await gateGuestAdminRequest(prisma, req);
-  if (!gate.ok) { res.status(gate.status).json({ error: gate.error }); return; }
+  if (!gate.ok) {
+    res.status(gate.status).json({ error: gate.error });
+    return;
+  }
   const { tenant } = gate;
 
   const membershipId = pathParam(req, 'membershipId');
   const guestMembership = await prisma.membership.findFirst({
     where: { id: membershipId, tenantId: tenant.id, role: 'guest' },
   });
-  if (!guestMembership) { res.status(404).json({ error: 'guest_not_found' }); return; }
+  if (!guestMembership) {
+    res.status(404).json({ error: 'guest_not_found' });
+    return;
+  }
 
   await prisma.guestToken.deleteMany({ where: { membershipId } });
   await prisma.session.deleteMany({ where: { userId: guestMembership.userId } });
@@ -241,7 +268,10 @@ async function createGuestSession(prisma: PrismaClient, userId: string, jwtToken
 
 async function handleGuestLogin(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
   const parse = guestLoginSchema.safeParse(req.body || {});
-  if (!parse.success) { res.status(400).json({ error: 'token required' }); return; }
+  if (!parse.success) {
+    res.status(400).json({ error: 'token required' });
+    return;
+  }
 
   const { token: rawToken } = parse.data;
   const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
@@ -258,8 +288,14 @@ async function handleGuestLogin(prisma: PrismaClient, req: express.Request, res:
     },
   });
 
-  if (!guestToken) { res.status(401).json({ error: 'invalid_token' }); return; }
-  if (guestToken.expiresAt < new Date()) { res.status(401).json({ error: 'token_expired' }); return; }
+  if (!guestToken) {
+    res.status(401).json({ error: 'invalid_token' });
+    return;
+  }
+  if (guestToken.expiresAt < new Date()) {
+    res.status(401).json({ error: 'token_expired' });
+    return;
+  }
   if (guestToken.membership.expiresAt && guestToken.membership.expiresAt < new Date()) {
     res.status(401).json({ error: 'guest_expired' });
     return;

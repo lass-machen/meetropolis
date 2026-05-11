@@ -1,15 +1,15 @@
 /**
- * Brand-Web Module Loader (Conditional Loading Pattern)
+ * Brand-web module loader (conditional loading pattern).
  *
- * Analog zu desktopLoader.ts und enterpriseWebLoader.ts.
- * Lädt @meetropolis/brand-web (privates Submodule unter packages/brand/) per
- * Dynamic Import. OSS-Builds ohne Submodule erhalten via optionalSubmodules-
- * Plugin ein leeres Modul, der Loader gibt dann null zurück; das OSS rendert
- * generische Fallback-Sections statt Marketing-Inhalte.
+ * Mirrors desktopLoader.ts and enterpriseWebLoader.ts. Loads
+ * @meetropolis/brand-web (a private submodule under packages/brand/) via
+ * dynamic import. OSS builds without the submodule receive an empty module
+ * through the optionalSubmodules plugin, so the loader returns null and the
+ * OSS app renders generic fallback sections instead of marketing content.
  *
- * Im Brand-Modul liegen ausschließlich Verkaufs- und Brand-spezifische Inhalte
- * (Hero, Pricing, Comparison, SocialProof, FinalCta, ProblemSolution, Legal,
- * Consent + Meta-Pixel, BrandLogo/Wordmark, Marketing-i18n).
+ * The brand module contains only sales and brand-specific content (hero,
+ * pricing, comparison, social proof, final CTA, problem/solution, legal,
+ * consent + Meta pixel, BrandLogo/Wordmark, marketing i18n).
  */
 
 import type { ComponentType } from 'react';

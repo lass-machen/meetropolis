@@ -142,8 +142,8 @@ export class TrackManager implements Disposable {
       const room = this.deps.getRoom();
       if (!room) return;
 
-      // Prefer switchActiveDevice — replaces the underlying track seamlessly
-      // without changing the track SID, so remote clients don't lose audio.
+      // Prefer switchActiveDevice: it replaces the underlying track
+      // seamlessly without changing the track SID, so remote clients keep audio.
       try {
         await room.switchActiveDevice('audioinput', deviceId);
         AVLogger.info('track.mic.switch_device_seamless', { deviceId });
@@ -305,8 +305,8 @@ export class TrackManager implements Disposable {
     const actual = room ? this.isMicrophoneEnabled : state.published;
 
     if (actual === enabled && !state.pending) {
-      // published spiegelt "Publication existiert", nicht "ist hörbar".
-      // Bei vorhandenem (ggf. gemutetem) Track bleibt published=true.
+      // `published` reflects "publication exists", not "is audible".
+      // For a present (possibly muted) track, `published` stays true.
       const mst = (state.track as TrackLike | null)?.mediaStreamTrack;
       const trackIsLive = !!state.track && (!mst || mst.readyState === 'live');
       state.published = trackIsLive || actual;
@@ -358,7 +358,7 @@ export class TrackManager implements Disposable {
           this.deps.onTrackPublished();
           return;
         }
-        // Fallback: Track ist nicht mehr brauchbar — kompletter Republish.
+        // Fallback: the track is unusable; perform a full republish.
         AVLogger.info('track.mic.soft_unmute_fallback_publish');
       }
       await publishMicrophone({

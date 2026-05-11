@@ -1,5 +1,5 @@
 import { spawnColyseusBot } from './workers/colyseusBot.js';
-// LiveKit-Bot wird dynamisch importiert, um optionale Abhängigkeiten zu erlauben
+// The LiveKit bot is imported dynamically so the dependency stays optional.
 
 export async function runScenario(opts: {
   mode: 'node' | 'browser';
@@ -26,9 +26,16 @@ export async function runScenario(opts: {
     if (!skipLivekit) {
       try {
         const mod = await import('./workers/livekitBot.js');
-        bots.push(await (mod as any).spawnLivekitBot({ livekitUrl: opts.livekitUrl, apiBase: opts.apiBase, roomName: opts.room, identity }));
+        bots.push(
+          await (mod as any).spawnLivekitBot({
+            livekitUrl: opts.livekitUrl,
+            apiBase: opts.apiBase,
+            roomName: opts.room,
+            identity,
+          }),
+        );
       } catch {
-        // LiveKit optional: wenn Import fehlschlägt, weiterhin Colyseus-Only laufen lassen
+        // LiveKit is optional: when the import fails, keep running Colyseus-only.
       }
     }
   }
@@ -39,8 +46,8 @@ export async function runScenario(opts: {
   }
   // Stop all
   for (const b of bots) {
-    try { await b.stop(); } catch {}
+    try {
+      await b.stop();
+    } catch {}
   }
 }
-
-

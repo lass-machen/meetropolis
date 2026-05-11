@@ -17,14 +17,14 @@ export async function computeBillingEnabled(): Promise<boolean> {
 }
 
 /**
- * OSS public config — exposed without auth. Returns the public-registration
+ * OSS public config: exposed without auth. Returns the public-registration
  * flag, defaulting to the PUBLIC_REGISTRATION_ENABLED env (defaults to true),
  * plus the `billingEnabled` capability flag.
  *
  * The enterprise module overrides this endpoint to read the registration flag
  * from the `internal` tenant in DB. Express dispatches to the first registered
  * handler, so the OSS variant only serves when the enterprise module is
- * absent — registerAdminRoutes is called BEFORE registerEnterpriseAdminRoutes.
+ * absent. registerAdminRoutes is called BEFORE registerEnterpriseAdminRoutes.
  */
 export async function handleOssPublicConfig(_req: express.Request, res: express.Response): Promise<void> {
   const env = process.env.PUBLIC_REGISTRATION_ENABLED;

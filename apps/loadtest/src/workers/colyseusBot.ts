@@ -65,17 +65,17 @@ export async function spawnColyseusBot(opts: { apiBase: string; identity: string
     ];
   }
 
-  // Zufällige Reihenfolge pro Bot
+  // Randomise the order per bot.
   waypoints = [...waypoints].sort(() => Math.random() - 0.5);
 
   let alive = true;
   let idx = 0;
   let pos = { x: waypoints[0].x, y: waypoints[0].y };
-  const speed = 40; // Pixel pro Sekunde
+  const speed = 40; // Pixels per second.
   let lastTs = Date.now();
 
   void (async () => {
-    // initiale Position
+    // Initial position.
     try {
       room.send('move', { x: pos.x, y: pos.y, direction: 'down' });
     } catch {}
@@ -88,7 +88,7 @@ export async function spawnColyseusBot(opts: { apiBase: string; identity: string
       const dy = target.y - pos.y;
       const dist = Math.hypot(dx, dy);
       if (dist < 3) {
-        // kurze Verweilzeit in Zone, dann nächster Waypoint
+        // Brief dwell time in the zone before moving to the next waypoint.
         idx++;
         await new Promise((r) => setTimeout(r, 500 + Math.floor(Math.random() * 800)));
         continue;

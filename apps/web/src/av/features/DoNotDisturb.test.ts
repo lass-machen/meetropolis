@@ -6,7 +6,7 @@ import { DoNotDisturb } from './DoNotDisturb';
  *
  * `setEnabled()` schedules side-effects on a Promise chain; simply awaiting
  * `setEnabled()` is not enough because the returned promise resolves as soon
- * as `prepareEnable()` / `prepareDisable()` + `enqueue()` are done — NOT when
+ * as `prepareEnable()` / `prepareDisable()` + `enqueue()` finish, NOT when
  * the side-effects themselves have completed.
  *
  * Yielding the microtask queue a few times is enough to flush the

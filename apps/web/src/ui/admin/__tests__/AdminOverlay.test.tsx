@@ -5,7 +5,7 @@ import type { AdminCapabilities } from '../../../app/routes/hooks/useFetchMe';
 
 // Mock OSS sub-panels to avoid their internal fetch calls. The enterprise
 // tab is loaded via the enterpriseWebLoader and rendered through React.lazy,
-// so it doesn't need to be mocked here — the loader returns null in tests.
+// so it does not need to be mocked here; the loader returns null in tests.
 vi.mock('../MapsAdmin', () => ({
   MapsAdmin: () => <div data-testid="maps-panel">MapsAdmin</div>,
 }));
@@ -38,14 +38,7 @@ describe('AdminOverlay', () => {
   });
 
   it('shows only OSS tabs when all capabilities are false', () => {
-    render(
-      <AdminOverlay
-        apiBase="http://test"
-        open={true}
-        onOpenChange={() => {}}
-        capabilities={OSS_CAPS}
-      />,
-    );
+    render(<AdminOverlay apiBase="http://test" open={true} onOpenChange={() => {}} capabilities={OSS_CAPS} />);
     // OSS tabs should be present
     expect(screen.getByText('Maps')).toBeInTheDocument();
     expect(screen.getByText('System Health')).toBeInTheDocument();
@@ -56,14 +49,7 @@ describe('AdminOverlay', () => {
   });
 
   it('shows the Enterprise tab when hasBilling is true', () => {
-    render(
-      <AdminOverlay
-        apiBase="http://test"
-        open={true}
-        onOpenChange={() => {}}
-        capabilities={FULL_CAPS}
-      />,
-    );
+    render(<AdminOverlay apiBase="http://test" open={true} onOpenChange={() => {}} capabilities={FULL_CAPS} />);
     expect(screen.getByText('Enterprise')).toBeInTheDocument();
     expect(screen.getByText('Maps')).toBeInTheDocument();
     expect(screen.getByText('System Health')).toBeInTheDocument();

@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { PrismaClient } from './generated/prisma/index.js';
 import { logger } from './logger.js';
 
-// Lokaler Minimaltyp, um Build ohne Workspace/Shared zu ermöglichen
+// Local minimal type so the build works without the workspace/shared module.
 export type TenancyModule = {
   readonly version: 1;
   isMultiTenantEnabled(): boolean;
@@ -36,13 +36,12 @@ function readOssUserLimitFromEnv(): number {
 
 export const OSS_USER_LIMIT = readOssUserLimitFromEnv();
 
-// zod 4 hat die `z.function()`-API komplett umgebaut (Function-Factory mit
-// `.implement()`). Für reine Shape-Validierung importierter Module reicht ein
-// `typeof === "function"`-Check via `z.custom`.
-const fnSchema = z.custom<(...args: unknown[]) => unknown>(
-  (val) => typeof val === 'function',
-  { message: 'expected function' },
-);
+// zod 4 reworked the `z.function()` API completely (now a function factory
+// with `.implement()`). For pure shape validation of imported modules a
+// `typeof === "function"` check via `z.custom` is sufficient.
+const fnSchema = z.custom<(...args: unknown[]) => unknown>((val) => typeof val === 'function', {
+  message: 'expected function',
+});
 
 const tenancyModuleSchema = z.object({
   version: z.literal(1),
@@ -71,9 +70,9 @@ export async function getTenancyModule(): Promise<TenancyModule> {
     // Dynamic import on runtime; absent in OSS. Use unknown and validate.
     const modUnknown: unknown = await import('@meetropolis/tenancy');
     const parsed = tenancyModuleSchema.parse(unwrapDefaultExport(modUnknown));
-    // zod's z.function() loses precise generic argument types — cast to the
-    // declared TenancyModule shape after schema validation has confirmed the
-    // structure.
+    // zod's z.function() loses precise generic argument types; cast to the
+    // declared TenancyModule shape once schema validation has confirmed
+    // the structure.
     const mod = parsed as unknown as TenancyModule;
     cached = mod;
     return mod;
@@ -100,8 +99,8 @@ export function isMultiTenantEnabledSync(): boolean {
  * schema.composed.prisma), `prisma db push`/`migrate deploy` already creates
  * the enterprise tables and columns from the merged schema. The raw-SQL files
  * remain in the submodule as an idempotent safety net for legacy databases
- * that were created before the composed schema existed — `IF NOT EXISTS`
- * guards make them no-ops against an already-migrated database.
+ * that were created before the composed schema existed; `IF NOT EXISTS`
+ * guards make them no-ops against an already migrated database.
  */
 export async function applyEnterpriseMigrationsIfPresent(prisma: PrismaClient): Promise<void> {
   const tenancy = await getTenancyModule();

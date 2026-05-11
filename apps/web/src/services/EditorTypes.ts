@@ -1,7 +1,7 @@
 /**
- * EditorTypes - Type-Definitionen für den Map-Editor
+ * EditorTypes: type definitions for the map editor.
  *
- * Extrahiert aus EditorService.ts zur Einhaltung des 600 LoC Budgets.
+ * Extracted from EditorService.ts to keep within the 600 LoC budget.
  */
 
 export type EditorTool = 'zone' | 'asset' | 'terrain' | 'collision' | 'spawn' | 'select' | 'erase' | 'wall';
@@ -70,7 +70,7 @@ export type Tileset = {
 };
 
 export type MapObjectRecord = {
-  id: number | string;       // Server ID (number) oder temp ID (negative number/string)
+  id: number | string; // Server ID (number) oder temp ID (negative number/string)
   assetPackUuid: string;
   itemId: string;
   category: string;
@@ -85,7 +85,7 @@ export type MapObjectRecord = {
   flipX?: boolean;
   flipY?: boolean;
   dataUrl?: string;
-  _pending?: 'add';          // Marker für noch nicht gespeicherte Objects
+  _pending?: 'add'; // Marker für noch nicht gespeicherte Objects
 };
 
 export type TerrainPaintOp = {
@@ -154,7 +154,7 @@ export type EditorState = {
   // Autotile wall state
   selectedWallTypeId: number;
 
-  // Drag-State (für Tools)
+  // Drag state used by tools.
   dragState: {
     startTileX: number;
     startTileY: number;

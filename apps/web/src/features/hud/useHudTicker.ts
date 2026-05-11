@@ -80,7 +80,7 @@ export function useHudTicker(params: UseHudTickerParams) {
 
         const room: any = avRef.current?.room;
         if (room && room.localParticipant && room.localParticipant.trackPublications) {
-          // AV-State Mirror wird außerhalb gepflegt
+          // AV-state mirror is maintained externally.
         }
         const volumes = volumeRef.current?.update?.();
         if (volumes) setParticipantVolumesRef(volumes);

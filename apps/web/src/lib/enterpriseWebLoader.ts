@@ -1,11 +1,11 @@
 /**
- * Enterprise-Web Module Loader (Conditional Loading Pattern)
+ * Enterprise-web module loader (conditional loading pattern).
  *
- * Analog zu desktopLoader.ts. Lädt @meetropolis/enterprise-web per Dynamic
- * Import. Das Submodule liegt unter packages/tenancy-enterprise/packages/
- * enterprise-web/ — bei OSS-Builds ohne Submodule liefert das Vite-Plugin
- * `optionalSubmodules` ein leeres Modul (null), der Loader fängt das ab und
- * gibt null zurück; Aufrufer rendern dann den OSS-Fallback.
+ * Mirrors desktopLoader.ts. Loads @meetropolis/enterprise-web via dynamic
+ * import. The submodule lives at packages/tenancy-enterprise/packages/
+ * enterprise-web/. For OSS builds without the submodule, the Vite plugin
+ * `optionalSubmodules` returns an empty module (null); this loader detects
+ * that case and returns null so callers render the OSS fallback.
  */
 
 import type { ComponentType } from 'react';
@@ -20,8 +20,8 @@ export interface EnterpriseWebModule {
 let cached: EnterpriseWebModule | null | undefined = undefined; // undefined = not yet tried
 
 /**
- * Lädt das Enterprise-Web-Modul falls vorhanden.
- * Gibt null zurück wenn das Modul nicht verfügbar ist (OSS-Build).
+ * Load the enterprise-web module when available.
+ * Returns null when the module is missing (OSS build).
  */
 export async function getEnterpriseWebModule(): Promise<EnterpriseWebModule | null> {
   if (cached !== undefined) return cached;

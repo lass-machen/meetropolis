@@ -27,9 +27,9 @@ export function useDoNotDisturb({ enabled, avRef, dndRef, setAvState, colyseusRe
 
     if (typeof originalSetDnd !== 'function') return;
 
-    // Override gameBridge.setDoNotDisturb to sync with AVManager
-    // Returns a Promise (Schnittstelle bleibt thenable für ggf. awaitende Caller),
-    // ohne intern await zu nutzen — AV-Sync ist absichtlich Fire-and-forget.
+    // Override gameBridge.setDoNotDisturb to sync with AVManager.
+    // Returns a Promise (keeps the interface thenable for awaiting callers)
+    // without using `await` internally: AV sync is intentionally fire-and-forget.
     gb.setDoNotDisturb = (nextEnabled: boolean): Promise<void> => {
       // 1) Apply game-side effects immediately (movement lock, etc.)
       try {

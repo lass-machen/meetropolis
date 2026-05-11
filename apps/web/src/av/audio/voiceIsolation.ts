@@ -42,7 +42,7 @@ export async function wrapTrackWithVoiceIsolation(inputTrack: MediaStreamTrack):
   } catch {}
 
   const limiter = audioContext.createDynamicsCompressor();
-  // Soft-Limiter, erhält Sprache, verhindert Clipping
+  // Soft limiter: preserves voice while preventing clipping.
   limiter.threshold.value = -3;
   limiter.knee.value = 12;
   limiter.ratio.value = 6;

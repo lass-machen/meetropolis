@@ -122,7 +122,7 @@ export async function applyDefaultRemoteQualityImpl(manager: QualityManagerView)
   const room = manager.current;
   if (!room) return;
   if (manager.remoteQualityTuningDisabled) return;
-  // Wenn verfügbar: nur arbeiten, wenn Signalkanals offen ist
+  // If available, only proceed while the signal channel is open.
   if (typeof manager.isSignalOpen === 'function' && !manager.isSignalOpen()) return;
   try {
     const now = Date.now();
@@ -137,7 +137,7 @@ export async function applyDefaultRemoteQualityImpl(manager: QualityManagerView)
       for (const pub of pubs) {
         const kind = readPubKind(pub);
         const src = readPubSource(pub);
-        // Nur Qualität setzen, wenn wir tatsächlich subscribed sind
+        // Only set quality when actually subscribed.
         const isSubscribed = (() => {
           try {
             if (typeof pub.isSubscribed === 'boolean') return pub.isSubscribed;

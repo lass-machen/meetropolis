@@ -10,9 +10,9 @@ export class BootScene extends Phaser.Scene {
   }
 
   preload() {
-    // v2: Tileset-Images werden dynamisch anhand Registry geladen
-    // Fallback: v1 TMJ nur, wenn v2 nicht verfügbar
-    // Relativer Pfad für Electron-Kompatibilität (kein führender Slash)
+    // v2: tileset images are loaded dynamically based on the registry.
+    // Fallback: v1 TMJ only when v2 is unavailable.
+    // Use a relative path for Electron compatibility (no leading slash).
     this.load.image('office_tiles_raw', 'assets/tilesets/office_tiles.png');
     this.load.image('furniture_tiles', 'assets/tilesets/furniture_tiles.png');
     this.load.image('decor_tiles', 'assets/tilesets/decor_tiles.png');
@@ -95,7 +95,7 @@ export class BootScene extends Phaser.Scene {
           await new Promise<void>((resolve) => {
             const timeout = setTimeout(() => {
               unsubscribe();
-              logger.error('[Boot] No currentMapId after 10s — cannot load map');
+              logger.error('[Boot] No currentMapId after 10s, cannot load map');
               resolve();
             }, 10_000);
             const unsubscribe = useMapStore.subscribe((state) => {

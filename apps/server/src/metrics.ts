@@ -15,7 +15,7 @@ export const httpRequestDuration = new client.Histogram({
 });
 registry.registerMetric(httpRequestDuration);
 
-// Colyseus: Räume und Spieler
+// Colyseus: rooms and players.
 export const colyseusRooms = new client.Gauge({
   name: 'meetropolis_colyseus_rooms',
   help: 'Number of active Colyseus rooms',
@@ -73,11 +73,11 @@ registry.registerMetric(livekitPacketLossRatio);
 export function metricsMiddleware() {
   return function (req: any, res: any, next: any) {
     const start = process.hrtime.bigint();
-    // route wird evtl. erst nach Routing verfügbar; fallback auf originalUrl
+    // The route may only become available after routing; fall back to originalUrl.
     res.on('finish', () => {
       try {
         const end = process.hrtime.bigint();
-        const dur = Number(end - start) / 1e9; // Sekunden
+        const dur = Number(end - start) / 1e9; // Seconds.
         const method = (req.method || 'GET').toUpperCase();
         const route = (req.route?.path || req.originalUrl || 'unknown') as string;
         const status = String(res.statusCode || 0);

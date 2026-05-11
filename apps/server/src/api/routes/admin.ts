@@ -1,14 +1,9 @@
 import type express from 'express';
 import { PrismaClient } from '../../generated/prisma/index.js';
-import {
-  handleOssPublicConfig,
-  handleAdminHealth,
-  handleAdminStats,
-  handleDebugRooms,
-} from './admin.system.js';
+import { handleOssPublicConfig, handleAdminHealth, handleAdminStats, handleDebugRooms } from './admin.system.js';
 
 /**
- * OSS-only admin routes — registered AFTER the enterprise admin module
+ * OSS-only admin routes, registered AFTER the enterprise admin module
  * (see api.ts). Express dispatches to the first matching handler, so the
  * enterprise variant of /public/config wins when the module is present.
  *

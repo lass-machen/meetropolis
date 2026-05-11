@@ -5,8 +5,8 @@ export type RosterItem = { identity: string; name: string; online: boolean; x?: 
 import { useTranslation } from 'react-i18next';
 
 /**
- * Avatar mit Initialen - verwendet Panel-Farben für konsistente Darstellung
- * Das Panel ist in beiden Modi dunkel, daher verwenden wir helle Textfarben
+ * Initials avatar using panel colors for a consistent look.
+ * The panel is dark in both modes, so light text colors are used here.
  */
 function Avatar({ name, online, size = 28 }: { name: string; online: boolean; size?: number }) {
   const initials = (name || '?')
@@ -16,7 +16,7 @@ function Avatar({ name, online, size = 28 }: { name: string; online: boolean; si
     .join('')
     .toUpperCase();
 
-  // Dezentere Farbe basierend auf Name
+  // Subtle hue derived from the name.
   const hue = name.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0) % 360;
   const bgColor = online ? `hsla(${hue}, 45%, 40%, 0.9)` : `hsla(${hue}, 15%, 28%, 0.7)`;
 
@@ -39,7 +39,7 @@ function Avatar({ name, online, size = 28 }: { name: string; online: boolean; si
       }}
     >
       {initials}
-      {/* Online-Indicator */}
+      {/* Online indicator. */}
       <div
         style={{
           position: 'absolute',

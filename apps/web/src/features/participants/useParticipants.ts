@@ -371,7 +371,7 @@ export function useParticipants(deps: ParticipantsDeps) {
         } catch {}
       }
     }
-    // Die UI-Volumes werden in App verwaltet – hier nur list rebuild anstoßen
+    // UI volumes are owned by App; only trigger a list rebuild here.
     try {
       buildParticipantList();
     } catch {}

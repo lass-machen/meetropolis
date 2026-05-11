@@ -58,9 +58,9 @@ export async function handleAuthInvite(
     data: { code, email: normalizedEmail, createdBy: auth.userId, tenantId: tenant.id, role: allowedRole },
   });
 
-  // Best-effort Mail-Versand wenn Tenancy-Mail-Modul geladen ist. Im OSS-Build
-  // ohne Submodul: stiller No-Op — der Code wird unten im JSON-Response zurueckgegeben
-  // und der Admin teilt ihn manuell mit.
+  // Best-effort email when the tenancy mail module is loaded. In the OSS
+  // build without the submodule this is a silent no-op: the code is
+  // returned in the JSON response below and shared manually by the admin.
   const inviter = await prisma.user.findUnique({
     where: { id: auth.userId },
     select: { name: true, email: true },

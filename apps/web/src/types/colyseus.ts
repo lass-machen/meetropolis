@@ -2,11 +2,12 @@ import type { Room } from '@colyseus/sdk';
 import { Schema, MapSchema } from '@colyseus/schema';
 import type { ZoneLockInfo } from '@meetropolis/shared';
 
-// Player Schema for Colyseus state — Mirror von apps/server/src/rooms/WorldRoom.ts Player.
-// Felder müssen 1:1 mit dem Server übereinstimmen, sonst werden Werte beim
-// State-Decoding ignoriert. Der Web-Client braucht keine @type()-Decorators
-// (das Schema-Binding kommt zur Laufzeit vom Server), aber die Property-Liste
-// muss strukturell passen für getypte Zugriffe wie state.players.get(id).dnd.
+// Player schema for the Colyseus state, mirrors apps/server/src/rooms/WorldRoom.ts Player.
+// Fields must match the server exactly, otherwise values are silently dropped
+// during state decoding. The web client does not need @type() decorators
+// (schema binding is provided by the server at runtime), but the property
+// list must line up structurally for typed access like
+// state.players.get(id).dnd.
 export class PlayerSchema extends Schema {
   id!: string;
   x!: number;
@@ -21,14 +22,14 @@ export class PlayerSchema extends Schema {
   mapName!: string;
 }
 
-// World Room State — Mirror von apps/server/src/rooms/WorldRoom.ts WorldState.
+// World room state, mirrors apps/server/src/rooms/WorldRoom.ts WorldState.
 export class WorldRoomState extends Schema {
   players = new MapSchema<PlayerSchema>();
 }
 
 // Colyseus Room type
 // Note: client-side @colyseus/sdk Room<T = any, State = InferState<T>> infers
-// State automatically when T is a Schema class — single-generic form remains valid.
+// State automatically when T is a Schema class; the single-generic form remains valid.
 export type WorldRoom = Room<WorldRoomState>;
 
 // Player movement direction sent by server.
@@ -114,7 +115,7 @@ export interface PlayerMapChangedMessage {
   isNpc?: boolean;
 }
 
-// editor_update payload. Server sends arbitrary `{ type: string; ... }` data
+// editor_update payload. The server sends arbitrary `{ type: string; ... }` data
 // (see apps/server/src/rooms/handlers/editorHandler.ts), so the shape varies
 // per `type` discriminator. Known variants are listed below; unknown fields
 // are accepted via the index signature.
@@ -187,7 +188,7 @@ export interface TilesetRegistryUpdatedMessage {
 }
 
 // presence_recent / presence_update payloads use ApiPresence from
-// apps/web/src/features/participants/presence.ts. We re-export the shape
+// apps/web/src/features/participants/presence.ts. The shape is re-exported
 // loosely here to avoid a circular import; handlers import ApiPresence
 // directly from the presence module.
 

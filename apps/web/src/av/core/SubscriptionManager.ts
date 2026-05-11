@@ -229,7 +229,7 @@ export class SubscriptionManager implements Disposable {
       this.applyBubbleAttenuation(this._desiredParticipants);
 
       // Notify listeners (UI, useGlobalAudioTracks) that the audio-track
-      // topology/volume may have changed — so participant mute indicators
+      // topology or volume may have changed, so participant mute indicators
       // and DOM audio elements can re-sync.
       emitAudioTracksChanged();
     } catch (error) {
@@ -397,7 +397,7 @@ export class SubscriptionManager implements Disposable {
       this._subscriptionStates.set(key, state);
     }
 
-    // Always apply subscription — a new publication for the same identity
+    // Always apply the subscription: a new publication for the same identity
     // (e.g. screen share restart) needs subscribing even when state unchanged.
     // setSubscribed() has its own guard to avoid redundant operations.
     this.setSubscribed(pub, should);

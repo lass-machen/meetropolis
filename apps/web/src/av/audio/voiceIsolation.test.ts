@@ -59,7 +59,7 @@ describe('voiceIsolation (worklet chain)', () => {
     (global as any).window.AudioContext = FakeAudioContext as any;
     (global as any).window.webkitAudioContext = undefined;
 
-    // Minimaler MediaStream-Stub für den Konstruktor-Aufruf im Wrapper
+    // Minimal MediaStream stub for the constructor call inside the wrapper.
     class FakeMediaStream {
       tracks: any[];
       constructor(tracks?: any[]) {
@@ -84,7 +84,7 @@ describe('voiceIsolation (worklet chain)', () => {
     const outTrack = await wrapTrackWithVoiceIsolation(fakeInputTrack);
 
     expect(outTrack).toBeTruthy();
-    // contentHint optional – wenn verfügbar sollte es gesetzt sein
+    // contentHint is optional: when present, it should be set to 'speech'.
     if ('contentHint' in (outTrack as any)) {
       expect((outTrack as any).contentHint).toBe('speech');
     }

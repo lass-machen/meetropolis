@@ -14,7 +14,7 @@ interface SessionConflictDeps {
 }
 
 export function showSessionConflictDialog(deps: SessionConflictDeps): void {
-  logger.info('[useWorldRoom] Session conflict detected — showing takeover dialog');
+  logger.info('[useWorldRoom] Session conflict detected, showing takeover dialog');
   if (typeof window !== 'undefined') {
     window.__sessionConflictPending = true;
   }

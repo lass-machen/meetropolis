@@ -18,21 +18,22 @@ export type ApiPresence = {
 };
 
 /**
- * Merge server-side recent presence list with currently online map (from live session),
- * returning a roster list sorted by online first and then name.
- * 
- * Einfache Logik:
- * 1. Alle User aus der API sind erstmal offline (mit lastSeen)
- * 2. Online-User aus der Live-Session werden als online markiert
+ * Merge the server-side recent presence list with the currently online map
+ * (from the live session) and return a roster sorted by online first, then
+ * by name.
+ *
+ * Logic:
+ * 1. All API users start as offline with lastSeen.
+ * 2. Users that are online in the live session are marked online.
  */
 export function mergeRecentPresence(
   previous: RosterItem[],
   onlineByIdentity: Record<string, OnlineEntry>,
-  apiData: ApiPresence[]
+  apiData: ApiPresence[],
 ): RosterItem[] {
   const map = new Map<string, RosterItem>();
 
-  // 1. Alle User aus der API einfügen (erstmal offline)
+  // 1. Insert every API user as offline first.
   for (const p of apiData || []) {
     const ident = String(p.userId || (p.user && p.user.id) || '');
     const name = String((p.user && (p.user.name || p.user.email)) || ident);
@@ -46,14 +47,14 @@ export function mergeRecentPresence(
     map.set(ident, item);
   }
 
-  // 2. Vorherige Einträge übernehmen (für User die noch nicht in der API sind)
+  // 2. Carry over previous entries for users not yet returned by the API.
   for (const r of previous) {
     if (!map.has(r.identity)) {
       map.set(r.identity, { ...r, online: false });
     }
   }
 
-  // 3. Online-User markieren
+  // 3. Mark online users.
   for (const [ident, v] of Object.entries(onlineByIdentity || {})) {
     const existing = map.get(ident);
     if (existing) {
@@ -65,7 +66,10 @@ export function mergeRecentPresence(
     const vName = (v.name || '').trim().toLowerCase();
     for (const [k, item] of map.entries()) {
       const iName = (item.name || '').trim().toLowerCase();
-      if (iName && vName && iName === vName) { matchedKey = k; break; }
+      if (iName && vName && iName === vName) {
+        matchedKey = k;
+        break;
+      }
     }
     if (matchedKey) {
       const cur = map.get(matchedKey)!;
@@ -75,9 +79,5 @@ export function mergeRecentPresence(
     }
   }
 
-  return Array.from(map.values()).sort(
-    (a, b) => Number(b.online) - Number(a.online) || a.name.localeCompare(b.name)
-  );
+  return Array.from(map.values()).sort((a, b) => Number(b.online) - Number(a.online) || a.name.localeCompare(b.name));
 }
-
-

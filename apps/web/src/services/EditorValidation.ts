@@ -1,10 +1,9 @@
 /**
- * EditorValidation - Validierungslogik für Editor-Operationen
- * 
- * Prinzipien:
- * - Explizite Fehler-Messages
- * - Keine Try-Catch
- * - Pure Functions
+ * EditorValidation: pure validation helpers for editor operations.
+ *
+ * Principles:
+ * - Explicit error messages (no swallowed failures).
+ * - Pure functions, no try/catch indirection.
  */
 
 import { Zone } from './EditorService';
@@ -16,31 +15,22 @@ export class EditorValidationError extends Error {
   }
 }
 
-/**
- * Prüft ob zwei Rechtecke sich überlappen
- */
+/** Return true if two axis-aligned rectangles overlap. */
 function rectsOverlap(
   rect1: { x0: number; y0: number; x1: number; y1: number },
-  rect2: { x0: number; y0: number; x1: number; y1: number }
+  rect2: { x0: number; y0: number; x1: number; y1: number },
 ): boolean {
-  return !(
-    rect1.x1 <= rect2.x0 ||
-    rect1.x0 >= rect2.x1 ||
-    rect1.y1 <= rect2.y0 ||
-    rect1.y0 >= rect2.y1
-  );
+  return !(rect1.x1 <= rect2.x0 || rect1.x0 >= rect2.x1 || rect1.y1 <= rect2.y0 || rect1.y0 >= rect2.y1);
 }
 
-/**
- * Konvertiert Zone-Points zu Rechteck
- */
+/** Convert zone points to a bounding rectangle, or null if invalid. */
 function zoneToRect(zone: Zone): { x0: number; y0: number; x1: number; y1: number } | null {
   if (!zone.points || zone.points.length < 4) {
     return null;
   }
 
-  const xs = zone.points.map(p => p.x);
-  const ys = zone.points.map(p => p.y);
+  const xs = zone.points.map((p) => p.x);
+  const ys = zone.points.map((p) => p.y);
 
   return {
     x0: Math.min(...xs),
@@ -51,15 +41,11 @@ function zoneToRect(zone: Zone): { x0: number; y0: number; x1: number; y1: numbe
 }
 
 /**
- * Validiert ob eine neue Zone mit existierenden Zonen überlappt
- * 
- * @throws EditorValidationError wenn Überlappung gefunden wird
+ * Validate that a new zone does not overlap any existing zone.
+ *
+ * @throws EditorValidationError when an overlap is detected.
  */
-export function validateZoneNoOverlap(
-  newZone: Zone,
-  existingZones: Zone[],
-  excludeIndex?: number
-): void {
+export function validateZoneNoOverlap(newZone: Zone, existingZones: Zone[], excludeIndex?: number): void {
   const newRect = zoneToRect(newZone);
   if (!newRect) {
     throw new EditorValidationError('Ungültige Zone: Mindestens 4 Punkte erforderlich');
@@ -74,17 +60,15 @@ export function validateZoneNoOverlap(
     const existingRect = zoneToRect(existingZone);
 
     if (existingRect && rectsOverlap(newRect, existingRect)) {
-      throw new EditorValidationError(
-        `Zone überlappt mit existierender Zone "${existingZone.name}"`
-      );
+      throw new EditorValidationError(`Zone überlappt mit existierender Zone "${existingZone.name}"`);
     }
   }
 }
 
 /**
- * Validiert ob ein Zone-Name gültig ist
- * 
- * @throws EditorValidationError wenn Name ungültig ist
+ * Validate that a zone name is well formed.
+ *
+ * @throws EditorValidationError when the name is empty or too long.
  */
 export function validateZoneName(name: string): void {
   if (!name || name.trim().length === 0) {
@@ -97,55 +81,44 @@ export function validateZoneName(name: string): void {
 }
 
 /**
- * Validiert ob eine Zone mindestens eine Mindestgröße hat
- * 
- * @throws EditorValidationError wenn Zone zu klein ist
+ * Validate that a zone meets the minimum tile size.
+ *
+ * @throws EditorValidationError when the zone is below the minimum size.
  */
 export function validateZoneSize(
   startTileX: number,
   startTileY: number,
   endTileX: number,
   endTileY: number,
-  minTiles: number = 1
+  minTiles: number = 1,
 ): void {
   const width = Math.abs(endTileX - startTileX) + 1;
   const height = Math.abs(endTileY - startTileY) + 1;
 
   if (width < minTiles || height < minTiles) {
-    throw new EditorValidationError(
-      `Zone ist zu klein (min. ${minTiles}x${minTiles} Tiles)`
-    );
+    throw new EditorValidationError(`Zone ist zu klein (min. ${minTiles}x${minTiles} Tiles)`);
   }
 }
 
 /**
- * Validiert ob ein Asset an einer Position platziert werden kann
- * 
- * @throws EditorValidationError wenn Position ungültig ist
+ * Validate that an asset can be placed at the given tile position.
+ *
+ * @throws EditorValidationError when the position is outside the map.
  */
-export function validateAssetPlacement(
-  tileX: number,
-  tileY: number,
-  mapWidth: number,
-  mapHeight: number
-): void {
+export function validateAssetPlacement(tileX: number, tileY: number, mapWidth: number, mapHeight: number): void {
   if (tileX < 0 || tileX >= mapWidth) {
-    throw new EditorValidationError(
-      `Asset-Position außerhalb der Map (X: ${tileX}, Map-Breite: ${mapWidth})`
-    );
+    throw new EditorValidationError(`Asset-Position außerhalb der Map (X: ${tileX}, Map-Breite: ${mapWidth})`);
   }
 
   if (tileY < 0 || tileY >= mapHeight) {
-    throw new EditorValidationError(
-      `Asset-Position außerhalb der Map (Y: ${tileY}, Map-Höhe: ${mapHeight})`
-    );
+    throw new EditorValidationError(`Asset-Position außerhalb der Map (Y: ${tileY}, Map-Höhe: ${mapHeight})`);
   }
 }
 
 /**
- * Validiert ob ein Tileset gültig ist
- * 
- * @throws EditorValidationError wenn Tileset ungültig ist
+ * Validate that a tileset definition is well formed.
+ *
+ * @throws EditorValidationError when key, data URL, or dimensions are invalid.
  */
 export function validateTileset(tileset: {
   key: string;
@@ -162,53 +135,37 @@ export function validateTileset(tileset: {
   }
 
   if (tileset.tileWidth <= 0 || tileset.tileHeight <= 0) {
-    throw new EditorValidationError(
-      'Tileset-Dimensionen müssen positiv sein'
-    );
+    throw new EditorValidationError('Tileset-Dimensionen müssen positiv sein');
   }
 
   if (tileset.tileWidth > 256 || tileset.tileHeight > 256) {
-    throw new EditorValidationError(
-      'Tileset-Dimensionen zu groß (max. 256x256)'
-    );
+    throw new EditorValidationError('Tileset-Dimensionen zu groß (max. 256x256)');
   }
 }
 
 /**
- * Validiert ob ein Spawn-Punkt gültig ist
- * 
- * @throws EditorValidationError wenn Spawn ungültig ist
+ * Validate that a spawn point lies inside the map bounds.
+ *
+ * @throws EditorValidationError when the spawn is outside the map.
  */
-export function validateSpawn(
-  tileX: number,
-  tileY: number,
-  mapWidth: number,
-  mapHeight: number
-): void {
+export function validateSpawn(tileX: number, tileY: number, mapWidth: number, mapHeight: number): void {
   if (tileX < 0 || tileX >= mapWidth) {
-    throw new EditorValidationError(
-      `Spawn außerhalb der Map (X: ${tileX}, Map-Breite: ${mapWidth})`
-    );
+    throw new EditorValidationError(`Spawn außerhalb der Map (X: ${tileX}, Map-Breite: ${mapWidth})`);
   }
 
   if (tileY < 0 || tileY >= mapHeight) {
-    throw new EditorValidationError(
-      `Spawn außerhalb der Map (Y: ${tileY}, Map-Höhe: ${mapHeight})`
-    );
+    throw new EditorValidationError(`Spawn außerhalb der Map (Y: ${tileY}, Map-Höhe: ${mapHeight})`);
   }
 }
 
 /**
- * Validiert ob Hintergrundfarbe gültig ist
- * 
- * @throws EditorValidationError wenn Farbe ungültig ist
+ * Validate a hexadecimal RGB background color string.
+ *
+ * @throws EditorValidationError when the color is not in #RRGGBB format.
  */
 export function validateBackgroundColor(color: string): void {
   const hexPattern = /^#[0-9A-Fa-f]{6}$/;
   if (!hexPattern.test(color)) {
-    throw new EditorValidationError(
-      `Ungültige Hintergrundfarbe: ${color} (Format: #RRGGBB)`
-    );
+    throw new EditorValidationError(`Ungültige Hintergrundfarbe: ${color} (Format: #RRGGBB)`);
   }
 }
-

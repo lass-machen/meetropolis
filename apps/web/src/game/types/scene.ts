@@ -1,19 +1,19 @@
 /**
- * Type-Definition für die Phaser-Scene, wie sie von den Helper-Functions
- * in `apps/web/src/game/{ui,collision,camera,map,editor}` erwartet wird.
+ * Type definition for the Phaser scene used by helper functions in
+ * `apps/web/src/game/{ui,collision,camera,map,editor}`.
  *
- * Hintergrund: Diese Helper-Functions waren historisch via `Phaser.Scene & any`
- * typisiert. Das Interface hier dokumentiert, welche Properties und Methoden
- * tatsächlich auf der Scene erwartet werden — strukturell kompatibel mit
- * `MainScene`, aber auch mit anderen Scene-Subclasses (z.B. aus
- * Enterprise-Submodulen), die dieselben Boundaries bedienen.
+ * Background: these helpers were historically typed via `Phaser.Scene & any`.
+ * This interface documents which properties and methods the scene must
+ * provide. The interface is structurally compatible with `MainScene` but
+ * also with other scene subclasses (for example from enterprise submodules)
+ * that implement the same boundary.
  *
- * Properties sind durchgängig optional, weil:
- * - manche von Manager-Klassen oder externen Lifecycle-Hooks gesetzt werden,
- *   nicht im Constructor;
- * - manche im OSS-Code aktuell nicht gesetzt werden (z.B. `hero`, `nameLabels`,
- *   `remotes`), aber in den Helper-Functions defensiv gelesen werden — die
- *   Library-Schnittstelle erlaubt externe Subclasses, sie zu setzen.
+ * Properties are uniformly optional because:
+ * - some are set by manager classes or external lifecycle hooks rather than
+ *   in the constructor;
+ * - some are not currently set in OSS code (for example `hero`, `nameLabels`,
+ *   `remotes`) but are read defensively in the helpers; the library
+ *   interface allows external subclasses to set them.
  */
 
 import type Phaser from 'phaser';

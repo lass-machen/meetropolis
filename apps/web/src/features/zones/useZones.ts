@@ -27,7 +27,7 @@ export function useZones(params: {
 
     if (suppressZoneBroadcastRef.current) return;
 
-    // Debounce Broadcast (coalesce schnelle Änderungen)
+    // Debounce the broadcast to coalesce rapid changes.
     lastPayloadRef.current = { type: 'zone', polys: editor.zones || [] };
     if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     debounceTimerRef.current = setTimeout(() => {

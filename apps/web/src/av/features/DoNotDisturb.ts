@@ -34,7 +34,7 @@ export interface DNDDeps {
    * Required because `applySubscriptions()`/`applyBubbleAttenuation()` return
    * early while DND is active (via `isDND()` guards) and `_lastApplyKey`
    * dedupes otherwise-identical states. Without this, the subscription
-   * state can stay stale — leading to users appearing "muted" in the UI
+   * state can stay stale, leading to users appearing "muted" in the UI
    * even though they aren't.
    *
    * Optional: May be omitted in tests / consumers that don't need it.

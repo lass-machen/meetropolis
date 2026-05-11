@@ -8,7 +8,7 @@ interface OssFinalCtaSectionProps {
 
 /**
  * OSS-only generic final-CTA. Used when the brand submodule is not
- * installed — neutral closing message without any sales pitch.
+ * installed: neutral closing message without any sales pitch.
  */
 export function OssFinalCtaSection({ onSignup, registrationEnabled }: OssFinalCtaSectionProps) {
   const { t } = useTranslation('public');

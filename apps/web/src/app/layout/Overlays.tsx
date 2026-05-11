@@ -57,8 +57,8 @@ type Props = {
 };
 
 /**
- * Hält die letzte nicht-leere Teilnehmerliste für kurze Zeit (Reconnect-Grace),
- * um visuelles Flackern bei kurzzeitigen Verbindungsabbrüchen zu vermeiden.
+ * Hold the last non-empty participant list briefly (reconnect grace) to
+ * avoid visual flicker on transient disconnects.
  */
 function useStableParticipants(participants: Participant[]): Participant[] {
   const lastNonEmptyRef = React.useRef<Participant[]>(participants);

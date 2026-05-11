@@ -6,13 +6,23 @@ import { logger } from '../../logger.js';
 import { requireAuth } from '../utils/authHelpers.js';
 import { sendIfAvailable } from '../../emailLoader.js';
 
-export async function handleVerifyRequest(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
+export async function handleVerifyRequest(
+  prisma: PrismaClient,
+  req: express.Request,
+  res: express.Response,
+): Promise<void> {
   const auth = requireAuth(req);
-  if (!auth) { res.status(401).json({ error: 'unauthorized' }); return; }
+  if (!auth) {
+    res.status(401).json({ error: 'unauthorized' });
+    return;
+  }
 
   try {
     const user = await prisma.user.findUnique({ where: { id: auth.userId } });
-    if (!user) { res.status(404).json({ error: 'user not found' }); return; }
+    if (!user) {
+      res.status(404).json({ error: 'user not found' });
+      return;
+    }
 
     if (user.emailVerifiedAt) {
       res.json({ ok: true, alreadyVerified: true });
@@ -37,10 +47,10 @@ export async function handleVerifyRequest(prisma: PrismaClient, req: express.Req
       data: { token, userId: user.id, email: user.email, expiresAt },
     });
 
-    // Public base URL für Verify-Link. Reihenfolge:
-    // 1. PUBLIC_BASE_URL / BILLING_PUBLIC_URL (Self-Hoster setzen das)
-    // 2. Origin-Header der Request (klappt für Web-getriggerte Verifies)
-    // 3. Host-Header als Fallback (verhindert Brand-Domain-Leak)
+    // Public base URL for the verify link. Order of precedence:
+    // 1. PUBLIC_BASE_URL / BILLING_PUBLIC_URL (set by self-hosters).
+    // 2. Request Origin header (works for web-triggered verifications).
+    // 3. Host header as a fallback (prevents brand domain leak).
     const fallbackHost = req.headers.host ? `https://${req.headers.host}` : '';
     const baseUrl = process.env.PUBLIC_BASE_URL || process.env.BILLING_PUBLIC_URL || req.headers.origin || fallbackHost;
     const verifyUrl = baseUrl ? `${baseUrl}/#/verify?token=${token}` : '';
@@ -51,9 +61,9 @@ export async function handleVerifyRequest(prisma: PrismaClient, req: express.Req
       { userId: user.id },
     );
 
-    // Wenn keine Mail rausging (OSS ohne Tenancy-Mail-Modul) liefern wir
-    // Token+Link direkt im Response, damit der User/Admin den Verify-Schritt
-    // out-of-band durchfuehren kann.
+    // When no email was sent (OSS without tenancy mail module), return the
+    // token and link directly so the user or admin can complete verification
+    // out of band.
     const isDev = process.env.NODE_ENV !== 'production';
     res.json({ ok: true, sent, ...((!sent || isDev) && { token, verifyUrl }) });
   } catch (e: unknown) {
@@ -64,17 +74,33 @@ export async function handleVerifyRequest(prisma: PrismaClient, req: express.Req
 
 const verifySchema = z.object({ token: z.string().min(8) });
 
-export async function handleVerifyToken(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
+export async function handleVerifyToken(
+  prisma: PrismaClient,
+  req: express.Request,
+  res: express.Response,
+): Promise<void> {
   const parse = verifySchema.safeParse(req.body || {});
-  if (!parse.success) { res.status(400).json({ error: 'token required' }); return; }
+  if (!parse.success) {
+    res.status(400).json({ error: 'token required' });
+    return;
+  }
 
   const { token } = parse.data;
 
   try {
     const verification = await prisma.emailVerification.findUnique({ where: { token } });
-    if (!verification) { res.status(400).json({ error: 'invalid token' }); return; }
-    if (verification.usedAt) { res.status(400).json({ error: 'token already used' }); return; }
-    if (verification.expiresAt < new Date()) { res.status(400).json({ error: 'token expired' }); return; }
+    if (!verification) {
+      res.status(400).json({ error: 'invalid token' });
+      return;
+    }
+    if (verification.usedAt) {
+      res.status(400).json({ error: 'token already used' });
+      return;
+    }
+    if (verification.expiresAt < new Date()) {
+      res.status(400).json({ error: 'token expired' });
+      return;
+    }
 
     await prisma.emailVerification.update({
       where: { token },
@@ -94,16 +120,26 @@ export async function handleVerifyToken(prisma: PrismaClient, req: express.Reque
   }
 }
 
-export async function handleVerifyStatus(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
+export async function handleVerifyStatus(
+  prisma: PrismaClient,
+  req: express.Request,
+  res: express.Response,
+): Promise<void> {
   const auth = requireAuth(req);
-  if (!auth) { res.status(401).json({ error: 'unauthorized' }); return; }
+  if (!auth) {
+    res.status(401).json({ error: 'unauthorized' });
+    return;
+  }
 
   try {
     const user = await prisma.user.findUnique({
       where: { id: auth.userId },
       select: { email: true, emailVerifiedAt: true },
     });
-    if (!user) { res.status(404).json({ error: 'user not found' }); return; }
+    if (!user) {
+      res.status(404).json({ error: 'user not found' });
+      return;
+    }
 
     res.json({
       email: user.email,

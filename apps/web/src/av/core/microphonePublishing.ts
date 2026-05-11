@@ -186,7 +186,7 @@ export async function publishMicrophone({
     AVLogger.error('track.mic.publish_failed', { error: String(error) });
 
     // On timeout: rethrow immediately so upstream UI can react.
-    // Don't attempt the fallback path — it would just stack another 10s wait on a stuck signal.
+    // Skip the fallback path: it would just stack another 10s wait on a stuck signal.
     if ((error as Error)?.message === 'mic_publish_timeout') {
       throw error;
     }
@@ -307,9 +307,8 @@ export async function softMuteMicrophone(track: LocalAudioTrack): Promise<void> 
   }
 }
 
-// Hebt den Mute auf. Liefert false zurueck, wenn der zugrundeliegende
-// MediaStreamTrack nicht mehr live ist — der Aufrufer faellt dann auf den
-// vollen Republish-Pfad zurueck.
+// Unmute the microphone. Returns false when the underlying MediaStreamTrack
+// is no longer live; the caller then falls back to a full republish path.
 export async function softUnmuteMicrophone(track: LocalAudioTrack): Promise<boolean> {
   const t = track as unknown as TrackLike;
   const mst = t.mediaStreamTrack;

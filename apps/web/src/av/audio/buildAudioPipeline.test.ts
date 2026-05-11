@@ -48,9 +48,9 @@ describe('buildAudioPipeline', () => {
 
     const settings: any = { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 };
     const track: any = await buildAudioPipeline({ deviceId: 'default', settings });
-    // Erste Capture-Constraints sollten NS=true enthalten
+    // The initial capture constraints should request NS=true.
     expect((createLocalAudioTrack as any).mock.calls[0][0]).toMatchObject({ noiseSuppression: true });
-    // Kein Replace über Worklet, da Apple-Branch
+    // No worklet-based replacement is expected on the Apple branch.
     expect(track.replaceTrack).not.toHaveBeenCalled();
     expect(wrapTrackWithVoiceIsolation as any).not.toHaveBeenCalled();
   });

@@ -78,7 +78,7 @@ type Bridge = {
   setHeroName: (name: string) => void;
   updateSpeakingStates: (speakingIds: Set<string>) => void;
   setDoNotDisturb: (enabled: boolean) => void;
-  // Asset-Preview im Editor (Ghost-Sprite unter Cursor) — no-op, handled by EditorIntegration
+  // Asset preview in the editor (ghost sprite under the cursor): no-op, handled by EditorIntegration.
   setAssetPreview: (
     preview: {
       dataUrl: string;
@@ -371,7 +371,7 @@ export const gameBridge: Bridge = {
         sceneApi.syncRemotePlayers(remotePlayersCache);
       } catch {}
 
-      // Server-Layers laden (für Map-Daten)
+      // Load server layers (map data).
       try {
         sceneApi.fetchAndApplyServerLayers?.();
       } catch (e) {
@@ -607,9 +607,9 @@ export const gameBridge: Bridge = {
       logger.error('Failed to force reload map', e);
     }
   },
-  // Tileset-Cache entfernt - nicht mehr benötigt
+  // Tileset cache has been removed; no longer required.
   hydrateTilesetsCache: (_tilesets) => {
-    // DEPRECATED: Caching entfernt
+    // DEPRECATED: caching removed.
   },
   updateTilesetRegistry: (registry) => {
     try {
@@ -638,7 +638,7 @@ const lastSyncedState: {
 };
 
 EditorService.subscribe((state) => {
-  // Sync Editor Mode & Collision Visibility (nur wenn geändert)
+  // Sync editor mode and collision visibility (only when changed).
   if (state.active !== lastSyncedState.active) {
     gameBridge.setEditorMode(state.active);
     gameBridge.setCollisionVisible(state.active);

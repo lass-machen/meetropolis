@@ -1,9 +1,9 @@
 import { getDesktopModule } from './desktopLoader';
 
 /**
- * Öffnet eine URL im externen Browser.
- * Desktop (Tauri): Nutzt Shell Plugin via Desktop-Modul.
- * Browser: window.open
+ * Open a URL in the external browser.
+ * Desktop (Tauri): uses the Shell plugin via the desktop module.
+ * Browser: falls back to window.open.
  */
 export async function openExternal(url: string): Promise<void> {
   try {

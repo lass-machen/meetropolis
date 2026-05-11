@@ -128,7 +128,7 @@ function FeatureRowImage({ row }: { row: FeatureRowData }) {
   const { t } = useTranslation('public');
   const rawSrc = t(row.imageKey);
   // i18next returns the key itself when no translation exists, so guard
-  // against that — without a real path we render the placeholder background.
+  // against that; without a real path the placeholder background is rendered.
   const src = rawSrc && rawSrc !== row.imageKey ? rawSrc : '';
   return (
     <div
@@ -177,20 +177,24 @@ function FeatureRow({ row }: { row: FeatureRowData }) {
   useReveal(rowRef);
 
   return (
-    <div
-      ref={rowRef}
-      className="pub-reveal pub-feature-row"
-      style={{ animationDelay: '0.1s' }}
-    >
+    <div ref={rowRef} className="pub-reveal pub-feature-row" style={{ animationDelay: '0.1s' }}>
       {row.imageFirst ? (
         <>
-          <div className="pub-feature-row__image"><FeatureRowImage row={row} /></div>
-          <div className="pub-feature-row__text"><FeatureRowText row={row} /></div>
+          <div className="pub-feature-row__image">
+            <FeatureRowImage row={row} />
+          </div>
+          <div className="pub-feature-row__text">
+            <FeatureRowText row={row} />
+          </div>
         </>
       ) : (
         <>
-          <div className="pub-feature-row__text"><FeatureRowText row={row} /></div>
-          <div className="pub-feature-row__image"><FeatureRowImage row={row} /></div>
+          <div className="pub-feature-row__text">
+            <FeatureRowText row={row} />
+          </div>
+          <div className="pub-feature-row__image">
+            <FeatureRowImage row={row} />
+          </div>
         </>
       )}
     </div>
@@ -239,17 +243,12 @@ function FeatureShowcaseHeader() {
   return (
     <div style={{ textAlign: 'center', marginBottom: 64 }}>
       <div style={{ marginBottom: 24 }}>
-        <PubBadge variant="purple">
-          {t('features.badge')}
-        </PubBadge>
+        <PubBadge variant="purple">{t('features.badge')}</PubBadge>
       </div>
       <h2 className="pub-text-h2" style={{ marginBottom: 16 }}>
         {t('features.title')}
       </h2>
-      <p
-        className="pub-text-subline"
-        style={{ maxWidth: 600, margin: '0 auto' }}
-      >
+      <p className="pub-text-subline" style={{ maxWidth: 600, margin: '0 auto' }}>
         {t('features.subtitle')}
       </p>
     </div>

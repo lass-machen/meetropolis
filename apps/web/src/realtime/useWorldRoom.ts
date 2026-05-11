@@ -136,12 +136,12 @@ function setupRoomHandlers(setup: SetupRoomHandlersArgs): void {
   } = args;
   if (!me) return;
 
-  // Session conflict detection — registered first so the message is caught before any other setup.
+  // Session conflict detection: registered first so the message is caught before any other setup.
   room.onMessage('session_conflict', () => {
     showSessionConflictDialog({ room, meId: me.id });
   });
 
-  // Server restart notification — show overlay and auto-reload when server is back.
+  // Server restart notification: show overlay and auto-reload when server is back.
   room.onMessage('server_restart', () => {
     showServerRestartDialog({
       apiBase,
@@ -175,11 +175,12 @@ function setupRoomHandlers(setup: SetupRoomHandlersArgs): void {
     logger.error('Failed to force reload map on join', e);
   }
 
-  // Vor neuem Session-Lauf evtl. hängende Handles räumen und zurücksetzen
+  // Clear any stale handles before starting a new session run.
   clearEffectScope(scope);
 
-  // Heartbeat: Server-side Ghost-Detection braucht periodische Lebenszeichen.
-  // Idle-Clients ohne move würden sonst nach GHOST_THRESHOLD_MS (60s) als Ghost gekickt.
+  // Heartbeat: the server-side ghost detection needs periodic liveness signals.
+  // Idle clients without movement would otherwise be kicked after
+  // GHOST_THRESHOLD_MS (60s).
   scope.heartbeatInterval = setInterval(() => {
     try {
       const activeRoom: any = colyseusRef.current;
@@ -252,9 +253,9 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
   const lastCloseInfoRef = React.useRef<{ code?: number; reason?: string }>({});
   const connectingRef = React.useRef<boolean>(false);
   const coolDownUntilRef = React.useRef<number>(0);
-  // true ab dem ersten 'full_state' der aktuellen Session; wird auf false zurueckgesetzt,
-  // wenn die Verbindung verloren geht (siehe useColyseusConnection.handleLeave/handleError).
-  // Dient als Lade-Gate gegen „Flash of Empty Roster" waehrend Reconnects.
+  // True from the first 'full_state' of the current session; reset to false
+  // when the connection drops (see useColyseusConnection.handleLeave/handleError).
+  // Serves as a loading gate to avoid the "flash of empty roster" during reconnects.
   const hasReceivedFullStateRef = React.useRef<boolean>(false);
 
   const connectionRefs: ConnectionRefs = {
@@ -283,7 +284,7 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
       if (args.disposedRef) args.disposedRef.current = false;
     } catch {}
 
-    // Präsenz (zuletzt online) – lokaler Cache im Effekt-Scope
+    // Presence (most recently online): local cache scoped to this effect.
     const recentPresenceRef = { current: [] as ApiPresence[] };
     const refreshRosterFromRemotes = createRosterRefresher(args);
     const scheduleBuildParticipantList = makeScheduleBuildParticipantList(scope, buildParticipantList);

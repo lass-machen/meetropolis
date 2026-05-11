@@ -5,7 +5,7 @@ export type MapLoaderOptions = {
 };
 
 export function loadMap(scene: Phaser.Scene, options: MapLoaderOptions): void {
-  // Platzhalter: tatsächliche Map-/Layer-Lade-Logik wird aus MainScene migriert
+  // Placeholder: the actual map/layer loading logic is being migrated from MainScene.
   void options;
   void scene;
 }

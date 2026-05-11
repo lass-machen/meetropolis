@@ -172,18 +172,18 @@ export function updateNameLabel(
   x: number,
   y: number,
 ): void {
-  // Labels sind in einem separaten Layer mit eigener Kamera (labelCamera),
-  // die NICHT scrollt (setScroll(0,0)). Daher müssen wir Bildschirmkoordinaten berechnen.
+  // Labels live in a separate layer with its own camera (labelCamera) that
+  // does not scroll (setScroll(0,0)), so screen coordinates must be computed.
   const cam = scene.cameras.main;
   const view = cam.worldView;
-  // Berechne Bildschirmposition: Weltkoordinaten -> Bildschirmkoordinaten
+  // World coordinates to screen coordinates.
   const screenX = (x - view.x) * cam.zoom;
   const screenY = (y - view.y) * cam.zoom;
-  // Avatar-Höhe und Abstand zum Label (in Weltpixeln, dann mit Zoom skaliert)
+  // Avatar height and label offset (in world pixels, then scaled by zoom).
   const avatarWorldHeight = 24;
   const baseGap = 8;
   const offsetY = (avatarWorldHeight / 2 + baseGap) * cam.zoom;
-  // Label bleibt in fester Größe, nur Position wird angepasst
+  // The label keeps its fixed size; only its position is updated.
   container.setPosition(Math.round(screenX), Math.round(screenY - offsetY));
 }
 

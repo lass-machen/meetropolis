@@ -8,11 +8,11 @@ import { requireAuth, normalizeEmailForMatching } from '../utils/authHelpers.js'
 const forgotSchema = z.object({ email: z.string().email() });
 
 /**
- * Self-Service-Forgot ist deaktiviert. Reset-Tokens fuer sensible Aktionen
- * werden NIE per Mail verschickt — auch nicht im Tenancy-Setup. Stattdessen
- * erzeugt ein Admin Reset-Tokens ueber die Admin-UI und gibt sie
- * out-of-band an den User weiter. Endpoint antwortet still 200, um keine
- * User-Enumerierung zu erlauben.
+ * Self-service forgot-password is disabled. Reset tokens for sensitive
+ * actions are NEVER sent by email, even when tenancy is configured. An
+ * admin generates reset tokens via the admin UI and passes them to the
+ * user out of band. The endpoint silently returns 200 to prevent user
+ * enumeration.
  */
 export function handleAuthForgot(_prisma: PrismaClient, req: express.Request, res: express.Response): void {
   const parse = forgotSchema.safeParse(req.body || {});

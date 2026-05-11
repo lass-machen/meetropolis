@@ -1,32 +1,32 @@
 /**
- * useEditor - React Hook für EditorService
+ * useEditor: thin React adapter around EditorService.
  *
- * Dünner Wrapper um EditorService mit React Observer Pattern
- * BACKWARDS COMPATIBLE: Gibt Array zurück wie alter Hook
+ * Returns the tuple shape kept for backwards compatibility with the previous
+ * hook implementation.
  */
 
 import { useState, useEffect, useCallback } from 'react';
 import { EditorService, EditorState } from '../services/EditorService';
 
-// Re-export Types für Backwards Compatibility
+// Re-export types so existing imports keep working.
 export type { EditorState, EditorAction, EditorTool, EditorCategory } from '../services/EditorService';
 
 /**
- * Hook der den EditorService State mit React verbindet
- * @returns Array mit [state, setState-Wrapper] für Backwards Compatibility
+ * Bind the EditorService state to React render output.
  *
- * Wichtig: `setStateWrapper` ist via `useCallback` stabil gehalten. Sonst
- * wechselt seine Identität bei jedem Render und Effekte/Memo-Hooks, die ihn
- * in ihrer Dependency-Liste tragen, feuern bei jedem Render erneut — was im
- * Verbund mit `EditorService.dispatch` (das stets neue State-Objekte
- * publiziert und so via `setState` einen Re-Render anstößt) eine
- * unbegrenzte Update-Schleife auslöst (`Maximum update depth exceeded`).
+ * @returns Tuple of [state, setState-wrapper] mirroring the legacy hook API.
+ *
+ * The wrapper is kept stable via `useCallback`. Without that, its identity
+ * changes on every render: any effect or memo that lists it as a dependency
+ * would refire each render. Combined with `EditorService.dispatch` (which
+ * publishes a new state object and triggers a re-render via `setState`),
+ * that produces an unbounded update loop (`Maximum update depth exceeded`).
  */
 export function useEditor(): [EditorState, React.Dispatch<React.SetStateAction<EditorState>>] {
   const [state, setState] = useState<EditorState>(EditorService.getState());
 
   useEffect(() => {
-    // Subscribe zu State-Änderungen
+    // Forward state changes from the service to React.
     const unsubscribe = EditorService.subscribe((newState) => {
       setState(newState);
     });
@@ -34,18 +34,14 @@ export function useEditor(): [EditorState, React.Dispatch<React.SetStateAction<E
     return unsubscribe;
   }, []);
 
-  // Wrapper für setState der funktionale Updates in LOAD_STATE Actions übersetzt.
-  // useCallback hält die Identität stabil, damit Consumer-Hooks nicht in
-  // Endlos-Render-Loops geraten (siehe JSDoc oben).
+  // Translate functional or direct setState updates into LOAD_STATE actions.
+  // `useCallback` keeps the identity stable, see the JSDoc above for why.
   const setStateWrapper = useCallback((update: React.SetStateAction<EditorState>) => {
     if (typeof update === 'function') {
-      // Funktionales Update: Führe die Funktion mit aktuellem State aus
       const currentState = EditorService.getState();
       const newState = update(currentState);
-      // Überschreibe via LOAD_STATE action
       EditorService.dispatch({ type: 'LOAD_STATE', state: newState });
     } else {
-      // Direktes State-Setting - überschreibe via LOAD_STATE action
       EditorService.dispatch({ type: 'LOAD_STATE', state: update });
     }
   }, []);

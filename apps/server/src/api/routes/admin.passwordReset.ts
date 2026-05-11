@@ -8,12 +8,12 @@ import { requireAuth, requireSuperAdmin, requireMembership, getTenantFromReq } f
 const paramsSchema = z.object({ id: z.string().min(1) });
 
 /**
- * Admin-Endpoint zum Erzeugen eines Password-Reset-Tokens fuer einen User.
- * Reset-Tokens werden im OSS NIE per Mail verschickt — der Token wird im
- * Response zurueckgegeben und vom Admin out-of-band an den User gegeben.
+ * Admin endpoint that creates a password-reset token for a user.
+ * Reset tokens are NEVER emailed in OSS: the token is returned in the
+ * response and shared by the admin out of band.
  *
- * Berechtigung: SuperAdmin global, ODER Tenant-Owner/Admin fuer User des
- * eigenen Tenants.
+ * Authorisation: a global SuperAdmin, OR a tenant owner/admin for users
+ * in their own tenant.
  */
 async function handleAdminCreateResetToken(
   prisma: PrismaClient,
@@ -21,22 +21,34 @@ async function handleAdminCreateResetToken(
   res: express.Response,
 ): Promise<void> {
   const auth = requireAuth(req);
-  if (!auth) { res.status(401).json({ error: 'unauthorized' }); return; }
+  if (!auth) {
+    res.status(401).json({ error: 'unauthorized' });
+    return;
+  }
 
   const parse = paramsSchema.safeParse(req.params);
-  if (!parse.success) { res.status(400).json({ error: 'invalid_user_id' }); return; }
+  if (!parse.success) {
+    res.status(400).json({ error: 'invalid_user_id' });
+    return;
+  }
   const targetUserId = parse.data.id;
 
   const target = await prisma.user.findUnique({
     where: { id: targetUserId },
     select: { id: true, email: true, name: true },
   });
-  if (!target) { res.status(404).json({ error: 'user_not_found' }); return; }
+  if (!target) {
+    res.status(404).json({ error: 'user_not_found' });
+    return;
+  }
 
   const isSuperAdmin = await requireSuperAdmin(req, prisma);
   if (!isSuperAdmin) {
     const tenant = getTenantFromReq(req);
-    if (!tenant) { res.status(400).json({ error: 'tenant_required' }); return; }
+    if (!tenant) {
+      res.status(400).json({ error: 'tenant_required' });
+      return;
+    }
     const membership = await requireMembership(req, auth.userId, prisma);
     if (!membership || (membership.role !== 'owner' && membership.role !== 'admin')) {
       res.status(403).json({ error: 'forbidden' });

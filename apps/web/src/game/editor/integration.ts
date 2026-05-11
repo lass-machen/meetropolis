@@ -1,9 +1,9 @@
 /**
- * Editor Integration - Verbindet MainScene mit neuem Editor-System
+ * EditorIntegration: glue between MainScene and the editor subsystem.
  *
- * Initialisiert EditorRenderer und EditorInputHandler für eine Phaser Scene.
- * Hält Tilemap-Manager-Referenzen, um Terrain-Paints lokal sofort anzuwenden
- * und eine Terrain-Ghost-Preview bereitzustellen.
+ * Initialises EditorRenderer and EditorInputHandler for a Phaser scene and
+ * keeps tilemap-manager references so terrain paints can be applied locally
+ * and a terrain ghost preview can be shown immediately.
  */
 
 import Phaser from 'phaser';
@@ -14,10 +14,10 @@ import type { TerrainPaintOp } from '../../services/EditorTypes';
 import { updateCollisionOverlay } from '../collision/overlay';
 
 export interface EditorIntegrationOptions {
-  tileManager?: any;        // TileManager instance for local tile painting
-  autotileGrid?: any;       // AutotileGrid instance for wall painting
-  autotileRenderer?: any;   // AutotileRenderer instance for wall rendering
-  collisionManager?: any;   // CollisionManager for collision rebuilds
+  tileManager?: any; // TileManager instance for local tile painting
+  autotileGrid?: any; // AutotileGrid instance for wall painting
+  autotileRenderer?: any; // AutotileRenderer instance for wall rendering
+  collisionManager?: any; // CollisionManager for collision rebuilds
 }
 
 export class EditorIntegration {
@@ -64,19 +64,20 @@ export class EditorIntegration {
         return;
       }
 
-      // Render Zones
+      // Render zones.
       this.renderer.renderZones(state.zones, true);
 
-      // Render Assets
+      // Render assets.
       this.renderer.renderAssets(state.assets);
 
-      // Render Spawn
+      // Render the spawn marker.
       this.renderer.renderSpawn(state.spawn);
 
-      // Ghost: NUR bei Änderung re-rendern (for asset tool)
-      const ghostKey = (state.tool === 'asset' && state.pendingAsset)
-        ? `${state.pendingAsset.packUuid || ''}:${state.pendingAsset.itemId || ''}:${state.pendingAsset.key}|${state.pendingAsset.rotation ?? 0}|${state.pendingAsset.scaleFactor ?? 1}`
-        : null;
+      // Ghost: only re-render on change (asset tool only).
+      const ghostKey =
+        state.tool === 'asset' && state.pendingAsset
+          ? `${state.pendingAsset.packUuid || ''}:${state.pendingAsset.itemId || ''}:${state.pendingAsset.key}|${state.pendingAsset.rotation ?? 0}|${state.pendingAsset.scaleFactor ?? 1}`
+          : null;
 
       if (ghostKey !== lastGhostKey) {
         lastGhostKey = ghostKey;
@@ -96,9 +97,8 @@ export class EditorIntegration {
       }
 
       // Terrain Ghost Preview (for terrain tool with selected tile)
-      const terrainGhostKey = (state.tool === 'terrain' && state.selectedTileRefId > 0)
-        ? `terrain:${state.selectedTileRefId}`
-        : null;
+      const terrainGhostKey =
+        state.tool === 'terrain' && state.selectedTileRefId > 0 ? `terrain:${state.selectedTileRefId}` : null;
       if (terrainGhostKey !== lastTerrainGhostKey) {
         lastTerrainGhostKey = terrainGhostKey;
         if (terrainGhostKey) {
@@ -111,7 +111,7 @@ export class EditorIntegration {
       // Render Pending Delete Overlays
       this.renderer.renderPendingDeletes(state.pendingChanges.objectsToDelete, state.mapObjects);
 
-      // Render Selection basierend auf Drag-State
+      // Render the selection box based on the drag state.
       if (state.dragState) {
         const tileSize = 16;
         const x0 = Math.min(state.dragState.startTileX, state.dragState.endTileX) * tileSize;
@@ -171,7 +171,7 @@ export class EditorIntegration {
     } else if (layer === 'collision') {
       // Collision painting via TileManager.applyTilePaint
       if (this.tileManager?.applyTilePaint) {
-        const tileIndex = (erase || tileRefId === 0) ? -1 : 1;
+        const tileIndex = erase || tileRefId === 0 ? -1 : 1;
         this.tileManager.applyTilePaint(
           {
             layer: 'Collision' as const,
@@ -179,7 +179,7 @@ export class EditorIntegration {
             tileIndex,
             rect: { startX: rect.x0, startY: rect.y0, endX: rect.x1, endY: rect.y1 },
           },
-          true, // collisionVisible — always true in editor mode
+          true, // collisionVisible is always true while the editor is active.
           () => {
             // Rebuild collision and update visual overlay
             if (this.collisionManager) {
@@ -205,9 +205,13 @@ export class EditorIntegration {
 
         // Get tileset registry from V2 state
         let tilesetRegistry: Array<{
-          slot: number; key: string; imageUrl: string;
-          tileWidth: number; tileHeight: number;
-          margin?: number | null; spacing?: number | null;
+          slot: number;
+          key: string;
+          imageUrl: string;
+          tileWidth: number;
+          tileHeight: number;
+          margin?: number | null;
+          spacing?: number | null;
         }> = [];
 
         const mapId = useMapStore.getState().currentMapId;
@@ -259,14 +263,12 @@ export class EditorIntegration {
           this.renderer.renderGhost({ dataUrl, width: tw, height: th });
         }
       } catch {
-        // Silently fail — terrain ghost is a nice-to-have
+        // Silently fail: the terrain ghost is a nice-to-have, not critical.
       }
     })();
   }
 
-  /**
-   * Gibt Ressourcen frei
-   */
+  /** Release resources held by this integration. */
   public destroy(): void {
     if (this.stateUnsubscribe) {
       this.stateUnsubscribe();
@@ -276,16 +278,12 @@ export class EditorIntegration {
     this.renderer.destroy();
   }
 
-  /**
-   * Gibt den Renderer zurück (für manuelle Operationen)
-   */
+  /** Return the underlying renderer for manual operations. */
   public getRenderer(): EditorRenderer {
     return this.renderer;
   }
 
-  /**
-   * Gibt den InputHandler zurück
-   */
+  /** Return the underlying input handler. */
   public getInputHandler(): EditorInputHandler {
     return this.inputHandler;
   }
@@ -305,10 +303,7 @@ export class EditorIntegration {
   }
 }
 
-/**
- * Helper-Funktion für MainScene
- * Initialisiert das neue Editor-System
- */
+/** Helper that initialises the editor system from MainScene. */
 export function initializeEditorSystem(
   scene: Phaser.Scene,
   tileSize: number = 16,

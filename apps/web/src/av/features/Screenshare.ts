@@ -382,7 +382,7 @@ export class Screenshare implements Disposable {
 
       if (isSystemEnded) {
         // System killed the track (App Nap, Stage Manager, etc.)
-        // Don't clear _desiredSharing — we want to restore when possible
+        // Do not clear _desiredSharing: restore the share when possible.
         AVLogger.warn('screenshare.ended_by_system');
         this._isSharing = false;
         void this._endAppNapPrevention();

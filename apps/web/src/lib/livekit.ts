@@ -83,7 +83,7 @@ async function fetchLivekitToken(params: JoinLivekitRoomParams): Promise<string>
       signal: controller.signal,
     });
     if (!res.ok) {
-      throw new Error('LiveKit Token konnte nicht geholt werden');
+      throw new Error('Failed to obtain LiveKit token');
     }
     return (await res.text()).trim();
   } catch (err) {
@@ -121,7 +121,7 @@ async function fetchLivekitUrlFromApi(baseUrl: string): Promise<string | undefin
     }
   } catch (err) {
     if ((err as { name?: string })?.name === 'AbortError') {
-      // Timeout – let resolveLivekitServerUrl fall back gracefully
+      // Timeout: let resolveLivekitServerUrl fall back gracefully.
       return undefined;
     }
   } finally {
@@ -203,23 +203,23 @@ function buildConnectOptions(forceRelay: boolean): LivekitConnectOptions {
 
   return {
     autoSubscribe: false,
-    // Lokale Tracks werden nicht automatisch erzeugt; Remote-Subscribe erfolgt gezielt
+    // Local tracks are not created automatically; remote subscribe is explicit.
     video: false,
     audio: false,
-    // Nicht automatisch trennen bei pagehide/visibilitychange (wir managen Resume selbst)
+    // Do not auto-disconnect on pagehide/visibilitychange (resume is handled manually).
     disconnectOnPageLeave: false,
-    // Adaptive Stream: liefert nur benötigte Layer
+    // Adaptive stream: only deliver layers actually needed.
     adaptiveStream: true,
-    // Simulcast/Dynacast für effiziente Layer-Nutzung
+    // Simulcast/dynacast: efficient layer fan-out.
     dynacast: true,
-    // Publishing-Defaults inkl. DTX für Sprache
+    // Publishing defaults, including DTX for voice.
     publishDefaults: {
       dtx: true,
       simulcast: true,
       videoEncoding: { maxBitrate: 1_200_000, maxFramerate: 30 },
       screenShareEncoding: { maxBitrate: 2_500_000, maxFramerate: 30 },
     },
-    // Audio-Capture Defaults (für Browser-Track-Erzeugung)
+    // Audio capture defaults for browser track creation.
     audioCaptureDefaults: {
       echoCancellation: true,
       noiseSuppression: true,
@@ -282,7 +282,7 @@ async function connectLivekitRoom(args: {
   await awaitConnectWithTimeout(room, connectPromise);
   logConnected(room, args.forceRelay);
 
-  // Absicherung: explizit Auto-Disconnect bei Page-Leave deaktivieren (falls vom SDK unterstützt)
+  // Safety net: explicitly disable auto-disconnect on page-leave when supported by the SDK.
   try {
     (room as Room & { setDisconnectOnPageLeave?: (v: boolean) => void }).setDisconnectOnPageLeave?.(false);
   } catch {}
@@ -307,7 +307,7 @@ export async function joinLivekitRoom(params: JoinLivekitRoomParams): Promise<Ro
 
   const initialForceRelay = shouldForceRelay();
   try {
-    // WICHTIG: keine lokalen Audio/Video-Tracks automatisch erstellen/publizieren.
+    // Important: never auto-create or publish local audio/video tracks here.
     return await connectLivekitRoom({
       serverUrl,
       token,
@@ -316,7 +316,7 @@ export async function joinLivekitRoom(params: JoinLivekitRoomParams): Promise<Ro
       forceRelay: initialForceRelay,
     });
   } catch (error) {
-    // Fallback: wenn Direct-ICE scheitert (Hotspot/VPN/Corporate-NAT), einmal mit TURN/Relay probieren
+    // Fallback: if direct ICE fails (hotspot, VPN, corporate NAT), retry once with TURN/relay.
     if (!initialForceRelay) {
       logRelayRetry(error);
       try {

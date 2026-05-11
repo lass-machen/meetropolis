@@ -49,8 +49,8 @@ export async function spawnLivekitBot(opts: {
   const publication = await room.localParticipant!.publishTrack(audioTrack, publishOptions);
   const trackSid = publication.sid;
 
-  // Periodically push silent frames (zero PCM) — keeps the publication alive
-  // and provides realistic upstream traffic for SFU stress testing.
+  // Periodically push silent frames (zero PCM) to keep the publication alive
+  // and provide realistic upstream traffic for SFU stress testing.
   let alive = true;
   const silenceFramePromise = (async () => {
     const silentSamples = new Int16Array(SAMPLES_PER_FRAME * NUM_CHANNELS); // initialised to 0
@@ -101,7 +101,7 @@ export async function spawnLivekitBot(opts: {
         lastInboundAudio = inboundAudio;
         samples++;
       } catch {
-        // ignore sampling errors — they should not abort the bot
+        // Ignore sampling errors: they should not abort the bot.
       }
       await new Promise((r) => setTimeout(r, 1000));
     }

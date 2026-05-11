@@ -94,11 +94,11 @@ describe('AVManager', () => {
     });
     mgr.current = room;
 
-    // Unter 0 wird geklemmt
+    // Below 0 is clamped.
     mgr.setParticipantVolume(sid, -1);
-    // Über 1 wird geklemmt
+    // Above 1 is clamped.
     mgr.setParticipantVolume(sid, 5);
-    // Normalwert
+    // In-range value.
     mgr.setParticipantVolume(sid, 0.5);
 
     expect(setVolume).toHaveBeenCalledTimes(3);
@@ -210,8 +210,9 @@ describe('AVManager', () => {
     expect(room.localParticipant.unpublishTrack).toHaveBeenCalledWith(a);
   });
 
-  // Note: Test for 'setzt initiale Remote-Audio-Lautstärke' removed after refactor
-  // The wireRoomEvents method no longer exists - events are handled by SubscriptionManager
+  // Note: the 'sets initial remote audio volume' test was removed after the
+  // refactor. The wireRoomEvents method no longer exists; events are handled
+  // by SubscriptionManager.
 
   it('re-publiziert Mic, wenn vorhandener Track beendet/disabled ist', async () => {
     const mgr = makeManager() as any;
@@ -287,11 +288,11 @@ describe('AVManager', () => {
     const mgr = makeManager() as any;
     // Mic vor Connect einschalten → pending flag
     await mgr.setMicrophoneEnabled(true);
-    // Join triggern
+    // Trigger the join.
     const p = mgr.switchTo('world');
-    // Warten bis switchTo Promise resolved
+    // Wait for switchTo to resolve.
     await p;
-    // Pending-Activation läuft via setTimeout(250)
+    // The pending activation runs via setTimeout(250).
     vi.advanceTimersByTime(300);
     const fakeRoom: any = await (joinLivekitRoom as any).mock.results[0].value;
     expect(fakeRoom.localParticipant.publishTrack).toHaveBeenCalled();
