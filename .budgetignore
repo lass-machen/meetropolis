@@ -1,0 +1,23 @@
+# LoC budget exceptions (used by scripts/enforce-budgets.js).
+#
+# Format per line: <relative-path>  <reason>
+# Lines starting with '#' are comments. Only the first whitespace-separated
+# field is read as the path; the rest is informational rationale.
+#
+# Each entry MUST justify why splitting the file would harm the codebase.
+# The default expectation is to refactor, not to ignore.
+
+# Phaser Scene subclass. The class implements the Phaser lifecycle contract
+# (preload/create/update + a large public surface consumed by manager helpers
+# in apps/web/src/game/{map,editor,camera}). It already delegates heavily to
+# manager classes; further extraction would create hidden `this`-binding
+# coupling via mixins or partial-class workarounds, which violates the
+# lifecycle contract. Recommendation tracked in AGENTS.md to raise the
+# Phaser-scene absolute budget to 800 LoC.
+apps/web/src/game/scenes/MainScene.ts  phaser-scene delegation pattern, splitting breaks lifecycle contract
+
+# Composite hook that wires multiple sub-hooks unconditionally per React
+# hook-call-order rules. The function body is long because every sub-hook
+# must be invoked in the same render pass; splitting into multiple component
+# bodies would create the same wiring elsewhere without reducing complexity.
+apps/web/src/app/routes/hooks/useWorldHooksComposite.ts  react hook-order constraint prevents body split
