@@ -19,6 +19,7 @@ contributions.
 Please report security vulnerabilities by emailing **security@meetropolis.de**.
 
 **Please do NOT:**
+
 - Open a public GitHub issue for security vulnerabilities
 - Disclose the vulnerability publicly before we have addressed it
 
@@ -70,16 +71,48 @@ When contributing to this project, please:
 ## Known Security Considerations
 
 ### Authentication
+
 - JWT tokens are used for session management
 - Passwords are hashed using bcrypt with appropriate cost factor
 - API tokens are hashed before storage
 
 ### Data Protection
+
 - Database connections use TLS in production
 - CORS is configured to allow only trusted origins
 - Sensitive data is not logged
 
 ### Infrastructure
+
 - Docker containers run as non-root users where possible
 - Traefik handles TLS termination with Let's Encrypt
 - Rate limiting should be enabled in production
+
+## Known Dependency Advisories
+
+`npm audit` reports the following advisories that we have evaluated and
+accepted as low-impact for production deployments:
+
+### `elliptic` (6 low-severity advisories)
+
+- Advisory: [GHSA-848j-6mx2-7j84](https://github.com/advisories/GHSA-848j-6mx2-7j84)
+- Dependency chain: `@colyseus/playground` -> `@colyseus/auth` -> `grant`
+  -> `jwk-to-pem` -> `elliptic`.
+- Affected surface: the Colyseus Playground is a development-only debug UI
+  that is not enabled in production builds. The production Colyseus server
+  uses the core `colyseus` runtime, which does not load the playground or
+  its auth helpers.
+- No upstream fix is currently available; the advisory applies to all
+  published versions of `elliptic`. `npm audit fix --force` would downgrade
+  `colyseus` to 0.15.13, which is a breaking regression and is not safe to
+  apply.
+- Action: monitor for a non-vulnerable `elliptic` release or for
+  `@colyseus/playground` to drop the `grant`/`jwk-to-pem` dependency.
+
+### Already remediated
+
+- `@hono/node-server` middleware bypass
+  ([GHSA-92pp-h63x-v22m](https://github.com/advisories/GHSA-92pp-h63x-v22m))
+  was pinned to `>= 1.19.14` via a nested `overrides` entry in the root
+  `package.json` to force the patched version through the transitive
+  `prisma -> @prisma/dev` chain.
