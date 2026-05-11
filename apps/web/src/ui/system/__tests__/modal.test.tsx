@@ -8,13 +8,11 @@ describe('Modal', () => {
     render(
       <Modal open={true} onOpenChange={onOpenChange} title="Title">
         <div data-testid="content">Hello</div>
-      </Modal>
+      </Modal>,
     );
     expect(screen.getByTestId('content')).toBeInTheDocument();
-    const close = screen.getByTitle('Schließen');
+    const close = screen.getByTitle('Close');
     fireEvent.click(close);
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 });
-
-

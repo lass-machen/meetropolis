@@ -226,6 +226,7 @@ function ZoomControls({
 }
 
 function HintsBar({ zoom }: { zoom: number }) {
+  const { t } = useTranslation('common');
   return (
     <div
       style={{
@@ -244,10 +245,10 @@ function HintsBar({ zoom }: { zoom: number }) {
         pointerEvents: 'none',
       }}
     >
-      <span>Scroll: Zoom</span>
-      <span>Doppelklick: 2x</span>
-      {zoom > 1 && <span>Ziehen: Verschieben</span>}
-      <span>Esc: Schließen</span>
+      <span>{t('participant.hintScroll')}</span>
+      <span>{t('participant.hintDoubleClick')}</span>
+      {zoom > 1 && <span>{t('participant.hintDrag')}</span>}
+      <span>{t('participant.hintEsc')}</span>
     </div>
   );
 }

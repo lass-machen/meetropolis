@@ -1,4 +1,5 @@
 import React from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { AvatarSettings } from '../settings/AvatarSettings';
 import { gameBridge } from '../../game/bridge';
 import { logger } from '../../lib/logger';
@@ -10,6 +11,7 @@ interface OnboardingWizardProps {
 }
 
 export function OnboardingWizard({ me, apiBase, onComplete }: OnboardingWizardProps) {
+  const { t } = useTranslation('common');
   const [selectedAvatarId, setSelectedAvatarId] = React.useState(
     () => localStorage.getItem('avatarId') || 'default-characters:businessman1',
   );
@@ -54,9 +56,13 @@ export function OnboardingWizard({ me, apiBase, onComplete }: OnboardingWizardPr
           <div style={styles.glowTop} />
 
           <h1 style={styles.heading}>
-            Willkommen, <span style={styles.nameHighlight}>{displayName}</span>!
+            <Trans
+              i18nKey="onboarding.welcome"
+              values={{ name: displayName }}
+              components={{ 1: <span style={styles.nameHighlight} /> }}
+            />
           </h1>
-          <p style={styles.subtitle}>Wähle deinen Avatar</p>
+          <p style={styles.subtitle}>{t('onboarding.subtitle')}</p>
 
           <div style={styles.avatarArea}>
             <AvatarSettings currentAvatarId={selectedAvatarId} onAvatarChange={(id) => setSelectedAvatarId(id)} />
@@ -72,7 +78,7 @@ export function OnboardingWizard({ me, apiBase, onComplete }: OnboardingWizardPr
               ...(submitting ? styles.buttonDisabled : {}),
             }}
           >
-            {submitting ? 'Einen Moment...' : 'Loslegen'}
+            {submitting ? t('onboarding.submitting') : t('onboarding.cta')}
           </button>
         </div>
       </div>
