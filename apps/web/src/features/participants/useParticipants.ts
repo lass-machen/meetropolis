@@ -229,9 +229,13 @@ function pushParticipant(
       ...(pAvatarId ? { avatarId: pAvatarId } : {}),
     });
     if (hasScreen) {
+      // Screen-share entry: identity stays the same as the camera entry
+      // because `media: 'screen'` plus the ':screen' sid suffix already
+      // discriminates the two. The UI appends a localised suffix at render
+      // time (see ParticipantCard / UserCard via t('participant.screenSuffix')).
       list.push({
         sid: p.sid + ':screen',
-        identity: `${identity} – Bildschirm`,
+        identity,
         hasVideo: true,
         hasMic: false,
         isSpeaking: false,
@@ -366,8 +370,14 @@ export function useParticipants(deps: ParticipantsDeps) {
         next[livekitIdentity] = vol;
         try {
           const display = getDisplayName(livekitIdentity);
-          if (display) next[display] = vol;
-          next[`${display} – Bildschirm`] = vol;
+          if (display) {
+            next[display] = vol;
+            // Screen-share volume map key: composite key (display:screen)
+            // instead of a localised suffix. Screen-share inherits the same
+            // volume as the camera entry today; the separate key preserves
+            // the lookup contract for any future per-media-override.
+            next[`${display}:screen`] = vol;
+          }
         } catch {}
       }
     }

@@ -29,6 +29,18 @@ type AnyParticipant = (Participant | RemoteParticipant | LocalParticipant) & { n
 const getTrackId = (t: TrackLike | null | undefined): string | null =>
   t?.sid || t?.mediaStreamTrack?.id || (t as { id?: string } | null | undefined)?.id || null;
 
+/**
+ * Returns the display name for a participant entry, appending a localised
+ * suffix when the entry represents a screen-share. Camera and screen entries
+ * share the same `identity`; the `media` discriminator decides the suffix.
+ */
+function displayParticipantName(part: PartType, t: (k: string) => string): string {
+  if (part.media === 'screen') {
+    return `${part.identity} (${t('participant.screenSuffix')})`;
+  }
+  return part.identity;
+}
+
 function findParticipant(
   room: LegacyRoom,
   baseSid: string,
@@ -39,19 +51,14 @@ function findParticipant(
     ? room.localParticipant
     : room.participants?.get?.(baseSid) || room.remoteParticipants?.get?.(baseSid);
   if (p || isLocalNow) return { p: p ?? null, baseSid };
+  // Screen-share UI entries share the camera-entry identity; the media
+  // discriminator on PartType distinguishes them. Search by identity only.
   const allParticipants: AnyParticipant[] = Array.from(room.remoteParticipants?.values() || []);
-  const searchIdentity =
-    part.media === 'screen' && part.identity.endsWith(' – Bildschirm') ? part.identity.slice(0, -14) : part.identity;
+  const searchIdentity = part.identity;
   p =
     allParticipants.find((participant) => (participant.name || participant.identity) === searchIdentity) ||
     allParticipants.find((participant) => participant.identity === searchIdentity);
   if (p) return { p, baseSid: p.sid };
-  if (part.media === 'screen') {
-    p = allParticipants.find((participant) =>
-      part.identity.startsWith((participant.name || participant.identity) + ' –'),
-    );
-    if (p) return { p, baseSid: p.sid };
-  }
   return { p: null, baseSid };
 }
 
@@ -60,17 +67,13 @@ function findScreenParticipant(
   part: PartType,
   currentP: AnyParticipant | null,
 ): AnyParticipant | null {
+  // Screen-share lookup uses the same identity as the camera entry now
+  // that no localised suffix is appended.
   const allParticipants: AnyParticipant[] = Array.from(room.remoteParticipants?.values() || []);
-  const searchIdentity = part.identity.endsWith(' – Bildschirm') ? part.identity.slice(0, -14) : part.identity;
-  let next = allParticipants.find((participant) => {
-    const pName = participant.name || participant.identity;
-    return pName === searchIdentity || part.identity.startsWith(pName + ' –');
-  });
-  if (!next) {
-    next = allParticipants.find(
-      (participant) => participant.identity === searchIdentity || part.identity.startsWith(participant.identity + ' –'),
-    );
-  }
+  const searchIdentity = part.identity;
+  const next =
+    allParticipants.find((participant) => (participant.name || participant.identity) === searchIdentity) ||
+    allParticipants.find((participant) => participant.identity === searchIdentity);
   return next || currentP;
 }
 
@@ -441,7 +444,7 @@ function StatusBadges({
 
 async function performForceMute(part: PartType, roomGetter: () => Room | undefined) {
   try {
-    const label = (part.identity || '').replace(/\s+–\s*Bildschirm$/, '');
+    const label = part.identity || '';
     let targetIdentity = label;
     try {
       const room = roomGetter?.() as LegacyRoom | undefined;
@@ -531,7 +534,7 @@ function CollapsedPill({
         <span className="uc-pill-avatar">
           <AvatarSprite {...(part.avatarId ? { avatarId: part.avatarId } : {})} size={12} />
         </span>
-        {part.identity}
+        {displayParticipantName(part, t)}
       </div>
       <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
         <StatusBadges part={part} isVideoRendering={isVideoRendering} t={t} />
@@ -624,7 +627,7 @@ function ExpandedCard({
             fontSize: 14,
           }}
         >
-          {part.identity}
+          {displayParticipantName(part, t)}
         </div>
       )}
       <div
@@ -652,7 +655,7 @@ function ExpandedCard({
             textOverflow: 'ellipsis',
           }}
         >
-          {part.identity}
+          {displayParticipantName(part, t)}
         </div>
       </div>
       <div style={{ position: 'absolute', top: 6, right: 6, display: 'flex', gap: 6 }}>

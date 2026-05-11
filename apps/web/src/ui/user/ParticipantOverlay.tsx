@@ -253,6 +253,7 @@ function HintsBar({ zoom }: { zoom: number }) {
 }
 
 function ScreenshareBadge() {
+  const { t } = useTranslation('common');
   return (
     <div
       role="status"
@@ -278,7 +279,7 @@ function ScreenshareBadge() {
         <line x1="8" y1="21" x2="16" y2="21" />
         <line x1="12" y1="17" x2="12" y2="21" />
       </svg>
-      Bildschirmfreigabe
+      {t('participant.screenshareBadge')}
     </div>
   );
 }
