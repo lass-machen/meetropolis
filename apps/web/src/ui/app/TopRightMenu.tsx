@@ -283,6 +283,7 @@ function MenuContent({
       {onResetApp && (
         <MenuItem
           icon="reset"
+          // TODO i18n: Reset app (fallback when topRightMenu.resetApp missing)
           label={t('topRightMenu.resetApp') || 'App zurücksetzen'}
           onClick={() => handleItemClick(onResetApp)}
           className="menu-item danger"

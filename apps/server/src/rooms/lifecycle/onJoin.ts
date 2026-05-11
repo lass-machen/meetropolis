@@ -646,8 +646,8 @@ export async function completePendingJoin(
 
   const { mapId: initialMapId, mapName: rawMapName } = await resolveInitialMap(room, options);
 
-  // Final-Guard: player.mapName darf NIE leer sein, sonst raced der Client
-  // den Map-Filter (siehe playerHandlers.ts / mapFilter.ts).
+  // Final guard: player.mapName must NEVER be empty, otherwise the client
+  // races the map filter (see playerHandlers.ts / mapFilter.ts).
   const initialMapName = rawMapName || process.env.DEFAULT_MAP_NAME || 'office';
 
   const player = new PlayerClass();
@@ -668,7 +668,7 @@ export async function completePendingJoin(
   player.isNpc = (joiningIdentity || '').startsWith('npc-');
 
   room.state.players.set(client.sessionId, player);
-  // Initial lastSeen setzen, damit Ghost-Check erst nach Threshold-Ablauf greift
+  // Set initial lastSeen so the ghost check only triggers after the threshold elapses
   room.lastSeen.set(client.sessionId, Date.now());
   try {
     colyseusPlayers.inc();

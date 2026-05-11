@@ -70,7 +70,7 @@ export type Tileset = {
 };
 
 export type MapObjectRecord = {
-  id: number | string; // Server ID (number) oder temp ID (negative number/string)
+  id: number | string; // Server ID (number) or temp ID (negative number/string)
   assetPackUuid: string;
   itemId: string;
   category: string;
@@ -85,7 +85,7 @@ export type MapObjectRecord = {
   flipX?: boolean;
   flipY?: boolean;
   dataUrl?: string;
-  _pending?: 'add'; // Marker für noch nicht gespeicherte Objects
+  _pending?: 'add'; // Marker for objects that have not been saved yet
 };
 
 export type TerrainPaintOp = {

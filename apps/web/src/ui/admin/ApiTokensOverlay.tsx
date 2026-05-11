@@ -180,7 +180,7 @@ export function ApiTokensOverlay(props: ApiTokensOverlayProps) {
         credentials: 'include',
         body: JSON.stringify({ name: newTokenName || undefined }),
       });
-      if (!res.ok) throw new Error('Token konnte nicht erstellt werden');
+      if (!res.ok) throw new Error('Token could not be created');
       const data = (await res.json()) as CreateTokenResponse;
       setFreshToken(data.token);
       setNewTokenName('');
@@ -189,6 +189,7 @@ export function ApiTokensOverlay(props: ApiTokensOverlayProps) {
       )) as ApiToken[];
       setApiTokens(list);
     } catch (e: unknown) {
+      // TODO i18n: surface validation messages via translation keys
       setError((e instanceof Error ? e.message : null) || t('admin.api.createError'));
     }
   };

@@ -25,7 +25,7 @@ export function useAuthApi(baseUrl: string) {
         'Content-Type': 'application/json',
       };
 
-      // Desktop-Clients (Tauri): x-tenant Header aus web_base extrahieren
+      // Desktop clients (Tauri): extract the x-tenant header from web_base
       try {
         const webBase = (window as unknown as Record<string, string>).__MEETROPOLIS_WEB_BASE__ || '';
         if (webBase) {
@@ -59,7 +59,7 @@ export function useAuthApi(baseUrl: string) {
         } catch (e: unknown) {
           logger.warn('[Auth] Fetch error:', (e as Error)?.message || String(e), 'URL:', url);
           lastErr = e;
-          // Netzwerk-/Verbindungsfehler: kurzer Retry mit Backoff
+          // Network / connection error: short retry with backoff
           if (i < attempts.length - 1) {
             await new Promise((r) => setTimeout(r, attempts[i]));
             continue;

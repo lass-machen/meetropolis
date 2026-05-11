@@ -40,7 +40,7 @@ export class MainScene extends Phaser.Scene implements MainSceneShape {
   private nameLabelManager!: NameLabelManager;
   private objectManager!: ObjectManager;
 
-  // Tilemap-State: public, weil Helper-Functions in game/map/* darauf zugreifen.
+  // Tilemap state: public because helper functions in game/map/* access it.
   public mapRef?: Phaser.Tilemaps.Tilemap;
   public editorGround?: Phaser.Tilemaps.TilemapLayer;
   public wallsLayer?: Phaser.Tilemaps.TilemapLayer;
@@ -503,7 +503,7 @@ export class MainScene extends Phaser.Scene implements MainSceneShape {
     if (this.editorIntegration) {
       this.editorIntegration.getRenderer().renderGhost(preview);
     } else {
-      // Fallback auf alte Implementierung
+      // Fall back to the old implementation
       setAssetPreview(this, preview);
     }
   }

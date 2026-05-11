@@ -79,7 +79,7 @@ export function applySubscriptions(ctx: ApplySubscriptionsContext): void {
         }
       }
     }
-    // Telemetrie-Hook (optional): Anzahl Teilnehmer und Keys zusammenfassen
+    // Telemetry hook (optional): summarise number of participants and keys
     try {
       const env = (import.meta as unknown as { env?: { VITE_AV_DEBUG?: string } }).env;
       const debugOn = env?.VITE_AV_DEBUG === 'true' || window.__avDebugOn;

@@ -180,9 +180,13 @@ export function WorldContextMenu(props: WorldContextMenuProps) {
           boxShadow: '0 12px 40px rgba(0,0,0,0.5)',
         }}
       >
+        {/* TODO i18n: Follow */}
         <MenuButton onClick={handleFollowClick} label="Folgen" />
+        {/* TODO i18n: Join bubble */}
         {shouldShowJoinBubble && <MenuButton onClick={handleJoinBubbleClick} label="Bubble beitreten" />}
+        {/* TODO i18n: Add to bubble */}
         {shouldShowAddToBubble && <MenuButton onClick={handleAddToBubbleClick} label="Zur Bubble hinzufügen" />}
+        {/* TODO i18n: Start bubble */}
         <MenuButton onClick={handleStartBubbleClick} label="Bubble starten" withBorder={false} />
       </div>
     </div>

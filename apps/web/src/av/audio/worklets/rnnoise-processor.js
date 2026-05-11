@@ -1,16 +1,16 @@
 /*
-  Minimalistische Noise-Gate/Expander-Implementierung als AudioWorkletProcessor.
-  Ziel: Leises, stationäres Rauschen dämpfen (Tastatur/Bohrgeräusche werden nur begrenzt verbessert).
+  Minimal noise-gate / expander implementation as an AudioWorkletProcessor.
+  Goal: attenuate quiet, stationary noise (typing / drilling are only marginally improved).
 
-  Parameter:
-  - threshold (dBFS): Pegel unterhalb dessen das Signal abgesenkt wird. Default: -50 dB
-  - ratio: Expansions-Verhältnis (< 1.0 → stärkere Absenkung). Default: 0.2
-  - attackMs: Zeitkonstante für Anstieg des Gains. Default: 10 ms
-  - releaseMs: Zeitkonstante für Abfall des Gains. Default: 120 ms
-  - makeupGainDb: Optionaler Make-Up-Gain in dB (Default: 0)
+  Parameters:
+  - threshold (dBFS): level below which the signal is attenuated. Default: -50 dB
+  - ratio: expansion ratio (< 1.0 means stronger attenuation). Default: 0.2
+  - attackMs: time constant for gain rise. Default: 10 ms
+  - releaseMs: time constant for gain fall. Default: 120 ms
+  - makeupGainDb: optional make-up gain in dB (Default: 0)
 
-  Hinweis: Dies ist KEIN RNNoise (ML). Der Dateiname entspricht der bisherigen Referenz,
-  um den bestehenden Ladepfad nicht zu ändern.
+  Note: this is NOT RNNoise (ML). The file name matches the previous reference
+  so that the existing load path stays unchanged.
 */
 
 class NoiseGateProcessor extends AudioWorkletProcessor {
@@ -34,7 +34,7 @@ class NoiseGateProcessor extends AudioWorkletProcessor {
     return Math.pow(10, db / 20);
   }
 
-  // Schätzung des Kurzzeit-RMS über einen Render-Quantum
+  // Short-term RMS estimate over a render quantum
   computeRmsDb(channelData) {
     let sum = 0.0;
     const N = channelData.length;
@@ -60,37 +60,37 @@ class NoiseGateProcessor extends AudioWorkletProcessor {
     const ratio = parameters.ratio?.length ? parameters.ratio[0] : 0.2;
     const makeupDb = parameters.makeupGainDb?.length ? parameters.makeupGainDb[0] : 0;
 
-    const sampleRate = sampleRate; // global in Worklet-Scope
+    const sampleRate = sampleRate; // global in worklet scope
     const attackCoeff = Math.exp(-1.0 / (0.001 * attackMs * sampleRate));
     const releaseCoeff = Math.exp(-1.0 / (0.001 * releaseMs * sampleRate));
 
-    // Mono/Mehrkanal identisch behandeln
+    // Handle mono and multi-channel input identically
     for (let ch = 0; ch < input.length; ch++) {
       const inCh = input[ch];
       const outCh = output[ch];
       if (!inCh || !outCh) continue;
 
-      // Kurzzeit-Pegelschätzung pro Quantum
+      // Short-term level estimate per quantum
       const levelDb = this.computeRmsDb(inCh);
       const above = levelDb - threshDb;
 
-      // Expander: unterhalb der Schwelle → Gain < 1, oberhalb → nahe 1
+      // Expander: below threshold the gain drops below 1, above it stays near 1
       let targetGain;
       if (above < 0) {
-        // je weiter unterhalb, desto stärker absenken
-        const distance = Math.min(60, -above); // Kappe bei 60 dB
+        // the further below the threshold, the stronger the attenuation
+        const distance = Math.min(60, -above); // cap at 60 dB
         const lin = Math.max(0, 1 - (1 - ratio) * (distance / 60));
         targetGain = lin;
       } else {
         targetGain = 1.0;
       }
 
-      // Glättung (Attack/Release)
+      // Smoothing (attack / release)
       const coeff = targetGain > this.lastGain ? attackCoeff : releaseCoeff;
       const newGain = targetGain + coeff * (this.lastGain - targetGain);
       this.lastGain = newGain;
 
-      // Make-Up-Gain
+      // Make-up gain
       const makeup = this.dbToLin(makeupDb);
       const g = newGain * makeup;
 
@@ -104,5 +104,3 @@ class NoiseGateProcessor extends AudioWorkletProcessor {
 }
 
 registerProcessor('rnnoise-processor', NoiseGateProcessor);
-
-

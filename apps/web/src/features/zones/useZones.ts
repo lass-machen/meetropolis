@@ -59,7 +59,7 @@ export function useZones(params: {
       try {
         zoneRef.current?.setZones(polys);
       } catch {}
-      // Cancel pending debounced send; re-allow broadcasting nach kurzer Pause
+      // Cancel pending debounced send; re-allow broadcasting after a short pause
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
         debounceTimerRef.current = null;

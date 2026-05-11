@@ -1,9 +1,9 @@
 /**
- * DOM-Modal-Helfer fuer Realtime-Lifecycle-Events.
+ * DOM modal helpers for realtime lifecycle events.
  *
- * Bewusst frei von React: laufen out-of-band waehrend einer aktiven Colyseus-
- * Session und muessen unabhaengig von React-Render-Zyklen blocken / unblocken.
- * Wir blasen die useWorldRoom-Effekt nicht weiter mit Inline-HTML auf.
+ * Deliberately free of React: these run out-of-band during an active Colyseus
+ * session and must block / unblock independently of React render cycles. We
+ * keep the useWorldRoom effect free of inline HTML.
  */
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -73,7 +73,7 @@ export function showSessionConflictDialog(deps: SessionConflictDeps): void {
 
 interface ServerRestartDeps {
   apiBase: string;
-  /** Caller-Hook, um disposed=true zu setzen, damit kein Reconnect-Versuch mehr laeuft. */
+  /** Caller hook used to set disposed=true so no further reconnect attempt runs. */
   onRestartDetected: () => void;
 }
 

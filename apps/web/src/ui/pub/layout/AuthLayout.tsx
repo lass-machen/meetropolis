@@ -21,11 +21,7 @@ interface AuthLayoutProps {
   children: React.ReactNode;
 }
 
-const TRUST_KEYS = [
-  'auth.trustTrial',
-  'auth.trustNoCreditCard',
-  'auth.trustCancelAnytime',
-] as const;
+const TRUST_KEYS = ['auth.trustTrial', 'auth.trustNoCreditCard', 'auth.trustCancelAnytime'] as const;
 
 const AUTH_LAYOUT_STYLES = `
   .pub-auth-layout {
@@ -77,14 +73,27 @@ function AuthLogo({ t }: { t: (k: string) => string }) {
   return (
     <a
       href="#/"
-      onClick={(e) => { e.preventDefault(); window.location.hash = '#/'; }}
+      onClick={(e) => {
+        e.preventDefault();
+        window.location.hash = '#/';
+      }}
       style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none', color: 'inherit' }}
     >
-      <div style={{
-        width: 36, height: 36, borderRadius: 'var(--pub-radius-logo)',
-        background: 'rgba(255, 255, 255, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-        color: '#FFFFFF', fontFamily: 'var(--pub-font-display)', fontWeight: 800, fontSize: 18,
-      }}>
+      <div
+        style={{
+          width: 36,
+          height: 36,
+          borderRadius: 'var(--pub-radius-logo)',
+          background: 'rgba(255, 255, 255, 0.2)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: '#FFFFFF',
+          fontFamily: 'var(--pub-font-display)',
+          fontWeight: 800,
+          fontSize: 18,
+        }}
+      >
         {brandInitial}
       </div>
       <span style={{ fontFamily: 'var(--pub-font-display)', fontWeight: 700, fontSize: 18, color: '#FFFFFF' }}>
@@ -95,8 +104,8 @@ function AuthLogo({ t }: { t: (k: string) => string }) {
 }
 
 function AuthBrandingCenter({ t }: { t: (k: string) => string }) {
-  // Auth-Hero-Image kommt aus dem Brand-Submodule. Im OSS-Build ist der Pfad
-  // leer und das <img>-Element rendert ohne Bild (alt-text bleibt erhalten).
+  // The auth hero image comes from the brand submodule. In the OSS build the path
+  // is empty and the <img> element renders without an image (alt-text is preserved).
   const heroSrcRaw = t('auth.heroImageSrc');
   const heroSrc = heroSrcRaw && heroSrcRaw !== 'auth.heroImageSrc' ? heroSrcRaw : '';
   const brandRaw = t('header.brandName');
@@ -105,17 +114,40 @@ function AuthBrandingCenter({ t }: { t: (k: string) => string }) {
   const heroAlt = heroAltRaw && heroAltRaw !== 'auth.heroImageAlt' ? heroAltRaw : brandName;
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 24 }}>
-      <h1 style={{ fontFamily: 'var(--pub-font-display)', fontWeight: 800, fontSize: 32, lineHeight: 1.2, color: '#FFFFFF', margin: 0 }}>
+      <h1
+        style={{
+          fontFamily: 'var(--pub-font-display)',
+          fontWeight: 800,
+          fontSize: 32,
+          lineHeight: 1.2,
+          color: '#FFFFFF',
+          margin: 0,
+        }}
+      >
         {t('auth.brandingHeadline')}
       </h1>
-      <p style={{ fontFamily: 'var(--pub-font-body)', fontSize: 16, lineHeight: 1.6, color: 'rgba(255, 255, 255, 0.75)', margin: 0 }}>
+      <p
+        style={{
+          fontFamily: 'var(--pub-font-body)',
+          fontSize: 16,
+          lineHeight: 1.6,
+          color: 'rgba(255, 255, 255, 0.75)',
+          margin: 0,
+        }}
+      >
         {t('auth.brandingSubline')}
       </p>
       {heroSrc && (
         <img
           src={heroSrc}
           alt={heroAlt}
-          style={{ width: '100%', maxWidth: 440, height: 'auto', borderRadius: 'var(--pub-radius-image)', objectFit: 'cover' }}
+          style={{
+            width: '100%',
+            maxWidth: 440,
+            height: 'auto',
+            borderRadius: 'var(--pub-radius-image)',
+            objectFit: 'cover',
+          }}
         />
       )}
     </div>
@@ -127,10 +159,18 @@ function AuthTrustChecks({ t }: { t: (k: string) => string }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       {TRUST_KEYS.map((key) => (
         <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{
-            width: 20, height: 20, borderRadius: '50%', background: 'rgba(20, 184, 166, 0.2)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-          }}>
+          <div
+            style={{
+              width: 20,
+              height: 20,
+              borderRadius: '50%',
+              background: 'rgba(20, 184, 166, 0.2)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}
+          >
             <CheckIcon size={12} color="#14B8A6" />
           </div>
           <span style={{ fontFamily: 'var(--pub-font-body)', fontSize: 14, color: 'rgba(255, 255, 255, 0.85)' }}>

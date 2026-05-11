@@ -21,13 +21,13 @@ export function readTimeoutMs(envKey: string, fallbackMs: number): number {
 }
 
 export function getApiBaseFromWindow(): string {
-  // 1) Query-Parameter (von Electron gesetzt)
+  // 1) Query parameter (set by Electron)
   try {
     const sp = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
     const qp = sp.get('apiBase');
     if (qp) return stripTrailingSlash(qp);
   } catch {}
-  // 2) Desktop-Bridge (zur Laufzeit gesetzt, z.B. via @meetropolis/desktop)
+  // 2) Desktop bridge (set at runtime, e.g. via @meetropolis/desktop)
   try {
     const fromDesktop = window?.desktop?.apiBase || window?.__MEETROPOLIS_API_BASE__;
     if (typeof fromDesktop === 'string' && fromDesktop) return stripTrailingSlash(fromDesktop);

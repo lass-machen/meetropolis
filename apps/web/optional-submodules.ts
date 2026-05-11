@@ -18,18 +18,14 @@ import type { Plugin } from 'vite';
 import { resolve, dirname, join, relative } from 'path';
 import { existsSync, mkdirSync, symlinkSync, readdirSync, lstatSync, readlinkSync, statSync, unlinkSync } from 'fs';
 
-type OptionalSubmoduleSpec =
-  | string
-  | { id: string; path: string; publicDir?: string };
+type OptionalSubmoduleSpec = string | { id: string; path: string; publicDir?: string };
 
 function defaultPathFor(id: string): string {
   const pkgName = id.replace(/^@meetropolis\//, '');
   return `packages/${pkgName}`;
 }
 
-function normalizeSpec(
-  spec: OptionalSubmoduleSpec,
-): { id: string; path: string; publicDir?: string } {
+function normalizeSpec(spec: OptionalSubmoduleSpec): { id: string; path: string; publicDir?: string } {
   return typeof spec === 'string' ? { id: spec, path: defaultPathFor(spec) } : spec;
 }
 
@@ -37,16 +33,20 @@ function normalizeSpec(
  * Symlinkt alle Files aus `submodulePublicDir` rekursiv nach `targetPublicDir`.
  * - Pro Datei (nicht pro Top-Level-Folder), damit OSS-Folder wie `images/`
  *   nicht durch einen einzelnen Submodule-Symlink überschrieben werden.
- * - Existierende Dateien in `targetPublicDir` werden NICHT überschrieben
- *   (OSS-eigene Assets gewinnen).
- * - Existierende Symlinks zum gleichen Ziel sind OK (idempotent).
- * - Fail silently bei Symlink-Fehlern.
+ * - Existing files in `targetPublicDir` are NOT overwritten (OSS-owned
+ *   assets win).
+ * - Existing symlinks pointing to the same target are OK (idempotent).
+ * - Fail silently on symlink errors.
  */
-// existsSync folgt Symlinks → broken Symlink (z.B. absoluter Host-Pfad
-// im Container) returnt false, obwohl der Link selbst da ist. Wir
-// brauchen lstat, um broken Symlinks zu erkennen und ersetzen zu können.
+// existsSync follows symlinks; a broken symlink (e.g. an absolute host path
+// inside the container) returns false even though the link itself exists.
+// We need lstat to detect and replace broken symlinks.
 function lstatSyncSafe(p: string): ReturnType<typeof lstatSync> | null {
-  try { return lstatSync(p); } catch { return null; }
+  try {
+    return lstatSync(p);
+  } catch {
+    return null;
+  }
 }
 
 function linkPublicAssets(submodulePublicDir: string, targetPublicDir: string): void {
@@ -75,22 +75,22 @@ function linkPublicAssets(submodulePublicDir: string, targetPublicDir: string): 
         walk(srcPath, dstPath);
         continue;
       }
-      // Symlink-Ziel relativ zum Quelldateipfad — sonst zeigt der Link
-      // auf den absoluten Host-Pfad und bricht im Docker-Container, wo
-      // /Users/... nicht existiert.
+      // Symlink target is relative to the source file path; otherwise the
+      // link points to the absolute host path and breaks inside the Docker
+      // container where /Users/... does not exist.
       const relSrc = relative(dirname(dstPath), srcPath);
       if (existsSync(dstPath) || lstatSyncSafe(dstPath)) {
         try {
           const lst = lstatSync(dstPath);
           if (lst.isSymbolicLink()) {
             const current = readlinkSync(dstPath);
-            // Bereits relativer Symlink zum richtigen Ziel? -> OK.
+            // Already a relative symlink pointing at the right target? OK.
             if (current === relSrc) continue;
-            // Alter absoluter Symlink — neu anlegen, damit er auch im
-            // Container auflöst.
+            // Stale absolute symlink: recreate so it resolves inside the
+            // container as well.
             unlinkSync(dstPath);
           } else {
-            // Echte Datei (OSS-Asset gewinnt) — nicht überschreiben.
+            // Real file (OSS asset wins): do not overwrite.
             continue;
           }
         } catch {}
@@ -115,7 +115,10 @@ export const OPTIONAL_SUBMODULES: OptionalSubmoduleSpec[] = [
   },
 ];
 
-export function optionalSubmodules(specs: OptionalSubmoduleSpec[] = OPTIONAL_SUBMODULES, repoRoot = resolve(__dirname, '../..')): Plugin {
+export function optionalSubmodules(
+  specs: OptionalSubmoduleSpec[] = OPTIONAL_SUBMODULES,
+  repoRoot = resolve(__dirname, '../..'),
+): Plugin {
   const normalized = specs.map(normalizeSpec);
   const set = new Set(normalized.map((s) => s.id));
 
@@ -138,11 +141,9 @@ export function optionalSubmodules(specs: OptionalSubmoduleSpec[] = OPTIONAL_SUB
         } catch {}
       }
 
-      // Public-Assets aus dem Submodule nach apps/web/public/ symlinken.
-      // Default: <path>/public falls vorhanden, sonst expliziter publicDir.
-      const submodulePublicDir = publicDir
-        ? resolve(repoRoot, publicDir)
-        : resolve(pkgDir, 'public');
+      // Symlink public assets from the submodule into apps/web/public/.
+      // Default: <path>/public when present, otherwise the explicit publicDir.
+      const submodulePublicDir = publicDir ? resolve(repoRoot, publicDir) : resolve(pkgDir, 'public');
       if (existsSync(submodulePublicDir)) {
         linkPublicAssets(submodulePublicDir, targetPublicDir);
       }

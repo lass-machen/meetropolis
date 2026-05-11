@@ -5,8 +5,8 @@
 // - Approx. max lines per function/arrow function (best-effort)
 //
 // Hard limits reflect AGENTS.md budgets:
-// - React/TS/Server-Dateien: absolut ≤ 600 Zeilen
-// - Funktion/Komponente: absolut ≤ 80 Zeilen
+// - React/TS/server files: absolute limit 600 lines
+// - Function/component: absolute limit 80 lines
 //
 // This script is intentionally conservative to avoid false positives
 // that could break developer workflows. It errs on the side of not
@@ -23,14 +23,14 @@ const HARD_LIMIT_FUNCTION_LINES = 80;
 
 const TS_LIKE_EXTENSIONS = new Set(['.ts', '.tsx']);
 
-// Pfad-Praefixe, die immer uebersprungen werden:
-// - generated/: Prisma-Client + Runtime, autogeneriert, keine Refactor-Kandidaten
-// - .test./.spec.: Tests duerfen laenger sein als Produktivcode
+// Path prefixes that are always skipped:
+// - generated/: Prisma client + runtime, auto-generated, not refactor candidates
+// - .test./.spec.: tests are allowed to be longer than production code
 const ALWAYS_EXCLUDE_PREFIXES = ['apps/server/src/generated/'];
 const ALWAYS_EXCLUDE_REGEX = /\.(test|spec)\.(ts|tsx)$/;
 
-// Optionale Allowlist fuer preexistente, geplante-Refactor-Files. Format pro
-// Zeile: "<relativer-pfad>  <reason>". Lines mit '#' am Anfang sind Kommentare.
+// Optional allowlist for pre-existing files with a planned refactor. Format per
+// line: "<relative-path>  <reason>". Lines starting with '#' are comments.
 function loadIgnoreList() {
   const ignorePath = path.join(PROJECT_ROOT, '.budgetignore');
   if (!fs.existsSync(ignorePath)) return new Set();
@@ -146,7 +146,7 @@ function analyzeFunctions(lines) {
                 start: startLine + 1,
                 end: j + 1,
                 length,
-                message: `Funktion überschreitet ${HARD_LIMIT_FUNCTION_LINES} Zeilen (gefunden: ${length})`,
+                message: `Function exceeds ${HARD_LIMIT_FUNCTION_LINES} lines (found: ${length})`,
               });
             }
             foundBrace = true;
@@ -163,7 +163,7 @@ function analyzeFunctions(lines) {
                 start: startLine + 1,
                 end: j + 1,
                 length,
-                message: `Funktion überschreitet ${HARD_LIMIT_FUNCTION_LINES} Zeilen (gefunden: ${length})`,
+                message: `Function exceeds ${HARD_LIMIT_FUNCTION_LINES} lines (found: ${length})`,
               });
             }
             foundBrace = true;
@@ -208,7 +208,7 @@ function main() {
     if (lines.length > HARD_LIMIT_FILE_LINES) {
       errors.push({
         file: rel,
-        message: `Datei überschreitet ${HARD_LIMIT_FILE_LINES} Zeilen (gefunden: ${lines.length})`,
+        message: `File exceeds ${HARD_LIMIT_FILE_LINES} lines (found: ${lines.length})`,
       });
     }
     const functionViolations = analyzeFunctions(lines);
@@ -221,16 +221,16 @@ function main() {
   }
 
   if (errors.length > 0) {
-    console.error('Budget-Verstöße gefunden:');
+    console.error('Budget violations found:');
     for (const err of errors) {
       console.error(`- ${err.file}: ${err.message}`);
     }
     if (skippedCount > 0) {
-      console.error(`(${skippedCount} Files via generated/, *.test.* oder .budgetignore uebersprungen)`);
+      console.error(`(${skippedCount} files skipped via generated/, *.test.* or .budgetignore)`);
     }
     process.exit(1);
   } else {
-    console.log(`OK: Keine Budget-Verstöße gefunden. (${skippedCount} Files uebersprungen)`);
+    console.log(`OK: no budget violations found. (${skippedCount} files skipped)`);
   }
 }
 

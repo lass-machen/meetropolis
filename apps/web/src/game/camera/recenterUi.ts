@@ -42,7 +42,7 @@ export function ensureRecenterUi(scene: MainSceneLike): void {
 export function updateRecenterUiVisibility(scene: MainSceneLike): void {
   if (!scene.recenterUi) return;
   const cam = scene.cameras.main;
-  // Phaser-internal: `follow` ist auf Camera vorhanden, aber nicht typisiert.
+  // Phaser internal: `follow` is present on Camera but not typed.
   const camFollow = (cam as unknown as { follow?: Phaser.GameObjects.GameObject }).follow;
   const isFollowing = !!scene.hero && camFollow === scene.hero;
   if (!scene.manualCameraActive && isFollowing) {

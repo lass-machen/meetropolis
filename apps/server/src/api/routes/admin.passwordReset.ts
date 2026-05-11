@@ -63,8 +63,8 @@ async function handleAdminCreateResetToken(
     }
   }
 
-  // Vorherige unbenutzte Tokens dieses Users invalidieren, damit nur ein
-  // gueltiger Reset-Link pro User existiert.
+  // Invalidate previous unused tokens for this user so that only one
+  // valid reset link per user exists.
   await prisma.passwordReset.deleteMany({
     where: { userId: targetUserId, usedAt: null },
   });

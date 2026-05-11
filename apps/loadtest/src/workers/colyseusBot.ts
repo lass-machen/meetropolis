@@ -40,7 +40,7 @@ export async function spawnColyseusBot(opts: { apiBase: string; identity: string
 
   const room = await joinWithRetry(6, 200);
 
-  // Lade Zonen und baue Wegpunkte (Zentroiden)
+  // Load zones and build waypoints (centroids)
   let waypoints: Array<{ x: number; y: number }> = [];
   try {
     const mapsRes = await fetch(`${httpEndpoint}/maps`, { method: 'GET' });
@@ -55,7 +55,7 @@ export async function spawnColyseusBot(opts: { apiBase: string; identity: string
       if (cs.length > 0) waypoints = cs;
     }
   } catch {}
-  // Fallback Kreisbewegung, falls keine Zonen vorhanden
+  // Fallback circular movement if no zones are available
   if (waypoints.length === 0) {
     waypoints = [
       { x: 80, y: 80 },

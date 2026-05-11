@@ -303,7 +303,7 @@ function performHandleError(
   try {
     const { code, reason, text } = extractErrorInfo(ev);
     if (text.toLowerCase().includes('insufficient resources')) {
-      // Setze Cooldown um Session-ID-Flut zu verhindern
+      // Set a cooldown to prevent a flood of session IDs
       refs.coolDownUntilRef.current = Date.now() + 60_000;
     }
     const closeInfo: { code?: number; reason?: string } = {};

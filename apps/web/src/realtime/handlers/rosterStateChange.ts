@@ -42,7 +42,7 @@ export function setupRosterOnStateChange(
         state.players.forEach(iterateForRoster);
       }
 
-      // Local user via stable userId aufnehmen, damit presence-merge "self online" markiert.
+      // Add the local user via stable userId so the presence-merge marks "self online".
       if (me?.id) {
         const lp = localPosRef.current;
         online[me.id] = { name: me.name || me.email || me.id, x: lp?.x ?? 0, y: lp?.y ?? 0 };

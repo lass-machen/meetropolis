@@ -79,7 +79,7 @@ export class TrackManager implements Disposable {
         const readyState = mst?.readyState;
         const isLive = readyState === undefined || readyState === 'live';
         if (!isLive) return false;
-        // Soft-mute: Publication bleibt, aber pub.muted/track.enabled signalisiert "aus".
+        // Soft-mute: publication stays, but pub.muted/track.enabled signals "off".
         const pubMuted = pub.muted === true || pub.isMuted === true;
         if (pubMuted) return false;
         const enabledFlag = track.isEnabled ?? track.enabled ?? mst?.enabled;
@@ -344,8 +344,8 @@ export class TrackManager implements Disposable {
 
     state.pending = false;
 
-    // Soft-Mute-Pfad: Track-Publication bleibt erhalten, wir toggeln nur den
-    // RTP-Mute-Frame. Spart 2-4 Sek SDP-Renegotiation pro Toggle.
+    // Soft-mute path: track publication is preserved; we only toggle the
+    // RTP-Mute-Frame. Saves 2-4 seconds of SDP renegotiation per toggle.
     const existingTrack = state.track as LocalAudioTrack | null;
     const mst = (existingTrack as TrackLike | null)?.mediaStreamTrack;
     const trackIsLive = !!existingTrack && (!mst || mst.readyState === 'live');
@@ -380,7 +380,7 @@ export class TrackManager implements Disposable {
     } else {
       if (trackIsLive && existingTrack) {
         await softMuteMicrophone(existingTrack);
-        // Publication bleibt bestehen; published-Flag spiegelt "Track existiert".
+        // Publication stays in place; the published flag reflects "track exists".
         state.published = true;
         return;
       }

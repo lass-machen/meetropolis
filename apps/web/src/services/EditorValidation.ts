@@ -48,7 +48,7 @@ function zoneToRect(zone: Zone): { x0: number; y0: number; x1: number; y1: numbe
 export function validateZoneNoOverlap(newZone: Zone, existingZones: Zone[], excludeIndex?: number): void {
   const newRect = zoneToRect(newZone);
   if (!newRect) {
-    throw new EditorValidationError('Ungültige Zone: Mindestens 4 Punkte erforderlich');
+    throw new EditorValidationError('Invalid zone: at least 4 points required');
   }
 
   for (let i = 0; i < existingZones.length; i++) {
@@ -60,7 +60,7 @@ export function validateZoneNoOverlap(newZone: Zone, existingZones: Zone[], excl
     const existingRect = zoneToRect(existingZone);
 
     if (existingRect && rectsOverlap(newRect, existingRect)) {
-      throw new EditorValidationError(`Zone überlappt mit existierender Zone "${existingZone.name}"`);
+      throw new EditorValidationError(`Zone overlaps with existing zone "${existingZone.name}"`);
     }
   }
 }
@@ -72,11 +72,11 @@ export function validateZoneNoOverlap(newZone: Zone, existingZones: Zone[], excl
  */
 export function validateZoneName(name: string): void {
   if (!name || name.trim().length === 0) {
-    throw new EditorValidationError('Zone-Name darf nicht leer sein');
+    throw new EditorValidationError('Zone name must not be empty');
   }
 
   if (name.length > 100) {
-    throw new EditorValidationError('Zone-Name ist zu lang (max. 100 Zeichen)');
+    throw new EditorValidationError('Zone name is too long (max. 100 characters)');
   }
 }
 
@@ -96,7 +96,7 @@ export function validateZoneSize(
   const height = Math.abs(endTileY - startTileY) + 1;
 
   if (width < minTiles || height < minTiles) {
-    throw new EditorValidationError(`Zone ist zu klein (min. ${minTiles}x${minTiles} Tiles)`);
+    throw new EditorValidationError(`Zone is too small (min. ${minTiles}x${minTiles} tiles)`);
   }
 }
 
@@ -107,11 +107,11 @@ export function validateZoneSize(
  */
 export function validateAssetPlacement(tileX: number, tileY: number, mapWidth: number, mapHeight: number): void {
   if (tileX < 0 || tileX >= mapWidth) {
-    throw new EditorValidationError(`Asset-Position außerhalb der Map (X: ${tileX}, Map-Breite: ${mapWidth})`);
+    throw new EditorValidationError(`Asset position out of map bounds (X: ${tileX}, map width: ${mapWidth})`);
   }
 
   if (tileY < 0 || tileY >= mapHeight) {
-    throw new EditorValidationError(`Asset-Position außerhalb der Map (Y: ${tileY}, Map-Höhe: ${mapHeight})`);
+    throw new EditorValidationError(`Asset position out of map bounds (Y: ${tileY}, map height: ${mapHeight})`);
   }
 }
 
@@ -127,19 +127,19 @@ export function validateTileset(tileset: {
   tileHeight: number;
 }): void {
   if (!tileset.key || tileset.key.trim().length === 0) {
-    throw new EditorValidationError('Tileset-Key darf nicht leer sein');
+    throw new EditorValidationError('Tileset key must not be empty');
   }
 
   if (!tileset.dataUrl || tileset.dataUrl.length === 0) {
-    throw new EditorValidationError('Tileset-DataURL fehlt');
+    throw new EditorValidationError('Tileset data URL is missing');
   }
 
   if (tileset.tileWidth <= 0 || tileset.tileHeight <= 0) {
-    throw new EditorValidationError('Tileset-Dimensionen müssen positiv sein');
+    throw new EditorValidationError('Tileset dimensions must be positive');
   }
 
   if (tileset.tileWidth > 256 || tileset.tileHeight > 256) {
-    throw new EditorValidationError('Tileset-Dimensionen zu groß (max. 256x256)');
+    throw new EditorValidationError('Tileset dimensions too large (max. 256x256)');
   }
 }
 
@@ -150,11 +150,11 @@ export function validateTileset(tileset: {
  */
 export function validateSpawn(tileX: number, tileY: number, mapWidth: number, mapHeight: number): void {
   if (tileX < 0 || tileX >= mapWidth) {
-    throw new EditorValidationError(`Spawn außerhalb der Map (X: ${tileX}, Map-Breite: ${mapWidth})`);
+    throw new EditorValidationError(`Spawn out of map bounds (X: ${tileX}, map width: ${mapWidth})`);
   }
 
   if (tileY < 0 || tileY >= mapHeight) {
-    throw new EditorValidationError(`Spawn außerhalb der Map (Y: ${tileY}, Map-Höhe: ${mapHeight})`);
+    throw new EditorValidationError(`Spawn out of map bounds (Y: ${tileY}, map height: ${mapHeight})`);
   }
 }
 
@@ -166,6 +166,6 @@ export function validateSpawn(tileX: number, tileY: number, mapWidth: number, ma
 export function validateBackgroundColor(color: string): void {
   const hexPattern = /^#[0-9A-Fa-f]{6}$/;
   if (!hexPattern.test(color)) {
-    throw new EditorValidationError(`Ungültige Hintergrundfarbe: ${color} (Format: #RRGGBB)`);
+    throw new EditorValidationError(`Invalid background color: ${color} (format: #RRGGBB)`);
   }
 }

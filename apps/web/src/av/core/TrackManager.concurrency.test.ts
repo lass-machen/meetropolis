@@ -77,7 +77,7 @@ describe('TrackManager (concurrency)', () => {
     if (publishGate.resolve) publishGate.resolve();
     await Promise.all([pEnable, pMute]);
 
-    // Soft-Mute: nur ein Publish, KEIN Unpublish (Track-Publication bleibt erhalten).
+    // Soft-mute: only one publish, NO unpublish (track publication is preserved).
     expect(room.localParticipant.publishTrack).toHaveBeenCalledTimes(1);
     expect(room.localParticipant.unpublishTrack).toHaveBeenCalledTimes(0);
     expect(room.localParticipant.trackPublications.size).toBe(1);

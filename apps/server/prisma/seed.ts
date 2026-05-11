@@ -41,7 +41,7 @@ async function main() {
 
     console.log('Seeded admin user:', adminEmail);
   } else {
-    // Update password hash (damit Seed immer das erwartete Passwort setzt)
+    // Update password hash (so seed always sets the expected password)
     admin = await prisma.user.update({ where: { email: adminEmail }, data: { passwordHash: hash } });
 
     console.log('Admin user exists, password updated:', adminEmail);

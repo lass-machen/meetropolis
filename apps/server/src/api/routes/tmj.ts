@@ -121,7 +121,7 @@ async function processTileLayers(
     if (tmjLayer.type !== 'tilelayer' || !tmjLayer.data) continue;
     const match = matchTmjLayerToV2(tmjLayer.name);
     if (!match) {
-      warnings.push(`Layer '${tmjLayer.name}' übersprungen: kein V2-Mapping`);
+      warnings.push(`Layer '${tmjLayer.name}' skipped: no V2 mapping`);
       continue;
     }
 

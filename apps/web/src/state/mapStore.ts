@@ -35,9 +35,9 @@ export const useMapStore = create<MapState>((set, get) => ({
   availableMaps: [],
   isChangingMap: false,
   setCurrentMap: (id, name) => {
-    // Guard gegen Race-Resets: ein leeres name darf einen vorher gesetzten,
-    // korrekten Wert nicht ueberschreiben (z. B. wenn der Server bei DB-Race
-    // einen Player mit leerem mapName liefert).
+    // Guard against race resets: an empty name must not overwrite a previously
+    // set, correct value (e.g. when the server returns a player with an empty
+    // mapName during a DB race).
     const prev = get();
     const nextName = name === '' && prev.currentMapName !== '' ? prev.currentMapName : name;
     const nextId = id === '' && prev.currentMapId !== '' ? prev.currentMapId : id;
@@ -46,7 +46,7 @@ export const useMapStore = create<MapState>((set, get) => ({
   },
   setCurrentMapName: (name) => {
     const { availableMaps } = get();
-    const found = availableMaps.find(m => m.name === name);
+    const found = availableMaps.find((m) => m.name === name);
     if (found) {
       saveMapId(found.id);
       set({ currentMapId: found.id, currentMapName: name });
@@ -59,12 +59,12 @@ export const useMapStore = create<MapState>((set, get) => ({
     const updates: Partial<MapState> = { availableMaps: maps };
     // Resolve name from ID if currentMapName is empty but we have an ID
     if (state.currentMapId && !state.currentMapName) {
-      const found = maps.find(m => m.id === state.currentMapId);
+      const found = maps.find((m) => m.id === state.currentMapId);
       if (found) updates.currentMapName = found.name;
     }
     // Resolve currentMapName to ID if we have a name but no ID yet
     if (!state.currentMapId && state.currentMapName) {
-      const found = maps.find(m => m.name === state.currentMapName);
+      const found = maps.find((m) => m.name === state.currentMapName);
       if (found) {
         updates.currentMapId = found.id;
         updates.currentMapName = found.name;

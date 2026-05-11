@@ -290,8 +290,8 @@ export async function ensureAudioPermissions(): Promise<boolean> {
   }
 }
 
-// Sendet einen RTP-Mute-Frame ueber LiveKit ohne SDP-Renegotiation.
-// Latenz im Bereich von Millisekunden statt Sekunden (vs. Unpublish/Republish).
+// Sends an RTP-Mute-Frame via LiveKit without SDP renegotiation.
+// Latency in the millisecond range instead of seconds (vs. unpublish/republish).
 export async function softMuteMicrophone(track: LocalAudioTrack): Promise<void> {
   try {
     const t = track as unknown as TrackLike;

@@ -64,7 +64,7 @@ async function loadBrandOverrides() {
       }
     }
   } catch {
-    // OSS-Build: Loader liefert null, kein Brand-Bundle vorhanden.
+    // OSS build: loader returns null, no brand bundle is available.
   }
 }
 

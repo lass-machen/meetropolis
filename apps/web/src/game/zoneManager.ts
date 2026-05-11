@@ -20,7 +20,7 @@ export class ZoneManager {
     onMessage: (type: string, handler: (data: unknown) => void) => () => void;
   } | null = null;
   private portalCooldownUntil: number = 0;
-  private lockedZones: Map<string, Set<string>> = new Map(); // zoneName → sessionIds mit Zugang
+  private lockedZones: Map<string, Set<string>> = new Map(); // zoneName -> sessionIds with access
 
   constructor(zones: Polygon[], av: AVManager | null) {
     this.zones = zones;

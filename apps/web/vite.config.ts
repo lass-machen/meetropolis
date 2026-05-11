@@ -11,14 +11,14 @@ export default defineConfig({
     // tsc just sees mismatching nominal types. Double-cast keeps the check clean.
     react(),
   ],
-  // eigener Cache-Ordner, um alte Optimierungen sicher zu umgehen (Docker)
+  // Dedicated cache folder to safely bypass stale optimizations (Docker).
   cacheDir: '/tmp/.vite',
   resolve: {
-    // Verhindert doppelte React-Instanzen (Invalid hook call #321)
+    // Prevents duplicate React instances (Invalid hook call #321).
     dedupe: ['react', 'react-dom'],
     alias: {
-      // Desktop-Submodule (packages/desktop) importiert UI-Components aus der Web-App.
-      // Dieser Alias ermöglicht saubere Imports wie '@app/ui/system' statt langer relativer Pfade.
+      // The desktop submodule (packages/desktop) imports UI components from the web app.
+      // This alias enables clean imports like '@app/ui/system' instead of long relative paths.
       '@app': resolve(__dirname, 'src'),
     },
   },
@@ -54,10 +54,10 @@ export default defineConfig({
     },
     allowedHosts: ['localhost'],
     proxy: {
-      // Nur /packs proxien, damit statische Web-Assets (z. B. /maps/office.json) unangetastet bleiben
+      // Only proxy /packs so static web assets (e.g. /maps/office.json) stay untouched.
       '/packs': {
-        // Hinweis: Im Browser nutzen wir VITE_API_BASE (localhost),
-        // aber der Proxy läuft im Container. Dafür VITE_PROXY_TARGET (z. B. http://server:2567) verwenden.
+        // Note: In the browser we use VITE_API_BASE (localhost),
+        // but the proxy runs inside the container. Use VITE_PROXY_TARGET (e.g. http://server:2567) for that case.
         target: process.env.VITE_PROXY_TARGET || process.env.VITE_API_BASE || 'http://localhost:2567',
         changeOrigin: true,
         secure: false,

@@ -1,7 +1,7 @@
 /**
- * ZoneEditor - Zone-Bearbeitungs-UI Komponente
+ * ZoneEditor - zone editing UI component.
  *
- * Extrahiert aus EditorPanel.tsx zur Einhaltung des 600 LoC Budgets.
+ * Extracted from EditorPanel.tsx to stay within the 600 LoC budget.
  */
 
 import { useTranslation } from 'react-i18next';

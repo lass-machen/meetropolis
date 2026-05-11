@@ -90,7 +90,7 @@ export async function requireApiToken(req: express.Request, prisma: PrismaClient
   if (!authz || !authz.startsWith('Bearer ')) return null;
   const token = authz.slice('Bearer '.length).trim();
   if (!token || token.split('.').length === 3) {
-    // Sieht nach JWT aus → nicht als API-Token behandeln
+    // Looks like a JWT -> do not treat as an API token
     return null;
   }
   const hash = crypto

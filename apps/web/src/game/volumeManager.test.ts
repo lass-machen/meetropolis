@@ -85,7 +85,7 @@ describe('computePairVolume', () => {
   it('mutes when local is in a zone and remote is outside', () => {
     const v = computePairVolume(
       { id: 'me', x: 50, y: 50 }, // in zone A
-      { id: 'u', x: 250, y: 250 }, // außerhalb
+      { id: 'u', x: 250, y: 250 }, // outside
       zones,
       null,
       new Set(),

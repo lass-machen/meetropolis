@@ -256,8 +256,8 @@ export function MapsAdmin(props: { apiBase: string }) {
     try {
       state.setTenants(await jsonFetch<TenantOption[]>(`${apiBase}/admin/tenants`));
     } catch (err) {
-      // OSS-Mode: /admin/tenants ist nur in der Enterprise-Edition registriert.
-      // Fallback: lade den Single-Tenant via /tenant (Self-Service-Route).
+      // OSS mode: /admin/tenants is only registered in the Enterprise edition.
+      // Fallback: load the single tenant via /tenant (self-service route).
       try {
         const own = await jsonFetch<TenantOption>(`${apiBase}/tenant`);
         if (own && own.id) state.setTenants([own]);

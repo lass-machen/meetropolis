@@ -89,8 +89,8 @@ function sendSignupWelcomeEmail(params: { email: string; name: string; slug: str
   const { email, name, tenantId } = params;
   const baseUrl = process.env.PUBLIC_BASE_URL || process.env.BILLING_PUBLIC_URL || '';
   const loginUrl = baseUrl ? `${baseUrl.replace(/\/$/, '')}/#/app` : '';
-  // OSS-Build ohne Tenancy-Submodul: stiller No-Op (RootAdmin sieht den
-  // Tenant ohnehin direkt im UI). Mit Tenancy + RESEND_API_KEY: Mail raus.
+  // OSS build without tenancy submodule: silent no-op (RootAdmin sees the
+  // tenant directly in the UI anyway). With tenancy + RESEND_API_KEY: send mail.
   void sendIfAvailable(
     (mod) => mod.sendWelcome({ to: email, name, tenantName: name, loginUrl }),
     'signup.welcome_email_failed',

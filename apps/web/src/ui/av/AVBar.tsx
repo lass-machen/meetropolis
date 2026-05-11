@@ -77,6 +77,7 @@ function DeviceSelector(props: {
           </div>
           {devices.length === 0 && (
             <div style={{ padding: '8px', fontSize: 13, color: 'var(--fg-subtle)', fontStyle: 'italic' }}>
+              {/* TODO i18n: No devices found */}
               Keine Geräte gefunden
             </div>
           )}

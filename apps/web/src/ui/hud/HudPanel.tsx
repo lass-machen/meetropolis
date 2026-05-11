@@ -15,7 +15,7 @@ export const HudPanel = React.memo(function HudPanel(props: HudPanelProps) {
   const { t } = useTranslation();
   const locks = useZoneLockStore((s) => s.locks);
 
-  // Nur anzeigen wenn relevante Infos vorhanden (nicht alles "-" oder "no")
+  // Only show when relevant info is available (not all "-" or "no")
   const hasZone = hud.zone && hud.zone !== '-';
   const hasFollow = hud.follow && hud.follow !== 'no';
   const showPanel = hasZone || hasFollow;

@@ -32,7 +32,7 @@ export class BootScene extends Phaser.Scene {
     avatarRegistry.createAnimations(this.anims, avatarId);
     avatarRegistry.createAnimations(this.anims, avatarRegistry.getDefaultAvatarId());
 
-    // Erzeuge gepaddete office_tiles (192x48), wie in Tiled definiert
+    // Create padded office_tiles (192x48) as defined in Tiled
     const src = this.textures.get('office_tiles_raw')?.getSourceImage() as HTMLImageElement | undefined;
     if (src) {
       const targetW = 192; // 12 cols * 16px

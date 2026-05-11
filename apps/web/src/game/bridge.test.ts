@@ -28,7 +28,7 @@ describe('gameBridge delegates to SceneApi', () => {
       },
     ]);
     expect(api.setDesiredPosition).toHaveBeenCalledOnce();
-    // setZoneOverlay wird einmal beim expliziten Call und ggf. einmal beim setSceneApi (Cache-Reapply) aufgerufen
+    // setZoneOverlay is called once for the explicit call and possibly once for setSceneApi (cache reapply)
     expect((api.setZoneOverlay as any).mock.calls.length).toBeGreaterThanOrEqual(1);
   });
 

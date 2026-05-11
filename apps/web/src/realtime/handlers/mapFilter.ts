@@ -1,17 +1,19 @@
 /**
- * Defensive Map-Filter-Helfer fuer Player-Sync.
+ * Defensive map-filter helper for player sync.
  *
- * Wird verwendet, wenn der Server Players inkl. mapName broadcastet und der
- * Client nur die auf der eigenen Map rendern soll.
+ * Used when the server broadcasts players including mapName and the client
+ * should only render the ones on its own map.
  *
- * Race-Hintergrund: useMapStore.currentMapName ist beim ersten full_state /
- * onStateChange noch nicht zwingend gesetzt. Wenn currentMap leer ist und der
- * Filter strikt auf Gleichheit prueft, fliegen ALLE Players raus, bis der
- * Store geladen ist. Aehnlich, wenn der Server p.mapName leer liefert (DB-
- * Race). Defensives Verhalten: bei mindestens einer leeren Seite den Player
- * durchlassen.
+ * Race background: useMapStore.currentMapName is not necessarily set during
+ * the first full_state / onStateChange. If currentMap is empty and the filter
+ * checks strict equality, ALL players are dropped until the store is loaded.
+ * Similarly, when the server delivers an empty p.mapName (DB race). Defensive
+ * behaviour: if at least one side is empty, let the player through.
  */
-export function passesMapFilter(playerMapName: string | undefined | null, currentMap: string | undefined | null): boolean {
+export function passesMapFilter(
+  playerMapName: string | undefined | null,
+  currentMap: string | undefined | null,
+): boolean {
   if (!currentMap) return true;
   if (!playerMapName) return true;
   return playerMapName === currentMap;

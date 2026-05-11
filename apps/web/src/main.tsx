@@ -1,6 +1,6 @@
-// WICHTIG: WebSocket Patch MUSS als erstes importiert werden!
-// Colyseus cached WebSocket auf Modul-Ebene, daher muss der Patch
-// vor allen anderen Imports passieren.
+// IMPORTANT: WebSocket patch MUST be imported first!
+// Colyseus caches WebSocket at module level, so the patch
+// must run before all other imports.
 import './lib/patchWebSocket';
 
 import React from 'react';
@@ -19,7 +19,7 @@ window.addEventListener('desktop:audio-ducking-changed', (e) => {
   applyAudioDuckingPreference(enabled);
 });
 
-// Desktop-Modul laden und initialisieren (falls vorhanden)
+// Load and initialise the desktop module (if available)
 async function initAndRender() {
   const desktop = await getDesktopModule();
   if (desktop) {

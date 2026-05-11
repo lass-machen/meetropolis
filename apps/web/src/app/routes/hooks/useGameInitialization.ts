@@ -177,7 +177,7 @@ function sendMoveToServer(
 ) {
   try {
     const room = colyseusRef.current;
-    // Colyseus-Interna: connection.ws/transport/_transport sind nicht im public typing.
+    // Colyseus internals: connection.ws/transport/_transport are not in the public typings.
     type ConnectionInternals = {
       ws?: WebSocket;
       transport?: { ws?: WebSocket };

@@ -47,7 +47,7 @@ const mem = {
   zones: [] as any[],
 };
 
-// api.ts importiert PrismaClient aus './generated/prisma/index.js'.
+// api.ts imports PrismaClient from './generated/prisma/index.js'.
 vi.mock('./generated/prisma/index.js', () => {
   class PrismaClientMock {
     map = {
@@ -188,7 +188,7 @@ async function createApp() {
   });
   await registerApi(app as any);
   // Seed one map and tileset registry entry
-  // Map-id matcht route param (req.params.id), damit findMapById() greift.
+  // Map id matches route param (req.params.id) so findMapById() picks it up.
   if (!mem.maps.find((m) => m.id === 'test'))
     mem.maps.push({
       id: 'test',

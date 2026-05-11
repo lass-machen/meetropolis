@@ -7,10 +7,10 @@ import eslintComments from '@eslint-community/eslint-plugin-eslint-comments';
 import globals from 'globals';
 
 export default tseslint.config(
-  // 1) Globale Ignores: NUR Files, die wirklich nicht zum Source-Code gehören.
-  //    Tests, Configs (vite/vitest/playwright), e2e und Build-Scripts werden
-  //    via tsconfig.lint.json pro Workspace lintbar gemacht — sie landen
-  //    bewusst NICHT hier.
+  // 1) Global ignores: ONLY files that truly do not belong to the source code.
+  //    Tests, configs (vite/vitest/playwright), e2e and build scripts are
+  //    made lintable per workspace via tsconfig.lint.json, so they
+  //    intentionally do NOT belong here.
   {
     ignores: [
       '**/dist/**',
@@ -22,42 +22,42 @@ export default tseslint.config(
       '**/.vite/**',
       // Generated code (Prisma).
       'apps/server/src/generated/**',
-      // Migrations sind SQL/Meta, kein TS.
+      // Migrations are SQL/meta, not TS.
       'apps/server/prisma/migrations/**',
-      // Static Assets, Vendor-Bundles, Tauri-Build-Output.
+      // Static assets, vendor bundles, Tauri build output.
       'apps/web/public/**',
       'apps/web/src-tauri/**',
       'public/**',
-      // Standalone HTML-Editoren mit eigenem inline-JS-Format.
+      // Standalone HTML editors with their own inline-JS format.
       'tools/**',
-      // Sandkasten / Konfig-Verzeichnisse.
+      // Sandbox / config directories.
       'scratch/**',
       'prometheus/**',
-      // Submodule mit eigenen Toolchains.
+      // Submodules with their own toolchains.
       'packages/desktop/**',
       'packages/brand/**',
       'packages/tenancy-enterprise/**',
-      // Selbst-Referenzen (eslint kümmert sich nicht um eigene Config-Files).
+      // Self-references (eslint does not lint its own config files).
       'eslint.config.mjs',
       'commitlint.config.mjs',
     ],
   },
 
-  // 2) typescript-eslint Baseline: recommendedTypeChecked.
-  //    Ziel: stufenweise auf strictTypeChecked + stylisticTypeChecked anheben,
-  //    sobald die untypisierten Pfade (Phaser-Bridge, Colyseus-State) typisiert
-  //    sind und die `(x as any)`-Casts abgebaut wurden.
-  //    Tracking dafür siehe project_oss_release_blockers.md.
+  // 2) typescript-eslint baseline: recommendedTypeChecked.
+  //    Goal: gradually move up to strictTypeChecked + stylisticTypeChecked
+  //    once the untyped paths (Phaser bridge, Colyseus state) are typed
+  //    and the `(x as any)` casts have been removed.
+  //    Tracking for this lives in project_oss_release_blockers.md.
   ...tseslint.configs.recommendedTypeChecked,
 
-  // 3) Sprache + Project-Setup für typed Linting.
-  //    Die `tsconfig.lint.json` jedes Workspaces erweitert das jeweilige
-  //    Build-tsconfig.json um Tests/Config-Files/Scripts, sodass typed
-  //    Linting auch dort greift, ohne die Build-Settings zu ändern.
-  //    Wir nutzen die explizite `project`-Liste statt `projectService`,
-  //    weil `projectService.defaultProject` nur eine Single-Top-Level-Datei
-  //    akzeptiert — bei Multi-Workspace-Setups ist die explizite Liste
-  //    sauberer und deterministischer.
+  // 3) Language + project setup for typed linting.
+  //    Each workspace's `tsconfig.lint.json` extends the corresponding
+  //    build `tsconfig.json` to include tests/config files/scripts, so
+  //    typed linting also applies there without changing the build settings.
+  //    We use the explicit `project` list instead of `projectService` because
+  //    `projectService.defaultProject` only accepts a single top-level file;
+  //    for multi-workspace setups the explicit list is cleaner and more
+  //    deterministic.
   {
     languageOptions: {
       parserOptions: {
@@ -76,11 +76,11 @@ export default tseslint.config(
     },
   },
 
-  // 3) eslint-comments: Pflicht-Begruendung fuer disable-Direktiven.
-  //    Wer `eslint-disable-next-line @typescript-eslint/no-explicit-any`
-  //    schreibt, muss `-- <Grund>` daran haengen. Stilles Stummschalten ist
-  //    nicht erlaubt; das macht Boundary-Annahmen im Review-Diff sichtbar.
-  //    Siehe LIBRARY_BOUNDARIES.md.
+  // 3) eslint-comments: mandatory justification for disable directives.
+  //    Whoever writes `eslint-disable-next-line @typescript-eslint/no-explicit-any`
+  //    must append `-- <reason>` to it. Silent muting is not allowed;
+  //    this surfaces boundary assumptions in the review diff.
+  //    See LIBRARY_BOUNDARIES.md.
   {
     plugins: {
       '@eslint-community/eslint-comments': eslintComments,
@@ -93,16 +93,16 @@ export default tseslint.config(
     },
   },
 
-  // 3a) Library-Boundary-Regeln: `no-unsafe-*` und `no-explicit-any` bleiben
-  //     als `warn` aktiv. Echte Library-Boundaries sind als File-Level-Override
-  //     unten in Sektion 3b dokumentiert. Ein neuer `as any` an einer Stelle,
-  //     die NICHT in einem Adapter-File liegt, soll als Warning erscheinen,
-  //     damit es im Review auffaellt. Wer wirklich keine Wrapper-Loesung hat,
-  //     muss `eslint-disable-next-line` mit Pflicht-Begruendung schreiben
-  //     (siehe `eslint-comments/require-description` weiter unten).
+  // 3a) Library boundary rules: `no-unsafe-*` and `no-explicit-any` stay
+  //     active as `warn`. Genuine library boundaries are documented as
+  //     file-level overrides in section 3b below. A new `as any` in a place
+  //     that is NOT inside an adapter file should appear as a warning so it
+  //     stands out in review. Anyone who really has no wrapper solution must
+  //     write `eslint-disable-next-line` with a mandatory justification
+  //     (see `eslint-comments/require-description` further below).
   //
-  //     Siehe LIBRARY_BOUNDARIES.md fuer die vier Pattern-Optionen und wann
-  //     welche.
+  //     See LIBRARY_BOUNDARIES.md for the four pattern options and when to
+  //     use which one.
   {
     rules: {
       '@typescript-eslint/no-unsafe-member-access': 'warn',
@@ -111,8 +111,8 @@ export default tseslint.config(
       '@typescript-eslint/no-unsafe-argument': 'warn',
       '@typescript-eslint/no-unsafe-return': 'warn',
       '@typescript-eslint/no-explicit-any': 'warn',
-      // Konvention: fuehrender Underscore = absichtlich ungenutzt
-      // (Funktionssignaturen, Discards in Destructuring, catch-Clauses).
+      // Convention: leading underscore = intentionally unused
+      // (function signatures, discards in destructuring, catch clauses).
       '@typescript-eslint/no-unused-vars': [
         'error',
         {
@@ -125,22 +125,21 @@ export default tseslint.config(
     },
   },
 
-  // 3b) Echte Library-Boundaries: Files, deren einziger Zweck die Uebersetzung
-  //     zwischen einer untypisierten Vendor-Schnittstelle und unserem
-  //     getypten Code-Universum ist. Hier sind `no-unsafe-*` und
-  //     `no-explicit-any` abgeschaltet, weil die Boundary-Logik per
-  //     Definition mit `any` arbeiten muss.
+  // 3b) Genuine library boundaries: files whose sole purpose is the
+  //     translation between an untyped vendor interface and our typed code
+  //     universe. Here `no-unsafe-*` and `no-explicit-any` are switched off
+  //     because the boundary logic must, by definition, work with `any`.
   //
-  //     Hinzunahme nur, wenn:
-  //     1. Die untypisierte Schnittstelle ist ein Third-Party-Library-Internal
-  //        oder ein Browser-Global (kein eigener Code, der nur untypisiert
-  //        ist).
-  //     2. Die saubere Loesung (Wrapper, declare module, Helper) ist nicht
-  //        moeglich oder unangemessen aufwendig.
-  //     3. Der File-Inhalt ist auf die Boundary-Logik beschraenkt; kein
-  //        Mischmasch aus Business-Code + Boundary.
+  //     Add to this list only if:
+  //     1. The untyped interface is a third-party library internal or a
+  //        browser global (not your own code that just happens to be
+  //        untyped).
+  //     2. The clean solution (wrapper, declare module, helper) is not
+  //        possible or disproportionately expensive.
+  //     3. The file content is limited to the boundary logic; no mix of
+  //        business code + boundary.
   //
-  //     Siehe LIBRARY_BOUNDARIES.md fuer den Kontext.
+  //     See LIBRARY_BOUNDARIES.md for context.
   {
     files: [
       // LiveKit private engine internals (connectionState, signalClient.ws).
@@ -168,7 +167,7 @@ export default tseslint.config(
     },
   },
 
-  // 4) Server-Workspaces (Node-Umgebung).
+  // 4) Server workspaces (Node environment).
   {
     files: [
       'apps/server/**/*.{ts,tsx,mjs}',
@@ -201,10 +200,10 @@ export default tseslint.config(
     },
   },
 
-  // 6) Test-Files: relax bestimmte Regeln, die im Test-Kontext stören
-  //    (Mocks, Test-Helper, expect-Patterns). Wir wollen Tests pragmatisch
-  //    halten — die Type-Strenge wird im Production-Code erzwungen, nicht
-  //    bei jedem Mock-Setup.
+  // 6) Test files: relax certain rules that get in the way in a test context
+  //    (mocks, test helpers, expect patterns). We want tests to stay
+  //    pragmatic; type strictness is enforced in production code, not at
+  //    every mock setup.
   {
     files: ['**/*.test.{ts,tsx}', '**/*.spec.{ts,tsx}', '**/__tests__/**', '**/test/**', 'apps/web/e2e/**'],
     rules: {
@@ -219,12 +218,12 @@ export default tseslint.config(
     },
   },
 
-  // 7) Skripte (Build/Tools/Migrations) und Config-Files dürfen `console`
-  //    nutzen und sind oft pragmatischer formuliert. Type-Strenge ist bei
-  //    diesen Files weniger relevant: sie laufen einmalig (Build, Seed,
-  //    Playwright-Konfig), nicht im Production-Pfad, und müssen oft mit
-  //    Vendor-Configs (Vite, Vitest, Playwright, Prisma) umgehen, deren
-  //    Typen lose oder bewusst offen sind.
+  // 7) Scripts (build/tools/migrations) and config files may use `console`
+  //    and are often written more pragmatically. Type strictness matters
+  //    less for these files: they run one-shot (build, seed, Playwright
+  //    config), not on the production path, and frequently need to deal
+  //    with vendor configs (Vite, Vitest, Playwright, Prisma) whose types
+  //    are loose or deliberately open.
   {
     files: [
       'scripts/**/*.{js,mjs,cjs,ts}',
@@ -246,17 +245,17 @@ export default tseslint.config(
     },
   },
 
-  // 8) Plain-JS Files (kein Type-Linting möglich): typed-Linting deaktivieren,
-  //    sonst wirft typescript-eslint Parsing-Errors.
+  // 8) Plain-JS files (no type linting possible): disable typed linting,
+  //    otherwise typescript-eslint throws parsing errors.
   {
     files: ['**/*.{js,cjs,mjs}'],
     extends: [tseslint.configs.disableTypeChecked],
   },
 
-  // 8a) CommonJS-Files (.cjs): `require()` ist hier semantisch korrekt
-  //     (CJS-by-design), nicht zu verwechseln mit ESM-Migration-Schulden.
-  //     Die `no-require-imports`-Regel ist eine ESM-Empfehlung und greift
-  //     bei .cjs nicht sinnvoll.
+  // 8a) CommonJS files (.cjs): `require()` is semantically correct here
+  //     (CJS by design), not to be confused with ESM migration debt.
+  //     The `no-require-imports` rule is an ESM recommendation and does
+  //     not apply meaningfully to .cjs.
   {
     files: ['**/*.cjs'],
     rules: {
@@ -265,10 +264,9 @@ export default tseslint.config(
   },
 
   // 8b) Declaration-Files (.d.ts): Type-Augmentation via `interface X extends Y {}`
-  //     ist ein etabliertes Pattern (declaration merging), das in den meisten
-  //     `@types/*`-Paketen genutzt wird. `no-empty-object-type` ist hier ein
-  //     False-Positive — wir können declare-module-Augmentation nicht über
-  //     type-aliase machen.
+  //     is an established pattern (declaration merging) used by most
+  //     `@types/*` packages. `no-empty-object-type` is a false positive
+  //     here; we cannot do declare-module augmentation via type aliases.
   {
     files: ['**/*.d.ts'],
     rules: {
@@ -276,7 +274,7 @@ export default tseslint.config(
     },
   },
 
-  // 9) Prettier MUSS letzte Config sein: deaktiviert ESLint-Format-Regeln,
-  //    die mit Prettier kollidieren würden.
+  // 9) Prettier MUST be the last config: disables ESLint formatting rules
+  //    that would conflict with Prettier.
   prettierConfig,
 );

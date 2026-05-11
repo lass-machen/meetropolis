@@ -27,7 +27,7 @@ export function setupBubbleHandlers(room: WorldRoom, args: UseWorldRoomArgs) {
         for (const id of ms) mapping[id] = gid;
       }
     } else if (membersArr.length >= 2) {
-      // Legacy: alle Mitglieder als eine Bubble
+      // Legacy: treat all members as a single bubble
       const gid = 'legacy';
       for (const id of membersArr) mapping[id] = gid;
     }

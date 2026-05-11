@@ -136,7 +136,7 @@ export async function buildAudioPipeline(params: BuildParams): Promise<TrackLike
     return nativeTrack;
   }
 
-  // Standard: erst ohne Browser-NS capturen und optional via Worklet verarbeiten.
+  // Default: capture without browser NS first, then optionally process via worklet.
   const first = (await createAudioTrack(buildAudioConstraints(deviceId, settings, false))) as TrackLike;
 
   if (!wantsNoiseSuppression) return first;

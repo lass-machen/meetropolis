@@ -4,22 +4,18 @@
 // Type declaration for AudioWorkletProcessor in worklet context
 declare class AudioWorkletProcessor {
   readonly port: MessagePort;
-  process(
-    inputs: Float32Array[][],
-    outputs: Float32Array[][],
-    parameters: Record<string, Float32Array>
-  ): boolean;
+  process(inputs: Float32Array[][], outputs: Float32Array[][], parameters: Record<string, Float32Array>): boolean;
 }
 
 declare function registerProcessor(
   name: string,
-  processorCtor: (new (options?: AudioWorkletNodeOptions) => AudioWorkletProcessor)
+  processorCtor: new (options?: AudioWorkletNodeOptions) => AudioWorkletProcessor,
 ): void;
 
 class RNNoiseProcessor extends AudioWorkletProcessor {
   // Simple noise gate variables (very light) to avoid total pass-through in extremely noisy input
-  private readonly threshold = 0.0016; // ~-56 dBFS (etwas sensibler)
-  private readonly release = 0.08; // seconds (leicht verlängert für natürliche Ausklingzeit)
+  private readonly threshold = 0.0016; // ~-56 dBFS (slightly more sensitive)
+  private readonly release = 0.08; // seconds (slightly extended for natural decay)
   private env = 0;
 
   override process(inputs: Float32Array[][], outputs: Float32Array[][]): boolean {
@@ -43,5 +39,3 @@ class RNNoiseProcessor extends AudioWorkletProcessor {
 }
 
 registerProcessor('rnnoise-processor', RNNoiseProcessor);
-
-

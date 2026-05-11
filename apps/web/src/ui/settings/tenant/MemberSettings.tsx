@@ -252,6 +252,7 @@ function MemberListView({
                 colSpan={3}
                 style={{ paddingLeft: 0, textAlign: 'center', color: 'var(--fg-subtle)', padding: '32px 0' }}
               >
+                {/* TODO i18n: No entries available */}
                 Keine Einträge vorhanden
               </Td>
             </Tr>

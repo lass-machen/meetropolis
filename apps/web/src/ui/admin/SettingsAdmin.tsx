@@ -63,13 +63,17 @@ function useSettingsAdminState(apiBase: string) {
 export function SettingsAdmin(props: { apiBase: string }) {
   const { settings, setSettings, loading, saving, error, success, save } = useSettingsAdminState(props.apiBase);
 
+  // TODO i18n: Loading settings...
   if (loading) return <div>Lade Einstellungen…</div>;
+  // TODO i18n: No settings available.
   if (!settings) return <div>{error || 'Keine Einstellungen verfügbar.'}</div>;
 
   return (
     <div style={{ display: 'grid', gap: 16, maxWidth: 600 }}>
       <FieldRow
+        // TODO i18n: Allow public registration
         label="Öffentliche Registrierung erlauben"
+        // TODO i18n: When enabled, new tenants can self-register via the public registration page.
         hint="Wenn aktiviert, können sich neue Mandanten über die öffentliche Registrierungsseite selbst registrieren."
         control={
           <Checkbox
@@ -80,7 +84,9 @@ export function SettingsAdmin(props: { apiBase: string }) {
       />
 
       <FieldRow
+        // TODO i18n: Default free seats
         label="Standard Free Seats"
+        // TODO i18n: Number of free seats assigned to new tenants by default.
         hint="Anzahl der kostenlosen Plätze, die neuen Mandanten standardmäßig zugewiesen werden."
         control={
           <Input
@@ -101,9 +107,11 @@ export function SettingsAdmin(props: { apiBase: string }) {
           }}
           variant="primary"
         >
+          {/* TODO i18n: Saving... / Save */}
           {saving ? 'Speichere…' : 'Speichern'}
         </Button>
         {error && <span style={{ color: 'var(--red, #ed4245)', fontSize: 13 }}>{error}</span>}
+        {/* TODO i18n: Saved! */}
         {success && <span style={{ color: 'var(--green, #3ba55d)', fontSize: 13 }}>Gespeichert!</span>}
       </div>
     </div>

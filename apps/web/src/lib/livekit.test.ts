@@ -42,12 +42,12 @@ describe('joinLivekitRoom', () => {
       useVideo: true,
     });
 
-    // Room wurde gebaut und connect wurde genau einmal aufgerufen
+    // Room was built and connect was called exactly once
     const anyRoom: any = room as any;
     expect(typeof anyRoom.connect).toBe('function');
     expect(anyRoom.connect).toHaveBeenCalledTimes(1);
 
-    // Es wurden keine Gesture-Listener (pointerdown/click/keydown/touchstart) registriert
+    // No gesture listeners (pointerdown/click/keydown/touchstart) were registered
     const calls = addSpy.mock.calls.map((args) => args[0]);
     expect(calls.filter((ev) => ['pointerdown', 'click', 'keydown', 'touchstart'].includes(ev as any)).length).toBe(0);
 

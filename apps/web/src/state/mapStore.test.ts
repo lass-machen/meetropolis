@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { useMapStore } from './mapStore';
 
 function reset(): void {
-  // localStorage clearen, damit loadMapId() einen frischen Wert hat.
+  // Clear localStorage so that loadMapId() gets a fresh value.
   try {
     window.localStorage.removeItem('meetropolis.map.currentMapId');
   } catch {}
@@ -35,7 +35,7 @@ describe('mapStore.setCurrentMap', () => {
 
   it('updates only the non-empty part on partially empty input', () => {
     useMapStore.getState().setCurrentMap('id-1', 'office');
-    // Nur name aktualisieren, id leer → existierende id behalten.
+    // Only update name; id is empty, so keep the existing id.
     useMapStore.getState().setCurrentMap('', 'lounge');
     expect(useMapStore.getState().currentMapName).toBe('lounge');
     expect(useMapStore.getState().currentMapId).toBe('id-1');

@@ -1,11 +1,11 @@
 /**
- * Force initial state sync - onStateChange feuert nicht fuer den initialen
- * State, und full_state kann vor den Handlern ankommen. Hier ziehen wir die
- * Spieler aus room.state.players nach dem Handler-Setup einmalig synchron raus.
+ * Force initial state sync - onStateChange does not fire for the initial
+ * state, and full_state can arrive before the handlers are wired up. Here we
+ * pull the players out of room.state.players once, synchronously, after
+ * handler setup.
  *
- * Symmetrie zu playerHandlers.full_state: erst lokalen Player aus dem State
- * synchronisieren, damit der Map-Filter danach auf dem korrekten currentMap
- * arbeitet.
+ * Symmetric to playerHandlers.full_state: first sync the local player out of
+ * the state so the map filter operates on the correct currentMap afterwards.
  */
 import type { UseWorldRoomArgs } from '../types';
 import { useMapStore } from '../../state/mapStore';
@@ -95,6 +95,6 @@ export function forceInitialPlayerSync(deps: ForceInitialSyncDeps): void {
       scheduleRefreshRosterFromRemotes(0);
     }
   } catch {
-    // Non-critical - full_state oder onStateChange holen es nach.
+    // Non-critical - full_state or onStateChange will catch up later.
   }
 }

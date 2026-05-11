@@ -164,7 +164,7 @@ async function processTilesetQueue(): Promise<void> {
 let isFetchingServerLayers = false;
 let isReloadingEditorLayers = false;
 
-// Non-Editor State (behalten)
+// Non-editor state (preserved)
 let cachedCollisionVisible = false;
 let cachedHeroName: string | null = null;
 let cachedDoNotDisturb = false;
@@ -182,7 +182,7 @@ export const gameBridge: InternalBridge = {
     sceneApi = api as SceneApi | null;
 
     if (sceneApi) {
-      // Nicht-Editor State wiederherstellen
+      // Restore non-editor state
       try {
         sceneApi.setCollisionVisible(cachedCollisionVisible);
       } catch (e) {
@@ -201,7 +201,7 @@ export const gameBridge: InternalBridge = {
         } catch {}
       }
 
-      // Remote-Spieler wiederherstellen
+      // Restore remote players
       try {
         sceneApi.syncRemotePlayers(remotePlayersCache);
       } catch {}
@@ -226,7 +226,7 @@ export const gameBridge: InternalBridge = {
     sceneApi?.setEditorMode?.(!!enabled);
   },
   syncRemotePlayers: (players) => {
-    // Ersetze den gesamten Cache mit der neuen Quelle der Wahrheit
+    // Replace the entire cache with the new source of truth
     remotePlayersCache = { ...players };
     sceneApi?.syncRemotePlayers(remotePlayersCache);
   },
@@ -244,7 +244,7 @@ export const gameBridge: InternalBridge = {
   },
   updateRemotePlayer: (id, p) => {
     if (!remotePlayersCache[id]) {
-      // Wenn Spieler nicht existiert, lege ihn nur an, wenn genug Daten vorhanden sind
+      // If the player does not exist, only create them when enough data is available
       if (p.x !== undefined && p.y !== undefined && p.direction) {
         remotePlayersCache[id] = {
           x: p.x,
@@ -295,7 +295,7 @@ export const gameBridge: InternalBridge = {
     }
     sceneApi?.setDesiredPosition(pos);
   },
-  // Editor-Methoden: Kein Caching mehr, direkt an Scene durchreichen
+  // Editor methods: no more caching, pass straight through to the scene
   setZoneOverlay: (polys) => {
     sceneApi?.setZoneOverlay(polys);
   },
@@ -402,7 +402,7 @@ export const gameBridge: InternalBridge = {
         return;
       }
       if (data.type === 'layers' || data.type === 'all') {
-        // Lade Server-Layer neu
+        // Reload server layers
         sceneApi?.fetchAndApplyServerLayers?.();
         return;
       }
@@ -414,7 +414,7 @@ export const gameBridge: InternalBridge = {
       logger.error('Failed to handle editor update', e);
     }
   },
-  // Editor-Methoden: Kein Caching, direkt durchreichen
+  // Editor methods: no caching, pass straight through
   setBackgroundColor: (hex: string) => {
     sceneApi?.setBackgroundColor?.(hex);
   },

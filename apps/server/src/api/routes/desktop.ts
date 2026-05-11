@@ -3,7 +3,7 @@ import { logger } from '../../logger.js';
 import { pathParam } from '../utils/requestHelpers.js';
 
 const GITHUB_REPO = 'lass-machen/meetropolis-desktop';
-const CACHE_TTL_MS = 5 * 60 * 1000; // 5 Minuten
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 interface CacheEntry<T> {
   data: T;

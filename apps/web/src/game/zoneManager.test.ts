@@ -80,6 +80,6 @@ describe('ZoneManager', () => {
       },
     ]);
     expect(zm.getCurrent()).toBeUndefined();
-    expect(av.current).toBe('lobby'); // legacy Erwartung bleibt hier unkritisch
+    expect(av.current).toBe('lobby'); // legacy expectation, not critical here
   });
 });

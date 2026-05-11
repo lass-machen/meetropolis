@@ -19,16 +19,16 @@ export async function handleSessionTakeover(
     return;
   }
 
-  // WICHTIG: pending zuerst loeschen, damit completePendingJoin den neuen Client
-  // nicht selbst wieder als pending erkennt (Duplicate-Check in onJoin).
+  // IMPORTANT: delete pending first so completePendingJoin does not detect
+  // the new client itself as pending again (duplicate check in onJoin).
   room.pendingClients.delete(identity);
 
-  // Race-Fix: ZUERST den neuen Player in den State setzen, DANACH den alten entfernen.
-  // Effekt: Andere Clients sehen nie eine Luecke (atomarer Swap aus Client-Sicht).
+  // Race-Fix: FIRST add the new player to state, THEN remove the old one.
+  // Effect: other clients never observe a gap (atomic swap from client view).
   logger.info('[WorldRoom] Session takeover: completing join for identity:', identity);
   await room.completePendingJoin(pending.client, pending.options, pending.identity);
 
-  // Jetzt alten Eintrag aus allen Rooms raeumen
+  // Now clean up the old entry from all rooms
   const newSid = pending.client.sessionId;
   for (const r of activeRooms) {
     const worldRoom = r;
@@ -46,7 +46,11 @@ export async function handleSessionTakeover(
       }
       worldRoom.state.players.delete(oldSid);
       worldRoom.lastSeen.delete(oldSid);
-      try { colyseusPlayers.dec(); } catch { /* metric best-effort */ }
+      try {
+        colyseusPlayers.dec();
+      } catch {
+        /* metric best-effort */
+      }
       if (oldMapId) {
         broadcastToMap(worldRoom, oldMapId, 'player_left', { id: oldSid });
       } else {
@@ -54,8 +58,16 @@ export async function handleSessionTakeover(
       }
       const oldClient = worldRoom.clients.find((c: Client) => c.sessionId === oldSid);
       if (oldClient) {
-        try { oldClient.error(4007, 'session_taken_over'); } catch { /* best-effort */ }
-        try { oldClient.leave(1000); } catch { /* best-effort */ }
+        try {
+          oldClient.error(4007, 'session_taken_over');
+        } catch {
+          /* best-effort */
+        }
+        try {
+          oldClient.leave(1000);
+        } catch {
+          /* best-effort */
+        }
       }
     }
   }
@@ -70,5 +82,9 @@ export function handleSessionTakeoverCancel(room: WorldRoom, client: Client): vo
       break;
     }
   }
-  try { client.leave(1000); } catch { /* best-effort */ }
+  try {
+    client.leave(1000);
+  } catch {
+    /* best-effort */
+  }
 }

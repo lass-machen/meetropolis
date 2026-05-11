@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // Run Playwright tests only if @playwright/test is available.
-// Wir nutzen dynamic import statt require, weil apps/web als ESM-Workspace
-// läuft (type: module). Der try/catch fängt MODULE_NOT_FOUND, wenn Playwright
-// nicht installiert ist (optional in CI/lokal).
+// We use dynamic import instead of require because apps/web runs as an ESM
+// workspace (type: module). The try/catch handles MODULE_NOT_FOUND when
+// Playwright is not installed (optional in CI / locally).
 async function main() {
   try {
     const mod = await import('@playwright/test/lib/cli');

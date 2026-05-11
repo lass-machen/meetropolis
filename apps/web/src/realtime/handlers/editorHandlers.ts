@@ -33,9 +33,9 @@ export function setupEditorHandlers(
       // Server delivers zone polys as opaque unknown[]; cast to Zone[] for
       // EditorService consumption (shape mirrored from EditorTypes.Zone).
       const polys = data.polys as Zone[];
-      // WICHTIG: EditorService als Single Source of Truth updaten!
+      // IMPORTANT: update EditorService as the single source of truth!
       EditorService.dispatch({ type: 'LOAD_STATE', state: { zones: polys } });
-      // useState wird durch EditorService-Subscription automatisch aktualisiert
+      // useState is updated automatically via the EditorService subscription
       if (gameBridge && typeof gameBridge.setZoneOverlay === 'function') gameBridge.setZoneOverlay(polys);
       if (zoneRef.current && typeof zoneRef.current.setZones === 'function') zoneRef.current.setZones(polys);
       scheduleBuildParticipantList(0);

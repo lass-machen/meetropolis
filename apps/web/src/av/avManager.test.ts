@@ -116,7 +116,7 @@ describe('AVManager', () => {
     await mgr.setMicrophoneEnabled(true);
     expect(room.localParticipant.publishTrack).toHaveBeenCalled();
 
-    // Soft-Mute: Track-Publication bleibt erhalten, kein unpublishTrack-Aufruf.
+    // Soft-mute: track publication is preserved, no unpublishTrack call.
     await mgr.setMicrophoneEnabled(false);
     expect(room.localParticipant.unpublishTrack).not.toHaveBeenCalled();
   });
@@ -126,7 +126,7 @@ describe('AVManager', () => {
     const room = makeFakeRoom();
     mgr.current = room;
 
-    // Bereits live publizierter Mic-Track
+    // Already-live published mic track
     const liveMic: any = { kind: 'audio', mediaStreamTrack: { readyState: 'live', enabled: true } };
     room.localParticipant.trackPublications.set('mic', { track: liveMic, source: 'microphone', kind: 'audio' });
 
@@ -143,7 +143,7 @@ describe('AVManager', () => {
     await mgr.setCameraEnabled(true);
     expect(room.localParticipant.publishTrack).toHaveBeenCalled();
 
-    // Simuliere vorhandene Kamera-Publikation
+    // Simulate an existing camera publication
     room.localParticipant.trackPublications.set('cam', { track: { kind: 'video' }, source: 'camera', kind: 'video' });
 
     await mgr.setCameraEnabled(false);
@@ -177,7 +177,7 @@ describe('AVManager', () => {
     const room = makeFakeRoom();
     mgr.current = room;
 
-    // Markiere bereits aktive Screen-Share-Pubs
+    // Mark already-active screen-share publications
     room.localParticipant.trackPublications.set('shareV', {
       track: { kind: 'video' },
       source: 'screen_share',
@@ -219,13 +219,13 @@ describe('AVManager', () => {
     const room = makeFakeRoom();
     mgr.current = room;
 
-    // Simuliere alten, beendeten Mic-Track
+    // Simulate an old, ended mic track
     const endedTrack: any = { kind: 'audio', mediaStreamTrack: { readyState: 'ended', enabled: false }, stop: vi.fn() };
     room.localParticipant.trackPublications.set('mic', { track: endedTrack, source: 'microphone', kind: 'audio' });
 
     await mgr.setMicrophoneEnabled(true);
 
-    // Erwartung: alter Track wurde entfernt, neuer publiziert
+    // Expectation: the old track has been removed and a new one published
     expect(room.localParticipant.unpublishTrack).toHaveBeenCalledWith(endedTrack);
     expect(room.localParticipant.publishTrack).toHaveBeenCalled();
   });
@@ -235,12 +235,12 @@ describe('AVManager', () => {
     const room = makeFakeRoom();
     mgr.current = room;
 
-    // Erst publishen, damit TrackManager._state.microphone.track gesetzt ist.
+    // Publish first so that TrackManager._state.microphone.track is set.
     await mgr.setMicrophoneEnabled(true);
     expect(room.localParticipant.publishTrack).toHaveBeenCalled();
 
     await mgr.setMicrophoneEnabled(false);
-    // Soft-Mute: Track bleibt publiziert, nur RTP-Mute (bzw. mediaStreamTrack.enabled=false).
+    // Soft-mute: track remains published, only RTP-mute (or mediaStreamTrack.enabled=false).
     expect(room.localParticipant.unpublishTrack).not.toHaveBeenCalled();
   });
 
@@ -286,7 +286,7 @@ describe('AVManager', () => {
     vi.useFakeTimers();
     const { joinLivekitRoom } = await import('../lib/livekit');
     const mgr = makeManager() as any;
-    // Mic vor Connect einschalten → pending flag
+    // Enable mic before connect to trigger the pending flag
     await mgr.setMicrophoneEnabled(true);
     // Trigger the join.
     const p = mgr.switchTo('world');

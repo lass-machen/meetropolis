@@ -1,13 +1,13 @@
 import client from 'prom-client';
 import type { Request, Response, NextFunction, RequestHandler } from 'express';
 
-// Zentrales Registry-Objekt (nicht global)
+// Central registry object (not global)
 export const registry = new client.Registry();
 
-// Default-Metriken (CPU, RSS, Eventloop, GC)
+// Default metrics (CPU, RSS, event loop, GC)
 client.collectDefaultMetrics({ register: registry, prefix: 'meetropolis_' });
 
-// HTTP Request Dauer
+// HTTP request duration
 export const httpRequestDuration = new client.Histogram({
   name: 'meetropolis_http_request_duration_seconds',
   help: 'HTTP request duration in seconds',

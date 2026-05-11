@@ -97,7 +97,7 @@ export type SceneWithLabelLayer = Phaser.Scene & {
 };
 
 export interface MainSceneShape {
-  // ---------- Tilemap-State (per SceneInitializer + chunks/tilesets gesetzt) ----------
+  // ---------- Tilemap state (populated by SceneInitializer + chunks/tilesets) ----------
   mapRef?: Phaser.Tilemaps.Tilemap;
   editorGround?: Phaser.Tilemaps.TilemapLayer;
   wallsLayer?: Phaser.Tilemaps.TilemapLayer;
@@ -107,7 +107,7 @@ export interface MainSceneShape {
   v2?: { state: V2State; firstGids: number[]; chunkSize: number };
   bubbleOutlines: Map<string, Phaser.GameObjects.Graphics>;
 
-  // ---------- Public Scene-State ----------
+  // ---------- Public scene state ----------
   currentMapId: string;
   currentMapName: string;
   terrainTilesetSources: Map<string, string>;
@@ -116,10 +116,10 @@ export interface MainSceneShape {
   autotileGrid?: AutotileGrid;
   autotileRenderer?: AutotileRenderer;
 
-  // ---------- Helper-Function-Boundary (gesetzt von ui/camera/collision/editor) ----------
-  // Diese Properties werden nur von den `Phaser.Scene & any`-Helper-Functions
-  // gesetzt/gelesen. Im OSS-Manager-Pfad parallel laufende Daten (z.B.
-  // PlayerManager.hero, NameLabelManager.heroNameLabel) sind separat.
+  // ---------- Helper-function boundary (set by ui/camera/collision/editor) ----------
+  // These properties are only set/read by the `Phaser.Scene & any` helper
+  // functions. Data running in parallel on the OSS manager path (e.g.
+  // PlayerManager.hero, NameLabelManager.heroNameLabel) is kept separately.
   hero?: Phaser.Physics.Arcade.Sprite;
   nameLabels?: Map<string, Phaser.GameObjects.Container>;
   heroNameLabel?: Phaser.GameObjects.Container;
@@ -136,7 +136,7 @@ export interface MainSceneShape {
   labelLayer?: Phaser.GameObjects.Layer | null;
   labelCamera?: Phaser.Cameras.Scene2D.Camera | null;
 
-  // ---------- Methoden, die Helper-Functions auf der Scene aufrufen ----------
+  // ---------- Methods that helper functions invoke on the scene ----------
   ensureCollisionCollider(): void;
   rebuildStaticColliders(): void;
   registerTileset(ts: {
@@ -155,8 +155,8 @@ export interface MainSceneShape {
 }
 
 /**
- * Phaser.Scene mit allen Erweiterungen, die Helper-Functions erwarten.
- * Helper-Functions in `game/{ui,collision,camera,map,editor}` parameterisieren
- * sich auf diesen Type statt auf `Phaser.Scene & any`.
+ * Phaser.Scene with all the extensions helper functions expect.
+ * Helper functions in `game/{ui,collision,camera,map,editor}` parameterise
+ * themselves on this type instead of `Phaser.Scene & any`.
  */
 export type MainSceneLike = Phaser.Scene & MainSceneShape;

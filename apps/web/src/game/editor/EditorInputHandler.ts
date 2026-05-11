@@ -79,7 +79,7 @@ export class EditorInputHandler {
       return;
     }
 
-    // Ignoriere wenn Kamera gepanned wird
+    // Ignore while the camera is being panned
     if (pointer.middleButtonDown() || this.isSpaceHeld()) {
       return;
     }
@@ -105,7 +105,7 @@ export class EditorInputHandler {
     const worldPoint = pointer.positionToCamera(this.scene.cameras.main) as Phaser.Math.Vector2;
     const { tileX, tileY } = this.worldToTile(worldPoint.x, worldPoint.y);
 
-    // Update Ghost-Position wenn Asset-Tool oder Terrain-Tool aktiv
+    // Update ghost position when asset or terrain tool is active
     if (state.tool === 'asset' && state.pendingAsset) {
       const worldPos = this.tileToWorld(tileX, tileY);
       this.renderer.updateGhostPosition(worldPos.x, worldPos.y);
@@ -114,7 +114,7 @@ export class EditorInputHandler {
       this.renderer.updateGhostPosition(worldPos.x, worldPos.y);
     }
 
-    // Update Drag wenn aktiv
+    // Update drag while active
     if (state.dragState) {
       try {
         this.dispatchToolAction('move', tileX, tileY);
@@ -145,7 +145,7 @@ export class EditorInputHandler {
       return;
     }
 
-    // Ignoriere wenn Kamera gepanned wird
+    // Ignore while the camera is being panned
     if (this.isSpaceHeld()) {
       return;
     }
@@ -160,7 +160,7 @@ export class EditorInputHandler {
       throw error;
     }
 
-    // Clear Selection nach Action
+    // Clear selection after the action
     this.renderer.renderSelection(null);
   }
 
@@ -185,7 +185,7 @@ export class EditorInputHandler {
         break;
 
       case 'select':
-        // Select hat keine Tile-Actions
+        // Select has no tile actions
         break;
 
       case 'terrain':

@@ -21,7 +21,7 @@ interface StatsManagerView {
   statsTimer?: ReturnType<typeof setInterval>;
 }
 
-// Manager wird absichtlich nur strukturell getypt, um enge Kopplung an die interne Klasse zu vermeiden.
+// Manager is intentionally typed only structurally to avoid tight coupling to the internal class.
 export function startStatsLoopImpl(manager: StatsManagerView): void {
   try {
     if (manager.statsTimer) clearInterval(manager.statsTimer);

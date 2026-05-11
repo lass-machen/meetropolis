@@ -22,7 +22,10 @@ export function useTheme(): ThemeContextValue {
 }
 
 export function ThemeProvider(props: { children: React.ReactNode }) {
-  const getSystem = () => (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
+  const getSystem = () =>
+    typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches
+      ? 'light'
+      : 'dark';
   const [override, setOverride] = React.useState<ThemeOverride>(() => {
     if (typeof window === 'undefined') return 'system';
     const saved = localStorage.getItem('ui:theme:override') as ThemeOverride | null;
@@ -49,11 +52,13 @@ export function ThemeProvider(props: { children: React.ReactNode }) {
     } else {
       root.setAttribute('data-theme', override);
     }
-    try { localStorage.setItem('ui:theme:override', override); } catch {}
+    try {
+      localStorage.setItem('ui:theme:override', override);
+    } catch {}
   }, [override]);
 
   const cycle = React.useCallback(() => {
-    setOverride((o: ThemeOverride) => o === 'system' ? 'light' : o === 'light' ? 'dark' : 'system');
+    setOverride((o: ThemeOverride) => (o === 'system' ? 'light' : o === 'light' ? 'dark' : 'system'));
   }, []);
 
   return (
@@ -65,7 +70,7 @@ export function ThemeProvider(props: { children: React.ReactNode }) {
   );
 }
 
-// CSS-Variablen sind nun in apps/web/src/styles/theme.css definiert.
+// CSS variables are now defined in apps/web/src/styles/theme.css.
 
 export function ThemeToggleButton() {
   const { override, setOverride, cycle: _cycle, effective: _effective } = useTheme();
@@ -100,5 +105,3 @@ export function ThemeToggleButton() {
     </ButtonGroup>
   );
 }
-
-

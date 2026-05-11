@@ -50,7 +50,7 @@ export function createZoneLockState(): ZoneLockState {
   };
 }
 
-// Zones aus DB laden + cachen
+// Load zones from DB and cache them
 async function loadZones(
   state: ZoneLockState,
   mapId: string,
@@ -86,7 +86,7 @@ async function loadZones(
   }
 }
 
-// Welche Zone ist ein Spieler drin?
+// Which zone is a player currently in?
 function getPlayerZone(zones: ZonePolygon[], pos: { x: number; y: number }): string | null {
   for (const z of zones) {
     if (pointInPolygon(pos, z.polygon)) return z.name;
@@ -313,7 +313,7 @@ export function onPlayerLeaveZoneLock(room: WorldRoom, state: ZoneLockState, ses
   }
 }
 
-// Zone-Cache invalidieren (bei editor_update)
+// Invalidate zone cache (on editor_update)
 export function invalidateZoneCache(state: ZoneLockState, mapId?: string): void {
   if (mapId) {
     state.zoneCache.delete(mapId);
