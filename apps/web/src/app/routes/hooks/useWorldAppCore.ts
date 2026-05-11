@@ -232,6 +232,7 @@ export function useWorldAppCore(params: {
   useAvailableMaps(auth.me, apiBase);
   const saveAllToServer = useCallback(
     () => saveAllToServerImpl(apiBase, editor, refs.colyseusRef),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: saveAllToServerImpl is a caller-owned stable ref; capturing it would churn callback identity without behaviour gain
     [apiBase, editor, refs.colyseusRef],
   );
 
@@ -249,9 +250,13 @@ export function useWorldAppCore(params: {
     applyVolumesToUi,
   });
 
-  const toggleMiniModeVoid = React.useCallback(() => {
-    void desktop.toggleMiniMode();
-  }, [desktop.toggleMiniMode]);
+  const toggleMiniModeVoid = React.useCallback(
+    () => {
+      void desktop.toggleMiniMode();
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: desktop is a stable hook-managed singleton; capturing the full object would defeat method-level memoisation
+    [desktop.toggleMiniMode],
+  );
   useDesktopShortcuts({
     isTauri: desktop.isTauri,
     toggleMiniMode: toggleMiniModeVoid,

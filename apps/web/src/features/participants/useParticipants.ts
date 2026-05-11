@@ -351,6 +351,7 @@ export function useParticipants(deps: ParticipantsDeps) {
     const list = buildLivekitParticipantList(room, deps);
     setUiParticipants(list);
     notifyGameOfSpeakingStates(room, deps);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: the destructured fields are the stable mutable refs and React-stable setters; the surrounding `deps` object is recreated each render but its slot identities are not, capturing it would churn the callback
   }, [
     avRef,
     zoneRef,

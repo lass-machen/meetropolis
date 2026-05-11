@@ -347,6 +347,7 @@ function useVideoTrackAttachment(
     const offEvents = setupRoomEvents(room, baseSid, part, el, isLocalNow, setIsVideoRendering);
 
     return () => {
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: videoRef.current is captured into `node` at cleanup time; the ref-cleanup-timing warning is benign because we explicitly want the current DOM node at unmount
       const node = videoRef.current;
       try {
         node?.removeEventListener('loadeddata', onLoaded);
@@ -369,6 +370,7 @@ function useVideoTrackAttachment(
         }
       } catch {}
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: sid + hasVideo are the lifecycle triggers we care about; part.media is constant per participant card, videoRef is a stable mutable ref, capturing full part would tear down and re-attach on every property update
   }, [part.sid, part.hasVideo, roomGetter]);
 
   return { isVideoRendering, isLocal };

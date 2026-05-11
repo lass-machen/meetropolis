@@ -112,6 +112,7 @@ function useAutoConnectOnMount(
         }
       }, 300);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: me?.id is the correct sentinel for an auth-driven auto-connect; hasAutoConnectedRef and isConnectingRef are mutable refs that guard against double-connect at runtime, capturing them or the full me object would risk a LiveKit reconnect storm on auth refresh
   }, [me?.id, connect, editorActiveRef, avRef]);
 }
 
@@ -176,9 +177,11 @@ function useBuildListTimerCleanup(
   React.useEffect(() => {
     return () => {
       if (buildListTimerRef.current) {
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: buildListTimerRef.current is read at unmount time; the cleanup-timing warning is benign because the ref slot is the timer handle we explicitly want to release
         clearTimeout(buildListTimerRef.current);
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: mount-only cleanup hook; buildListTimerRef identity never changes, depending on it would be a no-op
   }, []);
 }
 

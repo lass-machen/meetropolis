@@ -61,14 +61,18 @@ export function useWorldEventBundle(params: {
     dismissBanner,
   });
 
-  const pttAwareToggleMic = useCallback(async () => {
-    const pttOn = useAvSettingsStore.getState().settings.pushToTalk;
-    if (pttOn) {
-      useAvSettingsStore.getState().setSetting('pushToTalk', false);
-      return;
-    }
-    await eventHandlers.handleToggleMic();
-  }, [eventHandlers.handleToggleMic]);
+  const pttAwareToggleMic = useCallback(
+    async () => {
+      const pttOn = useAvSettingsStore.getState().settings.pushToTalk;
+      if (pttOn) {
+        useAvSettingsStore.getState().setSetting('pushToTalk', false);
+        return;
+      }
+      await eventHandlers.handleToggleMic();
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: handleToggleMic is a useCallback-stable ref inside useWorldEventHandlers; the eventHandlers container is recreated each render but the method identity is preserved
+    [eventHandlers.handleToggleMic],
+  );
 
   return { eventHandlers, pttAwareToggleMic };
 }

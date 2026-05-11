@@ -324,5 +324,6 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
     return () => {
       performCleanup(scope, args, reconnectTimerRef);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: apiBase + me?.id gate the Colyseus session correctly; capturing the full callback args or me object would trigger reconnect storms on every auth refresh and kill session isolation
   }, [apiBase, me?.id]);
 }

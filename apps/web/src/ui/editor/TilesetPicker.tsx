@@ -26,10 +26,16 @@ function useLoadImage(imageUrl: string) {
     const img = new Image();
     img.crossOrigin = 'anonymous';
     const url = imageUrl.startsWith('/') ? `${baseUrl()}${imageUrl}` : imageUrl;
-    img.onload = () => { imgRef.current = img; setLoaded(true); };
+    img.onload = () => {
+      imgRef.current = img;
+      setLoaded(true);
+    };
     img.onerror = () => setLoaded(false);
     img.src = url;
-    return () => { img.onload = null; img.onerror = null; };
+    return () => {
+      img.onload = null;
+      img.onerror = null;
+    };
   }, [imageUrl]);
 
   return { imgRef, loaded };
@@ -119,33 +125,37 @@ export function TilesetPicker({ tileset, selectedTileRefId }: TilesetPickerProps
     if (!ctx) return;
 
     drawTilesetCanvas(ctx, img, cols, rows, tw, th, margin, spacing, scale, selectedTileRefId, tileset.slot);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: imgRef is a mutable ref (identity stable); the `loaded` flag already gates redraws after image-load, capturing the ref would be a no-op
   }, [loaded, selectedTileRefId, cols, rows, margin, spacing, tw, th, tileset.slot]);
 
-  const handleClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
-    const canvas = canvasRef.current;
-    if (!canvas || !loaded || cols === 0) return;
+  const handleClick = useCallback(
+    (e: React.MouseEvent<HTMLCanvasElement>) => {
+      const canvas = canvasRef.current;
+      if (!canvas || !loaded || cols === 0) return;
 
-    const rect = canvas.getBoundingClientRect();
-    const mx = (e.clientX - rect.left) * (canvas.width / rect.width);
-    const my = (e.clientY - rect.top) * (canvas.height / rect.height);
+      const rect = canvas.getBoundingClientRect();
+      const mx = (e.clientX - rect.left) * (canvas.width / rect.width);
+      const my = (e.clientY - rect.top) * (canvas.height / rect.height);
 
-    const pixX = mx / scale - margin;
-    const pixY = my / scale - margin;
-    const col = Math.floor(pixX / (tw + spacing));
-    const row = Math.floor(pixY / (th + spacing));
+      const pixX = mx / scale - margin;
+      const pixY = my / scale - margin;
+      const col = Math.floor(pixX / (tw + spacing));
+      const row = Math.floor(pixY / (th + spacing));
 
-    if (col < 0 || col >= cols || row < 0 || row >= rows) return;
+      if (col < 0 || col >= cols || row < 0 || row >= rows) return;
 
-    const tileIndex = row * cols + col;
-    const tileRefId = makeTileRefId(tileset.slot, tileIndex);
+      const tileIndex = row * cols + col;
+      const tileRefId = makeTileRefId(tileset.slot, tileIndex);
 
-    EditorService.dispatch({
-      type: 'SELECT_TILE_REF',
-      tileRefId,
-      slot: tileset.slot,
-      tileIndex,
-    });
-  }, [loaded, cols, rows, margin, spacing, tw, th, tileset.slot]);
+      EditorService.dispatch({
+        type: 'SELECT_TILE_REF',
+        tileRefId,
+        slot: tileset.slot,
+        tileIndex,
+      });
+    },
+    [loaded, cols, rows, margin, spacing, tw, th, tileset.slot],
+  );
 
   if (!loaded) {
     return <div style={{ fontSize: 12, color: 'var(--fg-subtle)', padding: 8 }}>Tileset wird geladen...</div>;

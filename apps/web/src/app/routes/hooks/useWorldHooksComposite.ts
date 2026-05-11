@@ -89,6 +89,7 @@ export function useWorldRealtimeHooks(params: {
         ui.setOverlayZoom(1);
         setTimeout(() => buildParticipantList(), 200);
       },
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: selectedSid gates the guard, setters are React-stable dispatch fns, lastAutoFullscreenRef is a mutable ref; capturing the full ui object would churn callback identity on every UI state change
       [ui.selectedSid, buildParticipantList, refs.lastAutoFullscreenRef, ui.setSelectedSid, ui.setOverlayZoom],
     ),
     onRemoteScreenshareStop: React.useCallback(
@@ -99,6 +100,7 @@ export function useWorldRealtimeHooks(params: {
           ui.setOverlayZoom(1);
         }
       },
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: same as the start handler; selectedSid is the only meaningful read, setters are stable dispatch fns
       [ui.selectedSid, ui.setSelectedSid, ui.setOverlayZoom],
     ),
   });

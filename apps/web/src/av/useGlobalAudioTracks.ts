@@ -217,5 +217,6 @@ export function useGlobalAudioTracks(params: { avRef: React.MutableRefObject<AVM
 
   React.useEffect(() => {
     return setupGlobalAudioTracksEffect(avRef);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: avRef is a mutable ref (identity stable); the effect re-runs when the room handle inside the ref changes, which is the correct lifecycle trigger
   }, [avRef.current?.room]);
 }

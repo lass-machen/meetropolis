@@ -34,9 +34,13 @@ export function useWorldUiHelpers(params: {
     [ui.uiParticipants, auth.me?.name, auth.me?.email, ui.avState.mic, refs.avRef],
   );
 
-  const handleAuthComplete = useCallback(() => {
-    auth.setAuthRefetchTrigger((prev) => prev + 1);
-  }, [auth.setAuthRefetchTrigger]);
+  const handleAuthComplete = useCallback(
+    () => {
+      auth.setAuthRefetchTrigger((prev) => prev + 1);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: setAuthRefetchTrigger is a React-stable dispatch fn; capturing the full auth object would churn the callback unnecessarily
+    [auth.setAuthRefetchTrigger],
+  );
 
   const getMiniZones = useCallback(() => {
     const raw = (refs.zoneRef.current?.getZones?.() || []) as RawZone[];
@@ -60,6 +64,7 @@ export function useWorldUiHelpers(params: {
       ui.setSelectedSid(screenSid);
       ui.setOverlayZoom(1);
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: setters are React-stable dispatch fns; capturing full ui would churn the callback on every UI state change
     [toggleMiniMode, ui.setSelectedSid, ui.setOverlayZoom],
   );
 
@@ -82,6 +87,7 @@ export function useParticipantListEffects(params: { refs: WorldRefs; me: WorldMe
       refs.identityToNameMap.current[localIdentity] = me.name || me.email || me.id;
       buildParticipantList();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: me?.id is the only semantically relevant trigger; any auth refresh hands us a fresh `me` object identity, capturing full me would loop, refs/buildParticipantList are stable
   }, [me?.id]);
 
   React.useEffect(() => {

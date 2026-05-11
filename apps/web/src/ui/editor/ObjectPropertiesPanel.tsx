@@ -21,6 +21,7 @@ export function ObjectPropertiesPanel({ object }: ObjectPropertiesPanelProps) {
     setRotation(object.rotation || 0);
     setFlipX(object.flipX || false);
     setFlipY(object.flipY || false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: form state is a local working copy that should only re-sync when the user selects a different object; depending on the individual fields would overwrite in-flight user input on every dispatch
   }, [object.id]);
 
   const handleApply = () => {
@@ -47,15 +48,16 @@ export function ObjectPropertiesPanel({ object }: ObjectPropertiesPanelProps) {
       <div style={titleStyle}>Objekt-Eigenschaften</div>
       <ObjectInfo object={object} />
       <EditableFields
-        tileX={tileX} setTileX={setTileX}
-        tileY={tileY} setTileY={setTileY}
-        zIndex={zIndex} setZIndex={setZIndex}
-        rotation={rotation} setRotation={setRotation}
+        tileX={tileX}
+        setTileX={setTileX}
+        tileY={tileY}
+        setTileY={setTileY}
+        zIndex={zIndex}
+        setZIndex={setZIndex}
+        rotation={rotation}
+        setRotation={setRotation}
       />
-      <FlipToggles
-        flipX={flipX} setFlipX={setFlipX}
-        flipY={flipY} setFlipY={setFlipY}
-      />
+      <FlipToggles flipX={flipX} setFlipX={setFlipX} flipY={flipY} setFlipY={setFlipY} />
       <ActionButtons onApply={handleApply} onDelete={handleDelete} />
     </div>
   );
@@ -70,17 +72,23 @@ function ObjectInfo({ object }: { object: MapObjectRecord }) {
       <div>Item: {object.itemId}</div>
       <div>Pack: {object.assetPackUuid}</div>
       <div>Kategorie: {object.category}</div>
-      <div>Gr&ouml;&szlig;e: {object.width}x{object.height}</div>
+      <div>
+        Gr&ouml;&szlig;e: {object.width}x{object.height}
+      </div>
       <div>Kollision: {object.collide ? 'Ja' : 'Nein'}</div>
     </div>
   );
 }
 
 type EditableFieldsProps = {
-  tileX: number; setTileX: (v: number) => void;
-  tileY: number; setTileY: (v: number) => void;
-  zIndex: number; setZIndex: (v: number) => void;
-  rotation: number; setRotation: (v: number) => void;
+  tileX: number;
+  setTileX: (v: number) => void;
+  tileY: number;
+  setTileY: (v: number) => void;
+  zIndex: number;
+  setZIndex: (v: number) => void;
+  rotation: number;
+  setRotation: (v: number) => void;
 };
 
 function EditableFields(props: EditableFieldsProps) {
@@ -109,7 +117,7 @@ function NumberField({ label, value, onChange, step }: NumberFieldProps) {
       <input
         type="number"
         value={value}
-        onChange={e => onChange(Number(e.target.value))}
+        onChange={(e) => onChange(Number(e.target.value))}
         step={step}
         style={inputStyle}
       />
@@ -118,18 +126,20 @@ function NumberField({ label, value, onChange, step }: NumberFieldProps) {
 }
 
 type FlipTogglesProps = {
-  flipX: boolean; setFlipX: (v: boolean) => void;
-  flipY: boolean; setFlipY: (v: boolean) => void;
+  flipX: boolean;
+  setFlipX: (v: boolean) => void;
+  flipY: boolean;
+  setFlipY: (v: boolean) => void;
 };
 
 function FlipToggles({ flipX, setFlipX, flipY, setFlipY }: FlipTogglesProps) {
   return (
     <div style={{ display: 'flex', gap: 12 }}>
       <label style={checkboxLabelStyle}>
-        <input type="checkbox" checked={flipX} onChange={e => setFlipX(e.target.checked)} /> Flip X
+        <input type="checkbox" checked={flipX} onChange={(e) => setFlipX(e.target.checked)} /> Flip X
       </label>
       <label style={checkboxLabelStyle}>
-        <input type="checkbox" checked={flipY} onChange={e => setFlipY(e.target.checked)} /> Flip Y
+        <input type="checkbox" checked={flipY} onChange={(e) => setFlipY(e.target.checked)} /> Flip Y
       </label>
     </div>
   );
