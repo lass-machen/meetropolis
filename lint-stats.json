@@ -1,0 +1,12 @@
+{
+  "schema": 1,
+  "updatedAt": "2026-05-11",
+  "totalWarnings": 18,
+  "totalErrors": 0,
+  "byRule": {
+    "react-hooks/exhaustive-deps": {
+      "warnings": 18,
+      "errors": 0
+    }
+  }
+}

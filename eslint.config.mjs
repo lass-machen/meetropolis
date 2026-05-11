@@ -3,6 +3,7 @@ import tseslint from 'typescript-eslint';
 import prettierConfig from 'eslint-config-prettier';
 import reactHooks from 'eslint-plugin-react-hooks';
 import jsxA11y from 'eslint-plugin-jsx-a11y';
+import eslintComments from '@eslint-community/eslint-plugin-eslint-comments';
 import globals from 'globals';
 
 export default tseslint.config(
@@ -75,26 +76,33 @@ export default tseslint.config(
     },
   },
 
+  // 3) eslint-comments: Pflicht-Begruendung fuer disable-Direktiven.
+  //    Wer `eslint-disable-next-line @typescript-eslint/no-explicit-any`
+  //    schreibt, muss `-- <Grund>` daran haengen. Stilles Stummschalten ist
+  //    nicht erlaubt; das macht Boundary-Annahmen im Review-Diff sichtbar.
+  //    Siehe LIBRARY_BOUNDARIES.md.
+  {
+    plugins: {
+      '@eslint-community/eslint-comments': eslintComments,
+    },
+    rules: {
+      '@eslint-community/eslint-comments/require-description': ['error', { ignore: ['eslint-enable'] }],
+      '@eslint-community/eslint-comments/no-unused-disable': 'error',
+      '@eslint-community/eslint-comments/no-duplicate-disable': 'error',
+      '@eslint-community/eslint-comments/no-aggregating-enable': 'error',
+    },
+  },
+
   // 3a) Library-Boundary-Regeln: `no-unsafe-*` und `no-explicit-any` bleiben
-  //     als `warn` aktiv, weil `any` an den verbliebenen Boundaries eine
-  //     bewusste Entscheidung ist und keine Tech-Debt im klassischen Sinn:
+  //     als `warn` aktiv. Echte Library-Boundaries sind als File-Level-Override
+  //     unten in Sektion 3b dokumentiert. Ein neuer `as any` an einer Stelle,
+  //     die NICHT in einem Adapter-File liegt, soll als Warning erscheinen,
+  //     damit es im Review auffaellt. Wer wirklich keine Wrapper-Loesung hat,
+  //     muss `eslint-disable-next-line` mit Pflicht-Begruendung schreiben
+  //     (siehe `eslint-comments/require-description` weiter unten).
   //
-  //     • Phaser-Bridge: scene-properties die von Manager-Klassen oder
-  //       externen Subclasses gesetzt werden (siehe game/types/scene.ts).
-  //     • LiveKit-Internals: Connection-State, Track.Source/Kind-Vergleich
-  //       mit Strings (LiveKit deklariert Track-Source als String-Enum, aber
-  //       die Library typisiert Track-Publications loose).
-  //     • Colyseus-Internals: connection.ws/transport (nicht-public typing),
-  //       state-Object-Trees beim Player-Sync.
-  //     • Enterprise-Submodule-Boundaries: prisma/auth-Helper-Übergaben
-  //       an die Submodule mit eigenem Type-Universum.
-  //
-  //     Die Warnings sind Sichtbarkeit, kein Blocker. Wenn jemand neue
-  //     `any`-Patterns einführt, sollte er kurz prüfen, ob die Boundary
-  //     dahinter wirklich untyped ist — oder ob ein konkreter Type
-  //     existiert. Pro-Stelle-Disables (`eslint-disable-next-line`) sind
-  //     ausdrücklich nicht nötig, weil die warn-Schwelle bereits genau das
-  //     leistet: sichtbar markieren ohne den Build zu brechen.
+  //     Siehe LIBRARY_BOUNDARIES.md fuer die vier Pattern-Optionen und wann
+  //     welche.
   {
     rules: {
       '@typescript-eslint/no-unsafe-member-access': 'warn',
@@ -103,7 +111,7 @@ export default tseslint.config(
       '@typescript-eslint/no-unsafe-argument': 'warn',
       '@typescript-eslint/no-unsafe-return': 'warn',
       '@typescript-eslint/no-explicit-any': 'warn',
-      // Konvention: führender Underscore = absichtlich ungenutzt
+      // Konvention: fuehrender Underscore = absichtlich ungenutzt
       // (Funktionssignaturen, Discards in Destructuring, catch-Clauses).
       '@typescript-eslint/no-unused-vars': [
         'error',
@@ -114,6 +122,49 @@ export default tseslint.config(
           destructuredArrayIgnorePattern: '^_',
         },
       ],
+    },
+  },
+
+  // 3b) Echte Library-Boundaries: Files, deren einziger Zweck die Uebersetzung
+  //     zwischen einer untypisierten Vendor-Schnittstelle und unserem
+  //     getypten Code-Universum ist. Hier sind `no-unsafe-*` und
+  //     `no-explicit-any` abgeschaltet, weil die Boundary-Logik per
+  //     Definition mit `any` arbeiten muss.
+  //
+  //     Hinzunahme nur, wenn:
+  //     1. Die untypisierte Schnittstelle ist ein Third-Party-Library-Internal
+  //        oder ein Browser-Global (kein eigener Code, der nur untypisiert
+  //        ist).
+  //     2. Die saubere Loesung (Wrapper, declare module, Helper) ist nicht
+  //        moeglich oder unangemessen aufwendig.
+  //     3. Der File-Inhalt ist auf die Boundary-Logik beschraenkt; kein
+  //        Mischmasch aus Business-Code + Boundary.
+  //
+  //     Siehe LIBRARY_BOUNDARIES.md fuer den Kontext.
+  {
+    files: [
+      // LiveKit private engine internals (connectionState, signalClient.ws).
+      // Public API exposes none of these; the heuristic depends on them.
+      'apps/web/src/av/core/SignalMonitor.ts',
+
+      // Monkey-patches globalThis.WebSocket to work around a WKWebView bug.
+      // The constructor swap is intrinsically loose (returning a value via
+      // `as any` is the documented pattern for this kind of polyfill).
+      'apps/web/src/lib/patchWebSocket.ts',
+
+      // AudioWorklet processors run in AudioWorkletGlobalScope, not in the
+      // standard DOM lib. `sampleRate` and `AudioWorkletProcessor` come from
+      // the worklet runtime and require ambient `declare` plus `any`-shaped
+      // globals access.
+      'apps/web/src/av/audio/worklets/rnnoise-processor.ts',
+    ],
+    rules: {
+      '@typescript-eslint/no-unsafe-member-access': 'off',
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unsafe-call': 'off',
+      '@typescript-eslint/no-unsafe-argument': 'off',
+      '@typescript-eslint/no-unsafe-return': 'off',
+      '@typescript-eslint/no-explicit-any': 'off',
     },
   },
 
@@ -151,7 +202,9 @@ export default tseslint.config(
   },
 
   // 6) Test-Files: relax bestimmte Regeln, die im Test-Kontext stören
-  //    (Mocks, Test-Helper, expect-Patterns).
+  //    (Mocks, Test-Helper, expect-Patterns). Wir wollen Tests pragmatisch
+  //    halten — die Type-Strenge wird im Production-Code erzwungen, nicht
+  //    bei jedem Mock-Setup.
   {
     files: ['**/*.test.{ts,tsx}', '**/*.spec.{ts,tsx}', '**/__tests__/**', '**/test/**', 'apps/web/e2e/**'],
     rules: {
@@ -160,13 +213,18 @@ export default tseslint.config(
       '@typescript-eslint/no-unsafe-assignment': 'off',
       '@typescript-eslint/no-unsafe-member-access': 'off',
       '@typescript-eslint/no-unsafe-call': 'off',
+      '@typescript-eslint/no-unsafe-argument': 'off',
       '@typescript-eslint/no-unsafe-return': 'off',
       '@typescript-eslint/unbound-method': 'off',
     },
   },
 
   // 7) Skripte (Build/Tools/Migrations) und Config-Files dürfen `console`
-  //    nutzen und sind oft pragmatischer formuliert.
+  //    nutzen und sind oft pragmatischer formuliert. Type-Strenge ist bei
+  //    diesen Files weniger relevant: sie laufen einmalig (Build, Seed,
+  //    Playwright-Konfig), nicht im Production-Pfad, und müssen oft mit
+  //    Vendor-Configs (Vite, Vitest, Playwright, Prisma) umgehen, deren
+  //    Typen lose oder bewusst offen sind.
   {
     files: [
       'scripts/**/*.{js,mjs,cjs,ts}',
@@ -180,6 +238,11 @@ export default tseslint.config(
     rules: {
       'no-console': 'off',
       '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off',
+      '@typescript-eslint/no-unsafe-call': 'off',
+      '@typescript-eslint/no-unsafe-argument': 'off',
+      '@typescript-eslint/no-unsafe-return': 'off',
     },
   },
 
