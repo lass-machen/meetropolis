@@ -22,6 +22,7 @@ export class EditorInputHandler {
   private boundHandlePointerDown!: (pointer: Phaser.Input.Pointer) => void;
   private boundHandlePointerMove!: (pointer: Phaser.Input.Pointer) => void;
   private boundHandlePointerUp!: (pointer: Phaser.Input.Pointer) => void;
+  private keydownHandler?: (e: KeyboardEvent) => void;
 
   // Selection-Rect colors per tool
   private static readonly TOOL_COLORS: Record<string, number> = {
@@ -483,7 +484,7 @@ export class EditorInputHandler {
 
     window.addEventListener('keydown', onKeyDown);
     // Store reference for cleanup
-    (this as any)._keydownHandler = onKeyDown;
+    this.keydownHandler = onKeyDown;
   }
 
   private isSpaceHeld(): boolean {
@@ -495,8 +496,8 @@ export class EditorInputHandler {
     this.scene.input.off('pointerdown', this.boundHandlePointerDown);
     this.scene.input.off('pointermove', this.boundHandlePointerMove);
     this.scene.input.off('pointerup', this.boundHandlePointerUp);
-    if ((this as any)._keydownHandler) {
-      window.removeEventListener('keydown', (this as any)._keydownHandler);
+    if (this.keydownHandler) {
+      window.removeEventListener('keydown', this.keydownHandler);
     }
   }
 }

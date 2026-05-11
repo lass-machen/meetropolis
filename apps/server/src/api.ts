@@ -55,7 +55,7 @@ import { getEmailModule, sendIfAvailable } from './emailLoader.js';
 const prisma = createPrismaClient();
 
 function tenantContextFromReq(req: express.Request) {
-  const t: any = (req as any).tenant;
+  const t = req.tenant;
   if (t && t.id && t.slug) {
     return { id: t.id, slug: t.slug, bypassLimits: !!t.bypassLimits, isInternal: !!t.isInternal };
   }
@@ -155,7 +155,7 @@ async function getBillingOwnerEmail(tenantId: string): Promise<string | null> {
   }
 }
 
-function requireTenantAdminMiddleware(req: any, res: any, next: any): void {
+function requireTenantAdminMiddleware(req: express.Request, res: express.Response, next: express.NextFunction): void {
   const auth = requireAuth(req);
   if (!auth) {
     res.status(401).json({ error: 'unauthorized' });
@@ -202,8 +202,8 @@ async function buildBillingRouter(billingModule: NonNullable<Awaited<ReturnType<
     pricingUrl,
     getOwnerEmail: getBillingOwnerEmail,
     requireTenantAdmin: requireTenantAdminMiddleware,
-    getTenantId: (req: any) => getTenantFromReq(req)?.id ?? null,
-    getUserId: (req: any) => getUserIdFromReq(req),
+    getTenantId: (req: express.Request) => getTenantFromReq(req)?.id ?? null,
+    getUserId: (req: express.Request) => getUserIdFromReq(req),
   });
   return router;
 }

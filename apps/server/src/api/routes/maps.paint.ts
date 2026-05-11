@@ -7,6 +7,11 @@ import { pathParam } from '../utils/requestHelpers.js';
 import { broadcastMapUpdate } from '../utils/broadcast.js';
 import { applyCollisionSideEffect } from '../utils/collisionSideEffect.js';
 import { findMapById } from './maps.read.js';
+import type { RlePair } from '../../mapEncoding.js';
+
+type DecodePairsFn = (buf: Buffer) => RlePair[];
+type RleNumbersFn = (pairs: RlePair[], total: number) => number[];
+type RleBoolsFn = (pairs: RlePair[], total: number) => boolean[];
 
 const paintSchema = z.object({
   layer: z.enum(['editor_ground', 'editor_walls', 'collision', 'ground', 'walls', 'walls_auto']),
@@ -55,21 +60,24 @@ function collectChunkCoords(rect: { x0: number; y0: number; x1: number; y1: numb
 function decodeChunkIntoUpdate(
   cd: ChunkUpdate,
   chunkSize: number,
-  decodeRlePairsFromBuffer: any,
-  rleDecodeToNumbers: any,
-  rleDecodeToBooleans: any,
+  decodeRlePairsFromBuffer: DecodePairsFn,
+  rleDecodeToNumbers: RleNumbersFn,
+  rleDecodeToBooleans: RleBoolsFn,
 ) {
   if (cd._decoded.length !== 0) return;
   const c = cd.chunk;
   if (c) {
-    const dataBuffer = c.data instanceof Buffer ? c.data : Buffer.from(c.data);
+    // Prisma Buffer fields are typed as Buffer<any>; normalize through Uint8Array.
+    const raw: unknown = c.data;
+    const bytes = raw instanceof Buffer ? new Uint8Array(raw) : (raw as Uint8Array);
+    const dataBuffer = Buffer.from(bytes);
     const pairs = decodeRlePairsFromBuffer(dataBuffer);
     cd._decoded =
       c.encoding === 'rle-bool'
-        ? rleDecodeToBooleans(pairs, chunkSize * chunkSize).map((b: boolean) => (b ? 1 : 0))
+        ? rleDecodeToBooleans(pairs, chunkSize * chunkSize).map((b) => (b ? 1 : 0))
         : rleDecodeToNumbers(pairs, chunkSize * chunkSize);
   } else {
-    cd._decoded = new Array(chunkSize * chunkSize).fill(0);
+    cd._decoded = new Array<number>(chunkSize * chunkSize).fill(0);
   }
 }
 

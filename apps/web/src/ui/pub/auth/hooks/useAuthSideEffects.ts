@@ -2,6 +2,10 @@ import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { AuthViewName, AuthHandlers } from './useAuthHandlers';
 
+interface AuthTokenResponse {
+  token?: string | null;
+}
+
 interface DebugAutoLoginArgs {
   post: AuthHandlers['postRaw'];
   storeDesktopAuthToken: AuthHandlers['storeDesktopAuthToken'];
@@ -29,10 +33,10 @@ export function useDebugAutoLogin({ post, storeDesktopAuthToken, setError }: Deb
 
       void (async () => {
         try {
-          const result = await post('/auth/login', {
+          const result = (await post('/auth/login', {
             email: autoEmail,
             password: autoPassword,
-          });
+          })) as AuthTokenResponse;
           if (result.token) await storeDesktopAuthToken(result.token);
           window.location.hash = '#/app';
         } catch (e: unknown) {
@@ -70,7 +74,7 @@ export function useGuestAutoLogin({
 
     void (async () => {
       try {
-        const result = await post('/auth/guest', { token: initialGuestToken });
+        const result = (await post('/auth/guest', { token: initialGuestToken })) as AuthTokenResponse;
         if (result.token) await storeDesktopAuthToken(result.token);
         window.location.hash = '#/app';
       } catch (e: unknown) {

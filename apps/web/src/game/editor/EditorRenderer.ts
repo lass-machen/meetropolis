@@ -129,7 +129,7 @@ export class EditorRenderer {
       text.setDepth(10);
 
       // Add to labelLayer if available (zoom-independent rendering)
-      const labelLayer = (this.scene as any).labelLayer;
+      const labelLayer = (this.scene as Phaser.Scene & { labelLayer?: Phaser.GameObjects.Layer | null }).labelLayer;
       if (labelLayer) {
         labelLayer.add(text);
       }

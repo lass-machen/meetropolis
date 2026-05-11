@@ -1,11 +1,18 @@
 import React from 'react';
+import type { Room } from 'livekit-client';
+import type { ZoneManager } from '../../game/zoneManager';
 
 type AnyRef<T> = React.MutableRefObject<T>;
 
+interface AvLike {
+  activeRoom?: string | null;
+  room?: Room | null | undefined;
+}
+
 interface UseHudTickerParams {
   enabled: boolean;
-  zoneRef: AnyRef<any>;
-  avRef: AnyRef<any>;
+  zoneRef: AnyRef<ZoneManager | null>;
+  avRef: AnyRef<AvLike | null>;
   setHud: React.Dispatch<React.SetStateAction<{ zone?: string; follow?: string | null; avRoom?: string | null }>>;
   bubblePendingRef: AnyRef<{ targetId: string; dest?: { x: number; y: number } } | null>;
   localPosRef: AnyRef<{ id: string; x?: number; y?: number }>;
@@ -37,7 +44,7 @@ export function useHudTicker(params: UseHudTickerParams) {
     let lastParticipantUpdate = 0;
     const hudTimer = setInterval(() => {
       try {
-        const z = zoneRef.current?.getCurrent?.();
+        const z = zoneRef.current?.getCurrent();
         const next: { zone?: string; follow?: string | null; avRoom?: string | null } = {
           follow: null,
           avRoom: avRef.current?.activeRoom ?? null,
@@ -71,14 +78,14 @@ export function useHudTicker(params: UseHudTickerParams) {
           }
         }
 
-        const zoneName = zoneRef.current?.getCurrent?.() ?? null;
+        const zoneName: string | null = zoneRef.current?.getCurrent() ?? null;
         if (zoneName !== participantListLastZone || Date.now() - lastParticipantUpdate > 2000) {
           participantListLastZone = zoneName ?? null;
           lastParticipantUpdate = Date.now();
           onZoneParticipantRefresh();
         }
 
-        const room: any = avRef.current?.room;
+        const room: Room | null | undefined = avRef.current?.room;
         if (room && room.localParticipant && room.localParticipant.trackPublications) {
           // AV-state mirror is maintained externally.
         }
@@ -97,6 +104,7 @@ export function useHudTicker(params: UseHudTickerParams) {
     localPosRef,
     onArrivedAtBubbleTarget,
     onZoneParticipantRefresh,
+    remotesRef,
     setHud,
     setParticipantVolumesRef,
     volumeRef,

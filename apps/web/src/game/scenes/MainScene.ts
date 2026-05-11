@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { GameSystem } from '../systems/types';
 import type { MainSceneShape } from '../types/scene';
 import { gameBridge } from '../bridge';
-import { V2State } from '../../lib/mapV2';
+import { V2State, V2Tileset } from '../../lib/mapV2';
 import { logger } from '../../lib/logger';
 import { setBubbleMembers as uiSetBubbleMembers } from '../ui/bubbles';
 import { ensureRecenterUi, updateRecenterUiVisibility } from '../camera/recenterUi';
@@ -140,10 +140,10 @@ export class MainScene extends Phaser.Scene implements MainSceneShape {
     });
 
     // Check for pending autotile registrations (deferred from bridge before scene was ready)
-    const pending = (gameBridge as any)._pendingAutotiles;
+    const pending = gameBridge._pendingAutotiles;
     if (pending) {
       this.registerAutotileDefinitions(pending);
-      delete (gameBridge as any)._pendingAutotiles;
+      delete gameBridge._pendingAutotiles;
     }
   }
 
@@ -228,12 +228,12 @@ export class MainScene extends Phaser.Scene implements MainSceneShape {
       if (this.editorMode) return;
       if (p.rightButtonDown()) {
         try {
-          (p.event as any)?.preventDefault?.();
+          p.event?.preventDefault?.();
         } catch {}
         const worldPoint = p.positionToCamera(this.cameras.main) as Phaser.Math.Vector2;
         for (const [id, sprite] of this.remotePlayersManager.getAllRemotes()) {
           if (sprite.getBounds().contains(worldPoint.x, worldPoint.y)) {
-            const evt = p.event as any as MouseEvent | undefined;
+            const evt = p.event as MouseEvent | undefined;
             gameBridge.onRightClick({ x: evt?.clientX ?? p.x, y: evt?.clientY ?? p.y, playerId: id });
             break;
           }
@@ -399,7 +399,7 @@ export class MainScene extends Phaser.Scene implements MainSceneShape {
 
   captureEditorSnapshot() {
     const currentObjects = EditorService.getState().mapObjects;
-    this.editorMapObjectsSnapshot = JSON.parse(JSON.stringify(currentObjects));
+    this.editorMapObjectsSnapshot = JSON.parse(JSON.stringify(currentObjects)) as typeof currentObjects;
     logger.debug('[MainScene] Editor snapshot captured', { objectCount: currentObjects.length });
   }
 
@@ -448,13 +448,13 @@ export class MainScene extends Phaser.Scene implements MainSceneShape {
 
     for (const [id, p] of Object.entries(filteredPlayers)) {
       if (!this.nameLabelManager.getRemoteLabel(id)) {
-        this.nameLabelManager.createRemoteLabel(id, p.name || `User ${id.substring(0, 6)}`, p.x, p.y, (p as any).isNpc);
+        this.nameLabelManager.createRemoteLabel(id, p.name || `User ${id.substring(0, 6)}`, p.x, p.y, p.isNpc);
       }
-      if (p && typeof (p as any).name === 'string' && (p as any).name) {
-        this.nameLabelManager.updateRemoteLabelName(id, (p as any).name);
+      if (p && typeof p.name === 'string' && p.name) {
+        this.nameLabelManager.updateRemoteLabelName(id, p.name);
       }
-      if ((p as any).dnd !== undefined) {
-        this.nameLabelManager.setRemoteLabelAlpha(id, (p as any).dnd ? 0.6 : 1);
+      if (p.dnd !== undefined) {
+        this.nameLabelManager.setRemoteLabelAlpha(id, p.dnd ? 0.6 : 1);
       }
       this.nameLabelManager.updateRemoteLabel(id, p.x, p.y);
     }
@@ -481,7 +481,7 @@ export class MainScene extends Phaser.Scene implements MainSceneShape {
   findFreeSpotNear(targetId: string, options?: { radius?: number; step?: number }): { x: number; y: number } | null {
     return this.collisionManager.findFreeSpotNear(targetId, options);
   }
-  setZoneOverlay(_polys: { name: string; points: any[] }[]) {
+  setZoneOverlay(_polys: { name: string; points: unknown[] }[]) {
     /* Handled by EditorRenderer */
   }
   setZonesVisible(visible: boolean) {
@@ -677,7 +677,7 @@ export class MainScene extends Phaser.Scene implements MainSceneShape {
     }
   }
 
-  public updateTilesetRegistry(registry: any[]) {
+  public updateTilesetRegistry(registry: V2Tileset[]) {
     this.tileManager.updateTilesetRegistry(registry);
   }
 

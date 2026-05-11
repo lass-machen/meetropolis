@@ -1,5 +1,5 @@
 import type express from 'express';
-import { PrismaClient } from '../../generated/prisma/index.js';
+import { PrismaClient, type Membership } from '../../generated/prisma/index.js';
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
@@ -66,7 +66,7 @@ async function upsertGuestMembership(
   tenantId: string,
   userId: string,
   expiresAt: Date,
-): Promise<{ ok: true; membership: any } | { ok: false; status: number; error: string }> {
+): Promise<{ ok: true; membership: Membership } | { ok: false; status: number; error: string }> {
   const existingOther = await prisma.membership.findFirst({
     where: { userId, tenantId: { not: tenantId } },
   });
@@ -77,7 +77,7 @@ async function upsertGuestMembership(
   });
 
   if (guestMembership) {
-    if ((guestMembership as any).role !== 'guest') {
+    if (guestMembership.role !== 'guest') {
       return { ok: false, status: 400, error: 'user_already_member' };
     }
     guestMembership = await prisma.membership.update({

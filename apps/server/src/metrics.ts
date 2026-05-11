@@ -1,4 +1,5 @@
 import client from 'prom-client';
+import type { Request, Response, NextFunction, RequestHandler } from 'express';
 
 // Zentrales Registry-Objekt (nicht global)
 export const registry = new client.Registry();
@@ -70,8 +71,8 @@ export const livekitPacketLossRatio = new client.Histogram({
 });
 registry.registerMetric(livekitPacketLossRatio);
 
-export function metricsMiddleware() {
-  return function (req: any, res: any, next: any) {
+export function metricsMiddleware(): RequestHandler {
+  return function (req: Request, res: Response, next: NextFunction) {
     const start = process.hrtime.bigint();
     // The route may only become available after routing; fall back to originalUrl.
     res.on('finish', () => {
@@ -79,7 +80,10 @@ export function metricsMiddleware() {
         const end = process.hrtime.bigint();
         const dur = Number(end - start) / 1e9; // Seconds.
         const method = (req.method || 'GET').toUpperCase();
-        const route = (req.route?.path || req.originalUrl || 'unknown') as string;
+        // express-serve-static-core types req.route as `any`; narrow defensively.
+        const routeObj = req.route as { path?: unknown } | undefined;
+        const routePath = typeof routeObj?.path === 'string' ? routeObj.path : undefined;
+        const route = routePath ?? req.originalUrl ?? 'unknown';
         const status = String(res.statusCode || 0);
         httpRequestDuration.labels(method, route, status).observe(dur);
       } catch (_error) {

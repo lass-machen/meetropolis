@@ -4,8 +4,10 @@ export type AssetRef = { key: string; url: string };
 
 export async function loadAssets(scene: Phaser.Scene, assets: AssetRef[]): Promise<void> {
   for (const a of assets) {
-    try { (scene.textures as any)?.exists?.(a.key); } catch {}
-    if (!(scene.textures as any)?.exists?.(a.key)) {
+    try {
+      scene.textures.exists(a.key);
+    } catch {}
+    if (!scene.textures.exists(a.key)) {
       scene.load.image(a.key, a.url);
     }
   }
@@ -14,5 +16,3 @@ export async function loadAssets(scene: Phaser.Scene, assets: AssetRef[]): Promi
     scene.load.start();
   });
 }
-
-

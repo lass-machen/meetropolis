@@ -25,8 +25,18 @@ import type { V2Tileset } from '../../lib/mapV2';
 type ToastState = { title?: string; description?: string; intent?: 'info' | 'success' | 'error' };
 type Setter<T> = React.Dispatch<React.SetStateAction<T>>;
 
+interface TilesetConfirmDetail {
+  dataUrl: string;
+  key: string;
+  tileWidth: number;
+  tileHeight: number;
+  margin?: number;
+  spacing?: number;
+  category?: string;
+}
+
 function buildPackItemsFromTileset(
-  detail: any,
+  detail: TilesetConfirmDetail,
   category: 'terrain' | 'structures' | 'objects',
   img: HTMLImageElement,
 ): PackItem[] {
@@ -65,9 +75,9 @@ function buildPackItemsFromTileset(
 function useEditorEvents(setToast: Setter<ToastState>, setToastOpen: Setter<boolean>, t: (k: string) => string) {
   React.useEffect(() => {
     const onTilesetConfirm = (e: Event) => {
-      const detail = (e as CustomEvent).detail;
+      const detail = (e as CustomEvent<TilesetConfirmDetail>).detail;
       if (!detail || !detail.dataUrl || !detail.tileWidth || !detail.tileHeight) return;
-      const category =
+      const category: 'terrain' | 'structures' | 'objects' =
         detail.category === 'structures' || detail.category === 'objects' || detail.category === 'terrain'
           ? detail.category
           : 'terrain';
@@ -92,8 +102,12 @@ function useEditorEvents(setToast: Setter<ToastState>, setToastOpen: Setter<bool
 
   React.useEffect(() => {
     const onToast = (e: Event) => {
-      const detail = (e as CustomEvent).detail;
-      setToast({ title: detail.title, description: detail.description, intent: detail.intent });
+      const detail = (e as CustomEvent<ToastState>).detail;
+      const next: ToastState = {};
+      if (detail.title !== undefined) next.title = detail.title;
+      if (detail.description !== undefined) next.description = detail.description;
+      if (detail.intent !== undefined) next.intent = detail.intent;
+      setToast(next);
       setToastOpen(true);
     };
     window.addEventListener('editor:toast', onToast);
@@ -385,6 +399,16 @@ function AssetPalette({ state, t }: { state: ReturnType<typeof EditorService.get
   );
 }
 
+/**
+ * Subset of `react-i18next`'s `TFunction` that this file uses. Importing
+ * `TFunction` directly is not portable across react-i18next major versions
+ * (see notes in SessionManagement.tsx).
+ */
+type TranslateFn = {
+  (key: string): string;
+  (key: string, opts: Record<string, unknown>): string;
+};
+
 function FooterBar({
   saving,
   lastSavedLabel,
@@ -394,7 +418,7 @@ function FooterBar({
   saving: boolean;
   lastSavedLabel: string | null;
   onSave: () => void;
-  t: (k: string, opts?: any) => string;
+  t: TranslateFn;
 }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
@@ -505,7 +529,7 @@ export function EditorPanel(props: { onSave?: () => Promise<boolean> }) {
       {(state.category === 'objects' || state.category === 'structures') &&
         state.selectedObjectId &&
         (() => {
-          const obj = state.mapObjects.find((o: any) => String(o.id) === state.selectedObjectId);
+          const obj = state.mapObjects.find((o) => String(o.id) === state.selectedObjectId);
           return obj ? <ObjectPropertiesPanel object={obj} /> : null;
         })()}
       <FooterBar

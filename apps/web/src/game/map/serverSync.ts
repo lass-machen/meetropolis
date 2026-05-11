@@ -6,13 +6,72 @@ import type { MainSceneLike } from '../types/scene';
 
 type LayerName = 'editorGround' | 'editorWalls' | 'collision';
 
-function applyTilesetsFromServer(scene: MainSceneLike, data: any): string[] {
+/** Raw tileset entry from `GET /maps/:id/editor-state`. */
+interface ServerTilesetEntry {
+  key?: string;
+  dataUrl?: string;
+  tileWidth?: number;
+  tileHeight?: number;
+  margin?: number;
+  spacing?: number;
+}
+
+/** Raw zone entry from server (legacy or modern shape). */
+interface ServerZoneEntry {
+  name?: string;
+  points?: Array<{ x: number; y: number } | [number, number]>;
+  polygon?:
+    | Array<{ x: number; y: number } | [number, number]>
+    | { points?: Array<{ x: number; y: number } | [number, number]> };
+  capacity?: number;
+  type?: string;
+  portalTarget?: string;
+  portalSpawnX?: number;
+  portalSpawnY?: number;
+}
+
+/** Full editor-state response shape. Fields are optional because the API
+ *  returns partial states for newly created maps. */
+interface ServerEditorState {
+  tilesets?: ServerTilesetEntry[];
+  backgroundColor?: string;
+  spawn?: { x: number; y: number } | null;
+  zones?: ServerZoneEntry[];
+  editorGround?: number[];
+  editorWalls?: number[];
+  collision?: number[];
+}
+
+/** Minimal view of the internal `TilemapLayer.layer` structure that this
+ *  module mutates when patching collision-layer dimensions. */
+interface PhaserLayerData {
+  data: Phaser.Tilemaps.Tile[][];
+  width?: number;
+  height?: number;
+}
+
+type LayerWithInternal = Phaser.Tilemaps.TilemapLayer & {
+  layer?: PhaserLayerData;
+  setTilesets?: (tilesets: Phaser.Tilemaps.Tileset[]) => void;
+  tileset?: Phaser.Tilemaps.Tileset[];
+};
+
+function applyTilesetsFromServer(scene: MainSceneLike, data: ServerEditorState): string[] {
   const requiredTsKeys: string[] = [];
   try {
-    const arr = Array.isArray(data?.tilesets) ? data.tilesets : [];
+    const arr: ServerTilesetEntry[] = Array.isArray(data.tilesets) ? data.tilesets : [];
     // Hydrate bridge cache so subsequent uploads don't overwrite existing tilesets
     try {
-      gameBridge.hydrateTilesetsCache(arr);
+      gameBridge.hydrateTilesetsCache(
+        arr.map((t) => ({
+          key: t.key ?? '',
+          dataUrl: t.dataUrl ?? '',
+          tileWidth: t.tileWidth ?? 0,
+          tileHeight: t.tileHeight ?? 0,
+          margin: t.margin,
+          spacing: t.spacing,
+        })),
+      );
     } catch (e) {
       logger.error('Failed to hydrate tileset cache', e);
     }
@@ -39,13 +98,13 @@ function applyTilesetsFromServer(scene: MainSceneLike, data: any): string[] {
   return requiredTsKeys;
 }
 
-function applyBackgroundAndSpawn(scene: MainSceneLike, data: any): void {
+function applyBackgroundAndSpawn(scene: MainSceneLike, data: ServerEditorState): void {
   try {
-    const bg = typeof data?.backgroundColor === 'string' ? data.backgroundColor : null;
+    const bg = typeof data.backgroundColor === 'string' ? data.backgroundColor : null;
     if (bg) {
       scene.cameras.main.setBackgroundColor(bg);
     }
-    const sp = data?.spawn;
+    const sp = data.spawn;
     if (sp && typeof sp.x === 'number' && typeof sp.y === 'number') {
       try {
         scene.setSpawnMarker(sp);
@@ -54,21 +113,41 @@ function applyBackgroundAndSpawn(scene: MainSceneLike, data: any): void {
   } catch {}
 }
 
-function applyZonesFromServer(scene: MainSceneLike, data: any): void {
+function normalizeZonePoints(pts: Array<{ x: number; y: number } | [number, number]>): { x: number; y: number }[] {
+  const out: { x: number; y: number }[] = [];
+  for (const v of pts) {
+    if (Array.isArray(v) && v.length >= 2 && typeof v[0] === 'number' && typeof v[1] === 'number') {
+      out.push({ x: v[0], y: v[1] });
+    } else if (
+      v &&
+      typeof v === 'object' &&
+      'x' in v &&
+      'y' in v &&
+      typeof v.x === 'number' &&
+      typeof v.y === 'number'
+    ) {
+      out.push({ x: v.x, y: v.y });
+    }
+  }
+  return out;
+}
+
+function applyZonesFromServer(scene: MainSceneLike, data: ServerEditorState): void {
   try {
-    const zones = Array.isArray(data?.zones)
-      ? data.zones.map((z: any) => {
-          const anyZ = z || {};
-          const pts = Array.isArray(anyZ.points)
+    const zones = Array.isArray(data.zones)
+      ? data.zones.map((z: ServerZoneEntry) => {
+          const anyZ = z ?? {};
+          const polygonObj = !Array.isArray(anyZ.polygon) && anyZ.polygon ? anyZ.polygon : null;
+          const ptsRaw = Array.isArray(anyZ.points)
             ? anyZ.points
             : Array.isArray(anyZ.polygon)
               ? anyZ.polygon
-              : anyZ.polygon && Array.isArray(anyZ.polygon.points)
-                ? anyZ.polygon.points
+              : polygonObj && Array.isArray(polygonObj.points)
+                ? polygonObj.points
                 : [];
           return {
-            name: anyZ.name,
-            points: pts,
+            name: anyZ.name ?? '',
+            points: normalizeZonePoints(ptsRaw),
             capacity: anyZ.capacity ?? undefined,
             type: anyZ.type ?? undefined,
             portalTarget: anyZ.portalTarget ?? undefined,
@@ -90,7 +169,7 @@ function applyZonesFromServer(scene: MainSceneLike, data: any): void {
 }
 
 function fixCollisionLayerDimensions(scene: MainSceneLike, layer: Phaser.Tilemaps.TilemapLayer): void {
-  const layerData = (layer as any).layer;
+  const layerData = (layer as LayerWithInternal).layer;
   if (!layerData?.data) return;
   logger.debug('Load', `Collision layer actual size: ${layerData.data.length}x${layerData.data[0]?.length || 0}`);
   const expectedRows = scene.mapRef!.height;
@@ -98,7 +177,7 @@ function fixCollisionLayerDimensions(scene: MainSceneLike, layer: Phaser.Tilemap
   if (actualRows < expectedRows) {
     logger.debug('Load', `Fixing collision layer dimensions again: ${actualRows} rows -> ${expectedRows} rows`);
     while (layerData.data.length < expectedRows) {
-      const newRow = new Array(scene.mapRef!.width);
+      const newRow = new Array<Phaser.Tilemaps.Tile>(scene.mapRef!.width);
       for (let x = 0; x < scene.mapRef!.width; x++) {
         newRow[x] = new Phaser.Tilemaps.Tile(
           layerData,
@@ -130,15 +209,16 @@ function applyTilesToLayer(
   if (!arr || !layer) return;
   try {
     const allTilesets = Array.from(scene.dynamicTilesets.values());
-    allTilesets.push(...scene.mapRef!.tilesets.filter((ts: any) => !scene.dynamicTilesets.has(ts.name)));
-    (layer as any).setTilesets?.(allTilesets);
-    (layer as any).tileset = allTilesets;
+    allTilesets.push(...scene.mapRef!.tilesets.filter((ts) => !scene.dynamicTilesets.has(ts.name)));
+    const layerExt = layer as LayerWithInternal;
+    layerExt.setTilesets?.(allTilesets);
+    layerExt.tileset = allTilesets;
   } catch {}
   if (layerName === 'collision') {
     logger.debug('Load', `Applying collision: ${arr.length} tiles to ${width}x${height} layer`);
     const allTilesets = Array.from(scene.dynamicTilesets.values());
-    allTilesets.push(...scene.mapRef!.tilesets.filter((ts: any) => !scene.dynamicTilesets.has(ts.name)));
-    (layer as any).setTilesets(allTilesets);
+    allTilesets.push(...scene.mapRef!.tilesets.filter((ts) => !scene.dynamicTilesets.has(ts.name)));
+    (layer as LayerWithInternal).setTilesets?.(allTilesets);
     fixCollisionLayerDimensions(scene, layer);
   }
   let appliedCount = 0;
@@ -169,7 +249,7 @@ function applyTilesToLayer(
   }
 }
 
-async function applyLayerData(scene: MainSceneLike, data: any, requiredTsKeys: string[]): Promise<void> {
+async function applyLayerData(scene: MainSceneLike, data: ServerEditorState, requiredTsKeys: string[]): Promise<void> {
   try {
     await scene.waitForTilesetsReady(requiredTsKeys, 1500);
   } catch {}
@@ -178,10 +258,10 @@ async function applyLayerData(scene: MainSceneLike, data: any, requiredTsKeys: s
   const width = scene.mapRef.width;
   const height = scene.mapRef.height;
   scene.ensureEditorLayers();
-  applyTilesToLayer(scene, data?.editorGround, scene.editorGround, 'editorGround', width, height, storedW);
-  applyTilesToLayer(scene, data?.editorWalls, scene.wallsLayer, 'editorWalls', width, height, storedW);
-  applyTilesToLayer(scene, data?.collision, scene.collisionLayer, 'collision', width, height, storedW);
-  if (data?.collision) {
+  applyTilesToLayer(scene, data.editorGround, scene.editorGround, 'editorGround', width, height, storedW);
+  applyTilesToLayer(scene, data.editorWalls, scene.wallsLayer, 'editorWalls', width, height, storedW);
+  applyTilesToLayer(scene, data.collision, scene.collisionLayer, 'collision', width, height, storedW);
+  if (data.collision) {
     scene.rebuildStaticColliders();
     scene.ensureCollisionCollider();
   }
@@ -195,10 +275,10 @@ export async function fetchAndApplyServerLayers(scene: MainSceneLike): Promise<v
       credentials: 'include',
     });
     if (!res.ok) return;
-    const data = await res.json();
+    const data = (await res.json()) as ServerEditorState;
     const requiredTsKeys = applyTilesetsFromServer(scene, data);
     applyBackgroundAndSpawn(scene, data);
-    if (data?.collision) {
+    if (data.collision) {
       const collisionTiles = data.collision.filter((t: number) => t !== -1).length;
       logger.debug('Load', `Received from server: ${collisionTiles} collision tiles`);
     }

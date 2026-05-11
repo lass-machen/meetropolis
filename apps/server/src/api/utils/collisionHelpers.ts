@@ -6,7 +6,12 @@ import {
   encodeRlePairsToBuffer,
 } from '../../mapEncoding.js';
 
-export interface CollisionTile { cx: number; cy: number; rx: number; ry: number }
+export interface CollisionTile {
+  cx: number;
+  cy: number;
+  rx: number;
+  ry: number;
+}
 
 /**
  * Compute all tile positions covered by an object footprint.
@@ -94,13 +99,15 @@ export async function updateCollisionChunks(
 
     let decoded: boolean[];
     if (existing) {
-      const buf = existing.data instanceof Buffer
-        ? existing.data
-        : Buffer.from(existing.data as Uint8Array);
+      // Prisma Buffer fields are typed as Buffer<any>; copy through Uint8Array to land
+      // on Buffer<ArrayBufferLike> which the decoder expects.
+      const raw: unknown = existing.data;
+      const bytes = raw instanceof Buffer ? new Uint8Array(raw) : (raw as Uint8Array);
+      const buf = Buffer.from(bytes);
       const pairs = decodeRlePairsFromBuffer(buf);
       decoded = rleDecodeToBooleans(pairs, totalPerChunk);
     } else {
-      decoded = new Array(totalPerChunk).fill(false);
+      decoded = new Array<boolean>(totalPerChunk).fill(false);
     }
 
     let modified = false;
@@ -149,9 +156,13 @@ export async function removeCollisionAndReconcile(
   removedObj: { tileX: number; tileY: number; width: number; height: number },
 ): Promise<ChunkUpdateResult[]> {
   const footprint = computeFootprintTiles(
-    removedObj.tileX, removedObj.tileY,
-    removedObj.width, removedObj.height,
-    tileWidth, tileHeight, chunkSize,
+    removedObj.tileX,
+    removedObj.tileY,
+    removedObj.width,
+    removedObj.height,
+    tileWidth,
+    tileHeight,
+    chunkSize,
   );
 
   // Clear collision for the removed object
@@ -159,7 +170,7 @@ export async function removeCollisionAndReconcile(
 
   // Find overlapping collidable objects and re-apply their collision
   const chunkKeys = groupByChunk(footprint);
-  const chunkCoords = Array.from(chunkKeys.keys()).map(k => {
+  const chunkCoords = Array.from(chunkKeys.keys()).map((k) => {
     const [x, y] = k.split(':').map(Number);
     return { chunkX: x, chunkY: y };
   });
@@ -170,7 +181,7 @@ export async function removeCollisionAndReconcile(
     where: {
       mapId,
       collide: true,
-      OR: chunkCoords.map(c => ({ chunkX: c.chunkX, chunkY: c.chunkY })),
+      OR: chunkCoords.map((c) => ({ chunkX: c.chunkX, chunkY: c.chunkY })),
     },
   });
 
@@ -179,11 +190,15 @@ export async function removeCollisionAndReconcile(
   // Collect all tiles that need to be re-set to true
   const reapplyTiles: CollisionTile[] = [];
   for (const obj of overlapping) {
-    const sf = (obj as any).scaleFactor ?? 1;
+    const sf = obj.scaleFactor ?? 1;
     const objTiles = computeFootprintTiles(
-      obj.tileX, obj.tileY,
-      obj.width * sf, obj.height * sf,
-      tileWidth, tileHeight, chunkSize,
+      obj.tileX,
+      obj.tileY,
+      obj.width * sf,
+      obj.height * sf,
+      tileWidth,
+      tileHeight,
+      chunkSize,
     );
     reapplyTiles.push(...objTiles);
   }

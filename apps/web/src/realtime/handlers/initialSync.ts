@@ -11,6 +11,7 @@ import type { UseWorldRoomArgs } from '../types';
 import { useMapStore } from '../../state/mapStore';
 import { passesMapFilter } from './mapFilter';
 import type { PlayerSchema, WorldRoom } from '../../types/colyseus';
+import type { PlayerDirection } from '../../types/game';
 
 interface ForceInitialSyncDeps {
   room: WorldRoom;
@@ -22,12 +23,18 @@ interface ForceInitialSyncDeps {
 interface SyncedPlayer {
   x: number;
   y: number;
-  direction: string;
+  direction: PlayerDirection;
   name?: string;
   dnd?: boolean;
   avatarId?: string;
   isNpc?: boolean;
   identity?: string;
+}
+
+const VALID_DIRECTIONS: ReadonlySet<PlayerDirection> = new Set(['up', 'down', 'left', 'right']);
+
+function asPlayerDirection(value: string | undefined): PlayerDirection {
+  return value && VALID_DIRECTIONS.has(value as PlayerDirection) ? (value as PlayerDirection) : 'down';
 }
 
 export function forceInitialPlayerSync(deps: ForceInitialSyncDeps): void {
@@ -54,7 +61,7 @@ export function forceInitialPlayerSync(deps: ForceInitialSyncDeps): void {
       players[key] = {
         x: value.x,
         y: value.y,
-        direction: value.direction,
+        direction: asPlayerDirection(value.direction),
         name: value.name,
         dnd: value.dnd,
         avatarId: value.avatarId,

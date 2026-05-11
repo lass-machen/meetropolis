@@ -15,6 +15,7 @@ import type {
   WorldRoom,
   WorldRoomState,
 } from '../../types/colyseus';
+import type { PlayerDirection, RemotePlayerData } from '../../types/game';
 
 export interface SetupPlayerHandlersOptions {
   /** Called once when the server's initial 'full_state' message arrives for this session. */
@@ -29,18 +30,25 @@ interface HandlerCtx {
 }
 
 // Local-only player snapshot used to feed gameBridge / remotesRef.
-// `direction` is widened to `string` because the server-side schema declares
-// `direction: string` (PlayerSchema), even though the typed message variants
-// narrow it to PlayerDirection.
+// The server-side schema declares `direction: string` (PlayerSchema), but the
+// only valid values are PlayerDirection literals; values are cast at the
+// boundary via `asPlayerDirection`.
 interface RemotePlayerSnapshot {
   x: number;
   y: number;
-  direction: string;
+  direction: PlayerDirection;
   name?: string;
   dnd?: boolean;
   identity?: string;
   avatarId?: string;
   isNpc?: boolean;
+}
+
+const VALID_DIRECTIONS: ReadonlySet<PlayerDirection> = new Set(['up', 'down', 'left', 'right']);
+
+/** Coerces a string direction from the server schema to PlayerDirection. */
+function asPlayerDirection(value: string | undefined): PlayerDirection {
+  return value && VALID_DIRECTIONS.has(value as PlayerDirection) ? (value as PlayerDirection) : 'down';
 }
 
 /** Emit the set of LiveKit identities for players on the same map. */
@@ -109,7 +117,7 @@ function handleFullState(
     const snapshot: RemotePlayerSnapshot = {
       x: p.x,
       y: p.y,
-      direction: p.direction,
+      direction: asPlayerDirection(p.direction),
     };
     if (p.name !== undefined) snapshot.name = p.name;
     if (p.dnd !== undefined) snapshot.dnd = p.dnd;
@@ -281,7 +289,7 @@ function handleStateChange(ctx: HandlerCtx, state: WorldRoomState): void {
       const snapshot: RemotePlayerSnapshot = {
         x: value.x,
         y: value.y,
-        direction: value.direction,
+        direction: asPlayerDirection(value.direction),
       };
       if (value.dnd !== undefined) snapshot.dnd = value.dnd;
       if (value.identity !== undefined) snapshot.identity = value.identity;
@@ -296,10 +304,10 @@ function handleStateChange(ctx: HandlerCtx, state: WorldRoomState): void {
       .filter(([id]) => id !== localPosRef.current.id)
       .map(([id, p]) => [id, toRemotesEntry(p)]),
   );
-  const filtered = Object.fromEntries(
+  const filtered: Record<string, RemotePlayerData & { identity?: string }> = Object.fromEntries(
     Object.entries(players)
       .filter(([id]) => id !== localPosRef.current.id)
-      .map(([id, p]) => {
+      .map(([id, p]): [string, RemotePlayerData & { identity?: string }] => {
         const livekitIdentity = p.identity || colyseusToLivekitMap.current[id] || id;
         const name = identityToNameMap.current[livekitIdentity] || p.name || livekitIdentity;
         return [id, { ...p, name, identity: livekitIdentity }];

@@ -6,6 +6,7 @@ declare module 'express-serve-static-core' {
     tenantSlug?: string;
     tenantId?: string;
     tenant?: Tenant;
+    /** Correlation/request id assigned by the request logger middleware. */
+    id?: string;
   }
 }
-

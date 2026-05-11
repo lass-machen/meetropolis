@@ -3,23 +3,24 @@ import { BootScene } from './scenes/BootScene';
 import { MainScene } from './scenes/MainScene';
 
 export function createPhaserGame(parent: HTMLElement) {
-  const allowDebug = window.DEBUG_LOGS || (import.meta as any).env?.VITE_DEBUG_LOGS === 'true';
+  const env = (import.meta as unknown as { env?: { VITE_DEBUG_LOGS?: string } }).env;
+  const allowDebug = window.DEBUG_LOGS || env?.VITE_DEBUG_LOGS === 'true';
   // Suppress Phaser banner logs unless debug explicitly enabled
   if (!allowDebug) {
     try {
       const prevLog = console.log;
       const prevInfo = console.info;
-      console.log = (...args: any[]) => {
+      console.log = (...args: unknown[]) => {
         try {
           if (typeof args[0] === 'string' && /Phaser v\d/i.test(args[0])) return;
         } catch {}
-        return (prevLog as any).apply(console, args as any);
+        return prevLog.apply(console, args);
       };
-      console.info = (...args: any[]) => {
+      console.info = (...args: unknown[]) => {
         try {
           if (typeof args[0] === 'string' && /Phaser v\d/i.test(args[0])) return;
         } catch {}
-        return (prevInfo as any).apply(console, args as any);
+        return prevInfo.apply(console, args);
       };
       setTimeout(() => {
         try {

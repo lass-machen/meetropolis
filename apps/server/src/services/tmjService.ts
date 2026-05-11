@@ -28,6 +28,12 @@ export const TmjTilesetSchema = z.object({
   imageheight: z.number().int().positive().optional(),
 });
 
+export const TmjPropertySchema = z.object({
+  name: z.string(),
+  type: z.string().optional(),
+  value: z.unknown(),
+});
+
 export const TmjObjectSchema = z.object({
   id: z.number().optional(),
   name: z.string().default(''),
@@ -38,7 +44,7 @@ export const TmjObjectSchema = z.object({
   height: z.number().optional(),
   gid: z.number().optional(),
   polygon: z.array(z.object({ x: z.number(), y: z.number() })).optional(),
-  properties: z.array(z.any()).optional(),
+  properties: z.array(TmjPropertySchema).optional(),
 });
 
 export const TmjLayerSchema = z.object({
@@ -71,26 +77,26 @@ export type TmjObject = z.infer<typeof TmjObjectSchema>;
 
 export type SlotMapping = { firstgid: number; slot: number };
 
-export function buildGidToSlotMapping(
-  slotAssignments: Array<{ firstgid: number; slot: number }>
-): { firstGids: number[]; toSlot: SlotMapping[] } {
+export function buildGidToSlotMapping(slotAssignments: Array<{ firstgid: number; slot: number }>): {
+  firstGids: number[];
+  toSlot: SlotMapping[];
+} {
   const sorted = [...slotAssignments].sort((a, b) => a.firstgid - b.firstgid);
   return {
-    firstGids: sorted.map(s => s.firstgid),
+    firstGids: sorted.map((s) => s.firstgid),
     toSlot: sorted,
   };
 }
 
-export function gidToTileRefId(
-  gid: number,
-  firstGids: number[],
-  toSlot: SlotMapping[]
-): number {
+export function gidToTileRefId(gid: number, firstGids: number[], toSlot: SlotMapping[]): number {
   if (!gid || gid <= 0) return 0;
   let chosen = -1;
   for (let i = 0; i < firstGids.length; i++) {
     const next = firstGids[i + 1] ?? Number.MAX_SAFE_INTEGER;
-    if (gid >= firstGids[i] && gid < next) { chosen = i; break; }
+    if (gid >= firstGids[i] && gid < next) {
+      chosen = i;
+      break;
+    }
   }
   if (chosen < 0) return 0;
   const base = firstGids[chosen];
@@ -103,9 +109,7 @@ export function gidToTileRefId(
 // Server-side FirstGid computation (for export)
 // ---------------------------------------------------------------------------
 
-export function computeFirstGidsFromTileCounts(
-  tilesets: Array<{ slot: number; tileCount: number | null }>
-): number[] {
+export function computeFirstGidsFromTileCounts(tilesets: Array<{ slot: number; tileCount: number | null }>): number[] {
   const sorted = [...tilesets].sort((a, b) => a.slot - b.slot);
   const firstGids: number[] = [];
   let acc = 1; // Tiled GIDs start at 1
@@ -150,9 +154,9 @@ export function flatGidsToTileRefIds(
   data: number[],
   encoding: 'rle' | 'rle-bool',
   firstGids: number[],
-  toSlot: SlotMapping[]
+  toSlot: SlotMapping[],
 ): number[] {
-  return data.map(gid => {
+  return data.map((gid) => {
     if (encoding === 'rle-bool') return gid > 0 ? 1 : 0;
     return gidToTileRefId(gid, firstGids, toSlot);
   });
@@ -169,7 +173,7 @@ export function chunkAndEncode(
   mapWidth: number,
   mapHeight: number,
   chunkSize: number,
-  encoding: 'rle' | 'rle-bool'
+  encoding: 'rle' | 'rle-bool',
 ): EncodedChunk[] {
   const chunksX = Math.ceil(mapWidth / chunkSize);
   const chunksY = Math.ceil(mapHeight / chunkSize);
@@ -186,14 +190,15 @@ export function chunkAndEncode(
         }
         for (let x = 0; x < chunkSize; x++) {
           const gx = cx * chunkSize + x;
-          if (gx >= mapWidth) { values.push(0); continue; }
+          if (gx >= mapWidth) {
+            values.push(0);
+            continue;
+          }
           values.push(tileRefs[gy * mapWidth + gx] || 0);
         }
       }
 
-      const pairs = encoding === 'rle'
-        ? rleEncodeNumbers(values)
-        : rleEncodeBooleans(values.map(v => v === 1));
+      const pairs = encoding === 'rle' ? rleEncodeNumbers(values) : rleEncodeBooleans(values.map((v) => v === 1));
       result.push({ cx, cy, data: encodeRlePairsToBuffer(pairs), encoding });
     }
   }
@@ -208,16 +213,17 @@ export function decodeChunksToFlat(
   chunks: Array<{ x: number; y: number; encoding: string; data: Buffer }>,
   mapWidth: number,
   mapHeight: number,
-  chunkSize: number
+  chunkSize: number,
 ): number[] {
-  const flat = new Array(mapWidth * mapHeight).fill(0);
+  const flat: number[] = new Array<number>(mapWidth * mapHeight).fill(0);
   const total = chunkSize * chunkSize;
 
   for (const chunk of chunks) {
     const pairs = decodeRlePairsFromBuffer(Buffer.from(chunk.data));
-    const values = chunk.encoding === 'rle-bool'
-      ? rleDecodeToBooleans(pairs, total).map(b => b ? 1 : 0)
-      : rleDecodeToNumbers(pairs, total);
+    const values =
+      chunk.encoding === 'rle-bool'
+        ? rleDecodeToBooleans(pairs, total).map((b) => (b ? 1 : 0))
+        : rleDecodeToNumbers(pairs, total);
 
     for (let y = 0; y < chunkSize; y++) {
       const gy = chunk.y * chunkSize + y;
@@ -250,7 +256,7 @@ export function extractZonesFromObjectLayers(layers: TmjLayer[]): ExtractedZone[
       if (obj.type?.toLowerCase() === 'spawn' || obj.name?.toLowerCase() === 'spawn') continue;
       let polygon: Array<{ x: number; y: number }> | null = null;
       if (obj.polygon && obj.polygon.length > 0) {
-        polygon = obj.polygon.map(p => ({ x: obj.x + p.x, y: obj.y + p.y }));
+        polygon = obj.polygon.map((p) => ({ x: obj.x + p.x, y: obj.y + p.y }));
       } else if (obj.width && obj.height) {
         polygon = [
           { x: obj.x, y: obj.y },
@@ -260,7 +266,7 @@ export function extractZonesFromObjectLayers(layers: TmjLayer[]): ExtractedZone[
         ];
       }
       if (polygon && polygon.length > 0) {
-        const capacityProp = obj.properties?.find((p: any) => p.name === 'capacity');
+        const capacityProp = obj.properties?.find((p) => p.name === 'capacity');
         zones.push({
           name: obj.name || `Zone_${zones.length}`,
           capacity: capacityProp ? Number(capacityProp.value) : null,
@@ -313,12 +319,9 @@ export type BuildTmjParams = {
   spawn?: { x: number; y: number } | null;
 };
 
-function buildTmjTilesets(
-  tilesets: BuildTmjParams['tilesets'],
-  firstGids: number[],
-): TmjTileset[] {
+function buildTmjTilesets(tilesets: BuildTmjParams['tilesets'], firstGids: number[]): TmjTileset[] {
   const sortedTilesets = [...tilesets].sort((a, b) => a.slot - b.slot);
-  return sortedTilesets.map(ts => ({
+  return sortedTilesets.map((ts) => ({
     firstgid: firstGids[ts.slot] ?? 1,
     name: ts.key,
     image: ts.imageUrl,
@@ -342,7 +345,7 @@ function buildTmjTileLayers(
   const tmjLayers: TmjLayer[] = [];
   for (const layer of layers) {
     const flat = decodeChunksToFlat(layer.chunks, mapWidth, mapHeight, layer.chunkSize);
-    const gids = flat.map(ref => {
+    const gids = flat.map((ref) => {
       if (layer.encoding === 'rle-bool') return ref > 0 ? 1 : 0;
       return tileRefIdToGid(ref, firstGids);
     });
@@ -364,7 +367,7 @@ function appendZoneObjectLayer(tmjLayers: TmjLayer[], zones: ExtractedZone[]) {
     type: 'zone',
     x: z.polygon[0]?.x ?? 0,
     y: z.polygon[0]?.y ?? 0,
-    polygon: z.polygon.map(p => ({
+    polygon: z.polygon.map((p) => ({
       x: p.x - (z.polygon[0]?.x ?? 0),
       y: p.y - (z.polygon[0]?.y ?? 0),
     })),
@@ -377,7 +380,7 @@ function appendZoneObjectLayer(tmjLayers: TmjLayer[], zones: ExtractedZone[]) {
 }
 
 function appendSpawnObject(tmjLayers: TmjLayer[], spawn: { x: number; y: number }) {
-  const existingObjLayer = tmjLayers.find(l => l.type === 'objectgroup');
+  const existingObjLayer = tmjLayers.find((l) => l.type === 'objectgroup');
   const spawnObj: TmjObject = {
     id: 9999,
     name: 'spawn',
@@ -399,9 +402,7 @@ function appendSpawnObject(tmjLayers: TmjLayer[], spawn: { x: number; y: number 
 export function buildTmjFromV2(params: BuildTmjParams): Tmj {
   const { mapWidth, mapHeight, tileWidth, tileHeight, tilesets, layers, zones, spawn } = params;
 
-  const firstGids = computeFirstGidsFromTileCounts(
-    tilesets.map(ts => ({ slot: ts.slot, tileCount: ts.tileCount }))
-  );
+  const firstGids = computeFirstGidsFromTileCounts(tilesets.map((ts) => ({ slot: ts.slot, tileCount: ts.tileCount })));
 
   const tmjTilesets = buildTmjTilesets(tilesets, firstGids);
   const tmjLayers = buildTmjTileLayers(layers, mapWidth, mapHeight, firstGids);

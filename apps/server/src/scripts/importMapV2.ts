@@ -25,7 +25,7 @@ const prisma = createPrismaClient();
 
 function upsertMap(tenantId: string, mapName: string, tmj: Tmj, chunkSize: number) {
   return prisma.map.upsert({
-    where: { tenantId_name: { tenantId, name: mapName } as any },
+    where: { tenantId_name: { tenantId, name: mapName } },
     create: {
       name: mapName,
       meta: {},
@@ -34,7 +34,7 @@ function upsertMap(tenantId: string, mapName: string, tmj: Tmj, chunkSize: numbe
       tileWidth: tmj.tilewidth,
       tileHeight: tmj.tileheight,
       chunkSize,
-      tenant: { connect: { id: tenantId } } as any,
+      tenant: { connect: { id: tenantId } },
     },
     update: {
       width: tmj.width,
@@ -109,7 +109,7 @@ function buildTileRefArray(
   gidToTileRefId: (gid: number) => number,
 ): number[] {
   const total = width * height;
-  const tileRefs: number[] = new Array(total).fill(0);
+  const tileRefs: number[] = new Array<number>(total).fill(0);
   for (let i = 0; i < total; i++) {
     const gid = tmjLayer.data?.[i] || 0;
     if (enc === 'rle') tileRefs[i] = gidToTileRefId(gid);
@@ -181,7 +181,7 @@ async function main() {
   const tenantSlug = process.env.IMPORT_TENANT_SLUG || 'default';
 
   const raw = await fs.readFile(tmjPath, 'utf8');
-  const tmj: Tmj = JSON.parse(raw);
+  const tmj = JSON.parse(raw) as Tmj;
 
   const tenant = await prisma.tenant.findUnique({ where: { slug: tenantSlug } });
   if (!tenant) {

@@ -23,6 +23,27 @@ type Role = 'owner' | 'admin' | 'member';
 type User = { id: string; email: string; name?: string; createdAt?: string; role?: Role };
 type EditUser = { id: string; email: string; name?: string; role?: Role | undefined };
 
+interface MeResponse {
+  id: string;
+}
+
+interface ApiErrorBody {
+  error?: string;
+}
+
+interface ResetTokenResponse {
+  token?: string | null;
+  resetUrl?: string | null;
+}
+
+interface InviteResponse {
+  code?: string | null;
+}
+
+interface UserManagementWindow {
+  __userManagementLoad?: () => Promise<void>;
+}
+
 function useUsersLoader(baseUrl: string, t: (k: string) => string) {
   const [loading, setLoading] = React.useState(true);
   const [users, setUsers] = React.useState<User[]>([]);
@@ -35,14 +56,14 @@ function useUsersLoader(baseUrl: string, t: (k: string) => string) {
     setError(null);
     try {
       const meRes = await fetch(`${baseUrl}/auth/me`, { credentials: 'include' });
-      let meData: { id: string } | null = null;
+      let meData: MeResponse | null = null;
       if (meRes.ok) {
-        meData = await meRes.json();
+        meData = (await meRes.json()) as MeResponse;
         if (meData?.id) setCurrentUserId(meData.id);
       }
       const res = await fetch(`${baseUrl}/users`, { credentials: 'include' });
       if (!res.ok) throw new Error(t('common.error'));
-      const list = await res.json();
+      const list = (await res.json()) as User[];
       setUsers(list);
       const myId = meData?.id || currentUserId;
       if (myId) {
@@ -81,7 +102,7 @@ function useUserMutations(
         credentials: 'include',
         body: JSON.stringify({ role: newRole }),
       });
-      if (!res.ok) throw new Error(translateApiError((await res.json())?.error) || t('common.error'));
+      if (!res.ok) throw new Error(translateApiError(((await res.json()) as ApiErrorBody)?.error) || t('common.error'));
       await load();
     } catch (e: unknown) {
       setError((e instanceof Error ? e.message : String(e)) || t('common.error'));
@@ -96,7 +117,10 @@ function useUserMutations(
         credentials: 'include',
         body: JSON.stringify({ email: u.email, name: u.name }),
       });
-      if (!res.ok) throw new Error(translateApiError((await res.json())?.error) || t('admin.users.updateFailed'));
+      if (!res.ok)
+        throw new Error(
+          translateApiError(((await res.json()) as ApiErrorBody)?.error) || t('admin.users.updateFailed'),
+        );
       if (canChangeRoles && u.role && u.id !== currentUserId) {
         const originalUser = users.find((user) => user.id === u.id);
         if (originalUser && originalUser.role !== u.role && u.role !== 'owner') {
@@ -115,7 +139,7 @@ function useUserMutations(
   const remove = async (id: string) => {
     try {
       const res = await fetch(`${baseUrl}/users/${id}`, { method: 'DELETE', credentials: 'include' });
-      if (!res.ok) throw new Error(translateApiError((await res.json())?.error) || t('common.error'));
+      if (!res.ok) throw new Error(translateApiError(((await res.json()) as ApiErrorBody)?.error) || t('common.error'));
       await load();
     } catch (e: unknown) {
       setError((e instanceof Error ? e.message : String(e)) || t('common.error'));
@@ -141,9 +165,9 @@ function useUserManagement(baseUrl: string, t: (k: string) => string) {
     void loader.load();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   React.useEffect(() => {
-    (document as any).__userManagementLoad = loader.load;
+    (document as unknown as UserManagementWindow).__userManagementLoad = loader.load;
     return () => {
-      delete (document as any).__userManagementLoad;
+      delete (document as unknown as UserManagementWindow).__userManagementLoad;
     };
   }, [loader.load]);
 
@@ -240,7 +264,7 @@ function ResetTokenButton({
               headers: { 'Content-Type': 'application/json' },
               credentials: 'include',
             });
-            const data = await res.json();
+            const data = (await res.json()) as ResetTokenResponse & ApiErrorBody;
             if (!res.ok) throw new Error(translateApiError(data?.error) || t('admin.users.failed'));
             openReset({
               for: { id: user.id, email: user.email },
@@ -564,11 +588,11 @@ function CreateUserModal({
         credentials: 'include',
         body: JSON.stringify({ email: newEmail, name: newName || undefined, role: newRole }),
       });
-      if (!res.ok) throw new Error(translateApiError((await res.json())?.error) || t('common.error'));
-      const data = await res.json();
+      if (!res.ok) throw new Error(translateApiError(((await res.json()) as ApiErrorBody)?.error) || t('common.error'));
+      const data = (await res.json()) as InviteResponse;
       setInviteCode(data.code || null);
       try {
-        await (document as any).__userManagementLoad?.();
+        await (document as unknown as UserManagementWindow).__userManagementLoad?.();
       } catch (err) {
         logger.warn('[UserManagement] Failed to reload after invite', err);
       }

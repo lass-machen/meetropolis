@@ -40,8 +40,8 @@ export function GeneralSettings({
     try {
       const res = await fetch(`${apiBase}/maps`, { credentials: 'include' });
       if (res.ok) {
-        const maps = await res.json();
-        setAvailableMaps(maps.map((m: any) => ({ id: m.id, name: m.name })));
+        const maps = (await res.json()) as Array<{ id: string; name: string }>;
+        setAvailableMaps(maps.map((m) => ({ id: m.id, name: m.name })));
       }
     } catch {
       /* ignore */

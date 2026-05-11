@@ -51,7 +51,7 @@ export function useDesktop(): DesktopState {
   // Listen for mini-mode changes via custom DOM events.
   useEffect(() => {
     const handler = (e: Event) => {
-      const detail = (e as CustomEvent).detail;
+      const detail = (e as CustomEvent<{ isMiniMode?: boolean }>).detail;
       if (detail && typeof detail.isMiniMode === 'boolean') {
         setIsMiniMode(detail.isMiniMode);
       }

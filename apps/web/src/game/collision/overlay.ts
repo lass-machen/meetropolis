@@ -24,8 +24,7 @@ export function updateCollisionOverlay(scene: MainSceneLike): void {
   const g = scene.add.graphics();
   g.fillStyle(0xff4757, 0.18);
   g.lineStyle(1, 0xff4757, 0.8);
-  const layer: any = scene.collisionLayer;
-  const data = layer?.layer?.data as Phaser.Tilemaps.Tile[][] | undefined;
+  const data: Phaser.Tilemaps.Tile[][] | undefined = scene.collisionLayer.layer?.data;
   if (data) {
     let tileCount = 0;
     for (let y = 0; y < data.length; y++) {

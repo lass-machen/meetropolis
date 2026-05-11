@@ -16,7 +16,6 @@ import type { EditorState } from '../../../services/EditorService';
 import type { WorldRoom } from '../../../types/colyseus';
 import type { AVManager as AVManagerInterface } from '../../../types/av';
 import type { AVManager as AVManagerClass } from '../../../av/avManager';
-import type { GameBridge } from '../../../types/game';
 
 type SetEditor = React.Dispatch<React.SetStateAction<EditorState>>;
 
@@ -61,8 +60,7 @@ function useWorldParticipantsAndRealtime(params: {
     setUiParticipants: ui.setUiParticipants,
     disposedRef: refs.disposedRef,
     getDisplayName,
-    // gameBridge concrete impl is wider than the consumer's GameBridge view.
-    gameBridge: gameBridge as unknown as GameBridge,
+    gameBridge,
     dndRef: refs.dndRef,
   });
   useParticipantListEffects({ refs, me: auth.me, buildParticipantList });

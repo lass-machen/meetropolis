@@ -33,10 +33,10 @@ const DEFAULT_IMPORT: ImportForm = { tenantId: PICK_TENANT, name: '' };
 async function jsonFetch<T>(input: string, init?: RequestInit): Promise<T> {
   const res = await fetch(input, { credentials: 'include', ...init });
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error((err && err.error) || `HTTP ${res.status}`);
+    const err = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(err.error || `HTTP ${res.status}`);
   }
-  return res.json();
+  return (await res.json()) as T;
 }
 
 function useMapsState() {

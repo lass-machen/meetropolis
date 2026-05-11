@@ -1,5 +1,10 @@
 import * as React from 'react';
-import { mergeRecentPresence } from '../participants/presence';
+import type { Room, LocalParticipant, RemoteParticipant } from 'livekit-client';
+import { mergeRecentPresence, type ApiPresence } from '../participants/presence';
+
+interface AvLikeRef {
+  current?: { room?: Room | null | undefined } | null;
+}
 
 type Params = {
   apiBase: string;
@@ -11,7 +16,7 @@ type Params = {
       prev: Array<{ identity: string; name: string; online: boolean; x?: number; y?: number; lastSeen?: string }>,
     ) => Array<{ identity: string; name: string; online: boolean; x?: number; y?: number; lastSeen?: string }>,
   ) => void;
-  avRef?: React.MutableRefObject<any>;
+  avRef?: AvLikeRef;
 };
 
 /**
@@ -39,7 +44,7 @@ export function useRosterPresence({ apiBase, authChecked, meId, rosterByIdentity
         const res = await fetch(`${apiBase}/presence/recent`, { credentials: 'include' });
         if (!res.ok) return;
 
-        const data = await res.json();
+        const data = (await res.json()) as ApiPresence[];
 
         // Build online map from Colyseus state + LiveKit
         const online = { ...(rosterByIdentityRef.current || {}) } as Record<
@@ -49,9 +54,9 @@ export function useRosterPresence({ apiBase, authChecked, meId, rosterByIdentity
 
         // Add LiveKit participants to online map
         try {
-          const room: any = avRef?.current?.room;
+          const room: Room | null | undefined = avRef?.current?.room;
           if (room) {
-            const addParticipant = (p: any) => {
+            const addParticipant = (p: LocalParticipant | RemoteParticipant | undefined | null) => {
               if (!p) return;
               const identity = p.identity || p.sid;
               const name = p.name || identity;
@@ -60,7 +65,7 @@ export function useRosterPresence({ apiBase, authChecked, meId, rosterByIdentity
               }
             };
             addParticipant(room.localParticipant);
-            const remotes = Array.from(room.remoteParticipants?.values?.() || []);
+            const remotes: RemoteParticipant[] = Array.from(room.remoteParticipants?.values() ?? []);
             for (const rp of remotes) addParticipant(rp);
           }
         } catch {}

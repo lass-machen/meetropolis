@@ -47,7 +47,7 @@ export class CameraController {
       if (!el) return false;
       const tag = el.tagName?.toLowerCase?.();
       if (tag === 'input' || tag === 'textarea') return true;
-      if ((el as any).isContentEditable) return true;
+      if (el.isContentEditable) return true;
       return false;
     };
 
@@ -83,7 +83,7 @@ export class CameraController {
   }
 
   private setupZoom() {
-    this.scene.input.on('wheel', (_pointer: any, _over: any, _dx: number, dy: number) => {
+    this.scene.input.on('wheel', (_pointer: Phaser.Input.Pointer, _over: unknown, _dx: number, dy: number) => {
       const zoomDelta = -dy * 0.002;
       const prevZoom = this.camera.zoom;
       const nextZoom = Phaser.Math.Clamp(prevZoom + zoomDelta, 1, 5);
@@ -116,10 +116,10 @@ export class CameraController {
         this.manualCameraActive = true;
 
         try {
-          (p.event as any)?.preventDefault?.();
+          p.event?.preventDefault?.();
         } catch {}
         try {
-          (p.event as any)?.stopPropagation?.();
+          p.event?.stopPropagation?.();
         } catch {}
       }
     });
@@ -140,10 +140,10 @@ export class CameraController {
         const mdy = Math.abs(p.y - this.leftDragCandidate.startY);
         if (mdx + mdy > 3) {
           try {
-            (p.event as any)?.preventDefault?.();
+            p.event?.preventDefault?.();
           } catch {}
           try {
-            (p.event as any)?.stopPropagation?.();
+            p.event?.stopPropagation?.();
           } catch {}
         }
       }
@@ -156,10 +156,10 @@ export class CameraController {
         const mdy = Math.abs(p.y - this.leftDragCandidate.startY);
         if (mdx + mdy > 3) {
           try {
-            (p.event as any)?.preventDefault?.();
+            p.event?.preventDefault?.();
           } catch {}
           try {
-            (p.event as any)?.stopPropagation?.();
+            p.event?.stopPropagation?.();
           } catch {}
         }
       }
@@ -174,7 +174,10 @@ export class CameraController {
     try {
       if (!this.camera || !this.hero) return;
 
-      const isFollowing = (this.camera as any).follow === this.hero;
+      // `follow` is exposed on the camera at runtime but not in the public typings.
+      const isFollowing =
+        (this.camera as Phaser.Cameras.Scene2D.Camera & { follow?: Phaser.GameObjects.GameObject }).follow ===
+        this.hero;
       if (!this.manualCameraActive && isFollowing) return;
 
       const view = this.camera.worldView;
@@ -207,24 +210,23 @@ export class CameraController {
     const dt = Math.max(delta, 16) / 1000;
     const base = 600;
     const step = (base * dt) / Math.max(this.camera.zoom, 0.001);
-    const anyCursors: any = cursors;
-    const keys = this.editorPanKeys || ({} as any);
+    const keys = this.editorPanKeys ?? {};
 
     let moved = false;
 
-    if (anyCursors.left?.isDown || keys.left?.isDown) {
+    if (cursors.left?.isDown || keys.left?.isDown) {
       this.camera.scrollX -= step;
       moved = true;
     }
-    if (anyCursors.right?.isDown || keys.right?.isDown) {
+    if (cursors.right?.isDown || keys.right?.isDown) {
       this.camera.scrollX += step;
       moved = true;
     }
-    if (anyCursors.up?.isDown || keys.up?.isDown) {
+    if (cursors.up?.isDown || keys.up?.isDown) {
       this.camera.scrollY -= step;
       moved = true;
     }
-    if (anyCursors.down?.isDown || keys.down?.isDown) {
+    if (cursors.down?.isDown || keys.down?.isDown) {
       this.camera.scrollY += step;
       moved = true;
     }

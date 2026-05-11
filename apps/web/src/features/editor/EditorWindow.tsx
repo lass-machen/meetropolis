@@ -9,11 +9,20 @@ import { useTranslation } from 'react-i18next';
 import { EditorPanel } from '../../ui/editor/EditorPanel';
 import { TilesetUploadDialog, UploadDialogState } from '../../ui/editor/TilesetUploadDialog';
 import { EditorService } from '../../services/EditorService';
-import { uploadTilesetAsAssetPack } from '../../lib/assetPackUpload';
+import { uploadTilesetAsAssetPack, type TilesetData } from '../../lib/assetPackUpload';
 import { logger } from '../../lib/logger';
 import { gameBridge } from '../../game/bridge';
 import { getApiBaseFromWindow } from '../../lib/apiBase';
 import { Icon } from '../../ui/Icon';
+
+/**
+ * Subset of `react-i18next`'s `TFunction` that this file uses. Importing
+ * `TFunction` directly is not portable across react-i18next major versions.
+ */
+type TranslateFn = {
+  (key: string): string;
+  (key: string, opts: Record<string, unknown>): string;
+};
 
 type Pack = { id: number; name: string; version: string; author: string; uuid: string };
 
@@ -81,19 +90,19 @@ function useInstalledPacks() {
   React.useEffect(() => {
     const apiBase = getApiBaseFromWindow();
     fetch(`${apiBase}/asset-packs`, { credentials: 'include' })
-      .then((r) => r.json())
+      .then((r): Promise<Pack[]> => r.json() as Promise<Pack[]>)
       .then((data) => {
         if (Array.isArray(data))
-          setPacks(
-            data.map((p: any) => ({ id: p.id, name: p.name, version: p.version, author: p.author, uuid: p.uuid })),
-          );
+          setPacks(data.map((p) => ({ id: p.id, name: p.name, version: p.version, author: p.author, uuid: p.uuid })));
       })
       .catch(() => {});
   }, []);
   return packs;
 }
 
-const TAB_DEFS: Array<{ key: any; label: string }> = [
+type EditorCategoryKey = 'general' | 'terrain' | 'structures' | 'objects' | 'autotiles' | 'collisions' | 'zones';
+
+const TAB_DEFS: Array<{ key: EditorCategoryKey; label: string }> = [
   { key: 'general', label: 'Allgemein' },
   { key: 'terrain', label: 'Terrain' },
   { key: 'structures', label: 'Strukturen' },
@@ -170,7 +179,7 @@ function EditorHeader({
   onClose,
   beginEditorDrag,
 }: {
-  state: any;
+  state: ReturnType<typeof EditorService.getState>;
   onClose: () => void;
   beginEditorDrag: (e: React.MouseEvent) => void;
 }) {
@@ -256,7 +265,7 @@ function PacksList({
   packs: Pack[];
   deleting: number | null;
   onDelete: (id: number, name: string) => void;
-  t: (k: string, opts?: any) => string;
+  t: TranslateFn;
 }) {
   return (
     <div style={{ marginTop: 16 }}>
@@ -331,7 +340,7 @@ function UploadSection({
   onFileUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onMepackUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onDelete: (id: number, name: string) => void;
-  t: (k: string, opts?: any) => string;
+  t: TranslateFn;
 }) {
   return (
     <div style={{ borderTop: '1px solid var(--border)', padding: 16 }}>
@@ -422,6 +431,10 @@ function buildUploadDialogState(file: File, dataUrl: string, currentCategory: st
   };
 }
 
+interface ApiErrorResponse {
+  error?: string;
+}
+
 async function uploadMepackFile(file: File, t: (k: string) => string): Promise<boolean> {
   try {
     const apiBase = getApiBaseFromWindow();
@@ -433,7 +446,7 @@ async function uploadMepackFile(file: File, t: (k: string) => string): Promise<b
       setTimeout(() => window.location.reload(), 1000);
       return true;
     }
-    const data = await res.json().catch(() => ({ error: t('common.error') }));
+    const data = (await res.json().catch(() => ({ error: t('common.error') }))) as ApiErrorResponse;
     dispatchToast(t('editor.uploadFailed'), data.error || t('common.error'), 'error');
   } catch {
     dispatchToast(t('editor.uploadFailed'), t('common.networkError'), 'error');
@@ -441,7 +454,7 @@ async function uploadMepackFile(file: File, t: (k: string) => string): Promise<b
   return false;
 }
 
-async function deletePackById(id: number, name: string, t: (k: string, opts?: any) => string): Promise<boolean> {
+async function deletePackById(id: number, name: string, t: TranslateFn): Promise<boolean> {
   try {
     const apiBase = getApiBaseFromWindow();
     const res = await fetch(`${apiBase}/asset-packs/${id}`, { method: 'DELETE', credentials: 'include' });
@@ -450,7 +463,7 @@ async function deletePackById(id: number, name: string, t: (k: string, opts?: an
       setTimeout(() => window.location.reload(), 1000);
       return true;
     }
-    const data = await res.json().catch(() => ({ error: t('common.error') }));
+    const data = (await res.json().catch(() => ({ error: t('common.error') }))) as ApiErrorResponse;
     dispatchToast(t('editor.deleteFailed'), data.error || t('common.error'), 'error');
   } catch {
     dispatchToast(t('editor.deleteFailed'), t('common.networkError'), 'error');
@@ -458,7 +471,11 @@ async function deletePackById(id: number, name: string, t: (k: string, opts?: an
   return false;
 }
 
-async function handleTilesetConfirm(tileset: any, t: (k: string) => string, setUploadDialog: (v: any) => void) {
+async function handleTilesetConfirm(
+  tileset: TilesetData,
+  t: (k: string) => string,
+  setUploadDialog: (v: UploadDialogState | null) => void,
+) {
   try {
     const apiBase = getApiBaseFromWindow();
     logger.debug('[EditorWindow] Uploading tileset as AssetPack...');

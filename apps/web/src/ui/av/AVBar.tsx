@@ -187,7 +187,8 @@ export function AVBar(props: AVBarProps) {
   } = props;
 
   const [settingsOpen, setSettingsOpen] = React.useState(false);
-  const showSettings = (import.meta as any).env?.VITE_FEATURE_AV_SETTINGS !== 'false';
+  const showSettings =
+    (import.meta as unknown as { env?: Record<string, string | undefined> }).env?.VITE_FEATURE_AV_SETTINGS !== 'false';
   const { t } = useTranslation();
   const mod = navigator.platform?.startsWith('Mac') ? '⌘' : 'Ctrl';
 

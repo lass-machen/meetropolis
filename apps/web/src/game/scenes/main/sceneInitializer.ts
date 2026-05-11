@@ -45,7 +45,13 @@ export class SceneInitializer {
     }
 
     const allTs = Array.from(dynamicTilesets.values());
-    const tilesets = allTs.length > 0 ? allTs : [undefined as any];
+    // Phaser requires a non-empty tileset list. When no tilesets are registered
+    // yet we pass a single-element placeholder array; Phaser ignores undefined
+    // entries when resolving tile data, so the layers remain usable until
+    // tilesets are registered later. The cast confines the workaround to a
+    // narrow surface (`Tileset[]`).
+    const tilesets: Phaser.Tilemaps.Tileset[] =
+      allTs.length > 0 ? allTs : ([undefined] as unknown as Phaser.Tilemaps.Tileset[]);
     const editorGround = map.createBlankLayer(
       'Ground',
       tilesets,
@@ -55,7 +61,7 @@ export class SceneInitializer {
       pre.mapMeta.height ?? undefined,
       pre.mapMeta.tileWidth ?? undefined,
       pre.mapMeta.tileHeight ?? undefined,
-    ) as any;
+    );
     const wallsLayer = map.createBlankLayer(
       'Walls',
       tilesets,
@@ -65,7 +71,7 @@ export class SceneInitializer {
       pre.mapMeta.height ?? undefined,
       pre.mapMeta.tileWidth ?? undefined,
       pre.mapMeta.tileHeight ?? undefined,
-    ) as any;
+    );
     const collisionLayer = map.createBlankLayer(
       'Collision',
       tilesets,
@@ -75,17 +81,23 @@ export class SceneInitializer {
       pre.mapMeta.height ?? undefined,
       pre.mapMeta.tileWidth ?? undefined,
       pre.mapMeta.tileHeight ?? undefined,
-    ) as any;
+    );
+    // Phaser typings declare these as `TilemapLayer | null`. In practice they
+    // succeed because `createBlankLayer` only returns null when the tileset
+    // list is invalid, which the placeholder above avoids.
+    if (!editorGround || !wallsLayer || !collisionLayer) {
+      throw new Error('SceneInitializer: createBlankLayer returned null');
+    }
 
-    editorGround?.setDepth(0);
-    wallsLayer?.setDepth(5);
-    collisionLayer?.setDepth(10);
+    editorGround.setDepth(0);
+    wallsLayer.setDepth(5);
+    collisionLayer.setDepth(10);
 
     try {
-      collisionLayer?.setVisible(false);
+      collisionLayer.setVisible(false);
     } catch {}
     try {
-      collisionLayer?.setCollisionByExclusion([-1], true);
+      collisionLayer.setCollisionByExclusion([-1], true);
     } catch {}
 
     const v2 = { state: pre, firstGids, chunkSize: pre.mapMeta.chunkSize };

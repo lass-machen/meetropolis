@@ -1,17 +1,25 @@
 import React from 'react';
 import type { WorldRoom } from '../../types/colyseus';
+import type { GameBridge } from '../../types/game';
+import type { ZoneManager } from '../../game/zoneManager';
+import type { Zone, EditorState } from '../../services/EditorTypes';
+
+interface ZonePayload {
+  type: 'zone';
+  polys: Zone[];
+}
 
 export function useZones(params: {
-  editor: { active: boolean; zones: any[] };
-  setEditor: (updater: (s: any) => any) => void;
-  zoneRef: React.MutableRefObject<any>;
-  gameBridge: any;
+  editor: { active: boolean; zones: Zone[] };
+  setEditor: (updater: (s: EditorState) => EditorState) => void;
+  zoneRef: React.MutableRefObject<ZoneManager | null>;
+  gameBridge: GameBridge;
   colyseusRef: React.MutableRefObject<WorldRoom | null>;
 }) {
   const { editor, setEditor, zoneRef, gameBridge, colyseusRef } = params;
   const suppressZoneBroadcastRef = React.useRef(false);
   const debounceTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastPayloadRef = React.useRef<any>(null);
+  const lastPayloadRef = React.useRef<ZonePayload | null>(null);
 
   // Mirror editor zones to game overlay and ZoneManager; broadcast optionally via Colyseus
   React.useEffect(() => {
@@ -21,7 +29,7 @@ export function useZones(params: {
     } catch {}
     if (editor.active) {
       try {
-        zoneRef.current?.setZones?.(editor.zones as any);
+        zoneRef.current?.setZones(editor.zones);
       } catch {}
     }
 
@@ -32,22 +40,24 @@ export function useZones(params: {
     if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     debounceTimerRef.current = setTimeout(() => {
       try {
-        colyseusRef.current?.send?.('editor_update', lastPayloadRef.current);
+        if (lastPayloadRef.current) {
+          colyseusRef.current?.send('editor_update', lastPayloadRef.current);
+        }
       } catch {}
       debounceTimerRef.current = null;
     }, 150);
-  }, [editor.active, editor.zones]);
+  }, [editor.active, editor.zones]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Handle incoming zone updates (should be called by Colyseus message handler)
   const applyIncomingZones = React.useCallback(
-    (polys: any[]) => {
+    (polys: Zone[]) => {
       suppressZoneBroadcastRef.current = true;
       setEditor((s) => ({ ...s, zones: polys }));
       try {
         gameBridge.setZoneOverlay(polys);
       } catch {}
       try {
-        zoneRef.current?.setZones?.(polys as any);
+        zoneRef.current?.setZones(polys);
       } catch {}
       // Cancel pending debounced send; re-allow broadcasting nach kurzer Pause
       if (debounceTimerRef.current) {

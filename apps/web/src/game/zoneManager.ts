@@ -87,7 +87,7 @@ export class ZoneManager {
       this.current = undefined;
       // Legacy test expectation: switch to 'lobby' on exit.
       try {
-        (this.av as any)?.switchTo?.('lobby');
+        void this.av?.switchTo('lobby');
       } catch {}
     }
   }
@@ -117,9 +117,9 @@ export class ZoneManager {
     return this.lockedZones;
   }
 
-  getZones() {
+  getZones(): Array<Omit<Polygon, 'points'> & { points: { x: number; y: number }[] }> {
     // Return zones with normalized points for consumers
-    return this.zones.map((z) => ({ ...z, points: normalizePoints(z.points) as any }));
+    return this.zones.map((z) => ({ ...z, points: normalizePoints(z.points) }));
   }
 
   getCurrentPolygon(): Polygon | undefined {
@@ -136,14 +136,14 @@ function normalizePoints(points: Array<{ x: number; y: number } | [number, numbe
       out.push({ x: v[0], y: v[1] });
       continue;
     }
-    const anyV = v as any;
-    if (typeof anyV.x === 'number' && typeof anyV.y === 'number') {
-      out.push({ x: anyV.x, y: anyV.y });
+    const obj = v as { x?: unknown; y?: unknown };
+    if (typeof obj.x === 'number' && typeof obj.y === 'number') {
+      out.push({ x: obj.x, y: obj.y });
       continue;
     }
     // Try number-like strings
-    const nx = Number(anyV.x);
-    const ny = Number(anyV.y);
+    const nx = Number(obj.x);
+    const ny = Number(obj.y);
     if (!Number.isNaN(nx) && !Number.isNaN(ny)) out.push({ x: nx, y: ny });
   }
   return out;

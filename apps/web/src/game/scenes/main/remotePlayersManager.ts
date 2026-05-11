@@ -13,6 +13,19 @@ export interface RemotePlayer {
   isNpc?: boolean | undefined;
 }
 
+/**
+ * Per-remote sprite metadata stored directly on the Phaser Sprite instance.
+ * Used by the avatar animation / standing detection logic.
+ */
+type RemoteSprite = Phaser.GameObjects.Sprite & {
+  prevX?: number;
+  prevY?: number;
+  prevDirection?: string;
+  lastMoveTime?: number;
+  avatarId?: string;
+  isStanding?: boolean;
+};
+
 export class RemotePlayersManager {
   private scene: Phaser.Scene;
   private remotes: Map<string, Phaser.GameObjects.Sprite> = new Map();
@@ -46,14 +59,14 @@ export class RemotePlayersManager {
     const initialAvatarId = textureReady ? remoteAvatarId : avatarRegistry.getDefaultAvatarId();
     avatarRegistry.createAnimations(this.scene.anims, initialAvatarId);
     const { texture, frame } = avatarRegistry.getIdleFrame(initialAvatarId, p.direction || 'down');
-    const s = this.scene.add.sprite(p.x, p.y, texture, frame);
+    const s = this.scene.add.sprite(p.x, p.y, texture, frame) as RemoteSprite;
     s.setDepth(10);
 
-    (s as any).prevX = p.x;
-    (s as any).prevY = p.y;
-    (s as any).prevDirection = p.direction;
-    (s as any).lastMoveTime = Date.now();
-    (s as any).avatarId = initialAvatarId;
+    s.prevX = p.x;
+    s.prevY = p.y;
+    s.prevDirection = p.direction;
+    s.lastMoveTime = Date.now();
+    s.avatarId = initialAvatarId;
 
     this.remotes.set(id, s);
 
@@ -65,10 +78,11 @@ export class RemotePlayersManager {
     return s;
   }
 
-  private updateRemotePlayer(s: Phaser.GameObjects.Sprite, p: RemotePlayer) {
-    const prevX = (s as any).prevX || p.x;
-    const prevY = (s as any).prevY || p.y;
-    const prevDirection = (s as any).prevDirection || p.direction;
+  private updateRemotePlayer(sprite: Phaser.GameObjects.Sprite, p: RemotePlayer) {
+    const s = sprite as RemoteSprite;
+    const prevX = s.prevX ?? p.x;
+    const prevY = s.prevY ?? p.y;
+    const prevDirection = s.prevDirection ?? p.direction;
 
     const deltaX = p.x - prevX;
     const deltaY = p.y - prevY;
@@ -77,27 +91,27 @@ export class RemotePlayersManager {
     const directionChanged = prevDirection !== p.direction;
 
     s.setPosition(p.x, p.y);
-    (s as any).prevX = p.x;
-    (s as any).prevY = p.y;
-    (s as any).prevDirection = p.direction;
+    s.prevX = p.x;
+    s.prevY = p.y;
+    s.prevDirection = p.direction;
 
     if (p.dnd !== undefined) {
       s.setAlpha(p.dnd ? 0.35 : 1);
     }
 
     // Check if avatar changed
-    const currentAvatarId = (s as any).avatarId || avatarRegistry.getDefaultAvatarId();
+    const currentAvatarId = s.avatarId ?? avatarRegistry.getDefaultAvatarId();
     const newAvatarId = p.avatarId || currentAvatarId;
     if (newAvatarId !== currentAvatarId) {
       const newTextureKey = avatarRegistry.getTextureKey(newAvatarId);
       if (this.scene.textures.exists(newTextureKey)) {
-        (s as any).avatarId = newAvatarId;
+        s.avatarId = newAvatarId;
         avatarRegistry.createAnimations(this.scene.anims, newAvatarId);
         // Immediately apply the new avatar's idle texture
-        const dir = (s as any).prevDirection || p.direction || 'down';
+        const dir = s.prevDirection || p.direction || 'down';
         const { texture, frame } = avatarRegistry.getIdleFrame(newAvatarId, dir);
         s.setTexture(texture, frame);
-        (s as any).isStanding = false; // Reset to allow animation system to take over
+        s.isStanding = false; // Reset to allow animation system to take over
       } else {
         this.ensureAvatarLoaded(newAvatarId, s);
       }
@@ -124,43 +138,45 @@ export class RemotePlayersManager {
       // Sprite may have been destroyed if the player disconnected during loading
       if (!sprite.active) return;
 
+      const s = sprite as RemoteSprite;
       avatarRegistry.createAnimations(this.scene.anims, avatarId);
-      (sprite as any).avatarId = avatarId;
+      s.avatarId = avatarId;
 
       // Update the sprite to use the newly loaded texture
-      const direction = (sprite as any).prevDirection || 'down';
+      const direction = s.prevDirection || 'down';
       const { texture, frame } = avatarRegistry.getIdleFrame(avatarId, direction);
-      sprite.setTexture(texture, frame);
+      s.setTexture(texture, frame);
     });
 
     this.scene.load.start();
   }
 
   private updateAnimation(
-    s: Phaser.GameObjects.Sprite,
+    sprite: Phaser.GameObjects.Sprite,
     direction: string,
     isMoving: boolean,
-    directionChanged: boolean
+    directionChanged: boolean,
   ) {
-    const spriteAvatarId = (s as any).avatarId || avatarRegistry.getDefaultAvatarId();
+    const s = sprite as RemoteSprite;
+    const spriteAvatarId = s.avatarId ?? avatarRegistry.getDefaultAvatarId();
     const animKey = avatarRegistry.getAnimationKey(spriteAvatarId, 'walk', direction);
     const { texture: standingTexture, frame: standingFrame } = avatarRegistry.getIdleFrame(spriteAvatarId, direction);
 
     if (isMoving) {
-      (s as any).lastMoveTime = Date.now();
-      (s as any).isStanding = false;
+      s.lastMoveTime = Date.now();
+      s.isStanding = false;
 
       if (!s.anims.isPlaying || s.anims.currentAnim?.key !== animKey) {
         s.play(animKey, true);
       }
     } else {
-      const timeSinceLastMove = Date.now() - ((s as any).lastMoveTime || 0);
+      const timeSinceLastMove = Date.now() - (s.lastMoveTime ?? 0);
 
       if (timeSinceLastMove >= 100) {
-        if (!(s as any).isStanding) {
+        if (!s.isStanding) {
           s.anims.stop();
           s.setTexture(standingTexture, standingFrame);
-          (s as any).isStanding = true;
+          s.isStanding = true;
         } else if (directionChanged) {
           s.setTexture(standingTexture, standingFrame);
         }
@@ -179,16 +195,17 @@ export class RemotePlayersManager {
   }
 
   update() {
-    for (const [_id, s] of this.remotes) {
-      if (!s.active) continue;
-      const timeSinceLastMove = Date.now() - ((s as any).lastMoveTime || 0);
-      if (timeSinceLastMove >= 100 && !(s as any).isStanding) {
-        const spriteAvatarId = (s as any).avatarId || avatarRegistry.getDefaultAvatarId();
-        const direction = (s as any).prevDirection || 'down';
+    for (const [_id, sprite] of this.remotes) {
+      if (!sprite.active) continue;
+      const s = sprite as RemoteSprite;
+      const timeSinceLastMove = Date.now() - (s.lastMoveTime ?? 0);
+      if (timeSinceLastMove >= 100 && !s.isStanding) {
+        const spriteAvatarId = s.avatarId ?? avatarRegistry.getDefaultAvatarId();
+        const direction = s.prevDirection || 'down';
         const { texture, frame } = avatarRegistry.getIdleFrame(spriteAvatarId, direction);
         s.anims.stop();
         s.setTexture(texture, frame);
-        (s as any).isStanding = true;
+        s.isStanding = true;
       }
     }
   }

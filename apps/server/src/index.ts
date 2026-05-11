@@ -13,9 +13,10 @@ if (sentryDsn) {
         tracesSampleRate: 0.1,
       });
     })
-    .catch((error) => {
+    .catch((error: unknown) => {
       // Logger not available yet - using console.error for early init failure
-      console.error('[Sentry] Initialization failed:', error?.message || String(error));
+      const message = error instanceof Error ? error.message : String(error);
+      console.error('[Sentry] Initialization failed:', message);
     });
 }
 
@@ -80,10 +81,10 @@ const allowedOrigins = (process.env.CORS_ORIGIN || '')
 
 app.set('trust proxy', process.env.TRUST_PROXY === 'true' || process.env.NODE_ENV === 'production');
 
-app.use(helmet({ contentSecurityPolicy: false }) as any);
-app.use(compression() as any);
+app.use(helmet({ contentSecurityPolicy: false }));
+app.use(compression());
 // Prometheus HTTP metrics.
-app.use(metricsMiddleware() as any);
+app.use(metricsMiddleware());
 
 // CORS middleware with explicit OPTIONS handling
 app.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
@@ -155,16 +156,16 @@ app.use((req: express.Request, res: express.Response, next: express.NextFunction
   }
 });
 
-app.use(cookieParser() as any);
+app.use(cookieParser());
 // Raw body for billing webhook (needed if enterprise billing is loaded)
-app.use('/billing/webhook', express.raw({ type: 'application/json' }) as any);
-app.use(express.json({ limit: '4mb' }) as any);
-app.use(express.urlencoded({ extended: true, limit: '4mb' }) as any);
+app.use('/billing/webhook', express.raw({ type: 'application/json' }));
+app.use(express.json({ limit: '4mb' }));
+app.use(express.urlencoded({ extended: true, limit: '4mb' }));
 
 // Tenant resolution (must run before API routes)
-app.use(tenantMiddleware as any);
+app.use(tenantMiddleware as unknown as express.RequestHandler);
 // Request logging (after tenant to include context)
-app.use(requestLogger as any);
+app.use(requestLogger);
 
 app.get('/', (_req: express.Request, res: express.Response) => res.send('ok'));
 
@@ -296,12 +297,15 @@ const gameServer = new ColyseusServer({
   }),
 });
 
-gameServer.define('world', WorldRoom as any).filterBy(['tenant']);
+gameServer.define('world', WorldRoom).filterBy(['tenant']);
 
 // Monitor can be enabled by installing @colyseus/monitor
 
-// Make gameServer available globally for debugging
-(globalThis as any).gameServer = gameServer;
+// Make gameServer available globally for debugging.
+// global.d.ts declares `var gameServer` with a narrower shape for admin queries;
+// the Colyseus Server is structurally compatible at runtime, so we cast through
+// unknown rather than maintaining a duplicate type.
+(globalThis as unknown as { gameServer: unknown }).gameServer = gameServer;
 
 // In Colyseus 0.17 the matchmake HTTP routes (/matchmake/joinOrCreate/...)
 // are registered lazily inside `gameServer.listen()` via bindRouterToTransport.
@@ -318,7 +322,7 @@ gameServer
   });
 
 // Central error handler last
-app.use(errorHandler as any);
+app.use(errorHandler);
 
 // ── Graceful Shutdown ────────────────────────────────────────────────────────
 let shuttingDown = false;
@@ -329,14 +333,23 @@ async function gracefulShutdown(signal: string) {
 
   logger.info(`[Server] ${signal} received, initiating graceful shutdown...`);
 
-  const rooms = (globalThis as any).activeWorldRooms as Set<any> | undefined;
+  const rooms = global.activeWorldRooms;
   let clientCount = 0;
 
   if (rooms) {
     for (const room of rooms) {
       try {
-        room.broadcast('server_restart', { reason: 'update' });
-        clientCount += room.clients?.length ?? 0;
+        // The WorldRoom type imported from broadcast.ts does not declare
+        // `clients`, but Colyseus Rooms expose it at runtime. Read through
+        // a narrow projection to count active connections.
+        const colyseusRoom = room as {
+          clients?: unknown[] | Set<unknown>;
+          broadcast?: (event: string, data: unknown) => void;
+        };
+        colyseusRoom.broadcast?.('server_restart', { reason: 'update' });
+        const clients = colyseusRoom.clients;
+        if (Array.isArray(clients)) clientCount += clients.length;
+        else if (clients instanceof Set) clientCount += clients.size;
       } catch (e) {
         logger.error('[Server] Failed to broadcast server_restart to room', e);
       }

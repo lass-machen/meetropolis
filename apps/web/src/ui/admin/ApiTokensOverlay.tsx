@@ -7,6 +7,10 @@ import { useTranslation } from 'react-i18next';
 
 type ApiToken = { id: string; name?: string | null; createdAt: string; lastUsedAt?: string | null };
 
+interface CreateTokenResponse {
+  token: string;
+}
+
 type ApiTokensOverlayProps = {
   open: boolean;
   onClose: () => void;
@@ -163,7 +167,7 @@ export function ApiTokensOverlay(props: ApiTokensOverlayProps) {
     if (open) {
       setError(null);
       void fetch(`${apiBase}/api-tokens`, { credentials: 'include' })
-        .then((r) => r.json())
+        .then((r) => r.json() as Promise<ApiToken[]>)
         .then((list) => setApiTokens(list));
     }
   }, [open, apiBase, setApiTokens]);
@@ -177,23 +181,27 @@ export function ApiTokensOverlay(props: ApiTokensOverlayProps) {
         body: JSON.stringify({ name: newTokenName || undefined }),
       });
       if (!res.ok) throw new Error('Token konnte nicht erstellt werden');
-      const data = await res.json();
+      const data = (await res.json()) as CreateTokenResponse;
       setFreshToken(data.token);
       setNewTokenName('');
-      const list = await fetch(`${apiBase}/api-tokens`, { credentials: 'include' }).then((r) => r.json());
+      const list = (await fetch(`${apiBase}/api-tokens`, { credentials: 'include' }).then((r) =>
+        r.json(),
+      )) as ApiToken[];
       setApiTokens(list);
-    } catch (e: any) {
-      setError(e.message || t('admin.api.createError'));
+    } catch (e: unknown) {
+      setError((e instanceof Error ? e.message : null) || t('admin.api.createError'));
     }
   };
 
   const deleteToken = async (id: string) => {
     try {
       await fetch(`${apiBase}/api-tokens/${id}`, { method: 'DELETE', credentials: 'include' });
-      const list = await fetch(`${apiBase}/api-tokens`, { credentials: 'include' }).then((r) => r.json());
+      const list = (await fetch(`${apiBase}/api-tokens`, { credentials: 'include' }).then((r) =>
+        r.json(),
+      )) as ApiToken[];
       setApiTokens(list);
-    } catch (e: any) {
-      setError(e.message || t('admin.api.deleteError'));
+    } catch (e: unknown) {
+      setError((e instanceof Error ? e.message : null) || t('admin.api.deleteError'));
     }
   };
 

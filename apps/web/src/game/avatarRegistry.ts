@@ -10,7 +10,7 @@ interface AvatarState {
 }
 
 export interface AvatarManifest {
-  id: string;           // "packUuid:avatarKey"
+  id: string; // "packUuid:avatarKey"
   packUuid: string;
   avatarKey: string;
   displayName: string;
@@ -19,7 +19,28 @@ export interface AvatarManifest {
   frameWidth: number;
   frameHeight: number;
   states: Record<string, AvatarState>;
+  previewUrl?: string | undefined;
+}
+
+/**
+ * Raw shape of an avatar entry inside an avatar-pack response. All fields are
+ * optional because the server payload is hand-authored content and may be
+ * missing values; defaults are filled in at registration time.
+ */
+interface AvatarPackEntry {
+  key?: string;
+  displayName?: string;
+  spriteUrl?: string;
+  frameWidth?: number;
+  frameHeight?: number;
+  states?: Record<string, AvatarState>;
   previewUrl?: string;
+}
+
+/** Raw shape of a single pack entry inside `/avatar-packs`. */
+interface AvatarPackResponseItem {
+  uuid: string;
+  avatars?: AvatarPackEntry[];
 }
 
 class AvatarRegistry {
@@ -35,19 +56,21 @@ class AvatarRegistry {
         this.ensureDefault();
         return;
       }
-      const packs = await res.json();
+      const packs: unknown = await res.json();
       if (Array.isArray(packs)) {
-        for (const pack of packs) {
-          const avatars = Array.isArray(pack.avatars) ? pack.avatars : [];
+        for (const pack of packs as AvatarPackResponseItem[]) {
+          const avatars: AvatarPackEntry[] = Array.isArray(pack.avatars) ? pack.avatars : [];
           for (const avatar of avatars) {
-            const id = `${pack.uuid}:${avatar.key}`;
+            const key = avatar.key ?? '';
+            if (!key) continue;
+            const id = `${pack.uuid}:${key}`;
             this.manifests.set(id, {
               id,
               packUuid: pack.uuid,
-              avatarKey: avatar.key,
-              displayName: avatar.displayName || avatar.key,
+              avatarKey: key,
+              displayName: avatar.displayName || key,
               type: 'full',
-              spriteUrl: avatar.spriteUrl || `assets/sprites/${avatar.key}.png`,
+              spriteUrl: avatar.spriteUrl || `assets/sprites/${key}.png`,
               frameWidth: avatar.frameWidth || 16,
               frameHeight: avatar.frameHeight || 24,
               states: avatar.states || {

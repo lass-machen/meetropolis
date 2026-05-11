@@ -50,7 +50,13 @@ function getZonesNormalized(zoneRef: Mutable<ZoneManager | null>): Zone[] {
   return (zoneRef.current?.getZones?.() || []).map((z: Zone) => ({
     ...z,
     points: (Array.isArray(z.points) ? z.points : [])
-      .map((p: unknown) => (Array.isArray(p) ? { x: p[0], y: p[1] } : (p as Position)))
+      .map((p: unknown) => {
+        if (Array.isArray(p)) {
+          const tuple = p as [number, number];
+          return { x: tuple[0], y: tuple[1] };
+        }
+        return p as Position;
+      })
       .filter(isPosition),
   }));
 }

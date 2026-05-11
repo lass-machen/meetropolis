@@ -69,7 +69,7 @@ export class UIManager {
     }
   }
 
-  setZoneOverlay(polys: { name: string; points: any[] }[]) {
+  setZoneOverlay(polys: { name: string; points: unknown[] }[]) {
     try {
       if (!this.getEditorMode() || !this.zonesVisible) {
         if (this.zoneG) {
@@ -88,13 +88,15 @@ export class UIManager {
       g.lineStyle(2, 0x00ff99, 1);
       g.fillStyle(0x00ff99, 0.18);
 
-      const toPoint = (v: any): { x: number; y: number } | null => {
+      const toPoint = (v: unknown): { x: number; y: number } | null => {
         if (!v) return null;
-        if (typeof v.x === 'number' && typeof v.y === 'number') return { x: v.x, y: v.y };
         if (Array.isArray(v) && v.length >= 2 && typeof v[0] === 'number' && typeof v[1] === 'number')
           return { x: v[0], y: v[1] };
-        const px = v.x,
-          py = v.y;
+        if (typeof v !== 'object') return null;
+        const obj = v as { x?: unknown; y?: unknown };
+        if (typeof obj.x === 'number' && typeof obj.y === 'number') return { x: obj.x, y: obj.y };
+        const px = obj.x;
+        const py = obj.y;
         if ((typeof px === 'string' || typeof px === 'number') && (typeof py === 'string' || typeof py === 'number')) {
           const nx = Number(px);
           const ny = Number(py);
@@ -105,10 +107,9 @@ export class UIManager {
 
       for (const poly of Array.isArray(polys) ? polys : []) {
         const raw = Array.isArray(poly?.points) ? poly.points : [];
-        const pts = raw.map(toPoint).filter((p: any) => p && typeof p.x === 'number' && typeof p.y === 'number') as {
-          x: number;
-          y: number;
-        }[];
+        const pts = raw
+          .map(toPoint)
+          .filter((p): p is { x: number; y: number } => !!p && typeof p.x === 'number' && typeof p.y === 'number');
         if (!pts || pts.length < 3) continue;
         g.beginPath();
         g.moveTo(pts[0].x, pts[0].y);

@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import type { MainSceneLike } from '../types/scene';
+import type { MainSceneLike, NameLabelContainer } from '../types/scene';
 
 /** Monotonic counter used for unique texture keys. */
 let labelTexId = 0;
@@ -10,7 +10,7 @@ export function createNameLabel(
   playerId?: string,
   isNpc?: boolean,
 ): Phaser.GameObjects.Container {
-  const container = scene.add.container(0, 0);
+  const container = scene.add.container(0, 0) as NameLabelContainer;
 
   const paddingX = 10;
   const paddingY = 6;
@@ -24,12 +24,12 @@ export function createNameLabel(
   const text = scene.add.text(0, 0, name, textStyle);
   const dpr = window.devicePixelRatio || 1;
   try {
-    (text as any).setResolution?.(dpr);
+    text.setResolution(dpr);
   } catch {
     /* noop */
   }
   try {
-    (text as any).setPadding?.(0, 0, 0, 1);
+    text.setPadding(0, 0, 0, 1);
   } catch {
     /* noop */
   }
@@ -45,30 +45,30 @@ export function createNameLabel(
     } as const;
     badgeText = scene.add.text(0, 0, 'BOT', badgeStyle);
     try {
-      (badgeText as any).setResolution?.(dpr);
+      badgeText.setResolution(dpr);
     } catch {
       /* noop */
     }
     badgeText.setOrigin(0.5, 0.5);
   }
 
-  const badgeWidth = badgeText ? (badgeText as any).width + 8 : 0;
-  const width = (text as any).width + paddingX * 2 + badgeWidth;
-  const height = (text as any).height + paddingY * 2;
+  const badgeWidth = badgeText ? badgeText.width + 8 : 0;
+  const width = text.width + paddingX * 2 + badgeWidth;
+  const height = text.height + paddingY * 2;
 
   if (badgeText) {
-    const totalContentWidth = (text as any).width + badgeWidth;
-    text.setX(-totalContentWidth / 2 + (text as any).width / 2);
-    badgeText.setX(-totalContentWidth / 2 + (text as any).width + 4 + (badgeText as any).width / 2);
+    const totalContentWidth = text.width + badgeWidth;
+    text.setX(-totalContentWidth / 2 + text.width / 2);
+    badgeText.setX(-totalContentWidth / 2 + text.width + 4 + badgeText.width / 2);
   }
 
-  (container as any).text = text;
-  (container as any).playerId = playerId;
-  (container as any).isNpc = !!isNpc;
-  (container as any).width = width;
-  (container as any).height = height;
-  (container as any).paddingX = paddingX;
-  (container as any).paddingY = paddingY;
+  container.text = text;
+  container.playerId = playerId;
+  container.isNpc = !!isNpc;
+  container.width = width;
+  container.height = height;
+  container.paddingX = paddingX;
+  container.paddingY = paddingY;
 
   // Create high-DPI background sprite (inserted at index 0, behind text)
   const bgSprite = renderBgTexture(scene, container, false);
@@ -93,12 +93,12 @@ export function createNameLabel(
  */
 function renderBgTexture(
   scene: MainSceneLike,
-  container: Phaser.GameObjects.Container,
+  container: NameLabelContainer,
   isSpeaking: boolean,
 ): Phaser.GameObjects.Image {
   const dpr = window.devicePixelRatio || 1;
-  const width = (container as any).width as number;
-  const height = (container as any).height as number;
+  const width = container.width;
+  const height = container.height;
 
   const w = Math.round(width);
   const h = Math.round(height);
@@ -127,7 +127,7 @@ function renderBgTexture(
   }
 
   // Remove old texture if it exists
-  const prevKey = (container as any).bgTexKey as string | undefined;
+  const prevKey = container.bgTexKey;
   if (prevKey && scene.textures.exists(prevKey)) {
     scene.textures.remove(prevKey);
   }
@@ -136,15 +136,15 @@ function renderBgTexture(
   gfx.generateTexture(texKey, sw, sh);
   gfx.destroy();
 
-  (container as any).bgTexKey = texKey;
+  container.bgTexKey = texKey;
 
   // Reuse existing bgSprite or create a new one
-  let bgSprite = (container as any).bgSprite as Phaser.GameObjects.Image | undefined;
+  let bgSprite = container.bgSprite;
   if (bgSprite) {
     bgSprite.setTexture(texKey);
   } else {
     bgSprite = scene.add.image(0, 0, texKey);
-    (container as any).bgSprite = bgSprite;
+    container.bgSprite = bgSprite;
   }
 
   bgSprite.setOrigin(0.5, 0.5);
@@ -158,11 +158,12 @@ export function drawNameLabel(
   container: Phaser.GameObjects.Container,
   isSpeaking: boolean,
 ): void {
-  const bgSprite = renderBgTexture(scene, container, isSpeaking);
+  const labelContainer = container as NameLabelContainer;
+  const bgSprite = renderBgTexture(scene, labelContainer, isSpeaking);
 
   // Ensure the bgSprite is in the container at index 0 (behind text)
-  if (container.getIndex(bgSprite) === -1) {
-    container.addAt(bgSprite, 0);
+  if (labelContainer.getIndex(bgSprite) === -1) {
+    labelContainer.addAt(bgSprite, 0);
   }
 }
 

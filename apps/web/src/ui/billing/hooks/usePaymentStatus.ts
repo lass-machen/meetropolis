@@ -17,7 +17,7 @@ export function usePaymentStatus({ enabled }: { enabled: boolean }) {
     try {
       const res = await fetch(`${apiBase}/billing/payment-status`, { credentials: 'include' });
       if (res.ok) {
-        setPaymentStatus(await res.json());
+        setPaymentStatus((await res.json()) as PaymentStatus);
       }
     } catch {
       // Silently ignore: the banner simply will not show.
@@ -46,7 +46,7 @@ export function usePaymentStatus({ enabled }: { enabled: boolean }) {
         headers: { 'Content-Type': 'application/json' },
       });
       if (res.ok) {
-        const { url } = await res.json();
+        const { url } = (await res.json()) as { url?: string };
         if (url) await openExternal(url);
       }
     } catch {

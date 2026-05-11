@@ -96,7 +96,7 @@ function useEmailVerify({ token, apiBase, onSuccess }: UseEmailVerifyArgs) {
           setMessage(t('verify.successText'));
           setTimeout(onSuccess, 2000);
         } else {
-          const data = await res.json().catch(() => ({}));
+          const data = (await res.json().catch(() => ({}))) as { error?: string };
           setStatus('error');
           setMessage(data.error || t('verify.errorTitle'));
         }

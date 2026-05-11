@@ -26,7 +26,7 @@ export async function loadVisibleChunks(scene: MainSceneLike, layerName: ChunkLa
     }
   if (keys.length === 0) return;
   const chunks = await fetchChunks(scene.currentMapId, layerName, keys);
-  const updates = Object.entries(chunks).map(([key, val]: any) => ({
+  const updates = Object.entries(chunks).map(([key, val]) => ({
     key,
     version: val.version,
     encoding: val.encoding,

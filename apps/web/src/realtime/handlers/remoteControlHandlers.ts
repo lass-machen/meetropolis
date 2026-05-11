@@ -1,4 +1,3 @@
-import type { Room as LiveKitRoom } from 'livekit-client';
 import type { UseWorldRoomArgs } from '../types';
 import type {
   RemoteControlMessage,
@@ -46,7 +45,7 @@ function showForceMutedToast(): Promise<void> {
 
 async function applyMicControl(target: boolean, args: UseWorldRoomArgs): Promise<void> {
   const { avRef, setAvState } = args;
-  const roomRef = (avRef.current?.room ?? null) as LiveKitRoom | null;
+  const roomRef = avRef.current?.room ?? null;
   const { isLocalMicOn } = await import('../../av/core/localState');
   const current = isLocalMicOn(roomRef);
   if (current === target) return;
@@ -59,7 +58,7 @@ async function applyMicControl(target: boolean, args: UseWorldRoomArgs): Promise
   // Brief re-check to catch pending/signaling transitions.
   setTimeout(() => {
     try {
-      const again = isLocalMicOn((avRef.current?.room ?? null) as LiveKitRoom | null);
+      const again = isLocalMicOn(avRef.current?.room ?? null);
       setAvState((s) => ({ ...s, mic: again }));
     } catch {}
   }, 400);
@@ -72,7 +71,7 @@ async function applyMicControl(target: boolean, args: UseWorldRoomArgs): Promise
 
 async function applyCamControl(target: boolean, args: UseWorldRoomArgs): Promise<void> {
   const { avRef, setAvState } = args;
-  const roomRef = (avRef.current?.room ?? null) as LiveKitRoom | null;
+  const roomRef = avRef.current?.room ?? null;
   const { isLocalCamOn } = await import('../../av/core/localState');
   const current = isLocalCamOn(roomRef);
   if (current === target) return;
@@ -84,7 +83,7 @@ async function applyCamControl(target: boolean, args: UseWorldRoomArgs): Promise
   } catch {}
   setTimeout(() => {
     try {
-      const again = isLocalCamOn((avRef.current?.room ?? null) as LiveKitRoom | null);
+      const again = isLocalCamOn(avRef.current?.room ?? null);
       setAvState((s) => ({ ...s, cam: again }));
     } catch {}
   }, 400);
@@ -92,7 +91,7 @@ async function applyCamControl(target: boolean, args: UseWorldRoomArgs): Promise
 
 async function applyShareControl(target: boolean, args: UseWorldRoomArgs): Promise<void> {
   const { avRef, setAvState } = args;
-  const roomRef = (avRef.current?.room ?? null) as LiveKitRoom | null;
+  const roomRef = avRef.current?.room ?? null;
   const { isLocalShareOn } = await import('../../av/core/localState');
   const current = isLocalShareOn(roomRef);
   if (target && !current) {
@@ -105,7 +104,7 @@ async function applyShareControl(target: boolean, args: UseWorldRoomArgs): Promi
   // Brief re-check for screen-share state.
   setTimeout(() => {
     try {
-      const again = isLocalShareOn((avRef.current?.room ?? null) as LiveKitRoom | null);
+      const again = isLocalShareOn(avRef.current?.room ?? null);
       setAvState((s) => ({ ...s, share: again }));
     } catch {}
   }, 400);
@@ -148,7 +147,7 @@ async function applyDndControl(target: boolean, args: UseWorldRoomArgs): Promise
     void (async () => {
       try {
         const mod = await import('../../av/core/localState');
-        const r = (avRef.current?.room ?? null) as LiveKitRoom | null;
+        const r = avRef.current?.room ?? null;
         const realMic = mod.isLocalMicOn(r);
         const realCam = mod.isLocalCamOn(r);
         const realShare = mod.isLocalShareOn(r);

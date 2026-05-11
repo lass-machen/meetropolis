@@ -4,7 +4,7 @@ import {
   drawNameLabel as uiDrawNameLabel,
   updateNameLabel as uiUpdateNameLabel,
 } from '../../ui/nameLabels';
-import type { MainSceneLike } from '../../types/scene';
+import type { MainSceneLike, NameLabelContainer } from '../../types/scene';
 
 export class NameLabelManager {
   private scene: MainSceneLike;
@@ -68,17 +68,17 @@ export class NameLabelManager {
   }
 
   updateRemoteLabelName(id: string, name: string) {
-    const nameLabel = this.nameLabels.get(id);
+    const nameLabel = this.nameLabels.get(id) as NameLabelContainer | undefined;
     if (!nameLabel) return;
 
     try {
-      const textObj = (nameLabel as any).text as Phaser.GameObjects.Text | undefined;
+      const textObj = nameLabel.text;
       if (textObj && textObj.text !== name) {
         textObj.setText(name);
-        const padX = (nameLabel as any).paddingX || 0;
-        const padY = (nameLabel as any).paddingY || 0;
-        (nameLabel as any).width = textObj.width + padX * 2;
-        (nameLabel as any).height = textObj.height + padY * 2;
+        const padX = nameLabel.paddingX ?? 0;
+        const padY = nameLabel.paddingY ?? 0;
+        nameLabel.width = textObj.width + padX * 2;
+        nameLabel.height = textObj.height + padY * 2;
         uiDrawNameLabel(this.scene, nameLabel, false);
       }
     } catch {}

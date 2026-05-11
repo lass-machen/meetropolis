@@ -21,6 +21,9 @@ import { ZoneAccessPanel } from '../../../ui/hud/ZoneAccessPanel';
 import { AVControlBar } from './AVControlBar';
 import { PaymentStatusBanner } from '../../../ui/billing/components/PaymentStatusBanner';
 import type { AdminCapabilities } from '../hooks/useFetchMe';
+import type { EditorState } from '../../../services/EditorService';
+import type { PaymentStatus } from '../../../ui/billing/types';
+import type { useWorldEventHandlers } from '../hooks/useWorldEventHandlers';
 
 type Participant = {
   sid: string;
@@ -34,15 +37,16 @@ type Participant = {
 type AvState = { mic: boolean; cam: boolean; share: boolean; dnd: boolean };
 type ConnStatus = { reconnecting: boolean; lastCode?: number; lastReason?: string };
 type Hud = { zone?: string; follow?: string | null; avRoom?: string | null };
+type EventHandlers = ReturnType<typeof useWorldEventHandlers>;
 
 export type WorldMainViewProps = {
   apiBase: string;
   me: { id: string; email: string; name?: string };
-  containerRef: React.RefObject<HTMLDivElement>;
+  containerRef: React.RefObject<HTMLDivElement | null>;
   colyseusRef: React.RefObject<WorldRoom | null>;
   localPosRef: React.RefObject<{ id: string; x?: number; y?: number }>;
   hud: Hud;
-  editor: any;
+  editor: EditorState;
   avState: AvState;
   participantsToRender: Participant[];
   gridExpanded: boolean;
@@ -54,7 +58,7 @@ export type WorldMainViewProps = {
   isTenantAdmin: boolean;
   billingAvailable: boolean;
   capabilities: AdminCapabilities;
-  paymentStatus: any;
+  paymentStatus: PaymentStatus | null;
   handleManageBilling: () => void | Promise<void>;
   positionReady: boolean;
   showReloadBanner: boolean;
@@ -68,7 +72,7 @@ export type WorldMainViewProps = {
   selectedCamId: string;
   cameraManual: boolean;
   pttAwareToggleMic: () => Promise<void>;
-  eventHandlers: any;
+  eventHandlers: EventHandlers;
   getRoom: () => Room | undefined;
 };
 
@@ -93,7 +97,12 @@ function buildTopRightMenu(props: WorldMainViewProps) {
   };
 }
 
-function HeaderOverlays(props: WorldMainViewProps & { mySessionId: string | undefined; topRightMenu: any }) {
+function HeaderOverlays(
+  props: WorldMainViewProps & {
+    mySessionId: string | undefined;
+    topRightMenu: ReturnType<typeof buildTopRightMenu>;
+  },
+) {
   const {
     hud,
     editor,
@@ -145,7 +154,10 @@ function ControlBar(props: WorldMainViewProps) {
       onToggleCam={eventHandlers.handleToggleCam}
       onSelectCam={eventHandlers.handleSelectCam}
       onToggleShare={eventHandlers.handleToggleShare}
-      onToggleDnd={eventHandlers.handleToggleDnd}
+      onToggleDnd={() => {
+        eventHandlers.handleToggleDnd();
+        return Promise.resolve();
+      }}
       onRecenter={eventHandlers.handleRecenter}
     />
   );
@@ -193,7 +205,14 @@ export function WorldMainView(props: WorldMainViewProps) {
           }}
         />
       )}
-      <GameCanvas containerRef={containerRef} positionReady={positionReady} avDnd={avState.dnd} />
+      {/* type-debt: GameCanvas declares RefObject<HTMLDivElement> (non-null) but
+          the actual ref in WorldRefs is RefObject<HTMLDivElement | null>. Fixing
+          this requires touching GameCanvas.tsx which is outside this wave's scope. */}
+      <GameCanvas
+        containerRef={containerRef as React.RefObject<HTMLDivElement>}
+        positionReady={positionReady}
+        avDnd={avState.dnd}
+      />
       {isInternalOwner && (
         <AdminOverlay apiBase={apiBase} open={adminOpen} onOpenChange={setAdminOpen} capabilities={capabilities} />
       )}

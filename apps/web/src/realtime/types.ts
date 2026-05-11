@@ -1,22 +1,26 @@
 import React from 'react';
 import type { WorldRoom } from '../types/colyseus';
+import type { AVManager } from '../av/avManager';
+import type { GameBridge, PlayerDirection } from '../types/game';
+import type { ZoneManager } from '../game/zoneManager';
+import type { EditorState } from '../services/EditorService';
 
 export type AnyRef<T> = React.MutableRefObject<T>;
 
 export interface UseWorldRoomArgs {
   apiBase: string;
   me: { id: string; email: string; name?: string } | null;
-  avRef: AnyRef<any>;
+  avRef: AnyRef<AVManager | null>;
   colyseusRef: AnyRef<WorldRoom | null>;
   localPosRef: AnyRef<{ id: string; x?: number; y?: number }>;
   remotesRef: AnyRef<Record<string, { x: number; y: number; dnd?: boolean; avatarId?: string }>>;
   colyseusToLivekitMap: AnyRef<Record<string, string>>;
   identityToNameMap: AnyRef<Record<string, string>>;
-  gameBridge: any;
+  gameBridge: GameBridge;
   // editor/zone sync
-  editor: any;
-  setEditor: React.Dispatch<React.SetStateAction<any>>;
-  zoneRef: AnyRef<any>;
+  editor: EditorState;
+  setEditor: React.Dispatch<React.SetStateAction<EditorState>>;
+  zoneRef: AnyRef<ZoneManager | null>;
   // UI & audio
   buildParticipantList: () => void;
   applyVolumesToUi: () => void;
@@ -46,7 +50,7 @@ export interface PlayerData {
   id: string;
   x: number;
   y: number;
-  direction: any;
+  direction: PlayerDirection;
   name?: string;
   dnd?: boolean;
   identity?: string;
@@ -67,8 +71,8 @@ export interface ConnectionRefs {
 }
 
 export interface SchedulerRefs {
-  buildListTimer: any;
+  buildListTimer: ReturnType<typeof setTimeout> | null;
   buildListRaf: number | null;
-  rosterTimer: any;
+  rosterTimer: ReturnType<typeof setTimeout> | null;
   rosterRaf: number | null;
 }

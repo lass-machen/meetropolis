@@ -1,5 +1,7 @@
 import type express from 'express';
-import type { PrismaClient } from '../../generated/prisma/index.js';
+import type { PrismaClient, Prisma } from '../../generated/prisma/index.js';
+
+type PresenceWithRoom = Prisma.PresenceGetPayload<{ include: { room: { select: { name: true } } } }>;
 
 export function registerPresenceRoutes(
   app: express.Application,
@@ -24,21 +26,21 @@ export function registerPresenceRoutes(
       });
 
       // 2. Fetch presence data for those users.
-      const recent = await prisma.presence.findMany({
+      const recent: PresenceWithRoom[] = await prisma.presence.findMany({
         where: { tenantId: tenant.id },
         orderBy: { updatedAt: 'desc' },
         distinct: ['userId'],
         include: { room: { select: { name: true } } },
-      } as any);
+      });
 
       // 3. Build a userId -> presence map.
-      const presenceMap = new Map<string, any>();
+      const presenceMap = new Map<string, PresenceWithRoom>();
       for (const p of recent) {
         presenceMap.set(p.userId, p);
       }
 
       // 4. Combine all members with their presence data (if any).
-      const out = memberships.map((m: any) => {
+      const out = memberships.map((m) => {
         const presence = presenceMap.get(m.userId);
         return {
           userId: m.userId,

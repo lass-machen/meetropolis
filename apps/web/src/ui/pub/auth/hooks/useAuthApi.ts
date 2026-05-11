@@ -52,9 +52,10 @@ export function useAuthApi(baseUrl: string) {
             body: JSON.stringify(body),
           });
           if (!res.ok) {
-            throw new Error(translateApiError((await res.json())?.error) || t('common.error'));
+            const errBody = (await res.json().catch(() => ({}))) as { error?: string };
+            throw new Error(translateApiError(errBody.error) || t('common.error'));
           }
-          return await res.json().catch(() => ({}));
+          return (await res.json().catch(() => ({}))) as unknown;
         } catch (e: unknown) {
           logger.warn('[Auth] Fetch error:', (e as Error)?.message || String(e), 'URL:', url);
           lastErr = e;

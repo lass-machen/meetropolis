@@ -10,33 +10,51 @@ import { BubbleBanner } from '../../../ui/user/BubbleBanner';
 import { WorldContextMenu } from './WorldContextMenu';
 import { WorldModals } from './WorldModals';
 import { WorldMainView } from './WorldMainView';
+import type { WorldRefs, WorldUi, WorldAuth, WorldMe } from '../hooks/useWorldAppState';
+import type { EditorState } from '../../../services/EditorService';
+import type { DesktopModule } from '../../../lib/desktopLoader';
+import type { PaymentStatus } from '../../../ui/billing/types';
+import type { useWorldEventHandlers } from '../hooks/useWorldEventHandlers';
+import type { Position } from '../../../types/game';
 
-type AnyMe = { id: string; email: string; name?: string; onboardingCompleted?: boolean; role?: string };
+type AnyMe = NonNullable<WorldMe>;
+
+type EventHandlers = ReturnType<typeof useWorldEventHandlers>;
+
+type ParticipantToRender = {
+  sid: string;
+  identity: string;
+  hasVideo: boolean;
+  hasMic: boolean;
+  isSpeaking: boolean;
+  media: 'camera' | 'screen';
+  volume?: number;
+};
 
 export type WorldShellProps = {
   isMini: boolean;
-  desktop: any;
+  desktop: DesktopModule | null;
   toggleMiniMode: () => void;
   tauriPrefsOpen: boolean;
   setTauriPrefsOpen: (v: boolean) => void;
   apiBase: string;
   me: AnyMe;
-  refs: any;
-  ui: any;
-  auth: any;
-  editor: any;
-  eventHandlers: any;
+  refs: WorldRefs;
+  ui: WorldUi;
+  auth: WorldAuth;
+  editor: EditorState;
+  eventHandlers: EventHandlers;
   getRoom: () => Room | undefined;
   saveAllToServer: () => Promise<boolean>;
   handleAuthComplete: () => void;
   pttAwareToggleMic: () => Promise<void>;
-  participantsToRender: any[];
+  participantsToRender: ParticipantToRender[];
   isTenantAdmin: boolean;
-  paymentStatus: any;
+  paymentStatus: PaymentStatus | null;
   handleManageBilling: () => void | Promise<void>;
   showReloadBanner: boolean;
   getDisplayName: (id: string) => string;
-  getMiniZones: () => Array<{ name: string; points: any[] }>;
+  getMiniZones: () => Array<{ name: string; points: Position[] }>;
   handleExpandWithScreen: (screenSid: string) => void;
 };
 
@@ -187,7 +205,7 @@ export function WorldShell(props: WorldShellProps) {
               } catch (e) {
                 logger.debug('[WorldApp] onboarding avatar sync failed', e);
               }
-              auth.setMe((prev: any) => (prev ? { ...prev, ...updates } : prev));
+              auth.setMe((prev) => (prev ? { ...prev, ...updates } : prev));
             }}
           />
         )}

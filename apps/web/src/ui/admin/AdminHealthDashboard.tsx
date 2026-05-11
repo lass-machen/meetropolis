@@ -131,9 +131,9 @@ function useHealthData(apiBase: string) {
         fetch(`${apiBase}/admin/health`, { credentials: 'include' }),
         fetch(`${apiBase}/admin/stats`, { credentials: 'include' }),
       ]);
-      if (healthRes.ok) setHealth(await healthRes.json());
+      if (healthRes.ok) setHealth((await healthRes.json()) as HealthData);
       else setError('Failed to load health data');
-      if (statsRes.ok) setStats(await statsRes.json());
+      if (statsRes.ok) setStats((await statsRes.json()) as StatsData);
     } catch (e: unknown) {
       setError((e instanceof Error ? e.message : String(e)) || 'Network error');
     } finally {

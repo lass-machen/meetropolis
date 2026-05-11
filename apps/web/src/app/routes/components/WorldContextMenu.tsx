@@ -1,13 +1,15 @@
 import React from 'react';
 import type { WorldRoom } from '../../../types/colyseus';
+import type { FollowManager } from '../../../game/followManager';
+import type { GameBridge } from '../../../types/game';
 
 interface WorldContextMenuProps {
   contextMenu: { open: boolean; x: number; y: number; playerId: string | null };
   onClose: () => void;
   localPosRef: React.RefObject<{ id: string; x?: number; y?: number }>;
   bubbleGroupsRef: React.RefObject<Record<string, string>>;
-  followRef: React.RefObject<any>;
-  gameBridge: any;
+  followRef: React.RefObject<FollowManager | null>;
+  gameBridge: GameBridge;
   colyseusRef: React.RefObject<WorldRoom | null>;
   bubbleStartRef: React.RefObject<null | ((id: string) => void)>;
 }

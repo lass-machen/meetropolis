@@ -2,187 +2,44 @@ import { EditorService } from '../services/EditorService';
 import { logger } from '../lib/logger';
 import { useMapStore } from '../state/mapStore';
 import { getApiBaseFromWindow } from '../lib/runtimeConfig';
+import type {
+  AutotileRegistration,
+  ChunkLayerName,
+  ChunkUpdateEntry,
+  EditorUpdatePayload,
+  GameBridge,
+  PlayerDirection,
+  RemotePlayerData,
+  TilePaintEdit,
+  TilesetRegistration,
+} from '../types/game';
+import type { MapObjectData } from './scenes/main/objectManager';
 
-export type Direction = 'up' | 'down' | 'left' | 'right';
+/**
+ * Direction alias kept for backwards compatibility with existing imports
+ * (`import { Direction } from '../game/bridge'`). The canonical type lives
+ * in `../types/game` as `PlayerDirection`.
+ */
+export type Direction = PlayerDirection;
 
-type Bridge = {
-  onLocalMove: (p: { x: number; y: number; direction: Direction }) => void;
-  setSceneApi: (api: SceneApi | null) => void;
-  syncRemotePlayers: (
-    players: Record<
-      string,
-      {
-        x: number;
-        y: number;
-        direction: Direction;
-        name?: string | undefined;
-        dnd?: boolean | undefined;
-        avatarId?: string | undefined;
-        isNpc?: boolean | undefined;
-      }
-    >,
-  ) => void;
-  addRemotePlayer: (
-    id: string,
-    p: {
-      x: number;
-      y: number;
-      direction: Direction;
-      name?: string | undefined;
-      dnd?: boolean | undefined;
-      avatarId?: string | undefined;
-      isNpc?: boolean | undefined;
-    },
-  ) => void;
-  updateRemotePlayer: (
-    id: string,
-    p: Partial<{
-      x: number;
-      y: number;
-      direction: Direction;
-      name?: string | undefined;
-      dnd?: boolean | undefined;
-      avatarId?: string | undefined;
-    }>,
-  ) => void;
-  removeRemotePlayer: (id: string) => void;
-  updateRemotePlayerDnd: (id: string, dnd: boolean) => void;
-  setDesiredPosition: (pos: { x: number; y: number } | null) => void;
-  setZoneOverlay: (polys: { name: string; points: { x: number; y: number }[] }[]) => void;
-  setZonesVisible: (visible: boolean) => void;
-  onPointerDown: (p: { x: number; y: number }) => void;
-  onRightClick: (p: { x: number; y: number; playerId?: string }) => void;
-  // Legacy pointer tile callbacks (no-op, kept for init.ts compat)
-  onPointerDownTile: (p: { tileX: number; tileY: number }) => void;
-  onPointerMoveTile: (p: { tileX: number; tileY: number }) => void;
-  onPointerUpTile: (p: { tileX: number; tileY: number }) => void;
-  setSelectionRect: (rect: { x: number; y: number; w: number; h: number } | null) => void;
-  applyTilePaint: (edit: {
-    layer: 'EditorGround' | 'EditorWalls' | 'Collision';
-    tilesetKey: string;
-    tileIndex: number;
-    rect: { startX: number; startY: number; endX: number; endY: number };
-  }) => void;
-  registerTileset: (ts: {
-    key: string;
-    dataUrl: string;
-    tileWidth: number;
-    tileHeight: number;
-    margin?: number | undefined;
-    spacing?: number | undefined;
-  }) => void;
-  setCollisionVisible: (visible: boolean) => void;
-  reloadEditorLayers: () => void;
-  fetchAndApplyServerLayers: () => void;
-  setBubbleMembers: (members: Set<string>) => void;
-  setHeroName: (name: string) => void;
-  updateSpeakingStates: (speakingIds: Set<string>) => void;
-  setDoNotDisturb: (enabled: boolean) => void;
-  // Asset preview in the editor (ghost sprite under the cursor): no-op, handled by EditorIntegration.
-  setAssetPreview: (
-    preview: {
-      dataUrl: string;
-      width?: number | undefined;
-      height?: number | undefined;
-      rotation?: number | undefined;
-      packUuid?: string | undefined;
-      itemId?: string | undefined;
-    } | null,
-  ) => void;
-  setMovementLocked: (locked: boolean) => void;
-  findFreeSpotNear: (targetId: string, options?: { radius?: number; step?: number }) => { x: number; y: number } | null;
-  recenterCamera: () => void;
-  onCameraManualChange?: (active: boolean) => void;
-  setEditorMode: (enabled: boolean) => void;
-  handleEditorUpdate?: (data: any) => void;
-  handleObjectsUpdated: (data: {
-    action: 'add' | 'remove' | 'update';
-    objects?: any[] | undefined;
-    objectIds?: number[] | undefined;
-  }) => void;
-  setBackgroundColor: (hex: string) => void;
-  setSpawnMarker: (pos: { x: number; y: number } | null) => void;
-  saveEditorLayersHard?: () => void;
-  applyChunkUpdates?: (
-    layerName: 'ground' | 'walls' | 'collision' | 'walls_auto',
-    updates: Array<{ key: string; version: number; encoding: string; data: string }>,
-  ) => void;
-  forceReloadMap?: () => void;
-  hydrateTilesetsCache: (
-    tilesets: {
-      key: string;
-      dataUrl: string;
-      tileWidth: number;
-      tileHeight: number;
-      margin?: number | undefined;
-      spacing?: number | undefined;
-    }[],
-  ) => void;
-  updateTilesetRegistry: (registry: any[]) => void;
-  changeHeroAvatar: (avatarId: string) => void;
-  // Legacy paint methods (no-op, painting handled by EditorIntegration.applyLocalPaint)
-  applyTerrainPaint: (edit: {
-    rect: { startX: number; startY: number; endX: number; endY: number };
-    dataUrl: string;
-  }) => void;
-  applyTerrainPaintV2: (edit: {
-    rect: { x0: number; y0: number; x1: number; y1: number };
-    tileRefId: number;
-    layer: string;
-  }) => void;
-  eraseTerrainRect: (rect: { startX: number; startY: number; endX: number; endY: number }) => void;
-  applyWallPaint: (edit: {
-    rect: { startX: number; startY: number; endX: number; endY: number };
-    wallTypeId: number;
-  }) => void;
-  captureEditorSnapshot: () => void;
-  restoreEditorSnapshot: () => void;
-  registerAutotiles: (
-    items: Array<{
-      wallTypeId: number;
-      key: string;
-      textureUrl: string;
-      tileWidth: number;
-      tileHeight: number;
-      variants: Record<string, { col: number; row: number }>;
-      packUuid: string;
-    }>,
-  ) => void;
-};
+/**
+ * Internal extension to the public GameBridge contract. bridge.ts owns the
+ * SceneApi wiring; `setSceneApi` keeps the wider `unknown` argument from
+ * GameBridge but casts internally to the concrete SceneApi type.
+ */
+interface InternalBridge extends GameBridge {
+  /** Pending autotile definitions queued before the scene is ready. */
+  _pendingAutotiles?: AutotileRegistration[];
+}
 
 export type SceneApi = {
-  syncRemotePlayers: (
-    players: Record<
-      string,
-      {
-        x: number;
-        y: number;
-        direction: Direction;
-        name?: string | undefined;
-        dnd?: boolean | undefined;
-        avatarId?: string | undefined;
-        isNpc?: boolean | undefined;
-      }
-    >,
-  ) => void;
+  syncRemotePlayers: (players: Record<string, RemotePlayerData>) => void;
   setDesiredPosition: (pos: { x: number; y: number } | null) => void;
   setZoneOverlay: (polys: { name: string; points: { x: number; y: number }[] }[]) => void;
   setZonesVisible?: (visible: boolean) => void;
   setSelectionRect: (rect: { x: number; y: number; w: number; h: number } | null) => void;
-  applyTilePaint: (edit: {
-    layer: 'EditorGround' | 'EditorWalls' | 'Collision';
-    tilesetKey: string;
-    tileIndex: number;
-    rect: { startX: number; startY: number; endX: number; endY: number };
-  }) => void;
-  registerTileset: (ts: {
-    key: string;
-    dataUrl: string;
-    tileWidth: number;
-    tileHeight: number;
-    margin?: number | undefined;
-    spacing?: number | undefined;
-  }) => void;
+  applyTilePaint: (edit: TilePaintEdit) => void;
+  registerTileset: (ts: TilesetRegistration) => void;
   setCollisionVisible: (visible: boolean) => void;
   reloadEditorLayers: () => void;
   fetchAndApplyServerLayers?: () => void;
@@ -211,16 +68,13 @@ export type SceneApi = {
   setBackgroundColor?: (hex: string) => void;
   setSpawnMarker?: (pos: { x: number; y: number } | null) => void;
   saveEditorLayersHard?: () => void;
-  applyChunkUpdates?: (
-    layerName: 'ground' | 'walls' | 'collision' | 'walls_auto',
-    updates: Array<{ key: string; version: number; encoding: string; data: string }>,
-  ) => void;
+  applyChunkUpdates?: (layerName: ChunkLayerName, updates: ChunkUpdateEntry[]) => void;
   forceReloadMap?: () => void;
-  updateTilesetRegistry?: (registry: any[]) => void;
+  updateTilesetRegistry?: (registry: unknown[]) => void;
   changeHeroAvatar?: (avatarId: string) => void;
   handleObjectsUpdated?: (data: {
     action: 'add' | 'remove' | 'update';
-    objects?: any[] | undefined;
+    objects?: MapObjectData[] | undefined;
     objectIds?: number[] | undefined;
   }) => void;
   applyTerrainPaint?: (edit: {
@@ -239,17 +93,7 @@ export type SceneApi = {
   }) => void;
   captureEditorSnapshot?: () => void;
   restoreEditorSnapshot?: () => void;
-  registerAutotileDefinitions?: (
-    items: Array<{
-      wallTypeId: number;
-      key: string;
-      textureUrl: string;
-      tileWidth: number;
-      tileHeight: number;
-      variants: Record<string, { col: number; row: number }>;
-      packUuid: string;
-    }>,
-  ) => void;
+  registerAutotileDefinitions?: (items: AutotileRegistration[]) => void;
 };
 
 let sceneApi: SceneApi | null = null;
@@ -324,27 +168,18 @@ let isReloadingEditorLayers = false;
 let cachedCollisionVisible = false;
 let cachedHeroName: string | null = null;
 let cachedDoNotDisturb = false;
-let remotePlayersCache: Record<
-  string,
-  {
-    x: number;
-    y: number;
-    direction: Direction;
-    name?: string | undefined;
-    dnd?: boolean | undefined;
-    avatarId?: string | undefined;
-    isNpc?: boolean | undefined;
-  }
-> = {};
+let remotePlayersCache: Record<string, RemotePlayerData> = {};
 let lastDesiredPosition: { x: number; y: number } | null = null;
 
-export const gameBridge: Bridge = {
+export const gameBridge: InternalBridge = {
   onLocalMove: () => {},
   onPointerDown: () => {},
   onRightClick: () => {},
   onCameraManualChange: () => {},
   setSceneApi: (api) => {
-    sceneApi = api;
+    // GameBridge declares `api: unknown` to keep the public type free of
+    // Phaser dependencies; the runtime caller passes the concrete SceneApi.
+    sceneApi = api as SceneApi | null;
 
     if (sceneApi) {
       // Nicht-Editor State wiederherstellen
@@ -493,7 +328,7 @@ export const gameBridge: Bridge = {
       sceneApi.registerAutotileDefinitions(items);
     } else {
       // Scene not ready - store for later
-      (gameBridge as any)._pendingAutotiles = items;
+      gameBridge._pendingAutotiles = items;
     }
   },
   registerTileset: (ts) => {
@@ -559,7 +394,7 @@ export const gameBridge: Bridge = {
   findFreeSpotNear: (targetId, options) => {
     return sceneApi?.findFreeSpotNear?.(targetId, options) ?? null;
   },
-  handleEditorUpdate: (data: any) => {
+  handleEditorUpdate: (data: EditorUpdatePayload) => {
     try {
       if (!data) return;
       if (data.type === 'tile_paint' && data.edit) {
@@ -620,7 +455,12 @@ export const gameBridge: Bridge = {
   },
   handleObjectsUpdated: (data) => {
     try {
-      sceneApi?.handleObjectsUpdated?.(data);
+      // GameBridge declares objects as unknown[] (because the network payload
+      // is loose); the SceneApi narrows to MapObjectData[]. The boundary cast
+      // is safe here because the server-side payload is validated upstream.
+      sceneApi?.handleObjectsUpdated?.(
+        data as { action: 'add' | 'remove' | 'update'; objects?: MapObjectData[]; objectIds?: number[] },
+      );
     } catch (e) {
       logger.error('Failed to handle objects update', e);
     }

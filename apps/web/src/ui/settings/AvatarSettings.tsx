@@ -31,21 +31,37 @@ const DEFAULT_AVATAR: AvatarOption = {
   idleRow: 0,
 };
 
-function mapPackToAvatars(packs: any): AvatarOption[] {
+interface AvatarPackEntry {
+  key: string;
+  displayName?: string;
+  spriteUrl?: string;
+  frameWidth?: number;
+  frameHeight?: number;
+  states?: { idle?: { row?: number } };
+  previewUrl?: string;
+}
+
+interface AvatarPack {
+  uuid: string;
+  avatars?: AvatarPackEntry[];
+}
+
+function mapPackToAvatars(packs: unknown): AvatarOption[] {
   const list: AvatarOption[] = [];
   if (!Array.isArray(packs)) return list;
-  for (const pack of packs) {
-    const packAvatars = Array.isArray(pack.avatars) ? pack.avatars : [];
+  for (const pack of packs as AvatarPack[]) {
+    const packAvatars: AvatarPackEntry[] = Array.isArray(pack.avatars) ? pack.avatars : [];
     for (const av of packAvatars) {
-      list.push({
+      const option: AvatarOption = {
         id: `${pack.uuid}:${av.key}`,
         displayName: av.displayName || av.key,
         spriteUrl: av.spriteUrl || `assets/sprites/${av.key}.png`,
         frameWidth: av.frameWidth || 16,
         frameHeight: av.frameHeight || 24,
         idleRow: av.states?.idle?.row ?? 0,
-        previewUrl: av.previewUrl,
-      });
+      };
+      if (av.previewUrl !== undefined) option.previewUrl = av.previewUrl;
+      list.push(option);
     }
   }
   return list;
@@ -60,7 +76,7 @@ function useAvatarOptions(apiBase: string) {
       try {
         const res = await fetch(`${apiBase}/avatar-packs`, { credentials: 'include' });
         if (res.ok) {
-          const packs = await res.json();
+          const packs = (await res.json()) as unknown;
           const list = mapPackToAvatars(packs);
           if (list.length === 0) list.push(DEFAULT_AVATAR);
           setAvatars(list);

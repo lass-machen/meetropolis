@@ -12,12 +12,20 @@ import { EditorInputHandler } from './EditorInputHandler';
 import { EditorService } from '../../services/EditorService';
 import type { TerrainPaintOp } from '../../services/EditorTypes';
 import { updateCollisionOverlay } from '../collision/overlay';
+import type { TileManager } from '../scenes/main/tileManager';
+import type { CollisionManager } from '../scenes/main/collisionManager';
+import type { AutotileGrid, AutotileRenderer } from '../autotile';
+import type { MainSceneLike } from '../types/scene';
 
 export interface EditorIntegrationOptions {
-  tileManager?: any; // TileManager instance for local tile painting
-  autotileGrid?: any; // AutotileGrid instance for wall painting
-  autotileRenderer?: any; // AutotileRenderer instance for wall rendering
-  collisionManager?: any; // CollisionManager for collision rebuilds
+  /** TileManager instance for local tile painting. */
+  tileManager?: TileManager | null;
+  /** AutotileGrid instance for wall painting. */
+  autotileGrid?: AutotileGrid | null;
+  /** AutotileRenderer instance for wall rendering. */
+  autotileRenderer?: AutotileRenderer | null;
+  /** CollisionManager for collision rebuilds. */
+  collisionManager?: CollisionManager | null;
 }
 
 export class EditorIntegration {
@@ -27,10 +35,10 @@ export class EditorIntegration {
   private scene: Phaser.Scene;
 
   // Tilemap references for local paint application
-  private tileManager: any;
-  private autotileGrid: any;
-  private autotileRenderer: any;
-  private collisionManager: any;
+  private tileManager: TileManager | null;
+  private autotileGrid: AutotileGrid | null;
+  private autotileRenderer: AutotileRenderer | null;
+  private collisionManager: CollisionManager | null;
 
   // Generation counter for terrain ghost preview (prevents stale async results)
   private terrainPreviewGeneration = 0;
@@ -183,10 +191,10 @@ export class EditorIntegration {
           () => {
             // Rebuild collision and update visual overlay
             if (this.collisionManager) {
-              this.collisionManager.ensureCollisionCollider?.();
-              this.collisionManager.rebuildStaticColliders?.();
+              this.collisionManager.ensureCollisionCollider();
+              this.collisionManager.rebuildStaticColliders();
             }
-            updateCollisionOverlay(this.scene as any);
+            updateCollisionOverlay(this.scene as MainSceneLike);
           },
         );
       }

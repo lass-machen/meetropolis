@@ -1,5 +1,5 @@
 import type express from 'express';
-import { PrismaClient } from '../../generated/prisma/index.js';
+import { PrismaClient, Prisma } from '../../generated/prisma/index.js';
 import { z } from 'zod';
 import multer from 'multer';
 import crypto from 'crypto';
@@ -8,6 +8,7 @@ import { fileURLToPath } from 'url';
 import fs from 'fs';
 import { logger } from '../../logger.js';
 import { requireAuth, requireApiToken } from '../utils/authHelpers.js';
+import type { RequestWithMulterFile } from '../../types/multer.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -45,13 +46,14 @@ async function handleSpriteUpload(
   }
 
   try {
-    const packUuid = req.body?.packUuid as string | undefined;
+    const body = (req.body ?? {}) as { packUuid?: unknown };
+    const packUuid = typeof body.packUuid === 'string' ? body.packUuid : undefined;
     if (!packUuid) {
       res.status(400).json({ error: 'packUuid required' });
       return;
     }
 
-    const file = (req as any).file as { buffer?: Buffer; size?: number } | undefined;
+    const file = (req as express.Request & RequestWithMulterFile).file;
     if (!file || !file.buffer || !file.size || file.size <= 0) {
       res.status(400).json({ error: 'file required' });
       return;
@@ -124,7 +126,7 @@ async function upsertAvatarPack(prisma: PrismaClient, data: z.infer<typeof Avata
         author: data.author,
         version: data.version,
         type: data.type,
-        avatars: data.avatars as unknown as any,
+        avatars: data.avatars as Prisma.InputJsonValue,
       },
     });
   }
@@ -136,7 +138,7 @@ async function upsertAvatarPack(prisma: PrismaClient, data: z.infer<typeof Avata
       author: data.author,
       version: data.version,
       type: data.type,
-      avatars: data.avatars as unknown as any,
+      avatars: data.avatars as Prisma.InputJsonValue,
     },
   });
 }

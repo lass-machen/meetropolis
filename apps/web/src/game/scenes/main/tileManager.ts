@@ -1,7 +1,17 @@
 import Phaser from 'phaser';
 import { EditorService } from '../../../services/EditorService';
 import { logger } from '../../../lib/logger';
-import { V2State, computeFirstGids, tileRefIdToGid } from '../../../lib/mapV2';
+import { V2State, V2Tileset, computeFirstGids, tileRefIdToGid } from '../../../lib/mapV2';
+
+/**
+ * Phaser's public `TilemapLayer` typing does not expose `setTilesets`, which
+ * exists at runtime in Phaser 3.60+. We declare a narrow extension so the
+ * tile manager can refresh layers after dynamic tileset registration without
+ * resorting to `any` casts.
+ */
+type LayerWithSetTilesets = Phaser.Tilemaps.TilemapLayer & {
+  setTilesets?: (tilesets: Phaser.Tilemaps.Tileset[]) => void;
+};
 
 export interface TileManagerConfig {
   scene: Phaser.Scene;
@@ -107,7 +117,9 @@ export class TileManager {
       if (this.editorGround) {
         for (let ty = y0; ty <= y1; ty++) {
           for (let tx = x0; tx <= x1; tx++) {
-            try { this.editorGround.removeTileAt(tx, ty); } catch { }
+            try {
+              this.editorGround.removeTileAt(tx, ty);
+            } catch {}
           }
         }
       }
@@ -115,7 +127,9 @@ export class TileManager {
       if (this.wallsLayer) {
         for (let ty = y0; ty <= y1; ty++) {
           for (let tx = x0; tx <= x1; tx++) {
-            try { this.wallsLayer.removeTileAt(tx, ty); } catch { }
+            try {
+              this.wallsLayer.removeTileAt(tx, ty);
+            } catch {}
           }
         }
       }
@@ -132,7 +146,7 @@ export class TileManager {
       rect: { startX: number; startY: number; endX: number; endY: number };
     },
     collisionVisible: boolean,
-    onCollisionUpdate?: () => void
+    onCollisionUpdate?: () => void,
   ) {
     try {
       const x0 = Math.min(edit.rect.startX, edit.rect.endX);
@@ -145,12 +159,14 @@ export class TileManager {
         for (let ty = y0; ty <= y1; ty++) {
           for (let tx = x0; tx <= x1; tx++) {
             if (erase) {
-              try { this.collisionLayer.removeTileAt(tx, ty); } catch { }
+              try {
+                this.collisionLayer.removeTileAt(tx, ty);
+              } catch {}
             } else {
               try {
                 const t = this.collisionLayer.putTileAt(1, tx, ty);
                 if (t) t.setCollision(true, true, true, true);
-              } catch { }
+              } catch {}
             }
           }
         }
@@ -164,7 +180,7 @@ export class TileManager {
     }
   }
 
-  updateTilesetRegistry(registry: any[]) {
+  updateTilesetRegistry(registry: V2Tileset[]) {
     if (!this.v2 || !this.v2.state) return;
 
     this.v2.state.tilesetRegistry = registry;
@@ -176,7 +192,7 @@ export class TileManager {
     }
 
     for (const ts of registry) {
-      if (!this.dynamicTilesets.has(ts.key) && !this.mapRef?.tilesets.find(t => t.name === ts.key)) {
+      if (!this.dynamicTilesets.has(ts.key) && !this.mapRef?.tilesets.find((t) => t.name === ts.key)) {
         try {
           const phTs = this.mapRef?.addTilesetImage(
             ts.key,
@@ -184,38 +200,50 @@ export class TileManager {
             ts.tileWidth,
             ts.tileHeight,
             ts.margin ?? 0,
-            ts.spacing ?? 0
+            ts.spacing ?? 0,
           );
           if (phTs) this.dynamicTilesets.set(ts.key, phTs);
-        } catch { }
+        } catch {}
       }
     }
 
     const all = Array.from(this.dynamicTilesets.values());
     if (this.mapRef) {
-      all.push(...this.mapRef.tilesets.filter(t => !this.dynamicTilesets.has(t.name)));
+      all.push(...this.mapRef.tilesets.filter((t) => !this.dynamicTilesets.has(t.name)));
     }
 
-    try { (this.editorGround as any)?.setTilesets?.(all); } catch { }
-    try { (this.wallsLayer as any)?.setTilesets?.(all); } catch { }
-    try { (this.collisionLayer as any)?.setTilesets?.(all); } catch { }
+    try {
+      (this.editorGround as LayerWithSetTilesets | undefined)?.setTilesets?.(all);
+    } catch {}
+    try {
+      (this.wallsLayer as LayerWithSetTilesets | undefined)?.setTilesets?.(all);
+    } catch {}
+    try {
+      (this.collisionLayer as LayerWithSetTilesets | undefined)?.setTilesets?.(all);
+    } catch {}
   }
 
   ensureEditorLayers() {
     try {
       const allTilesets = Array.from(this.dynamicTilesets.values());
       if (this.mapRef) {
-        allTilesets.push(...this.mapRef.tilesets.filter(ts => !this.dynamicTilesets.has(ts.name)));
+        allTilesets.push(...this.mapRef.tilesets.filter((ts) => !this.dynamicTilesets.has(ts.name)));
       }
 
       if (this.editorGround && allTilesets.length > 0) {
-        try { (this.editorGround as any).setTilesets?.(allTilesets); } catch {}
+        try {
+          (this.editorGround as LayerWithSetTilesets).setTilesets?.(allTilesets);
+        } catch {}
       }
       if (this.wallsLayer && allTilesets.length > 0) {
-        try { (this.wallsLayer as any).setTilesets?.(allTilesets); } catch {}
+        try {
+          (this.wallsLayer as LayerWithSetTilesets).setTilesets?.(allTilesets);
+        } catch {}
       }
       if (this.collisionLayer && allTilesets.length > 0) {
-        try { (this.collisionLayer as any).setTilesets?.(allTilesets); } catch {}
+        try {
+          (this.collisionLayer as LayerWithSetTilesets).setTilesets?.(allTilesets);
+        } catch {}
       }
     } catch (e) {
       logger.error('[TileManager] ensureEditorLayers failed', e);
@@ -230,11 +258,7 @@ export class TileManager {
     return this.collisionLayer;
   }
 
-  paintTerrainRect(
-    layer: string,
-    rect: { x0: number; y0: number; x1: number; y1: number },
-    tileRefId: number,
-  ): void {
+  paintTerrainRect(layer: string, rect: { x0: number; y0: number; x1: number; y1: number }, tileRefId: number): void {
     if (!this.v2) {
       logger.warn('[TileManager] paintTerrainRect: no V2 state');
       return;
@@ -250,11 +274,19 @@ export class TileManager {
     for (let ty = y0; ty <= y1; ty++) {
       for (let tx = x0; tx <= x1; tx++) {
         if (tileRefId === 0) {
-          try { targetLayer.removeTileAt(tx, ty); } catch { /* ignore */ }
+          try {
+            targetLayer.removeTileAt(tx, ty);
+          } catch {
+            /* ignore */
+          }
         } else {
           const gid = tileRefIdToGid(tileRefId, this.v2.firstGids);
           if (gid > 0) {
-            try { targetLayer.putTileAt(gid, tx, ty); } catch { /* ignore */ }
+            try {
+              targetLayer.putTileAt(gid, tx, ty);
+            } catch {
+              /* ignore */
+            }
           }
         }
       }

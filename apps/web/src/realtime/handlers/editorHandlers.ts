@@ -9,6 +9,8 @@ import type {
   TilesetRegistryUpdatedMessage,
   WorldRoom,
 } from '../../types/colyseus';
+import type { ChunkUpdateEntry, EditorUpdatePayload, ObjectsUpdatedPayload, TilePaintEdit } from '../../types/game';
+import type { EditorState } from '../../services/EditorService';
 
 export function setupEditorHandlers(
   room: WorldRoom,
@@ -45,13 +47,15 @@ export function setupEditorHandlers(
         gameBridge?.setSpawnMarker?.({ x: pos.x, y: pos.y });
       } catch {}
       try {
-        // TODO: type once editor state shape is stable
-        setEditor((s: any) => ({ ...s, spawn: { x: pos.x, y: pos.y } }));
+        setEditor((s: EditorState) => ({ ...s, spawn: { x: pos.x, y: pos.y } }));
       } catch {}
       return;
     }
     if (data?.type === 'tile_paint' && data.edit) {
-      if (gameBridge && typeof gameBridge.applyTilePaint === 'function') gameBridge.applyTilePaint(data.edit);
+      // Server-side editor handler validates the edit shape; cast at the
+      // network boundary so the bridge receives the typed payload.
+      if (gameBridge && typeof gameBridge.applyTilePaint === 'function')
+        gameBridge.applyTilePaint(data.edit as TilePaintEdit);
       return;
     }
     if (data?.type === 'layers' || data?.type === 'all') {
@@ -59,7 +63,8 @@ export function setupEditorHandlers(
         gameBridge.fetchAndApplyServerLayers();
       return;
     }
-    if (gameBridge && typeof gameBridge.handleEditorUpdate === 'function') gameBridge.handleEditorUpdate(data);
+    if (gameBridge && typeof gameBridge.handleEditorUpdate === 'function')
+      gameBridge.handleEditorUpdate(data as EditorUpdatePayload);
   });
 
   // v2: Chunks-Updates direkt anwenden
@@ -73,7 +78,9 @@ export function setupEditorHandlers(
         layer === 'collision' || layer === 'walls' || layer === 'ground' || layer === 'walls_auto' ? layer : null;
       if (!layerName) return;
       if (gameBridge && typeof gameBridge.applyChunkUpdates === 'function') {
-        gameBridge.applyChunkUpdates(layerName, updates);
+        // Server side guarantees each update entry has key/version/encoding/data;
+        // cast at the network boundary.
+        gameBridge.applyChunkUpdates(layerName, updates as ChunkUpdateEntry[]);
       }
     } catch {}
   });
@@ -83,7 +90,9 @@ export function setupEditorHandlers(
     try {
       if (isWrongMap(payload)) return;
       if (gameBridge && typeof gameBridge.handleObjectsUpdated === 'function') {
-        gameBridge.handleObjectsUpdated(payload);
+        // ObjectsUpdatedMessage is the loose network shape; the server attaches
+        // an `action` discriminator before broadcast.
+        gameBridge.handleObjectsUpdated(payload as unknown as ObjectsUpdatedPayload);
       }
     } catch {
       /* ignore */

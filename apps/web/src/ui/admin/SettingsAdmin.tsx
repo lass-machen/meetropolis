@@ -20,7 +20,7 @@ function useSettingsAdminState(apiBase: string) {
       setError(null);
       const res = await fetch(`${apiBase}/admin/settings`, { credentials: 'include' });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setSettings(await res.json());
+      setSettings((await res.json()) as Settings);
     } catch (err) {
       logger.warn('[SettingsAdmin] Failed to load settings', err);
       setError('Einstellungen konnten nicht geladen werden.');
@@ -46,7 +46,7 @@ function useSettingsAdminState(apiBase: string) {
         body: JSON.stringify(settings),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setSettings(await res.json());
+      setSettings((await res.json()) as Settings);
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
     } catch (err) {

@@ -4,6 +4,7 @@ import { createPrismaClient } from './db.js';
 import { getTenancyModule } from './tenancyLoader.js';
 import jwt from 'jsonwebtoken';
 import { getJwtSecret } from './api/utils/authHelpers.js';
+import { readAuthCookie, readBearerToken, type AuthTokenPayload } from './types/authShapes.js';
 
 // Extended request with tenant properties
 interface TenantRequest extends Request {
@@ -48,9 +49,9 @@ function sanitizeSlug(s: string): string {
  */
 async function resolveTokenTenant(req: Request): Promise<Tenant | null> {
   try {
-    const token = (req as any).cookies?.auth_token || req.headers['authorization']?.toString()?.replace('Bearer ', '');
+    const token = readAuthCookie(req) ?? readBearerToken(req);
     if (!token) return null;
-    const payload = jwt.verify(token, getJwtSecret()) as any;
+    const payload = jwt.verify(token, getJwtSecret()) as AuthTokenPayload;
     const tenantId = payload?.tid;
     if (!tenantId) return null;
     return await prisma.tenant.findUnique({ where: { id: tenantId } });

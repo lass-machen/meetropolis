@@ -1,8 +1,14 @@
 import type express from 'express';
-import { PrismaClient } from '../../generated/prisma/index.js';
+import type { PrismaClient, Tenant } from '../../generated/prisma/index.js';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { logger } from '../../logger.js';
+import { readAuthCookie, readBearerToken, type AuthTokenPayload } from '../../types/authShapes.js';
+
+/** Holder for the dev-only ephemeral JWT secret. */
+interface DevJwtSecretHolder {
+  __DEV_JWT_SECRET__?: string;
+}
 
 const COOKIE_NAME = 'auth_token';
 
@@ -20,13 +26,14 @@ export function getJwtSecret(): string {
     throw new Error('[SECURITY] JWT_SECRET missing in production');
   }
   // Development: ephemeral secret, only used for local sessions.
-  const key = (globalThis as any).__DEV_JWT_SECRET__ as string | undefined;
+  const holder = globalThis as DevJwtSecretHolder;
+  const key = holder.__DEV_JWT_SECRET__;
   if (key && key.length > 0) return key;
   const devSecret = crypto.randomBytes(32).toString('hex');
   try {
     logger.warn('[SECURITY] JWT_SECRET missing, using an ephemeral dev secret.');
   } catch {}
-  (globalThis as any).__DEV_JWT_SECRET__ = devSecret;
+  holder.__DEV_JWT_SECRET__ = devSecret;
   cachedJwtSecret = devSecret;
   return devSecret;
 }
@@ -66,11 +73,13 @@ export function setAuthCookie(res: express.Response, token: string) {
 }
 
 export function requireAuth(req: express.Request): { userId: string; tenantId?: string } | null {
-  const raw = (req as any).cookies?.[COOKIE_NAME] || req.headers['authorization']?.toString()?.replace('Bearer ', '');
+  const raw = readAuthCookie(req, COOKIE_NAME) ?? readBearerToken(req);
   if (!raw) return null;
   try {
-    const payload = jwt.verify(raw, getJwtSecret()) as any;
-    return { userId: payload.sub, tenantId: payload.tid };
+    const payload = jwt.verify(raw, getJwtSecret()) as AuthTokenPayload;
+    if (typeof payload.sub !== 'string') return null;
+    const tenantId = typeof payload.tid === 'string' ? payload.tid : undefined;
+    return { userId: payload.sub, tenantId };
   } catch {
     return null;
   }
@@ -97,7 +106,7 @@ export async function requireApiToken(req: express.Request, prisma: PrismaClient
 export function getTenantFromReq(
   req: express.Request,
 ): { id: string; slug: string; bypassLimits?: boolean; isInternal?: boolean } | null {
-  const t: any = (req as any).tenant;
+  const t: Tenant | undefined = req.tenant;
   if (t && t.id && t.slug)
     return { id: t.id, slug: t.slug, bypassLimits: !!t.bypassLimits, isInternal: !!t.isInternal };
   return null;
@@ -115,9 +124,9 @@ export async function requireMembership(
 ): Promise<{ role: string } | null> {
   const tenant = getTenantFromReq(req);
   if (!tenant) return null;
-  const m = await prisma.membership.findUnique({ where: { tenantId_userId: { tenantId: tenant.id, userId } } as any });
+  const m = await prisma.membership.findUnique({ where: { tenantId_userId: { tenantId: tenant.id, userId } } });
   if (!m) return null;
-  return { role: (m as any).role };
+  return { role: m.role };
 }
 
 export async function requireSuperAdmin(
@@ -140,10 +149,10 @@ export async function requireInternalOwner(
     const internal = await prisma.tenant.findUnique({ where: { slug: 'internal' } });
     if (!internal) return false;
     const member = await prisma.membership.findUnique({
-      where: { tenantId_userId: { tenantId: internal.id, userId } } as any,
+      where: { tenantId_userId: { tenantId: internal.id, userId } },
     });
     if (!member) return false;
-    return (member as any).role === 'owner';
+    return member.role === 'owner';
   } catch {
     return false;
   }
@@ -164,11 +173,17 @@ export function normalizeEmailForMatching(email: string): string {
   return `${localBase}@${domain}`;
 }
 
+/** Narrow projection of a Colyseus world room used by tenant usage calculation. */
+interface UsageRoom {
+  metadata?: { tenant?: string };
+  state?: { players?: { size?: number } };
+}
+
 export function computeOnlineUsageByTenantSlug(): Record<string, number> {
   const usage: Record<string, number> = {};
   try {
-    const activeWorldRooms: any = global.activeWorldRooms;
-    const rooms: any[] = activeWorldRooms ? Array.from(activeWorldRooms.values()) : [];
+    const activeWorldRooms = global.activeWorldRooms as unknown as Set<UsageRoom> | undefined;
+    const rooms: UsageRoom[] = activeWorldRooms ? Array.from(activeWorldRooms.values()) : [];
     for (const r of rooms) {
       const slug = r.metadata?.tenant || 'default';
       const n = r.state?.players?.size || 0;

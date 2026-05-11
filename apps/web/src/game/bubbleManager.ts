@@ -7,7 +7,7 @@ export class BubbleManager {
   // Note: roomPrefix and joinedId are currently unused; they remain as placeholders for future room models.
   // private readonly roomPrefix = 'bubble';
   // private joinedId: string | null = null;
-  private timer?: any;
+  private timer?: ReturnType<typeof setTimeout>;
 
   constructor(radius: number, _av: AVManager | null) {
     this.radius = radius;

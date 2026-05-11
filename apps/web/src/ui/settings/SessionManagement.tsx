@@ -1,5 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { getApiBaseFromWindow } from '../../lib/apiBase';
 import { translateApiError } from '../../lib/apiErrors';
 import { Button, Alert, Badge, Card, Divider } from '../system';
@@ -13,6 +14,20 @@ interface Session {
   createdAt: string;
   isCurrent: boolean;
 }
+
+interface SessionsResponse {
+  sessions?: Session[];
+}
+
+interface RevokeAllResponse {
+  revokedCount?: number;
+}
+
+interface ApiErrorBody {
+  error?: string;
+}
+
+type TranslateFn = TFunction;
 
 function detectDevice(ua: string): string {
   if (/iPhone/i.test(ua)) return 'iPhone';
@@ -44,7 +59,7 @@ function parseUserAgent(ua: string | null, t: (k: string) => string): { device: 
   return { device: detectDevice(ua), browser: detectBrowser(ua, t('sessions.unknownBrowser'), desktopAppLabel) };
 }
 
-function formatRelativeDate(dateStr: string, t: (k: string, opts?: any) => string): string {
+function formatRelativeDate(dateStr: string, t: TranslateFn): string {
   const date = new Date(dateStr);
   const diff = Date.now() - date.getTime();
   if (diff < 60000) return t('time.justNow');
@@ -54,7 +69,7 @@ function formatRelativeDate(dateStr: string, t: (k: string, opts?: any) => strin
   return date.toLocaleDateString();
 }
 
-function useSessionsApi(apiBase: string, t: (k: string, opts?: any) => string) {
+function useSessionsApi(apiBase: string, t: TranslateFn) {
   const [sessions, setSessions] = React.useState<Session[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
@@ -66,7 +81,7 @@ function useSessionsApi(apiBase: string, t: (k: string, opts?: any) => string) {
       setError(null);
       const res = await fetch(`${apiBase}/auth/sessions`, { credentials: 'include' });
       if (res.ok) {
-        const data = await res.json();
+        const data = (await res.json()) as SessionsResponse;
         setSessions(data.sessions || []);
       } else {
         setError(t('sessions.loadFailed'));
@@ -90,7 +105,7 @@ function useSessionsApi(apiBase: string, t: (k: string, opts?: any) => string) {
       if (res.ok) {
         setSessions((s) => s.filter((sess) => sess.id !== sessionId));
       } else {
-        const data = await res.json().catch(() => ({}));
+        const data = (await res.json().catch(() => ({}))) as ApiErrorBody;
         setError(translateApiError(data.error) || t('sessions.revokeFailed'));
       }
     } catch (e: unknown) {
@@ -106,11 +121,11 @@ function useSessionsApi(apiBase: string, t: (k: string, opts?: any) => string) {
       setRevoking('all');
       const res = await fetch(`${apiBase}/auth/sessions`, { method: 'DELETE', credentials: 'include' });
       if (res.ok) {
-        const data = await res.json();
+        const data = (await res.json()) as RevokeAllResponse;
         setSessions((s) => s.filter((sess) => sess.isCurrent));
         alert(t('sessions.revokedSuccess', { count: data.revokedCount || 0 }));
       } else {
-        const data = await res.json().catch(() => ({}));
+        const data = (await res.json().catch(() => ({}))) as ApiErrorBody;
         setError(translateApiError(data.error) || t('sessions.revokeAllFailed'));
       }
     } catch (e: unknown) {
@@ -136,7 +151,7 @@ function SessionCard({
   onRevoke,
 }: {
   session: Session;
-  t: (k: string, opts?: any) => string;
+  t: TranslateFn;
   revoking: string | null;
   onRevoke: (id: string) => void;
 }) {

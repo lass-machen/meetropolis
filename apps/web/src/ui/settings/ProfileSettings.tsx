@@ -16,6 +16,24 @@ interface UserProfile {
   createdAt: string;
 }
 
+interface MeUserPayload {
+  id: string;
+  email: string;
+  name?: string | null;
+  imageUrl?: string | null;
+  emailVerifiedAt?: string | null;
+  createdAt?: string;
+  avatarId?: string | null;
+}
+
+interface MeResponse extends Partial<MeUserPayload> {
+  user?: MeUserPayload;
+}
+
+interface ApiErrorBody {
+  error?: string;
+}
+
 const labelStyle: React.CSSProperties = {
   display: 'block',
   marginBottom: 6,
@@ -42,8 +60,18 @@ function useProfileLoader(apiBase: string, t: (k: string) => string) {
       try {
         const res = await fetch(`${apiBase}/auth/me`, { credentials: 'include' });
         if (res.ok) {
-          const data = await res.json();
-          setProfile(data.user || data);
+          const data = (await res.json()) as MeResponse;
+          const userPayload: MeUserPayload | undefined = data.user ?? (data.id ? (data as MeUserPayload) : undefined);
+          if (userPayload) {
+            setProfile({
+              id: userPayload.id,
+              email: userPayload.email,
+              name: userPayload.name ?? null,
+              imageUrl: userPayload.imageUrl ?? null,
+              emailVerifiedAt: userPayload.emailVerifiedAt ?? null,
+              createdAt: userPayload.createdAt ?? '',
+            });
+          }
           setName(data.user?.name || data.name || '');
           setEmail(data.user?.email || data.email || '');
           const serverAvatarId = data.user?.avatarId || data.avatarId;
@@ -110,7 +138,7 @@ function PasswordChangeForm({
         setSuccess(t('profile.passwordChangeSuccess'));
         onClose();
       } else {
-        const err = await res.json().catch(() => ({}));
+        const err = (await res.json().catch(() => ({}))) as ApiErrorBody;
         setError(translateApiError(err.error) || t('profile.passwordChangeFailed'));
       }
     } catch (e) {
@@ -191,7 +219,7 @@ function DangerZone({
         await fetch(`${apiBase}/auth/logout`, { method: 'POST', credentials: 'include' });
         window.location.href = '/#/';
       } else {
-        const err = await res.json().catch(() => ({}));
+        const err = (await res.json().catch(() => ({}))) as ApiErrorBody;
         setError(translateApiError(err.error) || t('profile.deleteFailed'));
       }
     } catch (e) {
@@ -373,11 +401,21 @@ export function ProfileSettings({
         body: JSON.stringify({ name, email }),
       });
       if (res.ok) {
-        const data = await res.json();
-        setProfile(data.user || data);
+        const data = (await res.json()) as MeResponse;
+        const userPayload: MeUserPayload | undefined = data.user ?? (data.id ? (data as MeUserPayload) : undefined);
+        if (userPayload) {
+          setProfile({
+            id: userPayload.id,
+            email: userPayload.email,
+            name: userPayload.name ?? null,
+            imageUrl: userPayload.imageUrl ?? null,
+            emailVerifiedAt: userPayload.emailVerifiedAt ?? null,
+            createdAt: userPayload.createdAt ?? '',
+          });
+        }
         setSuccess(t('profile.updateSuccess'));
       } else {
-        const err = await res.json().catch(() => ({}));
+        const err = (await res.json().catch(() => ({}))) as ApiErrorBody;
         setError(translateApiError(err.error) || t('profile.updateFailed'));
       }
     } catch (err) {
@@ -400,7 +438,7 @@ export function ProfileSettings({
         localStorage.setItem('avatarId', newAvatarId);
         gameBridge.changeHeroAvatar(newAvatarId);
         try {
-          (colyseusRef as any)?.current?.send?.('avatar_change', { avatarId: newAvatarId });
+          colyseusRef?.current?.send('avatar_change', { avatarId: newAvatarId });
         } catch {}
         setSuccess(t('profile.avatarUpdated'));
       } else {

@@ -1,10 +1,15 @@
 import type express from 'express';
 import { z } from 'zod';
 
+/** Minimal shape we require from a Colyseus room for broadcasting controls. */
+interface BroadcastableRoom {
+  broadcast?: (event: string, data: unknown) => void;
+}
+
 export function registerControlRoutes(
   app: express.Application,
   requireAuth: (req: express.Request) => { userId: string; tenantId?: string } | null,
-  requireApiToken: (req: express.Request) => Promise<{ userId: string } | null>
+  requireApiToken: (req: express.Request) => Promise<{ userId: string } | null>,
 ) {
   // Remote controls (session or API token)
   app.post('/controls', async (req: express.Request, res: express.Response) => {
@@ -13,12 +18,16 @@ export function registerControlRoutes(
     const auth = sessionAuth || tokenAuth;
     if (!auth) return res.status(401).json({ error: 'unauthorized' });
 
-    const schema = z.object({
-      mic: z.boolean().optional(),
-      cam: z.boolean().optional(),
-      share: z.boolean().optional(),
-      dnd: z.boolean().optional(),
-    }).refine(v => (v.mic !== undefined || v.cam !== undefined || v.share !== undefined || v.dnd !== undefined), { message: 'at least one field required' });
+    const schema = z
+      .object({
+        mic: z.boolean().optional(),
+        cam: z.boolean().optional(),
+        share: z.boolean().optional(),
+        dnd: z.boolean().optional(),
+      })
+      .refine((v) => v.mic !== undefined || v.cam !== undefined || v.share !== undefined || v.dnd !== undefined, {
+        message: 'at least one field required',
+      });
     const parse = schema.safeParse(req.body || {});
     if (!parse.success) return res.status(400).json({ error: 'invalid payload' });
 
@@ -27,17 +36,17 @@ export function registerControlRoutes(
 
     const payload = parse.data;
     let delivered = 0;
-    let roomArray: any[] = [];
+    let roomArray: BroadcastableRoom[] = [];
 
     const activeWorldRooms = global.activeWorldRooms;
     if (activeWorldRooms && activeWorldRooms.size > 0) {
       roomArray = Array.from(activeWorldRooms);
     } else if (gameServer.matchMaker) {
-      const allRooms = await gameServer.matchMaker.query({}) || [];
+      const allRooms = (await gameServer.matchMaker.query({})) || [];
       roomArray = allRooms;
     } else if (gameServer.rooms) {
-      const vals = Array.isArray(gameServer.rooms) ? gameServer.rooms : Array.from(gameServer.rooms.values?.() || []);
-      roomArray = vals;
+      const rooms = gameServer.rooms;
+      roomArray = Array.isArray(rooms) ? rooms : Array.from(rooms.values?.() || []);
     }
 
     for (const room of roomArray) {
@@ -59,12 +68,16 @@ export function registerControlRoutes(
     const auth = sessionAuth || tokenAuth;
     if (!auth) return res.status(401).json({ error: 'unauthorized' });
 
-    const schema = z.object({
-      mic: z.boolean().optional(),
-      cam: z.boolean().optional(),
-      share: z.boolean().optional(),
-      dnd: z.boolean().optional(),
-    }).refine(v => (v.mic !== undefined || v.cam !== undefined || v.share !== undefined || v.dnd !== undefined), { message: 'at least one field required' });
+    const schema = z
+      .object({
+        mic: z.boolean().optional(),
+        cam: z.boolean().optional(),
+        share: z.boolean().optional(),
+        dnd: z.boolean().optional(),
+      })
+      .refine((v) => v.mic !== undefined || v.cam !== undefined || v.share !== undefined || v.dnd !== undefined, {
+        message: 'at least one field required',
+      });
     const parse = schema.safeParse(req.body || {});
     if (!parse.success) return res.status(400).json({ error: 'invalid payload' });
 
@@ -76,17 +89,17 @@ export function registerControlRoutes(
 
     const payload = parse.data;
     let delivered = 0;
-    let roomArray: any[] = [];
+    let roomArray: BroadcastableRoom[] = [];
 
     const activeWorldRooms = global.activeWorldRooms;
     if (activeWorldRooms && activeWorldRooms.size > 0) {
       roomArray = Array.from(activeWorldRooms);
     } else if (gameServer.matchMaker) {
-      const allRooms = await gameServer.matchMaker.query({}) || [];
+      const allRooms = (await gameServer.matchMaker.query({})) || [];
       roomArray = allRooms;
     } else if (gameServer.rooms) {
-      const vals = Array.isArray(gameServer.rooms) ? gameServer.rooms : Array.from(gameServer.rooms.values?.() || []);
-      roomArray = vals;
+      const rooms = gameServer.rooms;
+      roomArray = Array.isArray(rooms) ? rooms : Array.from(rooms.values?.() || []);
     }
 
     for (const room of roomArray) {
@@ -101,4 +114,3 @@ export function registerControlRoutes(
     res.json({ ok: true, delivered });
   });
 }
-

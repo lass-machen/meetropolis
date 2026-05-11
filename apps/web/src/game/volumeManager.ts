@@ -28,12 +28,15 @@ function pointInPolygon(p: Point, poly: Array<Point | [number, number]>): boolea
     if (!v) continue;
     if (Array.isArray(v) && v.length >= 2 && typeof v[0] === 'number' && typeof v[1] === 'number') {
       pts.push({ x: v[0], y: v[1] });
-    } else if (typeof (v as any).x === 'number' && typeof (v as any).y === 'number') {
-      pts.push({ x: (v as any).x, y: (v as any).y });
     } else {
-      const nx = Number((v as any).x);
-      const ny = Number((v as any).y);
-      if (!Number.isNaN(nx) && !Number.isNaN(ny)) pts.push({ x: nx, y: ny });
+      const obj = v as Partial<Point> & { x?: unknown; y?: unknown };
+      if (typeof obj.x === 'number' && typeof obj.y === 'number') {
+        pts.push({ x: obj.x, y: obj.y });
+      } else {
+        const nx = Number(obj.x);
+        const ny = Number(obj.y);
+        if (!Number.isNaN(nx) && !Number.isNaN(ny)) pts.push({ x: nx, y: ny });
+      }
     }
   }
   let c = false;

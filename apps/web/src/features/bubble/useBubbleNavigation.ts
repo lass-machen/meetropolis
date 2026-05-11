@@ -1,6 +1,7 @@
 import React from 'react';
 import { logger } from '../../lib/logger';
 import type { WorldRoom } from '../../types/colyseus';
+import type { GameBridge } from '../../types/game';
 
 type AnyRef<T> = React.MutableRefObject<T>;
 
@@ -8,7 +9,7 @@ interface UseBubbleNavigationParams {
   bubbleMembersRef: AnyRef<Set<string>>;
   localPosRef: AnyRef<{ id: string; x?: number; y?: number }>;
   colyseusRef: AnyRef<WorldRoom | null>;
-  gameBridge: any;
+  gameBridge: GameBridge;
   identityToNameMap: AnyRef<Record<string, string>>;
   colyseusToLivekitMap: AnyRef<Record<string, string>>;
   setBubbleUi: React.Dispatch<React.SetStateAction<{ active: boolean; members: string[] }>>;

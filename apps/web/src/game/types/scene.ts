@@ -20,6 +20,82 @@ import type Phaser from 'phaser';
 import type { AutotileGrid, AutotileRenderer } from '../autotile';
 import type { V2State } from '../../lib/mapV2';
 
+/**
+ * Custom data attached to name-label `Phaser.GameObjects.Container` instances
+ * by `ui/nameLabels.ts`. Phaser containers can carry arbitrary properties at
+ * runtime; this type documents the fields the helpers read and write so the
+ * helpers do not need `any` casts.
+ *
+ * `width` and `height` overlap with Container's own public members (number)
+ * so the extension only narrows their meaning, it does not introduce a new
+ * type.
+ */
+export type NameLabelContainer = Phaser.GameObjects.Container & {
+  text?: Phaser.GameObjects.Text;
+  playerId?: string | undefined;
+  isNpc?: boolean;
+  paddingX?: number;
+  paddingY?: number;
+  bgTexKey?: string;
+  bgSprite?: Phaser.GameObjects.Image;
+};
+
+/**
+ * Tile data nested inside Phaser's runtime tilemap. The public Phaser typings
+ * stop at `Phaser.Tilemaps.Tilemap`; the internal `data` blob carries the
+ * raw tileset/layer descriptors that `serverSync.ts`, `tilesets.ts` etc. need
+ * for serialisation.
+ */
+export interface TilesetDataEntry {
+  name?: string;
+  firstgid?: number;
+  image?: string;
+  imagewidth?: number;
+  imageheight?: number;
+  tilewidth?: number;
+  tileheight?: number;
+  margin?: number;
+  spacing?: number;
+  columns?: number;
+  total?: number;
+  rows?: number;
+}
+
+export interface LayerDataEntry {
+  name?: string;
+  data?: number[][];
+  width?: number;
+  height?: number;
+  visible?: boolean;
+}
+
+export interface TilemapInternalData {
+  tilesets?: TilesetDataEntry[];
+  layers?: LayerDataEntry[];
+  width?: number;
+  height?: number;
+  tileWidth?: number;
+  tileHeight?: number;
+}
+
+/**
+ * Narrow extension of `Phaser.Tilemaps.Tilemap` exposing the internal `data`
+ * blob (which is not part of the public typings).
+ */
+export type TilemapWithData = Phaser.Tilemaps.Tilemap & {
+  data?: TilemapInternalData;
+};
+
+/**
+ * Minimal shape used as a callback-target by `gameBridge.setSceneApi` while
+ * staying decoupled from the SceneApi defined in `bridge.ts`. Helper sites
+ * use this when they only need to know that something is "scene-like" and
+ * exposes `labelLayer`.
+ */
+export type SceneWithLabelLayer = Phaser.Scene & {
+  labelLayer?: Phaser.GameObjects.Layer | null;
+};
+
 export interface MainSceneShape {
   // ---------- Tilemap-State (per SceneInitializer + chunks/tilesets gesetzt) ----------
   mapRef?: Phaser.Tilemaps.Tilemap;

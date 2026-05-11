@@ -9,6 +9,7 @@ import { FollowManager } from '../../game/followManager';
 import { ZoneManager } from '../../game/zoneManager';
 import { VolumeManager } from '../../game/volumeManager';
 import { EditorService } from '../../services/EditorService';
+import type { EditorState } from '../../services/EditorService';
 import { useMapStore } from '../../state/mapStore';
 import { usePublicConfigStore } from '../../state/publicConfigStore';
 import { AuthLoadingScreen } from './components/AuthLoadingScreen';
@@ -21,7 +22,7 @@ function useWorldRefs() {
   return {
     containerRef: useRef<HTMLDivElement>(null!),
     colyseusRef: useRef<WorldRoom | null>(null),
-    colyseusReconnectTimerRef: useRef<any>(null),
+    colyseusReconnectTimerRef: useRef<ReturnType<typeof setTimeout> | null>(null),
     avRef: useRef<AVManager | null>(null),
     bubbleRef: useRef<BubbleManager | null>(null),
     zoneRef: useRef<ZoneManager | null>(null),
@@ -42,8 +43,8 @@ function useWorldRefs() {
     disposedRef: useRef(false),
     gameCreatedRef: useRef(false),
     lastSavedPositionRef: useRef({ x: 0, y: 0, direction: 'down' }),
-    moveTimeoutRef: useRef<any>(null),
-    buildListTimerRef: useRef<any>(null),
+    moveTimeoutRef: useRef<ReturnType<typeof setTimeout> | null>(null),
+    buildListTimerRef: useRef<ReturnType<typeof setTimeout> | null>(null),
     buildListRafRef: useRef<number | null>(null),
     lastAutoFullscreenRef: useRef<number>(0),
     editorActiveRef: useRef(false),
@@ -220,13 +221,13 @@ function useCameraManualSync(setCameraManual: React.Dispatch<React.SetStateActio
   React.useEffect(() => {
     const handler = (active: boolean) => setCameraManual(!!active);
     try {
-      (gameBridge as any).onCameraManualChange = handler;
+      gameBridge.onCameraManualChange = handler;
     } catch (e) {
       logger.debug('[WorldApp] Operation failed', e);
     }
     return () => {
       try {
-        (gameBridge as any).onCameraManualChange = () => {};
+        gameBridge.onCameraManualChange = () => {};
       } catch (e) {
         logger.debug('[WorldApp] Operation failed', e);
       }
@@ -243,7 +244,7 @@ function useDisposedFlag(disposedRef: React.MutableRefObject<boolean>) {
   }, [disposedRef]);
 }
 
-function useAvailableMaps(me: any, apiBase: string) {
+function useAvailableMaps(me: unknown, apiBase: string) {
   React.useEffect(() => {
     if (!me) return;
     fetch(`${apiBase}/maps`, { credentials: 'include' })
@@ -262,7 +263,9 @@ function useAvailableMaps(me: any, apiBase: string) {
 }
 
 function useEscapeHandlers(
-  setContextMenu: React.Dispatch<React.SetStateAction<any>>,
+  setContextMenu: React.Dispatch<
+    React.SetStateAction<{ open: boolean; x: number; y: number; playerId: string | null }>
+  >,
   selectedSid: string | null,
   setSelectedSid: React.Dispatch<React.SetStateAction<string | null>>,
   setOverlayZoom: React.Dispatch<React.SetStateAction<number>>,
@@ -288,7 +291,19 @@ function useEscapeHandlers(
   }, [selectedSid, setSelectedSid, setOverlayZoom]);
 }
 
-async function saveAllToServerImpl(apiBase: string, editor: any, colyseusRef: React.RefObject<WorldRoom | null>) {
+interface SaveAllPayload {
+  tilesets: unknown;
+  zones: unknown;
+  backgroundColor: string;
+  replaceZones: boolean;
+  spawn?: { x: number; y: number };
+}
+
+async function saveAllToServerImpl(
+  apiBase: string,
+  editor: EditorState,
+  colyseusRef: React.RefObject<WorldRoom | null>,
+) {
   try {
     const currentState = EditorService.getState();
     const tilesets = currentState.tilesets || editor.tilesets || [];
@@ -297,7 +312,7 @@ async function saveAllToServerImpl(apiBase: string, editor: any, colyseusRef: Re
     const spawn = currentState.spawn || editor.spawn || undefined;
     const mapId = useMapStore.getState().currentMapId;
     if (!mapId) return false;
-    const payload: any = { tilesets, zones, backgroundColor, replaceZones: true };
+    const payload: SaveAllPayload = { tilesets, zones, backgroundColor, replaceZones: true };
     if (spawn && typeof spawn.x === 'number' && typeof spawn.y === 'number') payload.spawn = spawn;
     const res = await fetch(`${apiBase}/maps/${encodeURIComponent(mapId)}/editor-state`, {
       method: 'PUT',
