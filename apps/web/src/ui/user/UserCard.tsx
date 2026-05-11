@@ -23,6 +23,7 @@ export function UserCardContainer(props: {
   expandButton?: React.ReactNode;
 }) {
   const { children, expanded, columns, gap = 12, className = '', style, onToggleExpand, expandButton } = props;
+  const { t } = useTranslation('common');
   const classes = ['uc-container', expanded ? 'uc-expanded' : 'uc-collapsed', className].filter(Boolean).join(' ');
   const gridStyle: React.CSSProperties = {
     gridTemplateColumns: `repeat(${Math.max(1, columns)}, 1fr)`,
@@ -32,7 +33,11 @@ export function UserCardContainer(props: {
       <div className="uc-grid" style={{ gap, ...gridStyle }}>
         {children}
       </div>
-      <button className="uc-expand-btn" onClick={onToggleExpand} title={expanded ? 'Verkleinern' : 'Vergrößern'}>
+      <button
+        className="uc-expand-btn"
+        onClick={onToggleExpand}
+        title={expanded ? t('common.collapse') : t('common.expand')}
+      >
         {expandButton}
       </button>
     </div>

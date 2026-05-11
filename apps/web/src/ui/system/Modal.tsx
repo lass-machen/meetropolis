@@ -219,8 +219,8 @@ export function Modal(props: ModalProps) {
       size="sm"
       variant="ghost"
       onClick={() => onOpenChange(false)}
-      title={tr('modal.close', 'Schließen')}
-      aria-label={tr('modal.close', 'Schließen')}
+      title={tr('modal.close', 'Close')}
+      aria-label={tr('modal.close', 'Close')}
     >
       ×
     </Button>

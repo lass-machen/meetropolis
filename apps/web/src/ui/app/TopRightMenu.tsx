@@ -318,8 +318,8 @@ export function TopRightMenu(props: TopRightMenuProps) {
     <div ref={menuRef} style={{ position: 'relative', display: 'inline-flex' }}>
       <button
         onClick={onToggleMenu}
-        title={t('topRightMenu.menu') || 'Menü'}
-        aria-label={t('topRightMenu.menu') || 'Menü'}
+        title={t('topRightMenu.menu')}
+        aria-label={t('topRightMenu.menu')}
         aria-expanded={menuOpen}
         style={{
           display: 'grid',

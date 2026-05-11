@@ -331,7 +331,7 @@ export function ParticipantOverlay(props: {
     <div
       role="button"
       tabIndex={0}
-      aria-label="Überlagerung schließen"
+      aria-label={t('participant.overlayClose')}
       style={{
         position: 'absolute',
         inset: 0,

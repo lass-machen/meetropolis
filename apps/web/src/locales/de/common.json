@@ -180,6 +180,8 @@
   "participant.reset": "Reset",
   "participant.zoomPlus": "Zoom +",
   "participant.screenSuffix": "Bildschirm",
+  "participant.screenshareBadge": "Bildschirmfreigabe",
+  "participant.overlayClose": "Teilnehmer-Übersicht schließen",
   "hud.zone": "Zone",
   "hud.av": "AV",
   "hud.following": "Following",
