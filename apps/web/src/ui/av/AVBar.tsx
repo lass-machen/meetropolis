@@ -19,6 +19,7 @@ function DeviceSelector(props: {
   title?: string;
 }) {
   const { icon, isOn, onToggle, devices, selectedId, onSelect, labelSelect, disabled, title } = props;
+  const { t } = useTranslation();
   const [open, setOpen] = React.useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -77,8 +78,7 @@ function DeviceSelector(props: {
           </div>
           {devices.length === 0 && (
             <div style={{ padding: '8px', fontSize: 13, color: 'var(--fg-subtle)', fontStyle: 'italic' }}>
-              {/* TODO i18n: No devices found */}
-              Keine Geräte gefunden
+              {t('av.noDevicesFound')}
             </div>
           )}
           {devices.map((d) => (

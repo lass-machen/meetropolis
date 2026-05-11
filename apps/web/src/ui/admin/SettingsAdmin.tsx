@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button, Input, Checkbox, FieldRow } from '../system';
 import { logger } from '../../lib/logger';
 
@@ -7,7 +8,7 @@ type Settings = {
   defaultFreeSeats: number;
 };
 
-function useSettingsAdminState(apiBase: string) {
+function useSettingsAdminState(apiBase: string, t: (key: string) => string) {
   const [settings, setSettings] = React.useState<Settings | null>(null);
   const [loading, setLoading] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
@@ -23,11 +24,11 @@ function useSettingsAdminState(apiBase: string) {
       setSettings((await res.json()) as Settings);
     } catch (err) {
       logger.warn('[SettingsAdmin] Failed to load settings', err);
-      setError('Einstellungen konnten nicht geladen werden.');
+      setError(t('admin.settings.loadFailed'));
     } finally {
       setLoading(false);
     }
-  }, [apiBase]);
+  }, [apiBase, t]);
 
   React.useEffect(() => {
     void load();
@@ -51,30 +52,27 @@ function useSettingsAdminState(apiBase: string) {
       setTimeout(() => setSuccess(false), 3000);
     } catch (err) {
       logger.warn('[SettingsAdmin] Failed to save settings', err);
-      setError('Einstellungen konnten nicht gespeichert werden.');
+      setError(t('admin.settings.saveFailed'));
     } finally {
       setSaving(false);
     }
-  }, [apiBase, settings]);
+  }, [apiBase, settings, t]);
 
   return { settings, setSettings, loading, saving, error, success, save };
 }
 
 export function SettingsAdmin(props: { apiBase: string }) {
-  const { settings, setSettings, loading, saving, error, success, save } = useSettingsAdminState(props.apiBase);
+  const { t } = useTranslation();
+  const { settings, setSettings, loading, saving, error, success, save } = useSettingsAdminState(props.apiBase, t);
 
-  // TODO i18n: Loading settings...
-  if (loading) return <div>Lade Einstellungen…</div>;
-  // TODO i18n: No settings available.
-  if (!settings) return <div>{error || 'Keine Einstellungen verfügbar.'}</div>;
+  if (loading) return <div>{t('admin.settings.loading')}</div>;
+  if (!settings) return <div>{error || t('admin.settings.notAvailable')}</div>;
 
   return (
     <div style={{ display: 'grid', gap: 16, maxWidth: 600 }}>
       <FieldRow
-        // TODO i18n: Allow public registration
-        label="Öffentliche Registrierung erlauben"
-        // TODO i18n: When enabled, new tenants can self-register via the public registration page.
-        hint="Wenn aktiviert, können sich neue Mandanten über die öffentliche Registrierungsseite selbst registrieren."
+        label={t('admin.settings.publicRegistration.label')}
+        hint={t('admin.settings.publicRegistration.hint')}
         control={
           <Checkbox
             checked={settings.publicRegistrationEnabled}
@@ -84,10 +82,8 @@ export function SettingsAdmin(props: { apiBase: string }) {
       />
 
       <FieldRow
-        // TODO i18n: Default free seats
-        label="Standard Free Seats"
-        // TODO i18n: Number of free seats assigned to new tenants by default.
-        hint="Anzahl der kostenlosen Plätze, die neuen Mandanten standardmäßig zugewiesen werden."
+        label={t('admin.settings.defaultFreeSeats.label')}
+        hint={t('admin.settings.defaultFreeSeats.hint')}
         control={
           <Input
             type="number"
@@ -107,12 +103,10 @@ export function SettingsAdmin(props: { apiBase: string }) {
           }}
           variant="primary"
         >
-          {/* TODO i18n: Saving... / Save */}
-          {saving ? 'Speichere…' : 'Speichern'}
+          {saving ? t('admin.settings.saving') : t('admin.settings.save')}
         </Button>
         {error && <span style={{ color: 'var(--red, #ed4245)', fontSize: 13 }}>{error}</span>}
-        {/* TODO i18n: Saved! */}
-        {success && <span style={{ color: 'var(--green, #3ba55d)', fontSize: 13 }}>Gespeichert!</span>}
+        {success && <span style={{ color: 'var(--green, #3ba55d)', fontSize: 13 }}>{t('admin.settings.saved')}</span>}
       </div>
     </div>
   );

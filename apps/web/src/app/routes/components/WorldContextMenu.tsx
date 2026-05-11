@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import type { WorldRoom } from '../../../types/colyseus';
 import type { FollowManager } from '../../../game/followManager';
 import type { GameBridge } from '../../../types/game';
@@ -131,6 +132,7 @@ function MenuButton({
 
 export function WorldContextMenu(props: WorldContextMenuProps) {
   const { contextMenu, onClose } = props;
+  const { t } = useTranslation();
   if (!contextMenu.open || !contextMenu.playerId) return null;
 
   const actions = buildContextMenuActions(props);
@@ -180,14 +182,14 @@ export function WorldContextMenu(props: WorldContextMenuProps) {
           boxShadow: '0 12px 40px rgba(0,0,0,0.5)',
         }}
       >
-        {/* TODO i18n: Follow */}
-        <MenuButton onClick={handleFollowClick} label="Folgen" />
-        {/* TODO i18n: Join bubble */}
-        {shouldShowJoinBubble && <MenuButton onClick={handleJoinBubbleClick} label="Bubble beitreten" />}
-        {/* TODO i18n: Add to bubble */}
-        {shouldShowAddToBubble && <MenuButton onClick={handleAddToBubbleClick} label="Zur Bubble hinzufügen" />}
-        {/* TODO i18n: Start bubble */}
-        <MenuButton onClick={handleStartBubbleClick} label="Bubble starten" withBorder={false} />
+        <MenuButton onClick={handleFollowClick} label={t('worldContextMenu.follow')} />
+        {shouldShowJoinBubble && (
+          <MenuButton onClick={handleJoinBubbleClick} label={t('worldContextMenu.joinBubble')} />
+        )}
+        {shouldShowAddToBubble && (
+          <MenuButton onClick={handleAddToBubbleClick} label={t('worldContextMenu.addToBubble')} />
+        )}
+        <MenuButton onClick={handleStartBubbleClick} label={t('worldContextMenu.startBubble')} withBorder={false} />
       </div>
     </div>
   );

@@ -189,7 +189,8 @@ export function ApiTokensOverlay(props: ApiTokensOverlayProps) {
       )) as ApiToken[];
       setApiTokens(list);
     } catch (e: unknown) {
-      // TODO i18n: surface validation messages via translation keys
+      // Internal error messages from the server are surfaced unchanged; the
+      // translated fallback is used when no message is available.
       setError((e instanceof Error ? e.message : null) || t('admin.api.createError'));
     }
   };

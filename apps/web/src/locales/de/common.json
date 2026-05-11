@@ -627,5 +627,22 @@
   "realtime.guestExpired.title": "Gast-Zugang abgelaufen",
   "realtime.guestExpired.description": "Dein Gast-Zugang ist abgelaufen. Bitte wende dich an den Administrator.",
   "realtime.guestExpired.button": "Zum Login",
-  "realtime.limit.retry": "Erneut versuchen"
+  "realtime.limit.retry": "Erneut versuchen",
+  "av.noDevicesFound": "Keine Geräte gefunden",
+  "tenant.members.noEntries": "Keine Einträge vorhanden",
+  "admin.settings.loading": "Lade Einstellungen…",
+  "admin.settings.loadFailed": "Einstellungen konnten nicht geladen werden.",
+  "admin.settings.notAvailable": "Keine Einstellungen verfügbar.",
+  "admin.settings.saveFailed": "Einstellungen konnten nicht gespeichert werden.",
+  "admin.settings.publicRegistration.label": "Öffentliche Registrierung erlauben",
+  "admin.settings.publicRegistration.hint": "Wenn aktiviert, können sich neue Mandanten über die öffentliche Registrierungsseite selbst registrieren.",
+  "admin.settings.defaultFreeSeats.label": "Standard Free Seats",
+  "admin.settings.defaultFreeSeats.hint": "Anzahl der kostenlosen Plätze, die neuen Mandanten standardmäßig zugewiesen werden.",
+  "admin.settings.save": "Speichern",
+  "admin.settings.saving": "Speichere…",
+  "admin.settings.saved": "Gespeichert!",
+  "worldContextMenu.follow": "Folgen",
+  "worldContextMenu.joinBubble": "Bubble beitreten",
+  "worldContextMenu.addToBubble": "Zur Bubble hinzufügen",
+  "worldContextMenu.startBubble": "Bubble starten"
 }

@@ -627,5 +627,22 @@
   "realtime.guestExpired.title": "Guest access expired",
   "realtime.guestExpired.description": "Your guest access has expired. Please contact the administrator.",
   "realtime.guestExpired.button": "Go to login",
-  "realtime.limit.retry": "Retry"
+  "realtime.limit.retry": "Retry",
+  "av.noDevicesFound": "No devices found",
+  "tenant.members.noEntries": "No entries available",
+  "admin.settings.loading": "Loading settings...",
+  "admin.settings.loadFailed": "Could not load settings.",
+  "admin.settings.notAvailable": "No settings available.",
+  "admin.settings.saveFailed": "Could not save settings.",
+  "admin.settings.publicRegistration.label": "Allow public registration",
+  "admin.settings.publicRegistration.hint": "When enabled, new tenants can self-register via the public registration page.",
+  "admin.settings.defaultFreeSeats.label": "Default free seats",
+  "admin.settings.defaultFreeSeats.hint": "Number of free seats assigned to new tenants by default.",
+  "admin.settings.save": "Save",
+  "admin.settings.saving": "Saving...",
+  "admin.settings.saved": "Saved!",
+  "worldContextMenu.follow": "Follow",
+  "worldContextMenu.joinBubble": "Join bubble",
+  "worldContextMenu.addToBubble": "Add to bubble",
+  "worldContextMenu.startBubble": "Start bubble"
 }
