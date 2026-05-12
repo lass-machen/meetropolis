@@ -9,15 +9,17 @@ import {
   RemoteTrackPublication,
   LocalTrackPublication,
   TrackPublication,
-  VideoTrack,
-  AudioTrack,
   TrackEvent,
   RoomEvent,
   ParticipantEvent,
   ConnectionState,
 } from 'livekit-client';
 
-// Re-export commonly used types
+// Re-export commonly used types.
+// Note: livekit-client >= 2.x replaced the generic AudioTrack / VideoTrack
+// classes with the explicit Remote/Local-Audio/VideoTrack variants. The
+// generic aliases were re-exported here historically but never consumed
+// downstream (verified via repo-wide grep) and are therefore omitted.
 export {
   Room as LiveKitRoom,
   RemoteParticipant,
@@ -29,8 +31,6 @@ export {
   RemoteTrackPublication,
   LocalTrackPublication,
   TrackPublication as LiveKitTrackPublication,
-  VideoTrack as LiveKitVideoTrack,
-  AudioTrack as LiveKitAudioTrack,
   TrackEvent,
   RoomEvent,
   ParticipantEvent,
