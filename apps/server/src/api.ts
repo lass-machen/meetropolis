@@ -140,6 +140,12 @@ async function registerEnterpriseAdminRoutes(app: express.Express) {
     requireMembership,
     requireSuperAdmin,
   });
+
+  // Tauri desktop updater + download endpoints. Older enterprise builds may
+  // not ship this setup function yet, so we gate the call.
+  if (adminEnterprise.setupDesktopUpdateRoutes) {
+    adminEnterprise.setupDesktopUpdateRoutes(app, { logger });
+  }
 }
 
 async function getBillingOwnerEmail(tenantId: string): Promise<string | null> {

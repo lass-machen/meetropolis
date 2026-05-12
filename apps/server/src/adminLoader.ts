@@ -21,7 +21,7 @@ export interface AdminEnterpriseModule {
         warn(obj: object): void;
       };
       requireSuperAdmin: (req: Request, prisma: PrismaClient) => Promise<{ userId: string } | null>;
-    }
+    },
   ): void;
 
   setupTenantAdminRoutes(
@@ -42,7 +42,7 @@ export interface AdminEnterpriseModule {
       normalizeEmail: (email: string) => string;
       copyTemplateMaps: (prisma: PrismaClient, tenantId: string) => Promise<void>;
       sendWelcomeEmail: (params: { email: string; name: string; slug: string; tenantId: string }) => void;
-    }
+    },
   ): void;
 
   setupPricingPlanRoutes(
@@ -55,7 +55,7 @@ export interface AdminEnterpriseModule {
         warn(obj: object): void;
       };
       requireSuperAdmin: (req: Request, prisma: PrismaClient) => Promise<{ userId: string } | null>;
-    }
+    },
   ): void;
 
   setupTenantUserRoutes(
@@ -69,7 +69,7 @@ export interface AdminEnterpriseModule {
       };
       requireSuperAdmin: (req: Request, prisma: PrismaClient) => Promise<{ userId: string } | null>;
       normalizeEmail: (email: string) => string;
-    }
+    },
   ): void;
 
   setupPackMarketplaceRoutes(
@@ -85,7 +85,26 @@ export interface AdminEnterpriseModule {
       getTenantFromReq: (req: Request) => { id: string; slug: string } | null;
       requireMembership: (req: Request, userId: string, prisma: PrismaClient) => Promise<{ role: string } | null>;
       requireSuperAdmin: (req: Request, prisma: PrismaClient) => Promise<{ userId: string } | null>;
-    }
+    },
+  ): void;
+
+  /**
+   * Desktop update + download routes for the Tauri updater. Reuses the same
+   * `@meetropolis/billing` module as the other enterprise admin routes.
+   * Returns 503 at request time when no GitHub PAT is configured.
+   */
+  setupDesktopUpdateRoutes?(
+    app: Application,
+    config: {
+      logger?: {
+        info(obj: object): void;
+        error(obj: object): void;
+        warn(obj: object): void;
+      };
+      githubPat?: string;
+      githubRepo?: string;
+      cacheTtlMs?: number;
+    },
   ): void;
 }
 
@@ -96,6 +115,8 @@ const adminEnterpriseSchema = z.object({
   setupPricingPlanRoutes: z.function(),
   setupTenantUserRoutes: z.function(),
   setupPackMarketplaceRoutes: z.function(),
+  // Optional: older enterprise builds may not ship the desktop update routes.
+  setupDesktopUpdateRoutes: z.function().optional(),
 });
 
 let cached: AdminEnterpriseModule | null = null;
@@ -141,6 +162,7 @@ export async function getAdminEnterpriseModule(): Promise<AdminEnterpriseModule 
       setupPricingPlanRoutes: mod.setupPricingPlanRoutes as AdminEnterpriseModule['setupPricingPlanRoutes'],
       setupTenantUserRoutes: mod.setupTenantUserRoutes as AdminEnterpriseModule['setupTenantUserRoutes'],
       setupPackMarketplaceRoutes: mod.setupPackMarketplaceRoutes as AdminEnterpriseModule['setupPackMarketplaceRoutes'],
+      setupDesktopUpdateRoutes: mod.setupDesktopUpdateRoutes as AdminEnterpriseModule['setupDesktopUpdateRoutes'],
     };
 
     logger.info({ event: 'admin.enterprise_loaded', version: 1 });
