@@ -21,6 +21,23 @@ const TARGET_DIRS = ['apps/web/src', 'apps/server/src', 'packages/shared/src'];
 const HARD_LIMIT_FILE_LINES = 600;
 const HARD_LIMIT_FUNCTION_LINES = 80;
 
+// Function bodies in React components (`.tsx`) are typically a single
+// JSX return; splitting them into helper sub-components below 80 LoC is
+// often premature abstraction. Hooks (`use*.ts`) often wire several
+// sub-hooks in a single body to keep the React hook-order contract
+// intact; sub-100-LoC splits force the wiring elsewhere without
+// reducing complexity. Plain `.ts` files keep the stricter 80-LoC
+// budget. Edge cases that still bust 120/150 go into `.budgetignore`.
+const HARD_LIMIT_FUNCTION_LINES_TSX = 150;
+const HARD_LIMIT_FUNCTION_LINES_HOOK = 120;
+
+function functionLimitFor(relPath) {
+  if (relPath.endsWith('.tsx')) return HARD_LIMIT_FUNCTION_LINES_TSX;
+  const base = path.basename(relPath);
+  if (base.startsWith('use') && base.endsWith('.ts')) return HARD_LIMIT_FUNCTION_LINES_HOOK;
+  return HARD_LIMIT_FUNCTION_LINES;
+}
+
 const TS_LIKE_EXTENSIONS = new Set(['.ts', '.tsx']);
 
 // Path prefixes that are always skipped:
@@ -117,7 +134,7 @@ function countBracesOnLine(line) {
   return { opens, closes };
 }
 
-function analyzeFunctions(lines) {
+function analyzeFunctions(lines, limit) {
   const violations = [];
   let i = 0;
   const n = lines.length;
@@ -140,13 +157,13 @@ function analyzeFunctions(lines) {
           if (depth <= 0) {
             // single-line body like "{ return x; }"
             const length = j - startLine + 1;
-            if (length > HARD_LIMIT_FUNCTION_LINES) {
+            if (length > limit) {
               violations.push({
                 type: 'function',
                 start: startLine + 1,
                 end: j + 1,
                 length,
-                message: `Function exceeds ${HARD_LIMIT_FUNCTION_LINES} lines (found: ${length})`,
+                message: `Function exceeds ${limit} lines (found: ${length})`,
               });
             }
             foundBrace = true;
@@ -157,13 +174,13 @@ function analyzeFunctions(lines) {
           depth += opens - closes;
           if (depth === 0) {
             const length = j - startLine + 1;
-            if (length > HARD_LIMIT_FUNCTION_LINES) {
+            if (length > limit) {
               violations.push({
                 type: 'function',
                 start: startLine + 1,
                 end: j + 1,
                 length,
-                message: `Function exceeds ${HARD_LIMIT_FUNCTION_LINES} lines (found: ${length})`,
+                message: `Function exceeds ${limit} lines (found: ${length})`,
               });
             }
             foundBrace = true;
@@ -180,7 +197,7 @@ function analyzeFunctions(lines) {
     }
     if (isConciseArrowStart(line)) {
       // concise arrow considered 1 line
-      // nothing to check against HARD_LIMIT_FUNCTION_LINES
+      // nothing to check against the function limit
     }
     i += 1;
   }
@@ -211,7 +228,7 @@ function main() {
         message: `File exceeds ${HARD_LIMIT_FILE_LINES} lines (found: ${lines.length})`,
       });
     }
-    const functionViolations = analyzeFunctions(lines);
+    const functionViolations = analyzeFunctions(lines, functionLimitFor(rel));
     for (const v of functionViolations) {
       errors.push({
         file: `${rel}:${v.start}-${v.end}`,
