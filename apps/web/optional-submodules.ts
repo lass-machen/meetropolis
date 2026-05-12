@@ -1,46 +1,63 @@
 /**
- * Vite plugin: resolve optional private submodules as an empty module.
- * Prevents errors when `@meetropolis/desktop`, `@meetropolis/enterprise-web`
- * or `@meetropolis/brand-web` (private submodules) are not installed.
- * The corresponding *Loader.ts files catch the missing export via try/catch
- * and return null; OSS code then renders generic fallbacks.
+ * Vite plugin: resolve optional closed-source sibling repos as a graceful
+ * null module when they are not present.
  *
- * When the submodule is present (package.json exists), the import resolves
- * normally and the plugin does NOT intervene. As a fallback, a node_modules
- * symlink is also created when npm does not generate one automatically
- * (a known issue with git submodules + workspaces).
+ * Three sibling repos can extend this OSS build at compile time:
+ *   - @meetropolis/brand-web    — marketing landing, logo assets, pixel tracking
+ *   - @meetropolis/desktop      — Tauri desktop wrapper
+ *   - @meetropolis/enterprise-web — multi-tenancy / billing admin UI
  *
- * This plugin is wired into both vite.config.ts (build) and vitest.config.ts
- * (tests) so that OSS-only test runs without the submodules stay green.
+ * They are NOT submodules. The OSS repo does not reference them in any
+ * tracked file. Tiamat maintainers clone them parallel to the OSS repo
+ * (`../meetropolis-{brand,desktop,enterprise}`). CI / Docker / non-standard
+ * layouts can override each path explicitly via env var:
+ *   - MEETROPOLIS_BRAND_PATH
+ *   - MEETROPOLIS_DESKTOP_PATH
+ *   - MEETROPOLIS_ENTERPRISE_PATH
+ *
+ * Resolution order per spec:
+ *   1. If env var is set and the path contains a package.json → use it.
+ *   2. If the sibling-clone default path contains a package.json → use it.
+ *   3. Otherwise → return null, the corresponding loader (brandLoader.ts /
+ *      desktopLoader.ts / enterpriseWebLoader.ts) catches the null and
+ *      renders the OSS-only fallback.
+ *
+ * When resolved, the plugin
+ *   - creates `node_modules/@meetropolis/<name>` as a symlink to the resolved
+ *     directory (workspace-style), and
+ *   - mirrors the package's `public/` (or explicit publicDir) into
+ *     `apps/web/public/` file-by-file (OSS files always win on conflict).
+ *
+ * Wired into both vite.config.ts (build) and vitest.config.ts (tests).
  */
 import type { Plugin } from 'vite';
-import { resolve, dirname, join, relative } from 'path';
+import { resolve, dirname, isAbsolute, join, relative } from 'path';
 import { existsSync, mkdirSync, symlinkSync, readdirSync, lstatSync, readlinkSync, statSync, unlinkSync } from 'fs';
 
-type OptionalSubmoduleSpec = string | { id: string; path: string; publicDir?: string };
-
-function defaultPathFor(id: string): string {
-  const pkgName = id.replace(/^@meetropolis\//, '');
-  return `packages/${pkgName}`;
-}
-
-function normalizeSpec(spec: OptionalSubmoduleSpec): { id: string; path: string; publicDir?: string } {
-  return typeof spec === 'string' ? { id: spec, path: defaultPathFor(spec) } : spec;
-}
+export type OptionalSubmoduleSpec = {
+  /** npm package id, e.g. `@meetropolis/brand-web`. */
+  id: string;
+  /** Env var that overrides the sibling-clone default (e.g. `MEETROPOLIS_BRAND_PATH`). */
+  envVar: string;
+  /** Default path relative to the OSS repo root (e.g. `../meetropolis-brand/packages/web`). */
+  siblingPath: string;
+  /**
+   * Optional explicit public-assets directory, relative to the resolved
+   * package directory. Defaults to `<resolved>/public`.
+   */
+  publicDir?: string;
+};
 
 /**
- * Recursively symlink all files from `submodulePublicDir` into
- * `targetPublicDir`.
- * - One symlink per file (not per top-level folder), so OSS folders such as
- *   `images/` are not shadowed by a single submodule-level symlink.
- * - Existing files in `targetPublicDir` are NOT overwritten (OSS-owned
- *   assets win).
- * - Existing symlinks pointing to the same target are OK (idempotent).
- * - Fail silently on symlink errors.
+ * Recursively symlink files from `submodulePublicDir` into `targetPublicDir`.
+ * - One symlink per file (not per folder) so OSS folders like `images/` are
+ *   not shadowed by a single submodule-level symlink.
+ * - Existing real files in `targetPublicDir` are never overwritten (OSS wins).
+ * - Existing relative symlinks pointing at the same target are kept (idempotent).
+ * - Stale absolute symlinks (typical when a Docker container inherits links
+ *   pointing at host paths) are replaced with relative ones.
+ * - Errors are swallowed silently — broken symlinks must never break the build.
  */
-// existsSync follows symlinks; a broken symlink (e.g. an absolute host path
-// inside the container) returns false even though the link itself exists.
-// We need lstat to detect and replace broken symlinks.
 function lstatSyncSafe(p: string): ReturnType<typeof lstatSync> | null {
   try {
     return lstatSync(p);
@@ -75,23 +92,18 @@ function linkPublicAssets(submodulePublicDir: string, targetPublicDir: string): 
         walk(srcPath, dstPath);
         continue;
       }
-      // Symlink target is relative to the source file path; otherwise the
-      // link points to the absolute host path and breaks inside the Docker
-      // container where /Users/... does not exist.
+      // Symlink target is relative to the destination so the link resolves
+      // correctly both on the host and inside the Docker container.
       const relSrc = relative(dirname(dstPath), srcPath);
       if (existsSync(dstPath) || lstatSyncSafe(dstPath)) {
         try {
           const lst = lstatSync(dstPath);
           if (lst.isSymbolicLink()) {
             const current = readlinkSync(dstPath);
-            // Already a relative symlink pointing at the right target? OK.
-            if (current === relSrc) continue;
-            // Stale absolute symlink: recreate so it resolves inside the
-            // container as well.
-            unlinkSync(dstPath);
+            if (current === relSrc) continue; // already correct
+            unlinkSync(dstPath); // stale absolute symlink → replace
           } else {
-            // Real file (OSS asset wins): do not overwrite.
-            continue;
+            continue; // real OSS file — never overwrite
           }
         } catch {}
       }
@@ -105,13 +117,38 @@ function linkPublicAssets(submodulePublicDir: string, targetPublicDir: string): 
   walk(submodulePublicDir, targetPublicDir);
 }
 
+/**
+ * Resolve the directory for one spec.
+ * The env var is an explicit override: if set, it wins regardless of what
+ * the sibling-clone default would find. If neither resolves to a directory
+ * with a `package.json`, returns null (loader falls back to OSS-only mode).
+ */
+function resolveSpecDir(spec: OptionalSubmoduleSpec, repoRoot: string): string | null {
+  const envValue = process.env[spec.envVar];
+  if (envValue && envValue.trim().length > 0) {
+    const envPath = isAbsolute(envValue) ? envValue : resolve(repoRoot, envValue);
+    return existsSync(resolve(envPath, 'package.json')) ? envPath : null;
+  }
+  const siblingPath = resolve(repoRoot, spec.siblingPath);
+  return existsSync(resolve(siblingPath, 'package.json')) ? siblingPath : null;
+}
+
 export const OPTIONAL_SUBMODULES: OptionalSubmoduleSpec[] = [
-  '@meetropolis/desktop',
-  { id: '@meetropolis/enterprise-web', path: 'packages/tenancy-enterprise/packages/enterprise-web' },
+  {
+    id: '@meetropolis/desktop',
+    envVar: 'MEETROPOLIS_DESKTOP_PATH',
+    siblingPath: '../meetropolis-desktop',
+  },
+  {
+    id: '@meetropolis/enterprise-web',
+    envVar: 'MEETROPOLIS_ENTERPRISE_PATH',
+    siblingPath: '../meetropolis-enterprise/packages/enterprise-web',
+  },
   {
     id: '@meetropolis/brand-web',
-    path: 'packages/brand/packages/web',
-    publicDir: 'packages/brand/packages/web/public',
+    envVar: 'MEETROPOLIS_BRAND_PATH',
+    siblingPath: '../meetropolis-brand/packages/web',
+    publicDir: 'public',
   },
 ];
 
@@ -119,34 +156,32 @@ export function optionalSubmodules(
   specs: OptionalSubmoduleSpec[] = OPTIONAL_SUBMODULES,
   repoRoot = resolve(__dirname, '../..'),
 ): Plugin {
-  const normalized = specs.map(normalizeSpec);
-  const set = new Set(normalized.map((s) => s.id));
-
-  const present = new Set<string>();
+  const allIds = new Set(specs.map((s) => s.id));
+  const presentIds = new Set<string>();
   const targetPublicDir = resolve(repoRoot, 'apps/web/public');
-  for (const spec of normalized) {
-    const { id, path: relPath, publicDir } = spec;
-    const pkgName = id.replace(/^@meetropolis\//, '');
-    const pkgDir = resolve(repoRoot, relPath);
-    const pkgJson = resolve(pkgDir, 'package.json');
-    if (existsSync(pkgJson)) {
-      present.add(id);
-      const scope = id.split('/')[0]; // @meetropolis
-      const linkDir = resolve(repoRoot, 'node_modules', scope);
-      const linkPath = resolve(linkDir, pkgName);
-      if (!existsSync(linkPath)) {
-        try {
-          mkdirSync(linkDir, { recursive: true });
-          symlinkSync(pkgDir, linkPath, 'dir');
-        } catch {}
-      }
 
-      // Symlink public assets from the submodule into apps/web/public/.
-      // Default: <path>/public when present, otherwise the explicit publicDir.
-      const submodulePublicDir = publicDir ? resolve(repoRoot, publicDir) : resolve(pkgDir, 'public');
-      if (existsSync(submodulePublicDir)) {
-        linkPublicAssets(submodulePublicDir, targetPublicDir);
-      }
+  for (const spec of specs) {
+    const resolvedDir = resolveSpecDir(spec, repoRoot);
+    if (!resolvedDir) continue;
+
+    presentIds.add(spec.id);
+
+    // Create node_modules/@meetropolis/<name> symlink (workspace-style),
+    // so `import '@meetropolis/<name>'` resolves to the sibling clone.
+    const pkgName = spec.id.replace(/^@meetropolis\//, '');
+    const linkDir = resolve(repoRoot, 'node_modules', '@meetropolis');
+    const linkPath = resolve(linkDir, pkgName);
+    if (!existsSync(linkPath)) {
+      try {
+        mkdirSync(linkDir, { recursive: true });
+        symlinkSync(resolvedDir, linkPath, 'dir');
+      } catch {}
+    }
+
+    // Mirror public assets if the sibling has any.
+    const publicSrc = spec.publicDir ? resolve(resolvedDir, spec.publicDir) : resolve(resolvedDir, 'public');
+    if (existsSync(publicSrc)) {
+      linkPublicAssets(publicSrc, targetPublicDir);
     }
   }
 
@@ -154,7 +189,7 @@ export function optionalSubmodules(
     name: 'optional-submodules',
     enforce: 'pre',
     resolveId(source) {
-      if (set.has(source) && !present.has(source)) {
+      if (allIds.has(source) && !presentIds.has(source)) {
         return { id: `\0optional:${source}`, moduleSideEffects: false };
       }
       return null;
