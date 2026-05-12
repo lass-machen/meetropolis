@@ -21,3 +21,39 @@ apps/web/src/game/scenes/MainScene.ts  phaser-scene delegation pattern, splittin
 # must be invoked in the same render pass; splitting into multiple component
 # bodies would create the same wiring elsewhere without reducing complexity.
 apps/web/src/app/routes/hooks/useWorldHooksComposite.ts  react hook-order constraint prevents body split
+
+# Composite hook (useAvStateSync) that wires AV reactivity subscribers in a
+# single render pass; same hook-order rationale as useWorldHooksComposite.
+# 123 LoC, three above the 120-line hook limit. The body is a linear sequence
+# of useEffect subscriptions where every branch must run on every render.
+apps/web/src/app/routes/hooks/useAvStateSync.ts  react hook-order constraint, body is a linear effect sequence
+
+# Editor message handler dispatch: one function that switches on the Colyseus
+# editor message type and routes to the matching reducer action. Splitting
+# the switch would scatter the dispatch contract across files. 94 LoC.
+apps/web/src/realtime/handlers/editorHandlers.ts  message-dispatch switch kept as a single unit
+
+# ExpandedCard JSX return body (156 LoC, six over the 150-line tsx limit).
+# A single declarative JSX tree that composes avatar, name plate, volume
+# meter, status badges, and the video element. Extracting fragments produces
+# helper components with one consumer; the inline form is more readable.
+apps/web/src/ui/user/card/ExpandedCard.tsx  single declarative jsx tree, no real seams
+
+# Map paint route handler (107 LoC, 27 over the 80-line default). A single
+# cohesive request flow: schema parse, auth, layer lookup, chunk fetch,
+# chunk update, persist, broadcast, wall side-effect, response. Each step
+# is already extracted into a helper; what remains is the wiring.
+apps/server/src/api/routes/maps.paint.ts  cohesive request flow, steps already extracted into helpers
+
+# Tiled map JSON import route handler and the corresponding TMJ persistence
+# helper. Both run a single end-to-end import pipeline that is best kept
+# linear so the pre/post-conditions stay visible. Tmj.ts 200-296 and 323-407
+# are 17 and 5 LoC over the default limit respectively.
+apps/server/src/api/routes/tmj.ts  end-to-end tiled import flow, linearity preferred over premature extraction
+
+# onJoin completion handler (82 LoC, 2 over the default limit) and onLeave
+# lifecycle handler (86 LoC, 6 over the default limit). Critical-path room
+# lifecycle code that the Colyseus contract expects as a single coherent
+# function per event.
+apps/server/src/rooms/lifecycle/onJoin.completion.ts  critical-path lifecycle, single coherent function
+apps/server/src/rooms/lifecycle/onLeave.ts  critical-path lifecycle, single coherent function
