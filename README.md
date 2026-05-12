@@ -14,16 +14,30 @@ multi-user engine powered by Colyseus.
 git clone https://github.com/lass-machen/meetropolis.git
 cd meetropolis
 cp .env.example .env          # edit with your values
-docker compose up --build     # starts db, server, web, livekit
+docker compose up             # starts db, server, web, livekit
 ```
 
 After startup:
 
 | Service                  | URL                   |
 | ------------------------ | --------------------- |
-| Web app                  | http://localhost:5173 |
+| Web app                  | http://localhost:5174 |
 | Server (Colyseus + REST) | http://localhost:2567 |
 | LiveKit                  | http://localhost:7880 |
+
+### Optional services
+
+Additional stack components are gated behind Compose profiles so a default
+`docker compose up` stays lean:
+
+```bash
+docker compose --profile monitoring up   # prometheus + grafana
+docker compose --profile npc up          # NPC automation service
+docker compose --profile loadtest up     # load-testing harness
+docker compose --profile stripe up       # stripe-cli webhook forwarder
+```
+
+Profiles can be combined: `docker compose --profile monitoring --profile npc up`.
 
 ### Local development without Docker
 
@@ -54,7 +68,7 @@ npm run dev:web      # apps/web only
 | PostgreSQL 16           | required for local dev without Docker                    |
 
 > **macOS / Windows + Docker Desktop note:** Chrome filters loopback ICE
-> candidates. Set `LK_NODE_IP` in `.env` to your machine's LAN IP (not
+> candidates. Set `HOST_IP` in `.env` to your machine's LAN IP (not
 > `127.0.0.1`) and restart LiveKit: `docker compose restart livekit`.
 
 ## Repo structure
@@ -67,32 +81,29 @@ meetropolis/
 │   ├── web/                 # React + Vite + Phaser + i18next
 │   │   └── src/locales/     # i18n catalog (en, de)
 │   ├── npc-service/         # NPC automation service
-│   ├── loadtest/            # Load-testing harness
-│   └── debug-client/        # macOS debug client (Swift/Xcode)
+│   └── loadtest/            # Load-testing harness
 ├── packages/
-│   ├── shared/              # Shared types and utilities (OSS)
-│   ├── desktop/             # Tauri desktop app (private submodule, optional)
-│   ├── brand/               # Meetropolis branding + legal pages (private submodule)
-│   └── tenancy-enterprise/  # Multi-tenancy + billing (private submodule)
+│   └── shared/              # Shared types and utilities
 ├── scripts/
 │   ├── enforce-budgets.js   # LoC budget gate (runs via npm run lint)
 │   └── lint-stats.cjs       # ESLint warning regression gate
-├── docs/                    # Extended docs (enterprise.md, brand.md, ...)
+├── docs/                    # Extended docs
 ├── AGENTS.md                # Dev guidelines and quality budgets
 ├── LIBRARY_BOUNDARIES.md    # Type-boundary patterns for unsafe library edges
 ├── TEST_STRATEGY.md         # Testing approach and coverage expectations
 ├── lint-stats.json          # Tracked lint warning baseline (committed)
 ├── eslint.config.mjs        # ESLint flat config
 ├── commitlint.config.mjs    # Conventional commits enforcement
-├── docker-compose.yml          # Default dev stack
-├── docker-compose.override.yml # Local overrides (auto-applied)
-├── docker-compose.prod.yml     # Production deployment
+├── compose.yaml             # Local dev stack (core + optional profiles)
 └── .env.example             # All available environment variables
 ```
 
-Private submodules (`desktop`, `brand`, `tenancy-enterprise`) are optional.
-The OSS edition runs fully without them. They are loaded at runtime via
-dynamic imports; absent modules return `null` gracefully.
+The server and web app contain a small number of dynamic-import boundaries
+(`apps/server/src/{tenancyLoader,billingLoader,adminLoader}.ts`,
+`apps/web/src/lib/{enterpriseWebLoader,brandLoader,desktopLoader}.ts`,
+`apps/web/optional-submodules.ts`) that resolve to `null` in this
+distribution. Tiamat operates additional closed-source modules against these
+boundaries; the OSS build runs fully without them.
 
 ## Development
 
@@ -113,12 +124,6 @@ dynamic imports; absent modules return `null` gracefully.
 | `npm run generate`          | Compose Prisma schema and run `prisma generate`    |
 | `npm run prisma:migrate`    | Create and apply a new migration                   |
 
-### Desktop app
-
-The Tauri desktop app lives in `packages/desktop` (private submodule). It is
-not part of the OSS build. Without the submodule, all desktop-dependent code
-paths degrade gracefully via `apps/web/src/lib/desktopLoader.ts`.
-
 ### Environment variables
 
 Copy `.env.example` to `.env`. Key variables:
@@ -130,7 +135,7 @@ Copy `.env.example` to `.env`. Key variables:
 | `LIVEKIT_URL`        | LiveKit server URL                                      |
 | `LIVEKIT_API_KEY`    | LiveKit API key                                         |
 | `LIVEKIT_API_SECRET` | LiveKit API secret                                      |
-| `LK_NODE_IP`         | Host LAN IP for LiveKit ICE (Docker Desktop on macOS)   |
+| `HOST_IP`            | Host LAN IP for LiveKit ICE (Docker Desktop on macOS)   |
 | `CORS_ORIGIN`        | Allowed CORS origins (required in production)           |
 | `OSS_USER_LIMIT`     | Concurrent user limit for the OSS edition (default: 25) |
 
@@ -204,22 +209,11 @@ Commits follow [Conventional Commits](https://www.conventionalcommits.org/).
 `commitlint` enforces this via a Husky `commit-msg` hook. A `pre-commit`
 hook runs `lint-staged`.
 
-## Editions and architecture
+## Tiamat-managed instance
 
-The codebase is split across three repositories combined at build time via
-Git submodules:
-
-| Edition     | Submodule                               | License    | What it adds                                                       |
-| ----------- | --------------------------------------- | ---------- | ------------------------------------------------------------------ |
-| Open Source | this repo                               | Apache 2.0 | Single-tenant virtual office, spatial AV, map editor, i18n (en/de) |
-| Enterprise  | `packages/tenancy-enterprise` (private) | Commercial | Multi-tenancy, Stripe billing, admin UI, billing audit log         |
-| Brand       | `packages/brand` (private)              | Commercial | Meetropolis marketing site, legal pages, analytics, brand assets   |
-
-Server loaders: `apps/server/src/{tenancyLoader,billingLoader,adminLoader}.ts`
-Web loaders: `apps/web/src/lib/{enterpriseWebLoader,brandLoader,desktopLoader}.ts`
-
-Without private submodules the OSS edition runs single-tenant and shows a
-generic unbranded landing page.
+The Tiamat-managed instance at [meetropolis.me](https://meetropolis.me) runs
+additional closed-source modules (Brand, Enterprise, Desktop) which are not
+part of this open-source distribution.
 
 **OSS user limit:** 25 concurrent users by default. Configurable via the
 `OSS_USER_LIMIT` environment variable.
@@ -229,8 +223,8 @@ generic unbranded landing page.
 Before deploying for your team or customers:
 
 1. Replace brand assets in `apps/web/public/brand/` (logo, favicon).
-2. Provide your own legal pages (`/privacy`, `/terms`, `/impressum`). Without
-   the brand submodule, these routes show a placeholder.
+2. Provide your own legal pages (`/privacy`, `/terms`, `/impressum`). The
+   default build renders neutral placeholders.
 3. Update the HTML title and meta description in `apps/web/index.html`.
 4. Configure your own analytics tracking (`VITE_META_PIXEL_ID`) or leave it
    disabled.
@@ -254,12 +248,10 @@ curl -X POST "http://localhost:2567/controls" \
 
 ## Production deployment
 
-```bash
-cp .env.example .env   # configure production values
-docker compose -f docker-compose.prod.yml up -d
-```
-
-Minimum production configuration:
+The bundled `compose.yaml` targets local development. For self-hosted
+production, use the Apache-2.0-licensed code in this repository with your
+own orchestration (reverse proxy, TLS termination, TURN, backups). At a
+minimum, configure:
 
 | Variable           | Requirement                              |
 | ------------------ | ---------------------------------------- |
@@ -284,11 +276,8 @@ Also read:
 
 ## License
 
-The OSS edition is released under the [Apache 2.0 License](LICENSE). See
-[NOTICE](NOTICE) for third-party attributions.
-
-Enterprise and Brand editions are available under a commercial license.
-Contact [info@meetropolis.de](mailto:info@meetropolis.de) for details.
+Released under the [Apache 2.0 License](LICENSE). See [NOTICE](NOTICE) for
+third-party attributions.
 
 The "Meetropolis" name and logo are trademarks. Apache 2.0 does not grant
 rights to use them. See [TRADEMARKS.md](TRADEMARKS.md).

@@ -20,7 +20,6 @@ import { registerAdminMapRoutes } from './api/routes/adminMaps.js';
 import { registerAdminPasswordResetRoutes } from './api/routes/admin.passwordReset.js';
 import { copyMapToTenant } from './api/routes/adminMaps.js';
 import { registerGuestRoutes } from './api/routes/guests.js';
-import { registerDesktopRoutes } from './api/routes/desktop.js';
 import { registerTenantRoutes } from './api/routes/tenant.js';
 import { guestExpiryMiddleware } from './api/middleware/guestExpiry.js';
 
@@ -237,7 +236,6 @@ function registerLegacyModularRoutes(app: express.Express) {
  */
 export async function registerApi(app: express.Express) {
   registerHealthRoutes(app, prisma);
-  registerDesktopRoutes(app);
   registerAuthRoutes(app, prisma);
 
   app.use(guestExpiryMiddleware);

@@ -1,42 +1,56 @@
 # Claude Code Instructions
 
-**IMPORTANT: Always read `/AGENTS.md` first before making any changes to this codebase.**
+**WICHTIG: Vor Aenderungen an diesem Code immer zuerst `/AGENTS.md` lesen.**
 
 ## Quick Reference
 
-### Monorepo Structure
+### Monorepo-Struktur
+
 - `apps/server`: Express + Colyseus + Prisma
 - `apps/web`: React + Vite + Phaser
-- `packages/shared`: Shared types and utilities
-- `packages/desktop`: (Private Submodule) Tauri Desktop App — optional, OSS funktioniert ohne
+- `apps/npc-service`: NPC-Automation-Service (Docker-Profile `npc`)
+- `apps/loadtest`: Load-Test-Harness (Docker-Profile `loadtest`)
+- `packages/shared`: Shared Types und Utilities
 
-### Key Files for Context
-- `/AGENTS.md` - Development guidelines, quality budgets, architecture rules
-- `/README.md` - Project overview and setup
-- `/docker-compose.prod.yml` - Production deployment config
+### Wichtige Files
 
-### Desktop App (Private Submodule)
-Desktop-Features (Tauri) sind in `packages/desktop/` ausgelagert (privates Git-Submodule).
-Die Web-App lädt Desktop-Features per `desktopLoader.ts` via Dynamic Import.
-Ohne Submodule funktioniert alles — der Loader gibt graceful `null` zurück.
+- `/AGENTS.md` - Development-Guidelines, Quality-Budgets, Architecture-Rules
+- `/README.md` - Projektueberblick und Setup
+- `/compose.yaml` - Lokaler Dev-Stack (Core + optionale Profiles)
+
+### Optionale Closed-Source-Module
+
+Brand, Enterprise und Desktop werden ueber dynamische Imports an klar
+definierten Loader-Boundaries eingebunden. Im OSS-Build resolvern diese
+Loader zu `null`; der App-Code degradiert graceful:
+
+- `apps/server/src/{tenancyLoader,billingLoader,adminLoader}.ts`
+- `apps/web/src/lib/{enterpriseWebLoader,brandLoader,desktopLoader}.ts`
+- `apps/web/optional-submodules.ts`
+
+Pfade werden ueber `MEETROPOLIS_{BRAND,ENTERPRISE,DESKTOP}_PATH` env vars
+oder sibling-clones im Eltern-Ordner geladen. Siehe `docs/brand.md` und
+`docs/enterprise.md`.
 
 ### Common Gotchas
-1. **API Base URL**: Desktop-Clients setzen `window.__MEETROPOLIS_API_BASE__` — der Code nutzt dieses Flag für Desktop-Erkennung
-2. **LiveKit URL**: Desktop-Apps brauchen externe LiveKit URL vom Server (`/livekit/url` Endpoint)
-3. **Auth**: Browser nutzt Cookies, Desktop nutzt localStorage Token + Authorization Header (via Desktop-Modul)
-4. **Kein `@tauri-apps` im OSS-Code**: Alle Tauri-Imports gehören ins Desktop-Submodule, nicht in `apps/web/`
+
+1. **API Base URL**: Desktop-Clients setzen `window.__MEETROPOLIS_API_BASE__` — der Code nutzt das Flag fuer Desktop-Erkennung.
+2. **LiveKit URL**: Desktop-Apps holen die externe LiveKit-URL vom Server (`/livekit/url`-Endpoint).
+3. **Auth**: Browser nutzt Cookies, Desktop nutzt localStorage-Token + Authorization-Header (via Desktop-Modul).
+4. **Kein `@tauri-apps` im OSS-Code**: Alle Tauri-Imports gehoeren ins Desktop-Modul, niemals in `apps/web/`.
 
 ### Build Commands
+
 ```bash
-# Web development
+# Web-Development
 npm run dev -w @meetropolis/web
 
 # Server
 npm run dev -w @meetropolis/server
 
-# Full Docker stack
-docker compose -f docker-compose.prod.yml up --build
+# Voller Docker-Stack (lokal)
+docker compose up
 
-# Desktop (nur mit packages/desktop Submodule)
-# cd packages/desktop && npm run tauri:dev
+# Mit optionalen Services
+docker compose --profile monitoring --profile npc up
 ```

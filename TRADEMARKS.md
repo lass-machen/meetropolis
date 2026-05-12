@@ -25,9 +25,10 @@ Die Apache-2.0-Lizenz gewährt **keine** Rechte zur Nutzung der Marken.
 ## Beim Forken/Self-Hosting
 
 Das öffentliche OSS-Repository enthält **bewusst keine** Marken-Assets oder
-Marketing-Inhalte mehr. Die folgenden Bereiche sind ausschließlich im privaten
-`packages/brand`-Submodule und im privaten `packages/tenancy-enterprise`-
-Submodule verfügbar — und damit von dieser Markenrichtlinie geschützt:
+Marketing-Inhalte mehr. Die folgenden Bereiche sind ausschließlich in den
+privaten, closed-source Modulen von Tiamat verfügbar (siehe
+`docs/brand.md`, `docs/enterprise.md`) — und damit von dieser
+Markenrichtlinie geschützt:
 
 - Marketing-Landing-Sections (Hero, Pricing, Comparison, Social Proof,
   Final CTA, Problem/Solution)

@@ -1,0 +1,263 @@
+# Meetropolis local development stack.
+#
+# Default `docker compose up` starts the four core services (db, server, web,
+# livekit). Optional services live behind profiles so adopters only pay the
+# resource cost for what they actually need:
+#   --profile monitoring  -> prometheus, grafana
+#   --profile npc         -> npc-service (AI participants)
+#   --profile stripe      -> stripe-cli (webhook forwarding)
+#   --profile loadtest    -> loadtest harness
+#
+# Production deployments (Traefik, TLS, TURN, NAT-1-to-1) live in a separate
+# deploy repo. This file is intentionally Traefik-free.
+
+networks:
+  meetropolis:
+    driver: bridge
+
+volumes:
+  db_data:
+  npc_media:
+  # Named volumes for node_modules avoid the bind-mount-over-install trap
+  # where every `up` reinstalls deps because the host's empty (or differently
+  # platformed) node_modules overlays the container path.
+  server_node_modules:
+  web_node_modules:
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-meetropolis}
+    # Prod-parity port (5432). Override via POSTGRES_PORT if you already run
+    # a local Postgres on 5432, e.g. POSTGRES_PORT=5433 docker compose up.
+    ports:
+      - '${POSTGRES_PORT:-5432}:5432'
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    networks:
+      - meetropolis
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-postgres}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'
+
+  server:
+    image: node:24-bookworm-slim
+    working_dir: /workspace/apps/server
+    # Pull non-secret defaults from .env so adopters configure once, not twice.
+    env_file:
+      - .env
+    environment:
+      # Compose-internal overrides for service-to-service hostnames. These
+      # win over .env values because env_file is loaded first.
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-meetropolis}
+      LIVEKIT_URL: http://livekit:7880
+      LIVEKIT_EXTERNAL_URL: ws://${HOST_IP:-localhost}:7880
+      NPC_SERVICE_URL: http://npc-service:3100
+    command: sh -c "cd /workspace && npm install && npm run -w @meetropolis/shared build && cd /workspace/apps/server && npm run prisma:compose && npx prisma generate && npx prisma db push && npm run prisma:seed && npm run start:dev"
+    ports:
+      - '2567:2567'
+    depends_on:
+      db:
+        condition: service_healthy
+      livekit:
+        condition: service_started
+    healthcheck:
+      # node-based probe: the slim image ships without wget/curl, and node is
+      # already in PATH for the workload.
+      test:
+        [
+          'CMD-SHELL',
+          'node -e "require(''http'').get(''http://localhost:2567/readyz'',r=>process.exit(r.statusCode===200?0:1)).on(''error'',()=>process.exit(1))" ',
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 180s
+    networks:
+      - meetropolis
+    volumes:
+      - ./:/workspace
+      - server_node_modules:/workspace/node_modules
+      - npc_media:/data/npc-media
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'
+
+  web:
+    image: node:24-bookworm-slim
+    working_dir: /workspace/apps/web
+    env_file:
+      - .env
+    environment:
+      # Browser-visible URLs: must resolve from the host, not the container.
+      VITE_LIVEKIT_URL: ws://${DEV_HOST:-localhost}:7880
+      VITE_HMR_HOST: ${DEV_HOST:-localhost}
+      # In-container proxy target: the server service is reachable by name.
+      VITE_PROXY_TARGET: http://server:2567
+    command: sh -c "cd /workspace && npm install && npm -w @meetropolis/web run dev -- --host 0.0.0.0"
+    ports:
+      - '5174:5173'
+    depends_on:
+      - server
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'node -e "require(''http'').get(''http://localhost:5173'',r=>process.exit(r.statusCode===200?0:1)).on(''error'',()=>process.exit(1))" ',
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 120s
+    networks:
+      - meetropolis
+    volumes:
+      - ./:/workspace
+      - web_node_modules:/workspace/node_modules
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'
+
+  livekit:
+    image: livekit/livekit-server:latest
+    # --dev enables an in-memory key store and relaxed defaults. Sufficient
+    # for local work; production setups need a real config + TURN.
+    # --node-ip: IP advertised in WebRTC ICE candidates. For LAN testing
+    # (joining from a phone on the same network) set HOST_IP=<your-LAN-IP>.
+    command: ['--dev', '--bind', '0.0.0.0', '--node-ip', '${HOST_IP:-127.0.0.1}']
+    ports:
+      - '7880:7880'
+      - '7881:7881/tcp'
+      - '7882:7882/udp'
+      - '9090:9090'
+    networks:
+      - meetropolis
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'
+
+  prometheus:
+    image: prom/prometheus:v2.52.0
+    profiles: ['monitoring']
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    command: ['--config.file=/etc/prometheus/prometheus.yml']
+    ports:
+      - '9095:9090'
+    networks:
+      - meetropolis
+    depends_on:
+      - server
+      - livekit
+
+  grafana:
+    image: grafana/grafana:10.4.10
+    profiles: ['monitoring']
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+    ports:
+      - '3002:3000'
+    networks:
+      - meetropolis
+    depends_on:
+      - server
+      - livekit
+
+  npc-service:
+    image: node:24-bookworm-slim
+    profiles: ['npc']
+    working_dir: /workspace/apps/npc-service
+    env_file:
+      - .env
+    environment:
+      SERVER_URL: http://server:2567
+      LIVEKIT_URL: ws://livekit:7880
+    command: sh -c "cd /workspace && npm install && npm -w @meetropolis/npc-service run dev"
+    ports:
+      - '3100:3100'
+    depends_on:
+      server:
+        condition: service_healthy
+      livekit:
+        condition: service_started
+    networks:
+      - meetropolis
+    volumes:
+      - ./:/workspace
+      - npc_media:/data/npc-media
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'
+
+  stripe-cli:
+    image: stripe/stripe-cli:latest
+    profiles: ['stripe']
+    # Forwards live Stripe events to the local billing webhook so Stripe
+    # integration is testable without a public tunnel. Requires
+    # STRIPE_SECRET_KEY in .env.
+    command: >-
+      listen
+        --api-key ${STRIPE_SECRET_KEY}
+        --forward-to http://server:2567/billing/webhook
+        --log-level info
+    environment:
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY}
+    depends_on:
+      server:
+        condition: service_healthy
+    networks:
+      - meetropolis
+    restart: unless-stopped
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'
+
+  loadtest:
+    profiles: ['loadtest']
+    build:
+      context: .
+      dockerfile: apps/loadtest/Dockerfile
+    environment:
+      API_BASE: http://server:2567
+      LIVEKIT_URL: ws://livekit:7880
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:-devkey}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:-secret}
+      USERS: ${LOADTEST_USERS:-30}
+      RAMP: ${LOADTEST_RAMP:-5}
+      DURATION: ${LOADTEST_DURATION:-90}
+      MODE: node
+    depends_on:
+      server:
+        condition: service_healthy
+      livekit:
+        condition: service_started
+    networks:
+      - meetropolis
+    command:
+      - sh
+      - -lc
+      - >-
+        until node -e "require('http').get('http://server:2567/readyz',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"; do
+          echo waiting for server...; sleep 2;
+        done;
+        npm run dev

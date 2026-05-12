@@ -1,101 +1,70 @@
-# Meetropolis Brand — Setup & Betrieb
+# Brand module (optional, closed source)
 
-Dieses Dokument beschreibt das Brand-Submodule (Marketing-Landing, Legal-Pages,
-Brand-Assets, Marketing-Tracking). Das OSS-Repository enthält **bewusst keine**
-Meetropolis-spezifischen Brand-Inhalte.
+The OSS distribution intentionally ships **without** Meetropolis-specific
+branding. Landing pages, legal copy, marketing tracking and product imagery
+all live in a separate closed-source repository operated by Tiamat UG and
+are not redistributed with this codebase.
 
-## Überblick
+This document exists so adopters understand how the optional boundary works
+and what they would need to provide if they wanted to wire in their own
+marketing shell.
 
-Das Brand-Repo `lass-machen/meetropolis-brand` wird als Git-Submodule unter
-`packages/brand/` eingebunden. Es enthält ein Workspace-Paket:
+## How the optional loader works
 
-- `@meetropolis/brand-web` — Marketing-Landing-Sections (HeroSection,
-  ComparisonSection, SocialProofSection, FinalCtaSection, ProblemSolutionSection,
-  PricingSection), Legal-Pages (TermsOfService, PrivacyPolicy, Impressum),
-  Cookie-Consent-Banner mit Meta-Pixel-Integration, Branding-Komponenten
-  (BrandLogo, BrandWordmark), Marketing-i18n-Strings (de/en) und Brand-Assets
-  unter `public/`.
+Web-side loading goes through `apps/web/src/lib/brandLoader.ts`. The loader
+uses a dynamic import; when no brand module is resolvable it returns `null`
+and the app falls back to neutral, generic chrome:
 
-## Repository-Checkout
+- `LandingPage.tsx` renders the lightweight `OssHeroSection.tsx` and
+  `OssFinalCtaSection.tsx`. Marketing sections
+  (Comparison, Social Proof, Pricing, Problem/Solution) remain empty.
+- `/privacy`, `/terms`, `/impressum` show a neutral placeholder telling
+  self-hosters to provide their own legal pages.
+- `<PublicConsentGate>` renders nothing, so no third-party tracking pixel
+  ever fires.
+- `<AppShell>` renders a generic logo placeholder and the word "Workspace"
+  instead of a product name.
 
-```bash
-git submodule add git@github.com:lass-machen/meetropolis-brand.git packages/brand
-git submodule update --init --recursive
-```
+## Plugging in your own brand bundle
 
-## Loader-Pattern
-
-Web-seitig läuft alles über `apps/web/src/lib/brandLoader.ts`. Es lädt
-`@meetropolis/brand-web` per Dynamic Import. Ohne Submodule:
-
-- `LandingPage.tsx` rendert den schmalen `OssHeroSection.tsx` und
-  `OssFinalCtaSection.tsx` (generisch, ohne Brand). Marketing-Sections
-  (Comparison, Social Proof, Pricing, Problem/Solution) bleiben leer.
-- `/privacy`, `/terms`, `/impressum` zeigen einen neutralen Hinweis, dass
-  Self-Hoster eigene Legal-Pages bereitstellen müssen.
-- `<PublicConsentGate>` rendert nichts → kein Meta-Pixel-Request.
-- `<AppShell>` (App-Header) zeigt einen generischen Logo-Platzhalter und das
-  Wort "Workspace" statt "Meetropolis".
-
-## Brand-Assets
-
-Im OSS-Repo unter `apps/web/public/brand/` liegt nur eine `.gitkeep`-Datei.
-Self-Hoster legen dort eigene Logos ab (`logo.png`, `favicon.png`) und passen
-`apps/web/index.html:7` (Favicon-Pfad) sowie ggf. den `<title>` an.
-
-Die Original-Meetropolis-Assets (Logo, Favicons, Editor-Video,
-Produkt-Screenshots) liegen ausschließlich im Brand-Submodule
-unter `packages/brand/packages/web/public/`.
-
-## i18n
-
-OSS-Locales (`apps/web/src/locales/{de,en}/public.json`) enthalten nur
-generische Strings (Header, Trust-Bar, Features, How-It-Works, FAQ,
-Open-Source, Footer, Auth, Legal-Layout, Verify).
-
-Marketing-Strings (Hero/Problem/Solution/Comparison/Social/Pricing/CTA/
-Consent/Billing) liegen im Brand-Submodule unter
-`packages/brand/packages/web/src/locales/{de,en}/marketing.json`.
-
-Falls weiteres i18n-Setup gewünscht: Marketing-Bundle in i18next via
-`addResourceBundle('de'|'en', 'marketing', marketingDe|marketingEn)` nachladen
-(siehe `BrandModule.marketingDe/marketingEn` im `brandLoader.ts`).
-
-## Marketing-Tracking
-
-Die hartcodierte Meta-Pixel-ID des Originals liegt im Brand-Submodule unter
-`packages/brand/packages/web/src/consent/PublicConsentGate.tsx`. Self-Hoster
-mit eigenem Tracking sollten:
-
-- Eine eigene Pixel-ID konfigurieren (`VITE_META_PIXEL_ID` env)
-- Den `PublicConsentGate` so anpassen, dass er die env-Variable liest
-- Die Cookie-Consent-Texte in den eigenen i18n-Strings überschreiben
-
-## Verifikation
-
-OSS-Bundle (ohne Brand-Submodule) darf folgendes nicht enthalten:
+If you maintain a private brand package and want to ship a branded build,
+point the loader at it by setting:
 
 ```bash
-# Meta-Pixel-ID & Facebook
-grep -l "1878721026864311\|connect.facebook.net" apps/web/dist/assets/*.js && exit 1
-
-# Meetropolis-Marketing-Texte
-grep -lE "Meetropolis (is|puts|virtual office)" apps/web/dist/assets/*.js && exit 1
-
-# Brand-Asset-Pfade
-ls apps/web/public/images/pub/meetropolis-* 2>/dev/null && exit 1
+# Absolute path or path relative to the repo root.
+MEETROPOLIS_BRAND_PATH=/path/to/your/brand/package
 ```
 
-## CI/CD-Hinweise
+Alternatively, place a parallel checkout of a brand package at
+`../meetropolis-brand` next to this repository — the optional-submodules
+loader will pick it up automatically.
 
-Drei Build-Pipelines:
+The package is expected to expose:
 
-1. **OSS-only**: kein Brand-, kein Enterprise-Submodule. Build, Tests, und
-   die obigen Negativ-Checks. Resultat ist ein deploybares OSS-Image.
-2. **OSS + Brand**: Brand-Submodule installiert, kein Enterprise.
-   Marketing-Landing aktiv, Tracking aktiv, aber Server bleibt Single-Tenant.
-3. **Full**: alle drei Submodules. Voller Funktionsumfang.
+- Marketing landing sections (HeroSection, ComparisonSection, etc.)
+- Legal pages (TermsOfService, PrivacyPolicy, Impressum)
+- A cookie-consent gate (e.g. for a tracking pixel)
+- Branding components (BrandLogo, BrandWordmark)
+- Marketing i18n bundles (`marketing.json` for `de`, `en`)
 
-Für Pipeline 1 reicht im GitHub-Actions-Workflow `submodules: false`. Für
-Pipelines 2 und 3 entweder `submodules: recursive` mit SSH-Keys oder selektive
-`git submodule update`-Aufrufe.
+See `apps/web/src/lib/brandLoader.ts` for the exact shape the loader
+expects.
+
+## Brand assets
+
+`apps/web/public/brand/` contains a `.gitkeep` only. Self-hosters drop their
+own `logo.png` and `favicon.png` here and adjust the favicon path in
+`apps/web/index.html` plus the `<title>` tag.
+
+## Marketing tracking
+
+The default build performs no marketing tracking. If a brand bundle is
+provided and you want it to fire a tracking pixel, configure
+`VITE_META_PIXEL_ID` (or whichever variable your bundle reads) and ensure
+the consent gate is wired up.
+
+## Trademark note
+
+The Meetropolis name, logo, fonts and product imagery are trademarks of
+Tiamat UG and are **not** licensed under Apache 2.0. Do not republish them
+as part of a derivative product. See [`../TRADEMARKS.md`](../TRADEMARKS.md).
