@@ -138,7 +138,8 @@ function showLimitErrorOverlay(code: number | undefined, text: string, onRetry: 
  */
 export type ColyseusErrorPayload = number | string | { code?: number; reason?: string; message?: string };
 
-function extractErrorInfo(ev: readonly ColyseusErrorPayload[]): {
+// Exported for unit testing. Not part of the public API.
+export function extractErrorInfo(ev: readonly ColyseusErrorPayload[]): {
   code: number | undefined;
   reason: string | undefined;
   text: string;
@@ -158,7 +159,8 @@ function extractErrorInfo(ev: readonly ColyseusErrorPayload[]): {
   return { code: undefined, reason: undefined, text: '' };
 }
 
-function classifyConnectError(msg: string): { reason?: string; cooldown?: boolean } {
+// Exported for unit testing. Not part of the public API.
+export function classifyConnectError(msg: string): { reason?: string; cooldown?: boolean } {
   const msgLower = String(msg).toLowerCase();
   if (msgLower.includes('insufficient resources')) {
     return { reason: 'Insufficient resources', cooldown: true };

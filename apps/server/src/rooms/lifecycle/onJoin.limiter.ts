@@ -60,7 +60,8 @@ export async function enforceOssLimit(activeRooms: Set<WorldRoom>, client: Clien
 
 // Check trial + dunning state via the enterprise billing module.
 // Returns true if the join was aborted (and the client was kicked).
-async function checkBillingStatus(
+// Exported for unit testing. Not part of the public API.
+export async function checkBillingStatus(
   client: Client,
   prisma: PrismaClient,
   tenant: { id: string; bypassLimits: boolean } | null,
@@ -116,7 +117,8 @@ async function checkBillingStatus(
 }
 
 // Count active players for a specific tenant slug.
-function countActiveForTenant(activeRooms: Set<WorldRoom>, tenantSlug: string): number {
+// Exported for unit testing. Not part of the public API.
+export function countActiveForTenant(activeRooms: Set<WorldRoom>, tenantSlug: string): number {
   let active = 0;
   try {
     const rooms = Array.from(activeRooms.values());
@@ -138,7 +140,8 @@ function countActiveForTenant(activeRooms: Set<WorldRoom>, tenantSlug: string): 
 
 // Enforce per-tenant seat limit. Returns true if the join was aborted
 // (and the client was kicked).
-async function enforceTenantSeatLimit(
+// Exported for unit testing. Not part of the public API.
+export async function enforceTenantSeatLimit(
   client: Client,
   prisma: PrismaClient,
   activeRooms: Set<WorldRoom>,
