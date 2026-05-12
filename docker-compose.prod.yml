@@ -3,6 +3,17 @@
 # - Internal app network isolates DB
 # - Traefik routes web (5173), api (2567), livekit (7880)
 # - LiveKit RTC (7881/tcp, 7882/udp) published on host
+#
+# NOTE: This file is the current live-deploy compose. It will be replaced
+# with the OSS-release compose once the OSS launch goes out. Treat it as
+# pre-OSS production glue, not as a long-term reference.
+#
+# Known issues (deliberately deferred):
+# - LiveKit runs with --dev mode; replace with --config /etc/livekit.yaml
+#   once a proper production livekit.yaml with rotated keys is in place.
+# - ASSET_PACKS_DIR path /workspace/apps/public/packs differs from the
+#   docker-compose.meetropolis.yml path /workspace/apps/web/public/packs;
+#   harmonise during the OSS-launch compose rewrite.
 
 networks:
   traefik:
@@ -45,7 +56,7 @@ services:
     volumes:
       - db_data2:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
       interval: 5s
       timeout: 5s
       retries: 10
@@ -64,6 +75,10 @@ services:
       NODE_ENV: production
       PORT: 2567
       TRUST_PROXY: 'true'
+      # The dedicated migrate service above already ran compose-schema +
+      # prisma migrate deploy + db seed. Skip the entrypoint pass to avoid
+      # a redundant (idempotent but noisy) second migration on every boot.
+      RUN_MIGRATIONS: 'false'
       DATABASE_URL: ${DATABASE_URL}
       LIVEKIT_URL: ${LIVEKIT_URL}
       LIVEKIT_EXTERNAL_URL: ${LIVEKIT_EXTERNAL_URL:-${VITE_LIVEKIT_URL}}
@@ -81,24 +96,28 @@ services:
       migrate:
         condition: service_completed_successfully
     labels:
-      - "traefik.enable=true"
-      - "traefik.docker.network=${TRAEFIK_NETWORK:-traefik}"
-      - "traefik.http.routers.meetropolis-api.rule=Host(`${API_HOST}`)"
-      - "traefik.http.routers.meetropolis-api.entrypoints=${TRAEFIK_ENTRYPOINT:-websecure}"
-      - "traefik.http.routers.meetropolis-api.tls=true"
-      - "traefik.http.routers.meetropolis-api.tls.certresolver=${TRAEFIK_CERT_RESOLVER:-le}"
-      - "traefik.http.services.meetropolis-api.loadbalancer.server.port=2567"
-      - "traefik.http.routers.meetropolis-packs.rule=Host(`${WEB_HOST}`) && PathPrefix(`/packs`)"
-      - "traefik.http.routers.meetropolis-packs.entrypoints=${TRAEFIK_ENTRYPOINT:-websecure}"
-      - "traefik.http.routers.meetropolis-packs.tls=true"
-      - "traefik.http.routers.meetropolis-packs.tls.certresolver=${TRAEFIK_CERT_RESOLVER:-le}"
-      - "traefik.http.routers.meetropolis-packs.service=meetropolis-api"
+      - 'traefik.enable=true'
+      - 'traefik.docker.network=${TRAEFIK_NETWORK:-traefik}'
+      - 'traefik.http.routers.meetropolis-api.rule=Host(`${API_HOST}`)'
+      - 'traefik.http.routers.meetropolis-api.entrypoints=${TRAEFIK_ENTRYPOINT:-websecure}'
+      - 'traefik.http.routers.meetropolis-api.tls=true'
+      - 'traefik.http.routers.meetropolis-api.tls.certresolver=${TRAEFIK_CERT_RESOLVER:-le}'
+      - 'traefik.http.services.meetropolis-api.loadbalancer.server.port=2567'
+      - 'traefik.http.routers.meetropolis-packs.rule=Host(`${WEB_HOST}`) && PathPrefix(`/packs`)'
+      - 'traefik.http.routers.meetropolis-packs.entrypoints=${TRAEFIK_ENTRYPOINT:-websecure}'
+      - 'traefik.http.routers.meetropolis-packs.tls=true'
+      - 'traefik.http.routers.meetropolis-packs.tls.certresolver=${TRAEFIK_CERT_RESOLVER:-le}'
+      - 'traefik.http.routers.meetropolis-packs.service=meetropolis-api'
     networks:
       - meetropolis
       - traefik
     healthcheck:
-      test: ["CMD-SHELL", "node -e 'require(\"http\").get(\"http://localhost:2567/healthz\", r => process.exit(r.statusCode === 200 ? 0 : 1)).on(\"error\", () => process.exit(1))'"]
-    
+      test:
+        [
+          'CMD-SHELL',
+          'node -e ''require("http").get("http://localhost:2567/healthz", r => process.exit(r.statusCode === 200 ? 0 : 1)).on("error", () => process.exit(1))''',
+        ]
+
       interval: 10s
       timeout: 5s
       retries: 5
@@ -116,13 +135,13 @@ services:
         - VITE_FEATURE_VOICE_ISOLATION=${VITE_FEATURE_VOICE_ISOLATION:-on}
     env_file: .env
     labels:
-      - "traefik.enable=true"
-      - "traefik.docker.network=${TRAEFIK_NETWORK:-traefik}"
-      - "traefik.http.routers.meetropolis.rule=Host(`${WEB_HOST}`)"
-      - "traefik.http.routers.meetropolis.entrypoints=${TRAEFIK_ENTRYPOINT:-websecure}"
-      - "traefik.http.routers.meetropolis.tls=true"
-      - "traefik.http.routers.meetropolis.tls.certresolver=${TRAEFIK_CERT_RESOLVER:-le}"
-      - "traefik.http.services.meetropolis.loadbalancer.server.port=5173"
+      - 'traefik.enable=true'
+      - 'traefik.docker.network=${TRAEFIK_NETWORK:-traefik}'
+      - 'traefik.http.routers.meetropolis.rule=Host(`${WEB_HOST}`)'
+      - 'traefik.http.routers.meetropolis.entrypoints=${TRAEFIK_ENTRYPOINT:-websecure}'
+      - 'traefik.http.routers.meetropolis.tls=true'
+      - 'traefik.http.routers.meetropolis.tls.certresolver=${TRAEFIK_CERT_RESOLVER:-le}'
+      - 'traefik.http.services.meetropolis.loadbalancer.server.port=5173'
     networks:
       - traefik
     depends_on:
@@ -132,7 +151,16 @@ services:
 
   livekit:
     image: livekit/livekit-server:latest
-    command: ["--dev", "--bind", "0.0.0.0", "--turn.enabled=true", "--turn.domain=${TURN_HOST}", "--turn.tls_port=5349", "--turn.external_tls=true"]
+    command:
+      [
+        '--dev',
+        '--bind',
+        '0.0.0.0',
+        '--turn.enabled=true',
+        '--turn.domain=${TURN_HOST}',
+        '--turn.tls_port=5349',
+        '--turn.external_tls=true',
+      ]
     environment:
       LK_API_KEY: ${LIVEKIT_API_KEY:-devkey}
       LK_API_SECRET: ${LIVEKIT_API_SECRET:-secret}
@@ -142,26 +170,25 @@ services:
       LK_RTC_TCP_PORT: ${LK_RTC_TCP_PORT:-7881}
       LK_RTC_UDP_PORT: ${LK_RTC_UDP_PORT:-7882}
     labels:
-      - "traefik.enable=true"
-      - "traefik.docker.network=${TRAEFIK_NETWORK:-traefik}"
-      - "traefik.http.routers.meetropolis-livekit.rule=Host(`${LIVEKIT_HOST}`)"
-      - "traefik.http.routers.meetropolis-livekit.entrypoints=${TRAEFIK_ENTRYPOINT:-websecure}"
-      - "traefik.http.routers.meetropolis-livekit.tls=true"
-      - "traefik.http.routers.meetropolis-livekit.tls.certresolver=${TRAEFIK_CERT_RESOLVER:-le}"
-      - "traefik.http.services.meetropolis-livekit.loadbalancer.server.port=7880"
-      - "traefik.http.routers.meetropolis-livekit.service=meetropolis-livekit"
-      - "traefik.tcp.routers.meetropolis-turn.rule=HostSNI(`${TURN_HOST}`)"
-      - "traefik.tcp.routers.meetropolis-turn.entrypoints=${TRAEFIK_ENTRYPOINT:-websecure}"
-      - "traefik.tcp.routers.meetropolis-turn.tls=true"
-      - "traefik.tcp.routers.meetropolis-turn.tls.certresolver=${TRAEFIK_CERT_RESOLVER:-le}"
-      - "traefik.tcp.routers.meetropolis-turn.service=meetropolis-turn"
-      - "traefik.tcp.services.meetropolis-turn.loadbalancer.server.port=5349"
+      - 'traefik.enable=true'
+      - 'traefik.docker.network=${TRAEFIK_NETWORK:-traefik}'
+      - 'traefik.http.routers.meetropolis-livekit.rule=Host(`${LIVEKIT_HOST}`)'
+      - 'traefik.http.routers.meetropolis-livekit.entrypoints=${TRAEFIK_ENTRYPOINT:-websecure}'
+      - 'traefik.http.routers.meetropolis-livekit.tls=true'
+      - 'traefik.http.routers.meetropolis-livekit.tls.certresolver=${TRAEFIK_CERT_RESOLVER:-le}'
+      - 'traefik.http.services.meetropolis-livekit.loadbalancer.server.port=7880'
+      - 'traefik.http.routers.meetropolis-livekit.service=meetropolis-livekit'
+      - 'traefik.tcp.routers.meetropolis-turn.rule=HostSNI(`${TURN_HOST}`)'
+      - 'traefik.tcp.routers.meetropolis-turn.entrypoints=${TRAEFIK_ENTRYPOINT:-websecure}'
+      - 'traefik.tcp.routers.meetropolis-turn.tls=true'
+      - 'traefik.tcp.routers.meetropolis-turn.tls.certresolver=${TRAEFIK_CERT_RESOLVER:-le}'
+      - 'traefik.tcp.routers.meetropolis-turn.service=meetropolis-turn'
+      - 'traefik.tcp.services.meetropolis-turn.loadbalancer.server.port=5349'
     ports:
-      - "0.0.0.0:${EXTERNAL_LK_RTC_TCP_PORT:-7881}:${LK_RTC_TCP_PORT:-7881}/tcp"
-      - "0.0.0.0:${EXTERNAL_LK_RTC_UDP_PORT:-7882}:${LK_RTC_UDP_PORT:-7882}/udp"
-      - "0.0.0.0:3478:3478/tcp"
-      - "0.0.0.0:3478:3478/udp"
+      - '0.0.0.0:${EXTERNAL_LK_RTC_TCP_PORT:-7881}:${LK_RTC_TCP_PORT:-7881}/tcp'
+      - '0.0.0.0:${EXTERNAL_LK_RTC_UDP_PORT:-7882}:${LK_RTC_UDP_PORT:-7882}/udp'
+      - '0.0.0.0:3478:3478/tcp'
+      - '0.0.0.0:3478:3478/udp'
     networks:
       - traefik
     restart: unless-stopped
-
