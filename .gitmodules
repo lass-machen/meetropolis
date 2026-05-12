@@ -1,9 +1,0 @@
-[submodule "packages/tenancy-enterprise"]
-	path = packages/tenancy-enterprise
-	url = git@github.com:lass-machen/meetropolis-enterprise.git
-[submodule "packages/desktop"]
-	path = packages/desktop
-	url = git@github.com:lass-machen/meetropolis-desktop.git
-[submodule "packages/brand"]
-	path = packages/brand
-	url = git@github.com:lass-machen/meetropolis-brand.git

@@ -103,6 +103,18 @@ tools/wall-1.png
 # nicht im OSS-Tree landen. Eintrag verhindert versehentliches Re-Adden.
 apps/web/public/vendor/fontawesome/
 
+# === Closed-source sibling repos (no longer submodules) ===
+# These paths are intentionally not part of this OSS distribution.
+# Loaders (apps/web/scripts/optional-submodules.ts,
+# apps/server/prisma/compose-schema.cjs) resolve them at build time via
+# MEETROPOLIS_{BRAND,DESKTOP,ENTERPRISE}_PATH env vars, with sibling-
+# clone defaults (../meetropolis-{brand,desktop,enterprise}). When the
+# paths are absent (e.g. a fresh OSS clone), the build falls back to
+# OSS-only behaviour gracefully — no broken imports, no 404s.
+packages/brand/
+packages/desktop/
+packages/tenancy-enterprise/
+
 # === Brand-Submodule-Symlinks ===
 # apps/web/optional-submodules.ts symlinkt Public-Assets aus
 # packages/brand/packages/web/public/ rekursiv nach apps/web/public/.
