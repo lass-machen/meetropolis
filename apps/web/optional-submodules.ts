@@ -15,10 +15,13 @@
  *   - MEETROPOLIS_DESKTOP_PATH
  *   - MEETROPOLIS_ENTERPRISE_PATH
  *
- * Resolution order per spec:
+ * Resolution order per spec (first match wins):
  *   1. If env var is set and the path contains a package.json → use it.
  *   2. If the sibling-clone default path contains a package.json → use it.
- *   3. Otherwise → return null, the corresponding loader (brandLoader.ts /
+ *   3. If the in-tree fallback (used by the Docker build context, where
+ *      prepare-build.sh rsyncs sibling sources into packages/) contains a
+ *      package.json → use it.
+ *   4. Otherwise → return null, the corresponding loader (brandLoader.ts /
  *      desktopLoader.ts / enterpriseWebLoader.ts) catches the null and
  *      renders the OSS-only fallback.
  *
@@ -41,6 +44,13 @@ export type OptionalSubmoduleSpec = {
   envVar: string;
   /** Default path relative to the OSS repo root (e.g. `../meetropolis-brand/packages/web`). */
   siblingPath: string;
+  /**
+   * In-tree fallback path relative to the OSS repo root, used when the
+   * sibling-clone default is not present — the Docker build context only
+   * sees the OSS tree, and prepare-build.sh rsyncs sibling sources into
+   * packages/{brand,tenancy-enterprise,desktop}/ before building.
+   */
+  inTreePath: string;
   /**
    * Optional explicit public-assets directory, relative to the resolved
    * package directory. Defaults to `<resolved>/public`.
@@ -125,12 +135,16 @@ function linkPublicAssets(submodulePublicDir: string, targetPublicDir: string): 
  */
 function resolveSpecDir(spec: OptionalSubmoduleSpec, repoRoot: string): string | null {
   const envValue = process.env[spec.envVar];
+  const candidates: string[] = [];
   if (envValue && envValue.trim().length > 0) {
-    const envPath = isAbsolute(envValue) ? envValue : resolve(repoRoot, envValue);
-    return existsSync(resolve(envPath, 'package.json')) ? envPath : null;
+    candidates.push(isAbsolute(envValue) ? envValue : resolve(repoRoot, envValue));
   }
-  const siblingPath = resolve(repoRoot, spec.siblingPath);
-  return existsSync(resolve(siblingPath, 'package.json')) ? siblingPath : null;
+  candidates.push(resolve(repoRoot, spec.siblingPath));
+  candidates.push(resolve(repoRoot, spec.inTreePath));
+  for (const dir of candidates) {
+    if (existsSync(resolve(dir, 'package.json'))) return dir;
+  }
+  return null;
 }
 
 export const OPTIONAL_SUBMODULES: OptionalSubmoduleSpec[] = [
@@ -138,16 +152,19 @@ export const OPTIONAL_SUBMODULES: OptionalSubmoduleSpec[] = [
     id: '@meetropolis/desktop',
     envVar: 'MEETROPOLIS_DESKTOP_PATH',
     siblingPath: '../meetropolis-desktop',
+    inTreePath: 'packages/desktop',
   },
   {
     id: '@meetropolis/enterprise-web',
     envVar: 'MEETROPOLIS_ENTERPRISE_PATH',
     siblingPath: '../meetropolis-enterprise/packages/enterprise-web',
+    inTreePath: 'packages/tenancy-enterprise/packages/enterprise-web',
   },
   {
     id: '@meetropolis/brand-web',
     envVar: 'MEETROPOLIS_BRAND_PATH',
     siblingPath: '../meetropolis-brand/packages/web',
+    inTreePath: 'packages/brand/packages/web',
     publicDir: 'public',
   },
 ];

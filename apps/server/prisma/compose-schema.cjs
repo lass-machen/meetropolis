@@ -10,10 +10,14 @@
  *   apps/server/prisma/schema.composed.prisma                 (gitignored)
  *
  * The enterprise fragment lives in a separate closed-source repo
- * (meetropolis-enterprise). Its location is resolved in this order:
+ * (meetropolis-enterprise). Its location is resolved in this order — the
+ * first candidate whose fragment file exists wins:
  *   1. MEETROPOLIS_ENTERPRISE_PATH env var (absolute or repo-root-relative)
  *   2. Sibling-clone default: ../meetropolis-enterprise (parallel to the OSS repo)
- *   3. If neither resolves: OSS-only mode (fragment ignored, base copied verbatim)
+ *   3. In-tree default: <REPO_ROOT>/packages/tenancy-enterprise (used by the
+ *      Docker build context, where prepare-build.sh rsyncs sibling sources
+ *      into packages/tenancy-enterprise/ so the build sees them)
+ *   4. None of the above: OSS-only mode (fragment ignored, base copied verbatim)
  *
  * Behaviour:
  *   - Without the enterprise fragment: copies the OSS base verbatim.
@@ -30,17 +34,27 @@ const path = require('node:path');
 const SCRIPT_DIR = __dirname;
 const REPO_ROOT = path.resolve(SCRIPT_DIR, '..', '..', '..');
 
-const ENTERPRISE_ROOT = (() => {
+function resolveFragmentPath() {
+  const candidates = [];
   const envValue = process.env.MEETROPOLIS_ENTERPRISE_PATH;
   if (envValue && envValue.trim().length > 0) {
-    return path.isAbsolute(envValue) ? envValue : path.resolve(REPO_ROOT, envValue);
+    candidates.push(path.isAbsolute(envValue) ? envValue : path.resolve(REPO_ROOT, envValue));
   }
-  // Default: sibling clone parallel to the OSS repo.
-  return path.resolve(REPO_ROOT, '..', 'meetropolis-enterprise');
-})();
+  // Sibling clone parallel to the OSS repo (Tiamat-maintainer local setup).
+  candidates.push(path.resolve(REPO_ROOT, '..', 'meetropolis-enterprise'));
+  // In-tree location used by the Docker build context: prepare-build.sh
+  // rsyncs the sibling sources into packages/tenancy-enterprise/.
+  candidates.push(path.resolve(REPO_ROOT, 'packages', 'tenancy-enterprise'));
 
+  for (const root of candidates) {
+    const fragment = path.join(root, 'prisma', 'schema.enterprise.prisma');
+    if (fs.existsSync(fragment)) return { root, fragment };
+  }
+  return { root: candidates[0], fragment: path.join(candidates[0], 'prisma', 'schema.enterprise.prisma') };
+}
+
+const { fragment: FRAGMENT } = resolveFragmentPath();
 const OSS_SCHEMA = path.join(SCRIPT_DIR, 'schema.prisma');
-const FRAGMENT = path.join(ENTERPRISE_ROOT, 'prisma', 'schema.enterprise.prisma');
 const OUTPUT = path.join(SCRIPT_DIR, 'schema.composed.prisma');
 
 const HEADER =
