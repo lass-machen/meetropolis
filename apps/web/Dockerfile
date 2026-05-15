@@ -1,5 +1,5 @@
 # Build Stage
-FROM node:24-bookworm-slim AS builder
+FROM node:26-bookworm-slim AS builder
 
 WORKDIR /workspace
 
