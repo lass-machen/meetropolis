@@ -1,4 +1,4 @@
-FROM node:24-bookworm-slim AS builder
+FROM node:26-bookworm-slim AS builder
 RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates git \
   && rm -rf /var/lib/apt/lists/*
 
@@ -49,7 +49,7 @@ RUN npm prune --omit=dev
 WORKDIR /workspace/apps/server
 RUN npm install tsx --save-prod
 
-FROM node:24-bookworm-slim AS runner
+FROM node:26-bookworm-slim AS runner
 
 LABEL org.opencontainers.image.source="https://github.com/lass-machen/meetropolis"
 LABEL org.opencontainers.image.description="Meetropolis Server - Virtual Office Platform"
