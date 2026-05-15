@@ -1,0 +1,37 @@
+# CODEOWNERS — review routing for Meetropolis
+#
+# Syntax: <path-pattern>  <owner-1> [owner-2 ...]
+#   Owners are GitHub usernames or @org/team slugs.
+#   Patterns later in the file take precedence on conflict.
+#
+# Initial fallback: every change is reviewed by the maintainers team.
+# Replace @tiamatlabs/maintainers with concrete handles once team membership
+# is finalized in GOVERNANCE.md.
+
+# Default owner for everything
+*                                       @tiamatlabs/maintainers
+
+# Server-side (AGPL-3.0-only)
+/apps/server/                           @tiamatlabs/maintainers
+/apps/npc-service/                      @tiamatlabs/maintainers
+/apps/loadtest/                         @tiamatlabs/maintainers
+
+# Web client (MIT) — touches game engine + AV pipeline
+/apps/web/                              @tiamatlabs/maintainers
+
+# Shared types (MIT) — breaking changes here affect both editions
+/packages/shared/                       @tiamatlabs/maintainers
+
+# Licensing and legal: every PR touching these must be reviewed.
+/LICENSE                                @tiamatlabs/maintainers
+/LICENSING.md                           @tiamatlabs/maintainers
+/NOTICE                                 @tiamatlabs/maintainers
+/THIRD_PARTY_LICENSES/                  @tiamatlabs/maintainers
+/TRADEMARKS.md                          @tiamatlabs/maintainers
+/CODE_OF_CONDUCT.md                     @tiamatlabs/maintainers
+/SECURITY.md                            @tiamatlabs/maintainers
+/CONTRIBUTING.md                        @tiamatlabs/maintainers
+/GOVERNANCE.md                          @tiamatlabs/maintainers
+
+# CI/CD and release infrastructure
+/.github/                               @tiamatlabs/maintainers

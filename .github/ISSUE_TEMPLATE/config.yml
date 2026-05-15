@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question or discussion
+    url: https://github.com/tiamatlabs/meetropolis/discussions
+    about: Ask a question, share an idea, or show what you built. Discussions are searchable; chat is not.
+  - name: Security disclosure
+    url: https://github.com/tiamatlabs/meetropolis/security/advisories/new
+    about: Report a vulnerability privately. Do not file security issues in the public tracker.
+  - name: Commercial licensing
+    url: mailto:info@meetropolis.de?subject=Commercial%20License
+    about: Inquiries about the AGPL exception (commercial license for the server components).

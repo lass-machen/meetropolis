@@ -1,0 +1,87 @@
+version: 2
+
+updates:
+  # npm — the JavaScript / TypeScript monorepo
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: Europe/Berlin
+    open-pull-requests-limit: 10
+    labels:
+      - 'type:chore'
+      - 'area:deps'
+    commit-message:
+      prefix: 'chore(deps)'
+      include: scope
+    groups:
+      production-minor-and-patch:
+        dependency-type: production
+        update-types:
+          - minor
+          - patch
+      development-minor-and-patch:
+        dependency-type: development
+        update-types:
+          - minor
+          - patch
+      production-major:
+        dependency-type: production
+        update-types:
+          - major
+      development-major:
+        dependency-type: development
+        update-types:
+          - major
+    ignore:
+      # Keep these on their pinned majors; bump deliberately via separate PRs.
+      - dependency-name: '@types/node'
+        update-types:
+          - 'version-update:semver-major'
+
+  # GitHub Actions
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: Europe/Berlin
+    open-pull-requests-limit: 5
+    labels:
+      - 'type:chore'
+      - 'area:ci'
+    commit-message:
+      prefix: 'chore(ci)'
+      include: scope
+    groups:
+      actions-all:
+        patterns:
+          - '*'
+
+  # Docker base images in the repo
+  - package-ecosystem: docker
+    directory: /apps/server
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    labels:
+      - 'type:chore'
+      - 'area:docker'
+    commit-message:
+      prefix: 'chore(docker)'
+
+  - package-ecosystem: docker
+    directory: /apps/web
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    labels:
+      - 'type:chore'
+      - 'area:docker'
+    commit-message:
+      prefix: 'chore(docker)'
