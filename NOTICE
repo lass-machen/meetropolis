@@ -1,15 +1,67 @@
 Meetropolis
-Copyright 2025 Meetropolis Contributors
+Copyright 2025 Tiamat UG (haftungsbeschränkt) and Meetropolis Contributors
 
-This product includes software developed by the Meetropolis Contributors.
+This product is distributed under a dual-license model. See LICENSING.md for
+the full per-component breakdown.
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0
+  - Server components (apps/server, apps/npc-service, apps/loadtest, and the
+    repository root) are licensed under the GNU Affero General Public License,
+    Version 3 (AGPL-3.0-only). See LICENSE.
 
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
+  - The web client (apps/web) and the shared types package (packages/shared)
+    are licensed under the MIT License. See apps/web/LICENSE and
+    packages/shared/LICENSE.
 
+A commercial license that removes the AGPL-3.0 obligations is available from
+Tiamat UG for the AGPL-licensed components. Contact info@meetropolis.de.
+
+The "Meetropolis" name and logo are trademarks of Tiamat UG and are not
+covered by AGPL-3.0 or MIT. See TRADEMARKS.md.
+
+================================================================================
+Third-party notices
+================================================================================
+
+This product bundles or depends on the following third-party software.
+Attributions below are required by their respective licenses.
+
+import-in-the-middle
+  Copyright 2024 Node.js contributors.
+  Portions from DataDog/import-in-the-middle — Copyright Datadog, Inc.
+  Licensed under the Apache License, Version 2.0.
+
+JSZip
+  Copyright (c) 2009-2016 Stuart Knightley, David Duponchel, Franz Buchinger,
+  António Afonso.
+  Available under MIT OR GPL-3.0-or-later. We use JSZip under the MIT option.
+
+pako
+  Copyright (C) 2014-2017 by Vitaly Puzrin and Andrei Tuputcyn.
+  Available under (MIT AND Zlib). The Zlib portion contains:
+  Copyright (C) 1995-2017 Jean-loup Gailly and Mark Adler.
+
+@bufbuild/protobuf
+  Copyright (c) 2021 Buf Technologies, Inc.
+  Available under (Apache-2.0 AND BSD-3-Clause).
+
+Prisma client and engines
+  Copyright Prisma Data, Inc. Licensed under the Apache License, Version 2.0.
+
+LiveKit Server SDK / LiveKit Client SDK / @livekit/rtc-node
+  Copyright LiveKit, Inc. Licensed under the Apache License, Version 2.0.
+
+prom-client
+  Copyright (c) 2015-2019 Simon Nyberg.
+  Licensed under the Apache License, Version 2.0.
+
+TypeScript
+  Copyright (c) Microsoft Corporation.
+  Licensed under the Apache License, Version 2.0.
+
+OpenTelemetry JavaScript
+  Copyright The OpenTelemetry Authors.
+  Licensed under the Apache License, Version 2.0.
+
+================================================================================
+End of NOTICE
+================================================================================

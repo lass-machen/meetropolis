@@ -2,7 +2,7 @@
   "name": "@meetropolis/server",
   "version": "0.1.0",
   "private": true,
-  "license": "Apache-2.0",
+  "license": "AGPL-3.0-only",
   "type": "module",
   "scripts": {
     "predev": "npm run prisma:compose && prisma generate --schema=./prisma/schema.composed.prisma && prisma db push --schema=./prisma/schema.composed.prisma && prisma db seed --schema=./prisma/schema.composed.prisma",

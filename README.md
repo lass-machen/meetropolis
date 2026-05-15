@@ -276,8 +276,19 @@ Also read:
 
 ## License
 
-Released under the [Apache 2.0 License](LICENSE). See [NOTICE](NOTICE) for
-third-party attributions.
+Meetropolis is dual-licensed:
 
-The "Meetropolis" name and logo are trademarks. Apache 2.0 does not grant
-rights to use them. See [TRADEMARKS.md](TRADEMARKS.md).
+- **Server components** (`apps/server`, `apps/npc-service`, `apps/loadtest`,
+  and the repository root) are licensed under [AGPL-3.0-only](LICENSE).
+- **The web client** (`apps/web`) and the **shared types package**
+  (`packages/shared`) are licensed under [MIT](apps/web/LICENSE).
+
+A commercial license that removes the AGPL-3.0 obligations is available
+from Tiamat UG. Contact **info@meetropolis.de** for details.
+
+See [LICENSING.md](LICENSING.md) for the rationale, per-component
+breakdown, and our promises around license stability. See [NOTICE](NOTICE)
+for third-party attributions.
+
+The "Meetropolis" name and logo are trademarks of Tiamat UG and are not
+granted by either license. See [TRADEMARKS.md](TRADEMARKS.md).
