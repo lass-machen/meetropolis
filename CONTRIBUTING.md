@@ -13,6 +13,7 @@ By participating in this project, you agree to abide by our [Code of Conduct](CO
 Before creating a bug report, please check the existing issues to avoid duplicates.
 
 When filing a bug report, include:
+
 - A clear and descriptive title
 - Steps to reproduce the issue
 - Expected vs. actual behavior
@@ -22,6 +23,7 @@ When filing a bug report, include:
 ### Suggesting Features
 
 Feature requests are welcome! Please:
+
 - Check if the feature has already been suggested
 - Provide a clear description of the feature
 - Explain why it would be useful
@@ -51,7 +53,8 @@ Feature requests are welcome! Please:
 
 ### Prerequisites
 
-- Node.js 20+
+- Node.js 24 (see `.nvmrc`; `nvm use` picks it up automatically)
+- npm 11 (Node 24 ships it)
 - Docker & Docker Compose
 - Git
 
@@ -139,21 +142,89 @@ Please read `AGENTS.md` for detailed quality guidelines. Key points:
 3. Documentation must be updated if applicable
 4. Screenshots/recordings for UI changes
 
-## License & Developer Certificate of Origin (DCO)
+## Licensing of contributions
 
-By contributing, you agree that your contributions will be licensed under the
-Apache-2.0 License, and you certify the [Developer Certificate of Origin](https://developercertificate.org/) (DCO) — i.e. that you wrote the contribution
-yourself or have the right to submit it under the open-source license.
+Meetropolis uses a dual-license model. Contributions inherit the license of
+the file or directory they land in:
 
-If your PR depends on adding a new dependency, please call this out explicitly
-in the PR description and justify the choice.
+- Contributions to `apps/server`, `apps/npc-service`, `apps/loadtest`, or to
+  files in the repository root → **AGPL-3.0-only**
+- Contributions to `apps/web` or `packages/shared` → **MIT**
+
+The full per-component breakdown is in [LICENSING.md](LICENSING.md). If you
+are unsure where your change belongs, ask in the PR description and a
+maintainer will clarify before merge.
+
+### Developer Certificate of Origin (DCO)
+
+Every commit on a pull request must be signed off under the [Developer
+Certificate of Origin](https://developercertificate.org/). The DCO is a
+simple statement that you wrote the contribution yourself, or that you have
+the right to submit it under the project's licenses. It is **not** a
+copyright assignment — you keep the copyright on your work.
+
+Add the sign-off line to your commits via:
+
+```bash
+git commit --signoff -m "feat(web): add zone capacity badges"
+# or shorter:
+git commit -s -m "..."
+```
+
+This appends a trailer to the commit message:
+
+```
+Signed-off-by: Jane Doe <jane@example.com>
+```
+
+The name and email must match the git author on the commit. If you forget
+the sign-off, you can amend with:
+
+```bash
+git commit --amend --signoff       # last commit
+git rebase --signoff <base-branch> # whole PR branch
+```
+
+PRs without sign-offs are blocked from merging by an automated check.
+
+### Inbound license grant (commercial relicensing)
+
+In addition to the open-source license that applies to your contribution,
+you grant Tiamat UG (the maintainer behind Meetropolis) a perpetual,
+worldwide, non-exclusive, royalty-free, irrevocable license to also use,
+reproduce, modify, sublicense, and distribute your contribution under the
+**Meetropolis Commercial License** offered by Tiamat UG.
+
+This grant exists so that Tiamat can sustainably operate the project and
+offer a commercial license to customers whose internal policies prevent
+them from using AGPL-3.0 software. It does **not** transfer your copyright,
+does **not** restrict your ability to use your own contribution elsewhere,
+and does **not** affect the open-source license under which the rest of the
+community will continue to receive the contribution.
+
+By submitting a pull request and signing off with DCO, you confirm that
+this inbound grant applies to your contribution.
+
+If you cannot agree to the inbound grant (for example because your employer
+has policies that restrict commercial relicensing), please say so in the
+pull request before review and we will discuss an exception. The default
+for accepted PRs is grant included.
+
+### Dependencies
+
+If your PR depends on adding a new runtime dependency, call this out
+explicitly in the PR description and justify the choice. New dependencies
+need a license that is compatible with both AGPL-3.0 and MIT (so MIT,
+Apache-2.0, BSD, ISC, MPL, LGPL, CC0, or similar permissive licenses are
+fine; GPL-only or AGPL-only dependencies need maintainer agreement first).
 
 ### Trademarks
 
-The Meetropolis name and logo are trademarks (see [TRADEMARKS.md](TRADEMARKS.md)).
-The Apache-2.0 license does **not** grant any trademark rights. Forks that
-intend to commercialize the codebase must replace all branding with their own
-(see TRADEMARKS.md → "Beim Forken/Self-Hosting").
+The "Meetropolis" name and any associated logos are trademarks of Tiamat UG
+and are **not** granted by AGPL-3.0 or MIT (AGPL-3.0 §7e and MIT both stay
+silent on marks). Forks that intend to commercialize the codebase must
+replace all branding with their own. See [TRADEMARKS.md](TRADEMARKS.md) for
+the full policy and the "Powered by Meetropolis" attribution rules.
 
 ## Questions?
 
