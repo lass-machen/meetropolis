@@ -23,6 +23,14 @@ env:
   # A dummy value is sufficient: neither command opens a connection. It only
   # has to be a syntactically valid URL so the schema engine does not error.
   DATABASE_URL: 'postgresql://ci:ci@localhost:5432/ci'
+  # Corepack must not stop to ask before fetching the pinned npm version.
+  COREPACK_ENABLE_DOWNLOAD_PROMPT: '0'
+
+# Every job runs `corepack enable` before `npm ci`. package.json pins
+# packageManager to a specific npm version; without corepack the runner silently
+# uses the npm bundled with Node, which resolves the dependency tree differently
+# and makes `npm ci` fail with "lockfile out of sync" (it wanted yaml@2.9.0).
+# Pin and lockfile must be produced by the same npm, or CI and local drift apart.
 
 jobs:
   lint:
@@ -34,6 +42,8 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
+      # Activate the packageManager pin from package.json (see note above).
+      - run: corepack enable
       - run: npm ci
       # @meetropolis/shared ships no source-path alias for apps/server or
       # apps/npc-service (only apps/web's tsconfig maps it to src/ directly).
@@ -63,6 +73,8 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
+      # Activate the packageManager pin from package.json (see note above).
+      - run: corepack enable
       - run: npm ci
       # apps/server and apps/npc-service resolve `@meetropolis/shared`
       # through plain NodeNext module resolution (package.json main/types),
@@ -85,6 +97,8 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
+      # Activate the packageManager pin from package.json (see note above).
+      - run: corepack enable
       - run: npm ci
       - name: prisma validate
         working-directory: apps/server
@@ -101,6 +115,8 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
+      # Activate the packageManager pin from package.json (see note above).
+      - run: corepack enable
       - run: npm ci
       # No current server/npc-service test file imports a module that reaches
       # `@meetropolis/shared` (verified), so vitest passes today without this
@@ -123,6 +139,8 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
+      # Activate the packageManager pin from package.json (see note above).
+      - run: corepack enable
       - run: npm ci
       # apps/server's build (tsc) needs @meetropolis/shared's compiled dist/
       # for the same NodeNext-resolution reason as the typecheck job above.
