@@ -98,12 +98,13 @@
     "q6Answer": "Nein. Die Anwendung läuft komplett im Browser. Die Desktop-App ist optional und bietet zusätzlich einen Floating Mini-Modus für nebenher."
   },
   "openSource": {
-    "badge": "Coming Soon",
-    "title": "Bald auch Open Source & Self-Hosted.",
-    "text": "Volle Datensouveränität, DSGVO-konform, auf euren eigenen Servern. Open Source: Server AGPL-3.0, Web MIT.",
+    "badge": "Open Source",
+    "title": "Jetzt Open Source. Und self-hosted, wenn ihr wollt.",
+    "text": "Der komplette Code liegt auf GitHub: Server unter AGPL-3.0, Web unter MIT. Ihr könnt Meetropolis auf eurer eigenen Infrastruktur betreiben, mit euren Daten auf euren Servern.",
     "check1": "Self-Hosting auf eigener Infrastruktur",
-    "check2": "100% DSGVO-konform",
-    "check3": "Community-getriebene Entwicklung"
+    "check2": "DSGVO-konform betreibbar",
+    "check3": "Issues und Pull Requests willkommen",
+    "cta": "Code auf GitHub ansehen"
   },
   "footer": {
     "tagline": "Das virtuelle Büro für Remote-Teams.\nSpontan zusammenarbeiten, überall.",
@@ -112,6 +113,7 @@
     "productPricing": "Preise",
     "productChangelog": "Changelog",
     "productDesktopApp": "Desktop-App",
+    "productSourceCode": "Quellcode auf GitHub",
     "companyTitle": "Unternehmen",
     "companyAbout": "Über uns",
     "companyBlog": "Blog",

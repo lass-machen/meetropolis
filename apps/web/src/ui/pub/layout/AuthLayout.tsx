@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { useHasBrandModule } from '../../../lib/brandLoader';
+import { GITHUB_REPO_LABEL, GITHUB_REPO_URL } from '../links';
 
 function CheckIcon({ size, color }: { size: number; color: string }) {
   return (
@@ -187,7 +188,7 @@ function ExternalLinkIcon({ size, color }: { size: number; color: string }) {
 function OssProjectLinks() {
   const ITEMS: ReadonlyArray<{ href: string; label: string }> = [
     { href: 'https://meetropolis.me', label: 'meetropolis.me' },
-    { href: 'https://github.com/lass-machen/meetropolis', label: 'lass-machen/meetropolis' },
+    { href: GITHUB_REPO_URL, label: GITHUB_REPO_LABEL },
   ];
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>

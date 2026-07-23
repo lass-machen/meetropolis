@@ -1,5 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import { GITHUB_REPO_URL } from '../links';
 
 interface PublicFooterProps {
   navigate: (route: string) => void;
@@ -8,6 +9,7 @@ interface PublicFooterProps {
 type FooterLinkAction =
   | { type: 'scroll'; anchorId: string }
   | { type: 'navigate'; route: string }
+  | { type: 'external'; href: string }
   | { type: 'disabled' };
 
 interface FooterLink {
@@ -28,6 +30,7 @@ const FOOTER_COLUMNS: FooterColumn[] = [
       { i18nKey: 'footer.productPricing', action: { type: 'scroll', anchorId: 'pricing' } },
       { i18nKey: 'footer.productChangelog', action: { type: 'disabled' } },
       { i18nKey: 'footer.productDesktopApp', action: { type: 'navigate', route: 'download' } },
+      { i18nKey: 'footer.productSourceCode', action: { type: 'external', href: GITHUB_REPO_URL } },
     ],
   },
   {
@@ -112,6 +115,7 @@ function FooterLogo({ tagline }: { tagline: string }) {
 function actionToHref(action: FooterLinkAction): string {
   if (action.type === 'scroll') return `#${action.anchorId}`;
   if (action.type === 'navigate') return `#/${action.route}`;
+  if (action.type === 'external') return action.href;
   return '#';
 }
 
@@ -125,11 +129,14 @@ function FooterLinkItem({
   onClick: (e: React.MouseEvent<HTMLAnchorElement>, action: FooterLinkAction) => void;
 }) {
   const isDisabled = link.action.type === 'disabled';
+  const isExternal = link.action.type === 'external';
   return (
     <li>
       <a
         href={actionToHref(link.action)}
         onClick={(e) => onClick(e, link.action)}
+        target={isExternal ? '_blank' : undefined}
+        rel={isExternal ? 'noopener noreferrer' : undefined}
         style={{
           fontFamily: 'var(--pub-font-body)',
           fontSize: 14,
@@ -246,6 +253,9 @@ export function PublicFooter({ navigate }: PublicFooterProps) {
   const brandName = brandRaw && brandRaw !== 'header.brandName' ? brandRaw : 'Meetropolis';
 
   const handleLinkClick = (e: React.MouseEvent<HTMLAnchorElement>, action: FooterLinkAction) => {
+    // External links keep their native behaviour so the browser opens the
+    // target in a new tab; everything else is handled by the hash router.
+    if (action.type === 'external') return;
     e.preventDefault();
     switch (action.type) {
       case 'scroll':
