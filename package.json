@@ -36,7 +36,7 @@
     "@commitlint/cli": "^21.0.0",
     "@commitlint/config-conventional": "^21.0.0",
     "@eslint-community/eslint-plugin-eslint-comments": "^4.7.1",
-    "concurrently": "^9.2.1",
+    "concurrently": "^9.2.4",
     "esbuild": "^0.28.0",
     "eslint": "^9.39.4",
     "eslint-config-prettier": "^9.1.2",
