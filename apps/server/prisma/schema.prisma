@@ -1,0 +1,528 @@
+// Two generators on purpose:
+// - `client` (custom output): consumed by apps/server/src code via the
+//   `import ... from './generated/prisma'` path. Server-internal.
+// - `clientDefault` (no output, → node_modules/.prisma/client): consumed by
+//   optional commercial modules that import from `@prisma/client`. The
+//   runtime then sees the same model delegates that the OSS server uses, so
+//   model access works on both sides without type augmentation hacks.
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x", "linux-arm64-openssl-3.0.x"]
+  output        = "../src/generated/prisma"
+}
+
+generator clientDefault {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x", "linux-arm64-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  // Prisma 7: connection URL is sourced from `prisma.config.ts` (CLI/migrate)
+  // and from the runtime driver-adapter (see `apps/server/src/db.ts`).
+  // The `url` property is no longer permitted in the schema file.
+}
+
+// Prisma seed configuration (uses TS seed file)
+// This is read by `prisma db seed` via package.json in the server workspace.
+
+enum Role {
+  owner
+  admin
+  member
+  guest
+}
+
+model Tenant {
+  id                    String       @id @default(cuid())
+  slug                  String       @unique
+  name                  String
+  concurrentLimit       Int          @default(50)
+  freeSeats             Int          @default(3)
+  bypassLimits          Boolean      @default(false)
+  isInternal            Boolean      @default(false)
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
+
+  // Default map for this tenant
+  defaultMapName    String?   @default("office")
+
+  publicRegistrationEnabled Boolean @default(true)
+
+  memberships           Membership[]
+  maps                  Map[]
+  rooms                 Room[]
+  zones                 Zone[]
+  presences             Presence[]
+  invites               Invite[]
+  npcs                  Npc[]
+  // Avatar packs OWNED by this tenant (private). Catalog packs carry
+  // `tenantId = NULL` and are therefore not part of this backreference.
+  avatarPacks           AvatarPack[]
+  // Asset packs (editor palette: terrain/structures/objects/autotiles) OWNED
+  // by this tenant (private). Same NULL-means-catalog rule as above.
+  assetPacks            AssetPack[]
+}
+
+model Membership {
+  id         String      @id @default(cuid())
+  tenant     Tenant      @relation(fields: [tenantId], references: [id])
+  tenantId   String
+  user       User        @relation(fields: [userId], references: [id])
+  userId     String
+  role       Role        @default(member)
+  expiresAt  DateTime?
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  guestToken GuestToken?
+
+  @@unique([tenantId, userId])
+}
+
+model GuestToken {
+  id           String     @id @default(cuid())
+  token        String     @unique
+  membership   Membership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  membershipId String     @unique
+  expiresAt    DateTime
+  createdAt    DateTime   @default(now())
+}
+
+model User {
+  id                  String              @id @default(cuid())
+  email               String              @unique
+  name                String?
+  imageUrl            String?
+  avatarId            String?
+  passwordHash        String?
+  emailVerifiedAt     DateTime?
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  onboardingCompleted Boolean             @default(false)
+  locale              String              @default("de")
+  presences           Presence[]
+  passwordResets      PasswordReset[]
+  emailVerifications  EmailVerification[]
+  apiTokens           ApiToken[]
+  memberships         Membership[]
+  sessions            Session[]
+  customAvatar        CustomAvatar?
+}
+
+model Invite {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  email     String?
+  createdAt DateTime @default(now())
+  createdBy String?
+  usedAt    DateTime?
+  usedById  String?
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId  String
+  role      Role     @default(member)
+}
+
+model PasswordReset {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  usedAt    DateTime?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model EmailVerification {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  email     String
+  usedAt    DateTime?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model ApiToken {
+  id         String   @id @default(cuid())
+  user       User     @relation(fields: [userId], references: [id])
+  userId     String
+  name       String?
+  hash       String   @unique
+  lastUsedAt DateTime?
+  createdAt  DateTime @default(now())
+}
+
+model Session {
+  id           String    @id @default(cuid())
+  user         User      @relation(fields: [userId], references: [id])
+  userId       String
+  tokenHash    String    @unique
+  userAgent    String?
+  ipAddress    String?
+  lastActiveAt DateTime  @default(now())
+  expiresAt    DateTime
+  createdAt    DateTime  @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model Map {
+  id        String   @id @default(cuid())
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId  String
+  name      String
+  meta      Json
+  // v2 Map Geometry & Settings
+  width      Int?
+  height     Int?
+  tileWidth  Int?
+  tileHeight Int?
+  chunkSize  Int?     @default(32)
+  version    Int?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  rooms     Room[]
+  zones     Zone[]
+  // v2 relations
+  tilesets  MapTileset[]
+  layers    MapLayer[]
+  objects   MapObject[]
+
+  @@unique([tenantId, name])
+}
+
+model Room {
+  id        String   @id @default(cuid())
+  name      String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId  String
+  map       Map      @relation(fields: [mapId], references: [id])
+  mapId     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  zones     Zone[]
+  presences Presence[]
+
+  @@unique([mapId, name])
+}
+
+model Zone {
+  id            String   @id @default(cuid())
+  name          String
+  capacity      Int?
+  polygon       Json
+  type          String?   // 'default' | 'portal'
+  portalTarget  String?   // target map name (for portal zones)
+  portalSpawnX  Int?      // optional target X coordinate
+  portalSpawnY  Int?      // optional target Y coordinate
+  room          Room     @relation(fields: [roomId], references: [id])
+  roomId        String
+  map           Map      @relation(fields: [mapId], references: [id])
+  mapId         String
+  tenant        Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId      String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model Presence {
+  id         String   @id @default(cuid())
+  user       User     @relation(fields: [userId], references: [id])
+  userId     String
+  room       Room     @relation(fields: [roomId], references: [id])
+  roomId     String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId   String
+  x          Int
+  y          Int
+  direction  String
+  mapName    String?
+  updatedAt  DateTime @updatedAt
+  createdAt  DateTime @default(now())
+
+  @@index([userId, roomId])
+}
+
+// Asset packs are the editor's palette (terrain, structures, objects,
+// autotiles). `tenantId = NULL` means "part of the platform catalog, visible to
+// every tenant"; a set `tenantId` means the pack is OWNED BY and private to
+// that single tenant. Identical semantics to AvatarPack below — deliberately
+// so, since both resolve through the one shared scope in
+// services/packScope.ts.
+//
+// Ownership is a hard veto, and these are the places that enforce it — the
+// invariant is only as true as this list:
+//   - not listable  — api/routes/assetPacks.ts (GET /asset-packs and
+//                     /asset-packs/:id, via api/utils/resolvePackScope);
+//   - not placeable — api/routes/mapObjects.ts, where the `assetPackUuid` of a
+//                     new object is resolved through the same scope
+//                     (POST /maps/:id/objects and POST /maps/:id/objects/bulk).
+// Both fail closed: no tenant proven -> catalog packs only.
+//
+// What ownership does NOT touch: already-placed objects. `MapObject.dataUrl`
+// carries its own sprite URL, so every placed object keeps rendering when a
+// pack becomes private — scoping governs the palette, not the canvas. One
+// nuance to be precise about: objects out of a pack that ships
+// `directionalImages` lose their rotation-specific variant, because that
+// registry is filled from the `GET /asset-packs` response (apps/web
+// useEditorLoader -> lib/directionalImageRegistry). The base sprite then renders
+// with programmatic rotation instead. It cannot happen to a tenant that keeps
+// access to the pack; it is the case to remember when a map is copied ACROSS
+// tenant borders.
+//
+// The single deliberate exception is the platform super-admin (owner of the
+// `internal` tenant), which sees and administers every pack — it operates the
+// pack-management tools, so gating it out would make a private pack
+// unmanageable rather than private.
+//
+// `onDelete: Cascade` is deliberate. Prisma's default for an optional relation
+// is SetNull, which would PUBLISH a private pack to the whole platform the
+// moment its owning tenant is deleted — a fail-open leak. Restrict would block
+// tenant deletion outright. Cascade removes the tenant's private packs with the
+// tenant, which is the only outcome that keeps the invariant true.
+model AssetPack {
+  id           Int                @id @default(autoincrement())
+  uuid         String             @unique
+  name         String
+  description  String
+  author       String
+  version      String
+  terrain      Json
+  structures   Json
+  objects      Json
+  autotiles    Json               @default("[]")
+  tenantId     String?
+  tenant       Tenant?            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  @@index([tenantId])
+}
+
+// Avatar packs are a shipped library. `tenantId = NULL` means "part of the
+// platform catalog, visible to every tenant"; a set `tenantId` means the pack
+// is OWNED BY and private to that single tenant.
+//
+// Ownership is a hard veto, and these are the places that enforce it — the
+// invariant is only as true as this list:
+//   - not listable  — api/routes/avatarPacks.ts (GET /avatar-packs and
+//                     /avatar-packs/:id, via api/utils/resolvePackScope);
+//   - not wearable  — services/avatarAccess.ts `isAllowedAvatarId`, called with
+//                     the same scope from PATCH /me/avatar, onboarding-complete,
+//                     the Colyseus avatar_change handler and the NPC surface
+//                     (api/routes/npcs.ts: POST /npcs, PATCH /npcs/:id and the
+//                     `set_avatar` command);
+//   - not grantable — the enterprise pack marketplace (catalog listing,
+//                     install, checkout, the free-pack auto-grant and
+//                     GET /pack-store/my-packs all filter on `tenantId: null`).
+// Every one of them fails closed: no tenant proven -> catalog packs only.
+//
+// The single deliberate exception is the platform super-admin (owner of the
+// `internal` tenant), which sees and administers every pack — it operates the
+// pack-management tools, so gating it out would make a private pack
+// unmanageable rather than private.
+//
+// `onDelete: Cascade` is deliberate. Prisma's default for an optional relation
+// is SetNull, which would PUBLISH a private pack to the whole platform the
+// moment its owning tenant is deleted — a fail-open leak. Restrict would block
+// tenant offboarding instead. Cascade is the only fail-closed option.
+model AvatarPack {
+  id           Int                 @id @default(autoincrement())
+  uuid         String              @unique
+  name         String
+  description  String
+  author       String
+  version      String
+  type         String              @default("full")
+  avatars      Json
+  tenantId     String?
+  tenant       Tenant?             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  @@index([tenantId])
+}
+
+// A user-composed avatar (Phase 2 character editor). The server composites the
+// sheet once from the slot config and stores it; `avatarId` becomes
+// "custom:<uuid>". One custom avatar per user (userId @unique). `config` keeps
+// the editable slot recipe (re-edit); `configHash` is the canonical-config
+// dedup anchor (NOT the PNG bytes). `uuid` is regenerated whenever the config
+// changes, so a new appearance yields a new, immutable sprite URL.
+//
+// CAREFUL — `tenantId` here means the OPPOSITE of `AvatarPack.tenantId` right
+// above. NULL is NOT a catalog marker on this model. The column is written
+// from the composing session's proven tenant (api/routes/meAvatar.ts
+// `handleCompose`), so NULL means the row could never be attributed at all: a
+// legacy row from before the column existed, or a session that could not prove
+// a tenant. Treating NULL as "visible to every tenant", the way the pack models
+// do, would publish every unattributed avatar platform-wide — that is exactly
+// the cross-tenant leak that was reproduced live on production. Unattributed
+// therefore resolves for NOBODY; the owner still reaches the row through the
+// userId-scoped routes.
+//
+// Enforced by (the invariant is only as true as this list):
+//   - not resolvable — api/routes/meAvatar.ts `handleResolve`
+//                      (POST /avatars/resolve), via
+//                      services/packScope.ts `customAvatarScopeWhere`;
+//   - not wearable   — services/avatarAccess.ts `isAllowedAvatarId`, called
+//                      with the same scope from PATCH /me/avatar,
+//                      onboarding-complete and the Colyseus avatar_change
+//                      handler.
+// Both fail closed: no tenant proven -> no custom avatar at all (the scope
+// helper returns `null`, not an empty `where`).
+//
+// The composed PNG under /packs/avatars/custom/<uuid>.png is deliberately NOT
+// gated — it is served by plain express.static on a tenant-bypass prefix
+// because the renderer cannot send credentials with it. The uuid is the only
+// secret, which is why resolving the uuid is the gate. See the rationale on
+// `customSpriteUrl` in services/avatarComposer.ts.
+model CustomAvatar {
+  id         Int      @id @default(autoincrement())
+  uuid       String   @unique
+  userId     String   @unique
+  tenantId   String?
+  config     Json
+  spriteUrl  String
+  previewUrl String?
+  configHash String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// v2: Deterministische Tileset-Registry pro Map
+model MapTileset {
+  id         String   @id @default(cuid())
+  map        Map      @relation(fields: [mapId], references: [id])
+  mapId      String
+  slot       Int
+  key        String
+  imageUrl   String
+  tileWidth  Int
+  tileHeight Int
+  margin     Int?
+  spacing    Int?
+  hash       String?
+  tileCount  Int?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([mapId, slot])
+  @@index([mapId])
+}
+
+/// v2: Logische Layer pro Map (z. B. ground, walls, collision)
+model MapLayer {
+  id         String      @id @default(cuid())
+  map        Map         @relation(fields: [mapId], references: [id])
+  mapId      String
+  name       String
+  chunkSize  Int
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  chunks     MapChunk[]
+
+  @@unique([mapId, name])
+  @@index([mapId])
+}
+
+/// v2: Chunk-basierte Speicherung von Layer-Daten
+model MapChunk {
+  id        String   @id @default(cuid())
+  layer     MapLayer @relation(fields: [layerId], references: [id])
+  layerId   String
+  x         Int
+  y         Int
+  version   Int
+  encoding  String   // 'rle' | 'rle-bool' | 'gzip+rle'
+  data      Bytes
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([layerId, x, y])
+  @@index([layerId])
+}
+
+model MapObject {
+  id             Int      @id @default(autoincrement())
+  mapId          String
+  map            Map      @relation(fields: [mapId], references: [id], onDelete: Cascade)
+  assetPackUuid  String
+  itemId         String
+  category       String   // 'structure' | 'objects'
+  tileX          Int
+  tileY          Int
+  chunkX         Int      // floor(tileX / chunkSize)
+  chunkY         Int      // floor(tileY / chunkSize)
+  width          Int
+  height         Int
+  collide        Boolean  @default(false)
+  zIndex         Int      @default(0)
+  rotation       Int      @default(0)
+  flipX          Boolean  @default(false)
+  flipY          Boolean  @default(false)
+  scaleFactor    Float    @default(1)
+  dataUrl        String
+  // Depth-layering (Strang B/C). Both additive + backward-compatible.
+  // collisionBaseHeight: number of tile rows, measured up from the object's
+  // bottom edge, that actually collide. Sentinel 0 = the full footprint (legacy
+  // behaviour). >0 lets e.g. a plant block only its pot, not its crown.
+  collisionBaseHeight Int    @default(0)
+  // renderLayer: client y-sort band the object opts into — 'floor' (under
+  // actors), 'sorted' (y-sorted by foot line, the default), or 'overhead'
+  // (always above actors: wall art, whiteboards, hanging plants).
+  renderLayer         String @default("sorted")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([mapId, chunkX, chunkY])
+}
+
+enum NpcMediaType {
+  audio
+  video
+  screenshare
+}
+
+model Npc {
+  id             String         @id @default(cuid())
+  tenant         Tenant         @relation(fields: [tenantId], references: [id])
+  tenantId       String
+  identity       String         // unique per tenant, e.g. "npc-greeter"
+  name           String         // display name
+  avatarId       String         @default("default-characters:business_man")
+  spawnX         Float          @default(200)
+  spawnY         Float          @default(200)
+  spawnDirection String         @default("down")
+  enabled        Boolean        @default(true)
+  showBadge      Boolean        @default(false)
+  mapName        String?        // optional: which map this NPC should spawn on
+  config         Json?          // arbitrary JSON config
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  mediaFiles     NpcMediaFile[]
+
+  @@unique([tenantId, identity])
+  @@index([tenantId])
+}
+
+model NpcMediaFile {
+  id          String       @id @default(cuid())
+  npc         Npc          @relation(fields: [npcId], references: [id], onDelete: Cascade)
+  npcId       String
+  filename    String       // original filename
+  storagePath String       // path on disk relative to NPC_MEDIA_DIR
+  mimeType    String
+  sizeBytes   Int
+  duration    Float?       // seconds, null if unknown
+  mediaType   NpcMediaType
+  createdAt   DateTime     @default(now())
+
+  @@index([npcId])
+}
+
+// Optional commercial modules can extend this schema at build time via
+// their own tooling. See docs/enterprise.md.

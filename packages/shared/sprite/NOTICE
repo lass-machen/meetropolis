@@ -1,0 +1,29 @@
+Sprite catalog provenance
+=========================
+
+`catalog.json` in this directory is generated output of the Meetropolis
+sprite generator located at `tools/sprite-generator/` (engine.py, poses.py,
+generate.py, export_catalog.py and the `catalogs/` package). Those generator
+sources carry `SPDX-License-Identifier: AGPL-3.0-only` and stay AGPL-3.0-only.
+
+This generated `catalog.json` is licensed under the MIT License, consistent
+with the surrounding `@meetropolis/shared` package (see ../package.json and
+../LICENSE). Tiamat UG holds the copyright in both the generator and this
+generated output and, as the copyright holder, licenses this file under MIT.
+The AGPL-3.0 copyleft binds third parties who run the generator on their own;
+it does not constrain the copyright holder's licensing of its own output.
+
+It is vendored here so the shared composer, the AGPL-3.0 server and the web
+editor all read one identical contract (guaranteeing preview == the
+server-composited sheet).
+
+Do not hand-edit `catalog.json`. Regenerate it from the generator, then
+format it so the diff stays minimal:
+
+    cd tools/sprite-generator
+    python3 export_catalog.py                          # -> packages/shared/sprite/catalog.json
+    cd ../.. && npx prettier --write packages/shared/sprite/catalog.json
+
+All pixel data is authored procedurally from the grid templates in
+`tools/sprite-generator/catalogs/`; no third-party pixel data is read,
+sampled, or referenced.

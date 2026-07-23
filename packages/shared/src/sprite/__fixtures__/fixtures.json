@@ -1,0 +1,597 @@
+[
+  {
+    "name": "fx_hair_messy",
+    "config": {
+      "skin": "light",
+      "hair": "messy",
+      "hair_color": "braun",
+      "outfit": "trousers",
+      "top": "shirt_white",
+      "pants": "dark",
+      "shoes": "black",
+      "beard": null,
+      "beard_color": "braun",
+      "glasses": null,
+      "hat": null,
+      "misc": null
+    }
+  },
+  {
+    "name": "fx_hair_bob",
+    "config": {
+      "skin": "medium",
+      "hair": "bob",
+      "hair_color": "blond",
+      "outfit": "trousers",
+      "top": "hoodie_blue",
+      "pants": "navy",
+      "shoes": "brown",
+      "beard": null,
+      "beard_color": "braun",
+      "glasses": null,
+      "hat": null,
+      "misc": null
+    }
+  },
+  {
+    "name": "fx_hair_buzz",
+    "config": {
+      "skin": "tan",
+      "hair": "buzz",
+      "hair_color": "schwarz",
+      "outfit": "trousers",
+      "top": "suit_navy",
+      "pants": "dark",
+      "shoes": "black",
+      "beard": null,
+      "beard_color": "braun",
+      "glasses": null,
+      "hat": null,
+      "misc": null
+    }
+  },
+  {
+    "name": "fx_hair_side_part",
+    "config": {
+      "skin": "dark",
+      "hair": "side_part",
+      "hair_color": "rot",
+      "outfit": "trousers",
+      "top": "blazer_anthracite",
+      "pants": "navy",
+      "shoes": "brown",
+      "beard": null,
+      "beard_color": "braun",
+      "glasses": null,
+      "hat": null,
+      "misc": null
+    }
+  },
+  {
+    "name": "fx_hair_curly",
+    "config": {
+      "skin": "light",
+      "hair": "curly",
+      "hair_color": "grau",
+      "outfit": "trousers",
+      "top": "shirt_white",
+      "pants": "dark",
+      "shoes": "black",
+      "beard": null,
+      "beard_color": "braun",
+      "glasses": null,
+      "hat": null,
+      "misc": null
+    }
+  },
+  {
+    "name": "fx_hair_spiky",
+    "config": {
+      "skin": "medium",
+      "hair": "spiky",
+      "hair_color": "braun",
+      "outfit": "trousers",
+      "top": "hoodie_blue",
+      "pants": "navy",
+      "shoes": "brown",
+      "beard": null,
+      "beard_color": "braun",
+      "glasses": null,
+      "hat": null,
+      "misc": null
+    }
+  },
+  {
+    "name": "fx_hair_long",
+    "config": {
+      "skin": "tan",
+      "hair": "long",
+      "hair_color": "blond",
+      "outfit": "trousers",
+      "top": "suit_navy",
+      "pants": "dark",
+      "shoes": "black",
+      "beard": null,
+      "beard_color": "braun",
+      "glasses": null,
+      "hat": null,
+      "misc": null
+    }
+  },
+  {
+    "name": "fx_hair_ponytail",
+    "config": {
+      "skin": "dark",
+      "hair": "ponytail",
+      "hair_color": "schwarz",
+      "outfit": "trousers",
+      "top": "blazer_anthracite",
+      "pants": "navy",
+      "shoes": "brown",
+      "beard": null,
+      "beard_color": "braun",
+      "glasses": null,
+      "hat": null,
+      "misc": null
+    }
+  },
+  {
+    "name": "fx_hair_bun",
+    "config": {
+      "skin": "light",
+      "hair": "bun",
+      "hair_color": "rot",
+      "outfit": "trousers",
+      "top": "shirt_white",
+      "pants": "dark",
+      "shoes": "black",
+      "beard": null,
+      "beard_color": "braun",
+      "glasses": null,
+      "hat": null,
+      "misc": null
+    }
+  },
+  {
+    "name": "fx_hair_braids",
+    "config": {
+      "skin": "medium",
+      "hair": "braids",
+      "hair_color": "grau",
+      "outfit": "trousers",
+      "top": "dress_red",
+      "pants": "navy",
+      "shoes": "brown",
+      "beard": null,
+      "beard_color": "braun",
+      "glasses": null,
+      "hat": null,
+      "misc": null
+    }
+  },
+  {
+    "name": "fx_hair_bald",
+    "config": {
+      "skin": "tan",
+      "hair": "bald",
+      "hair_color": "braun",
+      "outfit": "trousers",
+      "top": "suit_navy",
+      "pants": "dark",
+      "shoes": "black",
+      "beard": null,
+      "beard_color": "braun",
+      "glasses": null,
+      "hat": null,
+      "misc": null
+    }
+  },
+  {
+    "name": "fx_beard_schnauzer",
+    "config": {
+      "skin": "light",
+      "hair": "buzz",
+      "hair_color": "braun",
+      "outfit": "trousers",
+      "top": "shirt_white",
+      "pants": "dark",
+      "shoes": "black",
+      "beard": "schnauzer",
+      "beard_color": "braun",
+      "glasses": null,
+      "hat": null,
+      "misc": null
+    }
+  },
+  {
+    "name": "fx_beard_vollbart",
+    "config": {
+      "skin": "medium",
+      "hair": "messy",
+      "hair_color": "schwarz",
+      "outfit": "trousers",
+      "top": "hoodie_blue",
+      "pants": "navy",
+      "shoes": "brown",
+      "beard": "vollbart",
+      "beard_color": "schwarz",
+      "glasses": "rect",
+      "hat": null,
+      "misc": null
+    }
+  },
+  {
+    "name": "fx_beard_ziegenbart",
+    "config": {
+      "skin": "tan",
+      "hair": "side_part",
+      "hair_color": "blond",
+      "outfit": "trousers",
+      "top": "suit_navy",
+      "pants": "dark",
+      "shoes": "black",
+      "beard": "ziegenbart",
+      "beard_color": "blond",
+      "glasses": "round",
+      "hat": null,
+      "misc": null
+    }
+  },
+  {
+    "name": "fx_beard_grey_prof",
+    "config": {
+      "skin": "dark",
+      "hair": "buzz",
+      "hair_color": "grau",
+      "outfit": "trousers",
+      "top": "blazer_anthracite",
+      "pants": "navy",
+      "shoes": "brown",
+      "beard": "schnauzer",
+      "beard_color": "grau",
+      "glasses": "prof",
+      "hat": null,
+      "misc": null
+    }
+  },
+  {
+    "name": "fx_hat_cap",
+    "config": {
+      "skin": "light",
+      "hair": "messy",
+      "hair_color": "braun",
+      "outfit": "trousers",
+      "top": "shirt_white",
+      "pants": "dark",
+      "shoes": "black",
+      "beard": null,
+      "beard_color": "braun",
+      "glasses": null,
+      "hat": "cap",
+      "misc": null
+    }
+  },
+  {
+    "name": "fx_hat_cowboy",
+    "config": {
+      "skin": "medium",
+      "hair": "bob",
+      "hair_color": "blond",
+      "outfit": "trousers",
+      "top": "hoodie_blue",
+      "pants": "navy",
+      "shoes": "brown",
+      "beard": null,
+      "beard_color": "braun",
+      "glasses": null,
+      "hat": "cowboy",
+      "misc": null
+    }
+  },
+  {
+    "name": "fx_hat_zylinder",
+    "config": {
+      "skin": "tan",
+      "hair": "buzz",
+      "hair_color": "schwarz",
+      "outfit": "trousers",
+      "top": "suit_navy",
+      "pants": "dark",
+      "shoes": "black",
+      "beard": null,
+      "beard_color": "braun",
+      "glasses": null,
+      "hat": "zylinder",
+      "misc": null
+    }
+  },
+  {
+    "name": "fx_hat_krone",
+    "config": {
+      "skin": "dark",
+      "hair": "long",
+      "hair_color": "rot",
+      "outfit": "trousers",
+      "top": "blazer_anthracite",
+      "pants": "navy",
+      "shoes": "brown",
+      "beard": null,
+      "beard_color": "braun",
+      "glasses": null,
+      "hat": "krone",
+      "misc": null
+    }
+  },
+  {
+    "name": "fx_hat_diadem",
+    "config": {
+      "skin": "light",
+      "hair": "ponytail",
+      "hair_color": "grau",
+      "outfit": "trousers",
+      "top": "shirt_white",
+      "pants": "dark",
+      "shoes": "black",
+      "beard": null,
+      "beard_color": "braun",
+      "glasses": null,
+      "hat": "diadem",
+      "misc": null
+    }
+  },
+  {
+    "name": "fx_hat_bierhelm",
+    "config": {
+      "skin": "medium",
+      "hair": "spiky",
+      "hair_color": "braun",
+      "outfit": "trousers",
+      "top": "hoodie_blue",
+      "pants": "navy",
+      "shoes": "brown",
+      "beard": null,
+      "beard_color": "braun",
+      "glasses": null,
+      "hat": "bierhelm",
+      "misc": null
+    }
+  },
+  {
+    "name": "fx_hood_trousers",
+    "config": {
+      "skin": "tan",
+      "hair": "long",
+      "hair_color": "schwarz",
+      "outfit": "trousers",
+      "top": "hoodie_blue",
+      "pants": "dark",
+      "shoes": "black",
+      "beard": null,
+      "beard_color": "braun",
+      "glasses": null,
+      "hat": "hood",
+      "misc": null
+    }
+  },
+  {
+    "name": "fx_hood_dress",
+    "config": {
+      "skin": "dark",
+      "hair": "bob",
+      "hair_color": "blond",
+      "outfit": "dress",
+      "top": "dress_red",
+      "pants": null,
+      "shoes": "brown",
+      "beard": null,
+      "beard_color": "braun",
+      "glasses": null,
+      "hat": "hood",
+      "misc": null
+    }
+  },
+  {
+    "name": "fx_misc_kette",
+    "config": {
+      "skin": "light",
+      "hair": "bob",
+      "hair_color": "braun",
+      "outfit": "trousers",
+      "top": "shirt_white",
+      "pants": "dark",
+      "shoes": "black",
+      "beard": null,
+      "beard_color": "braun",
+      "glasses": null,
+      "hat": null,
+      "misc": "kette"
+    }
+  },
+  {
+    "name": "fx_misc_schnuller",
+    "config": {
+      "skin": "medium",
+      "hair": "messy",
+      "hair_color": "blond",
+      "outfit": "trousers",
+      "top": "hoodie_blue",
+      "pants": "navy",
+      "shoes": "brown",
+      "beard": null,
+      "beard_color": "braun",
+      "glasses": null,
+      "hat": null,
+      "misc": "schnuller"
+    }
+  },
+  {
+    "name": "fx_misc_zigarette",
+    "config": {
+      "skin": "tan",
+      "hair": "buzz",
+      "hair_color": "schwarz",
+      "outfit": "trousers",
+      "top": "suit_navy",
+      "pants": "dark",
+      "shoes": "black",
+      "beard": null,
+      "beard_color": "braun",
+      "glasses": null,
+      "hat": null,
+      "misc": "zigarette"
+    }
+  },
+  {
+    "name": "fx_dress_red",
+    "config": {
+      "skin": "light",
+      "hair": "long",
+      "hair_color": "rot",
+      "outfit": "dress",
+      "top": "dress_red",
+      "pants": null,
+      "shoes": "brown",
+      "beard": null,
+      "beard_color": "braun",
+      "glasses": null,
+      "hat": null,
+      "misc": null
+    }
+  },
+  {
+    "name": "fx_dress_navy",
+    "config": {
+      "skin": "medium",
+      "hair": "bun",
+      "hair_color": "schwarz",
+      "outfit": "dress",
+      "top": "suit_navy",
+      "pants": null,
+      "shoes": "black",
+      "beard": null,
+      "beard_color": "braun",
+      "glasses": "rect",
+      "hat": null,
+      "misc": null
+    }
+  },
+  {
+    "name": "fx_dress_hat",
+    "config": {
+      "skin": "tan",
+      "hair": "braids",
+      "hair_color": "braun",
+      "outfit": "dress",
+      "top": "shirt_white",
+      "pants": null,
+      "shoes": "brown",
+      "beard": null,
+      "beard_color": "braun",
+      "glasses": null,
+      "hat": "cap",
+      "misc": "kette"
+    }
+  },
+  {
+    "name": "fx_base_bald",
+    "config": {
+      "skin": "light",
+      "hair": "bald",
+      "hair_color": "schwarz",
+      "outfit": "base",
+      "top": null,
+      "pants": null,
+      "shoes": null,
+      "beard": null,
+      "beard_color": "braun",
+      "glasses": null,
+      "hat": null,
+      "misc": null
+    }
+  },
+  {
+    "name": "fx_base_hair",
+    "config": {
+      "skin": "dark",
+      "hair": "long",
+      "hair_color": "blond",
+      "outfit": "base",
+      "top": null,
+      "pants": null,
+      "shoes": null,
+      "beard": null,
+      "beard_color": "braun",
+      "glasses": null,
+      "hat": null,
+      "misc": null
+    }
+  },
+  {
+    "name": "fx_base_accessory",
+    "config": {
+      "skin": "medium",
+      "hair": "buzz",
+      "hair_color": "braun",
+      "outfit": "base",
+      "top": null,
+      "pants": null,
+      "shoes": null,
+      "beard": "vollbart",
+      "beard_color": "braun",
+      "glasses": "prof",
+      "hat": null,
+      "misc": null
+    }
+  },
+  {
+    "name": "fx_base_hat_misc",
+    "config": {
+      "skin": "tan",
+      "hair": "spiky",
+      "hair_color": "grau",
+      "outfit": "base",
+      "top": null,
+      "pants": null,
+      "shoes": null,
+      "beard": null,
+      "beard_color": "braun",
+      "glasses": null,
+      "hat": "cowboy",
+      "misc": "zigarette"
+    }
+  },
+  {
+    "name": "fx_combo_all",
+    "config": {
+      "skin": "dark",
+      "hair": "long",
+      "hair_color": "schwarz",
+      "outfit": "trousers",
+      "top": "suit_navy",
+      "pants": "dark",
+      "shoes": "black",
+      "beard": "vollbart",
+      "beard_color": "grau",
+      "glasses": "rect",
+      "hat": "cap",
+      "misc": "kette"
+    }
+  },
+  {
+    "name": "fx_hood_combo",
+    "config": {
+      "skin": "medium",
+      "hair": "messy",
+      "hair_color": "braun",
+      "outfit": "trousers",
+      "top": "blazer_anthracite",
+      "pants": "navy",
+      "shoes": "brown",
+      "beard": "ziegenbart",
+      "beard_color": "schwarz",
+      "glasses": "round",
+      "hat": "hood",
+      "misc": "schnuller"
+    }
+  }
+]

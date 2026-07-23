@@ -1,0 +1,113 @@
+import React from 'react';
+import type { Room } from 'livekit-client';
+import type { ZoneManager } from '../../game/zoneManager';
+
+type AnyRef<T> = React.MutableRefObject<T>;
+
+interface AvLike {
+  activeRoom?: string | null;
+  room?: Room | null | undefined;
+}
+
+interface UseHudTickerParams {
+  enabled: boolean;
+  zoneRef: AnyRef<ZoneManager | null>;
+  avRef: AnyRef<AvLike | null>;
+  setHud: React.Dispatch<React.SetStateAction<{ zone?: string; follow?: string | null; avRoom?: string | null }>>;
+  bubblePendingRef: AnyRef<{ targetId: string; dest?: { x: number; y: number } } | null>;
+  localPosRef: AnyRef<{ id: string; x?: number; y?: number }>;
+  remotesRef: AnyRef<Record<string, { x: number; y: number }>>;
+  onZoneParticipantRefresh: () => void;
+  volumeRef: AnyRef<{ update?: () => Record<string, number> | undefined } | null>;
+  setParticipantVolumesRef: (vols: Record<string, number>) => void;
+  onArrivedAtBubbleTarget: (targetId: string) => void;
+}
+
+export function useHudTicker(params: UseHudTickerParams) {
+  const {
+    enabled,
+    zoneRef,
+    avRef,
+    setHud,
+    bubblePendingRef,
+    localPosRef,
+    remotesRef,
+    onZoneParticipantRefresh,
+    volumeRef,
+    setParticipantVolumesRef,
+    onArrivedAtBubbleTarget,
+  } = params;
+
+  React.useEffect(() => {
+    if (!enabled) return;
+    let participantListLastZone: string | null = null;
+    let lastParticipantUpdate = 0;
+    const hudTimer = setInterval(() => {
+      try {
+        const z = zoneRef.current?.getCurrent();
+        const next: { zone?: string; follow?: string | null; avRoom?: string | null } = {
+          follow: null,
+          avRoom: avRef.current?.activeRoom ?? null,
+        };
+        if (typeof z === 'string') next.zone = z;
+        setHud((prev) => {
+          const sameZone = (prev.zone ?? undefined) === next.zone;
+          const sameFollow = (prev.follow ?? null) === next.follow;
+          const sameAv = (prev.avRoom ?? null) === next.avRoom;
+          if (sameZone && sameFollow && sameAv) return prev;
+          return next;
+        });
+
+        if (bubblePendingRef.current && localPosRef.current) {
+          const { dest, targetId } = bubblePendingRef.current;
+          const targetPos = remotesRef.current[targetId];
+          let arrived = false;
+          if (dest) {
+            const dx = (localPosRef.current.x || 0) - dest.x;
+            const dy = (localPosRef.current.y || 0) - dest.y;
+            arrived = dx * dx + dy * dy < 12 * 12;
+          }
+          if (!arrived && targetPos) {
+            const dx = (localPosRef.current.x || 0) - targetPos.x;
+            const dy = (localPosRef.current.y || 0) - targetPos.y;
+            arrived = dx * dx + dy * dy < 20 * 20;
+          }
+          if (arrived) {
+            onArrivedAtBubbleTarget(targetId);
+            bubblePendingRef.current = null;
+          }
+        }
+
+        const zoneName: string | null = zoneRef.current?.getCurrent() ?? null;
+        if (zoneName !== participantListLastZone || Date.now() - lastParticipantUpdate > 2000) {
+          participantListLastZone = zoneName ?? null;
+          lastParticipantUpdate = Date.now();
+          onZoneParticipantRefresh();
+        }
+
+        const room: Room | null | undefined = avRef.current?.room;
+        if (room && room.localParticipant && room.localParticipant.trackPublications) {
+          // AV-state mirror is maintained externally.
+        }
+        const volumes = volumeRef.current?.update?.();
+        if (volumes) setParticipantVolumesRef(volumes);
+      } catch {}
+    }, 250);
+
+    return () => {
+      clearInterval(hudTimer);
+    };
+  }, [
+    enabled,
+    avRef,
+    bubblePendingRef,
+    localPosRef,
+    onArrivedAtBubbleTarget,
+    onZoneParticipantRefresh,
+    remotesRef,
+    setHud,
+    setParticipantVolumesRef,
+    volumeRef,
+    zoneRef,
+  ]);
+}

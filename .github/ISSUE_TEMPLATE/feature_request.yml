@@ -1,0 +1,66 @@
+name: Feature request
+description: Propose a new feature or significant change
+title: '[feat] '
+labels: ['type:feat', 'status:needs-triage']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for proposing a feature. Before filing, please check the
+        [ROADMAP](../../blob/main/ROADMAP.md) and existing Discussions to
+        see whether something similar is already planned.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: |
+        What problem are you trying to solve? Describe the use case, not
+        the implementation yet.
+      placeholder: |
+        As a workspace admin, I want X so that I can Y.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: How could Meetropolis solve this? Sketch UI, API, or behavior.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: What other options did you weigh? Why did you discard them?
+
+  - type: dropdown
+    id: edition
+    attributes:
+      label: Which edition does this affect?
+      multiple: true
+      options:
+        - OSS / self-hosted
+        - Cloud (meetropolis.me)
+        - Enterprise
+        - Desktop client
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Screenshots, mockups, links to related issues.
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Pre-flight checklist
+      options:
+        - label: I searched the roadmap, issues, and Discussions for this idea.
+          required: true
+        - label: I have read CONTRIBUTING.md and understand the licensing model.
+          required: false

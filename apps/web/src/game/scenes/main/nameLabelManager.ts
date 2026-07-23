@@ -1,0 +1,131 @@
+import Phaser from 'phaser';
+import {
+  createNameLabel as uiCreateNameLabel,
+  drawNameLabel as uiDrawNameLabel,
+  updateNameLabel as uiUpdateNameLabel,
+} from '../../ui/nameLabels';
+import type { MainSceneLike, NameLabelContainer } from '../../types/scene';
+
+export class NameLabelManager {
+  private scene: MainSceneLike;
+  private nameLabels: Map<string, Phaser.GameObjects.Container> = new Map();
+  private heroNameLabel?: Phaser.GameObjects.Container;
+
+  constructor(scene: MainSceneLike) {
+    this.scene = scene;
+  }
+
+  createHeroLabel(name: string, x: number, y: number): Phaser.GameObjects.Container {
+    this.heroNameLabel = uiCreateNameLabel(this.scene, name, 'local');
+    this.updateLabel(this.heroNameLabel, x, y);
+    return this.heroNameLabel;
+  }
+
+  updateHeroLabel(x: number, y: number) {
+    if (this.heroNameLabel) {
+      this.updateLabel(this.heroNameLabel, x, y);
+    }
+  }
+
+  setHeroLabelVisibility(visible: boolean) {
+    try {
+      if (this.heroNameLabel) this.heroNameLabel.setVisible(visible);
+    } catch {}
+  }
+
+  setHeroLabelAlpha(alpha: number) {
+    if (this.heroNameLabel) this.heroNameLabel.setAlpha(alpha);
+  }
+
+  setHeroName(name: string) {
+    if (this.heroNameLabel) {
+      try {
+        this.heroNameLabel.destroy();
+      } catch {
+        /* noop */
+      }
+    }
+    this.heroNameLabel = uiCreateNameLabel(this.scene, name, 'local');
+    // Position will be updated on next frame by updateHeroLabel()
+  }
+
+  createRemoteLabel(id: string, name: string, x: number, y: number, isNpc?: boolean): Phaser.GameObjects.Container {
+    const label = uiCreateNameLabel(this.scene, name, id, isNpc);
+    this.nameLabels.set(id, label);
+    this.updateLabel(label, x, y);
+    return label;
+  }
+
+  getRemoteLabel(id: string): Phaser.GameObjects.Container | undefined {
+    return this.nameLabels.get(id);
+  }
+
+  updateRemoteLabel(id: string, x: number, y: number) {
+    const label = this.nameLabels.get(id);
+    if (label) {
+      this.updateLabel(label, x, y);
+    }
+  }
+
+  updateRemoteLabelName(id: string, name: string) {
+    const nameLabel = this.nameLabels.get(id) as NameLabelContainer | undefined;
+    if (!nameLabel) return;
+
+    try {
+      const textObj = nameLabel.text;
+      if (textObj && textObj.text !== name) {
+        textObj.setText(name);
+        const padX = nameLabel.paddingX ?? 0;
+        const padY = nameLabel.paddingY ?? 0;
+        nameLabel.width = textObj.width + padX * 2;
+        nameLabel.height = textObj.height + padY * 2;
+        uiDrawNameLabel(this.scene, nameLabel, false);
+      }
+    } catch {}
+  }
+
+  setRemoteLabelAlpha(id: string, alpha: number) {
+    const label = this.nameLabels.get(id);
+    if (label) label.setAlpha(alpha);
+  }
+
+  removeRemoteLabel(id: string) {
+    const label = this.nameLabels.get(id);
+    if (label) {
+      label.destroy();
+      this.nameLabels.delete(id);
+    }
+  }
+
+  updateAllRemoteLabels(remoteSprites: Map<string, Phaser.GameObjects.Sprite>) {
+    this.nameLabels.forEach((label, id) => {
+      const sprite = remoteSprites.get(id);
+      if (sprite) {
+        this.updateLabel(label, sprite.x, sprite.y);
+      }
+    });
+  }
+
+  setAllRemoteLabelsVisibility(visible: boolean) {
+    try {
+      this.nameLabels.forEach((lbl) => lbl.setVisible(visible));
+    } catch {}
+  }
+
+  private updateLabel(container: Phaser.GameObjects.Container, x: number, y: number) {
+    uiUpdateNameLabel(this.scene, container, x, y);
+  }
+
+  updateSpeakingStates(speakingIds: Set<string>) {
+    this.nameLabels.forEach((label, id) => {
+      uiDrawNameLabel(this.scene, label, speakingIds.has(id));
+    });
+    if (this.heroNameLabel) {
+      uiDrawNameLabel(this.scene, this.heroNameLabel, speakingIds.has('local'));
+    }
+  }
+
+  getAllRemoteLabels(): Map<string, Phaser.GameObjects.Container> {
+    return this.nameLabels;
+  }
+}

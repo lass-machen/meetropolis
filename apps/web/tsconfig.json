@@ -1,0 +1,27 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "baseUrl": ".",
+    "paths": {
+      "@meetropolis/shared": ["../../packages/shared/src/index.ts"],
+      "@meetropolis/shared/*": ["../../packages/shared/src/*"],
+      "@meetropolis/desktop": ["./src/types/desktop-module.d.ts"],
+      "@meetropolis/enterprise-web": ["./src/types/enterprise-web-module.d.ts"],
+      "@meetropolis/brand-web": ["./src/types/brand-web-module.d.ts"]
+    },
+    "types": ["react", "react-dom", "vite/client", "vitest/globals"],
+    "noEmit": true
+  },
+  "include": [
+    "src",
+    "vite.config.ts",
+    "vitest.config.ts",
+    "optional-submodules.ts",
+    "socialMeta.ts",
+    "socialMeta.test.ts",
+    "src/**/*.test.ts",
+    "src/**/*.test.tsx"
+  ],
+  "exclude": ["../../packages/desktop/**", "../../packages/tenancy-enterprise/**", "../../packages/brand/**"]
+}

@@ -1,0 +1,117 @@
+# Example override: run this OSS stack behind an ALREADY RUNNING external
+# Traefik instance instead of the bare host-port exposure that ships in
+# compose.yaml.
+#
+# This file is NOT loaded automatically. Copy it next to compose.yaml and
+# drop the ".example" suffix:
+#
+#   cp compose.override.traefik.yaml.example compose.override.yaml
+#
+# Docker Compose then merges compose.override.yaml into compose.yaml on
+# every `docker compose up` / `docker compose config` automatically — no
+# extra `-f` flag needed. Edit the copy, not this template, so future
+# `git pull`s don't clobber your local Traefik config.
+#
+# Prerequisites this file assumes:
+#   - Traefik already runs elsewhere on this host (or on this Docker
+#     engine) with an entrypoint named "websecure" (typically :443) and a
+#     certificate resolver configured. This file does not start Traefik —
+#     it only attaches web/server to Traefik's Docker network and labels
+#     them for discovery.
+#   - The external Docker network Traefik watches already exists, e.g.:
+#       docker network create traefik
+#
+# !reset requires Docker Compose 2.24.0+ (the `ports: !reset []` merge
+# type used below to drop the host-port publications from compose.yaml).
+# Check with `docker compose version` if `config` fails to parse below.
+
+networks:
+  # Name of the external network your Traefik container is attached to.
+  # Change "traefik" to match your setup, e.g. `docker network ls` to see
+  # what your existing Traefik stack calls it.
+  traefik:
+    external: true
+    # name: traefik   # uncomment + set if the actual network name differs
+    #                  # from the "traefik:" key above.
+
+services:
+  web:
+    # Join both the internal app network (from compose.yaml, kept by
+    # default when you don't redeclare it — but Compose replaces the
+    # `networks` list wholesale on override, so it must be repeated here)
+    # and the external Traefik network.
+    networks:
+      - meetropolis
+      - traefik
+    # The host-port publish from compose.yaml (WEB_PORT:5173) is pointless
+    # once Traefik is the public entrypoint; reset it to an empty list
+    # rather than leaving the container reachable on the host directly.
+    ports: !reset []
+    labels:
+      - 'traefik.enable=true'
+      # Public hostname for the frontend. Replace with your real domain.
+      - 'traefik.http.routers.meetropolis-web.rule=Host(`meet.example.com`)'
+      - 'traefik.http.routers.meetropolis-web.entrypoints=websecure'
+      - 'traefik.http.routers.meetropolis-web.tls=true'
+      # Named cert resolver as configured in your Traefik static config
+      # (e.g. a Let's Encrypt resolver). Rename or drop this line if your
+      # Traefik terminates TLS a different way (default cert, wildcard, ...).
+      - 'traefik.http.routers.meetropolis-web.tls.certresolver=letsencrypt'
+      # Must match the network key above so Traefik can resolve the
+      # container IP when it is attached to more than one network.
+      - 'traefik.docker.network=traefik'
+      # nginx inside the web container listens on 5173 (see compose.yaml).
+      - 'traefik.http.services.meetropolis-web.loadbalancer.server.port=5173'
+
+  server:
+    networks:
+      - meetropolis
+      - traefik
+    # Same reasoning as web: drop the SERVER_PORT:2567 host publish, the
+    # API is only reachable through Traefik now.
+    ports: !reset []
+    labels:
+      - 'traefik.enable=true'
+      # Public hostname for the API / Colyseus WebSocket endpoint.
+      - 'traefik.http.routers.meetropolis-server.rule=Host(`api.example.com`)'
+      - 'traefik.http.routers.meetropolis-server.entrypoints=websecure'
+      - 'traefik.http.routers.meetropolis-server.tls=true'
+      - 'traefik.http.routers.meetropolis-server.tls.certresolver=letsencrypt'
+      - 'traefik.docker.network=traefik'
+      # Express + Colyseus inside the container listens on 2567 (see
+      # compose.yaml PORT env var).
+      - 'traefik.http.services.meetropolis-server.loadbalancer.server.port=2567'
+
+  # livekit is intentionally left untouched here. Its RTC media ports
+  # (7881/tcp, 7882/udp by default) carry real-time audio/video traffic
+  # and generally need to stay published directly on the host — Traefik's
+  # HTTP/TLS routing model is not a fit for that path, and proxying it
+  # adds latency/jitter for no benefit. Only the signaling port (7880,
+  # plain WebSocket) is a reasonable Traefik candidate if you want a
+  # single `wss://` hostname instead of a raw host:port; if you do that,
+  # remember LIVEKIT_EXTERNAL_URL / VITE_LIVEKIT_URL below still need to
+  # point at whatever hostname clients actually reach LiveKit through.
+
+# ---------------------------------------------------------------------------
+# CRITICAL: rebuilding the web image for your domain
+# ---------------------------------------------------------------------------
+# The React bundle served by the "web" service is built once, at image
+# build time, with VITE_API_BASE and VITE_LIVEKIT_URL baked into the
+# static JS (see the `web.build.args` block in compose.yaml). These are
+# NOT runtime environment variables — changing them in .env after the
+# image is already built has NO EFFECT on a running container.
+#
+# Before putting this stack behind a real domain, set in your .env:
+#
+#   VITE_API_BASE=https://api.example.com
+#   VITE_LIVEKIT_URL=wss://<hostname LiveKit is reachable on>
+#
+# then force a rebuild of the web image (a plain `up -d` will reuse the
+# cached image and keep serving a bundle pointed at localhost):
+#
+#   docker compose build web
+#   docker compose up -d web
+#
+# Also update LIVEKIT_EXTERNAL_URL for the server service to the same
+# public LiveKit URL, so tokens the server hands out match what the
+# browser bundle expects to connect to.

@@ -1,0 +1,191 @@
+# Meetropolis self-host stack.
+#
+# This is the single compose file shipped with the OSS repo. A plain
+# `docker compose up -d` in this directory builds the OSS images and brings
+# up a Postgres, the server, the web frontend and a LiveKit media server.
+# No Traefik, no closed-source modules, no `additional_contexts` voodoo —
+# bring your own reverse proxy / TLS terminator.
+#
+# Self-hosters who want hot-reload or extra services (monitoring, NPC
+# automation, load-testing) put their tweaks into an uncommitted
+# `compose.override.yaml` next to this file; Docker Compose merges it
+# automatically on `up`.
+#
+# Layout assumptions:
+#   - This file lives at the OSS repo root (meetropolis/).
+#   - User data lives in ./data/postgres and ./data/packs (bind mounts).
+#   - Secrets and runtime config come from ./.env (see .env.example).
+#
+# Ports (mapped to the host):
+#   web      5173      Nginx serving the built React bundle
+#   server   2567      Express + Colyseus (REST + WebSocket)
+#   livekit  7880      LiveKit signal
+#   livekit  7881/tcp  LiveKit RTC (TCP fallback)
+#   livekit  7882/udp  LiveKit RTC (primary)
+
+# Explicit project name. Without this, Compose derives the project name
+# from the parent directory, which can collide with the Tiamat deploy
+# stack (whose `meetropolis/` sibling has the same basename). A shared
+# project name causes shared image tags (e.g. `meetropolis-migrate`)
+# and one stack will silently reuse images built by the other. Pinning
+# the name here gives this stack its own `meetropolis-oss-*` image and
+# container namespace.
+name: meetropolis-oss
+
+networks:
+  meetropolis:
+    driver: bridge
+
+services:
+  # One-shot DB prepare: apply Prisma migrations, then seed if the DB is
+  # empty. Exits after completion; the server depends on a successful run.
+  migrate:
+    build:
+      context: .
+      dockerfile: apps/server/Dockerfile
+      target: builder
+    working_dir: /workspace/apps/server
+    env_file:
+      - ./.env
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@db:5432/meetropolis?schema=public}
+      PRISMA_SCHEMA: /workspace/apps/server/prisma/schema.prisma
+      PRISMA_CLI_QUERY_ENGINE_TYPE: library
+      PRISMA_CLIENT_ENGINE_TYPE: library
+    networks:
+      - meetropolis
+    depends_on:
+      db:
+        condition: service_healthy
+    command: >-
+      sh -lc "npx prisma migrate deploy --schema \"$${PRISMA_SCHEMA}\" && (npx prisma db seed --schema \"$${PRISMA_SCHEMA}\" || true)"
+    restart: 'no'
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-meetropolis}
+    volumes:
+      # Bind mount: data lives directly in ./data/postgres on the host.
+      # Postgres in the official image runs as UID 999, so this directory
+      # must be chowned 999:999 before the first `up`.
+      - ./data/postgres:/var/lib/postgresql/data
+    ports:
+      # Optional: expose Postgres on the host. Override POSTGRES_PORT in
+      # .env when 5432 is already in use, or comment out the section
+      # entirely to keep the database internal-only.
+      - '${POSTGRES_PORT:-5432}:5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - meetropolis
+    restart: unless-stopped
+
+  server:
+    build:
+      context: .
+      dockerfile: apps/server/Dockerfile
+      target: runner
+    working_dir: /workspace/apps/server
+    env_file:
+      - ./.env
+    environment:
+      NODE_ENV: production
+      PORT: 2567
+      TRUST_PROXY: ${TRUST_PROXY:-false}
+      # The migrate service ran prisma migrate deploy before the server
+      # came up. Skip the entrypoint pass to avoid a redundant migration
+      # on every boot.
+      RUN_MIGRATIONS: 'false'
+      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@db:5432/meetropolis?schema=public}
+      LIVEKIT_URL: ${LIVEKIT_URL:-ws://livekit:7880}
+      LIVEKIT_EXTERNAL_URL: ${LIVEKIT_EXTERNAL_URL:-${VITE_LIVEKIT_URL:-ws://localhost:7880}}
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:-devkey}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:-secret}
+      API_TOKEN_PEPPER: ${API_TOKEN_PEPPER:?API_TOKEN_PEPPER is required}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173}
+      ASSET_PACKS_DIR: /workspace/apps/public/packs
+      PRISMA_CLI_QUERY_ENGINE_TYPE: library
+      PRISMA_CLIENT_ENGINE_TYPE: library
+    volumes:
+      # Bind mount: user-uploaded asset packs persist in ./data/packs on the host.
+      - ./data/packs:/workspace/apps/public/packs
+    ports:
+      - '${SERVER_PORT:-2567}:2567'
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          node -e 'require("http").get("http://localhost:2567/healthz", r => process.exit(r.statusCode === 200 ? 0 : 1)).on("error", () => process.exit(1))'
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - meetropolis
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        - VITE_API_BASE=${VITE_API_BASE:-http://localhost:2567}
+        - VITE_LIVEKIT_URL=${VITE_LIVEKIT_URL:-ws://localhost:7880}
+        - VITE_FEATURE_AV_SETTINGS=${VITE_FEATURE_AV_SETTINGS:-true}
+        - VITE_FEATURE_VOICE_ISOLATION=${VITE_FEATURE_VOICE_ISOLATION:-on}
+    ports:
+      - '${WEB_PORT:-5173}:5173'
+    depends_on:
+      server:
+        condition: service_started
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          wget -qO- --tries=1 --timeout=5 http://127.0.0.1:5173/ >/dev/null || exit 1
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - meetropolis
+    restart: unless-stopped
+
+  livekit:
+    image: livekit/livekit-server:latest
+    # --dev mode enables an in-memory key store and relaxed defaults; it is
+    # fine for getting started, but production self-hosters who terminate
+    # TLS in front of LiveKit should swap this for `--config /etc/livekit.yaml`
+    # with rotated keys and a real TURN/TLS section. See the LiveKit docs.
+    command:
+      - '--dev'
+      - '--bind'
+      - '0.0.0.0'
+    environment:
+      LK_API_KEY: ${LIVEKIT_API_KEY:-devkey}
+      LK_API_SECRET: ${LIVEKIT_API_SECRET:-secret}
+      LK_NODE_IP: ${LK_NODE_IP:-${HOST_IP:-127.0.0.1}}
+      LK_NAT_1_TO_1_IPS: ${LK_NAT_1_TO_1_IPS:-}
+      LK_RTC_USE_EXTERNAL_IP: ${LK_RTC_USE_EXTERNAL_IP:-true}
+      LK_RTC_TCP_PORT: ${LK_RTC_TCP_PORT:-7881}
+      LK_RTC_UDP_PORT: ${LK_RTC_UDP_PORT:-7882}
+    ports:
+      - '${LIVEKIT_SIGNAL_PORT:-7880}:7880'
+      - '${LIVEKIT_RTC_TCP_PORT:-7881}:7881/tcp'
+      - '${LIVEKIT_RTC_UDP_PORT:-7882}:7882/udp'
+    networks:
+      - meetropolis
+    restart: unless-stopped

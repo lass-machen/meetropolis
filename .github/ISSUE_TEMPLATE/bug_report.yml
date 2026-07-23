@@ -1,0 +1,92 @@
+name: Bug report
+description: Report something that does not work as expected
+title: '[bug] '
+labels: ['type:bug', 'status:needs-triage']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug report. To help us reproduce
+        and fix the issue quickly, please fill out the sections below.
+
+  - type: input
+    id: version
+    attributes:
+      label: Meetropolis version / commit
+      description: Output of `git rev-parse --short HEAD` if you are running from source, or the release tag.
+      placeholder: e.g. v0.1.0 or 98cb79a
+    validations:
+      required: true
+
+  - type: dropdown
+    id: deployment
+    attributes:
+      label: Deployment
+      description: How are you running Meetropolis?
+      options:
+        - Local development (`npm run dev`)
+        - Docker Compose
+        - Self-hosted production (own Kubernetes / VPS)
+        - Hosted Cloud (meetropolis.me)
+        - Other (describe below)
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happens
+    attributes:
+      label: What happens?
+      description: Describe the unexpected behavior. Include exact error messages or screenshots if possible.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+      description: What behavior would have been correct?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: A minimal sequence of steps that triggers the bug.
+      placeholder: |
+        1. Start `docker compose up`
+        2. Go to /admin
+        3. Click "..."
+        4. See error
+    validations:
+      required: true
+
+  - type: textarea
+    id: env
+    attributes:
+      label: Environment
+      description: |
+        Run `node --version`, `npm --version`, `docker --version` and paste
+        the output. Add your OS and browser (for web-client bugs).
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Server log lines, browser console errors, or screenshots.
+      render: text
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Pre-flight checklist
+      options:
+        - label: I searched the existing issues and Discussions for this bug.
+          required: true
+        - label: I am running a supported version (latest release or `main`).
+          required: true
+        - label: The issue is reproducible (not a one-off network glitch).
+          required: false

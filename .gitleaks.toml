@@ -1,0 +1,33 @@
+# gitleaks configuration for Meetropolis.
+#
+# Extends the upstream default ruleset and allowlists a small, explicitly
+# enumerated set of documented false positives. Each entry below is a value
+# that *looks* like a credential to an entropy-based scanner but provably is
+# not one. Keep this list narrow: a broad allowlist would silently hide a real
+# leak, which is the opposite of what this file is for.
+#
+# Run locally:  gitleaks detect --source . --no-git --redact
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Documented false positives (placeholders, i18n keys, storage key names, test fixtures)"
+regexes = [
+  # Placeholder in the API usage examples shown in README.md and in the admin
+  # "API tokens" overlay ("Authorization: Bearer YOUR_TOKEN"). Literally the
+  # string a user replaces with their own token. Matched on the extracted
+  # secret, which is the placeholder itself.
+  '''YOUR_TOKEN''',
+
+  # Deterministic fixture used by the server test suite to pin JWT signing in
+  # unit tests. Never used outside tests and never a real signing key.
+  '''test-jwt-secret-[a-z0-9-]+''',
+
+  # localStorage key NAMES (not values). These identify where a setting is
+  # stored in the browser; they carry no secret.
+  '''meetropolis\.[a-z]+\.[a-z]+\.v[0-9]+''',
+
+  # i18n translation keys for the landing-page FAQ (faq.q1Question, ...).
+  '''faq\.q[0-9]+(Question|Answer)''',
+]

@@ -1,0 +1,17 @@
+{
+  // Type-checks the Prisma-side entry points that live OUTSIDE `src` and are
+  // therefore invisible to the build config (`tsconfig.json`, rootDir `src`):
+  // prisma/seed.ts and prisma.config.ts. The seed writes the shipped avatar and
+  // asset packs and bootstraps the template tenant every customer is cloned
+  // from, so leaving it out of `npm run typecheck` meant the most consequential
+  // file in the workspace was the only unchecked one.
+  //
+  // `noEmit` + `rootDir: "."` because this config never builds anything — it
+  // only needs a program that can contain files above `src`.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": "."
+  },
+  "include": ["prisma/**/*.ts", "prisma.config.ts"]
+}

@@ -1,0 +1,137 @@
+name: CI
+
+on:
+  # Manual trigger only. GitHub Actions billing on the org is currently blocked,
+  # so auto-runs on every push/PR just produce failing "job was not started"
+  # noise. Run on demand from the Actions tab ("Run workflow"). Restore the
+  # push / pull_request triggers below once Actions billing is sorted.
+  workflow_dispatch:
+  # push:
+  #   branches: [main]
+  # pull_request:
+  #   branches: [main]
+
+# Cancel superseded runs on the same ref to save runner time.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # Skip husky git-hook installation during `npm ci` (prepare script).
+  HUSKY: '0'
+  # Prisma CLI (validate/generate) reads DATABASE_URL via prisma.config.ts.
+  # A dummy value is sufficient: neither command opens a connection. It only
+  # has to be a syntactically valid URL so the schema engine does not error.
+  DATABASE_URL: 'postgresql://ci:ci@localhost:5432/ci'
+
+jobs:
+  lint:
+    name: Lint (eslint + budgets + lint-stats)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      # @meetropolis/shared ships no source-path alias for apps/server or
+      # apps/npc-service (only apps/web's tsconfig maps it to src/ directly).
+      # Type-aware ESLint therefore resolves it exactly like tsc does: via
+      # package.json main/types, i.e. the compiled dist/. Without this the
+      # lint job reports hundreds of spurious no-unsafe-* warnings/errors
+      # from every file that imports @meetropolis/shared.
+      - run: npm -w @meetropolis/shared run build
+      # apps/server/src/api.ts (and others) import the `PrismaClient` type
+      # from ./generated/prisma, which is gitignored and only exists after
+      # `prisma generate`. eslint.config.mjs excludes that generated
+      # directory from being linted itself, but type-aware ESLint still
+      # needs it on disk to resolve types in the files that import from it —
+      # verified against a bare checkout: without this, dozens of files
+      # report spurious no-unsafe-* findings and blow the lint-stats
+      # regression gate.
+      - run: npm run generate
+      - run: npm run lint
+      - run: npm run format:check
+
+  typecheck:
+    name: Typecheck (all workspaces)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      # apps/server and apps/npc-service resolve `@meetropolis/shared`
+      # through plain NodeNext module resolution (package.json main/types),
+      # not a tsconfig path alias to source. Without a built dist/ here,
+      # tsc fails both workspaces with "Cannot find module
+      # '@meetropolis/shared'" — verified against a bare checkout.
+      - run: npm -w @meetropolis/shared run build
+      # tsc across workspaces needs the generated Prisma client, which the
+      # server imports from ./generated/prisma (gitignored, so it must be
+      # produced in CI).
+      - run: npm run generate
+      - run: npm run typecheck
+
+  prisma:
+    name: Prisma schema (validate + generate)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: prisma validate
+        working-directory: apps/server
+        run: npx prisma validate
+      - name: prisma generate
+        run: npm run generate
+
+  test:
+    name: Unit tests (web + server)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      # No current server/npc-service test file imports a module that reaches
+      # `@meetropolis/shared` (verified), so vitest passes today without this
+      # step. Building it anyway keeps the job correct as soon as that stops
+      # being true, matching the typecheck/build/lint jobs below.
+      - run: npm -w @meetropolis/shared run build
+      # Server tests import the generated Prisma client at module load; they
+      # mock the DB in-memory (no Postgres service required).
+      - run: npm run generate
+      - run: npm -w @meetropolis/shared run test
+      - run: npm -w @meetropolis/web run test
+      - run: npm -w @meetropolis/server run test
+
+  build:
+    name: Build (web + server) — OSS-only smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      # apps/server's build (tsc) needs @meetropolis/shared's compiled dist/
+      # for the same NodeNext-resolution reason as the typecheck job above.
+      - run: npm -w @meetropolis/shared run build
+      # A plain OSS checkout has no sibling repos. optional-submodules.ts
+      # resolves every closed-source boundary to null and the build must stay
+      # green — this job is the open-core boundary smoke test.
+      - run: npm run generate
+      - run: npm run build

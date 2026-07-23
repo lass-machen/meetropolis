@@ -1,0 +1,42 @@
+# LiveKit configuration template.
+#
+# This file is NOT mounted into the LiveKit container by default — both
+# compose stacks start LiveKit with `--dev`, which uses an in-memory key
+# store and relaxed networking defaults that are fine for getting
+# started but inappropriate for production.
+#
+# To switch from `--dev` to a real config-driven LiveKit, swap the
+# command in compose.yaml for `--config /etc/livekit.yaml`, mount this
+# file at that path, and replace the demo keys at the bottom with
+# rotated, 32+ character random values.
+port: 7880
+log_level: debug
+
+rtc:
+  tcp_port: 7881
+  port_range_start: 7882
+  port_range_end: 7882
+  # use_external_ip is controlled by the LK_RTC_USE_EXTERNAL_IP env var.
+  use_external_ip: false
+  # Disable ICE-lite during local development so the server can issue
+  # connectivity checks itself (helps with Chrome's loopback filtering).
+  use_ice_lite: false
+
+# Built-in TURN server for relay fallback.
+# Needed when host candidates cannot reach each other directly (for
+# example because of strict NAT or Chrome's loopback filtering).
+turn:
+  enabled: true
+  # TURN over TLS on the same port as the WebSocket signalling endpoint.
+  tls_port: 0
+  # TURN over UDP on a separate port.
+  udp_port: 3478
+  # Relay port range for TURN. These must be exposed on the host.
+  relay_range_start: 50000
+  relay_range_end: 50010
+
+# Development API keys. Long enough to start the server, but you MUST
+# replace these with cryptographically random 32+ character values
+# before exposing LiveKit to the public internet.
+keys:
+  devkey: secret

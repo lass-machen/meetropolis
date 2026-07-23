@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Initial-paint fallback + OSS baseline. The app overrides the document
+         title at runtime via the i18n key `header.documentTitle` (see
+         useDocumentTitle in AppRoutes.tsx). For social crawlers (which never run
+         the SPA) the optionalSubmodules plugin rewrites the title and the
+         description and injects OG/Twitter tags at build time — the brand
+         profile when the brand submodule is present (brand-meta.json), else the
+         OSS defaults that match the static values here (see socialMeta.ts).
+         NOTE: keep literal title/meta tag syntax out of this comment; the
+         build-time rewrite matches on those tags. -->
+    <title>Meetropolis</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png" />
+    <link rel="alternate icon" href="/favicon.ico" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <meta
+      name="description"
+      content="Self-hosted virtual office platform with spatial audio, video and a 2D world for small remote teams."
+    />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f6f7fb" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#111114" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Plus+Jakarta+Sans:wght@700;800&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div id="root"></div>
+    <!-- WebSocket Patch for WKWebView (Tauri) - MUST run BEFORE main bundle -->
+    <script>
+      (function () {
+        // Only patch in Tauri (WKWebView)
+        if (typeof window === 'undefined' || !window.__TAURI__) return;
+
+        var OriginalWebSocket = window.WebSocket;
+        if (!OriginalWebSocket) return;
+
+        function PatchedWebSocket(url, protocols) {
+          // If protocols is an object (not array, not string), extract the protocols array
+          // This fixes Colyseus.js which passes { headers, protocols } to WebSocket
+          if (
+            protocols !== undefined &&
+            protocols !== null &&
+            typeof protocols === 'object' &&
+            !Array.isArray(protocols)
+          ) {
+            console.log('[WS Patch] Object detected, extracting protocols from:', protocols);
+            var actualProtocols = protocols.protocols;
+            if (Array.isArray(actualProtocols) && actualProtocols.length > 0) {
+              return new OriginalWebSocket(url, actualProtocols);
+            } else {
+              return new OriginalWebSocket(url);
+            }
+          }
+          // Normal case
+          if (protocols === undefined || protocols === null) {
+            return new OriginalWebSocket(url);
+          }
+          return new OriginalWebSocket(url, protocols);
+        }
+
+        // Copy static properties
+        PatchedWebSocket.CONNECTING = OriginalWebSocket.CONNECTING;
+        PatchedWebSocket.OPEN = OriginalWebSocket.OPEN;
+        PatchedWebSocket.CLOSING = OriginalWebSocket.CLOSING;
+        PatchedWebSocket.CLOSED = OriginalWebSocket.CLOSED;
+        PatchedWebSocket.prototype = OriginalWebSocket.prototype;
+
+        // Replace globally
+        window.WebSocket = PatchedWebSocket;
+        if (typeof globalThis !== 'undefined') {
+          globalThis.WebSocket = PatchedWebSocket;
+        }
+
+        console.log('[WS Patch] WebSocket patched for WKWebView (pre-bundle)');
+      })();
+    </script>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

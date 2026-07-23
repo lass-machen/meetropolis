@@ -1,0 +1,136 @@
+# =============================================================================
+# Meetropolis OSS .gitignore
+# =============================================================================
+# Scope: only files that should never enter the public OSS history. Runtime
+# data and build outputs that the compose stack writes back into the tree
+# (data/, dist/, node_modules/) sit here too.
+# =============================================================================
+
+# --- Node / npm ---
+node_modules/
+.npm-cache/
+pnpm-lock.yaml
+*.log
+
+# --- Build outputs ---
+dist/
+apps/web/dist/
+apps/server/src/generated/
+coverage/
+
+# --- Local environment ---
+.env
+.env.local
+.env.*.local
+
+# --- macOS / editor noise ---
+.DS_Store
+**/xcuserdata/
+**/*.xcuserstate
+
+# --- Compose bind-mounts (postgres data, uploaded asset packs, NPC media) ---
+data/
+npc-media/
+
+# --- User-uploaded runtime content (lives under data/packs at runtime) ---
+# `/public/` is anchored at the repo root so it does not also match
+# apps/web/public/, which ships tracked sprites, floors, furniture and
+# walls under apps/web/public/assets/. Pre-anchor it was matching every
+# nested public/ directory and silently dropping 88 tracked files from
+# fresh clones.
+/public/
+apps/public/packs/
+apps/web/public/packs/avatars/
+apps/web/public/packs/.tmp-*/
+apps/web/public/packs/[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]-*/
+
+# --- Local dev databases / debug artefacts ---
+apps/server/prisma/dev.db*
+apps/server/cookies.txt
+apps/server/reproduce_crash*.ts
+apps/server/verify_*.ts
+apps/server/cleanup_map.js
+apps/server/src/scripts/test_persistence.ts
+apps/web/verify_*.ts
+build_output.txt
+**/build_output.txt
+tmp/
+tmp_extract/
+
+# --- Closed-source sibling repos (resolved at build time via loaders) ---
+# Loaders (apps/web/scripts/optional-submodules.ts, billingLoader.ts,
+# tenancyLoader.ts, adminLoader.ts, brandLoader.ts, desktopLoader.ts,
+# enterpriseWebLoader.ts) resolve these paths via
+# MEETROPOLIS_{BRAND,DESKTOP,ENTERPRISE}_PATH env vars with sibling-clone
+# defaults. Absent paths fall back to OSS-only behaviour gracefully.
+packages/brand/
+packages/desktop/
+packages/tenancy-enterprise/
+
+# --- Closed-source desktop / native build outputs (defense-in-depth) ---
+# Desktop is a closed-source Tauri client living in packages/desktop/.
+# If somebody accidentally drops Tauri or Electron artefacts into the OSS
+# tree (apps/web/src-tauri/, apps/desktop-electron/), the entries below
+# stop them from leaking into the public history.
+apps/web/src-tauri/
+apps/web/src-tauri/target/
+apps/web/src-tauri/local-client/
+apps/desktop-electron/
+apps/desktop-electron/dist/
+apps/desktop-electron/dist-app/
+apps/desktop-electron/assets/appicon.iconset/
+Meetropolis.dmg
+fresh_icon.icns
+
+# --- Brand submodule mirror targets ---
+# apps/web/optional-submodules.ts mirrors files out of the closed-source
+# brand sibling (packages/brand/packages/web/public/) into apps/web/public/
+# at build time. OSS files always win on conflict, so if the OSS tree
+# ships a logo.png / favicon.png the brand mirror leaves them alone.
+#
+# Marketing screenshots and hero footage live only in the brand sibling
+# and would leak proprietary content into the public history if mirrored
+# files were ever staged accidentally. List them explicitly:
+/apps/web/public/images/pub/auth-branding-pixel-art-lobby.png
+/apps/web/public/images/pub/hero-product-visual-2.png
+/apps/web/public/images/pub/meetropolis-editor.webm
+/apps/web/public/images/pub/meetropolis-screen-2.webp
+/apps/web/public/images/pub/meetropolis-screen-3.webp
+/apps/web/public/images/pub/meetropolis-screen-4.webp
+/apps/web/public/images/pub/meetropolis-screen-5.webp
+/apps/web/public/images/pub/meetropolis-screen-hero.webp
+# apps/web/public/brand/ is generated at build time by optional-submodules.ts:
+# linkPublicAssets mirrors the private brand submodule's public/brand/ assets
+# here as relative symlinks. On a pure OSS clone the brand sibling is absent and
+# this directory is never created, so it must never enter OSS history — the
+# symlinks would be dangling links and would leak the maintainer's local path
+# layout. Real generic OSS defaults, once available, can be force-added
+# (`git add -f apps/web/public/brand/logo.png`): linkPublicAssets never
+# overwrites a real file (see the isSymbolicLink guard), so committed defaults
+# and the brand mirror coexist cleanly.
+/apps/web/public/brand/
+
+# --- Local tool caches (Claude Code, Playwright MCP, ...) ---
+.claude/
+.playwright-mcp/
+
+# --- Database dumps and backups (never commit) ---
+backup_*.sql
+db_data_*.tar.gz
+*.backup.sql
+
+# --- Local screenshots in the repo root (dev workflow only) ---
+/*.png
+
+# --- Map builder preview output (regenerated on demand) ---
+tools/map-builder/office_preview.png
+
+# --- Defense: no Font Awesome Pro in the OSS tree ---
+# We use lucide-react. Font Awesome Pro is commercially licensed and must
+# not be re-introduced into the OSS distribution.
+apps/web/public/vendor/fontawesome/
+
+# --- Python tooling artifacts (tools/sprite-generator) ---
+__pycache__/
+*.pyc
+tools/sprite-generator/.venv/

@@ -1,0 +1,37 @@
+# CODEOWNERS — review routing for Meetropolis
+#
+# Syntax: <path-pattern>  <owner-1> [owner-2 ...]
+#   Owners are GitHub usernames or @org/team slugs.
+#   Patterns later in the file take precedence on conflict.
+#
+# Initial fallback: every change is reviewed by the maintainers team
+# (@lass-machen/maintainers). Add or remove reviewers by managing that team
+# on GitHub; membership is documented in GOVERNANCE.md.
+
+# Default owner for everything
+*                                       @lass-machen/maintainers
+
+# Server-side (AGPL-3.0-only)
+/apps/server/                           @lass-machen/maintainers
+/apps/npc-service/                      @lass-machen/maintainers
+/apps/loadtest/                         @lass-machen/maintainers
+
+# Web client (MIT) — touches game engine + AV pipeline
+/apps/web/                              @lass-machen/maintainers
+
+# Shared types (MIT) — breaking changes here affect both editions
+/packages/shared/                       @lass-machen/maintainers
+
+# Licensing and legal: every PR touching these must be reviewed.
+/LICENSE                                @lass-machen/maintainers
+/LICENSING.md                           @lass-machen/maintainers
+/NOTICE                                 @lass-machen/maintainers
+/THIRD_PARTY_LICENSES/                  @lass-machen/maintainers
+/TRADEMARKS.md                          @lass-machen/maintainers
+/CODE_OF_CONDUCT.md                     @lass-machen/maintainers
+/SECURITY.md                            @lass-machen/maintainers
+/CONTRIBUTING.md                        @lass-machen/maintainers
+/GOVERNANCE.md                          @lass-machen/maintainers
+
+# CI/CD and release infrastructure
+/.github/                               @lass-machen/maintainers

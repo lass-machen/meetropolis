@@ -1,0 +1,38 @@
+name: DebugClient
+options:
+  bundleIdPrefix: com.meetropolis
+  deploymentTarget:
+    iOS: '26.0'
+  xcodeVersion: '16.4'
+  defaultConfig: Debug
+
+settings:
+  base:
+    SUPPORTS_MACCATALYST: 'YES'
+    DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER: 'NO'
+    TARGETED_DEVICE_FAMILY: '1,2,6'
+    SWIFT_VERSION: '6.0'
+    INFOPLIST_FILE: 'Info.plist'
+    CODE_SIGN_ENTITLEMENTS: 'DebugClient.entitlements'
+    PRODUCT_BUNDLE_IDENTIFIER: 'com.meetropolis.debug-client'
+    CODE_SIGN_STYLE: 'Automatic'
+
+packages:
+  LiveKit:
+    url: 'https://github.com/livekit/client-sdk-swift.git'
+    from: '2.0.0'
+
+targets:
+  DebugClient:
+    type: application
+    platform: iOS
+    sources:
+      - path: DebugClient
+    settings:
+      base:
+        INFOPLIST_FILE: 'Info.plist'
+        CODE_SIGN_ENTITLEMENTS: 'DebugClient.entitlements'
+    dependencies:
+      - package: LiveKit
+    entitlements:
+      path: DebugClient.entitlements

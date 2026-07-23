@@ -1,0 +1,59 @@
+{
+  "name": "meetropolis",
+  "private": true,
+  "version": "0.1.0",
+  "license": "AGPL-3.0-only",
+  "engines": {
+    "node": ">=24.0.0 <25",
+    "npm": ">=11.7.0"
+  },
+  "packageManager": "npm@11.7.0",
+  "workspaces": [
+    "apps/*",
+    "packages/shared"
+  ],
+  "scripts": {
+    "dev": "concurrently -n server,web \"npm:dev:server\" \"npm:dev:web\"",
+    "dev:web": "npm --workspace=@meetropolis/web run dev",
+    "dev:server": "npm --workspace=@meetropolis/server run dev",
+    "lint": "npm run lint:eslint && npm run lint:budgets && npm run lint:stats",
+    "lint:eslint": "eslint .",
+    "lint:budgets": "node scripts/enforce-budgets.js",
+    "lint:stats": "node scripts/lint-stats.cjs",
+    "lint:stats:update": "node scripts/lint-stats.cjs --update",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "npm run -ws --if-present typecheck",
+    "build": "npm -w @meetropolis/web run build && npm -w @meetropolis/server run build",
+    "generate": "npm -w @meetropolis/server run prisma:generate",
+    "ci:local": "bash scripts/ci-local.sh",
+    "prisma:migrate": "npm -w @meetropolis/server run prisma:migrate",
+    "dev:loadtest": "npm -w @meetropolis/loadtest run dev",
+    "prepare": "node -e \"const fs=require('fs');try{require.resolve('husky')}catch{process.exit(0)}if(!fs.existsSync('./node_modules/.bin/husky')&&!fs.existsSync('./node_modules/.bin/husky.cmd'))process.exit(0);require('child_process').execSync('husky',{stdio:'inherit'})\""
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^21.0.0",
+    "@commitlint/config-conventional": "^21.0.0",
+    "@eslint-community/eslint-plugin-eslint-comments": "^4.7.1",
+    "concurrently": "^9.2.1",
+    "esbuild": "^0.28.0",
+    "eslint": "^9.39.4",
+    "eslint-config-prettier": "^9.1.2",
+    "globals": "^15.15.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.0.4",
+    "prettier": "^3.8.3",
+    "typescript-eslint": "^8.59.2"
+  },
+  "overrides": {
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
+    "ip-address": "^10.2.0",
+    "ws": "^8.21.0",
+    "@hono/node-server": "^1.19.14",
+    "@prisma/dev": {
+      "@hono/node-server": "^1.19.14"
+    }
+  }
+}

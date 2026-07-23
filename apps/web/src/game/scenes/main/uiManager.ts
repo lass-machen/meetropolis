@@ -1,0 +1,185 @@
+import Phaser from 'phaser';
+import { EditorService } from '../../../services/EditorService';
+import { editorOverlayDepth, mapHeightPx } from './depthConstants';
+
+export interface UIManagerConfig {
+  scene: Phaser.Scene & { mapRef?: Phaser.Tilemaps.Tilemap };
+  getEditorMode: () => boolean;
+}
+
+export class UIManager {
+  private scene: Phaser.Scene & { mapRef?: Phaser.Tilemaps.Tilemap };
+  private getEditorMode: () => boolean;
+  private zoneG?: Phaser.GameObjects.Graphics;
+  private zonesVisible: boolean = true;
+  private spawnG?: Phaser.GameObjects.Graphics;
+  private hoverOutline?: Phaser.GameObjects.Graphics;
+  private hoveredSprite: Phaser.GameObjects.Sprite | null = null;
+
+  constructor(config: UIManagerConfig) {
+    this.scene = config.scene;
+    this.getEditorMode = config.getEditorMode;
+  }
+
+  init() {
+    this.hoverOutline = this.scene.add.graphics();
+    this.hoverOutline.setDepth(11);
+  }
+
+  setHoveredSprite(sprite: Phaser.GameObjects.Sprite | null) {
+    this.hoveredSprite = sprite;
+    this.updateHoverOutline();
+  }
+
+  getHoveredSprite(): Phaser.GameObjects.Sprite | null {
+    return this.hoveredSprite;
+  }
+
+  updateCursor(isPanning: boolean, isSpaceHeld: boolean) {
+    try {
+      const input = this.scene.input;
+      if (!input) return;
+      let cursor: string = 'default';
+
+      if (this.getEditorMode()) {
+        const state = EditorService.getState();
+        if (state.tool === 'spawn') cursor = 'crosshair';
+      }
+
+      if (isPanning) {
+        cursor = 'grabbing';
+      } else if (isSpaceHeld) {
+        cursor = 'grab';
+      } else if (this.hoveredSprite) {
+        cursor = 'pointer';
+      }
+      input.setDefaultCursor(cursor);
+    } catch {}
+  }
+
+  private updateHoverOutline() {
+    if (!this.hoverOutline) return;
+    this.hoverOutline.clear();
+
+    if (this.hoveredSprite) {
+      // Couple to the HOVERED sprite's depth (not the actor's): the outline
+      // frames arbitrary furniture in the editor, which now sits at a y-sorted
+      // depth. +1 keeps it just above whatever it outlines (Strang C, C4).
+      this.hoverOutline.setDepth(this.hoveredSprite.depth + 1);
+      const bounds = this.hoveredSprite.getBounds();
+      this.hoverOutline.lineStyle(2, 0x00ff00, 1);
+      this.hoverOutline.strokeRect(bounds.x - 2, bounds.y - 2, bounds.width + 4, bounds.height + 4);
+      this.hoverOutline.lineStyle(4, 0x00ff00, 0.3);
+      this.hoverOutline.strokeRect(bounds.x - 4, bounds.y - 4, bounds.width + 8, bounds.height + 8);
+    }
+  }
+
+  setZoneOverlay(polys: { name: string; points: unknown[] }[]) {
+    try {
+      if (!this.getEditorMode() || !this.zonesVisible) {
+        if (this.zoneG) {
+          this.zoneG.clear();
+          this.zoneG.setVisible(false);
+        }
+        return;
+      }
+      if (!this.zoneG || !this.zoneG.scene) {
+        this.zoneG = this.scene.add.graphics();
+        // Editor overlays sit above the y-sort band so furniture never occludes
+        // them (Strang C, C4).
+        this.zoneG.setDepth(editorOverlayDepth(mapHeightPx(this.scene)));
+      }
+      const g = this.zoneG;
+      g.setVisible(true);
+      g.clear();
+      g.lineStyle(2, 0x00ff99, 1);
+      g.fillStyle(0x00ff99, 0.18);
+
+      const toPoint = (v: unknown): { x: number; y: number } | null => {
+        if (!v) return null;
+        if (Array.isArray(v) && v.length >= 2 && typeof v[0] === 'number' && typeof v[1] === 'number')
+          return { x: v[0], y: v[1] };
+        if (typeof v !== 'object') return null;
+        const obj = v as { x?: unknown; y?: unknown };
+        if (typeof obj.x === 'number' && typeof obj.y === 'number') return { x: obj.x, y: obj.y };
+        const px = obj.x;
+        const py = obj.y;
+        if ((typeof px === 'string' || typeof px === 'number') && (typeof py === 'string' || typeof py === 'number')) {
+          const nx = Number(px);
+          const ny = Number(py);
+          if (!Number.isNaN(nx) && !Number.isNaN(ny)) return { x: nx, y: ny };
+        }
+        return null;
+      };
+
+      for (const poly of Array.isArray(polys) ? polys : []) {
+        const raw = Array.isArray(poly?.points) ? poly.points : [];
+        const pts = raw
+          .map(toPoint)
+          .filter((p): p is { x: number; y: number } => !!p && typeof p.x === 'number' && typeof p.y === 'number');
+        if (!pts || pts.length < 3) continue;
+        g.beginPath();
+        g.moveTo(pts[0].x, pts[0].y);
+        for (let i = 1; i < pts.length; i++) g.lineTo(pts[i].x, pts[i].y);
+        g.closePath();
+        g.fillPath();
+        g.strokePath();
+      }
+    } catch {}
+  }
+
+  setZonesVisible(visible: boolean) {
+    try {
+      this.zonesVisible = !!visible;
+      if (!this.zonesVisible && this.zoneG) {
+        this.zoneG.clear();
+        this.zoneG.setVisible(false);
+      }
+    } catch {}
+  }
+
+  setSpawnMarker(pos: { x: number; y: number } | null) {
+    try {
+      if (!this.getEditorMode()) {
+        if (this.spawnG) {
+          this.spawnG.clear();
+          this.spawnG.setVisible(false);
+        }
+        return;
+      }
+      if (!this.spawnG || !this.spawnG.scene) {
+        this.spawnG = this.scene.add.graphics();
+        this.spawnG.setDepth(editorOverlayDepth(mapHeightPx(this.scene)));
+      }
+      const g = this.spawnG;
+      g.setVisible(true);
+      g.clear();
+      if (!pos) return;
+      const r = 6;
+      g.fillStyle(0x9ca3af, 0.35);
+      g.fillCircle(pos.x, pos.y, r);
+      g.lineStyle(1, 0x9ca3af, 0.9);
+      g.beginPath();
+      g.moveTo(pos.x - r - 2, pos.y);
+      g.lineTo(pos.x + r + 2, pos.y);
+      g.moveTo(pos.x, pos.y - r - 2);
+      g.lineTo(pos.x, pos.y + r + 2);
+      g.strokePath();
+    } catch {}
+  }
+
+  hideEditorOverlays() {
+    try {
+      if (this.zoneG) {
+        this.zoneG.clear();
+        this.zoneG.setVisible(false);
+      }
+    } catch {}
+    try {
+      if (this.spawnG) {
+        this.spawnG.clear();
+        this.spawnG.setVisible(false);
+      }
+    } catch {}
+  }
+}

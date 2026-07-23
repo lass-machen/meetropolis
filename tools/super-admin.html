@@ -1,0 +1,2660 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Super Admin — Meetropolis</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg-deep:#0a0b0f;--bg:#12131a;--bg-raised:#1a1b25;--bg-surface:#22232f;
+  --border:#2a2c3a;--border-active:#3d3f52;--border-accent:#5865f2;
+  --fg:#d4d5db;--fg-dim:#7a7c8a;--fg-muted:#4a4c58;
+  --accent:#5865f2;--accent-dim:#4752c4;--accent-glow:rgba(88,101,242,0.15);
+  --green:#3ba55d;--green-dim:rgba(59,165,93,0.15);
+  --red:#ed4245;--red-dim:rgba(237,66,69,0.15);
+  --orange:#f0a020;--orange-dim:rgba(240,160,32,0.15);
+  --yellow:#fee75c;
+  --radius:6px;--radius-lg:10px;
+  --font-mono:'JetBrains Mono',monospace;--font-sans:'Space Grotesk',sans-serif;
+  --shadow:0 4px 24px rgba(0,0,0,0.4),0 1px 3px rgba(0,0,0,0.3);
+  --sidebar-w:220px;
+}
+html{font-size:14px}
+body{
+  background:var(--bg-deep);color:var(--fg);
+  font-family:var(--font-sans);line-height:1.5;
+  min-height:100vh;overflow-x:hidden;
+}
+body::after{
+  content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.03) 2px,rgba(0,0,0,0.03) 4px);
+}
+
+/* ── Header ── */
+.app-header{
+  background:var(--bg);border-bottom:1px solid var(--border);
+  padding:0 24px;height:52px;display:flex;align-items:center;gap:12px;
+  position:sticky;top:0;z-index:100;backdrop-filter:blur(12px);
+}
+.app-header .logo{
+  display:flex;align-items:center;gap:10px;
+  font-family:var(--font-mono);font-size:14px;font-weight:700;
+  letter-spacing:-0.5px;white-space:nowrap;
+  background:linear-gradient(135deg,var(--accent),#7c8af8);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+}
+.app-header .logo svg{flex-shrink:0}
+.app-header .tag{
+  font-family:var(--font-mono);font-size:9px;font-weight:600;
+  background:var(--accent-dim);color:var(--accent);
+  padding:2px 7px;border-radius:3px;letter-spacing:0.5px;
+  text-transform:uppercase;
+}
+.conn-bar{
+  margin-left:auto;display:flex;align-items:center;gap:8px;
+}
+.conn-bar input{
+  background:var(--bg-deep);border:1px solid var(--border);
+  border-radius:var(--radius);color:var(--fg);
+  font-family:var(--font-mono);font-size:11px;
+  padding:5px 10px;outline:none;transition:border-color 0.2s;
+}
+.conn-bar input:focus{border-color:var(--accent)}
+.conn-bar #apiUrl{width:200px}
+.conn-bar #authToken{width:160px}
+.conn-bar .test-btn{
+  display:flex;align-items:center;gap:5px;
+  padding:5px 12px;border:1px solid var(--border);
+  border-radius:var(--radius);background:var(--bg-raised);
+  color:var(--fg);font-family:var(--font-mono);font-size:11px;
+  font-weight:600;cursor:pointer;transition:all 0.15s;white-space:nowrap;
+}
+.conn-bar .test-btn:hover{background:var(--bg-surface);border-color:var(--border-active)}
+.conn-dot{
+  width:8px;height:8px;border-radius:50%;background:var(--fg-muted);
+  transition:background 0.3s,box-shadow 0.3s;flex-shrink:0;
+}
+.conn-dot.ok{background:var(--green);box-shadow:0 0 8px rgba(59,165,93,0.5)}
+.conn-dot.err{background:var(--red);box-shadow:0 0 8px rgba(237,66,69,0.5)}
+
+/* ── Layout ── */
+.app-body{display:flex;min-height:calc(100vh - 52px)}
+
+/* ── Sidebar ── */
+.sidebar{
+  width:var(--sidebar-w);background:var(--bg);
+  border-right:1px solid var(--border);
+  padding:16px 0;flex-shrink:0;
+  display:flex;flex-direction:column;
+}
+.sidebar .nav-section{
+  font-family:var(--font-mono);font-size:9px;font-weight:600;
+  color:var(--fg-muted);text-transform:uppercase;letter-spacing:1.2px;
+  padding:0 20px;margin:16px 0 6px;
+}
+.sidebar .nav-section:first-child{margin-top:0}
+.sidebar .nav-item{
+  display:flex;align-items:center;gap:10px;
+  padding:9px 20px;cursor:pointer;
+  font-family:var(--font-mono);font-size:12px;font-weight:500;
+  color:var(--fg-dim);transition:all 0.15s;
+  border-left:3px solid transparent;
+}
+.sidebar .nav-item:hover{color:var(--fg);background:var(--bg-raised)}
+.sidebar .nav-item.active{
+  color:var(--accent);background:var(--accent-glow);
+  border-left-color:var(--accent);
+}
+.sidebar .nav-item .nav-icon{
+  width:18px;height:18px;display:flex;align-items:center;justify-content:center;
+  font-size:14px;
+}
+.sidebar-footer{
+  margin-top:auto;padding:16px 20px;
+  border-top:1px solid var(--border);
+  font-family:var(--font-mono);font-size:10px;color:var(--fg-muted);
+}
+
+/* ── Content ── */
+.content{flex:1;overflow-y:auto;padding:24px 32px;background:var(--bg-deep)}
+.content-section{display:none}
+.content-section.active{display:block}
+.content-section h2{
+  font-family:var(--font-mono);font-size:18px;font-weight:700;
+  margin-bottom:4px;
+  background:linear-gradient(135deg,var(--fg),var(--fg-dim));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+}
+.content-section .subtitle{
+  font-family:var(--font-mono);font-size:11px;color:var(--fg-muted);
+  margin-bottom:24px;
+}
+
+/* ── Cards ── */
+.card{
+  background:var(--bg);border:1px solid var(--border);
+  border-radius:var(--radius-lg);padding:20px;margin-bottom:20px;
+}
+.card-header{
+  font-family:var(--font-mono);font-size:11px;font-weight:600;
+  color:var(--fg-muted);text-transform:uppercase;letter-spacing:0.8px;
+  margin-bottom:16px;display:flex;align-items:center;gap:8px;
+}
+.card-header::before{
+  content:'';width:3px;height:12px;background:var(--accent);border-radius:1px;
+}
+
+/* ── Metric Cards ── */
+.metrics-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:20px}
+.metric-card{
+  background:var(--bg);border:1px solid var(--border);
+  border-radius:var(--radius-lg);padding:16px 20px;
+  position:relative;overflow:hidden;
+}
+.metric-card::after{
+  content:'';position:absolute;top:0;right:0;width:60px;height:60px;
+  border-radius:0 0 0 60px;opacity:0.06;
+}
+.metric-card.blue::after{background:var(--accent)}
+.metric-card.green::after{background:var(--green)}
+.metric-card.orange::after{background:var(--orange)}
+.metric-card.red::after{background:var(--red)}
+.metric-label{
+  font-family:var(--font-mono);font-size:10px;font-weight:600;
+  color:var(--fg-muted);text-transform:uppercase;letter-spacing:0.8px;
+  margin-bottom:6px;
+}
+.metric-value{
+  font-family:var(--font-mono);font-size:24px;font-weight:700;
+  color:var(--fg);
+}
+.metric-sub{
+  font-family:var(--font-mono);font-size:10px;color:var(--fg-dim);margin-top:2px;
+}
+
+/* ── Forms ── */
+.field{margin-bottom:10px}
+.field label{
+  display:block;font-size:11px;font-weight:500;
+  color:var(--fg-dim);margin-bottom:4px;
+  font-family:var(--font-mono);
+}
+.field input,.field select,.field textarea{
+  width:100%;padding:7px 10px;
+  background:var(--bg-deep);border:1px solid var(--border);
+  border-radius:var(--radius);color:var(--fg);
+  font-family:var(--font-mono);font-size:12px;
+  transition:border-color 0.2s;outline:none;
+}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--accent)}
+.field input[type="checkbox"]{
+  width:auto;accent-color:var(--accent);
+  vertical-align:middle;cursor:pointer;
+}
+.field-row{display:flex;gap:10px}
+.field-row .field{flex:1}
+.inline-form{
+  display:flex;gap:10px;align-items:flex-end;
+  padding:16px 20px;background:var(--bg-raised);
+  border:1px solid var(--border);border-radius:var(--radius-lg);
+  margin-bottom:20px;flex-wrap:wrap;
+}
+.inline-form .field{margin-bottom:0;min-width:120px}
+.inline-form .field.grow{flex:1}
+
+/* ── Buttons ── */
+.btn{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:7px 14px;border:1px solid var(--border);
+  border-radius:var(--radius);background:var(--bg-raised);
+  color:var(--fg);font-family:var(--font-mono);font-size:11px;
+  font-weight:600;cursor:pointer;transition:all 0.15s;
+  white-space:nowrap;
+}
+.btn:hover{background:var(--bg-surface);border-color:var(--border-active)}
+.btn:disabled{opacity:0.4;cursor:not-allowed}
+.btn-accent{background:var(--accent-dim);border-color:var(--accent);color:#c5ccff}
+.btn-accent:hover{background:var(--accent);color:#fff}
+.btn-danger{border-color:rgba(237,66,69,0.3);color:var(--red)}
+.btn-danger:hover{background:var(--red-dim)}
+.btn-success{border-color:rgba(59,165,93,0.3);color:var(--green)}
+.btn-success:hover{background:var(--green-dim)}
+.btn-sm{padding:4px 10px;font-size:10px}
+.btn-xs{padding:2px 7px;font-size:9px}
+.btn-row{display:flex;gap:6px;margin-top:8px}
+
+/* ── Tables ── */
+.table-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:var(--radius-lg)}
+table{
+  width:100%;border-collapse:collapse;
+  font-family:var(--font-mono);font-size:11px;
+}
+thead{background:var(--bg-raised)}
+th{
+  padding:10px 12px;text-align:left;
+  font-size:10px;font-weight:600;color:var(--fg-muted);
+  text-transform:uppercase;letter-spacing:0.5px;
+  border-bottom:1px solid var(--border);white-space:nowrap;
+}
+td{
+  padding:8px 12px;border-bottom:1px solid var(--border);
+  color:var(--fg);vertical-align:middle;
+}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:var(--bg-raised)}
+td input,td select{
+  background:var(--bg-deep);border:1px solid var(--border);
+  border-radius:4px;color:var(--fg);padding:4px 8px;
+  font-family:var(--font-mono);font-size:11px;
+  outline:none;transition:border-color 0.2s;
+}
+td input:focus,td select:focus{border-color:var(--accent)}
+td input[type="text"],td input[type="number"]{width:100%;min-width:60px}
+td input[type="checkbox"]{accent-color:var(--accent);cursor:pointer}
+td select{min-width:80px}
+
+/* ── Status badges ── */
+.badge{
+  display:inline-flex;align-items:center;gap:4px;
+  padding:2px 8px;border-radius:10px;
+  font-family:var(--font-mono);font-size:10px;font-weight:600;
+}
+.badge.green{background:var(--green-dim);color:var(--green)}
+.badge.red{background:var(--red-dim);color:var(--red)}
+.badge.orange{background:var(--orange-dim);color:var(--orange)}
+.badge.blue{background:var(--accent-glow);color:var(--accent)}
+.badge-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.badge.green .badge-dot{background:var(--green)}
+.badge.red .badge-dot{background:var(--red)}
+.badge.orange .badge-dot{background:var(--orange)}
+.badge.blue .badge-dot{background:var(--accent)}
+
+/* ── Sub-tabs ── */
+.sub-tabs{display:flex;gap:4px;margin-bottom:20px}
+.sub-tab{
+  padding:7px 16px;border:1px solid var(--border);
+  border-radius:var(--radius);background:var(--bg);
+  font-family:var(--font-mono);font-size:11px;font-weight:600;
+  color:var(--fg-dim);cursor:pointer;transition:all 0.15s;
+}
+.sub-tab:hover{color:var(--fg);border-color:var(--border-active)}
+.sub-tab.active{
+  background:var(--accent-glow);color:var(--accent);
+  border-color:var(--accent);
+}
+
+/* ── Expand/Collapse ── */
+.expandable-header{
+  display:flex;align-items:center;gap:8px;
+  cursor:pointer;padding:8px 0;
+  font-family:var(--font-mono);font-size:12px;font-weight:600;
+  color:var(--fg);
+}
+.expandable-header .arrow{
+  transition:transform 0.2s;font-size:10px;color:var(--fg-muted);
+}
+.expandable-header.open .arrow{transform:rotate(90deg)}
+.expandable-body{display:none;padding:12px 0}
+.expandable-body.open{display:block}
+
+/* ── Progress bar ── */
+.progress-bar{
+  height:8px;background:var(--bg-deep);border-radius:4px;
+  overflow:hidden;margin-top:6px;
+}
+.progress-fill{
+  height:100%;border-radius:4px;
+  transition:width 0.4s ease;
+}
+.progress-fill.green{background:var(--green)}
+.progress-fill.orange{background:var(--orange)}
+.progress-fill.red{background:var(--red)}
+.progress-fill.blue{background:var(--accent)}
+
+/* ── Health grid ── */
+.health-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin-bottom:20px}
+.health-card{
+  background:var(--bg);border:1px solid var(--border);
+  border-radius:var(--radius-lg);padding:16px;
+}
+.health-card-title{
+  font-family:var(--font-mono);font-size:11px;font-weight:600;
+  color:var(--fg-dim);text-transform:uppercase;letter-spacing:0.5px;
+  margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;
+}
+.health-row{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:4px 0;font-family:var(--font-mono);font-size:11px;
+}
+.health-row .label{color:var(--fg-dim)}
+.health-row .value{color:var(--fg);font-weight:600}
+
+/* ── Confirm dialog ── */
+.dialog-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,0.6);
+  z-index:500;display:none;align-items:center;justify-content:center;
+  backdrop-filter:blur(4px);
+}
+.dialog-overlay.show{display:flex}
+.dialog{
+  background:var(--bg);border:1px solid var(--border);
+  border-radius:var(--radius-lg);padding:24px;
+  max-width:420px;width:90%;box-shadow:var(--shadow);
+}
+.dialog h3{
+  font-family:var(--font-mono);font-size:14px;font-weight:700;
+  color:var(--fg);margin-bottom:8px;
+}
+.dialog p{font-size:12px;color:var(--fg-dim);margin-bottom:20px}
+.dialog .btn-row{justify-content:flex-end}
+
+/* ── Toast ── */
+#toasts{
+  position:fixed;bottom:24px;right:24px;z-index:1000;
+  display:flex;flex-direction:column;gap:6px;
+}
+.toast{
+  padding:10px 16px;border-radius:var(--radius);
+  font-family:var(--font-mono);font-size:11px;
+  box-shadow:var(--shadow);animation:toastIn 0.3s ease;
+  max-width:400px;transition:opacity 0.3s;
+}
+.toast.ok{background:#1a2e1f;color:var(--green);border:1px solid rgba(59,165,93,0.3)}
+.toast.err{background:#2e1a1a;color:var(--red);border:1px solid rgba(237,66,69,0.3)}
+.toast.warn{background:#2e2a1a;color:var(--orange);border:1px solid rgba(240,160,32,0.3)}
+@keyframes toastIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+
+/* ── Loading spinner ── */
+.spinner{
+  display:inline-block;width:14px;height:14px;
+  border:2px solid var(--border);border-top-color:var(--accent);
+  border-radius:50%;animation:spin 0.6s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.loading-row{
+  text-align:center;padding:32px;
+  font-family:var(--font-mono);font-size:12px;color:var(--fg-muted);
+}
+
+/* ── Empty state ── */
+.empty-state{
+  text-align:center;padding:48px 24px;
+  font-family:var(--font-mono);color:var(--fg-muted);
+}
+.empty-state .icon{font-size:32px;margin-bottom:12px;opacity:0.4}
+.empty-state p{font-size:12px}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:var(--border-active)}
+
+/* ── Responsive ── */
+@media(max-width:900px){
+  .sidebar{width:56px;overflow:hidden}
+  .sidebar .nav-item span{display:none}
+  .sidebar .nav-section{display:none}
+  .sidebar .nav-item{padding:12px 0;justify-content:center}
+  .sidebar .nav-item .nav-icon{width:24px;height:24px;font-size:18px}
+  .sidebar-footer{display:none}
+  .content{padding:16px}
+  .conn-bar #apiUrl{width:140px}
+  .conn-bar #authToken{width:100px}
+}
+@media(max-width:600px){
+  .app-header{padding:0 12px;gap:6px;flex-wrap:wrap;height:auto;padding:8px 12px}
+  .conn-bar{width:100%;flex-wrap:wrap;gap:6px}
+  .conn-bar input{flex:1;min-width:100px}
+  .metrics-row{grid-template-columns:1fr 1fr}
+  .health-grid{grid-template-columns:1fr}
+}
+
+/* ── Tenant Detail Panel ── */
+.tenant-detail{
+  background:var(--bg);border:1px solid var(--border-accent);
+  border-radius:var(--radius-lg);margin-top:20px;margin-bottom:20px;
+  display:none;
+}
+.tenant-detail.open{display:block}
+.tenant-detail-header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:16px 20px;background:var(--bg-raised);
+  border-bottom:1px solid var(--border);border-radius:var(--radius-lg) var(--radius-lg) 0 0;
+}
+.tenant-detail-header h3{
+  font-family:var(--font-mono);font-size:14px;font-weight:700;
+  color:var(--accent);margin:0;
+}
+.tenant-detail-body{padding:20px}
+
+/* ── Badge gray ── */
+.badge.gray{background:var(--bg-surface);color:var(--fg-muted)}
+.badge.gray .badge-dot{background:var(--fg-muted)}
+
+/* ── Filter bar ── */
+.filter-bar{
+  display:flex;gap:10px;align-items:flex-end;
+  padding:16px 20px;background:var(--bg-raised);
+  border:1px solid var(--border);border-radius:var(--radius-lg);
+  margin-bottom:20px;flex-wrap:wrap;
+}
+.filter-bar .field{margin-bottom:0;min-width:120px}
+
+/* ── Pagination ── */
+.pagination{
+  display:flex;align-items:center;gap:12px;
+  margin-top:16px;font-family:var(--font-mono);font-size:11px;color:var(--fg-dim);
+}
+
+/* ── JSON toggle ── */
+.json-toggle{
+  cursor:pointer;color:var(--accent);font-family:var(--font-mono);
+  font-size:10px;text-decoration:underline;
+}
+.json-content{
+  display:none;margin-top:6px;padding:8px;
+  background:var(--bg-deep);border:1px solid var(--border);
+  border-radius:var(--radius);font-family:var(--font-mono);
+  font-size:10px;color:var(--fg-dim);white-space:pre-wrap;
+  word-break:break-all;max-height:200px;overflow-y:auto;
+}
+.json-content.open{display:block}
+
+/* ── Clickable slug ── */
+.slug-link{
+  color:var(--accent);cursor:pointer;text-decoration:none;
+  border-bottom:1px dashed var(--accent-dim);font-family:var(--font-mono);
+}
+.slug-link:hover{border-bottom-style:solid}
+
+/* ── Info grid ── */
+.info-grid{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
+  gap:12px;margin-bottom:16px;
+}
+.info-item{
+  padding:10px 14px;background:var(--bg-raised);
+  border:1px solid var(--border);border-radius:var(--radius);
+}
+.info-item .info-label{
+  font-family:var(--font-mono);font-size:9px;font-weight:600;
+  color:var(--fg-muted);text-transform:uppercase;letter-spacing:0.5px;
+  margin-bottom:4px;
+}
+.info-item .info-value{
+  font-family:var(--font-mono);font-size:12px;font-weight:600;color:var(--fg);
+}
+</style>
+</head>
+<body>
+
+<!-- ── Header ── -->
+<header class="app-header">
+  <div class="logo">
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><rect x="2" y="2" width="7" height="7" rx="1.5" fill="#5865f2"/><rect x="11" y="2" width="7" height="7" rx="1.5" fill="#5865f2" opacity="0.6"/><rect x="2" y="11" width="7" height="7" rx="1.5" fill="#5865f2" opacity="0.6"/><rect x="11" y="11" width="7" height="7" rx="1.5" fill="#5865f2" opacity="0.3"/></svg>
+    SUPER ADMIN
+  </div>
+  <span class="tag">Meetropolis</span>
+  <div class="conn-bar">
+    <input type="text" id="apiUrl" value="" placeholder="API URL">
+    <input type="text" id="authToken" placeholder="Auth Token (optional)">
+    <button class="test-btn" onclick="testConnection()">
+      <div class="conn-dot" id="connDot"></div>
+      Test
+    </button>
+  </div>
+</header>
+
+<div class="app-body">
+  <!-- ── Sidebar ── -->
+  <nav class="sidebar">
+    <div class="nav-section">Management</div>
+    <div class="nav-item active" data-section="tenants" onclick="switchSection('tenants')">
+      <div class="nav-icon">&#9959;</div>
+      <span>Mandanten</span>
+    </div>
+    <div class="nav-item" data-section="billing" onclick="switchSection('billing')">
+      <div class="nav-icon">&#128176;</div>
+      <span>Billing</span>
+    </div>
+    <div class="nav-item" data-section="auditlog" onclick="switchSection('auditlog')">
+      <div class="nav-icon">&#128220;</div>
+      <span>Audit Log</span>
+    </div>
+    <div class="nav-item" data-section="packs" onclick="switchSection('packs')">
+      <div class="nav-icon">&#128230;</div>
+      <span>Packs</span>
+    </div>
+    <div class="nav-item" data-section="maps" onclick="switchSection('maps')">
+      <div class="nav-icon">&#128506;</div>
+      <span>Maps</span>
+    </div>
+    <div class="nav-section">System</div>
+    <div class="nav-item" data-section="health" onclick="switchSection('health')">
+      <div class="nav-icon">&#9829;</div>
+      <span>Health</span>
+    </div>
+    <div class="nav-item" data-section="settings" onclick="switchSection('settings')">
+      <div class="nav-icon">&#9881;</div>
+      <span>Einstellungen</span>
+    </div>
+    <div class="sidebar-footer">
+      Super Admin v2.0
+    </div>
+  </nav>
+
+  <!-- ── Content ── -->
+  <main class="content">
+
+    <!-- ════════════ TENANTS ════════════ -->
+    <div class="content-section active" id="sec-tenants">
+      <h2>Mandanten</h2>
+      <p class="subtitle">Tenant-Verwaltung: Erstellen, Bearbeiten, Löschen</p>
+
+      <div class="inline-form">
+        <div class="field grow">
+          <label>Slug</label>
+          <input type="text" id="newTenantSlug" placeholder="mein-mandant">
+        </div>
+        <div class="field grow">
+          <label>Name</label>
+          <input type="text" id="newTenantName" placeholder="Mein Mandant GmbH">
+        </div>
+        <button class="btn btn-accent" onclick="createTenant()">+ Neu anlegen</button>
+      </div>
+
+      <div class="card" style="padding:0">
+        <div class="table-wrap" style="border:none">
+          <table>
+            <thead>
+              <tr>
+                <th>Slug</th>
+                <th>Name</th>
+                <th>Online</th>
+                <th>Limit</th>
+                <th>Free-Limit</th>
+                <th>Bypass</th>
+                <th>Status</th>
+                <th>Stripe Customer</th>
+                <th>Stripe Sub</th>
+                <th>Erstellt</th>
+                <th>Trial</th>
+                <th>Dunning</th>
+                <th>Pause</th>
+                <th>Default Map</th>
+                <th>Aktionen</th>
+              </tr>
+            </thead>
+            <tbody id="tenantsBody">
+              <tr><td colspan="15" class="loading-row">Verbindung herstellen, um Mandanten zu laden...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="tenant-detail" id="tenantDetailPanel">
+        <div class="tenant-detail-header">
+          <h3 id="tenantDetailTitle">Tenant Detail</h3>
+          <button class="btn btn-sm" onclick="closeTenantDetail()">Schließen</button>
+        </div>
+        <div class="tenant-detail-body">
+          <div class="sub-tabs" id="detailTabs">
+            <button class="sub-tab active" data-detail-tab="users" onclick="switchDetailTab('users')">Users</button>
+            <button class="sub-tab" data-detail-tab="billing" onclick="switchDetailTab('billing')">Billing</button>
+            <button class="sub-tab" data-detail-tab="packs" onclick="switchDetailTab('packs')">Packs</button>
+          </div>
+          <div class="detail-tab-content active" id="detailTabUsers">
+            <div class="loading-row">Tenant auswählen...</div>
+          </div>
+          <div class="detail-tab-content" id="detailTabBilling" style="display:none">
+            <div class="loading-row">Daten laden...</div>
+          </div>
+          <div class="detail-tab-content" id="detailTabPacks" style="display:none">
+            <div class="loading-row">Daten laden...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════════════ BILLING ════════════ -->
+    <div class="content-section" id="sec-billing">
+      <h2>Billing</h2>
+      <p class="subtitle">Stripe-Produkte, Preise und Umsatz-Metriken</p>
+
+      <div class="metrics-row" id="billingMetrics">
+        <div class="metric-card blue">
+          <div class="metric-label">Aktive Subscriptions</div>
+          <div class="metric-value" id="metricActiveSubs">—</div>
+        </div>
+        <div class="metric-card green">
+          <div class="metric-label">MRR</div>
+          <div class="metric-value" id="metricMRR">—</div>
+        </div>
+        <div class="metric-card orange">
+          <div class="metric-label">Umsatz 30T</div>
+          <div class="metric-value" id="metricRevenue30">—</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">Neues Produkt anlegen</div>
+        <div class="field-row">
+          <div class="field"><label>Name</label><input type="text" id="newProdName" placeholder="Starter Plan"></div>
+          <div class="field"><label>Beschreibung</label><input type="text" id="newProdDesc" placeholder="Basic-Zugang"></div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label>Betrag (Cent)</label><input type="number" id="newProdAmount" value="999" min="0"></div>
+          <div class="field"><label>Währung</label>
+            <select id="newProdCurrency"><option value="eur">EUR</option><option value="usd">USD</option></select>
+          </div>
+          <div class="field"><label>Interval</label>
+            <select id="newProdInterval"><option value="month">Monatlich</option><option value="year">Jährlich</option></select>
+          </div>
+          <div class="field"><label>Concurrent-Limit</label><input type="number" id="newProdLimit" value="10" min="1"></div>
+        </div>
+        <div class="btn-row"><button class="btn btn-accent" onclick="createProduct()">+ Produkt anlegen</button></div>
+      </div>
+
+      <div class="card" style="padding:0">
+        <div class="card-header" style="padding:20px 20px 4px">Produkte</div>
+        <div class="table-wrap" style="border:none">
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Beschreibung</th>
+                <th>Active</th>
+                <th>Preise</th>
+                <th>Aktionen</th>
+              </tr>
+            </thead>
+            <tbody id="productsBody">
+              <tr><td colspan="5" class="loading-row">Verbindung herstellen...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════════════ PACKS ════════════ -->
+    <div class="content-section" id="sec-packs">
+      <h2>Pack Catalog</h2>
+      <p class="subtitle">Asset- und Avatar-Packs verwalten, Zugriffsrechte vergeben</p>
+
+      <div class="sub-tabs">
+        <button class="sub-tab active" data-pack-tab="asset" onclick="switchPackTab('asset')">Asset Packs</button>
+        <button class="sub-tab" data-pack-tab="avatar" onclick="switchPackTab('avatar')">Avatar Packs</button>
+      </div>
+
+      <div id="packTabAsset">
+        <div class="card" style="padding:0">
+          <div class="table-wrap" style="border:none">
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Author</th>
+                  <th>Version</th>
+                  <th>Pricing</th>
+                  <th>Preis (EUR)</th>
+                  <th>Published</th>
+                  <th>Featured</th>
+                  <th>Aktionen</th>
+                </tr>
+              </thead>
+              <tbody id="assetPacksBody">
+                <tr><td colspan="8" class="loading-row">Verbindung herstellen...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">Asset Pack Upload</div>
+          <div class="field-row">
+            <div class="field grow">
+              <label>.mepack Datei</label>
+              <input type="file" id="assetPackFile" accept=".mepack,.zip" style="padding:5px">
+            </div>
+            <button class="btn btn-accent" onclick="uploadAssetPack()" style="align-self:flex-end">Upload</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="packTabAvatar" style="display:none">
+        <div class="card" style="padding:0">
+          <div class="table-wrap" style="border:none">
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Author</th>
+                  <th>Version</th>
+                  <th>Pricing</th>
+                  <th>Preis (EUR)</th>
+                  <th>Published</th>
+                  <th>Featured</th>
+                  <th>Aktionen</th>
+                </tr>
+              </thead>
+              <tbody id="avatarPacksBody">
+                <tr><td colspan="8" class="loading-row">Verbindung herstellen...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" id="grantRevokeCard">
+        <div class="card-header">Zugriff verwalten (Grant / Revoke)</div>
+        <div class="field-row">
+          <div class="field">
+            <label>Tenant</label>
+            <select id="grantTenant"><option value="">— Tenant wählen —</option></select>
+          </div>
+          <div class="field">
+            <label>Pack</label>
+            <select id="grantPack"><option value="">— Pack wählen —</option></select>
+          </div>
+          <button class="btn btn-success" onclick="grantAccess()" style="align-self:flex-end">Grant</button>
+        </div>
+        <div style="margin-top:16px">
+          <div class="card-header" style="padding:0;margin-bottom:8px">Aktuelle Berechtigungen</div>
+          <div id="grantsList" class="empty-state"><p>Packs laden...</p></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════════════ AUDIT LOG ════════════ -->
+    <div class="content-section" id="sec-auditlog">
+      <h2>Audit Log</h2>
+      <p class="subtitle">Billing-Events und System-Aktionen nachverfolgen</p>
+
+      <div class="filter-bar">
+        <div class="field">
+          <label>Tenant</label>
+          <select id="auditTenantFilter">
+            <option value="">— Alle —</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Event-Type</label>
+          <select id="auditEventFilter">
+            <option value="">— Alle —</option>
+            <option value="subscription_created">subscription_created</option>
+            <option value="subscription_updated">subscription_updated</option>
+            <option value="subscription_deleted">subscription_deleted</option>
+            <option value="payment_succeeded">payment_succeeded</option>
+            <option value="payment_failed">payment_failed</option>
+            <option value="invoice_created">invoice_created</option>
+            <option value="trial_started">trial_started</option>
+            <option value="trial_ended">trial_ended</option>
+            <option value="dunning_started">dunning_started</option>
+            <option value="dunning_escalated">dunning_escalated</option>
+            <option value="tenant_suspended">tenant_suspended</option>
+            <option value="tenant_paused">tenant_paused</option>
+          </select>
+        </div>
+        <button class="btn btn-accent" onclick="loadAuditLog()">Suchen</button>
+      </div>
+
+      <div class="card" style="padding:0">
+        <div class="table-wrap" style="border:none">
+          <table>
+            <thead>
+              <tr>
+                <th>Zeitstempel</th>
+                <th>Tenant</th>
+                <th>Event-Type</th>
+                <th>Source</th>
+                <th>Details</th>
+              </tr>
+            </thead>
+            <tbody id="auditLogBody">
+              <tr><td colspan="5" class="loading-row">Filter setzen und suchen...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="pagination" id="auditPagination" style="display:none">
+        <button class="btn btn-sm" id="auditPrev" onclick="auditPrevPage()" disabled>Vorherige</button>
+        <span id="auditPageInfo">—</span>
+        <button class="btn btn-sm" id="auditNext" onclick="auditNextPage()">Nächste</button>
+      </div>
+    </div>
+
+    <!-- ════════════ MAPS ════════════ -->
+    <div class="content-section" id="sec-maps">
+      <h2>Maps</h2>
+      <p class="subtitle">Karten verwalten, importieren und zwischen Tenants kopieren</p>
+
+      <div class="filter-bar">
+        <div class="field">
+          <label>Tenant</label>
+          <select id="mapsFilterTenant" onchange="renderMaps()">
+            <option value="">— Alle —</option>
+          </select>
+        </div>
+        <button class="btn btn-accent" onclick="toggleNewMapForm()">+ Neue Map</button>
+        <button class="btn btn-accent" onclick="toggleImportMapForm()">Import Map</button>
+      </div>
+
+      <div class="card" id="newMapFormCard" style="display:none">
+        <div class="card-header">Neue Map erstellen</div>
+        <div class="field-row">
+          <div class="field">
+            <label>Tenant</label>
+            <select id="newMapTenant"><option value="">— Tenant wählen —</option></select>
+          </div>
+          <div class="field">
+            <label>Name</label>
+            <input type="text" id="newMapName" placeholder="Meine Karte">
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label>Width</label><input type="number" id="newMapWidth" value="50" min="1"></div>
+          <div class="field"><label>Height</label><input type="number" id="newMapHeight" value="50" min="1"></div>
+          <div class="field"><label>TileWidth</label><input type="number" id="newMapTileW" value="32" min="1"></div>
+          <div class="field"><label>TileHeight</label><input type="number" id="newMapTileH" value="32" min="1"></div>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-accent" onclick="createMap()">Erstellen</button>
+          <button class="btn" onclick="toggleNewMapForm()">Abbrechen</button>
+        </div>
+      </div>
+
+      <div class="card" id="importMapFormCard" style="display:none">
+        <div class="card-header">Map importieren</div>
+        <div class="field-row">
+          <div class="field">
+            <label>Tenant</label>
+            <select id="importMapTenant"><option value="">— Tenant wählen —</option></select>
+          </div>
+          <div class="field">
+            <label>Map Name</label>
+            <input type="text" id="importMapName" placeholder="Importierte Karte">
+          </div>
+          <div class="field">
+            <label>.json Datei</label>
+            <input type="file" id="importMapFile" accept=".json" style="padding:5px">
+          </div>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-accent" onclick="importMap()">Importieren</button>
+          <button class="btn" onclick="toggleImportMapForm()">Abbrechen</button>
+        </div>
+      </div>
+
+      <div class="card" style="padding:0">
+        <div class="table-wrap" style="border:none">
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Tenant</th>
+                <th>Größe</th>
+                <th>Tilesets</th>
+                <th>Layers</th>
+                <th>Objects</th>
+                <th>Erstellt</th>
+                <th>Aktionen</th>
+              </tr>
+            </thead>
+            <tbody id="mapsBody">
+              <tr><td colspan="8" class="loading-row">Verbindung herstellen...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card" id="mapDetailCard" style="display:none">
+        <div class="card-header">Map Detail</div>
+        <div id="mapDetailContent"></div>
+      </div>
+    </div>
+
+    <!-- ════════════ HEALTH ════════════ -->
+    <div class="content-section" id="sec-health">
+      <h2>System Health</h2>
+      <p class="subtitle">Server-Status, Ressourcen und Wachstums-Statistiken</p>
+
+      <div style="margin-bottom:16px;display:flex;align-items:center;gap:12px">
+        <label style="font-family:var(--font-mono);font-size:11px;color:var(--fg-dim);display:flex;align-items:center;gap:6px;cursor:pointer">
+          <input type="checkbox" id="autoRefresh" onchange="toggleAutoRefresh()" style="accent-color:var(--accent)">
+          Auto-Refresh (10s)
+        </label>
+        <button class="btn btn-sm" onclick="loadHealth()">Jetzt laden</button>
+        <span id="lastRefresh" style="font-family:var(--font-mono);font-size:10px;color:var(--fg-muted)"></span>
+      </div>
+
+      <div class="health-grid" id="healthServerInfo">
+        <div class="health-card">
+          <div class="health-card-title">Server-Info</div>
+          <div class="health-row"><span class="label">Uptime</span><span class="value" id="hUptime">—</span></div>
+          <div class="health-row"><span class="label">Node.js</span><span class="value" id="hNode">—</span></div>
+          <div class="health-row"><span class="label">Platform</span><span class="value" id="hPlatform">—</span></div>
+          <div class="health-row"><span class="label">Total Online</span><span class="value" id="hOnline">—</span></div>
+        </div>
+        <div class="health-card">
+          <div class="health-card-title">Memory</div>
+          <div class="health-row"><span class="label">Heap Used</span><span class="value" id="hHeapUsed">—</span></div>
+          <div class="health-row"><span class="label">Heap Total</span><span class="value" id="hHeapTotal">—</span></div>
+          <div class="progress-bar"><div class="progress-fill blue" id="hHeapBar" style="width:0%"></div></div>
+          <div class="health-row" style="margin-top:8px"><span class="label">RSS</span><span class="value" id="hRss">—</span></div>
+          <div class="health-row"><span class="label">External</span><span class="value" id="hExternal">—</span></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">Services</div>
+        <div class="health-grid" style="margin-bottom:0" id="healthServices">
+          <div class="empty-state"><p>Daten laden...</p></div>
+        </div>
+      </div>
+
+      <div class="health-grid" style="margin-top:20px">
+        <div class="card" style="margin-bottom:0">
+          <div class="card-header">DB Counts</div>
+          <div class="metrics-row" id="dbCounts" style="margin-bottom:0">
+            <div class="metric-card blue"><div class="metric-label">Users</div><div class="metric-value" id="hUsers">—</div></div>
+            <div class="metric-card green"><div class="metric-label">Tenants</div><div class="metric-value" id="hTenants">—</div></div>
+            <div class="metric-card orange"><div class="metric-label">Sessions</div><div class="metric-value" id="hSessions">—</div></div>
+            <div class="metric-card red"><div class="metric-label">Memberships</div><div class="metric-value" id="hMemberships">—</div></div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-bottom:0">
+          <div class="card-header">Online by Tenant</div>
+          <div id="onlineByTenant" class="empty-state"><p>Daten laden...</p></div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:20px">
+        <div class="card-header">Growth Stats</div>
+        <div class="table-wrap" style="border:none">
+          <table>
+            <thead>
+              <tr><th>Metrik</th><th>24h</th><th>7d</th><th>30d</th></tr>
+            </thead>
+            <tbody id="growthBody">
+              <tr><td colspan="4" class="loading-row">Daten laden...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════════════ SETTINGS ════════════ -->
+    <div class="content-section" id="sec-settings">
+      <h2>Einstellungen</h2>
+      <p class="subtitle">Globale Systemeinstellungen</p>
+
+      <div class="card" style="max-width:600px">
+        <div class="card-title">Registrierung</div>
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+          <input type="checkbox" id="settingPublicReg" style="width:18px;height:18px;accent-color:var(--accent)">
+          <label for="settingPublicReg" style="cursor:pointer;font-weight:500">Öffentliche Registrierung erlauben</label>
+        </div>
+        <p style="color:var(--fg-dim);font-size:12px;margin-bottom:20px">
+          Wenn aktiviert, können sich neue Mandanten über die öffentliche Registrierungsseite selbst registrieren.
+        </p>
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+          <label for="settingFreeSeats" style="font-weight:500">Standard Free Seats</label>
+          <input type="number" id="settingFreeSeats" min="0" style="width:80px" value="3">
+        </div>
+        <p style="color:var(--fg-dim);font-size:12px;margin-bottom:20px">
+          Anzahl der kostenlosen Plätze, die neue Mandanten standardmäßig erhalten.
+        </p>
+        <button class="btn btn-accent" onclick="saveSettings()">Speichern</button>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- ── Confirm Dialog ── -->
+<div class="dialog-overlay" id="confirmDialog">
+  <div class="dialog">
+    <h3 id="confirmTitle">Bestätigung</h3>
+    <p id="confirmText">Sind Sie sicher?</p>
+    <div class="btn-row">
+      <button class="btn" onclick="closeConfirm()">Abbrechen</button>
+      <button class="btn btn-danger" id="confirmBtn" onclick="confirmAction()">Löschen</button>
+    </div>
+  </div>
+</div>
+
+<div id="toasts"></div>
+
+<script>
+// ═══════════════════════════════════════════
+// State
+// ═══════════════════════════════════════════
+let tenants = [];
+let products = [];
+let assetPacks = [];
+let avatarPacks = [];
+let maps = [];
+let auditLogs = [];
+let selectedTenantId = null;
+let auditOffset = 0;
+let auditLimit = 50;
+let auditTotal = 0;
+let currentPackTab = 'asset';
+let currentDetailTab = 'users';
+let autoRefreshInterval = null;
+let confirmCallback = null;
+
+// ═══════════════════════════════════════════
+// Init: localStorage
+// ═══════════════════════════════════════════
+(function init() {
+  const savedUrl = localStorage.getItem('sa_apiUrl');
+  const savedToken = localStorage.getItem('sa_authToken');
+  document.getElementById('apiUrl').value = savedUrl || window.location.origin;
+  if (savedToken) document.getElementById('authToken').value = savedToken;
+})();
+
+function persistConnection() {
+  localStorage.setItem('sa_apiUrl', document.getElementById('apiUrl').value);
+  localStorage.setItem('sa_authToken', document.getElementById('authToken').value);
+}
+
+// ═══════════════════════════════════════════
+// API Helper
+// ═══════════════════════════════════════════
+async function apiFetch(path, opts = {}) {
+  const base = document.getElementById('apiUrl').value.replace(/\/+$/, '');
+  const token = document.getElementById('authToken').value.trim();
+  const headers = { ...(opts.headers || {}) };
+  if (token) {
+    headers['Authorization'] = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
+  }
+  if (opts.body && typeof opts.body === 'string') {
+    headers['Content-Type'] = 'application/json';
+  }
+  const res = await fetch(`${base}${path}`, {
+    ...opts,
+    headers,
+    ...(token ? {} : { credentials: 'include' }),
+  });
+  return res;
+}
+
+// ═══════════════════════════════════════════
+// Connection Test
+// ═══════════════════════════════════════════
+async function testConnection() {
+  const dot = document.getElementById('connDot');
+  persistConnection();
+  try {
+    const res = await apiFetch('/admin/health');
+    if (res.ok) {
+      dot.className = 'conn-dot ok';
+      toast('ok', 'Verbunden mit Server');
+      loadAllData();
+    } else {
+      dot.className = 'conn-dot err';
+      toast('err', `Verbindungsfehler: HTTP ${res.status}`);
+    }
+  } catch (e) {
+    dot.className = 'conn-dot err';
+    toast('err', `Verbindung fehlgeschlagen: ${e.message}`);
+  }
+}
+
+async function loadAllData() {
+  await Promise.allSettled([
+    loadTenants(),
+    loadBillingMetrics(),
+    loadProducts(),
+    loadAssetPacks(),
+    loadAvatarPacks(),
+    loadMaps(),
+    loadHealth(),
+    loadStats(),
+    loadSettings(),
+  ]);
+}
+
+// ═══════════════════════════════════════════
+// Navigation
+// ═══════════════════════════════════════════
+function switchSection(name) {
+  document.querySelectorAll('.nav-item').forEach(el => {
+    el.classList.toggle('active', el.dataset.section === name);
+  });
+  document.querySelectorAll('.content-section').forEach(el => {
+    el.classList.toggle('active', el.id === `sec-${name}`);
+  });
+}
+
+function switchPackTab(tab) {
+  currentPackTab = tab;
+  document.querySelectorAll('.sub-tab').forEach(el => {
+    el.classList.toggle('active', el.dataset.packTab === tab);
+  });
+  document.getElementById('packTabAsset').style.display = tab === 'asset' ? '' : 'none';
+  document.getElementById('packTabAvatar').style.display = tab === 'avatar' ? '' : 'none';
+}
+
+// ═══════════════════════════════════════════
+// Confirm Dialog
+// ═══════════════════════════════════════════
+function showConfirm(title, text, btnLabel, cb) {
+  document.getElementById('confirmTitle').textContent = title;
+  document.getElementById('confirmText').textContent = text;
+  document.getElementById('confirmBtn').textContent = btnLabel;
+  confirmCallback = cb;
+  document.getElementById('confirmDialog').classList.add('show');
+}
+
+function closeConfirm() {
+  document.getElementById('confirmDialog').classList.remove('show');
+  confirmCallback = null;
+}
+
+function confirmAction() {
+  if (confirmCallback) confirmCallback();
+  closeConfirm();
+}
+
+// ═══════════════════════════════════════════
+// TENANTS
+// ═══════════════════════════════════════════
+async function loadTenants() {
+  try {
+    const res = await apiFetch('/admin/tenants');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    tenants = await res.json();
+    renderTenants();
+    populateGrantTenants();
+  } catch (e) {
+    document.getElementById('tenantsBody').innerHTML =
+      `<tr><td colspan="15" class="loading-row" style="color:var(--red)">Fehler: ${esc(e.message)}</td></tr>`;
+  }
+}
+
+function renderTenants() {
+  const tbody = document.getElementById('tenantsBody');
+  if (!tenants.length) {
+    tbody.innerHTML = '<tr><td colspan="15" class="loading-row">Keine Mandanten vorhanden.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = tenants.map((t, i) => {
+    const isInternal = t.slug === 'internal' || t.slug === '_internal';
+    const now = new Date();
+    // Trial badge
+    let trialBadge;
+    if (t.trialConvertedAt) {
+      trialBadge = '<span class="badge blue"><span class="badge-dot"></span>converted</span>';
+    } else if (t.trialEndsAt && new Date(t.trialEndsAt) > now) {
+      trialBadge = '<span class="badge green"><span class="badge-dot"></span>active</span>';
+    } else if (t.trialEndsAt && new Date(t.trialEndsAt) <= now) {
+      trialBadge = '<span class="badge red"><span class="badge-dot"></span>expired</span>';
+    } else {
+      trialBadge = '<span class="badge gray"><span class="badge-dot"></span>none</span>';
+    }
+    // Dunning badge
+    let dunningBadge;
+    if (t.status === 'suspended') {
+      dunningBadge = '<span class="badge red"><span class="badge-dot"></span>suspended</span>';
+    } else if (t.gracePeriodEndsAt && new Date(t.gracePeriodEndsAt) > now) {
+      dunningBadge = '<span class="badge orange"><span class="badge-dot"></span>grace</span>';
+    } else if (t.paymentFailedAt) {
+      dunningBadge = '<span class="badge red"><span class="badge-dot"></span>failing</span>';
+    } else {
+      dunningBadge = '<span class="badge green"><span class="badge-dot"></span>ok</span>';
+    }
+    // Pause badge
+    const pauseBadge = t.pausedAt
+      ? '<span class="badge orange"><span class="badge-dot"></span>paused</span>'
+      : '<span style="color:var(--fg-muted)">—</span>';
+    // Default map options for this tenant
+    const tenantMaps = maps.filter(m => m.tenantId === t.id);
+    const mapOptions = '<option value=""' + (!t.defaultMapName ? ' selected' : '') + '>— Keine —</option>'
+      + tenantMaps.map(m => '<option value="' + esc(m.name) + '"' + (t.defaultMapName === m.name ? ' selected' : '') + '>' + esc(m.name) + '</option>').join('');
+
+    return `<tr data-tenant-idx="${i}">
+      <td><a class="slug-link" onclick="openTenantDetail('${esc(t.id)}')" title="Detail anzeigen">${esc(t.slug)}</a></td>
+      <td><input type="text" value="${esc(t.name || '')}" data-field="name" style="min-width:120px"></td>
+      <td style="text-align:center">${t.online != null ? t.online : '—'}</td>
+      <td><input type="number" value="${t.concurrentLimit != null ? t.concurrentLimit : ''}" data-field="concurrentLimit" style="width:70px" min="0"></td>
+      <td><input type="number" value="${t.freeSeats != null ? t.freeSeats : ''}" data-field="freeSeats" style="width:70px" min="0"></td>
+      <td style="text-align:center"><input type="checkbox" ${t.bypassLimits ? 'checked' : ''} data-field="bypassLimits"></td>
+      <td>
+        <select data-field="status" style="min-width:80px">
+          <option value="active" ${t.status === 'active' ? 'selected' : ''}>active</option>
+          <option value="suspended" ${t.status === 'suspended' ? 'selected' : ''}>suspended</option>
+          <option value="trial" ${t.status === 'trial' ? 'selected' : ''}>trial</option>
+        </select>
+      </td>
+      <td><code style="font-size:9px;color:var(--fg-muted)">${esc(t.stripeCustomerId || '—')}</code></td>
+      <td><code style="font-size:9px;color:var(--fg-muted)">${esc(t.stripeSubscriptionId || '—')}</code></td>
+      <td style="white-space:nowrap;font-size:10px;color:var(--fg-dim)">${t.createdAt ? formatDate(t.createdAt) : '—'}</td>
+      <td>${trialBadge}</td>
+      <td>${dunningBadge}</td>
+      <td>${pauseBadge}</td>
+      <td><select data-field="defaultMapName" style="min-width:100px">${mapOptions}</select></td>
+      <td>
+        <div style="display:flex;gap:4px">
+          <button class="btn btn-xs btn-accent" onclick="saveTenant(${i})">Save</button>
+          <button class="btn btn-xs btn-danger" onclick="deleteTenant(${i})" ${isInternal ? 'disabled title="Internal tenant"' : ''}>Del</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+  // Populate filter dropdowns
+  populateAuditTenants();
+  populateMapsTenants();
+}
+
+async function createTenant() {
+  const slug = document.getElementById('newTenantSlug').value.trim();
+  const name = document.getElementById('newTenantName').value.trim();
+  if (!slug) { toast('err', 'Slug erforderlich'); return; }
+  if (!name) { toast('err', 'Name erforderlich'); return; }
+  try {
+    const res = await apiFetch('/admin/tenants', {
+      method: 'POST',
+      body: JSON.stringify({ slug, name }),
+    });
+    if (res.ok) {
+      toast('ok', `Mandant "${name}" erstellt`);
+      document.getElementById('newTenantSlug').value = '';
+      document.getElementById('newTenantName').value = '';
+      await loadTenants();
+    } else {
+      const err = await res.json().catch(() => ({}));
+      toast('err', `Fehler: ${err.error || res.statusText}`);
+    }
+  } catch (e) {
+    toast('err', `Fehler: ${e.message}`);
+  }
+}
+
+async function saveTenant(idx) {
+  const t = tenants[idx];
+  if (!t) return;
+  const row = document.querySelector(`tr[data-tenant-idx="${idx}"]`);
+  if (!row) return;
+
+  const data = {};
+  const nameInput = row.querySelector('[data-field="name"]');
+  const limitInput = row.querySelector('[data-field="concurrentLimit"]');
+  const freeLimitInput = row.querySelector('[data-field="freeSeats"]');
+  const bypassInput = row.querySelector('[data-field="bypassLimits"]');
+  const statusSelect = row.querySelector('[data-field="status"]');
+  const defaultMapSelect = row.querySelector('[data-field="defaultMapName"]');
+
+  if (nameInput) data.name = nameInput.value;
+  if (limitInput) data.concurrentLimit = limitInput.value ? parseInt(limitInput.value) : null;
+  if (freeLimitInput) data.freeSeats = freeLimitInput.value ? parseInt(freeLimitInput.value) : null;
+  if (bypassInput) data.bypassLimits = bypassInput.checked;
+  if (statusSelect) data.status = statusSelect.value;
+  if (defaultMapSelect) data.defaultMapName = defaultMapSelect.value || null;
+
+  try {
+    const res = await apiFetch(`/admin/tenants/${t.id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+    if (res.ok) {
+      toast('ok', `Mandant "${t.slug}" gespeichert`);
+      await loadTenants();
+    } else {
+      const err = await res.json().catch(() => ({}));
+      toast('err', `Fehler: ${err.error || res.statusText}`);
+    }
+  } catch (e) {
+    toast('err', `Fehler: ${e.message}`);
+  }
+}
+
+function deleteTenant(idx) {
+  const t = tenants[idx];
+  if (!t) return;
+  showConfirm(
+    'Mandant löschen',
+    `Mandant "${t.name || t.slug}" (ID: ${t.id}) wirklich löschen? Dieser Vorgang kann nicht rückgängig gemacht werden.`,
+    'Löschen',
+    async () => {
+      try {
+        const res = await apiFetch(`/admin/tenants/${t.id}`, { method: 'DELETE' });
+        if (res.ok) {
+          toast('ok', `Mandant "${t.slug}" gelöscht`);
+          await loadTenants();
+        } else {
+          const err = await res.json().catch(() => ({}));
+          toast('err', `Fehler: ${err.error || res.statusText}`);
+        }
+      } catch (e) {
+        toast('err', `Fehler: ${e.message}`);
+      }
+    }
+  );
+}
+
+// ═══════════════════════════════════════════
+// BILLING
+// ═══════════════════════════════════════════
+async function loadBillingMetrics() {
+  try {
+    const res = await apiFetch('/admin/billing/metrics');
+    if (!res.ok) return;
+    const m = await res.json();
+    document.getElementById('metricActiveSubs').textContent = m.activeSubscriptions ?? '—';
+    document.getElementById('metricMRR').textContent = m.mrr != null ? formatEur(m.mrr) : '—';
+    document.getElementById('metricRevenue30').textContent = m.revenue30d != null ? formatEur(m.revenue30d) : '—';
+  } catch (e) { /* silent */ }
+}
+
+async function loadProducts() {
+  try {
+    const res = await apiFetch('/admin/billing/products');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    products = await res.json();
+    renderProducts();
+  } catch (e) {
+    document.getElementById('productsBody').innerHTML =
+      `<tr><td colspan="5" class="loading-row" style="color:var(--red)">Fehler: ${esc(e.message)}</td></tr>`;
+  }
+}
+
+function renderProducts() {
+  const tbody = document.getElementById('productsBody');
+  if (!products.length) {
+    tbody.innerHTML = '<tr><td colspan="5" class="loading-row">Keine Produkte vorhanden.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = products.map((p, i) => {
+    const prices = Array.isArray(p.prices) ? p.prices : [];
+    const pricesHtml = prices.map(pr => {
+      const amount = pr.unitAmount != null ? formatEur(pr.unitAmount) : '?';
+      const interval = pr.interval || '—';
+      const limit = pr.concurrentLimit != null ? pr.concurrentLimit : '—';
+      const activeClass = pr.active !== false ? 'green' : 'red';
+      return `<div style="display:flex;align-items:center;gap:6px;margin:2px 0;font-size:10px">
+        <span class="badge ${activeClass}" style="padding:1px 6px"><span class="badge-dot"></span>${pr.active !== false ? 'ON' : 'OFF'}</span>
+        <span>${amount} / ${interval}</span>
+        <span style="color:var(--fg-muted)">Limit: ${limit}</span>
+        <button class="btn btn-xs" onclick="togglePrice('${esc(pr.id)}', ${pr.active === false})">${pr.active !== false ? 'Deaktivieren' : 'Aktivieren'}</button>
+      </div>`;
+    }).join('');
+
+    return `<tr>
+      <td><strong>${esc(p.name)}</strong></td>
+      <td style="font-size:11px;color:var(--fg-dim)">${esc(p.description || '—')}</td>
+      <td><span class="badge ${p.active !== false ? 'green' : 'red'}"><span class="badge-dot"></span>${p.active !== false ? 'Active' : 'Inactive'}</span></td>
+      <td style="min-width:250px">${pricesHtml || '<span style="color:var(--fg-muted);font-size:10px">Keine Preise</span>'}
+        <div style="margin-top:6px">
+          <button class="btn btn-xs" onclick="toggleAddPrice(${i})">+ Preis hinzufügen</button>
+          <div id="addPriceForm-${i}" style="display:none;margin-top:8px;padding:8px;background:var(--bg-deep);border-radius:var(--radius);border:1px solid var(--border)">
+            <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:flex-end">
+              <div class="field" style="margin:0;min-width:80px"><label>Betrag (Cent)</label><input type="number" id="priceAmt-${i}" value="999" min="0"></div>
+              <div class="field" style="margin:0;min-width:60px"><label>Währung</label>
+                <select id="priceCur-${i}"><option value="eur">EUR</option><option value="usd">USD</option></select>
+              </div>
+              <div class="field" style="margin:0;min-width:80px"><label>Interval</label>
+                <select id="priceInt-${i}"><option value="month">month</option><option value="year">year</option></select>
+              </div>
+              <div class="field" style="margin:0;min-width:60px"><label>Limit</label><input type="number" id="priceLim-${i}" value="10" min="1"></div>
+              <button class="btn btn-xs btn-accent" onclick="addPrice(${i})">Hinzufügen</button>
+            </div>
+          </div>
+        </div>
+      </td>
+      <td>
+        <button class="btn btn-xs ${p.active !== false ? 'btn-danger' : 'btn-success'}" onclick="toggleProduct('${esc(p.id)}', ${p.active === false})">
+          ${p.active !== false ? 'Deaktivieren' : 'Aktivieren'}
+        </button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function toggleAddPrice(idx) {
+  const form = document.getElementById(`addPriceForm-${idx}`);
+  if (form) form.style.display = form.style.display === 'none' ? 'block' : 'none';
+}
+
+async function createProduct() {
+  const name = document.getElementById('newProdName').value.trim();
+  const description = document.getElementById('newProdDesc').value.trim();
+  const amount = parseInt(document.getElementById('newProdAmount').value) || 0;
+  const currency = document.getElementById('newProdCurrency').value;
+  const interval = document.getElementById('newProdInterval').value;
+  const concurrentLimit = parseInt(document.getElementById('newProdLimit').value) || 10;
+
+  if (!name) { toast('err', 'Produktname erforderlich'); return; }
+  try {
+    const res = await apiFetch('/admin/billing/products', {
+      method: 'POST',
+      body: JSON.stringify({ name, description, amount, currency, interval, concurrentLimit }),
+    });
+    if (res.ok) {
+      toast('ok', `Produkt "${name}" erstellt`);
+      document.getElementById('newProdName').value = '';
+      document.getElementById('newProdDesc').value = '';
+      await loadProducts();
+    } else {
+      const err = await res.json().catch(() => ({}));
+      toast('err', `Fehler: ${err.error || res.statusText}`);
+    }
+  } catch (e) {
+    toast('err', `Fehler: ${e.message}`);
+  }
+}
+
+async function toggleProduct(id, activate) {
+  try {
+    const res = await apiFetch(`/admin/billing/products/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ active: activate }),
+    });
+    if (res.ok) {
+      toast('ok', `Produkt ${activate ? 'aktiviert' : 'deaktiviert'}`);
+      await loadProducts();
+    } else {
+      toast('err', `Fehler: HTTP ${res.status}`);
+    }
+  } catch (e) {
+    toast('err', `Fehler: ${e.message}`);
+  }
+}
+
+async function addPrice(prodIdx) {
+  const p = products[prodIdx];
+  if (!p) return;
+  const amount = parseInt(document.getElementById(`priceAmt-${prodIdx}`).value) || 0;
+  const currency = document.getElementById(`priceCur-${prodIdx}`).value;
+  const interval = document.getElementById(`priceInt-${prodIdx}`).value;
+  const concurrentLimit = parseInt(document.getElementById(`priceLim-${prodIdx}`).value) || 10;
+  try {
+    const res = await apiFetch(`/admin/billing/products/${p.id}/prices`, {
+      method: 'POST',
+      body: JSON.stringify({ amount, currency, interval, concurrentLimit }),
+    });
+    if (res.ok) {
+      toast('ok', 'Preis hinzugefügt');
+      await loadProducts();
+    } else {
+      const err = await res.json().catch(() => ({}));
+      toast('err', `Fehler: ${err.error || res.statusText}`);
+    }
+  } catch (e) {
+    toast('err', `Fehler: ${e.message}`);
+  }
+}
+
+async function togglePrice(id, activate) {
+  try {
+    const res = await apiFetch(`/admin/billing/prices/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ active: activate }),
+    });
+    if (res.ok) {
+      toast('ok', `Preis ${activate ? 'aktiviert' : 'deaktiviert'}`);
+      await loadProducts();
+    } else {
+      toast('err', `Fehler: HTTP ${res.status}`);
+    }
+  } catch (e) {
+    toast('err', `Fehler: ${e.message}`);
+  }
+}
+
+// ═══════════════════════════════════════════
+// PACK CATALOG
+// ═══════════════════════════════════════════
+async function loadAssetPacks() {
+  try {
+    const res = await apiFetch('/admin/pack-catalog/asset-packs');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    assetPacks = await res.json();
+    if (Array.isArray(assetPacks)) renderPackTable('asset', assetPacks);
+    populateGrantPacks();
+  } catch (e) {
+    document.getElementById('assetPacksBody').innerHTML =
+      `<tr><td colspan="8" class="loading-row" style="color:var(--red)">Fehler: ${esc(e.message)}</td></tr>`;
+  }
+}
+
+async function loadAvatarPacks() {
+  try {
+    const res = await apiFetch('/admin/pack-catalog/avatar-packs');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    avatarPacks = await res.json();
+    if (Array.isArray(avatarPacks)) renderPackTable('avatar', avatarPacks);
+    populateGrantPacks();
+  } catch (e) {
+    document.getElementById('avatarPacksBody').innerHTML =
+      `<tr><td colspan="8" class="loading-row" style="color:var(--red)">Fehler: ${esc(e.message)}</td></tr>`;
+  }
+}
+
+function renderPackTable(type, packs) {
+  const tbody = document.getElementById(type === 'asset' ? 'assetPacksBody' : 'avatarPacksBody');
+  if (!packs.length) {
+    tbody.innerHTML = `<tr><td colspan="8" class="loading-row">Keine ${type === 'asset' ? 'Asset' : 'Avatar'} Packs.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = packs.map((p, i) => `<tr data-pack-type="${type}" data-pack-idx="${i}">
+    <td><strong>${esc(p.name || p.uuid || '—')}</strong><br><code style="font-size:9px;color:var(--fg-muted)">${esc(p.uuid || '')}</code></td>
+    <td>${esc(p.author || '—')}</td>
+    <td>${esc(p.version || '—')}</td>
+    <td>
+      <select data-field="pricingModel" style="min-width:90px">
+        <option value="free" ${p.pricingModel === 'free' ? 'selected' : ''}>free</option>
+        <option value="one_time" ${p.pricingModel === 'one_time' ? 'selected' : ''}>one_time</option>
+        <option value="subscription" ${p.pricingModel === 'subscription' ? 'selected' : ''}>subscription</option>
+      </select>
+    </td>
+    <td><input type="number" data-field="price" value="${p.price != null ? p.price : 0}" min="0" step="0.01" style="width:80px"></td>
+    <td style="text-align:center"><input type="checkbox" data-field="published" ${p.published ? 'checked' : ''}></td>
+    <td style="text-align:center"><input type="checkbox" data-field="featured" ${p.featured ? 'checked' : ''}></td>
+    <td>
+      <button class="btn btn-xs btn-accent" onclick="savePack('${type}', ${i})">Save</button>
+    </td>
+  </tr>`).join('');
+}
+
+async function savePack(type, idx) {
+  const packs = type === 'asset' ? assetPacks : avatarPacks;
+  const p = packs[idx];
+  if (!p) return;
+  const row = document.querySelector(`tr[data-pack-type="${type}"][data-pack-idx="${idx}"]`);
+  if (!row) return;
+
+  const data = {};
+  const pricingSelect = row.querySelector('[data-field="pricingModel"]');
+  const priceInput = row.querySelector('[data-field="price"]');
+  const publishedInput = row.querySelector('[data-field="published"]');
+  const featuredInput = row.querySelector('[data-field="featured"]');
+
+  if (pricingSelect) data.pricingModel = pricingSelect.value;
+  if (priceInput) data.price = parseFloat(priceInput.value) || 0;
+  if (publishedInput) data.published = publishedInput.checked;
+  if (featuredInput) data.featured = featuredInput.checked;
+
+  const endpoint = type === 'asset'
+    ? `/admin/pack-catalog/asset-packs/${p.uuid}`
+    : `/admin/pack-catalog/avatar-packs/${p.uuid}`;
+
+  try {
+    const res = await apiFetch(endpoint, { method: 'PUT', body: JSON.stringify(data) });
+    if (res.ok) {
+      toast('ok', `Pack "${p.name || p.uuid}" gespeichert`);
+      type === 'asset' ? await loadAssetPacks() : await loadAvatarPacks();
+    } else {
+      const err = await res.json().catch(() => ({}));
+      toast('err', `Fehler: ${err.error || res.statusText}`);
+    }
+  } catch (e) {
+    toast('err', `Fehler: ${e.message}`);
+  }
+}
+
+async function uploadAssetPack() {
+  const fileInput = document.getElementById('assetPackFile');
+  const file = fileInput.files[0];
+  if (!file) { toast('err', 'Bitte .mepack Datei auswählen'); return; }
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  try {
+    const res = await apiFetch('/asset-packs/upload', { method: 'POST', body: formData });
+    if (res.ok) {
+      toast('ok', `Pack "${file.name}" hochgeladen`);
+      fileInput.value = '';
+      await loadAssetPacks();
+    } else {
+      const err = await res.json().catch(() => ({}));
+      let msg = err.error || res.statusText;
+      if (err.reason) {
+        msg += ' — ' + err.reason;
+        if (err.itemId) msg += ` (Item: ${err.itemId})`;
+      } else if (Array.isArray(err.details)) {
+        const detail = err.details.map(d => `${d.path?.join('.') || '?'}: ${d.message}`).join('; ');
+        msg += ' — ' + detail;
+      }
+      toast('err', `Upload-Fehler: ${msg}`);
+    }
+  } catch (e) {
+    toast('err', `Upload-Fehler: ${e.message}`);
+  }
+}
+
+// Grant / Revoke
+function populateGrantTenants() {
+  const sel = document.getElementById('grantTenant');
+  const currentVal = sel.value;
+  sel.innerHTML = '<option value="">— Tenant wählen —</option>';
+  tenants.forEach(t => {
+    sel.innerHTML += `<option value="${esc(t.id)}">${esc(t.slug)} — ${esc(t.name || '')}</option>`;
+  });
+  sel.value = currentVal;
+}
+
+function populateGrantPacks() {
+  const sel = document.getElementById('grantPack');
+  const currentVal = sel.value;
+  sel.innerHTML = '<option value="">— Pack wählen —</option>';
+  const allPacks = [
+    ...assetPacks.map(p => ({ ...p, _type: 'asset' })),
+    ...avatarPacks.map(p => ({ ...p, _type: 'avatar' })),
+  ];
+  allPacks.forEach(p => {
+    sel.innerHTML += `<option value="${esc(p.uuid)}">[${p._type}] ${esc(p.name || p.uuid)}</option>`;
+  });
+  sel.value = currentVal;
+}
+
+async function grantAccess() {
+  const tenantId = document.getElementById('grantTenant').value;
+  const packUuid = document.getElementById('grantPack').value;
+  if (!tenantId || !packUuid) { toast('err', 'Tenant und Pack auswählen'); return; }
+  try {
+    const res = await apiFetch('/admin/pack-catalog/grant', {
+      method: 'POST',
+      body: JSON.stringify({ tenantId, packUuid }),
+    });
+    if (res.ok) {
+      toast('ok', 'Zugriff gewährt');
+      await loadGrantsList();
+    } else {
+      const err = await res.json().catch(() => ({}));
+      toast('err', `Fehler: ${err.error || res.statusText}`);
+    }
+  } catch (e) {
+    toast('err', `Fehler: ${e.message}`);
+  }
+}
+
+async function revokeAccess(tenantId, packUuid) {
+  try {
+    const res = await apiFetch('/admin/pack-catalog/revoke', {
+      method: 'POST',
+      body: JSON.stringify({ tenantId, packUuid }),
+    });
+    if (res.ok) {
+      toast('ok', 'Zugriff entzogen');
+      await loadGrantsList();
+    } else {
+      const err = await res.json().catch(() => ({}));
+      toast('err', `Fehler: ${err.error || res.statusText}`);
+    }
+  } catch (e) {
+    toast('err', `Fehler: ${e.message}`);
+  }
+}
+
+async function loadGrantsList() {
+  const el = document.getElementById('grantsList');
+  // We can display known grants from pack data if the API includes them
+  // For now, show a summary from pack metadata if available
+  const allPacks = [...assetPacks, ...avatarPacks];
+  const grants = [];
+  allPacks.forEach(p => {
+    if (Array.isArray(p.tenantAccess)) {
+      p.tenantAccess.forEach(ta => {
+        const tenant = tenants.find(t => t.id === ta.tenantId || t.id === ta);
+        grants.push({
+          tenantId: ta.tenantId || ta,
+          tenantSlug: tenant ? tenant.slug : '?',
+          packUuid: p.uuid,
+          packName: p.name || p.uuid,
+        });
+      });
+    }
+  });
+  if (!grants.length) {
+    el.innerHTML = '<p style="font-size:11px;color:var(--fg-muted)">Keine Berechtigungen gefunden oder nicht in API-Antwort enthalten.</p>';
+    return;
+  }
+  el.innerHTML = `<div class="table-wrap"><table>
+    <thead><tr><th>Tenant</th><th>Pack</th><th>Aktion</th></tr></thead>
+    <tbody>${grants.map(g => `<tr>
+      <td>${esc(g.tenantSlug)}</td>
+      <td>${esc(g.packName)}</td>
+      <td><button class="btn btn-xs btn-danger" onclick="revokeAccess('${esc(g.tenantId)}','${esc(g.packUuid)}')">Revoke</button></td>
+    </tr>`).join('')}</tbody>
+  </table></div>`;
+}
+
+// ═══════════════════════════════════════════
+// TENANT DETAIL
+// ═══════════════════════════════════════════
+function openTenantDetail(tenantId) {
+  selectedTenantId = tenantId;
+  const tenant = tenants.find(t => t.id === tenantId);
+  if (!tenant) return;
+  document.getElementById('tenantDetailTitle').textContent = `${tenant.slug} — ${tenant.name || ''}`;
+  document.getElementById('tenantDetailPanel').classList.add('open');
+  currentDetailTab = 'users';
+  switchDetailTab('users');
+}
+
+function closeTenantDetail() {
+  selectedTenantId = null;
+  document.getElementById('tenantDetailPanel').classList.remove('open');
+}
+
+function switchDetailTab(tab) {
+  currentDetailTab = tab;
+  document.querySelectorAll('#detailTabs .sub-tab').forEach(el => {
+    el.classList.toggle('active', el.dataset.detailTab === tab);
+  });
+  document.getElementById('detailTabUsers').style.display = tab === 'users' ? '' : 'none';
+  document.getElementById('detailTabBilling').style.display = tab === 'billing' ? '' : 'none';
+  document.getElementById('detailTabPacks').style.display = tab === 'packs' ? '' : 'none';
+  if (tab === 'users') loadTenantUsers(selectedTenantId);
+  if (tab === 'billing') loadTenantBilling(selectedTenantId);
+  if (tab === 'packs') loadTenantPacks(selectedTenantId);
+}
+
+// ═══════════════════════════════════════════
+// TENANT USERS
+// ═══════════════════════════════════════════
+async function loadTenantUsers(tenantId) {
+  if (!tenantId) return;
+  const el = document.getElementById('detailTabUsers');
+  el.innerHTML = '<div class="loading-row"><span class="spinner"></span> Lade Users...</div>';
+  try {
+    const res = await apiFetch(`/admin/tenants/${tenantId}/users`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const users = await res.json();
+    renderTenantUsers(users, tenantId);
+  } catch (e) {
+    el.innerHTML = `<div class="loading-row" style="color:var(--red)">Fehler: ${esc(e.message)}</div>`;
+  }
+}
+
+function renderTenantUsers(users, tenantId) {
+  const el = document.getElementById('detailTabUsers');
+  let html = '<div class="table-wrap"><table><thead><tr>';
+  html += '<th>Name</th><th>Email</th><th>Rolle</th><th>Erstellt</th><th>Verifiziert</th><th>Aktionen</th>';
+  html += '</tr></thead><tbody>';
+  if (!users.length) {
+    html += '<tr><td colspan="6" class="loading-row">Keine User vorhanden.</td></tr>';
+  } else {
+    users.forEach(u => {
+      html += `<tr>
+        <td>${esc(u.name || '—')}</td>
+        <td><code style="font-size:10px">${esc(u.email || '—')}</code></td>
+        <td>
+          <select onchange="changeUserRole('${esc(tenantId)}','${esc(u.userId)}',this.value)" style="min-width:80px">
+            <option value="member" ${u.role === 'member' ? 'selected' : ''}>member</option>
+            <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>admin</option>
+            <option value="owner" ${u.role === 'owner' ? 'selected' : ''}>owner</option>
+          </select>
+        </td>
+        <td style="white-space:nowrap;font-size:10px;color:var(--fg-dim)">${u.createdAt ? formatDate(u.createdAt) : '—'}</td>
+        <td style="white-space:nowrap;font-size:10px">${u.emailVerifiedAt
+          ? '<span class="badge green" style="padding:1px 6px">verified</span>'
+          : '<span class="badge orange" style="padding:1px 6px">pending</span>'}</td>
+        <td><button class="btn btn-xs btn-danger" onclick="removeUser('${esc(tenantId)}','${esc(u.userId)}','${esc(u.email || '')}')">Entfernen</button></td>
+      </tr>`;
+    });
+  }
+  html += '</tbody></table></div>';
+  // Add user form
+  html += `<div class="inline-form" style="margin-top:16px">
+    <div class="field grow">
+      <label>Email</label>
+      <input type="email" id="addUserEmail" placeholder="user@example.com">
+    </div>
+    <div class="field">
+      <label>Rolle</label>
+      <select id="addUserRole">
+        <option value="member">member</option>
+        <option value="admin">admin</option>
+        <option value="owner">owner</option>
+      </select>
+    </div>
+    <button class="btn btn-accent" onclick="addUser('${esc(tenantId)}')">+ User hinzufügen</button>
+  </div>`;
+  el.innerHTML = html;
+}
+
+async function changeUserRole(tenantId, userId, newRole) {
+  try {
+    const res = await apiFetch(`/admin/tenants/${tenantId}/users/${userId}/role`, {
+      method: 'PATCH',
+      body: JSON.stringify({ role: newRole }),
+    });
+    if (res.ok) {
+      toast('ok', `Rolle auf "${newRole}" geändert`);
+    } else {
+      const err = await res.json().catch(() => ({}));
+      toast('err', `Fehler: ${err.error || res.statusText}`);
+      await loadTenantUsers(tenantId);
+    }
+  } catch (e) {
+    toast('err', `Fehler: ${e.message}`);
+  }
+}
+
+function removeUser(tenantId, userId, email) {
+  showConfirm(
+    'User entfernen',
+    `User "${email}" wirklich aus diesem Tenant entfernen?`,
+    'Entfernen',
+    async () => {
+      try {
+        const res = await apiFetch(`/admin/tenants/${tenantId}/users/${userId}`, { method: 'DELETE' });
+        if (res.ok) {
+          toast('ok', `User "${email}" entfernt`);
+          await loadTenantUsers(tenantId);
+        } else {
+          const err = await res.json().catch(() => ({}));
+          toast('err', `Fehler: ${err.error || res.statusText}`);
+        }
+      } catch (e) {
+        toast('err', `Fehler: ${e.message}`);
+      }
+    }
+  );
+}
+
+async function addUser(tenantId) {
+  const email = document.getElementById('addUserEmail').value.trim();
+  const role = document.getElementById('addUserRole').value;
+  if (!email) { toast('err', 'Email erforderlich'); return; }
+  try {
+    const res = await apiFetch(`/admin/tenants/${tenantId}/users`, {
+      method: 'POST',
+      body: JSON.stringify({ email, role }),
+    });
+    if (res.ok) {
+      toast('ok', `User "${email}" hinzugefügt`);
+      document.getElementById('addUserEmail').value = '';
+      await loadTenantUsers(tenantId);
+    } else {
+      const err = await res.json().catch(() => ({}));
+      toast('err', `Fehler: ${err.error || res.statusText}`);
+    }
+  } catch (e) {
+    toast('err', `Fehler: ${e.message}`);
+  }
+}
+
+// ═══════════════════════════════════════════
+// TENANT BILLING DETAIL
+// ═══════════════════════════════════════════
+async function loadTenantBilling(tenantId) {
+  if (!tenantId) return;
+  const el = document.getElementById('detailTabBilling');
+  el.innerHTML = '<div class="loading-row"><span class="spinner"></span> Lade Billing-Details...</div>';
+  try {
+    const res = await apiFetch(`/admin/tenants/${tenantId}/billing`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    renderTenantBilling(data);
+  } catch (e) {
+    el.innerHTML = `<div class="loading-row" style="color:var(--red)">Fehler: ${esc(e.message)}</div>`;
+  }
+}
+
+function renderTenantBilling(data) {
+  const el = document.getElementById('detailTabBilling');
+  const t = data.tenant || {};
+  const stripe = data.stripe || {};
+  const sub = stripe.subscription || {};
+  const customer = stripe.customer || {};
+  const invoices = Array.isArray(stripe.invoices) ? stripe.invoices.slice(0, 10) : [];
+
+  let html = '<div class="info-grid">';
+  // Subscription info
+  html += `<div class="info-item">
+    <div class="info-label">Plan / Status</div>
+    <div class="info-value">${esc(sub.plan || sub.productName || '—')} — ${esc(sub.status || '—')}</div>
+  </div>`;
+  if (sub.currentPeriodEnd) {
+    html += `<div class="info-item">
+      <div class="info-label">Nächste Rechnung</div>
+      <div class="info-value">${formatDate(sub.currentPeriodEnd)}</div>
+    </div>`;
+  }
+  if (sub.amount != null) {
+    html += `<div class="info-item">
+      <div class="info-label">Preis</div>
+      <div class="info-value">${formatEur(sub.amount)} / ${esc(sub.interval || 'month')}</div>
+    </div>`;
+  }
+  // Trial info
+  if (t.trialStartedAt || t.trialEndsAt) {
+    const trialEnd = t.trialEndsAt ? new Date(t.trialEndsAt) : null;
+    const remaining = trialEnd ? Math.max(0, Math.ceil((trialEnd - new Date()) / 86400000)) : 0;
+    html += `<div class="info-item">
+      <div class="info-label">Trial</div>
+      <div class="info-value">${t.trialStartedAt ? formatDate(t.trialStartedAt) : '—'} → ${t.trialEndsAt ? formatDate(t.trialEndsAt) : '—'}
+        ${trialEnd && trialEnd > new Date() ? ' (' + remaining + ' Tage übrig)' : ''}</div>
+    </div>`;
+  }
+  // Dunning info
+  if (t.paymentFailedAt || t.dunningStep) {
+    html += `<div class="info-item">
+      <div class="info-label">Dunning</div>
+      <div class="info-value">Schritt ${t.dunningStep || 0} — Fehlgeschlagen: ${t.paymentFailedAt ? formatDate(t.paymentFailedAt) : '—'}
+        ${t.lastDunningEmailAt ? '<br>Letzte Email: ' + formatDate(t.lastDunningEmailAt) : ''}</div>
+    </div>`;
+    if (t.gracePeriodEndsAt) {
+      html += `<div class="info-item">
+        <div class="info-label">Grace Period</div>
+        <div class="info-value">Endet: ${formatDate(t.gracePeriodEndsAt)}</div>
+      </div>`;
+    }
+  }
+  // Pause info
+  if (t.pausedAt) {
+    html += `<div class="info-item">
+      <div class="info-label">Pause</div>
+      <div class="info-value">Seit: ${formatDate(t.pausedAt)}${t.pauseEndsAt ? ' — Bis: ' + formatDate(t.pauseEndsAt) : ''}
+        ${t.pauseReason ? '<br>Grund: ' + esc(t.pauseReason) : ''}</div>
+    </div>`;
+  }
+  html += '</div>';
+
+  // Invoices
+  if (invoices.length) {
+    html += '<div class="card-header" style="padding:0;margin-top:16px">Rechnungen (letzte 10)</div>';
+    html += '<div class="table-wrap" style="margin-top:8px"><table><thead><tr>';
+    html += '<th>Datum</th><th>Betrag</th><th>Status</th><th>Nummer</th>';
+    html += '</tr></thead><tbody>';
+    invoices.forEach(inv => {
+      const statusClass = inv.status === 'paid' ? 'green' : inv.status === 'open' ? 'orange' : 'red';
+      html += `<tr>
+        <td style="font-size:10px">${inv.created ? formatDate(inv.created) : inv.date ? formatDate(inv.date) : '—'}</td>
+        <td>${inv.amountDue != null ? formatEur(inv.amountDue) : inv.amount != null ? formatEur(inv.amount) : '—'}</td>
+        <td><span class="badge ${statusClass}" style="padding:1px 6px">${esc(inv.status || '—')}</span></td>
+        <td style="font-size:9px;color:var(--fg-muted)">${esc(inv.number || inv.id || '—')}</td>
+      </tr>`;
+    });
+    html += '</tbody></table></div>';
+  }
+
+  // Pack assignments
+  const packs = data.packs || {};
+  const allPacks = [...(packs.assetPacks || []), ...(packs.avatarPacks || [])];
+  if (allPacks.length) {
+    html += '<div class="card-header" style="padding:0;margin-top:16px">Pack-Zuordnungen</div>';
+    html += '<div class="table-wrap" style="margin-top:8px"><table><thead><tr>';
+    html += '<th>Pack</th><th>Typ</th><th>Source</th>';
+    html += '</tr></thead><tbody>';
+    (packs.assetPacks || []).forEach(p => {
+      html += `<tr><td>${esc(p.name || p.uuid || '—')}</td><td>Asset</td><td>${esc(p.grantSource || p.source || '—')}</td></tr>`;
+    });
+    (packs.avatarPacks || []).forEach(p => {
+      html += `<tr><td>${esc(p.name || p.uuid || '—')}</td><td>Avatar</td><td>${esc(p.grantSource || p.source || '—')}</td></tr>`;
+    });
+    html += '</tbody></table></div>';
+  }
+
+  el.innerHTML = html;
+}
+
+// ═══════════════════════════════════════════
+// TENANT PACKS DETAIL
+// ═══════════════════════════════════════════
+async function loadTenantPacks(tenantId) {
+  if (!tenantId) return;
+  const el = document.getElementById('detailTabPacks');
+  el.innerHTML = '<div class="loading-row"><span class="spinner"></span> Lade Packs...</div>';
+  try {
+    const res = await apiFetch(`/admin/tenants/${tenantId}/packs`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    renderTenantPacks(data);
+  } catch (e) {
+    el.innerHTML = `<div class="loading-row" style="color:var(--red)">Fehler: ${esc(e.message)}</div>`;
+  }
+}
+
+function renderTenantPacks(data) {
+  const el = document.getElementById('detailTabPacks');
+  const assetPks = Array.isArray(data.assetPacks) ? data.assetPacks : [];
+  const avatarPks = Array.isArray(data.avatarPacks) ? data.avatarPacks : [];
+
+  if (!assetPks.length && !avatarPks.length) {
+    el.innerHTML = '<div class="empty-state"><div class="icon">&#128230;</div><p>Keine Packs zugeordnet.</p></div>';
+    return;
+  }
+
+  let html = '';
+  if (assetPks.length) {
+    html += '<div class="card-header" style="padding:0">Asset Packs</div>';
+    html += '<div class="table-wrap" style="margin-top:8px;margin-bottom:16px"><table><thead><tr>';
+    html += '<th>Name</th><th>UUID</th><th>Source</th>';
+    html += '</tr></thead><tbody>';
+    assetPks.forEach(p => {
+      html += `<tr>
+        <td><strong>${esc(p.name || '—')}</strong></td>
+        <td><code style="font-size:9px;color:var(--fg-muted)">${esc(p.uuid || p.packUuid || '—')}</code></td>
+        <td>${esc(p.grantSource || p.source || '—')}</td>
+      </tr>`;
+    });
+    html += '</tbody></table></div>';
+  }
+  if (avatarPks.length) {
+    html += '<div class="card-header" style="padding:0">Avatar Packs</div>';
+    html += '<div class="table-wrap" style="margin-top:8px"><table><thead><tr>';
+    html += '<th>Name</th><th>UUID</th><th>Source</th>';
+    html += '</tr></thead><tbody>';
+    avatarPks.forEach(p => {
+      html += `<tr>
+        <td><strong>${esc(p.name || '—')}</strong></td>
+        <td><code style="font-size:9px;color:var(--fg-muted)">${esc(p.uuid || p.packUuid || '—')}</code></td>
+        <td>${esc(p.grantSource || p.source || '—')}</td>
+      </tr>`;
+    });
+    html += '</tbody></table></div>';
+  }
+  el.innerHTML = html;
+}
+
+// ═══════════════════════════════════════════
+// AUDIT LOG
+// ═══════════════════════════════════════════
+function populateAuditTenants() {
+  const sel = document.getElementById('auditTenantFilter');
+  if (!sel) return;
+  const currentVal = sel.value;
+  sel.innerHTML = '<option value="">— Alle —</option>';
+  tenants.forEach(t => {
+    sel.innerHTML += `<option value="${esc(t.id)}">${esc(t.slug)}</option>`;
+  });
+  sel.value = currentVal;
+}
+
+async function loadAuditLog() {
+  const tenantId = document.getElementById('auditTenantFilter').value;
+  const eventType = document.getElementById('auditEventFilter').value;
+  const tbody = document.getElementById('auditLogBody');
+  tbody.innerHTML = '<tr><td colspan="5" class="loading-row"><span class="spinner"></span> Lade...</td></tr>';
+
+  let query = `?limit=${auditLimit}&offset=${auditOffset}`;
+  if (tenantId) query += `&tenantId=${encodeURIComponent(tenantId)}`;
+  if (eventType) query += `&eventType=${encodeURIComponent(eventType)}`;
+
+  try {
+    const res = await apiFetch(`/admin/billing/audit-log${query}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    auditLogs = data.logs || [];
+    auditTotal = data.total || 0;
+    renderAuditLog();
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan="5" class="loading-row" style="color:var(--red)">Fehler: ${esc(e.message)}</td></tr>`;
+    document.getElementById('auditPagination').style.display = 'none';
+  }
+}
+
+function renderAuditLog() {
+  const tbody = document.getElementById('auditLogBody');
+  if (!auditLogs.length) {
+    tbody.innerHTML = '<tr><td colspan="5" class="loading-row">Keine Einträge gefunden.</td></tr>';
+    document.getElementById('auditPagination').style.display = 'none';
+    return;
+  }
+  tbody.innerHTML = auditLogs.map((log, i) => {
+    const tenant = tenants.find(t => t.id === log.tenantId);
+    const detailStr = log.details || log.data || log.metadata;
+    const detailJson = typeof detailStr === 'object' ? JSON.stringify(detailStr, null, 2) : (detailStr || '');
+    return `<tr>
+      <td style="white-space:nowrap;font-size:10px">${log.createdAt ? formatDateTime(log.createdAt) : log.timestamp ? formatDateTime(log.timestamp) : '—'}</td>
+      <td><code style="color:var(--accent);font-size:10px">${tenant ? esc(tenant.slug) : esc(log.tenantId || '—')}</code></td>
+      <td><span class="badge blue" style="padding:1px 6px">${esc(log.eventType || log.event || '—')}</span></td>
+      <td style="font-size:10px;color:var(--fg-dim)">${esc(log.source || '—')}</td>
+      <td>${detailJson
+        ? `<span class="json-toggle" onclick="toggleJson(this)">Details anzeigen</span><div class="json-content">${esc(detailJson)}</div>`
+        : '<span style="color:var(--fg-muted)">—</span>'}</td>
+    </tr>`;
+  }).join('');
+
+  // Pagination
+  const pag = document.getElementById('auditPagination');
+  pag.style.display = 'flex';
+  document.getElementById('auditPrev').disabled = auditOffset === 0;
+  document.getElementById('auditNext').disabled = auditOffset + auditLimit >= auditTotal;
+  const pageNum = Math.floor(auditOffset / auditLimit) + 1;
+  const totalPages = Math.ceil(auditTotal / auditLimit) || 1;
+  document.getElementById('auditPageInfo').textContent = `Seite ${pageNum} von ${totalPages} (${auditTotal} Einträge)`;
+}
+
+function toggleJson(el) {
+  const content = el.nextElementSibling;
+  if (content) content.classList.toggle('open');
+  el.textContent = content && content.classList.contains('open') ? 'Verbergen' : 'Details anzeigen';
+}
+
+function auditPrevPage() {
+  auditOffset = Math.max(0, auditOffset - auditLimit);
+  loadAuditLog();
+}
+
+function auditNextPage() {
+  auditOffset += auditLimit;
+  loadAuditLog();
+}
+
+// ═══════════════════════════════════════════
+// MAPS
+// ═══════════════════════════════════════════
+function populateMapsTenants() {
+  const selectors = ['mapsFilterTenant', 'newMapTenant', 'importMapTenant'];
+  selectors.forEach(selId => {
+    const sel = document.getElementById(selId);
+    if (!sel) return;
+    const currentVal = sel.value;
+    const label = selId === 'mapsFilterTenant' ? '— Alle —' : '— Tenant wählen —';
+    sel.innerHTML = `<option value="">${label}</option>`;
+    tenants.forEach(t => {
+      sel.innerHTML += `<option value="${esc(t.id)}">${esc(t.slug)} — ${esc(t.name || '')}</option>`;
+    });
+    sel.value = currentVal;
+  });
+}
+
+async function loadMaps() {
+  try {
+    const res = await apiFetch('/admin/maps');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    maps = await res.json();
+    renderMaps();
+  } catch (e) {
+    document.getElementById('mapsBody').innerHTML =
+      `<tr><td colspan="8" class="loading-row" style="color:var(--red)">Fehler: ${esc(e.message)}</td></tr>`;
+  }
+}
+
+function renderMaps() {
+  const tbody = document.getElementById('mapsBody');
+  const filterTenant = document.getElementById('mapsFilterTenant').value;
+  const filtered = filterTenant ? maps.filter(m => m.tenantId === filterTenant) : maps;
+
+  if (!filtered.length) {
+    tbody.innerHTML = '<tr><td colspan="8" class="loading-row">Keine Maps vorhanden.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = filtered.map(m => {
+    const tenantSlug = m.tenant ? m.tenant.slug : (m.tenantSlug || '—');
+    return `<tr>
+      <td><a class="slug-link" onclick="openMapDetail('${esc(m.id)}')">${esc(m.name || '—')}</a></td>
+      <td><code style="font-size:10px;color:var(--accent)">${esc(tenantSlug)}</code></td>
+      <td style="font-size:10px">${m.width || '—'} x ${m.height || '—'}</td>
+      <td style="text-align:center">${m.tilesetCount != null ? m.tilesetCount : '—'}</td>
+      <td style="text-align:center">${m.layerCount != null ? m.layerCount : '—'}</td>
+      <td style="text-align:center">${m.objectCount != null ? m.objectCount : '—'}</td>
+      <td style="white-space:nowrap;font-size:10px;color:var(--fg-dim)">${m.createdAt ? formatDate(m.createdAt) : '—'}</td>
+      <td>
+        <div style="display:flex;gap:4px">
+          <button class="btn btn-xs btn-accent" onclick="promptCopyMap('${esc(m.id)}','${esc(m.name || '')}')">Kopieren</button>
+          <button class="btn btn-xs btn-danger" onclick="deleteMap('${esc(m.id)}','${esc(m.name || '')}')">Löschen</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function toggleNewMapForm() {
+  const card = document.getElementById('newMapFormCard');
+  card.style.display = card.style.display === 'none' ? '' : 'none';
+  document.getElementById('importMapFormCard').style.display = 'none';
+}
+
+function toggleImportMapForm() {
+  const card = document.getElementById('importMapFormCard');
+  card.style.display = card.style.display === 'none' ? '' : 'none';
+  document.getElementById('newMapFormCard').style.display = 'none';
+}
+
+async function createMap() {
+  const tenantId = document.getElementById('newMapTenant').value;
+  const name = document.getElementById('newMapName').value.trim();
+  if (!tenantId) { toast('err', 'Tenant auswählen'); return; }
+  if (!name) { toast('err', 'Map-Name erforderlich'); return; }
+  const body = {
+    tenantId,
+    name,
+    width: parseInt(document.getElementById('newMapWidth').value) || 50,
+    height: parseInt(document.getElementById('newMapHeight').value) || 50,
+    tileWidth: parseInt(document.getElementById('newMapTileW').value) || 32,
+    tileHeight: parseInt(document.getElementById('newMapTileH').value) || 32,
+  };
+  try {
+    const res = await apiFetch('/admin/maps', { method: 'POST', body: JSON.stringify(body) });
+    if (res.ok) {
+      toast('ok', `Map "${name}" erstellt`);
+      document.getElementById('newMapName').value = '';
+      toggleNewMapForm();
+      await loadMaps();
+    } else {
+      const err = await res.json().catch(() => ({}));
+      toast('err', `Fehler: ${err.error || res.statusText}`);
+    }
+  } catch (e) {
+    toast('err', `Fehler: ${e.message}`);
+  }
+}
+
+function deleteMap(id, name) {
+  showConfirm(
+    'Map löschen',
+    `Map "${name}" wirklich löschen? Dieser Vorgang kann nicht rückgängig gemacht werden.`,
+    'Löschen',
+    async () => {
+      try {
+        const res = await apiFetch(`/admin/maps/${id}`, { method: 'DELETE' });
+        if (res.ok) {
+          toast('ok', `Map "${name}" gelöscht`);
+          document.getElementById('mapDetailCard').style.display = 'none';
+          await loadMaps();
+        } else {
+          const err = await res.json().catch(() => ({}));
+          toast('err', `Fehler: ${err.error || res.statusText}`);
+        }
+      } catch (e) {
+        toast('err', `Fehler: ${e.message}`);
+      }
+    }
+  );
+}
+
+function promptCopyMap(mapId, mapName) {
+  // Build a simple inline copy dialog using the confirm dialog
+  const tenantOpts = tenants.map(t => `${t.slug} (${t.id})`).join(', ');
+  const targetTenantId = prompt(`Map "${mapName}" kopieren.\n\nZiel-Tenant ID eingeben:\n\nVerfügbare Tenants:\n${tenantOpts}`);
+  if (!targetTenantId || !targetTenantId.trim()) return;
+  const newName = prompt('Neuer Map-Name (leer = gleicher Name):', mapName);
+  copyMap(mapId, targetTenantId.trim(), newName ? newName.trim() : undefined);
+}
+
+async function copyMap(mapId, targetTenantId, newName) {
+  const body = { targetTenantId };
+  if (newName) body.newName = newName;
+  try {
+    const res = await apiFetch(`/admin/maps/${mapId}/copy`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+    if (res.ok) {
+      toast('ok', 'Map kopiert');
+      await loadMaps();
+    } else {
+      const err = await res.json().catch(() => ({}));
+      toast('err', `Fehler: ${err.error || res.statusText}`);
+    }
+  } catch (e) {
+    toast('err', `Fehler: ${e.message}`);
+  }
+}
+
+async function importMap() {
+  const tenantId = document.getElementById('importMapTenant').value;
+  const mapName = document.getElementById('importMapName').value.trim();
+  const fileInput = document.getElementById('importMapFile');
+  const file = fileInput.files[0];
+  if (!tenantId) { toast('err', 'Tenant auswählen'); return; }
+  if (!mapName) { toast('err', 'Map-Name erforderlich'); return; }
+  if (!file) { toast('err', 'Datei auswählen'); return; }
+
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('tenantId', tenantId);
+  formData.append('mapName', mapName);
+
+  try {
+    const res = await apiFetch('/admin/maps/import', { method: 'POST', body: formData });
+    if (res.ok) {
+      toast('ok', `Map "${mapName}" importiert`);
+      document.getElementById('importMapName').value = '';
+      fileInput.value = '';
+      toggleImportMapForm();
+      await loadMaps();
+    } else {
+      const err = await res.json().catch(() => ({}));
+      toast('err', `Import-Fehler: ${err.error || res.statusText}`);
+    }
+  } catch (e) {
+    toast('err', `Import-Fehler: ${e.message}`);
+  }
+}
+
+async function openMapDetail(mapId) {
+  const card = document.getElementById('mapDetailCard');
+  const content = document.getElementById('mapDetailContent');
+  card.style.display = '';
+  content.innerHTML = '<div class="loading-row"><span class="spinner"></span> Lade Map-Details...</div>';
+
+  try {
+    const res = await apiFetch(`/admin/maps/${mapId}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const map = await res.json();
+    renderMapDetail(map);
+  } catch (e) {
+    content.innerHTML = `<div class="loading-row" style="color:var(--red)">Fehler: ${esc(e.message)}</div>`;
+  }
+}
+
+function renderMapDetail(map) {
+  const content = document.getElementById('mapDetailContent');
+  const tenantSlug = map.tenant ? map.tenant.slug : '—';
+
+  let html = '<div class="info-grid">';
+  html += `<div class="info-item"><div class="info-label">Name</div><div class="info-value">${esc(map.name || '—')}</div></div>`;
+  html += `<div class="info-item"><div class="info-label">Tenant</div><div class="info-value">${esc(tenantSlug)}</div></div>`;
+  html += `<div class="info-item"><div class="info-label">Dimensionen</div><div class="info-value">${map.width || '—'} x ${map.height || '—'} (Tile: ${map.tileWidth || '—'} x ${map.tileHeight || '—'})</div></div>`;
+  if (map.chunkSize) html += `<div class="info-item"><div class="info-label">ChunkSize</div><div class="info-value">${map.chunkSize}</div></div>`;
+  if (map.version != null) html += `<div class="info-item"><div class="info-label">Version</div><div class="info-value">${map.version}</div></div>`;
+  html += '</div>';
+
+  // Rooms
+  const rooms = Array.isArray(map.rooms) ? map.rooms : [];
+  if (rooms.length) {
+    html += '<div class="card-header" style="padding:0;margin-top:8px">Rooms (' + rooms.length + ')</div>';
+    html += '<div class="table-wrap" style="margin-top:8px"><table><thead><tr>';
+    html += '<th>Name</th><th>Slug</th><th>Position</th>';
+    html += '</tr></thead><tbody>';
+    rooms.forEach(r => {
+      html += `<tr>
+        <td>${esc(r.name || r.displayName || '—')}</td>
+        <td><code style="font-size:10px">${esc(r.slug || r.id || '—')}</code></td>
+        <td style="font-size:10px">${r.x != null ? r.x + ',' + r.y : '—'}</td>
+      </tr>`;
+    });
+    html += '</tbody></table></div>';
+  }
+
+  // Tilesets
+  const tilesets = Array.isArray(map.tilesets) ? map.tilesets : [];
+  if (tilesets.length) {
+    html += '<div class="card-header" style="padding:0;margin-top:16px">Tilesets (' + tilesets.length + ')</div>';
+    html += '<div class="table-wrap" style="margin-top:8px"><table><thead><tr>';
+    html += '<th>Slot</th><th>Key</th><th>Image URL</th>';
+    html += '</tr></thead><tbody>';
+    tilesets.forEach(ts => {
+      html += `<tr>
+        <td>${ts.slot != null ? ts.slot : '—'}</td>
+        <td><code style="font-size:10px">${esc(ts.key || ts.name || '—')}</code></td>
+        <td style="font-size:9px;color:var(--fg-muted);max-width:200px;overflow:hidden;text-overflow:ellipsis" title="${esc(ts.imageUrl || ts.image || '')}">${esc(ts.imageUrl || ts.image || '—')}</td>
+      </tr>`;
+    });
+    html += '</tbody></table></div>';
+  }
+
+  // Layers
+  const layers = Array.isArray(map.layers) ? map.layers : [];
+  if (layers.length) {
+    html += '<div class="card-header" style="padding:0;margin-top:16px">Layers (' + layers.length + ')</div>';
+    html += '<div class="table-wrap" style="margin-top:8px"><table><thead><tr>';
+    html += '<th>Name</th><th>Chunks</th>';
+    html += '</tr></thead><tbody>';
+    layers.forEach(l => {
+      const chunkCount = Array.isArray(l.chunks) ? l.chunks.length : (l.chunkCount || '—');
+      html += `<tr>
+        <td>${esc(l.name || '—')}</td>
+        <td>${chunkCount}</td>
+      </tr>`;
+    });
+    html += '</tbody></table></div>';
+  }
+
+  // Objects count
+  const objects = Array.isArray(map.objects) ? map.objects : [];
+  if (objects.length || map.objectCount) {
+    html += `<div class="card-header" style="padding:0;margin-top:16px">Objects (${objects.length || map.objectCount || 0})</div>`;
+  }
+
+  // Actions
+  html += `<div class="btn-row" style="margin-top:20px">
+    <button class="btn btn-accent" onclick="promptCopyMap('${esc(map.id)}','${esc(map.name || '')}')">Map kopieren</button>
+    <button class="btn btn-danger" onclick="deleteMap('${esc(map.id)}','${esc(map.name || '')}')">Map löschen</button>
+  </div>`;
+
+  content.innerHTML = html;
+}
+
+// ═══════════════════════════════════════════
+// HEALTH
+// ═══════════════════════════════════════════
+async function loadHealth() {
+  try {
+    const res = await apiFetch('/admin/health');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const h = await res.json();
+    renderHealth(h);
+    document.getElementById('lastRefresh').textContent = `Letzte Aktualisierung: ${new Date().toLocaleTimeString('de-DE')}`;
+  } catch (e) {
+    toast('err', `Health-Fehler: ${e.message}`);
+  }
+}
+
+function renderHealth(h) {
+  // Server Info
+  document.getElementById('hUptime').textContent = h.uptime != null ? formatUptime(h.uptime) : '—';
+  document.getElementById('hNode').textContent = h.nodeVersion || h.node || '—';
+  document.getElementById('hPlatform').textContent = h.platform || '—';
+  document.getElementById('hOnline').textContent = h.totalOnline != null ? h.totalOnline : '—';
+
+  // Memory
+  const mem = h.memory || {};
+  const heapUsed = mem.heapUsed || 0;
+  const heapTotal = mem.heapTotal || 1;
+  const heapPct = Math.round((heapUsed / heapTotal) * 100);
+  document.getElementById('hHeapUsed').textContent = formatBytes(heapUsed);
+  document.getElementById('hHeapTotal').textContent = formatBytes(heapTotal);
+  document.getElementById('hRss').textContent = formatBytes(mem.rss || 0);
+  document.getElementById('hExternal').textContent = formatBytes(mem.external || 0);
+  const heapBar = document.getElementById('hHeapBar');
+  heapBar.style.width = heapPct + '%';
+  heapBar.className = 'progress-fill ' + (heapPct > 85 ? 'red' : heapPct > 60 ? 'orange' : 'blue');
+
+  // Services
+  const services = h.services || {};
+  const svcContainer = document.getElementById('healthServices');
+  const svcNames = ['db', 'websocket', 'livekit', 'stripe', 'email'];
+  let svcHtml = '';
+  svcNames.forEach(name => {
+    const svc = services[name];
+    if (!svc && !h[name]) return;
+    const data = svc || h[name] || {};
+    const status = data.status || data.connected || (data === true ? 'ok' : 'unknown');
+    let badgeClass = 'orange';
+    if (status === 'ok' || status === 'connected' || status === true || status === 'healthy') badgeClass = 'green';
+    else if (status === 'error' || status === 'disconnected' || status === false) badgeClass = 'red';
+    const details = data.details || data.latency || data.version || '';
+    svcHtml += `<div class="health-card" style="padding:12px 16px">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <span style="font-family:var(--font-mono);font-size:12px;font-weight:600;text-transform:capitalize">${esc(name)}</span>
+        <span class="badge ${badgeClass}"><span class="badge-dot"></span>${esc(String(status))}</span>
+      </div>
+      ${details ? `<div style="font-family:var(--font-mono);font-size:10px;color:var(--fg-muted);margin-top:4px">${esc(String(details))}</div>` : ''}
+    </div>`;
+  });
+  if (svcHtml) svcContainer.innerHTML = svcHtml;
+
+  // DB counts
+  const counts = h.counts || h.dbCounts || {};
+  document.getElementById('hUsers').textContent = counts.users != null ? counts.users.toLocaleString('de-DE') : '—';
+  document.getElementById('hTenants').textContent = counts.tenants != null ? counts.tenants.toLocaleString('de-DE') : '—';
+  document.getElementById('hSessions').textContent = counts.sessions != null ? counts.sessions.toLocaleString('de-DE') : '—';
+  document.getElementById('hMemberships').textContent = counts.memberships != null ? counts.memberships.toLocaleString('de-DE') : '—';
+
+  // Online by tenant
+  const onlineByTenant = h.onlineByTenant || h.tenantOnline || [];
+  const obt = document.getElementById('onlineByTenant');
+  if (Array.isArray(onlineByTenant) && onlineByTenant.length) {
+    obt.innerHTML = `<div class="table-wrap"><table>
+      <thead><tr><th>Tenant</th><th>Online</th></tr></thead>
+      <tbody>${onlineByTenant.map(t => `<tr>
+        <td><code style="color:var(--accent)">${esc(t.slug || t.tenant || '—')}</code></td>
+        <td>${t.count != null ? t.count : t.online != null ? t.online : '—'}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>`;
+  } else if (typeof onlineByTenant === 'object' && !Array.isArray(onlineByTenant)) {
+    const entries = Object.entries(onlineByTenant);
+    if (entries.length) {
+      obt.innerHTML = `<div class="table-wrap"><table>
+        <thead><tr><th>Tenant</th><th>Online</th></tr></thead>
+        <tbody>${entries.map(([k, v]) => `<tr>
+          <td><code style="color:var(--accent)">${esc(k)}</code></td>
+          <td>${v}</td>
+        </tr>`).join('')}</tbody>
+      </table></div>`;
+    }
+  }
+}
+
+async function loadStats() {
+  try {
+    const res = await apiFetch('/admin/stats');
+    if (!res.ok) return;
+    const s = await res.json();
+    renderGrowth(s);
+  } catch (e) { /* silent */ }
+}
+
+function renderGrowth(s) {
+  const tbody = document.getElementById('growthBody');
+  const userGrowth = s.userGrowth || s.users || {};
+  const tenantGrowth = s.tenantGrowth || s.tenants || {};
+
+  tbody.innerHTML = `
+    <tr>
+      <td><strong>Users</strong></td>
+      <td>${fmtGrowth(userGrowth['24h'] ?? userGrowth.day ?? '—')}</td>
+      <td>${fmtGrowth(userGrowth['7d'] ?? userGrowth.week ?? '—')}</td>
+      <td>${fmtGrowth(userGrowth['30d'] ?? userGrowth.month ?? '—')}</td>
+    </tr>
+    <tr>
+      <td><strong>Tenants</strong></td>
+      <td>${fmtGrowth(tenantGrowth['24h'] ?? tenantGrowth.day ?? '—')}</td>
+      <td>${fmtGrowth(tenantGrowth['7d'] ?? tenantGrowth.week ?? '—')}</td>
+      <td>${fmtGrowth(tenantGrowth['30d'] ?? tenantGrowth.month ?? '—')}</td>
+    </tr>
+  `;
+}
+
+function fmtGrowth(val) {
+  if (val === '—' || val == null) return '<span style="color:var(--fg-muted)">—</span>';
+  const n = Number(val);
+  if (isNaN(n)) return esc(String(val));
+  if (n > 0) return `<span style="color:var(--green)">+${n}</span>`;
+  if (n < 0) return `<span style="color:var(--red)">${n}</span>`;
+  return `<span style="color:var(--fg-muted)">0</span>`;
+}
+
+function toggleAutoRefresh() {
+  const checked = document.getElementById('autoRefresh').checked;
+  if (checked) {
+    autoRefreshInterval = setInterval(() => {
+      loadHealth();
+      loadStats();
+    }, 10000);
+  } else {
+    if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+    autoRefreshInterval = null;
+  }
+}
+
+// ═══════════════════════════════════════════
+// Helpers
+// ═══════════════════════════════════════════
+function toast(type, text) {
+  const container = document.getElementById('toasts');
+  const div = document.createElement('div');
+  div.className = `toast ${type}`;
+  div.textContent = text;
+  container.appendChild(div);
+  setTimeout(() => { div.style.opacity = '0'; setTimeout(() => div.remove(), 300); }, 3000);
+}
+
+function esc(s) {
+  if (typeof s !== 'string') return '';
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function formatEur(cents) {
+  const eur = (Number(cents) / 100).toFixed(2);
+  return eur.replace('.', ',') + ' \u20AC';
+}
+
+function formatDate(iso) {
+  try {
+    return new Date(iso).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  } catch { return iso; }
+}
+
+function formatDateTime(iso) {
+  try {
+    return new Date(iso).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  } catch { return iso; }
+}
+
+function formatUptime(seconds) {
+  const d = Math.floor(seconds / 86400);
+  const h = Math.floor((seconds % 86400) / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const parts = [];
+  if (d > 0) parts.push(`${d}d`);
+  parts.push(`${h}h`);
+  parts.push(`${m}m`);
+  return parts.join(' ');
+}
+
+function formatBytes(bytes) {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+}
+
+// ═══════════════════════════════════════════
+// SETTINGS
+// ═══════════════════════════════════════════
+async function loadSettings() {
+  try {
+    const res = await apiFetch('/admin/settings');
+    if (!res.ok) return;
+    const data = await res.json();
+    document.getElementById('settingPublicReg').checked = !!data.publicRegistrationEnabled;
+    document.getElementById('settingFreeSeats').value = data.defaultFreeSeats ?? 3;
+  } catch (e) {
+    console.error('loadSettings error', e);
+  }
+}
+
+async function saveSettings() {
+  try {
+    const publicRegistrationEnabled = document.getElementById('settingPublicReg').checked;
+    const defaultFreeSeats = parseInt(document.getElementById('settingFreeSeats').value) || 0;
+    const res = await apiFetch('/admin/settings', {
+      method: 'PATCH',
+      body: JSON.stringify({ publicRegistrationEnabled, defaultFreeSeats }),
+    });
+    if (res.ok) {
+      toast('ok', 'Einstellungen gespeichert');
+    } else {
+      const err = await res.json().catch(() => ({}));
+      toast('err', `Fehler: ${err.error || res.statusText}`);
+    }
+  } catch (e) {
+    toast('err', `Fehler: ${e.message}`);
+  }
+}
+
+// Keyboard navigation
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeConfirm();
+});
+</script>
+</body>
+</html>

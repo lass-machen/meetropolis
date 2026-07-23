@@ -1,0 +1,243 @@
+/* Avatar editor styling. Imported from AvatarEditor.tsx (the lazy entry), so
+   Vite emits it as part of the editor chunk and it costs nothing on initial
+   load. Class-based rather than inline styles because the editor needs hover,
+   :focus-visible and reduced-motion — none of which inline styles can express.
+
+   Design: the sprite is 32x32 pixel art, so the editor says so. The preview
+   stands on a grid whose cells are exactly one sprite pixel; selection is
+   carried by the amber accent, which no sprite palette competes with (the hair
+   and clothing ramps run violet/blue/brown). Everything else stays quiet. */
+
+.av-ed {
+  /* Frame size of the v5 catalog (format.frame_w/frame_h). Guarded by a test in
+     editorLayout.test.ts: a catalog with another frame size fails there first. */
+  --av-frame: 32;
+  /* Integer scales only: a fractional one would smear the pixel grid. */
+  --av-px: 7px; /* preview stage: 32 * 7 = 224px */
+  --av-tile-px: 3px; /* sprite tiles: 32 * 3 = 96px */
+  --av-stage-bg: rgba(0, 0, 0, 0.28);
+  --av-grid-line: rgba(255, 255, 255, 0.05);
+  --av-tile-bg: rgba(255, 255, 255, 0.05);
+  --av-tile-selected-bg: rgba(243, 168, 20, 0.12);
+  --av-halo: rgba(243, 168, 20, 0.18);
+
+  display: grid;
+  /* The left column is exactly the stage, so the save button lines up with it.
+     minmax(0, 1fr) keeps the tile grid from ever pushing the modal wider. */
+  grid-template-columns: calc(var(--av-frame) * var(--av-px)) minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+@media (prefers-color-scheme: light) {
+  .av-ed {
+    --av-stage-bg: rgba(15, 17, 21, 0.05);
+    --av-grid-line: rgba(15, 17, 21, 0.07);
+    --av-tile-bg: rgba(15, 17, 21, 0.04);
+  }
+}
+
+/* Manual theme override wins over the system preference, as in theme.css. */
+:root[data-theme='dark'] .av-ed {
+  --av-stage-bg: rgba(0, 0, 0, 0.28);
+  --av-grid-line: rgba(255, 255, 255, 0.05);
+  --av-tile-bg: rgba(255, 255, 255, 0.05);
+}
+
+:root[data-theme='light'] .av-ed {
+  --av-stage-bg: rgba(15, 17, 21, 0.05);
+  --av-grid-line: rgba(15, 17, 21, 0.07);
+  --av-tile-bg: rgba(15, 17, 21, 0.04);
+}
+
+@media (max-width: 760px) {
+  .av-ed {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ---------- Preview column ---------- */
+
+.av-ed__preview {
+  position: sticky; /* the modal body scrolls; the avatar stays in view */
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.av-ed__stage {
+  width: calc(var(--av-frame) * var(--av-px));
+  height: calc(var(--av-frame) * var(--av-px));
+  max-width: 100%;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs, 8px);
+  background-color: var(--av-stage-bg);
+  /* The grid is the sprite's own pixel module, not decoration. */
+  background-image:
+    linear-gradient(to right, var(--av-grid-line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--av-grid-line) 1px, transparent 1px);
+  background-size: var(--av-px) var(--av-px);
+}
+
+.av-ed__stage-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  image-rendering: pixelated;
+}
+
+.av-ed__save {
+  width: 100%;
+}
+
+.av-ed__status {
+  font-size: 12px;
+  color: var(--fg-subtle, #9ca3af);
+  margin: 0;
+}
+
+/* ---------- Slot groups ---------- */
+
+.av-ed__slots {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+
+.av-ed__slot-label {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-subtle, #9ca3af);
+}
+
+.av-ed__slot-note {
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  opacity: 0.8;
+}
+
+.av-ed__grid {
+  display: grid;
+  gap: 8px;
+  justify-content: start;
+}
+
+/* Sprite tiles hold a pixel-exact 3x frame, so they never stretch. */
+.av-ed__grid--sprite {
+  grid-template-columns: repeat(auto-fill, 104px);
+}
+
+.av-ed__grid--swatch {
+  grid-template-columns: repeat(auto-fill, 72px);
+}
+
+/* ---------- Option tiles ---------- */
+
+.av-ed__tile {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  padding: 4px;
+  background: var(--av-tile-bg);
+  /* 2px even when unselected: selecting must not shift the grid. */
+  border: 2px solid transparent;
+  border-radius: 10px;
+  color: var(--fg-subtle, #9ca3af);
+  font: inherit;
+  cursor: pointer;
+  transition:
+    transform 120ms ease,
+    border-color 120ms ease,
+    background 120ms ease;
+}
+
+.av-ed__tile:hover:not(:disabled) {
+  background: var(--glass-hover, rgba(255, 255, 255, 0.12));
+  transform: translateY(-1px);
+}
+
+.av-ed__tile:focus-visible {
+  outline: 2px solid var(--brand-accent, #f3a814);
+  outline-offset: 2px;
+}
+
+/* "Ohne" renders the avatar without the item, so only the outline says it is
+   the empty choice. Declared before --selected, which must win when both. */
+.av-ed__tile--none {
+  border-style: dashed;
+  border-color: var(--border, rgba(255, 255, 255, 0.18));
+}
+
+.av-ed__tile--selected {
+  border-style: solid;
+  border-color: var(--brand-accent, #f3a814);
+  background: var(--av-tile-selected-bg);
+  box-shadow: 0 0 0 3px var(--av-halo);
+  color: var(--fg, #e5e7eb);
+}
+
+.av-ed__tile:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.av-ed__tile-caption {
+  font-size: 10px;
+  line-height: 1.3;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.av-ed__tile-sprite {
+  width: calc(var(--av-frame) * var(--av-tile-px));
+  height: calc(var(--av-frame) * var(--av-tile-px));
+  display: block;
+  image-rendering: pixelated;
+  border-radius: 6px;
+}
+
+/* Stands in for an option with no renderable sheet (see SpriteTile). Same box
+   as the sprite, so an unavailable option never punches a hole in the grid. */
+.av-ed__tile-unavailable {
+  width: calc(var(--av-frame) * var(--av-tile-px));
+  height: calc(var(--av-frame) * var(--av-tile-px));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  color: var(--fg-subtle, #9ca3af);
+}
+
+/* The swatch sits inset on the tile ground, so the amber selection border
+   never touches the colour itself (blond vs. amber would otherwise merge). */
+.av-ed__tile-swatch {
+  display: flex;
+  height: 44px;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.av-ed__tile-swatch > span {
+  flex: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .av-ed__tile {
+    transition: none;
+  }
+  .av-ed__tile:hover:not(:disabled) {
+    transform: none;
+  }
+}

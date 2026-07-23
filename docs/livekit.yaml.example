@@ -1,0 +1,85 @@
+# LiveKit production configuration template for Meetropolis self-hosters.
+#
+# Copy this file to ./livekit.yaml at the repo root (next to compose.yaml),
+# replace the placeholders, and switch the LiveKit container off `--dev`
+# by adding a compose.override.yaml that mounts the file and changes the
+# command to `--config /etc/livekit.yaml`. See docs/livekit-production.md
+# for the full walkthrough.
+
+# Signalling port (HTTP/WebSocket). Clients connect here through your
+# reverse proxy (wss://livekit.example.com).
+port: 7880
+
+# Bind to every interface inside the container. Docker / your reverse
+# proxy decides what is reachable from outside.
+bind_addresses:
+  - ''
+
+# Real-time media transport.
+rtc:
+  # TCP fallback for clients on networks that block UDP. Keep this open.
+  tcp_port: 7881
+
+  # Primary UDP port. LiveKit uses a single UDP port per node by default
+  # (mux mode) which is friendlier to firewall rules than a port range.
+  udp_port: 7882
+
+  # Resolve and advertise the server's public IPv4 in ICE candidates.
+  # Required on cloud VMs where the container only sees a private NIC.
+  # Leave true unless you set `external_ip` explicitly.
+  use_external_ip: true
+
+  # Static public IP override. Uncomment and set when the host has a
+  # fixed public address that the autodetect cannot determine (for
+  # example on multi-homed bare metal).
+  # external_ip: 203.0.113.42
+
+# Room defaults. Caps below are conservative for a 25-user OSS cap; raise
+# them only if you have tuned the host accordingly.
+room:
+  # Seconds an empty room is kept alive before the SFU disposes it.
+  empty_timeout: 300
+  # Hard ceiling on participants per room. The OSS server enforces a
+  # separate 25-user global cap in packages/shared/src/tenancy.ts.
+  max_participants: 100
+
+# Logging. Switch to `warn` once the stack is stable; `info` is useful
+# during the first week to confirm room lifecycle events.
+logging:
+  level: info
+
+# Prometheus metrics exporter. Map :9090 in compose.yaml when you scrape
+# this with your own Prometheus.
+prometheus:
+  port: 9090
+
+# Built-in TURN/STUN relay. Enable when users sit behind symmetric NAT,
+# carrier-grade NAT or strict corporate firewalls that block UDP.
+# Disable to a) keep the surface area small or b) run coturn separately.
+turn:
+  enabled: false
+  # FQDN that resolves to this host. Used as the realm in TURN credentials
+  # and as the SNI when external_tls is true.
+  # domain: turn.example.com
+  # TURN over TLS port. Standard 5349. Set to 0 to disable TURN/TLS.
+  tls_port: 5349
+  # Plain UDP fallback for TURN. Set to 0 to disable.
+  udp_port: 3478
+  # When you front LiveKit with a reverse proxy that already terminates
+  # TLS for `domain` and forwards TCP, set this true so LiveKit does not
+  # try to load its own certificate.
+  external_tls: true
+  # Cert/key only required when external_tls: false and LiveKit itself
+  # terminates TLS.
+  # cert_file: /etc/letsencrypt/live/turn.example.com/fullchain.pem
+  # key_file: /etc/letsencrypt/live/turn.example.com/privkey.pem
+
+# API keys. The key id on the left, the shared secret on the right.
+# Generate the secret with `openssl rand -base64 32` (or any 32+ char
+# random string). The same pair must be set as LIVEKIT_API_KEY /
+# LIVEKIT_API_SECRET in the application server's .env so token signing
+# matches token verification.
+keys:
+  # Replace `meetropolis` with your own key id and the placeholder with
+  # the output of `openssl rand -base64 32`.
+  meetropolis: REPLACE_WITH_OPENSSL_RAND_BASE64_32_OUTPUT

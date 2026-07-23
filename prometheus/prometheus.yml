@@ -1,0 +1,13 @@
+global:
+  scrape_interval: 5s
+
+scrape_configs:
+  - job_name: 'meetropolis-server'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['server:2567']
+
+  - job_name: 'livekit'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['livekit:9090']

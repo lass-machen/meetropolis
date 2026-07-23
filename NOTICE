@@ -1,0 +1,74 @@
+Meetropolis
+Copyright 2025 Tiamat UG (haftungsbeschränkt) and Meetropolis Contributors
+
+This product is distributed under a dual-license model. See LICENSING.md for
+the full per-component breakdown.
+
+  - Server components (apps/server, apps/npc-service, apps/loadtest, and the
+    repository root) are licensed under the GNU Affero General Public License,
+    Version 3 (AGPL-3.0-only). See LICENSE.
+
+  - The web client (apps/web) and the shared types package (packages/shared)
+    are licensed under the MIT License. See apps/web/LICENSE and
+    packages/shared/LICENSE.
+
+A commercial license that removes the AGPL-3.0 obligations is available from
+Tiamat UG for the AGPL-licensed components. Contact mail@meetropolis.me.
+
+The "Meetropolis" name and logo are trademarks of Tiamat UG and are not
+covered by AGPL-3.0 or MIT. See TRADEMARKS.md.
+
+================================================================================
+Third-party notices
+================================================================================
+
+This product bundles or depends on the following third-party software.
+Attributions below are required by their respective licenses.
+
+import-in-the-middle
+  Copyright 2024 Node.js contributors.
+  Portions from DataDog/import-in-the-middle — Copyright Datadog, Inc.
+  Licensed under the Apache License, Version 2.0.
+
+JSZip
+  Copyright (c) 2009-2016 Stuart Knightley, David Duponchel, Franz Buchinger,
+  António Afonso.
+  Available under MIT OR GPL-3.0-or-later. We use JSZip under the MIT option.
+
+pako
+  Copyright (C) 2014-2017 by Vitaly Puzrin and Andrei Tuputcyn.
+  Available under (MIT AND Zlib). The Zlib portion contains:
+  Copyright (C) 1995-2017 Jean-loup Gailly and Mark Adler.
+
+@bufbuild/protobuf
+  Copyright (c) 2021 Buf Technologies, Inc.
+  Available under (Apache-2.0 AND BSD-3-Clause).
+
+Prisma client and engines
+  Copyright Prisma Data, Inc. Licensed under the Apache License, Version 2.0.
+
+LiveKit Server SDK / LiveKit Client SDK / @livekit/rtc-node
+  Copyright LiveKit, Inc. Licensed under the Apache License, Version 2.0.
+
+prom-client
+  Copyright (c) 2015-2019 Simon Nyberg.
+  Licensed under the Apache License, Version 2.0.
+
+TypeScript
+  Copyright (c) Microsoft Corporation.
+  Licensed under the Apache License, Version 2.0.
+
+OpenTelemetry JavaScript
+  Copyright The OpenTelemetry Authors.
+  Licensed under the Apache License, Version 2.0.
+
+pixel-agents (furniture, floors, walls assets)
+  Copyright (c) 2026 Pablo De Lucca.
+  Licensed under the MIT License. Source:
+  https://github.com/pablodelucca/pixel-agents
+  Snapshot ships in apps/web/public/assets/{furniture,floors,walls}/.
+  Full license text in THIRD_PARTY_LICENSES/MIT-pixel-agents.txt.
+
+================================================================================
+End of NOTICE
+================================================================================

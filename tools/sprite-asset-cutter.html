@@ -1,0 +1,2955 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sprite Asset Cutter — Meetropolis</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg-deep:#0a0b0f;--bg:#12131a;--bg-raised:#1a1b25;--bg-surface:#22232f;
+  --border:#2a2c3a;--border-active:#3d3f52;--border-accent:#5865f2;
+  --fg:#d4d5db;--fg-dim:#7a7c8a;--fg-muted:#4a4c58;
+  --accent:#5865f2;--accent-dim:#4752c4;--accent-glow:rgba(88,101,242,0.15);
+  --green:#3ba55d;--green-dim:rgba(59,165,93,0.15);
+  --red:#ed4245;--red-dim:rgba(237,66,69,0.15);
+  --orange:#f0a020;--orange-dim:rgba(240,160,32,0.15);
+  --yellow:#fee75c;
+  --radius:6px;--radius-lg:10px;
+  --font-mono:'JetBrains Mono',monospace;--font-sans:'Space Grotesk',sans-serif;
+  --shadow:0 4px 24px rgba(0,0,0,0.4),0 1px 3px rgba(0,0,0,0.3);
+}
+html{font-size:14px}
+body{
+  background:var(--bg-deep);color:var(--fg);
+  font-family:var(--font-sans);line-height:1.5;
+  min-height:100vh;overflow:hidden;
+}
+body::after{
+  content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.03) 2px,rgba(0,0,0,0.03) 4px);
+}
+
+/* Header */
+.app-header{
+  background:var(--bg);border-bottom:1px solid var(--border);
+  padding:10px 20px;display:flex;align-items:center;gap:14px;
+  position:sticky;top:0;z-index:100;height:44px;
+  backdrop-filter:blur(12px);
+}
+.app-header h1{
+  font-family:var(--font-mono);font-size:14px;font-weight:700;
+  letter-spacing:-0.5px;
+  background:linear-gradient(135deg,var(--accent),#7c8af8);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+}
+.app-header .tag{
+  font-family:var(--font-mono);font-size:10px;font-weight:600;
+  background:var(--accent-dim);color:var(--accent);
+  padding:2px 8px;border-radius:3px;letter-spacing:0.5px;
+  text-transform:uppercase;
+}
+.app-header .sprite-info{
+  margin-left:auto;display:flex;align-items:center;gap:12px;
+  font-family:var(--font-mono);font-size:11px;color:var(--fg-dim);
+}
+.app-header .sprite-info span{color:var(--fg)}
+
+/* Layout */
+.main{display:grid;grid-template-columns:320px 1fr 340px;gap:0;height:calc(100vh - 44px)}
+
+/* Panels */
+.panel{
+  background:var(--bg);overflow-y:auto;overflow-x:hidden;
+}
+.panel.left{border-right:1px solid var(--border)}
+.panel.right{border-left:1px solid var(--border)}
+.panel-section{padding:14px 16px;border-bottom:1px solid var(--border)}
+.panel-section:last-child{border-bottom:none}
+.section-label{
+  font-family:var(--font-mono);font-size:10px;font-weight:600;
+  color:var(--fg-muted);text-transform:uppercase;letter-spacing:1.2px;
+  margin-bottom:12px;display:flex;align-items:center;gap:8px;
+}
+.section-label::before{
+  content:'';flex:0 0 3px;height:3px;background:var(--accent);border-radius:1px;
+}
+
+/* Form elements */
+.field{margin-bottom:10px}
+.field label{
+  display:block;font-size:11px;font-weight:500;
+  color:var(--fg-dim);margin-bottom:4px;
+  font-family:var(--font-mono);
+}
+.field input,.field select{
+  width:100%;padding:7px 10px;
+  background:var(--bg-deep);border:1px solid var(--border);
+  border-radius:var(--radius);color:var(--fg);
+  font-family:var(--font-mono);font-size:12px;
+  transition:border-color 0.2s;outline:none;
+}
+.field input:focus,.field select:focus{border-color:var(--accent)}
+.field input[readonly]{color:var(--fg-muted);cursor:default}
+.field-row{display:flex;gap:8px}
+.field-row .field{flex:1}
+.field input[type="number"]{-moz-appearance:textfield}
+.field input::-webkit-outer-spin-button,
+.field input::-webkit-inner-spin-button{-webkit-appearance:none}
+.field-checkbox{
+  display:flex;align-items:center;gap:8px;padding:4px 0;
+}
+.field-checkbox label{
+  font-family:var(--font-mono);font-size:11px;color:var(--fg-dim);margin-bottom:0;
+}
+.field-checkbox input[type="checkbox"]{
+  accent-color:var(--accent);width:14px;height:14px;
+}
+
+.btn{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:7px 14px;border:1px solid var(--border);
+  border-radius:var(--radius);background:var(--bg-raised);
+  color:var(--fg);font-family:var(--font-mono);font-size:11px;
+  font-weight:600;cursor:pointer;transition:all 0.15s;
+  white-space:nowrap;
+}
+.btn:hover{background:var(--bg-surface);border-color:var(--border-active)}
+.btn-accent{background:var(--accent-dim);border-color:var(--accent);color:#c5ccff}
+.btn-accent:hover{background:var(--accent);color:#fff}
+.btn-danger{border-color:rgba(237,66,69,0.3);color:var(--red)}
+.btn-danger:hover{background:var(--red-dim)}
+.btn-sm{padding:4px 10px;font-size:10px}
+.btn-block{width:100%;justify-content:center}
+.btn:disabled{opacity:0.4;cursor:not-allowed;pointer-events:none}
+.btn-row{display:flex;gap:6px;margin-top:8px}
+
+/* Status messages */
+.msg{
+  padding:8px 12px;border-radius:var(--radius);
+  font-family:var(--font-mono);font-size:11px;
+  margin-top:8px;display:none;
+}
+.msg.show{display:block}
+.msg.ok{background:var(--green-dim);color:var(--green);border:1px solid rgba(59,165,93,0.25)}
+.msg.err{background:var(--red-dim);color:var(--red);border:1px solid rgba(237,66,69,0.25)}
+.msg.warn{background:var(--orange-dim);color:var(--orange);border:1px solid rgba(240,160,32,0.25)}
+
+/* Drop zone */
+.drop-zone{
+  border:2px dashed var(--border);border-radius:var(--radius-lg);
+  padding:32px 16px;text-align:center;cursor:pointer;
+  transition:border-color 0.2s,background 0.2s;
+}
+.drop-zone:hover,.drop-zone.dragover{
+  border-color:var(--accent);background:var(--accent-glow);
+}
+.drop-zone h3{
+  font-family:var(--font-mono);font-size:13px;
+  font-weight:600;color:var(--fg);margin-bottom:6px;
+}
+.drop-zone p{font-size:12px;color:var(--fg-dim)}
+
+/* Asset list */
+.asset-list{max-height:calc(100vh - 340px);overflow-y:auto}
+.asset-item{
+  display:flex;align-items:center;gap:10px;
+  padding:8px 10px;border:1px solid var(--border);
+  border-radius:var(--radius);margin-bottom:4px;
+  background:var(--bg-raised);cursor:pointer;
+  transition:border-color 0.15s,background 0.15s;
+}
+.asset-item:hover{border-color:var(--border-active);background:var(--bg-surface)}
+.asset-item.selected{border-color:var(--accent);box-shadow:0 0 8px var(--accent-glow)}
+.asset-item .thumb{
+  width:36px;height:36px;border:1px solid var(--border);
+  border-radius:3px;background:var(--bg-deep);
+  display:flex;align-items:center;justify-content:center;
+  overflow:hidden;flex-shrink:0;
+}
+.asset-item .thumb canvas{
+  image-rendering:pixelated;image-rendering:crisp-edges;
+  max-width:100%;max-height:100%;
+}
+.asset-item .asset-info{flex:1;min-width:0}
+.asset-item .asset-key{
+  font-family:var(--font-mono);font-size:11px;font-weight:600;
+  color:var(--fg);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.asset-item .asset-dims{
+  font-family:var(--font-mono);font-size:9px;color:var(--fg-muted);
+}
+.asset-item .asset-del{
+  width:22px;height:22px;border:1px solid transparent;
+  border-radius:3px;background:none;color:var(--fg-muted);
+  cursor:pointer;display:flex;align-items:center;justify-content:center;
+  font-size:14px;transition:all 0.15s;flex-shrink:0;
+}
+.asset-item .asset-del:hover{
+  border-color:rgba(237,66,69,0.3);color:var(--red);background:var(--red-dim);
+}
+
+/* Center canvas area */
+.center-area{
+  display:flex;flex-direction:column;overflow:hidden;
+  background:var(--bg-deep);
+}
+.viewer-toolbar{
+  padding:8px 16px;background:var(--bg);
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+}
+.viewer-toolbar .info{
+  font-family:var(--font-mono);font-size:11px;color:var(--fg-dim);
+}
+.viewer-toolbar .info span{color:var(--fg)}
+.zoom-controls{display:flex;align-items:center;gap:4px;margin-left:auto}
+.zoom-controls .btn{padding:4px 8px}
+.mode-indicator{
+  font-family:var(--font-mono);font-size:10px;
+  color:var(--accent);background:var(--accent-glow);
+  padding:2px 8px;border-radius:3px;
+}
+
+.canvas-wrap{
+  flex:1;position:relative;overflow:hidden;cursor:crosshair;
+}
+.canvas-wrap canvas{
+  position:absolute;top:0;left:0;
+  image-rendering:pixelated;image-rendering:crisp-edges;
+}
+.canvas-wrap.empty-state{
+  display:flex;align-items:center;justify-content:center;
+}
+
+/* Preview tabs */
+.preview-tabs{display:flex;gap:2px;margin-bottom:10px}
+.preview-tab{
+  flex:1;padding:5px 4px;border:1px solid var(--border);
+  border-radius:var(--radius);background:var(--bg-deep);
+  color:var(--fg-muted);font-family:var(--font-mono);font-size:10px;
+  cursor:pointer;text-align:center;transition:all 0.15s;
+}
+.preview-tab:hover{color:var(--fg)}
+.preview-tab.active{border-color:var(--accent);color:var(--accent);background:var(--accent-glow)}
+
+.preview-canvas-wrap{
+  border:1px solid var(--border);border-radius:var(--radius);
+  background:var(--bg-deep);overflow:hidden;
+  display:flex;align-items:center;justify-content:center;
+  min-height:180px;
+}
+.preview-canvas-wrap canvas{
+  image-rendering:pixelated;image-rendering:crisp-edges;
+}
+
+/* Offset section */
+.offset-controls{display:flex;gap:6px;align-items:flex-end}
+.offset-controls .field{flex:1;margin-bottom:0}
+
+/* Bitmask Mapper */
+.bitmask-grid{
+  display:grid;grid-template-columns:repeat(4,1fr);gap:4px;
+}
+.bitmask-cell{
+  position:relative;border:1px solid var(--border);
+  border-radius:var(--radius);background:var(--bg-deep);
+  cursor:pointer;transition:border-color 0.15s,box-shadow 0.15s;
+  aspect-ratio:1;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;overflow:hidden;
+}
+.bitmask-cell:hover{border-color:var(--border-active);background:var(--bg-raised)}
+.bitmask-cell.active{border-color:var(--accent);box-shadow:0 0 8px var(--accent-glow)}
+.bitmask-cell.assigned{border-color:rgba(59,165,93,0.5)}
+.bitmask-cell.active.assigned{border-color:var(--accent);box-shadow:0 0 8px var(--accent-glow)}
+.bitmask-num{
+  position:absolute;top:2px;left:4px;
+  font-family:var(--font-mono);font-size:8px;color:var(--fg-muted);
+  z-index:1;
+}
+.bitmask-icon{width:20px;height:20px;flex-shrink:0;margin-bottom:2px}
+.bitmask-thumb{
+  width:100%;height:100%;position:absolute;top:0;left:0;
+  display:flex;align-items:center;justify-content:center;
+}
+.bitmask-thumb canvas{
+  image-rendering:pixelated;image-rendering:crisp-edges;
+  max-width:85%;max-height:85%;
+}
+.bitmask-placeholder{
+  font-family:var(--font-mono);font-size:14px;color:var(--fg-muted);opacity:0.4;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:var(--border-active)}
+
+/* Toast */
+#toast{
+  position:fixed;bottom:24px;right:24px;z-index:1000;
+  display:flex;flex-direction:column;gap:6px;
+}
+.toast-item{
+  padding:10px 16px;border-radius:var(--radius);
+  font-family:var(--font-mono);font-size:11px;
+  box-shadow:var(--shadow);animation:toastIn 0.3s ease;
+  max-width:360px;
+}
+.toast-item.ok{background:#1a2e1f;color:var(--green);border:1px solid rgba(59,165,93,0.3)}
+.toast-item.err{background:#2e1a1a;color:var(--red);border:1px solid rgba(237,66,69,0.3)}
+.toast-item.warn{background:#2e2a1a;color:var(--orange);border:1px solid rgba(240,160,32,0.3)}
+@keyframes toastIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+
+/* Empty state */
+.empty-msg{
+  font-family:var(--font-mono);font-size:11px;
+  color:var(--fg-muted);text-align:center;padding:20px 10px;
+}
+
+/* Shortcut hints */
+.shortcut-hint{
+  font-family:var(--font-mono);font-size:9px;color:var(--fg-muted);
+  margin-top:4px;
+}
+.shortcut-hint kbd{
+  background:var(--bg-deep);border:1px solid var(--border);
+  border-radius:3px;padding:1px 4px;font-size:9px;
+}
+
+/* Placed object list item */
+.placed-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 8px; border: 1px solid var(--border);
+  border-radius: var(--radius); margin-bottom: 4px;
+  background: var(--bg-raised); cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  font-family: var(--font-mono); font-size: 10px;
+}
+.placed-item:hover { border-color: var(--border-active); background: var(--bg-surface); }
+.placed-item.selected { border-color: var(--accent); box-shadow: 0 0 8px var(--accent-glow); }
+.placed-item .placed-key { color: var(--fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+.placed-item .placed-pos { color: var(--fg-muted); flex-shrink: 0; }
+.placed-item .placed-del {
+  width: 18px; height: 18px; border: 1px solid transparent;
+  border-radius: 3px; background: none; color: var(--fg-muted);
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  font-size: 12px; transition: all 0.15s; flex-shrink: 0;
+}
+.placed-item .placed-del:hover {
+  border-color: rgba(237,66,69,0.3); color: var(--red); background: var(--red-dim);
+}
+</style>
+</head>
+<body>
+
+<header class="app-header">
+  <h1>SPRITE ASSET CUTTER</h1>
+  <span class="tag">Meetropolis</span>
+  <div class="sprite-info" id="spriteInfo" style="display:none">
+    <span id="spriteDims"></span>
+  </div>
+</header>
+
+<div class="main">
+  <!-- LEFT PANEL -->
+  <div class="panel left">
+    <div class="panel-section">
+      <div class="section-label">Upload Sprite Sheet</div>
+      <div class="drop-zone" id="dropZone">
+        <h3>Drop PNG / WEBP / .mepack</h3>
+        <p>or click to browse</p>
+      </div>
+      <input type="file" id="fileInput" accept=".png,.webp,.mepack,image/png,image/webp" hidden>
+      <div class="field" id="scaleField" style="display:none;margin-top:10px">
+        <label>Sprite Scale Factor</label>
+        <select id="spriteScale">
+          <option value="1">1x (16px tiles)</option>
+          <option value="0.5">0.5x (32px source → 16px display)</option>
+          <option value="0.25">0.25x (64px source → 16px display)</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="panel-section" style="flex:1">
+      <div class="section-label">Assets <span id="assetCount" style="color:var(--fg-dim);font-weight:400">(0)</span></div>
+      <div class="asset-list" id="assetList">
+        <div class="empty-msg" id="assetListEmpty">No assets defined yet. Draw rectangles on the sprite sheet to create assets.</div>
+      </div>
+      <button id="btnNewAutotile" class="btn btn-secondary" style="width:100%;margin-top:8px">+ Neues Autotile</button>
+    </div>
+
+    <div class="panel-section">
+      <div class="section-label">Pack Metadata</div>
+      <div class="field">
+        <label>Pack Name</label>
+        <input type="text" id="packName" placeholder="My Asset Pack">
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Author</label>
+          <input type="text" id="packAuthor" placeholder="Author">
+        </div>
+        <div class="field">
+          <label>Version</label>
+          <input type="text" id="packVersion" value="1.0.0" placeholder="1.0.0">
+        </div>
+      </div>
+      <div class="field">
+        <label>Description</label>
+        <input type="text" id="packDescription" placeholder="Pack description">
+      </div>
+    </div>
+    <div class="panel-section">
+      <div class="section-label">Export</div>
+      <button class="btn btn-accent btn-block" id="btnExportMepack" disabled>Export as .mepack</button>
+      <div style="margin-top:6px">
+        <button class="btn btn-block" id="btnExportZip" disabled>Export PNGs + JSON</button>
+      </div>
+      <div style="margin-top:6px">
+        <button class="btn btn-block" id="btnExportPng" disabled>Export Selected PNG</button>
+      </div>
+      <div class="shortcut-hint" style="margin-top:8px">
+        <kbd>Del</kbd> delete asset &nbsp; <kbd>G</kbd> grid &nbsp; <kbd>+/-</kbd> zoom &nbsp; <kbd>0</kbd> fit
+      </div>
+    </div>
+  </div>
+
+  <!-- CENTER CANVAS -->
+  <div class="center-area">
+    <div class="viewer-toolbar">
+      <div class="info">Zoom: <span id="zoomLabel">100%</span></div>
+      <div class="info" id="cursorInfo" style="display:none">Pos: <span id="cursorPos">0, 0</span></div>
+      <div class="mode-indicator" id="modeIndicator">SELECT</div>
+      <div style="display:flex;gap:2px;margin-left:8px">
+        <button class="btn btn-sm btn-accent" id="btnModeSprite" title="Sprite Cutting Mode">Sprite</button>
+        <button class="btn btn-sm" id="btnModeMapTest" title="Map Test Mode">Map Test</button>
+      </div>
+      <div class="zoom-controls">
+        <button class="btn btn-sm" id="btnGridToggle" title="Toggle Grid (G)">Grid</button>
+        <button class="btn btn-sm" id="btnSnapToggle" title="Toggle 16px Snap">Snap</button>
+        <button class="btn btn-sm" id="btnZoomIn" title="Zoom In (+)">+</button>
+        <button class="btn btn-sm" id="btnZoomOut" title="Zoom Out (-)">-</button>
+        <button class="btn btn-sm" id="btnZoomFit" title="Fit (0)">Fit</button>
+      </div>
+    </div>
+    <div class="canvas-wrap" id="canvasWrap">
+      <canvas id="mainCanvas"></canvas>
+    </div>
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div class="panel right" id="rightPanel">
+    <div class="panel-section" id="propsSection" style="display:none">
+      <div class="section-label">Asset Properties</div>
+      <div class="field">
+        <label>Key</label>
+        <input type="text" id="propKey" placeholder="asset_key">
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Category</label>
+          <select id="propCategory">
+            <option value="objects">objects</option>
+            <option value="structure">structure</option>
+            <option value="terrain">terrain</option>
+            <option value="autotile">Autotile (Wand/Zaun)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Placement</label>
+          <select id="propPlacement">
+            <option value="any">any</option>
+            <option value="floor">floor</option>
+            <option value="wall">wall</option>
+          </select>
+        </div>
+      </div>
+      <div class="field-checkbox">
+        <input type="checkbox" id="propCollide">
+        <label for="propCollide">Collide</label>
+      </div>
+      <div class="field">
+        <label>zIndex</label>
+        <input type="number" id="propZIndex" value="0" step="1">
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Sprite Size</label>
+          <input type="text" id="propSpriteSize" readonly style="font-size:11px">
+        </div>
+        <div class="field">
+          <label>Export Size</label>
+          <input type="text" id="propExportSize" readonly style="font-size:11px">
+        </div>
+      </div>
+      <div class="section-label" style="margin-top:14px">Sprite Source</div>
+      <div class="field-row">
+        <div class="field">
+          <label>X</label>
+          <input type="number" id="propSrcX" readonly>
+        </div>
+        <div class="field">
+          <label>Y</label>
+          <input type="number" id="propSrcY" readonly>
+        </div>
+        <div class="field">
+          <label>W</label>
+          <input type="number" id="propSrcW" readonly>
+        </div>
+        <div class="field">
+          <label>H</label>
+          <input type="number" id="propSrcH" readonly>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel-section" id="offsetSection" style="display:none">
+      <div class="section-label">Offset Adjustment</div>
+      <div class="offset-controls">
+        <div class="field">
+          <label>offsetX</label>
+          <input type="number" id="propOffsetX" value="0" step="1">
+        </div>
+        <div class="field">
+          <label>offsetY</label>
+          <input type="number" id="propOffsetY" value="0" step="1">
+        </div>
+        <button class="btn btn-sm" id="btnResetOffset" style="margin-bottom:0">Reset</button>
+      </div>
+      <div class="shortcut-hint" style="margin-top:6px">
+        Tile allocation: <span id="tileAllocInfo">-</span>
+      </div>
+    </div>
+
+    <div class="panel-section" id="terrainPropsSection" style="display:none">
+      <div class="section-label">Tileset Properties</div>
+      <div class="field-row">
+        <div class="field">
+          <label>Tile Width</label>
+          <input type="number" id="propTileWidth" value="16" min="1" step="1">
+        </div>
+        <div class="field">
+          <label>Tile Height</label>
+          <input type="number" id="propTileHeight" value="16" min="1" step="1">
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Margin</label>
+          <input type="number" id="propMargin" value="0" min="0" step="1">
+        </div>
+        <div class="field">
+          <label>Spacing</label>
+          <input type="number" id="propSpacing" value="0" min="0" step="1">
+        </div>
+      </div>
+      <div class="shortcut-hint" style="margin-top:6px">
+        Tiles: <span id="tileGridInfo">-</span>
+      </div>
+    </div>
+
+    <div class="panel-section" id="autotilePropsSection" style="display:none">
+      <div class="section-label">Autotile Properties</div>
+      <div class="field-row">
+        <div class="field">
+          <label>Tile Width</label>
+          <input type="number" id="propAutoTileWidth" value="32" min="1" step="1">
+        </div>
+        <div class="field">
+          <label>Tile Height</label>
+          <input type="number" id="propAutoTileHeight" value="32" min="1" step="1">
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Placement</label>
+          <select id="propAutoPlacement">
+            <option value="wall">wall</option>
+            <option value="floor">floor</option>
+            <option value="any">any</option>
+          </select>
+        </div>
+      </div>
+      <div class="field-checkbox">
+        <input type="checkbox" id="propAutoCollide" checked>
+        <label for="propAutoCollide">Collide</label>
+      </div>
+    </div>
+
+    <div class="panel-section" id="bitmaskMapperSection" style="display:none">
+      <div class="section-label">Bitmask Mapper (4-bit)</div>
+      <div class="shortcut-hint" style="margin-bottom:8px">
+        Click a cell, then drag a rectangle on the spritesheet to assign it.
+      </div>
+      <div class="bitmask-grid" id="bitmaskGrid"></div>
+      <div class="shortcut-hint" style="margin-top:8px">
+        Assigned: <span id="bitmaskAssignedCount">0</span>/16
+      </div>
+    </div>
+
+    <div class="panel-section" id="previewSection" style="display:none">
+      <div class="section-label">Preview</div>
+      <div class="preview-tabs">
+        <div class="preview-tab active" data-mode="grid">Grid</div>
+        <div class="preview-tab" data-mode="map">Map Preview</div>
+      </div>
+      <div class="preview-canvas-wrap" id="previewWrap">
+        <canvas id="previewCanvas" width="320" height="240"></canvas>
+      </div>
+    </div>
+
+    <div class="panel-section" id="mapTestSection" style="display:none">
+      <div class="section-label">Map Test</div>
+      <div class="shortcut-hint" style="margin-bottom:10px">
+        Select asset in list, then click map to place.<br>
+        Click placed object to select. <kbd>Del</kbd> to remove.
+      </div>
+      <div id="mapTestStatus" class="empty-msg" style="padding:8px 0">No asset selected for placement.</div>
+      <div class="btn-row" style="margin-top:6px">
+        <button class="btn btn-danger btn-block btn-sm" id="btnClearMap">Clear All Placed</button>
+      </div>
+      <div class="section-label" style="margin-top:14px">Placed Objects <span id="placedCount" style="color:var(--fg-dim);font-weight:400">(0)</span></div>
+      <div id="placedList" style="max-height:240px;overflow-y:auto;margin-top:6px">
+        <div class="empty-msg" id="placedListEmpty">No objects placed yet.</div>
+      </div>
+    </div>
+
+    <div id="emptyRight" class="panel-section">
+      <div class="empty-msg">Select an asset from the list or draw a new selection on the sprite sheet to view properties and preview.</div>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+/* ========================================================================
+   SPRITE ASSET CUTTER — Meetropolis Tool
+   ======================================================================== */
+(function(){
+'use strict';
+
+const TILE = 16;
+
+/* ---- State ---- */
+let spriteImg = null;
+let assets = [];
+let selectedId = null;
+let nextAssetNum = 1;
+let previewMode = 'grid';
+let spriteScaleFactor = 1;
+let loadedPackUuid = null;  // preserved UUID when importing .mepack
+
+/* App Mode */
+let appMode = 'sprite'; // 'sprite' | 'maptest'
+
+/* Map Test Camera (separate from sprite cam) */
+const mapCam = { x: 0, y: 0, zoom: 3 };
+let mapCamInitialized = false;
+
+/* Map Test State */
+let placedObjects = [];
+let selectedPlacedId = null;
+let mtMouseTileX = -999;
+let mtMouseTileY = -999;
+let ghostAssetId = null;
+const assetImageCache = {};
+
+/* Camera */
+const cam = { x: 0, y: 0, zoom: 1 };
+const MIN_ZOOM = 0.5;
+const MAX_ZOOM = 32;
+
+/* Interaction */
+let isDraggingSelection = false;
+let isPanning = false;
+let isSpaceHeld = false;
+let selStart = null;
+let selCurrent = null;
+
+/* Autotile Bitmask State */
+let activeBitmaskCell = null; // currently selected bitmask index (0-15)
+let dragStart = null;
+let camStart = null;
+let gridVisible = true;
+let snapToGrid = true;
+let dirty = true;
+
+/* ---- DOM refs ---- */
+const $ = id => document.getElementById(id);
+const mainCanvas = $('mainCanvas');
+const ctx = mainCanvas.getContext('2d');
+const canvasWrap = $('canvasWrap');
+const previewCanvas = $('previewCanvas');
+const pctx = previewCanvas.getContext('2d');
+const dropZone = $('dropZone');
+const fileInput = $('fileInput');
+const assetList = $('assetList');
+const assetListEmpty = $('assetListEmpty');
+const assetCount = $('assetCount');
+const spriteInfo = $('spriteInfo');
+const spriteDims = $('spriteDims');
+const zoomLabel = $('zoomLabel');
+const cursorInfo = $('cursorInfo');
+const cursorPos = $('cursorPos');
+const modeIndicator = $('modeIndicator');
+const propsSection = $('propsSection');
+const offsetSection = $('offsetSection');
+const previewSection = $('previewSection');
+const emptyRight = $('emptyRight');
+const terrainPropsSection = $('terrainPropsSection');
+const autotilePropsSection = $('autotilePropsSection');
+const bitmaskMapperSection = $('bitmaskMapperSection');
+const bitmaskGrid = $('bitmaskGrid');
+const previewWrap = $('previewWrap');
+
+/* ---- Toast ---- */
+function toast(msg, type='ok') {
+  const el = document.createElement('div');
+  el.className = 'toast-item ' + type;
+  el.textContent = msg;
+  $('toast').appendChild(el);
+  setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity 0.3s'; }, 2500);
+  setTimeout(() => el.remove(), 2800);
+}
+
+/* ---- File Loading ---- */
+dropZone.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('dragover');
+  const f = e.dataTransfer.files[0];
+  if (f) loadFile(f);
+});
+fileInput.addEventListener('change', () => {
+  if (fileInput.files[0]) loadFile(fileInput.files[0]);
+});
+
+function loadFile(file) {
+  // Route .mepack files to dedicated handler
+  if (file.name.endsWith('.mepack') || file.name.endsWith('.zip')) {
+    loadMepack(file);
+    return;
+  }
+
+  if (!file.type.match(/^image\/(png|webp)$/)) {
+    toast('Supported formats: PNG, WEBP, .mepack', 'err');
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = e => {
+    const img = new Image();
+    img.onload = () => {
+      if (assets.length > 0 && spriteImg) {
+        // Append new sprite below existing one (composite)
+        appendSpriteToComposite(img, file.name);
+      } else {
+        // First load — fresh start
+        loadedPackUuid = null;
+        assets = [];
+        selectedId = null;
+        placedObjects = [];
+        selectedPlacedId = null;
+        nextAssetNum = 1;
+        Object.keys(assetImageCache).forEach(k => delete assetImageCache[k]);
+        spriteImg = img;
+        spriteDims.textContent = img.width + ' x ' + img.height + 'px';
+        spriteInfo.style.display = 'flex';
+        cursorInfo.style.display = '';
+        $('scaleField').style.display = '';
+        zoomToFit();
+        dirty = true;
+        toast('Sprite sheet loaded: ' + file.name);
+      }
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+/**
+ * Appends a new sprite image below the current spriteImg.
+ * Existing asset coordinates stay valid because the old sprite
+ * occupies the same position (0,0) in the composite.
+ * The new sprite's top edge is aligned to the 16px grid so
+ * tile selection works correctly.
+ */
+function appendSpriteToComposite(newImg, fileName) {
+  const MIN_GAP = 8;
+  const oldW = spriteImg.width;
+  const oldH = spriteImg.height;
+  // Align new sprite's Y to the nearest TILE boundary so the grid lines up.
+  // This guarantees the new sprite's (0,0) sits on a grid corner.
+  const newSpriteY = Math.ceil((oldH + MIN_GAP) / TILE) * TILE;
+  const compositeW = Math.max(oldW, newImg.width);
+  const compositeH = newSpriteY + newImg.height;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = compositeW;
+  canvas.height = compositeH;
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+
+  // Draw old sprite at original position (0,0) — existing coordinates remain valid
+  ctx.drawImage(spriteImg, 0, 0);
+
+  // Separator band (fills the gap between old sprite and new sprite)
+  ctx.fillStyle = 'rgba(88,101,242,0.3)';
+  ctx.fillRect(0, oldH, compositeW, newSpriteY - oldH);
+
+  // Draw new sprite at grid-aligned Y
+  ctx.drawImage(newImg, 0, newSpriteY);
+
+  // Update autotile variants that use absolute sx/sy — they still point to the old
+  // sprite area, so no coordinate updates needed.
+
+  // Invalidate asset image cache (composite changed)
+  Object.keys(assetImageCache).forEach(k => delete assetImageCache[k]);
+
+  // Replace spriteImg with composite
+  const compositeImg = new Image();
+  compositeImg.onload = () => {
+    spriteImg = compositeImg;
+    spriteDims.textContent = compositeImg.width + ' x ' + compositeImg.height + 'px';
+    spriteInfo.style.display = 'flex';
+    cursorInfo.style.display = '';
+    $('scaleField').style.display = '';
+    dirty = true;
+    toast('Sprite added to composite: ' + fileName + ' (below existing)');
+  };
+  compositeImg.src = canvas.toDataURL('image/png');
+}
+
+/* ---- .mepack Import ---- */
+async function loadMepack(file) {
+  try {
+    const buffer = await file.arrayBuffer();
+    const zip = await JSZip.loadAsync(buffer);
+
+    // Parse config.json
+    const configFile = zip.file('config.json');
+    if (!configFile) {
+      toast('Invalid .mepack: no config.json found', 'err');
+      return;
+    }
+    const config = JSON.parse(await configFile.async('string'));
+
+    // Collect all asset entries from config
+    const allItems = [];
+    for (const item of (config.terrain || [])) {
+      allItems.push({ ...item, _category: 'terrain' });
+    }
+    for (const item of (config.structures || [])) {
+      allItems.push({ ...item, _category: 'structure' });
+    }
+    for (const item of (config.objects || [])) {
+      allItems.push({ ...item, _category: 'objects' });
+    }
+    for (const item of (config.autotiles || [])) {
+      allItems.push({ ...item, _category: 'autotile' });
+    }
+
+    if (allItems.length === 0) {
+      toast('Pack contains no assets', 'warn');
+      return;
+    }
+
+    // Load all PNG images from the ZIP
+    const loadedImages = [];
+    for (const item of allItems) {
+      let imgPath = item.dataURL;
+      let imgFile = zip.file(imgPath);
+      // Try with assets/ prefix if not found
+      if (!imgFile && !imgPath.startsWith('assets/')) {
+        imgFile = zip.file('assets/' + imgPath);
+      }
+      // Try without assets/ prefix if not found
+      if (!imgFile && imgPath.startsWith('assets/')) {
+        imgFile = zip.file(imgPath.substring(7));
+      }
+
+      if (!imgFile) {
+        console.warn('Missing image in pack:', imgPath);
+        loadedImages.push({ item, img: null, w: 0, h: 0 });
+        continue;
+      }
+
+      const blob = await imgFile.async('blob');
+      const url = URL.createObjectURL(blob);
+      const img = await new Promise((resolve, reject) => {
+        const i = new Image();
+        i.onload = () => resolve(i);
+        i.onerror = () => reject(new Error('Failed to load: ' + imgPath));
+        i.src = url;
+      });
+      URL.revokeObjectURL(url);
+
+      loadedImages.push({ item, img, w: img.width, h: img.height });
+    }
+
+    // Filter out failed images
+    const validImages = loadedImages.filter(li => li.img !== null);
+    if (validImages.length === 0) {
+      toast('No valid images found in pack', 'err');
+      return;
+    }
+
+    // Build composite sprite sheet
+    // Grid layout: arrange images with 4px gap, max row width 1024px
+    const GAP = 4;
+    const MAX_ROW_WIDTH = 1024;
+
+    // Calculate layout positions
+    let cx = GAP, cy = GAP, rowHeight = 0;
+    const positions = [];
+    for (const li of validImages) {
+      if (cx + li.w + GAP > MAX_ROW_WIDTH && cx > GAP) {
+        // New row
+        cx = GAP;
+        cy += rowHeight + GAP;
+        rowHeight = 0;
+      }
+      positions.push({ x: cx, y: cy, w: li.w, h: li.h });
+      cx += li.w + GAP;
+      rowHeight = Math.max(rowHeight, li.h);
+    }
+    const compositeWidth = MAX_ROW_WIDTH;
+    const compositeHeight = cy + rowHeight + GAP;
+
+    // Draw composite
+    const compositeCanvas = document.createElement('canvas');
+    compositeCanvas.width = compositeWidth;
+    compositeCanvas.height = compositeHeight;
+    const cctx = compositeCanvas.getContext('2d');
+    cctx.imageSmoothingEnabled = false;
+
+    // Light background so transparent areas are visible
+    cctx.fillStyle = '#18192240';
+    cctx.fillRect(0, 0, compositeWidth, compositeHeight);
+
+    for (let i = 0; i < validImages.length; i++) {
+      cctx.drawImage(validImages[i].img, positions[i].x, positions[i].y);
+    }
+
+    // Convert composite to Image
+    const compositeImg = new Image();
+    await new Promise((resolve, reject) => {
+      compositeImg.onload = resolve;
+      compositeImg.onerror = reject;
+      compositeImg.src = compositeCanvas.toDataURL('image/png');
+    });
+
+    // Reset state
+    assets = [];
+    selectedId = null;
+    placedObjects = [];
+    selectedPlacedId = null;
+    Object.keys(assetImageCache).forEach(k => delete assetImageCache[k]);
+
+    // Set sprite
+    spriteImg = compositeImg;
+    spriteDims.textContent = compositeWidth + ' x ' + compositeHeight + 'px (composite)';
+    spriteInfo.style.display = 'flex';
+    cursorInfo.style.display = '';
+    $('scaleField').style.display = '';
+
+    // Reconstruct assets
+    let maxAssetNum = 0;
+    for (let i = 0; i < validImages.length; i++) {
+      const li = validImages[i];
+      const item = li.item;
+      const pos = positions[i];
+
+      const asset = {
+        id: item.id || crypto.randomUUID(),
+        key: item.key || ('asset_' + (i + 1)),
+        category: item._category,
+        placement: item.placement || 'any',
+        collide: item.collide || false,
+        scaleFactor: item.scaleFactor || 1,
+        zIndex: item.zIndex || 0,
+        sx: pos.x,
+        sy: pos.y,
+        sw: pos.w,
+        sh: pos.h,
+        offsetX: 0,
+        offsetY: 0,
+        tileWidth: item.tileWidth || 16,
+        tileHeight: item.tileHeight || 16,
+        margin: item.margin || 0,
+        spacing: item.spacing || 0
+      };
+
+      // Autotile-specific fields
+      if (item._category === 'autotile') {
+        asset.autotileType = item.autotileType || '4bit';
+        asset.tileWidth = item.tileWidth || 32;
+        asset.tileHeight = item.tileHeight || 32;
+        // Convert {col, row} from exported 4x4 grid to {sx, sy} in composite image
+        const tw = asset.tileWidth;
+        const th = asset.tileHeight;
+        asset.variants = {};
+        if (item.variants) {
+          for (const [bStr, v] of Object.entries(item.variants)) {
+            asset.variants[bStr] = { sx: asset.sx + v.col * tw, sy: asset.sy + v.row * th };
+          }
+        }
+      }
+
+      assets.push(asset);
+
+      // Track highest asset number for nextAssetNum
+      const numMatch = (item.key || '').match(/^asset_(\d+)$/);
+      if (numMatch) maxAssetNum = Math.max(maxAssetNum, parseInt(numMatch[1], 10));
+    }
+    nextAssetNum = maxAssetNum + 1;
+
+    // Set scale factor from first object/structure asset if available
+    const firstSprite = assets.find(a => a.category !== 'terrain');
+    if (firstSprite && firstSprite.scaleFactor !== 1) {
+      spriteScaleFactor = firstSprite.scaleFactor;
+      $('spriteScale').value = String(spriteScaleFactor);
+    }
+
+    // Populate pack metadata
+    loadedPackUuid = config.uuid || null;
+    $('packName').value = config.name || '';
+    $('packAuthor').value = config.author || '';
+    $('packVersion').value = config.version || '';
+    $('packDescription').value = config.description || '';
+
+    // Update UI
+    rebuildAssetList();
+    if (assets.length > 0) {
+      selectAsset(assets[0].id);
+    }
+    hideRightPanel();
+    updateExportButtons();
+    zoomToFit();
+    dirty = true;
+
+    toast('Loaded pack: ' + (config.name || file.name) + ' (' + assets.length + ' assets)');
+
+  } catch (err) {
+    toast('Failed to load .mepack: ' + err.message, 'err');
+    console.error(err);
+  }
+}
+
+/* ---- Camera ---- */
+function zoomToFit() {
+  if (!spriteImg) return;
+  const rect = canvasWrap.getBoundingClientRect();
+  const pad = 40;
+  const sx = (rect.width - pad * 2) / spriteImg.width;
+  const sy = (rect.height - pad * 2) / spriteImg.height;
+  cam.zoom = Math.min(sx, sy, MAX_ZOOM);
+  cam.zoom = Math.max(cam.zoom, MIN_ZOOM);
+  cam.x = (rect.width - spriteImg.width * cam.zoom) / 2;
+  cam.y = (rect.height - spriteImg.height * cam.zoom) / 2;
+  updateZoomLabel();
+  dirty = true;
+}
+
+function updateZoomLabel() {
+  const c = appMode === 'maptest' ? mapCam : cam;
+  zoomLabel.textContent = Math.round(c.zoom * 100) + '%';
+}
+
+function zoomAt(cx, cy, factor) {
+  const c = appMode === 'maptest' ? mapCam : cam;
+  const oldZoom = c.zoom;
+  c.zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, c.zoom * factor));
+  const ratio = c.zoom / oldZoom;
+  c.x = cx - (cx - c.x) * ratio;
+  c.y = cy - (cy - c.y) * ratio;
+  updateZoomLabel();
+  dirty = true;
+}
+
+/* ---- Coord conversion ---- */
+function screenToSprite(sx, sy) {
+  return {
+    x: (sx - cam.x) / cam.zoom,
+    y: (sy - cam.y) / cam.zoom
+  };
+}
+
+function snapVal(v) {
+  return snapToGrid ? Math.round(v / TILE) * TILE : Math.round(v);
+}
+
+/* ---- Map Test Coordinates ---- */
+function screenToMapWorld(sx, sy) {
+  return {
+    wx: (sx - mapCam.x) / mapCam.zoom,
+    wy: (sy - mapCam.y) / mapCam.zoom
+  };
+}
+
+function screenToMapTile(sx, sy) {
+  const { wx, wy } = screenToMapWorld(sx, sy);
+  return {
+    tileX: Math.floor(wx / TILE),
+    tileY: Math.floor(wy / TILE)
+  };
+}
+
+/* ---- Asset Image Cache ---- */
+function getAssetImage(assetId) {
+  if (assetImageCache[assetId]) return assetImageCache[assetId];
+  const a = assets.find(a => a.id === assetId);
+  if (!a || !spriteImg) return null;
+  const allocW = Math.ceil(a.sw / TILE) * TILE;
+  const allocH = Math.ceil(a.sh / TILE) * TILE;
+  const c = document.createElement('canvas');
+  c.width = allocW;
+  c.height = allocH;
+  const tc = c.getContext('2d');
+  tc.imageSmoothingEnabled = false;
+  tc.drawImage(spriteImg, a.sx, a.sy, a.sw, a.sh, a.offsetX, a.offsetY, a.sw, a.sh);
+  assetImageCache[assetId] = c;
+  return c;
+}
+
+function invalidateAssetImage(assetId) {
+  delete assetImageCache[assetId];
+}
+
+/* ---- Main Canvas Rendering ---- */
+function resizeCanvas() {
+  const rect = canvasWrap.getBoundingClientRect();
+  if (mainCanvas.width !== rect.width || mainCanvas.height !== rect.height) {
+    mainCanvas.width = rect.width;
+    mainCanvas.height = rect.height;
+    dirty = true;
+  }
+}
+
+function renderMain() {
+  if (!dirty) return;
+  dirty = false;
+  resizeCanvas();
+  if (appMode === 'maptest') {
+    renderMapTest();
+  } else {
+    renderSprite();
+  }
+}
+
+function renderSprite() {
+  const w = mainCanvas.width;
+  const h = mainCanvas.height;
+  ctx.clearRect(0, 0, w, h);
+
+  /* Checkerboard background */
+  const checkSize = 10;
+  const c1 = '#111218';
+  const c2 = '#0e0f15';
+  for (let cy = 0; cy < h; cy += checkSize) {
+    for (let cx = 0; cx < w; cx += checkSize) {
+      ctx.fillStyle = ((cx / checkSize + cy / checkSize) % 2 === 0) ? c1 : c2;
+      ctx.fillRect(cx, cy, checkSize, checkSize);
+    }
+  }
+
+  if (!spriteImg) return;
+
+  ctx.save();
+  ctx.translate(cam.x, cam.y);
+  ctx.scale(cam.zoom, cam.zoom);
+
+  /* Sprite image */
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(spriteImg, 0, 0);
+
+  /* Grid overlay */
+  if (gridVisible && cam.zoom >= 1) {
+    ctx.strokeStyle = 'rgba(88,101,242,0.15)';
+    ctx.lineWidth = 1 / cam.zoom;
+    ctx.beginPath();
+    for (let x = 0; x <= spriteImg.width; x += TILE) {
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, spriteImg.height);
+    }
+    for (let y = 0; y <= spriteImg.height; y += TILE) {
+      ctx.moveTo(0, y);
+      ctx.lineTo(spriteImg.width, y);
+    }
+    ctx.stroke();
+  }
+
+  /* Asset selection rectangles */
+  for (const a of assets) {
+    if (a.category === 'autotile' && a.sw <= 0) continue;  // Autotile-Assets ohne Rechteck nicht zeichnen
+    const isSelected = a.id === selectedId;
+    ctx.strokeStyle = isSelected ? '#5865f2' : 'rgba(88,101,242,0.6)';
+    ctx.lineWidth = (isSelected ? 2 : 1) / cam.zoom;
+    if (!isSelected) {
+      ctx.setLineDash([4 / cam.zoom, 3 / cam.zoom]);
+    } else {
+      ctx.setLineDash([]);
+    }
+    ctx.strokeRect(a.sx, a.sy, a.sw, a.sh);
+
+    /* Label */
+    const fontSize = Math.max(8, 11 / cam.zoom);
+    ctx.font = fontSize + 'px JetBrains Mono';
+    ctx.fillStyle = isSelected ? '#5865f2' : 'rgba(88,101,242,0.75)';
+    const labelY = a.sy - 3 / cam.zoom;
+    if (labelY > fontSize) {
+      ctx.fillText(a.key, a.sx, labelY);
+    } else {
+      ctx.fillText(a.key, a.sx, a.sy + a.sh + fontSize + 2 / cam.zoom);
+    }
+    ctx.setLineDash([]);
+  }
+
+  /* Autotile grid overlay for selected autotile asset */
+  const selAssetForOverlay = assets.find(a => a.id === selectedId);
+  if (selAssetForOverlay && selAssetForOverlay.category === 'autotile') {
+    const atw = selAssetForOverlay.tileWidth || 32;
+    const ath = selAssetForOverlay.tileHeight || 32;
+
+    // Draw tile grid over entire sprite
+    if (spriteImg) {
+      const cols = Math.ceil(spriteImg.width / atw);
+      const rows = Math.ceil(spriteImg.height / ath);
+      ctx.strokeStyle = 'rgba(88,101,242,0.2)';
+      ctx.lineWidth = 1 / cam.zoom;
+      ctx.beginPath();
+      for (let c = 0; c <= cols; c++) {
+        ctx.moveTo(c * atw, 0);
+        ctx.lineTo(c * atw, spriteImg.height);
+      }
+      for (let r = 0; r <= rows; r++) {
+        ctx.moveTo(0, r * ath);
+        ctx.lineTo(spriteImg.width, r * ath);
+      }
+      ctx.stroke();
+    }
+
+    // Overlay bitmask numbers on assigned tiles (absolute sx, sy)
+    const variants = selAssetForOverlay.variants || {};
+    for (const [bStr, v] of Object.entries(variants)) {
+      const bNum = parseInt(bStr, 10);
+      const tx = v.sx;
+      const ty = v.sy;
+      // Semi-transparent overlay
+      ctx.fillStyle = 'rgba(88,101,242,0.2)';
+      ctx.fillRect(tx, ty, atw, ath);
+      // Bitmask number label
+      const fontSize = Math.max(10, Math.min(atw * 0.4, 18)) / cam.zoom * Math.min(cam.zoom, 2);
+      ctx.font = 'bold ' + fontSize + 'px JetBrains Mono';
+      ctx.fillStyle = '#c5ccff';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(String(bNum), tx + atw / 2, ty + ath / 2);
+      ctx.textAlign = 'start';
+      ctx.textBaseline = 'alphabetic';
+    }
+
+    // Highlight currently active bitmask cell's tile if assigned
+    if (activeBitmaskCell !== null && variants[String(activeBitmaskCell)]) {
+      const av = variants[String(activeBitmaskCell)];
+      const hx = av.sx;
+      const hy = av.sy;
+      ctx.strokeStyle = '#5865f2';
+      ctx.lineWidth = 2 / cam.zoom;
+      ctx.strokeRect(hx, hy, atw, ath);
+    }
+  }
+
+  /* Active selection rectangle (being drawn) */
+  if (isDraggingSelection && selStart && selCurrent) {
+    const x = Math.min(selStart.x, selCurrent.x);
+    const y = Math.min(selStart.y, selCurrent.y);
+    const rw = Math.abs(selCurrent.x - selStart.x);
+    const rh = Math.abs(selCurrent.y - selStart.y);
+    ctx.strokeStyle = '#5865f2';
+    ctx.lineWidth = 2 / cam.zoom;
+    ctx.setLineDash([6 / cam.zoom, 4 / cam.zoom]);
+    ctx.strokeRect(x, y, rw, rh);
+    ctx.fillStyle = 'rgba(88,101,242,0.08)';
+    ctx.fillRect(x, y, rw, rh);
+    ctx.setLineDash([]);
+
+    /* Dimension label */
+    const dimFontSize = Math.max(9, 12 / cam.zoom);
+    ctx.font = dimFontSize + 'px JetBrains Mono';
+    ctx.fillStyle = '#c5ccff';
+    ctx.fillText(Math.round(rw) + ' x ' + Math.round(rh), x, y - 4 / cam.zoom > dimFontSize ? y - 4 / cam.zoom : y + rh + dimFontSize + 2 / cam.zoom);
+  }
+
+  ctx.restore();
+}
+
+function renderMapTest() {
+  const w = mainCanvas.width;
+  const h = mainCanvas.height;
+  ctx.clearRect(0, 0, w, h);
+  ctx.imageSmoothingEnabled = false;
+
+  const GRASS_DARK = '#4a7c3f';
+  const GRASS_LIGHT = '#5a9c4f';
+  const ts = TILE * mapCam.zoom;
+
+  /* Visible tile range */
+  const startTX = Math.floor(-mapCam.x / ts) - 1;
+  const startTY = Math.floor(-mapCam.y / ts) - 1;
+  const endTX = Math.ceil((w - mapCam.x) / ts);
+  const endTY = Math.ceil((h - mapCam.y) / ts);
+
+  /* Grass floor */
+  for (let ty = startTY; ty <= endTY; ty++) {
+    for (let tx = startTX; tx <= endTX; tx++) {
+      const sx = tx * ts + mapCam.x;
+      const sy = ty * ts + mapCam.y;
+      ctx.fillStyle = (((tx % 2) + 2) % 2 + ((ty % 2) + 2) % 2) % 2 === 0 ? GRASS_DARK : GRASS_LIGHT;
+      ctx.fillRect(Math.floor(sx), Math.floor(sy), Math.ceil(ts) + 1, Math.ceil(ts) + 1);
+    }
+  }
+
+  /* Grid */
+  if (gridVisible && mapCam.zoom >= 1) {
+    ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let tx = startTX; tx <= endTX; tx++) {
+      const sx = Math.round(tx * ts + mapCam.x);
+      ctx.moveTo(sx, 0);
+      ctx.lineTo(sx, h);
+    }
+    for (let ty = startTY; ty <= endTY; ty++) {
+      const sy = Math.round(ty * ts + mapCam.y);
+      ctx.moveTo(0, sy);
+      ctx.lineTo(w, sy);
+    }
+    ctx.stroke();
+  }
+
+  /* Origin marker (thin lines at tile 0,0) */
+  const originX = Math.round(mapCam.x);
+  const originY = Math.round(mapCam.y);
+  ctx.strokeStyle = 'rgba(88,101,242,0.3)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(originX, 0); ctx.lineTo(originX, h);
+  ctx.moveTo(0, originY); ctx.lineTo(w, originY);
+  ctx.stroke();
+
+  /* Placed objects sorted by zIndex then tileY */
+  const sorted = [...placedObjects].sort((a, b) => {
+    const assetA = assets.find(x => x.id === a.assetId);
+    const assetB = assets.find(x => x.id === b.assetId);
+    const zA = assetA ? assetA.zIndex : 0;
+    const zB = assetB ? assetB.zIndex : 0;
+    if (zA !== zB) return zA - zB;
+    return a.tileY - b.tileY;
+  });
+
+  for (const po of sorted) {
+    renderPlacedObject(po, po.id === selectedPlacedId);
+  }
+
+  /* Ghost preview at cursor */
+  if (ghostAssetId && mtMouseTileX > -999) {
+    const ga = assets.find(a => a.id === ghostAssetId);
+    if (ga && ga.category !== 'terrain' && ga.category !== 'autotile') {
+      const img = getAssetImage(ghostAssetId);
+      if (img) {
+        const allocW = Math.ceil(ga.sw / TILE) * TILE;
+        const allocH = Math.ceil(ga.sh / TILE) * TILE;
+        const dw = allocW * ga.scaleFactor;
+        const dh = allocH * ga.scaleFactor;
+        const gsx = mtMouseTileX * TILE * mapCam.zoom + mapCam.x;
+        const gsy = mtMouseTileY * TILE * mapCam.zoom + mapCam.y;
+        const gsw = dw * mapCam.zoom;
+        const gsh = dh * mapCam.zoom;
+
+        ctx.save();
+        ctx.globalAlpha = 0.5;
+        ctx.drawImage(img, Math.round(gsx), Math.round(gsy), Math.round(gsw), Math.round(gsh));
+        ctx.globalAlpha = 1;
+        ctx.strokeStyle = 'rgba(88,101,242,0.7)';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([4, 4]);
+        ctx.strokeRect(Math.round(gsx), Math.round(gsy), Math.round(gsw), Math.round(gsh));
+        ctx.setLineDash([]);
+        ctx.restore();
+      }
+    }
+  }
+
+  /* Hover tile outline (when no ghost) */
+  if (!ghostAssetId && mtMouseTileX > -999) {
+    const hsx = mtMouseTileX * ts + mapCam.x;
+    const hsy = mtMouseTileY * ts + mapCam.y;
+    ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(Math.round(hsx), Math.round(hsy), Math.ceil(ts), Math.ceil(ts));
+  }
+}
+
+function renderPlacedObject(po, isSelected) {
+  const a = assets.find(x => x.id === po.assetId);
+  if (!a) return;
+  const img = getAssetImage(po.assetId);
+  if (!img) return;
+
+  const allocW = Math.ceil(a.sw / TILE) * TILE;
+  const allocH = Math.ceil(a.sh / TILE) * TILE;
+  const dw = allocW * a.scaleFactor;
+  const dh = allocH * a.scaleFactor;
+
+  const sx = po.tileX * TILE * mapCam.zoom + mapCam.x;
+  const sy = po.tileY * TILE * mapCam.zoom + mapCam.y;
+  const sw = dw * mapCam.zoom;
+  const sh = dh * mapCam.zoom;
+
+  ctx.drawImage(img, Math.round(sx), Math.round(sy), Math.round(sw), Math.round(sh));
+
+  if (isSelected) {
+    ctx.strokeStyle = 'rgba(88,101,242,0.9)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([4, 4]);
+    ctx.strokeRect(Math.round(sx) - 1, Math.round(sy) - 1, Math.round(sw) + 2, Math.round(sh) + 2);
+    ctx.setLineDash([]);
+  }
+}
+
+/* ---- Canvas Interaction ---- */
+canvasWrap.addEventListener('mousedown', e => {
+  if (appMode === 'maptest') onMapTestMouseDown(e);
+  else onSpriteMouseDown(e);
+});
+
+function onSpriteMouseDown(e) {
+  if (!spriteImg) return;
+  const rect = canvasWrap.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+
+  if (e.button === 1 || (e.button === 0 && isSpaceHeld)) {
+    /* Pan */
+    isPanning = true;
+    dragStart = { x: mx, y: my };
+    camStart = { x: cam.x, y: cam.y };
+    canvasWrap.style.cursor = 'grabbing';
+    e.preventDefault();
+    return;
+  }
+
+  if (e.button === 0) {
+    /* Check if clicking on an existing asset (skip autotile assets with no rect) */
+    const sp = screenToSprite(mx, my);
+    const clicked = findAssetAt(sp.x, sp.y);
+    if (clicked) {
+      selectAsset(clicked.id);
+      dirty = true;
+      return;
+    }
+
+    /* Start selection (also used for autotile bitmask drag assignment) */
+    isDraggingSelection = true;
+    const raw = screenToSprite(mx, my);
+    selStart = { x: snapVal(raw.x), y: snapVal(raw.y) };
+    selCurrent = { ...selStart };
+    modeIndicator.textContent = 'DRAWING';
+    dirty = true;
+  }
+}
+
+canvasWrap.addEventListener('mousemove', e => {
+  if (appMode === 'maptest') onMapTestMouseMove(e);
+  else onSpriteMouseMove(e);
+});
+
+function onSpriteMouseMove(e) {
+  const rect = canvasWrap.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+
+  if (spriteImg) {
+    const sp = screenToSprite(mx, my);
+    cursorPos.textContent = Math.round(sp.x) + ', ' + Math.round(sp.y);
+  }
+
+  if (isPanning && dragStart) {
+    cam.x = camStart.x + (mx - dragStart.x);
+    cam.y = camStart.y + (my - dragStart.y);
+    dirty = true;
+    return;
+  }
+
+  if (isDraggingSelection && selStart) {
+    const raw = screenToSprite(mx, my);
+    selCurrent = { x: snapVal(raw.x), y: snapVal(raw.y) };
+    dirty = true;
+  }
+}
+
+window.addEventListener('mouseup', e => {
+  if (isPanning) {
+    isPanning = false;
+    canvasWrap.style.cursor = appMode === 'maptest' ? 'crosshair' : 'crosshair';
+    return;
+  }
+
+  if (appMode !== 'sprite') return;
+
+  if (isDraggingSelection && selStart && selCurrent) {
+    isDraggingSelection = false;
+    modeIndicator.textContent = 'SELECT';
+
+    let x = Math.min(selStart.x, selCurrent.x);
+    let y = Math.min(selStart.y, selCurrent.y);
+    let rw = Math.abs(selCurrent.x - selStart.x);
+    let rh = Math.abs(selCurrent.y - selStart.y);
+
+    /* Clamp to sprite bounds */
+    if (spriteImg) {
+      x = Math.max(0, x);
+      y = Math.max(0, y);
+      rw = Math.min(rw, spriteImg.width - x);
+      rh = Math.min(rh, spriteImg.height - y);
+    }
+
+    /* Autotile bitmask assignment via drag */
+    const selAsset = getSelectedAsset();
+    if (selAsset && selAsset.category === 'autotile' && activeBitmaskCell !== null && rw >= 2 && rh >= 2) {
+      // Snap to tile grid
+      const tw = selAsset.tileWidth || 32;
+      const th = selAsset.tileHeight || 32;
+      const snappedX = Math.round(x / tw) * tw;
+      const snappedY = Math.round(y / th) * th;
+
+      // Assign the snapped tile position to the active bitmask cell
+      assignBitmaskTile(selAsset, activeBitmaskCell, snappedX, snappedY);
+
+      // Auto-advance to next unassigned bitmask cell
+      let nextCell = null;
+      for (let i = 1; i <= 16; i++) {
+        const candidate = (activeBitmaskCell + i) % 16;
+        if (!selAsset.variants[String(candidate)]) {
+          nextCell = candidate;
+          break;
+        }
+      }
+      activeBitmaskCell = nextCell;
+      // Update grid UI to show new active cell
+      document.querySelectorAll('.bitmask-cell').forEach(c => {
+        c.classList.remove('active');
+        if (nextCell !== null && parseInt(c.dataset.bitmask) === nextCell) {
+          c.classList.add('active');
+        }
+      });
+
+      selStart = null;
+      selCurrent = null;
+      dirty = true;
+      return;  // Don't create a new asset
+    }
+
+    /* Normal: create new asset */
+    if (rw >= 2 && rh >= 2) {
+      createAsset(x, y, rw, rh);
+    }
+    selStart = null;
+    selCurrent = null;
+    dirty = true;
+  }
+});
+
+canvasWrap.addEventListener('wheel', e => {
+  e.preventDefault();
+  const rect = canvasWrap.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+  zoomAt(mx, my, factor);
+}, { passive: false });
+
+/* Prevent middle mouse scroll */
+canvasWrap.addEventListener('auxclick', e => e.preventDefault());
+
+function findAssetAt(px, py) {
+  /* Check in reverse order (top-most first) */
+  for (let i = assets.length - 1; i >= 0; i--) {
+    const a = assets[i];
+    if (a.sw <= 0 || a.sh <= 0) continue;  // Autotile-Assets haben kein Rechteck
+    if (px >= a.sx && px <= a.sx + a.sw && py >= a.sy && py <= a.sy + a.sh) {
+      return a;
+    }
+  }
+  return null;
+}
+
+/* ---- Map Test Mouse Handlers ---- */
+function onMapTestMouseDown(e) {
+  const rect = canvasWrap.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+
+  if (e.button === 1 || (e.button === 0 && isSpaceHeld)) {
+    isPanning = true;
+    dragStart = { x: mx, y: my };
+    camStart = { x: mapCam.x, y: mapCam.y };
+    canvasWrap.style.cursor = 'grabbing';
+    e.preventDefault();
+    return;
+  }
+
+  if (e.button === 0) {
+    const tile = screenToMapTile(mx, my);
+    if (ghostAssetId) {
+      const ga = assets.find(a => a.id === ghostAssetId);
+      if (ga && (ga.category === 'terrain' || ga.category === 'autotile')) {
+        toast(ga.category === 'terrain' ? 'Terrain tilesets cannot be placed in Map Test' : 'Autotile assets cannot be placed in Map Test', 'warn');
+        return;
+      }
+      placeAssetOnMap(ghostAssetId, tile.tileX, tile.tileY);
+    } else {
+      const hit = findPlacedObjectAt(mx, my);
+      selectPlacedObject(hit ? hit.id : null);
+    }
+    dirty = true;
+  }
+}
+
+function onMapTestMouseMove(e) {
+  const rect = canvasWrap.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+
+  if (isPanning && dragStart) {
+    mapCam.x = camStart.x + (mx - dragStart.x);
+    mapCam.y = camStart.y + (my - dragStart.y);
+    dirty = true;
+    return;
+  }
+
+  const tile = screenToMapTile(mx, my);
+  if (tile.tileX !== mtMouseTileX || tile.tileY !== mtMouseTileY) {
+    mtMouseTileX = tile.tileX;
+    mtMouseTileY = tile.tileY;
+    dirty = true;
+  }
+  cursorPos.textContent = tile.tileX + ', ' + tile.tileY;
+}
+
+/* ---- Placed Object Operations ---- */
+function placeAssetOnMap(assetId, tileX, tileY) {
+  const a = assets.find(a => a.id === assetId);
+  if (!a) return;
+  placedObjects.push({ id: crypto.randomUUID(), assetId, tileX, tileY });
+  getAssetImage(assetId);
+  dirty = true;
+  rebuildPlacedList();
+  toast('Placed: ' + a.key + ' at ' + tileX + ',' + tileY);
+}
+
+function removePlacedObject(id) {
+  placedObjects = placedObjects.filter(o => o.id !== id);
+  if (selectedPlacedId === id) selectedPlacedId = null;
+  dirty = true;
+  rebuildPlacedList();
+}
+
+function selectPlacedObject(id) {
+  selectedPlacedId = id;
+  document.querySelectorAll('.placed-item').forEach(el => {
+    el.classList.toggle('selected', el.dataset.id === id);
+  });
+  dirty = true;
+}
+
+function clearPlacedObjects() {
+  if (placedObjects.length === 0) return;
+  placedObjects = [];
+  selectedPlacedId = null;
+  dirty = true;
+  rebuildPlacedList();
+  toast('Map test cleared', 'warn');
+}
+
+function findPlacedObjectAt(screenX, screenY) {
+  const { wx, wy } = screenToMapWorld(screenX, screenY);
+  for (let i = placedObjects.length - 1; i >= 0; i--) {
+    const po = placedObjects[i];
+    const a = assets.find(a => a.id === po.assetId);
+    if (!a) continue;
+    const allocW = Math.ceil(a.sw / TILE) * TILE;
+    const allocH = Math.ceil(a.sh / TILE) * TILE;
+    const dw = allocW * a.scaleFactor;
+    const dh = allocH * a.scaleFactor;
+    const ox = po.tileX * TILE;
+    const oy = po.tileY * TILE;
+    if (wx >= ox && wx < ox + dw && wy >= oy && wy < oy + dh) return po;
+  }
+  return null;
+}
+
+function rebuildPlacedList() {
+  const list = $('placedList');
+  const empty = $('placedListEmpty');
+  $('placedCount').textContent = '(' + placedObjects.length + ')';
+  list.innerHTML = '';
+  if (placedObjects.length === 0) {
+    list.appendChild(empty);
+    empty.style.display = '';
+    return;
+  }
+  empty.style.display = 'none';
+  for (const po of placedObjects) {
+    const a = assets.find(a => a.id === po.assetId);
+    const el = document.createElement('div');
+    el.className = 'placed-item' + (po.id === selectedPlacedId ? ' selected' : '');
+    el.dataset.id = po.id;
+    const keySpan = document.createElement('div');
+    keySpan.className = 'placed-key';
+    keySpan.textContent = a ? a.key : '(deleted)';
+    const posSpan = document.createElement('div');
+    posSpan.className = 'placed-pos';
+    posSpan.textContent = po.tileX + ',' + po.tileY;
+    const delBtn = document.createElement('button');
+    delBtn.className = 'placed-del';
+    delBtn.innerHTML = '&#x2715;';
+    delBtn.addEventListener('click', ev => { ev.stopPropagation(); removePlacedObject(po.id); });
+    el.appendChild(keySpan);
+    el.appendChild(posSpan);
+    el.appendChild(delBtn);
+    el.addEventListener('click', () => selectPlacedObject(po.id));
+    list.appendChild(el);
+  }
+}
+
+/* ---- App Mode ---- */
+function setAppMode(mode) {
+  appMode = mode;
+  const isMap = mode === 'maptest';
+
+  $('btnModeSprite').classList.toggle('btn-accent', !isMap);
+  $('btnModeMapTest').classList.toggle('btn-accent', isMap);
+  modeIndicator.textContent = isMap ? 'MAP TEST' : 'SELECT';
+
+  /* Right panel */
+  if (isMap) {
+    propsSection.style.display = 'none';
+    offsetSection.style.display = 'none';
+    terrainPropsSection.style.display = 'none';
+    autotilePropsSection.style.display = 'none';
+    bitmaskMapperSection.style.display = 'none';
+    previewSection.style.display = 'none';
+    emptyRight.style.display = 'none';
+  } else if (selectedId) {
+    const a = assets.find(a => a.id === selectedId);
+    if (a) {
+      updatePanelVisibility(a);
+    }
+    emptyRight.style.display = 'none';
+  } else {
+    propsSection.style.display = 'none';
+    offsetSection.style.display = 'none';
+    terrainPropsSection.style.display = 'none';
+    autotilePropsSection.style.display = 'none';
+    bitmaskMapperSection.style.display = 'none';
+    previewSection.style.display = 'none';
+    emptyRight.style.display = '';
+  }
+  $('mapTestSection').style.display = isMap ? '' : 'none';
+
+  /* Cursor info */
+  cursorInfo.style.display = isMap ? '' : (spriteImg ? '' : 'none');
+
+  /* Ghost */
+  ghostAssetId = isMap ? selectedId : null;
+
+  /* Init map camera centered */
+  if (isMap && !mapCamInitialized) {
+    const rect = canvasWrap.getBoundingClientRect();
+    mapCam.x = rect.width / 2;
+    mapCam.y = rect.height / 2;
+    mapCamInitialized = true;
+  }
+
+  updateZoomLabel();
+  updateMapTestStatus();
+  rebuildPlacedList();
+  dirty = true;
+}
+
+function updateMapTestStatus() {
+  if (appMode !== 'maptest') return;
+  const a = assets.find(a => a.id === selectedId);
+  if (a && (a.category === 'terrain' || a.category === 'autotile')) {
+    $('mapTestStatus').textContent = a.category === 'terrain' ? 'Terrain tilesets cannot be placed in Map Test.' : 'Autotile assets cannot be placed in Map Test.';
+  } else {
+    $('mapTestStatus').textContent = a
+      ? 'Placing: ' + a.key + ' — click map to place'
+      : 'Select an asset from the list to place.';
+  }
+}
+
+/* ---- Keyboard ---- */
+window.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
+
+  if (e.code === 'Space') {
+    isSpaceHeld = true;
+    canvasWrap.style.cursor = 'grab';
+    e.preventDefault();
+    return;
+  }
+  if (e.key === 'Delete' || e.key === 'Backspace') {
+    if (appMode === 'maptest' && selectedPlacedId) {
+      removePlacedObject(selectedPlacedId);
+    } else if (selectedId) {
+      deleteAsset(selectedId);
+    }
+    e.preventDefault();
+  }
+  if (e.key === 'g' || e.key === 'G') {
+    toggleGrid();
+  }
+  if (e.key === '+' || e.key === '=') {
+    const rect = canvasWrap.getBoundingClientRect();
+    zoomAt(rect.width / 2, rect.height / 2, 1.25);
+  }
+  if (e.key === '-' || e.key === '_') {
+    const rect = canvasWrap.getBoundingClientRect();
+    zoomAt(rect.width / 2, rect.height / 2, 1 / 1.25);
+  }
+  if (e.key === '0') {
+    zoomToFit();
+  }
+});
+
+window.addEventListener('keyup', e => {
+  if (e.code === 'Space') {
+    isSpaceHeld = false;
+    if (!isPanning) canvasWrap.style.cursor = 'crosshair';
+  }
+});
+
+/* ---- Toolbar buttons ---- */
+$('btnGridToggle').addEventListener('click', toggleGrid);
+$('btnSnapToggle').addEventListener('click', toggleSnap);
+$('btnZoomIn').addEventListener('click', () => {
+  const rect = canvasWrap.getBoundingClientRect();
+  zoomAt(rect.width / 2, rect.height / 2, 1.25);
+});
+$('btnZoomOut').addEventListener('click', () => {
+  const rect = canvasWrap.getBoundingClientRect();
+  zoomAt(rect.width / 2, rect.height / 2, 1 / 1.25);
+});
+$('btnZoomFit').addEventListener('click', () => {
+  if (appMode === 'maptest') {
+    const rect = canvasWrap.getBoundingClientRect();
+    mapCam.zoom = 3;
+    mapCam.x = rect.width / 2;
+    mapCam.y = rect.height / 2;
+    updateZoomLabel();
+    dirty = true;
+  } else {
+    zoomToFit();
+  }
+});
+
+$('btnModeSprite').addEventListener('click', () => setAppMode('sprite'));
+$('btnModeMapTest').addEventListener('click', () => setAppMode('maptest'));
+$('btnClearMap').addEventListener('click', clearPlacedObjects);
+
+function toggleGrid() {
+  gridVisible = !gridVisible;
+  $('btnGridToggle').classList.toggle('btn-accent', gridVisible);
+  dirty = true;
+}
+
+function toggleSnap() {
+  snapToGrid = !snapToGrid;
+  $('btnSnapToggle').classList.toggle('btn-accent', snapToGrid);
+  toast(snapToGrid ? 'Snap to 16px grid enabled' : 'Snap disabled');
+}
+
+/* Neues Autotile Button */
+$('btnNewAutotile').addEventListener('click', () => {
+  if (!spriteImg) { toast('Zuerst ein Spritesheet laden', 'warn'); return; }
+  const id = crypto.randomUUID();
+  const key = 'autotile_' + nextAssetNum++;
+  const asset = {
+    id, key,
+    category: 'autotile',
+    placement: 'wall',
+    collide: true,
+    scaleFactor: 1,
+    zIndex: 0,
+    sx: 0, sy: 0, sw: 0, sh: 0,
+    offsetX: 0, offsetY: 0,
+    tileWidth: 32, tileHeight: 32,
+    margin: 0, spacing: 0,
+    autotileType: '4bit',
+    variants: {}
+  };
+  assets.push(asset);
+  selectAsset(id);
+  rebuildAssetList();
+  toast('Autotile erstellt: ' + key);
+});
+
+/* Init toolbar states */
+$('btnGridToggle').classList.add('btn-accent');
+$('btnSnapToggle').classList.add('btn-accent');
+
+/* ---- Asset CRUD ---- */
+function createAsset(sx, sy, sw, sh) {
+  const id = crypto.randomUUID();
+  const key = 'asset_' + nextAssetNum++;
+  const asset = {
+    id,
+    key,
+    category: 'objects',
+    placement: 'any',
+    collide: false,
+    scaleFactor: spriteScaleFactor,
+    zIndex: 0,
+    sx: Math.round(sx),
+    sy: Math.round(sy),
+    sw: Math.round(sw),
+    sh: Math.round(sh),
+    offsetX: 0,
+    offsetY: 0,
+    tileWidth: 16,
+    tileHeight: 16,
+    margin: 0,
+    spacing: 0
+  };
+  assets.push(asset);
+  selectAsset(id);
+  rebuildAssetList();
+  toast('Asset created: ' + key);
+}
+
+function deleteAsset(id) {
+  invalidateAssetImage(id);
+  placedObjects = placedObjects.filter(po => po.assetId !== id);
+  const idx = assets.findIndex(a => a.id === id);
+  if (idx === -1) return;
+  const key = assets[idx].key;
+  assets.splice(idx, 1);
+  if (selectedId === id) {
+    selectedId = null;
+    hideRightPanel();
+  }
+  rebuildAssetList();
+  dirty = true;
+  toast('Deleted: ' + key, 'warn');
+}
+
+function selectAsset(id) {
+  selectedId = id;
+  const a = assets.find(a => a.id === id);
+  if (!a) return;
+
+  /* Highlight in list */
+  document.querySelectorAll('.asset-item').forEach(el => {
+    el.classList.toggle('selected', el.dataset.id === id);
+  });
+
+  showRightPanel(a);
+  dirty = true;
+  renderPreview();
+  if (appMode === 'maptest') {
+    ghostAssetId = id;
+    updateMapTestStatus();
+  }
+}
+
+function updatePanelVisibility(a) {
+  if (a.category === 'autotile') {
+    propsSection.style.display = '';
+    autotilePropsSection.style.display = '';
+    bitmaskMapperSection.style.display = '';
+    terrainPropsSection.style.display = 'none';
+    offsetSection.style.display = 'none';
+    previewSection.style.display = 'none';
+    $('propZIndex').parentElement.style.display = 'none';
+    $('propSpriteSize').closest('.field-row').style.display = 'none';
+  } else if (a.category === 'terrain') {
+    propsSection.style.display = '';
+    terrainPropsSection.style.display = '';
+    autotilePropsSection.style.display = 'none';
+    bitmaskMapperSection.style.display = 'none';
+    offsetSection.style.display = 'none';
+    previewSection.style.display = '';
+    /* Hide zIndex, Sprite Size, Export Size for terrain */
+    $('propZIndex').parentElement.style.display = 'none';
+    $('propSpriteSize').closest('.field-row').style.display = 'none';
+  } else {
+    propsSection.style.display = '';
+    terrainPropsSection.style.display = 'none';
+    autotilePropsSection.style.display = 'none';
+    bitmaskMapperSection.style.display = 'none';
+    offsetSection.style.display = '';
+    previewSection.style.display = '';
+    $('propZIndex').parentElement.style.display = '';
+    $('propSpriteSize').closest('.field-row').style.display = '';
+  }
+}
+
+function updateTileGridInfo(a) {
+  const tw = a.tileWidth || 16;
+  const th = a.tileHeight || 16;
+  const margin = a.margin || 0;
+  const spacing = a.spacing || 0;
+  const cols = Math.max(1, Math.floor((a.sw - margin * 2 + spacing) / (tw + spacing)));
+  const rows = Math.max(1, Math.floor((a.sh - margin * 2 + spacing) / (th + spacing)));
+  $('tileGridInfo').textContent = cols + ' x ' + rows + ' = ' + (cols * rows) + ' tiles (' + tw + 'x' + th + 'px)';
+}
+
+function showRightPanel(a) {
+  emptyRight.style.display = 'none';
+  updatePanelVisibility(a);
+  populateProperties(a);
+  updateExportButtons();
+}
+
+function hideRightPanel() {
+  propsSection.style.display = 'none';
+  offsetSection.style.display = 'none';
+  terrainPropsSection.style.display = 'none';
+  autotilePropsSection.style.display = 'none';
+  bitmaskMapperSection.style.display = 'none';
+  previewSection.style.display = 'none';
+  emptyRight.style.display = '';
+  updateExportButtons();
+}
+
+function populateProperties(a) {
+  $('propKey').value = a.key;
+  $('propCategory').value = a.category;
+  $('propPlacement').value = a.placement;
+  $('propCollide').checked = a.collide;
+  $('propZIndex').value = a.zIndex;
+  const tw = Math.ceil(a.sw / TILE) * TILE;
+  const th = Math.ceil(a.sh / TILE) * TILE;
+  const displayW = tw * a.scaleFactor;
+  const displayH = th * a.scaleFactor;
+  $('propSpriteSize').value = a.sw + ' x ' + a.sh + ' px';
+  $('propExportSize').value = tw + ' x ' + th + ' px';
+  $('propSrcX').value = a.sx;
+  $('propSrcY').value = a.sy;
+  $('propSrcW').value = a.sw;
+  $('propSrcH').value = a.sh;
+  $('propOffsetX').value = a.offsetX;
+  $('propOffsetY').value = a.offsetY;
+
+  $('tileAllocInfo').textContent = tw + ' x ' + th + 'px (' + (tw / TILE) + ' x ' + (th / TILE) + ' tiles) | scale: ' + a.scaleFactor + 'x → ' + Math.round(displayW) + 'x' + Math.round(displayH) + 'px display';
+
+  /* Terrain properties */
+  $('propTileWidth').value = a.tileWidth;
+  $('propTileHeight').value = a.tileHeight;
+  $('propMargin').value = a.margin;
+  $('propSpacing').value = a.spacing;
+  updateTileGridInfo(a);
+
+  /* Autotile properties */
+  if (a.category === 'autotile') {
+    $('propAutoTileWidth').value = a.tileWidth || 32;
+    $('propAutoTileHeight').value = a.tileHeight || 32;
+    $('propAutoPlacement').value = a.placement || 'wall';
+    $('propAutoCollide').checked = a.collide !== false;
+    buildBitmaskGrid(a);
+  }
+}
+
+/* ---- Bitmask Grid Builder ---- */
+const BITMASK_LABELS = [
+  'isolated','N','E','N+E','S','N+S','E+S','N+E+S',
+  'W','N+W','E+W','N+E+W','S+W','N+S+W','E+S+W','N+E+S+W'
+];
+
+function drawBitmaskIcon(canvas, bitmask) {
+  const s = canvas.width;
+  const ctx2 = canvas.getContext('2d');
+  ctx2.clearRect(0, 0, s, s);
+  const cx = s / 2, cy = s / 2, len = s * 0.38;
+  // Center dot
+  ctx2.fillStyle = '#9ca3af';
+  ctx2.beginPath();
+  ctx2.arc(cx, cy, 2, 0, Math.PI * 2);
+  ctx2.fill();
+  // Direction lines
+  ctx2.strokeStyle = '#5865f2';
+  ctx2.lineWidth = 1.5;
+  ctx2.lineCap = 'round';
+  if (bitmask & 1) { ctx2.beginPath(); ctx2.moveTo(cx, cy); ctx2.lineTo(cx, cy - len); ctx2.stroke(); } // N
+  if (bitmask & 2) { ctx2.beginPath(); ctx2.moveTo(cx, cy); ctx2.lineTo(cx + len, cy); ctx2.stroke(); } // E
+  if (bitmask & 4) { ctx2.beginPath(); ctx2.moveTo(cx, cy); ctx2.lineTo(cx, cy + len); ctx2.stroke(); } // S
+  if (bitmask & 8) { ctx2.beginPath(); ctx2.moveTo(cx, cy); ctx2.lineTo(cx - len, cy); ctx2.stroke(); } // W
+}
+
+function buildBitmaskGrid(a) {
+  bitmaskGrid.innerHTML = '';
+  activeBitmaskCell = null;
+  const variants = a.variants || {};
+  let assignedCount = 0;
+
+  for (let b = 0; b < 16; b++) {
+    const cell = document.createElement('div');
+    cell.className = 'bitmask-cell' + (variants[String(b)] ? ' assigned' : '');
+    cell.dataset.bitmask = b;
+    cell.title = BITMASK_LABELS[b];
+
+    // Bitmask number
+    const num = document.createElement('span');
+    num.className = 'bitmask-num';
+    num.textContent = b;
+    cell.appendChild(num);
+
+    // Icon canvas
+    const iconCanvas = document.createElement('canvas');
+    iconCanvas.className = 'bitmask-icon';
+    iconCanvas.width = 20;
+    iconCanvas.height = 20;
+    drawBitmaskIcon(iconCanvas, b);
+    cell.appendChild(iconCanvas);
+
+    // Thumbnail or placeholder
+    const thumbDiv = document.createElement('div');
+    thumbDiv.className = 'bitmask-thumb';
+    if (variants[String(b)] && spriteImg) {
+      const tw = a.tileWidth || 32;
+      const th = a.tileHeight || 32;
+      const v = variants[String(b)];
+      const tc = document.createElement('canvas');
+      const scale = Math.min(48 / tw, 48 / th, 2);
+      tc.width = Math.max(1, Math.round(tw * scale));
+      tc.height = Math.max(1, Math.round(th * scale));
+      const tctx = tc.getContext('2d');
+      tctx.imageSmoothingEnabled = false;
+      const srcX = v.sx;
+      const srcY = v.sy;
+      tctx.drawImage(spriteImg, srcX, srcY, tw, th, 0, 0, tc.width, tc.height);
+      thumbDiv.appendChild(tc);
+      assignedCount++;
+    } else {
+      const ph = document.createElement('span');
+      ph.className = 'bitmask-placeholder';
+      ph.textContent = '?';
+      thumbDiv.appendChild(ph);
+    }
+    cell.appendChild(thumbDiv);
+
+    cell.addEventListener('click', () => {
+      // Toggle active cell
+      document.querySelectorAll('.bitmask-cell').forEach(c => c.classList.remove('active'));
+      if (activeBitmaskCell === b) {
+        activeBitmaskCell = null;
+      } else {
+        activeBitmaskCell = b;
+        cell.classList.add('active');
+      }
+    });
+
+    bitmaskGrid.appendChild(cell);
+  }
+
+  $('bitmaskAssignedCount').textContent = assignedCount;
+}
+
+function assignBitmaskTile(asset, bitmask, sx, sy) {
+  if (!asset.variants) asset.variants = {};
+  asset.variants[String(bitmask)] = { sx, sy };
+  buildBitmaskGrid(asset);
+  dirty = true;
+  toast('Bitmask ' + bitmask + ' (' + BITMASK_LABELS[bitmask] + ') \u2192 Position ' + sx + ',' + sy);
+}
+
+/* ---- Property change listeners ---- */
+function getSelectedAsset() {
+  return assets.find(a => a.id === selectedId) || null;
+}
+
+$('propKey').addEventListener('input', e => {
+  const a = getSelectedAsset();
+  if (!a) return;
+  a.key = e.target.value;
+  rebuildAssetList();
+  dirty = true;
+});
+
+$('propCategory').addEventListener('change', e => {
+  const a = getSelectedAsset();
+  if (!a) return;
+  a.category = e.target.value;
+  if (a.category === 'autotile') {
+    if (!a.autotileType) a.autotileType = '4bit';
+    if (!a.variants) a.variants = {};
+    if (!a.tileWidth || a.tileWidth === 16) a.tileWidth = 32;
+    if (!a.tileHeight || a.tileHeight === 16) a.tileHeight = 32;
+    a.placement = a.placement || 'wall';
+    a.collide = a.collide !== false;
+    activeBitmaskCell = null;
+  }
+  updatePanelVisibility(a);
+  if (a.category === 'autotile') {
+    populateProperties(a);
+  }
+  invalidateAssetImage(a.id);
+  rebuildAssetList();
+  renderPreview();
+  if (appMode === 'maptest') updateMapTestStatus();
+});
+
+$('propPlacement').addEventListener('change', e => {
+  const a = getSelectedAsset();
+  if (a) a.placement = e.target.value;
+});
+
+$('propCollide').addEventListener('change', e => {
+  const a = getSelectedAsset();
+  if (a) a.collide = e.target.checked;
+});
+
+$('spriteScale').addEventListener('change', e => {
+  const v = parseFloat(e.target.value);
+  if (!isNaN(v) && v > 0) {
+    spriteScaleFactor = v;
+    for (const a of assets) {
+      a.scaleFactor = v;
+    }
+    for (const a of assets) { invalidateAssetImage(a.id); }
+    const sel = getSelectedAsset();
+    if (sel) {
+      populateProperties(sel);
+      renderPreview();
+    }
+    toast('Scale factor set to ' + v + 'x for all assets');
+  }
+});
+
+$('propZIndex').addEventListener('input', e => {
+  const a = getSelectedAsset();
+  if (!a) return;
+  const v = parseInt(e.target.value, 10);
+  if (!isNaN(v)) a.zIndex = v;
+});
+
+$('propOffsetX').addEventListener('input', e => {
+  const a = getSelectedAsset();
+  if (!a) return;
+  const v = parseInt(e.target.value, 10);
+  if (!isNaN(v)) { a.offsetX = v; invalidateAssetImage(a.id); renderPreview(); }
+});
+
+$('propOffsetY').addEventListener('input', e => {
+  const a = getSelectedAsset();
+  if (!a) return;
+  const v = parseInt(e.target.value, 10);
+  if (!isNaN(v)) { a.offsetY = v; invalidateAssetImage(a.id); renderPreview(); }
+});
+
+$('btnResetOffset').addEventListener('click', () => {
+  const a = getSelectedAsset();
+  if (!a) return;
+  a.offsetX = 0;
+  a.offsetY = 0;
+  $('propOffsetX').value = 0;
+  $('propOffsetY').value = 0;
+  invalidateAssetImage(a.id);
+  renderPreview();
+  toast('Offset reset');
+});
+
+/* Terrain property listeners */
+['propTileWidth', 'propTileHeight', 'propMargin', 'propSpacing'].forEach(id => {
+  $(id).addEventListener('input', e => {
+    const a = getSelectedAsset();
+    if (!a) return;
+    const v = parseInt(e.target.value, 10);
+    if (isNaN(v) || v < 0) return;
+    const field = { propTileWidth: 'tileWidth', propTileHeight: 'tileHeight', propMargin: 'margin', propSpacing: 'spacing' }[id];
+    a[field] = v;
+    updateTileGridInfo(a);
+    renderPreview();
+  });
+});
+
+/* Autotile property listeners */
+$('propAutoTileWidth').addEventListener('input', e => {
+  const a = getSelectedAsset();
+  if (!a || a.category !== 'autotile') return;
+  const v = parseInt(e.target.value, 10);
+  if (!isNaN(v) && v > 0) { a.tileWidth = v; a.variants = {}; buildBitmaskGrid(a); dirty = true; }
+});
+$('propAutoTileHeight').addEventListener('input', e => {
+  const a = getSelectedAsset();
+  if (!a || a.category !== 'autotile') return;
+  const v = parseInt(e.target.value, 10);
+  if (!isNaN(v) && v > 0) { a.tileHeight = v; a.variants = {}; buildBitmaskGrid(a); dirty = true; }
+});
+$('propAutoPlacement').addEventListener('change', e => {
+  const a = getSelectedAsset();
+  if (!a || a.category !== 'autotile') return;
+  a.placement = e.target.value;
+});
+$('propAutoCollide').addEventListener('change', e => {
+  const a = getSelectedAsset();
+  if (!a || a.category !== 'autotile') return;
+  a.collide = e.target.checked;
+});
+
+/* ---- Asset List Rendering ---- */
+function rebuildAssetList() {
+  assetList.innerHTML = '';
+  assetCount.textContent = '(' + assets.length + ')';
+
+  if (assets.length === 0) {
+    assetList.appendChild(assetListEmpty);
+    assetListEmpty.style.display = '';
+  } else {
+    assetListEmpty.style.display = 'none';
+  }
+
+  for (const a of assets) {
+    const el = document.createElement('div');
+    el.className = 'asset-item' + (a.id === selectedId ? ' selected' : '');
+    el.dataset.id = a.id;
+
+    /* Thumbnail */
+    const thumbWrap = document.createElement('div');
+    thumbWrap.className = 'thumb';
+    if (a.category === 'autotile' && a.sw <= 0) {
+      // Autotile without rect: show bitmask-0 tile or placeholder
+      const tw = a.tileWidth || 32;
+      const th = a.tileHeight || 32;
+      const v0 = a.variants && a.variants['0'];
+      if (v0 && spriteImg) {
+        const thumbCanvas = document.createElement('canvas');
+        const tscale = Math.min(34 / tw, 34 / th, 2);
+        thumbCanvas.width = Math.max(1, Math.round(tw * tscale));
+        thumbCanvas.height = Math.max(1, Math.round(th * tscale));
+        const tctx = thumbCanvas.getContext('2d');
+        tctx.imageSmoothingEnabled = false;
+        tctx.drawImage(spriteImg, v0.sx, v0.sy, tw, th, 0, 0, thumbCanvas.width, thumbCanvas.height);
+        thumbWrap.appendChild(thumbCanvas);
+      } else {
+        const ph = document.createElement('span');
+        ph.style.cssText = 'font-family:var(--font-mono);font-size:10px;color:var(--fg-muted);';
+        ph.textContent = 'AT';
+        thumbWrap.appendChild(ph);
+      }
+    } else {
+      const thumbCanvas = document.createElement('canvas');
+      const scale = Math.min(34 / a.sw, 34 / a.sh, 2);
+      thumbCanvas.width = Math.max(1, Math.round(a.sw * scale));
+      thumbCanvas.height = Math.max(1, Math.round(a.sh * scale));
+      const tctx = thumbCanvas.getContext('2d');
+      tctx.imageSmoothingEnabled = false;
+      if (spriteImg) {
+        tctx.drawImage(spriteImg, a.sx, a.sy, a.sw, a.sh, 0, 0, thumbCanvas.width, thumbCanvas.height);
+      }
+      thumbWrap.appendChild(thumbCanvas);
+    }
+    el.appendChild(thumbWrap);
+
+    /* Info */
+    const info = document.createElement('div');
+    info.className = 'asset-info';
+    const keySpan = document.createElement('div');
+    keySpan.className = 'asset-key';
+    keySpan.textContent = a.key;
+    const dimSpan = document.createElement('div');
+    dimSpan.className = 'asset-dims';
+    if (a.category === 'autotile' && a.sw <= 0) {
+      const assignedCount = a.variants ? Object.keys(a.variants).length : 0;
+      dimSpan.textContent = assignedCount + '/16 tiles · ' + a.category;
+    } else {
+      dimSpan.textContent = a.sw + ' x ' + a.sh + 'px · ' + a.category;
+    }
+    info.appendChild(keySpan);
+    info.appendChild(dimSpan);
+    el.appendChild(info);
+
+    /* Delete button */
+    const del = document.createElement('button');
+    del.className = 'asset-del';
+    del.innerHTML = '&#x2715;';
+    del.title = 'Delete asset';
+    del.addEventListener('click', e => {
+      e.stopPropagation();
+      deleteAsset(a.id);
+    });
+    el.appendChild(del);
+
+    el.addEventListener('click', () => selectAsset(a.id));
+    assetList.appendChild(el);
+  }
+
+  updateExportButtons();
+}
+
+function updateExportButtons() {
+  const hasAssets = assets.length > 0;
+  $('btnExportZip').disabled = !hasAssets;
+  $('btnExportMepack').disabled = !hasAssets;
+  $('btnExportPng').disabled = !selectedId;
+}
+
+/* ---- Preview Rendering ---- */
+document.querySelectorAll('.preview-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.preview-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    previewMode = tab.dataset.mode;
+    renderPreview();
+  });
+});
+
+function renderPreview() {
+  const a = getSelectedAsset();
+  if (!a || !spriteImg) return;
+
+  const cw = 320;
+  const ch = 240;
+  previewCanvas.width = cw;
+  previewCanvas.height = ch;
+  pctx.clearRect(0, 0, cw, ch);
+  pctx.imageSmoothingEnabled = false;
+
+  if (a.category === 'terrain') {
+    renderTerrainPreview(a, cw, ch);
+    return;
+  }
+
+  if (previewMode === 'grid') {
+    renderGridPreview(a, cw, ch);
+  } else {
+    renderMapPreview(a, cw, ch);
+  }
+}
+
+function renderGridPreview(a, cw, ch) {
+  // The exported PNG is allocW x allocH (tile-aligned)
+  const allocW = Math.ceil(a.sw / TILE) * TILE;
+  const allocH = Math.ceil(a.sh / TILE) * TILE;
+
+  // Display size on map (what the map editor renders)
+  const displayW = allocW * a.scaleFactor;
+  const displayH = allocH * a.scaleFactor;
+
+  // Number of display tiles
+  const tilesW = Math.ceil(displayW / TILE);
+  const tilesH = Math.ceil(displayH / TILE);
+  const gridW = tilesW * TILE;
+  const gridH = tilesH * TILE;
+
+  // Scale to fit preview canvas
+  const pad = 20;
+  const scale = Math.min((cw - pad * 2) / gridW, (ch - pad * 2) / gridH, 8);
+  const ox = (cw - gridW * scale) / 2;
+  const oy = (ch - gridH * scale) / 2;
+
+  // Checkerboard for tile allocation
+  const cs = TILE * scale;
+  for (let ty = 0; ty < tilesH; ty++) {
+    for (let tx = 0; tx < tilesW; tx++) {
+      pctx.fillStyle = (tx + ty) % 2 === 0 ? '#1a1b25' : '#15161e';
+      pctx.fillRect(ox + tx * cs, oy + ty * cs, cs, cs);
+    }
+  }
+
+  // Tile allocation border
+  pctx.strokeStyle = 'rgba(88,101,242,0.4)';
+  pctx.lineWidth = 1;
+  pctx.strokeRect(ox, oy, gridW * scale, gridH * scale);
+
+  // Grid lines
+  pctx.strokeStyle = 'rgba(88,101,242,0.2)';
+  pctx.lineWidth = 1;
+  pctx.beginPath();
+  for (let x = 0; x <= gridW; x += TILE) {
+    pctx.moveTo(ox + x * scale, oy);
+    pctx.lineTo(ox + x * scale, oy + gridH * scale);
+  }
+  for (let y = 0; y <= gridH; y += TILE) {
+    pctx.moveTo(ox, oy + y * scale);
+    pctx.lineTo(ox + gridW * scale, oy + y * scale);
+  }
+  pctx.stroke();
+
+  // Draw asset at offset position, scaled by scaleFactor
+  const ax = ox + a.offsetX * a.scaleFactor * scale;
+  const ay = oy + a.offsetY * a.scaleFactor * scale;
+  const drawW = a.sw * a.scaleFactor * scale;
+  const drawH = a.sh * a.scaleFactor * scale;
+  pctx.drawImage(spriteImg, a.sx, a.sy, a.sw, a.sh, ax, ay, drawW, drawH);
+
+  // Asset bounds indicator
+  pctx.strokeStyle = 'rgba(88,101,242,0.5)';
+  pctx.lineWidth = 1;
+  pctx.setLineDash([3, 3]);
+  pctx.strokeRect(ax, ay, drawW, drawH);
+  pctx.setLineDash([]);
+
+  // Labels
+  pctx.font = '9px JetBrains Mono';
+  pctx.fillStyle = '#4a4c58';
+  pctx.fillText('Display: ' + Math.round(displayW) + 'x' + Math.round(displayH) + 'px | Tile alloc: ' + allocW + 'x' + allocH + 'px', ox, oy - 6);
+  if (a.offsetX !== 0 || a.offsetY !== 0) {
+    pctx.fillStyle = '#5865f2';
+    pctx.fillText('offset: ' + a.offsetX + ', ' + a.offsetY, ox, oy + gridH * scale + 14);
+  }
+}
+
+function renderMapPreview(a, cw, ch) {
+  // Calculate the asset's DISPLAY size (how it renders on the actual map)
+  const allocW = Math.ceil(a.sw / TILE) * TILE;
+  const allocH = Math.ceil(a.sh / TILE) * TILE;
+  const displayW = allocW * a.scaleFactor;
+  const displayH = allocH * a.scaleFactor;
+
+  // How many tiles does the asset occupy when rendered?
+  const assetTilesW = Math.ceil(displayW / TILE);
+  const assetTilesH = Math.ceil(displayH / TILE);
+
+  // Dynamic map size: asset tiles + 4 tiles padding on each side (min 8x6)
+  const padTiles = 4;
+  const mapTilesX = Math.max(8, assetTilesW + padTiles * 2);
+  const mapTilesY = Math.max(6, assetTilesH + padTiles * 2);
+
+  // Scale to fit the preview canvas
+  const pad = 10;
+  const mapPxW = mapTilesX * TILE;
+  const mapPxH = mapTilesY * TILE;
+  const scale = Math.min((cw - pad * 2) / mapPxW, (ch - pad * 2) / mapPxH);
+  const ox = (cw - mapPxW * scale) / 2;
+  const oy = (ch - mapPxH * scale) / 2;
+
+  // Draw grass floor tiles
+  const dark = '#4a7c3f';
+  const light = '#5a9c4f';
+  const ts = TILE * scale;
+  for (let ty = 0; ty < mapTilesY; ty++) {
+    for (let tx = 0; tx < mapTilesX; tx++) {
+      pctx.fillStyle = (tx + ty) % 2 === 0 ? dark : light;
+      pctx.fillRect(ox + tx * ts, oy + ty * ts, ts, ts);
+    }
+  }
+
+  // Grid lines
+  pctx.strokeStyle = 'rgba(0,0,0,0.15)';
+  pctx.lineWidth = 1;
+  pctx.beginPath();
+  for (let x = 0; x <= mapTilesX; x++) {
+    pctx.moveTo(ox + x * ts, oy);
+    pctx.lineTo(ox + x * ts, oy + mapTilesY * ts);
+  }
+  for (let y = 0; y <= mapTilesY; y++) {
+    pctx.moveTo(ox, oy + y * ts);
+    pctx.lineTo(ox + mapTilesX * ts, oy + y * ts);
+  }
+  pctx.stroke();
+
+  // Place asset centered on the map
+  const placeTileX = Math.floor((mapTilesX - assetTilesW) / 2);
+  const placeTileY = Math.floor((mapTilesY - assetTilesH) / 2);
+
+  const placeX = ox + placeTileX * TILE * scale;
+  const placeY = oy + placeTileY * TILE * scale;
+
+  // Draw the sprite at its offset within the allocation, all scaled
+  const spriteX = placeX + a.offsetX * a.scaleFactor * scale;
+  const spriteY = placeY + a.offsetY * a.scaleFactor * scale;
+  const drawW = a.sw * a.scaleFactor * scale;
+  const drawH = a.sh * a.scaleFactor * scale;
+
+  pctx.drawImage(spriteImg, a.sx, a.sy, a.sw, a.sh, spriteX, spriteY, drawW, drawH);
+
+  // Tile allocation highlight (the tiles the object occupies)
+  pctx.strokeStyle = 'rgba(88,101,242,0.5)';
+  pctx.lineWidth = 1;
+  pctx.setLineDash([3, 3]);
+  pctx.strokeRect(placeX, placeY, displayW * scale, displayH * scale);
+  pctx.setLineDash([]);
+
+  // Display size label
+  pctx.font = '9px JetBrains Mono';
+  pctx.fillStyle = '#4a4c58';
+  const labelText = 'Display: ' + Math.round(displayW) + 'x' + Math.round(displayH) + 'px (' + assetTilesW + 'x' + assetTilesH + ' tiles)';
+  pctx.fillText(labelText, ox + 4, oy - 4);
+}
+
+function renderTerrainPreview(a, cw, ch) {
+  if (!spriteImg) return;
+  const tw = a.tileWidth || 16;
+  const th = a.tileHeight || 16;
+  const margin = a.margin || 0;
+  const spacing = a.spacing || 0;
+
+  // Scale to fit
+  const pad = 16;
+  const scale = Math.min((cw - pad * 2) / a.sw, (ch - pad * 2) / a.sh, 8);
+  const ox = (cw - a.sw * scale) / 2;
+  const oy = (ch - a.sh * scale) / 2;
+
+  // Draw the tileset image
+  pctx.imageSmoothingEnabled = false;
+  pctx.drawImage(spriteImg, a.sx, a.sy, a.sw, a.sh, ox, oy, a.sw * scale, a.sh * scale);
+
+  // Tile grid overlay
+  const cols = Math.max(1, Math.floor((a.sw - margin * 2 + spacing) / (tw + spacing)));
+  const rows = Math.max(1, Math.floor((a.sh - margin * 2 + spacing) / (th + spacing)));
+
+  // Draw alternating colored tile cells
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const tx = margin + c * (tw + spacing);
+      const ty = margin + r * (th + spacing);
+      if ((r + c) % 2 === 0) {
+        pctx.fillStyle = 'rgba(88,101,242,0.1)';
+        pctx.fillRect(ox + tx * scale, oy + ty * scale, tw * scale, th * scale);
+      }
+    }
+  }
+
+  // Draw grid lines
+  pctx.strokeStyle = 'rgba(88,101,242,0.5)';
+  pctx.lineWidth = 1;
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const tx = margin + c * (tw + spacing);
+      const ty = margin + r * (th + spacing);
+      pctx.strokeRect(ox + tx * scale, oy + ty * scale, tw * scale, th * scale);
+    }
+  }
+
+  // Outer border
+  pctx.strokeStyle = 'rgba(88,101,242,0.3)';
+  pctx.strokeRect(ox, oy, a.sw * scale, a.sh * scale);
+
+  // Labels
+  pctx.font = '9px JetBrains Mono';
+  pctx.fillStyle = '#4a4c58';
+  pctx.fillText(cols + 'x' + rows + ' tiles (' + tw + 'x' + th + 'px)', ox, oy - 5);
+}
+
+/* ---- Export ---- */
+$('btnExportZip').addEventListener('click', exportZip);
+$('btnExportMepack').addEventListener('click', exportMepack);
+$('btnExportPng').addEventListener('click', exportSelectedPng);
+
+async function exportZip() {
+  if (assets.length === 0 || !spriteImg) return;
+
+  try {
+    const zip = new JSZip();
+    const config = { terrain: [], objects: [], structures: [], autotiles: [] };
+    const slugZip = str => str.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
+    for (const a of assets) {
+      const canvas = document.createElement('canvas');
+      const tctx = canvas.getContext('2d');
+      tctx.imageSmoothingEnabled = false;
+
+      let filePath, entry;
+
+      if (a.category === 'autotile') {
+        const tw = a.tileWidth || 32;
+        const th = a.tileHeight || 32;
+        canvas.width = tw * 4;
+        canvas.height = th * 4;
+        for (let bitmask = 0; bitmask < 16; bitmask++) {
+          const variant = a.variants?.[String(bitmask)];
+          if (variant) {
+            const srcX = variant.sx;
+            const srcY = variant.sy;
+            tctx.drawImage(spriteImg, srcX, srcY, tw, th, (bitmask % 4) * tw, Math.floor(bitmask / 4) * th, tw, th);
+          }
+        }
+        const exportVariants = {};
+        for (let b = 0; b < 16; b++) {
+          if (a.variants?.[String(b)]) exportVariants[String(b)] = { col: b % 4, row: Math.floor(b / 4) };
+        }
+        filePath = 'assets/tilesets/' + slugZip(a.key) + '.png';
+        config.autotiles.push({
+          id: a.id, key: a.key, category: 'autotile', dataURL: filePath,
+          placement: a.placement || 'wall', collide: a.collide !== false,
+          tileWidth: tw, tileHeight: th, gridHeight: 4, autotileType: '4bit',
+          variants: exportVariants, scaleFactor: a.scaleFactor || 1,
+        });
+      } else if (a.category === 'terrain') {
+        // Terrain: export raw selection (no offset, no tile allocation)
+        canvas.width = a.sw;
+        canvas.height = a.sh;
+        tctx.drawImage(spriteImg, a.sx, a.sy, a.sw, a.sh, 0, 0, a.sw, a.sh);
+
+        filePath = 'assets/tilesets/' + a.key + '.png';
+        entry = {
+          id: a.id,
+          key: a.key,
+          category: 'terrain',
+          dataURL: filePath,
+          tileWidth: a.tileWidth || 16,
+          tileHeight: a.tileHeight || 16,
+          margin: a.margin || 0,
+          spacing: a.spacing || 0,
+          collide: a.collide,
+          placement: a.placement
+        };
+        config.terrain.push(entry);
+      } else {
+        // Objects/Structures: existing logic with offset baking
+        const allocW = Math.ceil(a.sw / 16) * 16;
+        const allocH = Math.ceil(a.sh / 16) * 16;
+        canvas.width = allocW;
+        canvas.height = allocH;
+        tctx.drawImage(spriteImg, a.sx, a.sy, a.sw, a.sh, a.offsetX, a.offsetY, a.sw, a.sh);
+
+        const folder = a.category === 'structure' ? 'structures' : 'objects';
+        filePath = 'assets/' + folder + '/' + a.key + '.png';
+        entry = {
+          id: a.id,
+          key: a.key,
+          category: a.category,
+          dataURL: filePath,
+          width: allocW,
+          height: allocH,
+          collide: a.collide,
+          placement: a.placement,
+          scaleFactor: a.scaleFactor,
+          zIndex: a.zIndex
+        };
+        if (a.category === 'structure') {
+          config.structures.push(entry);
+        } else {
+          config.objects.push(entry);
+        }
+      }
+
+      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+      zip.file(filePath, blob);
+    }
+
+    zip.file('config.json', JSON.stringify(config, null, 2));
+
+    const content = await zip.generateAsync({ type: 'blob' });
+    downloadBlob(content, 'sprite-assets.zip');
+    toast('Exported ' + assets.length + ' assets as ZIP');
+  } catch (err) {
+    toast('Export failed: ' + err.message, 'err');
+    console.error(err);
+  }
+}
+
+async function exportMepack() {
+  if (assets.length === 0 || !spriteImg) return;
+
+  const packName = $('packName').value.trim();
+  const packAuthor = $('packAuthor').value.trim();
+  const packVersion = $('packVersion').value.trim();
+  const packDescription = $('packDescription').value.trim();
+
+  if (!packName) { toast('Pack Name is required', 'err'); $('packName').focus(); return; }
+  if (!packAuthor) { toast('Author is required', 'err'); $('packAuthor').focus(); return; }
+  if (!packVersion) { toast('Version is required', 'err'); $('packVersion').focus(); return; }
+
+  try {
+    const zip = new JSZip();
+    const packUuid = loadedPackUuid || crypto.randomUUID();
+    const config = {
+      uuid: packUuid,
+      name: packName,
+      description: packDescription || packName,
+      author: packAuthor,
+      version: packVersion,
+      terrain: [],
+      structures: [],
+      objects: [],
+      autotiles: []
+    };
+
+    const slug = str => str.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
+    for (const a of assets) {
+      const canvas = document.createElement('canvas');
+      const tctx = canvas.getContext('2d');
+      tctx.imageSmoothingEnabled = false;
+
+      let filePath, entry;
+
+      if (a.category === 'autotile') {
+        // Autotile: create 4x4 spritesheet from assigned bitmask tiles
+        const tw = a.tileWidth || 32;
+        const th = a.tileHeight || 32;
+        const outW = tw * 4;
+        const outH = th * 4;
+        canvas.width = outW;
+        canvas.height = outH;
+
+        for (let bitmask = 0; bitmask < 16; bitmask++) {
+          const variant = a.variants?.[String(bitmask)];
+          if (variant) {
+            const srcX = variant.sx;
+            const srcY = variant.sy;
+            const destCol = bitmask % 4;
+            const destRow = Math.floor(bitmask / 4);
+            tctx.drawImage(spriteImg, srcX, srcY, tw, th, destCol * tw, destRow * th, tw, th);
+          }
+        }
+
+        // Normalized variants map (positions in the exported 4x4 grid)
+        const exportVariants = {};
+        for (let b = 0; b < 16; b++) {
+          if (a.variants?.[String(b)]) {
+            exportVariants[String(b)] = { col: b % 4, row: Math.floor(b / 4) };
+          }
+        }
+
+        filePath = 'assets/tilesets/' + slug(a.key) + '.png';
+        config.autotiles.push({
+          id: a.id,
+          key: a.key,
+          category: 'autotile',
+          dataURL: filePath,
+          placement: a.placement || 'wall',
+          collide: a.collide !== false,
+          tileWidth: tw,
+          tileHeight: th,
+          gridHeight: 4,
+          autotileType: '4bit',
+          variants: exportVariants,
+          scaleFactor: a.scaleFactor || 1,
+        });
+      } else if (a.category === 'terrain') {
+        // Terrain: export raw selection (no offset, no tile allocation)
+        canvas.width = a.sw;
+        canvas.height = a.sh;
+        tctx.drawImage(spriteImg, a.sx, a.sy, a.sw, a.sh, 0, 0, a.sw, a.sh);
+
+        filePath = 'assets/tilesets/' + a.key + '.png';
+        entry = {
+          id: a.id,
+          key: a.key,
+          category: 'terrain',
+          dataURL: filePath,
+          tileWidth: a.tileWidth || 16,
+          tileHeight: a.tileHeight || 16,
+          margin: a.margin || 0,
+          spacing: a.spacing || 0,
+          collide: a.collide,
+          placement: a.placement
+        };
+        config.terrain.push(entry);
+      } else {
+        // Objects/Structures: existing logic with offset baking
+        const allocW = Math.ceil(a.sw / 16) * 16;
+        const allocH = Math.ceil(a.sh / 16) * 16;
+        canvas.width = allocW;
+        canvas.height = allocH;
+        tctx.drawImage(spriteImg, a.sx, a.sy, a.sw, a.sh, a.offsetX, a.offsetY, a.sw, a.sh);
+
+        const folder = a.category === 'structure' ? 'structures' : 'objects';
+        filePath = 'assets/' + folder + '/' + a.key + '.png';
+        entry = {
+          id: a.id,
+          key: a.key,
+          category: a.category,
+          dataURL: filePath,
+          width: allocW,
+          height: allocH,
+          collide: a.collide,
+          placement: a.placement,
+          scaleFactor: a.scaleFactor,
+          zIndex: a.zIndex
+        };
+        if (a.category === 'structure') {
+          config.structures.push(entry);
+        } else {
+          config.objects.push(entry);
+        }
+      }
+
+      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+      zip.file(filePath, blob);
+    }
+
+    zip.file('config.json', JSON.stringify(config, null, 2));
+
+    const content = await zip.generateAsync({ type: 'blob' });
+    const filename = packName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '.mepack';
+    downloadBlob(content, filename);
+    toast('Exported .mepack: ' + filename + ' (' + assets.length + ' assets)');
+  } catch (err) {
+    toast('Export failed: ' + err.message, 'err');
+    console.error(err);
+  }
+}
+
+function exportSelectedPng() {
+  const a = getSelectedAsset();
+  if (!a || !spriteImg) return;
+
+  const canvas = document.createElement('canvas');
+  const tctx = canvas.getContext('2d');
+  tctx.imageSmoothingEnabled = false;
+
+  if (a.category === 'terrain') {
+    canvas.width = a.sw;
+    canvas.height = a.sh;
+    tctx.drawImage(spriteImg, a.sx, a.sy, a.sw, a.sh, 0, 0, a.sw, a.sh);
+  } else {
+    /* Tile allocation size (rounded up to 16px multiples) */
+    const allocW = Math.ceil(a.sw / 16) * 16;
+    const allocH = Math.ceil(a.sh / 16) * 16;
+    canvas.width = allocW;
+    canvas.height = allocH;
+    /* Bake offset into the PNG — draw at offset position within allocation */
+    tctx.drawImage(spriteImg, a.sx, a.sy, a.sw, a.sh, a.offsetX, a.offsetY, a.sw, a.sh);
+  }
+
+  canvas.toBlob(blob => {
+    downloadBlob(blob, a.key + '.png');
+    toast('Exported: ' + a.key + '.png');
+  }, 'image/png');
+}
+
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/* ---- Render loop ---- */
+function loop() {
+  renderMain();
+  requestAnimationFrame(loop);
+}
+
+/* ---- Window resize ---- */
+window.addEventListener('resize', () => { dirty = true; });
+
+/* ---- Init ---- */
+hideRightPanel();
+updateExportButtons();
+$('mapTestSection').style.display = 'none';
+requestAnimationFrame(loop);
+
+})();
+</script>
+</body>
+</html>

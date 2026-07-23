@@ -1,0 +1,71 @@
+# Docker build context filter for the OSS repo.
+#
+# The Dockerfiles in apps/server and apps/web build from `context: .`,
+# so anything not excluded here lands in the build context and bloats
+# the image layer cache key.
+
+# Version control history
+.git/
+.gitattributes
+
+# Node toolchain artefacts
+node_modules/
+**/node_modules/
+.npm/
+.npm-cache/
+.pnpm-store/
+
+# Build outputs (rebuilt inside the container)
+dist/
+**/dist/
+build/
+.next/
+.turbo/
+.cache/
+coverage/
+
+# Prisma local DB + generated client (regenerated in the builder stage)
+apps/server/prisma/dev.db*
+apps/server/src/generated/
+
+# Desktop / Tauri intermediates (not consumed by the web build path)
+apps/web/src-tauri/target/
+apps/web/src-tauri/local-client/
+apps/desktop-electron/dist/
+apps/desktop-electron/dist-app/
+
+# Editor / OS detritus
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs / temp
+*.log
+tmp/
+tmp_extract/
+
+# Local secrets (NEVER bake into an image)
+.env
+.env.local
+.env.*.local
+
+# User-uploaded content (bind-mounted at runtime, not part of the image)
+apps/public/packs/
+
+# Local agent / playwright caches
+.claude/
+.playwright-mcp/
+
+# Test screenshots
+test-results/
+playwright-report/
+
+# Closed-source sibling sync targets. The OSS build does not consume
+# them; the Tiamat-internal deploy pipeline supplies them via its own
+# Dockerfiles in meetropolis-deploy/dockerfiles/ — they never live in
+# the OSS context.
+packages/brand/
+packages/desktop/
+packages/tenancy-enterprise/
