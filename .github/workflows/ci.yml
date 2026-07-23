@@ -1,15 +1,12 @@
 name: CI
 
 on:
-  # Manual trigger only. GitHub Actions billing on the org is currently blocked,
-  # so auto-runs on every push/PR just produce failing "job was not started"
-  # noise. Run on demand from the Actions tab ("Run workflow"). Restore the
-  # push / pull_request triggers below once Actions billing is sorted.
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  # Kept so a run can also be started by hand from the Actions tab.
   workflow_dispatch:
-  # push:
-  #   branches: [main]
-  # pull_request:
-  #   branches: [main]
 
 # Cancel superseded runs on the same ref to save runner time.
 concurrency:
