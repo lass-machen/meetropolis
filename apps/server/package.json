@@ -58,7 +58,7 @@
     "@types/express": "^5.0.6",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/multer": "^2.1.0",
-    "@types/node": "^24.12.4",
+    "@types/node": "^26.1.1",
     "@types/nodemailer": "^8.0.0",
     "@types/pg": "^8.16.0",
     "@types/pngjs": "^6.0.5",
