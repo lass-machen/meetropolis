@@ -3,6 +3,6 @@
   "compilerOptions": {
     "noEmit": true
   },
-  "include": ["src", "prisma/seed.ts", "prisma.config.ts", "vitest.config.ts", "scripts/**/*.{ts,mjs}"],
+  "include": ["src", "test/**/*.ts", "prisma/seed.ts", "prisma.config.ts", "vitest.config.ts", "scripts/**/*.{ts,mjs}"],
   "exclude": ["dist", "node_modules", "src/generated"]
 }
