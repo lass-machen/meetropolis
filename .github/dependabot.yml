@@ -1,0 +1,48 @@
+# Dependabot configuration.
+#
+# Goal: keep security fixes flowing while stopping the "one PR per package"
+# noise that produced #13-#15. Routine minor/patch bumps are grouped into a
+# small number of weekly PRs; security updates are still opened individually by
+# GitHub regardless of the grouping below.
+#
+# Note: the `ignore` entries below only suppress Dependabot *update PRs*. They
+# do NOT hide the corresponding Security-tab alerts — those are dismissed
+# separately with a documented rationale.
+version: 2
+updates:
+  # npm workspaces (root package-lock.json covers apps/* and packages/shared).
+  - package-ecosystem: 'npm'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+    open-pull-requests-limit: 10
+    groups:
+      # One PR for routine dev-tooling minor/patch bumps (eslint, vite, tsx, ...).
+      dev-minor-patch:
+        dependency-type: 'development'
+        update-types:
+          - 'minor'
+          - 'patch'
+      # One PR for production minor/patch bumps.
+      prod-minor-patch:
+        dependency-type: 'production'
+        update-types:
+          - 'minor'
+          - 'patch'
+    ignore:
+      # elliptic: no patched release exists (GHSA-848j-6mx2-7j84). Transitive via
+      # colyseus -> @colyseus/auth -> grant -> jwk-to-pem; the vulnerable ECDSA
+      # sign path is never called here. Remove this entry once a fix ships.
+      - dependency-name: 'elliptic'
+      # brace-expansion 1.x: CVE-2026-14257 uses a line-spanning `<= 5.0.7` range
+      # with no 1.x backport. Only resolvable via the eslint 10 major (drops
+      # minimatch@3). Dev-only, not reachable. Remove once eslint 10 is adopted.
+      - dependency-name: 'brace-expansion'
+        versions:
+          - '1.x'
+
+  # GitHub Actions used by the CI workflow.
+  - package-ecosystem: 'github-actions'
+    directory: '/'
+    schedule:
+      interval: 'weekly'

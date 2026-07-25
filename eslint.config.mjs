@@ -16,6 +16,10 @@ export default tseslint.config(
       '**/dist/**',
       '**/node_modules/**',
       '**/.git/**',
+      // Local Claude Code artefacts (e.g. git worktrees) live under .claude/.
+      // They hold sibling-repo checkouts outside this project's tsconfig, so
+      // `eslint .` must not descend into them (it would fail to parse them).
+      '**/.claude/**',
       '**/coverage/**',
       '**/build/**',
       '**/target/**',
