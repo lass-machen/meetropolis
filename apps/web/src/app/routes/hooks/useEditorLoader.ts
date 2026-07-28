@@ -407,10 +407,13 @@ async function loadMapObjects(apiBase: string, mapId: string, setEditor: EditorS
   }
 }
 
-async function loadMapEditorData(apiBase: string, setEditor: EditorSetter) {
+// `mapId` is passed in explicitly (rather than read from the store here) so it
+// is guaranteed to match the id the calling effect gated on. Reading the store
+// again inside would reintroduce a race: the store could change between the
+// gate check and this read, loading a different map than the effect intended.
+async function loadMapEditorData(apiBase: string, mapId: string, setEditor: EditorSetter) {
+  if (!mapId) return;
   try {
-    const mapId = useMapStore.getState().currentMapId;
-    if (!mapId) return;
     const res = await fetch(`${apiBase}/maps/${encodeURIComponent(mapId)}/editor-state`, { credentials: 'include' });
     if (res.ok) {
       const data = (await res.json()) as EditorStatePayload;
@@ -424,9 +427,19 @@ async function loadMapEditorData(apiBase: string, setEditor: EditorSetter) {
 
 export function useEditorLoader({ me, apiBase, setEditor }: UseEditorLoaderParams) {
   const hasLoadedRef = useRef(false);
+  const loadedMapIdRef = useRef<string | null>(null);
   const setEditorRef = useRef(setEditor);
   setEditorRef.current = setEditor;
 
+  // Subscribe to the active map id. The map store resolves the current map
+  // asynchronously and typically settles AFTER `me` is known, so this hook
+  // must re-render (and re-run the map-dependent effect below) the moment the
+  // id becomes available. Empty string means "no map resolved yet".
+  const currentMapId = useMapStore((s) => s.currentMapId);
+
+  // Map-INDEPENDENT bootstrap. Asset packs (the object palette), default
+  // tilesets and editor layers do not need a map id, so they must not be
+  // delayed until one exists. Runs exactly once, as soon as the user is known.
   useEffect(() => {
     if (!me) return;
     if (hasLoadedRef.current) return;
@@ -444,6 +457,26 @@ export function useEditorLoader({ me, apiBase, setEditor }: UseEditorLoaderParam
     } catch (e) {
       logger.debug('[WorldApp] Operation failed', e);
     }
-    void loadMapEditorData(apiBase, (updater: unknown) => setEditorRef.current(updater));
   }, [me, apiBase]);
+
+  // Map-DEPENDENT load. The editor state (zones/spawn/background) and the
+  // placed objects require a resolved map id, so this effect is gated on both
+  // `me` and a non-empty `currentMapId`. This is the fix for the race where
+  // `me` arrived before the map id: gating the object load on `me` alone fired
+  // once (via hasLoadedRef) while currentMapId was still empty, left
+  // `state.assets` empty, and never retried — so placed objects rendered as
+  // bare collision boxes with no sprites.
+  //
+  // Map switch: when `currentMapId` later changes to a different non-empty id,
+  // the editor intentionally reloads that map's editor state and objects.
+  // `loadedMapIdRef` deduplicates so each map is fetched once per change and
+  // not again on unrelated re-renders or React StrictMode's double-invoke. The
+  // ref is set before the async call so a synchronous re-run cannot double-fetch.
+  useEffect(() => {
+    if (!me) return;
+    if (!currentMapId) return;
+    if (loadedMapIdRef.current === currentMapId) return;
+    loadedMapIdRef.current = currentMapId;
+    void loadMapEditorData(apiBase, currentMapId, (updater: unknown) => setEditorRef.current(updater));
+  }, [me, apiBase, currentMapId]);
 }
