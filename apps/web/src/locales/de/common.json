@@ -549,6 +549,7 @@
   "apiError.missing_tenantId_or_name": "Mandant-ID oder Name fehlt",
   "apiError.import_failed": "Import fehlgeschlagen",
   "apiError.cannot_delete_default_map": "Standard-Karte kann nicht gelöscht werden",
+  "apiError.RATE_LIMITED": "Zu viele Versuche. Bitte warte einen Moment und versuche es erneut.",
   "sessionConflict.takenOver.title": "An einem anderen Gerät angemeldet",
   "sessionConflict.takenOver.description": "Dieser Zugang wurde an einem anderen Gerät übernommen. Es kann jeweils nur ein Gerät gleichzeitig verbunden sein.",
   "sessionConflict.takenOver.reconnect": "Hier wieder verbinden",

@@ -549,6 +549,7 @@
   "apiError.missing_tenantId_or_name": "Tenant ID or name is missing",
   "apiError.import_failed": "Import failed",
   "apiError.cannot_delete_default_map": "Default map cannot be deleted",
+  "apiError.RATE_LIMITED": "Too many attempts. Please wait a moment and try again.",
   "sessionConflict.takenOver.title": "Signed in on another device",
   "sessionConflict.takenOver.description": "This account was taken over on another device. Only one device can be connected at a time.",
   "sessionConflict.takenOver.reconnect": "Reconnect here",
