@@ -11,6 +11,7 @@
 import Phaser from 'phaser';
 import { EditorService } from '../../services/EditorService';
 import { EditorRenderer } from './EditorRenderer';
+import { tileToRenderPosition } from './editorAnchors';
 import { logger } from '../../lib/logger';
 
 export class EditorInputHandler {
@@ -65,13 +66,6 @@ export class EditorInputHandler {
     };
   }
 
-  private tileToWorld(tileX: number, tileY: number): { x: number; y: number } {
-    return {
-      x: tileX * this.tileSize + this.tileSize / 2,
-      y: tileY * this.tileSize + this.tileSize / 2,
-    };
-  }
-
   private handlePointerDown(pointer: Phaser.Input.Pointer): void {
     const state = EditorService.getState();
 
@@ -105,12 +99,15 @@ export class EditorInputHandler {
     const worldPoint = pointer.positionToCamera(this.scene.cameras.main) as Phaser.Math.Vector2;
     const { tileX, tileY } = this.worldToTile(worldPoint.x, worldPoint.y);
 
-    // Update ghost position when asset or terrain tool is active
+    // Update ghost position when asset or terrain tool is active.
+    // The ghost is anchored at the tile origin (Phaser origin 0,0) to match the
+    // placed object exactly — see editorAnchors / renderGhost. Using the tile
+    // centre here would offset (asset) or half-tile flip (terrain) the preview.
     if (state.tool === 'asset' && state.pendingAsset) {
-      const worldPos = this.tileToWorld(tileX, tileY);
+      const worldPos = tileToRenderPosition(tileX, tileY, this.tileSize);
       this.renderer.updateGhostPosition(worldPos.x, worldPos.y);
     } else if (state.tool === 'terrain' && !state.dragState) {
-      const worldPos = this.tileToWorld(tileX, tileY);
+      const worldPos = tileToRenderPosition(tileX, tileY, this.tileSize);
       this.renderer.updateGhostPosition(worldPos.x, worldPos.y);
     }
 

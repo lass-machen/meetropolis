@@ -11,6 +11,7 @@
 import Phaser from 'phaser';
 import { Zone, Asset } from '../../services/EditorService';
 import { lookupDirectionalImage } from '../../lib/directionalImageRegistry';
+import { PLACEMENT_ORIGIN } from './editorAnchors';
 
 export class EditorRenderer {
   private scene: Phaser.Scene;
@@ -320,6 +321,9 @@ export class EditorRenderer {
 
     // If key matches current ghost, just update properties without reloading texture
     if (this.ghostTextureKey === newKey && this.ghostSprite) {
+      // Anchor identically to placed objects (renderAssets setOrigin(0,0)) so the
+      // preview is pixel-accurate for every size, scale and rotation.
+      this.ghostSprite.setOrigin(PLACEMENT_ORIGIN.x, PLACEMENT_ORIGIN.y);
       this.ghostSprite.setVisible(true);
       if (useDirectionalImage) {
         this.ghostSprite.setRotation(0);
@@ -340,6 +344,10 @@ export class EditorRenderer {
         this.ghostSprite.setTexture(newKey);
       }
 
+      // Anchor identically to placed objects (renderAssets setOrigin(0,0)) so the
+      // preview lands exactly where the object is dropped — top-left on the tile
+      // origin — instead of the Phaser default centre origin (0.5).
+      this.ghostSprite.setOrigin(PLACEMENT_ORIGIN.x, PLACEMENT_ORIGIN.y);
       this.ghostSprite.setVisible(true);
 
       // Directional image = no rotation, else programmatic rotation
