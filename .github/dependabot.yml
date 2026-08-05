@@ -40,6 +40,12 @@ updates:
       - dependency-name: 'brace-expansion'
         versions:
           - '1.x'
+      # typescript: TS 7 removes `baseUrl` and needs a tsconfig/paths migration
+      # for no functional benefit right now. Defer the major until 6.x nears end
+      # of support; minor/patch on 6.x keep flowing. Remove to adopt TS 7.
+      - dependency-name: 'typescript'
+        update-types:
+          - 'version-update:semver-major'
 
   # GitHub Actions used by the CI workflow.
   - package-ecosystem: 'github-actions'
