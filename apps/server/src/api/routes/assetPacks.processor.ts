@@ -114,8 +114,7 @@ export async function authenticateAssetPackAdmin(
 }
 
 type ZipScanResult =
-  | { ok: true; configEntry: ZipEntry; assetEntries: ZipEntry[] }
-  | { ok: false; status: number; error: string };
+  { ok: true; configEntry: ZipEntry; assetEntries: ZipEntry[] } | { ok: false; status: number; error: string };
 
 export function scanZipEntries(files: ZipEntry[]): ZipScanResult {
   const allowedRoot = new Set(['config.json']);

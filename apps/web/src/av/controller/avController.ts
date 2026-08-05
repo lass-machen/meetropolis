@@ -10,14 +10,7 @@ export type AVControllerOptions = {
 export class AVController {
   private _room: Room | undefined;
   private _state:
-    | 'idle'
-    | 'connecting'
-    | 'connected'
-    | 'publishing'
-    | 'subscribed'
-    | 'reconnecting'
-    | 'closed'
-    | 'error' = 'idle';
+    'idle' | 'connecting' | 'connected' | 'publishing' | 'subscribed' | 'reconnecting' | 'closed' | 'error' = 'idle';
   private _pageLeaving = false;
   private _disconnecting = false;
   private _reconnectAttempts = 0;

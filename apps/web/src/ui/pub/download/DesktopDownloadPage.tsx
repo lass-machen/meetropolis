@@ -43,10 +43,7 @@ interface DesktopDownloadPageProps {
 }
 
 type FetchState =
-  | { status: 'loading' }
-  | { status: 'ready'; data: LatestResponse }
-  | { status: 'unavailable' }
-  | { status: 'error' };
+  { status: 'loading' } | { status: 'ready'; data: LatestResponse } | { status: 'unavailable' } | { status: 'error' };
 
 // Cards are always shown in this order so the layout is stable; the detected
 // platform is additionally highlighted and floated to the front.

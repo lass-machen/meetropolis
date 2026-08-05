@@ -140,8 +140,7 @@ async function removeCollisionForObject(
 // ---------------------------------------------------------------------------
 
 type AuthGate =
-  | { ok: true; tenant: NonNullable<ReturnType<typeof getTenantFromReq>> }
-  | { ok: false; status: number; error: string };
+  { ok: true; tenant: NonNullable<ReturnType<typeof getTenantFromReq>> } | { ok: false; status: number; error: string };
 
 /**
  * Auth + tenant + membership gate for EVERY /maps/:id/objects endpoint, read

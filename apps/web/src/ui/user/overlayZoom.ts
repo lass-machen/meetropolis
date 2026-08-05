@@ -25,9 +25,7 @@ export type WheelInput = {
 };
 
 export type WheelAction =
-  | { kind: 'zoom'; zoom: number }
-  | { kind: 'pan'; deltaX: number; deltaY: number }
-  | { kind: 'none' };
+  { kind: 'zoom'; zoom: number } | { kind: 'pan'; deltaX: number; deltaY: number } | { kind: 'none' };
 
 export function clampZoom(zoom: number): number {
   return Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom));

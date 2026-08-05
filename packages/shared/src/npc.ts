@@ -36,14 +36,7 @@ export interface NpcSpawnCommand {
 }
 
 export type NpcCommandAction =
-  | 'move'
-  | 'stop_movement'
-  | 'play_audio'
-  | 'play_video'
-  | 'play_screenshare'
-  | 'stop_media'
-  | 'set_dnd'
-  | 'set_avatar';
+  'move' | 'stop_movement' | 'play_audio' | 'play_video' | 'play_screenshare' | 'stop_media' | 'set_dnd' | 'set_avatar';
 
 export interface NpcMovePayload {
   x: number;

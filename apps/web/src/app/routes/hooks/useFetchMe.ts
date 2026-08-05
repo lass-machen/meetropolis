@@ -68,9 +68,7 @@ const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 /** Outcome of a single /auth/me probe. */
 export type FetchMeOutcome =
-  | { status: 'ok'; user: MeResponse }
-  | { status: 'unauthorized' }
-  | { status: 'network-error' };
+  { status: 'ok'; user: MeResponse } | { status: 'unauthorized' } | { status: 'network-error' };
 
 /** Options controlling the boot-time retry policy for transient failures. */
 export interface FetchMeRetryOptions {
