@@ -13,7 +13,7 @@
   "dependencies": {
     "@meetropolis/shared": "*",
     "@colyseus/sdk": "^0.17.43",
-    "@livekit/rtc-node": "^0.13.32",
+    "@livekit/rtc-node": "^0.13.33",
     "livekit-server-sdk": "^2.17.0",
     "express": "^5.2.1",
     "pino": "^10.3.1",

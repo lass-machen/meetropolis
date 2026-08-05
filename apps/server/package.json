@@ -30,7 +30,7 @@
     "cors": "^2.8.6",
     "deepmerge-ts": "^7.1.5",
     "dotenv": "^17.4.2",
-    "effect": "^3.22.0",
+    "effect": "^3.22.1",
     "empathic": "^2.0.0",
     "express": "^5.2.1",
     "express-rate-limit": "^8.6.1",
