@@ -233,7 +233,23 @@ export default tseslint.config(
       'jsx-a11y': jsxA11y,
     },
     rules: {
-      ...reactHooks.configs.recommended.rules,
+      ...reactHooks.configs['recommended-latest'].rules,
+      // eslint-plugin-react-hooks 7 bundles the React Compiler's static-analysis
+      // rules into its recommended preset. Five of them only pay off once the
+      // compiler actually runs, and this stack has no working compiler pass
+      // (the rolldown/oxc web build under @vitejs/plugin-react 6 / vite 8 does
+      // not apply babel-plugin-react-compiler). On the current codebase they
+      // flag intentional, reviewed patterns rather than bugs, so we switch them
+      // off instead of scattering per-line disables. Every other v7 rule stays
+      // on — including the ones that catch real bugs regardless of the compiler
+      // (rules-of-hooks, set-state-in-render, error-boundaries, globals,
+      // static-components). Re-enable these and do the cleanup if/when the
+      // compiler is wired into the build.
+      'react-hooks/refs': 'off',
+      'react-hooks/set-state-in-effect': 'off',
+      'react-hooks/immutability': 'off',
+      'react-hooks/use-memo': 'off',
+      'react-hooks/purity': 'off',
       ...jsxA11y.configs.recommended.rules,
     },
   },
