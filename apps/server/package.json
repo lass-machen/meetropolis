@@ -22,6 +22,7 @@
     "@colyseus/schema": "^4.0.30",
     "@prisma/adapter-pg": "^7.9.1",
     "@prisma/client": "^7.9.1",
+    "altcha-lib": "^2.3.2",
     "bcryptjs": "^3.0.3",
     "c12": "^3.3.4",
     "colyseus": "^0.17.10",

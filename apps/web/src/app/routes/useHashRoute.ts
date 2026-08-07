@@ -7,6 +7,7 @@ export type Route =
   | 'privacy'
   | 'terms'
   | 'impressum'
+  | 'contact'
   | 'download'
   | 'verify'
   | 'billing-success'
@@ -64,6 +65,9 @@ export function parseHashRoute(hash: string): { route: Route; params: RouteParam
   if (path === '/privacy') return { route: 'privacy', params };
   if (path === '/terms') return { route: 'terms', params };
   if (path === '/impressum' || path === '/imprint') return { route: 'impressum', params };
+  // `/kontakt` because the German site links it that way; both resolve to the
+  // same page rather than redirecting, so neither URL is the broken one.
+  if (path === '/contact' || path === '/kontakt') return { route: 'contact', params };
   if (path === '/download' || path === '/desktop') return { route: 'download', params };
   if (path.startsWith('/verify')) {
     const sp = new URLSearchParams(searchPart.slice(1));
