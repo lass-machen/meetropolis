@@ -63,6 +63,8 @@ interface UseContactFormResult {
   submit: () => void;
   /** Start the proof-of-work early, on first interaction with the form. */
   warmUp: () => void;
+  /** Return to an empty form after a successful send. */
+  reset: () => void;
 }
 
 async function fetchChallenge(apiBase: string, signal: AbortSignal): Promise<Challenge | null> {
@@ -255,5 +257,11 @@ export function useContactForm(apiBase: string): UseContactFormResult {
     })();
   }, [apiBase, startSolving, discard, values]);
 
-  return { values, setValue, status, challengeStatus, errorKey, submit, warmUp };
+  const reset = React.useCallback(() => {
+    setValues(EMPTY_CONTACT_FORM);
+    setErrorKey(null);
+    setStatus('ready');
+  }, []);
+
+  return { values, setValue, status, challengeStatus, errorKey, submit, warmUp, reset };
 }
