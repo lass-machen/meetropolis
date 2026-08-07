@@ -39,7 +39,7 @@ const FOOTER_COLUMNS: FooterColumn[] = [
       { i18nKey: 'footer.companyAbout', action: { type: 'disabled' } },
       { i18nKey: 'footer.companyBlog', action: { type: 'disabled' } },
       { i18nKey: 'footer.companyCareers', action: { type: 'disabled' } },
-      { i18nKey: 'footer.companyContact', action: { type: 'disabled' } },
+      { i18nKey: 'footer.companyContact', action: { type: 'navigate', route: 'contact' } },
     ],
   },
   {

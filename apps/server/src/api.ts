@@ -21,6 +21,7 @@ import { registerAdminPasswordResetRoutes } from './api/routes/admin.passwordRes
 import { copyMapToTenant } from './api/routes/adminMaps.js';
 import { registerGuestRoutes } from './api/routes/guests.js';
 import { registerTenantRoutes } from './api/routes/tenant.js';
+import { registerContactRoutes } from './api/routes/contact.js';
 import { guestExpiryMiddleware } from './api/middleware/guestExpiry.js';
 import { tenantSignupRateLimiter } from './api/middleware/rateLimit.js';
 
@@ -432,6 +433,9 @@ export async function registerApi(app: express.Express) {
   // OSS fallback admin routes (only health/stats/debug + minimal /public/config).
   registerAdminRoutes(app, prisma);
   registerTenantRoutes(app, prisma);
+  // Opt-in per deployment: registers nothing unless CONTACT_FORM_TO and
+  // ALTCHA_HMAC_KEY are both set (see routes/contact.ts).
+  registerContactRoutes(app);
   registerAdminMapRoutes(app, prisma);
   registerAdminPasswordResetRoutes(app, prisma);
 

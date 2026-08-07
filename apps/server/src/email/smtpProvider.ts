@@ -208,7 +208,10 @@ export class SmtpEmailProvider implements EmailProvider {
           subject: params.subject,
           text: params.text,
           html: params.html,
-          replyTo: this.replyTo,
+          // A per-message reply address wins over the SMTP_REPLY_TO default:
+          // mail sent on behalf of someone else (contact form) must be
+          // answerable to that person, not to our support inbox.
+          replyTo: params.replyTo ?? this.replyTo,
         });
         const messageId =
           info &&

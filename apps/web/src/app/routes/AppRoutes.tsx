@@ -12,6 +12,7 @@ import { AuthPage } from '../../ui/pub/auth/AuthPage';
 import { useTranslation } from 'react-i18next';
 import { getBrandModule, useHasBrandModule } from '../../lib/brandLoader';
 import { SimpleLegalNotice } from '../../ui/pub/legal/SimpleLegalNotice';
+import { ContactPage } from '../../ui/pub/contact/ContactPage';
 import { DesktopUpdateOverlay } from './components/DesktopUpdateOverlay';
 import { sanitizeTierKey, useHashRoute, type Route, type RouteParams } from './useHashRoute';
 
@@ -115,6 +116,8 @@ function RouteContent({ route, params, apiBase, registrationEnabled, navigate }:
           <ImpressumPageLazy onBack={() => navigate('landing')} registrationEnabled={registrationEnabled} />
         </React.Suspense>
       );
+    case 'contact':
+      return <ContactPage apiBase={apiBase} registrationEnabled={registrationEnabled} />;
     case 'download':
       return (
         <DesktopDownloadPage

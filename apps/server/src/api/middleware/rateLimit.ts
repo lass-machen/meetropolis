@@ -227,6 +227,44 @@ export const tenantSignupRateLimiter = createRateLimiter({
 });
 
 /**
+ * Public contact form (`GET /public/contact/challenge`, `POST /public/contact`).
+ *
+ * Covers both routes on purpose: the proof-of-work only prices *solving* a
+ * challenge, not asking for one, so an unthrottled challenge endpoint would
+ * hand out signed work items for free. 20 per hour leaves room for a visitor
+ * who reloads the page a few times, or several colleagues behind one office
+ * IP, while capping how fast an attacker can stock up on challenges.
+ */
+export const contactFormRateLimiter = createRateLimiter({
+  name: 'contact_form',
+  windowMs: 60 * MINUTE_MS,
+  limit: 20,
+});
+
+/**
+ * Per-SENDER-ADDRESS budget for `POST /public/contact`, on top of the per-IP
+ * limiter above.
+ *
+ * The per-IP limit alone leaves the distributed case open: a spammer sending
+ * from many IPs can bury the operator's inbox under one identity, and the
+ * recipient has no way to distinguish it from real mail. Keying by the address
+ * in the body caps that regardless of origin.
+ *
+ * 3 per hour: enough for someone who sends a message, spots a typo and writes
+ * again. Requests without a usable address fall back to the IP budget so a
+ * malformed flood is still accounted for somewhere.
+ */
+export const contactFormEmailRateLimiter = createRateLimiter({
+  name: 'contact_form_email',
+  windowMs: 60 * MINUTE_MS,
+  limit: 3,
+  keyGenerator: (req) => {
+    const email = readEmailFromBody(req);
+    return email ? `contact:${email}` : ipKeyGenerator(req.ip ?? '');
+  },
+});
+
+/**
  * Character-editor compositing (`POST /me/avatar/compose`). Authenticated, but
  * each call runs 8-state sprite compositing + PNG encode + disk writes, so it
  * is throttled per IP to prevent an authenticated user filling the disk /

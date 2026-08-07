@@ -66,6 +66,22 @@ export interface SendRawParams {
   subject: string;
   text: string;
   html: string;
+  /**
+   * Per-message `Reply-To`, overriding whatever default the active provider
+   * carries (`SMTP_REPLY_TO` for the OSS SMTP path).
+   *
+   * Exists for mail that is *about* a third party rather than from us: the
+   * contact form mails the operator, but a reply belongs to the person who
+   * filled in the form. Their address must never become the `From` — that
+   * envelope belongs to a domain we hold SPF/DKIM for, and forging it there
+   * gets the message dropped or spam-filed.
+   *
+   * Optional by design, so an enterprise tenancy build that predates this
+   * field stays compatible: it ignores the property and the mail still
+   * arrives, only without the reply address. That backwards compatibility is
+   * why the module `version` stays at 1.
+   */
+  replyTo?: string;
 }
 
 export interface EmailModule {
