@@ -3,7 +3,11 @@ import { z } from 'zod';
 import { logger } from '../../logger.js';
 import { sendIfAvailable } from '../../emailLoader.js';
 import { readEnvDefaultLocale } from '../../email/localeResolver.js';
-import { contactFormRateLimiter, contactFormEmailRateLimiter } from '../middleware/rateLimit.js';
+import {
+  contactChallengeRateLimiter,
+  contactFormRateLimiter,
+  contactFormEmailRateLimiter,
+} from '../middleware/rateLimit.js';
 import { isChallengeConfigured, issueChallenge, verifyChallenge } from '../utils/altchaChallenge.js';
 import { renderContactMail, type ContactSubmission } from '../utils/contactMail.js';
 
@@ -191,7 +195,7 @@ export function registerContactRoutes(app: express.Application): void {
     return;
   }
 
-  app.get('/public/contact/challenge', contactFormRateLimiter, (req, res, next) => {
+  app.get('/public/contact/challenge', contactChallengeRateLimiter, (req, res, next) => {
     handleChallenge(req, res).catch(next);
   });
   app.post('/public/contact', contactFormRateLimiter, contactFormEmailRateLimiter, (req, res, next) => {

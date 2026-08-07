@@ -81,6 +81,11 @@ async function fetchChallenge(apiBase: string, signal: AbortSignal): Promise<Cha
 async function obtainSolvedPayload(apiBase: string, controller: AbortController): Promise<Payload | null> {
   const challenge = await fetchChallenge(apiBase, controller.signal);
   if (!challenge) return null;
+  return solveExistingChallenge(challenge, controller);
+}
+
+/** Solve a challenge we already hold, without spending another request on it. */
+async function solveExistingChallenge(challenge: Challenge, controller: AbortController): Promise<Payload | null> {
   const solution = await solveChallenge({ challenge, deriveKey, controller });
   if (!solution) return null;
   return { challenge, solution };
@@ -117,15 +122,24 @@ function useContactChallenge(apiBase: string): ChallengeControl {
   const payloadRef = React.useRef<Payload | null>(null);
   const solvingRef = React.useRef<Promise<Payload | null> | null>(null);
   const abortRef = React.useRef<AbortController | null>(null);
+  /**
+   * The challenge the availability probe already fetched, kept for the solver
+   * instead of discarded. Asking again would double every visitor's cost
+   * against the challenge budget for no benefit — the probe's answer is a
+   * perfectly good, unspent challenge.
+   */
+  const probedRef = React.useRef<Challenge | null>(null);
 
   React.useEffect(() => {
     const controller = new AbortController();
     abortRef.current = controller;
-    // A probe request decides whether the form is offered at all: the routes
-    // do not exist unless the deployment configured a recipient.
+    // The probe decides whether the form is offered at all: the routes do not
+    // exist unless the deployment configured a recipient.
     void fetchChallenge(apiBase, controller.signal)
       .then((challenge) => {
-        if (!controller.signal.aborted) setAvailable(challenge !== null);
+        if (controller.signal.aborted) return;
+        probedRef.current = challenge;
+        setAvailable(challenge !== null);
       })
       .catch(() => {
         if (!controller.signal.aborted) setAvailable(false);
@@ -139,7 +153,11 @@ function useContactChallenge(apiBase: string): ChallengeControl {
 
     setChallengeStatus('solving');
     const controller = abortRef.current ?? new AbortController();
-    const run = obtainSolvedPayload(apiBase, controller)
+    // Spend the probe's challenge first; every later solve fetches its own,
+    // since a challenge is single-use on the server.
+    const probed = probedRef.current;
+    probedRef.current = null;
+    const run = (probed ? solveExistingChallenge(probed, controller) : obtainSolvedPayload(apiBase, controller))
       .then((payload) => {
         payloadRef.current = payload;
         setChallengeStatus(payload ? 'solved' : 'failed');

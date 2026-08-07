@@ -227,13 +227,30 @@ export const tenantSignupRateLimiter = createRateLimiter({
 });
 
 /**
- * Public contact form (`GET /public/contact/challenge`, `POST /public/contact`).
+ * Challenge issuing (`GET /public/contact/challenge`).
  *
- * Covers both routes on purpose: the proof-of-work only prices *solving* a
- * challenge, not asking for one, so an unthrottled challenge endpoint would
- * hand out signed work items for free. 20 per hour leaves room for a visitor
- * who reloads the page a few times, or several colleagues behind one office
- * IP, while capping how fast an attacker can stock up on challenges.
+ * Budgeted separately from, and far more loosely than, the submission below,
+ * because the two cost wildly different things. Issuing a challenge is one
+ * key derivation plus an HMAC — the expensive half is what the *client* then
+ * spends solving it — while a submission sends mail. Sharing one budget
+ * across both was a mistake: the contact page requests a challenge on every
+ * visit, so a shared 20/h locked out an entire office behind a single NAT
+ * address, and the person it kept out was never the attacker.
+ *
+ * 120/h still bounds how fast anyone can stock up on signed work items, which
+ * is all this limiter is for; replay protection and the per-address budget do
+ * the rest.
+ */
+export const contactChallengeRateLimiter = createRateLimiter({
+  name: 'contact_challenge',
+  windowMs: 60 * MINUTE_MS,
+  limit: 120,
+});
+
+/**
+ * Submission (`POST /public/contact`) per IP. Stricter than the challenge
+ * budget above, since this is the call that actually delivers mail, and
+ * mounted alongside the per-address budget below.
  */
 export const contactFormRateLimiter = createRateLimiter({
   name: 'contact_form',

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { solveChallenge } from 'altcha-lib';
 import type { Challenge } from 'altcha-lib/types';
 import { ContactForm } from './ContactForm';
 
@@ -120,16 +121,33 @@ describe('ContactForm', () => {
   });
 
   it('starts the proof-of-work on first interaction, not on send', async () => {
-    const fetchMock = mockFetch();
+    mockFetch();
     renderForm();
     await waitFor(() => expect(screen.getByLabelText('contact.fieldName')).toBeInTheDocument());
-    const afterMount = fetchMock.mock.calls.length;
 
     fireEvent.focus(screen.getByLabelText('contact.fieldName'));
 
-    // A second challenge request means the solve began while the visitor is
-    // still filling in the form, which is the whole point of the warm-up.
-    await waitFor(() => expect(fetchMock.mock.calls.length).toBeGreaterThan(afterMount));
+    // Solving begins while the visitor is still filling in the form, which is
+    // the whole point of the warm-up: the cost is paid before they press send.
+    await waitFor(() => expect(vi.mocked(solveChallenge)).toHaveBeenCalled());
+  });
+
+  /**
+   * A shared office IP shares one challenge budget, so every avoidable request
+   * is one a colleague cannot make. The availability probe already holds a
+   * perfectly good challenge — spending a second one on the solve locked real
+   * visitors out in production.
+   */
+  it('reuses the probe challenge instead of fetching a second one', async () => {
+    const fetchMock = mockFetch();
+    renderForm();
+    await waitFor(() => expect(screen.getByLabelText('contact.fieldName')).toBeInTheDocument());
+
+    fireEvent.focus(screen.getByLabelText('contact.fieldName'));
+    await waitFor(() => expect(vi.mocked(solveChallenge)).toHaveBeenCalled());
+
+    const challengeCalls = fetchMock.mock.calls.filter(([u]) => urlOf(u).endsWith('/challenge'));
+    expect(challengeCalls).toHaveLength(1);
   });
 
   it('reports a rejected submission instead of claiming success', async () => {
