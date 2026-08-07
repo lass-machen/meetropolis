@@ -134,3 +134,5 @@ apps/web/public/vendor/fontawesome/
 __pycache__/
 *.pyc
 tools/sprite-generator/.venv/
+# vord workspace data (agent reports, notes, snippets)
+.vord/
