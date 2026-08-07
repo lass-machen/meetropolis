@@ -44,18 +44,12 @@ export function ContactPage({ apiBase, registrationEnabled }: ContactPageProps) 
           padding: 'var(--pub-section-padding)',
         }}
       >
-        <h1 style={{ fontFamily: 'var(--pub-font-heading)', fontSize: 40, lineHeight: 1.2, margin: '0 0 12px 0' }}>
+        {/* Typography via the shared classes rather than ad-hoc inline sizes,
+            which is also what carries the text colour — see LegalLayout. */}
+        <h1 className="pub-text-h3" style={{ color: 'var(--pub-text-primary)', margin: '0 0 12px 0' }}>
           {t('contact.title')}
         </h1>
-        <p
-          style={{
-            fontFamily: 'var(--pub-font-body)',
-            fontSize: 17,
-            lineHeight: 1.7,
-            color: 'var(--pub-text-secondary)',
-            margin: '0 0 32px 0',
-          }}
-        >
+        <p className="pub-text-subline" style={{ margin: '0 0 32px 0' }}>
           {t('contact.subtitle')}
         </p>
 
