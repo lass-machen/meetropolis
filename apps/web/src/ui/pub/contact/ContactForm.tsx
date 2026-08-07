@@ -27,15 +27,81 @@ const HONEYPOT_STYLE: React.CSSProperties = {
   opacity: 0,
 };
 
-function StatusNote({ children, tone }: { children: React.ReactNode; tone: 'error' | 'success' | 'muted' }) {
-  const color =
-    tone === 'error'
-      ? 'var(--pub-danger, #b3261e)'
-      : tone === 'success'
-        ? 'var(--pub-success, #146c2e)'
-        : 'var(--pub-text-secondary)';
+/**
+ * Confirmation that replaces the form after a successful send.
+ *
+ * A line of green text under the button was too easy to miss next to the
+ * spam notice of the same size, and leaving the emptied form standing invited
+ * a second, duplicate submission. Swapping the form out states plainly that
+ * the message is gone — the same thing the password-reset flow does with its
+ * check-your-inbox panel.
+ */
+function SentPanel({ onWriteAnother }: { onWriteAnother: () => void }) {
+  const { t } = useTranslation('public');
   return (
-    <p role={tone === 'error' ? 'alert' : 'status'} style={{ fontSize: 14, lineHeight: 1.6, color, margin: 0 }}>
+    <div
+      role="status"
+      style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, padding: '24px 0' }}
+    >
+      <span
+        aria-hidden="true"
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: 56,
+          height: 56,
+          borderRadius: '50%',
+          background: 'color-mix(in srgb, var(--pub-accent-teal) 15%, transparent)',
+        }}
+      >
+        <svg
+          width="28"
+          height="28"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="var(--pub-accent-teal)"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M20 6 9 17l-5-5" />
+        </svg>
+      </span>
+      <h2 className="pub-text-h4" style={{ margin: 0, textAlign: 'center', color: 'var(--pub-text-primary)' }}>
+        {t('contact.sentTitle')}
+      </h2>
+      <p
+        className="pub-text-body"
+        style={{ margin: 0, textAlign: 'center', maxWidth: 420, color: 'var(--pub-text-secondary)' }}
+      >
+        {t('contact.sentBody')}
+      </p>
+      <PubButton type="button" variant="secondary" onClick={onWriteAnother}>
+        {t('contact.sendAnother')}
+      </PubButton>
+    </div>
+  );
+}
+
+/**
+ * Short inline note for the states that do not warrant replacing the form:
+ * loading, unavailable, and a failed attempt the visitor can retry. Success
+ * is not among them — see SentPanel. The palette has no semantic danger
+ * token, hence the literal fallback.
+ */
+function StatusNote({ children, tone }: { children: React.ReactNode; tone: 'error' | 'muted' }) {
+  const isError = tone === 'error';
+  return (
+    <p
+      role={isError ? 'alert' : 'status'}
+      style={{
+        fontSize: 14,
+        lineHeight: 1.6,
+        color: isError ? 'var(--pub-danger, #b3261e)' : 'var(--pub-text-secondary)',
+        margin: 0,
+      }}
+    >
       {children}
     </p>
   );
@@ -153,10 +219,14 @@ function PrivacyField({
 
 export function ContactForm({ apiBase, fallbackEmail, onNavigate }: ContactFormProps) {
   const { t } = useTranslation('public');
-  const { values, setValue, status, challengeStatus, errorKey, submit, warmUp } = useContactForm(apiBase);
+  const { values, setValue, status, challengeStatus, errorKey, submit, warmUp, reset } = useContactForm(apiBase);
 
   if (status === 'checking') {
     return <StatusNote tone="muted">{t('contact.loading')}</StatusNote>;
+  }
+
+  if (status === 'sent') {
+    return <SentPanel onWriteAnother={reset} />;
   }
 
   if (status === 'unavailable') {
@@ -235,7 +305,6 @@ export function ContactForm({ apiBase, fallbackEmail, onNavigate }: ContactFormP
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'flex-start' }}>
         <SendButton status={status} challengeStatus={challengeStatus} />
-        {status === 'sent' && <StatusNote tone="success">{t('contact.sent')}</StatusNote>}
         {status === 'error' && errorKey && <StatusNote tone="error">{t(errorKey)}</StatusNote>}
         <StatusNote tone="muted">{t('contact.spamNote')}</StatusNote>
       </div>

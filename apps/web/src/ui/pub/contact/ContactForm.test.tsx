@@ -100,7 +100,7 @@ describe('ContactForm', () => {
     fillValidly();
     fireEvent.submit(screen.getByRole('button', { name: /contact\.(send|preparing)/ }).closest('form')!);
 
-    await waitFor(() => expect(screen.getByText('contact.sent')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('contact.sentTitle')).toBeInTheDocument());
     const body = bodyOf(fetchMock.mock.calls.find(([url]) => urlOf(url).endsWith('/public/contact')));
     expect(body.name).toBe('Erika Mustermann');
     expect(body.privacyAccepted).toBe(true);
@@ -115,7 +115,7 @@ describe('ContactForm', () => {
     fillValidly();
     fireEvent.submit(screen.getByRole('button', { name: /contact\./ }).closest('form')!);
 
-    await waitFor(() => expect(screen.getByText('contact.sent')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('contact.sentTitle')).toBeInTheDocument());
     const body = bodyOf(fetchMock.mock.calls.find(([url]) => urlOf(url).endsWith('/public/contact')));
     expect(body.website).toBe('');
   });
@@ -150,6 +150,40 @@ describe('ContactForm', () => {
     expect(challengeCalls).toHaveLength(1);
   });
 
+  /**
+   * A green line under the button read as one more hint among several, and the
+   * emptied form standing there invited a duplicate send. The confirmation
+   * replaces the form instead.
+   */
+  it('replaces the form with a confirmation once the message is sent', async () => {
+    mockFetch();
+    renderForm();
+    await waitFor(() => expect(screen.getByLabelText('contact.fieldName')).toBeInTheDocument());
+
+    fillValidly();
+    fireEvent.submit(screen.getByRole('button', { name: /contact\./ }).closest('form')!);
+
+    await waitFor(() => expect(screen.getByText('contact.sentTitle')).toBeInTheDocument());
+    expect(screen.queryByLabelText('contact.fieldName')).toBeNull();
+    expect(screen.getByText('contact.sentBody')).toBeInTheDocument();
+  });
+
+  it('offers an empty form again after the confirmation', async () => {
+    mockFetch();
+    renderForm();
+    await waitFor(() => expect(screen.getByLabelText('contact.fieldName')).toBeInTheDocument());
+
+    fillValidly();
+    fireEvent.submit(screen.getByRole('button', { name: /contact\./ }).closest('form')!);
+    await waitFor(() => expect(screen.getByText('contact.sentTitle')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByText('contact.sendAnother'));
+
+    const name = await screen.findByLabelText('contact.fieldName');
+    expect((name as HTMLInputElement).value).toBe('');
+    expect(screen.queryByText('contact.sentTitle')).toBeNull();
+  });
+
   it('reports a rejected submission instead of claiming success', async () => {
     mockFetch({ submit: () => new Response('{}', { status: 400 }) });
     renderForm();
@@ -159,7 +193,7 @@ describe('ContactForm', () => {
     fireEvent.submit(screen.getByRole('button', { name: /contact\./ }).closest('form')!);
 
     await waitFor(() => expect(screen.getByText('contact.errorRejected')).toBeInTheDocument());
-    expect(screen.queryByText('contact.sent')).toBeNull();
+    expect(screen.queryByText('contact.sentTitle')).toBeNull();
   });
 
   it('distinguishes a rate-limited attempt from a rejected one', async () => {
