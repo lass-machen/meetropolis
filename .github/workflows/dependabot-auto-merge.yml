@@ -1,0 +1,33 @@
+# Auto-merge low-risk Dependabot pull requests once their required checks pass.
+#
+# Policy: only patch and minor updates to development or transitive (indirect)
+# dependencies are auto-merged. Major updates and any direct production
+# dependency stay open for a human to review, because those are the ones that
+# can change runtime behaviour or the shipped bundle. Auto-merge waits for the
+# repository's required status checks — nothing lands red.
+name: Dependabot auto-merge
+
+on: pull_request
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-merge:
+    runs-on: ubuntu-latest
+    # Only ever act on Dependabot's own pull requests.
+    if: ${{ github.event.pull_request.user.login == 'dependabot[bot]' }}
+    steps:
+      - name: Fetch Dependabot metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@v2
+
+      - name: Enable auto-merge for patch/minor dev and transitive updates
+        if: >-
+          ${{ (steps.metadata.outputs.update-type == 'version-update:semver-patch' ||
+               steps.metadata.outputs.update-type == 'version-update:semver-minor') &&
+              steps.metadata.outputs.dependency-type != 'direct:production' }}
+        run: gh pr merge --auto --squash "${{ github.event.pull_request.html_url }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
