@@ -15,7 +15,19 @@ export default defineConfig({
   cacheDir: '/tmp/.vite',
   resolve: {
     // Prevents duplicate React instances (Invalid hook call #321).
-    dedupe: ['react', 'react-dom'],
+    //
+    // The i18n pair belongs here for the same reason. The optional submodules
+    // are resolved from their own checkouts, so each one that carries its own
+    // copy contributes another instance: a build with brand + enterprise
+    // present bundled react-i18next three times over. It survived only because
+    // i18next itself stayed single and react-i18next falls back to the
+    // globally registered instance when it finds no context — put an
+    // <I18nextProvider> in the tree, or let a second i18next slip in, and the
+    // submodule components would silently read from a different catalogue.
+    // vitest.config.ts already dedupes react-i18next; this keeps the real
+    // build honest, and makes a local submodule build resolve the same single
+    // copies that the Docker image gets from its merged install.
+    dedupe: ['react', 'react-dom', 'i18next', 'react-i18next'],
     alias: {
       // The desktop submodule (packages/desktop) imports UI components from the web app.
       // This alias enables clean imports like '@app/ui/system' instead of long relative paths.
