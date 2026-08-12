@@ -2,6 +2,7 @@ import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import type { Request, RequestHandler } from 'express';
 import { AppError } from '../../errors/AppError.js';
 import { logger } from '../../logger.js';
+import { getUserIdFromReq } from '../utils/authHelpers.js';
 
 /**
  * Central, env-configurable rate limiting for the public, unauthenticated
@@ -324,22 +325,41 @@ export const avatarResolveRateLimiter = createRateLimiter({
  * request volume: a phone in a reconnect loop must not be able to fan out
  * into the room. Deliberately low — a healthy client opens one stream and
  * keeps it. The per-user session cap in mobile/sessionRegistry.ts is the
- * second, identity-based backstop behind this per-IP one.
+ * second backstop behind it.
+ *
+ * Keyed per user, not per IP: both mobile routes run behind `requireAuth`, and
+ * a budget of 12 streams per minute shared by everyone behind one office NAT
+ * locks out the thirteenth phone that opens the app in the morning. The IP
+ * fallback only applies to the unauthenticated case, which the route rejects
+ * anyway.
  */
 export const mobileStreamRateLimiter = createRateLimiter({
   name: 'mobile_stream',
   windowMs: MINUTE_MS,
   limit: 12,
+  keyGenerator: mobileUserKey,
 });
 
 /**
  * Mobile gateway actions (`POST /mobile/action`). Carries zone jumps, mute
  * toggles and the app's heartbeat, so the budget has to cover a steady
  * trickle plus bursts when a user taps around the roster. Well above the
- * expected rate; this is an abuse ceiling, not a pacing mechanism.
+ * expected rate; this is an abuse ceiling, not a pacing mechanism. Keyed per
+ * user for the same reason as the stream limiter — a dropped heartbeat leaves
+ * `room.lastSeen` stale and turns the player into a ghost candidate.
  */
 export const mobileActionRateLimiter = createRateLimiter({
   name: 'mobile_action',
   windowMs: MINUTE_MS,
   limit: 240,
+  keyGenerator: mobileUserKey,
 });
+
+/**
+ * Per-user key for the mobile limiters, with the mandated IPv6-safe IP
+ * fallback for requests that carry no resolved session.
+ */
+function mobileUserKey(req: Request): string {
+  const userId = getUserIdFromReq(req);
+  return userId ? `user:${userId}` : ipKeyGenerator(req.ip ?? '');
+}

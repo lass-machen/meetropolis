@@ -10,8 +10,16 @@ import { MIN_ZONE_PRIVACY_CLIENT_VERSION } from '@meetropolis/shared';
  */
 
 let authResult: { userId: string; tenantId?: string } | null = { userId: 'user-1' };
+let resolvedTenant: { id: string; slug: string; name: string } | null = {
+  id: 'tenant-1',
+  slug: 'acme',
+  name: 'Acme',
+};
 vi.mock('../api/utils/authHelpers.js', () => ({
   requireAuth: () => authResult,
+  // Stands in for `tenantMiddleware`, which resolves `req.tenant` before the
+  // route table in the real app.
+  getTenantFromReq: () => resolvedTenant,
 }));
 
 vi.mock('../api/middleware/rateLimit.js', () => ({
@@ -21,6 +29,8 @@ vi.mock('../api/middleware/rateLimit.js', () => ({
 
 const started: Array<{ sessionId: string; userId: string; zonePrivacyVersion: number; tenantSlug?: string }> = [];
 const handledActions: Array<{ type: string }> = [];
+const reportedFailures: string[] = [];
+let worldJoinFails = false;
 
 vi.mock('./mobileSession.js', () => ({
   MobileSession: class {
@@ -31,7 +41,12 @@ vi.mock('./mobileSession.js', () => ({
       this.userId = options.userId;
       started.push(options);
     }
-    async start() {}
+    start() {
+      return worldJoinFails ? Promise.reject(new Error('world join failed')) : Promise.resolve();
+    }
+    emitFailure(reason: string) {
+      reportedFailures.push(reason);
+    }
     handleAction(action: { type: string }) {
       handledActions.push(action);
     }
@@ -41,6 +56,7 @@ vi.mock('./mobileSession.js', () => ({
 
 const { registerMobileRoutes } = await import('./routes.js');
 const { closeAllSessions, getSession } = await import('./sessionRegistry.js');
+const { MOBILE_PROTOCOL_VERSION } = await import('./protocol.js');
 
 function makeApp() {
   const app = express();
@@ -49,13 +65,32 @@ function makeApp() {
   return app;
 }
 
-const validStream = `/mobile/stream?zonePrivacyVersion=${MIN_ZONE_PRIVACY_CLIENT_VERSION}`;
+const validStream =
+  `/mobile/stream?zonePrivacyVersion=${MIN_ZONE_PRIVACY_CLIENT_VERSION}` +
+  `&protocolVersion=${MOBILE_PROTOCOL_VERSION}`;
+
+/** Opens the stream and returns once the headers are in; it never ends on its own. */
+async function openStream(app: express.Express, path: string): Promise<void> {
+  await new Promise<void>((resolve) => {
+    const req = request(app)
+      .get(path)
+      .set('Authorization', 'Bearer jwt')
+      .end(() => resolve());
+    setTimeout(() => {
+      req.abort();
+      resolve();
+    }, 50);
+  });
+}
 
 beforeEach(async () => {
   await closeAllSessions();
   started.length = 0;
   handledActions.length = 0;
   authResult = { userId: 'user-1' };
+  resolvedTenant = { id: 'tenant-1', slug: 'acme', name: 'Acme' };
+  reportedFailures.length = 0;
+  worldJoinFails = false;
 });
 
 describe('GET /mobile/stream', () => {
@@ -71,7 +106,31 @@ describe('GET /mobile/stream', () => {
   });
 
   it('rejects a missing zone-privacy version', async () => {
-    await request(makeApp()).get('/mobile/stream').set('Authorization', 'Bearer jwt').expect(400);
+    await request(makeApp())
+      .get(`/mobile/stream?protocolVersion=${MOBILE_PROTOCOL_VERSION}`)
+      .set('Authorization', 'Bearer jwt')
+      .expect(400);
+  });
+
+  it('rejects a missing protocol version', async () => {
+    // Without it the server cannot tell whether the app speaks the contract
+    // it is about to be served.
+    await request(makeApp())
+      .get(`/mobile/stream?zonePrivacyVersion=${MIN_ZONE_PRIVACY_CLIENT_VERSION}`)
+      .set('Authorization', 'Bearer jwt')
+      .expect(400, { error: 'invalid_query' });
+  });
+
+  it('answers 426 for a protocol version it cannot serve', async () => {
+    await request(makeApp())
+      .get(
+        `/mobile/stream?zonePrivacyVersion=${MIN_ZONE_PRIVACY_CLIENT_VERSION}` +
+          `&protocolVersion=${MOBILE_PROTOCOL_VERSION + 1}`,
+      )
+      .set('Authorization', 'Bearer jwt')
+      .expect(426)
+      .expect('X-Mobile-Protocol-Version', String(MOBILE_PROTOCOL_VERSION));
+    expect(started).toHaveLength(0);
   });
 
   it('rejects a zone-privacy version below the minimum', async () => {
@@ -85,19 +144,8 @@ describe('GET /mobile/stream', () => {
       .expect(400, { error: 'invalid_query' });
   });
 
-  it('passes the tenant and the claimed version through to the session', async () => {
-    const app = makeApp();
-    // The stream never ends on its own, so abort once the headers are in.
-    await new Promise<void>((resolve) => {
-      const req = request(app)
-        .get(`${validStream}&tenant=acme`)
-        .set('Authorization', 'Bearer jwt')
-        .end(() => resolve());
-      setTimeout(() => {
-        req.abort();
-        resolve();
-      }, 50);
-    });
+  it('uses the server-resolved tenant and the claimed version', async () => {
+    await openStream(makeApp(), validStream);
 
     expect(started).toHaveLength(1);
     expect(started[0]).toMatchObject({
@@ -105,6 +153,34 @@ describe('GET /mobile/stream', () => {
       tenantSlug: 'acme',
       zonePrivacyVersion: MIN_ZONE_PRIVACY_CLIENT_VERSION,
     });
+  });
+
+  it('ignores a client-supplied tenant slug', async () => {
+    // The room partition (`filterBy(['tenant'])`) must match what /livekit/token
+    // and /zones resolve for the same request, so the slug can only come from
+    // the server side.
+    await openStream(makeApp(), `${validStream}&tenant=somewhere-else`);
+
+    expect(started).toHaveLength(1);
+    expect(started[0].tenantSlug).toBe('acme');
+  });
+
+  it('reports a failed world join in the protocol instead of ending silently', async () => {
+    // Headers and the session frame are already out at that point, so a silent
+    // end looks to the app like a healthy stream that closed — and it would
+    // reconnect once a second until the rate limiter answers 429.
+    worldJoinFails = true;
+    await openStream(makeApp(), validStream);
+    expect(reportedFailures).toEqual(['world_join_failed']);
+  });
+
+  it('refuses to start a session without a resolved tenant', async () => {
+    resolvedTenant = null;
+    await request(makeApp())
+      .get(validStream)
+      .set('Authorization', 'Bearer jwt')
+      .expect(400, { error: 'tenant_required' });
+    expect(started).toHaveLength(0);
   });
 });
 
