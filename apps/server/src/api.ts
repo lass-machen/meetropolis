@@ -438,7 +438,9 @@ export async function registerApi(app: express.Express) {
   // ALTCHA_HMAC_KEY are both set (see routes/contact.ts).
   registerContactRoutes(app);
   // Native mobile clients: SSE downstream plus POST upstream, bridged into
-  // the Colyseus world room server-side (see mobile/protocol.ts).
+  // the Colyseus world room server-side (see mobile/protocol.ts). Opt-in per
+  // deployment: registers nothing unless MOBILE_GATEWAY_ENABLED is set (see
+  // mobile/routes.ts).
   registerMobileRoutes(app);
   registerAdminMapRoutes(app, prisma);
   registerAdminPasswordResetRoutes(app, prisma);

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import express from 'express';
 import request from 'supertest';
 import { MIN_ZONE_PRIVACY_CLIENT_VERSION } from '@meetropolis/shared';
@@ -83,6 +83,8 @@ async function openStream(app: express.Express, path: string): Promise<void> {
   });
 }
 
+const originalMobileGatewayEnabled = process.env.MOBILE_GATEWAY_ENABLED;
+
 beforeEach(async () => {
   await closeAllSessions();
   started.length = 0;
@@ -91,6 +93,14 @@ beforeEach(async () => {
   resolvedTenant = { id: 'tenant-1', slug: 'acme', name: 'Acme' };
   reportedFailures.length = 0;
   worldJoinFails = false;
+  // Every existing test below assumes the routes are registered; the gate
+  // itself gets its own describe block further down.
+  process.env.MOBILE_GATEWAY_ENABLED = 'true';
+});
+
+afterEach(() => {
+  if (originalMobileGatewayEnabled === undefined) delete process.env.MOBILE_GATEWAY_ENABLED;
+  else process.env.MOBILE_GATEWAY_ENABLED = originalMobileGatewayEnabled;
 });
 
 describe('GET /mobile/stream', () => {
@@ -238,5 +248,35 @@ describe('POST /mobile/action', () => {
       .expect(204);
 
     expect(handledActions).toEqual([{ type: 'dnd', dnd: true }]);
+  });
+});
+
+describe('MOBILE_GATEWAY_ENABLED gate', () => {
+  it('registers neither route when unset — both 404 like any unknown path', async () => {
+    delete process.env.MOBILE_GATEWAY_ENABLED;
+
+    await request(makeApp()).get(validStream).set('Authorization', 'Bearer jwt').expect(404);
+    await request(makeApp())
+      .post('/mobile/action')
+      .send({ sessionId: '00000000-0000-4000-8000-000000000000', action: { type: 'heartbeat' } })
+      .expect(404);
+    expect(started).toHaveLength(0);
+  });
+
+  it.each(['', '0', 'false', 'off', 'no', '  '])('registers neither route for the falsy value %j', async (value) => {
+    process.env.MOBILE_GATEWAY_ENABLED = value;
+
+    await request(makeApp()).get(validStream).set('Authorization', 'Bearer jwt').expect(404);
+    await request(makeApp())
+      .post('/mobile/action')
+      .send({ sessionId: '00000000-0000-4000-8000-000000000000', action: { type: 'heartbeat' } })
+      .expect(404);
+  });
+
+  it.each(['true', '1', 'on', 'yes', 'TRUE'])('registers both routes for %s', async (value) => {
+    process.env.MOBILE_GATEWAY_ENABLED = value;
+
+    await openStream(makeApp(), validStream);
+    expect(started).toHaveLength(1);
   });
 });
