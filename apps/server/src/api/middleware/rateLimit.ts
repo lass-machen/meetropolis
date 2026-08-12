@@ -316,3 +316,30 @@ export const avatarResolveRateLimiter = createRateLimiter({
   windowMs: MINUTE_MS,
   limit: 60,
 });
+
+/**
+ * Mobile gateway stream (`GET /mobile/stream`, see mobile/routes.ts). Each
+ * accepted request opens a long-lived SSE response AND a Colyseus connection
+ * into the world room, so this limiter caps connection churn rather than
+ * request volume: a phone in a reconnect loop must not be able to fan out
+ * into the room. Deliberately low — a healthy client opens one stream and
+ * keeps it. The per-user session cap in mobile/sessionRegistry.ts is the
+ * second, identity-based backstop behind this per-IP one.
+ */
+export const mobileStreamRateLimiter = createRateLimiter({
+  name: 'mobile_stream',
+  windowMs: MINUTE_MS,
+  limit: 12,
+});
+
+/**
+ * Mobile gateway actions (`POST /mobile/action`). Carries zone jumps, mute
+ * toggles and the app's heartbeat, so the budget has to cover a steady
+ * trickle plus bursts when a user taps around the roster. Well above the
+ * expected rate; this is an abuse ceiling, not a pacing mechanism.
+ */
+export const mobileActionRateLimiter = createRateLimiter({
+  name: 'mobile_action',
+  windowMs: MINUTE_MS,
+  limit: 240,
+});
