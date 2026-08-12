@@ -83,6 +83,14 @@ export class MobileSession {
     await this.bridge.connect();
   }
 
+  /**
+   * Report a failure that happened after the response headers went out, so
+   * the client sees a reason instead of a stream that simply stops.
+   */
+  emitFailure(reason: string): void {
+    this.emit({ type: 'disconnected', reason });
+  }
+
   /** Forward an app action to the world room, translating the names. */
   handleAction(action: { type: string; [key: string]: unknown }): void {
     switch (action.type) {

@@ -104,7 +104,21 @@ export const mobileActionSchema = z.discriminatedUnion('type', [
 
 export type MobileAction = z.infer<typeof mobileActionSchema>;
 
+/**
+ * Codepoints that `JSON.stringify` leaves raw but that break a line-oriented
+ * reader: U+0085 (NEL), U+2028 (LINE SEPARATOR) and U+2029 (PARAGRAPH
+ * SEPARATOR). `\n` and `\r` are escaped by `JSON.stringify` itself, these
+ * three are not — and Unicode line breaking treats all of them as line
+ * terminators, so a display name containing one of them would split an SSE
+ * frame in two and take out every subsequent frame for that client.
+ */
+const RAW_LINE_TERMINATORS = /[\u0085\u2028\u2029]/g;
+
 /** Serialise one event as an SSE frame. */
 export function encodeSseEvent(event: MobileServerEvent): string {
-  return `data: ${JSON.stringify(event)}\n\n`;
+  const json = JSON.stringify(event).replace(
+    RAW_LINE_TERMINATORS,
+    (char) => `\\u${char.charCodeAt(0).toString(16).padStart(4, '0')}`,
+  );
+  return `data: ${json}\n\n`;
 }

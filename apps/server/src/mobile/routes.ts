@@ -2,10 +2,11 @@ import crypto from 'node:crypto';
 import type express from 'express';
 import { z } from 'zod';
 import { logger } from '../logger.js';
-import { requireAuth } from '../api/utils/authHelpers.js';
+import { getTenantFromReq, requireAuth } from '../api/utils/authHelpers.js';
 import { mobileStreamRateLimiter, mobileActionRateLimiter } from '../api/middleware/rateLimit.js';
+import { readAuthCookie, readBearerToken } from '../types/authShapes.js';
 import { MIN_ZONE_PRIVACY_CLIENT_VERSION } from '@meetropolis/shared';
-import { mobileActionSchema } from './protocol.js';
+import { mobileActionSchema, MOBILE_PROTOCOL_VERSION } from './protocol.js';
 import { MobileSession } from './mobileSession.js';
 import { getOwnedSession, registerSession, removeSession } from './sessionRegistry.js';
 
@@ -26,8 +27,6 @@ import { getOwnedSession, registerSession, removeSession } from './sessionRegist
  */
 
 const streamQuerySchema = z.object({
-  /** Tenant slug, mirroring what the web client passes to its room join. */
-  tenant: z.string().trim().min(1).max(200).optional(),
   /**
    * The app's zone-privacy contract version. Forwarded to the world room
    * unchanged; `onAuth` rejects the join when it is below the minimum. The
@@ -35,7 +34,23 @@ const streamQuerySchema = z.object({
    * authoritative gate stays server-side in the room.
    */
   zonePrivacyVersion: z.coerce.number().int().min(MIN_ZONE_PRIVACY_CLIENT_VERSION),
+  /**
+   * The gateway protocol the app implements. Mandatory: without it the
+   * version in the `session` frame is a one-way announcement, and a bump —
+   * defined above as "would break an already-shipped client" — would silently
+   * hand a client a contract it does not speak.
+   */
+  protocolVersion: z.coerce.number().int().min(1),
 });
+
+/**
+ * There is exactly one supported version today, so any difference is a
+ * mismatch. Widen this into a range only together with a documented
+ * compatibility promise.
+ */
+function isSupportedProtocol(version: number): boolean {
+  return version === MOBILE_PROTOCOL_VERSION;
+}
 
 const actionBodySchema = z.object({
   sessionId: z.string().uuid(),
@@ -64,11 +79,34 @@ async function handleStream(req: express.Request, res: express.Response): Promis
     return;
   }
 
+  if (!isSupportedProtocol(parsed.data.protocolVersion)) {
+    // 426 rather than 400: this is not a malformed request, it is a client
+    // that cannot be served correctly. The header lets the app name both
+    // versions in its update prompt.
+    res.status(426).set('X-Mobile-Protocol-Version', String(MOBILE_PROTOCOL_VERSION)).json({
+      error: 'unsupported_protocol_version',
+      supported: MOBILE_PROTOCOL_VERSION,
+    });
+    return;
+  }
+
   const authToken = readRawToken(req);
   if (!authToken) {
     // requireAuth passed, so a session exists — but the world room needs the
     // raw token to authenticate the join, and we will not mint a new one here.
     res.status(400).json({ error: 'missing_bearer_token' });
+    return;
+  }
+
+  // The tenant is resolved server-side, never taken from the client. Taking a
+  // `?tenant=` slug used to put the app in a different Colyseus partition than
+  // every web client (`filterBy(['tenant'])` matches room metadata, and an
+  // absent slug never equals the room's resolved `default`), and it could
+  // differ from the tenant /livekit/token and /zones resolve for the very same
+  // app. `tenantMiddleware` runs for this path, so `req.tenant` is always set.
+  const tenant = getTenantFromReq(req);
+  if (!tenant) {
+    res.status(400).json({ error: 'tenant_required' });
     return;
   }
 
@@ -79,7 +117,7 @@ async function handleStream(req: express.Request, res: express.Response): Promis
     identity: auth.userId,
     serverUrl: internalServerUrl(),
     authToken,
-    tenantSlug: parsed.data.tenant,
+    tenantSlug: tenant.slug,
     zonePrivacyVersion: parsed.data.zonePrivacyVersion,
     res,
   });
@@ -93,9 +131,14 @@ async function handleStream(req: express.Request, res: express.Response): Promis
 
   try {
     await session.start();
-    logger.info({ sessionId, userId: auth.userId }, '[mobile] session started');
+    logger.info({ sessionId, userId: auth.userId, tenant: tenant.slug }, '[mobile] session started');
   } catch (err) {
     logger.warn({ err, sessionId, userId: auth.userId }, '[mobile] world join failed');
+    // Headers and the `session` frame are already out, so the failure cannot
+    // be reported as a status code. Saying it in the protocol keeps the app
+    // from reading a silent EOF as a healthy, briefly-empty stream and
+    // reconnecting once a second until the rate limiter answers 429.
+    session.emitFailure('world_join_failed');
     await removeSession(sessionId);
   }
 }
@@ -125,23 +168,16 @@ function handleAction(req: express.Request, res: express.Response): void {
 }
 
 /**
- * The raw JWT, as the world room's auth gate expects it. Bearer first — a
- * native client has no cookie jar — then the cookie, matching the precedence
- * in rooms/lifecycle/onAuth.ts.
+ * The raw JWT the world room's auth gate will see.
+ *
+ * Uses the same helpers and, crucially, the same precedence as
+ * `api/utils/sessionAuth.ts`: cookie first, then bearer. `requireAuth` above
+ * resolves the session through that path, so picking differently here would
+ * register the session under one user while the world join authenticates as
+ * another whenever a caller sends both credentials.
  */
 function readRawToken(req: express.Request): string | null {
-  const header = req.headers.authorization;
-  if (header?.startsWith('Bearer ')) {
-    const value = header.slice('Bearer '.length).trim();
-    if (value) return value;
-  }
-  // `Request.cookies` is typed `any` by the cookie-parser types, so narrow it
-  // with a runtime shape check rather than an unchecked cast
-  // (LIBRARY_BOUNDARIES.md pattern 3).
-  const cookies: unknown = (req as { cookies?: unknown }).cookies;
-  if (typeof cookies !== 'object' || cookies === null) return null;
-  const token = (cookies as Record<string, unknown>).auth_token;
-  return typeof token === 'string' && token.length > 0 ? token : null;
+  return readAuthCookie(req) ?? readBearerToken(req);
 }
 
 /**
