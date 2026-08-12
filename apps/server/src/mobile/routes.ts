@@ -24,6 +24,11 @@ import { getOwnedSession, registerSession, removeSession } from './sessionRegist
  * row, not merely a valid signature). On top of that, an action must name a
  * session id owned by the same user — otherwise anyone holding a valid
  * account could steer a stranger's avatar by guessing an id.
+ *
+ * Opt-in per deployment, same shape as `registerContactRoutes` in
+ * `api/routes/contact.ts`: without `MOBILE_GATEWAY_ENABLED` set, neither
+ * route is registered at all, so both paths 404 like any unknown route
+ * instead of existing half-configured for whoever finds them.
  */
 
 const streamQuerySchema = z.object({
@@ -57,13 +62,29 @@ const actionBodySchema = z.object({
   action: mobileActionSchema,
 });
 
+/**
+ * Mobile gateway feature gate (default OFF, opt-in). No native client has
+ * ever run against a real server yet (see meetropolis-mobile), so the
+ * routes stay unregistered until a deployment explicitly opts in. Accepted
+ * truthy values match `avatarEditorEnabled` in `services/avatarComposer.ts`:
+ * true, 1, on, yes.
+ */
+function mobileGatewayEnabled(): boolean {
+  const raw = (process.env.MOBILE_GATEWAY_ENABLED ?? '').trim().toLowerCase();
+  return raw === 'true' || raw === '1' || raw === 'on' || raw === 'yes';
+}
+
 export function registerMobileRoutes(app: express.Express): void {
+  if (!mobileGatewayEnabled()) return;
+
   app.get('/mobile/stream', mobileStreamRateLimiter, (req, res) => {
     void handleStream(req, res);
   });
   app.post('/mobile/action', mobileActionRateLimiter, (req, res) => {
     handleAction(req, res);
   });
+
+  logger.info({ event: 'mobile.routes_registered' });
 }
 
 async function handleStream(req: express.Request, res: express.Response): Promise<void> {
