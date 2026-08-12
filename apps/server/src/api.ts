@@ -22,6 +22,7 @@ import { copyMapToTenant } from './api/routes/adminMaps.js';
 import { registerGuestRoutes } from './api/routes/guests.js';
 import { registerTenantRoutes } from './api/routes/tenant.js';
 import { registerContactRoutes } from './api/routes/contact.js';
+import { registerMobileRoutes } from './mobile/routes.js';
 import { guestExpiryMiddleware } from './api/middleware/guestExpiry.js';
 import { tenantSignupRateLimiter } from './api/middleware/rateLimit.js';
 
@@ -436,6 +437,9 @@ export async function registerApi(app: express.Express) {
   // Opt-in per deployment: registers nothing unless CONTACT_FORM_TO and
   // ALTCHA_HMAC_KEY are both set (see routes/contact.ts).
   registerContactRoutes(app);
+  // Native mobile clients: SSE downstream plus POST upstream, bridged into
+  // the Colyseus world room server-side (see mobile/protocol.ts).
+  registerMobileRoutes(app);
   registerAdminMapRoutes(app, prisma);
   registerAdminPasswordResetRoutes(app, prisma);
 
