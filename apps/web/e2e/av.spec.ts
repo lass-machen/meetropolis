@@ -30,8 +30,13 @@ const SHOULD_RUN = process.env.E2E_RUN === 'true';
     const ctxB = await createUserContext('UserB');
     const pageB = ctxB.pages()[0];
     const tokenB = pageB.waitForRequest((req) => req.url().includes('/livekit/token'), { timeout: 60_000 });
-    await expect.soft(await tokenA).toBeTruthy();
-    await expect.soft(await tokenB).toBeTruthy();
+    // `expect.soft(await p)` would never be soft: awaiting the request promise
+    // rethrows its timeout before the matcher ever runs, so the first missing
+    // token aborted the test and the second was never reported. Asserting on
+    // the promise via `.resolves` is what the soft form was meant to do -
+    // both tokens are checked and both failures land in the same report.
+    await expect.soft(tokenA).resolves.toBeTruthy();
+    await expect.soft(tokenB).resolves.toBeTruthy();
 
     await ctxA.close();
     await ctxB.close();
@@ -48,7 +53,7 @@ const SHOULD_RUN = process.env.E2E_RUN === 'true';
     await page.goto(url);
     // Minimal smoke test: app loads and requests a LiveKit token (implicit join)
     const tokenReq = page.waitForRequest((req) => req.url().includes('/livekit/token'), { timeout: 60_000 });
-    await expect.soft(await tokenReq).toBeTruthy();
+    await expect.soft(tokenReq).resolves.toBeTruthy();
     await ctx.close();
   },
 );
@@ -61,7 +66,7 @@ const SHOULD_RUN = process.env.E2E_RUN === 'true';
   await page.goto(url);
   // Minimal smoke test: app loads and requests a LiveKit token (implicit join)
   const tokenReq = page.waitForRequest((req) => req.url().includes('/livekit/token'), { timeout: 60_000 });
-  await expect.soft(await tokenReq).toBeTruthy();
+  await expect.soft(tokenReq).resolves.toBeTruthy();
   await ctx.close();
 });
 
