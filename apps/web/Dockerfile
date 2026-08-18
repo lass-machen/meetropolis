@@ -28,6 +28,14 @@ ENV VITE_LIVEKIT_URL=${VITE_LIVEKIT_URL}
 ENV VITE_FEATURE_AV_SETTINGS=${VITE_FEATURE_AV_SETTINGS}
 ENV VITE_FEATURE_VOICE_ISOLATION=${VITE_FEATURE_VOICE_ISOLATION}
 
+# apps/web declares @playwright/test as a devDependency (the E2E suite), so the
+# workspace install below pulls it in. Playwright 1.62 ships no install script
+# and downloads nothing; this guards against a future version reinstating the
+# browser download and silently adding browser binaries to the builder layer.
+# The runtime image is unaffected either way - the runner stage copies only
+# apps/web/dist.
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+
 # Install dependencies from workspace root
 WORKDIR /workspace
 RUN npm install
