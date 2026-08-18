@@ -23,6 +23,7 @@ function desktopState(desktop: DesktopModule | null): DesktopState {
     isTauri: desktop !== null,
     isMiniMode: false,
     toggleMiniMode: async () => {},
+    setWorldVisible: async () => {},
     desktop,
   };
 }

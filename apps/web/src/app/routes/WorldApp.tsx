@@ -14,6 +14,7 @@ import { useMapStore } from '../../state/mapStore';
 import { usePublicConfigStore } from '../../state/publicConfigStore';
 import { readPersistedDnd } from '../../av/features/dndPersistence';
 import { AuthLoadingScreen } from './components/AuthLoadingScreen';
+import { MiniModeWorldSignal } from './components/MiniModeWorldSignal';
 import { WorldShell } from './components/WorldShell';
 import { DEFAULT_CAPABILITIES } from './hooks/useFetchMe';
 import type { AdminCapabilities } from './hooks/useFetchMe';
@@ -407,33 +408,37 @@ export function WorldApp() {
   const me = auth.me;
 
   return (
-    <WorldShell
-      isMini={isMini}
-      desktop={core.desktop.desktop}
-      toggleMiniMode={() => {
-        void core.desktop.toggleMiniMode();
-      }}
-      apiBase={apiBase}
-      me={me}
-      refs={refs}
-      ui={ui}
-      auth={auth}
-      editor={core.editor}
-      eventHandlers={core.eventHandlers}
-      getRoom={core.getRoom}
-      saveAllToServer={core.saveAllToServer}
-      handleAuthComplete={() => {
-        void core.handleAuthComplete();
-      }}
-      pttAwareToggleMic={core.pttAwareToggleMic}
-      participantsToRender={core.participantsToRender}
-      isTenantAdmin={core.isTenantAdmin}
-      paymentStatus={core.paymentStatus}
-      handleManageBilling={core.handleManageBilling}
-      showReloadBanner={core.showReloadBanner}
-      getDisplayName={core.getDisplayName}
-      getMiniZones={core.getMiniZones}
-      handleExpandWithScreen={core.handleExpandWithScreen}
-    />
+    <>
+      {/* Desktop only: mounted from here on, the world is genuinely on screen. */}
+      <MiniModeWorldSignal />
+      <WorldShell
+        isMini={isMini}
+        desktop={core.desktop.desktop}
+        toggleMiniMode={() => {
+          void core.desktop.toggleMiniMode();
+        }}
+        apiBase={apiBase}
+        me={me}
+        refs={refs}
+        ui={ui}
+        auth={auth}
+        editor={core.editor}
+        eventHandlers={core.eventHandlers}
+        getRoom={core.getRoom}
+        saveAllToServer={core.saveAllToServer}
+        handleAuthComplete={() => {
+          void core.handleAuthComplete();
+        }}
+        pttAwareToggleMic={core.pttAwareToggleMic}
+        participantsToRender={core.participantsToRender}
+        isTenantAdmin={core.isTenantAdmin}
+        paymentStatus={core.paymentStatus}
+        handleManageBilling={core.handleManageBilling}
+        showReloadBanner={core.showReloadBanner}
+        getDisplayName={core.getDisplayName}
+        getMiniZones={core.getMiniZones}
+        handleExpandWithScreen={core.handleExpandWithScreen}
+      />
+    </>
   );
 }

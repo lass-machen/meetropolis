@@ -70,6 +70,17 @@ declare global {
     __DESKTOP__?: {
       isMiniMode?: boolean;
       toggleMiniMode?: () => void | Promise<void>;
+      /**
+       * Report whether the world — the only view the mini window is built for —
+       * is on screen, and resolve with the mini mode the window ends up in.
+       *
+       * The desktop side owns the resulting decision: it knows the mini mode the
+       * user asked for and whether they opened the mini window on a public page
+       * themselves, and both of those have to survive a webview reload, which
+       * wipes every bit of web state. Calling this does not redefine the user's
+       * preference; toggleMiniMode does.
+       */
+      setWorldVisible?: (visible: boolean) => Promise<boolean>;
       [key: string]: unknown;
     };
 

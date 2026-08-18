@@ -14,6 +14,7 @@ import { getBrandModule, useHasBrandModule } from '../../lib/brandLoader';
 import { SimpleLegalNotice } from '../../ui/pub/legal/SimpleLegalNotice';
 import { ContactPage } from '../../ui/pub/contact/ContactPage';
 import { DesktopUpdateOverlay } from './components/DesktopUpdateOverlay';
+import { useMiniModeAuthGuard } from './hooks/useMiniModeAuthGuard';
 import { sanitizeTierKey, useHashRoute, type Route, type RouteParams } from './useHashRoute';
 
 /**
@@ -258,6 +259,11 @@ export function AppRoutes() {
   useScrollEffects(route);
   useDocumentTitle();
   useDocumentLang();
+  // Desktop only: the mini window is sized for the world, so every public page
+  // (login above all) gets the window back at full size. The world route reports
+  // nothing here — whether the world is really up depends on the auth check, and
+  // MiniModeWorldSignal reports that from inside WorldApp. See the hook.
+  useMiniModeAuthGuard(route === 'app' ? 'unknown' : 'public');
 
   // While the brand module is still resolving, suppress the initial landing
   // flash for OSS users who would otherwise see one render tick of the
