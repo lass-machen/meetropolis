@@ -25,14 +25,24 @@ interface AuthLayoutProps {
 
 const TRUST_KEYS = ['auth.trustTrial', 'auth.trustNoCreditCard', 'auth.trustCancelAnytime'] as const;
 
+// Every rule the media queries need to override lives here, not in an inline
+// `style` prop: an inline declaration wins over any stylesheet rule that is not
+// `!important`, which is why the previous mobile block (`display: none` on the
+// branding children) never took effect. `box-sizing` is set explicitly on the
+// panels because this app has no global border-box reset — with the default
+// content-box, `width: 100%` plus horizontal padding overflowed the viewport.
 const AUTH_LAYOUT_STYLES = `
   .pub-auth-layout {
     display: flex;
     flex-direction: row;
     min-height: 100vh;
   }
+  /* border-box means the width now covers the horizontal padding too, so the
+     declared values carry it: 672 = 560 content + 2x56 padding (and 520 = 440
+     + 2x40 in the tablet block below). The rendered panel is unchanged. */
   .pub-auth-layout__branding {
-    width: 560px;
+    box-sizing: border-box;
+    width: 672px;
     flex-shrink: 0;
     background: var(--pub-gradient-auth-panel);
     padding: 48px 56px;
@@ -41,7 +51,9 @@ const AUTH_LAYOUT_STYLES = `
     gap: 32px;
   }
   .pub-auth-layout__form {
+    box-sizing: border-box;
     flex: 1;
+    min-width: 0;
     background: var(--pub-bg-primary);
     display: flex;
     align-items: center;
@@ -49,21 +61,167 @@ const AUTH_LAYOUT_STYLES = `
     padding: 64px 80px;
   }
   .pub-auth-layout__form-inner {
+    box-sizing: border-box;
     width: 100%;
     max-width: 480px;
+    /* Counterpart to the branding side: a work e-mail echoed back on the reset
+       screen is one unbroken run, and browsers only break at a hyphen, never at
+       a dot or an at-sign. Without this a 43-character address already leaves
+       the column. */
+    overflow-wrap: anywhere;
+    /* German compounds are long and the form column is the narrow one, so a
+       word that does not fit would otherwise be cut wherever the line happens
+       to end (Firmenangabe / n). Hyphenation gives the break a proper place and
+       a visible hyphen, and unlike a wider minimum it costs no layout width at
+       all. It follows the lang attribute of the document, which
+       AppRoutes.useDocumentLang keeps in sync with i18next - without that the
+       browser would hyphenate English text by German rules. -webkit-hyphens is
+       not optional here: the desktop client renders in WKWebView. */
+    -webkit-hyphens: auto;
+    hyphens: auto;
+  }
+  .pub-auth-layout__logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    text-decoration: none;
+    color: inherit;
+  }
+  .pub-auth-layout__logo-mark {
+    display: block;
+    object-fit: contain;
+    flex-shrink: 0;
+  }
+  .pub-auth-layout__center {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 24px;
+  }
+  .pub-auth-layout__headline {
+    font-family: var(--pub-font-display);
+    font-weight: 800;
+    font-size: 32px;
+    line-height: 1.2;
+    color: #ffffff;
+    margin: 0;
+    overflow-wrap: break-word;
+  }
+  .pub-auth-layout__subline {
+    font-family: var(--pub-font-body);
+    font-size: 16px;
+    line-height: 1.6;
+    color: rgba(255, 255, 255, 0.75);
+    margin: 0;
+    overflow-wrap: break-word;
+  }
+  .pub-auth-layout__hero {
+    width: 100%;
+    max-width: 440px;
+    height: auto;
+    border-radius: var(--pub-radius-image);
+    object-fit: cover;
+  }
+  .pub-auth-layout__footer {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .pub-auth-layout__trust-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .pub-auth-layout__trust-check {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: rgba(20, 184, 166, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .pub-auth-layout__trust-label,
+  .pub-auth-layout__link {
+    font-family: var(--pub-font-body);
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.85);
+    /* The panel is no longer a fixed 520px in the tablet band - it gives way
+       down to 369px - so the labels next to it need the same guard the links
+       already had. Today's strings leave 82px of headroom; a longer one in a
+       future brand catalogue would push the row out of its box without this. */
+    overflow-wrap: anywhere;
+  }
+  .pub-auth-layout__link {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    text-decoration: none;
+  }
+  .pub-auth-layout__link svg {
+    flex-shrink: 0;
+  }
+  /* Both two-column branches: the branding panel is the one that gives way.
+     A rigid panel next to a form column that may shrink to nothing pins the
+     form to viewport minus panel, and its content then leaves the column: at
+     769px the four-step registration indicator (a fixed 272px of circles and
+     connectors) ran past the edge, and between 1025 and 1103px the wizard
+     buttons broke letter by letter. Restoring the form's content floor is what
+     a flex item does by default, so wherever the viewport is wide enough for
+     both columns nothing moves; only where the panel used to force an overflow
+     does it now shrink instead. The floor is scoped to the two-column range on
+     purpose - in the single-column branch below, an intrinsic floor could push
+     the page wider than the phone, and flex-shrink would act on the height. */
+  @media (min-width: 769px) {
+    .pub-auth-layout__branding { flex-shrink: 1; min-width: 0; }
+    .pub-auth-layout__form { min-width: min-content; }
+    /* A floor for the text column. The wrap rule above collapses the intrinsic
+       minimum of every text to a single character, and hyphenation only saves
+       what the language has a break point for: measured without this floor, the
+       English labels Back and Create are cut into single letters at 1025px.
+       220px is the widest single word across all ten views (the German login
+       headline) and at the same time the width the desktop layout has always
+       given the form at its narrowest healthy viewport, 1052px. */
+    .pub-auth-layout__form-inner { min-width: 220px; }
+  }
+  @media (min-width: 769px) and (max-width: 1024px) {
+    /* The tablet band can afford more than the bare word width: the panel has
+       520px to give, and 320px is what keeps the form comfortable at 769px
+       (where it was down to 169px before the floor existed). */
+    .pub-auth-layout__form-inner { min-width: 320px; }
   }
   @media (max-width: 1024px) {
-    .pub-auth-layout__branding { width: 440px; padding: 40px 40px; }
+    .pub-auth-layout__branding { width: 520px; padding: 40px 40px; }
     .pub-auth-layout__form { padding: 48px 40px; }
   }
   @media (max-width: 768px) {
     .pub-auth-layout { flex-direction: column; }
+    /* Compact brand band: logo plus headline, sized by its content. The panel
+       used to be a fixed 200px with overflow:hidden, which is what cut the
+       marketing copy off mid-sentence — an auto height cannot clip. */
     .pub-auth-layout__branding {
-      width: 100%; height: 200px; overflow: hidden; padding: 24px 24px;
-      flex-direction: row; align-items: center; gap: 24px;
+      width: 100%;
+      padding: 20px 24px;
+      gap: 12px;
     }
-    .pub-auth-layout__branding > div:nth-child(2) { display: none; }
-    .pub-auth-layout__branding > div:last-child { display: none; }
+    .pub-auth-layout__center { flex: 0 0 auto; gap: 0; }
+    .pub-auth-layout__headline { font-size: 22px; }
+    .pub-auth-layout__subline,
+    .pub-auth-layout__hero,
+    .pub-auth-layout__footer--trust { display: none; }
+    /* The trust checks are marketing and can go on a phone. The OSS variant of
+       the same slot carries the only links to the project and its source on the
+       whole auth screen — there is no other footer here — so it stays and just
+       packs tighter: one row where the width allows, wrapped where it does not. */
+    .pub-auth-layout__footer--links {
+      flex-direction: row;
+      flex-wrap: wrap;
+      gap: 6px 16px;
+    }
+    .pub-auth-layout__footer--links .pub-auth-layout__link { font-size: 13px; gap: 6px; }
     .pub-auth-layout__form { padding: 32px 24px; }
   }
 `;
@@ -77,9 +235,9 @@ function AuthLogo() {
         window.location.hash = '#/';
       }}
       aria-label="Meetropolis"
-      style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none', color: 'inherit' }}
+      className="pub-auth-layout__logo"
     >
-      <img src="/logo.png" alt="" width={36} height={36} style={{ display: 'block', objectFit: 'contain' }} />
+      <img src="/logo.png" alt="" width={36} height={36} className="pub-auth-layout__logo-mark" />
       <span className="pub-wordmark pub-wordmark--white" style={{ fontSize: 16 }}>
         Meetropolis
       </span>
@@ -97,69 +255,23 @@ function AuthBrandingCenter({ t }: { t: (k: string) => string }) {
   const heroAltRaw = t('auth.heroImageAlt');
   const heroAlt = heroAltRaw && heroAltRaw !== 'auth.heroImageAlt' ? heroAltRaw : brandName;
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 24 }}>
-      <h1
-        style={{
-          fontFamily: 'var(--pub-font-display)',
-          fontWeight: 800,
-          fontSize: 32,
-          lineHeight: 1.2,
-          color: '#FFFFFF',
-          margin: 0,
-        }}
-      >
-        {t('auth.brandingHeadline')}
-      </h1>
-      <p
-        style={{
-          fontFamily: 'var(--pub-font-body)',
-          fontSize: 16,
-          lineHeight: 1.6,
-          color: 'rgba(255, 255, 255, 0.75)',
-          margin: 0,
-        }}
-      >
-        {t('auth.brandingSubline')}
-      </p>
-      {heroSrc && (
-        <img
-          src={heroSrc}
-          alt={heroAlt}
-          style={{
-            width: '100%',
-            maxWidth: 440,
-            height: 'auto',
-            borderRadius: 'var(--pub-radius-image)',
-            objectFit: 'cover',
-          }}
-        />
-      )}
+    <div className="pub-auth-layout__center">
+      <h1 className="pub-auth-layout__headline">{t('auth.brandingHeadline')}</h1>
+      <p className="pub-auth-layout__subline">{t('auth.brandingSubline')}</p>
+      {heroSrc && <img className="pub-auth-layout__hero" src={heroSrc} alt={heroAlt} />}
     </div>
   );
 }
 
 function AuthTrustChecks({ t }: { t: (k: string) => string }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <div className="pub-auth-layout__footer pub-auth-layout__footer--trust">
       {TRUST_KEYS.map((key) => (
-        <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div
-            style={{
-              width: 20,
-              height: 20,
-              borderRadius: '50%',
-              background: 'rgba(20, 184, 166, 0.2)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0,
-            }}
-          >
+        <div key={key} className="pub-auth-layout__trust-item">
+          <div className="pub-auth-layout__trust-check">
             <CheckIcon size={12} color="#14B8A6" />
           </div>
-          <span style={{ fontFamily: 'var(--pub-font-body)', fontSize: 14, color: 'rgba(255, 255, 255, 0.85)' }}>
-            {t(key)}
-          </span>
+          <span className="pub-auth-layout__trust-label">{t(key)}</span>
         </div>
       ))}
     </div>
@@ -191,23 +303,9 @@ function OssProjectLinks() {
     { href: GITHUB_REPO_URL, label: GITHUB_REPO_LABEL },
   ];
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <div className="pub-auth-layout__footer pub-auth-layout__footer--links">
       {ITEMS.map((item) => (
-        <a
-          key={item.href}
-          href={item.href}
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 10,
-            fontFamily: 'var(--pub-font-body)',
-            fontSize: 14,
-            color: 'rgba(255, 255, 255, 0.85)',
-            textDecoration: 'none',
-          }}
-        >
+        <a key={item.href} href={item.href} target="_blank" rel="noopener noreferrer" className="pub-auth-layout__link">
           <ExternalLinkIcon size={16} color="rgba(255, 255, 255, 0.6)" />
           <span>{item.label}</span>
         </a>

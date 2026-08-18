@@ -130,6 +130,17 @@
   border: none;
   text-decoration: none;
   padding: 12px 24px;
+  /* A button label is one atomic UI string, so it must never be cut inside a
+     word. Without this the label inherits `overflow-wrap: anywhere` from the
+     surrounding form (the auth layout sets it so that a long e-mail address
+     can break at all), and `anywhere` - unlike `break-word` - also lowers the
+     intrinsic minimum width to a single character. The button was then allowed
+     to shrink to about twenty pixels, and "Continue" rendered as Co/nti/nu/e
+     between 1025px and 1097px. Resetting it back to the initial value restores
+     the word as the button's minimum content width, which the surrounding
+     layout then has to grant. Hyphenation is deliberately left alone: a German
+     label may still break at a legal hyphenation point. */
+  overflow-wrap: normal;
 }
 
 .pub-btn:hover {
