@@ -18,6 +18,14 @@ apps/web/dist/
 apps/server/src/generated/
 coverage/
 
+# --- Playwright artefacts (apps/web/e2e, `npm -w @meetropolis/web run e2e`) ---
+# A failing run writes videos, traces and an error-context note per test into
+# test-results/; the html and blob reporters write the other two. All three are
+# rebuilt by the next run and none of them belongs in the history.
+apps/web/test-results/
+apps/web/playwright-report/
+apps/web/blob-report/
+
 # --- Local environment ---
 .env
 .env.local
