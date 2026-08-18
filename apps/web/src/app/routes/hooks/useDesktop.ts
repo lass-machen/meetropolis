@@ -20,6 +20,13 @@ export interface DesktopState {
   isTauri: boolean;
   isMiniMode: boolean;
   toggleMiniMode: () => Promise<void>;
+  /**
+   * Report whether the world is on screen (see useMiniModeAuthGuard). The
+   * desktop side derives the window mode from it and leaves the user's
+   * preference alone. A no-op wherever the bridge is absent, which covers both
+   * a plain browser and a desktop build older than the command.
+   */
+  setWorldVisible: (visible: boolean) => Promise<void>;
   desktop: DesktopModule | null;
 }
 
@@ -62,10 +69,23 @@ export function useDesktop(): DesktopState {
     if (typeof toggle === 'function') await toggle();
   }, []);
 
+  // Deliberately not gated on isTauri, and therefore stable for the whole
+  // lifetime of the consumer: the guard's effect depends on this function, and
+  // an identity that changes would re-run the effect on unrelated re-renders.
+  // The guard against calling into a bridge that is not there is the absent
+  // window.__DESKTOP__ itself — that is also what protects a desktop build older
+  // than the set_world_visible command.
+  const setWorldVisible = useCallback(async (visible: boolean) => {
+    const report = window.__DESKTOP__?.setWorldVisible;
+    if (typeof report !== 'function') return;
+    await report(visible);
+  }, []);
+
   return {
     isTauri,
     isMiniMode,
     toggleMiniMode: isTauri ? toggleMiniMode : noopAsync,
+    setWorldVisible,
     desktop,
   };
 }
