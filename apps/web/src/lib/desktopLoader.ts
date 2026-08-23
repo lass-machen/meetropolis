@@ -8,18 +8,59 @@
  */
 
 import type { ComponentType } from 'react';
+import type { Room } from 'livekit-client';
+import type { UiParticipant } from '../types/participant';
+import type { Position } from '../types/game';
+
+/** One row of the presence roster as the mini window consumes it. */
+export interface MiniModeRosterItem {
+  /** LiveKit identity (the user id), the same key `UiParticipant.livekitIdentity` uses. */
+  identity: string;
+  name: string;
+  online: boolean;
+  x?: number;
+  y?: number;
+  lastSeen?: string;
+}
+
+/**
+ * Props of the desktop mini window.
+ *
+ * Declared concretely, not as `Record<string, unknown>`. The loose shape let a
+ * rename inside `UiParticipant` land in the submodule uncaught: the mini
+ * window kept reading a field that no longer existed and crashed on its first
+ * camera tile, while typecheck, lint and the web test suite stayed green. The
+ * types the submodule consumes are exported from the OSS side so it can import
+ * them instead of restating them (see `meetropolis-desktop`
+ * `src/routes/components/MiniModeView.tsx`).
+ *
+ * `onToggle*` are `void | Promise<void>` on purpose: DND toggles synchronously
+ * while the device toggles are async.
+ */
+export interface MiniModeViewProps {
+  roster: MiniModeRosterItem[];
+  uiParticipants: UiParticipant[];
+  avState: { mic: boolean; cam: boolean; share: boolean; dnd: boolean };
+  /** Label for a LiveKit identity. Never a lookup key — see `UiParticipant`. */
+  getDisplayName: (identity: string) => string;
+  onJumpTo: (item: { x?: number; y?: number }) => void;
+  onToggleMic: () => void | Promise<void>;
+  onToggleCam: () => void | Promise<void>;
+  onToggleDnd: () => void | Promise<void>;
+  onToggleShare: () => void | Promise<void>;
+  onExpand: () => void;
+  onExpandWithScreen: (screenSid: string) => void;
+  roomGetter: () => Room | undefined;
+  getZones: () => Array<{ name: string; points: Position[] }>;
+}
 
 export interface DesktopModule {
   /** Initialise the desktop bridge (load config, set window.desktop). */
   initDesktop: () => void;
   /** Resolve once the desktop config has been loaded. */
   waitForConfig: () => Promise<void>;
-  /** Mini-mode view component. */
-  // The MiniModeView prop surface is owned by the @meetropolis/desktop submodule.
-  // It receives a broad set of A/V and roster props; we type it loosely here at
-  // the boundary so the OSS app can pass through whatever the submodule expects
-  // without coupling the web app to internal desktop types.
-  MiniModeView: ComponentType<Record<string, unknown>>;
+  /** Mini-mode view component. Props contract: `MiniModeViewProps`. */
+  MiniModeView: ComponentType<MiniModeViewProps>;
   /** Tauri preferences modal component. */
   TauriPreferencesModal: ComponentType<{ open: boolean; onOpenChange: (v: boolean) => void }>;
   /** Update banner component (renders update notifications). */
