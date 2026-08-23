@@ -80,18 +80,16 @@ function shouldDetachOnUnsubscribe(track: TrackLike, participant: RemoteParticip
   return otherAudioTracks.length === 0;
 }
 
-interface RoomWithLegacyParticipants extends Room {
-  participants?: Map<string, RemoteParticipant>;
-}
-
 function attachInitialAudioTracks(
-  room: RoomWithLegacyParticipants,
+  room: Room,
   audioElements: Map<string, HTMLAudioElement>,
   attachAudioTrack: (track: AttachableTrack, participantId: string) => void,
 ): void {
-  const participants: RemoteParticipant[] = Array.from(
-    room.remoteParticipants?.values?.() || room.participants?.values?.() || [],
-  );
+  // `remoteParticipants` is the only participant map livekit-client 2.x has;
+  // the 1.x `room.participants` fallback that used to sit here was dead code
+  // (an empty map still yields a truthy iterator) and kept an API alive that
+  // does not exist any more.
+  const participants: RemoteParticipant[] = Array.from(room.remoteParticipants?.values?.() || []);
   participants.forEach((participant) => {
     if (participant?.sid === room?.localParticipant?.sid) return;
     try {
@@ -139,7 +137,7 @@ async function registerLivekitListeners(
 }
 
 function setupGlobalAudioTracksEffect(avRef: React.MutableRefObject<AVManager | null>): (() => void) | undefined {
-  const room = avRef.current?.room as RoomWithLegacyParticipants | undefined;
+  const room = avRef.current?.room;
   if (!room) return undefined;
 
   const audioElements = new Map<string, HTMLAudioElement>();
