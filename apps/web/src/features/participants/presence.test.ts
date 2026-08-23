@@ -24,12 +24,23 @@ describe('mergeRecentPresence', () => {
     expect(out.some((x) => x.identity === 'u1')).toBe(true);
   });
 
-  it('matches online entries by name if identity differs', () => {
-    const prev: RosterItem[] = [{ identity: 'legacy-1', name: 'Dave', online: false }];
-    const online = { x1: { name: 'Dave', x: 0, y: 0 } } as const;
+  it('never lets a namesake mark another identity online', () => {
+    // An NPC is in the online map under `npc-*` and shares its display name
+    // with a roster member. The member is offline and must stay offline, keep
+    // their own coordinates (the roster panel uses them as a jump target), and
+    // the NPC must get a row of its own instead of adopting theirs.
+    const prev: RosterItem[] = [{ identity: 'user-1', name: 'Dave', online: false, x: 5, y: 6 }];
+    const online = { 'npc-dave': { name: 'Dave', x: 99, y: 99 } } as const;
     const api: ApiPresence[] = [];
+
     const out = mergeRecentPresence(prev, online, api);
-    const d = out.find((x) => x.name === 'Dave');
-    expect(d?.online).toBe(true);
+
+    const member = out.find((x) => x.identity === 'user-1');
+    expect(member?.online).toBe(false);
+    expect(member?.x).toBe(5);
+    expect(member?.y).toBe(6);
+    const npc = out.find((x) => x.identity === 'npc-dave');
+    expect(npc?.online).toBe(true);
+    expect(npc?.x).toBe(99);
   });
 });
