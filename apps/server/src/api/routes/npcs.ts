@@ -7,7 +7,6 @@ import { logger } from '../../logger.js';
 import { npcServiceSpawn, npcServiceDespawn } from '../utils/npcServiceClient.js';
 import { isAllowedAvatarId, isCustomAvatarId } from '../../services/avatarAccess.js';
 import { resolvePackScope } from '../utils/resolvePackScope.js';
-import type { Room } from 'colyseus';
 
 // --- Auth helpers ---
 
@@ -333,16 +332,18 @@ async function handleNpcCommand(req: express.Request, res: express.Response, pri
     (cmd.payload as Record<string, unknown>).mimeType = mediaFile.mimeType;
   }
 
-  // Broadcast command to all active Colyseus rooms
-  const activeWorldRooms = (global as Record<string, unknown>).activeWorldRooms as Set<Room> | undefined;
+  // Broadcast command to all active Colyseus rooms. Read the registry through
+  // its declared type (`types/global.d.ts`, typed against the real
+  // `rooms/WorldRoom.ts` class) rather than through a cast: a rename on
+  // `broadcast` or on the registry then breaks the build instead of leaving
+  // this route reporting deliveries it never made.
+  const activeWorldRooms = global.activeWorldRooms;
   let delivered = 0;
-  if (activeWorldRooms && activeWorldRooms.size > 0) {
+  if (activeWorldRooms) {
     for (const room of activeWorldRooms) {
       try {
-        if (typeof room?.broadcast === 'function') {
-          room.broadcast('npc_command', { npcIdentity: npc.identity, ...cmd });
-          delivered++;
-        }
+        room.broadcast('npc_command', { npcIdentity: npc.identity, ...cmd });
+        delivered++;
       } catch {
         /* ignore broadcast errors */
       }

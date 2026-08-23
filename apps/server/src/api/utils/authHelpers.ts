@@ -312,10 +312,22 @@ interface UsagePlayer {
   isNpc?: boolean;
 }
 
-/** Narrow projection of a Colyseus world room used by tenant usage calculation. */
+/**
+ * Narrow projection of a Colyseus world room used by tenant usage calculation.
+ *
+ * The members are REQUIRED on purpose, following the same rule as
+ * `SeatedWorldRoom` in `api/routes/controls.ts`: `global.activeWorldRooms` is
+ * typed against the real `rooms/WorldRoom.ts` class, and annotating the
+ * `Array.from` below against this view makes the compiler check the class
+ * against it. An optional `state` would still accept a room that lost the
+ * member to a rename, and the usage count would silently read zero. Metadata
+ * is the one exception: Colyseus gives `Room.metadata` no usable type (see
+ * `RoomMetadata` in `api/routes/auth.profile.ts`), so it has to be narrowed on
+ * read.
+ */
 interface UsageRoom {
-  metadata?: { tenant?: string };
-  state?: { players?: { forEach?: (cb: (p: UsagePlayer) => void) => void } };
+  metadata: unknown;
+  state: { players: { forEach: (cb: (p: UsagePlayer) => void) => void } };
 }
 
 /**
@@ -333,12 +345,12 @@ interface UsageRoom {
 export function computeOnlineUsageByTenantSlug(): Record<string, number> {
   const identitiesByTenant: Record<string, Set<string>> = {};
   try {
-    const activeWorldRooms = global.activeWorldRooms as unknown as Set<UsageRoom> | undefined;
-    const rooms: UsageRoom[] = activeWorldRooms ? Array.from(activeWorldRooms.values()) : [];
+    const activeWorldRooms = global.activeWorldRooms;
+    const rooms: UsageRoom[] = activeWorldRooms ? Array.from(activeWorldRooms) : [];
     for (const r of rooms) {
-      const slug = r.metadata?.tenant || 'default';
+      const slug = (r.metadata as { tenant?: string } | undefined)?.tenant || 'default';
       const set = (identitiesByTenant[slug] ??= new Set<string>());
-      r.state?.players?.forEach?.((p) => {
+      r.state.players.forEach((p) => {
         const identity = p?.identity;
         if (!identity) return;
         if (p?.isNpc === true || identity.startsWith('npc-')) return;
