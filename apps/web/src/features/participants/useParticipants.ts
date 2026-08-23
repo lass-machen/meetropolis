@@ -4,18 +4,9 @@ import { Track } from 'livekit-client';
 import type { Room, Participant, TrackPublication } from 'livekit-client';
 import type { Zone, ZoneManager, GameBridge, VolumeManager, Position, RemotePlayer } from '../../types/game';
 import type { AVManager } from '../../types/av';
+import type { UiParticipant } from '../../types/participant';
 
-export type UIParticipant = {
-  sid: string;
-  identity: string;
-  hasVideo: boolean;
-  hasMic: boolean;
-  isSpeaking: boolean;
-  media: 'camera' | 'screen';
-  volume?: number;
-  dnd?: boolean;
-  avatarId?: string;
-};
+export type { UiParticipant } from '../../types/participant';
 
 type Mutable<T> = { current: T };
 
@@ -28,7 +19,7 @@ type ParticipantsDeps = {
   identityToNameMap: Mutable<Record<string, string>>;
   volumeRef: Mutable<VolumeManager | null>;
   me: { id: string; email?: string; name?: string } | null;
-  setUiParticipants: (list: UIParticipant[]) => void;
+  setUiParticipants: (list: UiParticipant[]) => void;
   disposedRef?: Mutable<boolean>;
   getDisplayName: (identity: string) => string;
   gameBridge?: GameBridge;
@@ -69,16 +60,19 @@ function zonesDiffer(localZone: Zone | undefined, remoteZone: Zone | undefined):
   );
 }
 
-function buildFallbackList(deps: ParticipantsDeps): UIParticipant[] {
+function buildFallbackList(deps: ParticipantsDeps): UiParticipant[] {
   const { localPosRef, remotesRef, colyseusToLivekitMap, identityToNameMap, getDisplayName, dndRef, me, zoneRef } =
     deps;
-  const list: UIParticipant[] = [];
+  const list: UiParticipant[] = [];
   try {
-    const localIdentity = me?.name || me?.email || me?.id || 'You';
+    const localDisplayName = me?.name || me?.email || me?.id || 'You';
     const localAvatarId = localStorage.getItem('avatarId') || '';
     list.push({
       sid: 'local',
-      identity: localIdentity,
+      // No room means no LiveKit participant to bind this tile to; the empty
+      // identity keeps the resolver from guessing one.
+      livekitIdentity: '',
+      displayName: localDisplayName,
       hasVideo: false,
       hasMic: false,
       isSpeaking: false,
@@ -100,7 +94,8 @@ function buildFallbackList(deps: ParticipantsDeps): UIParticipant[] {
       const remAvId = remotesRef.current[colyseusId]?.avatarId;
       list.push({
         sid: `col:${colyseusId}`,
-        identity: name,
+        livekitIdentity,
+        displayName: name,
         hasVideo: false,
         hasMic: false,
         isSpeaking: false,
@@ -193,7 +188,7 @@ function resolveVolumeForParticipant(p: Participant, isLocal: boolean, deps: Par
 }
 
 function pushParticipant(
-  list: UIParticipant[],
+  list: UiParticipant[],
   p: Participant,
   isLocal: boolean,
   ctx: {
@@ -219,13 +214,14 @@ function pushParticipant(
     const hasV = publications.some(isVideoPub);
     const hasMic = publications.some(isMicPub);
     const hasScreen = publications.some(isScreenPub);
-    const identity = resolveDisplayName(p, room, deps);
+    const displayName = resolveDisplayName(p, room, deps);
     const volume = resolveVolumeForParticipant(p, isLocal, deps);
     const dnd = isLocal ? !!dndRef?.current : remoteDnd;
     const pAvatarId = isLocal ? localStorage.getItem('avatarId') || '' : remoteAvatarId || '';
     list.push({
       sid: p.sid,
-      identity,
+      livekitIdentity: p.identity,
+      displayName,
       hasVideo: !!hasV,
       hasMic: !!hasMic,
       // DND guard: the sender-side soft-mute propagates asynchronously, so a
@@ -237,13 +233,14 @@ function pushParticipant(
       ...(pAvatarId ? { avatarId: pAvatarId } : {}),
     });
     if (hasScreen) {
-      // Screen-share entry: identity stays the same as the camera entry
-      // because `media: 'screen'` plus the ':screen' sid suffix already
-      // discriminates the two. The UI appends a localised suffix at render
+      // Screen-share entry: identity and label stay the same as the camera
+      // entry because `media: 'screen'` plus the ':screen' sid suffix already
+      // discriminate the two. The UI appends a localised suffix at render
       // time (see ParticipantCard / UserCard via t('participant.screenSuffix')).
       list.push({
         sid: p.sid + ':screen',
-        identity,
+        livekitIdentity: p.identity,
+        displayName,
         hasVideo: true,
         hasMic: false,
         isSpeaking: false,
@@ -255,10 +252,17 @@ function pushParticipant(
   } catch {}
 }
 
-function appendOrphanColyseusRemotes(list: UIParticipant[], deps: ParticipantsDeps): void {
+function appendOrphanColyseusRemotes(list: UiParticipant[], deps: ParticipantsDeps): void {
   const { remotesRef, colyseusToLivekitMap, identityToNameMap, getDisplayName, zoneRef, localPosRef } = deps;
   try {
-    const presentIdentities = new Set<string>(list.map((p) => p.identity));
+    // Dedupe against both keys: a LiveKit participant already in the list is
+    // the same person as the Colyseus remote that maps to its identity, even
+    // when the two carry different labels.
+    const presentIdentities = new Set<string>();
+    for (const entry of list) {
+      if (entry.livekitIdentity) presentIdentities.add(entry.livekitIdentity);
+      presentIdentities.add(entry.displayName);
+    }
     for (const [colyseusId] of Object.entries(remotesRef.current || {})) {
       const livekitIdentity = colyseusToLivekitMap.current[colyseusId] || colyseusId;
       const name = identityToNameMap.current[livekitIdentity] || getDisplayName(livekitIdentity);
@@ -275,7 +279,8 @@ function appendOrphanColyseusRemotes(list: UIParticipant[], deps: ParticipantsDe
         const colAvId = remotesRef.current[colyseusId]?.avatarId;
         list.push({
           sid: `col:${colyseusId}`,
-          identity: name,
+          livekitIdentity,
+          displayName: name,
           hasVideo: false,
           hasMic: false,
           isSpeaking: false,
@@ -285,6 +290,7 @@ function appendOrphanColyseusRemotes(list: UIParticipant[], deps: ParticipantsDe
           ...(colAvId ? { avatarId: colAvId } : {}),
         });
         presentIdentities.add(name);
+        presentIdentities.add(livekitIdentity);
       }
     }
   } catch {}
@@ -315,14 +321,14 @@ function notifyGameOfSpeakingStates(room: Room, deps: ParticipantsDeps): void {
   } catch {}
 }
 
-function buildLivekitParticipantList(room: Room, deps: ParticipantsDeps): UIParticipant[] {
+function buildLivekitParticipantList(room: Room, deps: ParticipantsDeps): UiParticipant[] {
   const { zoneRef, localPosRef } = deps;
   const zones = getZonesNormalized(zoneRef);
   const localPos: Position = { x: localPosRef.current.x ?? 0, y: localPosRef.current.y ?? 0 };
   const localZone = zones.find((z: Zone) => pointInPolygon(localPos, z.points));
   const activeSet = new Set<string>((room.activeSpeakers || []).map((p: Participant) => p.sid));
 
-  const list: UIParticipant[] = [];
+  const list: UiParticipant[] = [];
   const ctx = { room, zones, localZone, localPos, activeSet, deps };
   pushParticipant(list, room.localParticipant, true, ctx);
   const remotes = Array.from(room.remoteParticipants?.values() || []);

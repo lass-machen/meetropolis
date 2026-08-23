@@ -1,12 +1,12 @@
 import { Icon } from '../../Icon';
-import type { PartType } from './types';
+import type { UiParticipant } from './types';
 
 export function StatusBadges({
   part,
   isVideoRendering,
   t,
 }: {
-  part: PartType;
+  part: UiParticipant;
   isVideoRendering: boolean;
   t: (k: string) => string;
 }) {

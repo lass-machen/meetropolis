@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo } from 'react';
-import type { WorldRefs, WorldUi, WorldAuth, UiParticipantShape, WorldMe } from './useWorldAppState';
+import type { WorldRefs, WorldUi, WorldAuth, WorldMe } from './useWorldAppState';
+import type { UiParticipant } from '../../../types/participant';
 
 type MiniZonePoint = { x: number; y: number };
 type RawZonePoint = MiniZonePoint | [number, number] | { x?: unknown; y?: unknown };
@@ -17,14 +18,15 @@ export function useWorldUiHelpers(params: {
 }) {
   const { refs, ui, auth, toggleMiniMode } = params;
 
-  const participantsToRender = useMemo<UiParticipantShape[]>(
+  const participantsToRender = useMemo<UiParticipant[]>(
     () =>
       ui.uiParticipants.length > 0
         ? ui.uiParticipants
         : [
             {
               sid: refs.avRef.current?.room?.localParticipant?.sid ?? 'local',
-              identity: auth.me?.name || auth.me?.email || '',
+              livekitIdentity: refs.avRef.current?.room?.localParticipant?.identity ?? '',
+              displayName: auth.me?.name || auth.me?.email || '',
               hasVideo: false,
               hasMic: ui.avState.mic,
               isSpeaking: false,

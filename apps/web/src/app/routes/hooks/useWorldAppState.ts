@@ -6,6 +6,7 @@ import type { ZoneManager } from '../../../game/zoneManager';
 import type { VolumeManager } from '../../../game/volumeManager';
 import type { WorldRoom } from '../../../types/colyseus';
 import type { AdminCapabilities } from './useFetchMe';
+import type { UiParticipant } from '../../../types/participant';
 
 export type WorldMe = {
   id: string;
@@ -26,16 +27,6 @@ export type AvStateShape = { mic: boolean; cam: boolean; share: boolean; dnd: bo
 export type DeviceListShape = {
   mics: { id: string; label: string }[];
   cams: { id: string; label: string }[];
-};
-
-export type UiParticipantShape = {
-  sid: string;
-  identity: string;
-  hasVideo: boolean;
-  hasMic: boolean;
-  isSpeaking: boolean;
-  media: 'camera' | 'screen';
-  volume?: number;
 };
 
 export type RosterEntryShape = {
@@ -112,28 +103,8 @@ export interface WorldAppState {
   selectedCamId: string;
   setSelectedCamId: React.Dispatch<React.SetStateAction<string>>;
 
-  uiParticipants: {
-    sid: string;
-    identity: string;
-    hasVideo: boolean;
-    hasMic: boolean;
-    isSpeaking: boolean;
-    media: 'camera' | 'screen';
-    volume?: number;
-  }[];
-  setUiParticipants: React.Dispatch<
-    React.SetStateAction<
-      {
-        sid: string;
-        identity: string;
-        hasVideo: boolean;
-        hasMic: boolean;
-        isSpeaking: boolean;
-        media: 'camera' | 'screen';
-        volume?: number;
-      }[]
-    >
-  >;
+  uiParticipants: UiParticipant[];
+  setUiParticipants: React.Dispatch<React.SetStateAction<UiParticipant[]>>;
 
   cameraManual: boolean;
   setCameraManual: React.Dispatch<React.SetStateAction<boolean>>;

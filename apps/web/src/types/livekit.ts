@@ -37,17 +37,6 @@ export {
   ConnectionState,
 };
 
-// Custom UI participant type
-export interface UIParticipant {
-  sid: string;
-  identity: string;
-  hasVideo: boolean;
-  hasMic: boolean;
-  isSpeaking: boolean;
-  media: 'camera' | 'screen';
-  volume?: number;
-}
-
 // Track subscription handlers
 export type TrackSubscribedHandler = (
   track: RemoteTrack,

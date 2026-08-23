@@ -4,16 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { ParticipantCard } from './ParticipantCard';
 import { Icon } from '../Icon';
 import { clampPan, resolveWheelAction, stepZoom, type PanOffset } from './overlayZoom';
-
-export type UIParticipant = {
-  sid: string;
-  identity: string;
-  hasVideo: boolean;
-  hasMic: boolean;
-  isSpeaking: boolean;
-  media: 'camera' | 'screen';
-  volume?: number;
-};
+import type { UiParticipant } from '../../types/participant';
 
 type DragRef = React.MutableRefObject<{ x: number; y: number; panX: number; panY: number }>;
 type ClampToStage = (pan: PanOffset, zoom: number) => PanOffset;
@@ -335,7 +326,7 @@ function ScreenshareBadge() {
 }
 
 export function ParticipantOverlay(props: {
-  participant: UIParticipant;
+  participant: UiParticipant;
   roomGetter: () => Room | undefined;
   zoom: number;
   onZoom: (next: number) => void;

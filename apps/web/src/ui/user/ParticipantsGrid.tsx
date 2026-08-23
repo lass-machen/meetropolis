@@ -4,21 +4,10 @@ import { UserCardContainer } from './UserCard';
 import { ParticipantCard } from './ParticipantCard';
 import { Icon } from '../Icon';
 import { useTranslation } from 'react-i18next';
-
-export type UIParticipant = {
-  sid: string;
-  identity: string;
-  hasVideo: boolean;
-  hasMic: boolean;
-  isSpeaking: boolean;
-  media: 'camera' | 'screen';
-  volume?: number;
-  dnd?: boolean;
-  avatarId?: string;
-};
+import type { UiParticipant } from '../../types/participant';
 
 export function ParticipantsGrid(props: {
-  participants: UIParticipant[];
+  participants: UiParticipant[];
   expanded: boolean;
   onToggleExpand: () => void;
   selectedSid: string | null;

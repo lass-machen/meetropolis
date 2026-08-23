@@ -1,11 +1,10 @@
 import React from 'react';
-import type { Room } from 'livekit-client';
 import { Icon } from '../../Icon';
 import { Button } from '../../system/Button';
 import { AvatarSprite } from '../AvatarSprite';
 import { StatusBadges } from './StatusBadges';
 import { displayParticipantName, performForceMute } from './participantUtils';
-import type { PartType } from './types';
+import type { UiParticipant } from './types';
 import type { PanOffset } from '../overlayZoom';
 
 export function ExpandedCard({
@@ -20,10 +19,9 @@ export function ExpandedCard({
   zoom,
   pan,
   videoRef,
-  roomGetter,
   t,
 }: {
-  part: PartType;
+  part: UiParticipant;
   isVideoRendering: boolean;
   isLocal: boolean;
   hover: boolean;
@@ -34,7 +32,6 @@ export function ExpandedCard({
   zoom: number;
   pan: PanOffset;
   videoRef: React.MutableRefObject<HTMLVideoElement | null>;
-  roomGetter: () => Room | undefined;
   t: (k: string) => string;
 }) {
   const speakingColor = 'var(--speaking-color, #10b981)';
@@ -153,7 +150,7 @@ export function ExpandedCard({
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              void performForceMute(part, roomGetter);
+              void performForceMute(part);
             }}
             onDoubleClick={(e) => {
               e.preventDefault();

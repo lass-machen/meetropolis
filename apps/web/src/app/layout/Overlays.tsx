@@ -5,25 +5,27 @@ import { ParticipantsGrid } from '../../ui/user/ParticipantsGrid';
 import { ParticipantOverlay } from '../../ui/user/ParticipantOverlay';
 import { HudPanel } from '../../ui/hud/HudPanel';
 import { TopRightMenu } from '../../ui/app/TopRightMenu';
+import type { UiParticipant } from '../../types/participant';
 
-type Participant = {
-  sid: string;
-  identity: string;
-  hasVideo: boolean;
-  hasMic: boolean;
-  isSpeaking: boolean;
-  media: 'camera' | 'screen';
-  volume?: number;
-};
-
-/** Shallow-compare two participant arrays by length + per-entry SID, hasVideo, hasMic, isSpeaking, volume. */
-function participantsEqual(a: Participant[], b: Participant[]): boolean {
+/**
+ * Shallow-compare two participant arrays by length + per-entry SID,
+ * livekitIdentity, displayName, hasVideo, hasMic, isSpeaking, volume.
+ *
+ * `livekitIdentity` has to be part of it: a presence-only tile keeps its
+ * `col:<id>` SID when the Colyseus-to-LiveKit mapping finally arrives, so
+ * comparing SIDs alone would hold the identity-less version and the tile would
+ * never resolve to its publisher. `displayName` is compared for the same
+ * reason a rename should reach the grid at all.
+ */
+function participantsEqual(a: UiParticipant[], b: UiParticipant[]): boolean {
   if (a.length !== b.length) return false;
   for (let i = 0; i < a.length; i++) {
     const pa = a[i];
     const pb = b[i];
     if (
       pa.sid !== pb.sid ||
+      pa.livekitIdentity !== pb.livekitIdentity ||
+      pa.displayName !== pb.displayName ||
       pa.hasVideo !== pb.hasVideo ||
       pa.hasMic !== pb.hasMic ||
       pa.isSpeaking !== pb.isSpeaking ||
@@ -41,7 +43,7 @@ type Props = {
   hud: { zone?: string; follow?: string | null; avRoom?: string | null };
   editorActive: boolean;
   avDnd: boolean;
-  participants: Participant[];
+  participants: UiParticipant[];
   gridExpanded: boolean;
   onToggleExpand: () => void;
   selectedSid: string | null;
@@ -60,10 +62,10 @@ type Props = {
  * Hold the last non-empty participant list briefly (reconnect grace) to
  * avoid visual flicker on transient disconnects.
  */
-function useStableParticipants(participants: Participant[]): Participant[] {
-  const lastNonEmptyRef = React.useRef<Participant[]>(participants);
-  const [stableParticipants, setStableParticipants] = React.useState<Participant[]>(participants);
-  const stableRef = React.useRef<Participant[]>(stableParticipants);
+function useStableParticipants(participants: UiParticipant[]): UiParticipant[] {
+  const lastNonEmptyRef = React.useRef<UiParticipant[]>(participants);
+  const [stableParticipants, setStableParticipants] = React.useState<UiParticipant[]>(participants);
+  const stableRef = React.useRef<UiParticipant[]>(stableParticipants);
   const graceTimerRef = React.useRef<number | null>(null);
 
   React.useEffect(() => {
@@ -124,7 +126,7 @@ function FullscreenOverlay({
   onZoom,
   onSelectSid,
 }: {
-  participants: Participant[];
+  participants: UiParticipant[];
   selectedSid: string;
   getRoom: () => Room | undefined;
   overlayZoom: number;
