@@ -56,44 +56,30 @@ export function createRosterRefresher(args: UseWorldRoomArgs) {
         }
       } catch {}
       rosterByIdentityRef.current = online;
+      // Keyed by identity only, like the other two roster merges
+      // (`rosterStateChange.ts`, `features/participants/presence.ts`): a
+      // display name is a label, not a key.
       setRoster((prev) => {
         const map = new Map<string, RosterItem>();
         for (const r of prev) map.set(r.identity, { ...r, online: false });
         for (const [ident, v] of Object.entries(online)) {
-          if (map.has(ident)) {
-            const cur = map.get(ident);
-            if (cur) {
-              map.set(ident, {
-                ...cur,
-                name: v.name,
-                online: true,
-                x: v.x,
-                y: v.y,
-              });
-            }
+          const cur = map.get(ident);
+          if (cur) {
+            map.set(ident, {
+              ...cur,
+              name: v.name,
+              online: true,
+              x: v.x,
+              y: v.y,
+            });
           } else {
-            // Fallback: match by display name to avoid duplicates when identities diverge
-            let matchedKey: string | undefined;
-            for (const [k, val] of map.entries()) {
-              if ((val.name || '').toLowerCase() === (v.name || '').toLowerCase()) {
-                matchedKey = k;
-                break;
-              }
-            }
-            if (matchedKey) {
-              const cur = map.get(matchedKey);
-              if (cur) {
-                map.set(matchedKey, { ...cur, online: true, x: v.x, y: v.y });
-              }
-            } else {
-              map.set(ident, {
-                identity: ident,
-                name: v.name,
-                online: true,
-                x: v.x,
-                y: v.y,
-              });
-            }
+            map.set(ident, {
+              identity: ident,
+              name: v.name,
+              online: true,
+              x: v.x,
+              y: v.y,
+            });
           }
         }
         return Array.from(map.values()).sort(

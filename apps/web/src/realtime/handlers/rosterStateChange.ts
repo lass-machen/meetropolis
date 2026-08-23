@@ -54,6 +54,13 @@ export function setupRosterOnStateChange(
   });
 }
 
+/**
+ * Merge the online map into the previous roster, keyed by identity only.
+ *
+ * A display name is a label, never a key — see the note on
+ * `features/participants/presence.ts` `mergeRecentPresence`, which merges the
+ * same roster from the API side and follows the same rule.
+ */
 function mergeRoster(
   prev: RosterEntry[],
   online: Record<string, { name: string; x: number; y: number }>,
@@ -61,24 +68,9 @@ function mergeRoster(
   const map = new Map<string, RosterEntry>();
   for (const r of prev) map.set(r.identity, { ...r, online: false });
   for (const [ident, v] of Object.entries(online)) {
-    if (map.has(ident)) {
-      const cur = map.get(ident);
-      if (cur) map.set(ident, { ...cur, name: v.name, online: true, x: v.x, y: v.y });
-      continue;
-    }
-    let matchedKey: string | undefined;
-    for (const [k, val] of map.entries()) {
-      if ((val.name || '').toLowerCase() === (v.name || '').toLowerCase()) {
-        matchedKey = k;
-        break;
-      }
-    }
-    if (matchedKey) {
-      const cur = map.get(matchedKey);
-      if (cur) map.set(matchedKey, { ...cur, online: true, x: v.x, y: v.y });
-    } else {
-      map.set(ident, { identity: ident, name: v.name, online: true, x: v.x, y: v.y });
-    }
+    const cur = map.get(ident);
+    if (cur) map.set(ident, { ...cur, name: v.name, online: true, x: v.x, y: v.y });
+    else map.set(ident, { identity: ident, name: v.name, online: true, x: v.x, y: v.y });
   }
   return Array.from(map.values()).sort((a, b) => Number(b.online) - Number(a.online) || a.name.localeCompare(b.name));
 }
