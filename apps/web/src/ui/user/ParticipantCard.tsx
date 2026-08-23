@@ -4,13 +4,13 @@ import { useTranslation } from 'react-i18next';
 import { CompactCard } from './card/CompactCard';
 import { ExpandedCard } from './card/ExpandedCard';
 import { useVideoTrackAttachment } from './card/useVideoTrackAttachment';
-import type { PartType } from './card/types';
+import type { UiParticipant } from './card/types';
 import type { PanOffset } from './overlayZoom';
 
 const ZERO_PAN: PanOffset = { x: 0, y: 0 };
 
 export function ParticipantCard(props: {
-  part: PartType;
+  part: UiParticipant;
   roomGetter: () => Room | undefined;
   compact?: boolean;
   full?: boolean;
@@ -54,7 +54,6 @@ export function ParticipantCard(props: {
       zoom={zoom}
       pan={pan}
       videoRef={videoRef}
-      roomGetter={roomGetter}
       t={t}
     />
   );

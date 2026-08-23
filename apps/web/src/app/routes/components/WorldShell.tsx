@@ -16,20 +16,11 @@ import type { DesktopModule } from '../../../lib/desktopLoader';
 import type { PaymentStatus } from '../../../ui/billing/types';
 import type { useWorldEventHandlers } from '../hooks/useWorldEventHandlers';
 import type { Position } from '../../../types/game';
+import type { UiParticipant } from '../../../types/participant';
 
 type AnyMe = NonNullable<WorldMe>;
 
 type EventHandlers = ReturnType<typeof useWorldEventHandlers>;
-
-type ParticipantToRender = {
-  sid: string;
-  identity: string;
-  hasVideo: boolean;
-  hasMic: boolean;
-  isSpeaking: boolean;
-  media: 'camera' | 'screen';
-  volume?: number;
-};
 
 export type WorldShellProps = {
   isMini: boolean;
@@ -46,7 +37,7 @@ export type WorldShellProps = {
   saveAllToServer: () => Promise<boolean>;
   handleAuthComplete: () => void;
   pttAwareToggleMic: () => Promise<void>;
-  participantsToRender: ParticipantToRender[];
+  participantsToRender: UiParticipant[];
   isTenantAdmin: boolean;
   paymentStatus: PaymentStatus | null;
   handleManageBilling: () => void | Promise<void>;

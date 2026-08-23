@@ -1,2 +1,2 @@
-export type { UserCardParticipant } from './UserCard';
+export type { UiParticipant } from '../../types/participant';
 export { UserCard, UserCardContainer } from './UserCard';

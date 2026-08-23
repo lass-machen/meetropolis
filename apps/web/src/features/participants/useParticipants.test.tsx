@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vitest';
 import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react';
-import { useParticipants, type UIParticipant } from './useParticipants';
+import { useParticipants, type UiParticipant } from './useParticipants';
 
 type HookApi = ReturnType<typeof useParticipants>;
 
@@ -41,7 +41,7 @@ function makeFixture() {
     activeSpeakers: [] as any[],
   };
 
-  const setUiParticipants = vi.fn<(list: UIParticipant[]) => void>();
+  const setUiParticipants = vi.fn<(list: UiParticipant[]) => void>();
   const updateSpeakingStates = vi.fn<(ids: Set<string>) => void>();
   const deps: any = {
     avRef: { current: { room } },
@@ -61,7 +61,7 @@ function makeFixture() {
   return { room, localParticipant, remoteParticipant, deps, setUiParticipants, updateSpeakingStates };
 }
 
-function lastList(setUiParticipants: Mock<(list: UIParticipant[]) => void>): UIParticipant[] {
+function lastList(setUiParticipants: Mock<(list: UiParticipant[]) => void>): UiParticipant[] {
   const calls = setUiParticipants.mock.calls;
   return calls[calls.length - 1][0];
 }
@@ -103,7 +103,7 @@ describe('useParticipants speaking indicator', () => {
 
     out.current!.buildParticipantList();
 
-    const remote = lastList(f.setUiParticipants).find((p) => p.identity === 'Remote One');
+    const remote = lastList(f.setUiParticipants).find((p) => p.displayName === 'Remote One');
     expect(remote).toBeTruthy();
     expect(remote!.isSpeaking).toBe(true);
     expect(lastSpeakingIds(f.updateSpeakingStates).has('c1')).toBe(true);
@@ -117,7 +117,7 @@ describe('useParticipants speaking indicator', () => {
 
     out.current!.buildParticipantList();
 
-    const remote = lastList(f.setUiParticipants).find((p) => p.identity === 'Remote One');
+    const remote = lastList(f.setUiParticipants).find((p) => p.displayName === 'Remote One');
     expect(remote).toBeTruthy();
     expect(remote!.dnd).toBe(true);
     expect(remote!.isSpeaking).toBe(false);
@@ -161,7 +161,7 @@ describe('useParticipants speaking indicator', () => {
 
     out.current!.buildParticipantList();
 
-    const remote = lastList(f.setUiParticipants).find((p) => p.identity === 'Remote One');
+    const remote = lastList(f.setUiParticipants).find((p) => p.displayName === 'Remote One');
     expect(remote).toBeTruthy();
     expect(remote!.hasMic).toBe(false);
     expect(remote!.isSpeaking).toBe(false);

@@ -25,16 +25,8 @@ import type { AdminCapabilities } from '../hooks/useFetchMe';
 import type { EditorState } from '../../../services/EditorService';
 import type { PaymentStatus } from '../../../ui/billing/types';
 import type { useWorldEventHandlers } from '../hooks/useWorldEventHandlers';
+import type { UiParticipant } from '../../../types/participant';
 
-type Participant = {
-  sid: string;
-  identity: string;
-  hasVideo: boolean;
-  hasMic: boolean;
-  isSpeaking: boolean;
-  media: 'camera' | 'screen';
-  volume?: number;
-};
 type AvState = { mic: boolean; cam: boolean; share: boolean; dnd: boolean; micPending?: boolean };
 type ConnStatus = { reconnecting: boolean; lastCode?: number; lastReason?: string };
 type Hud = { zone?: string; follow?: string | null; avRoom?: string | null };
@@ -49,7 +41,7 @@ export type WorldMainViewProps = {
   hud: Hud;
   editor: EditorState;
   avState: AvState;
-  participantsToRender: Participant[];
+  participantsToRender: UiParticipant[];
   gridExpanded: boolean;
   selectedSid: string | null;
   overlayZoom: number;

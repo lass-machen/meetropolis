@@ -1,20 +1,7 @@
-import type { Room, RemoteParticipant, LocalParticipant, Participant } from 'livekit-client';
+import type { RemoteParticipant, LocalParticipant, Participant } from 'livekit-client';
 
-export type PartType = {
-  sid: string;
-  identity: string;
-  hasVideo: boolean;
-  hasMic: boolean;
-  isSpeaking: boolean;
-  media: 'camera' | 'screen';
-  volume?: number;
-  dnd?: boolean;
-  avatarId?: string;
-};
-
-// Legacy room shape: older code paths still use `participants` instead of `remoteParticipants`.
-export interface LegacyRoom extends Room {
-  participants?: Map<string, RemoteParticipant>;
-}
+// The participant tile view model lives in one place; re-exported here so the
+// card modules keep importing their types from a single local barrel.
+export type { UiParticipant } from '../../../types/participant';
 
 export type AnyParticipant = (Participant | RemoteParticipant | LocalParticipant) & { name?: string };

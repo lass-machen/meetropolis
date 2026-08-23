@@ -1,16 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-
-export type UserCardParticipant = {
-  sid: string;
-  identity: string;
-  hasVideo: boolean;
-  hasMic: boolean;
-  isSpeaking: boolean;
-  media: 'camera' | 'screen';
-  volume?: number;
-  avatarId?: string;
-};
+import type { UiParticipant } from '../../types/participant';
 
 export function UserCardContainer(props: {
   children: React.ReactNode;
@@ -45,7 +35,7 @@ export function UserCardContainer(props: {
 }
 
 export function UserCard(props: {
-  participant: UserCardParticipant;
+  participant: UiParticipant;
   videoRef?: React.RefObject<HTMLVideoElement>;
   isVideoRendering?: boolean;
   isLocal?: boolean;
@@ -73,7 +63,7 @@ export function UserCard(props: {
   const { t } = useTranslation('common');
   const volume = part.volume ?? 1;
   const isScreen = part.media === 'screen';
-  const displayName = isScreen ? `${part.identity} (${t('participant.screenSuffix')})` : part.identity;
+  const displayName = isScreen ? `${part.displayName} (${t('participant.screenSuffix')})` : part.displayName;
   const isCollapsed = !!collapsed;
   const classes = [
     'uc-card',

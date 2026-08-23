@@ -2,7 +2,7 @@ import React from 'react';
 import { AvatarSprite } from '../AvatarSprite';
 import { StatusBadges } from './StatusBadges';
 import { displayParticipantName } from './participantUtils';
-import type { PartType } from './types';
+import type { UiParticipant } from './types';
 
 export function CompactCard({
   part,
@@ -12,7 +12,7 @@ export function CompactCard({
   videoRef,
   t,
 }: {
-  part: PartType;
+  part: UiParticipant;
   isVideoRendering: boolean;
   opacity: number;
   disabled: boolean;

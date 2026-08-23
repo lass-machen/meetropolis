@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import type { WorldRoom } from '../../types/colyseus';
 import type { AVManager } from '../../av/avManager';
+import type { UiParticipant } from '../../types/participant';
 import { gameBridge } from '../../game/bridge';
 import { getApiBaseFromWindow } from '../../lib/runtimeConfig';
 import { logger } from '../../lib/logger';
@@ -118,17 +119,7 @@ function useUiPanels() {
   }));
   const [selectedMicId, setSelectedMicId] = React.useState<string>('');
   const [selectedCamId, setSelectedCamId] = React.useState<string>('');
-  const [uiParticipants, setUiParticipants] = React.useState<
-    {
-      sid: string;
-      identity: string;
-      hasVideo: boolean;
-      hasMic: boolean;
-      isSpeaking: boolean;
-      media: 'camera' | 'screen';
-      volume?: number;
-    }[]
-  >([]);
+  const [uiParticipants, setUiParticipants] = React.useState<UiParticipant[]>([]);
   const [cameraManual, setCameraManual] = React.useState(false);
   const [tenantTab, setTenantTab] = React.useState('general');
   const [roster, setRoster] = React.useState<

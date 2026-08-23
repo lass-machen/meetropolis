@@ -1,12 +1,29 @@
 import React from 'react';
 import type { Room } from 'livekit-client';
 import { listPublications, readPubSource, type TrackLike, type TrackPublicationLike } from '../../../types/livekit';
-import type { AnyParticipant, LegacyRoom, PartType } from './types';
+import type { AnyParticipant, UiParticipant } from './types';
 import { findParticipant, findScreenParticipant, getTrackId } from './participantUtils';
+
+/**
+ * Handle of the participant a card is bound to. `identity` is the primary key
+ * (unique and stable across reconnects); `sid` only backs it up for the rare
+ * tile whose identity is unknown.
+ */
+type ParticipantHandle = { identity: string; sid: string };
+
+/** Does a room event concern the participant this card is bound to? */
+function eventTargetsHandle(
+  handle: ParticipantHandle,
+  participant: { sid?: string; identity?: string } | undefined,
+): boolean {
+  if (!participant) return false;
+  if (handle.identity && participant.identity) return participant.identity === handle.identity;
+  return !!handle.sid && participant.sid === handle.sid;
+}
 
 function attachInitialTrack(
   p: AnyParticipant,
-  part: PartType,
+  part: UiParticipant,
   el: HTMLVideoElement,
   attachedRef: React.MutableRefObject<string | null>,
 ): (() => void) | undefined {
@@ -39,8 +56,8 @@ interface TryAttachState {
   baseSid: string;
   isLocalNow: boolean;
   el: HTMLVideoElement;
-  room: LegacyRoom;
-  part: PartType;
+  room: Room;
+  part: UiParticipant;
   attachedRef: React.MutableRefObject<string | null>;
   setIsVideoRendering: (v: boolean) => void;
   pollTimerRef: { current: ReturnType<typeof setInterval> | null };
@@ -52,7 +69,7 @@ function buildTryAttach(state: TryAttachState) {
       const { p, isLocalNow } = state;
       let currentP: AnyParticipant | null = p;
       if (!currentP && state.part.media === 'screen' && !isLocalNow) {
-        currentP = findScreenParticipant(state.room, state.part, currentP);
+        currentP = findScreenParticipant(state.room, state.part, state.baseSid, currentP);
         if (currentP && currentP !== p) {
           state.p = currentP;
           state.baseSid = currentP.sid;
@@ -97,20 +114,20 @@ interface RoomEventBus {
 }
 
 function setupRoomEvents(
-  room: LegacyRoom,
-  baseSid: string,
-  part: PartType,
+  room: Room,
+  handle: ParticipantHandle,
+  part: UiParticipant,
   el: HTMLVideoElement,
   isLocalNow: boolean,
   setIsVideoRendering: (v: boolean) => void,
 ): () => void {
   const onTrackSubscribed = (...args: unknown[]) => {
     const t = args[0] as TrackLike | undefined;
-    const participant = args[2] as { sid?: string } | undefined;
+    const participant = args[2] as { sid?: string; identity?: string } | undefined;
     try {
       const src = (t?.source ?? t?.mediaStreamTrack?.kind) ? String(t?.source ?? t?.mediaStreamTrack?.kind) : undefined;
       const isDesired = part.media === 'screen' ? src === 'screen_share' : src === 'camera';
-      if (participant?.sid === baseSid && isDesired && el) {
+      if (eventTargetsHandle(handle, participant) && isDesired && el) {
         try {
           el.muted = true;
           t?.attach?.(el);
@@ -121,11 +138,11 @@ function setupRoomEvents(
   };
   const onTrackUnsubscribed = (...args: unknown[]) => {
     const t = args[0] as TrackLike | undefined;
-    const participant = args[2] as { sid?: string } | undefined;
+    const participant = args[2] as { sid?: string; identity?: string } | undefined;
     try {
       const src = (t?.source ?? t?.mediaStreamTrack?.kind) ? String(t?.source ?? t?.mediaStreamTrack?.kind) : undefined;
       const want = part.media === 'screen' ? 'screen_share' : 'camera';
-      if (participant?.sid === baseSid && src === want && el) {
+      if (eventTargetsHandle(handle, participant) && src === want && el) {
         try {
           t?.detach?.(el);
         } catch {}
@@ -208,7 +225,7 @@ function setupRoomEvents(
 }
 
 export function useVideoTrackAttachment(
-  part: PartType,
+  part: UiParticipant,
   roomGetter: () => Room | undefined,
   videoRef: React.RefObject<HTMLVideoElement | null>,
 ) {
@@ -217,7 +234,7 @@ export function useVideoTrackAttachment(
   const attachedTrackIdRef = React.useRef<string | null>(null);
 
   React.useEffect(() => {
-    const room = roomGetter() as LegacyRoom | undefined;
+    const room = roomGetter();
     const el = videoRef.current;
     if (!room || !room.localParticipant || !el) return;
 
@@ -227,11 +244,11 @@ export function useVideoTrackAttachment(
     attachedTrackIdRef.current = null;
     setIsVideoRendering(false);
 
-    let baseSid = (part.sid || '').split(':')[0];
-    const found = findParticipant(room, baseSid, part);
+    const tileSid = (part.sid || '').split(':')[0];
+    const found = findParticipant(room, tileSid, part);
     const p = found.p;
-    baseSid = found.baseSid;
-    const isLocalNow = room.localParticipant?.sid === baseSid;
+    const baseSid = found.baseSid;
+    const isLocalNow = found.isLocal;
     setIsLocal(isLocalNow);
     if (!p || !p.trackPublications) return;
 
@@ -271,7 +288,8 @@ export function useVideoTrackAttachment(
         } catch {}
       }, 10000);
 
-    const offEvents = setupRoomEvents(room, baseSid, part, el, isLocalNow, setIsVideoRendering);
+    const handle: ParticipantHandle = { identity: p.identity || part.livekitIdentity, sid: baseSid };
+    const offEvents = setupRoomEvents(room, handle, part, el, isLocalNow, setIsVideoRendering);
 
     return () => {
       // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: videoRef.current is captured into `node` at cleanup time; the ref-cleanup-timing warning is benign because we explicitly want the current DOM node at unmount
@@ -297,8 +315,8 @@ export function useVideoTrackAttachment(
         }
       } catch {}
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: sid + hasVideo are the lifecycle triggers we care about; part.media is constant per participant card, videoRef is a stable mutable ref, capturing full part would tear down and re-attach on every property update
-  }, [part.sid, part.hasVideo, roomGetter]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: sid, livekitIdentity and hasVideo are the lifecycle triggers we care about (the identity drives the participant lookup, so it must re-run the effect); part.media is constant per participant card, videoRef is a stable mutable ref, capturing full part would tear down and re-attach on every property update
+  }, [part.sid, part.livekitIdentity, part.hasVideo, roomGetter]);
 
   return { isVideoRendering, isLocal };
 }

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { ParticipantOverlay, type UIParticipant } from '../ParticipantOverlay';
+import { ParticipantOverlay } from '../ParticipantOverlay';
+import type { UiParticipant } from '../../../types/participant';
 
 // The card pulls in LiveKit track attachment; the overlay tests only cover
 // wheel handling and the fixed zoom controls.
@@ -8,9 +9,10 @@ vi.mock('../ParticipantCard', () => ({
   ParticipantCard: () => <div data-testid="participant-card" />,
 }));
 
-const participant: UIParticipant = {
+const participant: UiParticipant = {
   sid: 'sid-1',
-  identity: 'alice',
+  livekitIdentity: 'lk-alice',
+  displayName: 'alice',
   hasVideo: true,
   hasMic: true,
   isSpeaking: false,
