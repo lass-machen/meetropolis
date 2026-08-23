@@ -2,15 +2,23 @@ import type express from 'express';
 import { z } from 'zod';
 import { isPlayerVisibleToTenant } from '../../rooms/lifecycle/tenantView.js';
 
-/** Minimal shape we require from a Colyseus room for broadcasting controls. */
-interface BroadcastableRoom {
-  broadcast?: (event: string, data: unknown) => void;
+/** A connected Colyseus client, as much of it as the delivery below needs. */
+interface ControlClient {
+  sessionId?: string;
+  send?: (event: string, data: unknown) => void;
 }
 
 /** A seated player, as much of it as the authorization below needs. */
 interface SeatedPlayer {
   identity?: string;
   isNpc?: boolean;
+}
+
+/** One seat in a room: who sits there, under which verified tenant. */
+interface Seat {
+  sessionId: string;
+  isNpc: boolean;
+  tenantKey: string | undefined;
 }
 
 /**
@@ -23,48 +31,77 @@ interface SeatedPlayer {
  * and the tenant boundary is drawn per client by a `StateView` filter rather
  * than by separate rooms. Sharing a room is therefore NOT evidence of sharing
  * a tenant, and this file must not treat it as such.
+ *
+ * `clients` is the room's connected clients. Delivery goes through them one by
+ * one instead of through `room.broadcast`, because a broadcast crosses exactly
+ * the tenant boundary the authorization draws (see `deliverTo`).
  */
-interface ControlWorldRoom extends BroadcastableRoom {
+interface ControlWorldRoom {
   state?: {
     players?: { forEach?: (cb: (player: SeatedPlayer, sessionId: string) => void) => void };
   };
   playerTenantKey?: Map<string, string>;
+  clients?: Iterable<ControlClient>;
 }
 
 /**
- * The seat `identity` holds in `room`, or null when it holds none.
+ * Every seat `identity` holds in `room` — plural, because one user can be
+ * connected twice, and the two sessions can even carry different verified
+ * tenants in a shared apex room.
  *
  * `state.players` is a Colyseus `MapSchema` keyed by sessionId; the user id
  * lives in `player.identity` (assigned in `rooms/lifecycle/onJoin.completion.ts`
  * from the verified join identity). Iterating with `forEach` matches how the
  * rest of the server reads that map (see `computeOnlineUsageByTenantSlug`).
  */
-function findSeat(room: ControlWorldRoom, identity: string): { isNpc: boolean; tenantKey: string | undefined } | null {
-  let seat: { isNpc: boolean; tenantKey: string | undefined } | null = null;
+function findSeats(room: ControlWorldRoom, identity: string): Seat[] {
+  const seats: Seat[] = [];
   try {
     room.state?.players?.forEach?.((player, sessionId) => {
-      if (seat || !player || player.identity !== identity) return;
-      seat = { isNpc: player.isNpc === true, tenantKey: room.playerTenantKey?.get(sessionId) };
+      if (!player || player.identity !== identity) return;
+      seats.push({ sessionId, isNpc: player.isNpc === true, tenantKey: room.playerTenantKey?.get(sessionId) });
     });
   } catch {}
-  return seat;
+  return seats;
 }
 
-/** Every registered world room. Empty when the game server has not booted. */
+/**
+ * Every registered world room. Empty when the game server has not booted.
+ *
+ * The ambient type of `global.activeWorldRooms` is not the real
+ * `rooms/WorldRoom.ts` class: `api/utils/broadcast.ts` declares the global with
+ * a two-field stand-in of its own (`{ broadcast?, setDefaultSpawn? }`) and that
+ * declaration shadows the richer shape in `types/global.d.ts`. Neither of the
+ * two describes the room, so nothing may be inferred from either — hence the
+ * cast here and the guard on every field read below.
+ */
 function listWorldRooms(): ControlWorldRoom[] {
   const activeWorldRooms = global.activeWorldRooms;
   if (!activeWorldRooms || activeWorldRooms.size === 0) return [];
   try {
-    return Array.from(activeWorldRooms);
+    return Array.from(activeWorldRooms) as unknown as ControlWorldRoom[];
   } catch {
     return [];
   }
 }
 
-type ControlTargets = { rooms: ControlWorldRoom[] } | { error: 'caller_not_in_a_world_room' | 'target_not_reachable' };
+/**
+ * One authorized delivery: the room, the caller's verified tenant key in it,
+ * and — for a targeted control — the exact recipient sessionIds. `sessionIds`
+ * of `undefined` means "every client of this room the caller may see", which is
+ * what the untargeted route asks for.
+ */
+interface ControlTarget {
+  room: ControlWorldRoom;
+  callerKey: string;
+  sessionIds?: Set<string>;
+}
+
+type ControlError = 'caller_not_in_a_world_room' | 'caller_tenant_unknown' | 'target_not_reachable';
+type ControlTargets = { targets: ControlTarget[] } | { error: ControlError };
 
 /**
- * Which rooms may a control broadcast from `callerId` reach?
+ * Which clients may a control from `callerId` reach?
  *
  * Both routes below used to fan out over EVERY registered world room after
  * checking nothing but "is this request authenticated at all". Any logged-in
@@ -76,11 +113,12 @@ type ControlTargets = { rooms: ControlWorldRoom[] } | { error: 'caller_not_in_a_
  * sender had any authority.
  *
  * The rule now enforced is the narrowest one that keeps the feature working:
- * a caller may only reach a room it is seated in itself, and a targeted mute
- * additionally requires the target to be seated in that same room AND visible
- * to the caller under the room's tenant filter — the same predicate the state
- * sync uses, so a target the caller cannot even see cannot be muted either. An
- * unknown tenant key on either side fails closed.
+ * a caller may only reach a room it is seated in itself, only under a verified
+ * tenant key (an unknown key fails closed), and a targeted control additionally
+ * requires the target to be seated in that same room AND visible to the caller
+ * under the room's tenant filter — the same predicate the state sync uses, so a
+ * target the caller cannot even see cannot be controlled either. Of a target
+ * with several sessions only the sessions that passed that check are addressed.
  *
  * Note what this does NOT decide: whether force-mute should be a moderator
  * privilege rather than something every participant may do to every other
@@ -90,26 +128,39 @@ type ControlTargets = { rooms: ControlWorldRoom[] } | { error: 'caller_not_in_a_
 function resolveControlTargets(callerId: string, targetId?: string): ControlTargets {
   const callerRooms: Array<{ room: ControlWorldRoom; callerKey: string | undefined }> = [];
   for (const room of listWorldRooms()) {
-    const seat = findSeat(room, callerId);
-    if (seat) callerRooms.push({ room, callerKey: seat.tenantKey });
+    const seats = findSeats(room, callerId);
+    // A caller with two sessions in one room: the first seat carrying a
+    // verified tenant key decides, so an unrelated key-less session cannot
+    // downgrade an otherwise legitimate caller.
+    if (seats.length > 0) {
+      callerRooms.push({ room, callerKey: seats.find((s) => s.tenantKey !== undefined)?.tenantKey });
+    }
   }
   if (callerRooms.length === 0) return { error: 'caller_not_in_a_world_room' };
-  if (targetId === undefined) return { rooms: callerRooms.map((entry) => entry.room) };
 
-  const rooms: ControlWorldRoom[] = [];
-  for (const { room, callerKey } of callerRooms) {
-    if (callerKey === undefined) continue;
-    const targetSeat = findSeat(room, targetId);
-    if (!targetSeat) continue;
-    if (!isPlayerVisibleToTenant(targetSeat.isNpc, targetSeat.tenantKey, callerKey)) continue;
-    rooms.push(room);
+  const known = callerRooms.filter(
+    (entry): entry is { room: ControlWorldRoom; callerKey: string } => entry.callerKey !== undefined,
+  );
+  if (known.length === 0) return { error: 'caller_tenant_unknown' };
+
+  if (targetId === undefined) return { targets: known.map(({ room, callerKey }) => ({ room, callerKey })) };
+
+  const targets: ControlTarget[] = [];
+  for (const { room, callerKey } of known) {
+    const sessionIds = new Set(
+      findSeats(room, targetId)
+        .filter((seat) => isPlayerVisibleToTenant(seat.isNpc, seat.tenantKey, callerKey))
+        .map((seat) => seat.sessionId),
+    );
+    if (sessionIds.size === 0) continue;
+    targets.push({ room, callerKey, sessionIds });
   }
-  if (rooms.length === 0) return { error: 'target_not_reachable' };
-  return { rooms };
+  if (targets.length === 0) return { error: 'target_not_reachable' };
+  return { targets };
 }
 
 /**
- * Restrictive-only payload: these broadcast paths may only carry protective
+ * Restrictive-only payload: these fan-out paths may only carry protective
  * actions (disabling a device). Enabling mic/cam/share on a remote peer, or
  * setting their DND at all, is not a legitimate use case here, so `false` is
  * the only accepted value and `dnd` is rejected outright. The single legitimate
@@ -126,13 +177,40 @@ const controlPayloadSchema = z
     message: 'at least one field required',
   });
 
-function broadcastTo(rooms: ControlWorldRoom[], event: string, data: unknown): number {
+/**
+ * Send `event` to the authorized recipients and report how many clients got it.
+ *
+ * Deliberately NOT `room.broadcast`: a broadcast reaches every client of the
+ * room instance, and one instance can hold several tenants (see
+ * `ControlWorldRoom`). A room-wide send would therefore both act on foreign
+ * tenants' devices (untargeted route) and hand them the caller's and the
+ * target's user ids (targeted route) — identities the per-client `StateView`
+ * filter otherwise withholds. `rooms/handlers/zoneLockHandler.ts` replaced its
+ * broadcast with the same per-client loop for exactly that reason.
+ *
+ * A seat whose tenant key is unknown fails closed (not a recipient), and so
+ * does a client the room does not track a seat for. The untargeted filter
+ * passes `isNpc: false` on purpose: unlike the state sync, which shows NPCs to
+ * everyone because they carry no PII, there is nothing to gain from sending a
+ * device control to a bot, so NPC clients of a foreign tenant key are simply
+ * skipped as well.
+ */
+function deliverTo(targets: ControlTarget[], event: string, data: unknown): number {
   let delivered = 0;
-  for (const room of rooms) {
+  for (const { room, callerKey, sessionIds } of targets) {
+    const clients = room.clients;
+    if (!clients) continue;
     try {
-      if (typeof room?.broadcast === 'function') {
-        room.broadcast(event, data);
-        delivered++;
+      for (const client of clients) {
+        const sessionId = client?.sessionId;
+        if (typeof sessionId !== 'string') continue;
+        if (sessionIds && !sessionIds.has(sessionId)) continue;
+        if (!sessionIds && !isPlayerVisibleToTenant(false, room.playerTenantKey?.get(sessionId), callerKey)) continue;
+        if (typeof client.send !== 'function') continue;
+        try {
+          client.send(event, data);
+          delivered++;
+        } catch {}
       }
     } catch {}
   }
@@ -159,7 +237,7 @@ export function registerControlRoutes(
     const targets = resolveControlTargets(auth.userId);
     if ('error' in targets) return res.status(403).json({ error: targets.error });
 
-    const delivered = broadcastTo(targets.rooms, 'remote_controls', { from: auth.userId, payload: parse.data });
+    const delivered = deliverTo(targets.targets, 'remote_controls', { from: auth.userId, payload: parse.data });
     if (delivered === 0) return res.status(409).json({ error: 'no_active_targets' });
     res.json({ ok: true, delivered });
   });
@@ -186,7 +264,9 @@ export function registerControlRoutes(
     const targets = resolveControlTargets(auth.userId, identity);
     if ('error' in targets) return res.status(403).json({ error: targets.error });
 
-    const delivered = broadcastTo(targets.rooms, 'remote_controls_for', {
+    // `forIdentity` stays in the payload as a client-side safety net, but the
+    // send list above already contains nothing but the target's own sessions.
+    const delivered = deliverTo(targets.targets, 'remote_controls_for', {
       forIdentity: identity,
       from: auth.userId,
       payload: parse.data,

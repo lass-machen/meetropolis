@@ -1,11 +1,11 @@
 /**
  * Unit tests for the remote-control routes.
  *
- * Two properties are covered here.
+ * Three properties are covered here.
  *
  * 1. Restrictive-only payloads. Both /controls and /controls/for/:identity are
- *    fan-out broadcast paths that another authenticated user can trigger, so
- *    they must accept only protective actions (disabling a device:
+ *    fan-out paths that another authenticated user can trigger, so they must
+ *    accept only protective actions (disabling a device:
  *    `mic/cam/share === false`) and reject every activating value plus `dnd`
  *    entirely. Force-mute ({ mic: false }) must keep working.
  * 2. Authorization, not merely authentication. Being logged in used to be the
@@ -16,6 +16,12 @@
  *    seated in the same room and visible to the caller under that room's
  *    tenant filter (one WorldRoom can hold several tenants, see
  *    rooms/lifecycle/tenantView.ts).
+ * 3. Delivery, not just authorization. Authorizing a room and then calling
+ *    `room.broadcast` would hand the message to every client of the instance,
+ *    which crosses the very boundary point 2 draws. The assertions below are
+ *    therefore on the RECIPIENT LIST, never on a broadcast count: the room
+ *    double has no `broadcast` at all, so a regression to a room-wide send
+ *    fails instead of passing silently.
  */
 import express from 'express';
 import request from 'supertest';
@@ -23,34 +29,42 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 import { registerControlRoutes } from './controls.js';
 
-type BroadcastCall = { event: string; data: unknown };
+/** One message as it arrived at one client. */
+type SendCall = { sessionId: string; event: string; data: unknown };
 
 const CALLER = 'user-real';
 const TENANT_A = 'tenant-a';
 const TENANT_B = 'tenant-b';
 
-type Seat = { identity: string; tenantKey?: string; isNpc?: boolean };
+type Seat = { identity: string; tenantKey?: string; isNpc?: boolean; offline?: boolean };
 
 /**
  * A world room double shaped like the real one: `state.players` is keyed by
- * sessionId and carries the user id in `identity`, while the verified tenant of
- * each seat lives in the separate `playerTenantKey` map.
+ * sessionId and carries the user id in `identity`, the verified tenant of each
+ * seat lives in the separate `playerTenantKey` map, and `clients` holds the
+ * connected clients that a per-client send addresses. Seats are numbered per
+ * room (`r<roomIndex>s<seatIndex>`) so a recipient list stays readable across
+ * several rooms. A seat marked `offline` gets no client, which is how a player
+ * that is still in the state but already disconnected looks.
  */
-function worldRoom(seats: Seat[], broadcastCalls: BroadcastCall[]) {
+function worldRoom(roomIndex: number, seats: Seat[], sendCalls: SendCall[]) {
   const players = new Map<string, { identity: string; isNpc?: boolean }>();
   const playerTenantKey = new Map<string, string>();
+  const clients: Array<{ sessionId: string; send: (event: string, data: unknown) => void }> = [];
   seats.forEach((seat, i) => {
-    const sessionId = `s${i}`;
+    const sessionId = `r${roomIndex}s${i}`;
     players.set(sessionId, { identity: seat.identity, ...(seat.isNpc ? { isNpc: true } : {}) });
     if (seat.tenantKey !== undefined) playerTenantKey.set(sessionId, seat.tenantKey);
+    if (!seat.offline) {
+      clients.push({
+        sessionId,
+        send: (event: string, data: unknown) => {
+          sendCalls.push({ sessionId, event, data });
+        },
+      });
+    }
   });
-  return {
-    state: { players },
-    playerTenantKey,
-    broadcast: (event: string, data: unknown) => {
-      broadcastCalls.push({ event, data });
-    },
-  };
+  return { state: { players }, playerTenantKey, clients };
 }
 
 function makeApp(): express.Application {
@@ -69,10 +83,15 @@ function setRooms(...rooms: unknown[]): void {
   (global as unknown as { activeWorldRooms?: Set<unknown> }).activeWorldRooms = new Set(rooms);
 }
 
-let broadcastCalls: BroadcastCall[];
+/** The sessionIds that received something, in delivery order. */
+function recipients(sendCalls: SendCall[]): string[] {
+  return sendCalls.map((c) => c.sessionId);
+}
+
+let sendCalls: SendCall[];
 
 beforeEach(() => {
-  broadcastCalls = [];
+  sendCalls = [];
 });
 
 afterEach(() => {
@@ -83,16 +102,16 @@ afterEach(() => {
 
 describe('POST /controls: restrictive-only schema', () => {
   beforeEach(() => {
-    setRooms(worldRoom([{ identity: CALLER, tenantKey: TENANT_A }], broadcastCalls));
+    setRooms(worldRoom(0, [{ identity: CALLER, tenantKey: TENANT_A }], sendCalls));
   });
 
-  it('accepts { mic: false } (force-mute) and broadcasts remote_controls', async () => {
+  it('accepts { mic: false } (force-mute) and sends remote_controls', async () => {
     const res = await request(makeApp()).post('/controls').send({ mic: false });
 
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ ok: true });
-    expect(broadcastCalls).toHaveLength(1);
-    expect(broadcastCalls[0]).toMatchObject({
+    expect(sendCalls).toHaveLength(1);
+    expect(sendCalls[0]).toMatchObject({
       event: 'remote_controls',
       data: { from: CALLER, payload: { mic: false } },
     });
@@ -104,19 +123,19 @@ describe('POST /controls: restrictive-only schema', () => {
   });
 
   it.each([{ mic: true }, { cam: true }, { share: true }, { dnd: false }, { dnd: true }, {}])(
-    'rejects %o with 400 and never broadcasts',
+    'rejects %o with 400 and never sends',
     async (body) => {
       const res = await request(makeApp()).post('/controls').send(body);
       expect(res.status).toBe(400);
       expect(res.body).toMatchObject({ error: 'invalid payload' });
-      expect(broadcastCalls).toHaveLength(0);
+      expect(sendCalls).toHaveLength(0);
     },
   );
 
   it('rejects a mixed payload that smuggles dnd alongside a valid mic:false', async () => {
     const res = await request(makeApp()).post('/controls').send({ mic: false, dnd: true });
     expect(res.status).toBe(400);
-    expect(broadcastCalls).toHaveLength(0);
+    expect(sendCalls).toHaveLength(0);
   });
 });
 
@@ -124,33 +143,34 @@ describe('POST /controls/for/:identity: restrictive-only schema', () => {
   beforeEach(() => {
     setRooms(
       worldRoom(
+        0,
         [
           { identity: CALLER, tenantKey: TENANT_A },
           { identity: 'victim', tenantKey: TENANT_A },
         ],
-        broadcastCalls,
+        sendCalls,
       ),
     );
   });
 
-  it('accepts { mic: false } and broadcasts remote_controls_for with the target identity', async () => {
+  it('accepts { mic: false } and sends remote_controls_for with the target identity', async () => {
     const res = await request(makeApp()).post('/controls/for/victim').send({ mic: false });
 
     expect(res.status).toBe(200);
-    expect(broadcastCalls).toHaveLength(1);
-    expect(broadcastCalls[0]).toMatchObject({
+    expect(sendCalls).toHaveLength(1);
+    expect(sendCalls[0]).toMatchObject({
       event: 'remote_controls_for',
       data: { forIdentity: 'victim', from: CALLER, payload: { mic: false } },
     });
   });
 
   it.each([{ mic: true }, { cam: true }, { share: true }, { dnd: false }, { dnd: true }, {}])(
-    'rejects %o with 400 and never broadcasts',
+    'rejects %o with 400 and never sends',
     async (body) => {
       const res = await request(makeApp()).post('/controls/for/victim').send(body);
       expect(res.status).toBe(400);
       expect(res.body).toMatchObject({ error: 'invalid payload' });
-      expect(broadcastCalls).toHaveLength(0);
+      expect(sendCalls).toHaveLength(0);
     },
   );
 });
@@ -170,14 +190,14 @@ describe('POST /controls: auth gate unchanged', () => {
 });
 
 describe('authorization: a caller only reaches rooms it sits in', () => {
-  it('refuses the untargeted broadcast when the caller sits in no world room', async () => {
-    setRooms(worldRoom([{ identity: 'someone-else', tenantKey: TENANT_A }], broadcastCalls));
+  it('refuses the untargeted send when the caller sits in no world room', async () => {
+    setRooms(worldRoom(0, [{ identity: 'someone-else', tenantKey: TENANT_A }], sendCalls));
 
     const res = await request(makeApp()).post('/controls').send({ mic: false });
 
     expect(res.status).toBe(403);
     expect(res.body).toMatchObject({ error: 'caller_not_in_a_world_room' });
-    expect(broadcastCalls).toHaveLength(0);
+    expect(sendCalls).toHaveLength(0);
   });
 
   it('refuses when no world room is registered at all', async () => {
@@ -186,47 +206,117 @@ describe('authorization: a caller only reaches rooms it sits in', () => {
     const res = await request(makeApp()).post('/controls').send({ mic: false });
 
     expect(res.status).toBe(403);
-    expect(broadcastCalls).toHaveLength(0);
+    expect(sendCalls).toHaveLength(0);
   });
 
-  it('does not fan the untargeted broadcast out into rooms the caller is absent from', async () => {
-    const mine = worldRoom([{ identity: CALLER, tenantKey: TENANT_A }], broadcastCalls);
-    const foreign = worldRoom([{ identity: 'stranger', tenantKey: TENANT_B }], broadcastCalls);
+  it('refuses the untargeted send when the caller has no verified tenant (fails closed)', async () => {
+    setRooms(worldRoom(0, [{ identity: CALLER }, { identity: 'other', tenantKey: TENANT_A }], sendCalls));
+
+    const res = await request(makeApp()).post('/controls').send({ mic: false });
+
+    expect(res.status).toBe(403);
+    expect(res.body).toMatchObject({ error: 'caller_tenant_unknown' });
+    expect(sendCalls).toHaveLength(0);
+  });
+
+  it('does not fan the untargeted send out into rooms the caller is absent from', async () => {
+    const mine = worldRoom(0, [{ identity: CALLER, tenantKey: TENANT_A }], sendCalls);
+    const foreign = worldRoom(1, [{ identity: 'stranger', tenantKey: TENANT_A }], sendCalls);
     setRooms(mine, foreign);
 
     const res = await request(makeApp()).post('/controls').send({ mic: false });
 
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ delivered: 1 });
-    expect(broadcastCalls).toHaveLength(1);
+    expect(recipients(sendCalls)).toEqual(['r0s0']);
+  });
+});
+
+describe('delivery: the untargeted send stops at the tenant boundary', () => {
+  it('leaves a foreign tenant in the shared apex room untouched', async () => {
+    // One room, two tenants, separated only by the per-client StateView filter.
+    // A room-wide broadcast would mute tenant B's participant here; the caller
+    // cannot even see that player, so it must not reach it.
+    setRooms(
+      worldRoom(
+        0,
+        [
+          { identity: CALLER, tenantKey: TENANT_A },
+          { identity: 'peer', tenantKey: TENANT_A },
+          { identity: 'foreign', tenantKey: TENANT_B },
+        ],
+        sendCalls,
+      ),
+    );
+
+    const res = await request(makeApp()).post('/controls').send({ mic: false });
+
+    expect(res.status).toBe(200);
+    expect(recipients(sendCalls)).toEqual(['r0s0', 'r0s1']);
+    expect(res.body).toMatchObject({ delivered: 2 });
+  });
+
+  it('skips a seat whose tenant key is unknown (fails closed)', async () => {
+    setRooms(worldRoom(0, [{ identity: CALLER, tenantKey: TENANT_A }, { identity: 'ghost' }], sendCalls));
+
+    const res = await request(makeApp()).post('/controls').send({ mic: false });
+
+    expect(res.status).toBe(200);
+    expect(recipients(sendCalls)).toEqual(['r0s0']);
+  });
+
+  it('skips an NPC seat of a foreign tenant key', async () => {
+    setRooms(
+      worldRoom(
+        0,
+        [
+          { identity: CALLER, tenantKey: TENANT_A },
+          { identity: 'npc-guide', tenantKey: '__no_tenant__', isNpc: true },
+        ],
+        sendCalls,
+      ),
+    );
+
+    const res = await request(makeApp()).post('/controls').send({ mic: false });
+
+    expect(res.status).toBe(200);
+    expect(recipients(sendCalls)).toEqual(['r0s0']);
+  });
+
+  it('answers 409 when the caller is the only seat and already disconnected', async () => {
+    setRooms(worldRoom(0, [{ identity: CALLER, tenantKey: TENANT_A, offline: true }], sendCalls));
+
+    const res = await request(makeApp()).post('/controls').send({ mic: false });
+
+    expect(res.status).toBe(409);
+    expect(res.body).toMatchObject({ error: 'no_active_targets' });
+    expect(sendCalls).toHaveLength(0);
   });
 });
 
 describe('authorization: a targeted mute needs a shared, tenant-visible seat', () => {
   it('refuses a target that sits in no room with the caller', async () => {
     setRooms(
-      worldRoom([{ identity: CALLER, tenantKey: TENANT_A }], broadcastCalls),
-      worldRoom([{ identity: 'victim', tenantKey: TENANT_A }], broadcastCalls),
+      worldRoom(0, [{ identity: CALLER, tenantKey: TENANT_A }], sendCalls),
+      worldRoom(1, [{ identity: 'victim', tenantKey: TENANT_A }], sendCalls),
     );
 
     const res = await request(makeApp()).post('/controls/for/victim').send({ mic: false });
 
     expect(res.status).toBe(403);
     expect(res.body).toMatchObject({ error: 'target_not_reachable' });
-    expect(broadcastCalls).toHaveLength(0);
+    expect(sendCalls).toHaveLength(0);
   });
 
   it('refuses a target of another tenant that shares the apex room', async () => {
-    // The realistic cross-tenant case: one WorldRoom, two tenants, separated
-    // only by the per-client StateView filter. The caller cannot even see this
-    // player, so it must not be able to mute it either.
     setRooms(
       worldRoom(
+        0,
         [
           { identity: CALLER, tenantKey: TENANT_A },
           { identity: 'victim', tenantKey: TENANT_B },
         ],
-        broadcastCalls,
+        sendCalls,
       ),
     );
 
@@ -234,42 +324,130 @@ describe('authorization: a targeted mute needs a shared, tenant-visible seat', (
 
     expect(res.status).toBe(403);
     expect(res.body).toMatchObject({ error: 'target_not_reachable' });
-    expect(broadcastCalls).toHaveLength(0);
+    expect(sendCalls).toHaveLength(0);
   });
 
   it('refuses a target whose tenant key is unknown (fails closed)', async () => {
-    setRooms(worldRoom([{ identity: CALLER, tenantKey: TENANT_A }, { identity: 'victim' }], broadcastCalls));
+    setRooms(worldRoom(0, [{ identity: CALLER, tenantKey: TENANT_A }, { identity: 'victim' }], sendCalls));
 
     const res = await request(makeApp()).post('/controls/for/victim').send({ mic: false });
 
     expect(res.status).toBe(403);
-    expect(broadcastCalls).toHaveLength(0);
+    expect(sendCalls).toHaveLength(0);
   });
 
   it('refuses when the caller itself has no tenant key (fails closed)', async () => {
-    setRooms(worldRoom([{ identity: CALLER }, { identity: 'victim', tenantKey: TENANT_A }], broadcastCalls));
+    setRooms(worldRoom(0, [{ identity: CALLER }, { identity: 'victim', tenantKey: TENANT_A }], sendCalls));
 
     const res = await request(makeApp()).post('/controls/for/victim').send({ mic: false });
 
     expect(res.status).toBe(403);
-    expect(broadcastCalls).toHaveLength(0);
+    expect(sendCalls).toHaveLength(0);
   });
 
   it('reaches only the shared room when the caller sits in several', async () => {
     const shared = worldRoom(
+      0,
       [
         { identity: CALLER, tenantKey: TENANT_A },
         { identity: 'victim', tenantKey: TENANT_A },
       ],
-      broadcastCalls,
+      sendCalls,
     );
-    const other = worldRoom([{ identity: CALLER, tenantKey: TENANT_A }], broadcastCalls);
+    const other = worldRoom(1, [{ identity: CALLER, tenantKey: TENANT_A }], sendCalls);
     setRooms(shared, other);
 
     const res = await request(makeApp()).post('/controls/for/victim').send({ mic: false });
 
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ delivered: 1 });
-    expect(broadcastCalls).toHaveLength(1);
+    expect(recipients(sendCalls)).toEqual(['r0s1']);
+  });
+});
+
+describe('delivery: a targeted mute reaches the target and nobody else', () => {
+  it('does not tell a foreign tenant who muted whom', async () => {
+    // The payload carries two user ids (target and caller). A room-wide
+    // broadcast would hand both to tenant B, which the StateView filter
+    // otherwise withholds.
+    setRooms(
+      worldRoom(
+        0,
+        [
+          { identity: CALLER, tenantKey: TENANT_A },
+          { identity: 'victim', tenantKey: TENANT_A },
+          { identity: 'foreign', tenantKey: TENANT_B },
+        ],
+        sendCalls,
+      ),
+    );
+
+    const res = await request(makeApp()).post('/controls/for/victim').send({ mic: false });
+
+    expect(res.status).toBe(200);
+    expect(recipients(sendCalls)).toEqual(['r0s1']);
+    expect(sendCalls[0]?.data).toMatchObject({ forIdentity: 'victim', from: CALLER });
+  });
+
+  it('addresses only the target sessions that passed the tenant check', async () => {
+    // Same user, two sessions, different verified tenants in one apex room.
+    // The client-side filter matches on forIdentity alone, so the session that
+    // was never authorized must not receive the message at all.
+    setRooms(
+      worldRoom(
+        0,
+        [
+          { identity: CALLER, tenantKey: TENANT_A },
+          { identity: 'victim', tenantKey: TENANT_A },
+          { identity: 'victim', tenantKey: TENANT_B },
+        ],
+        sendCalls,
+      ),
+    );
+
+    const res = await request(makeApp()).post('/controls/for/victim').send({ mic: false });
+
+    expect(res.status).toBe(200);
+    expect(recipients(sendCalls)).toEqual(['r0s1']);
+    expect(res.body).toMatchObject({ delivered: 1 });
+  });
+
+  it('reaches both sessions of a target that is connected twice in its own tenant', async () => {
+    setRooms(
+      worldRoom(
+        0,
+        [
+          { identity: CALLER, tenantKey: TENANT_A },
+          { identity: 'victim', tenantKey: TENANT_A },
+          { identity: 'victim', tenantKey: TENANT_A },
+        ],
+        sendCalls,
+      ),
+    );
+
+    const res = await request(makeApp()).post('/controls/for/victim').send({ mic: false });
+
+    expect(res.status).toBe(200);
+    expect(recipients(sendCalls)).toEqual(['r0s1', 'r0s2']);
+    expect(res.body).toMatchObject({ delivered: 2 });
+  });
+
+  it('answers 409 when the authorized target has no connected client left', async () => {
+    setRooms(
+      worldRoom(
+        0,
+        [
+          { identity: CALLER, tenantKey: TENANT_A },
+          { identity: 'victim', tenantKey: TENANT_A, offline: true },
+        ],
+        sendCalls,
+      ),
+    );
+
+    const res = await request(makeApp()).post('/controls/for/victim').send({ mic: false });
+
+    expect(res.status).toBe(409);
+    expect(res.body).toMatchObject({ error: 'no_active_targets' });
+    expect(sendCalls).toHaveLength(0);
   });
 });
