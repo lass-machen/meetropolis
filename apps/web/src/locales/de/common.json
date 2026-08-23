@@ -93,7 +93,7 @@
   "admin.api.controlEndpoint": "Steuer-Endpunkt",
   "admin.api.bodyHint": "Body (JSON, mindestens ein Feld; nur false erlaubt, schützendes Ausschalten):",
   "admin.api.responseHint": "Antwort",
-  "admin.api.notes": "Hinweise: Nur Ausschalten (false) ist erlaubt; Geräte aktivieren oder DND remote setzen ist nicht möglich. Steuerung funktioniert nur, wenn du online bist.",
+  "admin.api.notes": "Hinweise: Nur Ausschalten (false) ist erlaubt; Geräte aktivieren oder DND remote setzen ist nicht möglich. Die Steuerung funktioniert nur, solange du selbst online bist, und erreicht nur Teilnehmende deines Tenants, die im selben World-Room sind wie du.",
   "admin.api.example": "Beispiel",
   "admin.api.createError": "Fehler beim Erstellen",
   "admin.api.deleteError": "Fehler beim Löschen",
