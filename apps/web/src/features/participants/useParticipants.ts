@@ -267,11 +267,19 @@ function appendOrphanColyseusRemotes(list: UiParticipant[], deps: ParticipantsDe
     // Identity is the reliable half — the name check only exists because a
     // Colyseus remote can predate its LiveKit mapping and then has no identity
     // to compare at all.
+    //
+    // Hence the asymmetry below: an entry that HAS an identity is deduped by
+    // that identity alone and contributes nothing to the name set. Whoever
+    // else happens to be called "Max" is a different person and keeps a tile
+    // of their own — two guests sharing a display name is ordinary, and
+    // hiding the second one is exactly the bug the identity keying was meant
+    // to end. Only identity-less entries are matched by name, against each
+    // other.
     const presentIdentities = new Set<string>();
     const presentDisplayNames = new Set<string>();
     for (const entry of list) {
       if (entry.livekitIdentity) presentIdentities.add(entry.livekitIdentity);
-      presentDisplayNames.add(entry.displayName);
+      else presentDisplayNames.add(entry.displayName);
     }
     for (const [colyseusId] of Object.entries(remotesRef.current || {})) {
       // Empty rather than the Colyseus id: see buildFallbackList.
@@ -287,7 +295,8 @@ function appendOrphanColyseusRemotes(list: UiParticipant[], deps: ParticipantsDe
         if (zonesDiffer(localZone2, remoteZone2)) continue;
       } catch {}
       const listedByIdentity = !!livekitIdentity && presentIdentities.has(livekitIdentity);
-      if (!listedByIdentity && !presentDisplayNames.has(name)) {
+      const listedByName = !livekitIdentity && presentDisplayNames.has(name);
+      if (!listedByIdentity && !listedByName) {
         const pos = remotesRef.current[colyseusId];
         const colAvId = remotesRef.current[colyseusId]?.avatarId;
         list.push({
@@ -302,8 +311,8 @@ function appendOrphanColyseusRemotes(list: UiParticipant[], deps: ParticipantsDe
           dnd: !!pos?.dnd,
           ...(colAvId ? { avatarId: colAvId } : {}),
         });
-        presentDisplayNames.add(name);
         if (livekitIdentity) presentIdentities.add(livekitIdentity);
+        else presentDisplayNames.add(name);
       }
     }
   } catch {}
