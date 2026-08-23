@@ -89,8 +89,14 @@ function buildFallbackList(deps: ParticipantsDeps): UiParticipant[] {
         const remoteZone = zones.find((z: Zone) => pointInPolygon(pos, z.points));
         if (zonesDiffer(localZone, remoteZone)) continue;
       } catch {}
-      const livekitIdentity = colyseusToLivekitMap.current[colyseusId] || colyseusId;
-      const name = identityToNameMap.current[livekitIdentity] || getDisplayName(livekitIdentity);
+      // The Colyseus id is NOT a LiveKit identity. Writing it into
+      // `livekitIdentity` would hand the resolver (and force-mute) a key that
+      // `Room.remoteParticipants` can never hold, so the field stays empty
+      // until the mapping actually knows one. The label still falls back to
+      // the Colyseus id, which is only ever read by humans.
+      const livekitIdentity = colyseusToLivekitMap.current[colyseusId] || '';
+      const nameKey = livekitIdentity || colyseusId;
+      const name = identityToNameMap.current[nameKey] || getDisplayName(nameKey);
       const remAvId = remotesRef.current[colyseusId]?.avatarId;
       list.push({
         sid: `col:${colyseusId}`,
@@ -255,17 +261,23 @@ function pushParticipant(
 function appendOrphanColyseusRemotes(list: UiParticipant[], deps: ParticipantsDeps): void {
   const { remotesRef, colyseusToLivekitMap, identityToNameMap, getDisplayName, zoneRef, localPosRef } = deps;
   try {
-    // Dedupe against both keys: a LiveKit participant already in the list is
-    // the same person as the Colyseus remote that maps to its identity, even
-    // when the two carry different labels.
+    // Dedupe against two separate namespaces. An identity is a key, a display
+    // name is a label; mixing them into one set lets a display name that
+    // happens to equal somebody else's user id suppress a presence tile.
+    // Identity is the reliable half — the name check only exists because a
+    // Colyseus remote can predate its LiveKit mapping and then has no identity
+    // to compare at all.
     const presentIdentities = new Set<string>();
+    const presentDisplayNames = new Set<string>();
     for (const entry of list) {
       if (entry.livekitIdentity) presentIdentities.add(entry.livekitIdentity);
-      presentIdentities.add(entry.displayName);
+      presentDisplayNames.add(entry.displayName);
     }
     for (const [colyseusId] of Object.entries(remotesRef.current || {})) {
-      const livekitIdentity = colyseusToLivekitMap.current[colyseusId] || colyseusId;
-      const name = identityToNameMap.current[livekitIdentity] || getDisplayName(livekitIdentity);
+      // Empty rather than the Colyseus id: see buildFallbackList.
+      const livekitIdentity = colyseusToLivekitMap.current[colyseusId] || '';
+      const nameKey = livekitIdentity || colyseusId;
+      const name = identityToNameMap.current[nameKey] || getDisplayName(nameKey);
       try {
         const zones2 = getZonesNormalized(zoneRef);
         const localPos2: Position = { x: localPosRef.current.x ?? 0, y: localPosRef.current.y ?? 0 };
@@ -274,7 +286,8 @@ function appendOrphanColyseusRemotes(list: UiParticipant[], deps: ParticipantsDe
         const remoteZone2 = pos ? zones2.find((z: Zone) => pointInPolygon(pos, z.points)) : undefined;
         if (zonesDiffer(localZone2, remoteZone2)) continue;
       } catch {}
-      if (!presentIdentities.has(name) && !presentIdentities.has(livekitIdentity)) {
+      const listedByIdentity = !!livekitIdentity && presentIdentities.has(livekitIdentity);
+      if (!listedByIdentity && !presentDisplayNames.has(name)) {
         const pos = remotesRef.current[colyseusId];
         const colAvId = remotesRef.current[colyseusId]?.avatarId;
         list.push({
@@ -289,8 +302,8 @@ function appendOrphanColyseusRemotes(list: UiParticipant[], deps: ParticipantsDe
           dnd: !!pos?.dnd,
           ...(colAvId ? { avatarId: colAvId } : {}),
         });
-        presentIdentities.add(name);
-        presentIdentities.add(livekitIdentity);
+        presentDisplayNames.add(name);
+        if (livekitIdentity) presentIdentities.add(livekitIdentity);
       }
     }
   } catch {}
@@ -379,31 +392,19 @@ export function useParticipants(deps: ParticipantsDeps) {
   ]);
 
   const applyVolumesToUi = useCallback(() => {
-    const vols = volumeRef.current?.update() || {};
-    const next: Record<string, number> = {};
-    for (const [colyseusId, vol] of Object.entries(vols)) {
-      if (typeof vol !== 'number') continue;
-      const livekitIdentity = colyseusToLivekitMap.current[colyseusId];
-      if (livekitIdentity) {
-        next[livekitIdentity] = vol;
-        try {
-          const display = getDisplayName(livekitIdentity);
-          if (display) {
-            next[display] = vol;
-            // Screen-share volume map key: composite key (display:screen)
-            // instead of a localised suffix. Screen-share inherits the same
-            // volume as the camera entry today; the separate key preserves
-            // the lookup contract for any future per-media-override.
-            next[`${display}:screen`] = vol;
-          }
-        } catch {}
-      }
-    }
-    // UI volumes are owned by App; only trigger a list rebuild here.
+    // `update()` is called for its side effect: it recomputes the distance
+    // volumes and applies them to the LiveKit audio elements. Its return value
+    // is deliberately not turned into a map here — the tiles read their
+    // `volume` from `resolveVolumeForParticipant`, which pulls
+    // `VolumeManager.getLastVolumes()` (keyed by Colyseus id) during the
+    // rebuild below. A second, display-name-keyed copy used to be built at
+    // this point and thrown away unread; it is gone rather than resurrected,
+    // because a display name is not a key (see appendOrphanColyseusRemotes).
+    volumeRef.current?.update();
     try {
       buildParticipantList();
     } catch {}
-  }, [volumeRef, colyseusToLivekitMap, getDisplayName, buildParticipantList]);
+  }, [volumeRef, buildParticipantList]);
 
   return { buildParticipantList, applyVolumesToUi };
 }
