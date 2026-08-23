@@ -154,8 +154,12 @@ describe('API Tokens & Controls', () => {
       .post('/controls')
       .set('Authorization', `Bearer ${rawToken}`)
       .send({ mic: false });
-    // No user online -> 409, but authentication via token worked
-    expect(ctrlRes.status).toBe(409);
+    // The token authenticates (that is what this test is about), but the
+    // route no longer fans out over every world room: a caller may only reach
+    // rooms it is seated in, and this test registers none. Hence 403
+    // ('caller_not_in_a_world_room') where the unscoped route used to reach
+    // the end of an empty room list and answer 409 ('no_active_targets').
+    expect(ctrlRes.status).toBe(403);
 
     const after = mem.tokens[0];
     expect(after.lastUsedAt).toBeTruthy();

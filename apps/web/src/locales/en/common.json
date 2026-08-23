@@ -93,7 +93,7 @@
   "admin.api.controlEndpoint": "Control endpoint",
   "admin.api.bodyHint": "Body (JSON, at least one field; only false is allowed, protective disable):",
   "admin.api.responseHint": "Response",
-  "admin.api.notes": "Notes: only disabling (false) is allowed; enabling devices or setting DND remotely is not possible. Control works only when you're online.",
+  "admin.api.notes": "Notes: only disabling (false) is allowed; enabling devices or setting DND remotely is not possible. Control works only while you are online yourself, and reaches only participants of your own tenant who are in the same world room as you.",
   "admin.api.example": "Example",
   "admin.api.createError": "Error creating token",
   "admin.api.deleteError": "Error deleting",
