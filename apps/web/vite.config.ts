@@ -27,7 +27,15 @@ export default defineConfig({
     // vitest.config.ts already dedupes react-i18next; this keeps the real
     // build honest, and makes a local submodule build resolve the same single
     // copies that the Docker image gets from its merged install.
-    dedupe: ['react', 'react-dom', 'i18next', 'react-i18next'],
+    //
+    // livekit-client for the same reason, before it costs anything: the
+    // desktop submodule declares its own livekit-client and resolves bare
+    // imports against its own node_modules first, so a second SDK copy would
+    // ship two Room classes with two identities — and every `instanceof`
+    // across the boundary would start answering false. Today the only import
+    // from there is a type import, which erases; the first value import would
+    // do it silently.
+    dedupe: ['react', 'react-dom', 'i18next', 'react-i18next', 'livekit-client'],
     alias: {
       // The desktop submodule (packages/desktop) imports UI components from the web app.
       // This alias enables clean imports like '@app/ui/system' instead of long relative paths.
