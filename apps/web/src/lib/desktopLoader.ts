@@ -40,6 +40,19 @@ export interface MiniModeRosterItem {
 export interface MiniModeViewProps {
   roster: MiniModeRosterItem[];
   uiParticipants: UiParticipant[];
+  /**
+   * The viewer's own LiveKit identity (their user id), the key their roster row
+   * carries.
+   *
+   * The mini window lists the online roster rows that have no participant card
+   * yet, and the viewer always has a card. Matching that card by identity fails
+   * in exactly one case: without a LiveKit room `buildFallbackList`
+   * (`features/participants/useParticipants.ts`) builds the local tile with an
+   * empty `livekitIdentity`, because there is no LiveKit participant to bind it
+   * to. This field closes that gap by identity instead of by display name, so
+   * a colleague of the same name keeps their entry.
+   */
+  meIdentity: string;
   avState: { mic: boolean; cam: boolean; share: boolean; dnd: boolean };
   /** Label for a LiveKit identity. Never a lookup key — see `UiParticipant`. */
   getDisplayName: (identity: string) => string;

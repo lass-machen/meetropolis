@@ -49,6 +49,7 @@ export type WorldShellProps = {
 
 function MiniModeWrapper({
   desktop,
+  me,
   ui,
   eventHandlers,
   pttAwareToggleMic,
@@ -63,6 +64,7 @@ function MiniModeWrapper({
     <desktop.MiniModeView
       roster={ui.roster}
       uiParticipants={ui.uiParticipants}
+      meIdentity={me.id}
       avState={ui.avState}
       getDisplayName={getDisplayName}
       onJumpTo={eventHandlers.handleJumpTo}
