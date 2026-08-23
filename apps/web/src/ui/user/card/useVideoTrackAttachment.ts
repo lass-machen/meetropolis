@@ -2,7 +2,7 @@ import React from 'react';
 import type { Room } from 'livekit-client';
 import { listPublications, readPubSource, type TrackLike, type TrackPublicationLike } from '../../../types/livekit';
 import type { AnyParticipant, UiParticipant } from './types';
-import { findParticipant, findScreenParticipant, getTrackId } from './participantUtils';
+import { findParticipant, getTrackId } from './participantUtils';
 
 /**
  * Handle of the participant a card is bound to. `identity` is the primary key
@@ -51,9 +51,19 @@ function attachInitialTrack(
   return undefined;
 }
 
+/**
+ * The state a poll tick works on. `p` is non-null by construction: the effect
+ * below only builds a tick after `findParticipant` resolved the tile, and it
+ * never clears the field afterwards. There used to be a re-resolution branch
+ * here for screen tiles whose publisher had not joined yet; it was unreachable
+ * for exactly that reason, and it was never needed either, because a screen
+ * tile is only ever created from a participant that already holds a screen
+ * publication (`features/participants/useParticipants.ts`). A tile whose
+ * identity only becomes known later re-runs the whole effect instead, via the
+ * `part.livekitIdentity` dependency.
+ */
 interface TryAttachState {
-  p: AnyParticipant | null;
-  baseSid: string;
+  p: AnyParticipant;
   isLocalNow: boolean;
   el: HTMLVideoElement;
   room: Room;
@@ -66,16 +76,8 @@ interface TryAttachState {
 function buildTryAttach(state: TryAttachState) {
   return () => {
     try {
-      const { p, isLocalNow } = state;
-      let currentP: AnyParticipant | null = p;
-      if (!currentP && state.part.media === 'screen' && !isLocalNow) {
-        currentP = findScreenParticipant(state.room, state.part, state.baseSid, currentP);
-        if (currentP && currentP !== p) {
-          state.p = currentP;
-          state.baseSid = currentP.sid;
-        }
-      }
-      if (isLocalNow) currentP = state.room.localParticipant;
+      const { isLocalNow } = state;
+      const currentP: AnyParticipant = isLocalNow ? state.room.localParticipant : state.p;
       if (!currentP) return;
       const pubsNow = listPublications(currentP);
       const target = state.part.media === 'screen' ? 'screen_share' : 'camera';
@@ -274,7 +276,6 @@ export function useVideoTrackAttachment(
     const pollTimerRef: { current: ReturnType<typeof setInterval> | null } = { current: null };
     const sharedState: TryAttachState = {
       p,
-      baseSid,
       isLocalNow,
       el,
       room,
