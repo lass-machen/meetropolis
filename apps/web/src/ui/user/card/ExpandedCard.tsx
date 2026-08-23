@@ -1,4 +1,5 @@
 import React from 'react';
+import type { Room } from 'livekit-client';
 import { Icon } from '../../Icon';
 import { Button } from '../../system/Button';
 import { AvatarSprite } from '../AvatarSprite';
@@ -19,6 +20,8 @@ export function ExpandedCard({
   zoom,
   pan,
   videoRef,
+  roomGetter,
+  canForceMute,
   t,
 }: {
   part: UiParticipant;
@@ -32,6 +35,20 @@ export function ExpandedCard({
   zoom: number;
   pan: PanOffset;
   videoRef: React.MutableRefObject<HTMLVideoElement | null>;
+  /**
+   * Read the live room. Force-mute resolves its target against the room at
+   * click time instead of trusting the identity string on the tile, so the
+   * button cannot address somebody who is not a remote participant here.
+   */
+  roomGetter: () => Room | undefined;
+  /**
+   * Did this tile resolve to a remote participant of the current room? Only
+   * then can force-mute do anything, so only then is the button offered. A
+   * presence-only tile from the Colyseus roster looks identical otherwise —
+   * it even carries a `livekitIdentity` — and used to show a button that
+   * either did nothing or reached somebody outside the caller's audio zone.
+   */
+  canForceMute: boolean;
   t: (k: string) => string;
 }) {
   const speakingColor = 'var(--speaking-color, #10b981)';
@@ -130,7 +147,7 @@ export function ExpandedCard({
       <div style={{ position: 'absolute', top: 6, right: 6, display: 'flex', gap: 6 }}>
         <StatusBadges part={part} isVideoRendering={isVideoRendering} t={t} />
       </div>
-      {!isLocal && hover && part.media === 'camera' && (
+      {!isLocal && canForceMute && hover && part.media === 'camera' && (
         <div
           style={{
             position: 'absolute',
@@ -150,7 +167,7 @@ export function ExpandedCard({
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              void performForceMute(part);
+              void performForceMute(part, roomGetter());
             }}
             onDoubleClick={(e) => {
               e.preventDefault();

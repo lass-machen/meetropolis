@@ -22,7 +22,7 @@ export function ParticipantCard(props: {
   const { part, roomGetter, full, zoom = 1, pan = ZERO_PAN, collapsed } = props;
   const [hover, setHover] = React.useState(false);
   const { t } = useTranslation('common');
-  const { isVideoRendering, isLocal } = useVideoTrackAttachment(part, roomGetter, videoRef);
+  const { isVideoRendering, isLocal, hasRemoteParticipant } = useVideoTrackAttachment(part, roomGetter, videoRef);
 
   const volume = part.volume ?? 1;
   const opacity = isLocal ? 1 : 0.4 + volume * 0.6;
@@ -54,6 +54,8 @@ export function ParticipantCard(props: {
       zoom={zoom}
       pan={pan}
       videoRef={videoRef}
+      roomGetter={roomGetter}
+      canForceMute={hasRemoteParticipant}
       t={t}
     />
   );

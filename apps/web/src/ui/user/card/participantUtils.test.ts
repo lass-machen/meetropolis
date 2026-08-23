@@ -199,9 +199,12 @@ describe('performForceMute', () => {
   });
 
   it('addresses the target by LiveKit identity, not by the display name', async () => {
+    const first = participant('PA_first', 'guest-1', 'Gast');
+    const second = participant('PA_second', 'guest-2', 'Gast');
+    const room = makeRoom({ local: participant('L1', 'me'), remotes: [first, second] });
     const part = tile({ sid: 'PA_second', livekitIdentity: 'guest-2', displayName: 'Gast' });
 
-    await performForceMute(part);
+    await performForceMute(part, room);
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const url = String(fetchMock.mock.calls[0][0]);
@@ -209,11 +212,55 @@ describe('performForceMute', () => {
     expect(url).not.toContain('Gast');
   });
 
-  it('sends nothing for a tile with no LiveKit participant behind it', async () => {
+  it('sends nothing for a tile with no LiveKit identity', async () => {
+    const room = makeRoom({ local: participant('L1', 'me'), remotes: [] });
     const part = tile({ sid: 'col:abc', livekitIdentity: '', displayName: 'Gast' });
 
-    await performForceMute(part);
+    await performForceMute(part, room);
 
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('sends nothing for a presence tile whose identity is not a participant of this room', async () => {
+    // A `col:` tile does carry a livekitIdentity as soon as the
+    // Colyseus-to-LiveKit mapping knows one, so the identity string alone is
+    // no evidence of a publisher here. Muting on it would reach somebody
+    // outside the caller's audio zone.
+    const room = makeRoom({ local: participant('L1', 'me'), remotes: [participant('PA_here', 'guest-1', 'Gast')] });
+    const part = tile({ sid: 'col:abc', livekitIdentity: 'guest-2', displayName: 'Gast' });
+
+    await performForceMute(part, room);
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('sends nothing for the local tile', async () => {
+    const local = participant('L1', 'me', 'Ich');
+    const room = makeRoom({ local, remotes: [] });
+    const part = tile({ sid: 'L1', livekitIdentity: 'me', displayName: 'Ich' });
+
+    await performForceMute(part, room);
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('sends nothing when there is no room at all', async () => {
+    const part = tile({ sid: 'PA_second', livekitIdentity: 'guest-2', displayName: 'Gast' });
+
+    await performForceMute(part, undefined);
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('addresses the identity the room reports, not the one the tile was built with', async () => {
+    // The tile can be stale after a reconnect; the resolver is the authority.
+    const remote = participant('PA_r', 'guest-2', 'Gast');
+    const room = makeRoom({ local: participant('L1', 'me'), remotes: [remote] });
+    const part = tile({ sid: 'PA_r', livekitIdentity: '', displayName: 'Gast' });
+
+    await performForceMute(part, room);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(String(fetchMock.mock.calls[0][0])).toContain('/controls/for/guest-2');
   });
 });
