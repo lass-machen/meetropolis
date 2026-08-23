@@ -1,24 +1,9 @@
 import { logger } from '../../logger.js';
 
-interface WorldRoom {
-  broadcast?: (event: string, data: unknown) => void;
-  setDefaultSpawn?: (mapId: string, pos: { x: number; y: number }) => void;
-}
-
-interface GameServer {
-  presence?: {
-    publish: (channel: string, data: unknown) => Promise<void>;
-  };
-  matchMaker?: {
-    query: (filter: Record<string, unknown>) => Promise<WorldRoom[]>;
-  };
-  rooms?: WorldRoom[] | Map<string, WorldRoom>;
-}
-
-declare global {
-  var gameServer: GameServer | undefined;
-  var activeWorldRooms: Set<WorldRoom> | undefined;
-}
+// `gameServer` and `activeWorldRooms` are declared once, in types/global.d.ts.
+// This file used to re-declare both with shapes of its own; the duplicate is a
+// TS2403 that `skipLibCheck` swallows, and the two descriptions had already
+// drifted apart (see the note there).
 
 export function broadcastMapUpdate(tenantSlug: string, type: string, payload: unknown): void {
   const gameServer = global.gameServer;

@@ -45,6 +45,24 @@ interface ControlWorldRoom {
 }
 
 /**
+ * The same three members, but REQUIRED — the shape the real `WorldRoom` has to
+ * keep for this file to work at all.
+ *
+ * `ControlWorldRoom` above declares everything optional so the guards below can
+ * cope with a room caught mid-teardown. That tolerance would also swallow a
+ * rename on the room: a `WorldRoom` that no longer has `playerTenantKey` is
+ * still assignable to a view that only asks for it optionally, and delivery
+ * would then address nobody while the build stayed green. `listWorldRooms`
+ * routes every room through this type once, so the names are pinned in exactly
+ * one place.
+ */
+interface SeatedWorldRoom {
+  state: { players: { forEach: (cb: (player: SeatedPlayer, sessionId: string) => void) => void } };
+  playerTenantKey: Map<string, string>;
+  clients: Iterable<ControlClient>;
+}
+
+/**
  * Every seat `identity` holds in `room` — plural, because one user can be
  * connected twice, and the two sessions can even carry different verified
  * tenants in a shared apex room.
@@ -66,20 +84,24 @@ function findSeats(room: ControlWorldRoom, identity: string): Seat[] {
 }
 
 /**
- * Every registered world room. Empty when the game server has not booted.
+ * Every registered world room, narrowed to the view above. Empty when the game
+ * server has not booted.
  *
- * The ambient type of `global.activeWorldRooms` is not the real
- * `rooms/WorldRoom.ts` class: `api/utils/broadcast.ts` declares the global with
- * a two-field stand-in of its own (`{ broadcast?, setDefaultSpawn? }`) and that
- * declaration shadows the richer shape in `types/global.d.ts`. Neither of the
- * two describes the room, so nothing may be inferred from either — hence the
- * cast here and the guard on every field read below.
+ * No cast: `global.activeWorldRooms` is typed against the real
+ * `rooms/WorldRoom.ts` class (see `types/global.d.ts`), and the annotation on
+ * `rooms` makes the compiler check that class against `SeatedWorldRoom` — the
+ * required form of the view. Rename `playerTenantKey` on the room, or change
+ * what `state.players` holds, and this assignment stops compiling. Until
+ * recently a hand-written stand-in shadowed the room's real type here and an
+ * unchecked cast bridged the gap, so the same rename would have compiled fine
+ * and delivered to nobody.
  */
 function listWorldRooms(): ControlWorldRoom[] {
   const activeWorldRooms = global.activeWorldRooms;
   if (!activeWorldRooms || activeWorldRooms.size === 0) return [];
   try {
-    return Array.from(activeWorldRooms) as unknown as ControlWorldRoom[];
+    const rooms: SeatedWorldRoom[] = Array.from(activeWorldRooms);
+    return rooms;
   } catch {
     return [];
   }

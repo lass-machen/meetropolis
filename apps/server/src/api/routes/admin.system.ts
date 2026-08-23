@@ -102,7 +102,9 @@ interface GameServerLike {
 
 async function loadRoomList(gameServer: GameServerLike): Promise<RoomLike[]> {
   const activeWorldRooms = global.activeWorldRooms;
-  if (activeWorldRooms && activeWorldRooms.size > 0) return Array.from(activeWorldRooms) as unknown as RoomLike[];
+  // No cast needed: `activeWorldRooms` is typed against the real `WorldRoom`
+  // (types/global.d.ts), and the compiler checks it against `RoomLike` here.
+  if (activeWorldRooms && activeWorldRooms.size > 0) return Array.from(activeWorldRooms);
   if (gameServer.matchMaker) return (await gameServer.matchMaker.query({})) || [];
   if (gameServer.rooms) {
     const gameRooms = gameServer.rooms;
