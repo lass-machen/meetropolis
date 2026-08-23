@@ -140,21 +140,34 @@ async function upsertPresence(
   }
 }
 
+/**
+ * Room metadata as `WorldRoom.onCreate` writes it via `setMetadata`.
+ *
+ * Colyseus infers `Room.metadata` from the room's generic, and `WorldRoom`
+ * declares only `{ state: WorldState }`, so the property carries no usable
+ * type. Narrowing it on read is therefore unavoidable; every other consumer in
+ * the server does the same (see `rooms/lifecycle/onLeave.ts`,
+ * `rooms/lifecycle/guestExpiry.ts`). Everything else about the room comes from
+ * the real class below, so a rename on `broadcast` or on the registry itself
+ * fails the build here instead of silently broadcasting to nobody.
+ */
+interface RoomMetadata {
+  tenant?: string;
+}
+
 function broadcastPresenceUpdate(
   tenantSlug: string,
   userId: string,
   data: { x: number; y: number; direction: string },
 ) {
   try {
-    const globalScope = global as {
-      activeWorldRooms?: Set<{ metadata?: { tenant?: string }; broadcast?: (event: string, data: unknown) => void }>;
-    };
-    const rooms = Array.from((globalScope.activeWorldRooms || new Set()).values());
-    for (const r of rooms) {
-      const meta = r.metadata || {};
-      if (meta && meta.tenant && meta.tenant !== tenantSlug) continue;
+    const activeWorldRooms = global.activeWorldRooms;
+    if (!activeWorldRooms) return;
+    for (const r of activeWorldRooms) {
+      const meta = (r.metadata as RoomMetadata | undefined) || {};
+      if (meta.tenant && meta.tenant !== tenantSlug) continue;
       try {
-        r.broadcast?.('presence_update', {
+        r.broadcast('presence_update', {
           userId,
           x: data.x,
           y: data.y,
