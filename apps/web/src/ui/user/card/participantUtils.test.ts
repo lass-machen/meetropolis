@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Room } from 'livekit-client';
-import { displayParticipantName, findParticipant, findScreenParticipant, performForceMute } from './participantUtils';
+import { displayParticipantName, findParticipant, performForceMute } from './participantUtils';
 import type { AnyParticipant, UiParticipant } from './types';
 
 /**
@@ -142,7 +142,10 @@ describe('findParticipant', () => {
   });
 });
 
-describe('findScreenParticipant', () => {
+describe('findParticipant: screen tiles', () => {
+  // A screen tile carries the publisher's identity, exactly like its camera
+  // tile; `media` plus the ':screen' SID suffix keep the two apart. The caller
+  // strips the suffix before the lookup (see useVideoTrackAttachment).
   it('resolves the screen tile to its own publisher when display names collide', () => {
     const first = participant('PA_first', 'guest-1', 'Gast');
     const second = participant('PA_second', 'guest-2', 'Gast');
@@ -154,12 +157,11 @@ describe('findScreenParticipant', () => {
       media: 'screen',
     });
 
-    expect(findScreenParticipant(room, screenTile, 'PA_second', null)).toBe(second);
+    expect(findParticipant(room, 'PA_second', screenTile).p).toBe(second);
   });
 
-  it('keeps the current participant when the publisher is not in the room', () => {
+  it('returns null when the publisher is not in the room', () => {
     const room = makeRoom({ remotes: [] });
-    const current = participant('PA_old', 'guest-2');
     const screenTile = tile({
       sid: 'PA_second:screen',
       livekitIdentity: 'guest-2',
@@ -167,7 +169,7 @@ describe('findScreenParticipant', () => {
       media: 'screen',
     });
 
-    expect(findScreenParticipant(room, screenTile, 'PA_second', current)).toBe(current);
+    expect(findParticipant(room, 'PA_second', screenTile).p).toBeNull();
   });
 });
 

@@ -93,20 +93,6 @@ export function findParticipant(
 }
 
 /**
- * Re-resolve a screen-share tile whose publisher was not in the room yet when
- * the tile was mounted. A screen tile carries the publisher's identity, exactly
- * like its camera tile; `media` plus the ':screen' SID suffix keep the two apart.
- */
-export function findScreenParticipant(
-  room: Room,
-  part: UiParticipant,
-  baseSid: string,
-  currentP: AnyParticipant | null,
-): AnyParticipant | null {
-  return resolveRemoteParticipant(room, part, baseSid) ?? currentP;
-}
-
-/**
  * Force-mute the microphone of the participant behind this tile.
  *
  * The target is resolved through `findParticipant` and addressed by the
