@@ -109,18 +109,31 @@ export function findScreenParticipant(
 /**
  * Force-mute the microphone of the participant behind this tile.
  *
- * The target is addressed by LiveKit identity. Deriving it from the label (as
- * this did before) picks the first participant whose name matches and mutes the
- * wrong person the moment two participants share a name. A tile without an
- * identity has no LiveKit participant behind it — a presence-only entry from the
- * Colyseus roster — so there is nothing to mute and the request is not sent.
+ * The target is resolved through `findParticipant` and addressed by the
+ * identity of the participant that resolution actually returned — not by the
+ * `livekitIdentity` the tile happens to carry. Two things follow from that,
+ * both deliberate:
+ *
+ * - Deriving the target from the label (as this did before `findParticipant`
+ *   existed) picks the first participant whose name matches and mutes the
+ *   wrong person the moment two participants share a name.
+ * - A tile that does not resolve to a remote participant of *this* room is not
+ *   muted at all. That is the case for a presence-only `col:` tile from the
+ *   Colyseus roster: such a tile does carry a `livekitIdentity` whenever the
+ *   Colyseus-to-LiveKit mapping knows one, so the mere presence of an identity
+ *   string is not evidence of a LiveKit publisher. Sending on it would reach
+ *   somebody who is not in the caller's audio zone.
+ *
+ * The local tile is excluded as well; muting yourself goes through the AV
+ * controls, not through the remote-control broadcast.
  */
-export async function performForceMute(part: UiParticipant): Promise<void> {
-  const targetIdentity = part.livekitIdentity;
-  if (!targetIdentity) {
-    logger.warn('force-mute skipped: tile has no LiveKit identity', { sid: part.sid });
+export async function performForceMute(part: UiParticipant, room: Room | null | undefined): Promise<void> {
+  const resolved = room ? findParticipant(room, (part.sid || '').split(':')[0], part) : null;
+  if (!resolved?.p || resolved.isLocal) {
+    logger.warn('force-mute skipped: tile has no remote LiveKit participant in this room', { sid: part.sid });
     return;
   }
+  const targetIdentity = resolved.p.identity;
   try {
     const base = getApiBaseFromWindow();
     const res = await fetch(`${base}/controls/for/${encodeURIComponent(targetIdentity)}`, {

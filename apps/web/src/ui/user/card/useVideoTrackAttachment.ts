@@ -231,6 +231,11 @@ export function useVideoTrackAttachment(
 ) {
   const [isVideoRendering, setIsVideoRendering] = React.useState(false);
   const [isLocal, setIsLocal] = React.useState(false);
+  // Did this tile resolve to a REMOTE participant of the current room? A tile
+  // can carry a `livekitIdentity` without one — a Colyseus presence tile takes
+  // its identity from the mapping, not from a LiveKit session — so callers that
+  // need "is there a publisher here" must not infer it from the identity field.
+  const [hasRemoteParticipant, setHasRemoteParticipant] = React.useState(false);
   const attachedTrackIdRef = React.useRef<string | null>(null);
 
   React.useEffect(() => {
@@ -243,6 +248,7 @@ export function useVideoTrackAttachment(
     } catch {}
     attachedTrackIdRef.current = null;
     setIsVideoRendering(false);
+    setHasRemoteParticipant(false);
 
     const tileSid = (part.sid || '').split(':')[0];
     const found = findParticipant(room, tileSid, part);
@@ -250,6 +256,7 @@ export function useVideoTrackAttachment(
     const baseSid = found.baseSid;
     const isLocalNow = found.isLocal;
     setIsLocal(isLocalNow);
+    setHasRemoteParticipant(!!p && !isLocalNow);
     if (!p || !p.trackPublications) return;
 
     const initialCleanup = attachInitialTrack(p, part, el, attachedTrackIdRef);
@@ -318,5 +325,5 @@ export function useVideoTrackAttachment(
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: sid, livekitIdentity and hasVideo are the lifecycle triggers we care about (the identity drives the participant lookup, so it must re-run the effect); part.media is constant per participant card, videoRef is a stable mutable ref, capturing full part would tear down and re-attach on every property update
   }, [part.sid, part.livekitIdentity, part.hasVideo, roomGetter]);
 
-  return { isVideoRendering, isLocal };
+  return { isVideoRendering, isLocal, hasRemoteParticipant };
 }
