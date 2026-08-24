@@ -145,7 +145,7 @@ export class WorldRoom extends Room<{ state: WorldState }> {
     }
 
     // Make rooms accessible globally
-    (global as Record<string, unknown>).activeWorldRooms = activeRooms;
+    global.activeWorldRooms = activeRooms;
 
     // Attach tenant metadata for filterBy and accounting
     const tenantSlug = options?.tenant || process.env.DEFAULT_TENANT_SLUG || 'default';
