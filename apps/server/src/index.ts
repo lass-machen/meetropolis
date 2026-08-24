@@ -362,17 +362,8 @@ async function gracefulShutdown(signal: string) {
   if (rooms) {
     for (const room of rooms) {
       try {
-        // The WorldRoom type imported from broadcast.ts does not declare
-        // `clients`, but Colyseus Rooms expose it at runtime. Read through
-        // a narrow projection to count active connections.
-        const colyseusRoom = room as {
-          clients?: unknown[] | Set<unknown>;
-          broadcast?: (event: string, data: unknown) => void;
-        };
-        colyseusRoom.broadcast?.('server_restart', { reason: 'update' });
-        const clients = colyseusRoom.clients;
-        if (Array.isArray(clients)) clientCount += clients.length;
-        else if (clients instanceof Set) clientCount += clients.size;
+        room.broadcast('server_restart', { reason: 'update' });
+        clientCount += room.clients.length;
       } catch (e) {
         logger.error('[Server] Failed to broadcast server_restart to room', e);
       }
