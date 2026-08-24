@@ -348,16 +348,31 @@ export function computeOnlineUsageByTenantSlug(): Record<string, number> {
     const activeWorldRooms = global.activeWorldRooms;
     const rooms: UsageRoom[] = activeWorldRooms ? Array.from(activeWorldRooms) : [];
     for (const r of rooms) {
-      const slug = (r.metadata as { tenant?: string } | undefined)?.tenant || 'default';
-      const set = (identitiesByTenant[slug] ??= new Set<string>());
-      r.state.players.forEach((p) => {
-        const identity = p?.identity;
-        if (!identity) return;
-        if (p?.isNpc === true || identity.startsWith('npc-')) return;
-        set.add(identity);
-      });
+      // Per-room try/catch: one room with an unexpected shape must not abort
+      // the iteration over the remaining rooms, or the aggregate silently
+      // undercounts every tenant that happens to come after it.
+      try {
+        const slug = (r.metadata as { tenant?: string } | undefined)?.tenant || 'default';
+        const set = (identitiesByTenant[slug] ??= new Set<string>());
+        r.state.players.forEach((p) => {
+          const identity = p?.identity;
+          if (!identity) return;
+          if (p?.isNpc === true || identity.startsWith('npc-')) return;
+          set.add(identity);
+        });
+      } catch (err) {
+        logger.error({
+          event: 'usage.compute_online_usage.room_error',
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
     }
-  } catch {}
+  } catch (err) {
+    logger.error({
+      event: 'usage.compute_online_usage.error',
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
   const usage: Record<string, number> = {};
   for (const [slug, set] of Object.entries(identitiesByTenant)) {
     usage[slug] = set.size;
