@@ -15,8 +15,8 @@
   },
   "devDependencies": {
     "typescript": "^6.0.3",
-    "vitest": "^4.1.10",
-    "@vitest/coverage-v8": "^4.1.5",
+    "vitest": "^4.1.11",
+    "@vitest/coverage-v8": "^4.1.11",
     "pngjs": "^7.0.0",
     "@types/pngjs": "^6.0.5"
   }
