@@ -1,0 +1,95 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1580" height="880" viewBox="0 0 1580 880" role="img" aria-labelledby="title description">
+  <title id="title">Drei Büros, drei Arten zusammenzuarbeiten</title>
+  <desc id="description">Schematische Grundrissstudien: Team-Loft mit sechs Arbeitsplätzen und kurzen Wegen, Gartenstudio mit zwölf Arbeitsplätzen um eine grüne Mitte, Campus mit vierundzwanzig Arbeitsplätzen in drei Flügeln. Die Kapazitäten sind Entwurfsziele; diese Skizzen sind keine geprüften Spielkarten. Jeder Grundriss verwendet einen eigenen Maßstab.</desc>
+  <defs>
+    <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse"><path d="M 20 0 H 0 V 20" fill="none" stroke="#b8b5a3" stroke-opacity=".18"/></pattern>
+    <g id="desk"><rect width="36" height="21" rx="2" fill="#ba9064" stroke="#624f3f" stroke-width="2"/><rect x="11" y="3" width="14" height="8" rx="1" fill="#41534f"/><rect x="12" y="24" width="13" height="9" rx="3" fill="#6d8c78" stroke="#41534f" stroke-width="1.5"/></g>
+    <g id="plant"><rect x="6" y="11" width="13" height="12" fill="#b97e60"/><circle cx="7" cy="10" r="7" fill="#668d61"/><circle cx="17" cy="9" r="8" fill="#759c6b"/><circle cx="12" cy="4" r="7" fill="#8ead72"/></g>
+    <g id="table"><rect x="8" y="10" width="75" height="34" rx="9" fill="#c4996c" stroke="#745a43" stroke-width="2"/><g fill="#6d8c78"><rect x="20" width="15" height="7" rx="2"/><rect x="57" width="15" height="7" rx="2"/><rect x="20" y="47" width="15" height="7" rx="2"/><rect x="57" y="47" width="15" height="7" rx="2"/></g></g>
+    <marker id="arrow" markerWidth="5" markerHeight="5" refX="3" refY="2.5" orient="auto"><path d="M0 0 4 2.5 0 5" fill="none" stroke="#467d77" stroke-width="1.1"/></marker>
+    <style>
+      text{font-family:Arial,Helvetica,sans-serif;fill:#263e38} .eyebrow{font-size:13px;letter-spacing:2px;fill:#63766c} .name{font-size:30px;font-weight:700} .sub{font-size:17px;fill:#617167} .zone{font-size:14px;font-weight:700} .small{font-size:13px;fill:#617167} .route{fill:none;stroke:#467d77;stroke-width:3;stroke-dasharray:5 5;marker-end:url(#arrow)} .wall{fill:none;stroke:#526359;stroke-width:6;stroke-linecap:square} .outline{fill:#eee9d9;stroke:#526359;stroke-width:5}
+    </style>
+  </defs>
+  <rect width="1580" height="880" fill="#f6f4eb"/>
+  <text x="50" y="45" class="eyebrow">MEETROPOLIS · ENTWURF 01 · LOKAL</text>
+  <text x="50" y="98" font-size="39" font-weight="700">Drei Büros, drei Arten zusammenzuarbeiten.</text>
+  <text x="50" y="132" class="sub">Gemeinsamer Kompakt-Stil und Möbelbaukasten. Unterschiedliche Raumgrößen, Wege und Rückzugsorte.</text>
+
+  <g transform="translate(50 188)" data-office="loft" data-workplaces="6">
+    <text class="eyebrow">01 / LICHT &amp; HOLZ</text><text y="40" class="name">Team-Loft</text><text y="68" class="sub">6 Arbeitsplätze · kurze Wege</text>
+    <g transform="translate(0 95)">
+      <path class="outline" d="M208 414 H0 V0 H450 V414 H244"/><rect width="450" height="414" fill="url(#grid)"/>
+      <rect x="16" y="16" width="176" height="172" fill="#d8e2d5"/>
+      <text x="29" y="42" class="zone">Team · 4 Plätze</text>
+      <use href="#desk" x="40" y="63" data-desk="1"/><use href="#desk" x="119" y="63" data-desk="2"/>
+      <use href="#desk" x="40" y="127" data-desk="3"/><use href="#desk" x="119" y="127" data-desk="4"/>
+      <rect x="264" y="16" width="170" height="172" fill="#e2dfcd"/>
+      <text x="278" y="42" class="zone">Fokus · 2 Plätze</text>
+      <use href="#desk" x="286" y="95" data-desk="5"/><use href="#desk" x="370" y="95" data-desk="6"/>
+      <path class="wall" d="M260 10 V75 M260 128 V185 H430"/>
+      <rect x="16" y="256" width="176" height="142" fill="#d3dfe0"/>
+      <text x="29" y="280" class="zone">Lounge</text>
+      <rect x="32" y="299" width="25" height="72" rx="6" fill="#78988c"/><rect x="82" y="323" width="54" height="30" rx="9" fill="#c4996c"/><use href="#plant" x="155" y="359"/>
+      <rect x="264" y="256" width="170" height="142" fill="#e5d7c5"/>
+      <text x="278" y="280" class="zone">Besprechung · 4</text><use href="#table" x="302" y="312"/>
+      <rect x="203" y="20" width="43" height="27" fill="#c4996c"/><text x="225" y="66" text-anchor="middle" class="small">Kaffee</text>
+      <path class="route" d="M225 399 V220 H78"/><path class="route" d="M225 220 H350"/><path class="route" d="M225 220 V98"/>
+      <text x="225" y="444" text-anchor="middle" class="small">Eingang</text>
+    </g>
+    <text y="578" class="sub">Ein gemeinsamer Raum mit eigener Fokusnische.</text>
+    <text y="604" class="sub">Die Lounge liegt neben dem Hauptweg.</text>
+  </g>
+
+  <g transform="translate(565 188)" data-office="studio" data-workplaces="12">
+    <text class="eyebrow">02 / GRÜNES STUDIO</text><text y="40" class="name">Gartenstudio</text><text y="68" class="sub">12 Arbeitsplätze · grüne Mitte</text>
+    <g transform="translate(0 95)">
+      <path class="outline" d="M205 414 H0 V0 H450 V414 H245"/><rect width="450" height="414" fill="url(#grid)"/>
+      <rect x="12" y="12" width="148" height="171" fill="#d8e2d5"/><text x="25" y="37" class="zone">Team A · 4</text>
+      <use href="#desk" x="29" y="59" data-desk="1"/><use href="#desk" x="103" y="59" data-desk="2"/><use href="#desk" x="29" y="124" data-desk="3"/><use href="#desk" x="103" y="124" data-desk="4"/>
+      <rect x="12" y="241" width="148" height="161" fill="#d8e2d5"/><text x="25" y="267" class="zone">Team B · 4</text>
+      <use href="#desk" x="29" y="281" data-desk="5"/><use href="#desk" x="103" y="281" data-desk="6"/><use href="#desk" x="29" y="346" data-desk="7"/><use href="#desk" x="103" y="346" data-desk="8"/>
+      <rect x="294" y="12" width="144" height="171" fill="#e2dfcd"/><text x="305" y="37" class="zone">Atelier · 4</text>
+      <use href="#desk" x="310" y="59" data-desk="9"/><use href="#desk" x="384" y="59" data-desk="10"/><use href="#desk" x="310" y="124" data-desk="11"/><use href="#desk" x="384" y="124" data-desk="12"/>
+      <path class="wall" d="M363 47 V107 M363 125 V176"/>
+      <text x="365" y="202" text-anchor="middle" class="small">davon 2 Fokusplätze</text>
+      <rect x="294" y="241" width="144" height="161" fill="#e5d7c5"/><text x="305" y="267" class="zone">Besprechung · 6</text><use href="#table" x="319" y="304"/>
+      <rect x="318" y="327" width="7" height="13" rx="2" fill="#6d8c78"/><rect x="404" y="327" width="7" height="13" rx="2" fill="#6d8c78"/>
+      <rect x="199" y="91" width="54" height="218" rx="16" fill="#c6d5b5"/><use href="#plant" x="213" y="112"/><use href="#plant" x="213" y="260"/>
+      <rect x="211" y="180" width="29" height="66" rx="6" fill="#87a280"/>
+      <text x="225" y="45" text-anchor="middle" class="small">Kaffee &amp; Lounge</text>
+      <path class="route" d="M225 400 V339 H179 V66 H270 V339 H235"/>
+      <path class="route" d="M179 213 H92"/><path class="route" d="M270 219 H361"/>
+      <text x="225" y="444" text-anchor="middle" class="small">Eingang</text>
+    </g>
+    <text y="578" class="sub">Arbeitsinseln rund um Pflanzen und Sitznischen.</text>
+    <text y="604" class="sub">Zwei Wege um die gemeinsame Mitte.</text>
+  </g>
+
+  <g transform="translate(1080 188)" data-office="campus" data-workplaces="24">
+    <text class="eyebrow">03 / NUSSBAUM &amp; PETROL</text><text y="40" class="name">Hofcampus</text><text y="68" class="sub">24 Arbeitsplätze · drei Team-Flügel</text>
+    <g transform="translate(0 95)">
+      <path class="outline" d="M203 414 H0 V0 H450 V414 H247"/><rect width="450" height="414" fill="url(#grid)"/>
+      <rect x="12" y="12" width="117" height="247" fill="#d8e2d5"/><text x="21" y="36" class="zone">Team A · 8</text>
+      <use href="#desk" x="22" y="52" data-desk="1"/><use href="#desk" x="81" y="52" data-desk="2"/><use href="#desk" x="22" y="102" data-desk="3"/><use href="#desk" x="81" y="102" data-desk="4"/>
+      <use href="#desk" x="22" y="152" data-desk="5"/><use href="#desk" x="81" y="152" data-desk="6"/><use href="#desk" x="22" y="202" data-desk="7"/><use href="#desk" x="81" y="202" data-desk="8"/>
+      <rect x="321" y="12" width="117" height="247" fill="#e2dfcd"/><text x="330" y="36" class="zone">Team B · 8</text>
+      <use href="#desk" x="332" y="52" data-desk="9"/><use href="#desk" x="391" y="52" data-desk="10"/><use href="#desk" x="332" y="102" data-desk="11"/><use href="#desk" x="391" y="102" data-desk="12"/>
+      <use href="#desk" x="332" y="152" data-desk="13"/><use href="#desk" x="391" y="152" data-desk="14"/><use href="#desk" x="332" y="202" data-desk="15"/><use href="#desk" x="391" y="202" data-desk="16"/>
+      <path class="wall" d="M137 14 V101 M137 149 V258 M313 14 V101 M313 149 V258"/>
+      <rect x="169" y="13" width="113" height="88" fill="#e5d7c5"/><text x="226" y="34" class="zone" text-anchor="middle">Besprechung</text><use href="#table" x="181" y="42"/>
+      <rect x="176" y="152" width="98" height="98" fill="#c6d5b5"/><text x="225" y="189" class="zone" text-anchor="middle">Hof</text><use href="#plant" x="190" y="211"/><use href="#plant" x="239" y="211"/>
+      <text x="225" y="279" text-anchor="middle" class="small">Café &amp; Ankommen</text>
+      <rect x="12" y="305" width="169" height="96" fill="#d3dfe0"/><rect x="269" y="305" width="169" height="96" fill="#d3dfe0"/>
+      <text x="26" y="326" class="zone">Team C · 8 über beide Seiten</text>
+      <use href="#desk" x="26" y="344" data-desk="17"/><use href="#desk" x="64" y="344" data-desk="18"/><use href="#desk" x="102" y="344" data-desk="19"/><use href="#desk" x="140" y="344" data-desk="20"/>
+      <use href="#desk" x="281" y="344" data-desk="21"/><use href="#desk" x="319" y="344" data-desk="22"/><use href="#desk" x="357" y="344" data-desk="23"/><use href="#desk" x="395" y="344" data-desk="24"/>
+      <path class="route" d="M225 400 V290 H153 V141 H80"/><path class="route" d="M225 290 H297 V141 H368"/><path class="route" d="M153 141 H290"/>
+      <text x="225" y="444" text-anchor="middle" class="small">Eingang</text>
+    </g>
+    <text y="578" class="sub">Ein gemeinsamer Hof verbindet eigene Bereiche.</text>
+    <text y="604" class="sub">Rückzug und Besprechung abseits der Laufachse.</text>
+  </g>
+  <path d="M50 821 H1530" stroke="#c7ccc1"/>
+  <text x="50" y="852" class="small">Grundrissstudien · schematisch, je eigener Maßstab · Platzzahlen als Entwurfsziele · Laufwege und Kollisionen folgen in der Umsetzung</text>
+</svg>

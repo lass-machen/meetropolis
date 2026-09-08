@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Pixelstudie – Kontur und Maßstab</title>
+    <style>
+      :root {
+        font-family: system-ui, sans-serif;
+        color: #31483c;
+        background: #eef2eb;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        max-width: 1160px;
+        margin: 0 auto;
+        padding: 32px;
+      }
+      h1 {
+        font-size: 30px;
+        letter-spacing: -1px;
+        margin: 6px 0 12px;
+      }
+      h2 {
+        font-size: 18px;
+        margin: 0 0 12px;
+      }
+      p {
+        line-height: 1.55;
+        color: #607467;
+      }
+      header {
+        margin-bottom: 28px;
+      }
+      section {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+        margin-bottom: 20px;
+      }
+      article {
+        background: #fff;
+        border: 1px solid #cfdcce;
+        border-radius: 8px;
+        padding: 22px;
+        min-width: 0;
+      }
+      article.recommended {
+        border: 2px solid #477253;
+        padding: 21px;
+      }
+      canvas {
+        display: block;
+        max-width: 100%;
+        height: auto;
+        image-rendering: pixelated;
+        background: #ecf0e7;
+        margin: auto;
+      }
+      small {
+        color: #607467;
+        line-height: 1.5;
+        display: block;
+        margin-top: 16px;
+      }
+      .tag {
+        color: #477253;
+        font-weight: 700;
+        font-size: 12px;
+        letter-spacing: 0.3px;
+      }
+      #face {
+        width: 192px;
+      }
+      #walls {
+        width: 336px;
+      }
+      #old-scale,
+      #new-scale {
+        width: 480px;
+      }
+      @media (max-width: 700px) {
+        body {
+          padding: 18px;
+        }
+        section {
+          grid-template-columns: 1fr;
+        }
+        h1 {
+          font-size: 25px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <span class="tag">MEETROPOLIS · LOKALE PIXELSTUDIE</span>
+      <h1>Der gleiche Stil. Ein stimmigeres Verhältnis.</h1>
+      <p>
+        Kinn, Hals und Wandanschlüsse sind überarbeitet. Die kleinere Möbelgarnitur wird jetzt in allen drei
+        Bürovorlagen verwendet.
+      </p>
+    </header>
+    <section>
+      <article>
+        <h2>Korrigierte Wangenkontur</h2>
+        <canvas id="face" aria-label="Kompakter Avatar ohne ausbrechende Ohrkontur"></canvas
+        ><small>Die Figur behält Kopfgröße, Gesicht und Farbpalette. Die seitliche Hautspitze ist entfernt.</small>
+      </article>
+      <article>
+        <h2>Durchgehende Wandanschlüsse</h2>
+        <canvas id="walls" aria-label="Senkrechte Wände und Ecke mit durchgehenden Seitenkanten"></canvas
+        ><small
+          >Echte Wandkacheln aus der Raumvorschau, mit ihren vorhandenen Kollisionen. Die Kanten werden über die
+          vollständige Bildhöhe fortgeführt.</small
+        >
+      </article>
+    </section>
+    <section>
+      <article>
+        <h2>Bisheriger Möbelmaßstab</h2>
+        <canvas id="old-scale" aria-label="Figur neben dem bisherigen Tisch und Stuhl"></canvas
+        ><small
+          >Schreibtisch 64 × 48 Pixel · Stuhl 24 × 32 Pixel. Figur und Möbel sind im gleichen Maßstab
+          dargestellt.</small
+        >
+      </article>
+      <article class="recommended">
+        <span class="tag">BESTÄTIGTER MASSSTAB</span>
+        <h2>Kleinere, neu gezeichnete Möbel</h2>
+        <canvas id="new-scale" aria-label="Unveränderte Figur neben kleinerem Tisch und Stuhl"></canvas
+        ><small
+          >Schreibtisch 48 × 32 Pixel · Stuhl 16 × 24 Pixel. Jeder Pixel ist neu gesetzt; die Figur behält ihre Größe.
+          Standflächen und Platzierungen sind in den drei Bürovorlagen angepasst.</small
+        >
+      </article>
+    </section>
+    <script type="module" src="./detail-study.ts"></script>
+  </body>
+</html>
