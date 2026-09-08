@@ -59,23 +59,22 @@ describe('Ausbau des kompakten Baukastens', () => {
         }
       }
   });
-  it('alle neuen Hüte sind mit jeder Frisur und jedem kompakten Körper animierbar', () => {
-    for (const proportion of bodies)
-      for (const hat of Object.keys(extraHatNames))
-        for (const hair of Object.keys(hairNames)) {
-          const sheet = characterSheet(parseCharacter({ ...defaultCharacter, proportion, hat, hair }));
-          for (let row = 0; row < 8; row++)
-            for (let col = 0; col < (row < 4 ? 1 : 4); col++) {
-              let visible = 0;
-              for (let y = 0; y < 32; y++)
-                for (let x = 0; x < 32; x++) {
-                  const a = sheet.data[((row * 32 + y) * 128 + col * 32 + x) * 4 + 3];
-                  if (a) visible++;
-                  if (x === 0 || x === 31) expect(a).toBe(0);
-                }
-              expect(visible).toBeGreaterThan(100);
-            }
-        }
+  it.each(bodies)('%s: alle neuen Hüte sind mit jeder Frisur animierbar', (proportion) => {
+    for (const hat of Object.keys(extraHatNames))
+      for (const hair of Object.keys(hairNames)) {
+        const sheet = characterSheet(parseCharacter({ ...defaultCharacter, proportion, hat, hair }));
+        for (let row = 0; row < 8; row++)
+          for (let col = 0; col < (row < 4 ? 1 : 4); col++) {
+            let visible = 0;
+            for (let y = 0; y < 32; y++)
+              for (let x = 0; x < 32; x++) {
+                const a = sheet.data[((row * 32 + y) * 128 + col * 32 + x) * 4 + 3];
+                if (a) visible++;
+                if (x === 0 || x === 31) expect(a).toBe(0);
+              }
+            expect(visible).toBeGreaterThan(100);
+          }
+      }
   });
   it('neue Bärte sind unterscheidbar und lassen den animierten Mund lesbar', () => {
     for (const proportion of bodies)
