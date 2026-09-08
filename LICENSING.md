@@ -34,6 +34,11 @@ third-party contexts.
 | `apps/web` (`apps/web/LICENSE`)               | MIT           | Browser client. Runs on end-user machines; we do not want to impose AGPL-like obligations on operators of unrelated web properties that may embed components. |
 | `packages/shared` (`packages/shared/LICENSE`) | MIT           | Types and small utilities consumed by both the AGPL server and the MIT client. Must be permissive to avoid infecting the client.                              |
 
+Das eigenständige Asset-Atelier unter `tools/asset-lab/` einschließlich seiner eigenen
+Pixelvorlagen und daraus exportierten Assets steht ebenfalls unter **MIT**; siehe
+[`tools/asset-lab/LICENSE`](tools/asset-lab/LICENSE). Die bestehenden Lizenzen der
+Anwendung und des gemeinsamen Charakterkatalogs bleiben erhalten.
+
 The optional private submodules under `packages/brand`, `packages/desktop`,
 and `packages/tenancy-enterprise` are not part of this OSS distribution and
 carry their own commercial licenses; see those repositories for details.

@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Meetropolis · Kompakte Kollektion</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: #f0f3ea;
+        color: #314d40;
+        font:
+          16px/1.5 system-ui,
+          sans-serif;
+      }
+      main {
+        max-width: 1160px;
+        margin: auto;
+        padding: 32px;
+      }
+      h1 {
+        font-size: 32px;
+        letter-spacing: -1px;
+        margin: 4px 0 8px;
+      }
+      h2 {
+        font-size: 20px;
+        margin: 30px 0 12px;
+      }
+      p {
+        margin: 0 0 16px;
+        color: #61776a;
+      }
+      .eyebrow {
+        font-weight: 700;
+        letter-spacing: 1px;
+        font-size: 12px;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+      }
+      .card {
+        background: #fff;
+        border: 1px solid #ced9c8;
+        border-radius: 8px;
+        padding: 14px;
+        text-align: center;
+        overflow: hidden;
+      }
+      .card strong {
+        display: block;
+        font-size: 14px;
+      }
+      .card span {
+        font-size: 12px;
+        color: #61776a;
+      }
+      canvas {
+        display: block;
+        image-rendering: pixelated;
+        image-rendering: crisp-edges;
+        max-width: 100%;
+        margin: 8px auto;
+        background: #f1f4ec;
+      }
+      .figure {
+        width: 128px;
+        height: 128px;
+      }
+      .views {
+        width: 256px;
+        height: 64px;
+      }
+      .object {
+        width: 192px;
+        height: 128px;
+      }
+      .hats {
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+      }
+      .hats .figure {
+        width: 112px;
+        height: 112px;
+      }
+      .wide {
+        grid-column: span 2;
+      }
+      .wall {
+        width: 100%;
+        height: auto;
+      }
+      a {
+        color: #386b59;
+      }
+      .actions {
+        display: flex;
+        align-items: center;
+        gap: 18px;
+        margin-top: 16px;
+      }
+      button {
+        background: #315e49;
+        color: white;
+        border: 0;
+        border-radius: 4px;
+        padding: 9px 16px;
+        font: inherit;
+        cursor: pointer;
+      }
+      @media (max-width: 720px) {
+        main {
+          padding: 20px;
+        }
+        .grid,
+        .hats {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .figure {
+          width: 96px;
+          height: 96px;
+        }
+        .views {
+          height: auto;
+        }
+        h1 {
+          font-size: 26px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <span class="eyebrow">MEETROPOLIS · LOKALE PIXELKOLLEKTION</span>
+      <h1>Ein Stil. Mehr Persönlichkeit.</h1>
+      <p>
+        Vier Grundkörper, frei kombinierbare Looks und kleinere Büromöbel. Hier siehst du die tatsächlichen Pixel aus
+        der Werkstatt.
+      </p>
+      <div class="actions">
+        <button id="animate" aria-pressed="false">Laufen ansehen</button
+        ><a href="/#figuren">Im Avatar-Editor ausprobieren</a>
+      </div>
+      <h2>Vier kompakte Grundkörper</h2>
+      <div id="bodies" class="grid"></div>
+      <h2>Vier Startlooks – alles bleibt anpassbar</h2>
+      <div id="looks" class="grid"></div>
+      <h2>Vom Arbeitstag bis zur Feier</h2>
+      <div id="hats" class="grid hats"></div>
+      <h2>Mehr Bartformen</h2>
+      <div id="beards" class="grid"></div>
+      <h2>Kleinere Möbel und acht neue Bausteine</h2>
+      <div id="furniture" class="grid"></div>
+      <h2>Wandanschlüsse im echten Raumraster</h2>
+      <div id="walls" class="grid"></div>
+    </main>
+    <script type="module" src="./compact-collection.ts"></script>
+  </body>
+</html>

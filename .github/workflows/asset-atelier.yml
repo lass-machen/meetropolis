@@ -1,0 +1,53 @@
+name: Asset-Atelier
+
+on:
+  pull_request:
+    paths:
+      - 'tools/asset-lab/**'
+      - 'packages/shared/**'
+      - 'apps/server/src/api/routes/assetPacks.schemas.ts'
+      - 'apps/server/src/api/utils/collisionHelpers.ts'
+      - '.github/workflows/asset-atelier.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'tools/asset-lab/**'
+      - 'packages/shared/**'
+      - 'apps/server/src/api/routes/assetPacks.schemas.ts'
+      - 'apps/server/src/api/utils/collisionHelpers.ts'
+      - '.github/workflows/asset-atelier.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: asset-atelier-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  COREPACK_ENABLE_DOWNLOAD_PROMPT: '0'
+
+jobs:
+  verify:
+    name: Atelier — Lint, Typen, Tests, Export und Browser
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tools/asset-lab
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: tools/asset-lab/package-lock.json
+      - run: corepack enable
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm test
+      - run: npm run build
+      - run: npm run assets
+      - run: npx playwright install --with-deps chromium
+      - run: npm run e2e
