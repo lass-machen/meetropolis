@@ -1,0 +1,34 @@
+import { officePresets } from '../src/office-presets.ts';
+import { clickWorld } from './room-helpers.ts';
+import { test, expect } from '@playwright/test';
+import { PNG } from 'pngjs';
+import { readFile } from 'node:fs/promises';
+
+test('Touch bewegt die Figur und setzt einen exportierbaren Pixel', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await page.goto('/');
+  const room = page.locator('#game canvas');
+  await expect(room).toHaveAttribute('data-ready', 'true');
+  await page.locator('#characters-tab').tap();
+  await page.locator('[data-slot="hair"]').tap();
+  await page.locator('[data-choice="hair:braids"]').tap();
+  await expect(page.locator('[data-slot="hair"]')).toHaveAttribute('data-value', 'braids');
+  await page.locator('#room-tab').tap();
+  await expect(page.locator('[data-slot="proportion"]')).toHaveAttribute('data-value', 'kompakt');
+  await expect(page.locator('#room-panel')).toBeVisible();
+  await page.locator('#overview').tap();
+  const zone = officePresets.loft.zones.find((z) => z.kind === 'lounge')!;
+  await clickWorld(page, zone.entry, true);
+  await expect(page.locator('#zone-name')).toHaveText(zone.name);
+  await page.locator('[data-asset="desk"]').tap();
+  const pixels = page.locator('#pixel-canvas');
+  await pixels.scrollIntoViewIfNeeded();
+  const bounds = (await pixels.boundingBox())!;
+  await page.touchscreen.tap(bounds.x + bounds.width / 128, bounds.y + bounds.height / 96);
+  const output = page.waitForEvent('download');
+  await page.locator('#export-asset').tap();
+  const image = PNG.sync.read(await readFile(await (await output).path()));
+  expect([...image.data.subarray(0, 4)]).toEqual([215, 149, 111, 255]);
+  expect(errors).toEqual([]);
+});
