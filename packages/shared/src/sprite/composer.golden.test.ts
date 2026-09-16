@@ -1,12 +1,13 @@
-// Pixel-golden test: the shared TypeScript composer must reproduce the Python
-// generator's reference sheets EXACTLY, across a fixture corpus that exercises
+// Pixel-golden test: the shared TypeScript composer must reproduce the frozen
+// v6 sheets EXACTLY, across a fixture corpus that exercises
 // every outfit mode, every accessory slot, hood and bald (the six shipped
 // defaults only cover trousers/dress, which would leave those paths unproven).
 //
 // Comparison is pixel-exact, not byte-exact: PNG deflate encoding is not part
 // of the contract, so we decode the reference PNGs to RGBA and compare buffers.
-// Regenerate fixtures with: python3 tools/sprite-generator/generate.py \
-//   --fixtures packages/shared/src/sprite/__fixtures__
+// The Atelier's source-to-catalog drift test and its six checked-in product
+// sheets independently prove that these catalog pixels come from the source
+// rasters rather than a second hand-maintained renderer.
 
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -39,7 +40,7 @@ function firstPixelDiff(a: Uint8ClampedArray, b: Uint8Array, width: number): str
   return null;
 }
 
-describe('shared sprite composer (pixel-golden vs Python reference)', () => {
+describe('shared sprite composer (v6 pixel golden)', () => {
   it('has a non-trivial fixture corpus covering all slot paths', () => {
     expect(fixtures.length).toBeGreaterThanOrEqual(30);
   });

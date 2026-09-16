@@ -65,7 +65,6 @@ const slots: { id: Slot; name: string; choices: Record<string, string> }[] = [
     name: 'Körper',
     choices: {
       ...Object.fromEntries(Object.entries(proportions).map(([id, p]) => [id, p.name])),
-      '': 'Bisheriger Stand',
     },
   },
 ];
@@ -140,8 +139,7 @@ export class AvatarEditor {
       result.top = value === 'base' ? null : value;
       if (value === 'base' && result.hat === 'hood') result.hat = null;
     } else if (slot === 'proportion') {
-      if (value) result.proportion = value as Character['proportion'];
-      else delete result.proportion;
+      result.proportion = value as Character['proportion'];
     } else if (slot === 'face') {
       result.face = value as Character['face'];
     } else if (slot === 'hair') {

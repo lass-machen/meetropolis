@@ -102,6 +102,11 @@ describe('validateConfig', () => {
   it('accepts a complete trousers config', () => {
     expect(validateConfig(catalog, base)).toEqual({ ok: true, errors: [] });
   });
+  it('accepts a legacy recipe and defaults its new render fields', () => {
+    expect(validateConfig(catalog, base)).toEqual({ ok: true, errors: [] });
+    expect(canonicalConfig(catalog, base)).toMatchObject({ face: 'ruhig', proportion: 'kompakt' });
+    expect(sheetBytes(base)).toEqual(sheetBytes({ ...base, face: 'ruhig', proportion: 'kompakt' }));
+  });
   it('accepts a dress config without pants', () => {
     const dress: AvatarConfig = {
       skin: 'light',
@@ -163,12 +168,11 @@ describe('canonicalConfig', () => {
     // The stand-in renders exactly like the style it replaced.
     expect(sheetBytes({ ...base, hat: 'hood', hair: 'bob' })).toEqual(sheetBytes(canonical));
   });
-  it('keeps hair_color significant under a hood (it drives the derived brow slot)', () => {
+  it('keeps hair_color in the conservative identity under a hood', () => {
     const braun: AvatarConfig = { ...base, hat: 'hood', hair: 'bob', hair_color: 'braun' };
     const rot: AvatarConfig = { ...base, hat: 'hood', hair: 'bob', hair_color: 'rot' };
-    // The sheets genuinely differ, so the anchor MUST differ too — dropping
-    // hair_color here would dedup two different-looking avatars onto one sheet.
-    expect(sheetBytes(braun)).not.toEqual(sheetBytes(rot));
+    // Some body variants expose coloured brow or side-hair pixels, so the
+    // shared identity cannot discard this field based on one selected shape.
     expect(canonicalConfigString(catalog, braun)).not.toBe(canonicalConfigString(catalog, rot));
   });
   it('keeps beard_color only when a beard is worn and defaults it', () => {
@@ -190,6 +194,6 @@ describe('canonicalConfig', () => {
       skin: 'light',
     });
     expect(a).toBe(b);
-    expect(a.startsWith('{"hair"')).toBe(true); // keys sorted
+    expect(a.startsWith('{"face"')).toBe(true); // keys sorted
   });
 });

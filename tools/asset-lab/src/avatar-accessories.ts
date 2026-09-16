@@ -273,7 +273,7 @@ export function addAccessories(catalog: SpriteCatalog): void {
       rear: extraHat('rear', name, originalHead('rear')),
       palette: { A: '#d8c8a5', B: '#8e9a9f', C: '#596779', D: '#de8879' },
     };
-    catalog.compose.config_fields.hat.values.push(name);
+    if (!catalog.compose.config_fields.hat.values.includes(name)) catalog.compose.config_fields.hat.values.push(name);
   }
   const beards = catalog.catalogs.beards as Record<string, unknown>;
   for (const name of Object.keys(extraBeardNames)) {
@@ -281,7 +281,8 @@ export function addAccessories(catalog: SpriteCatalog): void {
       front: extraBeard('front', name, originalHead('front')),
       side: extraBeard('side', name, originalHead('side')),
     };
-    catalog.compose.config_fields.beard.values.push(name);
+    if (!catalog.compose.config_fields.beard.values.includes(name))
+      catalog.compose.config_fields.beard.values.push(name);
   }
   // Mund und Augen bleiben bei jeder Körperform über dem Bart sichtbar.
   for (const view of ['front', 'side'] as const) {

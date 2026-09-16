@@ -1,4 +1,4 @@
-// Types for the sprite catalog (schema meetropolis-sprite-catalog/v5) and the
+// Types for the sprite catalog (schema meetropolis-sprite-catalog/v6) and the
 // isomorphic composer. The composer is a pure DATA interpreter of the catalog's
 // `compose` block; it re-encodes NONE of the Python generator's rendering,
 // outfit or pose logic, so the two implementations cannot drift.
@@ -16,7 +16,7 @@ export type Grid = readonly string[];
 export type PaletteDict = Readonly<Record<string, string>>;
 
 /**
- * The 12-field editable avatar recipe. Optional fields may be null/absent. The
+ * The 14-field editable avatar recipe. Optional fields may be null/absent. The
  * index signature makes this a dynamic bag: the composer reads fields by name
  * driven by the catalog's `palette_compose` / `config_fields`, so named-only
  * access is not enough. Values are always string | null | undefined.
@@ -26,6 +26,8 @@ export interface AvatarConfig {
   hair: string;
   hair_color: string;
   outfit: string;
+  face?: string | null;
+  proportion?: string | null;
   top?: string | null;
   pants?: string | null;
   shoes?: string | null;
@@ -101,7 +103,7 @@ export interface HardRules {
   mirror_right_from_left: boolean;
 }
 
-/** The v5 machine-readable compose contract. */
+/** The v6 machine-readable compose contract. */
 export interface ComposeContract {
   hood_hat_value: string;
   base_kit: Record<string, string>;
@@ -127,6 +129,20 @@ export interface SheetFormat {
   sheet_h: number;
 }
 
+export interface SpriteCatalogVariantSpec {
+  default: string;
+  values: string[];
+  /** Partial catalogs keyed by value, then by an optional renderer state. */
+  overlays: Record<string, Record<string, unknown>>;
+  state_field?: string;
+  state_values?: Record<string, string>;
+  default_state?: string;
+}
+
+export interface SpriteCatalogVariants {
+  proportion: SpriteCatalogVariantSpec;
+}
+
 /**
  * The parts of the catalog the composer reads. `catalogs` is a deep, dynamic
  * grid tree navigated by dot-path, so it stays loosely typed (guarded at
@@ -138,6 +154,7 @@ export interface SpriteCatalog {
   palettes: Record<string, PaletteDict | Record<string, PaletteDict>>;
   catalogs: Record<string, unknown>;
   compose: ComposeContract;
+  variants: SpriteCatalogVariants;
 }
 
 /** A composed RGBA image (row-major, 4 bytes/pixel). */
@@ -147,4 +164,5 @@ export interface RgbaImage {
   data: Uint8ClampedArray;
 }
 
-export const CATALOG_SCHEMA_V5 = 'meetropolis-sprite-catalog/v5';
+export const CATALOG_SCHEMA_V6 = 'meetropolis-sprite-catalog/v6';
+export const SPRITE_RENDERER_VERSION = '2';
