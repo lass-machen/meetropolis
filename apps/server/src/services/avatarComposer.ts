@@ -7,9 +7,9 @@ import {
   assertSpriteCatalog,
   canonicalConfigString,
   composeSheet,
+  SPRITE_RENDERER_VERSION,
   type AvatarConfig,
   type RgbaImage,
-  type SheetFormat,
   type SpriteCatalog,
 } from '@meetropolis/shared';
 import { logger } from '../logger.js';
@@ -29,7 +29,7 @@ export function avatarEditorEnabled(): boolean {
 }
 
 /**
- * Candidate locations for the canonical v5 sprite catalog, most specific first:
+ * Candidate locations for the canonical v6 sprite catalog, most specific first:
  *   1. an explicit SPRITE_CATALOG_PATH override;
  *   2. the copy placed next to the built server bundle by copy-catalog.mjs
  *      (deploy-robust — independent of the surrounding monorepo layout);
@@ -86,9 +86,18 @@ function cropCell(image: RgbaImage, col: number, row: number, fw: number, fh: nu
   return { width: fw, height: fh, data: out };
 }
 
-/** Canonical-config dedup anchor (NOT the PNG bytes): stable across runtimes. */
+/** Versioned render-identity anchor (NOT the PNG bytes): stable across runtimes. */
 export function configHashHex(catalog: SpriteCatalog, config: AvatarConfig): string {
-  return crypto.createHash('sha256').update(canonicalConfigString(catalog, config)).digest('hex').slice(0, 16);
+  return crypto
+    .createHash('sha256')
+    .update('meetropolis-avatar\0')
+    .update(catalog.schema)
+    .update('\0')
+    .update(SPRITE_RENDERER_VERSION)
+    .update('\0')
+    .update(canonicalConfigString(catalog, config))
+    .digest('hex')
+    .slice(0, 16);
 }
 
 export interface ComposedAvatar {
@@ -179,7 +188,7 @@ export async function writeCustomAvatarFiles(
   await fs.promises.writeFile(path.resolve(dir, `${uuid}_p.png`), previewPng);
 }
 
-/** Delete a custom avatar's sprite + preview (bounds disk use to ~2 files/user). */
+/** Delete a custom avatar's current sprite + preview during account deletion. */
 export async function deleteCustomAvatarFiles(packsDir: string, uuid: string): Promise<void> {
   if (!UUID_RE.test(uuid)) return;
   const dir = customAvatarDir(packsDir);
@@ -189,6 +198,33 @@ export async function deleteCustomAvatarFiles(packsDir: string, uuid: string): P
     } catch (err) {
       logger.warn('[AvatarComposer] file cleanup failed (non-fatal)', { uuid, name, error: String(err) });
     }
+  }
+}
+
+export interface AvatarSheetGeometry {
+  frameWidth: number;
+  frameHeight: number;
+}
+
+/** Read frame geometry from the stored PNG instead of the currently loaded catalog. */
+export async function readCustomAvatarGeometry(packsDir: string, uuid: string): Promise<AvatarSheetGeometry> {
+  if (!UUID_RE.test(uuid)) throw new Error('refusing to read custom avatar with non-uuid name');
+  const file = await fs.promises.open(path.resolve(customAvatarDir(packsDir), `${uuid}.png`), 'r');
+  try {
+    const header = Buffer.alloc(24);
+    const { bytesRead } = await file.read(header, 0, header.length, 0);
+    const pngSignature = '89504e470d0a1a0a';
+    if (bytesRead !== header.length || header.subarray(0, 8).toString('hex') !== pngSignature) {
+      throw new Error(`custom avatar ${uuid} is not a valid PNG`);
+    }
+    const width = header.readUInt32BE(16);
+    const height = header.readUInt32BE(20);
+    if (width % 4 !== 0 || height % 8 !== 0 || width === 0 || height === 0) {
+      throw new Error(`custom avatar ${uuid} has invalid sheet geometry ${width}x${height}`);
+    }
+    return { frameWidth: width / 4, frameHeight: height / 8 };
+  } finally {
+    await file.close();
   }
 }
 
@@ -210,7 +246,7 @@ export function buildCustomManifest(
   uuid: string,
   spriteUrl: string,
   previewUrl: string | null,
-  format: SheetFormat,
+  geometry: AvatarSheetGeometry,
   displayName: string,
 ): CustomAvatarManifest {
   const directions = ['down', 'left', 'right', 'up'];
@@ -221,8 +257,8 @@ export function buildCustomManifest(
     displayName,
     type: 'full',
     spriteUrl,
-    frameWidth: format.frame_w,
-    frameHeight: format.frame_h,
+    frameWidth: geometry.frameWidth,
+    frameHeight: geometry.frameHeight,
     states: {
       idle: { directions, frameCount: 1, frameRate: 1, row: 0 },
       walk: { directions, frameCount: 4, frameRate: 8, row: 4 },

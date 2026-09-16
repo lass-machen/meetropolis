@@ -1,7 +1,7 @@
 /**
  * Route tests for the character-editor endpoints. Covers the feature flag gate,
- * auth, config validation, server-set avatarId, the ~2-files-per-user lifecycle
- * (old sprite removed on a real change, idempotent on an unchanged re-save) and
+ * auth, config validation, server-set avatarId, immutable file lifecycle
+ * (old sprites retained, idempotent on an unchanged re-save) and
  * — the security-critical part — the TENANT SCOPE of POST /avatars/resolve.
  *
  * Both HALVES of the tenant rule are covered, because they only hold together:
@@ -27,6 +27,7 @@ import path from 'path';
 import fs from 'fs';
 import express from 'express';
 import request from 'supertest';
+import { PNG } from 'pngjs';
 import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
 
 vi.mock('../../logger.js', () => ({
@@ -52,6 +53,7 @@ import { registerMeAvatarRoutes } from './meAvatar.js';
 import { requireAuth } from '../utils/authHelpers.js';
 import { setAuthResolution } from '../utils/authState.js';
 import type { PrismaClient } from '../../generated/prisma/index.js';
+import { configHashHex, loadSpriteCatalog } from '../../services/avatarComposer.js';
 
 const TENANT_A = 'tenant-a';
 const TENANT_B = 'tenant-b';
@@ -265,7 +267,7 @@ describe('POST /me/avatar/compose', () => {
   });
 
   it('composes, writes the sheet, sets User.avatarId and returns a manifest', async () => {
-    const { prisma, userAvatarId } = makePrisma([{ tenantId: 't1', userId: 'u1', role: 'member' }]);
+    const { prisma, byUser, userAvatarId } = makePrisma([{ tenantId: 't1', userId: 'u1', role: 'member' }]);
     const res = await request(makeApp(prisma))
       .post('/me/avatar/compose')
       .set('x-user', 'u1')
@@ -277,6 +279,7 @@ describe('POST /me/avatar/compose', () => {
     expect(res.body.manifest.spriteUrl).toBe(`/packs/avatars/custom/${avatarId.slice(7)}.png`);
     expect(userAvatarId.get('u1')).toBe(avatarId);
     expect(fs.existsSync(spritePath(avatarId))).toBe(true);
+    expect(byUser.get('u1')?.config).toMatchObject({ face: 'ruhig', proportion: 'kompakt' });
   });
 
   it('stamps the row with the SESSION tenant, never a client-supplied one', async () => {
@@ -376,13 +379,27 @@ describe('POST /me/avatar/compose', () => {
     expect(fs.existsSync(spritePath(first))).toBe(true);
   });
 
-  it('removes the previous sprite when the appearance changes', async () => {
+  it('keeps the previous immutable sprite when the appearance changes', async () => {
     const { prisma } = makePrisma([{ tenantId: TENANT_A, userId: 'u3', role: 'member' }]);
     const app = makeApp(prisma);
     const first = await composeAs(app, 'u3', TENANT_A);
     const second = await composeAs(app, 'u3', TENANT_A, { ...validConfig, hair: 'bald' });
     expect(second).not.toBe(first);
-    expect(fs.existsSync(spritePath(first))).toBe(false); // old cleaned up
+    expect(fs.existsSync(spritePath(first))).toBe(true);
+    expect(fs.existsSync(spritePath(second))).toBe(true);
+  });
+
+  it('creates a new uuid and file when the catalog domain changes for the same recipe', async () => {
+    const { prisma, byUser } = makePrisma([{ tenantId: TENANT_A, userId: 'u-domain', role: 'member' }]);
+    const app = makeApp(prisma);
+    const first = await composeAs(app, 'u-domain', TENANT_A);
+    const row = byUser.get('u-domain')!;
+    const oldCatalog = { ...loadSpriteCatalog(), schema: 'meetropolis-sprite-catalog/v5' };
+    byUser.set('u-domain', { ...row, configHash: configHashHex(oldCatalog, validConfig) });
+
+    const second = await composeAs(app, 'u-domain', TENANT_A);
+    expect(second).not.toBe(first);
+    expect(fs.existsSync(spritePath(first))).toBe(true);
     expect(fs.existsSync(spritePath(second))).toBe(true);
   });
 });
@@ -409,6 +426,17 @@ describe('POST /avatars/resolve — tenant isolation', () => {
     expect(res.body.manifests[avatarA].spriteUrl).toContain('/packs/avatars/custom/');
     // The composer's real name never travels with the manifest.
     expect(res.body.manifests[avatarA].displayName).toBe('Custom Avatar');
+  });
+
+  it('builds manifest geometry from the stored sheet, not the active catalog', async () => {
+    const { prisma } = makePrisma(MEMBERSHIPS);
+    const app = makeApp(prisma);
+    const avatarA = await composeAs(app, 'owner-a', TENANT_A);
+    const stored = new PNG({ width: 64, height: 128 });
+    fs.writeFileSync(spritePath(avatarA), PNG.sync.write(stored));
+
+    const res = await resolveAs(app, 'peer-a', TENANT_A, [avatarA]).expect(200);
+    expect(res.body.manifests[avatarA]).toMatchObject({ frameWidth: 16, frameHeight: 16 });
   });
 
   it('gives a user of ANOTHER tenant nothing (production repro)', async () => {

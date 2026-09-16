@@ -1,12 +1,13 @@
 /**
  * Unit tests for the server-side avatar compositing service: catalog load,
  * deterministic config hashing, PNG encode (full sheet + preview), the
- * ~2-files-per-user lifecycle and the feature flag. Pixel parity with the
- * Python reference is covered by the shared package's golden test.
+ * immutable file lifecycle and the feature flag. Pixel parity is covered by
+ * the shared package's golden and Atelier product-generation tests.
  */
 import os from 'os';
 import path from 'path';
 import fs from 'fs';
+import crypto from 'crypto';
 import { PNG } from 'pngjs';
 import { describe, it, expect, afterEach } from 'vitest';
 import { vi } from 'vitest';
@@ -22,9 +23,10 @@ import {
   customAvatarDir,
   deleteCustomAvatarFiles,
   loadSpriteCatalog,
+  readCustomAvatarGeometry,
   writeCustomAvatarFiles,
 } from './avatarComposer.js';
-import type { AvatarConfig } from '@meetropolis/shared';
+import { canonicalConfigString, SPRITE_RENDERER_VERSION, type AvatarConfig } from '@meetropolis/shared';
 
 const catalog = loadSpriteCatalog();
 const base: AvatarConfig = {
@@ -39,8 +41,8 @@ const base: AvatarConfig = {
 const UUID = '11111111-2222-4333-8444-555555555555';
 
 describe('loadSpriteCatalog', () => {
-  it('loads and schema-asserts the v5 catalog', () => {
-    expect(catalog.schema).toBe('meetropolis-sprite-catalog/v5');
+  it('loads and schema-asserts the v6 catalog', () => {
+    expect(catalog.schema).toBe('meetropolis-sprite-catalog/v6');
   });
 });
 
@@ -57,6 +59,20 @@ describe('configHashHex', () => {
   });
   it('changes when the visible appearance changes', () => {
     expect(configHashHex(catalog, base)).not.toBe(configHashHex(catalog, { ...base, hair: 'bald' }));
+  });
+  it('includes the catalog and renderer versions in the hash domain', () => {
+    const expected = crypto
+      .createHash('sha256')
+      .update('meetropolis-avatar\0')
+      .update(catalog.schema)
+      .update('\0')
+      .update(SPRITE_RENDERER_VERSION)
+      .update('\0')
+      .update(canonicalConfigString(catalog, base))
+      .digest('hex')
+      .slice(0, 16);
+    expect(configHashHex(catalog, base)).toBe(expected);
+    expect(configHashHex({ ...catalog, schema: 'meetropolis-sprite-catalog/v7' }, base)).not.toBe(expected);
   });
 });
 
@@ -82,6 +98,7 @@ describe('file lifecycle', () => {
     const dir = customAvatarDir(packsDir);
     expect(fs.existsSync(path.join(dir, `${UUID}.png`))).toBe(true);
     expect(fs.existsSync(path.join(dir, `${UUID}_p.png`))).toBe(true);
+    await expect(readCustomAvatarGeometry(packsDir, UUID)).resolves.toEqual({ frameWidth: 32, frameHeight: 32 });
     await deleteCustomAvatarFiles(packsDir, UUID);
     expect(fs.existsSync(path.join(dir, `${UUID}.png`))).toBe(false);
     expect(fs.existsSync(path.join(dir, `${UUID}_p.png`))).toBe(false);
