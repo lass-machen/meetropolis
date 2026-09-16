@@ -33,7 +33,11 @@ Die Browserprüfung benötigt das zur installierten Playwright-Version gehörend
 
 ## Produktgeneration `atelier-v1`
 
-Die erste Produktgeneration ist ein vorbereiteter, noch nicht aktivierter Bestand. `product/atelier-v1.json` friert „Licht und Holz“, die neue Pack-UUID und sechs vollständige Charakterrezepte ein. Die Ateliervarianten „Grünes Studio“ und „Abendatelier“ bleiben außerhalb der Produktartefakte. Weder Seed noch Karten, Packlisten, Avatar-Defaults oder Auswahlpfade lesen diese Dateien in dieser Stufe ein.
+`product/atelier-v1.json` friert „Licht und Holz“, die neue Pack-UUID und sechs vollständige Charakterrezepte ein. Die Ateliervarianten „Grünes Studio“ und „Abendatelier“ bleiben außerhalb der Produktartefakte.
+
+### Aktivierungsstand
+
+Atelier v1 ist aktiv. Beim nächsten Deploy legt der Seed „Licht und Holz (Atelier v1)“ einmalig als globales Asset-Pack an und stellt die sechs technischen Standardfiguren auf die gehashten Atelier-Sheets um. Vorhandene Karten, MapObjects und benutzerdefinierte Avatare werden nicht migriert; alte Sprite-URLs bleiben weiterhin erreichbar. Die Autotile-Wände bleiben wegen A28 ausdrücklich inaktiv und fehlen im globalen Pack. Auch die beiden anderen Paletten bleiben reine Atelierentwürfe.
 
 ```sh
 cd tools/asset-lab

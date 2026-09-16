@@ -90,4 +90,17 @@ describe('AvatarRegistry custom-avatar resolution', () => {
     expect(await reg.ensureManifest('default-characters:business_man', API)).toBeNull();
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  it('uses the six atelier-v1 sheets for built-in fallbacks', () => {
+    const reg = new AvatarRegistry();
+    reg.ensureDefault();
+    expect(Object.fromEntries(reg.getAllAvatars().map((avatar) => [avatar.avatarKey, avatar.spriteUrl]))).toEqual({
+      business_man: '/assets/sprites/atelier-v1/business_man.ce44bce4c558.png',
+      business_woman: '/assets/sprites/atelier-v1/business_woman.f01546e80735.png',
+      casual_woman: '/assets/sprites/atelier-v1/casual_woman.da6bc1426c30.png',
+      dev_hoodie: '/assets/sprites/atelier-v1/dev_hoodie.3f6d689b3610.png',
+      manager_woman: '/assets/sprites/atelier-v1/manager_woman.0c1b5c205010.png',
+      suit_man: '/assets/sprites/atelier-v1/suit_man.4dc2fcec15cd.png',
+    });
+  });
 });

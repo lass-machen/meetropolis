@@ -1,7 +1,7 @@
 {
   "schema": "meetropolis-default-avatar-generation/v1",
   "generation": "atelier-v1",
-  "active": false,
+  "active": true,
   "packUuid": "default-characters",
   "avatars": [
     {

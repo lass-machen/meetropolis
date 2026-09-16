@@ -3,7 +3,7 @@
   "name": "Atelier · Licht und Holz",
   "version": "1.0.0",
   "author": "Tiamat UG (haftungsbeschränkt)",
-  "description": "Eigene Pixelgrafiken der unveränderlichen Atelier-Generation v1. Noch nicht aktiviert.",
+  "description": "Eigene Pixelgrafiken der aktiven, unveränderlichen Atelier-Generation v1.",
   "terrain": [
     {
       "id": "atelier_v1_holz_floor",

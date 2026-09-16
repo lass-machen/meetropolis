@@ -34,7 +34,7 @@ function importablePack(pack: JsonRecord): JsonRecord {
 describe('Produktgeneration atelier-v1', () => {
   it('friert nur Licht und Holz sowie die sechs stabilen Avatar-Keys ein', async () => {
     const spec = await loadProductSpec();
-    expect(spec.active).toBe(false);
+    expect(spec.active).toBe(true);
     expect(spec.palette).toMatchObject({ theme: 'holz', slug: 'holz' });
     expect(spec.atelierOnlyThemes).toEqual(['garten', 'abend']);
     expect(spec.avatars.map((avatar) => avatar.key)).toEqual([
@@ -54,6 +54,9 @@ describe('Produktgeneration atelier-v1', () => {
     const parsed = ConfigSchema.parse(importablePack(pack));
     expect(parsed.uuid).toBe('4664b745-6bad-4d86-ae8f-591c57567692');
     expect(parsed.autotiles).toEqual([]);
+    expect([...parsed.terrain, ...parsed.structures, ...parsed.objects].some((item) => item.id.endsWith('_wall_set'))).toBe(
+      false,
+    );
     const floor = parsed.terrain.find((item) => item.id.endsWith('_floor'))!;
     expect([floor.tileWidth, floor.tileHeight]).toEqual([16, 16]);
     expect(floor.renderLayer).toBe('floor');
@@ -69,7 +72,36 @@ describe('Produktgeneration atelier-v1', () => {
       expect(item.offset).toEqual({ x: 0, y: -32 });
     }
     const catalog = json('/assets/atelier/v1/catalog.json');
+    expect(catalog.active).toBe(true);
     expect(catalog.withheldAutotile).toMatchObject({ active: false, blockedBy: 'A28', gridHeight: 3 });
+    const environmentAssets = catalog.environmentAssets as Array<{
+      id: string;
+      category: string;
+      collide: boolean;
+      collisionBaseHeight: number;
+      renderLayer: string;
+      directionalVariant: { family: string; rotation: number } | null;
+    }>;
+    expect(environmentAssets).toHaveLength(59);
+    expect(
+      environmentAssets.every(
+        (asset) =>
+          ['terrain', 'structures', 'objects'].includes(asset.category) &&
+          typeof asset.collide === 'boolean' &&
+          Number.isInteger(asset.collisionBaseHeight) &&
+          ['floor', 'sorted', 'overhead'].includes(asset.renderLayer),
+      ),
+    ).toBe(true);
+    expect(environmentAssets.find((asset) => asset.id === 'desk_east')?.directionalVariant).toEqual({
+      family: 'desk',
+      rotation: 90,
+    });
+    expect(environmentAssets.find((asset) => asset.id === 'wall_set')).toMatchObject({
+      category: 'structures',
+      collide: true,
+      collisionBaseHeight: 0,
+      renderLayer: 'sorted',
+    });
     const families = catalog.directionalFamilies as Array<{
       variants: Array<{ itemId: string; width: number; height: number }>;
     }>;
@@ -91,7 +123,7 @@ describe('Produktgeneration atelier-v1', () => {
       if (sprites.includes(file)) expect([image.width, image.height]).toEqual([128, 256]);
     }
     const avatarManifest = json('/default-avatars/atelier-v1.json');
-    expect(avatarManifest.active).toBe(false);
+    expect(avatarManifest.active).toBe(true);
     for (const avatar of avatarManifest.avatars as Array<{ spriteUrl: string; sha256: string }>) {
       const path = `apps/web/public${avatar.spriteUrl}`;
       expect(createHash('sha256').update(byPath.get(path)!).digest('hex')).toBe(avatar.sha256);

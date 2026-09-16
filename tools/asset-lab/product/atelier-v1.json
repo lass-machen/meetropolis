@@ -1,7 +1,7 @@
 {
   "schema": "meetropolis-product-generation/v1",
   "generation": "atelier-v1",
-  "active": false,
+  "active": true,
   "palette": {
     "theme": "holz",
     "slug": "holz",
