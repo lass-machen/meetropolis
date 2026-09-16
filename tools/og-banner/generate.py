@@ -30,15 +30,29 @@ import argparse
 import base64
 import io
 import json
+from dataclasses import dataclass
 from pathlib import Path
 
 from PIL import Image
 
+ATELIER_SCALE = 4
 
-def b64_png(im: Image.Image) -> str:
+
+@dataclass(frozen=True)
+class EmbeddedImage:
+    src: str
+    width: int
+    height: int
+
+
+def embed_png(im: Image.Image) -> EmbeddedImage:
     buf = io.BytesIO()
     im.save(buf, "PNG")
-    return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
+    return EmbeddedImage(
+        src="data:image/png;base64," + base64.b64encode(buf.getvalue()).decode(),
+        width=im.width,
+        height=im.height,
+    )
 
 
 def trim(im: Image.Image) -> Image.Image:
@@ -98,7 +112,7 @@ def load_atelier_assets(assets: Path, generation: str) -> tuple[dict, dict]:
     return avatars, environment
 
 
-def load_images(assets_path: str, generation: str) -> dict[str, str]:
+def load_images(assets_path: str, generation: str) -> dict[str, EmbeddedImage]:
     assets = Path(assets_path)
     if generation == "legacy":
         avatars = {key: assets / "sprites" / f"{key}.png" for key in (
@@ -115,8 +129,10 @@ def load_images(assets_path: str, generation: str) -> dict[str, str]:
         }
     else:
         avatars, environment = load_atelier_assets(assets, generation)
+        environment["desk"] = environment["compact_desk"]
         environment["shelf"] = environment["compact_shelf"]
-        environment["planter"] = environment["compact_plant"]
+        environment["plant"] = environment["compact_plant"]
+        environment["whiteboard"] = environment["compact_whiteboard"]
 
     directions = {
         "business_man": "right",
@@ -127,49 +143,70 @@ def load_images(assets_path: str, generation: str) -> dict[str, str]:
         "suit_man": "left",
     }
     images = {
-        f"{key}_{direction}": b64_png(sprite_frame(avatars[key], direction))
+        f"{key}_{direction}": embed_png(sprite_frame(avatars[key], direction))
         for key, direction in directions.items()
         if key in avatars
     }
-    for key in ("desk", "plant", "shelf", "planter", "whiteboard"):
-        images[key] = b64_png(furn(environment[key]))
-    images["floor"] = b64_png(Image.open(environment["floor"]).convert("RGBA"))
+    furniture_keys = ("desk", "plant", "shelf", "whiteboard")
+    if generation == "legacy":
+        furniture_keys += ("planter",)
+    for key in furniture_keys:
+        images[key] = embed_png(furn(environment[key]))
+    images["floor"] = embed_png(Image.open(environment["floor"]).convert("RGBA"))
     return images
 
 
-def scene_html(a: dict[str, str], generation: str) -> str:
+def atelier_scene_html(a: dict[str, EmbeddedImage]) -> str:
+    keys = (
+        "plant",
+        "shelf",
+        "manager_woman_right",
+        "desk",
+        "business_man_right",
+        "dev_hoodie_down",
+        "business_woman_left",
+        "desk",
+        "suit_man_left",
+        "whiteboard",
+    )
+    gap = 8
+    widths = [a[key].width * ATELIER_SCALE for key in keys]
+    left = (1200 - sum(widths) - gap * (len(keys) - 1)) // 2
+    tags = []
+    for key, width in zip(keys, widths):
+        image = a[key]
+        height = image.height * ATELIER_SCALE
+        tags.append(
+            f'    <img class="px" src="{image.src}" '
+            f'style="left:{left}px; bottom:78px; width:{width}px; height:{height}px;">'
+        )
+        left += width + gap
+    return "\n".join(tags)
+
+
+def scene_html(a: dict[str, EmbeddedImage], generation: str) -> str:
     if generation == "legacy":
         return f"""
-    <img class="px" src="{a['shelf']}"      style="left:120px;  bottom:196px; width:132px;">
-    <img class="px" src="{a['whiteboard']}" style="left:951px;  bottom:198px; width:150px;">
-    <img class="px" src="{a['planter']}"    style="left:1070px; bottom:150px; width:96px;">
-    <img class="px" src="{a['plant']}"      style="left:60px;   bottom:150px; width:60px;">
-    <img class="px" src="{a['desk']}"       style="left:250px;  bottom:120px; width:150px;">
-    <img class="px" src="{a['desk']}"       style="left:815px;  bottom:120px; width:150px;">
-    <img class="px" src="{a['dev_hoodie_down']}"     style="left:556px; bottom:120px; height:150px;">
-    <img class="px" src="{a['business_man_right']}"  style="left:470px; bottom:96px;  height:150px;">
-    <img class="px" src="{a['casual_woman_left']}"   style="left:648px; bottom:100px; height:150px;">
-    <img class="px" src="{a['manager_woman_right']}" style="left:262px; bottom:92px;  height:140px;">
-    <img class="px" src="{a['suit_man_left']}"       style="left:902px; bottom:92px;  height:140px;">
-    <img class="px" src="{a['business_woman_down']}" style="left:150px; bottom:96px;  height:132px;">"""
+    <img class="px" src="{a['shelf'].src}"      style="left:120px;  bottom:196px; width:132px;">
+    <img class="px" src="{a['whiteboard'].src}" style="left:951px;  bottom:198px; width:150px;">
+    <img class="px" src="{a['planter'].src}"    style="left:1070px; bottom:150px; width:96px;">
+    <img class="px" src="{a['plant'].src}"      style="left:60px;   bottom:150px; width:60px;">
+    <img class="px" src="{a['desk'].src}"       style="left:250px;  bottom:120px; width:150px;">
+    <img class="px" src="{a['desk'].src}"       style="left:815px;  bottom:120px; width:150px;">
+    <img class="px" src="{a['dev_hoodie_down'].src}"     style="left:556px; bottom:120px; height:150px;">
+    <img class="px" src="{a['business_man_right'].src}"  style="left:470px; bottom:96px;  height:150px;">
+    <img class="px" src="{a['casual_woman_left'].src}"   style="left:648px; bottom:100px; height:150px;">
+    <img class="px" src="{a['manager_woman_right'].src}" style="left:262px; bottom:92px;  height:140px;">
+    <img class="px" src="{a['suit_man_left'].src}"       style="left:902px; bottom:92px;  height:140px;">
+    <img class="px" src="{a['business_woman_down'].src}" style="left:150px; bottom:96px;  height:132px;">"""
 
-    return f"""
-    <img class="px" src="{a['plant']}"      style="left:40px;   bottom:78px; width:65px;">
-    <img class="px" src="{a['shelf']}"      style="left:120px;  bottom:78px; width:90px;">
-    <img class="px" src="{a['planter']}"    style="left:220px;  bottom:78px; width:35px;">
-    <img class="px" src="{a['desk']}"       style="left:375px;  bottom:78px; width:120px;">
-    <img class="px" src="{a['desk']}"       style="left:795px;  bottom:78px; width:130px;">
-    <img class="px" src="{a['whiteboard']}" style="left:1060px; bottom:78px; width:120px;">
-    <img class="px" src="{a['manager_woman_right']}" style="left:270px; bottom:78px; height:130px;">
-    <img class="px" src="{a['business_man_right']}"  style="left:500px; bottom:78px; height:145px;">
-    <img class="px" src="{a['dev_hoodie_down']}"     style="left:585px; bottom:78px; height:150px;">
-    <img class="px" src="{a['business_woman_left']}" style="left:690px; bottom:78px; height:145px;">
-    <img class="px" src="{a['suit_man_left']}"       style="left:940px; bottom:78px; height:130px;">"""
+    return atelier_scene_html(a)
 
 
 def build(assets: str, font_path: str, copy: dict, generation: str) -> str:
     a = load_images(assets, generation)
     scene = scene_html(a, generation)
+    floor_size = 50 if generation == "legacy" else a["floor"].width * ATELIER_SCALE
     with open(font_path, "rb") as f:
         font = "data:font/woff2;base64," + base64.b64encode(f.read()).decode()
 
@@ -188,7 +225,8 @@ html,body {{ width:1200px; height:630px; overflow:hidden; }}
 .vig {{ position:absolute; inset:0;
   background:radial-gradient(130% 130% at 50% 40%, rgba(0,0,0,0) 55%, rgba(0,0,0,.35) 100%); }}
 .floorband {{ position:absolute; left:0; right:0; bottom:0; height:250px;
-  background-image:url('{a["floor"]}'); image-rendering:pixelated; background-size:50px 50px;
+  background-image:url('{a["floor"].src}'); image-rendering:pixelated;
+  background-size:{floor_size}px {floor_size}px;
   -webkit-mask-image:linear-gradient(to bottom, rgba(0,0,0,0) 0%, rgba(0,0,0,.55) 34%, rgba(0,0,0,.72) 100%);
           mask-image:linear-gradient(to bottom, rgba(0,0,0,0) 0%, rgba(0,0,0,.55) 34%, rgba(0,0,0,.72) 100%);
   opacity:.5; }}
