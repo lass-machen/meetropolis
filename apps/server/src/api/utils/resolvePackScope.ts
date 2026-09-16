@@ -35,9 +35,9 @@ import { type PackScope, CATALOG_SCOPE, tenantScope } from '../../services/packS
  *  2. Platform super-admin (owner of the internal tenant) — the unfiltered
  *     scope, checked BEFORE the membership path on purpose: a super-admin who
  *     also holds an ordinary membership somewhere would otherwise be narrowed
- *     to that one tenant and lose sight of every other tenant's private pack in
- *     the management tools. Two indexed point lookups on a route that runs once
- *     per registry load.
+ *     to that one tenant and lose access to other tenants' private packs.
+ *     Route-specific visibility filters, such as excluding archived AssetPacks
+ *     from collection responses, still apply after this ownership scope.
  *  3. Membership in the RESOLVED tenant. Tenant resolution is not
  *     authorisation: tenancy.ts lets the client-supplied `X-Tenant` header (or
  *     `?tenant=`) win over the session JWT, so `req.tenant` can name any

@@ -55,13 +55,15 @@ interface PackRow {
   uuid: string;
   name: string;
   tenantId: string | null;
+  archived: boolean;
 }
 
-/** Pack fixture: one catalog pack plus one private pack per tenant. */
+/** Pack fixture: active packs in each scope plus one archived catalog pack. */
 const PACKS: readonly PackRow[] = [
-  { id: 1, uuid: 'pixel-agents-furniture', name: 'Pixel Agents Furniture', tenantId: null },
-  { id: 2, uuid: 'meetropolis-office', name: 'Meetropolis Office', tenantId: TENANT_LM },
-  { id: 3, uuid: 'other-tenant-pack', name: 'Foreign Pack', tenantId: TENANT_OTHER },
+  { id: 1, uuid: 'pixel-agents-furniture', name: 'Pixel Agents Furniture', tenantId: null, archived: false },
+  { id: 2, uuid: 'meetropolis-office', name: 'Meetropolis Office', tenantId: TENANT_LM, archived: false },
+  { id: 3, uuid: 'other-tenant-pack', name: 'Foreign Pack', tenantId: TENANT_OTHER, archived: false },
+  { id: 4, uuid: 'legacy-archive', name: 'Legacy Archive', tenantId: null, archived: true },
 ];
 
 /** The where shapes the scoped handlers build — nothing else is supported. */
@@ -69,6 +71,7 @@ interface PackWhere {
   id?: number;
   uuid?: string | { in: string[] };
   tenantId?: string | null;
+  archived?: boolean;
   OR?: Array<{ tenantId: string | null }>;
 }
 
@@ -76,6 +79,7 @@ function matchesWhere(row: PackRow, where: PackWhere): boolean {
   if (where.id !== undefined && row.id !== where.id) return false;
   if (typeof where.uuid === 'string' && row.uuid !== where.uuid) return false;
   if (where.uuid && typeof where.uuid === 'object' && !where.uuid.in.includes(row.uuid)) return false;
+  if (where.archived !== undefined && row.archived !== where.archived) return false;
   if (where.OR) return where.OR.some((clause) => clause.tenantId === row.tenantId);
   if (where.tenantId !== undefined) return row.tenantId === where.tenantId;
   return true;
@@ -91,6 +95,7 @@ interface PrismaOpts {
 
 function makePrisma(opts: PrismaOpts = {}): PrismaClient {
   const { apiTokenUserId, internalTenantExists = true } = opts;
+  const packs = PACKS.map((pack) => ({ ...pack }));
   return {
     tenant: {
       findUnique: vi.fn(({ where }: { where: { slug?: string } }) =>
@@ -129,14 +134,20 @@ function makePrisma(opts: PrismaOpts = {}): PrismaClient {
     assetPack: {
       // Unscoped lookup, reachable only from the super-admin write routes.
       findUnique: vi.fn(({ where }: { where: { id?: number; uuid?: string } }) =>
-        Promise.resolve(PACKS.find((row) => row.id === where.id || row.uuid === where.uuid) ?? null),
+        Promise.resolve(packs.find((row) => row.id === where.id || row.uuid === where.uuid) ?? null),
       ),
       findFirst: vi.fn(({ where }: { where: PackWhere }) =>
-        Promise.resolve(PACKS.find((row) => matchesWhere(row, where)) ?? null),
+        Promise.resolve(packs.find((row) => matchesWhere(row, where)) ?? null),
       ),
       findMany: vi.fn(({ where }: { where: PackWhere }) =>
-        Promise.resolve(PACKS.filter((row) => matchesWhere(row, where))),
+        Promise.resolve(packs.filter((row) => matchesWhere(row, where))),
       ),
+      update: vi.fn(({ where, data }: { where: { id: number }; data: { archived: boolean } }) => {
+        const pack = packs.find((row) => row.id === where.id);
+        if (!pack) throw new Error('missing pack');
+        pack.archived = data.archived;
+        return Promise.resolve(pack);
+      }),
       delete: vi.fn(() => Promise.resolve({ id: 1, uuid: 'pixel-agents-furniture' })),
     },
     map: {
@@ -145,6 +156,17 @@ function makePrisma(opts: PrismaOpts = {}): PrismaClient {
       ),
     },
     mapObject: {
+      findMany: vi.fn(() =>
+        Promise.resolve([
+          {
+            id: 41,
+            mapId: MAP_ROW.id,
+            assetPackUuid: 'legacy-archive',
+            itemId: 'legacy-desk',
+            dataUrl: '/packs/legacy-archive/desk.png',
+          },
+        ]),
+      ),
       create: vi.fn(({ data }: { data: Record<string, unknown> }) => Promise.resolve({ id: 99, ...data })),
     },
   } as unknown as PrismaClient;
@@ -255,13 +277,14 @@ describe('GET /asset-packs (list): public but tenant-scoped', () => {
     expect(idsOf(res.body)).toEqual([1]);
   });
 
-  it('serves a platform super-admin every pack, even alongside an X-Tenant header', async () => {
+  it('hides archived packs from a platform super-admin too', async () => {
     const app = makeApp(makePrisma());
     const res = await request(app)
       .get('/asset-packs')
       .set('Authorization', sessionBearer('owner-root'))
       .set('X-Tenant', 'lass-machen');
     expect(idsOf(res.body)).toEqual([1, 2, 3]);
+    expect(idsOf(res.body)).not.toContain(4);
   });
 
   it('resolves the tenant scope for an API token, not only for a session JWT', async () => {
@@ -340,12 +363,17 @@ describe('GET /asset-packs/:id (single): scoped, non-enumerable', () => {
     expect(res.body).toMatchObject({ id: 2, uuid: 'meetropolis-office' });
   });
 
-  it('rejects a non-numeric id with 400 before any lookup', async () => {
-    const prisma = makePrisma();
-    const app = makeApp(prisma);
-    const res = await request(app).get('/asset-packs/not-a-number');
-    expect(res.status).toBe(400);
-    expect(prisma.assetPack.findFirst).not.toHaveBeenCalled();
+  it('serves an archived pack by UUID while keeping it out of palette lists', async () => {
+    const app = makeApp(makePrisma());
+    const res = await request(app).get('/asset-packs/legacy-archive');
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ id: 4, uuid: 'legacy-archive', archived: true });
+  });
+
+  it('returns 404 for an unknown id or UUID', async () => {
+    const app = makeApp(makePrisma());
+    const res = await request(app).get('/asset-packs/not-a-pack');
+    expect(res.status).toBe(404);
   });
 });
 
@@ -366,6 +394,56 @@ describe('AssetPack write routes stay super-admin-only', () => {
       .set('X-Tenant', 'lass-machen');
     expect(res.status).toBe(403);
     expect(res.body).toMatchObject({ error: 'forbidden' });
+  });
+
+  it('rejects archive changes from an ordinary tenant member', async () => {
+    const app = makeApp(makePrisma());
+    const res = await request(app)
+      .patch('/asset-packs/2/archive')
+      .set('Authorization', sessionBearer('lm-user'))
+      .set('X-Tenant', 'lass-machen')
+      .send({ archived: true });
+    expect(res.status).toBe(403);
+  });
+
+  it('lets a platform owner archive and restore a pack by UUID', async () => {
+    const prisma = makePrisma();
+    const app = makeApp(prisma);
+    const auth = sessionBearer('owner-root');
+
+    const archived = await request(app)
+      .patch('/asset-packs/pixel-agents-furniture/archive')
+      .set('Authorization', auth)
+      .send({ archived: true });
+    expect(archived.status).toBe(200);
+    expect(archived.body).toMatchObject({ id: 1, archived: true });
+
+    const restored = await request(app)
+      .patch('/asset-packs/pixel-agents-furniture/archive')
+      .set('Authorization', auth)
+      .send({ archived: false });
+    expect(restored.status).toBe(200);
+    expect(restored.body).toMatchObject({ id: 1, archived: false });
+    expect(prisma.assetPack.update).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('GET /maps/:id/objects: archived pack objects stay intact', () => {
+  it('returns a placed object with its stored dataUrl without consulting its archived pack', async () => {
+    const prisma = makePrisma();
+    const app = makeApp(prisma);
+    const res = await request(app)
+      .get('/maps/map-1/objects')
+      .set('Authorization', sessionBearer('lm-user'))
+      .set('X-Tenant', 'lass-machen');
+    expect(res.status).toBe(200);
+    expect(res.body).toContainEqual(
+      expect.objectContaining({
+        assetPackUuid: 'legacy-archive',
+        dataUrl: '/packs/legacy-archive/desk.png',
+      }),
+    );
+    expect(prisma.assetPack.findFirst).not.toHaveBeenCalled();
   });
 });
 
