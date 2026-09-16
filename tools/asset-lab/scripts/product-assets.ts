@@ -12,6 +12,13 @@ import { loadProductSpec, type Point, type ProductAvatar, type ProductSpec } fro
 const REPOSITORY_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 const SPRITE_WIDTH = 128;
 const SPRITE_HEIGHT = 256;
+const TERRAIN_ASSET_IDS = ['floor', 'carpet'] as const;
+const STRUCTURE_ASSET_IDS = ['window', 'wall', 'door', 'door_open'] as const;
+const TERRAIN_ASSET_ID_SET = new Set<AssetId>(TERRAIN_ASSET_IDS);
+const STRUCTURE_ASSET_ID_SET = new Set<AssetId>(STRUCTURE_ASSET_IDS);
+
+type EnvironmentCategory = 'terrain' | 'structures' | 'objects';
+type RenderLayer = 'floor' | 'sorted' | 'overhead';
 
 interface ProductFile {
   path: string;
@@ -57,9 +64,56 @@ function wallPlacement(spec: ProductSpec, id: AssetId): { anchor?: Point; offset
   return { anchor: spec.wallPlacement.anchor, offset: spec.wallPlacement.offset };
 }
 
+function directionalVariant(id: AssetId): { family: string; rotation: number } | null {
+  for (const [family, variants] of Object.entries(directionalAssets)) {
+    for (const [rotation, variantId] of Object.entries(variants)) {
+      if (variantId === id) return { family, rotation: Number(rotation) };
+    }
+  }
+  return null;
+}
+
+function environmentMetadata(
+  spec: ProductSpec,
+  id: AssetId,
+): {
+  category: EnvironmentCategory;
+  collide: boolean;
+  collisionBaseHeight: number;
+  renderLayer: RenderLayer;
+  directionalVariant: { family: string; rotation: number } | null;
+} {
+  if (id === spec.autotile.assetId) {
+    // Autotile config has no pack-category, collision-base or render-layer fields.
+    // Treat the withheld wall atlas conservatively as a colliding sorted structure;
+    // collisionBaseHeight 0 means its full bounds collide when collide is true.
+    return {
+      category: 'structures',
+      collide: true,
+      collisionBaseHeight: 0,
+      renderLayer: 'sorted',
+      directionalVariant: null,
+    };
+  }
+  const collisionBaseHeight = assetDefinitions[id].collisionBaseRows;
+  const category: EnvironmentCategory = TERRAIN_ASSET_ID_SET.has(id)
+    ? 'terrain'
+    : STRUCTURE_ASSET_ID_SET.has(id)
+      ? 'structures'
+      : 'objects';
+  const renderLayer: RenderLayer = category === 'terrain' ? 'floor' : spec.overheadAssets.includes(id) ? 'overhead' : 'sorted';
+  return {
+    category,
+    collide: collisionBaseHeight > 0,
+    collisionBaseHeight,
+    renderLayer,
+    directionalVariant: directionalVariant(id),
+  };
+}
+
 function createPackManifest(spec: ProductSpec, urls: Record<AssetId, string>, dimensions: Record<AssetId, Point>) {
-  const terrainIds = ['floor', 'carpet'] as const;
-  const structureIds = ['window', 'wall', 'door', 'door_open'] as const;
+  const terrainIds = TERRAIN_ASSET_IDS;
+  const structureIds = STRUCTURE_ASSET_IDS;
   const excluded = new Set<AssetId>([...terrainIds, ...structureIds, spec.autotile.assetId]);
   const objectIds = (Object.keys(assetDefinitions) as AssetId[]).filter((id) => !excluded.has(id)).sort();
   return {
@@ -178,14 +232,29 @@ export async function buildProductFiles(): Promise<ProductFile[]> {
   const files: ProductFile[] = [];
   const urls = {} as Record<AssetId, string>;
   const dimensions = {} as Record<AssetId, Point>;
-  const imageCatalog: Array<{ id: AssetId; url: string; sha256: string; width: number; height: number }> = [];
+  const imageCatalog: Array<
+    {
+      id: AssetId;
+      url: string;
+      sha256: string;
+      width: number;
+      height: number;
+    } & ReturnType<typeof environmentMetadata>
+  > = [];
   for (const id of (Object.keys(assets) as AssetId[]).sort()) {
     const image = assets[id];
     const bytes = encodePng(image);
     const path = imagePath(environmentRoot, id, bytes);
     urls[id] = `/${path.replace('apps/web/public/', '')}`;
     dimensions[id] = { x: image.width, y: image.height };
-    imageCatalog.push({ id, url: urls[id], sha256: sha256(bytes), width: image.width, height: image.height });
+    imageCatalog.push({
+      id,
+      url: urls[id],
+      sha256: sha256(bytes),
+      width: image.width,
+      height: image.height,
+      ...environmentMetadata(spec, id),
+    });
     files.push({ path, bytes });
   }
   validateProductDimensions(spec, dimensions);
