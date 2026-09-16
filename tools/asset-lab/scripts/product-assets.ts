@@ -101,7 +101,8 @@ function environmentMetadata(
     : STRUCTURE_ASSET_ID_SET.has(id)
       ? 'structures'
       : 'objects';
-  const renderLayer: RenderLayer = category === 'terrain' ? 'floor' : spec.overheadAssets.includes(id) ? 'overhead' : 'sorted';
+  const renderLayer: RenderLayer =
+    category === 'terrain' ? 'floor' : spec.overheadAssets.includes(id) ? 'overhead' : 'sorted';
   return {
     category,
     collide: collisionBaseHeight > 0,
