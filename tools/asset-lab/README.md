@@ -25,10 +25,26 @@ npm run typecheck
 npm test
 npm run build
 npm run assets
+npm run assets:check
 npm run e2e
 ```
 
 Die Browserprüfung benötigt das zur installierten Playwright-Version gehörende Chromium. Falls es auf dem Rechner fehlt: `npx playwright install chromium`. Die Tests starten einen eigenen lokalen Server auf Port 5190; dieser Port muss frei sein. Während eines Browserlaufs keine Quelldateien ändern, da Vite die Testseite sonst neu lädt. `npm run assets` erzeugt je Palette 59 Asset-PNGs und ein `.mepack` sowie alle drei Büros als PNG und JSON unter `exports/`; Browseränderungen kommen über die Exportknöpfe aus der Werkstatt.
+
+## Produktgeneration `atelier-v1`
+
+Die erste Produktgeneration ist ein vorbereiteter, noch nicht aktivierter Bestand. `product/atelier-v1.json` friert „Licht und Holz“, die neue Pack-UUID und sechs vollständige Charakterrezepte ein. Die Ateliervarianten „Grünes Studio“ und „Abendatelier“ bleiben außerhalb der Produktartefakte. Weder Seed noch Karten, Packlisten, Avatar-Defaults oder Auswahlpfade lesen diese Dateien in dieser Stufe ein.
+
+```sh
+cd tools/asset-lab
+npm ci
+npm run assets:product
+npm run assets:check
+```
+
+`npm run assets:product` erzeugt 59 inhaltsgehashte Umgebungs-PNGs unter `apps/web/public/assets/atelier/v1/holz/`, sechs inhaltsgehashte Spritesheets unter `apps/web/public/assets/sprites/atelier-v1/` und die abgeleiteten Katalog- und Manifestdateien. Der 32-Pixel-Boden wird darin als 2 × 2-Atlas für das 16-Pixel-Weltraster beschrieben. Richtungsansichten bleiben wegen ihrer unterschiedlichen Maße eigenständige, nicht drehbare Einträge. Die 48 Pixel hohen Wände tragen einen Pixelanker an der oberen Kante ihrer unteren Kollisionszeile und einen Versatz von 32 Pixeln nach oben. Das Wand-Autotile dokumentiert `gridHeight: 3`, bleibt aber bis zur stabilen Autotile-Identität aus A28 ausdrücklich zurückgehalten.
+
+`npm run assets:check` erzeugt die Generation frisch in einem temporären Verzeichnis und vergleicht Pfade und Bytes mit dem eingecheckten Stand. Geänderte Bytes unter `atelier-v1` sind nicht zulässig; eine inhaltliche Änderung benötigt eine neue Generation mit neuen Pfaden und neuer Pack-UUID. Die rohen `.mepack`-Dateien aus `npm run assets` sind weiterhin reine Atelierausgaben und kein Importweg für diese Produktgeneration.
 
 ## Ausprobieren
 
@@ -41,28 +57,31 @@ Die Browserprüfung benötigt das zur installierten Playwright-Version gehörend
 
 ## Quellen und Dateistruktur
 
-| Datei                       | Aufgabe                                                                                          |
-| --------------------------- | ------------------------------------------------------------------------------------------------ |
-| `src/pixels.ts`             | Rasterfläche mit festen RGBA-Pixeln, Rechtecken und pixelbasierten Silhouetten                   |
-| `src/assets.ts`             | Eigenständige Möbel-, Boden-, Wand- und Türvorlagen sowie drei Paletten                          |
-| `src/avatar.ts`             | Bestehender MIT-Composer und Katalog, ergänzt um drei lokale Gesichter und eine rote Bartpalette |
-| `src/avatar-editor.ts`      | Visueller Editor mit echten Teilvorschauen, Farbauswahl und Tastaturbedienung                    |
-| `src/avatar-compact.ts`     | Kompakte Stilprobe mit eigenen Haar-, Kleidungs- und Kapuzenrastern, Konturen und Paletten       |
-| `src/avatar-proportions.ts` | Neue Pixelraster für Kopf, Körper, Kleidung, Frisuren und Accessoires der Körperformen           |
-| `src/avatar-comparison.ts`  | Synchron animierter Vergleich, Büroausschnitte und gemeinsamer PNG-Export                        |
-| `src/office-compact.ts`     | Kleine Möbelfamilie mit Richtungsansichten und acht zusätzlichen Möbeltypen                      |
-| `src/avatar-accessories.ts` | Sechs zusätzliche Kopfbedeckungen und vier Bartformen                                            |
-| `src/office-art.ts`         | Eigene Richtungsansichten, Wandatlas, offene Tür und Pflanzen-/Sitzbausteine                     |
-| `src/office-model.ts`       | Gemeinsamer Vertrag für Weltgröße, Plätze, Wände, Zonen und Einstieg                             |
-| `src/office-presets.ts`     | Drei vollständige Grundrisse mit 6, 12 und 24 erreichbaren Arbeitsplätzen                        |
-| `src/office-picker.ts`      | Visuelle Büroauswahl und Einstieg mit Tastatur- und Touch-Bedienung                              |
-| `src/world.ts`              | Gemeinsame Raumzeichnung, Kollisionsflächen, semantische Zonen und Wegsuche                      |
-| `src/scene.ts`              | Begehbare Phaser-Vorschau mit Tiefensortierung und vier Laufrichtungen                           |
-| `src/draft.ts`              | Rezeptformat, Prüfung eingelesener Daten und manuelle Pixeländerungen je Stil                    |
-| `src/pack.ts`               | Metadaten und Export im vorhandenen `.mepack`-Format                                             |
-| `src/main.ts`               | Bedienoberfläche, Pixeleditor, Speicherung und Downloads                                         |
-| `scripts/export-assets.ts`  | Deterministischer Export aller Grundvarianten für Arbeit per CLI                                 |
-| `tests/`                    | Pixel-/Rezept-/Pack-Prüfungen und echte Browsertests einschließlich Touch                        |
+| Datei                              | Aufgabe                                                                                          |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `src/pixels.ts`                    | Rasterfläche mit festen RGBA-Pixeln, Rechtecken und pixelbasierten Silhouetten                   |
+| `src/assets.ts`                    | Eigenständige Möbel-, Boden-, Wand- und Türvorlagen sowie drei Paletten                          |
+| `src/avatar.ts`                    | Bestehender MIT-Composer und Katalog, ergänzt um drei lokale Gesichter und eine rote Bartpalette |
+| `src/avatar-editor.ts`             | Visueller Editor mit echten Teilvorschauen, Farbauswahl und Tastaturbedienung                    |
+| `src/avatar-compact.ts`            | Kompakte Stilprobe mit eigenen Haar-, Kleidungs- und Kapuzenrastern, Konturen und Paletten       |
+| `src/avatar-proportions.ts`        | Neue Pixelraster für Kopf, Körper, Kleidung, Frisuren und Accessoires der Körperformen           |
+| `src/avatar-comparison.ts`         | Synchron animierter Vergleich, Büroausschnitte und gemeinsamer PNG-Export                        |
+| `src/office-compact.ts`            | Kleine Möbelfamilie mit Richtungsansichten und acht zusätzlichen Möbeltypen                      |
+| `src/avatar-accessories.ts`        | Sechs zusätzliche Kopfbedeckungen und vier Bartformen                                            |
+| `src/office-art.ts`                | Eigene Richtungsansichten, Wandatlas, offene Tür und Pflanzen-/Sitzbausteine                     |
+| `src/office-model.ts`              | Gemeinsamer Vertrag für Weltgröße, Plätze, Wände, Zonen und Einstieg                             |
+| `src/office-presets.ts`            | Drei vollständige Grundrisse mit 6, 12 und 24 erreichbaren Arbeitsplätzen                        |
+| `src/office-picker.ts`             | Visuelle Büroauswahl und Einstieg mit Tastatur- und Touch-Bedienung                              |
+| `src/world.ts`                     | Gemeinsame Raumzeichnung, Kollisionsflächen, semantische Zonen und Wegsuche                      |
+| `src/scene.ts`                     | Begehbare Phaser-Vorschau mit Tiefensortierung und vier Laufrichtungen                           |
+| `src/draft.ts`                     | Rezeptformat, Prüfung eingelesener Daten und manuelle Pixeländerungen je Stil                    |
+| `src/pack.ts`                      | Metadaten und Export im vorhandenen `.mepack`-Format                                             |
+| `src/main.ts`                      | Bedienoberfläche, Pixeleditor, Speicherung und Downloads                                         |
+| `scripts/export-assets.ts`         | Deterministischer Export aller Grundvarianten für Arbeit per CLI                                 |
+| `product/atelier-v1.json`          | Feste Produktentscheidungen, Pack-UUID und sechs vollständige Charakterrezepte                   |
+| `scripts/product-assets.ts`        | Umsetzungsschicht für Hashpfade, Raster, Maße, Kollision, Ebenen und Wandanker                   |
+| `scripts/export-product-assets.ts` | Schreib- und Prüfkommando für die unveränderliche Produktgeneration                              |
+| `tests/`                           | Pixel-/Rezept-/Pack-Prüfungen und echte Browsertests einschließlich Touch                        |
 
 Menschen und Coding-Agenten verwenden dieselben Quellen. Agenten verändern Pixelvorlagen in `assets.ts`, `office-art.ts` und `office-compact.ts`, Figurenraster in `avatar-accessories.ts`, `avatar-compact.ts`, `avatar-proportions.ts` beziehungsweise `avatar.ts` und Raumplatzierungen in `office-presets.ts`. Manuelle Möbelkorrekturen werden im Rezept als Pixelposition und Farbe beziehungsweise Transparenz gespeichert. Vorschau und PNG-Export verwenden dieselben RGBA-Daten; es gibt keinen separaten Nachbau für den Export.
 

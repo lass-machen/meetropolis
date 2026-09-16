@@ -9,6 +9,8 @@
     "test": "vitest run",
     "build": "npm run typecheck && vite build",
     "assets": "node --experimental-strip-types scripts/export-assets.ts",
+    "assets:product": "node --experimental-strip-types scripts/run-product-export.ts",
+    "assets:check": "node --experimental-strip-types scripts/run-product-export.ts --check",
     "e2e": "playwright test",
     "lint": "eslint .",
     "format:check": "prettier --check ."

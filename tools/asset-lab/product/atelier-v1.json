@@ -1,0 +1,174 @@
+{
+  "schema": "meetropolis-product-generation/v1",
+  "generation": "atelier-v1",
+  "active": false,
+  "palette": {
+    "theme": "holz",
+    "slug": "holz",
+    "name": "Licht und Holz",
+    "packUuid": "4664b745-6bad-4d86-ae8f-591c57567692",
+    "packVersion": "1.0.0"
+  },
+  "atelierOnlyThemes": ["garten", "abend"],
+  "worldGrid": {
+    "tileWidth": 16,
+    "tileHeight": 16
+  },
+  "floorAtlas": {
+    "assetId": "floor",
+    "tileWidth": 16,
+    "tileHeight": 16,
+    "columns": 2,
+    "rows": 2
+  },
+  "directionalStrategy": "separate-items",
+  "overheadAssets": ["window", "pinboard"],
+  "wallPlacement": {
+    "assetIds": ["wall", "door", "door_open"],
+    "gridHeight": 3,
+    "anchor": {
+      "x": 0,
+      "y": 32
+    },
+    "offset": {
+      "x": 0,
+      "y": -32
+    }
+  },
+  "autotile": {
+    "assetId": "wall_set",
+    "active": false,
+    "blockedBy": "A28",
+    "tileWidth": 16,
+    "tileHeight": 48,
+    "gridHeight": 3
+  },
+  "avatars": [
+    {
+      "key": "business_man",
+      "displayName": "Business Man",
+      "look": "business",
+      "recipe": {
+        "skin": "medium",
+        "hair": "side_part",
+        "hair_color": "braun",
+        "outfit": "trousers",
+        "top": "suit_navy",
+        "pants": "dark",
+        "shoes": "brown",
+        "beard": "stubble",
+        "beard_color": "braun",
+        "glasses": null,
+        "hat": null,
+        "misc": null,
+        "face": "ruhig",
+        "proportion": "kompakt_markant"
+      }
+    },
+    {
+      "key": "business_woman",
+      "displayName": "Business Woman",
+      "look": "atelier",
+      "recipe": {
+        "skin": "medium",
+        "hair": "braids",
+        "hair_color": "rot",
+        "outfit": "dress",
+        "top": "dress_red",
+        "pants": "dark",
+        "shoes": "brown",
+        "beard": null,
+        "beard_color": "rot",
+        "glasses": null,
+        "hat": null,
+        "misc": null,
+        "face": "wach",
+        "proportion": "kompakt"
+      }
+    },
+    {
+      "key": "casual_woman",
+      "displayName": "Casual Woman",
+      "look": "copper",
+      "recipe": {
+        "skin": "medium",
+        "hair": "braids",
+        "hair_color": "rot",
+        "outfit": "dress",
+        "top": "dress_red",
+        "pants": "dark",
+        "shoes": "brown",
+        "beard": null,
+        "beard_color": "rot",
+        "glasses": null,
+        "hat": null,
+        "misc": null,
+        "face": "ruhig",
+        "proportion": "kompakt"
+      }
+    },
+    {
+      "key": "dev_hoodie",
+      "displayName": "Developer",
+      "look": "weekend",
+      "recipe": {
+        "skin": "medium",
+        "hair": "messy",
+        "hair_color": "blond",
+        "outfit": "trousers",
+        "top": "hoodie_blue",
+        "pants": "dark",
+        "shoes": "brown",
+        "beard": "trimmed",
+        "beard_color": "blond",
+        "glasses": null,
+        "hat": "beanie",
+        "misc": null,
+        "face": "freundlich",
+        "proportion": "kompakt_kraeftig"
+      }
+    },
+    {
+      "key": "manager_woman",
+      "displayName": "Manager",
+      "look": "studio",
+      "recipe": {
+        "skin": "medium",
+        "hair": "bob",
+        "hair_color": "schwarz",
+        "outfit": "trousers",
+        "top": "blazer_anthracite",
+        "pants": "dark",
+        "shoes": "brown",
+        "beard": null,
+        "beard_color": "schwarz",
+        "glasses": "round",
+        "hat": null,
+        "misc": null,
+        "face": "wach",
+        "proportion": "kompakt_weich"
+      }
+    },
+    {
+      "key": "suit_man",
+      "displayName": "Suit Man",
+      "look": "cap",
+      "recipe": {
+        "skin": "medium",
+        "hair": "side_part",
+        "hair_color": "schwarz",
+        "outfit": "trousers",
+        "top": "suit_navy",
+        "pants": "dark",
+        "shoes": "brown",
+        "beard": null,
+        "beard_color": "schwarz",
+        "glasses": null,
+        "hat": "cap",
+        "misc": null,
+        "face": "ruhig",
+        "proportion": "kompakt"
+      }
+    }
+  ]
+}

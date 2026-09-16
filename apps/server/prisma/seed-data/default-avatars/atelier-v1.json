@@ -1,0 +1,266 @@
+{
+  "schema": "meetropolis-default-avatar-generation/v1",
+  "generation": "atelier-v1",
+  "active": false,
+  "packUuid": "default-characters",
+  "avatars": [
+    {
+      "id": "business_man",
+      "key": "business_man",
+      "displayName": "Business Man",
+      "type": "full",
+      "spriteUrl": "/assets/sprites/atelier-v1/business_man.ce44bce4c558.png",
+      "sha256": "ce44bce4c5582aa3ac4ea0b2cc820f7a645a55eab4154cd882041d06a3904462",
+      "frameWidth": 32,
+      "frameHeight": 32,
+      "columns": 4,
+      "rows": 8,
+      "states": {
+        "idle": {
+          "directions": ["down", "left", "right", "up"],
+          "frameCount": 1,
+          "frameRate": 1,
+          "row": 0
+        },
+        "walk": {
+          "directions": ["down", "left", "right", "up"],
+          "frameCount": 4,
+          "frameRate": 8,
+          "row": 4
+        }
+      },
+      "look": "business",
+      "recipe": {
+        "skin": "medium",
+        "hair": "side_part",
+        "hair_color": "braun",
+        "outfit": "trousers",
+        "top": "suit_navy",
+        "pants": "dark",
+        "shoes": "brown",
+        "beard": "stubble",
+        "beard_color": "braun",
+        "glasses": null,
+        "hat": null,
+        "misc": null,
+        "face": "ruhig",
+        "proportion": "kompakt_markant"
+      }
+    },
+    {
+      "id": "business_woman",
+      "key": "business_woman",
+      "displayName": "Business Woman",
+      "type": "full",
+      "spriteUrl": "/assets/sprites/atelier-v1/business_woman.f01546e80735.png",
+      "sha256": "f01546e80735e2cfd1996e59dc21bc866373ab3221078e392c6f62054a0b2013",
+      "frameWidth": 32,
+      "frameHeight": 32,
+      "columns": 4,
+      "rows": 8,
+      "states": {
+        "idle": {
+          "directions": ["down", "left", "right", "up"],
+          "frameCount": 1,
+          "frameRate": 1,
+          "row": 0
+        },
+        "walk": {
+          "directions": ["down", "left", "right", "up"],
+          "frameCount": 4,
+          "frameRate": 8,
+          "row": 4
+        }
+      },
+      "look": "atelier",
+      "recipe": {
+        "skin": "medium",
+        "hair": "braids",
+        "hair_color": "rot",
+        "outfit": "dress",
+        "top": "dress_red",
+        "pants": "dark",
+        "shoes": "brown",
+        "beard": null,
+        "beard_color": "rot",
+        "glasses": null,
+        "hat": null,
+        "misc": null,
+        "face": "wach",
+        "proportion": "kompakt"
+      }
+    },
+    {
+      "id": "casual_woman",
+      "key": "casual_woman",
+      "displayName": "Casual Woman",
+      "type": "full",
+      "spriteUrl": "/assets/sprites/atelier-v1/casual_woman.da6bc1426c30.png",
+      "sha256": "da6bc1426c301b89a80143bb7a0bfd21f57b6c8dfdf5d54342fddcdadf2b5d72",
+      "frameWidth": 32,
+      "frameHeight": 32,
+      "columns": 4,
+      "rows": 8,
+      "states": {
+        "idle": {
+          "directions": ["down", "left", "right", "up"],
+          "frameCount": 1,
+          "frameRate": 1,
+          "row": 0
+        },
+        "walk": {
+          "directions": ["down", "left", "right", "up"],
+          "frameCount": 4,
+          "frameRate": 8,
+          "row": 4
+        }
+      },
+      "look": "copper",
+      "recipe": {
+        "skin": "medium",
+        "hair": "braids",
+        "hair_color": "rot",
+        "outfit": "dress",
+        "top": "dress_red",
+        "pants": "dark",
+        "shoes": "brown",
+        "beard": null,
+        "beard_color": "rot",
+        "glasses": null,
+        "hat": null,
+        "misc": null,
+        "face": "ruhig",
+        "proportion": "kompakt"
+      }
+    },
+    {
+      "id": "dev_hoodie",
+      "key": "dev_hoodie",
+      "displayName": "Developer",
+      "type": "full",
+      "spriteUrl": "/assets/sprites/atelier-v1/dev_hoodie.3f6d689b3610.png",
+      "sha256": "3f6d689b36105a231c0246ec39ecff1b3b215efbd71d66d4c21acfe622081f3e",
+      "frameWidth": 32,
+      "frameHeight": 32,
+      "columns": 4,
+      "rows": 8,
+      "states": {
+        "idle": {
+          "directions": ["down", "left", "right", "up"],
+          "frameCount": 1,
+          "frameRate": 1,
+          "row": 0
+        },
+        "walk": {
+          "directions": ["down", "left", "right", "up"],
+          "frameCount": 4,
+          "frameRate": 8,
+          "row": 4
+        }
+      },
+      "look": "weekend",
+      "recipe": {
+        "skin": "medium",
+        "hair": "messy",
+        "hair_color": "blond",
+        "outfit": "trousers",
+        "top": "hoodie_blue",
+        "pants": "dark",
+        "shoes": "brown",
+        "beard": "trimmed",
+        "beard_color": "blond",
+        "glasses": null,
+        "hat": "beanie",
+        "misc": null,
+        "face": "freundlich",
+        "proportion": "kompakt_kraeftig"
+      }
+    },
+    {
+      "id": "manager_woman",
+      "key": "manager_woman",
+      "displayName": "Manager",
+      "type": "full",
+      "spriteUrl": "/assets/sprites/atelier-v1/manager_woman.0c1b5c205010.png",
+      "sha256": "0c1b5c2050106187e24835341fc5759f8cf73c3d61b1ece2bd305e57e8e9cbcb",
+      "frameWidth": 32,
+      "frameHeight": 32,
+      "columns": 4,
+      "rows": 8,
+      "states": {
+        "idle": {
+          "directions": ["down", "left", "right", "up"],
+          "frameCount": 1,
+          "frameRate": 1,
+          "row": 0
+        },
+        "walk": {
+          "directions": ["down", "left", "right", "up"],
+          "frameCount": 4,
+          "frameRate": 8,
+          "row": 4
+        }
+      },
+      "look": "studio",
+      "recipe": {
+        "skin": "medium",
+        "hair": "bob",
+        "hair_color": "schwarz",
+        "outfit": "trousers",
+        "top": "blazer_anthracite",
+        "pants": "dark",
+        "shoes": "brown",
+        "beard": null,
+        "beard_color": "schwarz",
+        "glasses": "round",
+        "hat": null,
+        "misc": null,
+        "face": "wach",
+        "proportion": "kompakt_weich"
+      }
+    },
+    {
+      "id": "suit_man",
+      "key": "suit_man",
+      "displayName": "Suit Man",
+      "type": "full",
+      "spriteUrl": "/assets/sprites/atelier-v1/suit_man.4dc2fcec15cd.png",
+      "sha256": "4dc2fcec15cd6bdee06b7c8e7708dd93b6c1c00816487360c72e1ce198bbbe8a",
+      "frameWidth": 32,
+      "frameHeight": 32,
+      "columns": 4,
+      "rows": 8,
+      "states": {
+        "idle": {
+          "directions": ["down", "left", "right", "up"],
+          "frameCount": 1,
+          "frameRate": 1,
+          "row": 0
+        },
+        "walk": {
+          "directions": ["down", "left", "right", "up"],
+          "frameCount": 4,
+          "frameRate": 8,
+          "row": 4
+        }
+      },
+      "look": "cap",
+      "recipe": {
+        "skin": "medium",
+        "hair": "side_part",
+        "hair_color": "schwarz",
+        "outfit": "trousers",
+        "top": "suit_navy",
+        "pants": "dark",
+        "shoes": "brown",
+        "beard": null,
+        "beard_color": "schwarz",
+        "glasses": null,
+        "hat": "cap",
+        "misc": null,
+        "face": "ruhig",
+        "proportion": "kompakt"
+      }
+    }
+  ]
+}
