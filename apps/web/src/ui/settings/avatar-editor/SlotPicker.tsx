@@ -1,4 +1,6 @@
 import type { AvatarConfig, SpriteCatalog } from '@meetropolis/shared';
+import type { TFunction } from 'i18next';
+import { useTranslation } from 'react-i18next';
 import {
   isHairReplaced,
   isOptionEnabled,
@@ -23,16 +25,23 @@ interface Option {
   label: string;
 }
 
-function optionsFor(catalog: SpriteCatalog, field: string): Option[] {
+function optionsFor(catalog: SpriteCatalog, field: string, t: TFunction): Option[] {
   const options: Option[] = [];
-  if (offersNone(field)) options.push({ value: null, label: 'Ohne' });
-  for (const value of optionsForField(catalog, field)) options.push({ value, label: prettyValue(value) });
+  if (offersNone(field)) options.push({ value: null, label: t('avatarEditor.option.none') });
+  for (const value of optionsForField(catalog, field)) {
+    options.push({
+      value,
+      label: t(`avatarEditor.option.${field}.${value}`, { defaultValue: prettyValue(value) }),
+    });
+  }
   return options;
 }
 
 /** One labelled slot: its options as swatch or sprite tiles. */
 function SlotGroupRow({ catalog, config, group, onChange }: Props & { group: SlotGroup }) {
-  const { field, label } = group;
+  const { t } = useTranslation();
+  const { field, labelKey } = group;
+  const label = t(labelKey);
   const replaced = field === 'hair' && isHairReplaced(catalog, config);
   const current = config[field] ?? null;
   const color = isColorField(field);
@@ -41,10 +50,10 @@ function SlotGroupRow({ catalog, config, group, onChange }: Props & { group: Slo
     <div>
       <div className="av-ed__slot-label">
         {label}
-        {replaced && <span className="av-ed__slot-note">von der Kapuze verdeckt</span>}
+        {replaced && <span className="av-ed__slot-note">{t('avatarEditor.coveredByHood')}</span>}
       </div>
       <div className={`av-ed__grid av-ed__grid--${color ? 'swatch' : 'sprite'}`} role="group" aria-label={label}>
-        {optionsFor(catalog, field).map((opt) => {
+        {optionsFor(catalog, field, t).map((opt) => {
           const selected = current === opt.value;
           const enabled = !replaced && (opt.value === null || isOptionEnabled(catalog, config, field, opt.value));
           // The config this option would produce: what the tile shows is exactly
@@ -57,6 +66,7 @@ function SlotGroupRow({ catalog, config, group, onChange }: Props & { group: Slo
               <SwatchTile
                 key={key}
                 catalog={catalog}
+                config={next}
                 field={field}
                 value={opt.value}
                 label={opt.label}

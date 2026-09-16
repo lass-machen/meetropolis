@@ -1,4 +1,4 @@
-import type { SpriteCatalog } from '@meetropolis/shared';
+import type { AvatarConfig, SpriteCatalog } from '@meetropolis/shared';
 import { OptionTile } from './OptionTile';
 import { paletteRampFor } from './editorLayout';
 
@@ -10,6 +10,7 @@ import { paletteRampFor } from './editorLayout';
  */
 export function SwatchTile({
   catalog,
+  config,
   field,
   value,
   label,
@@ -18,6 +19,7 @@ export function SwatchTile({
   onClick,
 }: {
   catalog: SpriteCatalog;
+  config: AvatarConfig;
   field: string;
   value: string;
   label: string;
@@ -25,7 +27,7 @@ export function SwatchTile({
   disabled: boolean;
   onClick: () => void;
 }) {
-  const ramp = paletteRampFor(catalog, field, value);
+  const ramp = paletteRampFor(catalog, config, field, value);
 
   return (
     <OptionTile selected={selected} disabled={disabled} label={label} onClick={onClick}>

@@ -3,10 +3,13 @@
 // swatch shows. slotConfig.ts stays the catalog-truth layer (what is applicable
 // and how a change reshapes the config); this module only decides how it looks.
 //
-// German labels are inlined for now (the rest of the editor is too); see the
-// i18n follow-up before translating.
-
-import { hexToRgba, type AvatarConfig, type PaletteDict, type SpriteCatalog } from '@meetropolis/shared';
+import {
+  hexToRgba,
+  resolveSpriteCatalog,
+  type AvatarConfig,
+  type PaletteDict,
+  type SpriteCatalog,
+} from '@meetropolis/shared';
 import { SLOT_GROUPS, isApplicable, type SlotGroup } from './slotConfig';
 
 export interface EditorTab {
@@ -16,7 +19,7 @@ export interface EditorTab {
 }
 
 export const EDITOR_TABS: EditorTab[] = [
-  { key: 'body', label: 'Körper', fields: ['skin', 'hair', 'hair_color'] },
+  { key: 'body', label: 'Körper', fields: ['proportion', 'skin', 'face', 'hair', 'hair_color'] },
   { key: 'clothing', label: 'Kleidung', fields: ['outfit', 'top', 'pants', 'shoes'] },
   { key: 'extras', label: 'Extras', fields: ['beard', 'beard_color', 'glasses', 'hat', 'misc'] },
 ];
@@ -66,7 +69,8 @@ function luminance(hex: string): number {
  * single guessed swatch colour. Empty when the field is not palette-keyed or
  * the value is unknown; the caller then falls back to a neutral tile.
  */
-export function paletteRampFor(catalog: SpriteCatalog, field: string, value: string): string[] {
+export function paletteRampFor(catalog: SpriteCatalog, config: AvatarConfig, field: string, value: string): string[] {
+  catalog = resolveSpriteCatalog(catalog, config);
   const refName = paletteRefName(catalog, field);
   if (refName === null) return [];
   const group = catalog.palettes[refName];
