@@ -2,20 +2,9 @@ name: Asset-Atelier
 
 on:
   pull_request:
-    paths:
-      - 'tools/asset-lab/**'
-      - 'packages/shared/**'
-      - 'apps/server/src/api/routes/assetPacks.schemas.ts'
-      - 'apps/server/src/api/utils/collisionHelpers.ts'
-      - '.github/workflows/asset-atelier.yml'
+    branches: [main]
   push:
     branches: [main]
-    paths:
-      - 'tools/asset-lab/**'
-      - 'packages/shared/**'
-      - 'apps/server/src/api/routes/assetPacks.schemas.ts'
-      - 'apps/server/src/api/utils/collisionHelpers.ts'
-      - '.github/workflows/asset-atelier.yml'
   workflow_dispatch:
 
 permissions:
@@ -37,17 +26,64 @@ jobs:
         working-directory: tools/asset-lab
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      # This workflow intentionally has no path filters so its check context is
+      # always available to branch protection. Unrelated changes take the fast
+      # green path here; relevant changes run the complete Atelier suite below.
+      - name: detect relevant changes
+        id: changes
+        shell: bash
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == 'workflow_dispatch' ]]; then
+            echo 'atelier=true' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ "$GITHUB_EVENT_NAME" == 'pull_request' ]]; then
+            base='${{ github.event.pull_request.base.sha }}'
+            head='${{ github.event.pull_request.head.sha }}'
+          else
+            base='${{ github.event.before }}'
+            head='${{ github.sha }}'
+          fi
+
+          if [[ -z "$base" || "$base" =~ ^0+$ ]]; then
+            echo 'atelier=true' >> "$GITHUB_OUTPUT"
+          elif git -C "$GITHUB_WORKSPACE" diff --quiet "$base" "$head" -- \
+            tools/asset-lab \
+            packages/shared \
+            apps/server/src/api/routes/assetPacks.schemas.ts \
+            apps/server/src/api/utils/collisionHelpers.ts \
+            .github/workflows/asset-atelier.yml; then
+            echo 'atelier=false' >> "$GITHUB_OUTPUT"
+          else
+            echo 'atelier=true' >> "$GITHUB_OUTPUT"
+          fi
+      - name: no Atelier changes
+        if: steps.changes.outputs.atelier != 'true'
+        run: echo 'No Atelier-related changes detected.'
       - uses: actions/setup-node@v7
+        if: steps.changes.outputs.atelier == 'true'
         with:
           node-version-file: .nvmrc
           cache: npm
           cache-dependency-path: tools/asset-lab/package-lock.json
-      - run: corepack enable
-      - run: npm ci
-      - run: npm run lint
-      - run: npm run format:check
-      - run: npm test
-      - run: npm run build
-      - run: npm run assets
-      - run: npx playwright install --with-deps chromium
-      - run: npm run e2e
+      - if: steps.changes.outputs.atelier == 'true'
+        run: corepack enable
+      - if: steps.changes.outputs.atelier == 'true'
+        run: npm ci
+      - if: steps.changes.outputs.atelier == 'true'
+        run: npm run lint
+      - if: steps.changes.outputs.atelier == 'true'
+        run: npm run format:check
+      - if: steps.changes.outputs.atelier == 'true'
+        run: npm test
+      - if: steps.changes.outputs.atelier == 'true'
+        run: npm run build
+      - if: steps.changes.outputs.atelier == 'true'
+        run: npm run assets
+      - if: steps.changes.outputs.atelier == 'true'
+        run: npx playwright install --with-deps chromium
+      - if: steps.changes.outputs.atelier == 'true'
+        run: npm run e2e
