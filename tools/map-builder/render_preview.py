@@ -6,8 +6,8 @@ single PNG, scaled 4x for inspection. Does not run Phaser; does not need
 the dev server. The output file is gitignored.
 
 Usage:
-  python render_preview.py [path/to/office.json]   # default: ../../apps/web/public/maps/office.json
-  Output: ./office_preview.png
+  python render_preview.py [path/to/office.json] [path/to/output.png]
+  Default output: ./office_preview.png
 """
 
 from __future__ import annotations
@@ -130,7 +130,8 @@ def main() -> None:
 
     # Scale up for inspection
     final = canvas.resize((canvas.width * SCALE, canvas.height * SCALE), Image.NEAREST)
-    out = Path(__file__).parent / "office_preview.png"
+    out = Path(sys.argv[2]) if len(sys.argv) > 2 else Path(__file__).parent / "office_preview.png"
+    out.parent.mkdir(parents=True, exist_ok=True)
     final.save(out)
     print(f"[render] wrote {out} ({final.size[0]} x {final.size[1]})")
 
