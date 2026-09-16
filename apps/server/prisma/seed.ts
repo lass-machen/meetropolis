@@ -6,6 +6,7 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import bcrypt from 'bcryptjs';
 import { importTmjIntoMap } from '../src/scripts/importMapV2.lib.js';
 import { resolveTemplateTenantSlug } from '../src/services/templateTenant.js';
+import { ATELIER_PACK_UUID, loadAtelierProductData } from './atelierCatalog.js';
 
 // Prisma 7 requires a driver-adapter. The seed runs via `prisma db seed`
 // (outside the application's normal entrypoint) so we construct one here.
@@ -317,6 +318,29 @@ async function main() {
       ...(furnitureItems.length > 0 ? { objects: furnitureItems } : {}),
     },
   });
+
+  // Atelier v1 is shipped catalog content, but unlike the legacy furniture
+  // pack it is create-only. Operators may customize an existing row, and a
+  // later deploy must not overwrite those choices.
+  const existingAtelierPack = await prisma.assetPack.findUnique({ where: { uuid: ATELIER_PACK_UUID } });
+  if (!existingAtelierPack) {
+    const { catalog, pack } = loadAtelierProductData(repoRoot);
+    await prisma.assetPack.create({
+      data: {
+        uuid: ATELIER_PACK_UUID,
+        name: `${catalog.palette.name} (Atelier v1)`,
+        description: 'Eigene Pixelgrafiken der Atelier-Generation v1 für helle Bürowelten.',
+        author: pack.author,
+        version: catalog.palette.packVersion,
+        terrain: pack.terrain,
+        structures: pack.structures,
+        objects: pack.objects,
+        // A28: walls_auto stores transient indexes derived from visible packs.
+        // A global autotile could reinterpret walls in existing customer maps.
+        autotiles: [],
+      },
+    });
+  }
 
   // ---------------------------------------------------------------------
   // Starter map for the `default` tenant. Without a Map row the frontend's
