@@ -7,24 +7,26 @@ import type { AvatarConfig, SpriteCatalog } from '@meetropolis/shared';
 
 export interface SlotGroup {
   field: string;
-  label: string;
+  labelKey: string;
 }
 
-// Display order + German labels. Accessory slots (beard/glasses/hat/misc) also
-// offer a "none" choice (see offersNone).
+// Display order. Accessory slots (beard/glasses/hat/misc) also offer a "none"
+// choice (see offersNone); labels live in the shared i18n dictionaries.
 export const SLOT_GROUPS: SlotGroup[] = [
-  { field: 'skin', label: 'Hautton' },
-  { field: 'hair', label: 'Frisur' },
-  { field: 'hair_color', label: 'Haarfarbe' },
-  { field: 'outfit', label: 'Outfit' },
-  { field: 'top', label: 'Oberteil' },
-  { field: 'pants', label: 'Hose' },
-  { field: 'shoes', label: 'Schuhe' },
-  { field: 'beard', label: 'Bart' },
-  { field: 'beard_color', label: 'Bartfarbe' },
-  { field: 'glasses', label: 'Brille' },
-  { field: 'hat', label: 'Kopfbedeckung' },
-  { field: 'misc', label: 'Sonstiges' },
+  { field: 'proportion', labelKey: 'avatarEditor.slot.proportion' },
+  { field: 'skin', labelKey: 'avatarEditor.slot.skin' },
+  { field: 'face', labelKey: 'avatarEditor.slot.face' },
+  { field: 'hair', labelKey: 'avatarEditor.slot.hair' },
+  { field: 'hair_color', labelKey: 'avatarEditor.slot.hairColor' },
+  { field: 'outfit', labelKey: 'avatarEditor.slot.outfit' },
+  { field: 'top', labelKey: 'avatarEditor.slot.top' },
+  { field: 'pants', labelKey: 'avatarEditor.slot.pants' },
+  { field: 'shoes', labelKey: 'avatarEditor.slot.shoes' },
+  { field: 'beard', labelKey: 'avatarEditor.slot.beard' },
+  { field: 'beard_color', labelKey: 'avatarEditor.slot.beardColor' },
+  { field: 'glasses', labelKey: 'avatarEditor.slot.glasses' },
+  { field: 'hat', labelKey: 'avatarEditor.slot.hat' },
+  { field: 'misc', labelKey: 'avatarEditor.slot.misc' },
 ];
 
 const ACCESSORY_FIELDS = new Set(['beard', 'glasses', 'hat', 'misc']);
@@ -76,6 +78,8 @@ export function initialConfig(catalog: SpriteCatalog): AvatarConfig {
     hair: first('hair'),
     hair_color: first('hair_color'),
     outfit: fields.outfit?.default ?? first('outfit'),
+    face: fields.face?.default ?? first('face'),
+    proportion: fields.proportion?.default ?? first('proportion'),
     top: first('top'),
     pants: first('pants'),
     shoes: first('shoes'),

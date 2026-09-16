@@ -15,7 +15,13 @@ describe('editorLayout tabs', () => {
 
   it('groupsForTab returns the tab slots in SLOT_GROUPS order', () => {
     const base = initialConfig(catalog);
-    expect(groupsForTab(catalog, base, 'body').map((g) => g.field)).toEqual(['skin', 'hair', 'hair_color']);
+    expect(groupsForTab(catalog, base, 'body').map((g) => g.field)).toEqual([
+      'proportion',
+      'skin',
+      'face',
+      'hair',
+      'hair_color',
+    ]);
   });
 
   it('groupsForTab hides slots the catalog rules do not apply', () => {
@@ -68,24 +74,29 @@ describe('editorLayout colour vs item slots', () => {
   it('every colour slot resolves a non-empty ramp for every catalog value', () => {
     for (const group of SLOT_GROUPS.filter((g) => isColorField(g.field))) {
       for (const value of optionsForField(catalog, group.field)) {
-        expect(paletteRampFor(catalog, group.field, value).length, `${group.field}=${value}`).toBeGreaterThan(0);
+        expect(
+          paletteRampFor(catalog, initialConfig(catalog), group.field, value).length,
+          `${group.field}=${value}`,
+        ).toBeGreaterThan(0);
       }
     }
   });
 
   it('resolves the ramp through palette_compose, brightest first', () => {
     // skin.light = a #ffdec5 (highlight), b #fdcbb0, c #e09782 (shadow).
-    expect(paletteRampFor(catalog, 'skin', 'light')).toEqual(['#ffdec5', '#fdcbb0', '#e09782']);
+    const config = initialConfig(catalog);
+    expect(paletteRampFor(catalog, config, 'skin', 'light')).toEqual(['#ffdec5', '#fdcbb0', '#e09782']);
     // hair_color reads palettes.hair, beard_color reads palettes.beard.
-    expect(paletteRampFor(catalog, 'hair_color', 'blond')).toEqual(['#f9c22b', '#f79617', '#cd683d']);
-    expect(paletteRampFor(catalog, 'beard_color', 'schwarz')).toEqual(['#45293f', '#2e222f', '#1a1420']);
+    expect(paletteRampFor(catalog, config, 'hair_color', 'blond')).toEqual(['#f8d77b', '#daa157', '#aa7051']);
+    expect(paletteRampFor(catalog, config, 'beard_color', 'schwarz')).toEqual(['#71778c', '#4c526b', '#35364f']);
     // shoes.brown is stored s/r/d — the ramp sorts it light -> dark regardless.
-    expect(paletteRampFor(catalog, 'shoes', 'brown')).toEqual(['#a06849', '#6b3a26', '#3f2417']);
+    expect(paletteRampFor(catalog, config, 'shoes', 'brown')).toEqual(['#a06849', '#6b3a26', '#3f2417']);
   });
 
   it('returns an empty ramp for unknown fields and values', () => {
-    expect(paletteRampFor(catalog, 'hair', 'messy')).toEqual([]); // not a keyed palette field
-    expect(paletteRampFor(catalog, 'skin', 'chartreuse')).toEqual([]);
+    const config = initialConfig(catalog);
+    expect(paletteRampFor(catalog, config, 'hair', 'messy')).toEqual([]); // not a keyed palette field
+    expect(paletteRampFor(catalog, config, 'skin', 'chartreuse')).toEqual([]);
   });
 });
 

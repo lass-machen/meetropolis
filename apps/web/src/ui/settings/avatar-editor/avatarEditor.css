@@ -9,7 +9,7 @@
    and clothing ramps run violet/blue/brown). Everything else stays quiet. */
 
 .av-ed {
-  /* Frame size of the v5 catalog (format.frame_w/frame_h). Guarded by a test in
+  /* Frame size of the v6 catalog (format.frame_w/frame_h). Guarded by a test in
      editorLayout.test.ts: a catalog with another frame size fails there first. */
   --av-frame: 32;
   /* Integer scales only: a fractional one would smear the pixel grid. */

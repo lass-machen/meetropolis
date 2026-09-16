@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 // Vite emits the catalog as a content-hashed asset and returns its URL, so the
-// 186 KB stays out of the JS bundle and cache-busting is automatic: a changed
+// The generated raster data stays out of the JS bundle and cache-busting is automatic: a changed
 // catalog yields a new hashed filename, so the editor preview can never render
 // against a stale catalog (which would drift from the server-composited sheet).
 import catalogUrl from '@meetropolis/shared/sprite/catalog.json?url';
