@@ -28,7 +28,7 @@ export interface ProductAvatar {
 export interface ProductSpec {
   schema: string;
   generation: string;
-  active: false;
+  active: true;
   palette: { theme: ThemeId; slug: string; name: string; packUuid: string; packVersion: string };
   atelierOnlyThemes: ThemeId[];
   worldGrid: { tileWidth: number; tileHeight: number };
@@ -115,8 +115,8 @@ function avatars(value: unknown): ProductAvatar[] {
 
 function parseProductSpec(value: unknown): ProductSpec {
   const spec = record(value, 'Product specification');
-  if (spec.schema !== 'meetropolis-product-generation/v1' || spec.active !== false)
-    throw new Error('The product generation must use schema v1 and remain inactive.');
+  if (spec.schema !== 'meetropolis-product-generation/v1' || spec.active !== true)
+    throw new Error('The product generation must use schema v1 and be active.');
   const palette = record(spec.palette, 'palette');
   const grid = record(spec.worldGrid, 'worldGrid');
   const floor = record(spec.floorAtlas, 'floorAtlas');
@@ -127,7 +127,7 @@ function parseProductSpec(value: unknown): ProductSpec {
   return {
     schema: spec.schema,
     generation: slug(spec.generation, 'generation'),
-    active: false,
+    active: true,
     palette: {
       theme: themeId(palette.theme, 'palette.theme'),
       slug: slug(palette.slug, 'palette.slug'),

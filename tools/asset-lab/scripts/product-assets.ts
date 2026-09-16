@@ -121,7 +121,7 @@ function createPackManifest(spec: ProductSpec, urls: Record<AssetId, string>, di
     name: `Atelier · ${spec.palette.name}`,
     version: spec.palette.packVersion,
     author: 'Tiamat UG (haftungsbeschränkt)',
-    description: 'Eigene Pixelgrafiken der unveränderlichen Atelier-Generation v1. Noch nicht aktiviert.',
+    description: 'Eigene Pixelgrafiken der aktiven, unveränderlichen Atelier-Generation v1.',
     terrain: terrainIds.map((id) => ({
       ...itemBase(spec, id, urls[id]),
       category: 'terrain',
@@ -204,7 +204,7 @@ function createAvatarManifest(spec: ProductSpec, avatarFiles: Array<ProductAvata
   return {
     schema: 'meetropolis-default-avatar-generation/v1',
     generation: spec.generation,
-    active: false,
+    active: spec.active,
     packUuid: 'default-characters',
     avatars: avatarFiles.map((avatar) => ({
       id: avatar.key,
@@ -275,7 +275,7 @@ export async function buildProductFiles(): Promise<ProductFile[]> {
   const catalog = {
     schema: 'meetropolis-product-asset-catalog/v1',
     generation: spec.generation,
-    active: false,
+    active: spec.active,
     palette: spec.palette,
     atelierOnlyThemes: spec.atelierOnlyThemes,
     worldGrid: spec.worldGrid,
