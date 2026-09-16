@@ -164,16 +164,23 @@ async function main() {
     { key: 'manager_woman', displayName: 'Manager' },
     { key: 'suit_man', displayName: 'Suit Man' },
   ];
-  const defaultAvatars = defaultAvatarKeys.map((entry) => ({
-    id: entry.key,
-    key: entry.key,
-    displayName: entry.displayName,
-    type: 'full',
-    spriteUrl: `/assets/sprites/${entry.key}.png`,
-    frameWidth: 32,
-    frameHeight: 32,
-    states: defaultAvatarStates,
-  }));
+  const atelierAvatarUrls = new Map(
+    loadAtelierProductData(repoRoot).catalog.avatars.map((avatar) => [avatar.key, avatar.url]),
+  );
+  const defaultAvatars = defaultAvatarKeys.map((entry) => {
+    const spriteUrl = atelierAvatarUrls.get(entry.key);
+    if (!spriteUrl) throw new Error(`The atelier-v1 catalog is missing default avatar '${entry.key}'.`);
+    return {
+      id: entry.key,
+      key: entry.key,
+      displayName: entry.displayName,
+      type: 'full',
+      spriteUrl,
+      frameWidth: 32,
+      frameHeight: 32,
+      states: defaultAvatarStates,
+    };
+  });
   // The default pack is a SHIPPED LIBRARY, not editorial content: the seed owns
   // its contents and must refresh them on every run. The previous `update`
   // branch only bumped `version`, so any database created before the current

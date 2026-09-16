@@ -61,7 +61,7 @@ python3 generate.py --list     # print the default character recipes
 python3 export_catalog.py      # write the canonical editor contract to
                                # packages/shared/sprite/catalog.json
 
-python3 validate.py apps/web/public/assets/sprites/business_man.png
+python3 validate.py apps/web/public/assets/sprites/atelier-v1/business_man.ce44bce4c558.png
 python3 validate.py DIR/*.png  # validate several sheets at once
 ```
 
