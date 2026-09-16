@@ -47,6 +47,24 @@ updates:
         update-types:
           - 'version-update:semver-major'
 
+  # Asset Atelier has its own lockfile and is not part of the root npm workspace.
+  - package-ecosystem: 'npm'
+    directory: '/tools/asset-lab'
+    schedule:
+      interval: 'weekly'
+    open-pull-requests-limit: 10
+    groups:
+      dev-minor-patch:
+        dependency-type: 'development'
+        update-types:
+          - 'minor'
+          - 'patch'
+      prod-minor-patch:
+        dependency-type: 'production'
+        update-types:
+          - 'minor'
+          - 'patch'
+
   # GitHub Actions used by the CI workflow.
   - package-ecosystem: 'github-actions'
     directory: '/'
