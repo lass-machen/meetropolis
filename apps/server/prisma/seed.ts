@@ -6,6 +6,7 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import bcrypt from 'bcryptjs';
 import { importTmjIntoMap } from '../src/scripts/importMapV2.lib.js';
 import { resolveTemplateTenantSlug } from '../src/services/templateTenant.js';
+import { ATELIER_STANDARD_MAP_FILE, ATELIER_STANDARD_MAP_NAME } from '../src/services/atelierStandardMap.js';
 import { ATELIER_PACK_UUID, loadAtelierProductData } from './atelierCatalog.js';
 
 // Prisma 7 requires a driver-adapter. The seed runs via `prisma db seed`
@@ -20,6 +21,7 @@ const seedDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(seedDir, '..', '..', '..');
 const furnitureDir = path.join(repoRoot, 'apps', 'web', 'public', 'assets', 'furniture');
 const officeTmjPath = path.join(repoRoot, 'apps', 'web', 'public', 'maps', 'office.json');
+const atelierOfficeTmjPath = path.join(repoRoot, 'apps', 'web', 'public', 'maps', ATELIER_STANDARD_MAP_FILE);
 
 /**
  * Create a tenant's starter map from the bundled office TMJ template.
@@ -53,16 +55,16 @@ const officeTmjPath = path.join(repoRoot, 'apps', 'web', 'public', 'maps', 'offi
  * self-hosted stack keeps running, the template tenant simply stays without a
  * map, and the next deploy retries the import.
  */
-async function createStarterMap(tenantId: string, mapName: string, allowEmptyFallback: boolean) {
-  if (!fs.existsSync(officeTmjPath)) {
+async function createBundledMap(tenantId: string, mapName: string, tmjPath: string, allowEmptyFallback: boolean) {
+  if (!fs.existsSync(tmjPath)) {
     const message =
-      `SEED: office template missing at ${officeTmjPath}. ` +
+      `SEED: office template missing at ${tmjPath}. ` +
       'Check that the image build copies apps/web/public into the seed stage.';
     if (!allowEmptyFallback) throw new Error(message);
     console.error(`${message} The tenant gets an EMPTY starter map.`);
   } else {
     try {
-      const result = await importTmjIntoMap(prisma, tenantId, mapName, officeTmjPath, 32);
+      const result = await importTmjIntoMap(prisma, tenantId, mapName, tmjPath, 32);
       console.log(
         `Imported office template into '${mapName}': ${result.objectsCreated} objects, mapId=${result.mapId}`,
       );
@@ -86,6 +88,10 @@ async function createStarterMap(tenantId: string, mapName: string, allowEmptyFal
   return prisma.map.create({
     data: { tenantId, name: mapName, meta: {}, width: 32, height: 32, tileWidth: 16, tileHeight: 16, chunkSize: 32 },
   });
+}
+
+function createStarterMap(tenantId: string, mapName: string, allowEmptyFallback: boolean) {
+  return createBundledMap(tenantId, mapName, officeTmjPath, allowEmptyFallback);
 }
 
 /** Ensure a map has a lobby room, matching the adminMaps create flow. */
@@ -374,9 +380,9 @@ async function main() {
   await ensureLobbyRoom(def.id, defaultMap.id);
 
   // ---------------------------------------------------------------------
-  // Template tenant: the blueprint every new tenant's first map is copied
-  // from (see copyTemplateMapsForSignup). It holds exactly ONE map, named
-  // after its own `defaultMapName`.
+  // Template tenant: its default map is the blueprint copied into every new
+  // tenant (see copyTemplateMapsForSignup). Existing non-default maps remain
+  // untouched; switching the selector is enough to activate Atelier v1.
   //
   // The slug comes from `resolveTemplateTenantSlug`, the SAME resolver the
   // signup path uses, so seed and signup can never drift apart — not even on
@@ -390,20 +396,19 @@ async function main() {
     where: { slug: templateSlug },
     // concurrentLimit 0: the template holds no paying seats. The `freeSeats`
     // default still lets an admin enter it to edit the blueprint map.
-    create: { slug: templateSlug, name: 'Template', concurrentLimit: 0, defaultMapName: 'office' },
+    create: { slug: templateSlug, name: 'Template', concurrentLimit: 0, defaultMapName: ATELIER_STANDARD_MAP_NAME },
     // Never rewrite an existing tenant — it may be a live, populated one.
     update: {},
   });
-  const templateMapName = template.defaultMapName || 'office';
   let templateMap = await prisma.map.findUnique({
-    where: { tenantId_name: { tenantId: template.id, name: templateMapName } },
+    where: { tenantId_name: { tenantId: template.id, name: ATELIER_STANDARD_MAP_NAME } },
   });
   if (!templateMap) {
-    // NO empty fallback: see createStarterMap. A blank blueprint here is
+    // NO empty fallback: see createBundledMap. A blank blueprint here is
     // irreversible and would reach every future customer.
-    templateMap = await createStarterMap(template.id, templateMapName, false);
+    templateMap = await createBundledMap(template.id, ATELIER_STANDARD_MAP_NAME, atelierOfficeTmjPath, false);
 
-    console.log('Seeded template map:', templateMapName, 'for tenant', template.slug);
+    console.log('Seeded template map:', ATELIER_STANDARD_MAP_NAME, 'for tenant', template.slug);
   }
   // Unconditional, exactly like the `default` branch above. copyMapToTenant
   // clones rooms, so a blueprint without a lobby hands every new customer a map
@@ -412,6 +417,10 @@ async function main() {
   // the map existed, the block was skipped, and no later seed run could ever
   // heal a missed lobby. `ensureLobbyRoom` is idempotent.
   await ensureLobbyRoom(template.id, templateMap.id);
+  if (template.defaultMapName !== ATELIER_STANDARD_MAP_NAME) {
+    await prisma.tenant.update({ where: { id: template.id }, data: { defaultMapName: ATELIER_STANDARD_MAP_NAME } });
+    console.log('Set template default map:', ATELIER_STANDARD_MAP_NAME, 'for tenant', template.slug);
+  }
   // Root-admin membership so a fresh installation can edit the blueprint.
   // Customer-specific memberships are a deployment concern, not a seed concern.
   if (admin) {

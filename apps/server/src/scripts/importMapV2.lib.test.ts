@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
-import { readSpawnFromProperties, persistSpawnFromTmj } from './importMapV2.lib.js';
+import {
+  readSpawnFromProperties,
+  persistSpawnFromTmj,
+  readZonesFromObjectLayers,
+  resolveObjectDataUrl,
+} from './importMapV2.lib.js';
 import type { TmjProperty, Tmj } from './importMapV2.lib.js';
 import type { PrismaClient } from '../generated/prisma/index.js';
 
@@ -116,5 +121,80 @@ describe('persistSpawnFromTmj', () => {
     await persistSpawnFromTmj(prisma, { id: 'map-4', meta: { theme: 'dark' } }, tmjWithProps([]));
 
     expect(update).not.toHaveBeenCalled();
+  });
+});
+
+describe('readZonesFromObjectLayers', () => {
+  it('converts relative polygon points and carries capacity', () => {
+    const zones = readZonesFromObjectLayers([
+      {
+        name: 'Zones',
+        type: 'objectgroup',
+        objects: [
+          {
+            name: 'Besprechung',
+            type: 'zone',
+            x: 100,
+            y: 50,
+            width: 0,
+            height: 0,
+            polygon: [
+              { x: 0, y: 0 },
+              { x: 80, y: 0 },
+              { x: 80, y: 64 },
+              { x: 0, y: 64 },
+            ],
+            properties: [{ name: 'capacity', type: 'int', value: 4 }],
+          },
+        ],
+      },
+    ]);
+
+    expect(zones).toEqual([
+      {
+        name: 'Besprechung',
+        capacity: 4,
+        polygon: [
+          { x: 100, y: 50 },
+          { x: 180, y: 50 },
+          { x: 180, y: 114 },
+          { x: 100, y: 114 },
+        ],
+      },
+    ]);
+  });
+
+  it('ignores non-zone point objects', () => {
+    expect(
+      readZonesFromObjectLayers([
+        {
+          name: 'Points',
+          type: 'objectgroup',
+          objects: [{ name: 'spawn', type: 'spawn', x: 8, y: 8, width: 0, height: 0 }],
+        },
+      ]),
+    ).toEqual([]);
+  });
+});
+
+describe('resolveObjectDataUrl', () => {
+  it('uses the referenced tileset image for product-pack objects', () => {
+    expect(
+      resolveObjectDataUrl(
+        { name: 'Desk', type: 'objects', gid: 7, x: 0, y: 32, width: 48, height: 32 },
+        [
+          { firstgid: 1, name: 'floor', image: '/assets/floor.png', tilewidth: 16, tileheight: 16, tilecount: 4 },
+          {
+            firstgid: 7,
+            name: 'atelier-desk',
+            image: '/assets/atelier/v1/holz/compact_desk.hash.png',
+            tilewidth: 48,
+            tileheight: 32,
+            tilecount: 1,
+          },
+        ],
+        'atelier_v1_holz_compact_desk',
+      ),
+    ).toBe('/assets/atelier/v1/holz/compact_desk.hash.png');
   });
 });

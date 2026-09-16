@@ -27,6 +27,7 @@
     "typecheck": "npm run -ws --if-present typecheck",
     "build": "npm -w @meetropolis/web run build && npm -w @meetropolis/server run build",
     "generate": "npm -w @meetropolis/server run prisma:generate",
+    "map:atelier:build": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types tools/map-builder/build_atelier_map.ts",
     "ci:local": "bash scripts/ci-local.sh",
     "prisma:migrate": "npm -w @meetropolis/server run prisma:migrate",
     "dev:loadtest": "npm -w @meetropolis/loadtest run dev",

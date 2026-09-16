@@ -48,6 +48,7 @@ export type TmjObject = {
   y: number;
   width: number;
   height: number;
+  polygon?: Array<{ x: number; y: number }>;
   rotation?: number;
   properties?: TmjProperty[];
 };
@@ -60,6 +61,12 @@ export type Tmj = {
   tilesets: TmjTileset[];
   layers: TmjLayer[];
   properties?: TmjProperty[];
+};
+
+export type TmjZone = {
+  name: string;
+  capacity: number | null;
+  polygon: Array<{ x: number; y: number }>;
 };
 
 function readProp<T = unknown>(props: TmjProperty[] | undefined, name: string): T | undefined {
@@ -85,6 +92,24 @@ export function readSpawnFromProperties(props: TmjProperty[] | undefined): { x: 
   return undefined;
 }
 
+/** Read productive conversation zones from TMJ object layers. */
+export function readZonesFromObjectLayers(layers: TmjLayer[]): TmjZone[] {
+  const zones: TmjZone[] = [];
+  for (const layer of layers) {
+    if (layer.type !== 'objectgroup') continue;
+    for (const object of layer.objects ?? []) {
+      if (object.type?.toLowerCase() !== 'zone' || !object.polygon || object.polygon.length < 3) continue;
+      const capacity = readProp<number>(object.properties, 'capacity');
+      zones.push({
+        name: object.name || `Zone_${zones.length}`,
+        capacity: typeof capacity === 'number' ? capacity : null,
+        polygon: object.polygon.map((point) => ({ x: object.x + point.x, y: object.y + point.y })),
+      });
+    }
+  }
+  return zones;
+}
+
 /**
  * Persist the TMJ spawn into `Map.meta.spawn`. The v2 importer otherwise never
  * writes the spawn, so without this the DB map keeps the schema default and the
@@ -103,6 +128,29 @@ export async function persistSpawnFromTmj(
   await prisma.map.update({
     where: { id: map.id },
     data: { meta: { ...currentMeta, spawn } },
+  });
+}
+
+async function persistMapMetadataFromTmj(
+  prisma: PrismaClient,
+  map: { id: string; meta: unknown },
+  tmj: Tmj,
+  zones: TmjZone[],
+): Promise<void> {
+  const spawn = readSpawnFromProperties(tmj.properties);
+  const currentMeta = (map.meta as Record<string, unknown>) || {};
+  if (!spawn && zones.length === 0) return;
+  await prisma.map.update({
+    where: { id: map.id },
+    data: {
+      meta: {
+        ...currentMeta,
+        ...(spawn ? { spawn } : {}),
+        ...(zones.length > 0
+          ? { zones: zones.map((zone) => ({ name: zone.name, capacity: zone.capacity, points: zone.polygon })) }
+          : {}),
+      },
+    },
   });
 }
 
@@ -308,6 +356,7 @@ async function importObjectGroup(
   tileWidthPx: number,
   tileHeightPx: number,
   layer: TmjLayer,
+  tilesets: TmjTileset[],
 ) {
   if (!Array.isArray(layer.objects) || layer.objects.length === 0) return 0;
   let created = 0;
@@ -320,6 +369,9 @@ async function importObjectGroup(
   const seenPacks = new Set<string>();
 
   for (const obj of layer.objects) {
+    // Zones, spawn points and workplace markers are productive TMJ metadata,
+    // not rendered MapObjects. Tile objects always carry a positive gid.
+    if (!obj.gid || obj.gid <= 0) continue;
     const meta = resolveObjectFromProperties(obj);
     const fallback = deriveTilePositionFromTiled(obj, tileWidthPx, tileHeightPx);
     const assetPackUuid = meta.assetPackUuid ?? 'unknown-pack';
@@ -347,7 +399,7 @@ async function importObjectGroup(
 
     // Determine dataUrl: prefer a path that resolves to the on-disk PNG
     // for this single-tile object tileset.
-    const dataUrl = inferObjectDataUrl(obj, layer.name, itemId);
+    const dataUrl = resolveObjectDataUrl(obj, tilesets, itemId);
 
     await prisma.mapObject.create({
       data: {
@@ -385,6 +437,33 @@ async function importObjectGroup(
   return created;
 }
 
+async function rebuildZonesFromTmj(
+  prisma: PrismaClient,
+  tenantId: string,
+  mapId: string,
+  zones: TmjZone[],
+): Promise<void> {
+  await prisma.zone.deleteMany({ where: { mapId } });
+  if (zones.length === 0) return;
+  const room = await prisma.room.upsert({
+    where: { mapId_name: { mapId, name: 'lobby' } },
+    update: {},
+    create: { id: `${mapId}:lobby`, name: 'lobby', mapId, tenantId },
+  });
+  for (const zone of zones) {
+    await prisma.zone.create({
+      data: {
+        name: zone.name,
+        capacity: zone.capacity ?? undefined,
+        polygon: zone.polygon,
+        mapId,
+        roomId: room.id,
+        tenantId,
+      },
+    });
+  }
+}
+
 /**
  * Try to construct the public `/assets/furniture/<GROUP>/<file>.png` URL
  * for a built-in pixel-agents object. We derive the directory from the
@@ -392,7 +471,14 @@ async function importObjectGroup(
  * and state suffixes. Falls back to an empty string when nothing
  * sensible can be inferred; the editor handles missing dataUrls.
  */
-function inferObjectDataUrl(_obj: TmjObject, _layerName: string, itemId: string): string {
+export function resolveObjectDataUrl(obj: TmjObject, tilesets: TmjTileset[], itemId: string): string {
+  if (obj.gid && obj.gid > 0) {
+    const sorted = [...tilesets].sort((a, b) => a.firstgid - b.firstgid);
+    for (let i = sorted.length - 1; i >= 0; i--) {
+      const tileset = sorted[i];
+      if (obj.gid >= tileset.firstgid) return tileset.image;
+    }
+  }
   if (!itemId) return '';
   // Known direction/state suffixes to strip when computing the group.
   const SUFFIXES = ['_FRONT_OFF', '_FRONT_ON_1', '_FRONT_ON_2', '_FRONT_ON_3', '_FRONT', '_BACK', '_SIDE'];
@@ -410,7 +496,7 @@ async function importObjectGroups(prisma: PrismaClient, mapId: string, tmj: Tmj,
   let total = 0;
   for (const layer of tmj.layers) {
     if (layer.type !== 'objectgroup') continue;
-    total += await importObjectGroup(prisma, mapId, chunkSize, tmj.tilewidth, tmj.tileheight, layer);
+    total += await importObjectGroup(prisma, mapId, chunkSize, tmj.tilewidth, tmj.tileheight, layer, tmj.tilesets);
   }
   return total;
 }
@@ -436,13 +522,15 @@ export async function importTmjIntoMap(
   const tmj = JSON.parse(raw) as Tmj;
 
   const map = await upsertMap(prisma, tenantId, mapName, tmj, chunkSize);
-  await persistSpawnFromTmj(prisma, map, tmj);
+  const zones = readZonesFromObjectLayers(tmj.layers);
+  await persistMapMetadataFromTmj(prisma, map, tmj, zones);
   await rebuildTilesetRegistry(prisma, map.id, tmj.tilesets);
 
   const gidToTileRefId = makeGidConverter(tmj.tilesets);
 
   await clearExistingLayers(prisma, map.id);
   await clearExistingObjects(prisma, map.id);
+  await rebuildZonesFromTmj(prisma, tenantId, map.id, zones);
 
   await importTileLayers(prisma, map.id, tmj, chunkSize, gidToTileRefId);
   const objectsCreated = await importObjectGroups(prisma, map.id, tmj, chunkSize);

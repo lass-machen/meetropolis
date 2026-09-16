@@ -103,6 +103,42 @@ After editing the script:
 4. The next `prisma db seed` (or `docker compose up -d --build`) picks
    the new map up via the importer wired into `apps/server/prisma/seed.ts`.
 
+## Atelier-v1-Standardkarte
+
+`office-atelier-v1.json` wird direkt aus der eingecheckten Team-Loft-Studie
+und dem aktiven Atelier-v1-Katalog erzeugt:
+
+```bash
+npm run map:atelier:build
+python3 tools/map-builder/render_preview.py apps/web/public/maps/office-atelier-v1.json .vord/office-atelier-v1-preview.png
+```
+
+Der direkte Konverter ist bewusst keine zweite, unabhängige Grundrissdatei.
+Arbeitsplätze, Möbel, Zonen und Spawn bleiben in
+`tools/asset-lab/src/office-presets.ts` definiert. Der Konverter ergänzt nur
+die produktiven TMJ-Daten: Tilesets, normale Wandbauteile, Objektmetadaten,
+Kollision und Gesprächszonen. Dadurch bleibt die Karte aus den eingecheckten
+Quellen reproduzierbar. Das gesperrte Wand-Autotile wird nicht verwendet.
+
+Der Seed legt diese Karte im Template-Tenant an, wenn sie dort fehlt, und
+setzt sie als dessen Standardkarte. Damit erhalten neue Registrierungen eine
+tiefe Kopie der Atelier-Karte. Vorhandene Karten werden dabei weder
+überschrieben noch gelöscht.
+
+Für einen vorhandenen Tenant oder für alle Tenants steht ein idempotentes
+Migrationsskript bereit. Ohne `--apply` zeigt es nur die geplanten Schritte:
+
+```bash
+npm -w @meetropolis/server run map:atelier:migrate -- --tenant kunden-slug
+npm -w @meetropolis/server run map:atelier:migrate -- --all
+npm -w @meetropolis/server run map:atelier:migrate -- --all --apply
+```
+
+Das Skript kopiert die Karte einschließlich Räume und Gesprächszonen nur,
+wenn sie im Ziel-Tenant fehlt. Anschließend setzt es `defaultMapName` auf
+`office-atelier-v1`. Eine vorhandene Karte dieses Namens bleibt unverändert;
+die bisherige Standardkarte bleibt als separate Karte erhalten.
+
 ## Licensing
 
 Build scripts: AGPL-3.0-only (match the rest of the meetropolis server
