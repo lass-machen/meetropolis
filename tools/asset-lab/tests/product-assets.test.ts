@@ -54,9 +54,9 @@ describe('Produktgeneration atelier-v1', () => {
     const parsed = ConfigSchema.parse(importablePack(pack));
     expect(parsed.uuid).toBe('4664b745-6bad-4d86-ae8f-591c57567692');
     expect(parsed.autotiles).toEqual([]);
-    expect([...parsed.terrain, ...parsed.structures, ...parsed.objects].some((item) => item.id.endsWith('_wall_set'))).toBe(
-      false,
-    );
+    expect(
+      [...parsed.terrain, ...parsed.structures, ...parsed.objects].some((item) => item.id.endsWith('_wall_set')),
+    ).toBe(false);
     const floor = parsed.terrain.find((item) => item.id.endsWith('_floor'))!;
     expect([floor.tileWidth, floor.tileHeight]).toEqual([16, 16]);
     expect(floor.renderLayer).toBe('floor');
