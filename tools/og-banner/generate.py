@@ -5,7 +5,8 @@ The page is 1200x630 (the standard OpenGraph size). A central 630x630 "safe
 zone" carries the wordmark, claim and the core character group so a 1:1 crop
 (WhatsApp and other square-thumbnail clients) still reads. All pixel art is
 embedded as base64 data URIs at native resolution and upscaled in CSS with
-`image-rendering: pixelated`, so the sprites stay crisp.
+`image-rendering: pixelated`, so the sprites stay crisp. The legacy assets are
+the default; ``--generation atelier-v1`` selects the current product export.
 
 Copy is data (``--copy <json>``), so the same layout produces both the OSS
 banner (English, ``copy.en.json`` here) and the commercial OG image (German,
@@ -22,12 +23,15 @@ Usage:
         --assets apps/web/public/assets \
         --font apps/web/public/fonts/PressStart2P.woff2 \
         --copy tools/og-banner/copy.en.json \
-        --out /tmp/og.html
+        --out /tmp/og.html \
+        --generation atelier-v1
 """
 import argparse
 import base64
 import io
 import json
+from pathlib import Path
+
 from PIL import Image
 
 
@@ -42,35 +46,128 @@ def trim(im: Image.Image) -> Image.Image:
     return im.crop(bbox) if bbox else im
 
 
-def sprite_frame(assets: str, key: str, direction: str) -> Image.Image:
+def sprite_frame(path: Path, direction: str) -> Image.Image:
     """One idle frame (column 0) from a 128x256 / 4x8 sheet, trimmed to content."""
     row = {"down": 0, "left": 1, "right": 2, "up": 3}[direction]
-    sheet = Image.open(f"{assets}/sprites/{key}.png").convert("RGBA")
+    sheet = Image.open(path).convert("RGBA")
     return trim(sheet.crop((0, row * 32, 32, row * 32 + 32)))
 
 
-def furn(assets: str, path: str) -> Image.Image:
-    return trim(Image.open(f"{assets}/furniture/{path}").convert("RGBA"))
+def furn(path: Path) -> Image.Image:
+    return trim(Image.open(path).convert("RGBA"))
 
 
-def build(assets: str, font_path: str, copy: dict) -> str:
-    a = {}
-    men = [
-        ("business_man", "right"),
-        ("casual_woman", "left"),
-        ("dev_hoodie", "down"),
-        ("manager_woman", "right"),
-        ("suit_man", "left"),
-        ("business_woman", "down"),
-    ]
-    for key, d in men:
-        a[f"{key}_{d}"] = b64_png(sprite_frame(assets, key, d))
-    a["desk"] = b64_png(furn(assets, "DESK/DESK_FRONT.png"))
-    a["plant"] = b64_png(furn(assets, "PLANT/PLANT.png"))
-    a["shelf"] = b64_png(furn(assets, "DOUBLE_BOOKSHELF/DOUBLE_BOOKSHELF.png"))
-    a["large_plant"] = b64_png(furn(assets, "LARGE_PLANT/LARGE_PLANT.png"))
-    a["whiteboard"] = b64_png(furn(assets, "WHITEBOARD/WHITEBOARD.png"))
-    a["floor"] = b64_png(Image.open(f"{assets}/floors/floor_2.png").convert("RGBA"))
+def asset_url_path(assets: Path, url: str) -> Path:
+    prefix = "/assets/"
+    if not url.startswith(prefix):
+        raise ValueError(f"Unexpected asset URL: {url}")
+    path = assets / url.removeprefix(prefix)
+    if not path.is_file():
+        raise FileNotFoundError(path)
+    return path
+
+
+def load_atelier_assets(assets: Path, generation: str) -> tuple[dict, dict]:
+    """Resolve content-hashed product files through the generated catalog."""
+    product_path = Path(__file__).parents[1] / "asset-lab/product" / f"{generation}.json"
+    with product_path.open(encoding="utf-8") as f:
+        product = json.load(f)
+    if product.get("generation") != generation:
+        raise ValueError(f"Generation mismatch in {product_path}")
+
+    catalog = None
+    for catalog_path in (assets / "atelier").glob("*/catalog.json"):
+        with catalog_path.open(encoding="utf-8") as f:
+            candidate = json.load(f)
+        if candidate.get("generation") == generation:
+            catalog = candidate
+            break
+    if catalog is None:
+        raise FileNotFoundError(f"No asset catalog found for {generation}")
+
+    product_avatars = {avatar["key"] for avatar in product["avatars"]}
+    avatars = {
+        avatar["key"]: asset_url_path(assets, avatar["url"])
+        for avatar in catalog["avatars"]
+        if avatar["key"] in product_avatars
+    }
+    environment = {
+        item["id"]: asset_url_path(assets, item["url"])
+        for item in catalog["environmentAssets"]
+    }
+    return avatars, environment
+
+
+def load_images(assets_path: str, generation: str) -> dict[str, str]:
+    assets = Path(assets_path)
+    if generation == "legacy":
+        avatars = {key: assets / "sprites" / f"{key}.png" for key in (
+            "business_man", "casual_woman", "dev_hoodie", "manager_woman",
+            "suit_man", "business_woman",
+        )}
+        environment = {
+            "desk": assets / "furniture/DESK/DESK_FRONT.png",
+            "plant": assets / "furniture/PLANT/PLANT.png",
+            "shelf": assets / "furniture/DOUBLE_BOOKSHELF/DOUBLE_BOOKSHELF.png",
+            "planter": assets / "furniture/LARGE_PLANT/LARGE_PLANT.png",
+            "whiteboard": assets / "furniture/WHITEBOARD/WHITEBOARD.png",
+            "floor": assets / "floors/floor_2.png",
+        }
+    else:
+        avatars, environment = load_atelier_assets(assets, generation)
+
+    directions = {
+        "business_man": "right",
+        "business_woman": "down" if generation == "legacy" else "left",
+        "casual_woman": "left",
+        "dev_hoodie": "down",
+        "manager_woman": "right",
+        "suit_man": "left",
+    }
+    images = {
+        f"{key}_{direction}": b64_png(sprite_frame(avatars[key], direction))
+        for key, direction in directions.items()
+        if key in avatars
+    }
+    for key in ("desk", "plant", "shelf", "planter", "whiteboard"):
+        images[key] = b64_png(furn(environment[key]))
+    images["floor"] = b64_png(Image.open(environment["floor"]).convert("RGBA"))
+    return images
+
+
+def scene_html(a: dict[str, str], generation: str) -> str:
+    if generation == "legacy":
+        return f"""
+    <img class="px" src="{a['shelf']}"      style="left:120px;  bottom:196px; width:132px;">
+    <img class="px" src="{a['whiteboard']}" style="left:951px;  bottom:198px; width:150px;">
+    <img class="px" src="{a['planter']}"    style="left:1070px; bottom:150px; width:96px;">
+    <img class="px" src="{a['plant']}"      style="left:60px;   bottom:150px; width:60px;">
+    <img class="px" src="{a['desk']}"       style="left:250px;  bottom:120px; width:150px;">
+    <img class="px" src="{a['desk']}"       style="left:815px;  bottom:120px; width:150px;">
+    <img class="px" src="{a['dev_hoodie_down']}"     style="left:556px; bottom:120px; height:150px;">
+    <img class="px" src="{a['business_man_right']}"  style="left:470px; bottom:96px;  height:150px;">
+    <img class="px" src="{a['casual_woman_left']}"   style="left:648px; bottom:100px; height:150px;">
+    <img class="px" src="{a['manager_woman_right']}" style="left:262px; bottom:92px;  height:140px;">
+    <img class="px" src="{a['suit_man_left']}"       style="left:902px; bottom:92px;  height:140px;">
+    <img class="px" src="{a['business_woman_down']}" style="left:150px; bottom:96px;  height:132px;">"""
+
+    return f"""
+    <img class="px" src="{a['shelf']}"      style="left:117px;  bottom:171px; width:120px;">
+    <img class="px" src="{a['whiteboard']}" style="left:950px;  bottom:183px; width:150px;">
+    <img class="px" src="{a['planter']}"    style="left:1065px; bottom:105px; width:105px;">
+    <img class="px" src="{a['plant']}"      style="left:62px;   bottom:113px; width:80px;">
+    <img class="px" src="{a['desk']}"       style="left:225px;  bottom:97px;  width:180px;">
+    <img class="px" src="{a['desk']}"       style="left:805px;  bottom:97px;  width:180px;">
+    <img class="px" src="{a['dev_hoodie_down']}"     style="left:554px; bottom:105px; height:156px;">
+    <img class="px" src="{a['business_man_right']}"  style="left:459px; bottom:91px;  height:150px;">
+    <img class="px" src="{a['business_woman_left']}" style="left:655px; bottom:94px;  height:150px;">
+    <img class="px" src="{a['manager_woman_right']}" style="left:267px; bottom:87px;  height:140px;">
+    <img class="px" src="{a['suit_man_left']}"       style="left:902px; bottom:87px;  height:140px;">"""
+
+
+def build(assets: str, font_path: str, copy: dict, generation: str) -> str:
+    a = load_images(assets, generation)
+    scene = scene_html(a, generation)
     with open(font_path, "rb") as f:
         font = "data:font/woff2;base64," + base64.b64encode(f.read()).decode()
 
@@ -111,18 +208,7 @@ html,body {{ width:1200px; height:630px; overflow:hidden; }}
 <div class="og">
   <div class="glow"></div><div class="floorband"></div><div class="vig"></div>
   <div class="scene">
-    <img class="px" src="{a['shelf']}"      style="left:120px;  bottom:196px; width:132px;">
-    <img class="px" src="{a['whiteboard']}"  style="left:951px;  bottom:198px; width:150px;">
-    <img class="px" src="{a['large_plant']}" style="left:1070px; bottom:150px; width:96px;">
-    <img class="px" src="{a['plant']}"       style="left:60px;   bottom:150px; width:60px;">
-    <img class="px" src="{a['desk']}"        style="left:250px;  bottom:120px; width:150px;">
-    <img class="px" src="{a['desk']}"        style="left:815px;  bottom:120px; width:150px;">
-    <img class="px" src="{a['dev_hoodie_down']}"     style="left:556px; bottom:120px; height:150px;">
-    <img class="px" src="{a['business_man_right']}"  style="left:470px; bottom:96px;  height:150px;">
-    <img class="px" src="{a['casual_woman_left']}"   style="left:648px; bottom:100px; height:150px;">
-    <img class="px" src="{a['manager_woman_right']}" style="left:262px; bottom:92px;  height:140px;">
-    <img class="px" src="{a['suit_man_left']}"       style="left:902px; bottom:92px;  height:140px;">
-    <img class="px" src="{a['business_woman_down']}" style="left:150px; bottom:96px;  height:132px;">
+{scene}
   </div>
   <div class="badge"><span class="dot"></span>{copy['badge']}</div>
   <div class="wordmark">{copy['wordmark']}</div>
@@ -138,10 +224,16 @@ def main() -> None:
     p.add_argument("--font", required=True, help="Press Start 2P woff2 path")
     p.add_argument("--copy", required=True, help="copy JSON (badge/wordmark/claim_*/sub)")
     p.add_argument("--out", required=True, help="output HTML path")
+    p.add_argument(
+        "--generation",
+        choices=("legacy", "atelier-v1"),
+        default="legacy",
+        help="asset generation (default: legacy)",
+    )
     args = p.parse_args()
     with open(args.copy, encoding="utf-8") as f:
         copy = json.load(f)
-    html = build(args.assets, args.font, copy)
+    html = build(args.assets, args.font, copy, args.generation)
     with open(args.out, "w", encoding="utf-8") as f:
         f.write(html)
     print(f"wrote {args.out}")
