@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { DEFAULT_AVATARS, fallbackAvatarSpriteUrl } from '../lib/defaultAvatars';
 import { getApiBaseFromWindow } from '../lib/apiBase';
 import { logger } from '../lib/logger';
 
@@ -84,7 +85,7 @@ export class AvatarRegistry {
               avatarKey: key,
               displayName: avatar.displayName || key,
               type: 'full',
-              spriteUrl: avatar.spriteUrl || `assets/sprites/${key}.png`,
+              spriteUrl: avatar.spriteUrl || fallbackAvatarSpriteUrl(key),
               frameWidth: avatar.frameWidth || 32,
               frameHeight: avatar.frameHeight || 32,
               states: avatar.states || {
@@ -272,15 +273,7 @@ export class AvatarRegistry {
   }
 
   ensureDefault(): void {
-    const defaults: Array<{ key: string; displayName: string }> = [
-      { key: 'business_man', displayName: 'Business Man' },
-      { key: 'business_woman', displayName: 'Business Woman' },
-      { key: 'casual_woman', displayName: 'Casual Woman' },
-      { key: 'dev_hoodie', displayName: 'Developer' },
-      { key: 'manager_woman', displayName: 'Manager' },
-      { key: 'suit_man', displayName: 'Suit Man' },
-    ];
-    for (const def of defaults) {
+    for (const def of DEFAULT_AVATARS) {
       const id = `default-characters:${def.key}`;
       if (!this.manifests.has(id)) {
         this.manifests.set(id, {
@@ -289,7 +282,7 @@ export class AvatarRegistry {
           avatarKey: def.key,
           displayName: def.displayName,
           type: 'full',
-          spriteUrl: `assets/sprites/${def.key}.png`,
+          spriteUrl: def.spriteUrl,
           frameWidth: 32,
           frameHeight: 32,
           states: {

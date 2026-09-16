@@ -1,5 +1,6 @@
 import React from 'react';
 import { getApiBaseFromWindow } from '../../lib/apiBase';
+import { DEFAULT_AVATARS, fallbackAvatarSpriteUrl } from '../../lib/defaultAvatars';
 import { logger } from '../../lib/logger';
 
 function resolveUrl(url: string): string {
@@ -24,8 +25,8 @@ interface AvatarOption {
 
 const DEFAULT_AVATAR: AvatarOption = {
   id: 'default-characters:business_man',
-  displayName: 'Business Man',
-  spriteUrl: 'assets/sprites/business_man.png',
+  displayName: DEFAULT_AVATARS[0].displayName,
+  spriteUrl: DEFAULT_AVATARS[0].spriteUrl,
   frameWidth: 32,
   frameHeight: 32,
   idleRow: 0,
@@ -55,7 +56,7 @@ function mapPackToAvatars(packs: unknown): AvatarOption[] {
       const option: AvatarOption = {
         id: `${pack.uuid}:${av.key}`,
         displayName: av.displayName || av.key,
-        spriteUrl: av.spriteUrl || `assets/sprites/${av.key}.png`,
+        spriteUrl: av.spriteUrl || fallbackAvatarSpriteUrl(av.key),
         frameWidth: av.frameWidth || 32,
         frameHeight: av.frameHeight || 32,
         idleRow: av.states?.idle?.row ?? 0,
