@@ -54,6 +54,13 @@ describe('Bürogrundrisse', () => {
       expect(office.world.width).toBeGreaterThan(576);
       expect(office.world.height).toBeGreaterThan(384);
 
+      for (const desk of desks) {
+        const chair = office.placements.find((item) => item.id === desk.id.replace(/-desk$/, '-chair'))!;
+        const workplace = office.workplaces.find((item) => item.id === desk.id)!;
+        expect({ x: chair.x, y: chair.y }).toEqual({ x: desk.x + 16, y: desk.y + 32 });
+        expect(workplace.approach).toEqual({ x: desk.x + 24, y: desk.y + 40 });
+      }
+
       for (const item of office.placements) {
         expect(item.x % 16).toBe(0);
         expect(item.y % 16).toBe(0);

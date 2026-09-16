@@ -183,6 +183,20 @@ describe('Atelier v1 standard map', () => {
     expect(layer('Structures').objects?.some((object) => assetForObject(object).id === 'wall')).toBe(true);
     expect(layer('Structures').objects?.some((object) => assetForObject(object).id === 'door_open')).toBe(true);
 
+    const interiorWalls = (layer('Structures').objects ?? []).filter((object) => object.name.startsWith('loft-wall-'));
+    for (const wall of interiorWalls) {
+      const tileX = Number(property(wall, 'tileX'));
+      const tileY = Number(property(wall, 'tileY'));
+      expect(
+        interiorWalls.some(
+          (candidate) =>
+            Number(property(candidate, 'tileY')) === tileY &&
+            Math.abs(Number(property(candidate, 'tileX')) - tileX) === 1,
+        ),
+        `${wall.name} belongs to an unsupported horizontal regular-wall run`,
+      ).toBe(false);
+    }
+
     for (const object of placed) {
       const asset = assetForObject(object);
       expect(property(object, 'assetPackUuid')).toBe(catalog.palette.packUuid);
@@ -246,11 +260,17 @@ describe('Atelier v1 standard map', () => {
     }
 
     const workplaces = layer('Workplaces').objects ?? [];
+    const furniture = layer('Furniture').objects ?? [];
     expect(workplaces).toHaveLength(6);
     for (const workplace of workplaces) {
       const approach = tilePoint(workplace);
       expect(collision[index(...approach)], `${workplace.name} approach is blocked`).toBe(0);
       expect(reached.has(approach.join(',')), `${workplace.name} cannot be reached`).toBe(true);
+      const desk = furniture.find((object) => object.name === workplace.name);
+      const chair = furniture.find((object) => object.name === workplace.name.replace(/-desk$/, '-chair'));
+      if (!desk || !chair) throw new Error(`Missing desk or chair for '${workplace.name}'.`);
+      expect(chair.x).toBe(desk.x + 16);
+      expect(chair.y - chair.height).toBe(desk.y);
     }
 
     const unreachable = ground.flatMap((gid, position) => {

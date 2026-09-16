@@ -119,6 +119,9 @@ Arbeitsplätze, Möbel, Zonen und Spawn bleiben in
 die produktiven TMJ-Daten: Tilesets, normale Wandbauteile, Objektmetadaten,
 Kollision und Gesprächszonen. Dadurch bleibt die Karte aus den eingecheckten
 Quellen reproduzierbar. Das gesperrte Wand-Autotile wird nicht verwendet.
+Rein horizontale Innenwandzüge bleiben bis zum A28-Nachfolger draußen, weil
+das normale Wand-Asset keine horizontalen Anschlüsse besitzt und sonst als
+massiver heller Balken erscheint.
 
 Der Seed legt diese Karte im Template-Tenant an, wenn sie dort fehlt, und
 setzt sie als dessen Standardkarte. Damit erhalten neue Registrierungen eine

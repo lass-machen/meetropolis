@@ -18,10 +18,10 @@ const workstation = (office: OfficeId, slot: string, x: number, y: number): Work
   return {
     placements: [
       asset(deskId, 'compact_desk', x, y),
-      asset(`${office}-${slot}-chair`, 'compact_chair_north', x + 16, y + 48),
+      asset(`${office}-${slot}-chair`, 'compact_chair_north', x + 16, y + 32),
       asset(`${office}-${slot}-drawer`, 'drawer', x + 48, y),
     ],
-    workplace: { id: deskId, approach: { x: x + 24, y: y + 48 } },
+    workplace: { id: deskId, approach: { x: x + 24, y: y + 40 } },
   };
 };
 

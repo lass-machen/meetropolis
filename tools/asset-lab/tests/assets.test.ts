@@ -208,8 +208,9 @@ describe('Raum und Laufwege', () => {
   });
   it('führt hinter den Schreibtisch und um seine Kollisionsfläche herum', () => {
     const desk = placements.find((item) => item.asset === 'compact_desk')!;
+    const start = office.workplaces.find((item) => item.id === desk.id)!.approach;
     const target = { x: desk.x + 32, y: desk.y + 8 };
-    const path = findPath({ x: desk.x + 32, y: desk.y + 60 }, target, obstacles, bounds);
+    const path = findPath(start, target, obstacles, bounds);
     expect(path.length).toBeGreaterThan(0);
     expect(path.some((p) => p.x <= desk.x - 5 || p.x >= desk.x + 53)).toBe(true);
     expect(path.at(-1)).toEqual(target);
