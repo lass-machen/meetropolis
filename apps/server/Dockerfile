@@ -79,8 +79,15 @@ COPY --from=builder /workspace/apps/server/src/generated ./dist/generated
 # Default tilesets (referenced by seed maps as /assets/tilesets/...)
 COPY apps/web/public/assets /workspace/apps/web/public/assets
 
-# Admin tools (HTML only, served at /tools with Basic Auth)
-COPY tools /workspace/tools
+# Keep the runtime image limited to the standalone HTML admin tools served at
+# /tools. Explicit paths prevent authoring source trees from shipping by accident.
+COPY tools/avatar-pack-manager.html \
+  tools/map-editor.html \
+  tools/npc-admin.html \
+  tools/sprite-asset-cutter.html \
+  tools/super-admin.html \
+  tools/ui-prototype.html \
+  /workspace/tools/
 
 # 6) Entrypoint (Migration optional) + Start
 COPY apps/server/entrypoint.sh /entrypoint.sh

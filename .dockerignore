@@ -24,6 +24,10 @@ build/
 .cache/
 coverage/
 
+# Local authoring sources and generated exports are not runtime inputs
+tools/asset-lab/
+tools/**/exports/
+
 # Prisma local DB + generated client (regenerated in the builder stage)
 apps/server/prisma/dev.db*
 apps/server/src/generated/
