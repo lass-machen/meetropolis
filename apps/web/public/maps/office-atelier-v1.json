@@ -11,7 +11,7 @@
   "tilewidth": 16,
   "tileheight": 16,
   "nextlayerid": 9,
-  "nextobjectid": 278,
+  "nextobjectid": 251,
   "tilesets": [
     {
       "firstgid": 1,
@@ -2965,7 +2965,7 @@
       "objects": [
         {
           "id": 1,
-          "name": "loft-wall-2-4",
+          "name": "loft-boundary-wall-2-4",
           "type": "structures",
           "gid": 28,
           "x": 32,
@@ -3029,7 +3029,7 @@
         },
         {
           "id": 2,
-          "name": "loft-wall-3-4",
+          "name": "loft-boundary-wall-3-4",
           "type": "structures",
           "gid": 28,
           "x": 48,
@@ -3093,7 +3093,7 @@
         },
         {
           "id": 3,
-          "name": "loft-wall-4-4",
+          "name": "loft-boundary-wall-4-4",
           "type": "structures",
           "gid": 28,
           "x": 64,
@@ -3157,7 +3157,7 @@
         },
         {
           "id": 4,
-          "name": "loft-wall-5-4",
+          "name": "loft-boundary-wall-5-4",
           "type": "structures",
           "gid": 28,
           "x": 80,
@@ -3221,7 +3221,7 @@
         },
         {
           "id": 5,
-          "name": "loft-wall-6-4",
+          "name": "loft-boundary-wall-6-4",
           "type": "structures",
           "gid": 28,
           "x": 96,
@@ -3285,7 +3285,7 @@
         },
         {
           "id": 6,
-          "name": "loft-wall-7-4",
+          "name": "loft-boundary-wall-7-4",
           "type": "structures",
           "gid": 28,
           "x": 112,
@@ -3349,7 +3349,7 @@
         },
         {
           "id": 7,
-          "name": "loft-wall-8-4",
+          "name": "loft-boundary-wall-8-4",
           "type": "structures",
           "gid": 28,
           "x": 128,
@@ -3413,7 +3413,7 @@
         },
         {
           "id": 8,
-          "name": "loft-wall-9-4",
+          "name": "loft-boundary-wall-9-4",
           "type": "structures",
           "gid": 28,
           "x": 144,
@@ -3477,7 +3477,7 @@
         },
         {
           "id": 9,
-          "name": "loft-wall-10-4",
+          "name": "loft-boundary-wall-10-4",
           "type": "structures",
           "gid": 28,
           "x": 160,
@@ -3541,7 +3541,7 @@
         },
         {
           "id": 10,
-          "name": "loft-wall-11-4",
+          "name": "loft-boundary-wall-11-4",
           "type": "structures",
           "gid": 28,
           "x": 176,
@@ -3605,7 +3605,7 @@
         },
         {
           "id": 11,
-          "name": "loft-wall-12-4",
+          "name": "loft-boundary-wall-12-4",
           "type": "structures",
           "gid": 28,
           "x": 192,
@@ -3669,7 +3669,7 @@
         },
         {
           "id": 12,
-          "name": "loft-wall-13-4",
+          "name": "loft-boundary-wall-13-4",
           "type": "structures",
           "gid": 28,
           "x": 208,
@@ -3733,7 +3733,7 @@
         },
         {
           "id": 13,
-          "name": "loft-wall-14-4",
+          "name": "loft-boundary-wall-14-4",
           "type": "structures",
           "gid": 28,
           "x": 224,
@@ -3797,7 +3797,7 @@
         },
         {
           "id": 14,
-          "name": "loft-wall-15-4",
+          "name": "loft-boundary-wall-15-4",
           "type": "structures",
           "gid": 28,
           "x": 240,
@@ -3861,7 +3861,7 @@
         },
         {
           "id": 15,
-          "name": "loft-wall-16-4",
+          "name": "loft-boundary-wall-16-4",
           "type": "structures",
           "gid": 28,
           "x": 256,
@@ -3925,7 +3925,7 @@
         },
         {
           "id": 16,
-          "name": "loft-wall-17-4",
+          "name": "loft-boundary-wall-17-4",
           "type": "structures",
           "gid": 28,
           "x": 272,
@@ -3989,7 +3989,7 @@
         },
         {
           "id": 17,
-          "name": "loft-wall-18-4",
+          "name": "loft-boundary-wall-18-4",
           "type": "structures",
           "gid": 28,
           "x": 288,
@@ -4053,7 +4053,7 @@
         },
         {
           "id": 18,
-          "name": "loft-wall-19-4",
+          "name": "loft-boundary-wall-19-4",
           "type": "structures",
           "gid": 28,
           "x": 304,
@@ -4117,7 +4117,7 @@
         },
         {
           "id": 19,
-          "name": "loft-wall-20-4",
+          "name": "loft-boundary-wall-20-4",
           "type": "structures",
           "gid": 28,
           "x": 320,
@@ -4181,7 +4181,7 @@
         },
         {
           "id": 20,
-          "name": "loft-wall-21-4",
+          "name": "loft-boundary-wall-21-4",
           "type": "structures",
           "gid": 28,
           "x": 336,
@@ -4245,7 +4245,7 @@
         },
         {
           "id": 21,
-          "name": "loft-wall-22-4",
+          "name": "loft-boundary-wall-22-4",
           "type": "structures",
           "gid": 28,
           "x": 352,
@@ -4309,7 +4309,7 @@
         },
         {
           "id": 22,
-          "name": "loft-wall-23-4",
+          "name": "loft-boundary-wall-23-4",
           "type": "structures",
           "gid": 28,
           "x": 368,
@@ -4373,7 +4373,7 @@
         },
         {
           "id": 23,
-          "name": "loft-wall-24-4",
+          "name": "loft-boundary-wall-24-4",
           "type": "structures",
           "gid": 28,
           "x": 384,
@@ -4437,7 +4437,7 @@
         },
         {
           "id": 24,
-          "name": "loft-wall-25-4",
+          "name": "loft-boundary-wall-25-4",
           "type": "structures",
           "gid": 28,
           "x": 400,
@@ -4501,7 +4501,7 @@
         },
         {
           "id": 25,
-          "name": "loft-wall-26-4",
+          "name": "loft-boundary-wall-26-4",
           "type": "structures",
           "gid": 28,
           "x": 416,
@@ -4565,7 +4565,7 @@
         },
         {
           "id": 26,
-          "name": "loft-wall-27-4",
+          "name": "loft-boundary-wall-27-4",
           "type": "structures",
           "gid": 28,
           "x": 432,
@@ -4629,7 +4629,7 @@
         },
         {
           "id": 27,
-          "name": "loft-wall-28-4",
+          "name": "loft-boundary-wall-28-4",
           "type": "structures",
           "gid": 28,
           "x": 448,
@@ -4693,7 +4693,7 @@
         },
         {
           "id": 28,
-          "name": "loft-wall-29-4",
+          "name": "loft-boundary-wall-29-4",
           "type": "structures",
           "gid": 28,
           "x": 464,
@@ -4757,7 +4757,7 @@
         },
         {
           "id": 29,
-          "name": "loft-wall-30-4",
+          "name": "loft-boundary-wall-30-4",
           "type": "structures",
           "gid": 28,
           "x": 480,
@@ -4821,7 +4821,7 @@
         },
         {
           "id": 30,
-          "name": "loft-wall-31-4",
+          "name": "loft-boundary-wall-31-4",
           "type": "structures",
           "gid": 28,
           "x": 496,
@@ -4885,7 +4885,7 @@
         },
         {
           "id": 31,
-          "name": "loft-wall-32-4",
+          "name": "loft-boundary-wall-32-4",
           "type": "structures",
           "gid": 28,
           "x": 512,
@@ -4949,7 +4949,7 @@
         },
         {
           "id": 32,
-          "name": "loft-wall-33-4",
+          "name": "loft-boundary-wall-33-4",
           "type": "structures",
           "gid": 28,
           "x": 528,
@@ -5013,7 +5013,7 @@
         },
         {
           "id": 33,
-          "name": "loft-wall-34-4",
+          "name": "loft-boundary-wall-34-4",
           "type": "structures",
           "gid": 28,
           "x": 544,
@@ -5077,7 +5077,7 @@
         },
         {
           "id": 34,
-          "name": "loft-wall-35-4",
+          "name": "loft-boundary-wall-35-4",
           "type": "structures",
           "gid": 28,
           "x": 560,
@@ -5141,7 +5141,7 @@
         },
         {
           "id": 35,
-          "name": "loft-wall-36-4",
+          "name": "loft-boundary-wall-36-4",
           "type": "structures",
           "gid": 28,
           "x": 576,
@@ -5205,7 +5205,7 @@
         },
         {
           "id": 36,
-          "name": "loft-wall-37-4",
+          "name": "loft-boundary-wall-37-4",
           "type": "structures",
           "gid": 28,
           "x": 592,
@@ -5269,7 +5269,7 @@
         },
         {
           "id": 37,
-          "name": "loft-wall-38-4",
+          "name": "loft-boundary-wall-38-4",
           "type": "structures",
           "gid": 28,
           "x": 608,
@@ -5333,7 +5333,7 @@
         },
         {
           "id": 38,
-          "name": "loft-wall-39-4",
+          "name": "loft-boundary-wall-39-4",
           "type": "structures",
           "gid": 28,
           "x": 624,
@@ -5397,7 +5397,7 @@
         },
         {
           "id": 39,
-          "name": "loft-wall-40-4",
+          "name": "loft-boundary-wall-40-4",
           "type": "structures",
           "gid": 28,
           "x": 640,
@@ -5461,7 +5461,7 @@
         },
         {
           "id": 40,
-          "name": "loft-wall-41-4",
+          "name": "loft-boundary-wall-41-4",
           "type": "structures",
           "gid": 28,
           "x": 656,
@@ -5525,7 +5525,7 @@
         },
         {
           "id": 41,
-          "name": "loft-wall-42-4",
+          "name": "loft-boundary-wall-42-4",
           "type": "structures",
           "gid": 28,
           "x": 672,
@@ -5589,7 +5589,7 @@
         },
         {
           "id": 42,
-          "name": "loft-wall-43-4",
+          "name": "loft-boundary-wall-43-4",
           "type": "structures",
           "gid": 28,
           "x": 688,
@@ -5653,7 +5653,7 @@
         },
         {
           "id": 43,
-          "name": "loft-wall-44-4",
+          "name": "loft-boundary-wall-44-4",
           "type": "structures",
           "gid": 28,
           "x": 704,
@@ -5717,7 +5717,7 @@
         },
         {
           "id": 44,
-          "name": "loft-wall-45-4",
+          "name": "loft-boundary-wall-45-4",
           "type": "structures",
           "gid": 28,
           "x": 720,
@@ -5781,7 +5781,7 @@
         },
         {
           "id": 45,
-          "name": "loft-wall-46-4",
+          "name": "loft-boundary-wall-46-4",
           "type": "structures",
           "gid": 28,
           "x": 736,
@@ -5845,7 +5845,7 @@
         },
         {
           "id": 46,
-          "name": "loft-wall-47-4",
+          "name": "loft-boundary-wall-47-4",
           "type": "structures",
           "gid": 28,
           "x": 752,
@@ -5909,7 +5909,7 @@
         },
         {
           "id": 47,
-          "name": "loft-wall-48-4",
+          "name": "loft-boundary-wall-48-4",
           "type": "structures",
           "gid": 28,
           "x": 768,
@@ -5973,7 +5973,7 @@
         },
         {
           "id": 48,
-          "name": "loft-wall-49-4",
+          "name": "loft-boundary-wall-49-4",
           "type": "structures",
           "gid": 28,
           "x": 784,
@@ -6037,7 +6037,7 @@
         },
         {
           "id": 49,
-          "name": "loft-wall-50-4",
+          "name": "loft-boundary-wall-50-4",
           "type": "structures",
           "gid": 28,
           "x": 800,
@@ -6101,7 +6101,7 @@
         },
         {
           "id": 50,
-          "name": "loft-wall-51-4",
+          "name": "loft-boundary-wall-51-4",
           "type": "structures",
           "gid": 28,
           "x": 816,
@@ -6165,7 +6165,7 @@
         },
         {
           "id": 51,
-          "name": "loft-wall-52-4",
+          "name": "loft-boundary-wall-52-4",
           "type": "structures",
           "gid": 28,
           "x": 832,
@@ -6229,7 +6229,7 @@
         },
         {
           "id": 52,
-          "name": "loft-wall-53-4",
+          "name": "loft-boundary-wall-53-4",
           "type": "structures",
           "gid": 28,
           "x": 848,
@@ -6293,7 +6293,7 @@
         },
         {
           "id": 53,
-          "name": "loft-wall-54-4",
+          "name": "loft-boundary-wall-54-4",
           "type": "structures",
           "gid": 28,
           "x": 864,
@@ -6357,7 +6357,7 @@
         },
         {
           "id": 54,
-          "name": "loft-wall-55-4",
+          "name": "loft-boundary-wall-55-4",
           "type": "structures",
           "gid": 28,
           "x": 880,
@@ -6421,7 +6421,7 @@
         },
         {
           "id": 55,
-          "name": "loft-wall-56-4",
+          "name": "loft-boundary-wall-56-4",
           "type": "structures",
           "gid": 28,
           "x": 896,
@@ -6485,7 +6485,7 @@
         },
         {
           "id": 56,
-          "name": "loft-wall-57-4",
+          "name": "loft-boundary-wall-57-4",
           "type": "structures",
           "gid": 28,
           "x": 912,
@@ -6549,7 +6549,7 @@
         },
         {
           "id": 57,
-          "name": "loft-wall-1-5",
+          "name": "loft-boundary-wall-1-5",
           "type": "structures",
           "gid": 28,
           "x": 16,
@@ -6613,7 +6613,7 @@
         },
         {
           "id": 58,
-          "name": "loft-wall-58-5",
+          "name": "loft-boundary-wall-58-5",
           "type": "structures",
           "gid": 28,
           "x": 928,
@@ -6677,7 +6677,7 @@
         },
         {
           "id": 59,
-          "name": "loft-wall-1-6",
+          "name": "loft-boundary-wall-1-6",
           "type": "structures",
           "gid": 28,
           "x": 16,
@@ -6741,7 +6741,7 @@
         },
         {
           "id": 60,
-          "name": "loft-wall-58-6",
+          "name": "loft-boundary-wall-58-6",
           "type": "structures",
           "gid": 28,
           "x": 928,
@@ -6805,7 +6805,7 @@
         },
         {
           "id": 61,
-          "name": "loft-wall-1-7",
+          "name": "loft-boundary-wall-1-7",
           "type": "structures",
           "gid": 28,
           "x": 16,
@@ -6869,7 +6869,7 @@
         },
         {
           "id": 62,
-          "name": "loft-wall-58-7",
+          "name": "loft-boundary-wall-58-7",
           "type": "structures",
           "gid": 28,
           "x": 928,
@@ -6933,7 +6933,7 @@
         },
         {
           "id": 63,
-          "name": "loft-wall-1-8",
+          "name": "loft-boundary-wall-1-8",
           "type": "structures",
           "gid": 28,
           "x": 16,
@@ -6997,7 +6997,7 @@
         },
         {
           "id": 64,
-          "name": "loft-wall-58-8",
+          "name": "loft-boundary-wall-58-8",
           "type": "structures",
           "gid": 28,
           "x": 928,
@@ -7061,7 +7061,7 @@
         },
         {
           "id": 65,
-          "name": "loft-wall-1-9",
+          "name": "loft-boundary-wall-1-9",
           "type": "structures",
           "gid": 28,
           "x": 16,
@@ -7125,7 +7125,7 @@
         },
         {
           "id": 66,
-          "name": "loft-wall-58-9",
+          "name": "loft-boundary-wall-58-9",
           "type": "structures",
           "gid": 28,
           "x": 928,
@@ -7189,7 +7189,7 @@
         },
         {
           "id": 67,
-          "name": "loft-wall-1-10",
+          "name": "loft-boundary-wall-1-10",
           "type": "structures",
           "gid": 28,
           "x": 16,
@@ -7253,7 +7253,7 @@
         },
         {
           "id": 68,
-          "name": "loft-wall-58-10",
+          "name": "loft-boundary-wall-58-10",
           "type": "structures",
           "gid": 28,
           "x": 928,
@@ -7317,7 +7317,7 @@
         },
         {
           "id": 69,
-          "name": "loft-wall-1-11",
+          "name": "loft-boundary-wall-1-11",
           "type": "structures",
           "gid": 28,
           "x": 16,
@@ -7381,7 +7381,7 @@
         },
         {
           "id": 70,
-          "name": "loft-wall-58-11",
+          "name": "loft-boundary-wall-58-11",
           "type": "structures",
           "gid": 28,
           "x": 928,
@@ -7445,7 +7445,7 @@
         },
         {
           "id": 71,
-          "name": "loft-wall-1-12",
+          "name": "loft-boundary-wall-1-12",
           "type": "structures",
           "gid": 28,
           "x": 16,
@@ -7509,7 +7509,7 @@
         },
         {
           "id": 72,
-          "name": "loft-wall-58-12",
+          "name": "loft-boundary-wall-58-12",
           "type": "structures",
           "gid": 28,
           "x": 928,
@@ -7573,7 +7573,7 @@
         },
         {
           "id": 73,
-          "name": "loft-wall-1-13",
+          "name": "loft-boundary-wall-1-13",
           "type": "structures",
           "gid": 28,
           "x": 16,
@@ -7637,7 +7637,7 @@
         },
         {
           "id": 74,
-          "name": "loft-wall-58-13",
+          "name": "loft-boundary-wall-58-13",
           "type": "structures",
           "gid": 28,
           "x": 928,
@@ -7701,7 +7701,7 @@
         },
         {
           "id": 75,
-          "name": "loft-wall-1-14",
+          "name": "loft-boundary-wall-1-14",
           "type": "structures",
           "gid": 28,
           "x": 16,
@@ -7765,7 +7765,7 @@
         },
         {
           "id": 76,
-          "name": "loft-wall-58-14",
+          "name": "loft-boundary-wall-58-14",
           "type": "structures",
           "gid": 28,
           "x": 928,
@@ -7829,7 +7829,7 @@
         },
         {
           "id": 77,
-          "name": "loft-wall-1-15",
+          "name": "loft-boundary-wall-1-15",
           "type": "structures",
           "gid": 28,
           "x": 16,
@@ -7893,7 +7893,7 @@
         },
         {
           "id": 78,
-          "name": "loft-wall-58-15",
+          "name": "loft-boundary-wall-58-15",
           "type": "structures",
           "gid": 28,
           "x": 928,
@@ -7957,7 +7957,7 @@
         },
         {
           "id": 79,
-          "name": "loft-wall-1-16",
+          "name": "loft-boundary-wall-1-16",
           "type": "structures",
           "gid": 28,
           "x": 16,
@@ -8021,7 +8021,7 @@
         },
         {
           "id": 80,
-          "name": "loft-wall-58-16",
+          "name": "loft-boundary-wall-58-16",
           "type": "structures",
           "gid": 28,
           "x": 928,
@@ -8085,7 +8085,7 @@
         },
         {
           "id": 81,
-          "name": "loft-wall-1-17",
+          "name": "loft-boundary-wall-1-17",
           "type": "structures",
           "gid": 28,
           "x": 16,
@@ -8149,7 +8149,7 @@
         },
         {
           "id": 82,
-          "name": "loft-wall-58-17",
+          "name": "loft-boundary-wall-58-17",
           "type": "structures",
           "gid": 28,
           "x": 928,
@@ -8213,7 +8213,7 @@
         },
         {
           "id": 83,
-          "name": "loft-wall-1-18",
+          "name": "loft-boundary-wall-1-18",
           "type": "structures",
           "gid": 28,
           "x": 16,
@@ -8277,7 +8277,7 @@
         },
         {
           "id": 84,
-          "name": "loft-wall-58-18",
+          "name": "loft-boundary-wall-58-18",
           "type": "structures",
           "gid": 28,
           "x": 928,
@@ -8341,7 +8341,7 @@
         },
         {
           "id": 85,
-          "name": "loft-wall-1-19",
+          "name": "loft-boundary-wall-1-19",
           "type": "structures",
           "gid": 28,
           "x": 16,
@@ -8405,7 +8405,7 @@
         },
         {
           "id": 86,
-          "name": "loft-wall-58-19",
+          "name": "loft-boundary-wall-58-19",
           "type": "structures",
           "gid": 28,
           "x": 928,
@@ -8469,7 +8469,7 @@
         },
         {
           "id": 87,
-          "name": "loft-wall-1-20",
+          "name": "loft-boundary-wall-1-20",
           "type": "structures",
           "gid": 28,
           "x": 16,
@@ -8533,7 +8533,7 @@
         },
         {
           "id": 88,
-          "name": "loft-wall-58-20",
+          "name": "loft-boundary-wall-58-20",
           "type": "structures",
           "gid": 28,
           "x": 928,
@@ -8597,7 +8597,7 @@
         },
         {
           "id": 89,
-          "name": "loft-wall-1-21",
+          "name": "loft-boundary-wall-1-21",
           "type": "structures",
           "gid": 28,
           "x": 16,
@@ -8661,7 +8661,7 @@
         },
         {
           "id": 90,
-          "name": "loft-wall-58-21",
+          "name": "loft-boundary-wall-58-21",
           "type": "structures",
           "gid": 28,
           "x": 928,
@@ -8725,7 +8725,7 @@
         },
         {
           "id": 91,
-          "name": "loft-wall-1-22",
+          "name": "loft-boundary-wall-1-22",
           "type": "structures",
           "gid": 28,
           "x": 16,
@@ -8789,7 +8789,7 @@
         },
         {
           "id": 92,
-          "name": "loft-wall-58-22",
+          "name": "loft-boundary-wall-58-22",
           "type": "structures",
           "gid": 28,
           "x": 928,
@@ -8853,7 +8853,7 @@
         },
         {
           "id": 93,
-          "name": "loft-wall-1-23",
+          "name": "loft-boundary-wall-1-23",
           "type": "structures",
           "gid": 28,
           "x": 16,
@@ -8917,7 +8917,7 @@
         },
         {
           "id": 94,
-          "name": "loft-wall-58-23",
+          "name": "loft-boundary-wall-58-23",
           "type": "structures",
           "gid": 28,
           "x": 928,
@@ -8981,7 +8981,7 @@
         },
         {
           "id": 95,
-          "name": "loft-wall-1-24",
+          "name": "loft-boundary-wall-1-24",
           "type": "structures",
           "gid": 28,
           "x": 16,
@@ -9045,7 +9045,7 @@
         },
         {
           "id": 96,
-          "name": "loft-wall-58-24",
+          "name": "loft-boundary-wall-58-24",
           "type": "structures",
           "gid": 28,
           "x": 928,
@@ -9109,7 +9109,7 @@
         },
         {
           "id": 97,
-          "name": "loft-wall-1-25",
+          "name": "loft-boundary-wall-1-25",
           "type": "structures",
           "gid": 28,
           "x": 16,
@@ -9173,7 +9173,7 @@
         },
         {
           "id": 98,
-          "name": "loft-wall-58-25",
+          "name": "loft-boundary-wall-58-25",
           "type": "structures",
           "gid": 28,
           "x": 928,
@@ -9237,7 +9237,7 @@
         },
         {
           "id": 99,
-          "name": "loft-wall-1-26",
+          "name": "loft-boundary-wall-1-26",
           "type": "structures",
           "gid": 28,
           "x": 16,
@@ -9301,7 +9301,7 @@
         },
         {
           "id": 100,
-          "name": "loft-wall-58-26",
+          "name": "loft-boundary-wall-58-26",
           "type": "structures",
           "gid": 28,
           "x": 928,
@@ -9365,7 +9365,7 @@
         },
         {
           "id": 101,
-          "name": "loft-wall-1-27",
+          "name": "loft-boundary-wall-1-27",
           "type": "structures",
           "gid": 28,
           "x": 16,
@@ -9429,7 +9429,7 @@
         },
         {
           "id": 102,
-          "name": "loft-wall-58-27",
+          "name": "loft-boundary-wall-58-27",
           "type": "structures",
           "gid": 28,
           "x": 928,
@@ -9493,7 +9493,7 @@
         },
         {
           "id": 103,
-          "name": "loft-wall-1-28",
+          "name": "loft-boundary-wall-1-28",
           "type": "structures",
           "gid": 28,
           "x": 16,
@@ -9557,7 +9557,7 @@
         },
         {
           "id": 104,
-          "name": "loft-wall-58-28",
+          "name": "loft-boundary-wall-58-28",
           "type": "structures",
           "gid": 28,
           "x": 928,
@@ -9621,7 +9621,7 @@
         },
         {
           "id": 105,
-          "name": "loft-wall-1-29",
+          "name": "loft-boundary-wall-1-29",
           "type": "structures",
           "gid": 28,
           "x": 16,
@@ -9685,7 +9685,7 @@
         },
         {
           "id": 106,
-          "name": "loft-wall-58-29",
+          "name": "loft-boundary-wall-58-29",
           "type": "structures",
           "gid": 28,
           "x": 928,
@@ -9749,7 +9749,7 @@
         },
         {
           "id": 107,
-          "name": "loft-wall-1-30",
+          "name": "loft-boundary-wall-1-30",
           "type": "structures",
           "gid": 28,
           "x": 16,
@@ -9813,7 +9813,7 @@
         },
         {
           "id": 108,
-          "name": "loft-wall-58-30",
+          "name": "loft-boundary-wall-58-30",
           "type": "structures",
           "gid": 28,
           "x": 928,
@@ -9877,7 +9877,7 @@
         },
         {
           "id": 109,
-          "name": "loft-wall-1-31",
+          "name": "loft-boundary-wall-1-31",
           "type": "structures",
           "gid": 28,
           "x": 16,
@@ -9941,7 +9941,7 @@
         },
         {
           "id": 110,
-          "name": "loft-wall-58-31",
+          "name": "loft-boundary-wall-58-31",
           "type": "structures",
           "gid": 28,
           "x": 928,
@@ -10005,7 +10005,7 @@
         },
         {
           "id": 111,
-          "name": "loft-wall-1-32",
+          "name": "loft-boundary-wall-1-32",
           "type": "structures",
           "gid": 28,
           "x": 16,
@@ -10069,7 +10069,7 @@
         },
         {
           "id": 112,
-          "name": "loft-wall-58-32",
+          "name": "loft-boundary-wall-58-32",
           "type": "structures",
           "gid": 28,
           "x": 928,
@@ -10133,7 +10133,7 @@
         },
         {
           "id": 113,
-          "name": "loft-wall-1-33",
+          "name": "loft-boundary-wall-1-33",
           "type": "structures",
           "gid": 28,
           "x": 16,
@@ -10197,7 +10197,7 @@
         },
         {
           "id": 114,
-          "name": "loft-wall-58-33",
+          "name": "loft-boundary-wall-58-33",
           "type": "structures",
           "gid": 28,
           "x": 928,
@@ -10261,7 +10261,7 @@
         },
         {
           "id": 115,
-          "name": "loft-wall-1-34",
+          "name": "loft-boundary-wall-1-34",
           "type": "structures",
           "gid": 28,
           "x": 16,
@@ -10325,7 +10325,7 @@
         },
         {
           "id": 116,
-          "name": "loft-wall-58-34",
+          "name": "loft-boundary-wall-58-34",
           "type": "structures",
           "gid": 28,
           "x": 928,
@@ -10389,7 +10389,7 @@
         },
         {
           "id": 117,
-          "name": "loft-wall-1-35",
+          "name": "loft-boundary-wall-1-35",
           "type": "structures",
           "gid": 28,
           "x": 16,
@@ -10453,7 +10453,7 @@
         },
         {
           "id": 118,
-          "name": "loft-wall-58-35",
+          "name": "loft-boundary-wall-58-35",
           "type": "structures",
           "gid": 28,
           "x": 928,
@@ -10517,7 +10517,7 @@
         },
         {
           "id": 119,
-          "name": "loft-wall-1-36",
+          "name": "loft-boundary-wall-1-36",
           "type": "structures",
           "gid": 28,
           "x": 16,
@@ -10581,7 +10581,7 @@
         },
         {
           "id": 120,
-          "name": "loft-wall-58-36",
+          "name": "loft-boundary-wall-58-36",
           "type": "structures",
           "gid": 28,
           "x": 928,
@@ -10645,7 +10645,7 @@
         },
         {
           "id": 121,
-          "name": "loft-wall-1-37",
+          "name": "loft-boundary-wall-1-37",
           "type": "structures",
           "gid": 28,
           "x": 16,
@@ -10709,7 +10709,7 @@
         },
         {
           "id": 122,
-          "name": "loft-wall-58-37",
+          "name": "loft-boundary-wall-58-37",
           "type": "structures",
           "gid": 28,
           "x": 928,
@@ -10773,7 +10773,7 @@
         },
         {
           "id": 123,
-          "name": "loft-wall-1-38",
+          "name": "loft-boundary-wall-1-38",
           "type": "structures",
           "gid": 28,
           "x": 16,
@@ -10837,7 +10837,7 @@
         },
         {
           "id": 124,
-          "name": "loft-wall-58-38",
+          "name": "loft-boundary-wall-58-38",
           "type": "structures",
           "gid": 28,
           "x": 928,
@@ -10901,7 +10901,7 @@
         },
         {
           "id": 125,
-          "name": "loft-wall-2-39",
+          "name": "loft-boundary-wall-2-39",
           "type": "structures",
           "gid": 28,
           "x": 32,
@@ -10965,7 +10965,7 @@
         },
         {
           "id": 126,
-          "name": "loft-wall-3-39",
+          "name": "loft-boundary-wall-3-39",
           "type": "structures",
           "gid": 28,
           "x": 48,
@@ -11029,7 +11029,7 @@
         },
         {
           "id": 127,
-          "name": "loft-wall-4-39",
+          "name": "loft-boundary-wall-4-39",
           "type": "structures",
           "gid": 28,
           "x": 64,
@@ -11093,7 +11093,7 @@
         },
         {
           "id": 128,
-          "name": "loft-wall-5-39",
+          "name": "loft-boundary-wall-5-39",
           "type": "structures",
           "gid": 28,
           "x": 80,
@@ -11157,7 +11157,7 @@
         },
         {
           "id": 129,
-          "name": "loft-wall-6-39",
+          "name": "loft-boundary-wall-6-39",
           "type": "structures",
           "gid": 28,
           "x": 96,
@@ -11221,7 +11221,7 @@
         },
         {
           "id": 130,
-          "name": "loft-wall-7-39",
+          "name": "loft-boundary-wall-7-39",
           "type": "structures",
           "gid": 28,
           "x": 112,
@@ -11285,7 +11285,7 @@
         },
         {
           "id": 131,
-          "name": "loft-wall-8-39",
+          "name": "loft-boundary-wall-8-39",
           "type": "structures",
           "gid": 28,
           "x": 128,
@@ -11349,7 +11349,7 @@
         },
         {
           "id": 132,
-          "name": "loft-wall-9-39",
+          "name": "loft-boundary-wall-9-39",
           "type": "structures",
           "gid": 28,
           "x": 144,
@@ -11413,7 +11413,7 @@
         },
         {
           "id": 133,
-          "name": "loft-wall-10-39",
+          "name": "loft-boundary-wall-10-39",
           "type": "structures",
           "gid": 28,
           "x": 160,
@@ -11477,7 +11477,7 @@
         },
         {
           "id": 134,
-          "name": "loft-wall-11-39",
+          "name": "loft-boundary-wall-11-39",
           "type": "structures",
           "gid": 28,
           "x": 176,
@@ -11541,7 +11541,7 @@
         },
         {
           "id": 135,
-          "name": "loft-wall-12-39",
+          "name": "loft-boundary-wall-12-39",
           "type": "structures",
           "gid": 28,
           "x": 192,
@@ -11605,7 +11605,7 @@
         },
         {
           "id": 136,
-          "name": "loft-wall-13-39",
+          "name": "loft-boundary-wall-13-39",
           "type": "structures",
           "gid": 28,
           "x": 208,
@@ -11669,7 +11669,7 @@
         },
         {
           "id": 137,
-          "name": "loft-wall-14-39",
+          "name": "loft-boundary-wall-14-39",
           "type": "structures",
           "gid": 28,
           "x": 224,
@@ -11733,7 +11733,7 @@
         },
         {
           "id": 138,
-          "name": "loft-wall-15-39",
+          "name": "loft-boundary-wall-15-39",
           "type": "structures",
           "gid": 28,
           "x": 240,
@@ -11797,7 +11797,7 @@
         },
         {
           "id": 139,
-          "name": "loft-wall-16-39",
+          "name": "loft-boundary-wall-16-39",
           "type": "structures",
           "gid": 28,
           "x": 256,
@@ -11861,7 +11861,7 @@
         },
         {
           "id": 140,
-          "name": "loft-wall-17-39",
+          "name": "loft-boundary-wall-17-39",
           "type": "structures",
           "gid": 28,
           "x": 272,
@@ -11925,7 +11925,7 @@
         },
         {
           "id": 141,
-          "name": "loft-wall-18-39",
+          "name": "loft-boundary-wall-18-39",
           "type": "structures",
           "gid": 28,
           "x": 288,
@@ -11989,7 +11989,7 @@
         },
         {
           "id": 142,
-          "name": "loft-wall-19-39",
+          "name": "loft-boundary-wall-19-39",
           "type": "structures",
           "gid": 28,
           "x": 304,
@@ -12053,7 +12053,7 @@
         },
         {
           "id": 143,
-          "name": "loft-wall-20-39",
+          "name": "loft-boundary-wall-20-39",
           "type": "structures",
           "gid": 28,
           "x": 320,
@@ -12117,7 +12117,7 @@
         },
         {
           "id": 144,
-          "name": "loft-wall-21-39",
+          "name": "loft-boundary-wall-21-39",
           "type": "structures",
           "gid": 28,
           "x": 336,
@@ -12181,7 +12181,7 @@
         },
         {
           "id": 145,
-          "name": "loft-wall-22-39",
+          "name": "loft-boundary-wall-22-39",
           "type": "structures",
           "gid": 28,
           "x": 352,
@@ -12245,7 +12245,7 @@
         },
         {
           "id": 146,
-          "name": "loft-wall-23-39",
+          "name": "loft-boundary-wall-23-39",
           "type": "structures",
           "gid": 28,
           "x": 368,
@@ -12309,7 +12309,7 @@
         },
         {
           "id": 147,
-          "name": "loft-wall-24-39",
+          "name": "loft-boundary-wall-24-39",
           "type": "structures",
           "gid": 28,
           "x": 384,
@@ -12373,7 +12373,7 @@
         },
         {
           "id": 148,
-          "name": "loft-wall-25-39",
+          "name": "loft-boundary-wall-25-39",
           "type": "structures",
           "gid": 28,
           "x": 400,
@@ -12437,7 +12437,7 @@
         },
         {
           "id": 149,
-          "name": "loft-wall-26-39",
+          "name": "loft-boundary-wall-26-39",
           "type": "structures",
           "gid": 28,
           "x": 416,
@@ -12501,7 +12501,7 @@
         },
         {
           "id": 150,
-          "name": "loft-wall-27-39",
+          "name": "loft-boundary-wall-27-39",
           "type": "structures",
           "gid": 28,
           "x": 432,
@@ -12565,7 +12565,7 @@
         },
         {
           "id": 151,
-          "name": "loft-wall-28-39",
+          "name": "loft-boundary-wall-28-39",
           "type": "structures",
           "gid": 28,
           "x": 448,
@@ -12629,7 +12629,7 @@
         },
         {
           "id": 152,
-          "name": "loft-wall-31-39",
+          "name": "loft-boundary-wall-31-39",
           "type": "structures",
           "gid": 28,
           "x": 496,
@@ -12693,7 +12693,7 @@
         },
         {
           "id": 153,
-          "name": "loft-wall-32-39",
+          "name": "loft-boundary-wall-32-39",
           "type": "structures",
           "gid": 28,
           "x": 512,
@@ -12757,7 +12757,7 @@
         },
         {
           "id": 154,
-          "name": "loft-wall-33-39",
+          "name": "loft-boundary-wall-33-39",
           "type": "structures",
           "gid": 28,
           "x": 528,
@@ -12821,7 +12821,7 @@
         },
         {
           "id": 155,
-          "name": "loft-wall-34-39",
+          "name": "loft-boundary-wall-34-39",
           "type": "structures",
           "gid": 28,
           "x": 544,
@@ -12885,7 +12885,7 @@
         },
         {
           "id": 156,
-          "name": "loft-wall-35-39",
+          "name": "loft-boundary-wall-35-39",
           "type": "structures",
           "gid": 28,
           "x": 560,
@@ -12949,7 +12949,7 @@
         },
         {
           "id": 157,
-          "name": "loft-wall-36-39",
+          "name": "loft-boundary-wall-36-39",
           "type": "structures",
           "gid": 28,
           "x": 576,
@@ -13013,7 +13013,7 @@
         },
         {
           "id": 158,
-          "name": "loft-wall-37-39",
+          "name": "loft-boundary-wall-37-39",
           "type": "structures",
           "gid": 28,
           "x": 592,
@@ -13077,7 +13077,7 @@
         },
         {
           "id": 159,
-          "name": "loft-wall-38-39",
+          "name": "loft-boundary-wall-38-39",
           "type": "structures",
           "gid": 28,
           "x": 608,
@@ -13141,7 +13141,7 @@
         },
         {
           "id": 160,
-          "name": "loft-wall-39-39",
+          "name": "loft-boundary-wall-39-39",
           "type": "structures",
           "gid": 28,
           "x": 624,
@@ -13205,7 +13205,7 @@
         },
         {
           "id": 161,
-          "name": "loft-wall-40-39",
+          "name": "loft-boundary-wall-40-39",
           "type": "structures",
           "gid": 28,
           "x": 640,
@@ -13269,7 +13269,7 @@
         },
         {
           "id": 162,
-          "name": "loft-wall-41-39",
+          "name": "loft-boundary-wall-41-39",
           "type": "structures",
           "gid": 28,
           "x": 656,
@@ -13333,7 +13333,7 @@
         },
         {
           "id": 163,
-          "name": "loft-wall-42-39",
+          "name": "loft-boundary-wall-42-39",
           "type": "structures",
           "gid": 28,
           "x": 672,
@@ -13397,7 +13397,7 @@
         },
         {
           "id": 164,
-          "name": "loft-wall-43-39",
+          "name": "loft-boundary-wall-43-39",
           "type": "structures",
           "gid": 28,
           "x": 688,
@@ -13461,7 +13461,7 @@
         },
         {
           "id": 165,
-          "name": "loft-wall-44-39",
+          "name": "loft-boundary-wall-44-39",
           "type": "structures",
           "gid": 28,
           "x": 704,
@@ -13525,7 +13525,7 @@
         },
         {
           "id": 166,
-          "name": "loft-wall-45-39",
+          "name": "loft-boundary-wall-45-39",
           "type": "structures",
           "gid": 28,
           "x": 720,
@@ -13589,7 +13589,7 @@
         },
         {
           "id": 167,
-          "name": "loft-wall-46-39",
+          "name": "loft-boundary-wall-46-39",
           "type": "structures",
           "gid": 28,
           "x": 736,
@@ -13653,7 +13653,7 @@
         },
         {
           "id": 168,
-          "name": "loft-wall-47-39",
+          "name": "loft-boundary-wall-47-39",
           "type": "structures",
           "gid": 28,
           "x": 752,
@@ -13717,7 +13717,7 @@
         },
         {
           "id": 169,
-          "name": "loft-wall-48-39",
+          "name": "loft-boundary-wall-48-39",
           "type": "structures",
           "gid": 28,
           "x": 768,
@@ -13781,7 +13781,7 @@
         },
         {
           "id": 170,
-          "name": "loft-wall-49-39",
+          "name": "loft-boundary-wall-49-39",
           "type": "structures",
           "gid": 28,
           "x": 784,
@@ -13845,7 +13845,7 @@
         },
         {
           "id": 171,
-          "name": "loft-wall-50-39",
+          "name": "loft-boundary-wall-50-39",
           "type": "structures",
           "gid": 28,
           "x": 800,
@@ -13909,7 +13909,7 @@
         },
         {
           "id": 172,
-          "name": "loft-wall-51-39",
+          "name": "loft-boundary-wall-51-39",
           "type": "structures",
           "gid": 28,
           "x": 816,
@@ -13973,7 +13973,7 @@
         },
         {
           "id": 173,
-          "name": "loft-wall-52-39",
+          "name": "loft-boundary-wall-52-39",
           "type": "structures",
           "gid": 28,
           "x": 832,
@@ -14037,7 +14037,7 @@
         },
         {
           "id": 174,
-          "name": "loft-wall-53-39",
+          "name": "loft-boundary-wall-53-39",
           "type": "structures",
           "gid": 28,
           "x": 848,
@@ -14101,7 +14101,7 @@
         },
         {
           "id": 175,
-          "name": "loft-wall-54-39",
+          "name": "loft-boundary-wall-54-39",
           "type": "structures",
           "gid": 28,
           "x": 864,
@@ -14165,7 +14165,7 @@
         },
         {
           "id": 176,
-          "name": "loft-wall-55-39",
+          "name": "loft-boundary-wall-55-39",
           "type": "structures",
           "gid": 28,
           "x": 880,
@@ -14229,7 +14229,7 @@
         },
         {
           "id": 177,
-          "name": "loft-wall-56-39",
+          "name": "loft-boundary-wall-56-39",
           "type": "structures",
           "gid": 28,
           "x": 896,
@@ -14293,7 +14293,7 @@
         },
         {
           "id": 178,
-          "name": "loft-wall-57-39",
+          "name": "loft-boundary-wall-57-39",
           "type": "structures",
           "gid": 28,
           "x": 912,
@@ -15444,1735 +15444,7 @@
           ]
         },
         {
-          "id": 196,
-          "name": "loft-wall-36-17",
-          "type": "structures",
-          "gid": 28,
-          "x": 576,
-          "y": 288,
-          "width": 16,
-          "height": 48,
-          "rotation": 0,
-          "visible": true,
-          "properties": [
-            {
-              "name": "assetPackUuid",
-              "type": "string",
-              "value": "4664b745-6bad-4d86-ae8f-591c57567692"
-            },
-            {
-              "name": "itemId",
-              "type": "string",
-              "value": "atelier_v1_holz_wall"
-            },
-            {
-              "name": "category",
-              "type": "string",
-              "value": "structures"
-            },
-            {
-              "name": "collide",
-              "type": "bool",
-              "value": true
-            },
-            {
-              "name": "tileX",
-              "type": "int",
-              "value": 36
-            },
-            {
-              "name": "tileY",
-              "type": "int",
-              "value": 15
-            },
-            {
-              "name": "footprintW",
-              "type": "int",
-              "value": 1
-            },
-            {
-              "name": "footprintH",
-              "type": "int",
-              "value": 3
-            },
-            {
-              "name": "collisionBaseHeight",
-              "type": "int",
-              "value": 1
-            },
-            {
-              "name": "renderLayer",
-              "type": "string",
-              "value": "sorted"
-            }
-          ]
-        },
-        {
-          "id": 197,
-          "name": "loft-wall-37-17",
-          "type": "structures",
-          "gid": 28,
-          "x": 592,
-          "y": 288,
-          "width": 16,
-          "height": 48,
-          "rotation": 0,
-          "visible": true,
-          "properties": [
-            {
-              "name": "assetPackUuid",
-              "type": "string",
-              "value": "4664b745-6bad-4d86-ae8f-591c57567692"
-            },
-            {
-              "name": "itemId",
-              "type": "string",
-              "value": "atelier_v1_holz_wall"
-            },
-            {
-              "name": "category",
-              "type": "string",
-              "value": "structures"
-            },
-            {
-              "name": "collide",
-              "type": "bool",
-              "value": true
-            },
-            {
-              "name": "tileX",
-              "type": "int",
-              "value": 37
-            },
-            {
-              "name": "tileY",
-              "type": "int",
-              "value": 15
-            },
-            {
-              "name": "footprintW",
-              "type": "int",
-              "value": 1
-            },
-            {
-              "name": "footprintH",
-              "type": "int",
-              "value": 3
-            },
-            {
-              "name": "collisionBaseHeight",
-              "type": "int",
-              "value": 1
-            },
-            {
-              "name": "renderLayer",
-              "type": "string",
-              "value": "sorted"
-            }
-          ]
-        },
-        {
-          "id": 198,
-          "name": "loft-wall-38-17",
-          "type": "structures",
-          "gid": 28,
-          "x": 608,
-          "y": 288,
-          "width": 16,
-          "height": 48,
-          "rotation": 0,
-          "visible": true,
-          "properties": [
-            {
-              "name": "assetPackUuid",
-              "type": "string",
-              "value": "4664b745-6bad-4d86-ae8f-591c57567692"
-            },
-            {
-              "name": "itemId",
-              "type": "string",
-              "value": "atelier_v1_holz_wall"
-            },
-            {
-              "name": "category",
-              "type": "string",
-              "value": "structures"
-            },
-            {
-              "name": "collide",
-              "type": "bool",
-              "value": true
-            },
-            {
-              "name": "tileX",
-              "type": "int",
-              "value": 38
-            },
-            {
-              "name": "tileY",
-              "type": "int",
-              "value": 15
-            },
-            {
-              "name": "footprintW",
-              "type": "int",
-              "value": 1
-            },
-            {
-              "name": "footprintH",
-              "type": "int",
-              "value": 3
-            },
-            {
-              "name": "collisionBaseHeight",
-              "type": "int",
-              "value": 1
-            },
-            {
-              "name": "renderLayer",
-              "type": "string",
-              "value": "sorted"
-            }
-          ]
-        },
-        {
-          "id": 199,
-          "name": "loft-wall-39-17",
-          "type": "structures",
-          "gid": 28,
-          "x": 624,
-          "y": 288,
-          "width": 16,
-          "height": 48,
-          "rotation": 0,
-          "visible": true,
-          "properties": [
-            {
-              "name": "assetPackUuid",
-              "type": "string",
-              "value": "4664b745-6bad-4d86-ae8f-591c57567692"
-            },
-            {
-              "name": "itemId",
-              "type": "string",
-              "value": "atelier_v1_holz_wall"
-            },
-            {
-              "name": "category",
-              "type": "string",
-              "value": "structures"
-            },
-            {
-              "name": "collide",
-              "type": "bool",
-              "value": true
-            },
-            {
-              "name": "tileX",
-              "type": "int",
-              "value": 39
-            },
-            {
-              "name": "tileY",
-              "type": "int",
-              "value": 15
-            },
-            {
-              "name": "footprintW",
-              "type": "int",
-              "value": 1
-            },
-            {
-              "name": "footprintH",
-              "type": "int",
-              "value": 3
-            },
-            {
-              "name": "collisionBaseHeight",
-              "type": "int",
-              "value": 1
-            },
-            {
-              "name": "renderLayer",
-              "type": "string",
-              "value": "sorted"
-            }
-          ]
-        },
-        {
-          "id": 200,
-          "name": "loft-wall-40-17",
-          "type": "structures",
-          "gid": 28,
-          "x": 640,
-          "y": 288,
-          "width": 16,
-          "height": 48,
-          "rotation": 0,
-          "visible": true,
-          "properties": [
-            {
-              "name": "assetPackUuid",
-              "type": "string",
-              "value": "4664b745-6bad-4d86-ae8f-591c57567692"
-            },
-            {
-              "name": "itemId",
-              "type": "string",
-              "value": "atelier_v1_holz_wall"
-            },
-            {
-              "name": "category",
-              "type": "string",
-              "value": "structures"
-            },
-            {
-              "name": "collide",
-              "type": "bool",
-              "value": true
-            },
-            {
-              "name": "tileX",
-              "type": "int",
-              "value": 40
-            },
-            {
-              "name": "tileY",
-              "type": "int",
-              "value": 15
-            },
-            {
-              "name": "footprintW",
-              "type": "int",
-              "value": 1
-            },
-            {
-              "name": "footprintH",
-              "type": "int",
-              "value": 3
-            },
-            {
-              "name": "collisionBaseHeight",
-              "type": "int",
-              "value": 1
-            },
-            {
-              "name": "renderLayer",
-              "type": "string",
-              "value": "sorted"
-            }
-          ]
-        },
-        {
-          "id": 201,
-          "name": "loft-wall-41-17",
-          "type": "structures",
-          "gid": 28,
-          "x": 656,
-          "y": 288,
-          "width": 16,
-          "height": 48,
-          "rotation": 0,
-          "visible": true,
-          "properties": [
-            {
-              "name": "assetPackUuid",
-              "type": "string",
-              "value": "4664b745-6bad-4d86-ae8f-591c57567692"
-            },
-            {
-              "name": "itemId",
-              "type": "string",
-              "value": "atelier_v1_holz_wall"
-            },
-            {
-              "name": "category",
-              "type": "string",
-              "value": "structures"
-            },
-            {
-              "name": "collide",
-              "type": "bool",
-              "value": true
-            },
-            {
-              "name": "tileX",
-              "type": "int",
-              "value": 41
-            },
-            {
-              "name": "tileY",
-              "type": "int",
-              "value": 15
-            },
-            {
-              "name": "footprintW",
-              "type": "int",
-              "value": 1
-            },
-            {
-              "name": "footprintH",
-              "type": "int",
-              "value": 3
-            },
-            {
-              "name": "collisionBaseHeight",
-              "type": "int",
-              "value": 1
-            },
-            {
-              "name": "renderLayer",
-              "type": "string",
-              "value": "sorted"
-            }
-          ]
-        },
-        {
-          "id": 202,
-          "name": "loft-wall-42-17",
-          "type": "structures",
-          "gid": 28,
-          "x": 672,
-          "y": 288,
-          "width": 16,
-          "height": 48,
-          "rotation": 0,
-          "visible": true,
-          "properties": [
-            {
-              "name": "assetPackUuid",
-              "type": "string",
-              "value": "4664b745-6bad-4d86-ae8f-591c57567692"
-            },
-            {
-              "name": "itemId",
-              "type": "string",
-              "value": "atelier_v1_holz_wall"
-            },
-            {
-              "name": "category",
-              "type": "string",
-              "value": "structures"
-            },
-            {
-              "name": "collide",
-              "type": "bool",
-              "value": true
-            },
-            {
-              "name": "tileX",
-              "type": "int",
-              "value": 42
-            },
-            {
-              "name": "tileY",
-              "type": "int",
-              "value": 15
-            },
-            {
-              "name": "footprintW",
-              "type": "int",
-              "value": 1
-            },
-            {
-              "name": "footprintH",
-              "type": "int",
-              "value": 3
-            },
-            {
-              "name": "collisionBaseHeight",
-              "type": "int",
-              "value": 1
-            },
-            {
-              "name": "renderLayer",
-              "type": "string",
-              "value": "sorted"
-            }
-          ]
-        },
-        {
-          "id": 203,
-          "name": "loft-wall-43-17",
-          "type": "structures",
-          "gid": 28,
-          "x": 688,
-          "y": 288,
-          "width": 16,
-          "height": 48,
-          "rotation": 0,
-          "visible": true,
-          "properties": [
-            {
-              "name": "assetPackUuid",
-              "type": "string",
-              "value": "4664b745-6bad-4d86-ae8f-591c57567692"
-            },
-            {
-              "name": "itemId",
-              "type": "string",
-              "value": "atelier_v1_holz_wall"
-            },
-            {
-              "name": "category",
-              "type": "string",
-              "value": "structures"
-            },
-            {
-              "name": "collide",
-              "type": "bool",
-              "value": true
-            },
-            {
-              "name": "tileX",
-              "type": "int",
-              "value": 43
-            },
-            {
-              "name": "tileY",
-              "type": "int",
-              "value": 15
-            },
-            {
-              "name": "footprintW",
-              "type": "int",
-              "value": 1
-            },
-            {
-              "name": "footprintH",
-              "type": "int",
-              "value": 3
-            },
-            {
-              "name": "collisionBaseHeight",
-              "type": "int",
-              "value": 1
-            },
-            {
-              "name": "renderLayer",
-              "type": "string",
-              "value": "sorted"
-            }
-          ]
-        },
-        {
-          "id": 204,
-          "name": "loft-wall-44-17",
-          "type": "structures",
-          "gid": 28,
-          "x": 704,
-          "y": 288,
-          "width": 16,
-          "height": 48,
-          "rotation": 0,
-          "visible": true,
-          "properties": [
-            {
-              "name": "assetPackUuid",
-              "type": "string",
-              "value": "4664b745-6bad-4d86-ae8f-591c57567692"
-            },
-            {
-              "name": "itemId",
-              "type": "string",
-              "value": "atelier_v1_holz_wall"
-            },
-            {
-              "name": "category",
-              "type": "string",
-              "value": "structures"
-            },
-            {
-              "name": "collide",
-              "type": "bool",
-              "value": true
-            },
-            {
-              "name": "tileX",
-              "type": "int",
-              "value": 44
-            },
-            {
-              "name": "tileY",
-              "type": "int",
-              "value": 15
-            },
-            {
-              "name": "footprintW",
-              "type": "int",
-              "value": 1
-            },
-            {
-              "name": "footprintH",
-              "type": "int",
-              "value": 3
-            },
-            {
-              "name": "collisionBaseHeight",
-              "type": "int",
-              "value": 1
-            },
-            {
-              "name": "renderLayer",
-              "type": "string",
-              "value": "sorted"
-            }
-          ]
-        },
-        {
-          "id": 205,
-          "name": "loft-wall-45-17",
-          "type": "structures",
-          "gid": 28,
-          "x": 720,
-          "y": 288,
-          "width": 16,
-          "height": 48,
-          "rotation": 0,
-          "visible": true,
-          "properties": [
-            {
-              "name": "assetPackUuid",
-              "type": "string",
-              "value": "4664b745-6bad-4d86-ae8f-591c57567692"
-            },
-            {
-              "name": "itemId",
-              "type": "string",
-              "value": "atelier_v1_holz_wall"
-            },
-            {
-              "name": "category",
-              "type": "string",
-              "value": "structures"
-            },
-            {
-              "name": "collide",
-              "type": "bool",
-              "value": true
-            },
-            {
-              "name": "tileX",
-              "type": "int",
-              "value": 45
-            },
-            {
-              "name": "tileY",
-              "type": "int",
-              "value": 15
-            },
-            {
-              "name": "footprintW",
-              "type": "int",
-              "value": 1
-            },
-            {
-              "name": "footprintH",
-              "type": "int",
-              "value": 3
-            },
-            {
-              "name": "collisionBaseHeight",
-              "type": "int",
-              "value": 1
-            },
-            {
-              "name": "renderLayer",
-              "type": "string",
-              "value": "sorted"
-            }
-          ]
-        },
-        {
-          "id": 206,
-          "name": "loft-wall-46-17",
-          "type": "structures",
-          "gid": 28,
-          "x": 736,
-          "y": 288,
-          "width": 16,
-          "height": 48,
-          "rotation": 0,
-          "visible": true,
-          "properties": [
-            {
-              "name": "assetPackUuid",
-              "type": "string",
-              "value": "4664b745-6bad-4d86-ae8f-591c57567692"
-            },
-            {
-              "name": "itemId",
-              "type": "string",
-              "value": "atelier_v1_holz_wall"
-            },
-            {
-              "name": "category",
-              "type": "string",
-              "value": "structures"
-            },
-            {
-              "name": "collide",
-              "type": "bool",
-              "value": true
-            },
-            {
-              "name": "tileX",
-              "type": "int",
-              "value": 46
-            },
-            {
-              "name": "tileY",
-              "type": "int",
-              "value": 15
-            },
-            {
-              "name": "footprintW",
-              "type": "int",
-              "value": 1
-            },
-            {
-              "name": "footprintH",
-              "type": "int",
-              "value": 3
-            },
-            {
-              "name": "collisionBaseHeight",
-              "type": "int",
-              "value": 1
-            },
-            {
-              "name": "renderLayer",
-              "type": "string",
-              "value": "sorted"
-            }
-          ]
-        },
-        {
-          "id": 207,
-          "name": "loft-wall-47-17",
-          "type": "structures",
-          "gid": 28,
-          "x": 752,
-          "y": 288,
-          "width": 16,
-          "height": 48,
-          "rotation": 0,
-          "visible": true,
-          "properties": [
-            {
-              "name": "assetPackUuid",
-              "type": "string",
-              "value": "4664b745-6bad-4d86-ae8f-591c57567692"
-            },
-            {
-              "name": "itemId",
-              "type": "string",
-              "value": "atelier_v1_holz_wall"
-            },
-            {
-              "name": "category",
-              "type": "string",
-              "value": "structures"
-            },
-            {
-              "name": "collide",
-              "type": "bool",
-              "value": true
-            },
-            {
-              "name": "tileX",
-              "type": "int",
-              "value": 47
-            },
-            {
-              "name": "tileY",
-              "type": "int",
-              "value": 15
-            },
-            {
-              "name": "footprintW",
-              "type": "int",
-              "value": 1
-            },
-            {
-              "name": "footprintH",
-              "type": "int",
-              "value": 3
-            },
-            {
-              "name": "collisionBaseHeight",
-              "type": "int",
-              "value": 1
-            },
-            {
-              "name": "renderLayer",
-              "type": "string",
-              "value": "sorted"
-            }
-          ]
-        },
-        {
-          "id": 208,
-          "name": "loft-wall-4-23",
-          "type": "structures",
-          "gid": 28,
-          "x": 64,
-          "y": 384,
-          "width": 16,
-          "height": 48,
-          "rotation": 0,
-          "visible": true,
-          "properties": [
-            {
-              "name": "assetPackUuid",
-              "type": "string",
-              "value": "4664b745-6bad-4d86-ae8f-591c57567692"
-            },
-            {
-              "name": "itemId",
-              "type": "string",
-              "value": "atelier_v1_holz_wall"
-            },
-            {
-              "name": "category",
-              "type": "string",
-              "value": "structures"
-            },
-            {
-              "name": "collide",
-              "type": "bool",
-              "value": true
-            },
-            {
-              "name": "tileX",
-              "type": "int",
-              "value": 4
-            },
-            {
-              "name": "tileY",
-              "type": "int",
-              "value": 21
-            },
-            {
-              "name": "footprintW",
-              "type": "int",
-              "value": 1
-            },
-            {
-              "name": "footprintH",
-              "type": "int",
-              "value": 3
-            },
-            {
-              "name": "collisionBaseHeight",
-              "type": "int",
-              "value": 1
-            },
-            {
-              "name": "renderLayer",
-              "type": "string",
-              "value": "sorted"
-            }
-          ]
-        },
-        {
-          "id": 209,
-          "name": "loft-wall-5-23",
-          "type": "structures",
-          "gid": 28,
-          "x": 80,
-          "y": 384,
-          "width": 16,
-          "height": 48,
-          "rotation": 0,
-          "visible": true,
-          "properties": [
-            {
-              "name": "assetPackUuid",
-              "type": "string",
-              "value": "4664b745-6bad-4d86-ae8f-591c57567692"
-            },
-            {
-              "name": "itemId",
-              "type": "string",
-              "value": "atelier_v1_holz_wall"
-            },
-            {
-              "name": "category",
-              "type": "string",
-              "value": "structures"
-            },
-            {
-              "name": "collide",
-              "type": "bool",
-              "value": true
-            },
-            {
-              "name": "tileX",
-              "type": "int",
-              "value": 5
-            },
-            {
-              "name": "tileY",
-              "type": "int",
-              "value": 21
-            },
-            {
-              "name": "footprintW",
-              "type": "int",
-              "value": 1
-            },
-            {
-              "name": "footprintH",
-              "type": "int",
-              "value": 3
-            },
-            {
-              "name": "collisionBaseHeight",
-              "type": "int",
-              "value": 1
-            },
-            {
-              "name": "renderLayer",
-              "type": "string",
-              "value": "sorted"
-            }
-          ]
-        },
-        {
-          "id": 210,
-          "name": "loft-wall-6-23",
-          "type": "structures",
-          "gid": 28,
-          "x": 96,
-          "y": 384,
-          "width": 16,
-          "height": 48,
-          "rotation": 0,
-          "visible": true,
-          "properties": [
-            {
-              "name": "assetPackUuid",
-              "type": "string",
-              "value": "4664b745-6bad-4d86-ae8f-591c57567692"
-            },
-            {
-              "name": "itemId",
-              "type": "string",
-              "value": "atelier_v1_holz_wall"
-            },
-            {
-              "name": "category",
-              "type": "string",
-              "value": "structures"
-            },
-            {
-              "name": "collide",
-              "type": "bool",
-              "value": true
-            },
-            {
-              "name": "tileX",
-              "type": "int",
-              "value": 6
-            },
-            {
-              "name": "tileY",
-              "type": "int",
-              "value": 21
-            },
-            {
-              "name": "footprintW",
-              "type": "int",
-              "value": 1
-            },
-            {
-              "name": "footprintH",
-              "type": "int",
-              "value": 3
-            },
-            {
-              "name": "collisionBaseHeight",
-              "type": "int",
-              "value": 1
-            },
-            {
-              "name": "renderLayer",
-              "type": "string",
-              "value": "sorted"
-            }
-          ]
-        },
-        {
-          "id": 211,
-          "name": "loft-wall-7-23",
-          "type": "structures",
-          "gid": 28,
-          "x": 112,
-          "y": 384,
-          "width": 16,
-          "height": 48,
-          "rotation": 0,
-          "visible": true,
-          "properties": [
-            {
-              "name": "assetPackUuid",
-              "type": "string",
-              "value": "4664b745-6bad-4d86-ae8f-591c57567692"
-            },
-            {
-              "name": "itemId",
-              "type": "string",
-              "value": "atelier_v1_holz_wall"
-            },
-            {
-              "name": "category",
-              "type": "string",
-              "value": "structures"
-            },
-            {
-              "name": "collide",
-              "type": "bool",
-              "value": true
-            },
-            {
-              "name": "tileX",
-              "type": "int",
-              "value": 7
-            },
-            {
-              "name": "tileY",
-              "type": "int",
-              "value": 21
-            },
-            {
-              "name": "footprintW",
-              "type": "int",
-              "value": 1
-            },
-            {
-              "name": "footprintH",
-              "type": "int",
-              "value": 3
-            },
-            {
-              "name": "collisionBaseHeight",
-              "type": "int",
-              "value": 1
-            },
-            {
-              "name": "renderLayer",
-              "type": "string",
-              "value": "sorted"
-            }
-          ]
-        },
-        {
-          "id": 212,
-          "name": "loft-wall-8-23",
-          "type": "structures",
-          "gid": 28,
-          "x": 128,
-          "y": 384,
-          "width": 16,
-          "height": 48,
-          "rotation": 0,
-          "visible": true,
-          "properties": [
-            {
-              "name": "assetPackUuid",
-              "type": "string",
-              "value": "4664b745-6bad-4d86-ae8f-591c57567692"
-            },
-            {
-              "name": "itemId",
-              "type": "string",
-              "value": "atelier_v1_holz_wall"
-            },
-            {
-              "name": "category",
-              "type": "string",
-              "value": "structures"
-            },
-            {
-              "name": "collide",
-              "type": "bool",
-              "value": true
-            },
-            {
-              "name": "tileX",
-              "type": "int",
-              "value": 8
-            },
-            {
-              "name": "tileY",
-              "type": "int",
-              "value": 21
-            },
-            {
-              "name": "footprintW",
-              "type": "int",
-              "value": 1
-            },
-            {
-              "name": "footprintH",
-              "type": "int",
-              "value": 3
-            },
-            {
-              "name": "collisionBaseHeight",
-              "type": "int",
-              "value": 1
-            },
-            {
-              "name": "renderLayer",
-              "type": "string",
-              "value": "sorted"
-            }
-          ]
-        },
-        {
-          "id": 213,
-          "name": "loft-wall-9-23",
-          "type": "structures",
-          "gid": 28,
-          "x": 144,
-          "y": 384,
-          "width": 16,
-          "height": 48,
-          "rotation": 0,
-          "visible": true,
-          "properties": [
-            {
-              "name": "assetPackUuid",
-              "type": "string",
-              "value": "4664b745-6bad-4d86-ae8f-591c57567692"
-            },
-            {
-              "name": "itemId",
-              "type": "string",
-              "value": "atelier_v1_holz_wall"
-            },
-            {
-              "name": "category",
-              "type": "string",
-              "value": "structures"
-            },
-            {
-              "name": "collide",
-              "type": "bool",
-              "value": true
-            },
-            {
-              "name": "tileX",
-              "type": "int",
-              "value": 9
-            },
-            {
-              "name": "tileY",
-              "type": "int",
-              "value": 21
-            },
-            {
-              "name": "footprintW",
-              "type": "int",
-              "value": 1
-            },
-            {
-              "name": "footprintH",
-              "type": "int",
-              "value": 3
-            },
-            {
-              "name": "collisionBaseHeight",
-              "type": "int",
-              "value": 1
-            },
-            {
-              "name": "renderLayer",
-              "type": "string",
-              "value": "sorted"
-            }
-          ]
-        },
-        {
           "id": 214,
-          "name": "loft-wall-10-23",
-          "type": "structures",
-          "gid": 28,
-          "x": 160,
-          "y": 384,
-          "width": 16,
-          "height": 48,
-          "rotation": 0,
-          "visible": true,
-          "properties": [
-            {
-              "name": "assetPackUuid",
-              "type": "string",
-              "value": "4664b745-6bad-4d86-ae8f-591c57567692"
-            },
-            {
-              "name": "itemId",
-              "type": "string",
-              "value": "atelier_v1_holz_wall"
-            },
-            {
-              "name": "category",
-              "type": "string",
-              "value": "structures"
-            },
-            {
-              "name": "collide",
-              "type": "bool",
-              "value": true
-            },
-            {
-              "name": "tileX",
-              "type": "int",
-              "value": 10
-            },
-            {
-              "name": "tileY",
-              "type": "int",
-              "value": 21
-            },
-            {
-              "name": "footprintW",
-              "type": "int",
-              "value": 1
-            },
-            {
-              "name": "footprintH",
-              "type": "int",
-              "value": 3
-            },
-            {
-              "name": "collisionBaseHeight",
-              "type": "int",
-              "value": 1
-            },
-            {
-              "name": "renderLayer",
-              "type": "string",
-              "value": "sorted"
-            }
-          ]
-        },
-        {
-          "id": 215,
-          "name": "loft-wall-11-23",
-          "type": "structures",
-          "gid": 28,
-          "x": 176,
-          "y": 384,
-          "width": 16,
-          "height": 48,
-          "rotation": 0,
-          "visible": true,
-          "properties": [
-            {
-              "name": "assetPackUuid",
-              "type": "string",
-              "value": "4664b745-6bad-4d86-ae8f-591c57567692"
-            },
-            {
-              "name": "itemId",
-              "type": "string",
-              "value": "atelier_v1_holz_wall"
-            },
-            {
-              "name": "category",
-              "type": "string",
-              "value": "structures"
-            },
-            {
-              "name": "collide",
-              "type": "bool",
-              "value": true
-            },
-            {
-              "name": "tileX",
-              "type": "int",
-              "value": 11
-            },
-            {
-              "name": "tileY",
-              "type": "int",
-              "value": 21
-            },
-            {
-              "name": "footprintW",
-              "type": "int",
-              "value": 1
-            },
-            {
-              "name": "footprintH",
-              "type": "int",
-              "value": 3
-            },
-            {
-              "name": "collisionBaseHeight",
-              "type": "int",
-              "value": 1
-            },
-            {
-              "name": "renderLayer",
-              "type": "string",
-              "value": "sorted"
-            }
-          ]
-        },
-        {
-          "id": 216,
-          "name": "loft-wall-15-23",
-          "type": "structures",
-          "gid": 28,
-          "x": 240,
-          "y": 384,
-          "width": 16,
-          "height": 48,
-          "rotation": 0,
-          "visible": true,
-          "properties": [
-            {
-              "name": "assetPackUuid",
-              "type": "string",
-              "value": "4664b745-6bad-4d86-ae8f-591c57567692"
-            },
-            {
-              "name": "itemId",
-              "type": "string",
-              "value": "atelier_v1_holz_wall"
-            },
-            {
-              "name": "category",
-              "type": "string",
-              "value": "structures"
-            },
-            {
-              "name": "collide",
-              "type": "bool",
-              "value": true
-            },
-            {
-              "name": "tileX",
-              "type": "int",
-              "value": 15
-            },
-            {
-              "name": "tileY",
-              "type": "int",
-              "value": 21
-            },
-            {
-              "name": "footprintW",
-              "type": "int",
-              "value": 1
-            },
-            {
-              "name": "footprintH",
-              "type": "int",
-              "value": 3
-            },
-            {
-              "name": "collisionBaseHeight",
-              "type": "int",
-              "value": 1
-            },
-            {
-              "name": "renderLayer",
-              "type": "string",
-              "value": "sorted"
-            }
-          ]
-        },
-        {
-          "id": 217,
-          "name": "loft-wall-16-23",
-          "type": "structures",
-          "gid": 28,
-          "x": 256,
-          "y": 384,
-          "width": 16,
-          "height": 48,
-          "rotation": 0,
-          "visible": true,
-          "properties": [
-            {
-              "name": "assetPackUuid",
-              "type": "string",
-              "value": "4664b745-6bad-4d86-ae8f-591c57567692"
-            },
-            {
-              "name": "itemId",
-              "type": "string",
-              "value": "atelier_v1_holz_wall"
-            },
-            {
-              "name": "category",
-              "type": "string",
-              "value": "structures"
-            },
-            {
-              "name": "collide",
-              "type": "bool",
-              "value": true
-            },
-            {
-              "name": "tileX",
-              "type": "int",
-              "value": 16
-            },
-            {
-              "name": "tileY",
-              "type": "int",
-              "value": 21
-            },
-            {
-              "name": "footprintW",
-              "type": "int",
-              "value": 1
-            },
-            {
-              "name": "footprintH",
-              "type": "int",
-              "value": 3
-            },
-            {
-              "name": "collisionBaseHeight",
-              "type": "int",
-              "value": 1
-            },
-            {
-              "name": "renderLayer",
-              "type": "string",
-              "value": "sorted"
-            }
-          ]
-        },
-        {
-          "id": 218,
-          "name": "loft-wall-17-23",
-          "type": "structures",
-          "gid": 28,
-          "x": 272,
-          "y": 384,
-          "width": 16,
-          "height": 48,
-          "rotation": 0,
-          "visible": true,
-          "properties": [
-            {
-              "name": "assetPackUuid",
-              "type": "string",
-              "value": "4664b745-6bad-4d86-ae8f-591c57567692"
-            },
-            {
-              "name": "itemId",
-              "type": "string",
-              "value": "atelier_v1_holz_wall"
-            },
-            {
-              "name": "category",
-              "type": "string",
-              "value": "structures"
-            },
-            {
-              "name": "collide",
-              "type": "bool",
-              "value": true
-            },
-            {
-              "name": "tileX",
-              "type": "int",
-              "value": 17
-            },
-            {
-              "name": "tileY",
-              "type": "int",
-              "value": 21
-            },
-            {
-              "name": "footprintW",
-              "type": "int",
-              "value": 1
-            },
-            {
-              "name": "footprintH",
-              "type": "int",
-              "value": 3
-            },
-            {
-              "name": "collisionBaseHeight",
-              "type": "int",
-              "value": 1
-            },
-            {
-              "name": "renderLayer",
-              "type": "string",
-              "value": "sorted"
-            }
-          ]
-        },
-        {
-          "id": 219,
-          "name": "loft-wall-18-23",
-          "type": "structures",
-          "gid": 28,
-          "x": 288,
-          "y": 384,
-          "width": 16,
-          "height": 48,
-          "rotation": 0,
-          "visible": true,
-          "properties": [
-            {
-              "name": "assetPackUuid",
-              "type": "string",
-              "value": "4664b745-6bad-4d86-ae8f-591c57567692"
-            },
-            {
-              "name": "itemId",
-              "type": "string",
-              "value": "atelier_v1_holz_wall"
-            },
-            {
-              "name": "category",
-              "type": "string",
-              "value": "structures"
-            },
-            {
-              "name": "collide",
-              "type": "bool",
-              "value": true
-            },
-            {
-              "name": "tileX",
-              "type": "int",
-              "value": 18
-            },
-            {
-              "name": "tileY",
-              "type": "int",
-              "value": 21
-            },
-            {
-              "name": "footprintW",
-              "type": "int",
-              "value": 1
-            },
-            {
-              "name": "footprintH",
-              "type": "int",
-              "value": 3
-            },
-            {
-              "name": "collisionBaseHeight",
-              "type": "int",
-              "value": 1
-            },
-            {
-              "name": "renderLayer",
-              "type": "string",
-              "value": "sorted"
-            }
-          ]
-        },
-        {
-          "id": 220,
-          "name": "loft-wall-19-23",
-          "type": "structures",
-          "gid": 28,
-          "x": 304,
-          "y": 384,
-          "width": 16,
-          "height": 48,
-          "rotation": 0,
-          "visible": true,
-          "properties": [
-            {
-              "name": "assetPackUuid",
-              "type": "string",
-              "value": "4664b745-6bad-4d86-ae8f-591c57567692"
-            },
-            {
-              "name": "itemId",
-              "type": "string",
-              "value": "atelier_v1_holz_wall"
-            },
-            {
-              "name": "category",
-              "type": "string",
-              "value": "structures"
-            },
-            {
-              "name": "collide",
-              "type": "bool",
-              "value": true
-            },
-            {
-              "name": "tileX",
-              "type": "int",
-              "value": 19
-            },
-            {
-              "name": "tileY",
-              "type": "int",
-              "value": 21
-            },
-            {
-              "name": "footprintW",
-              "type": "int",
-              "value": 1
-            },
-            {
-              "name": "footprintH",
-              "type": "int",
-              "value": 3
-            },
-            {
-              "name": "collisionBaseHeight",
-              "type": "int",
-              "value": 1
-            },
-            {
-              "name": "renderLayer",
-              "type": "string",
-              "value": "sorted"
-            }
-          ]
-        },
-        {
-          "id": 221,
-          "name": "loft-wall-20-23",
-          "type": "structures",
-          "gid": 28,
-          "x": 320,
-          "y": 384,
-          "width": 16,
-          "height": 48,
-          "rotation": 0,
-          "visible": true,
-          "properties": [
-            {
-              "name": "assetPackUuid",
-              "type": "string",
-              "value": "4664b745-6bad-4d86-ae8f-591c57567692"
-            },
-            {
-              "name": "itemId",
-              "type": "string",
-              "value": "atelier_v1_holz_wall"
-            },
-            {
-              "name": "category",
-              "type": "string",
-              "value": "structures"
-            },
-            {
-              "name": "collide",
-              "type": "bool",
-              "value": true
-            },
-            {
-              "name": "tileX",
-              "type": "int",
-              "value": 20
-            },
-            {
-              "name": "tileY",
-              "type": "int",
-              "value": 21
-            },
-            {
-              "name": "footprintW",
-              "type": "int",
-              "value": 1
-            },
-            {
-              "name": "footprintH",
-              "type": "int",
-              "value": 3
-            },
-            {
-              "name": "collisionBaseHeight",
-              "type": "int",
-              "value": 1
-            },
-            {
-              "name": "renderLayer",
-              "type": "string",
-              "value": "sorted"
-            }
-          ]
-        },
-        {
-          "id": 222,
-          "name": "loft-wall-21-23",
-          "type": "structures",
-          "gid": 28,
-          "x": 336,
-          "y": 384,
-          "width": 16,
-          "height": 48,
-          "rotation": 0,
-          "visible": true,
-          "properties": [
-            {
-              "name": "assetPackUuid",
-              "type": "string",
-              "value": "4664b745-6bad-4d86-ae8f-591c57567692"
-            },
-            {
-              "name": "itemId",
-              "type": "string",
-              "value": "atelier_v1_holz_wall"
-            },
-            {
-              "name": "category",
-              "type": "string",
-              "value": "structures"
-            },
-            {
-              "name": "collide",
-              "type": "bool",
-              "value": true
-            },
-            {
-              "name": "tileX",
-              "type": "int",
-              "value": 21
-            },
-            {
-              "name": "tileY",
-              "type": "int",
-              "value": 21
-            },
-            {
-              "name": "footprintW",
-              "type": "int",
-              "value": 1
-            },
-            {
-              "name": "footprintH",
-              "type": "int",
-              "value": 3
-            },
-            {
-              "name": "collisionBaseHeight",
-              "type": "int",
-              "value": 1
-            },
-            {
-              "name": "renderLayer",
-              "type": "string",
-              "value": "sorted"
-            }
-          ]
-        },
-        {
-          "id": 241,
           "name": "loft-door",
           "type": "structures",
           "gid": 22,
@@ -17246,7 +15518,7 @@
       "draworder": "topdown",
       "objects": [
         {
-          "id": 223,
+          "id": 196,
           "name": "loft-team-1-desk",
           "type": "objects",
           "gid": 13,
@@ -17310,12 +15582,12 @@
           ]
         },
         {
-          "id": 224,
+          "id": 197,
           "name": "loft-team-1-chair",
           "type": "objects",
           "gid": 11,
           "x": 112,
-          "y": 224,
+          "y": 208,
           "width": 16,
           "height": 32,
           "rotation": 0,
@@ -17349,7 +15621,7 @@
             {
               "name": "tileY",
               "type": "int",
-              "value": 12
+              "value": 11
             },
             {
               "name": "footprintW",
@@ -17374,7 +15646,7 @@
           ]
         },
         {
-          "id": 225,
+          "id": 198,
           "name": "loft-team-1-drawer",
           "type": "objects",
           "gid": 23,
@@ -17438,7 +15710,7 @@
           ]
         },
         {
-          "id": 226,
+          "id": 199,
           "name": "loft-team-2-desk",
           "type": "objects",
           "gid": 13,
@@ -17502,12 +15774,12 @@
           ]
         },
         {
-          "id": 227,
+          "id": 200,
           "name": "loft-team-2-chair",
           "type": "objects",
           "gid": 11,
           "x": 272,
-          "y": 224,
+          "y": 208,
           "width": 16,
           "height": 32,
           "rotation": 0,
@@ -17541,7 +15813,7 @@
             {
               "name": "tileY",
               "type": "int",
-              "value": 12
+              "value": 11
             },
             {
               "name": "footprintW",
@@ -17566,7 +15838,7 @@
           ]
         },
         {
-          "id": 228,
+          "id": 201,
           "name": "loft-team-2-drawer",
           "type": "objects",
           "gid": 23,
@@ -17630,7 +15902,7 @@
           ]
         },
         {
-          "id": 229,
+          "id": 202,
           "name": "loft-team-3-desk",
           "type": "objects",
           "gid": 13,
@@ -17694,12 +15966,12 @@
           ]
         },
         {
-          "id": 230,
+          "id": 203,
           "name": "loft-team-3-chair",
           "type": "objects",
           "gid": 11,
           "x": 112,
-          "y": 352,
+          "y": 336,
           "width": 16,
           "height": 32,
           "rotation": 0,
@@ -17733,7 +16005,7 @@
             {
               "name": "tileY",
               "type": "int",
-              "value": 20
+              "value": 19
             },
             {
               "name": "footprintW",
@@ -17758,7 +16030,7 @@
           ]
         },
         {
-          "id": 231,
+          "id": 204,
           "name": "loft-team-3-drawer",
           "type": "objects",
           "gid": 23,
@@ -17822,7 +16094,7 @@
           ]
         },
         {
-          "id": 232,
+          "id": 205,
           "name": "loft-team-4-desk",
           "type": "objects",
           "gid": 13,
@@ -17886,12 +16158,12 @@
           ]
         },
         {
-          "id": 233,
+          "id": 206,
           "name": "loft-team-4-chair",
           "type": "objects",
           "gid": 11,
           "x": 272,
-          "y": 352,
+          "y": 336,
           "width": 16,
           "height": 32,
           "rotation": 0,
@@ -17925,7 +16197,7 @@
             {
               "name": "tileY",
               "type": "int",
-              "value": 20
+              "value": 19
             },
             {
               "name": "footprintW",
@@ -17950,7 +16222,7 @@
           ]
         },
         {
-          "id": 234,
+          "id": 207,
           "name": "loft-team-4-drawer",
           "type": "objects",
           "gid": 23,
@@ -18014,7 +16286,7 @@
           ]
         },
         {
-          "id": 235,
+          "id": 208,
           "name": "loft-focus-1-desk",
           "type": "objects",
           "gid": 13,
@@ -18078,12 +16350,12 @@
           ]
         },
         {
-          "id": 236,
+          "id": 209,
           "name": "loft-focus-1-chair",
           "type": "objects",
           "gid": 11,
           "x": 624,
-          "y": 224,
+          "y": 208,
           "width": 16,
           "height": 32,
           "rotation": 0,
@@ -18117,7 +16389,7 @@
             {
               "name": "tileY",
               "type": "int",
-              "value": 12
+              "value": 11
             },
             {
               "name": "footprintW",
@@ -18142,7 +16414,7 @@
           ]
         },
         {
-          "id": 237,
+          "id": 210,
           "name": "loft-focus-1-drawer",
           "type": "objects",
           "gid": 23,
@@ -18206,7 +16478,7 @@
           ]
         },
         {
-          "id": 238,
+          "id": 211,
           "name": "loft-focus-2-desk",
           "type": "objects",
           "gid": 13,
@@ -18270,12 +16542,12 @@
           ]
         },
         {
-          "id": 239,
+          "id": 212,
           "name": "loft-focus-2-chair",
           "type": "objects",
           "gid": 11,
           "x": 784,
-          "y": 224,
+          "y": 208,
           "width": 16,
           "height": 32,
           "rotation": 0,
@@ -18309,7 +16581,7 @@
             {
               "name": "tileY",
               "type": "int",
-              "value": 12
+              "value": 11
             },
             {
               "name": "footprintW",
@@ -18334,7 +16606,7 @@
           ]
         },
         {
-          "id": 240,
+          "id": 213,
           "name": "loft-focus-2-drawer",
           "type": "objects",
           "gid": 23,
@@ -18398,7 +16670,7 @@
           ]
         },
         {
-          "id": 244,
+          "id": 217,
           "name": "loft-coffee",
           "type": "objects",
           "gid": 12,
@@ -18462,7 +16734,7 @@
           ]
         },
         {
-          "id": 245,
+          "id": 218,
           "name": "loft-lounge-sofa",
           "type": "objects",
           "gid": 19,
@@ -18526,7 +16798,7 @@
           ]
         },
         {
-          "id": 246,
+          "id": 219,
           "name": "loft-lounge-table",
           "type": "objects",
           "gid": 20,
@@ -18590,7 +16862,7 @@
           ]
         },
         {
-          "id": 247,
+          "id": 220,
           "name": "loft-meeting-table",
           "type": "objects",
           "gid": 16,
@@ -18654,7 +16926,7 @@
           ]
         },
         {
-          "id": 248,
+          "id": 221,
           "name": "loft-meeting-seat-north-1",
           "type": "objects",
           "gid": 10,
@@ -18718,7 +16990,7 @@
           ]
         },
         {
-          "id": 249,
+          "id": 222,
           "name": "loft-meeting-seat-north-2",
           "type": "objects",
           "gid": 10,
@@ -18782,7 +17054,7 @@
           ]
         },
         {
-          "id": 250,
+          "id": 223,
           "name": "loft-meeting-seat-south-1",
           "type": "objects",
           "gid": 11,
@@ -18846,7 +17118,7 @@
           ]
         },
         {
-          "id": 251,
+          "id": 224,
           "name": "loft-meeting-seat-south-2",
           "type": "objects",
           "gid": 11,
@@ -18910,7 +17182,7 @@
           ]
         },
         {
-          "id": 252,
+          "id": 225,
           "name": "loft-shelf",
           "type": "objects",
           "gid": 18,
@@ -18974,7 +17246,7 @@
           ]
         },
         {
-          "id": 253,
+          "id": 226,
           "name": "loft-divider",
           "type": "objects",
           "gid": 14,
@@ -19038,7 +17310,7 @@
           ]
         },
         {
-          "id": 254,
+          "id": 227,
           "name": "loft-lamp",
           "type": "objects",
           "gid": 15,
@@ -19102,7 +17374,7 @@
           ]
         },
         {
-          "id": 255,
+          "id": 228,
           "name": "loft-plant",
           "type": "objects",
           "gid": 25,
@@ -19166,7 +17438,7 @@
           ]
         },
         {
-          "id": 256,
+          "id": 229,
           "name": "loft-meeting-board",
           "type": "objects",
           "gid": 21,
@@ -19230,7 +17502,7 @@
           ]
         },
         {
-          "id": 257,
+          "id": 230,
           "name": "loft-meeting-plant",
           "type": "objects",
           "gid": 17,
@@ -19294,7 +17566,7 @@
           ]
         },
         {
-          "id": 258,
+          "id": 231,
           "name": "loft-cabinet",
           "type": "objects",
           "gid": 7,
@@ -19358,7 +17630,7 @@
           ]
         },
         {
-          "id": 259,
+          "id": 232,
           "name": "loft-armchair",
           "type": "objects",
           "gid": 6,
@@ -19422,7 +17694,7 @@
           ]
         },
         {
-          "id": 260,
+          "id": 233,
           "name": "loft-round-table",
           "type": "objects",
           "gid": 27,
@@ -19486,7 +17758,7 @@
           ]
         },
         {
-          "id": 261,
+          "id": 234,
           "name": "loft-printer",
           "type": "objects",
           "gid": 26,
@@ -19550,7 +17822,7 @@
           ]
         },
         {
-          "id": 262,
+          "id": 235,
           "name": "loft-coat",
           "type": "objects",
           "gid": 8,
@@ -19614,7 +17886,7 @@
           ]
         },
         {
-          "id": 263,
+          "id": 236,
           "name": "loft-water",
           "type": "objects",
           "gid": 29,
@@ -19678,7 +17950,7 @@
           ]
         },
         {
-          "id": 265,
+          "id": 238,
           "name": "loft-lounge-bench",
           "type": "objects",
           "gid": 9,
@@ -19752,7 +18024,7 @@
       "draworder": "topdown",
       "objects": [
         {
-          "id": 242,
+          "id": 215,
           "name": "loft-window-west",
           "type": "structures",
           "gid": 30,
@@ -19816,7 +18088,7 @@
           ]
         },
         {
-          "id": 243,
+          "id": 216,
           "name": "loft-window-east",
           "type": "structures",
           "gid": 30,
@@ -19880,7 +18152,7 @@
           ]
         },
         {
-          "id": 264,
+          "id": 237,
           "name": "loft-pinboard",
           "type": "objects",
           "gid": 24,
@@ -20685,10 +18957,7 @@
         0,
         0,
         0,
-        0,
-        0,
-        0,
-        0,
+        1,
         0,
         0,
         0,
@@ -20698,6 +18967,7 @@
         0,
         0,
         0,
+        1,
         0,
         0,
         0,
@@ -20719,6 +18989,7 @@
         0,
         0,
         0,
+        1,
         0,
         0,
         0,
@@ -20728,6 +18999,7 @@
         0,
         0,
         0,
+        1,
         0,
         0,
         0,
@@ -20745,7 +19017,6 @@
         0,
         0,
         0,
-        1,
         0,
         0,
         0,
@@ -20755,7 +19026,6 @@
         0,
         0,
         0,
-        1,
         0,
         0,
         0,
@@ -20777,7 +19047,6 @@
         0,
         0,
         0,
-        1,
         0,
         0,
         0,
@@ -20787,7 +19056,8 @@
         0,
         0,
         0,
-        1,
+        0,
+        0,
         0,
         0,
         0,
@@ -20796,6 +19066,8 @@
         0,
         0,
         0,
+        0,
+        0,
         1,
         1,
         1,
@@ -21014,18 +19286,17 @@
         0,
         1,
         0,
-        1,
-        1,
-        1,
-        1,
-        1,
-        1,
-        1,
-        1,
-        1,
-        1,
-        1,
-        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
         0,
         0,
         0,
@@ -21036,6 +19307,7 @@
         0,
         0,
         0,
+        0,
         1,
         1,
         1,
@@ -21160,13 +19432,12 @@
         1,
         1,
         1,
-        0,
         0,
         0,
         0,
         0,
         0,
-        0,
+        1,
         0,
         0,
         0,
@@ -21176,6 +19447,7 @@
         0,
         0,
         0,
+        1,
         0,
         0,
         0,
@@ -21225,7 +19497,6 @@
         0,
         0,
         0,
-        1,
         0,
         0,
         0,
@@ -21235,7 +19506,8 @@
         0,
         0,
         0,
-        1,
+        0,
+        0,
         0,
         0,
         0,
@@ -21342,24 +19614,24 @@
         1,
         0,
         0,
-        1,
-        1,
-        1,
-        1,
-        1,
-        1,
-        1,
-        1,
         0,
         0,
         0,
-        1,
-        1,
-        1,
-        1,
-        1,
-        1,
-        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
         0,
         0,
         0,
@@ -22489,7 +20761,7 @@
       "draworder": "topdown",
       "objects": [
         {
-          "id": 266,
+          "id": 239,
           "name": "Teamfläche",
           "type": "zone",
           "x": 408,
@@ -22533,7 +20805,7 @@
           ]
         },
         {
-          "id": 267,
+          "id": 240,
           "name": "Fokusnische",
           "type": "zone",
           "x": 584,
@@ -22577,7 +20849,7 @@
           ]
         },
         {
-          "id": 268,
+          "id": 241,
           "name": "Lounge",
           "type": "zone",
           "x": 408,
@@ -22616,7 +20888,7 @@
           ]
         },
         {
-          "id": 269,
+          "id": 242,
           "name": "Besprechung",
           "type": "zone",
           "x": 584,
@@ -22660,7 +20932,7 @@
           ]
         },
         {
-          "id": 270,
+          "id": 243,
           "name": "Kaffee",
           "type": "zone",
           "x": 424,
@@ -22709,56 +20981,56 @@
       "draworder": "topdown",
       "objects": [
         {
-          "id": 271,
+          "id": 244,
           "name": "loft-team-1-desk",
           "type": "workplace",
           "x": 120,
-          "y": 192,
+          "y": 184,
           "width": 0,
           "height": 0
         },
         {
-          "id": 272,
+          "id": 245,
           "name": "loft-team-2-desk",
           "type": "workplace",
           "x": 280,
-          "y": 192,
+          "y": 184,
           "width": 0,
           "height": 0
         },
         {
-          "id": 273,
+          "id": 246,
           "name": "loft-team-3-desk",
           "type": "workplace",
           "x": 120,
-          "y": 320,
+          "y": 312,
           "width": 0,
           "height": 0
         },
         {
-          "id": 274,
+          "id": 247,
           "name": "loft-team-4-desk",
           "type": "workplace",
           "x": 280,
-          "y": 320,
+          "y": 312,
           "width": 0,
           "height": 0
         },
         {
-          "id": 275,
+          "id": 248,
           "name": "loft-focus-1-desk",
           "type": "workplace",
           "x": 632,
-          "y": 192,
+          "y": 184,
           "width": 0,
           "height": 0
         },
         {
-          "id": 276,
+          "id": 249,
           "name": "loft-focus-2-desk",
           "type": "workplace",
           "x": 792,
-          "y": 192,
+          "y": 184,
           "width": 0,
           "height": 0
         }
@@ -22773,7 +21045,7 @@
       "draworder": "topdown",
       "objects": [
         {
-          "id": 277,
+          "id": 250,
           "name": "spawn",
           "type": "spawn",
           "x": 480,

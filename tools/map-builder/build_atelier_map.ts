@@ -259,7 +259,12 @@ function perimeterWalls(office: OfficePreset): ObjectPlacement[] {
   const bottom = (office.bounds.y + office.bounds.h) / TILE;
   const result: ObjectPlacement[] = [];
   const add = (x: number, collisionY: number) =>
-    result.push({ name: `loft-wall-${x}-${collisionY}`, assetId: 'wall', tileX: x, tileY: collisionY - 2 });
+    result.push({
+      name: `loft-boundary-wall-${x}-${collisionY}`,
+      assetId: 'wall',
+      tileX: x,
+      tileY: collisionY - 2,
+    });
   for (let x = left; x <= right; x++) add(x, top - 1);
   for (let y = top; y < bottom; y++) {
     add(left - 1, y);
@@ -270,12 +275,21 @@ function perimeterWalls(office: OfficePreset): ObjectPlacement[] {
 }
 
 function wallPlacements(office: OfficePreset): ObjectPlacement[] {
-  return office.walls.map((wall) => ({
-    name: `loft-wall-${wall.x / TILE}-${wall.y / TILE}`,
-    assetId: 'wall',
-    tileX: wall.x / TILE,
-    tileY: wall.y / TILE - 2,
-  }));
+  const cells = new Set(office.walls.map((wall) => `${wall.x},${wall.y}`));
+  return office.walls
+    .filter((wall) => {
+      const vertical = cells.has(`${wall.x},${wall.y - TILE}`) || cells.has(`${wall.x},${wall.y + TILE}`);
+      const horizontal = cells.has(`${wall.x - TILE},${wall.y}`) || cells.has(`${wall.x + TILE},${wall.y}`);
+      // The regular wall sprite has no horizontal joins. Horizontal-only runs
+      // stay out of the production map until the A28 autotile follow-up.
+      return vertical || !horizontal;
+    })
+    .map((wall) => ({
+      name: `loft-wall-${wall.x / TILE}-${wall.y / TILE}`,
+      assetId: 'wall',
+      tileX: wall.x / TILE,
+      tileY: wall.y / TILE - 2,
+    }));
 }
 
 function studyPlacements(office: OfficePreset): ObjectPlacement[] {
