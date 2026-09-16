@@ -13,6 +13,7 @@
     "test": "vitest run",
     "map:import:v2": "tsx src/scripts/importMapV2.ts",
     "map:atelier:migrate": "tsx src/scripts/migrateAtelierStandardMap.ts",
+    "avatar:rerender": "tsx src/scripts/rerenderCustomAvatars.ts",
     "prisma:generate": "prisma generate --schema=./prisma/schema.prisma",
     "prisma:migrate": "prisma migrate dev --name init --schema=./prisma/schema.prisma",
     "prisma:push": "prisma db push --schema=./prisma/schema.prisma",

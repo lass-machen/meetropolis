@@ -16,8 +16,8 @@ import {
   configHashHex,
   customPreviewUrl,
   customSpriteUrl,
-  deleteCustomAvatarFiles,
   loadSpriteCatalog,
+  readCustomAvatarGeometry,
   writeCustomAvatarFiles,
 } from '../../services/avatarComposer.js';
 
@@ -37,6 +37,8 @@ const ConfigSchema = z
     hair: z.string(),
     hair_color: z.string(),
     outfit: z.string().default('trousers'),
+    face: z.string().default('ruhig'),
+    proportion: z.string().default('kompakt'),
     top: z.string().nullish(),
     pants: z.string().nullish(),
     shoes: z.string().nullish(),
@@ -58,6 +60,11 @@ interface CustomAvatarRow {
   spriteUrl: string;
   previewUrl: string | null;
   configHash: string;
+}
+
+async function manifestForStoredAvatar(packsDir: string, row: CustomAvatarRow) {
+  const geometry = await readCustomAvatarGeometry(packsDir, row.uuid);
+  return buildCustomManifest(row.uuid, row.spriteUrl, row.previewUrl, geometry, CUSTOM_DISPLAY_NAME);
 }
 
 function catalogOrNull(): SpriteCatalog | null {
@@ -188,8 +195,6 @@ async function persistCustomAvatar(
   },
 ) {
   const { userId, tenantId, canonical, configHash, existing } = args;
-  const manifestFor = (row: CustomAvatarRow) =>
-    buildCustomManifest(row.uuid, row.spriteUrl, row.previewUrl, catalog.format, CUSTOM_DISPLAY_NAME);
 
   // Unchanged appearance: keep the existing uuid/files (idempotent, no
   // re-encode). The ATTRIBUTION is still refreshed, because a row written
@@ -201,7 +206,10 @@ async function persistCustomAvatar(
     if (existing.tenantId !== tenantId) {
       await prisma.customAvatar.update({ where: { userId }, data: { tenantId } });
     }
-    return { avatarId: `custom:${existing.uuid}`, manifest: manifestFor(existing) };
+    return {
+      avatarId: `custom:${existing.uuid}`,
+      manifest: await manifestForStoredAvatar(packsDir, existing),
+    };
   }
 
   const uuid = crypto.randomUUID();
@@ -218,9 +226,9 @@ async function persistCustomAvatar(
     update: data,
   });
 
-  // A new uuid means the previous sprite/preview are now orphaned — remove them.
-  if (existing && existing.uuid !== uuid) await deleteCustomAvatarFiles(packsDir, existing.uuid);
-  return { avatarId: `custom:${row.uuid}`, manifest: manifestFor(row) };
+  // Old files intentionally remain immutable and available. The post-deploy
+  // rerender is a data migration, not an asset deletion pass.
+  return { avatarId: `custom:${row.uuid}`, manifest: await manifestForStoredAvatar(packsDir, row) };
 }
 
 /**
@@ -252,6 +260,7 @@ async function persistCustomAvatar(
 async function handleResolve(
   prisma: PrismaClient,
   requireAuth: RequireAuth,
+  packsDir: string,
   req: express.Request,
   res: express.Response,
 ): Promise<void> {
@@ -261,11 +270,6 @@ async function handleResolve(
   }
   if (!requireAuth(req)) {
     res.status(401).json({ error: 'unauthorized' });
-    return;
-  }
-  const catalog = catalogOrNull();
-  if (!catalog) {
-    res.status(503).json({ error: 'catalog unavailable' });
     return;
   }
   const parsed = ResolveSchema.safeParse(req.body);
@@ -283,13 +287,11 @@ async function handleResolve(
   if (scopeWhere !== null && uuids.length > 0) {
     const rows = await prisma.customAvatar.findMany({ where: { uuid: { in: uuids }, ...scopeWhere } });
     for (const row of rows) {
-      manifests[`custom:${row.uuid}`] = buildCustomManifest(
-        row.uuid,
-        row.spriteUrl,
-        row.previewUrl,
-        catalog.format,
-        CUSTOM_DISPLAY_NAME,
-      );
+      try {
+        manifests[`custom:${row.uuid}`] = await manifestForStoredAvatar(packsDir, row);
+      } catch (err) {
+        logger.warn('[meAvatar] stored custom avatar is unreadable', { uuid: row.uuid, error: String(err) });
+      }
     }
   }
   res.json({ manifests });
@@ -298,6 +300,7 @@ async function handleResolve(
 async function handleGetMine(
   prisma: PrismaClient,
   requireAuth: RequireAuth,
+  packsDir: string,
   req: express.Request,
   res: express.Response,
 ): Promise<void> {
@@ -315,10 +318,12 @@ async function handleGetMine(
     res.status(404).json({ error: 'not found' });
     return;
   }
-  const catalog = catalogOrNull();
-  const manifest = catalog
-    ? buildCustomManifest(row.uuid, row.spriteUrl, row.previewUrl, catalog.format, CUSTOM_DISPLAY_NAME)
-    : null;
+  let manifest: ReturnType<typeof buildCustomManifest> | null = null;
+  try {
+    manifest = await manifestForStoredAvatar(packsDir, row);
+  } catch (err) {
+    logger.warn('[meAvatar] stored custom avatar is unreadable', { uuid: row.uuid, error: String(err) });
+  }
   res.json({ avatarId: `custom:${row.uuid}`, config: row.config, manifest });
 }
 
@@ -328,6 +333,8 @@ export function registerMeAvatarRoutes(app: express.Application, prisma: PrismaC
   app.post('/me/avatar/compose', avatarComposeRateLimiter, (req, res) =>
     handleCompose(prisma, requireAuth, packsDir, req, res),
   );
-  app.post('/avatars/resolve', avatarResolveRateLimiter, (req, res) => handleResolve(prisma, requireAuth, req, res));
-  app.get('/me/avatar/custom', (req, res) => handleGetMine(prisma, requireAuth, req, res));
+  app.post('/avatars/resolve', avatarResolveRateLimiter, (req, res) =>
+    handleResolve(prisma, requireAuth, packsDir, req, res),
+  );
+  app.get('/me/avatar/custom', (req, res) => handleGetMine(prisma, requireAuth, packsDir, req, res));
 }
