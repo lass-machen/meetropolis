@@ -8,7 +8,7 @@ import {
   type ProportionId,
 } from '../src/avatar.ts';
 
-const bodies = [undefined, ...Object.keys(proportions)] as (ProportionId | undefined)[];
+const bodies = Object.keys(proportions) as ProportionId[];
 const rgba = (data: Uint8ClampedArray, x: number, y: number) =>
   [...data.slice((y * 128 + x) * 4, (y * 128 + x + 1) * 4)].join(',');
 
@@ -22,10 +22,10 @@ describe('Zubehör folgt der tatsächlich ausgewählten Kopfgeometrie', () => {
         face: 'wach' as const,
       };
       const base = characterSheet(config);
-      const eyes = proportion?.startsWith('kompakt')
+      const eyes = proportion.startsWith('kompakt')
         ? ['53,44,67,255', '255,240,220,255']
         : ['46,34,47,255', '255,255,255,255'];
-      const mouthY = proportion ? proportions[proportion].headY + proportions[proportion].headHeight - 2 : 16;
+      const mouthY = proportions[proportion].headY + proportions[proportion].headHeight - 2;
       for (const hat of Object.keys(extraHatNames)) {
         const sheet = characterSheet({ ...config, hat });
         let checkedEyes = 0;
@@ -65,7 +65,7 @@ describe('Zubehör folgt der tatsächlich ausgewählten Kopfgeometrie', () => {
     for (const proportion of bodies) {
       const config = { ...defaultCharacter, proportion, hair: 'bald' };
       const base = characterSheet(config);
-      const mouthY = proportion ? proportions[proportion].headY + proportions[proportion].headHeight - 2 : 16;
+      const mouthY = proportions[proportion].headY + proportions[proportion].headHeight - 2;
       for (const beard of Object.keys(extraBeardNames)) {
         const sheet = characterSheet({ ...config, beard });
         for (const row of [0, 1, 2]) {
@@ -85,7 +85,7 @@ describe('Zubehör folgt der tatsächlich ausgewählten Kopfgeometrie', () => {
       for (const face of ['ruhig', 'freundlich', 'wach'] as const) {
         const config = { ...defaultCharacter, proportion, face, hair: 'bald' };
         const base = characterSheet(config);
-        const mouthColor = proportion?.startsWith('kompakt') ? '179,109,105,255' : '193,122,94,255';
+        const mouthColor = proportion.startsWith('kompakt') ? '179,109,105,255' : '193,122,94,255';
         for (const beard of Object.keys(extraBeardNames)) {
           const sheet = characterSheet({ ...config, beard });
           let checkedMouth = 0;

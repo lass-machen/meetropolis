@@ -3,7 +3,7 @@
  * Post-build helper: copies the canonical sprite catalog
  * (`packages/shared/sprite/catalog.json`) into `dist/sprite-catalog.json`.
  *
- * Why: the character-editor compositing reads the v5 catalog at runtime. The
+ * Why: the character-editor compositing reads the v6 catalog at runtime. The
  * catalog is a committed data file, NOT TypeScript, so `tsc` never emits it.
  * Placing a copy right next to `dist/index.js` makes the runtime lookup
  * deploy-robust: the server resolves it relative to its own bundle instead of

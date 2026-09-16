@@ -182,9 +182,10 @@ describe('Modulare Figur', () => {
       }
   });
 
-  it('lokale Erweiterungen verändern den gemeinsamen Katalog nicht', () => {
-    expect(catalogData.compose.base_kit.face_front).toBe('bodies.face.front');
-    expect(catalogData.compose.config_fields.beard_color.values).not.toContain('rot');
+  it('bezieht Atelier-Erweiterungen aus dem gemeinsamen v6-Katalog', () => {
+    expect(catalogData.schema).toBe('meetropolis-sprite-catalog/v6');
+    expect(catalogData.compose.base_kit.face_front).toBe('lab_faces.{face}.front');
+    expect(catalogData.compose.config_fields.beard_color.values).toContain('rot');
   });
 });
 

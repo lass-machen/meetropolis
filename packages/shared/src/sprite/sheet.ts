@@ -7,6 +7,48 @@ import { blitGrid, makeFrame, mirrorFrame } from './frame.js';
 import { buildPalette, configValue } from './palette.js';
 import type { AvatarConfig, Grid, LayoutTerm, Rgba, RgbaImage, SpriteCatalog, View } from './types.js';
 
+const resolvedCatalogs = new WeakMap<SpriteCatalog, Map<string, SpriteCatalog>>();
+
+function mergeCatalogValue(base: unknown, overlay: unknown): unknown {
+  if (overlay === undefined) return base;
+  if (
+    typeof base !== 'object' ||
+    base === null ||
+    Array.isArray(base) ||
+    typeof overlay !== 'object' ||
+    overlay === null ||
+    Array.isArray(overlay)
+  ) {
+    return overlay;
+  }
+  const merged: Record<string, unknown> = { ...(base as Record<string, unknown>) };
+  for (const [key, value] of Object.entries(overlay as Record<string, unknown>)) {
+    merged[key] = mergeCatalogValue(merged[key], value);
+  }
+  return merged;
+}
+
+/** Resolve the generated catalog overlay selected by render-relevant fields. */
+export function resolveSpriteCatalog(catalog: SpriteCatalog, config: AvatarConfig): SpriteCatalog {
+  const variant = catalog.variants.proportion;
+  const value = configValue(config, 'proportion') ?? variant.default;
+  const stateValue = variant.state_field ? configValue(config, variant.state_field) : null;
+  const state = (stateValue && variant.state_values?.[stateValue]) ?? variant.default_state ?? 'default';
+  const cacheKey = `${value}/${state}`;
+  let cache = resolvedCatalogs.get(catalog);
+  if (!cache) {
+    cache = new Map();
+    resolvedCatalogs.set(catalog, cache);
+  }
+  const cached = cache.get(cacheKey);
+  if (cached) return cached;
+  const overlay = variant.overlays[value]?.[state];
+  if (!overlay) throw new Error(`unknown sprite catalog variant: ${cacheKey}`);
+  const resolved = mergeCatalogValue(catalog, overlay) as SpriteCatalog;
+  cache.set(cacheKey, resolved);
+  return resolved;
+}
+
 function isGrid(value: unknown): value is Grid {
   return Array.isArray(value) && value.every((row) => typeof row === 'string');
 }
@@ -16,7 +58,7 @@ export function getGrid(catalog: SpriteCatalog, path: string, config: AvatarConf
   const segments = path.split('.').map((seg) => {
     const match = seg.match(/^\{(.+)\}$/);
     if (!match) return seg;
-    const value = configValue(config, match[1]);
+    const value = configValue(config, match[1]) ?? catalog.compose.config_fields[match[1]]?.default ?? null;
     if (value === null) throw new Error(`path ${path} needs config.${match[1]}`);
     return value;
   });
@@ -161,6 +203,7 @@ function placeFrame(
  * engine.compose_sheet and the fixed sheet contract old clients depend on.
  */
 export function composeSheet(catalog: SpriteCatalog, config: AvatarConfig): RgbaImage {
+  catalog = resolveSpriteCatalog(catalog, config);
   const { frame_w: fw, frame_h: fh, sheet_w: sheetW, sheet_h: sheetH } = catalog.format;
   const kit = resolveKit(catalog, config);
   const palette = buildPalette(catalog, config);

@@ -36,9 +36,7 @@ export const comparisonForms: ProportionId[] = ['kompakt', 'rund', 'klassisch'];
 export class AvatarComparison {
   private office!: HTMLCanvasElement;
   private sheets = new Map<ProportionId, HTMLCanvasElement>();
-  private original!: HTMLCanvasElement;
   private views: { id: ProportionId; canvas: HTMLCanvasElement }[];
-  private originalCanvas: HTMLCanvasElement;
 
   constructor(parent: HTMLElement, select: (id: ProportionId, appearance?: Partial<Character>) => void) {
     parent.innerHTML = `<div class="comparison-heading"><div><h2>Neue Richtung: kompakt und mit Kontur</h2><p>Die neue Stilprobe neben zwei bisherigen Entwürfen. Oben vergrößert, unten im selben Büroausschnitt.</p></div><button class="secondary small" id="export-comparison">Vergleich als PNG ↓</button></div>
@@ -54,14 +52,13 @@ export class AvatarComparison {
             `<article><h3>${p.name}</h3><p>${p.detail}</p><canvas width="240" height="304" data-comparison="${id}" aria-label="${p.name}: animierte Figur und Büroausschnitt"></canvas><button class="secondary full" data-proportion="${id}" aria-pressed="false">Im Büro ausprobieren</button></article>`,
         )
         .join('')}</div>
-      <div class="comparison-footer"><p>Haut, Haare und Kleidung gelten für alle drei Formen. Die Pfeile an der Figur zeigen alle vier Blickrichtungen.</p><details><summary>Bisherige Figur zum Vergleich</summary><canvas id="original-comparison" width="128" height="128" aria-label="Bisherige Körperform"></canvas></details></div>`;
+      <div class="comparison-footer"><p>Haut, Haare und Kleidung gelten für alle drei Formen. Die Pfeile an der Figur zeigen alle vier Blickrichtungen.</p></div>`;
     this.views = [...parent.querySelectorAll<HTMLCanvasElement>('[data-comparison]')].map((canvas) => ({
       id: canvas.dataset.comparison as ProportionId,
       canvas,
     }));
     for (const button of parent.querySelectorAll<HTMLButtonElement>('[data-look]'))
       button.onclick = () => select('kompakt', compactLooks[button.dataset.look!].character);
-    this.originalCanvas = parent.querySelector('#original-comparison')!;
     for (const button of parent.querySelectorAll<HTMLButtonElement>('[data-proportion]'))
       button.onclick = () => select(button.dataset.proportion as ProportionId);
   }
@@ -69,9 +66,6 @@ export class AvatarComparison {
   setCharacter(character: Character): void {
     for (const id of Object.keys(proportions) as ProportionId[])
       this.sheets.set(id, toCanvas(characterSheet({ ...character, proportion: id })));
-    const original = { ...character };
-    delete original.proportion;
-    this.original = toCanvas(characterSheet(original));
     for (const button of document.querySelectorAll<HTMLButtonElement>('[data-proportion]')) {
       const active = character.proportion === button.dataset.proportion;
       button.setAttribute('aria-pressed', String(active));
@@ -88,20 +82,6 @@ export class AvatarComparison {
   render(direction: number, frame: number, walking: boolean): void {
     for (const view of this.views)
       drawComparison(view.canvas, this.sheets.get(view.id)!, this.office, direction, frame, walking);
-    const ctx = this.originalCanvas.getContext('2d')!;
-    ctx.clearRect(0, 0, 128, 128);
-    ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(
-      this.original,
-      (walking ? frame : 0) * 32,
-      (direction + (walking ? 4 : 0)) * 32,
-      32,
-      32,
-      0,
-      0,
-      128,
-      128,
-    );
   }
 
   exportImage(direction: number, frame: number, walking: boolean): HTMLCanvasElement {

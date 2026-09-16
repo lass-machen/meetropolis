@@ -111,11 +111,11 @@ test('jede Form lässt sich im Büro verwenden und samt Pixeln im Rezept wiederh
     mimeType: 'application/json',
     buffer: Buffer.from(JSON.stringify(recipe)),
   });
-  await expect(page.locator('[data-slot="proportion"]')).toHaveAttribute('data-value', '');
-  expect(sheets).not.toContain(hash(PNG.sync.read(await download(page, '#export-character')).data));
+  await expect(page.locator('[data-slot="proportion"]')).toHaveAttribute('data-value', 'kompakt');
+  expect(hash(PNG.sync.read(await download(page, '#export-character')).data)).toBe(sheets[0]);
   await page.reload();
   await page.locator('#previous-studies > summary').click();
-  await expect(page.locator('[data-slot="proportion"]')).toHaveAttribute('data-value', '');
+  await expect(page.locator('[data-slot="proportion"]')).toHaveAttribute('data-value', 'kompakt');
 });
 
 test('Tastatur wechselt zwischen allen drei Ansichten', async ({ page }) => {

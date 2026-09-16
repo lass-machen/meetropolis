@@ -29,7 +29,7 @@ export function validateConfig(catalog: SpriteCatalog, config: AvatarConfig): Va
   for (const [field, spec] of Object.entries(compose.config_fields)) {
     const value = configValue(config, field);
     if (value === null) {
-      if (spec.required) errors.push(`missing required field: ${field}`);
+      if (spec.required && spec.default === undefined) errors.push(`missing required field: ${field}`);
       continue;
     }
     if (!spec.values.includes(value)) errors.push(`invalid ${field}: ${value}`);
@@ -69,9 +69,9 @@ function slotsDrivenBy(mapping: Record<string, string>, field: string): string[]
  * hardcoded: a future hair slot the hood does not cover keeps the style
  * significant automatically.
  *
- * `hair_color` is deliberately NOT covered by this: it also feeds the derived
- * brow slot (`palette_compose.base`), which the hood does not replace, so it
- * stays visible — and stays part of the identity — under the hood.
+ * `hair_color` stays part of the identity under the hood. Some proportions use
+ * it for brows or visible side hair; keeping one conservative rule avoids a
+ * geometry-specific identity table in the validator.
  */
 function hoodHidesHairStyle(catalog: SpriteCatalog, config: AvatarConfig): boolean {
   const { hood } = catalog.compose.hard_rules;
@@ -107,6 +107,8 @@ export function canonicalConfig(catalog: SpriteCatalog, config: AvatarConfig): A
     hair,
     hair_color: configValue(config, 'hair_color') ?? '',
     outfit,
+    face: configValue(config, 'face') ?? compose.config_fields.face.default ?? 'ruhig',
+    proportion: configValue(config, 'proportion') ?? compose.config_fields.proportion.default ?? 'kompakt',
   };
 
   for (const field of ['top', 'pants', 'shoes'] as const) {
