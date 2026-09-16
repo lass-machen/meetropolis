@@ -32,11 +32,11 @@ AGPL-3.0-only; its generated output — these six sprites and
 consistent with the `apps/web` and `@meetropolis/shared` packages it ships in.
 The AGPL-3.0 copyleft applies to third parties who run the generator themselves.
 
-### Vorbereitete Atelier-Produktgeneration
+### Prepared atelier product generation
 
-Die noch nicht aktivierte Generation `atelier-v1` wird reproduzierbar aus den
-eigenen Pixelvorlagen des Asset-Ateliers erzeugt. Der mitgelieferte Lizenztext
-gilt auch dann, wenn einzelne PNGs getrennt vom Werkzeug weitergegeben werden.
+The `atelier-v1` generation is not active yet. It is produced reproducibly from
+the asset atelier's own pixel templates. The bundled license text also applies
+when single PNGs are passed on separately from the tool.
 
 | Asset path                                   | Artist    | License | Source                                    |
 | -------------------------------------------- | --------- | ------- | ----------------------------------------- |
