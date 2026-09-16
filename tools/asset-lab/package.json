@@ -14,7 +14,7 @@
     "format:check": "prettier --check ."
   },
   "dependencies": {
-    "jszip": "3.10.1",
+    "jszip": "3.10.2",
     "phaser": "4.2.1"
   },
   "devDependencies": {
