@@ -272,10 +272,16 @@ model Presence {
 // access to the pack; it is the case to remember when a map is copied ACROSS
 // tenant borders.
 //
-// The single deliberate exception is the platform super-admin (owner of the
-// `internal` tenant), which sees and administers every pack — it operates the
-// pack-management tools, so gating it out would make a private pack
-// unmanageable rather than private.
+// `archived` is independent of ownership. It removes a pack from collection
+// endpoints and therefore from every editor palette, including the platform
+// owner's palette. Direct lookups stay available, as do all operational reads
+// used to preserve existing maps. Archiving is reversible and never deletes
+// the pack row, its files or any MapObject.
+//
+// The single ownership exception is the platform super-admin (owner of the
+// `internal` tenant), which can administer every pack. The palette list still
+// excludes archived packs for this caller; direct lookup and the archive write
+// route keep them manageable.
 //
 // `onDelete: Cascade` is deliberate. Prisma's default for an optional relation
 // is SetNull, which would PUBLISH a private pack to the whole platform the
@@ -293,6 +299,7 @@ model AssetPack {
   structures   Json
   objects      Json
   autotiles    Json               @default("[]")
+  archived     Boolean            @default(false)
   tenantId     String?
   tenant       Tenant?            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   createdAt    DateTime           @default(now())

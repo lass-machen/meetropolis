@@ -6,8 +6,10 @@ import fs from 'fs';
 import fsp from 'fs/promises';
 import multer from 'multer';
 import unzipper from 'unzipper';
+import { z } from 'zod';
 import { logger } from '../../logger.js';
 import { resolvePackScope } from '../utils/resolvePackScope.js';
+import { pathParam } from '../utils/requestHelpers.js';
 import { assetPackScopeWhere } from '../../services/packScope.js';
 import type { AssetPackConfig, ZipEntry } from '../../types/assetPack.js';
 import {
@@ -30,6 +32,13 @@ const __dirname = path.dirname(__filename);
 type PrepareUploadResult =
   | { ok: true; cfg: AssetPackConfig; assetEntries: ZipEntry[] }
   | { ok: false; status: number; body: Record<string, unknown> };
+
+const archiveAssetPackSchema = z.object({ archived: z.boolean() });
+
+function assetPackIdentityWhere(identifier: string): { id: number } | { uuid: string } {
+  const id = Number(identifier);
+  return Number.isInteger(id) && id > 0 ? { id } : { uuid: identifier };
+}
 
 async function prepareUploadFromRequest(req: express.Request): Promise<PrepareUploadResult> {
   const zipResult = readUploadedZipBuffer(req);
@@ -136,7 +145,7 @@ async function handleListAssetPacks(prisma: PrismaClient, req: express.Request, 
   try {
     const scope = await resolvePackScope(prisma, req);
     const list = await prisma.assetPack.findMany({
-      where: assetPackScopeWhere(scope),
+      where: { ...assetPackScopeWhere(scope), archived: false },
       orderBy: { createdAt: 'desc' },
     });
     res.json(list);
@@ -148,9 +157,9 @@ async function handleListAssetPacks(prisma: PrismaClient, req: express.Request, 
 
 async function handleGetAssetPack(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
   try {
-    const id = Number(req.params.id);
-    if (!Number.isFinite(id)) {
-      res.status(400).json({ error: 'invalid id' });
+    const identifier = pathParam(req, 'id');
+    if (!identifier) {
+      res.status(400).json({ error: 'invalid identifier' });
       return;
     }
     const scope = await resolvePackScope(prisma, req);
@@ -160,7 +169,9 @@ async function handleGetAssetPack(prisma: PrismaClient, req: express.Request, re
     // otherwise the status code alone would confirm the id, letting a caller
     // enumerate other tenants' packs (same non-enumerable posture as
     // GET /avatar-packs/:id).
-    const pack = await prisma.assetPack.findFirst({ where: { id, ...assetPackScopeWhere(scope) } });
+    const pack = await prisma.assetPack.findFirst({
+      where: { ...assetPackIdentityWhere(identifier), ...assetPackScopeWhere(scope) },
+    });
     if (!pack) {
       res.status(404).json({ error: 'not found' });
       return;
@@ -170,6 +181,38 @@ async function handleGetAssetPack(prisma: PrismaClient, req: express.Request, re
     logger.error('[AssetPacks] get failed', e);
     res.status(500).json({ error: 'internal error' });
   }
+}
+
+async function handleArchiveAssetPack(
+  prisma: PrismaClient,
+  req: express.Request,
+  res: express.Response,
+): Promise<void> {
+  const auth = await authenticateAssetPackAdmin(prisma, req);
+  if (!auth.ok) {
+    res.status(auth.status!).json({ error: auth.error! });
+    return;
+  }
+  const parsed = archiveAssetPackSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'invalid payload', details: parsed.error.issues });
+    return;
+  }
+  const identifier = pathParam(req, 'id');
+  if (!identifier) {
+    res.status(400).json({ error: 'invalid identifier' });
+    return;
+  }
+  const pack = await prisma.assetPack.findFirst({ where: assetPackIdentityWhere(identifier), select: { id: true } });
+  if (!pack) {
+    res.status(404).json({ error: 'not found' });
+    return;
+  }
+  const updated = await prisma.assetPack.update({
+    where: { id: pack.id },
+    data: { archived: parsed.data.archived },
+  });
+  res.json(updated);
 }
 
 async function handleDeleteAssetPack(
@@ -219,5 +262,6 @@ export function registerAssetPackRoutes(app: express.Application, prisma: Prisma
   );
   app.get('/asset-packs', (req, res) => handleListAssetPacks(prisma, req, res));
   app.get('/asset-packs/:id', (req, res) => handleGetAssetPack(prisma, req, res));
+  app.patch('/asset-packs/:id/archive', (req, res) => handleArchiveAssetPack(prisma, req, res));
   app.delete('/asset-packs/:id', (req, res) => handleDeleteAssetPack(prisma, packsDir, FALLBACK_ASSET_URL, req, res));
 }

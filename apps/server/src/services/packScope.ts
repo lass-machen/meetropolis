@@ -19,9 +19,9 @@ import type { Prisma } from '../generated/prisma/index.js';
  *   row, or a JWT-verified `tid` on the world-join path). Catalog packs plus
  *   that tenant's own private packs.
  * - `all`      — platform super-admin (owner of the internal tenant). It
- *   administers every tenant by design and needs the unfiltered inventory to
- *   run the pack-management tools; gating it out would be a false denial, not
- *   added safety.
+ *   administers every tenant by design. Pack-specific collection filters such
+ *   as `AssetPack.archived = false` still compose on top of this ownership
+ *   scope.
  *
  * ONE scope decides listing and usability alike. Splitting them is what made
  * the private-pack invariant a lie once already: the avatar read routes were
