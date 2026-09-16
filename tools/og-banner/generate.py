@@ -115,6 +115,8 @@ def load_images(assets_path: str, generation: str) -> dict[str, str]:
         }
     else:
         avatars, environment = load_atelier_assets(assets, generation)
+        environment["shelf"] = environment["compact_shelf"]
+        environment["planter"] = environment["compact_plant"]
 
     directions = {
         "business_man": "right",
@@ -152,17 +154,17 @@ def scene_html(a: dict[str, str], generation: str) -> str:
     <img class="px" src="{a['business_woman_down']}" style="left:150px; bottom:96px;  height:132px;">"""
 
     return f"""
-    <img class="px" src="{a['shelf']}"      style="left:117px;  bottom:171px; width:120px;">
-    <img class="px" src="{a['whiteboard']}" style="left:950px;  bottom:183px; width:150px;">
-    <img class="px" src="{a['planter']}"    style="left:1065px; bottom:105px; width:105px;">
-    <img class="px" src="{a['plant']}"      style="left:62px;   bottom:113px; width:80px;">
-    <img class="px" src="{a['desk']}"       style="left:225px;  bottom:97px;  width:180px;">
-    <img class="px" src="{a['desk']}"       style="left:805px;  bottom:97px;  width:180px;">
-    <img class="px" src="{a['dev_hoodie_down']}"     style="left:554px; bottom:105px; height:156px;">
-    <img class="px" src="{a['business_man_right']}"  style="left:459px; bottom:91px;  height:150px;">
-    <img class="px" src="{a['business_woman_left']}" style="left:655px; bottom:94px;  height:150px;">
-    <img class="px" src="{a['manager_woman_right']}" style="left:267px; bottom:87px;  height:140px;">
-    <img class="px" src="{a['suit_man_left']}"       style="left:902px; bottom:87px;  height:140px;">"""
+    <img class="px" src="{a['plant']}"      style="left:40px;   bottom:78px; width:65px;">
+    <img class="px" src="{a['shelf']}"      style="left:120px;  bottom:78px; width:90px;">
+    <img class="px" src="{a['planter']}"    style="left:220px;  bottom:78px; width:35px;">
+    <img class="px" src="{a['desk']}"       style="left:375px;  bottom:78px; width:120px;">
+    <img class="px" src="{a['desk']}"       style="left:795px;  bottom:78px; width:130px;">
+    <img class="px" src="{a['whiteboard']}" style="left:1060px; bottom:78px; width:120px;">
+    <img class="px" src="{a['manager_woman_right']}" style="left:270px; bottom:78px; height:130px;">
+    <img class="px" src="{a['business_man_right']}"  style="left:500px; bottom:78px; height:145px;">
+    <img class="px" src="{a['dev_hoodie_down']}"     style="left:585px; bottom:78px; height:150px;">
+    <img class="px" src="{a['business_woman_left']}" style="left:690px; bottom:78px; height:145px;">
+    <img class="px" src="{a['suit_man_left']}"       style="left:940px; bottom:78px; height:130px;">"""
 
 
 def build(assets: str, font_path: str, copy: dict, generation: str) -> str:
