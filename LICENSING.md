@@ -33,11 +33,7 @@ third-party contexts.
 | `apps/loadtest`                               | AGPL-3.0-only | Operational tooling, server-adjacent.                                                                                                                         |
 | `apps/web` (`apps/web/LICENSE`)               | MIT           | Browser client. Runs on end-user machines; we do not want to impose AGPL-like obligations on operators of unrelated web properties that may embed components. |
 | `packages/shared` (`packages/shared/LICENSE`) | MIT           | Types and small utilities consumed by both the AGPL server and the MIT client. Must be permissive to avoid infecting the client.                              |
-
-Das eigenständige Asset-Atelier unter `tools/asset-lab/` einschließlich seiner eigenen
-Pixelvorlagen und daraus exportierten Assets steht ebenfalls unter **MIT**; siehe
-[`tools/asset-lab/LICENSE`](tools/asset-lab/LICENSE). Die bestehenden Lizenzen der
-Anwendung und des gemeinsamen Charakterkatalogs bleiben erhalten.
+| `tools/asset-lab` (`tools/asset-lab/LICENSE`) | MIT           | Standalone local authoring tool whose original pixel templates and exported assets are permissively licensed for reuse.                                       |
 
 The optional private submodules under `packages/brand`, `packages/desktop`,
 and `packages/tenancy-enterprise` are not part of this OSS distribution and
