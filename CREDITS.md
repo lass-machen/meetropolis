@@ -32,6 +32,17 @@ AGPL-3.0-only; its generated output — these six sprites and
 consistent with the `apps/web` and `@meetropolis/shared` packages it ships in.
 The AGPL-3.0 copyleft applies to third parties who run the generator themselves.
 
+### Vorbereitete Atelier-Produktgeneration
+
+Die noch nicht aktivierte Generation `atelier-v1` wird reproduzierbar aus den
+eigenen Pixelvorlagen des Asset-Ateliers erzeugt. Der mitgelieferte Lizenztext
+gilt auch dann, wenn einzelne PNGs getrennt vom Werkzeug weitergegeben werden.
+
+| Asset path                                   | Artist    | License | Source                                    |
+| -------------------------------------------- | --------- | ------- | ----------------------------------------- |
+| `apps/web/public/assets/atelier/v1/`         | Tiamat UG | MIT     | `tools/asset-lab/product/atelier-v1.json` |
+| `apps/web/public/assets/sprites/atelier-v1/` | Tiamat UG | MIT     | `tools/asset-lab/product/atelier-v1.json` |
+
 ### Furniture, floors, walls
 
 | Asset path                          | Source project                                                            | License | Snapshot commit                                                                                           |

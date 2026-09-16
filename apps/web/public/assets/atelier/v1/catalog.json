@@ -1,0 +1,684 @@
+{
+  "schema": "meetropolis-product-asset-catalog/v1",
+  "generation": "atelier-v1",
+  "active": false,
+  "palette": {
+    "theme": "holz",
+    "slug": "holz",
+    "name": "Licht und Holz",
+    "packUuid": "4664b745-6bad-4d86-ae8f-591c57567692",
+    "packVersion": "1.0.0"
+  },
+  "atelierOnlyThemes": ["garten", "abend"],
+  "worldGrid": { "tileWidth": 16, "tileHeight": 16 },
+  "manifest": "apps/server/prisma/seed-data/asset-packs/atelier-v1/holz.json",
+  "environmentAssets": [
+    {
+      "id": "armchair",
+      "url": "/assets/atelier/v1/holz/armchair.a0b4416e7ed1.png",
+      "sha256": "a0b4416e7ed109a4cfcaed9366ddb98080bd63cc61703c4f5faf8b8ebbca8633",
+      "width": 32,
+      "height": 32
+    },
+    {
+      "id": "bench",
+      "url": "/assets/atelier/v1/holz/bench.ed6667cc2cd5.png",
+      "sha256": "ed6667cc2cd5116e9ff2f8bd45333c4dba11cf7386bf94433591f4bb05034989",
+      "width": 64,
+      "height": 32
+    },
+    {
+      "id": "cabinet",
+      "url": "/assets/atelier/v1/holz/cabinet.fde503e0ca71.png",
+      "sha256": "fde503e0ca7177cc5c13dc32f21d889d21586006585d13adb89e94952ad8f2e4",
+      "width": 32,
+      "height": 48
+    },
+    {
+      "id": "carpet",
+      "url": "/assets/atelier/v1/holz/carpet.40eccd10b959.png",
+      "sha256": "40eccd10b959b59fee4b08319bb896c49c6a7c445ba32541d39404b45b45ebb6",
+      "width": 16,
+      "height": 16
+    },
+    {
+      "id": "chair",
+      "url": "/assets/atelier/v1/holz/chair.e07d2efa2205.png",
+      "sha256": "e07d2efa2205daf2374361501591d3fcf2740373692beee3859cdfe8aff96b1c",
+      "width": 24,
+      "height": 32
+    },
+    {
+      "id": "chair_east",
+      "url": "/assets/atelier/v1/holz/chair_east.a36cbb847ad1.png",
+      "sha256": "a36cbb847ad16f5eb33f0d2d24bf93a250c39ee24aeff941fe794d760b459fcf",
+      "width": 32,
+      "height": 40
+    },
+    {
+      "id": "chair_north",
+      "url": "/assets/atelier/v1/holz/chair_north.a0edfa404d8d.png",
+      "sha256": "a0edfa404d8dff1673e0f1ef0c188d7d1d363917b047deed376bbb59bcb3755e",
+      "width": 24,
+      "height": 32
+    },
+    {
+      "id": "chair_west",
+      "url": "/assets/atelier/v1/holz/chair_west.4ca2096cc1e0.png",
+      "sha256": "4ca2096cc1e00a6034e96ebf93d49133c3278f410d1419d0840bd5a4601d4315",
+      "width": 32,
+      "height": 40
+    },
+    {
+      "id": "coat_stand",
+      "url": "/assets/atelier/v1/holz/coat_stand.495d2965416b.png",
+      "sha256": "495d2965416b7f4d1e424ab173a792a0ad0b8c99d2a4b9dab5e844b28e4a44e3",
+      "width": 16,
+      "height": 48
+    },
+    {
+      "id": "compact_bench",
+      "url": "/assets/atelier/v1/holz/compact_bench.4e84424a1c61.png",
+      "sha256": "4e84424a1c6182ac42cce80e4e8ab9cc330242f66d66bf9babee87d37652d98f",
+      "width": 48,
+      "height": 32
+    },
+    {
+      "id": "compact_chair",
+      "url": "/assets/atelier/v1/holz/compact_chair.f8ede554c2ad.png",
+      "sha256": "f8ede554c2adbe9720caf164dd1f71ec58cdb68db545c40e9b299599f1a74687",
+      "width": 16,
+      "height": 32
+    },
+    {
+      "id": "compact_chair_east",
+      "url": "/assets/atelier/v1/holz/compact_chair_east.793491a6d249.png",
+      "sha256": "793491a6d249bbd88a42edc0593dd928f793c0bf0d888eeda00988f415852d5a",
+      "width": 16,
+      "height": 32
+    },
+    {
+      "id": "compact_chair_north",
+      "url": "/assets/atelier/v1/holz/compact_chair_north.d95d06d73833.png",
+      "sha256": "d95d06d738337ecb1e8fb459096bf02c13b182d2779f7efe68ec17934deb4cb5",
+      "width": 16,
+      "height": 32
+    },
+    {
+      "id": "compact_chair_west",
+      "url": "/assets/atelier/v1/holz/compact_chair_west.ca58867ac9fb.png",
+      "sha256": "ca58867ac9fb045b72991ce1109bbb8009db0a98573950bf688988f99627c7c7",
+      "width": 16,
+      "height": 32
+    },
+    {
+      "id": "compact_counter",
+      "url": "/assets/atelier/v1/holz/compact_counter.ce469bf1c3c3.png",
+      "sha256": "ce469bf1c3c32cbddcc9d6375915e8dd58aaf3eb279aece8ef783a5d187ba06e",
+      "width": 48,
+      "height": 32
+    },
+    {
+      "id": "compact_desk",
+      "url": "/assets/atelier/v1/holz/compact_desk.32b22f759ce6.png",
+      "sha256": "32b22f759ce684bb3f18dd1e14e5151c9c7fd7b8a0f6005e1398eb9dac26e722",
+      "width": 48,
+      "height": 32
+    },
+    {
+      "id": "compact_desk_east",
+      "url": "/assets/atelier/v1/holz/compact_desk_east.aa3be5737366.png",
+      "sha256": "aa3be5737366c9be5d93d583dc15fde5c73160d68693c749749afe20fb06e21f",
+      "width": 32,
+      "height": 48
+    },
+    {
+      "id": "compact_desk_north",
+      "url": "/assets/atelier/v1/holz/compact_desk_north.5371dc26e679.png",
+      "sha256": "5371dc26e6796f78885fdeaae2820f08c6444e47d76a07db4aceb4908340c00e",
+      "width": 48,
+      "height": 32
+    },
+    {
+      "id": "compact_desk_west",
+      "url": "/assets/atelier/v1/holz/compact_desk_west.c376fda4c134.png",
+      "sha256": "c376fda4c1349e981f1fef22c5bf27a0b334218a38b3c1b7fa43768987c75505",
+      "width": 32,
+      "height": 48
+    },
+    {
+      "id": "compact_divider",
+      "url": "/assets/atelier/v1/holz/compact_divider.d873c5d27039.png",
+      "sha256": "d873c5d270396b0c797fcf23b05c4e5d46f8254e5fabb3791b72f144f46edad5",
+      "width": 32,
+      "height": 32
+    },
+    {
+      "id": "compact_floor_lamp",
+      "url": "/assets/atelier/v1/holz/compact_floor_lamp.b1d55d504d6b.png",
+      "sha256": "b1d55d504d6b32ae3715250177e8c8a4ab22cfada51bb54a49c9972bd3132e1c",
+      "width": 16,
+      "height": 32
+    },
+    {
+      "id": "compact_meeting_table",
+      "url": "/assets/atelier/v1/holz/compact_meeting_table.1dff3c30152a.png",
+      "sha256": "1dff3c30152a41b6aa15262302f31f9493a152620b27bd488d1760f45c227921",
+      "width": 64,
+      "height": 32
+    },
+    {
+      "id": "compact_plant",
+      "url": "/assets/atelier/v1/holz/compact_plant.d49c047a4e1b.png",
+      "sha256": "d49c047a4e1b24f4b481c2bd9c974a8ecde40788c6bb869a604cf00ad04be714",
+      "width": 16,
+      "height": 32
+    },
+    {
+      "id": "compact_shelf",
+      "url": "/assets/atelier/v1/holz/compact_shelf.39dfaeca49b4.png",
+      "sha256": "39dfaeca49b4da42ed2caa48a60d7af8b1989fdc15e8dfc03d0a7e384d90625a",
+      "width": 32,
+      "height": 48
+    },
+    {
+      "id": "compact_sofa",
+      "url": "/assets/atelier/v1/holz/compact_sofa.8b2f5b095297.png",
+      "sha256": "8b2f5b0952973fca3002fecce1b27d8bb4fcc18ae50ea61ef8d4010cd688e0d0",
+      "width": 48,
+      "height": 32
+    },
+    {
+      "id": "compact_sofa_east",
+      "url": "/assets/atelier/v1/holz/compact_sofa_east.865f263040c1.png",
+      "sha256": "865f263040c18d475d464d19f3272bb2911a00627a276a3f2af19fef8629758a",
+      "width": 32,
+      "height": 32
+    },
+    {
+      "id": "compact_sofa_north",
+      "url": "/assets/atelier/v1/holz/compact_sofa_north.8002418f41c9.png",
+      "sha256": "8002418f41c9e305c8b91e0081d918c73b05cafe645b39e064bcf3ecb8d2aece",
+      "width": 48,
+      "height": 32
+    },
+    {
+      "id": "compact_sofa_west",
+      "url": "/assets/atelier/v1/holz/compact_sofa_west.48e40f5ad74f.png",
+      "sha256": "48e40f5ad74fe8606e91c578048e4ea8aafb0ee5e12977360f7eacd2c2d262f0",
+      "width": 32,
+      "height": 32
+    },
+    {
+      "id": "compact_table",
+      "url": "/assets/atelier/v1/holz/compact_table.b4f082d43509.png",
+      "sha256": "b4f082d43509bd136911fa0359086e356cc8984a409477692483b665586a2ae4",
+      "width": 32,
+      "height": 32
+    },
+    {
+      "id": "compact_whiteboard",
+      "url": "/assets/atelier/v1/holz/compact_whiteboard.b867a387de22.png",
+      "sha256": "b867a387de22f9548ec90ff1b2c6944bd8b1bd7b6e48fcd85268cc79fcb757b3",
+      "width": 48,
+      "height": 48
+    },
+    {
+      "id": "counter",
+      "url": "/assets/atelier/v1/holz/counter.2c7c7e409c79.png",
+      "sha256": "2c7c7e409c79881c8c63a57c7a06e5ff937f5416b2d0225fca30ca97ebb87cdb",
+      "width": 64,
+      "height": 48
+    },
+    {
+      "id": "desk",
+      "url": "/assets/atelier/v1/holz/desk.405fa7401cfd.png",
+      "sha256": "405fa7401cfd1aa88617ccd3acf24772f821b79711e8e0406ac8c91b5caff71e",
+      "width": 64,
+      "height": 48
+    },
+    {
+      "id": "desk_east",
+      "url": "/assets/atelier/v1/holz/desk_east.ba57075bf48a.png",
+      "sha256": "ba57075bf48ac55f63907f8ff16ccb70ca14fd1a6ceabe08968da3afba336a4a",
+      "width": 48,
+      "height": 64
+    },
+    {
+      "id": "desk_north",
+      "url": "/assets/atelier/v1/holz/desk_north.6cd0663d5499.png",
+      "sha256": "6cd0663d54998ffeb5112c2cbcd379c646f587ef3703efffb726388a76f10944",
+      "width": 64,
+      "height": 48
+    },
+    {
+      "id": "desk_west",
+      "url": "/assets/atelier/v1/holz/desk_west.b4cf023a9713.png",
+      "sha256": "b4cf023a97130b7f1fad0e6f7df804270bb7ee003b38568ca170127a427a70ea",
+      "width": 48,
+      "height": 64
+    },
+    {
+      "id": "divider",
+      "url": "/assets/atelier/v1/holz/divider.ab2394fbb3e9.png",
+      "sha256": "ab2394fbb3e9dabd78c3976cdaaa6e0d8ad9285e584c4b69524ceecdee25aed5",
+      "width": 48,
+      "height": 40
+    },
+    {
+      "id": "door",
+      "url": "/assets/atelier/v1/holz/door.d567e4b8a8e1.png",
+      "sha256": "d567e4b8a8e1cada4be6fc6176463fb39231ba4a1e1ebc769fd2d7172071a7b2",
+      "width": 32,
+      "height": 48
+    },
+    {
+      "id": "door_open",
+      "url": "/assets/atelier/v1/holz/door_open.7259d1d0c0e5.png",
+      "sha256": "7259d1d0c0e5fc0d2c6706d537fc1d397a421e9738c8d2fa176af16da421d8c3",
+      "width": 32,
+      "height": 48
+    },
+    {
+      "id": "drawer",
+      "url": "/assets/atelier/v1/holz/drawer.7526cf457f40.png",
+      "sha256": "7526cf457f407d77e23437567bfa7acd5867d726fe86e174b3baee79cad78c00",
+      "width": 16,
+      "height": 32
+    },
+    {
+      "id": "floor",
+      "url": "/assets/atelier/v1/holz/floor.d852d719b15f.png",
+      "sha256": "d852d719b15fd5c4acfbabdb66cb7b283653ede82cf7c9a65f48735d861b2892",
+      "width": 32,
+      "height": 32
+    },
+    {
+      "id": "floor_lamp",
+      "url": "/assets/atelier/v1/holz/floor_lamp.eea220e75896.png",
+      "sha256": "eea220e75896875e3f832e01f1ccfe4fdc6c0fdb84cdc7cbbbabf8d550feb4ec",
+      "width": 24,
+      "height": 64
+    },
+    {
+      "id": "meeting_table",
+      "url": "/assets/atelier/v1/holz/meeting_table.3996459c714a.png",
+      "sha256": "3996459c714a015c8d9f4e711e8b5544b70dd8d3c2ae95c09fda6b3407e4e6cd",
+      "width": 80,
+      "height": 48
+    },
+    {
+      "id": "pinboard",
+      "url": "/assets/atelier/v1/holz/pinboard.77527915aee4.png",
+      "sha256": "77527915aee4939253af71d5951724c33b34209d1f55a75b01a954d71591c5a6",
+      "width": 48,
+      "height": 48
+    },
+    {
+      "id": "plant",
+      "url": "/assets/atelier/v1/holz/plant.1a0a2ef0fa61.png",
+      "sha256": "1a0a2ef0fa6104509db38b217d63d35e6a7f1472aaea67ab6b631ae0614af9d7",
+      "width": 32,
+      "height": 48
+    },
+    {
+      "id": "plant_small",
+      "url": "/assets/atelier/v1/holz/plant_small.17206f19a33f.png",
+      "sha256": "17206f19a33f3f6f438263433c7da7d9d086d024a92251b7f2077e52cae8a52b",
+      "width": 16,
+      "height": 32
+    },
+    {
+      "id": "planter",
+      "url": "/assets/atelier/v1/holz/planter.c385f28d7bdc.png",
+      "sha256": "c385f28d7bdc5c654efadaca5e48ae57605d645b9908c05eac5c510bd1be16cb",
+      "width": 48,
+      "height": 48
+    },
+    {
+      "id": "printer",
+      "url": "/assets/atelier/v1/holz/printer.f2963f852942.png",
+      "sha256": "f2963f852942a0be7a651b9588835584ab3431fb0581c6bf30f9175f481fe04c",
+      "width": 16,
+      "height": 32
+    },
+    {
+      "id": "round_table",
+      "url": "/assets/atelier/v1/holz/round_table.df7d65e73510.png",
+      "sha256": "df7d65e73510cf260f9faf44ec30582f814b0b8337e12120e50bcb29df900d84",
+      "width": 32,
+      "height": 32
+    },
+    {
+      "id": "shelf",
+      "url": "/assets/atelier/v1/holz/shelf.5877a0eaa4bc.png",
+      "sha256": "5877a0eaa4bc14b7ff13b1592a2fcfeb725830174aebdc739665fd9375813f7f",
+      "width": 40,
+      "height": 64
+    },
+    {
+      "id": "sofa",
+      "url": "/assets/atelier/v1/holz/sofa.96ba5ca02ef5.png",
+      "sha256": "96ba5ca02ef58dff42501481bc93c6ca92bd0abdb2d431b5c4b1155856c4e3ff",
+      "width": 64,
+      "height": 40
+    },
+    {
+      "id": "sofa_east",
+      "url": "/assets/atelier/v1/holz/sofa_east.c47c65c8f2ef.png",
+      "sha256": "c47c65c8f2ef5674c4ed9535cb1b4c4cb1058a0f05ae3329cfb85c0cd2934327",
+      "width": 48,
+      "height": 48
+    },
+    {
+      "id": "sofa_north",
+      "url": "/assets/atelier/v1/holz/sofa_north.7e5b705a821e.png",
+      "sha256": "7e5b705a821e5ce950596bcbcfdc96c3b8ee6d019bf5f1052dc626791e3caaed",
+      "width": 64,
+      "height": 40
+    },
+    {
+      "id": "sofa_west",
+      "url": "/assets/atelier/v1/holz/sofa_west.06b1c6c5bc18.png",
+      "sha256": "06b1c6c5bc18222c31f06e4199dc5b7075e33f946512eb2c0bd01624df510634",
+      "width": 48,
+      "height": 48
+    },
+    {
+      "id": "table",
+      "url": "/assets/atelier/v1/holz/table.cfff66e7d45a.png",
+      "sha256": "cfff66e7d45a917478e84cd1e14647372de898a1736a864c39456faad93e43bc",
+      "width": 48,
+      "height": 32
+    },
+    {
+      "id": "wall",
+      "url": "/assets/atelier/v1/holz/wall.e1b52a6a81df.png",
+      "sha256": "e1b52a6a81dfacfc26fa6fcb77a3dea226f0c936f7ffe4334e232b7d72ab936b",
+      "width": 16,
+      "height": 48
+    },
+    {
+      "id": "wall_set",
+      "url": "/assets/atelier/v1/holz/wall_set.5be5bde2dc68.png",
+      "sha256": "5be5bde2dc68ca95c0a86608d2d1b6b0b43bffe3c5c138b8dfef3e444813b141",
+      "width": 64,
+      "height": 192
+    },
+    {
+      "id": "water_cooler",
+      "url": "/assets/atelier/v1/holz/water_cooler.032097fa5170.png",
+      "sha256": "032097fa5170a7ae2e4b4cd195db2cf2105f7e426e1e58541177d9bce5682638",
+      "width": 16,
+      "height": 32
+    },
+    {
+      "id": "whiteboard",
+      "url": "/assets/atelier/v1/holz/whiteboard.85ad9bf2215b.png",
+      "sha256": "85ad9bf2215b530f535f4555ba5161f16a41528f7c16ffdb08712258c0ba2891",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "id": "window",
+      "url": "/assets/atelier/v1/holz/window.2c54953c4ce8.png",
+      "sha256": "2c54953c4ce8f14f92b69bf899ab0ac5ad725d654b4ac12ab9040e6f79aaad69",
+      "width": 64,
+      "height": 40
+    }
+  ],
+  "floorAtlas": {
+    "assetId": "floor",
+    "tileWidth": 16,
+    "tileHeight": 16,
+    "columns": 2,
+    "rows": 2,
+    "sourceWidth": 32,
+    "sourceHeight": 32
+  },
+  "directionalFamilies": [
+    {
+      "family": "compact_desk",
+      "strategy": "separate-items",
+      "variants": [
+        {
+          "rotation": 0,
+          "itemId": "atelier_v1_holz_compact_desk",
+          "width": 48,
+          "height": 32
+        },
+        {
+          "rotation": 90,
+          "itemId": "atelier_v1_holz_compact_desk_east",
+          "width": 32,
+          "height": 48
+        },
+        {
+          "rotation": 180,
+          "itemId": "atelier_v1_holz_compact_desk_north",
+          "width": 48,
+          "height": 32
+        },
+        {
+          "rotation": 270,
+          "itemId": "atelier_v1_holz_compact_desk_west",
+          "width": 32,
+          "height": 48
+        }
+      ]
+    },
+    {
+      "family": "compact_chair",
+      "strategy": "separate-items",
+      "variants": [
+        {
+          "rotation": 0,
+          "itemId": "atelier_v1_holz_compact_chair",
+          "width": 16,
+          "height": 32
+        },
+        {
+          "rotation": 90,
+          "itemId": "atelier_v1_holz_compact_chair_east",
+          "width": 16,
+          "height": 32
+        },
+        {
+          "rotation": 180,
+          "itemId": "atelier_v1_holz_compact_chair_north",
+          "width": 16,
+          "height": 32
+        },
+        {
+          "rotation": 270,
+          "itemId": "atelier_v1_holz_compact_chair_west",
+          "width": 16,
+          "height": 32
+        }
+      ]
+    },
+    {
+      "family": "compact_sofa",
+      "strategy": "separate-items",
+      "variants": [
+        {
+          "rotation": 0,
+          "itemId": "atelier_v1_holz_compact_sofa",
+          "width": 48,
+          "height": 32
+        },
+        {
+          "rotation": 90,
+          "itemId": "atelier_v1_holz_compact_sofa_east",
+          "width": 32,
+          "height": 32
+        },
+        {
+          "rotation": 180,
+          "itemId": "atelier_v1_holz_compact_sofa_north",
+          "width": 48,
+          "height": 32
+        },
+        {
+          "rotation": 270,
+          "itemId": "atelier_v1_holz_compact_sofa_west",
+          "width": 32,
+          "height": 32
+        }
+      ]
+    },
+    {
+      "family": "desk",
+      "strategy": "separate-items",
+      "variants": [
+        {
+          "rotation": 0,
+          "itemId": "atelier_v1_holz_desk",
+          "width": 64,
+          "height": 48
+        },
+        {
+          "rotation": 90,
+          "itemId": "atelier_v1_holz_desk_east",
+          "width": 48,
+          "height": 64
+        },
+        {
+          "rotation": 180,
+          "itemId": "atelier_v1_holz_desk_north",
+          "width": 64,
+          "height": 48
+        },
+        {
+          "rotation": 270,
+          "itemId": "atelier_v1_holz_desk_west",
+          "width": 48,
+          "height": 64
+        }
+      ]
+    },
+    {
+      "family": "chair",
+      "strategy": "separate-items",
+      "variants": [
+        {
+          "rotation": 0,
+          "itemId": "atelier_v1_holz_chair",
+          "width": 24,
+          "height": 32
+        },
+        {
+          "rotation": 90,
+          "itemId": "atelier_v1_holz_chair_east",
+          "width": 32,
+          "height": 40
+        },
+        {
+          "rotation": 180,
+          "itemId": "atelier_v1_holz_chair_north",
+          "width": 24,
+          "height": 32
+        },
+        {
+          "rotation": 270,
+          "itemId": "atelier_v1_holz_chair_west",
+          "width": 32,
+          "height": 40
+        }
+      ]
+    },
+    {
+      "family": "sofa",
+      "strategy": "separate-items",
+      "variants": [
+        {
+          "rotation": 0,
+          "itemId": "atelier_v1_holz_sofa",
+          "width": 64,
+          "height": 40
+        },
+        {
+          "rotation": 90,
+          "itemId": "atelier_v1_holz_sofa_east",
+          "width": 48,
+          "height": 48
+        },
+        {
+          "rotation": 180,
+          "itemId": "atelier_v1_holz_sofa_north",
+          "width": 64,
+          "height": 40
+        },
+        {
+          "rotation": 270,
+          "itemId": "atelier_v1_holz_sofa_west",
+          "width": 48,
+          "height": 48
+        }
+      ]
+    }
+  ],
+  "wallPlacement": {
+    "assetIds": ["wall", "door", "door_open"],
+    "gridHeight": 3,
+    "anchor": { "x": 0, "y": 32 },
+    "offset": { "x": 0, "y": -32 },
+    "coordinateSpace": "source-pixels"
+  },
+  "withheldAutotile": {
+    "assetId": "wall_set",
+    "active": false,
+    "blockedBy": "A28",
+    "tileWidth": 16,
+    "tileHeight": 48,
+    "gridHeight": 3,
+    "url": "/assets/atelier/v1/holz/wall_set.5be5bde2dc68.png",
+    "anchor": { "x": 0, "y": 32 },
+    "offset": { "x": 0, "y": -32 }
+  },
+  "avatarManifest": "apps/server/prisma/seed-data/default-avatars/atelier-v1.json",
+  "avatars": [
+    {
+      "key": "business_man",
+      "displayName": "Business Man",
+      "look": "business",
+      "url": "/assets/sprites/atelier-v1/business_man.ce44bce4c558.png",
+      "sha256": "ce44bce4c5582aa3ac4ea0b2cc820f7a645a55eab4154cd882041d06a3904462"
+    },
+    {
+      "key": "business_woman",
+      "displayName": "Business Woman",
+      "look": "atelier",
+      "url": "/assets/sprites/atelier-v1/business_woman.f01546e80735.png",
+      "sha256": "f01546e80735e2cfd1996e59dc21bc866373ab3221078e392c6f62054a0b2013"
+    },
+    {
+      "key": "casual_woman",
+      "displayName": "Casual Woman",
+      "look": "copper",
+      "url": "/assets/sprites/atelier-v1/casual_woman.da6bc1426c30.png",
+      "sha256": "da6bc1426c301b89a80143bb7a0bfd21f57b6c8dfdf5d54342fddcdadf2b5d72"
+    },
+    {
+      "key": "dev_hoodie",
+      "displayName": "Developer",
+      "look": "weekend",
+      "url": "/assets/sprites/atelier-v1/dev_hoodie.3f6d689b3610.png",
+      "sha256": "3f6d689b36105a231c0246ec39ecff1b3b215efbd71d66d4c21acfe622081f3e"
+    },
+    {
+      "key": "manager_woman",
+      "displayName": "Manager",
+      "look": "studio",
+      "url": "/assets/sprites/atelier-v1/manager_woman.0c1b5c205010.png",
+      "sha256": "0c1b5c2050106187e24835341fc5759f8cf73c3d61b1ece2bd305e57e8e9cbcb"
+    },
+    {
+      "key": "suit_man",
+      "displayName": "Suit Man",
+      "look": "cap",
+      "url": "/assets/sprites/atelier-v1/suit_man.4dc2fcec15cd.png",
+      "sha256": "4dc2fcec15cd6bdee06b7c8e7708dd93b6c1c00816487360c72e1ce198bbbe8a"
+    }
+  ]
+}

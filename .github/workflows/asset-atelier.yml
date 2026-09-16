@@ -52,6 +52,9 @@ jobs:
             echo 'atelier=true' >> "$GITHUB_OUTPUT"
           elif git -C "$GITHUB_WORKSPACE" diff --quiet "$base" "$head" -- \
             tools/asset-lab \
+            apps/web/public/assets/atelier \
+            apps/web/public/assets/sprites/atelier-v1 \
+            apps/server/prisma/seed-data \
             packages/shared \
             apps/server/src/api/routes/assetPacks.schemas.ts \
             apps/server/src/api/utils/collisionHelpers.ts \
@@ -83,6 +86,8 @@ jobs:
         run: npm run build
       - if: steps.changes.outputs.atelier == 'true'
         run: npm run assets
+      - if: steps.changes.outputs.atelier == 'true'
+        run: npm run assets:check
       - if: steps.changes.outputs.atelier == 'true'
         run: npx playwright install --with-deps chromium
       - if: steps.changes.outputs.atelier == 'true'
