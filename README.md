@@ -80,11 +80,13 @@ npm run dev:server   # apps/server only
 npm run dev:web      # apps/web only
 ```
 
-## Asset-Atelier
+## Asset Atelier
 
-Das [Asset-Atelier](tools/asset-lab/README.md) bietet einen visuellen Avatar-Editor,
-einen Pixeleditor und drei begehbare Bürovorlagen mit vorbereiteten Kollisionen.
-Es läuft lokal ohne Backend; eigene Pixelvorlagen und Assets stehen unter MIT.
+The [Asset Atelier](tools/asset-lab/README.md) provides a visual avatar editor,
+a pixel editor, and three walkable office templates with prepared collisions.
+It runs locally without a backend, and its original pixel templates and assets
+are available under the MIT license. It is a local authoring tool only: it is
+not connected to the production map or avatar APIs and does not import TMJ files.
 
 ```bash
 cd tools/asset-lab
