@@ -1,6 +1,6 @@
 12390199b1796d983e5b6035d49cac597e78d1f9da99f265fed8657ad49dbd9e  apps/server/prisma/seed-data/asset-packs/atelier-v1/holz.json
-2c1e6b092d6f13c9515eb05b2bef41d7103b77bbc692016e0b6ce55fc7038b6e  apps/server/prisma/seed-data/default-avatars/atelier-v1.json
-2132cd5c74d6ac0fd581fe5f7e78ae2219c86dc640af3f125489dd4fbc578d76  apps/web/public/assets/atelier/v1/catalog.json
+b677bed9e6354027fe230c7daa6982e1c74f7e75fb3f309231a00fe0a3c19c30  apps/server/prisma/seed-data/default-avatars/atelier-v1.json
+0de679c764e5b606e6d8cd661bdd897ce3754bed52c7a3de2557e047297c41a0  apps/web/public/assets/atelier/v1/catalog.json
 a0b4416e7ed109a4cfcaed9366ddb98080bd63cc61703c4f5faf8b8ebbca8633  apps/web/public/assets/atelier/v1/holz/armchair.a0b4416e7ed1.png
 ed6667cc2cd5116e9ff2f8bd45333c4dba11cf7386bf94433591f4bb05034989  apps/web/public/assets/atelier/v1/holz/bench.ed6667cc2cd5.png
 fde503e0ca7177cc5c13dc32f21d889d21586006585d13adb89e94952ad8f2e4  apps/web/public/assets/atelier/v1/holz/cabinet.fde503e0ca71.png
@@ -61,9 +61,9 @@ e1b52a6a81dfacfc26fa6fcb77a3dea226f0c936f7ffe4334e232b7d72ab936b  apps/web/publi
 85ad9bf2215b530f535f4555ba5161f16a41528f7c16ffdb08712258c0ba2891  apps/web/public/assets/atelier/v1/holz/whiteboard.85ad9bf2215b.png
 2c54953c4ce8f14f92b69bf899ab0ac5ad725d654b4ac12ab9040e6f79aaad69  apps/web/public/assets/atelier/v1/holz/window.2c54953c4ce8.png
 e226430ff897d3d4d5d0c528af73fe35c4117a7402aea3783b3f9b09e1f689d9  apps/web/public/assets/atelier/v1/LICENSE.txt
-ce44bce4c5582aa3ac4ea0b2cc820f7a645a55eab4154cd882041d06a3904462  apps/web/public/assets/sprites/atelier-v1/business_man.ce44bce4c558.png
+d1d7a78d7e68bd3c34e9cee921a6ba6d1d21ab220572ba30148c3bc6372c8d0b  apps/web/public/assets/sprites/atelier-v1/business_man.d1d7a78d7e68.png
 f01546e80735e2cfd1996e59dc21bc866373ab3221078e392c6f62054a0b2013  apps/web/public/assets/sprites/atelier-v1/business_woman.f01546e80735.png
-da6bc1426c301b89a80143bb7a0bfd21f57b6c8dfdf5d54342fddcdadf2b5d72  apps/web/public/assets/sprites/atelier-v1/casual_woman.da6bc1426c30.png
-3f6d689b36105a231c0246ec39ecff1b3b215efbd71d66d4c21acfe622081f3e  apps/web/public/assets/sprites/atelier-v1/dev_hoodie.3f6d689b3610.png
-0c1b5c2050106187e24835341fc5759f8cf73c3d61b1ece2bd305e57e8e9cbcb  apps/web/public/assets/sprites/atelier-v1/manager_woman.0c1b5c205010.png
+348f4f49cbd02ae4b9671bc3453f83cc9d79aa217d8651624da3068f88951068  apps/web/public/assets/sprites/atelier-v1/casual_woman.348f4f49cbd0.png
+8b424e037c79d1072fd650ce2fec7771068f69dd7ecdbf0668312de16a8b5579  apps/web/public/assets/sprites/atelier-v1/dev_hoodie.8b424e037c79.png
+af80ed75d4abf5fd56a4718f1001dc578a69ca6b9ab8c89caf9d4ea463541aa0  apps/web/public/assets/sprites/atelier-v1/manager_woman.af80ed75d4ab.png
 4dc2fcec15cd6bdee06b7c8e7708dd93b6c1c00816487360c72e1ce198bbbe8a  apps/web/public/assets/sprites/atelier-v1/suit_man.4dc2fcec15cd.png

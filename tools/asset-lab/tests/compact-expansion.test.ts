@@ -16,14 +16,14 @@ import { compactOfficeAssets } from '../src/office-compact.ts';
 import { officeList } from '../src/office-presets.ts';
 import { prepareRoom, flattenRoom, roomImage } from '../src/world.ts';
 
-const bodies = ['kompakt', 'kompakt_weich', 'kompakt_markant', 'kompakt_kraeftig'] as const;
+const bodies = ['kompakt'] as const;
 const hash = (data: Uint8ClampedArray) => createHash('sha256').update(data).digest('hex');
 const pixel = (data: Uint8ClampedArray, x: number, y: number) => [
   ...data.slice((y * 128 + x) * 4, (y * 128 + x + 1) * 4),
 ];
 
 describe('Ausbau des kompakten Baukastens', () => {
-  it('zeigt vier eigenständige Körper auch ohne Haare und Zubehör', () => {
+  it('zeigt den kompakten Körper auch ohne Haare und Zubehör', () => {
     for (const outfit of ['base', 'trousers', 'dress']) {
       const sheets = bodies.map((proportion) =>
         characterSheet({
@@ -36,7 +36,7 @@ describe('Ausbau des kompakten Baukastens', () => {
       );
       for (let row = 0; row < 4; row++) {
         const hashes = sheets.map((sheet) => hash(sheet.data.slice(row * 32 * 128 * 4, (row + 1) * 32 * 128 * 4)));
-        expect(new Set(hashes).size).toBe(4);
+        expect(new Set(hashes).size).toBe(1);
       }
     }
   });

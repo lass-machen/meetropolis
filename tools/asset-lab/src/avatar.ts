@@ -1,8 +1,8 @@
 import { extraHatNames, extraBeardNames } from './avatar-accessories.ts';
 export { extraHatNames, extraBeardNames };
 import catalogData from '../../../packages/shared/sprite/catalog.json' with { type: 'json' };
-import { proportions, type ProportionId } from './avatar-proportions.ts';
 export { proportions, type ProportionId } from './avatar-proportions.ts';
+import type { ProportionId } from './avatar-proportions.ts';
 import {
   assertSpriteCatalog,
   composeSheet,
@@ -49,7 +49,7 @@ export const compactLooks: Record<string, { name: string; character: Partial<Cha
   studio: {
     name: 'Studio · Feminin',
     character: {
-      proportion: 'kompakt_weich',
+      proportion: 'kompakt',
       hair: 'bob',
       hair_color: 'schwarz',
       beard_color: 'schwarz',
@@ -79,7 +79,7 @@ export const compactLooks: Record<string, { name: string; character: Partial<Cha
   business: {
     name: 'Business · Maskulin',
     character: {
-      proportion: 'kompakt_markant',
+      proportion: 'kompakt',
       hair: 'side_part',
       hair_color: 'braun',
       beard_color: 'braun',
@@ -94,7 +94,7 @@ export const compactLooks: Record<string, { name: string; character: Partial<Cha
   weekend: {
     name: 'Freizeit · Maskulin',
     character: {
-      proportion: 'kompakt_kraeftig',
+      proportion: 'kompakt',
       hair: 'messy',
       hair_color: 'blond',
       beard_color: 'blond',
@@ -154,9 +154,8 @@ export function parseCharacter(value: unknown): Character {
   const entries = Object.entries(value);
   if (entries.some(([key, v]) => !fields.includes(key) || (v !== null && typeof v !== 'string')))
     throw new Error('Die Figur enthält unbekannte Felder oder Werte.');
-  const config = { ...defaultCharacter, ...(value as Partial<Character>) };
-  if (typeof config.proportion !== 'string' || !Object.hasOwn(proportions, config.proportion))
-    throw new Error('Unbekannte Körperform im Charakterrezept.');
+  const config: Character = { ...defaultCharacter, ...(value as Partial<Character>) };
+  config.proportion = 'kompakt';
   const result = validateConfig(catalog, config);
   if (!result.ok || !Object.hasOwn(faceNames, config.face))
     throw new Error('Die Figur enthält eine ungültige Kombination.');

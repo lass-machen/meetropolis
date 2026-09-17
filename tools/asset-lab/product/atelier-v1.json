@@ -62,7 +62,7 @@
         "hat": null,
         "misc": null,
         "face": "ruhig",
-        "proportion": "kompakt_markant"
+        "proportion": "kompakt"
       }
     },
     {
@@ -92,14 +92,14 @@
       "look": "copper",
       "recipe": {
         "skin": "medium",
-        "hair": "braids",
-        "hair_color": "rot",
-        "outfit": "dress",
-        "top": "dress_red",
+        "hair": "ponytail",
+        "hair_color": "blond",
+        "outfit": "trousers",
+        "top": "shirt_white",
         "pants": "dark",
         "shoes": "brown",
         "beard": null,
-        "beard_color": "rot",
+        "beard_color": "blond",
         "glasses": null,
         "hat": null,
         "misc": null,
@@ -125,7 +125,7 @@
         "hat": "beanie",
         "misc": null,
         "face": "freundlich",
-        "proportion": "kompakt_kraeftig"
+        "proportion": "kompakt"
       }
     },
     {
@@ -146,7 +146,7 @@
         "hat": null,
         "misc": null,
         "face": "wach",
-        "proportion": "kompakt_weich"
+        "proportion": "kompakt"
       }
     },
     {

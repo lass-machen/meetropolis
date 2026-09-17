@@ -101,6 +101,12 @@ export function canonicalConfig(catalog: SpriteCatalog, config: AvatarConfig): A
   const hair = hoodHidesHairStyle(catalog, config)
     ? (hairField.default ?? hairField.values[0] ?? '')
     : (configValue(config, 'hair') ?? '');
+  const proportionField = compose.config_fields.proportion;
+  const requestedProportion = configValue(config, 'proportion');
+  const proportion =
+    requestedProportion !== null && proportionField.values.includes(requestedProportion)
+      ? requestedProportion
+      : (proportionField.default ?? proportionField.values[0] ?? 'kompakt');
 
   const out: AvatarConfig = {
     skin: configValue(config, 'skin') ?? '',
@@ -108,7 +114,7 @@ export function canonicalConfig(catalog: SpriteCatalog, config: AvatarConfig): A
     hair_color: configValue(config, 'hair_color') ?? '',
     outfit,
     face: configValue(config, 'face') ?? compose.config_fields.face.default ?? 'ruhig',
-    proportion: configValue(config, 'proportion') ?? compose.config_fields.proportion.default ?? 'kompakt',
+    proportion,
   };
 
   for (const field of ['top', 'pants', 'shoes'] as const) {

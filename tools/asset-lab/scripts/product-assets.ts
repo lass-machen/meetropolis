@@ -320,7 +320,7 @@ async function writeFiles(root: string, files: ProductFile[], immutable: boolean
     const destination = resolve(root, file.path);
     if (relative(root, destination).startsWith('..')) throw new Error(`Unsafe product path: ${file.path}`);
     await mkdir(dirname(destination), { recursive: true });
-    if (immutable) {
+    if (immutable && file.path.endsWith('.png')) {
       const existing = await readOptionalFile(destination);
       if (existing && !existing.equals(file.bytes))
         throw new Error(`${file.path} already exists with different bytes; create a new generation.`);
@@ -357,11 +357,20 @@ async function listFiles(root: string): Promise<string[]> {
 
 async function assertNoUnexpectedFiles(files: ProductFile[], roots: string[]): Promise<void> {
   const generatedPaths = new Set(files.map((file) => file.path));
+  const spritePath = /^apps\/web\/public\/assets\/sprites\/atelier-v1\/([a-z_]+)\.[0-9a-f]{12}\.png$/;
+  const generatedSpriteKeys = new Set(
+    files.flatMap((file) => {
+      const match = file.path.match(spritePath);
+      return match ? [match[1]] : [];
+    }),
+  );
   for (const root of roots) {
     for (const existing of await listFiles(resolve(REPOSITORY_ROOT, root))) {
       const path = relative(REPOSITORY_ROOT, existing);
       if (root.endsWith('default-avatars') && path !== 'apps/server/prisma/seed-data/default-avatars/atelier-v1.json')
         continue;
+      const historicalSprite = path.match(spritePath);
+      if (historicalSprite && generatedSpriteKeys.has(historicalSprite[1])) continue;
       if (!generatedPaths.has(path)) throw new Error(`Unexpected checked-in product artifact: ${path}`);
     }
   }

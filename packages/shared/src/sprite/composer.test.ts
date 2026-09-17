@@ -107,6 +107,12 @@ describe('validateConfig', () => {
     expect(canonicalConfig(catalog, base)).toMatchObject({ face: 'ruhig', proportion: 'kompakt' });
     expect(sheetBytes(base)).toEqual(sheetBytes({ ...base, face: 'ruhig', proportion: 'kompakt' }));
   });
+  it('normalizes a legacy body shape to the sole catalog value before validation', () => {
+    const canonical = canonicalConfig(catalog, { ...base, proportion: 'schlank' });
+    expect(canonical.proportion).toBe('kompakt');
+    expect(validateConfig(catalog, canonical)).toEqual({ ok: true, errors: [] });
+    expect(sheetBytes(canonical)).toEqual(sheetBytes({ ...base, proportion: 'kompakt' }));
+  });
   it('accepts a dress config without pants', () => {
     const dress: AvatarConfig = {
       skin: 'light',

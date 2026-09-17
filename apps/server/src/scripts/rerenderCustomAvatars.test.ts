@@ -15,6 +15,7 @@ const legacyConfig = {
   top: 'shirt_white',
   pants: 'dark',
   shoes: 'black',
+  proportion: 'schlank',
 };
 
 function makePrisma() {

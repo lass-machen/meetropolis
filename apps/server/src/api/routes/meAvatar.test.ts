@@ -282,6 +282,17 @@ describe('POST /me/avatar/compose', () => {
     expect(byUser.get('u1')?.config).toMatchObject({ face: 'ruhig', proportion: 'kompakt' });
   });
 
+  it('normalizes a legacy body shape before validation and persistence', async () => {
+    const { prisma, byUser } = makePrisma([{ tenantId: 't1', userId: 'u-legacy-shape', role: 'member' }]);
+    await request(makeApp(prisma))
+      .post('/me/avatar/compose')
+      .set('x-user', 'u-legacy-shape')
+      .set('x-session-tenant', 't1')
+      .send({ ...validConfig, proportion: 'schlank' })
+      .expect(200);
+    expect(byUser.get('u-legacy-shape')?.config).toMatchObject({ proportion: 'kompakt' });
+  });
+
   it('stamps the row with the SESSION tenant, never a client-supplied one', async () => {
     // `tenantId` is what every later scope check compares against, so it must
     // come from the JWT-verified session and not from the X-Tenant header — a

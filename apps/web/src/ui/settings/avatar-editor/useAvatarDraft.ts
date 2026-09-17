@@ -1,5 +1,5 @@
 import React from 'react';
-import type { AvatarConfig, SpriteCatalog } from '@meetropolis/shared';
+import { canonicalConfig, type AvatarConfig, type SpriteCatalog } from '@meetropolis/shared';
 import { getApiBaseFromWindow } from '../../../lib/apiBase';
 import { logger } from '../../../lib/logger';
 import type { AvatarManifest } from '../../../game/avatarRegistry';
@@ -38,7 +38,7 @@ export function useAvatarDraft(catalog: SpriteCatalog | null, onSaved: AvatarSav
     void fetch(`${apiBase}/me/avatar/custom`, { credentials: 'include' })
       .then((res) => (res.ok ? (res.json() as Promise<{ config?: Record<string, string> }>) : null))
       .then((data) => {
-        if (data?.config) setConfig({ ...base, ...data.config });
+        if (data?.config) setConfig(canonicalConfig(catalog, { ...base, ...data.config }));
       })
       .catch(() => {});
   }, [catalog, config, apiBase]);

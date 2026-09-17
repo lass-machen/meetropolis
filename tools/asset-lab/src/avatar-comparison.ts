@@ -31,15 +31,15 @@ export function drawComparison(
   ctx.drawImage(sheet, column * 32, row * 32, 32, 32, 84, 238, 32, 32);
 }
 
-export const comparisonForms: ProportionId[] = ['kompakt', 'rund', 'klassisch'];
+export const comparisonForms: ProportionId[] = ['kompakt'];
 
 export class AvatarComparison {
   private office!: HTMLCanvasElement;
   private sheets = new Map<ProportionId, HTMLCanvasElement>();
   private views: { id: ProportionId; canvas: HTMLCanvasElement }[];
 
-  constructor(parent: HTMLElement, select: (id: ProportionId, appearance?: Partial<Character>) => void) {
-    parent.innerHTML = `<div class="comparison-heading"><div><h2>Neue Richtung: kompakt und mit Kontur</h2><p>Die neue Stilprobe neben zwei bisherigen Entwürfen. Oben vergrößert, unten im selben Büroausschnitt.</p></div><button class="secondary small" id="export-comparison">Vergleich als PNG ↓</button></div>
+  constructor(parent: HTMLElement, select: (appearance: Partial<Character>) => void) {
+    parent.innerHTML = `<div class="comparison-heading"><div><h2>Kompakt und mit Kontur</h2><p>Die feste Körperform vergrößert und im Büroausschnitt.</p></div><button class="secondary small" id="export-comparison">Vorschau als PNG ↓</button></div>
       <div class="comparison-looks" role="group" aria-label="Beispiele der neuen Stilprobe"><span>Neue Figur ausprobieren</span>${Object.entries(
         compactLooks,
       )
@@ -49,28 +49,21 @@ export class AvatarComparison {
         .map((id) => [id, proportions[id]] as const)
         .map(
           ([id, p]) =>
-            `<article><h3>${p.name}</h3><p>${p.detail}</p><canvas width="240" height="304" data-comparison="${id}" aria-label="${p.name}: animierte Figur und Büroausschnitt"></canvas><button class="secondary full" data-proportion="${id}" aria-pressed="false">Im Büro ausprobieren</button></article>`,
+            `<article><h3>${p.name}</h3><p>${p.detail}</p><canvas width="240" height="304" data-comparison="${id}" aria-label="${p.name}: animierte Figur und Büroausschnitt"></canvas></article>`,
         )
         .join('')}</div>
-      <div class="comparison-footer"><p>Haut, Haare und Kleidung gelten für alle drei Formen. Die Pfeile an der Figur zeigen alle vier Blickrichtungen.</p></div>`;
+      <div class="comparison-footer"><p>Haut, Gesicht, Haare und Kleidung bleiben anpassbar. Die Pfeile an der Figur zeigen alle vier Blickrichtungen.</p></div>`;
     this.views = [...parent.querySelectorAll<HTMLCanvasElement>('[data-comparison]')].map((canvas) => ({
       id: canvas.dataset.comparison as ProportionId,
       canvas,
     }));
     for (const button of parent.querySelectorAll<HTMLButtonElement>('[data-look]'))
-      button.onclick = () => select('kompakt', compactLooks[button.dataset.look!].character);
-    for (const button of parent.querySelectorAll<HTMLButtonElement>('[data-proportion]'))
-      button.onclick = () => select(button.dataset.proportion as ProportionId);
+      button.onclick = () => select(compactLooks[button.dataset.look!].character);
   }
 
   setCharacter(character: Character): void {
     for (const id of Object.keys(proportions) as ProportionId[])
       this.sheets.set(id, toCanvas(characterSheet({ ...character, proportion: id })));
-    for (const button of document.querySelectorAll<HTMLButtonElement>('[data-proportion]')) {
-      const active = character.proportion === button.dataset.proportion;
-      button.setAttribute('aria-pressed', String(active));
-      button.textContent = active ? 'Im Büro ausgewählt' : 'Im Büro ausprobieren';
-    }
   }
 
   setRoom(room: Pixels, preset: OfficePreset): void {
