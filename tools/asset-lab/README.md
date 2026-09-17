@@ -68,7 +68,7 @@ npm run assets:check
 | `src/avatar.ts`                    | Bestehender MIT-Composer und Katalog, ergänzt um drei lokale Gesichter und eine rote Bartpalette |
 | `src/avatar-editor.ts`             | Visueller Editor mit echten Teilvorschauen, Farbauswahl und Tastaturbedienung                    |
 | `src/avatar-compact.ts`            | Kompakte Stilprobe mit eigenen Haar-, Kleidungs- und Kapuzenrastern, Konturen und Paletten       |
-| `src/avatar-proportions.ts`        | Pixelraster für Kopf, Körper, Kleidung, Frisuren und Accessoires der kompakten Körperform         |
+| `src/avatar-proportions.ts`        | Pixelraster für Kopf, Körper, Kleidung, Frisuren und Accessoires der kompakten Körperform        |
 | `src/avatar-comparison.ts`         | Kompatibilitätsmodul der früheren Vergleichsansicht, nicht mehr in der Oberfläche eingebunden    |
 | `src/office-compact.ts`            | Kleine Möbelfamilie mit Richtungsansichten und acht zusätzlichen Möbeltypen                      |
 | `src/avatar-accessories.ts`        | Sechs zusätzliche Kopfbedeckungen und vier Bartformen                                            |
