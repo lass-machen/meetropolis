@@ -31,20 +31,19 @@ describe('buildAudioPipeline', () => {
     (wrapTrackWithVoiceIsolation as any).mockImplementation((_t: MediaStreamTrack) => {
       return { processed: {} as any as MediaStreamTrack, stopSource: vi.fn() };
     });
-    // Reset navigator stubs
-    (global as any).navigator = undefined;
+    vi.stubGlobal('navigator', undefined);
   });
 
   it('on Apple with NS support uses native NS path and does not wrap', async () => {
     (wrapTrackWithVoiceIsolation as any).mockResolvedValueOnce({ processed: {}, stopSource: vi.fn() });
 
-    (global as any).navigator = {
+    vi.stubGlobal('navigator', {
       userAgent:
         'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15',
       mediaDevices: {
         getSupportedConstraints: () => ({ noiseSuppression: true }),
       },
-    };
+    });
 
     const settings: any = { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 };
     const track: any = await buildAudioPipeline({ deviceId: 'default', settings });
@@ -58,10 +57,10 @@ describe('buildAudioPipeline', () => {
   it('tries voice isolation first (NS off) and replaces track on success', async () => {
     (wrapTrackWithVoiceIsolation as any).mockResolvedValueOnce({ processed: {}, stopSource: vi.fn() });
 
-    (global as any).navigator = {
+    vi.stubGlobal('navigator', {
       userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome',
       mediaDevices: { getSupportedConstraints: () => ({ noiseSuppression: true }) },
-    };
+    });
     const settings: any = { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 };
     const track: any = await buildAudioPipeline({ deviceId: 'default', settings });
     expect((createLocalAudioTrack as any).mock.calls[0][0]).toMatchObject({
@@ -87,11 +86,11 @@ describe('buildAudioPipeline', () => {
   });
 
   it('does not attach __avStopSource when voice isolation is not used (native NS path)', async () => {
-    (global as any).navigator = {
+    vi.stubGlobal('navigator', {
       userAgent:
         'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15',
       mediaDevices: { getSupportedConstraints: () => ({ noiseSuppression: true }) },
-    };
+    });
     const settings: any = { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 };
     const track: any = await buildAudioPipeline({ deviceId: 'default', settings });
 
