@@ -45,7 +45,13 @@ describe('Produktgeneration atelier-v1', () => {
       'manager_woman',
       'suit_man',
     ]);
-    expect(spec.avatars.every((avatar) => avatar.recipe.face && avatar.recipe.proportion)).toBe(true);
+    expect(spec.avatars.every((avatar) => avatar.recipe.face && avatar.recipe.proportion === 'kompakt')).toBe(true);
+    expect(spec.avatars.find((avatar) => avatar.key === 'casual_woman')?.recipe).toMatchObject({
+      hair: 'ponytail',
+      hair_color: 'blond',
+      outfit: 'trousers',
+      top: 'shirt_white',
+    });
   });
 
   it('normalisiert Raster, Richtungen, Kollision, Ebenen und Wandanker', async () => {
@@ -122,6 +128,16 @@ describe('Produktgeneration atelier-v1', () => {
       const image = PNG.sync.read(file.bytes);
       if (sprites.includes(file)) expect([image.width, image.height]).toEqual([128, 256]);
     }
+    const businessWoman = PNG.sync.read(sprites.find((file) => file.path.includes('/business_woman.'))!.bytes);
+    const casualWoman = PNG.sync.read(sprites.find((file) => file.path.includes('/casual_woman.'))!.bytes);
+    let differingPixels = 0;
+    for (let index = 0; index < businessWoman.width * businessWoman.height; index++) {
+      const offset = index * 4;
+      if (!businessWoman.data.subarray(offset, offset + 4).equals(casualWoman.data.subarray(offset, offset + 4))) {
+        differingPixels++;
+      }
+    }
+    expect(differingPixels).toBeGreaterThan(1_000);
     const avatarManifest = json('/default-avatars/atelier-v1.json');
     expect(avatarManifest.active).toBe(true);
     for (const avatar of avatarManifest.avatars as Array<{ spriteUrl: string; sha256: string }>) {

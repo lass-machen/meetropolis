@@ -6,7 +6,6 @@ import sharedNotice from '../../../packages/shared/sprite/NOTICE?raw';
 import { assetDefinitions, themes, type AssetId, type ThemeId } from './assets.ts';
 import { characterSheet, hairColorsFor } from './avatar.ts';
 import { AvatarEditor } from './avatar-editor.ts';
-import { AvatarComparison } from './avatar-comparison.ts';
 import { paint, png, download, toCanvas } from './canvas.ts';
 import { draftAssets, newDraft, parseDraft, storageKey, type PixelEdits } from './draft.ts';
 import { packZip, officeRecipe } from './pack.ts';
@@ -58,7 +57,7 @@ app.innerHTML = `
               </div>
             </div>
           </div>
-          <div id="characters-panel" role="tabpanel" aria-labelledby="characters-tab" hidden><div id="character-editor"></div><details id="previous-studies"><summary>Frühere Entwürfe vergleichen</summary><div id="character-comparison"></div></details></div>
+          <div id="characters-panel" role="tabpanel" aria-labelledby="characters-tab" hidden><div id="character-editor"></div></div>
         </div>
         <div class="library-heading"><h2>Die Bausteine</h2><span>Asset auswählen und Pixel bearbeiten</span></div>
         <div id="asset-library" class="asset-library" role="group" aria-label="Asset auswählen">${Object.entries(
@@ -126,12 +125,6 @@ const editor = new AvatarEditor(el('#character-editor'), (character) => {
   syncCharacter();
   persist();
 });
-const comparison = new AvatarComparison(el('#character-comparison'), (id, appearance) => {
-  Object.assign(draft.character, appearance, { proportion: id });
-  syncCharacter();
-  persist();
-  if (!appearance) setTab('room');
-});
 let entryStage: 'office' | 'character' | 'room' = 'office';
 const picker = new OfficePicker(el('#office-picker'), officeList, {
   select: selectOffice,
@@ -166,7 +159,6 @@ function refreshRoomContext(): void {
   const render = prepareRoom(draft.theme, assets, office);
   scene.setRoom(office, assets, render);
   const room = flattenRoom(render);
-  comparison.setRoom(room, office);
   editor.setRoom(room, office.spawn, office.name);
   el('#office-name').textContent = office.name;
   el('#office-detail').textContent = office.subtitle;
@@ -211,7 +203,6 @@ function renderLibrary(): void {
 function syncCharacter(): void {
   sheet = toCanvas(characterSheet(draft.character));
   scene.setCharacter(draft.character);
-  comparison.setCharacter(draft.character);
   editor.setCharacter(draft.character);
   for (const button of document.querySelectorAll<HTMLButtonElement>('[data-skin]'))
     button.setAttribute('aria-pressed', String(button.dataset.skin === draft.character.skin));
@@ -315,7 +306,6 @@ function animatePreview(time: number): void {
   context.drawImage(sheet, col * 32, row * 32, 32, 32, 0, 0, 128, 128);
   if (selectedView === 'characters') {
     editor.drawRoom(sheet, row, col);
-    if (el<HTMLDetailsElement>('#previous-studies').open) comparison.render(previewDirection, col, previewWalking);
   }
   requestAnimationFrame(animatePreview);
 }
@@ -492,13 +482,6 @@ el('#export-character').onclick = async () => {
     report(error);
   }
 };
-el('#export-comparison').onclick = () => {
-  const canvas = comparison.exportImage(previewDirection, 0, previewWalking);
-  canvas.toBlob((blob) => {
-    if (blob) download(blob, 'atelier-figurenvergleich.png');
-    else report(new Error('Der Figurenvergleich konnte nicht exportiert werden.'));
-  }, 'image/png');
-};
 el<HTMLButtonElement>('#export-draft').onclick = async () => {
   const button = el<HTMLButtonElement>('#export-draft');
   button.disabled = true;
@@ -521,7 +504,7 @@ el<HTMLButtonElement>('#export-draft').onclick = async () => {
     zip.file('figur-NOTICE.txt', sharedNotice);
     zip.file(
       'LIESMICH.txt',
-      'Meetropolis Asset-Atelier. Eigene Pixelvorlagen und Assets: MIT-Lizenz, siehe LICENSE.txt. Beim Weitergeben einzelner PNGs oder Packs die Lizenzhinweise beilegen.\n\nMöbel, Böden, Wand und Tür: eigene Pixelvorlagen in src/assets.ts, src/office-art.ts und src/office-compact.ts.\nFigur: MIT-Composer und Katalog aus packages/shared/sprite; eigene Körperformen und Zubehör-Pixelraster in src/avatar-proportions.ts, src/avatar-compact.ts und src/avatar-accessories.ts sowie Gesichtsebenen in src/avatar.ts. Die Lizenzhinweise liegen bei.\n\nDas .mepack enthält die Asset-PNGs und config.json im bestehenden Asset-Pack-Format. Ein produktiver Import wurde nicht durchgeführt.\nDas Raumrezept beschreibt die lokale Studie und ist kein fertiger Import für den Map-Editor. Gesprächszonen haben hier keine Audiofunktion.\natelier-rezept.json kann im lokalen Atelier wieder geöffnet werden.\n',
+      'Meetropolis Asset-Atelier. Eigene Pixelvorlagen und Assets: MIT-Lizenz, siehe LICENSE.txt. Beim Weitergeben einzelner PNGs oder Packs die Lizenzhinweise beilegen.\n\nMöbel, Böden, Wand und Tür: eigene Pixelvorlagen in src/assets.ts, src/office-art.ts und src/office-compact.ts.\nFigur: MIT-Composer und Katalog aus packages/shared/sprite; eigene Körperform und Zubehör-Pixelraster in src/avatar-proportions.ts, src/avatar-compact.ts und src/avatar-accessories.ts sowie Gesichtsebenen in src/avatar.ts. Die Lizenzhinweise liegen bei.\n\nDas .mepack enthält die Asset-PNGs und config.json im bestehenden Asset-Pack-Format. Ein produktiver Import wurde nicht durchgeführt.\nDas Raumrezept beschreibt die lokale Studie und ist kein fertiger Import für den Map-Editor. Gesprächszonen haben hier keine Audiofunktion.\natelier-rezept.json kann im lokalen Atelier wieder geöffnet werden.\n',
     );
     zip.file(`atelier-${snapshot.theme}.mepack`, await packZip(snapshot.theme, pixels, (id) => encoded.get(id)!));
     for (const [id, bytes] of encoded) zip.file(`assets/${id}.png`, bytes);

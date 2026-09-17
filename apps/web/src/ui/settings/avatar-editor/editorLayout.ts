@@ -19,7 +19,7 @@ export interface EditorTab {
 }
 
 export const EDITOR_TABS: EditorTab[] = [
-  { key: 'body', label: 'Körper', fields: ['proportion', 'skin', 'face', 'hair', 'hair_color'] },
+  { key: 'body', label: 'Körper', fields: ['skin', 'face', 'hair', 'hair_color'] },
   { key: 'clothing', label: 'Kleidung', fields: ['outfit', 'top', 'pants', 'shoes'] },
   { key: 'extras', label: 'Extras', fields: ['beard', 'beard_color', 'glasses', 'hat', 'misc'] },
 ];

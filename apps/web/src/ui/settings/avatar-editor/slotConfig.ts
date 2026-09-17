@@ -13,7 +13,6 @@ export interface SlotGroup {
 // Display order. Accessory slots (beard/glasses/hat/misc) also offer a "none"
 // choice (see offersNone); labels live in the shared i18n dictionaries.
 export const SLOT_GROUPS: SlotGroup[] = [
-  { field: 'proportion', labelKey: 'avatarEditor.slot.proportion' },
   { field: 'skin', labelKey: 'avatarEditor.slot.skin' },
   { field: 'face', labelKey: 'avatarEditor.slot.face' },
   { field: 'hair', labelKey: 'avatarEditor.slot.hair' },

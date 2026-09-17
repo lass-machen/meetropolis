@@ -46,13 +46,13 @@ export async function rerenderCustomAvatars(
 
   for (const row of rows) {
     const config = row.config as AvatarConfig;
-    const validation = validateConfig(catalog, config);
+    const canonical = canonicalConfig(catalog, config);
+    const validation = validateConfig(catalog, canonical);
     if (!validation.ok) {
       summary.invalid++;
       log(`${row.userId}: INVALID (${validation.errors.join(', ')})`);
       continue;
     }
-    const canonical = canonicalConfig(catalog, config);
     const configHash = configHashHex(catalog, canonical);
     if (row.configHash === configHash) {
       summary.unchanged++;

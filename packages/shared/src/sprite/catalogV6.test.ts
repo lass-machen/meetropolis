@@ -34,7 +34,7 @@ function hash(bytes: Uint8Array): string {
 }
 
 describe('sprite catalog v6 proportions', () => {
-  it('pins one figure per body shape in all four directions pixel-exactly', () => {
+  it('pins the compact figure in all four directions pixel-exactly', () => {
     const hashes: Record<string, string[]> = {};
     for (const proportion of catalog.compose.config_fields.proportion.values) {
       const image = composeSheet(catalog, { ...base, proportion });
@@ -42,16 +42,10 @@ describe('sprite catalog v6 proportions', () => {
     }
     expect(hashes).toEqual({
       kompakt: ['6e7896bc45beffb2', 'b7c8500d565c563c', '61a2179b130d4f66', '96faad148aff6325'],
-      kompakt_weich: ['9cdd30424c989ddf', '9a051284e29e973a', '5384724f579b7fdf', '299c2b98d6aceacf'],
-      kompakt_markant: ['46742853fa8ed370', '79e169e75da1d3c4', 'b5b22eeac8fc8479', 'b305946f6aa88304'],
-      kompakt_kraeftig: ['4f7f7f4eaac32e50', '53b7337c29f9b510', '17f90a97fcd3beed', '98f06e3f91dac877'],
-      rund: ['e27c5233496a6dcc', 'be16133b27d0cf11', '3f4322a4b34c2d04', '8e74bbe89dd4a6d0'],
-      klassisch: ['78d6f53aee7361f1', 'eb868af0992cb9a2', '8ccbc0f5dcc35079', 'b407b5fa2c0e8753'],
-      schlank: ['3ee25eb38df3a7a5', 'ca6fc6068f4d87d2', '39002336933ae41b', '29319ac9924f6e13'],
     });
   });
 
-  it('renders a complete four-frame walk cycle in every direction and body shape', () => {
+  it('renders a complete four-frame walk cycle in every direction', () => {
     for (const proportion of catalog.compose.config_fields.proportion.values) {
       const image = composeSheet(catalog, { ...base, proportion });
       for (const row of [4, 5, 6, 7]) {

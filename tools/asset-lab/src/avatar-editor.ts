@@ -7,14 +7,13 @@ import {
   hairNames,
   skinColors,
   hairColorsFor,
-  proportions,
   type Character,
 } from './avatar.ts';
 import { paint, toCanvas } from './canvas.ts';
 import type { Point } from './office-model.ts';
 import { Pixels } from './pixels.ts';
 
-type Slot = 'hair' | 'face' | 'outfit' | 'hat' | 'glasses' | 'beard' | 'proportion';
+type Slot = 'hair' | 'face' | 'outfit' | 'hat' | 'glasses' | 'beard';
 const slots: { id: Slot; name: string; choices: Record<string, string> }[] = [
   { id: 'hair', name: 'Haare', choices: hairNames },
   { id: 'face', name: 'Gesicht', choices: faceNames },
@@ -58,13 +57,6 @@ const slots: { id: Slot; name: string; choices: Record<string, string> }[] = [
       vollbart: 'Vollbart',
       ziegenbart: 'Ziegenbart',
       ...extraBeardNames,
-    },
-  },
-  {
-    id: 'proportion',
-    name: 'Körper',
-    choices: {
-      ...Object.fromEntries(Object.entries(proportions).map(([id, p]) => [id, p.name])),
     },
   },
 ];
@@ -138,8 +130,6 @@ export class AvatarEditor {
       result.outfit = value === 'base' ? 'base' : value === 'dress_red' ? 'dress' : 'trousers';
       result.top = value === 'base' ? null : value;
       if (value === 'base' && result.hat === 'hood') result.hat = null;
-    } else if (slot === 'proportion') {
-      result.proportion = value as Character['proportion'];
     } else if (slot === 'face') {
       result.face = value as Character['face'];
     } else if (slot === 'hair') {

@@ -13,10 +13,11 @@ import { newDraft, parseDraft } from '../src/draft.ts';
 const hash = (data: Uint8ClampedArray): string => createHash('sha256').update(data).digest('hex');
 
 describe('Eigenständige Avatar-Stilproben', () => {
-  it('unterscheidet alle sieben produktiven Grundkörper', () => {
+  it('führt ausschließlich den kompakten Grundkörper', () => {
     const shapes = Object.keys(proportions) as ProportionId[];
     const sheets = shapes.map((proportion) => characterSheet({ ...defaultCharacter, hair: 'bald', proportion }));
     expect(new Set(sheets.map((sheet) => hash(sheet.data))).size).toBe(shapes.length);
+    expect(shapes).toEqual(['kompakt']);
     expect(newDraft().character.proportion).toBe('kompakt');
   });
 
@@ -100,19 +101,18 @@ describe('Eigenständige Avatar-Stilproben', () => {
     });
   }
 
-  it('speichert die ausgewählte Form; Rezepte ohne Form werden kompakt', () => {
+  it('normalisiert fehlende und frühere Formen auf kompakt', () => {
     const old = newDraft();
     old.character = { ...defaultCharacter };
     delete old.character.proportion;
     const restoredOld = parseDraft(JSON.stringify(old));
     expect(restoredOld.character.proportion).toBe('kompakt');
     expect(hash(characterSheet(restoredOld.character).data)).toBe(hash(characterSheet(defaultCharacter).data));
-    const draft = newDraft();
+    const draft = JSON.parse(JSON.stringify(newDraft())) as { character: Record<string, unknown> };
     draft.character.proportion = 'schlank';
     const restored = parseDraft(JSON.stringify(draft));
-    expect(restored.character.proportion).toBe('schlank');
-    expect(hash(characterSheet(restored.character).data)).toBe(hash(characterSheet(draft.character).data));
-    for (const proportion of ['unbekannt', '__proto__', null])
-      expect(() => parseCharacter({ ...defaultCharacter, proportion })).toThrow();
+    expect(restored.character.proportion).toBe('kompakt');
+    expect(hash(characterSheet(restored.character).data)).toBe(hash(characterSheet(defaultCharacter).data));
+    expect(parseCharacter({ ...defaultCharacter, proportion: '__proto__' }).proportion).toBe('kompakt');
   });
 });

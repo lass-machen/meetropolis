@@ -15,7 +15,7 @@ test('Touch bewegt die Figur und setzt einen exportierbaren Pixel', async ({ pag
   await page.locator('[data-choice="hair:braids"]').tap();
   await expect(page.locator('[data-slot="hair"]')).toHaveAttribute('data-value', 'braids');
   await page.locator('#room-tab').tap();
-  await expect(page.locator('[data-slot="proportion"]')).toHaveAttribute('data-value', 'kompakt');
+  await expect(page.locator('[data-slot="proportion"]')).toHaveCount(0);
   await expect(page.locator('#room-panel')).toBeVisible();
   await page.locator('#overview').tap();
   const zone = officePresets.loft.zones.find((z) => z.kind === 'lounge')!;

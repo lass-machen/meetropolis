@@ -51,18 +51,7 @@ function figure(parent: string, title: string, character: Character, views = tru
     views: strip,
   });
 }
-for (const [proportion, title] of [
-  ['kompakt', 'Vertraut'],
-  ['kompakt_weich', 'Weich'],
-  ['kompakt_markant', 'Markant'],
-  ['kompakt_kraeftig', 'Kräftig'],
-] as const)
-  figure('bodies', title, {
-    ...base,
-    proportion,
-    hair: 'buzz',
-    top: 'shirt_white',
-  });
+figure('bodies', 'Kompakt', { ...base, hair: 'buzz', top: 'shirt_white' });
 for (const id of ['studio', 'atelier', 'business', 'weekend']) {
   const look = compactLooks[id];
   figure('looks', look.name, { ...base, ...look.character });

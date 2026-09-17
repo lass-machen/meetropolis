@@ -13,60 +13,6 @@ export const proportions = {
     bodyWidth: 10,
     bodyHeight: 7,
   },
-  kompakt_weich: {
-    name: 'Kompakt · Weich',
-    detail: 'Weiche Wangen, schmale Schultern und dieselbe kurze Silhouette.',
-    headWidth: 14,
-    headHeight: 12,
-    headY: 6,
-    bodyWidth: 8,
-    bodyHeight: 7,
-  },
-  kompakt_markant: {
-    name: 'Kompakt · Markant',
-    detail: 'Kantiger Kiefer und betonte Schultern im kompakten Stil.',
-    headWidth: 14,
-    headHeight: 12,
-    headY: 6,
-    bodyWidth: 11,
-    bodyHeight: 7,
-  },
-  kompakt_kraeftig: {
-    name: 'Kompakt · Kräftig',
-    detail: 'Runde Wangen, breiter Körper und ein fester Stand.',
-    headWidth: 14,
-    headHeight: 12,
-    headY: 6,
-    bodyWidth: 12,
-    bodyHeight: 7,
-  },
-  rund: {
-    name: 'Rund',
-    detail: 'Breiter Kopf, kurzer Körper, kompakte Beine.',
-    headWidth: 14,
-    headHeight: 11,
-    headY: 7,
-    bodyWidth: 12,
-    bodyHeight: 6,
-  },
-  klassisch: {
-    name: 'Klassisch',
-    detail: 'Kleinerer Kopf und ausgewogene Körperlängen.',
-    headWidth: 12,
-    headHeight: 9,
-    headY: 5,
-    bodyWidth: 10,
-    bodyHeight: 8,
-  },
-  schlank: {
-    name: 'Schlank',
-    detail: 'Schmaler Kopf, schmale Schultern, längere Beine.',
-    headWidth: 10,
-    headHeight: 8,
-    headY: 4,
-    bodyWidth: 8,
-    bodyHeight: 9,
-  },
 } as const;
 export type ProportionId = keyof typeof proportions;
 type Shape = (typeof proportions)[ProportionId];
@@ -439,5 +385,5 @@ export function createProportionCatalog(base: SpriteCatalog, id: ProportionId, c
   put('bodies.underwear.front', new Raster().rect(bodyX + 1, legY, bodyW - 2, 2, 'w').grid());
   const side = geometry(shape, 'side');
   put('bodies.underwear.side', new Raster().rect(side.bodyX, side.legY, side.bodyW, 2, 'w').grid());
-  return id.startsWith('kompakt') ? applyCompactStyle(catalog, covered, id) : catalog;
+  return applyCompactStyle(catalog, covered);
 }

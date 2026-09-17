@@ -35,15 +35,8 @@ function contour(grid: Grid): Grid {
 }
 
 /** Ruhige Wangenkontur; Ohren ragen nicht seitlich aus der kurzen Kopfform. */
-function compactHead(build: string): Grid {
-  const lower =
-    build === 'kompakt_weich'
-      ? ['.ccbbbbbbbbcc.', '..ccbbbbbbcc..', '...ccbbbbcc...', '....cccccc....']
-      : build === 'kompakt_markant'
-        ? ['cbbbbbbbbbbbbc', 'ccbbbbbbbbbbcc', '.ccbbbbbbbbcc.', '..cccccccccc..']
-        : build === 'kompakt_kraeftig'
-          ? ['cbbbbbbbbbbbbc', '.cbbbbbbbbbbc.', '.ccbbbbbbbbcc.', '..cccccccccc..']
-          : ['.cbbbbbbbbbbc.', '.ccbbbbbbbbcc.', '..ccbbbbbbcc..', '...cccccccc...'];
+function compactHead(): Grid {
+  const lower = ['.cbbbbbbbbbbc.', '.ccbbbbbbbbcc.', '..ccbbbbbbcc..', '...cccccccc...'];
   return contour(
     raster(9, 6, [
       '..cccccccccc..',
@@ -275,7 +268,7 @@ function beard(view: View, style: string): Grid {
   return raster(9, 15, ['.ff...', 'f..f..', '.ffff.', '..fgfO', '...OO.']);
 }
 
-function top(view: View, mode: string, style: string, build: string): Grid {
+function top(view: View, mode: string, style: string): Grid {
   const front = [
     '...OccO.....',
     '..OtuuuvO...',
@@ -297,49 +290,7 @@ function top(view: View, mode: string, style: string, build: string): Grid {
     '..OOOOOOOO..',
   ];
   const side = ['..OOO...', '.OtuvO..', 'OttuuvO.', 'OtuuvvO.', 'OuuuvvO.', 'OuuuvvO.', '.OvvvvO.', '.OOOOO..'];
-  let lines = [...(view === 'side' ? side : view === 'rear' ? rear : front)];
-  if (build === 'kompakt_weich')
-    lines =
-      view === 'side'
-        ? ['..OOO...', '..OtuvO.', '.OtuuvO.', '.OtuuvO.', '.OtuuvO.', '.OuuvvO.', '.OvvvvO.', '..OOOO..']
-        : [
-            '....OccO....',
-            '...OtuuvO...',
-            '..OttuvvvO..',
-            '..OtuuuvvO..',
-            '..OtuuuvvO..',
-            '..OtuuuvvO..',
-            '..OvvvvvvO..',
-            '...OOOOOO...',
-          ];
-  if (build === 'kompakt_markant')
-    lines =
-      view === 'side'
-        ? ['.OOOO...', 'OttuvvO.', 'OttuuvO.', 'OtuuvvO.', '.OuuuvO.', '.OuuuvO.', '.OvvvvO.', '..OOOO..']
-        : [
-            '...OcccO....',
-            '.OOtuuvvOO..',
-            'OtttuuuvvvO.',
-            'OttuuuuuvvO.',
-            '.OtuuuuuvO..',
-            '.OtuuuuuvO..',
-            '..OvvvvvO...',
-            '..OOOOOOO...',
-          ];
-  if (build === 'kompakt_kraeftig')
-    lines =
-      view === 'side'
-        ? ['.OOOO....', 'OttuvvO..', 'OttuuvvO.', 'OttuuuvvO', 'OttuuuvvO', 'OuuuuuvvO', '.OvvvvvO.', '..OOOOO..']
-        : [
-            '...OcccO....',
-            '.OOttuvvOO..',
-            'OtttuuuuvvO.',
-            'OttuuuuuuvvO',
-            'OttuuuuuuvvO',
-            'OtuuuuuuuvvO',
-            '.OvvvvvvvvO.',
-            '..OOOOOOOO..',
-          ];
+  const lines = [...(view === 'side' ? side : view === 'rear' ? rear : front)];
   if (view !== 'side') {
     // Hals und Kinn gehören nur zur beweglichen Kopfebene. Kleidung umschließt
     // die mittigen Halspixel, ohne dort Haut oder eine zweite Kontur zu malen.
@@ -352,37 +303,18 @@ function top(view: View, mode: string, style: string, build: string): Grid {
       18,
       lines.map((line) => line.replaceAll('t', 'a').replaceAll('u', 'b').replaceAll('v', 'c')),
     );
-  if (build === 'kompakt' && view === 'front' && ['suit_navy', 'blazer_anthracite'].includes(style)) {
+  if (view === 'front' && ['suit_navy', 'blazer_anthracite'].includes(style)) {
     lines[1] = '...Ot..vO...';
     lines[2] = '.OtvtWtvvO..';
     lines[3] = 'OttuOWOuvvO.';
     lines[4] = 'OtvuuWtuvvO.';
     lines[5] = '.OvuuttuvvO.';
   }
-  if (build === 'kompakt' && view === 'front' && style === 'hoodie_blue') {
+  if (view === 'front' && style === 'hoodie_blue') {
     lines[1] = '...Ot..vO...';
     lines[2] = '.OttvvuuvO..';
     lines[4] = 'OtvuvvvuvvO.';
     lines[5] = '.OvuuttuvvO.';
-  }
-  if (build !== 'kompakt' && view === 'front') {
-    const rows = lines.map((row) => [...row]);
-    if (['suit_navy', 'blazer_anthracite'].includes(style)) {
-      for (let y = 2; y < 5; y++) rows[y][5] = 'W';
-      rows[2][4] = 'v';
-      rows[2][6] = 't';
-      rows[3][4] = 't';
-    }
-    if (style === 'hoodie_blue') {
-      rows[2][4] = 'v';
-      rows[2][5] = 'v';
-      rows[4][4] = 'v';
-      rows[4][5] = 'v';
-      rows[4][6] = 'v';
-      rows[5][4] = 't';
-      rows[5][5] = 't';
-    }
-    lines = rows.map((row) => row.join(''));
   }
   if (mode === 'dress') {
     if (view === 'side') {
@@ -400,7 +332,7 @@ function top(view: View, mode: string, style: string, build: string): Grid {
 }
 
 /** Der bestehende Composer bekommt neue Raster, keine nachbearbeiteten PNGs. */
-export function applyCompactStyle(catalog: SpriteCatalog, covered: boolean, build = 'kompakt'): SpriteCatalog {
+export function applyCompactStyle(catalog: SpriteCatalog, covered: boolean): SpriteCatalog {
   const put = (path: string, value: Grid): void => {
     const keys = path.split('.');
     let node = catalog.catalogs;
@@ -418,8 +350,8 @@ export function applyCompactStyle(catalog: SpriteCatalog, covered: boolean, buil
     outlineTree(catalog.catalogs[key] as Record<string, unknown>);
   for (const name of Object.keys(extraHatNames))
     for (const view of ['front', 'side', 'rear'] as const) put(`hats.${name}.${view}`, extraHat(view, name));
-  put('bodies.body.front', compactHead(build));
-  put('bodies.body.rear', compactHead(build));
+  put('bodies.body.front', compactHead());
+  put('bodies.body.rear', compactHead());
   (catalog.catalogs.hats as Record<string, { palette: Record<string, string> }>).cap.palette = {
     A: '#92b8bf',
     B: '#61779c',
@@ -452,9 +384,9 @@ export function applyCompactStyle(catalog: SpriteCatalog, covered: boolean, buil
     for (const name of Object.keys(catalog.catalogs.hairstyles as object))
       put(`hairstyles.${name}.${view}`, hairstyle(view, name, covered));
     for (const style of Object.keys(catalog.palettes.top))
-      put(`compact_tops.${style}.${view}`, top(view, 'trousers', style, build));
-    put(`tops.dress.${view}`, top(view, 'dress', 'dress_red', build));
-    put(`bodies.torso_bare.${view}`, top(view, 'base', '', build));
+      put(`compact_tops.${style}.${view}`, top(view, 'trousers', style));
+    put(`tops.dress.${view}`, top(view, 'dress', 'dress_red'));
+    put(`bodies.torso_bare.${view}`, top(view, 'base', ''));
     if (view === 'rear') continue;
     for (const name of ['round', 'rect', 'prof']) put(`glasses.${name}.${view}`, glasses(view, name));
     for (const name of ['schnauzer', 'vollbart', 'ziegenbart']) put(`beards.${name}.${view}`, beard(view, name));

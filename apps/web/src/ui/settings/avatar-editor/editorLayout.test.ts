@@ -15,13 +15,8 @@ describe('editorLayout tabs', () => {
 
   it('groupsForTab returns the tab slots in SLOT_GROUPS order', () => {
     const base = initialConfig(catalog);
-    expect(groupsForTab(catalog, base, 'body').map((g) => g.field)).toEqual([
-      'proportion',
-      'skin',
-      'face',
-      'hair',
-      'hair_color',
-    ]);
+    expect(groupsForTab(catalog, base, 'body').map((g) => g.field)).toEqual(['skin', 'face', 'hair', 'hair_color']);
+    expect(EDITOR_TABS.flatMap((tab) => tab.fields)).not.toContain('proportion');
   });
 
   it('groupsForTab hides slots the catalog rules do not apply', () => {

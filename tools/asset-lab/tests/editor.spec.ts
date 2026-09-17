@@ -37,17 +37,15 @@ test('Live-Editor zeigt echte Varianten ohne Dropdowns und hält Tastaturfokus',
   expect(errors).toEqual([]);
 });
 
-test('neue Grundkörper, Startlooks und Zubehör bleiben im Rezept erhalten', async ({ page }) => {
+test('die feste Körperform, Startlooks und Zubehör bleiben im Rezept erhalten', async ({ page }) => {
   await page.goto('/#figuren');
-  for (const proportion of ['kompakt', 'kompakt_weich', 'kompakt_markant', 'kompakt_kraeftig']) {
-    await choose(page, 'proportion', proportion);
-    await expect(page.locator(`[data-choice="proportion:${proportion}"]`)).toHaveAttribute('aria-pressed', 'true');
-  }
+  await expect(page.locator('[data-slot="proportion"]')).toHaveCount(0);
+  await expect(page.locator('[data-choice^="proportion:"]')).toHaveCount(0);
   await page.locator('[data-compact-look="studio"]').click();
   await choose(page, 'hat', 'cat');
   await choose(page, 'beard', 'handlebar');
   const state = parseDraft(await page.evaluate(() => localStorage.getItem('meetropolis-asset-lab-v1')!));
-  expect(state.character.proportion).toBe('kompakt_weich');
+  expect(state.character.proportion).toBe('kompakt');
   expect(state.character.hat).toBe('cat');
   expect(state.character.beard).toBe('handlebar');
   expect(state.character.hair).toBe('bob');

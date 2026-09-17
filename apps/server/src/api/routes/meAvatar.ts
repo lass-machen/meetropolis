@@ -154,7 +154,8 @@ async function handleCompose(
     res.status(400).json({ error: 'invalid body', details: parsed.error.issues });
     return;
   }
-  const validation = validateConfig(catalog, parsed.data);
+  const canonical = canonicalConfig(catalog, parsed.data);
+  const validation = validateConfig(catalog, canonical);
   if (!validation.ok) {
     res.status(400).json({ error: 'invalid config', details: validation.errors });
     return;
@@ -166,7 +167,6 @@ async function handleCompose(
     return;
   }
 
-  const canonical = canonicalConfig(catalog, parsed.data);
   const configHash = configHashHex(catalog, canonical);
   const existing = await prisma.customAvatar.findUnique({ where: { userId: auth.userId } });
 
