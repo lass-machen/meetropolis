@@ -72,8 +72,9 @@ describe('legacy autotile palette reconstruction', () => {
     expect(updateMany).toHaveBeenCalledTimes(1);
     expect(tx.mapAutotile.create).not.toHaveBeenCalled();
     expect(nextAutotileSlot).toBe(2);
-    expect(tx.$queryRaw).toHaveBeenCalledTimes(2);
-    expect(tx.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(findPacks.mock.invocationCallOrder[1]);
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(4);
+    expect(tx.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(tx.$queryRaw.mock.invocationCallOrder[1]);
+    expect(tx.$queryRaw.mock.invocationCallOrder[1]).toBeLessThan(findPacks.mock.invocationCallOrder[1]);
   });
 
   it('uses the pack snapshot re-read after acquiring the advisory lock', async () => {
@@ -110,7 +111,8 @@ describe('legacy autotile palette reconstruction', () => {
 
     await migrateAutotilePalettes(prisma, true, vi.fn());
 
-    expect(tx.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(findPacks.mock.invocationCallOrder[1]);
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(2);
+    expect(tx.$queryRaw.mock.invocationCallOrder[1]).toBeLessThan(findPacks.mock.invocationCallOrder[1]);
     expect(create).toHaveBeenCalledWith({
       data: expect.objectContaining({ mapId: 'map-one', imageUrl: '/assets/wall.current.png' }),
     });

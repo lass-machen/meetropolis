@@ -21,6 +21,24 @@ const SNAPSHOT = {
   hash: null,
 };
 
+const STORED_PACK = {
+  uuid: IDENTITY.packUuid,
+  archived: false,
+  autotiles: ['wall-set', 'glass-wall'].map((id) => ({
+    id,
+    key: SNAPSHOT.key,
+    category: 'autotile',
+    autotileType: '4bit',
+    dataURL: SNAPSHOT.imageUrl,
+    tileWidth: SNAPSHOT.tileWidth,
+    tileHeight: SNAPSHOT.tileHeight,
+    gridHeight: SNAPSHOT.gridHeight,
+    variants: SNAPSHOT.variants,
+    collide: SNAPSHOT.collide,
+    placement: SNAPSHOT.placement,
+  })),
+};
+
 function row(identity: typeof IDENTITY, slot: number): MapAutotile {
   return {
     id: `palette-${slot}`,
@@ -39,23 +57,7 @@ function allocatorPrisma() {
   const tx = {
     $queryRaw: vi.fn().mockResolvedValue([]),
     assetPack: {
-      findFirst: vi.fn(() => ({
-        uuid: IDENTITY.packUuid,
-        archived: false,
-        autotiles: ['wall-set', 'glass-wall'].map((id) => ({
-          id,
-          key: SNAPSHOT.key,
-          category: 'autotile',
-          autotileType: '4bit',
-          dataURL: SNAPSHOT.imageUrl,
-          tileWidth: SNAPSHOT.tileWidth,
-          tileHeight: SNAPSHOT.tileHeight,
-          gridHeight: SNAPSHOT.gridHeight,
-          variants: SNAPSHOT.variants,
-          collide: SNAPSHOT.collide,
-          placement: SNAPSHOT.placement,
-        })),
-      })),
+      findFirst: vi.fn(() => STORED_PACK),
     },
     mapAutotile: {
       findUnique: vi.fn(({ where }: { where: { mapId_packUuid_autotileId: typeof IDENTITY & { mapId: string } } }) => {
@@ -110,6 +112,7 @@ describe('map-local autotile palette allocation', () => {
     const concurrent = row(IDENTITY, 4);
     const tx = {
       $queryRaw: vi.fn(),
+      assetPack: { findFirst: vi.fn().mockResolvedValue(STORED_PACK) },
       mapAutotile: { findUnique: vi.fn().mockResolvedValue(concurrent), create: vi.fn() },
       map: { update: vi.fn() },
     };
@@ -140,7 +143,9 @@ describe('map-local autotile palette allocation', () => {
 
     await allocateMapAutotile(prisma, 'map-one', IDENTITY, SCOPE);
 
-    expect(tx.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(tx.assetPack.findFirst.mock.invocationCallOrder[0]);
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(2);
+    expect(tx.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(tx.$queryRaw.mock.invocationCallOrder[1]);
+    expect(tx.$queryRaw.mock.invocationCallOrder[1]).toBeLessThan(tx.assetPack.findFirst.mock.invocationCallOrder[0]);
     expect(tx.assetPack.findFirst).toHaveBeenCalledWith({
       where: {
         uuid: IDENTITY.packUuid,
@@ -149,6 +154,38 @@ describe('map-local autotile palette allocation', () => {
       },
       select: { archived: true, autotiles: true },
     });
+  });
+
+  it('rejects a revoked pack before returning an existing palette entry', async () => {
+    const { prisma, rows, tx } = allocatorPrisma();
+    rows.push(row(IDENTITY, 4));
+    tx.assetPack.findFirst.mockResolvedValueOnce(null);
+
+    await expect(allocateMapAutotile(prisma, 'map-one', IDENTITY, SCOPE)).rejects.toThrow('autotile_not_found');
+
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(2);
+    expect(tx.assetPack.findFirst).toHaveBeenCalledOnce();
+    expect(tx.mapAutotile.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('revalidates a revoked pack before an existing-entry return on a retry', async () => {
+    const { prisma, rows, tx } = allocatorPrisma();
+    rows.push(row(IDENTITY, 4));
+    tx.assetPack.findFirst.mockResolvedValueOnce(STORED_PACK).mockResolvedValueOnce(null);
+    let attempts = 0;
+    vi.mocked(prisma.$transaction).mockImplementation(async (callback) => {
+      attempts++;
+      const result = await callback(tx as never);
+      if (attempts === 1) throw Object.assign(new Error('serialization failure'), { code: 'P2034' });
+      return result;
+    });
+
+    await expect(allocateMapAutotile(prisma, 'map-one', IDENTITY, SCOPE)).rejects.toThrow('autotile_not_found');
+
+    expect(prisma.$transaction).toHaveBeenCalledTimes(2);
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(4);
+    expect(tx.assetPack.findFirst).toHaveBeenCalledTimes(2);
+    expect(tx.mapAutotile.findUnique).toHaveBeenCalledOnce();
   });
 
   it('rejects an autotile whose pack is outside the caller scope', async () => {

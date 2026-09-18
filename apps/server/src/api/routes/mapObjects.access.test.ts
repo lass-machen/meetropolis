@@ -341,7 +341,7 @@ describe('map object mutations: membership-scoped, not merely authenticated', ()
       .send(OBJECT_BODY);
     expect(res.status).toBe(200);
     expect(prisma.mapObject.create).toHaveBeenCalledTimes(1);
-    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(2);
   });
 
   it('re-reads the object and derives chunk coordinates from retry-fresh state', async () => {

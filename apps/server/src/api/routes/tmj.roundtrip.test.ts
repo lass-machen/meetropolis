@@ -79,6 +79,7 @@ function createTmjPrisma() {
   let failLayerCreate = false;
 
   const db = {
+    $queryRaw: vi.fn().mockResolvedValue([]),
     map: {
       findFirst: vi.fn().mockResolvedValue(MAP),
       update: vi.fn().mockResolvedValue(MAP),

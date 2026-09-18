@@ -16,7 +16,7 @@ import { Prisma, type PrismaClient } from '../generated/prisma/index.js';
 import { decodeRlePairsFromBuffer, rleDecodeToNumbers } from '../mapEncoding.js';
 import { StoredAutotileItemSchema } from '../api/routes/assetPacks.schemas.js';
 import { contentHashFromAssetUrl } from '../api/utils/mapAutotilePalette.js';
-import { acquirePackAdvisoryLocks } from '../api/utils/packAdvisoryLock.js';
+import { acquireMapAdvisoryLocks, acquirePackAdvisoryLocks } from '../api/utils/advisoryLocks.js';
 
 interface LegacyAutotile {
   slot: number;
@@ -143,6 +143,7 @@ async function processMaps(
   prisma: Prisma.TransactionClient | PrismaClient,
   legacy: LegacyAutotile[],
   apply: boolean,
+  lockedMapIds?: ReadonlySet<string>,
 ): Promise<MigrationResult> {
   const layers = await prisma.mapLayer.findMany({
     where: { name: 'walls_auto', chunks: { some: {} } },
@@ -158,6 +159,7 @@ async function processMaps(
   const messages: string[] = [];
 
   for (const layer of layers) {
+    if (apply && lockedMapIds && !lockedMapIds.has(layer.mapId)) throw new GlobalPackSetChangedError();
     const used = usedSlots(layer.chunks, layer.chunkSize);
     if (used.size === 0) {
       summary.unchanged++;
@@ -224,6 +226,12 @@ async function migrateWithLockedPacks(prisma: PrismaClient): Promise<MigrationRe
     try {
       return await prisma.$transaction(
         async (tx) => {
+          const layers = await tx.mapLayer.findMany({
+            where: { name: 'walls_auto', chunks: { some: {} } },
+            select: { mapId: true },
+          });
+          const lockedMapIds = new Set(layers.map((layer) => layer.mapId));
+          await acquireMapAdvisoryLocks(tx, lockedMapIds);
           const candidates = await tx.assetPack.findMany({
             where: { tenantId: null, archived: false },
             orderBy: { uuid: 'asc' },
@@ -236,7 +244,7 @@ async function migrateWithLockedPacks(prisma: PrismaClient): Promise<MigrationRe
           const legacy = await readLegacyPalette(tx);
           const locked = new Set(candidates.map((pack) => pack.uuid));
           if (legacy.some((entry) => !locked.has(entry.packUuid))) throw new GlobalPackSetChangedError();
-          return processMaps(tx, legacy, true);
+          return processMaps(tx, legacy, true, lockedMapIds);
         },
         { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted },
       );

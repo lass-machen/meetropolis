@@ -4,7 +4,7 @@ import { assetPackScopeWhere, refreshPackScope, type PackScope } from '../../ser
 import { StoredAutotileItemSchema } from '../routes/assetPacks.schemas.js';
 import { resolvePackScope } from './resolvePackScope.js';
 import { runSerializable, type MapDb } from './mapChunkMutations.js';
-import { acquirePackAdvisoryLock } from './packAdvisoryLock.js';
+import { acquireMapAdvisoryLock, acquirePackAdvisoryLock } from './advisoryLocks.js';
 
 export interface AutotileIdentity {
   packUuid: string;
@@ -84,16 +84,8 @@ export async function allocateMapAutotileInTransaction(
   identity: AutotileIdentity,
   scope: PackScope,
 ): Promise<PaletteAllocation> {
-  let existing = await tx.mapAutotile.findUnique({
-    where: { mapId_packUuid_autotileId: { mapId, ...identity } },
-  });
-  if (existing) return { entry: existing, created: false };
-
+  await acquireMapAdvisoryLock(tx, mapId);
   await acquirePackAdvisoryLock(tx, identity.packUuid);
-  existing = await tx.mapAutotile.findUnique({
-    where: { mapId_packUuid_autotileId: { mapId, ...identity } },
-  });
-  if (existing) return { entry: existing, created: false };
   const currentScope = await refreshPackScope(tx, scope, 'asset');
   const pack = await tx.assetPack.findFirst({
     where: { uuid: identity.packUuid, archived: false, ...assetPackScopeWhere(currentScope) },
@@ -101,6 +93,11 @@ export async function allocateMapAutotileInTransaction(
   });
   const snapshot = pack ? snapshotFromStoredAutotiles(pack.autotiles, identity.autotileId) : null;
   if (!snapshot) throw new Error('autotile_not_found');
+
+  const existing = await tx.mapAutotile.findUnique({
+    where: { mapId_packUuid_autotileId: { mapId, ...identity } },
+  });
+  if (existing) return { entry: existing, created: false };
 
   const [map, maximum] = await Promise.all([
     tx.map.findUnique({ where: { id: mapId }, select: { nextAutotileSlot: true } }),

@@ -7,6 +7,8 @@ import { pathParam } from '../utils/requestHelpers.js';
 import { broadcastMapUpdate, broadcastSpawnUpdate } from '../utils/broadcast.js';
 import { findMapById } from './maps.read.js';
 import { authenticateEditor, resolveEditorMemberTenant, type MapMeta } from './maps.editor.js';
+import type { MapDb } from '../utils/mapChunkMutations.js';
+import { acquireMapAdvisoryLock } from '../utils/advisoryLocks.js';
 
 export interface ZoneInput {
   name?: string;
@@ -80,7 +82,7 @@ const editorStateSchema = z.object({
   spawn: z.object({ x: z.number(), y: z.number() }).optional(),
 });
 
-async function ensureLobbyRoom(prisma: PrismaClient, mapId: string, tenantId: string) {
+async function ensureLobbyRoom(prisma: MapDb, mapId: string, tenantId: string) {
   const roomForZones = await prisma.room.findFirst({ where: { mapId }, orderBy: { createdAt: 'asc' } });
   if (roomForZones) return roomForZones;
   const lobbyId = `${mapId}:lobby`;
@@ -112,7 +114,7 @@ function preparedZoneFromInput(z: ZoneInput | null | undefined): PreparedZone | 
 }
 
 async function rebuildZones(
-  prisma: PrismaClient,
+  prisma: MapDb,
   mapId: string,
   tenantId: string,
   roomId: string,
@@ -173,24 +175,27 @@ export async function handleEditorStatePut(
     });
   } catch {}
 
-  const roomForZones = await ensureLobbyRoom(prisma, map.id, tenant.id);
-
-  const currentMeta: MapMeta = (map.meta as MapMeta | null) || {};
-  await prisma.map.update({
-    where: { id: map.id },
-    data: {
-      meta: {
-        ...currentMeta,
-        tilesets: tilesets ?? currentMeta.tilesets ?? [],
-        backgroundColor: backgroundColor ?? currentMeta.backgroundColor ?? undefined,
-        spawn: spawn ?? currentMeta.spawn ?? undefined,
+  await prisma.$transaction(async (tx) => {
+    await acquireMapAdvisoryLock(tx, map.id);
+    const currentMap = await tx.map.findUnique({ where: { id: map.id }, select: { meta: true } });
+    if (!currentMap) throw new Error('map_not_found');
+    const roomForZones = await ensureLobbyRoom(tx, map.id, tenant.id);
+    const currentMeta: MapMeta = (currentMap.meta as MapMeta | null) || {};
+    await tx.map.update({
+      where: { id: map.id },
+      data: {
+        meta: {
+          ...currentMeta,
+          tilesets: tilesets ?? currentMeta.tilesets ?? [],
+          backgroundColor: backgroundColor ?? currentMeta.backgroundColor ?? undefined,
+          spawn: spawn ?? currentMeta.spawn ?? undefined,
+        },
       },
-    },
+    });
+    if (Array.isArray(zones) && roomForZones) {
+      await rebuildZones(tx, map.id, tenant.id, roomForZones.id, zones as ZoneInput[], replaceZones);
+    }
   });
-
-  if (Array.isArray(zones) && roomForZones) {
-    await rebuildZones(prisma, map.id, tenant.id, roomForZones.id, zones as ZoneInput[], replaceZones);
-  }
 
   if (spawn && typeof spawn.x === 'number' && typeof spawn.y === 'number') {
     broadcastMapUpdate(tenant.slug, 'editor_update', { type: 'spawn', pos: spawn, mapId: map.id, mapName: map.name });
@@ -234,17 +239,12 @@ export async function handleDeleteZones(
       return;
     }
 
-    let deleted = 0;
-    if (zoneId) {
-      const result = await prisma.zone.deleteMany({ where: { id: zoneId, mapId: map.id } });
-      deleted = result.count;
-    } else if (zoneName) {
-      const result = await prisma.zone.deleteMany({ where: { name: zoneName, mapId: map.id } });
-      deleted = result.count;
-    } else {
-      const result = await prisma.zone.deleteMany({ where: { mapId: map.id } });
-      deleted = result.count;
-    }
+    const deleted = await prisma.$transaction(async (tx) => {
+      await acquireMapAdvisoryLock(tx, map.id);
+      if (zoneId) return (await tx.zone.deleteMany({ where: { id: zoneId, mapId: map.id } })).count;
+      if (zoneName) return (await tx.zone.deleteMany({ where: { name: zoneName, mapId: map.id } })).count;
+      return (await tx.zone.deleteMany({ where: { mapId: map.id } })).count;
+    });
 
     logger.info('[Zones] Deleted zones', { mapId: map.id, mapName: map.name, zoneName, zoneId, deleted });
     res.json({ ok: true, deleted });

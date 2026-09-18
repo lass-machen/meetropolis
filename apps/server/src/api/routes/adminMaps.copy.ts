@@ -1,6 +1,6 @@
 import { PrismaClient, Prisma } from '../../generated/prisma/index.js';
 import { assetPackScopeWhere, resolveTenantPackScope } from '../../services/packScope.js';
-import { acquirePackAdvisoryLocks } from '../utils/packAdvisoryLock.js';
+import { acquireMapAdvisoryLock, acquirePackAdvisoryLocks } from '../utils/advisoryLocks.js';
 
 type TxClient = Prisma.TransactionClient;
 
@@ -238,6 +238,7 @@ export async function copyMapToTenant(
     try {
       return await prisma.$transaction(
         async (tx) => {
+          await acquireMapAdvisoryLock(tx, sourceMapId);
           const references = await tx.map.findUnique({
             where: { id: sourceMapId },
             select: {

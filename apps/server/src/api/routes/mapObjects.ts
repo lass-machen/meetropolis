@@ -10,7 +10,7 @@ import { broadcastMapUpdate } from '../utils/broadcast.js';
 import { computeFootprintTiles } from '../utils/collisionHelpers.js';
 import { reconcileObjectCollision } from '../utils/objectCollision.js';
 import { runSerializable, type ChunkUpdateResult, type MapDb } from '../utils/mapChunkMutations.js';
-import { acquirePackAdvisoryLock, acquirePackAdvisoryLocks } from '../utils/packAdvisoryLock.js';
+import { acquireMapAdvisoryLock, acquirePackAdvisoryLock, acquirePackAdvisoryLocks } from '../utils/advisoryLocks.js';
 
 // ---------------------------------------------------------------------------
 // Zod Schemas
@@ -270,6 +270,7 @@ async function handleCreateObject(prisma: PrismaClient, req: express.Request, re
 
     const dims = getMapDimensions(map);
     const result = await runSerializable(prisma, async (tx) => {
+      await acquireMapAdvisoryLock(tx, map.id);
       await acquirePackAdvisoryLock(tx, data.assetPackUuid);
       const currentScope = await refreshPackScope(tx, scope, 'asset');
       const currentPack = await tx.assetPack.findFirst({
@@ -335,6 +336,7 @@ async function handleUpdateObject(prisma: PrismaClient, req: express.Request, re
     const dims = getMapDimensions(map);
     const updateData = parse.data;
     const result = await runSerializable(prisma, async (tx) => {
+      await acquireMapAdvisoryLock(tx, map.id);
       const existing = await tx.mapObject.findFirst({ where: { id: objId, mapId: map.id } });
       if (!existing) return null;
       const positionChanged =
@@ -400,6 +402,7 @@ async function handleDeleteObject(prisma: PrismaClient, req: express.Request, re
 
     const dims = getMapDimensions(map);
     const result = await runSerializable(prisma, async (tx) => {
+      await acquireMapAdvisoryLock(tx, map.id);
       const existing = await tx.mapObject.findFirst({ where: { id: objId, mapId: map.id } });
       if (!existing) return null;
       await tx.mapObject.delete({ where: { id: objId } });
@@ -472,6 +475,7 @@ async function createObjectsWithPackLocks(params: {
 }) {
   const { tx, mapId, objects, dims, scope } = params;
   const uuids = [...new Set(objects.map((object) => object.assetPackUuid))];
+  await acquireMapAdvisoryLock(tx, mapId);
   await acquirePackAdvisoryLocks(tx, uuids);
   const currentScope = await refreshPackScope(tx, scope, 'asset');
   const currentPacks = await tx.assetPack.findMany({

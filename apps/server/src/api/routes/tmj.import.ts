@@ -12,6 +12,7 @@ import { reconcileCollisionTiles, rectCollisionTiles } from '../utils/collisionR
 import { importedLayerStorageName, isReservedImportLayer } from '../utils/mapLayerPolicy.js';
 import type { MapDb } from '../utils/mapChunkMutations.js';
 import type { MulterFile, RequestWithMulterFields } from '../../types/multer.js';
+import { acquireMapAdvisoryLock } from '../utils/advisoryLocks.js';
 import {
   TmjSchema,
   buildGidToSlotMapping,
@@ -225,6 +226,7 @@ async function persistImport(
   const chunkSize = 32;
   const spawnPoint = extractSpawnFromObjectLayers(tmj.layers);
   const result = await prisma.$transaction(async (tx) => {
+    await acquireMapAdvisoryLock(tx, map.id);
     await tx.map.update({
       where: { id: map.id },
       data: { width: tmj.width, height: tmj.height, tileWidth: tmj.tilewidth, tileHeight: tmj.tileheight, chunkSize },

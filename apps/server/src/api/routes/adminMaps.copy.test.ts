@@ -271,9 +271,14 @@ describe('copyMapToTenant — object fidelity', () => {
       expect.objectContaining({ tenantId: TARGET_TENANT_ID, packKind: 'asset' }),
     );
     expect(tx.map.findUnique).toHaveBeenCalledTimes(3);
-    expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(2);
     expect(tx.assetPack.findMany).toHaveBeenCalledTimes(2);
-    expect(tx.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(tx.assetPack.findMany.mock.invocationCallOrder[0]);
+    expect(tx.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(tx.map.findUnique.mock.invocationCallOrder[0]);
+    expect(tx.map.findUnique.mock.invocationCallOrder[0]).toBeLessThan(tx.$queryRaw.mock.invocationCallOrder[1]);
+    expect(tx.$queryRaw.mock.invocationCallOrder[1]).toBeLessThan(tx.map.findUnique.mock.invocationCallOrder[1]);
+    expect(tx.map.findUnique.mock.invocationCallOrder[1]).toBeLessThan(
+      tx.assetPack.findMany.mock.invocationCallOrder[0],
+    );
   });
 
   it('always permits an uncatalogued global base pack', async () => {

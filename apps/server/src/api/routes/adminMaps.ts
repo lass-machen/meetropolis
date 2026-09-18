@@ -8,6 +8,7 @@ import { pathParam } from '../utils/requestHelpers.js';
 import { copyMapToTenant, TargetPackAccessError } from './adminMaps.copy.js';
 import { handleImportAdminMap } from './adminMaps.tiledImport.js';
 import { INTERNAL_MAP_LAYER_NAMES } from '../utils/mapLayerPolicy.js';
+import { acquireMapAdvisoryLock } from '../utils/advisoryLocks.js';
 
 export { copyMapToTenant } from './adminMaps.copy.js';
 
@@ -141,6 +142,7 @@ async function handleCreateAdminMap(prisma: PrismaClient, req: express.Request, 
 
 async function deleteMapCascade(prisma: PrismaClient, mapId: string): Promise<void> {
   await prisma.$transaction(async (tx) => {
+    await acquireMapAdvisoryLock(tx, mapId);
     await tx.mapObject.deleteMany({ where: { mapId } });
     const layers = await tx.mapLayer.findMany({ where: { mapId }, select: { id: true } });
     const layerIds = layers.map((l) => l.id);

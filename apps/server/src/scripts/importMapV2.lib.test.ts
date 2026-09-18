@@ -246,7 +246,11 @@ describe('importTmjIntoMap layer policy and atomicity', () => {
   it('stores public collision as collision_manual inside one transaction', async () => {
     const createdLayerNames: string[] = [];
     const tx = {
-      map: { upsert: vi.fn().mockResolvedValue({ id: 'map-one', meta: {} }) },
+      $queryRaw: vi.fn().mockResolvedValue([]),
+      map: {
+        findUnique: vi.fn().mockResolvedValue({ id: 'map-one' }),
+        upsert: vi.fn().mockResolvedValue({ id: 'map-one', meta: {} }),
+      },
       mapTileset: { deleteMany: vi.fn(), create: vi.fn() },
       mapLayer: {
         findMany: vi.fn().mockResolvedValue([]),
@@ -287,7 +291,9 @@ describe('importTmjIntoMap layer policy and atomicity', () => {
     const transaction = vi.fn(async (work: (client: unknown) => Promise<unknown>) => {
       const pending = { mapName: state.mapName, layers: [...state.layers] };
       const tx = {
+        $queryRaw: vi.fn().mockResolvedValue([]),
         map: {
+          findUnique: vi.fn().mockResolvedValue({ id: 'map-one' }),
           upsert: vi.fn(() => {
             pending.mapName = 'replacement';
             return { id: 'map-one', meta: {} };

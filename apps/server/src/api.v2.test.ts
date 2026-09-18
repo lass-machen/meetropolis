@@ -68,6 +68,9 @@ const mem = {
 // api.ts imports PrismaClient from './generated/prisma/index.js'.
 vi.mock('./generated/prisma/index.js', () => {
   class PrismaClientMock {
+    $queryRaw() {
+      return [];
+    }
     $transaction(callback: (client: PrismaClientMock) => Promise<unknown>) {
       return callback(this);
     }
@@ -230,7 +233,13 @@ vi.mock('./generated/prisma/index.js', () => {
       },
     };
   }
-  return { PrismaClient: PrismaClientMock, Prisma: { TransactionIsolationLevel: { Serializable: 'Serializable' } } };
+  return {
+    PrismaClient: PrismaClientMock,
+    Prisma: {
+      sql: (strings: TemplateStringsArray, ...values: unknown[]) => ({ strings, values }),
+      TransactionIsolationLevel: { Serializable: 'Serializable' },
+    },
+  };
 });
 
 import { registerApi } from './api.js';

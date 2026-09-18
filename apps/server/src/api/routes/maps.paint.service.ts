@@ -16,6 +16,7 @@ import {
 } from '../utils/mapChunkMutations.js';
 import type { PaintRequest } from './maps.paint.schema.js';
 import type { PrismaClient } from '../../generated/prisma/index.js';
+import { acquireMapAdvisoryLock } from '../utils/advisoryLocks.js';
 
 export interface PaintResult {
   updates: ChunkUpdateResult[];
@@ -99,6 +100,7 @@ export async function executePaint(params: {
 }): Promise<PaintResult> {
   const { prisma, map, paint, autotileScope } = params;
   return runSerializable(prisma, async (tx) => {
+    await acquireMapAdvisoryLock(tx, map.id);
     let allocation: { entry: MapAutotile; created: boolean } | undefined;
     if (!paint.erase && paint.autotile && autotileScope) {
       allocation = await allocateMapAutotileInTransaction(tx, map.id, paint.autotile, autotileScope);

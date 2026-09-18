@@ -30,6 +30,7 @@ import {
   runSerializable,
   type StoredChunk,
 } from '../api/utils/mapChunkMutations.js';
+import { acquireMapAdvisoryLock } from '../api/utils/advisoryLocks.js';
 
 export interface Summary {
   maps: number;
@@ -214,6 +215,7 @@ export async function migrateCollisionSources(
   for (const candidate of maps) {
     try {
       const result = await runSerializable(prisma, async (tx) => {
+        await acquireMapAdvisoryLock(tx, candidate.id);
         const map = await tx.map.findUnique({
           where: { id: candidate.id },
           include: {

@@ -80,6 +80,7 @@ describe('legacy collision source migration', () => {
     const update = vi.fn();
     const createLayer = vi.fn();
     const tx = {
+      $queryRaw: vi.fn().mockResolvedValue([]),
       map: { findUnique: vi.fn().mockResolvedValue(map), update },
       mapLayer: { create: createLayer },
     };
@@ -142,7 +143,10 @@ describe('legacy collision source migration', () => {
   });
 
   it('reports planning failures after continuing the per-map run', async () => {
-    const tx = { map: { findUnique: vi.fn().mockRejectedValue(new Error('broken legacy chunk')) } };
+    const tx = {
+      $queryRaw: vi.fn().mockResolvedValue([]),
+      map: { findUnique: vi.fn().mockRejectedValue(new Error('broken legacy chunk')) },
+    };
     const prisma = {
       map: { findMany: vi.fn().mockResolvedValue([{ id: 'broken-map' }]) },
       $transaction: vi.fn((work: (client: typeof tx) => Promise<unknown>) => work(tx)),

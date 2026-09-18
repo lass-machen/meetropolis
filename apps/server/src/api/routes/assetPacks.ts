@@ -28,7 +28,7 @@ import {
   MissingReferencedAssetError,
   ReferencedAssetConflictError,
 } from './assetPacks.processor.js';
-import { acquirePackAdvisoryLock } from '../utils/packAdvisoryLock.js';
+import { acquirePackAdvisoryLock } from '../utils/advisoryLocks.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

@@ -16,6 +16,7 @@
 import fs from 'fs/promises';
 import type { PrismaClient } from '../generated/prisma/index.js';
 import { reconcileCollisionTiles, rectCollisionTiles } from '../api/utils/collisionReconciler.js';
+import { acquireMapAdvisoryLock } from '../api/utils/advisoryLocks.js';
 import { importedLayerStorageName, isReservedImportLayer } from '../api/utils/mapLayerPolicy.js';
 import type { MapDb } from '../api/utils/mapChunkMutations.js';
 import { encodeRlePairsToBuffer, rleEncodeBooleans, rleEncodeNumbers, tileRefIdFrom } from '../mapEncoding.js';
@@ -527,7 +528,13 @@ export async function importTmjIntoMap(
   const zones = readZonesFromObjectLayers(tmj.layers);
   const gidToTileRefId = makeGidConverter(tmj.tilesets);
   return prisma.$transaction(async (tx) => {
+    const existing = await tx.map.findUnique({
+      where: { tenantId_name: { tenantId, name: mapName } },
+      select: { id: true },
+    });
+    if (existing) await acquireMapAdvisoryLock(tx, existing.id);
     const map = await upsertMap(tx, tenantId, mapName, tmj, chunkSize);
+    if (!existing) await acquireMapAdvisoryLock(tx, map.id);
     await persistMapMetadataFromTmj(tx, map, tmj, zones);
     await rebuildTilesetRegistry(tx, map.id, tmj.tilesets);
     await clearExistingLayers(tx, map.id);

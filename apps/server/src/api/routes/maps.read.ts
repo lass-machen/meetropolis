@@ -5,6 +5,7 @@ import { logger } from '../../logger.js';
 import { requireAuth, getTenantFromReq, requireMembership } from '../utils/authHelpers.js';
 import { pathParam } from '../utils/requestHelpers.js';
 import { INTERNAL_MAP_LAYER_NAMES, isInternalMapLayer } from '../utils/mapLayerPolicy.js';
+import { acquireMapAdvisoryLock } from '../utils/advisoryLocks.js';
 
 export function findMapById(prisma: PrismaClient, mapId: string, tenantId: string) {
   return prisma.map.findFirst({ where: { id: mapId, tenantId } });
@@ -85,14 +86,20 @@ async function autoPatchMapDimensions<
   const defaults = { width: 32, height: 32, tileWidth: 16, tileHeight: 16 };
   if (map.width && map.height && map.tileWidth && map.tileHeight) return map;
   try {
-    const updated = await prisma.map.update({
-      where: { id: map.id },
-      data: {
-        width: map.width ?? defaults.width,
-        height: map.height ?? defaults.height,
-        tileWidth: map.tileWidth ?? defaults.tileWidth,
-        tileHeight: map.tileHeight ?? defaults.tileHeight,
-      },
+    const updated = await prisma.$transaction(async (tx) => {
+      await acquireMapAdvisoryLock(tx, map.id);
+      const current = await tx.map.findUnique({ where: { id: map.id } });
+      if (!current) return map;
+      if (current.width && current.height && current.tileWidth && current.tileHeight) return current;
+      return tx.map.update({
+        where: { id: map.id },
+        data: {
+          width: current.width ?? defaults.width,
+          height: current.height ?? defaults.height,
+          tileWidth: current.tileWidth ?? defaults.tileWidth,
+          tileHeight: current.tileHeight ?? defaults.tileHeight,
+        },
+      });
     });
     logger.info('[Map] Auto-patched map dimensions on state-v2 fetch', { mapId: map.id, tenant: tenantSlug });
     return updated as unknown as T;
