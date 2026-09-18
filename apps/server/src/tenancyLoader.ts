@@ -31,6 +31,15 @@ export type TenancyModule = {
    * enterprise resolver has answered authoritatively that no global pack is
    * reachable. The host folds the result into PackScope, so list, direct read,
    * avatar wear and object placement cannot drift into parallel filters.
+   *
+   * MANDATORY for any implementation: a global pack that has NO catalog row at
+   * all is base equipment, not merchandise, and MUST stay in the result. Only
+   * packs that were deliberately put into the catalog are subject to the grant
+   * check. Skipping this rule empties every tenant on the day the resolver is
+   * switched on: as of 2026-09-18 production holds 16 tenants, two global asset
+   * packs and one global avatar pack, and exactly zero catalog rows and zero
+   * grants, so a catalog-only resolver would take away the furniture palette
+   * and the default characters from everyone at once.
    */
   resolveAdditionalPackUuids?: (
     prisma: PrismaClient,
