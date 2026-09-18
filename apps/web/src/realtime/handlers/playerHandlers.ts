@@ -3,6 +3,7 @@ import { useMapStore } from '../../state/mapStore';
 import { emitSameMapIdentities } from '../../lib/avEvents';
 import { passesMapFilter } from './mapFilter';
 import type {
+  AvatarChangeAcceptedMessage,
   FullStateMessage,
   PlayerAvatarMessage,
   PlayerDndMessage,
@@ -28,6 +29,7 @@ interface HandlerCtx {
   scheduleBuildParticipantList: (delay: number) => void;
   scheduleRefreshRosterFromRemotes: (delay: number) => void;
   emitCurrentMapIdentities: () => void;
+  localAvatar: { confirmed: boolean; appliedAvatarId?: string };
 }
 
 // Local-only player snapshot used to feed gameBridge / remotesRef.
@@ -77,12 +79,13 @@ function syncLocalMapFromServer(localPlayer: { mapId?: string; mapName?: string 
   }
 }
 
-function syncLocalAvatarFromServer(
-  localPlayer: { avatarId?: string } | undefined,
+function applyLocalAvatar(
+  avatarId: string,
   gameBridge: UseWorldRoomArgs['gameBridge'],
+  state: HandlerCtx['localAvatar'],
 ): void {
-  const avatarId = localPlayer?.avatarId;
-  if (!avatarId) return;
+  if (state.appliedAvatarId === avatarId) return;
+  state.appliedAvatarId = avatarId;
   try {
     localStorage.setItem('avatarId', avatarId);
   } catch (error) {
@@ -123,7 +126,9 @@ function handleFullState(
 
   const localPlayer = data.players.find((p: PlayerStateData) => p.id === localPosRef.current.id);
   syncLocalMapFromServer(localPlayer);
-  syncLocalAvatarFromServer(localPlayer, gameBridge);
+  if (!ctx.localAvatar.confirmed && localPlayer?.avatarId) {
+    applyLocalAvatar(localPlayer.avatarId, gameBridge, ctx.localAvatar);
+  }
 
   const currentMap = useMapStore.getState().currentMapName;
   const players: Record<string, RemotePlayerSnapshot> = {};
@@ -248,6 +253,12 @@ function handlePlayerAvatar(ctx: HandlerCtx, data: PlayerAvatarMessage): void {
   scheduleBuildParticipantList(50);
 }
 
+function handleAvatarChangeAccepted(ctx: HandlerCtx, data: AvatarChangeAcceptedMessage): void {
+  if (!data.avatarId) return;
+  ctx.localAvatar.confirmed = true;
+  applyLocalAvatar(data.avatarId, ctx.args.gameBridge, ctx.localAvatar);
+}
+
 function handlePlayerMapChanged(ctx: HandlerCtx, data: PlayerMapChangedMessage): void {
   const { args, scheduleBuildParticipantList, scheduleRefreshRosterFromRemotes, emitCurrentMapIdentities } = ctx;
   const { remotesRef, colyseusToLivekitMap, identityToNameMap, gameBridge } = args;
@@ -344,11 +355,18 @@ export function setupPlayerHandlers(
   scheduleRefreshRosterFromRemotes: (delay: number) => void,
   options?: SetupPlayerHandlersOptions,
 ) {
+  let appliedAvatarId: string | undefined;
+  try {
+    appliedAvatarId = localStorage.getItem('avatarId') ?? undefined;
+  } catch (error) {
+    logger.warn('[playerHandlers] Failed to read the persisted avatar', error);
+  }
   const ctx: HandlerCtx = {
     args,
     scheduleBuildParticipantList,
     scheduleRefreshRosterFromRemotes,
     emitCurrentMapIdentities: makeEmitMapIdentities(args),
+    localAvatar: { confirmed: false, ...(appliedAvatarId !== undefined && { appliedAvatarId }) },
   };
   room.onMessage('full_state', (data: FullStateMessage) => handleFullState(ctx, options, data));
   room.onMessage('player_joined', (data: PlayerJoinedMessage) => handlePlayerJoined(ctx, data));
@@ -356,6 +374,9 @@ export function setupPlayerHandlers(
   room.onMessage('player_left', (data: PlayerLeftMessage) => handlePlayerLeft(ctx, data));
   room.onMessage('player_dnd', (data: PlayerDndMessage) => handlePlayerDnd(ctx, data));
   room.onMessage('player_avatar', (data: PlayerAvatarMessage) => handlePlayerAvatar(ctx, data));
+  room.onMessage('avatar_change_accepted', (data: AvatarChangeAcceptedMessage) =>
+    handleAvatarChangeAccepted(ctx, data),
+  );
   room.onMessage('player_map_changed', (data: PlayerMapChangedMessage) => handlePlayerMapChanged(ctx, data));
   room.onStateChange((state: WorldRoomState) => handleStateChange(ctx, state));
 }

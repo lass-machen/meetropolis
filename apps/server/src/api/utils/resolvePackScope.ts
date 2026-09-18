@@ -8,7 +8,7 @@ import {
   getTenantFromReq,
   requireMembership,
 } from './authHelpers.js';
-import { type PackScope, CATALOG_SCOPE, resolveTenantPackScope } from '../../services/packScope.js';
+import { type PackScope, resolvePublicPackScope, resolveTenantPackScope } from '../../services/packScope.js';
 import type { PackKind } from '../../tenancyLoader.js';
 
 /**
@@ -51,25 +51,31 @@ import type { PackKind } from '../../tenancyLoader.js';
  * instead of writing 401/403, because the read routes must stay publicly
  * reachable — `avatarRegistry.loadPacks` fetches them during onboarding, before
  * any tenant binding exists. "Nothing proven" is a legitimate state here, not
- * an error; it just yields fewer packs. Identity/membership failures resolve to
- * `CATALOG_SCOPE`; a failing present enterprise resolver is handled inside
- * `resolveTenantPackScope` and keeps only tenant-owned packs.
+ * an error; it just yields fewer packs. Identity/membership failures resolve
+ * through the public enterprise scope as well. Enterprise contract failures
+ * are never swallowed here: a route fails closed instead of reopening every
+ * global pack.
  */
 export async function resolvePackScope(
   prisma: PrismaClient,
   req: express.Request,
   packKind: PackKind,
 ): Promise<PackScope> {
+  let tenantId: string;
   try {
     const auth = requireAuth(req) ?? (await requireApiToken(req, prisma));
-    if (!auth) return CATALOG_SCOPE;
+    if (!auth) return resolvePublicPackScope(prisma, packKind);
     if (await requireInternalOwner(req, auth.userId, prisma)) return { kind: 'all' };
     const tenant = getTenantFromReq(req);
-    if (!tenant) return CATALOG_SCOPE;
+    if (!tenant) return resolvePublicPackScope(prisma, packKind);
     const membership = await requireMembership(req, auth.userId, prisma);
-    return membership ? await resolveTenantPackScope(prisma, tenant.id, packKind) : CATALOG_SCOPE;
+    if (!membership) return resolvePublicPackScope(prisma, packKind);
+    tenantId = tenant.id;
   } catch (e) {
-    logger.error('[Packs] scope resolution failed, falling back to catalog packs', e);
-    return CATALOG_SCOPE;
+    logger.error('[Packs] identity scope resolution failed; using public pack visibility', e);
+    return resolvePublicPackScope(prisma, packKind);
   }
+  // Kept outside the identity try/catch: an enterprise contract failure must
+  // propagate rather than be mistaken for an anonymous request.
+  return resolveTenantPackScope(prisma, tenantId, packKind);
 }

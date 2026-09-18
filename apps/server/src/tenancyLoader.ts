@@ -4,9 +4,16 @@ import type { PrismaClient } from './generated/prisma/index.js';
 export type PackKind = 'asset' | 'avatar';
 
 export interface AdditionalPackAccessRequest {
-  tenantId: string;
+  tenantId?: string;
   packKind: PackKind;
   at: Date;
+}
+
+export interface AdditionalPackAccessResult {
+  /** Every global pack deliberately placed in the enterprise catalogue. */
+  catalogPackUuids: readonly string[];
+  /** The catalogue subset published or granted to this audience. */
+  accessiblePackUuids?: readonly string[];
 }
 
 // Local minimal type so the build works without the workspace/shared module.
@@ -19,32 +26,35 @@ export type TenancyModule = {
   isMultiTenantEnabled(): boolean;
   bypassOssLimit?: () => boolean;
   /**
-   * Optional enterprise pack-visibility boundary. It returns the UUIDs of
-   * GLOBAL packs a tenant may use in addition to its own private packs, for one
-   * pack kind. The enterprise implementation owns all knowledge of
+   * Optional enterprise pack-visibility boundary. It returns two GLOBAL-pack
+   * UUID sets for one pack kind: every deliberately catalogued pack, and the
+   * subset accessible to the requested audience. The enterprise implementation
+   * owns all knowledge of
    * AssetPackCatalog / AvatarPackCatalog publication and pricing state and of
    * TenantAssetPack / TenantAvatarPack grants. A grant is active only while
    * revokedAt is null and expiresAt is null or later than `at`.
    *
-   * Absence preserves OSS behaviour exactly: every global pack remains
-   * reachable. Returning an empty array is deliberately different: the
-   * enterprise resolver has answered authoritatively that no global pack is
-   * reachable. The host folds the result into PackScope, so list, direct read,
-   * avatar wear and object placement cannot drift into parallel filters.
+   * `tenantId` is absent for public reads before login. In that case the
+   * accessible set contains only explicitly published catalogue packs; an
+   * empty set is a normal authoritative answer, not an error. With a tenant it
+   * may additionally contain packs covered by an active grant. The accessible
+   * set is a subset of the catalogue set. The host ignores and logs entries
+   * outside that set, so the module cannot expand access accidentally.
    *
-   * MANDATORY for any implementation: a global pack that has NO catalog row at
-   * all is base equipment, not merchandise, and MUST stay in the result. Only
-   * packs that were deliberately put into the catalog are subject to the grant
-   * check. Skipping this rule empties every tenant on the day the resolver is
-   * switched on: as of 2026-09-18 production holds 16 tenants, two global asset
-   * packs and one global avatar pack, and exactly zero catalog rows and zero
-   * grants, so a catalog-only resolver would take away the furniture palette
-   * and the default characters from everyone at once.
+   * Absence preserves OSS behaviour exactly: every global pack remains
+   * reachable. MANDATORY invariant: a global pack with NO catalogue row is
+   * base equipment, not merchandise. The OSS host now enforces that invariant
+   * structurally by excluding only catalogued-but-inaccessible UUIDs; the
+   * optional module cannot remove base equipment. This direction is essential:
+   * as of 2026-09-18 production holds 16 tenants, two global asset packs and one
+   * global avatar pack, and exactly zero catalogue rows and zero grants.
+   * Treating all global packs as merchandise would remove the furniture
+   * palette and default characters from every tenant at once.
    */
   resolveAdditionalPackUuids?: (
     prisma: PrismaClient,
     request: AdditionalPackAccessRequest,
-  ) => Promise<readonly string[]>;
+  ) => Promise<AdditionalPackAccessResult>;
 };
 
 /**
@@ -66,15 +76,20 @@ export const OSS_USER_LIMIT = 25;
 // zod 4 reworked the `z.function()` API completely (now a function factory
 // with `.implement()`). For pure shape validation of imported modules a
 // `typeof === "function"` check via `z.custom` is sufficient.
-const fnSchema = z.custom<(...args: unknown[]) => unknown>((val) => typeof val === 'function', {
+const fnSchema = z.custom<() => boolean>((val) => typeof val === 'function', {
   message: 'expected function',
 });
+
+const packResolverSchema = z.custom<NonNullable<TenancyModule['resolveAdditionalPackUuids']>>(
+  (val) => typeof val === 'function',
+  { message: 'expected function' },
+);
 
 export const tenancyModuleSchema = z.object({
   version: z.literal(1),
   isMultiTenantEnabled: fnSchema,
   bypassOssLimit: fnSchema.optional(),
-  resolveAdditionalPackUuids: fnSchema.optional(),
+  resolveAdditionalPackUuids: packResolverSchema.optional(),
 });
 
 let cached: TenancyModule | null = null;
@@ -86,31 +101,44 @@ function unwrapDefaultExport(moduleValue: unknown): unknown {
   return withDefault.default ?? moduleValue;
 }
 
+type TenancyImporter = () => Promise<unknown>;
+
+function isAbsentTenancyPackage(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const code = 'code' in error ? error.code : undefined;
+  const message = 'message' in error ? error.message : undefined;
+  if (code !== 'ERR_MODULE_NOT_FOUND' && code !== 'MODULE_NOT_FOUND') return false;
+  return typeof message === 'string' && /Cannot find (?:package|module) ['"]@meetropolis\/tenancy['"]/.test(message);
+}
+
+const importTenancyPackage: TenancyImporter = () => import('@meetropolis/tenancy');
+
+/** Load and validate the optional module, distinguishing absence from breakage. */
+export async function loadTenancyModule(importModule: TenancyImporter = importTenancyPackage): Promise<TenancyModule> {
+  try {
+    const modUnknown = await importModule();
+    const parsed = tenancyModuleSchema.parse(unwrapDefaultExport(modUnknown));
+    return parsed;
+  } catch (error) {
+    if (isAbsentTenancyPackage(error)) {
+      return { version: 1, isMultiTenantEnabled: () => false };
+    }
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      'Failed to load @meetropolis/tenancy. Remove the broken package for OSS mode or install a module matching the tenancy loader contract. ' +
+        `Cause: ${detail}`,
+    );
+  }
+}
+
 /**
- * Loads an optional proprietary tenancy module if present. Falls back to a strict
- * single-tenant adapter in OSS builds. No network or phone-home logic.
+ * Loads an optional proprietary tenancy module if present. Only the package's
+ * exact absence selects OSS mode; import and contract failures abort startup.
  */
 export async function getTenancyModule(): Promise<TenancyModule> {
   if (cached) return cached;
-
-  try {
-    // Dynamic import on runtime; absent in OSS. Use unknown and validate.
-    const modUnknown: unknown = await import('@meetropolis/tenancy');
-    const parsed = tenancyModuleSchema.parse(unwrapDefaultExport(modUnknown));
-    // zod's z.function() loses precise generic argument types; cast to the
-    // declared TenancyModule shape once schema validation has confirmed
-    // the structure.
-    const mod = parsed as unknown as TenancyModule;
-    cached = mod;
-    return mod;
-  } catch {
-    const fallback: TenancyModule = {
-      version: 1,
-      isMultiTenantEnabled: () => false,
-    };
-    cached = fallback;
-    return fallback;
-  }
+  cached = await loadTenancyModule();
+  return cached;
 }
 
 /** Convenience helper when sync usage is preferred with a safe default. */

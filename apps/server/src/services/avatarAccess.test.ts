@@ -35,6 +35,18 @@ interface PackRow {
  * cutover: `default-characters` global, the internal 24-avatar pack owned by
  * the internal workspace. */
 const PACKS: readonly PackRow[] = [
+  {
+    uuid: 'default-characters',
+    tenantId: null,
+    avatars: [
+      { key: 'business_man' },
+      { key: 'business_woman' },
+      { key: 'casual_woman' },
+      { key: 'dev_hoodie' },
+      { key: 'manager_woman' },
+      { key: 'suit_man' },
+    ],
+  },
   { uuid: 'catalog-extras', tenantId: null, avatars: [{ key: 'extra-one' }] },
   {
     uuid: 'lass-machen-avatar-pack',
@@ -103,7 +115,7 @@ describe('isAllowedAvatarId — existence', () => {
     expect(await isAllowedAvatarId(prisma, 'custom:ghost', tenantScope(TENANT_LM))).toBe(false);
   });
 
-  it('allows built-in default-characters ids and rejects unknown default keys', async () => {
+  it('resolves default characters through their global base-equipment pack', async () => {
     const prisma = makePrisma();
     expect(await isAllowedAvatarId(prisma, 'default-characters:business_man', CATALOG_SCOPE)).toBe(true);
     expect(await isAllowedAvatarId(prisma, 'default-characters:not_a_default', CATALOG_SCOPE)).toBe(false);
@@ -198,7 +210,7 @@ describe('isAllowedAvatarId — private-pack ownership', () => {
     const prisma = makePrisma();
     await isAllowedAvatarId(prisma, 'lass-machen-avatar-pack:old-man', tenantScope(TENANT_OTHER));
     expect(prisma.avatarPack.findFirst).toHaveBeenCalledWith({
-      where: { uuid: 'lass-machen-avatar-pack', OR: [{ tenantId: null }, { tenantId: TENANT_OTHER }] },
+      where: { uuid: 'lass-machen-avatar-pack', OR: [{ tenantId: TENANT_OTHER }, { tenantId: null }] },
       select: { avatars: true },
     });
   });

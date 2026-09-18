@@ -5,7 +5,7 @@ import multer from 'multer';
 import { logger } from '../../logger.js';
 import { requireSuperAdmin } from '../utils/authHelpers.js';
 import { pathParam } from '../utils/requestHelpers.js';
-import { copyMapToTenant } from './adminMaps.copy.js';
+import { copyMapToTenant, TargetPackAccessError } from './adminMaps.copy.js';
 import { handleImportAdminMap } from './adminMaps.tiledImport.js';
 
 export { copyMapToTenant } from './adminMaps.copy.js';
@@ -218,6 +218,14 @@ async function handleCopyAdminMap(prisma: PrismaClient, req: express.Request, re
     const msg = e instanceof Error ? e.message : String(e);
     if (msg === 'source_map_not_found') {
       res.status(404).json({ error: 'map_not_found' });
+      return;
+    }
+    if (e instanceof TargetPackAccessError) {
+      res.status(400).json({
+        error: 'target_tenant_cannot_access_asset_packs',
+        message: 'The target tenant cannot access every asset pack referenced by this map.',
+        packUuids: e.packUuids,
+      });
       return;
     }
     logger.error({ event: 'admin_maps.copy.error', error: msg });

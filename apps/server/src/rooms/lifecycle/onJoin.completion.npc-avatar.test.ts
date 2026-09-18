@@ -40,6 +40,7 @@ const fakePrisma = {
   },
   map: {
     findFirst: vi.fn(() => Promise.resolve({ id: 'map-1', name: 'office' })),
+    findUnique: vi.fn(() => Promise.resolve({ tenantId: 'tenant-a' })),
   },
   user: {
     findUnique: vi.fn(() =>
@@ -56,7 +57,11 @@ const fakePrisma = {
   avatarPack: {
     findFirst: vi.fn(({ where }: { where: { uuid?: string } }) =>
       Promise.resolve(
-        where.uuid === 'shared-pack' ? { avatars: [{ key: 'hero' }] } : where.uuid === 'foreign-pack' ? null : null,
+        where.uuid === 'shared-pack'
+          ? { avatars: [{ key: 'hero' }] }
+          : where.uuid === 'default-characters'
+            ? { avatars: [{ key: 'business_man' }] }
+            : null,
       ),
     ),
   },
@@ -112,6 +117,17 @@ function fakeView(): unknown {
   return { add() {}, remove() {}, has: () => false };
 }
 
+interface ClientDouble {
+  sessionId: string;
+  send: ReturnType<typeof vi.fn>;
+  view: unknown;
+  auth: { identity: string; isNpc: boolean; zonePrivacyVersion: number; tenantId?: string };
+}
+
+function clientDouble(value: ClientDouble): Client {
+  return value as Client;
+}
+
 function makeRoom(): { room: WorldRoom; players: Map<string, FakePlayer> } {
   const players = new Map<string, FakePlayer>();
   const room = {
@@ -142,13 +158,13 @@ function baseOptions(extra: Partial<RoomOptions>): RoomOptions {
 }
 
 function npcClient(sessionId: string): Client {
-  return {
+  return clientDouble({
     sessionId,
     send: vi.fn(),
     view: fakeView(),
     // How onAuth marks an NPC join: secret-gated, no verified tenant.
     auth: { identity: 'npc-bob', isNpc: true, zonePrivacyVersion: 1 },
-  } as unknown as Client;
+  });
 }
 
 beforeEach(() => {
@@ -192,12 +208,12 @@ describe('completePendingJoin: NPCs never carry a custom avatar', () => {
 
   it('does NOT touch a human player wearing a custom avatar', async () => {
     const { room, players } = makeRoom();
-    const client = {
+    const client = clientDouble({
       sessionId: 'sid-human',
       send: vi.fn(),
       view: fakeView(),
       auth: { identity: 'user-a', isNpc: false, zonePrivacyVersion: 1, tenantId: 'tenant-a' },
-    } as unknown as Client;
+    });
 
     userAvatarId = LEAKED_ID;
     await completePendingJoin(room, client, baseOptions({ avatarId: LEAKED_ID }), 'user-a', fakePlayerClass);
@@ -210,12 +226,12 @@ describe('completePendingJoin: NPCs never carry a custom avatar', () => {
   it('falls back to the database avatar when an authenticated join requests a foreign pack', async () => {
     userAvatarId = DEFAULT_ID;
     const { room, players } = makeRoom();
-    const client = {
+    const client = clientDouble({
       sessionId: 'sid-scoped-human',
       send: vi.fn(),
       view: fakeView(),
       auth: { identity: 'user-a', isNpc: false, zonePrivacyVersion: 1, tenantId: 'tenant-a' },
-    } as unknown as Client;
+    });
 
     await completePendingJoin(
       room,
@@ -228,19 +244,19 @@ describe('completePendingJoin: NPCs never carry a custom avatar', () => {
     expect(players.get('sid-scoped-human')?.avatarId).toBe(DEFAULT_ID);
     expect(fakePrisma.avatarPack.findFirst).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: expect.objectContaining({ uuid: 'foreign-pack', OR: [{ tenantId: null }, { tenantId: 'tenant-a' }] }),
+        where: expect.objectContaining({ uuid: 'foreign-pack', OR: [{ tenantId: 'tenant-a' }, { tenantId: null }] }),
       }),
     );
   });
 
   it('rejects an out-of-scope avatar when no database user exists', async () => {
     const { room, players } = makeRoom();
-    const client = {
+    const client = clientDouble({
       sessionId: 'sid-legacy-human',
       send: vi.fn(),
       view: fakeView(),
       auth: { identity: 'legacy-user', isNpc: false, zonePrivacyVersion: 1 },
-    } as unknown as Client;
+    });
 
     await completePendingJoin(
       room,

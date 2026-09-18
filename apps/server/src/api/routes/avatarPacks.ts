@@ -35,9 +35,10 @@ type AvatarPackAuthResult = { ok: true } | { ok: false; status: number; error: s
  * Authorise a write to the global AvatarPack registry (create, delete, sprite
  * upload).
  *
- * Every pack these routes write is a catalogue pack: `AvatarPack.tenantId` stays
- * NULL (neither branch of `upsertAvatarPack` sets it), and a NULL-owner pack is
- * visible in EVERY tenant's avatar selection. Write access is therefore
+ * Every pack these routes write is global: `AvatarPack.tenantId` stays NULL
+ * (neither branch of `upsertAvatarPack` sets it). It is base equipment unless
+ * the enterprise module explicitly places its UUID in the catalogue; either
+ * way it can be visible across tenants. Write access is therefore
  * restricted to a platform super-admin (owner of the internal tenant),
  * mirroring the twin global AssetPack registry (see assetPacks.processor.ts
  * `authenticateAssetPackAdmin`). The tenant-scoped admin/owner check used for

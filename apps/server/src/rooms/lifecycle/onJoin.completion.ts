@@ -11,13 +11,7 @@ import { isWorldAuth } from './onAuth.js';
 import { tenantKeyForClient, isPlayerVisibleToTenant, syncTenantViewsOnJoin } from './tenantView.js';
 import { zoneLocksForClient } from '../handlers/zoneLockHandler.js';
 import { warmZoneCatalog, trackMove } from '../audioZones/runtime.js';
-import { isAllowedAvatarId, isCustomAvatarId } from '../../services/avatarAccess.js';
-import { resolveTenantPackScope } from '../../services/packScope.js';
-
-// Fallback appearance when a join names no avatar at all, and the replacement
-// for an id this path refuses to publish. Mirrors the `User.avatarId` column
-// default (prisma/schema.prisma).
-const DEFAULT_AVATAR_ID = 'default-characters:business_man';
+import { resolveFallbackTenantId, resolveJoinAppearance } from './onJoin.avatar.js';
 
 // Wait until the client's onMessage handlers are likely registered before
 // sending one-shot messages. Colyseus 0.17 resolves joinOrCreate faster than
@@ -167,97 +161,6 @@ async function ensureRoomMapMetadata(room: WorldRoom, options: RoomOptions, auth
   } catch (e) {
     logger.debug('[WorldRoom] Failed to ensure map metadata on join', e);
   }
-}
-
-// Resolve display name + avatarId from DB if needed.
-async function resolveNameAndAvatar(
-  room: WorldRoom,
-  options: RoomOptions,
-  joiningIdentity: string,
-): Promise<{ name: string; avatarId: string | undefined; lookupFailed: boolean }> {
-  let resolvedName: string | undefined = options?.name;
-  let resolvedAvatarId: string | undefined = undefined;
-  let lookupFailed = false;
-  const isNpcIdentity = (joiningIdentity || '').startsWith('npc-');
-  const needsNameLookup = !resolvedName || resolvedName === joiningIdentity;
-  if (!isNpcIdentity) {
-    try {
-      const prisma = room.prismaForPresence ?? createPrismaClient();
-      const user = await prisma.user.findUnique({
-        where: { id: joiningIdentity },
-        select: { name: true, email: true, avatarId: true },
-      });
-      if (needsNameLookup) {
-        resolvedName = user?.name || user?.email || joiningIdentity;
-      }
-      resolvedAvatarId = user?.avatarId ?? undefined;
-    } catch (e) {
-      lookupFailed = true;
-      logger.debug('[WorldRoom] Failed to look up user name/avatar from DB', e);
-      if (needsNameLookup) {
-        resolvedName = joiningIdentity;
-      }
-    }
-  }
-  return { name: resolvedName || joiningIdentity, avatarId: resolvedAvatarId, lookupFailed };
-}
-
-async function resolveJoinAvatar(
-  room: WorldRoom,
-  options: RoomOptions,
-  isNpc: boolean,
-  authTenantId: string | undefined,
-  databaseAvatarId: string | undefined,
-  databaseLookupFailed: boolean,
-): Promise<string> {
-  const requestedAvatarId = options?.avatarId;
-  const prisma = room.prismaForPresence ?? createPrismaClient();
-  let tenantId = authTenantId;
-  if (!tenantId) {
-    try {
-      tenantId = await resolveFallbackTenantId(prisma, options, room);
-    } catch (e) {
-      logger.debug('[WorldRoom] Failed to resolve join avatar tenant', e);
-    }
-  }
-  const scope = await resolveTenantPackScope(prisma, tenantId, 'avatar');
-
-  // Authenticated users must not silently replace an unavailable database
-  // value with client-controlled state during a database outage.
-  if (databaseLookupFailed && authTenantId) return DEFAULT_AVATAR_ID;
-
-  if (requestedAvatarId && !(isNpc && isCustomAvatarId(requestedAvatarId))) {
-    try {
-      if (await isAllowedAvatarId(prisma, requestedAvatarId, scope)) return requestedAvatarId;
-    } catch (e) {
-      logger.debug('[WorldRoom] Failed to validate join avatar', e);
-    }
-  }
-
-  if (databaseAvatarId && !(isNpc && isCustomAvatarId(databaseAvatarId))) {
-    try {
-      if (await isAllowedAvatarId(prisma, databaseAvatarId, scope)) return databaseAvatarId;
-    } catch (e) {
-      logger.debug('[WorldRoom] Failed to validate database avatar', e);
-    }
-  }
-
-  return DEFAULT_AVATAR_ID;
-}
-
-// Resolve a tenant id from the client/room slug — ONLY for joins with no
-// verified auth tenant (NPC or token-less legacy join). A normal authenticated
-// user's tenant comes straight from the JWT (auth.tenantId) and never reaches
-// this, so a spoofed options.tenant cannot influence a real user's PII scope.
-async function resolveFallbackTenantId(
-  prisma: ReturnType<typeof createPrismaClient>,
-  options: RoomOptions,
-  room: WorldRoom,
-): Promise<string | undefined> {
-  const slug =
-    options?.tenant || (room.metadata as RoomMetadata)?.tenant || process.env.DEFAULT_TENANT_SLUG || 'default';
-  const tenant = await prisma.tenant.findUnique({ where: { slug }, select: { id: true } });
-  return tenant?.id ?? undefined;
 }
 
 // Send seed presence_recent to the new client. Best-effort, scoped by the
@@ -471,7 +374,7 @@ export async function completePendingJoin(
   player.direction = options?.direction || 'down';
   player.identity = joiningIdentity;
 
-  const { name, avatarId, lookupFailed } = await resolveNameAndAvatar(room, options, joiningIdentity);
+  const { name, avatarId } = await resolveJoinAppearance(room, options, joiningIdentity, authTenantId, initialMapId);
   player.name = name;
   const isNpc = (joiningIdentity || '').startsWith('npc-');
   // The database is the authenticated user's baseline. A client-supplied value
@@ -479,7 +382,7 @@ export async function completePendingJoin(
   // writes. Token-less/NPC joins have no User row, but pass through that scope
   // check as well. The delayed full_state below mirrors the resulting value to
   // the client, which replaces its stale localStorage value.
-  player.avatarId = await resolveJoinAvatar(room, options, isNpc, authTenantId, avatarId, lookupFailed);
+  player.avatarId = avatarId;
   player.isNpc = isNpc;
   // Re-assert the client's local DND state on (re-)join. The server only
   // holds DND in memory, so a reconnect/restart/takeover would otherwise

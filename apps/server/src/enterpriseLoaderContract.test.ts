@@ -4,7 +4,7 @@ import { EXPECTED_ADMIN_MODULE_VERSION, adminEnterpriseSchema } from './adminLoa
 import type { AdminEnterpriseModule } from './adminLoader.js';
 import { EXPECTED_BILLING_MODULE_VERSION, billingModuleSchema } from './billingLoader.js';
 import type { BillingModule } from './billingLoader.js';
-import { tenancyModuleSchema } from './tenancyLoader.js';
+import { loadTenancyModule, tenancyModuleSchema } from './tenancyLoader.js';
 import type { TenancyModule } from './tenancyLoader.js';
 
 // ---------------------------------------------------------------------------
@@ -210,7 +210,7 @@ const _additionalPackResolver: AdditionalPackResolver = (_prisma, request) => {
   void request.tenantId;
   void request.packKind;
   void request.at;
-  return Promise.resolve([]);
+  return Promise.resolve({ catalogPackUuids: [], accessiblePackUuids: [] });
 };
 void _additionalPackResolver;
 
@@ -227,5 +227,28 @@ describe('tenancy loader pack-visibility contract', () => {
       resolveAdditionalPackUuids: _additionalPackResolver,
     });
     expect(result.success).toBe(true);
+  });
+
+  it('uses OSS mode only when exactly @meetropolis/tenancy is absent', async () => {
+    const missing = Object.assign(new Error("Cannot find package '@meetropolis/tenancy' imported from loader"), {
+      code: 'ERR_MODULE_NOT_FOUND',
+    });
+    const module = await loadTenancyModule(() => Promise.reject(missing));
+    expect(module.isMultiTenantEnabled()).toBe(false);
+  });
+
+  it('rejects an installed module whose dependency cannot be imported', async () => {
+    const missingDependency = Object.assign(new Error("Cannot find package 'enterprise-db' imported from module"), {
+      code: 'ERR_MODULE_NOT_FOUND',
+    });
+    await expect(loadTenancyModule(() => Promise.reject(missingDependency))).rejects.toThrow(
+      'Failed to load @meetropolis/tenancy',
+    );
+  });
+
+  it('rejects an installed module that violates the runtime schema', async () => {
+    await expect(loadTenancyModule(() => Promise.resolve({ version: 2, isMultiTenantEnabled: noop }))).rejects.toThrow(
+      'matching the tenancy loader contract',
+    );
   });
 });

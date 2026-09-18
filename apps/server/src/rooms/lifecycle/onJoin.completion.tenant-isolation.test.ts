@@ -65,6 +65,11 @@ const fakePrisma = {
   presence: {
     findMany: vi.fn(() => Promise.resolve([])),
   },
+  user: { findUnique: vi.fn(() => Promise.resolve(null)) },
+  avatarPack: {
+    findFirst: vi.fn(() => Promise.resolve({ avatars: [{ key: 'business_man' }] })),
+  },
+  customAvatar: { findFirst: vi.fn(() => Promise.resolve(null)) },
 };
 vi.mock('../../db.js', () => ({ createPrismaClient: () => fakePrisma }));
 

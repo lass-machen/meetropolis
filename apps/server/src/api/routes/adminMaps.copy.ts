@@ -1,6 +1,14 @@
 import { PrismaClient, Prisma } from '../../generated/prisma/index.js';
+import { assetPackScopeWhere, resolveTenantPackScope } from '../../services/packScope.js';
 
 type TxClient = Prisma.TransactionClient;
+
+export class TargetPackAccessError extends Error {
+  constructor(readonly packUuids: readonly string[]) {
+    super(`target_tenant_cannot_access_asset_packs:${packUuids.join(',')}`);
+    this.name = 'TargetPackAccessError';
+  }
+}
 
 type OriginalMapWithRelations = Prisma.MapGetPayload<{
   include: {
@@ -130,6 +138,25 @@ async function copyRoomsAndZones(
   }
 }
 
+async function assertTargetPackAccess(
+  prisma: PrismaClient,
+  original: OriginalMapWithRelations,
+  targetTenantId: string,
+): Promise<void> {
+  const referencedUuids = [...new Set(original.objects.map((object) => object.assetPackUuid))];
+  if (referencedUuids.length === 0) return;
+  const scope = await resolveTenantPackScope(prisma, targetTenantId, 'asset');
+  const accessible = await prisma.assetPack.findMany({
+    where: { uuid: { in: referencedUuids }, ...assetPackScopeWhere(scope) },
+    select: { uuid: true },
+  });
+  const accessibleUuids = new Set(accessible.map((pack) => pack.uuid));
+  const blockedUuids = referencedUuids.filter((uuid) => !accessibleUuids.has(uuid));
+  if (blockedUuids.length > 0) {
+    throw new TargetPackAccessError(blockedUuids);
+  }
+}
+
 /**
  * Deep-copy a map (with all tilesets, layers, chunks, objects, rooms, zones)
  * to a target tenant. Resolves name collisions by appending `-2`, `-3`, etc.
@@ -150,6 +177,8 @@ export async function copyMapToTenant(
     },
   });
   if (!original) throw new Error('source_map_not_found');
+
+  await assertTargetPackAccess(prisma, original, targetTenantId);
 
   const baseName = newName || `${original.name}-copy`;
   const copyName = await resolveCopyName(prisma, targetTenantId, baseName);

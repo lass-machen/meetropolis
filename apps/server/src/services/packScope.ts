@@ -9,10 +9,9 @@ import { getTenancyModule, type PackKind } from '../tenancyLoader.js';
  * global pack UUIDs.
  *
  * `AvatarPack.tenantId` / `AssetPack.tenantId` are the ownership markers (see
- * schema.prisma): NULL means global catalogue — shipped with the platform and,
- * by default, visible to every tenant — while a set value means the pack
- * belongs to exactly one tenant and to nobody else. Enterprise may narrow the
- * global half to explicit UUIDs without changing those ownership semantics.
+ * schema.prisma): NULL means global, while a set value means the pack belongs
+ * to exactly one tenant. Global base equipment remains visible unless an
+ * enterprise catalogue explicitly classifies the pack as merchandise.
  *
  * The three cases:
  * - `catalog`  — nothing proven about the caller. The fail-closed default: an
@@ -21,8 +20,8 @@ import { getTenancyModule, type PackKind } from '../tenancyLoader.js';
  * - `tenant`   — the caller has a PROVEN binding to that tenant (a membership
  *   row, or a JWT-verified `tid` on the world-join path). Without an enterprise
  *   resolver this means global packs plus that tenant's own private packs. A
- *   present resolver replaces the global half with its explicit UUID result;
- *   an empty result therefore still keeps tenant-owned packs.
+ *   present resolver may exclude catalogued-but-inaccessible global UUIDs;
+ *   tenant-owned packs and uncatalogued global base equipment remain.
  * - `all`      — platform super-admin (owner of the internal tenant). It
  *   administers every tenant by design. Pack-specific collection filters such
  *   as `AssetPack.archived = false` still compose on top of this ownership
@@ -38,43 +37,97 @@ import { getTenancyModule, type PackKind } from '../tenancyLoader.js';
  * share this single type and resolver rather than each carrying their own.
  */
 export type PackScope =
-  { kind: 'catalog' } | { kind: 'tenant'; tenantId: string; additionalPackUuids?: readonly string[] } | { kind: 'all' };
+  | { kind: 'catalog'; blockedGlobalPackUuids?: readonly string[] }
+  | { kind: 'tenant'; tenantId: string; blockedGlobalPackUuids?: readonly string[] }
+  | { kind: 'all' };
 
-/** The fail-closed default: catalog packs only. */
+/** The unchanged OSS public scope: every global pack. */
 export const CATALOG_SCOPE: PackScope = { kind: 'catalog' };
 
 /** Scope for a proven tenant binding; falls back to catalog when absent. */
-export function tenantScope(tenantId: string | null | undefined, additionalPackUuids?: readonly string[]): PackScope {
+export function tenantScope(
+  tenantId: string | null | undefined,
+  blockedGlobalPackUuids?: readonly string[],
+): PackScope {
   if (!tenantId) return CATALOG_SCOPE;
-  if (additionalPackUuids === undefined) return { kind: 'tenant', tenantId };
-  return { kind: 'tenant', tenantId, additionalPackUuids: [...new Set(additionalPackUuids)] };
+  if (blockedGlobalPackUuids === undefined) return { kind: 'tenant', tenantId };
+  return { kind: 'tenant', tenantId, blockedGlobalPackUuids: [...new Set(blockedGlobalPackUuids)] };
 }
 
-/**
- * Resolve a proven tenant through the optional enterprise visibility hook.
- * Hook absence is the OSS fallback and deliberately keeps all global packs.
- * A present hook is authoritative, including when it returns an empty array.
- */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object';
+}
+
+function readUuidArray(value: unknown): readonly string[] | null {
+  if (!Array.isArray(value)) return null;
+  const entries: unknown[] = value;
+  if (!entries.every((uuid): uuid is string => typeof uuid === 'string' && uuid.length > 0)) return null;
+  return [...new Set(entries)];
+}
+
+async function resolveBlockedGlobalPackUuids(
+  prisma: PrismaClient,
+  tenantId: string | undefined,
+  packKind: PackKind,
+): Promise<readonly string[] | undefined> {
+  const tenancy = await getTenancyModule();
+  const resolver = tenancy.resolveAdditionalPackUuids;
+  if (!resolver) return undefined;
+
+  const request = tenantId ? { tenantId, packKind, at: new Date() } : { packKind, at: new Date() };
+  const result: unknown = await resolver(prisma, request);
+  const catalogPackUuids = isRecord(result) ? readUuidArray(result.catalogPackUuids) : null;
+  if (catalogPackUuids === null) {
+    throw new Error(
+      '@meetropolis/tenancy resolveAdditionalPackUuids returned an invalid catalogPackUuids value; refusing to resolve pack visibility',
+    );
+  }
+
+  const accessibleValue = isRecord(result) ? result.accessiblePackUuids : undefined;
+  const accessiblePackUuids = readUuidArray(accessibleValue);
+  if (accessiblePackUuids === null) {
+    // The catalogue boundary is still trustworthy. Fail closed for merchandise
+    // while retaining uncatalogued base equipment.
+    logger.error('[Packs] enterprise resolver returned invalid accessiblePackUuids; blocking every catalogued pack');
+    return catalogPackUuids;
+  }
+
+  const catalogSet = new Set(catalogPackUuids);
+  const unexpected = accessiblePackUuids.filter((uuid) => !catalogSet.has(uuid));
+  if (unexpected.length > 0) {
+    logger.warn('[Packs] enterprise resolver returned accessible UUIDs outside the catalogue; ignoring them', {
+      packKind,
+      tenantId,
+      uuids: unexpected,
+    });
+  }
+  const accessibleSet = new Set(accessiblePackUuids.filter((uuid) => catalogSet.has(uuid)));
+
+  // Host formula: global AND (uuid NOT IN catalogue OR uuid IN accessible).
+  // Expressed here as the equivalent exclusion set `catalogue - accessible`.
+  // This direction makes uncatalogued global packs structural base equipment:
+  // the optional module cannot remove them. Production currently has 16
+  // tenants, two global asset packs, one global avatar pack, zero catalogue
+  // rows and zero grants; treating all globals as merchandise would remove the
+  // furniture palette and default characters from every tenant at once.
+  return catalogPackUuids.filter((uuid) => !accessibleSet.has(uuid));
+}
+
+/** Resolve the public pre-login scope through the same enterprise contract. */
+export async function resolvePublicPackScope(prisma: PrismaClient, packKind: PackKind): Promise<PackScope> {
+  const blockedGlobalPackUuids = await resolveBlockedGlobalPackUuids(prisma, undefined, packKind);
+  return blockedGlobalPackUuids === undefined ? CATALOG_SCOPE : { kind: 'catalog', blockedGlobalPackUuids };
+}
+
+/** Resolve a proven tenant through the optional enterprise visibility hook. */
 export async function resolveTenantPackScope(
   prisma: PrismaClient,
   tenantId: string | null | undefined,
   packKind: PackKind,
 ): Promise<PackScope> {
-  if (!tenantId) return CATALOG_SCOPE;
-  const tenancy = await getTenancyModule();
-  const resolver = tenancy.resolveAdditionalPackUuids;
-  if (!resolver) return tenantScope(tenantId);
-
-  try {
-    const resolved = await resolver(prisma, { tenantId, packKind, at: new Date() });
-    if (!Array.isArray(resolved) || resolved.some((uuid) => typeof uuid !== 'string' || uuid.length === 0)) {
-      throw new Error('enterprise pack resolver returned invalid UUIDs');
-    }
-    return tenantScope(tenantId, resolved);
-  } catch (e) {
-    logger.error('[Packs] enterprise visibility resolution failed; limiting scope to tenant-owned packs', e);
-    return tenantScope(tenantId, []);
-  }
+  if (!tenantId) return resolvePublicPackScope(prisma, packKind);
+  const blockedGlobalPackUuids = await resolveBlockedGlobalPackUuids(prisma, tenantId, packKind);
+  return tenantScope(tenantId, blockedGlobalPackUuids);
 }
 
 /**
@@ -87,23 +140,26 @@ export async function resolveTenantPackScope(
  */
 type SharedPackWhere = {
   tenantId?: string | null;
-  uuid?: { in: string[] };
+  uuid?: { notIn: string[] };
   OR?: SharedPackWhere[];
+  AND?: SharedPackWhere[];
 };
+
+function globalPackWhere(blockedGlobalPackUuids: readonly string[] | undefined): SharedPackWhere {
+  if (blockedGlobalPackUuids === undefined) return { tenantId: null };
+  // Keep the UUID predicate nested so callers can safely compose an identity
+  // predicate via object spread without one `uuid` field overwriting the other.
+  return { AND: [{ tenantId: null }, { uuid: { notIn: [...blockedGlobalPackUuids] } }] };
+}
 
 function packScopeWhere(scope: PackScope): SharedPackWhere {
   switch (scope.kind) {
     case 'all':
       return {};
     case 'tenant':
-      if (scope.additionalPackUuids !== undefined) {
-        return {
-          OR: [{ tenantId: scope.tenantId }, { tenantId: null, uuid: { in: [...scope.additionalPackUuids] } }],
-        };
-      }
-      return { OR: [{ tenantId: null }, { tenantId: scope.tenantId }] };
+      return { OR: [{ tenantId: scope.tenantId }, globalPackWhere(scope.blockedGlobalPackUuids)] };
     case 'catalog':
-      return { tenantId: null };
+      return globalPackWhere(scope.blockedGlobalPackUuids);
   }
 }
 
@@ -123,8 +179,9 @@ export function assetPackScopeWhere(scope: PackScope): Prisma.AssetPackWhereInpu
  *
  * CustomAvatar deliberately does NOT reuse `packScopeWhere`, because a NULL
  * `tenantId` means the OPPOSITE of what it means on a pack. On AvatarPack and
- * AssetPack, NULL is the catalog marker: shipped with the platform, visible to
- * every tenant. On CustomAvatar it is not a marker at all — the column is
+ * AssetPack, NULL is the global marker: uncatalogued base equipment is public,
+ * while catalogue visibility composes on top. On CustomAvatar it is not a
+ * marker at all — the column is
  * written from the composing session's PROVEN tenant (api/routes/meAvatar.ts
  * `provenComposeTenant`, which refuses the write rather than stamping NULL), so
  * NULL means the row could never be attributed to a tenant: a legacy row from

@@ -11,9 +11,29 @@ interface PlayerLike {
   mapId: string;
 }
 
+const changeVersions = new WeakMap<Client, number>();
+
+async function resolveAvatarTenantId(
+  room: WorldRoom,
+  player: PlayerLike,
+  authTenantId: string | undefined,
+  isNpc: boolean,
+): Promise<string | undefined> {
+  if (!isNpc) return authTenantId;
+  const map = await room.prismaForPresence?.map.findUnique({
+    where: { id: player.mapId },
+    select: { tenantId: true },
+  });
+  if (!map?.tenantId) throw new Error('Unable to resolve the NPC map tenant for avatar validation');
+  return map.tenantId;
+}
+
 function applyAvatarChange(room: WorldRoom, client: Client, player: PlayerLike, avatarId: string): void {
-  player.avatarId = avatarId;
-  broadcastToMap(room, player.mapId, 'player_avatar', { id: client.sessionId, avatarId }, client);
+  if (player.avatarId !== avatarId) {
+    player.avatarId = avatarId;
+    broadcastToMap(room, player.mapId, 'player_avatar', { id: client.sessionId, avatarId }, client);
+  }
+  client.send('avatar_change_accepted', { avatarId });
 }
 
 /**
@@ -25,18 +45,17 @@ function applyAvatarChange(room: WorldRoom, client: Client, player: PlayerLike, 
  * resolves to nothing. Custom avatars are tenant-scoped like everything else
  * here — `isAllowedAvatarId` applies the scope to them too, so a broadcast can
  * never name a foreign tenant's avatar (peers there could not resolve its
- * manifest anyway). NPCs are server-controlled and trusted for the pack/default
- * ids they use, but never for custom ids (they never legitimately wear one, and
- * NPC players are broadcast across the tenant boundary — see
- * lifecycle/tenantView.ts; the same rule now guards api/routes/npcs.ts and
- * lifecycle/onJoin.completion.ts).
+ * manifest anyway). NPC pack ids pass through the same validation, while their
+ * categorically unsupported custom ids are rejected before a lookup. The NPC
+ * tenant is always resolved from the server-assigned map; client input and any
+ * incidental auth field can never select it.
  *
  * The scope comes from `auth.tenantId`, the JWT-VERIFIED tenant of the world
  * join (onAuth.ts) — never from `options.tenant`, which the client supplies and
  * could point at the owner of a private pack. Every login path stamps `tid`
  * (sessionAuth.ts `establishSession`), so a real member keeps their tenant's
- * pack avatars; a join without a verified tenant falls back to catalog packs,
- * fail-closed.
+ * pack avatars. A non-NPC join without a verified tenant receives only the
+ * public scope. Missing Prisma state rejects the change entirely.
  */
 export function handleAvatarChange(room: WorldRoom, client: Client, data: { avatarId: string }): void {
   const player = room.state.players.get(client.sessionId);
@@ -46,28 +65,18 @@ export function handleAvatarChange(room: WorldRoom, client: Client, data: { avat
 
   const auth = isWorldAuth(client.auth) ? client.auth : null;
   if (!auth) return; // no verified identity -> ignore
+  if (auth.isNpc && isCustomAvatarId(avatarId)) return;
 
-  const isCustom = isCustomAvatarId(avatarId);
   const prisma = room.prismaForPresence;
+  if (!prisma) return;
 
-  // NPCs are trusted for non-custom ids; they never wear a custom avatar.
-  if (auth.isNpc) {
-    if (!isCustom) applyAvatarChange(room, client, player, avatarId);
-    return;
-  }
-
-  // Without a prisma handle we cannot validate: allow low-risk pack/default ids
-  // (a bogus one only breaks the caller's own appearance for others), but never
-  // an unvalidated custom id.
-  if (!prisma) {
-    if (!isCustom) applyAvatarChange(room, client, player, avatarId);
-    return;
-  }
-
-  void resolveTenantPackScope(prisma, auth.tenantId, 'avatar')
+  const version = (changeVersions.get(client) ?? 0) + 1;
+  changeVersions.set(client, version);
+  void resolveAvatarTenantId(room, player, auth.tenantId, auth.isNpc)
+    .then((tenantId) => resolveTenantPackScope(prisma, tenantId, 'avatar'))
     .then((scope) => isAllowedAvatarId(prisma, avatarId, scope))
     .then((ok) => {
-      if (ok && player.avatarId !== avatarId) applyAvatarChange(room, client, player, avatarId);
+      if (ok && changeVersions.get(client) === version) applyAvatarChange(room, client, player, avatarId);
     })
     .catch((e: unknown) => {
       logger.debug('[WorldRoom] Failed to resolve avatar change scope', e);
