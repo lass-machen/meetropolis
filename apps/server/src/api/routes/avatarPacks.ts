@@ -35,9 +35,10 @@ type AvatarPackAuthResult = { ok: true } | { ok: false; status: number; error: s
  * Authorise a write to the global AvatarPack registry (create, delete, sprite
  * upload).
  *
- * Every pack these routes write is a catalogue pack: `AvatarPack.tenantId` stays
- * NULL (neither branch of `upsertAvatarPack` sets it), and a NULL-owner pack is
- * visible in EVERY tenant's avatar selection. Write access is therefore
+ * Every pack these routes write is global: `AvatarPack.tenantId` stays NULL
+ * (neither branch of `upsertAvatarPack` sets it). It is base equipment unless
+ * the enterprise module explicitly places its UUID in the catalogue; either
+ * way it can be visible across tenants. Write access is therefore
  * restricted to a platform super-admin (owner of the internal tenant),
  * mirroring the twin global AssetPack registry (see assetPacks.processor.ts
  * `authenticateAssetPackAdmin`). The tenant-scoped admin/owner check used for
@@ -123,7 +124,7 @@ async function handleSpriteUpload(
 
 async function handleListAvatarPacks(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
   try {
-    const scope = await resolvePackScope(prisma, req);
+    const scope = await resolvePackScope(prisma, req, 'avatar');
     const list = await prisma.avatarPack.findMany({
       where: avatarPackScopeWhere(scope),
       orderBy: { createdAt: 'desc' },
@@ -142,7 +143,7 @@ async function handleGetAvatarPack(prisma: PrismaClient, req: express.Request, r
       res.status(400).json({ error: 'invalid id' });
       return;
     }
-    const scope = await resolvePackScope(prisma, req);
+    const scope = await resolvePackScope(prisma, req, 'avatar');
     // findFirst, not findUnique: the scope filter is part of the lookup, so a
     // foreign private pack is never loaded in the first place. A pack that
     // exists but is out of scope answers 404 exactly like a missing one —

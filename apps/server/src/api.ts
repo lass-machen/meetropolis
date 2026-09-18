@@ -63,6 +63,11 @@ import { resolveTemplateTenantSlug } from './services/templateTenant.js';
 
 const prisma = createPrismaClient();
 
+/** The shared API client used by startup invariants before the server listens. */
+export function getApiPrismaClient(): PrismaClient {
+  return prisma;
+}
+
 // Tenant-admin guard injected into the enterprise billing routes via the loader
 // config. It verifies the caller holds an owner/admin membership in the resolved
 // tenant (or is a platform super-admin), so a spoofed X-Tenant header cannot
@@ -398,6 +403,11 @@ function registerLegacyModularRoutes(app: express.Express) {
  * harmless because the routes operate on a single internal tenant.
  */
 export async function registerApi(app: express.Express) {
+  // Validate the optional tenancy boundary during startup, even when no other
+  // enterprise module is installed. A present but broken package must abort
+  // boot instead of surfacing later as an OSS visibility fallback.
+  await getTenancyModule();
+
   // FIRST: resolves the request's auth token against its Session row and
   // publishes the result for requireAuth (see api/utils/sessionAuth.ts). Every
   // route below — OSS and enterprise alike — depends on it; requireAuth fails

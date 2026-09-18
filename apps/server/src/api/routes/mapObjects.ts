@@ -258,7 +258,7 @@ async function handleCreateObject(prisma: PrismaClient, req: express.Request, re
     // AssetPack counterpart to `isAllowedAvatarId` — listing and using resolve
     // through the same scope so they cannot drift apart. Out of scope answers
     // the same 400 as a missing pack, keeping pack uuids non-enumerable.
-    const scope = await resolvePackScope(prisma, req);
+    const scope = await resolvePackScope(prisma, req, 'asset');
     const pack = await prisma.assetPack.findFirst({
       where: { uuid: data.assetPackUuid, ...assetPackScopeWhere(scope) },
       select: { uuid: true },
@@ -529,7 +529,7 @@ async function handleBulkCreateObjects(
     // Same scope as the single-object path above — a bulk import must not be a
     // way around the ownership veto.
     const uuids = [...new Set(parse.data.objects.map((o) => o.assetPackUuid))];
-    const scope = await resolvePackScope(prisma, req);
+    const scope = await resolvePackScope(prisma, req, 'asset');
     const packs = await prisma.assetPack.findMany({
       where: { uuid: { in: uuids }, ...assetPackScopeWhere(scope) },
       select: { uuid: true },

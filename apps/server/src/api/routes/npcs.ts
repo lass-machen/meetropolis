@@ -46,7 +46,7 @@ async function isAdminOrOwner(req: express.Request, userId: string, prisma: Pris
  */
 async function isNpcAvatarAllowed(prisma: PrismaClient, req: express.Request, avatarId: string): Promise<boolean> {
   if (isCustomAvatarId(avatarId)) return false;
-  const scope = await resolvePackScope(prisma, req);
+  const scope = await resolvePackScope(prisma, req, 'avatar');
   return isAllowedAvatarId(prisma, avatarId, scope);
 }
 

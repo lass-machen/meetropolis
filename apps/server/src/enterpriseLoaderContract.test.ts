@@ -4,6 +4,8 @@ import { EXPECTED_ADMIN_MODULE_VERSION, adminEnterpriseSchema } from './adminLoa
 import type { AdminEnterpriseModule } from './adminLoader.js';
 import { EXPECTED_BILLING_MODULE_VERSION, billingModuleSchema } from './billingLoader.js';
 import type { BillingModule } from './billingLoader.js';
+import { loadTenancyModule, tenancyModuleSchema } from './tenancyLoader.js';
+import type { TenancyModule } from './tenancyLoader.js';
 
 // ---------------------------------------------------------------------------
 // Enterprise loader version contract
@@ -200,5 +202,81 @@ describe('billing loader getConcurrentUsage config slot (v3)', () => {
     // Runtime smoke check on the shape asserted at compile time above.
     expect(typeof _getConcurrentUsageSlot('tenant-slug')).toBe('number');
     expect(_getConcurrentUsageSlot('tenant-slug')).toBe(0);
+  });
+});
+
+type PackVisibilityResolver = NonNullable<TenancyModule['resolvePackVisibility']>;
+const _packVisibilityResolver: PackVisibilityResolver = (_prisma, request) => {
+  void request.tenantId;
+  void request.packKind;
+  void request.at;
+  return Promise.resolve({ catalogPackUuids: [], accessiblePackUuids: [] });
+};
+void _packVisibilityResolver;
+
+describe('tenancy loader pack-visibility contract', () => {
+  it('loads the current v1 enterprise module when both visibility hooks are absent', async () => {
+    const module = await loadTenancyModule(() => Promise.resolve({ version: 1, isMultiTenantEnabled: () => true }));
+    expect(module.isMultiTenantEnabled()).toBe(true);
+    expect(module.resolvePackVisibility).toBeUndefined();
+  });
+
+  it('accepts the tenant-and-pack-kind visibility resolver', () => {
+    const result = tenancyModuleSchema.safeParse({
+      version: 1,
+      isMultiTenantEnabled: noop,
+      resolvePackVisibility: _packVisibilityResolver,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects the legacy resolver during module loading with migration guidance', async () => {
+    await expect(
+      loadTenancyModule(() =>
+        Promise.resolve({
+          version: 1,
+          isMultiTenantEnabled: noop,
+          resolveAdditionalPackUuids: () => Promise.resolve([]),
+        }),
+      ),
+    ).rejects.toThrow(
+      'resolveAdditionalPackUuids is no longer supported; rename the hook to resolvePackVisibility and return { catalogPackUuids, accessiblePackUuids }',
+    );
+  });
+
+  it('rejects a module that exposes both the current and legacy resolver names', async () => {
+    await expect(
+      loadTenancyModule(() =>
+        Promise.resolve({
+          version: 1,
+          isMultiTenantEnabled: noop,
+          resolvePackVisibility: _packVisibilityResolver,
+          resolveAdditionalPackUuids: () => Promise.resolve([]),
+        }),
+      ),
+    ).rejects.toThrow('resolveAdditionalPackUuids is no longer supported');
+  });
+
+  it('uses OSS mode only when exactly @meetropolis/tenancy is absent', async () => {
+    const missing = Object.assign(new Error("Cannot find package '@meetropolis/tenancy' imported from loader"), {
+      code: 'ERR_MODULE_NOT_FOUND',
+    });
+    const module = await loadTenancyModule(() => Promise.reject(missing));
+    expect(module.isMultiTenantEnabled()).toBe(false);
+  });
+
+  it('rejects an installed module whose dependency cannot be imported', async () => {
+    const missingDependency = Object.assign(new Error("Cannot find package 'enterprise-db' imported from module"), {
+      code: 'ERR_MODULE_NOT_FOUND',
+    });
+    await expect(loadTenancyModule(() => Promise.reject(missingDependency))).rejects.toThrow(
+      'Failed to load @meetropolis/tenancy',
+    );
+  });
+
+  it('rejects an installed module that violates the runtime schema', async () => {
+    await expect(loadTenancyModule(() => Promise.resolve({ version: 2, isMultiTenantEnabled: noop }))).rejects.toThrow(
+      'matching the tenancy loader contract',
+    );
   });
 });

@@ -126,7 +126,7 @@ export async function resolveMapAutotileSnapshotForPaint(
   req: express.Request,
   identity: AutotileIdentity,
 ): Promise<AutotileSnapshot | null> {
-  const scope = await resolvePackScope(prisma, req);
+  const scope = await resolvePackScope(prisma, req, 'asset');
   const pack = await prisma.assetPack.findFirst({
     where: { uuid: identity.packUuid, archived: false, ...assetPackScopeWhere(scope) },
     select: { autotiles: true },

@@ -215,7 +215,7 @@ class UploadValidationError extends Error {
 
 async function handleListAssetPacks(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
   try {
-    const scope = await resolvePackScope(prisma, req);
+    const scope = await resolvePackScope(prisma, req, 'asset');
     const list = await prisma.assetPack.findMany({
       where: { ...assetPackScopeWhere(scope), archived: false },
       orderBy: { createdAt: 'desc' },
@@ -234,7 +234,7 @@ async function handleGetAssetPack(prisma: PrismaClient, req: express.Request, re
       res.status(400).json({ error: 'invalid identifier' });
       return;
     }
-    const scope = await resolvePackScope(prisma, req);
+    const scope = await resolvePackScope(prisma, req, 'asset');
     // findFirst, not findUnique: the scope filter is part of the lookup, so a
     // foreign private pack is never loaded in the first place. A pack that
     // exists but is out of scope answers 404 exactly like a missing one —

@@ -255,9 +255,10 @@ model Presence {
 }
 
 // Asset packs are the editor's palette (terrain, structures, objects,
-// autotiles). `tenantId = NULL` means "part of the platform catalog, visible to
-// every tenant"; a set `tenantId` means the pack is OWNED BY and private to
-// that single tenant. Identical semantics to AvatarPack below — deliberately
+// autotiles). `tenantId = NULL` means "global". An uncatalogued global pack is
+// base equipment; a catalogued global pack is subject to enterprise visibility.
+// A set `tenantId` means the pack is OWNED BY and private to that single tenant.
+// Identical semantics to AvatarPack below — deliberately
 // so, since both resolve through the one shared scope in
 // services/packScope.ts.
 //
@@ -268,7 +269,8 @@ model Presence {
 //   - not placeable — api/routes/mapObjects.ts, where the `assetPackUuid` of a
 //                     new object is resolved through the same scope
 //                     (POST /maps/:id/objects and POST /maps/:id/objects/bulk).
-// Both fail closed: no tenant proven -> catalog packs only.
+// Both fail closed: no tenant proven -> uncatalogued base equipment plus
+// explicitly public catalogue packs (or every global pack in OSS mode).
 //
 // What ownership does NOT touch: already-placed objects. `MapObject.dataUrl`
 // carries its own sprite URL, so every placed object keeps rendering when a
@@ -317,9 +319,10 @@ model AssetPack {
   @@index([tenantId])
 }
 
-// Avatar packs are a shipped library. `tenantId = NULL` means "part of the
-// platform catalog, visible to every tenant"; a set `tenantId` means the pack
-// is OWNED BY and private to that single tenant.
+// Avatar packs are a shipped library. `tenantId = NULL` means "global". An
+// uncatalogued global pack is base equipment; a catalogued global pack is
+// subject to enterprise visibility. A set `tenantId` means the pack is OWNED
+// BY and private to that single tenant.
 //
 // Ownership is a hard veto, and these are the places that enforce it — the
 // invariant is only as true as this list:
@@ -333,7 +336,9 @@ model AssetPack {
 //   - not grantable — the enterprise pack marketplace (catalog listing,
 //                     install, checkout, the free-pack auto-grant and
 //                     GET /pack-store/my-packs all filter on `tenantId: null`).
-// Every one of them fails closed: no tenant proven -> catalog packs only.
+// Every one of them fails closed: no tenant proven -> uncatalogued base
+// equipment plus explicitly public catalogue packs (or every global pack in
+// OSS mode).
 //
 // The single deliberate exception is the platform super-admin (owner of the
 // `internal` tenant), which sees and administers every pack — it operates the
@@ -373,8 +378,8 @@ model AvatarPack {
 // from the composing session's proven tenant (api/routes/meAvatar.ts
 // `handleCompose`), so NULL means the row could never be attributed at all: a
 // legacy row from before the column existed, or a session that could not prove
-// a tenant. Treating NULL as "visible to every tenant", the way the pack models
-// do, would publish every unattributed avatar platform-wide — that is exactly
+// a tenant. Treating NULL as a global/base-equipment marker, the way the pack
+// models do, would publish every unattributed avatar platform-wide — exactly
 // the cross-tenant leak that was reproduced live on production. Unattributed
 // therefore resolves for NOBODY; the owner still reaches the row through the
 // userId-scoped routes.

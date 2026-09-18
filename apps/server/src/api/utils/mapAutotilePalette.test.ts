@@ -146,7 +146,7 @@ describe('map-local autotile palette allocation', () => {
       where: {
         uuid: IDENTITY.packUuid,
         archived: false,
-        OR: [{ tenantId: null }, { tenantId: 'tenant-one' }],
+        OR: [{ tenantId: 'tenant-one' }, { tenantId: null }],
       },
       select: { autotiles: true },
     });

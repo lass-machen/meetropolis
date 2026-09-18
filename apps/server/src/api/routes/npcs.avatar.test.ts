@@ -23,13 +23,28 @@ import request from 'supertest';
 import jwt from 'jsonwebtoken';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
+const tenancy = vi.hoisted(() => ({ enabled: false, resolver: vi.fn() }));
+
 vi.mock('../../logger.js', () => ({
   logger: { warn: vi.fn(), error: vi.fn(), info: vi.fn(), debug: vi.fn() },
+}));
+
+vi.mock('../../tenancyLoader.js', () => ({
+  getTenancyModule: () =>
+    Promise.resolve(
+      tenancy.enabled
+        ? { version: 1, isMultiTenantEnabled: () => true, resolvePackVisibility: tenancy.resolver }
+        : { version: 1, isMultiTenantEnabled: () => false },
+    ),
 }));
 
 import { registerNpcRoutes } from './npcs.js';
 import { createSessionAuthMiddleware, hashSessionToken } from '../utils/sessionAuth.js';
 import type { PrismaClient, Tenant } from '../../generated/prisma/index.js';
+import {
+  ENTERPRISE_PACK_RESOLVER_STATES,
+  type EnterprisePackResolverState,
+} from '../../testUtils/enterprisePackResolverStates.js';
 
 const TEST_SECRET = 'npc-avatar-test-secret';
 const TENANT_CUSTOMER = 'tenant-customer';
@@ -53,21 +68,25 @@ interface PackRow {
 }
 
 const PACKS: readonly PackRow[] = [
+  { id: 0, uuid: 'default-characters', tenantId: null, avatars: [{ key: 'business_man' }] },
   { id: 1, uuid: 'shared-pack', tenantId: null, avatars: [{ key: 'hero' }] },
   { id: 2, uuid: 'lass-machen-avatar-pack', tenantId: TENANT_LM, avatars: [{ key: 'old_man' }] },
 ];
 
 /** The where shapes `isAllowedAvatarId` builds via `avatarPackScopeWhere`. */
 interface PackWhere {
-  uuid?: string;
+  uuid?: string | { notIn: string[] };
   tenantId?: string | null;
-  OR?: Array<{ tenantId: string | null }>;
+  OR?: PackWhere[];
+  AND?: PackWhere[];
 }
 
 function matchesWhere(row: PackRow, where: PackWhere): boolean {
-  if (where.uuid !== undefined && row.uuid !== where.uuid) return false;
-  if (where.OR) return where.OR.some((clause) => clause.tenantId === row.tenantId);
-  if (where.tenantId !== undefined) return row.tenantId === where.tenantId;
+  if (typeof where.uuid === 'string' && row.uuid !== where.uuid) return false;
+  if (typeof where.uuid === 'object' && where.uuid.notIn.includes(row.uuid)) return false;
+  if (where.OR && !where.OR.some((clause) => matchesWhere(row, clause))) return false;
+  if (where.AND && !where.AND.every((clause) => matchesWhere(row, clause))) return false;
+  if (where.tenantId !== undefined && row.tenantId !== where.tenantId) return false;
   return true;
 }
 
@@ -162,12 +181,51 @@ const originalEnv = process.env;
 
 beforeEach(() => {
   process.env = { ...originalEnv, JWT_SECRET: TEST_SECRET };
+  tenancy.enabled = false;
+  tenancy.resolver.mockReset();
 });
 
 afterEach(() => {
   process.env = originalEnv;
   SESSIONS.clear();
   vi.clearAllMocks();
+});
+
+function configureResolver(state: EnterprisePackResolverState): void {
+  tenancy.enabled = state.hook !== 'absent';
+  if (state.hook === 'reject') {
+    tenancy.resolver.mockRejectedValue(new Error('catalogue unavailable'));
+  } else if (state.hook === 'resolve') {
+    tenancy.resolver.mockResolvedValue(state.result?.(['shared-pack']));
+  }
+}
+
+describe('NPC avatar enterprise visibility matrix', () => {
+  it.each(ENTERPRISE_PACK_RESOLVER_STATES)('applies $name to create, update and command paths', async (state) => {
+    configureResolver(state);
+    const { prisma } = makePrisma();
+    const app = makeApp(prisma);
+    const auth = sessionBearer(ADMIN_USER);
+    const responses = await Promise.all([
+      request(app)
+        .post('/npcs')
+        .set('authorization', auth)
+        .send({ identity: 'matrix-bot', name: 'Matrix Bot', avatarId: CATALOG_AVATAR }),
+      request(app).patch('/npcs/npc-1').set('authorization', auth).send({ avatarId: CATALOG_AVATAR }),
+      request(app)
+        .post('/npcs/npc-1/command')
+        .set('authorization', auth)
+        .send({ action: 'set_avatar', payload: { avatarId: CATALOG_AVATAR } }),
+    ]);
+
+    const expectedStatuses =
+      state.expected === 'accessible'
+        ? [201, 200, 200]
+        : state.expected === 'base-only'
+          ? [400, 400, 400]
+          : [500, 500, 500];
+    expect(responses.map((response) => response.status)).toEqual(expectedStatuses);
+  });
 });
 
 describe('POST /npcs', () => {
