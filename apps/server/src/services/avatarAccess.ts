@@ -1,20 +1,6 @@
 import type { PrismaClient } from '../generated/prisma/index.js';
 import { type PackScope, avatarPackScopeWhere, customAvatarScopeWhere } from './packScope.js';
 
-// The six built-in default avatars (shipped PNGs under
-// apps/web/public/assets/sprites). They are NOT stored as an AvatarPack row —
-// the client synthesises the `default-characters:*` ids (avatarRegistry
-// .ensureDefault) — so they are allow-listed here. Keep in sync with
-// tools/sprite-generator/generate.py DEFAULTS.
-const DEFAULT_PACK = 'default-characters';
-const DEFAULT_AVATAR_KEYS: ReadonlySet<string> = new Set([
-  'business_man',
-  'business_woman',
-  'casual_woman',
-  'dev_hoodie',
-  'manager_woman',
-  'suit_man',
-]);
 const CUSTOM_PREFIX = 'custom:';
 
 /**
@@ -33,11 +19,9 @@ export function isCustomAvatarId(avatarId: string): boolean {
 /**
  * Whether `avatarId` refers to something that actually exists and is wearable
  * BY THIS CALLER:
- *   - a built-in `default-characters:*` avatar (always — they ship with the
- *     platform and are not backed by an AvatarPack row at all),
- *   - an avatar from an AvatarPack the caller's `scope` covers: every catalog
- *     pack, plus the private packs of the tenant the caller has proven a
- *     binding to (see services/packScope.ts), or
+ *   - an avatar from an AvatarPack the caller's `scope` covers: global base
+ *     equipment, accessible catalogue packs, plus the private packs of the
+ *     tenant the caller has proven a binding to (see services/packScope.ts), or
  *   - an EXISTING `custom:<uuid>` custom avatar OF THE CALLER'S OWN, PROVEN
  *     TENANT.
  *
@@ -86,7 +70,6 @@ export async function isAllowedAvatarId(prisma: PrismaClient, avatarId: string, 
   if (sep <= 0 || sep === avatarId.length - 1) return false;
   const packUuid = avatarId.slice(0, sep);
   const key = avatarId.slice(sep + 1);
-  if (packUuid === DEFAULT_PACK) return DEFAULT_AVATAR_KEYS.has(key);
   // findFirst, not findUnique: the scope filter is part of the lookup, so an
   // out-of-scope private pack never resolves in the first place — the same
   // posture GET /avatar-packs/:id uses.

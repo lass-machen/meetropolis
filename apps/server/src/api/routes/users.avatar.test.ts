@@ -16,14 +16,29 @@ import request from 'supertest';
 import jwt from 'jsonwebtoken';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
+const tenancyMocks = vi.hoisted(() => ({ enabled: false, resolver: vi.fn() }));
+
 vi.mock('../../logger.js', () => ({
   logger: { warn: vi.fn(), error: vi.fn(), info: vi.fn(), debug: vi.fn() },
+}));
+
+vi.mock('../../tenancyLoader.js', () => ({
+  getTenancyModule: () =>
+    Promise.resolve(
+      tenancyMocks.enabled
+        ? { version: 1, isMultiTenantEnabled: () => true, resolvePackVisibility: tenancyMocks.resolver }
+        : { version: 1, isMultiTenantEnabled: () => false },
+    ),
 }));
 
 import { registerUserRoutes } from './users.js';
 import { createSessionAuthMiddleware, hashSessionToken } from '../utils/sessionAuth.js';
 import { requireAuth, getTenantFromReq } from '../utils/authHelpers.js';
 import type { PrismaClient, Tenant } from '../../generated/prisma/index.js';
+import {
+  ENTERPRISE_PACK_RESOLVER_STATES,
+  type EnterprisePackResolverState,
+} from '../../testUtils/enterprisePackResolverStates.js';
 
 const TEST_SECRET = 'users-avatar-test-secret';
 const INTERNAL_TENANT_ID = 'internal-tenant';
@@ -35,14 +50,25 @@ const TENANT_NEW = 'tenant-new';
 const MEMBERSHIPS: ReadonlySet<string> = new Set([`${TENANT_LM}:lm-user`, `${TENANT_NEW}:new-user`]);
 
 const PACKS = [
+  { uuid: 'default-characters', tenantId: null, avatars: [{ key: 'business_man' }] },
   { uuid: 'default-extras', tenantId: null, avatars: [{ key: 'extra-one' }] },
   { uuid: 'lass-machen-avatar-pack', tenantId: TENANT_LM, avatars: [{ key: 'old-man' }] },
 ];
 
 interface PackWhere {
-  uuid: string;
+  uuid?: string | { notIn: string[] };
   tenantId?: string | null;
-  OR?: Array<{ tenantId: string | null }>;
+  OR?: PackWhere[];
+  AND?: PackWhere[];
+}
+
+function matchesPackWhere(pack: (typeof PACKS)[number], where: PackWhere): boolean {
+  if (typeof where.uuid === 'string' && pack.uuid !== where.uuid) return false;
+  if (typeof where.uuid === 'object' && where.uuid.notIn.includes(pack.uuid)) return false;
+  if (where.tenantId !== undefined && pack.tenantId !== where.tenantId) return false;
+  if (where.OR && !where.OR.some((clause) => matchesPackWhere(pack, clause))) return false;
+  if (where.AND && !where.AND.every((clause) => matchesPackWhere(pack, clause))) return false;
+  return true;
 }
 
 function makePrisma() {
@@ -78,12 +104,7 @@ function makePrisma() {
     customAvatar: { findFirst: vi.fn(() => Promise.resolve(null)) },
     avatarPack: {
       findFirst: vi.fn(({ where }: { where: PackWhere }) => {
-        const row = PACKS.find((pack) => {
-          if (pack.uuid !== where.uuid) return false;
-          if (where.OR) return where.OR.some((clause) => clause.tenantId === pack.tenantId);
-          if (where.tenantId !== undefined) return pack.tenantId === where.tenantId;
-          return true;
-        });
+        const row = PACKS.find((pack) => matchesPackWhere(pack, where));
         return Promise.resolve(row ? { avatars: row.avatars } : null);
       }),
     },
@@ -130,6 +151,8 @@ const originalEnv = process.env;
 
 beforeEach(() => {
   process.env = { ...originalEnv, JWT_SECRET: TEST_SECRET };
+  tenancyMocks.enabled = false;
+  tenancyMocks.resolver.mockReset();
 });
 
 afterEach(() => {
@@ -138,6 +161,41 @@ afterEach(() => {
 });
 
 describe('PATCH /me/avatar — private-pack scope', () => {
+  function configureResolver(state: EnterprisePackResolverState): void {
+    tenancyMocks.enabled = state.hook !== 'absent';
+    if (state.hook === 'reject') {
+      tenancyMocks.resolver.mockRejectedValue(new Error('catalogue unavailable'));
+    } else if (state.hook === 'resolve') {
+      tenancyMocks.resolver.mockResolvedValue(state.result?.(['default-extras']));
+    }
+  }
+
+  it.each(ENTERPRISE_PACK_RESOLVER_STATES)('applies $name to REST avatar selection', async (state) => {
+    configureResolver(state);
+    const { prisma, saved } = makePrisma();
+    const app = makeApp(prisma);
+    const auth = sessionBearer('new-user');
+    const catalog = await request(app)
+      .patch('/me/avatar')
+      .set('Authorization', auth)
+      .set('X-Tenant', 'newcomer')
+      .send({ avatarId: 'default-extras:extra-one' });
+    const base = await request(app)
+      .patch('/me/avatar')
+      .set('Authorization', auth)
+      .set('X-Tenant', 'newcomer')
+      .send({ avatarId: 'default-characters:business_man' });
+
+    if (state.expected === 'error') {
+      expect([catalog.status, base.status]).toEqual([500, 500]);
+      expect(saved).toEqual([]);
+      return;
+    }
+    expect(catalog.status).toBe(state.expected === 'accessible' ? 200 : 400);
+    expect(base.status).toBe(200);
+    expect(saved).toContain('default-characters:business_man');
+  });
+
   it('rejects a private pack avatar for a foreign tenant and persists nothing', async () => {
     const { prisma, saved } = makePrisma();
     const res = await request(makeApp(prisma))

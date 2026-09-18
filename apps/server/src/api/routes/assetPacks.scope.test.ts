@@ -1,8 +1,9 @@
 /**
  * Tenant scoping for the AssetPack read routes and for object placement.
  *
- * `AssetPack.tenantId` is an ownership marker: NULL means catalog (every tenant
- * sees it), a value means the pack is private to that one tenant. The twin of
+ * `AssetPack.tenantId` is an ownership marker: NULL means global, with separate
+ * catalogue state deciding whether enterprise visibility applies; a value
+ * means the pack is private to that one tenant. The twin of
  * the AvatarPack rules in avatarPacks.test.ts, and deliberately checked the
  * same way — both pack kinds resolve through the single scope in
  * services/packScope.ts, so a drift between them would show up here.
@@ -25,16 +26,31 @@ import request from 'supertest';
 import jwt from 'jsonwebtoken';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
+const tenancyMocks = vi.hoisted(() => ({ enabled: false, resolver: vi.fn() }));
+
 vi.mock('../../logger.js', () => ({
   logger: { warn: vi.fn(), error: vi.fn(), info: vi.fn(), debug: vi.fn() },
 }));
 
 vi.mock('../utils/broadcast.js', () => ({ broadcastMapUpdate: vi.fn() }));
 
+vi.mock('../../tenancyLoader.js', () => ({
+  getTenancyModule: () =>
+    Promise.resolve(
+      tenancyMocks.enabled
+        ? { version: 1, isMultiTenantEnabled: () => true, resolvePackVisibility: tenancyMocks.resolver }
+        : { version: 1, isMultiTenantEnabled: () => false },
+    ),
+}));
+
 import { registerAssetPackRoutes } from './assetPacks.js';
 import { registerMapObjectRoutes } from './mapObjects.js';
 import { createSessionAuthMiddleware, hashSessionToken } from '../utils/sessionAuth.js';
 import type { PrismaClient, Tenant } from '../../generated/prisma/index.js';
+import {
+  ENTERPRISE_PACK_RESOLVER_STATES,
+  type EnterprisePackResolverState,
+} from '../../testUtils/enterprisePackResolverStates.js';
 
 const TEST_SECRET = 'asset-pack-test-secret';
 const INTERNAL_TENANT_ID = 'internal-tenant';
@@ -69,19 +85,22 @@ const PACKS: readonly PackRow[] = [
 /** The where shapes the scoped handlers build — nothing else is supported. */
 interface PackWhere {
   id?: number;
-  uuid?: string | { in: string[] };
+  uuid?: string | { in?: string[]; notIn?: string[] };
   tenantId?: string | null;
   archived?: boolean;
-  OR?: Array<{ tenantId: string | null }>;
+  OR?: PackWhere[];
+  AND?: PackWhere[];
 }
 
 function matchesWhere(row: PackRow, where: PackWhere): boolean {
   if (where.id !== undefined && row.id !== where.id) return false;
   if (typeof where.uuid === 'string' && row.uuid !== where.uuid) return false;
-  if (where.uuid && typeof where.uuid === 'object' && !where.uuid.in.includes(row.uuid)) return false;
+  if (typeof where.uuid === 'object' && where.uuid.in && !where.uuid.in.includes(row.uuid)) return false;
+  if (typeof where.uuid === 'object' && where.uuid.notIn?.includes(row.uuid)) return false;
   if (where.archived !== undefined && row.archived !== where.archived) return false;
-  if (where.OR) return where.OR.some((clause) => clause.tenantId === row.tenantId);
-  if (where.tenantId !== undefined) return row.tenantId === where.tenantId;
+  if (where.OR && !where.OR.some((clause) => matchesWhere(row, clause))) return false;
+  if (where.AND && !where.AND.every((clause) => matchesWhere(row, clause))) return false;
+  if (where.tenantId !== undefined && row.tenantId !== where.tenantId) return false;
   return true;
 }
 
@@ -212,6 +231,8 @@ const originalEnv = process.env;
 
 beforeEach(() => {
   process.env = { ...originalEnv, JWT_SECRET: TEST_SECRET };
+  tenancyMocks.enabled = false;
+  tenancyMocks.resolver.mockReset();
 });
 
 afterEach(() => {
@@ -458,12 +479,41 @@ const OBJECT_BODY = {
   dataUrl: '/packs/x/desk.png',
 };
 
+function configureResolver(state: EnterprisePackResolverState): void {
+  tenancyMocks.enabled = state.hook !== 'absent';
+  if (state.hook === 'reject') {
+    tenancyMocks.resolver.mockRejectedValue(new Error('catalogue unavailable'));
+  } else if (state.hook === 'resolve') {
+    tenancyMocks.resolver.mockResolvedValue(state.result?.(['pixel-agents-furniture']));
+  }
+}
+
 /**
  * Placement is the AssetPack counterpart to `isAllowedAvatarId`: seeing a pack
  * and using its objects resolve through the same scope, so a pack that is
  * hidden is also unplaceable.
  */
 describe('POST /maps/:id/objects: placement honours the pack scope', () => {
+  it.each(ENTERPRISE_PACK_RESOLVER_STATES)('applies $name to single and bulk placement', async (state) => {
+    configureResolver(state);
+    const prisma = makePrisma();
+    const app = makeApp(prisma);
+    const auth = sessionBearer('lm-user');
+    const single = await request(app)
+      .post('/maps/map-1/objects')
+      .set('Authorization', auth)
+      .set('X-Tenant', 'lass-machen')
+      .send({ ...OBJECT_BODY, assetPackUuid: 'pixel-agents-furniture' });
+    const bulk = await request(app)
+      .post('/maps/map-1/objects/bulk')
+      .set('Authorization', auth)
+      .set('X-Tenant', 'lass-machen')
+      .send({ objects: [{ ...OBJECT_BODY, assetPackUuid: 'pixel-agents-furniture' }] });
+
+    const expectedStatus = state.expected === 'accessible' ? 200 : state.expected === 'base-only' ? 400 : 500;
+    expect([single.status, bulk.status]).toEqual([expectedStatus, expectedStatus]);
+  });
+
   it('accepts a catalog pack for a member of the map tenant', async () => {
     const app = makeApp(makePrisma());
     const res = await request(app)

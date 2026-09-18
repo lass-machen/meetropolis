@@ -1,6 +1,14 @@
 import { PrismaClient, Prisma } from '../../generated/prisma/index.js';
+import { assetPackScopeWhere, resolveTenantPackScope } from '../../services/packScope.js';
 
 type TxClient = Prisma.TransactionClient;
+
+export class TargetPackAccessError extends Error {
+  constructor(readonly packUuids: readonly string[]) {
+    super(`target_tenant_cannot_access_asset_packs:${packUuids.join(',')}`);
+    this.name = 'TargetPackAccessError';
+  }
+}
 
 type OriginalMapWithRelations = Prisma.MapGetPayload<{
   include: {
@@ -11,7 +19,7 @@ type OriginalMapWithRelations = Prisma.MapGetPayload<{
   };
 }>;
 
-async function resolveCopyName(prisma: PrismaClient, targetTenantId: string, baseName: string): Promise<string> {
+async function resolveCopyName(prisma: TxClient, targetTenantId: string, baseName: string): Promise<string> {
   let copyName = baseName;
   let suffix = 1;
   while (await prisma.map.findUnique({ where: { tenantId_name: { tenantId: targetTenantId, name: copyName } } })) {
@@ -130,6 +138,60 @@ async function copyRoomsAndZones(
   }
 }
 
+async function assertTargetPackAccess(
+  prisma: TxClient,
+  original: OriginalMapWithRelations,
+  targetTenantId: string,
+): Promise<void> {
+  const referencedUuids = [...new Set(original.objects.map((object) => object.assetPackUuid))];
+  if (referencedUuids.length === 0) return;
+
+  const mismatchedUrlUuids = new Set<string>();
+  for (const object of original.objects) {
+    const dataUrl = object.dataUrl.trim();
+    if (!dataUrl || dataUrl.startsWith('data:')) continue;
+    let pathname: string;
+    try {
+      pathname = new URL(dataUrl, 'https://meetropolis.invalid').pathname;
+    } catch {
+      continue;
+    }
+    const packPath = /^\/packs\/([^/]+)(?:\/|$)/.exec(pathname);
+    const rawUrlPackUuid = packPath?.[1];
+    let urlPackUuid = rawUrlPackUuid;
+    try {
+      if (rawUrlPackUuid) urlPackUuid = decodeURIComponent(rawUrlPackUuid);
+    } catch {
+      // A malformed escaped segment cannot equal a valid pack UUID.
+    }
+    if (urlPackUuid && urlPackUuid !== object.assetPackUuid) mismatchedUrlUuids.add(urlPackUuid);
+  }
+  if (mismatchedUrlUuids.size > 0) {
+    throw new TargetPackAccessError([...mismatchedUrlUuids]);
+  }
+
+  const scope = await resolveTenantPackScope(prisma, targetTenantId, 'asset');
+  const accessible = await prisma.assetPack.findMany({
+    where: { uuid: { in: referencedUuids }, ...assetPackScopeWhere(scope) },
+    select: { uuid: true },
+  });
+  const accessibleUuids = new Set(accessible.map((pack) => pack.uuid));
+  const registered = await prisma.assetPack.findMany({
+    where: { uuid: { in: referencedUuids } },
+    select: { uuid: true },
+  });
+  const registeredUuids = new Set(registered.map((pack) => pack.uuid));
+
+  // Import paths currently persist invented pseudo-UUIDs for self-contained
+  // objects. Until that modelling defect is fixed, an unregistered UUID is
+  // allowed only when its dataUrl is self-contained or does not point at a
+  // different pack. Registered packs outside the target scope remain blocked.
+  const blockedUuids = referencedUuids.filter((uuid) => registeredUuids.has(uuid) && !accessibleUuids.has(uuid));
+  if (blockedUuids.length > 0) {
+    throw new TargetPackAccessError(blockedUuids);
+  }
+}
+
 /**
  * Deep-copy a map (with all tilesets, layers, chunks, objects, rooms, zones)
  * to a target tenant. Resolves name collisions by appending `-2`, `-3`, etc.
@@ -140,41 +202,43 @@ export async function copyMapToTenant(
   targetTenantId: string,
   newName?: string,
 ): Promise<{ id: string; name: string }> {
-  const original = await prisma.map.findUnique({
-    where: { id: sourceMapId },
-    include: {
-      tilesets: { orderBy: { slot: 'asc' } },
-      layers: { include: { chunks: true } },
-      objects: true,
-      rooms: { include: { zones: true } },
+  return prisma.$transaction(
+    async (tx) => {
+      const original = await tx.map.findUnique({
+        where: { id: sourceMapId },
+        include: {
+          tilesets: { orderBy: { slot: 'asc' } },
+          layers: { include: { chunks: true } },
+          objects: true,
+          rooms: { include: { zones: true } },
+        },
+      });
+      if (!original) throw new Error('source_map_not_found');
+
+      await assertTargetPackAccess(tx, original, targetTenantId);
+
+      const baseName = newName || `${original.name}-copy`;
+      const copyName = await resolveCopyName(tx, targetTenantId, baseName);
+      const newMap = await tx.map.create({
+        data: {
+          tenantId: targetTenantId,
+          name: copyName,
+          width: original.width,
+          height: original.height,
+          tileWidth: original.tileWidth,
+          tileHeight: original.tileHeight,
+          chunkSize: original.chunkSize,
+          meta: original.meta as Prisma.InputJsonValue,
+        },
+      });
+
+      await copyTilesets(tx, original, newMap.id);
+      await copyLayersAndChunks(tx, original, newMap.id);
+      await copyObjects(tx, original, newMap.id);
+      await copyRoomsAndZones(tx, original, newMap.id, targetTenantId);
+
+      return { id: newMap.id, name: newMap.name };
     },
-  });
-  if (!original) throw new Error('source_map_not_found');
-
-  const baseName = newName || `${original.name}-copy`;
-  const copyName = await resolveCopyName(prisma, targetTenantId, baseName);
-
-  const result = await prisma.$transaction(async (tx) => {
-    const newMap = await tx.map.create({
-      data: {
-        tenantId: targetTenantId,
-        name: copyName,
-        width: original.width,
-        height: original.height,
-        tileWidth: original.tileWidth,
-        tileHeight: original.tileHeight,
-        chunkSize: original.chunkSize,
-        meta: original.meta as Prisma.InputJsonValue,
-      },
-    });
-
-    await copyTilesets(tx, original, newMap.id);
-    await copyLayersAndChunks(tx, original, newMap.id);
-    await copyObjects(tx, original, newMap.id);
-    await copyRoomsAndZones(tx, original, newMap.id, targetTenantId);
-
-    return newMap;
-  });
-
-  return { id: result.id, name: result.name };
+    { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
+  );
 }

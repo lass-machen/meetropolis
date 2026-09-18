@@ -97,6 +97,10 @@ export interface PlayerAvatarMessage {
   avatarId: string;
 }
 
+export interface AvatarChangeAcceptedMessage {
+  avatarId: string;
+}
+
 // player_map_changed broadcast (see apps/server/src/rooms/handlers/mapSwitchHandler.ts).
 export interface PlayerMapChangedMessage {
   id: string;

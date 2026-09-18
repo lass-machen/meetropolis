@@ -1,8 +1,8 @@
 /**
  * Authorisation tests for the AvatarPack routes.
  *
- * Writes: a pack created here always lands as a catalogue pack (tenantId NULL)
- * and is therefore visible in every tenant, so POST /avatar-packs, DELETE
+ * Writes: a pack created here always lands as a global pack (tenantId NULL)
+ * and is base equipment until separately catalogued, so POST /avatar-packs, DELETE
  * /avatar-packs/:id and POST /avatar-packs/upload-sprite must be restricted to
  * a platform super-admin (owner of the internal tenant), exactly like the twin
  * global AssetPack registry. Before that fix these routes accepted any

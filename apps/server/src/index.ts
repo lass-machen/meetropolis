@@ -25,7 +25,7 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 import { WorldRoom } from './rooms/WorldRoom.js';
-import { registerApi } from './api.js';
+import { getApiPrismaClient, registerApi } from './api.js';
 import { logger } from './logger.js';
 import { registry, metricsMiddleware } from './metrics.js';
 import { tenantMiddleware } from './tenancy.js';
@@ -35,6 +35,7 @@ import { dynamicApiCacheControl } from './api/middleware/dynamicCacheControl.js'
 import { getBillingModule } from './billingLoader.js';
 import { getTelemetryModule } from './telemetryLoader.js';
 import { resolveTrustProxySetting } from './trustProxy.js';
+import { assertBaseAvatarAvailable, listenAfterStartupChecks } from './services/startupInvariant.js';
 
 // Colyseus 0.17 registers a prependListener('request', ...) on the HTTP server
 // that answers CORS preflights directly with DEFAULT_CORS_HEADERS, before
@@ -335,14 +336,18 @@ gameServer.define('world', WorldRoom).filterBy(['tenant']);
 // Calling httpServer.listen() directly would skip that wiring and leave clients
 // with 404s on the matchmake endpoint. The transport shares our httpServer, so
 // the bind targets the same port we configured above.
-gameServer
-  .listen(port, '0.0.0.0', undefined, () => {
-    logger.info(`Server listening on :${port}`);
-  })
-  .catch((err) => {
-    logger.error('Colyseus listen failed', err);
-    process.exit(1);
-  });
+try {
+  await listenAfterStartupChecks(
+    () => assertBaseAvatarAvailable(getApiPrismaClient()),
+    () =>
+      gameServer.listen(port, '0.0.0.0', undefined, () => {
+        logger.info(`Server listening on :${port}`);
+      }),
+  );
+} catch (err) {
+  logger.error('Server startup failed before listening', err);
+  process.exit(1);
+}
 
 // Central error handler last
 app.use(errorHandler);

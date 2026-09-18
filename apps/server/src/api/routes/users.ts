@@ -44,14 +44,15 @@ export function registerUserRoutes(
 
     // Only accept an avatarId that resolves to something real AND is in this
     // caller's reach: a default, an avatar from a pack the caller's scope
-    // covers (catalog packs plus its own tenant's private ones), or a custom
-    // avatar of the caller's OWN PROVEN TENANT. The custom branch is scoped
+    // covers (base equipment, accessible catalogue packs, and its own tenant's
+    // private packs), or a custom avatar of the caller's OWN PROVEN TENANT. The
+    // custom branch is scoped
     // too — do not widen it back to "any existing custom avatar", that
     // premise is what made the route an existence oracle for foreign uuids
     // (rationale on `isAllowedAvatarId` in services/avatarAccess.ts).
     // Previously any free-form string was persisted; then any registered pack
     // was — including a foreign tenant's private one.
-    const scope = await resolvePackScope(prisma, req);
+    const scope = await resolvePackScope(prisma, req, 'avatar');
     if (!(await isAllowedAvatarId(prisma, parsed.data.avatarId, scope))) {
       return res.status(400).json({ error: 'invalid avatarId' });
     }

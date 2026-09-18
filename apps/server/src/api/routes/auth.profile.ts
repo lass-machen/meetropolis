@@ -35,7 +35,7 @@ export async function handleOnboardingComplete(
       // covers, or a custom avatar of the caller's OWN PROVEN TENANT. The
       // custom branch is tenant-scoped like the pack branch — see
       // `isAllowedAvatarId` in services/avatarAccess.ts before loosening it.
-      const scope = await resolvePackScope(prisma, req);
+      const scope = await resolvePackScope(prisma, req, 'avatar');
       if (!(await isAllowedAvatarId(prisma, parse.data.avatarId, scope))) {
         res.status(400).json({ error: 'invalid avatarId' });
         return;

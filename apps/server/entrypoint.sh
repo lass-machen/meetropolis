@@ -11,7 +11,7 @@ if [ "$RUN_MIGRATIONS" = "true" ]; then
   echo "[entrypoint] prisma migrate deploy --schema $PRISMA_SCHEMA"
   npx prisma migrate deploy --schema "$PRISMA_SCHEMA"
   if [ "$RUN_SEED" = "true" ]; then
-    npx prisma db seed --schema "$PRISMA_SCHEMA" || echo "[entrypoint] seed non-fatal"
+    npx prisma db seed --schema "$PRISMA_SCHEMA"
   fi
 fi
 

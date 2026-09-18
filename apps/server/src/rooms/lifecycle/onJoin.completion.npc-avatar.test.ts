@@ -29,17 +29,49 @@ vi.mock('../../metrics.js', () => ({
 }));
 
 type FindArgs = { where?: { id?: string; name?: string; slug?: string } };
+let userAvatarId: string | null = null;
 const fakePrisma = {
   tenant: {
-    findUnique: vi.fn((args: FindArgs) => Promise.resolve(args?.where?.id ? { defaultMapName: 'office' } : null)),
+    findUnique: vi.fn((args: FindArgs) => {
+      if (args?.where?.id) return Promise.resolve({ id: 'tenant-a', defaultMapName: 'office' });
+      if (args?.where?.slug) return Promise.resolve({ id: 'tenant-a', slug: args.where.slug });
+      return Promise.resolve(null);
+    }),
   },
   map: {
     findFirst: vi.fn(() => Promise.resolve({ id: 'map-1', name: 'office' })),
+    findUnique: vi.fn(() => Promise.resolve({ tenantId: 'tenant-a' })),
   },
-  // Present but never consulted on this path: the join does NOT re-validate the
-  // avatar against the DB, which is precisely why the prefix guard has to be
-  // structural rather than a lookup.
-  user: { findUnique: vi.fn(() => Promise.resolve(null)) },
+  user: {
+    findUnique: vi.fn(() =>
+      Promise.resolve(
+        userAvatarId === null ? null : { name: 'Alice', email: 'alice@example.test', avatarId: userAvatarId },
+      ),
+    ),
+  },
+  membership: {
+    findFirst: vi.fn(() => Promise.resolve(null)),
+    findMany: vi.fn(() => Promise.resolve([])),
+  },
+  presence: { findMany: vi.fn(() => Promise.resolve([])) },
+  avatarPack: {
+    findFirst: vi.fn(({ where }: { where: { uuid?: string } }) =>
+      Promise.resolve(
+        where.uuid === 'shared-pack'
+          ? { avatars: [{ key: 'hero' }] }
+          : where.uuid === 'default-characters'
+            ? { avatars: [{ key: 'business_man' }] }
+            : null,
+      ),
+    ),
+  },
+  customAvatar: {
+    findFirst: vi.fn(({ where }: { where: { uuid?: string; tenantId?: string } }) =>
+      Promise.resolve(
+        where.uuid === LEAKED_ID.slice('custom:'.length) && where.tenantId === 'tenant-a' ? { uuid: where.uuid } : null,
+      ),
+    ),
+  },
 };
 vi.mock('../../db.js', () => ({ createPrismaClient: () => fakePrisma }));
 
@@ -85,6 +117,17 @@ function fakeView(): unknown {
   return { add() {}, remove() {}, has: () => false };
 }
 
+interface ClientDouble {
+  sessionId: string;
+  send: ReturnType<typeof vi.fn>;
+  view: unknown;
+  auth: { identity: string; isNpc: boolean; zonePrivacyVersion: number; tenantId?: string };
+}
+
+function clientDouble(value: ClientDouble): Client {
+  return value as Client;
+}
+
 function makeRoom(): { room: WorldRoom; players: Map<string, FakePlayer> } {
   const players = new Map<string, FakePlayer>();
   const room = {
@@ -115,16 +158,17 @@ function baseOptions(extra: Partial<RoomOptions>): RoomOptions {
 }
 
 function npcClient(sessionId: string): Client {
-  return {
+  return clientDouble({
     sessionId,
     send: vi.fn(),
     view: fakeView(),
     // How onAuth marks an NPC join: secret-gated, no verified tenant.
     auth: { identity: 'npc-bob', isNpc: true, zonePrivacyVersion: 1 },
-  } as unknown as Client;
+  });
 }
 
 beforeEach(() => {
+  userAvatarId = null;
   broadcastToMapMock.mockClear();
   fakePrisma.tenant.findUnique.mockClear();
   fakePrisma.map.findFirst.mockClear();
@@ -164,20 +208,64 @@ describe('completePendingJoin: NPCs never carry a custom avatar', () => {
 
   it('does NOT touch a human player wearing a custom avatar', async () => {
     const { room, players } = makeRoom();
-    const client = {
+    const client = clientDouble({
       sessionId: 'sid-human',
       send: vi.fn(),
       view: fakeView(),
       auth: { identity: 'user-a', isNpc: false, zonePrivacyVersion: 1, tenantId: 'tenant-a' },
-    } as unknown as Client;
+    });
 
-    // A real member of the owning tenant: the id was validated where it was put
-    // on (api/routes/meAvatar.ts, handlers/avatarHandler.ts) and the player is
-    // only ever synced to same-tenant clients, so the guard must not fire here.
+    userAvatarId = LEAKED_ID;
     await completePendingJoin(room, client, baseOptions({ avatarId: LEAKED_ID }), 'user-a', fakePlayerClass);
 
     const player = players.get('sid-human');
     expect(player?.isNpc).toBe(false);
     expect(player?.avatarId).toBe(LEAKED_ID);
+  });
+
+  it('falls back to the database avatar when an authenticated join requests a foreign pack', async () => {
+    userAvatarId = DEFAULT_ID;
+    const { room, players } = makeRoom();
+    const client = clientDouble({
+      sessionId: 'sid-scoped-human',
+      send: vi.fn(),
+      view: fakeView(),
+      auth: { identity: 'user-a', isNpc: false, zonePrivacyVersion: 1, tenantId: 'tenant-a' },
+    });
+
+    await completePendingJoin(
+      room,
+      client,
+      baseOptions({ avatarId: 'foreign-pack:intruder' }),
+      'user-a',
+      fakePlayerClass,
+    );
+
+    expect(players.get('sid-scoped-human')?.avatarId).toBe(DEFAULT_ID);
+    expect(fakePrisma.avatarPack.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ uuid: 'foreign-pack', OR: [{ tenantId: 'tenant-a' }, { tenantId: null }] }),
+      }),
+    );
+  });
+
+  it('rejects an out-of-scope avatar when no database user exists', async () => {
+    const { room, players } = makeRoom();
+    const client = clientDouble({
+      sessionId: 'sid-legacy-human',
+      send: vi.fn(),
+      view: fakeView(),
+      auth: { identity: 'legacy-user', isNpc: false, zonePrivacyVersion: 1 },
+    });
+
+    await completePendingJoin(
+      room,
+      client,
+      baseOptions({ tenant: 'default', avatarId: 'foreign-pack:intruder' }),
+      'legacy-user',
+      fakePlayerClass,
+    );
+
+    expect(players.get('sid-legacy-human')?.avatarId).toBe(DEFAULT_ID);
   });
 });

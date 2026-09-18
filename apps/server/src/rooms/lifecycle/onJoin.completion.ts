@@ -11,12 +11,7 @@ import { isWorldAuth } from './onAuth.js';
 import { tenantKeyForClient, isPlayerVisibleToTenant, syncTenantViewsOnJoin } from './tenantView.js';
 import { zoneLocksForClient } from '../handlers/zoneLockHandler.js';
 import { warmZoneCatalog, trackMove } from '../audioZones/runtime.js';
-import { isCustomAvatarId } from '../../services/avatarAccess.js';
-
-// Fallback appearance when a join names no avatar at all, and the replacement
-// for an id this path refuses to publish. Mirrors the `User.avatarId` column
-// default (prisma/schema.prisma).
-const DEFAULT_AVATAR_ID = 'default-characters:business_man';
+import { resolveFallbackTenantId, resolveJoinAppearance } from './onJoin.avatar.js';
 
 // Wait until the client's onMessage handlers are likely registered before
 // sending one-shot messages. Colyseus 0.17 resolves joinOrCreate faster than
@@ -166,52 +161,6 @@ async function ensureRoomMapMetadata(room: WorldRoom, options: RoomOptions, auth
   } catch (e) {
     logger.debug('[WorldRoom] Failed to ensure map metadata on join', e);
   }
-}
-
-// Resolve display name + avatarId from DB if needed.
-async function resolveNameAndAvatar(
-  room: WorldRoom,
-  options: RoomOptions,
-  joiningIdentity: string,
-): Promise<{ name: string; avatarId: string | undefined }> {
-  let resolvedName: string | undefined = options?.name;
-  let resolvedAvatarId: string | undefined = undefined;
-  const isNpcIdentity = (joiningIdentity || '').startsWith('npc-');
-  const needsNameLookup = !resolvedName || resolvedName === joiningIdentity;
-  if (!isNpcIdentity && (needsNameLookup || !options?.avatarId)) {
-    try {
-      const prisma = room.prismaForPresence ?? createPrismaClient();
-      const user = await prisma.user.findUnique({
-        where: { id: joiningIdentity },
-        select: { name: true, email: true, avatarId: true },
-      });
-      if (needsNameLookup) {
-        resolvedName = user?.name || user?.email || joiningIdentity;
-      }
-      resolvedAvatarId = user?.avatarId ?? undefined;
-    } catch (e) {
-      logger.debug('[WorldRoom] Failed to look up user name/avatar from DB', e);
-      if (needsNameLookup) {
-        resolvedName = joiningIdentity;
-      }
-    }
-  }
-  return { name: resolvedName || joiningIdentity, avatarId: resolvedAvatarId };
-}
-
-// Resolve a tenant id from the client/room slug — ONLY for joins with no
-// verified auth tenant (NPC or token-less legacy join). A normal authenticated
-// user's tenant comes straight from the JWT (auth.tenantId) and never reaches
-// this, so a spoofed options.tenant cannot influence a real user's PII scope.
-async function resolveFallbackTenantId(
-  prisma: ReturnType<typeof createPrismaClient>,
-  options: RoomOptions,
-  room: WorldRoom,
-): Promise<string | undefined> {
-  const slug =
-    options?.tenant || (room.metadata as RoomMetadata)?.tenant || process.env.DEFAULT_TENANT_SLUG || 'default';
-  const tenant = await prisma.tenant.findUnique({ where: { slug }, select: { id: true } });
-  return tenant?.id ?? undefined;
 }
 
 // Send seed presence_recent to the new client. Best-effort, scoped by the
@@ -425,22 +374,15 @@ export async function completePendingJoin(
   player.direction = options?.direction || 'down';
   player.identity = joiningIdentity;
 
-  const { name, avatarId } = await resolveNameAndAvatar(room, options, joiningIdentity);
+  const { name, avatarId } = await resolveJoinAppearance(room, options, joiningIdentity, authTenantId, initialMapId);
   player.name = name;
   const isNpc = (joiningIdentity || '').startsWith('npc-');
-  // Priority: explicit options.avatarId (active session update) > DB value (source of truth) > default
-  const requestedAvatarId = options?.avatarId || avatarId || DEFAULT_AVATAR_ID;
-  // An NPC never wears a custom avatar (see rooms/handlers/avatarHandler.ts and
-  // api/routes/npcs.ts, which both refuse those ids). Enforced HERE as well,
-  // because this is the path that actually publishes the id: NPC players bypass
-  // the per-client tenant StateView (tenantView.ts `isPlayerVisibleToTenant`)
-  // and reach every tenant sharing the room, so a `custom:<uuid>` on an NPC
-  // would hand a foreign tenant the uuid behind the public, session-less sprite
-  // URL (services/avatarComposer.ts `customSpriteUrl`). The NPC service reads
-  // `Npc.avatarId` straight from the DB, so rows written before that route
-  // check existed still arrive here — this guard is what neutralises them
-  // without a data migration.
-  player.avatarId = isNpc && isCustomAvatarId(requestedAvatarId) ? DEFAULT_AVATAR_ID : requestedAvatarId;
+  // The database is the authenticated user's baseline. A client-supplied value
+  // may override it only after the same pack-scope check used by REST avatar
+  // writes. Token-less/NPC joins have no User row, but pass through that scope
+  // check as well. The delayed full_state below mirrors the resulting value to
+  // the client, which replaces its stale localStorage value.
+  player.avatarId = avatarId;
   player.isNpc = isNpc;
   // Re-assert the client's local DND state on (re-)join. The server only
   // holds DND in memory, so a reconnect/restart/takeover would otherwise

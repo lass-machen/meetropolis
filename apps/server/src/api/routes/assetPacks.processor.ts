@@ -279,10 +279,11 @@ export async function moveTmpToFinal(tmpDir: string, finalDir: string): Promise<
 
 /**
  * `tenantId` is deliberately absent from `dataRecord`. On create the column
- * default applies (NULL = platform catalog); on update, naming it at all — even
- * as `tenantId: null` — would reset an ownership assignment made by an operator
- * the next time the pack is re-uploaded. Ownership is assigned operationally
- * (see the cutover runbook), never through this route.
+ * default applies (NULL = global base equipment unless separately catalogued);
+ * on update, naming it at all — even as `tenantId: null` — would reset an
+ * ownership assignment made by an operator the next time the pack is
+ * re-uploaded. Ownership is assigned operationally (see the cutover runbook),
+ * never through this route.
  */
 export function persistAssetPackRecord(
   prisma: PrismaClient,

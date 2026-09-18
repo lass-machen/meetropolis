@@ -38,6 +38,11 @@ const fakePrisma = {
       return Promise.resolve({ id: 'tenant-a-office', name: 'office' });
     }),
   },
+  user: { findUnique: vi.fn(() => Promise.resolve(null)) },
+  avatarPack: {
+    findFirst: vi.fn(() => Promise.resolve({ avatars: [{ key: 'business_man' }] })),
+  },
+  customAvatar: { findFirst: vi.fn(() => Promise.resolve(null)) },
 };
 vi.mock('../../db.js', () => ({
   createPrismaClient: () => fakePrisma,
