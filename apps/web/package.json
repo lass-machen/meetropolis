@@ -17,7 +17,7 @@
   },
   "dependencies": {
     "@colyseus/schema": "^4.0.30",
-    "@colyseus/sdk": "^0.17.43",
+    "@colyseus/sdk": "^0.18.2",
     "@radix-ui/primitive": "^1.1.7",
     "@radix-ui/react-dialog": "^1.1.23",
     "@radix-ui/react-popover": "1.1.23",
