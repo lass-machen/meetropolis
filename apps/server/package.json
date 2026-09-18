@@ -21,7 +21,7 @@
     "start:dev": "tsx watch src/index.ts"
   },
   "dependencies": {
-    "@colyseus/schema": "^4.0.30",
+    "@colyseus/schema": "^5.0.32",
     "@colyseus/sdk": "^0.17.43",
     "@prisma/adapter-pg": "^7.10.0",
     "@prisma/client": "^7.10.0",

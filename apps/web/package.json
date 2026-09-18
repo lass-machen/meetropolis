@@ -16,7 +16,7 @@
     "e2e": "node ./e2e-run.js"
   },
   "dependencies": {
-    "@colyseus/schema": "^4.0.30",
+    "@colyseus/schema": "^5.0.32",
     "@colyseus/sdk": "^0.17.43",
     "@radix-ui/primitive": "^1.1.7",
     "@radix-ui/react-dialog": "^1.1.23",
