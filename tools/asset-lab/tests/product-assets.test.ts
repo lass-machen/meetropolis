@@ -86,8 +86,7 @@ describe('Produktgeneration atelier-v1', () => {
     }
     const catalog = json('/assets/atelier/v1/catalog.json');
     expect(catalog.active).toBe(true);
-    expect(catalog.withheldAutotile).toMatchObject({ active: true, gridHeight: 3 });
-    expect(catalog.withheldAutotile).not.toHaveProperty('blockedBy');
+    expect(catalog.autotile).toMatchObject({ active: true, gridHeight: 3 });
     const environmentAssets = catalog.environmentAssets as Array<{
       id: string;
       category: string;

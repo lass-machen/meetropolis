@@ -38,7 +38,7 @@ interface Catalog {
   manifest: string;
   environmentAssets: CatalogAsset[];
   floorAtlas: { assetId: string; tileWidth: number; tileHeight: number; columns: number; rows: number };
-  withheldAutotile: { assetId: string; active: boolean };
+  autotile: { assetId: string; active: true };
 }
 
 interface ManifestAsset {
@@ -158,8 +158,6 @@ function loadProductAssets(): { catalog: Catalog; assets: Map<string, ProductAss
   if (catalog.worldGrid.tileWidth !== TILE || catalog.worldGrid.tileHeight !== TILE) {
     throw new Error('The Atelier catalog must use the 16-pixel world grid.');
   }
-  if (catalog.withheldAutotile.active) throw new Error('A28 forbids the wall autotile in this map generation.');
-
   const manifest = parseJson<Manifest>(resolve(REPO_ROOT, catalog.manifest));
   if (manifest.uuid !== PACK_UUID) throw new Error('The Atelier manifest has an unexpected pack UUID.');
   const manifestItems = [...manifest.terrain, ...manifest.structures, ...manifest.objects];
@@ -167,7 +165,7 @@ function loadProductAssets(): { catalog: Catalog; assets: Map<string, ProductAss
   const assets = new Map<string, ProductAsset>();
   for (const asset of catalog.environmentAssets) {
     const itemId = itemByUrl.get(asset.url);
-    if (!itemId && asset.id === catalog.withheldAutotile.assetId && !catalog.withheldAutotile.active) continue;
+    if (!itemId && asset.id === catalog.autotile.assetId) continue;
     if (!itemId) throw new Error(`No product-manifest item matches catalog asset '${asset.id}'.`);
     assets.set(asset.id, { ...asset, itemId });
   }

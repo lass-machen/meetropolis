@@ -920,7 +920,7 @@
     "offset": { "x": 0, "y": -32 },
     "coordinateSpace": "source-pixels"
   },
-  "withheldAutotile": {
+  "autotile": {
     "assetId": "wall_set",
     "active": true,
     "tileWidth": 16,

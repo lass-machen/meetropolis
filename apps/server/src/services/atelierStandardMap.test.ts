@@ -60,7 +60,7 @@ interface CatalogAsset {
 interface Catalog {
   palette: { packUuid: string };
   environmentAssets: CatalogAsset[];
-  withheldAutotile: { url: string; active: boolean };
+  autotile: { url: string; active: true };
 }
 
 interface ManifestItem {
@@ -155,8 +155,8 @@ describe('Atelier v1 standard map', () => {
       'Workplaces',
       'Points',
     ]);
-    expect(catalog.withheldAutotile.active).toBe(true);
-    expect(tmj.tilesets.some((tileset) => tileset.image === catalog.withheldAutotile.url)).toBe(false);
+    expect(catalog.autotile.active).toBe(true);
+    expect(tmj.tilesets.some((tileset) => tileset.image === catalog.autotile.url)).toBe(false);
 
     for (const tileset of tmj.tilesets) {
       expect(tileset.firstgid).toBeGreaterThan(0);
