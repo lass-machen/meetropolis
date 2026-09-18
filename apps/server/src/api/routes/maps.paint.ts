@@ -5,6 +5,11 @@ import { logger } from '../../logger.js';
 import { pathParam } from '../utils/requestHelpers.js';
 import { broadcastMapUpdate } from '../utils/broadcast.js';
 import { applyCollisionSideEffect } from '../utils/collisionSideEffect.js';
+import {
+  mapAutotileRegistration,
+  resolveMapAutotileForPaint,
+  type MapAutotileRegistration,
+} from '../utils/mapAutotilePalette.js';
 import { findMapById } from './maps.read.js';
 import { resolveEditorMemberTenant } from './maps.editor.js';
 import type { RlePair } from '../../mapEncoding.js';
@@ -19,6 +24,13 @@ const paintSchema = z.object({
   tileRefId: z.number().int().optional(),
   values: z.array(z.number().int()).optional(),
   erase: z.boolean().optional(),
+  autotile: z
+    .object({
+      packUuid: z.string().uuid(),
+      autotileId: z.string().min(1).max(200),
+    })
+    .strict()
+    .optional(),
 });
 
 interface ChunkData {
@@ -188,7 +200,7 @@ export async function handlePaintRect(
       return;
     }
 
-    const { layer: layerName, rect, tileRefId, values: rawValues, erase } = parse.data;
+    const { layer: layerName, rect, tileRefId, values: rawValues, erase, autotile } = parse.data;
 
     const map = await findMapById(prisma, pathParam(req, 'id'), tenant.id);
     if (!map) {
@@ -205,11 +217,38 @@ export async function handlePaintRect(
       erase,
       hasValues: !!rawValues,
       tileRefId,
+      autotile,
     });
 
-    if (!erase && tileRefId === undefined && (!rawValues || rawValues.length === 0)) {
+    if (layerName === 'walls_auto' && (tileRefId !== undefined || (rawValues && rawValues.length > 0))) {
+      res.status(400).json({ error: 'invalid payload: walls_auto requires an autotile identity' });
+      return;
+    }
+    if (layerName !== 'walls_auto' && autotile) {
+      res.status(400).json({ error: 'invalid payload: autotile identity is only valid for walls_auto' });
+      return;
+    }
+    if (!erase && layerName === 'walls_auto' && !autotile) {
+      res.status(400).json({ error: 'invalid payload: missing autotile identity' });
+      return;
+    }
+    if (!erase && layerName !== 'walls_auto' && tileRefId === undefined && (!rawValues || rawValues.length === 0)) {
       res.status(400).json({ error: 'invalid payload: missing tileRefId or values' });
       return;
+    }
+
+    let resolvedTileRefId = tileRefId;
+    let paletteEntry: MapAutotileRegistration | undefined;
+    let paletteEntryCreated = false;
+    if (!erase && layerName === 'walls_auto' && autotile) {
+      const allocation = await resolveMapAutotileForPaint(prisma, req, map.id, autotile);
+      if (!allocation) {
+        res.status(400).json({ error: 'autotile_not_found' });
+        return;
+      }
+      resolvedTileRefId = allocation.entry.slot;
+      paletteEntry = mapAutotileRegistration(allocation.entry);
+      paletteEntryCreated = allocation.created;
     }
 
     let layer = await prisma.mapLayer.findUnique({ where: { mapId_name: { mapId: map.id, name: layerName } } });
@@ -235,7 +274,7 @@ export async function handlePaintRect(
       rect,
       chunkSize,
       existingChunks,
-      tileRefId,
+      tileRefId: resolvedTileRefId,
       rawValues,
       erase,
     });
@@ -249,11 +288,16 @@ export async function handlePaintRect(
         mapName: map.name,
         layer: layerName,
         updates,
+        autotilePaletteEntries: paletteEntryCreated && paletteEntry ? [paletteEntry] : undefined,
       });
     }
 
     let collisionUpdates: ChunkUpdateResult[] | undefined;
     if (layerName === 'walls_auto' && updates.length > 0) {
+      const palette = await prisma.mapAutotile.findMany({
+        where: { mapId: map.id },
+        select: { slot: true, collide: true },
+      });
       collisionUpdates = await applyCollisionSideEffect({
         prisma,
         mapId: map.id,
@@ -261,6 +305,7 @@ export async function handlePaintRect(
         rect,
         wallChunkSize: chunkSize,
         wallChunkUpdates: chunkUpdates,
+        collidingSlots: new Set(palette.filter((entry) => entry.collide).map((entry) => entry.slot)),
       });
       if (collisionUpdates.length > 0) {
         broadcastMapUpdate(tenant.slug, 'chunks_updated', {
@@ -275,6 +320,7 @@ export async function handlePaintRect(
     res.json({
       updates,
       collisionUpdates: collisionUpdates && collisionUpdates.length > 0 ? collisionUpdates : undefined,
+      autotilePaletteEntry: paletteEntry,
     });
   } catch (e: unknown) {
     logger.error('[Map] paint-rect failed', e);

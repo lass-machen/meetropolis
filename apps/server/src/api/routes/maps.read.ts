@@ -141,6 +141,24 @@ export async function handleStateV2(prisma: PrismaClient, req: express.Request, 
         hash: true,
       },
     });
+    const autotiles = await prisma.mapAutotile.findMany({
+      where: { mapId: map.id },
+      orderBy: { slot: 'asc' },
+      select: {
+        slot: true,
+        packUuid: true,
+        autotileId: true,
+        key: true,
+        imageUrl: true,
+        tileWidth: true,
+        tileHeight: true,
+        gridHeight: true,
+        variants: true,
+        collide: true,
+        placement: true,
+        hash: true,
+      },
+    });
 
     const layerIndex = await buildLayerIndex(prisma, map.id);
 
@@ -153,7 +171,7 @@ export async function handleStateV2(prisma: PrismaClient, req: express.Request, 
       version: map.version ?? null,
     };
 
-    res.json({ mapMeta, tilesetRegistry: tilesets, layerIndex });
+    res.json({ mapMeta, tilesetRegistry: tilesets, autotilePalette: autotiles, layerIndex });
   } catch (e: unknown) {
     logger.error('[Map] state-v2 failed', e);
     res.status(500).json({ error: 'internal_error' });

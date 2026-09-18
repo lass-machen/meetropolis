@@ -37,7 +37,7 @@ async function handleListAdminMaps(prisma: PrismaClient, req: express.Request, r
     const maps = await prisma.map.findMany({
       include: {
         tenant: { select: { id: true, slug: true, name: true } },
-        _count: { select: { rooms: true, zones: true, tilesets: true, layers: true, objects: true } },
+        _count: { select: { rooms: true, zones: true, tilesets: true, autotiles: true, layers: true, objects: true } },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -75,6 +75,7 @@ async function handleGetAdminMap(prisma: PrismaClient, req: express.Request, res
         tenant: { select: { id: true, slug: true, name: true } },
         rooms: { include: { zones: true } },
         tilesets: { orderBy: { slot: 'asc' } },
+        autotiles: { orderBy: { slot: 'asc' } },
         layers: { include: { _count: { select: { chunks: true } } } },
         _count: { select: { objects: true } },
       },
@@ -144,6 +145,7 @@ async function deleteMapCascade(prisma: PrismaClient, mapId: string): Promise<vo
     }
     await tx.mapLayer.deleteMany({ where: { mapId } });
     await tx.mapTileset.deleteMany({ where: { mapId } });
+    await tx.mapAutotile.deleteMany({ where: { mapId } });
     const rooms = await tx.room.findMany({ where: { mapId }, select: { id: true } });
     const roomIds = rooms.map((r) => r.id);
     if (roomIds.length > 0) {

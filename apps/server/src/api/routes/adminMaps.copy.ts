@@ -5,6 +5,7 @@ type TxClient = Prisma.TransactionClient;
 type OriginalMapWithRelations = Prisma.MapGetPayload<{
   include: {
     tilesets: { orderBy: { slot: 'asc' } };
+    autotiles: { orderBy: { slot: 'asc' } };
     layers: { include: { chunks: true } };
     objects: true;
     rooms: { include: { zones: true } };
@@ -35,6 +36,28 @@ async function copyTilesets(tx: TxClient, original: OriginalMapWithRelations, ne
         spacing: ts.spacing,
         hash: ts.hash,
         tileCount: ts.tileCount,
+      },
+    });
+  }
+}
+
+async function copyAutotiles(tx: TxClient, original: OriginalMapWithRelations, newMapId: string): Promise<void> {
+  for (const autotile of original.autotiles) {
+    await tx.mapAutotile.create({
+      data: {
+        mapId: newMapId,
+        slot: autotile.slot,
+        packUuid: autotile.packUuid,
+        autotileId: autotile.autotileId,
+        key: autotile.key,
+        imageUrl: autotile.imageUrl,
+        tileWidth: autotile.tileWidth,
+        tileHeight: autotile.tileHeight,
+        gridHeight: autotile.gridHeight,
+        variants: autotile.variants as Prisma.InputJsonValue,
+        collide: autotile.collide,
+        placement: autotile.placement,
+        hash: autotile.hash,
       },
     });
   }
@@ -144,6 +167,7 @@ export async function copyMapToTenant(
     where: { id: sourceMapId },
     include: {
       tilesets: { orderBy: { slot: 'asc' } },
+      autotiles: { orderBy: { slot: 'asc' } },
       layers: { include: { chunks: true } },
       objects: true,
       rooms: { include: { zones: true } },
@@ -164,11 +188,13 @@ export async function copyMapToTenant(
         tileWidth: original.tileWidth,
         tileHeight: original.tileHeight,
         chunkSize: original.chunkSize,
+        nextAutotileSlot: original.nextAutotileSlot,
         meta: original.meta as Prisma.InputJsonValue,
       },
     });
 
     await copyTilesets(tx, original, newMap.id);
+    await copyAutotiles(tx, original, newMap.id);
     await copyLayersAndChunks(tx, original, newMap.id);
     await copyObjects(tx, original, newMap.id);
     await copyRoomsAndZones(tx, original, newMap.id, targetTenantId);

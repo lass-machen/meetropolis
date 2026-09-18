@@ -44,6 +44,7 @@ interface CollisionSideEffectParams {
   rect: Rect;
   wallChunkSize: number;
   wallChunkUpdates: Map<string, { _decoded: number[] }>;
+  collidingSlots: ReadonlySet<number>;
 }
 
 async function getOrCreateCollisionLayer(prisma: PrismaClient, mapId: string, defaultChunkSize: number) {
@@ -93,8 +94,9 @@ function computeCollisionUpdates(params: {
   wallChunkSize: number;
   wallChunkUpdates: Map<string, { _decoded: number[] }>;
   existingColChunks: Map<string, ChunkData>;
+  collidingSlots: ReadonlySet<number>;
 }): Map<string, ChunkUpdate> {
-  const { rect, colChunkSize, wallChunkSize, wallChunkUpdates, existingColChunks } = params;
+  const { rect, colChunkSize, wallChunkSize, wallChunkUpdates, existingColChunks, collidingSlots } = params;
   const colUpdates = new Map<string, ChunkUpdate>();
 
   for (let y = rect.y0; y <= rect.y1; y++) {
@@ -123,7 +125,7 @@ function computeCollisionUpdates(params: {
       const wallRy = y % wallChunkSize;
       const wallIdx = wallRy * wallChunkSize + wallRx;
       const wallVal = wallChunkData?._decoded[wallIdx] ?? 0;
-      const colVal = wallVal > 0 ? 1 : 0;
+      const colVal = collidingSlots.has(wallVal) ? 1 : 0;
 
       if (cd._decoded[idx] !== colVal) {
         cd._decoded[idx] = colVal;
@@ -164,10 +166,11 @@ async function persistCollisionUpdates(
 
 /**
  * After painting walls_auto, sync collision layer:
- * collision=1 where wall>0, collision=0 where wall=0.
+ * collision=1 only where the persisted palette snapshot marks the wall slot
+ * as colliding; non-colliding and empty wall cells become collision=0.
  */
 export async function applyCollisionSideEffect(params: CollisionSideEffectParams): Promise<ChunkUpdateResult[]> {
-  const { prisma, mapId, defaultChunkSize, rect, wallChunkSize, wallChunkUpdates } = params;
+  const { prisma, mapId, defaultChunkSize, rect, wallChunkSize, wallChunkUpdates, collidingSlots } = params;
 
   const collisionLayer = await getOrCreateCollisionLayer(prisma, mapId, defaultChunkSize);
   const colChunkSize = collisionLayer.chunkSize || 32;
@@ -187,6 +190,7 @@ export async function applyCollisionSideEffect(params: CollisionSideEffectParams
     wallChunkSize,
     wallChunkUpdates,
     existingColChunks,
+    collidingSlots,
   });
 
   return persistCollisionUpdates(prisma, collisionLayer.id, colUpdates, existingColChunks);

@@ -60,7 +60,7 @@ const AutotileVariant = z
   })
   .strict();
 
-const AutotileItem = z
+export const AutotileItemSchema = z
   .object({
     id: idStr,
     key: z.string().min(1).max(200),
@@ -77,6 +77,11 @@ const AutotileItem = z
   })
   .strict();
 
+// Database rows contain server-rewritten URLs (`/packs/...`) and shipped
+// catalog URLs (`/assets/...`), while upload validation above deliberately
+// accepts only ZIP-relative `assets/...` paths.
+export const StoredAutotileItemSchema = AutotileItemSchema.extend({ dataURL: z.string().min(1) }).strict();
+
 export const ConfigSchema = z
   .object({
     uuid: z.string().uuid(),
@@ -87,7 +92,7 @@ export const ConfigSchema = z
     terrain: z.array(TerrainItem).default([]),
     structures: z.array(SpriteItem).default([]),
     objects: z.array(SpriteItem).default([]),
-    autotiles: z.array(AutotileItem).default([]),
+    autotiles: z.array(AutotileItemSchema).default([]),
   })
   .strict();
 

@@ -169,26 +169,31 @@ model Session {
 }
 
 model Map {
-  id        String   @id @default(cuid())
-  tenant    Tenant   @relation(fields: [tenantId], references: [id])
-  tenantId  String
-  name      String
-  meta      Json
+  id               String   @id @default(cuid())
+  tenant           Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId         String
+  name             String
+  meta             Json
   // v2 Map Geometry & Settings
-  width      Int?
-  height     Int?
-  tileWidth  Int?
-  tileHeight Int?
-  chunkSize  Int?     @default(32)
-  version    Int?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  rooms     Room[]
-  zones     Zone[]
+  width            Int?
+  height           Int?
+  tileWidth        Int?
+  tileHeight       Int?
+  chunkSize        Int?     @default(32)
+  version          Int?
+  /// Next never-used slot for the map-local autotile palette. Allocation
+  /// atomically increments this counter; deleting palette rows is forbidden
+  /// and never makes their slots eligible for reuse.
+  nextAutotileSlot Int      @default(1)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  rooms            Room[]
+  zones            Zone[]
   // v2 relations
-  tilesets  MapTileset[]
-  layers    MapLayer[]
-  objects   MapObject[]
+  tilesets         MapTileset[]
+  autotiles        MapAutotile[]
+  layers           MapLayer[]
+  objects          MapObject[]
 
   @@unique([tenantId, name])
 }
@@ -418,6 +423,38 @@ model MapTileset {
   updatedAt  DateTime @updatedAt
 
   @@unique([mapId, slot])
+  @@index([mapId])
+}
+
+/// Map-local autotile palette. `slot` is the integer stored in `walls_auto`
+/// chunks and is allocated monotonically without reuse. Palette rows are
+/// permanent even after their last painted cell is erased; never delete them
+/// as cleanup. Render fields are a snapshot, not a live pack reference, so an
+/// existing map remains renderable
+/// when its source pack is archived, made private, changed, or removed. Pack
+/// scope is enforced when a palette entry is first created; later reads use
+/// the immutable map-owned snapshot just like placed MapObject sprites do.
+model MapAutotile {
+  id         String   @id @default(cuid())
+  map        Map      @relation(fields: [mapId], references: [id])
+  mapId      String
+  slot       Int
+  packUuid   String
+  autotileId String
+  key        String
+  imageUrl   String
+  tileWidth  Int
+  tileHeight Int
+  gridHeight Int
+  variants   Json
+  collide    Boolean
+  placement  String
+  hash       String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([mapId, slot])
+  @@unique([mapId, packUuid, autotileId])
   @@index([mapId])
 }
 

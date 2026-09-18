@@ -156,6 +156,11 @@ vi.mock('./generated/prisma/index.js', () => {
         return rec as any;
       },
     };
+    mapAutotile = {
+      findMany() {
+        return [] as any;
+      },
+    };
     zone = {
       findMany({ where: _where, select: _select }: any) {
         return [] as any;
@@ -208,7 +213,7 @@ vi.mock('./generated/prisma/index.js', () => {
       },
     };
   }
-  return { PrismaClient: PrismaClientMock };
+  return { PrismaClient: PrismaClientMock, Prisma: { TransactionIsolationLevel: { Serializable: 'Serializable' } } };
 });
 
 import { registerApi } from './api.js';

@@ -59,8 +59,10 @@ const SOURCE_MAP = {
   tileWidth: 16,
   tileHeight: 16,
   chunkSize: 32,
+  nextAutotileSlot: 1,
   meta: {},
   tilesets: [],
+  autotiles: [],
   layers: [],
   objects: [SOURCE_OBJECT],
   rooms: [],
@@ -77,6 +79,7 @@ function makePrisma() {
   const tx = {
     map: { create: vi.fn(() => Promise.resolve({ id: 'map-copy', name: 'office' })) },
     mapTileset: { create: vi.fn(() => Promise.resolve({})) },
+    mapAutotile: { create: vi.fn(() => Promise.resolve({})) },
     mapLayer: { create: vi.fn(() => Promise.resolve({ id: 'layer-copy' })) },
     mapChunk: { create: vi.fn(() => Promise.resolve({})) },
     mapObject: { create: mapObjectCreate },
