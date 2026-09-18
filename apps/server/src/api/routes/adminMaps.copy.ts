@@ -151,7 +151,17 @@ async function assertTargetPackAccess(
     select: { uuid: true },
   });
   const accessibleUuids = new Set(accessible.map((pack) => pack.uuid));
-  const blockedUuids = referencedUuids.filter((uuid) => !accessibleUuids.has(uuid));
+  const registered = await prisma.assetPack.findMany({
+    where: { uuid: { in: referencedUuids } },
+    select: { uuid: true },
+  });
+  const registeredUuids = new Set(registered.map((pack) => pack.uuid));
+
+  // Import paths currently persist invented pseudo-UUIDs for self-contained
+  // objects. That modelling defect will be fixed separately. Until then, a
+  // missing AssetPack cannot grant access and must not make the map uncopyable;
+  // only a registered pack outside the target tenant's scope is forbidden.
+  const blockedUuids = referencedUuids.filter((uuid) => registeredUuids.has(uuid) && !accessibleUuids.has(uuid));
   if (blockedUuids.length > 0) {
     throw new TargetPackAccessError(blockedUuids);
   }

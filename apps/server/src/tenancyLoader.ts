@@ -3,13 +3,13 @@ import type { PrismaClient } from './generated/prisma/index.js';
 
 export type PackKind = 'asset' | 'avatar';
 
-export interface AdditionalPackAccessRequest {
+export interface PackVisibilityRequest {
   tenantId?: string;
   packKind: PackKind;
   at: Date;
 }
 
-export interface AdditionalPackAccessResult {
+export interface PackVisibilityResult {
   /** Every global pack deliberately placed in the enterprise catalogue. */
   catalogPackUuids: readonly string[];
   /** The catalogue subset published or granted to this audience. */
@@ -51,10 +51,7 @@ export type TenancyModule = {
    * Treating all global packs as merchandise would remove the furniture
    * palette and default characters from every tenant at once.
    */
-  resolveAdditionalPackUuids?: (
-    prisma: PrismaClient,
-    request: AdditionalPackAccessRequest,
-  ) => Promise<AdditionalPackAccessResult>;
+  resolvePackVisibility?: (prisma: PrismaClient, request: PackVisibilityRequest) => Promise<PackVisibilityResult>;
 };
 
 /**
@@ -80,16 +77,22 @@ const fnSchema = z.custom<() => boolean>((val) => typeof val === 'function', {
   message: 'expected function',
 });
 
-const packResolverSchema = z.custom<NonNullable<TenancyModule['resolveAdditionalPackUuids']>>(
+const packResolverSchema = z.custom<NonNullable<TenancyModule['resolvePackVisibility']>>(
   (val) => typeof val === 'function',
   { message: 'expected function' },
 );
+
+const legacyPackResolverSchema = z.custom<never>((val) => val === undefined, {
+  message:
+    'resolveAdditionalPackUuids is no longer supported; rename the hook to resolvePackVisibility and return { catalogPackUuids, accessiblePackUuids }',
+});
 
 export const tenancyModuleSchema = z.object({
   version: z.literal(1),
   isMultiTenantEnabled: fnSchema,
   bypassOssLimit: fnSchema.optional(),
-  resolveAdditionalPackUuids: packResolverSchema.optional(),
+  resolvePackVisibility: packResolverSchema.optional(),
+  resolveAdditionalPackUuids: legacyPackResolverSchema.optional(),
 });
 
 let cached: TenancyModule | null = null;

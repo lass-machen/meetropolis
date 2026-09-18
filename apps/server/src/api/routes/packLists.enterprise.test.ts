@@ -11,7 +11,7 @@ import { PrismaClient } from '../../generated/prisma/index.js';
 
 const tenancyMocks = vi.hoisted(() => ({
   enabled: false,
-  resolveAdditionalPackUuids: vi.fn(),
+  resolvePackVisibility: vi.fn(),
 }));
 
 vi.mock('../../tenancyLoader.js', () => ({
@@ -21,7 +21,7 @@ vi.mock('../../tenancyLoader.js', () => ({
         ? {
             version: 1,
             isMultiTenantEnabled: () => true,
-            resolveAdditionalPackUuids: tenancyMocks.resolveAdditionalPackUuids,
+            resolvePackVisibility: tenancyMocks.resolvePackVisibility,
           }
         : { version: 1, isMultiTenantEnabled: () => false },
     ),
@@ -47,9 +47,9 @@ const USER_ID = 'lm-user';
 function configureResolver(state: EnterprisePackResolverState): void {
   tenancyMocks.enabled = state.hook !== 'absent';
   if (state.hook === 'reject') {
-    tenancyMocks.resolveAdditionalPackUuids.mockRejectedValue(new Error('catalogue unavailable'));
+    tenancyMocks.resolvePackVisibility.mockRejectedValue(new Error('catalogue unavailable'));
   } else if (state.hook === 'resolve') {
-    tenancyMocks.resolveAdditionalPackUuids.mockResolvedValue(state.result?.(['catalog-assets', 'catalog-avatars']));
+    tenancyMocks.resolvePackVisibility.mockResolvedValue(state.result?.(['catalog-assets', 'catalog-avatars']));
   }
 }
 
@@ -197,7 +197,7 @@ const originalEnv = process.env;
 beforeEach(() => {
   process.env = { ...originalEnv, JWT_SECRET: TEST_SECRET };
   tenancyMocks.enabled = false;
-  tenancyMocks.resolveAdditionalPackUuids.mockReset();
+  tenancyMocks.resolvePackVisibility.mockReset();
   sessions.clear();
 });
 
@@ -267,12 +267,12 @@ describe('enterprise pack list visibility', () => {
 
     expect(idsOf(assets.body)).toEqual([1, 2, 4]);
     expect(idsOf(avatars.body)).toEqual([11, 12, 14]);
-    expect(tenancyMocks.resolveAdditionalPackUuids).not.toHaveBeenCalled();
+    expect(tenancyMocks.resolvePackVisibility).not.toHaveBeenCalled();
   });
 
   it('keeps uncatalogued base equipment when no catalogue pack is accessible', async () => {
     tenancyMocks.enabled = true;
-    tenancyMocks.resolveAdditionalPackUuids.mockImplementation(
+    tenancyMocks.resolvePackVisibility.mockImplementation(
       (_prisma: PrismaClient, input: { packKind: 'asset' | 'avatar' }) =>
         Promise.resolve({
           catalogPackUuids: [input.packKind === 'asset' ? 'catalog-assets' : 'catalog-avatars'],
@@ -288,11 +288,11 @@ describe('enterprise pack list visibility', () => {
 
     expect(idsOf(assets.body)).toEqual([1, 2]);
     expect(idsOf(avatars.body)).toEqual([11, 12]);
-    expect(tenancyMocks.resolveAdditionalPackUuids).toHaveBeenCalledWith(
+    expect(tenancyMocks.resolvePackVisibility).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ tenantId: TENANT_ID, packKind: 'asset', at: expect.any(Date) }),
     );
-    expect(tenancyMocks.resolveAdditionalPackUuids).toHaveBeenCalledWith(
+    expect(tenancyMocks.resolvePackVisibility).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ tenantId: TENANT_ID, packKind: 'avatar', at: expect.any(Date) }),
     );
@@ -300,7 +300,7 @@ describe('enterprise pack list visibility', () => {
 
   it('adds only accessible catalogue UUIDs for each pack kind', async () => {
     tenancyMocks.enabled = true;
-    tenancyMocks.resolveAdditionalPackUuids.mockImplementation(
+    tenancyMocks.resolvePackVisibility.mockImplementation(
       (_prisma: PrismaClient, input: { packKind: 'asset' | 'avatar' }) =>
         Promise.resolve({
           catalogPackUuids: [input.packKind === 'asset' ? 'catalog-assets' : 'catalog-avatars'],
@@ -320,7 +320,7 @@ describe('enterprise pack list visibility', () => {
 
   it('applies the same base-plus-published rule to anonymous list and detail reads', async () => {
     tenancyMocks.enabled = true;
-    tenancyMocks.resolveAdditionalPackUuids.mockImplementation(
+    tenancyMocks.resolvePackVisibility.mockImplementation(
       (_prisma: PrismaClient, input: { packKind: 'asset' | 'avatar'; tenantId?: string }) =>
         Promise.resolve({
           catalogPackUuids: [input.packKind === 'asset' ? 'catalog-assets' : 'catalog-avatars'],

@@ -71,7 +71,7 @@ async function resolveBlockedGlobalPackUuids(
   packKind: PackKind,
 ): Promise<readonly string[] | undefined> {
   const tenancy = await getTenancyModule();
-  const resolver = tenancy.resolveAdditionalPackUuids;
+  const resolver = tenancy.resolvePackVisibility;
   if (!resolver) return undefined;
 
   const request = tenantId ? { tenantId, packKind, at: new Date() } : { packKind, at: new Date() };
@@ -79,7 +79,7 @@ async function resolveBlockedGlobalPackUuids(
   const catalogPackUuids = isRecord(result) ? readUuidArray(result.catalogPackUuids) : null;
   if (catalogPackUuids === null) {
     throw new Error(
-      '@meetropolis/tenancy resolveAdditionalPackUuids returned an invalid catalogPackUuids value; refusing to resolve pack visibility',
+      '@meetropolis/tenancy resolvePackVisibility returned an invalid catalogPackUuids value; refusing to resolve pack visibility',
     );
   }
 

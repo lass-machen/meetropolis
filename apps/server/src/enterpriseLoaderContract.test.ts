@@ -205,28 +205,43 @@ describe('billing loader getConcurrentUsage config slot (v3)', () => {
   });
 });
 
-type AdditionalPackResolver = NonNullable<TenancyModule['resolveAdditionalPackUuids']>;
-const _additionalPackResolver: AdditionalPackResolver = (_prisma, request) => {
+type PackVisibilityResolver = NonNullable<TenancyModule['resolvePackVisibility']>;
+const _packVisibilityResolver: PackVisibilityResolver = (_prisma, request) => {
   void request.tenantId;
   void request.packKind;
   void request.at;
   return Promise.resolve({ catalogPackUuids: [], accessiblePackUuids: [] });
 };
-void _additionalPackResolver;
+void _packVisibilityResolver;
 
 describe('tenancy loader pack-visibility contract', () => {
-  it('keeps the enterprise resolver optional for the unchanged OSS fallback', () => {
-    const result = tenancyModuleSchema.safeParse({ version: 1, isMultiTenantEnabled: noop });
-    expect(result.success).toBe(true);
+  it('loads the current v1 enterprise module when both visibility hooks are absent', async () => {
+    const module = await loadTenancyModule(() => Promise.resolve({ version: 1, isMultiTenantEnabled: () => true }));
+    expect(module.isMultiTenantEnabled()).toBe(true);
+    expect(module.resolvePackVisibility).toBeUndefined();
   });
 
   it('accepts the tenant-and-pack-kind visibility resolver', () => {
     const result = tenancyModuleSchema.safeParse({
       version: 1,
       isMultiTenantEnabled: noop,
-      resolveAdditionalPackUuids: _additionalPackResolver,
+      resolvePackVisibility: _packVisibilityResolver,
     });
     expect(result.success).toBe(true);
+  });
+
+  it('rejects the legacy resolver during module loading with migration guidance', async () => {
+    await expect(
+      loadTenancyModule(() =>
+        Promise.resolve({
+          version: 1,
+          isMultiTenantEnabled: noop,
+          resolveAdditionalPackUuids: () => Promise.resolve([]),
+        }),
+      ),
+    ).rejects.toThrow(
+      'resolveAdditionalPackUuids is no longer supported; rename the hook to resolvePackVisibility and return { catalogPackUuids, accessiblePackUuids }',
+    );
   });
 
   it('uses OSS mode only when exactly @meetropolis/tenancy is absent', async () => {

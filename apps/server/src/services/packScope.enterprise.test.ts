@@ -14,7 +14,7 @@ vi.mock('../tenancyLoader.js', () => ({
         ? {
             version: 1,
             isMultiTenantEnabled: () => true,
-            resolveAdditionalPackUuids: tenancy.resolver,
+            resolvePackVisibility: tenancy.resolver,
           }
         : { version: 1, isMultiTenantEnabled: () => false },
     ),
