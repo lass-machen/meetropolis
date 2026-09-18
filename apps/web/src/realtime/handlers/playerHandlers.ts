@@ -16,6 +16,7 @@ import type {
   WorldRoomState,
 } from '../../types/colyseus';
 import type { PlayerDirection, RemotePlayerData } from '../../types/game';
+import { logger } from '../../lib/logger';
 
 export interface SetupPlayerHandlersOptions {
   /** Called once when the server's initial 'full_state' message arrives for this session. */
@@ -76,6 +77,24 @@ function syncLocalMapFromServer(localPlayer: { mapId?: string; mapName?: string 
   }
 }
 
+function syncLocalAvatarFromServer(
+  localPlayer: { avatarId?: string } | undefined,
+  gameBridge: UseWorldRoomArgs['gameBridge'],
+): void {
+  const avatarId = localPlayer?.avatarId;
+  if (!avatarId) return;
+  try {
+    localStorage.setItem('avatarId', avatarId);
+  } catch (error) {
+    logger.warn('[playerHandlers] Failed to persist authoritative avatar', error);
+  }
+  try {
+    gameBridge.changeHeroAvatar?.(avatarId);
+  } catch (error) {
+    logger.warn('[playerHandlers] Failed to apply authoritative avatar', error);
+  }
+}
+
 // Build a minimal entry for remotesRef from a snapshot. Respects
 // exactOptionalPropertyTypes by omitting undefined fields.
 function toRemotesEntry(p: { x: number; y: number; dnd?: boolean; avatarId?: string }): {
@@ -104,6 +123,7 @@ function handleFullState(
 
   const localPlayer = data.players.find((p: PlayerStateData) => p.id === localPosRef.current.id);
   syncLocalMapFromServer(localPlayer);
+  syncLocalAvatarFromServer(localPlayer, gameBridge);
 
   const currentMap = useMapStore.getState().currentMapName;
   const players: Record<string, RemotePlayerSnapshot> = {};

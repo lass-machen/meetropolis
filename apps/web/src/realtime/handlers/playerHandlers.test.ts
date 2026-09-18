@@ -48,6 +48,7 @@ function makeArgs(overrides?: Partial<UseWorldRoomArgs>): UseWorldRoomArgs {
       updateRemotePlayer: vi.fn(),
       removeRemotePlayer: vi.fn(),
       updateRemotePlayerDnd: vi.fn(),
+      changeHeroAvatar: vi.fn(),
     } as unknown as UseWorldRoomArgs['gameBridge'],
     editor: { zones: [] },
     setEditor: vi.fn(),
@@ -70,6 +71,7 @@ describe('setupPlayerHandlers', () => {
   beforeEach(() => {
     // Deterministic map name so filtering doesn't skip players
     useMapStore.getState().setCurrentMap('map-1', 'office');
+    localStorage.clear();
   });
 
   it('onStateChange populates remotesRef with all non-self players on current map', () => {
@@ -211,5 +213,31 @@ describe('setupPlayerHandlers', () => {
 
     room.trigger('full_state', { players: [] });
     expect(onFullStateReceived).toHaveBeenCalledTimes(1);
+  });
+
+  it('stores and applies the authoritative local avatar from full_state', () => {
+    const room = makeMockRoom();
+    const args = makeArgs();
+    localStorage.setItem('avatarId', 'foreign-pack:stale');
+    setupPlayerHandlers(room as unknown as Parameters<typeof setupPlayerHandlers>[0], args, vi.fn(), vi.fn());
+
+    room.trigger('full_state', {
+      players: [
+        {
+          id: 'session-local',
+          x: 1,
+          y: 1,
+          direction: 'down',
+          identity: 'local-user',
+          name: 'Local User',
+          mapId: 'map-1',
+          mapName: 'office',
+          avatarId: 'default-characters:business_man',
+        },
+      ],
+    });
+
+    expect(localStorage.getItem('avatarId')).toBe('default-characters:business_man');
+    expect(args.gameBridge.changeHeroAvatar).toHaveBeenCalledWith('default-characters:business_man');
   });
 });
