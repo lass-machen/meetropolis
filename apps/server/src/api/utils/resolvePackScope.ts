@@ -8,7 +8,8 @@ import {
   getTenantFromReq,
   requireMembership,
 } from './authHelpers.js';
-import { type PackScope, CATALOG_SCOPE, tenantScope } from '../../services/packScope.js';
+import { type PackScope, CATALOG_SCOPE, resolveTenantPackScope } from '../../services/packScope.js';
+import type { PackKind } from '../../tenancyLoader.js';
 
 /**
  * The pack visibility scope a REST caller has PROVEN — the single resolver
@@ -22,9 +23,10 @@ import { type PackScope, CATALOG_SCOPE, tenantScope } from '../../services/packS
  * One resolver, so "listable" and "usable" cannot drift apart — and so the two
  * pack kinds cannot drift apart from each other either.
  *
- * The resolution is deliberately pack-independent: it establishes WHO the
- * caller is, not WHAT they asked for. The pack kind only picks the matching
- * `*ScopeWhere` helper in services/packScope.ts.
+ * Identity and ownership resolution are pack-independent. The pack kind is
+ * passed only to the optional enterprise visibility boundary, whose UUIDs are
+ * then folded into this same PackScope and the matching `*PackScopeWhere`
+ * helper. Routes never add their own publication/grant filter.
  *
  * Resolution order:
  *  1. Identity — a session cookie/JWT or an API token. Both are accepted
@@ -49,10 +51,15 @@ import { type PackScope, CATALOG_SCOPE, tenantScope } from '../../services/packS
  * instead of writing 401/403, because the read routes must stay publicly
  * reachable — `avatarRegistry.loadPacks` fetches them during onboarding, before
  * any tenant binding exists. "Nothing proven" is a legitimate state here, not
- * an error; it just yields fewer packs. Every failure path, including a
- * rejected lookup, resolves to `CATALOG_SCOPE`, so the guard fails closed.
+ * an error; it just yields fewer packs. Identity/membership failures resolve to
+ * `CATALOG_SCOPE`; a failing present enterprise resolver is handled inside
+ * `resolveTenantPackScope` and keeps only tenant-owned packs.
  */
-export async function resolvePackScope(prisma: PrismaClient, req: express.Request): Promise<PackScope> {
+export async function resolvePackScope(
+  prisma: PrismaClient,
+  req: express.Request,
+  packKind: PackKind,
+): Promise<PackScope> {
   try {
     const auth = requireAuth(req) ?? (await requireApiToken(req, prisma));
     if (!auth) return CATALOG_SCOPE;
@@ -60,7 +67,7 @@ export async function resolvePackScope(prisma: PrismaClient, req: express.Reques
     const tenant = getTenantFromReq(req);
     if (!tenant) return CATALOG_SCOPE;
     const membership = await requireMembership(req, auth.userId, prisma);
-    return membership ? tenantScope(tenant.id) : CATALOG_SCOPE;
+    return membership ? await resolveTenantPackScope(prisma, tenant.id, packKind) : CATALOG_SCOPE;
   } catch (e) {
     logger.error('[Packs] scope resolution failed, falling back to catalog packs', e);
     return CATALOG_SCOPE;

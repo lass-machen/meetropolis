@@ -122,7 +122,7 @@ async function provenComposeTenant(
   auth: { userId: string; tenantId?: string },
 ): Promise<string | null> {
   if (!auth.tenantId) return null;
-  const scope = await resolvePackScope(prisma, req);
+  const scope = await resolvePackScope(prisma, req, 'avatar');
   if (scope.kind === 'all') return auth.tenantId;
   if (scope.kind === 'tenant' && scope.tenantId === auth.tenantId) return auth.tenantId;
   return null;
@@ -282,7 +282,7 @@ async function handleResolve(
     .map((id) => (id.startsWith('custom:') ? id.slice('custom:'.length) : null))
     .filter((v): v is string => v !== null);
 
-  const scopeWhere = customAvatarScopeWhere(await resolvePackScope(prisma, req));
+  const scopeWhere = customAvatarScopeWhere(await resolvePackScope(prisma, req, 'avatar'));
   const manifests: Record<string, ReturnType<typeof buildCustomManifest>> = {};
   if (scopeWhere !== null && uuids.length > 0) {
     const rows = await prisma.customAvatar.findMany({ where: { uuid: { in: uuids }, ...scopeWhere } });

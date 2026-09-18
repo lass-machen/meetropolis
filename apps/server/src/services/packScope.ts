@@ -1,23 +1,28 @@
-import type { Prisma } from '../generated/prisma/index.js';
+import type { Prisma, PrismaClient } from '../generated/prisma/index.js';
+import { logger } from '../logger.js';
+import { getTenancyModule, type PackKind } from '../tenancyLoader.js';
 
 /**
  * Which packs a caller may see AND use. ONE scope type for BOTH pack kinds
- * (AvatarPack and AssetPack), because the resolution is pack-independent: it
- * answers "which tenant has this caller proven?", never "which pack are we
- * talking about?".
+ * (AvatarPack and AssetPack). The proven tenant establishes ownership; the
+ * pack kind only lets the optional enterprise boundary return the matching
+ * global pack UUIDs.
  *
  * `AvatarPack.tenantId` / `AssetPack.tenantId` are the ownership markers (see
- * schema.prisma): NULL means catalog — shipped with the platform, visible to
- * every tenant — while a set value means the pack belongs to exactly one
- * tenant and to nobody else.
+ * schema.prisma): NULL means global catalogue — shipped with the platform and,
+ * by default, visible to every tenant — while a set value means the pack
+ * belongs to exactly one tenant and to nobody else. Enterprise may narrow the
+ * global half to explicit UUIDs without changing those ownership semantics.
  *
  * The three cases:
  * - `catalog`  — nothing proven about the caller. The fail-closed default: an
  *   anonymous request, a caller whose tenant could not be established, or a
  *   membership lookup that missed or errored.
  * - `tenant`   — the caller has a PROVEN binding to that tenant (a membership
- *   row, or a JWT-verified `tid` on the world-join path). Catalog packs plus
- *   that tenant's own private packs.
+ *   row, or a JWT-verified `tid` on the world-join path). Without an enterprise
+ *   resolver this means global packs plus that tenant's own private packs. A
+ *   present resolver replaces the global half with its explicit UUID result;
+ *   an empty result therefore still keeps tenant-owned packs.
  * - `all`      — platform super-admin (owner of the internal tenant). It
  *   administers every tenant by design. Pack-specific collection filters such
  *   as `AssetPack.archived = false` still compose on top of this ownership
@@ -32,14 +37,44 @@ import type { Prisma } from '../generated/prisma/index.js';
  * placement in api/routes/mapObjects.ts), which is why both pack kinds now
  * share this single type and resolver rather than each carrying their own.
  */
-export type PackScope = { kind: 'catalog' } | { kind: 'tenant'; tenantId: string } | { kind: 'all' };
+export type PackScope =
+  { kind: 'catalog' } | { kind: 'tenant'; tenantId: string; additionalPackUuids?: readonly string[] } | { kind: 'all' };
 
 /** The fail-closed default: catalog packs only. */
 export const CATALOG_SCOPE: PackScope = { kind: 'catalog' };
 
 /** Scope for a proven tenant binding; falls back to catalog when absent. */
-export function tenantScope(tenantId: string | null | undefined): PackScope {
-  return tenantId ? { kind: 'tenant', tenantId } : CATALOG_SCOPE;
+export function tenantScope(tenantId: string | null | undefined, additionalPackUuids?: readonly string[]): PackScope {
+  if (!tenantId) return CATALOG_SCOPE;
+  if (additionalPackUuids === undefined) return { kind: 'tenant', tenantId };
+  return { kind: 'tenant', tenantId, additionalPackUuids: [...new Set(additionalPackUuids)] };
+}
+
+/**
+ * Resolve a proven tenant through the optional enterprise visibility hook.
+ * Hook absence is the OSS fallback and deliberately keeps all global packs.
+ * A present hook is authoritative, including when it returns an empty array.
+ */
+export async function resolveTenantPackScope(
+  prisma: PrismaClient,
+  tenantId: string | null | undefined,
+  packKind: PackKind,
+): Promise<PackScope> {
+  if (!tenantId) return CATALOG_SCOPE;
+  const tenancy = await getTenancyModule();
+  const resolver = tenancy.resolveAdditionalPackUuids;
+  if (!resolver) return tenantScope(tenantId);
+
+  try {
+    const resolved = await resolver(prisma, { tenantId, packKind, at: new Date() });
+    if (!Array.isArray(resolved) || resolved.some((uuid) => typeof uuid !== 'string' || uuid.length === 0)) {
+      throw new Error('enterprise pack resolver returned invalid UUIDs');
+    }
+    return tenantScope(tenantId, resolved);
+  } catch (e) {
+    logger.error('[Packs] enterprise visibility resolution failed; limiting scope to tenant-owned packs', e);
+    return tenantScope(tenantId, []);
+  }
 }
 
 /**
@@ -50,11 +85,22 @@ export function tenantScope(tenantId: string | null | undefined): PackScope {
  * Returns `{}` for the super-admin scope, so it composes with an id/uuid
  * predicate via spread in every caller.
  */
-function packScopeWhere(scope: PackScope): { tenantId?: string | null; OR?: Array<{ tenantId: string | null }> } {
+type SharedPackWhere = {
+  tenantId?: string | null;
+  uuid?: { in: string[] };
+  OR?: SharedPackWhere[];
+};
+
+function packScopeWhere(scope: PackScope): SharedPackWhere {
   switch (scope.kind) {
     case 'all':
       return {};
     case 'tenant':
+      if (scope.additionalPackUuids !== undefined) {
+        return {
+          OR: [{ tenantId: scope.tenantId }, { tenantId: null, uuid: { in: [...scope.additionalPackUuids] } }],
+        };
+      }
       return { OR: [{ tenantId: null }, { tenantId: scope.tenantId }] };
     case 'catalog':
       return { tenantId: null };

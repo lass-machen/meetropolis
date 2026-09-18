@@ -12,7 +12,7 @@ import { tenantKeyForClient, isPlayerVisibleToTenant, syncTenantViewsOnJoin } fr
 import { zoneLocksForClient } from '../handlers/zoneLockHandler.js';
 import { warmZoneCatalog, trackMove } from '../audioZones/runtime.js';
 import { isAllowedAvatarId, isCustomAvatarId } from '../../services/avatarAccess.js';
-import { tenantScope } from '../../services/packScope.js';
+import { resolveTenantPackScope } from '../../services/packScope.js';
 
 // Fallback appearance when a join names no avatar at all, and the replacement
 // for an id this path refuses to publish. Mirrors the `User.avatarId` column
@@ -220,7 +220,7 @@ async function resolveJoinAvatar(
       logger.debug('[WorldRoom] Failed to resolve join avatar tenant', e);
     }
   }
-  const scope = tenantScope(tenantId);
+  const scope = await resolveTenantPackScope(prisma, tenantId, 'avatar');
 
   // Authenticated users must not silently replace an unavailable database
   // value with client-controlled state during a database outage.

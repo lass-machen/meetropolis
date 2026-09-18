@@ -51,7 +51,7 @@ export function registerUserRoutes(
     // (rationale on `isAllowedAvatarId` in services/avatarAccess.ts).
     // Previously any free-form string was persisted; then any registered pack
     // was — including a foreign tenant's private one.
-    const scope = await resolvePackScope(prisma, req);
+    const scope = await resolvePackScope(prisma, req, 'avatar');
     if (!(await isAllowedAvatarId(prisma, parsed.data.avatarId, scope))) {
       return res.status(400).json({ error: 'invalid avatarId' });
     }

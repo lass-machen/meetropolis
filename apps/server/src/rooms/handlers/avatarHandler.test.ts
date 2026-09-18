@@ -11,6 +11,10 @@ import type { WorldRoom } from '../WorldRoom.js';
 const broadcastToMap = vi.fn();
 vi.mock('../utils/broadcastHelpers.js', () => ({ broadcastToMap: (...args: unknown[]) => broadcastToMap(...args) }));
 
+vi.mock('../../tenancyLoader.js', () => ({
+  getTenancyModule: () => Promise.resolve({ version: 1, isMultiTenantEnabled: () => false }),
+}));
+
 import { handleAvatarChange } from './avatarHandler.js';
 
 interface Player {

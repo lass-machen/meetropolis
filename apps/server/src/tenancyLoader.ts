@@ -1,4 +1,13 @@
 import { z } from 'zod';
+import type { PrismaClient } from './generated/prisma/index.js';
+
+export type PackKind = 'asset' | 'avatar';
+
+export interface AdditionalPackAccessRequest {
+  tenantId: string;
+  packKind: PackKind;
+  at: Date;
+}
 
 // Local minimal type so the build works without the workspace/shared module.
 // Optional commercial modules implementing this interface live outside the
@@ -9,6 +18,24 @@ export type TenancyModule = {
   readonly version: 1;
   isMultiTenantEnabled(): boolean;
   bypassOssLimit?: () => boolean;
+  /**
+   * Optional enterprise pack-visibility boundary. It returns the UUIDs of
+   * GLOBAL packs a tenant may use in addition to its own private packs, for one
+   * pack kind. The enterprise implementation owns all knowledge of
+   * AssetPackCatalog / AvatarPackCatalog publication and pricing state and of
+   * TenantAssetPack / TenantAvatarPack grants. A grant is active only while
+   * revokedAt is null and expiresAt is null or later than `at`.
+   *
+   * Absence preserves OSS behaviour exactly: every global pack remains
+   * reachable. Returning an empty array is deliberately different: the
+   * enterprise resolver has answered authoritatively that no global pack is
+   * reachable. The host folds the result into PackScope, so list, direct read,
+   * avatar wear and object placement cannot drift into parallel filters.
+   */
+  resolveAdditionalPackUuids?: (
+    prisma: PrismaClient,
+    request: AdditionalPackAccessRequest,
+  ) => Promise<readonly string[]>;
 };
 
 /**
@@ -34,10 +61,11 @@ const fnSchema = z.custom<(...args: unknown[]) => unknown>((val) => typeof val =
   message: 'expected function',
 });
 
-const tenancyModuleSchema = z.object({
+export const tenancyModuleSchema = z.object({
   version: z.literal(1),
   isMultiTenantEnabled: fnSchema,
   bypassOssLimit: fnSchema.optional(),
+  resolveAdditionalPackUuids: fnSchema.optional(),
 });
 
 let cached: TenancyModule | null = null;

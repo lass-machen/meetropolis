@@ -3,7 +3,8 @@ import type { WorldRoom } from '../WorldRoom.js';
 import { broadcastToMap } from '../utils/broadcastHelpers.js';
 import { isWorldAuth } from '../lifecycle/onAuth.js';
 import { isAllowedAvatarId, isCustomAvatarId } from '../../services/avatarAccess.js';
-import { tenantScope } from '../../services/packScope.js';
+import { resolveTenantPackScope } from '../../services/packScope.js';
+import { logger } from '../../logger.js';
 
 interface PlayerLike {
   avatarId: string;
@@ -63,7 +64,12 @@ export function handleAvatarChange(room: WorldRoom, client: Client, data: { avat
     return;
   }
 
-  void isAllowedAvatarId(prisma, avatarId, tenantScope(auth.tenantId)).then((ok) => {
-    if (ok && player.avatarId !== avatarId) applyAvatarChange(room, client, player, avatarId);
-  });
+  void resolveTenantPackScope(prisma, auth.tenantId, 'avatar')
+    .then((scope) => isAllowedAvatarId(prisma, avatarId, scope))
+    .then((ok) => {
+      if (ok && player.avatarId !== avatarId) applyAvatarChange(room, client, player, avatarId);
+    })
+    .catch((e: unknown) => {
+      logger.debug('[WorldRoom] Failed to resolve avatar change scope', e);
+    });
 }

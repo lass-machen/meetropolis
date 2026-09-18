@@ -4,6 +4,8 @@ import { EXPECTED_ADMIN_MODULE_VERSION, adminEnterpriseSchema } from './adminLoa
 import type { AdminEnterpriseModule } from './adminLoader.js';
 import { EXPECTED_BILLING_MODULE_VERSION, billingModuleSchema } from './billingLoader.js';
 import type { BillingModule } from './billingLoader.js';
+import { tenancyModuleSchema } from './tenancyLoader.js';
+import type { TenancyModule } from './tenancyLoader.js';
 
 // ---------------------------------------------------------------------------
 // Enterprise loader version contract
@@ -200,5 +202,30 @@ describe('billing loader getConcurrentUsage config slot (v3)', () => {
     // Runtime smoke check on the shape asserted at compile time above.
     expect(typeof _getConcurrentUsageSlot('tenant-slug')).toBe('number');
     expect(_getConcurrentUsageSlot('tenant-slug')).toBe(0);
+  });
+});
+
+type AdditionalPackResolver = NonNullable<TenancyModule['resolveAdditionalPackUuids']>;
+const _additionalPackResolver: AdditionalPackResolver = (_prisma, request) => {
+  void request.tenantId;
+  void request.packKind;
+  void request.at;
+  return Promise.resolve([]);
+};
+void _additionalPackResolver;
+
+describe('tenancy loader pack-visibility contract', () => {
+  it('keeps the enterprise resolver optional for the unchanged OSS fallback', () => {
+    const result = tenancyModuleSchema.safeParse({ version: 1, isMultiTenantEnabled: noop });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts the tenant-and-pack-kind visibility resolver', () => {
+    const result = tenancyModuleSchema.safeParse({
+      version: 1,
+      isMultiTenantEnabled: noop,
+      resolveAdditionalPackUuids: _additionalPackResolver,
+    });
+    expect(result.success).toBe(true);
   });
 });

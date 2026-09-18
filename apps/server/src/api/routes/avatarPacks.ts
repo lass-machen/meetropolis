@@ -123,7 +123,7 @@ async function handleSpriteUpload(
 
 async function handleListAvatarPacks(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
   try {
-    const scope = await resolvePackScope(prisma, req);
+    const scope = await resolvePackScope(prisma, req, 'avatar');
     const list = await prisma.avatarPack.findMany({
       where: avatarPackScopeWhere(scope),
       orderBy: { createdAt: 'desc' },
@@ -142,7 +142,7 @@ async function handleGetAvatarPack(prisma: PrismaClient, req: express.Request, r
       res.status(400).json({ error: 'invalid id' });
       return;
     }
-    const scope = await resolvePackScope(prisma, req);
+    const scope = await resolvePackScope(prisma, req, 'avatar');
     // findFirst, not findUnique: the scope filter is part of the lookup, so a
     // foreign private pack is never loaded in the first place. A pack that
     // exists but is out of scope answers 404 exactly like a missing one —
