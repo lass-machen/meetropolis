@@ -9,14 +9,9 @@ import type {
   TilesetRegistryUpdatedMessage,
   WorldRoom,
 } from '../../types/colyseus';
-import type {
-  AutotileRegistration,
-  ChunkUpdateEntry,
-  EditorUpdatePayload,
-  ObjectsUpdatedPayload,
-  TilePaintEdit,
-} from '../../types/game';
+import type { EditorUpdatePayload, ObjectsUpdatedPayload, TilePaintEdit } from '../../types/game';
 import type { EditorState } from '../../services/EditorService';
+import { applyChunksUpdated } from './chunkUpdateHandler';
 
 export function setupEditorHandlers(
   room: WorldRoom,
@@ -77,21 +72,7 @@ export function setupEditorHandlers(
   room.onMessage('chunks_updated', (payload: ChunksUpdatedMessage) => {
     try {
       if (isWrongMap(payload)) return;
-      const layer = payload && typeof payload.layer === 'string' ? payload.layer : null;
-      const updates = Array.isArray(payload?.updates) ? payload.updates : [];
-      const paletteEntries = Array.isArray(payload?.autotilePaletteEntries)
-        ? (payload.autotilePaletteEntries as AutotileRegistration[])
-        : [];
-      if (paletteEntries.length > 0) gameBridge.registerAutotiles(paletteEntries);
-      if (!layer || updates.length === 0) return;
-      const layerName =
-        layer === 'collision' || layer === 'walls' || layer === 'ground' || layer === 'walls_auto' ? layer : null;
-      if (!layerName) return;
-      if (gameBridge && typeof gameBridge.applyChunkUpdates === 'function') {
-        // Server side guarantees each update entry has key/version/encoding/data;
-        // cast at the network boundary.
-        gameBridge.applyChunkUpdates(layerName, updates as ChunkUpdateEntry[]);
-      }
+      applyChunksUpdated(gameBridge, payload);
     } catch {}
   });
 

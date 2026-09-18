@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { GameSystem } from '../systems/types';
 import type { MainSceneShape } from '../types/scene';
 import { gameBridge } from '../bridge';
-import { baseUrl, V2Autotile, V2State, V2Tileset } from '../../lib/mapV2';
+import { V2Autotile, V2State, V2Tileset } from '../../lib/mapV2';
 import { logger } from '../../lib/logger';
 import { setBubbleMembers as uiSetBubbleMembers } from '../ui/bubbles';
 import { ensureRecenterUi, updateRecenterUiVisibility } from '../camera/recenterUi';
@@ -14,7 +14,7 @@ import type { ChunkLayerName } from '../map/chunks';
 import { registerTileset } from '../map/tilesets';
 import { EditorService } from '../../services/EditorService';
 import { EditorIntegration } from '../editor/integration';
-import { AutotileGrid, AutotileRenderer } from '../autotile';
+import { AutotileGrid, AutotileRenderer, AutotileTextureLoader } from '../autotile';
 import { avatarRegistry } from '../avatarRegistry';
 import { useMapStore } from '../../state/mapStore';
 import {
@@ -54,6 +54,7 @@ export class MainScene extends Phaser.Scene implements MainSceneShape {
   private editorMapObjectsSnapshot: import('../../services/EditorTypes').MapObjectRecord[] | null = null;
   public autotileGrid?: AutotileGrid;
   public autotileRenderer?: AutotileRenderer;
+  private autotileTextureLoader?: AutotileTextureLoader;
   private _lastCamSig: string | null = null;
 
   // Helper-function boundary: optional fields, sometimes set by helper
@@ -119,6 +120,7 @@ export class MainScene extends Phaser.Scene implements MainSceneShape {
 
     this.autotileGrid = new AutotileGrid();
     this.autotileRenderer = new AutotileRenderer(this, this.autotileGrid, this.mapRef?.tileWidth ?? 16);
+    this.autotileTextureLoader = new AutotileTextureLoader(this, this.currentMapId, this.autotileRenderer);
     this.registerAutotileDefinitions(this.v2?.state.autotilePalette ?? []);
 
     void this.loadVisibleChunks('ground');
@@ -312,6 +314,7 @@ export class MainScene extends Phaser.Scene implements MainSceneShape {
     gameBridge.setSceneApi(this);
     window.currentPhaserScene = this as unknown as Window['currentPhaserScene'];
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.disposeAutotiles();
       try {
         this.editorIntegration?.destroy();
       } catch {}
@@ -323,6 +326,7 @@ export class MainScene extends Phaser.Scene implements MainSceneShape {
       } catch {}
     });
     this.events.once(Phaser.Scenes.Events.DESTROY, () => {
+      this.disposeAutotiles();
       try {
         this.editorIntegration?.destroy();
       } catch {}
@@ -696,30 +700,13 @@ export class MainScene extends Phaser.Scene implements MainSceneShape {
   }
 
   registerAutotileDefinitions(items: V2Autotile[]): void {
-    for (const item of items) {
-      const textureKey = `autotile_${item.packUuid}_${item.autotileId}`;
+    this.autotileTextureLoader?.register(items);
+  }
 
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-      img.onload = () => {
-        if (!this.textures.exists(textureKey)) {
-          this.textures.addSpriteSheet(textureKey, img, {
-            frameWidth: item.tileWidth,
-            frameHeight: item.tileHeight,
-          });
-        }
-        this.autotileRenderer?.registerDefinition(item.slot, {
-          key: item.key,
-          tileWidth: item.tileWidth,
-          tileHeight: item.tileHeight,
-          gridHeight: item.gridHeight,
-          variants: item.variants,
-          textureKey,
-        });
-        // Re-render all visible autotiles with the new definition
-        this.autotileRenderer?.updateAllVisible();
-      };
-      img.src = item.imageUrl.startsWith('/') ? `${baseUrl()}${item.imageUrl}` : item.imageUrl;
-    }
+  private disposeAutotiles(): void {
+    this.autotileTextureLoader?.destroy();
+    delete this.autotileTextureLoader;
+    this.autotileRenderer?.destroy();
+    delete this.autotileRenderer;
   }
 }

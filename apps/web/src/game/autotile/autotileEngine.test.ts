@@ -66,6 +66,19 @@ describe('computeBitmask4', () => {
     expect(computeBitmask4(grid, 5, 5)).toBe(15);
   });
 
+  it.each([
+    ['north', 5, 4],
+    ['east', 6, 5],
+    ['south', 5, 6],
+    ['west', 4, 5],
+  ])('does not connect to a different slot on the %s side', (_direction, x, y) => {
+    const grid = new AutotileGrid();
+    grid.set(5, 5, 1);
+    grid.set(x, y, 2);
+
+    expect(computeBitmask4(grid, 5, 5)).toBe(0);
+  });
+
   it('returns 3 for N+E corner', () => {
     const grid = new AutotileGrid();
     grid.set(5, 5, 1);
