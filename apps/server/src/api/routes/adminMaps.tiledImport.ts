@@ -45,6 +45,10 @@ interface TiledMapJson {
   tilesets?: TiledTileset[];
 }
 
+export function hasReservedAutotileLayer(json: TiledMapJson): boolean {
+  return (json.layers ?? []).some((layer) => layer.type === 'tilelayer' && layer.name === 'walls_auto');
+}
+
 async function importTilesetsFromTiled(
   tx: TxClient,
   mapId: string,
@@ -235,6 +239,13 @@ export async function handleImportAdminMap(
     }
 
     const json = JSON.parse(file.buffer.toString('utf-8')) as TiledMapJson;
+    if (hasReservedAutotileLayer(json)) {
+      res.status(400).json({
+        error: 'reserved_autotile_layer',
+        message: "The 'walls_auto' layer requires pack and autotile identities, which the Tiled import format lacks.",
+      });
+      return;
+    }
     const result = await importTiledMap(prisma, tenantId, mapName, json);
 
     logger.info({ event: 'admin_maps.imported', mapId: result.id, tenantId, name: mapName });
