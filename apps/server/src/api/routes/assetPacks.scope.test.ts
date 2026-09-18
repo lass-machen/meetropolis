@@ -91,10 +91,12 @@ const MAP_ROW = { id: 'map-1', name: 'office', tenantId: TENANT_LM, chunkSize: 3
 interface PrismaOpts {
   apiTokenUserId?: string;
   internalTenantExists?: boolean;
+  autotileReferences?: number;
+  objectReferences?: number;
 }
 
 function makePrisma(opts: PrismaOpts = {}): PrismaClient {
-  const { apiTokenUserId, internalTenantExists = true } = opts;
+  const { apiTokenUserId, internalTenantExists = true, autotileReferences = 0, objectReferences = 0 } = opts;
   const packs = PACKS.map((pack) => ({ ...pack }));
   const prisma = {
     tenant: {
@@ -168,7 +170,9 @@ function makePrisma(opts: PrismaOpts = {}): PrismaClient {
         ]),
       ),
       create: vi.fn(({ data }: { data: Record<string, unknown> }) => Promise.resolve({ id: 99, ...data })),
+      count: vi.fn(() => Promise.resolve(objectReferences)),
     },
+    mapAutotile: { count: vi.fn(() => Promise.resolve(autotileReferences)) },
   } as unknown as PrismaClient;
   prisma.$transaction = vi.fn((callback) => callback(prisma));
   return prisma;
@@ -396,6 +400,21 @@ describe('AssetPack write routes stay super-admin-only', () => {
       .set('X-Tenant', 'lass-machen');
     expect(res.status).toBe(403);
     expect(res.body).toMatchObject({ error: 'forbidden' });
+  });
+
+  it('rejects hard deletion while map snapshots reference the pack', async () => {
+    const prisma = makePrisma({ autotileReferences: 2, objectReferences: 1 });
+    const app = makeApp(prisma);
+
+    const res = await request(app).delete('/asset-packs/1').set('Authorization', sessionBearer('owner-root'));
+
+    expect(res.status).toBe(409);
+    expect(res.body).toMatchObject({
+      error: 'asset_pack_in_use',
+      references: { autotiles: 2, objects: 1 },
+    });
+    expect(res.body.message).toContain('Archive');
+    expect(prisma.assetPack.delete).not.toHaveBeenCalled();
   });
 
   it('rejects archive changes from an ordinary tenant member', async () => {

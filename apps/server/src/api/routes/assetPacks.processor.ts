@@ -277,6 +277,68 @@ export async function moveTmpToFinal(tmpDir: string, finalDir: string): Promise<
   }
 }
 
+interface AssetReferenceReader {
+  mapAutotile: {
+    findMany(args: { where: { packUuid: string }; select: { imageUrl: true } }): Promise<Array<{ imageUrl: string }>>;
+  };
+  mapObject: {
+    findMany(args: {
+      where: { assetPackUuid: string };
+      select: { dataUrl: true };
+    }): Promise<Array<{ dataUrl: string }>>;
+  };
+}
+
+function referencedRelativePath(url: string, uuid: string): string | null {
+  const prefix = `/packs/${uuid}/`;
+  if (!url.startsWith(prefix)) return null;
+  const relative = url.slice(prefix.length);
+  const normalized = path.posix.normalize(relative);
+  if (!relative || normalized !== relative || path.posix.isAbsolute(normalized) || normalized.startsWith('../')) {
+    throw new Error(`unsafe referenced pack asset '${url}'`);
+  }
+  return normalized;
+}
+
+export async function preserveReferencedPackAssets(
+  prisma: AssetReferenceReader,
+  uuid: string,
+  currentDir: string,
+  tmpDir: string,
+): Promise<string[]> {
+  const [autotiles, objects] = await Promise.all([
+    prisma.mapAutotile.findMany({ where: { packUuid: uuid }, select: { imageUrl: true } }),
+    prisma.mapObject.findMany({ where: { assetPackUuid: uuid }, select: { dataUrl: true } }),
+  ]);
+  const urls = new Set([...autotiles.map((item) => item.imageUrl), ...objects.map((item) => item.dataUrl)]);
+  const preserved: string[] = [];
+  for (const url of urls) {
+    const relative = referencedRelativePath(url, uuid);
+    if (!relative) continue;
+    const source = path.resolve(currentDir, relative);
+    const target = path.resolve(tmpDir, relative);
+    if (
+      await fsp
+        .stat(target)
+        .then(() => true)
+        .catch(() => false)
+    )
+      continue;
+    if (
+      !(await fsp
+        .stat(source)
+        .then(() => true)
+        .catch(() => false))
+    ) {
+      throw new Error(`referenced pack asset is missing: ${url}`);
+    }
+    await fsp.mkdir(path.dirname(target), { recursive: true });
+    await fsp.copyFile(source, target);
+    preserved.push(relative);
+  }
+  return preserved;
+}
+
 /**
  * `tenantId` is deliberately absent from `dataRecord`. On create the column
  * default applies (NULL = platform catalog); on update, naming it at all — even

@@ -15,6 +15,7 @@ import { createPrismaClient } from '../db.js';
 import { Prisma, type PrismaClient } from '../generated/prisma/index.js';
 import { decodeRlePairsFromBuffer, rleDecodeToNumbers } from '../mapEncoding.js';
 import { StoredAutotileItemSchema } from '../api/routes/assetPacks.schemas.js';
+import { contentHashFromAssetUrl } from '../api/utils/mapAutotilePalette.js';
 
 interface LegacyAutotile {
   slot: number;
@@ -28,6 +29,7 @@ interface LegacyAutotile {
   variants: Prisma.InputJsonValue;
   collide: boolean;
   placement: string;
+  hash: string | null;
 }
 
 interface MigrationSummary {
@@ -72,6 +74,7 @@ export function buildLegacyPalette(packs: Array<{ uuid: string; autotiles: Prism
         variants: item.variants,
         collide: item.collide,
         placement: item.placement,
+        hash: contentHashFromAssetUrl(item.dataURL),
       });
     }
   }
@@ -140,7 +143,7 @@ export async function migrateAutotilePalettes(
     const unresolved = [...used].filter((slot) => !legacy.some((entry) => entry.slot === slot));
     const existing = await prisma.mapAutotile.findMany({
       where: { mapId: layer.mapId },
-      select: { slot: true, packUuid: true, autotileId: true },
+      select: { id: true, slot: true, packUuid: true, autotileId: true, hash: true },
     });
     const conflict =
       unresolved.length > 0 ? `unresolved legacy slots ${unresolved.join(', ')}` : paletteConflict(legacy, existing);
@@ -150,24 +153,34 @@ export async function migrateAutotilePalettes(
       continue;
     }
     const missing = legacy.filter((entry) => !existing.some((candidate) => candidate.slot === entry.slot));
+    const hashRepairs = existing.flatMap((entry) => {
+      if (entry.hash) return [];
+      const expected = legacy.find(
+        (candidate) => candidate.packUuid === entry.packUuid && candidate.autotileId === entry.autotileId,
+      );
+      return expected?.hash ? [{ id: entry.id, hash: expected.hash }] : [];
+    });
     const nextAutotileSlot = Math.max(
       1,
       ...legacy.map((entry) => entry.slot + 1),
       ...existing.map((entry) => entry.slot + 1),
     );
     const repairCounter = layer.map.nextAutotileSlot < nextAutotileSlot;
-    if (missing.length === 0 && !repairCounter) {
+    if (missing.length === 0 && hashRepairs.length === 0 && !repairCounter) {
       summary.unchanged++;
       log(`[${apply ? 'APPLY' : 'DRY-RUN'}] ${layer.mapId}: palette already complete; used=${[...used].join(',')}`);
       continue;
     }
     summary.pending++;
-    const action = `add ${missing.length} entries${repairCounter ? `; set next slot to ${nextAutotileSlot}` : ''}`;
+    const action = `add ${missing.length} entries; repair ${hashRepairs.length} hashes${repairCounter ? `; set next slot to ${nextAutotileSlot}` : ''}`;
     log(`[${apply ? 'APPLY' : 'DRY-RUN'}] ${layer.mapId}: ${action}; used=${[...used].join(',')}`);
     if (!apply) continue;
     await prisma.$transaction(async (tx) => {
       for (const entry of missing) {
-        await tx.mapAutotile.create({ data: { mapId: layer.mapId, ...entry, hash: null } });
+        await tx.mapAutotile.create({ data: { mapId: layer.mapId, ...entry } });
+      }
+      for (const repair of hashRepairs) {
+        await tx.mapAutotile.update({ where: { id: repair.id }, data: { hash: repair.hash } });
       }
       await tx.map.updateMany({
         where: { id: layer.mapId, nextAutotileSlot: { lt: nextAutotileSlot } },

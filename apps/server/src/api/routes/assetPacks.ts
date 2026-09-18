@@ -24,6 +24,7 @@ import {
   readUploadedZipBuffer,
   parseUploadedConfig,
   checkExistingPackDimensions,
+  preserveReferencedPackAssets,
 } from './assetPacks.processor.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -127,6 +128,7 @@ async function handleAssetPackUpload(
     }
 
     const finalDir = path.resolve(packsDir, uuid);
+    await preserveReferencedPackAssets(prisma, uuid, finalDir, tmpDir);
     await moveTmpToFinal(tmpDir, finalDir);
 
     const rec = await persistAssetPackRecord(prisma, cfg, rewritten, existCheck.existing);
@@ -235,6 +237,18 @@ async function handleDeleteAssetPack(
   const pack = await prisma.assetPack.findUnique({ where: { id } });
   if (!pack) {
     res.status(404).json({ error: 'not found' });
+    return;
+  }
+  const [autotileReferences, objectReferences] = await Promise.all([
+    prisma.mapAutotile.count({ where: { packUuid: pack.uuid } }),
+    prisma.mapObject.count({ where: { assetPackUuid: pack.uuid } }),
+  ]);
+  if (autotileReferences > 0 || objectReferences > 0) {
+    res.status(409).json({
+      error: 'asset_pack_in_use',
+      message: 'This pack is referenced by maps. Archive it instead of deleting it.',
+      references: { autotiles: autotileReferences, objects: objectReferences },
+    });
     return;
   }
   try {

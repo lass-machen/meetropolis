@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type express from 'express';
 import type { MapAutotile, PrismaClient } from '../../generated/prisma/index.js';
-import { allocateMapAutotile, resolveMapAutotileForPaint } from './mapAutotilePalette.js';
+import { allocateMapAutotile, contentHashFromAssetUrl, resolveMapAutotileForPaint } from './mapAutotilePalette.js';
 
 vi.mock('./resolvePackScope.js', () => ({
   resolvePackScope: vi.fn().mockResolvedValue({ kind: 'tenant', tenantId: 'tenant-one' }),
@@ -68,6 +68,10 @@ function allocatorPrisma() {
 }
 
 describe('map-local autotile palette allocation', () => {
+  it('captures the content hash embedded in an asset URL', () => {
+    expect(contentHashFromAssetUrl('/packs/pack/walls/wall.5be5bde2dc68.png')).toBe('5be5bde2dc68');
+    expect(contentHashFromAssetUrl('/packs/pack/walls/unhashed.png')).toBeNull();
+  });
   it('keeps an identity stable and assigns new identities monotonically', async () => {
     const { prisma, rows } = allocatorPrisma();
     const first = await allocateMapAutotile(prisma, 'map-one', IDENTITY, SNAPSHOT);
