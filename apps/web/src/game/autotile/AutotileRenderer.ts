@@ -75,10 +75,11 @@ export class AutotileRenderer {
         frameIndex,
       );
       sprite.setDepth(5.1);
-      sprite.setOrigin(0.5, 0.5);
+      sprite.setOrigin(0.5, (def.gridHeight - 0.5) / def.gridHeight);
       this.sprites.set(spriteKey, sprite);
     } else {
       sprite.setTexture(def.textureKey, frameIndex);
+      sprite.setOrigin(0.5, (def.gridHeight - 0.5) / def.gridHeight);
     }
   }
 

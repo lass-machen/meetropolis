@@ -10,6 +10,8 @@
 
 import { EditorState, PendingChanges, MapObjectRecord } from './EditorService';
 import { getApiBaseFromWindow } from '../lib/apiBase';
+import { gameBridge } from '../game/bridge';
+import type { AutotileRegistration, ChunkLayerName, ChunkUpdateEntry } from '../types/game';
 
 export class EditorPersistenceError extends Error {
   constructor(
@@ -19,6 +21,10 @@ export class EditorPersistenceError extends Error {
     super(message);
     this.name = 'EditorPersistenceError';
   }
+}
+
+function isChunkLayerName(layer: string): layer is ChunkLayerName {
+  return layer === 'ground' || layer === 'walls' || layer === 'collision' || layer === 'walls_auto';
 }
 
 type SaveableState = {
@@ -221,6 +227,8 @@ export class EditorPersistenceService {
       };
       if (paint.erase) {
         payload.erase = true;
+      } else if (paint.layer === 'walls_auto') {
+        payload.autotile = paint.autotile;
       } else {
         payload.tileRefId = paint.tileRefId;
       }
@@ -234,6 +242,16 @@ export class EditorPersistenceService {
         const text = await res.text();
         throw new EditorPersistenceError(`paint-rect failed: ${res.status} ${text}`);
       }
+      const result = (await res.json()) as {
+        updates?: ChunkUpdateEntry[];
+        collisionUpdates?: ChunkUpdateEntry[];
+        autotilePaletteEntry?: AutotileRegistration;
+      };
+      if (result.autotilePaletteEntry) gameBridge.registerAutotiles([result.autotilePaletteEntry]);
+      if (result.updates && isChunkLayerName(paint.layer)) {
+        gameBridge.applyChunkUpdates?.(paint.layer, result.updates);
+      }
+      if (result.collisionUpdates) gameBridge.applyChunkUpdates?.('collision', result.collisionUpdates);
     }
   }
 

@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { GameSystem } from '../systems/types';
 import type { MainSceneShape } from '../types/scene';
 import { gameBridge } from '../bridge';
-import { V2State, V2Tileset } from '../../lib/mapV2';
+import { baseUrl, V2Autotile, V2State, V2Tileset } from '../../lib/mapV2';
 import { logger } from '../../lib/logger';
 import { setBubbleMembers as uiSetBubbleMembers } from '../ui/bubbles';
 import { ensureRecenterUi, updateRecenterUiVisibility } from '../camera/recenterUi';
@@ -119,6 +119,7 @@ export class MainScene extends Phaser.Scene implements MainSceneShape {
 
     this.autotileGrid = new AutotileGrid();
     this.autotileRenderer = new AutotileRenderer(this, this.autotileGrid, this.mapRef?.tileWidth ?? 16);
+    this.registerAutotileDefinitions(this.v2?.state.autotilePalette ?? []);
 
     void this.loadVisibleChunks('ground');
     void this.loadVisibleChunks('walls');
@@ -694,19 +695,9 @@ export class MainScene extends Phaser.Scene implements MainSceneShape {
     this.tileManager.updateTilesetRegistry(registry);
   }
 
-  registerAutotileDefinitions(
-    items: Array<{
-      wallTypeId: number;
-      key: string;
-      textureUrl: string;
-      tileWidth: number;
-      tileHeight: number;
-      variants: Record<string, { col: number; row: number }>;
-      packUuid: string;
-    }>,
-  ): void {
+  registerAutotileDefinitions(items: V2Autotile[]): void {
     for (const item of items) {
-      const textureKey = `autotile_${item.packUuid}_${item.key}`;
+      const textureKey = `autotile_${item.packUuid}_${item.autotileId}`;
 
       const img = new Image();
       img.crossOrigin = 'anonymous';
@@ -717,18 +708,18 @@ export class MainScene extends Phaser.Scene implements MainSceneShape {
             frameHeight: item.tileHeight,
           });
         }
-        this.autotileRenderer?.registerDefinition(item.wallTypeId, {
+        this.autotileRenderer?.registerDefinition(item.slot, {
           key: item.key,
           tileWidth: item.tileWidth,
           tileHeight: item.tileHeight,
-          gridHeight: 4,
+          gridHeight: item.gridHeight,
           variants: item.variants,
           textureKey,
         });
         // Re-render all visible autotiles with the new definition
         this.autotileRenderer?.updateAllVisible();
       };
-      img.src = item.textureUrl;
+      img.src = item.imageUrl.startsWith('/') ? `${baseUrl()}${item.imageUrl}` : item.imageUrl;
     }
   }
 }

@@ -51,16 +51,21 @@ export type PackItem = {
 };
 
 export type AutotilePackItem = {
-  wallTypeId: number;
   packUuid: string;
   autotileId: string;
   key: string;
   textureUrl: string;
   tileWidth: number;
   tileHeight: number;
+  gridHeight: number;
   variants: Record<string, { col: number; row: number }>;
   collide: boolean;
   placement: string;
+};
+
+export type AutotileIdentity = {
+  packUuid: string;
+  autotileId: string;
 };
 
 export type Tileset = {
@@ -97,7 +102,8 @@ export type MapObjectRecord = {
 export type TerrainPaintOp = {
   layer: string;
   rect: { x0: number; y0: number; x1: number; y1: number };
-  tileRefId: number;
+  tileRefId?: number;
+  autotile?: AutotileIdentity;
   erase?: boolean;
 };
 
@@ -160,7 +166,7 @@ export type EditorState = {
   backgroundColor?: string | undefined;
 
   // Autotile wall state
-  selectedWallTypeId: number;
+  selectedAutotile: AutotileIdentity | null;
 
   // Drag state used by tools.
   dragState: {
@@ -236,7 +242,7 @@ export type EditorAction =
   | { type: 'ROTATE_PENDING_ASSET' }
 
   // Autotile Actions
-  | { type: 'SELECT_WALL_TYPE'; wallTypeId: number }
+  | { type: 'SELECT_WALL_TYPE'; autotile: AutotileIdentity }
   | { type: 'SET_AUTOTILE_ITEMS'; items: AutotilePackItem[] }
 
   // V2 Tile Selection

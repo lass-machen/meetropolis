@@ -9,7 +9,13 @@ import type {
   TilesetRegistryUpdatedMessage,
   WorldRoom,
 } from '../../types/colyseus';
-import type { ChunkUpdateEntry, EditorUpdatePayload, ObjectsUpdatedPayload, TilePaintEdit } from '../../types/game';
+import type {
+  AutotileRegistration,
+  ChunkUpdateEntry,
+  EditorUpdatePayload,
+  ObjectsUpdatedPayload,
+  TilePaintEdit,
+} from '../../types/game';
 import type { EditorState } from '../../services/EditorService';
 
 export function setupEditorHandlers(
@@ -73,6 +79,10 @@ export function setupEditorHandlers(
       if (isWrongMap(payload)) return;
       const layer = payload && typeof payload.layer === 'string' ? payload.layer : null;
       const updates = Array.isArray(payload?.updates) ? payload.updates : [];
+      const paletteEntries = Array.isArray(payload?.autotilePaletteEntries)
+        ? (payload.autotilePaletteEntries as AutotileRegistration[])
+        : [];
+      if (paletteEntries.length > 0) gameBridge.registerAutotiles(paletteEntries);
       if (!layer || updates.length === 0) return;
       const layerName =
         layer === 'collision' || layer === 'walls' || layer === 'ground' || layer === 'walls_auto' ? layer : null;

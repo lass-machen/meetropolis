@@ -116,7 +116,7 @@ export function reduceAsset(state: EditorState, action: AssetActions): Partial<E
       return { pendingAsset: { ...state.pendingAsset, rotation: nextRotation } };
     }
     case 'SELECT_WALL_TYPE':
-      return { selectedWallTypeId: action.wallTypeId, tool: 'wall', category: 'autotiles' };
+      return { selectedAutotile: action.autotile, tool: 'wall', category: 'autotiles' };
     case 'SET_AUTOTILE_ITEMS':
       return { autotileItems: action.items };
     case 'SELECT_TILE_REF':
