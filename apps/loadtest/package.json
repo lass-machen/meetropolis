@@ -11,7 +11,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@colyseus/sdk": "^0.17.43",
+    "@colyseus/sdk": "^0.18.2",
     "@livekit/rtc-node": "^1.0.0",
     "dotenv": "^17.4.2",
     "livekit-server-sdk": "^2.19.0"
