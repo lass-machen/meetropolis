@@ -1,6 +1,13 @@
 /**
- * Separate legacy collision data into a manual source layer and rebuild the
- * delivered collision layer from all reconstructable sources.
+ * Preserve legacy collision data as a manual source and rebuild the delivered
+ * collision layer from every source.
+ *
+ * Every blocked legacy cell is copied to `collision_manual`, including cells
+ * that currently overlap a wall, autotile, or object. Their original hand-made
+ * provenance cannot be reconstructed. Keeping the overlap can leave a visible
+ * stale blocker after another source is removed, but an operator can repair
+ * that in the editor. Subtracting reconstructable sources would silently lose
+ * blockers later, which is the unsafe and irreversible direction.
  *
  * Dry-run is the default:
  *   npm -w @meetropolis/server run map:collision-sources:migrate
@@ -14,11 +21,17 @@ import {
   DERIVED_COLLISION_LAYER,
   MANUAL_COLLISION_LAYER,
   reconcileCollisionTiles,
-  rectCollisionTiles,
 } from '../api/utils/collisionReconciler.js';
-import { decodeChunk, persistChunk, runSerializable, type StoredChunk } from '../api/utils/mapChunkMutations.js';
+import {
+  chunkKey,
+  decodeChunk,
+  loadChunks,
+  persistChunk,
+  runSerializable,
+  type StoredChunk,
+} from '../api/utils/mapChunkMutations.js';
 
-interface Summary {
+export interface Summary {
   maps: number;
   pending: number;
   migrated: number;
@@ -33,6 +46,7 @@ export interface CollisionMigrationMap {
   tileWidth: number | null;
   tileHeight: number | null;
   chunkSize: number | null;
+  collisionSourcesMigratedAt: Date | null;
   autotiles: Array<{ slot: number; collide: boolean }>;
   objects: Array<{
     tileX: number;
@@ -102,21 +116,26 @@ function objectValues(map: CollisionMigrationMap, chunkSize: number): Set<string
 }
 
 export function manualCollisionValues(map: CollisionMigrationMap): Set<string> {
-  const collision = layerValues(map, DERIVED_COLLISION_LAYER, (value) => value !== 0);
+  return layerValues(map, DERIVED_COLLISION_LAYER, (value) => value !== 0);
+}
+
+function affectedCollisionValues(map: CollisionMigrationMap): Set<string> {
+  const affected = manualCollisionValues(map);
   const walls = layerValues(map, 'walls', (value) => value !== 0);
   const collidingSlots = new Set(map.autotiles.filter((entry) => entry.collide).map((entry) => entry.slot));
   const autotiles = layerValues(map, 'walls_auto', (value) => collidingSlots.has(value));
   const objects = objectValues(map, map.chunkSize ?? 32);
-  return new Set(
-    [...collision].filter((position) => !walls.has(position) && !autotiles.has(position) && !objects.has(position)),
-  );
+  for (const source of [walls, autotiles, objects]) {
+    for (const position of source) affected.add(position);
+  }
+  return affected;
 }
 
 export function planCollisionMigration(
   map: CollisionMigrationMap,
-): { status: 'unchanged' } | { status: 'pending'; manual: Set<string> } {
-  if (map.layers.some((layer) => layer.name === MANUAL_COLLISION_LAYER)) return { status: 'unchanged' };
-  return { status: 'pending', manual: manualCollisionValues(map) };
+): { status: 'unchanged' } | { status: 'pending'; manual: Set<string>; affected: Set<string> } {
+  if (map.collisionSourcesMigratedAt) return { status: 'unchanged' };
+  return { status: 'pending', manual: manualCollisionValues(map), affected: affectedCollisionValues(map) };
 }
 
 async function persistManualLayer(
@@ -125,22 +144,59 @@ async function persistManualLayer(
   manual: Set<string>,
 ): Promise<void> {
   const chunkSize = map.chunkSize ?? 32;
-  const layer = await tx.mapLayer.create({ data: { mapId: map.id, name: MANUAL_COLLISION_LAYER, chunkSize } });
+  const existingLayer = map.layers.find((candidate) => candidate.name === MANUAL_COLLISION_LAYER);
+  const layer =
+    existingLayer ?? (await tx.mapLayer.create({ data: { mapId: map.id, name: MANUAL_COLLISION_LAYER, chunkSize } }));
+  const storageChunkSize = layer.chunkSize;
   const byChunk = new Map<string, number[]>();
   for (const position of manual) {
     const [x, y] = position.split(':').map(Number);
-    const cx = Math.floor(x / chunkSize);
-    const cy = Math.floor(y / chunkSize);
+    const cx = Math.floor(x / storageChunkSize);
+    const cy = Math.floor(y / storageChunkSize);
     const key = `${cx}:${cy}`;
-    const values = byChunk.get(key) ?? new Array<number>(chunkSize * chunkSize).fill(0);
-    const rx = ((x % chunkSize) + chunkSize) % chunkSize;
-    const ry = ((y % chunkSize) + chunkSize) % chunkSize;
-    values[ry * chunkSize + rx] = 1;
-    byChunk.set(key, values);
+    const positions = byChunk.get(key) ?? [];
+    positions.push(x, y);
+    byChunk.set(key, positions);
   }
-  for (const [key, values] of byChunk) {
+  const coords = [...byChunk].map(([key]) => {
     const [x, y] = key.split(':').map(Number);
-    await persistChunk(tx, layer.id, { x, y }, undefined, 'rle-bool', values);
+    return { x, y };
+  });
+  const chunks = await loadChunks(tx, layer.id, coords);
+  for (const [key, positions] of byChunk) {
+    const coord = coords.find((candidate) => chunkKey(candidate.x, candidate.y) === key)!;
+    const existing = chunks.get(key);
+    const values = decodeChunk(existing, layer.chunkSize, 'rle-bool');
+    let modified = false;
+    for (let index = 0; index < positions.length; index += 2) {
+      const x = positions[index];
+      const y = positions[index + 1];
+      const rx = ((x % layer.chunkSize) + layer.chunkSize) % layer.chunkSize;
+      const ry = ((y % layer.chunkSize) + layer.chunkSize) % layer.chunkSize;
+      const valueIndex = ry * layer.chunkSize + rx;
+      if (values[valueIndex] === 1) continue;
+      values[valueIndex] = 1;
+      modified = true;
+    }
+    if (modified || !existing) await persistChunk(tx, layer.id, coord, existing, 'rle-bool', values);
+  }
+}
+
+function collisionTiles(values: Set<string>, chunkSize: number) {
+  return [...values].map((position) => {
+    const [x, y] = position.split(':').map(Number);
+    return {
+      cx: Math.floor(x / chunkSize),
+      cy: Math.floor(y / chunkSize),
+      rx: ((x % chunkSize) + chunkSize) % chunkSize,
+      ry: ((y % chunkSize) + chunkSize) % chunkSize,
+    };
+  });
+}
+
+export class CollisionMigrationConflictsError extends Error {
+  constructor(readonly summary: Summary) {
+    super(`collision source migration finished with ${summary.conflicts} conflict(s)`);
   }
 }
 
@@ -152,46 +208,51 @@ export async function migrateCollisionSources(
   const maps = await prisma.map.findMany({
     where: { layers: { some: { name: DERIVED_COLLISION_LAYER, chunks: { some: {} } } } },
     orderBy: { id: 'asc' },
-    include: {
-      autotiles: { select: { slot: true, collide: true } },
-      objects: true,
-      layers: { include: { chunks: true } },
-    },
+    select: { id: true },
   });
   const summary: Summary = { maps: maps.length, pending: 0, migrated: 0, unchanged: 0, conflicts: 0 };
-  for (const map of maps) {
-    const plan = planCollisionMigration(map);
-    if (plan.status === 'unchanged') {
-      summary.unchanged++;
-      log(`[${apply ? 'APPLY' : 'DRY-RUN'}] ${map.id}: manual source already exists`);
-      continue;
-    }
+  for (const candidate of maps) {
     try {
-      const manual = plan.manual;
-      summary.pending++;
-      log(`[${apply ? 'APPLY' : 'DRY-RUN'}] ${map.id}: preserve ${manual.size} manual collision tiles`);
-      if (!apply) continue;
-      await runSerializable(prisma, async (tx) => {
-        await persistManualLayer(tx, map, manual);
+      const result = await runSerializable(prisma, async (tx) => {
+        const map = await tx.map.findUnique({
+          where: { id: candidate.id },
+          include: {
+            autotiles: { select: { slot: true, collide: true } },
+            objects: true,
+            layers: { include: { chunks: true } },
+          },
+        });
+        if (!map) return { status: 'unchanged' as const };
+        const plan = planCollisionMigration(map);
+        if (plan.status === 'unchanged' || !apply) return plan;
+        await persistManualLayer(tx, map, plan.manual);
+        const chunkSize = map.chunkSize ?? 32;
         await reconcileCollisionTiles(
           tx,
           map.id,
-          { chunkSize: map.chunkSize ?? 32, tileWidth: map.tileWidth ?? 16, tileHeight: map.tileHeight ?? 16 },
-          rectCollisionTiles(
-            { x0: 0, y0: 0, x1: (map.width ?? 1) - 1, y1: (map.height ?? 1) - 1 },
-            map.chunkSize ?? 32,
-          ),
+          { chunkSize, tileWidth: map.tileWidth ?? 16, tileHeight: map.tileHeight ?? 16 },
+          collisionTiles(plan.affected, chunkSize),
         );
+        await tx.map.update({ where: { id: map.id }, data: { collisionSourcesMigratedAt: new Date() } });
+        return plan;
       });
-      summary.migrated++;
+      if (result.status === 'unchanged') {
+        summary.unchanged++;
+        log(`[${apply ? 'APPLY' : 'DRY-RUN'}] ${candidate.id}: explicit migration marker already exists`);
+        continue;
+      }
+      summary.pending++;
+      log(`[${apply ? 'APPLY' : 'DRY-RUN'}] ${candidate.id}: preserve ${result.manual.size} collision tiles`);
+      if (apply) summary.migrated++;
     } catch (error: unknown) {
       summary.conflicts++;
       log(
-        `[${apply ? 'APPLY' : 'DRY-RUN'}] ${map.id}: CONFLICT ${error instanceof Error ? error.message : String(error)}`,
+        `[${apply ? 'APPLY' : 'DRY-RUN'}] ${candidate.id}: CONFLICT ${error instanceof Error ? error.message : String(error)}`,
       );
     }
   }
   log(`[SUMMARY] mode=${apply ? 'apply' : 'dry-run'} ${JSON.stringify(summary)}`);
+  if (summary.conflicts > 0) throw new CollisionMigrationConflictsError(summary);
   return summary;
 }
 

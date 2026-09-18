@@ -1,13 +1,19 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import type { PrismaClient } from '../generated/prisma/index.js';
 import { encodeRlePairsToBuffer, rleEncodeBooleans, rleEncodeNumbers } from '../mapEncoding.js';
-import { planCollisionMigration, type CollisionMigrationMap } from './migrateCollisionSources.js';
+import {
+  CollisionMigrationConflictsError,
+  migrateCollisionSources,
+  planCollisionMigration,
+  type CollisionMigrationMap,
+} from './migrateCollisionSources.js';
 
-function chunk(values: number[], encoding: 'rle' | 'rle-bool') {
+function chunk(values: number[], encoding: 'rle' | 'rle-bool', x = 0, y = 0) {
   const pairs = encoding === 'rle' ? rleEncodeNumbers(values) : rleEncodeBooleans(values.map(Boolean));
   return {
     id: `${encoding}-chunk`,
-    x: 0,
-    y: 0,
+    x,
+    y,
     version: 1,
     encoding,
     data: new Uint8Array(encodeRlePairsToBuffer(pairs)),
@@ -22,6 +28,7 @@ function legacyMap(): CollisionMigrationMap {
     tileWidth: 16,
     tileHeight: 16,
     chunkSize: 2,
+    collisionSourcesMigratedAt: null,
     autotiles: [{ slot: 7, collide: true }],
     objects: [
       {
@@ -43,16 +50,86 @@ function legacyMap(): CollisionMigrationMap {
 }
 
 describe('legacy collision source migration', () => {
-  it('subtracts reconstructable wall, autotile, and object sources from manual collision', () => {
+  it('preserves every legacy collision cell, including overlaps with reconstructable sources', () => {
     const plan = planCollisionMigration(legacyMap());
 
-    expect(plan).toEqual({ status: 'pending', manual: new Set(['1:1']) });
+    expect(plan).toEqual({
+      status: 'pending',
+      manual: new Set(['0:0', '1:0', '0:1', '1:1']),
+      affected: new Set(['0:0', '1:0', '0:1', '1:1']),
+    });
   });
 
-  it('is idempotent once the manual source layer exists', () => {
+  it('does not mistake a pre-existing empty manual layer for the migration marker', () => {
     const map = legacyMap();
     map.layers.push({ id: 'manual', name: 'collision_manual', chunkSize: 2, chunks: [] });
 
+    expect(planCollisionMigration(map).status).toBe('pending');
+  });
+
+  it('is idempotent only after the explicit marker is present', () => {
+    const map = legacyMap();
+    map.collisionSourcesMigratedAt = new Date('2026-09-18T00:00:00Z');
+
     expect(planCollisionMigration(map)).toEqual({ status: 'unchanged' });
+  });
+
+  it('handles different source chunk sizes, scaled base collision, and outside coordinates', () => {
+    const map = legacyMap();
+    map.width = 2;
+    map.height = 2;
+    map.chunkSize = 5;
+    map.layers = [
+      {
+        id: 'collision',
+        name: 'collision',
+        chunkSize: 2,
+        chunks: [chunk([0, 0, 0, 1], 'rle-bool', -1, -1), chunk([1, 0, 0, 0], 'rle-bool', 2, 0)],
+      },
+      {
+        id: 'walls',
+        name: 'walls',
+        chunkSize: 3,
+        chunks: [chunk([0, 0, 0, 0, 0, 0, 0, 0, 9], 'rle', -1, -1)],
+      },
+      {
+        id: 'auto',
+        name: 'walls_auto',
+        chunkSize: 4,
+        chunks: [chunk([7, ...new Array<number>(15).fill(0)], 'rle', 1, 0)],
+      },
+    ];
+    map.objects = [
+      {
+        tileX: 5,
+        tileY: 5,
+        width: 16,
+        height: 32,
+        collide: true,
+        scaleFactor: 2,
+        collisionBaseHeight: 1,
+      },
+    ];
+
+    const plan = planCollisionMigration(map);
+
+    expect(plan.status).toBe('pending');
+    if (plan.status === 'pending') {
+      expect(plan.manual).toEqual(new Set(['-1:-1', '4:0']));
+      expect(plan.affected).toEqual(new Set(['-1:-1', '4:0', '5:8', '6:8']));
+    }
+  });
+
+  it('reports planning failures after continuing the per-map run', async () => {
+    const tx = { map: { findUnique: vi.fn().mockRejectedValue(new Error('broken legacy chunk')) } };
+    const prisma = {
+      map: { findMany: vi.fn().mockResolvedValue([{ id: 'broken-map' }]) },
+      $transaction: vi.fn((work: (client: typeof tx) => Promise<unknown>) => work(tx)),
+    } as unknown as PrismaClient;
+    const log = vi.fn();
+
+    await expect(migrateCollisionSources(prisma, true, log)).rejects.toBeInstanceOf(CollisionMigrationConflictsError);
+    expect(log).toHaveBeenCalledWith(expect.stringContaining('broken-map: CONFLICT broken legacy chunk'));
+    expect(log).toHaveBeenCalledWith(expect.stringContaining('"conflicts":1'));
   });
 });

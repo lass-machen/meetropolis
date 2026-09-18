@@ -12,8 +12,9 @@ import {
   type MapDb,
   type StoredChunk,
 } from './mapChunkMutations.js';
+import { INTERNAL_MAP_LAYER_NAMES } from './mapLayerPolicy.js';
 
-export const MANUAL_COLLISION_LAYER = 'collision_manual';
+export const MANUAL_COLLISION_LAYER = INTERNAL_MAP_LAYER_NAMES[0];
 export const DERIVED_COLLISION_LAYER = 'collision';
 
 interface MapDimensions {

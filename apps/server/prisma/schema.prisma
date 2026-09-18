@@ -185,6 +185,10 @@ model Map {
   /// atomically increments this counter; deleting palette rows is forbidden
   /// and never makes their slots eligible for reuse.
   nextAutotileSlot Int      @default(1)
+  /// Explicit completion marker for the conservative legacy collision-source
+  /// migration. A manual layer is not sufficient because normal painting can
+  /// create it before the migration has preserved the legacy derived layer.
+  collisionSourcesMigratedAt DateTime?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
   rooms            Room[]
