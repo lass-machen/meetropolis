@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { logger } from '../../logger.js';
 import { requireAuth, getTenantFromReq, requireApiToken, requireMembership } from '../utils/authHelpers.js';
 import { resolvePackScope } from '../utils/resolvePackScope.js';
-import { assetPackScopeWhere, type PackScope } from '../../services/packScope.js';
+import { assetPackScopeWhere, refreshPackScope, type PackScope } from '../../services/packScope.js';
 import { pathParam } from '../utils/requestHelpers.js';
 import { broadcastMapUpdate } from '../utils/broadcast.js';
 import { computeFootprintTiles } from '../utils/collisionHelpers.js';
@@ -271,8 +271,9 @@ async function handleCreateObject(prisma: PrismaClient, req: express.Request, re
     const dims = getMapDimensions(map);
     const result = await runSerializable(prisma, async (tx) => {
       await acquirePackAdvisoryLock(tx, data.assetPackUuid);
+      const currentScope = await refreshPackScope(tx, scope, 'asset');
       const currentPack = await tx.assetPack.findFirst({
-        where: { uuid: data.assetPackUuid, ...assetPackScopeWhere(scope) },
+        where: { uuid: data.assetPackUuid, ...assetPackScopeWhere(currentScope) },
         select: { terrain: true, structures: true, objects: true },
       });
       if (!currentPack) return null;
@@ -472,8 +473,9 @@ async function createObjectsWithPackLocks(params: {
   const { tx, mapId, objects, dims, scope } = params;
   const uuids = [...new Set(objects.map((object) => object.assetPackUuid))];
   await acquirePackAdvisoryLocks(tx, uuids);
+  const currentScope = await refreshPackScope(tx, scope, 'asset');
   const currentPacks = await tx.assetPack.findMany({
-    where: { uuid: { in: uuids }, ...assetPackScopeWhere(scope) },
+    where: { uuid: { in: uuids }, ...assetPackScopeWhere(currentScope) },
     select: { uuid: true, terrain: true, structures: true, objects: true },
   });
   const packsByUuid = new Map(currentPacks.map((pack) => [pack.uuid, pack]));

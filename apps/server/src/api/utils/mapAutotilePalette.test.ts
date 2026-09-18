@@ -8,6 +8,7 @@ vi.mock('./resolvePackScope.js', () => ({
 }));
 
 const IDENTITY = { packUuid: '4664b745-6bad-4d86-ae8f-591c57567692', autotileId: 'wall-set' };
+const SCOPE = { kind: 'tenant' as const, tenantId: 'tenant-one' };
 const SNAPSHOT = {
   key: 'Wall set',
   imageUrl: '/assets/walls.png',
@@ -38,8 +39,8 @@ function allocatorPrisma() {
   const tx = {
     $queryRaw: vi.fn().mockResolvedValue([]),
     assetPack: {
-      findUnique: vi.fn(({ where }: { where: { uuid: string } }) => ({
-        uuid: where.uuid,
+      findFirst: vi.fn(() => ({
+        uuid: IDENTITY.packUuid,
         archived: false,
         autotiles: ['wall-set', 'glass-wall'].map((id) => ({
           id,
@@ -84,7 +85,7 @@ function allocatorPrisma() {
   const prisma = {
     $transaction: vi.fn((callback: (client: typeof tx) => Promise<unknown>) => callback(tx)),
   } as unknown as PrismaClient;
-  return { prisma, rows };
+  return { prisma, rows, tx };
 }
 
 describe('map-local autotile palette allocation', () => {
@@ -94,9 +95,9 @@ describe('map-local autotile palette allocation', () => {
   });
   it('keeps an identity stable and assigns new identities monotonically', async () => {
     const { prisma, rows } = allocatorPrisma();
-    const first = await allocateMapAutotile(prisma, 'map-one', IDENTITY, SNAPSHOT);
-    const repeated = await allocateMapAutotile(prisma, 'map-one', IDENTITY, SNAPSHOT);
-    const second = await allocateMapAutotile(prisma, 'map-one', { ...IDENTITY, autotileId: 'glass-wall' }, SNAPSHOT);
+    const first = await allocateMapAutotile(prisma, 'map-one', IDENTITY, SCOPE);
+    const repeated = await allocateMapAutotile(prisma, 'map-one', IDENTITY, SCOPE);
+    const second = await allocateMapAutotile(prisma, 'map-one', { ...IDENTITY, autotileId: 'glass-wall' }, SCOPE);
 
     expect(first).toMatchObject({ created: true, entry: { slot: 1 } });
     expect(repeated).toMatchObject({ created: false, entry: { slot: 1 } });
@@ -118,7 +119,7 @@ describe('map-local autotile palette allocation', () => {
       .mockImplementation((callback: (client: typeof tx) => Promise<unknown>) => callback(tx));
     const prisma = { $transaction: transaction } as unknown as PrismaClient;
 
-    const result = await allocateMapAutotile(prisma, 'map-one', IDENTITY, SNAPSHOT);
+    const result = await allocateMapAutotile(prisma, 'map-one', IDENTITY, SCOPE);
 
     expect(result).toEqual({ entry: concurrent, created: false });
     expect(transaction).toHaveBeenCalledTimes(2);
@@ -129,9 +130,25 @@ describe('map-local autotile palette allocation', () => {
     const { prisma, rows } = allocatorPrisma();
     rows.push(row({ ...IDENTITY, autotileId: 'legacy-wall' }, 7));
 
-    const result = await allocateMapAutotile(prisma, 'map-one', IDENTITY, SNAPSHOT);
+    const result = await allocateMapAutotile(prisma, 'map-one', IDENTITY, SCOPE);
 
     expect(result).toMatchObject({ created: true, entry: { slot: 8 } });
+  });
+
+  it('revalidates the caller scope after locking and before creating a snapshot', async () => {
+    const { prisma, tx } = allocatorPrisma();
+
+    await allocateMapAutotile(prisma, 'map-one', IDENTITY, SCOPE);
+
+    expect(tx.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(tx.assetPack.findFirst.mock.invocationCallOrder[0]);
+    expect(tx.assetPack.findFirst).toHaveBeenCalledWith({
+      where: {
+        uuid: IDENTITY.packUuid,
+        archived: false,
+        OR: [{ tenantId: 'tenant-one' }, { tenantId: null }],
+      },
+      select: { archived: true, autotiles: true },
+    });
   });
 
   it('rejects an autotile whose pack is outside the caller scope', async () => {

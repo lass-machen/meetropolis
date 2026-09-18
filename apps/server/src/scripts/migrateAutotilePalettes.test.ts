@@ -41,9 +41,12 @@ describe('legacy autotile palette reconstruction', () => {
       nextAutotileSlot = data.nextAutotileSlot;
       return { count: 1 };
     });
-    const tx = { mapAutotile: { create: vi.fn() }, map: { updateMany } };
-    const prisma = {
-      assetPack: { findMany: vi.fn().mockResolvedValue([{ uuid: 'pack-a', autotiles: [autotile('wall')] }]) },
+    const findPacks = vi.fn(({ select }: { select: { uuid: true; autotiles?: true } }) =>
+      select.autotiles ? [{ uuid: 'pack-a', autotiles: [autotile('wall')] }] : [{ uuid: 'pack-a' }],
+    );
+    const tx = {
+      $queryRaw: vi.fn().mockResolvedValue([]),
+      assetPack: { findMany: findPacks },
       mapLayer: {
         findMany: vi.fn(() => [
           {
@@ -54,7 +57,10 @@ describe('legacy autotile palette reconstruction', () => {
           },
         ]),
       },
-      mapAutotile: { findMany: vi.fn(() => entries) },
+      mapAutotile: { findMany: vi.fn(() => entries), create: vi.fn(), update: vi.fn() },
+      map: { updateMany },
+    };
+    const prisma = {
       $transaction: vi.fn((callback: (client: typeof tx) => Promise<void>) => callback(tx)),
     } as unknown as PrismaClient;
 
@@ -66,5 +72,47 @@ describe('legacy autotile palette reconstruction', () => {
     expect(updateMany).toHaveBeenCalledTimes(1);
     expect(tx.mapAutotile.create).not.toHaveBeenCalled();
     expect(nextAutotileSlot).toBe(2);
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(2);
+    expect(tx.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(findPacks.mock.invocationCallOrder[1]);
+  });
+
+  it('uses the pack snapshot re-read after acquiring the advisory lock', async () => {
+    const chunkData = new Uint8Array(encodeRlePairsToBuffer(rleEncodeNumbers([1])));
+    const create = vi.fn().mockResolvedValue({});
+    const findPacks = vi
+      .fn()
+      .mockResolvedValueOnce([{ uuid: 'pack-a' }])
+      .mockResolvedValueOnce([
+        {
+          uuid: 'pack-a',
+          autotiles: [{ ...autotile('wall'), dataURL: '/assets/wall.current.png' }],
+        },
+      ]);
+    const tx = {
+      $queryRaw: vi.fn().mockResolvedValue([]),
+      assetPack: { findMany: findPacks },
+      mapLayer: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            mapId: 'map-one',
+            chunkSize: 1,
+            map: { nextAutotileSlot: 1 },
+            chunks: [{ encoding: 'rle', data: chunkData }],
+          },
+        ]),
+      },
+      mapAutotile: { findMany: vi.fn().mockResolvedValue([]), create, update: vi.fn() },
+      map: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
+    };
+    const prisma = {
+      $transaction: vi.fn((callback: (client: typeof tx) => Promise<unknown>) => callback(tx)),
+    } as unknown as PrismaClient;
+
+    await migrateAutotilePalettes(prisma, true, vi.fn());
+
+    expect(tx.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(findPacks.mock.invocationCallOrder[1]);
+    expect(create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ mapId: 'map-one', imageUrl: '/assets/wall.current.png' }),
+    });
   });
 });

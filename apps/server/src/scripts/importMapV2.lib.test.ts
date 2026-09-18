@@ -1,5 +1,9 @@
+import { mkdtemp, rm, writeFile } from 'fs/promises';
+import os from 'os';
+import path from 'path';
 import { describe, expect, it, vi } from 'vitest';
 import {
+  importTmjIntoMap,
   readSpawnFromProperties,
   persistSpawnFromTmj,
   readZonesFromObjectLayers,
@@ -7,6 +11,11 @@ import {
 } from './importMapV2.lib.js';
 import type { TmjProperty, Tmj } from './importMapV2.lib.js';
 import type { PrismaClient } from '../generated/prisma/index.js';
+
+vi.mock('../api/utils/collisionReconciler.js', async (importOriginal) => {
+  const original = await importOriginal<typeof import('../api/utils/collisionReconciler.js')>();
+  return { ...original, reconcileCollisionTiles: vi.fn().mockResolvedValue([]) };
+});
 
 // A TMJ carrying the given top-level properties; only `properties` is read by
 // persistSpawnFromTmj, so the rest is filler to satisfy the type.
@@ -196,5 +205,109 @@ describe('resolveObjectDataUrl', () => {
         'atelier_v1_holz_compact_desk',
       ),
     ).toBe('/assets/atelier/v1/holz/compact_desk.hash.png');
+  });
+});
+
+async function withTmjFile(tmj: Tmj, work: (file: string) => Promise<void>): Promise<void> {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'meetropolis-import-'));
+  const file = path.join(directory, 'map.tmj');
+  try {
+    await writeFile(file, JSON.stringify(tmj));
+    await work(file);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+}
+
+describe('importTmjIntoMap layer policy and atomicity', () => {
+  it.each(['collision_manual', 'walls_auto'])(
+    'rejects reserved layer %s before opening a transaction',
+    async (name) => {
+      const transaction = vi.fn();
+      const prisma = { $transaction: transaction } as unknown as PrismaClient;
+      const tmj: Tmj = {
+        width: 1,
+        height: 1,
+        tilewidth: 16,
+        tileheight: 16,
+        tilesets: [],
+        layers: [{ name, type: 'tilelayer', data: [1] }],
+      };
+
+      await withTmjFile(tmj, async (file) => {
+        await expect(importTmjIntoMap(prisma, 'tenant-one', 'office', file)).rejects.toThrow(
+          `reserved_import_layer:${name}`,
+        );
+      });
+      expect(transaction).not.toHaveBeenCalled();
+    },
+  );
+
+  it('stores public collision as collision_manual inside one transaction', async () => {
+    const createdLayerNames: string[] = [];
+    const tx = {
+      map: { upsert: vi.fn().mockResolvedValue({ id: 'map-one', meta: {} }) },
+      mapTileset: { deleteMany: vi.fn(), create: vi.fn() },
+      mapLayer: {
+        findMany: vi.fn().mockResolvedValue([]),
+        deleteMany: vi.fn(),
+        create: vi.fn(({ data }: { data: { name: string } }) => {
+          createdLayerNames.push(data.name);
+          return { id: `layer-${data.name}` };
+        }),
+      },
+      mapChunk: { deleteMany: vi.fn(), create: vi.fn() },
+      mapObject: { deleteMany: vi.fn(), create: vi.fn() },
+      zone: { deleteMany: vi.fn(), create: vi.fn() },
+      room: { findFirst: vi.fn(), upsert: vi.fn() },
+      assetPack: { findUnique: vi.fn() },
+    };
+    const transaction = vi.fn((work: (client: typeof tx) => Promise<unknown>) => work(tx));
+    const prisma = { $transaction: transaction } as unknown as PrismaClient;
+    const tmj: Tmj = {
+      width: 1,
+      height: 1,
+      tilewidth: 16,
+      tileheight: 16,
+      tilesets: [],
+      layers: [{ name: 'collision', type: 'tilelayer', data: [1] }],
+    };
+
+    await withTmjFile(tmj, async (file) => {
+      await importTmjIntoMap(prisma, 'tenant-one', 'office', file);
+    });
+
+    expect(transaction).toHaveBeenCalledOnce();
+    expect(createdLayerNames).toContain('collision_manual');
+    expect(createdLayerNames).not.toContain('collision');
+  });
+
+  it('preserves the previous state when a replace step fails', async () => {
+    const state = { mapName: 'existing', layers: ['old-layer'] };
+    const transaction = vi.fn(async (work: (client: unknown) => Promise<unknown>) => {
+      const pending = { mapName: state.mapName, layers: [...state.layers] };
+      const tx = {
+        map: {
+          upsert: vi.fn(() => {
+            pending.mapName = 'replacement';
+            return { id: 'map-one', meta: {} };
+          }),
+        },
+        mapTileset: { deleteMany: vi.fn(() => Promise.reject(new Error('tileset write failed'))) },
+      };
+      const result = await work(tx);
+      state.mapName = pending.mapName;
+      state.layers = pending.layers;
+      return result;
+    });
+    const prisma = { $transaction: transaction } as unknown as PrismaClient;
+    const tmj: Tmj = { width: 1, height: 1, tilewidth: 16, tileheight: 16, tilesets: [], layers: [] };
+
+    await withTmjFile(tmj, async (file) => {
+      await expect(importTmjIntoMap(prisma, 'tenant-one', 'office', file)).rejects.toThrow('tileset write failed');
+    });
+
+    expect(state).toEqual({ mapName: 'existing', layers: ['old-layer'] });
+    expect(transaction).toHaveBeenCalledOnce();
   });
 });

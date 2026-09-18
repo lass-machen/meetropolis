@@ -74,6 +74,27 @@ describe('legacy collision source migration', () => {
     expect(planCollisionMigration(map)).toEqual({ status: 'unchanged' });
   });
 
+  it('leaves a post-cutover map with derived collision unchanged on a later run', async () => {
+    const map = legacyMap();
+    map.collisionSourcesMigratedAt = new Date('2026-09-18T12:00:00Z');
+    const update = vi.fn();
+    const createLayer = vi.fn();
+    const tx = {
+      map: { findUnique: vi.fn().mockResolvedValue(map), update },
+      mapLayer: { create: createLayer },
+    };
+    const prisma = {
+      map: { findMany: vi.fn().mockResolvedValue([{ id: map.id }]) },
+      $transaction: vi.fn((work: (client: typeof tx) => Promise<unknown>) => work(tx)),
+    } as unknown as PrismaClient;
+
+    const summary = await migrateCollisionSources(prisma, true, vi.fn());
+
+    expect(summary).toEqual({ maps: 1, pending: 0, migrated: 0, unchanged: 1, conflicts: 0 });
+    expect(createLayer).not.toHaveBeenCalled();
+    expect(update).not.toHaveBeenCalled();
+  });
+
   it('handles different source chunk sizes, scaled base collision, and outside coordinates', () => {
     const map = legacyMap();
     map.width = 2;

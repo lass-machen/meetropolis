@@ -161,6 +161,7 @@ function makePrisma({
   const mapLayerCreate = vi.fn(() => Promise.resolve({ id: 'layer-copy' }));
   const mapChunkCreate = vi.fn(() => Promise.resolve({}));
   const tx = {
+    $queryRaw: vi.fn(() => Promise.resolve([])),
     map: {
       findUnique: vi.fn(({ where }: { where: { id?: string; tenantId_name?: unknown } }) =>
         Promise.resolve(
@@ -255,7 +256,7 @@ describe('copyMapToTenant — object fidelity', () => {
     }
   });
 
-  it('uses one repeatable-read transaction for scope resolution, classification and copying', async () => {
+  it('locks source packs before re-reading snapshots and target access', async () => {
     tenancy.enabled = true;
     tenancy.resolver.mockResolvedValue({ catalogPackUuids: [], accessiblePackUuids: [] });
     const { prisma, transaction, tx } = makePrisma();
@@ -263,14 +264,16 @@ describe('copyMapToTenant — object fidelity', () => {
     await copyMapToTenant(prisma, SOURCE_MAP_ID, TARGET_TENANT_ID, 'office');
 
     expect(transaction).toHaveBeenCalledWith(expect.any(Function), {
-      isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead,
+      isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
     });
     expect(tenancy.resolver).toHaveBeenCalledWith(
       tx,
       expect.objectContaining({ tenantId: TARGET_TENANT_ID, packKind: 'asset' }),
     );
-    expect(tx.map.findUnique).toHaveBeenCalled();
+    expect(tx.map.findUnique).toHaveBeenCalledTimes(3);
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
     expect(tx.assetPack.findMany).toHaveBeenCalledTimes(2);
+    expect(tx.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(tx.assetPack.findMany.mock.invocationCallOrder[0]);
   });
 
   it('always permits an uncatalogued global base pack', async () => {

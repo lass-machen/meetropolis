@@ -130,6 +130,22 @@ export async function resolveTenantPackScope(
   return tenantScope(tenantId, blockedGlobalPackUuids);
 }
 
+/** Re-resolve only the mutable catalogue portion of an already proven scope. */
+export function refreshPackScope(
+  prisma: Prisma.TransactionClient,
+  scope: PackScope,
+  packKind: PackKind,
+): Promise<PackScope> {
+  switch (scope.kind) {
+    case 'all':
+      return Promise.resolve(scope);
+    case 'tenant':
+      return resolveTenantPackScope(prisma, scope.tenantId, packKind);
+    case 'catalog':
+      return resolvePublicPackScope(prisma, packKind);
+  }
+}
+
 /**
  * The scope as a plain `tenantId` predicate. Both pack models carry the same
  * nullable `tenantId` column, so the filter is written once here and only the

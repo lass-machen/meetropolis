@@ -593,6 +593,59 @@ describe('POST /maps/:id/objects: placement honours the pack scope', () => {
       .send({ ...OBJECT_BODY, assetPackUuid: 'other-tenant-pack' });
     expect(prisma.mapObject.create).not.toHaveBeenCalled();
   });
+
+  it('revalidates a revoked grant inside the first placement transaction', async () => {
+    tenancyMocks.enabled = true;
+    tenancyMocks.resolver
+      .mockResolvedValueOnce({
+        catalogPackUuids: ['pixel-agents-furniture'],
+        accessiblePackUuids: ['pixel-agents-furniture'],
+      })
+      .mockResolvedValue({ catalogPackUuids: ['pixel-agents-furniture'], accessiblePackUuids: [] });
+    const prisma = makePrisma();
+
+    const res = await request(makeApp(prisma))
+      .post('/maps/map-1/objects')
+      .set('Authorization', sessionBearer('lm-user'))
+      .set('X-Tenant', 'lass-machen')
+      .send({ ...OBJECT_BODY, assetPackUuid: 'pixel-agents-furniture' });
+
+    expect(res.status).toBe(400);
+    expect(prisma.mapObject.create).not.toHaveBeenCalled();
+    expect(tenancyMocks.resolver).toHaveBeenCalledTimes(2);
+  });
+
+  it('revalidates a revoked grant on a serializable retry', async () => {
+    tenancyMocks.enabled = true;
+    tenancyMocks.resolver
+      .mockResolvedValueOnce({
+        catalogPackUuids: ['pixel-agents-furniture'],
+        accessiblePackUuids: ['pixel-agents-furniture'],
+      })
+      .mockResolvedValueOnce({
+        catalogPackUuids: ['pixel-agents-furniture'],
+        accessiblePackUuids: ['pixel-agents-furniture'],
+      })
+      .mockResolvedValue({ catalogPackUuids: ['pixel-agents-furniture'], accessiblePackUuids: [] });
+    const prisma = makePrisma();
+    vi.mocked(prisma.$transaction)
+      .mockImplementationOnce(async (callback) => {
+        await callback(prisma);
+        throw Object.assign(new Error('serialization failure'), { code: 'P2034' });
+      })
+      .mockImplementation((callback) => callback(prisma));
+
+    const res = await request(makeApp(prisma))
+      .post('/maps/map-1/objects')
+      .set('Authorization', sessionBearer('lm-user'))
+      .set('X-Tenant', 'lass-machen')
+      .send({ ...OBJECT_BODY, assetPackUuid: 'pixel-agents-furniture' });
+
+    expect(res.status).toBe(400);
+    expect(prisma.$transaction).toHaveBeenCalledTimes(2);
+    expect(prisma.mapObject.create).toHaveBeenCalledTimes(1);
+    expect(tenancyMocks.resolver).toHaveBeenCalledTimes(3);
+  });
 });
 
 describe('POST /maps/:id/objects/bulk: the bulk path is no bypass', () => {

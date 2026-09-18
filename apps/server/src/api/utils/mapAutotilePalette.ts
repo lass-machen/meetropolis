@@ -1,6 +1,6 @@
 import type express from 'express';
 import { Prisma, type MapAutotile, type PrismaClient } from '../../generated/prisma/index.js';
-import { assetPackScopeWhere } from '../../services/packScope.js';
+import { assetPackScopeWhere, refreshPackScope, type PackScope } from '../../services/packScope.js';
 import { StoredAutotileItemSchema } from '../routes/assetPacks.schemas.js';
 import { resolvePackScope } from './resolvePackScope.js';
 import { runSerializable, type MapDb } from './mapChunkMutations.js';
@@ -82,7 +82,7 @@ export async function allocateMapAutotileInTransaction(
   tx: MapDb,
   mapId: string,
   identity: AutotileIdentity,
-  _snapshot: AutotileSnapshot,
+  scope: PackScope,
 ): Promise<PaletteAllocation> {
   let existing = await tx.mapAutotile.findUnique({
     where: { mapId_packUuid_autotileId: { mapId, ...identity } },
@@ -94,11 +94,12 @@ export async function allocateMapAutotileInTransaction(
     where: { mapId_packUuid_autotileId: { mapId, ...identity } },
   });
   if (existing) return { entry: existing, created: false };
-  const pack = await tx.assetPack.findUnique({
-    where: { uuid: identity.packUuid },
+  const currentScope = await refreshPackScope(tx, scope, 'asset');
+  const pack = await tx.assetPack.findFirst({
+    where: { uuid: identity.packUuid, archived: false, ...assetPackScopeWhere(currentScope) },
     select: { archived: true, autotiles: true },
   });
-  const snapshot = pack && !pack.archived ? snapshotFromStoredAutotiles(pack.autotiles, identity.autotileId) : null;
+  const snapshot = pack ? snapshotFromStoredAutotiles(pack.autotiles, identity.autotileId) : null;
   if (!snapshot) throw new Error('autotile_not_found');
 
   const [map, maximum] = await Promise.all([
@@ -116,17 +117,18 @@ export function allocateMapAutotile(
   prisma: PrismaClient,
   mapId: string,
   identity: AutotileIdentity,
-  snapshot: AutotileSnapshot,
+  scope: PackScope,
 ): Promise<PaletteAllocation> {
-  return runSerializable(prisma, (tx) => allocateMapAutotileInTransaction(tx, mapId, identity, snapshot));
+  return runSerializable(prisma, (tx) => allocateMapAutotileInTransaction(tx, mapId, identity, scope));
 }
 
 export async function resolveMapAutotileSnapshotForPaint(
   prisma: PrismaClient,
   req: express.Request,
   identity: AutotileIdentity,
+  provenScope?: PackScope,
 ): Promise<AutotileSnapshot | null> {
-  const scope = await resolvePackScope(prisma, req, 'asset');
+  const scope = provenScope ?? (await resolvePackScope(prisma, req, 'asset'));
   const pack = await prisma.assetPack.findFirst({
     where: { uuid: identity.packUuid, archived: false, ...assetPackScopeWhere(scope) },
     select: { autotiles: true },
@@ -140,6 +142,11 @@ export async function resolveMapAutotileForPaint(
   mapId: string,
   identity: AutotileIdentity,
 ): Promise<PaletteAllocation | null> {
-  const snapshot = await resolveMapAutotileSnapshotForPaint(prisma, req, identity);
-  return snapshot ? allocateMapAutotile(prisma, mapId, identity, snapshot) : null;
+  const scope = await resolvePackScope(prisma, req, 'asset');
+  const pack = await prisma.assetPack.findFirst({
+    where: { uuid: identity.packUuid, archived: false, ...assetPackScopeWhere(scope) },
+    select: { autotiles: true },
+  });
+  const snapshot = pack ? snapshotFromStoredAutotiles(pack.autotiles, identity.autotileId) : null;
+  return snapshot ? allocateMapAutotile(prisma, mapId, identity, scope) : null;
 }

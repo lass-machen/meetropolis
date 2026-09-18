@@ -16,6 +16,7 @@ import { Prisma, type PrismaClient } from '../generated/prisma/index.js';
 import { decodeRlePairsFromBuffer, rleDecodeToNumbers } from '../mapEncoding.js';
 import { StoredAutotileItemSchema } from '../api/routes/assetPacks.schemas.js';
 import { contentHashFromAssetUrl } from '../api/utils/mapAutotilePalette.js';
+import { acquirePackAdvisoryLocks } from '../api/utils/packAdvisoryLock.js';
 
 interface LegacyAutotile {
   slot: number;
@@ -39,6 +40,13 @@ interface MigrationSummary {
   unchanged: number;
   conflicts: number;
 }
+
+interface MigrationResult {
+  summary: MigrationSummary;
+  messages: string[];
+}
+
+class GlobalPackSetChangedError extends Error {}
 
 function parseApply(args: string[]): boolean {
   let apply = false;
@@ -115,12 +123,27 @@ export async function migrateAutotilePalettes(
   apply: boolean,
   log: (message: string) => void = console.log,
 ): Promise<MigrationSummary> {
+  const result = apply ? await migrateWithLockedPacks(prisma) : await planMigration(prisma);
+  for (const message of result.messages) log(`[${apply ? 'APPLY' : 'DRY-RUN'}] ${message}`);
+  log(`[SUMMARY] mode=${apply ? 'apply' : 'dry-run'} ${JSON.stringify(result.summary)}`);
+  log('[REVIEW REQUIRED] Visually inspect every affected map; legacy reconstruction depends on unchanged packs.');
+  return result.summary;
+}
+
+async function readLegacyPalette(prisma: Prisma.TransactionClient | PrismaClient): Promise<LegacyAutotile[]> {
   const packs = await prisma.assetPack.findMany({
     where: { tenantId: null, archived: false },
     orderBy: { uuid: 'asc' },
     select: { uuid: true, autotiles: true },
   });
-  const legacy = buildLegacyPalette(packs);
+  return buildLegacyPalette(packs);
+}
+
+async function processMaps(
+  prisma: Prisma.TransactionClient | PrismaClient,
+  legacy: LegacyAutotile[],
+  apply: boolean,
+): Promise<MigrationResult> {
   const layers = await prisma.mapLayer.findMany({
     where: { name: 'walls_auto', chunks: { some: {} } },
     orderBy: { mapId: 'asc' },
@@ -132,12 +155,13 @@ export async function migrateAutotilePalettes(
     },
   });
   const summary: MigrationSummary = { maps: layers.length, pending: 0, migrated: 0, unchanged: 0, conflicts: 0 };
+  const messages: string[] = [];
 
   for (const layer of layers) {
     const used = usedSlots(layer.chunks, layer.chunkSize);
     if (used.size === 0) {
       summary.unchanged++;
-      log(`[${apply ? 'APPLY' : 'DRY-RUN'}] ${layer.mapId}: no non-empty walls_auto cells`);
+      messages.push(`${layer.mapId}: no non-empty walls_auto cells`);
       continue;
     }
     const unresolved = [...used].filter((slot) => !legacy.some((entry) => entry.slot === slot));
@@ -149,7 +173,7 @@ export async function migrateAutotilePalettes(
       unresolved.length > 0 ? `unresolved legacy slots ${unresolved.join(', ')}` : paletteConflict(legacy, existing);
     if (conflict) {
       summary.conflicts++;
-      log(`[${apply ? 'APPLY' : 'DRY-RUN'}] ${layer.mapId}: CONFLICT ${conflict}`);
+      messages.push(`${layer.mapId}: CONFLICT ${conflict}`);
       continue;
     }
     const missing = legacy.filter((entry) => !existing.some((candidate) => candidate.slot === entry.slot));
@@ -168,30 +192,59 @@ export async function migrateAutotilePalettes(
     const repairCounter = layer.map.nextAutotileSlot < nextAutotileSlot;
     if (missing.length === 0 && hashRepairs.length === 0 && !repairCounter) {
       summary.unchanged++;
-      log(`[${apply ? 'APPLY' : 'DRY-RUN'}] ${layer.mapId}: palette already complete; used=${[...used].join(',')}`);
+      messages.push(`${layer.mapId}: palette already complete; used=${[...used].join(',')}`);
       continue;
     }
     summary.pending++;
     const action = `add ${missing.length} entries; repair ${hashRepairs.length} hashes${repairCounter ? `; set next slot to ${nextAutotileSlot}` : ''}`;
-    log(`[${apply ? 'APPLY' : 'DRY-RUN'}] ${layer.mapId}: ${action}; used=${[...used].join(',')}`);
+    messages.push(`${layer.mapId}: ${action}; used=${[...used].join(',')}`);
     if (!apply) continue;
-    await prisma.$transaction(async (tx) => {
-      for (const entry of missing) {
-        await tx.mapAutotile.create({ data: { mapId: layer.mapId, ...entry } });
-      }
-      for (const repair of hashRepairs) {
-        await tx.mapAutotile.update({ where: { id: repair.id }, data: { hash: repair.hash } });
-      }
-      await tx.map.updateMany({
-        where: { id: layer.mapId, nextAutotileSlot: { lt: nextAutotileSlot } },
-        data: { nextAutotileSlot },
-      });
+    for (const entry of missing) {
+      await prisma.mapAutotile.create({ data: { mapId: layer.mapId, ...entry } });
+    }
+    for (const repair of hashRepairs) {
+      await prisma.mapAutotile.update({ where: { id: repair.id }, data: { hash: repair.hash } });
+    }
+    await prisma.map.updateMany({
+      where: { id: layer.mapId, nextAutotileSlot: { lt: nextAutotileSlot } },
+      data: { nextAutotileSlot },
     });
     summary.migrated++;
   }
-  log(`[SUMMARY] mode=${apply ? 'apply' : 'dry-run'} ${JSON.stringify(summary)}`);
-  log('[REVIEW REQUIRED] Visually inspect every affected map; legacy reconstruction depends on unchanged packs.');
-  return summary;
+  return { summary, messages };
+}
+
+async function planMigration(prisma: PrismaClient): Promise<MigrationResult> {
+  return processMaps(prisma, await readLegacyPalette(prisma), false);
+}
+
+async function migrateWithLockedPacks(prisma: PrismaClient): Promise<MigrationResult> {
+  const attempts = 5;
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    try {
+      return await prisma.$transaction(
+        async (tx) => {
+          const candidates = await tx.assetPack.findMany({
+            where: { tenantId: null, archived: false },
+            orderBy: { uuid: 'asc' },
+            select: { uuid: true },
+          });
+          await acquirePackAdvisoryLocks(
+            tx,
+            candidates.map((pack) => pack.uuid),
+          );
+          const legacy = await readLegacyPalette(tx);
+          const locked = new Set(candidates.map((pack) => pack.uuid));
+          if (legacy.some((entry) => !locked.has(entry.packUuid))) throw new GlobalPackSetChangedError();
+          return processMaps(tx, legacy, true);
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted },
+      );
+    } catch (error: unknown) {
+      if (!(error instanceof GlobalPackSetChangedError) || attempt === attempts - 1) throw error;
+    }
+  }
+  throw new Error('autotile_palette_migration_exhausted');
 }
 
 async function main(): Promise<void> {

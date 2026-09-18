@@ -188,7 +188,7 @@ model Map {
   /// Explicit completion marker for the conservative legacy collision-source
   /// migration. A manual layer is not sufficient because normal painting can
   /// create it before the migration has preserved the legacy derived layer.
-  collisionSourcesMigratedAt DateTime?
+  collisionSourcesMigratedAt DateTime? @default(now())
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
   rooms            Room[]

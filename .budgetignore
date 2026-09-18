@@ -45,12 +45,6 @@ apps/web/src/ui/user/card/ExpandedCard.tsx  single declarative jsx tree, no real
 # is already extracted into a helper; what remains is the wiring.
 apps/server/src/api/routes/maps.paint.ts  cohesive request flow, steps already extracted into helpers
 
-# Tiled map JSON import route handler and the corresponding TMJ persistence
-# helper. Both run a single end-to-end import pipeline that is best kept
-# linear so the pre/post-conditions stay visible. Tmj.ts 200-296 and 323-407
-# are 17 and 5 LoC over the default limit respectively.
-apps/server/src/api/routes/tmj.ts  end-to-end tiled import flow, linearity preferred over premature extraction
-
 # onJoin completion handler (82 LoC, 2 over the default limit) and onLeave
 # lifecycle handler (86 LoC, 6 over the default limit). Critical-path room
 # lifecycle code that the Colyseus contract expects as a single coherent

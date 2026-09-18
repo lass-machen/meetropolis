@@ -1,5 +1,5 @@
 import type { MapAutotile } from '../../generated/prisma/index.js';
-import type { AutotileSnapshot } from '../utils/mapAutotilePalette.js';
+import type { PackScope } from '../../services/packScope.js';
 import { allocateMapAutotileInTransaction, mapAutotileRegistration } from '../utils/mapAutotilePalette.js';
 import { MANUAL_COLLISION_LAYER, reconcileCollisionTiles, rectCollisionTiles } from '../utils/collisionReconciler.js';
 import {
@@ -95,13 +95,13 @@ export async function executePaint(params: {
   prisma: PrismaClient;
   map: { id: string; chunkSize: number | null; tileWidth: number | null; tileHeight: number | null };
   paint: PaintRequest;
-  autotileSnapshot: AutotileSnapshot | null;
+  autotileScope: PackScope | null;
 }): Promise<PaintResult> {
-  const { prisma, map, paint, autotileSnapshot } = params;
+  const { prisma, map, paint, autotileScope } = params;
   return runSerializable(prisma, async (tx) => {
     let allocation: { entry: MapAutotile; created: boolean } | undefined;
-    if (!paint.erase && paint.autotile && autotileSnapshot) {
-      allocation = await allocateMapAutotileInTransaction(tx, map.id, paint.autotile, autotileSnapshot);
+    if (!paint.erase && paint.autotile && autotileScope) {
+      allocation = await allocateMapAutotileInTransaction(tx, map.id, paint.autotile, autotileScope);
     }
     const tileRefId = allocation?.entry.slot ?? paint.tileRefId;
     const sourceUpdates = await persistPaintLayer(tx, map.id, map.chunkSize ?? 32, paint, tileRefId);

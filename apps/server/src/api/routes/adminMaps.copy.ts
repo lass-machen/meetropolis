@@ -1,7 +1,10 @@
 import { PrismaClient, Prisma } from '../../generated/prisma/index.js';
 import { assetPackScopeWhere, resolveTenantPackScope } from '../../services/packScope.js';
+import { acquirePackAdvisoryLocks } from '../utils/packAdvisoryLock.js';
 
 type TxClient = Prisma.TransactionClient;
+
+class SourcePackSetChangedError extends Error {}
 
 export class TargetPackAccessError extends Error {
   constructor(readonly packUuids: readonly string[]) {
@@ -230,46 +233,73 @@ export async function copyMapToTenant(
   targetTenantId: string,
   newName?: string,
 ): Promise<{ id: string; name: string }> {
-  return prisma.$transaction(
-    async (tx) => {
-      const original = await tx.map.findUnique({
-        where: { id: sourceMapId },
-        include: {
-          tilesets: { orderBy: { slot: 'asc' } },
-          autotiles: { orderBy: { slot: 'asc' } },
-          layers: { include: { chunks: true } },
-          objects: true,
-          rooms: { include: { zones: true } },
+  const attempts = 5;
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    try {
+      return await prisma.$transaction(
+        async (tx) => {
+          const references = await tx.map.findUnique({
+            where: { id: sourceMapId },
+            select: {
+              autotiles: { select: { packUuid: true } },
+              objects: { select: { assetPackUuid: true } },
+            },
+          });
+          if (!references) throw new Error('source_map_not_found');
+          const lockedUuids = new Set([
+            ...references.autotiles.map((autotile) => autotile.packUuid),
+            ...references.objects.map((object) => object.assetPackUuid),
+          ]);
+          await acquirePackAdvisoryLocks(tx, lockedUuids);
+
+          const original = await tx.map.findUnique({
+            where: { id: sourceMapId },
+            include: {
+              tilesets: { orderBy: { slot: 'asc' } },
+              autotiles: { orderBy: { slot: 'asc' } },
+              layers: { include: { chunks: true } },
+              objects: true,
+              rooms: { include: { zones: true } },
+            },
+          });
+          if (!original) throw new Error('source_map_not_found');
+          const currentUuids = [
+            ...original.autotiles.map((autotile) => autotile.packUuid),
+            ...original.objects.map((object) => object.assetPackUuid),
+          ];
+          if (currentUuids.some((uuid) => !lockedUuids.has(uuid))) throw new SourcePackSetChangedError();
+
+          await assertTargetPackAccess(tx, original, targetTenantId);
+
+          const baseName = newName || `${original.name}-copy`;
+          const copyName = await resolveCopyName(tx, targetTenantId, baseName);
+          const newMap = await tx.map.create({
+            data: {
+              tenantId: targetTenantId,
+              name: copyName,
+              width: original.width,
+              height: original.height,
+              tileWidth: original.tileWidth,
+              tileHeight: original.tileHeight,
+              chunkSize: original.chunkSize,
+              nextAutotileSlot: original.nextAutotileSlot,
+              meta: original.meta as Prisma.InputJsonValue,
+            },
+          });
+
+          await copyTilesets(tx, original, newMap.id);
+          await copyAutotiles(tx, original, newMap.id);
+          await copyLayersAndChunks(tx, original, newMap.id);
+          await copyObjects(tx, original, newMap.id);
+          await copyRoomsAndZones(tx, original, newMap.id, targetTenantId);
+
+          return { id: newMap.id, name: newMap.name };
         },
-      });
-      if (!original) throw new Error('source_map_not_found');
-
-      await assertTargetPackAccess(tx, original, targetTenantId);
-
-      const baseName = newName || `${original.name}-copy`;
-      const copyName = await resolveCopyName(tx, targetTenantId, baseName);
-      const newMap = await tx.map.create({
-        data: {
-          tenantId: targetTenantId,
-          name: copyName,
-          width: original.width,
-          height: original.height,
-          tileWidth: original.tileWidth,
-          tileHeight: original.tileHeight,
-          chunkSize: original.chunkSize,
-          nextAutotileSlot: original.nextAutotileSlot,
-          meta: original.meta as Prisma.InputJsonValue,
-        },
-      });
-
-      await copyTilesets(tx, original, newMap.id);
-      await copyAutotiles(tx, original, newMap.id);
-      await copyLayersAndChunks(tx, original, newMap.id);
-      await copyObjects(tx, original, newMap.id);
-      await copyRoomsAndZones(tx, original, newMap.id, targetTenantId);
-
-      return { id: newMap.id, name: newMap.name };
-    },
-    { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
-  );
+        { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted },
+      );
+    } catch (error: unknown) {
+      if (!(error instanceof SourcePackSetChangedError) || attempt === attempts - 1) throw error;
+    }
+  }
+  throw new Error('map_copy_exhausted');
 }
