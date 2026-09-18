@@ -114,7 +114,7 @@ export function isAllowedAssetExt(p: string): boolean {
   return ext === '.png' || ext === '.webp';
 }
 
-export function shortHashHex(buf: Buffer, len = 8): string {
+export function shortHashHex(buf: Buffer, len = 32): string {
   return crypto.createHash('sha256').update(buf).digest('hex').slice(0, len);
 }
 

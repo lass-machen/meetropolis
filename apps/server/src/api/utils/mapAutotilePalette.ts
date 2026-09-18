@@ -4,6 +4,7 @@ import { assetPackScopeWhere } from '../../services/packScope.js';
 import { StoredAutotileItemSchema } from '../routes/assetPacks.schemas.js';
 import { resolvePackScope } from './resolvePackScope.js';
 import { runSerializable, type MapDb } from './mapChunkMutations.js';
+import { acquirePackAdvisoryLock } from './packAdvisoryLock.js';
 
 export interface AutotileIdentity {
   packUuid: string;
@@ -56,16 +57,49 @@ export function contentHashFromAssetUrl(url: string): string | null {
   return filename.match(/\.([0-9a-f]{8,64})\.[^.]+$/i)?.[1]?.toLowerCase() ?? null;
 }
 
+function snapshotFromStoredAutotiles(autotiles: Prisma.JsonValue, autotileId: string): AutotileSnapshot | null {
+  if (!Array.isArray(autotiles)) return null;
+  const source = autotiles.find(
+    (value) => typeof value === 'object' && value !== null && 'id' in value && value.id === autotileId,
+  );
+  const parsed = StoredAutotileItemSchema.safeParse(source);
+  if (!parsed.success) return null;
+  const item = parsed.data;
+  return {
+    key: item.key,
+    imageUrl: item.dataURL,
+    tileWidth: item.tileWidth,
+    tileHeight: item.tileHeight,
+    gridHeight: item.gridHeight,
+    variants: item.variants,
+    collide: item.collide,
+    placement: item.placement,
+    hash: contentHashFromAssetUrl(item.dataURL),
+  };
+}
+
 export async function allocateMapAutotileInTransaction(
   tx: MapDb,
   mapId: string,
   identity: AutotileIdentity,
-  snapshot: AutotileSnapshot,
+  _snapshot: AutotileSnapshot,
 ): Promise<PaletteAllocation> {
-  const existing = await tx.mapAutotile.findUnique({
+  let existing = await tx.mapAutotile.findUnique({
     where: { mapId_packUuid_autotileId: { mapId, ...identity } },
   });
   if (existing) return { entry: existing, created: false };
+
+  await acquirePackAdvisoryLock(tx, identity.packUuid);
+  existing = await tx.mapAutotile.findUnique({
+    where: { mapId_packUuid_autotileId: { mapId, ...identity } },
+  });
+  if (existing) return { entry: existing, created: false };
+  const pack = await tx.assetPack.findUnique({
+    where: { uuid: identity.packUuid },
+    select: { archived: true, autotiles: true },
+  });
+  const snapshot = pack && !pack.archived ? snapshotFromStoredAutotiles(pack.autotiles, identity.autotileId) : null;
+  if (!snapshot) throw new Error('autotile_not_found');
 
   const [map, maximum] = await Promise.all([
     tx.map.findUnique({ where: { id: mapId }, select: { nextAutotileSlot: true } }),
@@ -97,25 +131,7 @@ export async function resolveMapAutotileSnapshotForPaint(
     where: { uuid: identity.packUuid, archived: false, ...assetPackScopeWhere(scope) },
     select: { autotiles: true },
   });
-  if (!pack || !Array.isArray(pack.autotiles)) return null;
-
-  const source = pack.autotiles.find(
-    (value) => typeof value === 'object' && value !== null && 'id' in value && value.id === identity.autotileId,
-  );
-  const parsed = StoredAutotileItemSchema.safeParse(source);
-  if (!parsed.success) return null;
-  const item = parsed.data;
-  return {
-    key: item.key,
-    imageUrl: item.dataURL,
-    tileWidth: item.tileWidth,
-    tileHeight: item.tileHeight,
-    gridHeight: item.gridHeight,
-    variants: item.variants,
-    collide: item.collide,
-    placement: item.placement,
-    hash: contentHashFromAssetUrl(item.dataURL),
-  };
+  return pack ? snapshotFromStoredAutotiles(pack.autotiles, identity.autotileId) : null;
 }
 
 export async function resolveMapAutotileForPaint(

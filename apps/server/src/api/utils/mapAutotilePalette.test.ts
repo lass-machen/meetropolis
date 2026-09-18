@@ -36,6 +36,26 @@ function allocatorPrisma() {
   let nextAutotileSlot = 1;
   const rows: MapAutotile[] = [];
   const tx = {
+    $queryRaw: vi.fn().mockResolvedValue([]),
+    assetPack: {
+      findUnique: vi.fn(({ where }: { where: { uuid: string } }) => ({
+        uuid: where.uuid,
+        archived: false,
+        autotiles: ['wall-set', 'glass-wall'].map((id) => ({
+          id,
+          key: SNAPSHOT.key,
+          category: 'autotile',
+          autotileType: '4bit',
+          dataURL: SNAPSHOT.imageUrl,
+          tileWidth: SNAPSHOT.tileWidth,
+          tileHeight: SNAPSHOT.tileHeight,
+          gridHeight: SNAPSHOT.gridHeight,
+          variants: SNAPSHOT.variants,
+          collide: SNAPSHOT.collide,
+          placement: SNAPSHOT.placement,
+        })),
+      })),
+    },
     mapAutotile: {
       findUnique: vi.fn(({ where }: { where: { mapId_packUuid_autotileId: typeof IDENTITY & { mapId: string } } }) => {
         const identity = where.mapId_packUuid_autotileId;
@@ -82,11 +102,13 @@ describe('map-local autotile palette allocation', () => {
     expect(repeated).toMatchObject({ created: false, entry: { slot: 1 } });
     expect(second).toMatchObject({ created: true, entry: { slot: 2 } });
     expect(rows.map((entry) => entry.slot)).toEqual([1, 2]);
+    expect(prisma.$transaction).toHaveBeenCalledTimes(3);
   });
 
   it('retries a unique conflict and resolves the concurrently created identity', async () => {
     const concurrent = row(IDENTITY, 4);
     const tx = {
+      $queryRaw: vi.fn(),
       mapAutotile: { findUnique: vi.fn().mockResolvedValue(concurrent), create: vi.fn() },
       map: { update: vi.fn() },
     };

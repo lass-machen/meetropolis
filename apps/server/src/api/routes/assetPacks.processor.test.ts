@@ -2,7 +2,11 @@ import fsp from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { preserveReferencedPackAssets } from './assetPacks.processor.js';
+import {
+  extractAssetsToTmpDir,
+  preserveReferencedPackAssets,
+  ReferencedAssetConflictError,
+} from './assetPacks.processor.js';
 
 const temporaryDirectories: string[] = [];
 
@@ -47,5 +51,60 @@ describe('referenced pack asset preservation', () => {
     await expect(
       preserveReferencedPackAssets(prisma, 'pack-one', path.join(root, 'current'), path.join(root, 'replacement')),
     ).rejects.toThrow('referenced pack asset is missing');
+  });
+
+  it('uses a 128-bit hash prefix for newly extracted asset names', async () => {
+    const root = await temporaryDirectory();
+    const result = await extractAssetsToTmpDir(
+      [{ path: 'assets/chair.png', buffer: () => Promise.resolve(Buffer.from('chair bytes')) }],
+      root,
+    );
+
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.assetMap.get('assets/chair.png')).toMatch(/^chair\.[0-9a-f]{32}\.png$/);
+  });
+
+  it('rejects a full-digest mismatch at an already occupied snapshot path', async () => {
+    const root = await temporaryDirectory();
+    const current = path.join(root, 'current');
+    const replacement = path.join(root, 'replacement');
+    await fsp.mkdir(current);
+    await fsp.mkdir(replacement);
+    await fsp.writeFile(path.join(current, 'chair.1234567890abcdef1234567890abcdef.png'), 'old');
+    await fsp.writeFile(path.join(replacement, 'chair.1234567890abcdef1234567890abcdef.png'), 'different');
+    const prisma = {
+      mapAutotile: { findMany: vi.fn().mockResolvedValue([]) },
+      mapObject: {
+        findMany: vi
+          .fn()
+          .mockResolvedValue([{ dataUrl: '/packs/pack-one/chair.1234567890abcdef1234567890abcdef.png' }]),
+      },
+    };
+
+    await expect(preserveReferencedPackAssets(prisma, 'pack-one', current, replacement)).rejects.toBeInstanceOf(
+      ReferencedAssetConflictError,
+    );
+  });
+
+  it('repairs a missing legacy snapshot only through the explicit audited path', async () => {
+    const root = await temporaryDirectory();
+    const replacement = path.join(root, 'replacement');
+    const hashed = path.join(replacement, 'chair.abcdef0123456789abcdef0123456789.png');
+    await fsp.mkdir(replacement);
+    await fsp.writeFile(hashed, 'replacement bytes');
+    const prisma = {
+      mapAutotile: { findMany: vi.fn().mockResolvedValue([]) },
+      mapObject: { findMany: vi.fn().mockResolvedValue([{ dataUrl: '/packs/pack-one/chair.png' }]) },
+    };
+    const onRepair = vi.fn();
+
+    await preserveReferencedPackAssets(prisma, 'pack-one', path.join(root, 'missing'), replacement, {
+      repairMissing: true,
+      repairSources: new Map([['chair.png', hashed]]),
+      onRepair,
+    });
+
+    await expect(fsp.readFile(path.join(replacement, 'chair.png'), 'utf8')).resolves.toBe('replacement bytes');
+    expect(onRepair).toHaveBeenCalledWith({ url: '/packs/pack-one/chair.png', source: hashed });
   });
 });

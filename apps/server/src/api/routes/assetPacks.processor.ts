@@ -13,6 +13,7 @@ import type {
   ZipEntry,
 } from '../../types/assetPack.js';
 import type { RequestWithMulterFile } from '../../types/multer.js';
+import type { MapDb } from '../utils/mapChunkMutations.js';
 import {
   ConfigSchema,
   normalizeZipPath,
@@ -103,14 +104,14 @@ export function dimensionsStable(
 export async function authenticateAssetPackAdmin(
   prisma: PrismaClient,
   req: express.Request,
-): Promise<{ ok: boolean; status?: number; error?: string }> {
+): Promise<{ ok: true; userId: string } | { ok: false; status: number; error: string }> {
   const sessionAuth = requireAuth(req);
   const tokenAuth = await requireApiToken(req, prisma);
   const auth = sessionAuth || tokenAuth;
   if (!auth) return { ok: false, status: 401, error: 'unauthorized' };
   const isAdmin = await requireInternalOwner(req, auth.userId, prisma);
   if (!isAdmin) return { ok: false, status: 403, error: 'forbidden' };
-  return { ok: true };
+  return { ok: true, userId: auth.userId };
 }
 
 type ZipScanResult =
@@ -202,12 +203,12 @@ export async function extractAssetsToTmpDir(
       return { ok: false, status: 400, error: 'unsupported asset extension', path: p };
     }
     const content: Buffer = await entry.buffer();
-    const h8 = shortHashHex(content, 8);
+    const hashPrefix = shortHashHex(content);
     const rel = withoutAssetsPrefix(p);
     const dirPart = path.dirname(rel);
     const base = path.basename(rel, path.extname(rel));
     const ext = path.extname(rel).toLowerCase();
-    const hashedName = `${base}.${h8}${ext}`;
+    const hashedName = `${base}.${hashPrefix}${ext}`;
     const targetRel = dirPart === '.' ? hashedName : `${dirPart}/${hashedName}`;
     const targetAbs = path.resolve(tmpDir, targetRel);
     await fsp.mkdir(path.dirname(targetAbs), { recursive: true });
@@ -305,6 +306,11 @@ export async function preserveReferencedPackAssets(
   uuid: string,
   currentDir: string,
   tmpDir: string,
+  options: {
+    repairMissing?: boolean;
+    repairSources?: ReadonlyMap<string, string>;
+    onRepair?: (details: { url: string; source: string }) => void;
+  } = {},
 ): Promise<string[]> {
   const [autotiles, objects] = await Promise.all([
     prisma.mapAutotile.findMany({ where: { packUuid: uuid }, select: { imageUrl: true } }),
@@ -317,26 +323,53 @@ export async function preserveReferencedPackAssets(
     if (!relative) continue;
     const source = path.resolve(currentDir, relative);
     const target = path.resolve(tmpDir, relative);
-    if (
-      await fsp
-        .stat(target)
-        .then(() => true)
-        .catch(() => false)
-    )
+    const exists = (filename: string) =>
+      fsp
+        .stat(filename)
+        .then((stat) => stat.isFile())
+        .catch(() => false);
+    const [sourceExists, targetExists] = await Promise.all([exists(source), exists(target)]);
+    if (sourceExists && targetExists) {
+      const [sourceDigest, targetDigest] = await Promise.all([
+        fsp.readFile(source).then((content) => shortHashHex(content, 64)),
+        fsp.readFile(target).then((content) => shortHashHex(content, 64)),
+      ]);
+      if (sourceDigest !== targetDigest) throw new ReferencedAssetConflictError(url, sourceDigest, targetDigest);
       continue;
-    if (
-      !(await fsp
-        .stat(source)
-        .then(() => true)
-        .catch(() => false))
-    ) {
-      throw new Error(`referenced pack asset is missing: ${url}`);
     }
-    await fsp.mkdir(path.dirname(target), { recursive: true });
-    await fsp.copyFile(source, target);
+    if (sourceExists) {
+      await fsp.mkdir(path.dirname(target), { recursive: true });
+      await fsp.copyFile(source, target);
+      preserved.push(relative);
+      continue;
+    }
+    if (!options.repairMissing) throw new MissingReferencedAssetError(url);
+    const repairSource = targetExists ? target : options.repairSources?.get(relative);
+    if (!repairSource || !(await exists(repairSource))) throw new MissingReferencedAssetError(url);
+    if (!targetExists) {
+      await fsp.mkdir(path.dirname(target), { recursive: true });
+      await fsp.copyFile(repairSource, target);
+    }
     preserved.push(relative);
+    options.onRepair?.({ url, source: repairSource });
   }
   return preserved;
+}
+
+export class ReferencedAssetConflictError extends Error {
+  constructor(
+    readonly url: string,
+    readonly existingDigest: string,
+    readonly uploadedDigest: string,
+  ) {
+    super(`referenced pack asset conflicts with uploaded content: ${url}`);
+  }
+}
+
+export class MissingReferencedAssetError extends Error {
+  constructor(readonly url: string) {
+    super(`referenced pack asset is missing: ${url}`);
+  }
 }
 
 /**
@@ -347,7 +380,7 @@ export async function preserveReferencedPackAssets(
  * (see the cutover runbook), never through this route.
  */
 export function persistAssetPackRecord(
-  prisma: PrismaClient,
+  prisma: MapDb,
   cfg: AssetPackConfig,
   rewritten: AssetPackConfigRewritten,
   existing: { id: number } | null,
@@ -412,7 +445,7 @@ export interface ExistingAssetPackRow {
 }
 
 export async function checkExistingPackDimensions(
-  prisma: PrismaClient,
+  prisma: MapDb,
   uuid: string,
   cfg: AssetPackConfig,
   tmpDir: string,

@@ -97,8 +97,14 @@ interface PrismaOpts {
 
 function makePrisma(opts: PrismaOpts = {}): PrismaClient {
   const { apiTokenUserId, internalTenantExists = true, autotileReferences = 0, objectReferences = 0 } = opts;
-  const packs = PACKS.map((pack) => ({ ...pack }));
+  const packs = PACKS.map((pack) => ({
+    ...pack,
+    terrain: [],
+    structures: [],
+    objects: [{ id: 'desk-01', dataURL: `/packs/${pack.uuid}/desk.png` }],
+  }));
   const prisma = {
+    $queryRaw: vi.fn(() => Promise.resolve([])),
     tenant: {
       findUnique: vi.fn(({ where }: { where: { slug?: string } }) =>
         Promise.resolve(
@@ -415,6 +421,7 @@ describe('AssetPack write routes stay super-admin-only', () => {
     });
     expect(res.body.message).toContain('Archive');
     expect(prisma.assetPack.delete).not.toHaveBeenCalled();
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
   });
 
   it('rejects archive changes from an ordinary tenant member', async () => {
