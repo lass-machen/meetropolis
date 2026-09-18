@@ -57,21 +57,28 @@ function computeCompleteTileDrag(
       });
       break;
     case 'wall':
-      followups.push({
-        type: 'ADD_PENDING_TERRAIN_PAINT',
-        paint: { layer: 'walls_auto', rect, tileRefId: state.selectedWallTypeId },
-      });
+      if (state.selectedAutotile) {
+        followups.push({
+          type: 'ADD_PENDING_TERRAIN_PAINT',
+          paint: { layer: 'walls_auto', rect, autotile: state.selectedAutotile },
+        });
+      }
       break;
     case 'collision':
       followups.push({ type: 'ADD_PENDING_TERRAIN_PAINT', paint: { layer: 'collision', rect, tileRefId: 1 } });
       break;
     case 'erase': {
       const cat = state.category;
-      if (cat === 'terrain' || cat === 'autotiles') {
+      if (cat === 'terrain') {
         followups.push({ type: 'ADD_PENDING_TERRAIN_PAINT', paint: { layer: 'ground', rect, tileRefId: 0 } });
         followups.push({
           type: 'ADD_PENDING_TERRAIN_PAINT',
           paint: { layer: 'walls', rect, tileRefId: 0, erase: true },
+        });
+      } else if (cat === 'autotiles') {
+        followups.push({
+          type: 'ADD_PENDING_TERRAIN_PAINT',
+          paint: { layer: 'walls_auto', rect, erase: true },
         });
       } else if (cat === 'collisions') {
         followups.push({

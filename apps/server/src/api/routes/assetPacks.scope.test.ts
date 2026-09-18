@@ -110,12 +110,20 @@ const MAP_ROW = { id: 'map-1', name: 'office', tenantId: TENANT_LM, chunkSize: 3
 interface PrismaOpts {
   apiTokenUserId?: string;
   internalTenantExists?: boolean;
+  autotileReferences?: number;
+  objectReferences?: number;
 }
 
 function makePrisma(opts: PrismaOpts = {}): PrismaClient {
-  const { apiTokenUserId, internalTenantExists = true } = opts;
-  const packs = PACKS.map((pack) => ({ ...pack }));
-  return {
+  const { apiTokenUserId, internalTenantExists = true, autotileReferences = 0, objectReferences = 0 } = opts;
+  const packs = PACKS.map((pack) => ({
+    ...pack,
+    terrain: [],
+    structures: [],
+    objects: [{ id: 'desk-01', dataURL: `/packs/${pack.uuid}/desk.png` }],
+  }));
+  const prisma = {
+    $queryRaw: vi.fn(() => Promise.resolve([])),
     tenant: {
       findUnique: vi.fn(({ where }: { where: { slug?: string } }) =>
         Promise.resolve(
@@ -187,8 +195,12 @@ function makePrisma(opts: PrismaOpts = {}): PrismaClient {
         ]),
       ),
       create: vi.fn(({ data }: { data: Record<string, unknown> }) => Promise.resolve({ id: 99, ...data })),
+      count: vi.fn(() => Promise.resolve(objectReferences)),
     },
+    mapAutotile: { count: vi.fn(() => Promise.resolve(autotileReferences)) },
   } as unknown as PrismaClient;
+  prisma.$transaction = vi.fn((callback) => callback(prisma));
+  return prisma;
 }
 
 const TENANTS: Record<string, Partial<Tenant>> = {
@@ -417,6 +429,22 @@ describe('AssetPack write routes stay super-admin-only', () => {
     expect(res.body).toMatchObject({ error: 'forbidden' });
   });
 
+  it('rejects hard deletion while map snapshots reference the pack', async () => {
+    const prisma = makePrisma({ autotileReferences: 2, objectReferences: 1 });
+    const app = makeApp(prisma);
+
+    const res = await request(app).delete('/asset-packs/1').set('Authorization', sessionBearer('owner-root'));
+
+    expect(res.status).toBe(409);
+    expect(res.body).toMatchObject({
+      error: 'asset_pack_in_use',
+      references: { autotiles: 2, objects: 1 },
+    });
+    expect(res.body.message).toContain('Archive');
+    expect(prisma.assetPack.delete).not.toHaveBeenCalled();
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+  });
+
   it('rejects archive changes from an ordinary tenant member', async () => {
     const app = makeApp(makePrisma());
     const res = await request(app)
@@ -564,6 +592,59 @@ describe('POST /maps/:id/objects: placement honours the pack scope', () => {
       .set('X-Tenant', 'lass-machen')
       .send({ ...OBJECT_BODY, assetPackUuid: 'other-tenant-pack' });
     expect(prisma.mapObject.create).not.toHaveBeenCalled();
+  });
+
+  it('revalidates a revoked grant inside the first placement transaction', async () => {
+    tenancyMocks.enabled = true;
+    tenancyMocks.resolver
+      .mockResolvedValueOnce({
+        catalogPackUuids: ['pixel-agents-furniture'],
+        accessiblePackUuids: ['pixel-agents-furniture'],
+      })
+      .mockResolvedValue({ catalogPackUuids: ['pixel-agents-furniture'], accessiblePackUuids: [] });
+    const prisma = makePrisma();
+
+    const res = await request(makeApp(prisma))
+      .post('/maps/map-1/objects')
+      .set('Authorization', sessionBearer('lm-user'))
+      .set('X-Tenant', 'lass-machen')
+      .send({ ...OBJECT_BODY, assetPackUuid: 'pixel-agents-furniture' });
+
+    expect(res.status).toBe(400);
+    expect(prisma.mapObject.create).not.toHaveBeenCalled();
+    expect(tenancyMocks.resolver).toHaveBeenCalledTimes(2);
+  });
+
+  it('revalidates a revoked grant on a serializable retry', async () => {
+    tenancyMocks.enabled = true;
+    tenancyMocks.resolver
+      .mockResolvedValueOnce({
+        catalogPackUuids: ['pixel-agents-furniture'],
+        accessiblePackUuids: ['pixel-agents-furniture'],
+      })
+      .mockResolvedValueOnce({
+        catalogPackUuids: ['pixel-agents-furniture'],
+        accessiblePackUuids: ['pixel-agents-furniture'],
+      })
+      .mockResolvedValue({ catalogPackUuids: ['pixel-agents-furniture'], accessiblePackUuids: [] });
+    const prisma = makePrisma();
+    vi.mocked(prisma.$transaction)
+      .mockImplementationOnce(async (callback) => {
+        await callback(prisma);
+        throw Object.assign(new Error('serialization failure'), { code: 'P2034' });
+      })
+      .mockImplementation((callback) => callback(prisma));
+
+    const res = await request(makeApp(prisma))
+      .post('/maps/map-1/objects')
+      .set('Authorization', sessionBearer('lm-user'))
+      .set('X-Tenant', 'lass-machen')
+      .send({ ...OBJECT_BODY, assetPackUuid: 'pixel-agents-furniture' });
+
+    expect(res.status).toBe(400);
+    expect(prisma.$transaction).toHaveBeenCalledTimes(2);
+    expect(prisma.mapObject.create).toHaveBeenCalledTimes(1);
+    expect(tenancyMocks.resolver).toHaveBeenCalledTimes(3);
   });
 });
 

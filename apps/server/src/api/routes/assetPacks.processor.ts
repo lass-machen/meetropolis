@@ -13,6 +13,7 @@ import type {
   ZipEntry,
 } from '../../types/assetPack.js';
 import type { RequestWithMulterFile } from '../../types/multer.js';
+import type { MapDb } from '../utils/mapChunkMutations.js';
 import {
   ConfigSchema,
   normalizeZipPath,
@@ -103,14 +104,14 @@ export function dimensionsStable(
 export async function authenticateAssetPackAdmin(
   prisma: PrismaClient,
   req: express.Request,
-): Promise<{ ok: boolean; status?: number; error?: string }> {
+): Promise<{ ok: true; userId: string } | { ok: false; status: number; error: string }> {
   const sessionAuth = requireAuth(req);
   const tokenAuth = await requireApiToken(req, prisma);
   const auth = sessionAuth || tokenAuth;
   if (!auth) return { ok: false, status: 401, error: 'unauthorized' };
   const isAdmin = await requireInternalOwner(req, auth.userId, prisma);
   if (!isAdmin) return { ok: false, status: 403, error: 'forbidden' };
-  return { ok: true };
+  return { ok: true, userId: auth.userId };
 }
 
 type ZipScanResult =
@@ -202,12 +203,12 @@ export async function extractAssetsToTmpDir(
       return { ok: false, status: 400, error: 'unsupported asset extension', path: p };
     }
     const content: Buffer = await entry.buffer();
-    const h8 = shortHashHex(content, 8);
+    const hashPrefix = shortHashHex(content);
     const rel = withoutAssetsPrefix(p);
     const dirPart = path.dirname(rel);
     const base = path.basename(rel, path.extname(rel));
     const ext = path.extname(rel).toLowerCase();
-    const hashedName = `${base}.${h8}${ext}`;
+    const hashedName = `${base}.${hashPrefix}${ext}`;
     const targetRel = dirPart === '.' ? hashedName : `${dirPart}/${hashedName}`;
     const targetAbs = path.resolve(tmpDir, targetRel);
     await fsp.mkdir(path.dirname(targetAbs), { recursive: true });
@@ -277,6 +278,100 @@ export async function moveTmpToFinal(tmpDir: string, finalDir: string): Promise<
   }
 }
 
+interface AssetReferenceReader {
+  mapAutotile: {
+    findMany(args: { where: { packUuid: string }; select: { imageUrl: true } }): Promise<Array<{ imageUrl: string }>>;
+  };
+  mapObject: {
+    findMany(args: {
+      where: { assetPackUuid: string };
+      select: { dataUrl: true };
+    }): Promise<Array<{ dataUrl: string }>>;
+  };
+}
+
+function referencedRelativePath(url: string, uuid: string): string | null {
+  const prefix = `/packs/${uuid}/`;
+  if (!url.startsWith(prefix)) return null;
+  const relative = url.slice(prefix.length);
+  const normalized = path.posix.normalize(relative);
+  if (!relative || normalized !== relative || path.posix.isAbsolute(normalized) || normalized.startsWith('../')) {
+    throw new Error(`unsafe referenced pack asset '${url}'`);
+  }
+  return normalized;
+}
+
+export async function preserveReferencedPackAssets(
+  prisma: AssetReferenceReader,
+  uuid: string,
+  currentDir: string,
+  tmpDir: string,
+  options: {
+    repairMissing?: boolean;
+    repairSources?: ReadonlyMap<string, string>;
+    onRepair?: (details: { url: string; source: string }) => void;
+  } = {},
+): Promise<string[]> {
+  const [autotiles, objects] = await Promise.all([
+    prisma.mapAutotile.findMany({ where: { packUuid: uuid }, select: { imageUrl: true } }),
+    prisma.mapObject.findMany({ where: { assetPackUuid: uuid }, select: { dataUrl: true } }),
+  ]);
+  const urls = new Set([...autotiles.map((item) => item.imageUrl), ...objects.map((item) => item.dataUrl)]);
+  const preserved: string[] = [];
+  for (const url of urls) {
+    const relative = referencedRelativePath(url, uuid);
+    if (!relative) continue;
+    const source = path.resolve(currentDir, relative);
+    const target = path.resolve(tmpDir, relative);
+    const exists = (filename: string) =>
+      fsp
+        .stat(filename)
+        .then((stat) => stat.isFile())
+        .catch(() => false);
+    const [sourceExists, targetExists] = await Promise.all([exists(source), exists(target)]);
+    if (sourceExists && targetExists) {
+      const [sourceDigest, targetDigest] = await Promise.all([
+        fsp.readFile(source).then((content) => shortHashHex(content, 64)),
+        fsp.readFile(target).then((content) => shortHashHex(content, 64)),
+      ]);
+      if (sourceDigest !== targetDigest) throw new ReferencedAssetConflictError(url, sourceDigest, targetDigest);
+      continue;
+    }
+    if (sourceExists) {
+      await fsp.mkdir(path.dirname(target), { recursive: true });
+      await fsp.copyFile(source, target);
+      preserved.push(relative);
+      continue;
+    }
+    if (!options.repairMissing) throw new MissingReferencedAssetError(url);
+    const repairSource = targetExists ? target : options.repairSources?.get(relative);
+    if (!repairSource || !(await exists(repairSource))) throw new MissingReferencedAssetError(url);
+    if (!targetExists) {
+      await fsp.mkdir(path.dirname(target), { recursive: true });
+      await fsp.copyFile(repairSource, target);
+    }
+    preserved.push(relative);
+    options.onRepair?.({ url, source: repairSource });
+  }
+  return preserved;
+}
+
+export class ReferencedAssetConflictError extends Error {
+  constructor(
+    readonly url: string,
+    readonly existingDigest: string,
+    readonly uploadedDigest: string,
+  ) {
+    super(`referenced pack asset conflicts with uploaded content: ${url}`);
+  }
+}
+
+export class MissingReferencedAssetError extends Error {
+  constructor(readonly url: string) {
+    super(`referenced pack asset is missing: ${url}`);
+  }
+}
+
 /**
  * `tenantId` is deliberately absent from `dataRecord`. On create the column
  * default applies (NULL = global base equipment unless separately catalogued);
@@ -286,7 +381,7 @@ export async function moveTmpToFinal(tmpDir: string, finalDir: string): Promise<
  * never through this route.
  */
 export function persistAssetPackRecord(
-  prisma: PrismaClient,
+  prisma: MapDb,
   cfg: AssetPackConfig,
   rewritten: AssetPackConfigRewritten,
   existing: { id: number } | null,
@@ -351,7 +446,7 @@ export interface ExistingAssetPackRow {
 }
 
 export async function checkExistingPackDimensions(
-  prisma: PrismaClient,
+  prisma: MapDb,
   uuid: string,
   cfg: AssetPackConfig,
   tmpDir: string,

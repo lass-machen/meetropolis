@@ -73,13 +73,18 @@ export interface ChunkUpdateEntry {
 }
 
 export interface AutotileRegistration {
-  wallTypeId: number;
+  slot: number;
+  packUuid: string;
+  autotileId: string;
   key: string;
-  textureUrl: string;
+  imageUrl: string;
   tileWidth: number;
   tileHeight: number;
+  gridHeight: number;
   variants: Record<string, { col: number; row: number }>;
-  packUuid: string;
+  collide: boolean;
+  placement: string;
+  hash?: string | null;
 }
 
 export interface ObjectsUpdatedPayload {

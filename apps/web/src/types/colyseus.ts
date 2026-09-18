@@ -190,6 +190,7 @@ export interface ChunksUpdatedMessage {
   mapId?: string;
   layer?: string;
   updates?: unknown[];
+  autotilePaletteEntries?: unknown[];
 }
 
 // objects_updated payload forwarded via presence subscribe in editorHandler.

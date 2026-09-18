@@ -154,16 +154,23 @@ export class EditorIntegration {
     if (layer === 'ground' || layer === 'walls') {
       // Ground/Walls painting via TileManager
       if (this.tileManager?.paintTerrainRect) {
-        this.tileManager.paintTerrainRect(layer, rect, tileRefId);
+        this.tileManager.paintTerrainRect(layer, rect, tileRefId ?? 0);
       }
     } else if (layer === 'walls_auto') {
       // Autotile wall painting
       if (this.autotileGrid && this.autotileRenderer) {
+        const paletteEntry = paint.autotile
+          ? window.__v2_state?.autotilePalette.find(
+              (entry) => entry.packUuid === paint.autotile?.packUuid && entry.autotileId === paint.autotile.autotileId,
+            )
+          : undefined;
+        const slot = erase ? 0 : (paletteEntry?.slot ?? 0);
+        if (!erase && slot === 0) return;
         const affected: Array<{ x: number; y: number }> = [];
         for (let ty = rect.y0; ty <= rect.y1; ty++) {
           for (let tx = rect.x0; tx <= rect.x1; tx++) {
-            if (tileRefId > 0) {
-              this.autotileGrid.set(tx, ty, tileRefId);
+            if (slot > 0) {
+              this.autotileGrid.set(tx, ty, slot);
             } else {
               this.autotileGrid.remove(tx, ty);
             }

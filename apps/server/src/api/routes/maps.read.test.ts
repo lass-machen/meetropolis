@@ -48,6 +48,7 @@ interface FakeDb {
   membership: { findUnique: ReturnType<typeof vi.fn> };
   map: { findMany: ReturnType<typeof vi.fn>; findFirst: ReturnType<typeof vi.fn>; update: ReturnType<typeof vi.fn> };
   mapTileset: { findMany: ReturnType<typeof vi.fn> };
+  mapAutotile: { findMany: ReturnType<typeof vi.fn> };
   mapLayer: { findMany: ReturnType<typeof vi.fn>; findUnique: ReturnType<typeof vi.fn> };
   zone: { findMany: ReturnType<typeof vi.fn> };
 }
@@ -61,6 +62,7 @@ function fakePrisma(member: boolean): { prisma: PrismaClient; db: FakeDb } {
       update: vi.fn(),
     },
     mapTileset: { findMany: vi.fn().mockResolvedValue([]) },
+    mapAutotile: { findMany: vi.fn().mockResolvedValue([]) },
     mapLayer: { findMany: vi.fn().mockResolvedValue([]), findUnique: vi.fn().mockResolvedValue(null) },
     zone: { findMany: vi.fn().mockResolvedValue([]) },
   };
@@ -168,6 +170,37 @@ describe('handleStateV2: auth + cross-tenant membership gate', () => {
     );
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({ mapMeta: expect.objectContaining({ width: 64, height: 64 }) }),
+    );
+  });
+
+  it('returns the persistent autotile palette with the map state', async () => {
+    const { prisma, db } = fakePrisma(true);
+    db.map.findFirst.mockResolvedValue(MAP);
+    db.mapAutotile.findMany.mockResolvedValue([
+      {
+        slot: 7,
+        packUuid: '4664b745-6bad-4d86-ae8f-591c57567692',
+        autotileId: 'atelier_v1_holz_wall_set',
+        key: 'Wandatlas',
+        imageUrl: '/assets/wall.png',
+        tileWidth: 16,
+        tileHeight: 48,
+        gridHeight: 3,
+        variants: { '0': { col: 0, row: 0 } },
+        collide: true,
+        placement: 'wall',
+        hash: null,
+      },
+    ]);
+    const req = fakeReq(FOREIGN, 'default-member');
+    const res = fakeRes();
+
+    await handleStateV2(prisma, req, res);
+
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        autotilePalette: [expect.objectContaining({ slot: 7, gridHeight: 3 })],
+      }),
     );
   });
 });

@@ -37,7 +37,7 @@ Die Browserprüfung benötigt das zur installierten Playwright-Version gehörend
 
 ### Aktivierungsstand
 
-Atelier v1 ist aktiv. Beim nächsten Deploy legt der Seed „Licht und Holz (Atelier v1)“ einmalig als globales Asset-Pack an und stellt die sechs technischen Standardfiguren auf die gehashten Atelier-Sheets um. Vorhandene Karten, MapObjects und benutzerdefinierte Avatare werden nicht migriert; alte Sprite-URLs bleiben weiterhin erreichbar. Die Autotile-Wände bleiben wegen A28 ausdrücklich inaktiv und fehlen im globalen Pack. Auch die beiden anderen Paletten bleiben reine Atelierentwürfe.
+Atelier v1 ist aktiv. Beim nächsten Deploy legt der Seed „Licht und Holz (Atelier v1)“ als globales Asset-Pack an und stellt die sechs technischen Standardfiguren auf die gehashten Atelier-Sheets um. Ein bestehender, noch leerer Autotile-Bereich dieses Packs wird einmalig mit dem Wandatlas ergänzt. Vorhandene Karten, MapObjects und benutzerdefinierte Avatare werden nicht migriert; alte Sprite-URLs bleiben weiterhin erreichbar. Auch die beiden anderen Paletten bleiben reine Atelierentwürfe.
 
 ```sh
 cd tools/asset-lab
@@ -46,7 +46,7 @@ npm run assets:product
 npm run assets:check
 ```
 
-`npm run assets:product` erzeugt 59 inhaltsgehashte Umgebungs-PNGs unter `apps/web/public/assets/atelier/v1/holz/`, sechs inhaltsgehashte Spritesheets unter `apps/web/public/assets/sprites/atelier-v1/` und die abgeleiteten Katalog- und Manifestdateien. Der 32-Pixel-Boden wird darin als 2 × 2-Atlas für das 16-Pixel-Weltraster beschrieben. Richtungsansichten bleiben wegen ihrer unterschiedlichen Maße eigenständige, nicht drehbare Einträge. Die 48 Pixel hohen Wände tragen einen Pixelanker an der oberen Kante ihrer unteren Kollisionszeile und einen Versatz von 32 Pixeln nach oben. Das Wand-Autotile dokumentiert `gridHeight: 3`, bleibt aber bis zur stabilen Autotile-Identität aus A28 ausdrücklich zurückgehalten.
+`npm run assets:product` erzeugt 59 inhaltsgehashte Umgebungs-PNGs unter `apps/web/public/assets/atelier/v1/holz/`, sechs inhaltsgehashte Spritesheets unter `apps/web/public/assets/sprites/atelier-v1/` und die abgeleiteten Katalog- und Manifestdateien. Der 32-Pixel-Boden wird darin als 2 × 2-Atlas für das 16-Pixel-Weltraster beschrieben. Richtungsansichten bleiben wegen ihrer unterschiedlichen Maße eigenständige, nicht drehbare Einträge. Die 48 Pixel hohen Wände tragen einen Pixelanker an der oberen Kante ihrer unteren Kollisionszeile und einen Versatz von 32 Pixeln nach oben. Das aktive Wand-Autotile dokumentiert `gridHeight: 3` und wird über die persistente, maplokale Autotile-Palette aufgelöst.
 
 `npm run assets:check` erzeugt die Generation frisch in einem temporären Verzeichnis und vergleicht die aktuellen Pfade und Bytes mit dem eingecheckten Stand. Gehashte PNGs werden nie überschrieben; bei einer inhaltlichen Änderung entsteht ein neuer Pfad, während ältere Spritepfade erreichbar bleiben. Die rohen `.mepack`-Dateien aus `npm run assets` sind weiterhin reine Atelierausgaben und kein Importweg für diese Produktgeneration.
 
@@ -119,7 +119,7 @@ Innenwände verwenden einen vollständigen 4-bit-Atlas: 16 Masken, vier Spalten,
 
 Das Raumrezept `meetropolis-office-study/v2` ist ein lokaler Entwurf und noch kein TMJ-/Importformat des produktiven Map-Editors. Gesprächszonen besitzen hier keine Audiofunktion. Die produktive Anmeldung wählt weiterhin ihre vorhandene Default-Map; diese Anwendung verändert sie nicht.
 
-Der Pack-Schematest bestätigt das vorhandene Importformat, keine vollständige Laufzeitintegration. Insbesondere verwendet der aktuelle produktive `AutotileRenderer` einen festen Bildanker und eine feste Tiefe; die Registrierung übernimmt die Atlas-Höhe nicht als Ankervertrag. Die 48 Pixel hohen Wandbilder brauchen deshalb eine geprüfte Anbindung an diesen Renderer. Auch die Platzierung und Kollision beim produktiven Drehen von Richtungsbildern muss dort noch als Gesamtablauf abgenommen werden. Die hier geprüften Standflächen beziehen sich auf die einzelnen Ansichten und die lokale Raumvorschau.
+Der Pack-Schematest bestätigt das vorhandene Importformat. Der produktive `AutotileRenderer` übernimmt `gridHeight` aus der maplokalen Palette und richtet die 48 Pixel hohen Wandbilder an ihrer unteren Weltkachel aus. Auch die Platzierung und Kollision beim produktiven Drehen von Richtungsbildern muss als Gesamtablauf abgenommen werden. Die hier geprüften Standflächen beziehen sich auf die einzelnen Ansichten und die lokale Raumvorschau.
 
 Die Figur verwendet das bestehende Format: 32 × 32 Pixel je Frame, 128 × 256 Pixel je Sheet, vier Idle-Richtungen und vier Laufbilder je Richtung bei 8 Bildern pro Sekunde. Rechts wird aus links gespiegelt. Die kompakte Form entsteht aus eigenen Farbschlüsselrastern für alle Körper- und Zubehörteile; sie wird nicht aus einem fertigen Bild skaliert. Der bestehende Composer setzt diese Ebenen und Animationen zusammen.
 

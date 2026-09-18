@@ -13,6 +13,21 @@ export type V2Tileset = {
   hash?: string | null;
 };
 
+export type V2Autotile = {
+  slot: number;
+  packUuid: string;
+  autotileId: string;
+  key: string;
+  imageUrl: string;
+  tileWidth: number;
+  tileHeight: number;
+  gridHeight: number;
+  variants: Record<string, { col: number; row: number }>;
+  collide: boolean;
+  placement: string;
+  hash?: string | null;
+};
+
 export type V2State = {
   mapMeta: {
     width: number | null;
@@ -23,6 +38,7 @@ export type V2State = {
     version: number | null;
   };
   tilesetRegistry: V2Tileset[];
+  autotilePalette: V2Autotile[];
   layerIndex: Record<string, { keys: string[]; chunkSize: number }>;
 };
 

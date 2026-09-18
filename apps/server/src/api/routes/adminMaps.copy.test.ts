@@ -74,8 +74,10 @@ const SOURCE_MAP = {
   tileWidth: 16,
   tileHeight: 16,
   chunkSize: 32,
+  nextAutotileSlot: 1,
   meta: {},
   tilesets: [],
+  autotiles: [],
   layers: [],
   objects: [SOURCE_OBJECT],
   rooms: [],
@@ -107,21 +109,73 @@ interface PackState {
   packExists?: boolean;
   packAccessible?: boolean;
   sourceObject?: typeof SOURCE_OBJECT;
+  sourceAutotiles?: Array<{
+    id: string;
+    mapId: string;
+    slot: number;
+    packUuid: string;
+    autotileId: string;
+    key: string;
+    imageUrl: string;
+    tileWidth: number;
+    tileHeight: number;
+    gridHeight: number;
+    variants: Record<string, number>;
+    collide: boolean;
+    placement: string;
+    hash: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+  }>;
+  sourceLayers?: Array<{
+    id: string;
+    mapId: string;
+    name: string;
+    chunkSize: number;
+    createdAt: Date;
+    updatedAt: Date;
+    chunks: Array<{
+      id: string;
+      layerId: string;
+      x: number;
+      y: number;
+      version: number;
+      encoding: string;
+      data: string;
+      createdAt: Date;
+      updatedAt: Date;
+    }>;
+  }>;
 }
 
-function makePrisma({ packExists = true, packAccessible = true, sourceObject = SOURCE_OBJECT }: PackState = {}) {
+function makePrisma({
+  packExists = true,
+  packAccessible = true,
+  sourceObject = SOURCE_OBJECT,
+  sourceAutotiles = [],
+  sourceLayers = [],
+}: PackState = {}) {
   const mapObjectCreate = vi.fn((_args: MapObjectCreateArgs) => Promise.resolve({ id: 99 }));
   const mapCreate = vi.fn(() => Promise.resolve({ id: 'map-copy', name: 'office' }));
+  const mapAutotileCreate = vi.fn(() => Promise.resolve({}));
+  const mapLayerCreate = vi.fn(() => Promise.resolve({ id: 'layer-copy' }));
+  const mapChunkCreate = vi.fn(() => Promise.resolve({}));
   const tx = {
+    $queryRaw: vi.fn(() => Promise.resolve([])),
     map: {
       findUnique: vi.fn(({ where }: { where: { id?: string; tenantId_name?: unknown } }) =>
-        Promise.resolve(where.id === SOURCE_MAP_ID ? { ...SOURCE_MAP, objects: [sourceObject] } : null),
+        Promise.resolve(
+          where.id === SOURCE_MAP_ID
+            ? { ...SOURCE_MAP, autotiles: sourceAutotiles, layers: sourceLayers, objects: [sourceObject] }
+            : null,
+        ),
       ),
       create: mapCreate,
     },
     mapTileset: { create: vi.fn(() => Promise.resolve({})) },
-    mapLayer: { create: vi.fn(() => Promise.resolve({ id: 'layer-copy' })) },
-    mapChunk: { create: vi.fn(() => Promise.resolve({})) },
+    mapAutotile: { create: mapAutotileCreate },
+    mapLayer: { create: mapLayerCreate },
+    mapChunk: { create: mapChunkCreate },
     mapObject: { create: mapObjectCreate },
     room: { create: vi.fn(() => Promise.resolve({ id: 'room-copy' })) },
     zone: { create: vi.fn(() => Promise.resolve({})) },
@@ -140,7 +194,16 @@ function makePrisma({ packExists = true, packAccessible = true, sourceObject = S
   const prisma = {
     $transaction: transaction,
   } as PrismaClient;
-  return { prisma, mapObjectCreate, mapCreate, transaction, tx };
+  return {
+    prisma,
+    mapObjectCreate,
+    mapCreate,
+    mapAutotileCreate,
+    mapLayerCreate,
+    mapChunkCreate,
+    transaction,
+    tx,
+  };
 }
 
 beforeEach(() => {
@@ -193,7 +256,7 @@ describe('copyMapToTenant — object fidelity', () => {
     }
   });
 
-  it('uses one repeatable-read transaction for scope resolution, classification and copying', async () => {
+  it('locks source packs before re-reading snapshots and target access', async () => {
     tenancy.enabled = true;
     tenancy.resolver.mockResolvedValue({ catalogPackUuids: [], accessiblePackUuids: [] });
     const { prisma, transaction, tx } = makePrisma();
@@ -201,14 +264,21 @@ describe('copyMapToTenant — object fidelity', () => {
     await copyMapToTenant(prisma, SOURCE_MAP_ID, TARGET_TENANT_ID, 'office');
 
     expect(transaction).toHaveBeenCalledWith(expect.any(Function), {
-      isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead,
+      isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
     });
     expect(tenancy.resolver).toHaveBeenCalledWith(
       tx,
       expect.objectContaining({ tenantId: TARGET_TENANT_ID, packKind: 'asset' }),
     );
-    expect(tx.map.findUnique).toHaveBeenCalled();
+    expect(tx.map.findUnique).toHaveBeenCalledTimes(3);
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(2);
     expect(tx.assetPack.findMany).toHaveBeenCalledTimes(2);
+    expect(tx.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(tx.map.findUnique.mock.invocationCallOrder[0]);
+    expect(tx.map.findUnique.mock.invocationCallOrder[0]).toBeLessThan(tx.$queryRaw.mock.invocationCallOrder[1]);
+    expect(tx.$queryRaw.mock.invocationCallOrder[1]).toBeLessThan(tx.map.findUnique.mock.invocationCallOrder[1]);
+    expect(tx.map.findUnique.mock.invocationCallOrder[1]).toBeLessThan(
+      tx.assetPack.findMany.mock.invocationCallOrder[0],
+    );
   });
 
   it('always permits an uncatalogued global base pack', async () => {
@@ -245,6 +315,75 @@ describe('copyMapToTenant — object fidelity', () => {
     const { data } = mapObjectCreate.mock.calls[0][0];
     const { id: _id, createdAt: _createdAt, updatedAt: _updatedAt, ...carried } = SOURCE_OBJECT;
     expect(data).toEqual({ ...carried, mapId: 'map-copy' });
+  });
+
+  it('copies autotile palette state and collision_manual chunks', async () => {
+    const now = new Date('2026-09-18T00:00:00Z');
+    const sourceAutotile = {
+      id: 'autotile-source',
+      mapId: SOURCE_MAP_ID,
+      slot: 1,
+      packUuid: SOURCE_OBJECT.assetPackUuid,
+      autotileId: 'wall',
+      key: 'wall-key',
+      imageUrl: '/packs/pixel-agents-furniture/wall.png',
+      tileWidth: 16,
+      tileHeight: 16,
+      gridHeight: 5,
+      variants: { isolated: 0 },
+      collide: true,
+      placement: 'wall',
+      hash: 'sha256:wall',
+      createdAt: now,
+      updatedAt: now,
+    };
+    const sourceLayer = {
+      id: 'collision-manual-source',
+      mapId: SOURCE_MAP_ID,
+      name: 'collision_manual',
+      chunkSize: 32,
+      createdAt: now,
+      updatedAt: now,
+      chunks: [
+        {
+          id: 'chunk-source',
+          layerId: 'collision-manual-source',
+          x: 2,
+          y: 3,
+          version: 4,
+          encoding: 'rle-v1',
+          data: '1x1024',
+          createdAt: now,
+          updatedAt: now,
+        },
+      ],
+    };
+    const { prisma, mapCreate, mapAutotileCreate, mapLayerCreate, mapChunkCreate } = makePrisma({
+      sourceAutotiles: [sourceAutotile],
+      sourceLayers: [sourceLayer],
+    });
+
+    await copyMapToTenant(prisma, SOURCE_MAP_ID, TARGET_TENANT_ID, 'office');
+
+    expect(mapCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({ nextAutotileSlot: SOURCE_MAP.nextAutotileSlot }),
+    });
+    expect(mapAutotileCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({ mapId: 'map-copy', slot: 1, packUuid: SOURCE_OBJECT.assetPackUuid }),
+    });
+    expect(mapLayerCreate).toHaveBeenCalledWith({
+      data: { mapId: 'map-copy', name: 'collision_manual', chunkSize: 32 },
+    });
+    expect(mapChunkCreate).toHaveBeenCalledWith({
+      data: {
+        layerId: 'layer-copy',
+        x: 2,
+        y: 3,
+        version: 4,
+        encoding: 'rle-v1',
+        data: '1x1024',
+      },
+    });
   });
 
   it('copies an object whose pack UUID has no registered AssetPack', async () => {

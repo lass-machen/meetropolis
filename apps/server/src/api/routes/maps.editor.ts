@@ -6,6 +6,7 @@ import { requireAuth, getTenantFromReq, requireApiToken, requireMembership } fro
 import { pathParam } from '../utils/requestHelpers.js';
 import { broadcastMapUpdate } from '../utils/broadcast.js';
 import { findMapById } from './maps.read.js';
+import { acquireMapAdvisoryLock } from '../utils/advisoryLocks.js';
 
 export interface EditorAuthInfo {
   userId: string;
@@ -98,6 +99,22 @@ const tilesetSchema = z.object({
   hash: z.string().optional(),
 });
 
+async function addTilesetWithMapLock(prisma: PrismaClient, mapId: string, data: z.infer<typeof tilesetSchema>) {
+  return prisma.$transaction(async (tx) => {
+    await acquireMapAdvisoryLock(tx, mapId);
+    const existing = await tx.mapTileset.findFirst({ where: { mapId, key: data.key } });
+    if (existing) {
+      const tilesets = await tx.mapTileset.findMany({ where: { mapId }, orderBy: { slot: 'asc' } });
+      return { created: false as const, slot: existing.slot, tilesets };
+    }
+    const last = await tx.mapTileset.findFirst({ where: { mapId }, orderBy: { slot: 'desc' } });
+    const slot = last ? last.slot + 1 : 0;
+    await tx.mapTileset.create({ data: { mapId, slot, ...data } });
+    const tilesets = await tx.mapTileset.findMany({ where: { mapId }, orderBy: { slot: 'asc' } });
+    return { created: true as const, slot, tilesets };
+  });
+}
+
 export async function handleAddTileset(
   prisma: PrismaClient,
   req: express.Request,
@@ -130,29 +147,24 @@ export async function handleAddTileset(
       return;
     }
 
-    const existing = await prisma.mapTileset.findFirst({ where: { mapId: map.id, key: parse.data.key } });
-    if (existing) {
-      try {
+    const result = await addTilesetWithMapLock(prisma, map.id, parse.data);
+    const { tilesets } = result;
+    try {
+      if (result.created) {
+        logger.info('[Tilesets] registry add', {
+          mapId: map.id,
+          slot: result.slot,
+          key: parse.data.key,
+          url: parse.data.imageUrl,
+        });
+      } else {
         logger.debug('[Tilesets] already registered, skipping', { mapId: map.id, key: parse.data.key });
-      } catch {}
-      const tilesets = await prisma.mapTileset.findMany({ where: { mapId: map.id }, orderBy: { slot: 'asc' } });
+      }
+    } catch {}
+    if (!result.created) {
       res.json(tilesets);
       return;
     }
-
-    const last = await prisma.mapTileset.findFirst({ where: { mapId: map.id }, orderBy: { slot: 'desc' } });
-    const newSlot = last ? last.slot + 1 : 0;
-    await prisma.mapTileset.create({ data: { mapId: map.id, slot: newSlot, ...parse.data } });
-    try {
-      logger.info('[Tilesets] registry add', {
-        mapId: map.id,
-        slot: newSlot,
-        key: parse.data.key,
-        url: parse.data.imageUrl,
-      });
-    } catch {}
-
-    const tilesets = await prisma.mapTileset.findMany({ where: { mapId: map.id }, orderBy: { slot: 'asc' } });
     broadcastMapUpdate(tenant.slug, 'tileset_registry_updated', {
       mapId: map.id,
       mapName: map.name,

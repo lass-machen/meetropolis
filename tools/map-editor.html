@@ -506,9 +506,9 @@ let spaceDown = false;
 let isRightClickDrag = false;
 
 // Autotile wall state
-let selectedWallTypeId = 0;       // Currently selected wall type for painting
-let autotileDefinitions = [];     // Array of loaded autotile definitions from packs
-let autotileImages = {};          // { key: HTMLImageElement } — loaded spritesheet images
+let selectedAutotile = null;       // { packUuid, autotileId } selected for painting
+let autotileDefinitions = [];      // Map-owned palette snapshots from state-v2
+let autotileImages = {};           // { slot: HTMLImageElement } — loaded snapshot spritesheets
 const directionalImageLookup = new Map(); // key: "packUuid:itemId:rotation" → dataURL
 
 // Pending changes (buffered until explicit save)
@@ -707,6 +707,7 @@ async function loadMap(mapId) {
     mapMeta = state.mapMeta;
     tilesetRegistry = state.tilesetRegistry || [];
     layerIndex = state.layerIndex || {};
+    await loadAutotilePalette(state.autotilePalette || []);
 
     // Load editor state
     let editorStateLoadFailed = false;
@@ -756,6 +757,38 @@ async function loadMap(mapId) {
     toast('err', `Failed to load map: ${e.message}`);
     console.error(e);
   }
+}
+
+async function loadAutotilePalette(entries) {
+  autotileDefinitions = entries.map(entry => ({ ...entry, _wallTypeId: entry.slot }));
+  autotileImages = {};
+  selectedAutotile = null;
+  await Promise.all(autotileDefinitions.map(loadAutotileImage));
+}
+
+function loadAutotileImage(def) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      autotileImages[def.slot] = img;
+      resolve();
+    };
+    img.onerror = () => {
+      console.error(`Missing autotile snapshot for slot ${def.slot}:`, def.imageUrl);
+      resolve();
+    };
+    img.src = def.imageUrl.startsWith('/') ? CFG.server + def.imageUrl : def.imageUrl;
+  });
+}
+
+async function registerAutotilePaletteEntry(entry) {
+  const definition = { ...entry, _wallTypeId: entry.slot };
+  const index = autotileDefinitions.findIndex(def => def.slot === entry.slot);
+  if (index >= 0) autotileDefinitions[index] = definition;
+  else autotileDefinitions.push(definition);
+  await loadAutotileImage(definition);
+  markDirty();
 }
 
 async function loadTilesetImages() {
@@ -1317,6 +1350,8 @@ function renderMapBounds() {
 
 function computeWallBitmask(x, y) {
   const cs = mapMeta.chunkSize || 32;
+  const wallTypeId = getWallTypeIdAt(x, y);
+  if (!wallTypeId) return 0;
   let mask = 0;
   const directions = [[1, 0, -1], [2, 1, 0], [4, 0, 1], [8, -1, 0]]; // [bit, dx, dy]
   for (const [bit, dx, dy] of directions) {
@@ -1325,7 +1360,7 @@ function computeWallBitmask(x, y) {
     const localX = nx - cx * cs, localY = ny - cy * cs;
     const key = `walls_auto:${cx}:${cy}`;
     const d = chunkCache[key];
-    if (d && d[localY * cs + localX] > 0) mask |= bit;
+    if (d && d[localY * cs + localX] === wallTypeId) mask |= bit;
   }
   return mask;
 }
@@ -1376,8 +1411,19 @@ function renderAutotileWalls() {
             continue;
           }
 
-          const img = autotileImages[def.key];
-          if (!img) continue;
+          const img = autotileImages[def.slot];
+          if (!img) {
+            ctx.fillStyle = '#ff00ff';
+            ctx.fillRect(worldX, worldY, tw, th);
+            ctx.strokeStyle = '#000';
+            ctx.beginPath();
+            ctx.moveTo(worldX, worldY);
+            ctx.lineTo(worldX + tw, worldY + th);
+            ctx.moveTo(worldX + tw, worldY);
+            ctx.lineTo(worldX, worldY + th);
+            ctx.stroke();
+            continue;
+          }
 
           const bitmask = computeWallBitmask(gx, gy);
           const variant = def.variants[String(bitmask)];
@@ -1577,8 +1623,7 @@ function renderAssetBrowser() {
     const grid = document.createElement('div');
     grid.className = 'asset-grid';
     autotiles.forEach((item, idx) => {
-      const wallId = idx + 1;
-      const isSelected = selectedWallTypeId === wallId;
+      const isSelected = selectedAutotile && selectedAutotile.packUuid === pack.uuid && selectedAutotile.autotileId === item.id;
       const el = document.createElement('div');
       el.className = 'asset-item' + (isSelected ? ' selected' : '');
       el.onclick = () => selectAutotile(selectedPackIdx, idx);
@@ -1674,27 +1719,7 @@ function selectAutotile(packIdx, itemIdx) {
   const item = pack.autotiles[itemIdx];
   if (!item) return;
 
-  const wallId = itemIdx + 1;
-  selectedWallTypeId = wallId;
-
-  // Store definition with wallTypeId for rendering
-  const existing = autotileDefinitions.find(d => d.key === item.key);
-  if (!existing) {
-    autotileDefinitions.push({ ...item, _wallTypeId: wallId });
-  }
-
-  // Load spritesheet image if not already loaded
-  if (!autotileImages[item.key]) {
-    const url = item.dataURL || item.dataUrl;
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    if (url && url.startsWith('/')) {
-      img.src = CFG.server + url;
-    } else {
-      img.src = url || '';
-    }
-    img.onload = () => { autotileImages[item.key] = img; markDirty(); };
-  }
+  selectedAutotile = { packUuid: pack.uuid, autotileId: item.id };
 
   setTool('wall');
   renderAssetBrowser();
@@ -2409,7 +2434,7 @@ function eraseRect(x0, y0, x1, y1) {
     pendingChanges.terrainPaints.push({
       layer: 'walls_auto',
       rect: { x0, y0, x1, y1 },
-      tileRefId: 0,
+      erase: true,
     });
     erased.walls = (erased.walls || 0) + 1;
   }
@@ -2430,7 +2455,7 @@ function eraseRect(x0, y0, x1, y1) {
 }
 
 function paintWall(x0, y0, x1, y1) {
-  if (!selectedWallTypeId || !currentMapId) {
+  if (!selectedAutotile || !currentMapId) {
     toast('warn', 'Select a wall type from the autotiles tab first');
     return;
   }
@@ -2438,9 +2463,16 @@ function paintWall(x0, y0, x1, y1) {
   pendingChanges.terrainPaints.push({
     layer: 'walls_auto',
     rect: { x0, y0, x1, y1 },
-    tileRefId: selectedWallTypeId,
+    autotile: { ...selectedAutotile },
   });
 
+  const paletteEntry = autotileDefinitions.find(def =>
+    def.packUuid === selectedAutotile.packUuid && def.autotileId === selectedAutotile.autotileId);
+  if (!paletteEntry) {
+    updateSaveButton();
+    toast('info', 'Wall queued; it will appear after the server registers its map palette slot');
+    return;
+  }
   const cs = mapMeta.chunkSize || 32;
   for (let y = y0; y <= y1; y++) {
     for (let x = x0; x <= x1; x++) {
@@ -2450,7 +2482,7 @@ function paintWall(x0, y0, x1, y1) {
       const localY = y - cy * cs;
       const key = `walls_auto:${cx}:${cy}`;
       if (!chunkCache[key]) chunkCache[key] = new Array(cs * cs).fill(0);
-      chunkCache[key][localY * cs + localX] = selectedWallTypeId;
+      chunkCache[key][localY * cs + localX] = paletteEntry.slot;
       if (!layerIndex.walls_auto) layerIndex.walls_auto = { keys: [], chunkSize: cs };
       if (!layerIndex.walls_auto.keys.includes(`${cx}:${cy}`)) {
         layerIndex.walls_auto.keys.push(`${cx}:${cy}`);
@@ -2485,7 +2517,7 @@ function eraseWall(x0, y0, x1, y1) {
     pendingChanges.terrainPaints.push({
       layer: 'walls_auto',
       rect: { x0, y0, x1, y1 },
-      tileRefId: 0,
+      erase: true,
     });
   }
   markDirty();
@@ -2937,6 +2969,9 @@ async function saveAllChanges() {
           method: 'PATCH',
           body: paint,
         });
+        if (result.autotilePaletteEntry) {
+          await registerAutotilePaletteEntry(result.autotilePaletteEntry);
+        }
         // Update chunk cache with authoritative server data
         if (result.updates) {
           const cs = mapMeta.chunkSize || 32;
@@ -2945,6 +2980,13 @@ async function saveAllChanges() {
             const decoded = decodeRLE(upd.data, total);
             chunkCache[`${paint.layer}:${upd.key}`] = decoded;
             chunkVersions[`${paint.layer}:${upd.key}`] = upd.version;
+          }
+        }
+        if (result.collisionUpdates) {
+          const cs = mapMeta.chunkSize || 32;
+          for (const upd of result.collisionUpdates) {
+            chunkCache[`collision:${upd.key}`] = decodeRLE(upd.data, cs * cs);
+            chunkVersions[`collision:${upd.key}`] = upd.version;
           }
         }
       } catch (e) {

@@ -7,6 +7,8 @@ import { requireSuperAdmin } from '../utils/authHelpers.js';
 import { pathParam } from '../utils/requestHelpers.js';
 import { copyMapToTenant, TargetPackAccessError } from './adminMaps.copy.js';
 import { handleImportAdminMap } from './adminMaps.tiledImport.js';
+import { INTERNAL_MAP_LAYER_NAMES } from '../utils/mapLayerPolicy.js';
+import { acquireMapAdvisoryLock } from '../utils/advisoryLocks.js';
 
 export { copyMapToTenant } from './adminMaps.copy.js';
 
@@ -37,7 +39,7 @@ async function handleListAdminMaps(prisma: PrismaClient, req: express.Request, r
     const maps = await prisma.map.findMany({
       include: {
         tenant: { select: { id: true, slug: true, name: true } },
-        _count: { select: { rooms: true, zones: true, tilesets: true, layers: true, objects: true } },
+        _count: { select: { rooms: true, zones: true, tilesets: true, autotiles: true, layers: true, objects: true } },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -75,7 +77,11 @@ async function handleGetAdminMap(prisma: PrismaClient, req: express.Request, res
         tenant: { select: { id: true, slug: true, name: true } },
         rooms: { include: { zones: true } },
         tilesets: { orderBy: { slot: 'asc' } },
-        layers: { include: { _count: { select: { chunks: true } } } },
+        autotiles: { orderBy: { slot: 'asc' } },
+        layers: {
+          where: { name: { notIn: [...INTERNAL_MAP_LAYER_NAMES] } },
+          include: { _count: { select: { chunks: true } } },
+        },
         _count: { select: { objects: true } },
       },
     });
@@ -136,6 +142,7 @@ async function handleCreateAdminMap(prisma: PrismaClient, req: express.Request, 
 
 async function deleteMapCascade(prisma: PrismaClient, mapId: string): Promise<void> {
   await prisma.$transaction(async (tx) => {
+    await acquireMapAdvisoryLock(tx, mapId);
     await tx.mapObject.deleteMany({ where: { mapId } });
     const layers = await tx.mapLayer.findMany({ where: { mapId }, select: { id: true } });
     const layerIds = layers.map((l) => l.id);
@@ -144,6 +151,7 @@ async function deleteMapCascade(prisma: PrismaClient, mapId: string): Promise<vo
     }
     await tx.mapLayer.deleteMany({ where: { mapId } });
     await tx.mapTileset.deleteMany({ where: { mapId } });
+    await tx.mapAutotile.deleteMany({ where: { mapId } });
     const rooms = await tx.room.findMany({ where: { mapId }, select: { id: true } });
     const roomIds = rooms.map((r) => r.id);
     if (roomIds.length > 0) {

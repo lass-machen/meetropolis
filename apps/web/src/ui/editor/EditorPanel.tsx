@@ -513,7 +513,7 @@ export function EditorPanel(props: { onSave?: () => Promise<boolean> }) {
       {state.category === 'general' && <GeneralSettings state={state} t={t} />}
       {state.category === 'terrain' && <TerrainSettings state={state} v2Tilesets={v2Tilesets} t={t} />}
       {state.category === 'autotiles' && (
-        <AutotilePicker autotileItems={state.autotileItems} selectedWallTypeId={state.selectedWallTypeId} />
+        <AutotilePicker autotileItems={state.autotileItems} selectedAutotile={state.selectedAutotile} />
       )}
       <ToolButtons state={state} t={t} />
       {state.category === 'zones' && (

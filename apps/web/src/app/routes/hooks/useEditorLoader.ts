@@ -155,19 +155,16 @@ async function processPacks(
 
 function buildAutotileItems(packs: AssetPackJson[], apiBase: string): AutotileEditorItem[] {
   const autotileItems: AutotileEditorItem[] = [];
-  let nextWallTypeId = 1;
-  const sortedPacksForAutotiles = [...(packs || [])].sort((a, b) => (a.uuid || '').localeCompare(b.uuid || ''));
-  for (const p of sortedPacksForAutotiles) {
-    const sortedAutotiles = [...(p.autotiles || [])].sort((a, b) => (a.id || '').localeCompare(b.id || ''));
-    for (const at of sortedAutotiles) {
+  for (const p of packs || []) {
+    for (const at of p.autotiles || []) {
       autotileItems.push({
-        wallTypeId: nextWallTypeId++,
         packUuid: p.uuid,
         autotileId: at.id,
         key: at.key,
         textureUrl: resolvePackUrl(at.dataURL, apiBase),
         tileWidth: at.tileWidth,
         tileHeight: at.tileHeight,
+        gridHeight: at.gridHeight,
         variants: at.variants || {},
         collide: at.collide ?? true,
         placement: at.placement ?? 'wall',
@@ -249,11 +246,6 @@ async function loadAssetPacks(apiBase: string, setEditor: EditorSetter) {
       const autotileItems = buildAutotileItems(packs, apiBase);
       if (autotileItems.length > 0) {
         EditorService.dispatch({ type: 'SET_AUTOTILE_ITEMS', items: autotileItems });
-        try {
-          gameBridge.registerAutotiles(autotileItems);
-        } catch (e) {
-          logger.debug('[EditorLoader] Autotile registration deferred', e);
-        }
       }
     }
     applyLocalPackItems(setEditor);

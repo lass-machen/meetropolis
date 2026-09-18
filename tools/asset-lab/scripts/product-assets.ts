@@ -85,7 +85,7 @@ function environmentMetadata(
 } {
   if (id === spec.autotile.assetId) {
     // Autotile config has no pack-category, collision-base or render-layer fields.
-    // Treat the withheld wall atlas conservatively as a colliding sorted structure;
+    // Treat the wall atlas conservatively as a colliding sorted structure;
     // collisionBaseHeight 0 means its full bounds collide when collide is true.
     return {
       category: 'structures',
@@ -151,9 +151,24 @@ function createPackManifest(spec: ProductSpec, urls: Record<AssetId, string>, di
       width: dimensions[id].x,
       height: dimensions[id].y,
     })),
-    // A28 must be closed before any global autotile becomes visible. The atlas
-    // remains an immutable artifact and its complete contract lives in catalog.json.
-    autotiles: [],
+    autotiles: [
+      {
+        id: `${spec.generation.replace('-', '_')}_${spec.palette.slug}_${spec.autotile.assetId}`,
+        key: assetDefinitions[spec.autotile.assetId].name,
+        category: 'autotile',
+        dataURL: urls[spec.autotile.assetId],
+        placement: 'wall',
+        collide: true,
+        tileWidth: spec.autotile.tileWidth,
+        tileHeight: spec.autotile.tileHeight,
+        gridHeight: spec.autotile.gridHeight,
+        autotileType: '4bit',
+        scaleFactor: 1,
+        variants: Object.fromEntries(
+          Array.from({ length: 16 }, (_, mask) => [String(mask), { col: mask % 4, row: Math.floor(mask / 4) }]),
+        ),
+      },
+    ],
   };
 }
 
@@ -194,7 +209,7 @@ function validateProductDimensions(spec: ProductSpec, dimensions: Record<AssetId
     throw new Error('The wall offset must place its pixel anchor on the logical cell.');
   const autotile = dimensions[spec.autotile.assetId];
   if (spec.autotile.tileHeight !== wallHeight || autotile.x % spec.autotile.tileWidth || autotile.y % wallHeight)
-    throw new Error('The withheld autotile does not match its grid contract.');
+    throw new Error('The autotile does not match its grid contract.');
 }
 
 function createAvatarManifest(spec: ProductSpec, avatarFiles: Array<ProductAvatar & { url: string; sha256: string }>) {
@@ -285,7 +300,7 @@ export async function buildProductFiles(): Promise<ProductFile[]> {
     floorAtlas: { ...spec.floorAtlas, sourceWidth: dimensions.floor.x, sourceHeight: dimensions.floor.y },
     directionalFamilies: createDirectionalCatalog(spec, dimensions),
     wallPlacement: { ...spec.wallPlacement, coordinateSpace: 'source-pixels' },
-    withheldAutotile: {
+    autotile: {
       ...spec.autotile,
       url: urls[spec.autotile.assetId],
       anchor: spec.wallPlacement.anchor,

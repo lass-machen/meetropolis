@@ -296,6 +296,18 @@ export const gameBridge: InternalBridge = {
     sceneApi?.restoreEditorSnapshot?.();
   },
   registerAutotiles: (items) => {
+    if (window.__v2_state) {
+      const palette = [...(window.__v2_state.autotilePalette ?? [])];
+      for (const item of items) {
+        const index = palette.findIndex(
+          (entry) =>
+            entry.slot === item.slot || (entry.packUuid === item.packUuid && entry.autotileId === item.autotileId),
+        );
+        if (index >= 0) palette[index] = item;
+        else palette.push(item);
+      }
+      window.__v2_state.autotilePalette = palette.sort((left, right) => left.slot - right.slot);
+    }
     if (sceneApi?.registerAutotileDefinitions) {
       sceneApi.registerAutotileDefinitions(items);
     } else {

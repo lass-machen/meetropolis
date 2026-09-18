@@ -1,5 +1,5 @@
 import type express from 'express';
-import { PrismaClient } from '../../generated/prisma/index.js';
+import { Prisma, PrismaClient } from '../../generated/prisma/index.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
@@ -24,7 +24,11 @@ import {
   readUploadedZipBuffer,
   parseUploadedConfig,
   checkExistingPackDimensions,
+  preserveReferencedPackAssets,
+  MissingReferencedAssetError,
+  ReferencedAssetConflictError,
 } from './assetPacks.processor.js';
+import { acquirePackAdvisoryLock } from '../utils/advisoryLocks.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -38,6 +42,46 @@ const archiveAssetPackSchema = z.object({ archived: z.boolean() });
 function assetPackIdentityWhere(identifier: string): { id: number } | { uuid: string } {
   const id = Number(identifier);
   return Number.isInteger(id) && id > 0 ? { id } : { uuid: identifier };
+}
+
+async function persistUploadedPack(params: {
+  prisma: PrismaClient;
+  packsDir: string;
+  tmpDir: string;
+  cfg: AssetPackConfig;
+  rewritten: ReturnType<typeof rewriteConfig>;
+  assetMap: ReadonlyMap<string, string>;
+  repairMissingSnapshots: boolean;
+  userId: string;
+}) {
+  const { prisma, packsDir, tmpDir, cfg, rewritten, assetMap, repairMissingSnapshots, userId } = params;
+  const finalDir = path.resolve(packsDir, cfg.uuid);
+  const repairSources = new Map<string, string>();
+  for (const [original, hashed] of assetMap) {
+    repairSources.set(original.replace(/^assets\//, ''), path.resolve(tmpDir, hashed));
+  }
+  return prisma.$transaction(
+    async (tx) => {
+      await acquirePackAdvisoryLock(tx, cfg.uuid);
+      const existCheck = await checkExistingPackDimensions(tx, cfg.uuid, cfg, tmpDir);
+      if (!existCheck.ok) {
+        throw new UploadValidationError(existCheck.status, {
+          error: existCheck.error,
+          reason: existCheck.reason,
+          itemId: existCheck.itemId,
+        });
+      }
+      await preserveReferencedPackAssets(tx, cfg.uuid, finalDir, tmpDir, {
+        repairMissing: repairMissingSnapshots,
+        repairSources,
+        onRepair: ({ url, source }) =>
+          logger.warn({ event: 'asset_pack.snapshot_repaired', uuid: cfg.uuid, url, source, repairedBy: userId }),
+      });
+      await moveTmpToFinal(tmpDir, finalDir);
+      return persistAssetPackRecord(tx, cfg, rewritten, existCheck.existing);
+    },
+    { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+  );
 }
 
 async function prepareUploadFromRequest(req: express.Request): Promise<PrepareUploadResult> {
@@ -91,9 +135,10 @@ async function handleAssetPackUpload(
 ): Promise<void> {
   const auth = await authenticateAssetPackAdmin(prisma, req);
   if (!auth.ok) {
-    res.status(auth.status!).json({ error: auth.error! });
+    res.status(auth.status).json({ error: auth.error });
     return;
   }
+  let tmpDir: string | undefined;
   try {
     try {
       logger.info('[AssetPacks] upload request received');
@@ -107,7 +152,7 @@ async function handleAssetPackUpload(
     const { cfg, assetEntries } = prepared;
 
     const uuid = cfg.uuid;
-    const tmpDir = path.resolve(packsDir, `.tmp-${uuid}-${Date.now()}`);
+    tmpDir = path.resolve(packsDir, `.tmp-${uuid}-${Date.now()}`);
     await fsp.mkdir(tmpDir, { recursive: true });
 
     const extracted = await extractAssetsToTmpDir(assetEntries, tmpDir);
@@ -118,26 +163,53 @@ async function handleAssetPackUpload(
 
     const rewritten = rewriteConfig(cfg, uuid, extracted.assetMap);
 
-    const existCheck = await checkExistingPackDimensions(prisma, uuid, cfg, tmpDir);
-    if (!existCheck.ok) {
-      res
-        .status(existCheck.status)
-        .json({ error: existCheck.error, reason: existCheck.reason, itemId: existCheck.itemId });
-      return;
-    }
-
-    const finalDir = path.resolve(packsDir, uuid);
-    await moveTmpToFinal(tmpDir, finalDir);
-
-    const rec = await persistAssetPackRecord(prisma, cfg, rewritten, existCheck.existing);
+    const uploadFields = req.body as { repairMissingSnapshots?: unknown } | undefined;
+    const repairMissingSnapshots = uploadFields?.repairMissingSnapshots === 'true';
+    const rec = await persistUploadedPack({
+      prisma,
+      packsDir,
+      tmpDir,
+      cfg,
+      rewritten,
+      assetMap: extracted.assetMap,
+      repairMissingSnapshots,
+      userId: auth.userId,
+    });
     try {
       logger.info('[AssetPacks] upload success', { id: rec.id, uuid: rec.uuid, version: rec.version });
     } catch {}
 
     res.json({ ok: true, id: rec.id, uuid: rec.uuid, version: rec.version });
   } catch (e: unknown) {
+    if (e instanceof UploadValidationError) {
+      res.status(e.status).json(e.body);
+      return;
+    }
+    if (e instanceof ReferencedAssetConflictError) {
+      res.status(409).json({ error: 'referenced_asset_conflict', url: e.url });
+      return;
+    }
+    if (e instanceof MissingReferencedAssetError) {
+      res.status(409).json({
+        error: 'snapshot_repair_required',
+        url: e.url,
+        message: "Retry with multipart field 'repairMissingSnapshots=true' to perform an audited repair.",
+      });
+      return;
+    }
     logger.error('[AssetPacks] upload failed', e);
     res.status(500).json({ error: 'upload failed' });
+  } finally {
+    if (tmpDir) await fsp.rm(tmpDir, { recursive: true, force: true }).catch(() => undefined);
+  }
+}
+
+class UploadValidationError extends Error {
+  constructor(
+    readonly status: number,
+    readonly body: Record<string, unknown>,
+  ) {
+    super(typeof body.error === 'string' ? body.error : 'upload validation failed');
   }
 }
 
@@ -190,7 +262,7 @@ async function handleArchiveAssetPack(
 ): Promise<void> {
   const auth = await authenticateAssetPackAdmin(prisma, req);
   if (!auth.ok) {
-    res.status(auth.status!).json({ error: auth.error! });
+    res.status(auth.status).json({ error: auth.error });
     return;
   }
   const parsed = archiveAssetPackSchema.safeParse(req.body);
@@ -224,7 +296,7 @@ async function handleDeleteAssetPack(
 ): Promise<void> {
   const auth = await authenticateAssetPackAdmin(prisma, req);
   if (!auth.ok) {
-    res.status(auth.status!).json({ error: auth.error! });
+    res.status(auth.status).json({ error: auth.error });
     return;
   }
   const id = Number(req.params.id);
@@ -237,11 +309,33 @@ async function handleDeleteAssetPack(
     res.status(404).json({ error: 'not found' });
     return;
   }
-  try {
-    const dir = path.resolve(packsDir, pack.uuid);
-    await fsp.rm(dir, { recursive: true, force: true });
-  } catch {}
-  await prisma.assetPack.delete({ where: { id } });
+  const deletion = await prisma.$transaction(async (tx) => {
+    await acquirePackAdvisoryLock(tx, pack.uuid);
+    const current = await tx.assetPack.findUnique({ where: { id } });
+    if (!current) return { status: 'missing' as const };
+    const [autotileReferences, objectReferences] = await Promise.all([
+      tx.mapAutotile.count({ where: { packUuid: current.uuid } }),
+      tx.mapObject.count({ where: { assetPackUuid: current.uuid } }),
+    ]);
+    if (autotileReferences > 0 || objectReferences > 0) {
+      return { status: 'referenced' as const, autotileReferences, objectReferences };
+    }
+    await fsp.rm(path.resolve(packsDir, current.uuid), { recursive: true, force: true });
+    await tx.assetPack.delete({ where: { id } });
+    return { status: 'deleted' as const };
+  });
+  if (deletion.status === 'missing') {
+    res.status(404).json({ error: 'not found' });
+    return;
+  }
+  if (deletion.status === 'referenced') {
+    res.status(409).json({
+      error: 'asset_pack_in_use',
+      message: 'This pack is referenced by maps. Archive it instead of deleting it.',
+      references: { autotiles: deletion.autotileReferences, objects: deletion.objectReferences },
+    });
+    return;
+  }
   res.json({ ok: true, fallback: fallbackUrl });
 }
 

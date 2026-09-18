@@ -890,5 +890,37 @@
       "height": 64
     }
   ],
-  "autotiles": []
+  "autotiles": [
+    {
+      "id": "atelier_v1_holz_wall_set",
+      "key": "Wandatlas",
+      "category": "autotile",
+      "dataURL": "/assets/atelier/v1/holz/wall_set.5be5bde2dc68.png",
+      "placement": "wall",
+      "collide": true,
+      "tileWidth": 16,
+      "tileHeight": 48,
+      "gridHeight": 3,
+      "autotileType": "4bit",
+      "scaleFactor": 1,
+      "variants": {
+        "0": { "col": 0, "row": 0 },
+        "1": { "col": 1, "row": 0 },
+        "2": { "col": 2, "row": 0 },
+        "3": { "col": 3, "row": 0 },
+        "4": { "col": 0, "row": 1 },
+        "5": { "col": 1, "row": 1 },
+        "6": { "col": 2, "row": 1 },
+        "7": { "col": 3, "row": 1 },
+        "8": { "col": 0, "row": 2 },
+        "9": { "col": 1, "row": 2 },
+        "10": { "col": 2, "row": 2 },
+        "11": { "col": 3, "row": 2 },
+        "12": { "col": 0, "row": 3 },
+        "13": { "col": 1, "row": 3 },
+        "14": { "col": 2, "row": 3 },
+        "15": { "col": 3, "row": 3 }
+      }
+    }
+  ]
 }

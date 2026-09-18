@@ -6,6 +6,7 @@ import { pathParam } from '../utils/requestHelpers.js';
 import { broadcastMapUpdate } from '../utils/broadcast.js';
 import { findMapById } from './maps.read.js';
 import { resolveEditorMemberTenant, type MapMeta } from './maps.editor.js';
+import { acquireMapAdvisoryLock } from '../utils/advisoryLocks.js';
 
 const resizeSchema = z.object({
   width: z.number().int().min(8).max(512),
@@ -93,7 +94,10 @@ export async function handleResize(prisma: PrismaClient, req: express.Request, r
       return;
     }
 
-    await prisma.map.update({ where: { id: map.id }, data: { width, height } });
+    await prisma.$transaction(async (tx) => {
+      await acquireMapAdvisoryLock(tx, map.id);
+      await tx.map.update({ where: { id: map.id }, data: { width, height } });
+    });
     broadcastMapUpdate(tenant.slug, 'map_resized', {
       mapId: map.id,
       mapName: map.name,
@@ -134,6 +138,7 @@ export async function handleRename(prisma: PrismaClient, req: express.Request, r
   try {
     let oldName = '';
     await prisma.$transaction(async (tx) => {
+      await acquireMapAdvisoryLock(tx, pathParam(req, 'id'));
       const map = await tx.map.findFirst({ where: { id: pathParam(req, 'id'), tenantId: tenant.id } });
       if (!map) throw new Error('MAP_NOT_FOUND');
       oldName = map.name;

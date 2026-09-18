@@ -21,7 +21,7 @@ export interface AutotileVariantMap {
 
 /**
  * Compute 4-bit cardinal bitmask for position (x, y).
- * Only considers neighbors with the same wallTypeId (or any wallTypeId if wallTypeId is 0).
+ * Only considers neighbors with the same wallTypeId.
  *
  * Bit layout:
  *   Bit 0 (1) = North (y-1)
@@ -36,10 +36,10 @@ export function computeBitmask4(grid: AutotileGridLike, x: number, y: number, wa
   if (id === 0) return 0;
 
   let mask = 0;
-  if (grid.get(x, y - 1) > 0) mask |= 1; // North
-  if (grid.get(x + 1, y) > 0) mask |= 2; // East
-  if (grid.get(x, y + 1) > 0) mask |= 4; // South
-  if (grid.get(x - 1, y) > 0) mask |= 8; // West
+  if (grid.get(x, y - 1) === id) mask |= 1; // North
+  if (grid.get(x + 1, y) === id) mask |= 2; // East
+  if (grid.get(x, y + 1) === id) mask |= 4; // South
+  if (grid.get(x - 1, y) === id) mask |= 8; // West
 
   return mask;
 }

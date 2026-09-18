@@ -4,15 +4,15 @@ import type { AutotilePackItem } from '../../services/EditorTypes';
 
 export function AutotilePicker({
   autotileItems,
-  selectedWallTypeId,
+  selectedAutotile,
 }: {
   autotileItems: AutotilePackItem[];
-  selectedWallTypeId: number;
+  selectedAutotile: { packUuid: string; autotileId: string } | null;
 }) {
   if (autotileItems.length === 0) {
     return (
       <div style={{ fontSize: 12, color: 'var(--fg-subtle)', padding: '8px 0' }}>
-        Keine Autotile-Definitionen verfuegbar. Lade ein Asset Pack mit Autotiles hoch.
+        Keine Autotile-Definitionen verfügbar. Lade ein Asset Pack mit Autotiles hoch.
       </div>
     );
   }
@@ -25,7 +25,7 @@ export function AutotilePicker({
           <AutotileThumbnail
             key={`${item.packUuid}:${item.autotileId}`}
             item={item}
-            isSelected={selectedWallTypeId === item.wallTypeId}
+            isSelected={selectedAutotile?.packUuid === item.packUuid && selectedAutotile.autotileId === item.autotileId}
           />
         ))}
       </div>
@@ -59,7 +59,12 @@ function AutotileThumbnail({ item, isSelected }: { item: AutotilePackItem; isSel
 
   return (
     <button
-      onClick={() => EditorService.dispatch({ type: 'SELECT_WALL_TYPE', wallTypeId: item.wallTypeId })}
+      onClick={() =>
+        EditorService.dispatch({
+          type: 'SELECT_WALL_TYPE',
+          autotile: { packUuid: item.packUuid, autotileId: item.autotileId },
+        })
+      }
       style={{
         width: 64,
         height: 64,

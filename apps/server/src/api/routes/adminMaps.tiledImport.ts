@@ -2,8 +2,11 @@ import type express from 'express';
 import { PrismaClient, Prisma } from '../../generated/prisma/index.js';
 import { logger } from '../../logger.js';
 import { requireSuperAdmin } from '../utils/authHelpers.js';
-import { rleEncodeNumbers, encodeRlePairsToBuffer } from '../../mapEncoding.js';
+import { rleEncodeBooleans, rleEncodeNumbers, encodeRlePairsToBuffer } from '../../mapEncoding.js';
 import type { RequestWithMulterFile } from '../../types/multer.js';
+import { reconcileCollisionTiles, rectCollisionTiles } from '../utils/collisionReconciler.js';
+import { importedLayerStorageName, isInternalMapLayer, isReservedImportLayer } from '../utils/mapLayerPolicy.js';
+import { acquireMapAdvisoryLock } from '../utils/advisoryLocks.js';
 
 type TxClient = Prisma.TransactionClient;
 
@@ -43,6 +46,10 @@ interface TiledMapJson {
   tileheight?: number;
   layers?: TiledLayer[];
   tilesets?: TiledTileset[];
+}
+
+export function hasReservedAutotileLayer(json: TiledMapJson): boolean {
+  return (json.layers ?? []).some((layer) => layer.type === 'tilelayer' && isReservedImportLayer(layer.name));
 }
 
 async function importTilesetsFromTiled(
@@ -104,8 +111,10 @@ async function importTileLayers(
   for (const layer of layers) {
     if (layer.type !== 'tilelayer' || !layer.data) continue;
 
+    const storageName = importedLayerStorageName(layer.name || 'unnamed');
+    const collision = isInternalMapLayer(storageName);
     const newLayer = await tx.mapLayer.create({
-      data: { mapId, name: layer.name || 'unnamed', chunkSize },
+      data: { mapId, name: storageName, chunkSize },
     });
 
     const layerWidth = layer.width || mapWidth;
@@ -118,12 +127,21 @@ async function importTileLayers(
         const chunkData = extractChunkData(layer, cx, cy, chunkSize, layerWidth, layerHeight);
         if (chunkData.every((v) => v === 0)) continue;
 
-        const rlePairs = rleEncodeNumbers(chunkData);
+        const rlePairs = collision
+          ? rleEncodeBooleans(chunkData.map((value) => value !== 0))
+          : rleEncodeNumbers(chunkData);
         const buf = encodeRlePairsToBuffer(rlePairs);
         const u8 = new Uint8Array(buf);
 
         await tx.mapChunk.create({
-          data: { layerId: newLayer.id, x: cx, y: cy, version: 1, encoding: 'rle', data: u8 },
+          data: {
+            layerId: newLayer.id,
+            x: cx,
+            y: cy,
+            version: 1,
+            encoding: collision ? 'rle-bool' : 'rle',
+            data: u8,
+          },
         });
       }
     }
@@ -185,10 +203,24 @@ function importTiledMap(prisma: PrismaClient, tenantId: string, mapName: string,
     const map = await tx.map.create({
       data: { tenantId, name: mapName, width: mapWidth, height: mapHeight, tileWidth, tileHeight, chunkSize, meta: {} },
     });
+    await acquireMapAdvisoryLock(tx, map.id);
 
     await importTilesetsFromTiled(tx, map.id, tiledTilesets, tileWidth, tileHeight);
     await importTileLayers(tx, map.id, tiledLayers, chunkSize, mapWidth, mapHeight);
     await importObjectLayers(tx, map.id, tiledLayers, tileWidth, tileHeight, chunkSize);
+
+    if (
+      tiledLayers.some(
+        (layer) => layer.type === 'tilelayer' && isInternalMapLayer(importedLayerStorageName(layer.name)),
+      )
+    ) {
+      await reconcileCollisionTiles(
+        tx,
+        map.id,
+        { chunkSize, tileWidth, tileHeight },
+        rectCollisionTiles({ x0: 0, y0: 0, x1: mapWidth - 1, y1: mapHeight - 1 }, chunkSize),
+      );
+    }
 
     await tx.room.create({ data: { name: 'lobby', tenantId, mapId: map.id } });
 
@@ -235,6 +267,13 @@ export async function handleImportAdminMap(
     }
 
     const json = JSON.parse(file.buffer.toString('utf-8')) as TiledMapJson;
+    if (hasReservedAutotileLayer(json)) {
+      res.status(400).json({
+        error: 'reserved_layer',
+        message: 'The import contains an internal or identity-backed layer name.',
+      });
+      return;
+    }
     const result = await importTiledMap(prisma, tenantId, mapName, json);
 
     logger.info({ event: 'admin_maps.imported', mapId: result.id, tenantId, name: mapName });

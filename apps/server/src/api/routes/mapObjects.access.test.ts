@@ -67,7 +67,8 @@ interface PrismaOpts {
 
 function makePrisma(opts: PrismaOpts = {}): PrismaClient {
   const { apiTokenUserId, membershipThrows = false } = opts;
-  return {
+  const prisma = {
+    $queryRaw: vi.fn(() => Promise.resolve([])),
     tenant: {
       findUnique: vi.fn(({ where }: { where: { slug?: string } }) =>
         Promise.resolve(where.slug === 'internal' ? { id: INTERNAL_TENANT_ID, slug: 'internal' } : null),
@@ -98,8 +99,24 @@ function makePrisma(opts: PrismaOpts = {}): PrismaClient {
       update: vi.fn(() => Promise.resolve({})),
     },
     assetPack: {
-      findFirst: vi.fn(() => Promise.resolve({ uuid: 'pixel-agents-furniture' })),
-      findMany: vi.fn(() => Promise.resolve([{ uuid: 'pixel-agents-furniture' }])),
+      findFirst: vi.fn(() =>
+        Promise.resolve({
+          uuid: 'pixel-agents-furniture',
+          terrain: [],
+          structures: [],
+          objects: [{ id: 'desk-01', dataURL: '/packs/pixel-agents-furniture/desk.png' }],
+        }),
+      ),
+      findMany: vi.fn(() =>
+        Promise.resolve([
+          {
+            uuid: 'pixel-agents-furniture',
+            terrain: [],
+            structures: [],
+            objects: [{ id: 'desk-01', dataURL: '/packs/pixel-agents-furniture/desk.png' }],
+          },
+        ]),
+      ),
     },
     map: {
       findFirst: vi.fn(({ where }: { where: { id: string; tenantId: string } }) =>
@@ -114,6 +131,8 @@ function makePrisma(opts: PrismaOpts = {}): PrismaClient {
       delete: vi.fn(() => Promise.resolve(OBJECT_ROW)),
     },
   } as unknown as PrismaClient;
+  prisma.$transaction = vi.fn((callback) => callback(prisma));
+  return prisma;
 }
 
 const TENANTS: Record<string, Partial<Tenant>> = {
@@ -322,6 +341,53 @@ describe('map object mutations: membership-scoped, not merely authenticated', ()
       .send(OBJECT_BODY);
     expect(res.status).toBe(200);
     expect(prisma.mapObject.create).toHaveBeenCalledTimes(1);
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(2);
+  });
+
+  it('re-reads the object and derives chunk coordinates from retry-fresh state', async () => {
+    const prisma = makePrisma();
+    vi.mocked(prisma.mapObject.findFirst)
+      .mockResolvedValueOnce(OBJECT_ROW)
+      .mockResolvedValueOnce({ ...OBJECT_ROW, tileX: 40, chunkX: 1 });
+    vi.mocked(prisma.$transaction)
+      .mockImplementationOnce(async (callback) => {
+        await callback(prisma);
+        throw Object.assign(new Error('serialization failure'), { code: 'P2034' });
+      })
+      .mockImplementation((callback) => callback(prisma));
+
+    const response = await request(makeApp(prisma))
+      .patch('/maps/map-1/objects/7')
+      .set('Authorization', sessionBearer('lm-user'))
+      .set('X-Tenant', 'lass-machen')
+      .send({ tileY: 33 });
+
+    expect(response.status).toBe(200);
+    expect(prisma.mapObject.findFirst).toHaveBeenCalledTimes(2);
+    expect(prisma.mapObject.update).toHaveBeenLastCalledWith({
+      where: { id: 7 },
+      data: { tileY: 33, chunkX: 1, chunkY: 1 },
+    });
+  });
+
+  it('turns a retry that observes a concurrent delete into a clean 404', async () => {
+    const prisma = makePrisma();
+    vi.mocked(prisma.mapObject.findFirst).mockResolvedValueOnce(OBJECT_ROW).mockResolvedValueOnce(null);
+    vi.mocked(prisma.$transaction)
+      .mockImplementationOnce(async (callback) => {
+        await callback(prisma);
+        throw Object.assign(new Error('serialization failure'), { code: 'P2034' });
+      })
+      .mockImplementation((callback) => callback(prisma));
+
+    const response = await request(makeApp(prisma))
+      .delete('/maps/map-1/objects/7')
+      .set('Authorization', sessionBearer('lm-user'))
+      .set('X-Tenant', 'lass-machen');
+
+    expect(response.status).toBe(404);
+    expect(prisma.mapObject.findFirst).toHaveBeenCalledTimes(2);
+    expect(prisma.mapObject.delete).toHaveBeenCalledTimes(1);
   });
 });
 

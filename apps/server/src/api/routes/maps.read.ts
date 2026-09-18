@@ -4,6 +4,8 @@ import { z } from 'zod';
 import { logger } from '../../logger.js';
 import { requireAuth, getTenantFromReq, requireMembership } from '../utils/authHelpers.js';
 import { pathParam } from '../utils/requestHelpers.js';
+import { INTERNAL_MAP_LAYER_NAMES, isInternalMapLayer } from '../utils/mapLayerPolicy.js';
+import { acquireMapAdvisoryLock } from '../utils/advisoryLocks.js';
 
 export function findMapById(prisma: PrismaClient, mapId: string, tenantId: string) {
   return prisma.map.findFirst({ where: { id: mapId, tenantId } });
@@ -84,14 +86,20 @@ async function autoPatchMapDimensions<
   const defaults = { width: 32, height: 32, tileWidth: 16, tileHeight: 16 };
   if (map.width && map.height && map.tileWidth && map.tileHeight) return map;
   try {
-    const updated = await prisma.map.update({
-      where: { id: map.id },
-      data: {
-        width: map.width ?? defaults.width,
-        height: map.height ?? defaults.height,
-        tileWidth: map.tileWidth ?? defaults.tileWidth,
-        tileHeight: map.tileHeight ?? defaults.tileHeight,
-      },
+    const updated = await prisma.$transaction(async (tx) => {
+      await acquireMapAdvisoryLock(tx, map.id);
+      const current = await tx.map.findUnique({ where: { id: map.id } });
+      if (!current) return map;
+      if (current.width && current.height && current.tileWidth && current.tileHeight) return current;
+      return tx.map.update({
+        where: { id: map.id },
+        data: {
+          width: current.width ?? defaults.width,
+          height: current.height ?? defaults.height,
+          tileWidth: current.tileWidth ?? defaults.tileWidth,
+          tileHeight: current.tileHeight ?? defaults.tileHeight,
+        },
+      });
     });
     logger.info('[Map] Auto-patched map dimensions on state-v2 fetch', { mapId: map.id, tenant: tenantSlug });
     return updated as unknown as T;
@@ -102,7 +110,7 @@ async function autoPatchMapDimensions<
 
 async function buildLayerIndex(prisma: PrismaClient, mapId: string) {
   const layers = await prisma.mapLayer.findMany({
-    where: { mapId },
+    where: { mapId, name: { notIn: [...INTERNAL_MAP_LAYER_NAMES] } },
     select: { id: true, name: true, chunkSize: true },
   });
   const layerIndex: Record<string, { keys: string[]; chunkSize: number }> = {};
@@ -141,6 +149,24 @@ export async function handleStateV2(prisma: PrismaClient, req: express.Request, 
         hash: true,
       },
     });
+    const autotiles = await prisma.mapAutotile.findMany({
+      where: { mapId: map.id },
+      orderBy: { slot: 'asc' },
+      select: {
+        slot: true,
+        packUuid: true,
+        autotileId: true,
+        key: true,
+        imageUrl: true,
+        tileWidth: true,
+        tileHeight: true,
+        gridHeight: true,
+        variants: true,
+        collide: true,
+        placement: true,
+        hash: true,
+      },
+    });
 
     const layerIndex = await buildLayerIndex(prisma, map.id);
 
@@ -153,7 +179,7 @@ export async function handleStateV2(prisma: PrismaClient, req: express.Request, 
       version: map.version ?? null,
     };
 
-    res.json({ mapMeta, tilesetRegistry: tilesets, layerIndex });
+    res.json({ mapMeta, tilesetRegistry: tilesets, autotilePalette: autotiles, layerIndex });
   } catch (e: unknown) {
     logger.error('[Map] state-v2 failed', e);
     res.status(500).json({ error: 'internal_error' });
@@ -177,6 +203,10 @@ export async function handleChunksFetch(
       return;
     }
     const { layer: layerName, keys } = parse.data;
+    if (isInternalMapLayer(layerName)) {
+      res.status(400).json({ error: 'reserved layer' });
+      return;
+    }
     const map = await findMapById(prisma, pathParam(req, 'id'), tenant.id);
     if (!map) {
       res.status(404).json({ error: 'map not found' });

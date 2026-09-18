@@ -15,7 +15,13 @@
  */
 import fs from 'fs/promises';
 import type { PrismaClient } from '../generated/prisma/index.js';
+import { reconcileCollisionTiles, rectCollisionTiles } from '../api/utils/collisionReconciler.js';
+import { acquireMapAdvisoryLock } from '../api/utils/advisoryLocks.js';
+import { importedLayerStorageName, isReservedImportLayer } from '../api/utils/mapLayerPolicy.js';
+import type { MapDb } from '../api/utils/mapChunkMutations.js';
 import { encodeRlePairsToBuffer, rleEncodeBooleans, rleEncodeNumbers, tileRefIdFrom } from '../mapEncoding.js';
+
+type ImportDb = PrismaClient | MapDb;
 
 export type TmjTileset = {
   firstgid: number;
@@ -118,7 +124,7 @@ export function readZonesFromObjectLayers(layers: TmjLayer[]): TmjZone[] {
  * for the spawn.
  */
 export async function persistSpawnFromTmj(
-  prisma: PrismaClient,
+  prisma: ImportDb,
   map: { id: string; meta: unknown },
   tmj: Tmj,
 ): Promise<void> {
@@ -132,7 +138,7 @@ export async function persistSpawnFromTmj(
 }
 
 async function persistMapMetadataFromTmj(
-  prisma: PrismaClient,
+  prisma: ImportDb,
   map: { id: string; meta: unknown },
   tmj: Tmj,
   zones: TmjZone[],
@@ -154,7 +160,7 @@ async function persistMapMetadataFromTmj(
   });
 }
 
-function upsertMap(prisma: PrismaClient, tenantId: string, mapName: string, tmj: Tmj, chunkSize: number) {
+function upsertMap(prisma: ImportDb, tenantId: string, mapName: string, tmj: Tmj, chunkSize: number) {
   return prisma.map.upsert({
     where: { tenantId_name: { tenantId, name: mapName } },
     create: {
@@ -177,7 +183,7 @@ function upsertMap(prisma: PrismaClient, tenantId: string, mapName: string, tmj:
   });
 }
 
-async function rebuildTilesetRegistry(prisma: PrismaClient, mapId: string, tilesets: TmjTileset[]) {
+async function rebuildTilesetRegistry(prisma: ImportDb, mapId: string, tilesets: TmjTileset[]) {
   await prisma.mapTileset.deleteMany({ where: { mapId } });
   for (let i = 0; i < tilesets.length; i++) {
     const t = tilesets[i];
@@ -224,7 +230,7 @@ function makeGidConverter(tilesets: TmjTileset[]) {
   };
 }
 
-async function clearExistingLayers(prisma: PrismaClient, mapId: string) {
+async function clearExistingLayers(prisma: ImportDb, mapId: string) {
   const existingLayers = await prisma.mapLayer.findMany({ where: { mapId } });
   for (const l of existingLayers) {
     await prisma.mapChunk.deleteMany({ where: { layerId: l.id } });
@@ -250,7 +256,7 @@ function buildTileRefArray(
 }
 
 async function persistChunks(
-  prisma: PrismaClient,
+  prisma: ImportDb,
   layerId: string,
   tileRefs: number[],
   width: number,
@@ -288,7 +294,7 @@ async function persistChunks(
 }
 
 async function importTileLayers(
-  prisma: PrismaClient,
+  prisma: ImportDb,
   mapId: string,
   tmj: Tmj,
   chunkSize: number,
@@ -302,7 +308,9 @@ async function importTileLayers(
 
   for (const [layerName, enc] of layersWanted) {
     const tmjLayer = tmj.layers.find((l) => (l.name || '').toLowerCase().includes(layerName));
-    const layer = await prisma.mapLayer.create({ data: { mapId, name: layerName, chunkSize } });
+    const layer = await prisma.mapLayer.create({
+      data: { mapId, name: importedLayerStorageName(layerName), chunkSize },
+    });
     if (!tmjLayer || !Array.isArray(tmjLayer.data)) continue;
 
     const width = tmjLayer.width || tmj.width;
@@ -350,7 +358,7 @@ function deriveTilePositionFromTiled(obj: TmjObject, tileWidthPx: number, tileHe
 }
 
 async function importObjectGroup(
-  prisma: PrismaClient,
+  prisma: ImportDb,
   mapId: string,
   chunkSize: number,
   tileWidthPx: number,
@@ -437,12 +445,7 @@ async function importObjectGroup(
   return created;
 }
 
-async function rebuildZonesFromTmj(
-  prisma: PrismaClient,
-  tenantId: string,
-  mapId: string,
-  zones: TmjZone[],
-): Promise<void> {
+async function rebuildZonesFromTmj(prisma: ImportDb, tenantId: string, mapId: string, zones: TmjZone[]): Promise<void> {
   await prisma.zone.deleteMany({ where: { mapId } });
   if (zones.length === 0) return;
   const room = await prisma.room.upsert({
@@ -492,7 +495,7 @@ export function resolveObjectDataUrl(obj: TmjObject, tilesets: TmjTileset[], ite
   return `/assets/furniture/${group}/${itemId}.png`;
 }
 
-async function importObjectGroups(prisma: PrismaClient, mapId: string, tmj: Tmj, chunkSize: number) {
+async function importObjectGroups(prisma: ImportDb, mapId: string, tmj: Tmj, chunkSize: number) {
   let total = 0;
   for (const layer of tmj.layers) {
     if (layer.type !== 'objectgroup') continue;
@@ -501,7 +504,7 @@ async function importObjectGroups(prisma: PrismaClient, mapId: string, tmj: Tmj,
   return total;
 }
 
-async function clearExistingObjects(prisma: PrismaClient, mapId: string) {
+async function clearExistingObjects(prisma: ImportDb, mapId: string) {
   await prisma.mapObject.deleteMany({ where: { mapId } });
 }
 
@@ -520,20 +523,32 @@ export async function importTmjIntoMap(
 ): Promise<{ mapId: string; objectsCreated: number }> {
   const raw = await fs.readFile(tmjPath, 'utf8');
   const tmj = JSON.parse(raw) as Tmj;
-
-  const map = await upsertMap(prisma, tenantId, mapName, tmj, chunkSize);
+  const reservedLayer = tmj.layers.find((layer) => layer.type === 'tilelayer' && isReservedImportLayer(layer.name));
+  if (reservedLayer) throw new Error(`reserved_import_layer:${reservedLayer.name}`);
   const zones = readZonesFromObjectLayers(tmj.layers);
-  await persistMapMetadataFromTmj(prisma, map, tmj, zones);
-  await rebuildTilesetRegistry(prisma, map.id, tmj.tilesets);
-
   const gidToTileRefId = makeGidConverter(tmj.tilesets);
+  return prisma.$transaction(async (tx) => {
+    const existing = await tx.map.findUnique({
+      where: { tenantId_name: { tenantId, name: mapName } },
+      select: { id: true },
+    });
+    if (existing) await acquireMapAdvisoryLock(tx, existing.id);
+    const map = await upsertMap(tx, tenantId, mapName, tmj, chunkSize);
+    if (!existing) await acquireMapAdvisoryLock(tx, map.id);
+    await persistMapMetadataFromTmj(tx, map, tmj, zones);
+    await rebuildTilesetRegistry(tx, map.id, tmj.tilesets);
+    await clearExistingLayers(tx, map.id);
+    await clearExistingObjects(tx, map.id);
+    await rebuildZonesFromTmj(tx, tenantId, map.id, zones);
 
-  await clearExistingLayers(prisma, map.id);
-  await clearExistingObjects(prisma, map.id);
-  await rebuildZonesFromTmj(prisma, tenantId, map.id, zones);
-
-  await importTileLayers(prisma, map.id, tmj, chunkSize, gidToTileRefId);
-  const objectsCreated = await importObjectGroups(prisma, map.id, tmj, chunkSize);
-
-  return { mapId: map.id, objectsCreated };
+    await importTileLayers(tx, map.id, tmj, chunkSize, gidToTileRefId);
+    const objectsCreated = await importObjectGroups(tx, map.id, tmj, chunkSize);
+    await reconcileCollisionTiles(
+      tx,
+      map.id,
+      { chunkSize, tileWidth: tmj.tilewidth, tileHeight: tmj.tileheight },
+      rectCollisionTiles({ x0: 0, y0: 0, x1: tmj.width - 1, y1: tmj.height - 1 }, chunkSize),
+    );
+    return { mapId: map.id, objectsCreated };
+  });
 }

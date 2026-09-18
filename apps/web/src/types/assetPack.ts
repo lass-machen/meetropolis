@@ -49,6 +49,7 @@ export interface AssetPackAutotile {
   dataURL: string;
   tileWidth: number;
   tileHeight: number;
+  gridHeight: number;
   variants: Record<string, AssetPackAutotileVariant>;
   collide?: boolean;
   placement?: 'any' | 'floor' | 'wall';
@@ -99,13 +100,13 @@ export interface PackItem {
 }
 
 export interface AutotileEditorItem {
-  wallTypeId: number;
   packUuid: string;
   autotileId: string;
   key: string;
   textureUrl: string;
   tileWidth: number;
   tileHeight: number;
+  gridHeight: number;
   variants: Record<string, AssetPackAutotileVariant>;
   collide: boolean;
   placement: 'any' | 'floor' | 'wall';
