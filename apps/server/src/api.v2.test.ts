@@ -68,6 +68,9 @@ const mem = {
 // api.ts imports PrismaClient from './generated/prisma/index.js'.
 vi.mock('./generated/prisma/index.js', () => {
   class PrismaClientMock {
+    $transaction(callback: (client: PrismaClientMock) => Promise<unknown>) {
+      return callback(this);
+    }
     map = {
       findFirst({ where }: any) {
         return (
@@ -89,6 +92,9 @@ vi.mock('./generated/prisma/index.js', () => {
         if (!m) throw new Error('map not found');
         Object.assign(m, data);
         return m as any;
+      },
+      findUnique({ where }: any) {
+        return mem.maps.find((m) => m.id === where.id) || null;
       },
     };
     mapLayer = {
@@ -128,6 +134,12 @@ vi.mock('./generated/prisma/index.js', () => {
         Object.assign(c, data);
         return c as any;
       },
+      updateMany({ where, data }: any) {
+        const c = mem.chunks.find((chunk) => chunk.id === where.id && chunk.version === where.version);
+        if (!c) return { count: 0 };
+        Object.assign(c, data, { version: c.version + (data.version?.increment ?? 0) });
+        return { count: 1 };
+      },
     };
     mapTileset = {
       findMany({ where, orderBy: _orderBy, select: _select }: any) {
@@ -157,6 +169,11 @@ vi.mock('./generated/prisma/index.js', () => {
       },
     };
     mapAutotile = {
+      findMany() {
+        return [] as any;
+      },
+    };
+    mapObject = {
       findMany() {
         return [] as any;
       },

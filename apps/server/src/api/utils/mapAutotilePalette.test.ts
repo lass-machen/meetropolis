@@ -51,9 +51,14 @@ function allocatorPrisma() {
         rows.push(entry);
         return entry;
       }),
+      aggregate: vi.fn(() => ({ _max: { slot: rows.at(-1)?.slot ?? null } })),
     },
     map: {
-      update: vi.fn(() => ({ nextAutotileSlot: ++nextAutotileSlot })),
+      findUnique: vi.fn(() => ({ nextAutotileSlot })),
+      update: vi.fn(({ data }: { data: { nextAutotileSlot: number } }) => {
+        nextAutotileSlot = data.nextAutotileSlot;
+        return { nextAutotileSlot };
+      }),
     },
   };
   const prisma = {
@@ -92,6 +97,15 @@ describe('map-local autotile palette allocation', () => {
     expect(result).toEqual({ entry: concurrent, created: false });
     expect(transaction).toHaveBeenCalledTimes(2);
     expect(tx.mapAutotile.create).not.toHaveBeenCalled();
+  });
+
+  it('repairs a counter that fell behind an existing slot', async () => {
+    const { prisma, rows } = allocatorPrisma();
+    rows.push(row({ ...IDENTITY, autotileId: 'legacy-wall' }, 7));
+
+    const result = await allocateMapAutotile(prisma, 'map-one', IDENTITY, SNAPSHOT);
+
+    expect(result).toMatchObject({ created: true, entry: { slot: 8 } });
   });
 
   it('rejects an autotile whose pack is outside the caller scope', async () => {

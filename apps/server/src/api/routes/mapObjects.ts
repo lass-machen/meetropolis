@@ -7,11 +7,9 @@ import { resolvePackScope } from '../utils/resolvePackScope.js';
 import { assetPackScopeWhere } from '../../services/packScope.js';
 import { pathParam } from '../utils/requestHelpers.js';
 import { broadcastMapUpdate } from '../utils/broadcast.js';
-import {
-  computeFootprintTiles,
-  updateCollisionChunks,
-  removeCollisionAndReconcile,
-} from '../utils/collisionHelpers.js';
+import { computeFootprintTiles } from '../utils/collisionHelpers.js';
+import { reconcileObjectCollision } from '../utils/objectCollision.js';
+import { runSerializable, type ChunkUpdateResult, type MapDb } from '../utils/mapChunkMutations.js';
 
 // ---------------------------------------------------------------------------
 // Zod Schemas
@@ -65,66 +63,12 @@ function getMapDimensions(map: { chunkSize: number | null; tileWidth: number | n
   };
 }
 
-async function applyCollisionForObject(
-  prisma: PrismaClient,
+function broadcastCollisionUpdates(
   tenantSlug: string,
   mapId: string,
   mapName: string,
-  dims: { chunkSize: number; tileWidth: number; tileHeight: number },
-  obj: {
-    tileX: number;
-    tileY: number;
-    width: number;
-    height: number;
-    scaleFactor?: number;
-    collisionBaseHeight?: number;
-  },
-) {
-  const sf = obj.scaleFactor ?? 1;
-  const tiles = computeFootprintTiles(
-    obj.tileX,
-    obj.tileY,
-    obj.width * sf,
-    obj.height * sf,
-    dims.tileWidth,
-    dims.tileHeight,
-    dims.chunkSize,
-    obj.collisionBaseHeight ?? 0,
-  );
-  const updates = await updateCollisionChunks(prisma, mapId, dims.chunkSize, tiles, true);
-  if (updates.length > 0) {
-    broadcastMapUpdate(tenantSlug, 'chunks_updated', {
-      mapId,
-      mapName,
-      layer: 'collision',
-      updates,
-    });
-  }
-}
-
-async function removeCollisionForObject(
-  prisma: PrismaClient,
-  tenantSlug: string,
-  mapId: string,
-  mapName: string,
-  dims: { chunkSize: number; tileWidth: number; tileHeight: number },
-  obj: {
-    tileX: number;
-    tileY: number;
-    width: number;
-    height: number;
-    scaleFactor?: number;
-    collisionBaseHeight?: number;
-  },
-) {
-  const sf = obj.scaleFactor ?? 1;
-  const updates = await removeCollisionAndReconcile(prisma, mapId, dims.chunkSize, dims.tileWidth, dims.tileHeight, {
-    tileX: obj.tileX,
-    tileY: obj.tileY,
-    width: obj.width * sf,
-    height: obj.height * sf,
-    collisionBaseHeight: obj.collisionBaseHeight ?? 0,
-  });
+  updates: ChunkUpdateResult[],
+): void {
   if (updates.length > 0) {
     broadcastMapUpdate(tenantSlug, 'chunks_updated', {
       mapId,
@@ -236,12 +180,7 @@ async function handleListObjects(prisma: PrismaClient, req: express.Request, res
   }
 }
 
-function persistMapObject(
-  prisma: PrismaClient,
-  mapId: string,
-  data: z.infer<typeof createObjectSchema>,
-  chunkSize: number,
-) {
+function persistMapObject(prisma: MapDb, mapId: string, data: z.infer<typeof createObjectSchema>, chunkSize: number) {
   const chunkX = Math.floor(data.tileX / chunkSize);
   const chunkY = Math.floor(data.tileY / chunkSize);
   return prisma.mapObject.create({
@@ -307,11 +246,12 @@ async function handleCreateObject(prisma: PrismaClient, req: express.Request, re
     }
 
     const dims = getMapDimensions(map);
-    const obj = await persistMapObject(prisma, map.id, data, dims.chunkSize);
-
-    if (data.collide) {
-      await applyCollisionForObject(prisma, tenant.slug, map.id, map.name, dims, data);
-    }
+    const { obj, collisionUpdates } = await runSerializable(prisma, async (tx) => {
+      const obj = await persistMapObject(tx, map.id, data, dims.chunkSize);
+      const collisionUpdates = data.collide ? await reconcileObjectCollision(tx, map.id, dims, [data]) : [];
+      return { obj, collisionUpdates };
+    });
+    broadcastCollisionUpdates(tenant.slug, map.id, map.name, collisionUpdates);
 
     broadcastMapUpdate(tenant.slug, 'objects_updated', {
       mapId: map.id,
@@ -367,30 +307,22 @@ async function handleUpdateObject(prisma: PrismaClient, req: express.Request, re
       (updateData.tileX !== undefined && updateData.tileX !== existing.tileX) ||
       (updateData.tileY !== undefined && updateData.tileY !== existing.tileY);
 
-    if (existing.collide && positionChanged) {
-      await removeCollisionForObject(prisma, tenant.slug, map.id, map.name, dims, existing);
-    }
-
     const newTileX = updateData.tileX ?? existing.tileX;
     const newTileY = updateData.tileY ?? existing.tileY;
     const newChunkX = positionChanged ? Math.floor(newTileX / dims.chunkSize) : existing.chunkX;
     const newChunkY = positionChanged ? Math.floor(newTileY / dims.chunkSize) : existing.chunkY;
 
-    const updated = await prisma.mapObject.update({
-      where: { id: objId },
-      data: { ...updateData, chunkX: newChunkX, chunkY: newChunkY },
-    });
-
-    if (existing.collide && positionChanged) {
-      await applyCollisionForObject(prisma, tenant.slug, map.id, map.name, dims, {
-        tileX: newTileX,
-        tileY: newTileY,
-        width: existing.width,
-        height: existing.height,
-        scaleFactor: existing.scaleFactor,
-        collisionBaseHeight: existing.collisionBaseHeight,
+    const moved = { ...existing, tileX: newTileX, tileY: newTileY };
+    const { updated, collisionUpdates } = await runSerializable(prisma, async (tx) => {
+      const updated = await tx.mapObject.update({
+        where: { id: objId },
+        data: { ...updateData, chunkX: newChunkX, chunkY: newChunkY },
       });
-    }
+      const collisionUpdates =
+        existing.collide && positionChanged ? await reconcileObjectCollision(tx, map.id, dims, [existing, moved]) : [];
+      return { updated, collisionUpdates };
+    });
+    broadcastCollisionUpdates(tenant.slug, map.id, map.name, collisionUpdates);
 
     broadcastMapUpdate(tenant.slug, 'objects_updated', {
       mapId: map.id,
@@ -433,12 +365,12 @@ async function handleDeleteObject(prisma: PrismaClient, req: express.Request, re
       return;
     }
 
-    await prisma.mapObject.delete({ where: { id: objId } });
-
-    if (existing.collide) {
-      const dims = getMapDimensions(map);
-      await removeCollisionForObject(prisma, tenant.slug, map.id, map.name, dims, existing);
-    }
+    const dims = getMapDimensions(map);
+    const collisionUpdates = await runSerializable(prisma, async (tx) => {
+      await tx.mapObject.delete({ where: { id: objId } });
+      return existing.collide ? reconcileObjectCollision(tx, map.id, dims, [existing]) : [];
+    });
+    broadcastCollisionUpdates(tenant.slug, map.id, map.name, collisionUpdates);
 
     broadcastMapUpdate(tenant.slug, 'objects_updated', {
       mapId: map.id,
@@ -457,7 +389,7 @@ async function handleDeleteObject(prisma: PrismaClient, req: express.Request, re
 type PersistedMapObject = Awaited<ReturnType<typeof persistMapObject>>;
 
 async function bulkInsertObjects(
-  prisma: PrismaClient,
+  prisma: MapDb,
   mapId: string,
   objects: z.infer<typeof bulkCreateSchema>['objects'],
   dims: { chunkSize: number; tileWidth: number; tileHeight: number },
@@ -533,19 +465,20 @@ async function handleBulkCreateObjects(
       }
     }
 
-    const { created, allCollisionTiles } = await bulkInsertObjects(prisma, map.id, parse.data.objects, dims);
-
-    if (allCollisionTiles.length > 0) {
-      const collisionUpdates = await updateCollisionChunks(prisma, map.id, dims.chunkSize, allCollisionTiles, true);
-      if (collisionUpdates.length > 0) {
-        broadcastMapUpdate(tenant.slug, 'chunks_updated', {
-          mapId: map.id,
-          mapName: map.name,
-          layer: 'collision',
-          updates: collisionUpdates,
-        });
-      }
-    }
+    const { created, collisionUpdates } = await runSerializable(prisma, async (tx) => {
+      const result = await bulkInsertObjects(tx, map.id, parse.data.objects, dims);
+      const collisionUpdates =
+        result.allCollisionTiles.length > 0
+          ? await reconcileObjectCollision(
+              tx,
+              map.id,
+              dims,
+              parse.data.objects.filter((object) => object.collide),
+            )
+          : [];
+      return { created: result.created, collisionUpdates };
+    });
+    broadcastCollisionUpdates(tenant.slug, map.id, map.name, collisionUpdates);
 
     broadcastMapUpdate(tenant.slug, 'objects_updated', {
       mapId: map.id,

@@ -67,7 +67,7 @@ interface PrismaOpts {
 
 function makePrisma(opts: PrismaOpts = {}): PrismaClient {
   const { apiTokenUserId, membershipThrows = false } = opts;
-  return {
+  const prisma = {
     tenant: {
       findUnique: vi.fn(({ where }: { where: { slug?: string } }) =>
         Promise.resolve(where.slug === 'internal' ? { id: INTERNAL_TENANT_ID, slug: 'internal' } : null),
@@ -114,6 +114,8 @@ function makePrisma(opts: PrismaOpts = {}): PrismaClient {
       delete: vi.fn(() => Promise.resolve(OBJECT_ROW)),
     },
   } as unknown as PrismaClient;
+  prisma.$transaction = vi.fn((callback) => callback(prisma));
+  return prisma;
 }
 
 const TENANTS: Record<string, Partial<Tenant>> = {

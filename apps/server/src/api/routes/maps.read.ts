@@ -102,7 +102,7 @@ async function autoPatchMapDimensions<
 
 async function buildLayerIndex(prisma: PrismaClient, mapId: string) {
   const layers = await prisma.mapLayer.findMany({
-    where: { mapId },
+    where: { mapId, name: { not: 'collision_manual' } },
     select: { id: true, name: true, chunkSize: true },
   });
   const layerIndex: Record<string, { keys: string[]; chunkSize: number }> = {};
@@ -195,6 +195,10 @@ export async function handleChunksFetch(
       return;
     }
     const { layer: layerName, keys } = parse.data;
+    if (layerName === 'collision_manual') {
+      res.status(400).json({ error: 'reserved layer' });
+      return;
+    }
     const map = await findMapById(prisma, pathParam(req, 'id'), tenant.id);
     if (!map) {
       res.status(404).json({ error: 'map not found' });
