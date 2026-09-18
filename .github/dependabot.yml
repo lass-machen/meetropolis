@@ -46,6 +46,13 @@ updates:
       - dependency-name: 'typescript'
         update-types:
           - 'version-update:semver-major'
+      # mysql2: GHSA-3f6p-5ww8-9rcr is fixed in 3.22.0, but the only consumer is
+      # the `prisma` CLI, which pins 3.15.3 exactly. The MySQL driver is never
+      # loaded here (Postgres via @prisma/adapter-pg) and `prisma` is a
+      # devDependency that `npm prune --omit=dev` strips from the runtime image.
+      # An override would overrule an upstream exact pin without removing real
+      # exposure. Remove this entry once prisma ships a patched mysql2.
+      - dependency-name: 'mysql2'
 
   # Asset Atelier has its own lockfile and is not part of the root npm workspace.
   - package-ecosystem: 'npm'
