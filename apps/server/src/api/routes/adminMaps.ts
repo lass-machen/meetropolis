@@ -7,6 +7,7 @@ import { requireSuperAdmin } from '../utils/authHelpers.js';
 import { pathParam } from '../utils/requestHelpers.js';
 import { copyMapToTenant } from './adminMaps.copy.js';
 import { handleImportAdminMap } from './adminMaps.tiledImport.js';
+import { INTERNAL_MAP_LAYER_NAMES } from '../utils/mapLayerPolicy.js';
 
 export { copyMapToTenant } from './adminMaps.copy.js';
 
@@ -76,7 +77,10 @@ async function handleGetAdminMap(prisma: PrismaClient, req: express.Request, res
         rooms: { include: { zones: true } },
         tilesets: { orderBy: { slot: 'asc' } },
         autotiles: { orderBy: { slot: 'asc' } },
-        layers: { include: { _count: { select: { chunks: true } } } },
+        layers: {
+          where: { name: { notIn: [...INTERNAL_MAP_LAYER_NAMES] } },
+          include: { _count: { select: { chunks: true } } },
+        },
         _count: { select: { objects: true } },
       },
     });

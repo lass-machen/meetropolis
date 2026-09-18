@@ -8,6 +8,9 @@ import { logger } from '../../logger.js';
 import { requireAuth, getTenantFromReq } from '../utils/authHelpers.js';
 import { pathParam } from '../utils/requestHelpers.js';
 import { broadcastMapUpdate } from '../utils/broadcast.js';
+import { reconcileCollisionTiles, rectCollisionTiles } from '../utils/collisionReconciler.js';
+import { importedLayerStorageName, INTERNAL_MAP_LAYER_NAMES, isReservedImportLayer } from '../utils/mapLayerPolicy.js';
+import type { MapDb } from '../utils/mapChunkMutations.js';
 import type { MulterFile, RequestWithMulterFields } from '../../types/multer.js';
 import {
   TmjSchema,
@@ -72,7 +75,7 @@ function saveTilesetImage(images: MulterFile[], tilesetImage: string): string | 
 // Helpers used by import/export route handlers
 // ---------------------------------------------------------------------------
 
-async function clearExistingMapData(prisma: PrismaClient, mapId: string): Promise<void> {
+async function clearExistingMapData(prisma: MapDb, mapId: string): Promise<void> {
   const existingLayers = await prisma.mapLayer.findMany({ where: { mapId } });
   for (const l of existingLayers) {
     await prisma.mapChunk.deleteMany({ where: { layerId: l.id } });
@@ -82,7 +85,7 @@ async function clearExistingMapData(prisma: PrismaClient, mapId: string): Promis
 }
 
 async function registerImportedTilesets(
-  prisma: PrismaClient,
+  prisma: MapDb,
   mapId: string,
   tmjTilesets: import('../../services/tmjService.js').Tmj['tilesets'],
   images: MulterFile[],
@@ -107,7 +110,7 @@ async function registerImportedTilesets(
 }
 
 async function processTileLayers(
-  prisma: PrismaClient,
+  prisma: MapDb,
   mapId: string,
   tmj: import('../../services/tmjService.js').Tmj,
   chunkSize: number,
@@ -130,8 +133,9 @@ async function processTileLayers(
     const tileRefs = flatGidsToTileRefIds(tmjLayer.data, match.encoding, firstGids, toSlot);
     const chunks = chunkAndEncode(tileRefs, width, height, chunkSize, match.encoding);
 
+    const storageName = importedLayerStorageName(match.v2Name);
     const layer = await prisma.mapLayer.create({
-      data: { mapId, name: match.v2Name, chunkSize },
+      data: { mapId, name: storageName, chunkSize },
     });
     for (const chunk of chunks) {
       await prisma.mapChunk.create({
@@ -152,7 +156,7 @@ async function processTileLayers(
 }
 
 async function processZones(
-  prisma: PrismaClient,
+  prisma: MapDb,
   mapId: string,
   tenantId: string,
   layers: import('../../services/tmjService.js').Tmj['layers'],
@@ -197,7 +201,11 @@ async function processZones(
   return zoneCount;
 }
 
-async function handleTmjImport(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
+export async function handleTmjImport(
+  prisma: PrismaClient,
+  req: express.Request,
+  res: express.Response,
+): Promise<void> {
   try {
     const auth = requireAuth(req);
     if (!auth) {
@@ -232,6 +240,20 @@ async function handleTmjImport(prisma: PrismaClient, req: express.Request, res: 
     }
     const tmj = parse.data;
 
+    const reservedLayer = tmj.layers.find((layer) => layer.type === 'tilelayer' && isReservedImportLayer(layer.name));
+    if (reservedLayer) {
+      res.status(400).json({ error: 'reserved_layer', layer: reservedLayer.name });
+      return;
+    }
+    const mappedNames = tmj.layers
+      .filter((layer) => layer.type === 'tilelayer' && layer.data)
+      .map((layer) => matchTmjLayerToV2(layer.name)?.v2Name)
+      .filter((name): name is string => !!name);
+    if (new Set(mappedNames).size !== mappedNames.length) {
+      res.status(400).json({ error: 'duplicate_mapped_layer' });
+      return;
+    }
+
     const mode = (req.query.mode as string) === 'merge' ? 'merge' : 'replace';
     const chunkSize = 32;
 
@@ -241,35 +263,38 @@ async function handleTmjImport(prisma: PrismaClient, req: express.Request, res: 
       return;
     }
 
-    await prisma.map.update({
-      where: { id: map.id },
-      data: {
-        width: tmj.width,
-        height: tmj.height,
-        tileWidth: tmj.tilewidth,
-        tileHeight: tmj.tileheight,
-        chunkSize,
-      },
-    });
-
-    if (mode === 'replace') {
-      await clearExistingMapData(prisma, map.id);
-    }
-
     const images: MulterFile[] = reqWithFiles.files?.images ?? [];
-    await registerImportedTilesets(prisma, map.id, tmj.tilesets, images);
-
-    const { warnings, layerCounts } = await processTileLayers(prisma, map.id, tmj, chunkSize);
-    const zoneCount = await processZones(prisma, map.id, tenant.id, tmj.layers, mode);
-
     const spawnPoint = extractSpawnFromObjectLayers(tmj.layers);
-    if (spawnPoint) {
-      const currentMeta = (map.meta as Record<string, unknown>) || {};
-      await prisma.map.update({
+    const importResult = await prisma.$transaction(async (tx) => {
+      await tx.map.update({
         where: { id: map.id },
-        data: { meta: { ...currentMeta, spawn: spawnPoint } },
+        data: {
+          width: tmj.width,
+          height: tmj.height,
+          tileWidth: tmj.tilewidth,
+          tileHeight: tmj.tileheight,
+          chunkSize,
+        },
       });
-    }
+      if (mode === 'replace') await clearExistingMapData(tx, map.id);
+      await registerImportedTilesets(tx, map.id, tmj.tilesets, images);
+      const layers = await processTileLayers(tx, map.id, tmj, chunkSize);
+      const zoneCount = await processZones(tx, map.id, tenant.id, tmj.layers, mode);
+      if (spawnPoint) {
+        const currentMeta = (map.meta as Record<string, unknown>) || {};
+        await tx.map.update({ where: { id: map.id }, data: { meta: { ...currentMeta, spawn: spawnPoint } } });
+      }
+      if (layers.layerCounts.collision !== undefined) {
+        await reconcileCollisionTiles(
+          tx,
+          map.id,
+          { chunkSize, tileWidth: tmj.tilewidth, tileHeight: tmj.tileheight },
+          rectCollisionTiles({ x0: 0, y0: 0, x1: tmj.width - 1, y1: tmj.height - 1 }, chunkSize),
+        );
+      }
+      return { ...layers, zoneCount };
+    });
+    const { warnings, layerCounts, zoneCount } = importResult;
 
     broadcastMapUpdate(tenant.slug, 'editor_update', { type: 'all', mapId: map.id, mapName: map.name });
 
@@ -296,7 +321,9 @@ async function handleTmjImport(prisma: PrismaClient, req: express.Request, res: 
 }
 
 async function loadLayersWithChunks(prisma: PrismaClient, mapId: string) {
-  const dbLayers = await prisma.mapLayer.findMany({ where: { mapId } });
+  const dbLayers = await prisma.mapLayer.findMany({
+    where: { mapId, name: { notIn: [...INTERNAL_MAP_LAYER_NAMES] } },
+  });
   const layersWithChunks: Array<{
     name: string;
     encoding: string;
@@ -320,7 +347,11 @@ async function loadLayersWithChunks(prisma: PrismaClient, mapId: string) {
   return layersWithChunks;
 }
 
-async function handleTmjExport(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
+export async function handleTmjExport(
+  prisma: PrismaClient,
+  req: express.Request,
+  res: express.Response,
+): Promise<void> {
   try {
     const auth = requireAuth(req);
     if (!auth) {

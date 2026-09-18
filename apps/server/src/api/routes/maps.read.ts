@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { logger } from '../../logger.js';
 import { requireAuth, getTenantFromReq, requireMembership } from '../utils/authHelpers.js';
 import { pathParam } from '../utils/requestHelpers.js';
+import { INTERNAL_MAP_LAYER_NAMES, isInternalMapLayer } from '../utils/mapLayerPolicy.js';
 
 export function findMapById(prisma: PrismaClient, mapId: string, tenantId: string) {
   return prisma.map.findFirst({ where: { id: mapId, tenantId } });
@@ -102,7 +103,7 @@ async function autoPatchMapDimensions<
 
 async function buildLayerIndex(prisma: PrismaClient, mapId: string) {
   const layers = await prisma.mapLayer.findMany({
-    where: { mapId, name: { not: 'collision_manual' } },
+    where: { mapId, name: { notIn: [...INTERNAL_MAP_LAYER_NAMES] } },
     select: { id: true, name: true, chunkSize: true },
   });
   const layerIndex: Record<string, { keys: string[]; chunkSize: number }> = {};
@@ -195,7 +196,7 @@ export async function handleChunksFetch(
       return;
     }
     const { layer: layerName, keys } = parse.data;
-    if (layerName === 'collision_manual') {
+    if (isInternalMapLayer(layerName)) {
       res.status(400).json({ error: 'reserved layer' });
       return;
     }
