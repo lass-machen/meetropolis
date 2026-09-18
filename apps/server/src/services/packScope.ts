@@ -1,4 +1,4 @@
-import type { Prisma, PrismaClient } from '../generated/prisma/index.js';
+import type { Prisma } from '../generated/prisma/index.js';
 import { logger } from '../logger.js';
 import { getTenancyModule, type PackKind } from '../tenancyLoader.js';
 
@@ -66,7 +66,7 @@ function readUuidArray(value: unknown): readonly string[] | null {
 }
 
 async function resolveBlockedGlobalPackUuids(
-  prisma: PrismaClient,
+  prisma: Prisma.TransactionClient,
   tenantId: string | undefined,
   packKind: PackKind,
 ): Promise<readonly string[] | undefined> {
@@ -114,14 +114,14 @@ async function resolveBlockedGlobalPackUuids(
 }
 
 /** Resolve the public pre-login scope through the same enterprise contract. */
-export async function resolvePublicPackScope(prisma: PrismaClient, packKind: PackKind): Promise<PackScope> {
+export async function resolvePublicPackScope(prisma: Prisma.TransactionClient, packKind: PackKind): Promise<PackScope> {
   const blockedGlobalPackUuids = await resolveBlockedGlobalPackUuids(prisma, undefined, packKind);
   return blockedGlobalPackUuids === undefined ? CATALOG_SCOPE : { kind: 'catalog', blockedGlobalPackUuids };
 }
 
 /** Resolve a proven tenant through the optional enterprise visibility hook. */
 export async function resolveTenantPackScope(
-  prisma: PrismaClient,
+  prisma: Prisma.TransactionClient,
   tenantId: string | null | undefined,
   packKind: PackKind,
 ): Promise<PackScope> {

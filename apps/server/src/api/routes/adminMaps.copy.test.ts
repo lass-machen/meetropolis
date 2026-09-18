@@ -30,7 +30,7 @@ vi.mock('../../tenancyLoader.js', () => ({
 }));
 
 import { copyMapToTenant, TargetPackAccessError } from './adminMaps.copy.js';
-import type { PrismaClient } from '../../generated/prisma/index.js';
+import { Prisma, type PrismaClient } from '../../generated/prisma/index.js';
 import {
   ENTERPRISE_PACK_RESOLVER_STATES,
   type EnterprisePackResolverState,
@@ -106,38 +106,41 @@ function matchesPackWhere(uuid: string, where: PackWhere): boolean {
 interface PackState {
   packExists?: boolean;
   packAccessible?: boolean;
+  sourceObject?: typeof SOURCE_OBJECT;
 }
 
-function makePrisma({ packExists = true, packAccessible = true }: PackState = {}) {
+function makePrisma({ packExists = true, packAccessible = true, sourceObject = SOURCE_OBJECT }: PackState = {}) {
   const mapObjectCreate = vi.fn((_args: MapObjectCreateArgs) => Promise.resolve({ id: 99 }));
+  const mapCreate = vi.fn(() => Promise.resolve({ id: 'map-copy', name: 'office' }));
   const tx = {
-    map: { create: vi.fn(() => Promise.resolve({ id: 'map-copy', name: 'office' })) },
+    map: {
+      findUnique: vi.fn(({ where }: { where: { id?: string; tenantId_name?: unknown } }) =>
+        Promise.resolve(where.id === SOURCE_MAP_ID ? { ...SOURCE_MAP, objects: [sourceObject] } : null),
+      ),
+      create: mapCreate,
+    },
     mapTileset: { create: vi.fn(() => Promise.resolve({})) },
     mapLayer: { create: vi.fn(() => Promise.resolve({ id: 'layer-copy' })) },
     mapChunk: { create: vi.fn(() => Promise.resolve({})) },
     mapObject: { create: mapObjectCreate },
     room: { create: vi.fn(() => Promise.resolve({ id: 'room-copy' })) },
     zone: { create: vi.fn(() => Promise.resolve({})) },
-  };
-  const transaction = vi.fn((fn: (client: typeof tx) => Promise<unknown>) => fn(tx));
-  const prisma = {
-    map: {
-      findUnique: vi.fn(({ where }: { where: { id?: string; tenantId_name?: unknown } }) =>
-        // `where.id` -> the source lookup; `where.tenantId_name` -> the
-        // name-collision probe in resolveCopyName (no collision here).
-        Promise.resolve(where.id === SOURCE_MAP_ID ? SOURCE_MAP : null),
-      ),
-    },
     assetPack: {
       findMany: vi.fn(({ where }: { where: PackWhere }) => {
         const hasScopeFilter = where.tenantId !== undefined || where.OR !== undefined || where.AND !== undefined;
-        const allowed = !hasScopeFilter || (packAccessible && matchesPackWhere(SOURCE_OBJECT.assetPackUuid, where));
-        return Promise.resolve(packExists && allowed ? [{ uuid: SOURCE_OBJECT.assetPackUuid }] : []);
+        const allowed = !hasScopeFilter || (packAccessible && matchesPackWhere(sourceObject.assetPackUuid, where));
+        return Promise.resolve(packExists && allowed ? [{ uuid: sourceObject.assetPackUuid }] : []);
       }),
     },
+  };
+  const transaction = vi.fn(
+    (fn: (client: typeof tx) => Promise<unknown>, _options: { isolationLevel: Prisma.TransactionIsolationLevel }) =>
+      fn(tx),
+  );
+  const prisma = {
     $transaction: transaction,
-  } as unknown as PrismaClient;
-  return { prisma, mapObjectCreate, transaction };
+  } as PrismaClient;
+  return { prisma, mapObjectCreate, mapCreate, transaction, tx };
 }
 
 beforeEach(() => {
@@ -186,8 +189,26 @@ describe('copyMapToTenant — object fidelity', () => {
       expect(transaction).toHaveBeenCalledOnce();
     } else {
       await expect(copy).rejects.toThrow();
-      expect(transaction).not.toHaveBeenCalled();
+      expect(transaction).toHaveBeenCalledOnce();
     }
+  });
+
+  it('uses one repeatable-read transaction for scope resolution, classification and copying', async () => {
+    tenancy.enabled = true;
+    tenancy.resolver.mockResolvedValue({ catalogPackUuids: [], accessiblePackUuids: [] });
+    const { prisma, transaction, tx } = makePrisma();
+
+    await copyMapToTenant(prisma, SOURCE_MAP_ID, TARGET_TENANT_ID, 'office');
+
+    expect(transaction).toHaveBeenCalledWith(expect.any(Function), {
+      isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead,
+    });
+    expect(tenancy.resolver).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({ tenantId: TARGET_TENANT_ID, packKind: 'asset' }),
+    );
+    expect(tx.map.findUnique).toHaveBeenCalled();
+    expect(tx.assetPack.findMany).toHaveBeenCalledTimes(2);
   });
 
   it('always permits an uncatalogued global base pack', async () => {
@@ -236,8 +257,61 @@ describe('copyMapToTenant — object fidelity', () => {
     expect(mapObjectCreate).toHaveBeenCalledOnce();
   });
 
-  it('rejects a registered source pack outside the target scope before starting the transaction', async () => {
-    const { prisma, transaction } = makePrisma({ packExists: true, packAccessible: false });
+  it('rejects an unknown UUID whose data URL points at a different pack', async () => {
+    const sourceObject = {
+      ...SOURCE_OBJECT,
+      assetPackUuid: 'missing-pseudo-pack',
+      dataUrl: '/packs/foreign-private/desk.png',
+    };
+    const { prisma, mapCreate } = makePrisma({ packExists: false, sourceObject });
+
+    await expect(copyMapToTenant(prisma, SOURCE_MAP_ID, TARGET_TENANT_ID, 'office')).rejects.toEqual(
+      expect.objectContaining<TargetPackAccessError>({
+        message: 'target_tenant_cannot_access_asset_packs:foreign-private',
+        packUuids: ['foreign-private'],
+      }),
+    );
+    expect(mapCreate).not.toHaveBeenCalled();
+  });
+
+  it('rejects an allowed UUID whose data URL points at a different pack', async () => {
+    const sourceObject = { ...SOURCE_OBJECT, dataUrl: '/packs/foreign-private/desk.png' };
+    const { prisma, mapCreate } = makePrisma({ sourceObject });
+
+    await expect(copyMapToTenant(prisma, SOURCE_MAP_ID, TARGET_TENANT_ID, 'office')).rejects.toThrow(
+      'target_tenant_cannot_access_asset_packs:foreign-private',
+    );
+    expect(mapCreate).not.toHaveBeenCalled();
+  });
+
+  it.each(['', 'data:image/png;base64,AAAA'])(
+    'copies an unknown UUID with a pack-independent data URL %j',
+    async (dataUrl) => {
+      const sourceObject = { ...SOURCE_OBJECT, assetPackUuid: 'missing-pseudo-pack', dataUrl };
+      const { prisma, mapObjectCreate } = makePrisma({ packExists: false, sourceObject });
+
+      await expect(copyMapToTenant(prisma, SOURCE_MAP_ID, TARGET_TENANT_ID, 'office')).resolves.toMatchObject({
+        id: 'map-copy',
+      });
+      expect(mapObjectCreate).toHaveBeenCalledOnce();
+    },
+  );
+
+  it('copies an allowed UUID whose pack path names the same UUID', async () => {
+    const sourceObject = {
+      ...SOURCE_OBJECT,
+      dataUrl: `/packs/${SOURCE_OBJECT.assetPackUuid}/desk.png`,
+    };
+    const { prisma, mapObjectCreate } = makePrisma({ sourceObject });
+
+    await expect(copyMapToTenant(prisma, SOURCE_MAP_ID, TARGET_TENANT_ID, 'office')).resolves.toMatchObject({
+      id: 'map-copy',
+    });
+    expect(mapObjectCreate).toHaveBeenCalledOnce();
+  });
+
+  it('rejects a registered source pack outside the target scope inside the transaction', async () => {
+    const { prisma, transaction, mapCreate } = makePrisma({ packExists: true, packAccessible: false });
 
     const copy = copyMapToTenant(prisma, SOURCE_MAP_ID, TARGET_TENANT_ID, 'office');
     await expect(copy).rejects.toEqual(
@@ -246,6 +320,7 @@ describe('copyMapToTenant — object fidelity', () => {
         packUuids: ['pixel-agents-furniture'],
       }),
     );
-    expect(transaction).not.toHaveBeenCalled();
+    expect(transaction).toHaveBeenCalledOnce();
+    expect(mapCreate).not.toHaveBeenCalled();
   });
 });

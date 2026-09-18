@@ -244,6 +244,19 @@ describe('tenancy loader pack-visibility contract', () => {
     );
   });
 
+  it('rejects a module that exposes both the current and legacy resolver names', async () => {
+    await expect(
+      loadTenancyModule(() =>
+        Promise.resolve({
+          version: 1,
+          isMultiTenantEnabled: noop,
+          resolvePackVisibility: _packVisibilityResolver,
+          resolveAdditionalPackUuids: () => Promise.resolve([]),
+        }),
+      ),
+    ).rejects.toThrow('resolveAdditionalPackUuids is no longer supported');
+  });
+
   it('uses OSS mode only when exactly @meetropolis/tenancy is absent', async () => {
     const missing = Object.assign(new Error("Cannot find package '@meetropolis/tenancy' imported from loader"), {
       code: 'ERR_MODULE_NOT_FOUND',

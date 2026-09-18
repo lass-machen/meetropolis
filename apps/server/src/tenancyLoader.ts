@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { PrismaClient } from './generated/prisma/index.js';
+import type { Prisma } from './generated/prisma/index.js';
 
 export type PackKind = 'asset' | 'avatar';
 
@@ -51,7 +51,10 @@ export type TenancyModule = {
    * Treating all global packs as merchandise would remove the furniture
    * palette and default characters from every tenant at once.
    */
-  resolvePackVisibility?: (prisma: PrismaClient, request: PackVisibilityRequest) => Promise<PackVisibilityResult>;
+  resolvePackVisibility?: (
+    prisma: Prisma.TransactionClient,
+    request: PackVisibilityRequest,
+  ) => Promise<PackVisibilityResult>;
 };
 
 /**

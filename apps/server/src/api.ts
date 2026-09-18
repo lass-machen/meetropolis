@@ -63,6 +63,11 @@ import { resolveTemplateTenantSlug } from './services/templateTenant.js';
 
 const prisma = createPrismaClient();
 
+/** The shared API client used by startup invariants before the server listens. */
+export function getApiPrismaClient(): PrismaClient {
+  return prisma;
+}
+
 // Tenant-admin guard injected into the enterprise billing routes via the loader
 // config. It verifies the caller holds an owner/admin membership in the resolved
 // tenant (or is a platform super-admin), so a spoofed X-Tenant header cannot
