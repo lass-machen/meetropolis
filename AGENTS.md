@@ -246,9 +246,9 @@ and the inbound license grant.
    compatible with both AGPL-3.0 and MIT. GPL-only or AGPL-only deps need
    maintainer agreement first.
 7. Run build, lint, typecheck and the relevant tests locally before
-   requesting review (CI is defined in `.github/workflows/ci.yml` but runs
-   only manually via workflow_dispatch while the org's GitHub Actions
-   billing is blocked, so verify locally).
+   requesting review. CI (`.github/workflows/ci.yml`) runs on every push and
+   pull request against `main`, and its six jobs are required status checks,
+   so a red run blocks the merge either way.
 8. At least one maintainer review is required before merge.
 
 Report bugs and request features via GitHub Issues. Use the templates
