@@ -59,7 +59,14 @@ describe('Produktgeneration atelier-v1', () => {
     const pack = json('/asset-packs/atelier-v1/holz.json');
     const parsed = ConfigSchema.parse(importablePack(pack));
     expect(parsed.uuid).toBe('4664b745-6bad-4d86-ae8f-591c57567692');
-    expect(parsed.autotiles).toEqual([]);
+    expect(parsed.autotiles).toHaveLength(1);
+    expect(parsed.autotiles[0]).toMatchObject({
+      id: 'atelier_v1_holz_wall_set',
+      gridHeight: 3,
+      collide: true,
+      placement: 'wall',
+    });
+    expect(Object.keys(parsed.autotiles[0].variants)).toHaveLength(16);
     expect(
       [...parsed.terrain, ...parsed.structures, ...parsed.objects].some((item) => item.id.endsWith('_wall_set')),
     ).toBe(false);
@@ -79,7 +86,8 @@ describe('Produktgeneration atelier-v1', () => {
     }
     const catalog = json('/assets/atelier/v1/catalog.json');
     expect(catalog.active).toBe(true);
-    expect(catalog.withheldAutotile).toMatchObject({ active: false, blockedBy: 'A28', gridHeight: 3 });
+    expect(catalog.withheldAutotile).toMatchObject({ active: true, gridHeight: 3 });
+    expect(catalog.withheldAutotile).not.toHaveProperty('blockedBy');
     const environmentAssets = catalog.environmentAssets as Array<{
       id: string;
       category: string;

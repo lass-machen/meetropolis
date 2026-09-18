@@ -85,7 +85,7 @@ function environmentMetadata(
 } {
   if (id === spec.autotile.assetId) {
     // Autotile config has no pack-category, collision-base or render-layer fields.
-    // Treat the withheld wall atlas conservatively as a colliding sorted structure;
+    // Treat the wall atlas conservatively as a colliding sorted structure;
     // collisionBaseHeight 0 means its full bounds collide when collide is true.
     return {
       category: 'structures',
@@ -151,9 +151,24 @@ function createPackManifest(spec: ProductSpec, urls: Record<AssetId, string>, di
       width: dimensions[id].x,
       height: dimensions[id].y,
     })),
-    // A28 must be closed before any global autotile becomes visible. The atlas
-    // remains an immutable artifact and its complete contract lives in catalog.json.
-    autotiles: [],
+    autotiles: [
+      {
+        id: `${spec.generation.replace('-', '_')}_${spec.palette.slug}_${spec.autotile.assetId}`,
+        key: assetDefinitions[spec.autotile.assetId].name,
+        category: 'autotile',
+        dataURL: urls[spec.autotile.assetId],
+        placement: 'wall',
+        collide: true,
+        tileWidth: spec.autotile.tileWidth,
+        tileHeight: spec.autotile.tileHeight,
+        gridHeight: spec.autotile.gridHeight,
+        autotileType: '4bit',
+        scaleFactor: 1,
+        variants: Object.fromEntries(
+          Array.from({ length: 16 }, (_, mask) => [String(mask), { col: mask % 4, row: Math.floor(mask / 4) }]),
+        ),
+      },
+    ],
   };
 }
 

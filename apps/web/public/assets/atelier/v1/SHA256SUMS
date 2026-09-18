@@ -1,6 +1,6 @@
-12390199b1796d983e5b6035d49cac597e78d1f9da99f265fed8657ad49dbd9e  apps/server/prisma/seed-data/asset-packs/atelier-v1/holz.json
+32b4852522adcd111c644b2908f48c535beb804fc5cd64c78125b25f76a5c472  apps/server/prisma/seed-data/asset-packs/atelier-v1/holz.json
 b677bed9e6354027fe230c7daa6982e1c74f7e75fb3f309231a00fe0a3c19c30  apps/server/prisma/seed-data/default-avatars/atelier-v1.json
-0de679c764e5b606e6d8cd661bdd897ce3754bed52c7a3de2557e047297c41a0  apps/web/public/assets/atelier/v1/catalog.json
+3cb74134b8651cec3a2aaf63aeeccbe2d48f616fd907cf8ee6ff56bc6f3c3592  apps/web/public/assets/atelier/v1/catalog.json
 a0b4416e7ed109a4cfcaed9366ddb98080bd63cc61703c4f5faf8b8ebbca8633  apps/web/public/assets/atelier/v1/holz/armchair.a0b4416e7ed1.png
 ed6667cc2cd5116e9ff2f8bd45333c4dba11cf7386bf94433591f4bb05034989  apps/web/public/assets/atelier/v1/holz/bench.ed6667cc2cd5.png
 fde503e0ca7177cc5c13dc32f21d889d21586006585d13adb89e94952ad8f2e4  apps/web/public/assets/atelier/v1/holz/cabinet.fde503e0ca71.png

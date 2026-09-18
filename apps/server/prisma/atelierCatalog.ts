@@ -23,6 +23,7 @@ interface AtelierPackManifest {
   terrain: Prisma.InputJsonArray;
   structures: Prisma.InputJsonArray;
   objects: Prisma.InputJsonArray;
+  autotiles: Prisma.InputJsonArray;
 }
 
 export interface AtelierProductData {

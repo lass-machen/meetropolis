@@ -155,7 +155,7 @@ describe('Atelier v1 standard map', () => {
       'Workplaces',
       'Points',
     ]);
-    expect(catalog.withheldAutotile.active).toBe(false);
+    expect(catalog.withheldAutotile.active).toBe(true);
     expect(tmj.tilesets.some((tileset) => tileset.image === catalog.withheldAutotile.url)).toBe(false);
 
     for (const tileset of tmj.tilesets) {

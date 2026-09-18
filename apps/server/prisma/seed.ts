@@ -332,12 +332,13 @@ async function main() {
     },
   });
 
-  // Atelier v1 is shipped catalog content, but unlike the legacy furniture
-  // pack it is create-only. Operators may customize an existing row, and a
-  // later deploy must not overwrite those choices.
+  // Atelier v1 is shipped catalog content. Existing operator customizations
+  // remain untouched except for the one-time A28 autotile backfill: the old
+  // seed intentionally wrote an empty list while walls_auto identities were
+  // unstable, so an empty list is the unambiguous pre-A28 state.
   const existingAtelierPack = await prisma.assetPack.findUnique({ where: { uuid: ATELIER_PACK_UUID } });
+  const { catalog, pack } = loadAtelierProductData(repoRoot);
   if (!existingAtelierPack) {
-    const { catalog, pack } = loadAtelierProductData(repoRoot);
     await prisma.assetPack.create({
       data: {
         uuid: ATELIER_PACK_UUID,
@@ -348,10 +349,13 @@ async function main() {
         terrain: pack.terrain,
         structures: pack.structures,
         objects: pack.objects,
-        // A28: walls_auto stores transient indexes derived from visible packs.
-        // A global autotile could reinterpret walls in existing customer maps.
-        autotiles: [],
+        autotiles: pack.autotiles,
       },
+    });
+  } else if (Array.isArray(existingAtelierPack.autotiles) && existingAtelierPack.autotiles.length === 0) {
+    await prisma.assetPack.update({
+      where: { uuid: ATELIER_PACK_UUID },
+      data: { autotiles: pack.autotiles },
     });
   }
 

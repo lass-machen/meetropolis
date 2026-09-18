@@ -38,8 +38,7 @@ export interface ProductSpec {
   wallPlacement: { assetIds: AssetId[]; gridHeight: number; anchor: Point; offset: Point };
   autotile: {
     assetId: AssetId;
-    active: false;
-    blockedBy: string;
+    active: true;
     tileWidth: number;
     tileHeight: number;
     gridHeight: number;
@@ -123,7 +122,7 @@ function parseProductSpec(value: unknown): ProductSpec {
   const wall = record(spec.wallPlacement, 'wallPlacement');
   const autotile = record(spec.autotile, 'autotile');
   if (spec.directionalStrategy !== 'separate-items') throw new Error('Unsupported directional strategy.');
-  if (autotile.active !== false) throw new Error('The product autotile must remain inactive.');
+  if (autotile.active !== true) throw new Error('The product autotile must be active.');
   return {
     schema: spec.schema,
     generation: slug(spec.generation, 'generation'),
@@ -159,8 +158,7 @@ function parseProductSpec(value: unknown): ProductSpec {
     },
     autotile: {
       assetId: assetId(autotile.assetId, 'autotile.assetId'),
-      active: false,
-      blockedBy: string(autotile.blockedBy, 'autotile.blockedBy'),
+      active: true,
       tileWidth: positiveInteger(autotile.tileWidth, 'autotile.tileWidth'),
       tileHeight: positiveInteger(autotile.tileHeight, 'autotile.tileHeight'),
       gridHeight: positiveInteger(autotile.gridHeight, 'autotile.gridHeight'),
