@@ -17,7 +17,7 @@
   },
   "dependencies": {
     "@colyseus/schema": "^4.0.30",
-    "@colyseus/sdk": "^0.17.43",
+    "@colyseus/sdk": "^0.18.3",
     "@radix-ui/primitive": "^1.1.7",
     "@radix-ui/react-dialog": "^1.1.23",
     "@radix-ui/react-popover": "1.1.23",
@@ -37,7 +37,7 @@
     "phaser": "^4.2.1",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
-    "react-i18next": "^17.0.13",
+    "react-i18next": "^17.0.15",
     "tinyrainbow": "^3.1.1",
     "zustand": "^5.0.15"
   },
