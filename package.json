@@ -34,18 +34,18 @@
     "prepare": "node -e \"const fs=require('fs');try{require.resolve('husky')}catch{process.exit(0)}if(!fs.existsSync('./node_modules/.bin/husky')&&!fs.existsSync('./node_modules/.bin/husky.cmd'))process.exit(0);require('child_process').execSync('husky',{stdio:'inherit'})\""
   },
   "devDependencies": {
-    "@commitlint/cli": "^21.2.2",
+    "@commitlint/cli": "^21.2.3",
     "@commitlint/config-conventional": "^21.0.0",
     "@eslint-community/eslint-plugin-eslint-comments": "^4.8.1",
     "concurrently": "^10.0.5",
     "esbuild": "^0.28.2",
-    "eslint": "^10.10.0",
+    "eslint": "^10.11.0",
     "eslint-config-prettier": "^10.1.8",
     "globals": "^17.12.0",
     "husky": "^9.1.7",
     "lint-staged": "^17.5.1",
-    "prettier": "^3.9.6",
-    "typescript-eslint": "^8.70.0"
+    "prettier": "^3.9.8",
+    "typescript-eslint": "^8.70.1"
   },
   "overrides": {
     "react": "^19.2.5",
