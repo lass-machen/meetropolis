@@ -44,7 +44,7 @@
     "jiti": "^2.7.0",
     "jsonwebtoken": "^9.0.3",
     "livekit-server-sdk": "^2.19.0",
-    "multer": "^2.3.0",
+    "multer": "^2.4.0",
     "nodemailer": "^10.0.10",
     "pathe": "^2.0.3",
     "pg": "^8.23.0",
