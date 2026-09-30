@@ -165,6 +165,22 @@ describe('GET /mobile/stream', () => {
     });
   });
 
+  it('accepts the zone-privacy version 1 the shipped app claims and hands it on unchanged', async () => {
+    // AppConfig.swift of the iOS app reports a fixed 1. The Colyseus wire
+    // version is a different number and never the app's business: the bridge
+    // adds its own (see worldBridge.ts), so the app has to stay admissible
+    // while the server's wire protocol moves on.
+    const appVersion = 1;
+    expect(appVersion).toBeGreaterThanOrEqual(MIN_ZONE_PRIVACY_CLIENT_VERSION);
+    await openStream(
+      makeApp(),
+      `/mobile/stream?zonePrivacyVersion=${appVersion}&protocolVersion=${MOBILE_PROTOCOL_VERSION}`,
+    );
+
+    expect(started).toHaveLength(1);
+    expect(started[0]).toMatchObject({ zonePrivacyVersion: appVersion });
+  });
+
   it('ignores a client-supplied tenant slug', async () => {
     // The room partition (`filterBy(['tenant'])`) must match what /livekit/token
     // and /zones resolve for the same request, so the slug can only come from

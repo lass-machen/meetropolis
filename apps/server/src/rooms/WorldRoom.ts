@@ -50,6 +50,11 @@ export interface RoomOptions {
   // as too old (fail-closed rollout: ship the client field before raising
   // the server minimum).
   zonePrivacyVersion?: number;
+  // Colyseus wire protocol version of the client (WORLD_WIRE_PROTOCOL_VERSION),
+  // checked against MIN_WORLD_WIRE_PROTOCOL_VERSION first thing in onAuth.ts
+  // for every join, NPCs included. Absent/too-low is refused with 4426: the
+  // client cannot decode the server's frames. Independent of zonePrivacyVersion.
+  wireProtocolVersion?: number;
 }
 
 interface RoomMetadata {

@@ -12,6 +12,12 @@
  * H4 zone-privacy allow-lists are keyed on identity, so an unverified
  * identity would let a client claim someone else's zone membership.
  *
+ * The wire-protocol gate (`assertWireProtocol`) runs first and is not staged:
+ * a client that does not report a `wireProtocolVersion` of at least
+ * MIN_WORLD_WIRE_PROTOCOL_VERSION cannot decode what the server sends after the
+ * join, so it is refused with 4426 regardless of `ZONE_PRIVACY_AUTH_ENFORCE`,
+ * for NPCs as well, and before the token or the service secret is looked at.
+ *
  * Fail-closed when enforcement is on (`ZONE_PRIVACY_AUTH_ENFORCE=true`): every
  * rejection path throws `ServerError`, which Colyseus turns into a
  * `client.error(code, message)` + clean disconnect (see Room.mjs `_onJoin`'s
@@ -26,7 +32,11 @@ import crypto from 'crypto';
 import { ServerError, type AuthContext } from '@colyseus/core';
 import { logger } from '../../logger.js';
 import { validateSessionToken } from '../../api/utils/sessionAuth.js';
-import { MIN_ZONE_PRIVACY_CLIENT_VERSION, ZONE_PRIVACY_PROTOCOL_VERSION } from '@meetropolis/shared';
+import {
+  MIN_WORLD_WIRE_PROTOCOL_VERSION,
+  MIN_ZONE_PRIVACY_CLIENT_VERSION,
+  ZONE_PRIVACY_PROTOCOL_VERSION,
+} from '@meetropolis/shared';
 import type { RoomOptions } from '../WorldRoom.js';
 import type { PrismaClient } from '../../generated/prisma/index.js';
 import { clientNumberForLog, clientStringForLog } from './logSafe.js';
@@ -139,7 +149,31 @@ function authenticateNpc(options: RoomOptions): WorldAuth {
   // NPCs are server-controlled (npc-service authenticates via
   // NPC_SERVICE_SECRET, not a per-user JWT) and are exempt from the
   // client zone-privacy version gate: they never publish LiveKit tracks.
+  // They are not exempt from the wire-protocol gate (assertWireProtocol).
   return { identity, isNpc: true, zonePrivacyVersion: ZONE_PRIVACY_PROTOCOL_VERSION };
+}
+
+/**
+ * Refuse a client whose Colyseus wire protocol the server cannot serve.
+ *
+ * Unconditional: no staged mode, no NPC exemption. A 0.17 client (which sends
+ * no `wireProtocolVersion`) connects fine, but the JOIN_ROOM frame of a 0.18
+ * server carries a length prefix it misreads, so it throws while decoding the
+ * state reflection after the server already ran `onJoin` and leaves a ghost
+ * player behind. Refusing in `onAuth` answers with the ERROR frame instead,
+ * before any room state exists, so the client can tell its user to update.
+ *
+ * Runs first in `authenticateWorldJoin`, so an outdated client always gets
+ * 4426 (update) and never a 4401 (re-login) or an NPC error it cannot act on.
+ */
+function assertWireProtocol(options: RoomOptions | undefined): void {
+  const version = options?.wireProtocolVersion;
+  if (typeof version === 'number' && Number.isInteger(version) && version >= MIN_WORLD_WIRE_PROTOCOL_VERSION) return;
+  logger.warn('[WorldRoom] Rejected join: client wire protocol version too old', {
+    wireProtocolVersion: version,
+    minRequired: MIN_WORLD_WIRE_PROTOCOL_VERSION,
+  });
+  throw new ServerError(CLIENT_TOO_OLD_CODE, 'client_too_old');
 }
 
 /**
@@ -326,6 +360,7 @@ export function authenticateWorldJoin(
   prisma: WorldJoinPrisma,
 ): Promise<WorldAuth> {
   try {
+    assertWireProtocol(options);
     if (options?.identity?.startsWith('npc-')) {
       return Promise.resolve(authenticateNpc(options));
     }

@@ -1,4 +1,5 @@
 import { Client, type Room } from '@colyseus/sdk';
+import { WORLD_WIRE_PROTOCOL_VERSION } from '@meetropolis/shared';
 import { logger } from '../logger.js';
 import type { MobilePlayer, MobileServerEvent } from './protocol.js';
 
@@ -74,7 +75,11 @@ export class WorldBridge {
     this.alive = true;
     this.room = await this.client.joinOrCreate('world', {
       tenant: this.options.tenantSlug,
+      // The app's version, forwarded as the app reported it.
       zonePrivacyVersion: this.options.zonePrivacyVersion,
+      // The bridge speaks Colyseus itself, so this is this server's own wire
+      // version, not something the app knows or reports.
+      wireProtocolVersion: WORLD_WIRE_PROTOCOL_VERSION,
     });
     this.reconnectAttempts = 0;
     this.attachListeners();

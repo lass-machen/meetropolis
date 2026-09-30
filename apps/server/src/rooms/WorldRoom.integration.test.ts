@@ -11,8 +11,9 @@
  * a shared room, a state change reaching a peer as a patch, message round trips
  * in both directions, the rejoin path the web client uses after a dropped
  * connection, the join authority (the instance onAuth alone decides, over the
- * SDK token path and the browser cookie path, with its close codes) and the
- * mobile world bridge joining, syncing and reconnecting.
+ * SDK token path and the browser cookie path, with its close codes), the wire
+ * protocol gate that turns a pre-0.18 client away with 4426 before any state,
+ * and the mobile world bridge joining, syncing and reconnecting.
  */
 import { createServer, type Server as HttpServer } from 'http';
 import type { AddressInfo, Socket } from 'net';
@@ -25,6 +26,8 @@ vi.hoisted(() => {
   process.env.NODE_ENV = 'test';
   // Short graceful-leave window so the rejoin test does not wait for the default.
   process.env.LEAVE_GRACE_MS = '60';
+  // The shared secret an NPC join presents (authenticateNpc).
+  process.env.NPC_SERVICE_SECRET = 'world-room-integration-npc-secret';
 });
 
 vi.mock('../logger.js', () => ({
@@ -70,6 +73,9 @@ const fakeDb = vi.hoisted(() => {
       },
     },
     user: { findUnique: (a) => users.get(a.where?.id ?? '') ?? null },
+    // An NPC carries no token, so its avatar scope comes from the tenant that
+    // owns the map it spawns on.
+    map: { findUnique: () => ({ tenantId: 'tenant-a-id' }) },
     // The join validates the avatar against the tenant's pack scope; only the
     // global default pack the join falls back to exists.
     avatarPack: {
@@ -112,13 +118,20 @@ vi.mock('../db.js', () => ({ createPrismaClient: () => fakeDb.client }));
 import { Server as ColyseusServer, matchMaker, Protocol } from '@colyseus/core';
 import { WebSocketTransport } from '@colyseus/ws-transport';
 import { Client, type Room } from '@colyseus/sdk';
-import { MIN_ZONE_PRIVACY_CLIENT_VERSION, ZONE_PRIVACY_PROTOCOL_VERSION } from '@meetropolis/shared';
+import {
+  MIN_WORLD_WIRE_PROTOCOL_VERSION,
+  MIN_ZONE_PRIVACY_CLIENT_VERSION,
+  WORLD_WIRE_PROTOCOL_VERSION,
+  ZONE_PRIVACY_PROTOCOL_VERSION,
+} from '@meetropolis/shared';
 import { WorldRoom } from './WorldRoom.js';
 import { hashSessionToken } from '../api/utils/sessionAuth.js';
 import { clearSessionCache } from '../api/utils/sessionCache.js';
 import { AUTH_REJECTED_CODE, CLIENT_TOO_OLD_CODE, isWorldAuth } from './lifecycle/onAuth.js';
 import { WorldBridge } from '../mobile/worldBridge.js';
+import { MobileSession } from '../mobile/mobileSession.js';
 import type { MobileServerEvent } from '../mobile/protocol.js';
+import type express from 'express';
 
 // The world room's `Player` fields as the reflected client-side state exposes them.
 interface PlayerView {
@@ -165,6 +178,12 @@ const TENANT_B = { id: 'tenant-b-id', slug: 'tenant-b' };
 /** The join looks the seat limits of the verified tenant up, so a fixture tenant has to carry some. */
 const SEAT_LIMITS = { concurrentLimit: 50, freeSeats: 50 };
 
+/** What a current client reports in its join options: the zone-privacy contract and the wire protocol. */
+const CURRENT_VERSIONS = {
+  zonePrivacyVersion: ZONE_PRIVACY_PROTOCOL_VERSION,
+  wireProtocolVersion: WORLD_WIRE_PROTOCOL_VERSION,
+};
+
 let httpServer: HttpServer;
 let gameServer: ColyseusServer;
 let wsUrl: string;
@@ -202,7 +221,7 @@ function issueToken(userId: string, tenantId: string): string {
  * Join the world the way the web client does: a JWT on `client.auth.token`
  * (which the SDK sends as `_authToken`), `tenant: 'default'` as the room
  * partition key (an apex domain yields no subdomain, so every tenant lands in
- * the same WorldRoom) and the zone-privacy protocol version.
+ * the same WorldRoom) and both protocol versions.
  */
 async function joinWorld(userId: string, tenantId: string, token = issueToken(userId, tenantId)): Promise<Room> {
   const client = new Client(wsUrl);
@@ -210,7 +229,7 @@ async function joinWorld(userId: string, tenantId: string, token = issueToken(us
   const room = await client.joinOrCreate('world', {
     tenant: 'default',
     name: userId,
-    zonePrivacyVersion: ZONE_PRIVACY_PROTOCOL_VERSION,
+    ...CURRENT_VERSIONS,
   });
   // The room pushes many message types this test does not care about; a no-op
   // wildcard keeps the SDK from warning about every unhandled one.
@@ -239,13 +258,18 @@ interface RawJoin {
  * matchmaker HTTP route, then open the WebSocket by hand. That lets the
  * identity travel ONLY as the `auth_token` cookie on the upgrade request, which
  * the SDK client cannot do from Node. Resolves on the first JOIN_ROOM frame or
- * when the server closes the socket, whichever comes first.
+ * when the server closes the socket, whichever comes first. `options` are the
+ * join options after tenant and name, by default those of a current client.
  */
-async function rawJoin(headers: Record<string, string> = {}): Promise<RawJoin> {
+async function rawJoin(
+  headers: Record<string, string> = {},
+  options: Record<string, unknown> = CURRENT_VERSIONS,
+): Promise<RawJoin> {
   const res = await fetch(`${httpUrl}/matchmake/joinOrCreate/world`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', ...headers },
-    body: JSON.stringify({ tenant: 'default', name: 'raw', zonePrivacyVersion: ZONE_PRIVACY_PROTOCOL_VERSION }),
+    // JSON drops an undefined field, which is how a client leaves one out.
+    body: JSON.stringify({ tenant: 'default', name: 'raw', ...options }),
   });
   const seat = SeatReservation.parse(await res.json());
   return new Promise((resolve, reject) => {
@@ -276,13 +300,30 @@ async function rawJoin(headers: Record<string, string> = {}): Promise<RawJoin> {
 async function expectJoinRejected(token: string | undefined, code: number): Promise<void> {
   const client = new Client(wsUrl);
   if (token) client.auth.token = token;
-  const attempt = client.joinOrCreate('world', {
-    tenant: 'default',
-    zonePrivacyVersion: ZONE_PRIVACY_PROTOCOL_VERSION,
-  });
+  const attempt = client.joinOrCreate('world', { tenant: 'default', ...CURRENT_VERSIONS });
   await expect(attempt).rejects.toMatchObject({ code });
 
   const raw = await rawJoin(token ? { cookie: `auth_token=${encodeURIComponent(token)}` } : {});
+  expect(raw.frames).toEqual([Protocol.ERROR]);
+}
+
+/**
+ * A join by a client the wire gate must turn away: the SDK client sees 4426
+ * with the reason 'client_too_old', and the same options as a browser-style
+ * raw join get the ERROR frame and nothing else, so no JOIN_ROOM and no state
+ * ever reach a client that could not decode it. `options` are everything the
+ * client sends after the tenant; `undefined` leaves a field out, like a
+ * client that predates it.
+ */
+async function expectTooOldClient(token: string | undefined, options: Record<string, unknown>): Promise<void> {
+  const client = new Client(wsUrl);
+  if (token) client.auth.token = token;
+  await expect(client.joinOrCreate('world', { tenant: 'default', ...options })).rejects.toMatchObject({
+    code: CLIENT_TOO_OLD_CODE,
+    message: 'client_too_old',
+  });
+
+  const raw = await rawJoin(token ? { cookie: `auth_token=${encodeURIComponent(token)}` } : {}, options);
   expect(raw.frames).toEqual([Protocol.ERROR]);
 }
 
@@ -298,13 +339,16 @@ async function serverSessionsOf(identity: string): Promise<string[]> {
 }
 
 /** A mobile bridge for `token` plus the events it emitted so far. */
-function openBridge(token: string): { bridge: WorldBridge; events: MobileServerEvent[] } {
+function openBridge(
+  token: string,
+  zonePrivacyVersion = ZONE_PRIVACY_PROTOCOL_VERSION,
+): { bridge: WorldBridge; events: MobileServerEvent[] } {
   const events: MobileServerEvent[] = [];
   const bridge = new WorldBridge({
     serverUrl: httpUrl,
     authToken: token,
     tenantSlug: 'default',
-    zonePrivacyVersion: ZONE_PRIVACY_PROTOCOL_VERSION,
+    zonePrivacyVersion,
     emit: (event) => events.push(event),
   });
   openBridges.push(bridge);
@@ -450,10 +494,7 @@ describe('WorldRoom over a real Colyseus server and SDK client', () => {
     process.env.ZONE_PRIVACY_AUTH_ENFORCE = 'true';
     const client = new Client(wsUrl);
     client.auth.token = 'not-a-valid-token';
-    const attempt = client.joinOrCreate('world', {
-      tenant: 'default',
-      zonePrivacyVersion: ZONE_PRIVACY_PROTOCOL_VERSION,
-    });
+    const attempt = client.joinOrCreate('world', { tenant: 'default', ...CURRENT_VERSIONS });
     await expect(attempt).rejects.toMatchObject({ code: AUTH_REJECTED_CODE });
   });
 });
@@ -497,9 +538,86 @@ describe('WorldRoom join authority over a real Colyseus server', () => {
     client.auth.token = issueToken('olga', TENANT_A.id);
     const attempt = client.joinOrCreate('world', {
       tenant: 'default',
+      ...CURRENT_VERSIONS,
       zonePrivacyVersion: MIN_ZONE_PRIVACY_CLIENT_VERSION - 1,
     });
     await expect(attempt).rejects.toMatchObject({ code: CLIENT_TOO_OLD_CODE });
+  });
+});
+
+describe('WorldRoom wire protocol gate over a real Colyseus server', () => {
+  // A client built on Colyseus 0.17 (the web bundle, Desktop 0.2.26) reports
+  // zone-privacy version 1 and has no wire version at all.
+  const pre018Client = { zonePrivacyVersion: 1, wireProtocolVersion: undefined };
+
+  it.each([
+    ['off', undefined],
+    ['on', 'true'],
+  ])('turns a client without a wire version away with 4426, enforcement %s', async (_label, enforce) => {
+    if (enforce) process.env.ZONE_PRIVACY_AUTH_ENFORCE = enforce;
+    registerUser('erin', 'Erin');
+
+    await expectTooOldClient(issueToken('erin', TENANT_A.id), pre018Client);
+
+    expect(await serverSessionsOf('erin')).toEqual([]);
+  });
+
+  it.each([
+    ['below the minimum', MIN_WORLD_WIRE_PROTOCOL_VERSION - 1],
+    ['zero', 0],
+    ['a string', String(WORLD_WIRE_PROTOCOL_VERSION)],
+    ['null', null],
+    ['a fraction', WORLD_WIRE_PROTOCOL_VERSION + 0.5],
+  ])('turns a client away whose wire version is %s', async (_label, wireProtocolVersion) => {
+    registerUser('finn', 'Finn');
+    await expectTooOldClient(issueToken('finn', TENANT_A.id), { ...CURRENT_VERSIONS, wireProtocolVersion });
+  });
+
+  it('tells an outdated client to update, not to log in, when it has no token either', async () => {
+    // The wire gate runs before the token is looked at: a client that cannot
+    // decode the server's frames could not act on 4401 anyway.
+    process.env.ZONE_PRIVACY_AUTH_ENFORCE = 'true';
+    await expectTooOldClient(undefined, pre018Client);
+  });
+
+  it.each([
+    ['off', undefined],
+    ['on', 'true'],
+  ])('admits a current client with the wire version, enforcement %s', async (_label, enforce) => {
+    if (enforce) process.env.ZONE_PRIVACY_AUTH_ENFORCE = enforce;
+    const userId = `gina-${_label}`;
+    registerUser(userId, 'Gina');
+
+    const join = await rawJoin({ cookie: `auth_token=${encodeURIComponent(issueToken(userId, TENANT_A.id))}` });
+
+    expect(join.frames[0]).toBe(Protocol.JOIN_ROOM);
+    const serverState: unknown = matchMaker.getLocalRoomById(join.roomId)?.state;
+    expect(playersByIdentity(serverState).has(userId)).toBe(true);
+  });
+
+  describe('for an NPC', () => {
+    const npc = {
+      tenant: 'default',
+      identity: 'npc-guide',
+      serviceToken: 'world-room-integration-npc-secret',
+      name: 'Guide',
+    };
+
+    it('turns the join away without a wire version, before the service secret is checked', async () => {
+      await expectTooOldClient(undefined, { ...npc, wireProtocolVersion: undefined });
+      // Same for a wrong secret: the version is the first thing that is judged.
+      await expectTooOldClient(undefined, { ...npc, serviceToken: 'wrong', wireProtocolVersion: undefined });
+      expect(await serverSessionsOf('npc-guide')).toEqual([]);
+    });
+
+    it('admits the join with the wire version', async () => {
+      const client = new Client(wsUrl);
+      const room = await client.joinOrCreate('world', { ...npc, wireProtocolVersion: WORLD_WIRE_PROTOCOL_VERSION });
+      room.onMessage('*', () => undefined);
+      openRooms.push(room);
+
+      expect(await serverSessionsOf('npc-guide')).toHaveLength(1);
+    });
   });
 });
 
@@ -515,6 +633,46 @@ describe('WorldBridge against the real world room', () => {
     await waitFor(() => latestRoster(events)?.includes('peer') === true, 'the roster to include the peer');
     bridge.send('move', { x: 77, y: 88, direction: 'left' });
     await waitFor(() => roster(peer).get('mob')?.x === 77, 'the peer to see the bridge move');
+  });
+
+  it('admits the app version 1 and streams the roster through a real mobile session, enforcement on', async () => {
+    // The iOS app claims zone-privacy version 1 (AppConfig.swift) and knows
+    // nothing of the wire protocol: the bridge speaks Colyseus on its behalf
+    // and reports the server's own wire version. The app's number must stay
+    // acceptable, or every shipped app would be locked out of the stream.
+    const appZonePrivacyVersion = 1;
+    expect(appZonePrivacyVersion).toBeGreaterThanOrEqual(MIN_ZONE_PRIVACY_CLIENT_VERSION);
+    process.env.ZONE_PRIVACY_AUTH_ENFORCE = 'true';
+    registerUser('appuser', 'App User');
+    const chunks: string[] = [];
+    const res = {
+      setHeader() {},
+      flushHeaders() {},
+      write(chunk: string) {
+        chunks.push(chunk);
+        return true;
+      },
+      end() {},
+    } as unknown as express.Response;
+    const session = new MobileSession({
+      sessionId: 'app-session',
+      userId: 'appuser',
+      identity: 'appuser',
+      serverUrl: httpUrl,
+      authToken: issueToken('appuser', TENANT_A.id),
+      tenantSlug: 'default',
+      zonePrivacyVersion: appZonePrivacyVersion,
+      res,
+    });
+    try {
+      await session.start();
+      await waitFor(
+        () => chunks.some((c) => c.startsWith('data: ') && c.includes('"type":"roster"') && c.includes('appuser')),
+        'a roster frame with the app user on the SSE stream',
+      );
+    } finally {
+      await session.close();
+    }
   });
 
   it('fails the connect with the auth code and emits no roster when the token is refused', async () => {

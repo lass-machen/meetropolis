@@ -1,4 +1,5 @@
 import { Client } from '@colyseus/sdk';
+import { WORLD_WIRE_PROTOCOL_VERSION } from '@meetropolis/shared';
 
 type Zone = { id: string; name: string; polygon: Array<{ x: number; y: number }> };
 type MapEntry = { name?: string; zones?: Zone[] };
@@ -28,7 +29,12 @@ export async function spawnColyseusBot(opts: { apiBase: string; identity: string
 
     while (true) {
       try {
-        return await client.joinOrCreate('world', { identity: opts.identity, name: opts.identity });
+        return await client.joinOrCreate('world', {
+          identity: opts.identity,
+          name: opts.identity,
+          // Refused by the server without it (onAuth assertWireProtocol).
+          wireProtocolVersion: WORLD_WIRE_PROTOCOL_VERSION,
+        });
       } catch (e: unknown) {
         attempt++;
         if (attempt >= maxAttempts) throw e;
