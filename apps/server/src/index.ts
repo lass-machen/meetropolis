@@ -12,12 +12,16 @@ import compression from 'compression';
 // against the CJS Room.prototype.onAuth; they are different Function objects
 // even though the source is identical. Result: Colyseus prints
 //   "world"'s onAuth() defined at the instance level will be ignored.
-// Worse, it then enforces auth via the (CJS) static onAuth, bypassing any
-// instance-level checks. Using ESM imports everywhere keeps both sides on the
-// same Room class identity, so the heuristic passes and instance hooks work.
-// Import from `@colyseus/core`, never from the `colyseus` meta package: that one
-// re-exports `@colyseus/auth`, whose import side effect installs a JWT-decoding
-// static `Room.onAuth` for every room class.
+// and lets a static onAuth stand in for the instance-level one. On 0.17 and on
+// 0.18 alike, a static onAuth that returns a truthy payload makes Colyseus skip
+// the instance-level hook, and with it the session-row check. Using ESM imports
+// everywhere keeps both sides on the same Room class identity, so the heuristic
+// passes and instance hooks work.
+// Import from `@colyseus/core`, never from the `colyseus` meta package. From
+// 0.18 on that package re-exports `@colyseus/auth`, whose import side effect
+// installs a JWT-decoding static `Room.onAuth` for every room class. The
+// matchmaker runs it before the instance hook and answers a refused token with
+// a generic 525 instead of the 4401 / 4426 codes the clients act on.
 import { Server as ColyseusServer, matchMaker } from '@colyseus/core';
 import { WebSocketTransport } from '@colyseus/ws-transport';
 import { createServer } from 'http';
