@@ -7,7 +7,7 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import crypto from 'node:crypto';
 import jwt from 'jsonwebtoken';
-import { ServerError, matchMaker, type AuthContext, type Client } from 'colyseus';
+import { ServerError, matchMaker, type AuthContext, type Client } from '@colyseus/core';
 
 const warn = vi.hoisted(() => vi.fn());
 vi.mock('../../logger.js', () => ({

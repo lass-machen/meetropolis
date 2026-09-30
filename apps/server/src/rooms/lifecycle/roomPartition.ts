@@ -1,4 +1,4 @@
-import { ServerError } from 'colyseus';
+import { ServerError } from '@colyseus/core';
 import { logger } from '../../logger.js';
 import type { RoomOptions } from '../WorldRoom.js';
 import { AUTH_REJECTED_CODE, isTenantEnforced, type WorldAuth } from './onAuth.js';

@@ -7,15 +7,18 @@ import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import compression from 'compression';
 // IMPORTANT: Colyseus and WorldRoom must come from the same module instance.
-// Mixing `createRequire('colyseus')` (CJS) with `import 'colyseus'` (ESM) in
-// WorldRoom.ts causes the matchmaker to compare WorldRoom.prototype.onAuth
+// Mixing `createRequire('@colyseus/core')` (CJS) with `import '@colyseus/core'`
+// (ESM) in WorldRoom.ts causes the matchmaker to compare WorldRoom.prototype.onAuth
 // against the CJS Room.prototype.onAuth; they are different Function objects
 // even though the source is identical. Result: Colyseus prints
 //   "world"'s onAuth() defined at the instance level will be ignored.
 // Worse, it then enforces auth via the (CJS) static onAuth, bypassing any
 // instance-level checks. Using ESM imports everywhere keeps both sides on the
 // same Room class identity, so the heuristic passes and instance hooks work.
-import { Server as ColyseusServer, matchMaker } from 'colyseus';
+// Import from `@colyseus/core`, never from the `colyseus` meta package: that one
+// re-exports `@colyseus/auth`, whose import side effect installs a JWT-decoding
+// static `Room.onAuth` for every room class.
+import { Server as ColyseusServer, matchMaker } from '@colyseus/core';
 import { WebSocketTransport } from '@colyseus/ws-transport';
 import { createServer } from 'http';
 import path from 'path';

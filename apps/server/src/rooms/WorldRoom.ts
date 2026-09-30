@@ -1,4 +1,4 @@
-import { Room, type Client, type AuthContext } from 'colyseus';
+import { Room, type Client, type AuthContext } from '@colyseus/core';
 import { Schema, type, view, MapSchema } from '@colyseus/schema';
 import { logger } from '../logger.js';
 import { colyseusRooms } from '../metrics.js';

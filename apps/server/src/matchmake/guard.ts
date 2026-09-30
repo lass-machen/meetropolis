@@ -1,7 +1,7 @@
 import express, { type ErrorRequestHandler, type RequestHandler } from 'express';
 import type { IncomingHttpHeaders, IncomingMessage, RequestListener, Server } from 'http';
 import { BlockList, isIP } from 'net';
-import { matchMaker } from 'colyseus';
+import { matchMaker } from '@colyseus/core';
 import { createMatchmakeRateLimiter } from '../api/middleware/rateLimit.js';
 import { AppError } from '../errors/AppError.js';
 import { logger } from '../logger.js';

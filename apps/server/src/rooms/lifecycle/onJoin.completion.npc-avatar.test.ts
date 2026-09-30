@@ -95,7 +95,7 @@ vi.mock('../audioZones/runtime.js', () => ({
 
 import { completePendingJoin } from './onJoin.completion.js';
 import type { WorldRoom, RoomOptions, Player as PlayerCtor } from '../WorldRoom.js';
-import type { Client } from 'colyseus';
+import type { Client } from '@colyseus/core';
 
 class FakePlayer {
   id = '';

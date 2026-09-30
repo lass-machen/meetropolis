@@ -19,7 +19,7 @@ vi.mock('../audioZones/runtime.js', () => ({ trackLeave: vi.fn() }));
 
 import { performOnLeave } from './onLeave.js';
 import type { WorldRoom } from '../WorldRoom.js';
-import type { Client } from 'colyseus';
+import type { Client } from '@colyseus/core';
 
 const presenceUpdateMany = vi.fn(() => Promise.resolve({ count: 1 }));
 const tenantFindUnique = vi.fn(() => Promise.resolve({ id: 'from-slug' }));

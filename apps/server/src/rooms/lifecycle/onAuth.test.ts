@@ -13,7 +13,7 @@
  * signature AND a valid signature whose session is gone.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { ServerError, type AuthContext } from 'colyseus';
+import { ServerError, type AuthContext } from '@colyseus/core';
 import { MIN_ZONE_PRIVACY_CLIENT_VERSION } from '@meetropolis/shared';
 
 vi.mock('../../logger.js', () => ({

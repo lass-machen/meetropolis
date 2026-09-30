@@ -23,7 +23,7 @@
  * only ever used as the transitional fallback for a token-less join.
  */
 import crypto from 'crypto';
-import { ServerError, type AuthContext } from 'colyseus';
+import { ServerError, type AuthContext } from '@colyseus/core';
 import { logger } from '../../logger.js';
 import { validateSessionToken } from '../../api/utils/sessionAuth.js';
 import { MIN_ZONE_PRIVACY_CLIENT_VERSION, ZONE_PRIVACY_PROTOCOL_VERSION } from '@meetropolis/shared';

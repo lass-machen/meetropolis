@@ -1,4 +1,4 @@
-import { ServerError } from 'colyseus';
+import { ServerError } from '@colyseus/core';
 
 /**
  * The matchmake methods a client may call over HTTP (`POST /matchmake/<method>/<room>`).

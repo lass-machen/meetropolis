@@ -14,7 +14,7 @@
  * most one push per identity instead of a push storm.
  */
 
-import type { Client } from 'colyseus';
+import type { Client } from '@colyseus/core';
 import type { WorldRoom } from '../WorldRoom.js';
 import { allowListFor, type IslandSnapshot } from './islandModel.js';
 import { snapshot, type MembershipTracker } from './membershipTracker.js';
