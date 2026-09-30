@@ -30,10 +30,6 @@ updates:
           - 'minor'
           - 'patch'
     ignore:
-      # elliptic: no patched release exists (GHSA-848j-6mx2-7j84). Transitive via
-      # colyseus -> @colyseus/auth -> grant -> jwk-to-pem; the vulnerable ECDSA
-      # sign path is never called here. Remove this entry once a fix ships.
-      - dependency-name: 'elliptic'
       # typescript: TS 7 removes `baseUrl` and needs a tsconfig/paths migration
       # for no functional benefit right now. Defer the major until 6.x nears end
       # of support; minor/patch on 6.x keep flowing. Remove to adopt TS 7.
