@@ -46,7 +46,7 @@ import {
 } from './matchmake/tenantPartition.js';
 import { assertBaseAvatarAvailable, listenAfterStartupChecks } from './services/startupInvariant.js';
 
-// Colyseus 0.17 registers a prependListener('request', ...) on the HTTP server
+// Colyseus registers a prependListener('request', ...) on the HTTP server
 // that answers CORS preflights directly with DEFAULT_CORS_HEADERS, before
 // any Express middleware runs. As a result our custom headers
 // (x-correlation-id, x-tenant, x-av-identity, x-av-room) do not appear on
@@ -344,8 +344,8 @@ gameServer.define('world', WorldRoom).filterBy(['tenant']);
 // unknown rather than maintaining a duplicate type.
 (globalThis as unknown as { gameServer: unknown }).gameServer = gameServer;
 
-// In Colyseus 0.17 the matchmake HTTP routes (/matchmake/joinOrCreate/...)
-// are registered lazily inside `gameServer.listen()` via bindRouterToTransport.
+// The matchmake HTTP routes (/matchmake/joinOrCreate/...) are registered
+// lazily inside `gameServer.listen()` via bindRouterToTransport.
 // Calling httpServer.listen() directly would skip that wiring and leave clients
 // with 404s on the matchmake endpoint. The transport shares our httpServer, so
 // the bind targets the same port we configured above.

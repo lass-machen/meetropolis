@@ -23,10 +23,10 @@
     "start:dev": "tsx watch src/index.ts"
   },
   "dependencies": {
-    "@colyseus/core": "^0.17.43",
-    "@colyseus/schema": "^4.0.30",
-    "@colyseus/sdk": "^0.17.43",
-    "@colyseus/ws-transport": "^0.17.13",
+    "@colyseus/core": "^0.18.18",
+    "@colyseus/schema": "^5.0.34",
+    "@colyseus/sdk": "^0.18.4",
+    "@colyseus/ws-transport": "^0.18.4",
     "@prisma/adapter-pg": "^7.10.0",
     "@prisma/client": "^7.10.0",
     "altcha-lib": "^2.5.0",
