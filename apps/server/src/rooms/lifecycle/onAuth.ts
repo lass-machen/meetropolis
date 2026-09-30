@@ -170,7 +170,7 @@ function assertWireProtocol(options: RoomOptions | undefined): void {
   const version = options?.wireProtocolVersion;
   if (typeof version === 'number' && Number.isInteger(version) && version >= MIN_WORLD_WIRE_PROTOCOL_VERSION) return;
   logger.warn('[WorldRoom] Rejected join: client wire protocol version too old', {
-    wireProtocolVersion: version,
+    wireProtocolVersion: clientNumberForLog(version),
     minRequired: MIN_WORLD_WIRE_PROTOCOL_VERSION,
   });
   throw new ServerError(CLIENT_TOO_OLD_CODE, 'client_too_old');

@@ -30,6 +30,7 @@ vi.mock('../../api/utils/sessionAuth.js', () => ({
   validateSessionToken: (...args: unknown[]) => validateSessionTokenMock(...args),
 }));
 
+import { logger } from '../../logger.js';
 import {
   authenticateWorldJoin,
   isWorldAuth,
@@ -445,6 +446,53 @@ describe('authenticateWorldJoin: wire protocol gate', () => {
       });
     },
   );
+});
+
+describe('authenticateWorldJoin: the refused wire version is logged bounded', () => {
+  // The gate runs before authentication, so an anonymous client fully controls
+  // the version. A log entry must not grow with what it sends.
+  const HUGE = 900_000;
+  const hugeString = 'x'.repeat(HUGE);
+  const MAX_LOG_CHARS = 1_000;
+
+  beforeEach(() => {
+    for (const fn of [logger.warn, logger.info, logger.debug, logger.error]) vi.mocked(fn).mockClear();
+  });
+
+  /** Everything the mocked logger was asked to write, as the JSON a log line would carry. */
+  function loggedText(): string {
+    const calls = [logger.warn, logger.info, logger.debug, logger.error].flatMap((fn) => vi.mocked(fn).mock.calls);
+    return JSON.stringify(calls);
+  }
+
+  it.each([
+    ['a long string', hugeString, '<string>'],
+    ['a large object', { payload: hugeString }, '<object>'],
+    ['a large array', [hugeString], '<object>'],
+    ['null', null, '<object>'],
+    ['NaN', Number.NaN, '<number>'],
+  ])('logs a wire version that is %s as a fixed placeholder', async (_label, wireProtocolVersion, placeholder) => {
+    const options = { wireProtocolVersion } as unknown as RoomOptions;
+
+    await expect(authenticateWorldJoin(options, makeContext({}), prisma)).rejects.toMatchObject({
+      code: CLIENT_TOO_OLD_CODE,
+    });
+
+    expect(loggedText()).toContain(placeholder);
+    expect(loggedText().length).toBeLessThan(MAX_LOG_CHARS);
+  });
+
+  it('logs a rejected wire version that is a finite number as the number', async () => {
+    const options: RoomOptions = { wireProtocolVersion: MIN_WORLD_WIRE_PROTOCOL_VERSION - 1 };
+
+    await expect(authenticateWorldJoin(options, makeContext({}), prisma)).rejects.toMatchObject({
+      code: CLIENT_TOO_OLD_CODE,
+    });
+
+    expect(vi.mocked(logger.warn).mock.calls[0]?.[1]).toMatchObject({
+      wireProtocolVersion: MIN_WORLD_WIRE_PROTOCOL_VERSION - 1,
+    });
+  });
 });
 
 describe('isWorldAuth / requireWorldAuth', () => {
