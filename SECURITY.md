@@ -112,26 +112,48 @@ When contributing to this project, please:
 
 ## Known Dependency Advisories
 
-`npm audit` reports the following advisories that we have evaluated and
-accepted as low-impact for production deployments:
+`npm audit` reports four entries (`prisma`, `@prisma/config`, `deepmerge-ts`,
+`mysql2`) that we have evaluated and accepted as low-impact for production
+deployments. All of them come in through the `prisma` CLI, which the running
+server does not use for database access:
 
-### `elliptic` (6 low-severity advisories)
+### `mysql2` (2 advisories)
 
-- Advisory: [GHSA-848j-6mx2-7j84](https://github.com/advisories/GHSA-848j-6mx2-7j84)
-- Dependency chain: `@colyseus/playground` -> `@colyseus/auth` -> `grant`
-  -> `jwk-to-pem` -> `elliptic`.
-- Affected surface: the Colyseus Playground is a development-only debug UI
-  that is not enabled in production builds. The production Colyseus server
-  uses the core `colyseus` runtime, which does not load the playground or
-  its auth helpers.
-- No upstream fix is currently available; the advisory applies to all
-  published versions of `elliptic`. `npm audit fix --force` would downgrade
-  `colyseus` to 0.15.13, which is a breaking regression and is not safe to
-  apply.
-- Action: monitor for a non-vulnerable `elliptic` release or for
-  `@colyseus/playground` to drop the `grant`/`jwk-to-pem` dependency.
+- Advisories: [GHSA-3f6p-5ww8-9rcr](https://github.com/advisories/GHSA-3f6p-5ww8-9rcr)
+  (auth plugin downgrade leaks plaintext credentials, fixed in 3.22.0) and
+  [GHSA-rgwj-5xj2-c3m3](https://github.com/advisories/GHSA-rgwj-5xj2-c3m3)
+  (unbounded zlib inflate in the compressed protocol handler, fixed in 3.23.1).
+- Dependency chain: `prisma` -> `mysql2`, pinned to 3.15.3 exactly by the
+  `prisma` CLI.
+- Affected surface: the MySQL driver is never loaded. The datasource is
+  `postgresql` and the app connects via `@prisma/adapter-pg`. `prisma` is an
+  optional peer of `@prisma/client`, so `npm prune --omit=dev` keeps it (and
+  `mysql2`) in the runtime image, but the code path stays unreachable.
+- No override: it would overrule an upstream exact pin without removing real
+  exposure.
+- Action: remove the Dependabot ignore for `mysql2` once `prisma` ships a
+  patched release.
+
+### `deepmerge-ts` (1 advisory, via `@prisma/config`)
+
+- Advisory: [GHSA-ggr8-5vv4-36mx](https://github.com/advisories/GHSA-ggr8-5vv4-36mx)
+  (stack exhaustion on self-referencing object graphs, fixed in 8.0.0).
+- Dependency chain: `prisma` -> `@prisma/config` -> `deepmerge-ts`, pinned to
+  7.1.5 exactly. It is only the `c12` merger for local configuration
+  (`prisma.config.ts` and its defaults).
+- Affected surface: like `mysql2` it ships in the runtime image with the
+  `prisma` CLI and is not reachable with external input.
+- Action: remove the Dependabot ignore for `deepmerge-ts` once
+  `@prisma/config` moves to `deepmerge-ts` 8.
 
 ### Already remediated
+
+- The `elliptic` advisory
+  ([GHSA-848j-6mx2-7j84](https://github.com/advisories/GHSA-848j-6mx2-7j84))
+  and the `grant`, `request-oauth` and `uuid` findings behind it came in
+  through the `colyseus` meta package (`@colyseus/playground` and
+  `@colyseus/auth`). The server now imports `@colyseus/core` and
+  `@colyseus/ws-transport` directly, so none of these packages is installed.
 
 - `@hono/node-server` middleware bypass
   ([GHSA-92pp-h63x-v22m](https://github.com/advisories/GHSA-92pp-h63x-v22m))
