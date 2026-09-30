@@ -40,15 +40,24 @@ updates:
       - dependency-name: 'typescript'
         update-types:
           - 'version-update:semver-major'
-      # mysql2: GHSA-3f6p-5ww8-9rcr is fixed in 3.22.0, but the only consumer is
-      # the `prisma` CLI, which pins 3.15.3 exactly. The MySQL driver is never
-      # loaded here: the datasource is `postgresql` and the app connects via
-      # @prisma/adapter-pg. `prisma` is an optional peer of @prisma/client, so
+      # mysql2: GHSA-3f6p-5ww8-9rcr (fixed in 3.22.0) and GHSA-rgwj-5xj2-c3m3
+      # (fixed in 3.23.1), but the only consumer is the `prisma` CLI, which
+      # pins 3.15.3 exactly. The MySQL driver is never loaded here: the
+      # datasource is `postgresql` and the app connects via @prisma/adapter-pg.
+      # `prisma` is an optional peer of @prisma/client, so
       # `npm prune --omit=dev` keeps it (and mysql2) in the runtime image; the
       # code path stays unreachable. An override would overrule an upstream
       # exact pin without removing real exposure. Remove this entry once prisma
       # ships a patched mysql2.
       - dependency-name: 'mysql2'
+      # deepmerge-ts: GHSA-ggr8-5vv4-36mx (stack exhaustion on self-referencing
+      # object graphs) is fixed in 8.0.0, but the only consumer is
+      # @prisma/config, which pins 7.1.5 exactly and uses it as the c12 merger
+      # for local configuration only (prisma.config.ts and its defaults). Like
+      # mysql2 it ships in the runtime image with the prisma CLI and is not
+      # reachable with external input. Remove this entry once @prisma/config
+      # moves to deepmerge-ts 8.
+      - dependency-name: 'deepmerge-ts'
 
   # Asset Atelier has its own lockfile and is not part of the root npm workspace.
   - package-ecosystem: 'npm'
