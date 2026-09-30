@@ -34,12 +34,6 @@ updates:
       # colyseus -> @colyseus/auth -> grant -> jwk-to-pem; the vulnerable ECDSA
       # sign path is never called here. Remove this entry once a fix ships.
       - dependency-name: 'elliptic'
-      # brace-expansion 1.x: CVE-2026-14257 uses a line-spanning `<= 5.0.7` range
-      # with no 1.x backport. Only resolvable via the eslint 10 major (drops
-      # minimatch@3). Dev-only, not reachable. Remove once eslint 10 is adopted.
-      - dependency-name: 'brace-expansion'
-        versions:
-          - '1.x'
       # typescript: TS 7 removes `baseUrl` and needs a tsconfig/paths migration
       # for no functional benefit right now. Defer the major until 6.x nears end
       # of support; minor/patch on 6.x keep flowing. Remove to adopt TS 7.
@@ -48,10 +42,12 @@ updates:
           - 'version-update:semver-major'
       # mysql2: GHSA-3f6p-5ww8-9rcr is fixed in 3.22.0, but the only consumer is
       # the `prisma` CLI, which pins 3.15.3 exactly. The MySQL driver is never
-      # loaded here (Postgres via @prisma/adapter-pg) and `prisma` is a
-      # devDependency that `npm prune --omit=dev` strips from the runtime image.
-      # An override would overrule an upstream exact pin without removing real
-      # exposure. Remove this entry once prisma ships a patched mysql2.
+      # loaded here: the datasource is `postgresql` and the app connects via
+      # @prisma/adapter-pg. `prisma` is an optional peer of @prisma/client, so
+      # `npm prune --omit=dev` keeps it (and mysql2) in the runtime image; the
+      # code path stays unreachable. An override would overrule an upstream
+      # exact pin without removing real exposure. Remove this entry once prisma
+      # ships a patched mysql2.
       - dependency-name: 'mysql2'
 
   # Asset Atelier has its own lockfile and is not part of the root npm workspace.
