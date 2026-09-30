@@ -12,12 +12,12 @@
   },
   "dependencies": {
     "@colyseus/sdk": "^0.17.43",
-    "@livekit/rtc-node": "^1.0.0",
+    "@livekit/rtc-node": "^1.1.0",
     "dotenv": "^17.4.2",
-    "livekit-server-sdk": "^2.19.0"
+    "livekit-server-sdk": "^2.19.1"
   },
   "devDependencies": {
-    "tsx": "^4.23.13",
+    "tsx": "^4.23.15",
     "typescript": "^6.0.3"
   }
 }
