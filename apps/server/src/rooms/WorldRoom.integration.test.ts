@@ -294,14 +294,17 @@ async function rawJoin(
 }
 
 /**
- * A join that must be refused: the SDK client sees the close code, and a
- * browser-style raw join receives only the ERROR frame, never JOIN_ROOM or state.
+ * A join that must be refused: the SDK client sees the close code and the
+ * reason text, and a browser-style raw join receives only the ERROR frame,
+ * never JOIN_ROOM or state. The reason matters: the fail-closed check in
+ * onJoin also answers 4401, but as 'missing_world_auth'. Only 'unauthorized'
+ * proves that the instance-level onAuth made the call.
  */
-async function expectJoinRejected(token: string | undefined, code: number): Promise<void> {
+async function expectJoinRejected(token: string | undefined, code: number, reason: string): Promise<void> {
   const client = new Client(wsUrl);
   if (token) client.auth.token = token;
   const attempt = client.joinOrCreate('world', { tenant: 'default', ...CURRENT_VERSIONS });
-  await expect(attempt).rejects.toMatchObject({ code });
+  await expect(attempt).rejects.toMatchObject({ code, message: reason });
 
   const raw = await rawJoin(token ? { cookie: `auth_token=${encodeURIComponent(token)}` } : {});
   expect(raw.frames).toEqual([Protocol.ERROR]);
@@ -495,7 +498,7 @@ describe('WorldRoom over a real Colyseus server and SDK client', () => {
     const client = new Client(wsUrl);
     client.auth.token = 'not-a-valid-token';
     const attempt = client.joinOrCreate('world', { tenant: 'default', ...CURRENT_VERSIONS });
-    await expect(attempt).rejects.toMatchObject({ code: AUTH_REJECTED_CODE });
+    await expect(attempt).rejects.toMatchObject({ code: AUTH_REJECTED_CODE, message: 'unauthorized' });
   });
 });
 
@@ -523,12 +526,12 @@ describe('WorldRoom join authority over a real Colyseus server', () => {
 
   it('refuses a token-less join with 4401 when enforcement is on, before any state', async () => {
     process.env.ZONE_PRIVACY_AUTH_ENFORCE = 'true';
-    await expectJoinRejected(undefined, AUTH_REJECTED_CODE);
+    await expectJoinRejected(undefined, AUTH_REJECTED_CODE, 'unauthorized');
   });
 
   it('refuses a correctly signed token without a session row (revoked) with 4401, before any state', async () => {
     process.env.ZONE_PRIVACY_AUTH_ENFORCE = 'true';
-    await expectJoinRejected(signToken('ghost', TENANT_A.id), AUTH_REJECTED_CODE);
+    await expectJoinRejected(signToken('ghost', TENANT_A.id), AUTH_REJECTED_CODE, 'unauthorized');
   });
 
   it('refuses a client below the minimum zone-privacy version with the update code 4426', async () => {
@@ -541,7 +544,7 @@ describe('WorldRoom join authority over a real Colyseus server', () => {
       ...CURRENT_VERSIONS,
       zonePrivacyVersion: MIN_ZONE_PRIVACY_CLIENT_VERSION - 1,
     });
-    await expect(attempt).rejects.toMatchObject({ code: CLIENT_TOO_OLD_CODE });
+    await expect(attempt).rejects.toMatchObject({ code: CLIENT_TOO_OLD_CODE, message: 'client_too_old' });
   });
 });
 
@@ -678,7 +681,7 @@ describe('WorldBridge against the real world room', () => {
   it('fails the connect with the auth code and emits no roster when the token is refused', async () => {
     process.env.ZONE_PRIVACY_AUTH_ENFORCE = 'true';
     const { bridge, events } = openBridge('not-a-valid-token');
-    await expect(bridge.connect()).rejects.toMatchObject({ code: AUTH_REJECTED_CODE });
+    await expect(bridge.connect()).rejects.toMatchObject({ code: AUTH_REJECTED_CODE, message: 'unauthorized' });
     expect(events.filter((e) => e.type === 'roster')).toEqual([]);
   });
 
