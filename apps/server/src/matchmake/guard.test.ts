@@ -4,6 +4,8 @@
  * A refused request must reach neither a room nor a PrismaClient; both are
  * counted through the mocked `createPrismaClient`.
  */
+import http from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { brotliCompressSync, deflateSync, gzipSync } from 'node:zlib';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -25,7 +27,13 @@ import {
   worldRooms,
   type MatchmakeTestServer,
 } from '../testUtils/matchmakeHarness.js';
-import { MATCHMAKE_BODY_LIMIT_BYTES, isMatchmakeRequest } from './guard.js';
+import {
+  MATCHMAKE_BODY_LIMIT_BYTES,
+  createMatchmakeGuard,
+  isInProcessCaller,
+  isLoopbackAddress,
+  isMatchmakeRequest,
+} from './guard.js';
 
 describe('isMatchmakeRequest', () => {
   it.each([
@@ -323,5 +331,197 @@ describe('matchmake guard: rate limit', () => {
     } finally {
       await stopMatchmakeServer(server);
     }
+  });
+});
+
+describe('isLoopbackAddress', () => {
+  it.each(['127.0.0.1', '127.0.0.2', '127.255.255.254', '::1', '0:0:0:0:0:0:0:1', '::ffff:127.0.0.1', '::ffff:7f00:1'])(
+    'knows %s as loopback',
+    (address) => {
+      expect(isLoopbackAddress(address)).toBe(true);
+    },
+  );
+
+  it.each([
+    '10.0.0.1',
+    '172.29.0.4',
+    '172.29.0.1',
+    '192.168.1.5',
+    '128.0.0.1',
+    '126.255.255.255',
+    '203.0.113.7',
+    '::ffff:172.29.0.4',
+    '2001:db8::1',
+    'fe80::1',
+    '::',
+    '0.0.0.0',
+    'localhost',
+    '127.0.0.1.evil.example',
+    '127.0.0.1, 203.0.113.7',
+    ' 127.0.0.1',
+    '',
+    undefined,
+  ])('does not know %j as loopback', (address) => {
+    expect(isLoopbackAddress(address)).toBe(false);
+  });
+});
+
+describe('isInProcessCaller', () => {
+  const from = (remoteAddress: string | undefined, headers: Record<string, string> = {}) => ({
+    socket: { remoteAddress } as http.IncomingMessage['socket'],
+    headers,
+  });
+
+  it.each(['127.0.0.1', '::1', '::ffff:127.0.0.1'])(
+    'counts a loopback socket without proxy headers (%s)',
+    (address) => {
+      expect(isInProcessCaller(from(address))).toBe(true);
+      // Ordinary request headers do not matter.
+      expect(isInProcessCaller(from(address, { host: '127.0.0.1:2567', 'content-type': 'application/json' }))).toBe(
+        true,
+      );
+    },
+  );
+
+  it.each(['203.0.113.7', '172.29.0.4', '10.0.0.5', '::ffff:172.29.0.4', undefined])(
+    'does not count a socket that is not loopback (%s), however it is dressed up',
+    (address) => {
+      expect(isInProcessCaller(from(address))).toBe(false);
+      expect(isInProcessCaller(from(address, { 'x-forwarded-for': '127.0.0.1' }))).toBe(false);
+      expect(isInProcessCaller(from(address, { forwarded: 'for=127.0.0.1' }))).toBe(false);
+      expect(isInProcessCaller(from(address, { 'x-real-ip': '127.0.0.1' }))).toBe(false);
+    },
+  );
+
+  it.each(['x-forwarded-for', 'forwarded', 'x-real-ip', 'x-client-ip', 'x-forwarded-host', 'x-forwarded-proto'])(
+    'does not count a loopback socket that carries %s: a proxy on the same host is no in-process caller',
+    (header) => {
+      expect(isInProcessCaller(from('127.0.0.1', { [header]: '203.0.113.7' }))).toBe(false);
+    },
+  );
+});
+
+describe('matchmake guard: in-process callers and the rate limit', () => {
+  beforeEach(() => {
+    createPrismaClientMock.mockImplementation(makeFakePrisma);
+    createPrismaClientMock.mockClear();
+    vi.stubEnv('RATE_LIMIT_MATCHMAKE_MAX', '3');
+  });
+
+  afterAll(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('does not count a caller on the loopback interface, as the mobile gateway is one', async () => {
+    const server = await startMatchmakeServer({ loopbackExempt: true });
+    try {
+      // What the gateway sends: the SDK's plain POST, no proxy header.
+      const body = JSON.stringify({ tenant: 'default', zonePrivacyVersion: 2 });
+      const statuses = new Set<number>();
+      for (let i = 0; i < 40; i++) statuses.add((await matchmake(server, body)).status);
+      expect([...statuses]).toEqual([200]);
+    } finally {
+      await stopMatchmakeServer(server);
+    }
+  });
+
+  it('still limits a loopback caller that forwards a client address, a same-host proxy', async () => {
+    const server = await startMatchmakeServer({ loopbackExempt: true, trustProxy: 1 });
+    try {
+      const body = JSON.stringify({ tenant: 'default' });
+      const statuses: number[] = [];
+      for (let i = 0; i < 5; i++) {
+        statuses.push((await matchmake(server, body, { headers: { 'x-forwarded-for': '203.0.113.7' } })).status);
+      }
+      expect(statuses).toEqual([200, 200, 200, 429, 429]);
+    } finally {
+      await stopMatchmakeServer(server);
+    }
+  });
+
+  it('does not let a forged X-Forwarded-For: 127.0.0.1 buy an exemption', async () => {
+    for (const trustProxy of [false, 1, true]) {
+      const server = await startMatchmakeServer({ loopbackExempt: true, trustProxy });
+      try {
+        const body = JSON.stringify({ tenant: 'default' });
+        const statuses: number[] = [];
+        for (let i = 0; i < 5; i++) {
+          statuses.push((await matchmake(server, body, { headers: { 'x-forwarded-for': '127.0.0.1' } })).status);
+        }
+        // The forged header marks the request as proxied, so it is counted.
+        expect(statuses.filter((s) => s === 429).length, `trustProxy=${String(trustProxy)}`).toBeGreaterThan(0);
+      } finally {
+        await stopMatchmakeServer(server);
+      }
+    }
+  });
+
+  describe('through the real guard, with the socket address of the caller set', () => {
+    // A test cannot connect from outside loopback, so the listener sets the
+    // peer address the guard reads. Everything behind that is the real guard.
+    async function guarded(peer: string, trustProxy: boolean | number) {
+      const guard = createMatchmakeGuard((_req, res) => res.end('ok'), { trustProxy });
+      const server = http.createServer((req, res) => {
+        Object.defineProperty(req.socket, 'remoteAddress', { value: peer, configurable: true });
+        guard(req, res);
+      });
+      await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+      const { port } = server.address() as AddressInfo;
+      const post = async (headers: Record<string, string> = {}) =>
+        (
+          await fetch(`http://127.0.0.1:${port}/matchmake/joinOrCreate/world`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', ...headers },
+            body: '{}',
+          })
+        ).status;
+      const close = () => {
+        server.closeAllConnections();
+        return new Promise<void>((resolve) => server.close(() => resolve()));
+      };
+      return { post, close };
+    }
+
+    it.each([
+      ['an external peer', '203.0.113.7'],
+      ['Traefik on a Docker network', '172.29.0.4'],
+      ['a published port, seen as the bridge gateway', '::ffff:172.29.0.1'],
+    ])('limits %s, with or without a forged X-Forwarded-For: 127.0.0.1', async (_label, peer) => {
+      for (const forged of [false, true]) {
+        const { post, close } = await guarded(peer, false);
+        try {
+          const statuses: number[] = [];
+          for (let i = 0; i < 5; i++) statuses.push(await post(forged ? { 'x-forwarded-for': '127.0.0.1' } : {}));
+          expect(statuses, `forged=${String(forged)}`).toEqual([200, 200, 200, 429, 429]);
+        } finally {
+          await close();
+        }
+      }
+    });
+
+    it('limits an external peer behind a trusted proxy hop by the forwarded client, not by 127.0.0.1', async () => {
+      const { post, close } = await guarded('172.29.0.4', 1);
+      try {
+        const forged = { 'x-forwarded-for': '127.0.0.1, 203.0.113.9' };
+        expect([await post(forged), await post(forged), await post(forged), await post(forged)]).toEqual([
+          200, 200, 200, 429,
+        ]);
+        // Another real client behind the same proxy is unaffected.
+        expect(await post({ 'x-forwarded-for': '203.0.113.10' })).toBe(200);
+      } finally {
+        await close();
+      }
+    });
+
+    it.each(['127.0.0.1', '::1', '::ffff:127.0.0.1'])('does not limit the in-process caller %s', async (peer) => {
+      const { post, close } = await guarded(peer, 1);
+      try {
+        const statuses = new Set<number>();
+        for (let i = 0; i < 20; i++) statuses.add(await post());
+        expect([...statuses]).toEqual([200]);
+      } finally {
+        await close();
+      }
+    });
   });
 });

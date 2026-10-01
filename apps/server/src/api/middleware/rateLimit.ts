@@ -334,8 +334,9 @@ export const avatarResolveRateLimiter = createRateLimiter({
  * create a room, so this bounds one address to about 120 * 15 s / 60 s = 30
  * short-lived rooms at a time.
  *
- * Caveat: first-party callers share one source address each (the mobile
- * gateway joins over loopback, the npc-service from its container), so a
+ * Caveat: the mobile gateway joins from inside the server process over
+ * loopback and is not counted (see `isInProcessCaller` in matchmake/guard.ts).
+ * The npc-service runs in its own container and shares one source address, so a
  * deployment with a very large NPC roster may need `RATE_LIMIT_MATCHMAKE_MAX`
  * raised. A factory rather than a constant so every guard (and test) gets its
  * own store and reads the environment when it is built.

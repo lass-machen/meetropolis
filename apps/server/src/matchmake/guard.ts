@@ -1,5 +1,6 @@
 import express, { type ErrorRequestHandler, type RequestHandler } from 'express';
 import type { IncomingHttpHeaders, IncomingMessage, RequestListener, Server } from 'http';
+import { BlockList, isIP } from 'net';
 import { matchMaker } from 'colyseus';
 import { createMatchmakeRateLimiter } from '../api/middleware/rateLimit.js';
 import { AppError } from '../errors/AppError.js';
@@ -17,7 +18,8 @@ import { resolveTrustProxySetting } from '../trustProxy.js';
  * `req.ip`. The matchmake call is also the only anonymous way to make the server
  * build a room, so this guard sits in front of it with
  *  - the project's per-IP rate limiter, resolved through the same `trust proxy`
- *    setting as the rest of the API,
+ *    setting as the rest of the API (the server's own mobile gateway is left out,
+ *    see {@link isInProcessCaller}),
  *  - a hard cap on the request body, and
  *  - a JSON-only media type.
  *
@@ -45,6 +47,69 @@ export function isMatchmakeRequest(req: Pick<IncomingMessage, 'method' | 'url'>)
   if (req.method === 'OPTIONS') return false;
   const path = (req.url ?? '').split('?')[0] ?? '';
   return MATCHMAKE_PATH.test(path);
+}
+
+const LOOPBACK = new BlockList();
+LOOPBACK.addSubnet('127.0.0.0', 8, 'ipv4');
+LOOPBACK.addAddress('::1', 'ipv6');
+
+/**
+ * Whether a socket address is on the loopback interface. Takes the forms Node
+ * reports: `127.x.x.x`, `::1` and, from a dual-stack listener, the mapped
+ * `::ffff:127.x.x.x`. Anything that is not an IP address is not loopback.
+ */
+export function isLoopbackAddress(address: string | undefined): boolean {
+  const family = address === undefined ? 0 : isIP(address);
+  if (address === undefined || family === 0) return false;
+  try {
+    return LOOPBACK.check(address, family === 6 ? 'ipv6' : 'ipv4');
+  } catch {
+    return false;
+  }
+}
+
+// Headers a reverse proxy adds. A caller that carries one has come through a
+// proxy, whatever its socket address says.
+const PROXY_HEADERS = [
+  'x-forwarded-for',
+  'forwarded',
+  'x-real-ip',
+  'x-client-ip',
+  'x-forwarded-host',
+  'x-forwarded-proto',
+];
+
+/**
+ * Whether the request comes from this very process or container rather than
+ * from the network: its SOCKET is on the loopback interface (`req.socket`, never
+ * the address derived from X-Forwarded-For, which a client chooses) and it
+ * carries no proxy header.
+ *
+ * That is the mobile gateway (`mobile/worldBridge.ts`), which joins the world
+ * from inside the server process over `http://127.0.0.1:<port>` on behalf of
+ * every mobile session. Counted per IP they would all share one budget.
+ *
+ * Why this cannot be reached from outside: a socket address is the peer of the
+ * TCP connection, and a peer on loopback has to be in the same network
+ * namespace. Measured with the official Traefik image on a Docker network, as
+ * `traefik.docker.network` in the compose file sets it up: through Traefik the
+ * server sees Traefik's container address as the peer (and a forged
+ * `X-Forwarded-For: 127.0.0.1` from the client is overwritten), through a
+ * published port the bridge gateway, from another container that container's
+ * address. Only a process inside the container itself is 127.0.0.1. The compose
+ * file puts the server on the `traefik` and an internal network only and
+ * publishes no port.
+ *
+ * The proxy-header condition covers the one setup where loopback is not enough:
+ * a reverse proxy on the same host as a bare-metal server also connects over
+ * loopback, but it forwards the real client in `X-Forwarded-For`, so those
+ * requests stay limited per client. A same-host proxy that forwards nothing
+ * cannot be told from the gateway and is exempt, as it would otherwise share
+ * one budget for every visitor.
+ */
+export function isInProcessCaller(req: Pick<IncomingMessage, 'socket' | 'headers'>): boolean {
+  if (!isLoopbackAddress(req.socket.remoteAddress)) return false;
+  return PROXY_HEADERS.every((name) => req.headers[name] === undefined);
 }
 
 /** A refusal the guard decided on itself, rendered by {@link renderRejection}. */
@@ -165,6 +230,8 @@ export interface MatchmakeGuardOptions {
   trustProxy?: boolean | number;
   /** Replaces the per-IP rate limiter (tests). */
   rateLimiter?: RequestHandler;
+  /** Callers the rate limiter leaves alone. Defaults to {@link isInProcessCaller}; tests replace it. */
+  isInProcessCaller?: (req: Pick<IncomingMessage, 'socket' | 'headers'>) => boolean;
 }
 
 /** Build the guard as a request listener that hands accepted requests to `forward`. */
@@ -173,7 +240,12 @@ export function createMatchmakeGuard(forward: RequestListener, options: Matchmak
   guard.disable('x-powered-by');
   guard.set('trust proxy', options.trustProxy ?? resolveTrustProxySetting());
   guard.use(applyCorsHeaders);
-  guard.use(options.rateLimiter ?? createMatchmakeRateLimiter());
+  const rateLimiter = options.rateLimiter ?? createMatchmakeRateLimiter();
+  const inProcess = options.isInProcessCaller ?? isInProcessCaller;
+  guard.use((req, res, next) => {
+    if (inProcess(req)) next();
+    else rateLimiter(req, res, next);
+  });
   guard.use(rejectOversizedDeclaredBody, requireJsonBody, express.json({ limit: MATCHMAKE_BODY_LIMIT_BYTES }));
   guard.use((req, res) => {
     forward(req, res);

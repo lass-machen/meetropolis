@@ -43,6 +43,12 @@ export interface StartOptions {
   guard?: boolean;
   /** Tenant lookup behind the existence check. Default: every slug exists. */
   tenantExists?: TenantExists;
+  /**
+   * Leave loopback callers out of the rate limit, as production does. Off by
+   * default: the harness' own clients connect over loopback, so tests that
+   * exercise the limit model external callers.
+   */
+  loopbackExempt?: boolean;
 }
 
 export async function startMatchmakeServer(options: StartOptions = {}): Promise<MatchmakeTestServer> {
@@ -61,7 +67,12 @@ export async function startMatchmakeServer(options: StartOptions = {}): Promise<
   gameServer.define('world', WorldRoom).filterBy(['tenant']);
   const uninstallValidation = installPartitionKeyValidation(options.tenantExists ?? (() => Promise.resolve(true)));
   await gameServer.listen(0, '127.0.0.1');
-  if (options.guard !== false) installMatchmakeGuard(httpServer, { trustProxy });
+  if (options.guard !== false) {
+    installMatchmakeGuard(httpServer, {
+      trustProxy,
+      ...(options.loopbackExempt ? {} : { isInProcessCaller: () => false }),
+    });
+  }
   const { port } = httpServer.address() as AddressInfo;
   return { base: `http://127.0.0.1:${port}`, httpServer, gameServer, uninstallValidation };
 }
