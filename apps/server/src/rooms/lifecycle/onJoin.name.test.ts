@@ -151,14 +151,24 @@ describe('the display name of a verified account', () => {
     expect(name).toHaveLength(MAX_JOIN_TEXT_LENGTH);
   });
 
-  it('is the client name, cut to the limit, when the account lookup fails', async () => {
+  it('is the identity, not the client name, when the account lookup fails', async () => {
     fakePrisma.user.findUnique.mockRejectedValue(new Error('database unavailable'));
     const { room, players } = makeRoom();
     const client = clientWith({ identity: 'user-1', isNpc: false, zonePrivacyVersion: 1, tenantId: 'tenant-1' });
 
     await completePendingJoin(room, client, { name: HUGE }, 'user-1', FakePlayer as unknown as typeof PlayerCtor);
 
-    expect(players.get('sid-1')?.name).toBe('x'.repeat(MAX_JOIN_TEXT_LENGTH));
+    expect(players.get('sid-1')?.name).toBe('user-1');
+  });
+
+  it('is the identity when the account lookup fails and the client names a short name of its own', async () => {
+    fakePrisma.user.findUnique.mockRejectedValue(new Error('database unavailable'));
+    const { room, players } = makeRoom();
+    const client = clientWith({ identity: 'user-1', isNpc: false, zonePrivacyVersion: 1, tenantId: 'tenant-1' });
+
+    await completePendingJoin(room, client, { name: 'Mallory' }, 'user-1', FakePlayer as unknown as typeof PlayerCtor);
+
+    expect(players.get('sid-1')?.name).toBe('user-1');
   });
 });
 
@@ -178,6 +188,16 @@ describe('the display name of a join the server knows no account for', () => {
 
   it('is the identity when the client sends no name', async () => {
     expect(await joinWithoutAccount({}, 'bot-7')).toBe('bot-7');
+  });
+
+  it('is still the client name, cut to the limit, when the lookup fails and there is no verified tenant', async () => {
+    fakePrisma.user.findUnique.mockRejectedValue(new Error('database unavailable'));
+    const { room, players } = makeRoom();
+    const client = clientWith({ identity: 'bot-7', isNpc: false, zonePrivacyVersion: 1 });
+
+    await completePendingJoin(room, client, { name: HUGE }, 'bot-7', FakePlayer as unknown as typeof PlayerCtor);
+
+    expect(players.get('sid-1')?.name).toBe('x'.repeat(MAX_JOIN_TEXT_LENGTH));
   });
 
   it.each([[7], [{ a: 1 }], [['a']], [true]])('is the identity when the client sends %j as the name', async (name) => {
