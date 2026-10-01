@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { logger } from '../../logger.js';
 import { requireAuth, getTenantFromReq, requireMembership } from '../utils/authHelpers.js';
 import { pathParam } from '../utils/requestHelpers.js';
+import { displayNameSchema, invalidNameBody, invalidNameBodyFor } from '../utils/displayName.js';
 import { customAvatarPacksDir, deleteCustomAvatarFiles } from '../../services/avatarComposer.js';
 
 /**
@@ -39,7 +40,18 @@ async function handleUpdateMe(prisma: PrismaClient, req: express.Request, res: e
     res.status(401).json({ error: 'unauthorized' });
     return;
   }
-  const { name, email } = (req.body ?? {}) as { name?: string; email?: string };
+  const { name: rawName, email } = (req.body ?? {}) as { name?: unknown; email?: string };
+  // Only the name is validated: `email` and everything else behave as before.
+  // A null name counts as absent, as it always did.
+  let name: string | undefined;
+  if (rawName !== undefined && rawName !== null) {
+    const parsedName = displayNameSchema.safeParse(rawName);
+    if (!parsedName.success) {
+      res.status(400).json(invalidNameBody(parsedName.error.issues));
+      return;
+    }
+    name = parsedName.data;
+  }
   if (!name && !email) {
     res.status(400).json({ error: 'nothing to update' });
     return;
@@ -362,7 +374,7 @@ async function handleListUsers(prisma: PrismaClient, req: express.Request, res: 
   res.json(result);
 }
 
-const updateUserSchema = z.object({ email: z.string().email().optional(), name: z.string().min(1).optional() });
+const updateUserSchema = z.object({ email: z.string().email().optional(), name: displayNameSchema.optional() });
 
 async function handleUpdateUser(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
   const auth = requireAuth(req);
@@ -392,7 +404,11 @@ async function handleUpdateUser(prisma: PrismaClient, req: express.Request, res:
   }
 
   const parse = updateUserSchema.safeParse(req.body || {});
-  if (!parse.success || (!parse.data.email && !parse.data.name)) {
+  if (!parse.success) {
+    res.status(400).json(invalidNameBodyFor(parse.error) ?? { error: 'nothing to update' });
+    return;
+  }
+  if (!parse.data.email && !parse.data.name) {
     res.status(400).json({ error: 'nothing to update' });
     return;
   }

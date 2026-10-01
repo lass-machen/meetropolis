@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { logger } from '../../logger.js';
 import { requireAuth, getTenantFromReq, requireMembership, normalizeEmailForStorage } from '../utils/authHelpers.js';
 import { pathParam } from '../utils/requestHelpers.js';
+import { displayNameSchema, invalidNameBodyFor } from '../utils/displayName.js';
 import { establishSession, revokeSessionsForUser } from '../utils/sessionAuth.js';
 import { getTenancyModule } from '../../tenancyLoader.js';
 import { sendIfAvailable } from '../../emailLoader.js';
@@ -36,7 +37,7 @@ async function gateGuestAdminRequest(prisma: PrismaClient, req: express.Request)
 
 const createGuestSchema = z.object({
   email: z.string().email(),
-  name: z.string().min(1).optional(),
+  name: displayNameSchema.optional(),
   expiresAt: z.string(),
 });
 
@@ -167,7 +168,7 @@ async function handleCreateGuest(prisma: PrismaClient, req: express.Request, res
 
   const parse = createGuestSchema.safeParse(req.body || {});
   if (!parse.success) {
-    res.status(400).json({ error: 'email and expiresAt required' });
+    res.status(400).json(invalidNameBodyFor(parse.error) ?? { error: 'email and expiresAt required' });
     return;
   }
 

@@ -12,6 +12,7 @@ import {
   normalizeEmailForMatching,
 } from '../utils/authHelpers.js';
 import { establishSession, revokeSessionByToken } from '../utils/sessionAuth.js';
+import { displayNameSchema, invalidNameBodyFor } from '../utils/displayName.js';
 import { startEmailVerification } from './auth.verify.js';
 import { hasBillingModule } from '../../billingLoader.js';
 import { hasAdminEnterpriseModule } from '../../adminLoader.js';
@@ -95,7 +96,7 @@ export async function handleAuthInvite(
 
 const registerSchema = z.object({
   code: z.string().min(4),
-  name: z.string().min(1).optional(),
+  name: displayNameSchema.optional(),
   email: z.string().email(),
   password: z.string().min(8),
 });
@@ -107,7 +108,7 @@ export async function handleAuthRegister(
 ): Promise<void> {
   const parse = registerSchema.safeParse(req.body || {});
   if (!parse.success) {
-    res.status(400).json({ error: 'code, email, password required' });
+    res.status(400).json(invalidNameBodyFor(parse.error) ?? { error: 'code, email, password required' });
     return;
   }
   const { code, name, email, password } = parse.data;
