@@ -346,10 +346,18 @@ gameServer.define('world', WorldRoom).filterBy(['tenant']);
 // Calling httpServer.listen() directly would skip that wiring and leave clients
 // with 404s on the matchmake endpoint. The transport shares our httpServer, so
 // the bind targets the same port we configured above.
+// Before anything listens: a default tenant slug the world-join format check
+// would refuse locks the installation out of its own world. Logged here with its
+// own message, because the generic handler below cannot show it: the logger
+// wrapper only copies an Error's enumerable fields, which has none.
 try {
-  // Before anything listens: a default tenant slug the world-join format check
-  // would refuse locks the installation out of its own world.
   assertValidDefaultTenantSlug();
+} catch (err) {
+  logger.error(err instanceof Error ? err.message : String(err), { event: 'startup.invalid_default_tenant_slug' });
+  process.exit(1);
+}
+
+try {
   await listenAfterStartupChecks(
     () => assertBaseAvatarAvailable(getApiPrismaClient()),
     () =>
