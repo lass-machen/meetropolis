@@ -30,6 +30,7 @@ import { MIN_ZONE_PRIVACY_CLIENT_VERSION, ZONE_PRIVACY_PROTOCOL_VERSION } from '
 import type { RoomOptions } from '../WorldRoom.js';
 import type { PrismaClient } from '../../generated/prisma/index.js';
 import { clientNumberForLog, clientStringForLog } from './logSafe.js';
+import { MAX_JOIN_IDENTITY_LENGTH } from './joinFields.js';
 
 /**
  * Prisma surface onAuth needs: `session` to resolve the presented token against
@@ -254,6 +255,14 @@ async function authenticateUser(
     const fallbackId = options?.identity;
     if (!fallbackId) {
       throw new ServerError(AUTH_REJECTED_CODE, 'unauthorized');
+    }
+    // The identity goes into the room state and every peer is sent it. No
+    // identity the server knows is long, so a long one is refused outright.
+    if (fallbackId.length > MAX_JOIN_IDENTITY_LENGTH) {
+      logger.warn('[WorldRoom] Rejected token-less join: client identity is too long', {
+        identity: clientStringForLog(fallbackId),
+      });
+      throw new ServerError(AUTH_REJECTED_CODE, 'identity_invalid');
     }
     logger.warn('[WorldRoom] Admitted world join with UNVERIFIED identity (enforcement off)', {
       identity: clientStringForLog(fallbackId),
