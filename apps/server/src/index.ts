@@ -36,7 +36,11 @@ import { getBillingModule } from './billingLoader.js';
 import { getTelemetryModule } from './telemetryLoader.js';
 import { resolveTrustProxySetting } from './trustProxy.js';
 import { installMatchmakeGuard } from './matchmake/guard.js';
-import { createTenantExistsLookup, installPartitionKeyValidation } from './matchmake/tenantPartition.js';
+import {
+  assertValidDefaultTenantSlug,
+  createTenantExistsLookup,
+  installPartitionKeyValidation,
+} from './matchmake/tenantPartition.js';
 import { assertBaseAvatarAvailable, listenAfterStartupChecks } from './services/startupInvariant.js';
 
 // Colyseus 0.17 registers a prependListener('request', ...) on the HTTP server
@@ -343,6 +347,9 @@ gameServer.define('world', WorldRoom).filterBy(['tenant']);
 // with 404s on the matchmake endpoint. The transport shares our httpServer, so
 // the bind targets the same port we configured above.
 try {
+  // Before anything listens: a default tenant slug the world-join format check
+  // would refuse locks the installation out of its own world.
+  assertValidDefaultTenantSlug();
   await listenAfterStartupChecks(
     () => assertBaseAvatarAvailable(getApiPrismaClient()),
     () =>

@@ -78,6 +78,27 @@ export function assertValidPartitionOptions(options: unknown): void {
   throw new ServerError(BAD_REQUEST, 'invalid_tenant');
 }
 
+/**
+ * Fail fast on a `DEFAULT_TENANT_SLUG` the slug rule would refuse.
+ *
+ * The default tenant's slug is the partition key of its world room and, sent by
+ * the web UI (it takes the slug from /auth/me), of every join into it. If the
+ * configured value does not match {@link TENANT_SLUG_PATTERN} (upper-case
+ * letters, a dot, more than 64 characters), the matchmake format check refuses
+ * each of those joins and the installation is locked out of its own world.
+ * Telling the operator once, at startup, is better than refusing every join at
+ * runtime. Unset or empty means the built-in `default`, which is valid.
+ */
+export function assertValidDefaultTenantSlug(configured: string | undefined = process.env.DEFAULT_TENANT_SLUG): void {
+  if (!configured || TENANT_SLUG_PATTERN.test(configured)) return;
+  const shown = configured.length > 80 ? `${configured.slice(0, 80)}...` : configured;
+  throw new Error(
+    `DEFAULT_TENANT_SLUG=${JSON.stringify(shown)} is not a valid tenant slug. ` +
+      `It must match ${TENANT_SLUG_PATTERN.source} (lower-case letters, digits, "_" and "-", 1 to 64 characters), ` +
+      'because it names the world room of the default tenant. Correct the value or unset it to use "default".',
+  );
+}
+
 /** Slug of the tenant a join without a usable partition key belongs to (see WorldRoom.onCreate). */
 function defaultTenantSlug(): string {
   return process.env.DEFAULT_TENANT_SLUG || 'default';
