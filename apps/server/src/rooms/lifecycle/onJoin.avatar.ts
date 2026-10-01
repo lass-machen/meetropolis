@@ -30,6 +30,7 @@ async function resolveUserAppearance(
   room: WorldRoom,
   options: RoomOptions,
   joiningIdentity: string,
+  authTenantId: string | undefined,
 ): Promise<UserAppearance> {
   // Whatever name reaches the room state is synchronised to every peer, so it is
   // bounded wherever it comes from (see joinFields.ts).
@@ -57,7 +58,12 @@ async function resolveUserAppearance(
     };
   } catch (error) {
     logger.debug('[WorldRoom] Failed to look up user name/avatar from DB', error);
-    return { name: requestedName || joiningIdentity, lookupFailed: true };
+    // A database failure must not turn a verified account's name into client
+    // authority: findAllowedAvatar refuses the client's avatar in the same case
+    // and the name follows suit, falling back to the identity. A join with no
+    // verified tenant (token-less, staged mode) has no account to protect and
+    // keeps the client's name.
+    return { name: authTenantId ? joiningIdentity : requestedName || joiningIdentity, lookupFailed: true };
   }
 }
 
@@ -108,7 +114,7 @@ export async function resolveJoinAppearance(
   authTenantId: string | undefined,
   initialMapId: string,
 ): Promise<{ name: string; avatarId: string }> {
-  const appearance = await resolveUserAppearance(room, options, joiningIdentity);
+  const appearance = await resolveUserAppearance(room, options, joiningIdentity, authTenantId);
   const avatarId = await findAllowedAvatar(
     room,
     options,
