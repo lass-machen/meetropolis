@@ -5,6 +5,8 @@ import { createPrismaClient } from '../../db.js';
 import { getTenancyModule, OSS_USER_LIMIT } from '../../tenancyLoader.js';
 import { getBillingModuleSync } from '../../billingLoader.js';
 import type { WorldRoom, RoomOptions } from '../WorldRoom.js';
+import { isWorldAuth } from './onAuth.js';
+import { NO_TENANT_KEY } from './tenantView.js';
 
 export interface RoomMetadata {
   tenant?: string;
@@ -170,8 +172,47 @@ export function countActiveForTenant(activeRooms: Set<WorldRoom>, tenantSlug: st
   return collectActiveIdentitiesForTenant(activeRooms, tenantSlug).size;
 }
 
+// The seats a VERIFIED tenant occupies: every non-NPC identity whose player is
+// owned by that tenant (room.playerTenantKey, the JWT-verified tenant id that
+// also drives the StateView filter), in whichever room it sits.
+//
+// Room metadata is the wrong key for this. A room is partitioned by the slug the
+// client SENT, so one room can hold several tenants (apex clients all send
+// 'default') and a member can sit in another tenant's room by sending that
+// tenant's slug. Counting by room would charge those seats to the wrong tenant.
+// Players with no verified tenant (a token-less join while enforcement is off)
+// have no owner to count them for, so they stay attributed to the tenant of the
+// room they joined, as before.
+export function collectActiveIdentitiesForVerifiedTenant(
+  activeRooms: Set<WorldRoom>,
+  tenantId: string,
+  tenantSlug: string,
+): Set<string> {
+  const identities = new Set<string>();
+  try {
+    for (const r of Array.from(activeRooms.values())) {
+      const roomTenant = (r.metadata as RoomMetadata | undefined)?.tenant;
+      try {
+        r.state?.players?.forEach((p: CountablePlayer, sessionId: string) => {
+          if (!p.identity || isNpcPlayer(p)) return;
+          const ownerKey = r.playerTenantKey?.get(sessionId);
+          const unverified = ownerKey === undefined || ownerKey === NO_TENANT_KEY;
+          if (ownerKey === tenantId || (unverified && roomTenant === tenantSlug)) identities.add(p.identity);
+        });
+      } catch (e) {
+        logger.debug('[WorldRoom] Failed to get active identities from room', e);
+      }
+    }
+  } catch (e) {
+    logger.debug('[WorldRoom] Failed to collect active identities for verified tenant', e);
+  }
+  return identities;
+}
+
 // Enforce per-tenant seat limit. Returns true if the join was aborted
-// (and the client was kicked).
+// (and the client was kicked). `verifiedTenantId` is the joining user's
+// JWT-verified tenant: when given, seats are counted per verified owner; without
+// it (a token-less join) they are counted per room slug.
 // Exported for unit testing. Not part of the public API.
 export async function enforceTenantSeatLimit(
   client: Client,
@@ -180,8 +221,11 @@ export async function enforceTenantSeatLimit(
   tenant: { concurrentLimit: number | null; freeSeats: number | null },
   tenantSlug: string,
   joiningIdentity: string,
+  verifiedTenantId?: string,
 ): Promise<boolean> {
-  const activeIdentities = collectActiveIdentitiesForTenant(activeRooms, tenantSlug);
+  const activeIdentities = verifiedTenantId
+    ? collectActiveIdentitiesForVerifiedTenant(activeRooms, verifiedTenantId, tenantSlug)
+    : collectActiveIdentitiesForTenant(activeRooms, tenantSlug);
   const active = activeIdentities.size;
   const tenancy = await getTenancyModule();
   const bypassOssLimit = tenancy.bypassOssLimit?.() ?? false;
@@ -260,6 +304,14 @@ export async function enforceTenantSeatLimit(
 // Combined per-tenant limits: billing status + seat limit. Returns
 // true if the join was aborted.
 //
+// Whose limits: the tenant the JWT verified onto client.auth (onAuth.ts), never
+// the slug the client sent. `options.tenant` only picks the Colyseus room, and a
+// client chooses it freely: an unknown slug used to resolve to no tenant, which
+// skipped billing and the seat cap altogether, and another tenant's slug charged
+// that tenant's seats and billing state. Only a join with no verified tenant (a
+// token-less one while ZONE_PRIVACY_AUTH_ENFORCE is off; NPCs never get here)
+// falls back to the client's slug, resolved against the database.
+//
 // Gate order (E3.3): the billing gate runs UNCONDITIONALLY and FIRST — even
 // for a session takeover — so an expired/suspended tenant is rejected before
 // the seat cap is even considered. Only afterwards does the seat cap run, with
@@ -272,15 +324,23 @@ export async function enforceTenantLimits(
   joiningIdentity: string,
 ): Promise<boolean> {
   try {
-    const tenantSlug: string =
+    const auth = isWorldAuth(client.auth) ? client.auth : undefined;
+    const verifiedTenantId = auth?.tenantId;
+    const clientSlug: string =
       options?.tenant || (room.metadata as RoomMetadata)?.tenant || process.env.DEFAULT_TENANT_SLUG || 'default';
     const prisma = createPrismaClient();
-    const tenant = await prisma.tenant.findUnique({ where: { slug: tenantSlug } });
+    const tenant = await prisma.tenant.findUnique({
+      where: verifiedTenantId ? { id: verifiedTenantId } : { slug: clientSlug },
+    });
+    const tenantSlug: string = tenant?.slug ?? auth?.tenantSlug ?? clientSlug;
 
     if (await checkBillingStatus(client, prisma, tenant, tenantSlug)) return true;
 
     if (tenant && !tenant.bypassLimits) {
-      if (await enforceTenantSeatLimit(client, prisma, activeRooms, tenant, tenantSlug, joiningIdentity)) return true;
+      if (
+        await enforceTenantSeatLimit(client, prisma, activeRooms, tenant, tenantSlug, joiningIdentity, verifiedTenantId)
+      )
+        return true;
     }
     try {
       await prisma.$disconnect().catch(() => {});
