@@ -1,4 +1,4 @@
-import type { Client } from 'colyseus';
+import type { Client } from '@colyseus/core';
 import { logger } from '../../logger.js';
 import { colyseusPlayers } from '../../metrics.js';
 import { createPrismaClient } from '../../db.js';
@@ -16,11 +16,12 @@ import { clientStringForLog } from './logSafe.js';
 import { clampJoinText, joinDirection } from './joinFields.js';
 
 // Wait until the client's onMessage handlers are likely registered before
-// sending one-shot messages. Colyseus 0.17 resolves joinOrCreate faster than
-// 0.15, which exposed a pre-existing race: the server raced the client's
-// setupPlayerHandlers() and triggered "@colyseus/sdk: onMessage() not
-// registered for type 'full_state'/'bubble_state'/'presence_recent'" warnings,
-// so the client never received the initial state and the roster stayed empty.
+// sending one-shot messages. Colyseus resolves joinOrCreate faster than the
+// client registers its handlers (seen since 0.17), which exposed a race: the
+// server raced the client's setupPlayerHandlers() and triggered
+// "@colyseus/sdk: onMessage() not registered for type
+// 'full_state'/'bubble_state'/'presence_recent'" warnings, so the client never
+// received the initial state and the roster stayed empty.
 const HANDLER_REGISTRATION_DELAY_MS = 200;
 
 // Namespaced placeholder mapId for the (rare) case where no real map can be

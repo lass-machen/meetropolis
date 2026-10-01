@@ -1,4 +1,4 @@
-import type { Client } from 'colyseus';
+import type { Client } from '@colyseus/core';
 import type { WorldRoom } from '../WorldRoom.js';
 import { broadcastToMap } from '../utils/broadcastHelpers.js';
 import { isWorldAuth } from '../lifecycle/onAuth.js';

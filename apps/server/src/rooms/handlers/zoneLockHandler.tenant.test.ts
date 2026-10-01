@@ -14,7 +14,7 @@ vi.mock('../../logger.js', () => ({
 
 import { zoneLocksForClient } from './zoneLockHandler.js';
 import type { WorldRoom } from '../WorldRoom.js';
-import type { Client } from 'colyseus';
+import type { Client } from '@colyseus/core';
 
 type Lock = {
   zoneName: string;

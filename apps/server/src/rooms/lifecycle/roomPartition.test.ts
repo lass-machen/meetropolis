@@ -7,7 +7,8 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import crypto from 'node:crypto';
 import jwt from 'jsonwebtoken';
-import { ServerError, matchMaker, type AuthContext, type Client } from 'colyseus';
+import { WORLD_WIRE_PROTOCOL_VERSION } from '@meetropolis/shared';
+import { ServerError, matchMaker, type AuthContext, type Client } from '@colyseus/core';
 
 const warn = vi.hoisted(() => vi.fn());
 vi.mock('../../logger.js', () => ({
@@ -141,7 +142,11 @@ describe('WorldRoom.onAuth with a verified session', () => {
   it('admits a member of another tenant that sent no tenant into acme’s room while enforcement is off', async () => {
     const room = await acmeRoom();
     const { context } = sessionFor('user-1');
-    const auth = await room.onAuth(client, { zonePrivacyVersion: 1 }, context);
+    const auth = await room.onAuth(
+      client,
+      { zonePrivacyVersion: 1, wireProtocolVersion: WORLD_WIRE_PROTOCOL_VERSION },
+      context,
+    );
     expect(auth.tenantSlug).toBe('beta');
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('no tenant requested'), expect.anything());
   });
@@ -150,7 +155,9 @@ describe('WorldRoom.onAuth with a verified session', () => {
     const room = await acmeRoom();
     const { context } = sessionFor('user-2');
     vi.stubEnv('ZONE_PRIVACY_TENANT_ENFORCE', 'true');
-    await expect(room.onAuth(client, { zonePrivacyVersion: 1 }, context)).rejects.toMatchObject({
+    await expect(
+      room.onAuth(client, { zonePrivacyVersion: 1, wireProtocolVersion: WORLD_WIRE_PROTOCOL_VERSION }, context),
+    ).rejects.toMatchObject({
       code: AUTH_REJECTED_CODE,
       message: 'tenant_mismatch',
     });
@@ -160,7 +167,13 @@ describe('WorldRoom.onAuth with a verified session', () => {
     const room = await acmeRoom();
     const { context } = sessionFor('user-3');
     vi.stubEnv('ZONE_PRIVACY_TENANT_ENFORCE', 'true');
-    await expect(room.onAuth(client, { tenant: 'acme', zonePrivacyVersion: 1 }, context)).rejects.toMatchObject({
+    await expect(
+      room.onAuth(
+        client,
+        { tenant: 'acme', zonePrivacyVersion: 1, wireProtocolVersion: WORLD_WIRE_PROTOCOL_VERSION },
+        context,
+      ),
+    ).rejects.toMatchObject({
       message: 'tenant_mismatch',
     });
   });

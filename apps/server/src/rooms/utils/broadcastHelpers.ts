@@ -1,4 +1,4 @@
-import type { Client } from 'colyseus';
+import type { Client } from '@colyseus/core';
 import type { WorldRoom } from '../WorldRoom.js';
 
 // Broadcast helper: send `event` only to clients whose player is on the

@@ -1,5 +1,5 @@
 import { Client, Room } from '@colyseus/sdk';
-import { ZONE_PRIVACY_PROTOCOL_VERSION } from '@meetropolis/shared';
+import { WORLD_WIRE_PROTOCOL_VERSION, ZONE_PRIVACY_PROTOCOL_VERSION } from '@meetropolis/shared';
 import { logger } from './logger';
 import { readTimeoutMs } from './runtimeConfig';
 import type { WorldRoomState } from '../types/colyseus';
@@ -85,6 +85,10 @@ interface WorldJoinOptions {
   // apps/server/src/rooms/lifecycle/onAuth.ts). Always the current build's
   // constant; there is no reason for a caller to override it.
   zonePrivacyVersion?: number | undefined;
+  // Colyseus wire protocol version of this build, checked server-side first
+  // thing in onAuth (MIN_WORLD_WIRE_PROTOCOL_VERSION). Independent of the
+  // zone-privacy version. Always the build's constant, never overridden.
+  wireProtocolVersion?: number | undefined;
 }
 
 async function joinRoomWithTimeout(client: Client, joinOptions: WorldJoinOptions): Promise<Room<WorldRoomState>> {
@@ -175,6 +179,7 @@ export async function joinWorld(
     mapName,
     dnd,
     zonePrivacyVersion: ZONE_PRIVACY_PROTOCOL_VERSION,
+    wireProtocolVersion: WORLD_WIRE_PROTOCOL_VERSION,
   });
 
   await awaitInitialStateSync(room);

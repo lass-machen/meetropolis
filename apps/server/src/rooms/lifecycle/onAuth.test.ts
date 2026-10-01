@@ -1,6 +1,7 @@
 /**
  * Unit tests for the H4 hardening gate: identity binding (onAuth) +
- * client zone-privacy version gate.
+ * client zone-privacy version gate, and the wire protocol gate that comes
+ * before both.
  *
  * All external dependencies (logger, sessionAuth.validateSessionToken) are
  * mocked so no real JWT signing/DB is required. Tests exercise the pure
@@ -13,8 +14,12 @@
  * signature AND a valid signature whose session is gone.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { ServerError, type AuthContext } from 'colyseus';
-import { MIN_ZONE_PRIVACY_CLIENT_VERSION } from '@meetropolis/shared';
+import { ServerError, type AuthContext } from '@colyseus/core';
+import {
+  MIN_WORLD_WIRE_PROTOCOL_VERSION,
+  MIN_ZONE_PRIVACY_CLIENT_VERSION,
+  WORLD_WIRE_PROTOCOL_VERSION,
+} from '@meetropolis/shared';
 
 vi.mock('../../logger.js', () => ({
   logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
@@ -25,6 +30,7 @@ vi.mock('../../api/utils/sessionAuth.js', () => ({
   validateSessionToken: (...args: unknown[]) => validateSessionTokenMock(...args),
 }));
 
+import { logger } from '../../logger.js';
 import {
   authenticateWorldJoin,
   isWorldAuth,
@@ -53,6 +59,15 @@ function makeContext(opts: { token?: string; cookie?: string } = {}): AuthContex
   return context;
 }
 
+/**
+ * Join as a client that speaks the current wire protocol, which is what every
+ * test outside the wire gate describe below is about. A test that needs a
+ * different wire version overrides `wireProtocolVersion` in its options.
+ */
+function join(options: RoomOptions, context: AuthContext, prismaArg: WorldJoinPrisma = prisma) {
+  return authenticateWorldJoin({ wireProtocolVersion: WORLD_WIRE_PROTOCOL_VERSION, ...options }, context, prismaArg);
+}
+
 const ORIGINAL_ENV = { ...process.env };
 
 beforeEach(() => {
@@ -74,7 +89,7 @@ describe('authenticateWorldJoin: user identity binding', () => {
     const options: RoomOptions = { identity: 'user-victim', zonePrivacyVersion: MIN_ZONE_PRIVACY_CLIENT_VERSION };
     const context = makeContext({ cookie: 'auth_token=jwt-abc' });
 
-    const auth = await authenticateWorldJoin(options, context, prisma);
+    const auth = await join(options, context, prisma);
 
     expect(auth).toEqual({
       identity: 'user-real',
@@ -90,7 +105,7 @@ describe('authenticateWorldJoin: user identity binding', () => {
     const options: RoomOptions = { zonePrivacyVersion: MIN_ZONE_PRIVACY_CLIENT_VERSION };
     const context = makeContext({ token: 'bearer-jwt', cookie: 'auth_token=cookie-jwt' });
 
-    await authenticateWorldJoin(options, context, prisma);
+    await join(options, context, prisma);
 
     expect(validateSessionTokenMock).toHaveBeenCalledWith(prisma, 'bearer-jwt');
   });
@@ -99,7 +114,7 @@ describe('authenticateWorldJoin: user identity binding', () => {
     const options: RoomOptions = { zonePrivacyVersion: MIN_ZONE_PRIVACY_CLIENT_VERSION };
     const context = makeContext({});
 
-    await expect(authenticateWorldJoin(options, context, prisma)).rejects.toMatchObject({
+    await expect(join(options, context, prisma)).rejects.toMatchObject({
       code: AUTH_REJECTED_CODE,
     });
     expect(validateSessionTokenMock).not.toHaveBeenCalled();
@@ -110,8 +125,8 @@ describe('authenticateWorldJoin: user identity binding', () => {
     const options: RoomOptions = { zonePrivacyVersion: MIN_ZONE_PRIVACY_CLIENT_VERSION };
     const context = makeContext({ cookie: 'auth_token=expired-or-tampered' });
 
-    await expect(authenticateWorldJoin(options, context, prisma)).rejects.toBeInstanceOf(ServerError);
-    await expect(authenticateWorldJoin(options, context, prisma)).rejects.toMatchObject({ code: AUTH_REJECTED_CODE });
+    await expect(join(options, context, prisma)).rejects.toBeInstanceOf(ServerError);
+    await expect(join(options, context, prisma)).rejects.toMatchObject({ code: AUTH_REJECTED_CODE });
   });
 
   it('rejects a REVOKED session even though the JWT signature is still valid', async () => {
@@ -125,7 +140,7 @@ describe('authenticateWorldJoin: user identity binding', () => {
     const options: RoomOptions = { identity: 'user-revoked', zonePrivacyVersion: MIN_ZONE_PRIVACY_CLIENT_VERSION };
     const context = makeContext({ cookie: 'auth_token=validly-signed-but-revoked' });
 
-    await expect(authenticateWorldJoin(options, context, prisma)).rejects.toMatchObject({
+    await expect(join(options, context, prisma)).rejects.toMatchObject({
       code: AUTH_REJECTED_CODE,
     });
     expect(validateSessionTokenMock).toHaveBeenCalledWith(prisma, 'validly-signed-but-revoked');
@@ -139,7 +154,7 @@ describe('authenticateWorldJoin: user identity binding', () => {
     const options: RoomOptions = { zonePrivacyVersion: MIN_ZONE_PRIVACY_CLIENT_VERSION };
     const context = makeContext({ cookie: 'auth_token=guest-jwt' });
 
-    const auth = await authenticateWorldJoin(options, context, prisma);
+    const auth = await join(options, context, prisma);
 
     expect(auth).toEqual({
       identity: 'guest-42',
@@ -159,7 +174,7 @@ describe('authenticateWorldJoin: staged rollout (ZONE_PRIVACY_AUTH_ENFORCE off)'
     const options: RoomOptions = { identity: 'legacy-user', zonePrivacyVersion: 0 };
     const context = makeContext({});
 
-    const auth = await authenticateWorldJoin(options, context, prisma);
+    const auth = await join(options, context, prisma);
 
     expect(auth).toEqual({ identity: 'legacy-user', isNpc: false, zonePrivacyVersion: 0 });
     expect(validateSessionTokenMock).not.toHaveBeenCalled();
@@ -169,7 +184,7 @@ describe('authenticateWorldJoin: staged rollout (ZONE_PRIVACY_AUTH_ENFORCE off)'
     const options: RoomOptions = { zonePrivacyVersion: 0 };
     const context = makeContext({});
 
-    await expect(authenticateWorldJoin(options, context, prisma)).rejects.toMatchObject({ code: AUTH_REJECTED_CODE });
+    await expect(join(options, context, prisma)).rejects.toMatchObject({ code: AUTH_REJECTED_CODE });
   });
 
   it('binds identity to the verified JWT even in staged mode when a token is present', async () => {
@@ -177,7 +192,7 @@ describe('authenticateWorldJoin: staged rollout (ZONE_PRIVACY_AUTH_ENFORCE off)'
     const options: RoomOptions = { identity: 'user-victim', zonePrivacyVersion: MIN_ZONE_PRIVACY_CLIENT_VERSION };
     const context = makeContext({ cookie: 'auth_token=jwt-abc' });
 
-    const auth = await authenticateWorldJoin(options, context, prisma);
+    const auth = await join(options, context, prisma);
 
     expect(auth.identity).toBe('user-real');
   });
@@ -187,7 +202,7 @@ describe('authenticateWorldJoin: staged rollout (ZONE_PRIVACY_AUTH_ENFORCE off)'
     const options: RoomOptions = { zonePrivacyVersion: 0 };
     const context = makeContext({ cookie: 'auth_token=jwt-old' });
 
-    const auth = await authenticateWorldJoin(options, context, prisma);
+    const auth = await join(options, context, prisma);
 
     expect(auth.identity).toBe('user-old-client');
     expect(auth.isNpc).toBe(false);
@@ -203,21 +218,21 @@ describe('authenticateWorldJoin: client zone-privacy version gate', () => {
     const options: RoomOptions = { zonePrivacyVersion: MIN_ZONE_PRIVACY_CLIENT_VERSION - 1 };
     const context = makeContext({ cookie: 'auth_token=jwt-abc' });
 
-    await expect(authenticateWorldJoin(options, context, prisma)).rejects.toMatchObject({ code: CLIENT_TOO_OLD_CODE });
+    await expect(join(options, context, prisma)).rejects.toMatchObject({ code: CLIENT_TOO_OLD_CODE });
   });
 
   it('rejects a join with a missing version (pre-H4 client)', async () => {
     const options: RoomOptions = {};
     const context = makeContext({ cookie: 'auth_token=jwt-abc' });
 
-    await expect(authenticateWorldJoin(options, context, prisma)).rejects.toMatchObject({ code: CLIENT_TOO_OLD_CODE });
+    await expect(join(options, context, prisma)).rejects.toMatchObject({ code: CLIENT_TOO_OLD_CODE });
   });
 
   it('accepts a join at exactly the minimum version', async () => {
     const options: RoomOptions = { zonePrivacyVersion: MIN_ZONE_PRIVACY_CLIENT_VERSION };
     const context = makeContext({ cookie: 'auth_token=jwt-abc' });
 
-    const auth = await authenticateWorldJoin(options, context, prisma);
+    const auth = await join(options, context, prisma);
     expect(auth.zonePrivacyVersion).toBe(MIN_ZONE_PRIVACY_CLIENT_VERSION);
   });
 
@@ -225,7 +240,7 @@ describe('authenticateWorldJoin: client zone-privacy version gate', () => {
     const options: RoomOptions = { zonePrivacyVersion: MIN_ZONE_PRIVACY_CLIENT_VERSION + 5 };
     const context = makeContext({ cookie: 'auth_token=jwt-abc' });
 
-    const auth = await authenticateWorldJoin(options, context, prisma);
+    const auth = await join(options, context, prisma);
     expect(auth.zonePrivacyVersion).toBe(MIN_ZONE_PRIVACY_CLIENT_VERSION + 5);
   });
 });
@@ -239,7 +254,7 @@ describe('authenticateWorldJoin: NPC identities', () => {
     const options: RoomOptions = { identity: 'npc-bob', serviceToken: 'test-npc-secret' };
     const context = makeContext({});
 
-    const auth = await authenticateWorldJoin(options, context, prisma);
+    const auth = await join(options, context, prisma);
 
     expect(auth.identity).toBe('npc-bob');
     expect(auth.isNpc).toBe(true);
@@ -250,14 +265,14 @@ describe('authenticateWorldJoin: NPC identities', () => {
     const options: RoomOptions = { identity: 'npc-bob', serviceToken: 'wrong-secret' };
     const context = makeContext({});
 
-    await expect(authenticateWorldJoin(options, context, prisma)).rejects.toMatchObject({ code: AUTH_REJECTED_CODE });
+    await expect(join(options, context, prisma)).rejects.toMatchObject({ code: AUTH_REJECTED_CODE });
   });
 
   it('rejects an npc-* join with no service token', async () => {
     const options: RoomOptions = { identity: 'npc-bob' };
     const context = makeContext({});
 
-    await expect(authenticateWorldJoin(options, context, prisma)).rejects.toMatchObject({ code: AUTH_REJECTED_CODE });
+    await expect(join(options, context, prisma)).rejects.toMatchObject({ code: AUTH_REJECTED_CODE });
   });
 
   it('rejects an npc-* join in production when NPC_SERVICE_SECRET is unset', async () => {
@@ -266,7 +281,7 @@ describe('authenticateWorldJoin: NPC identities', () => {
     const options: RoomOptions = { identity: 'npc-bob', serviceToken: 'anything' };
     const context = makeContext({});
 
-    await expect(authenticateWorldJoin(options, context, prisma)).rejects.toMatchObject({ code: AUTH_REJECTED_CODE });
+    await expect(join(options, context, prisma)).rejects.toMatchObject({ code: AUTH_REJECTED_CODE });
   });
 
   it('rejects an npc-* join in production when NPC_SERVICE_SECRET is left at the insecure default', async () => {
@@ -275,7 +290,7 @@ describe('authenticateWorldJoin: NPC identities', () => {
     const options: RoomOptions = { identity: 'npc-bob', serviceToken: 'dev-npc-secret' };
     const context = makeContext({});
 
-    await expect(authenticateWorldJoin(options, context, prisma)).rejects.toMatchObject({ code: AUTH_REJECTED_CODE });
+    await expect(join(options, context, prisma)).rejects.toMatchObject({ code: AUTH_REJECTED_CODE });
   });
 });
 
@@ -296,7 +311,7 @@ describe('authenticateWorldJoin: room-tenant enforcement decoupled from H4 flag 
 
   it('resolves and attaches the authenticated tenant slug to client.auth', async () => {
     const options: RoomOptions = { tenant: 'auth-a', zonePrivacyVersion: MIN_ZONE_PRIVACY_CLIENT_VERSION };
-    const auth = await authenticateWorldJoin(options, makeContext({ cookie: 'auth_token=x' }), fakePrisma);
+    const auth = await join(options, makeContext({ cookie: 'auth_token=x' }), fakePrisma);
     expect(auth.tenantSlug).toBe('auth-a');
     expect(auth.tenantId).toBe('tenant-a-id');
   });
@@ -309,7 +324,7 @@ describe('authenticateWorldJoin: room-tenant enforcement decoupled from H4 flag 
     // decoupling MUST admit them (identity bound, authoritative slug attached).
     expect(process.env.ZONE_PRIVACY_AUTH_ENFORCE).toBe('true');
     const options: RoomOptions = { tenant: 'spoof-b', zonePrivacyVersion: MIN_ZONE_PRIVACY_CLIENT_VERSION };
-    const auth = await authenticateWorldJoin(options, makeContext({ cookie: 'auth_token=x' }), fakePrisma);
+    const auth = await join(options, makeContext({ cookie: 'auth_token=x' }), fakePrisma);
     expect(auth.identity).toBe('user-1'); // admitted, not rejected
     expect(auth.tenantSlug).toBe('auth-a'); // authoritative slug still attached
   });
@@ -317,22 +332,166 @@ describe('authenticateWorldJoin: room-tenant enforcement decoupled from H4 flag 
   it('rejects a mismatched options.tenant only when ZONE_PRIVACY_TENANT_ENFORCE is ON', async () => {
     process.env.ZONE_PRIVACY_TENANT_ENFORCE = 'true';
     const options: RoomOptions = { tenant: 'spoof-b', zonePrivacyVersion: MIN_ZONE_PRIVACY_CLIENT_VERSION };
-    await expect(
-      authenticateWorldJoin(options, makeContext({ cookie: 'auth_token=x' }), fakePrisma),
-    ).rejects.toMatchObject({ code: AUTH_REJECTED_CODE });
+    await expect(join(options, makeContext({ cookie: 'auth_token=x' }), fakePrisma)).rejects.toMatchObject({
+      code: AUTH_REJECTED_CODE,
+    });
   });
 
   it('admits a mismatched options.tenant during rollout (tenant-enforce OFF) but keeps the AUTH slug', async () => {
     const options: RoomOptions = { tenant: 'spoof-b', zonePrivacyVersion: MIN_ZONE_PRIVACY_CLIENT_VERSION };
-    const auth = await authenticateWorldJoin(options, makeContext({ cookie: 'auth_token=x' }), fakePrisma);
+    const auth = await join(options, makeContext({ cookie: 'auth_token=x' }), fakePrisma);
     expect(auth.tenantSlug).toBe('auth-a'); // authoritative, not the spoofed 'spoof-b'
   });
 
   it('does not reject when options.tenant matches the authenticated slug (tenant-enforce ON)', async () => {
     process.env.ZONE_PRIVACY_TENANT_ENFORCE = 'true';
     const options: RoomOptions = { tenant: 'auth-a', zonePrivacyVersion: MIN_ZONE_PRIVACY_CLIENT_VERSION };
-    const auth = await authenticateWorldJoin(options, makeContext({ cookie: 'auth_token=x' }), fakePrisma);
+    const auth = await join(options, makeContext({ cookie: 'auth_token=x' }), fakePrisma);
     expect(auth.identity).toBe('user-1');
+  });
+});
+
+describe('authenticateWorldJoin: wire protocol gate', () => {
+  const cookie = makeContext({ cookie: 'auth_token=jwt-abc' });
+
+  beforeEach(() => {
+    validateSessionTokenMock.mockResolvedValue({ userId: 'user-real' });
+    process.env.NPC_SERVICE_SECRET = 'test-npc-secret';
+  });
+
+  it.each([
+    ['enforced', 'true'],
+    ['staged', undefined],
+  ])('rejects a join without a wire version with 4426 client_too_old (%s)', async (_label, enforce) => {
+    if (enforce) process.env.ZONE_PRIVACY_AUTH_ENFORCE = enforce;
+    else delete process.env.ZONE_PRIVACY_AUTH_ENFORCE;
+    const options: RoomOptions = { zonePrivacyVersion: MIN_ZONE_PRIVACY_CLIENT_VERSION };
+
+    await expect(authenticateWorldJoin(options, cookie, prisma)).rejects.toMatchObject({
+      code: CLIENT_TOO_OLD_CODE,
+      message: 'client_too_old',
+    });
+    expect(validateSessionTokenMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['below the minimum', MIN_WORLD_WIRE_PROTOCOL_VERSION - 1],
+    ['zero', 0],
+    ['negative', -1],
+    ['a string', String(WORLD_WIRE_PROTOCOL_VERSION)],
+    ['null', null],
+    ['a fraction', WORLD_WIRE_PROTOCOL_VERSION + 0.5],
+    ['NaN', Number.NaN],
+    ['Infinity', Number.POSITIVE_INFINITY],
+  ])('rejects a wire version that is %s', async (_label, wireProtocolVersion) => {
+    // Join options come off the wire as JSON, so the value can be anything.
+    const options = {
+      zonePrivacyVersion: MIN_ZONE_PRIVACY_CLIENT_VERSION,
+      wireProtocolVersion,
+    } as unknown as RoomOptions;
+
+    await expect(authenticateWorldJoin(options, cookie, prisma)).rejects.toMatchObject({
+      code: CLIENT_TOO_OLD_CODE,
+    });
+  });
+
+  it('judges the wire version before the token: an outdated client without one is told to update, not to log in', async () => {
+    const options: RoomOptions = { zonePrivacyVersion: MIN_ZONE_PRIVACY_CLIENT_VERSION };
+
+    await expect(authenticateWorldJoin(options, makeContext({}), prisma)).rejects.toMatchObject({
+      code: CLIENT_TOO_OLD_CODE,
+    });
+  });
+
+  it('is not staged: an old wire version is refused while the zone-privacy gate would admit the client', async () => {
+    delete process.env.ZONE_PRIVACY_AUTH_ENFORCE;
+    const options: RoomOptions = { zonePrivacyVersion: 0, wireProtocolVersion: MIN_WORLD_WIRE_PROTOCOL_VERSION - 1 };
+
+    await expect(authenticateWorldJoin(options, cookie, prisma)).rejects.toMatchObject({
+      code: CLIENT_TOO_OLD_CODE,
+    });
+  });
+
+  it('refuses an NPC join without a wire version, even with the right service secret', async () => {
+    const options: RoomOptions = { identity: 'npc-bob', serviceToken: 'test-npc-secret' };
+
+    await expect(authenticateWorldJoin(options, makeContext({}), prisma)).rejects.toMatchObject({
+      code: CLIENT_TOO_OLD_CODE,
+      message: 'client_too_old',
+    });
+  });
+
+  it('judges the wire version of an NPC before its service secret', async () => {
+    const options: RoomOptions = { identity: 'npc-bob', serviceToken: 'wrong-secret' };
+
+    await expect(authenticateWorldJoin(options, makeContext({}), prisma)).rejects.toMatchObject({
+      code: CLIENT_TOO_OLD_CODE,
+    });
+  });
+
+  it.each([
+    ['exactly the minimum', MIN_WORLD_WIRE_PROTOCOL_VERSION],
+    ['above the minimum', MIN_WORLD_WIRE_PROTOCOL_VERSION + 5],
+  ])(
+    'admits a join with a wire version %s and does not carry it into client.auth',
+    async (_label, wireProtocolVersion) => {
+      const options: RoomOptions = { zonePrivacyVersion: MIN_ZONE_PRIVACY_CLIENT_VERSION, wireProtocolVersion };
+
+      const auth = await authenticateWorldJoin(options, cookie, prisma);
+
+      expect(auth).toEqual({
+        identity: 'user-real',
+        isNpc: false,
+        zonePrivacyVersion: MIN_ZONE_PRIVACY_CLIENT_VERSION,
+      });
+    },
+  );
+});
+
+describe('authenticateWorldJoin: the refused wire version is logged bounded', () => {
+  // The gate runs before authentication, so an anonymous client fully controls
+  // the version. A log entry must not grow with what it sends.
+  const HUGE = 900_000;
+  const hugeString = 'x'.repeat(HUGE);
+  const MAX_LOG_CHARS = 1_000;
+
+  beforeEach(() => {
+    for (const fn of [logger.warn, logger.info, logger.debug, logger.error]) vi.mocked(fn).mockClear();
+  });
+
+  /** Everything the mocked logger was asked to write, as the JSON a log line would carry. */
+  function loggedText(): string {
+    const calls = [logger.warn, logger.info, logger.debug, logger.error].flatMap((fn) => vi.mocked(fn).mock.calls);
+    return JSON.stringify(calls);
+  }
+
+  it.each([
+    ['a long string', hugeString, '<string>'],
+    ['a large object', { payload: hugeString }, '<object>'],
+    ['a large array', [hugeString], '<object>'],
+    ['null', null, '<object>'],
+    ['NaN', Number.NaN, '<number>'],
+  ])('logs a wire version that is %s as a fixed placeholder', async (_label, wireProtocolVersion, placeholder) => {
+    const options = { wireProtocolVersion } as unknown as RoomOptions;
+
+    await expect(authenticateWorldJoin(options, makeContext({}), prisma)).rejects.toMatchObject({
+      code: CLIENT_TOO_OLD_CODE,
+    });
+
+    expect(loggedText()).toContain(placeholder);
+    expect(loggedText().length).toBeLessThan(MAX_LOG_CHARS);
+  });
+
+  it('logs a rejected wire version that is a finite number as the number', async () => {
+    const options: RoomOptions = { wireProtocolVersion: MIN_WORLD_WIRE_PROTOCOL_VERSION - 1 };
+
+    await expect(authenticateWorldJoin(options, makeContext({}), prisma)).rejects.toMatchObject({
+      code: CLIENT_TOO_OLD_CODE,
+    });
+
+    expect(vi.mocked(logger.warn).mock.calls[0]?.[1]).toMatchObject({
+      wireProtocolVersion: MIN_WORLD_WIRE_PROTOCOL_VERSION - 1,
+    });
   });
 });
 

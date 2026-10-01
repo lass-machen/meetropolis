@@ -23,14 +23,15 @@
     "start:dev": "tsx watch src/index.ts"
   },
   "dependencies": {
-    "@colyseus/schema": "^4.0.30",
-    "@colyseus/sdk": "^0.17.43",
+    "@colyseus/core": "^0.18.18",
+    "@colyseus/schema": "^5.0.34",
+    "@colyseus/sdk": "^0.18.4",
+    "@colyseus/ws-transport": "^0.18.4",
     "@prisma/adapter-pg": "^7.10.0",
     "@prisma/client": "^7.10.0",
     "altcha-lib": "^2.5.0",
     "bcryptjs": "^3.0.3",
     "c12": "^3.3.4",
-    "colyseus": "^0.17.10",
     "compression": "^1.8.2",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",

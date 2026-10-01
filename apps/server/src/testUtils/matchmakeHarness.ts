@@ -12,7 +12,7 @@
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import express from 'express';
-import { Server as ColyseusServer, matchMaker } from 'colyseus';
+import { Server as ColyseusServer, matchMaker } from '@colyseus/core';
 import { WebSocketTransport } from '@colyseus/ws-transport';
 import { WorldRoom } from '../rooms/WorldRoom.js';
 import { installMatchmakeGuard } from '../matchmake/guard.js';

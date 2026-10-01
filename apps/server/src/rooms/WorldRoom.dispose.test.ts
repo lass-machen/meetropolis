@@ -10,7 +10,7 @@
  * upgrade that changes it shows up here instead of as a slow leak.
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { matchMaker } from 'colyseus';
+import { matchMaker } from '@colyseus/core';
 
 vi.mock('../logger.js', () => ({
   logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },

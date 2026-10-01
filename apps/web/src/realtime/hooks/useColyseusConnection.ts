@@ -80,6 +80,58 @@ export function classifyConnectError(msg: string): { reason?: string; cooldown?:
   return {};
 }
 
+/** How a terminal server refusal is presented to the user. */
+export type RefusalKind = 'auth_rejected' | 'client_too_old' | 'limit';
+
+// Exported for unit testing. Not part of the public API.
+// Server refusals that no reconnect can fix, so the user gets an explanation
+// instead of an endless retry loop. Anything else (network error, timeout,
+// 'Insufficient resources', a lost seat reservation) returns null and is retried.
+export function classifyRefusal(code: number | undefined, text: string): RefusalKind | null {
+  // H4 hardening: onAuth() rejected the join outright (expired/invalid token,
+  // or - for npc-* identities - a bad service token). Re-login is the only way
+  // forward; auto-reconnecting would just repeat the rejection forever. See
+  // rooms/lifecycle/onAuth.ts AUTH_REJECTED_CODE.
+  if (code === 4401 || text === 'unauthorized') return 'auth_rejected';
+  // The server judged this build too old: its wire protocol version or its
+  // zone-privacy version is below the server's minimum. See
+  // rooms/lifecycle/onAuth.ts CLIENT_TOO_OLD_CODE.
+  if (code === 4426 || text === 'client_too_old') return 'client_too_old';
+  // User limit and billing errors: show UI feedback, the user must click retry.
+  const isBillingError =
+    code === 4003 ||
+    code === 4004 ||
+    code === 4005 ||
+    text === 'subscription_inactive' ||
+    text === 'subscription_suspended' ||
+    text === 'trial_expired';
+  const isLimitError =
+    code === 4001 || code === 4002 || text === 'tenant_limit_reached' || text === 'oss_limit_reached';
+  return isBillingError || isLimitError ? 'limit' : null;
+}
+
+function showRefusalOverlay(
+  kind: RefusalKind,
+  code: number | undefined,
+  text: string,
+  apiBase: string,
+  onRetry: () => void,
+): void {
+  if (kind === 'auth_rejected') showAuthExpiredOverlay(apiBase);
+  else if (kind === 'client_too_old') showClientTooOldOverlay();
+  else showLimitErrorOverlay(code, text, onRetry);
+}
+
+// A refused join never yields a room: the SDK rejects joinOrCreate with an
+// error carrying the server's close code and message. Reads both without
+// trusting the shape.
+function refusalDetails(err: unknown): { code: number | undefined; text: string } {
+  if (typeof err !== 'object' || err === null) return { code: undefined, text: '' };
+  const code = 'code' in err && typeof err.code === 'number' ? err.code : undefined;
+  const text = 'message' in err && typeof err.message === 'string' ? err.message : '';
+  return { code, text };
+}
+
 const RECONNECT_BASE_DELAY_MS = 1_000;
 const RECONNECT_MAX_DELAY_MS = 30_000;
 const RECONNECT_JITTER_MS = 500;
@@ -168,9 +220,14 @@ type PerformConnectArgs = {
   refs: ConnectionRefs;
   scheduleReconnect: (disposed: boolean, onReconnect?: () => void) => number | undefined;
   onReconnect?: (() => void) | undefined;
+  // Live flag: true once the world app or the effect that started this join
+  // has been torn down. `performConnect`'s own `disposed` is only the caller's
+  // value from before the join began and cannot see a teardown during it.
+  disposedRef?: UseWorldRoomArgs['disposedRef'] | undefined;
 };
 
-async function performConnect(
+// Exported for unit testing. Not part of the public API.
+export async function performConnect(
   disposed: boolean,
   onConnected: (room: WorldRoom) => void,
   args: PerformConnectArgs,
@@ -216,6 +273,39 @@ async function performConnect(
     onConnected(room);
     return room;
   } catch (err: unknown) {
+    // The room does not exist yet, so handleError (attached to room.onError)
+    // never sees a refused join: it arrives here as the rejected promise.
+    const { code, text } = refusalDetails(err);
+    const refusal = classifyRefusal(code, text);
+    if (refusal) {
+      // The join can be refused after the component was torn down (logout,
+      // leaving the world). The overlays are plain DOM outside React, so one
+      // shown now would outlive the session it explains: stop instead, like the
+      // retry path below does through scheduleReconnect.
+      if (disposed || args.disposedRef?.current === true) {
+        logger.debug('[useColyseusConnection] join refused after teardown, no overlay', { code, reason: text });
+        refs.connectingRef.current = false;
+        return { error: err, needsReconnect: false, delay: undefined };
+      }
+      logger.warn('[useColyseusConnection] join refused', { code, reason: text });
+      const status: { reconnecting: boolean; lastCode?: number; lastReason?: string } = { reconnecting: false };
+      const closeInfo: { code?: number; reason?: string } = {};
+      if (code !== undefined) {
+        status.lastCode = code;
+        closeInfo.code = code;
+      }
+      if (text) {
+        status.lastReason = text;
+        closeInfo.reason = text;
+      }
+      refs.lastCloseInfoRef.current = closeInfo;
+      try {
+        setConnectionStatus?.(status);
+      } catch {}
+      refs.connectingRef.current = false;
+      showRefusalOverlay(refusal, code, text, apiBase, () => onReconnect?.());
+      return { error: err, needsReconnect: false, delay: undefined };
+    }
     try {
       const errLike = err as { message?: unknown; toString?: () => string } | undefined;
       const msg = (errLike && (typeof errLike.message === 'string' ? errLike.message : errLike.toString?.())) || '';
@@ -244,7 +334,8 @@ type PerformHandleErrorArgs = {
   resetRefsBeforeReconnect: () => void;
 };
 
-function performHandleError(
+// Exported for unit testing. Not part of the public API.
+export function performHandleError(
   ev: readonly ColyseusErrorPayload[],
   disposed: boolean,
   onReconnect: () => void,
@@ -281,44 +372,12 @@ function performHandleError(
       return;
     }
 
-    // H4 hardening: onAuth() rejected the join outright (expired/invalid
-    // token, or - for npc-* identities - a bad service token). Re-login is
-    // the only way forward; auto-reconnecting would just repeat the
-    // rejection forever. See rooms/lifecycle/onAuth.ts AUTH_REJECTED_CODE.
-    const isAuthRejected = code === 4401 || text === 'unauthorized';
-    if (isAuthRejected) {
-      showAuthExpiredOverlay(apiBase);
+    const refusal = classifyRefusal(code, text);
+    if (refusal) {
+      showRefusalOverlay(refusal, code, text, apiBase, onReconnect);
       colyseusRef.current = null;
       refs.connectingRef.current = false;
-      return;
-    }
-
-    // H4 hardening: this build's zonePrivacyVersion is below the server's
-    // minimum. See rooms/lifecycle/onAuth.ts CLIENT_TOO_OLD_CODE.
-    const isClientTooOld = code === 4426 || text === 'client_too_old';
-    if (isClientTooOld) {
-      showClientTooOldOverlay();
-      colyseusRef.current = null;
-      refs.connectingRef.current = false;
-      return;
-    }
-
-    // Handle user limit and billing errors - show UI feedback and don't auto-reconnect
-    const isBillingError =
-      code === 4003 ||
-      code === 4004 ||
-      code === 4005 ||
-      text === 'subscription_inactive' ||
-      text === 'subscription_suspended' ||
-      text === 'trial_expired';
-    const isLimitError =
-      code === 4001 || code === 4002 || text === 'tenant_limit_reached' || text === 'oss_limit_reached';
-
-    if (isBillingError || isLimitError) {
-      showLimitErrorOverlay(code, text, onReconnect);
-      colyseusRef.current = null;
-      refs.connectingRef.current = false;
-      // Don't auto-reconnect for limit errors - user must click retry
+      // Terminal: no auto-reconnect, the user acts on the overlay.
       return;
     }
   } catch {}
@@ -330,7 +389,17 @@ function performHandleError(
 
 export function useColyseusConnection(args: UseWorldRoomArgs, connectionRefs: ConnectionRefs) {
   const { lastCloseInfoRef, connectingRef, coolDownUntilRef, hasReceivedFullStateRef } = connectionRefs;
-  const { apiBase, me, localPosRef, colyseusRef, dndRef, remotesRef, colyseusToLivekitMap, setConnectionStatus } = args;
+  const {
+    apiBase,
+    me,
+    localPosRef,
+    colyseusRef,
+    dndRef,
+    disposedRef,
+    remotesRef,
+    colyseusToLivekitMap,
+    setConnectionStatus,
+  } = args;
 
   /**
    * Reset Colyseus-tied refs before reconnect so stale remote-player data from the previous
@@ -378,6 +447,7 @@ export function useColyseusConnection(args: UseWorldRoomArgs, connectionRefs: Co
         refs: connectionRefs,
         scheduleReconnect,
         onReconnect,
+        disposedRef,
       });
     },
     [
@@ -386,6 +456,7 @@ export function useColyseusConnection(args: UseWorldRoomArgs, connectionRefs: Co
       localPosRef,
       colyseusRef,
       dndRef,
+      disposedRef,
       connectingRef,
       coolDownUntilRef,
       setConnectionStatus,

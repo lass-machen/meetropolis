@@ -45,7 +45,7 @@ import { enforceOssLimit, enforceTenantLimits } from './onJoin.limiter.js';
 import { findExistingSession } from './ghostDetection.js';
 import { takeOverExistingSessions } from '../handlers/sessionHandlers.js';
 import type { WorldRoom, RoomOptions, Player as PlayerCtor } from '../WorldRoom.js';
-import type { Client } from 'colyseus';
+import type { Client } from '@colyseus/core';
 
 const mockEnforceOssLimit = vi.mocked(enforceOssLimit);
 const mockEnforceTenantLimits = vi.mocked(enforceTenantLimits);

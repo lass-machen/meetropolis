@@ -1,5 +1,5 @@
 import { Client, Room } from '@colyseus/sdk';
-import type { NpcSpawnCommand } from '@meetropolis/shared';
+import { WORLD_WIRE_PROTOCOL_VERSION, type NpcSpawnCommand } from '@meetropolis/shared';
 import { logger } from '../index.js';
 import { config } from '../config.js';
 
@@ -103,6 +103,9 @@ export class ColyseusClient {
           // apps/server/src/rooms/lifecycle/onAuth.ts authenticateNpc) -
           // NPCs have no per-user JWT to present instead.
           serviceToken: config.npcServiceSecret,
+          // The server refuses every join without a wire version, NPCs included
+          // (apps/server/src/rooms/lifecycle/onAuth.ts assertWireProtocol).
+          wireProtocolVersion: WORLD_WIRE_PROTOCOL_VERSION,
           name: npc.name,
           avatarId: npc.avatarId,
           x: npc.spawnX,

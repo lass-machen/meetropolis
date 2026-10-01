@@ -86,11 +86,13 @@ export function showAuthExpiredOverlay(apiBase: string): void {
   } catch {}
 }
 
-// H4 hardening: server rejected the join because this build's
-// zonePrivacyVersion is below MIN_ZONE_PRIVACY_CLIENT_VERSION (code 4426,
-// see rooms/lifecycle/onAuth.ts). Should not happen for an up-to-date OSS
-// build (colyseus.ts always sends the current constant); guards against an
-// endless reconnect loop if it ever does (e.g. a stale cached bundle).
+// Server rejected the join because this build is too old for it (code 4426,
+// see rooms/lifecycle/onAuth.ts): its wireProtocolVersion is below
+// MIN_WORLD_WIRE_PROTOCOL_VERSION or, with ZONE_PRIVACY_AUTH_ENFORCE on, its
+// zonePrivacyVersion is below MIN_ZONE_PRIVACY_CLIENT_VERSION. Should not
+// happen for an up-to-date build (colyseus.ts always sends the current
+// constants); a stale cached bundle from before the Colyseus 0.18 migration
+// does, and this guards it against an endless reconnect loop.
 export function showClientTooOldOverlay(): void {
   try {
     const host = document.createElement('div');

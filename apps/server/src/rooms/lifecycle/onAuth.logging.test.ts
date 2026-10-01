@@ -5,7 +5,7 @@
  * the logger received grows with it.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { MIN_ZONE_PRIVACY_CLIENT_VERSION } from '@meetropolis/shared';
+import { MIN_ZONE_PRIVACY_CLIENT_VERSION, WORLD_WIRE_PROTOCOL_VERSION } from '@meetropolis/shared';
 
 const log = vi.hoisted(() => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }));
 vi.mock('../../logger.js', () => ({ logger: log }));
@@ -61,7 +61,11 @@ afterEach(() => {
 
 describe('onAuth logs stay bounded', () => {
   it('for the identity of an NPC join with a wrong service token', async () => {
-    const options: RoomOptions = { identity: `npc-${HUGE}`, serviceToken: 'wrong' };
+    const options: RoomOptions = {
+      identity: `npc-${HUGE}`,
+      serviceToken: 'wrong',
+      wireProtocolVersion: WORLD_WIRE_PROTOCOL_VERSION,
+    };
 
     await expect(authenticateWorldJoin(options, tokenless(), prisma)).rejects.toThrow();
 
@@ -71,7 +75,11 @@ describe('onAuth logs stay bounded', () => {
 
   it('for the identity of a token-less join admitted in staged mode', async () => {
     // The longest identity that is still admitted (see joinFields.ts) is cut in the log.
-    const options: RoomOptions = { identity: 'x'.repeat(MAX_JOIN_IDENTITY_LENGTH), zonePrivacyVersion: 0 };
+    const options: RoomOptions = {
+      identity: 'x'.repeat(MAX_JOIN_IDENTITY_LENGTH),
+      zonePrivacyVersion: 0,
+      wireProtocolVersion: WORLD_WIRE_PROTOCOL_VERSION,
+    };
 
     await authenticateWorldJoin(options, tokenless(), prisma);
 
@@ -86,7 +94,11 @@ describe('onAuth logs stay bounded', () => {
   ])('for a mismatching options.tenant when the room match %s', async (_label, enforce) => {
     validateSessionTokenMock.mockResolvedValue({ userId: 'user-1', tenantId: 'tenant-a-id' });
     if (enforce) process.env.ZONE_PRIVACY_TENANT_ENFORCE = enforce;
-    const options: RoomOptions = { tenant: HUGE, zonePrivacyVersion: MIN_ZONE_PRIVACY_CLIENT_VERSION };
+    const options: RoomOptions = {
+      tenant: HUGE,
+      zonePrivacyVersion: MIN_ZONE_PRIVACY_CLIENT_VERSION,
+      wireProtocolVersion: WORLD_WIRE_PROTOCOL_VERSION,
+    };
 
     await authenticateWorldJoin(options, context(), prisma).catch(() => undefined);
 
@@ -101,7 +113,10 @@ describe('onAuth logs stay bounded', () => {
     validateSessionTokenMock.mockResolvedValue({ userId: 'user-1' });
     if (enforce) process.env.ZONE_PRIVACY_AUTH_ENFORCE = enforce;
     // A client can send any JSON value; the wire type says number only in theory.
-    const options = { zonePrivacyVersion: HUGE } as unknown as RoomOptions;
+    const options = {
+      zonePrivacyVersion: HUGE,
+      wireProtocolVersion: WORLD_WIRE_PROTOCOL_VERSION,
+    } as unknown as RoomOptions;
 
     await authenticateWorldJoin(options, context(), prisma).catch(() => undefined);
 
@@ -112,7 +127,11 @@ describe('onAuth logs stay bounded', () => {
 
   it('leaves short, ordinary values readable', async () => {
     validateSessionTokenMock.mockResolvedValue({ userId: 'user-1', tenantId: 'tenant-a-id' });
-    const options: RoomOptions = { tenant: 'spoof-b', zonePrivacyVersion: 0 };
+    const options: RoomOptions = {
+      tenant: 'spoof-b',
+      zonePrivacyVersion: 0,
+      wireProtocolVersion: WORLD_WIRE_PROTOCOL_VERSION,
+    };
 
     await authenticateWorldJoin(options, context(), prisma);
 

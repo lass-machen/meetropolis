@@ -55,7 +55,7 @@ import {
   checkBillingStatus,
 } from './onJoin.limiter.js';
 import type { WorldRoom, RoomOptions } from '../WorldRoom.js';
-import type { Client } from 'colyseus';
+import type { Client } from '@colyseus/core';
 
 // Import the mocked modules so we can control return values per test.
 import { getTenancyModule } from '../../tenancyLoader.js';

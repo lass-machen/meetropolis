@@ -7,15 +7,22 @@ import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import compression from 'compression';
 // IMPORTANT: Colyseus and WorldRoom must come from the same module instance.
-// Mixing `createRequire('colyseus')` (CJS) with `import 'colyseus'` (ESM) in
-// WorldRoom.ts causes the matchmaker to compare WorldRoom.prototype.onAuth
+// Mixing `createRequire('@colyseus/core')` (CJS) with `import '@colyseus/core'`
+// (ESM) in WorldRoom.ts causes the matchmaker to compare WorldRoom.prototype.onAuth
 // against the CJS Room.prototype.onAuth; they are different Function objects
 // even though the source is identical. Result: Colyseus prints
 //   "world"'s onAuth() defined at the instance level will be ignored.
-// Worse, it then enforces auth via the (CJS) static onAuth, bypassing any
-// instance-level checks. Using ESM imports everywhere keeps both sides on the
-// same Room class identity, so the heuristic passes and instance hooks work.
-import { Server as ColyseusServer, matchMaker } from 'colyseus';
+// and lets a static onAuth stand in for the instance-level one. On 0.17 and on
+// 0.18 alike, a static onAuth that returns a truthy payload makes Colyseus skip
+// the instance-level hook, and with it the session-row check. Using ESM imports
+// everywhere keeps both sides on the same Room class identity, so the heuristic
+// passes and instance hooks work.
+// Import from `@colyseus/core`, never from the `colyseus` meta package. From
+// 0.18 on that package re-exports `@colyseus/auth`, whose import side effect
+// installs a JWT-decoding static `Room.onAuth` for every room class. The
+// matchmaker runs it before the instance hook and answers a refused token with
+// a generic 525 instead of the 4401 / 4426 codes the clients act on.
+import { Server as ColyseusServer, matchMaker } from '@colyseus/core';
 import { WebSocketTransport } from '@colyseus/ws-transport';
 import { createServer } from 'http';
 import path from 'path';
@@ -43,7 +50,7 @@ import {
 } from './matchmake/tenantPartition.js';
 import { assertBaseAvatarAvailable, listenAfterStartupChecks } from './services/startupInvariant.js';
 
-// Colyseus 0.17 registers a prependListener('request', ...) on the HTTP server
+// Colyseus registers a prependListener('request', ...) on the HTTP server
 // that answers CORS preflights directly with DEFAULT_CORS_HEADERS, before
 // any Express middleware runs. As a result our custom headers
 // (x-correlation-id, x-tenant, x-av-identity, x-av-room) do not appear on
@@ -341,8 +348,8 @@ gameServer.define('world', WorldRoom).filterBy(['tenant']);
 // unknown rather than maintaining a duplicate type.
 (globalThis as unknown as { gameServer: unknown }).gameServer = gameServer;
 
-// In Colyseus 0.17 the matchmake HTTP routes (/matchmake/joinOrCreate/...)
-// are registered lazily inside `gameServer.listen()` via bindRouterToTransport.
+// The matchmake HTTP routes (/matchmake/joinOrCreate/...) are registered
+// lazily inside `gameServer.listen()` via bindRouterToTransport.
 // Calling httpServer.listen() directly would skip that wiring and leave clients
 // with 404s on the matchmake endpoint. The transport shares our httpServer, so
 // the bind targets the same port we configured above.
