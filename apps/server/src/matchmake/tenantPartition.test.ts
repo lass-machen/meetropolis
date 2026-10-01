@@ -26,10 +26,15 @@ import {
 } from '../testUtils/matchmakeHarness.js';
 import {
   TENANT_SLUG_PATTERN,
+  assertTenantExists,
   assertValidPartitionOptions,
+  createTenantExistsLookup,
+  installPartitionKeyValidation,
   isValidTenantSlug,
   resolveEmptyPartitionKey,
+  type TenantExists,
 } from './tenantPartition.js';
+import type { PrismaClient } from '../generated/prisma/index.js';
 
 describe('isValidTenantSlug', () => {
   it.each(['default', 'acme', 'acme-corp', 'team_42', 'a', '0', '-', '_', 'a'.repeat(64)])('accepts %s', (slug) => {
@@ -118,12 +123,149 @@ describe('resolveEmptyPartitionKey', () => {
   );
 });
 
+describe('assertTenantExists', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  const refusal = { code: 400, message: 'invalid_tenant' };
+
+  it('refuses a well-formed slug no tenant has', async () => {
+    const lookup = vi.fn<TenantExists>().mockResolvedValue(false);
+    await expect(assertTenantExists({ tenant: 'no-such-tenant' }, lookup)).rejects.toMatchObject(refusal);
+    await expect(assertTenantExists({ tenant: 'no-such-tenant' }, lookup)).rejects.toBeInstanceOf(ServerError);
+    expect(lookup).toHaveBeenCalledWith('no-such-tenant');
+  });
+
+  it('accepts a slug a tenant has', async () => {
+    const lookup = vi.fn<TenantExists>().mockResolvedValue(true);
+    await expect(assertTenantExists({ tenant: 'acme', identity: 'u1' }, lookup)).resolves.toBeUndefined();
+    expect(lookup).toHaveBeenCalledExactlyOnceWith('acme');
+  });
+
+  it('does not look the default tenant up, so an OSS install without a tenant row can join', async () => {
+    const lookup = vi.fn<TenantExists>().mockResolvedValue(false);
+    await expect(assertTenantExists({ tenant: 'default' }, lookup)).resolves.toBeUndefined();
+    expect(lookup).not.toHaveBeenCalled();
+  });
+
+  it('follows DEFAULT_TENANT_SLUG for what counts as the default tenant', async () => {
+    vi.stubEnv('DEFAULT_TENANT_SLUG', 'main');
+    const lookup = vi.fn<TenantExists>().mockResolvedValue(false);
+    await expect(assertTenantExists({ tenant: 'main' }, lookup)).resolves.toBeUndefined();
+    expect(lookup).not.toHaveBeenCalled();
+    await expect(assertTenantExists({ tenant: 'default' }, lookup)).rejects.toMatchObject(refusal);
+  });
+
+  it.each([undefined, {}, { identity: 'u1' }, [], null, 'x'])('does not look anything up for %j', async (options) => {
+    const lookup = vi.fn<TenantExists>().mockResolvedValue(false);
+    await expect(assertTenantExists(options, lookup)).resolves.toBeUndefined();
+    expect(lookup).not.toHaveBeenCalled();
+  });
+
+  it.each(['', 'Bad Slug', 7, null])('refuses the malformed tenant %j without a lookup', async (tenant) => {
+    const lookup = vi.fn<TenantExists>().mockResolvedValue(true);
+    await expect(assertTenantExists({ tenant }, lookup)).rejects.toMatchObject(refusal);
+    expect(lookup).not.toHaveBeenCalled();
+  });
+
+  it('refuses with a 503 when the lookup fails, instead of letting the request through', async () => {
+    const lookup = vi.fn<TenantExists>().mockRejectedValue(new Error('connection refused'));
+    await expect(assertTenantExists({ tenant: 'acme' }, lookup)).rejects.toMatchObject({
+      code: 503,
+      message: 'tenant_lookup_failed',
+    });
+  });
+
+  it('asks every time: nothing is cached', async () => {
+    const lookup = vi.fn<TenantExists>().mockResolvedValue(true);
+    await assertTenantExists({ tenant: 'acme' }, lookup);
+    await assertTenantExists({ tenant: 'acme' }, lookup);
+    expect(lookup).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('createTenantExistsLookup', () => {
+  function prismaReturning(row: { id: string } | null) {
+    const findUnique = vi.fn().mockResolvedValue(row);
+    return { findUnique, prisma: { tenant: { findUnique } } as unknown as PrismaClient };
+  }
+
+  it('looks the slug up by its unique index and selects nothing but the id', async () => {
+    const { findUnique, prisma } = prismaReturning({ id: 't1' });
+    await expect(createTenantExistsLookup(() => prisma)('acme')).resolves.toBe(true);
+    expect(findUnique).toHaveBeenCalledExactlyOnceWith({ where: { slug: 'acme' }, select: { id: true } });
+  });
+
+  it('reports a missing tenant', async () => {
+    const { prisma } = prismaReturning(null);
+    await expect(createTenantExistsLookup(() => prisma)('nope')).resolves.toBe(false);
+  });
+
+  it('asks for the client when it needs it, not when it is built', () => {
+    const getPrisma = vi.fn<() => PrismaClient>();
+    createTenantExistsLookup(getPrisma);
+    expect(getPrisma).not.toHaveBeenCalled();
+  });
+});
+
+describe('installPartitionKeyValidation', () => {
+  type Controller = NonNullable<Parameters<typeof installPartitionKeyValidation>[1]>;
+
+  /** A controller whose `invokeMethod` is a spy standing for "Colyseus builds or finds a room". */
+  function fakeController() {
+    const reached = vi.fn((..._args: unknown[]) => Promise.resolve({ room: { roomId: 'r1' } }));
+    const controller = { invokeMethod: reached } as unknown as Controller;
+    return { controller, reached };
+  }
+
+  it('hands the options on to Colyseus once the tenant checked out', async () => {
+    const { controller, reached } = fakeController();
+    const lookup = vi.fn<TenantExists>().mockResolvedValue(true);
+    installPartitionKeyValidation(lookup, controller);
+    await controller.invokeMethod('joinOrCreate', 'world', { tenant: 'acme' }, {});
+    expect(lookup).toHaveBeenCalledWith('acme');
+    expect(reached).toHaveBeenCalledWith('joinOrCreate', 'world', { tenant: 'acme' }, {});
+  });
+
+  it('never reaches Colyseus for an unknown tenant', async () => {
+    const { controller, reached } = fakeController();
+    installPartitionKeyValidation(vi.fn<TenantExists>().mockResolvedValue(false), controller);
+    await expect(controller.invokeMethod('joinOrCreate', 'world', { tenant: 'nope' }, {})).rejects.toMatchObject({
+      code: 400,
+      message: 'invalid_tenant',
+    });
+    expect(reached).not.toHaveBeenCalled();
+  });
+
+  it('files an empty tenant under the default tenant without a lookup', async () => {
+    const { controller, reached } = fakeController();
+    const lookup = vi.fn<TenantExists>().mockResolvedValue(false);
+    installPartitionKeyValidation(lookup, controller);
+    await controller.invokeMethod('joinOrCreate', 'world', { tenant: '', identity: 'u1' }, {});
+    expect(lookup).not.toHaveBeenCalled();
+    expect(reached).toHaveBeenCalledWith('joinOrCreate', 'world', { tenant: 'default', identity: 'u1' }, {});
+  });
+
+  it('stops checking once it is uninstalled', async () => {
+    const { controller, reached } = fakeController();
+    const uninstall = installPartitionKeyValidation(vi.fn<TenantExists>().mockResolvedValue(false), controller);
+    await expect(controller.invokeMethod('joinOrCreate', 'world', { tenant: 'nope' }, {})).rejects.toThrow();
+    uninstall();
+    await controller.invokeMethod('joinOrCreate', 'world', { tenant: 'nope' }, {});
+    expect(reached).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('partition key against a real Colyseus server', () => {
   let server: MatchmakeTestServer;
+  /** The tenants that "exist" in this suite; everything else is a well-formed slug nobody owns. */
+  const knownTenants = new Set(['acme', 'acme-corp', 'team_42', 'a', 'a'.repeat(64), '0', '-']);
+  const tenantExists = vi.fn<TenantExists>((slug) => Promise.resolve(knownTenants.has(slug)));
 
   beforeAll(async () => {
     createPrismaClientMock.mockImplementation(makeFakePrisma);
-    server = await startMatchmakeServer({ guard: false });
+    server = await startMatchmakeServer({ guard: false, tenantExists });
   });
 
   afterAll(async () => {
@@ -133,6 +275,7 @@ describe('partition key against a real Colyseus server', () => {
   beforeEach(async () => {
     await disposeAllRooms();
     createPrismaClientMock.mockClear();
+    tenantExists.mockClear();
   });
 
   it.each([
@@ -153,6 +296,51 @@ describe('partition key against a real Colyseus server', () => {
     const res = await matchmake(server, JSON.stringify({ tenant }));
     expect(res.status).toBe(400);
     expect(res.body).toEqual({ code: 400, error: 'invalid_tenant' });
+    expect(await worldRooms()).toHaveLength(0);
+    expect(createPrismaClientMock).not.toHaveBeenCalled();
+    expect(tenantExists).not.toHaveBeenCalled();
+  });
+
+  it.each(['no-such-tenant', 'zz'.repeat(32), 'team_43', '0000'])(
+    'refuses the well-formed but unknown slug %s and builds no room and no PrismaClient',
+    async (tenant) => {
+      const res = await matchmake(server, JSON.stringify({ tenant }));
+      expect(res.status).toBe(400);
+      expect(res.body).toEqual({ code: 400, error: 'invalid_tenant' });
+      expect(tenantExists).toHaveBeenCalledExactlyOnceWith(tenant);
+      expect(await worldRooms()).toHaveLength(0);
+      expect(createPrismaClientMock).not.toHaveBeenCalled();
+    },
+  );
+
+  it('does not build a room for any of 50 random unknown slugs', async () => {
+    for (let i = 0; i < 50; i++) {
+      const res = await matchmake(
+        server,
+        JSON.stringify({ tenant: `rnd-${i}-${Math.random().toString(36).slice(2)}` }),
+      );
+      expect(res.status).toBe(400);
+    }
+    expect(await worldRooms()).toHaveLength(0);
+    expect(createPrismaClientMock).not.toHaveBeenCalled();
+  });
+
+  it('refuses an unknown tenant on every matchmake method, not only joinOrCreate', async () => {
+    for (const method of ['create', 'join', 'joinOrCreate']) {
+      const res = await matchmake(server, JSON.stringify({ tenant: 'no-such-tenant' }), {
+        path: `/matchmake/${method}/world`,
+      });
+      expect(res.status, method).toBe(400);
+    }
+    expect(await worldRooms()).toHaveLength(0);
+    expect(createPrismaClientMock).not.toHaveBeenCalled();
+  });
+
+  it('answers 503 and builds no room while the tenant lookup is failing', async () => {
+    tenantExists.mockRejectedValueOnce(new Error('connection refused'));
+    const res = await matchmake(server, JSON.stringify({ tenant: 'acme' }));
+    expect(res.status).toBe(503);
+    expect(res.body).toEqual({ code: 503, error: 'tenant_lookup_failed' });
     expect(await worldRooms()).toHaveLength(0);
     expect(createPrismaClientMock).not.toHaveBeenCalled();
   });
@@ -188,6 +376,19 @@ describe('partition key against a real Colyseus server', () => {
     },
   );
 
+  it('looks a known tenant up once per request and builds its room', async () => {
+    const res = await matchmake(server, JSON.stringify({ tenant: 'acme' }));
+    expect(res.status).toBe(200);
+    expect(tenantExists).toHaveBeenCalledExactlyOnceWith('acme');
+  });
+
+  it('builds the default tenant\u2019s room without any lookup, even though no tenant row backs it (OSS)', async () => {
+    const res = await matchmake(server, JSON.stringify({ tenant: 'default' }));
+    expect(res.status).toBe(200);
+    expect(tenantExists).not.toHaveBeenCalled();
+    expect((await worldRooms())[0]?.metadata?.tenant).toBe('default');
+  });
+
   it('joins the existing room of a tenant instead of creating another one', async () => {
     await matchmake(server, JSON.stringify({ tenant: 'acme' }));
     const second = await matchmake(server, JSON.stringify({ tenant: 'acme' }));
@@ -199,6 +400,7 @@ describe('partition key against a real Colyseus server', () => {
   it('keeps accepting a missing tenant and an empty tenant (single-tenant default)', async () => {
     expect((await matchmake(server, JSON.stringify({}))).status).toBe(200);
     expect((await matchmake(server, JSON.stringify({ tenant: '' }))).status).toBe(200);
+    expect(tenantExists).not.toHaveBeenCalled();
   });
 
   it('files an empty tenant under the default tenant instead of building a room per request', async () => {
