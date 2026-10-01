@@ -35,6 +35,7 @@ vi.mock('../audioZones/runtime.js', () => ({
 }));
 
 import { completePendingJoin } from './onJoin.completion.js';
+import { MAX_JOIN_TEXT_LENGTH } from './joinFields.js';
 import type { WorldRoom, Player as PlayerCtor } from '../WorldRoom.js';
 
 type CompletionClient = Parameters<typeof completePendingJoin>[1];
@@ -54,6 +55,8 @@ class FakePlayer {
 }
 
 const HUGE = 'x'.repeat(900_000);
+// The placeholder map id carries the client's tenant, which is itself bounded (see joinFields.ts).
+const PLACEHOLDER_PREFIX = '__unresolved__:';
 const LOG_BUDGET_CHARS = 1_000;
 
 function makeRoom(): WorldRoom {
@@ -133,7 +136,7 @@ describe('completePendingJoin logs stay bounded', () => {
       'name:',
       expect.any(String),
       'mapId:',
-      expect.stringContaining('(900015 chars)'),
+      expect.stringContaining(`(${PLACEHOLDER_PREFIX.length + MAX_JOIN_TEXT_LENGTH} chars)`),
       'map:',
       expect.any(String),
       'at',

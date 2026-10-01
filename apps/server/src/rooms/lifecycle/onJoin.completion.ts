@@ -13,6 +13,7 @@ import { zoneLocksForClient } from '../handlers/zoneLockHandler.js';
 import { warmZoneCatalog, trackMove } from '../audioZones/runtime.js';
 import { resolveFallbackTenantId, resolveJoinAppearance } from './onJoin.avatar.js';
 import { clientStringForLog } from './logSafe.js';
+import { clampJoinText, joinDirection } from './joinFields.js';
 
 // Wait until the client's onMessage handlers are likely registered before
 // sending one-shot messages. Colyseus 0.17 resolves joinOrCreate faster than
@@ -31,7 +32,11 @@ const HANDLER_REGISTRATION_DELAY_MS = 200;
 // outcome as an empty id, but tenant-isolated and never a bare empty string
 // (Finding 7).
 function unresolvedMapId(tenantNamespace: string | undefined): string {
-  return tenantNamespace ? `__unresolved__:${tenantNamespace}` : '__unresolved__';
+  // The namespace is the verified tenant id, or for an NPC / token-less join the
+  // tenant slug the client named. The result is the player's mapId in the room
+  // state, so a slug from the client is bounded (see joinFields.ts).
+  const namespace = clampJoinText(tenantNamespace);
+  return namespace ? `__unresolved__:${namespace}` : '__unresolved__';
 }
 
 // Resolve the initial map (mapId + mapName) for a joining player.
@@ -87,7 +92,14 @@ async function resolveInitialMap(
   } catch (e) {
     logger.debug('[WorldRoom] Failed to determine initial map', e);
   }
-  return { mapId: unresolvedMapId(authTenantId ?? options?.tenant), mapName: initialMapName || 'office' };
+  // The requested name is the client's, and this fallback is the one place it
+  // reaches the room state as it is (every other path takes the name from the
+  // map row), so it is bounded here and nowhere else: the lookups above must
+  // keep the exact key to find a map with a long name.
+  return {
+    mapId: unresolvedMapId(authTenantId ?? options?.tenant),
+    mapName: clampJoinText(initialMapName) || 'office',
+  };
 }
 
 // Fall back to the (authenticated) tenant's default map by its defaultMapName,
@@ -372,7 +384,7 @@ export async function completePendingJoin(
   const initial = pickInitialPosition(room, options, initialMapId);
   player.x = initial.x;
   player.y = initial.y;
-  player.direction = options?.direction || 'down';
+  player.direction = joinDirection(options?.direction);
   player.identity = joiningIdentity;
 
   const { name, avatarId } = await resolveJoinAppearance(room, options, joiningIdentity, authTenantId, initialMapId);

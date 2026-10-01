@@ -40,3 +40,22 @@ export function clampJoinText(value: unknown): string {
  * cut can not turn one identity into another.
  */
 export const MAX_JOIN_IDENTITY_LENGTH = 104;
+
+const DIRECTIONS = ['up', 'down', 'left', 'right'] as const;
+
+/** A facing direction in the room state. */
+export type JoinDirection = (typeof DIRECTIONS)[number];
+
+/** The direction a joining player faces when the client names none, or none that is valid. */
+export const DEFAULT_JOIN_DIRECTION: JoinDirection = 'down';
+
+/**
+ * The direction a client names for its join: one of the four values the rest of
+ * the API accepts for a direction (the NPC and position schemas), otherwise the
+ * default. The value goes into the room state as it is, so anything else, a
+ * 900 KB string included, must never get there.
+ */
+export function joinDirection(value: unknown): JoinDirection {
+  const known = DIRECTIONS.find((direction) => direction === value);
+  return known ?? DEFAULT_JOIN_DIRECTION;
+}
