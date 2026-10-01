@@ -127,6 +127,8 @@ import {
 import { WorldRoom } from './WorldRoom.js';
 import { hashSessionToken } from '../api/utils/sessionAuth.js';
 import { clearSessionCache } from '../api/utils/sessionCache.js';
+import { installMatchmakeGuard, MATCHMAKE_BODY_LIMIT_BYTES } from '../matchmake/guard.js';
+import { installPartitionKeyValidation } from '../matchmake/tenantPartition.js';
 import { AUTH_REJECTED_CODE, CLIENT_TOO_OLD_CODE, isWorldAuth } from './lifecycle/onAuth.js';
 import { WorldBridge } from '../mobile/worldBridge.js';
 import { MobileSession } from '../mobile/mobileSession.js';
@@ -190,6 +192,7 @@ let wsUrl: string;
 let httpUrl: string;
 // Notices Colyseus printed while registering the world room; see the guard test.
 let registrationNotices: string[] = [];
+let uninstallPartitionValidation: () => void;
 // Every TCP connection the server currently holds, to simulate a network drop.
 const liveSockets = new Set<Socket>();
 const openRooms: Room[] = [];
@@ -378,6 +381,12 @@ beforeAll(async () => {
   registrationNotices = info.mock.calls.map((args) => args.join(' '));
   info.mockRestore();
   await gameServer.listen(0, '127.0.0.1');
+  // The production chain in front of the matchmake route (see index.ts), so
+  // every SDK join below goes through it.
+  uninstallPartitionValidation = installPartitionKeyValidation((slug) =>
+    Promise.resolve([...fakeDb.tenants.values()].some((t) => t.slug === slug)),
+  );
+  installMatchmakeGuard(httpServer);
   const port = (httpServer.address() as AddressInfo).port;
   wsUrl = `ws://127.0.0.1:${port}`;
   httpUrl = `http://127.0.0.1:${port}`;
@@ -392,6 +401,7 @@ afterEach(async () => {
 });
 
 afterAll(async () => {
+  uninstallPartitionValidation();
   await gameServer.gracefullyShutdown(false);
 });
 
@@ -712,4 +722,50 @@ describe('WorldBridge against the real world room', () => {
     await waitFor(() => roster(peer).get('mob2')?.x === 41, 'the peer to see the rejoined bridge move');
     await waitFor(() => latestRoster(events)?.includes('peer2') === true, 'the bridge to see the peer');
   }, 20_000);
+});
+
+describe('the matchmake guard in front of Colyseus 0.18, reached by the real SDK client', () => {
+  it('lets a join of a tenant that exists through the guard, the partition check and into its room', async () => {
+    registerUser('gina', 'Gina');
+    const client = new Client(wsUrl);
+    client.auth.token = issueToken('gina', TENANT_A.id);
+
+    const room = await client.joinOrCreate('world', { tenant: TENANT_A.slug, name: 'gina', ...CURRENT_VERSIONS });
+    openRooms.push(room);
+
+    room.onMessage('*', () => undefined);
+    await waitFor(() => roster(room).get('gina')?.name === 'Gina', 'the joiner to see its own player');
+    expect(matchMaker.getLocalRoomById(room.roomId)?.metadata).toMatchObject({ tenant: TENANT_A.slug });
+  });
+
+  it.each([
+    ['a tenant no one owns', { tenant: 'no-such-tenant' }, 400, 'invalid_tenant'],
+    ['a malformed tenant', { tenant: 'Not A Slug' }, 400, 'invalid_tenant'],
+    ['a prototype key', JSON.parse('{"tenant":"default","__proto__":{"x":1}}') as object, 400, 'invalid_options'],
+  ])('refuses %s before a room is built', async (_label, options, code, message) => {
+    const rooms = (await matchMaker.query({ name: 'world' })).length;
+
+    await expect(new Client(wsUrl).joinOrCreate('world', { ...options, ...CURRENT_VERSIONS })).rejects.toMatchObject({
+      code,
+      message,
+    });
+
+    expect(await matchMaker.query({ name: 'world' })).toHaveLength(rooms);
+  });
+
+  it.each(['create', 'join', 'joinById'] as const)('refuses the method %s, which no client needs', async (method) => {
+    const client = new Client(wsUrl);
+    const attempt =
+      method === 'joinById'
+        ? client.joinById('someRoomId', { tenant: 'default' })
+        : client[method]('world', { tenant: 'default', ...CURRENT_VERSIONS });
+
+    await expect(attempt).rejects.toMatchObject({ code: 400, message: 'invalid_method' });
+  });
+
+  it('refuses a body above the limit with 413', async () => {
+    const options = { tenant: 'default', filler: 'x'.repeat(MATCHMAKE_BODY_LIMIT_BYTES), ...CURRENT_VERSIONS };
+
+    await expect(new Client(wsUrl).joinOrCreate('world', options)).rejects.toMatchObject({ code: 413 });
+  });
 });
