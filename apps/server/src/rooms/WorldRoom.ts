@@ -24,6 +24,7 @@ import { performOnLeave } from './lifecycle/onLeave.js';
 import { startGuestExpiryInterval } from './lifecycle/guestExpiry.js';
 import { loadInitialSpawn } from './lifecycle/onCreateSetup.js';
 import { authenticateWorldJoin, type WorldAuth } from './lifecycle/onAuth.js';
+import { enforceRoomPartition } from './lifecycle/roomPartition.js';
 
 export interface RoomOptions {
   tenant?: string;
@@ -240,7 +241,9 @@ export class WorldRoom extends Room<{ state: WorldState }> {
   // NOTE: this must stay an ESM-imported `Room` (see the CJS/ESM note in
   // index.ts) for Colyseus to honor an instance-level onAuth at all.
   override async onAuth(_client: Client, options: RoomOptions | undefined, context: AuthContext): Promise<WorldAuth> {
-    return authenticateWorldJoin(options, context, this.prismaForPresence ?? createPrismaClient());
+    const auth = await authenticateWorldJoin(options, context, this.prismaForPresence ?? createPrismaClient());
+    enforceRoomPartition(options, auth, (this.metadata as RoomMetadata | undefined)?.tenant);
+    return auth;
   }
 
   override async onJoin(client: Client, options?: RoomOptions): Promise<void> {

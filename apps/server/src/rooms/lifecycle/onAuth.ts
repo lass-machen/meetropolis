@@ -174,7 +174,7 @@ function isAuthEnforced(): boolean {
  * already isolate all DATA regardless of this flag; this only closes the
  * residual Colyseus room-partition sharing.
  */
-function isTenantEnforced(): boolean {
+export function isTenantEnforced(): boolean {
   return process.env.ZONE_PRIVACY_TENANT_ENFORCE === 'true';
 }
 
