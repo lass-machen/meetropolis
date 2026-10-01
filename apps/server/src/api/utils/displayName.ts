@@ -1,13 +1,12 @@
+import { MAX_DISPLAY_NAME_LENGTH } from '@meetropolis/shared';
 import { z } from 'zod';
 
 /**
- * Longest display name the server accepts or shows: 200 characters, the cap the
- * NPC routes already put on `Npc.name`. One constant for every writer of a name
- * (users, guests, NPCs) and for the clamp a world join applies to a name on its
- * way into the room state (rooms/lifecycle/joinFields.ts), which is synchronised
- * to every peer.
+ * The display name limit is shared with the web client, which puts it on its
+ * name fields, and with the world join, which clamps a name to it on its way
+ * into the room state (rooms/lifecycle/joinFields.ts).
  */
-export const MAX_DISPLAY_NAME_LENGTH = 200;
+export { MAX_DISPLAY_NAME_LENGTH };
 
 /**
  * A user's display name as a route accepts it: surrounding whitespace is
