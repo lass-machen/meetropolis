@@ -16,7 +16,7 @@ import { Server as ColyseusServer, matchMaker } from 'colyseus';
 import { WebSocketTransport } from '@colyseus/ws-transport';
 import { WorldRoom } from '../rooms/WorldRoom.js';
 import { installMatchmakeGuard } from '../matchmake/guard.js';
-import { installPartitionKeyValidation } from '../matchmake/tenantPartition.js';
+import { installPartitionKeyValidation, type TenantExists } from '../matchmake/tenantPartition.js';
 
 /** The slice of PrismaClient a freshly created, unauthenticated room touches. */
 export function makeFakePrisma() {
@@ -32,6 +32,8 @@ export interface MatchmakeTestServer {
   base: string;
   httpServer: http.Server;
   gameServer: ColyseusServer;
+  /** Puts the unwrapped `invokeMethod` back; called by {@link stopMatchmakeServer}. */
+  uninstallValidation: () => void;
 }
 
 export interface StartOptions {
@@ -39,6 +41,8 @@ export interface StartOptions {
   trustProxy?: boolean | number;
   /** Install the transport guard (body cap, rate limit). Default true. */
   guard?: boolean;
+  /** Tenant lookup behind the existence check. Default: every slug exists. */
+  tenantExists?: TenantExists;
 }
 
 export async function startMatchmakeServer(options: StartOptions = {}): Promise<MatchmakeTestServer> {
@@ -55,14 +59,15 @@ export async function startMatchmakeServer(options: StartOptions = {}): Promise<
     greet: false,
   });
   gameServer.define('world', WorldRoom).filterBy(['tenant']);
-  installPartitionKeyValidation();
+  const uninstallValidation = installPartitionKeyValidation(options.tenantExists ?? (() => Promise.resolve(true)));
   await gameServer.listen(0, '127.0.0.1');
   if (options.guard !== false) installMatchmakeGuard(httpServer, { trustProxy });
   const { port } = httpServer.address() as AddressInfo;
-  return { base: `http://127.0.0.1:${port}`, httpServer, gameServer };
+  return { base: `http://127.0.0.1:${port}`, httpServer, gameServer, uninstallValidation };
 }
 
 export async function stopMatchmakeServer(server: MatchmakeTestServer): Promise<void> {
+  server.uninstallValidation();
   await server.gameServer.gracefullyShutdown(false);
   server.httpServer.closeAllConnections();
 }

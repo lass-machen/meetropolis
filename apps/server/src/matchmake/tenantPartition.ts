@@ -1,4 +1,6 @@
 import { ServerError, matchMaker } from 'colyseus';
+import type { PrismaClient } from '../generated/prisma/index.js';
+import { logger } from '../logger.js';
 
 /**
  * Format of a tenant slug used as the world-room partition key
@@ -17,8 +19,9 @@ import { ServerError, matchMaker } from 'colyseus';
  */
 export const TENANT_SLUG_PATTERN = /^[a-z0-9_-]{1,64}$/;
 
-/** HTTP status Colyseus' matchmake route reports for these refusals. */
+/** HTTP statuses Colyseus' matchmake route reports for these refusals. */
 const BAD_REQUEST = 400;
+const SERVICE_UNAVAILABLE = 503;
 
 export function isValidTenantSlug(value: unknown): value is string {
   return typeof value === 'string' && TENANT_SLUG_PATTERN.test(value);
@@ -70,17 +73,81 @@ export function resolveEmptyPartitionKey(options: unknown): unknown {
   return { ...options, tenant: defaultTenantSlug() };
 }
 
+/** Whether a tenant with this slug exists. Rejecting is the caller's job. */
+export type TenantExists = (slug: string) => Promise<boolean>;
+
 /**
- * Put the partition-key check in front of every Colyseus matchmake call
+ * Tenant lookup backed by the `Tenant` table (`slug` is unique, so this is an
+ * index lookup). Takes the client lazily because the one index.ts has at hand
+ * is built when the API module loads, which happens after the validation is
+ * installed.
+ */
+export function createTenantExistsLookup(getPrisma: () => PrismaClient): TenantExists {
+  return async (slug) => {
+    const row = await getPrisma().tenant.findUnique({ where: { slug }, select: { id: true } });
+    return row !== null;
+  };
+}
+
+/**
+ * Refuse a well-formed but unknown tenant slug before a room is built for it.
+ *
+ * The format check alone leaves an anonymous caller an unbounded supply of
+ * well-formed slugs, and every one of them builds a room (PrismaClient and pool,
+ * timers, presence topic) that lives until its seat reservation expires. A slug
+ * is accepted when
+ *  - it is the default tenant (`DEFAULT_TENANT_SLUG`, else `default`). It is
+ *    never looked up: it is the one slug an OSS install has, and its row is
+ *    only created lazily by the first REST request, so a join must not depend
+ *    on that. `joinOrCreate` callers share one room for it.
+ *  - or a `Tenant` row with that slug exists (multi-tenant installs). An OSS
+ *    install only ever has the default row, so there it is the only slug.
+ * A missing `tenant` key is not checked: WorldRoom files it under the default
+ * tenant. The lookup is not cached on purpose. A negative cache would fill up
+ * with random slugs and a positive one would only add staleness; one indexed
+ * query per matchmake is cheap at the per-IP rate limit.
+ *
+ * A lookup that fails (database down) refuses the request with a 503 instead of
+ * letting it through: the join would fail on the same database moments later.
+ */
+export async function assertTenantExists(options: unknown, tenantExists: TenantExists): Promise<void> {
+  if (!isPlainObject(options) || !Object.prototype.hasOwnProperty.call(options, 'tenant')) return;
+  const slug = options.tenant;
+  // The shape check normally ran before this; refuse rather than trust it.
+  if (!isValidTenantSlug(slug)) throw new ServerError(BAD_REQUEST, 'invalid_tenant');
+  if (slug === defaultTenantSlug()) return;
+  let exists: boolean;
+  try {
+    exists = await tenantExists(slug);
+  } catch (error) {
+    logger.error({ event: 'matchmake.tenant_lookup_failed', error });
+    throw new ServerError(SERVICE_UNAVAILABLE, 'tenant_lookup_failed');
+  }
+  if (!exists) throw new ServerError(BAD_REQUEST, 'invalid_tenant');
+}
+
+/**
+ * Put the partition-key checks in front of every Colyseus matchmake call
  * (`joinOrCreate`, `create`, `join`, `joinById`, `reconnect`). The HTTP route
  * invokes `matchMaker.controller.invokeMethod` for all of them, so this is the
  * single choke point before any room is looked up or created.
+ *
+ * Returns a function that restores the unchecked method (tests start several
+ * servers in one process; installing twice would otherwise nest the checks).
  */
-export function installPartitionKeyValidation(controller: typeof matchMaker.controller = matchMaker.controller): void {
+export function installPartitionKeyValidation(
+  tenantExists: TenantExists,
+  controller: typeof matchMaker.controller = matchMaker.controller,
+): () => void {
   const invoke = controller.invokeMethod.bind(controller);
   controller.invokeMethod = async (method, roomName, clientOptions, authOptions) => {
     assertValidPartitionOptions(clientOptions);
-    const reservation: unknown = await invoke(method, roomName, resolveEmptyPartitionKey(clientOptions), authOptions);
+    const options = resolveEmptyPartitionKey(clientOptions);
+    await assertTenantExists(options, tenantExists);
+    const reservation: unknown = await invoke(method, roomName, options, authOptions);
     return reservation;
+  };
+  return () => {
+    controller.invokeMethod = invoke;
   };
 }
