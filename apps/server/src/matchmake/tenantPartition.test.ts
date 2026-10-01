@@ -27,6 +27,7 @@ import {
 import {
   TENANT_SLUG_PATTERN,
   assertTenantExists,
+  assertValidDefaultTenantSlug,
   assertValidPartitionOptions,
   createTenantExistsLookup,
   installPartitionKeyValidation,
@@ -112,6 +113,52 @@ describe('assertValidPartitionOptions', () => {
   it('leaves such names alone below the top level, where they are plain data', () => {
     const options: unknown = JSON.parse('{"identity":{"__proto__":1,"constructor":2},"tenant":"acme"}');
     expect(() => assertValidPartitionOptions(options)).not.toThrow();
+  });
+});
+
+describe('assertValidDefaultTenantSlug', () => {
+  it.each([undefined, '', 'default', 'main', 'ossdefault', 'team_42', 'a'.repeat(64)])('accepts %j', (slug) => {
+    expect(() => assertValidDefaultTenantSlug(slug)).not.toThrow();
+  });
+
+  it.each(['Acme', 'acme.corp', 'acme corp', ' default', 'default\n', 'acüme', 'a'.repeat(65), '../x'])(
+    'refuses %j and names the variable and the rule',
+    (slug) => {
+      expect(() => assertValidDefaultTenantSlug(slug)).toThrow(/DEFAULT_TENANT_SLUG/);
+      expect(() => assertValidDefaultTenantSlug(slug)).toThrow(/\^\[a-z0-9_-\]\{1,64\}\$/);
+    },
+  );
+
+  it('shortens a huge value in the message', () => {
+    expect.hasAssertions();
+    try {
+      assertValidDefaultTenantSlug('A'.repeat(5000));
+    } catch (error) {
+      expect((error as Error).message.length).toBeLessThan(500);
+    }
+  });
+
+  it('reads DEFAULT_TENANT_SLUG when called without an argument', () => {
+    vi.stubEnv('DEFAULT_TENANT_SLUG', 'Not.Valid');
+    try {
+      expect(() => assertValidDefaultTenantSlug()).toThrow(/Not\.Valid/);
+      vi.stubEnv('DEFAULT_TENANT_SLUG', 'valid-slug');
+      expect(() => assertValidDefaultTenantSlug()).not.toThrow();
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it('accepts every slug the partition rule accepts, so a valid default can never be refused at join time', async () => {
+    for (const slug of ['default', 'main', 'team_42', 'a'.repeat(64)]) {
+      vi.stubEnv('DEFAULT_TENANT_SLUG', slug);
+      expect(() => assertValidDefaultTenantSlug()).not.toThrow();
+      await expect(
+        assertTenantExists({ tenant: slug }, vi.fn<TenantExists>().mockResolvedValue(false)),
+      ).resolves.toBeUndefined();
+      expect(() => assertValidPartitionOptions({ tenant: slug })).not.toThrow();
+    }
+    vi.unstubAllEnvs();
   });
 });
 
