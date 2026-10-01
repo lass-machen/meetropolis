@@ -35,6 +35,7 @@ import { dynamicApiCacheControl } from './api/middleware/dynamicCacheControl.js'
 import { getBillingModule } from './billingLoader.js';
 import { getTelemetryModule } from './telemetryLoader.js';
 import { resolveTrustProxySetting } from './trustProxy.js';
+import { installPartitionKeyValidation } from './matchmake/tenantPartition.js';
 import { assertBaseAvatarAvailable, listenAfterStartupChecks } from './services/startupInvariant.js';
 
 // Colyseus 0.17 registers a prependListener('request', ...) on the HTTP server
@@ -57,6 +58,9 @@ matchMaker.controller.getCorsHeaders = (headers) => {
     Vary: 'Origin',
   };
 };
+// Refuse a malformed world partition key (`options.tenant`) before Colyseus
+// looks for or creates a room; see matchmake/tenantPartition.ts.
+installPartitionKeyValidation();
 
 const app = express();
 const allowedOrigins = (process.env.CORS_ORIGIN || '')
