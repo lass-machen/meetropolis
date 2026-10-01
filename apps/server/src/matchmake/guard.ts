@@ -102,9 +102,26 @@ const requireJsonBody: RequestHandler = (req, _res, next) => {
   next();
 };
 
+// What Node's zlib reports for a body that is not the stream its Content-Encoding
+// announces. gzip and deflate: garbage (`Z_DATA_ERROR`), a stream cut off early
+// (`Z_BUF_ERROR`, also what a cut-off Brotli stream gives) or one that needs a
+// preset dictionary (`Z_NEED_DICT`). Brotli reports its decoder's format errors
+// as `ERR__ERROR_FORMAT_<reason>` (`PADDING_1`, `CL_SPACE`, ...). All of that is
+// the caller's doing. Other codes (`Z_MEM_ERROR`, a Brotli `ERR__ERROR_ALLOC_*`)
+// stay server errors.
+const CORRUPT_STREAM_CODES: ReadonlySet<unknown> = new Set(['Z_DATA_ERROR', 'Z_BUF_ERROR', 'Z_NEED_DICT']);
+const BROTLI_FORMAT_ERROR_PREFIX = 'ERR__ERROR_FORMAT_';
+
+function isCorruptStreamCode(code: unknown): boolean {
+  return CORRUPT_STREAM_CODES.has(code) || (typeof code === 'string' && code.startsWith(BROTLI_FORMAT_ERROR_PREFIX));
+}
+
 function classify(err: unknown): { status: number; reason: string } {
   if (err instanceof MatchmakeRejection) return { status: err.status, reason: err.reason };
   if (err instanceof AppError) return { status: err.statusCode, reason: err.code.toLowerCase() };
+  if (typeof err === 'object' && err !== null && 'code' in err && isCorruptStreamCode(err.code)) {
+    return { status: 400, reason: 'invalid_encoding' };
+  }
   // Errors raised by body-parser (http-errors) carry a `type` and a `status`.
   const type = typeof err === 'object' && err !== null && 'type' in err ? err.type : undefined;
   switch (type) {
@@ -130,7 +147,10 @@ function classify(err: unknown): { status: number; reason: string } {
  */
 const renderRejection: ErrorRequestHandler = (err: unknown, req, res, _next) => {
   const { status, reason } = classify(err);
+  // Only a refusal that is the server's own fault is an error. The rest is
+  // anonymous input, so it must not be able to flood the error log.
   if (status >= 500) logger.error({ event: 'matchmake.guard_error', error: err });
+  else logger.debug({ event: 'matchmake.guard_refused', status, reason });
   if (res.headersSent) {
     req.socket.destroy();
     return;
