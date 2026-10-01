@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { PubButton, PubInput, PubStepIndicator } from '../components';
 import { usePublicConfigStore } from '../../../state/publicConfigStore';
 import { AuthMailIcon } from './AuthFormPartials';
+import { composeRegisterName, FIRST_NAME_MAX_LENGTH, LAST_NAME_MAX_LENGTH } from './registerName';
 
 /* ---------- Inline SVG icons ---------- */
 
@@ -77,6 +78,7 @@ function RegisterNameRow({
           autoComplete="given-name"
           value={firstName}
           onChange={(e) => onFirstName(e.target.value)}
+          maxLength={FIRST_NAME_MAX_LENGTH}
           required
         />
       </div>
@@ -88,6 +90,7 @@ function RegisterNameRow({
           autoComplete="family-name"
           value={lastName}
           onChange={(e) => onLastName(e.target.value)}
+          maxLength={LAST_NAME_MAX_LENGTH}
         />
       </div>
     </div>
@@ -197,7 +200,7 @@ export function RegisterView({ onSubmit, onLogin, initialInvite, error }: Regist
     e.preventDefault();
     setLoading(true);
     try {
-      const name = [firstName, lastName].filter(Boolean).join(' ');
+      const name = composeRegisterName(firstName, lastName);
       await onSubmit({ name, email, password, invite: initialInvite });
     } finally {
       setLoading(false);

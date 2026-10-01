@@ -1,5 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import { MAX_DISPLAY_NAME_LENGTH } from '@meetropolis/shared';
 import type { Member } from './types';
 import { InviteMember } from './InviteMember';
 import {
@@ -74,6 +75,7 @@ function EditMemberScreen({
             value={editName}
             onChange={(e) => setEditName(e.target.value)}
             placeholder="Name"
+            maxLength={MAX_DISPLAY_NAME_LENGTH}
           />
         </div>
         <div>
@@ -291,7 +293,8 @@ function useMemberSettingsState(props: MemberSettingsProps) {
 
   const saveEdit = async (userId: string) => {
     const payload: { email?: string; name?: string } = { email: editEmail };
-    if (editName) payload.name = editName;
+    // A blank name is not sent: the server rejects it and keeps the stored one.
+    if (editName.trim()) payload.name = editName.trim();
     const success = await onEditMember(userId, payload);
     if (success) {
       setScreen({ type: 'list' });

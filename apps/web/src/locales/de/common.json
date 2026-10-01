@@ -483,6 +483,7 @@
   "apiError.invalid_credentials": "Ungültige Anmeldedaten",
   "apiError.not_member_of_tenant": "Du bist kein Mitglied dieser Organisation",
   "apiError.invalid_body": "Ungültige Anfragedaten",
+  "apiError.invalid_name": "Ungültiger Name: Er muss 1 bis 200 Zeichen lang sein",
   "apiError.onboarding_completion_failed": "Onboarding konnte nicht abgeschlossen werden",
   "apiError.invalid_position_data": "Ungültige Positionsdaten",
   "apiError.position_update_failed": "Positionsaktualisierung fehlgeschlagen",

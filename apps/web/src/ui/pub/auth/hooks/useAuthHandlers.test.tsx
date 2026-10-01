@@ -93,6 +93,40 @@ describe('useAuthHandlers — handleRegister (invite join)', () => {
     });
   });
 
+  it('leaves the name out of the request when it is blank, since the server rejects a blank name', async () => {
+    postMock.mockResolvedValueOnce({ token: null });
+
+    const { result } = renderHook(() => useAuthHandlers(makeArgs()));
+    await result.current.handleRegister(
+      { name: '   ', email: 'jane@acme.test', password: 'supersecret', invite: 'INV-123' },
+      '',
+    );
+
+    expect(postMock).toHaveBeenCalledWith('/auth/register', {
+      code: 'INV-123',
+      email: 'jane@acme.test',
+      password: 'supersecret',
+    });
+    expect(postMock.mock.calls[0]?.[1]).not.toHaveProperty('name');
+  });
+
+  it('sends the trimmed name', async () => {
+    postMock.mockResolvedValueOnce({ token: null });
+
+    const { result } = renderHook(() => useAuthHandlers(makeArgs()));
+    await result.current.handleRegister(
+      { name: '  Jörg Müller  ', email: 'joerg@acme.test', password: 'supersecret', invite: 'INV-123' },
+      '',
+    );
+
+    expect(postMock).toHaveBeenCalledWith('/auth/register', {
+      code: 'INV-123',
+      name: 'Jörg Müller',
+      email: 'joerg@acme.test',
+      password: 'supersecret',
+    });
+  });
+
   it('stores the desktop auth token when the API returns one', async () => {
     postMock.mockResolvedValueOnce({ token: 'jwt.abc' });
 

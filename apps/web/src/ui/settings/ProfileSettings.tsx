@@ -1,7 +1,9 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import { MAX_DISPLAY_NAME_LENGTH } from '@meetropolis/shared';
 import { getApiBaseFromWindow } from '../../lib/apiBase';
 import { ProfileAvatarSection } from './ProfileAvatarSection';
+import { profilePatchBody } from './profilePatchBody';
 import type { WorldRoom } from '../../types/colyseus';
 import { translateApiError } from '../../lib/apiErrors';
 import { Button, Input, Alert, Section, Badge, Card } from '../system';
@@ -347,6 +349,7 @@ function PersonalInfoForm({
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder={t('profile.namePlaceholder')}
+            maxLength={MAX_DISPLAY_NAME_LENGTH}
           />
         </div>
         <div style={{ marginBottom: 16 }}>
@@ -400,7 +403,7 @@ export function ProfileSettings({
         method: 'PATCH',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email }),
+        body: JSON.stringify(profilePatchBody(name, email)),
       });
       if (res.ok) {
         const data = (await res.json()) as MeResponse;
@@ -415,6 +418,9 @@ export function ProfileSettings({
             createdAt: userPayload.createdAt ?? '',
           });
         }
+        // Show what the server stored: the trimmed name, or the name that is
+        // kept when the field was left blank.
+        setName(userPayload?.name ?? '');
         setSuccess(t('profile.updateSuccess'));
       } else {
         const err = (await res.json().catch(() => ({}))) as ApiErrorBody;
