@@ -1,7 +1,8 @@
 /**
  * Partition-key validation: unit tests for the rule itself, plus tests against
  * a real Colyseus server (see testUtils/matchmakeHarness.ts) proving that a
- * refused key builds no room and no PrismaClient.
+ * refused key builds no room and no PrismaClient. The transport guard is left
+ * out here on purpose: the validation has to hold on its own.
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -89,7 +90,7 @@ describe('partition key against a real Colyseus server', () => {
 
   beforeAll(async () => {
     createPrismaClientMock.mockImplementation(makeFakePrisma);
-    server = await startMatchmakeServer();
+    server = await startMatchmakeServer({ guard: false });
   });
 
   afterAll(async () => {

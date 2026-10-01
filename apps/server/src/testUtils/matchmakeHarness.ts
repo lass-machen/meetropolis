@@ -1,8 +1,8 @@
 /**
  * Test harness: a REAL Colyseus server (WebSocketTransport on a real HTTP
  * server, the real WorldRoom) wired the way index.ts wires it. An Express app
- * is the HTTP server's request listener and Colyseus takes it out of the path
- * for its own route.
+ * is the HTTP server's request listener, Colyseus takes it out of the path for
+ * its own route, and the matchmake guard is installed after listen().
  *
  * The caller replaces the database: the test file must
  * `vi.mock('../db.js')` (relative to itself) with a counting
@@ -15,6 +15,7 @@ import express from 'express';
 import { Server as ColyseusServer, matchMaker } from 'colyseus';
 import { WebSocketTransport } from '@colyseus/ws-transport';
 import { WorldRoom } from '../rooms/WorldRoom.js';
+import { installMatchmakeGuard } from '../matchmake/guard.js';
 import { installPartitionKeyValidation } from '../matchmake/tenantPartition.js';
 
 /** The slice of PrismaClient a freshly created, unauthenticated room touches. */
@@ -36,6 +37,8 @@ export interface MatchmakeTestServer {
 export interface StartOptions {
   /** Express `trust proxy` setting, as in production (TRUST_PROXY). */
   trustProxy?: boolean | number;
+  /** Install the transport guard (body cap, rate limit). Default true. */
+  guard?: boolean;
 }
 
 export async function startMatchmakeServer(options: StartOptions = {}): Promise<MatchmakeTestServer> {
@@ -54,6 +57,7 @@ export async function startMatchmakeServer(options: StartOptions = {}): Promise<
   gameServer.define('world', WorldRoom).filterBy(['tenant']);
   installPartitionKeyValidation();
   await gameServer.listen(0, '127.0.0.1');
+  if (options.guard !== false) installMatchmakeGuard(httpServer, { trustProxy });
   const { port } = httpServer.address() as AddressInfo;
   return { base: `http://127.0.0.1:${port}`, httpServer, gameServer };
 }
