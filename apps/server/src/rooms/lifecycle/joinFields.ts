@@ -30,3 +30,13 @@ export function clampJoinText(value: unknown): string {
   const endsInHighSurrogate = last >= 0xd800 && last <= 0xdbff;
   return endsInHighSurrogate ? cut.slice(0, -1) : cut;
 }
+
+/**
+ * Longest identity a join without a verified token may claim. An identity is
+ * the account id the server issued (a 25-character cuid) or the identity of an
+ * NPC, which is 'npc-' plus the at most 100 characters the NPC API allows
+ * (see api/routes/npcs.ts), so no identity the server knows is longer. An
+ * identity is a key, not a label: it is refused when too long, never cut, so a
+ * cut can not turn one identity into another.
+ */
+export const MAX_JOIN_IDENTITY_LENGTH = 104;

@@ -16,6 +16,7 @@ vi.mock('../../api/utils/sessionAuth.js', () => ({
 }));
 
 import { authenticateWorldJoin } from './onAuth.js';
+import { MAX_JOIN_IDENTITY_LENGTH } from './joinFields.js';
 import type { RoomOptions } from '../WorldRoom.js';
 
 type WorldJoinPrisma = Parameters<typeof authenticateWorldJoin>[2];
@@ -69,11 +70,13 @@ describe('onAuth logs stay bounded', () => {
   });
 
   it('for the identity of a token-less join admitted in staged mode', async () => {
-    const options: RoomOptions = { identity: HUGE, zonePrivacyVersion: 0 };
+    // The longest identity that is still admitted (see joinFields.ts) is cut in the log.
+    const options: RoomOptions = { identity: 'x'.repeat(MAX_JOIN_IDENTITY_LENGTH), zonePrivacyVersion: 0 };
 
     await authenticateWorldJoin(options, tokenless(), prisma);
 
     expect(log.warn).toHaveBeenCalled();
+    expect(logged()).toContain(`(${MAX_JOIN_IDENTITY_LENGTH} chars)`);
     expect(logged().length).toBeLessThan(LOG_BUDGET_CHARS);
   });
 
