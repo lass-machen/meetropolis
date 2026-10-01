@@ -4,6 +4,7 @@ import { isAllowedAvatarId, isCustomAvatarId } from '../../services/avatarAccess
 import { resolveTenantPackScope } from '../../services/packScope.js';
 import type { RoomOptions, WorldRoom } from '../WorldRoom.js';
 import type { RoomMetadata } from './onJoin.limiter.js';
+import { clampJoinText } from './joinFields.js';
 
 const DEFAULT_AVATAR_ID = 'default-characters:business_man';
 
@@ -30,7 +31,9 @@ async function resolveUserAppearance(
   options: RoomOptions,
   joiningIdentity: string,
 ): Promise<UserAppearance> {
-  const requestedName = options?.name;
+  // Whatever name reaches the room state is synchronised to every peer, so it is
+  // bounded wherever it comes from (see joinFields.ts).
+  const requestedName = clampJoinText(options?.name);
   if (joiningIdentity.startsWith('npc-')) {
     return { name: requestedName || joiningIdentity, lookupFailed: false };
   }
@@ -41,9 +44,14 @@ async function resolveUserAppearance(
       where: { id: joiningIdentity },
       select: { name: true, email: true, avatarId: true },
     });
-    const needsNameLookup = !requestedName || requestedName === joiningIdentity;
+    // The account is the authority on a person's display name. The web client
+    // sends the very same value (name, else e-mail, else id) and the mobile
+    // bridge sends none, so taking it from the database changes nothing for them,
+    // while a custom client can no longer put text of its own choosing under a
+    // verified account. The requested name is the fallback only when the server
+    // knows no account for the identity (a token-less join in staged mode).
     return {
-      name: needsNameLookup ? user?.name || user?.email || joiningIdentity : requestedName,
+      name: clampJoinText(user?.name || user?.email) || requestedName || joiningIdentity,
       avatarId: user?.avatarId ?? undefined,
       lookupFailed: false,
     };
