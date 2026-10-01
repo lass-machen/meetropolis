@@ -7,6 +7,7 @@ import { enforceOssLimit, enforceTenantLimits } from './onJoin.limiter.js';
 import { completePendingJoin } from './onJoin.completion.js';
 import { takeOverExistingSessions } from '../handlers/sessionHandlers.js';
 import { requireWorldAuth } from './onAuth.js';
+import { clientStringForLog } from './logSafe.js';
 
 // Cancel any pending Graceful-Leave timers for the joining identity
 // (short disconnect + reconnect). Quietly drops the old player entries
@@ -36,7 +37,7 @@ function cancelPendingLeavesForIdentity(activeRooms: Set<WorldRoom>, joiningIden
         }
         logger.info(
           '[WorldRoom] Graceful reconnect: cancelled pending leave for identity',
-          joiningIdentity,
+          clientStringForLog(joiningIdentity),
           'oldSid:',
           sid,
         );

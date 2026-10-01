@@ -3,6 +3,7 @@ import { logger } from '../../logger.js';
 import { colyseusPlayers } from '../../metrics.js';
 import type { WorldRoom } from '../WorldRoom.js';
 import { broadcastToMap } from '../utils/broadcastHelpers.js';
+import { clientStringForLog } from './logSafe.js';
 
 // Look up an existing session for the given identity across all active
 // rooms. If a stale (ghost) session is found (lastSeen too old or never
@@ -52,7 +53,14 @@ export function findExistingSession(
         } else {
           worldRoom.broadcast('player_left', { id: sid });
         }
-        logger.info('[WorldRoom] Ghost session cleaned for identity:', identity, 'sid:', sid, 'age(ms):', age);
+        logger.info(
+          '[WorldRoom] Ghost session cleaned for identity:',
+          clientStringForLog(identity),
+          'sid:',
+          sid,
+          'age(ms):',
+          age,
+        );
         return null;
       }
       const matchedClient = worldRoom.clients.find((c: Client) => c.sessionId === sid);

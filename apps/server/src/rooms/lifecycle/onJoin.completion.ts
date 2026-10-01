@@ -12,6 +12,7 @@ import { tenantKeyForClient, isPlayerVisibleToTenant, syncTenantViewsOnJoin } fr
 import { zoneLocksForClient } from '../handlers/zoneLockHandler.js';
 import { warmZoneCatalog, trackMove } from '../audioZones/runtime.js';
 import { resolveFallbackTenantId, resolveJoinAppearance } from './onJoin.avatar.js';
+import { clientStringForLog } from './logSafe.js';
 
 // Wait until the client's onMessage handlers are likely registered before
 // sending one-shot messages. Colyseus 0.17 resolves joinOrCreate faster than
@@ -418,13 +419,13 @@ export async function completePendingJoin(
     '[WorldRoom] Player joined:',
     client.sessionId,
     'identity:',
-    player.identity,
+    clientStringForLog(player.identity),
     'name:',
-    player.name,
+    clientStringForLog(player.name),
     'mapId:',
-    player.mapId,
+    clientStringForLog(player.mapId),
     'map:',
-    player.mapName,
+    clientStringForLog(player.mapName),
     'at',
     player.x,
     player.y,
@@ -432,7 +433,7 @@ export async function completePendingJoin(
   logger.debug('[WorldRoom] Current players:', room.state.players.size);
 
   room.state.players.forEach((p, id) => {
-    logger.debug('[WorldRoom] - Player', id, 'identity:', p.identity, 'at', p.x, p.y);
+    logger.debug('[WorldRoom] - Player', id, 'identity:', clientStringForLog(p.identity), 'at', p.x, p.y);
   });
 
   scheduleFullStateSend(room, client);

@@ -29,6 +29,7 @@ import { validateSessionToken } from '../../api/utils/sessionAuth.js';
 import { MIN_ZONE_PRIVACY_CLIENT_VERSION, ZONE_PRIVACY_PROTOCOL_VERSION } from '@meetropolis/shared';
 import type { RoomOptions } from '../WorldRoom.js';
 import type { PrismaClient } from '../../generated/prisma/index.js';
+import { clientNumberForLog, clientStringForLog } from './logSafe.js';
 
 /**
  * Prisma surface onAuth needs: `session` to resolve the presented token against
@@ -131,7 +132,7 @@ function authenticateNpc(options: RoomOptions): WorldAuth {
   const expected = getNpcServiceSecret();
   const provided = options.serviceToken;
   if (!provided || !timingSafeEqualStrings(provided, expected)) {
-    logger.warn('[WorldRoom] Rejected NPC join: invalid service token', { identity });
+    logger.warn('[WorldRoom] Rejected NPC join: invalid service token', { identity: clientStringForLog(identity) });
     throw new ServerError(AUTH_REJECTED_CODE, 'npc_service_token_invalid');
   }
   // NPCs are server-controlled (npc-service authenticates via
@@ -198,14 +199,14 @@ function enforceTenantMatch(options: RoomOptions | undefined, authSlug: string |
   if (isTenantEnforced()) {
     logger.warn('[WorldRoom] Rejected join: options.tenant does not match authenticated tenant', {
       identity,
-      requested,
+      requested: clientStringForLog(requested),
       authenticated: authSlug,
     });
     throw new ServerError(AUTH_REJECTED_CODE, 'tenant_mismatch');
   }
   logger.warn('[WorldRoom] Admitted join with options.tenant != authenticated tenant (enforcement off)', {
     identity,
-    requested,
+    requested: clientStringForLog(requested),
     authenticated: authSlug,
   });
 }
@@ -255,7 +256,7 @@ async function authenticateUser(
       throw new ServerError(AUTH_REJECTED_CODE, 'unauthorized');
     }
     logger.warn('[WorldRoom] Admitted world join with UNVERIFIED identity (enforcement off)', {
-      identity: fallbackId,
+      identity: clientStringForLog(fallbackId),
     });
     return { identity: fallbackId, isNpc: false, zonePrivacyVersion: options?.zonePrivacyVersion ?? 0 };
   }
@@ -271,14 +272,14 @@ async function authenticateUser(
     if (isAuthEnforced()) {
       logger.warn('[WorldRoom] Rejected join: client zone-privacy protocol version too old', {
         identity: verified.userId,
-        zonePrivacyVersion,
+        zonePrivacyVersion: clientNumberForLog(zonePrivacyVersion),
         minRequired: MIN_ZONE_PRIVACY_CLIENT_VERSION,
       });
       throw new ServerError(CLIENT_TOO_OLD_CODE, 'client_too_old');
     }
     logger.warn('[WorldRoom] Admitted join from old zone-privacy client (enforcement off)', {
       identity: verified.userId,
-      zonePrivacyVersion,
+      zonePrivacyVersion: clientNumberForLog(zonePrivacyVersion),
       minRequired: MIN_ZONE_PRIVACY_CLIENT_VERSION,
     });
     const legacy: WorldAuth = {
