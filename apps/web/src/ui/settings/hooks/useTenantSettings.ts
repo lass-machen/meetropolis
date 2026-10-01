@@ -288,7 +288,7 @@ function useGuestHandlers(state: TenantState, apiBase: string, t: (k: string) =>
           method: 'POST',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, name: guestName || undefined, expiresAt }),
+          body: JSON.stringify({ email, name: guestName.trim() || undefined, expiresAt }),
         });
         if (res.ok) {
           const data = (await res.json()) as GuestCreateResponse;

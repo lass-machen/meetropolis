@@ -1,5 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import { MAX_DISPLAY_NAME_LENGTH } from '@meetropolis/shared';
 import type { Guest } from './types';
 import {
   Section,
@@ -93,6 +94,7 @@ function InviteScreen({
           placeholder={t('guest.nameOptional')}
           value={name}
           onChange={(e) => setName(e.target.value)}
+          maxLength={MAX_DISPLAY_NAME_LENGTH}
         />
         <Input
           type="datetime-local"

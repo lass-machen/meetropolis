@@ -69,7 +69,8 @@ export function useAuthHandlers({
       try {
         const result = (await post('/auth/register', {
           code: data.invite || currentInvite,
-          name: data.name,
+          // The server rejects a blank name, and an account without one is fine.
+          ...(data.name.trim() ? { name: data.name.trim() } : {}),
           email: data.email,
           password: data.password,
         })) as AuthTokenResponse;
