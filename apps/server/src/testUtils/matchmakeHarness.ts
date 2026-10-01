@@ -87,7 +87,7 @@ export interface MatchmakeResult {
 
 export async function matchmake(
   server: MatchmakeTestServer,
-  body: string | undefined,
+  body: string | Uint8Array | undefined,
   init: { method?: string; headers?: Record<string, string>; path?: string } = {},
 ): Promise<MatchmakeResult> {
   const res = await fetch(`${server.base}${init.path ?? '/matchmake/joinOrCreate/world'}`, {

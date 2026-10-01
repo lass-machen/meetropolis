@@ -4,6 +4,7 @@
  * A refused request must reach neither a room nor a PrismaClient; both are
  * counted through the mocked `createPrismaClient`.
  */
+import { brotliCompressSync, deflateSync, gzipSync } from 'node:zlib';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../logger.js', () => ({
@@ -13,6 +14,7 @@ vi.mock('../logger.js', () => ({
 const createPrismaClientMock = vi.hoisted(() => vi.fn());
 vi.mock('../db.js', () => ({ createPrismaClient: createPrismaClientMock }));
 
+import { logger } from '../logger.js';
 import {
   disposeAllRooms,
   makeFakePrisma,
@@ -125,6 +127,63 @@ describe('matchmake guard: body and media type', () => {
     expect(res.body).toEqual({ code: 400, error: 'invalid_options' });
     expect(await worldRooms()).toHaveLength(0);
     expect(createPrismaClientMock).not.toHaveBeenCalled();
+  });
+
+  describe('a compressed body', () => {
+    const join = JSON.stringify({ tenant: 'default', identity: 'u1' });
+    const gzipped = gzipSync(join);
+    const brotlied = brotliCompressSync(join);
+
+    beforeEach(() => {
+      vi.mocked(logger.error).mockClear();
+    });
+
+    it.each([
+      ['gzip that is no gzip', 'gzip', Buffer.from('this is not gzip data at all')],
+      ['gzip cut off before its end', 'gzip', gzipped.subarray(0, gzipped.length - 6)],
+      [
+        'gzip with a flipped byte inside',
+        'gzip',
+        Buffer.concat([gzipped.subarray(0, 12), Buffer.from([0xff]), gzipped.subarray(13)]),
+      ],
+      ['deflate that is no deflate', 'deflate', Buffer.from('this is not deflate data at all')],
+      ['deflate cut off before its end', 'deflate', deflateSync(join).subarray(0, 4)],
+      // Brotli reports other codes than zlib: each of these is a different one
+      // (ERR__ERROR_FORMAT_PADDING_1, Z_BUF_ERROR, ERR__ERROR_FORMAT_CL_SPACE, ERR__ERROR_FORMAT_PADDING_2).
+      ['brotli that is no brotli', 'br', Buffer.from('this is not brotli data at all, really')],
+      ['brotli cut off before its end', 'br', brotlied.subarray(0, brotlied.length - 3)],
+      ['brotli of zero bytes', 'br', Buffer.alloc(40, 0)],
+      ['brotli of 0xff bytes', 'br', Buffer.alloc(40, 0xff)],
+    ])('answers %s with 400, not a server error, and does not log an error for it', async (_label, encoding, body) => {
+      const res = await matchmake(server, body, { headers: { 'content-encoding': encoding } });
+      expect(res.status).toBe(400);
+      expect(res.body).toEqual({ code: 400, error: 'invalid_encoding' });
+      expect(logger.error).not.toHaveBeenCalled();
+      expect(await worldRooms()).toHaveLength(0);
+      expect(createPrismaClientMock).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['gzip', 'gzip', gzipped],
+      ['deflate', 'deflate', deflateSync(join)],
+      ['brotli', 'br', brotlied],
+    ])('still joins with a valid %s body', async (_label, encoding, body) => {
+      const res = await matchmake(server, body, { headers: { 'content-encoding': encoding } });
+      expect(res.status).toBe(200);
+      expect(res.body.roomId).toBeTruthy();
+    });
+
+    it('still refuses a compression bomb by its size once inflated', async () => {
+      const res = await matchmake(
+        server,
+        gzipSync(JSON.stringify({ tenant: 'a'.repeat(MATCHMAKE_BODY_LIMIT_BYTES * 8) })),
+        {
+          headers: { 'content-encoding': 'gzip' },
+        },
+      );
+      expect(res.status).toBe(413);
+      expect(await worldRooms()).toHaveLength(0);
+    });
   });
 
   it('lets a refusal be read cross-origin', async () => {
