@@ -7,6 +7,7 @@ import { logger } from '../../logger.js';
 import { npcServiceSpawn, npcServiceDespawn } from '../utils/npcServiceClient.js';
 import { isAllowedAvatarId, isCustomAvatarId } from '../../services/avatarAccess.js';
 import { resolvePackScope } from '../utils/resolvePackScope.js';
+import { MAX_DISPLAY_NAME_LENGTH } from '../utils/displayName.js';
 
 // --- Auth helpers ---
 
@@ -58,7 +59,7 @@ const createNpcSchema = z.object({
     .min(1)
     .max(100)
     .regex(/^[a-z0-9\-_]+$/),
-  name: z.string().min(1).max(200),
+  name: z.string().min(1).max(MAX_DISPLAY_NAME_LENGTH),
   avatarId: z.string().min(1).max(200).optional(),
   spawnX: z.number().optional(),
   spawnY: z.number().optional(),
@@ -70,7 +71,7 @@ const createNpcSchema = z.object({
 });
 
 const updateNpcSchema = z.object({
-  name: z.string().min(1).max(200).optional(),
+  name: z.string().min(1).max(MAX_DISPLAY_NAME_LENGTH).optional(),
   avatarId: z.string().min(1).max(200).optional(),
   spawnX: z.number().optional(),
   spawnY: z.number().optional(),

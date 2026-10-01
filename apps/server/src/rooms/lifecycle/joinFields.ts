@@ -1,3 +1,5 @@
+import { MAX_DISPLAY_NAME_LENGTH } from '../../api/utils/displayName.js';
+
 /**
  * Bounds for the client-supplied join options that end up in the room state.
  *
@@ -9,11 +11,10 @@
 
 /**
  * Longest free-text value from a join (a display name) that may reach the room
- * state. It matches the 200-character cap the NPC API puts on `Npc.name`, the
- * only existing cap on a display name and one that ends up in the very same
- * `Player.name` field.
+ * state: the display name cap every writer of a name already applies (see
+ * api/utils/displayName.ts), so a name the API accepted is never cut by a join.
  */
-export const MAX_JOIN_TEXT_LENGTH = 200;
+export const MAX_JOIN_TEXT_LENGTH = MAX_DISPLAY_NAME_LENGTH;
 
 /**
  * A client-supplied display text for the room state: the value itself when it
