@@ -112,6 +112,57 @@ export function isInProcessCaller(req: Pick<IncomingMessage, 'socket' | 'headers
   return PROXY_HEADERS.every((name) => req.headers[name] === undefined);
 }
 
+/**
+ * How much of the body of a request refused for its size the guard still reads,
+ * and throws away, before it cuts the connection.
+ *
+ * Closing a socket that still has unread request data makes the kernel answer
+ * with a reset, and a reset can reach the client before it has read the 413.
+ * Measured against this guard (900 KB body, sequential requests, real Colyseus
+ * server): about one in five uploads ended in `write EPIPE` or
+ * `write ECONNRESET` instead of the 413, more under CPU load. Reading the body
+ * to its end is what makes the answer arrive, but it must stay bounded: this is
+ * the cap, 64 times the body limit, with a time limit for a client that stalls.
+ * A client that is still uploading beyond the cap is cut off and may see a
+ * reset instead of the 413; that cannot be avoided without reading without
+ * bound. Nothing is built either way.
+ */
+export const REFUSED_BODY_DRAIN_BYTES = 64 * MATCHMAKE_BODY_LIMIT_BYTES;
+export const REFUSED_BODY_DRAIN_MS = 5_000;
+
+/**
+ * Read and discard the rest of a refused request body, up to
+ * {@link REFUSED_BODY_DRAIN_BYTES}, then cut the connection. Called before the
+ * refusal is written: it takes over the body before Node would dump it without
+ * a bound once the response is finished, and the connection stays a normal
+ * keep-alive one when the body ends within the cap.
+ */
+function discardRefusedBody(req: IncomingMessage): void {
+  if (req.complete) return;
+  let seen = 0;
+  const stop = () => {
+    clearTimeout(timer);
+    req.off('data', onData);
+  };
+  const onData = (chunk: Buffer) => {
+    seen += chunk.length;
+    if (seen > REFUSED_BODY_DRAIN_BYTES) {
+      stop();
+      req.socket.destroy();
+    }
+  };
+  const timer = setTimeout(() => {
+    stop();
+    req.socket.destroy();
+  }, REFUSED_BODY_DRAIN_MS);
+  timer.unref();
+  req.on('data', onData);
+  req.once('end', stop);
+  req.once('close', stop);
+  // body-parser has paused the stream when it refused the body for its size.
+  req.resume();
+}
+
 /** A refusal the guard decided on itself, rendered by {@link renderRejection}. */
 class MatchmakeRejection extends Error {
   constructor(
@@ -220,8 +271,9 @@ const renderRejection: ErrorRequestHandler = (err: unknown, req, res, _next) => 
     req.socket.destroy();
     return;
   }
-  // Do not keep reading the rest of a body that was refused for its size.
-  if (status === 413) res.setHeader('Connection', 'close');
+  // The rest of a body refused for its size is read only up to a bound, see
+  // REFUSED_BODY_DRAIN_BYTES. Take it over before the answer goes out.
+  if (status === 413) discardRefusedBody(req);
   res.status(status).json({ code: status, error: reason });
 };
 

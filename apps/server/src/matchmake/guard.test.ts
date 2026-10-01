@@ -5,7 +5,7 @@
  * counted through the mocked `createPrismaClient`.
  */
 import http from 'node:http';
-import type { AddressInfo } from 'node:net';
+import net, { type AddressInfo } from 'node:net';
 import { brotliCompressSync, deflateSync, gzipSync } from 'node:zlib';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -29,6 +29,8 @@ import {
 } from '../testUtils/matchmakeHarness.js';
 import {
   MATCHMAKE_BODY_LIMIT_BYTES,
+  REFUSED_BODY_DRAIN_BYTES,
+  REFUSED_BODY_DRAIN_MS,
   createMatchmakeGuard,
   isInProcessCaller,
   isLoopbackAddress,
@@ -81,6 +83,26 @@ describe('matchmake guard: body and media type', () => {
     const res = await matchmake(server, JSON.stringify({ tenant: 'a'.repeat(900 * 1024) }));
     expect(res.status).toBe(413);
     expect(res.body).toEqual({ code: 413, error: 'payload_too_large' });
+    expect(await worldRooms()).toHaveLength(0);
+    expect(createPrismaClientMock).not.toHaveBeenCalled();
+  });
+
+  it('delivers the 413 every time to a client that is still uploading', async () => {
+    // Closing the connection with request data unread made the kernel send a reset
+    // that could beat the 413 to the client: about one in five 900 KB uploads
+    // ended in `write EPIPE` / `write ECONNRESET` instead (50 in a row passed
+    // by luck about once in 100,000 runs).
+    const body = JSON.stringify({ tenant: 'a'.repeat(900 * 1024) });
+    const outcomes = new Set<number | string>();
+    for (let i = 0; i < 50; i++) {
+      outcomes.add(
+        await matchmake(server, body).then(
+          (res) => res.status,
+          (error: unknown) => `reset (${String((error as { cause?: { code?: string } }).cause?.code)})`,
+        ),
+      );
+    }
+    expect([...outcomes]).toEqual([413]);
     expect(await worldRooms()).toHaveLength(0);
     expect(createPrismaClientMock).not.toHaveBeenCalled();
   });
@@ -523,5 +545,119 @@ describe('matchmake guard: in-process callers and the rate limit', () => {
         await close();
       }
     });
+  });
+});
+
+describe('matchmake guard: how much of a refused body is read', () => {
+  // The real guard behind a plain HTTP server that records how many bytes each
+  // connection delivered to Node, and a raw client that streams a body of the
+  // size it declares for as long as the server lets it.
+  async function guardServer() {
+    const guard = createMatchmakeGuard((_req, res) => res.end('forwarded'), {
+      trustProxy: false,
+      isInProcessCaller: () => false,
+    });
+    const server = http.createServer((req, res) => guard(req, res));
+    const bytesRead: number[] = [];
+    server.on('connection', (socket) => socket.on('close', () => bytesRead.push(socket.bytesRead)));
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const { port } = server.address() as AddressInfo;
+    const close = () => {
+      server.closeAllConnections();
+      return new Promise<void>((resolve) => server.close(() => resolve()));
+    };
+    return { port, bytesRead, close };
+  }
+
+  function rawClient(port: number, declaredBytes: number) {
+    const socket = net.connect(port, '127.0.0.1');
+    let received = '';
+    socket.on('data', (chunk: Buffer) => (received += chunk.toString('latin1')));
+    // A refusal that cuts the connection may reset it: not an error here.
+    socket.on('error', () => undefined);
+    socket.write(
+      'POST /matchmake/joinOrCreate/world HTTP/1.1\r\nhost: x\r\ncontent-type: application/json\r\n' +
+        `content-length: ${declaredBytes}\r\n\r\n`,
+    );
+    const closed = new Promise<void>((resolve) => socket.on('close', () => resolve()));
+    return { socket, closed, received: () => received };
+  }
+
+  async function until(condition: () => boolean): Promise<void> {
+    for (let i = 0; i < 400 && !condition(); i++) await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+
+  beforeEach(() => {
+    vi.stubEnv('RATE_LIMIT_MATCHMAKE_MAX', '100000');
+  });
+
+  afterAll(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('stops reading at the cap and cuts the connection, however much the client keeps sending', async () => {
+    const { port, bytesRead, close } = await guardServer();
+    try {
+      const declared = 64 * 1024 * 1024;
+      const { socket, closed } = rawClient(port, declared);
+      const chunk = Buffer.alloc(1024 * 1024, 0x61);
+      let sent = 0;
+      while (!socket.destroyed && sent < declared) {
+        sent += chunk.length;
+        if (!socket.write(chunk))
+          await new Promise<void>((resolve) => socket.once('drain', resolve).once('close', resolve));
+      }
+      await closed;
+      await until(() => bytesRead.length > 0);
+      expect(bytesRead).toHaveLength(1);
+      // It did read on past the limit (that is what lets the 413 arrive) ...
+      expect(bytesRead[0]).toBeGreaterThanOrEqual(REFUSED_BODY_DRAIN_BYTES);
+      // ... but not much past the cap: what Node had already pulled off the wire.
+      expect(bytesRead[0]).toBeLessThan(REFUSED_BODY_DRAIN_BYTES + 256 * 1024);
+      expect(sent).toBeLessThan(declared);
+    } finally {
+      await close();
+    }
+  });
+
+  it('answers 413 and keeps the connection when the body ends within the cap', async () => {
+    const { port, bytesRead, close } = await guardServer();
+    try {
+      const declared = 512 * 1024;
+      const { socket, received } = rawClient(port, declared);
+      socket.write(Buffer.alloc(declared, 0x61));
+      await vi.waitFor(() => expect(received()).toContain('payload_too_large'), { interval: 5, timeout: 4000 });
+      expect(received()).toMatch(/^HTTP\/1\.1 413 /);
+      // The rest of the body was taken off the wire and the connection stays a
+      // normal one: a second request on it is parsed and answered.
+      const small = '{"tenant":"a"}';
+      socket.write(
+        'POST /matchmake/joinOrCreate/world HTTP/1.1\r\nhost: x\r\ncontent-type: application/json\r\n' +
+          `content-length: ${small.length}\r\n\r\n${small}`,
+      );
+      await vi.waitFor(() => expect(received()).toContain('forwarded'), { interval: 5, timeout: 4000 });
+      expect(socket.destroyed).toBe(false);
+      expect(bytesRead).toHaveLength(0);
+      socket.destroy();
+    } finally {
+      await close();
+    }
+  });
+
+  it('cuts off a client that stalls instead of finishing its refused body', async () => {
+    const { port, bytesRead, close } = await guardServer();
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      const { socket, closed, received } = rawClient(port, 10 * 1024 * 1024);
+      socket.write(Buffer.alloc(100 * 1024, 0x61));
+      await vi.waitFor(() => expect(received()).toContain('payload_too_large'), { interval: 5, timeout: 4000 });
+      expect(socket.destroyed).toBe(false);
+      vi.advanceTimersByTime(REFUSED_BODY_DRAIN_MS);
+      await closed;
+      await vi.waitFor(() => expect(bytesRead).toHaveLength(1), { interval: 5, timeout: 4000 });
+    } finally {
+      vi.useRealTimers();
+      await close();
+    }
   });
 });
