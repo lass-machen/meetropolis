@@ -4,7 +4,7 @@
  * refused key builds no room and no PrismaClient. The transport guard is left
  * out here on purpose: the validation has to hold on its own.
  */
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../logger.js', () => ({
   logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
@@ -24,7 +24,12 @@ import {
   worldRooms,
   type MatchmakeTestServer,
 } from '../testUtils/matchmakeHarness.js';
-import { TENANT_SLUG_PATTERN, assertValidPartitionOptions, isValidTenantSlug } from './tenantPartition.js';
+import {
+  TENANT_SLUG_PATTERN,
+  assertValidPartitionOptions,
+  isValidTenantSlug,
+  resolveEmptyPartitionKey,
+} from './tenantPartition.js';
 
 describe('isValidTenantSlug', () => {
   it.each(['default', 'acme', 'acme-corp', 'team_42', 'a', '0', '-', '_', 'a'.repeat(64)])('accepts %s', (slug) => {
@@ -83,6 +88,34 @@ describe('assertValidPartitionOptions', () => {
   it.each([null, [], 'acme', 7, true])('refuses options that are not an object: %j', (options) => {
     expect(() => assertValidPartitionOptions(options)).toThrow(/invalid_options/);
   });
+});
+
+describe('resolveEmptyPartitionKey', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('names the default tenant for an empty tenant and leaves the other fields alone', () => {
+    expect(resolveEmptyPartitionKey({ tenant: '', identity: 'u1' })).toEqual({ tenant: 'default', identity: 'u1' });
+  });
+
+  it('follows DEFAULT_TENANT_SLUG, like WorldRoom.onCreate', () => {
+    vi.stubEnv('DEFAULT_TENANT_SLUG', 'main');
+    expect(resolveEmptyPartitionKey({ tenant: '' })).toEqual({ tenant: 'main' });
+  });
+
+  it('does not touch the caller\u2019s object', () => {
+    const options = { tenant: '' };
+    resolveEmptyPartitionKey(options);
+    expect(options).toEqual({ tenant: '' });
+  });
+
+  it.each([undefined, {}, { tenant: 'acme' }, { identity: 'u1' }, [], null, 'x'])(
+    'passes %j through unchanged',
+    (options) => {
+      expect(resolveEmptyPartitionKey(options)).toBe(options);
+    },
+  );
 });
 
 describe('partition key against a real Colyseus server', () => {
@@ -166,6 +199,15 @@ describe('partition key against a real Colyseus server', () => {
   it('keeps accepting a missing tenant and an empty tenant (single-tenant default)', async () => {
     expect((await matchmake(server, JSON.stringify({}))).status).toBe(200);
     expect((await matchmake(server, JSON.stringify({ tenant: '' }))).status).toBe(200);
+  });
+
+  it('files an empty tenant under the default tenant instead of building a room per request', async () => {
+    for (let i = 0; i < 3; i++) expect((await matchmake(server, JSON.stringify({ tenant: '' }))).status).toBe(200);
+    expect((await matchmake(server, JSON.stringify({ tenant: 'default' }))).status).toBe(200);
+    const rooms = await worldRooms();
+    expect(rooms).toHaveLength(1);
+    expect(rooms[0]?.metadata?.tenant).toBe('default');
+    expect(createPrismaClientMock).toHaveBeenCalledTimes(1);
   });
 
   it('keeps accepting a request with an empty body', async () => {

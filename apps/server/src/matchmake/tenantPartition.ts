@@ -39,7 +39,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
  *
  * A missing `tenant` key is accepted unchanged: shipping clients that omit it
  * (loadtest, a mobile session without a slug) keep their current behaviour.
- * An empty string is accepted too and means "the default tenant".
+ * An empty string is accepted too (see {@link resolveEmptyPartitionKey}).
  */
 export function assertValidPartitionOptions(options: unknown): void {
   if (options === undefined) return;
@@ -53,6 +53,23 @@ export function assertValidPartitionOptions(options: unknown): void {
   throw new ServerError(BAD_REQUEST, 'invalid_tenant');
 }
 
+/** Slug of the tenant a join without a usable partition key belongs to (see WorldRoom.onCreate). */
+function defaultTenantSlug(): string {
+  return process.env.DEFAULT_TENANT_SLUG || 'default';
+}
+
+/**
+ * An empty `tenant` means "the default tenant": WorldRoom.onCreate files the
+ * room it builds for it under that slug. Colyseus however looks rooms up by the
+ * value the client sent, so an empty key never matched the room it had created
+ * and every such request built a fresh room. Name the default tenant before the
+ * lookup so these requests share its room like any other.
+ */
+export function resolveEmptyPartitionKey(options: unknown): unknown {
+  if (!isPlainObject(options) || options.tenant !== '') return options;
+  return { ...options, tenant: defaultTenantSlug() };
+}
+
 /**
  * Put the partition-key check in front of every Colyseus matchmake call
  * (`joinOrCreate`, `create`, `join`, `joinById`, `reconnect`). The HTTP route
@@ -63,7 +80,7 @@ export function installPartitionKeyValidation(controller: typeof matchMaker.cont
   const invoke = controller.invokeMethod.bind(controller);
   controller.invokeMethod = async (method, roomName, clientOptions, authOptions) => {
     assertValidPartitionOptions(clientOptions);
-    const reservation: unknown = await invoke(method, roomName, clientOptions, authOptions);
+    const reservation: unknown = await invoke(method, roomName, resolveEmptyPartitionKey(clientOptions), authOptions);
     return reservation;
   };
 }
