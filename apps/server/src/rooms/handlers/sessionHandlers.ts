@@ -3,6 +3,7 @@ import { logger } from '../../logger.js';
 import { colyseusPlayers } from '../../metrics.js';
 import type { WorldRoom } from '../WorldRoom.js';
 import { broadcastToMap } from '../utils/broadcastHelpers.js';
+import { clientStringForLog } from '../lifecycle/logSafe.js';
 
 /**
  * Newest-wins takeover (E3.4). Remove every OTHER live session for `identity`
@@ -60,7 +61,14 @@ export function takeOverExistingSessions(activeRooms: Set<WorldRoom>, identity: 
           /* best-effort */
         }
       }
-      logger.info('[WorldRoom] Session taken over for identity:', identity, 'oldSid:', oldSid, 'newSid:', newSid);
+      logger.info(
+        '[WorldRoom] Session taken over for identity:',
+        clientStringForLog(identity),
+        'oldSid:',
+        oldSid,
+        'newSid:',
+        newSid,
+      );
     }
   }
 }
