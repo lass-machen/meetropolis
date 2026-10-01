@@ -213,11 +213,15 @@ async function seedPresenceRecent(
       presenceMap.set(p.userId, p);
     }
 
+    // A stored name or address can predate the limit the write routes apply
+    // (api/utils/displayName.ts), and this list goes to every joiner, so each
+    // text is bounded here whatever the database holds.
+    const bounded = (text: string | null | undefined) => (typeof text === 'string' ? clampJoinText(text) : text);
     const out = memberships.map((m) => {
       const presence = presenceMap.get(m.userId);
       return {
         userId: m.userId,
-        user: { id: m.user?.id, email: m.user?.email, name: m.user?.name },
+        user: { id: m.user?.id, email: bounded(m.user?.email), name: bounded(m.user?.name) },
         room: presence?.room?.name || null,
         x: presence?.x ?? null,
         y: presence?.y ?? null,
