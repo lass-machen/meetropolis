@@ -33,6 +33,24 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 }
 
 /**
+ * Own keys of the options object Colyseus must never see. `JSON.parse` makes
+ * `__proto__` an ordinary own key, and when Colyseus builds the room it copies
+ * the options with its `merge({}, clientOptions, ...)`, which does
+ * `target[key] = source[key]`: for `__proto__` that assigns the target's
+ * prototype. A body like `{"__proto__":{"tenant":"x"}}` therefore carries no
+ * own `tenant` (so the checks below find nothing to refuse) and still hands the
+ * room a `tenant` it inherits. `merge` and the filter lookup also call
+ * `options.hasOwnProperty(...)` on the options themselves, so an own key of that
+ * name (or of any other member of `Object.prototype`) breaks them. Refused are
+ * all of those, and `prototype`; no client sends any of them. Only the top level
+ * matters: nested values stay data.
+ */
+const FORBIDDEN_OPTION_KEYS: ReadonlySet<string> = new Set([
+  ...Object.getOwnPropertyNames(Object.prototype),
+  'prototype',
+]);
+
+/**
  * Check the join options of a matchmake call BEFORE Colyseus looks for or
  * creates a room.
  *
@@ -48,6 +66,9 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 export function assertValidPartitionOptions(options: unknown): void {
   if (options === undefined) return;
   if (!isPlainObject(options)) {
+    throw new ServerError(BAD_REQUEST, 'invalid_options');
+  }
+  if (Object.getOwnPropertyNames(options).some((key) => FORBIDDEN_OPTION_KEYS.has(key))) {
     throw new ServerError(BAD_REQUEST, 'invalid_options');
   }
   // Same own-property test Colyseus applies when it builds the `filterBy` filter.

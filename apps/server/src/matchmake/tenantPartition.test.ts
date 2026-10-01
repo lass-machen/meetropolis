@@ -93,6 +93,26 @@ describe('assertValidPartitionOptions', () => {
   it.each([null, [], 'acme', 7, true])('refuses options that are not an object: %j', (options) => {
     expect(() => assertValidPartitionOptions(options)).toThrow(/invalid_options/);
   });
+
+  // JSON.parse, not an object literal: only the parser makes `__proto__` an own key.
+  it.each(['__proto__', 'constructor', 'prototype', 'hasOwnProperty', 'toString', 'valueOf', 'isPrototypeOf'])(
+    'refuses the own key %s at the top level',
+    (key) => {
+      const options: unknown = JSON.parse(`{"${key}":{"tenant":"zz-evil-1"}}`);
+      expect(() => assertValidPartitionOptions(options)).toThrow(/invalid_options/);
+      expect(() => assertValidPartitionOptions(options)).toThrow(ServerError);
+    },
+  );
+
+  it('refuses the key even next to harmless options and a valid tenant', () => {
+    const options: unknown = JSON.parse('{"identity":"u1","tenant":"acme","__proto__":{"tenant":"zz-evil-1"}}');
+    expect(() => assertValidPartitionOptions(options)).toThrow(/invalid_options/);
+  });
+
+  it('leaves such names alone below the top level, where they are plain data', () => {
+    const options: unknown = JSON.parse('{"identity":{"__proto__":1,"constructor":2},"tenant":"acme"}');
+    expect(() => assertValidPartitionOptions(options)).not.toThrow();
+  });
 });
 
 describe('resolveEmptyPartitionKey', () => {
@@ -228,6 +248,24 @@ describe('installPartitionKeyValidation', () => {
     expect(reached).toHaveBeenCalledWith('joinOrCreate', 'world', { tenant: 'acme' }, {});
   });
 
+  it('never reaches Colyseus with a prototype key in the options, and passes on the object it checked', async () => {
+    const { controller, reached } = fakeController();
+    const lookup = vi.fn<TenantExists>().mockResolvedValue(true);
+    installPartitionKeyValidation(lookup, controller);
+    const hostile: unknown = JSON.parse('{"__proto__":{"tenant":"zz-evil-1"}}');
+    await expect(controller.invokeMethod('joinOrCreate', 'world', hostile, {})).rejects.toMatchObject({
+      code: 400,
+      message: 'invalid_options',
+    });
+    expect(reached).not.toHaveBeenCalled();
+    expect(lookup).not.toHaveBeenCalled();
+
+    // What reaches Colyseus is the very object that passed the check (no copy that could differ).
+    const fine = { tenant: 'acme', identity: 'u1' };
+    await controller.invokeMethod('joinOrCreate', 'world', fine, {});
+    expect(reached.mock.calls[0]?.[2]).toBe(fine);
+  });
+
   it('never reaches Colyseus for an unknown tenant', async () => {
     const { controller, reached } = fakeController();
     installPartitionKeyValidation(vi.fn<TenantExists>().mockResolvedValue(false), controller);
@@ -356,6 +394,23 @@ describe('partition key against a real Colyseus server', () => {
     }
     expect(await worldRooms()).toHaveLength(0);
     expect(createPrismaClientMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['the body measured by the skeptic', '{"__proto__":{"tenant":"zz-evil-1"}}'],
+    ['a 10,000 character tenant inside __proto__', `{"__proto__":{"tenant":"${'a'.repeat(10_000)}"}}`],
+    ['a 10,000 character key inside __proto__', `{"__proto__":{"${'k'.repeat(10_000)}":1}}`],
+    ['__proto__ next to a valid tenant', '{"tenant":"acme","__proto__":{"tenant":"zz-evil-1"}}'],
+    ['constructor', '{"constructor":{"prototype":{"tenant":"zz-evil-1"}}}'],
+    ['prototype', '{"prototype":{"tenant":"zz-evil-1"}}'],
+    ['hasOwnProperty', '{"hasOwnProperty":1}'],
+  ])('refuses %s and builds no room and no PrismaClient', async (_label, body) => {
+    const res = await matchmake(server, body);
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({ code: 400, error: 'invalid_options' });
+    expect(await worldRooms()).toHaveLength(0);
+    expect(createPrismaClientMock).not.toHaveBeenCalled();
+    expect(tenantExists).not.toHaveBeenCalled();
   });
 
   it('refuses an options payload that is not an object', async () => {

@@ -119,6 +119,14 @@ describe('matchmake guard: body and media type', () => {
     expect(res.body.error).toBe('invalid_json');
   });
 
+  it('refuses a prototype key in the body, through the whole chain, without building anything', async () => {
+    const res = await matchmake(server, '{"__proto__":{"tenant":"zz-evil-1"}}');
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({ code: 400, error: 'invalid_options' });
+    expect(await worldRooms()).toHaveLength(0);
+    expect(createPrismaClientMock).not.toHaveBeenCalled();
+  });
+
   it('lets a refusal be read cross-origin', async () => {
     const res = await matchmake(server, JSON.stringify({ tenant: 'a'.repeat(100 * 1024) }), {
       headers: { origin: 'https://app.example' },
