@@ -35,6 +35,7 @@ import { dynamicApiCacheControl } from './api/middleware/dynamicCacheControl.js'
 import { getBillingModule } from './billingLoader.js';
 import { getTelemetryModule } from './telemetryLoader.js';
 import { resolveTrustProxySetting } from './trustProxy.js';
+import { installMatchmakeGuard } from './matchmake/guard.js';
 import { installPartitionKeyValidation } from './matchmake/tenantPartition.js';
 import { assertBaseAvatarAvailable, listenAfterStartupChecks } from './services/startupInvariant.js';
 
@@ -75,7 +76,8 @@ const allowedOrigins = (process.env.CORS_ORIGIN || '')
 // client never breaks when the deployed env allowlist drifts.
 const DESKTOP_CLIENT_ORIGINS = ['tauri://localhost', 'http://tauri.localhost'];
 
-app.set('trust proxy', resolveTrustProxySetting());
+const trustProxy = resolveTrustProxySetting();
+app.set('trust proxy', trustProxy);
 
 app.use(helmet({ contentSecurityPolicy: false }));
 // Force revalidation on dynamic public/billing/admin API responses (see
@@ -348,6 +350,11 @@ try {
         logger.info(`Server listening on :${port}`);
       }),
   );
+  // Colyseus binds its matchmake route to the HTTP server inside listen(), so
+  // the guard can only be put in front of it now. No request is served in
+  // between: the continuation of the awaited listen() runs before the next I/O
+  // event. See matchmake/guard.ts.
+  installMatchmakeGuard(httpServer, { trustProxy });
 } catch (err) {
   logger.error('Server startup failed before listening', err);
   process.exit(1);

@@ -319,6 +319,36 @@ export const avatarResolveRateLimiter = createRateLimiter({
 });
 
 /**
+ * Colyseus matchmake route (`POST /matchmake/<method>/<room>`), the anonymous
+ * entry to the world: a request that finds no room for its tenant makes the
+ * server build one (PrismaClient, DB lookups, presence subscription, timers),
+ * and that room lives for the 15 s seat-reservation window even if nobody ever
+ * connects. Mounted by matchmake/guard.ts, because Colyseus answers this route
+ * outside the Express stack.
+ *
+ * 120 per minute per IP. A join is one request, and the web client's reconnect
+ * loop backs off exponentially up to 30 s, so a client in a bad state sends at
+ * most a few per minute; several browser tabs scale that linearly. The budget
+ * covers about a hundred people behind one office address (re)joining in the
+ * same minute. The other side of the trade: what passes validation can still
+ * create a room, so this bounds one address to about 120 * 15 s / 60 s = 30
+ * short-lived rooms at a time.
+ *
+ * Caveat: first-party callers share one source address each (the mobile
+ * gateway joins over loopback, the npc-service from its container), so a
+ * deployment with a very large NPC roster may need `RATE_LIMIT_MATCHMAKE_MAX`
+ * raised. A factory rather than a constant so every guard (and test) gets its
+ * own store and reads the environment when it is built.
+ */
+export function createMatchmakeRateLimiter(): RequestHandler {
+  return createRateLimiter({
+    name: 'matchmake',
+    windowMs: MINUTE_MS,
+    limit: 120,
+  });
+}
+
+/**
  * Mobile gateway stream (`GET /mobile/stream`, see mobile/routes.ts). Each
  * accepted request opens a long-lived SSE response AND a Colyseus connection
  * into the world room, so this limiter caps connection churn rather than
