@@ -1,5 +1,6 @@
 import { ServerError, matchMaker } from 'colyseus';
 import type { PrismaClient } from '../generated/prisma/index.js';
+import { assertAllowedMatchmakeMethod } from './allowedMethods.js';
 import { logger } from '../logger.js';
 
 /**
@@ -127,10 +128,10 @@ export async function assertTenantExists(options: unknown, tenantExists: TenantE
 }
 
 /**
- * Put the partition-key checks in front of every Colyseus matchmake call
- * (`joinOrCreate`, `create`, `join`, `joinById`, `reconnect`). The HTTP route
- * invokes `matchMaker.controller.invokeMethod` for all of them, so this is the
- * single choke point before any room is looked up or created.
+ * Put the method and partition-key checks in front of every Colyseus matchmake
+ * call. The HTTP route invokes `matchMaker.controller.invokeMethod` for all of
+ * them, so this is the single choke point before any room is looked up or
+ * created. Only the methods in `allowedMethods.ts` get past it.
  *
  * Returns a function that restores the unchecked method (tests start several
  * servers in one process; installing twice would otherwise nest the checks).
@@ -141,6 +142,7 @@ export function installPartitionKeyValidation(
 ): () => void {
   const invoke = controller.invokeMethod.bind(controller);
   controller.invokeMethod = async (method, roomName, clientOptions, authOptions) => {
+    assertAllowedMatchmakeMethod(method);
     assertValidPartitionOptions(clientOptions);
     const options = resolveEmptyPartitionKey(clientOptions);
     await assertTenantExists(options, tenantExists);

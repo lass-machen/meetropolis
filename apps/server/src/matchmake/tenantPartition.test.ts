@@ -325,12 +325,13 @@ describe('partition key against a real Colyseus server', () => {
     expect(createPrismaClientMock).not.toHaveBeenCalled();
   });
 
-  it('refuses an unknown tenant on every matchmake method, not only joinOrCreate', async () => {
+  it('refuses an unknown tenant on every matchmake method: joinOrCreate by its tenant, the others as a method', async () => {
     for (const method of ['create', 'join', 'joinOrCreate']) {
       const res = await matchmake(server, JSON.stringify({ tenant: 'no-such-tenant' }), {
         path: `/matchmake/${method}/world`,
       });
       expect(res.status, method).toBe(400);
+      expect(res.body.error, method).toBe(method === 'joinOrCreate' ? 'invalid_tenant' : 'invalid_method');
     }
     expect(await worldRooms()).toHaveLength(0);
     expect(createPrismaClientMock).not.toHaveBeenCalled();
@@ -345,12 +346,13 @@ describe('partition key against a real Colyseus server', () => {
     expect(createPrismaClientMock).not.toHaveBeenCalled();
   });
 
-  it('refuses a bad tenant on every matchmake method, not only joinOrCreate', async () => {
+  it('refuses a bad tenant on every matchmake method: joinOrCreate by its tenant, the others as a method', async () => {
     for (const method of ['create', 'join', 'joinOrCreate']) {
       const res = await matchmake(server, JSON.stringify({ tenant: 'Bad Slug' }), {
         path: `/matchmake/${method}/world`,
       });
       expect(res.status, method).toBe(400);
+      expect(res.body.error, method).toBe(method === 'joinOrCreate' ? 'invalid_tenant' : 'invalid_method');
     }
     expect(await worldRooms()).toHaveLength(0);
     expect(createPrismaClientMock).not.toHaveBeenCalled();
