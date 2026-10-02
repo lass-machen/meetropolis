@@ -25,6 +25,7 @@ import { startGuestExpiryInterval } from './lifecycle/guestExpiry.js';
 import { loadInitialSpawn } from './lifecycle/onCreateSetup.js';
 import { authenticateWorldJoin, type WorldAuth } from './lifecycle/onAuth.js';
 import { enforceRoomPartition } from './lifecycle/roomPartition.js';
+import { watchTranscriptionGate } from './lifecycle/transcriptionGateWatcher.js';
 
 export interface RoomOptions {
   tenant?: string;
@@ -130,6 +131,7 @@ export class WorldRoom extends Room<{ state: WorldState }> {
 
   // Periodic intervals
   private guestExpiryInterval: ReturnType<typeof setInterval> | null = null;
+  private transcriptionGateUnsubscribe: (() => void) | null = null;
 
   override onCreate(options?: RoomOptions): void {
     this.setState(new WorldState());
@@ -155,6 +157,7 @@ export class WorldRoom extends Room<{ state: WorldState }> {
     } catch (e) {
       logger.debug('[WorldRoom] Failed to set metadata', e);
     }
+    this.transcriptionGateUnsubscribe = watchTranscriptionGate(this);
 
     // Load default spawn and map metadata from DB (best-effort, fire-and-forget)
     loadInitialSpawn(this, tenantSlug).catch(() => {
@@ -255,6 +258,14 @@ export class WorldRoom extends Room<{ state: WorldState }> {
   }
 
   override onDispose(): void {
+    if (this.transcriptionGateUnsubscribe) {
+      try {
+        this.transcriptionGateUnsubscribe();
+      } catch (e) {
+        logger.debug('[WorldRoom] Failed to unsubscribe from transcription gate changes', e);
+      }
+      this.transcriptionGateUnsubscribe = null;
+    }
     if (this.guestExpiryInterval) {
       clearInterval(this.guestExpiryInterval);
       this.guestExpiryInterval = null;
