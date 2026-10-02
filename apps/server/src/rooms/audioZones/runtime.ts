@@ -36,6 +36,7 @@ import {
   type PermissionOrchestrator,
 } from './permissionOrchestrator.js';
 import { createLivekitAdminClient, type LivekitAdminClient } from './livekitAdmin.js';
+import { publishIslandAttribute } from './islandAttributes.js';
 import { startAudioZoneReconciler } from './reconciler.js';
 import { startHysteresisSweeper } from './hysteresisSweeper.js';
 
@@ -96,6 +97,8 @@ export function trackMove(room: WorldRoom, sessionId: string): void {
   const rawIsland = resolveIsland(room.audioZones.catalog, player.mapId, { x: player.x, y: player.y });
   const result = trackerOnMove(room.audioZones.tracker, player.identity, rawIsland);
   if (!result.changed) return;
+
+  publishIslandAttribute(room, player.identity, result.newIsland, Date.now());
 
   const snap = snapshot(room.audioZones.tracker);
   const affected = computeAffectedIdentities(player.identity, result.oldIsland, result.newIsland, snap, snap);
