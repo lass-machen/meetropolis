@@ -1,7 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+const transcriptionModule = vi.hoisted(() => ({ publishIslandAttributes: false }));
+
 vi.mock('../../logger.js', () => ({
   logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+}));
+
+vi.mock('../../transcriptionLoader.js', () => ({
+  getTranscriptionModuleSync: () => transcriptionModule,
 }));
 
 const activeRooms = new Set<unknown>();
@@ -35,16 +41,18 @@ function fakeAdmin(overrides: Partial<LivekitAdminClient> = {}): LivekitAdminCli
   return {
     listParticipants: vi.fn(() => Promise.resolve([])),
     updateSubscriptions: vi.fn(() => Promise.resolve()),
+    updateParticipantAttributes: vi.fn(() => Promise.resolve()),
     ...overrides,
   };
 }
 
-function participant(identity: string, trackSids: string[]) {
-  return { identity, tracks: trackSids.map((sid) => ({ sid })) } as never;
+function participant(identity: string, trackSids: string[], attributes: Record<string, string> = {}) {
+  return { identity, tracks: trackSids.map((sid) => ({ sid })), attributes } as never;
 }
 
 beforeEach(() => {
   activeRooms.clear();
+  transcriptionModule.publishIslandAttributes = false;
 });
 
 describe('buildTenantSnapshot', () => {
@@ -158,5 +166,82 @@ describe('reconcileOnce: cross-island correction', () => {
     await reconcileOnce(room as never);
 
     expect(admin.updateSubscriptions).not.toHaveBeenCalled();
+  });
+
+  it('repairs missing and incorrect island attributes but leaves correct attributes alone', async () => {
+    transcriptionModule.publishIslandAttributes = true;
+    const admin = fakeAdmin({
+      listParticipants: vi.fn(() =>
+        Promise.resolve([
+          participant('missing', []),
+          participant('incorrect', [], { 'meetropolis.island': 'map-1:open' }),
+          participant('correct', [], { 'meetropolis.island': 'map-1:zone:kitchen' }),
+        ]),
+      ),
+    });
+    const room = fakeRoom('acme', admin);
+    onMove(room.audioZones.tracker, 'missing', 'map-1:zone:kitchen', 0);
+    onMove(room.audioZones.tracker, 'incorrect', 'map-1:zone:kitchen', 0);
+    onMove(room.audioZones.tracker, 'correct', 'map-1:zone:kitchen', 0);
+    activeRooms.add(room);
+
+    await reconcileOnce(room as never);
+
+    expect(admin.updateParticipantAttributes).toHaveBeenCalledTimes(2);
+    expect(admin.updateParticipantAttributes).toHaveBeenCalledWith(
+      'acme:world',
+      'missing',
+      expect.objectContaining({
+        'meetropolis.island': 'map-1:zone:kitchen',
+        'meetropolis.islandSince': expect.any(String),
+      }),
+    );
+    expect(admin.updateParticipantAttributes).toHaveBeenCalledWith(
+      'acme:world',
+      'incorrect',
+      expect.objectContaining({
+        'meetropolis.island': 'map-1:zone:kitchen',
+        'meetropolis.islandSince': expect.any(String),
+      }),
+    );
+    expect(admin.updateParticipantAttributes).not.toHaveBeenCalledWith('acme:world', 'correct', expect.anything());
+  });
+
+  it('does not update attributes or subscriptions for the transcriber identity', async () => {
+    transcriptionModule.publishIslandAttributes = true;
+    const admin = fakeAdmin({
+      listParticipants: vi.fn(() =>
+        Promise.resolve([
+          participant('publisher', ['track-a']),
+          participant('subscriber', []),
+          participant('svc-transcriber', ['track-service']),
+        ]),
+      ),
+    });
+    const room = fakeRoom('acme', admin);
+    onMove(room.audioZones.tracker, 'publisher', 'map-1:zone:kitchen', 0);
+    onMove(room.audioZones.tracker, 'subscriber', 'map-1:open', 0);
+    onMove(room.audioZones.tracker, 'svc-transcriber', 'map-1:service', 0);
+    activeRooms.add(room);
+
+    await reconcileOnce(room as never);
+
+    expect(admin.updateParticipantAttributes).not.toHaveBeenCalledWith(
+      'acme:world',
+      'svc-transcriber',
+      expect.anything(),
+    );
+    expect(admin.updateSubscriptions).not.toHaveBeenCalledWith(
+      'acme:world',
+      'svc-transcriber',
+      expect.anything(),
+      false,
+    );
+    expect(admin.updateSubscriptions).not.toHaveBeenCalledWith(
+      'acme:world',
+      expect.any(String),
+      ['track-service'],
+      false,
+    );
   });
 });

@@ -19,6 +19,7 @@ import { logger } from '../../logger.js';
 
 export interface LivekitAdminClient {
   listParticipants(roomName: string): Promise<ParticipantInfo[]>;
+  updateParticipantAttributes(roomName: string, identity: string, attributes: Record<string, string>): Promise<void>;
   updateSubscriptions(
     roomName: string,
     subscriberIdentity: string,
@@ -86,6 +87,12 @@ export function createLivekitAdminClient(retryPolicy: RetryPolicy = DEFAULT_RETR
   return {
     listParticipants: (roomName) =>
       withRetry(`listParticipants(${roomName})`, () => client.listParticipants(roomName), retryPolicy),
+    updateParticipantAttributes: (roomName, identity, attributes) =>
+      withRetry(
+        `updateParticipantAttributes(${roomName}, ${identity})`,
+        () => client.updateParticipant(roomName, identity, { attributes }).then(() => undefined),
+        retryPolicy,
+      ),
     updateSubscriptions: (roomName, subscriberIdentity, trackSids, subscribe) =>
       withRetry(
         `updateSubscriptions(${roomName}, ${subscriberIdentity}, subscribe=${subscribe})`,

@@ -52,7 +52,9 @@ import { getActiveWorldRooms } from '../WorldRoom.js';
 import { getRoomTenantSlug } from '../handlers/zoneLockHandler.js';
 import { snapshot } from './membershipTracker.js';
 import { rePushAllForRoom } from './permissionOrchestrator.js';
+import { getTranscriptionModuleSync } from '../../transcriptionLoader.js';
 import type { LivekitAdminClient } from './livekitAdmin.js';
+import { ISLAND_ATTRIBUTE, ISLAND_SINCE_ATTRIBUTE, TRANSCRIBER_IDENTITY } from './islandAttributes.js';
 
 const RECONCILE_INTERVAL_MS = Number(process.env.AUDIO_ZONE_RECONCILE_INTERVAL_MS ?? 4000);
 
@@ -86,6 +88,7 @@ async function correctCrossIslandSubscriptions(
   desired: Map<string, string>,
 ): Promise<void> {
   for (const publisher of participants) {
+    if (publisher.identity === TRANSCRIBER_IDENTITY) continue;
     const publisherIsland = desired.get(publisher.identity);
     // Untracked identity (npc-* not yet wired into audio-zone membership,
     // or a stale LiveKit participant): do not touch, see H4 spec risk #9.
@@ -94,6 +97,7 @@ async function correctCrossIslandSubscriptions(
     if (trackSids.length === 0) continue;
 
     for (const subscriber of participants) {
+      if (subscriber.identity === TRANSCRIBER_IDENTITY) continue;
       if (subscriber.identity === publisher.identity) continue;
       if (desired.get(subscriber.identity) === publisherIsland) continue;
       try {
@@ -101,6 +105,30 @@ async function correctCrossIslandSubscriptions(
       } catch (e) {
         logger.warn('[AudioZones] reconciler could not force-unsubscribe a cross-island pair; retrying next cycle', e);
       }
+    }
+  }
+}
+
+async function correctIslandAttributes(
+  admin: LivekitAdminClient,
+  roomName: string,
+  participants: ParticipantInfo[],
+  desired: Map<string, string>,
+): Promise<void> {
+  if (!getTranscriptionModuleSync()?.publishIslandAttributes) return;
+
+  for (const participant of participants) {
+    if (participant.identity === TRANSCRIBER_IDENTITY) continue;
+    const islandKey = desired.get(participant.identity);
+    if (!islandKey || participant.attributes?.[ISLAND_ATTRIBUTE] === islandKey) continue;
+
+    try {
+      await admin.updateParticipantAttributes(roomName, participant.identity, {
+        [ISLAND_ATTRIBUTE]: islandKey,
+        [ISLAND_SINCE_ATTRIBUTE]: String(Date.now()),
+      });
+    } catch (error) {
+      logger.warn('[AudioZones] reconciler could not update participant island attributes; retrying next cycle', error);
     }
   }
 }
@@ -118,6 +146,7 @@ async function runLivekitAdminCorrection(admin: LivekitAdminClient, room: WorldR
     return;
   }
 
+  await correctIslandAttributes(admin, roomName, participants, desired);
   await correctCrossIslandSubscriptions(admin, roomName, participants, desired);
 }
 
