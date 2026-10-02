@@ -123,6 +123,16 @@ describe('enforceTranscriptionGate', () => {
     expect(client.error).toHaveBeenCalledWith(4006, 'transcription_consent_required');
     expect(client.leave).toHaveBeenCalledWith(1000);
   });
+
+  it('fails closed when the module is loaded but no tenant id is available', async () => {
+    const client = makeClient();
+
+    await expect(enforceTranscriptionGate(client, prisma, undefined, 'user-1')).resolves.toBe(true);
+
+    expect(client.error).toHaveBeenCalledWith(4006, 'transcription_consent_required');
+    expect(client.leave).toHaveBeenCalledWith(1000);
+    expect(getJoinRequirementMock).not.toHaveBeenCalled();
+  });
 });
 
 describe('handleLivekitToken transcription gate', () => {

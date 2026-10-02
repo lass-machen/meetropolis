@@ -28,10 +28,14 @@ export async function evaluateTranscriptionGate(
 export async function enforceTranscriptionGate(
   client: Client,
   prisma: PrismaClient,
-  tenantId: string,
+  tenantId: string | undefined,
   userId: string,
 ): Promise<boolean> {
-  if ((await evaluateTranscriptionGate(prisma, tenantId, userId)) === 'allow') return false;
+  if (tenantId) {
+    if ((await evaluateTranscriptionGate(prisma, tenantId, userId)) === 'allow') return false;
+  } else if (!getTranscriptionModuleSync()) {
+    return false;
+  }
 
   client.error(4006, 'transcription_consent_required');
   client.leave(1000);
