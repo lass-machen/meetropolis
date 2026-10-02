@@ -324,15 +324,26 @@ export async function enforceTenantLimits(
   client: Client,
   joiningIdentity: string,
 ): Promise<boolean> {
+  const auth = isWorldAuth(client.auth) ? client.auth : undefined;
+  let tenantId = auth?.tenantId;
+  let tenantLookupFailed = false;
+  let prisma: PrismaClient | undefined;
+
   try {
-    const auth = isWorldAuth(client.auth) ? client.auth : undefined;
     const verifiedTenantId = auth?.tenantId;
     const clientSlug: string =
       options?.tenant || (room.metadata as RoomMetadata)?.tenant || process.env.DEFAULT_TENANT_SLUG || 'default';
-    const prisma = createPrismaClient();
-    const tenant = await prisma.tenant.findUnique({
-      where: verifiedTenantId ? { id: verifiedTenantId } : { slug: clientSlug },
-    });
+    prisma = createPrismaClient();
+    let tenant;
+    try {
+      tenant = await prisma.tenant.findUnique({
+        where: verifiedTenantId ? { id: verifiedTenantId } : { slug: clientSlug },
+      });
+    } catch (e) {
+      tenantLookupFailed = true;
+      throw e;
+    }
+    tenantId ??= tenant?.id;
     const tenantSlug: string = tenant?.slug ?? auth?.tenantSlug ?? clientSlug;
 
     if (await checkBillingStatus(client, prisma, tenant, tenantSlug)) return true;
@@ -343,21 +354,24 @@ export async function enforceTenantLimits(
       )
         return true;
     }
-    if (tenant && (await enforceTranscriptionGate(client, prisma, tenant.id, joiningIdentity))) {
+  } catch (e) {
+    logger.debug('[WorldRoom] Failed to enforce tenant/user limits', e);
+  }
+
+  let transcriptionGateAborted = false;
+  try {
+    if (prisma && (tenantId || tenantLookupFailed)) {
+      transcriptionGateAborted = await enforceTranscriptionGate(client, prisma, tenantId, joiningIdentity);
+    }
+  } finally {
+    if (prisma) {
       try {
         await prisma.$disconnect().catch(() => {});
       } catch (e) {
         logger.debug('[WorldRoom] Failed to disconnect prisma', e);
       }
-      return true;
     }
-    try {
-      await prisma.$disconnect().catch(() => {});
-    } catch (e) {
-      logger.debug('[WorldRoom] Failed to disconnect prisma', e);
-    }
-  } catch (e) {
-    logger.debug('[WorldRoom] Failed to enforce tenant/user limits', e);
   }
-  return false;
+
+  return transcriptionGateAborted;
 }

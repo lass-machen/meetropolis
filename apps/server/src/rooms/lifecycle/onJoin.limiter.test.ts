@@ -41,6 +41,12 @@ vi.mock('../../db.js', () => ({
   })),
 }));
 
+const transcriptionLoaderMock = vi.hoisted(() => ({
+  getTranscriptionModuleSync: vi.fn(() => null),
+}));
+
+vi.mock('../../transcriptionLoader.js', () => transcriptionLoaderMock);
+
 // ---------------------------------------------------------------------------
 // Imports - must come after vi.mock() calls.
 // ---------------------------------------------------------------------------
@@ -61,11 +67,14 @@ import type { Client } from 'colyseus';
 import { getTenancyModule } from '../../tenancyLoader.js';
 import { getBillingModuleSync } from '../../billingLoader.js';
 import { createPrismaClient } from '../../db.js';
+import { getTranscriptionModuleSync } from '../../transcriptionLoader.js';
+import type { TranscriptionModule, TranscriptionJoinRequirement } from '../../transcriptionLoader.js';
 import type { PrismaClient } from '../../generated/prisma/index.js';
 
 const mockGetTenancyModule = vi.mocked(getTenancyModule);
 const mockGetBillingModuleSync = vi.mocked(getBillingModuleSync);
 const mockCreatePrismaClient = vi.mocked(createPrismaClient);
+const mockGetTranscriptionModuleSync = vi.mocked(getTranscriptionModuleSync);
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -577,8 +586,20 @@ describe('enforceTenantLimits', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetBillingModuleSync.mockReturnValue(null);
+    mockGetTranscriptionModuleSync.mockReturnValue(null);
     setTenancyEnterprise();
   });
+
+  function setTranscriptionModule(requirement: TranscriptionJoinRequirement): void {
+    const transcriptionModule: TranscriptionModule = {
+      version: 1,
+      publishIslandAttributes: false,
+      getJoinRequirement: vi.fn(() => Promise.resolve(requirement)),
+      onGateChange: vi.fn(() => () => undefined),
+      setupRoutes: vi.fn(),
+    };
+    mockGetTranscriptionModuleSync.mockReturnValue(transcriptionModule);
+  }
 
   it('returns false when no tenant record exists in the database', async () => {
     const prisma = makePrisma(null);
@@ -639,5 +660,69 @@ describe('enforceTenantLimits', () => {
     const aborted = await enforceTenantLimits(room, rooms, options, client as unknown as Client, 'reconnector');
     expect(aborted).toBe(true);
     expect(client.error).toHaveBeenCalledWith(4005, 'trial_expired');
+  });
+
+  it('runs the transcription gate when the seat-limit check throws', async () => {
+    setTranscriptionModule({ code: 'transcription_consent_required' });
+    mockGetTenancyModule.mockRejectedValue(new Error('seat-limit lookup failed'));
+    const tenantRow = { id: 'trusted-tenant-id', slug: 'acme', bypassLimits: false, concurrentLimit: 10, freeSeats: 0 };
+    const prisma = makePrisma(tenantRow);
+    mockCreatePrismaClient.mockReturnValue(prisma as unknown as PrismaClient);
+    const room = makeRoom(0, 'acme');
+    const rooms = new Set([room]);
+    const client = Object.assign(makeClient(), {
+      auth: { identity: 'joiner', tenantId: 'trusted-tenant-id', isNpc: false, zonePrivacyVersion: 1 },
+    });
+
+    const aborted = await enforceTenantLimits(room, rooms, { tenant: 'acme' }, client as unknown as Client, 'joiner');
+
+    expect(aborted).toBe(true);
+    expect(mockGetTranscriptionModuleSync()?.getJoinRequirement).toHaveBeenCalledWith(prisma, {
+      tenantId: 'trusted-tenant-id',
+      userId: 'joiner',
+    });
+    expect(client.error).toHaveBeenCalledWith(4006, 'transcription_consent_required');
+    expect(client.leave).toHaveBeenCalledWith(1000);
+  });
+
+  it('allows a lookup failure when the transcription module is absent', async () => {
+    const prisma = makePrisma();
+    vi.mocked(prisma.tenant.findUnique).mockRejectedValue(new Error('tenant lookup failed'));
+    mockCreatePrismaClient.mockReturnValue(prisma as unknown as PrismaClient);
+    const room = makeRoom(0, 'acme');
+    const client = makeClient();
+
+    const aborted = await enforceTenantLimits(
+      room,
+      new Set([room]),
+      { tenant: 'acme' },
+      client as unknown as Client,
+      'joiner',
+    );
+
+    expect(aborted).toBe(false);
+    expect(client.error).not.toHaveBeenCalled();
+    expect(client.leave).not.toHaveBeenCalled();
+  });
+
+  it('denies a lookup failure when the transcription module is loaded and no tenant id is known', async () => {
+    setTranscriptionModule({ code: 'transcription_consent_required' });
+    const prisma = makePrisma();
+    vi.mocked(prisma.tenant.findUnique).mockRejectedValue(new Error('tenant lookup failed'));
+    mockCreatePrismaClient.mockReturnValue(prisma as unknown as PrismaClient);
+    const room = makeRoom(0, 'acme');
+    const client = makeClient();
+
+    const aborted = await enforceTenantLimits(
+      room,
+      new Set([room]),
+      { tenant: 'acme' },
+      client as unknown as Client,
+      'joiner',
+    );
+
+    expect(aborted).toBe(true);
+    expect(client.error).toHaveBeenCalledWith(4006, 'transcription_consent_required');
+    expect(client.leave).toHaveBeenCalledWith(1000);
   });
 });
