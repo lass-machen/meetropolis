@@ -57,8 +57,10 @@ import { getAdminEnterpriseModule } from './adminLoader.js';
 import { getBillingModule } from './billingLoader.js';
 import { getTenancyModule } from './tenancyLoader.js';
 import { getTelemetryModule } from './telemetryLoader.js';
+import { getTranscriptionModule } from './transcriptionLoader.js';
 import { logger } from './logger.js';
 import { getEmailModule, sendIfAvailable } from './emailLoader.js';
+import { resolveTenantBySlug } from './tenancy.js';
 import { resolveTemplateTenantSlug } from './services/templateTenant.js';
 
 const prisma = createPrismaClient();
@@ -382,6 +384,20 @@ async function registerEnterpriseTelemetryRelay(app: express.Express) {
   telemetry.setupSignalyrRelay(app, { logger });
 }
 
+async function registerEnterpriseTranscriptionRoutes(app: express.Express) {
+  const transcription = await getTranscriptionModule();
+  if (!transcription) return;
+  transcription.setupRoutes(app, {
+    prisma,
+    logger,
+    requireAuth,
+    requireApiToken,
+    resolveTenantBySlug,
+    requireMembership,
+    getEmailModule,
+  });
+}
+
 function registerLegacyModularRoutes(app: express.Express) {
   registerPresenceRoutes(app, prisma, requireAuth, tenantContextFromReq);
   registerUserRoutes(app, prisma, requireAuth, tenantContextFromReq);
@@ -440,6 +456,7 @@ export async function registerApi(app: express.Express) {
   await registerEnterpriseAdminRoutes(app);
   await registerEnterpriseBillingRoutes(app);
   await registerEnterpriseTelemetryRelay(app);
+  await registerEnterpriseTranscriptionRoutes(app);
 
   // OSS fallback admin routes (only health/stats/debug + minimal /public/config).
   registerAdminRoutes(app, prisma);
