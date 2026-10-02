@@ -52,6 +52,7 @@
   "modal.usersTitle": "Benutzerverwaltung",
   "common.error": "Fehler",
   "common.networkError": "Netzwerkfehler",
+  "connection.transcriptionConsentRequired": "Dieser Arbeitsbereich verlangt vor dem Betreten eine Einwilligung. Bitte wende dich an die Verwaltung des Arbeitsbereichs.",
   "auth.tagline": "Dein virtueller Arbeitsplatz",
   "auth.login.title": "Willkommen zurück",
   "auth.email": "E‑Mail",

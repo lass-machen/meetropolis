@@ -7,8 +7,11 @@
  */
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { createRoot } from 'react-dom/client';
 import { Plug, Timer, TriangleAlert } from 'lucide-react';
 import i18n from '../../app/providers/i18n';
+import { getEnterpriseWebModule } from '../../lib/enterpriseWebLoader';
+import type { TranscriptionConsentGateProps } from '../../lib/enterpriseWebLoader';
 
 // Inline SVG markup for lucide icons, rendered once at module load so they can
 // be injected into innerHTML overlays without React. Keeping the icons inline
@@ -197,4 +200,40 @@ export function showLimitErrorOverlay(code: number | undefined, text: string, on
     };
     host.querySelector('[data-limit-retry]')?.addEventListener('click', retry, { once: true });
   } catch {}
+}
+
+export function showTranscriptionConsentOverlay(props: TranscriptionConsentGateProps): void {
+  const host = document.createElement('div');
+  host.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:9999;';
+  document.body.appendChild(host);
+
+  let settled = false;
+  let root: ReturnType<typeof createRoot> | null = null;
+  const finish = (callback: () => void) => {
+    if (settled) return;
+    settled = true;
+    try {
+      root?.unmount();
+    } catch {}
+    host.remove();
+    callback();
+  };
+
+  void getEnterpriseWebModule().then((module) => {
+    if (!host.isConnected) return;
+    const Gate = module?.TranscriptionConsentGate;
+    if (Gate) {
+      root = createRoot(host);
+      root.render(
+        createElement(Gate, {
+          tenantSlug: props.tenantSlug,
+          onAccepted: () => finish(props.onAccepted),
+          onDeclined: () => finish(props.onDeclined),
+        }),
+      );
+      return;
+    }
+
+    host.innerHTML = `<div style="min-width:320px;max-width:480px;padding:24px;border-radius:12px;border:1px solid rgba(148,163,184,0.5);background:rgba(30,41,59,0.95);backdrop-filter:blur(8px);color:#fff;box-shadow:0 8px 32px rgba(0,0,0,0.4);text-align:center;font-size:14px;">${i18n.t('connection.transcriptionConsentRequired')}</div>`;
+  });
 }

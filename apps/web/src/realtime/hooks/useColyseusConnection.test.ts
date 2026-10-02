@@ -12,6 +12,17 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
+const overlayMocks = vi.hoisted(() => ({
+  showGuestExpiredOverlay: vi.fn(),
+  showAuthExpiredOverlay: vi.fn(),
+  showClientTooOldOverlay: vi.fn(),
+  showSessionTakenOverOverlay: vi.fn(),
+  showLimitErrorOverlay: vi.fn(),
+  showTranscriptionConsentOverlay: vi.fn(),
+}));
+
+vi.mock('./connectionOverlays', () => overlayMocks);
+
 // Mock react-dom/server to avoid SSR renderer being loaded in jsdom test env.
 vi.mock('react-dom/server', () => ({
   renderToStaticMarkup: () => '<svg></svg>',
@@ -32,6 +43,7 @@ vi.mock('../../app/providers/i18n', () => ({
 // Mock colyseus join helper (not called in pure-function tests, but required
 // to satisfy the import graph).
 vi.mock('../../lib/colyseus', () => ({
+  deriveTenant: () => 'workspace',
   joinWorld: vi.fn(),
 }));
 
@@ -56,10 +68,12 @@ import {
   extractErrorInfo,
   classifyConnectError,
   performScheduleReconnect,
+  performHandleError,
   MAX_RECONNECT_ATTEMPTS,
 } from './useColyseusConnection';
 import { showReconnectFailedDialog } from '../handlers/sessionDialogs';
 import type { ConnectionRefs } from '../types';
+import type { WorldRoom } from '../../types/colyseus';
 
 // ---------------------------------------------------------------------------
 // extractErrorInfo
@@ -257,5 +271,63 @@ describe('performScheduleReconnect', () => {
     expect(refs.reconnectAttemptsRef.current).toBe(0);
     expect(refs.coolDownUntilRef.current).toBe(0);
     expect(onReconnect).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('performHandleError transcription consent', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    window.location.hash = '';
+  });
+
+  afterEach(() => {
+    window.location.hash = '';
+  });
+
+  function makeArgs() {
+    return {
+      apiBase: '/api',
+      refs: makeRefs(),
+      colyseusRef: { current: null as WorldRoom | null },
+      scheduleReconnect: vi.fn(() => undefined),
+      resetRefsBeforeReconnect: vi.fn(),
+    };
+  }
+
+  it('shows the consent gate for code 4006 and reconnects once after acceptance', () => {
+    const args = makeArgs();
+    const onReconnect = vi.fn();
+
+    performHandleError([4006], false, onReconnect, args);
+
+    expect(overlayMocks.showTranscriptionConsentOverlay).toHaveBeenCalledWith(
+      expect.objectContaining({ tenantSlug: 'workspace' }),
+    );
+    expect(args.scheduleReconnect).not.toHaveBeenCalled();
+    const { onAccepted } = overlayMocks.showTranscriptionConsentOverlay.mock.calls[0][0];
+    onAccepted();
+    onAccepted();
+    expect(onReconnect).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows the consent gate for its reason and leaves the world when declined', () => {
+    const args = makeArgs();
+
+    performHandleError([4000, 'transcription_consent_required'], false, vi.fn(), args);
+
+    const { onDeclined } = overlayMocks.showTranscriptionConsentOverlay.mock.calls[0][0];
+    onDeclined();
+    expect(window.location.hash).toBe('#/');
+    expect(args.scheduleReconnect).not.toHaveBeenCalled();
+  });
+
+  it.each([4001, 4002, 4003, 4004, 4005])('keeps limit code %s on the existing overlay', (code) => {
+    const args = makeArgs();
+
+    performHandleError([code], false, vi.fn(), args);
+
+    expect(overlayMocks.showLimitErrorOverlay).toHaveBeenCalledTimes(1);
+    expect(overlayMocks.showTranscriptionConsentOverlay).not.toHaveBeenCalled();
+    expect(args.scheduleReconnect).not.toHaveBeenCalled();
   });
 });
