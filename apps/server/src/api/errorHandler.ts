@@ -49,6 +49,39 @@ type NormalizedError = {
   isOperational: boolean;
 };
 
+/**
+ * Client errors raised by the body parsers (`express.json()`, `express.raw()`
+ * and friends, via `raw-body` and `http-errors`). They carry a 4xx `status`
+ * and `expose: true`; the request was at fault, not the server. Mapping them
+ * to 500 reported every malformed or oversized body as an internal error and
+ * logged it at error level. `type` is the body-parser error type.
+ */
+const BODY_PARSER_ERRORS: Readonly<Record<string, { code: string; message: string }>> = {
+  'entity.parse.failed': { code: 'INVALID_JSON', message: 'Malformed request body' },
+  'entity.too.large': { code: 'PAYLOAD_TOO_LARGE', message: 'Request body too large' },
+  'entity.verify.failed': { code: 'BAD_REQUEST', message: 'Request body rejected' },
+  'encoding.unsupported': { code: 'UNSUPPORTED_ENCODING', message: 'Unsupported content encoding' },
+  'charset.unsupported': { code: 'UNSUPPORTED_CHARSET', message: 'Unsupported charset' },
+  'request.aborted': { code: 'REQUEST_ABORTED', message: 'Request aborted' },
+  'request.size.invalid': { code: 'BAD_REQUEST', message: 'Request size did not match content length' },
+};
+
+function normalizeClientHttpError(err: Error): NormalizedError | null {
+  const candidate = err as Error & { status?: unknown; statusCode?: unknown; expose?: unknown; type?: unknown };
+  const status = typeof candidate.status === 'number' ? candidate.status : candidate.statusCode;
+  if (typeof status !== 'number' || status < 400 || status > 499 || candidate.expose !== true) {
+    return null;
+  }
+  const known = typeof candidate.type === 'string' ? BODY_PARSER_ERRORS[candidate.type] : undefined;
+  return {
+    statusCode: status,
+    code: known?.code ?? 'BAD_REQUEST',
+    // Fixed texts: the parser's own message can quote parts of the body.
+    message: known?.message ?? 'Bad request',
+    isOperational: true,
+  };
+}
+
 function normalizeError(err: unknown): NormalizedError {
   if (err instanceof AppError) {
     return {
@@ -59,6 +92,10 @@ function normalizeError(err: unknown): NormalizedError {
     };
   }
   if (err instanceof Error) {
+    const clientError = normalizeClientHttpError(err);
+    if (clientError) {
+      return clientError;
+    }
     return { statusCode: 500, code: 'INTERNAL_ERROR', message: err.message, isOperational: false };
   }
   if (typeof err === 'string') {
