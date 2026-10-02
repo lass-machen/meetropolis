@@ -13,6 +13,7 @@ import {
   livekitPacketLossRatio,
 } from '../../metrics.js';
 import { requireAuth, getTenantFromReq, requireMembership } from '../utils/authHelpers.js';
+import { evaluateTranscriptionGate } from '../../rooms/lifecycle/transcriptionGate.js';
 
 function handleHealth(_req: express.Request, res: express.Response): void {
   res.json({ ok: true });
@@ -215,6 +216,10 @@ export async function handleLivekitToken(
     if (!membership) {
       logger.warn({ event: 'livekit.token.forbidden', correlationId: corrId || undefined, identity });
       res.status(403).json({ error: 'forbidden' });
+      return;
+    }
+    if ((await evaluateTranscriptionGate(prisma, tenant.id, identity)) === 'consent_required') {
+      res.status(403).json({ error: 'transcription_consent_required' });
       return;
     }
     const effectiveCanPublish = resolveEffectiveCanPublish(canPublish, zonePrivacyVersion, identity, corrId);
