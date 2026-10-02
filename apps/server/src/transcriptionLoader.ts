@@ -1,7 +1,6 @@
 import type { Express } from 'express';
 import type { PrismaClient } from './generated/prisma/index.js';
 import type { requireApiToken, requireAuth, requireMembership } from './api/utils/authHelpers.js';
-import type { getEmailModule } from './emailLoader.js';
 import type { resolveTenantBySlug } from './tenancy.js';
 import { logger } from './logger.js';
 import { z } from 'zod';
@@ -22,7 +21,7 @@ export interface TranscriptionRouteDeps {
   requireApiToken: typeof requireApiToken;
   resolveTenantBySlug: typeof resolveTenantBySlug;
   requireMembership: typeof requireMembership;
-  getEmailModule: typeof getEmailModule;
+  getEmailModule: () => Promise<unknown>;
 }
 
 export interface TranscriptionModule {
