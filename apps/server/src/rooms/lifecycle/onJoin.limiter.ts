@@ -7,6 +7,7 @@ import { getBillingModuleSync } from '../../billingLoader.js';
 import type { WorldRoom, RoomOptions } from '../WorldRoom.js';
 import { isWorldAuth } from './onAuth.js';
 import { NO_TENANT_KEY } from './tenantView.js';
+import { enforceTranscriptionGate } from './transcriptionGate.js';
 
 export interface RoomMetadata {
   tenant?: string;
@@ -341,6 +342,14 @@ export async function enforceTenantLimits(
         await enforceTenantSeatLimit(client, prisma, activeRooms, tenant, tenantSlug, joiningIdentity, verifiedTenantId)
       )
         return true;
+    }
+    if (tenant && (await enforceTranscriptionGate(client, prisma, tenant.id, joiningIdentity))) {
+      try {
+        await prisma.$disconnect().catch(() => {});
+      } catch (e) {
+        logger.debug('[WorldRoom] Failed to disconnect prisma', e);
+      }
+      return true;
     }
     try {
       await prisma.$disconnect().catch(() => {});
