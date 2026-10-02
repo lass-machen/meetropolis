@@ -15,6 +15,18 @@ export interface EnterpriseWebModule {
   AdminEnterpriseTabs: ComponentType<{ apiBase: string; capabilities: AdminCapabilities }>;
   BillingDashboard: ComponentType<{ activeTab: string; onTabChange: (k: string) => void; onClose: () => void }>;
   PackStore: ComponentType<{ apiBase: string; open: boolean; onOpenChange: (v: boolean) => void }>;
+  TranscriptionConsentGate?: ComponentType<TranscriptionConsentGateProps>;
+  TranscriptionIndicator?: ComponentType<TranscriptionIndicatorProps>;
+}
+
+export interface TranscriptionConsentGateProps {
+  tenantSlug: string;
+  onAccepted: () => void;
+  onDeclined: () => void;
+}
+
+export interface TranscriptionIndicatorProps {
+  tenantSlug: string;
 }
 
 let cached: EnterpriseWebModule | null | undefined = undefined; // undefined = not yet tried

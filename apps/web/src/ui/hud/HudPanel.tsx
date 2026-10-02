@@ -3,6 +3,9 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useZoneLockStore } from '../../state/zoneLockStore';
 import type { WorldRoom } from '../../types/colyseus';
+import { deriveTenant } from '../../lib/colyseus';
+import { getEnterpriseWebModule } from '../../lib/enterpriseWebLoader';
+import type { TranscriptionIndicatorProps } from '../../lib/enterpriseWebLoader';
 
 interface HudPanelProps {
   hud: { zone?: string; avRoom?: string | null; follow?: string | null };
@@ -14,11 +17,23 @@ export const HudPanel = React.memo(function HudPanel(props: HudPanelProps) {
   const { hud, colyseusRef, mySessionId } = props;
   const { t } = useTranslation();
   const locks = useZoneLockStore((s) => s.locks);
+  const [TranscriptionIndicator, setTranscriptionIndicator] =
+    React.useState<React.ComponentType<TranscriptionIndicatorProps> | null>(null);
+
+  React.useEffect(() => {
+    let active = true;
+    void getEnterpriseWebModule().then((module) => {
+      if (active) setTranscriptionIndicator(() => module?.TranscriptionIndicator ?? null);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Only show when relevant info is available (not all "-" or "no")
   const hasZone = hud.zone && hud.zone !== '-';
   const hasFollow = hud.follow && hud.follow !== 'no';
-  const showPanel = hasZone || hasFollow;
+  const showPanel = hasZone || hasFollow || !!TranscriptionIndicator;
 
   if (!showPanel) return null;
 
@@ -137,6 +152,7 @@ export const HudPanel = React.memo(function HudPanel(props: HudPanelProps) {
           <span style={{ fontWeight: 600, color: '#4ade80' }}>{hud.follow}</span>
         </div>
       )}
+      {TranscriptionIndicator && <TranscriptionIndicator tenantSlug={deriveTenant()} />}
     </div>
   );
 });

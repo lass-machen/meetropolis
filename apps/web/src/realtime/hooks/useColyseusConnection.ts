@@ -1,5 +1,5 @@
 import React from 'react';
-import { joinWorld } from '../../lib/colyseus';
+import { deriveTenant, joinWorld } from '../../lib/colyseus';
 import { getDesktopModule } from '../../lib/desktopLoader';
 import { logger } from '../../lib/logger';
 import { computeBackoffDelayMs } from '../../lib/backoff';
@@ -11,6 +11,7 @@ import {
   showClientTooOldOverlay,
   showSessionTakenOverOverlay,
   showLimitErrorOverlay,
+  showTranscriptionConsentOverlay,
 } from './connectionOverlays';
 import type { UseWorldRoomArgs, ConnectionRefs } from '../types';
 import type { WorldRoom } from '../../types/colyseus';
@@ -244,7 +245,7 @@ type PerformHandleErrorArgs = {
   resetRefsBeforeReconnect: () => void;
 };
 
-function performHandleError(
+export function performHandleError(
   ev: readonly ColyseusErrorPayload[],
   disposed: boolean,
   onReconnect: () => void,
@@ -261,6 +262,28 @@ function performHandleError(
     if (code !== undefined) closeInfo.code = code;
     if (reason !== undefined) closeInfo.reason = reason;
     refs.lastCloseInfoRef.current = closeInfo;
+
+    const isTranscriptionConsentRequired =
+      code === 4006 || reason === 'transcription_consent_required' || text === 'transcription_consent_required';
+    if (isTranscriptionConsentRequired) {
+      let handled = false;
+      showTranscriptionConsentOverlay({
+        tenantSlug: deriveTenant(),
+        onAccepted: () => {
+          if (handled) return;
+          handled = true;
+          onReconnect();
+        },
+        onDeclined: () => {
+          if (handled) return;
+          handled = true;
+          window.location.hash = '#/';
+        },
+      });
+      colyseusRef.current = null;
+      refs.connectingRef.current = false;
+      return;
+    }
 
     // Handle guest expired - redirect to auth screen
     const isGuestExpired = code === 4006 || text === 'guest_expired';

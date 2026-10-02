@@ -52,6 +52,7 @@
   "modal.usersTitle": "User Management",
   "common.error": "Error",
   "common.networkError": "Network error",
+  "connection.transcriptionConsentRequired": "This workspace requires consent before you can enter. Please contact the workspace administrators.",
   "auth.tagline": "Your virtual workplace",
   "auth.login.title": "Welcome back",
   "auth.email": "E-mail",
