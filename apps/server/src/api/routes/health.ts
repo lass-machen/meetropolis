@@ -153,6 +153,10 @@ function resolveEffectiveCanPublish(
   return false;
 }
 
+function respondTranscriptionConsentRequired(res: express.Response): void {
+  res.status(403).json({ error: 'transcription_consent_required' });
+}
+
 export async function handleLivekitToken(
   prisma: PrismaClient,
   req: express.Request,
@@ -219,8 +223,7 @@ export async function handleLivekitToken(
       return;
     }
     if ((await evaluateTranscriptionGate(prisma, tenant.id, identity)) === 'consent_required') {
-      res.status(403).json({ error: 'transcription_consent_required' });
-      return;
+      return respondTranscriptionConsentRequired(res);
     }
     const effectiveCanPublish = resolveEffectiveCanPublish(canPublish, zonePrivacyVersion, identity, corrId);
     const roomNameWithTenant = `${tenant.slug}:${roomName}`;
