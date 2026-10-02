@@ -268,12 +268,15 @@ Server-side loaders:
 - `apps/server/src/billingLoader.ts`
 - `apps/server/src/adminLoader.ts`
 - `apps/server/src/emailLoader.ts`
+- `apps/server/src/telemetryLoader.ts`
+- `apps/server/src/transcriptionLoader.ts`
 
 Web-side loaders:
 
 - `apps/web/src/lib/enterpriseWebLoader.ts`
 - `apps/web/src/lib/brandLoader.ts`
 - `apps/web/src/lib/desktopLoader.ts`
+- `apps/web/src/lib/telemetryLoader.ts`
 - `apps/web/optional-submodules.ts`
 
 **Never bypass these loaders.** Do not add direct imports that assume a
