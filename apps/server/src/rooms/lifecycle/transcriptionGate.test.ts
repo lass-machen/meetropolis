@@ -135,14 +135,18 @@ describe('enforceTranscriptionGate', () => {
     expect(client.leave).toHaveBeenCalledWith(1000);
   });
 
-  it('fails closed when the module is loaded but no tenant id is available', async () => {
+  it('fails closed as unavailable when the module is loaded but no tenant id is available', async () => {
     const client = makeClient();
 
     await expect(enforceTranscriptionGate(client, prisma, undefined, 'user-1')).resolves.toBe(true);
 
-    expect(client.error).toHaveBeenCalledWith(4008, 'transcription_consent_required');
+    expect(client.error).toHaveBeenCalledWith(4503, 'transcription_gate_unavailable');
+    expect(client.error).not.toHaveBeenCalledWith(4008, expect.anything());
     expect(client.leave).toHaveBeenCalledWith(1000);
     expect(getJoinRequirementMock).not.toHaveBeenCalled();
+    expect(mocks.loggerWarn).toHaveBeenCalledWith(
+      expect.objectContaining({ event: 'transcription.gate_tenant_unresolved', userId: 'user-1' }),
+    );
   });
 });
 

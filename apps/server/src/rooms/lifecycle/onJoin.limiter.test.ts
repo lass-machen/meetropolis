@@ -722,7 +722,7 @@ describe('enforceTenantLimits', () => {
     );
 
     expect(aborted).toBe(true);
-    expect(client.error).toHaveBeenCalledWith(4008, 'transcription_consent_required');
+    expect(client.error).toHaveBeenCalledWith(4503, 'transcription_gate_unavailable');
     expect(client.leave).toHaveBeenCalledWith(1000);
   });
 });
