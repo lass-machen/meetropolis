@@ -19,6 +19,7 @@ export const HudPanel = React.memo(function HudPanel(props: HudPanelProps) {
   const locks = useZoneLockStore((s) => s.locks);
   const [TranscriptionIndicator, setTranscriptionIndicator] =
     React.useState<React.ComponentType<TranscriptionIndicatorProps> | null>(null);
+  const [indicatorVisible, setIndicatorVisible] = React.useState(false);
 
   React.useEffect(() => {
     let active = true;
@@ -33,9 +34,11 @@ export const HudPanel = React.memo(function HudPanel(props: HudPanelProps) {
   // Only show when relevant info is available (not all "-" or "no")
   const hasZone = hud.zone && hud.zone !== '-';
   const hasFollow = hud.follow && hud.follow !== 'no';
-  const showPanel = hasZone || hasFollow || !!TranscriptionIndicator;
+  const showPanel = hasZone || hasFollow || indicatorVisible;
 
-  if (!showPanel) return null;
+  // The indicator must stay mounted while the panel is hidden, otherwise it can
+  // never report that it became visible.
+  if (!showPanel && !TranscriptionIndicator) return null;
 
   const currentLock = hasZone ? locks.find((l) => l.zoneName === hud.zone) : undefined;
   const isLocked = !!currentLock;
@@ -68,7 +71,7 @@ export const HudPanel = React.memo(function HudPanel(props: HudPanelProps) {
         border: '1px solid rgba(255,255,255,0.08)',
         boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
         zIndex: 30,
-        display: 'flex',
+        display: showPanel ? 'flex' : 'none',
         flexDirection: 'column',
         gap: 2,
         minWidth: 100,
@@ -152,7 +155,9 @@ export const HudPanel = React.memo(function HudPanel(props: HudPanelProps) {
           <span style={{ fontWeight: 600, color: '#4ade80' }}>{hud.follow}</span>
         </div>
       )}
-      {TranscriptionIndicator && <TranscriptionIndicator tenantSlug={deriveTenant()} />}
+      {TranscriptionIndicator && (
+        <TranscriptionIndicator tenantSlug={deriveTenant()} onVisibilityChange={setIndicatorVisible} />
+      )}
     </div>
   );
 });

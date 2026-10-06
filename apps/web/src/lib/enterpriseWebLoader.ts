@@ -27,6 +27,9 @@ export interface TranscriptionConsentGateProps {
 
 export interface TranscriptionIndicatorProps {
   tenantSlug: string;
+  /** Called with true once the badge is visible and with false otherwise, so
+   * the host can hide its panel while the indicator renders nothing. */
+  onVisibilityChange?: (visible: boolean) => void;
 }
 
 let cached: EnterpriseWebModule | null | undefined = undefined; // undefined = not yet tried
