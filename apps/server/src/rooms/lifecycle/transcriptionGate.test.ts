@@ -120,7 +120,7 @@ describe('enforceTranscriptionGate', () => {
 
     await expect(enforceTranscriptionGate(client, prisma, 'tenant-1', 'user-1')).resolves.toBe(true);
 
-    expect(client.error).toHaveBeenCalledWith(4006, 'transcription_consent_required');
+    expect(client.error).toHaveBeenCalledWith(4008, 'transcription_consent_required');
     expect(client.leave).toHaveBeenCalledWith(1000);
   });
 
@@ -129,7 +129,7 @@ describe('enforceTranscriptionGate', () => {
 
     await expect(enforceTranscriptionGate(client, prisma, undefined, 'user-1')).resolves.toBe(true);
 
-    expect(client.error).toHaveBeenCalledWith(4006, 'transcription_consent_required');
+    expect(client.error).toHaveBeenCalledWith(4008, 'transcription_consent_required');
     expect(client.leave).toHaveBeenCalledWith(1000);
     expect(getJoinRequirementMock).not.toHaveBeenCalled();
   });

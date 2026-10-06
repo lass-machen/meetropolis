@@ -681,7 +681,7 @@ describe('enforceTenantLimits', () => {
       tenantId: 'trusted-tenant-id',
       userId: 'joiner',
     });
-    expect(client.error).toHaveBeenCalledWith(4006, 'transcription_consent_required');
+    expect(client.error).toHaveBeenCalledWith(4008, 'transcription_consent_required');
     expect(client.leave).toHaveBeenCalledWith(1000);
   });
 
@@ -722,7 +722,7 @@ describe('enforceTenantLimits', () => {
     );
 
     expect(aborted).toBe(true);
-    expect(client.error).toHaveBeenCalledWith(4006, 'transcription_consent_required');
+    expect(client.error).toHaveBeenCalledWith(4008, 'transcription_consent_required');
     expect(client.leave).toHaveBeenCalledWith(1000);
   });
 });

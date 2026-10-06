@@ -3,6 +3,10 @@ import type { PrismaClient } from '../../generated/prisma/index.js';
 import { logger } from '../../logger.js';
 import { getTranscriptionModuleSync } from '../../transcriptionLoader.js';
 
+/** Close/error code for a missing transcription consent. 4006 stays reserved
+ * for `guest_expired`, so the client can tell the two overlays apart. */
+export const TRANSCRIPTION_CONSENT_REQUIRED_CODE = 4008;
+
 export async function evaluateTranscriptionGate(
   prisma: PrismaClient,
   tenantId: string,
@@ -37,7 +41,7 @@ export async function enforceTranscriptionGate(
     return false;
   }
 
-  client.error(4006, 'transcription_consent_required');
+  client.error(TRANSCRIPTION_CONSENT_REQUIRED_CODE, 'transcription_consent_required');
   client.leave(1000);
   return true;
 }

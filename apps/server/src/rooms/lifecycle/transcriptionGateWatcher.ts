@@ -4,7 +4,7 @@ import { logger } from '../../logger.js';
 import { getTranscriptionModuleSync, type TranscriptionGateChange } from '../../transcriptionLoader.js';
 import type { WorldRoom } from '../WorldRoom.js';
 import { isWorldAuth } from './onAuth.js';
-import { evaluateTranscriptionGate } from './transcriptionGate.js';
+import { evaluateTranscriptionGate, TRANSCRIPTION_CONSENT_REQUIRED_CODE } from './transcriptionGate.js';
 
 interface GateTarget {
   client: Client;
@@ -24,12 +24,12 @@ function getGateTargets(room: WorldRoom, change: TranscriptionGateChange): GateT
 
 function disconnectForMissingConsent(client: Client): void {
   try {
-    client.error(4006, 'transcription_consent_required');
+    client.error(TRANSCRIPTION_CONSENT_REQUIRED_CODE, 'transcription_consent_required');
   } catch (error) {
     logger.debug({ event: 'transcription.gate_error_send_failed', error: String(error) });
   }
   try {
-    client.leave(4006);
+    client.leave(TRANSCRIPTION_CONSENT_REQUIRED_CODE);
   } catch (error) {
     logger.debug({ event: 'transcription.gate_leave_failed', error: String(error) });
   }

@@ -43,8 +43,9 @@ import { MAX_JOIN_IDENTITY_LENGTH } from './joinFields.js';
 type WorldJoinPrisma = Pick<PrismaClient, 'tenant' | 'session'>;
 
 /** Dedicated close/error codes for this gate, distinct from the existing
- * 4001-4007 range used by onJoin.limiter.ts / onJoin.completion.ts / guest
- * expiry, so the client can branch on "must re-login" vs "must update". */
+ * 4001-4008 range used by onJoin.limiter.ts / onJoin.completion.ts / guest
+ * expiry / the transcription gate, so the client can branch on "must re-login"
+ * vs "must update". */
 export const AUTH_REJECTED_CODE = 4401;
 export const CLIENT_TOO_OLD_CODE = 4426;
 

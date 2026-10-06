@@ -263,8 +263,9 @@ export function performHandleError(
     if (reason !== undefined) closeInfo.reason = reason;
     refs.lastCloseInfoRef.current = closeInfo;
 
+    // 4008 is the transcription consent code; 4006 belongs to guest_expired below.
     const isTranscriptionConsentRequired =
-      code === 4006 || reason === 'transcription_consent_required' || text === 'transcription_consent_required';
+      code === 4008 || reason === 'transcription_consent_required' || text === 'transcription_consent_required';
     if (isTranscriptionConsentRequired) {
       let handled = false;
       showTranscriptionConsentOverlay({
