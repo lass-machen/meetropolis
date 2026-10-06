@@ -1,18 +1,11 @@
 import React from 'react';
-import { deriveTenant, joinWorld } from '../../lib/colyseus';
+import { joinWorld } from '../../lib/colyseus';
 import { getDesktopModule } from '../../lib/desktopLoader';
 import { logger } from '../../lib/logger';
 import { computeBackoffDelayMs } from '../../lib/backoff';
 import { useMapStore } from '../../state/mapStore';
 import { showReconnectFailedDialog } from '../handlers/sessionDialogs';
-import {
-  showGuestExpiredOverlay,
-  showAuthExpiredOverlay,
-  showClientTooOldOverlay,
-  showSessionTakenOverOverlay,
-  showLimitErrorOverlay,
-  showTranscriptionConsentOverlay,
-} from './connectionOverlays';
+import { routeTerminalConnectionError, type ConnectionErrorInfo } from './connectionErrorRouting';
 import type { UseWorldRoomArgs, ConnectionRefs } from '../types';
 import type { WorldRoom } from '../../types/colyseus';
 
@@ -159,6 +152,15 @@ export function performScheduleReconnect(
   return delay;
 }
 
+// Exported for unit testing. Not part of the public API.
+export function extractConnectErrorInfo(err: unknown): ConnectionErrorInfo {
+  if (!err || typeof err !== 'object') return { code: undefined, reason: undefined, text: '' };
+  const { code, message } = err as { code?: unknown; message?: unknown };
+  const text = typeof message === 'string' ? message : '';
+  // Same shape as the room.onError tuple [code, message], so both paths decode alike.
+  return typeof code === 'number' ? extractErrorInfo([code, text]) : extractErrorInfo([{ message: text }]);
+}
+
 type PerformConnectArgs = {
   apiBase: string;
   me: NonNullable<UseWorldRoomArgs['me']>;
@@ -171,7 +173,8 @@ type PerformConnectArgs = {
   onReconnect?: (() => void) | undefined;
 };
 
-async function performConnect(
+// Exported for unit testing. Not part of the public API.
+export async function performConnect(
   disposed: boolean,
   onConnected: (room: WorldRoom) => void,
   args: PerformConnectArgs,
@@ -217,6 +220,26 @@ async function performConnect(
     onConnected(room);
     return room;
   } catch (err: unknown) {
+    // A join the server rejects arrives here as ServerError(code, message), the
+    // same codes performHandleError sees on an established room.
+    const connectErrorInfo = extractConnectErrorInfo(err);
+    if (connectErrorInfo.code !== undefined || connectErrorInfo.reason !== undefined) {
+      refs.lastCloseInfoRef.current = {
+        ...(connectErrorInfo.code !== undefined ? { code: connectErrorInfo.code } : {}),
+        ...(connectErrorInfo.reason !== undefined ? { reason: connectErrorInfo.reason } : {}),
+      };
+    }
+    if (
+      !disposed &&
+      routeTerminalConnectionError(connectErrorInfo, {
+        apiBase,
+        refs,
+        colyseusRef,
+        onReconnect: onReconnect ?? (() => undefined),
+      })
+    ) {
+      return { error: err, needsReconnect: false, delay: undefined };
+    }
     try {
       const errLike = err as { message?: unknown; toString?: () => string } | undefined;
       const msg = (errLike && (typeof errLike.message === 'string' ? errLike.message : errLike.toString?.())) || '';
@@ -263,88 +286,7 @@ export function performHandleError(
     if (reason !== undefined) closeInfo.reason = reason;
     refs.lastCloseInfoRef.current = closeInfo;
 
-    // 4008 is the transcription consent code; 4006 belongs to guest_expired below.
-    const isTranscriptionConsentRequired =
-      code === 4008 || reason === 'transcription_consent_required' || text === 'transcription_consent_required';
-    if (isTranscriptionConsentRequired) {
-      let handled = false;
-      showTranscriptionConsentOverlay({
-        tenantSlug: deriveTenant(),
-        onAccepted: () => {
-          if (handled) return;
-          handled = true;
-          onReconnect();
-        },
-        onDeclined: () => {
-          if (handled) return;
-          handled = true;
-          window.location.hash = '#/';
-        },
-      });
-      colyseusRef.current = null;
-      refs.connectingRef.current = false;
-      return;
-    }
-
-    // Handle guest expired - redirect to auth screen
-    const isGuestExpired = code === 4006 || text === 'guest_expired';
-    if (isGuestExpired) {
-      showGuestExpiredOverlay(apiBase);
-      colyseusRef.current = null;
-      refs.connectingRef.current = false;
-      return;
-    }
-
-    // Handle session takeover: the old client is kicked when a new client takes over.
-    const isSessionTakenOver = code === 4007 || text === 'session_taken_over';
-    if (isSessionTakenOver) {
-      showSessionTakenOverOverlay();
-      colyseusRef.current = null;
-      refs.connectingRef.current = false;
-      // Do NOT auto-reconnect: the user must click reconnect explicitly.
-      return;
-    }
-
-    // H4 hardening: onAuth() rejected the join outright (expired/invalid
-    // token, or - for npc-* identities - a bad service token). Re-login is
-    // the only way forward; auto-reconnecting would just repeat the
-    // rejection forever. See rooms/lifecycle/onAuth.ts AUTH_REJECTED_CODE.
-    const isAuthRejected = code === 4401 || text === 'unauthorized';
-    if (isAuthRejected) {
-      showAuthExpiredOverlay(apiBase);
-      colyseusRef.current = null;
-      refs.connectingRef.current = false;
-      return;
-    }
-
-    // H4 hardening: this build's zonePrivacyVersion is below the server's
-    // minimum. See rooms/lifecycle/onAuth.ts CLIENT_TOO_OLD_CODE.
-    const isClientTooOld = code === 4426 || text === 'client_too_old';
-    if (isClientTooOld) {
-      showClientTooOldOverlay();
-      colyseusRef.current = null;
-      refs.connectingRef.current = false;
-      return;
-    }
-
-    // Handle user limit and billing errors - show UI feedback and don't auto-reconnect
-    const isBillingError =
-      code === 4003 ||
-      code === 4004 ||
-      code === 4005 ||
-      text === 'subscription_inactive' ||
-      text === 'subscription_suspended' ||
-      text === 'trial_expired';
-    const isLimitError =
-      code === 4001 || code === 4002 || text === 'tenant_limit_reached' || text === 'oss_limit_reached';
-
-    if (isBillingError || isLimitError) {
-      showLimitErrorOverlay(code, text, onReconnect);
-      colyseusRef.current = null;
-      refs.connectingRef.current = false;
-      // Don't auto-reconnect for limit errors - user must click retry
-      return;
-    }
+    if (routeTerminalConnectionError({ code, reason, text }, { apiBase, refs, colyseusRef, onReconnect })) return;
   } catch {}
   colyseusRef.current = null;
   refs.connectingRef.current = false;

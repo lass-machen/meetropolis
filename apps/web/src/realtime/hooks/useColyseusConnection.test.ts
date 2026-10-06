@@ -64,9 +64,12 @@ vi.mock('../handlers/sessionDialogs', () => ({
   showReconnectFailedDialog: vi.fn(),
 }));
 
+import { ServerError } from '@colyseus/sdk';
+import { joinWorld } from '../../lib/colyseus';
 import {
   extractErrorInfo,
   classifyConnectError,
+  performConnect,
   performScheduleReconnect,
   performHandleError,
   MAX_RECONNECT_ATTEMPTS,
@@ -358,5 +361,88 @@ describe('performHandleError transcription consent', () => {
     expect(overlayMocks.showLimitErrorOverlay).toHaveBeenCalledTimes(1);
     expect(overlayMocks.showTranscriptionConsentOverlay).not.toHaveBeenCalled();
     expect(args.scheduleReconnect).not.toHaveBeenCalled();
+  });
+});
+
+describe('performConnect rejected joins', () => {
+  function makeConnectArgs() {
+    return {
+      apiBase: '/api',
+      me: { id: 'user-1', name: 'User One' },
+      localPosRef: { current: { x: 1, y: 2 } },
+      colyseusRef: { current: null as WorldRoom | null },
+      dndRef: { current: false },
+      setConnectionStatus: vi.fn(),
+      refs: makeRefs(),
+      scheduleReconnect: vi.fn(() => undefined),
+    } as unknown as Parameters<typeof performConnect>[2];
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    window.location.hash = '';
+  });
+
+  it('shows the consent gate for a join rejected with ServerError(4008) and does not reconnect', async () => {
+    vi.mocked(joinWorld).mockRejectedValue(new ServerError(4008, 'transcription_consent_required'));
+    const args = makeConnectArgs();
+    const onReconnect = vi.fn();
+
+    const result = await performConnect(false, vi.fn(), { ...args, onReconnect });
+
+    expect(overlayMocks.showTranscriptionConsentOverlay).toHaveBeenCalledTimes(1);
+    expect(args.scheduleReconnect).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ needsReconnect: false });
+    expect(args.refs.connectingRef.current).toBe(false);
+    const { onAccepted } = overlayMocks.showTranscriptionConsentOverlay.mock.calls[0][0];
+    onAccepted();
+    expect(onReconnect).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows the guest hint for ServerError(4006, guest_expired), not the consent gate', async () => {
+    vi.mocked(joinWorld).mockRejectedValue(new ServerError(4006, 'guest_expired'));
+    const args = makeConnectArgs();
+
+    await performConnect(false, vi.fn(), args);
+
+    expect(overlayMocks.showGuestExpiredOverlay).toHaveBeenCalledWith('/api');
+    expect(overlayMocks.showTranscriptionConsentOverlay).not.toHaveBeenCalled();
+    expect(args.scheduleReconnect).not.toHaveBeenCalled();
+  });
+
+  it('shows the limit overlay for a join rejected with a billing code', async () => {
+    vi.mocked(joinWorld).mockRejectedValue(new ServerError(4005, 'trial_expired'));
+    const args = makeConnectArgs();
+
+    await performConnect(false, vi.fn(), args);
+
+    expect(overlayMocks.showLimitErrorOverlay).toHaveBeenCalledTimes(1);
+    expect(args.scheduleReconnect).not.toHaveBeenCalled();
+  });
+
+  it('reconnects with backoff on the unknown gate-unavailable code 4503 and records its close info', async () => {
+    vi.mocked(joinWorld).mockRejectedValue(new ServerError(4503, 'transcription_gate_unavailable'));
+    const args = makeConnectArgs();
+    const onReconnect = vi.fn();
+
+    const result = await performConnect(false, vi.fn(), { ...args, onReconnect });
+
+    expect(args.scheduleReconnect).toHaveBeenCalledWith(false, onReconnect);
+    expect(result).toMatchObject({ needsReconnect: true });
+    expect(args.refs.lastCloseInfoRef.current).toEqual({
+      code: 4503,
+      reason: 'transcription_gate_unavailable',
+    });
+    for (const overlay of Object.values(overlayMocks)) expect(overlay).not.toHaveBeenCalled();
+  });
+
+  it('keeps reconnecting on errors without a code', async () => {
+    vi.mocked(joinWorld).mockRejectedValue(new Error('network down'));
+    const args = makeConnectArgs();
+
+    await performConnect(false, vi.fn(), args);
+
+    expect(args.scheduleReconnect).toHaveBeenCalledTimes(1);
+    for (const overlay of Object.values(overlayMocks)) expect(overlay).not.toHaveBeenCalled();
   });
 });
