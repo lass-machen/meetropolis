@@ -45,8 +45,13 @@ export async function enforceTranscriptionGate(
   if (tenantId) {
     decision = await evaluateTranscriptionGate(prisma, tenantId, userId);
   } else {
-    // Module loaded but no tenant id to evaluate against: fail closed.
-    decision = getTranscriptionModuleSync() ? 'consent_required' : 'allow';
+    // Only reached when the caller's tenant lookup failed (NPCs return before the
+    // limiter, and a tenant-less join with a successful lookup skips the gate).
+    // With the module loaded there is nothing to evaluate against: fail closed.
+    decision = getTranscriptionModuleSync() ? 'unavailable' : 'allow';
+    if (decision === 'unavailable') {
+      logger.warn({ event: 'transcription.gate_tenant_unresolved', userId });
+    }
   }
   if (decision === 'allow') return false;
 
