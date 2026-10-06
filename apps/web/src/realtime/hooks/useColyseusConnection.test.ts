@@ -294,11 +294,11 @@ describe('performHandleError transcription consent', () => {
     };
   }
 
-  it('shows the consent gate for code 4006 and reconnects once after acceptance', () => {
+  it('shows the consent gate for code 4008 and reconnects once after acceptance', () => {
     const args = makeArgs();
     const onReconnect = vi.fn();
 
-    performHandleError([4006], false, onReconnect, args);
+    performHandleError([4008], false, onReconnect, args);
 
     expect(overlayMocks.showTranscriptionConsentOverlay).toHaveBeenCalledWith(
       expect.objectContaining({ tenantSlug: 'workspace' }),
@@ -319,6 +319,24 @@ describe('performHandleError transcription consent', () => {
     onDeclined();
     expect(window.location.hash).toBe('#/');
     expect(args.scheduleReconnect).not.toHaveBeenCalled();
+  });
+
+  it('routes guest_expired on code 4006 to the guest overlay and not the consent dialog', () => {
+    const args = makeArgs();
+
+    performHandleError([4006, 'guest_expired'], false, vi.fn(), args);
+
+    expect(overlayMocks.showGuestExpiredOverlay).toHaveBeenCalledWith('/api');
+    expect(overlayMocks.showTranscriptionConsentOverlay).not.toHaveBeenCalled();
+    expect(args.scheduleReconnect).not.toHaveBeenCalled();
+  });
+
+  it('does not treat a bare code 4006 as a consent requirement', () => {
+    const args = makeArgs();
+
+    performHandleError([4006], false, vi.fn(), args);
+
+    expect(overlayMocks.showTranscriptionConsentOverlay).not.toHaveBeenCalled();
   });
 
   it.each([4001, 4002, 4003, 4004, 4005])('keeps limit code %s on the existing overlay', (code) => {

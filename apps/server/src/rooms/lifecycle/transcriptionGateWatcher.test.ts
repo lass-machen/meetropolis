@@ -114,11 +114,11 @@ describe('watchTranscriptionGate', () => {
     emit({ tenantId: 'tenant-a' });
     await vi.waitFor(() => {
       expect(getJoinRequirementMock).toHaveBeenCalledTimes(2);
-      expect(needsConsent.leave).toHaveBeenCalledWith(4006);
+      expect(needsConsent.leave).toHaveBeenCalledWith(4008);
     });
 
-    expect(needsConsent.error).toHaveBeenCalledWith(4006, 'transcription_consent_required');
-    expect(needsConsent.leave).toHaveBeenCalledWith(4006);
+    expect(needsConsent.error).toHaveBeenCalledWith(4008, 'transcription_consent_required');
+    expect(needsConsent.leave).toHaveBeenCalledWith(4008);
     expect(hasConsent.error).not.toHaveBeenCalled();
   });
 
@@ -130,7 +130,7 @@ describe('watchTranscriptionGate', () => {
     getJoinRequirementMock.mockResolvedValue({ code: 'transcription_consent_required' });
 
     emit({ tenantId: 'tenant-a', userId: 'user-a' });
-    await vi.waitFor(() => expect(target.leave).toHaveBeenCalledWith(4006));
+    await vi.waitFor(() => expect(target.leave).toHaveBeenCalledWith(4008));
 
     expect(getJoinRequirementMock).toHaveBeenCalledTimes(1);
     expect(other.error).not.toHaveBeenCalled();
@@ -156,7 +156,7 @@ describe('watchTranscriptionGate', () => {
     getJoinRequirementMock.mockResolvedValue({ code: 'transcription_consent_required' });
 
     emit({ tenantId: 'tenant-a' });
-    await vi.waitFor(() => expect(human.leave).toHaveBeenCalledWith(4006));
+    await vi.waitFor(() => expect(human.leave).toHaveBeenCalledWith(4008));
 
     expect(npc.error).not.toHaveBeenCalled();
     expect(npc.leave).not.toHaveBeenCalled();
