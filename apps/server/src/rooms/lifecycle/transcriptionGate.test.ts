@@ -103,10 +103,10 @@ describe('evaluateTranscriptionGate', () => {
     await expect(evaluateTranscriptionGate(prisma, 'tenant-1', 'user-1')).resolves.toBe('consent_required');
   });
 
-  it('fails closed and warns when the module throws', async () => {
+  it('reports the gate as unavailable and warns when the module throws', async () => {
     getJoinRequirementMock.mockRejectedValue(new Error('gate lookup failed'));
 
-    await expect(evaluateTranscriptionGate(prisma, 'tenant-1', 'user-1')).resolves.toBe('consent_required');
+    await expect(evaluateTranscriptionGate(prisma, 'tenant-1', 'user-1')).resolves.toBe('unavailable');
     expect(mocks.loggerWarn).toHaveBeenCalledWith(
       expect.objectContaining({ event: 'transcription.gate_check_failed', tenantId: 'tenant-1', userId: 'user-1' }),
     );
@@ -121,6 +121,17 @@ describe('enforceTranscriptionGate', () => {
     await expect(enforceTranscriptionGate(client, prisma, 'tenant-1', 'user-1')).resolves.toBe(true);
 
     expect(client.error).toHaveBeenCalledWith(4008, 'transcription_consent_required');
+    expect(client.leave).toHaveBeenCalledWith(1000);
+  });
+
+  it('rejects with the unavailable error when the gate cannot be evaluated', async () => {
+    getJoinRequirementMock.mockRejectedValue(new Error('gate lookup failed'));
+    const client = makeClient();
+
+    await expect(enforceTranscriptionGate(client, prisma, 'tenant-1', 'user-1')).resolves.toBe(true);
+
+    expect(client.error).toHaveBeenCalledWith(4503, 'transcription_gate_unavailable');
+    expect(client.error).not.toHaveBeenCalledWith(4008, expect.anything());
     expect(client.leave).toHaveBeenCalledWith(1000);
   });
 
@@ -144,6 +155,17 @@ describe('handleLivekitToken transcription gate', () => {
 
     expect(res.status).toHaveBeenCalledWith(403);
     expect(res.json).toHaveBeenCalledWith({ error: 'transcription_consent_required' });
+    expect(mocks.createLivekitToken).not.toHaveBeenCalled();
+  });
+
+  it('returns 503 when the gate cannot be evaluated', async () => {
+    getJoinRequirementMock.mockRejectedValue(new Error('gate lookup failed'));
+    const res = fakeRes();
+
+    await handleLivekitToken(prisma, fakeReq({ roomName: 'world', identity: 'user-1' }), res);
+
+    expect(res.status).toHaveBeenCalledWith(503);
+    expect(res.json).toHaveBeenCalledWith({ error: 'transcription_gate_unavailable' });
     expect(mocks.createLivekitToken).not.toHaveBeenCalled();
   });
 

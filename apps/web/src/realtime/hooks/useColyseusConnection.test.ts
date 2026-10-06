@@ -339,6 +339,17 @@ describe('performHandleError transcription consent', () => {
     expect(overlayMocks.showTranscriptionConsentOverlay).not.toHaveBeenCalled();
   });
 
+  it('reconnects on the unknown gate-unavailable code 4503 without any overlay', () => {
+    const args = makeArgs();
+    const onReconnect = vi.fn();
+
+    performHandleError([4503, 'transcription_gate_unavailable'], false, onReconnect, args);
+
+    expect(args.scheduleReconnect).toHaveBeenCalledWith(false, onReconnect);
+    expect(args.resetRefsBeforeReconnect).toHaveBeenCalledTimes(1);
+    for (const overlay of Object.values(overlayMocks)) expect(overlay).not.toHaveBeenCalled();
+  });
+
   it.each([4001, 4002, 4003, 4004, 4005])('keeps limit code %s on the existing overlay', (code) => {
     const args = makeArgs();
 

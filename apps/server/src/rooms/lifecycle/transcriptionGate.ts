@@ -7,11 +7,17 @@ import { getTranscriptionModuleSync } from '../../transcriptionLoader.js';
  * for `guest_expired`, so the client can tell the two overlays apart. */
 export const TRANSCRIPTION_CONSENT_REQUIRED_CODE = 4008;
 
+/** Error code for a join rejected because the gate could not be evaluated.
+ * Unknown to the web client on purpose: it falls into the reconnect path. */
+export const TRANSCRIPTION_GATE_UNAVAILABLE_CODE = 4503;
+
+export type TranscriptionGateDecision = 'allow' | 'consent_required' | 'unavailable';
+
 export async function evaluateTranscriptionGate(
   prisma: PrismaClient,
   tenantId: string,
   userId: string,
-): Promise<'allow' | 'consent_required'> {
+): Promise<TranscriptionGateDecision> {
   try {
     const transcriptionModule = getTranscriptionModuleSync();
     if (!transcriptionModule) return 'allow';
@@ -25,7 +31,7 @@ export async function evaluateTranscriptionGate(
       userId,
       error: error instanceof Error ? error.message : String(error),
     });
-    return 'consent_required';
+    return 'unavailable';
   }
 }
 
@@ -35,13 +41,20 @@ export async function enforceTranscriptionGate(
   tenantId: string | undefined,
   userId: string,
 ): Promise<boolean> {
+  let decision: TranscriptionGateDecision;
   if (tenantId) {
-    if ((await evaluateTranscriptionGate(prisma, tenantId, userId)) === 'allow') return false;
-  } else if (!getTranscriptionModuleSync()) {
-    return false;
+    decision = await evaluateTranscriptionGate(prisma, tenantId, userId);
+  } else {
+    // Module loaded but no tenant id to evaluate against: fail closed.
+    decision = getTranscriptionModuleSync() ? 'consent_required' : 'allow';
   }
+  if (decision === 'allow') return false;
 
-  client.error(TRANSCRIPTION_CONSENT_REQUIRED_CODE, 'transcription_consent_required');
+  if (decision === 'unavailable') {
+    client.error(TRANSCRIPTION_GATE_UNAVAILABLE_CODE, 'transcription_gate_unavailable');
+  } else {
+    client.error(TRANSCRIPTION_CONSENT_REQUIRED_CODE, 'transcription_consent_required');
+  }
   client.leave(1000);
   return true;
 }
