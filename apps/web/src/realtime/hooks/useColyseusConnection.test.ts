@@ -355,7 +355,7 @@ describe('performHandleError transcription consent', () => {
     for (const overlay of Object.values(overlayMocks)) expect(overlay).not.toHaveBeenCalled();
   });
 
-  it.each([4001, 4002, 4003, 4004, 4005])('keeps limit code %s on the existing overlay', (code) => {
+  it.each([4004, 4005])('keeps limit code %s on the existing overlay', (code) => {
     const args = makeArgs();
 
     performHandleError([code], false, vi.fn(), args);
@@ -363,6 +363,34 @@ describe('performHandleError transcription consent', () => {
     expect(overlayMocks.showLimitErrorOverlay).toHaveBeenCalledTimes(1);
     expect(overlayMocks.showTranscriptionConsentOverlay).not.toHaveBeenCalled();
     expect(args.scheduleReconnect).not.toHaveBeenCalled();
+  });
+
+  // 4001-4003 are also Colyseus close codes (SERVER_SHUTDOWN, WITH_ERROR,
+  // FAILED_TO_RECONNECT): only the server text makes them a limit error.
+  it.each([
+    [4001, 'tenant_limit_reached'],
+    [4002, 'oss_limit_reached'],
+    [4003, 'subscription_inactive'],
+  ])('shows the limit overlay for code %s with its server text', (code, text) => {
+    const args = makeArgs();
+
+    performHandleError([code, text], false, vi.fn(), args);
+
+    expect(overlayMocks.showLimitErrorOverlay).toHaveBeenCalledTimes(1);
+    expect(args.scheduleReconnect).not.toHaveBeenCalled();
+  });
+
+  it.each([4001, 4002, 4003])('reconnects without an overlay for the bare Colyseus close code %s', (code) => {
+    for (const payload of [[code], [code, '']]) {
+      vi.clearAllMocks();
+      const args = makeArgs();
+      const onReconnect = vi.fn();
+
+      performHandleError(payload, false, onReconnect, args);
+
+      for (const overlay of Object.values(overlayMocks)) expect(overlay).not.toHaveBeenCalled();
+      expect(args.scheduleReconnect).toHaveBeenCalledWith(false, onReconnect);
+    }
   });
 });
 
@@ -436,6 +464,16 @@ describe('performConnect rejected joins', () => {
       reason: 'transcription_gate_unavailable',
     });
     for (const overlay of Object.values(overlayMocks)) expect(overlay).not.toHaveBeenCalled();
+  });
+
+  it('reconnects a join rejected with a bare Colyseus close code instead of showing a limit overlay', async () => {
+    vi.mocked(joinWorld).mockRejectedValue(new ServerError(4001, ''));
+    const args = makeConnectArgs();
+
+    await performConnect(false, vi.fn(), args);
+
+    for (const overlay of Object.values(overlayMocks)) expect(overlay).not.toHaveBeenCalled();
+    expect(args.scheduleReconnect).toHaveBeenCalledTimes(1);
   });
 
   it('keeps reconnecting on errors without a code', async () => {

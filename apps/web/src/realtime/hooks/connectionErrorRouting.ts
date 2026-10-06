@@ -55,15 +55,18 @@ export function routeTerminalConnectionError(info: ConnectionErrorInfo, ctx: Con
   // H4 hardening: this build's zonePrivacyVersion is below the server's
   // minimum. See rooms/lifecycle/onAuth.ts CLIENT_TOO_OLD_CODE.
   const isClientTooOld = code === 4426 || text === 'client_too_old';
+  // Colyseus itself closes clients with 4001 (SERVER_SHUTDOWN), 4002 (WITH_ERROR)
+  // and 4003 (FAILED_TO_RECONNECT), e.g. on a graceful shutdown during a deploy.
+  // For those codes only the server text identifies a limit or billing error;
+  // a bare code is an unknown error and reconnects with backoff. 4004 and 4005
+  // do not collide with a Colyseus close code, so the code alone suffices.
   const isBillingError =
-    code === 4003 ||
     code === 4004 ||
     code === 4005 ||
     text === 'subscription_inactive' ||
     text === 'subscription_suspended' ||
     text === 'trial_expired';
-  const isLimitError =
-    code === 4001 || code === 4002 || text === 'tenant_limit_reached' || text === 'oss_limit_reached';
+  const isLimitError = text === 'tenant_limit_reached' || text === 'oss_limit_reached';
 
   if (isTranscriptionConsentRequired) {
     let handled = false;
