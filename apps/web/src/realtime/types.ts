@@ -68,6 +68,13 @@ export interface ConnectionRefs {
    * Consumers can use this to avoid flashing an empty roster during the reconnect gap.
    */
   hasReceivedFullStateRef: React.MutableRefObject<boolean>;
+  /**
+   * True while a terminal error overlay (consent, guest expiry, session takeover,
+   * limits, ...) owns the connection. handleLeave must not schedule reconnects
+   * then; the flag clears on the overlay's own reconnect callback or once a
+   * connect succeeds.
+   */
+  terminalOverlayRef: React.MutableRefObject<boolean>;
 }
 
 export interface SchedulerRefs {

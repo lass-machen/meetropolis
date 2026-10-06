@@ -264,6 +264,7 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
   // when the connection drops (see useColyseusConnection.handleLeave/handleError).
   // Serves as a loading gate to avoid the "flash of empty roster" during reconnects.
   const hasReceivedFullStateRef = React.useRef<boolean>(false);
+  const terminalOverlayRef = React.useRef<boolean>(false);
 
   const connectionRefs: ConnectionRefs = {
     reconnectAttemptsRef,
@@ -272,6 +273,7 @@ export function useWorldRoom(args: UseWorldRoomArgs) {
     connectingRef,
     coolDownUntilRef,
     hasReceivedFullStateRef,
+    terminalOverlayRef,
   };
 
   // Use connection hook

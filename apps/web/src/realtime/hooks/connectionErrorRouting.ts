@@ -34,7 +34,12 @@ export interface ConnectionErrorRouteContext {
  * error is not terminal and the caller should fall back to a backoff reconnect. */
 export function routeTerminalConnectionError(info: ConnectionErrorInfo, ctx: ConnectionErrorRouteContext): boolean {
   const { code, reason, text } = info;
-  const { apiBase, onReconnect } = ctx;
+  const { apiBase } = ctx;
+  // The user's explicit choice ends the terminal state before reconnecting.
+  const onReconnect = () => {
+    ctx.refs.terminalOverlayRef.current = false;
+    ctx.onReconnect();
+  };
 
   // 4008 is the transcription consent code; 4006 belongs to guest_expired below.
   const isTranscriptionConsentRequired =
@@ -92,5 +97,8 @@ export function routeTerminalConnectionError(info: ConnectionErrorInfo, ctx: Con
 
   ctx.colyseusRef.current = null;
   ctx.refs.connectingRef.current = false;
+  // The room's own leave event follows its error event; it must not reconnect
+  // behind the overlay (see handleLeave).
+  ctx.refs.terminalOverlayRef.current = true;
   return true;
 }
