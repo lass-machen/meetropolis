@@ -72,6 +72,7 @@ import {
   performConnect,
   performScheduleReconnect,
   performHandleError,
+  performHandleLeave,
   MAX_RECONNECT_ATTEMPTS,
 } from './useColyseusConnection';
 import { showReconnectFailedDialog } from '../handlers/sessionDialogs';
@@ -183,6 +184,7 @@ function makeRefs(): ConnectionRefs {
     connectingRef: { current: false },
     coolDownUntilRef: { current: 0 },
     hasReceivedFullStateRef: { current: false },
+    terminalOverlayRef: { current: false },
   };
 }
 
@@ -444,5 +446,94 @@ describe('performConnect rejected joins', () => {
 
     expect(args.scheduleReconnect).toHaveBeenCalledTimes(1);
     for (const overlay of Object.values(overlayMocks)) expect(overlay).not.toHaveBeenCalled();
+  });
+});
+
+describe('terminal overlay and the room leave event', () => {
+  function makeLeaveArgs() {
+    return {
+      refs: makeRefs(),
+      colyseusRef: { current: null as WorldRoom | null },
+      scheduleReconnect: vi.fn(() => undefined),
+      resetRefsBeforeReconnect: vi.fn(),
+    };
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    window.location.hash = '';
+  });
+
+  it('still schedules a reconnect on leave when no terminal overlay is active', () => {
+    const args = makeLeaveArgs();
+    const onReconnect = vi.fn();
+
+    performHandleLeave(1006, false, onReconnect, args);
+
+    expect(args.scheduleReconnect).toHaveBeenCalledWith(false, onReconnect);
+    expect(args.resetRefsBeforeReconnect).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ['transcription consent', [4008, 'transcription_consent_required'], 'showTranscriptionConsentOverlay'],
+    ['guest expiry', [4006, 'guest_expired'], 'showGuestExpiredOverlay'],
+    ['session takeover', [4007, 'session_taken_over'], 'showSessionTakenOverOverlay'],
+  ] as const)('does not reconnect on leave after the %s overlay', (_name, payload, overlay) => {
+    const args = { apiBase: '/api', ...makeLeaveArgs() };
+
+    performHandleError([...payload], false, vi.fn(), args);
+    expect(overlayMocks[overlay]).toHaveBeenCalledTimes(1);
+    expect(args.refs.terminalOverlayRef.current).toBe(true);
+
+    performHandleLeave(payload[0], false, vi.fn(), args);
+
+    expect(args.scheduleReconnect).not.toHaveBeenCalled();
+    expect(args.colyseusRef.current).toBeNull();
+    expect(args.resetRefsBeforeReconnect).toHaveBeenCalledTimes(1);
+  });
+
+  it('clears the flag when the consent dialog is accepted, so a later drop reconnects again', () => {
+    const args = { apiBase: '/api', ...makeLeaveArgs() };
+    const onReconnect = vi.fn();
+
+    performHandleError([4008], false, onReconnect, args);
+    overlayMocks.showTranscriptionConsentOverlay.mock.calls[0][0].onAccepted();
+
+    expect(onReconnect).toHaveBeenCalledTimes(1);
+    expect(args.refs.terminalOverlayRef.current).toBe(false);
+    performHandleLeave(1006, false, onReconnect, args);
+    expect(args.scheduleReconnect).toHaveBeenCalledTimes(1);
+  });
+
+  it('clears the flag when the limit overlay retry is used', () => {
+    const args = { apiBase: '/api', ...makeLeaveArgs() };
+    const onReconnect = vi.fn();
+
+    performHandleError([4001, 'tenant_limit_reached'], false, onReconnect, args);
+    expect(args.refs.terminalOverlayRef.current).toBe(true);
+    overlayMocks.showLimitErrorOverlay.mock.calls[0][2]();
+
+    expect(onReconnect).toHaveBeenCalledTimes(1);
+    expect(args.refs.terminalOverlayRef.current).toBe(false);
+  });
+
+  it('clears the flag after a successful connect', async () => {
+    const refs = makeRefs();
+    refs.terminalOverlayRef.current = true;
+    const room = { leave: vi.fn() } as unknown as WorldRoom;
+    vi.mocked(joinWorld).mockResolvedValue(room);
+
+    await performConnect(false, vi.fn(), {
+      apiBase: '/api',
+      me: { id: 'user-1', name: 'User One' },
+      localPosRef: { current: { x: 1, y: 2 } },
+      colyseusRef: { current: null as WorldRoom | null },
+      dndRef: { current: false },
+      setConnectionStatus: vi.fn(),
+      refs,
+      scheduleReconnect: vi.fn(() => undefined),
+    } as unknown as Parameters<typeof performConnect>[2]);
+
+    expect(refs.terminalOverlayRef.current).toBe(false);
   });
 });

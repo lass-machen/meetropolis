@@ -209,6 +209,7 @@ export async function performConnect(
       return null;
     }
     colyseusRef.current = room;
+    refs.terminalOverlayRef.current = false;
     // The backoff counter is NOT reset here: it resets only when full_state
     // arrives (see useWorldRoom). A join that opens the socket but never
     // receives state therefore keeps its growing reconnect delay.
@@ -294,8 +295,30 @@ export function performHandleError(
   scheduleReconnect(disposed, onReconnect);
 }
 
+// Exported for unit testing. Not part of the public API.
+export function performHandleLeave(
+  code: number | undefined,
+  disposed: boolean,
+  onReconnect: (() => void) | undefined,
+  args: Omit<PerformHandleErrorArgs, 'apiBase'>,
+): void {
+  const { refs, colyseusRef, scheduleReconnect, resetRefsBeforeReconnect } = args;
+  try {
+    const info: { code?: number; reason?: string } = {};
+    if (code !== undefined) info.code = code;
+    refs.lastCloseInfoRef.current = info;
+  } catch {}
+  colyseusRef.current = null;
+  refs.connectingRef.current = false;
+  resetRefsBeforeReconnect();
+  // A terminal overlay (shown by performHandleError) owns the connection: its
+  // button decides whether to reconnect.
+  if (refs.terminalOverlayRef.current) return;
+  scheduleReconnect(disposed, onReconnect);
+}
+
 export function useColyseusConnection(args: UseWorldRoomArgs, connectionRefs: ConnectionRefs) {
-  const { lastCloseInfoRef, connectingRef, coolDownUntilRef, hasReceivedFullStateRef } = connectionRefs;
+  const { connectingRef, coolDownUntilRef, hasReceivedFullStateRef } = connectionRefs;
   const { apiBase, me, localPosRef, colyseusRef, dndRef, remotesRef, colyseusToLivekitMap, setConnectionStatus } = args;
 
   /**
@@ -375,17 +398,14 @@ export function useColyseusConnection(args: UseWorldRoomArgs, connectionRefs: Co
 
   const handleLeave = React.useCallback(
     (code: number | undefined, disposed: boolean, onReconnect?: () => void) => {
-      try {
-        const info: { code?: number; reason?: string } = {};
-        if (code !== undefined) info.code = code;
-        lastCloseInfoRef.current = info;
-      } catch {}
-      colyseusRef.current = null;
-      connectingRef.current = false;
-      resetRefsBeforeReconnect();
-      scheduleReconnect(disposed, onReconnect);
+      performHandleLeave(code, disposed, onReconnect, {
+        refs: connectionRefs,
+        colyseusRef,
+        scheduleReconnect,
+        resetRefsBeforeReconnect,
+      });
     },
-    [lastCloseInfoRef, colyseusRef, connectingRef, scheduleReconnect, resetRefsBeforeReconnect],
+    [connectionRefs, colyseusRef, scheduleReconnect, resetRefsBeforeReconnect],
   );
 
   return {
