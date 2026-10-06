@@ -99,6 +99,8 @@ beforeEach(async () => {
   getJoinRequirementMock.mockReset().mockResolvedValue(null);
   mocks.getTranscriptionModuleSync.mockReset().mockReturnValue(moduleImplementation);
   mocks.unsubscribe.mockReset();
+  mocks.loggerWarn.mockReset();
+  mocks.loggerError.mockReset();
 });
 
 describe('watchTranscriptionGate', () => {
@@ -120,6 +122,44 @@ describe('watchTranscriptionGate', () => {
     expect(needsConsent.error).toHaveBeenCalledWith(4008, 'transcription_consent_required');
     expect(needsConsent.leave).toHaveBeenCalledWith(4008);
     expect(hasConsent.error).not.toHaveBeenCalled();
+  });
+
+  it('does not disconnect clients when the gate cannot be evaluated and only warns', async () => {
+    const room = await createWorldRoom();
+    const client = makeClient('user-a', 'tenant-a');
+    room.clients.push(client);
+    mocks.loggerWarn.mockClear();
+    getJoinRequirementMock.mockRejectedValue(new Error('gate lookup failed'));
+
+    emit({ tenantId: 'tenant-a' });
+    await vi.waitFor(() =>
+      expect(mocks.loggerWarn).toHaveBeenCalledWith(
+        expect.objectContaining({ event: 'transcription.gate_recheck_unavailable', userId: 'user-a' }),
+      ),
+    );
+
+    expect(client.error).not.toHaveBeenCalled();
+    expect(client.leave).not.toHaveBeenCalled();
+  });
+
+  it('does not disconnect clients when the recheck itself throws and only logs', async () => {
+    const room = await createWorldRoom();
+    const client = makeClient('user-a', 'tenant-a');
+    room.clients.push(client);
+    room.prismaForPresence = null;
+    mocks.createPrismaClient.mockImplementationOnce(() => {
+      throw new Error('db unavailable');
+    });
+
+    emit({ tenantId: 'tenant-a' });
+    await vi.waitFor(() =>
+      expect(mocks.loggerError).toHaveBeenCalledWith(
+        expect.objectContaining({ event: 'transcription.gate_recheck_failed', tenantId: 'tenant-a' }),
+      ),
+    );
+
+    expect(client.error).not.toHaveBeenCalled();
+    expect(client.leave).not.toHaveBeenCalled();
   });
 
   it('targets only the user named by a gate-change event', async () => {

@@ -35,6 +35,13 @@ function disconnectForMissingConsent(client: Client): void {
   }
 }
 
+// The transcriber re-checks consent itself right before sending audio to the
+// provider, so privacy does not depend on this disconnect. A failed evaluation
+// must therefore never kick a user out of the world, it is only logged.
+function logGateUnavailable(tenantId: string, userId: string): void {
+  logger.warn({ event: 'transcription.gate_recheck_unavailable', tenantId, userId });
+}
+
 async function recheckTargets(room: WorldRoom, change: TranscriptionGateChange, targets: GateTarget[]): Promise<void> {
   const existingPrisma = room.prismaForPresence;
   const prisma = existingPrisma ?? createPrismaClient();
@@ -42,6 +49,7 @@ async function recheckTargets(room: WorldRoom, change: TranscriptionGateChange, 
     for (const target of targets) {
       const decision = await evaluateTranscriptionGate(prisma, change.tenantId, target.userId);
       if (decision === 'consent_required') disconnectForMissingConsent(target.client);
+      else if (decision === 'unavailable') logGateUnavailable(change.tenantId, target.userId);
     }
   } finally {
     if (!existingPrisma) {
@@ -67,7 +75,7 @@ export function watchTranscriptionGate(room: WorldRoom): () => void {
         tenantId: change.tenantId,
         error: error instanceof Error ? error.message : String(error),
       });
-      for (const target of targets) disconnectForMissingConsent(target.client);
+      // Deliberately no disconnect here, see logGateUnavailable.
     });
   });
 }

@@ -157,6 +157,10 @@ function respondTranscriptionConsentRequired(res: express.Response): void {
   res.status(403).json({ error: 'transcription_consent_required' });
 }
 
+function respondTranscriptionGateUnavailable(res: express.Response): void {
+  res.status(503).json({ error: 'transcription_gate_unavailable' });
+}
+
 export async function handleLivekitToken(
   prisma: PrismaClient,
   req: express.Request,
@@ -222,9 +226,9 @@ export async function handleLivekitToken(
       res.status(403).json({ error: 'forbidden' });
       return;
     }
-    if ((await evaluateTranscriptionGate(prisma, tenant.id, identity)) === 'consent_required') {
-      return respondTranscriptionConsentRequired(res);
-    }
+    const gateDecision = await evaluateTranscriptionGate(prisma, tenant.id, identity);
+    if (gateDecision === 'consent_required') return respondTranscriptionConsentRequired(res);
+    if (gateDecision === 'unavailable') return respondTranscriptionGateUnavailable(res);
     const effectiveCanPublish = resolveEffectiveCanPublish(canPublish, zonePrivacyVersion, identity, corrId);
     const roomNameWithTenant = `${tenant.slug}:${roomName}`;
     const token = await createLivekitToken({
