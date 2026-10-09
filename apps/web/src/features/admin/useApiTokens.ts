@@ -1,6 +1,6 @@
 import * as React from 'react';
 
-type ApiTokenSummary = {
+export type ApiTokenSummary = {
   id: string;
   name?: string | null;
   createdAt: string;
