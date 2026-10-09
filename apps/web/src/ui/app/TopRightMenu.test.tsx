@@ -1,5 +1,6 @@
+import React from 'react';
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, screen, act } from '@testing-library/react';
+import { render, screen, act, fireEvent } from '@testing-library/react';
 import { TopRightMenu } from './TopRightMenu';
 import { ThemeProvider } from '../theme';
 
@@ -113,5 +114,39 @@ describe('TopRightMenu dropdown height', () => {
     });
 
     expect(menuElement().style.maxHeight).toBe('316px');
+  });
+});
+
+describe('TopRightMenu API tokens entry', () => {
+  function renderMenu(extra: Partial<React.ComponentProps<typeof TopRightMenu>> = {}) {
+    const onToggleMenu = vi.fn();
+    render(
+      <ThemeProvider>
+        <TopRightMenu menuOpen onToggleMenu={onToggleMenu} onLogout={() => {}} {...extra} />
+      </ThemeProvider>,
+    );
+    return { onToggleMenu };
+  }
+
+  it('renders the entry when the opener is provided', () => {
+    renderMenu({ onOpenApi: () => {} });
+
+    expect(screen.getByRole('menuitem', { name: 'topRightMenu.api' })).toBeTruthy();
+  });
+
+  it('omits the entry when no opener is provided', () => {
+    renderMenu();
+
+    expect(screen.queryByRole('menuitem', { name: 'topRightMenu.api' })).toBeNull();
+  });
+
+  it('closes the menu and calls the opener on click', () => {
+    const onOpenApi = vi.fn();
+    const { onToggleMenu } = renderMenu({ onOpenApi });
+
+    fireEvent.click(screen.getByRole('menuitem', { name: 'topRightMenu.api' }));
+
+    expect(onOpenApi).toHaveBeenCalledTimes(1);
+    expect(onToggleMenu).toHaveBeenCalledTimes(1);
   });
 });

@@ -34,7 +34,7 @@ type EventHandlers = ReturnType<typeof useWorldEventHandlers>;
 
 export type WorldMainViewProps = {
   apiBase: string;
-  me: { id: string; email: string; name?: string; emailVerified?: boolean };
+  me: { id: string; email: string; name?: string; emailVerified?: boolean; role?: string };
   containerRef: React.RefObject<HTMLDivElement | null>;
   colyseusRef: React.RefObject<WorldRoom | null>;
   localPosRef: React.RefObject<{ id: string; x?: number; y?: number }>;
@@ -69,8 +69,9 @@ export type WorldMainViewProps = {
   getRoom: () => Room | undefined;
 };
 
-function buildTopRightMenu(props: WorldMainViewProps) {
-  const { menuOpen, isInternalOwner, isTenantAdmin, billingAvailable, eventHandlers, setPackStoreOpen, editor } = props;
+export function buildTopRightMenu(props: WorldMainViewProps) {
+  const { me, menuOpen, isInternalOwner, isTenantAdmin, billingAvailable, eventHandlers, setPackStoreOpen, editor } =
+    props;
   return {
     menuOpen,
     onToggleMenu: eventHandlers.handleToggleMenu,
@@ -82,6 +83,10 @@ function buildTopRightMenu(props: WorldMainViewProps) {
     onOpenProfile: eventHandlers.handleOpenProfile,
     ...(isTenantAdmin ? { onOpenTenantSettings: eventHandlers.handleOpenTenantSettings } : {}),
     ...(isTenantAdmin ? { onOpenSessions: eventHandlers.handleOpenSessions } : {}),
+    // Personal API tokens are open to every signed-in member; guests are
+    // time-limited visitors and do not get the entry (same `role` the server
+    // reports as `isGuest` on /auth/me).
+    ...(me.role !== 'guest' ? { onOpenApi: eventHandlers.handleOpenApi } : {}),
     ...(isTenantAdmin ? { onOpenPackStore: () => setPackStoreOpen(true) } : {}),
     onResetApp: eventHandlers.handleResetApp,
     ...(isTenantAdmin ? { onToggleEditor: eventHandlers.handleToggleEditor } : {}),

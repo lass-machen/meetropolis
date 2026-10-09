@@ -197,7 +197,7 @@ function AccountSection({
   handleItemClick: (a: () => void | Promise<void>) => void;
   t: (k: string) => string;
 }) {
-  const { onOpenProfile, onOpenTenantSettings, onOpenBilling, onOpenSessions, onOpenPackStore } = props;
+  const { onOpenProfile, onOpenTenantSettings, onOpenBilling, onOpenSessions, onOpenApi, onOpenPackStore } = props;
   return (
     <>
       {onOpenProfile && (
@@ -226,6 +226,13 @@ function AccountSection({
           icon="laptop"
           label={t('topRightMenu.sessions') || 'Active Sessions'}
           onClick={() => handleItemClick(onOpenSessions)}
+        />
+      )}
+      {onOpenApi && (
+        <MenuItem
+          icon="plug"
+          label={t('topRightMenu.api') || 'API tokens'}
+          onClick={() => handleItemClick(onOpenApi)}
         />
       )}
       {onOpenPackStore && (

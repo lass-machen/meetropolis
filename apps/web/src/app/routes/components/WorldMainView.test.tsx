@@ -1,6 +1,18 @@
-import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
-import { BannerAndGameLayout } from './WorldMainView';
+import { describe, it, expect, vi } from 'vitest';
+import { fireEvent, render, screen } from '@testing-library/react';
+import { BannerAndGameLayout, buildTopRightMenu, type WorldMainViewProps } from './WorldMainView';
+import { TopRightMenu } from '../../../ui/app/TopRightMenu';
+import { ThemeProvider } from '../../../ui/theme';
+
+// WorldMainView pulls in the real i18n bootstrap, so only `useTranslation` is
+// stubbed (keys pass through) and the rest of the module stays intact.
+vi.mock('react-i18next', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('react-i18next')>()),
+  useTranslation: () => ({
+    t: (k: string) => k,
+    i18n: { language: 'de', changeLanguage: () => Promise.resolve() },
+  }),
+}));
 
 describe('BannerAndGameLayout', () => {
   // Regression test for A15: the banner slot must sit in plain document
@@ -93,5 +105,46 @@ describe('BannerAndGameLayout', () => {
 
     const bannerWrapper = screen.getByTestId('banner-slot').parentElement as HTMLElement;
     expect(bannerWrapper.style.display).toBe('');
+  });
+});
+
+describe('buildTopRightMenu API tokens entry', () => {
+  const handleOpenApi = vi.fn();
+
+  function propsFor(role: string | undefined): WorldMainViewProps {
+    return {
+      me: { id: 'u1', email: 'u1@example.test', ...(role !== undefined && { role }) },
+      menuOpen: true,
+      isInternalOwner: false,
+      isTenantAdmin: role === 'owner' || role === 'admin',
+      billingAvailable: false,
+      editor: { active: false },
+      setPackStoreOpen: vi.fn(),
+      eventHandlers: new Proxy({ handleOpenApi }, { get: (t, k) => (t as Record<PropertyKey, unknown>)[k] ?? vi.fn() }),
+    } as unknown as WorldMainViewProps;
+  }
+
+  function renderMenuFor(role: string | undefined) {
+    render(
+      <ThemeProvider>
+        <TopRightMenu {...buildTopRightMenu(propsFor(role))} />
+      </ThemeProvider>,
+    );
+  }
+
+  it.each(['member', 'admin', 'owner'])('shows the entry to role %s and opens the overlay on click', (role) => {
+    handleOpenApi.mockClear();
+    renderMenuFor(role);
+
+    fireEvent.click(screen.getByRole('menuitem', { name: 'topRightMenu.api' }));
+
+    expect(handleOpenApi).toHaveBeenCalledTimes(1);
+  });
+
+  it('hides the entry from a guest', () => {
+    renderMenuFor('guest');
+
+    expect(screen.queryByRole('menuitem', { name: 'topRightMenu.api' })).toBeNull();
+    expect(buildTopRightMenu(propsFor('guest'))).not.toHaveProperty('onOpenApi');
   });
 });
