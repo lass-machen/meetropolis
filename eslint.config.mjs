@@ -251,6 +251,10 @@ export default tseslint.config(
       'react-hooks/use-memo': 'off',
       'react-hooks/purity': 'off',
       ...jsxA11y.configs.recommended.rules,
+      // Native dialogs do not work in the desktop shell (its WebView replaces
+      // window.confirm with an async stub, so a guard like `!confirm(...)` never
+      // trips). Use ConfirmDialog / useConfirmDialog from ui/system instead.
+      'no-alert': 'error',
     },
   },
 
