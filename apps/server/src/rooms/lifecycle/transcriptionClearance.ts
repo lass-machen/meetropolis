@@ -13,7 +13,9 @@
  * A gate change voids the clearance of every client it targets until the
  * re-check proved consent again (transcriptionGateWatcher.ts), so a tenant
  * that switches transcription on never reaches a client that has not been
- * checked against the running gate.
+ * checked against the running gate. Each void also supersedes every
+ * evaluation of the client still under way: its verdict is dropped, so an
+ * older verdict never overwrites a newer void or a newer re-check.
  */
 
 import type { Client } from 'colyseus';
@@ -40,14 +42,39 @@ export function isTenantTranscriptionActive(tenantId: string): boolean {
 // Keyed by the Colyseus client object, so a reconnect (new client) starts
 // without clearance and a departed client is collected with its entry.
 const clearedTenantByClient = new WeakMap<Client, string>();
+// Counts the voids per client; an evaluation is current while the count it
+// began with still holds.
+const generationByClient = new WeakMap<Client, number>();
 
-export function recordTranscriptionGateResult(client: Client, tenantId: string, consentVerified: boolean): void {
+function currentGeneration(client: Client): number {
+  return generationByClient.get(client) ?? 0;
+}
+
+/** Marks the start of a gate evaluation; its verdict is recorded with the returned token. */
+export function beginTranscriptionGateCheck(client: Client): number {
+  return currentGeneration(client);
+}
+
+/**
+ * Records the verdict of the evaluation begun with `generation`. Returns
+ * false and records nothing when a void superseded that evaluation; its
+ * verdict is stale then and decides nothing.
+ */
+export function recordTranscriptionGateResult(
+  client: Client,
+  tenantId: string,
+  consentVerified: boolean,
+  generation: number,
+): boolean {
+  if (generation !== currentGeneration(client)) return false;
   if (consentVerified) clearedTenantByClient.set(client, tenantId);
   else clearedTenantByClient.delete(client);
+  return true;
 }
 
 export function revokeTranscriptionClearance(client: Client): void {
   clearedTenantByClient.delete(client);
+  generationByClient.set(client, currentGeneration(client) + 1);
 }
 
 export function hasTranscriptionClearance(client: Client, tenantId: string): boolean {
