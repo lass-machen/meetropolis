@@ -171,6 +171,8 @@ type PerformConnectArgs = {
   refs: ConnectionRefs;
   scheduleReconnect: (disposed: boolean, onReconnect?: () => void) => number | undefined;
   onReconnect?: (() => void) | undefined;
+  suspendAv?: UseWorldRoomArgs['suspendAv'];
+  resumeAv?: UseWorldRoomArgs['resumeAv'];
 };
 
 // Exported for unit testing. Not part of the public API.
@@ -181,6 +183,7 @@ export async function performConnect(
 ): Promise<WorldRoom | null | { error: unknown; needsReconnect: boolean; delay: number | undefined }> {
   const { apiBase, me, localPosRef, colyseusRef, dndRef, setConnectionStatus, refs, scheduleReconnect, onReconnect } =
     args;
+  const { suspendAv, resumeAv } = args;
   refs.connectingRef.current = true;
   try {
     // The server owns the default spawn; no localStorage spawn injection anymore.
@@ -219,6 +222,8 @@ export async function performConnect(
     refs.connectingRef.current = false;
 
     onConnected(room);
+    // The world accepted the user again: AV comes back after a terminal error.
+    resumeAv?.();
     return room;
   } catch (err: unknown) {
     // A join the server rejects arrives here as ServerError(code, message), the
@@ -237,6 +242,7 @@ export async function performConnect(
         refs,
         colyseusRef,
         onReconnect: onReconnect ?? (() => undefined),
+        suspendAv,
       })
     ) {
       return { error: err, needsReconnect: false, delay: undefined };
@@ -265,6 +271,7 @@ type PerformHandleErrorArgs = {
   apiBase: string;
   refs: ConnectionRefs;
   colyseusRef: UseWorldRoomArgs['colyseusRef'];
+  suspendAv?: UseWorldRoomArgs['suspendAv'];
   scheduleReconnect: (disposed: boolean, onReconnect?: () => void) => number | undefined;
   resetRefsBeforeReconnect: () => void;
 };
@@ -275,7 +282,7 @@ export function performHandleError(
   onReconnect: () => void,
   args: PerformHandleErrorArgs,
 ): void {
-  const { apiBase, refs, colyseusRef, scheduleReconnect, resetRefsBeforeReconnect } = args;
+  const { apiBase, refs, colyseusRef, suspendAv, scheduleReconnect, resetRefsBeforeReconnect } = args;
   try {
     const { code, reason, text } = extractErrorInfo(ev);
     if (text.toLowerCase().includes('insufficient resources')) {
@@ -287,7 +294,8 @@ export function performHandleError(
     if (reason !== undefined) closeInfo.reason = reason;
     refs.lastCloseInfoRef.current = closeInfo;
 
-    if (routeTerminalConnectionError({ code, reason, text }, { apiBase, refs, colyseusRef, onReconnect })) return;
+    if (routeTerminalConnectionError({ code, reason, text }, { apiBase, refs, colyseusRef, onReconnect, suspendAv }))
+      return;
   } catch {}
   colyseusRef.current = null;
   refs.connectingRef.current = false;
@@ -320,6 +328,7 @@ export function performHandleLeave(
 export function useColyseusConnection(args: UseWorldRoomArgs, connectionRefs: ConnectionRefs) {
   const { connectingRef, coolDownUntilRef, hasReceivedFullStateRef } = connectionRefs;
   const { apiBase, me, localPosRef, colyseusRef, dndRef, remotesRef, colyseusToLivekitMap, setConnectionStatus } = args;
+  const { suspendAv, resumeAv } = args;
 
   /**
    * Reset Colyseus-tied refs before reconnect so stale remote-player data from the previous
@@ -367,6 +376,8 @@ export function useColyseusConnection(args: UseWorldRoomArgs, connectionRefs: Co
         refs: connectionRefs,
         scheduleReconnect,
         onReconnect,
+        suspendAv,
+        resumeAv,
       });
     },
     [
@@ -380,6 +391,8 @@ export function useColyseusConnection(args: UseWorldRoomArgs, connectionRefs: Co
       setConnectionStatus,
       connectionRefs,
       scheduleReconnect,
+      suspendAv,
+      resumeAv,
     ],
   );
 
@@ -389,11 +402,12 @@ export function useColyseusConnection(args: UseWorldRoomArgs, connectionRefs: Co
         apiBase,
         refs: connectionRefs,
         colyseusRef,
+        suspendAv,
         scheduleReconnect,
         resetRefsBeforeReconnect,
       });
     },
-    [apiBase, connectionRefs, colyseusRef, scheduleReconnect, resetRefsBeforeReconnect],
+    [apiBase, connectionRefs, colyseusRef, suspendAv, scheduleReconnect, resetRefsBeforeReconnect],
   );
 
   const handleLeave = React.useCallback(

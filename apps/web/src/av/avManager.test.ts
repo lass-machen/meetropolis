@@ -489,3 +489,85 @@ describe('AVManager - H4 audio-zone privacy', () => {
     expect(() => mgr.applyZonePermissions({ islandId: 'map-1:open', allow: [] })).not.toThrow();
   });
 });
+
+describe('AVManager leave during a connect in flight', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  async function holdNextJoin(): Promise<() => void> {
+    const { joinLivekitRoom } = await import('../lib/livekit');
+    const join = vi.mocked(joinLivekitRoom);
+    const original = join.getMockImplementation();
+    if (!original) throw new Error('Expected the joinLivekitRoom mock implementation');
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    join.mockImplementationOnce(async (...args: Parameters<typeof joinLivekitRoom>) => {
+      await gate;
+      return original(...args);
+    });
+    return release;
+  }
+
+  it('abandons the handshake, so the joined room is disconnected and never installed', async () => {
+    const { joinLivekitRoom } = await import('../lib/livekit');
+    const release = await holdNextJoin();
+    const mgr = makeManager();
+
+    const connecting = mgr.switchTo('world');
+    await vi.waitFor(() => expect(joinLivekitRoom).toHaveBeenCalledTimes(1));
+    await mgr.leave();
+    release();
+    await connecting;
+
+    const fakeRoom: any = await vi.mocked(joinLivekitRoom).mock.results[0].value;
+    expect(fakeRoom.disconnect).toHaveBeenCalled();
+    expect(mgr.room).toBeUndefined();
+    expect(fakeRoom.localParticipant.setTrackSubscriptionPermissions).not.toHaveBeenCalled();
+  });
+
+  it('stops a handshake left while the room is still connecting before its initial subscriptions', async () => {
+    const { joinLivekitRoom } = await import('../lib/livekit');
+    const join = vi.mocked(joinLivekitRoom);
+    const original = join.getMockImplementation();
+    if (!original) throw new Error('Expected the joinLivekitRoom mock implementation');
+    let joined: any;
+    join.mockImplementationOnce(async (...args: Parameters<typeof joinLivekitRoom>) => {
+      joined = await original(...args);
+      joined.connectionState = 'connecting';
+      return joined;
+    });
+    const mgr = makeManager() as any;
+    const ensureAudio = vi.spyOn(mgr.subscriptionManager, 'ensureAudioSubscriptions');
+
+    const connecting = mgr.switchTo('world');
+    await vi.waitFor(() => {
+      expect(joined).toBeDefined();
+      expect(mgr.room).toBe(joined);
+    });
+    await mgr.leave();
+    joined.connectionState = 'connected';
+    await connecting;
+
+    expect(joined.disconnect).toHaveBeenCalled();
+    expect(ensureAudio).not.toHaveBeenCalled();
+  });
+
+  it('abandons the handshake on dispose as well', async () => {
+    const { joinLivekitRoom } = await import('../lib/livekit');
+    const release = await holdNextJoin();
+    const mgr = makeManager();
+
+    const connecting = mgr.switchTo('world');
+    await vi.waitFor(() => expect(joinLivekitRoom).toHaveBeenCalledTimes(1));
+    mgr.dispose();
+    release();
+    await connecting;
+
+    const fakeRoom: any = await vi.mocked(joinLivekitRoom).mock.results[0].value;
+    expect(fakeRoom.disconnect).toHaveBeenCalled();
+    expect(fakeRoom.localParticipant.setTrackSubscriptionPermissions).not.toHaveBeenCalled();
+  });
+});

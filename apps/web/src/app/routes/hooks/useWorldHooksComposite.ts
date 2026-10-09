@@ -66,7 +66,7 @@ export function useWorldRealtimeHooks(params: {
     avRef: refs.avRef,
   });
   const restoreDnd = useDndRestore(refs.avRef);
-  useAVManager({
+  const { suspend: suspendAv, resume: resumeAv } = useAVManager({
     apiBase,
     me,
     editorActiveRef: refs.editorActiveRef,
@@ -142,6 +142,8 @@ export function useWorldRealtimeHooks(params: {
     setRoster: ui.setRoster,
     disposedRef: refs.disposedRef,
     setConnectionStatus: ui.setConnStatus,
+    suspendAv,
+    resumeAv,
   });
 
   return recovery;

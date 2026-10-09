@@ -44,6 +44,10 @@ export interface UseWorldRoomArgs {
   setConnectionStatus?: React.Dispatch<
     React.SetStateAction<{ reconnecting: boolean; lastCode?: number; lastReason?: string }>
   >;
+  // AV follows the world: a terminal error suspends it before its overlay,
+  // the next accepted join resumes it (see useAVManager's useAvSuspension).
+  suspendAv?: () => void;
+  resumeAv?: () => void;
 }
 
 export interface PlayerData {

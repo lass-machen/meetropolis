@@ -135,6 +135,7 @@ export class ConnectionManager implements Disposable {
       // Wait for connection to stabilize
       // Increase timeout for Docker Desktop which has slower ICE negotiation
       await waitForRoomConnected(room, 20000);
+      if (seq !== this._connectSeq) return;
 
       // Publish any pending tracks
       if (!this.deps.dnd.enabled) {
@@ -149,6 +150,16 @@ export class ConnectionManager implements Disposable {
       this.deps.stateMachine.dispatch({ type: 'ERROR', error: error as Error });
       throw error;
     }
+  }
+
+  /**
+   * Leaves the current room and abandons a connect still in flight, so it
+   * cannot finish joining afterwards: leave() alone returns early while the
+   * handshake has not set a room yet.
+   */
+  async abandon(): Promise<void> {
+    ++this._connectSeq;
+    await this.leave();
   }
 
   async leave(): Promise<void> {
