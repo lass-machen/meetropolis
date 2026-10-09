@@ -41,7 +41,7 @@ vi.mock('../../livekit.js', () => ({
 
 import { handleLivekitToken } from '../../api/routes/health.js';
 import { evaluateTranscriptionGate, enforceTranscriptionGate } from './transcriptionGate.js';
-import { hasTranscriptionClearance } from './transcriptionClearance.js';
+import { hasTranscriptionClearance, revokeTranscriptionClearance } from './transcriptionClearance.js';
 
 const prisma = { $disconnect: vi.fn().mockResolvedValue(undefined) } as PrismaClient;
 const getJoinRequirementMock = vi.fn<TranscriptionModule['getJoinRequirement']>(() => Promise.resolve(null));
@@ -226,6 +226,23 @@ describe('enforceTranscriptionGate transcription clearance', () => {
     await expect(enforceTranscriptionGate(client, prisma, 'tenant-1', 'user-1')).resolves.toBe(false);
 
     expect(getJoinRequirementMock).toHaveBeenCalledTimes(1);
+    expect(hasTranscriptionClearance(client, 'tenant-1')).toBe(false);
+  });
+
+  it('admits but does not clear a client whose clearance a gate change voided during the evaluation', async () => {
+    let resolveVerdict!: (value: { requirement: null; consentVerified: boolean }) => void;
+    evaluateJoinMock.mockReturnValue(
+      new Promise((resolve) => {
+        resolveVerdict = resolve;
+      }),
+    );
+    const client = makeClient();
+
+    const admission = enforceTranscriptionGate(client, prisma, 'tenant-1', 'user-1');
+    revokeTranscriptionClearance(client);
+    resolveVerdict({ requirement: null, consentVerified: true });
+
+    await expect(admission).resolves.toBe(false);
     expect(hasTranscriptionClearance(client, 'tenant-1')).toBe(false);
   });
 

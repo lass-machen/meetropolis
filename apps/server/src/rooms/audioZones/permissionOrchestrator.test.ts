@@ -21,7 +21,7 @@ import { createMembershipTracker, onMove } from './membershipTracker.js';
 import { isolatedIslandFor } from './islandModel.js';
 import { startAudioZoneRuntime, stopAudioZoneRuntime } from './runtime.js';
 import { TRANSCRIBER_IDENTITY } from './islandAttributes.js';
-import { recordTranscriptionGateResult } from '../lifecycle/transcriptionClearance.js';
+import { beginTranscriptionGateCheck, recordTranscriptionGateResult } from '../lifecycle/transcriptionClearance.js';
 
 describe('buildPushPayloads', () => {
   it('computes one payload per identity, with the allow-list excluding itself', () => {
@@ -124,7 +124,9 @@ function addMember(room: FakeRoom, identity: string, island: string, auth: FakeA
   const client = { sessionId, auth, send } as unknown as Client;
   room.state.players.set(sessionId, { identity });
   room.clients.push(client);
-  if (cleared && auth?.tenantId) recordTranscriptionGateResult(client, auth.tenantId, true);
+  if (cleared && auth?.tenantId) {
+    recordTranscriptionGateResult(client, auth.tenantId, true, beginTranscriptionGateCheck(client));
+  }
   onMove(room.audioZones.tracker, identity, island, 0);
   return send;
 }

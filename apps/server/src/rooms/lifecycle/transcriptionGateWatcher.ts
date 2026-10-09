@@ -5,7 +5,11 @@ import { getTranscriptionModuleSync, type TranscriptionGateChange } from '../../
 import type { WorldRoom } from '../WorldRoom.js';
 import { isWorldAuth } from './onAuth.js';
 import { evaluateTranscriptionJoin, TRANSCRIPTION_CONSENT_REQUIRED_CODE } from './transcriptionGate.js';
-import { recordTranscriptionGateResult, revokeTranscriptionClearance } from './transcriptionClearance.js';
+import {
+  beginTranscriptionGateCheck,
+  recordTranscriptionGateResult,
+  revokeTranscriptionClearance,
+} from './transcriptionClearance.js';
 import { pushAllowListNowTo, scheduleAllowListPush } from '../audioZones/permissionOrchestrator.js';
 
 interface GateTarget {
@@ -65,8 +69,11 @@ async function recheckTargets(room: WorldRoom, change: TranscriptionGateChange, 
   const prisma = existingPrisma ?? createPrismaClient();
   try {
     for (const target of targets) {
+      const generation = beginTranscriptionGateCheck(target.client);
       const { decision, consentVerified } = await evaluateTranscriptionJoin(prisma, change.tenantId, target.userId);
-      recordTranscriptionGateResult(target.client, change.tenantId, consentVerified);
+      // A later gate change superseded this verdict; its own re-check decides,
+      // so a stale result neither clears nor disconnects.
+      if (!recordTranscriptionGateResult(target.client, change.tenantId, consentVerified, generation)) continue;
       if (decision === 'consent_required') {
         disconnectForMissingConsent(room, target);
         continue;

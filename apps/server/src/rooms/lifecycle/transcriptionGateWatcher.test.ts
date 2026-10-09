@@ -32,7 +32,11 @@ import { getActiveWorldRooms, Player, type WorldRoom } from '../WorldRoom.js';
 import { onMove } from '../audioZones/membershipTracker.js';
 import { rePushAllForRoom } from '../audioZones/permissionOrchestrator.js';
 import { TRANSCRIBER_IDENTITY } from '../audioZones/islandAttributes.js';
-import { hasTranscriptionClearance, recordTranscriptionGateResult } from './transcriptionClearance.js';
+import {
+  beginTranscriptionGateCheck,
+  hasTranscriptionClearance,
+  recordTranscriptionGateResult,
+} from './transcriptionClearance.js';
 import {
   disposeAllRooms,
   makeFakePrisma,
@@ -254,6 +258,10 @@ describe('watchTranscriptionGate transcription clearance', () => {
       .map((call) => (call[1] as { allow: string[] }).allow);
   }
 
+  function grantClearance(client: Client): void {
+    recordTranscriptionGateResult(client, 'tenant-a', true, beginTranscriptionGateCheck(client));
+  }
+
   function deferred<T>() {
     let resolve!: (value: T) => void;
     const promise = new Promise<T>((r) => {
@@ -290,7 +298,7 @@ describe('watchTranscriptionGate transcription clearance', () => {
     activeTenants.add('tenant-a');
     const room = await createWorldRoom();
     const client = addTrackedMember(room, 'user-a');
-    recordTranscriptionGateResult(client, 'tenant-a', true);
+    grantClearance(client);
     evaluateJoinMock.mockReturnValue(new Promise(() => undefined));
 
     emit({ tenantId: 'tenant-a' });
@@ -302,7 +310,7 @@ describe('watchTranscriptionGate transcription clearance', () => {
     activeTenants.add('tenant-a');
     const room = await createWorldRoom();
     const client = addTrackedMember(room, 'user-a');
-    recordTranscriptionGateResult(client, 'tenant-a', true);
+    grantClearance(client);
     evaluateJoinMock.mockResolvedValue(consentRequired);
 
     emit({ tenantId: 'tenant-a' });
@@ -316,7 +324,7 @@ describe('watchTranscriptionGate transcription clearance', () => {
     activeTenants.add('tenant-a');
     const room = await createWorldRoom();
     const client = addTrackedMember(room, 'user-a');
-    recordTranscriptionGateResult(client, 'tenant-a', true);
+    grantClearance(client);
     rePushAllForRoom(room.audioZones.orchestrator, room, room.audioZones.tracker);
     await vi.waitFor(() => expect(pushedAllows(client)).toEqual([[TRANSCRIBER_IDENTITY]]));
     evaluateJoinMock.mockResolvedValue(consentRequired);
@@ -333,7 +341,7 @@ describe('watchTranscriptionGate transcription clearance', () => {
     activeTenants.add('tenant-a');
     const room = await createWorldRoom();
     const client = addTrackedMember(room, 'user-a');
-    recordTranscriptionGateResult(client, 'tenant-a', true);
+    grantClearance(client);
     evaluateJoinMock.mockRejectedValue(new Error('gate lookup failed'));
 
     emit({ tenantId: 'tenant-a' });
@@ -343,11 +351,54 @@ describe('watchTranscriptionGate transcription clearance', () => {
     expect(client.leave).not.toHaveBeenCalled();
   });
 
+  it('drops the clearance verdict of a re-check that a newer gate change superseded', async () => {
+    activeTenants.add('tenant-a');
+    const room = await createWorldRoom();
+    const client = addTrackedMember(room, 'user-a');
+    const older = deferred<Awaited<ReturnType<EvaluateJoin>>>();
+    const newer = deferred<Awaited<ReturnType<EvaluateJoin>>>();
+    evaluateJoinMock.mockReturnValueOnce(older.promise).mockReturnValueOnce(newer.promise);
+
+    emit({ tenantId: 'tenant-a' });
+    emit({ tenantId: 'tenant-a' });
+    await vi.waitFor(() => expect(evaluateJoinMock).toHaveBeenCalledTimes(2));
+    newer.resolve({ requirement: null, consentVerified: false });
+    await vi.waitFor(() => expect(pushedAllows(client)).toEqual([[]]));
+    older.resolve(verified);
+    await new Promise((resolve) => setTimeout(resolve, 150));
+
+    expect(hasTranscriptionClearance(client, 'tenant-a')).toBe(false);
+    expect(pushedAllows(client)).toEqual([[]]);
+  });
+
+  it('neither disconnects nor voids the clearance on a consent requirement a newer re-check superseded', async () => {
+    activeTenants.add('tenant-a');
+    const room = await createWorldRoom();
+    const client = addTrackedMember(room, 'user-a');
+    const older = deferred<Awaited<ReturnType<EvaluateJoin>>>();
+    const newer = deferred<Awaited<ReturnType<EvaluateJoin>>>();
+    evaluateJoinMock.mockReturnValueOnce(older.promise).mockReturnValueOnce(newer.promise);
+
+    // The tenant-wide re-check read the user before the consent the user-scoped change reports.
+    emit({ tenantId: 'tenant-a' });
+    emit({ tenantId: 'tenant-a', userId: 'user-a' });
+    await vi.waitFor(() => expect(evaluateJoinMock).toHaveBeenCalledTimes(2));
+    newer.resolve(verified);
+    await vi.waitFor(() => expect(pushedAllows(client)).toEqual([[TRANSCRIBER_IDENTITY]]));
+    older.resolve(consentRequired);
+    await new Promise((resolve) => setTimeout(resolve, 150));
+
+    expect(client.error).not.toHaveBeenCalled();
+    expect(client.leave).not.toHaveBeenCalled();
+    expect(hasTranscriptionClearance(client, 'tenant-a')).toBe(true);
+    expect(pushedAllows(client)).toEqual([[TRANSCRIBER_IDENTITY]]);
+  });
+
   it('drops the transcriber after a re-check that verifies no consent', async () => {
     activeTenants.add('tenant-a');
     const room = await createWorldRoom();
     const client = addTrackedMember(room, 'user-a');
-    recordTranscriptionGateResult(client, 'tenant-a', true);
+    grantClearance(client);
     evaluateJoinMock.mockResolvedValue({ requirement: null, consentVerified: false });
 
     activeTenants.delete('tenant-a');
