@@ -154,11 +154,6 @@ export class ConnectionManager implements Disposable {
   }
 
   /**
-   * Leaves the current room and abandons a connect still in flight, so it
-   * cannot finish joining afterwards: leave() alone returns early while the
-   * handshake has not set a room yet.
-   */
-  /**
    * Shuts every way into a room at once: switchTo (which ensureConnected and
    * the online handler go through as well) and scheduled reconnects. A
    * disposing AVManager waits for its leave, and a reconnect firing meanwhile
@@ -169,6 +164,11 @@ export class ConnectionManager implements Disposable {
     this.deps.stateMachine.cancelReconnect();
   }
 
+  /**
+   * Leaves the current room and abandons a connect still in flight, so it
+   * cannot finish joining afterwards: leave() alone returns early while the
+   * handshake has not set a room yet.
+   */
   async abandon(): Promise<void> {
     ++this._connectSeq;
     await this.leave();
