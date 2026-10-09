@@ -29,6 +29,7 @@ export interface AVStateMachineInterface {
   dispatch(event: AVConnectionEvent): void;
   resetReconnect(): void;
   scheduleReconnect(fn: () => Promise<void>): void;
+  cancelReconnect(): void;
   subscribe(handler: StateChangeHandler): () => void;
   dispose(): void;
 }
