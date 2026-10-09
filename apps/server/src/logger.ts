@@ -8,29 +8,42 @@ function resolveLogLevel(): LogLevel {
   return process.env.NODE_ENV === 'production' ? 'info' : 'debug';
 }
 
-const pinoLogger = pino({
-  level: resolveLogLevel(),
-  timestamp: pino.stdTimeFunctions.isoTime,
-  base: { service: 'meetropolis-server' },
-});
+// pino's default `err` serializer treats any object with a message as an
+// error and would serialize the records asRecord already serialized a second
+// time, as type "Object". Only Error instances still need it, such as one a
+// caller nests in a context object.
+function serializeErrField(value: unknown): unknown {
+  return value instanceof Error ? pino.stdSerializers.err(value) : value;
+}
+
+export function createPinoLogger(destination?: pino.DestinationStream): pino.Logger {
+  const options: pino.LoggerOptions = {
+    level: resolveLogLevel(),
+    timestamp: pino.stdTimeFunctions.isoTime,
+    base: { service: 'meetropolis-server' },
+    serializers: { err: serializeErrField },
+  };
+  return destination ? pino(options, destination) : pino(options);
+}
+
+const pinoLogger = createPinoLogger();
 
 function isObjectArg(value: unknown): value is object {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
 // An Error keeps message and stack in non-enumerable own properties, so
-// spreading it into the record dropped everything that identifies it.
-function serializeError(error: Error): Record<string, unknown> {
-  const out: Record<string, unknown> = { name: error.name, message: error.message };
-  if ('code' in error && (typeof error.code === 'string' || typeof error.code === 'number')) out.code = error.code;
-  if (error.stack) out.stack = error.stack;
-  return out;
+// spreading it into the record dropped everything that identifies it. pino's
+// standard serializer keeps them, the constructor name as `type`, the causes,
+// and the error's enumerable fields such as a code.
+function serializeError(error: Error): pino.SerializedError {
+  return pino.stdSerializers.err(error);
 }
 
 // Plain objects are merged into the record; Error instances land under
 // `err` (pino's convention), as an array when a call passes several.
 function mergeArgs(record: Record<string, unknown>, values: unknown[]): Record<string, unknown> {
-  const errors: Record<string, unknown>[] = [];
+  const errors: pino.SerializedError[] = [];
   for (const value of values) {
     if (value instanceof Error) errors.push(serializeError(value));
     else if (isObjectArg(value)) Object.assign(record, value);
