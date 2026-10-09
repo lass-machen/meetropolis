@@ -1,6 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { Section, Button, Badge, Table, THead, TBody, Tr, Th, Td, useConfirmDialog } from '../../system';
+import { Section, Button, Badge, Table, THead, TBody, Tr, Th, Td, Alert, useConfirmDialog } from '../../system';
 
 type Invite = {
   code: string;
@@ -16,6 +16,7 @@ interface InvitesTabProps {
 function useInvitesTab(apiBase: string, t: (k: string) => string) {
   const [invites, setInvites] = React.useState<Invite[]>([]);
   const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
   const { confirm, dialog: confirmDialog } = useConfirmDialog();
 
   React.useEffect(() => {
@@ -40,11 +41,20 @@ function useInvitesTab(apiBase: string, t: (k: string) => string) {
 
   const handleDelete = async (code: string) => {
     if (!(await confirm(t('tenant.inviteDeleteConfirm')))) return;
+    setError(null);
     try {
-      await fetch(`${apiBase}/invites/${encodeURIComponent(code)}`, { method: 'DELETE', credentials: 'include' });
-      setInvites((prev) => prev.filter((i) => i.code !== code));
+      const res = await fetch(`${apiBase}/invites/${encodeURIComponent(code)}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      // 404 means the invite is already gone, which is what the user asked for.
+      if (res.ok || res.status === 404) {
+        setInvites((prev) => prev.filter((i) => i.code !== code));
+      } else {
+        setError(t('tenant.inviteDeleteFailed'));
+      }
     } catch {
-      /* ignore */
+      setError(t('tenant.inviteDeleteFailed'));
     }
   };
 
@@ -57,7 +67,7 @@ function useInvitesTab(apiBase: string, t: (k: string) => string) {
     }
   };
 
-  return { invites, loading, handleDelete, handleCopy, confirmDialog };
+  return { invites, loading, error, setError, handleDelete, handleCopy, confirmDialog };
 }
 
 function InvitesHeader({ t }: { t: (k: string) => string }) {
@@ -157,10 +167,15 @@ function InviteRow({
 
 export function InvitesTab({ apiBase }: InvitesTabProps) {
   const { t } = useTranslation();
-  const { invites, loading, handleDelete, handleCopy, confirmDialog } = useInvitesTab(apiBase, t);
+  const { invites, loading, error, setError, handleDelete, handleCopy, confirmDialog } = useInvitesTab(apiBase, t);
 
   return (
     <Section title={t('tenant.tabInvites')}>
+      {error && (
+        <Alert intent="error" onDismiss={() => setError(null)} style={{ marginBottom: 12 }}>
+          {error}
+        </Alert>
+      )}
       <Table>
         <InvitesHeader t={t} />
         {loading && <LoadingRows />}
