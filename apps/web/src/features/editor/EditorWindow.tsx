@@ -14,6 +14,7 @@ import { logger } from '../../lib/logger';
 import { gameBridge } from '../../game/bridge';
 import { getApiBaseFromWindow } from '../../lib/apiBase';
 import { Icon } from '../../ui/Icon';
+import { useConfirmDialog } from '../../ui/system';
 
 /**
  * Subset of `react-i18next`'s `TFunction` that this file uses. Importing
@@ -505,6 +506,7 @@ export function EditorWindow({ onSave, onClose }: { onSave: () => Promise<boolea
   const [uploadDialog, setUploadDialog] = React.useState<UploadDialogState | null>(null);
   const [uploading, setUploading] = React.useState(false);
   const [deleting, setDeleting] = React.useState<number | null>(null);
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -528,13 +530,14 @@ export function EditorWindow({ onSave, onClose }: { onSave: () => Promise<boolea
   };
 
   const handleDeletePack = async (id: number, name: string) => {
-    if (!window.confirm(t('editor.confirmDeletePack', { name }))) return;
+    if (!(await confirm(t('editor.confirmDeletePack', { name })))) return;
     setDeleting(id);
     await deletePackById(id, name, t);
     setDeleting(null);
   };
 
-  if (!state.active) return null;
+  // Keep a pending confirmation mounted even if the editor closes meanwhile.
+  if (!state.active) return confirmDialog;
 
   return (
     <>
@@ -590,6 +593,7 @@ export function EditorWindow({ onSave, onClose }: { onSave: () => Promise<boolea
           }}
         />
       )}
+      {confirmDialog}
     </>
   );
 }
