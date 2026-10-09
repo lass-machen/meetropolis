@@ -23,6 +23,26 @@ export function publishIslandAttribute(room: WorldRoom, identity: string, island
     [ISLAND_SINCE_ATTRIBUTE]: String(sinceMs),
   };
   void admin.updateParticipantAttributes(roomName, identity, attributes).catch((error: unknown) => {
-    logger.error('[AudioZones] Failed to publish island participant attributes', error);
+    if (isParticipantNotFound(error)) {
+      // Expected race: the Colyseus join (map load) can land before the
+      // client's LiveKit connect. The reconciler publishes the attribute on
+      // its next cycle once the participant exists.
+      logger.info({
+        event: 'audio_zones.island_attribute_participant_not_found',
+        room: roomName,
+        identity,
+      });
+      return;
+    }
+    logger.error('[AudioZones] Failed to publish island participant attributes', {
+      room: roomName,
+      identity,
+      error: error instanceof Error ? error.message : String(error),
+    });
   });
+}
+
+// livekit-server-sdk's ServerError carries the Twirp error code.
+function isParticipantNotFound(error: unknown): boolean {
+  return error instanceof Error && 'code' in error && error.code === 'not_found';
 }

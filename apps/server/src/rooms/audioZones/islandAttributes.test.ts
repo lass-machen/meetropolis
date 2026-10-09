@@ -140,6 +140,48 @@ describe('trackMove island attributes', () => {
   });
 });
 
+describe('island attribute publish failures', () => {
+  async function publishFailingWith(error: Error) {
+    moduleImplementation.publishIslandAttributes = true;
+    const { admin, updateParticipantAttributes } = fakeAdmin();
+    updateParticipantAttributes.mockRejectedValueOnce(error);
+    const room = makeRoom(admin);
+
+    trackMove(room, 'session-1');
+    await vi.waitFor(() => expect(mocks.loggerInfo.mock.calls.length + mocks.loggerError.mock.calls.length).toBe(1));
+    disposeOrchestrator(room.audioZones.orchestrator);
+  }
+
+  beforeEach(() => {
+    mocks.loggerInfo.mockReset();
+    mocks.loggerError.mockReset();
+  });
+
+  it('logs a participant that is not connected to LiveKit yet on info, with room and identity', async () => {
+    await publishFailingWith(
+      Object.assign(new Error('participant does not exist'), { code: 'not_found', status: 404 }),
+    );
+
+    expect(mocks.loggerError).not.toHaveBeenCalled();
+    expect(mocks.loggerInfo).toHaveBeenCalledWith({
+      event: 'audio_zones.island_attribute_participant_not_found',
+      room: 'acme:world',
+      identity: 'user-1',
+    });
+  });
+
+  it('keeps any other failure on error, with room and identity', async () => {
+    await publishFailingWith(Object.assign(new Error('internal'), { code: 'internal', status: 500 }));
+
+    expect(mocks.loggerInfo).not.toHaveBeenCalled();
+    expect(mocks.loggerError).toHaveBeenCalledWith('[AudioZones] Failed to publish island participant attributes', {
+      room: 'acme:world',
+      identity: 'user-1',
+      error: 'internal',
+    });
+  });
+});
+
 describe('handleLivekitToken participant grants', () => {
   it('does not grant clients permission to update their own metadata', async () => {
     mocks.getTranscriptionModuleSync.mockReturnValue(null);
