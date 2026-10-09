@@ -1,5 +1,5 @@
 import type { Client } from 'colyseus';
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TranscriptionGateChange, TranscriptionModule } from '../../transcriptionLoader.js';
 
 const mocks = vi.hoisted(() => ({
@@ -37,6 +37,7 @@ import {
   hasTranscriptionClearance,
   recordTranscriptionGateResult,
 } from './transcriptionClearance.js';
+import { GATE_RECHECK_RETRY_DELAYS_MS, watchTranscriptionGate } from './transcriptionGateWatcher.js';
 import {
   disposeAllRooms,
   makeFakePrisma,
@@ -264,10 +265,12 @@ describe('watchTranscriptionGate transcription clearance', () => {
 
   function deferred<T>() {
     let resolve!: (value: T) => void;
-    const promise = new Promise<T>((r) => {
-      resolve = r;
+    let reject!: (reason: unknown) => void;
+    const promise = new Promise<T>((onResolve, onReject) => {
+      resolve = onResolve;
+      reject = onReject;
     });
-    return { promise, resolve };
+    return { promise, resolve, reject };
   }
 
   beforeEach(() => {
@@ -406,5 +409,134 @@ describe('watchTranscriptionGate transcription clearance', () => {
     await vi.waitFor(() => expect(pushedAllows(client)).toEqual([[]]));
 
     expect(hasTranscriptionClearance(client, 'tenant-a')).toBe(false);
+  });
+
+  describe('retries of an unavailable re-check', () => {
+    const unavailable = new Error('gate lookup failed');
+    const allDelaysMs = GATE_RECHECK_RETRY_DELAYS_MS.reduce((sum, delay) => sum + delay, 0);
+
+    async function memberWithFakeTimers(): Promise<{ room: WorldRoom; client: TrackedClient }> {
+      activeTenants.add('tenant-a');
+      const room = await createWorldRoom();
+      const client = addTrackedMember(room, 'user-a');
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+      return { room, client };
+    }
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('re-checks again after each backoff delay and clears the client once consent is verified', async () => {
+      const { client } = await memberWithFakeTimers();
+      evaluateJoinMock
+        .mockRejectedValueOnce(unavailable)
+        .mockRejectedValueOnce(unavailable)
+        .mockResolvedValue(verified);
+
+      emit({ tenantId: 'tenant-a' });
+      await vi.advanceTimersByTimeAsync(GATE_RECHECK_RETRY_DELAYS_MS[0] - 1);
+      expect(evaluateJoinMock).toHaveBeenCalledTimes(1);
+      expect(hasTranscriptionClearance(client, 'tenant-a')).toBe(false);
+      expect(mocks.loggerWarn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: 'transcription.gate_recheck_unavailable',
+          retryInMs: GATE_RECHECK_RETRY_DELAYS_MS[0],
+        }),
+      );
+
+      await vi.advanceTimersByTimeAsync(1);
+      expect(evaluateJoinMock).toHaveBeenCalledTimes(2);
+      expect(hasTranscriptionClearance(client, 'tenant-a')).toBe(false);
+
+      await vi.advanceTimersByTimeAsync(GATE_RECHECK_RETRY_DELAYS_MS[1]);
+      expect(evaluateJoinMock).toHaveBeenCalledTimes(3);
+      expect(hasTranscriptionClearance(client, 'tenant-a')).toBe(true);
+
+      await vi.advanceTimersByTimeAsync(allDelaysMs);
+      expect(evaluateJoinMock).toHaveBeenCalledTimes(3);
+      expect(pushedAllows(client).at(-1)).toEqual([TRANSCRIBER_IDENTITY]);
+      expect(client.leave).not.toHaveBeenCalled();
+    });
+
+    it('gives up after the last delay and leaves the client without clearance', async () => {
+      const { client } = await memberWithFakeTimers();
+      evaluateJoinMock.mockRejectedValue(unavailable);
+
+      emit({ tenantId: 'tenant-a' });
+      await vi.advanceTimersByTimeAsync(allDelaysMs);
+      expect(evaluateJoinMock).toHaveBeenCalledTimes(1 + GATE_RECHECK_RETRY_DELAYS_MS.length);
+      await vi.advanceTimersByTimeAsync(allDelaysMs);
+      expect(evaluateJoinMock).toHaveBeenCalledTimes(1 + GATE_RECHECK_RETRY_DELAYS_MS.length);
+
+      expect(mocks.loggerWarn).toHaveBeenCalledWith(
+        expect.objectContaining({ event: 'transcription.gate_recheck_given_up', userId: 'user-a' }),
+      );
+      expect(hasTranscriptionClearance(client, 'tenant-a')).toBe(false);
+      expect(pushedAllows(client).flat()).not.toContain(TRANSCRIBER_IDENTITY);
+      expect(client.leave).not.toHaveBeenCalled();
+    });
+
+    it('stops retrying once a newer gate change took the re-check over', async () => {
+      const { client } = await memberWithFakeTimers();
+      evaluateJoinMock.mockRejectedValueOnce(unavailable).mockResolvedValue(verified);
+
+      emit({ tenantId: 'tenant-a' });
+      await vi.advanceTimersByTimeAsync(0);
+      emit({ tenantId: 'tenant-a', userId: 'user-a' });
+      await vi.advanceTimersByTimeAsync(allDelaysMs);
+
+      expect(evaluateJoinMock).toHaveBeenCalledTimes(2);
+      expect(hasTranscriptionClearance(client, 'tenant-a')).toBe(true);
+    });
+
+    it('stops retrying once the client left the room', async () => {
+      const { room, client } = await memberWithFakeTimers();
+      evaluateJoinMock.mockRejectedValueOnce(unavailable).mockResolvedValue(verified);
+
+      emit({ tenantId: 'tenant-a' });
+      await vi.advanceTimersByTimeAsync(0);
+      room.clients.splice(room.clients.indexOf(client), 1);
+      await vi.advanceTimersByTimeAsync(allDelaysMs);
+
+      expect(evaluateJoinMock).toHaveBeenCalledTimes(1);
+      expect(hasTranscriptionClearance(client, 'tenant-a')).toBe(false);
+    });
+
+    // Each watches through a handle of its own instead of the room's subscription.
+    it('cancels a pending retry once the room stops watching', async () => {
+      const { room, client } = await memberWithFakeTimers();
+      listeners.clear();
+      const stopWatching = watchTranscriptionGate(room);
+      evaluateJoinMock.mockRejectedValueOnce(unavailable).mockResolvedValue(verified);
+
+      emit({ tenantId: 'tenant-a' });
+      await vi.advanceTimersByTimeAsync(0);
+      const pendingTimers = vi.getTimerCount();
+      stopWatching();
+
+      expect(vi.getTimerCount()).toBe(pendingTimers - 1);
+      await vi.advanceTimersByTimeAsync(allDelaysMs);
+      expect(evaluateJoinMock).toHaveBeenCalledTimes(1);
+      expect(hasTranscriptionClearance(client, 'tenant-a')).toBe(false);
+    });
+
+    it('schedules no retry for a re-check that ends unavailable after the room stopped watching', async () => {
+      const { room, client } = await memberWithFakeTimers();
+      listeners.clear();
+      const stopWatching = watchTranscriptionGate(room);
+      const inFlight = deferred<Awaited<ReturnType<EvaluateJoin>>>();
+      evaluateJoinMock.mockRejectedValueOnce(unavailable).mockReturnValueOnce(inFlight.promise);
+
+      emit({ tenantId: 'tenant-a' });
+      await vi.advanceTimersByTimeAsync(GATE_RECHECK_RETRY_DELAYS_MS[0]);
+      expect(evaluateJoinMock).toHaveBeenCalledTimes(2);
+      stopWatching();
+      inFlight.reject(unavailable);
+      await vi.advanceTimersByTimeAsync(allDelaysMs);
+
+      expect(evaluateJoinMock).toHaveBeenCalledTimes(2);
+      expect(hasTranscriptionClearance(client, 'tenant-a')).toBe(false);
+    });
   });
 });

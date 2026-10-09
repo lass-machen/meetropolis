@@ -55,6 +55,11 @@ export function beginTranscriptionGateCheck(client: Client): number {
   return currentGeneration(client);
 }
 
+/** False once a void superseded the evaluation begun with `generation`. */
+export function isTranscriptionGateCheckCurrent(client: Client, generation: number): boolean {
+  return generation === currentGeneration(client);
+}
+
 /**
  * Records the verdict of the evaluation begun with `generation`. Returns
  * false and records nothing when a void superseded that evaluation; its
@@ -66,7 +71,7 @@ export function recordTranscriptionGateResult(
   consentVerified: boolean,
   generation: number,
 ): boolean {
-  if (generation !== currentGeneration(client)) return false;
+  if (!isTranscriptionGateCheckCurrent(client, generation)) return false;
   if (consentVerified) clearedTenantByClient.set(client, tenantId);
   else clearedTenantByClient.delete(client);
   return true;
