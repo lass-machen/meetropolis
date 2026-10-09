@@ -53,10 +53,12 @@ function TokenRow({
   token,
   t,
   onDelete,
+  disabled,
 }: {
   token: ApiToken;
   t: (k: string) => string;
   onDelete: () => Promise<void>;
+  disabled: boolean;
 }) {
   return (
     <div
@@ -82,6 +84,7 @@ function TokenRow({
         onClick={() => {
           void onDelete();
         }}
+        disabled={disabled}
         style={{ padding: '6px 8px' }}
       >
         {t('admin.api.delete')}
@@ -200,33 +203,54 @@ export function ApiTokensOverlay(props: ApiTokensOverlayProps) {
     }
   };
 
-  const createToken = async () => {
+  // One create or delete at a time. The ref closes the gap between a click and
+  // the re-render that disables the button, so a double click cannot fire twice
+  // (two creates would overwrite the first secret before it was ever shown).
+  const busyRef = React.useRef(false);
+  const [busy, setBusy] = React.useState(false);
+  const runExclusive = async (action: () => Promise<void>) => {
+    if (busyRef.current) return;
+    busyRef.current = true;
+    setBusy(true);
     try {
-      const res = await fetch(`${apiBase}/api-tokens`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ name: newTokenName || undefined }),
-      });
-      if (!res.ok) throw new Error(`token creation failed with status ${res.status}`);
-      const data = (await res.json()) as CreateTokenResponse;
-      setFreshToken(data.token);
-      setNewTokenName('');
-      await refreshList();
-    } catch {
-      setError(t('admin.api.createError'));
+      await action();
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
     }
   };
 
+  const createToken = () =>
+    runExclusive(async () => {
+      try {
+        const res = await fetch(`${apiBase}/api-tokens`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ name: newTokenName || undefined }),
+        });
+        if (!res.ok) throw new Error(`token creation failed with status ${res.status}`);
+        const data = (await res.json()) as CreateTokenResponse;
+        setFreshToken(data.token);
+        setNewTokenName('');
+        await refreshList();
+      } catch {
+        setError(t('admin.api.createError'));
+      }
+    });
+
   const deleteToken = async (id: string) => {
-    try {
-      const res = await fetch(`${apiBase}/api-tokens/${id}`, { method: 'DELETE', credentials: 'include' });
-      await refreshList();
-      // 404 means the token is already gone, which is what the user asked for.
-      if (!res.ok && res.status !== 404) setError(t('admin.api.deleteError'));
-    } catch {
-      setError(t('admin.api.deleteError'));
-    }
+    if (!confirm(t('admin.api.confirmDelete'))) return;
+    await runExclusive(async () => {
+      try {
+        const res = await fetch(`${apiBase}/api-tokens/${id}`, { method: 'DELETE', credentials: 'include' });
+        await refreshList();
+        // 404 means the token is already gone, which is what the user asked for.
+        if (!res.ok && res.status !== 404) setError(t('admin.api.deleteError'));
+      } catch {
+        setError(t('admin.api.deleteError'));
+      }
+    });
   };
 
   return (
@@ -249,6 +273,7 @@ export function ApiTokensOverlay(props: ApiTokensOverlayProps) {
           />
           <Button
             variant="brand"
+            disabled={busy}
             onClick={() => {
               void createToken();
             }}
@@ -273,7 +298,7 @@ export function ApiTokensOverlay(props: ApiTokensOverlayProps) {
         <div style={{ fontWeight: 600, marginTop: 4 }}>{t('admin.api.tokensHeader')}</div>
         <div style={{ display: 'grid', gap: 6 }}>
           {(apiTokens || []).map((token) => (
-            <TokenRow key={token.id} token={token} t={t} onDelete={() => deleteToken(token.id)} />
+            <TokenRow key={token.id} token={token} t={t} onDelete={() => deleteToken(token.id)} disabled={busy} />
           ))}
           {listState === 'loaded' && !apiTokens?.length && (
             <div style={{ fontSize: 13, color: 'var(--fg-subtle)' }}>{t('admin.api.noneYet')}</div>
