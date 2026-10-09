@@ -51,6 +51,16 @@ describe('useApiTokensLoader', () => {
     expect(onLoadState.mock.calls).toEqual([['loading'], ['loaded']]);
   });
 
+  it('clears the previous list and secret before the new list arrives', async () => {
+    stubFetch({ ok: true, body: [TOKEN] });
+    const { setFreshToken, setApiTokens } = renderLoader();
+
+    // Synchronously after the effect ran, before the fetch resolved.
+    expect(setApiTokens.mock.calls).toEqual([[[]]]);
+    expect(setFreshToken).toHaveBeenCalledWith(null);
+    await waitFor(() => expect(setApiTokens).toHaveBeenCalledWith([TOKEN]));
+  });
+
   it('does not fetch while closed', () => {
     const fetchMock = stubFetch({ ok: true, body: [TOKEN] });
     renderLoader(false);
@@ -63,8 +73,8 @@ describe('useApiTokensLoader', () => {
     const { setApiTokens, onLoadState } = renderLoader();
 
     await waitFor(() => expect(onLoadState).toHaveBeenCalledWith('failed'));
-    expect(setApiTokens).toHaveBeenCalledTimes(1);
-    expect(setApiTokens).toHaveBeenCalledWith([]);
+    // Once before the fetch, once as the fallback for the failure.
+    expect(setApiTokens.mock.calls).toEqual([[[]], [[]]]);
   });
 
   it('falls back to an empty list and reports the failure on a network error', async () => {

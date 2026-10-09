@@ -43,7 +43,10 @@ export function useApiTokensLoader({
   React.useEffect(() => {
     if (!open) return;
     let cancelled = false;
+    // Drop whatever a previous owner of this state left behind before the
+    // fresh list arrives, so it is never rendered even for one frame.
     setFreshToken(null);
+    setApiTokens([]);
     onLoadStateRef.current('loading');
     void (async () => {
       try {

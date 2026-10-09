@@ -17,17 +17,22 @@ function Harness({ open = true }: { open?: boolean }) {
   const [newTokenName, setNewTokenName] = React.useState('');
   const [freshToken, setFreshToken] = React.useState<string | null>(null);
   return (
-    <ApiTokensOverlay
-      open={open}
-      onClose={() => {}}
-      apiBase="/api"
-      apiTokens={apiTokens}
-      setApiTokens={setApiTokens}
-      newTokenName={newTokenName}
-      setNewTokenName={setNewTokenName}
-      freshToken={freshToken}
-      setFreshToken={setFreshToken}
-    />
+    <>
+      <output data-testid="state">
+        {JSON.stringify({ tokens: apiTokens.length, name: newTokenName, fresh: freshToken })}
+      </output>
+      <ApiTokensOverlay
+        open={open}
+        onClose={() => {}}
+        apiBase="/api"
+        apiTokens={apiTokens}
+        setApiTokens={setApiTokens}
+        newTokenName={newTokenName}
+        setNewTokenName={setNewTokenName}
+        freshToken={freshToken}
+        setFreshToken={setFreshToken}
+      />
+    </>
   );
 }
 
@@ -230,5 +235,27 @@ describe('ApiTokensOverlay create', () => {
 
     await screen.findByText('admin.api.noneYet');
     expect(screen.queryByText('SECRET123')).toBeNull();
+  });
+});
+
+describe('ApiTokensOverlay state hygiene', () => {
+  const state = () => JSON.parse(screen.getByTestId('state').textContent ?? '{}') as Record<string, unknown>;
+
+  it('drops the secret, the list and the typed name when it closes', async () => {
+    stubApi({
+      list: [{ ok: true, body: [TOKEN] }],
+      post: { ok: true, body: { token: 'SECRET123', id: 't2' } },
+    });
+    const { rerender } = render(<Harness />);
+    await screen.findByText('ci-token');
+    fireEvent.change(screen.getByPlaceholderText('admin.api.newTokenPlaceholder'), { target: { value: 'draft' } });
+    fireEvent.click(screen.getByText('admin.api.createToken'));
+    await screen.findByText('SECRET123');
+    fireEvent.change(screen.getByPlaceholderText('admin.api.newTokenPlaceholder'), { target: { value: 'next' } });
+    expect(state()).toEqual({ tokens: 1, name: 'next', fresh: 'SECRET123' });
+
+    rerender(<Harness open={false} />);
+
+    expect(state()).toEqual({ tokens: 0, name: '', fresh: null });
   });
 });
