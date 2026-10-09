@@ -1,6 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { Section, Button, Badge, Table, THead, TBody, Tr, Th, Td } from '../../system';
+import { Section, Button, Badge, Table, THead, TBody, Tr, Th, Td, useConfirmDialog } from '../../system';
 
 type Invite = {
   code: string;
@@ -16,6 +16,7 @@ interface InvitesTabProps {
 function useInvitesTab(apiBase: string, t: (k: string) => string) {
   const [invites, setInvites] = React.useState<Invite[]>([]);
   const [loading, setLoading] = React.useState(true);
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
 
   React.useEffect(() => {
     let cancelled = false;
@@ -38,7 +39,7 @@ function useInvitesTab(apiBase: string, t: (k: string) => string) {
   }, [apiBase]);
 
   const handleDelete = async (code: string) => {
-    if (!confirm(t('tenant.inviteDeleteConfirm'))) return;
+    if (!(await confirm(t('tenant.inviteDeleteConfirm')))) return;
     try {
       await fetch(`${apiBase}/invites/${encodeURIComponent(code)}`, { method: 'DELETE', credentials: 'include' });
       setInvites((prev) => prev.filter((i) => i.code !== code));
@@ -56,7 +57,7 @@ function useInvitesTab(apiBase: string, t: (k: string) => string) {
     }
   };
 
-  return { invites, loading, handleDelete, handleCopy };
+  return { invites, loading, handleDelete, handleCopy, confirmDialog };
 }
 
 function InvitesHeader({ t }: { t: (k: string) => string }) {
@@ -156,7 +157,7 @@ function InviteRow({
 
 export function InvitesTab({ apiBase }: InvitesTabProps) {
   const { t } = useTranslation();
-  const { invites, loading, handleDelete, handleCopy } = useInvitesTab(apiBase, t);
+  const { invites, loading, handleDelete, handleCopy, confirmDialog } = useInvitesTab(apiBase, t);
 
   return (
     <Section title={t('tenant.tabInvites')}>
@@ -183,6 +184,7 @@ export function InvitesTab({ apiBase }: InvitesTabProps) {
           </TBody>
         )}
       </Table>
+      {confirmDialog}
     </Section>
   );
 }
