@@ -621,6 +621,65 @@ describe('AVManager dispose leaves LiveKit for real', () => {
     expect(micTrack.stop).toHaveBeenCalled();
   });
 
+  it('keeps a reconnect pending at dispose from joining another room', async () => {
+    const { mgr, room } = await connectWithMicrophone();
+    const { joinLivekitRoom } = await import('../lib/livekit');
+    room.localParticipant.unpublishTrack.mockImplementationOnce(() => new Promise<void>((r) => setTimeout(r, 1_500)));
+    vi.useFakeTimers();
+    try {
+      // A signal loss scheduled a reconnect shortly before the world unmounts.
+      (mgr as any).stateMachine.dispatch({ type: 'SIGNAL_LOST' });
+      (mgr as any).connectionManager.scheduleReconnect();
+      const dispatched = vi.spyOn((mgr as any).stateMachine, 'dispatch');
+      mgr.dispose();
+      await vi.advanceTimersByTimeAsync(6_000);
+
+      expect(joinLivekitRoom).toHaveBeenCalledTimes(1);
+      expect(room.disconnect).toHaveBeenCalledTimes(1);
+      // The pending reconnect is cancelled, not merely refused when it fires.
+      expect(dispatched).not.toHaveBeenCalledWith({ type: 'RETRY' });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('keeps the online event from joining another room while dispose leaves', async () => {
+    const { mgr, room } = await connectWithMicrophone();
+    const { joinLivekitRoom } = await import('../lib/livekit');
+    room.localParticipant.unpublishTrack.mockImplementationOnce(() => new Promise<void>((r) => setTimeout(r, 1_500)));
+    vi.useFakeTimers();
+    try {
+      (mgr as any).stateMachine.dispatch({ type: 'SIGNAL_LOST' });
+      mgr.dispose();
+      window.dispatchEvent(new Event('online'));
+      await vi.advanceTimersByTimeAsync(6_000);
+
+      expect(joinLivekitRoom).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('neither schedules a reconnect nor joins through ensureConnected while dispose leaves', async () => {
+    const { mgr, room } = await connectWithMicrophone();
+    const { joinLivekitRoom } = await import('../lib/livekit');
+    room.localParticipant.unpublishTrack.mockImplementationOnce(() => new Promise<void>((r) => setTimeout(r, 1_500)));
+    const scheduled = vi.spyOn((mgr as any).stateMachine, 'scheduleReconnect');
+    vi.useFakeTimers();
+    try {
+      (mgr as any).stateMachine.dispatch({ type: 'SIGNAL_LOST' });
+      mgr.dispose();
+      (mgr as any).connectionManager.scheduleReconnect();
+      await (mgr as any).connectionManager.ensureConnected();
+      await vi.advanceTimersByTimeAsync(6_000);
+
+      expect(scheduled).not.toHaveBeenCalled();
+      expect(joinLivekitRoom).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('tears down after a bounded wait when leaving hangs and still disconnects the held room', async () => {
     const { mgr, room } = await connectWithMicrophone();
     let releaseUnpublish!: () => void;

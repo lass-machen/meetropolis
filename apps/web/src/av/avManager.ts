@@ -469,6 +469,9 @@ export class AVManager implements Disposable {
     // stuck in 'playback' after the manager is gone.
     setAudioDuckingDndActive(false);
 
+    // Nothing may join a room while the leave below is awaited.
+    this.connectionManager.close();
+
     // Leave first, tear down after: leave() unpublishes the local tracks and
     // disconnects through the state machine and track manager, which the
     // teardown destroys. Tearing down at once left the room connected with the

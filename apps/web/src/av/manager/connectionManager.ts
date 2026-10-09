@@ -37,6 +37,7 @@ export class ConnectionManager implements Disposable {
   private audioUnlockHandlersAttached = false;
   private audioUnlockCleanup: (() => void) | null = null;
   private _disposed = false;
+  private _closed = false;
 
   constructor(
     private readonly config: Required<AVManagerConfig>,
@@ -52,7 +53,7 @@ export class ConnectionManager implements Disposable {
   }
 
   async switchTo(roomName: string): Promise<void> {
-    if (this._disposed) return;
+    if (this._disposed || this._closed) return;
 
     const name = roomName || 'world';
 
@@ -157,6 +158,17 @@ export class ConnectionManager implements Disposable {
    * cannot finish joining afterwards: leave() alone returns early while the
    * handshake has not set a room yet.
    */
+  /**
+   * Shuts every way into a room at once: switchTo (which ensureConnected and
+   * the online handler go through as well) and scheduled reconnects. A
+   * disposing AVManager waits for its leave, and a reconnect firing meanwhile
+   * would join a room that nobody leaves again. Leaving stays possible.
+   */
+  close(): void {
+    this._closed = true;
+    this.deps.stateMachine.cancelReconnect();
+  }
+
   async abandon(): Promise<void> {
     ++this._connectSeq;
     await this.leave();
@@ -262,6 +274,7 @@ export class ConnectionManager implements Disposable {
   }
 
   scheduleReconnect(): void {
+    if (this._closed) return;
     if (this.deps.stateMachine.pageLeaving) return;
     if (!this._currentRoomName) return;
 
