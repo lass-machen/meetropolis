@@ -17,3 +17,4 @@ export * from './ProgressBar';
 export * from './Divider';
 export * from './DescriptionList';
 export * from './NavBar';
+export * from './ConfirmDialog';
