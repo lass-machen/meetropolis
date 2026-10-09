@@ -201,6 +201,9 @@ export function ApiTokensOverlay(props: ApiTokensOverlayProps) {
 
   // Closing drops the secret, the list and the half-typed name, so none of it
   // is rendered again on the next open (or by the next user after a re-login).
+  // The setters are listed as dependencies on purpose: they are the stable
+  // useState setters of WorldApp. A caller passing unstable functions would
+  // run this cleanup on every render and wipe the state.
   React.useEffect(() => {
     if (!open) return;
     return () => {
