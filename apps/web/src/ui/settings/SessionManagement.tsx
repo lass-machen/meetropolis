@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { getApiBaseFromWindow } from '../../lib/apiBase';
 import { translateApiError } from '../../lib/apiErrors';
-import { Button, Alert, Badge, Card, Divider } from '../system';
+import { Button, Alert, Badge, Card, Divider, useConfirmDialog } from '../system';
 import { Icon, type IconName } from '../Icon';
 
 interface Session {
@@ -74,6 +74,8 @@ function useSessionsApi(apiBase: string, t: TranslateFn) {
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [revoking, setRevoking] = React.useState<string | null>(null);
+  const [notice, setNotice] = React.useState<string | null>(null);
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
 
   const fetchSessions = async () => {
     try {
@@ -98,8 +100,9 @@ function useSessionsApi(apiBase: string, t: TranslateFn) {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps -- intentional: run-once on mount; fetchSessions is a stable inline closure
 
   const revokeSession = async (sessionId: string) => {
-    if (!confirm(t('sessions.confirmRevoke'))) return;
+    if (!(await confirm(t('sessions.confirmRevoke')))) return;
     try {
+      setNotice(null);
       setRevoking(sessionId);
       const res = await fetch(`${apiBase}/auth/sessions/${sessionId}`, { method: 'DELETE', credentials: 'include' });
       if (res.ok) {
@@ -116,14 +119,15 @@ function useSessionsApi(apiBase: string, t: TranslateFn) {
   };
 
   const revokeAllOther = async () => {
-    if (!confirm(t('sessions.confirmRevokeAll'))) return;
+    if (!(await confirm(t('sessions.confirmRevokeAll')))) return;
     try {
+      setNotice(null);
       setRevoking('all');
       const res = await fetch(`${apiBase}/auth/sessions`, { method: 'DELETE', credentials: 'include' });
       if (res.ok) {
         const data = (await res.json()) as RevokeAllResponse;
         setSessions((s) => s.filter((sess) => sess.isCurrent));
-        alert(t('sessions.revokedSuccess', { count: data.revokedCount || 0 }));
+        setNotice(t('sessions.revokedSuccess', { count: data.revokedCount || 0 }));
       } else {
         const data = (await res.json().catch(() => ({}))) as ApiErrorBody;
         setError(translateApiError(data.error) || t('sessions.revokeAllFailed'));
@@ -135,7 +139,7 @@ function useSessionsApi(apiBase: string, t: TranslateFn) {
     }
   };
 
-  return { sessions, loading, error, revoking, revokeSession, revokeAllOther };
+  return { sessions, loading, error, notice, revoking, revokeSession, revokeAllOther, confirmDialog };
 }
 
 function deviceIconName(device: string): IconName {
@@ -198,7 +202,10 @@ function SessionCard({
 export function SessionManagement({ onClose: _onClose }: { onClose: () => void }) {
   const { t } = useTranslation();
   const apiBase = getApiBaseFromWindow();
-  const { sessions, loading, error, revoking, revokeSession, revokeAllOther } = useSessionsApi(apiBase, t);
+  const { sessions, loading, error, notice, revoking, revokeSession, revokeAllOther, confirmDialog } = useSessionsApi(
+    apiBase,
+    t,
+  );
 
   if (loading) {
     return (
@@ -221,6 +228,12 @@ export function SessionManagement({ onClose: _onClose }: { onClose: () => void }
       {error && (
         <Alert intent="error" style={{ marginBottom: 16 }}>
           {error}
+        </Alert>
+      )}
+
+      {notice && (
+        <Alert intent="success" style={{ marginBottom: 16 }}>
+          {notice}
         </Alert>
       )}
 
@@ -261,6 +274,7 @@ export function SessionManagement({ onClose: _onClose }: { onClose: () => void }
           )}
         </>
       )}
+      {confirmDialog}
     </div>
   );
 }
