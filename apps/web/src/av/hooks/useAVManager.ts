@@ -76,6 +76,8 @@ async function performConnect(args: ConnectArgs): Promise<void> {
   // Connect to default room
   try {
     await manager.switchTo('world');
+    // Suspended mid-handshake (useAvSuspension): the manager is already gone.
+    if (avRef.current !== manager) return;
   } catch (error) {
     // Tear down the failed attempt and clear the ref, so a retry starts clean
     // instead of stacking live managers (window listeners, settings
@@ -205,6 +207,63 @@ function useDeviceChangeWatcher(
   }, [refreshDevices, avRef]);
 }
 
+const RESUME_RETRY_MS = 250;
+
+/**
+ * A terminal world error (an overlay the user has to answer) takes the user
+ * out of AV: suspend() leaves LiveKit through the manager, which abandons a
+ * connect still in flight, then disposes it and blocks every connect path.
+ * resume() lifts the block once the world accepted the user again and
+ * connects the way a normal join does, with a fresh manager via connect().
+ * The leave is awaited before the dispose, because dispose() tears down the
+ * state machine that the asynchronous leave still needs for the disconnect.
+ */
+function useAvSuspension(
+  avRef: React.MutableRefObject<AVManager | null>,
+  suspendedRef: React.MutableRefObject<boolean>,
+  isConnectingRef: React.MutableRefObject<boolean>,
+  connect: () => Promise<void>,
+): { suspend: () => void; resume: () => void } {
+  const resumeTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearResumeTimer = React.useCallback(() => {
+    if (resumeTimerRef.current) clearTimeout(resumeTimerRef.current);
+    resumeTimerRef.current = null;
+  }, []);
+
+  const suspend = React.useCallback(() => {
+    clearResumeTimer();
+    suspendedRef.current = true;
+    const manager = avRef.current;
+    if (!manager) return;
+    avRef.current = null;
+    void manager
+      .leave()
+      .catch(() => undefined)
+      .finally(() => manager.dispose());
+  }, [avRef, suspendedRef, clearResumeTimer]);
+
+  const resume = React.useCallback(() => {
+    if (!suspendedRef.current) return;
+    suspendedRef.current = false;
+    // A connect abandoned by suspend() may still be unwinding; wait for it.
+    const attempt = () => {
+      resumeTimerRef.current = null;
+      if (suspendedRef.current) return;
+      if (isConnectingRef.current) {
+        resumeTimerRef.current = setTimeout(attempt, RESUME_RETRY_MS);
+        return;
+      }
+      void connect();
+    };
+    attempt();
+  }, [suspendedRef, isConnectingRef, connect]);
+
+  React.useEffect(() => clearResumeTimer, [clearResumeTimer]);
+
+  return { suspend, resume };
+}
+
 function useAVManagerCleanup(avRef: React.MutableRefObject<AVManager | null>): void {
   React.useEffect(() => {
     return () => {
@@ -242,6 +301,7 @@ export function useAVManager({
   onConnected,
 }: UseAVManagerArgs) {
   const isConnectingRef = React.useRef(false);
+  const suspendedRef = React.useRef(false);
   const hasAutoConnectedRef = React.useRef(false);
   const refreshingDevicesRef = React.useRef(false);
 
@@ -277,6 +337,7 @@ export function useAVManager({
   // Connect to LiveKit
   const connect = React.useCallback(async () => {
     if (!me) return;
+    if (suspendedRef.current) return;
     if (editorActiveRef.current) return;
     if (isConnectingRef.current) return;
     if (avRef.current?.room) return;
@@ -296,8 +357,9 @@ export function useAVManager({
   useConnectOnFirstInteraction(avRef, connect, refreshDevices);
   useDeviceChangeWatcher(refreshDevices, avRef);
   useAVManagerCleanup(avRef);
+  const { suspend, resume } = useAvSuspension(avRef, suspendedRef, isConnectingRef, connect);
 
-  return { connect, refreshDevices };
+  return { connect, refreshDevices, suspend, resume };
 }
 
 // Helper to set up room event listeners

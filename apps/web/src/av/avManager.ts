@@ -310,7 +310,7 @@ export class AVManager implements Disposable {
   }
 
   async leave(): Promise<void> {
-    await this.connectionManager.leave();
+    await this.connectionManager.abandon();
   }
 
   // ============================================================================
@@ -462,7 +462,7 @@ export class AVManager implements Disposable {
       this._republishTimer = undefined;
     }
 
-    this.connectionManager.leave().catch(() => {});
+    this.connectionManager.abandon().catch(() => {});
 
     // The DND listeners are cleared below without firing; release the
     // ducking suppression explicitly so the audio session does not stay

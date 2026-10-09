@@ -575,3 +575,132 @@ describe('terminal overlay and the room leave event', () => {
     expect(refs.terminalOverlayRef.current).toBe(false);
   });
 });
+
+describe('AV suspension on terminal connection errors', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    window.location.hash = '';
+  });
+
+  afterEach(() => {
+    window.location.hash = '';
+  });
+
+  function makeArgs() {
+    return {
+      apiBase: '/api',
+      refs: makeRefs(),
+      colyseusRef: { current: null as WorldRoom | null },
+      suspendAv: vi.fn(),
+      scheduleReconnect: vi.fn(() => undefined),
+      resetRefsBeforeReconnect: vi.fn(),
+    };
+  }
+
+  const terminalCases: Array<[string, Parameters<typeof performHandleError>[0], ReturnType<typeof vi.fn>]> = [
+    ['transcription consent', [4008], overlayMocks.showTranscriptionConsentOverlay],
+    ['guest expired', [4006, 'guest_expired'], overlayMocks.showGuestExpiredOverlay],
+    ['session taken over', [4007, 'session_taken_over'], overlayMocks.showSessionTakenOverOverlay],
+    ['auth rejected', [4401, 'unauthorized'], overlayMocks.showAuthExpiredOverlay],
+    ['client too old', [4426, 'client_too_old'], overlayMocks.showClientTooOldOverlay],
+    ['billing', [4004], overlayMocks.showLimitErrorOverlay],
+    ['limit', [4002, 'tenant_limit_reached'], overlayMocks.showLimitErrorOverlay],
+  ];
+
+  it.each(terminalCases)('leaves AV before the %s overlay', (_name, ev, overlay) => {
+    const args = makeArgs();
+
+    performHandleError(ev, false, vi.fn(), args);
+
+    expect(args.suspendAv).toHaveBeenCalledTimes(1);
+    expect(overlay).toHaveBeenCalledTimes(1);
+    expect(args.suspendAv.mock.invocationCallOrder[0]).toBeLessThan(overlay.mock.invocationCallOrder[0] ?? 0);
+    expect(args.scheduleReconnect).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['the gate-unavailable code', [4503]],
+    ['an abnormal close', [1006]],
+    ['a bare Colyseus close code', [4002]],
+  ] as Array<[string, Parameters<typeof performHandleError>[0]]>)('keeps AV on %s', (_name, ev) => {
+    const args = makeArgs();
+
+    performHandleError(ev, false, vi.fn(), args);
+
+    expect(args.suspendAv).not.toHaveBeenCalled();
+    expect(args.scheduleReconnect).toHaveBeenCalledTimes(1);
+  });
+
+  it('leaves AV before the consent overlay of a join the server rejected', async () => {
+    vi.mocked(joinWorld).mockRejectedValue(new ServerError(4008, 'transcription_consent_required'));
+    const suspendAv = vi.fn();
+    const args = {
+      apiBase: '/api',
+      me: { id: 'user-1', name: 'User One' },
+      localPosRef: { current: { x: 1, y: 2 } },
+      colyseusRef: { current: null as WorldRoom | null },
+      dndRef: { current: false },
+      setConnectionStatus: vi.fn(),
+      refs: makeRefs(),
+      scheduleReconnect: vi.fn(() => undefined),
+      suspendAv,
+    } as unknown as Parameters<typeof performConnect>[2];
+
+    await performConnect(false, vi.fn(), args);
+
+    expect(suspendAv).toHaveBeenCalledTimes(1);
+    expect(suspendAv.mock.invocationCallOrder[0]).toBeLessThan(
+      overlayMocks.showTranscriptionConsentOverlay.mock.invocationCallOrder[0] ?? 0,
+    );
+  });
+
+  function makeResumableConnectArgs() {
+    return {
+      apiBase: '/api',
+      me: { id: 'user-1', name: 'User One' },
+      localPosRef: { current: { x: 1, y: 2 } },
+      colyseusRef: { current: null as WorldRoom | null },
+      dndRef: { current: false },
+      setConnectionStatus: vi.fn(),
+      refs: makeRefs(),
+      scheduleReconnect: vi.fn(() => undefined),
+      suspendAv: vi.fn(),
+      resumeAv: vi.fn(),
+    };
+  }
+
+  it('resumes AV only once the join after the consent was accepted succeeds', async () => {
+    const room = { leave: vi.fn() } as unknown as WorldRoom;
+    const onConnected = vi.fn();
+    const args = makeResumableConnectArgs();
+    const connectArgs = args as unknown as Parameters<typeof performConnect>[2];
+    let rejoin: Promise<unknown> | undefined;
+    connectArgs.onReconnect = () => {
+      rejoin = performConnect(false, onConnected, connectArgs);
+    };
+    vi.mocked(joinWorld).mockRejectedValueOnce(new ServerError(4008, 'transcription_consent_required'));
+
+    await performConnect(false, onConnected, connectArgs);
+
+    expect(args.suspendAv).toHaveBeenCalledTimes(1);
+    expect(args.resumeAv).not.toHaveBeenCalled();
+
+    vi.mocked(joinWorld).mockResolvedValueOnce(room);
+    overlayMocks.showTranscriptionConsentOverlay.mock.calls[0][0].onAccepted();
+    await rejoin;
+
+    expect(onConnected).toHaveBeenCalledWith(room);
+    expect(args.resumeAv).toHaveBeenCalledTimes(1);
+    expect(args.suspendAv).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not resume AV for a join that finished after the hook was disposed', async () => {
+    const room = { leave: vi.fn() } as unknown as WorldRoom;
+    vi.mocked(joinWorld).mockResolvedValueOnce(room);
+    const args = makeResumableConnectArgs();
+
+    await performConnect(true, vi.fn(), args as unknown as Parameters<typeof performConnect>[2]);
+
+    expect(args.resumeAv).not.toHaveBeenCalled();
+  });
+});

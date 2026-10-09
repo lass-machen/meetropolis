@@ -7,12 +7,20 @@ import { renderHook, act } from '@testing-library/react';
 const avStub = vi.hoisted(() => {
   const construct = vi.fn();
   const switchTo = vi.fn(async (_roomName: string) => {});
+  const calls: string[] = [];
+  const instances: FakeAVManager[] = [];
 
   class FakeAVManager {
     room: { on: () => void } | undefined = undefined;
+    leave = vi.fn(() => {
+      calls.push('leave');
+      this.room = undefined;
+      return Promise.resolve();
+    });
 
     constructor(options: unknown) {
       construct(options);
+      instances.push(this);
     }
 
     async switchTo(roomName: string): Promise<void> {
@@ -26,17 +34,20 @@ const avStub = vi.hoisted(() => {
 
     notifyDeviceChange(): void {}
 
-    dispose(): void {}
+    dispose(): void {
+      calls.push('dispose');
+    }
   }
 
-  return { construct, switchTo, FakeAVManager };
+  return { construct, switchTo, calls, instances, FakeAVManager };
 });
 vi.mock('../avManager', () => ({ AVManager: avStub.FakeAVManager }));
 
 import { useAVManager } from './useAVManager';
 import type { AVManager } from '../avManager';
+import { AVLogger } from '../AVLogger';
 
-function setup() {
+function setup(onConnected?: () => void) {
   const editorActiveRef: React.MutableRefObject<boolean> = { current: false };
   const avRef: React.MutableRefObject<AVManager | null> = { current: null };
 
@@ -50,6 +61,7 @@ function setup() {
       setSelectedMicId: vi.fn(),
       setSelectedCamId: vi.fn(),
       buildParticipantList: vi.fn(),
+      ...(onConnected ? { onConnected } : {}),
     }),
   );
 
@@ -132,5 +144,122 @@ describe('useAVManager first-interaction connect', () => {
     await fireGesture();
 
     expect(avStub.construct).not.toHaveBeenCalled();
+  });
+});
+
+describe('useAVManager suspension on terminal world errors', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    avStub.construct.mockClear();
+    avStub.switchTo.mockClear();
+    avStub.switchTo.mockImplementation(async () => {});
+    avStub.calls.length = 0;
+    avStub.instances.length = 0;
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  async function settle(): Promise<void> {
+    await act(async () => {
+      for (let i = 0; i < 5; i += 1) await Promise.resolve();
+    });
+  }
+
+  it('leaves LiveKit through the manager, then disposes it and drops the reference', async () => {
+    const { view, avRef } = setup();
+    await fireGesture();
+    const manager = avStub.instances[0];
+    expect(avRef.current).toBe(manager);
+
+    act(() => view.result.current.suspend());
+    await settle();
+
+    expect(avRef.current).toBeNull();
+    expect(manager?.leave).toHaveBeenCalledTimes(1);
+    expect(avStub.calls).toEqual(['leave', 'dispose']);
+  });
+
+  it('blocks every connect path while suspended', async () => {
+    const { view } = setup();
+    act(() => view.result.current.suspend());
+
+    await fireGesture();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000);
+    });
+    await act(async () => {
+      await view.result.current.connect();
+    });
+
+    expect(avStub.construct).not.toHaveBeenCalled();
+  });
+
+  it('rebuilds AV on resume the way a normal join does', async () => {
+    const onConnected = vi.fn();
+    const { view, avRef } = setup(onConnected);
+    await fireGesture();
+    expect(onConnected).toHaveBeenCalledTimes(1);
+    act(() => view.result.current.suspend());
+    await settle();
+
+    act(() => view.result.current.resume());
+    await settle();
+
+    expect(avStub.construct).toHaveBeenCalledTimes(2);
+    expect(avStub.switchTo).toHaveBeenLastCalledWith('world');
+    expect(avRef.current).toBe(avStub.instances[1]);
+    expect(avRef.current?.room).toBeDefined();
+    expect(onConnected).toHaveBeenCalledTimes(2);
+  });
+
+  it('does nothing on resume without a prior suspend', async () => {
+    const { view } = setup();
+
+    act(() => view.result.current.resume());
+    await settle();
+
+    expect(avStub.construct).not.toHaveBeenCalled();
+  });
+
+  it('drops a connect suspended mid-handshake and resumes once it has unwound', async () => {
+    let releaseJoin!: () => void;
+    avStub.switchTo.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          releaseJoin = resolve;
+        }),
+    );
+    const failures = vi.spyOn(AVLogger, 'error');
+    const onConnected = vi.fn();
+    const { view, avRef } = setup(onConnected);
+    await fireGesture();
+    const abandoned = avStub.instances[0];
+
+    act(() => view.result.current.suspend());
+    act(() => view.result.current.resume());
+    await settle();
+    expect(avStub.construct).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      releaseJoin();
+      for (let i = 0; i < 5; i += 1) await Promise.resolve();
+    });
+    expect(avRef.current).toBeNull();
+    // The abandoned connect ends quietly: a suspend is no connection failure.
+    expect(failures).not.toHaveBeenCalledWith('connection.failed', expect.anything());
+    expect(onConnected).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(250);
+    });
+    await settle();
+
+    expect(avStub.construct).toHaveBeenCalledTimes(2);
+    expect(avRef.current).toBe(avStub.instances[1]);
+    expect(avRef.current).not.toBe(abandoned);
+    expect(onConnected).toHaveBeenCalledTimes(1);
+    failures.mockRestore();
   });
 });
