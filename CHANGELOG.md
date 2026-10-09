@@ -25,6 +25,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   which lost message and stack. Fields the spread put at the top level,
   such as Prisma's `code`, `meta` and `clientVersion`, now sit under
   `err`; log queries on them need adjusting.
+- Web client: confirmations (revoking a session or all other sessions,
+  deleting an invite, removing a member, deleting an asset pack) use an
+  in-app dialog instead of `window.confirm`, which the desktop app does
+  not support. Removing a member no longer asks twice, and logging out all
+  other devices reports its result inline instead of with `alert()`. ESLint
+  now rejects native `confirm`, `alert` and `prompt` in `apps/web`.
 
 ### Fixed
 
