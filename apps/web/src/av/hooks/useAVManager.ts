@@ -211,12 +211,11 @@ const RESUME_RETRY_MS = 250;
 
 /**
  * A terminal world error (an overlay the user has to answer) takes the user
- * out of AV: suspend() leaves LiveKit through the manager, which abandons a
- * connect still in flight, then disposes it and blocks every connect path.
- * resume() lifts the block once the world accepted the user again and
- * connects the way a normal join does, with a fresh manager via connect().
- * dispose() leaves on its own before its teardown as well; the explicit leave
- * makes the suspension wait for LiveKit to be left before it disposes.
+ * out of AV: suspend() disposes the manager, which leaves LiveKit first
+ * (abandoning a connect still in flight, bounded, see AVManager.dispose), and
+ * blocks every connect path. resume() lifts the block once the world accepted
+ * the user again and connects the way a normal join does, with a fresh
+ * manager via connect().
  */
 function useAvSuspension(
   avRef: React.MutableRefObject<AVManager | null>,
@@ -237,10 +236,7 @@ function useAvSuspension(
     const manager = avRef.current;
     if (!manager) return;
     avRef.current = null;
-    void manager
-      .leave()
-      .catch(() => undefined)
-      .finally(() => manager.dispose());
+    manager.dispose();
   }, [avRef, suspendedRef, clearResumeTimer]);
 
   const resume = React.useCallback(() => {

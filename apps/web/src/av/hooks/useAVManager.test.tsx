@@ -204,7 +204,9 @@ describe('useAVManager suspension on terminal world errors', () => {
     });
   }
 
-  it('leaves LiveKit through the manager, then disposes it and drops the reference', async () => {
+  // AVManager.dispose() leaves LiveKit before its teardown, bounded, and
+  // disconnects the room itself after the bound (avManager.test.ts).
+  it('disposes the manager, which leaves LiveKit, and drops the reference', async () => {
     const { view, avRef } = setup();
     await fireGesture();
     const manager = avStub.instances[0];
@@ -214,8 +216,7 @@ describe('useAVManager suspension on terminal world errors', () => {
     await settle();
 
     expect(avRef.current).toBeNull();
-    expect(manager?.leave).toHaveBeenCalledTimes(1);
-    expect(avStub.calls).toEqual(['leave', 'dispose']);
+    expect(avStub.calls).toEqual(['dispose']);
   });
 
   it('blocks every connect path while suspended', async () => {
