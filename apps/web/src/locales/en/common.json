@@ -78,7 +78,7 @@
   "auth.reset.submit": "Save password",
   "auth.passwordUpdated": "Password updated",
   "admin.api.title": "API access",
-  "admin.api.helper": "With personal tokens you can remotely turn off mic, camera or screenshare for participants (protective actions only) while online.",
+  "admin.api.helper": "With personal tokens you can use the API to remotely turn off mic, camera or screenshare in your own sessions (protective actions only) while you are online.",
   "admin.api.newTokenPlaceholder": "Token name (optional)",
   "admin.api.createToken": "Create new token",
   "admin.api.newTokenReveal": "Your new token (shown only once):",

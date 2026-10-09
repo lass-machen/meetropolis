@@ -78,7 +78,7 @@
   "auth.reset.submit": "Passwort speichern",
   "auth.passwordUpdated": "Passwort aktualisiert",
   "admin.api.title": "API-Zugriff",
-  "admin.api.helper": "Mit persönlichen Tokens kannst du bei Teilnehmenden Mikro, Kamera oder Screenshare remote ausschalten (nur schützende Aktionen) – solange du online bist.",
+  "admin.api.helper": "Mit persönlichen Tokens kannst du per API Mikro, Kamera oder Screenshare deiner eigenen Sitzungen aus der Ferne ausschalten (nur schützende Aktionen), solange du online bist.",
   "admin.api.newTokenPlaceholder": "Token-Name (optional)",
   "admin.api.createToken": "Neuen Token erstellen",
   "admin.api.newTokenReveal": "Dein neuer Token (zeige ihn nur einmal an):",
