@@ -222,7 +222,6 @@ function useMemberHandlers(state: TenantState, apiBase: string, t: (k: string) =
 
   const handleRemoveMember = React.useCallback(
     async (userId: string) => {
-      if (!confirm(t('tenant.confirmRemoveMember'))) return;
       setSaving(true);
       setError(null);
       try {
