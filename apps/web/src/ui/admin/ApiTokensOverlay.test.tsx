@@ -330,3 +330,57 @@ describe('ApiTokensOverlay pending state', () => {
     await waitFor(() => expect(button.disabled).toBe(false));
   });
 });
+
+describe('ApiTokensOverlay late responses', () => {
+  const state = () => JSON.parse(screen.getByTestId('state').textContent ?? '{}') as Record<string, unknown>;
+
+  function deferred() {
+    let resolve: (r: unknown) => void = () => {};
+    const promise = new Promise((res) => {
+      resolve = res;
+    });
+    return { promise, resolve };
+  }
+
+  it('drops a create response that arrives after the overlay closed', async () => {
+    const post = deferred();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((_url: string, init?: RequestInit) =>
+        init?.method === 'POST' ? post.promise : Promise.resolve(toResponse({ ok: true, body: [TOKEN] })),
+      ),
+    );
+    const { rerender } = render(<Harness />);
+    fireEvent.click(await screen.findByText('admin.api.createToken'));
+
+    rerender(<Harness open={false} />);
+    post.resolve(toResponse({ ok: true, body: { token: 'SECRET999', id: 't9' } }));
+    await act(async () => {});
+
+    expect(state()).toEqual({ tokens: 0, name: '', fresh: null });
+  });
+
+  it('drops a list reload that arrives after the overlay closed', async () => {
+    const reload = deferred();
+    let listCalls = 0;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((_url: string, init?: RequestInit) => {
+        if (init?.method === 'POST') {
+          return Promise.resolve(toResponse({ ok: true, body: { token: 'SECRET999', id: 't9' } }));
+        }
+        listCalls += 1;
+        return listCalls === 1 ? Promise.resolve(toResponse({ ok: true, body: [] })) : reload.promise;
+      }),
+    );
+    const { rerender } = render(<Harness />);
+    fireEvent.click(await screen.findByText('admin.api.createToken'));
+    await screen.findByText('SECRET999');
+
+    rerender(<Harness open={false} />);
+    reload.resolve(toResponse({ ok: true, body: [TOKEN] }));
+    await act(async () => {});
+
+    expect(state()).toEqual({ tokens: 0, name: '', fresh: null });
+  });
+});
