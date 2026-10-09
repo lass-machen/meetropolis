@@ -8,14 +8,15 @@ vi.mock('react-i18next', () => ({
 
 const INVITES = [{ code: 'abc123', email: 'new@example.test', usedAt: null, createdAt: '2026-01-01T00:00:00.000Z' }];
 
-function stubApi() {
-  const fetchMock = vi.fn((_url: string, init?: RequestInit) =>
-    Promise.resolve({
-      ok: true,
-      status: 200,
-      json: () => Promise.resolve((init?.method ?? 'GET') === 'GET' ? INVITES : { ok: true }),
-    }),
-  );
+function stubApi(del: { ok: boolean; status: number } | 'network-error' = { ok: true, status: 200 }) {
+  const fetchMock = vi.fn((_url: string, init?: RequestInit) => {
+    if (init?.method === 'DELETE') {
+      return del === 'network-error'
+        ? Promise.reject(new TypeError('offline'))
+        : Promise.resolve({ ...del, json: () => Promise.resolve({}) });
+    }
+    return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(INVITES) });
+  });
   vi.stubGlobal('fetch', fetchMock);
   return fetchMock;
 }
@@ -59,5 +60,42 @@ describe('InvitesTab delete confirmation', () => {
     await waitFor(() => expect(screen.queryByText('tenant.inviteDeleteConfirm')).toBeNull());
     expect(deletes(fetchMock)).toHaveLength(0);
     expect(screen.getByText('abc123')).toBeTruthy();
+  });
+});
+
+describe('InvitesTab delete response', () => {
+  async function confirmDelete() {
+    fireEvent.click(await screen.findByText('tenant.inviteDelete'));
+    fireEvent.click(screen.getByText('confirmDialog.confirm'));
+  }
+
+  it('shows an error and keeps the invite when the server rejects the delete', async () => {
+    stubApi({ ok: false, status: 500 });
+    render(<InvitesTab apiBase="/api" />);
+
+    await confirmDelete();
+
+    expect(await screen.findByText('tenant.inviteDeleteFailed')).toBeTruthy();
+    expect(screen.getByText('abc123')).toBeTruthy();
+  });
+
+  it('shows an error and keeps the invite on a network error', async () => {
+    stubApi('network-error');
+    render(<InvitesTab apiBase="/api" />);
+
+    await confirmDelete();
+
+    expect(await screen.findByText('tenant.inviteDeleteFailed')).toBeTruthy();
+    expect(screen.getByText('abc123')).toBeTruthy();
+  });
+
+  it('treats a 404 as already deleted', async () => {
+    stubApi({ ok: false, status: 404 });
+    render(<InvitesTab apiBase="/api" />);
+
+    await confirmDelete();
+
+    await waitFor(() => expect(screen.queryByText('abc123')).toBeNull());
+    expect(screen.queryByText('tenant.inviteDeleteFailed')).toBeNull();
   });
 });

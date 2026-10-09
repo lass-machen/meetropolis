@@ -460,6 +460,7 @@
   "tenant.inviteCopy": "Kopieren",
   "tenant.inviteDelete": "Löschen",
   "tenant.inviteDeleteConfirm": "Diese Einladung löschen?",
+  "tenant.inviteDeleteFailed": "Einladung konnte nicht gelöscht werden",
   "tenant.noInvites": "Noch keine Einladungen",
   "tenant.invitesLoading": "Einladungen werden geladen…",
   "tenant.createdAt": "Erstellt am",

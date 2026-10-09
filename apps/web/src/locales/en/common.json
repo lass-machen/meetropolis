@@ -460,6 +460,7 @@
   "tenant.inviteCopy": "Copy",
   "tenant.inviteDelete": "Delete",
   "tenant.inviteDeleteConfirm": "Delete this invite?",
+  "tenant.inviteDeleteFailed": "Failed to delete invite",
   "tenant.noInvites": "No invites yet",
   "tenant.invitesLoading": "Loading invites...",
   "tenant.createdAt": "Created",
