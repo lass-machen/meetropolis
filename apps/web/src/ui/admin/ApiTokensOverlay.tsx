@@ -205,8 +205,10 @@ export function ApiTokensOverlay(props: ApiTokensOverlayProps) {
 
   const deleteToken = async (id: string) => {
     try {
-      await fetch(`${apiBase}/api-tokens/${id}`, { method: 'DELETE', credentials: 'include' });
+      const res = await fetch(`${apiBase}/api-tokens/${id}`, { method: 'DELETE', credentials: 'include' });
       await refreshList();
+      // 404 means the token is already gone, which is what the user asked for.
+      if (!res.ok && res.status !== 404) setError(t('admin.api.deleteError'));
     } catch (e: unknown) {
       setError((e instanceof Error ? e.message : null) || t('admin.api.deleteError'));
     }

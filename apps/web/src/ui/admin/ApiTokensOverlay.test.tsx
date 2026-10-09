@@ -1,6 +1,6 @@
 import React from 'react';
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { ApiTokensOverlay } from './ApiTokensOverlay';
 
 vi.mock('react-i18next', () => ({
@@ -31,11 +31,35 @@ function Harness() {
   );
 }
 
-function stubFetch(response: { ok: boolean; status?: number; body: unknown }) {
-  const fetchMock = vi.fn().mockResolvedValue({
-    ok: response.ok,
-    status: response.status ?? (response.ok ? 200 : 500),
-    json: () => Promise.resolve(response.body),
+type Reply = { ok: boolean; status?: number; body?: unknown };
+
+function toResponse(reply: Reply) {
+  return {
+    ok: reply.ok,
+    status: reply.status ?? (reply.ok ? 200 : 500),
+    json: () => Promise.resolve(reply.body ?? {}),
+  };
+}
+
+function stubFetch(reply: Reply) {
+  const fetchMock = vi.fn().mockResolvedValue(toResponse(reply));
+  vi.stubGlobal('fetch', fetchMock);
+  return fetchMock;
+}
+
+/**
+ * Routes by method. `list` is consumed in order (the last reply repeats), so a
+ * test can answer the load and the reload that follows a change differently.
+ */
+function stubApi(routes: { list: Reply[]; post?: Reply; del?: Reply }) {
+  let listCalls = 0;
+  const fetchMock = vi.fn((_url: string, init?: RequestInit) => {
+    const method = init?.method ?? 'GET';
+    if (method === 'POST') return Promise.resolve(toResponse(routes.post ?? { ok: true, body: {} }));
+    if (method === 'DELETE') return Promise.resolve(toResponse(routes.del ?? { ok: true, body: { ok: true } }));
+    const reply = routes.list[Math.min(listCalls, routes.list.length - 1)];
+    listCalls += 1;
+    return Promise.resolve(toResponse(reply));
   });
   vi.stubGlobal('fetch', fetchMock);
   return fetchMock;
@@ -72,5 +96,44 @@ describe('ApiTokensOverlay token list', () => {
 
     await waitFor(() => expect(screen.getByText('admin.api.loadError')).toBeTruthy());
     expect(screen.getByText('admin.api.noneYet')).toBeTruthy();
+  });
+});
+
+describe('ApiTokensOverlay delete', () => {
+  const LIST = { ok: true, body: [TOKEN] };
+
+  async function clickDelete() {
+    fireEvent.click(await screen.findByText('admin.api.delete'));
+  }
+
+  it('reloads the list after a successful delete without an error', async () => {
+    const fetchMock = stubApi({ list: [LIST, { ok: true, body: [] }] });
+    render(<Harness />);
+
+    await clickDelete();
+
+    await screen.findByText('admin.api.noneYet');
+    expect(screen.queryByText('admin.api.deleteError')).toBeNull();
+    expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'DELETE')).toBe(true);
+  });
+
+  it('reports a rejected delete instead of leaving the token listed silently', async () => {
+    stubApi({ list: [LIST], del: { ok: false, status: 400, body: { error: 'delete failed' } } });
+    render(<Harness />);
+
+    await clickDelete();
+
+    expect(await screen.findByText('admin.api.deleteError')).toBeTruthy();
+    expect(screen.getByText('ci-token')).toBeTruthy();
+  });
+
+  it('treats a 404 as already deleted', async () => {
+    stubApi({ list: [LIST, { ok: true, body: [] }], del: { ok: false, status: 404, body: { error: 'not found' } } });
+    render(<Harness />);
+
+    await clickDelete();
+
+    await screen.findByText('admin.api.noneYet');
+    expect(screen.queryByText('admin.api.deleteError')).toBeNull();
   });
 });
