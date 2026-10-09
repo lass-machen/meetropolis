@@ -17,6 +17,7 @@ import {
   Alert,
   NavBar,
   ChevronLeftIcon,
+  useConfirmDialog,
 } from '../../system';
 
 interface MemberSettingsProps {
@@ -127,6 +128,7 @@ function MemberRow({
   onReset: (m: Member) => void;
 }) {
   const { t } = useTranslation();
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
   return (
     <Tr>
       <Td style={{ paddingLeft: 0 }}>
@@ -160,7 +162,9 @@ function MemberRow({
               size="xs"
               variant="danger"
               onClick={() => {
-                if (confirm(t('tenant.confirmRemoveMember'))) onRemoveMember(member.id);
+                void confirm(t('tenant.confirmRemoveMember')).then((ok) => {
+                  if (ok) onRemoveMember(member.id);
+                });
               }}
               disabled={saving}
               title={t('tenant.removeMember')}
@@ -169,6 +173,7 @@ function MemberRow({
             </Button>
           )}
         </div>
+        {confirmDialog}
       </Td>
     </Tr>
   );
