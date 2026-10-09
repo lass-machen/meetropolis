@@ -1,6 +1,6 @@
 import type { Client } from 'colyseus';
 import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
-import type { TranscriptionGateChange, TranscriptionModule } from '../../transcriptionLoader.js';
+import type { TranscriptionModule } from '../../transcriptionLoader.js';
 import type { WorldRoom } from '../WorldRoom.js';
 
 const mocks = vi.hoisted(() => ({
@@ -21,6 +21,7 @@ import { createMembershipTracker, onMove } from './membershipTracker.js';
 import { isolatedIslandFor } from './islandModel.js';
 import { startAudioZoneRuntime, stopAudioZoneRuntime } from './runtime.js';
 import { TRANSCRIBER_IDENTITY } from './islandAttributes.js';
+import { recordTranscriptionGateResult } from '../lifecycle/transcriptionClearance.js';
 
 describe('buildPushPayloads', () => {
   it('computes one payload per identity, with the allow-list excluding itself', () => {
@@ -115,11 +116,15 @@ function asWorldRoom(room: FakeRoom): WorldRoom {
   return room as unknown as WorldRoom;
 }
 
-function addMember(room: FakeRoom, identity: string, island: string, auth: FakeAuth | undefined) {
+// `cleared` replays a join gate that answered `allow`; it only grants the
+// clearance while the tenant is active at that moment, like the real gate.
+function addMember(room: FakeRoom, identity: string, island: string, auth: FakeAuth | undefined, cleared = true) {
   const sessionId = `session-${identity}`;
   const send = vi.fn();
+  const client = { sessionId, auth, send } as unknown as Client;
   room.state.players.set(sessionId, { identity });
-  room.clients.push({ sessionId, auth, send } as unknown as Client);
+  room.clients.push(client);
+  if (cleared && auth?.tenantId) recordTranscriptionGateResult(client, auth.tenantId, true);
   onMove(room.audioZones.tracker, identity, island, 0);
   return send;
 }
@@ -137,7 +142,6 @@ async function flushRoom(room: FakeRoom): Promise<void> {
 }
 
 const activeTenants = new Set<string>();
-const gateListeners = new Set<(change: TranscriptionGateChange) => void>();
 const isTenantTranscriptionActive = vi.fn((tenantId: string) => activeTenants.has(tenantId));
 
 function moduleWith(extra: Partial<TranscriptionModule>): TranscriptionModule {
@@ -145,17 +149,10 @@ function moduleWith(extra: Partial<TranscriptionModule>): TranscriptionModule {
     version: 1,
     publishIslandAttributes: true,
     getJoinRequirement: () => Promise.resolve(null),
-    onGateChange: (listener) => {
-      gateListeners.add(listener);
-      return () => gateListeners.delete(listener);
-    },
+    onGateChange: () => () => undefined,
     setupRoutes: () => undefined,
     ...extra,
   };
-}
-
-function emitGateChange(change: TranscriptionGateChange): void {
-  for (const listener of gateListeners) listener(change);
 }
 
 describe('allow-list push with the transcription module', () => {
@@ -163,7 +160,6 @@ describe('allow-list push with the transcription module', () => {
     vi.useFakeTimers();
     activeTenants.clear();
     activeTenants.add(ROOM_TENANT_ID);
-    gateListeners.clear();
     isTenantTranscriptionActive.mockClear();
     mocks.loggerWarn.mockReset();
     mocks.getTranscriptionModuleSync.mockReset().mockReturnValue(moduleWith({ isTenantTranscriptionActive }));
@@ -198,6 +194,7 @@ describe('allow-list push with the transcription module', () => {
     const room = fakeRoom();
     const alice = addMember(room, 'alice', 'map-1:zone:kitchen', memberAuth('alice'));
     const bob = addMember(room, 'bob', 'map-1:zone:kitchen', memberAuth('bob'));
+    isTenantTranscriptionActive.mockClear();
 
     await flushRoom(room);
 
@@ -208,15 +205,37 @@ describe('allow-list push with the transcription module', () => {
     expect(isTenantTranscriptionActive).toHaveBeenCalledWith(ROOM_TENANT_ID);
   });
 
-  it('keeps the transcriber out while the tenant is not active', async () => {
-    activeTenants.clear();
+  it('keeps the transcriber out while the tenant is not active, despite a clearance', async () => {
     const room = fakeRoom();
     const alice = addMember(room, 'alice', 'map-1:open', memberAuth('alice'));
     addMember(room, 'bob', 'map-1:open', memberAuth('bob'));
+    activeTenants.clear();
 
     await flushRoom(room);
 
     expect(lastAllow(alice)).toEqual(['bob']);
+  });
+
+  it('keeps the transcriber out for a client without transcription clearance', async () => {
+    const room = fakeRoom();
+    const alice = addMember(room, 'alice', 'map-1:open', memberAuth('alice'), false);
+    const bob = addMember(room, 'bob', 'map-1:open', memberAuth('bob'));
+
+    await flushRoom(room);
+
+    expect(lastAllow(alice)).toEqual(['bob']);
+    expect(lastAllow(bob)).toEqual(['alice', TRANSCRIBER_IDENTITY]);
+  });
+
+  it('keeps the transcriber out for a client that joined before the tenant was active', async () => {
+    activeTenants.clear();
+    const room = fakeRoom();
+    const alice = addMember(room, 'alice', 'map-1:open', memberAuth('alice'));
+    activeTenants.add(ROOM_TENANT_ID);
+
+    await flushRoom(room);
+
+    expect(lastAllow(alice)).toEqual([]);
   });
 
   it('keeps the transcriber out for a publisher on an isolated island', async () => {
@@ -266,11 +285,11 @@ describe('allow-list push with the transcription module', () => {
   });
 
   it('keeps the transcriber out and warns when the module throws', async () => {
+    const room = fakeRoom();
+    const alice = addMember(room, 'alice', 'map-1:open', memberAuth('alice'));
     isTenantTranscriptionActive.mockImplementationOnce(() => {
       throw new Error('state unavailable');
     });
-    const room = fakeRoom();
-    const alice = addMember(room, 'alice', 'map-1:open', memberAuth('alice'));
 
     await flushRoom(room);
 
@@ -297,13 +316,13 @@ describe('allow-list push with the transcription module', () => {
   });
 });
 
-describe('transcriber admission repush (runtime)', () => {
+describe('transcriber admission in the reconciler cycle', () => {
   let room: FakeRoom;
 
   beforeEach(() => {
     vi.useFakeTimers();
     activeTenants.clear();
-    gateListeners.clear();
+    activeTenants.add(ROOM_TENANT_ID);
     mocks.getTranscriptionModuleSync.mockReset().mockReturnValue(moduleWith({ isTenantTranscriptionActive }));
     room = fakeRoom();
   });
@@ -313,55 +332,15 @@ describe('transcriber admission repush (runtime)', () => {
     vi.useRealTimers();
   });
 
-  it('repushes right after a gate change of a tenant with clients in the room', async () => {
+  it('follows a tenant state change without any event within one reconciler cycle', async () => {
     const alice = addMember(room, 'alice', 'map-1:open', memberAuth('alice'));
     startAudioZoneRuntime(asWorldRoom(room));
 
-    activeTenants.add(ROOM_TENANT_ID);
-    emitGateChange({ tenantId: ROOM_TENANT_ID });
-    await vi.advanceTimersByTimeAsync(100);
-
-    expect(alice).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(4_000 + 100);
     expect(lastAllow(alice)).toEqual([TRANSCRIBER_IDENTITY]);
 
     activeTenants.delete(ROOM_TENANT_ID);
-    emitGateChange({ tenantId: ROOM_TENANT_ID });
-    await vi.advanceTimersByTimeAsync(100);
-
-    expect(alice).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(4_000);
     expect(lastAllow(alice)).toEqual([]);
-  });
-
-  it('ignores a gate change of a tenant without clients in the room', async () => {
-    const alice = addMember(room, 'alice', 'map-1:open', memberAuth('alice'));
-    startAudioZoneRuntime(asWorldRoom(room));
-
-    emitGateChange({ tenantId: 'tenant-elsewhere' });
-    await vi.advanceTimersByTimeAsync(100);
-
-    expect(alice).not.toHaveBeenCalled();
-  });
-
-  it('heals a state change without any event within one reconciler cycle', async () => {
-    const alice = addMember(room, 'alice', 'map-1:open', memberAuth('alice'));
-    startAudioZoneRuntime(asWorldRoom(room));
-
-    activeTenants.add(ROOM_TENANT_ID);
-    await vi.advanceTimersByTimeAsync(4_000 + 100);
-
-    expect(lastAllow(alice)).toEqual([TRANSCRIBER_IDENTITY]);
-  });
-
-  it('subscribes only with the synchronous tenant state and unsubscribes on stop', () => {
-    mocks.getTranscriptionModuleSync.mockReturnValue(moduleWith({}));
-    startAudioZoneRuntime(asWorldRoom(room));
-    expect(gateListeners.size).toBe(0);
-    stopAudioZoneRuntime(asWorldRoom(room));
-
-    mocks.getTranscriptionModuleSync.mockReturnValue(moduleWith({ isTenantTranscriptionActive }));
-    startAudioZoneRuntime(asWorldRoom(room));
-    expect(gateListeners.size).toBe(1);
-    stopAudioZoneRuntime(asWorldRoom(room));
-    expect(gateListeners.size).toBe(0);
   });
 });

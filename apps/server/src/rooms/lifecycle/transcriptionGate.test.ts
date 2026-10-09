@@ -41,6 +41,7 @@ vi.mock('../../livekit.js', () => ({
 
 import { handleLivekitToken } from '../../api/routes/health.js';
 import { evaluateTranscriptionGate, enforceTranscriptionGate } from './transcriptionGate.js';
+import { hasTranscriptionClearance } from './transcriptionClearance.js';
 
 const prisma = { $disconnect: vi.fn().mockResolvedValue(undefined) } as PrismaClient;
 const getJoinRequirementMock = vi.fn<TranscriptionModule['getJoinRequirement']>(() => Promise.resolve(null));
@@ -147,6 +148,60 @@ describe('enforceTranscriptionGate', () => {
     expect(mocks.loggerWarn).toHaveBeenCalledWith(
       expect.objectContaining({ event: 'transcription.gate_tenant_unresolved', userId: 'user-1' }),
     );
+  });
+});
+
+describe('enforceTranscriptionGate transcription clearance', () => {
+  const activeTenants = new Set<string>();
+  const withTenantState = {
+    ...moduleImplementation,
+    isTenantTranscriptionActive: (tenantId: string) => activeTenants.has(tenantId),
+  } satisfies TranscriptionModule;
+
+  beforeEach(() => {
+    activeTenants.clear();
+    activeTenants.add('tenant-1');
+    mocks.getTranscriptionModuleSync.mockReturnValue(withTenantState);
+  });
+
+  it('clears a client whose join passed the gate while the tenant was active', async () => {
+    const client = makeClient();
+
+    await expect(enforceTranscriptionGate(client, prisma, 'tenant-1', 'user-1')).resolves.toBe(false);
+
+    expect(hasTranscriptionClearance(client, 'tenant-1')).toBe(true);
+    expect(hasTranscriptionClearance(client, 'tenant-2')).toBe(false);
+  });
+
+  it('does not clear a client that joined while the tenant was not active', async () => {
+    activeTenants.clear();
+    const client = makeClient();
+
+    await expect(enforceTranscriptionGate(client, prisma, 'tenant-1', 'user-1')).resolves.toBe(false);
+
+    expect(hasTranscriptionClearance(client, 'tenant-1')).toBe(false);
+  });
+
+  it('does not clear a client that the gate rejected', async () => {
+    getJoinRequirementMock.mockResolvedValue({ code: 'transcription_consent_required' });
+    const rejected = makeClient();
+    await enforceTranscriptionGate(rejected, prisma, 'tenant-1', 'user-1');
+
+    getJoinRequirementMock.mockRejectedValue(new Error('gate lookup failed'));
+    const unavailable = makeClient();
+    await enforceTranscriptionGate(unavailable, prisma, 'tenant-1', 'user-1');
+
+    expect(hasTranscriptionClearance(rejected, 'tenant-1')).toBe(false);
+    expect(hasTranscriptionClearance(unavailable, 'tenant-1')).toBe(false);
+  });
+
+  it('does not clear any client without the synchronous tenant state', async () => {
+    mocks.getTranscriptionModuleSync.mockReturnValue(moduleImplementation);
+    const client = makeClient();
+
+    await enforceTranscriptionGate(client, prisma, 'tenant-1', 'user-1');
+
+    expect(hasTranscriptionClearance(client, 'tenant-1')).toBe(false);
   });
 });
 
