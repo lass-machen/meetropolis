@@ -96,6 +96,7 @@
   "admin.api.responseHint": "Antwort",
   "admin.api.notes": "Hinweise: Der Aufruf wirkt ausschließlich auf deine eigenen Sitzungen, also auf jedes Gerät, mit dem du gerade in der Welt bist; andere Teilnehmende erreicht er nicht. Nur Ausschalten (false) ist erlaubt; Geräte aktivieren oder DND aus der Ferne setzen ist nicht möglich. Der Aufruf funktioniert nur, solange du selbst online bist, und delivered zählt die erreichten eigenen Sitzungen.",
   "admin.api.example": "Beispiel",
+  "admin.api.loadError": "Tokens konnten nicht geladen werden",
   "admin.api.createError": "Fehler beim Erstellen",
   "admin.api.deleteError": "Fehler beim Löschen",
   "admin.users.back": "Zurück",

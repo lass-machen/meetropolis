@@ -2,8 +2,8 @@ import React from 'react';
 import { Modal } from '../system/Modal';
 import { Input } from '../system/Input';
 import { Button } from '../system/Button';
-import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { fetchApiTokens, useApiTokensLoader } from '../../features/admin/useApiTokens';
 
 type ApiToken = { id: string; name?: string | null; createdAt: string; lastUsedAt?: string | null };
 
@@ -163,14 +163,25 @@ export function ApiTokensOverlay(props: ApiTokensOverlayProps) {
   const { t } = useTranslation();
   const [error, setError] = React.useState<string | null>(null);
 
-  useEffect(() => {
-    if (open) {
-      setError(null);
-      void fetch(`${apiBase}/api-tokens`, { credentials: 'include' })
-        .then((r) => r.json() as Promise<ApiToken[]>)
-        .then((list) => setApiTokens(list));
+  // The single place that loads the list on open; it also resets the fresh token.
+  useApiTokensLoader({
+    apiBase,
+    open,
+    setFreshToken,
+    setApiTokens,
+    onLoadError: (failed) => setError(failed ? t('admin.api.loadError') : null),
+  });
+
+  // Reloads the list after a change. A failed reload empties the list and says
+  // so, rather than leaving a stale or malformed one on screen.
+  const refreshList = async () => {
+    try {
+      setApiTokens(await fetchApiTokens(apiBase));
+    } catch {
+      setApiTokens([]);
+      setError(t('admin.api.loadError'));
     }
-  }, [open, apiBase, setApiTokens]);
+  };
 
   const createToken = async () => {
     try {
@@ -184,10 +195,7 @@ export function ApiTokensOverlay(props: ApiTokensOverlayProps) {
       const data = (await res.json()) as CreateTokenResponse;
       setFreshToken(data.token);
       setNewTokenName('');
-      const list = (await fetch(`${apiBase}/api-tokens`, { credentials: 'include' }).then((r) =>
-        r.json(),
-      )) as ApiToken[];
-      setApiTokens(list);
+      await refreshList();
     } catch (e: unknown) {
       // Internal error messages from the server are surfaced unchanged; the
       // translated fallback is used when no message is available.
@@ -198,10 +206,7 @@ export function ApiTokensOverlay(props: ApiTokensOverlayProps) {
   const deleteToken = async (id: string) => {
     try {
       await fetch(`${apiBase}/api-tokens/${id}`, { method: 'DELETE', credentials: 'include' });
-      const list = (await fetch(`${apiBase}/api-tokens`, { credentials: 'include' }).then((r) =>
-        r.json(),
-      )) as ApiToken[];
-      setApiTokens(list);
+      await refreshList();
     } catch (e: unknown) {
       setError((e instanceof Error ? e.message : null) || t('admin.api.deleteError'));
     }

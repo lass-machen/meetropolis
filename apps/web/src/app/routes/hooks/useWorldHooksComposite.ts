@@ -1,5 +1,4 @@
 import React from 'react';
-import { useApiTokensLoader } from '../../../features/admin/useApiTokens';
 import { useDoNotDisturb } from '../../../av/hooks/useDoNotDisturb';
 import { useDndRestore } from '../../../av/hooks/useDndRestore';
 import { useRosterPresence } from '../../../features/roster/useRosterPresence';
@@ -44,12 +43,6 @@ export function useWorldRealtimeHooks(params: {
 }) {
   const { apiBase, authChecked, me, refs, ui, editor, setEditor, buildParticipantList, applyVolumesToUi } = params;
 
-  useApiTokensLoader({
-    apiBase,
-    open: ui.apiModalOpen,
-    setFreshToken: ui.setFreshToken,
-    setApiTokens: ui.setApiTokens,
-  });
   useDoNotDisturb({
     enabled: !!(authChecked && me),
     avRef: refs.avRef,
