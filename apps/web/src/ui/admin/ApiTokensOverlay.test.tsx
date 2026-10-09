@@ -1,6 +1,6 @@
 import React from 'react';
-import { describe, it, expect, vi, afterEach } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { ApiTokensOverlay } from './ApiTokensOverlay';
 
 vi.mock('react-i18next', () => ({
@@ -128,9 +128,31 @@ describe('ApiTokensOverlay messages', () => {
 describe('ApiTokensOverlay delete', () => {
   const LIST = { ok: true, body: [TOKEN] };
 
+  beforeEach(() => {
+    vi.stubGlobal(
+      'confirm',
+      vi.fn(() => true),
+    );
+  });
+
   async function clickDelete() {
     fireEvent.click(await screen.findByText('admin.api.delete'));
   }
+
+  it('asks before deleting and sends nothing when the user declines', async () => {
+    const fetchMock = stubApi({ list: [LIST] });
+    vi.stubGlobal(
+      'confirm',
+      vi.fn(() => false),
+    );
+    render(<Harness />);
+
+    await clickDelete();
+
+    expect(confirm).toHaveBeenCalledWith('admin.api.confirmDelete');
+    expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'DELETE')).toBe(false);
+    expect(screen.getByText('ci-token')).toBeTruthy();
+  });
 
   it('reloads the list after a successful delete without an error', async () => {
     const fetchMock = stubApi({ list: [LIST, { ok: true, body: [] }] });
@@ -257,5 +279,35 @@ describe('ApiTokensOverlay state hygiene', () => {
     rerender(<Harness open={false} />);
 
     expect(state()).toEqual({ tokens: 0, name: '', fresh: null });
+  });
+});
+
+describe('ApiTokensOverlay pending state', () => {
+  it('sends one create for a double click and disables the button meanwhile', async () => {
+    let releasePost: (r: unknown) => void = () => {};
+    const fetchMock = vi.fn((_url: string, init?: RequestInit) => {
+      if (init?.method === 'POST') {
+        return new Promise((resolve) => {
+          releasePost = resolve;
+        });
+      }
+      return Promise.resolve(toResponse({ ok: true, body: [] }));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    render(<Harness />);
+    const button = (await screen.findByText('admin.api.createToken')).closest('button')!;
+
+    // Both clicks land before React re-renders, as a fast double click can.
+    act(() => {
+      button.click();
+      button.click();
+    });
+
+    await waitFor(() => expect(button.disabled).toBe(true));
+    expect(fetchMock.mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(1);
+
+    releasePost(toResponse({ ok: true, body: { token: 'SECRET123', id: 't2' } }));
+    await screen.findByText('SECRET123');
+    await waitFor(() => expect(button.disabled).toBe(false));
   });
 });
