@@ -264,6 +264,7 @@ export function ApiTokensOverlay(props: ApiTokensOverlayProps) {
       <div style={{ display: 'grid', gap: 10 }}>
         {error && <ErrorBanner error={error} onDismiss={() => setError(null)} />}
         <div style={{ fontSize: 13, color: 'var(--fg-subtle)' }}>{t('admin.api.helper')}</div>
+        <div style={{ fontSize: 13, fontWeight: 600 }}>{t('admin.api.securityHint')}</div>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
           <Input
             value={newTokenName}

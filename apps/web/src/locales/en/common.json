@@ -79,6 +79,7 @@
   "auth.passwordUpdated": "Password updated",
   "admin.api.title": "API access",
   "admin.api.helper": "With personal tokens you can use the API to remotely turn off mic, camera or screenshare in your own sessions (protective actions only) while you are online.",
+  "admin.api.securityHint": "Treat a token like a password: it does not expire and stays valid until you delete it, for every API route that accepts token sign-in, with all the permissions of your account, including admin permissions if you have them. Do not share it, and delete it when you no longer need it.",
   "admin.api.newTokenPlaceholder": "Token name (optional)",
   "admin.api.createToken": "Create new token",
   "admin.api.newTokenReveal": "Your new token (shown only once):",
