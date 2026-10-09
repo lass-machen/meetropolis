@@ -147,6 +147,43 @@ describe('useAVManager first-interaction connect', () => {
   });
 });
 
+describe('useAVManager teardown', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    avStub.construct.mockClear();
+    avStub.switchTo.mockClear();
+    avStub.switchTo.mockImplementation(async () => {});
+    avStub.calls.length = 0;
+    avStub.instances.length = 0;
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  // AVManager.dispose() leaves LiveKit before its teardown (avManager.test.ts).
+  it('disposes the manager when the world unmounts', async () => {
+    const { view, avRef } = setup();
+    await fireGesture();
+    expect(avRef.current).toBe(avStub.instances[0]);
+
+    view.unmount();
+
+    expect(avStub.calls).toEqual(['dispose']);
+    expect(avRef.current).toBeNull();
+  });
+
+  it('disposes a failed attempt before the next one, so a retry starts clean', async () => {
+    const { avRef } = setup();
+    avStub.switchTo.mockRejectedValueOnce(new Error('livekit unreachable'));
+
+    await fireGesture();
+
+    expect(avStub.calls).toEqual(['dispose']);
+    expect(avRef.current).toBeNull();
+  });
+});
+
 describe('useAVManager suspension on terminal world errors', () => {
   beforeEach(() => {
     vi.useFakeTimers();

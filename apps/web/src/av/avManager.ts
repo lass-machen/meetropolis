@@ -38,6 +38,8 @@ export type { AVDevices } from './core/types';
 // Trailing debounce for republishing the mic after a live avSettings change.
 // Coalesces rapid slider drags / checkbox toggles into a single republish.
 const REPUBLISH_DEBOUNCE_MS = readTimeoutMs('VITE_AV_REPUBLISH_DEBOUNCE_MS', 600);
+// Upper bound for the leave that dispose() waits for before its teardown.
+const LEAVE_BEFORE_TEARDOWN_MS = 5_000;
 
 // Signature of the ONLY avSettings fields that actually affect the capture
 // pipeline today (see buildAudioPipeline.ts / buildAudioConstraints()).
@@ -462,13 +464,27 @@ export class AVManager implements Disposable {
       this._republishTimer = undefined;
     }
 
-    this.connectionManager.abandon().catch(() => {});
-
     // The DND listeners are cleared below without firing; release the
     // ducking suppression explicitly so the audio session does not stay
     // stuck in 'playback' after the manager is gone.
     setAudioDuckingDndActive(false);
 
+    // Leave first, tear down after: leave() unpublishes the local tracks and
+    // disconnects through the state machine and track manager, which the
+    // teardown destroys. Tearing down at once left the room connected with the
+    // microphone still published. A hanging leave delays the teardown by
+    // LEAVE_BEFORE_TEARDOWN_MS at most; it still disconnects the room it holds.
+    let leaveTimer: ReturnType<typeof setTimeout> | undefined;
+    const leaveBound = new Promise<void>((resolve) => {
+      leaveTimer = setTimeout(resolve, LEAVE_BEFORE_TEARDOWN_MS);
+    });
+    void Promise.race([this.connectionManager.abandon().catch(() => undefined), leaveBound]).finally(() => {
+      clearTimeout(leaveTimer);
+      this.teardown();
+    });
+  }
+
+  private teardown(): void {
     this.stateMachine.dispose();
     this.signalMonitor.dispose();
     this.trackManager.dispose();
