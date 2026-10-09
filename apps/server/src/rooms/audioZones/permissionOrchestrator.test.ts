@@ -116,8 +116,8 @@ function asWorldRoom(room: FakeRoom): WorldRoom {
   return room as unknown as WorldRoom;
 }
 
-// `cleared` replays a join gate that answered `allow`; it only grants the
-// clearance while the tenant is active at that moment, like the real gate.
+// `cleared` replays a join gate whose module verified the user's consent
+// (evaluateJoin().consentVerified).
 function addMember(room: FakeRoom, identity: string, island: string, auth: FakeAuth | undefined, cleared = true) {
   const sessionId = `session-${identity}`;
   const send = vi.fn();
@@ -227,15 +227,17 @@ describe('allow-list push with the transcription module', () => {
     expect(lastAllow(bob)).toEqual(['alice', TRANSCRIBER_IDENTITY]);
   });
 
-  it('keeps the transcriber out for a client that joined before the tenant was active', async () => {
+  it('admits a verified client only once its tenant is active', async () => {
     activeTenants.clear();
     const room = fakeRoom();
     const alice = addMember(room, 'alice', 'map-1:open', memberAuth('alice'));
-    activeTenants.add(ROOM_TENANT_ID);
 
     await flushRoom(room);
-
     expect(lastAllow(alice)).toEqual([]);
+
+    activeTenants.add(ROOM_TENANT_ID);
+    await flushRoom(room);
+    expect(lastAllow(alice)).toEqual([TRANSCRIBER_IDENTITY]);
   });
 
   it('keeps the transcriber out for a publisher on an isolated island', async () => {

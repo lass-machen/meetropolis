@@ -14,17 +14,29 @@ export const TRANSCRIPTION_GATE_UNAVAILABLE_CODE = 4503;
 
 export type TranscriptionGateDecision = 'allow' | 'consent_required' | 'unavailable';
 
-export async function evaluateTranscriptionGate(
+export interface TranscriptionGateEvaluation {
+  decision: TranscriptionGateDecision;
+  // The module checked the user's consent and found it valid (evaluateJoin).
+  consentVerified: boolean;
+}
+
+export async function evaluateTranscriptionJoin(
   prisma: PrismaClient,
   tenantId: string,
   userId: string,
-): Promise<TranscriptionGateDecision> {
+): Promise<TranscriptionGateEvaluation> {
   try {
     const transcriptionModule = getTranscriptionModuleSync();
-    if (!transcriptionModule) return 'allow';
+    if (!transcriptionModule) return { decision: 'allow', consentVerified: false };
 
+    if (transcriptionModule.evaluateJoin) {
+      const evaluation = await transcriptionModule.evaluateJoin(prisma, { tenantId, userId });
+      if (evaluation.requirement) return { decision: 'consent_required', consentVerified: false };
+      return { decision: 'allow', consentVerified: evaluation.consentVerified === true };
+    }
+    // An allow from getJoinRequirement alone proves no consent: no clearance.
     const requirement = await transcriptionModule.getJoinRequirement(prisma, { tenantId, userId });
-    return requirement ? 'consent_required' : 'allow';
+    return { decision: requirement ? 'consent_required' : 'allow', consentVerified: false };
   } catch (error) {
     logger.warn({
       event: 'transcription.gate_check_failed',
@@ -32,8 +44,16 @@ export async function evaluateTranscriptionGate(
       userId,
       error: error instanceof Error ? error.message : String(error),
     });
-    return 'unavailable';
+    return { decision: 'unavailable', consentVerified: false };
   }
+}
+
+export async function evaluateTranscriptionGate(
+  prisma: PrismaClient,
+  tenantId: string,
+  userId: string,
+): Promise<TranscriptionGateDecision> {
+  return (await evaluateTranscriptionJoin(prisma, tenantId, userId)).decision;
 }
 
 export async function enforceTranscriptionGate(
@@ -44,8 +64,9 @@ export async function enforceTranscriptionGate(
 ): Promise<boolean> {
   let decision: TranscriptionGateDecision;
   if (tenantId) {
-    decision = await evaluateTranscriptionGate(prisma, tenantId, userId);
-    recordTranscriptionGateResult(client, tenantId, decision === 'allow');
+    const evaluation = await evaluateTranscriptionJoin(prisma, tenantId, userId);
+    decision = evaluation.decision;
+    recordTranscriptionGateResult(client, tenantId, evaluation.consentVerified);
   } else {
     // Only reached when the caller's tenant lookup failed (NPCs return before the
     // limiter, and a tenant-less join with a successful lookup skips the gate).

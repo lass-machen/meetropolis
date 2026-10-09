@@ -9,6 +9,12 @@ export const EXPECTED_TRANSCRIPTION_MODULE_VERSION = 1 as const;
 
 export type TranscriptionJoinRequirement = { code: 'transcription_consent_required' } | null;
 
+export interface TranscriptionJoinEvaluation {
+  requirement: TranscriptionJoinRequirement;
+  /** True only when this evaluation checked the user's consent and found it valid. */
+  consentVerified: boolean;
+}
+
 export interface TranscriptionGateChange {
   tenantId: string;
   userId?: string;
@@ -33,6 +39,13 @@ export interface TranscriptionModule {
   ): Promise<TranscriptionJoinRequirement>;
   onGateChange(listener: (e: TranscriptionGateChange) => void): () => void;
   /**
+   * Optional: the join requirement plus whether this evaluation checked the
+   * user's consent for the tenant and found it valid. The transcriber joins a
+   * publisher's SFU allow-list on that verdict only; without this method no
+   * client is ever cleared for it (fail-closed).
+   */
+  evaluateJoin?(prisma: PrismaClient, ctx: { tenantId: string; userId: string }): Promise<TranscriptionJoinEvaluation>;
+  /**
    * Optional, synchronous and free of database access: true while the
    * tenant's transcription is running. Read on the SFU allow-list push path,
    * so a module serves it from state it already keeps. A module without it
@@ -47,6 +60,7 @@ export const transcriptionModuleSchema = z.object({
   publishIslandAttributes: z.boolean(),
   getJoinRequirement: z.function(),
   onGateChange: z.function(),
+  evaluateJoin: z.function().optional(),
   isTenantTranscriptionActive: z.function().optional(),
   setupRoutes: z.function(),
 });
@@ -61,6 +75,19 @@ function unwrapDefaultExport(moduleValue: unknown): unknown {
   return withDefault.default ?? moduleValue;
 }
 
+/** Binds a parsed module to the contract, optional methods included. */
+export function toTranscriptionModule(mod: z.infer<typeof transcriptionModuleSchema>): TranscriptionModule {
+  return {
+    version: EXPECTED_TRANSCRIPTION_MODULE_VERSION,
+    publishIslandAttributes: mod.publishIslandAttributes,
+    getJoinRequirement: mod.getJoinRequirement as TranscriptionModule['getJoinRequirement'],
+    onGateChange: mod.onGateChange as TranscriptionModule['onGateChange'],
+    evaluateJoin: mod.evaluateJoin as TranscriptionModule['evaluateJoin'],
+    isTenantTranscriptionActive: mod.isTenantTranscriptionActive as TranscriptionModule['isTenantTranscriptionActive'],
+    setupRoutes: mod.setupRoutes as TranscriptionModule['setupRoutes'],
+  };
+}
+
 export async function getTranscriptionModule(): Promise<TranscriptionModule | null> {
   if (loadAttempted) return cached;
   loadAttempted = true;
@@ -68,17 +95,7 @@ export async function getTranscriptionModule(): Promise<TranscriptionModule | nu
   try {
     const moduleName: string = '@meetropolis/transcription';
     const modUnknown: unknown = await import(moduleName);
-    const mod = transcriptionModuleSchema.parse(unwrapDefaultExport(modUnknown));
-
-    cached = {
-      version: EXPECTED_TRANSCRIPTION_MODULE_VERSION,
-      publishIslandAttributes: mod.publishIslandAttributes,
-      getJoinRequirement: mod.getJoinRequirement as TranscriptionModule['getJoinRequirement'],
-      onGateChange: mod.onGateChange as TranscriptionModule['onGateChange'],
-      isTenantTranscriptionActive:
-        mod.isTenantTranscriptionActive as TranscriptionModule['isTenantTranscriptionActive'],
-      setupRoutes: mod.setupRoutes as TranscriptionModule['setupRoutes'],
-    };
+    cached = toTranscriptionModule(transcriptionModuleSchema.parse(unwrapDefaultExport(modUnknown)));
 
     logger.info({ event: 'transcription.module_loaded', version: EXPECTED_TRANSCRIPTION_MODULE_VERSION });
     return cached;

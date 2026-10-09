@@ -1,8 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   EXPECTED_TRANSCRIPTION_MODULE_VERSION,
   getTranscriptionModule,
   getTranscriptionModuleSync,
+  toTranscriptionModule,
   transcriptionModuleSchema,
 } from './transcriptionLoader.js';
 
@@ -39,6 +40,45 @@ describe('transcriptionLoader', () => {
     expect(parsed.data?.isTenantTranscriptionActive).toEqual(expect.any(Function));
   });
 
+  it('accepts the optional join verdict and binds both optional methods to the contract', async () => {
+    const evaluateJoin = vi.fn(() => Promise.resolve({ requirement: null, consentVerified: true }));
+    const isTenantTranscriptionActive = vi.fn(() => true);
+    const parsed = transcriptionModuleSchema.parse({
+      version: EXPECTED_TRANSCRIPTION_MODULE_VERSION,
+      publishIslandAttributes: true,
+      getJoinRequirement: () => Promise.resolve(null),
+      onGateChange: () => () => undefined,
+      evaluateJoin,
+      isTenantTranscriptionActive,
+      setupRoutes: () => undefined,
+    });
+
+    const bound = toTranscriptionModule(parsed);
+    const prisma = {} as Parameters<NonNullable<typeof bound.evaluateJoin>>[0];
+    await expect(bound.evaluateJoin?.(prisma, { tenantId: 't1', userId: 'u1' })).resolves.toEqual({
+      requirement: null,
+      consentVerified: true,
+    });
+    expect(evaluateJoin).toHaveBeenCalledWith(prisma, { tenantId: 't1', userId: 'u1' });
+    expect(bound.isTenantTranscriptionActive?.('t1')).toBe(true);
+    expect(isTenantTranscriptionActive).toHaveBeenCalledWith('t1');
+  });
+
+  it('binds a module without the optional methods as one without them', () => {
+    const bound = toTranscriptionModule(
+      transcriptionModuleSchema.parse({
+        version: EXPECTED_TRANSCRIPTION_MODULE_VERSION,
+        publishIslandAttributes: false,
+        getJoinRequirement: () => Promise.resolve(null),
+        onGateChange: () => () => undefined,
+        setupRoutes: () => undefined,
+      }),
+    );
+
+    expect(bound.evaluateJoin).toBeUndefined();
+    expect(bound.isTenantTranscriptionActive).toBeUndefined();
+  });
+
   it('rejects incompatible or incomplete module contracts', () => {
     const compatible = {
       version: EXPECTED_TRANSCRIPTION_MODULE_VERSION,
@@ -54,5 +94,6 @@ describe('transcriptionLoader', () => {
     expect(transcriptionModuleSchema.safeParse({ ...compatible, isTenantTranscriptionActive: true }).success).toBe(
       false,
     );
+    expect(transcriptionModuleSchema.safeParse({ ...compatible, evaluateJoin: true }).success).toBe(false);
   });
 });

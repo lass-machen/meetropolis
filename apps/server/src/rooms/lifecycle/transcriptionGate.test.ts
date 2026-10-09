@@ -152,29 +152,36 @@ describe('enforceTranscriptionGate', () => {
 });
 
 describe('enforceTranscriptionGate transcription clearance', () => {
+  const evaluateJoinMock = vi.fn<NonNullable<TranscriptionModule['evaluateJoin']>>();
   const activeTenants = new Set<string>();
-  const withTenantState = {
+  const withVerdict = {
     ...moduleImplementation,
+    evaluateJoin: (...args: Parameters<NonNullable<TranscriptionModule['evaluateJoin']>>) => evaluateJoinMock(...args),
     isTenantTranscriptionActive: (tenantId: string) => activeTenants.has(tenantId),
   } satisfies TranscriptionModule;
 
   beforeEach(() => {
     activeTenants.clear();
     activeTenants.add('tenant-1');
-    mocks.getTranscriptionModuleSync.mockReturnValue(withTenantState);
+    evaluateJoinMock.mockReset().mockResolvedValue({ requirement: null, consentVerified: true });
+    mocks.getTranscriptionModuleSync.mockReturnValue(withVerdict);
   });
 
-  it('clears a client whose join passed the gate while the tenant was active', async () => {
+  it('clears a client whose consent the module verified', async () => {
     const client = makeClient();
 
     await expect(enforceTranscriptionGate(client, prisma, 'tenant-1', 'user-1')).resolves.toBe(false);
 
+    expect(evaluateJoinMock).toHaveBeenCalledWith(prisma, { tenantId: 'tenant-1', userId: 'user-1' });
+    expect(getJoinRequirementMock).not.toHaveBeenCalled();
     expect(hasTranscriptionClearance(client, 'tenant-1')).toBe(true);
     expect(hasTranscriptionClearance(client, 'tenant-2')).toBe(false);
   });
 
-  it('does not clear a client that joined while the tenant was not active', async () => {
-    activeTenants.clear();
+  it('admits but does not clear a client whose consent was not verified, whatever the tenant state says', async () => {
+    // The tenant left the gated statuses in the database while the synchronous
+    // state still reads active: the join is allowed, but proves no consent.
+    evaluateJoinMock.mockResolvedValue({ requirement: null, consentVerified: false });
     const client = makeClient();
 
     await expect(enforceTranscriptionGate(client, prisma, 'tenant-1', 'user-1')).resolves.toBe(false);
@@ -182,26 +189,53 @@ describe('enforceTranscriptionGate transcription clearance', () => {
     expect(hasTranscriptionClearance(client, 'tenant-1')).toBe(false);
   });
 
-  it('does not clear a client that the gate rejected', async () => {
-    getJoinRequirementMock.mockResolvedValue({ code: 'transcription_consent_required' });
-    const rejected = makeClient();
-    await enforceTranscriptionGate(rejected, prisma, 'tenant-1', 'user-1');
+  it('clears on the verdict alone, without the tenant state', async () => {
+    activeTenants.clear();
+    const client = makeClient();
 
-    getJoinRequirementMock.mockRejectedValue(new Error('gate lookup failed'));
+    await enforceTranscriptionGate(client, prisma, 'tenant-1', 'user-1');
+
+    expect(hasTranscriptionClearance(client, 'tenant-1')).toBe(true);
+  });
+
+  it('rejects and does not clear a client whose verdict carries a requirement', async () => {
+    evaluateJoinMock.mockResolvedValue({
+      requirement: { code: 'transcription_consent_required' },
+      consentVerified: true,
+    });
+    const rejected = makeClient();
+    await expect(enforceTranscriptionGate(rejected, prisma, 'tenant-1', 'user-1')).resolves.toBe(true);
+    expect(rejected.error).toHaveBeenCalledWith(4008, 'transcription_consent_required');
+
+    evaluateJoinMock.mockRejectedValue(new Error('gate lookup failed'));
     const unavailable = makeClient();
-    await enforceTranscriptionGate(unavailable, prisma, 'tenant-1', 'user-1');
+    await expect(enforceTranscriptionGate(unavailable, prisma, 'tenant-1', 'user-1')).resolves.toBe(true);
+    expect(unavailable.error).toHaveBeenCalledWith(4503, 'transcription_gate_unavailable');
 
     expect(hasTranscriptionClearance(rejected, 'tenant-1')).toBe(false);
     expect(hasTranscriptionClearance(unavailable, 'tenant-1')).toBe(false);
   });
 
-  it('does not clear any client without the synchronous tenant state', async () => {
-    mocks.getTranscriptionModuleSync.mockReturnValue(moduleImplementation);
+  it('does not clear any client of a module without the verdict', async () => {
+    mocks.getTranscriptionModuleSync.mockReturnValue({
+      ...moduleImplementation,
+      isTenantTranscriptionActive: (tenantId: string) => activeTenants.has(tenantId),
+    });
     const client = makeClient();
 
-    await enforceTranscriptionGate(client, prisma, 'tenant-1', 'user-1');
+    await expect(enforceTranscriptionGate(client, prisma, 'tenant-1', 'user-1')).resolves.toBe(false);
 
+    expect(getJoinRequirementMock).toHaveBeenCalledTimes(1);
     expect(hasTranscriptionClearance(client, 'tenant-1')).toBe(false);
+  });
+
+  it('answers the LiveKit token gate from the verdict as well', async () => {
+    evaluateJoinMock.mockResolvedValue({
+      requirement: { code: 'transcription_consent_required' },
+      consentVerified: false,
+    });
+
+    await expect(evaluateTranscriptionGate(prisma, 'tenant-1', 'user-1')).resolves.toBe('consent_required');
   });
 });
 
