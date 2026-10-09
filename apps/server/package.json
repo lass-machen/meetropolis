@@ -63,16 +63,16 @@
     "@types/express": "^5.0.6",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/multer": "^2.3.0",
-    "@types/node": "^26.6.2",
+    "@types/node": "^26.6.4",
     "@types/nodemailer": "^8.0.2",
     "@types/pg": "^8.21.0",
     "@types/pngjs": "^6.0.5",
     "@types/supertest": "^7.2.1",
     "prisma": "^7.10.0",
-    "supertest": "^7.3.0",
+    "supertest": "^7.3.1",
     "tsx": "^4.23.15",
     "typescript": "^6.0.3",
-    "vitest": "^5.0.2"
+    "vitest": "^5.0.3"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
