@@ -182,6 +182,10 @@ export function ApiTokensOverlay(props: ApiTokensOverlayProps) {
   // Row waiting for its second click. An in-app confirmation: the desktop
   // shell's WebView has no usable window.confirm.
   const [pendingDeleteId, setPendingDeleteId] = React.useState<string | null>(null);
+  // Bumped on every close. A request that started before the close compares
+  // its own generation on return and drops its result, so a late reply cannot
+  // put a secret or a list back into state that was just cleared.
+  const generationRef = React.useRef(0);
 
   // The single place that loads the list on open; it also resets the fresh token.
   useApiTokensLoader({
@@ -197,12 +201,10 @@ export function ApiTokensOverlay(props: ApiTokensOverlayProps) {
 
   // Closing drops the secret, the list and the half-typed name, so none of it
   // is rendered again on the next open (or by the next user after a re-login).
-  // The setters are listed as dependencies on purpose: they are the stable
-  // useState setters of WorldApp. A caller passing unstable functions would
-  // run this cleanup on every render and wipe the state.
   React.useEffect(() => {
     if (!open) return;
     return () => {
+      generationRef.current += 1;
       setFreshToken(null);
       setApiTokens([]);
       setNewTokenName('');
@@ -213,11 +215,14 @@ export function ApiTokensOverlay(props: ApiTokensOverlayProps) {
   // Reloads the list after a change. A failed reload empties the list and says
   // so, rather than leaving a stale or malformed one on screen.
   const refreshList = async () => {
+    const generation = generationRef.current;
     try {
       const list = await fetchApiTokens(apiBase);
+      if (generation !== generationRef.current) return;
       setApiTokens(list);
       setListState('loaded');
     } catch {
+      if (generation !== generationRef.current) return;
       setApiTokens([]);
       setListState('failed');
       setError(t('admin.api.loadError'));
@@ -243,6 +248,7 @@ export function ApiTokensOverlay(props: ApiTokensOverlayProps) {
 
   const createToken = () =>
     runExclusive(async () => {
+      const generation = generationRef.current;
       try {
         const res = await fetch(`${apiBase}/api-tokens`, {
           method: 'POST',
@@ -252,24 +258,27 @@ export function ApiTokensOverlay(props: ApiTokensOverlayProps) {
         });
         if (!res.ok) throw new Error(`token creation failed with status ${res.status}`);
         const data = (await res.json()) as CreateTokenResponse;
+        if (generation !== generationRef.current) return;
         setFreshToken(data.token);
         setNewTokenName('');
         await refreshList();
       } catch {
-        setError(t('admin.api.createError'));
+        if (generation === generationRef.current) setError(t('admin.api.createError'));
       }
     });
 
   const deleteToken = (id: string) => {
     setPendingDeleteId(null);
     return runExclusive(async () => {
+      const generation = generationRef.current;
       try {
         const res = await fetch(`${apiBase}/api-tokens/${id}`, { method: 'DELETE', credentials: 'include' });
         await refreshList();
+        if (generation !== generationRef.current) return;
         // 404 means the token is already gone, which is what the user asked for.
         if (!res.ok && res.status !== 404) setError(t('admin.api.deleteError'));
       } catch {
-        setError(t('admin.api.deleteError'));
+        if (generation === generationRef.current) setError(t('admin.api.deleteError'));
       }
     });
   };
