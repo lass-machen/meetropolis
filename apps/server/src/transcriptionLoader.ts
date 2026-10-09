@@ -32,6 +32,13 @@ export interface TranscriptionModule {
     ctx: { tenantId: string; userId: string },
   ): Promise<TranscriptionJoinRequirement>;
   onGateChange(listener: (e: TranscriptionGateChange) => void): () => void;
+  /**
+   * Optional, synchronous and free of database access: true while the
+   * tenant's transcription is running. Read on the SFU allow-list push path,
+   * so a module serves it from state it already keeps. A module without it
+   * leaves the transcriber out of every allow-list (fail-closed).
+   */
+  isTenantTranscriptionActive?(tenantId: string): boolean;
   setupRoutes(app: Express, deps: TranscriptionRouteDeps): void;
 }
 
@@ -40,6 +47,7 @@ export const transcriptionModuleSchema = z.object({
   publishIslandAttributes: z.boolean(),
   getJoinRequirement: z.function(),
   onGateChange: z.function(),
+  isTenantTranscriptionActive: z.function().optional(),
   setupRoutes: z.function(),
 });
 
@@ -67,6 +75,8 @@ export async function getTranscriptionModule(): Promise<TranscriptionModule | nu
       publishIslandAttributes: mod.publishIslandAttributes,
       getJoinRequirement: mod.getJoinRequirement as TranscriptionModule['getJoinRequirement'],
       onGateChange: mod.onGateChange as TranscriptionModule['onGateChange'],
+      isTenantTranscriptionActive:
+        mod.isTenantTranscriptionActive as TranscriptionModule['isTenantTranscriptionActive'],
       setupRoutes: mod.setupRoutes as TranscriptionModule['setupRoutes'],
     };
 
