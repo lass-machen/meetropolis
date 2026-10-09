@@ -141,6 +141,13 @@ describe('buildTopRightMenu API tokens entry', () => {
     expect(handleOpenApi).toHaveBeenCalledTimes(1);
   });
 
+  it('hides the entry while the role is unknown', () => {
+    renderMenuFor(undefined);
+
+    expect(screen.queryByRole('menuitem', { name: 'topRightMenu.api' })).toBeNull();
+    expect(buildTopRightMenu(propsFor(undefined))).not.toHaveProperty('onOpenApi');
+  });
+
   it('hides the entry from a guest', () => {
     renderMenuFor('guest');
 
