@@ -106,6 +106,13 @@ describe('ApiTokensOverlay token list', () => {
 });
 
 describe('ApiTokensOverlay messages', () => {
+  it('warns that a token is as powerful as the account and does not expire', async () => {
+    stubApi({ list: [{ ok: true, body: [] }] });
+    render(<Harness />);
+
+    expect(await screen.findByText('admin.api.securityHint')).toBeTruthy();
+  });
+
   it('shows the translated list state while loading and none-yet only after an empty load', async () => {
     stubApi({ list: [{ ok: true, body: [] }] });
     render(<Harness />);

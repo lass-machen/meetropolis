@@ -79,6 +79,7 @@
   "auth.passwordUpdated": "Passwort aktualisiert",
   "admin.api.title": "API-Zugriff",
   "admin.api.helper": "Mit persönlichen Tokens kannst du per API Mikro, Kamera oder Screenshare deiner eigenen Sitzungen aus der Ferne ausschalten (nur schützende Aktionen), solange du online bist.",
+  "admin.api.securityHint": "Behandle ein Token wie ein Passwort: Es läuft nicht ab und gilt, bis du es löschst, für alle API-Routen, die eine Anmeldung per Token zulassen, mit allen Rechten deines Kontos, auch mit Admin-Rechten, falls du welche hast. Gib es nicht weiter und lösche es, wenn du es nicht mehr brauchst.",
   "admin.api.newTokenPlaceholder": "Token-Name (optional)",
   "admin.api.createToken": "Neuen Token erstellen",
   "admin.api.newTokenReveal": "Dein neuer Token (zeige ihn nur einmal an):",
