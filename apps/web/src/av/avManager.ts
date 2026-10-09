@@ -475,14 +475,21 @@ export class AVManager implements Disposable {
     // Leave first, tear down after: leave() unpublishes the local tracks and
     // disconnects through the state machine and track manager, which the
     // teardown destroys. Tearing down at once left the room connected with the
-    // microphone still published. A hanging leave delays the teardown by
-    // LEAVE_BEFORE_TEARDOWN_MS at most; it still disconnects the room it holds.
+    // microphone still published. A leave still hanging after
+    // LEAVE_BEFORE_TEARDOWN_MS gets no further chance: the room it holds is
+    // disconnected right away, which stops the local tracks as well.
+    const heldRoom = this.stateMachine.room;
+    let leaveTimedOut = false;
     let leaveTimer: ReturnType<typeof setTimeout> | undefined;
     const leaveBound = new Promise<void>((resolve) => {
-      leaveTimer = setTimeout(resolve, LEAVE_BEFORE_TEARDOWN_MS);
+      leaveTimer = setTimeout(() => {
+        leaveTimedOut = true;
+        resolve();
+      }, LEAVE_BEFORE_TEARDOWN_MS);
     });
     void Promise.race([this.connectionManager.abandon().catch(() => undefined), leaveBound]).finally(() => {
       clearTimeout(leaveTimer);
+      if (leaveTimedOut) heldRoom?.disconnect().catch(() => undefined);
       this.teardown();
     });
   }

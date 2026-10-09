@@ -680,7 +680,7 @@ describe('AVManager dispose leaves LiveKit for real', () => {
     }
   });
 
-  it('tears down after a bounded wait when leaving hangs and still disconnects the held room', async () => {
+  it('disconnects the held room and tears down once a hanging leave exceeds its bound', async () => {
     const { mgr, room } = await connectWithMicrophone();
     let releaseUnpublish!: () => void;
     room.localParticipant.unpublishTrack.mockImplementationOnce(
@@ -694,14 +694,16 @@ describe('AVManager dispose leaves LiveKit for real', () => {
       mgr.dispose();
       await vi.advanceTimersByTimeAsync(4_999);
       expect(mgr.room).toBe(room);
+      expect(room.disconnect).not.toHaveBeenCalled();
 
       await vi.advanceTimersByTimeAsync(1);
       expect(mgr.room).toBeUndefined();
-      expect(room.disconnect).not.toHaveBeenCalled();
+      expect(room.disconnect).toHaveBeenCalledTimes(1);
 
+      // The leave ending late still reaches its own disconnect without failing.
       releaseUnpublish();
       await vi.advanceTimersByTimeAsync(0);
-      expect(room.disconnect).toHaveBeenCalledTimes(1);
+      expect(room.disconnect).toHaveBeenCalledTimes(2);
     } finally {
       vi.useRealTimers();
     }
