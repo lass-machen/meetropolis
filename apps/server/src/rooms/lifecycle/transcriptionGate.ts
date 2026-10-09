@@ -2,6 +2,7 @@ import type { Client } from 'colyseus';
 import type { PrismaClient } from '../../generated/prisma/index.js';
 import { logger } from '../../logger.js';
 import { getTranscriptionModuleSync } from '../../transcriptionLoader.js';
+import { recordTranscriptionGateResult } from './transcriptionClearance.js';
 
 /** Close/error code for a missing transcription consent. 4006 stays reserved
  * for `guest_expired`, so the client can tell the two overlays apart. */
@@ -44,6 +45,7 @@ export async function enforceTranscriptionGate(
   let decision: TranscriptionGateDecision;
   if (tenantId) {
     decision = await evaluateTranscriptionGate(prisma, tenantId, userId);
+    recordTranscriptionGateResult(client, tenantId, decision === 'allow');
   } else {
     // Only reached when the caller's tenant lookup failed (NPCs return before the
     // limiter, and a tenant-less join with a successful lookup skips the gate).

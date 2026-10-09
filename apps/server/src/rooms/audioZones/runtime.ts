@@ -12,10 +12,8 @@
  */
 
 import type { PrismaClient } from '../../generated/prisma/index.js';
-import { getTranscriptionModuleSync, type TranscriptionGateChange } from '../../transcriptionLoader.js';
 import type { WorldRoom } from '../WorldRoom.js';
 import { getRoomTenantSlug } from '../handlers/zoneLockHandler.js';
-import { isWorldAuth } from '../lifecycle/onAuth.js';
 import {
   createZoneCatalog,
   ensureZonesLoaded,
@@ -34,7 +32,6 @@ import { computeAffectedIdentities, membersOfIsland } from './islandModel.js';
 import {
   createPermissionOrchestrator,
   disposeOrchestrator,
-  rePushAllForRoom,
   scheduleAllowListPush,
   type PermissionOrchestrator,
 } from './permissionOrchestrator.js';
@@ -50,7 +47,6 @@ export interface AudioZoneRuntime {
   admin: LivekitAdminClient | null;
   reconcileInterval: ReturnType<typeof setInterval> | null;
   hysteresisSweepInterval: ReturnType<typeof setInterval> | null;
-  transcriptionGateUnsubscribe: (() => void) | null;
 }
 
 export function createAudioZoneRuntime(): AudioZoneRuntime {
@@ -61,33 +57,12 @@ export function createAudioZoneRuntime(): AudioZoneRuntime {
     admin: createLivekitAdminClient(),
     reconcileInterval: null,
     hysteresisSweepInterval: null,
-    transcriptionGateUnsubscribe: null,
   };
-}
-
-function roomHasTenantClient(room: WorldRoom, tenantId: string): boolean {
-  return room.clients.some((client) => isWorldAuth(client.auth) && client.auth.tenantId === tenantId);
-}
-
-// The transcriber's place in each allow-list follows the tenant's
-// transcription state (transcriberAdmission.ts). Repush right away when that
-// state may have changed instead of waiting for the reconciler's next cycle,
-// which would pick it up as well. A module without the synchronous state
-// never admits the transcriber, so its gate changes cannot alter a list.
-function watchTranscriberAdmission(room: WorldRoom): (() => void) | null {
-  const transcriptionModule = getTranscriptionModuleSync();
-  if (!transcriptionModule?.isTenantTranscriptionActive) return null;
-
-  return transcriptionModule.onGateChange((change: TranscriptionGateChange) => {
-    if (!roomHasTenantClient(room, change.tenantId)) return;
-    rePushAllForRoom(room.audioZones.orchestrator, room, room.audioZones.tracker);
-  });
 }
 
 export function startAudioZoneRuntime(room: WorldRoom): void {
   room.audioZones.reconcileInterval = startAudioZoneReconciler(room);
   room.audioZones.hysteresisSweepInterval = startHysteresisSweeper(room);
-  room.audioZones.transcriptionGateUnsubscribe = watchTranscriberAdmission(room);
 }
 
 export function stopAudioZoneRuntime(room: WorldRoom): void {
@@ -99,10 +74,6 @@ export function stopAudioZoneRuntime(room: WorldRoom): void {
   if (rt.hysteresisSweepInterval) {
     clearInterval(rt.hysteresisSweepInterval);
     rt.hysteresisSweepInterval = null;
-  }
-  if (rt.transcriptionGateUnsubscribe) {
-    rt.transcriptionGateUnsubscribe();
-    rt.transcriptionGateUnsubscribe = null;
   }
   disposeOrchestrator(rt.orchestrator);
 }

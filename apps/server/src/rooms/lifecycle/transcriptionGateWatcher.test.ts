@@ -28,7 +28,10 @@ vi.mock('../../logger.js', () => ({
   },
 }));
 
-import { getActiveWorldRooms } from '../WorldRoom.js';
+import { getActiveWorldRooms, Player, type WorldRoom } from '../WorldRoom.js';
+import { onMove } from '../audioZones/membershipTracker.js';
+import { TRANSCRIBER_IDENTITY } from '../audioZones/islandAttributes.js';
+import { hasTranscriptionClearance, recordTranscriptionGateResult } from './transcriptionClearance.js';
 import {
   disposeAllRooms,
   makeFakePrisma,
@@ -209,5 +212,124 @@ describe('watchTranscriptionGate', () => {
     expect(listeners.size).toBe(1);
     await disposeTestRooms();
     expect(mocks.unsubscribe).toHaveBeenCalledOnce();
+  });
+});
+
+describe('watchTranscriptionGate transcription clearance', () => {
+  const activeTenants = new Set<string>();
+  const withTenantState = {
+    ...moduleImplementation,
+    isTenantTranscriptionActive: (tenantId: string) => activeTenants.has(tenantId),
+  } satisfies TranscriptionModule;
+
+  type TrackedClient = Client & { send: ReturnType<typeof vi.fn> };
+
+  function addTrackedMember(room: WorldRoom, identity: string): TrackedClient {
+    const sessionId = `session-${identity}`;
+    const client = {
+      sessionId,
+      auth: { identity, tenantId: 'tenant-a', tenantSlug: 'acme', isNpc: false, zonePrivacyVersion: 2 },
+      error: vi.fn(),
+      leave: vi.fn(),
+      send: vi.fn(),
+    } as unknown as TrackedClient;
+    const player = new Player();
+    player.identity = identity;
+    player.mapId = 'map-1';
+    room.state.players.set(sessionId, player);
+    room.clients.push(client);
+    onMove(room.audioZones.tracker, identity, 'map-1:open', 0);
+    return client;
+  }
+
+  function pushedAllows(client: TrackedClient): string[][] {
+    return client.send.mock.calls
+      .filter((call) => call[0] === 'av_zone_permissions')
+      .map((call) => (call[1] as { allow: string[] }).allow);
+  }
+
+  function deferred<T>() {
+    let resolve!: (value: T) => void;
+    const promise = new Promise<T>((r) => {
+      resolve = r;
+    });
+    return { promise, resolve };
+  }
+
+  beforeEach(() => {
+    activeTenants.clear();
+    mocks.getTranscriptionModuleSync.mockReturnValue(withTenantState);
+  });
+
+  it('clears a client of a newly active tenant only after its re-check and pushes only then', async () => {
+    const room = await createWorldRoom();
+    const client = addTrackedMember(room, 'user-a');
+    const recheck = deferred<Awaited<ReturnType<TranscriptionModule['getJoinRequirement']>>>();
+    getJoinRequirementMock.mockReturnValue(recheck.promise);
+
+    activeTenants.add('tenant-a');
+    emit({ tenantId: 'tenant-a' });
+    await new Promise((resolve) => setTimeout(resolve, 150));
+
+    expect(hasTranscriptionClearance(client, 'tenant-a')).toBe(false);
+    expect(pushedAllows(client)).toEqual([]);
+
+    recheck.resolve(null);
+    await vi.waitFor(() => expect(pushedAllows(client)).toEqual([[TRANSCRIBER_IDENTITY]]));
+    expect(hasTranscriptionClearance(client, 'tenant-a')).toBe(true);
+  });
+
+  it('voids an existing clearance as soon as the gate changes', async () => {
+    activeTenants.add('tenant-a');
+    const room = await createWorldRoom();
+    const client = addTrackedMember(room, 'user-a');
+    recordTranscriptionGateResult(client, 'tenant-a', true);
+    getJoinRequirementMock.mockReturnValue(new Promise(() => undefined));
+
+    emit({ tenantId: 'tenant-a' });
+
+    expect(hasTranscriptionClearance(client, 'tenant-a')).toBe(false);
+  });
+
+  it('leaves a client without clearance when its re-check requires consent', async () => {
+    activeTenants.add('tenant-a');
+    const room = await createWorldRoom();
+    const client = addTrackedMember(room, 'user-a');
+    recordTranscriptionGateResult(client, 'tenant-a', true);
+    getJoinRequirementMock.mockResolvedValue({ code: 'transcription_consent_required' });
+
+    emit({ tenantId: 'tenant-a' });
+    await vi.waitFor(() => expect(client.leave).toHaveBeenCalledWith(4008));
+
+    expect(hasTranscriptionClearance(client, 'tenant-a')).toBe(false);
+    expect(pushedAllows(client).flat()).not.toContain(TRANSCRIBER_IDENTITY);
+  });
+
+  it('pushes a list without the transcriber when the re-check is unavailable', async () => {
+    activeTenants.add('tenant-a');
+    const room = await createWorldRoom();
+    const client = addTrackedMember(room, 'user-a');
+    recordTranscriptionGateResult(client, 'tenant-a', true);
+    getJoinRequirementMock.mockRejectedValue(new Error('gate lookup failed'));
+
+    emit({ tenantId: 'tenant-a' });
+    await vi.waitFor(() => expect(pushedAllows(client)).toEqual([[]]));
+
+    expect(hasTranscriptionClearance(client, 'tenant-a')).toBe(false);
+    expect(client.leave).not.toHaveBeenCalled();
+  });
+
+  it('drops the transcriber after a re-check of a tenant that is no longer active', async () => {
+    activeTenants.add('tenant-a');
+    const room = await createWorldRoom();
+    const client = addTrackedMember(room, 'user-a');
+    recordTranscriptionGateResult(client, 'tenant-a', true);
+    getJoinRequirementMock.mockResolvedValue(null);
+
+    activeTenants.delete('tenant-a');
+    emit({ tenantId: 'tenant-a' });
+    await vi.waitFor(() => expect(pushedAllows(client)).toEqual([[]]));
+
+    expect(hasTranscriptionClearance(client, 'tenant-a')).toBe(false);
   });
 });
