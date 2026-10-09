@@ -1,13 +1,14 @@
 /**
- * Per-client proof that the transcription consent gate passed while the
- * client's tenant had transcription running.
+ * Per-client proof that the transcription consent gate checked the user's
+ * consent and found it valid.
  *
  * `getJoinRequirement` answers `null` both for a tenant without running
- * transcription and for a consenting user of a tenant with it, so an
- * `allow` alone proves no consent. Only an `allow` reached while the module
- * reports the tenant as active does: the module requires consent for every
- * active tenant. The SFU allow-list admits the transcriber only for a client
- * holding this clearance (audioZones/transcriberAdmission.ts).
+ * transcription and for a consenting user of a tenant with it, so an `allow`
+ * alone proves no consent. The proof is the module's explicit verdict
+ * (`evaluateJoin().consentVerified`); a module without it clears nobody. The
+ * SFU allow-list admits the transcriber only for a client holding this
+ * clearance and only while its tenant is active
+ * (audioZones/transcriberAdmission.ts).
  *
  * A gate change voids the clearance of every client it targets until the
  * re-check proved consent again (transcriptionGateWatcher.ts), so a tenant
@@ -40,8 +41,8 @@ export function isTenantTranscriptionActive(tenantId: string): boolean {
 // without clearance and a departed client is collected with its entry.
 const clearedTenantByClient = new WeakMap<Client, string>();
 
-export function recordTranscriptionGateResult(client: Client, tenantId: string, allowed: boolean): void {
-  if (allowed && isTenantTranscriptionActive(tenantId)) clearedTenantByClient.set(client, tenantId);
+export function recordTranscriptionGateResult(client: Client, tenantId: string, consentVerified: boolean): void {
+  if (consentVerified) clearedTenantByClient.set(client, tenantId);
   else clearedTenantByClient.delete(client);
 }
 

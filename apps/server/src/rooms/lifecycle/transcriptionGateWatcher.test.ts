@@ -218,10 +218,15 @@ describe('watchTranscriptionGate', () => {
 
 describe('watchTranscriptionGate transcription clearance', () => {
   const activeTenants = new Set<string>();
+  type EvaluateJoin = NonNullable<TranscriptionModule['evaluateJoin']>;
+  const evaluateJoinMock = vi.fn<EvaluateJoin>();
   const withTenantState = {
     ...moduleImplementation,
+    evaluateJoin: (...args: Parameters<EvaluateJoin>) => evaluateJoinMock(...args),
     isTenantTranscriptionActive: (tenantId: string) => activeTenants.has(tenantId),
   } satisfies TranscriptionModule;
+  const verified = { requirement: null, consentVerified: true };
+  const consentRequired = { requirement: { code: 'transcription_consent_required' as const }, consentVerified: false };
 
   type TrackedClient = Client & { send: ReturnType<typeof vi.fn> };
 
@@ -259,14 +264,15 @@ describe('watchTranscriptionGate transcription clearance', () => {
 
   beforeEach(() => {
     activeTenants.clear();
+    evaluateJoinMock.mockReset().mockResolvedValue(verified);
     mocks.getTranscriptionModuleSync.mockReturnValue(withTenantState);
   });
 
   it('clears a client of a newly active tenant only after its re-check and pushes only then', async () => {
     const room = await createWorldRoom();
     const client = addTrackedMember(room, 'user-a');
-    const recheck = deferred<Awaited<ReturnType<TranscriptionModule['getJoinRequirement']>>>();
-    getJoinRequirementMock.mockReturnValue(recheck.promise);
+    const recheck = deferred<Awaited<ReturnType<EvaluateJoin>>>();
+    evaluateJoinMock.mockReturnValue(recheck.promise);
 
     activeTenants.add('tenant-a');
     emit({ tenantId: 'tenant-a' });
@@ -275,7 +281,7 @@ describe('watchTranscriptionGate transcription clearance', () => {
     expect(hasTranscriptionClearance(client, 'tenant-a')).toBe(false);
     expect(pushedAllows(client)).toEqual([]);
 
-    recheck.resolve(null);
+    recheck.resolve(verified);
     await vi.waitFor(() => expect(pushedAllows(client)).toEqual([[TRANSCRIBER_IDENTITY]]));
     expect(hasTranscriptionClearance(client, 'tenant-a')).toBe(true);
   });
@@ -285,7 +291,7 @@ describe('watchTranscriptionGate transcription clearance', () => {
     const room = await createWorldRoom();
     const client = addTrackedMember(room, 'user-a');
     recordTranscriptionGateResult(client, 'tenant-a', true);
-    getJoinRequirementMock.mockReturnValue(new Promise(() => undefined));
+    evaluateJoinMock.mockReturnValue(new Promise(() => undefined));
 
     emit({ tenantId: 'tenant-a' });
 
@@ -297,7 +303,7 @@ describe('watchTranscriptionGate transcription clearance', () => {
     const room = await createWorldRoom();
     const client = addTrackedMember(room, 'user-a');
     recordTranscriptionGateResult(client, 'tenant-a', true);
-    getJoinRequirementMock.mockResolvedValue({ code: 'transcription_consent_required' });
+    evaluateJoinMock.mockResolvedValue(consentRequired);
 
     emit({ tenantId: 'tenant-a' });
     await vi.waitFor(() => expect(client.leave).toHaveBeenCalledWith(4008));
@@ -313,7 +319,7 @@ describe('watchTranscriptionGate transcription clearance', () => {
     recordTranscriptionGateResult(client, 'tenant-a', true);
     rePushAllForRoom(room.audioZones.orchestrator, room, room.audioZones.tracker);
     await vi.waitFor(() => expect(pushedAllows(client)).toEqual([[TRANSCRIBER_IDENTITY]]));
-    getJoinRequirementMock.mockResolvedValue({ code: 'transcription_consent_required' });
+    evaluateJoinMock.mockResolvedValue(consentRequired);
 
     emit({ tenantId: 'tenant-a', userId: 'user-a' });
     await vi.waitFor(() => expect(client.leave).toHaveBeenCalledWith(4008));
@@ -328,7 +334,7 @@ describe('watchTranscriptionGate transcription clearance', () => {
     const room = await createWorldRoom();
     const client = addTrackedMember(room, 'user-a');
     recordTranscriptionGateResult(client, 'tenant-a', true);
-    getJoinRequirementMock.mockRejectedValue(new Error('gate lookup failed'));
+    evaluateJoinMock.mockRejectedValue(new Error('gate lookup failed'));
 
     emit({ tenantId: 'tenant-a' });
     await vi.waitFor(() => expect(pushedAllows(client)).toEqual([[]]));
@@ -337,12 +343,12 @@ describe('watchTranscriptionGate transcription clearance', () => {
     expect(client.leave).not.toHaveBeenCalled();
   });
 
-  it('drops the transcriber after a re-check of a tenant that is no longer active', async () => {
+  it('drops the transcriber after a re-check that verifies no consent', async () => {
     activeTenants.add('tenant-a');
     const room = await createWorldRoom();
     const client = addTrackedMember(room, 'user-a');
     recordTranscriptionGateResult(client, 'tenant-a', true);
-    getJoinRequirementMock.mockResolvedValue(null);
+    evaluateJoinMock.mockResolvedValue({ requirement: null, consentVerified: false });
 
     activeTenants.delete('tenant-a');
     emit({ tenantId: 'tenant-a' });
