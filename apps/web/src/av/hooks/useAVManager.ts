@@ -215,8 +215,8 @@ const RESUME_RETRY_MS = 250;
  * connect still in flight, then disposes it and blocks every connect path.
  * resume() lifts the block once the world accepted the user again and
  * connects the way a normal join does, with a fresh manager via connect().
- * The leave is awaited before the dispose, because dispose() tears down the
- * state machine that the asynchronous leave still needs for the disconnect.
+ * dispose() leaves on its own before its teardown as well; the explicit leave
+ * makes the suspension wait for LiveKit to be left before it disposes.
  */
 function useAvSuspension(
   avRef: React.MutableRefObject<AVManager | null>,

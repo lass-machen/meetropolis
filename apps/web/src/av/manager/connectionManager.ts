@@ -163,7 +163,11 @@ export class ConnectionManager implements Disposable {
   }
 
   async leave(): Promise<void> {
-    if (!this.deps.stateMachine.room) return;
+    // Held for the whole leave: a dispose or a state transition may clear the
+    // state machine's room while the tracks are still being unpublished, and
+    // the disconnect must still reach this room.
+    const room = this.deps.stateMachine.room;
+    if (!room) return;
 
     const prevRoomName = this._currentRoomName;
     AVLogger.info('manager.leave', { roomName: prevRoomName });
@@ -187,7 +191,7 @@ export class ConnectionManager implements Disposable {
 
     // Disconnect room
     try {
-      await this.deps.stateMachine.room.disconnect();
+      await room.disconnect();
     } catch {}
 
     // Update state

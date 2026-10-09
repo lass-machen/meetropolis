@@ -571,3 +571,122 @@ describe('AVManager leave during a connect in flight', () => {
     expect(fakeRoom.localParticipant.setTrackSubscriptionPermissions).not.toHaveBeenCalled();
   });
 });
+
+describe('AVManager dispose leaves LiveKit for real', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  async function joinedRoom(): Promise<any> {
+    const { joinLivekitRoom } = await import('../lib/livekit');
+    await vi.waitFor(() => expect(joinLivekitRoom).toHaveBeenCalledTimes(1));
+    return vi.mocked(joinLivekitRoom).mock.results[0]?.value;
+  }
+
+  // Every capture is a live track of its own; the one published into the joined room is returned.
+  async function connectWithMicrophone() {
+    const { createLocalTracks } = await import('livekit-client');
+    const original = vi.mocked(createLocalTracks).getMockImplementation();
+    vi.mocked(createLocalTracks).mockImplementation(() => {
+      const mediaStreamTrack = {
+        readyState: 'live',
+        enabled: true,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      };
+      return Promise.resolve([{ kind: 'audio', stop: vi.fn(), mediaStreamTrack }] as unknown as LocalTrack[]);
+    });
+    try {
+      const mgr = makeManager();
+      await mgr.switchTo('world');
+      const room = await joinedRoom();
+      await mgr.setMicrophoneEnabled(true);
+      await vi.waitFor(() => expect(room.localParticipant.publishTrack).toHaveBeenCalledTimes(1));
+      const micTrack = room.localParticipant.publishTrack.mock.calls[0][0] as { stop: ReturnType<typeof vi.fn> };
+      expect(micTrack.stop).not.toHaveBeenCalled();
+      return { mgr, room, micTrack };
+    } finally {
+      if (original) vi.mocked(createLocalTracks).mockImplementation(original);
+    }
+  }
+
+  it('unpublishes and stops the microphone and disconnects the room on unmount', async () => {
+    const { mgr, room, micTrack } = await connectWithMicrophone();
+
+    // useAVManagerCleanup disposes the manager when the world unmounts.
+    mgr.dispose();
+
+    await vi.waitFor(() => expect(room.disconnect).toHaveBeenCalledTimes(1));
+    expect(room.localParticipant.unpublishTrack).toHaveBeenCalledWith(micTrack);
+    expect(micTrack.stop).toHaveBeenCalled();
+  });
+
+  it('tears down after a bounded wait when leaving hangs and still disconnects the held room', async () => {
+    const { mgr, room } = await connectWithMicrophone();
+    let releaseUnpublish!: () => void;
+    room.localParticipant.unpublishTrack.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          releaseUnpublish = resolve;
+        }),
+    );
+    vi.useFakeTimers();
+    try {
+      mgr.dispose();
+      await vi.advanceTimersByTimeAsync(4_999);
+      expect(mgr.room).toBe(room);
+
+      await vi.advanceTimersByTimeAsync(1);
+      expect(mgr.room).toBeUndefined();
+      expect(room.disconnect).not.toHaveBeenCalled();
+
+      releaseUnpublish();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(room.disconnect).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('disconnects the room of a failed join that the hook resets', async () => {
+    const mgr = makeManager() as any;
+    vi.spyOn(mgr.subscriptionManager, 'ensureAudioSubscriptions').mockImplementationOnce(() => {
+      throw new Error('subscriptions failed');
+    });
+    await expect(mgr.switchTo('world')).rejects.toThrow('subscriptions failed');
+    const room = await joinedRoom();
+    expect(mgr.room).toBe(room);
+
+    // performConnect disposes the failed attempt before a retry.
+    mgr.dispose();
+
+    await vi.waitFor(() => expect(room.disconnect).toHaveBeenCalledTimes(1));
+  });
+
+  it('disconnects a room disposed while it is still connecting', async () => {
+    const { joinLivekitRoom } = await import('../lib/livekit');
+    const join = vi.mocked(joinLivekitRoom);
+    const original = join.getMockImplementation();
+    if (!original) throw new Error('Expected the joinLivekitRoom mock implementation');
+    let joined: any;
+    join.mockImplementationOnce(async (...args: Parameters<typeof joinLivekitRoom>) => {
+      joined = await original(...args);
+      joined.connectionState = 'connecting';
+      return joined;
+    });
+    const mgr = makeManager() as any;
+    const ensureAudio = vi.spyOn(mgr.subscriptionManager, 'ensureAudioSubscriptions');
+
+    const connecting = mgr.switchTo('world');
+    await vi.waitFor(() => {
+      expect(joined).toBeDefined();
+      expect(mgr.room).toBe(joined);
+    });
+    mgr.dispose();
+    joined.connectionState = 'connected';
+    await connecting;
+
+    await vi.waitFor(() => expect(joined.disconnect).toHaveBeenCalledTimes(1));
+    expect(ensureAudio).not.toHaveBeenCalled();
+  });
+});
