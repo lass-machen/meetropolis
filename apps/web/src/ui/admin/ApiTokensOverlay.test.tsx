@@ -12,13 +12,13 @@ type Token = { id: string; name?: string | null; createdAt: string; lastUsedAt?:
 const TOKEN: Token = { id: 't1', name: 'ci-token', createdAt: '2026-01-01T00:00:00.000Z', lastUsedAt: null };
 
 /** Holds the list/fresh-token state the way WorldApp does. */
-function Harness() {
+function Harness({ open = true }: { open?: boolean }) {
   const [apiTokens, setApiTokens] = React.useState<Token[]>([]);
   const [newTokenName, setNewTokenName] = React.useState('');
   const [freshToken, setFreshToken] = React.useState<string | null>(null);
   return (
     <ApiTokensOverlay
-      open
+      open={open}
       onClose={() => {}}
       apiBase="/api"
       apiTokens={apiTokens}
@@ -156,5 +156,79 @@ describe('ApiTokensOverlay delete', () => {
 
     await screen.findByText('admin.api.noneYet');
     expect(screen.queryByText('admin.api.deleteError')).toBeNull();
+  });
+});
+
+describe('ApiTokensOverlay create', () => {
+  const NEW_TOKEN = { id: 't2', name: 'fresh', createdAt: '2026-02-01T00:00:00.000Z', lastUsedAt: null };
+
+  async function createToken(name?: string) {
+    await screen.findByText('admin.api.createToken');
+    if (name)
+      fireEvent.change(screen.getByPlaceholderText('admin.api.newTokenPlaceholder'), { target: { value: name } });
+    fireEvent.click(screen.getByText('admin.api.createToken'));
+  }
+
+  it('shows the new secret once, clears the name field and reloads the list', async () => {
+    const fetchMock = stubApi({
+      list: [
+        { ok: true, body: [] },
+        { ok: true, body: [NEW_TOKEN] },
+      ],
+      post: { ok: true, body: { token: 'SECRET123', id: 't2' } },
+    });
+    render(<Harness />);
+
+    await createToken('fresh');
+
+    expect(await screen.findByText('SECRET123')).toBeTruthy();
+    expect(await screen.findByText('fresh')).toBeTruthy();
+    expect(screen.getByPlaceholderText<HTMLInputElement>('admin.api.newTokenPlaceholder').value).toBe('');
+    const post = fetchMock.mock.calls.find(([, init]) => init?.method === 'POST');
+    expect(JSON.parse(post![1]!.body as string)).toEqual({ name: 'fresh' });
+  });
+
+  it('shows an error and no secret when creation is rejected, and does not reload', async () => {
+    const fetchMock = stubApi({ list: [{ ok: true, body: [] }], post: { ok: false, status: 500 } });
+    render(<Harness />);
+
+    await createToken();
+
+    expect(await screen.findByText('admin.api.createError')).toBeTruthy();
+    expect(screen.queryByText('admin.api.newTokenReveal')).toBeNull();
+    expect(fetchMock.mock.calls.filter(([, init]) => (init?.method ?? 'GET') === 'GET')).toHaveLength(1);
+  });
+
+  it('keeps the secret visible and reports the failure when the reload after creating fails', async () => {
+    stubApi({
+      list: [
+        { ok: true, body: [] },
+        { ok: false, status: 500 },
+      ],
+      post: { ok: true, body: { token: 'SECRET123', id: 't2' } },
+    });
+    render(<Harness />);
+
+    await createToken();
+
+    expect(await screen.findByText('SECRET123')).toBeTruthy();
+    expect(await screen.findByText('admin.api.loadError')).toBeTruthy();
+    expect(screen.queryByText('admin.api.noneYet')).toBeNull();
+  });
+
+  it('does not show the previous secret again after closing and reopening', async () => {
+    stubApi({
+      list: [{ ok: true, body: [] }],
+      post: { ok: true, body: { token: 'SECRET123', id: 't2' } },
+    });
+    const { rerender } = render(<Harness />);
+    await createToken();
+    await screen.findByText('SECRET123');
+
+    rerender(<Harness open={false} />);
+    rerender(<Harness open />);
+
+    await screen.findByText('admin.api.noneYet');
+    expect(screen.queryByText('SECRET123')).toBeNull();
   });
 });
