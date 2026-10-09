@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Web client: a terminal connection error (guest expiry, session
+  takeover, rejected authentication, outdated client, billing and limit
+  errors, and with the transcription module a missing consent) now leaves
+  LiveKit before the overlay appears. Before, the client kept publishing
+  and subscribing behind the overlay. AV resumes with the next join the
+  world accepts.
+- Web client: disposing the AV manager (unmount, or the reset of a join
+  that failed after its room was set up) now leaves LiveKit before the
+  teardown, which therefore runs up to 5 s later. A leave that exceeds
+  this bound is cut short by disconnecting the room directly.
+- Server logging: Error arguments are logged under `err` in pino's
+  standard format (`type`, `message` and `stack` with causes, plus the
+  error's enumerable fields) instead of being spread into the record,
+  which lost message and stack. Fields the spread put at the top level,
+  such as Prisma's `code`, `meta` and `clientVersion`, now sit under
+  `err`; log queries on them need adjusting.
+
 ## [0.1.0]
 
 ### Initial open-source release of Meetropolis
