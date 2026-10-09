@@ -134,49 +134,61 @@ describe('ApiTokensOverlay messages', () => {
 
 describe('ApiTokensOverlay delete', () => {
   const LIST = { ok: true, body: [TOKEN] };
+  const isDelete = (call: unknown[]) => (call[1] as RequestInit | undefined)?.method === 'DELETE';
 
   beforeEach(() => {
-    vi.stubGlobal(
-      'confirm',
-      vi.fn(() => true),
-    );
+    // The desktop shell has no usable window.confirm; the overlay must not call it.
+    vi.stubGlobal('confirm', vi.fn());
   });
 
-  async function clickDelete() {
+  async function askDelete() {
     fireEvent.click(await screen.findByText('admin.api.delete'));
   }
 
-  it('asks before deleting and sends nothing when the user declines', async () => {
+  async function clickDeleteTwice() {
+    await askDelete();
+    fireEvent.click(screen.getByText('admin.api.confirmDelete'));
+  }
+
+  it('asks inline first and sends nothing until the second click', async () => {
     const fetchMock = stubApi({ list: [LIST] });
-    vi.stubGlobal(
-      'confirm',
-      vi.fn(() => false),
-    );
     render(<Harness />);
 
-    await clickDelete();
+    await askDelete();
 
-    expect(confirm).toHaveBeenCalledWith('admin.api.confirmDelete');
-    expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'DELETE')).toBe(false);
-    expect(screen.getByText('ci-token')).toBeTruthy();
+    expect(screen.getByText('admin.api.confirmDeleteHint')).toBeTruthy();
+    expect(fetchMock.mock.calls.some(isDelete)).toBe(false);
+    expect(confirm).not.toHaveBeenCalled();
   });
 
-  it('reloads the list after a successful delete without an error', async () => {
+  it('sends nothing when the user cancels, and shows the delete button again', async () => {
+    const fetchMock = stubApi({ list: [LIST] });
+    render(<Harness />);
+    await askDelete();
+
+    fireEvent.click(screen.getByText('admin.api.cancel'));
+
+    expect(screen.getByText('admin.api.delete')).toBeTruthy();
+    expect(screen.queryByText('admin.api.confirmDelete')).toBeNull();
+    expect(fetchMock.mock.calls.some(isDelete)).toBe(false);
+  });
+
+  it('reloads the list after a confirmed delete without an error', async () => {
     const fetchMock = stubApi({ list: [LIST, { ok: true, body: [] }] });
     render(<Harness />);
 
-    await clickDelete();
+    await clickDeleteTwice();
 
     await screen.findByText('admin.api.noneYet');
     expect(screen.queryByText('admin.api.deleteError')).toBeNull();
-    expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'DELETE')).toBe(true);
+    expect(fetchMock.mock.calls.filter(isDelete)).toHaveLength(1);
   });
 
   it('reports a rejected delete instead of leaving the token listed silently', async () => {
     stubApi({ list: [LIST], del: { ok: false, status: 400, body: { error: 'delete failed' } } });
     render(<Harness />);
 
-    await clickDelete();
+    await clickDeleteTwice();
 
     expect(await screen.findByText('admin.api.deleteError')).toBeTruthy();
     expect(screen.getByText('ci-token')).toBeTruthy();
@@ -186,7 +198,7 @@ describe('ApiTokensOverlay delete', () => {
     stubApi({ list: [LIST, { ok: true, body: [] }], del: { ok: false, status: 404, body: { error: 'not found' } } });
     render(<Harness />);
 
-    await clickDelete();
+    await clickDeleteTwice();
 
     await screen.findByText('admin.api.noneYet');
     expect(screen.queryByText('admin.api.deleteError')).toBeNull();

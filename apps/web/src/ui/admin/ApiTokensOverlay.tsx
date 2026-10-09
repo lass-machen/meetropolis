@@ -52,13 +52,20 @@ function ErrorBanner({ error, onDismiss }: { error: string; onDismiss: () => voi
 function TokenRow({
   token,
   t,
-  onDelete,
+  confirming,
   disabled,
+  onAskDelete,
+  onCancelDelete,
+  onConfirmDelete,
 }: {
   token: ApiToken;
   t: (k: string) => string;
-  onDelete: () => Promise<void>;
+  /** True while this row waits for the second click that really deletes. */
+  confirming: boolean;
   disabled: boolean;
+  onAskDelete: () => void;
+  onCancelDelete: () => void;
+  onConfirmDelete: () => void;
 }) {
   return (
     <div
@@ -66,6 +73,7 @@ function TokenRow({
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
+        gap: 8,
         border: '1px solid var(--border)',
         borderRadius: 8,
         padding: '8px 10px',
@@ -78,17 +86,22 @@ function TokenRow({
           {t('admin.api.createdAt')}: {new Date(token.createdAt).toLocaleString()}{' '}
           {token.lastUsedAt ? `· ${t('admin.api.lastUsed')}: ${new Date(token.lastUsedAt).toLocaleString()}` : ''}
         </div>
+        {confirming && <div style={{ fontSize: 12, marginTop: 4 }}>{t('admin.api.confirmDeleteHint')}</div>}
       </div>
-      <Button
-        variant="danger"
-        onClick={() => {
-          void onDelete();
-        }}
-        disabled={disabled}
-        style={{ padding: '6px 8px' }}
-      >
-        {t('admin.api.delete')}
-      </Button>
+      {confirming ? (
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <Button variant="danger" onClick={onConfirmDelete} disabled={disabled} style={{ padding: '6px 8px' }}>
+            {t('admin.api.confirmDelete')}
+          </Button>
+          <Button onClick={onCancelDelete} disabled={disabled} style={{ padding: '6px 8px' }}>
+            {t('admin.api.cancel')}
+          </Button>
+        </div>
+      ) : (
+        <Button variant="danger" onClick={onAskDelete} disabled={disabled} style={{ padding: '6px 8px' }}>
+          {t('admin.api.delete')}
+        </Button>
+      )}
     </div>
   );
 }
@@ -166,6 +179,9 @@ export function ApiTokensOverlay(props: ApiTokensOverlayProps) {
   const { t } = useTranslation();
   const [error, setError] = React.useState<string | null>(null);
   const [listState, setListState] = React.useState<ApiTokensLoadState>('loading');
+  // Row waiting for its second click. An in-app confirmation: the desktop
+  // shell's WebView has no usable window.confirm.
+  const [pendingDeleteId, setPendingDeleteId] = React.useState<string | null>(null);
 
   // The single place that loads the list on open; it also resets the fresh token.
   useApiTokensLoader({
@@ -181,12 +197,16 @@ export function ApiTokensOverlay(props: ApiTokensOverlayProps) {
 
   // Closing drops the secret, the list and the half-typed name, so none of it
   // is rendered again on the next open (or by the next user after a re-login).
+  // The setters are listed as dependencies on purpose: they are the stable
+  // useState setters of WorldApp. A caller passing unstable functions would
+  // run this cleanup on every render and wipe the state.
   React.useEffect(() => {
     if (!open) return;
     return () => {
       setFreshToken(null);
       setApiTokens([]);
       setNewTokenName('');
+      setPendingDeleteId(null);
     };
   }, [open, setFreshToken, setApiTokens, setNewTokenName]);
 
@@ -194,7 +214,8 @@ export function ApiTokensOverlay(props: ApiTokensOverlayProps) {
   // so, rather than leaving a stale or malformed one on screen.
   const refreshList = async () => {
     try {
-      setApiTokens(await fetchApiTokens(apiBase));
+      const list = await fetchApiTokens(apiBase);
+      setApiTokens(list);
       setListState('loaded');
     } catch {
       setApiTokens([]);
@@ -239,9 +260,9 @@ export function ApiTokensOverlay(props: ApiTokensOverlayProps) {
       }
     });
 
-  const deleteToken = async (id: string) => {
-    if (!confirm(t('admin.api.confirmDelete'))) return;
-    await runExclusive(async () => {
+  const deleteToken = (id: string) => {
+    setPendingDeleteId(null);
+    return runExclusive(async () => {
       try {
         const res = await fetch(`${apiBase}/api-tokens/${id}`, { method: 'DELETE', credentials: 'include' });
         await refreshList();
@@ -299,7 +320,18 @@ export function ApiTokensOverlay(props: ApiTokensOverlayProps) {
         <div style={{ fontWeight: 600, marginTop: 4 }}>{t('admin.api.tokensHeader')}</div>
         <div style={{ display: 'grid', gap: 6 }}>
           {(apiTokens || []).map((token) => (
-            <TokenRow key={token.id} token={token} t={t} onDelete={() => deleteToken(token.id)} disabled={busy} />
+            <TokenRow
+              key={token.id}
+              token={token}
+              t={t}
+              confirming={pendingDeleteId === token.id}
+              disabled={busy}
+              onAskDelete={() => setPendingDeleteId(token.id)}
+              onCancelDelete={() => setPendingDeleteId(null)}
+              onConfirmDelete={() => {
+                void deleteToken(token.id);
+              }}
+            />
           ))}
           {listState === 'loaded' && !apiTokens?.length && (
             <div style={{ fontSize: 13, color: 'var(--fg-subtle)' }}>{t('admin.api.noneYet')}</div>
