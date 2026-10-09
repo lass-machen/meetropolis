@@ -17,9 +17,9 @@ function stubFetch(response: { ok: boolean; status?: number; body: unknown }) {
 function renderLoader(open = true) {
   const setFreshToken = vi.fn();
   const setApiTokens = vi.fn();
-  const onLoadError = vi.fn();
-  renderHook(() => useApiTokensLoader({ apiBase: '/api', open, setFreshToken, setApiTokens, onLoadError }));
-  return { setFreshToken, setApiTokens, onLoadError };
+  const onLoadState = vi.fn();
+  renderHook(() => useApiTokensLoader({ apiBase: '/api', open, setFreshToken, setApiTokens, onLoadState }));
+  return { setFreshToken, setApiTokens, onLoadState };
 }
 
 afterEach(() => {
@@ -43,13 +43,12 @@ describe('fetchApiTokens', () => {
 describe('useApiTokensLoader', () => {
   it('loads the list and resets the fresh token when opened', async () => {
     const fetchMock = stubFetch({ ok: true, body: [TOKEN] });
-    const { setFreshToken, setApiTokens, onLoadError } = renderLoader();
+    const { setFreshToken, setApiTokens, onLoadState } = renderLoader();
 
     await waitFor(() => expect(setApiTokens).toHaveBeenCalledWith([TOKEN]));
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(setFreshToken).toHaveBeenCalledWith(null);
-    expect(onLoadError).toHaveBeenCalledTimes(1);
-    expect(onLoadError).toHaveBeenCalledWith(false);
+    expect(onLoadState.mock.calls).toEqual([['loading'], ['loaded']]);
   });
 
   it('does not fetch while closed', () => {
@@ -61,18 +60,18 @@ describe('useApiTokensLoader', () => {
 
   it('falls back to an empty list and reports the failure on a non-2xx response', async () => {
     stubFetch({ ok: false, status: 403, body: { error: 'forbidden' } });
-    const { setApiTokens, onLoadError } = renderLoader();
+    const { setApiTokens, onLoadState } = renderLoader();
 
-    await waitFor(() => expect(onLoadError).toHaveBeenCalledWith(true));
+    await waitFor(() => expect(onLoadState).toHaveBeenCalledWith('failed'));
     expect(setApiTokens).toHaveBeenCalledTimes(1);
     expect(setApiTokens).toHaveBeenCalledWith([]);
   });
 
   it('falls back to an empty list and reports the failure on a network error', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('network down')));
-    const { setApiTokens, onLoadError } = renderLoader();
+    const { setApiTokens, onLoadState } = renderLoader();
 
-    await waitFor(() => expect(onLoadError).toHaveBeenCalledWith(true));
+    await waitFor(() => expect(onLoadState).toHaveBeenCalledWith('failed'));
     expect(setApiTokens).toHaveBeenCalledWith([]);
   });
 });

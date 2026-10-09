@@ -3,7 +3,7 @@ import { Modal } from '../system/Modal';
 import { Input } from '../system/Input';
 import { Button } from '../system/Button';
 import { useTranslation } from 'react-i18next';
-import { fetchApiTokens, useApiTokensLoader } from '../../features/admin/useApiTokens';
+import { fetchApiTokens, useApiTokensLoader, type ApiTokensLoadState } from '../../features/admin/useApiTokens';
 
 type ApiToken = { id: string; name?: string | null; createdAt: string; lastUsedAt?: string | null };
 
@@ -162,6 +162,7 @@ export function ApiTokensOverlay(props: ApiTokensOverlayProps) {
     props;
   const { t } = useTranslation();
   const [error, setError] = React.useState<string | null>(null);
+  const [listState, setListState] = React.useState<ApiTokensLoadState>('loading');
 
   // The single place that loads the list on open; it also resets the fresh token.
   useApiTokensLoader({
@@ -169,7 +170,10 @@ export function ApiTokensOverlay(props: ApiTokensOverlayProps) {
     open,
     setFreshToken,
     setApiTokens,
-    onLoadError: (failed) => setError(failed ? t('admin.api.loadError') : null),
+    onLoadState: (state) => {
+      setListState(state);
+      setError(state === 'failed' ? t('admin.api.loadError') : null);
+    },
   });
 
   // Reloads the list after a change. A failed reload empties the list and says
@@ -177,8 +181,10 @@ export function ApiTokensOverlay(props: ApiTokensOverlayProps) {
   const refreshList = async () => {
     try {
       setApiTokens(await fetchApiTokens(apiBase));
+      setListState('loaded');
     } catch {
       setApiTokens([]);
+      setListState('failed');
       setError(t('admin.api.loadError'));
     }
   };
@@ -191,15 +197,13 @@ export function ApiTokensOverlay(props: ApiTokensOverlayProps) {
         credentials: 'include',
         body: JSON.stringify({ name: newTokenName || undefined }),
       });
-      if (!res.ok) throw new Error('Token could not be created');
+      if (!res.ok) throw new Error(`token creation failed with status ${res.status}`);
       const data = (await res.json()) as CreateTokenResponse;
       setFreshToken(data.token);
       setNewTokenName('');
       await refreshList();
-    } catch (e: unknown) {
-      // Internal error messages from the server are surfaced unchanged; the
-      // translated fallback is used when no message is available.
-      setError((e instanceof Error ? e.message : null) || t('admin.api.createError'));
+    } catch {
+      setError(t('admin.api.createError'));
     }
   };
 
@@ -209,8 +213,8 @@ export function ApiTokensOverlay(props: ApiTokensOverlayProps) {
       await refreshList();
       // 404 means the token is already gone, which is what the user asked for.
       if (!res.ok && res.status !== 404) setError(t('admin.api.deleteError'));
-    } catch (e: unknown) {
-      setError((e instanceof Error ? e.message : null) || t('admin.api.deleteError'));
+    } catch {
+      setError(t('admin.api.deleteError'));
     }
   };
 
@@ -260,7 +264,7 @@ export function ApiTokensOverlay(props: ApiTokensOverlayProps) {
           {(apiTokens || []).map((token) => (
             <TokenRow key={token.id} token={token} t={t} onDelete={() => deleteToken(token.id)} />
           ))}
-          {!apiTokens?.length && (
+          {listState === 'loaded' && !apiTokens?.length && (
             <div style={{ fontSize: 13, color: 'var(--fg-subtle)' }}>{t('admin.api.noneYet')}</div>
           )}
         </div>
