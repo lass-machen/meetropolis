@@ -26,6 +26,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   such as Prisma's `code`, `meta` and `clientVersion`, now sit under
   `err`; log queries on them need adjusting.
 
+### Fixed
+
+- Web client: the personal API tokens overlay is reachable again. The user
+  menu has an "API tokens" entry for every signed-in member except guests;
+  before, the overlay existed but nothing opened it. The overlay also now
+  loads its list through one request and reports a failed load, create or
+  delete instead of crashing or failing silently, asks before deleting,
+  ignores double clicks, forgets the secret and the list when closed, and
+  states that a token does not expire and carries all permissions of the
+  account. Its helper text no longer claims that tokens act on other
+  participants; `POST /controls` only reaches your own sessions.
+
 ## [0.1.0]
 
 ### Initial open-source release of Meetropolis
