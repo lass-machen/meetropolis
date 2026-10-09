@@ -12,6 +12,7 @@
  */
 
 const ZONE_MARKER = ':zone:';
+const ISOLATED_PREFIX = 'isolated:';
 
 export function islandOf(mapId: string, zoneName: string | null): string {
   return zoneName ? `${mapId}${ZONE_MARKER}${zoneName}` : `${mapId}:open`;
@@ -27,7 +28,11 @@ export function isZoneIsland(island: string): boolean {
 // not yet been confirmed (via hysteresis) to have arrived at their next
 // island. See membershipTracker.ts for the state machine that uses this.
 export function isolatedIslandFor(identity: string): string {
-  return `isolated:${identity}`;
+  return `${ISOLATED_PREFIX}${identity}`;
+}
+
+export function isIsolatedIsland(island: string): boolean {
+  return island.startsWith(ISOLATED_PREFIX);
 }
 
 export type IslandSnapshot = ReadonlyMap<string, string>;

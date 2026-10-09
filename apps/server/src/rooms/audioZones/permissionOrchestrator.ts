@@ -6,6 +6,8 @@
  * with the pushed allow-list, which only the publisher itself can set.
  * This module never talks to LiveKit directly — it only tells each
  * affected participant who is currently allowed to subscribe to them.
+ * Besides island members, the only identity a list can carry is the
+ * transcriber, under the rules in transcriberAdmission.ts.
  *
  * Batching: a participant can appear in several transitions within the
  * same movement tick (their own move, or a peer's move putting them in
@@ -16,8 +18,10 @@
 
 import type { Client } from 'colyseus';
 import type { WorldRoom } from '../WorldRoom.js';
-import { allowListFor, type IslandSnapshot } from './islandModel.js';
+import { allowListFor, isIsolatedIsland, type IslandSnapshot } from './islandModel.js';
+import { TRANSCRIBER_IDENTITY } from './islandAttributes.js';
 import { snapshot, type MembershipTracker } from './membershipTracker.js';
+import { NO_TRANSCRIBER, transcriberAdmissionFor, type TranscriberAdmission } from './transcriberAdmission.js';
 
 export interface PermissionOrchestrator {
   pending: Set<string>;
@@ -39,12 +43,21 @@ export function createPermissionOrchestrator(): PermissionOrchestrator {
 // Pure: computes what each affected identity's next push should contain.
 // Skips identities absent from the snapshot (departed before the batch
 // window elapsed) rather than sending a stale/empty payload.
-export function buildPushPayloads(identities: Iterable<string>, snap: IslandSnapshot): ZonePermissionPayload[] {
+// The transcriber is never an island member; it is appended for an admitted
+// publisher (see transcriberAdmission.ts) unless that publisher sits on an
+// isolated island, which is shared by nobody and so holds no conversation.
+export function buildPushPayloads(
+  identities: Iterable<string>,
+  snap: IslandSnapshot,
+  admitsTranscriber: TranscriberAdmission = NO_TRANSCRIBER,
+): ZonePermissionPayload[] {
   const out: ZonePermissionPayload[] = [];
   for (const identity of identities) {
     const island = snap.get(identity);
     if (!island) continue;
-    out.push({ identity, islandId: island, allow: allowListFor(identity, snap) });
+    const allow = allowListFor(identity, snap);
+    if (!isIsolatedIsland(island) && admitsTranscriber(identity)) allow.push(TRANSCRIBER_IDENTITY);
+    out.push({ identity, islandId: island, allow });
   }
   return out;
 }
@@ -74,7 +87,8 @@ function flush(orch: PermissionOrchestrator, room: WorldRoom, tracker: Membershi
   orch.pending.clear();
   orch.timer = null;
   const snap = snapshot(tracker);
-  for (const payload of buildPushPayloads(ids, snap)) sendZonePermissions(room, payload);
+  const admitsTranscriber = transcriberAdmissionFor(room, (identity) => findClientByIdentity(room, identity));
+  for (const payload of buildPushPayloads(ids, snap, admitsTranscriber)) sendZonePermissions(room, payload);
 }
 
 export function scheduleAllowListPush(
