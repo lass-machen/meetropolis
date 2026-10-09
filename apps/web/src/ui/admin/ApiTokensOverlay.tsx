@@ -176,6 +176,17 @@ export function ApiTokensOverlay(props: ApiTokensOverlayProps) {
     },
   });
 
+  // Closing drops the secret, the list and the half-typed name, so none of it
+  // is rendered again on the next open (or by the next user after a re-login).
+  React.useEffect(() => {
+    if (!open) return;
+    return () => {
+      setFreshToken(null);
+      setApiTokens([]);
+      setNewTokenName('');
+    };
+  }, [open, setFreshToken, setApiTokens, setNewTokenName]);
+
   // Reloads the list after a change. A failed reload empties the list and says
   // so, rather than leaving a stale or malformed one on screen.
   const refreshList = async () => {
