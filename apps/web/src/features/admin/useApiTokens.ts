@@ -12,9 +12,10 @@ type UseApiTokensLoaderParams = {
   open: boolean;
   setFreshToken: (v: string | null) => void;
   setApiTokens: (list: ApiTokenSummary[]) => void;
-  /** Called with `false` when a load starts and `true` when it fails. */
-  onLoadError: (failed: boolean) => void;
+  onLoadState: (state: ApiTokensLoadState) => void;
 };
+
+export type ApiTokensLoadState = 'loading' | 'loaded' | 'failed';
 
 /**
  * Fetches the caller's API tokens. Rejects on a non-2xx status or a payload
@@ -33,25 +34,27 @@ export function useApiTokensLoader({
   open,
   setFreshToken,
   setApiTokens,
-  onLoadError,
+  onLoadState,
 }: UseApiTokensLoaderParams) {
   // Kept in a ref so an inline callback does not re-trigger the load on every render.
-  const onLoadErrorRef = React.useRef(onLoadError);
-  onLoadErrorRef.current = onLoadError;
+  const onLoadStateRef = React.useRef(onLoadState);
+  onLoadStateRef.current = onLoadState;
 
   React.useEffect(() => {
     if (!open) return;
     let cancelled = false;
     setFreshToken(null);
-    onLoadErrorRef.current(false);
+    onLoadStateRef.current('loading');
     void (async () => {
       try {
         const list = await fetchApiTokens(apiBase);
-        if (!cancelled) setApiTokens(list);
+        if (cancelled) return;
+        setApiTokens(list);
+        onLoadStateRef.current('loaded');
       } catch {
         if (cancelled) return;
         setApiTokens([]);
-        onLoadErrorRef.current(true);
+        onLoadStateRef.current('failed');
       }
     })();
     return () => {

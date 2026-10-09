@@ -80,13 +80,14 @@ describe('ApiTokensOverlay token list', () => {
     expect(listCalls).toHaveLength(1);
   });
 
-  it('shows an error and an empty list instead of crashing when the load is rejected', async () => {
+  it('shows an error instead of crashing or claiming there are no tokens when the load is rejected', async () => {
     stubFetch({ ok: false, status: 401, body: { error: 'unauthorized' } });
 
     render(<Harness />);
 
     expect(await screen.findByText('admin.api.loadError')).toBeTruthy();
-    expect(screen.getByText('admin.api.noneYet')).toBeTruthy();
+    // An empty list next to the error would claim "no tokens" when we do not know.
+    expect(screen.queryByText('admin.api.noneYet')).toBeNull();
   });
 
   it('treats a 2xx payload that is not a list the same way', async () => {
@@ -95,7 +96,27 @@ describe('ApiTokensOverlay token list', () => {
     render(<Harness />);
 
     await waitFor(() => expect(screen.getByText('admin.api.loadError')).toBeTruthy());
-    expect(screen.getByText('admin.api.noneYet')).toBeTruthy();
+    expect(screen.queryByText('admin.api.noneYet')).toBeNull();
+  });
+});
+
+describe('ApiTokensOverlay messages', () => {
+  it('shows the translated list state while loading and none-yet only after an empty load', async () => {
+    stubApi({ list: [{ ok: true, body: [] }] });
+    render(<Harness />);
+
+    expect(screen.queryByText('admin.api.noneYet')).toBeNull();
+    expect(await screen.findByText('admin.api.noneYet')).toBeTruthy();
+  });
+
+  it('shows the translated create error, not an internal message, when creation is rejected', async () => {
+    stubApi({ list: [{ ok: true, body: [] }], post: { ok: false, status: 500, body: { error: 'boom' } } });
+    render(<Harness />);
+    await screen.findByText('admin.api.noneYet');
+
+    fireEvent.click(screen.getByText('admin.api.createToken'));
+
+    expect(await screen.findByText('admin.api.createError')).toBeTruthy();
   });
 });
 
