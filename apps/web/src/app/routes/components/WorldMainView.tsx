@@ -85,8 +85,9 @@ export function buildTopRightMenu(props: WorldMainViewProps) {
     ...(isTenantAdmin ? { onOpenSessions: eventHandlers.handleOpenSessions } : {}),
     // Personal API tokens are open to every signed-in member; guests are
     // time-limited visitors and do not get the entry (same `role` the server
-    // reports as `isGuest` on /auth/me).
-    ...(me.role !== 'guest' ? { onOpenApi: eventHandlers.handleOpenApi } : {}),
+    // reports as `isGuest` on /auth/me). Fails closed: without a known role
+    // the entry stays hidden, like the tenant-admin entries above.
+    ...(me.role && me.role !== 'guest' ? { onOpenApi: eventHandlers.handleOpenApi } : {}),
     ...(isTenantAdmin ? { onOpenPackStore: () => setPackStoreOpen(true) } : {}),
     onResetApp: eventHandlers.handleResetApp,
     ...(isTenantAdmin ? { onToggleEditor: eventHandlers.handleToggleEditor } : {}),
