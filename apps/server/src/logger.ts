@@ -14,25 +14,53 @@ const pinoLogger = pino({
   base: { service: 'meetropolis-server' },
 });
 
-function asRecord(args: unknown[]): Record<string, unknown> | null {
+function isObjectArg(value: unknown): value is object {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+// An Error keeps message and stack in non-enumerable own properties, so
+// spreading it into the record dropped everything that identifies it.
+function serializeError(error: Error): Record<string, unknown> {
+  const out: Record<string, unknown> = { name: error.name, message: error.message };
+  if ('code' in error && (typeof error.code === 'string' || typeof error.code === 'number')) out.code = error.code;
+  if (error.stack) out.stack = error.stack;
+  return out;
+}
+
+// Plain objects are merged into the record; Error instances land under
+// `err` (pino's convention), as an array when a call passes several.
+function mergeArgs(record: Record<string, unknown>, values: unknown[]): Record<string, unknown> {
+  const errors: Record<string, unknown>[] = [];
+  for (const value of values) {
+    if (value instanceof Error) errors.push(serializeError(value));
+    else if (isObjectArg(value)) Object.assign(record, value);
+  }
+  if (errors.length > 0) record.err = errors.length === 1 ? errors[0] : errors;
+  return record;
+}
+
+export function asRecord(args: unknown[]): Record<string, unknown> | null {
   if (args.length === 0) return null;
   const [first, ...rest] = args;
   // If first is an object, merge others if objects
-  if (first && typeof first === 'object' && !Array.isArray(first)) {
-    const base = { ...(first as Record<string, unknown>) };
-    for (const r of rest) {
-      if (r && typeof r === 'object' && !Array.isArray(r)) Object.assign(base, r as Record<string, unknown>);
-    }
-    return base;
-  }
+  if (isObjectArg(first)) return mergeArgs({}, args);
   // If first is string and second is object -> include msg + context
-  if (typeof first === 'string' && rest.length > 0 && rest[0] && typeof rest[0] === 'object') {
-    const obj: Record<string, unknown> = { ...(rest[0] as Record<string, unknown>) };
+  if (typeof first === 'string' && rest.length > 0 && isObjectArg(rest[0])) {
+    const obj = mergeArgs({}, rest);
     obj.msg = first;
     return obj;
   }
   // Fallback: join to msg
-  return { msg: args.map((a) => (typeof a === 'string' ? a : JSON.stringify(a))).join(' ') };
+  const record = {
+    msg: args
+      .filter((a) => !(a instanceof Error))
+      .map((a) => (typeof a === 'string' ? a : JSON.stringify(a)))
+      .join(' '),
+  };
+  return mergeArgs(
+    record,
+    args.filter((a) => a instanceof Error),
+  );
 }
 
 function emit(level: 'debug' | 'info' | 'warn' | 'error', args: unknown[]): void {
