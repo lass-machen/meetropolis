@@ -6,7 +6,7 @@ import type { WorldRoom } from '../WorldRoom.js';
 import { isWorldAuth } from './onAuth.js';
 import { evaluateTranscriptionGate, TRANSCRIPTION_CONSENT_REQUIRED_CODE } from './transcriptionGate.js';
 import { recordTranscriptionGateResult, revokeTranscriptionClearance } from './transcriptionClearance.js';
-import { scheduleAllowListPush } from '../audioZones/permissionOrchestrator.js';
+import { pushAllowListNowTo, scheduleAllowListPush } from '../audioZones/permissionOrchestrator.js';
 
 interface GateTarget {
   client: Client;
@@ -24,7 +24,17 @@ function getGateTargets(room: WorldRoom, change: TranscriptionGateChange): GateT
   return targets;
 }
 
-function disconnectForMissingConsent(client: Client): void {
+// The client's clearance is already void, so the list pushed here holds no
+// transcriber. It reaches the client before the error: a client that keeps
+// its LiveKit session past the error would otherwise go on publishing to the
+// transcriber with the last list it applied.
+function disconnectForMissingConsent(room: WorldRoom, target: GateTarget): void {
+  const { client } = target;
+  try {
+    pushAllowListNowTo(room, room.audioZones.tracker, client, target.userId);
+  } catch (error) {
+    logger.debug({ event: 'transcription.gate_allow_list_push_failed', error: String(error) });
+  }
   try {
     client.error(TRANSCRIPTION_CONSENT_REQUIRED_CODE, 'transcription_consent_required');
   } catch (error) {
@@ -58,7 +68,7 @@ async function recheckTargets(room: WorldRoom, change: TranscriptionGateChange, 
       const decision = await evaluateTranscriptionGate(prisma, change.tenantId, target.userId);
       recordTranscriptionGateResult(target.client, change.tenantId, decision === 'allow');
       if (decision === 'consent_required') {
-        disconnectForMissingConsent(target.client);
+        disconnectForMissingConsent(room, target);
         continue;
       }
       if (decision === 'unavailable') logGateUnavailable(change.tenantId, target.userId);

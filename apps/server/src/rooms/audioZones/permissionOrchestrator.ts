@@ -91,6 +91,21 @@ function flush(orch: PermissionOrchestrator, room: WorldRoom, tracker: Membershi
   for (const payload of buildPushPayloads(ids, snap, admitsTranscriber)) sendZonePermissions(room, payload);
 }
 
+// Sends one identity's current allow-list to the given client right away,
+// bypassing the batch window. A client that is about to be disconnected gets
+// it ahead of the error and the close, which travel the same socket in order.
+export function pushAllowListNowTo(
+  room: WorldRoom,
+  tracker: MembershipTracker,
+  client: Client,
+  identity: string,
+): void {
+  const admitsTranscriber = transcriberAdmissionFor(room, (candidate) => findClientByIdentity(room, candidate));
+  for (const payload of buildPushPayloads([identity], snapshot(tracker), admitsTranscriber)) {
+    client.send('av_zone_permissions', { islandId: payload.islandId, allow: payload.allow });
+  }
+}
+
 export function scheduleAllowListPush(
   orch: PermissionOrchestrator,
   room: WorldRoom,

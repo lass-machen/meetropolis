@@ -30,6 +30,7 @@ vi.mock('../../logger.js', () => ({
 
 import { getActiveWorldRooms, Player, type WorldRoom } from '../WorldRoom.js';
 import { onMove } from '../audioZones/membershipTracker.js';
+import { rePushAllForRoom } from '../audioZones/permissionOrchestrator.js';
 import { TRANSCRIBER_IDENTITY } from '../audioZones/islandAttributes.js';
 import { hasTranscriptionClearance, recordTranscriptionGateResult } from './transcriptionClearance.js';
 import {
@@ -303,6 +304,23 @@ describe('watchTranscriptionGate transcription clearance', () => {
 
     expect(hasTranscriptionClearance(client, 'tenant-a')).toBe(false);
     expect(pushedAllows(client).flat()).not.toContain(TRANSCRIBER_IDENTITY);
+  });
+
+  it('pushes a list without the transcriber ahead of the consent disconnect', async () => {
+    activeTenants.add('tenant-a');
+    const room = await createWorldRoom();
+    const client = addTrackedMember(room, 'user-a');
+    recordTranscriptionGateResult(client, 'tenant-a', true);
+    rePushAllForRoom(room.audioZones.orchestrator, room, room.audioZones.tracker);
+    await vi.waitFor(() => expect(pushedAllows(client)).toEqual([[TRANSCRIBER_IDENTITY]]));
+    getJoinRequirementMock.mockResolvedValue({ code: 'transcription_consent_required' });
+
+    emit({ tenantId: 'tenant-a', userId: 'user-a' });
+    await vi.waitFor(() => expect(client.leave).toHaveBeenCalledWith(4008));
+
+    expect(pushedAllows(client)).toEqual([[TRANSCRIBER_IDENTITY], []]);
+    const lastPushOrder = client.send.mock.invocationCallOrder.at(-1) ?? Infinity;
+    expect(lastPushOrder).toBeLessThan(vi.mocked(client.error).mock.invocationCallOrder[0] ?? -Infinity);
   });
 
   it('pushes a list without the transcriber when the re-check is unavailable', async () => {
