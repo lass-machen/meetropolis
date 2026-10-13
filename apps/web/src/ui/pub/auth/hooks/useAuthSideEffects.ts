@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { AuthViewName, AuthHandlers } from './useAuthHandlers';
+import { readLoginNextParam, resolvePostLoginHash } from '../../../../lib/resolvePostLoginHash';
 
 interface AuthTokenResponse {
   token?: string | null;
@@ -38,7 +39,7 @@ export function useDebugAutoLogin({ post, storeDesktopAuthToken, setError }: Deb
             password: autoPassword,
           })) as AuthTokenResponse;
           if (result.token) await storeDesktopAuthToken(result.token);
-          window.location.hash = '#/app';
+          window.location.hash = resolvePostLoginHash(readLoginNextParam(window.location.hash));
         } catch (e: unknown) {
           setError((e as Error)?.message || t('auth.loginTitle'));
         }
