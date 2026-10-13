@@ -13,6 +13,7 @@ import { useMiniModeAuthGuard } from './hooks/useMiniModeAuthGuard';
 vi.mock('./hooks/useMiniModeAuthGuard', () => ({ useMiniModeAuthGuard: vi.fn() }));
 
 vi.mock('./WorldScreen', () => ({ WorldScreen: () => <div data-testid="world" /> }));
+vi.mock('./ConnectRoute', () => ({ ConnectRoute: () => <div data-testid="connect" /> }));
 vi.mock('./components/DesktopUpdateOverlay', () => ({ DesktopUpdateOverlay: () => null }));
 vi.mock('../../ui/pub/auth/AuthPage', () => ({ AuthPage: () => <div data-testid="auth" /> }));
 vi.mock('../../ui/pub/landing/LandingPage', () => ({ LandingPage: () => null }));
@@ -64,14 +65,20 @@ describe('AppRoutes mini-mode wiring', () => {
     expect(reportedPage()).toBe('unknown');
   });
 
-  it.each(['#/register', '#/reset?token=t', '#/invite', '#/billing/success', '#/verify?token=t', '#/contact'])(
-    'reports %s as public',
-    (hash) => {
-      window.location.hash = hash;
-      render(<AppRoutes />);
-      expect(reportedPage()).toBe('public');
-    },
-  );
+  it.each([
+    '#/register',
+    '#/reset?token=t',
+    '#/invite',
+    '#/billing/success',
+    '#/verify?token=t',
+    '#/contact',
+    '#/connect',
+    '#/connect?request=abc',
+  ])('reports %s as public', (hash) => {
+    window.location.hash = hash;
+    render(<AppRoutes />);
+    expect(reportedPage()).toBe('public');
+  });
 
   it('follows a hash change from the world to the login page', () => {
     window.location.hash = '#/app';

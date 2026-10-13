@@ -29,6 +29,13 @@ describe('useHashRoute initial route', () => {
     expect(result.current.route).toBe('login');
   });
 
+  it('derives the connect route from #/connect on the first render', () => {
+    window.location.hash = '#/connect?request=abc';
+    const { result } = renderHook(() => useHashRoute());
+    expect(result.current.route).toBe('connect');
+    expect(result.current.params.requestId).toBe('abc');
+  });
+
   it('treats an empty hash as landing', () => {
     window.location.hash = '';
     const { result } = renderHook(() => useHashRoute());
@@ -41,6 +48,27 @@ describe('useHashRoute initial route', () => {
  * `#/register?plan=<tierKey>`, which step 3 reads through `initialPlan` to
  * preselect the plan. Guards the parse of that query param.
  */
+describe('parseHashRoute connect request param', () => {
+  it('parses a bare #/connect', () => {
+    expect(parseHashRoute('/connect')).toEqual({ route: 'connect', params: {} });
+  });
+
+  it('extracts the request id from #/connect?request=', () => {
+    expect(parseHashRoute('/connect?request=abc_-1')).toEqual({
+      route: 'connect',
+      params: { requestId: 'abc_-1' },
+    });
+  });
+
+  it('leaves requestId undefined for an empty request value', () => {
+    expect(parseHashRoute('/connect?request=')).toEqual({ route: 'connect', params: {} });
+  });
+
+  it('does not treat /connectx as the connect route', () => {
+    expect(parseHashRoute('/connectx').route).not.toBe('connect');
+  });
+});
+
 describe('parseHashRoute register plan param', () => {
   it('extracts the preselected tier from #/register?plan=team', () => {
     expect(parseHashRoute('/register?plan=team')).toEqual({ route: 'register', params: { plan: 'team' } });

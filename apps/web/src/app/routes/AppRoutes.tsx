@@ -1,5 +1,6 @@
 import * as React from 'react';
 import { WorldScreen } from './WorldScreen';
+import { ConnectRoute } from './ConnectRoute';
 import { LandingPage } from '../../ui/pub/landing/LandingPage';
 import { DesktopDownloadPage } from '../../ui/pub/download/DesktopDownloadPage';
 
@@ -186,6 +187,8 @@ function RouteContent({ route, params, apiBase, registrationEnabled, navigate }:
       );
     case 'guest-auth':
       return <AuthPage apiBase={apiBase} initialView="guest" initialGuestToken={params.guestToken} />;
+    case 'connect':
+      return <ConnectRoute requestId={params.requestId ?? null} />;
     case 'app':
     default:
       return <WorldScreen />;

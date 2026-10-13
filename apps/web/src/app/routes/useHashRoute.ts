@@ -16,7 +16,8 @@ export type Route =
   | 'register'
   | 'invite'
   | 'guest-auth'
-  | 'reset-pw';
+  | 'reset-pw'
+  | 'connect';
 
 export type RouteParams = {
   verifyToken?: string;
@@ -32,6 +33,8 @@ export type RouteParams = {
    * (`#/billing/success?session_id=cs_…`). Handed to POST /billing/reconcile so
    * the office is provisioned even when the webhook is late or lost. */
   sessionId?: string;
+  /** Agent-connection request id from `#/connect?request=…`. */
+  requestId?: string;
 };
 
 function setOptional<K extends keyof RouteParams>(p: RouteParams, k: K, v: string | null) {
@@ -81,6 +84,11 @@ export function parseHashRoute(hash: string): { route: Route; params: RouteParam
   }
   if (path.startsWith('/billing/cancel')) return { route: 'billing-cancel', params };
   if (path === '/login') return { route: 'login', params };
+  if (path === '/connect') {
+    const sp = new URLSearchParams(searchPart.slice(1));
+    setOptional(params, 'requestId', sp.get('request'));
+    return { route: 'connect', params };
+  }
   if (path === '/register') {
     const sp = new URLSearchParams(searchPart.slice(1));
     setOptional(params, 'plan', sp.get('plan'));
