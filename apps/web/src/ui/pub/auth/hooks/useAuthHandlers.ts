@@ -2,6 +2,7 @@ import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuthApi } from './useAuthApi';
 import { getTelemetryModule } from '../../../../lib/telemetryLoader';
+import { readLoginNextParam, resolvePostLoginHash } from '../../../../lib/resolvePostLoginHash';
 
 interface AuthTokenResponse {
   token?: string | null;
@@ -52,7 +53,7 @@ export function useAuthHandlers({
         void getTelemetryModule()
           .then((t) => t?.trackLogin())
           .catch(() => {});
-        window.location.hash = '#/app';
+        window.location.hash = resolvePostLoginHash(readLoginNextParam(window.location.hash));
       } catch (e: unknown) {
         setError((e as Error).message);
       }

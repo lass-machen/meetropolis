@@ -38,6 +38,49 @@ function makeArgs() {
   };
 }
 
+describe('useAuthHandlers — handleLogin post-login hash', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    getTelemetryModuleMock.mockResolvedValue(null);
+    window.location.hash = '';
+  });
+
+  afterEach(() => {
+    window.location.hash = '';
+  });
+
+  it('returns to #/app when the login hash has no next param', async () => {
+    window.location.hash = '#/login';
+    postMock.mockResolvedValueOnce({ token: null });
+
+    const { result } = renderHook(() => useAuthHandlers(makeArgs()));
+    await result.current.handleLogin('jane@acme.test', 'secret');
+
+    expect(window.location.hash).toBe('#/app');
+  });
+
+  it('returns to an allowed connect hash from next', async () => {
+    window.location.hash = '#/login?next=' + encodeURIComponent('#/connect?request=abc_-1');
+    postMock.mockResolvedValueOnce({ token: 'jwt.abc' });
+
+    const { result } = renderHook(() => useAuthHandlers(makeArgs()));
+    await result.current.handleLogin('jane@acme.test', 'secret');
+
+    expect(storeDesktopAuthTokenMock).toHaveBeenCalledWith('jwt.abc');
+    expect(window.location.hash).toBe('#/connect?request=abc_-1');
+  });
+
+  it('ignores an open-redirect next value', async () => {
+    window.location.hash = '#/login?next=' + encodeURIComponent('https://evil.example');
+    postMock.mockResolvedValueOnce({ token: null });
+
+    const { result } = renderHook(() => useAuthHandlers(makeArgs()));
+    await result.current.handleLogin('jane@acme.test', 'secret');
+
+    expect(window.location.hash).toBe('#/app');
+  });
+});
+
 describe('useAuthHandlers — handleRegister (invite join)', () => {
   const originalLocation = window.location;
 
