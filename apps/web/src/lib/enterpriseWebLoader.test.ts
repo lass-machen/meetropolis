@@ -22,10 +22,12 @@ describe('optional transcription slots', () => {
       PackStore: TestComponent,
       TranscriptionConsentGate: TestComponent,
       TranscriptionIndicator: TestComponent,
+      AgentConnectPage: TestComponent,
     });
 
     expect(module?.TranscriptionConsentGate).toBe(TestComponent);
     expect(module?.TranscriptionIndicator).toBe(TestComponent);
+    expect(module?.AgentConnectPage).toBe(TestComponent);
   });
 
   it('accepts the module when the optional components are absent', async () => {
@@ -38,5 +40,6 @@ describe('optional transcription slots', () => {
     expect(module).not.toBeNull();
     expect(module?.TranscriptionConsentGate).toBeUndefined();
     expect(module?.TranscriptionIndicator).toBeUndefined();
+    expect(module?.AgentConnectPage).toBeUndefined();
   });
 });

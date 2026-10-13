@@ -17,6 +17,7 @@ export interface EnterpriseWebModule {
   PackStore: ComponentType<{ apiBase: string; open: boolean; onOpenChange: (v: boolean) => void }>;
   TranscriptionConsentGate?: ComponentType<TranscriptionConsentGateProps>;
   TranscriptionIndicator?: ComponentType<TranscriptionIndicatorProps>;
+  AgentConnectPage?: ComponentType<AgentConnectPageProps>;
 }
 
 export interface TranscriptionConsentGateProps {
@@ -30,6 +31,11 @@ export interface TranscriptionIndicatorProps {
   /** Called with true once the badge is visible and with false otherwise, so
    * the host can hide its panel while the indicator renders nothing. */
   onVisibilityChange?: (visible: boolean) => void;
+}
+
+export interface AgentConnectPageProps {
+  requestId: string | null;
+  onRequireLogin: () => void;
 }
 
 let cached: EnterpriseWebModule | null | undefined = undefined; // undefined = not yet tried
