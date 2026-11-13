@@ -1,53 +1,85 @@
 import { spawnColyseusBot } from './workers/colyseusBot.js';
-// The LiveKit bot is imported dynamically so the dependency stays optional.
+import type { LoadtestAccount } from './workers/session.js';
+import type { LivekitBotOptions } from './workers/livekitBot.js';
 
 export async function runScenario(opts: {
   mode: 'node' | 'browser';
   users: number;
   rampPerSec: number;
   apiBase: string;
-  livekitUrl: string;
   room: string;
   durationSec: number;
-}) {
+  tenant: string;
+  accounts: LoadtestAccount[];
+}): Promise<void> {
+  if (opts.accounts.length < opts.users) {
+    throw new Error(`not enough loadtest accounts: have ${opts.accounts.length}, need ${opts.users}`);
+  }
   const bots: Array<{ stop: () => Promise<void> }> = [];
   const startAt = Date.now();
   const skipLivekit = process.env.SKIP_LIVEKIT === 'true';
   for (let i = 0; i < opts.users; i++) {
-    const identity = `bot-${String(i + 1).padStart(3, '0')}`;
-    // Ramp-up
-    if (i > 0 && opts.rampPerSec > 0) {
-      const delayMs = Math.floor(1000 * (i / opts.rampPerSec));
-      await new Promise((r) => setTimeout(r, delayMs));
+    await rampDelay(i, opts.rampPerSec);
+    const account = opts.accounts[i];
+    if (!account) {
+      throw new Error(`not enough loadtest accounts: have ${opts.accounts.length}, need ${opts.users}`);
     }
-    // Start Colyseus bot
-    bots.push(await spawnColyseusBot({ apiBase: opts.apiBase, identity }));
-    // Start LiveKit bot
+    const world = await spawnColyseusBot({
+      apiBase: opts.apiBase,
+      tenant: opts.tenant,
+      email: account.email,
+      password: account.password,
+    });
+    bots.push(world);
     if (!skipLivekit) {
-      try {
-        const mod: typeof import('./workers/livekitBot.js') = await import('./workers/livekitBot.js');
-        bots.push(
-          await mod.spawnLivekitBot({
-            livekitUrl: opts.livekitUrl,
-            apiBase: opts.apiBase,
-            roomName: opts.room,
-            identity,
-          }),
-        );
-      } catch {
-        // LiveKit is optional: when the import fails, keep running Colyseus-only.
-      }
+      await startLivekitBot(bots, {
+        apiBase: opts.apiBase,
+        tenant: opts.tenant,
+        token: world.token,
+        roomName: opts.room,
+      });
     }
   }
-  // Run for duration
-  const until = startAt + opts.durationSec * 1000;
-  while (Date.now() < until) {
-    await new Promise((r) => setTimeout(r, 1000));
+  await waitUntil(startAt + opts.durationSec * 1000);
+  await stopAll(bots);
+}
+
+function rampDelay(index: number, rampPerSec: number): Promise<void> {
+  if (index === 0 || rampPerSec <= 0) return Promise.resolve();
+  const delayMs = Math.floor(1000 * (index / rampPerSec));
+  return new Promise((resolve) => {
+    setTimeout(resolve, delayMs);
+  });
+}
+
+async function startLivekitBot(bots: Array<{ stop: () => Promise<void> }>, opts: LivekitBotOptions): Promise<void> {
+  try {
+    const mod: typeof import('./workers/livekitBot.js') = await import('./workers/livekitBot.js');
+    bots.push(await mod.spawnLivekitBot(opts));
+  } catch (error: unknown) {
+    if (isMissingModule(error)) return;
+    throw error;
   }
-  // Stop all
-  for (const b of bots) {
+}
+
+function isMissingModule(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && 'code' in error && error.code === 'ERR_MODULE_NOT_FOUND';
+}
+
+async function waitUntil(untilMs: number): Promise<void> {
+  while (Date.now() < untilMs) {
+    await new Promise((resolve) => {
+      setTimeout(resolve, 1000);
+    });
+  }
+}
+
+async function stopAll(bots: Array<{ stop: () => Promise<void> }>): Promise<void> {
+  for (const bot of bots) {
     try {
-      await b.stop();
-    } catch {}
+      await bot.stop();
+    } catch {
+      // One bot failing to stop must not skip the others.
+    }
   }
 }

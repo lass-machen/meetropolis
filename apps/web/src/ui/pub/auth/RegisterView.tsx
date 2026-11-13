@@ -195,9 +195,22 @@ export function RegisterView({ onSubmit, onLogin, initialInvite, error }: Regist
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [localError, setLocalError] = useState<string | null>(null);
+  const visibleError = localError ?? error;
+
+  function track(set: (v: string) => void) {
+    return (v: string) => {
+      setLocalError(null);
+      set(v);
+    };
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (email.trim() === '' || password.trim() === '') {
+      setLocalError(t('auth.requiredFieldsMissing'));
+      return;
+    }
     setLoading(true);
     try {
       const name = composeRegisterName(firstName, lastName);
@@ -212,6 +225,7 @@ export function RegisterView({ onSubmit, onLogin, initialInvite, error }: Regist
       onSubmit={(e) => {
         void handleSubmit(e);
       }}
+      noValidate
       autoComplete="on"
       style={{ display: 'flex', flexDirection: 'column', gap: 24 }}
     >
@@ -222,12 +236,12 @@ export function RegisterView({ onSubmit, onLogin, initialInvite, error }: Regist
         lastName={lastName}
         email={email}
         password={password}
-        onFirstName={setFirstName}
-        onLastName={setLastName}
-        onEmail={setEmail}
-        onPassword={setPassword}
+        onFirstName={track(setFirstName)}
+        onLastName={track(setLastName)}
+        onEmail={track(setEmail)}
+        onPassword={track(setPassword)}
       />
-      {error && <RegisterError error={error} />}
+      {visibleError && <RegisterError error={visibleError} />}
       <PubButton
         type="submit"
         variant="primary"

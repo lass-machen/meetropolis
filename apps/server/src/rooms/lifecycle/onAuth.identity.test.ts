@@ -1,16 +1,16 @@
 /**
- * With ZONE_PRIVACY_AUTH_ENFORCE off, a join without a token is admitted under
- * the identity the client names, and that identity goes into the room state.
- * It must not be allowed to be as long as the client likes.
+ * A join without a token is refused regardless of the version setting:
+ * the client-supplied identity never reaches the room state, however short.
+ * The verified token subject is the only identity a human join can carry.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const log = vi.hoisted(() => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }));
 vi.mock('../../logger.js', () => ({ logger: log }));
 
-const validateSessionTokenMock = vi.fn();
+const validateTenantSessionFreshMock = vi.fn();
 vi.mock('../../api/utils/sessionAuth.js', () => ({
-  validateSessionToken: (...args: unknown[]) => validateSessionTokenMock(...args),
+  validateTenantSessionFresh: (...args: unknown[]) => validateTenantSessionFreshMock(...args),
 }));
 
 import { authenticateWorldJoin, AUTH_REJECTED_CODE } from './onAuth.js';
@@ -23,8 +23,11 @@ type AuthContext = Parameters<typeof authenticateWorldJoin>[1];
 const ORIGINAL_ENV = { ...process.env };
 
 const prisma = {
-  tenant: { findUnique: vi.fn(() => Promise.resolve(null)) },
+  tenant: { findUnique: vi.fn(() => Promise.resolve({ id: 'tenant-1', slug: 'tenant-1' })) },
   session: { findUnique: vi.fn(), update: vi.fn() },
+  // Joins in these tests come from members; the membership gate has its own tests.
+  membership: { findUnique: vi.fn(() => Promise.resolve({ expiresAt: null })) },
+  npc: { findUnique: vi.fn(() => Promise.resolve({ id: 'npc-id', identity: 'bob' })) },
 } as unknown as WorldJoinPrisma;
 
 const tokenless: AuthContext = { headers: new Headers(), ip: '127.0.0.1' };
@@ -40,41 +43,43 @@ afterEach(() => {
   process.env = { ...ORIGINAL_ENV };
 });
 
-describe('identity of a token-less join in staged mode', () => {
-  it.each(['legacy-user', 'clx0a1b2c3d4e5f6g7h8i9j0k', 'loadtest-bot-0042', 'Jörg'])(
-    'admits %s unchanged',
+describe('identity of a token-less join without version enforcement', () => {
+  it.each(['legacy-user', 'clx0a1b2c3d4e5f6g7h8i9j0k', 'loadtest-bot-0042', 'J\u00f6rg'])(
+    'rejects %s without a valid session',
     async (identity) => {
       const options: RoomOptions = { identity, zonePrivacyVersion: 0 };
 
-      const auth = await authenticateWorldJoin(options, tokenless, prisma);
-
-      expect(auth).toEqual({ identity, isNpc: false, zonePrivacyVersion: 0 });
+      await expect(authenticateWorldJoin(options, tokenless, prisma)).rejects.toMatchObject({
+        code: AUTH_REJECTED_CODE,
+        message: 'unauthorized',
+      });
     },
   );
 
-  it('admits an identity of exactly the limit', async () => {
-    const identity = 'u'.repeat(MAX_JOIN_IDENTITY_LENGTH);
+  it('rejects an identity of exactly the limit without a valid session', async () => {
+    const options: RoomOptions = { identity: 'u'.repeat(MAX_JOIN_IDENTITY_LENGTH), zonePrivacyVersion: 0 };
 
-    const auth = await authenticateWorldJoin({ identity, zonePrivacyVersion: 0 }, tokenless, prisma);
-
-    expect(auth.identity).toBe(identity);
+    await expect(authenticateWorldJoin(options, tokenless, prisma)).rejects.toMatchObject({
+      code: AUTH_REJECTED_CODE,
+      message: 'unauthorized',
+    });
   });
 
-  it('refuses an identity one above the limit', async () => {
+  it('rejects an identity one above the limit without a valid session', async () => {
     const options: RoomOptions = { identity: 'u'.repeat(MAX_JOIN_IDENTITY_LENGTH + 1), zonePrivacyVersion: 0 };
 
     await expect(authenticateWorldJoin(options, tokenless, prisma)).rejects.toMatchObject({
       code: AUTH_REJECTED_CODE,
-      message: 'identity_invalid',
+      message: 'unauthorized',
     });
   });
 
   it('refuses a 900,000 character identity and logs only a bounded line', async () => {
-    const options: RoomOptions = { identity: 'x'.repeat(900_000), zonePrivacyVersion: 0 };
+    const options: RoomOptions = { identity: 'x'.repeat(900_000), zonePrivacyVersion: 1 };
 
     await expect(authenticateWorldJoin(options, tokenless, prisma)).rejects.toMatchObject({
       code: AUTH_REJECTED_CODE,
-      message: 'identity_invalid',
+      message: 'unauthorized',
     });
 
     expect(log.warn).toHaveBeenCalledTimes(1);
@@ -82,8 +87,15 @@ describe('identity of a token-less join in staged mode', () => {
   });
 
   it('does not touch a verified join, whose identity is the token subject', async () => {
-    validateSessionTokenMock.mockResolvedValue({ userId: 'user-real', tenantId: 'tenant-1' });
-    const options: RoomOptions = { identity: 'x'.repeat(900_000), zonePrivacyVersion: 0 };
+    validateTenantSessionFreshMock.mockResolvedValue({
+      status: 'allowed',
+      sessionId: 'db-session-1',
+      access: 'member',
+      userId: 'user-real',
+      tenantId: 'tenant-1',
+    });
+    prisma.tenant.findUnique.mockResolvedValueOnce({ slug: 'tenant-1' });
+    const options: RoomOptions = { identity: 'x'.repeat(900_000), zonePrivacyVersion: 1 };
     const context: AuthContext = { headers: new Headers({ cookie: 'auth_token=jwt' }), ip: '127.0.0.1' };
 
     const auth = await authenticateWorldJoin(options, context, prisma);

@@ -1,12 +1,13 @@
 import type express from 'express';
 import { PrismaClient } from '../../generated/prisma/index.js';
-import { z } from 'zod';
 import { logger } from '../../logger.js';
 import { getTenantFromReq, requireMembership } from '../utils/authHelpers.js';
 import { pathParam } from '../utils/requestHelpers.js';
 import { broadcastMapUpdate, broadcastSpawnUpdate } from '../utils/broadcast.js';
+import { countRejectedPayload } from '../../rooms/validation/rejectionMetrics.js';
 import { findMapById } from './maps.read.js';
 import { authenticateEditor, resolveEditorMemberTenant, type MapMeta } from './maps.editor.js';
+import { editorStateSchema } from './editorStateSchema.js';
 import type { MapDb } from '../utils/mapChunkMutations.js';
 import { acquireMapAdvisoryLock } from '../utils/advisoryLocks.js';
 
@@ -70,17 +71,6 @@ export async function handleEditorStateGet(
     spawn: meta.spawn && typeof meta.spawn.x === 'number' && typeof meta.spawn.y === 'number' ? meta.spawn : null,
   });
 }
-
-const editorStateSchema = z.object({
-  tilesets: z.array(z.any()).optional(),
-  zones: z.array(z.any()).optional(),
-  backgroundColor: z
-    .string()
-    .regex(/^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/)
-    .optional(),
-  replaceZones: z.boolean().optional(),
-  spawn: z.object({ x: z.number(), y: z.number() }).optional(),
-});
 
 async function ensureLobbyRoom(prisma: MapDb, mapId: string, tenantId: string) {
   const roomForZones = await prisma.room.findFirst({ where: { mapId }, orderBy: { createdAt: 'asc' } });
@@ -156,6 +146,7 @@ export async function handleEditorStatePut(
   if (!tenant) return;
   const parse = editorStateSchema.safeParse(req.body || {});
   if (!parse.success) {
+    countRejectedPayload('editor_state', 'schema');
     res.status(400).json({ error: 'invalid editor payload' });
     return;
   }

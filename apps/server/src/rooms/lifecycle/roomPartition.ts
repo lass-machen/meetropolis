@@ -21,7 +21,7 @@ import { AUTH_REJECTED_CODE, isTenantEnforced, type WorldAuth } from './onAuth.j
  * either way (verified-tenant scoping, StateView filter, seat counting); this
  * closes the residual sharing of the Colyseus room.
  *
- * A join that carries no verified tenant (NPCs, a token-less staged join) has
+ * A join that carries no verified tenant (NPCs, which carry no session) has
  * nothing to compare and is left alone.
  */
 export function enforceRoomPartition(

@@ -33,6 +33,14 @@ export interface SmtpProviderOptions {
   replyTo?: string;
   pool: boolean;
   rejectUnauthorized: boolean;
+  /**
+   * Refuse to send unless the connection is encrypted (direct TLS or a
+   * successful STARTTLS upgrade). Without it nodemailer falls back to plain
+   * text when the server does not offer STARTTLS, so a downgrade on the path
+   * exposes the SMTP credentials and the mail, including its links. Opt out
+   * (`SMTP_REQUIRE_TLS=false`) only for a local server without TLS (Mailpit).
+   */
+  requireTLS: boolean;
   verifyOnBoot: boolean;
 }
 
@@ -46,6 +54,7 @@ export interface SmtpProviderEnv {
   SMTP_REPLY_TO?: string;
   SMTP_POOL?: string;
   SMTP_TLS_REJECT_UNAUTHORIZED?: string;
+  SMTP_REQUIRE_TLS?: string;
   SMTP_VERIFY_ON_BOOT?: string;
 }
 
@@ -103,7 +112,6 @@ export function loadSmtpOptionsFromEnv(env: SmtpProviderEnv = process.env): Smtp
   if (!validateFrom(from)) {
     logger.warn({
       event: 'email.smtp.invalid_from',
-      from,
       message: 'SMTP_FROM looks invalid (missing @ or contains CR/LF) — refusing to initialize SMTP provider',
     });
     return null;
@@ -119,6 +127,7 @@ export function loadSmtpOptionsFromEnv(env: SmtpProviderEnv = process.env): Smtp
     replyTo: env.SMTP_REPLY_TO?.trim() || undefined,
     pool: parseBool(env.SMTP_POOL, false),
     rejectUnauthorized: parseBool(env.SMTP_TLS_REJECT_UNAUTHORIZED, true),
+    requireTLS: parseBool(env.SMTP_REQUIRE_TLS, true),
     verifyOnBoot: parseBool(env.SMTP_VERIFY_ON_BOOT, false),
   };
 }
@@ -143,6 +152,7 @@ export class SmtpEmailProvider implements EmailProvider {
         connectionTimeout: CONNECTION_TIMEOUT_MS,
         greetingTimeout: GREETING_TIMEOUT_MS,
         socketTimeout: SOCKET_TIMEOUT_MS,
+        requireTLS: options.secure !== true && options.requireTLS,
         tls: { rejectUnauthorized: options.rejectUnauthorized },
       };
       this.transporter = nodemailer.createTransport(poolOptions);
@@ -155,6 +165,7 @@ export class SmtpEmailProvider implements EmailProvider {
         connectionTimeout: CONNECTION_TIMEOUT_MS,
         greetingTimeout: GREETING_TIMEOUT_MS,
         socketTimeout: SOCKET_TIMEOUT_MS,
+        requireTLS: options.secure !== true && options.requireTLS,
         tls: { rejectUnauthorized: options.rejectUnauthorized },
       };
       this.transporter = nodemailer.createTransport(smtpOptions);
@@ -180,7 +191,7 @@ export class SmtpEmailProvider implements EmailProvider {
             event: 'email.smtp.verify_failed',
             host: options.host,
             port: options.port,
-            error: e instanceof Error ? e.message : String(e),
+            errorName: e instanceof Error ? e.name : typeof e,
           });
         });
     }
@@ -222,9 +233,8 @@ export class SmtpEmailProvider implements EmailProvider {
             : undefined;
         logger.info({
           event: 'email.smtp.send_ok',
-          to: params.to,
-          subject: params.subject,
-          messageId,
+          delivered: true,
+          hasMessageId: !!messageId,
           attempt,
         });
         return true;
@@ -237,10 +247,8 @@ export class SmtpEmailProvider implements EmailProvider {
     }
     logger.error({
       event: 'email.smtp.send_failed',
-      to: params.to,
-      subject: params.subject,
       attempts: MAX_ATTEMPTS,
-      error: lastError instanceof Error ? lastError.message : String(lastError),
+      errorName: lastError instanceof Error ? lastError.name : typeof lastError,
     });
     return false;
   }

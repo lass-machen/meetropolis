@@ -2,6 +2,7 @@ import { useCallback } from 'react';
 import { storeDesktopAuthToken } from '../../../../lib/desktopAuth';
 import { logger } from '../../../../lib/logger';
 import { translateApiError } from '../../../../lib/apiErrors';
+import { AccountActionError, readAccountError } from '../../../../lib/accountActionResponses';
 import { useTranslation } from 'react-i18next';
 
 export function useAuthApi(baseUrl: string) {
@@ -43,12 +44,19 @@ export function useAuthApi(baseUrl: string) {
             body: JSON.stringify(body),
           });
           if (!res.ok) {
-            const errBody = (await res.json().catch(() => ({}))) as { error?: string };
-            throw new Error(translateApiError(errBody.error) || t('common.error'));
+            const error = readAccountError(await res.json().catch(() => null));
+            const retryAfter = Number(res.headers.get('Retry-After'));
+            throw new AccountActionError(
+              res.status,
+              error.code,
+              translateApiError(error.message) || t('common.error'),
+              error.retryAfter ?? (retryAfter > 0 ? retryAfter : null),
+            );
           }
           return (await res.json().catch(() => ({}))) as unknown;
         } catch (e: unknown) {
-          logger.warn('[Auth] Fetch error:', (e as Error)?.message || String(e), 'URL:', url);
+          if (e instanceof AccountActionError && (e.status < 500 || e.code?.startsWith('EMAIL_'))) throw e;
+          logger.warn('[Auth] Anfrage fehlgeschlagen');
           lastErr = e;
           // Network / connection error: short retry with backoff
           if (i < attempts.length - 1) {

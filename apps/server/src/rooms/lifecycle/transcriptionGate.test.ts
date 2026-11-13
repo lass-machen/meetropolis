@@ -10,9 +10,9 @@ const mocks = vi.hoisted(() => ({
   loggerInfo: vi.fn(),
   loggerWarn: vi.fn(),
   loggerError: vi.fn(),
-  requireAuth: vi.fn(),
   getTenantFromReq: vi.fn(),
-  requireMembership: vi.fn(),
+  validateTenantSessionFresh: vi.fn(),
+  membershipFindUnique: vi.fn(),
   createLivekitToken: vi.fn(),
 }));
 
@@ -30,9 +30,13 @@ vi.mock('../../logger.js', () => ({
 }));
 
 vi.mock('../../api/utils/authHelpers.js', () => ({
-  requireAuth: mocks.requireAuth,
   getTenantFromReq: mocks.getTenantFromReq,
-  requireMembership: mocks.requireMembership,
+  // The session reference carried by the LiveKit token is derived from it.
+  getJwtSecret: () => 'test-jwt-secret',
+}));
+
+vi.mock('../../api/utils/sessionAuth.js', () => ({
+  validateTenantSessionFresh: mocks.validateTenantSessionFresh,
 }));
 
 vi.mock('../../livekit.js', () => ({
@@ -43,7 +47,10 @@ import { handleLivekitToken } from '../../api/routes/health.js';
 import { evaluateTranscriptionGate, enforceTranscriptionGate } from './transcriptionGate.js';
 import { hasTranscriptionClearance, revokeTranscriptionClearance } from './transcriptionClearance.js';
 
-const prisma = { $disconnect: vi.fn().mockResolvedValue(undefined) } as PrismaClient;
+const prisma = {
+  $disconnect: vi.fn().mockResolvedValue(undefined),
+  membership: { findUnique: mocks.membershipFindUnique },
+} as unknown as PrismaClient;
 const getJoinRequirementMock = vi.fn<TranscriptionModule['getJoinRequirement']>(() => Promise.resolve(null));
 const moduleImplementation = {
   version: 1 as const,
@@ -58,8 +65,9 @@ function makeClient() {
   return { error: vi.fn(), leave: vi.fn() } as Client;
 }
 
+/** Request that presents the session credential as the `auth_token` cookie. */
 function fakeReq(body: Record<string, unknown>): express.Request {
-  return { body, headers: {} } as express.Request;
+  return { body, headers: {}, cookies: { auth_token: 'session-token' } } as unknown as express.Request;
 }
 
 function fakeRes(): express.Response {
@@ -75,9 +83,15 @@ beforeEach(() => {
   getJoinRequirementMock.mockReset().mockResolvedValue(null);
   mocks.getTranscriptionModuleSync.mockReset().mockReturnValue(moduleImplementation);
   mocks.loggerWarn.mockReset();
-  mocks.requireAuth.mockReset().mockReturnValue({ userId: 'user-1' });
   mocks.getTenantFromReq.mockReset().mockReturnValue({ id: 'tenant-1', slug: 'acme' });
-  mocks.requireMembership.mockReset().mockResolvedValue({ role: 'member' });
+  mocks.validateTenantSessionFresh.mockReset().mockResolvedValue({
+    status: 'allowed',
+    userId: 'user-1',
+    sessionId: 'db-session-1',
+    tenantId: 'tenant-1',
+    access: 'member',
+  });
+  mocks.membershipFindUnique.mockReset().mockResolvedValue({ expiresAt: null });
   mocks.createLivekitToken.mockReset().mockResolvedValue('livekit-token');
   vi.stubEnv('LIVEKIT_API_KEY', 'test-key');
   vi.stubEnv('LIVEKIT_API_SECRET', 'test-secret');
@@ -285,6 +299,7 @@ describe('handleLivekitToken transcription gate', () => {
 
     await handleLivekitToken(prisma, fakeReq({ roomName: 'world', identity: 'user-1' }), res);
 
+    expect(mocks.validateTenantSessionFresh).toHaveBeenCalledWith(prisma, 'session-token', 'tenant-1');
     expect(mocks.createLivekitToken).toHaveBeenCalled();
     expect(res.send).toHaveBeenCalledWith('livekit-token');
   });

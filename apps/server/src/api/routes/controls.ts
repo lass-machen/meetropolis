@@ -1,6 +1,8 @@
 import type express from 'express';
 import { z } from 'zod';
 import { isPlayerVisibleToTenant } from '../../rooms/lifecycle/tenantView.js';
+import { getTenantFromReq } from '../utils/authHelpers.js';
+import { isTenantAccessDenied } from '../utils/tenantAccessState.js';
 
 /** A connected Colyseus client, as much of it as the delivery below needs. */
 interface ControlClient {
@@ -121,17 +123,11 @@ interface ControlTarget {
 type ControlError = 'caller_not_in_a_world_room' | 'caller_tenant_unknown' | 'target_not_reachable';
 type ControlTargets = { targets: ControlTarget[] } | { error: ControlError };
 
-/** The verified caller behind a control request. */
+/** The caller and request tenant verified by the central tenant guard. */
 interface ControlCaller {
   userId: string;
-  /**
-   * The tenant THIS REQUEST authenticated under. `requireAuth` reads it from
-   * the session, i.e. from the same JWT claim the world join verifies into
-   * `playerTenantKey` (see `api/utils/authHelpers.ts` and
-   * `rooms/lifecycle/onAuth.ts`), so the two are comparable. Undefined for an
-   * API token: `requireApiToken` resolves a user, never a tenant.
-   */
-  tenantId?: string | undefined;
+  /** The tenant approved for THIS request by tenantAccess.ts, never its session's `tid` or its seats. */
+  tenantId: string;
 }
 
 /**
@@ -170,30 +166,13 @@ function resolveOwnSessions(callerId: string): ControlTargets {
 }
 
 /**
- * The caller's verified tenant key inside ONE room, or undefined when it cannot
- * be established beyond doubt — in which case the caller is not authorized for
- * that room at all.
- *
- * One user can hold several seats in one room, and in a shared apex room those
- * seats can carry different verified tenants (see `ControlWorldRoom`). Taking
- * the first seat that happened to have a key let the iteration order decide
- * which tenant a control was issued under. The request's own tenant decides
- * instead; a seat under that key is the caller acting as itself, and a room
- * where it holds no such seat is simply not its room for this request.
- *
- * An API token carries no tenant, so there the seats have to answer alone and
- * only an unambiguous answer counts: exactly one distinct key. None, or more
- * than one, fails closed.
+ * The request tenant approved by the central guard, if the caller has a seat
+ * carrying that tenant key in this room. A session `tid` and the set of seats
+ * never choose the request tenant; without a matching seat the caller is not
+ * authorized for this room.
  */
-function resolveCallerKey(seats: Seat[], requestTenantId: string | undefined): string | undefined {
-  const keys = new Set<string>();
-  for (const seat of seats) {
-    if (seat.tenantKey !== undefined) keys.add(seat.tenantKey);
-  }
-  if (requestTenantId !== undefined) return keys.has(requestTenantId) ? requestTenantId : undefined;
-  if (keys.size !== 1) return undefined;
-  const [only] = keys;
-  return only;
+function resolveCallerKey(seats: Seat[], requestTenantId: string): string | undefined {
+  return seats.some((seat) => seat.tenantKey === requestTenantId) ? requestTenantId : undefined;
 }
 
 /**
@@ -207,8 +186,9 @@ function resolveCallerKey(seats: Seat[], requestTenantId: string | undefined): s
  * whether the sender had any authority.
  *
  * The rule enforced is the narrowest one that keeps the feature working: the
- * caller may only reach a room it is seated in itself, only under the verified
- * tenant key of this request, and the target must be seated in that same room
+ * caller may only reach a room it is seated in itself, only under the tenant
+ * approved for this request by the central guard in tenantAccess.ts (never the
+ * session's `tid` or the room's seats), and the target must be seated in that same room
  * AND visible to the caller under the room's tenant filter — the same predicate
  * the state sync uses, so a target the caller cannot even see cannot be
  * controlled either. Of a target with several sessions only those that passed
@@ -327,12 +307,18 @@ export function registerControlRoutes(
     res.json({ ok: true, delivered });
   });
 
-  // Controls for a specific identity (session or API token)
+  // Targeted controls use only the tenant the central guard approved for this request.
   app.post('/controls/for/:identity', async (req: express.Request, res: express.Response) => {
     const sessionAuth = requireAuth(req);
     const tokenAuth = await requireApiToken(req);
     const auth = sessionAuth || tokenAuth;
     if (!auth) return res.status(401).json({ error: 'unauthorized' });
+
+    const tenant = getTenantFromReq(req);
+    if (!tenant) {
+      if (isTenantAccessDenied(req)) return res.status(403).json({ error: 'not_member_of_tenant' });
+      return res.status(400).json({ error: 'tenant_required' });
+    }
 
     const parse = controlPayloadSchema.safeParse(req.body || {});
     if (!parse.success) return res.status(400).json({ error: 'invalid payload' });
@@ -346,9 +332,7 @@ export function registerControlRoutes(
 
     if (!global.gameServer) return res.status(500).json({ error: 'game server not available' });
 
-    // The tenant comes from the session, not from the seats: only the session
-    // path has one, and only it is verified for THIS request (see ControlCaller).
-    const caller: ControlCaller = { userId: auth.userId, tenantId: sessionAuth?.tenantId };
+    const caller: ControlCaller = { userId: auth.userId, tenantId: tenant.id };
     const targets = resolveControlTargets(caller, identity);
     if ('error' in targets) return res.status(403).json({ error: targets.error });
 

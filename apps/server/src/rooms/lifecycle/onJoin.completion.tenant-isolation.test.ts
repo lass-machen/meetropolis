@@ -31,6 +31,15 @@ const A = { id: 'tenant-a-id', slug: 'auth-a', defaultMapName: 'office' };
 const B = { id: 'tenant-b-id', slug: 'spoof-b', defaultMapName: 'office' };
 type Where = { where?: { id?: string; slug?: string; tenantId?: string; name?: string } };
 const fakePrisma = {
+  session: {
+    findMany: vi.fn((args: { where?: { id?: { in?: string[] }; userId?: string } }) =>
+      Promise.resolve([{
+        id: args.where?.id?.in?.[0] ?? 'db-session',
+        userId: args.where?.userId ?? 'user-1',
+        expiresAt: new Date(Date.now() + 60_000),
+      }]),
+    ),
+  },
   tenant: {
     findUnique: vi.fn((args: Where) => {
       const w = args?.where ?? {};
@@ -61,6 +70,8 @@ const fakePrisma = {
       return Promise.resolve([]);
     }),
     findFirst: vi.fn(() => Promise.resolve(null)), // not an expired guest
+    // The admit gate re-proves the verified tenant; the double stays a member.
+    findUnique: vi.fn(() => Promise.resolve({ role: 'member', expiresAt: null })),
   },
   presence: {
     findMany: vi.fn(() => Promise.resolve([])),
@@ -89,6 +100,7 @@ vi.mock('../audioZones/runtime.js', () => ({
 }));
 
 import { completePendingJoin } from './onJoin.completion.js';
+import { WorldAccessRegistry } from './worldAccess.js';
 import type { WorldRoom, RoomOptions, Player as PlayerCtor } from '../WorldRoom.js';
 import type { Client } from 'colyseus';
 
@@ -115,7 +127,7 @@ function fakeView(): unknown {
 }
 
 function makeRoom(): WorldRoom {
-  return {
+  const room = {
     prismaForPresence: fakePrisma,
     state: { players: new Map<string, FakePlayer>() },
     lastSeen: new Map(),
@@ -131,6 +143,20 @@ function makeRoom(): WorldRoom {
     tileHeightPx: 32,
     defaultSpawn: { x: 10, y: 10 },
   } as unknown as WorldRoom;
+  room.worldAccess = new WorldAccessRegistry(room);
+  return room;
+}
+
+/** The onAuth entry the admit gate needs for a human session. */
+function registerJoin(room: WorldRoom, sessionId: string): void {
+  room.worldAccess.register(sessionId, {
+    identity: 'user-a',
+    sessionId: `db-${sessionId}`,
+    tenantId: 'tenant-a-id',
+    tenantSlug: 'auth-a',
+    isNpc: false,
+    zonePrivacyVersion: 1,
+  });
 }
 
 beforeEach(() => {
@@ -158,8 +184,16 @@ describe('completePendingJoin: presence/guest scoped by the verified auth tenant
       send: vi.fn(),
       view: fakeView(),
       // Verified user of tenant A; the client SPOOFS options.tenant='spoof-b'.
-      auth: { identity: 'user-a', isNpc: false, zonePrivacyVersion: 1, tenantId: 'tenant-a-id', tenantSlug: 'auth-a' },
+      auth: {
+        identity: 'user-a',
+        sessionId: 'db-sid-1',
+        isNpc: false,
+        zonePrivacyVersion: 1,
+        tenantId: 'tenant-a-id',
+        tenantSlug: 'auth-a',
+      },
     } as unknown as Client;
+    registerJoin(room, 'sid-1');
     const options = { tenant: 'spoof-b', mapName: 'office', name: 'Alice', avatarId: 'av' } as RoomOptions;
 
     await completePendingJoin(room, client, options, 'user-a', fakePlayerClass);
@@ -180,8 +214,9 @@ describe('completePendingJoin: presence/guest scoped by the verified auth tenant
       view: fakeView(),
       // Verified tenantId, but NO tenantSlug — mirrors resolveTenantSlug failing
       // (transient DB error, or a deleted tenant with a still-valid 30d JWT).
-      auth: { identity: 'user-a', isNpc: false, zonePrivacyVersion: 1, tenantId: 'tenant-a-id' },
+      auth: { identity: 'user-a', sessionId: 'db-sid-2', isNpc: false, zonePrivacyVersion: 1, tenantId: 'tenant-a-id' },
     } as unknown as Client;
+    registerJoin(room, 'sid-2');
     const options = { tenant: 'spoof-b', mapName: 'office', name: 'Attacker', avatarId: 'av' } as RoomOptions;
 
     await completePendingJoin(room, client, options, 'user-a', fakePlayerClass);

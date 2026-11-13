@@ -1,7 +1,7 @@
 import type express from 'express';
 import { PrismaClient, Prisma } from '../../generated/prisma/index.js';
 import { z } from 'zod';
-import multer from 'multer';
+import { uploadGuard, uploadParser, boundedMultipart } from '../middleware/uploadPolicy.js';
 import crypto from 'crypto';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -259,12 +259,9 @@ async function handleDeleteAvatarPack(
 export function registerAvatarPackRoutes(app: express.Application, prisma: PrismaClient) {
   const packsDir = process.env.ASSET_PACKS_DIR || path.resolve(__dirname, '../../../../../public/packs');
 
-  const upload = multer({
-    storage: multer.memoryStorage(),
-    limits: { fileSize: 5 * 1024 * 1024 },
-  });
+  const upload = uploadParser('avatar');
 
-  app.post('/avatar-packs/upload-sprite', upload.single('file'), (req, res) =>
+  app.post('/avatar-packs/upload-sprite', uploadGuard(prisma, 'avatar'), boundedMultipart(upload.single('file')), (req, res) =>
     handleSpriteUpload(prisma, packsDir, req, res),
   );
   app.get('/avatar-packs', (req, res) => handleListAvatarPacks(prisma, req, res));

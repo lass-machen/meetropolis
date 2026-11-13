@@ -1,83 +1,145 @@
-import React from 'react';
+import * as React from 'react';
 import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
+import { translateApiError } from '../../../lib/apiErrors';
 import { Section, Button, Badge, Table, THead, TBody, Tr, Th, Td, Alert, useConfirmDialog } from '../../system';
 
+type InviteStatus = 'pending' | 'accepted' | 'expired';
+
 type Invite = {
-  code: string;
+  id: string;
   email?: string | null;
-  usedAt?: string | null;
+  role?: string;
+  status: InviteStatus;
+  expiresAt?: string | null;
+  lastSentAt?: string | null;
+  lastSendError?: string | null;
   createdAt?: string;
+  usedAt?: string | null;
+  url?: string | null;
 };
 
 interface InvitesTabProps {
   apiBase: string;
 }
 
-function useInvitesTab(apiBase: string, t: (k: string) => string) {
+interface ApiErrorBody {
+  error?: unknown;
+}
+
+type Notice = { text: string; intent: 'success' | 'warning' } | null;
+
+function useInvitesTab(apiBase: string, t: TFunction) {
   const [invites, setInvites] = React.useState<Invite[]>([]);
   const [loading, setLoading] = React.useState(true);
+  const [loadFailed, setLoadFailed] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [notice, setNotice] = React.useState<Notice>(null);
   const { confirm, dialog: confirmDialog } = useConfirmDialog();
 
-  React.useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      setLoading(true);
-      try {
-        const res = await fetch(`${apiBase}/invites`, { credentials: 'include' });
-        if (res.ok) {
-          const data = (await res.json()) as Invite[];
-          if (!cancelled) setInvites(data);
-        }
-      } catch {
-        /* ignore */
+  const load = React.useCallback(async () => {
+    setLoading(true);
+    setLoadFailed(false);
+    try {
+      const res = await fetch(`${apiBase}/invites`, { credentials: 'include' });
+      if (!res.ok) {
+        setLoadFailed(true);
+        return;
       }
-      if (!cancelled) setLoading(false);
-    })();
-    return () => {
-      cancelled = true;
-    };
+      setInvites((await res.json()) as Invite[]);
+    } catch {
+      setLoadFailed(true);
+    } finally {
+      setLoading(false);
+    }
   }, [apiBase]);
 
-  const handleDelete = async (code: string) => {
+  React.useEffect(() => {
+    void load();
+  }, [load]);
+
+  const handleResend = async (id: string) => {
+    setError(null);
+    setNotice(null);
+    try {
+      const res = await fetch(`${apiBase}/invites/${encodeURIComponent(id)}/resend`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (res.ok) {
+        const body = (await res.json()) as { emailSent?: boolean };
+        setNotice({
+          text: t(body.emailSent ? 'tenant.inviteResent' : 'tenant.inviteResendNotDelivered'),
+          intent: body.emailSent ? 'success' : 'warning',
+        });
+      } else {
+        const err = (await res.json().catch(() => ({}))) as ApiErrorBody;
+        setError(translateApiError(err.error) || t('tenant.inviteResendFailed'));
+      }
+    } catch {
+      setError(t('tenant.inviteResendFailed'));
+    }
+    await load();
+  };
+
+  const handleRevoke = async (id: string) => {
     if (!(await confirm(t('tenant.inviteDeleteConfirm')))) return;
     setError(null);
+    setNotice(null);
     try {
-      const res = await fetch(`${apiBase}/invites/${encodeURIComponent(code)}`, {
+      const res = await fetch(`${apiBase}/invites/${encodeURIComponent(id)}`, {
         method: 'DELETE',
         credentials: 'include',
       });
       // 404 means the invite is already gone, which is what the user asked for.
       if (res.ok || res.status === 404) {
-        setInvites((prev) => prev.filter((i) => i.code !== code));
+        setInvites((prev) => prev.filter((i) => i.id !== id));
       } else {
-        setError(t('tenant.inviteDeleteFailed'));
+        const err = (await res.json().catch(() => ({}))) as ApiErrorBody;
+        setError(translateApiError(err.error) || t('tenant.inviteRevokeFailed'));
       }
     } catch {
-      setError(t('tenant.inviteDeleteFailed'));
+      setError(t('tenant.inviteRevokeFailed'));
     }
+    await load();
   };
 
-  const handleCopy = async (code: string) => {
-    const link = `${window.location.origin}/#/?invite=${code}`;
+  const handleCopy = async (invite: Invite) => {
+    if (!invite.url) {
+      setError(translateApiError('public_base_url_missing'));
+      return;
+    }
     try {
-      await navigator.clipboard.writeText(link);
+      await navigator.clipboard.writeText(invite.url);
     } catch {
-      /* clipboard not available */
+      setError(t('tenant.linkCopyFailed'));
     }
   };
 
-  return { invites, loading, error, setError, handleDelete, handleCopy, confirmDialog };
+  return {
+    invites,
+    loading,
+    loadFailed,
+    error,
+    notice,
+    setError,
+    load,
+    handleResend,
+    handleRevoke,
+    handleCopy,
+    confirmDialog,
+  };
 }
 
-function InvitesHeader({ t }: { t: (k: string) => string }) {
+function InvitesHeader({ t }: { t: TFunction }) {
   return (
     <THead>
       <Tr>
-        <Th style={{ paddingLeft: 0 }}>{t('tenant.inviteCode')}</Th>
-        <Th>{t('tenant.inviteEmail')}</Th>
+        <Th style={{ paddingLeft: 0 }}>{t('tenant.inviteEmail')}</Th>
         <Th>{t('tenant.inviteCreatedAt')}</Th>
+        <Th>{t('tenant.inviteValidUntil')}</Th>
         <Th>{t('tenant.inviteStatus')}</Th>
+        <Th>{t('tenant.inviteDelivery')}</Th>
         <Th style={{ paddingRight: 0, textAlign: 'right' }}>{null}</Th>
       </Tr>
     </THead>
@@ -89,7 +151,7 @@ function LoadingRows() {
     <TBody>
       {[1, 2, 3].map((i) => (
         <Tr key={i}>
-          <Td colSpan={5} style={{ paddingLeft: 0 }}>
+          <Td colSpan={6} style={{ paddingLeft: 0 }}>
             <div
               style={{
                 height: 16,
@@ -106,58 +168,82 @@ function LoadingRows() {
   );
 }
 
+function StatusBadge({ status, t }: { status: InviteStatus; t: TFunction }) {
+  if (status === 'accepted') {
+    return <Badge intent="success">{t('tenant.inviteAccepted')}</Badge>;
+  }
+  if (status === 'expired') {
+    return <Badge intent="default">{t('tenant.inviteExpired')}</Badge>;
+  }
+  return <Badge intent="warning">{t('tenant.invitePending')}</Badge>;
+}
+
+function DeliveryCell({ invite, t }: { invite: Invite; t: TFunction }) {
+  if (invite.lastSendError === 'not_delivered') {
+    return <Badge intent="danger">{t('tenant.inviteNotDelivered')}</Badge>;
+  }
+  if (invite.lastSentAt) {
+    return <>{t('tenant.inviteSentOn', { date: new Date(invite.lastSentAt).toLocaleString() })}</>;
+  }
+  return <>{'\u2014'}</>;
+}
+
 function InviteRow({
   inv,
   t,
   onCopy,
-  onDelete,
+  onResend,
+  onRevoke,
 }: {
   inv: Invite;
-  t: (k: string) => string;
-  onCopy: (code: string) => void | Promise<void>;
-  onDelete: (code: string) => void | Promise<void>;
+  t: TFunction;
+  onCopy: (invite: Invite) => void | Promise<void>;
+  onResend: (id: string) => void | Promise<void>;
+  onRevoke: (id: string) => void | Promise<void>;
 }) {
   return (
     <Tr>
-      <Td style={{ paddingLeft: 0 }}>
-        <code
-          style={{
-            display: 'inline-block',
-            padding: '4px 6px',
-            borderRadius: 6,
-            border: '1px solid var(--border)',
-            background: 'rgba(255,255,255,0.06)',
-          }}
-        >
-          {inv.code}
-        </code>
-      </Td>
-      <Td>{inv.email || '\u2014'}</Td>
+      <Td style={{ paddingLeft: 0 }}>{inv.email || '\u2014'}</Td>
       <Td>{inv.createdAt ? new Date(inv.createdAt).toLocaleString() : '\u2014'}</Td>
+      <Td>{inv.expiresAt ? new Date(inv.expiresAt).toLocaleString() : '\u2014'}</Td>
       <Td>
-        <Badge intent={inv.usedAt ? 'danger' : 'success'}>
-          {inv.usedAt ? t('tenant.inviteUsed') : t('tenant.invitePending')}
-        </Badge>
+        <StatusBadge status={inv.status} t={t} />
+      </Td>
+      <Td>
+        <DeliveryCell invite={inv} t={t} />
       </Td>
       <Td style={{ paddingRight: 0, textAlign: 'right', display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-        <Button
-          size="sm"
-          variant="secondary"
-          onClick={() => {
-            void onCopy(inv.code);
-          }}
-        >
-          {t('tenant.inviteCopy')}
-        </Button>
-        {!inv.usedAt && (
+        {inv.status === 'pending' && (
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => {
+              void onCopy(inv);
+            }}
+          >
+            {t('tenant.inviteCopy')}
+          </Button>
+        )}
+        {inv.status !== 'accepted' && (
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => {
+              void onResend(inv.id);
+            }}
+          >
+            {t('tenant.inviteResend')}
+          </Button>
+        )}
+        {inv.status !== 'accepted' && (
           <Button
             size="sm"
             variant="danger"
             onClick={() => {
-              void onDelete(inv.code);
+              void onRevoke(inv.id);
             }}
           >
-            {t('tenant.inviteDelete')}
+            {t('tenant.inviteRevoke')}
           </Button>
         )}
       </Td>
@@ -167,7 +253,19 @@ function InviteRow({
 
 export function InvitesTab({ apiBase }: InvitesTabProps) {
   const { t } = useTranslation();
-  const { invites, loading, error, setError, handleDelete, handleCopy, confirmDialog } = useInvitesTab(apiBase, t);
+  const {
+    invites,
+    loading,
+    loadFailed,
+    error,
+    notice,
+    setError,
+    load,
+    handleResend,
+    handleRevoke,
+    handleCopy,
+    confirmDialog,
+  } = useInvitesTab(apiBase, t);
 
   return (
     <Section title={t('tenant.tabInvites')}>
@@ -176,29 +274,59 @@ export function InvitesTab({ apiBase }: InvitesTabProps) {
           {error}
         </Alert>
       )}
-      <Table>
-        <InvitesHeader t={t} />
-        {loading && <LoadingRows />}
-        {!loading && invites.length === 0 && (
-          <TBody>
-            <Tr>
-              <Td
-                colSpan={5}
-                style={{ paddingLeft: 0, textAlign: 'center', color: 'var(--fg-subtle)', padding: '32px 0' }}
-              >
-                {t('tenant.noInvites')}
-              </Td>
-            </Tr>
-          </TBody>
-        )}
-        {!loading && invites.length > 0 && (
-          <TBody>
-            {invites.map((inv) => (
-              <InviteRow key={inv.code} inv={inv} t={t} onCopy={handleCopy} onDelete={handleDelete} />
-            ))}
-          </TBody>
-        )}
-      </Table>
+      {notice && (
+        <Alert intent={notice.intent} style={{ marginBottom: 12 }}>
+          {notice.text}
+        </Alert>
+      )}
+      {!loading && loadFailed && (
+        <div>
+          <Alert intent="error" style={{ marginBottom: 12 }}>
+            {t('tenant.invitesLoadFailed')}
+          </Alert>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => {
+              void load();
+            }}
+          >
+            {t('tenant.retry')}
+          </Button>
+        </div>
+      )}
+      {!loadFailed && (
+        <Table>
+          <InvitesHeader t={t} />
+          {loading && <LoadingRows />}
+          {!loading && invites.length === 0 && (
+            <TBody>
+              <Tr>
+                <Td
+                  colSpan={6}
+                  style={{ paddingLeft: 0, textAlign: 'center', color: 'var(--fg-subtle)', padding: '32px 0' }}
+                >
+                  {t('tenant.noInvites')}
+                </Td>
+              </Tr>
+            </TBody>
+          )}
+          {!loading && invites.length > 0 && (
+            <TBody>
+              {invites.map((inv) => (
+                <InviteRow
+                  key={inv.id}
+                  inv={inv}
+                  t={t}
+                  onCopy={handleCopy}
+                  onResend={handleResend}
+                  onRevoke={handleRevoke}
+                />
+              ))}
+            </TBody>
+          )}
+        </Table>
+      )}
       {confirmDialog}
     </Section>
   );

@@ -4,7 +4,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
 import fsp from 'fs/promises';
-import multer from 'multer';
+import { uploadGuard, uploadParser, boundedMultipart } from '../middleware/uploadPolicy.js';
 import unzipper from 'unzipper';
 import { z } from 'zod';
 import { logger } from '../../logger.js';
@@ -346,12 +346,9 @@ export function registerAssetPackRoutes(app: express.Application, prisma: Prisma
   } catch {}
   const FALLBACK_ASSET_URL = process.env.FALLBACK_ASSET_URL || '/packs/__fallback__/missing.png';
 
-  const upload = multer({
-    storage: multer.memoryStorage(),
-    limits: { fileSize: 50 * 1024 * 1024 },
-  });
+  const upload = uploadParser('asset');
 
-  app.post('/asset-packs/upload', upload.single('file'), (req, res) =>
+  app.post('/asset-packs/upload', uploadGuard(prisma, 'asset'), boundedMultipart(upload.single('file')), (req, res) =>
     handleAssetPackUpload(prisma, packsDir, req, res),
   );
   app.get('/asset-packs', (req, res) => handleListAssetPacks(prisma, req, res));

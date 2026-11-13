@@ -1,8 +1,11 @@
 import type express from 'express';
 import type { PrismaClient, Tenant } from '../../generated/prisma/index.js';
 import jwt from 'jsonwebtoken';
+import { isTenantAccessDenied } from './tenantAccessState.js';
+import { isInternalOwner } from './tenantMembership.js';
 import crypto from 'crypto';
 import { logger } from '../../logger.js';
+import { getRequestRouteTemplate } from './requestRoute.js';
 import { type AuthTokenPayload } from '../../types/authShapes.js';
 import { getAuthResolution } from './authState.js';
 
@@ -81,12 +84,13 @@ export function setAuthCookie(res: express.Response, token: string) {
  * payload shape — see AGENTS.md "no swallowed errors" / avoid drift between
  * auth paths.
  */
-export function verifyAuthJwt(raw: string): { userId: string; tenantId?: string } | null {
+export function verifyAuthJwt(raw: string): { userId: string; tenantId?: string; verificationOnly?: true } | null {
   try {
     const payload = jwt.verify(raw, getJwtSecret()) as AuthTokenPayload;
     if (typeof payload.sub !== 'string') return null;
     const tenantId = typeof payload.tid === 'string' ? payload.tid : undefined;
-    return { userId: payload.sub, tenantId };
+    if (payload.scope !== undefined && payload.scope !== 'email_verification') return null;
+    return { userId: payload.sub, tenantId, ...(payload.scope === 'email_verification' ? { verificationOnly: true as const } : {}) };
   } catch {
     return null;
   }
@@ -113,13 +117,20 @@ export function requireAuth(req: express.Request): { userId: string; tenantId?: 
   if (!resolution) {
     logger.error({
       event: 'auth.session_middleware_missing',
-      path: typeof req.path === 'string' ? req.path : undefined,
+      path: getRequestRouteTemplate(req),
     });
     return null;
   }
   const { auth } = resolution;
-  if (!auth) return null;
+  if (!auth || auth.verificationOnly) return null;
   return { userId: auth.userId, tenantId: auth.tenantId };
+}
+
+/** Explicit opt-in for the proof/acceptance endpoints only. */
+export function requireVerificationAuth(req: express.Request) {
+  const auth = getAuthResolution(req)?.auth;
+  if (!auth) return null;
+  return { userId: auth.userId, tenantId: auth.tenantId, verificationOnly: auth.verificationOnly === true };
 }
 
 export async function requireApiToken(req: express.Request, prisma: PrismaClient): Promise<{ userId: string } | null> {
@@ -166,12 +177,12 @@ export async function requireMembership(
   req: express.Request,
   userId: string,
   prisma: PrismaClient,
-): Promise<{ role: string } | null> {
+): Promise<{ role: string; expiresAt: Date | null } | null> {
   const tenant = getTenantFromReq(req);
   if (!tenant) return null;
   const m = await prisma.membership.findUnique({ where: { tenantId_userId: { tenantId: tenant.id, userId } } });
-  if (!m) return null;
-  return { role: m.role };
+  if (!m || m.inviteVerificationRequired || (m.expiresAt && m.expiresAt <= new Date())) return null;
+  return { role: m.role, expiresAt: m.expiresAt };
 }
 
 export async function requireSuperAdmin(
@@ -191,13 +202,7 @@ export async function requireInternalOwner(
   prisma: PrismaClient,
 ): Promise<boolean> {
   try {
-    const internal = await prisma.tenant.findUnique({ where: { slug: 'internal' } });
-    if (!internal) return false;
-    const member = await prisma.membership.findUnique({
-      where: { tenantId_userId: { tenantId: internal.id, userId } },
-    });
-    if (!member) return false;
-    return member.role === 'owner';
+    return await isInternalOwner(prisma, userId);
   } catch {
     return false;
   }
@@ -259,6 +264,10 @@ export function createRequireTenantAdmin(
           return;
         }
         const tenant = getTenantFromReq(req);
+        if (!tenant && isTenantAccessDenied(req)) {
+          res.status(403).json({ error: 'forbidden' });
+          return;
+        }
         if (!tenant) {
           res.status(400).json({ error: 'tenant_required' });
           return;

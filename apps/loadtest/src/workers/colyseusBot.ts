@@ -1,117 +1,174 @@
 import { Client } from '@colyseus/sdk';
+import { ZONE_PRIVACY_PROTOCOL_VERSION } from '@meetropolis/shared';
+import {
+  apiHttpBase,
+  apiWsBase,
+  authHeaders,
+  loginBot,
+  readResponseJson,
+  redactSecrets,
+  type LoginOptions,
+} from './session.js';
 
-type Zone = { id: string; name: string; polygon: Array<{ x: number; y: number }> };
+type Point = { x: number; y: number };
+type Zone = { polygon?: Point[] };
 type MapEntry = { name?: string; zones?: Zone[] };
 
-function centroid(points: Array<{ x: number; y: number }>): { x: number; y: number } {
-  if (!points || points.length === 0) return { x: 0, y: 0 };
-  let sx = 0,
-    sy = 0;
-  for (const p of points) {
-    sx += p.x;
-    sy += p.y;
+const FALLBACK_WAYPOINTS: Point[] = [
+  { x: 80, y: 80 },
+  { x: 160, y: 80 },
+  { x: 160, y: 160 },
+  { x: 80, y: 160 },
+];
+
+export type ColyseusBot = {
+  userId: string;
+  sessionId: string;
+  token: string;
+  stop: () => Promise<void>;
+};
+
+export async function spawnColyseusBot(opts: LoginOptions): Promise<ColyseusBot> {
+  const session = await loginBot(opts);
+  const client = new Client(apiWsBase(opts.apiBase));
+  client.auth.token = session.token;
+  const room = await joinWorld(client, opts.tenant);
+  const waypoints = await loadWaypoints(opts.apiBase, opts.tenant, session.token);
+  const alive = { value: true };
+  startPatrol(room, waypoints, alive);
+  return {
+    userId: session.userId,
+    sessionId: room.sessionId,
+    token: session.token,
+    async stop() {
+      alive.value = false;
+      try {
+        await room.leave();
+      } catch {
+        // The room may already be gone.
+      }
+    },
+  };
+}
+
+function centroid(points: Point[]): Point {
+  if (points.length === 0) return { x: 0, y: 0 };
+  let sx = 0;
+  let sy = 0;
+  for (const point of points) {
+    sx += point.x;
+    sy += point.y;
   }
   return { x: Math.round(sx / points.length), y: Math.round(sy / points.length) };
 }
 
-export async function spawnColyseusBot(opts: { apiBase: string; identity: string }) {
-  const toWs = (url: string) => url.replace(/^http(s?):\/\//, 'ws$1://');
-  const toHttp = (url: string) => url.replace(/^ws(s?):\/\//, 'http$1://');
-  const wsEndpoint = toWs(opts.apiBase);
-  const httpEndpoint = toHttp(opts.apiBase);
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
 
-  const client = new Client(wsEndpoint);
-
-  // Retry matchmaking a few times to avoid transient "connection refused" during warmup
-  async function joinWithRetry(maxAttempts: number, baseDelayMs: number) {
-    let attempt = 0;
-
-    while (true) {
-      try {
-        return await client.joinOrCreate('world', { identity: opts.identity, name: opts.identity });
-      } catch (e: unknown) {
-        attempt++;
-        if (attempt >= maxAttempts) throw e;
-        const delay = Math.min(5000, baseDelayMs * Math.pow(2, attempt - 1));
-        await new Promise((r) => setTimeout(r, delay));
-      }
-    }
-  }
-
-  const room = await joinWithRetry(6, 200);
-
-  // Load zones and build waypoints (centroids)
-  let waypoints: Array<{ x: number; y: number }> = [];
-  try {
-    const mapsRes = await fetch(`${httpEndpoint}/maps`, { method: 'GET' });
-    if (mapsRes.ok) {
-      const mapsRaw: unknown = await mapsRes.json();
-      const maps: MapEntry[] = Array.isArray(mapsRaw) ? (mapsRaw as MapEntry[]) : [];
-      const office: MapEntry | null = maps.find((m) => (m?.name || '').toLowerCase() === 'office') || maps[0] || null;
-      const zones: Zone[] = Array.isArray(office?.zones) ? office.zones : [];
-      const cs = zones
-        .map((z) => (Array.isArray(z?.polygon) ? centroid(z.polygon) : null))
-        .filter((c): c is { x: number; y: number } => !!c);
-      if (cs.length > 0) waypoints = cs;
-    }
-  } catch {}
-  // Fallback circular movement if no zones are available
-  if (waypoints.length === 0) {
-    waypoints = [
-      { x: 80, y: 80 },
-      { x: 160, y: 80 },
-      { x: 160, y: 160 },
-      { x: 80, y: 160 },
-    ];
-  }
-
-  // Randomise the order per bot.
-  waypoints = [...waypoints].sort(() => Math.random() - 0.5);
-
-  let alive = true;
-  let idx = 0;
-  let pos = { x: waypoints[0].x, y: waypoints[0].y };
-  const speed = 40; // Pixels per second.
-  let lastTs = Date.now();
-
-  void (async () => {
-    // Initial position.
+async function joinWorld(client: Client, tenant: string) {
+  let attempt = 0;
+  while (attempt < 6) {
     try {
-      room.send('move', { x: pos.x, y: pos.y, direction: 'down' });
-    } catch {}
-    while (alive) {
+      return await client.joinOrCreate('world', {
+        tenant,
+        zonePrivacyVersion: ZONE_PRIVACY_PROTOCOL_VERSION,
+      });
+    } catch (error: unknown) {
+      attempt += 1;
+      if (attempt >= 6) throw new Error(joinFailure(error));
+      await sleep(Math.min(5000, 200 * 2 ** (attempt - 1)));
+    }
+  }
+  throw new Error('world join failed');
+}
+
+function joinFailure(error: unknown): string {
+  const message = error instanceof Error ? redactSecrets(error.message) : '';
+  if (!message) return 'world join failed';
+  return `world join failed: ${message.slice(0, 180)}`;
+}
+
+async function loadWaypoints(apiBase: string, tenant: string, token: string): Promise<Point[]> {
+  try {
+    const response = await fetch(`${apiHttpBase(apiBase)}/maps`, {
+      method: 'GET',
+      headers: authHeaders(tenant, token),
+    });
+    if (!response.ok) return FALLBACK_WAYPOINTS;
+    const centers = waypointsFromMaps(await readResponseJson(response));
+    if (centers.length > 0) return centers;
+  } catch {
+    return FALLBACK_WAYPOINTS;
+  }
+  return FALLBACK_WAYPOINTS;
+}
+
+function waypointsFromMaps(raw: unknown): Point[] {
+  if (!Array.isArray(raw)) return [];
+  const maps = raw.filter(isMapEntry);
+  const office = maps.find((map) => (map.name || '').toLowerCase() === 'office') || maps[0];
+  const zones = office && Array.isArray(office.zones) ? office.zones : [];
+  const centers: Point[] = [];
+  for (const zone of zones) {
+    if (Array.isArray(zone.polygon)) centers.push(centroid(zone.polygon));
+  }
+  return centers;
+}
+
+function isMapEntry(value: unknown): value is MapEntry {
+  return typeof value === 'object' && value !== null;
+}
+
+function directionOf(dx: number, dy: number): 'up' | 'down' | 'left' | 'right' {
+  if (Math.abs(dx) > Math.abs(dy)) return dx > 0 ? 'right' : 'left';
+  return dy > 0 ? 'down' : 'up';
+}
+
+type JoinedRoom = Awaited<ReturnType<typeof joinWorld>>;
+
+function startPatrol(room: JoinedRoom, waypoints: Point[], alive: { value: boolean }): void {
+  const route = [...waypoints].sort(() => Math.random() - 0.5);
+  let index = 0;
+  let pos = { x: route[0].x, y: route[0].y };
+  const speed = 40;
+  let lastTs = Date.now();
+  void (async () => {
+    sendMove(room, pos, 'down');
+    while (alive.value) {
       const now = Date.now();
       const dt = Math.max(1, now - lastTs) / 1000;
       lastTs = now;
-      const target = waypoints[idx % waypoints.length];
+      const target = route[index % route.length];
       const dx = target.x - pos.x;
       const dy = target.y - pos.y;
       const dist = Math.hypot(dx, dy);
       if (dist < 3) {
-        // Brief dwell time in the zone before moving to the next waypoint.
-        idx++;
-        await new Promise((r) => setTimeout(r, 500 + Math.floor(Math.random() * 800)));
+        index += 1;
+        await sleep(500 + Math.floor(Math.random() * 800));
         continue;
       }
-      const step = Math.min(dist, speed * dt);
-      if (dist > 0) {
-        pos = { x: Math.round(pos.x + (dx / dist) * step), y: Math.round(pos.y + (dy / dist) * step) };
-      }
-      // Richtung approximieren
-      const dir = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : dy > 0 ? 'down' : 'up';
-      try {
-        room.send('move', { x: pos.x, y: pos.y, direction: dir });
-      } catch {}
-      await new Promise((r) => setTimeout(r, 150));
+      pos = stepToward(pos, dx, dy, dist, Math.min(dist, speed * dt));
+      sendMove(room, pos, directionOf(dx, dy));
+      await sleep(150);
     }
   })();
+}
 
+function stepToward(pos: Point, dx: number, dy: number, dist: number, step: number): Point {
+  if (dist <= 0) return pos;
   return {
-    async stop() {
-      alive = false;
-      try {
-        await room.leave();
-      } catch {}
-    },
+    x: Math.round(pos.x + (dx / dist) * step),
+    y: Math.round(pos.y + (dy / dist) * step),
   };
+}
+
+function sendMove(room: JoinedRoom, pos: Point, direction: string): void {
+  try {
+    room.send('move', { x: pos.x, y: pos.y, direction });
+  } catch {
+    // A dropped move is retried on the next tick.
+  }
 }

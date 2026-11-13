@@ -9,6 +9,7 @@ export type Route =
   | 'impressum'
   | 'contact'
   | 'download'
+  | 'verify-pending'
   | 'verify'
   | 'billing-success'
   | 'billing-cancel'
@@ -72,6 +73,7 @@ export function parseHashRoute(hash: string): { route: Route; params: RouteParam
   // same page rather than redirecting, so neither URL is the broken one.
   if (path === '/contact' || path === '/kontakt') return { route: 'contact', params };
   if (path === '/download' || path === '/desktop') return { route: 'download', params };
+  if (path === '/verify-pending') return { route: 'verify-pending', params };
   if (path.startsWith('/verify')) {
     const sp = new URLSearchParams(searchPart.slice(1));
     setOptional(params, 'verifyToken', sp.get('token'));

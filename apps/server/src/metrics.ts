@@ -1,5 +1,6 @@
 import client from 'prom-client';
 import type { Request, Response, NextFunction, RequestHandler } from 'express';
+import { getRequestRouteTemplate } from './api/utils/requestRoute.js';
 
 // Central registry object (not global)
 export const registry = new client.Registry();
@@ -74,16 +75,13 @@ registry.registerMetric(livekitPacketLossRatio);
 export function metricsMiddleware(): RequestHandler {
   return function (req: Request, res: Response, next: NextFunction) {
     const start = process.hrtime.bigint();
-    // The route may only become available after routing; fall back to originalUrl.
+    // The route is only known after routing; unmatched requests are labelled "<unmatched>".
     res.on('finish', () => {
       try {
         const end = process.hrtime.bigint();
         const dur = Number(end - start) / 1e9; // Seconds.
         const method = (req.method || 'GET').toUpperCase();
-        // express-serve-static-core types req.route as `any`; narrow defensively.
-        const routeObj = req.route as { path?: unknown } | undefined;
-        const routePath = typeof routeObj?.path === 'string' ? routeObj.path : undefined;
-        const route = routePath ?? req.originalUrl ?? 'unknown';
+        const route = getRequestRouteTemplate(req);
         const status = String(res.statusCode || 0);
         httpRequestDuration.labels(method, route, status).observe(dur);
       } catch (_error) {

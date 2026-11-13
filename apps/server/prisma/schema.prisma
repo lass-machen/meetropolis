@@ -75,6 +75,7 @@ model Membership {
   createdAt  DateTime    @default(now())
   updatedAt  DateTime    @updatedAt
   guestToken GuestToken?
+  inviteVerificationRequired Boolean @default(false)
 
   @@unique([tenantId, userId])
 }
@@ -114,12 +115,17 @@ model Invite {
   code      String   @unique
   email     String?
   createdAt DateTime @default(now())
+  expiresAt DateTime?
+  lastSentAt DateTime?
+  sendCount Int      @default(0)
+  lastSendError String?
   createdBy String?
   usedAt    DateTime?
   usedById  String?
   tenant    Tenant   @relation(fields: [tenantId], references: [id])
   tenantId  String
   role      Role     @default(member)
+  emailVerifications EmailVerification[]
 }
 
 model PasswordReset {
@@ -138,6 +144,11 @@ model EmailVerification {
   user      User     @relation(fields: [userId], references: [id])
   userId    String
   email     String
+  purpose   String   @default("verify")
+  sourceEmail String?
+  invite    Invite?  @relation(fields: [inviteId], references: [id], onDelete: Cascade)
+  inviteId  String?
+  readyAt   DateTime?
   usedAt    DateTime?
   expiresAt DateTime
   createdAt DateTime @default(now())

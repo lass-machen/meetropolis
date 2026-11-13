@@ -1,37 +1,52 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import { translateApiError } from '../../../lib/apiErrors';
 import { Button, Input, Select, Card } from '../../system';
 
 interface InviteMemberProps {
   saving: boolean;
-  onInvite: (email: string, role: 'admin' | 'member') => Promise<string | null>;
+  onInvite: (
+    email: string,
+    role: 'admin' | 'member',
+  ) => Promise<{ email: string; inviteUrl: string | null; emailSent: boolean; expiresAt: string | null } | null>;
   onClose: () => void;
   onSuccess: (message: string) => void;
+  onError: (message: string) => void;
 }
 
-export function InviteMember({ saving, onInvite, onClose, onSuccess }: InviteMemberProps) {
+export function InviteMember({ saving, onInvite, onClose, onSuccess, onError }: InviteMemberProps) {
   const { t } = useTranslation();
   const [inviteEmail, setInviteEmail] = React.useState('');
   const [inviteRole, setInviteRole] = React.useState<'admin' | 'member'>('member');
-  const [inviteCode, setInviteCode] = React.useState<string | null>(null);
+  const [invite, setInvite] = React.useState<{
+    email: string;
+    inviteUrl: string | null;
+    emailSent: boolean;
+    expiresAt: string | null;
+  } | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const code = await onInvite(inviteEmail, inviteRole);
-    if (code) {
-      setInviteCode(code);
+    const createdInvite = await onInvite(inviteEmail, inviteRole);
+    if (createdInvite) setInvite(createdInvite);
+  };
+
+  const copyInviteLink = async () => {
+    if (!invite) return;
+    if (!invite.inviteUrl) {
+      onError(translateApiError('public_base_url_missing'));
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(invite.inviteUrl);
+      onSuccess(t('tenant.linkCopied'));
+    } catch {
+      onError(t('tenant.linkCopyFailed'));
     }
   };
 
-  const copyInviteLink = () => {
-    if (!inviteCode) return;
-    const link = `${window.location.origin}/#/?invite=${inviteCode}`;
-    void navigator.clipboard.writeText(link);
-    onSuccess(t('tenant.linkCopied'));
-  };
-
   const handleClose = () => {
-    setInviteCode(null);
+    setInvite(null);
     setInviteEmail('');
     setInviteRole('member');
     onClose();
@@ -42,9 +57,13 @@ export function InviteMember({ saving, onInvite, onClose, onSuccess }: InviteMem
       <h4 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 600, color: 'var(--fg, #fff)' }}>
         {t('tenant.inviteNewMember')}
       </h4>
-      {inviteCode ? (
+      {invite ? (
         <div style={{ textAlign: 'center' }}>
-          <p>{t('tenant.shareInviteCode')}</p>
+          <p>
+            {invite.emailSent
+              ? t('tenant.inviteSentTo', { email: invite.email })
+              : t('tenant.inviteResendNotDelivered')}
+          </p>
           <Card
             style={{
               display: 'flex',
@@ -64,9 +83,15 @@ export function InviteMember({ saving, onInvite, onClose, onSuccess }: InviteMem
                 wordBreak: 'break-all',
               }}
             >
-              {inviteCode}
+              {invite.inviteUrl}
             </code>
-            <Button variant="primary" onClick={copyInviteLink} style={{ fontSize: 12, padding: '6px 12px' }}>
+            <Button
+              variant="primary"
+              onClick={() => {
+                void copyInviteLink();
+              }}
+              style={{ fontSize: 12, padding: '6px 12px' }}
+            >
               {t('tenant.copyLink')}
             </Button>
           </Card>
@@ -84,7 +109,7 @@ export function InviteMember({ saving, onInvite, onClose, onSuccess }: InviteMem
             <label
               style={{ display: 'block', marginBottom: 6, fontSize: 13, fontWeight: 500, color: 'var(--fg, #fff)' }}
             >
-              {t('tenant.emailOptional')}
+              {t('tenant.inviteEmail')}
             </label>
             <Input
               type="email"
@@ -112,7 +137,7 @@ export function InviteMember({ saving, onInvite, onClose, onSuccess }: InviteMem
             <Button variant="ghost" type="button" onClick={handleClose}>
               {t('tenant.cancel')}
             </Button>
-            <Button variant="primary" type="submit" disabled={saving}>
+            <Button variant="primary" type="submit" disabled={saving || inviteEmail.trim().length === 0}>
               {saving ? t('tenant.creating') : t('tenant.createInvite')}
             </Button>
           </div>

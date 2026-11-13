@@ -1,11 +1,13 @@
 import type express from 'express';
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
-import type { PrismaClient } from '../../generated/prisma/index.js';
+import type { PrismaClient, Prisma } from '../../generated/prisma/index.js';
 import { logger } from '../../logger.js';
 import { readAuthCookie, readBearerToken } from '../../types/authShapes.js';
 import { getJwtSecret, setAuthCookie, verifyAuthJwt } from './authHelpers.js';
-import { setAuthResolution, type ResolvedAuth } from './authState.js';
+import { getAuthResolution, setAuthResolution, type ResolvedAuth } from './authState.js';
+import { createVerificationSessionScope } from '../middleware/verificationSessionScope.js';
+import { isInternalOwner } from './tenantMembership.js';
 import {
   getCachedSession,
   setCachedSession,
@@ -58,6 +60,33 @@ export function hashSessionToken(rawToken: string): string {
   return crypto.createHash('sha256').update(rawToken).digest('hex');
 }
 
+export type FreshAssetSessionResult =
+  | { status: 'allowed'; userId: string; sessionId: string; tenantId: string; access: 'member' | 'platform_operator' }
+  | { status: 'unauthenticated' }
+  | { status: 'forbidden'; reason: 'membership_unavailable' | 'verification_required' | 'tenant_unavailable' };
+
+/** Read the session, tenant, membership and verification marker afresh on every call.
+ * Use no cache or API-token path; propagate database errors to the caller.
+ */
+export async function validateTenantSessionFresh(
+  prisma: PrismaClient, rawToken: string, tenantId: string,
+): Promise<FreshAssetSessionResult> {
+  const claims = verifyAuthJwt(rawToken);
+  if (!claims || claims.verificationOnly) return { status: 'unauthenticated' };
+  const session = await prisma.session.findUnique({ where: { tokenHash: hashSessionToken(rawToken) },
+    select: { id: true, userId: true, expiresAt: true } });
+  if (!session || session.userId !== claims.userId || session.expiresAt <= new Date()) return { status: 'unauthenticated' };
+  const tenant = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { id: true } });
+  if (!tenant) return { status: 'forbidden', reason: 'tenant_unavailable' };
+  const member = await prisma.membership.findUnique({ where: { tenantId_userId: { tenantId, userId: session.userId } },
+    select: { expiresAt: true, inviteVerificationRequired: true } });
+  if (member?.inviteVerificationRequired) return { status: 'forbidden', reason: 'verification_required' };
+  const access = member && (!member.expiresAt || member.expiresAt > new Date()) ? 'member'
+    : await isInternalOwner(prisma, session.userId) ? 'platform_operator' : null;
+  if (!access) return { status: 'forbidden', reason: 'membership_unavailable' };
+  return { status: 'allowed', userId: session.userId, sessionId: session.id, tenantId, access };
+}
+
 /**
  * The Prisma surface {@link validateSessionToken} actually needs.
  *
@@ -77,6 +106,7 @@ export interface EstablishSessionParams {
   userId: string;
   /** Tenant the session is scoped to; becomes the JWT's `tid` claim. */
   tenantId: string;
+  verificationOnly?: boolean;
 }
 
 export interface EstablishedSession {
@@ -105,11 +135,12 @@ export interface EstablishedSession {
  */
 export async function establishSession(params: EstablishSessionParams): Promise<EstablishedSession> {
   const { prisma, req, res, userId, tenantId } = params;
-  const token = jwt.sign({ sub: userId, tid: tenantId, jti: crypto.randomUUID() }, getJwtSecret(), {
-    expiresIn: JWT_EXPIRES_IN,
+  const verificationOnly = params.verificationOnly === true;
+  const token = jwt.sign({ sub: userId, tid: tenantId, jti: crypto.randomUUID(), ...(verificationOnly ? { scope: 'email_verification' } : {}) }, getJwtSecret(), {
+    expiresIn: verificationOnly ? '15m' : JWT_EXPIRES_IN,
   });
   const tokenHash = hashSessionToken(token);
-  const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
+  const expiresAt = new Date(Date.now() + (verificationOnly ? 15 * 60_000 : SESSION_TTL_MS));
 
   const session = await prisma.session.create({
     data: {
@@ -124,7 +155,7 @@ export async function establishSession(params: EstablishSessionParams): Promise<
 
   setAuthCookie(res, token);
 
-  const auth: ResolvedAuth = { userId, tenantId, sessionId: session.id, tokenHash };
+  const auth: ResolvedAuth = { userId, tenantId, sessionId: session.id, tokenHash, ...(verificationOnly ? { verificationOnly: true as const } : {}) };
   setCachedSession(auth, expiresAt);
   // The request that establishes a session is itself authenticated from here
   // on, so `requireAuth` works for any work the handler still does.
@@ -143,13 +174,13 @@ export async function establishSession(params: EstablishSessionParams): Promise<
  * world-join gate in rooms/lifecycle/onAuth.ts) can apply the same authority
  * instead of trusting the signature alone.
  */
-export async function validateSessionToken(prisma: SessionPrisma, rawToken: string): Promise<ResolvedAuth | null> {
+export async function validateSessionToken(prisma: SessionPrisma, rawToken: string, opts?: { allowVerificationOnly?: boolean }): Promise<ResolvedAuth | null> {
   const payload = verifyAuthJwt(rawToken);
-  if (!payload) return null;
+  if (!payload || (payload.verificationOnly && !opts?.allowVerificationOnly)) return null;
 
   const tokenHash = hashSessionToken(rawToken);
   const cached = getCachedSession(tokenHash);
-  if (cached) return cached;
+  if (cached) return payload.verificationOnly ? { ...cached, verificationOnly: true } : cached;
 
   const session = await prisma.session.findUnique({
     where: { tokenHash },
@@ -166,6 +197,7 @@ export async function validateSessionToken(prisma: SessionPrisma, rawToken: stri
 
   const auth: ResolvedAuth = {
     userId: session.userId,
+    ...(payload.verificationOnly ? { verificationOnly: true as const } : {}),
     tenantId: payload.tenantId,
     sessionId: session.id,
     tokenHash,
@@ -185,7 +217,8 @@ export async function validateSessionToken(prisma: SessionPrisma, rawToken: stri
  * an unvalidated token through.
  */
 export function createSessionAuthMiddleware(prisma: PrismaClient): express.RequestHandler {
-  return (req, _res, next) => {
+  const verificationScope = createVerificationSessionScope();
+  return (req, res, next) => {
     const raw = readAuthCookie(req) ?? readBearerToken(req);
     if (!raw) {
       setAuthResolution(req, { auth: null });
@@ -194,13 +227,14 @@ export function createSessionAuthMiddleware(prisma: PrismaClient): express.Reque
     }
     void (async () => {
       try {
-        setAuthResolution(req, { auth: await validateSessionToken(prisma, raw) });
+        setAuthResolution(req, { auth: await validateSessionToken(prisma, raw, { allowVerificationOnly: true }) });
       } catch (e: unknown) {
         // Fail closed: an unresolvable token is not an authenticated request.
         logger.error({ event: 'auth.session.resolve_failed', error: e instanceof Error ? e.message : String(e) });
         setAuthResolution(req, { auth: null });
       }
-      next();
+      if (getAuthResolution(req)?.auth?.verificationOnly) verificationScope(req, res, next);
+      else next();
     })();
   };
 }
@@ -241,6 +275,21 @@ export async function revokeSessionsForUser(
   });
   // Coarse but correct: the spared session is merely re-read from the row on
   // its next request. The cache never outranks the database.
+  invalidateSessionsForUser(userId);
+  return result.count;
+}
+
+/**
+ * Delete every session of `userId` inside an interactive transaction (account
+ * deletion and member removal, see services/accountDeletion.ts).
+ *
+ * The cache is invalidated here as well, but that is not sufficient on its own:
+ * until the transaction commits, a concurrent request can still read the row
+ * and re-cache it. Callers therefore MUST call `invalidateSessionsForUser`
+ * again after the commit.
+ */
+export async function revokeSessionsForUserInTx(tx: Prisma.TransactionClient, userId: string): Promise<number> {
+  const result = await tx.session.deleteMany({ where: { userId } });
   invalidateSessionsForUser(userId);
   return result.count;
 }

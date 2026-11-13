@@ -90,6 +90,8 @@ function CollapsedRoster({
   const { t } = useTranslation();
   return (
     <div
+      role="complementary"
+      aria-label={t('roster.team')}
       style={{
         width: 44,
         height: '100%',
@@ -493,6 +495,7 @@ export function RosterPanel(props: {
   collapsed?: boolean;
   onToggleCollapse?: () => void;
 }) {
+  const { t } = useTranslation();
   const { roster, onJumpTo, collapsed, onToggleCollapse } = props;
   const [hoveredId, setHoveredId] = React.useState<string | null>(null);
   const formatLastSeen = useFormatLastSeen();
@@ -511,6 +514,8 @@ export function RosterPanel(props: {
 
   return (
     <div
+      role="complementary"
+      aria-label={t('roster.team')}
       style={{
         width: 240,
         height: '100%',

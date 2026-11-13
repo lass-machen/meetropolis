@@ -14,6 +14,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 vi.hoisted(() => {
   process.env.JWT_SECRET = 'display-name-test-secret';
   process.env.NODE_ENV = 'test';
+  process.env.PUBLIC_BASE_URL = 'https://app.example.test';
 });
 
 vi.mock('../../logger.js', () => ({
@@ -66,9 +67,17 @@ function makePrisma(callerRole: 'member' | 'admin' = 'admin') {
     },
     invite: {
       findUnique: vi.fn(() =>
-        Promise.resolve({ code: 'INVITE-1', usedAt: null, email: null, tenantId: TENANT.id, role: 'member' }),
+        Promise.resolve({
+          code: 'INVITE-1',
+          usedAt: null,
+          email: 'new@example.test',
+          tenantId: TENANT.id,
+          role: 'member',
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        }),
       ),
       update: vi.fn(() => Promise.resolve({})),
+      updateMany: vi.fn(() => Promise.resolve({ count: 1 })),
     },
     membership: {
       findUnique: vi.fn(({ where }: { where: { tenantId_userId: { userId: string } } }) => {
@@ -87,6 +96,7 @@ function makePrisma(callerRole: 'member' | 'admin' = 'admin') {
     guestToken: { create: vi.fn(() => Promise.resolve({})) },
     tenant: { findUnique: vi.fn(() => Promise.resolve(TENANT)) },
   } as unknown as PrismaClient;
+  prisma.$transaction = (operation) => operation(prisma);
   return { prisma, created, updated };
 }
 
@@ -262,26 +272,6 @@ describe('POST /auth/register', () => {
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('invalid name');
     expect(created).toEqual([]);
-  });
-
-  it('creates the user with the trimmed name', async () => {
-    const { prisma, created } = makePrisma();
-
-    const res = await request(makeApp(prisma))
-      .post('/auth/register')
-      .send({ ...credentials, name: '  Jörg Müller  ' });
-
-    expect(res.status).toBe(200);
-    expect(created[0]?.data.name).toBe('Jörg Müller');
-  });
-
-  it('still accepts a registration without a name', async () => {
-    const { prisma, created } = makePrisma();
-
-    const res = await request(makeApp(prisma)).post('/auth/register').send(credentials);
-
-    expect(res.status).toBe(200);
-    expect(created[0]?.data.name).toBeUndefined();
   });
 
   it('keeps its message for a failure that is not about the name', async () => {

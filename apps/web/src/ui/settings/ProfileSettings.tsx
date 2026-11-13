@@ -2,11 +2,12 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { MAX_DISPLAY_NAME_LENGTH } from '@meetropolis/shared';
 import { getApiBaseFromWindow } from '../../lib/apiBase';
+import { ProfileEmailChangeSection } from './ProfileEmailChangeSection';
 import { ProfileAvatarSection } from './ProfileAvatarSection';
 import { profilePatchBody } from './profilePatchBody';
 import type { WorldRoom } from '../../types/colyseus';
 import { translateApiError } from '../../lib/apiErrors';
-import { Button, Input, Alert, Section, Badge, Card } from '../system';
+import { Button, Input, Alert, Section, Card } from '../system';
 
 interface UserProfile {
   id: string;
@@ -51,13 +52,11 @@ function formatDate(iso: string | null): string {
 function useProfileLoader(apiBase: string, t: (k: string) => string) {
   const [profile, setProfile] = React.useState<UserProfile | null>(null);
   const [name, setName] = React.useState('');
-  const [email, setEmail] = React.useState('');
   const [avatarId, setAvatarId] = React.useState(localStorage.getItem('avatarId') || 'default-characters:business_man');
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
 
-  React.useEffect(() => {
-    const fetchProfile = async () => {
+  const fetchProfile = React.useCallback(async () => {
       try {
         const res = await fetch(`${apiBase}/auth/me`, { credentials: 'include' });
         if (res.ok) {
@@ -74,7 +73,6 @@ function useProfileLoader(apiBase: string, t: (k: string) => string) {
             });
           }
           setName(data.user?.name || data.name || '');
-          setEmail(data.user?.email || data.email || '');
           const serverAvatarId = data.user?.avatarId || data.avatarId;
           if (serverAvatarId) {
             setAvatarId(serverAvatarId);
@@ -88,11 +86,15 @@ function useProfileLoader(apiBase: string, t: (k: string) => string) {
       } finally {
         setLoading(false);
       }
-    };
-    void fetchProfile();
   }, [apiBase, t]);
+  React.useEffect(() => {
+    void fetchProfile();
+    const refresh = () => { void fetchProfile(); };
+    window.addEventListener('focus', refresh);
+    return () => window.removeEventListener('focus', refresh);
+  }, [fetchProfile]);
 
-  return { profile, setProfile, name, setName, email, setEmail, avatarId, setAvatarId, loading, error, setError };
+  return { profile, setProfile, name, setName, avatarId, setAvatarId, loading, error, setError, reload: fetchProfile };
 }
 
 function PasswordChangeForm({
@@ -325,16 +327,12 @@ function PersonalInfoForm({
   profile,
   name,
   setName,
-  email,
-  setEmail,
   saving,
   onSave,
 }: {
   profile: UserProfile | null;
   name: string;
   setName: (v: string) => void;
-  email: string;
-  setEmail: (v: string) => void;
   saving: boolean;
   onSave: (e: React.FormEvent) => void;
 }) {
@@ -351,17 +349,6 @@ function PersonalInfoForm({
             placeholder={t('profile.namePlaceholder')}
             maxLength={MAX_DISPLAY_NAME_LENGTH}
           />
-        </div>
-        <div style={{ marginBottom: 16 }}>
-          <label style={labelStyle}>{t('profile.emailAddress')}</label>
-          <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="your@email.com" />
-          <div style={{ marginTop: 6 }}>
-            {profile?.emailVerifiedAt ? (
-              <Badge intent="success">{t('profile.verifiedOn', { date: formatDate(profile.emailVerifiedAt) })}</Badge>
-            ) : (
-              <Badge intent="warning">{t('profile.notVerified')}</Badge>
-            )}
-          </div>
         </div>
         <div style={{ display: 'flex', gap: 8, fontSize: 13, color: 'var(--fg-subtle, #888)', marginBottom: 16 }}>
           <span style={{ fontWeight: 500 }}>{t('profile.memberSince')}:</span>
@@ -387,7 +374,7 @@ export function ProfileSettings({
 }) {
   const { t } = useTranslation();
   const apiBase = getApiBaseFromWindow();
-  const { profile, setProfile, name, setName, email, setEmail, avatarId, setAvatarId, loading, error, setError } =
+  const { profile, setProfile, name, setName, avatarId, setAvatarId, loading, error, setError, reload } =
     useProfileLoader(apiBase, t);
   const [saving, setSaving] = React.useState(false);
   const [success, setSuccess] = React.useState<string | null>(null);
@@ -398,12 +385,18 @@ export function ProfileSettings({
     setSaving(true);
     setError(null);
     setSuccess(null);
+    if (!name.trim()) {
+      await reload();
+      setSuccess(t('profile.updateSuccess'));
+      setSaving(false);
+      return;
+    }
     try {
       const res = await fetch(`${apiBase}/me`, {
         method: 'PATCH',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(profilePatchBody(name, email)),
+        body: JSON.stringify(profilePatchBody(name)),
       });
       if (res.ok) {
         const data = (await res.json()) as MeResponse;
@@ -414,7 +407,7 @@ export function ProfileSettings({
             email: userPayload.email,
             name: userPayload.name ?? null,
             imageUrl: userPayload.imageUrl ?? null,
-            emailVerifiedAt: userPayload.emailVerifiedAt ?? null,
+            emailVerifiedAt: userPayload.emailVerifiedAt ?? profile?.emailVerifiedAt ?? null,
             createdAt: userPayload.createdAt ?? '',
           });
         }
@@ -456,14 +449,18 @@ export function ProfileSettings({
         profile={profile}
         name={name}
         setName={setName}
-        email={email}
-        setEmail={setEmail}
         saving={saving}
         onSave={(e) => {
           void handleSaveProfile(e);
         }}
       />
 
+      <ProfileEmailChangeSection
+        apiBase={apiBase}
+        activeEmail={profile?.email ?? ''}
+        verifiedAt={profile?.emailVerifiedAt ?? null}
+        onRefresh={reload}
+      />
       <ProfileAvatarSection
         avatarId={avatarId}
         setAvatarId={setAvatarId}

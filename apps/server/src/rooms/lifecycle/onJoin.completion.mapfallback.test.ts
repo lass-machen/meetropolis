@@ -17,9 +17,23 @@ vi.mock('../../metrics.js', () => ({
 // Every map lookup misses → resolveInitialMap must fall through to the
 // namespaced placeholder. tenant.findUnique returns a default map name only.
 const fakePrisma = {
+  session: {
+    findMany: vi.fn((args: { where?: { id?: { in?: string[] }; userId?: string } }) =>
+      Promise.resolve([{
+        id: args.where?.id?.in?.[0] ?? 'db-session',
+        userId: args.where?.userId ?? 'user-1',
+        expiresAt: new Date(Date.now() + 60_000),
+      }]),
+    ),
+  },
   tenant: { findUnique: vi.fn(() => Promise.resolve({ defaultMapName: 'office' })) },
   map: { findFirst: vi.fn(() => Promise.resolve(null)) },
-  membership: { findMany: vi.fn(() => Promise.resolve([])), findFirst: vi.fn(() => Promise.resolve(null)) },
+  membership: {
+    findMany: vi.fn(() => Promise.resolve([])),
+    findFirst: vi.fn(() => Promise.resolve(null)),
+    // The admit gate re-proves the verified tenant; the double stays a member.
+    findUnique: vi.fn(() => Promise.resolve({ role: 'member', expiresAt: null })),
+  },
   presence: { findMany: vi.fn(() => Promise.resolve([])) },
   user: { findUnique: vi.fn(() => Promise.resolve(null)) },
   avatarPack: {
@@ -42,6 +56,7 @@ vi.mock('../audioZones/runtime.js', () => ({
 }));
 
 import { completePendingJoin } from './onJoin.completion.js';
+import { WorldAccessRegistry } from './worldAccess.js';
 import type { WorldRoom, Player as PlayerCtor } from '../WorldRoom.js';
 import type { Client } from 'colyseus';
 
@@ -81,6 +96,7 @@ function makeRoom(): { room: WorldRoom; players: Map<string, FakePlayer> } {
     tileHeightPx: 32,
     defaultSpawn: { x: 10, y: 10 },
   } as unknown as WorldRoom;
+  room.worldAccess = new WorldAccessRegistry(room);
   return { room, players };
 }
 
@@ -89,8 +105,20 @@ function makeClient(sessionId: string, tenantId: string): Client {
     sessionId,
     send: vi.fn(),
     view: fakeView(),
-    auth: { identity: sessionId, isNpc: false, zonePrivacyVersion: 1, tenantId },
+    auth: { identity: sessionId, sessionId: `db-${sessionId}`, isNpc: false, zonePrivacyVersion: 1, tenantId },
   } as unknown as Client;
+}
+
+/** The onAuth entry the admit gate needs for a human session. */
+function registerJoin(room: WorldRoom, sessionId: string, tenantId: string): void {
+  room.worldAccess.register(sessionId, {
+    identity: sessionId,
+    sessionId: `db-${sessionId}`,
+    tenantId,
+    tenantSlug: tenantId,
+    isNpc: false,
+    zonePrivacyVersion: 1,
+  });
 }
 
 beforeEach(() => {
@@ -103,6 +131,8 @@ describe('completePendingJoin: unresolvable map falls back to a tenant-namespace
     const { room: roomA, players: pa } = makeRoom();
     const { room: roomB, players: pb } = makeRoom();
 
+    registerJoin(roomA, 'sid-a', 'tid-a');
+    registerJoin(roomB, 'sid-b', 'tid-b');
     await completePendingJoin(roomA, makeClient('sid-a', 'tid-a'), {}, 'user-a', fakePlayerClass);
     await completePendingJoin(roomB, makeClient('sid-b', 'tid-b'), {}, 'user-b', fakePlayerClass);
 

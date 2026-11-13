@@ -49,12 +49,18 @@ export interface StartOptions {
    * exercise the limit model external callers.
    */
   loopbackExempt?: boolean;
+  /**
+   * Extra Express wiring for tests. Runs right after `trust proxy` is set
+   * and before the HTTP server is created.
+   */
+  configureApp?: (app: express.Express) => void;
 }
 
 export async function startMatchmakeServer(options: StartOptions = {}): Promise<MatchmakeTestServer> {
   const trustProxy = options.trustProxy ?? false;
   const app = express();
   app.set('trust proxy', trustProxy);
+  options.configureApp?.(app);
   app.get('/', (_req, res) => {
     res.send('ok');
   });

@@ -1,4 +1,6 @@
 import React from 'react';
+import { readAccountError, readProofResult } from '../../../lib/accountActionResponses';
+import { clearPendingInvite } from '../../../lib/pendingInvite';
 import { useTranslation } from 'react-i18next';
 import { PublicLayout } from '../layout/PublicLayout';
 import { PubCard } from '../components/PubCard';
@@ -64,52 +66,57 @@ function Spinner() {
 
 type VerifyStatus = 'verifying' | 'success' | 'error';
 
-interface UseEmailVerifyArgs {
-  token: string | undefined;
-  apiBase: string;
-  onSuccess: () => void;
-}
-
-function useEmailVerify({ token, apiBase, onSuccess }: UseEmailVerifyArgs) {
+function useEmailVerify(token: string | undefined, apiBase: string) {
   const { t } = useTranslation('public');
   const [status, setStatus] = React.useState<VerifyStatus>('verifying');
   const [message, setMessage] = React.useState('');
-
+  const [purpose, setPurpose] = React.useState<'invite' | 'verify' | 'email_change'>('verify');
+  const inFlight = React.useRef<{ token: string; promise: Promise<{ ok: boolean; body: unknown }> } | null>(null);
   React.useEffect(() => {
+    let cancelled = false;
     if (!token) {
       setStatus('error');
       setMessage(t('verify.noToken'));
       return;
     }
-
-    const verify = async () => {
-      try {
-        const res = await fetch(`${apiBase}/auth/verify`, {
+    // Run once per mount, including React effect replays. Do not retry a single-use proof.
+    if (inFlight.current?.token !== token)
+      inFlight.current = {
+        token,
+        promise: fetch(`${apiBase}/auth/verify`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ token }),
-        });
-
-        if (res.ok) {
-          setStatus('success');
-          setMessage(t('verify.successText'));
-          setTimeout(onSuccess, 2000);
-        } else {
-          const data = (await res.json().catch(() => ({}))) as { error?: string };
-          setStatus('error');
-          setMessage(data.error || t('verify.errorTitle'));
-        }
-      } catch (e: unknown) {
+        })
+          .then(async (response) => ({ ok: response.ok, body: await response.json().catch(() => null) as unknown }))
+          .finally(() => { if (inFlight.current?.token === token) window.history.replaceState(null, '', '#/verify'); }),
+      };
+    const active = inFlight.current;
+    if (!active) return;
+    void active.promise.then(({ ok, body }) => {
+      if (cancelled) return;
+      const result = readProofResult(body);
+      if (ok && result) {
+        setPurpose(result.purpose);
+        setStatus('success');
+        if (result.purpose === 'invite') clearPendingInvite();
+      } else {
         setStatus('error');
-        setMessage((e as Error)?.message || t('verify.errorTitle'));
+        const error = readAccountError(body);
+        setMessage(
+          error.code === 'EMAIL_PROOF_INVALID' ? t('verify.invalidLink') : error.message ?? t('verify.errorTitle'),
+        );
       }
-    };
-
-    void verify();
-  }, [token, apiBase, onSuccess, t]);
-
-  return { status, message };
+    }).catch(() => {
+      if (!cancelled) {
+        setStatus('error');
+        setMessage(t('verify.errorTitle'));
+      }
+    });
+    return () => { cancelled = true; };
+  }, [token, apiBase, t]);
+  return { status, message, purpose };
 }
 
 function VerifyingState() {
@@ -124,17 +131,24 @@ function VerifyingState() {
   );
 }
 
-function SuccessState() {
+function SuccessState({
+  purpose,
+  onContinue,
+}: {
+  purpose: 'invite' | 'verify' | 'email_change';
+  onContinue: () => void;
+}) {
   const { t } = useTranslation('public');
   return (
     <>
       <CheckCircleIcon />
       <h2 className="pub-text-h4" style={{ margin: 0 }}>
-        {t('verify.successTitle')}
+        {t(`verify.${purpose}.title`)}
       </h2>
       <p className="pub-text-body" style={{ color: 'var(--pub-text-secondary)', margin: 0 }}>
-        {t('verify.successText')}
+        {t(`verify.${purpose}.text`)}
       </p>
+      <PubButton variant="primary" onClick={onContinue}>{t('verify.continue')}</PubButton>
     </>
   );
 }
@@ -177,7 +191,17 @@ const VERIFY_WRAPPER_STYLE: React.CSSProperties = {
 };
 
 export function EmailVerifyPage({ token, apiBase, onSuccess, onBack }: EmailVerifyPageProps) {
-  const { status, message } = useEmailVerify({ token, apiBase, onSuccess });
+  const { status, message, purpose } = useEmailVerify(token, apiBase);
+  const continueAfterProof = async () => {
+    try {
+      const response = await fetch(`${apiBase}/auth/me`, { credentials: 'include' });
+      if (response.ok) {
+        window.location.hash = '#/app';
+        return;
+      }
+    } catch { /* Require sign-in unless usable access has been proven. */ }
+    onSuccess();
+  };
 
   const navigate = (route: string) => {
     window.location.hash = `#/${route}`;
@@ -194,7 +218,7 @@ export function EmailVerifyPage({ token, apiBase, onSuccess, onBack }: EmailVeri
       <div style={VERIFY_WRAPPER_STYLE}>
         <PubCard variant="surface" style={VERIFY_CARD_STYLE}>
           {status === 'verifying' && <VerifyingState />}
-          {status === 'success' && <SuccessState />}
+          {status === 'success' && <SuccessState purpose={purpose} onContinue={() => { void continueAfterProof(); }} />}
           {status === 'error' && <ErrorState message={message} onBack={onBack} />}
         </PubCard>
       </div>

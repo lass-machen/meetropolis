@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type express from 'express';
-import { isNativeClientRequest, resolvePublicBaseUrl, buildSigninResponseBody } from './auth.helpers.js';
+import { isNativeClientRequest, buildSigninResponseBody } from './auth.helpers.js';
 
 function reqWithOrigin(origin?: string): express.Request {
   return { headers: origin === undefined ? {} : { origin } } as express.Request;
@@ -67,41 +67,5 @@ describe('buildSigninResponseBody', () => {
     const body = buildSigninResponseBody({ id: 'u', email: 'e@x.test', name: null }, 'jwt-token', true);
     expect(body.name).toBeNull();
     expect(body.token).toBe('jwt-token');
-  });
-});
-
-describe('resolvePublicBaseUrl', () => {
-  it('prefers PUBLIC_BASE_URL over everything else', () => {
-    expect(
-      resolvePublicBaseUrl({
-        publicBaseUrl: 'https://public.example',
-        billingPublicUrl: 'https://billing.example',
-        origin: 'https://origin.example',
-        host: 'host.example',
-      }),
-    ).toBe('https://public.example');
-  });
-
-  it('falls back to BILLING_PUBLIC_URL when PUBLIC_BASE_URL is absent', () => {
-    expect(
-      resolvePublicBaseUrl({ billingPublicUrl: 'https://billing.example', origin: 'https://origin.example' }),
-    ).toBe('https://billing.example');
-  });
-
-  it('uses a real http(s) Origin when no explicit base URL is configured', () => {
-    expect(resolvePublicBaseUrl({ origin: 'https://origin.example', host: 'host.example' })).toBe(
-      'https://origin.example',
-    );
-  });
-
-  it('ignores a native-client Origin and falls through to the Host header', () => {
-    expect(resolvePublicBaseUrl({ origin: 'tauri://localhost', host: 'meetropolis.me' })).toBe(
-      'https://meetropolis.me',
-    );
-  });
-
-  it('returns an empty string when nothing usable is available', () => {
-    expect(resolvePublicBaseUrl({})).toBe('');
-    expect(resolvePublicBaseUrl({ origin: 'tauri://localhost' })).toBe('');
   });
 });

@@ -64,6 +64,7 @@ const db = vi.hoisted(() => {
     if (typeof where.id === 'string' && row.id !== where.id) return false;
     if (typeof where.tenantId === 'string' && row.tenantId !== where.tenantId) return false;
     if (typeof where.userId === 'string' && row.userId !== where.userId) return false;
+    if (Array.isArray(where.userId?.in) && !where.userId.in.includes(row.userId)) return false;
     if (typeof where.role === 'string' && row.role !== where.role) return false;
     if (where.expiresAt?.lt) {
       if (!row.expiresAt || row.expiresAt.getTime() >= where.expiresAt.lt.getTime()) return false;
@@ -87,6 +88,14 @@ const db = vi.hoisted(() => {
   const prisma = {
     session: {
       findUnique: ({ where }: any) => Promise.resolve(sessions.find((r) => r.tokenHash === where.tokenHash) ?? null),
+      findMany: ({ where }: any) =>
+        Promise.resolve(
+          sessions.filter((r) => {
+            if (Array.isArray(where?.id?.in) && !where.id.in.includes(r.id)) return false;
+            if (where?.expiresAt?.gt && !(r.expiresAt.getTime() > where.expiresAt.gt.getTime())) return false;
+            return true;
+          }),
+        ),
       update: ({ where, data }: any) => {
         const row = sessions.find((r) => r.id === where.id);
         if (row) Object.assign(row, data);
@@ -131,6 +140,7 @@ import { setAuthResolution } from './api/utils/authState.js';
 import { registerGuestRoutes } from './api/routes/guests.js';
 import { guestExpiryMiddleware } from './api/middleware/guestExpiry.js';
 import { startGuestExpiryInterval } from './rooms/lifecycle/guestExpiry.js';
+import { createWorldAccess } from './rooms/lifecycle/worldAccess.js';
 import type { WorldRoom } from './rooms/WorldRoom.js';
 import type { PrismaClient } from './generated/prisma/index.js';
 
@@ -255,13 +265,40 @@ describe('guestExpiryMiddleware (REST)', () => {
 });
 
 describe('room guest-expiry sweep', () => {
-  function makeRoom(players: Map<string, { identity: string }>, clients: unknown[]): WorldRoom {
-    return {
+  /** Database session row id behind a seeded token, as onAuth would store it. */
+  function sessionRowId(token: string): string {
+    const row = db.sessions.find((s) => s.tokenHash === hashSessionToken(token));
+    if (!row) throw new Error('test setup: session row missing');
+    return row.id;
+  }
+
+  function makeRoom(
+    players: Map<string, { identity: string }>,
+    clients: unknown[],
+    sessionIds: Map<string, string>,
+  ): WorldRoom {
+    // The sweep reads each session's verified tenant from the registry, never
+    // the room slug: every player here was verified for this tenant at join time.
+    // The bundled session check needs each entry's database session row, as a
+    // real join via onAuth would store it.
+    const room = {
       metadata: { tenant: TENANT.slug },
       prismaForPresence: prisma,
       state: { players },
       clients,
     } as unknown as WorldRoom;
+    room.worldAccess = createWorldAccess(room);
+    for (const [sessionId, player] of players) {
+      room.worldAccess.register(sessionId, {
+        identity: player.identity,
+        tenantId: TENANT.id,
+        tenantSlug: TENANT.slug,
+        authSessionId: sessionIds.get(sessionId),
+        isNpc: false,
+        zonePrivacyVersion: 1,
+      });
+    }
+    return room;
   }
 
   /**
@@ -290,7 +327,8 @@ describe('room guest-expiry sweep', () => {
     const leave = vi.fn();
     const error = vi.fn();
     const players = new Map([['sess-a', { identity: GUEST_USER }]]);
-    await runOneSweep(makeRoom(players, [{ sessionId: 'sess-a', leave, error }]));
+    const sessionIds = new Map([['sess-a', sessionRowId(token)]]);
+    await runOneSweep(makeRoom(players, [{ sessionId: 'sess-a', leave, error }], sessionIds));
 
     // Kicked from the room …
     expect(error).toHaveBeenCalledWith(4006, 'guest_expired');
@@ -307,7 +345,8 @@ describe('room guest-expiry sweep', () => {
 
     const leave = vi.fn();
     const players = new Map([['sess-a', { identity: GUEST_USER }]]);
-    await runOneSweep(makeRoom(players, [{ sessionId: 'sess-a', leave, error: vi.fn() }]));
+    const sessionIds = new Map([['sess-a', sessionRowId(token)]]);
+    await runOneSweep(makeRoom(players, [{ sessionId: 'sess-a', leave, error: vi.fn() }], sessionIds));
 
     expect(leave).not.toHaveBeenCalled();
     await expect(validateSessionToken(prisma, token)).resolves.not.toBeNull();

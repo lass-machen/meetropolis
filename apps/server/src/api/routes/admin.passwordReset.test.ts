@@ -1,164 +1,63 @@
-/**
- * The admin-issued reset token must still work end to end after reset tokens
- * moved to hashed storage: the admin route and POST /auth/reset are two sides
- * of one contract, and a token issued out of band is worthless if the redeem
- * path cannot match it. This is the regression that a hashed rewrite invites,
- * so it gets its own test.
- */
-import express from 'express';
-import cookieParser from 'cookie-parser';
+import crypto from 'node:crypto';
 import request from 'supertest';
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { afterAll, expect, it } from 'vitest';
+import { createEmailProofFixture } from '../../../test/fixtures/emailProofFixture.js';
 
-vi.hoisted(() => {
-  process.env.JWT_SECRET = 'admin-reset-test-secret';
-  process.env.API_TOKEN_PEPPER = 'admin-reset-test-pepper';
-  process.env.NODE_ENV = 'test';
-});
-
-vi.mock('../../logger.js', () => ({
-  logger: { warn: vi.fn(), error: vi.fn(), info: vi.fn(), debug: vi.fn() },
-}));
-
-vi.mock('../middleware/rateLimit.js', () => {
-  const passthrough = (_req: unknown, _res: unknown, next: () => void) => next();
-  return {
-    loginRateLimiter: passthrough,
-    registrationRateLimiter: passthrough,
-    passwordResetRateLimiter: passthrough,
-    forgotPasswordEmailRateLimiter: passthrough,
-    emailVerificationRateLimiter: passthrough,
-  };
-});
-
-import { registerAdminPasswordResetRoutes } from './admin.passwordReset.js';
-import { registerAuthRoutes } from './auth.js';
-import { setAuthResolution } from '../utils/authState.js';
-import { clearSessionCache } from '../utils/sessionCache.js';
-import type { PrismaClient } from '../../generated/prisma/index.js';
-
-interface ResetRow {
-  token: string;
-  userId: string;
-  usedAt: Date | null;
-  expiresAt: Date;
+// Real platform-operator contract, including its retained raw-token response.
+const setup = createEmailProofFixture();
+const { fixture, app } = setup;
+afterAll(() => setup.close());
+async function resetFixture() {
+  const { tenant } = await fixture.tenant();
+  const operator = await fixture.caller(tenant);
+  let internal = await fixture.prisma.tenant.findUnique({ where: { slug: 'internal' } });
+  if (!internal) {
+    internal = await fixture.prisma.tenant.create({ data: { slug: 'internal', name: 'Internal test tenant' } });
+    fixture.tenantIds.push(internal.id);
+  }
+  await fixture.prisma.membership.create({ data: { userId: operator.id, tenantId: internal.id, role: 'owner' } });
+  const target = await fixture.caller(tenant, 'member', crypto.randomBytes(20).toString('hex'));
+  const user = await fixture.prisma.user.findUniqueOrThrow({ where: { id: target.id } });
+  const result = await request(app)
+    .post(`/admin/users/${target.id}/reset-token`)
+    .set('X-Tenant', tenant.slug)
+    .set('Authorization', `Bearer ${operator.session}`)
+    .send({});
+  expect(result.status).toBe(200);
+  if (typeof result.body.token !== 'string') throw new Error('Platform-operator reset returned no token.');
+  return { target, user, token: result.body.token as string };
 }
 
-let resets: ResetRow[];
-let passwordHash: string | null;
-
-const TARGET = { id: 'user-target', email: 'target@example.test', name: 'Target' };
-const INTERNAL = { id: 'internal-tenant', slug: 'internal' };
-
-function makePrisma(): PrismaClient {
-  return {
-    user: {
-      findUnique: ({ where }: { where: { id: string } }) =>
-        Promise.resolve(where.id === TARGET.id ? { ...TARGET, passwordHash } : null),
-      update: ({ data }: { data: { passwordHash?: string } }) => {
-        if (data.passwordHash) passwordHash = data.passwordHash;
-        return Promise.resolve({ ...TARGET, passwordHash });
-      },
-    },
-    tenant: {
-      findUnique: ({ where }: { where: { slug?: string } }) =>
-        Promise.resolve(where.slug === 'internal' ? INTERNAL : null),
-    },
-    membership: {
-      findUnique: () => Promise.resolve({ role: 'owner' }),
-    },
-    session: {
-      findUnique: () => Promise.resolve(null),
-      deleteMany: () => Promise.resolve({ count: 0 }),
-    },
-    passwordReset: {
-      create: ({ data }: { data: Omit<ResetRow, 'usedAt'> }) => {
-        const row: ResetRow = { usedAt: null, ...data };
-        resets.push(row);
-        return Promise.resolve({ ...row });
-      },
-      findUnique: ({ where }: { where: { token: string } }) => {
-        const row = resets.find((r) => r.token === where.token);
-        return Promise.resolve(row ? { ...row } : null);
-      },
-      deleteMany: ({ where }: { where: { userId: string; usedAt: null } }) => {
-        const before = resets.length;
-        resets = resets.filter((r) => !(r.userId === where.userId && r.usedAt === null));
-        return Promise.resolve({ count: before - resets.length });
-      },
-      updateMany: ({
-        where,
-        data,
-      }: {
-        where: { token: string; usedAt: null; expiresAt: { gt: Date } };
-        data: { usedAt: Date };
-      }) => {
-        const matched = resets.filter(
-          (r) => r.token === where.token && r.usedAt === null && r.expiresAt > where.expiresAt.gt,
-        );
-        matched.forEach((r) => (r.usedAt = data.usedAt));
-        return Promise.resolve({ count: matched.length });
-      },
-    },
-  } as unknown as PrismaClient;
-}
-
-function makeApp(): express.Application {
-  const app = express();
-  app.use(cookieParser());
-  app.use(express.json());
-  const prisma = makePrisma();
-  // The caller is an authenticated internal owner (super-admin).
-  app.use((req, _res, next) => {
-    setAuthResolution(req, {
-      auth: { userId: 'admin-1', tenantId: INTERNAL.id, sessionId: 'sess-admin', tokenHash: 'hash-admin' },
-    });
-    (req as express.Request & { tenant?: unknown }).tenant = { ...INTERNAL };
-    next();
-  });
-  registerAdminPasswordResetRoutes(app, prisma);
-  registerAuthRoutes(app, prisma);
-  return app;
-}
-
-beforeEach(() => {
-  resets = [];
-  passwordHash = 'old-hash';
-  clearSessionCache();
+it('accepts the platform-operator token through the real reset handler', async () => {
+  const value = await resetFixture();
+  const result = await request(app)
+    .post('/auth/reset')
+    .send({ token: value.token, email: value.user.email, password: crypto.randomBytes(20).toString('hex') });
+  expect(result.status).toBe(200);
+  expect(await fixture.prisma.session.count({ where: { userId: value.target.id } })).toBe(0);
 });
 
-describe('admin-issued reset tokens (out-of-band fallback)', () => {
-  it('returns a token that POST /auth/reset accepts', async () => {
-    const app = makeApp();
+it('stores only the digest of a platform-operator reset token', async () => {
+  const value = await resetFixture();
+  const rows = await fixture.prisma.passwordReset.findMany({ where: { userId: value.target.id } });
+  expect(rows).toHaveLength(1);
+  expect(rows[0].token === value.token).toBe(false);
+});
 
-    const issued = await request(app).post(`/admin/users/${TARGET.id}/reset-token`);
-    expect(issued.status).toBe(200);
-    expect(issued.body.token).toBeTruthy();
-
-    const reset = await request(app)
-      .post('/auth/reset')
-      .send({ token: issued.body.token, email: TARGET.email, password: 'brandnewpassword' });
-
-    expect(reset.status).toBe(200);
-    expect(passwordHash).not.toBe('old-hash');
-  });
-
-  it('stores the admin token hashed, like the self-service one', async () => {
-    const app = makeApp();
-
-    const issued = await request(app).post(`/admin/users/${TARGET.id}/reset-token`);
-
-    expect(resets).toHaveLength(1);
-    expect(resets[0].token).not.toBe(issued.body.token);
-    expect(resets[0].token).toMatch(/^[a-f0-9]{64}$/);
-  });
-
-  it('burns the admin token after one use', async () => {
-    const app = makeApp();
-    const issued = await request(app).post(`/admin/users/${TARGET.id}/reset-token`);
-
-    await request(app).post('/auth/reset').send({ token: issued.body.token, password: 'brandnewpassword' }).expect(200);
-
-    await request(app).post('/auth/reset').send({ token: issued.body.token, password: 'anotherpassword' }).expect(400);
-  });
+it('rejects replay of a consumed platform-operator reset token', async () => {
+  const value = await resetFixture();
+  expect(
+    (
+      await request(app)
+        .post('/auth/reset')
+        .send({ token: value.token, password: crypto.randomBytes(20).toString('hex') })
+    ).status,
+  ).toBe(200);
+  expect(
+    (
+      await request(app)
+        .post('/auth/reset')
+        .send({ token: value.token, password: crypto.randomBytes(20).toString('hex') })
+    ).status,
+  ).toBe(400);
 });

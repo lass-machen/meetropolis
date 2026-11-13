@@ -18,7 +18,12 @@ const fakePrisma = {
     findFirst: vi.fn(() => Promise.resolve({ id: 'map-1', name: 'office' })),
     findUnique: vi.fn(() => Promise.resolve({ tenantId: 'tenant-1' })),
   },
-  membership: { findMany: vi.fn(() => Promise.resolve([])), findFirst: vi.fn(() => Promise.resolve(null)) },
+  membership: {
+    findMany: vi.fn(() => Promise.resolve([])),
+    findFirst: vi.fn(() => Promise.resolve(null)),
+    // The admit gate re-proves the verified tenant; the double stays a member.
+    findUnique: vi.fn(() => Promise.resolve({ role: 'member', expiresAt: null })),
+  },
   presence: { findMany: vi.fn(() => Promise.resolve([])) },
   user: { findUnique: vi.fn() },
   avatarPack: { findFirst: vi.fn(() => Promise.resolve({ avatars: [{ key: 'business_man' }] })) },
@@ -40,6 +45,7 @@ vi.mock('../audioZones/runtime.js', () => ({
 
 import { completePendingJoin } from './onJoin.completion.js';
 import { MAX_JOIN_TEXT_LENGTH } from './joinFields.js';
+import { WorldAccessRegistry } from './worldAccess.js';
 import type { WorldRoom, Player as PlayerCtor, RoomOptions } from '../WorldRoom.js';
 
 type CompletionClient = Parameters<typeof completePendingJoin>[1];
@@ -83,7 +89,19 @@ function makeRoom(): { room: WorldRoom; players: Map<string, FakePlayer> } {
     tileHeightPx: 32,
     defaultSpawn: { x: 10, y: 10 },
   } as unknown as WorldRoom;
+  room.worldAccess = new WorldAccessRegistry(room);
   return { room, players };
+}
+
+/** The onAuth entry the admit gate needs for a human session. */
+function registerJoin(room: WorldRoom, identity: string): void {
+  room.worldAccess.register('sid-1', {
+    identity,
+    tenantId: 'tenant-1',
+    tenantSlug: 'tenant-1',
+    isNpc: false,
+    zonePrivacyVersion: 1,
+  });
 }
 
 function clientWith(auth: Record<string, unknown>): CompletionClient {
@@ -99,6 +117,7 @@ function clientWith(auth: Record<string, unknown>): CompletionClient {
 async function joinAsAccount(options: RoomOptions, account: AccountRow | null, identity = 'user-1'): Promise<string> {
   fakePrisma.user.findUnique.mockResolvedValue(account);
   const { room, players } = makeRoom();
+  registerJoin(room, identity);
   const client = clientWith({ identity, isNpc: false, zonePrivacyVersion: 1, tenantId: 'tenant-1' });
   await completePendingJoin(room, client, options, identity, FakePlayer as unknown as typeof PlayerCtor);
   return players.get('sid-1')?.name ?? '';
@@ -108,6 +127,7 @@ async function joinAsAccount(options: RoomOptions, account: AccountRow | null, i
 async function joinWithoutAccount(options: RoomOptions, identity: string, isNpc = false): Promise<string> {
   fakePrisma.user.findUnique.mockResolvedValue(null);
   const { room, players } = makeRoom();
+  if (!isNpc) registerJoin(room, identity);
   const client = clientWith({ identity, isNpc, zonePrivacyVersion: 1 });
   await completePendingJoin(room, client, options, identity, FakePlayer as unknown as typeof PlayerCtor);
   return players.get('sid-1')?.name ?? '';
@@ -154,6 +174,7 @@ describe('the display name of a verified account', () => {
   it('is the identity, not the client name, when the account lookup fails', async () => {
     fakePrisma.user.findUnique.mockRejectedValue(new Error('database unavailable'));
     const { room, players } = makeRoom();
+    registerJoin(room, 'user-1');
     const client = clientWith({ identity: 'user-1', isNpc: false, zonePrivacyVersion: 1, tenantId: 'tenant-1' });
 
     await completePendingJoin(room, client, { name: HUGE }, 'user-1', FakePlayer as unknown as typeof PlayerCtor);
@@ -164,6 +185,7 @@ describe('the display name of a verified account', () => {
   it('is the identity when the account lookup fails and the client names a short name of its own', async () => {
     fakePrisma.user.findUnique.mockRejectedValue(new Error('database unavailable'));
     const { room, players } = makeRoom();
+    registerJoin(room, 'user-1');
     const client = clientWith({ identity: 'user-1', isNpc: false, zonePrivacyVersion: 1, tenantId: 'tenant-1' });
 
     await completePendingJoin(room, client, { name: 'Mallory' }, 'user-1', FakePlayer as unknown as typeof PlayerCtor);
@@ -193,6 +215,7 @@ describe('the display name of a join the server knows no account for', () => {
   it('is still the client name, cut to the limit, when the lookup fails and there is no verified tenant', async () => {
     fakePrisma.user.findUnique.mockRejectedValue(new Error('database unavailable'));
     const { room, players } = makeRoom();
+    registerJoin(room, 'bot-7');
     const client = clientWith({ identity: 'bot-7', isNpc: false, zonePrivacyVersion: 1 });
 
     await completePendingJoin(room, client, { name: HUGE }, 'bot-7', FakePlayer as unknown as typeof PlayerCtor);

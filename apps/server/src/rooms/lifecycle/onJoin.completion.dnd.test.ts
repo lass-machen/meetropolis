@@ -23,6 +23,15 @@ vi.mock('../../metrics.js', () => ({
 // resolveInitialMap's tenant-scoped lookups.
 type FindArgs = { where?: { id?: string; name?: string; slug?: string } };
 const fakePrisma = {
+  session: {
+    findMany: vi.fn((args: { where?: { id?: { in?: string[] }; userId?: string } }) =>
+      Promise.resolve([{
+        id: args.where?.id?.in?.[0] ?? 'db-session',
+        userId: args.where?.userId ?? 'user-1',
+        expiresAt: new Date(Date.now() + 60_000),
+      }]),
+    ),
+  },
   tenant: {
     // checkGuestExpired + seedPresenceRecent look up by slug and short-circuit
     // on null. resolveInitialMap looks up the tenant's defaultMapName by id.
@@ -39,6 +48,12 @@ const fakePrisma = {
     }),
   },
   user: { findUnique: vi.fn(() => Promise.resolve(null)) },
+  membership: {
+    findMany: vi.fn(() => Promise.resolve([])),
+    findFirst: vi.fn(() => Promise.resolve(null)),
+    // The admit gate re-proves the verified tenant; the double stays a member.
+    findUnique: vi.fn(() => Promise.resolve({ role: 'member', expiresAt: null })),
+  },
   avatarPack: {
     findFirst: vi.fn(() => Promise.resolve({ avatars: [{ key: 'business_man' }] })),
   },
@@ -69,6 +84,7 @@ vi.mock('../audioZones/runtime.js', () => ({
 }));
 
 import { completePendingJoin } from './onJoin.completion.js';
+import { WorldAccessRegistry } from './worldAccess.js';
 import type { WorldRoom, RoomOptions, Player as PlayerCtor } from '../WorldRoom.js';
 import type { Client } from 'colyseus';
 
@@ -116,7 +132,20 @@ function makeRoom(): { room: WorldRoom; players: Map<string, FakePlayer> } {
     tileHeightPx: 32,
     defaultSpawn: { x: 10, y: 10 },
   } as unknown as WorldRoom;
+  room.worldAccess = new WorldAccessRegistry(room);
   return { room, players };
+}
+
+/** The onAuth entry the admit gate needs for a human session. */
+function registerJoin(room: WorldRoom, sessionId: string, identity: string): void {
+  room.worldAccess.register(sessionId, {
+    identity,
+    sessionId: 'db-session',
+    tenantId: 'tenant-1',
+    tenantSlug: 'tenant-1',
+    isNpc: false,
+    zonePrivacyVersion: 1,
+  });
 }
 
 // Common options that keep every DB-backed resolver on its short-circuit
@@ -135,6 +164,7 @@ describe('completePendingJoin: dnd resync via join option', () => {
   it('sets player.dnd = true and broadcasts player_joined with dnd:true when options.dnd === true', async () => {
     const { room, players } = makeRoom();
     const client = { sessionId: 'sid-1', send: vi.fn(), view: fakeView() } as unknown as Client;
+    registerJoin(room, 'sid-1', 'user-1');
 
     await completePendingJoin(room, client, baseOptions({ dnd: true }), 'user-1', fakePlayerClass);
 
@@ -151,6 +181,7 @@ describe('completePendingJoin: dnd resync via join option', () => {
   it('defaults player.dnd to false when the dnd option is absent', async () => {
     const { room, players } = makeRoom();
     const client = { sessionId: 'sid-2', send: vi.fn(), view: fakeView() } as unknown as Client;
+    registerJoin(room, 'sid-2', 'user-2');
 
     await completePendingJoin(room, client, baseOptions({}), 'user-2', fakePlayerClass);
 
@@ -167,6 +198,7 @@ describe('completePendingJoin: dnd resync via join option', () => {
   it('does not enable DND for a non-boolean truthy value (string "true")', async () => {
     const { room, players } = makeRoom();
     const client = { sessionId: 'sid-3', send: vi.fn(), view: fakeView() } as unknown as Client;
+    registerJoin(room, 'sid-3', 'user-3');
     // A spoofed/legacy client could send a string; only a real boolean true counts.
     const options = baseOptions({ dnd: 'true' as unknown as boolean });
 
@@ -200,8 +232,16 @@ describe('completePendingJoin: cross-tenant mapId rejection', () => {
       send: vi.fn(),
       view: fakeView(),
       // WorldAuth attached by onAuth: the JWT-verified tenant is 'tenant-a'.
-      auth: { identity: 'user-b', isNpc: false, zonePrivacyVersion: 1, tenantId: 'tenant-a' },
+      auth: { identity: 'user-b', sessionId: 'db-session', isNpc: false, zonePrivacyVersion: 1, tenantId: 'tenant-a' },
     } as unknown as Client;
+    room.worldAccess.register('sid-A', {
+      identity: 'user-b',
+      sessionId: 'db-session',
+      tenantId: 'tenant-a',
+      tenantSlug: 'auth-a',
+      isNpc: false,
+      zonePrivacyVersion: 1,
+    });
     // 'map-b' belongs to another tenant (not owned by tenant-a in the mock).
     const options = baseOptions({ mapId: 'map-b' });
 

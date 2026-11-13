@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { logger } from '../../logger.js';
 import { requireAuth, getTenantFromReq, requireApiToken, requireMembership } from '../utils/authHelpers.js';
 import { pathParam } from '../utils/requestHelpers.js';
+import { isTenantAccessDenied } from '../utils/tenantAccessState.js';
 import { broadcastMapUpdate } from '../utils/broadcast.js';
 import { findMapById } from './maps.read.js';
 import { acquireMapAdvisoryLock } from '../utils/advisoryLocks.js';
@@ -67,6 +68,10 @@ export async function resolveEditorMemberTenant(
     return null;
   }
   const tenant = getTenantFromReq(req);
+  if (!tenant && isTenantAccessDenied(req)) {
+    res.status(403).json({ error: 'forbidden' });
+    return null;
+  }
   if (!tenant) {
     res.status(400).json({ error: 'tenant_required' });
     return null;

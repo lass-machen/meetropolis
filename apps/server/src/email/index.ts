@@ -6,8 +6,8 @@
  * 2. Template renderer (`renderForLocale`)
  * 3. Brand context + default locale (read once from ENV at boot)
  *
- * In test mode (`NODE_ENV === 'test'`) the factory returns `null` so that
- * Vitest suites do not accidentally produce stdout spam.
+ * Keep the console disabled in tests. An explicitly configured SMTP provider
+ * enables real Mailpit integration.
  *
  * Provider selection at boot:
  * - `SMTP_HOST` + `SMTP_FROM` set → SmtpEmailProvider.
@@ -49,6 +49,7 @@ class OssEmailModule implements EmailModule {
     private readonly provider: EmailProvider,
     private readonly brand: BrandContext,
     private readonly defaultLocale: EmailLocale,
+    readonly providerName: string,
   ) {}
 
   private effective(locale: EmailLocale | undefined): EmailLocale {
@@ -86,11 +87,10 @@ class OssEmailModule implements EmailModule {
  * when the EE tenancy module is not available.
  *
  * Return value:
- * - `null` in test environments (prevents stdout spam in Vitest).
+ * - `null` in test mode without SMTP configuration.
  * - Otherwise an `EmailModule` with an SMTP or Console provider.
  */
 export function createOssEmailModule(): EmailModule | null {
-  if (process.env.NODE_ENV === 'test') return null;
 
   const brand = readBrandContext();
   const defaultLocale = readEnvDefaultLocale();
@@ -109,17 +109,21 @@ export function createOssEmailModule(): EmailModule | null {
       smtpPool: smtpOptions.pool,
       smtpVerifyOnBoot: smtpOptions.verifyOnBoot,
     });
-    return new OssEmailModule(provider, brand, defaultLocale);
+    return new OssEmailModule(provider, brand, defaultLocale, 'oss-smtp');
   }
+
+  if (process.env.NODE_ENV === 'test') return null;
 
   // Console fallback. Important: returns false in send() so callers know
   // no real send happened. Also emits a one-time WARN at boot.
   const provider = new ConsoleEmailProvider();
-  logger.warn({
+  // In production nothing is delivered without a provider: say so loudly.
+  const logFallback = process.env.NODE_ENV === 'production' ? logger.error.bind(logger) : logger.warn.bind(logger);
+  logFallback({
     event: 'email.fallback_console',
-    message: 'No mail provider configured (SMTP_HOST/SMTP_FROM unset and no EE-tenancy module) — mails are logged only',
+    message: 'No mail provider configured (SMTP_HOST/SMTP_FROM unset and no EE-tenancy module) — mails are not delivered',
     brand: brand.brandName,
     defaultLocale,
   });
-  return new OssEmailModule(provider, brand, defaultLocale);
+  return new OssEmailModule(provider, brand, defaultLocale, 'oss-console');
 }

@@ -26,6 +26,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 import { WorldRoom } from './rooms/WorldRoom.js';
 import { getApiPrismaClient, registerApi } from './api.js';
+import { warnIfPublicBaseUrlUnusable } from './api/utils/publicLinks.js';
 import { logger } from './logger.js';
 import { registry, metricsMiddleware } from './metrics.js';
 import { tenantMiddleware } from './tenancy.js';
@@ -306,6 +307,7 @@ if (toolsUser && toolsPassword) {
 }
 
 await registerApi(app);
+warnIfPublicBaseUrlUnusable();
 
 // Expose Prometheus Metriken
 app.get('/metrics', async (_req, res) => {

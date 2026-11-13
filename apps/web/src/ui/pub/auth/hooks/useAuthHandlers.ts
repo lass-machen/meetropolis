@@ -1,7 +1,9 @@
+import { AccountActionError, needsEmailVerification } from '../../../../lib/accountActionResponses';
 import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuthApi } from './useAuthApi';
 import { getTelemetryModule } from '../../../../lib/telemetryLoader';
+import { storePendingInvite, clearPendingInvite, inviteHash, readPendingInvite } from '../../../../lib/pendingInvite';
 import { readLoginNextParam, resolvePostLoginHash } from '../../../../lib/resolvePostLoginHash';
 
 interface AuthTokenResponse {
@@ -16,7 +18,7 @@ interface UseAuthHandlersArgs {
   setView: (view: AuthViewName) => void;
 }
 
-export type AuthViewName = 'login' | 'register' | 'invite' | 'forgot' | 'reset' | 'guest';
+export type AuthViewName = 'login' | 'register' | 'invite' | 'forgot' | 'reset' | 'guest' | 'pending';
 
 export interface AuthHandlers {
   handleLogin: (email: string, password: string) => Promise<void>;
@@ -29,6 +31,44 @@ export interface AuthHandlers {
   handleReset: (email: string, token: string, password: string) => Promise<void>;
   storeDesktopAuthToken: (token: string) => Promise<void>;
   postRaw: ReturnType<typeof useAuthApi>['post'];
+}
+
+function showVerificationPending(setView: (view: AuthViewName) => void): void {
+  setView('pending');
+  window.location.hash = '#/verify-pending';
+}
+
+async function resolvePostLoginTarget(post: ReturnType<typeof useAuthApi>['post']): Promise<string> {
+  const next = readLoginNextParam(window.location.hash);
+  const target = resolvePostLoginHash(next);
+  let pending = readPendingInvite();
+  if (pending) {
+    const preview = await post('/public/invites/preview', { code: pending });
+    if (preview && typeof preview === 'object' && 'status' in preview && preview.status === 'accepted') {
+      clearPendingInvite();
+      pending = null;
+    }
+  }
+  return target === '#/app' && pending ? inviteHash(pending) : target;
+}
+
+function handleLoginFailure(
+  e: unknown,
+  setView: (view: AuthViewName) => void,
+  setError: (msg: string | null) => void,
+): void {
+  if (e instanceof AccountActionError && e.code === 'INVITE_ACCEPT_REQUIRED') {
+    const pending = readPendingInvite();
+    if (pending) {
+      window.location.hash = inviteHash(pending);
+      return;
+    }
+  }
+  if (needsEmailVerification(e)) {
+    showVerificationPending(setView);
+    return;
+  }
+  setError((e as Error).message);
 }
 
 export function useAuthHandlers({
@@ -53,12 +93,12 @@ export function useAuthHandlers({
         void getTelemetryModule()
           .then((t) => t?.trackLogin())
           .catch(() => {});
-        window.location.hash = resolvePostLoginHash(readLoginNextParam(window.location.hash));
+        window.location.hash = await resolvePostLoginTarget(post);
       } catch (e: unknown) {
-        setError((e as Error).message);
+        handleLoginFailure(e, setView, setError);
       }
     },
-    [post, storeDesktopAuthToken, setError],
+    [post, storeDesktopAuthToken, setError, setView],
   );
 
   const handleRegister = useCallback(
@@ -67,6 +107,7 @@ export function useAuthHandlers({
       currentInvite: string,
     ) => {
       setError(null);
+      storePendingInvite(data.invite || currentInvite);
       try {
         const result = (await post('/auth/register', {
           code: data.invite || currentInvite,
@@ -85,12 +126,17 @@ export function useAuthHandlers({
         void getTelemetryModule()
           .then((t) => t?.trackSignup('invite'))
           .catch(() => {});
+        clearPendingInvite();
         window.location.hash = '#/app';
       } catch (e: unknown) {
+        if (needsEmailVerification(e)) {
+          showVerificationPending(setView);
+          return;
+        }
         setError((e as Error).message);
       }
     },
-    [post, storeDesktopAuthToken, setError],
+    [post, storeDesktopAuthToken, setError, setView],
   );
 
   const handleForgot = useCallback(

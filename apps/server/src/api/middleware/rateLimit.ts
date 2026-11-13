@@ -3,6 +3,7 @@ import type { Request, RequestHandler } from 'express';
 import { AppError } from '../../errors/AppError.js';
 import { logger } from '../../logger.js';
 import { getUserIdFromReq } from '../utils/authHelpers.js';
+import { getRequestRouteTemplate } from '../utils/requestRoute.js';
 
 /**
  * Central, env-configurable rate limiting for the public, unauthenticated
@@ -121,7 +122,7 @@ export function createRateLimiter(config: RateLimiterConfig): RequestHandler {
         limiter: config.name,
         ip: req.ip,
         method: req.method,
-        path: req.path,
+        path: getRequestRouteTemplate(req),
       });
       next(AppError.tooManyRequests('Too many requests. Please wait a moment and try again.', 'RATE_LIMITED'));
     },

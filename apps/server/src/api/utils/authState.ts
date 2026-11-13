@@ -18,6 +18,8 @@ import type express from 'express';
 /** Identity carried by a request whose token maps to a live session row. */
 export interface ResolvedAuth {
   userId: string;
+  /** Restricted proof/acceptance session; never usable as ordinary authentication. */
+  verificationOnly?: true;
   tenantId?: string;
   /** Id of the backing `Session` row — the authority for this request. */
   sessionId: string;

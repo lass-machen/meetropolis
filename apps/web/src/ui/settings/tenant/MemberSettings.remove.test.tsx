@@ -17,6 +17,7 @@ function renderMembers(onRemoveMember = vi.fn()) {
       onRemoveMember={onRemoveMember}
       onInvite={vi.fn()}
       onSuccess={vi.fn()}
+      onError={vi.fn()}
       onResetPassword={vi.fn()}
       onEditMember={vi.fn()}
     />,

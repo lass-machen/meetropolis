@@ -215,9 +215,25 @@ export function LoginView({
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [localError, setLocalError] = useState<string | null>(null);
+  const visibleError = localError ?? error;
+
+  function updateEmail(v: string) {
+    setLocalError(null);
+    setEmail(v);
+  }
+
+  function updatePassword(v: string) {
+    setLocalError(null);
+    setPassword(v);
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (email.trim() === '' || password.trim() === '') {
+      setLocalError(t('auth.requiredFieldsMissing'));
+      return;
+    }
     setLoading(true);
     try {
       await onSubmit(email, password);
@@ -231,13 +247,20 @@ export function LoginView({
       onSubmit={(e) => {
         void handleSubmit(e);
       }}
+      noValidate
       autoComplete="on"
       style={{ display: 'flex', flexDirection: 'column', gap: 24 }}
     >
       <LoginTitle />
-      <LoginFields email={email} password={password} onEmail={setEmail} onPassword={setPassword} onForgot={onForgot} />
+      <LoginFields
+        email={email}
+        password={password}
+        onEmail={updateEmail}
+        onPassword={updatePassword}
+        onForgot={onForgot}
+      />
       {successMessage && <LoginAlert kind="success" text={successMessage} />}
-      {error && <LoginAlert kind="error" text={error} />}
+      {visibleError && <LoginAlert kind="error" text={visibleError} />}
       <PubButton
         type="submit"
         variant="primary"

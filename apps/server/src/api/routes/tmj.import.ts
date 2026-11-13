@@ -3,9 +3,9 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import type express from 'express';
 import type { PrismaClient } from '../../generated/prisma/index.js';
-import multer from 'multer';
+import { uploadGuard, uploadParser, boundedMultipart } from '../middleware/uploadPolicy.js';
 import { logger } from '../../logger.js';
-import { requireAuth, getTenantFromReq } from '../utils/authHelpers.js';
+import { resolveEditorMemberTenant } from './maps.editor.js';
 import { pathParam } from '../utils/requestHelpers.js';
 import { broadcastMapUpdate } from '../utils/broadcast.js';
 import { reconcileCollisionTiles, rectCollisionTiles } from '../utils/collisionReconciler.js';
@@ -27,10 +27,7 @@ import {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 },
-});
+const upload = uploadParser('tmj');
 
 const importUpload = upload.fields([
   { name: 'file', maxCount: 1 },
@@ -258,10 +255,8 @@ export async function handleTmjImport(
   res: express.Response,
 ): Promise<void> {
   try {
-    const auth = requireAuth(req);
-    if (!auth) return void res.status(401).json({ error: 'unauthorized' });
-    const tenant = getTenantFromReq(req);
-    if (!tenant) return void res.status(400).json({ error: 'tenant_required' });
+    const tenant = await resolveEditorMemberTenant(prisma, req, res, { requireAdmin: true });
+    if (!tenant) return;
     const parsed = parseImport(req, res);
     if (!parsed) return;
     const map = await prisma.map.findFirst({ where: { id: pathParam(req, 'id'), tenantId: tenant.id } });
@@ -291,5 +286,5 @@ export async function handleTmjImport(
 }
 
 export function registerTmjImportRoute(app: express.Application, prisma: PrismaClient): void {
-  app.post('/maps/:id/import-tmj', importUpload, (req, res) => handleTmjImport(prisma, req, res));
+  app.post('/maps/:id/import-tmj', uploadGuard(prisma, 'tmj'), boundedMultipart(importUpload), (req, res) => handleTmjImport(prisma, req, res));
 }

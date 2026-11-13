@@ -1,4 +1,5 @@
 import { useCallback } from 'react';
+import { inviteHash } from '../../../../lib/pendingInvite';
 import { useAuthHandlers, type AuthViewName } from './useAuthHandlers';
 import { useDebugAutoLogin, useGuestAutoLogin, useRedirectWhenRegistrationDisabled } from './useAuthSideEffects';
 import { useAuthPageState } from './useAuthPageState';
@@ -64,6 +65,7 @@ export function useAuthPage(args: UseAuthPageArgs) {
       s.setError(null);
       s.setInvite(code);
       s.setView('register');
+      window.location.hash = inviteHash(code);
       return Promise.resolve();
     },
     [s],

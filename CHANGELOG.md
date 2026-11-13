@@ -31,6 +31,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   not support. Removing a member no longer asks twice, and logging out all
   other devices reports its result inline instead of with `alert()`. ESLint
   now rejects native `confirm`, `alert` and `prompt` in `apps/web`.
+- Server: HTTP-Logfelder und Metriklabels enthalten Routen-Templates
+  statt konkreter Pfade; frühe `http.request`-Logs enthalten kein Pfadfeld,
+  endgültig ungematchte Requests melden `<unmatched>`. Dies ändert die
+  Werte für Dashboards und Log-Parser.
+- World server: joining the world always requires a valid session, also
+  with `ZONE_PRIVACY_AUTH_ENFORCE` unset. A join without a session token
+  (desktop builds that predate the join token) is refused with 4401
+  `unauthorized`; the identity the client names is no longer accepted in
+  its place. `ZONE_PRIVACY_AUTH_ENFORCE` now only gates the client
+  zone-privacy version check.
+- World server: a join whose verified tenant has no resolvable slug is
+  refused with 4401 `tenant_unresolved` instead of falling back to the
+  tenant slug the client sent.
+- Server: access revocations use one presence channel, `access_revoked`
+  with `{ userId, origin }`, instead of one `access_revoked:<slug>`
+  channel per tenant, and each world room checks the user's sessions
+  against the tenant each session was verified for.
+  `broadcastAccessRevoked(userId)` no longer takes a tenant slug,
+  `accessRevokedChannel` and `disconnectPlayers` are removed, and
+  `revokeAccountAccess(userId, tenantSlugs)` is new.
+- World server: `WorldRoom.onCreate` is async and waits for the
+  revocation subscription; when subscribing fails, the room is not
+  created.
+- World server: open world sessions hold an access lease. The periodic
+  access check runs every 30 s (was 60 s) and renews it. A session that
+  cannot be re-verified ends after at most 120 s with the new code 4503
+  `access_unverified`, which the web client treats as a reconnect; native
+  clients should do the same. A guest ends exactly at its stored expiry.
+  `WORLD_ACCESS_SWEEP_MS` (default 30000) and `WORLD_ACCESS_LEASE_MS`
+  (default 120000, at least twice the sweep) tune both intervals.
+- World server: a world session ends once its database session is gone
+  (logout, password reset, revoked sessions, or removal from another
+  tenant, which signs the user out everywhere), with 4401
+  `session_revoked`: at once on a revocation, otherwise at the next
+  access check.
 
 ### Fixed
 

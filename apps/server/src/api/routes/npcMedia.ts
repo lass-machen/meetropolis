@@ -4,9 +4,10 @@ import crypto from 'crypto';
 import path from 'path';
 import fs from 'fs';
 import fsp from 'fs/promises';
-import multer from 'multer';
+import { uploadGuard, uploadParser, boundedMultipart } from '../middleware/uploadPolicy.js';
 import { requireAuth, requireApiToken, getTenantFromReq, requireMembership } from '../utils/authHelpers.js';
 import { pathParam } from '../utils/requestHelpers.js';
+import { detectMimeFromMagic } from '../utils/mediaMime.js';
 import { logger } from '../../logger.js';
 
 // --- Allowed MIME types and their extensions ---
@@ -20,26 +21,6 @@ const ALLOWED_MEDIA: Record<string, string> = {
   'video/mp4': '.mp4',
   'video/webm': '.webm',
 };
-
-// --- Magic bytes for common formats ---
-
-const MAGIC_BYTES: ReadonlyArray<{ bytes: number[]; mime: string }> = [
-  { bytes: [0x52, 0x49, 0x46, 0x46], mime: 'audio/wav' }, // RIFF (WAV)
-  { bytes: [0xff, 0xfb], mime: 'audio/mpeg' }, // MP3 frame sync
-  { bytes: [0xff, 0xf3], mime: 'audio/mpeg' },
-  { bytes: [0xff, 0xf2], mime: 'audio/mpeg' },
-  { bytes: [0x49, 0x44, 0x33], mime: 'audio/mpeg' }, // ID3 tag
-  { bytes: [0x4f, 0x67, 0x67, 0x53], mime: 'audio/ogg' }, // OGG
-  { bytes: [0x1a, 0x45, 0xdf, 0xa3], mime: 'video/webm' }, // WebM/MKV
-  { bytes: [0x00, 0x00, 0x00], mime: 'video/mp4' }, // MP4 (ftyp follows)
-];
-
-function detectMimeFromMagic(buf: Buffer): string | null {
-  for (const { bytes, mime } of MAGIC_BYTES) {
-    if (bytes.every((b, i) => buf[i] === b)) return mime;
-  }
-  return null;
-}
 
 function mapMimeToMediaType(mime: string): 'audio' | 'video' | 'screenshare' {
   if (mime.startsWith('video/')) return 'video';
@@ -100,6 +81,8 @@ async function handleUploadMedia(
   const detectedMime = detectMimeFromMagic(file.buffer);
   const mime = detectedMime || file.mimetype;
   if (!ALLOWED_MEDIA[mime]) return res.status(400).json({ error: 'unsupported_media_type', detected: mime });
+
+  if (mime.startsWith('audio/') && file.size > 25 * 1024 * 1024) return res.status(413).json({ error: 'Audio file too large.', code: 'UPLOAD_TOO_LARGE' });
 
   // Optional override mediaType from query (for screenshare)
   const mediaTypeQuery = req.query.mediaType as string | undefined;
@@ -182,12 +165,9 @@ export function registerNpcMediaRoutes(app: express.Application, prisma: PrismaC
     /* ignore */
   }
 
-  const upload = multer({
-    storage: multer.memoryStorage(),
-    limits: { fileSize: 100 * 1024 * 1024 }, // 100MB
-  });
+  const upload = uploadParser('npc');
 
-  app.post('/npcs/:id/media', upload.single('file'), (req, res) => handleUploadMedia(req, res, prisma, npcMediaDir));
+  app.post('/npcs/:id/media', uploadGuard(prisma, 'npc'), boundedMultipart(upload.single('file')), (req, res) => handleUploadMedia(req, res, prisma, npcMediaDir));
   app.get('/npcs/:id/media', (req, res) => handleListMedia(req, res, prisma));
   app.delete('/npcs/:id/media/:mediaId', (req, res) => handleDeleteMedia(req, res, prisma, npcMediaDir));
 }

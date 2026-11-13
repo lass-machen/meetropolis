@@ -129,12 +129,21 @@ function RouteContent({ route, params, apiBase, registrationEnabled, navigate }:
           registrationEnabled={registrationEnabled}
         />
       );
+    case 'verify-pending':
+      return (
+        <AuthPage
+          key="auth-pending"
+          apiBase={apiBase}
+          initialView="pending"
+          registrationEnabled={registrationEnabled}
+        />
+      );
     case 'verify':
       return (
         <EmailVerifyPage
           token={params.verifyToken}
           apiBase={apiBase}
-          onSuccess={() => navigate('app')}
+          onSuccess={() => navigate('login')}
           onBack={() => navigate('landing')}
         />
       );
@@ -157,10 +166,13 @@ function RouteContent({ route, params, apiBase, registrationEnabled, navigate }:
         />
       );
     case 'login':
-      return <AuthPage apiBase={apiBase} initialView="login" registrationEnabled={registrationEnabled} />;
+      return (
+        <AuthPage key="auth-login" apiBase={apiBase} initialView="login" registrationEnabled={registrationEnabled} />
+      );
     case 'register':
       return (
         <AuthPage
+          key="auth-register"
           apiBase={apiBase}
           initialView="register"
           initialPlan={params.plan}
@@ -170,6 +182,7 @@ function RouteContent({ route, params, apiBase, registrationEnabled, navigate }:
     case 'invite':
       return (
         <AuthPage
+          key={`auth-invite-${params.inviteCode ?? ''}`}
           apiBase={apiBase}
           initialView="invite"
           initialInvite={params.inviteCode}
@@ -179,6 +192,7 @@ function RouteContent({ route, params, apiBase, registrationEnabled, navigate }:
     case 'reset-pw':
       return (
         <AuthPage
+          key="auth-reset"
           apiBase={apiBase}
           initialView="reset"
           initialResetToken={params.resetToken}
@@ -186,7 +200,7 @@ function RouteContent({ route, params, apiBase, registrationEnabled, navigate }:
         />
       );
     case 'guest-auth':
-      return <AuthPage apiBase={apiBase} initialView="guest" initialGuestToken={params.guestToken} />;
+      return <AuthPage key="auth-guest" apiBase={apiBase} initialView="guest" initialGuestToken={params.guestToken} />;
     case 'connect':
       return <ConnectRoute requestId={params.requestId ?? null} />;
     case 'app':

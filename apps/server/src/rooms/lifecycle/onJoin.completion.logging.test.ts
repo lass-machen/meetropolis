@@ -12,9 +12,23 @@ vi.mock('../../metrics.js', () => ({ colyseusPlayers: { inc: vi.fn(), dec: vi.fn
 // The map lookups miss, so the player ends up on the unresolved placeholder map
 // and the requested map name is what the fallback keeps.
 const fakePrisma = {
+  session: {
+    findMany: vi.fn((args: { where?: { id?: { in?: string[] }; userId?: string } }) =>
+      Promise.resolve([{
+        id: args.where?.id?.in?.[0] ?? 'db-session',
+        userId: args.where?.userId ?? 'user-1',
+        expiresAt: new Date(Date.now() + 60_000),
+      }]),
+    ),
+  },
   tenant: { findUnique: vi.fn(() => Promise.resolve({ defaultMapName: 'office' })) },
   map: { findFirst: vi.fn(() => Promise.resolve(null)), findUnique: vi.fn(() => Promise.resolve(null)) },
-  membership: { findMany: vi.fn(() => Promise.resolve([])), findFirst: vi.fn(() => Promise.resolve(null)) },
+  membership: {
+    findMany: vi.fn(() => Promise.resolve([])),
+    findFirst: vi.fn(() => Promise.resolve(null)),
+    // The admit gate re-proves the verified tenant; the double stays a member.
+    findUnique: vi.fn(() => Promise.resolve({ role: 'member', expiresAt: null })),
+  },
   presence: { findMany: vi.fn(() => Promise.resolve([])) },
   user: { findUnique: vi.fn(() => Promise.resolve(null)) },
   avatarPack: { findFirst: vi.fn(() => Promise.resolve({ avatars: [{ key: 'business_man' }] })) },
@@ -36,6 +50,7 @@ vi.mock('../audioZones/runtime.js', () => ({
 
 import { completePendingJoin } from './onJoin.completion.js';
 import { MAX_JOIN_TEXT_LENGTH } from './joinFields.js';
+import { WorldAccessRegistry } from './worldAccess.js';
 import type { WorldRoom, Player as PlayerCtor } from '../WorldRoom.js';
 
 type CompletionClient = Parameters<typeof completePendingJoin>[1];
@@ -60,7 +75,7 @@ const PLACEHOLDER_PREFIX = '__unresolved__:';
 const LOG_BUDGET_CHARS = 1_000;
 
 function makeRoom(): WorldRoom {
-  return {
+  const room = {
     prismaForPresence: fakePrisma,
     state: { players: new Map<string, FakePlayer>() },
     lastSeen: new Map(),
@@ -75,6 +90,20 @@ function makeRoom(): WorldRoom {
     tileHeightPx: 32,
     defaultSpawn: { x: 10, y: 10 },
   } as unknown as WorldRoom;
+  room.worldAccess = new WorldAccessRegistry(room);
+  return room;
+}
+
+/** The onAuth entry the admit gate needs for a human session. */
+function registerJoin(room: WorldRoom, identity: string): void {
+  room.worldAccess.register('sid-1', {
+    identity,
+    sessionId: 'db-session',
+    tenantId: 'tenant-1',
+    tenantSlug: 'tenant-1',
+    isNpc: false,
+    zonePrivacyVersion: 1,
+  });
 }
 
 function makeClient(identity: string): CompletionClient {
@@ -82,7 +111,7 @@ function makeClient(identity: string): CompletionClient {
     sessionId: 'sid-1',
     send: vi.fn(),
     view: { add() {}, remove() {}, has: () => false },
-    auth: { identity, isNpc: false, zonePrivacyVersion: 1 },
+    auth: { identity, sessionId: 'db-session', isNpc: false, zonePrivacyVersion: 1 },
   } as unknown as CompletionClient;
 }
 
@@ -98,8 +127,10 @@ beforeEach(() => {
 describe('completePendingJoin logs stay bounded', () => {
   it('for a long identity, name and map name', async () => {
     const options = { name: HUGE, mapName: HUGE, mapId: HUGE };
+    const room = makeRoom();
+    registerJoin(room, HUGE);
 
-    await completePendingJoin(makeRoom(), makeClient(HUGE), options, HUGE, FakePlayer as unknown as typeof PlayerCtor);
+    await completePendingJoin(room, makeClient(HUGE), options, HUGE, FakePlayer as unknown as typeof PlayerCtor);
 
     expect(log.info).toHaveBeenCalledWith(
       '[WorldRoom] Player joined:',
@@ -120,8 +151,10 @@ describe('completePendingJoin logs stay bounded', () => {
   });
 
   it('for a long tenant that names the unresolved placeholder map', async () => {
+    const room = makeRoom();
+    registerJoin(room, 'user-1');
     await completePendingJoin(
-      makeRoom(),
+      room,
       makeClient('user-1'),
       { tenant: HUGE },
       'user-1',
@@ -147,10 +180,12 @@ describe('completePendingJoin logs stay bounded', () => {
   });
 
   it('and leave an ordinary name and identity readable', async () => {
+    const room = makeRoom();
+    registerJoin(room, 'user-1');
     await completePendingJoin(
-      makeRoom(),
+      room,
       makeClient('user-1'),
-      { name: 'Jörg Müller' },
+      { name: 'J\u00f6rg M\u00fcller' },
       'user-1',
       FakePlayer as unknown as typeof PlayerCtor,
     );

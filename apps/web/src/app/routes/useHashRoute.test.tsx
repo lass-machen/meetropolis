@@ -120,3 +120,7 @@ describe('sanitizeTierKey', () => {
     expect(sanitizeTierKey('-team')).toBeUndefined();
   });
 });
+
+it('matches the exact pending route before the verify prefix and discards proof secrets there', () => {
+  expect(parseHashRoute('/verify-pending?token=ignored')).toEqual({ route: 'verify-pending', params: {} });
+});

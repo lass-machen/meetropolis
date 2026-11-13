@@ -31,6 +31,15 @@ vi.mock('../../metrics.js', () => ({
 type FindArgs = { where?: { id?: string; name?: string; slug?: string } };
 let userAvatarId: string | null = null;
 const fakePrisma = {
+  session: {
+    findMany: vi.fn((args: { where?: { id?: { in?: string[] }; userId?: string } }) =>
+      Promise.resolve([{
+        id: args.where?.id?.in?.[0] ?? 'db-session',
+        userId: args.where?.userId ?? 'user-1',
+        expiresAt: new Date(Date.now() + 60_000),
+      }]),
+    ),
+  },
   tenant: {
     findUnique: vi.fn((args: FindArgs) => {
       if (args?.where?.id) return Promise.resolve({ id: 'tenant-a', defaultMapName: 'office' });
@@ -52,6 +61,8 @@ const fakePrisma = {
   membership: {
     findFirst: vi.fn(() => Promise.resolve(null)),
     findMany: vi.fn(() => Promise.resolve([])),
+    // The admit gate re-proves the verified tenant; the double stays a member.
+    findUnique: vi.fn(() => Promise.resolve({ role: 'member', expiresAt: null })),
   },
   presence: { findMany: vi.fn(() => Promise.resolve([])) },
   avatarPack: {
@@ -94,6 +105,7 @@ vi.mock('../audioZones/runtime.js', () => ({
 }));
 
 import { completePendingJoin } from './onJoin.completion.js';
+import { WorldAccessRegistry } from './worldAccess.js';
 import type { WorldRoom, RoomOptions, Player as PlayerCtor } from '../WorldRoom.js';
 import type { Client } from 'colyseus';
 
@@ -121,7 +133,7 @@ interface ClientDouble {
   sessionId: string;
   send: ReturnType<typeof vi.fn>;
   view: unknown;
-  auth: { identity: string; isNpc: boolean; zonePrivacyVersion: number; tenantId?: string };
+  auth: { identity: string; sessionId?: string; isNpc: boolean; zonePrivacyVersion: number; tenantId?: string };
 }
 
 function clientDouble(value: ClientDouble): Client {
@@ -145,7 +157,20 @@ function makeRoom(): { room: WorldRoom; players: Map<string, FakePlayer> } {
     tileHeightPx: 32,
     defaultSpawn: { x: 10, y: 10 },
   } as unknown as WorldRoom;
+  room.worldAccess = new WorldAccessRegistry(room);
   return { room, players };
+}
+
+/** The onAuth entry the admit gate needs for a human session (NPCs need none). */
+function registerJoin(room: WorldRoom, sessionId: string, identity: string): void {
+  room.worldAccess.register(sessionId, {
+    identity,
+    sessionId: `db-${sessionId}`,
+    tenantId: 'tenant-a',
+    tenantSlug: 'auth-a',
+    isNpc: false,
+    zonePrivacyVersion: 1,
+  });
 }
 
 // The uuid of a custom avatar composed inside tenant A. Whoever learns it can
@@ -212,10 +237,17 @@ describe('completePendingJoin: NPCs never carry a custom avatar', () => {
       sessionId: 'sid-human',
       send: vi.fn(),
       view: fakeView(),
-      auth: { identity: 'user-a', isNpc: false, zonePrivacyVersion: 1, tenantId: 'tenant-a' },
+      auth: {
+        identity: 'user-a',
+        sessionId: 'db-sid-human',
+        isNpc: false,
+        zonePrivacyVersion: 1,
+        tenantId: 'tenant-a',
+      },
     });
 
     userAvatarId = LEAKED_ID;
+    registerJoin(room, 'sid-human', 'user-a');
     await completePendingJoin(room, client, baseOptions({ avatarId: LEAKED_ID }), 'user-a', fakePlayerClass);
 
     const player = players.get('sid-human');
@@ -226,11 +258,18 @@ describe('completePendingJoin: NPCs never carry a custom avatar', () => {
   it('falls back to the database avatar when an authenticated join requests a foreign pack', async () => {
     userAvatarId = DEFAULT_ID;
     const { room, players } = makeRoom();
+    registerJoin(room, 'sid-scoped-human', 'user-a');
     const client = clientDouble({
       sessionId: 'sid-scoped-human',
       send: vi.fn(),
       view: fakeView(),
-      auth: { identity: 'user-a', isNpc: false, zonePrivacyVersion: 1, tenantId: 'tenant-a' },
+      auth: {
+        identity: 'user-a',
+        sessionId: 'db-sid-scoped-human',
+        isNpc: false,
+        zonePrivacyVersion: 1,
+        tenantId: 'tenant-a',
+      },
     });
 
     await completePendingJoin(
@@ -251,11 +290,12 @@ describe('completePendingJoin: NPCs never carry a custom avatar', () => {
 
   it('rejects an out-of-scope avatar when no database user exists', async () => {
     const { room, players } = makeRoom();
+    registerJoin(room, 'sid-legacy-human', 'legacy-user');
     const client = clientDouble({
       sessionId: 'sid-legacy-human',
       send: vi.fn(),
       view: fakeView(),
-      auth: { identity: 'legacy-user', isNpc: false, zonePrivacyVersion: 1 },
+      auth: { identity: 'legacy-user', sessionId: 'db-sid-legacy-human', isNpc: false, zonePrivacyVersion: 1 },
     });
 
     await completePendingJoin(

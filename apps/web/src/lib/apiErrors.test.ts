@@ -57,6 +57,15 @@ describe('translateApiError', () => {
         delete translations['apiError.invalid_credentials'];
       }
     });
+
+    it('translates a missing public base URL instead of returning the code', () => {
+      translations['apiError.public_base_url_missing'] = 'Die öffentliche Adresse ist nicht konfiguriert.';
+      try {
+        expect(translateApiError('public_base_url_missing')).toBe('Die öffentliche Adresse ist nicht konfiguriert.');
+      } finally {
+        delete translations['apiError.public_base_url_missing'];
+      }
+    });
   });
 
   describe('malformed / missing bodies never call a string method on a non-string', () => {

@@ -4,12 +4,15 @@ import crypto from 'crypto';
 import { z } from 'zod';
 import { logger } from '../../logger.js';
 import { requireAuth, getTenantFromReq, requireMembership, normalizeEmailForStorage } from '../utils/authHelpers.js';
+import { buildPublicWebLink, requirePublicWebBase } from '../utils/publicLinks.js';
 import { pathParam } from '../utils/requestHelpers.js';
 import { displayNameSchema, invalidNameBodyFor } from '../utils/displayName.js';
 import { establishSession, revokeSessionsForUser } from '../utils/sessionAuth.js';
 import { getTenancyModule } from '../../tenancyLoader.js';
 import { sendIfAvailable } from '../../emailLoader.js';
 import { guestLoginRateLimiter } from '../middleware/rateLimit.js';
+import { credentialRoute } from '../middleware/tenantAccess.js';
+import { revokeTenantAccess } from '../../services/tenantAccessRevocation.js';
 
 type GuestAdminGate =
   | {
@@ -104,17 +107,14 @@ async function sendGuestInviteEmail(
   tenantSlug: string,
   user: { name: string | null; email: string },
   name: string | undefined,
+  baseUrl: string,
   rawToken: string,
   expiresAt: Date,
   normalizedEmail: string,
 ): Promise<string> {
   const tenantRecord = await prisma.tenant.findUnique({ where: { id: tenantId } });
   const slug = tenantRecord?.slug || tenantSlug;
-  // Public base URL: self-hosters set `PUBLIC_BASE_URL` or
-  // `BILLING_PUBLIC_URL`. The brand domain (`*.meetropolis.me`) is only set
-  // in enterprise brand setups, with no fallback in OSS.
-  const baseUrl = process.env.PUBLIC_BASE_URL || process.env.BILLING_PUBLIC_URL || '';
-  const magicLink = baseUrl ? `${baseUrl.replace(/\/$/, '')}/#/guest?token=${rawToken}` : `/#/guest?token=${rawToken}`;
+  const magicLink = buildPublicWebLink(baseUrl, `guest?token=${rawToken}`);
 
   const inviter = await prisma.user.findUnique({
     where: { id: inviterId },
@@ -180,6 +180,9 @@ async function handleCreateGuest(prisma: PrismaClient, req: express.Request, res
   }
 
   const normalizedEmail = normalizeEmailForStorage(email);
+  const baseUrl = requirePublicWebBase(res, 'guests.create');
+  if (!baseUrl) return;
+
   const user = await ensureGuestUser(prisma, normalizedEmail, name);
 
   const upsert = await upsertGuestMembership(prisma, tenant.id, user.id, expiresAt);
@@ -197,6 +200,7 @@ async function handleCreateGuest(prisma: PrismaClient, req: express.Request, res
     tenant.slug,
     user,
     name,
+    baseUrl,
     rawToken,
     expiresAt,
     normalizedEmail,
@@ -260,6 +264,8 @@ async function handleRevokeGuest(prisma: PrismaClient, req: express.Request, res
   // cache. revokeSessionsForUser drops the cache entries with the rows.
   await revokeSessionsForUser(prisma, guestMembership.userId);
   await prisma.membership.delete({ where: { id: membershipId } });
+  // End the guest's open world and AV connections now, not at the next sweep.
+  await revokeTenantAccess(tenant.slug, guestMembership.userId);
 
   res.json({ ok: true });
 }
@@ -336,5 +342,5 @@ export function registerGuestRoutes(app: express.Application, prisma: PrismaClie
   app.delete('/guests/:membershipId', (req, res) => handleRevokeGuest(prisma, req, res));
   // Public, unauthenticated magic-link redemption: throttled per client IP to
   // curb guest-token brute-force (see middleware/rateLimit.ts).
-  app.post('/auth/guest', guestLoginRateLimiter, (req, res) => handleGuestLogin(prisma, req, res));
+  app.post('/auth/guest', credentialRoute, guestLoginRateLimiter, (req, res) => handleGuestLogin(prisma, req, res));
 }

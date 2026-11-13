@@ -4,23 +4,10 @@ import { z } from 'zod';
 import { logger } from '../../logger.js';
 import { requireAuth, getTenantFromReq, requireMembership } from '../utils/authHelpers.js';
 import { pathParam } from '../utils/requestHelpers.js';
-import { displayNameSchema, invalidNameBody, invalidNameBodyFor } from '../utils/displayName.js';
-import { customAvatarPacksDir, deleteCustomAvatarFiles } from '../../services/avatarComposer.js';
-
-/**
- * Remove a user's composed avatar sprite/preview files before the user row (and
- * its CustomAvatar row via cascade) is deleted. A DB cascade never touches the
- * filesystem, so without this the ~2 PNGs per custom avatar would be orphaned.
- * Best-effort — a failure here must not block account deletion.
- */
-async function purgeCustomAvatarFiles(prisma: PrismaClient, userId: string): Promise<void> {
-  try {
-    const ca = await prisma.customAvatar.findUnique({ where: { userId }, select: { uuid: true } });
-    if (ca) await deleteCustomAvatarFiles(customAvatarPacksDir(), ca.uuid);
-  } catch (err) {
-    logger.warn({ event: 'user.delete.avatar_cleanup_failed', userId, error: String(err) });
-  }
-}
+import { displayNameSchema, invalidNameBodyFor } from '../utils/displayName.js';
+import { deleteAccount, MembershipNotFoundError, removeMemberFromTenant } from '../../services/accountDeletion.js';
+import { updateOwnProfile } from './accountProfile.js';
+import { registerInviteRoutes } from './invites.js';
 
 type MembershipRow = Prisma.MembershipGetPayload<Record<string, never>>;
 type UserListRow = Prisma.UserGetPayload<{
@@ -40,35 +27,7 @@ async function handleUpdateMe(prisma: PrismaClient, req: express.Request, res: e
     res.status(401).json({ error: 'unauthorized' });
     return;
   }
-  const { name: rawName, email } = (req.body ?? {}) as { name?: unknown; email?: string };
-  // Only the name is validated: `email` and everything else behave as before.
-  // A null name counts as absent, as it always did.
-  let name: string | undefined;
-  if (rawName !== undefined && rawName !== null) {
-    const parsedName = displayNameSchema.safeParse(rawName);
-    if (!parsedName.success) {
-      res.status(400).json(invalidNameBody(parsedName.error.issues));
-      return;
-    }
-    name = parsedName.data;
-  }
-  if (!name && !email) {
-    res.status(400).json({ error: 'nothing to update' });
-    return;
-  }
-  try {
-    const u = await prisma.user.update({
-      where: { id: auth.userId },
-      data: { name: name ?? undefined, email: email ?? undefined },
-    });
-    res.json({ id: u.id, email: u.email, name: u.name });
-  } catch (e: unknown) {
-    if (e && typeof e === 'object' && 'code' in e && e.code === 'P2002') {
-      res.status(400).json({ error: 'email already in use' });
-      return;
-    }
-    res.status(400).json({ error: 'update failed' });
-  }
+  await updateOwnProfile(prisma, auth.userId, req.body, res);
 }
 
 function loadExportUser(prisma: PrismaClient, userId: string) {
@@ -209,29 +168,6 @@ async function checkSoleOwnership(
   return false;
 }
 
-async function purgeUserAndRelated(prisma: PrismaClient, userId: string): Promise<void> {
-  try {
-    await prisma.presence.deleteMany({ where: { userId } });
-  } catch {}
-  try {
-    await prisma.passwordReset.deleteMany({ where: { userId } });
-  } catch {}
-  try {
-    await prisma.apiToken.deleteMany({ where: { userId } });
-  } catch {}
-  try {
-    await prisma.invite.updateMany({ where: { usedById: userId }, data: { usedById: null } });
-  } catch {}
-  try {
-    await prisma.invite.updateMany({ where: { createdBy: userId }, data: { createdBy: null } });
-  } catch {}
-  try {
-    await prisma.membership.deleteMany({ where: { userId } });
-  } catch {}
-  await purgeCustomAvatarFiles(prisma, userId);
-  await prisma.user.delete({ where: { id: userId } });
-}
-
 async function handleDeleteMe(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
   const auth = requireAuth(req);
   if (!auth) {
@@ -258,59 +194,15 @@ async function handleDeleteMe(prisma: PrismaClient, req: express.Request, res: e
       return;
     }
 
-    logger.info('[Users] Account self-deletion initiated', { userId, email: user.email });
-    await purgeUserAndRelated(prisma, userId);
-    logger.info('[Users] Account deleted successfully', { userId });
+    logger.info({ event: 'user.self_delete.started', userId });
+    await deleteAccount(prisma, userId);
+    logger.info({ event: 'user.self_delete.completed', userId });
 
     res.clearCookie('token', { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production' });
     res.json({ ok: true, message: 'Account deleted successfully' });
   } catch (e) {
-    logger.error('[Users] Account self-deletion failed', e);
+    logger.error({ event: 'user.self_delete.failed', userId, error: e instanceof Error ? e.message : String(e) });
     res.status(500).json({ error: 'deletion failed' });
-  }
-}
-
-async function handleListInvites(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
-  const auth = requireAuth(req);
-  if (!auth) {
-    res.status(401).json({ error: 'unauthorized' });
-    return;
-  }
-  const tenant = getTenantFromReq(req);
-  if (!tenant) {
-    res.status(400).json({ error: 'tenant_required' });
-    return;
-  }
-  const list = await prisma.invite.findMany({ where: { tenantId: tenant.id }, orderBy: { createdAt: 'desc' } });
-  res.json(list);
-}
-
-async function handleDeleteInvite(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
-  const auth = requireAuth(req);
-  if (!auth) {
-    res.status(401).json({ error: 'unauthorized' });
-    return;
-  }
-  const tenant = getTenantFromReq(req);
-  if (!tenant) {
-    res.status(400).json({ error: 'tenant_required' });
-    return;
-  }
-  const code = pathParam(req, 'code');
-  try {
-    const inv = await prisma.invite.findUnique({ where: { code } });
-    if (!inv || inv.tenantId !== tenant.id) {
-      res.status(404).json({ error: 'not found' });
-      return;
-    }
-    if (inv.usedAt) {
-      res.status(400).json({ error: 'already used' });
-      return;
-    }
-    await prisma.invite.delete({ where: { code } });
-    res.json({ ok: true });
-  } catch {
-    res.status(400).json({ error: 'delete failed' });
   }
 }
 
@@ -390,6 +282,11 @@ async function handleUpdateUser(prisma: PrismaClient, req: express.Request, res:
   }
 
   const id = pathParam(req, 'id');
+  if (id === auth.userId) { await updateOwnProfile(prisma, auth.userId, req.body, res); return; }
+  if (req.body && typeof req.body === 'object' && 'email' in req.body) {
+    res.status(403).json({ code: 'SELF_EMAIL_CHANGE_REQUIRED', error: 'Only the account holder can change their email address through a confirmation link.' });
+    return;
+  }
   if (id !== auth.userId) {
     const callerMembership = await requireMembership(req, auth.userId, prisma);
     if (!callerMembership || (callerMembership.role !== 'owner' && callerMembership.role !== 'admin')) {
@@ -412,12 +309,11 @@ async function handleUpdateUser(prisma: PrismaClient, req: express.Request, res:
     res.status(400).json({ error: 'nothing to update' });
     return;
   }
-  const { email, name } = parse.data;
+  const { name } = parse.data;
   try {
-    const normalized = email ? email.trim().toLowerCase() : undefined;
     const user = await prisma.user.update({
       where: { id },
-      data: { email: normalized ?? undefined, name: name ?? undefined },
+      data: { name: name ?? undefined },
     });
     res.json({ id: user.id, email: user.email, name: user.name });
   } catch (e: unknown) {
@@ -493,26 +389,6 @@ async function handleChangeRole(prisma: PrismaClient, req: express.Request, res:
   }
 }
 
-async function purgeUserMembershipData(prisma: PrismaClient, id: string): Promise<void> {
-  try {
-    await prisma.presence.deleteMany({ where: { userId: id } });
-  } catch {}
-  try {
-    await prisma.passwordReset.deleteMany({ where: { userId: id } });
-  } catch {}
-  try {
-    await prisma.apiToken.deleteMany({ where: { userId: id } });
-  } catch {}
-  try {
-    await prisma.invite.updateMany({ where: { usedById: id }, data: { usedById: null } });
-  } catch {}
-  try {
-    await prisma.membership.deleteMany({ where: { userId: id } });
-  } catch {}
-  await purgeCustomAvatarFiles(prisma, id);
-  await prisma.user.delete({ where: { id } });
-}
-
 async function handleDeleteUser(prisma: PrismaClient, req: express.Request, res: express.Response): Promise<void> {
   const auth = requireAuth(req);
   if (!auth) {
@@ -549,17 +425,27 @@ async function handleDeleteUser(prisma: PrismaClient, req: express.Request, res:
   }
 
   try {
-    const exists = await prisma.user.findUnique({ where: { id } });
-    if (!exists) {
-      res.status(404).json({ error: 'not found' });
+    const { accountDeleted } = await removeMemberFromTenant(prisma, { userId: id, tenantId: tenant.id });
+    logger.info({
+      event: 'user.member_removed',
+      userId: id,
+      removedBy: auth.userId,
+      tenantId: tenant.id,
+      accountDeleted,
+    });
+    res.json({ ok: true, accountDeleted });
+  } catch (e) {
+    if (e instanceof MembershipNotFoundError) {
+      res.status(404).json({ error: 'user not found in this tenant' });
       return;
     }
-    await purgeUserMembershipData(prisma, id);
-    logger.info({ event: 'user.deleted', userId: id, deletedBy: auth.userId, tenantId: tenant.id });
-    res.json({ ok: true });
-  } catch (e) {
-    logger.error('[Users] delete failed', e);
-    res.status(400).json({ error: 'delete failed' });
+    logger.error({
+      event: 'user.member_remove_failed',
+      userId: id,
+      tenantId: tenant.id,
+      error: e instanceof Error ? e.message : String(e),
+    });
+    res.status(500).json({ error: 'delete failed' });
   }
 }
 
@@ -567,8 +453,7 @@ export function registerMiscRoutes(app: express.Application, prisma: PrismaClien
   app.patch('/me', (req, res) => handleUpdateMe(prisma, req, res));
   app.get('/users/me/export', (req, res) => handleExportMyData(prisma, req, res));
   app.delete('/users/me', (req, res) => handleDeleteMe(prisma, req, res));
-  app.get('/invites', (req, res) => handleListInvites(prisma, req, res));
-  app.delete('/invites/:code', (req, res) => handleDeleteInvite(prisma, req, res));
+  registerInviteRoutes(app, prisma);
   app.get('/users', (req, res) => handleListUsers(prisma, req, res));
   app.patch('/users/:id', (req, res) => handleUpdateUser(prisma, req, res));
   app.patch('/users/:id/role', (req, res) => handleChangeRole(prisma, req, res));

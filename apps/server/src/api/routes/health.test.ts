@@ -3,6 +3,12 @@
  * client-supplied `identity`, and must only mint tokens for the one
  * LiveKit room the zone orchestrator actually reconciles (`world`).
  * See knowledge/... H4 spec, WP0.
+ *
+ * A LiveKit token belongs to a login session: the route resolves the raw
+ * token from the `auth_token` cookie or the `Authorization: Bearer` header
+ * against the database and takes the identity from that session. A
+ * credential that is not a live session therefore never obtains an SFU
+ * token, and the identity is the session's user, never the client's word.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type express from 'express';
@@ -11,13 +17,16 @@ vi.mock('../../logger.js', () => ({
   logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
-const requireAuthMock = vi.fn();
 const getTenantFromReqMock = vi.fn();
-const requireMembershipMock = vi.fn();
 vi.mock('../utils/authHelpers.js', () => ({
-  requireAuth: (...args: unknown[]) => requireAuthMock(...args),
   getTenantFromReq: (...args: unknown[]) => getTenantFromReqMock(...args),
-  requireMembership: (...args: unknown[]) => requireMembershipMock(...args),
+  // The session reference carried by the LiveKit token is derived from it.
+  getJwtSecret: () => 'test-jwt-secret',
+}));
+
+const validateTenantSessionFreshMock = vi.fn();
+vi.mock('../utils/sessionAuth.js', () => ({
+  validateTenantSessionFresh: (...args: unknown[]) => validateTenantSessionFreshMock(...args),
 }));
 
 const createLivekitTokenMock = vi.fn();
@@ -29,8 +38,24 @@ import { handleLivekitToken, handleReadyz } from './health.js';
 import type { PrismaClient } from '../../generated/prisma/index.js';
 import { MIN_ZONE_PRIVACY_CLIENT_VERSION } from '@meetropolis/shared';
 
-function fakeReq(body: Record<string, unknown>): express.Request {
-  return { body, headers: {} } as unknown as express.Request;
+/** Credential the request helpers present to the route. */
+const SESSION_TOKEN = 'session-token';
+
+/** A live session of a member of the tenant the route resolves. */
+function allowedSession(userId: string, tenantId: string, sessionId = 'db-session-1') {
+  return { status: 'allowed', userId, sessionId, tenantId, access: 'member' };
+}
+
+/** Request that presents the credential as the `auth_token` cookie. */
+function fakeReq(body: Record<string, unknown>, token: string | null = SESSION_TOKEN): express.Request {
+  const cookies: Record<string, string> = {};
+  if (token !== null) cookies.auth_token = token;
+  return { body, headers: {}, cookies } as unknown as express.Request;
+}
+
+/** Request that presents the credential as a bearer token. */
+function fakeBearerReq(body: Record<string, unknown>, token: string = SESSION_TOKEN): express.Request {
+  return { body, headers: { authorization: `Bearer ${token}` } } as unknown as express.Request;
 }
 
 function fakeRes(): express.Response {
@@ -43,18 +68,19 @@ function fakeRes(): express.Response {
 }
 
 function fakePrisma(): PrismaClient {
-  return { $queryRaw: vi.fn().mockResolvedValue([{ ok: 1 }]) } as unknown as PrismaClient;
+  return {
+    $queryRaw: vi.fn().mockResolvedValue([{ ok: 1 }]),
+    membership: { findUnique: vi.fn().mockResolvedValue({ expiresAt: null }) },
+  } as unknown as PrismaClient;
 }
 
 const ORIGINAL_ENV = { ...process.env };
 
 beforeEach(() => {
-  requireAuthMock.mockReset();
   getTenantFromReqMock.mockReset();
-  requireMembershipMock.mockReset();
-  // Default: caller IS a member of the resolved tenant. The membership-gate
-  // suite below overrides this per case.
-  requireMembershipMock.mockResolvedValue({ role: 'member' });
+  validateTenantSessionFreshMock.mockReset();
+  // Default: the caller presents a live session in the resolved tenant.
+  validateTenantSessionFreshMock.mockResolvedValue(allowedSession('user-real', 't1'));
   createLivekitTokenMock.mockReset();
   process.env.LIVEKIT_API_KEY = 'devkey';
   process.env.LIVEKIT_API_SECRET = 'secret';
@@ -66,23 +92,30 @@ afterEach(() => {
 
 describe('handleLivekitToken: identity hardening', () => {
   it('overrides a client-supplied identity with the authenticated user id', async () => {
-    requireAuthMock.mockReturnValue({ userId: 'user-real' });
+    validateTenantSessionFreshMock.mockResolvedValue(allowedSession('user-real', 't1'));
     getTenantFromReqMock.mockReturnValue({ id: 't1', slug: 'acme' });
     createLivekitTokenMock.mockResolvedValue('jwt-token');
 
+    const prisma = fakePrisma();
     const req = fakeReq({ roomName: 'world', identity: 'user-victim' });
     const res = fakeRes();
-    await handleLivekitToken(fakePrisma(), req, res);
+    await handleLivekitToken(prisma, req, res);
 
+    expect(validateTenantSessionFreshMock).toHaveBeenCalledWith(prisma, SESSION_TOKEN, 't1');
     expect(createLivekitTokenMock).toHaveBeenCalledWith(
       expect.objectContaining({ identity: 'user-real', roomName: 'acme:world' }),
     );
     expect(res.type).toHaveBeenCalledWith('text/plain');
     expect(res.send).toHaveBeenCalledWith('jwt-token');
+    // The minted token is bound to the session it was issued for.
+    const tokenArgs = createLivekitTokenMock.mock.calls[0][0] as { metadata: string };
+    const metadata = JSON.parse(tokenArgs.metadata) as Record<string, unknown>;
+    expect(Object.keys(metadata)).toContain('sessionRef');
+    expect(typeof metadata.sessionRef).toBe('string');
   });
 
   it('rejects a roomName other than the single reconciled room', async () => {
-    requireAuthMock.mockReturnValue({ userId: 'user-real' });
+    validateTenantSessionFreshMock.mockResolvedValue(allowedSession('user-real', 't1'));
     getTenantFromReqMock.mockReturnValue({ id: 't1', slug: 'acme' });
 
     const req = fakeReq({ roomName: 'some-other-room', identity: 'user-real' });
@@ -94,19 +127,33 @@ describe('handleLivekitToken: identity hardening', () => {
     expect(createLivekitTokenMock).not.toHaveBeenCalled();
   });
 
-  it('rejects an unauthenticated request before touching LiveKit', async () => {
-    requireAuthMock.mockReturnValue(null);
+  it('rejects a request without a session credential before touching LiveKit', async () => {
+    getTenantFromReqMock.mockReturnValue({ id: 't1', slug: 'acme' });
+
+    const req = fakeReq({ roomName: 'world', identity: 'user-real' }, null);
+    const res = fakeRes();
+    await handleLivekitToken(fakePrisma(), req, res);
+
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(res.json).toHaveBeenCalledWith({ error: 'unauthorized' });
+    expect(validateTenantSessionFreshMock).not.toHaveBeenCalled();
+    expect(createLivekitTokenMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects a request whose credential does not resolve to a login session', async () => {
+    getTenantFromReqMock.mockReturnValue({ id: 't1', slug: 'acme' });
+    validateTenantSessionFreshMock.mockResolvedValue({ status: 'unauthenticated' });
 
     const req = fakeReq({ roomName: 'world', identity: 'user-real' });
     const res = fakeRes();
     await handleLivekitToken(fakePrisma(), req, res);
 
     expect(res.status).toHaveBeenCalledWith(401);
+    expect(res.json).toHaveBeenCalledWith({ error: 'unauthorized' });
     expect(createLivekitTokenMock).not.toHaveBeenCalled();
   });
 
   it('rejects a request with no resolvable tenant', async () => {
-    requireAuthMock.mockReturnValue({ userId: 'user-real' });
     getTenantFromReqMock.mockReturnValue(null);
 
     const req = fakeReq({ roomName: 'world', identity: 'user-real' });
@@ -117,11 +164,26 @@ describe('handleLivekitToken: identity hardening', () => {
     expect(res.json).toHaveBeenCalledWith({ error: 'tenant_required' });
     expect(createLivekitTokenMock).not.toHaveBeenCalled();
   });
+
+  it('refuses to mint a token for a reserved service identity', async () => {
+    getTenantFromReqMock.mockReturnValue({ id: 't1', slug: 'acme' });
+
+    for (const reservedId of ['npc-scout', 'svc-transcriber']) {
+      validateTenantSessionFreshMock.mockResolvedValue(allowedSession(reservedId, 't1'));
+      const req = fakeReq({ roomName: 'world', identity: reservedId });
+      const res = fakeRes();
+      await handleLivekitToken(fakePrisma(), req, res);
+
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith({ error: 'forbidden' });
+    }
+    expect(createLivekitTokenMock).not.toHaveBeenCalled();
+  });
 });
 
-describe('handleLivekitToken: cross-tenant membership gate (A13)', () => {
+describe('handleLivekitToken: tenant membership gate', () => {
   beforeEach(() => {
-    requireAuthMock.mockReturnValue({ userId: 'lobster-owner' });
+    validateTenantSessionFreshMock.mockResolvedValue(allowedSession('lobster-owner', 't-default'));
     // X-Tenant precedence has already forced req.tenant to a FOREIGN tenant.
     getTenantFromReqMock.mockReturnValue({ id: 't-default', slug: 'default' });
     createLivekitTokenMock.mockResolvedValue('jwt-token');
@@ -129,7 +191,7 @@ describe('handleLivekitToken: cross-tenant membership gate (A13)', () => {
 
   it('refuses to mint a token for a tenant the caller is not a member of (403, no token)', async () => {
     // The attacker holds a valid session but no membership in `default`.
-    requireMembershipMock.mockResolvedValue(null);
+    validateTenantSessionFreshMock.mockResolvedValue({ status: 'forbidden', reason: 'membership_unavailable' });
 
     const req = fakeReq({ roomName: 'world', identity: 'lobster-owner' });
     const res = fakeRes();
@@ -141,16 +203,16 @@ describe('handleLivekitToken: cross-tenant membership gate (A13)', () => {
   });
 
   it('mints a token for the own tenant when a membership exists (200)', async () => {
-    requireMembershipMock.mockResolvedValue({ role: 'member' });
-
-    const req = fakeReq({
+    const prisma = fakePrisma();
+    const req = fakeBearerReq({
       roomName: 'world',
       identity: 'lobster-owner',
       zonePrivacyVersion: MIN_ZONE_PRIVACY_CLIENT_VERSION,
     });
     const res = fakeRes();
-    await handleLivekitToken(fakePrisma(), req, res);
+    await handleLivekitToken(prisma, req, res);
 
+    expect(validateTenantSessionFreshMock).toHaveBeenCalledWith(prisma, SESSION_TOKEN, 't-default');
     expect(createLivekitTokenMock).toHaveBeenCalledWith(
       expect.objectContaining({ identity: 'lobster-owner', roomName: 'default:world' }),
     );
@@ -160,7 +222,7 @@ describe('handleLivekitToken: cross-tenant membership gate (A13)', () => {
 
 describe('handleLivekitToken: H4 client zone-privacy version gate', () => {
   beforeEach(() => {
-    requireAuthMock.mockReturnValue({ userId: 'user-real' });
+    validateTenantSessionFreshMock.mockResolvedValue(allowedSession('user-real', 't1'));
     getTenantFromReqMock.mockReturnValue({ id: 't1', slug: 'acme' });
     createLivekitTokenMock.mockResolvedValue('jwt-token');
   });
@@ -173,7 +235,7 @@ describe('handleLivekitToken: H4 client zone-privacy version gate', () => {
     expect(createLivekitTokenMock).toHaveBeenCalledWith(expect.objectContaining({ canPublish: false }));
   });
 
-  it('mints canPublish:false when zonePrivacyVersion is below the minimum, but leaves canSubscribe untouched', async () => {
+  it('mints canPublish:false when zonePrivacyVersion is below the minimum, but keeps canSubscribe true', async () => {
     const req = fakeReq({
       roomName: 'world',
       identity: 'user-real',
